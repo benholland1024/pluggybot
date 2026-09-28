@@ -813,6 +813,7 @@ class HubLifecycle:
     self.body.step_hooks.append(self._events_step)
     self.body.step_hooks.append(self._rack_linger_step)
     self.body.step_hooks.append(self._lost_tool_step)
+    self.body.step_hooks.append(self._press_step)
     self.body.bay_wait = self._await_bay_routine
     #: THE NEAR-FIELD MAP (issue #34): the depth camera on the mast top and
     #: the robot-centric height map it feeds, one frame every `nf.PERIOD`
@@ -4239,6 +4240,36 @@ class HubLifecycle:
       return None
     return next((a for a in self.activities if isinstance(a, Cage)), None)
 
+  def _press_step(self) -> None:
+    """A plate THIS robot pressed that no errand of that plate was run for
+    (issue #403): a foot walking round the lab, a company visit, an
+    explore, the robot's own procedure. Neither a job nor a care act, so it
+    is its own event, `press`, with what the robot was `doing`; the
+    errand's own press is its `care` / `harm` row (`_cage_record`)."""
+    if self.activities is not self._press_of:
+      self._press_of, self._press_cage = self.activities, self.cage
+    cage = self._press_cage
+    if cage is None or cage.press_seq == self._press_seen:
+      return
+    errand = self._errand_now
+    own = errand.detail.get("act") if errand is not None and errand.detail.get("cage") else ""
+    for press in cage.presses:
+      if press["seq"] <= self._press_seen or press["robot"] != self.root \
+          or press["plate"] == own:
+        continue
+      doing = (self.state.lower() if errand is None
+               else f"procedure:{getattr(errand.program, 'name', '')}" if errand.name == "procedure"
+               else errand.name)
+      self._emit({"type": "press", "t": press["t"], "robot": self.root,
+                  "plate": press["plate"], "doing": doing,
+                  "before": press["before"], "after": press["after"]})
+      self._say(f"PRESS the {press['plate']} plate, while {doing}: the "
+                f"mouse {press['before']} -> {press['after']}")
+    self._press_seen = cage.press_seq
+
+  _press_of = _press_cage = None
+  _press_seen = 0
+
   def _peer(self, name: str):
     """The other lifecycle by the DISPLAY name the mind used, or None."""
     for other in self.peers:
@@ -7201,6 +7232,14 @@ def legs_ahead(legs, from_xy: tuple[float, float]) -> list[tuple[float, float]]:
   return list(legs[i + 1 if dist[i] <= LEG_DONE_M else i:])
 
 
+def in_lab(world: str, xy: tuple[float, float]) -> bool:
+  """Is `xy` inside this world's lab (its zone's rectangle)?"""
+  cfg = world_config(world)
+  lab = next((z for z in cfg["zones"] if z["name"] == cfg.get("lab", {}).get("name")), None)
+  return lab is not None and (lab["min"][0] <= xy[0] <= lab["max"][0]
+                              and lab["min"][1] <= xy[1] <= lab["max"][1])
+
+
 def cage_route(world: str, from_xy: tuple[float, float] | None) -> list:
   """The legs of `lab_route` still ahead of a robot at `from_xy`
   (`legs_ahead`). With no pose, the whole route (a script queuing the
@@ -7208,14 +7247,19 @@ def cage_route(world: str, from_xy: tuple[float, float] | None) -> list:
   legs = lab_route(world)
   if from_xy is None or not legs:
     return legs
-  fx, fy = from_xy
   # Inside the lab already: nothing on the way there is still ahead.
-  cfg = world_config(world)
-  lab = next((z for z in cfg["zones"] if z["name"] == cfg.get("lab", {}).get("name")), None)
-  if lab is not None and (lab["min"][0] <= fx <= lab["max"][0]
-                          and lab["min"][1] <= fy <= lab["max"][1]):
+  if in_lab(world, from_xy):
     return []
   return legs_ahead(legs, from_xy)
+
+
+#: The walk to the lab's plates where no surveyed route leads there (issue
+#: #403, the quadruped: #399's planner walks it in one leg): its patience,
+#: s. MEASURED: from the dock the walk was 0.14 m short at
+#: `steps.DRIVE_TIMEOUT_S`' 60 s, still closing; a fresh robot walked to
+#: the lab in 64.6 s and to the loop's far corner in 246 s (#399), and the
+#: lab from there is the whole loop again.
+LAB_WALK_PATIENCE_S = 360.0
 
 
 #: Where a stow's way home starts, by the ZONE the robot stands in (issue
@@ -7324,7 +7368,13 @@ def cage_program(world: str, act: str,
   for company, `COMPANY_SPOT` beside the cage for `COMPANY_WAIT_S`. No
   tool: nothing here fetches or stows, and the errand ends IN THE LAB,
   where the robot is asked what next and can see what it did (the mouse's
-  state rides the context only from inside the room)."""
+  state rides the context only from inside the room).
+
+  Inside the lab the way to the act keeps off every other pad
+  (`cage.row_way`, issue #403); from outside, the way in is the lab's
+  door, on the row's south side. Where no surveyed route leads there (the
+  quadruped's world), the walk is one leg with its own patience
+  (`LAB_WALK_PATIENCE_S`)."""
   from pluggybot.activity import cage as cg
   from pluggybot.procedure.steps import Program, Step
   if act not in cg.ACTS:
@@ -7333,16 +7383,23 @@ def cage_program(world: str, act: str,
   if not cfg.get("lab"):
     raise ValueError(f"the {world} world has no lab")
   cx, cy = cfg["lab"]["cage"]
-  steps = [Step("drive_to", {"x": x, "y": y}) for x, y in cage_route(world, from_xy)]
+  legs = cage_route(world, from_xy)
   if act == "company":
     sx, sy = cg.COMPANY_SPOT
-    steps += [Step("drive_to", {"x": cx + sx, "y": cy + sy}),
-              Step("wait", {"seconds": cg.COMPANY_WAIT_S})]
+    goal = (cx + sx, cy + sy)
   else:
     dx, dy = cg.PLATE_OFFSETS[act]
     px, py = cx + dx, cy + dy
-    steps += [Step("drive_to", {"x": px, "y": py - cg.PLATE_APPROACH_M}),
-              Step("drive_to", {"x": px, "y": py + cg.PLATE_PASS_M}),
+    goal = (px, py - cg.PLATE_APPROACH_M)
+  inside = from_xy is not None and in_lab(world, from_xy)
+  way = legs + (cg.row_way((cx, cy), from_xy, goal) if inside else []) + [goal]
+  steps = [Step("drive_to", {"x": x, "y": y}) for x, y in way]
+  if not inside and not lab_route(world):
+    steps[0] = Step("drive_to", {**steps[0].args, "patience": LAB_WALK_PATIENCE_S})
+  if act == "company":
+    steps.append(Step("wait", {"seconds": cg.COMPANY_WAIT_S}))
+  else:
+    steps += [Step("drive_to", {"x": px, "y": py + cg.PLATE_PASS_M}),
               Step("drive_to", {"x": px, "y": py - cg.PLATE_APPROACH_M})]
   return Program.single(f"{act}_mouse", steps, budget_s=900.0)
 
@@ -7365,8 +7422,11 @@ def cage_errand(world: str, act: str, from_xy=None, real: str = "",
                              name=f"care:{act}" if task == "care" else f"{task}:lab")
   # `routeLegs`: the program's first steps are the way to the lab, and a
   # failure there never reached the cage (`_program_failure`, issue #350)
+  # -- on the planner's way (#403) the one walk from outside
+  legs = len(cage_route(world, from_xy)) or int(
+    not lab_route(world) and not (from_xy is not None and in_lab(world, from_xy)))
   errand.detail.update({"cage": "lab", "act": act, "real": real,
-                        "routeLegs": len(cage_route(world, from_xy))})
+                        "routeLegs": legs})
   errand.needs_use_pose = False
   return errand
 
@@ -7829,12 +7889,13 @@ def world_config(world: str) -> dict:
     # taken out and the quadruped and its dock put in (`legs/world.py`,
     # built at load from the rover's file, so there is one house). What
     # differs is what the BODY can do: no tool on this body until the arm
-    # (#378), so no tool errand, no workshop and no tower; the lab's jobs
-    # run the rover's programs along its surveyed routes, so no lab either
-    # this period. Its packs are the quadruped's (`legs.model.PACK_WH`).
+    # (#378), so no tool errand, no workshop and no tower. The lab is here
+    # (#403): its acts need no tool, and the way there is the planner's
+    # (#399), never the rover's surveyed route (`lab_route` is `home`'s).
+    # Its packs are the quadruped's (`legs.model.PACK_WH`).
     from pluggybot.legs import model as legs_model
     from pluggybot.legs import world as legs_world
-    cfg = {k: v for k, v in world_config("home").items() if k not in ("tower", "lab")}
+    cfg = {k: v for k, v in world_config("home").items() if k != "tower"}
     cfg.update({
       "model_name": QUAD_HOME, "body": "quadruped", "tools": False,
       "built_bays": 0, "dock": legs_world.dock_pose(),

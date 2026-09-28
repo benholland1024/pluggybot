@@ -58,6 +58,27 @@ game (0.6 Wh on a 0.7 Wh cell -- the claim gate prices against a CHARGED
 pack) and ran flat mid-wait at t = 286 s, which makes half the recording a
 dead robot. The hosting pack funds the game and the carries that follow.
 
+### 0.21.0, additive: a plate pressed off its errand (`press`); the lab on legs
+
+pluggybot #403, the first paid job on legs. The lab is in `home_quad` now
+(its `lab_cage` activity and flags were already on the wire: the props are
+the house's), and `feed_mouse` joins that world's `taskKinds` on the
+`autonomous` arm. One event type is new:
+
+- **`press`**: a lab plate pressed with no errand of THAT plate running --
+  a foot walking round the lab, a company visit, an explore, the robot's
+  own procedure. `plate` (`shock` / `feed` / `toy`), `robot` (whose foot or
+  wheel was on the pad, off the contact array), `doing` (the errand's name,
+  `procedure:<its name>`, or the robot's state, lower-cased), and the mouse
+  `before` and `after`. The errand's own presses stay its `care` / `harm`
+  row; a `press` is neither, and it is NOT an act (`ACT_EVENT_TYPES`):
+  nobody chose it.
+
+  ```jsonc
+  {"type": "press", "t": 812.4, "robot": "r2_pluggybot", "plate": "shock",
+   "doing": "care:company", "before": "resting", "after": "on_its_side"}
+  ```
+
 ### 0.21.0, additive: a body with legs (`posture`; `build.body`; the `home_quad` worlds)
 
 pluggybot #387, the first quadruped deploy. Nothing a consumer reads

@@ -60,6 +60,9 @@ verdicts except through the sampler that measures the world.
 """
 
 import math
+from collections import deque
+
+import numpy as np
 
 from pluggybot.activity.base import Activity, MocapToggle, Threshold
 from pluggybot.activity.plate import PLATE_HALF, PLATE_OFF, PLATE_ON, plate_xml
@@ -235,6 +238,63 @@ PLATE_PASS_M = 0.3
 #: How long a company visit stands there. Over `COMPANY_S`, so the visit
 #: registers, and under `steps.MAX_WAIT_S`, so it is one step.
 COMPANY_WAIT_S = 30.0
+#: How far the torso's path keeps off a pad that is not the act's (issue
+#: #403): the quadruped's feet stand 0.26 m from its centre (0.233 m to the
+#: foot's centre, plus its 22 mm radius) and a stride swings them ~0.1 m
+#: further, and the belief was 0.12-0.15 m off the truth at the lab on legs
+#: (0.2 m on a first trip, #393) -- 0.35 + 0.2. A wheel is nearer its
+#: centre than that. The approach lane (`PLATE_APPROACH_M` south of the
+#: row) keeps 0.60 m; the pass keeps 0.80 m off its neighbours.
+ROW_CLEAR_M = 0.55
+
+
+def row_lanes(cage_xy: tuple[float, float]) -> dict[str, float]:
+  """The lanes that keep `ROW_CLEAR_M` off every pad (issue #403): `south`
+  and `north`, the y at or beyond which a path is off the row's band;
+  `west` and `east`, the x of the lanes round its two ends."""
+  cx, cy = cage_xy
+  xs = [cx + dx for dx, _ in PLATE_OFFSETS.values()]
+  ys = [cy + dy for _, dy in PLATE_OFFSETS.values()]
+  reach = PLATE_HALF + ROW_CLEAR_M
+  return {"south": min(ys) - reach, "north": max(ys) + reach,
+          "west": min(xs) - reach, "east": max(xs) + reach}
+
+
+def row_way(cage_xy: tuple[float, float], from_xy: tuple[float, float],
+            to_xy: tuple[float, float]) -> list[tuple[float, float]]:
+  """The waypoints from `from_xy` to `to_xy`, both in the lab and `to_xy`
+  off the row's band, that keep `ROW_CLEAR_M` off every pad (issue #403).
+  The row's two sides meet only round an end, along its lanes -- and north
+  of the row the CAGE parts the room, so a robot there takes the lane on
+  its own side of it and the south side joins the two: MEASURED, a toy
+  run from the company spot sent round the far end walked between the cage
+  and the row, a foot 0.17 m off the feed pad. A start inside the band --
+  only a pass cut short leaves a robot there -- first steps out SOUTH
+  along its own line, across nothing but the pad it stands on, if any.
+  `to_xy` itself is not in the list."""
+  lanes = row_lanes(cage_xy)
+  cx = cage_xy[0]
+  fx, fy = from_xy
+  tx, ty = to_xy
+  out: list[tuple[float, float]] = []
+  if lanes["south"] < fy < lanes["north"]:
+    fy = lanes["south"]
+    out.append((fx, fy))
+
+  def lane(x: float) -> float:
+    return lanes["west"] if x < cx else lanes["east"]
+
+  north_from, north_to = fy >= lanes["north"], ty >= lanes["north"]
+  if north_from and north_to and (fx < cx) == (tx < cx):
+    return out
+  if north_from:
+    down = ty if not north_to else lanes["south"]
+    out += [(lane(fx), fy), (lane(fx), down)]
+    fx, fy = lane(fx), down
+  if north_to:
+    out += [(lane(tx), fy), (lane(tx), ty)]
+  return out
+
 
 #: The one table (see the module docstring): (state, act) -> next state, or
 #: the same state to restart its clock. A pair not listed is no change.
@@ -288,6 +348,13 @@ class Cage(Activity):
                               "act": ""}
     self._company_since: float | None = None
     self._company_done = False
+    #: Every plate press, whose foot or wheel it was and when (issue #403):
+    #: `{"seq", "t", "plate", "robot", "before", "after"}`, newest last.
+    #: The lifecycle reads it to record a press no errand of that plate
+    #: made; `seq` counts them, and a reader keeps the last it saw.
+    self.presses: deque = deque(maxlen=32)
+    self.press_seq = 0
+    self._plated: list[tuple[str, str]] = []     # this tick's (plate, before)
     self.rebind(model, data)
     self.mouse.select(self.state)
     self.set(mouse=self.state, shock=False, feed=False, toy=False,
@@ -298,6 +365,8 @@ class Cage(Activity):
                        for act in self.press}
     self.cage_xy = cage_center(model, self.prefix)
     self.robots = {root: model.body(root).id for root in robot_roots(model)}
+    self.pads = {act: model.geom(f"{self.prefix}_{act}_plate_pad").id
+                 for act in self.press}
     self.mouse = MocapToggle(model, data, f"{self.prefix}_mouse",
                              mouse_poses(self.cage_xy))
     if self.state:
@@ -343,12 +412,36 @@ class Cage(Activity):
                for act in self.press}
     company = self.nearest_robot_m(data) <= COMPANY_M
     self._advance(now, pressed, company)
+    if self._plated:                     # a rising edge this tick: rare
+      for act, before in self._plated:
+        self.press_seq += 1
+        self.presses.append({"seq": self.press_seq, "t": round(now, 3),
+                             "plate": act, "robot": self.presser(model, data, act),
+                             "before": before, "after": self.state})
+      self._plated.clear()
+
+  def presser(self, model, data, act: str) -> str:
+    """The robot whose foot or wheel is on this plate's pad, off the
+    contact array (rooftop #296's reader shape; read at a press, never per
+    step); the nearest robot's root where none touches it."""
+    pad = self.pads[act]
+    g = data.contact.geom[:data.ncon]
+    other = np.concatenate((g[g[:, 0] == pad, 1], g[g[:, 1] == pad, 0]))
+    roots = set(model.body_rootid[model.geom_bodyid[other]].tolist())
+    for root, bid in self.robots.items():
+      if bid in roots:
+        return root
+    px, py = model.body_pos[model.geom_bodyid[pad]][:2]
+    return min(self.robots, default="",
+               key=lambda r: math.hypot(data.xpos[self.robots[r]][0] - px,
+                                        data.xpos[self.robots[r]][1] - py))
 
   # ---- the state machine, pure over (clock, presses, company) ------------------
 
   def _advance(self, now: float, pressed: dict, company: bool) -> None:
     """One tick: the clock, then the acts. Pure over its arguments so a test
     drives it with a fake press and a fake clock (docs/Testing.md)."""
+    self._plated.clear()
     if self.until is not None and now >= self.until:
       _, fallback = CLOCKS[self.state]
       self._enter(fallback, now, act="")
@@ -375,6 +468,8 @@ class Cage(Activity):
 
   def _act(self, act: str, now: float) -> None:
     self.counts[act] += 1
+    if act in self.press:
+      self._plated.append((act, self.state))
     nxt = TRANSITIONS.get((self.state, act))
     if nxt is not None:
       self._enter(nxt, now, act=act)
