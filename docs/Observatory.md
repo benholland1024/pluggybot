@@ -10,6 +10,29 @@ observatory is NOT a result and never enters `results/`.
 
 ## Periods
 
+### A look on legs (#408) — opens when this PR is deployed
+
+**What changed in the world.** A quadruped's `look` goes out from its own
+head camera (`nav_eye`, `Body.head_camera`). On `5c6e6cf` the eye asked
+every body for the rover's `left_eye`, and on legs the KeyError ended the
+served process: 35 exits in the 48 h read on 2026-09-28, each carrying the
+pair on from a save up to 60 sim s old, and three of them, a look repeated
+before the next save, resetting the world from XML (`MAX_RESUMES`: both
+robots at their starts, their maps gone). Read that period's short `runs`
+as crashes, not restarts, and its looks as the cause of them. The robots
+read them the other way round: Luca's notes blame a "rollback loop" for
+eating its looks. Nothing on the wire, in the prompt or in the economy
+moved.
+
+**What the period is for.**
+
+- **The runs are hourly again**: no `vitals: exiting -- KeyError`, no
+  `starting from the start` in the sim's log.
+- **What the robots make of looking now it works.** Every look in the week
+  read came back `none` (no renderer answered), so what a quadruped does
+  with a real picture is not yet seen. Whether the notes written about the
+  "rollback loop" are kept, retired or acted on once it stops.
+
 ### An action that takes no time costs a moment (#400) — opens when this PR is deployed
 
 **What changed in the world.** A decision acted on at the same sim instant

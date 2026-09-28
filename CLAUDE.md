@@ -443,7 +443,9 @@ tolerance spikes are listed in `docs/Rover.md`.
 - **The robot can LOOK at the world as the site draws it, on `autonomous`
   only, and the picture is the sensor** (issue #275; Overseer.md §2h;
   `tests/test_look.py`): `look` is an ACTION; a `look` event with the head
-  camera's pose goes out, the website answers with the `image` inbound kind,
+  camera's pose goes out (⚠ the camera is the BODY's, `Body.head_camera`: a
+  rover name in the loop took the served pair down on legs, #408), the
+  website answers with the `image` inbound kind,
   and the JPEG rides the NEXT turn as `seen`, an image part of the user turn
   (`llm.image_part`). ⚠ The dressing may never contradict the geometry where
   the robot can reach. ⚠ NO CAPTION, EVER: nothing the lifecycle emits says

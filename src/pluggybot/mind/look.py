@@ -54,12 +54,9 @@ import numpy as np
 from pluggybot.mind.inbox import VisitorMessage
 from pluggybot.telemetry.protocol import LOOK_OUTCOMES
 
-#: Who the picture arrives from, in the block the model is shown.
+#: Who the picture arrives from, in the block the model is shown. Which
+#: camera that is, is the body's (`Body.head_camera`, issue #408).
 SENDER = "your head camera"
-#: The head camera's MJCF name, reached through the robot's handle
-#: (`handle.el(CAMERA)`): the one navigation camera on the head, looking
-#: along the body's +x (models/pluggybot_fork.xml).
-CAMERA = "left_eye"
 #: How long the robot stands still for its picture, in sim seconds, and
 #: the deadline: a request the website has not answered by then is `none`.
 #: The site's renderer is a headless browser already following the stream,
