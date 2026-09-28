@@ -129,7 +129,7 @@ PLUGGYWORLD_TOKEN=s3cret MUJOCO_GL=osmesa uv run python scripts/serve.py \
 `serve.py --body quadruped` (`$PLUGGY_BODY`; issue #387) serves the same
 house with the rover taken out and the quadruped and its dock put in: the
 world is `home_quad` (`home_quad_pair` with `--pair`), the errand defaults
-to `none`, and a tool errand is refused -- the body has no arm yet. The
+to `none`, and a tool errand is refused -- its arm takes no tool yet. The
 deployed period flies it with no job offers (`PLUGGY_TASKS` blank, which the
 image otherwise sets) and no upkeep (no `--metabolism`). A `world.npz`
 saved by the rover's world is refused by name, so the first quadruped

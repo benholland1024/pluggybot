@@ -5,9 +5,9 @@ A simulated, hardware-honest robot and the autonomous agent that lives in it.
 six qualities the agent is meant to maximise, and the order of work are in
 `docs/PluggyPlan.md` § "What this project is for" — provisional wording,
 settled direction. **The body has changed**: the served pair are ~10 kg
-quadrupeds (#387, `legs/body.py`), the two-joint arm still to come; the rover
-stays in the repo, and in most tests, until #376's stage C (#375 holds the
-order and the decisions). Before doing anything, read the
+quadrupeds (#387, `legs/body.py`) with #378's two-joint arm on their backs
+(#405), a tool swap still to come; the rover stays in the repo, and in most
+tests, until #376's stage C (#375 holds the order and the decisions). Before doing anything, read the
 doc that owns what you are about to touch:
 
 | doc | what it holds | read it BEFORE |
@@ -235,11 +235,11 @@ tolerance spikes are listed in `docs/Rover.md`.
 | `scripts/determinism_spike.py` | is the world the same world twice? N scripted days hashed, first divergence attributed to GPU / decoder / raycast; `--compare DIR`; `--second-robot X,Y`; `--resume-at T` flies a day against one saved and carried on in a new process (#345) |
 | `scripts/solve.py --feature {tower,bench,mouse}` | ladder A of #264: the hand-written solution to each challenge, flown the way the robot's attempt runs and graded by the feature's own grader; `--at-the-row`, `--pair [--robot 2]`, `--source FILE` (a robot's own procedure); filmstrip `solve.png` |
 | `scripts/board_png.py` | a whiteboard's ink as a PNG from the boards state file or a recording. ⚠ +lat is the viewer's LEFT, as in the site's `surfaces/board.ts`; the test pins it because every figure the pen draws is symmetric |
-| `scripts/quad_spike.py` | the quadruped body (#377; SimNotes "The quadruped body"): `--view` watches it, `--torque`/`--thermal`/`--energy`/`--sweep`/`--pupper` are the sizing tables, `--policy`/`--climb`/`--getup`/`--posture`/`--odometry`/`--determinism` fly a trained policy in OUR physics (`--climb --scan map` on the D435's map, `legs/scan.py`, #388), `--shove` the served body knocked over in the house (what `stuck_after_s` is read off, #389), `--served`/`--rays` time the pair and the sensors |
+| `scripts/quad_spike.py` | the quadruped body (#377; SimNotes "The quadruped body"): `--view` watches it, `--torque`/`--thermal`/`--energy`/`--sweep`/`--pupper` are the sizing tables (on `model.SIZING`, #377's placeholder arm, #405), `--policy`/`--climb`/`--getup`/`--posture`/`--odometry`/`--determinism` fly a trained policy in OUR physics (`--climb --scan map` on the D435's map, `legs/scan.py`, #388), `--shove` the served body knocked over in the house (what `stuck_after_s` is read off, #389), `--served`/`--rays` time the pair and the sensors |
 | `scripts/dock_spike.py` | the quadruped's dock (#378; SimNotes "The quadruped's dock"): `--capture` the funnel's envelope (premises `--sticky`, `--flat`), `--approach [--n N]` the success rate walking in by the board (premise `--blind`), `--hold` lying there: contact, preload, the anchor, standing off; `--view` dockings in the viewer, one after another; `--mouth`/`--bed` fly another width; filmstrip `dock_spike.png` |
 | `scripts/arm_spike.py` | the quadruped's arm, its coupling and the rack (#378; SimNotes "The quadruped's arm, its coupling and the rack"): `--reach` the level-tool choice and the holding torques, `--capture` the coupling's envelope placed at a bay (premises `--rover`, `--narrow`), `--approach [--n N]` walking in by the rack's tags and taking a tool, `--retention [--stairs [--first]\|--fall]` carrying one (`--first`: the fork as first built, 45° V's, the stairs' premise), `--getup` the get-up policy with the arm, `--sensors` what the arm hides, `--envelope` a tool's mass and lever; `--view [fetch\|carry\|stairs\|fall\|reach]` a scene in the viewer, looped until the window closes (MUJOCO_GL unset); filmstrip `arm_spike.png` |
 
-- **The quadruped's training stack lives in `training/`, a uv project of its own** (#377): mjlab 1.5.x (it pins `mujoco ~=3.10.0`, the served sim's), reading the body from `models/quadruped.{xml,json}` (`python -m pluggybot.legs.model` writes both; mjlab caps numpy below pluggybot's, so the two never share an environment). ⚠ Importing `legs.policy` or `legs.model` loads none of torch, jax, warp, onnx or mjlab (`tests/test_legs.py`); a policy reaches the served sim as an `.npz` that `quad_train.export` checks against its ONNX before writing, run by `legs/policy.py` in numpy. ⚠ The leg DRIVERS are MuJoCo's position-mode `dcmotor` (#385; `body_xml(drive="position")`), the PD and the envelope in C, commanded as a GDS68 is (`legs/drivers.py`): every command carries its gains — a policy's are its own, a routine's torque rides a target with the damping cancelled (the torque motor's step to 1e-14), `limp()` holds nothing — so a policy and the scripted routines share one body. The default gains are ONE definition, `actuator.driver_gains`, which `training/` reads from `quadruped.json`. `drive="torque"` (plain motors) is the sizing tables' instrument. `training/pod.sh` rents a Runpod GPU (REST API; `runpodctl pod create` needs a GraphQL-writable key) — ⚠ a POST to `/v1/pods` with an EMPTY body CREATES a pod: every field has a default.
+- **The quadruped's training stack lives in `training/`, a uv project of its own** (#377): mjlab 1.5.x (it pins `mujoco ~=3.10.0`, the served sim's), reading the body from `models/quadruped.{xml,json}` (`python -m pluggybot.legs.model` writes both; mjlab caps numpy below pluggybot's, so the two never share an environment), the arm FIXED at its stow (`quad_train.robot.freeze_arm`, #405: a policy's joints are the legs' twelve, and the arm's geometry is there to fall on). ⚠ Importing `legs.policy` or `legs.model` loads none of torch, jax, warp, onnx or mjlab (`tests/test_legs.py`); a policy reaches the served sim as an `.npz` that `quad_train.export` checks against its ONNX before writing, run by `legs/policy.py` in numpy. ⚠ The leg DRIVERS are MuJoCo's position-mode `dcmotor` (#385; `body_xml(drive="position")`), the PD and the envelope in C, commanded as a GDS68 is (`legs/drivers.py`): every command carries its gains — a policy's are its own, a routine's torque rides a target with the damping cancelled (the torque motor's step to 1e-14), `limp()` holds nothing — so a policy and the scripted routines share one body. The default gains are ONE definition, `actuator.driver_gains`, which `training/` reads from `quadruped.json`. `drive="torque"` (plain motors) is the sizing tables' instrument. `training/pod.sh` rents a Runpod GPU (REST API; `runpodctl pod create` needs a GraphQL-writable key) — ⚠ a POST to `/v1/pods` with an EMPTY body CREATES a pod: every field has a default.
 
 ### The mind (`mind/`; `docs/Overseer.md` is the design)
 
@@ -465,8 +465,10 @@ tolerance spikes are listed in `docs/Rover.md`.
   HISTORY LINE (`lifecycle.procedure_outcome`). ⚠ `fetch` checks the fork
   first. ⚠ `drive_to(x, y, patience=)` (#381): 60 s unsaid, `MAX_PATIENCE_S`
   600, never past the run's own budget (`run_verb(until=)`); an argument with
-  a `default` may be left out. ⚠ A body with no arm has no carrying pose
-  (`travel_pose`): asking for one raised before every walking verb on legs.
+  a `default` may be left out. ⚠ A body's carrying pose is its own
+  (`travel_pose`): the rover's fork arm in, the quadruped's arm folded to its
+  stow, the shoulder first (#405); asking legs for the rover's `arm` raised
+  before every walking verb (#381).
   ⚠ `PROCEDURE_RULE`'s example may not show charge, a battery threshold
   or the rack. ⚠ The site's Procedures section is built off the `procedure`
   event (`library`, `failedLine`; `failedAt` counts verb calls, not lines).
@@ -833,6 +835,20 @@ tolerance spikes are listed in `docs/Rover.md`.
   the stub arrives at once and its senses answer what the test set
   (`holding`, `on_charger`, `attitude`), but time passes only where it holds,
   so a test timing a stand-still subtracts the think slices it stood.
+- **The quadruped's arm is held on every physics step, off `qpos` alone**
+  (issue #405; `legs/arm.py`'s `ArmDriver`, `QuadMission.arm`): at its stow
+  unless a program moved it, folded on a fall and before the rest reflex
+  lies the body down. ⚠ ITS GRAVITY IS THE ARM'S OWN PLANAR MODEL, never the
+  forward pass: a restart forwards the world at the saved instant, where a
+  running world's step reads the kinematics one step old, so a controller
+  reading them EVERY step parts a resumed world at its first step (a policy
+  reads them only at a decision); and three Jacobians 122 columns wide were
+  43 of its 100 us a step (12.5 now). Its joints are the body axes
+  `shoulder`/`elbow` (`axes.BODY_AXES`; `world_facts` gives each body its
+  own) and `move` is a legs verb; the motors' `ctrl` is a TORQUE, so what an
+  axis is held to is `Body.setpoint`. Instruments hold it through
+  `PolicyDriver.step` (unheld, it falls across the nose camera); the
+  torque-driven tables fly `model.SIZING`, #377's placeholder.
 - **A robot's elements are reached through its `RobotHandle`, never by bare
   name** (issue #167; `pluggybot/robot.py`): a second robot is
   `models/pluggybot_fork.xml` ATTACHED with a prefix (`r2_`) in its own LIVERY
