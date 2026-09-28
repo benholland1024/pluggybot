@@ -450,3 +450,35 @@ def test_a_decided_walk_to_a_zone_has_the_decided_patience():
   life.explore_routine = lambda *a, **kw: tick.result(None)
   body.run(life._after_decision_routine(Decision(action="explore", zone="lab")))
   assert seen == [lc.ZONE_PATIENCE_S] and lc.ZONE_PATIENCE_S > 60.0
+
+
+# ---- the walk, flown whole ----------------------------------------------------------
+
+
+@pytest.mark.endurance
+def test_a_fresh_quadruped_walks_to_the_kitchen_by_the_hall():
+  """The integration the rules above are pinned for: a fresh robot at its
+  start pose, an empty map, one look round, and the kitchen (-8.47, 4.03).
+  Before, it walked into the workshop and stood against its wall with the
+  kitchen behind it, `no route` 2.4 m short at 47 s; it arrives by the hall
+  door in 38.6 s (`scripts/unknown_spike.py`, SimNotes "Walking into the
+  unknown"). Behind --endurance (~40 sim s of the walking policy): every
+  rule it exercises is pinned fast in this file."""
+  import mujoco
+  from pluggybot.legs import body as qb
+  from pluggybot.legs import world as lw
+  from pluggybot.lifecycle import world_config
+  cfg = world_config(QUAD_HOME)
+  model = lw.home_spec().compile()
+  data = mujoco.MjData(model)
+  body = qb.QuadBody(model, data, realtime=False, grid_bounds=cfg["grid_bounds"])
+  try:
+    body.start_at(*cfg["start"])
+    hall = []
+    body.step_hooks.append(lambda: hall.append(-5.0 < body.true_pose()[0] < -2.0))
+    body.run(body.look_around_routine())
+    assert body.run(body.go_to_routine(-8.47, 4.03, timeout=120.0)), body.last_drive
+    tx, ty, _ = body.true_pose()
+    assert math.hypot(tx + 8.47, ty - 4.03) < 0.15 and any(hall), "by the hall"
+  finally:
+    body.close()
