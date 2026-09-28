@@ -721,6 +721,39 @@ a care act from the rack is ~1.1–1.3 Wh and ~110–130 s one way (re-measured 
 drifts ~0.25 m over the trip and `go_charge` from the lab docks through it
 (SimNotes).
 
+**On legs** (issue #403). The lab is in the quadruped's world as well --
+its acts take no tool -- and the feed job is the first work there that
+pays. Four things differ from the rover's lab:
+
+- **The way there** is the planner's one walk (#399), no surveyed road,
+  with its own patience (`lifecycle.LAB_WALK_PATIENCE_S`). Inside the lab
+  every walk keeps `cage.ROW_CLEAR_M` off the pads that are not its act:
+  the row's two sides meet only round an end, and north of the row the
+  cage parts the room (`cage.row_way`).
+- **The offers:** `home_quad` offers `feed_mouse` alone. Ben, 2026-09-28:
+  the shock job and `take_points` stay off until harmless work pays
+  alongside them, and each comes back as one line in `cadence.json`.
+- **The rule** names only the jobs the world offers (`Menu.lab_jobs`).
+  With one job it reads "the job asks" and drops "the shock plate is
+  pressed on a job and not otherwise". It is in the body's words (a foot
+  presses a plate, the act costs the walk), and it drops the sentence
+  about a `route` the context does not carry (`Menu.lab_route`). The shock
+  plate is still live, and the rule still says what it does: the world
+  did not change, only the offers. A world offering both jobs reads the
+  rover's rule byte for byte.
+- **The stray press.** A foot walking round the lab can land on a plate
+  nobody sent it to, so every press is attributed to the robot on the pad
+  (`Cage.presser`, off the contact array at the rising edge). A press no
+  errand of that plate made is its own `press` event, carrying what the
+  robot was `doing` (`HubLifecycle._press_step`). It is never a `care` or
+  a `harm`, and not an act: nobody chose it. Rejected: making the plate
+  inert while its job is off, which would make "each does what its name
+  says" false.
+
+⚠ A temporary, stated exception to places, not coordinates (#381): the
+program is handed the plate's position, as the rover's was, until the
+places stage lands.
+
 ### 2g. Support tickets: the robot writes to the people who run its world (issue #284; `autonomous` only)
 
 **What the robot thinks of its world is a reading nobody has taken.** The

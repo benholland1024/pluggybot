@@ -3232,6 +3232,59 @@ the restore (942 samples, `--resume-at 40`). `scripts/unknown_spike.py [--before
 property's rectangle (#381's stage 4), loop closure (stage 3), and what a
 walk into the unknown costs is not yet in any offer (stage 7).
 
+## The feed on legs (issue #403)
+
+The rover's feed program walks on legs, with the rover's pass over the
+plate unchanged: from 0.8 m south of the plate to 0.3 m north and back,
+through the pad, never parked on it (`cage.PLATE_PASS_M`, #287). What
+had to change was the way there and the way round the lab.
+
+**A foot presses the plate, and nothing mistakes it for anything else.**
+The pad stands 21 mm tall, under the depth camera's floor line (30 mm), so
+the quadruped's planner walks over it as floor, and a foot on it is not a
+bump (`_press_now` leaves the feet out). The plate reads pressed at 6 mm
+on 1200 N/m, about 7 N; a standing foot carries about 23 N. Four feet
+cross a 0.4 m pad on the way over and again on the way back, and every
+landing is a rising edge, so one pass is **8 to 17 presses** where the
+rover's was 2. `landed` is a count, and "did it land" is `> 0`.
+
+**The walk there is the planner's, and it needs patience.** No surveyed
+road leads to the lab on legs (`lab_route` is `home`'s), so #399's planner
+walks it in one leg. From the dock that walk was 0.14 m short of its goal
+when the verb's default 60 s ran out, still closing. The first leg now
+carries `LAB_WALK_PATIENCE_S`, 360 s: a fresh robot reached the lab in
+64.6 s and the loop's far corner in 246 s (#399).
+
+**Inside the lab, the way keeps off the other pads.** `cage.row_way`
+keeps the torso `ROW_CLEAR_M` (0.55 m) off every pad but the act's own:
+the feet stand 0.26 m from the torso's centre, a stride swings them about
+0.1 m further, and the belief was 0.12-0.15 m off the truth at the lab.
+The row's two sides meet only round an end. The first probe sent a toy
+run from the company spot round the row's EAST end. The cage stands
+between that spot and the east lane, so the planner walked round the cage
+through the 0.8 m between it and the row, and a foot came 0.17 m off the
+feed pad. North of the row the cage parts the room, so a robot there takes
+the lane on its own side of the cage (`tests/test_lab_on_legs.py` walks
+every act from every place a robot stands in the lab). Flown after the
+fix, from the dock and then round the lab (feed, company, feed, company,
+toy), every act pressed only its own plate. The nearest a foot came to
+another pad was 0.18 m, the shock pad's west edge, walking the west lane
+to keep the mouse company.
+
+**Measured** (`scripts/solve.py --feature mouse --pair --body quadruped`:
+the pair as deployed, the paid job offered, claimed with a prediction,
+walked and graded by `eval_feed`, the other robot standing in the hall):
+
+| from | paid | sim s each | presses of another plate | belief off at the end |
+|---|---|---|---|---|
+| the dock (walked back to it and lain on between) | 10 / 10 | 71-75 | 0 | 0.06 m |
+| inside the lab (after one walk in from the hall) | 10 / 10 | 11-14 | 0 | 0.12-0.13 m |
+
+The pass registered on every walk at the policy's own pace, so it needs
+no slower gait. An act from the dock costs 1.6-1.7 Wh and 68-89 s on
+legs (`economy/energy.json`, `home_quad`), against the rover's 1.1-1.3 Wh
+from the rack: a quadruped walks at about 59 mWh a metre, twice the rover.
+
 ## Debugging workflow that worked
 
 1. Reproduce headlessly with printed telemetry (pose, wheel ω, contact list,
