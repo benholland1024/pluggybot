@@ -231,6 +231,31 @@ def test_the_bill_fits_its_budget_and_is_summed_from_its_lines(fixture):
   assert t["totalUsd"] <= b["budgetUsd"]
 
 
+def test_the_bill_buys_what_the_design_uses(fixture):
+  """A build part's `quantity` is what the design uses (on the robot, the
+  rack, the dock, the rigs); the bill's lines must buy at least that, or a
+  design count raised without a purchase goes unnoticed. The workshop
+  catalog's parts keep their own meaning of `quantity`."""
+  bought = defaultdict(int)
+  for ln in fixture["build"]["lines"]:
+    bought[ln["part"]] += ln["quantity"]
+  for p in fixture["parts"]:
+    if p["shelves"] == ["build"]:
+      assert p["quantity"] > 0, p["id"]
+      assert bought[p["id"]] >= p["quantity"], (p["id"], bought[p["id"]])
+
+
+def test_an_allowance_beside_a_price_is_refused_where_it_is_written(monkeypatch):
+  """The fixture cannot show an allowance written on a priced part (the
+  price wins), so the bill refuses it as it is built."""
+  line = next(ln for ln in catalog.LINES if ln.allowanceEur is None)
+  monkeypatch.setattr(catalog, "LINES", (
+    catalog.Line(line.part, 1, line.group, "now", allowanceEur=9.0,
+                 basis="about that"),))
+  with pytest.raises(ValueError, match="carries its price, not an allowance"):
+    catalog.build()
+
+
 def test_one_part_number_is_one_set_of_facts(fixture):
   """The rover's LIDAR and the quadruped's are one part: an entry per robot
   (each reads its own model), one price and one mass between them."""

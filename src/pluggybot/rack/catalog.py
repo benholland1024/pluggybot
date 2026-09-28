@@ -93,9 +93,12 @@ def _resolve(path: str) -> Any:
   default)."""
   names = path.split(".")
   for i in range(len(names) - 1, 0, -1):
+    mod = "pluggybot." + ".".join(names[:i])
     try:
-      obj = importlib.import_module("pluggybot." + ".".join(names[:i]))
-    except ModuleNotFoundError:
+      obj = importlib.import_module(mod)
+    except ModuleNotFoundError as e:
+      if e.name != mod:
+        raise
       continue
     for name in names[i:]:
       obj = getattr(obj, name)
@@ -570,7 +573,6 @@ PARTS: tuple[Part, ...] = (
            "by users streaming depth with the projector, 3.5 W the USB "
            "budget, the datasheet figure is Parts.md's open decision 10"),
     ),
-
     note="Issue #34: the near-field sensor, so the robot can find things "
          "on the floor the scan plane looks over. Chosen over the D405 "
          "(7-50 cm, but PASSIVE stereo: fails on painted floors and matte "
@@ -1499,7 +1501,7 @@ PARTS: tuple[Part, ...] = (
     "amass_xt90s", "Amass XT90-S anti-spark connector pair", "power",
     "chosen", ("build",), (), partNumber="XT90S",
     source="https://www.mhm-modellbau.de/part-AM-XT90S.php",
-    priceEur=4.05, priceFor="pair", quantity=1, robot="quadruped",
+    priceEur=4.05, priceFor="pair", quantity=3, robot="quadruped",
     why={"massG": "not on the page", "dimensionsMm": "not on the page"},
     note="The pack's lead, the charger's and the bench supply's: the "
          "anti-spark half takes the drivers' inrush as it mates.",
@@ -1530,7 +1532,7 @@ PARTS: tuple[Part, ...] = (
     "chosen", ("build",), (), partNumber="2392 (red), 2393 (black)",
     source="https://www.modellbau-skeries.de/p/silikonkabel-10awg-6mm-x-"
            "1000mm-rot",
-    priceEur=4.40, quantity=1, robot="quadruped",
+    priceEur=4.40, quantity=4, robot="quadruped",
     why={"massG": "not stated per metre", "dimensionsMm": "a metre of 6 mm²"},
     note="The bus from the pack through the fuse and the contactor to the "
          "legs' drivers.",
@@ -1566,7 +1568,7 @@ PARTS: tuple[Part, ...] = (
     partNumber="XB5AS8442",
     source="https://www.reichelt.com/de/en/shop/product/emergency_stop_"
            "switch_harmony_xb5_twist_unlock_22_mm_1_nc-382385",
-    massG=61, priceEur=30.95, quantity=1, robot="quadruped",
+    massG=61, priceEur=30.95, quantity=2, robot="quadruped",
     capabilities={"contact": "1 NC", "mountMm": 22, "ip": "IP66"},
     why={"dimensionsMm": "a 40 mm head on a 22 mm hole"},
     note="One on the robot, one on the bench rig. Eaton's M22 in three "
@@ -1657,7 +1659,7 @@ PARTS: tuple[Part, ...] = (
   Part(
     "quad_frame_plates", "The torso's frame: two 3 mm aluminium side plates, "
     "end caps and cross members", "structure", "chosen", ("build",),
-    ("pluggybot",), robot="quadruped",
+    ("pluggybot",), quantity=1, robot="quadruped",
     feeds=(
       code("legs.model.MassBudget.frame", "kg", "estimated"),
       code("legs.model.CHOSEN.torso", "m", "the torso's half-extents"),
@@ -1690,7 +1692,7 @@ PARTS: tuple[Part, ...] = (
   Part(
     "quad_leg_brackets", "The legs' motor mounts, hip brackets, knee housings "
     "and tube clamps, with their fasteners", "structure", "chosen", ("build",),
-    ("FL_hip", "FL_thigh"), robot="quadruped",
+    ("FL_hip", "FL_thigh"), quantity=1, robot="quadruped",
     feeds=(
       code("legs.model.CHOSEN.hip_out", "m",
            "abduction axis to the leg's plane: half the motor stack and a "
@@ -1760,7 +1762,7 @@ PARTS: tuple[Part, ...] = (
   Part(
     "quad_arm_fork", "The arm's end plate, fork and lean-pad (two prongs, "
     "four 60° V's, two 53° end-ramps), and the parallelogram's three rods",
-    "structure", "chosen", ("build",), (), robot="quadruped",
+    "structure", "chosen", ("build",), (), quantity=1, robot="quadruped",
     feeds=(
       code("legs.arm.ArmSpec.plate_mass", "kg", "estimated"),
       code("legs.arm.ForkSpec.flank_deg", "°", "the V's flanks, for the stairs"),
@@ -1790,7 +1792,7 @@ PARTS: tuple[Part, ...] = (
   Part(
     "quad_tool_peg", "Tool peg, 220 mm: two 6 mm steel conductors on an "
     "insulating bush", "structure", "chosen", ("build",), (),
-    robot="quadruped",
+    quantity=4, robot="quadruped",
     feeds=(
       code("legs.rack.PEG_HALF", "m", "half its 220 mm"),
       code("legs.rack.PEG_MASS", "kg", "the rover's grams a millimetre"),
@@ -1806,7 +1808,7 @@ PARTS: tuple[Part, ...] = (
     source="https://www.dold-mechatronik.de/Aluminum-Profile-30x30L-B-Type-"
            "Groove-8-084kg-m-Customized-Cutting-50-to-6000mm",
     massG=843, dimensionsMm={"width": 30, "height": 30, "length": 1000},
-    priceEur=10.40, quantity=1, robot="quadruped",
+    priceEur=10.40, quantity=7, robot="quadruped",
     feeds=(
       code("legs.rack.RackSpec.peg_z", "m", "the rack's pegs 0.50 m up"),
       code("legs.rack.RackSpec.rail_z", "m", "its rail"),
@@ -1819,14 +1821,14 @@ PARTS: tuple[Part, ...] = (
     partNumber="66918-BSA",
     source="https://www.dold-mechatronik.de/Angle-30-B-type-groove-8-with-"
            "mounting-kit-and-cap",
-    massG=60, priceEur=1.79, quantity=1, robot="quadruped",
+    massG=60, priceEur=1.79, quantity=14, robot="quadruped",
     why={"dimensionsMm": "not recorded"},
     note="€1.79 from ten, €2.20 singly: the bill buys fourteen.",
   ),
   Part(
     "quad_rack_board", "The rack's back board, its six printed V-trays, and "
     "the rack's and the dock's printed tags", "structure", "chosen",
-    ("build",), (), robot="quadruped",
+    ("build",), (), quantity=1, robot="quadruped",
     feeds=(
       code("legs.rack.TRAY_Y", "m", "the trays at ±45 mm"),
       code("legs.rack.RACK_TAG_IDS", "id", "tags 29-34, a pair a bay"),
@@ -1891,7 +1893,7 @@ PARTS: tuple[Part, ...] = (
   Part(
     "quad_cradle_work", "The dock's cradle: the bed and funnel faces cut "
     "from the sheet, on a base", "structure", "chosen", ("build",), (),
-    robot="quadruped",
+    quantity=1, robot="quadruped",
     feeds=(
       code("legs.dock.DockSpec.mouth_half", "m", "the funnel's mouth"),
       code("legs.dock.DockSpec.bed_half", "m", "the bed"),
@@ -1903,7 +1905,7 @@ PARTS: tuple[Part, ...] = (
   Part(
     "quad_pack_materials", "The pack's printed case, fish paper, heat-shrink "
     "and 12S balance lead", "power", "chosen", ("build",), ("pluggybot",),
-    robot="quadruped",
+    quantity=1, robot="quadruped",
     feeds=(code("legs.model.CHOSEN.belly_depth", "m",
                 "the belly pack's depth under the hips"),),
     why={"partNumber": "no design yet", "source": "small parts, not priced",
@@ -1931,7 +1933,7 @@ PARTS: tuple[Part, ...] = (
   Part(
     "quad_bench_mount", "The bench leg's mount: the carriage's plate holding "
     "the hip, and the hop's end stops", "structure", "chosen", ("build",), (),
-    robot="quadruped",
+    quantity=1, robot="quadruped",
     feeds=(code("legs.model.CHOSEN.stand_height", "m",
                 "the hop's travel sized from the standing height"),),
     why={"partNumber": "no design yet", "source": "a laser cutter, once drawn",
@@ -1941,7 +1943,7 @@ PARTS: tuple[Part, ...] = (
   Part(
     "quad_gantry_fittings", "The gantry's fittings: angle brackets and T-nuts "
     "for 40x40 slot 8, and two eye bolts", "fastener", "chosen", ("build",),
-    (), robot="quadruped",
+    (), quantity=1, robot="quadruped",
     why={"partNumber": "not read for 40x40", "source": "Dold, not read",
          "massG": "not read", "dimensionsMm": "slot 8",
          "priceEur": "not read for 40x40"},
@@ -2066,7 +2068,7 @@ PARTS: tuple[Part, ...] = (
     "petg_1kg", "PETG filament, 1.75 mm, 1 kg (DAS FILAMENT)", "structure",
     "chosen", ("build",), (), partNumber="F10765",
     source="https://dasfilament.de/produkt/petg-filament-175-mm-schwarz-1-kg/",
-    massG=1000, priceEur=21.00, quantity=1, robot="quadruped",
+    massG=1000, priceEur=21.00, quantity=3, robot="quadruped",
     why={"dimensionsMm": "a 1 kg spool"},
   ),
   Part(
@@ -2076,7 +2078,7 @@ PARTS: tuple[Part, ...] = (
     source="https://www.dold-mechatronik.de/Aluminum-Profile-40x40L-I-Type-"
            "Groove-8-176kg-m-Customized-Cutting-50-to-6000mm",
     massG=1759, dimensionsMm={"width": 40, "height": 40, "length": 1000},
-    priceEur=18.90, quantity=1, robot="quadruped",
+    priceEur=18.90, quantity=8, robot="quadruped",
     note="€17.90 a metre and €1.00 a cut, so a metre in one piece is "
          "€18.90.",
   ),
@@ -2098,7 +2100,7 @@ PARTS: tuple[Part, ...] = (
     "mammut_magic_sling_120", "Mammut Magic Sling 12.0, 120 cm (22 kN)",
     "equipment", "chosen", ("build",), (), partNumber="314-0107",
     source="https://www.bergfreunde.de/mammut-magic-sling-120-bandschlinge/",
-    priceEur=18.00, quantity=1, robot="quadruped",
+    priceEur=18.00, quantity=2, robot="quadruped",
     capabilities={"breakingKn": 22, "widthMm": 12},
     why={"massG": "not on the page", "dimensionsMm": "a 120 cm sling"},
     note="No harness is sold for a robot: two slings round the torso, fore "
@@ -2456,6 +2458,9 @@ def bom(parts: dict[str, dict]) -> dict:
   for ln in LINES:
     p = parts.get(ln.part, {})
     each = p.get("priceEur")
+    if each is not None and ln.allowanceEur is not None:
+      raise ValueError(f"{ln.part} ({ln.group}): a priced part carries its "
+                       "price, not an allowance")
     lines.append({
       "part": ln.part, "name": p.get("name"), "group": ln.group,
       "quantity": ln.quantity, "priceFor": p.get("priceFor"), "eachEur": each,
@@ -2489,6 +2494,11 @@ def _eur(v: float | None) -> str:
   return "—" if v is None else f"{v:,.2f}"
 
 
+def _cell(text: str) -> str:
+  """Text for a Markdown table cell: a `|` would end the cell."""
+  return text.replace("|", "\\|")
+
+
 #: Parts.md's bill sits between these; `main()` rewrites what is between.
 BOM_START = ("<!-- bom: rendered by `uv run python -m pluggybot.rack.catalog` "
              "from rack/catalog.py's LINES; edit those, not this -->")
@@ -2514,7 +2524,8 @@ def bom_markdown(fixture: dict) -> str:
     rows.append(f"| **{g}** | | | **{_eur(t['byGroup'][g])}** | | |")
     for ln in mine:
       p = parts[ln["part"]]
-      name = f"[{p['name']}]({p['source']})" if p["source"] else p["name"]
+      name = (f"[{_cell(p['name'])}]({p['source']})" if p["source"]
+              else _cell(p["name"]))
       if p["partNumber"]:
         name += f" `{p['partNumber']}`"
       unit = "" if ln["priceFor"] == "each" else f" /{ln['priceFor']}"
@@ -2525,8 +2536,8 @@ def bom_markdown(fixture: dict) -> str:
       feeds = [f"`{f['constant']}`" for f in p["feeds"]]
       if len(feeds) > FEEDS_SHOWN:
         feeds = feeds[:FEEDS_SHOWN] + [f"+{len(feeds) - FEEDS_SHOWN}"]
-      lead = ln["leadTime"] if ln["leadTime"] is not None else \
-        f"unknown: {ln['why']['leadTime']}"
+      lead = _cell(ln["leadTime"] if ln["leadTime"] is not None else
+                   f"unknown: {ln['why']['leadTime']}")
       rows.append(f"| {name} | {ln['quantity']} | {each} | {_eur(ln['lineEur'])} "
                   f"| {lead} | {', '.join(feeds) or '—'} |")
   rows += ["", "| | € | $ |", "|---|---|---|",

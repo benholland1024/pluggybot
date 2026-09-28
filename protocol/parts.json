@@ -3375,7 +3375,7 @@
    "dimensionsMm": null,
    "priceEur": 4.05,
    "priceFor": "pair",
-   "quantity": 1,
+   "quantity": 3,
    "capabilities": {},
    "feeds": [],
    "why": {
@@ -3469,7 +3469,7 @@
    "dimensionsMm": null,
    "priceEur": 4.4,
    "priceFor": "each",
-   "quantity": 1,
+   "quantity": 4,
    "capabilities": {},
    "feeds": [],
    "why": {
@@ -3531,7 +3531,7 @@
    "dimensionsMm": null,
    "priceEur": 30.95,
    "priceFor": "each",
-   "quantity": 1,
+   "quantity": 2,
    "capabilities": {
     "contact": "1 NC",
     "mountMm": 22,
@@ -3787,7 +3787,7 @@
    "dimensionsMm": null,
    "priceEur": null,
    "priceFor": "each",
-   "quantity": 0,
+   "quantity": 1,
    "capabilities": {},
    "feeds": [
     {
@@ -3906,7 +3906,7 @@
    "dimensionsMm": null,
    "priceEur": null,
    "priceFor": "each",
-   "quantity": 0,
+   "quantity": 1,
    "capabilities": {},
    "feeds": [
     {
@@ -4112,7 +4112,7 @@
    "dimensionsMm": null,
    "priceEur": null,
    "priceFor": "each",
-   "quantity": 0,
+   "quantity": 1,
    "capabilities": {},
    "feeds": [
     {
@@ -4210,7 +4210,7 @@
    "dimensionsMm": null,
    "priceEur": null,
    "priceFor": "each",
-   "quantity": 0,
+   "quantity": 4,
    "capabilities": {},
    "feeds": [
     {
@@ -4261,7 +4261,7 @@
    },
    "priceEur": 10.4,
    "priceFor": "each",
-   "quantity": 1,
+   "quantity": 7,
    "capabilities": {},
    "feeds": [
     {
@@ -4302,7 +4302,7 @@
    "dimensionsMm": null,
    "priceEur": 1.79,
    "priceFor": "each",
-   "quantity": 1,
+   "quantity": 14,
    "capabilities": {},
    "feeds": [],
    "why": {
@@ -4330,7 +4330,7 @@
    "dimensionsMm": null,
    "priceEur": null,
    "priceFor": "each",
-   "quantity": 0,
+   "quantity": 1,
    "capabilities": {},
    "feeds": [
     {
@@ -4555,7 +4555,7 @@
    "dimensionsMm": null,
    "priceEur": null,
    "priceFor": "each",
-   "quantity": 0,
+   "quantity": 1,
    "capabilities": {},
    "feeds": [
     {
@@ -4604,7 +4604,7 @@
    "dimensionsMm": null,
    "priceEur": null,
    "priceFor": "each",
-   "quantity": 0,
+   "quantity": 1,
    "capabilities": {},
    "feeds": [
     {
@@ -4703,7 +4703,7 @@
    "dimensionsMm": null,
    "priceEur": null,
    "priceFor": "each",
-   "quantity": 0,
+   "quantity": 1,
    "capabilities": {},
    "feeds": [
     {
@@ -4743,7 +4743,7 @@
    "dimensionsMm": null,
    "priceEur": null,
    "priceFor": "each",
-   "quantity": 0,
+   "quantity": 1,
    "capabilities": {},
    "feeds": [],
    "why": {
@@ -5113,7 +5113,7 @@
    "dimensionsMm": null,
    "priceEur": 21.0,
    "priceFor": "each",
-   "quantity": 1,
+   "quantity": 3,
    "capabilities": {},
    "feeds": [],
    "why": {
@@ -5145,7 +5145,7 @@
    },
    "priceEur": 18.9,
    "priceFor": "each",
-   "quantity": 1,
+   "quantity": 8,
    "capabilities": {},
    "feeds": [],
    "why": {},
@@ -5203,7 +5203,7 @@
    "dimensionsMm": null,
    "priceEur": 18.0,
    "priceFor": "each",
-   "quantity": 1,
+   "quantity": 2,
    "capabilities": {
     "breakingKn": 22,
     "widthMm": 12
