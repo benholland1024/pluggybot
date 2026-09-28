@@ -1972,13 +1972,10 @@ sees the base's linear velocity; what no datasheet gives is randomised
 mass and CoM for the arm).
 
 **Getting up** (`models/quadruped_getup.npz`, `Pluggy-Quad-Getup`, a policy
-of its own; 1500 iterations on a rented RTX 4090, `training/pod.sh`): each
-episode starts lying on the belly pack or dropped from 0.35-0.55 m in a
-random orientation, legs anywhere. Flown in our physics (`--getup`) it
-stands from 20 of 20 random drops (median 0.5 s from release) and from the
-belly in 0.2 s — by driving every joint to its 22 N·m peak: a spring up,
-not a rise, 87 mWh against the scripted fold-and-push's 44. Fine in the
-sim; for hardware, torque and speed penalties should buy a gentler one.
+of its own, trained on a rented GPU with `training/pod.sh`): each episode
+starts lying on the belly pack or dropped from 0.35-0.55 m in a random
+orientation, legs anywhere. It rises rather than springs since #389: "A
+gentler get-up" below has what it takes and how it was trained.
 ⚠ mjlab's `upright` reward reads only the sideways tilt and scores a body
 on its BACK as upright; the task pays for gravity's sign in the body frame.
 
@@ -2467,15 +2464,18 @@ against the placeholder's 9.34, its CoM 21 mm forward and 18 mm up: inside
 the committed policies' randomisation (the torso's mass ±15 %, its CoM
 ±5 cm along and ±3 cm up), which is why they walk it untrained.
 
-**A fall throws the tool, and the arm must fold** (`--fall`, `--getup`).
+**A fall throws the tool, and the arm folds** (`--fall`, `--getup`).
 Pushed over while trotting, the robot throws the tool whatever holds it: a
 gravity seat cannot hold upside down, and a lock would keep the tool on an
 arm the robot is rolling across. Left out at its carry pose, the arm then
-props the robot on its side, and the get-up policy — trained with a
-placeholder arm that collides with nothing — never rolls it. **Folded as
-the torso passes 60°, it stood in 0.4 s.** From 20 random drops with the
-arm folded it stands 20 of 20 (median 0.5 s; the placeholder's 0.6). The
-fold drives the elbow's motor to its 22 N·m peak through the impact.
+props the robot on its side. #377's get-up policy — trained, as #389's is,
+with a placeholder arm that collides with nothing — could not roll it
+there (3 of 6 pushes stayed down), so the arm folds as the torso passes
+60°. #389's rolls it either way: 6 of 6 pushes, standing 1.2–2.0 s after
+it takes over with the arm out and 1.3 s folded; from 20 random drops with
+the arm folded it stands 20 of 20 (median 1.5 s, as with the
+placeholder). The fold drives the elbow's motor to its 22 N·m peak
+through the impact, so whether step 4 keeps it is open again.
 
 **What the arm hides** (`--sensors`). Stowed — the upper arm straight back
 over the torso, the forearm 10° up from it — it hides nothing: no LIDAR ray
@@ -2613,7 +2613,6 @@ trained on. They walk on it within tolerance (numpy → dcmotor):
 | tracking at 0.5 / 1.0 m/s | 0.54 / 1.07 | 0.53 / 1.06 |
 | knee p99.5 / worst RMS at 1.0 m/s, N·m | 7.9 / 4.8 | 7.8 / 4.7 |
 | power at 0.5 / 1.0 m/s, W | 88.1 / 108.9 | 89.0 / 112.1 |
-| get-up from 20 falls; from the belly | 20/20; 0.2 s, 87 mWh | the same |
 | posture, every commanded row | | within 0.1° and 1 mm |
 | legged odometry, 5 seeds | 2.4–4.0 % | 3.3–4.0 % |
 | seeing climbs | | the same, one more 0.10 m flight (3/3) |
@@ -2859,12 +2858,13 @@ lie-down and the stand-up moved from `quad_spike.py` into `legs/posture.py`
 and fly the spike's tables byte for byte.
 
 **Getting up, and the `stuck` death.** Shoved over 48 times in six places
-(the open floor, beside the couch, against the south wall, the hall, the
-kitchen counter, a doorway): 35 falls, 31 up -- median 1.2 s, p95 4.2 s,
-the slowest 13.4 s against the south wall -- and 4 wedged, never up in
-40 s (one upside-down against the couch). So a body that rights itself is
-`stuck` after 20 s down (`QuadBody.stuck_after_s`), not the rover's 2 s,
-and its death line says "fell and could not get up in 20 s".
+(`quad_spike.py --shove`: the open floor, beside the couch, against the
+south wall, the hall, the kitchen counter, a doorway), #389's get-up stood
+from all 37 falls -- median 2.0 s, p95 3.5 s, the slowest 4.6 s. #377's,
+which this deploy flew first, left 4 of 35 wedged upside down and took
+13.4 s once. So a body that rights itself is `stuck` after 20 s down
+(`QuadBody.stuck_after_s`), not the rover's 2 s, and its death line says
+"fell and could not get up in 20 s".
 
 **The LIDAR's plane is over the furniture.** The quadruped's LIDAR sits on
 a rear mast so its plane clears the stowed arm: 0.506 m up. The couch
@@ -3009,6 +3009,76 @@ yet decides who yields.
 how it dies in its own words, and nothing about upkeep where there is none
 (`overseer.mortal_rule`, `for_body`); the constitution's body paragraph is
 swapped for the quadruped's (`constitution.for_body`, asserted).
+
+## A gentler get-up (issue #389)
+
+#377's get-up policy sprang. Paid for every step it stood, the sooner the
+better, it stood from the belly in 0.2 s with a knee at the drivers' 22 N·m
+peak and the torso rising at 1.4 m/s: hard on a gearbox, a hazard to a
+hand (#379's safety section), and it throws #378's arm and a tool. Now
+`Pluggy-Quad-Getup` (`training/quad_train/getup.py`) pays the STAND (the
+height and the pose) only from 2 s after the release (`BUDGET_S`), so
+standing sooner earns nothing, and it charges for getting up hard: each
+joint's torque past the motor's continuous rating (6.71 N·m; squared, in
+ratings) and harder past 60 % of the peak (13.2 N·m), the joints' speed and
+acceleration, the torso rising faster than 0.25 m/s, and the action's rate.
+The charges start at a tenth of their weight and reach it at iteration 900
+(`GENTLE_STAGES`). Being the right way up pays from the release.
+
+**The committed policy** (2000 iterations, 37 min on a rented RTX 4090
+beside two other runs) against #377's and the scripted fold-and-push, in
+our physics (`quad_spike.py --getup`, `--shove`; stood is the served
+body's own test):
+
+| | scripted | #377's | #389's |
+|---|---|---|---|
+| from the belly: stood in | 2.2 s | 0.2 s | 1.5 s |
+| ... peak torque, abduction / flexion / knee, N·m | 2.2 / 0.9 / 5.9 | 3.0 / 13.4 / 22.0 | 5.3 / 8.6 / 10.1 |
+| ... the torso's fastest rise, m/s | | 1.43 | 0.21 |
+| ... energy to the stand, mWh | 44 | 23 | 31 |
+| #377's 20 drops: stood | | 20 | 20 |
+| ... first touch to stood, median (longest), s | | 0.3 (0.8) | 1.3 (2.4) |
+| ... past 60 % of the peak after the landing | | 10 | 1 (14.2 N·m) |
+| 100 fresh drops: stood | | 100 | 100 |
+| ... past 60 %: in the air / the landing / after it | | 80 / 96 / 62 | 78 / 35 / 7 |
+| the house, shoved 48 times: fell / up | | 37 / 32 | 37 / 37 |
+| ... fall to standing, median (slowest), s | | 1.2 (28.0) | 2.0 (4.6) |
+| ... peak after the landings, N·m | | 22.0 | 14.1 |
+
+"The landing" is the first 0.3 s after anything touches the floor
+(`LANDING_S`). #377's 87 mWh was the whole 6 s trial, 5.8 s of it standing
+still; to the stand its spring cost 23 mWh, less than the scripted routine
+because it was short, and the rise costs 31.
+
+**Held back to 2 s, being right way up never learned to roll.** With
+`belly_down` gated like the stand, three runs (the ramp; full charges from
+the first iteration; three times the charge past 60 %) rose gently from
+the belly by iteration 1000 (0.9–1.2 s at 10.5–11.5 N·m) and stood from
+at most 16 of 20 drops, every failure on its back to the end. In the house
+the ramped run got up from 9 of 37 shoves, and those traced lay on their
+backs: the shove's spin flips the body, and one settled from its side onto
+its back, the state its charges made cheapest.
+#377's rolls were flips, upside down to upright in 0.2 s with up to three
+joints briefly past 60 %, and a policy learning to stand while its charges
+rose never found one. Paid from the release (on its side a quarter, on its
+back nothing), the roll came from scratch by iteration 1350. A warm start
+from #377's actor under the same rewards kept its roll too (20 of 20 at
+each checkpoint flown) and was not needed. Full charges from the first
+iteration also learned to stand (16 of 20 by iteration 1000, as the ramp
+did), so the ramp is not what makes it stand.
+
+**The landing is the policy's own aim.** At the worst moment of each of
+#377's landings past 60 % (19 of #377's 20 drops) the PD's stiffness term
+(where the policy aims the joint) was the larger, not its damping term
+(the joint's speed): it sprang at the floor too. The committed policy's
+landings pass 60 % in 35 of 100. What is left in the air is each drop's
+start, the joints at random angles and the first targets swinging them into
+place, which no fall on the robot starts from. After the landing, 7 of 100
+pass it: five in its tail, 0.31–0.38 s after the touch, the damping term
+the larger in four, and two rolling off the back (13.3 and 15.4 N·m).
+
+**An arm left out no longer stops it** (#378's section, "A fall throws
+the tool, and the arm folds").
 
 ## Debugging workflow that worked
 

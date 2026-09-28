@@ -344,16 +344,17 @@ def test_the_fork_and_the_trays_share_one_peg_with_room_between():
 
 # ---- falls ---------------------------------------------------------------------------
 
-@pytest.mark.parametrize("reflex, stands", [(True, True), (False, False)])
-def test_a_robot_pushed_over_with_a_tool_stands_only_if_its_arm_folds(reflex, stands):
+@pytest.mark.parametrize("reflex", [True, False])
+def test_a_robot_pushed_over_with_a_tool_throws_it_and_stands_arm_folded_or_not(reflex):
   # Pushed over while trotting with a tool, it throws the tool either way
   # (a gravity seat cannot hold it upside down). Its arm left out at the
-  # carry pose props it on its side, and the get-up policy -- trained with
-  # a placeholder arm that collides with nothing -- cannot roll it; folded
-  # as the torso passes 60 deg (the fall reflex), it stands.
-  r = sp.fall(reflex=reflex, getup_s=3.0)
+  # carry pose props it on its side: #377's get-up could not roll it, which
+  # is why the arm folds as the torso passes 60 deg (the fall reflex).
+  # #389's rolls it either way; a get-up that cannot makes the fold
+  # necessary again.
+  r = sp.fall(reflex=reflex, getup_s=4.0)
   assert not r["tool_on_fork"]
-  assert (r["stood"] is not None) is stands
+  assert r["stood"] is not None
   assert am.FOLD_ON_FALL_COS == pytest.approx(0.5)
 
 

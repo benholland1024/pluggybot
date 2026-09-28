@@ -169,10 +169,10 @@ class ArmSpec:
 #: spike's `--sensors`).
 CARRY = (0.40, 0.40)
 #: The fall reflex: past this tilt of the torso's up axis (60 deg, the
-#: body's FALLEN) the arm folds to its stow. Held out in its carry pose it
-#: props the fallen robot on its side and the get-up policy -- trained with
-#: a placeholder arm that collides with nothing -- cannot roll it (flown:
-#: folded, it stood in 0.5 s; held out, never).
+#: body's FALLEN) the arm folds to its stow. It was what let #377's get-up
+#: roll the robot -- held out, the arm props it on its side, and 3 of 6
+#: pushes stayed down; #389's get-up rolls it either way (SimNotes, "A
+#: gentler get-up").
 FOLD_ON_FALL_COS = math.cos(math.radians(60.0))
 
 #: THE TOOL ENVELOPE a tool on this coupling must fit (the workshop's

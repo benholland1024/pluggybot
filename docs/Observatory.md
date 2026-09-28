@@ -10,6 +10,28 @@ observatory is NOT a result and never enters `results/`.
 
 ## Periods
 
+### The get-up rises (#389) — opens when this PR is deployed
+
+**What changed in the world.** The quadruped's get-up policy is retrained
+to rise rather than spring (SimNotes, "A gentler get-up"). #377's stood
+from its belly in 0.2 s with a knee at the drivers' 22 N·m peak and met
+its landings at the peak; the new one stands from the belly in 1.5 s at
+10.1 N·m and stays under 60 % of the peak once a landing is over in all
+but a few falls. In the house, shoved over 48 times, it stood from all 37
+falls (#377's left 5 of 37 down after 40 s), median 2.0 s against 1.2,
+slowest 4.6 s. `stuck_after_s` stays 20 s. Nothing in the mind, the
+prompt, the wire or the economy moved; the header's `getup` policy hash
+and the world hash change with the file.
+
+**What the period is for.** Falls and the `stuck` deaths after them,
+against the first quadruped period: `stuck` should become rare (none of
+the flown falls stayed down), and a fall lasts about twice as long in
+posture `getting_up`. A `stuck` death on this build is a fall the flown
+test did not make, and worth reading: `death.at` says where it lay.
+
+**Not yet known.** Falls the six shove places do not make: on the stairs
+(#388), in the garden, against the other robot.
+
 ### The first quadruped period: no offers, no upkeep (#387) — opens when this PR is deployed
 
 **What changed.** The robots are quadrupeds (#377's body, walking on its

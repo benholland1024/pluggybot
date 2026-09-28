@@ -937,45 +937,176 @@ def posture(path) -> None:
           f"{math.degrees(r):7.1f} ({math.degrees(twist.roll):5.1f}) {vx:5.2f}")
 
 
+#: A drop's landing, s from its first touch, reported apart from what
+#: follows: the legs meet the floor wherever the fall threw them. What peaks
+#: in it is still mostly the policy's own target -- the drivers' stiffness
+#: term, not the impact's speed: #377's policy passed 60 % of the peak in
+#: 19 of 20 landings, the stiffness term the larger in all 19 (#389).
+LANDING_S = 0.3
+
+
+def getup_drops(trials: int = 20, seed: int = 0) -> list[tuple]:
+  """#377's random drops, drawn in its order: (roll, pitch, yaw, twelve
+  joint angles), the joints anywhere within 90 % of their range."""
+  lo, hi = mujoco.MjModel.from_xml_string(body_xml(CHOSEN)).jnt_range[1:13].T
+  rng = np.random.default_rng(seed)
+  return [(rng.uniform(-math.pi, math.pi), rng.uniform(-math.pi / 2, math.pi / 2),
+           rng.uniform(-math.pi, math.pi), rng.uniform(lo * 0.9, hi * 0.9))
+          for _ in range(trials)]
+
+
+def getup_trial(path, drop: tuple | None = None, seconds: float = 6.0) -> dict:
+  """One get-up in our physics: from lying on the belly, or dropped from
+  0.45 m as `drop` says (`getup_drops`). Stood is the served body's test
+  (`legs.posture`: right way up at the standing height, held), and every
+  time is from the release:
+
+    stood       when the held stand began, or None
+    up          the stand-up: s from the first touch to `stood`
+    wh          the legs' energy to `stood`
+    peak        |torque| by joint over the whole flight, N*m
+    peak_after  ...from `LANDING_S` past the first touch (the belly: all)
+    vz          the torso's fastest rise over the same span, m/s"""
+  model, data, drv = _policy_world(path, key=1 if drop is None else 0)
+  if drop is not None:
+    data.qpos[:7] = [0, 0, 0.45, *_rpy_quat(*drop[:3])]
+    data.qpos[7:19] = drop[3]
+    mujoco.mj_forward(model, data)
+  floor, dt = model.geom("floor").id, model.opt.timestep
+  meter = Meter(CHOSEN, model, data)
+  out = {"stood": None, "up": None, "wh": None, "peak_after": np.zeros(12), "vz": 0.0}
+  touch = 0.0 if drop is None else None
+  held, began, began_wh = 0.0, None, 0.0
+  while data.time < seconds:
+    drv.step(Twist())
+    meter.bill()
+    t, z = data.time, float(data.qpos[2])
+    if touch is None and (data.contact.geom[:data.ncon] == floor).any():
+      touch = t
+    if touch is not None and t >= touch + (LANDING_S if drop is not None else 0.0):
+      np.maximum(out["peak_after"], np.abs(data.actuator_force[:12]), out=out["peak_after"])
+      out["vz"] = max(out["vz"], float(data.qvel[2]))
+    if out["stood"] is not None:
+      continue
+    if (data.xmat[drv.root][8] > moves.UPRIGHT_COS
+            and abs(z - CHOSEN.stand_height) < moves.STAND_TOL_M):
+      if held == 0.0:
+        began, began_wh = t, meter.wh
+      held += dt
+    else:
+      held = 0.0
+    if held >= moves.STOOD_HOLD_S:
+      out.update(stood=began, up=max(0.0, began - touch), wh=began_wh)
+  out["peak"] = meter.peak.copy()
+  return out
+
+
+def _afk(peak: np.ndarray) -> np.ndarray:
+  """Twelve joints' peaks as the worst abduction, flexion and knee."""
+  return peak.reshape(4, 3).max(axis=0).round(1)
+
+
 def getup(path, trials: int = 20, seconds: float = 6.0) -> None:
-  """The get-up policy in our physics: dropped from 0.45 m in a random
-  orientation with its joints anywhere in range, and from the belly. Stood
-  means right way up, within 4 cm of the standing height, for half a
-  second."""
-  rng = np.random.default_rng(0)
-  results = []
-  for trial in range(trials + 1):
-    lying = trial == trials
-    model, data, drv = _policy_world(path, key=1 if lying else 0)
-    if not lying:
-      r, p, y = rng.uniform(-math.pi, math.pi), rng.uniform(-math.pi / 2, math.pi / 2), \
-        rng.uniform(-math.pi, math.pi)
-      q = _rpy_quat(r, p, y)
-      data.qpos[:7] = [0, 0, 0.45, *q]
-      lo, hi = model.jnt_range[1:13].T
-      data.qpos[7:19] = rng.uniform(lo * 0.9, hi * 0.9)
-      mujoco.mj_forward(model, data)
-    meter = Meter(CHOSEN, model, data)
-    held, stood_at = 0.0, None
-    while data.time < seconds:
-      drv.step(Twist())
-      meter.bill()
-      up = -(data.xmat[drv.root].reshape(3, 3).T @ [0, 0, 1])[2] < -0.95
-      high = abs(data.qpos[2] - CHOSEN.stand_height) < 0.04
-      held = held + model.opt.timestep if (up and high) else 0.0
-      if held >= 0.5 and stood_at is None:
-        stood_at = data.time - 0.5
-    results.append(("belly" if lying else f"fall {trial}", stood_at, meter.wh,
-                    meter.peak.reshape(4, 3).max(axis=0)))
-  falls = [r for r in results if r[0] != "belly"]
-  ok = [r for r in falls if r[1] is not None]
-  print(f"from a random fall: stood {len(ok)} of {len(falls)}; median "
-        f"{np.median([r[1] for r in ok]) if ok else float('nan'):.1f} s; "
-        f"peak a/f/k {np.max([r[3] for r in falls], axis=0).round(1)} N*m")
-  belly = results[-1]
-  print("from the belly: " + (f"stood in {belly[1]:.1f} s, {belly[2] * 1000:.0f} mWh"
-                                if belly[1] is not None else "DID NOT STAND")
-        + f"; peak a/f/k {belly[3].round(1)} N*m")
+  """The get-up policy in our physics, from `trials` random drops and from
+  the belly (`getup_trial` says what each number is)."""
+  falls = [getup_trial(path, d, seconds) for d in getup_drops(trials)]
+  belly = getup_trial(path, None, seconds)
+  ok = [r for r in falls if r["stood"] is not None]
+  worst = max(range(len(falls)), key=lambda k: falls[k]["peak_after"].max())
+  print(f"from a random fall: stood {len(ok)} of {len(falls)}"
+        + (f", median {np.median([r['stood'] for r in ok]):.1f} s from the release "
+           f"(slowest {max(r['stood'] for r in ok):.1f})" if ok else ""))
+  if ok:
+    ups = [r["up"] for r in ok]
+    print(f"  the stand-up, first touch to stood: median {np.median(ups):.1f} s, "
+          f"shortest {min(ups):.1f} s, longest {max(ups):.1f} s")
+  after = np.max([r["peak_after"] for r in falls], axis=0)
+  print(f"  peak a/f/k over the flight {_afk(np.max([r['peak'] for r in falls], axis=0))} "
+        f"N*m; from {LANDING_S} s after the landing {_afk(after)} N*m (the worst, "
+        f"fall {worst}); fastest rise {max(r['vz'] for r in falls):.2f} m/s")
+  if ok:
+    print(f"  energy to the stand: median {np.median([r['wh'] for r in ok]) * 1000:.0f} mWh")
+  if belly["stood"] is None:
+    print(f"from the belly: DID NOT STAND; peak a/f/k {_afk(belly['peak'])} N*m")
+    return
+  print(f"from the belly: stood in {belly['stood']:.1f} s, "
+        f"{belly['wh'] * 1000:.0f} mWh to the stand; peak "
+        f"a/f/k {_afk(belly['peak'])} N*m; fastest rise {belly['vz']:.2f} m/s")
+
+
+#: Where `--shove` pushes the served body over, (x, y, heading) in the
+#: house: the open floor, beside the couch, against the south wall, the
+#: hall, the kitchen counter, a doorway (#387's six).
+SHOVE_SPOTS = {"open": (1.5, 0.5, 1.57), "couch": (3.9, 1.3, 1.57),
+               "south wall": (2.0, -1.55, 0.0), "hall": (-3.5, -2.0, 1.57),
+               "counter": (-8.0, 4.5, 0.0), "doorway": (-1.9, -0.5, 3.14)}
+#: A shove that has not put the body down in this long was not a fall, s.
+SHOVE_FALL_S = 3.0
+
+
+def shove(path=None, per_spot: int = 8, seed: int = 7, limit_s: float = 40.0) -> None:
+  """The served body in the house, standing, shoved `per_spot` times at each
+  of `SHOVE_SPOTS` (a random kick to the torso's speed and spin): how long
+  from the fall to standing again, by the body's own posture machine, and
+  how many were still down after `limit_s`. `QuadBody.stuck_after_s` is
+  read off it. The torque peak is from `LANDING_S` after the landing -- the
+  first touch of anything but a foot, which comes a few tenths after the
+  fall is called at 60 deg. `path` flies a get-up policy other than the
+  committed one."""
+  from pluggybot.home import world as home
+  from pluggybot.legs import body as qb
+  from pluggybot.legs import world as lw
+  if path is not None:
+    qb.policies()
+    qb._POLICIES["getup"] = WalkingPolicy(path)
+  model = lw.home_spec().compile()
+  data = mujoco.MjData(model)
+  body = qb.QuadBody(model, data, realtime=False, grid_bounds=home.GRID_BOUNDS)
+  mis, v = body.mission, body.handle.dof_adr(model)
+  act = mis.drivers.act
+  own = np.zeros(model.ngeom, dtype=bool)
+  own[mis.body_gids] = True
+  rng = np.random.default_rng(seed)
+  ups, never, spots = [], [], {}
+  peak, whole = np.zeros(12), np.zeros(12)
+  for name, (x, y, yaw) in SHOVE_SPOTS.items():
+    for _ in range(per_spot):
+      body.start_at(x, y, yaw)
+      body.run(mis._drive_routine(0.5, 0.0, 0.0))
+      data.qvel[v:v + 3] += rng.uniform([-1.5, -2.5, 0.5], [1.5, 2.5, 1.5])
+      data.qvel[v + 3:v + 6] += rng.uniform([-14, -14, -3], [14, 14, 3])
+      t0, fell, landed, up = float(data.time), None, None, None
+      while data.time - t0 < limit_s and up is None:
+        body.run(body.hold_routine(0.02))
+        if fell is None and mis.posture == qb.GETTING_UP:
+          fell = float(data.time)
+        elif fell is None and data.time - t0 > SHOVE_FALL_S:
+          break
+        if fell is not None and landed is None:
+          g = data.contact.geom[:data.ncon]
+          if ((mis._is_limb[g[:, 0]] & ~own[g[:, 1]])
+                  | (mis._is_limb[g[:, 1]] & ~own[g[:, 0]])).any():
+            landed = float(data.time)
+        if fell is not None:
+          np.maximum(whole, np.abs(data.actuator_force[act]), out=whole)
+        if landed is not None and data.time - landed >= LANDING_S:
+          np.maximum(peak, np.abs(data.actuator_force[act]), out=peak)
+        if fell is not None and mis.posture == qb.STANDING:
+          up = float(data.time) - fell
+      if fell is None:
+        continue
+      spots.setdefault(name, []).append(up)
+      (ups if up is not None else never).append(up)
+  print(f"shoved {per_spot * len(SHOVE_SPOTS)} times, fell {len(ups) + len(never)}: "
+        f"up {len(ups)}, still down after {limit_s:.0f} s {len(never)}")
+  if ups:
+    print(f"  fall to standing: median {np.median(ups):.1f} s, p95 "
+          f"{np.percentile(ups, 95):.1f} s, slowest {max(ups):.1f} s")
+  for name, xs in spots.items():
+    got = [u for u in xs if u is not None]
+    print(f"  {name:11s} {len(got)}/{len(xs)} up" + (f", slowest {max(got):.1f} s" if got else ""))
+  print(f"  peak a/f/k from each fall on {_afk(whole)} N*m; from {LANDING_S} s "
+        f"after each landing {_afk(peak)} N*m")
 
 
 def _rpy_quat(r: float, p: float, y: float) -> list[float]:
@@ -1132,7 +1263,8 @@ def main(argv=None) -> None:
                        "4 and 10 up and 10 down")
   ap.add_argument("--scan", choices=SCANS, default="ideal",
                   help="--climb: a seeing policy's scan source (legs/scan.py)")
-  ap.add_argument("--trials", type=int, default=5, help="--climb: trials a case")
+  ap.add_argument("--trials", type=int, default=None,
+                  help="--climb: trials a case (5); --getup: random drops (20)")
   ap.add_argument("--risers", default=None,
                   help="--climb: comma-separated riser heights, m")
   ap.add_argument("--jobs", type=int, default=1, help="--climb: processes")
@@ -1140,6 +1272,10 @@ def main(argv=None) -> None:
                   help="a posture policy holding commanded heights and tilts")
   ap.add_argument("--getup", default=None, metavar="NPZ",
                   help="a get-up policy from random falls and from the belly")
+  ap.add_argument("--shove", nargs="?", const="", default=None, metavar="NPZ",
+                  help="the served body shoved over at six places in the house: "
+                       "the get-up's time and the ones still down (default: "
+                       "the committed get-up policy)")
   ap.add_argument("--odometry", nargs="?", const=str(POLICY_NPZ), default=None,
                   help="legged odometry's drift on the course, the policy walking")
   ap.add_argument("--pupper", action="store_true",
@@ -1155,10 +1291,12 @@ def main(argv=None) -> None:
     print(json.dumps(trace_policy(args.trace)))
   elif args.climb:
     risers = tuple(float(r) for r in args.risers.split(",")) if args.risers else None
-    climb(args.climb, **({"risers": risers} if risers else {}), trials=args.trials,
+    climb(args.climb, **({"risers": risers} if risers else {}), trials=args.trials or 5,
           scan=args.scan, jobs=args.jobs)
   elif args.getup:
-    getup(args.getup)
+    getup(args.getup, trials=args.trials or 20)
+  elif args.shove is not None:
+    shove(args.shove or None)
   elif args.posture:
     posture(args.posture)
   elif args.odometry:
