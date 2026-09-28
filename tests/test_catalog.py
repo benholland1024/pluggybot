@@ -13,9 +13,13 @@ What these hold down:
      and a reason for a number that is known is a stale excuse.
   4. NO FEED IS TYPED: the syntax tree is walked for a `Feed(...)` whose
      value is a literal.
+  5. THE BILL IS THE DATA (issue #379): Parts.md's bill of materials is
+     rendered from `LINES`, every line is a price off its part or an
+     allowance with its basis, and the total is summed, never typed.
 """
 
 import ast
+from collections import defaultdict
 import json
 from pathlib import Path
 
@@ -126,7 +130,10 @@ def test_no_feed_is_typed():
 
 
 def test_parts_md_chosen_list_is_in_the_catalog_and_the_doc_points_here(parts):
-  by_number = {p["partNumber"]: p for p in parts.values() if p["partNumber"]}
+  # A part both robots carry has an entry per robot: the rover's is the
+  # one on the body shelf.
+  by_number = {p["partNumber"]: p for p in parts.values()
+               if p["partNumber"] and "body" in p["shelves"]}
   for number in PARTS_MD_CHOSEN:
     p = by_number.get(number)
     assert p, f"Parts.md chose {number} and the catalog has no such part"
@@ -146,14 +153,119 @@ def test_the_scaffold_primitive_has_a_density_and_a_print_bed(parts):
   assert scaffolds[0]["shelves"] == ["catalog"]
 
 
-def test_every_used_by_names_a_body_in_the_world(fixture):
-  """`usedBy` is checked against the compiled world, so a module that is
-  retired takes its parts' claims with it."""
-  spec = mujoco.MjSpec.from_file(catalog.WORLD)
-  bodies = {b.name for b in spec.bodies}
+def test_every_used_by_names_a_body_in_its_robots_world(fixture):
+  """`usedBy` is checked against the compiled world of the robot the part
+  is for, so a module that is retired takes its parts' claims with it."""
+  bodies = {robot: {b.name for b in mujoco.MjSpec.from_file(path).bodies}
+            for robot, path in catalog.WORLDS.items()}
   for p in fixture["parts"]:
     for user in p["usedBy"]:
-      assert user in bodies, f"{p['id']} is used by {user!r}, not in the world"
+      assert user in bodies[p["robot"]], \
+          f"{p['id']} is used by {user!r}, not in the {p['robot']}'s world"
+
+
+def test_a_quadruped_feed_is_read_off_the_quadruped(monkeypatch):
+  """Claim 2 for the second world: the GIM8108-8's peak torque is read off
+  the motor the legs are built from, through an attribute path, and a
+  different number there is named rather than printed."""
+  import dataclasses
+  from pluggybot.legs import actuator
+  assert catalog.mismatches(catalog.build()) == []
+  monkeypatch.setattr(actuator, "GIM8108_8",
+                      dataclasses.replace(actuator.GIM8108_8, peak_torque=18.0))
+  off = catalog.mismatches(catalog.build())
+  assert any("legs.actuator.GIM8108_8.peak_torque is 18" in o for o in off), off
+
+
+# ---- the build's bill of materials (#379) ------------------------------------
+
+def test_the_bill_in_parts_md_is_the_data(fixture):
+  """Parts.md's bill is rendered from `LINES` between two markers: a price
+  edited in the doc, or a line added to the data without re-rendering,
+  fails here."""
+  doc = (ROOT / "docs" / "Parts.md").read_text()
+  assert catalog.with_bill(doc, fixture) == doc, \
+      "stale bill: uv run python -m pluggybot.rack.catalog"
+
+
+def test_every_line_of_the_bill_is_honest(fixture):
+  parts = {p["id"]: p for p in fixture["parts"]}
+  assert fixture["build"]["lines"], "the bill is empty"
+  for ln in fixture["build"]["lines"]:
+    assert catalog.validate_line(ln, parts) == [], ln["part"]
+
+
+def test_the_line_validator_rejects_what_the_rules_forbid(fixture):
+  """Claim 5, each rule shown to bite on a line that is honest today: an
+  allowance is never beside a price, a part with no price is never
+  silent, a lead time is the seller's words or a stated unknown."""
+  parts = {p["id"]: p for p in fixture["parts"]}
+  lines = fixture["build"]["lines"]
+  priced = next(ln for ln in lines if not ln["allowance"])
+  allowed = next(ln for ln in lines if ln["allowance"])
+  assert catalog.validate_line(priced, parts) == []
+  assert catalog.validate_line(allowed, parts) == []
+  v = catalog.validate_line
+  assert "a priced part carries its price, not an allowance" in \
+      v({**priced, "basis": "about that much"}, parts)
+  assert "a part with no price needs an allowance and its basis" in \
+      v({**allowed, "lineEur": None}, parts)
+  assert "a part with no price needs an allowance and its basis" in \
+      v({**allowed, "basis": ""}, parts)
+  assert "a lead time is the seller's words, or null with a why" in \
+      v({**priced, "leadTime": None}, parts)
+  assert any("group" in r for r in v({**priced, "group": "misc"}, parts))
+  assert "gearmotor_37d_50 is not on the build shelf" in \
+      v({**priced, "part": "gearmotor_37d_50"}, parts)
+
+
+def test_the_bill_fits_its_budget_and_is_summed_from_its_lines(fixture):
+  b = fixture["build"]
+  t = b["totals"]
+  assert t["sourcedEur"] == pytest.approx(
+    sum(ln["lineEur"] for ln in b["lines"] if not ln["allowance"]))
+  assert t["allowanceEur"] == pytest.approx(
+    sum(ln["lineEur"] for ln in b["lines"] if ln["allowance"]))
+  assert t["totalEur"] == pytest.approx(
+    (t["sourcedEur"] + t["allowanceEur"]) * (1 + b["contingency"]), abs=0.02)
+  assert t["totalUsd"] <= b["budgetUsd"]
+
+
+def test_the_bill_buys_what_the_design_uses(fixture):
+  """A build part's `quantity` is what the design uses (on the robot, the
+  rack, the dock, the rigs); the bill's lines must buy at least that, or a
+  design count raised without a purchase goes unnoticed. The workshop
+  catalog's parts keep their own meaning of `quantity`."""
+  bought = defaultdict(int)
+  for ln in fixture["build"]["lines"]:
+    bought[ln["part"]] += ln["quantity"]
+  for p in fixture["parts"]:
+    if p["shelves"] == ["build"]:
+      assert p["quantity"] > 0, p["id"]
+      assert bought[p["id"]] >= p["quantity"], (p["id"], bought[p["id"]])
+
+
+def test_an_allowance_beside_a_price_is_refused_where_it_is_written(monkeypatch):
+  """The fixture cannot show an allowance written on a priced part (the
+  price wins), so the bill refuses it as it is built."""
+  line = next(ln for ln in catalog.LINES if ln.allowanceEur is None)
+  monkeypatch.setattr(catalog, "LINES", (
+    catalog.Line(line.part, 1, line.group, "now", allowanceEur=9.0,
+                 basis="about that"),))
+  with pytest.raises(ValueError, match="carries its price, not an allowance"):
+    catalog.build()
+
+
+def test_one_part_number_is_one_set_of_facts(fixture):
+  """The rover's LIDAR and the quadruped's are one part: an entry per robot
+  (each reads its own model), one price and one mass between them."""
+  by_number = defaultdict(list)
+  for p in fixture["parts"]:
+    if p["partNumber"]:
+      by_number[p["partNumber"]].append(p)
+  for number, ps in by_number.items():
+    for key in ("priceEur", "massG"):
+      assert len({json.dumps(p[key]) for p in ps}) == 1, (number, key)
 
 
 def test_the_generator_reads_its_module_mass_off_the_named_constants(parts):

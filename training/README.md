@@ -37,7 +37,15 @@ actor shown the height scan. The stairs (#388) are flights of eight on a
 0.18 in the middle); on a stair tile most commands walk straight out along a
 flight (`quad_train/stairs.py`), because a robot is promoted for ending an
 episode 4 m from its tile's centre and a turning, sidestepping command seldom
-gets it there. `Pluggy-Quad-Getup` and `Pluggy-Quad-Posture` are SimNotes'.
+gets it there. `Pluggy-Quad-Getup` rises rather than springs (#389: the
+stand pays from 2 s after the release, and charges on torque, joint speed
+and the rise ramp up over training) and `Pluggy-Quad-Posture` tracks a
+commanded height and tilt; SimNotes has both.
+
+Every reward's weight and parameter and every curriculum stage is a flag
+(`--env.rewards.belly-down.params.budget-s 0`,
+`--env.curriculum.gentle-rise-speed.params.stages.3.step 0`), so variants of
+one task share a checkout: #389 flew three at once on one rented 4090.
 
 ⚠ **The GPU is shared** with the test suite, whose EGL renderers hold 3–4 GB
 of a 6 GB card: stay at ≤ 2048 environments while it runs, or take

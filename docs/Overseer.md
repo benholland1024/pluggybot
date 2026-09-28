@@ -219,7 +219,9 @@ change. Nothing in `procedure/` writes `data.ctrl` (the fence,
 **Total by construction:** a procedure declares `budget(steps=N,
 seconds=S)` and code caps both (`MAX_STEPS` 200, `MAX_BUDGET_S` 1800); every
 loop is bounded; the interpreter checks budgets and `interrupted()` at every
-verb, which is a safe point; a runaway `while` stops at `MAX_ITER` as
+verb, which is a safe point, and a walk inside a verb asks it every second
+on the way (issue #381: a verb it ended is `stopped: interrupted`, an abort
+and never a failed step); a runaway `while` stops at `MAX_ITER` as
 `loop-cap`; a failed step, an arithmetic fault (division by zero, a local
 read before it was set) or a computed argument outside a verb's range ends
 the procedure with the step and the reason in the record. Abort means stow:
@@ -364,6 +366,15 @@ trimmed only among the legs in its own zone: by straight line, the zone
 chain's doors were dropped for legs behind a wall. And `pick` on an empty fork fetches the claw as `fetch` would; with
 another tool aboard, `pick` and `place` say stow it first. `place` never
 fetches: a claw off its bay holds nothing to place.
+
+**On legs there is no route: a walk goes into the unknown** (issue #381).
+No world with legs writes one, so a quadruped's `drive_to` plans through
+floor it has not seen as well as floor it has, at a price, and finds the
+doors by finding the walls either side of them (SimNotes, "Walking into
+the unknown"). How long it may take is the procedure's to say:
+`drive_to(x, y, patience=S)`, 60 s when it says nothing, at most 600, and
+never past the procedure's own budget. A decided `explore(zone)` walks to
+its zone with a decided action's default, `ZONE_PATIENCE_S` (300 s).
 
 ### 2d. The workshop: the robot builds a tool (issue #168; `autonomous` only)
 
@@ -1271,6 +1282,26 @@ otherwise).
   (`events.ACTION_FAILURES`: `busy` / `unrunnable` / `unclaimable` /
   `unbuildable` / `beyond`, counted by cause in the record). `busy` is the
   whole rate limit and deliberately not per-row.
+- **A decision acted on at the instant of the last one waits a moment
+  first** (issue #400; `HubLifecycle._new_moment_routine`). An action that
+  steps no physics — a procedure whose first verb raises, a verb that ends
+  where it began — brings the loop straight back to `_arbitrate`, and a row
+  that fires again sends it round again with nothing in between to move the
+  world: on the first quadruped build every walking verb raised before its
+  first step (#399), and Luca's `dock_walk` ran 193 times at one sim instant
+  while both robots stood still on the one physics thread. So when the last
+  decision — any producer's, stamped in `_after_decision_routine` — was
+  acted on at this same instant, the loop stands `DECIDED_IDLE_S` first,
+  what an action that could not happen already cost: narrated every time,
+  said in History once per run of them (the robot sees its last dozen
+  lines). ⚠ AFTER the map is read, never before: a failure and
+  `nothing_to_do` are one tick with the first match winning, and a hold
+  before the read hands the seam the failure alone. It is not a rate limit
+  (an action that takes time is never held, and no row is dropped or
+  reordered) and not an `ACTION_FAILURES` cause (the action ran, and its
+  outcome is already a `task_failed` and a History line). A death or the
+  day's end inside the hold ends the pass before it acts: a stand-up keeps
+  the errand queue.
 - **The bootstrap**: an empty map has no `ask` row, so `_arbitrate` asks
   until the mind has answered for itself — a decision that was neither a
   fallback nor a map row — and not a moment longer: the world's behaviour

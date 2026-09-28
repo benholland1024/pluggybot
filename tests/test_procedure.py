@@ -439,6 +439,10 @@ CTRL_WRITERS = {
   # path its twelve joints are commanded through (the rover's is
   # rack/swap.py). The policy commands them; it no longer writes `ctrl`.
   "legs/drivers.py",
+  # issue #378: the quadruped's arm driver -- its two motors' torques, a PD
+  # toward a target RAMPED at ARM_SLEW plus the arm's own gravity, the one
+  # path the arm's joints are commanded through.
+  "legs/arm.py",
 }
 
 

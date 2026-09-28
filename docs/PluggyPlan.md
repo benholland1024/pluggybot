@@ -127,9 +127,9 @@ second floor (#280); and the rover deleted.
 - **Rigid coupling, not a cable.** Manipulating a deformable wire plug is one
   of the hardest problems in robotics; PluggyBot never does. Its tool and
   charge couplings are rigid — on the rover a gravity latch and pogo pins
-  the base drives into; for the quadruped, a coupling redesigned with the
-  arm and a dock it lies down on (#378) — contact-rich alignment, but
-  tractable.
+  the base drives into; for the quadruped, the same gravity latch re-sized
+  for a two-joint arm's fork, and a dock it lies down on (#378) —
+  contact-rich alignment, but tractable.
 - **Decompose, don't end-to-end.** Each capability uses the cheapest adequate
   technique: supervised learning where labels are free, classical robotics
   where the problem is solved, RL where it earns its keep, and an LLM for the
@@ -148,7 +148,7 @@ rest carries over.
 | Near field † | RealSense D435-class depth camera on the mast top (`perception/depth.py`): 8400 batched ray casts a frame, z² noise, the occlusion shadow, out-of-range as unknown; feeds a robot-centric 2.5D height map (`perception/heightmap.py`) built on the physics seam and streamed as `heightmap`. Nothing that decides reads it yet (#34) |
 | Vision | one nav camera and one dock camera; AprilTags on the rack, bays and modules (`rack/tags.py`, `rack/localize.py`) |
 | Odometry † | dead reckoning from counted wheel encoders + an ICM-42688-P gyro read with its datasheet's noise (#386), anchored at the dock (issue #42), held during presses (#94); every LIDAR scan matched against the robot's own map before it is fused, and the matched pose is the belief (`mapping/scan_match.py`, #386) |
-| Mapping & exploration | log-odds occupancy grid, frontier exploration, A* over inflated free space (`mapping/`) |
+| Mapping & exploration | log-odds occupancy grid, frontier exploration, A* over inflated free space (`mapping/`); the quadruped plans through floor it has not seen too, at a price, and finds its doors by finding walls (`mapping/optimistic.py`, #381's walking stage) |
 | Tools † | five modules on a gravity-latched fork coupling, powered through the peg (ToolPattern.md) |
 | Behaviour arbitration | `HubLifecycle.run()`: charge > queued errand > the mind > explore on `guarded`; on `autonomous` the rails are off and the agent's event map decides when it is asked at all (Overseer.md, Evaluation.md §2) |
 | Economy | task offers, code-side scoring, a points ledger with upkeep and hearts (TaskPattern.md, Overseer.md §8b) |

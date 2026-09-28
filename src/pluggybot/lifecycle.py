@@ -285,8 +285,15 @@ SCREEN_SENSE_S = 0.02       # sim seconds between power scans of a display
 #: `explore` decision eats the whole mission, and the point of an overseer is
 #: that it decides repeatedly.
 DECIDED_EXPLORE_S = 45.0
+#: ...and how long the walk to a NAMED zone may take before the explore
+#: begins wherever it stands, s: a decided action's patience (issue #381;
+#: a program names its own, `steps.MAX_PATIENCE_S`). MEASURED: see
+#: SimNotes, "Walking into the unknown".
+ZONE_PATIENCE_S = 300.0
 #: ...and how long `idle` stands still for. Long enough to read on the stream
 #: as a deliberate pause, short enough not to be a way of doing nothing all day.
+#: It is also the moment a decision costs when what it did could not happen,
+#: or took no sim time at all (issue #400; `_new_moment_routine`).
 DECIDED_IDLE_S = 4.0
 #: ...and how long it stands still on an arm where idling is a STRATEGY
 #: rather than a pause (issue #115).
@@ -578,8 +585,10 @@ class HubLifecycle:
     #: The errand being run right now, for a restart to name.
     self._errand_now = None
     #: The procedure step running right now (`steps.run_verb` sets it), for
-    #: a death to name (issue #362).
+    #: a death to name (issue #362) -- and when its program's budget ends,
+    #: sim s, past which no walk inside it waits (issue #381).
     self.step_now: dict | None = None
+    self.step_until: float | None = None
     #: Called at the top of every pass of the day loop, where nothing is in
     #: flight -- the one moment a saved world is the same with or without a
     #: restart after it (the parity check, `scripts/determinism_spike.py`).
@@ -879,6 +888,12 @@ class HubLifecycle:
       self._consult = {"event": "unminded", "note": UNMINDED_NOTE}
     elif kept is not None and kept.dropped and self._minded:
       self._consult = {"event": "rules_left_out", "note": left_out_note(kept.dropped)}
+    #: WHEN THE LAST DECISION WAS ACTED ON, and its action, as `(sim s,
+    #: action)` (issue #400): nothing is done about the next at that same
+    #: instant (`_new_moment_routine`). ...and whether this run of decisions
+    #: that took no time has been said in History yet.
+    self._decided_at: tuple[float, str] | None = None
+    self._stood_still = False
     #: Visitor message ids the map has already been told about, so
     #: `message_received` is an arrival rather than a level.
     self._seen_visitors: set[str] = set()
@@ -5150,6 +5165,13 @@ class HubLifecycle:
     if self._in_errand and row.event in ev.INTERRUPTING_EVENTS:
       self._interrupt_pending = row
 
+  @property
+  def aborting(self) -> bool:
+    """Has this errand's interrupt been answered "stop and go" -- the
+    latch `interrupted()` sets, read without resolving anything (a
+    procedure verb reads it, `steps.run_verb`)."""
+    return self._aborting
+
   def interrupted(self) -> bool:
     """Should the errand in progress stop here and go home (issue #116)?
 
@@ -5283,6 +5305,36 @@ class HubLifecycle:
                            else round(t - self._asked_t, 1))
     self._asked_t = self._last_ask_t = t
 
+  def _new_moment_routine(self) -> Routine:
+    """Stand still `DECIDED_IDLE_S` when the last decision was acted on at
+    this same sim instant, and say so (issue #400; Overseer.md "The event
+    map"). True while the pass may go on: a death or the day's end inside
+    the hold ends it, before anything is done.
+
+    ⚠ NOTHING ELSE MOVES THE WORLD BETWEEN TWO ACTIONS THAT TAKE NO TIME. A
+    procedure whose first verb raises, or a verb that ends where it began,
+    steps no physics; the loop comes straight back, a row that fires again
+    sends it round again, and every robot on the one physics thread stands
+    still while it spins. A decision costs a moment, as one whose action
+    could not happen already does. Said in History once per run of them,
+    because the robot sees History's last dozen lines and a line a lap
+    would be most of them."""
+    t = float(self.data.time)
+    if self._decided_at is None or self._decided_at[0] != t:
+      self._stood_still = False
+      return True
+    what = self._decided_at[1]
+    self.state = "DECIDE"
+    self._say(f"DECIDE: {what} took no sim time -- standing "
+              f"{DECIDED_IDLE_S:.0f} s before the next")
+    if not self._stood_still:
+      self._stood_still = True
+      self._remember(f"{what} ended the moment it began, so I stood still "
+                     f"{DECIDED_IDLE_S:.0f} s before doing anything else")
+    yield from self.body.hold_routine(DECIDED_IDLE_S)
+    return (self.dead is None and not self._end_run
+            and self.data.time < getattr(self, "max_sim_time", math.inf))
+
   def _arbitrate(self) -> None:
     return self.body.run(self._arbitrate_routine())
 
@@ -5308,6 +5360,8 @@ class HubLifecycle:
       # A CONSULT IS OWED (`_consult`): ahead of the list, whose rows are what
       # went quiet or what code cut, leaving any queued row for the next pass.
       # Not in free mode, where nothing is asked and the rows run as before.
+      if not (yield from self._new_moment_routine()):
+        return
       self._say(f"EVENT asking once: {self._consult['event'].replace('_', ' ')}")
       self._stamp_ask()
       yield from self._decide_routine(dict(self._consult))
@@ -5323,6 +5377,12 @@ class HubLifecycle:
       # is what says whether the map is doing anything at all.
       self.overseer.rows_fired[row.event] = \
           self.overseer.rows_fired.get(row.event, 0) + 1
+    # ⚠ THE MOMENT BETWEEN TWO DECISIONS (issue #400), and only once the map
+    # has been read: a failure and `nothing_to_do` are one tick with the
+    # first match winning, and a hold before the read would hand the seam
+    # the failure alone -- a row the agent put lower could win.
+    if not (yield from self._new_moment_routine()):
+      return
     if row is None and not self._minded:
       # ⚠ THE BOOTSTRAP, AND `unseeded` CANNOT RUN WITHOUT IT. An empty map
       # has no `ask` row, so an agent given one would never be consulted --
@@ -5643,6 +5703,7 @@ class HubLifecycle:
     given. Existing callers ignore the value and behave exactly as before.
     """
     self.decisions.append(decision.as_dict())
+    self._decided_at = (float(self.data.time), decision.action)
     if not decision.scripted and not decision.by_event:
       self._minded = True
       if self._consult is not None:
@@ -5753,7 +5814,7 @@ class HubLifecycle:
       if decision.zone:
         wx, wy = zone_centre(self.world, decision.zone)
         self._say(f"EXPLORE: heading for {decision.zone}")
-        yield from self.body.go_to_routine(wx, wy, timeout=60.0)
+        yield from self.body.go_to_routine(wx, wy, timeout=ZONE_PATIENCE_S)
       yield from self.explore_routine(budget=DECIDED_EXPLORE_S, mark_done=False)
       return ""
     if decision.action == "idle":
@@ -5844,6 +5905,8 @@ class HubLifecycle:
       "askedT": self._asked_t, "askedAfterS": self._asked_after_s,
       "minded": self._minded, "tiltedSince": self._tilted_since,
       "fall": self._fall,
+      "decidedAt": (None if self._decided_at is None else list(self._decided_at)),
+      "stoodStill": self._stood_still,
       "clocks": {"death": self._next_death_check, "task": self._next_task_check,
                  "screen": self._next_screen_sense,
                  "events": self._next_events_check,
@@ -5909,6 +5972,9 @@ class HubLifecycle:
     self._asked_after_s = state.get("askedAfterS")
     if state.get("minded") is not None:
       self._minded = bool(state["minded"])
+    decided = state.get("decidedAt")
+    self._decided_at = None if not decided else (float(decided[0]), str(decided[1]))
+    self._stood_still = bool(state.get("stoodStill"))
     clocks = state.get("clocks", {})
     self._next_death_check = float(clocks.get("death", 0.0))
     self._next_task_check = float(clocks.get("task", 0.0))

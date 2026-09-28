@@ -48,7 +48,7 @@ FALL_TILT_RAD = TOPPLE_TILT_RAD
 #: legs that buckled under it leave it level on its belly (m, s).
 SLUMP_Z_M, SLUMP_S = 0.20, 0.5
 #: STOOD, after a get-up: right way up and at the standing height, held
-#: (`quad_spike.py --getup`'s own test, which the 20 of 20 were read by).
+#: (what `quad_spike.py --getup` reads its table by).
 UPRIGHT_COS, STAND_TOL_M, STOOD_HOLD_S = 0.95, 0.04, 0.5
 
 

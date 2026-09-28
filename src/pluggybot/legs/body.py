@@ -268,6 +268,10 @@ class QuadMission(Navigator):
   #: Its drive reads progress along the route (`Navigator`): a detour round
   #: a wall is progress.
   PROGRESS_ALONG_ROUTE = True
+  #: It walks into the unknown (issue #381): plans through floor it has not
+  #: seen, and a map still growing is progress too.
+  OPTIMISTIC = True
+  PROGRESS_MAP_GROWTH = True
   #: The turn's rate, rad/s per rad of error, and its budget, s.
   FACE_GAIN, FACE_BUDGET_S = 1.5, 12.0
 
@@ -1099,11 +1103,12 @@ class QuadBody(Body):
   STILL = STILL
   level_tilt_rad = QuadMission.LEVEL_TILT
   #: A fall is got up from (the get-up policy) until it has lasted this
-  #: long, s: then it is the `stuck` death. MEASURED over 35 falls in six
-  #: places in the house, the couch, a wall and the hall among them: 31 up,
-  #: median 1.2 s, p95 4.2 s, the slowest 13.4 s against the south wall --
-  #: and 4 never, wedged, in 40 s. Half as long again as the slowest that
-  #: got up (SimNotes, "The first quadruped deploy").
+  #: long, s: then it is the `stuck` death. MEASURED (`quad_spike.py
+  #: --shove`: 48 shoves in six places in the house, the couch, a wall and
+  #: the hall among them): #389's get-up stood from all 37 falls, median
+  #: 2.0 s, the slowest 4.6 s. Set at 20 for #377's (half as long again as
+  #: its slowest) and kept: a margin for falls those six places do not make
+  #: (SimNotes, "A gentler get-up").
   stuck_after_s = 20.0
   #: ...and this body rights itself.
   rights_itself = True
@@ -1146,10 +1151,9 @@ class QuadBody(Body):
   def start_at(self, x, y, yaw) -> None:
     self.mission.start_at(x, y, yaw)
 
-  def go_to_routine(self, x, y, timeout=None) -> Routine:
-    if timeout is None:
-      return self.mission.drive_to_routine(x, y)
-    return self.mission.drive_to_routine(x, y, timeout=timeout)
+  def go_to_routine(self, x, y, timeout=None, stop=None) -> Routine:
+    kw = {k: v for k, v in (("timeout", timeout), ("stop", stop)) if v is not None}
+    return self.mission.drive_to_routine(x, y, **kw)
 
   last_drive = property(lambda self: self.mission.last_drive)
 

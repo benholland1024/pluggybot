@@ -10,6 +10,100 @@ observatory is NOT a result and never enters `results/`.
 
 ## Periods
 
+### An action that takes no time costs a moment (#400) — opens when this PR is deployed
+
+**What changed in the world.** A decision acted on at the same sim instant
+as the last one now waits `DECIDED_IDLE_S` (4 s) first. Before it, an
+action that stepped no physics -- a procedure whose first verb raised, one
+refused at run time, a verb that ended where it began -- came straight back
+to the arbitration, and a row that fired again ran it again at that
+instant: on `5c6e6cf` Luca's `dock_walk` ran 193 times at one sim instant
+while both robots stood still. Such a row now runs once every 4 s; the
+narration says `took no sim time -- standing 4 s`, and History says it once
+per run of them. Which row the map picks is unchanged, and so is anything
+whose action takes time. Nothing on the wire, in the prompt or in the
+economy moved.
+
+**What the period is for.**
+
+- **No run at a gap of 0.0 s.** Consecutive `procedure` rows of one robot
+  0.0 s apart should not appear on this build. A run of them 4 s apart is a
+  row repeating an action that takes no time, and how long a mind leaves
+  one running before it changes the row or the procedure is the reading.
+- **What such a run costs the site.** One lap every 4 s is up to 900
+  procedure runs an hour per robot, two rows each. If the observatory shows
+  that volume, the hold's length is the lever (the idle slice, 60 s, is the
+  alternative), and moving it is a decision rather than a tuning.
+
+**Not yet known.** Whether an action other than a procedure takes no time
+live, on legs.
+
+### Walking into the unknown (#381's walking stage) — opens when this PR is deployed
+
+**What changed in the world.** Three things, and the first is a bug the
+first quadruped period ran with:
+
+- **A procedure on legs walks.** Every verb that moves (`drive_to`, `face`,
+  `drive`) raised before its first step on `5c6e6cf` -- the verb's carrying
+  pose asked the body for an arm it does not have -- so no robot-written
+  procedure moved the body. Read that period's procedure rows as runs that
+  never started: 6 562 of 6 565 `aborted` in two days, many of them one
+  procedure re-run at a single sim instant.
+- **A walk goes into the unknown.** The quadruped plans through floor it has
+  not seen at a price, round the walls it has, and a walk counts the map
+  still growing as progress (SimNotes, "Walking into the unknown"). No
+  surveyed route: a fresh robot reaches every zone of the property, the lab
+  included, where it reached 9 of 24 on the walks before.
+- **The robot sets its patience, and its own interrupt reaches inside a
+  walk.** `drive_to(x, y, patience=S)` (60 s unsaid, at most 600, never past
+  the procedure's budget; the prompt's verb list says so), a decided
+  `explore(zone)` walks with 300 s, and a `battery_below` / `points_below`
+  row is asked every second of a procedure's walk: a run it stops is
+  `stopped: interrupted`, never a failed step.
+
+Nothing on the wire, in the economy or in the constitutions moved; the
+autonomous prompt's verb list did (`drive_to(x, y, patience=60)`).
+
+**What the period is for.**
+
+- **Do the robots go places now.** `explore(zone)` to a far zone, and
+  procedures that walk: how many `drive_to` steps arrive, and how many end
+  `out of time` against the patience the robot gave them -- and whether the
+  robots learn to give more.
+- **Where they choose to go with nothing to earn.** The lab, the second
+  house and the loop are reachable for the first time on legs.
+- **Interrupts mid-walk**: how often a `stopped: interrupted` run appears,
+  and what the robot does next.
+
+**Not yet known.** The walks' drive causes over a week of stand-ups,
+restarts and the other robot in a doorway (#395's head-on hold); what a
+plan costs on the deploy box (the dev machine's numbers are SimNotes'). ⚠
+A walk that runs out of patience shuttling along the outside of the house
+is #401 (a 4 cm wall carved out of the map by grazing rays), not the
+planner: read the map image beside it.
+
+### The get-up rises (#389) — opens when this PR is deployed
+
+**What changed in the world.** The quadruped's get-up policy is retrained
+to rise rather than spring (SimNotes, "A gentler get-up"). #377's stood
+from its belly in 0.2 s with a knee at the drivers' 22 N·m peak and met
+its landings at the peak; the new one stands from the belly in 1.5 s at
+10.1 N·m and stays under 60 % of the peak once a landing is over in all
+but a few falls. In the house, shoved over 48 times, it stood from all 37
+falls (#377's left 5 of 37 down after 40 s), median 2.0 s against 1.2,
+slowest 4.6 s. `stuck_after_s` stays 20 s. Nothing in the mind, the
+prompt, the wire or the economy moved; the header's `getup` policy hash
+and the world hash change with the file.
+
+**What the period is for.** Falls and the `stuck` deaths after them,
+against the first quadruped period: `stuck` should become rare (none of
+the flown falls stayed down), and a fall lasts about twice as long in
+posture `getting_up`. A `stuck` death on this build is a fall the flown
+test did not make, and worth reading: `death.at` says where it lay.
+
+**Not yet known.** Falls the six shove places do not make: on the stairs
+(#388), in the garden, against the other robot.
+
 ### The first quadruped period: no offers, no upkeep (#387) — opens when this PR is deployed
 
 **What changed.** The robots are quadrupeds (#377's body, walking on its

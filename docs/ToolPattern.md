@@ -618,10 +618,12 @@ textures on flat plates:
 | modules | 10 lcd, 11 plug, 12 pen, 13 claw, 14 seed | 30 mm |
 | built modules | 15 + the rail bay (15–17) | 30 mm — per BAY, reused by the next tool there |
 | the tower's blocks, the bench's masses | 20–22, 23–24 | 20.8 mm (cube faces) |
+| the quadruped's dock (#378) | 25–28 | 60 mm |
+| the quadruped's rack (#378; `legs/rack.py`) | 29–34, a pair a bay | 60 mm |
 
 A new hand-built tool needs a new entry in `MODULE_TAG_IDS` (next free:
-**25**; 18–19 are the built ids a longer rail would take); a new *bay*
-needs one appended to `BAY_TAG_IDS` (next free: **25** likewise).
+**35**; 18–19 are the built ids a longer rail would take); a new *bay*
+needs one appended to `BAY_TAG_IDS` (next free: **35** likewise).
 `RACK_TAG_FACES` — the rack-fixed layout `localize.fit_rack_facing` fits
 to what the dock camera decodes — is built from `STATION_YS` and
 `BAY_TAG_IDS`, so an appended station is fitted by itself, and the rail's

@@ -652,6 +652,8 @@ after a row fires has a side effect.
 | after the carry drive, before the use phase | arrived, nothing started |
 | between strokes (`PenPlotter.should_stop`) | pen **up** — a pen abandoned mid-line is pressed against the slab with the lift part-way up, which is SimNotes' "The pen would not stow" |
 | at a census vantage / between dance moves | the LCD has no moving axis, so its carry configuration costs nothing to be in |
+| between a program's or a procedure's verbs | nothing engaged: every verb that moves puts the tool in its carrying pose first (#347) |
+| inside a verb's walk, every second (`drive_to`, `pick`'s way to a cube; issue #381) | a walk carries its tool in that pose, and a quadruped carries none: it stops where it stands, and the verb says `stopped: interrupted` -- the run is recorded stopped, never failed |
 
 The census has checked `needs_charge` at a vantage since issue #13 and this is
 that shape generalised — ⚠ and the two are **not** the same check:

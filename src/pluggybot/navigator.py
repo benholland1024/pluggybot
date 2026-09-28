@@ -35,6 +35,7 @@ from pluggybot.behavior.navigation import (
 )
 from pluggybot.body import KeepClear
 from pluggybot.control import square_up_routine, wrap_angle
+from pluggybot.mapping import optimistic
 from pluggybot.mapping.astar import astar, nearest_traversable
 from pluggybot.mapping.frontier import FREE_THRESH, OCC_THRESH, traversable_mask
 from pluggybot.mapping.occupancy_grid import OccupancyGrid
@@ -53,6 +54,8 @@ def gave_up(rec: dict, peer: str = "the other robot") -> str:
     cause = "no route over the floor mapped so far"
   elif why == "stalled":
     cause = f"stalled, no progress for {STAGNATION_S:.0f} s"
+  elif why == DRIVE_STOPPED:
+    cause = "stopped by the robot's own interrupt"
   elif why == "peer":
     far, lies = rec.get("peerM"), rec.get("peerDown")
     if far is None:
@@ -107,9 +110,24 @@ STAGNATION_S = 10.0
 #: out. The robot reads the cause back: "stopped 9.1 m short", with none,
 #: was read as the pack running short, and both robots declined the lab.
 DRIVE_GAVE_UP = ("no_route", "stalled", "peer", "timeout")
+#: ...and the one way a drive ends that is not giving up (issue #381): its
+#: caller's `stop` said so -- the robot's own hazard row, mid-walk. An abort,
+#: never an error, and never said as one.
+DRIVE_STOPPED = "interrupted"
+#: How often a drive asks its `stop`, sim s: a walk is a safe point at every
+#: step, and this is the latency of an interrupt against the cost of asking.
+STOP_EVERY_S = 1.0
 #: A stand-in plan's end this close means the drive reached all the floor
 #: it could plan over -- a stagnation there is "no route", not a stall.
 STAND_IN_REACHED_M = 0.5
+#: THE MAP STILL GROWING IS PROGRESS (issue #381, a walk into the unknown):
+#: this many more cells known -- free or wall, 1 m^2 at 5 cm -- since the
+#: last progress restarts the stagnation clock, however the route's length
+#: moved. Read every `MAP_LOOK_S`. MEASURED (`scripts/unknown_spike.py`):
+#: walking into new floor the map grows 800-1 850 cells a second; standing
+#: still 20 s after arriving, by -5 to +195 -- this is 4x the worst.
+MAP_GROWTH_CELLS = 400
+MAP_LOOK_S = 1.0
 #: ANOTHER ROBOT'S BODY IN THE WAY (issue #328), off the near-field depth
 #: camera's peer channel (`DepthFrame.peers`): a peer point nearer than
 #: this, inside the corridor this robot is about to drive through, holds
@@ -189,6 +207,13 @@ class Navigator:
   #: ...and a replan whose route is this much longer than the best seen is
   #: a NEW route, whose progress is read from where it starts, m.
   NEW_ROUTE_M = 0.5
+  #: PLANS THROUGH FLOOR IT HAS NOT SEEN (issue #381, `mapping/optimistic.py`),
+  #: at `UNKNOWN_COST` a metre, or -- the rover's -- through mapped floor only,
+  #: aiming at a stand-in for anything off it.
+  OPTIMISTIC = False
+  UNKNOWN_COST = optimistic.UNKNOWN_COST
+  #: ...and counts the map still growing as progress (`MAP_GROWTH_CELLS`).
+  PROGRESS_MAP_GROWTH = False
 
   def __init__(self, model, data, handle: RobotHandle = FIRST,
                grid_bounds: tuple[float, float, float, float] = (-3, -3, 7, 7),
@@ -450,7 +475,10 @@ class Navigator:
   def _plan_to(self, wx: float, wy: float) -> list[tuple[float, float]] | None:
     """A* to the goal, or to its stand-in (below). The floor before the
     other robots are masked out is kept (`_floor`) for
-    `_route_cut_by_others`."""
+    `_route_cut_by_others`. `OPTIMISTIC` plans through the unknown too
+    (`_plan_optimistic`)."""
+    if self.OPTIMISTIC:
+      return self._plan_optimistic(wx, wy)
     self._floor = traversable_mask(self._planning_grid(), self.INFLATION_CELLS)
     trav = self._floor.copy()
     self._mask_others(trav)
@@ -494,6 +522,40 @@ class Navigator:
     path = astar(trav, start, goal)
     return None if path is None else path_to_waypoints(self.grid, path)
 
+  def _plan_optimistic(self, wx: float, wy: float) -> list[tuple[float, float]] | None:
+    """`_plan_to` through the floor it has not seen as well as the floor it
+    has (issue #381): the lattice route of `mapping/optimistic.py`, the
+    other robots' discs taken out of it as they are out of A*'s, the
+    stand-in for a goal inside a wall's inflation, and no plan at all for
+    a goal the walls it has seen shut it off from. `_floor` is the map's
+    floor before the discs, as `_plan_to` keeps it."""
+    cost = optimistic.map_costs(self._planning_grid(), self.INFLATION_CELLS,
+                                self.UNKNOWN_COST)
+    self._floor = np.isfinite(cost)
+    floor = self._floor.copy()
+    self._mask_others(floor)
+    cost[~floor] = np.inf
+    b = optimistic.BLOCK
+    lattice = optimistic.coarsen(cost, b)
+    graph = optimistic.lattice_for(lattice.shape, self.grid.resolution * b)
+    sx, sy = self.grid.world_to_cell(self.pose[0], self.pose[1])
+    gx, gy = self.grid.world_to_cell(wx, wy)
+    cells, stand_in = optimistic.route(graph, lattice, (sx // b, sy // b),
+                                       (gx // b, gy // b))
+    self._stand_in = None
+    if cells is None:
+      return None
+    g, side = self.grid, self.grid.resolution * b
+    pts = [(g.x_min + (cx + 0.5) * side, g.y_min + (cy + 0.5) * side)
+           for cx, cy in cells]
+    if stand_in:
+      self._stand_in = pts[-1]
+    # every other cell, 0.2 m apart as A*'s every third, and always the end
+    out = pts[2::2]
+    if not out or out[-1] != pts[-1]:
+      out.append(pts[-1])
+    return out
+
   def in_sight(self, wx: float, wy: float) -> bool:
     """Can one drive plan to (wx, wy): is it within the LIDAR's reach and
     on the map, its cell seen (free or not)? Beyond either, `_plan_to`
@@ -517,14 +579,19 @@ class Navigator:
     the physics thread, and this is asked of every drive that planned
     nothing beside another robot. `test_failure_words` holds it to a real
     plan."""
-    trav = self._floor
+    trav, b, escape = self._floor, 1, 10
+    if self.OPTIMISTIC:
+      # ...on the planner's own lattice (`_plan_optimistic`), whose
+      # components are its 4-connected ones
+      b, escape = optimistic.BLOCK, optimistic.ESCAPE_CELLS
+      trav = np.isfinite(optimistic.coarsen(np.where(trav, 1.0, np.inf), b))
     rows, cols = trav.shape
-    start = nearest_traversable(
-      trav, self.grid.world_to_cell(self.pose[0], self.pose[1]))
+    sx, sy = self.grid.world_to_cell(self.pose[0], self.pose[1])
+    start = nearest_traversable(trav, (sx // b, sy // b), radius=escape)
     if start is None:
       return False
     gx, gy = self.grid.world_to_cell(wx, wy)
-    gx, gy = min(max(gx, 0), cols - 1), min(max(gy, 0), rows - 1)
+    gx, gy = min(max(gx // b, 0), cols - 1), min(max(gy // b, 0), rows - 1)
     if not trav[gy, gx]:
       return True
     labels, _ = ndimage.label(trav)
@@ -533,12 +600,19 @@ class Navigator:
   def drive_to(self, wx: float, wy: float, timeout: float = 90.0) -> bool:
     return self.run(self.drive_to_routine(wx, wy, timeout))
 
-  def drive_to_routine(self, wx: float, wy: float,
-                       timeout: float = 90.0) -> Routine:
+  def drive_to_routine(self, wx: float, wy: float, timeout: float = 90.0,
+                       stop=None) -> Routine:
     """A*-navigate to a world point, arriving within 8 cm. Plans through
     known space only, targeting the reachable cell nearest the goal until
-    the goal itself becomes reachable. Gives up on stagnation (no progress
-    toward the goal for `STAGNATION_S`). Why it gave up is `last_drive`."""
+    the goal itself becomes reachable -- or, `OPTIMISTIC`, through the
+    unknown as well. Gives up on stagnation (no progress toward the goal
+    for `STAGNATION_S`). Why it gave up is `last_drive`.
+
+    `timeout` is the walk's patience. `stop`, a callable, is asked every
+    `STOP_EVERY_S` (issue #381): True ends the drive where it stands, as
+    `DRIVE_STOPPED`, and the time it took to answer -- a question to the
+    mind, standing still -- counts against neither the patience nor the
+    stagnation clock."""
     waypoints: list[tuple[float, float]] = []
     next_replan = 0.0
     holding = False                    # is this drive standing for a peer
@@ -548,11 +622,28 @@ class Navigator:
     t0 = self.data.time
     best_dist = math.hypot(wx - self.pose[0], wy - self.pose[1])
     last_improve = t0
+    next_stop = t0 + STOP_EVERY_S
+    known = self._known_cells() if self.PROGRESS_MAP_GROWTH else 0
+    next_look = t0 + MAP_LOOK_S
     while self.data.time - t0 < timeout:
       dist = math.hypot(wx - self.pose[0], wy - self.pose[1])
       if dist < 0.08 and not waypoints:
         return self._drove(wx, wy, t0, "")
+      if stop is not None and self.data.time >= next_stop:
+        asked = float(self.data.time)
+        if stop():
+          return self._drove(wx, wy, t0, DRIVE_STOPPED)
+        took = float(self.data.time) - asked
+        t0, last_improve = t0 + took, last_improve + took
+        next_stop = self.data.time + STOP_EVERY_S
+        if took > 0.0:
+          waypoints = []               # the world moved while it stood
       left = self._left(dist, waypoints, wx, wy)
+      if self.PROGRESS_MAP_GROWTH and self.data.time >= next_look:
+        next_look = self.data.time + MAP_LOOK_S
+        now_known = self._known_cells()
+        if now_known >= known + MAP_GROWTH_CELLS:
+          known, last_improve = now_known, self.data.time
       if left < best_dist - 0.02:
         best_dist, last_improve = left, self.data.time
         waiting = False
@@ -651,6 +742,12 @@ class Navigator:
     """One step of the reflex's retreat, after the front stop or the
     bumper (`backoff_until`): straight back."""
     yield from self._nav_routine(-self.BACKOFF_V, 0.0)
+
+  def _known_cells(self) -> int:
+    """How much of the map is known -- free or wall -- in cells: what
+    `PROGRESS_MAP_GROWTH` watches grow."""
+    g = self.grid.grid
+    return int(np.count_nonzero(g < FREE_THRESH) + np.count_nonzero(g > OCC_THRESH))
 
   def _left(self, dist: float, waypoints, wx: float, wy: float) -> float:
     """How far a drive has still to go: `dist`, the straight line, or --

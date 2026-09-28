@@ -1332,7 +1332,8 @@ reach or off the map walks `lifecycle.route_to`'s doorways first (issue
 meets the workshop's), and the first is as far as the robot stands from
 it. Expect the same stall from an
 `explore(zone)` decision aimed at a loop zone the robot has not seen: it
-drives toward a wall, stops, and explores from there.
+drives toward a wall, stops, and explores from there. That is the rover; the
+quadruped plans through the unknown instead ("Walking into the unknown").
 
 ## ...and then the bed was standing in its way (#305)
 
@@ -1972,13 +1973,10 @@ sees the base's linear velocity; what no datasheet gives is randomised
 mass and CoM for the arm).
 
 **Getting up** (`models/quadruped_getup.npz`, `Pluggy-Quad-Getup`, a policy
-of its own; 1500 iterations on a rented RTX 4090, `training/pod.sh`): each
-episode starts lying on the belly pack or dropped from 0.35-0.55 m in a
-random orientation, legs anywhere. Flown in our physics (`--getup`) it
-stands from 20 of 20 random drops (median 0.5 s from release) and from the
-belly in 0.2 s — by driving every joint to its 22 N·m peak: a spring up,
-not a rise, 87 mWh against the scripted fold-and-push's 44. Fine in the
-sim; for hardware, torque and speed penalties should buy a gentler one.
+of its own, trained on a rented GPU with `training/pod.sh`): each episode
+starts lying on the belly pack or dropped from 0.35-0.55 m in a random
+orientation, legs anywhere. It rises rather than springs since #389: "A
+gentler get-up" below has what it takes and how it was trained.
 ⚠ mjlab's `upright` reward reads only the sideways tilt and scores a body
 on its BACK as upright; the task pays for gravity's sign in the body frame.
 
@@ -2305,6 +2303,273 @@ pole; the walk-in is `walk_in_twist`, `fit_dock`,
 #387 builds `QuadBody.dock_routine` on them, and the lie-down it uses still
 lives in `scripts/quad_spike.py`. `tests/test_dock.py` pins each rule above.
 
+## The quadruped's arm, its coupling and the rack (issue #378)
+
+The arm is two pitch joints on the torso's top front, both motors stacked
+at the shoulder (`legs/arm.py`; every table here is `scripts/arm_spike.py`'s;
+the parts are Parts.md, "The arm and its coupling"). The elbow's motor
+drives the forearm's ABSOLUTE angle through a rod beside the upper arm, and
+a second, passive parallelogram keeps the end plate at the torso's angle
+wherever the arm is, as a palletising robot's does. The shoulder axis sits
+0.15 m ahead of the torso's centre and 0.10 m over it; the links are 0.25 and
+0.35 m; the arm weighs 1.17 kg without a tool (the body's placeholder
+budgeted 0.9). A tool still hangs by the rover's plate and split peg, now
+220 mm long; the fork at the arm's tip takes it at ±85 mm in V's steeper
+than the rover's (60°, for the stairs, below), and the rack's trays at ±45.
+None of it is in the served world yet (#375, step 4).
+
+**The level-tool choice** (`--reach`). A gravity seat wants its V's level,
+and with two pitch joints the plate's angle is their sum. The three options,
+against the world's targets with the plate level:
+
+| target | (a) a parallelogram | (c) the legs pitch the body |
+|---|---|---|
+| the claw on the floor, 0.40–0.50 m ahead | yes, ≤ 2.1 N·m | no |
+| the claw on a 0.8 m tabletop | yes | no |
+| the pen at a board's bottom row (0.19 m) | yes | no |
+| its middle and top rows (0.30, 0.41 m) | yes | at −11° and −3° of pitch |
+| a rack bay's peg (0.50 m) | yes | at −9° and a 7 cm crouch |
+| carrying over the nose | yes | no |
+
+(c) needs the forearm within the posture policy's ±11° of level, so it
+reaches three of nine, each at a posture the tool's job then depends on.
+(b), a third motor pitching the plate, reaches what (a) reaches and puts
+its motor at the end of the lever: holding the claw and a 0.4 kg cube
+straight out takes 4.86 N·m of the two motors under (a), 7.02 with a
+GIM4310-10 at the wrist (+44 %, the wrist motor at 61 % of its own
+continuous rating) and 8.01 with a GIM8108-8 there (+65 %). What (b) buys
+is a plate held level against the body's pitch — 27–33° on a flight of
+stairs, measured below — and a tool tilted on purpose. A hung tool hangs
+plumb whatever the plate does, so the seat needs the first only coming
+down the stairs, where the pitch lays a V's flank down (below), and a
+steeper V does that for nothing. **The choice is (a).**
+
+**The motors are the legs' GIM8108-8.** Holding, the arm's worst static
+load at any target is 2.1 N·m, and flown it peaked at 2.0 N·m on the flat
+and 4.2 coming down the stairs with its RMS under 1.3 on the flat — a fifth of the
+motor's 6.76 N·m continuous rating. The GIM6010-8 would do the work, but it
+weighs 388 g against 396 for 5.16 N·m continuous at 48 V: the same mass for
+less torque, and one spare, one driver and one set of gains is worth it.
+
+**The coupling's capture** (`--capture`: the robot placed standing at the
+bay, off by the row, the arm aimed where the peg truly is; a pick, then the
+tool hung back; ✓ both, P picked only):
+
+| off by | the arm's fork | the rover's fork (`--rover`) | trays at ±35 (`--narrow`) |
+|---|---|---|---|
+| across −25 / −20 / −15 / −10 mm | P / ✓ / ✓ / ✓ | – / – / – / – | P / ✓ / P / P |
+| across 5 / 10 / 15 / 20 / 25 / 30 mm | ✓ / ✓ / ✓ / ✓ / ✓ / – | ✓ / – / – / – / – / – | ✓ / ✓ / ✓ / ✓ / ✓ / ✓ |
+| yaw 6 / 8° | ✓ / – | ✓ / ✓ | ✓ / ✓ |
+| aim along −10..+5 / +10 / +15 mm | ✓ / ✓ / – | ✓ / P / P | ✓ / ✓ / – |
+| aim height −10 / +10 mm | ✓ / ✓ | P / ✓ | ✓ / ✓ |
+
+The rover's fork on the arm, with its own 22 mm drop and 36 mm lift, takes
+nothing 10 mm off: its end-stops sit 4 mm past its peg's ends, and one lands
+under the peg. The arm's fork takes the peg from −20 to +25 mm across (its
+stops are 53° ramps a peg end slides down) and yaw to 6° (at 8° the far V
+is 12 mm out, past its mouth). Swept at the line-up gate's corners (±15 mm
+and ±4°) and out to ±18 mm, every pick and return held; ±20 is the edge,
+where a pick at −2° failed and one at −4° held. A return turns on the room
+the tool's plate has between the trays: at ±35 mm (9 mm of room) it set
+its plate on a tray's corner from 10 and 15 mm off. The asymmetry is the
+stance's yaw creep during the pick (below): the fork keeps moving one way.
+
+**The approach** (`--approach`; standing 1 m behind the bay's working pose,
+TRULY off by up to ±0.3 m across and along and ±30° while it believes it
+stands exactly there: it looks, walks in steering by the rack's tags,
+stops, waits, measures the bay, and takes the tool if lined up, else backs
+out and tries again; then it hangs the tool back): **41 of 41 — a centred
+start and 40 random ones — took the tool and hung it back, 24 on the first
+try**, a median 18.8 s. Measured off the tags, the aim was within 0.9 mm
+along and 1.5 mm in height every time; the robot stood −15..+6 mm across
+and within 1.9° of square. A start turned 26° away sees none of the rack's
+tags, and sweeps the spot until they fit, as the dock's approach does. The
+walk-in's stops ride the gate's edge: the settle's creep leaves most of
+them 13–15 mm across, and flown on an intermediate fork 3 of 41 starts
+never lined up in three tries. The gate stays at 15 mm, 3 mm inside the
+capture's reliable ±18.
+
+**Carrying** (`--retention`: the tool carried high over the nose; the
+criterion every step; "swing" the tool off plumb, "plate" the plate off
+level):
+
+| flight | open, longest | swing | plate | still seated |
+|---|---|---|---|---|
+| walk 0.3 m/s, trot 0.6 and 1.0 m/s, turn, sidestep, a hard start | ≤ 4 ms | ≤ 7° | ≤ 2.8° | yes |
+| stop from 1.0 m/s | 2–6 ms | 22° | 3.9° | yes |
+
+**The stairs** (`--retention --stairs`: the house's flight, ten 0.18 m
+risers, on the seeing policy, from rest and facing along it, 20 starts a
+row; a tool whose CoM sits on its peg's line, 30 mm ahead of it, and at the
+envelope's 60; lost of the flights that arrived — the policy stalls on
+about 1 in 10 by itself):
+
+| flight | CoM ahead | this fork (60° V's) | as first built (`--first`: 45°) |
+|---|---|---|---|
+| up | 0 / 30 / 60 mm | none of 19 / 18 / 18; open ≤ 38 ms | none; open ≤ 122 ms |
+| down | 0 mm | 1 of 18; open ≤ 60 ms | none of 18; ≤ 74 ms |
+| down | 30 mm | none of 17; ≤ 64 ms | 1 of 18; ≤ 80 ms |
+| down | 60 mm | **none of 18**; ≤ 88 ms | **13 of 17** |
+
+The plate pitches 27° climbing and 33° coming down; the arm's motors peak
+at 4.2 N·m, and the knees read p99.5 14.0 climbing and 9.2 descending.
+
+**The V's are steeper than the rover's because of the stairs** (found by
+`--view stairs`). The parallelogram holds the plate at the TORSO's angle,
+and coming down the flight the torso pitches 33° nose-down: at 45° one
+flank of each V then lies 12° off level, under the peg's friction angle
+(21.8°), and only 5 mm tall. A step's jolt hops the peg, and it lands on
+that flank and stays there half out — traced, 4.7 mm up it with the tool
+leaning 28° on the pad — until a later jolt walks it off. A tool that leans
+onto the pad starts every jolt from that side, which is why the lean
+decides it. Flown at 60 mm ahead, 30 starts a row, one part swapped at a
+time:
+
+| V's | end-ramps | lost of the flights that arrived |
+|---|---|---|
+| 45° (as first built) | 45° | 22 of 27 |
+| 45° | 53° | 7 of 27 |
+| 60° | 45° | 0 of 28 |
+| 60° (this fork) | 53° | 0 of 28 |
+
+The V is the fix: at 60° the low flank lies at 27°, over the friction
+angle, and a hopped peg slides home. The flanks are 31 mm long so the
+mouth keeps the rover's 15.6 mm; on the rover's 22 mm flanks it was 11, and
+the capture's corners went chaotic (a pick 15 mm across at 4° held or
+failed with a 0.4 mm move of the ramps). The drop and lift follow, 33.5
+and 56 mm, keeping the rover's 3.4 mm under a hanging peg and 14 mm over
+the trays' corners. The steeper V grips a peg 41 % harder along its axis
+(0.40 of the tool's weight against 0.28), so the end-ramps steepened to
+53°: their slippery face pushes 0.59. Two things were tried and dropped:
+V faces at μ 0.2 (a sideways jolt slid the peg along its axis and up a
+ramp, and the tool was lost) and the short flanks. At 90 mm ahead, 27
+descents held too.
+
+**No lock, and the stairs are where that could change.** On the flat the
+contact opens for at most 6 ms and up the flight for 38, under the 200 ms
+holding capacitor the rover's peg was sized with. Coming down, the fork
+falls faster than gravity at a step (traced: −15 m/s², then +24 as the leg
+lands), the peg floats 8 mm and moves along its axis, and about 1 descent
+in 60 it lands on an end-ramp and the tool goes: 1 of 58 with a tool on its
+peg's line, none of 58 on the fork as first built, inside the noise. No V
+holds a peg while the fork falls faster than g. The levers, cheapest first,
+for step 4 to weigh against how often the robot carries a tool downstairs:
+a slower descent, a carry pose nearer the torso's pitch axis (the fork's
+0.57 m lever multiplies the pitch), and the positive one, a magnet in each
+V (Parts.md). A fall throws the tool whatever holds it (below). What moves
+is the swing, so a carried tool needs clear air 57° either way. The knees
+with the real arm and a tool aboard read p99.5 7.7–8.9 N·m on the flat,
+14.1 in a hard start and 14.0 climbing (the climb read 13.5 without the
+arm, #388). Carrying, the robot weighs 9.60 kg
+against the placeholder's 9.34, its CoM 21 mm forward and 18 mm up: inside
+the committed policies' randomisation (the torso's mass ±15 %, its CoM
+±5 cm along and ±3 cm up), which is why they walk it untrained.
+
+**A fall throws the tool, and the arm folds** (`--fall`, `--getup`).
+Pushed over while trotting, the robot throws the tool whatever holds it: a
+gravity seat cannot hold upside down, and a lock would keep the tool on an
+arm the robot is rolling across. Left out at its carry pose, the arm then
+props the robot on its side. #377's get-up policy — trained, as #389's is,
+with a placeholder arm that collides with nothing — could not roll it
+there (3 of 6 pushes stayed down), so the arm folds as the torso passes
+60°. #389's rolls it either way: 6 of 6 pushes, standing 1.2–2.0 s after
+it takes over with the arm out and 1.3 s folded; from 20 random drops with
+the arm folded it stands 20 of 20 (median 1.5 s, as with the
+placeholder). The fold drives the elbow's motor to its 22 N·m peak
+through the impact, so whether step 4 keeps it is open again.
+
+**What the arm hides** (`--sensors`). Stowed — the upper arm straight back
+over the torso, the forearm 10° up from it — it hides nothing: no LIDAR ray
+and no pixel of the nose or depth camera. Folded flat, the fork hid 13 %
+of the nose camera's image; tilted 15°, the forearm blinds 9 LIDAR rays.
+Carrying at the carry pose, only the upper arm crosses the scan plane: 5
+rays of 360, and no camera pixels.
+
+**The tool envelope** (`--envelope`, the constants in `legs/arm.py`, for the
+workshop's validator in step 4): **0.40 kg; its CoM on its peg or up to
+60 mm ahead of it (0.35 N·m); 0.20 m under its peg; 12 W.** A CoM ahead of
+the peg leans the tool onto the lean-pad (6°, seated through a trot at
+0.25, 0.40 and 0.60 kg, out to 90 mm ahead). A mass behind it, below the
+peg, is where the pad and its post are: the table's −30 mm rows rest on
+the post. 60 mm is the stairs' tested range; 90 held on the flat and down
+27 flights too, where the 45° V's had flopped a 0.40 kg tool to 74° on the
+flat.
+
+**What shaped it, each measured before it was believed:**
+- **A pad that pushes levers the tool while its peg is on the trays.** At
+  the rover's 2.7 mm of intrusion the lean-pad met the plate's bottom edge
+  as the fork lifted, before the V's took the peg, and levered the tool 15°
+  up the V's flank. A pad fixed to the fork cannot reach the plate only
+  after the seat (the geometry makes the contact at the seat or before), so
+  it stands 3 mm behind the plate and takes a pressing tool's reaction
+  after 4° of swing. It is a round bar: a square one's corner caught the
+  plate's edge.
+- **The IK must not wrap the shoulder.** The stow is at 180°, and a target
+  close over the shoulder wants more; wrapped to −180, the joint limit
+  swung the arm the other way through the robot.
+- **A tool faces the robot, so its left conductor rides the arm's right
+  V.** The V's are named for the pole they take.
+- **The level linkage carries a tool's lean.** The elbow's motor holds the
+  weight at the wrist; what the tool does ahead of the wrist goes to the
+  torso through the parallelogram (virtual work: the equality acts on all
+  three joints alike). The closed form first charged it to the elbow.
+- **The lift must clear the trays' V corners** by more than an aim 10 mm
+  low: the rover's 36 mm cleared them by 4 mm, and such a return knocked
+  the tool off. 56 mm, from the 60° V's 33.5 mm drop, clears them by 14.
+- **The ramps' face is slippery, and steeper than the V's friction.** With
+  45° V's and ramps at the peg's own 0.4, the ramp's push was 0.30 of the
+  tool's weight against the far V's grip of 0.28, and a pick from 15 mm off
+  at 4° left the end on the ramp. Faced with acetal or PTFE (μ 0.15) and at
+  53°, it pushes 0.59 against the 60° V's 0.40.
+- **Swinging a tool up and back down moves the stance under the arm.** In
+  the viewer's fetch the robot held the tool up at the carry pose for 3 s
+  and brought it down to hang it back: the torso had shifted 25 mm, the aim
+  taken before was stale, and the return dragged the tool off the trays.
+  After any big arm move it stands and measures the bay again, as after a
+  walk.
+- **A loop of the stairs measures the policy, not the coupling.** Turned on
+  the landing to within 8° of the flight, the seeing policy stalled at the
+  top edge for its whole budget in about half the loops, and a turn there
+  tipped it down the flight and threw the tool. Flights are flown from
+  rest, facing along them; the viewer's scene crosses a hill instead of
+  turning at an edge.
+- **A carried tool is terrain to the stairs policy.** The height scan
+  reads group-0 geometry as ground, and a tool over the nose read as a
+  0.4 m obstacle: the robot filters what it carries as it filters itself.
+- **A stopped robot keeps turning.** The flat policy holds no heading (its
+  yaw-rate dead band never corrects a slow turn): after the walk-in's stop
+  it turned 1.4° in 0.5 s and 2.7° by 6 s, 7 mm a second at the fork, and 3
+  of 21 picks that began inside the capture ended outside it. The robot
+  waits 3 s and measures the bay again (`rack.SETTLE_AFTER_WALK_S`).
+- **A bay's tags must stay in the nose camera's view from the working
+  pose.** Between the bays (±150 mm) they sat 25° off its axis, and 2.7° of
+  yaw took one out of the frame; a pair a bay at ±75 mm sits at 20°.
+
+**Which tools survive** (#375 step 4 rebuilds them on the longer peg):
+- **the pen** — it keeps its sideways carriage; the arm gives it a board's
+  full height from one stance (0.19–0.41 m from 0.43 m out) and the pressing
+  force, reacted by the pad;
+- **the claw** — the arm reaches the floor 0.40–0.50 m ahead with the
+  rover's 154 mm pendant, so the pendant can shorten; holding the bench's
+  0.4 kg cube it weighs 0.61 kg, carried seated as the envelope's 0.60 kg
+  rows were, and held straight out at 39 % of the motors' rating;
+- **the LCD and the seed dispenser** — unchanged but for the peg;
+- **the plug does not** — no job uses it, and the robot charges by lying
+  on its dock (#390).
+
+**What is true now:** the arm is `legs.arm.ArmSpec()` (the choice), built
+onto the body by `model.body_xml(arm=arm_mjcf(...))` — a spike's body, not
+yet `CHOSEN`'s, whose placeholder still budgets 0.9 kg; the controller is
+`ArmDriver` (the GDS68's PD plus the arm's own gravity off its model); the
+coupling is `ArmSpec().fork` (60° V's) with `rack.tool_xml`'s peg, judged by
+`rack.tool_power`; the rack is `rack.DEFAULT` (three bays at 0.30 m, pegs at
+0.50 m, tags 29–34), found by `rack.bay_aim` and walked into by
+`rack.walk_in_twist`; the stow, the carry pose, the fold threshold and the
+tool envelope are `legs/arm.py`'s constants. `tests/test_arm.py` pins each
+rule above. Step 4 builds the arm into `CHOSEN`, the rack and the tools
+into the served world, the envelope into the workshop's validator, the fold
+into the body's reflexes and the carried-tool filter into the scans.
+
 ## The served sim's speed (issue #385)
 
 A pair on the deploy box ran below real time (0.96× over a carry, 0.80×
@@ -2349,7 +2614,6 @@ trained on. They walk on it within tolerance (numpy → dcmotor):
 | tracking at 0.5 / 1.0 m/s | 0.54 / 1.07 | 0.53 / 1.06 |
 | knee p99.5 / worst RMS at 1.0 m/s, N·m | 7.9 / 4.8 | 7.8 / 4.7 |
 | power at 0.5 / 1.0 m/s, W | 88.1 / 108.9 | 89.0 / 112.1 |
-| get-up from 20 falls; from the belly | 20/20; 0.2 s, 87 mWh | the same |
 | posture, every commanded row | | within 0.1° and 1 mm |
 | legged odometry, 5 seeds | 2.4–4.0 % | 3.3–4.0 % |
 | seeing climbs | | the same, one more 0.10 m flight (3/3) |
@@ -2595,12 +2859,13 @@ lie-down and the stand-up moved from `quad_spike.py` into `legs/posture.py`
 and fly the spike's tables byte for byte.
 
 **Getting up, and the `stuck` death.** Shoved over 48 times in six places
-(the open floor, beside the couch, against the south wall, the hall, the
-kitchen counter, a doorway): 35 falls, 31 up -- median 1.2 s, p95 4.2 s,
-the slowest 13.4 s against the south wall -- and 4 wedged, never up in
-40 s (one upside-down against the couch). So a body that rights itself is
-`stuck` after 20 s down (`QuadBody.stuck_after_s`), not the rover's 2 s,
-and its death line says "fell and could not get up in 20 s".
+(`quad_spike.py --shove`: the open floor, beside the couch, against the
+south wall, the hall, the kitchen counter, a doorway), #389's get-up stood
+from all 37 falls -- median 2.0 s, p95 3.5 s, the slowest 4.6 s. #377's,
+which this deploy flew first, left 4 of 35 wedged upside down and took
+13.4 s once. So a body that rights itself is `stuck` after 20 s down
+(`QuadBody.stuck_after_s`), not the rover's 2 s, and its death line says
+"fell and could not get up in 20 s".
 
 **The LIDAR's plane is over the furniture.** The quadruped's LIDAR sits on
 a rear mast so its plane clears the stowed arm: 0.506 m up. The couch
@@ -2745,6 +3010,227 @@ yet decides who yields.
 how it dies in its own words, and nothing about upkeep where there is none
 (`overseer.mortal_rule`, `for_body`); the constitution's body paragraph is
 swapped for the quadruped's (`constitution.for_body`, asserted).
+
+## A gentler get-up (issue #389)
+
+#377's get-up policy sprang. Paid for every step it stood, the sooner the
+better, it stood from the belly in 0.2 s with a knee at the drivers' 22 N·m
+peak and the torso rising at 1.4 m/s: hard on a gearbox, a hazard to a
+hand (#379's safety section), and it throws #378's arm and a tool. Now
+`Pluggy-Quad-Getup` (`training/quad_train/getup.py`) pays the STAND (the
+height and the pose) only from 2 s after the release (`BUDGET_S`), so
+standing sooner earns nothing, and it charges for getting up hard: each
+joint's torque past the motor's continuous rating (6.71 N·m; squared, in
+ratings) and harder past 60 % of the peak (13.2 N·m), the joints' speed and
+acceleration, the torso rising faster than 0.25 m/s, and the action's rate.
+The charges start at a tenth of their weight and reach it at iteration 900
+(`GENTLE_STAGES`). Being the right way up pays from the release.
+
+**The committed policy** (2000 iterations, 37 min on a rented RTX 4090
+beside two other runs) against #377's and the scripted fold-and-push, in
+our physics (`quad_spike.py --getup`, `--shove`; stood is the served
+body's own test):
+
+| | scripted | #377's | #389's |
+|---|---|---|---|
+| from the belly: stood in | 2.2 s | 0.2 s | 1.5 s |
+| ... peak torque, abduction / flexion / knee, N·m | 2.2 / 0.9 / 5.9 | 3.0 / 13.4 / 22.0 | 5.3 / 8.6 / 10.1 |
+| ... the torso's fastest rise, m/s | | 1.43 | 0.21 |
+| ... energy to the stand, mWh | 44 | 23 | 31 |
+| #377's 20 drops: stood | | 20 | 20 |
+| ... first touch to stood, median (longest), s | | 0.3 (0.8) | 1.3 (2.4) |
+| ... past 60 % of the peak after the landing | | 10 | 1 (14.2 N·m) |
+| 100 fresh drops: stood | | 100 | 100 |
+| ... past 60 %: in the air / the landing / after it | | 80 / 96 / 62 | 78 / 35 / 7 |
+| the house, shoved 48 times: fell / up | | 37 / 32 | 37 / 37 |
+| ... fall to standing, median (slowest), s | | 1.2 (28.0) | 2.0 (4.6) |
+| ... peak after the landings, N·m | | 22.0 | 14.1 |
+
+"The landing" is the first 0.3 s after anything touches the floor
+(`LANDING_S`). #377's 87 mWh was the whole 6 s trial, 5.8 s of it standing
+still; to the stand its spring cost 23 mWh, less than the scripted routine
+because it was short, and the rise costs 31.
+
+**Held back to 2 s, being right way up never learned to roll.** With
+`belly_down` gated like the stand, three runs (the ramp; full charges from
+the first iteration; three times the charge past 60 %) rose gently from
+the belly by iteration 1000 (0.9–1.2 s at 10.5–11.5 N·m) and stood from
+at most 16 of 20 drops, every failure on its back to the end. In the house
+the ramped run got up from 9 of 37 shoves, and those traced lay on their
+backs: the shove's spin flips the body, and one settled from its side onto
+its back, the state its charges made cheapest.
+#377's rolls were flips, upside down to upright in 0.2 s with up to three
+joints briefly past 60 %, and a policy learning to stand while its charges
+rose never found one. Paid from the release (on its side a quarter, on its
+back nothing), the roll came from scratch by iteration 1350. A warm start
+from #377's actor under the same rewards kept its roll too (20 of 20 at
+each checkpoint flown) and was not needed. Full charges from the first
+iteration also learned to stand (16 of 20 by iteration 1000, as the ramp
+did), so the ramp is not what makes it stand.
+
+**The landing is the policy's own aim.** At the worst moment of each of
+#377's landings past 60 % (19 of #377's 20 drops) the PD's stiffness term
+(where the policy aims the joint) was the larger, not its damping term
+(the joint's speed): it sprang at the floor too. The committed policy's
+landings pass 60 % in 35 of 100. What is left in the air is each drop's
+start, the joints at random angles and the first targets swinging them into
+place, which no fall on the robot starts from. After the landing, 7 of 100
+pass it: five in its tail, 0.31–0.38 s after the touch, the damping term
+the larger in four, and two rolling off the back (13.3 and 15.4 N·m).
+
+**An arm left out no longer stops it** (#378's section, "A fall throws
+the tool, and the arm folds").
+
+## Walking into the unknown (issue #381, the walking stage)
+
+A fresh quadruped -- its start pose in the living room, an empty map, one
+look round -- sent once to each of the property's 24 zones
+(`scripts/unknown_spike.py`: a zone's centre moved to the nearest floor
+0.45 m from anything, each walk in its own process, 300 s a walk) reached
+**9**, and every failure was the same one: `no route` at a stand-in pressed
+against a wall. The planner planned over mapped floor only and aimed an
+unmapped goal at the reachable cell nearest it in a straight line ("A goal
+out of sight is aimed at through the nearest wall"), which from inside a
+house is against the wall between the robot and the goal: the workshop's
+wall for the kitchen, the living room's south wall for the south garden,
+the garden fence 3 m from its gate for the street. The lab and the store
+arrived only because every door on their way (the gate, garden_2's, the
+lobby's, the lab's) sits on y = 3.1, the straight line -- in 103 and 118 s,
+past the 60 s a procedure's `drive_to` and a decided `explore(zone)` gave a
+walk: with the budgets the robot had, 4 of 24.
+
+**Unknown is floor at a price** (`mapping/optimistic.py`, the quadruped's
+`Navigator.OPTIMISTIC`). A cell nobody has seen costs `UNKNOWN_COST` a
+metre against a mapped cell's 1; a known wall grown by the inflation is not
+floor on either side of it (the far side of a wall is not a way through);
+the plan runs as straight as the map allows, the LIDAR sees the walls it
+crossed as the robot walks, and the next plan (every 2 s) goes round them.
+A doorway is found by finding the walls either side of it. No route at all
+is then a fact about the map: the walls the robot has seen enclose the
+goal. The stand-in stays for a goal INSIDE a wall's inflation (a board's
+use pose), and a goal on the floor but walled off is no plan. The same 24
+walks after:
+
+| zone | true route | before | after |
+|---|---|---|---|
+| kitchen | 13.3 m | no route, 2.4 m short | 38.6 s, 13.6 m walked |
+| workshop | 11.9 m | 40.0 s, 14.1 m | 36.4 s, 12.0 m |
+| hall | 5.6 m | 20.4 s, 6.3 m | 17.7 s, 5.6 m |
+| living | 0.3 m | 3.6 s | 5.4 s |
+| bedroom | 3.7 m | 10.2 s, 3.7 m | 10.7 s, 3.8 m |
+| garden | 7.1 m | 67.0 s, 13.3 m | 20.8 s, 7.6 m |
+| garden_south | 9.4 m | no route, 2.4 m short | 28.3 s, 10.1 m |
+| sidewalk | 13.4 m | no route, 1.1 m short | 39.4 s, 14.2 m |
+| street | 14.3 m | no route, 3.5 m short | 38.8 s, 15.1 m |
+| sidewalk_2 | 16.5 m | 64.7 s, 21.0 m | 44.6 s, 17.2 m |
+| garden_2 | 19.7 m | no route, 1.9 m short | 52.3 s, 20.3 m |
+| lobby | 22.7 m | no route, 2.0 m short | 61.2 s, 23.3 m |
+| lab | 25.0 m | 118.3 s, 32.6 m | 64.6 s, 25.6 m |
+| store | 29.5 m | 103.3 s, 34.0 m | 78.3 s, 30.1 m |
+| sidewalk_north | 24.9 m | out of time, 1.9 m short | 159.3 s, 60.6 m |
+| sidewalk_2_north | 23.6 m | 118.9 s, 32.6 m | 65.8 s, 24.2 m |
+| sidewalk_south | 31.1 m | no route, 4.3 m short | 163.7 s, 62.0 m |
+| sidewalk_2_south | 28.3 m | no route, 12.5 m short | 75.6 s, 29.0 m |
+| sidewalk_west | 42.7 m | no route, 1.1 m short | 243.8 s, 93.3 m |
+| sidewalk_east | 36.2 m | no route, 1.2 m short | 165.1 s, 63.6 m |
+| street_north | 17.2 m | no route, 4.8 m short | 54.5 s, 20.1 m |
+| street_south | 23.3 m | no route, 8.1 m short | 84.2 s, 30.6 m |
+| street_west | 43.6 m | no route, 3.5 m short | 246.2 s, 94.5 m |
+| street_east | 37.1 m | no route, 3.3 m short | 165.8 s, 64.7 m |
+
+**24 of 24**, 15 of them within 7 % of the true route and 16 within 20 %
+(the "true route" is the same planner over the compiled world's own floor,
+nothing left unknown; the living room's 0.3 m aside). The other seven all
+end on the loop round the two houses, at 1.3-2.4 times the route, and it is
+the right answer to the question the robot was asked: from the middle of a
+house it has never seen, the cheapest way anywhere is
+through the walls it has not seen yet. Sent to the west street it tried the
+bedroom's north wall, then the kitchen's west wall -- the house has no door
+on either side -- found both, and went out by the garden door and round the
+north sidewalk. A first walk into the world is an exploration, and its map
+is kept: sent back to its start and there again (`--again`), the second
+walk to the west street took 117 s and 45.2 m (the route is 43.6), to
+the south street 60 s and 23.2 m (23.3); the near ones were near their
+routes both times. ⚠ One walk back did not arrive: from the north sidewalk
+it shuttled east and west for its whole 300 s (108.7 m), because the house's
+north wall is 4 cm thick, thinner than a cell, and the robot walking along
+it carves it out of its own map with grazing rays -- the map had it free
+from x = -3 to 6 m -- and the planner routes through where it was (#401: a
+choice of sensor model, filed, not made here).
+
+**Why this price.** A known detour is taken while it is under twice the
+unknown shortcut (`UNKNOWN_COST` 2). It is a choice, not a fit: swept to 1.25 and 4
+over six fresh walks it moved four not at all and two by 3 s, because a
+fresh map offers no known detour to weigh -- every way out is unknown. What
+it decides is a second walk's: the way it knows against a shortcut it has
+not seen.
+
+**The map still growing is progress** (`PROGRESS_MAP_GROWTH`,
+`MAP_GROWTH_CELLS`): a walk into the unknown turns back when it meets a
+wall, and a route that lengthened because the map showed a wall is not a
+stall. The rover's progress rule (the straight line) and the quadruped's
+(#387's route length) both read that as no progress. Walking into new floor
+the map grows by 800-1 850 cells a second; standing still 20 s after
+arriving, by -5 to +195 cells (a fused scan's edge at the LIDAR's reach):
+`MAP_GROWTH_CELLS` is 400 in 10 s, 4x that.
+
+**The search is scipy's compiled Dijkstra, on a 10 cm lattice built once.**
+Measured on the home grid (469 200 cells) on a busy dev box, a fresh map
+from the start pose: A* in pure Python with the unknown priced took 0.5-10 s
+a far plan (it expands every cell cheaper than the goal, and the unknown's
+price makes that most of them); scipy's Dijkstra over the 5 cm lattice
+~260 ms, over a 10 cm one built per plan ~240 ms. What made it cheap:
+
+- a lattice cell is 2 x 2 map cells and passes only if all four do
+  (`BLOCK`): a gap keeps a path at any alignment while it is 3 map cells
+  wide, and every door of the house is 6 once inflated;
+- the CSR graph is built once per grid shape (~0.1-0.4 s, shared by a
+  pair) with eight slots a node, and a plan writes its weights -- a step at
+  a time into contiguous arrays and interleaved in one copy (6.5 ms, where
+  writing each step into its stride-8 slots cost 15.2);
+- an `inf` weight is no edge to scipy, so a wall is a weight, not a
+  rebuilt graph;
+- a goal on the floor is searched for no further than the straight line to
+  it at the dearest cost and 2 m (`LIMIT_SLACK_M`), then without a limit if
+  that missed: a 3 m hop settles 1.9 ms of search where the whole lattice
+  takes ~20.
+
+Alone (the busy box's best of nine) a plan is ~5 ms of search near and
+10-20 far, on ~8 ms of costing the map (the inflation's distance transform
+over the whole grid, the next lever); in flight the median plan was 35-65 ms.
+Over the 24 walks planning was **30.7 ms a walked sim second (2.6 % of the
+wall clock)** against the old planner's 18.7 (1.5 %), on the same busy box
+-- dearer a plan, and fewer of them: no stand-in replanned in a storm.
+
+**The patience is the robot's, and its interrupt reaches the walk.**
+`drive_to(x, y, patience=S)`: 60 s unsaid, 600 at most, never past the
+procedure's own budget; the longest walk above took 246 s. A decided
+`explore(zone)` walks with `ZONE_PATIENCE_S` (300 s: all 24 fit). A walk
+asks the robot's own hazard rows every second (`go_to_routine(stop=)`) and
+ends where it stands on the answer -- `DRIVE_STOPPED`, never one of the four
+ways a drive gives up -- and a procedure it stops is `stopped:
+interrupted`, as between two verbs.
+
+**Found on the way: no procedure on legs had walked a step.** Every verb
+that moves takes the carrying pose first (#347), which asked the body for
+its arm, and the quadruped has none: `drive_to`, `face` and `drive` raised
+before they moved, on every run since the first quadruped deploy. The
+observatory's two days on `5c6e6cf`: 6 565 procedures validated, 6 562
+aborted, 3 ran; of the last 196 aborts read, 193 were one procedure run
+again and again at one sim instant, the loop spinning with the world stopped
+(#400: an action that takes no sim time can be fired again at once).
+
+**What is true now.** The quadruped walks into the unknown and the rover
+does not: its planner and its day are unchanged until #376's stage C -- a
+scripted rover home day hashes IDENTICAL against staging (2 025 samples to
+1 012 s). The quadruped pair's day hashes IDENTICAL in two processes (1 046
+samples to 522.6 s), and a quadruped's day saved at 232.7 s, as it left its
+explore for the dock, and carried on in a new process is IDENTICAL after
+the restore (942 samples, `--resume-at 40`). `scripts/unknown_spike.py [--before]
+[--again]` is the measurement; the rules are pinned in
+`tests/test_unknown.py`. Not done: the map is still the
+property's rectangle (#381's stage 4), loop closure (stage 3), and what a
+walk into the unknown costs is not yet in any offer (stage 7).
 
 ## Debugging workflow that worked
 

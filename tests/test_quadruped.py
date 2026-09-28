@@ -161,6 +161,43 @@ def test_a_fall_is_got_up_from_by_the_policy(quad_world):
     body.close()
 
 
+def _quad_spike():
+  import sys
+  from pathlib import Path
+  sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
+  import quad_spike
+  return quad_spike
+
+
+#: #389's bound on a joint while getting up: 60 % of the drivers' peak.
+GETUP_CAP = 0.6 * CHOSEN.motor.peak_torque
+
+
+def test_the_get_up_rises_from_the_belly_rather_than_springing():
+  """#389: #377's get-up policy stood from the belly in 0.2 s by driving the
+  knees to the drivers' 22 N*m peak -- hard on the gearboxes, a hazard to a
+  hand, and it throws #378's arm. The committed one rises: no joint past
+  60 % of the peak, a second or more to the stand, flown in our physics as
+  `quad_spike.py --getup` flies it."""
+  r = _quad_spike().getup_trial(qb.GETUP_NPZ)
+  assert r["stood"] is not None and r["stood"] >= 1.0
+  assert r["peak"].max() <= GETUP_CAP
+
+
+def test_the_get_up_stands_from_nineteen_of_twenty_falls_without_springing():
+  """...and from #377's twenty random drops: nineteen or more stand, the
+  median a second or more from the first touch (#377's: 0.3 s), and at most
+  two drive a joint past 60 % of the peak once the landing is over (#377's:
+  ten). The landing itself is not held to it: the legs meet the floor
+  wherever the fall threw them (SimNotes, "A gentler get-up")."""
+  qs = _quad_spike()
+  runs = [qs.getup_trial(qb.GETUP_NPZ, drop) for drop in qs.getup_drops()]
+  stood = [r for r in runs if r["stood"] is not None]
+  assert len(stood) >= 19
+  assert np.median([r["up"] for r in stood]) >= 1.0
+  assert sum(r["peak_after"].max() > GETUP_CAP for r in runs) <= 2
+
+
 def test_a_body_that_rights_itself_is_stuck_only_past_its_budget():
   """The `stuck` death for a body that gets back up (#387): not at the
   rover's `TOPPLE_HOLD_S`, but once its get-up's budget has run out, and in

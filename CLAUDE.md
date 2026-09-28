@@ -230,12 +230,14 @@ tolerance spikes are listed in `docs/Rover.md`.
 | `scripts/experiment.py` | the harness, above |
 | `scripts/overseer_probe.py` | REAL LLM calls against a synthetic state: tokens, cost per sim-hour, cache hit rate, the latency distribution (`--calls N`). `--model org/name[:provider\|:cheapest]` measures a HuggingFace candidate (`$HF_TOKEN`, in the gitignored `.env`); `--deployed` measures the prompt the served pair sends and reports the ENERGY GATE (`report_energy` counts who took the unaffordable offer); `--prompt` prints it section by section with its sha; `--max-tokens N`, `--escalate-to X --force-escalate`, `--tokens-only` (the Anthropic path's limits: Overseer.md §6) |
 | `scripts/energy_spike.py` | what each errand COSTS, per world, on an oversized pack; `--write` folds it into `economy/energy.json`, `--reserve` measures the return-trip margin, `--actions` prices named acts; `--world home_quad` prices the quadruped's explore and dock (it has no errand). Re-run after anything that changes what an errand does |
+| `scripts/unknown_spike.py` | #381's walking stage: a fresh quadruped (an empty map, its start pose) sent once to each zone, one process a walk: arrived or why not, the time, the walk against the true route, what planning cost; `--before` the planner before (mapped floor only, stand-ins), `--again` back and there again on the map it laid, `--unknown-cost X`, `--maps DIR` |
 | `scripts/drift_spike.py` | #386: believed against true pose over lab round trips, the rover's (`run_demo`) or the quadruped's (the walking policy steered by the truth, two estimates on one walk), and whether the lab door is open in the robot's own map; `--no-match` is the day on odometry alone |
 | `scripts/determinism_spike.py` | is the world the same world twice? N scripted days hashed, first divergence attributed to GPU / decoder / raycast; `--compare DIR`; `--second-robot X,Y`; `--resume-at T` flies a day against one saved and carried on in a new process (#345) |
 | `scripts/solve.py --feature {tower,bench,mouse}` | ladder A of #264: the hand-written solution to each challenge, flown the way the robot's attempt runs and graded by the feature's own grader; `--at-the-row`, `--pair [--robot 2]`, `--source FILE` (a robot's own procedure); filmstrip `solve.png` |
 | `scripts/board_png.py` | a whiteboard's ink as a PNG from the boards state file or a recording. ⚠ +lat is the viewer's LEFT, as in the site's `surfaces/board.ts`; the test pins it because every figure the pen draws is symmetric |
-| `scripts/quad_spike.py` | the quadruped body (#377; SimNotes "The quadruped body"): `--view` watches it, `--torque`/`--thermal`/`--energy`/`--sweep`/`--pupper` are the sizing tables, `--policy`/`--climb`/`--getup`/`--posture`/`--odometry`/`--determinism` fly a trained policy in OUR physics (`--climb --scan map` on the D435's map, `legs/scan.py`, #388), `--served`/`--rays` time the pair and the sensors |
+| `scripts/quad_spike.py` | the quadruped body (#377; SimNotes "The quadruped body"): `--view` watches it, `--torque`/`--thermal`/`--energy`/`--sweep`/`--pupper` are the sizing tables, `--policy`/`--climb`/`--getup`/`--posture`/`--odometry`/`--determinism` fly a trained policy in OUR physics (`--climb --scan map` on the D435's map, `legs/scan.py`, #388), `--shove` the served body knocked over in the house (what `stuck_after_s` is read off, #389), `--served`/`--rays` time the pair and the sensors |
 | `scripts/dock_spike.py` | the quadruped's dock (#378; SimNotes "The quadruped's dock"): `--capture` the funnel's envelope (premises `--sticky`, `--flat`), `--approach [--n N]` the success rate walking in by the board (premise `--blind`), `--hold` lying there: contact, preload, the anchor, standing off; `--view` dockings in the viewer, one after another; `--mouth`/`--bed` fly another width; filmstrip `dock_spike.png` |
+| `scripts/arm_spike.py` | the quadruped's arm, its coupling and the rack (#378; SimNotes "The quadruped's arm, its coupling and the rack"): `--reach` the level-tool choice and the holding torques, `--capture` the coupling's envelope placed at a bay (premises `--rover`, `--narrow`), `--approach [--n N]` walking in by the rack's tags and taking a tool, `--retention [--stairs [--first]\|--fall]` carrying one (`--first`: the fork as first built, 45° V's, the stairs' premise), `--getup` the get-up policy with the arm, `--sensors` what the arm hides, `--envelope` a tool's mass and lever; `--view [fetch\|carry\|stairs\|fall\|reach]` a scene in the viewer, looped until the window closes (MUJOCO_GL unset); filmstrip `arm_spike.png` |
 
 - **The quadruped's training stack lives in `training/`, a uv project of its own** (#377): mjlab 1.5.x (it pins `mujoco ~=3.10.0`, the served sim's), reading the body from `models/quadruped.{xml,json}` (`python -m pluggybot.legs.model` writes both; mjlab caps numpy below pluggybot's, so the two never share an environment). ⚠ Importing `legs.policy` or `legs.model` loads none of torch, jax, warp, onnx or mjlab (`tests/test_legs.py`); a policy reaches the served sim as an `.npz` that `quad_train.export` checks against its ONNX before writing, run by `legs/policy.py` in numpy. ⚠ The leg DRIVERS are MuJoCo's position-mode `dcmotor` (#385; `body_xml(drive="position")`), the PD and the envelope in C, commanded as a GDS68 is (`legs/drivers.py`): every command carries its gains — a policy's are its own, a routine's torque rides a target with the damping cancelled (the torque motor's step to 1e-14), `limp()` holds nothing — so a policy and the scripted routines share one body. The default gains are ONE definition, `actuator.driver_gains`, which `training/` reads from `quadruped.json`. `drive="torque"` (plain motors) is the sizing tables' instrument. `training/pod.sh` rents a Runpod GPU (REST API; `runpodctl pod create` needs a GraphQL-writable key) — ⚠ a POST to `/v1/pods` with an EMPTY body CREATES a pod: every field has a default.
 
@@ -298,6 +300,13 @@ tolerance spikes are listed in `docs/Rover.md`.
     `events.ACTION_FAILURES` (`busy`/`unrunnable`/`unclaimable`/
     `unbuildable`/`beyond`), stated in `EVENT_MAP_RULE` and counted by cause;
     `busy` is the whole rate limit;
+  - ⚠ **a decision acted on at the sim instant of the last one waits
+    `DECIDED_IDLE_S` first** (#400, `_new_moment_routine`): an action that
+    steps no physics otherwise sends the loop round with the world standing
+    still (one procedure 193 times at one instant, both robots frozen).
+    AFTER the map is read, never before (a failure and `nothing_to_do` are
+    one tick); History once per run of them; a death in the hold ends the
+    pass. Not a rate limit, not an `ACTION_FAILURES` cause;
   - **going unminded is a death** (a fourth cause, never summed), and ⚠ THE
     AGENT IS TOLD THE NUMBER (#322; a test reads it off the constant), plus
     that a row fires when the robot is next FREE. `UNMINDED_AFTER_S` = 1800
@@ -367,7 +376,9 @@ tolerance spikes are listed in `docs/Rover.md`.
   a METHOD; ONE question per errand, the abort LATCHES. ⚠ Abort means STOW,
   never drop, at a safe point (Rover.md), and an abort is NOT an `error`: what
   it did is SCORED AS IT STANDS. ⚠ `needs_charge` and `interrupted()` are not
-  the same check.
+  the same check. ⚠ A procedure's walk is a safe point every second (#381):
+  a verb whose walk the interrupt ended is `stopped: interrupted` in BOTH
+  runners (`steps.run_verb` reads the `aborting` latch), never a failed step.
 - **The memory is four tiers over one record store, and every text surface is
   a DOCUMENT or a MESSAGE** (issues #217, #221; Overseer.md §7).
   `mind/memory.py` is the store (SQLite + FTS5, one `memory.sqlite` per robot,
@@ -450,7 +461,11 @@ tolerance spikes are listed in `docs/Rover.md`.
   (`PROCEDURE_NEW`) runs what the SAME answer defines (the enum is built
   before the answer) and never as an order or a row. ⚠ EVERY RUN LEAVES ONE
   HISTORY LINE (`lifecycle.procedure_outcome`). ⚠ `fetch` checks the fork
-  first. ⚠ `PROCEDURE_RULE`'s example may not show charge, a battery threshold
+  first. ⚠ `drive_to(x, y, patience=)` (#381): 60 s unsaid, `MAX_PATIENCE_S`
+  600, never past the run's own budget (`run_verb(until=)`); an argument with
+  a `default` may be left out. ⚠ A body with no arm has no carrying pose
+  (`travel_pose`): asking for one raised before every walking verb on legs.
+  ⚠ `PROCEDURE_RULE`'s example may not show charge, a battery threshold
   or the rack. ⚠ The site's Procedures section is built off the `procedure`
   event (`library`, `failedLine`; `failedAt` counts verb calls, not lines).
 - **The allowance** (`mind/spend.py`, `mind/mode.py`, issue #37; Overseer.md
@@ -632,8 +647,12 @@ tolerance spikes are listed in `docs/Rover.md`.
   two-repo event.
 - **The parts list is DATA, and the fixture is read off the sim** (issue #185;
   `rack/catalog.py` → `protocol/parts.json`, vendored to the website's parts
-  page): `body` and `catalog` shelves. ⚠ EVERY `feeds` VALUE IS READ OFF
-  `models/room_hub.xml` or the live constant — never typed
+  page): `body` and `catalog` shelves, and `build`, the quadruped's bill of
+  materials (#379: `LINES` buy the parts, an undesigned one at an ALLOWANCE
+  with its basis, never a price; Parts.md's bill is RENDERED from them, and
+  a test fails if the two differ). ⚠ EVERY `feeds` VALUE IS READ OFF its
+  robot's model (`WORLDS`: `room_hub.xml`, `quadruped.xml`) or the live
+  constant — never typed
   (`test_no_feed_is_typed`), so a moved literal is a STALE fixture (`uv run
   python -m pluggybot.rack.catalog`), and an `expect` pins the datasheet's
   number to the sim's. ⚠ A NUMBER THE DOC DOES NOT KNOW IS `null` WITH A
@@ -1003,6 +1022,19 @@ tolerance spikes are listed in `docs/Rover.md`.
   or 5 s have passed (docked, fusing every scan walked the map 0.15 m).
   ⚠ No BLAS product (einsum's own loop); the field is kept state.
   ⚠ `mission.SCAN_MATCH` is a measurement's switch, never a deployment's.
+- **A quadruped walks into the unknown** (issue #381's walking stage;
+  `mapping/optimistic.py`, `Navigator.OPTIMISTIC`; SimNotes, "Walking into
+  the unknown"): it plans through floor it has not seen at `UNKNOWN_COST` a
+  metre, a known wall grown by the inflation (into the unknown too) is not
+  floor, and no route at all means the walls it saw enclose the goal. The
+  search is scipy's compiled Dijkstra on a 10 cm lattice (`BLOCK`: a gap
+  keeps a path while 3 map cells wide), BUILT ONCE PER GRID SHAPE, a plan
+  only writing its weights -- ⚠ pure-Python A* through the unknown measured
+  0.5-10 s a far plan. A map still growing is progress
+  (`MAP_GROWTH_CELLS`). ⚠ The rover keeps its planner and its day hashes as
+  it did; `scripts/unknown_spike.py [--before]` is the measurement.
+  `go_to_routine(stop=)` asks a callable every `STOP_EVERY_S` and ends as
+  `DRIVE_STOPPED`, never one of `DRIVE_GAVE_UP`.
 - **The sensors that feed an estimate are the parts', never the sim's**
   (issue #386; `perception/imu.py`, `perception/encoders.py`, Parts.md's
   table): an ICM-42688-P on both bodies, whole counts on the rover's
