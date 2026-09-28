@@ -244,6 +244,7 @@ class RoverBody(Body):
     return self.mission.spot(tag, at_height=at_height)
 
   pressing = property(lambda self: self.mission.swap.pressing)
+  head_camera = property(lambda self: self.handle.el("left_eye"))
 
   # ---- the others, and collisions ------------------------------------------
 

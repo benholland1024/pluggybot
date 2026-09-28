@@ -369,6 +369,12 @@ class Body(abc.ABC):
 
   #: Pressed against something it is moving into (the rover's bumper).
   pressing: bool
+  #: The camera its eye looks through (issue #275), by its name in the
+  #: world: the one on the head, looking along the body's +x -- the rover's
+  #: `left_eye`, the quadruped's `nav_eye` -- or None where it has none (the
+  #: stub). The body's, not the eye's: the rover's name kept in the loop
+  #: took the served process down on legs (issue #408).
+  head_camera: str | None
 
   # ---- the others, and collisions ------------------------------------------
 
@@ -532,6 +538,7 @@ class StubBody(Body):
   posture = "standing"
   rights_itself = False
   stuck_after_s = 2.0
+  head_camera = None
 
   @staticmethod
   def world():

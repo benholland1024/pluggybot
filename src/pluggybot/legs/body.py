@@ -67,6 +67,9 @@ from pluggybot.tick import Routine
 GETUP_NPZ = POLICY_NPZ.with_name("quadruped_getup.npz")
 #: The command that holds the body where it is.
 STILL = (0.0, 0.0, 0.0)
+#: The nose camera: the dock's board is read through it, and it is the
+#: head camera the eye looks through (`Body.head_camera`).
+NAV_EYE = "nav_eye"
 #: The postures, as the wire carries them.
 STANDING, LYING_DOWN, LYING, STANDING_UP, GETTING_UP = POSTURES = (
   "standing", "lying_down", "lying", "standing_up", "getting_up")
@@ -785,7 +788,7 @@ class QuadMission(Navigator):
   def _board_detector(self):
     if self._board is None:
       from pluggybot.rack.tags import DOCK_TAG_SIZE, TagDetector
-      self._board = TagDetector(self.model, self.handle.el("nav_eye"),
+      self._board = TagDetector(self.model, self.handle.el(NAV_EYE),
                                 tag_size=DOCK_TAG_SIZE)
     return self._board
 
@@ -796,7 +799,7 @@ class QuadMission(Navigator):
   def look_at_board(self) -> dk.DockFix | None:
     """One look; a fit moves the dock's believed pose (odometry frame)."""
     seen = dk.seen_from(self.model, self.data, self.detect_board(),
-                        self.handle.el("nav_eye"), self.root)
+                        self.handle.el(NAV_EYE), self.root)
     fix = dk.fit_dock(seen)
     if fix is not None:
       self.dock_seen = dk.blend(self.dock_seen,
@@ -895,7 +898,7 @@ class QuadMission(Navigator):
     (#378, "the dock is the map's origin"). With no decode, the seat itself:
     the funnel lays it within a few mm and 2 deg."""
     seen = dk.seen_from(self.model, self.data, self.detect_board(),
-                        self.handle.el("nav_eye"), self.root)
+                        self.handle.el(NAV_EYE), self.root)
     fix = dk.fit_dock(seen)
     x, y, yaw = self.dock_prior
     if fix is not None:
@@ -1312,6 +1315,7 @@ class QuadBody(Body):
     return None
 
   pressing = property(lambda self: self.mission.pressing)
+  head_camera = property(lambda self: self.handle.el(NAV_EYE))
 
   # ---- the others, and collisions ------------------------------------------
 

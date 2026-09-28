@@ -3933,8 +3933,7 @@ class HubLifecycle:
     """
     self.state = "LOOK"
     x, y, heading = self.body.pose
-    camera = eye_mod.camera_pose(self.model, self.data,
-                                 self.body.handle.el(eye_mod.CAMERA))
+    camera = eye_mod.camera_pose(self.model, self.data, self.body.head_camera)
     row = self.eye.ask(camera, t=float(self.data.time), x=x, y=y, heading=heading)
     self._look_run += 1
     self._emit({"type": "look", **eye_mod.wire_row(row)})
