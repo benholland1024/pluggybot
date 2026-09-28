@@ -14,8 +14,8 @@ policy. What these hold down:
      did. A margin charged on a battery smaller than one errand refuses every
      job in every world forever.
   3. AN ERRAND THAT WILL NOT FIT IS DEFERRED, NOT STARTED. This is the
-     acceptance criterion, and `test_a_hosting_pack_charges_before_the_errand`
-     is it flown on real physics.
+     acceptance criterion, and `test_an_overseer_that_only_ever_picks_the_
+     dearest_errand_is_sent_to_charge_first` is it as a whole day.
   4. NOTHING SPINS. An errand that cannot be paid for after two charges is
      given up on, and one no pack here could cover is dropped on sight.
   5. THE MODEL IS TOLD, and told only what was measured. Costs ride the
@@ -487,7 +487,7 @@ def test_the_prompt_still_never_carries_a_hidden_answer():
   assert "truth" not in text.lower().split("energycostwh")[-1]
 
 
-# ---- 3, on real physics ------------------------------------------------------
+# ---- 3, the gate and the cap -------------------------------------------------
 
 #: The SMALLEST pack that is in the margin regime on `home` (the dearest
 #: errand, 1.304 Wh, plus the 2.05 Wh reserve must fit a charged pack:
@@ -540,13 +540,11 @@ def home_lifecycle(**kw) -> lc.HubLifecycle:
                          boards=lc.board_book("home"), world="home", **kw)
 
 
-# ---- the gate and the cap, as rules (issue #158) -----------------------------
-# The flown proofs below are behind `--endurance`. What actually regresses in
-# each is a RULE -- an inequality in `_afford_next`, the loop bound in
-# `charge()`, the two factors of `charge_timeout` agreeing -- and a rule is
-# pinned in milliseconds. The flown versions prove the INTEGRATION (that the
-# refusal produces a charge and then the errand, on real physics), which is
-# worth running before a release and not on every issue.
+# What regresses is a RULE -- an inequality in `_afford_next`, the loop bound
+# in `charge()`, the two factors of `charge_timeout` agreeing -- pinned first,
+# then a day through each on the stub (issues #158, #380). What only physics
+# adds is the press's real rate and an errand's real cost: measurements,
+# `scripts/energy_spike.py`'s, folded into energy.json.
 
 
 def test_the_gate_refuses_an_errand_the_pack_cannot_finish_and_permits_one_it_can():
@@ -634,167 +632,88 @@ def test_the_scaled_cap_still_clears_the_time_a_full_charge_takes(pack_wh,
       "the floor is gone: a small pack gets less than it takes to seat the pins"
 
 
-@pytest.mark.slow
-@pytest.mark.endurance
-def test_an_overseer_that_only_ever_picks_the_dearest_errand_never_dies():
-  """⚠ THE ACCEPTANCE CRITERION, flown, and the adversarial version of it.
-
-  An overseer that answers `census` to every question it is ever asked --
-  home's most expensive errand, ~1.17 Wh against a 2.16 Wh charged pack. The
-  robot must notice, in advance, that the second one will not fit, go and
-  charge, and then do it. Without the gate `needs_charge` is false at
-  ~0.99 Wh (the reserve is 0.95), the errand starts anyway, and the robot
-  ends the survey with less energy than it takes to get back to the rack.
-
-  Adversarial rather than cooperative on purpose: the guarantee issue #15
-  needs is not "a sensible model plans well", it is "a model that plans badly
-  cannot strand the robot", which is the same shape as
+def test_an_overseer_that_only_ever_picks_the_dearest_errand_is_sent_to_charge_first():
+  """⚠ THE ACCEPTANCE CRITERION, adversarially, as a day on the stub (issue
+  #380): an overseer that answers `census` -- home's dearest errand -- to
+  every question, on a pack just short of its cost plus the return-trip
+  reserve. The loop must refuse it IN ADVANCE, charge, and only then run
+  it: not "a sensible model plans well" but "a model that plans badly cannot
+  strand the robot", the shape of
   `test_charge_priority_survives_an_overseer_that_never_charges`.
 
-  Shown to fail without the fix: make `HubLifecycle._afford_next` return True
-  unconditionally and this reports SWAP_PICK before any charge, then a robot
-  at 0 %% with the LCD still on the fork.
+  The refusal is the GATE's (the pack is above the floor), and the model is
+  gated rather than replaced: the census run is the one it chose. What the
+  census then COSTS against the table is a measurement,
+  `scripts/energy_spike.py`'s. Shown to fail with `_afford_next` returning
+  True unconditionally: the census is fetched before any charge.
   """
-  boss = ov.Overseer(ov.Menu.for_world("home", lc.board_book("home")),
+  from test_body import stub_life
+  book = lc.board_book("home")
+  boss = ov.Overseer(ov.Menu.for_world("home", book),
                      client=OneNote("census", "I like counting"))
-  life = home_lifecycle(battery_wh=MARGIN_PACK_WH, overseer=boss, errands=[])
+  life = stub_life("home", battery_wh=MARGIN_PACK_WH, overseer=boss, boards=book)
+  cost = life.energy.cost("census")
   assert life.reserve_margin_wh == HOME_RESERVE, "not in the margin regime"
-  assert life.energy.cost("census") + HOME_RESERVE <= life.charged_wh
+  assert cost + HOME_RESERVE <= life.charged_wh
+  life.battery.energy_wh = cost + HOME_RESERVE - 0.01
+  assert not life.needs_charge, "the floor would refuse it; the gate is under test"
+  sent: list[tuple[str, float]] = []
+  for name in ("dock_routine", "fetch_tool_routine", "stow_tool_routine"):
+    def spy(*a, _real=getattr(life.body, name), _name=name, **kw):
+      sent.append((_name, life.battery.energy_wh))
+      return (yield from _real(*a, **kw))
+    setattr(life.body, name, spy)
+  life.stop_when(lambda: len(life.errand_results) >= 1 and life.charge_cycles >= 1)
+  r = life.run(lc.world_config("home")["start"], max_sim_time=120.0)
 
-  states: list[str] = []
-  life.body.step_hooks.append(
-    lambda: states.append(life.state)
-    if life.state != (states[-1] if states else None) else None)
-  low = []
-  life.body.step_hooks.append(
-    lambda: low.append(life.battery.fraction))
-
-  # ⚠ STOP ON THE CLAIM, NOT THE BUDGET (issue #54). Everything asserted
-  # below is settled the moment the SECOND errand is stowed: the defer, the
-  # charge, two errands, the margin. Running on to 900 s measured 903 s of
-  # wall clock -- two thirds of the whole slow suite -- for a third census
-  # that repeats the second.
-  #
-  # The predicate is the SUCCESS condition, which is what keeps this test
-  # able to fail: unfix the gate and the robot strands itself mid-errand,
-  # `errand_results` never reaches 2, the hook never fires, and the run goes
-  # the whole distance and fails on `min(low) > 0` exactly as it did before.
-  life.stop_when(lambda: len(life.errand_results) >= 2
-                 and life.charge_cycles >= 1)
-  r = life.run(lc.world_config("home")["start"], max_sim_time=900.0,
-               explore_budget=15.0)
-
-  assert any("DEFER" in line for line in life.log), \
-      f"the second census was never deferred: {life.log[-12:]}"
-  assert r["charge_cycles"] >= 1, "the robot never charged"
-  assert r["battery"] > 0.0 and min(low) > 0.0, \
-      "the robot ran flat -- the gate did not stop the errand it could not pay for"
-  assert len(r["errands"]) >= 2, f"only got {len(r['errands'])} errands"
-  for done in r["errands"]:
-    print(f"  {done['errand']}: {done['energyWh']} Wh against an estimate "
-          f"of {done['estimateWh']}")
-    assert done["stowed"], f"{done['errand']} was abandoned on the fork"
-    # ⚠ THE ESTIMATE MAY BE EXCEEDED, BY LESS THAN THE MARGIN. That is the
-    # invariant, and asserting the stricter "never exceeded" is asserting
-    # something the design does not claim: an errand's cost depends on where
-    # the robot started and on how much of the map it already had, and the
-    # FIRST errand of a mission plans through unknown space. What the margin
-    # is FOR is absorbing exactly that -- an overrun smaller than the return
-    # trip cannot strand the robot, and one larger than it is a stale table,
-    # which the loop narrates as `ENERGY ... economy/energy.json is low`.
-    assert done["energyWh"] <= done["estimateWh"] + HOME_RESERVE, \
-        f"{done['errand']} cost {done['energyWh']} against an estimate of " \
-        f"{done['estimateWh']} -- more than the margin can absorb"
-  # ...and it really was the model being gated, not the fallback covering.
-  assert any(d["source"] == "llm" for d in r["decisions"])
-  # ⚠ CHARGE PRIORITY IS UNTOUCHED. The gate adds a reason to charge; it must
-  # never have added a way not to.
-  assert states.index("GO_CHARGE") < states.index("SWAP_PICK") \
-      or "GO_CHARGE" in states[states.index("SWAP_PICK"):], states
+  assert any("DEFER census" in line for line in life.log), \
+      f"the census was never deferred: {life.log[-8:]}"
+  assert [n for n, _ in sent][:3] == ["dock_routine", "fetch_tool_routine",
+                                      "stow_tool_routine"], \
+      f"the census started before a charge: {sent[:3]}"
+  assert sent[1][1] >= cost + HOME_RESERVE, "fetched before the pack covered it"
+  assert r["errands"] and r["errands"][0]["stowed"], r["errands"]
+  assert any(d["action"] == "census" and d["source"] == "llm"
+             for d in r["decisions"]), "the fallback chose it, not the model"
 
 
-@pytest.mark.slow
-@pytest.mark.endurance
-def test_a_charge_completes_on_a_pack_the_old_flat_timeout_could_not_fill():
-  """⚠ A TIMEOUT IN SECONDS IS A TIMEOUT IN WATT-HOURS, flown.
+@pytest.mark.parametrize("scale", [1.0, 5.0])
+def test_a_charge_at_the_tables_own_rate_completes_inside_its_cap(scale):
+  """⚠ A TIMEOUT IN SECONDS IS A TIMEOUT IN WATT-HOURS, through `charge()`:
+  a 6 Wh pack from 0.9 Wh, on a stub whose pins net exactly the table's
+  `chargeW` -- the slowest press measured -- reaches CHARGED rather than
+  hitting its cap partway up and narrating "CHARGE complete (65 %)", which
+  is what the deployed 8 Wh sim once did. At 1x that takes longer than the
+  old flat 400 s; at 5x it fits a cap five times tighter (and floored).
+  Whether a real press nets the table's rate is
+  `scripts/energy_spike.py`'s to measure.
 
-  A pack that takes longer than the old flat 400 s to refill must still reach
-  `CHARGED`, rather than hitting the cap two thirds of the way up and
-  narrating "CHARGE complete (65 %%)" -- which is what the deployed 8 Wh sim
-  has been doing.
-
-  Shown to fail without the fix: put `CHARGE_TIMEOUT` back in place of
-  `self.charge_timeout` in `HubLifecycle.charge` and the run ends well below
-  `CHARGED`.
+  Shown to fail by putting `CHARGE_TIMEOUT` back in place of
+  `self.charge_timeout` in `HubLifecycle.charge_routine`.
   """
-  # ⚠ charge_scale PINNED AT 1.0 (issue #84). This test's premise is a charge
-  # that takes LONGER than the old flat 400 s cap -- that is the whole defect
-  # it reproduces -- so a suite-wide multiplier would delete it silently: the
-  # pack would fill inside 400 s, the assertion above would still pass, and
-  # the test would be proving nothing. Pinned explicitly rather than relying
-  # on the default, because the default is exactly what a multiplier changes.
-  life = home_lifecycle(battery_wh=6.0, errands=[], charge_scale=1.0)
-  assert life.charge_timeout > lc.CHARGE_TIMEOUT, "pick a bigger pack"
-  # ⚠ READ BEFORE THE UNDOCK. `charge()` backs off the rack when it is done,
-  # and that 0.30 m of reversing is real travel off the pack -- reading
-  # `fraction` after the call returns measures the drive home, not the
-  # charge, and lands a couple of tenths of a percent under CHARGED.
+  from pluggybot.body import STUB_WORLD, StubBody
+
+  from test_body import stub_life
+  cfg = lc.world_config("home")
+  # The stub's clock at 10 ms rather than 2: 953 sim-seconds of press in a
+  # fifth of the steps, and nothing the stub steps is physics.
+  model = mujoco.MjModel.from_xml_string(
+    STUB_WORLD.replace("<worldbody>", '<option timestep="0.01"/><worldbody>'))
+  body = StubBody(model, mujoco.MjData(model), rack=cfg["rack"],
+                  grid_bounds=cfg["grid_bounds"])
+  life = stub_life("home", body=body, battery_wh=6.0, errands=[], charge_scale=scale)
+  life.battery.draw_w = life.battery.charge_w - life.energy.charge_w
+  life.battery.energy_wh = 0.9
   topped: list[float] = []
   life.say_hooks.append(
     lambda _t, msg: topped.append(life.battery.fraction)
     if msg.startswith("CHARGE complete") else None)
-  life.max_sim_time = 3000.0
-  life.blacklist, life.floor_explored = set(), False
-  life.explore_deadline = 1e9
-  life.body.start_at(*lc.world_config("home")["start"])
-  life.body.start_discovery()
-  life.body.mission._spin()
-  try:
-    life.explore(budget=30.0, mark_done=False)
-    life.battery.energy_wh = 0.9          # a long way from full
-    assert life.go_charge(), "never reached the rack"
-    life.charge()
-  finally:
-    life.body.close()
+  t0 = float(life.data.time)
+  assert life.go_charge(), "never reached the dock"
+  life.charge()
+  took = float(life.data.time) - t0
   assert topped and topped[0] >= lc.CHARGED, \
-      f"the charge stopped at {(topped or [0])[0]:.1%}"
-  assert life.charge_cycles == 1
-
-
-@pytest.mark.slow
-@pytest.mark.endurance
-def test_a_scaled_charge_still_completes_inside_its_own_cap():
-  """The other half of issue #84's timeout warning, flown rather than argued.
-
-  `charge_timeout` divides by the scale, so a 5x charge gets a cap 5x
-  tighter. That is the point -- a cap that cannot fire is not a cap -- but it
-  is also exactly how a well-meant scaling breaks a working charge: get the
-  arithmetic backwards, or forget the floor, and the cycle ends partway up
-  narrating "CHARGE complete (61 %)". This flies one and asserts it reaches
-  CHARGED, which is the only way to know the two factors agree.
-
-  Deliberately the SAME pack as the unscaled test above, so the pair differ
-  in exactly one thing.
-  """
-  life = home_lifecycle(battery_wh=6.0, errands=[], charge_scale=5.0)
-  topped: list[float] = []
-  life.say_hooks.append(
-    lambda _t, msg: topped.append(life.battery.fraction)
-    if msg.startswith("CHARGE complete") else None)
-  life.max_sim_time = 3000.0
-  life.blacklist, life.floor_explored = set(), False
-  life.explore_deadline = 1e9
-  life.body.start_at(*lc.world_config("home")["start"])
-  life.body.start_discovery()
-  life.body.mission._spin()
-  try:
-    life.explore(budget=30.0, mark_done=False)
-    life.battery.energy_wh = 0.9          # the same long way from full
-    assert life.go_charge(), "never reached the rack"
-    life.charge()
-  finally:
-    life.body.close()
-  assert topped and topped[0] >= lc.CHARGED, \
-      f"the scaled charge stopped at {(topped or [0])[0]:.1%} -- the cap and " \
-      f"the rate disagree"
-  assert life.charge_cycles == 1
+      f"the charge stopped at {(topped or [0])[0]:.1%} -- the cap and the rate disagree"
+  assert life.charge_cycles == 1 and took < life.charge_timeout
+  if scale == 1.0:
+    assert took > lc.CHARGE_TIMEOUT, "the premise: longer than the old flat cap"
