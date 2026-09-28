@@ -865,7 +865,8 @@ different regime under the same `model`.
 action beside `recall`: the robot stands still, the sim emits a `look`
 request carrying the head camera's world pose (`camera_pose`: `pos`,
 `forward`, `up` as world unit vectors, `fovy`, the size asked for, read
-off `cam_xpos`/`cam_xmat` of the camera the tag detector renders from),
+off `cam_xpos`/`cam_xmat` of the BODY's head camera, `Body.head_camera`:
+the rover's `left_eye`, the quadruped's `nav_eye`, issue #408),
 the website renders the TresJS scene from that pose and answers on the
 ingest socket with an `image` inbound kind — `{robot, ref, jpeg}` — and
 the picture arrives on the robot's NEXT turn as `seen`: the visitor
