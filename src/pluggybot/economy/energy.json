@@ -106,9 +106,9 @@
     },
     "home_quad": {
       "errandWh": {},
-      "exploreWhPerS": 0.02353,
-      "chargeW": 201.1,
-      "measuredOn": "measured 27 Sep 2026 on the quadruped (issue #387), home_quad, 40 Wh pack, the world's 240 s explore, depth camera drawing: the explore 6.113 Wh over 259.8 s (84.7 W, the legs' windings and shafts off the drivers' torques plus 14.9 W of electronics); the dock's 216 W charger into a body lying on its pins, 5.027 Wh in 90 s (201.1 W net). No errand rows: the body has no arm, so no errand a tool makes (`world_config`'s `tools`)."
+      "exploreWhPerS": 0.024137,
+      "chargeW": 199.5,
+      "measuredOn": "measured 28 Sep 2026 on the quadruped with its arm aboard (issue #405), home_quad, 40 Wh pack, the world's 240 s explore, depth camera drawing: the explore 6.067 Wh over 251.4 s (86.9 W; 84.7 without the arm, #387), the legs' windings and shafts and the arm's two motors off their torques, plus 15.9 W of electronics (fourteen drivers standing by); the dock's 216 W charger into a body lying on its pins, 4.987 Wh in 90 s (199.5 W net). No errand rows: the arm takes no tool yet, so no errand a tool makes (`world_config`'s `tools`)."
     }
   }
 }
