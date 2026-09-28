@@ -31,8 +31,10 @@ from pluggybot.mapping.astar import nearest_traversable
 from pluggybot.mapping.frontier import FREE_THRESH, OCC_THRESH
 
 #: What a metre through space the robot has not seen costs, against a metre
-#: of floor it has mapped. MEASURED (issue #381, `scripts/unknown_spike.py`)
-#: -- the number is SimNotes'.
+#: of floor it has mapped: a known detour is taken while it is under twice
+#: the unknown shortcut. A CHOICE, not a fit: swept 1.25 / 2 / 4 over six
+#: fresh walks (`scripts/unknown_spike.py --unknown-cost`) it moved four not
+#: at all and two by 3 s -- a fresh map offers no known detour to weigh.
 UNKNOWN_COST = 2.0
 #: The lattice's cell, in map cells: 10 cm at the map's 5 cm. A lattice cell
 #: passes only if every map cell in it does, so a gap keeps a lattice path

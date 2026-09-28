@@ -79,9 +79,9 @@ MAX_WAIT_S = 60.0
 #: Per-step drive timeout: the native errand's carry drive uses 60 s. It is
 #: `drive_to`'s patience when the program names none (issue #381) ...
 DRIVE_TIMEOUT_S = 60.0
-#: ...and the most it may name, s: the longest true route in the home world
-#: is 44 m, ~150 s walked (`scripts/unknown_spike.py`), and a first walk
-#: through floor nobody has mapped finds its doors on the way.
+#: ...and the most it may name, s: a fresh robot's first walk to the loop's
+#: far west corner took 246 s, finding the house's walls on the way (44 m of
+#: route, 95 walked), and its second 117 s (`scripts/unknown_spike.py`).
 MAX_PATIENCE_S = 600.0
 #: A drive to where the house set a cube out that ends farther than this
 #: from it did not get there (issue #264): the robot still looks from where

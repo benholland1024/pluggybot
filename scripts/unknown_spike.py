@@ -182,13 +182,17 @@ def fly_one(name: str, x: float, y: float, patience: float, before: bool,
            "seconds": round(float(data.time) - t0, 1)}
   second = None
   if again:
-    body.run(body.go_to_routine(sx, sy, timeout=patience))
+    walked[0], t1 = 0.0, float(data.time)
+    back = body.run(body.go_to_routine(sx, sy, timeout=patience))
+    back = {"arrived": bool(back), "why": (m.last_drive or {}).get("why", ""),
+            "seconds": round(float(data.time) - t1, 1), "walkedM": round(walked[0], 1),
+            "end": [round(v, 2) for v in m.true_pose()[:2]]}
     walked[0], wh[0] = 0.0, 0.0
     t1 = float(data.time)
-    home = body.run(body.go_to_routine(x, y, timeout=patience))
-    second = {"arrived": bool(home), "why": (m.last_drive or {}).get("why", ""),
+    there = body.run(body.go_to_routine(x, y, timeout=patience))
+    second = {"arrived": bool(there), "why": (m.last_drive or {}).get("why", ""),
               "seconds": round(float(data.time) - t1, 1),
-              "walkedM": round(walked[0], 1), "wh": round(wh[0], 3)}
+              "walkedM": round(walked[0], 1), "wh": round(wh[0], 3), "back": back}
   known = m._known_cells()
   body.run(body.hold_routine(STILL_S))
   still = m._known_cells() - known
@@ -241,7 +245,9 @@ def report(walks: list[dict]) -> None:
           f"{w['plans']:6d} {w['planMsMedian']:7.1f} {w['planMsMax']:7.1f}"
           f" {w.get('stillGrowth', 0):6d}  "
           + ("" if not a else f"{'arrived' if a['arrived'] else a['why']} {a['seconds']:.0f} s "
-                              f"{a['walkedM']:.1f} m"))
+                              f"{a['walkedM']:.1f} m (back: "
+                              f"{'arrived' if a['back']['arrived'] else a['back']['why']} "
+                              f"{a['back']['seconds']:.0f} s {a['back']['walkedM']:.1f} m)"))
   n = sum(w["arrived"] for w in walks)
   print(f"arrived {n} of {len(walks)}")
 

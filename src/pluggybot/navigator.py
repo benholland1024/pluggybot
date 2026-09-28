@@ -123,8 +123,9 @@ STAND_IN_REACHED_M = 0.5
 #: THE MAP STILL GROWING IS PROGRESS (issue #381, a walk into the unknown):
 #: this many more cells known -- free or wall, 1 m^2 at 5 cm -- since the
 #: last progress restarts the stagnation clock, however the route's length
-#: moved. Read every `MAP_LOOK_S`. MEASURED: see SimNotes, "Walking into
-#: the unknown".
+#: moved. Read every `MAP_LOOK_S`. MEASURED (`scripts/unknown_spike.py`):
+#: walking into new floor the map grows 800-1 850 cells a second; standing
+#: still 20 s after arriving, by -5 to +195 -- this is 4x the worst.
 MAP_GROWTH_CELLS = 400
 MAP_LOOK_S = 1.0
 #: ANOTHER ROBOT'S BODY IN THE WAY (issue #328), off the near-field depth
