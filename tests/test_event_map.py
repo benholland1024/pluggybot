@@ -1819,59 +1819,47 @@ def test_the_seeded_map_reproduces_the_pre_change_loop_decision_for_decision():
                               0.0) is None
 
 
-# ⚠ BEHIND `--endurance` (suite budget, 2026-09-13): two 90 s missions,
-# 222 s under the parallel suite. The RULE -- a seeded map asks wherever the
-# pre-change loop asked -- is `test_the_seeded_map_reproduces_the_pre_change_
-# loop_decision_for_decision` above, in milliseconds; this is its flown
-# proof through the real lifecycle.
-@pytest.mark.slow
-@pytest.mark.endurance
-def test_a_seeded_mission_asks_where_the_old_one_asked(menu, tmp_path):
-  """The same claim end to end, through the real lifecycle: a mission flown
-  with the seeded map makes the same decisions, in the same order, as one
-  flown with no map at all.
+def test_a_seeded_day_asks_where_the_old_one_asked():
+  """The same claim through the real lifecycle, as a day on the stub (issue
+  #380): a day with the seeded map makes the same decisions, from the same
+  sources, in the same order, as a day with no map at all.
 
-  ⚠ THE COMPARISON IS THE ACTIONS, NOT THE CLOCK. Mission runtime is
-  emergent (Evaluation.md §0) and the seam adds a per-second sweep, so
-  asserting a wall or sim time here would be asserting noise. What must
-  match is who decided what.
+  ⚠ THE COMPARISON IS THE ACTIONS, NOT THE CLOCK. Runtime is emergent
+  (Evaluation.md §0), and on the stub an answer lands a think-slice early
+  or late with the thread that fetched it -- so both days stop at the same
+  COUNT of decisions, never the same second.
+
+  Shown to fail by emitting `decision_failed` from `_decide` as well as
+  honouring the row: every fallback then decides twice.
   """
-  from pluggybot.lifecycle import run_demo
+  from pluggybot.lifecycle import world_config
+  from test_body import stub_life  # noqa: I001 -- tests/ is on sys.path
 
   def fly(origin):
-    boss_client = FakeClient(full(action="idle", reason="thinking"))
-    out = run_demo(view=False, realtime=False, world="room_hub",
-                   errand="none", max_sim_time=90.0, overseer=True,
-                   standing_orders=True, origin=origin,
-                   thoughts_root=str(tmp_path / origin),
-                   ledger_state=str(tmp_path / f"{origin}.json"),
-                   on_ready=attach(boss_client))
+    boss = make(Menu.for_world("room_hub", None),
+                full(action="idle", reason="thinking"), origin=origin)
+    life = stub_life("room_hub", overseer=boss)
+    life.stop_when(lambda: len(life.decisions) >= 9)
+    out = life.run(start=world_config("room_hub")["start"], max_sim_time=90.0)
     return [d["action"] for d in out["decisions"]], out
 
   plain_actions, plain = fly("none")
   seeded_actions, seeded = fly("seeded")
   assert plain_actions and plain_actions == seeded_actions
-  # ⚠ AND THE MODEL ACTUALLY ANSWERED. Comparing two runs that both fell
-  # back is comparing the fallback with itself -- which is what this test did
-  # until the fake client was attached without `_client_ready` and the
-  # property quietly built a real one over it.
-  #
-  # ⚠ NOT "every source is `llm`": the fake answers `idle` forever, so
-  # `MAX_IDLE_RUN` makes every third decision `fallback:idle-run` -- the
-  # POLICY working, which is `fallback_class`'s whole distinction (#141).
-  # What must not appear is a FAILURE-class fallback, which is what a client
-  # nobody attached looks like.
+  # ⚠ AND THE MODEL ACTUALLY ANSWERED: two days that both fell back would
+  # compare the fallback with itself. NOT "every source is `llm`": the fake
+  # answers `idle` forever, so `MAX_IDLE_RUN` makes every third decision
+  # `fallback:idle-run` -- the POLICY working (#141); a FAILURE-class
+  # fallback is what a client nobody attached looks like.
   sources = [d["source"] for d in plain["decisions"]]
-  assert "llm" in sources
+  assert "llm" in sources and "fallback:idle-run" in sources
   assert not [x for x in sources if ov.fallback_class(x) == "failure"], sources
-  assert [d["source"] for d in plain["decisions"]] == \
-         [d["source"] for d in seeded["decisions"]]
+  assert sources == [d["source"] for d in seeded["decisions"]]
   assert seeded["overseer"]["eventMap"]["fired"].get("nothing_to_do") \
       == len(seeded_actions)
   # ⚠ AND NOT ONE EXTRA DECISION FROM THE FAILURE ROW. `decision_failed` is
-  # honoured synchronously by `Overseer.fallback` -- queueing it as an event
-  # as well ran the row's action twice per failure, which is exactly what
-  # "the seeded map reproduces today's behaviour" forbids.
+  # honoured synchronously by `Overseer.fallback`; queueing the event as
+  # well runs the row's action twice.
   assert "decision_failed" not in seeded["overseer"]["eventMap"]["fired"]
 
 
