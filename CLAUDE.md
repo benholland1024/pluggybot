@@ -639,7 +639,7 @@ tolerance spikes are listed in `docs/Rover.md`.
   dies mid-game). The QUADRUPED pair (`home_quad_pair`, #387): `python -m
   pluggybot.telemetry.scene --world home_quad --pair` and
   `scripts/two_robots.py --world home_quad --fast --pack demo --near-field
-  --errands none,none --battery 0.42,1.0 --max-sim-time 600 --record
+  --errands none,none --battery 0.22,1.0 --max-sim-time 600 --record
   protocol/telemetry.home_quad_pair.jsonl.gz` -- the period's shape, so NO
   `--tasks` or `--metabolism` there. ⚠ Elsewhere `--tasks`, `--metabolism` and
   `--near-field` are ALL load-bearing. ⚠ The HOME recording takes TWO PASSES against the same
