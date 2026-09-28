@@ -5,8 +5,6 @@ wallets, one job board, and what each mind is told about the other.
 import hashlib
 import json
 
-import pytest
-
 from pluggybot.lifecycle import others_context, overseer_context
 from pluggybot.mind import overseer as ov
 from pluggybot.mind.overseer import Menu, Overseer

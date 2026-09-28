@@ -12,7 +12,7 @@ from pluggybot.activity.hideseek import (
 from pluggybot.economy import scoring
 from pluggybot.economy.tasks import TaskBoard
 from pluggybot.lifecycle import errand_for_task, hide_and_seek_program, world_facts
-from pluggybot.pair import arrange_game, build_pair, run_pair
+from pluggybot.pair import arrange_game, build_pair
 from pluggybot.procedure.steps import validate
 from pluggybot.robot import FIRST, SECOND, world_with_robots
 

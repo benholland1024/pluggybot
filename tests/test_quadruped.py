@@ -486,7 +486,14 @@ def test_serve_refuses_a_tool_errand_on_a_body_with_no_arm():
 # ---- the day, flown whole --------------------------------------------------------
 
 
-@pytest.mark.endurance
+# Flown when the served body's physics can change: the loop's side
+# (lifecycle.py) is bookkeeping, pinned on the stub.
+@pytest.mark.slow
+@pytest.mark.endurance(when=(
+  "src/pluggybot/legs/", "models/quadruped", "models/home_world.xml",
+  "src/pluggybot/navigator.py", "src/pluggybot/mapping/", "src/pluggybot/behavior/",
+  "src/pluggybot/perception/", "src/pluggybot/power.py", "src/pluggybot/pair.py",
+  "src/pluggybot/tick.py"))
 def test_a_quadruped_pair_lives_a_scripted_home_day(tmp_path):
   """The issue's day, on the served pair's shape (no offers, no upkeep): both
   explore; the first starts low, walks to the dock, lies on it and charges;

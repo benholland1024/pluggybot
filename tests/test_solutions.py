@@ -486,6 +486,16 @@ def test_the_prompt_states_the_eyes_reach_and_returns_emptiness():
 
 # ---- the flown proof, on demand ------------------------------------------
 
+#: What every ladder-A flight stands on (`when`, tests/conftest.py): the
+#: harness, the verbs, the rover's swap stack and mission, the house's
+#: props, and where a challenge is offered. Not the rover's NAVIGATION,
+#: which the default run flies (`test_full_hub_lifecycle`) -- nothing served
+#: offers a challenge, and a challenge offered on a new world is flown there
+#: first (Evaluation.md §7).
+LADDER_A = ("scripts/solve.py", "src/pluggybot/procedure/", "src/pluggybot/rack/",
+            "src/pluggybot/mission/", "src/pluggybot/tick.py", "models/home_world.xml",
+            "models/pluggybot.xml", "src/pluggybot/economy/challenges.json")
+
 
 def _from_the_rack(tmp_path, feature: str):
   import sys
@@ -506,7 +516,9 @@ def _from_the_rack(tmp_path, feature: str):
   return life, demo.run(life, feature, source)
 
 
-@pytest.mark.endurance
+@pytest.mark.slow
+@pytest.mark.endurance(when=(*LADDER_A, "src/pluggybot/challenge/",
+                             "src/pluggybot/tools/gripper.py"))
 def test_the_tower_is_stacked_by_the_claw_from_the_rack_and_graded(tmp_path):
   """Ladder A, whole: `solutions.TOWER` run as a `procedure:` errand from
   the living-room rack, the claw fetched and stowed, `done`, the grade on
@@ -526,7 +538,9 @@ def test_the_tower_is_stacked_by_the_claw_from_the_rack_and_graded(tmp_path):
   assert life.body.mission.swap.module_state("module_claw")["hung"]
 
 
-@pytest.mark.endurance
+@pytest.mark.slow
+@pytest.mark.endurance(when=(*LADDER_A, "src/pluggybot/challenge/",
+                             "src/pluggybot/tools/gripper.py"))
 def test_the_unknown_mass_is_weighed_on_the_lift_and_the_finding_graded(tmp_path):
   """Ladder A for the bench: `solutions.WEIGH` from the rack -- the claw
   to the lab, a tare, the cube lifted, `lift.force` read, set down, home
@@ -543,7 +557,9 @@ def test_the_unknown_mass_is_weighed_on_the_lift_and_the_finding_graded(tmp_path
   assert "truth" not in grade
 
 
-@pytest.mark.endurance
+@pytest.mark.slow
+@pytest.mark.endurance(when=(*LADDER_A, "src/pluggybot/activity/cage.py",
+                             "src/pluggybot/activity/plate.py"))
 def test_a_feed_act_reaches_the_cage_and_the_mouse_eats(tmp_path):
   """Ladder A for the mouse: the `care` action's own program flown from
   the rack; the act is judged off the cage's count (`landed`), and the
