@@ -27,7 +27,7 @@ import numpy as np
 
 from pluggybot.rack.coupling import (PEG_ABOVE_BODY, PEG_FRICTION, PEG_INSUL_HALF,
                                      PEG_R, TOOL_HALF_X, TOOL_HALF_Y, TOOL_HALF_Z,
-                                     geom_id, touching)
+                                     bay_prefix, geom_id, touching)
 from pluggybot.rack.tags import LEGS_RACK_TAG_IDS, LEGS_RACK_TAG_SIZE
 
 #: The peg's half-length: the rover's 75 mm plus the fork's lateral capture
@@ -183,7 +183,10 @@ def rack_xml(spec: RackSpec = DEFAULT, pos=(0.0, 0.0), yaw: float = 0.0,
              name: str = "rack") -> str:
   """The rack as one static body: a back board, a rail, and each bay's two
   trays on brackets hung from the rail; its tags on the board. The tags'
-  materials are `rack.tags.asset_xml(RACK_TAG_IDS)`'s."""
+  materials are `rack.tags.asset_xml(RACK_TAG_IDS)`'s. A bay's parts are
+  named as the rover's are, `bay<letter>_` (`coupling.bay_prefix`): its
+  presence switch is `coupling.bay_switches`' reading, the one the rack
+  view is built from (#351, #405)."""
   from pluggybot.rack.tags import plate_half_extent
   s = spec
   half_y = max(abs(y) for y in s.tag_ys) + s.tag_size + 0.05
@@ -193,17 +196,17 @@ def rack_xml(spec: RackSpec = DEFAULT, pos=(0.0, 0.0), yaw: float = 0.0,
        f'pos="{_v(s.back_x + 0.03, 0, s.rail_z)}" rgba="0.45 0.47 0.50 1"/>']
   vz = s.peg_z - TRAY_VERTEX_DROP
   for k, by in enumerate(s.bays):
-    bay = f"{name}_bay{k}"
+    bay = bay_prefix(k)
     for side, lbl in ((1, "l"), (-1, "r")):
       ty = by + side * s.tray_y
-      g.append(_v_notch(f"{bay}_tray_{lbl}_", 0.0, ty, vz, TRAY_HALF_W))
+      g.append(_v_notch(f"{bay}tray_{lbl}_", 0.0, ty, vz, TRAY_HALF_W))
       # The bracket: from the rail down behind the tray to below its V.
       top = s.rail_z - 0.01
       bot = vz - 0.012
-      g.append(f'<geom name="{bay}_bracket_{lbl}" type="box" '
+      g.append(f'<geom name="{bay}bracket_{lbl}" type="box" '
                f'size="{_v(0.004, TRAY_HALF_W, (top - bot) / 2)}" '
                f'pos="{_v(-0.022, ty, (top + bot) / 2)}" rgba="0.45 0.47 0.50 1"/>')
-      g.append(f'<geom name="{bay}_arm_{lbl}" type="box" '
+      g.append(f'<geom name="{bay}arm_{lbl}" type="box" '
                f'size="{_v(0.012, TRAY_HALF_W, 0.003)}" '
                f'pos="{_v(-0.012, ty, bot)}" rgba="0.45 0.47 0.50 1"/>')
   half = plate_half_extent(s.tag_size)
@@ -214,6 +217,69 @@ def rack_xml(spec: RackSpec = DEFAULT, pos=(0.0, 0.0), yaw: float = 0.0,
   return (f'<body name="{name}" pos="{_v(pos[0], pos[1], 0)}" '
           f'quat="{_v(math.cos(yaw / 2), 0, 0, math.sin(yaw / 2))}">\n'
           f'      {body}\n    </body>')
+
+
+# ---- the served rack (#405) -----------------------------------------------------
+
+#: The served world's rack body: not the rover's `rack`, whose name the site
+#: draws with the rover's rack (`visualHints`).
+RACK_BODY = "tool_rack"
+#: The tools it ships, by bay (issue #405): three of #378's four survivors,
+#: one a bay -- the LCD, the pen (#406's) and the claw (#407's); the seed
+#: dispenser waits for a fourth. The rover's module names, so a tool is the
+#: same tool to everything that names it (the rack view, the lost-tool
+#: clock, a program's `fetch`, an admin's reset).
+TOOL_BAYS = {"module_lcd": 0, "module_pen": 1, "module_claw": 2}
+#: Each tool's mass, kg: the rover's module (`models/home_world.xml`) with
+#: its 150 mm peg (20 g) swapped for this one. Until 4b and 4c rebuild them
+#: on the longer peg a tool is a plate, a peg and a face that says which
+#: (`tool_face`), its mass on the plate: the envelope's "on its peg" case.
+TOOL_KG = {"module_lcd": 0.1426 - 0.020 + PEG_MASS,
+           "module_pen": 0.1816 - 0.020 + PEG_MASS,
+           "module_claw": 0.2106 - 0.020 + PEG_MASS}
+#: The LCD's screen, the rover's (`coupling.LCD_SCREEN_HALF`): named as the
+#: rover's is, so the served face finds it (`tools/screen.py`).
+_SCREEN_HALF = (0.002, 0.028, 0.038)
+
+
+def tool_face(name: str) -> str:
+  """What a tool shows, visual only (it collides as a plate and a peg): the
+  LCD's screen facing away from the robot that carries it, the pen's rail
+  and pen, the claw's pendant and jaws. A module faces the robot with its
+  +x, so its business end is at -x."""
+  back = -TOOL_HALF_X
+  vis = 'contype="0" conaffinity="0" mass="0"'
+  if name == "module_lcd":
+    return (f'<geom name="module_lcd_screen" type="box" size="{_v(*_SCREEN_HALF)}" '
+            f'pos="{_v(back - _SCREEN_HALF[0], 0, 0)}" {vis} rgba="0.05 0.08 0.10 1"/>')
+  if name == "module_pen":
+    return (f'<geom name="module_pen_rail" type="box" size="0.004 0.060 0.004" '
+            f'pos="{_v(back - 0.004, 0, -0.010)}" {vis} rgba="0.55 0.57 0.60 1"/>'
+            f'<geom name="module_pen_pen" type="capsule" size="0.004" '
+            f'fromto="{_v(back - 0.008, 0, -0.012, back - 0.075, 0, -0.050)}" {vis} '
+            f'rgba="0.90 0.30 0.25 1"/>')
+  if name == "module_claw":
+    return (f'<geom name="module_claw_pendant" type="box" size="0.008 0.012 0.060" '
+            f'pos="{_v(back - 0.010, 0, -0.080)}" {vis} rgba="0.30 0.32 0.36 1"/>'
+            + "".join(f'<geom name="module_claw_jaw_{lbl}" type="box" size="0.006 0.004 0.020" '
+                      f'pos="{_v(back - 0.010, s * 0.022, -0.150)}" {vis} '
+                      f'rgba="0.25 0.25 0.28 1"/>' for s, lbl in ((1, "l"), (-1, "r"))))
+  return ""
+
+
+def tools_xml(pos=(0.0, 0.0), yaw: float = 0.0, spec: RackSpec = DEFAULT) -> tuple[str, str]:
+  """The served rack's tools hung on their bays -- (the defaults they use,
+  the bodies) -- each compiled hanging, so a world's `qpos0` is every tool
+  on its bay (what `HubLifecycle._return_module` puts a lost one back to).
+  A tool faces the robot at work: its yaw is the rack's. ⚠ EXACTLY AT
+  REST: compiled 0.3 mm up (the spike's settle) a tool read not hung until
+  the world's first steps, and a first rack view would have said so."""
+  defaults, bodies = [], []
+  for name, bay in TOOL_BAYS.items():
+    defaults.append(tool_default(name))
+    bodies.append(tool_xml(name, bay_peg(spec, bay, pos=pos, yaw=yaw), yaw=yaw,
+                           mass=TOOL_KG[name], face=tool_face(name)))
+  return "".join(defaults), "".join(bodies)
 
 
 def bay_peg(spec: RackSpec, bay: int, pos=(0.0, 0.0), yaw: float = 0.0):
@@ -241,7 +307,7 @@ def tool_power(model, data, name: str, prefix: str = "") -> dict:
   return {"left": poles["l"], "right": poles["r"], "powered": poles["l"] and poles["r"]}
 
 
-def on_bay(model, data, name: str, spec: RackSpec, bay: int, rack: str = "rack") -> bool:
+def on_bay(model, data, name: str, spec: RackSpec, bay: int) -> bool:
   """Is the tool HUNG on bay `bay`: its peg down in both trays' V's -- on
   both flanks of each -- and the tool plumb? A peg on one flank, or a plate
   resting on a tray's corner, is a tool jammed on the rack, not hung."""
@@ -249,7 +315,7 @@ def on_bay(model, data, name: str, spec: RackSpec, bay: int, rack: str = "rack")
   pegs = [p for p in pegs if p is not None]
   for lbl in ("l", "r"):
     for ab in ("a", "b"):
-      flank = geom_id(model, f"{rack}_bay{bay}_tray_{lbl}_{ab}")
+      flank = geom_id(model, f"{bay_prefix(bay)}tray_{lbl}_{ab}")
       if not any(touching(data, p, [flank]) for p in pegs):
         return False
   z = data.xmat[model.body(name).id].reshape(3, 3)[2, 2]
@@ -335,14 +401,25 @@ def work_pose(spec: RackSpec, bay: int) -> tuple[float, float, float]:
   return (WORK_X, spec.bays[bay], math.pi)
 
 
-def walk_in_twist(ex: float, ey: float, eth: float):
+#: ⚠ ...AND IT TURNS ONE WAY. On the served body the settle's drift was
+#: always counter-clockwise, +1.2 to +2.7 deg over the 3 s while the torso
+#: stayed within 4 mm (6 walk-ins at bay A, #405): at the peg that is 5-20
+#: mm across, and a walk-in stopping square failed the 15 mm gate on 3 of
+#: 6 and every try from the kitchen. The walk-in stops turned this far
+#: clockwise, so the settle brings it square.
+SETTLE_DRIFT = math.radians(1.9)
+
+
+def walk_in_twist(ex: float, ey: float, eth: float, heading: float = 0.0):
   """The command for one step of the walk to a bay's working pose, from
   where the robot believes it stands in the WORK frame (the working pose's:
-  origin there, +x toward the rack). Zero once within STOP_M of it."""
+  origin there, +x toward the rack). Zero once within STOP_M of it.
+  `heading` is where it should stop facing, in that frame (the served
+  body's `-SETTLE_DRIFT`)."""
   from pluggybot.legs.policy import Twist
   if ex >= -STOP_M:
     return Twist()
-  aim = math.atan2(-ey, LOOKAHEAD_M)
+  aim = math.atan2(-ey, LOOKAHEAD_M) + heading
   e = math.atan2(math.sin(aim - eth), math.cos(aim - eth))
   if abs(e) > TURN_FIRST:
     return Twist(yaw_rate=math.copysign(TURN_W, e))

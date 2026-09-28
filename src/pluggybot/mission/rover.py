@@ -175,6 +175,7 @@ class RoverBody(Body):
     return None
 
   swapping_at = property(lambda self: self.mission.swapping_at)
+  working = False
   peer_at_bay_m = property(lambda self: self.mission.peer_at_bay_m)
 
   @property

@@ -17,7 +17,10 @@ rover's shape (`mission/rover.py`):
 THE ARM (#378, issue #405), beside every posture: `legs.arm.ArmDriver`
 holds its two motors where they were last aimed, every physics step -- at
 the stow unless a procedure moved them -- and a fall or the rest reflex
-folds it back to the stow first.
+folds it back to the stow first. It takes tools off the rack beside the
+dock and hangs them back (`legs/swap.py`); a tool it carries rides the fork
+at the carry pose, is its own body to its senses, and is let go of in a
+fall.
 
 THE POSTURE, below every command. `standing` walks what it is told. After
 `posture.T_REST_S` with no motion command it lies down (`lying_down`, then
@@ -49,6 +52,7 @@ import numpy as np
 
 from pluggybot import tick
 from pluggybot.body import Body
+from pluggybot.legs import arm as am
 from pluggybot.legs import dock as dk
 from pluggybot.legs import posture as pz
 from pluggybot.legs.actuator import BUS_V_NOMINAL, JointLimits
@@ -57,14 +61,12 @@ from pluggybot.legs.model import CHOSEN, ELECTRONICS_W, LEGS
 from pluggybot.legs.odometry import LegOdometry
 from pluggybot.legs.policy import POLICY_NPZ, PolicyDriver, Twist, WalkingPolicy
 from pluggybot.legs.scripted import Command, VirtualModel
+from pluggybot.legs.swap import ToolSwap, bay_of
 from pluggybot.mapping.frontier import OCC_THRESH
 from pluggybot.navigator import Navigator, gave_up
 from pluggybot.perception.depth import PERIOD as DEPTH_PERIOD
 from pluggybot.perception.depth import DepthCamera, DepthFrame
 from pluggybot.power import Pack
-from pluggybot.rack.coupling import (
-  HUB_PEG_Z, PEG_R, RACK_HANG_X, STATION_YS, TRAY_VERTEX_DROP,
-)
 from pluggybot.rack.localize import RackPose
 from pluggybot.robot import FIRST, RobotHandle
 from pluggybot.tick import Routine
@@ -91,6 +93,11 @@ V_MIN, W_MIN = 0.25, 0.3
 #: What the walking policy was trained to track (`training/quad_train/
 #: task.py`: LIN_X, LIN_Y, ANG_Z); a command is clamped into it.
 VX_RANGE, VY_MAX, W_MAX = (-0.8, 1.2), 0.5, 1.0
+#: THE TURN WHILE CARRYING, rad/s (#405): a tool on the fork swings out of
+#: its V's in a pivot. At the drive's full 1.0 rad/s the coupling opened
+#: for up to 160 ms (its holding capacitor is 200), at 0.6 for 56, at 0.45
+#: for 14 -- as a walk and a trot open it (`arm_spike.py --served --carry`).
+W_CARRY = 0.45
 #: How long `stand_routine` / `rest_routine` wait for the posture before
 #: they give up and say so, s: 2.2 s is a stand-up; a fall's get-up is the
 #: lifecycle's to bound.
@@ -256,7 +263,7 @@ class QuadStepper:
     return tick.run(self, routine, name)
 
 
-class QuadMission(Navigator):
+class QuadMission(ToolSwap, Navigator):
   """The Navigator over a quadruped (the module docstring)."""
 
   #: The body's own sizes (`scripts/quad_spike.py`; SimNotes, "The first
@@ -329,8 +336,9 @@ class QuadMission(Navigator):
     self.arm = ArmDriver(model, data, self.arm_spec, prefix=handle.prefix)
     self.arm.aim(*self.arm_spec.stow)
     self.arm_acts = tuple(self.arm.act)
-    #: An arm move under way: the rest reflex waits for it. Not kept
-    #: across a restart, which ends every routine that could own it.
+    #: An arm move or a swap at a bay under way: the rest reflex waits for
+    #: it, and so does a restart's save (`Keeper.busy`). Not kept across a
+    #: restart, which ends every routine that could own it.
     self.working = False
     self.feet = [model.site(handle.el(f"{leg}_foot")).id for leg in LEGS]
     self.foot_r = float(model.geom_size[model.geom(handle.el("FL_foot")).id][0])
@@ -386,6 +394,8 @@ class QuadMission(Navigator):
     self._is_ignored = np.zeros(model.ngeom, dtype=bool)
     self._is_ignored[np.concatenate((self._floor_gids, self._dock_gids,
                                      self.body_gids))] = True
+    # THE TOOL RACK (#405, `legs/swap.py`)
+    self._init_swap(model)
 
   # ---- the dock's frame -----------------------------------------------------
 
@@ -455,6 +465,8 @@ class QuadMission(Navigator):
     left it out: a procedure's pose outlives the procedure, and a walk
     carried it on the floor or across the dock's board."""
     cmd = command_for(vx, vy, w)
+    if self.carrying is not None and abs(cmd[2]) > W_CARRY:
+      cmd = (cmd[0], cmd[1], math.copysign(W_CARRY, cmd[2]))
     if cmd != STILL and self.posture != STANDING:
       yield from self.stand_routine()
     if cmd != STILL and not self.arm_driving():
@@ -574,7 +586,7 @@ class QuadMission(Navigator):
         yield vm.torque(Command())
 
     if posture == LYING_DOWN:
-      self.fold_arm()
+      self.fold_arm(fall=False)
     self.posture = posture
     self._move = lie() if posture == LYING_DOWN else stand()
 
@@ -632,13 +644,36 @@ class QuadMission(Navigator):
       self.falls += 1
       self._handover(self.getup)
 
-  def fold_arm(self) -> None:
-    """The arm to its stow, whatever it held let go of: a fall throws a
-    carried tool whatever holds it (a gravity seat cannot hold upside down),
-    and the get-up rolls a body whose arm is folded (SimNotes, "The
-    quadruped's arm"); a body lying down to rest folds it first."""
-    self.arm.payload = (0.0, (0.0, 0.0))
-    self.arm.aim(*self.arm_spec.stow)
+  def fold_arm(self, fall: bool = True) -> None:
+    """The arm to its stow. A fall lets go of what it carried -- a fall
+    throws a carried tool whatever holds it (a gravity seat cannot hold
+    upside down), and the get-up rolls a body whose arm is folded (SimNotes,
+    "The quadruped's arm"). A body lying down to rest folds it first, or,
+    carrying, holds the tool at the carry pose: folded, it would swing the
+    tool into its own back."""
+    if fall or self.carrying is None:
+      self.carry(None)
+      self.arm.aim(*self.arm_spec.stow)
+    else:
+      self.arm.aim(*am.CARRY_Q)
+
+  def carry(self, module: str | None) -> None:
+    """What rides the fork, and so is this body's own to its senses: kept
+    out of the LIDAR's map, the depth camera's cloud, the press and the
+    height scan, as its own geoms are; and in the arm's feed-forward."""
+    self.carrying = module
+    self._payload(module)
+    self.lidar.carry(module)
+    self.depth.carry(module)
+    for driver in (self.walker, self.getup):
+      driver.scan_exclude = -1 if module is None else self.model.body(module).id
+    self._is_ignored[self._carried_gids] = False
+    self._is_ignored[self.body_gids] = True
+    self._carried_gids = (self.tool_gids(module) if module is not None
+                          else np.zeros(0, dtype=np.int32))
+    self._is_ignored[self._carried_gids] = True
+
+  _carried_gids = np.zeros(0, dtype=np.int32)
 
   def arm_setpoint(self, act: int) -> float:
     """What the driver holds one of the arm's motors to: the shoulder's
@@ -687,8 +722,8 @@ class QuadMission(Navigator):
     return self.posture == STANDING and bool(np.all(self.arm.goal == aimed))
 
   def stow_arm_routine(self) -> Routine:
-    """The arm folded to its stow, the driving configuration; True once
-    there."""
+    """The arm folded to its stow, the driving configuration of an empty
+    fork; True once there."""
     self.arm.aim(*self.arm_spec.stow)
     t0 = float(self.data.time)
     while not self.arm.arrived(ARM_TOL):
@@ -1045,24 +1080,6 @@ class QuadMission(Navigator):
     yield from self._back_out_routine()
     return "arrived"
 
-  # ---- tools: none, until a rack at its arm's reach (#405, stage B) ------------
-
-  def module_state(self, module: str) -> dict:
-    """Where a module is, off the world: never on this body (its arm takes
-    no tool yet); hung, if it sits in a bay as the rover's swap would have
-    it."""
-    d, m = self.data, self.model
-    p = d.xpos[m.body(module).id]
-    bid = m.body("rack").id
-    rp, rm = d.xpos[bid], d.xmat[bid].reshape(3, 3)
-    lx, ly, lz = (rm.T @ (p - rp)).tolist()
-    peg_rest_z = HUB_PEG_Z - TRAY_VERTEX_DROP + PEG_R
-    bay = min(range(len(STATION_YS)), key=lambda i: abs(ly - STATION_YS[i]))
-    hung = (abs(lx - RACK_HANG_X) < 0.012 and abs(lz - (peg_rest_z - 0.022)) < 0.008
-            and abs(ly - STATION_YS[bay]) < 0.030)
-    return {"pos": [float(v) for v in p], "on_fork": False, "hung": hung,
-            "bay": bay}
-
   def close(self) -> None:
     if self._board is not None:
       self._board.close()
@@ -1114,6 +1131,7 @@ class QuadMission(Navigator):
              "stoodSince": self._stood_since, "falls": self.falls,
              "docked": self.docked, "torqued": self.drivers.torqued,
              "armPayload": [self.arm.payload[0], list(self.arm.payload[1])],
+             "carrying": self.carrying,
              "policies": policies, "frame": frame,
              "memo": None if memo is None else
              [list(memo[0]), memo[1], list(memo[2]),
@@ -1155,6 +1173,7 @@ class QuadMission(Navigator):
     if "gains" in arrays:
       self.model.actuator_gainprm[np.ix_(self.drivers.act, [3, 4, 5, 6, 7])] = arrays["gains"]
     self.drivers.torqued = bool(state.get("torqued", False))
+    self.carry(state.get("carrying"))
     if "armTarget" in arrays:
       self.arm.target = np.array(arrays["armTarget"], dtype=float)
       self.arm.goal = np.array(arrays["armGoal"], dtype=float)
@@ -1232,6 +1251,7 @@ class QuadMission(Navigator):
     self.odo.correct(x, y, yaw)
     self._vm = None
     self._handover(self.walker)
+    self.carry(None)
     self.arm.hold_at(*self.arm_spec.stow)
     self.last_motion_t = float(self.data.time)
 
@@ -1253,7 +1273,6 @@ class QuadBody(Body):
   stuck_after_s = 20.0
   #: ...and this body rights itself.
   rights_itself = True
-  swapping_at = None
   peer_at_bay_m = None
   bay_wait = None
   rack_discovered = False
@@ -1365,33 +1384,37 @@ class QuadBody(Body):
   def refresh_rack(self):
     return None
 
+  # ---- the tool rack (#405, `legs/swap.py`): a bay is named by the
+  # lifecycle's `station_y` until #376's stage C (`swap.bay_of`)
+
+  swapping_at = property(lambda self: self.mission.swapping_at)
+  working = property(lambda self: self.mission.working)
+
   def bay_standoff(self, station_y):
-    # the tool rack's bays: this body has nothing to take from them
-    x, y = RackPose.prior().to_world(0.5, station_y)
-    return x, y, RackPose.prior().heading
+    return self.mission.rack_standoff(bay_of(station_y))
 
   def fetch_tool_routine(self, station_y, module) -> Routine:
-    return "no arm"
-    yield
+    return self.mission.fetch_routine(bay_of(station_y), module)
 
   def stow_tool_routine(self, station_y, module) -> Routine:
-    return "no arm"
-    yield
+    return self.mission.stow_routine(bay_of(station_y), module)
 
   def module_state(self, module) -> dict:
-    return self.mission.module_state(module)
+    return self.mission.tool_state(module)
 
   def tool_powered(self, module) -> bool:
-    return False
+    return self.mission.tool_powered(module)
 
   def seated_on(self, module):
-    return None
+    return self.mission.seated_on(module)
 
   def tool(self, module, **kw):
+    # a tool's own drivers are its rebuild's (#406, #407): these are a
+    # plate, a peg and a face
     return None
 
   def swap_trace(self) -> str:
-    return "its arm takes no tool yet"
+    return self.mission.swap_trace()
 
   def charge_standoff(self):
     return self.mission.charge_standoff()
@@ -1502,7 +1525,9 @@ class QuadBody(Body):
     return self.mission.travel_routine(distance, v)
 
   def retract_arm_routine(self) -> Routine:
-    return self.mission.stow_arm_routine()
+    if self.mission.carrying is None:
+      return self.mission.stow_arm_routine()
+    return self.mission.carry_routine()
 
   # ---- posture and rest ----------------------------------------------------
 

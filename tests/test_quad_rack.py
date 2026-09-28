@@ -1,0 +1,240 @@
+"""The rack at the quadruped's arm's reach, and the swap (issue #405, stage
+B): each rule it rests on, pinned as cheaply as it can be while still
+failing for the right reason -- the world's rack and its three tools, the
+nose camera's near plane, a carried tool as the body's own to its senses,
+where a tool is, the fold and the carry pose, the walk-in's stop against
+the settle's drift, the verbs, and the rack view. A fetch and a stow flown
+whole are behind `--endurance`. SimNotes, "The rack at the arm's reach"."""
+
+import math
+from types import SimpleNamespace
+
+import mujoco
+import numpy as np
+import pytest
+
+from pluggybot import tick
+from pluggybot.legs import arm as am
+from pluggybot.legs import body as qb
+from pluggybot.legs import dock as dk
+from pluggybot.legs import rack as rk
+from pluggybot.legs import swap as sw
+from pluggybot.legs import world as lw
+from pluggybot.lifecycle import QUAD_HOME, tool_places, world_config
+from pluggybot.procedure import steps as st
+from pluggybot.rack.coupling import PEG_ABOVE_BODY, STATION_YS, bay_switches
+
+
+@pytest.fixture(scope="module")
+def quad_world():
+  """The home world with one quadruped, its dock and its rack, compiled once."""
+  return lw.home_spec().compile()
+
+
+def _quad(model, at=(1.5, 0.5, 0.0)):
+  body = qb.QuadBody(model, mujoco.MjData(model), realtime=False,
+                     grid_bounds=world_config(QUAD_HOME)["grid_bounds"])
+  body.start_at(*at)
+  return body
+
+
+def _settle(body, seconds=0.5):
+  body.run(body.mission._drive_routine(seconds, 0.0, 0.0))
+
+
+# ---- the world --------------------------------------------------------------------
+
+
+def test_the_world_has_its_own_rack_and_every_tool_is_compiled_hanging(quad_world):
+  m = quad_world
+  d = mujoco.MjData(m)
+  mujoco.mj_forward(m, d)
+  names = {m.body(i).name for i in range(m.nbody)}
+  assert rk.RACK_BODY in names and not {"rack", "rack_built", "module_plug"} & names
+  x, y, yaw = lw.rack_pose()
+  assert (float(m.body(rk.RACK_BODY).pos[0]), float(m.body(rk.RACK_BODY).pos[1])) \
+    == pytest.approx((x, y))
+  # qpos0 is every tool on its bay: what a lost one is put back to
+  for _ in range(250):
+    mujoco.mj_step(m, d)
+  for module, bay in rk.TOOL_BAYS.items():
+    assert rk.on_bay(m, d, module, rk.DEFAULT, bay), module
+  # ...and the rover's switch reader reads this rack's bays (the rack view)
+  assert bay_switches(m, d)[:3] == (True, True, True)
+
+
+def test_the_nose_camera_reads_a_bays_tags_from_its_working_pose(quad_world):
+  # The house pins its extent for its cameras, and MuJoCo's near plane is a
+  # hundredth of it: 0.37 m, and a bay's tags are 0.31 m from the nose. The
+  # robot found the rack from a metre off and no bay once it stood at one.
+  body = _quad(quad_world, dk.compose(lw.rack_pose(), rk.work_pose(rk.DEFAULT, 0)))
+  try:
+    assert body.mission.bay_aim(0) is not None
+    quad_world.vis.map.znear = 0.01                       # the house's own
+    assert body.mission.bay_aim(0) is None
+  finally:
+    quad_world.vis.map.znear = lw.NEAR_M / quad_world.stat.extent
+    body.close()
+
+
+# ---- where a tool is ----------------------------------------------------------------
+
+
+def _mount(body, module):
+  """The tool seated on the fork at the carry pose, as a pick leaves it."""
+  mis, m, d = body.mission, body.model, body.data
+  mis.arm.hold_at(*am.CARRY_Q)
+  j = {n: m.jnt_qposadr[m.joint(f"arm_{n}").id] for n in ("shoulder", "elbow", "wrist")}
+  d.qpos[j["shoulder"]], d.qpos[j["elbow"]] = am.CARRY_Q
+  d.qpos[j["wrist"]] = -sum(am.CARRY_Q)
+  mujoco.mj_forward(m, d)
+  seat = m.site("arm_seat").id
+  rot = d.xmat[mis.root].reshape(3, 3)
+  peg = d.site_xpos[seat] + rot @ np.array([0.0, 0.0, mis.arm_spec.fork.seat_rise() + 0.0003])
+  yaw = math.atan2(rot[1, 0], rot[0, 0]) + math.pi
+  q = m.jnt_qposadr[m.body(module).jntadr[0]]
+  d.qpos[q:q + 3] = peg - np.array([0.0, 0.0, PEG_ABOVE_BODY])
+  d.qpos[q + 3:q + 7] = (math.cos(yaw / 2), 0.0, 0.0, math.sin(yaw / 2))
+  mujoco.mj_forward(m, d)
+  body.mission.carry(module)
+  _settle(body)
+
+
+def test_a_tool_on_the_fork_is_seated_on_this_robot_and_off_its_bay(quad_world):
+  body = _quad(quad_world)
+  try:
+    hung = body.module_state("module_lcd")
+    assert hung["hung"] and not hung["on_fork"] and hung["bay"] == 0
+    assert body.seated_on("module_lcd") is None
+    _mount(body, "module_claw")
+    st_ = body.module_state("module_claw")
+    assert st_["on_fork"] and not st_["hung"] and body.tool_powered("module_claw")
+    assert body.seated_on("module_claw") == body.handle.root
+    # ...and the rack view says so, off the bays' switches and the fork
+    life = SimpleNamespace(model=body.model, data=body.data, peers=[], body=body,
+                           rack_inventory=dict(rk.TOOL_BAYS))
+    assert tool_places(life) == {"module_lcd": "on bay A", "module_pen": "on bay B",
+                                 "module_claw": "on your fork"}
+  finally:
+    body.close()
+
+
+def test_a_carried_tool_is_the_bodys_own_to_its_senses(quad_world):
+  body = _quad(quad_world)
+  try:
+    mis = body.mission
+    tool = mis.tool_gids("module_pen")
+    bid = body.model.body("module_pen").id
+    mis.carry("module_pen")
+    assert np.isin(tool, mis.lidar._self_ids).all()
+    assert np.isin(tool, mis.depth._mine).all()
+    assert mis._is_ignored[tool].all()
+    assert mis.walker.scan_exclude == bid and mis.arm.payload[0] > 0.0
+    mis.carry(None)
+    assert not np.isin(tool, mis.lidar._self_ids).any()
+    assert not np.isin(tool, mis.depth._mine).any()
+    assert not mis._is_ignored[tool].any() and mis._is_ignored[mis.body_gids].all()
+    assert mis.walker.scan_exclude == -1 and mis.arm.payload[0] == 0.0
+  finally:
+    body.close()
+
+
+def test_a_carried_tool_turns_slower(quad_world):
+  # At the drive's full 1.0 rad/s a pivot swung a carried tool off its V's
+  # for up to 160 ms; at W_CARRY, 14 (`arm_spike.py --served --carry`).
+  body = _quad(quad_world)
+  try:
+    mis = body.mission
+    assert next(mis._twist_routine(0.0, 0.0, -1.0))[2] == pytest.approx(-1.0)
+    mis.carry("module_claw")
+    assert next(mis._twist_routine(0.0, 0.0, -1.0))[2] == pytest.approx(-qb.W_CARRY)
+    assert next(mis._twist_routine(0.5, 0.0, 0.3))[2] == pytest.approx(0.3)
+  finally:
+    body.close()
+
+
+def test_a_fall_lets_go_and_a_rest_keeps_the_carry_pose(quad_world):
+  body = _quad(quad_world)
+  try:
+    mis = body.mission
+    carry = [am.CARRY_Q[0], sum(am.CARRY_Q)]
+    stow = [mis.arm_spec.stow[0], sum(mis.arm_spec.stow)]
+    mis.carry("module_lcd")
+    mis.fold_arm(fall=False)                  # lying down to rest, carrying
+    assert np.allclose(mis.arm.goal, carry) and mis.carrying == "module_lcd"
+    mis.fold_arm(fall=True)                   # a fall throws it
+    assert np.allclose(mis.arm.goal, stow) and mis.carrying is None
+    assert mis.arm.payload[0] == 0.0
+  finally:
+    body.close()
+
+
+# ---- the swap's rules ---------------------------------------------------------------
+
+
+def test_a_save_waits_out_a_swap(quad_world, tmp_path):
+  # A save mid-swap holds a fork half under a peg, which no file keeps.
+  from pluggybot import continuation
+  body = _quad(quad_world)
+  try:
+    life = SimpleNamespace(_standing_up=False, body=body, world_fingerprint="x",
+                           data=body.data)
+    keeper = continuation.Keeper([life], tmp_path / "world.npz")
+    assert not keeper.busy()
+    body.mission.working = True
+    assert keeper.busy()
+  finally:
+    body.close()
+
+
+def test_a_bay_is_named_by_its_station():
+  assert [sw.bay_of(STATION_YS[i]) for i in range(3)] == [0, 1, 2]
+
+
+def test_the_walk_in_stops_turned_against_the_settles_drift():
+  # Square on the line, it turns clockwise toward -SETTLE_DRIFT: the settle
+  # turns it counter-clockwise, 1.2 to 2.7 deg on the served body.
+  tw = rk.walk_in_twist(-0.3, 0.0, 0.0, heading=-rk.SETTLE_DRIFT)
+  assert tw.vx > 0.0 and tw.yaw_rate < 0.0
+  assert rk.walk_in_twist(-0.3, 0.0, 0.0).yaw_rate == 0.0     # the spike's
+
+
+def test_a_verb_that_walks_carries_a_tool_at_the_carry_pose(quad_world):
+  body = _quad(quad_world)
+  try:
+    life = SimpleNamespace(body=body, model=body.model, data=body.data)
+    sh, el = body.actuator("arm_shoulder"), body.actuator("arm_elbow")
+    assert [(a, t) for a, t, _ in st.travel_pose(life, "module_pen")] == \
+      [(sh, am.CARRY_Q[0]), (el, am.CARRY_Q[1])]
+    # ...and a stow's carrying configuration is the body's own, not a lift
+    ran = []
+    body.mission.carry_routine = lambda: (ran.append("carry"), tick.result(True))[1]
+    body.mission.carrying = "module_pen"
+    assert body.run(st.carry_configuration_routine(life, "module_pen")) == {"setDown": None}
+    assert ran == ["carry"]
+  finally:
+    body.close()
+
+
+# ---- the swap, flown whole ----------------------------------------------------------
+
+
+@pytest.mark.endurance
+def test_the_served_quadruped_fetches_a_tool_and_hangs_it_back(quad_world):
+  """From a metre north of the rack's east end the served body walks to bay
+  A, takes the LCD, carries it and hangs it back: the swap as the served
+  world runs it (`scripts/arm_spike.py --served` flies it from the dock and
+  from across the house). Behind --endurance (~60 sim s of the walking
+  policy): every rule it rests on is pinned fast above -- the nose camera's
+  near plane, the tools compiled at rest, a carried tool as the body's own,
+  the fork judged by the world, the walk-in's stop against the drift."""
+  body = _quad(quad_world, (2.4, -0.3, -math.pi / 2))
+  try:
+    assert body.run(body.fetch_tool_routine(STATION_YS[0], "module_lcd")) == "arrived"
+    assert body.module_state("module_lcd")["on_fork"] and body.tool_powered("module_lcd")
+    assert body.mission.carrying == "module_lcd"
+    assert body.run(body.stow_tool_routine(STATION_YS[0], "module_lcd")) == "arrived"
+    st_ = body.module_state("module_lcd")
+    assert st_["hung"] and not st_["on_fork"] and body.mission.carrying is None
+  finally:
+    body.close()
