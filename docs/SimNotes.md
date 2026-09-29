@@ -3418,13 +3418,24 @@ lookups by name cost 20-32.
 
 | from | fetched | hung back | fetch, median | stow, median |
 |---|---|---|---|---|
-| the dock's approach, jittered 0.1 m / 15° | 10 of 10 | 10 of 10 | 25.6 s | 30.8 s |
-| across the house (kitchen, workshop, hall, bedroom, the gardens, the living room) | 10 of 10 | 10 of 10 | 45.4 s | 30.3 s |
-| the served pair at once, each from its start, bays A and C (0.6 m apart) | 12 of 12 | 12 of 12 | 39.8 s (the slower) | 39.5 s (the slower) |
+| the dock's approach, jittered 0.1 m / 15° | 10 of 10 | 10 of 10 | 25.6 s | 38.4 s |
+| across the house (kitchen, workshop, hall, bedroom, the gardens, the living room) | 10 of 10 | 10 of 10 | 45.4 s | 39.1 s |
+| the served pair at once, each from its start, bays A and C (0.6 m apart) | 20 of 20 | 19 of 20 | 38.7 s (the slower) | 50.2 s (the slower) |
 
-Two house flights first started from the rover's workshop spawn, which is
+A stow takes longer than a fetch because a carried tool turns at
+`W_CARRY` (below); flown before that cap, the stows took 30-31 s. Two
+house flights first started from the rover's workshop spawn, which is
 inside the workshop's table: set down on it the body fell and found no
 route, and from a clear spot in the workshop both swaps landed.
+
+**Two robots carrying at the rack can knock each other's tools off.** The
+pair's one loss: walking back to their standoffs, the two met face to face
+0.8 m apart, and one's carried LCD struck the other's carried claw -- a
+contact neither bumper reads, since each tool is its own robot's. The
+code before the review loses the same flight the same way. The bump is
+what keeps a carried tool off the other robot's FORK: with every tool
+against the fork ignored (a review fix, withdrawn), both robots' tools
+were knocked off in 4 of 6 flights.
 
 **Carried through the house** (`arm_spike.py --served --carry`: each tool
 in turn fetched, walked to the hall, the kitchen, back and out to the
@@ -3449,7 +3460,9 @@ three tools on its own rack from a program; `tests/test_quad_rack.py` pins
 each rule above, and the whole swap flies behind `--endurance`. Not done:
 tool jobs (#406, #407); a carried tool down the house's stairs (#280 builds
 them); the other robot's carried tool is not filtered from this one's
-senses (at the carry pose it is above the LIDAR's plane).
+senses (at the carry pose it is above the LIDAR's plane), and nothing
+keeps two carrying robots' tools apart at the rack (1 of 20 knocked off at
+bays A and C), nor a second robot off a bay the first is working.
 
 ## Debugging workflow that worked
 
