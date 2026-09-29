@@ -309,15 +309,21 @@ def test_a_verb_that_walks_carries_a_tool_at_the_carry_pose(quad_world):
 # ---- the swap, flown whole ----------------------------------------------------------
 
 
-@pytest.mark.endurance
+@pytest.mark.slow
+@pytest.mark.endurance(when=(
+  "src/pluggybot/legs/", "models/quadruped", "models/home_world.xml",
+  "src/pluggybot/navigator.py", "src/pluggybot/mapping/", "src/pluggybot/perception/",
+  "src/pluggybot/rack/coupling.py", "src/pluggybot/rack/tags.py", "src/pluggybot/tick.py"))
 def test_the_served_quadruped_fetches_a_tool_and_hangs_it_back(quad_world):
   """From a metre north of the rack's east end the served body walks to bay
   A, takes the LCD, carries it and hangs it back: the swap as the served
   world runs it (`scripts/arm_spike.py --served` flies it from the dock and
-  from across the house). Behind --endurance (~60 sim s of the walking
-  policy): every rule it rests on is pinned fast above -- the nose camera's
-  near plane, the tools compiled at rest, a carried tool as the body's own,
-  the fork judged by the world, the walk-in's stop against the drift."""
+  from across the house). Flown (~60 sim s of the walking policy): every
+  rule it rests on is pinned fast above -- the nose camera's near plane, the
+  tools compiled at rest, a carried tool as the body's own, the fork judged
+  by the world, the walk-in's stop against the drift; only this flies them
+  together. Shown to fail with the house's own near plane: no walk-in finds
+  the bay."""
   body = _quad(quad_world, (2.4, -0.3, -math.pi / 2))
   try:
     assert body.run(body.fetch_tool_routine(STATION_YS[0], "module_lcd")) == "arrived"
