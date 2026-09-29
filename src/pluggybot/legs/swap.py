@@ -103,13 +103,6 @@ class ToolSwap:
                                 if int(model.geom_bodyid[g]) == plate], dtype=np.int32)
     self._tool_gids: dict[str, np.ndarray] = {}
     self._poles: dict[str, tuple] = {}
-    #: ...as lookups by geom id, for the bumper (`QuadMission._press_now`)
-    self._is_fork = np.zeros(model.ngeom, dtype=bool)
-    self._is_fork[self._fork_gids] = True
-    self._is_tool = np.zeros(model.ngeom, dtype=bool)
-    for module in rk.TOOL_BAYS:
-      if mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_BODY, module) >= 0:
-        self._is_tool[self.tool_gids(module)] = True
 
   # ---- where things are -------------------------------------------------------
 
@@ -371,8 +364,11 @@ class ToolSwap:
       if aim is None:
         continue
       picked = yield from self._pick_routine(aim, module)
-      # A tool on the fork is carried, seated or not: folded, it is
-      # thrown, and left unclaimed it was a bump on every step of a walk
+      # A tool on the fork is carried, seated or not: folded, it is thrown,
+      # and unclaimed it was a bump on every step of a walk. ⚠ A tool is
+      # the body's own to the bumper only while carried: a filter on every
+      # tool against the fork let the pair's carried tools knock each other
+      # off, where the bump backs the robots apart (4 of 12 hung back)
       held = picked or self.on_this_fork(module)
       att["why"] = ("picked" if picked else "on the fork, not seated" if held
                     else "the fork came out without it")

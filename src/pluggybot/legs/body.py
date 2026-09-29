@@ -777,12 +777,6 @@ class QuadMission(ToolSwap, Navigator):
     hit = (mine0 | mine1) & ~self._is_ignored[other]
     if not hit.any():
       return False
-    # ...nor a rack tool against the fork, read off the world: a pick left
-    # a tool lying there unclaimed, and every step of a walk backed off
-    me = np.where(mine0, g[:, 0], g[:, 1])
-    hit &= ~(self._is_fork[me] & self._is_tool[other])
-    if not hit.any():
-      return False
     rot = d.xmat[self.root].reshape(3, 3)
     at = (d.contact.pos[:d.ncon][hit] - d.xpos[self.root]) @ rot
     self.pressed_at = (float(at[:, 0].mean()), float(at[:, 1].mean()))

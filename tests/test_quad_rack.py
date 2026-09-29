@@ -175,13 +175,16 @@ def test_a_walk_keeps_a_carried_tool_at_the_carry_pose(quad_world):
     body.close()
 
 
-def test_a_tool_on_the_fork_is_no_bump(quad_world):
-  # A pick that left a tool lying on the fork unclaimed made every step of
-  # a walk a press, and the robot backed off for good (found in review).
+def test_a_tool_against_the_fork_is_a_bump_unless_it_is_carried(quad_world):
+  # A tool is the body's own to the bumper only while it rides this fork:
+  # the bump is what backs the pair apart when one's carried tool meets
+  # the other's fork. Ignoring every tool against the fork, the pair's
+  # tools knocked each other off at the rack (4 of 12 hung back, #405).
   body = _quad(quad_world)
   try:
     _mount(body, "module_lcd", carried=False)
-    assert body.mission.on_this_fork("module_lcd") and body.mission.carrying is None
+    assert body.mission.on_this_fork("module_lcd") and body.mission._press_now()
+    body.mission.carry("module_lcd")
     assert not body.mission._press_now()
   finally:
     body.close()
