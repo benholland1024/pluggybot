@@ -3464,7 +3464,13 @@ contact neither bumper reads, since each tool is its own robot's. The
 code before the review loses the same flight the same way. The bump is
 what keeps a carried tool off the other robot's FORK: with every tool
 against the fork ignored (a review fix, withdrawn), both robots' tools
-were knocked off in 4 of 6 flights.
+were knocked off in 4 of 6 flights. Making a carried tool a limb to its
+own robot's bumper as well landed that flight and lost three tools in two
+others (17 of 20): both robots flinched at once, bumped and backed off in
+turn until the tools fell -- withdrawn too, and #418's to settle. At the
+carry pose the fork is the body's collidable front (0.418 m ahead of the
+centre; the tools' plates 0.411, their faces visual only), past the front
+stop's 0.38 m: a carrying body walked at a wall is answered by the bump.
 
 **Carried through the house** (`arm_spike.py --served --carry`: each tool
 in turn fetched, walked to the hall, the kitchen, back and out to the
