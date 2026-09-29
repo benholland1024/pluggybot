@@ -64,7 +64,9 @@ def test_the_vocabulary_is_the_issues_verbs():
                            # the motor level, issue #166
                            "move", "drive",
                            # the claw's pair, issue #264
-                           "pick", "place"}
+                           "pick", "place",
+                           # places, issue #419
+                           "find", "press"}
   assert all(d["doc"] for d in st.describe_vocabulary())
 
 

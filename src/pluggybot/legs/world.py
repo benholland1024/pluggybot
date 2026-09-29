@@ -23,7 +23,7 @@ import mujoco
 from pluggybot.legs import dock as dk
 from pluggybot.legs import rack as rk
 from pluggybot.legs.model import CHOSEN, attachable, pose_qpos
-from pluggybot.rack.tags import DOCK_TAG_IDS
+from pluggybot.rack.tags import DOCK_TAG_IDS, PLATE_TAG_IDS
 from pluggybot.robot import CHASSIS_RGBA, SECOND_CHASSIS_RGBA, paint
 from pluggybot.telemetry.protocol import ROBOT_ROOT
 
@@ -160,6 +160,25 @@ def _attach_rack(spec: mujoco.MjSpec, pose) -> None:
   spec.attach(child, prefix="", frame=spec.worldbody.add_frame())
 
 
+def _attach_signs(spec: mujoco.MjSpec) -> None:
+  """The lab's plate signs (issue #419; `activity.cage.plate_signs_xml`)
+  and their tags' textures, where the house has a lab."""
+  from pluggybot.activity import cage
+  from pluggybot.home import world as home
+  if not any(b.name == "lab_cage" for b in spec.worldbody.bodies):
+    return
+  for i in PLATE_TAG_IDS:
+    spec.add_texture(name=f"tagtex{i}", type=mujoco.mjtTexture.mjTEXTURE_CUBE,
+                     file=f"tags/tag{i}.png")
+    mat = spec.add_material(name=f"tagmat{i}", specular=0.05, shininess=0.05,
+                            reflectance=0.0)
+    mat.textures[mujoco.mjtTextureRole.mjTEXROLE_RGB] = f"tagtex{i}"
+  child = mujoco.MjSpec.from_string(
+    "<mujoco><compiler angle=\"radian\"/><worldbody>"
+    + cage.plate_signs_xml(home.LAB_CAGE_XY) + "</worldbody></mujoco>")
+  spec.attach(child, prefix="", frame=spec.worldbody.add_frame())
+
+
 def _remove_rover(spec: mujoco.MjSpec) -> None:
   """Take the rover out of a world spec: what names its joints, site or
   bodies, then its body."""
@@ -218,6 +237,7 @@ def home_spec(first_at=(1.5, 0.5), second_at=None, second_prefix: str = "r2_",
     _attach_quad(spec, second_at, second_prefix, second_rgba)
   _attach_dock(spec, dock_pose())
   _attach_rack(spec, rack_pose())
+  _attach_signs(spec)
   spec.visual.map.znear = NEAR_M / spec.stat.extent
   return spec
 

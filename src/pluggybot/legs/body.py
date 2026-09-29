@@ -59,6 +59,7 @@ from pluggybot.legs.actuator import BUS_V_NOMINAL, JointLimits
 from pluggybot.legs.arm import ARM_SLEW, ArmDriver
 from pluggybot.legs.model import CHOSEN, ELECTRONICS_W, LEGS
 from pluggybot.legs.odometry import LegOdometry
+from pluggybot.legs.places import PlaceWalk
 from pluggybot.legs.policy import POLICY_NPZ, PolicyDriver, Twist, WalkingPolicy
 from pluggybot.legs.scripted import Command, VirtualModel
 from pluggybot.legs.swap import ToolSwap, bay_of
@@ -270,7 +271,7 @@ class QuadStepper:
     return tick.run(self, routine, name)
 
 
-class QuadMission(ToolSwap, Navigator):
+class QuadMission(ToolSwap, PlaceWalk, Navigator):
   """The Navigator over a quadruped (the module docstring)."""
 
   #: The body's own sizes (`scripts/quad_spike.py`; SimNotes, "The first
@@ -413,6 +414,8 @@ class QuadMission(ToolSwap, Navigator):
                                      self.body_gids))] = True
     # THE TOOL RACK (#405, `legs/swap.py`)
     self._init_swap(model)
+    # THE PLACES IT FINDS (#419, `legs/places.py`)
+    self._init_places(model)
 
   # ---- the dock's frame -----------------------------------------------------
 
@@ -530,8 +533,12 @@ class QuadMission(ToolSwap, Navigator):
 
   def _planning_grid(self) -> np.ndarray:
     """The LIDAR's grid, and what the depth camera saw under its plane
-    burned in as obstacles."""
+    burned in as obstacles -- and every plate it knows (#419,
+    `PlaceWalk.keep_out`): a press is the one way onto a pad."""
     low = self.low > LOW_OCC
+    pads = self.keep_out()
+    if pads is not None:
+      low = low | pads
     if not low.any():
       return self.grid.grid
     out = self.grid.grid.copy()
@@ -847,7 +854,9 @@ class QuadMission(ToolSwap, Navigator):
 
   def _look_step(self) -> None:
     """The depth camera, at its rate: what it sees under the LIDAR's plane
-    goes into the planner's layer."""
+    goes into the planner's layer; and the walking look for places (#419,
+    `PlaceWalk._place_step`)."""
+    self._place_step()
     frame = self.latest_depth()
     if self._frame_t == self._frame_used_t or frame is None:
       return
@@ -995,8 +1004,11 @@ class QuadMission(ToolSwap, Navigator):
     return self._board
 
   def detect_board(self) -> dict:
-    """One decode from the nose camera."""
-    return self._board_detector().detect(self.data)
+    """One decode from the nose camera; the places in it are remembered
+    (#419, `PlaceWalk.see_places`), whatever the look was for."""
+    dets = self._board_detector().detect(self.data)
+    self.see_places(dets)
+    return dets
 
   def look_at_board(self) -> dk.DockFix | None:
     """One look; a fit moves the dock's believed pose (odometry frame)."""
@@ -1046,12 +1058,19 @@ class QuadMission(ToolSwap, Navigator):
     return "budget"
 
   def _back_out_routine(self) -> Routine:
+    return (yield from self._back_out_by_routine(dk.BACK_OUT_M, dk.BACK_OUT_S,
+                                                 dk.APPROACH_V, dk.BACK_OUT_SETTLE_S))
+
+  def _back_out_by_routine(self, distance: float, budget: float, speed: float,
+                           settle: float) -> Routine:
+    """Straight back `distance` of odometry at `speed`, at most `budget` s,
+    and stand `settle` s: the dock's, the rack's and a plate's walk out."""
     x0, y0 = self.pose_xy()
     t0 = float(self.data.time)
-    while (math.hypot(self.odo.x - x0, self.odo.y - y0) < dk.BACK_OUT_M
-           and self.data.time - t0 < dk.BACK_OUT_S):
-      yield from self._twist_routine(-dk.APPROACH_V, 0.0, 0.0)
-    yield from self._drive_routine(dk.BACK_OUT_SETTLE_S, 0.0, 0.0)
+    while (math.hypot(self.odo.x - x0, self.odo.y - y0) < distance
+           and self.data.time - t0 < budget):
+      yield from self._twist_routine(-speed, 0.0, 0.0)
+    yield from self._drive_routine(settle, 0.0, 0.0)
 
   def dock_routine(self) -> Routine:
     """From the standoff: find the board, walk in by it, stop, check the
@@ -1187,7 +1206,12 @@ class QuadMission(ToolSwap, Navigator):
                           self.lidar.peer_rng.bit_generator.state],
              "depthRng": [self.depth.rng.bit_generator.state,
                           self.depth.peer_rng.bit_generator.state],
-             "match": match},
+             "match": match,
+             # ...and the places it has found, with the map they are laid in
+             # (#419), and when and where it last looked for them
+             "places": self.places.kept_state(),
+             "placeLook": [None if math.isinf(self._place_look[0]) else self._place_look[0],
+                           None if self._place_look[1] is None else list(self._place_look[1])]},
             arrays)
 
   def restore_kept(self, state: dict, arrays: dict) -> bool:
@@ -1260,7 +1284,25 @@ class QuadMission(ToolSwap, Navigator):
         self.low[...] = arrays["low"]
     if self.matcher is not None and state.get("match") and mapped:
       self.matcher.restore_kept(state["match"], arrays)
+    # ...the places only with the map they were laid in (#419): a world
+    # whose map did not come back has found nothing either
+    self.places.restore_kept(state.get("places") if mapped else None)
+    look = state.get("placeLook") or [None, None]
+    self._place_look = (-math.inf if look[0] is None else float(look[0]),
+                        None if look[1] is None else tuple(float(v) for v in look[1]))
+    self._keep_out = None
     return mapped
+
+  def forget_world(self) -> None:
+    """A true death (#419): the map, what the depth camera saw under it,
+    the last plan and every place it found, gone -- the new robot knows its
+    dock and nothing else (`Navigator.forget_map`)."""
+    self.forget_map()
+    self.low[...] = 0.0
+    self._walls_t, self._walls_mask = None, None
+    self._plan_memo = None
+    self.places.forget()
+    self._keep_out = None
 
   def rebind(self, model, data) -> None:
     """⚠ NOT DONE: a quadruped's world is never recompiled -- the seam hangs
@@ -1371,6 +1413,17 @@ class QuadBody(Body):
   @property
   def grid(self):
     return _PlannedGrid(self.mission)
+
+  places = property(lambda self: self.mission.places)
+
+  def find_tag_routine(self, tag, near, patience, stop=None) -> Routine:
+    return self.mission.find_routine(tag, near=near, patience=patience, stop=stop)
+
+  def press_plate_routine(self, tag, patience, stop=None) -> Routine:
+    return self.mission.press_routine(tag, patience=patience, stop=stop)
+
+  def forget_world(self) -> None:
+    self.mission.forget_world()
 
   def plan_frontier(self, blacklist):
     from pluggybot.behavior.navigation import plan

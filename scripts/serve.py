@@ -81,7 +81,8 @@ from pluggybot.economy.metabolism import METABOLISM_ENV, Appetite, Metabolism
 from pluggybot.mind.thoughts import ThoughtFiles
 from pluggybot.robot import BODIES, world_spec
 from pluggybot.lifecycle import (
-  LOST_TOOL_S, RESTART_AFTER_S, HubLifecycle, attach_mode_stream, board_book, errands_for,
+  LOST_TOOL_S, RESTART_AFTER_S, STARTING_POINTS, HubLifecycle, attach_mode_stream,
+  board_book, errands_for,
   points_ledger, task_board, task_producer, world_config, world_for, world_screens,
 )
 from pluggybot.telemetry.pacer import RealTimePacer
@@ -153,6 +154,12 @@ def serve(watchdog: "vitals.Watchdog") -> str | None:
                       help="SIM seconds a tool lies on no bay and no fork "
                            "before the world puts it back (issue #347; 0 "
                            "disables it). ON here and off in the experiment "
+                           "harness, on --restart-after's terms")
+  parser.add_argument("--start-points", type=int, default=STARTING_POINTS,
+                      metavar="N",
+                      help="points a new robot starts with after a true death "
+                           "(issue #419; 0 gives none, as every world did "
+                           "before). ON here and off in the experiment "
                            "harness, on --restart-after's terms")
   parser.add_argument("--robot-name", default=None, metavar="NAME",
                       help="this robot's display name on the wire (issue "
@@ -539,6 +546,8 @@ def serve(watchdog: "vitals.Watchdog") -> str | None:
                       # ...and a tool on the floor goes home (issue #347)
                       lost_tool_after_s=(args.lost_tool_after
                                          if args.lost_tool_after > 0 else None),
+                      # ...and a new robot starts with points (issue #419)
+                      start_points=args.start_points if args.start_points > 0 else None,
                       near_field=args.near_field)
   # WHICH BUILD IS BEING WATCHED (issue #132; docs/Evaluation.md §5).
   #
@@ -809,6 +818,7 @@ def serve_pair(args, flags: dict, rung, origin, watchdog) -> str | None:
                                       if args.restart_after > 0 else None),
                      lost_tool_after_s=(args.lost_tool_after
                                         if args.lost_tool_after > 0 else None),
+                     start_points=args.start_points if args.start_points > 0 else None,
                      constitutions_named=(args.constitution, args.constitution_2),
                      resume=snap)
   first, second = lives

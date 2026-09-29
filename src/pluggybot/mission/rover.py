@@ -91,6 +91,22 @@ class RoverBody(Body):
     return self.mission._spin_routine()
 
   grid = property(lambda self: self.mission.grid)
+  #: The rover keeps no places (#419): its lab and its boards are its
+  #: surveyed routes' until it is deleted (#376's stage C).
+  places = None
+
+  def find_tag_routine(self, tag, near, patience, stop=None) -> Routine:
+    return {"tag": int(tag), "found": False, "why": "the rover keeps no places",
+            "seconds": 0.0}
+    yield
+
+  def press_plate_routine(self, tag, patience, stop=None) -> Routine:
+    return {"tag": int(tag), "pressed": False, "why": "the rover keeps no places",
+            "attempts": []}
+    yield
+
+  def forget_world(self) -> None:
+    self.mission.forget_map()
 
   def plan_frontier(self, blacklist):
     return plan(self.mission.grid, self.mission.pose, blacklist)

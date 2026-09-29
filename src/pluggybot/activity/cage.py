@@ -63,6 +63,7 @@ import math
 
 from pluggybot.activity.base import Activity, MocapToggle, Threshold
 from pluggybot.activity.plate import PLATE_HALF, PLATE_OFF, PLATE_ON, plate_xml
+from pluggybot.rack.tags import PLATE_TAG_IDS, PLATE_TAG_SIZE, plate_half_extent
 from pluggybot.telemetry.protocol import robot_roots
 
 # ---- the cage ---------------------------------------------------------------
@@ -103,6 +104,80 @@ MOUSE_STATES = tuple(MOUSE_POSES)
 #: the enclosure. Offsets from the cage's centre.
 PLATE_OFFSETS = {"shock": (-1.0, -1.2), "feed": (0.0, -1.2), "toy": (1.0, -1.2)}
 PLATE_NAMES = tuple(PLATE_OFFSETS)
+
+# ---- the plates' signs (issue #419) -------------------------------------------
+#: Each plate's tag, on a sign at the plate's far edge facing the room: what
+#: a robot finds the plate by, and measures it off.
+PLATE_TAGS = dict(zip(PLATE_NAMES, PLATE_TAG_IDS))
+#: The sign's face stands this far past the pad's centre, away from the room
+#: (toward the cage), m. A quadruped pressing the plate stands `PRESS_BACK_M`
+#: short of the pad's centre with its folded fork 0.35 m ahead of its torso:
+#: 0.20 m clear of the sign, its nose camera 0.33 m from the tag and still
+#: reading it.
+SIGN_BEHIND_M = 0.45
+#: The tag's centre over the floor: the nose camera's height standing
+#: (0.367 m). MEASURED against a tag flat on the pad, which decoded only in
+#: patches (at 1.3, 1.5 and 3.0 m of 1.1-3.0): the floor is seen at a graze.
+SIGN_TAG_Z = 0.37
+SIGN_POST_HALF = 0.01
+SIGN_BOARD_HALF_T = 0.003
+#: Where a quadruped's torso stands to press a plate: this far short of the
+#: pad's centre, facing its sign, so its front feet land 0.10 m inside the
+#: pad (the feet are 0.2 m ahead of the torso) and its hind ones behind it.
+PRESS_BACK_M = 0.10
+
+
+def sign_xy(cage_xy: tuple[float, float], name: str) -> tuple[float, float]:
+  """World (x, y) of a plate's sign face, whose tag faces -y, the room."""
+  dx, dy = PLATE_OFFSETS[name]
+  return cage_xy[0] + dx, cage_xy[1] + dy + SIGN_BEHIND_M
+
+
+def sign_row():
+  """The three signs as ONE fixture (`mapping.places.Fixture`): their
+  layout in the cage's frame, a metre apart along the row as the lab's
+  directions say, and their faces toward the room (-y)."""
+  from pluggybot.mapping.places import Fixture
+  return Fixture(layout={PLATE_TAGS[n]: (dx, dy + SIGN_BEHIND_M)
+                       for n, (dx, dy) in PLATE_OFFSETS.items()},
+                 facing=-math.pi / 2)
+
+
+def pad_from_sign(x: float, y: float, facing: float) -> tuple[float, float]:
+  """The plate's pad centre off its sign: `SIGN_BEHIND_M` out of the sign's
+  face along `facing`, the direction the face points. The plate's drawing,
+  which a robot knows before it sees one, as it knows its dock's board."""
+  return x + SIGN_BEHIND_M * math.cos(facing), y + SIGN_BEHIND_M * math.sin(facing)
+
+
+def plate_signs_xml(cage_xy: tuple[float, float], prefix: str = "lab") -> str:
+  """The three plates' signs (issue #419) as worldbody MJCF: each a post
+  and a board at the plate's far edge, the tag on the board's face toward
+  the room; a sign's origin is its face. Its tag materials are
+  `rack.tags.asset_xml(PLATE_TAG_IDS)`'s.
+
+  ⚠ NOT IN THE HOME GENERATOR: the rover's pass through a pad ends
+  `PLATE_PASS_M` past its centre with the chassis beyond that, where a sign
+  stands. The quadruped's world adds them (`legs/world.py`) until the rover
+  is deleted (#376's stage C)."""
+  half = plate_half_extent(PLATE_TAG_SIZE)
+  board = half + 0.01
+  top = SIGN_TAG_Z + board
+  t, p = SIGN_BOARD_HALF_T, SIGN_POST_HALF
+  out = []
+  for name in PLATE_NAMES:
+    sx, sy = sign_xy(cage_xy, name)
+    out.append(f"""
+    <body name="{prefix}_{name}_sign" pos="{sx:.4f} {sy:.4f} 0">
+      <geom name="{prefix}_{name}_sign_post" type="box" size="{p:.4f} {p:.4f} {top / 2:.4f}"
+            pos="0 {2 * t + p:.4f} {top / 2:.4f}" rgba="0.32 0.33 0.36 1"/>
+      <geom name="{prefix}_{name}_sign_board" type="box" size="{board:.4f} {t:.4f} {board:.4f}"
+            pos="0 {t:.4f} {SIGN_TAG_Z:.4f}" rgba="0.95 0.95 0.95 1"/>
+      <geom name="{prefix}_{name}_sign_tag" type="box" size="{half:.4f} 0.001 {half:.4f}"
+            pos="0 -0.001 {SIGN_TAG_Z:.4f}" contype="0" conaffinity="0"
+            material="tagmat{PLATE_TAGS[name]}"/>
+    </body>""")
+  return "".join(out)
 
 
 def cage_xml(cage_xy: tuple[float, float],

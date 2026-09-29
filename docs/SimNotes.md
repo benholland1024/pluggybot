@@ -3499,6 +3499,92 @@ senses (at the carry pose it is above the LIDAR's plane), and nothing
 keeps two carrying robots' tools apart at the rack (1 of 20 knocked off at
 bays A and C), nor a second robot off a bay the first is working (#418).
 
+## Places, not coordinates (issue #419)
+
+A job used to be handed where things are. On legs it is handed the
+building's address, a few metres off, and the task area's written
+directions; the robot finds the place by a tag on it, remembers where it saw
+it in its own map, and walks the last metre and a half steered by the tag.
+`scripts/places_spike.py` flies it; `tests/test_places.py` pins each rule.
+
+**A handed coordinate carries the frame's error.** #414 handed the plates'
+world positions to the feed job: after an explore with the arm aboard the
+belief reached the lab 0.43-0.45 m off, and the walk home from the feed's
+approach point pressed the shock plate five times. A place found by sight
+is laid in the frame the map and the belief are, so the drift is in all
+three and cancels.
+
+**A sign, not the floor.** The nose camera sits 0.367 m up, level, its
+vertical field 41 deg, decoded at 1280x720 (`--tags`, `--flat`):
+
+- a 120 mm tag at the camera's height, facing the room, decodes square-on
+  past 5 m, 55 deg off its face to 5 m, 70 deg off to 1.5 m; positions to
+  median 1.2 mm, worst 57 mm;
+- the same tag flat on the pad, 320 mm across, decoded in 2 cells of 77
+  (1.5 m, 40 and 55 deg): the floor is seen at a graze.
+
+So each plate has a sign at its far edge (`cage.plate_signs_xml`): a post,
+a white board and the tag at 0.37 m, its face 0.45 m past the pad's centre.
+Pressing, the torso stands 0.10 m short of the pad's centre
+(`PRESS_BACK_M`): the front feet 0.09 m inside the pad, the hind feet off
+it, the folded fork 0.2 m short of the sign, the camera 0.33 m from the tag
+and still reading it. The signs are in the quadruped's world only: the
+rover's pass through a pad ends where one stands.
+
+**One tag's rotation is a coin flip square-on.** Its reported yaw was up to
+11.6 deg wrong square-on (2 of 10 looks past 5), and 20 deg off it once came
+out mirrored (10.8 deg wrong); from 30 deg off it was within 0.6 deg at every
+range -- but one look 27 deg off at 4.1 m read 38. So a place's facing
+comes off the row of signs fitted to its drawing when two are known (their
+positions to a few mm, a metre apart), else a look at least 35 deg off and
+within 3 m, else where it was seen from. The press needs the pad within
+0.3 m of its axis and the neighbours are a metre away, so none of the three
+misleads it far.
+
+**The search follows the map, out from the address.** The first search
+took its viewpoints nearest the robot and walked out of the facility, round
+it and into the street: 600 s, not found. Taken round the address it found
+the plate from all eight directions of a 3 m error (62-460 s) -- but with
+the facility's own address, which lands in its storeroom a wall from the
+lab, it failed twice from the dock: the lattice's first nine viewpoints
+were the storeroom's and its walls'. Now (`next_viewpoint`): where the
+row's drawing puts the sign once any of the row is read; else the address;
+else a FRONTIER of the robot's own map -- known floor meeting the unknown --
+nearest the address (the storeroom's door, then the lab's); else a lattice
+point it has not looked over.
+
+**Flown**, a fresh robot from the living room's start unless said
+(`--find --n 8 --error 3 --again`; `--find --again --from X`):
+
+| address | found and pressed | find, s | again, remembered, s | shock presses |
+|---|---|---|---|---|
+| 3 m off the facility's middle, 8 directions | 8 / 8 | 62-272, median 94 | 67-76 | 0 |
+| the facility's own (in the storeroom), from the dock | 1 / 1 | 123 | 64 | 0 |
+| ...from the living room | 1 / 1 | 124 | 68 | 0 |
+| ...from the hall | 1 / 1 | 157 | 81 | 0 |
+
+Every press stopped 22 mm short of its pose (the policy's run-on,
+`rack.STOP_M`), within 7 mm across and 2.1 deg of the axis; the belief was
+0.07-0.15 m off at the end, no robot fell, and the toy plate was never
+pressed either. "Again" is mostly the walk back across the street: from
+the remembered place there is no search.
+
+**Keeping off.** Every pad the robot knows is a wall to the planner
+(`PlaceWalk.keep_out`, the corners' circle, then the planner's 0.35 m
+inflation): from south of the row to between it and the cage the plan goes
+round the row's ends, where without it the plan walks over the feed plate.
+
+**The walking look costs a render**, 14-20 ms on the dev GPU under EGL and
+32 ms on the box under osmesa: at the dock's four looks a second the served
+pair would spend a quarter of the box on them. A look every metre walked or
+45 deg turned, and none standing: MEASURED on a walk across the street, 43
+looks in 86 sim s, one every 2 s -- 16 ms a sim second at the box's render,
+1.6 % of real time per walking robot.
+
+**Still open.** Loop closure (#381): the lab's frame is the one the map was
+laid in. The address is a fixed offset, not a GPS sensor. Every other task
+area's tags (#406, #407).
+
 ## Debugging workflow that worked
 
 1. Reproduce headlessly with printed telemetry (pose, wheel ω, contact list,

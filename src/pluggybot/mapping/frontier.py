@@ -25,6 +25,12 @@ def traversable_mask(logodds: np.ndarray, robot_radius_cells: int = 7) -> np.nda
   body. Unknown space is never traversable — we don't plan through territory
   we haven't seen.
   """
+  return (logodds < FREE_THRESH) & ~inflated(logodds, robot_radius_cells)
+
+
+def inflated(logodds: np.ndarray, robot_radius_cells: int = 7) -> np.ndarray:
+  """Cells within `robot_radius_cells` of a known-occupied one, TAXICAB:
+  what `traversable_mask` keeps the robot's centre out of."""
   occupied = logodds > OCC_THRESH
   # `binary_dilation(occupied, iterations=r)` with scipy's default cross
   # structure, which this was: r iterated 4-neighbour dilations, i.e. every
@@ -33,12 +39,9 @@ def traversable_mask(logodds: np.ndarray, robot_radius_cells: int = 7) -> np.nda
   # of r full passes -- MEASURED (rooftop-media-2026 #296) at ~300 ms a call
   # on the 49 x 21 m home grid, on every 2 s replan, 10 % of the served
   # pair's physics thread. `tests/test_frontier.py` pins the two identical.
-  if occupied.any():
-    inflated = distance_transform_cdt(~occupied, metric="taxicab") <= robot_radius_cells
-  else:
-    inflated = occupied
-  free = logodds < FREE_THRESH
-  return free & ~inflated
+  if not occupied.any():
+    return occupied
+  return distance_transform_cdt(~occupied, metric="taxicab") <= robot_radius_cells
 
 
 def find_frontiers(logodds: np.ndarray, traversable: np.ndarray | None = None) -> np.ndarray:
