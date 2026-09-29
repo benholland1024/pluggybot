@@ -280,11 +280,20 @@ def test_the_front_stop_reads_the_corridor_ahead_not_a_cone():
   assert nav.Navigator._front_blocked(me, *wall), "the premise: the cone fires"
   ahead = np.array([0.0]), np.array([0.40])
   assert qb.QuadMission._front_blocked(me, *ahead)
-  # ...and it stops short of the clearance the planner grants (the
-  # inflation's 0.35 m, the LIDAR behind the torso's centre on the rear
-  # mast), or every waypoint along a wall fires it
+  # ...it fires before the body's front-most point meets what is ahead --
+  # the stowed arm's fork, not the nose (#405: at 0.45 the fork met the
+  # wall first) -- and stops short of the clearance the planner grants (a
+  # waypoint on the inflation's 0.35 m is dropped 0.08 m out; the LIDAR is
+  # behind the torso's centre on the rear mast), or every waypoint along a
+  # wall fires it
   lidar_behind = CHOSEN.torso[0] - 0.06
-  clearance = qb.QuadMission.INFLATION_CELLS * 0.05
+  m = mujoco.MjModel.from_xml_string(body_xml(CHOSEN))
+  d = mujoco.MjData(m)
+  mujoco.mj_resetDataKeyframe(m, d, 0)                      # standing, stowed
+  mujoco.mj_forward(m, d)
+  front = _outline(m, d, m.body("pluggybot").id)[:, 0].max()
+  assert front + lidar_behind < qb.QuadMission.FRONT_STOP_RANGE
+  clearance = qb.QuadMission.INFLATION_CELLS * 0.05 + nav.WAYPOINT_REACHED_M
   assert qb.QuadMission.FRONT_STOP_RANGE < clearance + lidar_behind
 
 

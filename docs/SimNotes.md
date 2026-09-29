@@ -3310,10 +3310,34 @@ pose outlives its procedure, and the loop's next walk dragged it on the
 floor or carried it across the dock's board. A move the joint cannot
 finish in time, or that a fall takes from it, is a failed step, and its
 hold on the rest reflex (`QuadMission.working`) is never saved: kept, a
-restart restored it with nothing left to clear it. The motors'
+restart restored it with nothing left to clear it. A move is motion to the
+reflex, which counts its 8.6 s from the move's end: counted from the last
+walk, a wait after a move lay the body down and folded the pose it had
+just set. The motors'
 `ctrl` is a torque, so what an axis is held to is `Body.setpoint` -- the
 rover's `ctrl`, the quadruped's driver's goal -- and a death's
 `setpoints` read that.
+
+**The fork is the body's front.** Folded, the fork reaches 0.348 m ahead of
+the torso's centre, 0.14 m past the nose, and it cannot fold further back
+without the forearm crossing the LIDAR's plane (the stow above). The front
+stop, set at 0.45 m for the nose, let the fork meet a wall first: a walk
+to a goal inside the planner's clearance ended in 346 bumper steps, every
+one the arm, and a 105 s explore made 19. At 0.53 m
+(`QuadMission.FRONT_STOP_RANGE`, from the LIDAR 0.15 m behind the centre)
+the fork stops 3 cm short: 0 presses on the same walk and explore, the same
+map, and #399's 24 zones still 24 of 24, the far ones within 4 % of their
+time. It stays under the planner's clearance because a waypoint is dropped
+0.08 m out (`navigator.WAYPOINT_REACHED_M`), and a goal at the clearance
+stops inside `CLOSE_ENOUGH_M`.
+
+**The served speed.** The arm adds physics -- 26 geoms, 6 degrees of
+freedom, 4 tendons and 2 equality constraints a robot -- and a driver step
+a robot; its motors' bill is in floats (`LegPack._arm_w`: numpy on two
+elements cost 6.3 us a step, for the same bits). Side by side, the served
+pair free-ran at 0.82-0.83x real time on staging and 0.80-0.81x with the
+arm (`serve.py --pair --free-run`, both under the dev machine's same load):
+about 2.5 %.
 
 **Energy.** `energy_spike.py --world home_quad` with the arm aboard: the
 explore 6.067 Wh over 251.4 s (86.9 W; 84.7 without the arm), the dock's
@@ -3322,8 +3346,9 @@ charge 199.5 W net (201.1); the worst-case return 2.699 Wh over 44.64 m
 the dearer carried the reserve is 3.7 Wh (`legs.world.RESERVE_WH`, 3.6).
 
 **What is true now:** the served quadruped carries #378's arm stowed and
-held, folds it on a fall, before resting and before walking, and a program
-on `autonomous` may move its two joints; `tests/test_quad_arm.py` pins each rule. A
+held, folds it on a fall, before resting and before walking, stops for
+walls before its fork meets them, and a program on `autonomous` may move
+its two joints; `tests/test_quad_arm.py` pins each rule. A
 quadruped's day saved at 257.6 s and carried on in a new process is
 IDENTICAL after the restore (330 samples, `determinism_spike.py --world
 home_quad --resume-at 40`), and the pair's day with its arranged fall and

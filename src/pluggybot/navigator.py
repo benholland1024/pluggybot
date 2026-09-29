@@ -102,6 +102,10 @@ DOWN_CHECK_S = 0.1
 CLOSE_ENOUGH_M = 0.15
 #: A drive with no progress toward its goal for this long has stagnated.
 STAGNATION_S = 10.0
+#: A waypoint this near is reached and the next one steered for, m: a route
+#: along a wall turns this far short of it (a body's front stop is bounded
+#: by it, `legs.body.QuadMission.FRONT_STOP_RANGE`).
+WAYPOINT_REACHED_M = 0.08
 #: WHY A DRIVE GAVE UP (issue #350), `HubMission.last_drive["why"]`, one of
 #: four: the planner could not route to the goal over the floor mapped so
 #: far (no plan at all, or only to a stand-in the robot then stood at); no
@@ -714,7 +718,7 @@ class Navigator:
           if route > best_dist + self.NEW_ROUTE_M:
             best_dist, last_improve = route, self.data.time
       while waypoints and math.hypot(waypoints[0][0] - self.pose[0],
-                                     waypoints[0][1] - self.pose[1]) < 0.08:
+                                     waypoints[0][1] - self.pose[1]) < WAYPOINT_REACHED_M:
         waypoints.pop(0)
       # The last waypoint is the goal's cell and the goal is 8 cm at most
       # beyond it: both are the final approach, and get the law that
