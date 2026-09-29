@@ -470,9 +470,11 @@ def test_the_rules_worked_example_hands_over_no_survival_policy():
   for word in ("charge", "battery", "rack"):
     assert word not in example, word
   # ...and every verb, axis and sensor is listed, so nothing is a secret --
-  # the quadruped's arm joints in its own rule (#405), not the rover's
+  # the quadruped's arm joints in its own rule (#405), not the rover's, and
+  # the places' verbs (#419) in the rule of a body that keeps places
+  places = st.PLACE_VERBS + st.PLATE_VERBS
   for v in st.VERBS:
-    assert f"  {v}(" in text
+    assert (f"  {v}(" in text) is (v not in places), v
   for a in axes.AXES:
     assert (f"  {a}:" in text) is (a not in axes.ARM_JOINTS)
   for s in axes.SENSORS:
@@ -480,6 +482,10 @@ def test_the_rules_worked_example_hands_over_no_survival_policy():
   legs = ov.procedure_rule(False)
   for n in axes.ARM_JOINTS:
     assert f"  {n}:" in legs and f"  {n} --" in legs
+  assert not any(f"  {v}(" in legs for v in places)
+  finding = ov.procedure_rule(False, places=True)
+  assert "  find(" in finding and "  press(" not in finding
+  assert "  press(" in ov.procedure_rule(False, places=True, plates=True)
 
 
 def test_the_guarded_rules_have_not_moved():

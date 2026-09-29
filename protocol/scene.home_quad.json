@@ -7640,6 +7640,309 @@
      "texture": null
     }
    ]
+  },
+  {
+   "name": "lab_shock_sign",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": null,
+   "pos": [
+    24.0,
+    4.83,
+    0.0
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "lab_shock_sign_post",
+     "type": "box",
+     "size": [
+      0.02,
+      0.02,
+      0.455
+     ],
+     "pos": [
+      0.0,
+      0.016,
+      0.2275
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.32,
+      0.33,
+      0.36,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "lab_shock_sign_board",
+     "type": "box",
+     "size": [
+      0.17,
+      0.006,
+      0.17
+     ],
+     "pos": [
+      0.0,
+      0.003,
+      0.37
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.95,
+      0.95,
+      0.95,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "lab_shock_sign_tag",
+     "type": "box",
+     "size": [
+      0.15,
+      0.002,
+      0.15
+     ],
+     "pos": [
+      0.0,
+      -0.001,
+      0.37
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+     ],
+     "texture": "tagtex35"
+    }
+   ]
+  },
+  {
+   "name": "lab_feed_sign",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": null,
+   "pos": [
+    25.0,
+    4.83,
+    0.0
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "lab_feed_sign_post",
+     "type": "box",
+     "size": [
+      0.02,
+      0.02,
+      0.455
+     ],
+     "pos": [
+      0.0,
+      0.016,
+      0.2275
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.32,
+      0.33,
+      0.36,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "lab_feed_sign_board",
+     "type": "box",
+     "size": [
+      0.17,
+      0.006,
+      0.17
+     ],
+     "pos": [
+      0.0,
+      0.003,
+      0.37
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.95,
+      0.95,
+      0.95,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "lab_feed_sign_tag",
+     "type": "box",
+     "size": [
+      0.15,
+      0.002,
+      0.15
+     ],
+     "pos": [
+      0.0,
+      -0.001,
+      0.37
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+     ],
+     "texture": "tagtex36"
+    }
+   ]
+  },
+  {
+   "name": "lab_toy_sign",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": null,
+   "pos": [
+    26.0,
+    4.83,
+    0.0
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "lab_toy_sign_post",
+     "type": "box",
+     "size": [
+      0.02,
+      0.02,
+      0.455
+     ],
+     "pos": [
+      0.0,
+      0.016,
+      0.2275
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.32,
+      0.33,
+      0.36,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "lab_toy_sign_board",
+     "type": "box",
+     "size": [
+      0.17,
+      0.006,
+      0.17
+     ],
+     "pos": [
+      0.0,
+      0.003,
+      0.37
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.95,
+      0.95,
+      0.95,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "lab_toy_sign_tag",
+     "type": "box",
+     "size": [
+      0.15,
+      0.002,
+      0.15
+     ],
+     "pos": [
+      0.0,
+      -0.001,
+      0.37
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+     ],
+     "texture": "tagtex37"
+    }
+   ]
   }
  ],
  "textures": [
@@ -7730,6 +8033,24 @@
   {
    "name": "tagtex34",
    "file": "tagtex34.png",
+   "width": 240,
+   "height": 240
+  },
+  {
+   "name": "tagtex35",
+   "file": "tagtex35.png",
+   "width": 240,
+   "height": 240
+  },
+  {
+   "name": "tagtex36",
+   "file": "tagtex36.png",
+   "width": 240,
+   "height": 240
+  },
+  {
+   "name": "tagtex37",
+   "file": "tagtex37.png",
    "width": 240,
    "height": 240
   }

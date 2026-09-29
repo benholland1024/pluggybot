@@ -1069,6 +1069,11 @@ class Menu:
   #: ...whether a program may fetch and stow its rack's tools (issue #405:
   #: the quadruped's arm, a rack at its reach), `world_config`'s `swap`...
   swaps: bool = True
+  #: ...whether it finds task areas by their tags (issue #419, `world_config`'s
+  #: `places`): the `find` verb; and `press` among them where the plates'
+  #: lab is in the world's config, beside the rule that says what they do
+  places: bool = False
+  plates: bool = False
   #: ...and which body it is (issue #387): the rules say where a robot
   #: charges and how it dies in its own body's words (`for_body`).
   body: str = "rover"
@@ -1097,7 +1102,9 @@ class Menu:
     menu = cls(boards=tuple(book.names) if book is not None else (),
                programs=programs, zones=zones, census_zone=census,
                tools=cfg.get("tools", True), body=cfg.get("body", "rover"),
-               swaps=cfg.get("swap", cfg.get("tools", True)))
+               swaps=cfg.get("swap", cfg.get("tools", True)),
+               places=bool(cfg.get("places")),
+               plates=bool(cfg.get("places") and cfg.get("lab")))
     # Priced off the same table the mission loop refuses errands with, so the
     # model is never shown a cost the gate disagrees with.
     from pluggybot.economy import energy as energy_model
@@ -2943,17 +2950,20 @@ own speed
 """
 
 
-def procedure_rule(armed: bool = True, swaps: bool = False) -> str:
+def procedure_rule(armed: bool = True, swaps: bool = False, places: bool = False,
+                   plates: bool = False) -> str:
   from pluggybot.procedure import axes
   from pluggybot.procedure.library import MAX_PROCEDURES
-  from pluggybot.procedure.steps import (BODY_VERBS, SWAP_VERBS, VERBS,
-                                         describe_vocabulary, signature)
+  from pluggybot.procedure.steps import (BODY_VERBS, PLACE_VERBS, PLATE_VERBS,
+                                         SWAP_VERBS, VERBS, describe_vocabulary,
+                                         signature)
   if not armed:
     head = PROCEDURE_HEAD
     for old, new in _legs_swaps(swaps):
       assert old in head, f"PROCEDURE_HEAD moved: {old[:40]!r}"
       head = head.replace(old, new)
-    body_verbs = BODY_VERBS + (SWAP_VERBS if swaps else ())
+    body_verbs = (BODY_VERBS + (SWAP_VERBS if swaps else ())
+                  + (PLACE_VERBS if places else ()) + (PLATE_VERBS if plates else ()))
     verbs = "\n".join(f"  {signature(v)}  -- {v['doc']}"
                       for v in describe_vocabulary(body_verbs))
     drivers = ", ".join(f"`{n}`" for n in body_verbs if VERBS[n].drives)
@@ -2964,10 +2974,14 @@ def procedure_rule(armed: bool = True, swaps: bool = False) -> str:
     se = "\n".join(f"  {n} -- {reg[n]}" for n in axes.LEGS_SENSORS)
     return (head % {"cap": MAX_PROCEDURES, "drivers": drivers} + verbs
             + PROCEDURE_TAIL_LEGS + ax + PROCEDURE_SENSORS + se)
-  drivers = ", ".join(f"`{name}`" for name, v in VERBS.items() if v.drives)
+  # ...the rover's: every verb but the places' (issue #419), which a body
+  # that keeps no places cannot run
+  theirs = PLACE_VERBS + PLATE_VERBS
+  drivers = ", ".join(f"`{name}`" for name, v in VERBS.items()
+                      if v.drives and name not in theirs)
   verbs = "\n".join(
     f"  {signature(v)}  -- {v['doc']}"
-    for v in describe_vocabulary())
+    for v in describe_vocabulary() if v["verb"] not in theirs)
   # ...the rover's own: the quadruped's arm joints (#405) are another
   # body's, which its validator refuses
   reg = axes.describe()
@@ -3479,7 +3493,8 @@ def system_sections(thoughts: ThoughtFiles, menu: Menu,
   if event_map and not seeded:
     tail.append(("YOUR LIST STARTS EMPTY", for_body(UNSEEDED_RULE, body)))
   if procedures:
-    tail += [("PROCEDURES YOU MAY WRITE", procedure_rule(menu.tools, menu.swaps)),
+    tail += [("PROCEDURES YOU MAY WRITE", procedure_rule(menu.tools, menu.swaps,
+                                                         menu.places, menu.plates)),
                ("CHALLENGES", CHALLENGE_RULE),
                ("WHAT YOU HAVE MEASURED", FINDINGS_RULE)]
   if workshop:

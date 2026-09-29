@@ -175,6 +175,31 @@ class Body(abc.ABC):
   #: Its map of the floor (`mapping.OccupancyGrid`): what it plans over,
   #: what exploring plans frontiers on, what a census counts off.
   grid: Any
+  #: THE PLACES IT HAS FOUND (issue #419, `mapping.places.Places`): each
+  #: task area's tag where it saw it in its own map, kept with the map and
+  #: forgotten at a true death -- or None for a body that keeps none (the
+  #: rover).
+  places: Any
+
+  @abc.abstractmethod
+  def find_tag_routine(self, tag: int, near: tuple[float, float] | None = None,
+                       patience: float = 300.0, stop=None) -> Routine:
+    """Find the task area `tag` marks (issue #419): where it remembers it,
+    confirmed by the tag, or else searched for round `near` -- a job's
+    address, in its map -- until the tag is in view, `patience` runs out or
+    `stop` (the robot's own interrupt, asked as a walk asks it) says so.
+    Returns its record: `found`, `why`, `seconds`, and `at` once found."""
+
+  @abc.abstractmethod
+  def press_plate_routine(self, tag: int, stop=None) -> Routine:
+    """Walk onto the plate `tag` marks and back off it, the last step
+    measured off the tag (issue #419); `stop` as `find_tag_routine`'s.
+    Returns its record: `pressed` (a foot on the pad) and `why`."""
+
+  @abc.abstractmethod
+  def forget_world(self) -> None:
+    """A true death (issue #419): its map and its places cleared -- the new
+    robot knows where its dock is and nothing else."""
 
   @abc.abstractmethod
   def plan_frontier(self, blacklist: set) -> tuple[list | None, str]:
@@ -584,6 +609,14 @@ class StubBody(Body):
     self.attitude = (1.0, 0.0, 0.0, 0.0)
     #: every place it was sent, in order
     self.went: list[tuple[float, float]] = []
+    #: the places it knows (a test sees them in, `places.see`), and the tags
+    #: a find or a press was asked for, in order, and the true deaths
+    from pluggybot.mapping.places import Places
+    from pluggybot.rack.tags import PLATE_TAG_IDS
+    self.places = Places(ids=PLATE_TAG_IDS)
+    self.found: list[int] = []
+    self.pressed: list[int] = []
+    self.forgot = 0
     self.last_drive = None
     self.swapping_at = self.peer_at_bay_m = None
     self.working = False
@@ -605,11 +638,13 @@ class StubBody(Body):
     self._model, self._data = model, data
 
   def kept_state(self):
-    return {"pose": [self.x, self.y, self.theta], "holding": self.holding}, {}
+    return {"pose": [self.x, self.y, self.theta], "holding": self.holding,
+            "places": self.places.kept_state()}, {}
 
   def restore_kept(self, state, arrays) -> bool:
     self.x, self.y, self.theta = state["pose"]
     self.holding = state.get("holding")
+    self.places.restore_kept(state.get("places"))
     return False
 
   def close(self) -> None:
@@ -644,6 +679,28 @@ class StubBody(Body):
   def look_around_routine(self):
     return
     yield
+
+  def find_tag_routine(self, tag, near=None, patience=300.0, stop=None):
+    """Found at once where the test put the place in, and never otherwise:
+    the stub searches nothing."""
+    self.found.append(int(tag))
+    p = self.places.get(tag)
+    return {"tag": int(tag), "found": p is not None,
+            "why": "found" if p is not None else "not found", "seconds": 0.0,
+            **({"at": [p.x, p.y]} if p is not None else {})}
+    yield
+
+  def press_plate_routine(self, tag, stop=None):
+    self.pressed.append(int(tag))
+    known = self.places.get(tag) is not None
+    return {"tag": int(tag), "pressed": known,
+            "why": "pressed" if known else "not found", "attempts": []}
+    yield
+
+  def forget_world(self) -> None:
+    self.grid.grid[...] = 0.0
+    self.places.forget()
+    self.forgot += 1
 
   def plan_frontier(self, blacklist):
     from pluggybot.behavior.navigation import plan

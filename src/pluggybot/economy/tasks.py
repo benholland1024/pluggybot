@@ -609,6 +609,13 @@ class Task:
             # only where there is one, so every other offer reads as it did.
             **({"predicts": self.predicts, "outcomes": list(KINDS[self.kind].outcomes)}
                if self.predicts else {}),
+            # ...and WHERE IT IS (issue #419): the building's rough address
+            # and the task area's directions, named only where the job names
+            # a place, so every other offer reads as it did
+            **({"address": dict(self.params["address"])}
+               if isinstance(self.params.get("address"), dict) else {}),
+            **({"directions": str(self.params["directions"])}
+               if self.params.get("directions") else {}),
             "claimable": self.claimable(now, pack_wh),
             "expiresInS": (None if self.deadline is None
                            else round(self.deadline - float(now), 1))}

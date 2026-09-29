@@ -292,6 +292,13 @@ class Navigator:
     self.body_gids = np.array(sorted(robot_geoms(model, self.handle.root)),
                               dtype=np.int32)
 
+  def forget_map(self) -> None:
+    """Everything this robot mapped, gone (issue #419: a true death): the
+    grid back to unknown and the matcher with nothing to match against."""
+    self.grid.grid[...] = 0.0
+    if self.matcher is not None:
+      self.matcher.forget()
+
   # ---- what the body says --------------------------------------------------
 
   @property
