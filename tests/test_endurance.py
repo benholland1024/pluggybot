@@ -24,13 +24,13 @@ ROOT = TESTS.parent
 #: not listed here fails the fence below, so adding one -- or moving a test
 #: out of the default run -- is adding it here and asking him in its PR.
 APPROVED_FLIGHTS = {
-  "test_a_quadruped_pair_lives_a_scripted_home_day": (
-    "~10 min, estimated: ~480 sim s, at 1.7 s of wall a sim s while both walk",
-    "the served robot walks to its dock and charges on it, beside another's day",
-    "#413"),
+  "test_a_low_quadruped_walks_to_its_dock_and_charges_on_it": (
+    "~17 s: 16.5-18.1 s -n0, measured 2026-09-29", "the served robot walks "
+    "the house to its dock and charges on it: the docking composed, on the "
+    "loop's own charge path", "#413"),
   "test_a_fresh_quadruped_walks_to_the_kitchen_by_the_hall": (
-    "~25 s", "the planner, the scan matcher and the walking policy, into the "
-    "unknown", "#413"),
+    "~24 s: 23.2-23.8 s -n0, measured 2026-09-29", "the planner, the scan "
+    "matcher and the walking policy, into the unknown", "#413"),
   "test_the_tower_is_stacked_by_the_claw_from_the_rack_and_graded": (
     "~170 s", "ladder A: the tower can be solved (Evaluation.md §7)", "#413"),
   "test_the_unknown_mass_is_weighed_on_the_lift_and_the_finding_graded": (
