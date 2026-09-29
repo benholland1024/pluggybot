@@ -1,14 +1,13 @@
 """The first paid job on legs (issue #403): the lab back in the quadruped's
 world, its rule true there and the rover's byte for byte, `feed_mouse`
-offered alone, the walk that never crosses another plate, and a press no
-errand of that plate made recorded as its own event. Each rule pinned as
-cheaply as it fails for the right reason; the job flown whole on the pair
-is ladder A's (`scripts/solve.py --feature mouse --pair --body quadruped`,
-behind `--endurance` in tests/test_solutions.py)."""
+offered alone, the plate found by its sign and pressed off it (#419's places), and a
+press no errand of that plate made recorded as its own event. Each rule
+pinned as cheaply as it fails for the right reason; the job flown whole on
+the pair is ladder A's, by hand (`scripts/solve.py --feature mouse --pair
+--body quadruped`)."""
 
 import hashlib
 import json
-import math
 from collections import deque
 from dataclasses import replace
 from types import SimpleNamespace
@@ -18,7 +17,6 @@ import pytest
 
 from pluggybot import lifecycle as lc
 from pluggybot.activity import cage as cg
-from pluggybot.activity.plate import PLATE_HALF
 from pluggybot.economy import cadence as cad
 from pluggybot.economy.ledger import Ledger
 from pluggybot.economy.scoring import default_table
@@ -133,119 +131,61 @@ def test_home_quad_offers_feed_mouse_alone_and_the_shock_is_one_line_back(tmp_pa
   assert energy.load(QUAD_HOME).errand_wh.get("feed", 0.0) > 0.0
 
 
-# ---- the walk: the pass, and never across another plate -----------------------------
+# ---- the walk: found by its sign, pressed off it (#419's places) ------------
 
 
-def _segment_to_pad(a, b, pad) -> float:
-  """The nearest a straight walk from `a` to `b` comes to a pad's square."""
-  return _segment_to_box(a, b, pad, (PLATE_HALF, PLATE_HALF))
-
-
-def _starts(cage_xy):
-  cx, cy = cage_xy
-  lanes = cg.row_lanes(cage_xy)
-  out = {"the door": (22.0, 3.0),
-         "company": (cx + cg.COMPANY_SPOT[0], cy + cg.COMPANY_SPOT[1]),
-         "the bench": (26.8, 1.5), "the lab's north-east": (27.4, 5.5),
-         "the lab's north-west": (22.6, 5.6)}
-  for plate, (dx, dy) in cg.PLATE_OFFSETS.items():
-    px, py = cx + dx, cy + dy
-    out[f"{plate}'s approach"] = (px, py - cg.PLATE_APPROACH_M)
-    out[f"{plate}'s pass end"] = (px, py + cg.PLATE_PASS_M)
-    out[f"on the {plate} pad"] = (px, py)
-  out["between two pads"] = (cx - 0.5, cy + cg.PLATE_OFFSETS["feed"][1])
-  out["north of the row, east of the cage"] = (lanes["east"] + 0.3, cy)
-  # ...and outside it: the walk comes in by the door wherever it began
-  out["the dock"] = tuple(world_config(QUAD_HOME)["dock"][:2])
-  out["the rack"] = (0.5, -1.0)
-  out["the lobby"] = (20.5, 0.0)
-  out["the north sidewalk"] = (15.0, 5.5)
-  return out
-
-
-def _segment_to_box(a, b, centre, half) -> float:
-  best = math.inf
-  for i in range(201):
-    x = a[0] + (b[0] - a[0]) * i / 200
-    y = a[1] + (b[1] - a[1]) * i / 200
-    dx = max(abs(x - centre[0]) - half[0], 0.0)
-    dy = max(abs(y - centre[1]) - half[1], 0.0)
-    best = min(best, math.hypot(dx, dy))
-  return best
-
-
-@pytest.mark.parametrize("world", [QUAD_HOME, "home"])
-def test_every_walk_in_the_lab_keeps_off_the_plates_that_are_not_its_act(world):
-  """Every act from every place a robot stands in the lab: each leg of the
-  program, as a straight walk from the one before, keeps `ROW_CLEAR_M` off
-  every pad but the act's own -- the pass crosses its own plate square to
-  the row and nothing else -- and no leg is laid through the cage, whose
-  walls the planner would walk round, between it and the row (the flown
-  finding behind `row_way`'s lanes). The one exemption is a start already
-  ON a pad (a pass cut short): its first leg steps straight south off it.
-  A start OUTSIDE the lab is read from the door in, where every walk
-  there enters (the flown finding: from the door the company spot was
-  0.30 m off the shock pad)."""
-  cage_xy = tuple(world_config(world)["lab"]["cage"])
-  cx, cy = cage_xy
-  pads = {p: (cx + dx, cy + dy) for p, (dx, dy) in cg.PLATE_OFFSETS.items()}
-  inflation = 0.35                          # the planners' clearance, both bodies
-  for act in cg.ACTS:
-    for where, start in _starts(cage_xy).items():
-      steps = lc.cage_program(world, act, start).steps()
-      points = [start] + [(s.args["x"], s.args["y"]) for s in steps if s.verb == "drive_to"]
-      if not lc.in_lab(world, start):
-        points = [lc.lab_door(world)] + [p for p in points[1:] if lc.in_lab(world, p)]
-      for i, (a, b) in enumerate(zip(points, points[1:])):
-        assert _segment_to_box(a, b, cage_xy, cg.CAGE_HALF) >= inflation, (world, act, where, i)
-        for plate, pad in pads.items():
-          if plate == act:
-            continue
-          if i == 0 and _segment_to_pad(start, start, pad) < cg.ROW_CLEAR_M:
-            continue                          # stepping off where it stood
-          d = _segment_to_pad(a, b, pad)
-          assert d >= cg.ROW_CLEAR_M - 1e-9, (world, act, where, i, plate, round(d, 3))
-      # ...and ENDS south of the row, so the walk after it -- to the dock,
-      # anywhere -- never starts on the cage's side of the plates
-      assert points[-1][1] <= cg.row_lanes(cage_xy)["south"] + 1e-9, (world, act, where)
-    if act != "company":
-      px, py = pads[act]
-      *_, approach, over, back = lc.cage_program(world, act, (px, py - 2.0)).steps()
-      assert approach.args["x"] == over.args["x"] == back.args["x"] == px, \
-          "the pass is square to the row, on its own plate's line"
-      assert over.args["y"] - py > PLATE_HALF, "through the pad, never parked on it"
-
-
-def test_the_way_in_is_south_of_the_row():
-  """Every walk into the lab is laid from its one door (`lab_door`), and
-  the door is on the row's south side, as the plate acts' approach points
-  are: a door moved north of it would put the plates between the door and
-  every job."""
-  from pluggybot.home import world as home
-  lanes = cg.row_lanes(tuple(world_config(QUAD_HOME)["lab"]["cage"]))
-  assert max(home.DOOR_LAB_Y) < lanes["south"]
-  assert lc.lab_door(QUAD_HOME) == lc.lab_door("home") == lc.lab_route("home")[-1]
-
-
-def test_the_walk_to_the_lab_on_legs_is_one_leg_with_its_own_patience():
-  """No surveyed road on legs: the planner's one walk, with
-  `LAB_WALK_PATIENCE_S`, and that walk is the way there (`routeLegs` 1, so
-  a failure on it never reached the cage); inside the lab the default
-  patience; the rover's route keeps its own, legs and all."""
-  dock = world_config(QUAD_HOME)["dock"][:2]
-  first, *rest = lc.cage_program(QUAD_HOME, "feed", dock).steps()
-  assert first.args["patience"] == lc.LAB_WALK_PATIENCE_S
-  assert not any("patience" in s.args for s in rest)
-  assert lc.cage_errand(QUAD_HOME, "feed", from_xy=dock).detail["routeLegs"] == 1
-  inside = (25.0, 3.0)
-  assert not any("patience" in s.args for s in lc.cage_program(QUAD_HOME, "feed", inside).steps())
-  assert lc.cage_errand(QUAD_HOME, "feed", from_xy=inside).detail["routeLegs"] == 0
+def test_on_legs_a_plate_act_is_found_by_its_sign_and_pressed_from_the_labs_address():
+  """No position finer than the house (#419): a plate act on legs is `find`
+  round the lab's ADDRESS and `press` off the plate's own sign -- the only
+  numbers in it are the address's -- and the find is the way there, so a
+  job that never found its plate never reached the cage. It validates
+  against the world's own verbs. The rover keeps its surveyed road."""
+  from pluggybot.home.places import area
+  from pluggybot.procedure.steps import compile_program
+  at = area("lab")["address"]
+  dock = tuple(world_config(QUAD_HOME)["dock"][:2])
+  for act in ("feed", "toy", "shock"):
+    steps = lc.cage_program(QUAD_HOME, act, dock).steps()
+    tag = cg.PLATE_TAGS[act]
+    assert [(s.verb, dict(s.args)) for s in steps] == [
+      ("find", {"tag": tag, "x": at["x"], "y": at["y"]}), ("press", {"tag": tag})], act
+    compile_program(lc.cage_program(QUAD_HOME, act), lc.world_facts(QUAD_HOME))
+    assert lc.cage_errand(QUAD_HOME, act, from_xy=dock).detail["routeLegs"] == 1
+  with pytest.raises(ValueError):
+    lc.cage_program(QUAD_HOME, "company")
   rover = lc.cage_program("home", "feed", (0.5, -1.0)).steps()
-  assert not any("patience" in s.args for s in rover)
-  assert lc.cage_errand("home", "feed", from_xy=(0.5, -1.0)).detail["routeLegs"] \
-      == len(lc.lab_route("home"))
-  from pluggybot.procedure import steps as st
-  assert lc.LAB_WALK_PATIENCE_S <= st.MAX_PATIENCE_S
+  assert {s.verb for s in rover} == {"drive_to"}, "the rover keeps its road"
+
+
+def test_on_legs_care_is_the_plates_alone():
+  """Company is a spot beside the cage no tag marks: code would have to
+  hand it over, so on legs `care` is `feed` or `toy` -- in the grammar,
+  the rule and the action's line -- and the rule still says standing
+  beside the cage is company, which the robot may walk to on its own."""
+  boss = _quad_mind()
+  assert boss.menu.care_acts == cg.PLATE_CARE_ACTS == ("feed", "toy")
+  assert [a for a in boss.menu.schema()["properties"]["care"]["enum"] if a] == ["feed", "toy"]
+  rule = _section(boss, "THE LAB")
+  assert "`feed` (walk onto the feed plate) or `toy` (the toy plate)." in rule
+  assert "`company` (stand" not in rule and "Standing beside the cage is company." in rule
+  text = "\n".join(b["text"] for b in boss.system)
+  [line] = [ln for ln in text.splitlines() if ln.strip().startswith('"care":')]
+  assert "`care` names `feed` or `toy`." in line
+  assert lc.errand_from(ov.Decision(action="care", care="company"), QUAD_HOME) is None
+  rover = ov.build("home", lc.board_book("home"), enabled=True, client=object(),
+                   thoughts=ThoughtFiles(), autonomous=True)
+  assert rover.menu.care_acts == ("feed", "toy", "company")
+
+
+def test_a_feed_job_on_legs_finds_then_presses_the_feed_plate():
+  """The wiring, on a stub body: the job's errand asks the body to find the
+  feed plate's tag and then press it -- and, where it has seen the plate,
+  the press is made."""
+  life = stub_life(QUAD_HOME)
+  feed = cg.PLATE_TAGS["feed"]
+  life.body.places.see(feed, 25.0, 4.8, 0.0, view=-1.57)
+  life.run_errand(lc.cage_errand(QUAD_HOME, "feed", task="feed"))
+  assert life.body.found == [feed] and life.body.pressed == [feed]
 
 
 # ---- a press no errand of that plate made ------------------------------------------
@@ -311,9 +251,9 @@ def test_a_press_no_errand_of_that_plate_made_is_its_own_event():
   life._errand_now = lc.cage_errand(QUAD_HOME, "feed", from_xy=(25.0, 3.0), task="feed")
   seen = press(_press(3, "feed"), _press(4, "shock"))
   assert [(e["plate"], e["doing"]) for e in seen][1:] == [("shock", "feed:lab")]
-  life._errand_now = lc.cage_errand(QUAD_HOME, "company", from_xy=(25.0, 3.0))
-  seen = press(_press(5, "toy"))
-  assert seen[-1]["plate"] == "toy" and seen[-1]["doing"] == "care:company"
+  life._errand_now = lc.cage_errand(QUAD_HOME, "toy")
+  seen = press(_press(5, "feed"))
+  assert seen[-1]["plate"] == "feed" and seen[-1]["doing"] == "care:toy"
   assert seen[-1]["before"] == "resting" and seen[-1]["robot"] == life.root
   # ...and a seq already seen is never said twice
   n = len(seen)

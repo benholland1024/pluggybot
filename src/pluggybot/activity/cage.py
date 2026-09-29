@@ -313,76 +313,6 @@ PLATE_PASS_M = 0.3
 #: How long a company visit stands there. Over `COMPANY_S`, so the visit
 #: registers, and under `steps.MAX_WAIT_S`, so it is one step.
 COMPANY_WAIT_S = 30.0
-#: How far the torso's path keeps off a pad that is not the act's (issue
-#: #403): the quadruped's feet stand 0.26 m from its centre (0.233 m to the
-#: foot's centre, plus its 22 mm radius) and a stride swings them ~0.1 m
-#: further, and the belief was 0.12-0.15 m off the truth at the lab on legs
-#: (0.2 m on a first trip, #393) -- 0.35 + 0.2. A wheel is nearer its
-#: centre than that. The approach lane (`PLATE_APPROACH_M` south of the
-#: row) keeps 0.60 m; the pass keeps 0.80 m off its neighbours.
-ROW_CLEAR_M = 0.55
-
-
-def row_lanes(cage_xy: tuple[float, float]) -> dict[str, float]:
-  """The lanes that keep `ROW_CLEAR_M` off every pad (issue #403): `south`
-  and `north`, the y at or beyond which a path is off the row's band;
-  `west` and `east`, the x of the lanes round its two ends."""
-  cx, cy = cage_xy
-  xs = [cx + dx for dx, _ in PLATE_OFFSETS.values()]
-  ys = [cy + dy for _, dy in PLATE_OFFSETS.values()]
-  reach = PLATE_HALF + ROW_CLEAR_M
-  return {"south": min(ys) - reach, "north": max(ys) + reach,
-          "west": min(xs) - reach, "east": max(xs) + reach}
-
-
-def company_exit(cage_xy: tuple[float, float]) -> tuple[float, float]:
-  """Where a company visit ENDS (issue #403): back on the row's south
-  side, on the lane round the end on `COMPANY_SPOT`'s side of the cage, at
-  the plates' approach line -- as a plate act ends at its approach point.
-  Left at the spot, whatever the robot did next walked out over the row:
-  MEASURED, a quadruped's walk from the spot to the lobby pressed the shock
-  plate twice with its belief on the truth."""
-  lanes = row_lanes(cage_xy)
-  cx, cy = cage_xy
-  x = lanes["west"] if COMPANY_SPOT[0] < 0 else lanes["east"]
-  return (x, cy + PLATE_OFFSETS["feed"][1] - PLATE_APPROACH_M)
-
-
-def row_way(cage_xy: tuple[float, float], from_xy: tuple[float, float],
-            to_xy: tuple[float, float]) -> list[tuple[float, float]]:
-  """The waypoints from `from_xy` to `to_xy`, both in the lab and `to_xy`
-  off the row's band, that keep `ROW_CLEAR_M` off every pad (issue #403).
-  The row's two sides meet only round an end, along its lanes -- and north
-  of the row the CAGE parts the room, so a robot there takes the lane on
-  its own side of it and the south side joins the two: MEASURED, a toy
-  run from the company spot sent round the far end walked between the cage
-  and the row, a foot 0.17 m off the feed pad. A start inside the band --
-  only a pass cut short leaves a robot there -- first steps out SOUTH
-  along its own line, across nothing but the pad it stands on, if any.
-  `to_xy` itself is not in the list."""
-  lanes = row_lanes(cage_xy)
-  cx = cage_xy[0]
-  fx, fy = from_xy
-  tx, ty = to_xy
-  out: list[tuple[float, float]] = []
-  if lanes["south"] < fy < lanes["north"]:
-    fy = lanes["south"]
-    out.append((fx, fy))
-
-  def lane(x: float) -> float:
-    return lanes["west"] if x < cx else lanes["east"]
-
-  north_from, north_to = fy >= lanes["north"], ty >= lanes["north"]
-  if north_from and north_to and (fx < cx) == (tx < cx):
-    return out
-  if north_from:
-    down = ty if not north_to else lanes["south"]
-    out += [(lane(fx), fy), (lane(fx), down)]
-    fx, fy = lane(fx), down
-  if north_to:
-    out += [(lane(tx), fy), (lane(tx), ty)]
-  return out
-
 
 #: The one table (see the module docstring): (state, act) -> next state, or
 #: the same state to restart its clock. A pair not listed is no change.
@@ -406,6 +336,9 @@ CLOCKS: dict[str, tuple[float, str]] = {
 ACTS = ("shock", "feed", "toy", "company")
 #: The care acts: the ones that pay nothing (issue #226).
 CARE_ACTS = ("feed", "toy", "company")
+#: ...those that are a plate, the care acts where a robot finds its places
+#: (#403 on #419): company is a spot beside the cage, which no tag marks.
+PLATE_CARE_ACTS = tuple(a for a in CARE_ACTS if a in PLATE_OFFSETS)
 
 
 class Cage(Activity):

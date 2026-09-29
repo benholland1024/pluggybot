@@ -765,14 +765,10 @@ def test_the_route_drops_the_legs_behind_the_robot():
   near = cage_program("home", "shock", (25.0, 2.0)).steps()
   assert [s.verb for s in near] == ["drive_to", "drive_to", "drive_to"]
   far = cage_program("home", "company", (0.5, -1.0)).steps()
-  # the route's five legs, the west lane round the row's end, the spot, the
-  # visit, and back down the lane to the row's south side (#403)
-  assert [s.verb for s in far] == ["drive_to"] * 8 + ["wait"] + ["drive_to"] * 2
-  wait = next(i for i, s in enumerate(far) if s.verb == "wait")
-  assert far[wait].args["seconds"] == cg.COMPANY_WAIT_S
+  assert [s.verb for s in far] == ["drive_to"] * 6 + ["wait"]
+  assert far[-1].args["seconds"] == cg.COMPANY_WAIT_S
   cx, cy = world_config("home")["lab"]["cage"]
-  assert (far[wait - 1].args["x"], far[wait - 1].args["y"]) == (cx + COMPANY_SPOT[0], cy + COMPANY_SPOT[1])
-  assert (far[-1].args["x"], far[-1].args["y"]) == cg.company_exit((cx, cy))
+  assert (far[-2].args["x"], far[-2].args["y"]) == (cx + COMPANY_SPOT[0], cy + COMPANY_SPOT[1])
   # ...and the run goes THROUGH the pad, from 0.8 m south to 0.3 m north
   # (issue #287: parked on the believed centre, a 0.41 m trip drift left
   # the wheel on the pad's edge, 5.6 mm against a 6 mm trigger)

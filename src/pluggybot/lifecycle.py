@@ -7251,7 +7251,6 @@ def hide_and_seek_program(world: str):
 def lab_route(world: str) -> list[tuple[float, float]]:
   if world != "home":
     return []
-  door = lab_door(world)
   from pluggybot.home import world as home
   y = home.STREET_DOOR_Y
   # ⚠ The first leg stops SHORT of the garden doorway, not on it (issue
@@ -7264,16 +7263,7 @@ def lab_route(world: str) -> list[tuple[float, float]]:
           (home.SIDEWALK_X[0], y),                              # the gate
           (home.GARDEN_2_X[0], y),                              # the other gate
           (home.LOBBY_X[0], y),                                 # the lobby's door
-          door]                                                 # the lab's door
-
-
-def lab_door(world: str) -> tuple[float, float] | None:
-  """The middle of the lab's one door, on its west wall: where every walk
-  into the lab comes in, on wheels or legs (issue #403). None without a lab."""
-  if not world_config(world).get("lab"):
-    return None
-  from pluggybot.home import world as home
-  return (home.LAB_X[0], sum(home.DOOR_LAB_Y) / 2.0)
+          (home.LAB_X[0], sum(home.DOOR_LAB_Y) / 2.0)]          # the lab's door
 
 
 #: The way to the WORKSHOP from the rack (issue #264), in legs inside the
@@ -7314,14 +7304,6 @@ def legs_ahead(legs, from_xy: tuple[float, float]) -> list[tuple[float, float]]:
   return list(legs[i + 1 if dist[i] <= LEG_DONE_M else i:])
 
 
-def in_lab(world: str, xy: tuple[float, float]) -> bool:
-  """Is `xy` inside this world's lab (its zone's rectangle)?"""
-  cfg = world_config(world)
-  lab = next((z for z in cfg["zones"] if z["name"] == cfg.get("lab", {}).get("name")), None)
-  return lab is not None and (lab["min"][0] <= xy[0] <= lab["max"][0]
-                              and lab["min"][1] <= xy[1] <= lab["max"][1])
-
-
 def cage_route(world: str, from_xy: tuple[float, float] | None) -> list:
   """The legs of `lab_route` still ahead of a robot at `from_xy`
   (`legs_ahead`). With no pose, the whole route (a script queuing the
@@ -7329,19 +7311,14 @@ def cage_route(world: str, from_xy: tuple[float, float] | None) -> list:
   legs = lab_route(world)
   if from_xy is None or not legs:
     return legs
+  fx, fy = from_xy
   # Inside the lab already: nothing on the way there is still ahead.
-  if in_lab(world, from_xy):
+  cfg = world_config(world)
+  lab = next((z for z in cfg["zones"] if z["name"] == cfg.get("lab", {}).get("name")), None)
+  if lab is not None and (lab["min"][0] <= fx <= lab["max"][0]
+                          and lab["min"][1] <= fy <= lab["max"][1]):
     return []
   return legs_ahead(legs, from_xy)
-
-
-#: The walk to the lab's plates where no surveyed route leads there (issue
-#: #403, the quadruped: #399's planner walks it in one leg): its patience,
-#: s. MEASURED: from the dock the walk was 0.14 m short at
-#: `steps.DRIVE_TIMEOUT_S`' 60 s, still closing; a fresh robot walked to
-#: the lab in 64.6 s and to the loop's far corner in 246 s (#399), and the
-#: lab from there is the whole loop again.
-LAB_WALK_PATIENCE_S = 360.0
 
 
 #: Where a stow's way home starts, by the ZONE the robot stands in (issue
@@ -7447,17 +7424,10 @@ def cage_program(world: str, act: str,
   route to the lab, then -- for a plate -- a pass over it from
   `PLATE_APPROACH_M` south to `PLATE_PASS_M` north and back (through the
   pad, never parked on it: `cage.PLATE_PASS_M` has the measurement, #287);
-  for company, `COMPANY_SPOT` beside the cage for `COMPANY_WAIT_S`, then
-  back to the row's south side (`cage.company_exit`). No tool: nothing here fetches or stows, and the errand ends IN THE LAB,
+  for company, `COMPANY_SPOT` beside the cage for `COMPANY_WAIT_S`. No
+  tool: nothing here fetches or stows, and the errand ends IN THE LAB,
   where the robot is asked what next and can see what it did (the mouse's
-  state rides the context only from inside the room).
-
-  The way to the act keeps off every other pad (`cage.row_way`, issue
-  #403), from where the robot stands inside the lab or from the lab's door
-  (`lab_door`) outside it: straight from the door, the company spot was
-  0.30 m off the shock pad. Where no surveyed route leads there (the
-  quadruped's world), the first leg is the planner's walk, with its own
-  patience (`LAB_WALK_PATIENCE_S`)."""
+  state rides the context only from inside the room)."""
   from pluggybot.activity import cage as cg
   from pluggybot.procedure.steps import Program, Step
   if act not in cg.ACTS:
@@ -7465,31 +7435,41 @@ def cage_program(world: str, act: str,
   cfg = world_config(world)
   if not cfg.get("lab"):
     raise ValueError(f"the {world} world has no lab")
+  if cfg.get("places"):
+    return _plate_program(cfg, act)
   cx, cy = cfg["lab"]["cage"]
-  legs = cage_route(world, from_xy)
+  steps = [Step("drive_to", {"x": x, "y": y}) for x, y in cage_route(world, from_xy)]
   if act == "company":
     sx, sy = cg.COMPANY_SPOT
-    goal = (cx + sx, cy + sy)
+    steps += [Step("drive_to", {"x": cx + sx, "y": cy + sy}),
+              Step("wait", {"seconds": cg.COMPANY_WAIT_S})]
   else:
     dx, dy = cg.PLATE_OFFSETS[act]
     px, py = cx + dx, cy + dy
-    goal = (px, py - cg.PLATE_APPROACH_M)
-  inside = from_xy is not None and in_lab(world, from_xy)
-  entry = from_xy if inside else lab_door(world)
-  way = legs + cg.row_way((cx, cy), entry, goal) + [goal]
-  steps = [Step("drive_to", {"x": x, "y": y}) for x, y in way]
-  if not inside and not lab_route(world):
-    steps[0] = Step("drive_to", {**steps[0].args, "patience": LAB_WALK_PATIENCE_S})
-  if act == "company":
-    # ...and back down its lane to the row's south side (`company_exit`)
-    out = cg.company_exit((cx, cy))
-    back = dict.fromkeys(cg.row_way((cx, cy), goal, out) + [out])
-    steps += [Step("wait", {"seconds": cg.COMPANY_WAIT_S})] \
-        + [Step("drive_to", {"x": x, "y": y}) for x, y in back]
-  else:
-    steps += [Step("drive_to", {"x": px, "y": py + cg.PLATE_PASS_M}),
+    steps += [Step("drive_to", {"x": px, "y": py - cg.PLATE_APPROACH_M}),
+              Step("drive_to", {"x": px, "y": py + cg.PLATE_PASS_M}),
               Step("drive_to", {"x": px, "y": py - cg.PLATE_APPROACH_M})]
   return Program.single(f"{act}_mouse", steps, budget_s=900.0)
+
+
+def _plate_program(cfg: dict, act: str):
+  """One act on the mouse where the robot finds its places (issue #403 on
+  #419's): the plate found by its sign -- where it was last seen, else
+  searched for round the lab's ADDRESS, never a position finer than the
+  house -- and pressed off it. Every pad it has seen is a wall to its
+  planner, so no walk crosses one (`PlaceWalk.keep_out`). Company is a spot
+  beside the cage, not a plate: a position code would have to hand over, so
+  on legs it is the robot's own to walk, and not a `care` act."""
+  from pluggybot.activity import cage as cg
+  from pluggybot.home.places import area
+  from pluggybot.procedure.steps import Program, Step
+  if act not in cg.PLATE_TAGS:
+    raise ValueError(f"{act!r} is no plate: on legs the `care` acts are "
+                     f"{', '.join(cg.PLATE_CARE_ACTS)}")
+  tag = cg.PLATE_TAGS[act]
+  at = area(cfg["lab"]["name"])["address"]
+  return Program.single(f"{act}_mouse", [Step("find", {"tag": tag, "x": at["x"], "y": at["y"]}),
+                                         Step("press", {"tag": tag})], budget_s=900.0)
 
 
 def cage_errand(world: str, act: str, from_xy=None, real: str = "",
@@ -7510,9 +7490,9 @@ def cage_errand(world: str, act: str, from_xy=None, real: str = "",
                              name=f"care:{act}" if task == "care" else f"{task}:lab")
   # `routeLegs`: the program's first steps are the way to the lab, and a
   # failure there never reached the cage (`_program_failure`, issue #350)
-  # -- on the planner's way (#403) the one walk from outside
-  legs = len(cage_route(world, from_xy)) or int(
-    not lab_route(world) and not (from_xy is not None and in_lab(world, from_xy)))
+  # -- and on legs (#419) the `find`: a job that never found its plate never
+  # reached the cage
+  legs = 1 if world_config(world).get("places") else len(cage_route(world, from_xy))
   errand.detail.update({"cage": "lab", "act": act, "real": real,
                         "routeLegs": legs})
   errand.needs_use_pose = False
