@@ -25,6 +25,7 @@ here is that entry's index on this rack (`bay_of`).
 
 from __future__ import annotations
 
+import contextlib
 import math
 
 import mujoco
@@ -33,7 +34,7 @@ import numpy as np
 from pluggybot.legs import arm as am
 from pluggybot.legs import dock as dk
 from pluggybot.legs import rack as rk
-from pluggybot.rack.coupling import PEG_ABOVE_BODY, STATION_YS, contact_pairs
+from pluggybot.rack.coupling import PEG_ABOVE_BODY, STATION_YS, contact_pairs, touching
 from pluggybot.telemetry.protocol import ROBOT_ROOT, robot_roots
 from pluggybot.tick import Routine
 
@@ -62,6 +63,10 @@ FORK_FAST_V = 0.2
 #: A fork move waits for the arm's joints to come this near their goal,
 #: rad (`FORK_ARRIVE_S` at most); one through a point out of reach fails.
 FORK_TOL = 0.002
+#: A tool whose origin is farther than this from the fork's plate cannot
+#: touch it, m: the claw's geoms reach 0.17 m from its origin, the fork's
+#: 0.16 from the plate's. The power check reads contacts only nearer.
+NEAR_FORK_M = 0.5
 
 
 def bay_of(station_y: float) -> int:
@@ -93,10 +98,18 @@ class ToolSwap:
     #: The module riding the fork: set by a pick, cleared by a put or a fall.
     #: Its geoms are the robot's own to its senses while it rides.
     self.carrying: str | None = None
-    plate = model.body(self.handle.el("arm_plate")).id
+    plate = self._plate_bid = model.body(self.handle.el("arm_plate")).id
     self._fork_gids = np.array([g for g in range(model.ngeom)
                                 if int(model.geom_bodyid[g]) == plate], dtype=np.int32)
     self._tool_gids: dict[str, np.ndarray] = {}
+    self._poles: dict[str, tuple] = {}
+    #: ...as lookups by geom id, for the bumper (`QuadMission._press_now`)
+    self._is_fork = np.zeros(model.ngeom, dtype=bool)
+    self._is_fork[self._fork_gids] = True
+    self._is_tool = np.zeros(model.ngeom, dtype=bool)
+    for module in rk.TOOL_BAYS:
+      if mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_BODY, module) >= 0:
+        self._is_tool[self.tool_gids(module)] = True
 
   # ---- where things are -------------------------------------------------------
 
@@ -142,11 +155,25 @@ class ToolSwap:
     return {"pos": [float(v) for v in p], "on_fork": self.on_this_fork(module),
             "hung": rk.on_bay(m, d, module, rk.DEFAULT, bay), "bay": bay}
 
-  def tool_powered(self, module: str) -> bool:
-    try:
-      return rk.tool_power(self.model, self.data, module, self.handle.prefix)["powered"]
-    except KeyError:
+  def tool_powered(self, module: str | None) -> bool:
+    """The module's coupling conducting on this robot's fork. Read every
+    physics step for the module the lifecycle watches, all day, so off ids
+    kept per module and no contact read for a tool away from the fork:
+    `rack.tool_power`'s lookups by name cost 20-32 us a step, this 1."""
+    if module is None:
       return False
+    kept = self._poles.get(module)
+    if kept is None:
+      kept = self._poles[module] = (rk.pole_ids(self.model, module, self.handle.prefix),
+                                    self.model.body(module).id)
+    poles, bid = kept
+    if poles is None:
+      return False
+    x = self.data.xpos
+    t, f = x[bid], x[self._plate_bid]
+    if (t[0] - f[0]) ** 2 + (t[1] - f[1]) ** 2 + (t[2] - f[2]) ** 2 > NEAR_FORK_M ** 2:
+      return False
+    return all(touching(self.data, peg, plates) for peg, plates in poles)
 
   def seated_on(self, module: str) -> str | None:
     """Which robot has the module electrically seated, by root: every
@@ -327,34 +354,49 @@ class ToolSwap:
     if self.tool_rack_prior is None:
       rec["why"] = "no rack"
       return "no-route"
-    self.working = True
+    yield from self.stand_routine()
+    yield from self.stow_arm_routine()
+    why = yield from self._to_the_bay_routine(bay, rec)
+    if why != "ok":
+      rec["why"] = why
+      return "no-route"
+    with self._at_the_bay(bay):
+      return (yield from self._fetch_at_routine(bay, module, rec))
+
+  def _fetch_at_routine(self, bay: int, module: str, rec: dict) -> Routine:
+    for _ in range(TRIES):
+      att = {}
+      rec["attempts"].append(att)
+      aim = yield from self._lined_up_routine(bay, att)
+      if aim is None:
+        continue
+      picked = yield from self._pick_routine(aim, module)
+      # A tool on the fork is carried, seated or not: folded, it is
+      # thrown, and left unclaimed it was a bump on every step of a walk
+      held = picked or self.on_this_fork(module)
+      att["why"] = ("picked" if picked else "on the fork, not seated" if held
+                    else "the fork came out without it")
+      if held:
+        self.carry(module)
+        yield from self.carry_routine()
+      else:
+        yield from self.stow_arm_routine()
+      yield from self._rack_back_out_routine()
+      return "arrived"
+    return "timeout"
+
+  @contextlib.contextmanager
+  def _at_the_bay(self, bay: int):
+    """The part of a swap AT the bay: the rest reflex and a restart's save
+    wait it out (`working`), the walk there need not -- a save held off
+    through a 45 s walk outlasts a stop's grace."""
+    was, self.working = self.working, True
+    self.swapping_at = STATION_YS[bay]
     try:
-      yield from self.stand_routine()
-      yield from self.stow_arm_routine()
-      why = yield from self._to_the_bay_routine(bay, rec)
-      if why != "ok":
-        rec["why"] = why
-        return "no-route"
-      self.swapping_at = STATION_YS[bay]
-      for _ in range(TRIES):
-        att = {}
-        rec["attempts"].append(att)
-        aim = yield from self._lined_up_routine(bay, att)
-        if aim is None:
-          continue
-        picked = yield from self._pick_routine(aim, module)
-        att["why"] = "picked" if picked else "the fork came out without it"
-        if picked:
-          self.carry(module)
-          yield from self.carry_routine()
-        else:
-          yield from self.stow_arm_routine()
-        yield from self._rack_back_out_routine()
-        return "arrived"
-      return "timeout"
+      yield
     finally:
       self.swapping_at = None
-      self.working = False
+      self.working = was
 
   def stow_routine(self, bay: int, module: str) -> Routine:
     """Walk to the tool's bay and hang it back, folding the arm after:
@@ -365,39 +407,37 @@ class ToolSwap:
     if self.tool_rack_prior is None:
       rec["why"] = "no rack"
       return "no-route"
-    self.working = True
-    try:
-      yield from self.stand_routine()
-      why = yield from self._to_the_bay_routine(bay, rec)
-      if why != "ok":
-        rec["why"] = why
-        return "no-route"
-      self.swapping_at = STATION_YS[bay]
-      for _ in range(TRIES):
-        att = {}
-        rec["attempts"].append(att)
-        aim = yield from self._lined_up_routine(bay, att)
-        if aim is None:
-          continue
-        # Down from the carry pose to over the bay, then stand and look
-        # again: the swing moved the stance under the arm (module docstring).
-        yield from self._fork_to_routine(aim.x - am.BACK_OUT,
-                                         aim.z - am.FORK_DROP + am.LIFT, FORK_FAST_V)
-        yield from self._drive_routine(rk.SETTLE_AFTER_WALK_S, 0.0, 0.0)
-        aim = self.bay_aim(bay) or aim
-        hung = yield from self._put_routine(aim, module)
-        att["why"] = "hung" if hung else "the fork came out and it did not hang"
-        self.carry(None if hung or not self.on_this_fork(module) else module)
-        if self.carrying is None:
-          yield from self.stow_arm_routine()
-        else:
-          yield from self.carry_routine()
-        yield from self._rack_back_out_routine()
-        return "arrived"
-      return "timeout"
-    finally:
-      self.swapping_at = None
-      self.working = False
+    yield from self.stand_routine()
+    why = yield from self._to_the_bay_routine(bay, rec)
+    if why != "ok":
+      rec["why"] = why
+      return "no-route"
+    with self._at_the_bay(bay):
+      return (yield from self._stow_at_routine(bay, module, rec))
+
+  def _stow_at_routine(self, bay: int, module: str, rec: dict) -> Routine:
+    for _ in range(TRIES):
+      att = {}
+      rec["attempts"].append(att)
+      aim = yield from self._lined_up_routine(bay, att)
+      if aim is None:
+        continue
+      # Down from the carry pose to over the bay, then stand and look
+      # again: the swing moved the stance under the arm (module docstring).
+      yield from self._fork_to_routine(aim.x - am.BACK_OUT,
+                                       aim.z - am.FORK_DROP + am.LIFT, FORK_FAST_V)
+      yield from self._drive_routine(rk.SETTLE_AFTER_WALK_S, 0.0, 0.0)
+      aim = self.bay_aim(bay) or aim
+      hung = yield from self._put_routine(aim, module)
+      att["why"] = "hung" if hung else "the fork came out and it did not hang"
+      self.carry(None if hung or not self.on_this_fork(module) else module)
+      if self.carrying is None:
+        yield from self.stow_arm_routine()
+      else:
+        yield from self.carry_routine()
+      yield from self._rack_back_out_routine()
+      return "arrived"
+    return "timeout"
 
   def swap_trace(self) -> str:
     rec = self.last_swap

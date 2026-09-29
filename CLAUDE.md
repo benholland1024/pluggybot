@@ -538,7 +538,8 @@ tolerance spikes are listed in `docs/Rover.md`.
   `scripts/determinism_spike.py --resume-at T` must stay IDENTICAL after the
   restore. ⚠ A signal only ASKS (`Keeper.request_stop`); no save mid stand-up
   or mid-move (a quadruped lying down, standing up or getting up is a
-  generator part-way; `Keeper.busy`), NEVER on a crash. Two refusals, said in History: a changed
+  generator part-way, or AT a bay mid-swap, `Body.working`; `Keeper.busy`),
+  NEVER on a crash. Two refusals, said in History: a changed
   GEOMETRY (`fingerprint`) keeps the clock, packs, deaths and jobs but not the
   bodies or maps; a save restored `MAX_RESUMES` (3) times without a new one is
   not trusted. ⚠ The errand in flight ends; its job does not (`_resume_jobs`;

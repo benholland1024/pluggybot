@@ -3390,17 +3390,26 @@ on `autonomous` runs it as `fetch` and `stow` (`world_config`'s `swap`:
   were off their bays; compiled exactly at rest they read hung at load and
   move 0.008 mm in the first second.
 
-**A restart's save waits out a swap** (`Body.working`, read by
-`continuation.Keeper.busy` as a stand-up is): a fork half under a peg is
-nothing a file holds. A stop mid-swap waits too, so a process killed
-first comes back from the save before the swap began.
+**A restart's save waits out the part of a swap AT the bay**
+(`Body.working`, read by `continuation.Keeper.busy` as a stand-up is): a
+fork half under a peg is nothing a file holds. The walk there does not:
+held off through a 45 s walk across the house, a stop outlasted Docker's
+10 s grace. A stop at the bay waits too, so a process killed first comes
+back from the save before the swap reached it.
 
 **A carried tool is the body's own to its senses** (`QuadMission.carry`):
 out of the LIDAR's map and the depth camera's cloud, as its own geoms are,
 ignored by the press, and excluded from a stairs policy's height scan
 (`PolicyDriver.scan_exclude`: it read as a 0.4 m obstacle over the nose,
-#378). Lying down to rest keeps it at the carry pose -- folded, the arm
-would swing it into its own back -- and a fall lets go of it.
+#378). Walking and lying down to rest keep it at the carry pose -- folded,
+the arm would swing it into its own back -- and a fall lets go of it. A
+tool a pick leaves on the fork unseated is carried too, and a rack tool
+against the fork is never a press, read off the world: left unclaimed, a
+tool lying on the fork made every step of a walk a press, and a 1 m walk
+backed off to 2.97 m from its start. Its power is read every step for the
+module the lifecycle watches, so a tool away from the fork reads no
+contact (`swap.NEAR_FORK_M`): 1.5 us a step, where the lookups by name
+cost 20-32.
 
 **Fetched and hung back, the served body in the house** (`arm_spike.py
 --served`; a fresh map every flight, the tools in turn):

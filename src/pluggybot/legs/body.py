@@ -336,6 +336,10 @@ class QuadMission(ToolSwap, Navigator):
     self.arm = ArmDriver(model, data, self.arm_spec, prefix=handle.prefix)
     self.arm.aim(*self.arm_spec.stow)
     self.arm_acts = tuple(self.arm.act)
+    #: ...the driving poses as the driver's goals (`arm_driving`)
+    stow = self.arm_spec.stow
+    self._stow_goal = (stow[0], stow[0] + stow[1])
+    self._carry_goal = (am.CARRY_Q[0], am.CARRY_Q[0] + am.CARRY_Q[1])
     #: An arm move or a swap at a bay under way: the rest reflex waits for
     #: it, and so does a restart's save (`Keeper.busy`). Not kept across a
     #: restart, which ends every routine that could own it.
@@ -470,15 +474,17 @@ class QuadMission(ToolSwap, Navigator):
     if cmd != STILL and self.posture != STANDING:
       yield from self.stand_routine()
     if cmd != STILL and not self.arm_driving():
-      yield from self.stow_arm_routine()
+      yield from self.driving_pose_routine()
     yield cmd
     self._after_step()
 
   def arm_driving(self) -> bool:
-    """The arm aimed at its driving pose: the stow. Read every walking step,
-    so in floats (`np.allclose` cost 16 us)."""
-    g, (s, e) = self.arm.goal, self.arm_spec.stow
-    return abs(float(g[0]) - s) <= ARM_TOL and abs(float(g[1]) - s - e) <= ARM_TOL
+    """The arm aimed at its driving pose: the stow, or the carry pose with a
+    tool on the fork -- folded, a carried tool is thrown. Read every walking
+    step, so in floats (`np.allclose` cost 16 us)."""
+    g = self.arm.goal
+    s, f = self._stow_goal if self.carrying is None else self._carry_goal
+    return abs(float(g[0]) - s) <= ARM_TOL and abs(float(g[1]) - f) <= ARM_TOL
 
   #: A plan asked for again this soon, for the same goal from within this of
   #: where the last was made, is that plan (s, m). MEASURED: at a stand-in
@@ -704,7 +710,7 @@ class QuadMission(ToolSwap, Navigator):
     aimed = self.arm.goal.copy()
     budget = abs(target - now) / self.arm.slew + ARM_SETTLE_S
     t0 = float(self.data.time)
-    self.working = True
+    was, self.working = self.working, True          # nested: the outer hold stays
     try:
       while not self.arm.arrived(ARM_TOL):
         if self.data.time - t0 > budget or not self._still_aimed(aimed):
@@ -713,7 +719,7 @@ class QuadMission(ToolSwap, Navigator):
         self._after_step()
       yield from self._drive_routine(settle, 0.0, 0.0)
     finally:
-      self.working = False
+      self.working = was
       self.arm.slew = ARM_SLEW
     return self._still_aimed(aimed)
 
@@ -724,7 +730,16 @@ class QuadMission(ToolSwap, Navigator):
   def stow_arm_routine(self) -> Routine:
     """The arm folded to its stow, the driving configuration of an empty
     fork; True once there."""
-    self.arm.aim(*self.arm_spec.stow)
+    return (yield from self._arm_to_routine(self.arm_spec.stow))
+
+  def driving_pose_routine(self) -> Routine:
+    """The arm to its driving pose (`arm_driving`), at the driver's slew:
+    True once there."""
+    return (yield from self._arm_to_routine(
+      self.arm_spec.stow if self.carrying is None else am.CARRY_Q))
+
+  def _arm_to_routine(self, q) -> Routine:
+    self.arm.aim(*q)
     t0 = float(self.data.time)
     while not self.arm.arrived(ARM_TOL):
       if self.data.time - t0 > STOW_BUDGET_S:
@@ -760,6 +775,12 @@ class QuadMission(ToolSwap, Navigator):
     mine0, mine1 = self._is_limb[g[:, 0]], self._is_limb[g[:, 1]]
     other = np.where(mine0, g[:, 1], g[:, 0])
     hit = (mine0 | mine1) & ~self._is_ignored[other]
+    if not hit.any():
+      return False
+    # ...nor a rack tool against the fork, read off the world: a pick left
+    # a tool lying there unclaimed, and every step of a walk backed off
+    me = np.where(mine0, g[:, 0], g[:, 1])
+    hit &= ~(self._is_fork[me] & self._is_tool[other])
     if not hit.any():
       return False
     rot = d.xmat[self.root].reshape(3, 3)
@@ -1224,14 +1245,13 @@ class QuadMission(ToolSwap, Navigator):
 
   def rebind(self, model, data) -> None:
     """⚠ NOT DONE: a quadruped's world is never recompiled -- the seam hangs
-    a built tool (issue #168), and this body's arm takes no tool until its
-    own rack (#405); its world has no workshop (`world_config`'s
-    `built_bays`). Its
-    drivers, policies, reckoning and pack hold ids by the dozen, and a
-    rebind that missed one would drive another body's joints, so it is
-    refused out loud, not half-done."""
-    raise NotImplementedError("a quadruped's world is not recompiled: it hangs "
-                              "no tool until its rack (#405)")
+    a built tool (issue #168), and its rack (#405) has no rail for one: its
+    world has no workshop (`world_config`'s `built_bays`). Its drivers,
+    policies, reckoning and pack hold ids by the dozen, and a rebind that
+    missed one would drive another body's joints, so it is refused out
+    loud, not half-done."""
+    raise NotImplementedError("a quadruped's world is not recompiled: its rack "
+                              "has no rail for a built tool (#405)")
 
   def start_at(self, x: float, y: float, yaw: float) -> None:
     """Stand the body at a pose, on its feet, and tell its reckoning so --

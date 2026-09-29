@@ -7854,7 +7854,6 @@ def world_config(world: str) -> dict:
       # ...but its arm takes the tools on its own rack, beside the dock
       # (#405): a program's `fetch` and `stow`, no errand yet
       "swap": True, "tool_bays": dict(legs_rack.TOOL_BAYS),
-      "tool_rack": legs_world.rack_pose(),
       "built_bays": 0, "dock": legs_world.dock_pose(),
       "battery_wh": legs_world.DEMO_WH,
       "hosting_battery_wh": legs_model.PACK_WH,

@@ -80,8 +80,9 @@ def test_the_nose_camera_reads_a_bays_tags_from_its_working_pose(quad_world):
 # ---- where a tool is ----------------------------------------------------------------
 
 
-def _mount(body, module):
-  """The tool seated on the fork at the carry pose, as a pick leaves it."""
+def _mount(body, module, carried=True):
+  """The tool seated on the fork at the carry pose, as a pick leaves it --
+  or, `carried` False, as a pick that did not claim it would."""
   mis, m, d = body.mission, body.model, body.data
   mis.arm.hold_at(*am.CARRY_Q)
   j = {n: m.jnt_qposadr[m.joint(f"arm_{n}").id] for n in ("shoulder", "elbow", "wrist")}
@@ -96,7 +97,8 @@ def _mount(body, module):
   d.qpos[q:q + 3] = peg - np.array([0.0, 0.0, PEG_ABOVE_BODY])
   d.qpos[q + 3:q + 7] = (math.cos(yaw / 2), 0.0, 0.0, math.sin(yaw / 2))
   mujoco.mj_forward(m, d)
-  body.mission.carry(module)
+  if carried:
+    body.mission.carry(module)
   _settle(body)
 
 
@@ -105,7 +107,8 @@ def test_a_tool_on_the_fork_is_seated_on_this_robot_and_off_its_bay(quad_world):
   try:
     hung = body.module_state("module_lcd")
     assert hung["hung"] and not hung["on_fork"] and hung["bay"] == 0
-    assert body.seated_on("module_lcd") is None
+    assert body.seated_on("module_lcd") is None and not body.tool_powered("module_lcd")
+    assert not body.tool_powered(None)
     _mount(body, "module_claw")
     st_ = body.module_state("module_claw")
     assert st_["on_fork"] and not st_["hung"] and body.tool_powered("module_claw")
@@ -146,9 +149,40 @@ def test_a_carried_tool_turns_slower(quad_world):
   try:
     mis = body.mission
     assert next(mis._twist_routine(0.0, 0.0, -1.0))[2] == pytest.approx(-1.0)
+    mis.arm.hold_at(*am.CARRY_Q)
     mis.carry("module_claw")
     assert next(mis._twist_routine(0.0, 0.0, -1.0))[2] == pytest.approx(-qb.W_CARRY)
     assert next(mis._twist_routine(0.5, 0.0, 0.3))[2] == pytest.approx(0.3)
+  finally:
+    body.close()
+
+
+def test_a_walk_keeps_a_carried_tool_at_the_carry_pose(quad_world):
+  # Every walk folds an arm a program left out, and folded, a carried tool
+  # is thrown: the walk's driving pose is the carry pose (found in review).
+  body = _quad(quad_world)
+  try:
+    mis = body.mission
+    carry = [am.CARRY_Q[0], sum(am.CARRY_Q)]
+    mis.arm.hold_at(*am.CARRY_Q)
+    mis.carry("module_pen")
+    body.run(mis._twist_routine(0.3, 0.0, 0.0))
+    assert np.allclose(mis.arm.goal, carry)
+    mis.arm.aim(1.0, 0.0)                     # a program's pose, carrying
+    body.run(mis._twist_routine(0.3, 0.0, 0.0))
+    assert np.allclose(mis.arm.goal, carry) and mis.arm.arrived(qb.ARM_TOL)
+  finally:
+    body.close()
+
+
+def test_a_tool_on_the_fork_is_no_bump(quad_world):
+  # A pick that left a tool lying on the fork unclaimed made every step of
+  # a walk a press, and the robot backed off for good (found in review).
+  body = _quad(quad_world)
+  try:
+    _mount(body, "module_lcd", carried=False)
+    assert body.mission.on_this_fork("module_lcd") and body.mission.carrying is None
+    assert not body.mission._press_now()
   finally:
     body.close()
 
@@ -183,6 +217,59 @@ def test_a_save_waits_out_a_swap(quad_world, tmp_path):
     assert not keeper.busy()
     body.mission.working = True
     assert keeper.busy()
+  finally:
+    body.close()
+
+
+def _stub(value, seen=None, mis=None):
+  def routine(*a, **kw):
+    if seen is not None:
+      seen.append(mis.working)
+    return tick.result(value)
+  return routine
+
+
+def test_a_swap_is_working_at_the_bay_and_not_on_the_walk(quad_world):
+  # A save held off through the whole swap waited out a 45 s walk, past a
+  # stop's grace (found in review): only the part at the bay is `working`.
+  body = _quad(quad_world)
+  try:
+    mis, walk, bay = body.mission, [], []
+    mis._to_the_bay_routine = _stub("ok", walk, mis)
+    mis._fetch_at_routine = _stub("arrived", bay, mis)
+    assert body.run(mis.fetch_routine(0, "module_lcd")) == "arrived"
+    assert walk == [False] and bay == [True] and not mis.working
+  finally:
+    body.close()
+
+
+def test_a_move_inside_a_swap_leaves_it_working(quad_world):
+  body = _quad(quad_world)
+  try:
+    body.mission.working = True
+    body.run(body.ramp_routine(body.actuator("arm_elbow"), -1.0, 1.5))
+    assert body.mission.working
+  finally:
+    body.close()
+
+
+def test_a_pick_that_left_the_tool_on_the_fork_carries_it(quad_world):
+  # Folded, a tool the fork came out still holding is thrown; left
+  # unclaimed, it was a bump on every step (found in review).
+  body = _quad(quad_world)
+  try:
+    mis, ran = body.mission, []
+    aim = rk.BayAim(x=0.54, z=0.08, across=0.0, yaw=0.0)
+    mis._lined_up_routine = _stub(aim)
+    mis._pick_routine = _stub(False)
+    mis._rack_back_out_routine = _stub(None)
+    mis.on_this_fork = lambda module: True
+    mis.carry_routine = lambda: (ran.append("carry"), tick.result(True))[1]
+    mis.stow_arm_routine = lambda: (ran.append("fold"), tick.result(True))[1]
+    rec = {"attempts": []}
+    assert body.run(mis._fetch_at_routine(0, "module_pen", rec)) == "arrived"
+    assert ran == ["carry"] and mis.carrying == "module_pen"
+    assert rec["attempts"][0]["why"] == "on the fork, not seated"
   finally:
     body.close()
 

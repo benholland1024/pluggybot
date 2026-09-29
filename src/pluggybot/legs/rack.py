@@ -295,16 +295,27 @@ def bay_peg(spec: RackSpec, bay: int, pos=(0.0, 0.0), yaw: float = 0.0):
 FORK_POLES = {"l": ("arm_vl_a", "arm_vl_b"), "r": ("arm_vr_a", "arm_vr_b")}
 
 
+def pole_ids(model, name: str, prefix: str = "") -> tuple | None:
+  """The coupling's conductors as geom ids, `((peg, (v_a, v_b)), ...)` left
+  then right, or None where the tool or the fork has none."""
+  poles = []
+  for side, plates in FORK_POLES.items():
+    peg = geom_id(model, f"{name}_peg_{side}")
+    ids = tuple(geom_id(model, prefix + g) for g in plates)
+    if peg is None or None in ids:
+      return None
+    poles.append((peg, ids))
+  return tuple(poles)
+
+
 def tool_power(model, data, name: str, prefix: str = "") -> dict:
   """Is this tool's coupling conducting on the arm's fork, and which pole
   is open if not: the rover's criterion (`module_power_state`), each
   conductor on a V of its own side."""
-  poles = {}
-  for side, plates in FORK_POLES.items():
-    peg = geom_id(model, f"{name}_peg_{side}")
-    ids = [geom_id(model, prefix + g) for g in plates]
-    poles[side] = peg is not None and None not in ids and touching(data, peg, ids)
-  return {"left": poles["l"], "right": poles["r"], "powered": poles["l"] and poles["r"]}
+  poles = pole_ids(model, name, prefix)
+  left, right = ((False, False) if poles is None
+                 else (touching(data, *poles[0]), touching(data, *poles[1])))
+  return {"left": left, "right": right, "powered": left and right}
 
 
 def on_bay(model, data, name: str, spec: RackSpec, bay: int) -> bool:
