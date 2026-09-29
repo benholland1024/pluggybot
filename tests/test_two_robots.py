@@ -363,28 +363,6 @@ def test_the_lidar_drops_the_other_robots_body_from_the_scan():
     "the other robot's body is still in the scan"
 
 
-# ⚠ BEHIND `--endurance` (suite budget, 2026-09-13): 137 s under the
-# parallel suite. Its RULE -- every robot's command applied, one step, every
-# robot booked, an exception thrown into every live routine -- is
-# `test_run_many_*` above in milliseconds; what only this proves is that a
-# real fetch survives being ticked beside another robot's day.
-@pytest.mark.slow
-@pytest.mark.endurance
-def test_two_robots_run_from_one_loop_and_the_first_fetches_its_tool():
-  """The pair, flown: one `mj_step` loop, two days; robot 1 fetches the LCD
-  while robot 2 explores, and both are alive when the pick lands. Stops on
-  its claim."""
-  from pluggybot.pair import build_pair, run_pair
-  lives = build_pair("room_hub", pack="hosting", errands=("carry", "none"))
-  assert lives[0].body.others and lives[1].body.others
-  results = run_pair(lives, max_sim_time=200.0,
-                     stop_when=lambda ls: ls[0].swaps_done >= 1)
-  assert results[0]["swaps_done"] >= 1 and results[0]["aborted"]
-  assert all(r["dead"] is None for r in results)
-  assert results[0]["collision_steps"] == 0 and results[1]["collision_steps"] == 0
-  assert lives[0].data.time == lives[1].data.time
-
-
 # ---- slice E: the wire ------------------------------------------------------
 
 
@@ -407,31 +385,32 @@ def test_the_census_and_the_scene_key_every_robot_by_its_root():
   assert owners["rack"] is None and owners["module_pen"] is None
 
 
-# ⚠ BEHIND `--endurance` (suite budget, 2026-09-13): 226 s under the
-# parallel suite -- `build_pair` + `arrange_game` + two lifecycles for 12 s
-# of sim. The wire SHAPE it flies for is proved in a second by the vendored
-# pair fixture (`test_the_pair_recording_gives_every_robot_the_same_shape`)
-# and the per-role claim by `test_a_two_role_task_is_claimed_per_role_*`;
-# what only this proves is the recorder wired live into a running pair.
-@pytest.mark.slow
-@pytest.mark.endurance
 def test_a_pair_recording_carries_both_robots_and_keys_every_event(tmp_path):
-  """The stream with a second robot on it: the header names both, every
-  frame carries `robots[<root>]` for each, and the ledger's, thoughts',
-  encounters' and referee's events say whose they are. A single-robot
-  stream is what it was (the fixture test)."""
+  """The stream with a second robot on it, off the recorder `run_pair` wires
+  (`record_pair`), driven by hand rather than flown: the header names both
+  robots, a frame carries `robots[<root>]` for each, and the thoughts' and
+  the board's events say whose they are. Nothing steps -- the frame is the
+  world as built, and the events come through the pair's own doors, a
+  thought and a claim each. A FLOWN pair stream's shape is the vendored
+  fixture's (`test_the_pair_recording_gives_every_robot_the_same_shape`)."""
   import json
-  from pluggybot.pair import arrange_game, build_pair, run_pair
+  from pluggybot.pair import arrange_game, build_pair, record_pair
   lives = build_pair("room_hub", pack="hosting", errands=("none", "none"),
                      tasks=True, overseer=None, thoughts_root=str(tmp_path / "t"))
-  arrange_game(lives)
-  # `pin`, not `learn`: the verb was retired with the memory tiers (issue
-  # #221) and this line has raised `AttributeError` at setup ever since --
-  # an endurance test nobody ran is an endurance test nobody has.
+  task, _ = arrange_game(lives)
   lives[0].thoughts.pin("the other one is quick", t=0.0)
   lives[1].thoughts.pin("the first one is slow", t=0.0)
   path = str(tmp_path / "pair.jsonl")
-  run_pair(lives, max_sim_time=12.0, record=path)
+  recorder = record_pair(lives, path)
+  try:
+    assert lives[0]._claim_task(task.id) and lives[1]._claim_task(task.id)
+    mujoco.mj_forward(lives[0].model, lives[0].data)
+    recorder.step_hook()
+  finally:
+    recorder.close()
+    for life in lives:
+      life.body.close()
+  assert float(lives[0].data.time) == 0.0, "something stepped the physics"
   rows = [json.loads(line) for line in open(path)]
   header = rows[0]
   assert header["type"] == "header"

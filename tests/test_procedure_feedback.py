@@ -389,8 +389,8 @@ def test_a_stow_restores_the_carry_configuration_before_the_return(monkeypatch):
   """A return computes its release heights from the lift it STARTS at, and
   a procedure may have moved it. MEASURED: a claw stowed from 0.03 m -- where
   Luca's weighing had lowered it -- was driven into the rack and knocked to
-  the floor; from the pick's height it hung. The flight is behind
-  --endurance (tests/test_solutions.py); this is the order of the calls.
+  the floor; from the pick's height it hung -- an ordinary stow, flown
+  wherever one is. This is the order of the calls.
   ⚠ The lift comes UP before the arm comes in (issue #347): a set-down
   leaves it at `APPROACH_LIFT`, below the carry height, and MEASURED, a claw
   drawn in that low comes off its seat."""

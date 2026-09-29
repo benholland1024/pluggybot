@@ -7143,7 +7143,7 @@ def hide_and_seek_program(world: str):
 #: and the second house, as `drive_to` legs no longer than the LIDAR has
 #: already mapped from the leg before (SimNotes, "A goal out of sight is
 #: aimed at through the nearest wall": a 12 m leg to an unmapped goal drove
-#: the other way; `test_home_world.loop_legs` keeps every leg under 6.7 m).
+#: the other way).
 #: Surveyed infrastructure, a work order's kind of fact -- the same class as
 #: the whiteboards' poses. `cage_route` drops the legs already behind the
 #: robot, so a second visit from inside the lab does not drive home first.
