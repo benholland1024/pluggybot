@@ -565,6 +565,12 @@ class QuadMission(ToolSwap, Navigator):
     self._pressing = self._press_now()
     if self._pressing:
       self.press_steps += 1
+    # A carried tool out of the fork's reach has fallen away -- knocked off
+    # by the other robot's at the rack, or sent home by an admin -- and
+    # nothing else lets go of it: the body walked with its arm up at
+    # W_CARRY, blind to the tool, until a fall or its next swap (#405)
+    if self._carried_bid >= 0 and not self.within_fork_reach(self._carried_bid):
+      self.carry(None)
     self._on_step()
 
   def _vm_now(self) -> VirtualModel:
@@ -666,8 +672,11 @@ class QuadMission(ToolSwap, Navigator):
   def carry(self, module: str | None) -> None:
     """What rides the fork, and so is this body's own to its senses: kept
     out of the LIDAR's map, the depth camera's cloud, the press and the
-    height scan, as its own geoms are; and in the arm's feed-forward."""
+    height scan, as its own geoms are; and in the arm's feed-forward. Let go
+    of by a fall, a put, a stand-up, and a tool fallen out of the fork's
+    reach (`_after_physics`)."""
     self.carrying = module
+    self._carried_bid = -1 if module is None else self.model.body(module).id
     self._payload(module)
     self.lidar.carry(module)
     self.depth.carry(module)

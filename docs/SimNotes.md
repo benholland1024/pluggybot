@@ -3400,8 +3400,14 @@ out of the LIDAR's map and the depth camera's cloud, as its own geoms are,
 ignored by the press, and excluded from a stairs policy's height scan
 (`PolicyDriver.scan_exclude`: it read as a 0.4 m obstacle over the nose,
 #378). Walking and lying down to rest keep it at the carry pose -- folded,
-the arm would swing it into its own back -- and a fall lets go of it. A
-tool a pick leaves on the fork unseated is carried too: left unclaimed, a
+the arm would swing it into its own back -- and a fall lets go of it, as
+does a tool out of the fork's reach (`swap.NEAR_FORK_M`): knocked off by the
+other robot's at the rack, or sent home by an admin, it had left the body
+walking with its arm up, turning slowly and blind to the tool, until a fall
+or its next swap. A fork move stops when the body goes down under it: the
+fall folds the arm, and re-aimed along its line the fork was held out
+through the get-up. A tool a pick leaves on the fork unseated is carried
+too: left unclaimed, a
 tool lying on the fork made every step of a walk a press, and a 1 m walk
 backed off to 2.97 m from its start. ⚠ Only a CARRIED tool is the body's
 own to the bumper: ignoring every tool against the fork, the pair's

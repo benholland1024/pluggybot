@@ -164,12 +164,12 @@ def test_a_walk_keeps_a_carried_tool_at_the_carry_pose(quad_world):
   try:
     mis = body.mission
     carry = [am.CARRY_Q[0], sum(am.CARRY_Q)]
-    mis.arm.hold_at(*am.CARRY_Q)
-    mis.carry("module_pen")
+    _mount(body, "module_pen")
     body.run(mis._twist_routine(0.3, 0.0, 0.0))
     assert np.allclose(mis.arm.goal, carry)
     mis.arm.aim(1.0, 0.0)                     # a program's pose, carrying
     body.run(mis._twist_routine(0.3, 0.0, 0.0))
+    assert mis.carrying == "module_pen"
     assert np.allclose(mis.arm.goal, carry) and mis.arm.arrived(qb.ARM_TOL)
   finally:
     body.close()
@@ -186,6 +186,47 @@ def test_a_tool_against_the_fork_is_a_bump_unless_it_is_carried(quad_world):
     assert body.mission.on_this_fork("module_lcd") and body.mission._press_now()
     body.mission.carry("module_lcd")
     assert not body.mission._press_now()
+  finally:
+    body.close()
+
+
+def test_a_tool_that_falls_away_is_let_go_of(quad_world):
+  # Knocked off by the other robot's tool at the rack, or sent home by an
+  # admin, a carried tool left the body "carrying" it: walking with its arm
+  # up at W_CARRY and blind to the tool, until a fall (found in review).
+  body = _quad(quad_world)
+  try:
+    mis, m, d = body.mission, body.model, body.data
+    _mount(body, "module_pen")
+    assert mis.carrying == "module_pen"
+    q = m.jnt_qposadr[m.body("module_pen").jntadr[0]]
+    d.qpos[q:q + 7] = m.qpos0[q:q + 7]                  # as `_return_module` does
+    mujoco.mj_forward(m, d)
+    _settle(body, 0.05)
+    assert mis.carrying is None and mis.arm.payload[0] == 0.0
+    assert not mis._is_ignored[mis.tool_gids("module_pen")].any()
+  finally:
+    body.close()
+
+
+def test_a_fall_under_a_fork_move_stops_it(quad_world):
+  # A fall folds the arm; re-aimed along its line, the fork was held out
+  # through the get-up (found in review).
+  body = _quad(quad_world)
+  try:
+    mis = body.mission
+    q = body.handle.qpos_adr(body.model)
+    step = tick.Step(mis._fork_to_routine(0.45, 0.10), "fork")
+    cmd, k = step.tick(), 0
+    while cmd is not None:
+      if k == 25:                                       # knocked onto its side
+        body.data.qpos[q + 3:q + 7] = (math.cos(math.pi / 4), math.sin(math.pi / 4), 0.0, 0.0)
+        mujoco.mj_forward(body.model, body.data)
+      body.stepper.step(cmd)
+      cmd, k = step.tick(), k + 1
+    stow = mis.arm_spec.stow
+    assert step.result is False and mis.posture != qb.STANDING
+    assert np.allclose(mis.arm.goal, (stow[0], stow[0] + stow[1]))
   finally:
     body.close()
 
@@ -273,6 +314,10 @@ def test_a_pick_that_left_the_tool_on_the_fork_carries_it(quad_world):
     assert body.run(mis._fetch_at_routine(0, "module_pen", rec)) == "arrived"
     assert ran == ["carry"] and mis.carrying == "module_pen"
     assert rec["attempts"][0]["why"] == "on the fork, not seated"
+    # ...and one that came out empty folds carrying nothing
+    mis.on_this_fork = lambda module: False
+    assert body.run(mis._fetch_at_routine(0, "module_pen", {"attempts": []})) == "arrived"
+    assert ran == ["carry", "fold"] and mis.carrying is None
   finally:
     body.close()
 
@@ -281,12 +326,24 @@ def test_a_bay_is_named_by_its_station():
   assert [sw.bay_of(STATION_YS[i]) for i in range(3)] == [0, 1, 2]
 
 
-def test_the_walk_in_stops_turned_against_the_settles_drift():
+def test_the_walk_in_stops_turned_against_the_settles_drift(quad_world, monkeypatch):
   # Square on the line, it turns clockwise toward -SETTLE_DRIFT: the settle
   # turns it counter-clockwise, 1.2 to 2.7 deg on the served body.
   tw = rk.walk_in_twist(-0.3, 0.0, 0.0, heading=-rk.SETTLE_DRIFT)
   assert tw.vx > 0.0 and tw.yaw_rate < 0.0
   assert rk.walk_in_twist(-0.3, 0.0, 0.0).yaw_rate == 0.0     # the spike's
+  # ...and the swap's walk-in asks for it
+  from pluggybot.legs.policy import Twist
+  asked = []
+  monkeypatch.setattr(rk, "walk_in_twist",
+                      lambda *a, **kw: (asked.append(kw.get("heading")), Twist())[1])
+  body = _quad(quad_world)
+  try:
+    body.mission.tool_rack_seen = body.mission.tool_rack_prior
+    assert body.run(body.mission._rack_walk_in_routine(0)) == "stopped"
+    assert asked == [-rk.SETTLE_DRIFT]
+  finally:
+    body.close()
 
 
 def test_a_verb_that_walks_carries_a_tool_at_the_carry_pose(quad_world):

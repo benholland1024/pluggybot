@@ -65,7 +65,8 @@ FORK_FAST_V = 0.2
 FORK_TOL = 0.002
 #: A tool whose origin is farther than this from the fork's plate cannot
 #: touch it, m: the claw's geoms reach 0.17 m from its origin, the fork's
-#: 0.16 from the plate's. The power check reads contacts only nearer.
+#: 0.16 from the plate's. The power check reads contacts only nearer, and a
+#: carried tool farther off has fallen away (`QuadMission.carry`).
 NEAR_FORK_M = 0.5
 
 
@@ -98,6 +99,7 @@ class ToolSwap:
     #: The module riding the fork: set by a pick, cleared by a put or a fall.
     #: Its geoms are the robot's own to its senses while it rides.
     self.carrying: str | None = None
+    self._carried_bid = -1
     plate = self._plate_bid = model.body(self.handle.el("arm_plate")).id
     self._fork_gids = np.array([g for g in range(model.ngeom)
                                 if int(model.geom_bodyid[g]) == plate], dtype=np.int32)
@@ -160,13 +162,16 @@ class ToolSwap:
       kept = self._poles[module] = (rk.pole_ids(self.model, module, self.handle.prefix),
                                     self.model.body(module).id)
     poles, bid = kept
-    if poles is None:
-      return False
-    x = self.data.xpos
-    t, f = x[bid], x[self._plate_bid]
-    if (t[0] - f[0]) ** 2 + (t[1] - f[1]) ** 2 + (t[2] - f[2]) ** 2 > NEAR_FORK_M ** 2:
+    if poles is None or not self.within_fork_reach(bid):
       return False
     return all(touching(self.data, peg, plates) for peg, plates in poles)
+
+  def within_fork_reach(self, bid: int) -> bool:
+    """A body near enough this fork's plate that any of it could touch the
+    fork (`NEAR_FORK_M`): floats, as it is read every physics step."""
+    x = self.data.xpos
+    t, f = x[bid], x[self._plate_bid]
+    return (t[0] - f[0]) ** 2 + (t[1] - f[1]) ** 2 + (t[2] - f[2]) ** 2 <= NEAR_FORK_M ** 2
 
   def seated_on(self, module: str) -> str | None:
     """Which robot has the module electrically seated, by root: every
@@ -245,11 +250,16 @@ class ToolSwap:
 
   def _fork_to_routine(self, x: float, z: float, speed: float = am.FORK_V) -> Routine:
     """The fork's vertex along a straight line to (x, z), torso frame,
-    standing: False if a point on the way is out of the arm's reach."""
+    standing: False if a point on the way is out of the arm's reach, or the
+    body went down under it -- a fall folds the arm, and re-aimed along the
+    line it was held out through the get-up."""
+    from pluggybot.legs.body import STANDING
     s = self.arm_spec
     x0, z0 = self._vertex_goal()
     n = max(1, int(math.hypot(x - x0, z - z0) / speed / self.model.opt.timestep))
     for k in range(1, n + 1):
+      if self.posture != STANDING:
+        return False
       goal = self.arm.goal
       q = am.solve_vertex(s, x0 + (x - x0) * k / n, z0 + (z - z0) * k / n,
                           near=(float(goal[0]), float(goal[1] - goal[0])))
@@ -261,7 +271,7 @@ class ToolSwap:
     while not self.arm.arrived(FORK_TOL) and self.data.time - t0 < FORK_ARRIVE_S:
       yield from self._twist_routine(0.0, 0.0, 0.0)
     yield from self._drive_routine(FORK_HOLD_S, 0.0, 0.0)
-    return True
+    return self.posture == STANDING
 
   def _payload(self, module: str | None) -> None:
     """What the arm's feed-forward carries: the tool's mass, its CoM on
@@ -376,6 +386,7 @@ class ToolSwap:
         self.carry(module)
         yield from self.carry_routine()
       else:
+        self.carry(None)
         yield from self.stow_arm_routine()
       yield from self._rack_back_out_routine()
       return "arrived"
