@@ -576,47 +576,6 @@ def test_a_feed_act_reaches_the_cage_and_the_mouse_eats(tmp_path):
   assert life.cage.state == "eating"
 
 
-#: What the paid feed on legs is flown for (issue #403): the lab's programs
-#: and plates, the walking body and its planner, the job's grade.
-FEED_ON_LEGS = ("scripts/solve.py", "src/pluggybot/activity/cage.py",
-                "src/pluggybot/activity/plate.py", "src/pluggybot/legs/", "models/quadruped",
-                "models/home_world.xml", "src/pluggybot/navigator.py",
-                "src/pluggybot/mapping/", "src/pluggybot/procedure/",
-                "src/pluggybot/economy/challenges.json", "src/pluggybot/economy/scoring.py",
-                "src/pluggybot/tick.py")
-
-
-@pytest.mark.slow
-@pytest.mark.endurance(when=FEED_ON_LEGS)
-def test_the_paid_feed_is_done_on_legs_by_the_pair(tmp_path):
-  """Ladder A on legs (issue #403): the quadruped pair as deployed, Luca
-  walking from its start to the lab by the planner alone (no surveyed
-  road) while Rowan stands in the hall; `feed_mouse` offered, claimed with
-  a prediction and graded by `eval_feed` through `scoring.evaluate`, the
-  mouse eating, no other plate pressed. ~80 s wall; every rule it stands
-  on is pinned fast in tests/test_lab_on_legs.py (the lab, the rule, the
-  one offer, the walk's patience, the lanes that keep off the other
-  plates, the stray press)."""
-  import sys
-  sys.path.insert(0, str(Path(__file__).parent.parent / "scripts"))
-  import solve as demo
-  from pluggybot.lifecycle import QUAD_HOME
-  lives, life = demo.build_pair_lives(1, str(tmp_path), world=QUAD_HOME)
-  events: list = []
-  life.on_event.append(events.append)
-  try:
-    demo.start_pair(lives, legs=True)
-    run = demo.fly_beside(lives, life, demo.feed_job_routine(life, events))
-  finally:
-    for each in lives:
-      each.body.close()
-  assert run["grade"]["ok"] and run["grade"]["points"] > 0, run["grade"]
-  assert run["presses"]["feed"] >= 1, run["presses"]
-  assert run["presses"]["shock"] == run["presses"]["toy"] == 0, run["presses"]
-  assert not run["presses_off_job"] and life.cage.state == "eating"
-  assert run["care"]["kind"] == "feed_mouse" and run["care"]["landed"] >= 1
-
-
 # ---- issue #353: the pair harness a robot's own procedure is replayed in ------
 
 
