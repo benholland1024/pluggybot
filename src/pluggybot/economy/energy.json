@@ -106,16 +106,16 @@
     },
     "home_quad": {
       "errandWh": {
-        "care": 2.128,
-        "care:company": 2.128,
-        "care:feed": 1.656,
-        "care:toy": 1.736,
-        "feed": 1.677,
-        "shock": 1.616
+        "care": 2.162,
+        "care:company": 2.162,
+        "care:feed": 1.78,
+        "care:toy": 1.799,
+        "feed": 1.73,
+        "shock": 1.749
       },
       "exploreWhPerS": 0.024137,
       "chargeW": 199.5,
-      "measuredOn": "measured 28 Sep 2026 on the quadruped with its arm aboard (issue #405), home_quad, 40 Wh pack, the world's 240 s explore, depth camera drawing: the explore 6.067 Wh over 251.4 s (86.9 W; 84.7 without the arm, #387), the legs' windings and shafts and the arm's two motors off their torques, plus 15.9 W of electronics (fourteen drivers standing by); the dock's 216 W charger into a body lying on its pins, 4.987 Wh in 90 s (199.5 W net). No errand rows: the arm takes no tool yet, so no errand a tool makes (`world_config`'s `tools`)."
+      "measuredOn": "measured 28 Sep 2026 on the quadruped with its arm aboard (issue #405), home_quad, 40 Wh pack, the world's 240 s explore, depth camera drawing: the explore 6.067 Wh over 251.4 s (86.9 W; 84.7 without the arm, #387), the legs' windings and shafts and the arm's two motors off their torques, plus 15.9 W of electronics (fourteen drivers standing by); the dock's 216 W charger into a body lying on its pins, 4.987 Wh in 90 s (199.5 W net). No tool errand: the arm takes no tool yet (`world_config`'s `tools`). The lab's acts, which take no tool, measured 29 Sep 2026 with the arm aboard (issues #403, #405), each from the dock: feed 1.73 Wh in 70.7 s, care:feed 1.78, care:toy 1.799, shock 1.749 (its job is not offered on legs; priced so it is one line back), care:company 2.162 in 108 s (the visit walks back down its lane; flown alone from the dock, the spike's own company run having failed on a map the explore had drifted)."
     }
   }
 }

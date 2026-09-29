@@ -3547,18 +3547,39 @@ the shock pad's west edge, walking the west lane to keep the mouse company.
 
 **Measured** (`scripts/solve.py --feature mouse --pair --body quadruped`:
 the pair as deployed, the paid job offered, claimed with a prediction,
-walked and graded by `eval_feed`, the other robot standing in the hall):
+walked and graded by `eval_feed`, the other robot standing in the hall;
+re-flown with #405's arm aboard):
 
-| from | paid | sim s each | presses of another plate | belief off at the end |
-|---|---|---|---|---|
-| the dock (walked back to it and lain on between) | 10 / 10 | 71-75 | 0 | 0.06 m |
-| inside the lab (after one walk in from the hall) | 10 / 10 | 11-14 | 0 | 0.12-0.13 m |
+| from | arm | paid | sim s each | presses of another plate | belief off at the end |
+|---|---|---|---|---|---|
+| the dock (walked back to it and lain on between) | no | 10 / 10 | 71-75 | 0 | 0.06 m |
+| the dock | yes | 10 / 10 | 71-75 | 0 | 0.09-0.11 m |
+| inside the lab (after one walk in from the hall) | no | 10 / 10 | 11-14 | 0 | 0.12-0.13 m |
+| inside the lab | yes | 10 / 10 | 11-14 | 0 | 0.15-0.18 m |
+
+⚠ The pair's robots look round their starts in ONE loop
+(`solve.start_pair`): with #405's arm a quadruped that is not stepped lets
+go of the arm's hold, and Luca stood 0.58 m from its belief while Rowan
+looked round alone -- the first armed dock trials read 0.41 m off every
+time, and that was the harness.
+
+⚠ **After an explore the armed belief reached the lab 0.43-0.45 m off**, in
+two of two flights (0.11-0.13 m unarmed, the same flights), with every
+scan accepted: the error is in the frame the map was built in, and the
+plates are handed as world coordinates (the stated exception to places,
+#381). The robot's true pose lay north of its belief, toward the row, and
+in one flight the walk home from the feed's approach point pressed the
+feed plate five times and the shock plate five times (`press` rows, as
+designed); a company visit failed `no route` at the lane's north end.
+From the dock straight to the lab the armed belief is 0.05-0.11 m off.
+The lanes absorb an error up to about 0.2 m; what closes a larger one is a
+place the robot confirms in the lab (#381's places stage).
 
 The pass registered on every walk at the policy's own pace, so it needs
-no slower gait. An act from the dock costs 1.6-2.1 Wh and 68-110 s on
-legs, a company visit the dearest for its walk back down the lane
+no slower gait. An act from the dock costs 1.7-2.2 Wh and 71-108 s with
+the arm aboard, a company visit the dearest for its walk back down the lane
 (`economy/energy.json`, `home_quad`), against the rover's 1.1-1.3 Wh from
-the rack: a quadruped walks at about 59 mWh a metre, twice the rover.
+the rack: a quadruped walks at about 60 mWh a metre, twice the rover.
 
 ## Debugging workflow that worked
 

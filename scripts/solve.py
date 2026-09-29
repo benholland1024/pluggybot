@@ -189,15 +189,19 @@ def build_pair_lives(robot: int, state_dir: str, world: str = "home"):
 
 def start_pair(lives: list, legs: bool = False) -> None:
   """Each robot of the pair at its start, its map begun: Luca by the rack,
-  Rowan in the hall."""
+  Rowan in the hall. On legs every look-around runs in ONE loop: a
+  quadruped whose stepper is not stepped lets go of its arm's hold (#405),
+  and MEASURED, Luca stood 0.58 m from its belief while Rowan looked round
+  alone."""
   cfg = world_config("home")
   for each, start in zip(lives, (cfg["start"], cfg["start2"])):
     each.body.start_at(*start)
     each.body.start_discovery()
-    if legs:
-      each.body.run(each.body.look_around_routine())
-    else:
+    if not legs:
       each.body.mission._spin()
+  if legs:
+    tick.run_many([(each.body.stepper, each.body.look_around_routine())
+                   for each in lives], name="look around")
 
 
 def fly_beside(lives: list, life, routine):

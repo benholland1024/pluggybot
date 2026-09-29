@@ -38,7 +38,7 @@ APPROVED_FLIGHTS = {
   "test_a_feed_act_reaches_the_cage_and_the_mouse_eats": (
     "~45 s", "ladder A: the mouse's feed act lands", "#413"),
   "test_the_paid_feed_is_done_on_legs_by_the_pair": (
-    "~110 s: 108 s -n0 on a busy box, measured 2026-09-28", "ladder A on legs "
+    "~80 s: 76 s -n0, measured 2026-09-29 (108-139 s on a busy box)", "ladder A on legs "
     "(Evaluation.md §7): the one job the quadrupeds are offered, walked by "
     "the served pair across the street to the lab and graded by `eval_feed`",
     "#414"),

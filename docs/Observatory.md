@@ -46,6 +46,12 @@ errand of that plate running is a new `press` row (observatory kind
   free one.
 - **One lab slot, two robots**: one open lab job at a time, so a claim by
   one robot is the job gone for the other.
+- ⚠ **How often a foot lands on the shock plate unasked.** After a long
+  explore the armed belief reached the lab 0.43-0.45 m off in two of two
+  flights (SimNotes, "The feed on legs"), and one walk out pressed the
+  shock plate. Each such press is a `press` row with `plate: shock`; how
+  many a day live is what says whether the lab needs a place the robot
+  confirms (#381's places stage) before anything else is offered there.
 ### The rack at the arm's reach (#405, stage B) — opens when this PR is deployed
 
 **What changed in the world.** The rover's rack is gone from the

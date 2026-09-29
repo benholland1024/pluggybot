@@ -593,7 +593,7 @@ def test_the_paid_feed_is_done_on_legs_by_the_pair(tmp_path):
   walking from its start to the lab by the planner alone (no surveyed
   road) while Rowan stands in the hall; `feed_mouse` offered, claimed with
   a prediction and graded by `eval_feed` through `scoring.evaluate`, the
-  mouse eating, no other plate pressed. ~110 s wall; every rule it stands
+  mouse eating, no other plate pressed. ~80 s wall; every rule it stands
   on is pinned fast in tests/test_lab_on_legs.py (the lab, the rule, the
   one offer, the walk's patience, the lanes that keep off the other
   plates, the stray press)."""
