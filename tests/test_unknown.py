@@ -455,7 +455,11 @@ def test_a_decided_walk_to_a_zone_has_the_decided_patience():
 # ---- the walk, flown whole ----------------------------------------------------------
 
 
-@pytest.mark.endurance
+@pytest.mark.slow
+@pytest.mark.endurance(when=(
+  "src/pluggybot/legs/", "models/quadruped", "models/home_world.xml",
+  "src/pluggybot/navigator.py", "src/pluggybot/mapping/", "src/pluggybot/behavior/",
+  "src/pluggybot/perception/", "src/pluggybot/tick.py"))
 def test_a_fresh_quadruped_walks_to_the_kitchen_by_the_hall():
   """The integration the rules above are pinned for: a fresh robot at its
   start pose, an empty map, one look round, and the kitchen (-8.47, 4.03).

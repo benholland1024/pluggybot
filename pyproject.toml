@@ -35,7 +35,7 @@ build-backend = "uv_build"
 # way. Scaling is ~1.8x rather than 6x -- the mission tests contend for
 # memory/GPU bandwidth, and each one runs ~36 % slower under load, so
 # `--dist worksteal` measured identical to `load` (the limit is contention,
-# not scheduling). The floor is test_full_hub_lifecycle[home] at 157 s alone.
+# not scheduling). The floor is test_full_hub_lifecycle at 157 s alone.
 # Pass `-n0` to run in-process: single tests, `--pdb`, and readable live
 # output all want it, and spawning six workers for one test is a net loss.
 addopts = "-n auto --dist worksteal"
@@ -60,14 +60,16 @@ markers = [
     # see `HubLifecycle.stop_when`.
     # ⚠ AND THE FULL SUITE HAS A BUDGET (CLAUDE.md, "Working style"): past
     # 10 minutes quiet / 15 busy needs Ben's explicit approval, stated in the
-    # PR. It is 7:35 as of 2026-09-12 and it was 18 minutes the day before,
-    # one reasonable-looking mission test at a time.
+    # PR -- and so does ANY test outside the default run, however short. It
+    # is 7:35 as of 2026-09-12 and it was 18 minutes the day before, one
+    # reasonable-looking mission test at a time.
     "slow: expensive, and cannot catch a regression while you iterate",
     # `endurance` is a SUBSET of `slow` that does not run at all unless asked
-    # (`--endurance`; tests/conftest.py has the argument): a flown proof whose
-    # regressable claim is also pinned by a fast unit test beside it, kept for
-    # the integration it demonstrates rather than the rule it guards.
-    "endurance: a flown proof; skipped unless --endurance is passed",
+    # (tests/conftest.py has the flags): a flown proof of PHYSICS whose rule is
+    # pinned fast beside it, naming in `when` the paths its claim stands on,
+    # and on Ben's approved list with its time (tests/test_endurance.py).
+    # `--endurance-changed` flies the ones a change touches; `--endurance` all.
+    "endurance(when): a flown proof of physics; flies with --endurance-changed when a change touches `when`, or --endurance",
 ]
 
 [dependency-groups]

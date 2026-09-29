@@ -2179,8 +2179,9 @@ appetite has a byte-identical prefix. **Shown, and unreachable**: no field on a
 `Decision` moves any of it. ⚠ **This is the whole of what satisfaction does.**
 No branch reads `satisfied` and declines a job, none reads `starving` and
 declines anything, and nothing in the survival loop reads a balance — enforced
-by absence, so the test is a whole mission flown broke
-(`test_a_starving_robot_still_charges_navigates_and_stows`) plus a grep over
+by absence, so the test is a whole day flown broke on the stub and commanded
+exactly as the same day flush
+(`test_a_starving_robot_still_charges_navigates_and_stows`), plus a grep over
 every branch that could grow a gate. The scripted rotation is untouched: it
 has no goals to spend free time on.
 

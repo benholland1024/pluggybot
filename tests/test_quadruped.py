@@ -3,7 +3,7 @@
 it can be while still failing for the right reason -- the body's members,
 the world it lives in, the rest reflex, the get-up and the `stuck` death,
 the planner's sizes, the reflexes, the prompt in its own words, and upkeep
-off as a configuration. The day flown whole is behind `--endurance`."""
+off as a configuration. Docking in the house is flown behind `--endurance`."""
 
 import math
 from types import SimpleNamespace
@@ -483,51 +483,50 @@ def test_serve_refuses_a_tool_errand_on_a_body_with_no_arm():
   assert out.returncode == 2 and "no arm yet" in out.stderr
 
 
-# ---- the day, flown whole --------------------------------------------------------
+# ---- docking in the house, flown ------------------------------------------------
 
 
-@pytest.mark.endurance
-def test_a_quadruped_pair_lives_a_scripted_home_day(tmp_path):
-  """The issue's day, on the served pair's shape (no offers, no upkeep): both
-  explore; the first starts low, walks to the dock, lies on it and charges;
-  the second is knocked over and gets up, then is emptied, dies `flat` and
-  is stood up by the timer; a robot with nothing to do lies down by reflex.
-  `determinism_spike.py --pair` flies this day twice in two processes and
-  hashes the whole world (IDENTICAL, SimNotes "The first quadruped deploy").
-  Behind --endurance (minutes of two robots' physics); every rule it
-  exercises is pinned fast: the reflex, the get-up, the `stuck` budget,
-  `test_standing_the_body_up_steps_nothing`, and test_stand_up's
-  `test_a_stand_up_never_lands_on_another_robot`."""
-  from pluggybot import pair
-  from pluggybot.mind.inbox import Inbox
-  # an inbox each, as `serve.py` builds them: with somebody who could reach
-  # in, a dead robot waits for its stand-up and its day goes on
-  lives = pair.build_pair(QUAD_HOME, pack="demo", errands=("none", "none"),
-                          inboxes=(Inbox(), Inbox()),
-                          mortal=True, restart_after_s=30.0,
-                          thoughts_root=str(tmp_path / "thoughts"),
-                          ledger_state=str(tmp_path / "ledger.json"))
-  first, second = lives
-  first.battery.energy_wh = first.battery.capacity_wh * 0.3
-  done = pair.arrange_hazards(lives, fall_at=40.0, drain_at=120.0)
-  seen: set = set()
+@pytest.mark.slow
+@pytest.mark.endurance(when=(
+  "src/pluggybot/legs/", "models/quadruped", "models/home_world.xml",
+  "src/pluggybot/navigator.py", "src/pluggybot/mapping/", "src/pluggybot/behavior/",
+  "src/pluggybot/perception/", "src/pluggybot/power.py", "src/pluggybot/tick.py"))
+def test_a_low_quadruped_walks_to_its_dock_and_charges_on_it(tmp_path):
+  """The served robot's survival path, composed: stood at its commissioned
+  start below the floor, it walks the house to its dock, finds the board,
+  walks in, lies down onto the pins and charges -- the loop's own charge
+  path on the real body. Each link is pinned fast (test_dock.py: the stop,
+  the lie-down onto the pins, the criterion while lying, the pose off the
+  board); only this flies them together. Stops once the pins have conducted
+  for a second. Shown to fail by skipping the walk-in in
+  `QuadMission.dock_routine`: every attempt stands short, and it never
+  docks."""
+  from pluggybot.lifecycle import run_demo
+  seen: dict = {}
+  states: list = []
 
-  def watch():
-    for i, life in enumerate(lives):
-      seen.add((i, life.state, life.body.posture, life.dead is not None))
-  first.body.step_hooks.append(watch)
+  def docked(life) -> bool:
+    if life.state not in states:
+      states.append(life.state)
+    if life.state == "CHARGE" and life.charging_now:
+      seen.setdefault("t", float(life.data.time))
+      seen.setdefault("wh", life.battery.energy_wh)
+      seen.update(posture=life.body.posture, why=life.body.mission.last_charge,
+                  gained=life.battery.energy_wh - seen["wh"])
+      return float(life.data.time) - seen["t"] >= 1.0
+    return False
 
-  def settled(ls) -> bool:
-    return (first.charge_cycles >= 1 and bool(second.resets)
-            and (0, "CHARGE", qb.LYING, False) in seen)
-  pair.run_pair(lives, max_sim_time=900.0, stop_when=settled)
-
-  assert {(i, "EXPLORE") for i in (0, 1)} <= {(i, s) for i, s, _, _ in seen}
-  assert (0, "CHARGE", qb.LYING, False) in seen and first.charge_cycles >= 1
-  assert done["fell"] is not None and second.body.mission.falls >= 1
-  assert (1, "EXPLORE", qb.GETTING_UP, False) in seen
-  assert [d["cause"] for d in second.deaths] == ["flat"]
-  assert second.resets and second.resets[-1]["auto"] and second.dead is None
-  assert not first.deaths, f"the first robot died: {first.deaths}"
-  assert any(p == qb.LYING and s != "CHARGE" and not dead
-             for _, s, p, dead in seen), "nobody rested by reflex"
+  r = run_demo(view=False, realtime=False, world=QUAD_HOME, errand="none",
+               pack="demo", battery_fraction=0.15, max_sim_time=120.0,
+               overseer=False, thoughts_root=str(tmp_path / "thoughts"),
+               ledger_state=str(tmp_path / "ledger.json"),
+               board_state=str(tmp_path / "boards.json"),
+               spend_state=str(tmp_path / "spend.json"), stop_when=docked)
+  assert 0.15 * world_config(QUAD_HOME)["battery_wh"] < world_config(QUAD_HOME)[
+    "low_battery_wh"], "the premise: it starts below the floor"
+  assert "t" in seen, f"never charged on the dock: {states}, {r['sim_time']:.0f} sim s"
+  assert states[-2:] == ["GO_CHARGE", "CHARGE"], states
+  assert seen["posture"] == qb.LYING
+  assert seen["why"]["attempts"][-1]["why"] == "docked", seen["why"]
+  assert seen["gained"] > 0.03, "lying on the pins and nothing flowed"
+  assert r["dead"] is None and not r["deaths"]
