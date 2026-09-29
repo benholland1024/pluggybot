@@ -739,12 +739,15 @@ def getup_one(args) -> dict:
   legs), with the arm folded and held at its stow -- or, `arm` False, the
   placeholder the policy trained with."""
   trial, with_arm = args
+  from pluggybot.legs.model import SIZING
   from pluggybot.legs.model import body_xml as bx
   from pluggybot.legs.policy import POLICY_NPZ
   sys.path.insert(0, str(ROOT / "scripts"))
   import quad_spike as qs
   spec = am.ArmSpec()
-  model = mujoco.MjModel.from_xml_string(bx(CHOSEN, arm=am.arm_mjcf(spec) if with_arm else None))
+  # the premise is #377's placeholder: `CHOSEN` with no arm given carries its own
+  model = mujoco.MjModel.from_xml_string(
+    bx(CHOSEN, arm=am.arm_mjcf(spec)) if with_arm else bx(SIZING))
   data = mujoco.MjData(model)
   mujoco.mj_resetDataKeyframe(model, data, 0)
   rng = np.random.default_rng(1000 + trial)

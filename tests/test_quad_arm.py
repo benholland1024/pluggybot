@@ -242,6 +242,22 @@ def test_the_pack_bills_the_arms_two_motors(quad_world):
     body.close()
 
 
+def test_a_wait_after_a_move_keeps_the_pose(quad_world):
+  # A move held the rest reflex off but did not count as motion: a wait
+  # after it, 8.6 s from the last walk, lay the body down and folded the
+  # pose the program had just set (found in review).
+  body = _quad(quad_world)
+  try:
+    mis = body.mission
+    mis.last_motion_t = float(body.data.time) - 8.0     # stood a while
+    assert body.run(body.ramp_routine(body.actuator("arm_shoulder"), 2.6, 1.5))
+    aimed = mis.arm.goal.copy()
+    body.run(mis._drive_routine(3.0, 0.0, 0.0))          # the program waits
+    assert mis.posture == qb.STANDING and np.allclose(mis.arm.goal, aimed)
+  finally:
+    body.close()
+
+
 def test_a_save_mid_move_leaves_the_rest_reflex_on(quad_world):
   # A move held the posture with `want = "stand"`, which a save kept and a
   # crash-restart restored with no routine left to clear it: the robot never

@@ -70,9 +70,17 @@ job that needs one.
   own idea. Read the `procedure` events' sources and History's run lines
   for `shoulder` / `elbow`; a pose held and then walked out of is folded
   by the walk's verbs, and a move that cannot finish is a failed step.
-- **The served speed.** The arm's driver costs ~12 us a physics step a
-  robot (SimNotes, "The arm on the served body"); the pair's real-time
-  factor on the box should not move measurably.
+- **The served speed.** The arm is physics too -- each robot's 26 more
+  geoms, 6 degrees of freedom, 4 tendons and 2 equality constraints -- plus
+  a driver step a robot. Side by side on the dev machine, both under the
+  same load, the served pair free-ran at 0.82-0.83x real time on staging
+  and 0.80-0.81x with the arm: about 2.5 %, so #385's 1.14x on the box
+  should read near 1.11x. Read the frame gaps before believing a slower
+  stream is the arm.
+- **Walls.** The front stop moved from 0.45 m to 0.53 m, for the fork
+  (SimNotes, "The fork is the body's front"): the robots stop about 8 cm
+  further from a wall ahead, and their bumper should almost never fire
+  on a wall.
 
 **Not yet known.** What the robots make of an arm they are told cannot
 take a tool yet.

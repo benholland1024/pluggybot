@@ -213,8 +213,8 @@ class LegPack(Pack):
     self._lim = JointLimits.of(CHOSEN.motor, CHOSEN.knee_ratio)
     # ...and the arm's two (#405): the shoulder's, and the elbow's on the
     # forearm's absolute angle (its tendon's velocity)
-    self._arm = np.array([model.actuator(f"{prefix}arm_{n}").id
-                          for n in ("shoulder", "elbow")])
+    self._arm = tuple(int(model.actuator(f"{prefix}arm_{n}").id)
+                      for n in ("shoulder", "elbow"))
     arm = JointLimits.of(CHOSEN.arm.motor)
     self._arm_kt, self._arm_r = float(arm.kt[0]), float(arm.r_phase[0])
     self.base_w = float(sum(ELECTRONICS_W.values()))
@@ -222,12 +222,19 @@ class LegPack(Pack):
   def power_draw(self, data) -> float:
     tau = data.actuator_force[self._act]
     qd = data.qvel[self._vadr]
-    arm = data.actuator_force[self._arm]
-    arm_qd = data.actuator_velocity[self._arm]
+    copper, work = self._arm_w(data)
     return (self.base_w + float(self._lim.copper_w(tau).sum())
-            + float(np.clip(tau * qd, 0.0, None).sum())
-            + float((1.5 * self._arm_r * (arm / self._arm_kt) ** 2).sum())
-            + float(np.clip(arm * arm_qd, 0.0, None).sum()))
+            + float(np.clip(tau * qd, 0.0, None).sum()) + copper + work)
+
+  def _arm_w(self, data) -> tuple[float, float]:
+    """The arm's two motors' copper and shaft work, in floats: as numpy on
+    two elements they cost 6.3 us a step, for the same bits (the same
+    operations, summed in the same order)."""
+    f, v, c, kt = data.actuator_force, data.actuator_velocity, 1.5 * self._arm_r, self._arm_kt
+    s, e = self._arm
+    fs, fe = float(f[s]), float(f[e])
+    return (c * ((fs / kt) * (fs / kt)) + c * ((fe / kt) * (fe / kt)),
+            max(fs * float(v[s]), 0.0) + max(fe * float(v[e]), 0.0))
 
 
 class QuadStepper:
@@ -280,13 +287,19 @@ class QuadMission(ToolSwap, Navigator):
   #: middle of its footprint, 0.63 + 0.25 = 0.88 m, so 18.
   OTHER_ROBOT_CELLS = 14
   DOWN_ROBOT_CELLS = 18
-  #: The front stop, from the LIDAR on the rear mast. ⚠ UNDER THE CLEARANCE
-  #: THE PLANNER GRANTS: a centre 0.35 m from a wall (the inflation) puts
-  #: the LIDAR, 0.15 m behind it, 0.50 m from the wall, and a stop beyond
-  #: that fires on every waypoint the planner lays along one -- MEASURED at
-  #: 0.64 m, a drive toward the bedroom's divider backed off every second
-  #: for 135 s. At 0.45 m the nose (0.39 m ahead of the LIDAR) is 6 cm off.
-  FRONT_STOP_RANGE = 0.45
+  #: The front stop, from the LIDAR on the rear mast, 0.15 m behind the
+  #: centre. It fires before the FORK meets a wall (#405): the stowed arm's
+  #: fork is the body's front-most point, 0.35 m ahead of the centre and
+  #: 0.50 m ahead of the LIDAR, and at 0.45 m -- set for the nose, 0.39 m
+  #: ahead of it -- the fork met the wall first and the bumper backed one
+  #: walk off for 346 steps; at 0.53 it is 3 cm off and touched nothing.
+  #: ⚠ UNDER THE CLEARANCE THE PLANNER GRANTS: a waypoint 0.35 m from a
+  #: wall (the inflation) is dropped 0.08 m out, the LIDAR then 0.58 m from
+  #: the wall, and a stop beyond that fires on every waypoint the planner
+  #: lays along one -- MEASURED at 0.64 m, a drive toward the bedroom's
+  #: divider backed off every second for 135 s. A goal at the clearance
+  #: stops 3 cm short, inside `CLOSE_ENOUGH_M`.
+  FRONT_STOP_RANGE = 0.53
   #: ...tested over the CORRIDOR ahead, not the rover's 0.35 rad cone: the
   #: torso is 0.10 m either side of its line, and at 0.45 m the cone reaches
   #: 0.15 m out -- MEASURED, a wall alongside at 0.16 m fired it every scan,
@@ -730,6 +743,9 @@ class QuadMission(ToolSwap, Navigator):
     finally:
       self.working = was
       self.arm.slew = ARM_SLEW
+      # ...and a move is motion: the rest reflex counts from its end, or a
+      # wait after it lay the body down and folded the pose it had just set
+      self.last_motion_t = float(self.data.time)
     return self._still_aimed(aimed)
 
   def _still_aimed(self, aimed) -> bool:
