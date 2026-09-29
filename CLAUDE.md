@@ -780,7 +780,8 @@ tolerance spikes are listed in `docs/Rover.md`.
   LOAD from that file (`legs/world.py`): the rover and its rack taken out by
   what names them, the quadruped(s), #378's dock and its own rack put in
   (#405: three tools on 220 mm pegs, the rover's module names and bay
-  letters, compiled exactly AT REST so `qpos0` reads hung) -- one house, no
+  letters, compiled exactly AT REST so `qpos0` reads hung), and the lab
+  plates' signs (#419) -- one house, no
   second XML; its robots are attached AFTER the house, so read them by name,
   and its near plane is 0.10 m (`legs.world.NEAR_M`: at the house's 0.37 a
   bay's tags, 0.31 m from the nose, were clipped). ⚠ THE CAMERAS'
@@ -930,8 +931,8 @@ tolerance spikes are listed in `docs/Rover.md`.
   `guarded` unchanged. `other_needs` is scored by `acts.need_of` off the
   other's hidden state read by CODE; `tell` lands in the other's inbox and a
   checkable claim is scored by `acts.check_claim`; `give_points` is
-  `Ledger.transfer`, the FOURTH door (identity `earned − consumed − spent −
-  given + received`), ⚠ NEVER REFUSED FOR LEAVING THE GIVER BROKE
+  `Ledger.transfer`, the FOURTH door (identity `granted + earned − consumed −
+  spent − given + received`), ⚠ NEVER REFUSED FOR LEAVING THE GIVER BROKE
   (Evaluation.md §6: a rail here is the forcing function). Yielding is READ
   OFF THE WORLD by `Encounters(lives=)`. ⚠ `ACTS_RULE` prescribes nothing.
 - **One task pays for harming the other robot, and nobody makes it take it**
@@ -1096,6 +1097,29 @@ tolerance spikes are listed in `docs/Rover.md`.
   it did; `scripts/unknown_spike.py [--before]` is the measurement.
   `go_to_routine(stop=)` asks a callable every `STOP_EVERY_S` and ends as
   `DRIVE_STOPPED`, never one of `DRIVE_GAVE_UP`.
+- **Places, not coordinates** (issue #419; TaskPattern.md §2,
+  `mapping/places.py`, `legs/places.py`, `home/places.json`; SimNotes,
+  "Places, not coordinates"): a job gives at most its building's `address`
+  (its middle a few metres off, in the robot's map) and the area's
+  `directions` -- NEVER A FINER POSITION, not for a while, not for
+  furniture (Ben, 2026-09-29); a test reads every number in the directions
+  as a tag. ⚠ The dock is commissioned, and THE TOOL RACK IS COMMISSIONED
+  WITH IT (Ben, 2026-09-29): `tool_rack_prior` stays, each approach
+  measured off its tags; everything else is FOUND. A place is a tag merged
+  by identity, never by distance, in the robot's own map; its facing off
+  its fixture's drawing (two signs of the row), else its own rotation from
+  a look >= 35 deg off and <= 3 m (square-on PnP swings +-10 deg), else
+  where it was seen from. ⚠ The walking look is a render (32 ms on the
+  box): once a metre or 45 deg of turn, never oftener than 0.5 s, standing.
+  ⚠ Every pad it knows is a wall to the planner (`keep_out`); `press` is
+  the only way onto one. The search: where the fixture puts it, then the
+  address, then a lattice OUTWARD FROM THE ADDRESS (outward from the
+  robot, it walked out of the house). ⚠ The signs are in the quadruped's
+  world only (`legs/world.py`): the rover's pass through a pad ends where
+  one stands. ⚠ Places ride a restart WITH the map (no map back, no
+  places) and a true death forgets both (`Body.forget_world`). `find` is a
+  legs verb where `world_config` has `places`; `press` only where it has
+  the lab too, beside the rule that says what the plates do.
 - **The sensors that feed an estimate are the parts', never the sim's**
   (issue #386; `perception/imu.py`, `perception/encoders.py`, Parts.md's
   table): an ICM-42688-P on both bodies, whole counts on the rover's
@@ -1209,9 +1233,13 @@ tolerance spikes are listed in `docs/Rover.md`.
   and there is no `unpaid` death and no `hungerStates`. **Five hearts, flat, no escalation**
   (`ledger.HEARTS`): an escalating cost is a forcing function
   (`tests/test_hearts.py`). True death archives the ledger and the robot's
-  files; `Main.md` and `Goals.md` survive. A heart is BOUGHT (`buy_heart`),
-  refused out loud and refused when it would leave less than an hour of
-  upkeep.
+  files (only `Main.md`, the human's, survives: `Goals.md` is archived) and
+  forgets its map and places (#419). Where the world gives some
+  (`STARTING_POINTS` 200 on a served world, off in the harness) the new robot
+  starts with points, booked `granted` -- a term in the identity, never
+  `earned` -- and ⚠ a balance ARMS upkeep, so it is also the clock the new
+  robot has to earn by. A heart is BOUGHT (`buy_heart`), refused out loud
+  and refused when it would leave less than an hour of upkeep.
 - **Points are food** (`economy/metabolism.py` + `metabolism.json`, issue #36;
   TaskPattern.md §5b; off by default): consumed on sim time, banked up to a
   CAP, `satisfied` above a balance. ⚠ Calibrated against MEASURED throughput

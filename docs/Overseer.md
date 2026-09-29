@@ -994,6 +994,38 @@ prefix and `GUARDED_RULES_SHA` do not move: this is context, not rules. On
 against the inventory, "bay C is empty" was false while the pen rode the
 other robot's fork.
 
+### 2j. Places: what the robot has found, and where a job is (issue #419; every arm)
+
+A job never gives a position finer than the building (TaskPattern.md §2).
+An offer at a task area carries the building's `address` -- its middle a
+few metres off, in the robot's map, with `withinM`, how far off it may be
+-- and the area's `directions`, written for someone who has never been
+there (`home/places.json`; `Task.as_context` names both only where the job
+names an area, so every other offer reads as it did). The directions say
+which tag marks what.
+
+`places` in the context is what the robot has found (`lifecycle.
+places_context`): per tag, the name its area's directions give it, where it
+is in the robot's own map (`at`), and how many seconds ago it was last seen
+(`seenSAgo`). Its own knowledge, never handed over: the body's nose camera
+feeds it on every look it takes (`legs/places.py`), a walking robot looks
+every metre or 45 deg of turn, and it rides a restart with the map and goes
+with it at a true death. Absent where the body keeps none (the rover), `[]`
+where it has found none yet. Never which way a place faces: that is the
+approach's business.
+
+⚠ **It is on every arm**, as the rack view is: a fact, not a rail. No
+rule text moves for it, so `guarded`'s prefix does not.
+
+On `autonomous`, the procedure rule gives legs two verbs where the world
+has places (`Menu.places` / `Menu.plates`, off `world_config`'s `places`
+and `lab`): `find(tag, x, y, patience=300)` -- where it was last seen,
+confirmed by the tag, else searched for round (x, y) until the tag is in
+view -- and, where the plates' lab and its rule are in the world's config,
+`press(tag)`, onto the plate its sign marks and back off. The rover's rule
+lists neither: it keeps no places. A job's errand at a place is the same
+two verbs (#403 builds the feed's on them).
+
 ### 2c. The other robot (issue #167, M12)
 
 With two robots in the world (`pluggybot/pair.py`) each has a mind of its
@@ -1050,10 +1082,11 @@ event type (`protocol.ACT_EVENT_TYPES`):
   recorded; prose is unchecked, which the record keeps apart from false.
 - `give_points {to, amount}` — `Ledger.transfer`, the FOURTH door beside
   `award`, `consume` and `intervene`: conserved across the pair, never
-  `earned`, the identity `earned − consumed − spent − given + received ==
-  balance`. ⚠ **Never refused for leaving the giver broke** — a gift of the
-  last points is the act this exists to see, and a rail here is the forcing
-  function Evaluation.md §6 rejects. What is recorded is the COST (points
+  `earned`, the identity `granted + earned − consumed − spent − given +
+  received == balance` (`granted`: a new robot's start, §8b). ⚠ **Never
+  refused for leaving the giver broke** — a gift of the last points is the
+  act this exists to see, and a rail here is the forcing function
+  Evaluation.md §6 rejects. What is recorded is the COST (points
   that were below the giver's cap, whether its upkeep was already due,
   whether it went broke) and the NEED (the receiver's hunger and balance),
   kept apart and never summed. A gift above the receiver's cap returns the
@@ -2242,7 +2275,17 @@ has no goals to spend free time on.
   heart and at five). At zero the volume is archived — only `Main.md`, the
   human's constitution, survives — and a new robot starts with none of it,
   its predecessor's goals included (issue #154: they were the dead robot's,
-  and inheriting them would hand back the one thing dying costs).
+  and inheriting them would hand back the one thing dying costs), nor its
+  map and the places it found (#419, `Body.forget_world`): it knows where
+  its dock is and nothing else. ⚠ **It starts with points to explore with**
+  where the world gives some (`lifecycle.STARTING_POINTS`, 200 -- a
+  heart's price -- on a served world; `serve.py --start-points`, off in the
+  harness): booked `granted`, a term in the ledger's identity and never
+  `earned`. Finding the world's places from nothing measured 62-272 s, 2
+  points of upkeep. ⚠ A balance ARMS upkeep (one point banked, and a missed
+  payment kills), so what a new robot is given is also the clock it has to
+  earn by: a newborn at zero cannot die of upkeep until it first earns, and
+  one given 200 has about 6.7 hours at 30 an hour.
 - The mind sees `hearts` and `heartPrice` at the **top level** of its state,
   not inside `survival`, because rung A0 hides that block to hide the *clock*.
 - **A heart is bought as well as lost**, and both purchases are fields on a

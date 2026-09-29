@@ -231,12 +231,8 @@ class ToolSwap:
     return "budget"
 
   def _rack_back_out_routine(self) -> Routine:
-    x0, y0 = self.pose_xy()
-    t0 = float(self.data.time)
-    while (math.hypot(self.odo.x - x0, self.odo.y - y0) < BACK_OUT_M
-           and self.data.time - t0 < BACK_OUT_S):
-      yield from self._twist_routine(-rk.APPROACH_V, 0.0, 0.0)
-    yield from self._drive_routine(BACK_OUT_SETTLE_S, 0.0, 0.0)
+    return (yield from self._back_out_by_routine(BACK_OUT_M, BACK_OUT_S, rk.APPROACH_V,
+                                                 BACK_OUT_SETTLE_S))
 
   # ---- the fork ---------------------------------------------------------------
 

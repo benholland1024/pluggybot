@@ -137,23 +137,38 @@ anything over a network:
 
 A task description is a work order, and real robots receive those over WiFi —
 that is not cheating. Sensor data the robot should have to go and get *is*.
-Worked through the deliveries the current kinds actually make:
+
+**PLACES, NOT COORDINATES** (issue #419; Ben, 2026-09-29): a job gives, at
+most, the BUILDING's rough location and written DIRECTIONS, and never a
+position finer than the house — not even for a while, not even for
+furniture that never moves. What is finer the robot finds by the task
+area's tag, remembers itself (`mapping/places.py`), and approaches by
+sight. The positions the rover's jobs were handed stay the rover's until
+#376's stage C deletes it. Worked through what reaches a quadruped:
 
 | delivered to the robot | verdict | why |
 |---|---|---|
-| the description ("Draw the answer to this question on whiteboard_a: 2 + 3") | ✅ | a work order over a network |
-| which whiteboard, by id and pose | ✅ | surveyed infrastructure, same class as the charging rack — and the final approach is still sensed (`board_standoff()` / `drive_to_board()` square off against the board, they do not teleport to it) |
+| the description ("Feed the mouse in the lab's cage by pressing the feed plate…") | ✅ | a work order over a network |
+| the building's ADDRESS: its position a few metres off, and how far off it may be (`address`, `home/places.json`) | ✅ | what converting a street address gets, once the robot knows where its own dock is; its map is anchored at the dock, so the address arrives in the robot's map (`home.places`) |
+| the task area's DIRECTIONS: which house and room, what stands there, which tag marks which part (`directions`) | ✅ | what a person who has never been there could write; every number in them is a tag (`test_places.py` reads them) |
+| where its DOCK is | ✅ | commissioned: the owner installed it, and it is the map's origin (#378) |
+| where its TOOL RACK is (`tool_rack_prior`) | ✅ | commissioned WITH the dock (Ben, 2026-09-29): the owner installs both, so knowing where the rack is is knowing where the charger is — and each approach is still measured off the rack's own tags |
+| where a task area is — a plate, a whiteboard, the bench (on legs) | ❌ | found by its tag, searched for round the address, remembered (`legs/places.py`); handed over in the world's frame, its drift is the plate's: #414's 0.45 m put a foot on the shock plate |
+| where the robot found a place before (the `places` block) | ✅ | not a delivery: its own knowledge, in its own map, forgotten at a true death |
+| another robot's reported pose (`others`) | ✅ | what the other robot says on the network, never a sensor's |
 | the answer to the question | ✅ | cognition, not perception — supplying it is what the mind is *for* (§2.1) |
 | which cube is which, by tag, and what the known one weighs (#227) | ✅ | the work order's own terms; the unknown's mass is the secret, drawn per offer and set into the world |
-| where the workbench stands (`lab.bench` in the context) | ✅ | surveyed furniture, the whiteboard's class; the cubes' poses are not delivered — finding them is the job |
 | whether the board is already clean | ❌ | the robot owns board state (`tools/boards.py` — written on every stroke, survives restarts); it should know from its own actions, and the drawing errand erases first precisely so it need not be told |
 | the pose of a movable object | ❌ | finding it *is* the task — see the perception ladder, §3 |
 | the true count in a census | ❌ | hidden ground truth, already correctly redacted (`Task.secret`, `Verdict.secret`) |
 
 The test for a new delivery is the middle column of the first row against the
 last: *could a dispatcher who cannot see the room have written this?* A
-question, a target id, a deadline, a payout tier — yes. The state of the
-world the robot is being sent into — no.
+question, a target id, a deadline, a payout tier, the house's address and
+how to find things inside it — yes. Where in the room the thing is, and the
+state of the world the robot is being sent into — no. Which positions the
+quadruped's code still hands over, and the issue that retires each, is the
+audit on #419.
 
 ### 2.1 Where the rule is enforced, structurally
 
@@ -269,10 +284,11 @@ at any tier; the module still states tier 1, because the moment the job is
 offered the blocks must be findable, and the tags come with the procedure
 that finds them.
 
-The ladder is also the reason the rule's second ✅ row is safe: a whiteboard's
-pose is tier-0 — *immovable, surveyed infrastructure* — and delivering it is
-the same class of fact as delivering the rack's position. The moment the
-target can move, its pose climbs the ladder and stops being deliverable.
+Immovable infrastructure sits on the ladder's first rung too, once the
+robot has legs (#419): a whiteboard or a plate carries a tag and is found
+once and remembered, where the rover was handed its pose. The one thing
+below the ladder is what the owner commissioned — the dock, and the rack
+installed with it. A target that can move climbs the ladder from there.
 
 ---
 
@@ -486,6 +502,14 @@ Three questions, answered in the kind's comment before anything is coded:
 - **What may the offer deliver, and what must stay hidden?** Walk your
   deliveries through the §2 table. Anything hidden goes in `secret` at
   `offer()` time and in the reward row's `secret` tuple.
+- **Where is the job, and how does a robot that has never been there find
+  it?** (#419) The target names a task AREA with an entry in
+  `home/places.json` -- its building and its directions, every number in
+  them a tag -- and the producer puts its `address` and `directions` on the
+  offer; its fixture carries a tag the body's cameras read from across the
+  room (`scripts/places_spike.py --tags` measures one), and the errand is
+  `find(tag, address)` before whatever it does there. A position finer than
+  the house in the template, the params or the program is the §2 table's ❌.
 - **Which of the four tiers scores it** — `auto`, `hidden`, `visitor`
   (verdict pending until a rating arrives), `narrative` (never scored, and
   then it is not a task)?

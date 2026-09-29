@@ -635,10 +635,11 @@ def build_record(config: dict, result: dict | None, events: list[dict],
   ledger_ok = None
   if result is not None and metab:
     # `given` and `received` (issue #208) are terms since a robot could
-    # hand points to the other; a record from before carries neither and
-    # the identity reads as it always did.
-    ledger_ok = ((result["earned"] - metab["consumed"] - metab["spilled"]
-                  - result.get("given", 0) + result.get("received", 0))
+    # hand points to the other, and `granted` (#419) since a new robot may
+    # start with some; a record from before carries none of them and the
+    # identity reads as it always did.
+    ledger_ok = ((result.get("granted", 0) + result["earned"] - metab["consumed"]
+                  - metab["spilled"] - result.get("given", 0) + result.get("received", 0))
                  == result["points"])
   errands = [{"name": e["errand"], "module": e.get("module"),
               "picked": bool(e["picked"]), "stowed": bool(e["stowed"]),

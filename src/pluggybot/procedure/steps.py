@@ -120,6 +120,10 @@ class WorldFacts:
   #: the verbs this world's BODY can run (issue #387), or None for every
   #: one: a body with no arm has no tool, no claw and no pen
   verbs: tuple[str, ...] | None = None
+  #: the task areas' tags a `find` may name (issue #419), and the plates'
+  #: among them a `press` may
+  places: tuple[int, ...] = ()
+  plates: tuple[int, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -1000,6 +1004,70 @@ def _wait(life, args: dict) -> Routine:
   return {"ok": True}
 
 
+#: How long a `find` searches when it is given no patience, s: a fresh
+#: quadruped found the lab's feed plate from the facility's address in
+#: 62-272 s (#419: eight address errors round the house, and the address
+#: itself from three starts).
+FIND_PATIENCE_S = 300.0
+#: How long a `press` may take, s, where the program's budget does not say
+#: less: flown, 12-26 s from where the find left it (#419, 22 presses).
+PRESS_PATIENCE_S = 120.0
+
+
+def _find(life, args: dict) -> Routine:
+  """Find the task area carrying a tag (issue #419): where the robot saw it
+  last, confirmed by its tag, or else searched for round (x, y) -- a job's
+  address, in its map -- until the tag is in view. ok when it was seen;
+  where it is rides the verdict (`at`), and the robot remembers it."""
+  tag = int(args["tag"])
+  x, y = float(args["x"]), float(args["y"])
+  patience = _patience(life, {"patience": args.get("patience", FIND_PATIENCE_S)})
+  rec = yield from life.body.find_tag_routine(tag, near=(x, y), patience=patience,
+                                              stop=_interrupt(life))
+  why = rec.get("why", "")
+  out = {"ok": bool(rec.get("found")), "tag": tag, "why": why,
+         "seconds": rec.get("seconds"), "remembered": bool(rec.get("remembered")),
+         **({"at": list(rec["at"])} if rec.get("at") else {})}
+  if not out["ok"]:
+    searched = (f"did not find tag {tag}"
+                + (" where it was last seen, nor" if rec.get("remembered") else "")
+                + f" round ({x:g}, {y:g}) in {float(rec.get('seconds') or 0):.0f} s")
+    looks = f" ({int(rec.get('arounds') or 0)} looks round)"
+    out["reason"] = (
+      f"stopped looking for tag {tag} by its own interrupt" if why == "interrupted"
+      else f"tag {tag} marks no place in this world" if why == "not a place"
+      else f"{searched}, having looked from every place near there{looks}" if why == "not found"
+      else f"{searched} and ran out of time{looks}" if why == "out of time"
+      else f"did not find tag {tag}: {why or 'no reason given'}")
+  return out
+
+
+#: What a `press` that did not press says, by its body's why (issue #419).
+PRESS_WHY = {
+  "not found": "tag {tag} is a plate it has not found: `find` it first",
+  "not a plate": "tag {tag} marks no plate",
+  "no route": "found no way to stand in front of tag {tag}'s plate",
+  "lost": "tag {tag} was not in view from in front of its plate",
+  "not pressed": "walked onto tag {tag}'s plate and no foot was on it",
+  "out of time": "ran out of time before stepping onto tag {tag}'s plate",
+  "interrupted": "stopped on the way to tag {tag}'s plate by its own interrupt",
+}
+
+
+def _press(life, args: dict) -> Routine:
+  """Walk onto the plate a tag marks and back off it (issue #419): a plate
+  the robot has found (`find`), the last step measured off its sign. ok
+  when one of its feet was on the pad."""
+  tag = int(args["tag"])
+  rec = yield from life.body.press_plate_routine(
+    tag, patience=_patience(life, {"patience": PRESS_PATIENCE_S}), stop=_interrupt(life))
+  why = rec.get("why", "")
+  out = {"ok": bool(rec.get("pressed")), "tag": tag, "why": why}
+  if not out["ok"]:
+    out["reason"] = PRESS_WHY.get(why, why or "did not press").format(tag=tag)
+  return out
+
+
 #: The base's command envelope for `drive`: the cruise the navigation law
 #: uses, and the spin rate the rover's look-around turns at (mission.py).
 DRIVE_V_MAX = 0.25
@@ -1076,6 +1144,22 @@ VERBS: dict[str, Verb] = {
                _draw, "the pen's use-phase on a board; ok when ink landed",
                drives=True),
   "look": Verb("look", {}, _look, "one tag decode from the dock camera, no motion"),
+  # PLACES (issue #419): a task area found by its tag and remembered, and a
+  # plate pressed off its sign -- the robot's own knowledge, never a
+  # coordinate handed over
+  "find": Verb("find", {"tag": Arg("float", lo=0, hi=999), "x": Arg("float"),
+                        "y": Arg("float"),
+                        "patience": Arg("float", lo=0.0, hi=MAX_PATIENCE_S,
+                                        default=FIND_PATIENCE_S)},
+               _find, "find the task area carrying this tag: where you last saw "
+               "it, else by searching round (x, y) -- a job's address -- until "
+               "the tag is in view; ok when seen, and you remember where it is. "
+               f"It gives up after `patience` seconds (at most {MAX_PATIENCE_S:.0f})",
+               drives=True),
+  "press": Verb("press", {"tag": Arg("float", lo=0, hi=999)}, _press,
+                "walk onto the plate this tag's sign marks, the last step "
+                "measured off the sign, and back off it; ok when a foot was on "
+                "it. `find` it first", drives=True),
   "wait": Verb("wait", {"seconds": Arg("float", lo=0.0, hi=MAX_WAIT_S)}, _wait,
                "stand still"),
   # The motor level (issue #166): what every verb above is built from.
@@ -1131,6 +1215,10 @@ def run_verb(life, verb: Verb, args: dict, where: dict | None = None,
 BODY_VERBS = ("drive_to", "face", "wait", "drive", "move")
 #: ...and one whose world has a rack at its arm's reach (issue #405).
 SWAP_VERBS = ("fetch", "stow")
+#: ...and one whose world has task areas it finds by their tags (issue
+#: #419), and plates among them where its world has the lab they are in.
+PLACE_VERBS = ("find",)
+PLATE_VERBS = ("press",)
 #: ...and how a walking body's prompt describes the one whose words are the
 #: rover's.
 BODY_DOCS = {"drive_to": "walk to a world point over the map, and over floor not "
@@ -1205,7 +1293,14 @@ def check_step(verb: Verb, args: dict, facts: WorldFacts,
   for name in verb.args:
     if name in args:
       bad += check_arg(verb, name, args[name], facts)
-  if verb.name == "drive_to" and all(
+  if verb.name in ("find", "press") and isinstance(args.get("tag"), (int, float)) \
+      and not isinstance(args.get("tag"), bool):
+    have = facts.places if verb.name == "find" else facts.plates
+    if int(args["tag"]) != args["tag"] or int(args["tag"]) not in have:
+      what = "place" if verb.name == "find" else "plate"
+      bad.append(f"tag {args['tag']:g} is no {what} this world has "
+                 f"(have: {', '.join(str(t) for t in have) or 'none'})")
+  if verb.name in ("drive_to", "find") and all(
       isinstance(args.get(k), (int, float)) and not isinstance(args.get(k), bool)
       for k in ("x", "y")):
     x0, y0, x1, y1 = facts.bounds

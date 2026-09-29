@@ -300,21 +300,31 @@ def fit_dock(seen: dict[int, tuple[float, float]],
   return DockFix(float(t[0]), float(t[1]), yaw, len(ids), rms)
 
 
-def seen_from(model, data, detections: dict, camera: str,
-              root_body: int) -> dict[int, tuple[float, float]]:
-  """Decoded tags as horizontal (x, y) in the body's HEADING frame: origin at
-  the root, x forward, levelled by the IMU's gravity. A detection's "t" is
-  the camera's OpenCV frame (x right, y down, z forward); the camera's mount
-  on the torso is the robot's own kinematics, read off the model."""
+def camera_mount(model, data, camera: str,
+                 root_body: int) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+  """The camera on the body, for a decode: `(level, r_mount, p_mount)` --
+  its mount in the root's frame, the robot's own kinematics read off the
+  model (fixed; never typed), and the rotation that levels the root's frame
+  by its roll and pitch, which gravity gives the IMU. A MuJoCo camera-frame
+  point v is at `level @ (r_mount @ v + p_mount)` in the HEADING frame;
+  `seen_from` and the places' looks (`legs.places`) read tags through it."""
   cam = model.camera(camera).id
   rot = data.xmat[root_body].reshape(3, 3)
-  # The mount: the camera in the root's frame (fixed; read, never typed).
   p_mount = rot.T @ (data.cam_xpos[cam] - data.xpos[root_body])
   r_mount = rot.T @ data.cam_xmat[cam].reshape(3, 3)
-  # Level it: the torso's roll and pitch, which gravity gives the IMU.
   yaw = math.atan2(rot[1, 0], rot[0, 0])
   c, s = math.cos(yaw), math.sin(yaw)
   level = np.array([[c, s, 0.0], [-s, c, 0.0], [0.0, 0.0, 1.0]]) @ rot
+  return level, r_mount, p_mount
+
+
+def seen_from(model, data, detections: dict, camera: str,
+              root_body: int) -> dict[int, tuple[float, float]]:
+  """Decoded tags as horizontal (x, y) in the body's HEADING frame: origin at
+  the root, x forward, levelled by the IMU's gravity (`camera_mount`). A
+  detection's "t" is the camera's OpenCV frame (x right, y down, z
+  forward)."""
+  level, r_mount, p_mount = camera_mount(model, data, camera, root_body)
   out = {}
   for tag_id, det in detections.items():
     tx, ty, tz = det["t"]

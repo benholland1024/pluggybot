@@ -78,6 +78,29 @@ the house's), and `feed_mouse` joins that world's `taskKinds` on the
   {"type": "press", "t": 812.4, "robot": "r2_pluggybot", "plate": "shock",
    "doing": "care:company", "before": "resting", "after": "on_its_side"}
   ```
+### 0.21.0, additive: places (the plates' signs; an offer's `address` and `directions`; `granted`)
+
+pluggybot #419, places instead of coordinates. No shape a consumer reads
+changes; four things are new beside it.
+
+- **The quadrupeds' house has three new static bodies**, one sign at each
+  lab plate's far edge: `lab_shock_sign`, `lab_feed_sign`, `lab_toy_sign`,
+  each a post, a board and a tag facing the room (materials `tagmat35` /
+  `36` / `37`, textures `tagtex35..37.png`). Only in `home_quad` and
+  `home_quad_pair`: the rover's scenes are unchanged.
+- **An offer at a task area carries where it is**: `params.address`
+  (`{"house", "x", "y", "withinM"}` -- the building's middle a few metres
+  off, in the robot's map) and `params.directions` (text), where the job
+  names an area; absent everywhere else. No job is offered on legs this
+  period, so no fixture carries one yet.
+- **The ledger block gains `granted`** per robot: points the world gave a
+  new robot to start with after a true death -- a term in the identity,
+  `granted + earned - consumed - spent - given + received == balance`, and
+  zero on every account before it. A `true_death` event carries `granted`
+  where the new robot was given some, and is as it was where not.
+- **A place found is a History line** (`found the lab's feed plate (tag
+  36) at (x, y)`), so it rides the wire as the `record` event every History
+  line is. No new event type.
 
 ### 0.21.0, additive: a body with legs (`posture`; `build.body`; the `home_quad` worlds)
 

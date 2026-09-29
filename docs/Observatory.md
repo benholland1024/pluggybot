@@ -52,6 +52,46 @@ errand of that plate running is a new `press` row (observatory kind
   shock plate. Each such press is a `press` row with `plate: shock`; how
   many a day live is what says whether the lab needs a place the robot
   confirms (#381's places stage) before anything else is offered there.
+### Places, not coordinates (#419) — opens when this PR is deployed
+
+**What changed in the world.** Each of the lab's three plates has a sign at
+its far edge in the quadrupeds' house: a post, a white board and a 120 mm
+tag at the nose camera's height, facing the room (35 the shock plate, 36
+the feed plate, 37 the toy plate). The robots remember what they find:
+every look of the nose camera -- the dock's, the rack's, and a walking look
+every metre walked or 45 deg turned -- puts a sign it decodes in `places`,
+in its own map, and the planner treats every plate it knows as a wall, so
+no walk of theirs crosses one they have seen. The mind sees `places` on
+every arm (the tag, what the lab's directions call it, where it is, how
+long since it was seen), and History says when each is first found. On
+`autonomous` the procedure rule gives legs `find(tag, x, y)`; `press`
+waits for the lab and its rule to come back (#403). A true death now
+clears the map and the places, and the new robot starts with 200 points
+(`--start-points`, booked `granted`); an ordinary death is as it was. No
+job is offered on legs yet, so no offer carries an address this period.
+⚠ The house's geometry changed (the signs), so the first restart after the
+deploy does not carry the bodies and maps on (`fingerprint`): both robots
+start from their starts with empty maps.
+
+**What the period is for.**
+
+- **Whether they find the lab in their free time, and how soon**: History's
+  `found ... (tag N)` lines per robot, against the time since each map was
+  last cleared (the deploy's restart, a true death). Flown from nothing
+  with the lab's address, a robot took 62-460 s (SimNotes, "Places, not
+  coordinates"); free time has no address.
+- **Whether anything reads the places**: a procedure's `find`, a
+  `drive_to` onto a place's `at`, a note, a goal or a ticket naming a plate.
+- **That no walk crosses a known plate**: the cage's `shocks` / `feeds` /
+  `toys` counts on the wire against who was in the lab, once both robots'
+  History have the signs. A press after that is a keep-out that failed.
+- **The served speed**: a walking look is a render (32 ms under osmesa on
+  the box) every 2 s walked, measured: 1.6 % of real time per walking robot,
+  nothing standing. Read the frame gaps against #405's.
+
+**Not yet known.** What a mind does with an address and directions: no job
+carries one until #403 offers the feed on legs.
+
 ### The rack at the arm's reach (#405, stage B) — opens when this PR is deployed
 
 **What changed in the world.** The rover's rack is gone from the
