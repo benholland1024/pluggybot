@@ -28,7 +28,7 @@ produce identical recordings, identical panels, and identical impressions in a
 watcher. The same holds for self-preservation and for the appetite loop.
 
 ⚠ **A SINGLE RUN IS NOT EVIDENCE HERE, AND THIS REPO ALREADY KNOWS IT.**
-`test_full_hub_lifecycle[home]` has measured 157 s, 250 s and 369 s on three
+`test_full_hub_lifecycle` has measured 157 s, 250 s and 369 s on three
 different days for the same code. Mission runtime is *emergent* — the loop
 runs until the battery cycle completes, so any change reshuffles the whole
 trajectory. Watching one run and forming an impression is the failure mode
@@ -96,8 +96,8 @@ stream comes to claim an arm nobody flew. An arm also carries an **origin**
 1. A survival number from `autonomous` means nothing without the same world
    run with the rails on.
 2. `test_charge_priority_survives_an_overseer_that_never_charges` and
-   `test_an_overseer_that_only_ever_picks_the_dearest_errand_never_dies` are
-   the only two ways to prove an LLM cannot skip charging. They are assertions
+   `test_an_overseer_that_only_ever_picks_the_dearest_errand_is_sent_to_charge_first`
+   are the only two ways to prove an LLM cannot skip charging. They are assertions
    about the `guarded` arm and stop meaning anything if the rail becomes
    optional everywhere.
 
@@ -128,18 +128,18 @@ it prices the *next job* against what is left, which is exactly the reasoning
 we want to find out whether a model can do. On `guarded` the model gets credit
 for arithmetic that code performed on its behalf.
 
-⚠ **THE FLOWN PROOF THAT THE GATE SAVES THE ROBOT NO LONGER GATES THE
-DEFAULT TEST RUN** (issue #158, Ben 2026-09-12). `test_an_overseer_that_only
-_ever_picks_the_dearest_errand_never_dies` — an overseer answering `census`
-to every question, the robot deferring, charging and completing two — is
-behind `--endurance`, with the gate's inequality pinned by a fast test in
-its place. The reason is a design decision rather than a speed one: while
-the design is still moving, a pack generous enough to fund any single
-errand is *assumed*, and a battery death costs a heart rather than the
-world, so the gate is no longer what stands between the robot and a corpse.
-The rails still exist and are still measured off (the `autonomous` arm
-still removes all three); what changed is how much of every test run is
-spent proving the second one end to end. Run it before a release.
+⚠ **THE PROOF THAT THE GATE SAVES THE ROBOT IS A DAY ON THE STUB, NOT A
+FLIGHT** (issues #158, #380). `test_an_overseer_that_only_ever_picks_the_
+dearest_errand_is_sent_to_charge_first` — an overseer answering `census` to
+every question, on a pack just short of it: deferred, charged, then run —
+is in the default run, beside the gate's inequality; what a real census
+costs against the table is `scripts/energy_spike.py`'s measurement. Nothing
+flies it end to end, by a design decision (Ben, 2026-09-12): while the
+design is still moving, a pack generous enough to fund any single errand is
+*assumed*, and a battery death costs a heart rather than the world, so the
+gate is no longer what stands between the robot and a corpse. The rails
+still exist and are still measured off (the `autonomous` arm still removes
+all three).
 
 ### The prompt is part of the arm, not a later refinement
 

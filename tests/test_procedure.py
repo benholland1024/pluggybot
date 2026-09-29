@@ -482,28 +482,76 @@ def test_the_fence_sees_a_write():
   assert not _writes_ctrl(ast.parse("x = d.ctrl[3]"))
 
 
-# ---- the integration, on demand -------------------------------------------------
+# ---- the vocabulary is complete enough to draw ------------------------------------
 
 
-@pytest.mark.endurance
-def test_a_composed_draw_produces_the_native_drawings_board_result():
-  """The vocabulary is complete enough when a drawing composed from it lands
-  the same ink as the native errand: same world, same start, same steps in
-  the same order -- fetch, the standoff drive, the board, stow -- so on a
-  deterministic world the board book should carry the same strokes."""
+class _Pen:
+  """The plotter, faked: squares up at once and draws the figure it is
+  handed into `on_stroke`, stroke by stroke -- the ink is the FIGURE's, so
+  two errands that ask for one figure on one board land the same strokes.
+  The real pen's own tests are what say the ink lands where it is sent."""
+
+  pen_act = 0
+
+  def __init__(self, said: list, board) -> None:
+    self.said, self.board = said, board
+    self.on_stroke = self.should_stop = None
+    self.squared = True
+
+  def drive_to_board_routine(self):
+    self.said.append(("square_up", self.board.x, self.board.y))
+    return True
+    yield
+
+  def draw_program_routine(self, figure):
+    self.said.append(("draw", figure.name, len(figure.strokes)))
+    for i, stroke in enumerate(figure.strokes):
+      self.on_stroke(i, [tuple(map(float, p)) for p in stroke], figure.name)
+    n = len(figure.strokes)
+    return {"drew": True, "strokes": n, "strokes_drawn": n}
+    yield
+
+  def carry_config_routine(self):
+    return
+    yield
+
+  def ramp_routine(self, *a, **kw):
+    return
+    yield
+
+
+def test_a_composed_draw_commands_what_the_native_drawing_does(monkeypatch):
+  """The vocabulary is complete enough when a drawing composed from it --
+  fetch, the standoff drive, the board, stow -- commands the body and the
+  pen exactly as the native errand does: the pen from its bay, the same
+  standoff, the same figure on the same board, the pen hung back; and so
+  lands the same strokes. Nothing steps: the swaps, drives and ramps are
+  stubs and the pen is `_Pen`.
+
+  Shown to fail by making `steps._draw` ignore the figure it was named.
+  """
   from pluggybot.lifecycle import board_book, draw_errand_for
   from pluggybot.tools.drawing import Board, board_standoff
 
   def fly(build):
     life = _life("home")
     life.boards = board_book("home")
-    cfg = world_config("home")
-    life.body.start_at(*cfg["start"])
-    life.body.start_discovery()
-    life.body.mission._spin()
-    life.run_errand(build(life))
+    _stub_swaps(life, monkeypatch)
+    for posing in ("ramp_routine", "settle_routine", "retract_arm_routine"):
+      setattr(life.body, posing, lambda *a, **kw: tick.result(None))
+    said: list = []
+    life.body.tool = lambda module, board=None, **kw: _Pen(said, board)
+    for name in ("fetch_tool_routine", "go_to_routine", "stow_tool_routine"):
+      def spy(*a, _real=getattr(life.body, name), _name=name, **kw):
+        if said[-1:] != [(_name, *a)]:
+          said.append((_name, *a))
+        return (yield from _real(*a, **kw))
+      setattr(life.body, name, spy)
+    result = life.run_errand(build(life))
+    assert result["stowed"] and not result.get("error"), result
+    assert float(life.data.time) == 0.0, "something stepped the physics"
     rec = life.boards["whiteboard_a"]
-    return rec.strokes, [ln["points"] for ln in rec.lines]
+    return said, rec.strokes, [ln["points"] for ln in rec.lines]
 
   native = fly(lambda life: draw_errand_for("home", life.boards, "whiteboard_a",
                                             program_name="sun"))
@@ -514,5 +562,8 @@ def test_a_composed_draw_produces_the_native_drawings_board_result():
     Step("drive_to", {"x": sx, "y": sy}),
     Step("draw", {"figure": "sun", "board": "whiteboard_a"}),
     Step("stow")]), task="draw"))
-  assert composed[0] == native[0] > 0
-  assert composed[1] == native[1]
+  assert composed[0] == native[0], f"{composed[0]} != {native[0]}"
+  assert [c[0] for c in native[0]] == ["fetch_tool_routine", "go_to_routine",
+                                       "square_up", "draw", "stow_tool_routine"]
+  assert composed[1] == native[1] > 0
+  assert composed[2] == native[2]

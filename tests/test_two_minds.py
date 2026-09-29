@@ -5,8 +5,6 @@ wallets, one job board, and what each mind is told about the other.
 import hashlib
 import json
 
-import pytest
-
 from pluggybot.lifecycle import others_context, overseer_context
 from pluggybot.mind import overseer as ov
 from pluggybot.mind.overseer import Menu, Overseer
@@ -92,27 +90,54 @@ def test_what_a_mind_is_shown_of_the_other_is_the_public_surface_only():
   assert overseer_context(a)["others"][0]["name"] == "Rowan"
 
 
-@pytest.mark.endurance
-def test_two_scripted_minds_run_a_day_and_keep_their_own_books(tmp_path):
-  """Both overseers on `guarded` with fake clients: each robot's decisions
-  carry its own source, each banks into its own wallet, and both are
-  alive when the first has fetched and stowed its tool. ~4 min of two
-  robots' physics, behind --endurance: every rule it exercises is pinned
-  above in milliseconds."""
-  from test_event_map import attach
+def test_two_minds_keep_their_own_books_through_one_loop(tmp_path):
+  """Two lifecycles with a mind each, ticked by `run_pair` on stub bodies
+  sharing one clock (issue #380): each robot's decisions are its own
+  mind's, the SECOND robot's carry pays the second robot only, and each
+  writes its own History. The wiring `build_pair` gives a pair is pinned
+  above; this is one loop not crossing it.
+
+  Shown to fail by letting `Account` leave `robot` unfilled: every
+  earning then lands on the first robot.
+  """
+  from pluggybot.body import StubBody
+  from pluggybot.economy.ledger import Account
+  from pluggybot.lifecycle import points_ledger, world_config
+  from pluggybot.mind.thoughts import ThoughtFiles
+  from pluggybot.mission.errand import carry_errand
+  from pluggybot.robot import FIRST, SECOND
+  from test_body import stub_life
   from test_overseer import FakeClient, full
-  lives = build_pair("room_hub", pack="hosting", errands=("carry", "none"),
-                     overseer=True, tasks=True,
-                     thoughts_root=str(tmp_path / "t"),
-                     ledger_state=str(tmp_path / "ledger.json"))
-  for life in lives:
-    attach(FakeClient(full(action="idle", reason="watching the other")))(life)
-  results = run_pair(lives, max_sim_time=200.0,
-                     stop_when=lambda ls: ls[0].swaps_done >= 2)
-  assert results[0]["swaps_done"] >= 2 and all(r["dead"] is None for r in results)
-  assert results[0]["points"] > 0, "the carry paid the first robot"
-  assert results[1]["points"] == 0, "...and only the first robot"
+  cfg = world_config("room_hub")
+  model, data = StubBody.world()                  # one world, one clock
+  book = points_ledger(str(tmp_path / "ledger.json"), robots=(FIRST.root, SECOND.root))
+  lives = []
+  for handle, name, other, root, errands in (
+      (FIRST, "Pluggy", "Rowan", tmp_path / "t", []),
+      (SECOND, "Rowan", "Pluggy", tmp_path / "t" / SECOND.root,
+       [carry_errand(use_at=cfg["use_at"])])):
+    memory = ThoughtFiles(str(root), robot=handle.root)
+    wallet = Account(book, handle.root)
+    mind = ov.build("room_hub", None, enabled=True, thoughts=memory, robot_name=name,
+                    ledger=wallet, others=(other,),
+                    client=FakeClient(full(action="idle", reason=f"{name} watching")))
+    body = StubBody(model, data, handle=handle, rack=cfg["rack"],
+                    grid_bounds=cfg["grid_bounds"])
+    lives.append(stub_life("room_hub", body=body, handle=handle, robot_name=name,
+                           ledger=wallet, overseer=mind, thoughts=memory,
+                           errands=errands))
+  a, b = lives
+  a.peers, b.peers = [b], [a]
+  assert a.overseer.others == ("Rowan",) and b.overseer.others == ("Pluggy",)
+  # The claim ends the day; the budget has room for late answers, which on
+  # the stub are SIM time.
+  results = run_pair(lives, max_sim_time=600.0, stop_when=lambda ls: (
+    ls[1].swaps_done >= 2 and all(len(life.decisions) >= 2 for life in ls)))
+  assert results[1]["swaps_done"] >= 2 and all(r["dead"] is None for r in results)
+  for r, name in zip(results, ("Pluggy", "Rowan")):
+    llm = [d for d in r["decisions"] if d["source"] == "llm"]
+    assert llm and all(d["reason"] == f"{name} watching" for d in llm), r["decisions"]
+  assert results[1]["points"] > 0, "the carry paid the second robot"
+  assert results[0]["points"] == 0, "...and only the second robot"
   assert (tmp_path / "t" / "History.md").exists()
-  assert (tmp_path / "t" / "r2_pluggybot" / "History.md").exists()
-  second = results[1]["decisions"]
-  assert second and any(d["source"] == "llm" for d in second)
+  assert (tmp_path / "t" / SECOND.root / "History.md").exists()
