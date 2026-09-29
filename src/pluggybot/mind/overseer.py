@@ -1060,12 +1060,15 @@ class Menu:
   #: site draws it? The same arm, for the same reason: the `look` action,
   #: the `seen` block, `looksLeft` and the rule all key off it.
   look: bool = False
-  #: Can this world's BODY take a tool (issue #387)? The rover can; the
-  #: quadruped cannot until its arm (#378), and is not offered an errand
-  #: that needs one -- carrying, dancing with the screen, drawing, the
+  #: Is this world's BODY offered the errands a tool makes (issue #387)?
+  #: The rover is; the quadruped is not until its tools are rebuilt on its
+  #: peg (#406, #407) -- carrying, dancing with the screen, drawing, the
   #: census. The world's (`world_config`'s `tools`), so every arm's menu
   #: in a rover world is what it was.
   tools: bool = True
+  #: ...whether a program may fetch and stow its rack's tools (issue #405:
+  #: the quadruped's arm, a rack at its reach), `world_config`'s `swap`...
+  swaps: bool = True
   #: ...and which body it is (issue #387): the rules say where a robot
   #: charges and how it dies in its own body's words (`for_body`).
   body: str = "rover"
@@ -1093,7 +1096,8 @@ class Menu:
                             if n not in ("text", "answer")))
     menu = cls(boards=tuple(book.names) if book is not None else (),
                programs=programs, zones=zones, census_zone=census,
-               tools=cfg.get("tools", True), body=cfg.get("body", "rover"))
+               tools=cfg.get("tools", True), body=cfg.get("body", "rover"),
+               swaps=cfg.get("swap", cfg.get("tools", True)))
     # Priced off the same table the mission loop refuses errands with, so the
     # model is never shown a cost the gate disagrees with.
     from pluggybot.economy import energy as energy_model
@@ -2872,13 +2876,12 @@ SENSORS for `read("<sensor>")` -- one number, measured
 """
 
 
-#: The rule as a body that takes NO TOOL reads it (issue #387): an example
-#: that walks and waits, no tool to hang back, and only the verbs, axes and
-#: sensors it has (`steps.BODY_VERBS`; the quadruped's arm, issue #405:
-#: `axes.ARM_JOINTS`, `axes.LEGS_SENSORS`) -- the validator refuses the
-#: rest with the reason.
-_LEGS_SWAPS = (
-  ("""      n = 0
+#: The rule as a LEGGED body reads it (issues #387, #405): an example in
+#: its own verbs, and only the verbs, axes and sensors it has
+#: (`steps.BODY_VERBS`, and `SWAP_VERBS` where a rack is at its arm's reach;
+#: the arm's `axes.ARM_JOINTS`, `axes.LEGS_SENSORS`) -- the validator
+#: refuses the rest with the reason. `swaps`: its world has that rack.
+_ROVER_EXAMPLE = """      n = 0
       fetch("module_lcd")
       for i in range(4):              # a literal count
           drive(0.0, 0.8, 1.5)        # v m/s, w rad/s, seconds
@@ -2889,28 +2892,47 @@ _LEGS_SWAPS = (
           move("arm", read("arm") + 0.01)    # a ramped setpoint on one axis
           n += 1
       stow()
-""", """      n = 0
-      for i in range(4):              # a literal count
+"""
+_LEGS_WALK = """      for i in range(4):              # a literal count
           drive(0.0, 0.8, 1.5)        # v m/s, w rad/s, seconds
           wait(2)
       while read("bumper") < 1 and n < 8:   # capped at 100 iterations
           drive(0.3, 0.0, 1.0)
           n += 1
-"""),
-  ("; whatever it fetched is hung back up either way", ""),
-  ("-- a tool not seated, a drive that did not arrive, a target\n"
-   "outside an axis's range.", "-- a walk that did not arrive, a turn that\n"
-   "ran out of time."),
-  ("A verb that moves the robot (%(drivers)s) first\n"
-   "draws the arm in and puts a tool on the fork back in its carrying pose: the\n"
-   "lift where a fetch leaves it and the tool's own axes at rest, except that a\n"
-   "cube in the claw stays held, out in front at carrying height. So a pose set\n"
-   "with `move` or `set_lift` lasts until the next of them.\n",
-   "A verb that moves the robot (%(drivers)s) first\n"
-   "folds the arm back to its stow, and so does lying down to rest, so a pose\n"
-   "set with `move` lasts until the next of them. Moving the arm stands the\n"
-   "robot up if it is lying down.\n"),
-)
+"""
+_ROVER_TRAVEL = ("A verb that moves the robot (%(drivers)s) first\n"
+                 "draws the arm in and puts a tool on the fork back in its carrying pose: the\n"
+                 "lift where a fetch leaves it and the tool's own axes at rest, except that a\n"
+                 "cube in the claw stays held, out in front at carrying height. So a pose set\n"
+                 "with `move` or `set_lift` lasts until the next of them.\n")
+
+
+def _legs_swaps(swaps: bool) -> tuple[tuple[str, str], ...]:
+  if swaps:
+    return (
+      (_ROVER_EXAMPLE, '      n = 0\n      fetch("module_lcd")\n' + _LEGS_WALK
+       + "      stow()\n"),
+      ("-- a tool not seated, a drive that did not arrive, a target\n"
+       "outside an axis's range.", "-- a tool not seated, a walk that did not\n"
+       "arrive, a target outside an axis's range."),
+      (_ROVER_TRAVEL,
+       "A verb that moves the robot (%(drivers)s) first\n"
+       "folds the arm back to its stow -- or, with a tool on the fork, raises it\n"
+       "to its carrying pose over the nose -- and so does lying down to rest, so\n"
+       "a pose set with `move` lasts until the next of them. Moving the arm\n"
+       "stands the robot up if it is lying down.\n"))
+  return (
+    (_ROVER_EXAMPLE, "      n = 0\n" + _LEGS_WALK),
+    ("; whatever it fetched is hung back up either way", ""),
+    ("-- a tool not seated, a drive that did not arrive, a target\n"
+     "outside an axis's range.", "-- a walk that did not arrive, a turn that\n"
+     "ran out of time."),
+    (_ROVER_TRAVEL,
+     "A verb that moves the robot (%(drivers)s) first\n"
+     "folds the arm back to its stow, and so does lying down to rest, so a pose\n"
+     "set with `move` lasts until the next of them. Moving the arm stands the\n"
+     "robot up if it is lying down.\n"))
+
 
 #: ...and its axes: a joint's angle, with no tool to require.
 PROCEDURE_TAIL_LEGS = """\
@@ -2921,18 +2943,20 @@ own speed
 """
 
 
-def procedure_rule(armed: bool = True) -> str:
+def procedure_rule(armed: bool = True, swaps: bool = False) -> str:
   from pluggybot.procedure import axes
   from pluggybot.procedure.library import MAX_PROCEDURES
-  from pluggybot.procedure.steps import BODY_VERBS, VERBS, describe_vocabulary, signature
+  from pluggybot.procedure.steps import (BODY_VERBS, SWAP_VERBS, VERBS,
+                                         describe_vocabulary, signature)
   if not armed:
     head = PROCEDURE_HEAD
-    for old, new in _LEGS_SWAPS:
+    for old, new in _legs_swaps(swaps):
       assert old in head, f"PROCEDURE_HEAD moved: {old[:40]!r}"
       head = head.replace(old, new)
+    body_verbs = BODY_VERBS + (SWAP_VERBS if swaps else ())
     verbs = "\n".join(f"  {signature(v)}  -- {v['doc']}"
-                      for v in describe_vocabulary(BODY_VERBS))
-    drivers = ", ".join(f"`{n}`" for n in BODY_VERBS if VERBS[n].drives)
+                      for v in describe_vocabulary(body_verbs))
+    drivers = ", ".join(f"`{n}`" for n in body_verbs if VERBS[n].drives)
     reg = {s["name"]: s["doc"] for s in axes.describe()["sensors"]}
     reg["bumper"] = "1 while its body presses against something"
     ax = "\n".join(f"  {a.name}: {a.lo:g}..{a.hi:g} {a.unit} -- {a.doc}"
@@ -3455,7 +3479,7 @@ def system_sections(thoughts: ThoughtFiles, menu: Menu,
   if event_map and not seeded:
     tail.append(("YOUR LIST STARTS EMPTY", for_body(UNSEEDED_RULE, body)))
   if procedures:
-    tail += [("PROCEDURES YOU MAY WRITE", procedure_rule(menu.tools)),
+    tail += [("PROCEDURES YOU MAY WRITE", procedure_rule(menu.tools, menu.swaps)),
                ("CHALLENGES", CHALLENGE_RULE),
                ("WHAT YOU HAVE MEASURED", FINDINGS_RULE)]
   if workshop:

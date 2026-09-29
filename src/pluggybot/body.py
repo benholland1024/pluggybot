@@ -289,6 +289,10 @@ class Body(abc.ABC):
   #: The bay a swap is working at, by station y, from its first drive to
   #: its verdict (issue #347); None otherwise.
   swapping_at: float | None
+  #: A manoeuvre of its reach under way that no file holds (issue #405: the
+  #: quadruped's swap and arm moves, a fork half under a peg): a restart's
+  #: save waits it out (`continuation.Keeper.busy`). The rover's is False.
+  working: bool
   #: How far off the robot was that made the last swap give its bay up
   #: (issue #313), or None.
   peer_at_bay_m: float | None
@@ -582,6 +586,7 @@ class StubBody(Body):
     self.went: list[tuple[float, float]] = []
     self.last_drive = None
     self.swapping_at = self.peer_at_bay_m = None
+    self.working = False
     self.bay_wait = None
     self.docked = self.pressing = self.resting = False
     self.others = []

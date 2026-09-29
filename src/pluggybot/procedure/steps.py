@@ -301,7 +301,13 @@ def carry_configuration_routine(life, tool: str) -> Routine:
   # go of a cube at 0.033 m and drew its arm in there came off its seat --
   # 114 mm down the fork, unpowered -- and a stow drives that to the rack.
   body = life.body
-  lift = body.actuator("lift")
+  try:
+    lift = body.actuator("lift")
+  except KeyError:
+    # a body with no lift (the quadruped, #405): its arm's own driving
+    # pose, the carry pose with a tool on the fork
+    yield from body.retract_arm_routine()
+    return {"setDown": set_down}
   up = MODULE_DRIVE_LIFT > float(life.data.ctrl[lift])
   if up:
     yield from body.ramp_routine(lift, MODULE_DRIVE_LIFT, LIFT_SPEED,
@@ -377,8 +383,14 @@ def travel_pose(life, tool: str | None) -> list[tuple[int, float, float]]:
       continue
     rest = float(model.qpos0[model.jnt_qposadr[act.trnid[0]]])
     own.append((act.id, min(max(rest, axis.lo), axis.hi), axis.speed))
-  lift = (body.actuator("lift"), CARRY_LIFT if holding else MODULE_DRIVE_LIFT,
-          LIFT_SPEED)
+  try:
+    lift = (body.actuator("lift"), CARRY_LIFT if holding else MODULE_DRIVE_LIFT,
+            LIFT_SPEED)
+  except KeyError:
+    # the quadruped (#405): its arm at the carry pose, the shoulder first
+    from pluggybot.legs.arm import CARRY_Q
+    return own + [(body.actuator(axes.AXES[j].actuator), target, axes.AXES[j].speed)
+                  for j, target in zip(axes.ARM_JOINTS, CARRY_Q)]
   arm = (body.actuator("arm"), ARM_EXT if holding else 0.0, axes.ARM_SPEED)
   if lift[1] > float(life.data.ctrl[lift[0]]):
     return [lift, arm, *own]
@@ -1117,6 +1129,8 @@ def run_verb(life, verb: Verb, args: dict, where: dict | None = None,
 #: (#405) -- nothing that needs a tool, and no `look`, whose ranges are the
 #: rover's bay tags'.
 BODY_VERBS = ("drive_to", "face", "wait", "drive", "move")
+#: ...and one whose world has a rack at its arm's reach (issue #405).
+SWAP_VERBS = ("fetch", "stow")
 #: ...and how a walking body's prompt describes the one whose words are the
 #: rover's.
 BODY_DOCS = {"drive_to": "walk to a world point over the map, and over floor not "
@@ -1179,7 +1193,7 @@ def check_step(verb: Verb, args: dict, facts: WorldFacts,
   """Every argument of one step. `partial` skips the missing-argument rule,
   for a language checking only the literal half of a call."""
   if facts is not None and facts.verbs is not None and verb.name not in facts.verbs:
-    return [f"{verb.name}: not on this body yet: its arm takes no tool "
+    return [f"{verb.name}: not on this body yet "
             f"(it has: {', '.join(facts.verbs)})"]
   bad = []
   extra = set(args) - set(verb.args)

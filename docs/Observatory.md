@@ -10,6 +10,35 @@ observatory is NOT a result and never enters `results/`.
 
 ## Periods
 
+### The rack at the arm's reach (#405, stage B) — opens when this PR is deployed
+
+**What changed in the world.** The rover's rack is gone from the
+quadrupeds' house -- its rail, its five modules on 150 mm pegs and the
+dispenser's seeds -- and #378's rack stands on the living room's south wall
+beside the dock, holding the LCD (bay A), the pen (B) and the claw (C) on
+220 mm pegs. The arm takes them: a program on `autonomous` may `fetch` and
+`stow` (the rule's verbs and example say so), and a tool carried rides high
+over the nose. No errand and no job needs a tool yet, so a swap is the
+robot's own idea. The constitution's body paragraph says the arm takes the
+tools on the rack beside the dock. The rack view (`rack.original`) lists
+the three, on their bays, on a fork, or nowhere; the lost-tool clock puts a
+tool on the floor back after 300 s, as before.
+
+**What the period is for.**
+
+- **Whether a mind fetches a tool with nothing to use it for**, and what
+  it writes about it -- a fetch and a stow are the `procedure` events'
+  verbs; the rack view is in every context.
+- **The swap's success live**: a `fetch`'s verdict (`seated and
+  conducting`, or `could not pick up ...`) and a `stow`'s, against the
+  served runs' 32 of 32, the pair's among them (SimNotes, "The rack at the arm's reach"). A tool
+  the lost-tool clock puts back is a swap that ended off the rack.
+- **Two robots at one rack**: bays A and C are 0.6 m apart; whether one
+  robot's swap stalls the other's.
+
+**Not yet known.** How a carried tool fares down the house's stairs in the
+served world (this issue's stage C).
+
 ### The arm on their backs (#405, step 4a) — opens when this PR is deployed
 
 **What changed in the world.** Both quadrupeds carry #378's arm: two

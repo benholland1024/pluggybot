@@ -59,14 +59,19 @@ def test_the_quadruped_implements_every_member_and_is_chosen_by_its_legs(quad_wo
 
 
 def test_the_world_takes_out_the_rover_and_nothing_of_the_worlds(quad_world):
-  """The rover's body, actuators, sensor and exclude go; the tools' drivers
-  and the plates' sensors are the world's and stay; the robot keeps its
-  joint ranges in RADIANS (#386: in degrees the stand threw it 0.4 m up)."""
+  """The rover's body, actuators, sensor and exclude go, and its rack with
+  its modules, their drivers and the dispenser's seeds (#405: the arm's
+  fork takes a longer peg); the plates' sensors are the world's and stay;
+  the robot keeps its joint ranges in RADIANS (#386: in degrees the stand
+  threw it 0.4 m up)."""
   m = quad_world
   names = lambda n, obj: {mujoco.mj_id2name(m, obj, i) for i in range(n)}  # noqa: E731
   acts = names(m.nu, mujoco.mjtObj.mjOBJ_ACTUATOR)
-  assert not acts & {"left_motor", "right_motor", "lift", "arm"}
-  assert {"pen_carriage", "claw_l", "claw_r", "seed_gate", "FL_knee"} <= acts
+  assert not acts & {"left_motor", "right_motor", "lift", "arm", "pen_carriage",
+                     "claw_l", "claw_r", "seed_gate"}
+  assert "FL_knee" in acts
+  bodies = names(m.nbody, mujoco.mjtObj.mjOBJ_BODY)
+  assert not bodies & {"rack", "rack_built", "module_plug", "module_seed", "seed_0"}
   sensors = names(m.nsensor, mujoco.mjtObj.mjOBJ_SENSOR)
   assert "imu_gyro" not in sensors and "garden_plate_pos" in sensors
   assert m.nexclude == 0 and mujoco.mj_name2id(m, mujoco.mjtObj.mjOBJ_BODY, "dock") >= 0
@@ -75,23 +80,27 @@ def test_the_world_takes_out_the_rover_and_nothing_of_the_worlds(quad_world):
   assert (float(m.body("dock").pos[0]), float(m.body("dock").pos[1])) == pytest.approx((x, y))
 
 
-def test_home_with_legs_is_its_own_world_and_offers_no_tool():
-  """An arm that takes no tool yet (#405, step 4a), so no errand that needs
-  one, no workshop, no tool verb in a procedure -- refused with the reason,
-  as any unknown one is -- and only its own arm's axes to move."""
+def test_home_with_legs_is_its_own_world_and_offers_no_tool_errand():
+  """No errand that needs a tool until the tools are rebuilt for its fork
+  (#406, #407), no workshop; a program may fetch and stow its own rack's
+  three tools (#405) and nothing else -- anything else refused with the
+  reason, as any unknown name is -- and move only its own arm's joints."""
+  from pluggybot.legs import rack as legs_rack
   assert world_for("home", "quadruped") == QUAD_HOME == "home_quad"
   cfg = world_config(QUAD_HOME)
   assert cfg["body"] == "quadruped" and not cfg["tools"] and cfg["built_bays"] == 0
+  assert cfg["swap"] and cfg["tool_bays"] == legs_rack.TOOL_BAYS
   assert "lab" not in cfg and "tower" not in cfg
   menu = ov.Menu.for_world(QUAD_HOME)
   assert not {"carry", "dance", "draw", "artwork", "census"} & set(menu.available())
   assert {"explore", "charge", "idle"} <= set(menu.available())
   facts = world_facts(QUAD_HOME)
-  # its arm's two joints are its axes (#405), and no tool is its to fetch
-  assert facts.tools == () and facts.axes == ("shoulder", "elbow")
+  assert facts.tools == tuple(legs_rack.TOOL_BAYS) and facts.axes == ("shoulder", "elbow")
   assert "lift" not in facts.sensors and "shoulder" in facts.sensors
-  bad = st.check_step(st.VERBS["fetch"], {"tool": "module_pen"}, facts)
-  assert bad and "takes no tool" in bad[0]
+  assert st.check_step(st.VERBS["fetch"], {"tool": "module_pen"}, facts) == []
+  assert st.check_step(st.VERBS["fetch"], {"tool": "module_seed"}, facts)
+  bad = st.check_step(st.VERBS["draw"], {"program": "circle", "board": "whiteboard_a"}, facts)
+  assert bad and "not on this body yet" in bad[0]
   assert st.check_step(st.VERBS["drive_to"], {"x": 1.0, "y": 0.0}, facts) == []
   # ...and the rover's world keeps every one
   assert "carry" in ov.Menu.for_world("home").available()
@@ -429,8 +438,9 @@ def test_upkeep_is_said_only_where_there_is_one():
 
 def test_every_rule_a_quadruped_reads_is_in_its_own_words():
   """Where it charges is its DOCK, how it dies is a fall it cannot get up
-  from, and nothing it reads offers it a fork, a lift or a wheel. The rack's
-  one mention is the constitution's: where the tools wait for the arm."""
+  from, and nothing it reads offers it a lift or a wheel. Its fork is its
+  arm's (#405). The rack's one mention is the constitution's: where the
+  arm takes its tools."""
   from pluggybot.economy.ledger import Ledger
   from pluggybot.mind.thoughts import ThoughtFiles
   boss = ov.build(QUAD_HOME, None, enabled=True, client=object(), ledger=Ledger(),
@@ -439,12 +449,12 @@ def test_every_rule_a_quadruped_reads_is_in_its_own_words():
                   origin="unseeded", standing_orders=True, others=("Rowan",))
   text = "\n".join(b["text"] for b in boss.system)
   assert "dock" in text and "a fall you cannot get up from" in text
-  for word in ("two-wheeled", "fork", "wheel", "chassis", "the mast", "set_lift",
+  for word in ("two-wheeled", "wheel", "chassis", "the mast", "set_lift", "lift",
                "hub's charge bay", "upkeep you cannot pay"):
     assert word not in text, word
   import re
   assert len(re.findall(r"\brack\b", text)) == 1
-  assert "tools on the rack in the living room" in text
+  assert "tools on the rack beside your dock" in text
 
 
 def test_the_constitution_is_told_its_body_and_refuses_one_that_is_not_the_rovers():

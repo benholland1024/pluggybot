@@ -3356,6 +3356,149 @@ drain is IDENTICAL twice (1 050 samples to 524.8 s, `--pair`). It takes no
 tool: the rack at its reach, fetch and stow, and the carried-tool filter in
 the scans are this issue's stage B.
 
+## The rack at the arm's reach, and the swap (issue #405)
+
+The quadruped's world has its own rack now (`legs/world.py`): the rover's
+rack, its built-tool rail, its five modules on their 150 mm pegs and the
+dispenser's seeds are taken out with everything that names them, and
+#378's rack stands on the living room's south wall beside the dock
+(`RACK_X` 2.1; its board spans x 1.6..2.6, the dock is at 3.5), its three
+bays holding the LCD (A, the east one), the pen (B) and the claw (C). Until
+#406 and #407 rebuild them on the 220 mm peg a tool is a plate, a peg and a
+face that says which, visual only, its mass (the rover's module's, the
+peg's swapped) on the plate: the envelope's "on its peg" case. The tools
+keep the rover's module names, and the rack's parts the rover's bay
+letters (`bay<letter>_tray_...`), so the rack view, the lost-tool clock,
+a program's `fetch` and an admin's reset read them unchanged
+(`coupling.bay_switches` reads the three bays). The lifecycle still names a
+bay by the rover's `STATION_YS` entry; here it is that entry's index
+(`swap.bay_of`), until #376's stage C deletes the rover.
+
+The swap is #378's spike's approach as the served body's routines
+(`legs/swap.py`, a mixin of `QuadMission`): the walk to a metre behind the
+bay's working pose, a look, the walk in steering by the tags, the settle,
+the measurement, the fork in under the peg, up and out, the tool to the
+carry pose over the nose; hanging it back is the reverse, with a second
+settle and look after the fork comes down from the carry pose. A program
+on `autonomous` runs it as `fetch` and `stow` (`world_config`'s `swap`:
+`SWAP_VERBS`); there is no errand, and no job, that needs a tool yet.
+
+**Four things the spike's world could not show:**
+
+- **The near plane.** The house pins its extent at 37.2 m for its cameras
+  (`home.CAMERA_EXTENT_M`), and MuJoCo's near plane is a hundredth of it:
+  0.37 m. From a bay's working pose its tags are 0.31 m from the nose
+  camera, so the robot found the rack from its approach a metre off and no
+  bay once it stood at one -- every walk-in ended "no fit at the bay". A
+  world with legs sets the near plane to 0.10 m (`legs.world.NEAR_M`: a
+  Camera Module 3 focuses from 10 cm); the rover's world keeps its own.
+- **The settle turns one way.** The walk-in stopped within a few mm and
+  about 1° of square, and in the 3 s settle the body stayed within 4 mm but
+  turned counter-clockwise every time, +1.2..+2.7°: at the peg, 5-20 mm
+  across, and 3 of 6 walk-ins failed the 15 mm gate (every try from the
+  kitchen). The walk-in now stops aimed `rack.SETTLE_DRIFT` (1.9°)
+  clockwise; the policy barely turns that finely, but the stop lands a few
+  mm to the other side, and after the settle 12 of 12 walk-ins at bays A
+  and C were inside the gate (across -6.9..+6.1 mm; before, -20.3..-5.5).
+- **Arriving is not the verdict.** At the bottom of a put the tray takes
+  the tool's weight an instant before the feed-forward lets go of it, and
+  the arm stood 0.016 rad off its goal. Judged by the arm's arrival, a tool
+  already hung counted as a failed put, the fork stayed under it, and the
+  swap lifted it straight back off: every pen and claw stow failed (the
+  LCD, lighter, scraped under the tolerance). A fork move fails only when
+  it is out of reach; what happened is the world's (seated and
+  conducting, or hung).
+- **A tool compiled 0.3 mm up** (the spike's settle) read not hung until
+  the world's first steps, so a first rack view would have said the tools
+  were off their bays; compiled exactly at rest they read hung at load and
+  move 0.008 mm in the first second.
+
+**A restart's save waits out the part of a swap AT the bay**
+(`Body.working`, read by `continuation.Keeper.busy` as a stand-up is): a
+fork half under a peg is nothing a file holds. The walk there does not:
+held off through a 45 s walk across the house, a stop outlasted Docker's
+10 s grace. A stop at the bay waits too, so a process killed first comes
+back from the save before the swap reached it.
+
+**A carried tool is the body's own to its senses** (`QuadMission.carry`):
+out of the LIDAR's map and the depth camera's cloud, as its own geoms are,
+ignored by the press, and excluded from a stairs policy's height scan
+(`PolicyDriver.scan_exclude`: it read as a 0.4 m obstacle over the nose,
+#378). Walking and lying down to rest keep it at the carry pose -- folded,
+the arm would swing it into its own back -- and a fall lets go of it, as
+does a tool out of the fork's reach (`swap.NEAR_FORK_M`): knocked off by the
+other robot's at the rack, or sent home by an admin, it had left the body
+walking with its arm up, turning slowly and blind to the tool, until a fall
+or its next swap. A fork move stops when the body goes down under it: the
+fall folds the arm, and re-aimed along its line the fork was held out
+through the get-up. A tool a pick leaves on the fork unseated is carried
+too: left unclaimed, a
+tool lying on the fork made every step of a walk a press, and a 1 m walk
+backed off to 2.97 m from its start. ⚠ Only a CARRIED tool is the body's
+own to the bumper: ignoring every tool against the fork, the pair's
+carried tools met each other's forks at the rack and were knocked off (4
+of 12 hung back), where the bump backs the two robots apart. Its power is
+read every step for the module the lifecycle watches, so a tool away from
+the fork reads no contact (`swap.NEAR_FORK_M`): 1.5 us a step, where the
+lookups by name cost 20-32.
+
+**Fetched and hung back, the served body in the house** (`arm_spike.py
+--served`; a fresh map every flight, the tools in turn):
+
+| from | fetched | hung back | fetch, median | stow, median |
+|---|---|---|---|---|
+| the dock's approach, jittered 0.1 m / 15° | 10 of 10 | 10 of 10 | 25.6 s | 38.4 s |
+| across the house (kitchen, workshop, hall, bedroom, the gardens, the living room) | 10 of 10 | 10 of 10 | 45.4 s | 39.1 s |
+| the served pair at once, each from its start, bays A and C (0.6 m apart) | 20 of 20 | 19 of 20 | 38.7 s (the slower) | 50.2 s (the slower) |
+
+A stow takes longer than a fetch because a carried tool turns at
+`W_CARRY` (below); flown before that cap, the stows took 30-31 s. Two
+house flights first started from the rover's workshop spawn, which is
+inside the workshop's table: set down on it the body fell and found no
+route, and from a clear spot in the workshop both swaps landed.
+
+**Two robots carrying at the rack can knock each other's tools off.** The
+pair's one loss: walking back to their standoffs, the two met face to face
+0.8 m apart, and one's carried LCD struck the other's carried claw -- a
+contact neither bumper reads, since each tool is its own robot's. The
+code before the review loses the same flight the same way. The bump is
+what keeps a carried tool off the other robot's FORK: with every tool
+against the fork ignored (a review fix, withdrawn), both robots' tools
+were knocked off in 4 of 6 flights. Making a carried tool a limb to its
+own robot's bumper as well landed that flight and lost three tools in two
+others (17 of 20): both robots flinched at once, bumped and backed off in
+turn until the tools fell -- withdrawn too, and #418's to settle. At the
+carry pose the fork is the body's collidable front (0.418 m ahead of the
+centre; the tools' plates 0.411, their faces visual only), past the front
+stop's 0.38 m: a carrying body walked at a wall is answered by the bump.
+
+**Carried through the house** (`arm_spike.py --served --carry`: each tool
+in turn fetched, walked to the hall, the kitchen, back and out to the
+garden by the east door, trotted at 0.8 m/s, turned, sidestepped and
+stopped, then hung back; the coupling's criterion every step): **6 of 6
+rode to the end and were hung back.** The coupling opened for up to 160 ms
+a flight (its holding capacitor is 200), and every long opening was a
+PIVOT at the drive's full 1.0 rad/s: the tool swings out of its V's. So a
+body carrying turns at most `legs.body.W_CARRY`:
+
+| the turn, carrying | the coupling's longest opening |
+|---|---|
+| 1.0 rad/s (the drive's full rate) | 160 ms (110-160 over six flights) |
+| 0.6 rad/s | 56 ms |
+| 0.45 rad/s (`W_CARRY`) | 14 ms; over six flights 4-14, and 82 in one |
+
+The house has no stairs yet (#280): a flight carried is #378's table
+(above), one descent in about 60 floating the peg at the first step.
+
+**What is true now:** the served quadruped fetches, carries and stows the
+three tools on its own rack from a program; `tests/test_quad_rack.py` pins
+each rule above, and the whole swap flies behind `--endurance`. Not done:
+tool jobs (#406, #407); a carried tool down the house's stairs (#280 builds
+them); the other robot's carried tool is not filtered from this one's
+senses (at the carry pose it is above the LIDAR's plane), and nothing
+keeps two carrying robots' tools apart at the rack (1 of 20 knocked off at
+bays A and C), nor a second robot off a bay the first is working (#418).
+
 ## Debugging workflow that worked
 
 1. Reproduce headlessly with printed telemetry (pose, wheel ω, contact list,

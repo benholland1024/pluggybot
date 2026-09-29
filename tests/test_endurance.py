@@ -37,6 +37,10 @@ APPROVED_FLIGHTS = {
     "~150 s", "ladder A: the bench can be solved", "#413"),
   "test_a_feed_act_reaches_the_cage_and_the_mouse_eats": (
     "~45 s", "ladder A: the mouse's feed act lands", "#413"),
+  "test_the_served_quadruped_fetches_a_tool_and_hangs_it_back": (
+    "~30 s: 30.0 s -n0, measured 2026-09-29", "the served robot's swap "
+    "composed: the walk to the bay, its tags, the walk-in and settle, the "
+    "fork under the peg, the carry and the put, on the real body", "#417"),
 }
 
 

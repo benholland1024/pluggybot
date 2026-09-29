@@ -293,6 +293,12 @@ def within(spec: ArmSpec, q: tuple[float, float]) -> bool:
           and spec.elbow_range[0] <= qe <= spec.elbow_range[1])
 
 
+#: ...and the carry pose as the chosen arm's joint angles (shoulder, elbow):
+#: where a walk puts an arm that carries a tool (`procedure.steps.travel_pose`)
+#: and a rest leaves it.
+CARRY_Q = solve_vertex(ArmSpec(), *CARRY, near=ArmSpec().stow)
+
+
 # ---- the static load -------------------------------------------------------------
 
 G = 9.81

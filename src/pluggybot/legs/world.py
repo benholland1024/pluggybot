@@ -1,14 +1,15 @@
 """The home world with legs in it (issue #387): the house the rover lived in,
-the rover taken out, the quadruped (#377) put in -- one, or a pair -- and
-#378's dock on the living room's south wall.
+the rover taken out, the quadruped (#377) put in -- one, or a pair --
+#378's dock on the living room's south wall, and beside it the rack its arm
+takes tools from (#405).
 
 Built at load from `models/home_world.xml` (the generator's file) rather
 than generated beside it, so there is one house: a layout change there is a
-change here. What is taken out is the rover's and nothing else -- its body,
+change here. What is taken out is the rover's and nothing else: its body,
 and the actuators, sensor and exclude that name its joints, site and
-bodies; the tools' actuators and the plates' sensors are the world's and
-stay. The rack stays too: its tools wait for the arm to take one (#405,
-stage B, brings a rack of its own).
+bodies; and its rack -- the rail, the five modules on their 150 mm pegs, the
+dispenser's seeds, and everything that names them (#405: the arm's fork
+takes a 220 mm peg). The plates' sensors are the world's and stay.
 
 ⚠ THE ROBOTS ARE ATTACHED AFTER THE HOUSE, so their free joints are not at
 `qpos[0]`: everything reads a robot's joints by name (`posture.Joints`,
@@ -20,6 +21,7 @@ import math
 import mujoco
 
 from pluggybot.legs import dock as dk
+from pluggybot.legs import rack as rk
 from pluggybot.legs.model import CHOSEN, attachable, pose_qpos
 from pluggybot.rack.tags import DOCK_TAG_IDS
 from pluggybot.robot import CHASSIS_RGBA, SECOND_CHASSIS_RGBA, paint
@@ -62,6 +64,100 @@ def dock_pose() -> tuple[float, float, float]:
   wall = home.HOUSE_Y[0] + home.WALL_HALF_T          # the wall's inner face
   back = dk.DEFAULT.board_x + 0.06                    # the board's post, behind it
   return 3.5, wall + back, -math.pi / 2
+
+
+#: The tool rack's middle bay along the south wall, m: between where the
+#: rover's rack stood (x -1.25..1.45) and the dock (x 3.5), its board
+#: spanning x 1.6..2.6 -- bay A, the east one, works 1.1 m from the dock's
+#: axis, over the peer disc of a robot lying there -- and north of it the
+#: floor is clear to the couch's south face (y 0.3).
+RACK_X = 2.1
+
+
+def rack_pose() -> tuple[float, float, float]:
+  """The tool rack's frame in the world, (x, y, yaw rad): its origin on the
+  floor under the middle bay's peg, its board's back face against the
+  living room's south wall, +x north into the room (`legs.rack`'s frame).
+  The COMMISSIONED pose, which the robot finds by its tags."""
+  from pluggybot.home import world as home
+  wall = home.HOUSE_Y[0] + home.WALL_HALF_T          # the wall's inner face
+  back = -(rk.DEFAULT.back_x - 0.006)                 # the board's back face
+  return RACK_X, wall + back, math.pi / 2
+
+
+#: The cameras' near plane in a world with legs, m: the nose camera's (a
+#: Camera Module 3 focuses from 10 cm). MuJoCo's is `visual.map.znear`
+#: times the world's extent, which the house pins at 37.2 m
+#: (`home.CAMERA_EXTENT_M`) -- 0.37 m, and a bay's tags are 0.31 m from the
+#: nose at its working pose: clipped, the robot found the rack from its
+#: approach a metre off and never a bay once it stood at one (#405).
+NEAR_M = 0.10
+
+#: What the rover's rack is, by name: taken out of a world with legs (#405).
+ROVER_RACK = ("rack", "rack_built")
+ROVER_TOOL_PREFIXES = ("module_", "seed_")
+
+
+def _remove(spec: mujoco.MjSpec, bodies: list) -> None:
+  """Take bodies out of a world spec, and everything that names their
+  joints, sites, geoms or bodies: actuators, sensors, tendons, equalities,
+  excludes, contact pairs."""
+  joints, sites, geoms, names = set(), set(), set(), set()
+  for body in bodies:
+    for b in [body, *body.find_all(mujoco.mjtObj.mjOBJ_BODY)]:
+      names.add(b.name)
+    joints |= {j.name for j in body.find_all(mujoco.mjtObj.mjOBJ_JOINT) if j.name}
+    sites |= {s.name for s in body.find_all(mujoco.mjtObj.mjOBJ_SITE) if s.name}
+    geoms |= {g.name for g in body.find_all(mujoco.mjtObj.mjOBJ_GEOM) if g.name}
+  every = joints | sites | geoms | names
+  tendons = {t.name for t in spec.tendons
+             if any(w.target in joints for w in getattr(t, "wraps", []))}
+  for act in list(spec.actuators):
+    if act.target in joints | sites | tendons | names:
+      spec.delete(act)
+  for sensor in list(spec.sensors):
+    if sensor.objname in every | tendons:
+      spec.delete(sensor)
+  for tendon in list(spec.tendons):
+    if tendon.name in tendons:
+      spec.delete(tendon)
+  for eq in list(spec.equalities):
+    if eq.name1 in every or eq.name2 in every:
+      spec.delete(eq)
+  for ex in list(spec.excludes):
+    if ex.bodyname1 in names or ex.bodyname2 in names:
+      spec.delete(ex)
+  for pair in list(spec.pairs):
+    if pair.geomname1 in geoms or pair.geomname2 in geoms:
+      spec.delete(pair)
+  for body in bodies:
+    spec.delete(body)
+
+
+def _remove_rover_rack(spec: mujoco.MjSpec) -> None:
+  """The rover's rack out of a world spec: its two bodies, its five modules
+  and the dispenser's seeds, with everything that names them."""
+  top = [b for b in spec.worldbody.bodies
+         if b.name in ROVER_RACK or b.name.startswith(ROVER_TOOL_PREFIXES)]
+  _remove(spec, top)
+
+
+def _attach_rack(spec: mujoco.MjSpec, pose) -> None:
+  """The tool rack, its tags' textures (the generator's `tags/`) and the
+  tools hung on its bays."""
+  for i in rk.RACK_TAG_IDS:
+    spec.add_texture(name=f"tagtex{i}", type=mujoco.mjtTexture.mjTEXTURE_CUBE,
+                     file=f"tags/tag{i}.png")
+    mat = spec.add_material(name=f"tagmat{i}", specular=0.05, shininess=0.05,
+                            reflectance=0.0)
+    mat.textures[mujoco.mjtTextureRole.mjTEXROLE_RGB] = f"tagtex{i}"
+  x, y, yaw = pose
+  defaults, tools = rk.tools_xml(pos=(x, y), yaw=yaw)
+  child = mujoco.MjSpec.from_string(
+    f'<mujoco><compiler angle="radian"/><default>{defaults}</default><worldbody>'
+    + rk.rack_xml(pos=(x, y), yaw=yaw, name=rk.RACK_BODY) + tools
+    + "</worldbody></mujoco>")
+  spec.attach(child, prefix="", frame=spec.worldbody.add_frame())
 
 
 def _remove_rover(spec: mujoco.MjSpec) -> None:
@@ -116,10 +212,13 @@ def home_spec(first_at=(1.5, 0.5), second_at=None, second_prefix: str = "r2_",
   lifecycle as the rover's is (`robot.world_spec`)."""
   spec = mujoco.MjSpec.from_file(path)
   _remove_rover(spec)
+  _remove_rover_rack(spec)
   _attach_quad(spec, first_at, "", None)
   if second_at is not None:
     _attach_quad(spec, second_at, second_prefix, second_rgba)
   _attach_dock(spec, dock_pose())
+  _attach_rack(spec, rack_pose())
+  spec.visual.map.znear = NEAR_M / spec.stat.extent
   return spec
 
 

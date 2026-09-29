@@ -140,8 +140,11 @@ class PolicyDriver:
     self.gyro_adr = model.sensor_adr[self.gyro]
     self.every = max(1, round(policy.period / model.opt.timestep))
     self.scan_xy = scan_offsets()
-    #: Terrain only: the robot's own geoms (groups 1, 2) never block a ray.
+    #: Terrain only: the robot's own geoms (groups 1, 2) never block a ray...
     self.scan_groups = np.array([1, 0, 0, 0, 0, 0], dtype=np.uint8)
+    #: ...nor a tool riding its fork, a body of its own in group 0: carried
+    #: over the nose it read as a 0.4 m obstacle (#378). Its body id, or -1.
+    self.scan_exclude = -1
     #: Where the scan comes from: the ideal casts, or what the robot has
     #: (`legs.scan.MapScan.scan`, #388).
     self.scan = scan if scan is not None else self.height_scan
@@ -193,7 +196,7 @@ class PolicyDriver:
     # `mj_multiRay` (one origin, many directions) cannot cast.
     for i, (x, y) in enumerate(xy):
       dist = mujoco.mj_ray(self.m, d, np.array([body[0] + x, body[1] + y, top]),
-                           down, self.scan_groups, 1, -1, geomid)
+                           down, self.scan_groups, 1, self.scan_exclude, geomid)
       if 0 <= dist <= SCAN_MAX_M + SCAN_RAISE_M:
         out[i] = body[2] - (top - dist)
     return out
