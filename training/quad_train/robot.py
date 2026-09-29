@@ -3,9 +3,11 @@ generates: `models/quadruped.xml` and `models/quadruped.json`
 (`uv run python -m pluggybot.legs.model`). Nothing is typed twice."""
 
 import json
+import math
 from pathlib import Path
 
 import mujoco
+import numpy as np
 from mjlab.actuator import DcMotorActuatorCfg
 from mjlab.entity import EntityArticulationInfoCfg, EntityCfg
 
@@ -29,7 +31,8 @@ DAMPING = BODY["driver"]["damping"]
 
 def get_spec() -> mujoco.MjSpec:
   """The robot alone: the standalone file's floor, light, keyframes and
-  torque motors go (mjlab brings a terrain and builds its own actuators)."""
+  torque motors go (mjlab brings a terrain and builds its own actuators),
+  and the arm is fixed at its stow (`freeze_arm`)."""
   spec = mujoco.MjSpec.from_file(str(XML))
   for geom in list(spec.geoms):
     if geom.name == "floor":
@@ -40,7 +43,40 @@ def get_spec() -> mujoco.MjSpec:
     spec.delete(key)
   for actuator in list(spec.actuators):
     spec.delete(actuator)
+  freeze_arm(spec)
   return spec
+
+
+def freeze_arm(spec: mujoco.MjSpec) -> None:
+  """The arm (#378) as the served body holds it while it walks and gets up
+  (#405): each joint's body turned to the stow its driver holds and the
+  joint taken out, with the linkages that bound them. A policy's joints
+  are the legs' twelve, and the arm's geometry is there to fall on --
+  #377's placeholder collided with nothing. `quadruped.json`'s `arm` says
+  which joints, the stow, and their axis."""
+  arm = BODY.get("arm")
+  if not arm:
+    return
+  held = dict(zip(arm["joints"], arm["stow_qpos"]))
+  axis = np.array(arm["axis"], dtype=float)
+  for body in spec.worldbody.find_all(mujoco.mjtObj.mjOBJ_BODY):
+    for joint in list(body.joints):
+      if joint.name not in held:
+        continue
+      q = held.pop(joint.name)
+      turn = np.array([math.cos(q / 2), *(math.sin(q / 2) * axis)])
+      quat = np.zeros(4)
+      mujoco.mju_mulQuat(quat, np.array(body.quat, dtype=float), turn)
+      body.quat = quat
+      spec.delete(joint)
+  if held:
+    raise ValueError(f"the arm's joints {sorted(held)} are not in {XML.name}")
+  for tendon in list(spec.tendons):
+    if tendon.name in arm["tendons"]:
+      spec.delete(tendon)
+  for eq in list(spec.equalities):
+    if eq.name in arm["equalities"]:
+      spec.delete(eq)
 
 
 LEG_ACTUATOR = DcMotorActuatorCfg(

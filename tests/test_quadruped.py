@@ -76,8 +76,9 @@ def test_the_world_takes_out_the_rover_and_nothing_of_the_worlds(quad_world):
 
 
 def test_home_with_legs_is_its_own_world_and_offers_no_tool():
-  """No arm yet (#378), so no errand that needs a tool, no workshop, no tool
-  verb in a procedure -- refused with the reason, as any unknown one is."""
+  """An arm that takes no tool yet (#405, step 4a), so no errand that needs
+  one, no workshop, no tool verb in a procedure -- refused with the reason,
+  as any unknown one is -- and only its own arm's axes to move."""
   assert world_for("home", "quadruped") == QUAD_HOME == "home_quad"
   cfg = world_config(QUAD_HOME)
   assert cfg["body"] == "quadruped" and not cfg["tools"] and cfg["built_bays"] == 0
@@ -86,9 +87,11 @@ def test_home_with_legs_is_its_own_world_and_offers_no_tool():
   assert not {"carry", "dance", "draw", "artwork", "census"} & set(menu.available())
   assert {"explore", "charge", "idle"} <= set(menu.available())
   facts = world_facts(QUAD_HOME)
-  assert facts.tools == () and facts.axes == ()
+  # its arm's two joints are its axes (#405), and no tool is its to fetch
+  assert facts.tools == () and facts.axes == ("shoulder", "elbow")
+  assert "lift" not in facts.sensors and "shoulder" in facts.sensors
   bad = st.check_step(st.VERBS["fetch"], {"tool": "module_pen"}, facts)
-  assert bad and "no arm" in bad[0]
+  assert bad and "takes no tool" in bad[0]
   assert st.check_step(st.VERBS["drive_to"], {"x": 1.0, "y": 0.0}, facts) == []
   # ...and the rover's world keeps every one
   assert "carry" in ov.Menu.for_world("home").available()
@@ -277,11 +280,20 @@ def test_the_front_stop_reads_the_corridor_ahead_not_a_cone():
   assert nav.Navigator._front_blocked(me, *wall), "the premise: the cone fires"
   ahead = np.array([0.0]), np.array([0.40])
   assert qb.QuadMission._front_blocked(me, *ahead)
-  # ...and it stops short of the clearance the planner grants (the
-  # inflation's 0.35 m, the LIDAR behind the torso's centre on the rear
-  # mast), or every waypoint along a wall fires it
+  # ...it fires before the body's front-most point meets what is ahead --
+  # the stowed arm's fork, not the nose (#405: at 0.45 the fork met the
+  # wall first) -- and stops short of the clearance the planner grants (a
+  # waypoint on the inflation's 0.35 m is dropped 0.08 m out; the LIDAR is
+  # behind the torso's centre on the rear mast), or every waypoint along a
+  # wall fires it
   lidar_behind = CHOSEN.torso[0] - 0.06
-  clearance = qb.QuadMission.INFLATION_CELLS * 0.05
+  m = mujoco.MjModel.from_xml_string(body_xml(CHOSEN))
+  d = mujoco.MjData(m)
+  mujoco.mj_resetDataKeyframe(m, d, 0)                      # standing, stowed
+  mujoco.mj_forward(m, d)
+  front = _outline(m, d, m.body("pluggybot").id)[:, 0].max()
+  assert front + lidar_behind < qb.QuadMission.FRONT_STOP_RANGE
+  clearance = qb.QuadMission.INFLATION_CELLS * 0.05 + nav.WAYPOINT_REACHED_M
   assert qb.QuadMission.FRONT_STOP_RANGE < clearance + lidar_behind
 
 
@@ -393,7 +405,9 @@ def test_the_pack_draws_what_the_drivers_do(quad_world):
       watts.append(pack.power_draw(body.data))
     assert 40.0 < np.mean(watts) < 75.0, np.mean(watts)
     assert pack.charge_w == pytest.approx(5.0 * 43.2)
-    assert pack.base_w == pytest.approx(14.91)
+    # the computer, the LIDAR, the D435 and fourteen drivers' standby: the
+    # legs' twelve and the arm's two (#405)
+    assert pack.base_w == pytest.approx(6.0 + 1.15 + 2.0 + 14 * 0.48)
   finally:
     body.close()
 
@@ -474,13 +488,13 @@ def test_the_build_identity_names_the_body_and_hashes_its_policies():
   assert "body" not in build_identity("home", arm="guarded", commit="x", hashes={})
 
 
-def test_serve_refuses_a_tool_errand_on_a_body_with_no_arm():
+def test_serve_refuses_a_tool_errand_on_a_body_whose_arm_takes_no_tool():
   import subprocess
   import sys
   out = subprocess.run([sys.executable, "scripts/serve.py", "--world", "home",
                         "--body", "quadruped", "--errand", "draw"],
                        capture_output=True, text=True, timeout=120)
-  assert out.returncode == 2 and "no arm yet" in out.stderr
+  assert out.returncode == 2 and "takes no tool yet" in out.stderr
 
 
 # ---- docking in the house, flown ------------------------------------------------

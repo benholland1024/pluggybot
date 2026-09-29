@@ -414,6 +414,12 @@ class Body(abc.ABC):
     the ramping rule (CLAUDE.md), inside the primitive."""
 
   @abc.abstractmethod
+  def setpoint(self, act: int) -> float:
+    """What one of its actuators is commanded to, in its axis's units: a
+    position servo's `ctrl` (the rover's), or the joint angle a controller
+    turns into torque (the quadruped's arm, issue #405) -- never a torque."""
+
+  @abc.abstractmethod
   def settle_routine(self, seconds: float) -> Routine:
     """Stand still while a mechanism comes to rest: the physics and the
     step hooks, none of `hold_routine`'s senses."""
@@ -765,6 +771,9 @@ class StubBody(Body):
 
   def ramp_routine(self, act, target, speed, settle=0.0):
     yield from self._wait(settle)
+
+  def setpoint(self, act) -> float:
+    raise KeyError(f"a stub body has no actuator {act!r}")
 
   def settle_routine(self, seconds):
     yield from self._wait(seconds)

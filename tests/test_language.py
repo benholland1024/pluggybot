@@ -153,7 +153,7 @@ def _stub_life():
   body = SimpleNamespace(
     module_state=lambda tool: {"on_fork": False, "hung": True},
     ramp_routine=routine("ramp"), pressing=False, handle=FIRST,
-    actuator=lambda name: 0,
+    actuator=lambda name: 0, setpoint=lambda act: 0.0,
     fetch_tool_routine=routine("swap", "arrived"),
     stow_tool_routine=routine("swap", "arrived"),
     go_to_routine=routine("drive_to", True), face_routine=routine("face", True),
@@ -291,7 +291,10 @@ def test_the_axes_ramp_at_the_speeds_the_tools_measured():
   assert axes.AXES["lift"].speed == LIFT_SPEED
   assert axes.AXES["pen.carriage"].speed == CARRIAGE_SPEED
   assert all(a.lo < a.hi and a.speed > 0 for a in axes.AXES.values())
-  assert set(HOME.axes) == set(axes.AXES) and set(HOME.sensors) == set(axes.SENSORS)
+  # the rover's world names every axis and sensor but the quadruped's arm (#405)
+  rover = set(axes.ARM_JOINTS)
+  assert set(HOME.axes) == set(axes.AXES) - rover
+  assert set(HOME.sensors) == set(axes.SENSORS) - rover
 
 
 # ---- determinism: the same procedure on the same world is one trajectory -------
@@ -466,13 +469,17 @@ def test_the_rules_worked_example_hands_over_no_survival_policy():
   example = text[text.index("def look_around"):text.index("Statements:")]
   for word in ("charge", "battery", "rack"):
     assert word not in example, word
-  # ...and every verb, axis and sensor is listed, so nothing is a secret
+  # ...and every verb, axis and sensor is listed, so nothing is a secret --
+  # the quadruped's arm joints in its own rule (#405), not the rover's
   for v in st.VERBS:
     assert f"  {v}(" in text
   for a in axes.AXES:
-    assert f"  {a}:" in text
+    assert (f"  {a}:" in text) is (a not in axes.ARM_JOINTS)
   for s in axes.SENSORS:
-    assert f"  {s} --" in text
+    assert (f"  {s} --" in text) is (s not in axes.ARM_JOINTS)
+  legs = ov.procedure_rule(False)
+  for n in axes.ARM_JOINTS:
+    assert f"  {n}:" in legs and f"  {n} --" in legs
 
 
 def test_the_guarded_rules_have_not_moved():

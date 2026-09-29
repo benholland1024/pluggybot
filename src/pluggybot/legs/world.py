@@ -7,7 +7,8 @@ than generated beside it, so there is one house: a layout change there is a
 change here. What is taken out is the rover's and nothing else -- its body,
 and the actuators, sensor and exclude that name its joints, site and
 bodies; the tools' actuators and the plates' sensors are the world's and
-stay. The rack stays too: its tools wait for the arm (#378, step 4 of #375).
+stay. The rack stays too: its tools wait for the arm to take one (#405,
+stage B, brings a rack of its own).
 
 ⚠ THE ROBOTS ARE ATTACHED AFTER THE HOUSE, so their free joints are not at
 `qpos[0]`: everything reads a robot's joints by name (`posture.Joints`,
@@ -37,17 +38,18 @@ DEMO_WH = 20.0
 #: The return-trip reserve, Wh: MEASURED on the quadruped over the rover's
 #: worst-case route (`home.HOME_WORST_RETURN_PATH`: the loop's south-west
 #: corner, the sidewalk band, the gate and the garden door) to a REAL dock,
-#: lying on the pins (`scripts/energy_spike.py --world home_quad --reserve`):
+#: lying on the pins (`scripts/energy_spike.py --world home_quad --reserve`),
+#: with the arm aboard (#405):
 #:
-#:     travel   2.639 Wh over 44.62 m of route  (59.1 mWh/m, twice the rover's)
-#:     dock     0.432 Wh  (to the standoff, the board, the walk in, the lie-down)
-#:     floor    3.071 Wh
+#:     travel   2.699 Wh over 44.64 m of route  (60.5 mWh/m; 59.1 without it)
+#:     dock     0.270 Wh  (to the standoff, the board, the walk in, the lie-down)
 #:
-#: ...plus the constant's own definition, one failed docking: another dock
-#: leg and the stand-up and lie-down it costs (93 mWh, #377) -- 3.596,
-#: carried as 3.6. A property of the floor plan, not of the pack, as the
-#: rover's `HOME_LOW_BATTERY_WH` is.
-RESERVE_WH = 3.6
+#: The dock leg read 0.432 Wh in #387's walk, and the dearer is carried:
+#: 3.131 Wh, plus the constant's own definition, one failed docking --
+#: another dock leg and the stand-up and lie-down it costs (93 mWh, #377) --
+#: 3.656, carried as 3.7. A property of the floor plan, not of the pack, as
+#: the rover's `HOME_LOW_BATTERY_WH` is.
+RESERVE_WH = 3.7
 
 
 def dock_pose() -> tuple[float, float, float]:
@@ -123,8 +125,8 @@ def home_spec(first_at=(1.5, 0.5), second_at=None, second_prefix: str = "r2_",
 
 def stand(model, data, prefix: str = "", x: float | None = None,
           y: float | None = None, yaw: float = 0.0) -> None:
-  """Put one quadruped standing, joints in the stand pose, at rest; x and y
-  default to where it is. Forwards the data."""
+  """Put one quadruped standing, joints in the stand pose and its arm
+  stowed, at rest; x and y default to where it is. Forwards the data."""
   root = model.body(f"{prefix}{ROBOT_ROOT}").id
   q = int(model.jnt_qposadr[model.body_jntadr[root]])
   v = int(model.jnt_dofadr[model.body_jntadr[root]])
@@ -137,4 +139,9 @@ def stand(model, data, prefix: str = "", x: float | None = None,
   jv = int(model.jnt_dofadr[model.joint(f"{prefix}FL_hip_abd").id])
   data.qvel[v:v + 6] = 0.0
   data.qvel[jv:jv + 12] = 0.0
+  qs, qe = CHOSEN.arm.stow
+  for name, q in (("arm_shoulder", qs), ("arm_elbow", qe), ("arm_wrist", -(qs + qe))):
+    jid = model.joint(f"{prefix}{name}").id
+    data.qpos[model.jnt_qposadr[jid]] = q
+    data.qvel[model.jnt_dofadr[jid]] = 0.0
   mujoco.mj_forward(model, data)

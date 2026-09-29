@@ -2314,7 +2314,8 @@ wherever the arm is, as a palletising robot's does. The shoulder axis sits
 budgeted 0.9). A tool still hangs by the rover's plate and split peg, now
 220 mm long; the fork at the arm's tip takes it at ±85 mm in V's steeper
 than the rover's (60°, for the stairs, below), and the rack's trays at ±45.
-None of it is in the served world yet (#375, step 4).
+The arm is the served body's since #405 ("The arm on the served body",
+below); the rack and the tools on it are its stage B.
 
 **The level-tool choice** (`--reach`). A gravity seat wants its V's level,
 and with two pitch joints the plate's angle is their sum. The three options,
@@ -2474,7 +2475,7 @@ there (3 of 6 pushes stayed down), so the arm folds as the torso passes
 it takes over with the arm out and 1.3 s folded; from 20 random drops with
 the arm folded it stands 20 of 20 (median 1.5 s, as with the
 placeholder). The fold drives the elbow's motor to its 22 N·m peak
-through the impact, so whether step 4 keeps it is open again.
+through the impact; #405 keeps it, and folds the arm before a rest too.
 
 **What the arm hides** (`--sensors`). Stowed — the upper arm straight back
 over the torso, the forearm 10° up from it — it hides nothing: no LIDAR ray
@@ -2555,18 +2556,18 @@ flat.
 - **the plug does not** — no job uses it, and the robot charges by lying
   on its dock (#390).
 
-**What is true now:** the arm is `legs.arm.ArmSpec()` (the choice), built
-onto the body by `model.body_xml(arm=arm_mjcf(...))` — a spike's body, not
-yet `CHOSEN`'s, whose placeholder still budgets 0.9 kg; the controller is
-`ArmDriver` (the GDS68's PD plus the arm's own gravity off its model); the
-coupling is `ArmSpec().fork` (60° V's) with `rack.tool_xml`'s peg, judged by
-`rack.tool_power`; the rack is `rack.DEFAULT` (three bays at 0.30 m, pegs at
-0.50 m, tags 29–34), found by `rack.bay_aim` and walked into by
-`rack.walk_in_twist`; the stow, the carry pose, the fold threshold and the
-tool envelope are `legs/arm.py`'s constants. `tests/test_arm.py` pins each
-rule above. Step 4 builds the arm into `CHOSEN`, the rack and the tools
-into the served world, the envelope into the workshop's validator, the fold
-into the body's reflexes and the carried-tool filter into the scans.
+**What is true now:** the arm is `legs.arm.ArmSpec()` (the choice),
+`CHOSEN.arm` since #405, built onto the body by `model.body_xml`; the
+controller is `ArmDriver` (the GDS68's PD plus the arm's own gravity off
+its planar model, #405); the coupling is `ArmSpec().fork` (60° V's) with
+`rack.tool_xml`'s peg, judged by `rack.tool_power`; the rack is
+`rack.DEFAULT` (three bays at 0.30 m, pegs at 0.50 m, tags 29–34), found by
+`rack.bay_aim` and walked into by `rack.walk_in_twist`; the stow, the carry
+pose, the fold threshold and the tool envelope are `legs/arm.py`'s
+constants. `tests/test_arm.py` pins each rule above. #405 built the arm
+and the fold into the served body; its stage B brings the rack and the
+tools into the served world and the carried-tool filter into the scans,
+and step 4c the envelope into the workshop's validator.
 
 ## The served sim's speed (issue #385)
 
@@ -3229,6 +3230,131 @@ the restore (942 samples, `--resume-at 40`). `scripts/unknown_spike.py [--before
 `tests/test_unknown.py`. Not done: the map is still the
 property's rectangle (#381's stage 4), loop closure (stage 3), and what a
 walk into the unknown costs is not yet in any offer (stage 7).
+
+## The arm on the served body (issue #405)
+
+#378's arm is `CHOSEN`'s: `BodySpec.arm` is `ArmSpec()`, and the budget's
+0.9 kg arm and 0.25 kg tool placeholders are 0, so the robot is 9.36 kg
+without a tool (the placeholder body was 9.34) and fourteen drivers stand
+by. #377's torque, thermal and energy tables were flown on the placeholder
+and still are: `model.SIZING` is that premise, and the torque-driven
+instruments (`quad_spike.py`'s tables, the scripted gait's tests) fly it,
+their `ctrl` the legs' twelve. The policy flights fly the chosen body with
+its arm held where it stands (`PolicyDriver.step`): unheld, it falls
+across the nose camera within half a second -- the dock test's lying robot
+lost the board that way. The fork's eleven 2 g geoms had been counted on
+top of the plate's 80 g budget; the plate's own geom carries the rest now.
+
+**The driver holds the arm on every step, off `qpos` alone.**
+`QuadMission.arm` is an `ArmDriver` stepped in `_before_step` whatever the
+posture: at the stow unless a program moved it. #378's driver took its
+gravity feed-forward off MuJoCo's Jacobians -- three bodies, each a
+Jacobian 122 columns wide in the house -- and cost 100 us a step, 43 of
+them the Jacobians and 22 numpy's overhead on two-element arrays: a fifth
+more work a step for the served pair, which runs near real time. And a
+restart forwards the saved world at its instant, where a running world's
+step reads the kinematics one step old, so a controller that reads them on
+every step parts the two worlds at the first step back (the policy reads
+them only at a decision, the fall check only against a threshold). The
+feed-forward is the arm's own planar model now -- each link's mass and CoM
+off the model, the joints' angles and the torso's attitude off `qpos` --
+equal to the Jacobians to 1e-15 N·m at any pose, attitude and payload, and
+the two joints' PD and envelope in plain floats: 12.5 us a step, measured
+at load 18.
+
+**Held, the stow barely moves** (the served body in the house; the arm's
+draw is its two motors' windings and shafts):
+
+| | off the stow, worst | motors' peak, shoulder / elbow | the arm's draw |
+|---|---|---|---|
+| standing | 0.02° | 0.8 / 0.5 N·m | 0.6 W |
+| walking 0.3 m/s | 1.1° | 4.4 / 2.4 N·m | 0.8 W |
+| trotting 0.8 m/s | 2.6° | 2.3 / 3.9 N·m | 2.6 W |
+| turning 0.8 rad/s | 3.8° | 2.4 / 4.0 N·m | 4.3 W |
+| lying down to rest | 0.1° | 1.0 / 0.7 N·m | 0.6 W |
+
+**Getting up with the arm needed no training.** #389's policy, trained with
+#377's placeholder that collided with nothing, gets up with the real arm on
+its back as it did without it (`quad_spike.py --getup`, `--shove`):
+
+| | the placeholder | the arm, held stowed |
+|---|---|---|
+| from the belly: stood in; peak a/f/k | 1.5 s; 5.3 / 8.6 / 10.1 N·m | 1.5 s; 5.3 / 8.6 / 10.1 N·m |
+| #377's 20 drops: stood; median; worst after the landing | 20; 1.5 s; 14.2 N·m | 20; 1.4 s; 12.6 N·m |
+| 100 drops: stood; past 60 % after the landing | 100; 5 | 100; 4 |
+| the house, 48 shoves: fell / up; median (slowest) | 37 / 37; 2.0 s (4.6) | 36 / 36; 1.9 s (5.8) |
+
+A fall folds the arm (below), so the get-up always starts from the stow,
+and that is the pose training fixes now: `quad_train.robot.freeze_arm`
+turns each arm body to the stow its driver holds and takes its joints out,
+so a future run falls on the arm's real geometry while a policy's joints
+stay the legs' twelve (a two-iteration run builds, its actor's observation
+42 wide, as the committed get-up's).
+
+**The fold stays, and folds before a rest too.** #389 left open whether
+step 4 keeps #378's fold. A fall (the body's own test: 60°, or slumped) and
+the rest reflex's lie-down both aim the arm at the stow and let go of any
+payload: a gravity seat cannot hold a tool upside down, the get-up rolls a
+folded arm as it was trained to, and a robot lying down should not lie on
+an arm held out.
+
+**A program moves the arm's joints.** `shoulder` and `elbow` are body axes
+and sensors (`axes.BODY_AXES`; `world_facts` gives each body its own, so
+the rover's world names neither and the quadruped's neither `lift` nor
+`arm`), and `move` is a legs verb. A move stands a lying body first and
+keeps the rest reflex off while it runs; the verbs that walk fold the arm
+first (`steps.travel_pose`: the shoulder, then the elbow, so the forearm
+comes in over the body rather than under it), and so do lying down to
+rest and every walk of the body's own (`QuadMission._twist_routine`): a
+pose outlives its procedure, and the loop's next walk dragged it on the
+floor or carried it across the dock's board. A move the joint cannot
+finish in time, or that a fall takes from it, is a failed step, and its
+hold on the rest reflex (`QuadMission.working`) is never saved: kept, a
+restart restored it with nothing left to clear it. A move is motion to the
+reflex, which counts its 8.6 s from the move's end: counted from the last
+walk, a wait after a move lay the body down and folded the pose it had
+just set. The motors'
+`ctrl` is a torque, so what an axis is held to is `Body.setpoint` -- the
+rover's `ctrl`, the quadruped's driver's goal -- and a death's
+`setpoints` read that.
+
+**The fork is the body's front.** Folded, the fork reaches 0.348 m ahead of
+the torso's centre, 0.14 m past the nose, and it cannot fold further back
+without the forearm crossing the LIDAR's plane (the stow above). The front
+stop, set at 0.45 m for the nose, let the fork meet a wall first: a walk
+to a goal inside the planner's clearance ended in 346 bumper steps, every
+one the arm, and a 105 s explore made 19. At 0.53 m
+(`QuadMission.FRONT_STOP_RANGE`, from the LIDAR 0.15 m behind the centre)
+the fork stops 3 cm short: 0 presses on the same walk and explore, the same
+map, and #399's 24 zones still 24 of 24, the far ones within 4 % of their
+time. It stays under the planner's clearance because a waypoint is dropped
+0.08 m out (`navigator.WAYPOINT_REACHED_M`), and a goal at the clearance
+stops inside `CLOSE_ENOUGH_M`.
+
+**The served speed.** The arm adds physics -- 26 geoms, 6 degrees of
+freedom, 4 tendons and 2 equality constraints a robot -- and a driver step
+a robot; its motors' bill is in floats (`LegPack._arm_w`: numpy on two
+elements cost 6.3 us a step, for the same bits). Side by side, the served
+pair free-ran at 0.82-0.83x real time on staging and 0.80-0.81x with the
+arm (`serve.py --pair --free-run`, both under the dev machine's same load):
+about 2.5 %.
+
+**Energy.** `energy_spike.py --world home_quad` with the arm aboard: the
+explore 6.067 Wh over 251.4 s (86.9 W; 84.7 without the arm), the dock's
+charge 199.5 W net (201.1); the worst-case return 2.699 Wh over 44.64 m
+(60.5 mWh/m; 59.1), its dock leg 0.270 Wh against #387's 0.432, and with
+the dearer carried the reserve is 3.7 Wh (`legs.world.RESERVE_WH`, 3.6).
+
+**What is true now:** the served quadruped carries #378's arm stowed and
+held, folds it on a fall, before resting and before walking, stops for
+walls before its fork meets them, and a program on `autonomous` may move
+its two joints; `tests/test_quad_arm.py` pins each rule. A
+quadruped's day saved at 257.6 s and carried on in a new process is
+IDENTICAL after the restore (330 samples, `determinism_spike.py --world
+home_quad --resume-at 40`), and the pair's day with its arranged fall and
+drain is IDENTICAL twice (1 050 samples to 524.8 s, `--pair`). It takes no
+tool: the rack at its reach, fetch and stow, and the carried-tool filter in
+the scans are this issue's stage B.
 
 ## Debugging workflow that worked
 

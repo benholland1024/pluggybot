@@ -345,10 +345,11 @@ def travel_pose(life, tool: str | None) -> list[tuple[int, float, float]]:
   arm pulls them back through it; a lift that has to fall goes last, so a
   tool held out over a bench comes in before it comes down.
 
-  ⚠ A BODY WITH NO ARM HAS NO CARRYING POSE (issue #381): the quadruped's
-  `actuator` names none (#387), and asking for its arm raised before every
-  `drive_to`, `face` and `drive` -- no procedure on legs had walked a
-  step."""
+  ⚠ THE QUADRUPED'S IS ITS ARM FOLDED (issue #405): its `actuator` names
+  no `arm`, and asking for the rover's raised before every `drive_to`,
+  `face` and `drive` -- no procedure on legs had walked a step (#381). Its
+  empty fork folds to the stow, the shoulder before the elbow, so the
+  forearm comes in over the body rather than under it."""
   from pluggybot.procedure import axes
   from pluggybot.rack.swap import ARM_EXT
   from pluggybot.tools.gripper import CARRY_LIFT, CLAW_MODULE, MODULE_DRIVE_LIFT
@@ -356,6 +357,11 @@ def travel_pose(life, tool: str | None) -> list[tuple[int, float, float]]:
   if tool is None:
     try:
       return [(body.actuator("arm"), 0.0, axes.ARM_SPEED)]
+    except KeyError:
+      pass
+    try:
+      return [(body.actuator(axes.AXES[j].actuator), target, axes.AXES[j].speed)
+              for j, target in zip(axes.ARM_JOINTS, axes._ARM.stow)]
     except KeyError:
       return []
   model = life.model
@@ -388,7 +394,7 @@ def travel_pose_routine(life) -> Routine:
   straight line, not the pose: see `_draw`.)"""
   moved = False
   for act, target, speed in travel_pose(life, _carried(life)):
-    if abs(float(life.data.ctrl[act]) - target) > POSE_TOL:
+    if abs(life.body.setpoint(act) - target) > POSE_TOL:
       yield from life.body.ramp_routine(act, target, speed)
       moved = True
   if moved:
@@ -1011,7 +1017,10 @@ def _move(life, args: dict) -> Routine:
   if not axis.lo <= target <= axis.hi:
     return {"ok": False, "reason": f"{axis.name} target {target} is outside "
                                     f"{axis.lo}..{axis.hi} {axis.unit}".rstrip()}
-  yield from axis.run(life, target)
+  moved = yield from axis.run(life, target)
+  if moved is False:        # a joint that ran out of time (the quadruped's arm)
+    return {"ok": False, "reason": f"{axis.name} did not reach {target} "
+                                    f"{axis.unit} in time".rstrip()}
   return {"ok": True, "axis": axis.name, "target": target}
 
 
@@ -1103,10 +1112,11 @@ def run_verb(life, verb: Verb, args: dict, where: dict | None = None,
     life.step_until = before_until
 
 
-#: What a body with no arm can run (issue #387): walking, turning, standing
-#: still and the base at a velocity -- nothing that needs a tool, and no
-#: `look`, whose ranges are the rover's bay tags'.
-BODY_VERBS = ("drive_to", "face", "wait", "drive")
+#: What a body whose arm takes no tool can run (issue #387): walking,
+#: turning, standing still and the base at a velocity, and its arm's joints
+#: (#405) -- nothing that needs a tool, and no `look`, whose ranges are the
+#: rover's bay tags'.
+BODY_VERBS = ("drive_to", "face", "wait", "drive", "move")
 #: ...and how a walking body's prompt describes the one whose words are the
 #: rover's.
 BODY_DOCS = {"drive_to": "walk to a world point over the map, and over floor not "
@@ -1169,7 +1179,7 @@ def check_step(verb: Verb, args: dict, facts: WorldFacts,
   """Every argument of one step. `partial` skips the missing-argument rule,
   for a language checking only the literal half of a call."""
   if facts is not None and facts.verbs is not None and verb.name not in facts.verbs:
-    return [f"{verb.name}: this body has no arm yet, so it has no {verb.name} "
+    return [f"{verb.name}: not on this body yet: its arm takes no tool "
             f"(it has: {', '.join(facts.verbs)})"]
   bad = []
   extra = set(args) - set(verb.args)

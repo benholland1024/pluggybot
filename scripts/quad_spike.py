@@ -3,7 +3,10 @@
 The body is `pluggybot.legs.model.BodySpec`, its actuators
 `pluggybot.legs.actuator`, and until the walking policy is trained the gait
 is `pluggybot.legs.scripted.VirtualModel` -- a measuring instrument, not the
-robot's gait. Every table here is SimNotes, "The quadruped body".
+robot's gait. Every table here is SimNotes, "The quadruped body". The
+torque-driven tables (the scripted gait's) fly #377's sizing premise,
+`model.SIZING`: the arm a placeholder on the robot's back. The policy
+flights fly the chosen body, its arm held stowed (`PolicyDriver.step`).
 
   --view        the robot in the MuJoCo viewer, cycling through stand,
                 crouch, lie down, walk, trot, fast trot and a turn, six
@@ -39,7 +42,7 @@ import mujoco  # noqa: E402
 import numpy as np  # noqa: E402
 
 from pluggybot.legs.actuator import BUS_V_NOMINAL, JointLimits  # noqa: E402
-from pluggybot.legs.model import (CHOSEN, ELECTRONICS_W, LEGS, PUPPER_CLASS,  # noqa: E402
+from pluggybot.legs.model import (CHOSEN, ELECTRONICS_W, LEGS, PUPPER_CLASS, SIZING,  # noqa: E402
                                   PUPPER_WITH_SUITE, BodySpec, attachable, body_xml,
                                   pose_qpos)
 from pluggybot.legs.odometry import LegOdometry  # noqa: E402
@@ -214,7 +217,7 @@ def _by_joint(x: np.ndarray, fn) -> np.ndarray:
   return np.array([fn(x[:, j::3]) for j in range(3)])
 
 
-def torque_table(spec: BodySpec = CHOSEN) -> list[dict]:
+def torque_table(spec: BodySpec = SIZING) -> list[dict]:
   lim = JointLimits.of(spec.motor, spec.knee_ratio, BUS_V)
   rows = []
   for act in activities(spec):
@@ -245,7 +248,7 @@ def torque_table(spec: BodySpec = CHOSEN) -> list[dict]:
   return rows
 
 
-def print_torque_table(spec: BodySpec = CHOSEN) -> None:
+def print_torque_table(spec: BodySpec = SIZING) -> None:
   lim = JointLimits.of(spec.motor, spec.knee_ratio, BUS_V)
   print(f"{spec.name}: {spec.mass:.2f} kg, {spec.motor.name}, knee belt "
         f"{spec.knee_ratio}:1, thigh/shank {spec.thigh}/{spec.shank} m")
@@ -373,7 +376,7 @@ def lie_down(spec: BodySpec):
 AMBIENT_C = (30.0, 40.0)
 
 
-def energy_table(spec: BodySpec = CHOSEN) -> None:
+def energy_table(spec: BodySpec = SIZING) -> None:
   """Watts per activity, and what a transition costs."""
   base = sum(ELECTRONICS_W.values())
   print(f"electronics, always on: {base:.1f} W "
@@ -405,7 +408,7 @@ def energy_table(spec: BodySpec = CHOSEN) -> None:
         f"(ignoring the {t_up:.1f} s it then takes to stand)")
 
 
-def thermal_table(spec: BodySpec = CHOSEN) -> None:
+def thermal_table(spec: BodySpec = SIZING) -> None:
   """Each activity SUSTAINED: the hottest winding's steady temperature.
 
   A first-order winding (`Motor.thermal_r`, `thermal_c`) driven by
@@ -553,7 +556,7 @@ def sweep() -> None:
     for leg in (0.19, 0.21, 0.23):
       for rotor in (lo, hi):
         motor = replace(CHOSEN.motor, rotor_inertia=rotor)
-        spec = CHOSEN.with_(knee_ratio=kr, thigh=leg, shank=leg, motor=motor)
+        spec = SIZING.with_(knee_ratio=kr, thigh=leg, shank=leg, motor=motor)
         lim = JointLimits.of(motor, kr, BUS_V)
         rows = torque_table(spec)
         peak = max(r["peak"][2] for r in rows)
@@ -647,7 +650,7 @@ def view(spec: BodySpec) -> None:
           time.sleep(ahead)
 
 
-def filmstrip(out: str, spec: BodySpec = CHOSEN) -> None:
+def filmstrip(out: str, spec: BodySpec = SIZING) -> None:
   """Each activity a moment in, then the robot lying on its belly."""
   from PIL import Image, ImageDraw
   tiles = []
@@ -1306,19 +1309,19 @@ def main(argv=None) -> None:
   elif args.policy:
     fly_policy(args.policy, view=args.view)
   elif args.view:
-    view(PUPPER_WITH_SUITE if args.pupper else CHOSEN)
+    view(PUPPER_WITH_SUITE if args.pupper else SIZING)
   elif args.torque and args.pupper:
     print_torque_table(PUPPER_CLASS)
     print()
     print_torque_table(PUPPER_WITH_SUITE)
   elif args.torque:
-    print_torque_table(CHOSEN)
+    print_torque_table(SIZING)
   elif args.sweep:
     sweep()
   elif args.energy:
-    energy_table(CHOSEN)
+    energy_table(SIZING)
   elif args.thermal:
-    thermal_table(CHOSEN)
+    thermal_table(SIZING)
   elif args.rays:
     ray_cost()
   elif args.served:

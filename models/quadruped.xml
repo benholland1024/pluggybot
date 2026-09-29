@@ -38,6 +38,19 @@
               rgba="0.1 0.1 0.1 1"/>
       </default>
     </default>
+    <default class="arm">
+      <joint type="hinge" axis="0 -1 0" armature="0" frictionloss="0.01"
+             damping="0"/>
+      <default class="arm_joint"/>
+      <default class="arm_link">
+        <geom type="capsule" size="0.011" contype="1" conaffinity="0" group="1"
+              rgba="0.9 0.6 0.1 1"/>
+      </default>
+      <default class="fork">
+        <geom contype="1" conaffinity="0" group="1" friction="0.4 0.005 0.0001"
+              priority="1" mass="0.002" rgba="0.30 0.32 0.36 1"/>
+      </default>
+    </default>
   </default>
 
   <worldbody>
@@ -84,12 +97,7 @@
         <camera name="nav_eye" pos="0.007 0 0" xyaxes="0 -1 0 0 0 1" fovy="41"/>
       </body>
       <site name="arm_shoulder" pos="0.17 0 0.085" size="0.01"/>
-      <geom name="arm" class="visual" type="capsule" size="0.025"
-            fromto="0.17 0 0.085 -0.07 0 0.085"
-            mass="0.9" rgba="0.9 0.6 0.1 1"/>
-      <geom name="tool" class="visual" type="box" size="0.04 0.04 0.035"
-            pos="0.12 0 0.145" mass="0.25"
-            rgba="0.9 0.8 0.2 1"/>
+      <geom name="arm_motors" class="visual" type="cylinder" size="0.0485 0.055" pos="0.15 0 0.1" quat="0.707107 0.707107 0 0" mass="0.792" rgba="0.25 0.25 0.28 1"/>
 
       <body name="FL_hip" pos="0.19 0.05 0">
         <joint name="FL_hip_abd" class="abd" range="-0.8 0.8"
@@ -183,8 +191,45 @@
           </body>
         </body>
       </body>
+      <body name="arm_upper" pos="0.15 0 0.1" childclass="arm">
+        <joint name="arm_shoulder" class="arm_joint" range="-1.2 3.4"
+               armature="0.004608" frictionloss="0.1"/>
+        <geom name="arm_upper" class="arm_link" fromto="0 0 0 0.25 0 0"
+              mass="0.15"/>
+        <body name="arm_fore" pos="0.25 0 0">
+          <joint name="arm_elbow" class="arm_joint" range="-3.14159 0.4"/>
+          <geom name="arm_fore" class="arm_link" fromto="0 0 0 0.35 0 0"
+                mass="0.15"/>
+          
+          <body name="arm_plate" pos="0.35 0 0">
+            <joint name="arm_wrist" class="arm_joint" range="-6.3 6.3"/>
+            <geom name="arm_plate" class="arm_link" type="box" size="0.03 0.03 0.012"
+                  pos="0.02 0 -0.012" mass="0.058"/>
+          <geom name="arm_vl_a" class="fork" type="box" size="0.0156 0.006 0.003" pos="0.0772 -0.085 -0.02249" quat="0.866025 0 0.5 0"/>
+          <geom name="arm_vl_b" class="fork" type="box" size="0.0156 0.006 0.003" pos="0.0928 -0.085 -0.02249" quat="0.866025 0 -0.5 0"/>
+          <geom name="arm_prong_l" class="fork" type="box" size="0.05 0.005 0.004" pos="0.035 -0.085 -0.042"/>
+          <geom name="arm_ramp_l" class="fork" type="box" friction="0.15 0.005 0.0001" priority="2" size="0.006 0.0125 0.0015" pos="0.085 -0.119 -0.0225" quat="0.894427 -0.447214 0 0"/>
+          <geom name="arm_vr_a" class="fork" type="box" size="0.0156 0.006 0.003" pos="0.0772 0.085 -0.02249" quat="0.866025 0 0.5 0"/>
+          <geom name="arm_vr_b" class="fork" type="box" size="0.0156 0.006 0.003" pos="0.0928 0.085 -0.02249" quat="0.866025 0 -0.5 0"/>
+          <geom name="arm_prong_r" class="fork" type="box" size="0.05 0.005 0.004" pos="0.035 0.085 -0.042"/>
+          <geom name="arm_ramp_r" class="fork" type="box" friction="0.15 0.005 0.0001" priority="2" size="0.006 0.0125 0.0015" pos="0.085 0.119 -0.0225" quat="0.894427 0.447214 0 0"/>
+          <geom name="arm_bridge" class="fork" type="box" size="0.006 0.1115 0.005" pos="-0.009 0 -0.042"/>
+          <geom name="arm_pad" class="fork" type="capsule" size="0.005 0.024" pos="0.067 0 -0.07" quat="0.707107 0.707107 0 0"/>
+          <geom name="arm_pad_post" class="fork" type="box" size="0.038 0.006 0.003" pos="0.029 0 -0.078"/>
+          <site name="arm_seat" pos="0.085 0 -0.03" size="0.003"/>
+          </body>
+        </body>
+      </body>
     </body>
   </worldbody>
+
+  <tendon>
+    <fixed name="arm_fore" armature="0.004608" frictionloss="0.1"><joint joint="arm_shoulder" coef="1"/><joint joint="arm_elbow" coef="1"/></fixed>
+    <fixed name="arm_level"><joint joint="arm_shoulder" coef="1"/><joint joint="arm_elbow" coef="1"/><joint joint="arm_wrist" coef="1"/></fixed>
+  </tendon>
+  <equality>
+    <tendon name="arm_level" tendon1="arm_level" polycoef="0 0 0 0 0" solref="0.004 1"/>
+  </equality>
 
   <actuator>
     <dcmotor name="FL_hip_abd" joint="FL_hip_abd" input="position" motorconst="1.5286624203821657 0.0" resistance="1.4444054365815742" saturation="22.0 0.0 0.0" controller="17.188965195673614 0.0 -0.43437890937176427 0.0 0.0 43.2"/>
@@ -199,6 +244,8 @@
     <dcmotor name="HR_hip_abd" joint="HR_hip_abd" input="position" motorconst="1.5286624203821657 0.0" resistance="1.4444054365815742" saturation="22.0 0.0 0.0" controller="17.188965195673614 0.0 -0.43437890937176427 0.0 0.0 43.2"/>
     <dcmotor name="HR_hip_flex" joint="HR_hip_flex" input="position" motorconst="1.5286624203821657 0.0" resistance="1.4444054365815742" saturation="22.0 0.0 0.0" controller="17.188965195673614 0.0 -0.43437890937176427 0.0 0.0 43.2"/>
     <dcmotor name="HR_knee" joint="HR_knee" input="position" motorconst="1.5286624203821657 0.0" resistance="1.4444054365815742" saturation="22.0 0.0 0.0" controller="17.188965195673614 0.0 -0.43437890937176427 0.0 0.0 43.2"/>
+    <motor name="arm_shoulder" joint="arm_shoulder" ctrlrange="-22 22"/>
+    <motor name="arm_elbow" tendon="arm_fore" ctrlrange="-22 22"/>
   </actuator>
 
   <sensor>
@@ -214,7 +261,7 @@
   </sensor>
 
   <keyframe>
-    <key name="stand" qpos="0 0 0.3244 1 0 0 0 0 0.766994 -1.53399 0 0.766994 -1.53399 0 0.766994 -1.53399 0 0.766994 -1.53399"/>
-    <key name="lie" qpos="0 0 0.106 1 0 0 0 0 1.16447 -2.73527 0 1.16447 -2.73527 0 1.16447 -2.73527 0 1.16447 -2.73527"/>
+    <key name="stand" qpos="0 0 0.3244 1 0 0 0 0 0.766994 -1.53399 0 0.766994 -1.53399 0 0.766994 -1.53399 0 0.766994 -1.53399 3.14159 -2.96659 -0.175"/>
+    <key name="lie" qpos="0 0 0.106 1 0 0 0 0 1.16447 -2.73527 0 1.16447 -2.73527 0 1.16447 -2.73527 0 1.16447 -2.73527 3.14159 -2.96659 -0.175"/>
   </keyframe>
 </mujoco>

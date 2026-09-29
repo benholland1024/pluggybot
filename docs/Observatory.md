@@ -10,6 +10,52 @@ observatory is NOT a result and never enters `results/`.
 
 ## Periods
 
+### The arm on their backs (#405, step 4a) — opens when this PR is deployed
+
+**What changed in the world.** Both quadrupeds carry #378's arm: two
+GIM8108-8s at the shoulder, links 0.25 and 0.35 m, a passive parallelogram
+keeping the plate level, folded back over the torso whenever nothing moves
+it. The body weighs 9.36 kg (the placeholder's 9.34), fourteen drivers
+stand by instead of twelve, and the arm's motors hold it on every step:
+0.6 W standing, up to ~4 W turning. So the energy rows moved: the explore
+0.02414 Wh/s (0.02353), the dock's charge 199.5 W net (201.1), and the
+return reserve 3.7 Wh (3.6). A fall and the rest reflex fold the arm to
+the stow first; the get-up is #389's policy unchanged (it stands with the
+arm as it did without it). What the robot is told moved in two places:
+the constitution's body paragraph says it has an arm that takes no tool
+yet (its sha changes, so the header's `build.constitutions` does), and on
+`autonomous` the procedure rule gives legs the `move` verb and its arm's
+two joints, `shoulder` and `elbow`, as axes and sensors. The arm takes no
+tool: there is no rack at its reach yet (stage B), no tool errand and no
+job that needs one.
+
+**What the period is for.**
+
+- **The mobility period's numbers again, with the arm aboard**: falls and
+  how long each took to stand (a `getting_up` posture on the wire), `stuck`
+  deaths, the explore's and the dock's success. Nothing should read worse
+  than #387's period; if a fall now lasts longer, the arm on the back is
+  the first suspect.
+- **Whether a mind moves its arm.** Nothing asks it to, and nothing pays
+  for it: a `move("shoulder", ...)` in a procedure's source is the robot's
+  own idea. Read the `procedure` events' sources and History's run lines
+  for `shoulder` / `elbow`; a pose held and then walked out of is folded
+  by the walk's verbs, and a move that cannot finish is a failed step.
+- **The served speed.** The arm is physics too -- each robot's 26 more
+  geoms, 6 degrees of freedom, 4 tendons and 2 equality constraints -- plus
+  a driver step a robot. Side by side on the dev machine, both under the
+  same load, the served pair free-ran at 0.82-0.83x real time on staging
+  and 0.80-0.81x with the arm: about 2.5 %, so #385's 1.14x on the box
+  should read near 1.11x. Read the frame gaps before believing a slower
+  stream is the arm.
+- **Walls.** The front stop moved from 0.45 m to 0.53 m, for the fork
+  (SimNotes, "The fork is the body's front"): the robots stop about 8 cm
+  further from a wall ahead, and their bumper should almost never fire
+  on a wall.
+
+**Not yet known.** What the robots make of an arm they are told cannot
+take a tool yet.
+
 ### A look on legs (#408) — opens when this PR is deployed
 
 **What changed in the world.** A quadruped's `look` goes out from its own
