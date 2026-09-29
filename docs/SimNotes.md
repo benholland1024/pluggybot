@@ -3466,7 +3466,7 @@ tool jobs (#406, #407); a carried tool down the house's stairs (#280 builds
 them); the other robot's carried tool is not filtered from this one's
 senses (at the carry pose it is above the LIDAR's plane), and nothing
 keeps two carrying robots' tools apart at the rack (1 of 20 knocked off at
-bays A and C), nor a second robot off a bay the first is working.
+bays A and C), nor a second robot off a bay the first is working (#418).
 
 ## Debugging workflow that worked
 
