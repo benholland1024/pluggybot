@@ -45,13 +45,24 @@ doc that owns what you are about to touch:
   call; an integration of the loop's bookkeeping is a day on the stub
   (`stub_life`); fly a whole mission only when the claim is genuinely about
   PHYSICS, and then stop it on the claim (`stop_when`). A flown proof whose
-  rule is already pinned goes behind `--endurance`.
+  rule is already pinned may go behind `--endurance` — with Ben's approval,
+  below.
 - ⚠ **THE TEST SUITE HAS A BUDGET, AND EXCEEDING IT NEEDS BEN'S EXPLICIT
   APPROVAL.** The full suite is **6:53** (2026-09-26, #376). Any change to
   testing that would take it past **10 minutes on a quiet machine, or 15 on a
   busy one**, must be stated as such in the PR — the number, the test, and why
-  it cannot be cheaper — and approved by Ben personally before it merges.
-  Reducing suite time is a project priority: the suite was slowing development
+  it cannot be cheaper — and approved by Ben personally before it merges. ⚠
+  **THE BUDGET HAS NO OUTSIDE** (Ben, 2026-09-29): a test the default run
+  does not run is still testing, and leaving the default run is no way under
+  the budget. ADDING one — a flight behind `--endurance`, or any skip, gate,
+  marker or job that leaves a test out — or MOVING a test out of the default
+  run needs Ben's explicit approval in the PR, however short it is, stating
+  how long it takes (wall, `-n0`) and why it is necessary: why no test in the
+  default run can make its claim. The approved set is `APPROVED_FLIGHTS`
+  (`tests/test_endurance.py`), each with its time and its reason; the suite
+  fails on a flight not on it, on a test that skips itself, and on an
+  `addopts` that deselects. Reducing suite time is a project priority: the
+  suite was slowing development
   considerably at 18 minutes, and it gets there one reasonable-looking mission
   test at a time. Do not rely on full runs where a fast test settles the
   claim.
@@ -115,23 +126,24 @@ doc that owns what you are about to touch:
   shortened: `test_a_question_is_asked_answered_and_graded_twice_unattended`
   (issue #22) already stops on its claim, and "**twice**, with nobody
   watching" IS the claim.
-- **Behind `--endurance` is PHYSICS no fast test can make, and a flight
-  flies only when a change touches what it guards** (issues #158, #380;
-  `tests/conftest.py`, `tests/test_endurance.py`). The loop's bookkeeping —
-  the mind, the economy, the record, the wire — is a day on the stub in the
-  default run. A flight's rule is pinned fast (name the pin in the comment
-  above the mark), it is `slow`, and it names the paths its claim stands on,
-  `@pytest.mark.endurance(when=(...))`. **Before calling work done:**
-  `MUJOCO_GL=egl uv run pytest -q --endurance-changed -m endurance` flies
-  exactly the flights your branch touches — usually none, when it costs a
-  collection. There is no "before a release" beyond that; `--endurance`
-  flies every one, deliberately. ⚠ A `when` path must exist (a rename fails the fence), and
+- **Behind `--endurance` is PHYSICS no fast test can make, approved by Ben,
+  and a flight flies only when a change touches what it guards** (issues
+  #158, #380; `tests/conftest.py`, `tests/test_endurance.py`). The loop's
+  bookkeeping — the mind, the economy, the record, the wire — is a day on the
+  stub in the default run. A flight's rule is pinned fast (name the pin in
+  the comment above the mark); it is `slow`; it names the paths its claim
+  stands on, `@pytest.mark.endurance(when=(...))`; and it is in
+  `APPROVED_FLIGHTS` with its time and its reason, because the budget has no
+  outside (above). **Before calling work done:** `MUJOCO_GL=egl uv run
+  pytest -q --endurance-changed -m endurance` flies exactly the flights your
+  branch touches — usually none, when it costs a collection. There is no
+  "before a release" beyond that; `--endurance` flies every one,
+  deliberately. ⚠ A `when` path must exist (a rename fails the fence), and
   `lifecycle.py` is in none: its rules are pinned on the stub. ⚠ A flag, not
   `-m 'not endurance'` in `addopts`: pytest keeps the LAST `-m`, so the
   everyday `-m "not slow"` would silently switch them back on. The decision
-  behind it (Ben, 2026-09-12):
-  while the design is moving, a generous pack is ASSUMED to fund any single
-  errand and a battery death costs a heart. ⚠
+  behind it (Ben, 2026-09-12): while the design is moving, a generous pack is
+  ASSUMED to fund any single errand and a battery death costs a heart. ⚠
   `test_charge_priority_survives_an_overseer_that_never_charges` stays in the
   default run: it is the proof that an LLM cannot skip charging on `guarded`.
 - Lint: `uv run ruff check src/ scripts/ tests/`

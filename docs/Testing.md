@@ -19,7 +19,9 @@ kinds:
   stub, in the default run (§2.1). If it is PHYSICS — a dock, a walk, a
   claw, a body in a world — fly it, stop it on the claim (`stop_when`), and
   with its rule pinned put it behind `--endurance`, naming what it guards
-  (§4).
+  (§4). ⚠ That is adding test time like any other: Ben approves it in the
+  PR, told how long it takes and why no default-run test can make its claim
+  (CLAUDE.md, the budget has no outside).
 - **A premise** — the old defect still reproduces with the fix bypassed
   (`--blind`, `--no-brake`). `slow`; it cannot catch a regression while you
   iterate, it only stops the premise rotting.
@@ -112,7 +114,9 @@ and wall clock tracks the machine. So:
 
 A `slow` mark says why the test cannot be shortened past what it does. An
 `endurance` flight is also `slow`; the comment above it names the fast test
-that pins its rule, and `when=` names the paths its physics stands on — a
+that pins its rule; its entry in `APPROVED_FLIGHTS` (`tests/test_endurance.py`)
+carries its wall time, why no default-run test can make its claim, and the PR
+Ben approved it in; and `when=` names the paths its physics stands on — a
 directory, a file or a file prefix. That is when it flies:
 `--endurance-changed` selects the flights a change touches, and
 `tests/test_endurance.py` fails on a path that has moved. Leave out what is

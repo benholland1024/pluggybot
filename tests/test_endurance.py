@@ -1,11 +1,14 @@
-"""The endurance flights and when they fly (tests/conftest.py): each names
-what it guards, and `--endurance-changed` flies exactly the ones a change
-touches. Nothing here flies; the fence reads the marks, the selector's two
-rules are pinned on a direct call and a scratch repository."""
+"""The endurance flights, who approved them and when they fly
+(tests/conftest.py): each is on Ben's approved list with its time and its
+reason, each names what it guards, and `--endurance-changed` flies exactly
+the ones a change touches. Nothing here flies; the fences read the source,
+the selector's two rules are pinned on a direct call and a scratch
+repository."""
 
 import ast
 import os
 import subprocess
+import tomllib
 from pathlib import Path
 
 import pytest
@@ -14,6 +17,27 @@ import conftest
 
 TESTS = Path(__file__).parent
 ROOT = TESTS.parent
+
+#: ⚠ EVERY TEST OUTSIDE THE DEFAULT RUN, EACH APPROVED BY BEN (CLAUDE.md: the
+#: test budget has no outside): name -> (the wall time it takes, why no test
+#: in the default run can make its claim, the PR he approved it in). A flight
+#: not listed here fails the fence below, so adding one -- or moving a test
+#: out of the default run -- is adding it here and asking him in its PR.
+APPROVED_FLIGHTS = {
+  "test_a_quadruped_pair_lives_a_scripted_home_day": (
+    "~10 min, estimated: ~480 sim s, at 1.7 s of wall a sim s while both walk",
+    "the served robot walks to its dock and charges on it, beside another's day",
+    "#413"),
+  "test_a_fresh_quadruped_walks_to_the_kitchen_by_the_hall": (
+    "~25 s", "the planner, the scan matcher and the walking policy, into the "
+    "unknown", "#413"),
+  "test_the_tower_is_stacked_by_the_claw_from_the_rack_and_graded": (
+    "~170 s", "ladder A: the tower can be solved (Evaluation.md §7)", "#413"),
+  "test_the_unknown_mass_is_weighed_on_the_lift_and_the_finding_graded": (
+    "~150 s", "ladder A: the bench can be solved", "#413"),
+  "test_a_feed_act_reaches_the_cage_and_the_mouse_eats": (
+    "~45 s", "ladder A: the mouse's feed act lands", "#413"),
+}
 
 
 def _is_mark(node, name="endurance") -> bool:
@@ -77,6 +101,38 @@ def test_every_flight_names_what_it_guards_and_each_path_is_in_the_tree():
     for w in when:
       assert any(t.startswith(w) for t in tracked), f"{name}: no tracked path is {w!r}"
     assert slow, f"{name} is not marked slow"
+
+
+def test_nothing_leaves_the_default_run_without_bens_approval():
+  """⚠ THE BUDGET HAS NO OUTSIDE (CLAUDE.md). A flight is the one way a test
+  leaves the default run, and each is in `APPROVED_FLIGHTS` with its time
+  and its reason: a new one fails here until it is listed, and a listed one
+  that is gone fails too, so the list stays the set. No test skips itself,
+  and `addopts` deselects nothing -- the other two ways out."""
+  flights = set(_flights())
+  listed = set(APPROVED_FLIGHTS)
+  assert not flights - listed, (
+    f"outside the default run without Ben's approval: {sorted(flights - listed)} "
+    "-- list each in APPROVED_FLIGHTS with its wall time and why no test in the "
+    "default run can make its claim, and ask for his approval in the PR")
+  assert not listed - flights, f"approved, but no longer flights: {sorted(listed - flights)}"
+  for name, (took, why, pr) in APPROVED_FLIGHTS.items():
+    assert took and why and pr.startswith("#"), f"{name}: its time, its reason, its PR"
+  for path in sorted(TESTS.glob("test_*.py")):
+    text = path.read_text()
+    if path.name == Path(__file__).name or not any(
+        form in text for form in ("pytest.skip", "mark.skip", "importorskip")):
+      continue
+    for node in ast.walk(ast.parse(text, filename=str(path))):
+      if (isinstance(node, ast.Attribute)
+          and node.attr in ("skip", "skipif", "importorskip")
+          and ast.unparse(node.value) in ("pytest", "pytest.mark")):
+        raise AssertionError(f"{path.name}:{node.lineno}: `{ast.unparse(node)}` takes a "
+                             "test out of the default run -- that needs Ben's approval")
+  options = tomllib.loads((ROOT / "pyproject.toml").read_text())
+  addopts = options["tool"]["pytest"]["ini_options"]["addopts"].split()
+  assert not {"-m", "-k", "--deselect", "--ignore", "--ignore-glob"} & set(addopts), \
+      f"addopts {addopts} takes tests out of the default run -- that needs Ben's approval"
 
 
 def test_a_flight_is_flown_only_when_a_change_touches_what_it_guards():

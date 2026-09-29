@@ -23,8 +23,9 @@ def world_data(world_model):
 # guards -- `@pytest.mark.endurance(when=(...))`, repo paths as prefixes --
 # and `--endurance-changed` flies exactly the ones a change touches: the diff
 # against the merge base with origin/staging, uncommitted and untracked
-# included. `--endurance` flies every one. tests/test_endurance.py fences
-# the marks.
+# included. `--endurance` flies every one. ⚠ A flight is test time like any
+# other: each is approved by Ben with its time and its reason
+# (`APPROVED_FLIGHTS`, tests/test_endurance.py, which fences the marks).
 #
 # ⚠ OPT-IN, NOT A MARKER EXPRESSION (issue #158). `addopts = "-m 'not
 # endurance'"` does not compose: pytest keeps the LAST `-m`, so the everyday
