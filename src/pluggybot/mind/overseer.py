@@ -2944,15 +2944,17 @@ def procedure_rule(armed: bool = True) -> str:
   verbs = "\n".join(
     f"  {signature(v)}  -- {v['doc']}"
     for v in describe_vocabulary())
+  # ...the rover's own: the quadruped's arm joints (#405) are another
+  # body's, which its validator refuses
   reg = axes.describe()
   ax = "\n".join(
     f"  {a['name']}: {a['lo']:g}..{a['hi']:g} {a['unit']} -- {a['doc']}"
     + (f" (requires {a['requires']})" if a["requires"] else "")
-    for a in reg["axes"])
+    for a in reg["axes"] if a["name"] not in axes.ARM_JOINTS)
   se = "\n".join(
     f"  {s['name']} -- {s['doc']}"
     + (f" (requires {s['requires']})" if s["requires"] else "")
-    for s in reg["sensors"])
+    for s in reg["sensors"] if s["name"] not in axes.ARM_JOINTS)
   return (PROCEDURE_HEAD % {"cap": MAX_PROCEDURES, "drivers": drivers}
           + verbs + PROCEDURE_TAIL
           + ax + PROCEDURE_SENSORS + se)

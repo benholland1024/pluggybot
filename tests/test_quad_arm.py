@@ -242,6 +242,25 @@ def test_the_pack_bills_the_arms_two_motors(quad_world):
     body.close()
 
 
+def test_a_save_mid_move_leaves_the_rest_reflex_on(quad_world):
+  # A move held the posture with `want = "stand"`, which a save kept and a
+  # crash-restart restored with no routine left to clear it: the robot never
+  # lay down again (found in review, #405). A move's hold is never saved.
+  from pluggybot import tick
+  body = _quad(quad_world)
+  try:
+    step = tick.Step(body.ramp_routine(body.actuator("arm_shoulder"), 2.0, 1.5), "move")
+    cmd = step.tick()
+    for _ in range(20):
+      body.stepper.step(cmd)
+      cmd = step.tick()
+    assert body.mission.working
+    state, _ = body.kept_state()
+    assert state["want"] is None and "working" not in state
+  finally:
+    body.close()
+
+
 def test_the_arm_is_carried_across_a_restart(quad_world):
   a, b = _quad(quad_world), _quad(quad_world)
   try:
@@ -258,6 +277,61 @@ def test_the_arm_is_carried_across_a_restart(quad_world):
 
 
 # ---- a program's axes --------------------------------------------------------------
+
+
+def _named(rule: str, section: str) -> set:
+  """The names a procedure rule lists under its AXES or SENSORS heading."""
+  body = rule.split(section, 1)[1]
+  if section.strip().startswith("AXES"):
+    body = body.split("\nSENSORS for", 1)[0]
+  return {ln.strip().split(":")[0].split(" --")[0]
+          for ln in body.splitlines()[1:] if ln.startswith("  ")}
+
+
+@pytest.mark.parametrize("world, armed", [("home", True), (QUAD_HOME, False)])
+def test_a_rule_names_only_what_its_world_lets_a_program_use(world, armed):
+  # The rover's rule once listed the quadruped's joints, which its
+  # validator refuses (found in review, #405).
+  rule = ov.procedure_rule(armed)
+  facts = world_facts(world)
+  assert _named(rule, "\nAXES for") <= set(facts.axes)
+  assert _named(rule, "\nSENSORS for") <= set(facts.sensors)
+
+
+def test_a_fall_mid_move_is_no_arrival(quad_world):
+  # A fall folds the arm; the fold arrives at the stow, which is not the
+  # move's target (found in review, #405).
+  from pluggybot import tick
+  body = _quad(quad_world)
+  try:
+    q = body.handle.qpos_adr(body.model)
+    step = tick.Step(body.ramp_routine(body.actuator("arm_shoulder"), 2.0, 1.5), "move")
+    cmd, k = step.tick(), 0
+    while cmd is not None:
+      if k == 50:                              # knocked onto its side
+        body.data.qpos[q + 3:q + 7] = (math.cos(math.pi / 4), math.sin(math.pi / 4),
+                                       0.0, 0.0)
+        mujoco.mj_forward(body.model, body.data)
+      body.stepper.step(cmd)
+      cmd, k = step.tick(), k + 1
+    assert step.result is False and body.mission.posture == qb.GETTING_UP
+  finally:
+    body.close()
+
+
+def test_a_walk_folds_an_arm_a_program_left_out(quad_world):
+  # The loop's own walks and the dock's approach carried a procedure's pose:
+  # dragged on the floor after a reach down, hung in front of the board.
+  body = _quad(quad_world)
+  try:
+    mis = body.mission
+    mis.arm.aim(0.0, 0.0)                     # straight out, left there
+    body.run(mis._twist_routine(0.4, 0.0, 0.0))
+    stow = mis.arm_spec.stow
+    assert np.allclose(mis.arm.goal, (stow[0], stow[0] + stow[1]))
+    assert mis.arm.arrived(qb.ARM_TOL)        # folded before the first step
+  finally:
+    body.close()
 
 
 def test_a_legged_program_moves_its_own_arm_and_no_other_bodys_axis():

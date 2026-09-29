@@ -329,6 +329,9 @@ class QuadMission(Navigator):
     self.arm = ArmDriver(model, data, self.arm_spec, prefix=handle.prefix)
     self.arm.aim(*self.arm_spec.stow)
     self.arm_acts = tuple(self.arm.act)
+    #: An arm move under way: the rest reflex waits for it. Not kept
+    #: across a restart, which ends every routine that could own it.
+    self.working = False
     self.feet = [model.site(handle.el(f"{leg}_foot")).id for leg in LEGS]
     self.foot_r = float(model.geom_size[model.geom(handle.el("FL_foot")).id][0])
     self._vm: VirtualModel | None = None
@@ -448,12 +451,22 @@ class QuadMission(Navigator):
 
   def _twist_routine(self, vx: float, vy: float, w: float) -> Routine:
     """One physics step at a velocity, as the policy can walk it -- stood
-    up first if the body is resting."""
+    up first if the body is resting, and the arm folded first if something
+    left it out: a procedure's pose outlives the procedure, and a walk
+    carried it on the floor or across the dock's board."""
     cmd = command_for(vx, vy, w)
     if cmd != STILL and self.posture != STANDING:
       yield from self.stand_routine()
+    if cmd != STILL and not self.arm_driving():
+      yield from self.stow_arm_routine()
     yield cmd
     self._after_step()
+
+  def arm_driving(self) -> bool:
+    """The arm aimed at its driving pose: the stow. Read every walking step,
+    so in floats (`np.allclose` cost 16 us)."""
+    g, (s, e) = self.arm.goal, self.arm_spec.stow
+    return abs(float(g[0]) - s) <= ARM_TOL and abs(float(g[1]) - s - e) <= ARM_TOL
 
   #: A plan asked for again this soon, for the same goal from within this of
   #: where the last was made, is that plan (s, m). MEASURED: at a stand-in
@@ -509,8 +522,9 @@ class QuadMission(Navigator):
         return
     p = self.posture
     if p == STANDING:
-      rest = t - self.last_motion_t >= pz.T_REST_S
-      if self.want == "lie" or (not moving and rest and self.want != "stand"):
+      rest = (t - self.last_motion_t >= pz.T_REST_S and self.want != "stand"
+              and not self.working)
+      if self.want == "lie" or (not moving and rest):
         self._begin(LYING_DOWN)
         self._step_move()
         return
@@ -637,7 +651,9 @@ class QuadMission(Navigator):
     """One of the arm's joints to `target`, the other held where it was
     aimed, at `speed` (at most the driver's `ARM_SLEW`), standing: a body
     lying down stands first, and one moving its arm does not lie down under
-    it. True once there, False if its budget ran out first."""
+    it. True once there; False if its budget ran out first, or the move was
+    taken from it -- a fall folds the arm, and a fold arrives at the stow,
+    not at the target."""
     if act not in self.arm_acts:
       raise KeyError(f"actuator {act} is not this body's arm")
     if not (yield from self.stand_routine()):
@@ -650,20 +666,25 @@ class QuadMission(Navigator):
     now = self.arm_setpoint(act)
     self.arm.slew = min(max(speed, 1e-3), ARM_SLEW)
     self.arm.aim(s, e)
+    aimed = self.arm.goal.copy()
     budget = abs(target - now) / self.arm.slew + ARM_SETTLE_S
     t0 = float(self.data.time)
-    self.want = "stand"
+    self.working = True
     try:
       while not self.arm.arrived(ARM_TOL):
-        if self.data.time - t0 > budget:
+        if self.data.time - t0 > budget or not self._still_aimed(aimed):
           return False
         yield STILL
         self._after_step()
       yield from self._drive_routine(settle, 0.0, 0.0)
     finally:
-      self.want = None
+      self.working = False
       self.arm.slew = ARM_SLEW
-    return True
+    return self._still_aimed(aimed)
+
+  def _still_aimed(self, aimed) -> bool:
+    """The move is still this one's: standing, and nothing re-aimed it."""
+    return self.posture == STANDING and bool(np.all(self.arm.goal == aimed))
 
   def stow_arm_routine(self) -> Routine:
     """The arm folded to its stow, the driving configuration; True once

@@ -3306,8 +3306,13 @@ the rover's world names neither and the quadruped's neither `lift` nor
 `arm`), and `move` is a legs verb. A move stands a lying body first and
 keeps the rest reflex off while it runs; the verbs that walk fold the arm
 first (`steps.travel_pose`: the shoulder, then the elbow, so the forearm
-comes in over the body rather than under it), and so does lying down to
-rest. A move the joint cannot finish in time is a failed step. The motors'
+comes in over the body rather than under it), and so do lying down to
+rest and every walk of the body's own (`QuadMission._twist_routine`): a
+pose outlives its procedure, and the loop's next walk dragged it on the
+floor or carried it across the dock's board. A move the joint cannot
+finish in time, or that a fall takes from it, is a failed step, and its
+hold on the rest reflex (`QuadMission.working`) is never saved: kept, a
+restart restored it with nothing left to clear it. The motors'
 `ctrl` is a torque, so what an axis is held to is `Body.setpoint` -- the
 rover's `ctrl`, the quadruped's driver's goal -- and a death's
 `setpoints` read that.
@@ -3319,8 +3324,8 @@ charge 199.5 W net (201.1); the worst-case return 2.699 Wh over 44.64 m
 the dearer carried the reserve is 3.7 Wh (`legs.world.RESERVE_WH`, 3.6).
 
 **What is true now:** the served quadruped carries #378's arm stowed and
-held, folds it on a fall and before resting, and a program on `autonomous`
-may move its two joints; `tests/test_quad_arm.py` pins each rule. A
+held, folds it on a fall, before resting and before walking, and a program
+on `autonomous` may move its two joints; `tests/test_quad_arm.py` pins each rule. A
 quadruped's day saved at 257.6 s and carried on in a new process is
 IDENTICAL after the restore (330 samples, `determinism_spike.py --world
 home_quad --resume-at 40`), and the pair's day with its arranged fall and
