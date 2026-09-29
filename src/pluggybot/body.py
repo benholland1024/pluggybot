@@ -182,19 +182,21 @@ class Body(abc.ABC):
   places: Any
 
   @abc.abstractmethod
-  def find_tag_routine(self, tag: int, near: tuple[float, float] | None = None,
-                       patience: float = 300.0, stop=None) -> Routine:
+  def find_tag_routine(self, tag: int, near: tuple[float, float] | None,
+                       patience: float, stop=None) -> Routine:
     """Find the task area `tag` marks (issue #419): where it remembers it,
     confirmed by the tag, or else searched for round `near` -- a job's
-    address, in its map -- until the tag is in view, `patience` runs out or
-    `stop` (the robot's own interrupt, asked as a walk asks it) says so.
-    Returns its record: `found`, `why`, `seconds`, and `at` once found."""
+    address, in its map; None, round where it stands -- until the tag is in
+    view, `patience` s run out or `stop` (the robot's own interrupt, asked
+    as a walk asks it) says so. Returns its record: `found`, `why`,
+    `seconds`, and `at` once found."""
 
   @abc.abstractmethod
-  def press_plate_routine(self, tag: int, stop=None) -> Routine:
+  def press_plate_routine(self, tag: int, patience: float, stop=None) -> Routine:
     """Walk onto the plate `tag` marks and back off it, the last step
-    measured off the tag (issue #419); `stop` as `find_tag_routine`'s.
-    Returns its record: `pressed` (a foot on the pad) and `why`."""
+    measured off the tag, within `patience` s (issue #419); `stop` as
+    `find_tag_routine`'s. Returns its record: `pressed` (a foot on the
+    pad) and `why`."""
 
   @abc.abstractmethod
   def forget_world(self) -> None:
@@ -680,7 +682,7 @@ class StubBody(Body):
     return
     yield
 
-  def find_tag_routine(self, tag, near=None, patience=300.0, stop=None):
+  def find_tag_routine(self, tag, near, patience, stop=None):
     """Found at once where the test put the place in, and never otherwise:
     the stub searches nothing."""
     self.found.append(int(tag))
@@ -690,7 +692,7 @@ class StubBody(Body):
             **({"at": [p.x, p.y]} if p is not None else {})}
     yield
 
-  def press_plate_routine(self, tag, stop=None):
+  def press_plate_routine(self, tag, patience, stop=None):
     self.pressed.append(int(tag))
     known = self.places.get(tag) is not None
     return {"tag": int(tag), "pressed": known,

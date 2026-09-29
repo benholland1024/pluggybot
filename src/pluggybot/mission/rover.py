@@ -95,12 +95,12 @@ class RoverBody(Body):
   #: surveyed routes' until it is deleted (#376's stage C).
   places = None
 
-  def find_tag_routine(self, tag, near=None, patience=300.0, stop=None) -> Routine:
+  def find_tag_routine(self, tag, near, patience, stop=None) -> Routine:
     return {"tag": int(tag), "found": False, "why": "the rover keeps no places",
             "seconds": 0.0}
     yield
 
-  def press_plate_routine(self, tag, stop=None) -> Routine:
+  def press_plate_routine(self, tag, patience, stop=None) -> Routine:
     return {"tag": int(tag), "pressed": False, "why": "the rover keeps no places",
             "attempts": []}
     yield

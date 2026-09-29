@@ -1058,12 +1058,19 @@ class QuadMission(ToolSwap, PlaceWalk, Navigator):
     return "budget"
 
   def _back_out_routine(self) -> Routine:
+    return (yield from self._back_out_by_routine(dk.BACK_OUT_M, dk.BACK_OUT_S,
+                                                 dk.APPROACH_V, dk.BACK_OUT_SETTLE_S))
+
+  def _back_out_by_routine(self, distance: float, budget: float, speed: float,
+                           settle: float) -> Routine:
+    """Straight back `distance` of odometry at `speed`, at most `budget` s,
+    and stand `settle` s: the dock's, the rack's and a plate's walk out."""
     x0, y0 = self.pose_xy()
     t0 = float(self.data.time)
-    while (math.hypot(self.odo.x - x0, self.odo.y - y0) < dk.BACK_OUT_M
-           and self.data.time - t0 < dk.BACK_OUT_S):
-      yield from self._twist_routine(-dk.APPROACH_V, 0.0, 0.0)
-    yield from self._drive_routine(dk.BACK_OUT_SETTLE_S, 0.0, 0.0)
+    while (math.hypot(self.odo.x - x0, self.odo.y - y0) < distance
+           and self.data.time - t0 < budget):
+      yield from self._twist_routine(-speed, 0.0, 0.0)
+    yield from self._drive_routine(settle, 0.0, 0.0)
 
   def dock_routine(self) -> Routine:
     """From the standoff: find the board, walk in by it, stop, check the
@@ -1409,11 +1416,11 @@ class QuadBody(Body):
 
   places = property(lambda self: self.mission.places)
 
-  def find_tag_routine(self, tag, near=None, patience=300.0, stop=None) -> Routine:
+  def find_tag_routine(self, tag, near, patience, stop=None) -> Routine:
     return self.mission.find_routine(tag, near=near, patience=patience, stop=stop)
 
-  def press_plate_routine(self, tag, stop=None) -> Routine:
-    return self.mission.press_routine(tag, stop=stop)
+  def press_plate_routine(self, tag, patience, stop=None) -> Routine:
+    return self.mission.press_routine(tag, patience=patience, stop=stop)
 
   def forget_world(self) -> None:
     self.mission.forget_world()

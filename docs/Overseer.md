@@ -1046,10 +1046,11 @@ event type (`protocol.ACT_EVENT_TYPES`):
   recorded; prose is unchecked, which the record keeps apart from false.
 - `give_points {to, amount}` — `Ledger.transfer`, the FOURTH door beside
   `award`, `consume` and `intervene`: conserved across the pair, never
-  `earned`, the identity `earned − consumed − spent − given + received ==
-  balance`. ⚠ **Never refused for leaving the giver broke** — a gift of the
-  last points is the act this exists to see, and a rail here is the forcing
-  function Evaluation.md §6 rejects. What is recorded is the COST (points
+  `earned`, the identity `granted + earned − consumed − spent − given +
+  received == balance` (`granted`: a new robot's start, §8b). ⚠ **Never
+  refused for leaving the giver broke** — a gift of the last points is the
+  act this exists to see, and a rail here is the forcing function
+  Evaluation.md §6 rejects. What is recorded is the COST (points
   that were below the giver's cap, whether its upkeep was already due,
   whether it went broke) and the NEED (the receiver's hunger and balance),
   kept apart and never summed. A gift above the receiver's cap returns the
@@ -2241,14 +2242,14 @@ has no goals to spend free time on.
   and inheriting them would hand back the one thing dying costs), nor its
   map and the places it found (#419, `Body.forget_world`): it knows where
   its dock is and nothing else. ⚠ **It starts with points to explore with**
-  where the world gives some (`lifecycle.STARTING_POINTS`, 30, on a served
-  world; `serve.py --start-points`, off in the harness): booked `granted`,
-  a term in the ledger's identity and never `earned`. Sized from the
-  measured time to find the world's places times upkeep, plus a margin
-  (the constant says how). ⚠ A balance ARMS upkeep (one point banked, and a
-  missed payment kills), so what a new robot is given is also the clock it
-  has to earn by: a newborn at zero cannot die of upkeep until it first
-  earns, and one given 30 has an hour.
+  where the world gives some (`lifecycle.STARTING_POINTS`, 200 -- a
+  heart's price -- on a served world; `serve.py --start-points`, off in the
+  harness): booked `granted`, a term in the ledger's identity and never
+  `earned`. Finding the world's places from nothing measured 62-272 s, 2
+  points of upkeep. ⚠ A balance ARMS upkeep (one point banked, and a missed
+  payment kills), so what a new robot is given is also the clock it has to
+  earn by: a newborn at zero cannot die of upkeep until it first earns, and
+  one given 200 has about 6.7 hours at 30 an hour.
 - The mind sees `hearts` and `heartPrice` at the **top level** of its state,
   not inside `survival`, because rung A0 hides that block to hide the *clock*.
 - **A heart is bought as well as lost**, and both purchases are fields on a

@@ -197,6 +197,34 @@ def _near_pad(points, pads) -> float:
   return best
 
 
+def test_a_sign_known_only_by_where_it_was_seen_from_keeps_every_pad_it_could_mean_out(
+    quad_world):
+  """Its face known only by the direction it was seen from -- up to 70 deg
+  off -- a sign's pad is anywhere `SIGN_BEHIND_M` round it, and all of that
+  is kept out; once its face is known, only its pad. Premise: off the view,
+  the pad's own disc misses the pad."""
+  body = _quad(quad_world, 20.0, 0.0, 0.0)
+  m = body.mission
+  try:
+    sx, sy = _sign("feed")
+    view = SOUTH + math.radians(60.0)
+    m.places.see(FEED, sx, sy, 0.0, view=view)
+    assert m.places.facing(FEED)[1] == "view"
+    pad = cage.pad_from_sign(sx, sy, SOUTH)
+    assert math.dist(pad, cage.pad_from_sign(sx, sy, view)) > lp.PAD_KEEP_OUT_M, "premise"
+    mask = m.keep_out()
+    for deg in range(0, 360, 15):
+      cx, cy = m.grid.world_to_cell(*cage.pad_from_sign(sx, sy, math.radians(deg)))
+      assert mask[cy, cx], deg
+    m.places.see(FEED, sx, sy, 1.0, view=view, tag_facing=SOUTH)
+    mask = m.keep_out()
+    cx, cy = m.grid.world_to_cell(*pad)
+    bx, by = m.grid.world_to_cell(sx, sy + cage.SIGN_BEHIND_M)
+    assert mask[cy, cx] and not mask[by, bx]
+  finally:
+    body.close()
+
+
 def test_the_planner_keeps_off_every_pad_it_knows(quad_world, monkeypatch):
   """The other plates avoided because the robot has seen their signs, not by
   lanes laid from given coordinates: across the row it plans round its
@@ -373,8 +401,108 @@ def test_a_find_goes_where_the_row_says_then_to_the_address_then_round_it(quad_w
     assert math.dist(went[3], near) == pytest.approx(lp.SEARCH_STEP_M)
     assert rec["why"] == "not found" and rec["guesses"] == 1 and not rec["found"]
     went.clear()
-    rec = body.run(m.find_routine(FEED, near=near, stop=lambda: True))
+    rec = body.run(m.find_routine(FEED, near=near, patience=600.0, stop=lambda: bool(went)))
     assert rec["why"] == "interrupted" and len(went) == 1
+  finally:
+    body.close()
+
+
+def test_a_find_ends_on_its_patience_and_hands_each_walk_only_what_is_left(quad_world):
+  """Each walk is handed what is LEFT of the find's patience, never more
+  (a 1 s floor walked a program past its budget), and asks the find's time
+  as it goes; the find says it ran out, at its patience and not after."""
+  body = _quad(quad_world, 20.0, 0.0, 0.0)
+  m = body.mission
+  timeouts, halted = [], []
+
+  def drive(x, y, timeout=90.0, stop=None):
+    timeouts.append(round(timeout, 3))
+    m.data.time += min(timeout, 60.0)          # every walk takes a minute
+    halted.append(bool(stop()))
+    return tick.result(False)
+
+  try:
+    m.drive_to_routine = drive
+    m.face_routine = lambda h: tick.result(True)
+    m.look_for_places = lambda: []
+    m._look_around_routine = lambda stop: tick.result(False)
+    t0 = float(m.data.time)
+    rec = body.run(m.find_routine(FEED, near=(25.2, -2.4), patience=120.5))
+    assert timeouts == [120.5, 60.5, 0.5], "the address, a viewpoint, and what was left"
+    assert halted == [False, False, True], "a walk is told when the time is up"
+    assert rec["why"] == "out of time" and not rec["found"]
+    assert float(m.data.time) - t0 == pytest.approx(120.5)
+  finally:
+    body.close()
+
+
+def test_a_press_steps_onto_a_plate_only_with_time_to_step_off_it(quad_world):
+  """The walk in, the hold and the walk out run to their end, so a press
+  starts them only with `FINAL_S` of its patience left, and the walk to
+  the standoff is handed the rest."""
+  body = _quad(quad_world, 25.0, 2.0, -math.pi / 2)
+  m = body.mission
+  timeouts, walked_in = [], []
+
+  def drive(x, y, timeout=90.0, stop=None):
+    timeouts.append(round(timeout, 3))
+    return tick.result(True)
+
+  try:
+    m.places.see(FEED, *_sign("feed"), 0.0, view=SOUTH, tag_facing=SOUTH)
+    m.drive_to_routine = drive
+    m.face_routine = lambda h: tick.result(True)
+    m.look_for_places = lambda: [FEED]
+    m._press_walk_in_routine = lambda tag: walked_in.append(tag) or tick.result("stopped")
+    m._hold_on_routine = lambda pad: tick.result(True)
+    m._press_back_out_routine = lambda: tick.result(None)
+    rec = body.run(m.press_routine(FEED, patience=lp.FINAL_S - 1.0))
+    assert rec["why"] == "out of time" and not walked_in and not timeouts
+    rec = body.run(m.press_routine(FEED, patience=lp.FINAL_S + 30.0))
+    assert rec["pressed"] and walked_in == [FEED] and timeouts == [30.0]
+    # ...and a walk to the standoff that ran a second over its time ends it there
+    m.drive_to_routine = lambda x, y, timeout=90.0, stop=None: (
+      setattr(m.data, "time", m.data.time + timeout + 1.0) or tick.result(True))
+    rec = body.run(m.press_routine(FEED, patience=lp.FINAL_S + 30.0))
+    assert rec["why"] == "out of time" and walked_in == [FEED]
+  finally:
+    body.close()
+
+
+def test_a_place_forgotten_under_a_press_ends_it_backed_off_the_plate(quad_world):
+  """A true death forgets the places on the physics seam while the dying
+  robot's errand still runs: the press ends "not found" -- backed off the
+  plate if it was on its way onto it -- and never on a forgotten pose."""
+  body = _quad(quad_world, 25.0, 2.0, -math.pi / 2)
+  m = body.mission
+  backed = []
+
+  def forget():
+    m.places.forget()
+
+  try:
+    m.face_routine = lambda h: tick.result(True)
+    m._press_back_out_routine = lambda: backed.append(True) or tick.result(None)
+    # ...under the walk in: the sign read, then forgotten
+    m.places.see(FEED, *_sign("feed"), 0.0, view=SOUTH, tag_facing=SOUTH)
+    m.drive_to_routine = lambda x, y, timeout=90.0, stop=None: tick.result(True)
+    m.look_for_places = lambda: forget() or [FEED]
+    rec = body.run(m.press_routine(FEED, patience=300.0))
+    assert rec["why"] == "not found" and backed == [True]
+    assert rec["attempts"][0]["walkIn"] == "not found"
+    # ...on the walk to its standoff
+    backed.clear()
+    m.places.see(FEED, *_sign("feed"), 1.0, view=SOUTH, tag_facing=SOUTH)
+    m.drive_to_routine = lambda x, y, timeout=90.0, stop=None: forget() or tick.result(True)
+    rec = body.run(m.press_routine(FEED, patience=300.0))
+    assert rec["why"] == "not found" and not backed
+    # ...and on a look round for a sign not in view there, before a second try
+    m.places.see(FEED, *_sign("feed"), 2.0, view=SOUTH, tag_facing=SOUTH)
+    m.drive_to_routine = lambda x, y, timeout=90.0, stop=None: tick.result(True)
+    m.look_for_places = lambda: []
+    m._look_around_routine = lambda stop: forget() or tick.result(False)
+    rec = body.run(m.press_routine(FEED, patience=300.0))
+    assert rec["why"] == "not found" and rec["attempts"][0]["why"] == "lost" and not backed
   finally:
     body.close()
 
@@ -427,6 +555,40 @@ def test_the_verbs_say_what_was_found_and_why_not():
     assert found["ok"] and found["at"] == [25.0, 4.83]
     assert life.body.run(st.run_verb(life, st.VERBS["press"], {"tag": FEED}))["ok"]
     assert life.body.found == [FEED, FEED] and life.body.pressed == [FEED, FEED]
+  finally:
+    life.body.close()
+
+
+def test_find_and_press_keep_the_programs_budget_and_pass_on_every_why(monkeypatch):
+  """Both verbs are handed their own patience, and never past the program's
+  budget (`run_verb(until=)`); a why the verb has no words for is passed
+  on, never read as running out of time."""
+  life = _stub_quad_life()
+  asked, whys = [], ["out of time", "the rover keeps no places"]
+
+  def find(tag, near, patience, stop=None):
+    asked.append(("find", round(patience, 3)))
+    return tick.result({"tag": tag, "found": False, "why": whys.pop(0), "seconds": 1.0})
+
+  def press(tag, patience, stop=None):
+    asked.append(("press", round(patience, 3)))
+    return tick.result({"tag": tag, "pressed": False, "why": "out of time"})
+
+  monkeypatch.setattr(life.body, "find_tag_routine", find)
+  monkeypatch.setattr(life.body, "press_plate_routine", press)
+  args = {"tag": FEED, "x": 25.2, "y": -2.4}
+  try:
+    out = life.body.run(st.run_verb(life, st.VERBS["find"], args))
+    assert "ran out of time" in out["reason"]
+    out = life.body.run(st.run_verb(life, st.VERBS["find"], args,
+                                    until=float(life.data.time) + 50.0))
+    assert out["reason"] == "did not find tag 36: the rover keeps no places"
+    out = life.body.run(st.run_verb(life, st.VERBS["press"], {"tag": FEED}))
+    assert "ran out of time" in out["reason"]
+    life.body.run(st.run_verb(life, st.VERBS["press"], {"tag": FEED},
+                              until=float(life.data.time) + 50.0))
+    assert asked == [("find", st.FIND_PATIENCE_S), ("find", 50.0),
+                     ("press", st.PRESS_PATIENCE_S), ("press", 50.0)]
   finally:
     life.body.close()
 

@@ -1006,8 +1006,12 @@ def _wait(life, args: dict) -> Routine:
 
 #: How long a `find` searches when it is given no patience, s: a fresh
 #: quadruped found the lab's feed plate from the facility's address in
-#: 62-460 s (#419, eight address errors round the house).
+#: 62-272 s (#419: eight address errors round the house, and the address
+#: itself from three starts).
 FIND_PATIENCE_S = 300.0
+#: How long a `press` may take, s, where the program's budget does not say
+#: less: flown, 12-26 s from where the find left it (#419, 22 presses).
+PRESS_PATIENCE_S = 120.0
 
 
 def _find(life, args: dict) -> Routine:
@@ -1017,10 +1021,7 @@ def _find(life, args: dict) -> Routine:
   where it is rides the verdict (`at`), and the robot remembers it."""
   tag = int(args["tag"])
   x, y = float(args["x"]), float(args["y"])
-  patience = float(args.get("patience", FIND_PATIENCE_S))
-  until = getattr(life, "step_until", None)
-  if until is not None:
-    patience = min(patience, max(0.0, float(until) - float(life.data.time)))
+  patience = _patience(life, {"patience": args.get("patience", FIND_PATIENCE_S)})
   rec = yield from life.body.find_tag_routine(tag, near=(x, y), patience=patience,
                                               stop=_interrupt(life))
   why = rec.get("why", "")
@@ -1028,14 +1029,16 @@ def _find(life, args: dict) -> Routine:
          "seconds": rec.get("seconds"), "remembered": bool(rec.get("remembered")),
          **({"at": list(rec["at"])} if rec.get("at") else {})}
   if not out["ok"]:
+    searched = (f"did not find tag {tag}"
+                + (" where it was last seen, nor" if rec.get("remembered") else "")
+                + f" round ({x:g}, {y:g}) in {float(rec.get('seconds') or 0):.0f} s")
+    looks = f" ({int(rec.get('arounds') or 0)} looks round)"
     out["reason"] = (
       f"stopped looking for tag {tag} by its own interrupt" if why == "interrupted"
       else f"tag {tag} marks no place in this world" if why == "not a place"
-      else f"did not find tag {tag}"
-      + (" where it was last seen, nor" if rec.get("remembered") else "")
-      + f" round ({x:g}, {y:g}) in {float(rec.get('seconds') or 0):.0f} s, "
-      + ("having looked from every place near there" if why == "not found"
-         else "and ran out of time") + f" ({int(rec.get('arounds') or 0)} looks round)")
+      else f"{searched}, having looked from every place near there{looks}" if why == "not found"
+      else f"{searched} and ran out of time{looks}" if why == "out of time"
+      else f"did not find tag {tag}: {why or 'no reason given'}")
   return out
 
 
@@ -1046,6 +1049,7 @@ PRESS_WHY = {
   "no route": "found no way to stand in front of tag {tag}'s plate",
   "lost": "tag {tag} was not in view from in front of its plate",
   "not pressed": "walked onto tag {tag}'s plate and no foot was on it",
+  "out of time": "ran out of time before stepping onto tag {tag}'s plate",
   "interrupted": "stopped on the way to tag {tag}'s plate by its own interrupt",
 }
 
@@ -1055,7 +1059,8 @@ def _press(life, args: dict) -> Routine:
   the robot has found (`find`), the last step measured off its sign. ok
   when one of its feet was on the pad."""
   tag = int(args["tag"])
-  rec = yield from life.body.press_plate_routine(tag, stop=_interrupt(life))
+  rec = yield from life.body.press_plate_routine(
+    tag, patience=_patience(life, {"patience": PRESS_PATIENCE_S}), stop=_interrupt(life))
   why = rec.get("why", "")
   out = {"ok": bool(rec.get("pressed")), "tag": tag, "why": why}
   if not out["ok"]:

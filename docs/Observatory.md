@@ -24,7 +24,7 @@ every arm (the tag, what the lab's directions call it, where it is, how
 long since it was seen), and History says when each is first found. On
 `autonomous` the procedure rule gives legs `find(tag, x, y)`; `press`
 waits for the lab and its rule to come back (#403). A true death now
-clears the map and the places, and the new robot starts with 30 points
+clears the map and the places, and the new robot starts with 200 points
 (`--start-points`, booked `granted`); an ordinary death is as it was. No
 job is offered on legs yet, so no offer carries an address this period.
 ⚠ The house's geometry changed (the signs), so the first restart after the

@@ -11,20 +11,23 @@ belief, as the map is laid. Walking, the body also looks every
 `LOOK_EVERY_S`: what it finds in its free time it remembers, and a robot
 standing still spends no render.
 
-FINDING (`find_routine`). To the remembered place if there is one, then
-facing it from its standoff and looking; a place not seen there is
-searched for. Otherwise to `near` -- a job's address, in the map -- over
-#399's planner, and a search round it: a look-around (`LOOK_AROUND_DEG`
-turns, a look after each) from every viewpoint on a lattice round `near`,
-nearest to the robot first, until the tag is in view or its patience runs
-out. Every walk stops the moment the tag is seen, on or off an errand.
+FINDING (`find_routine`). Where it should be first: where it was found,
+or where the row's drawing puts it off a sign already read
+(`Places.expected`) -- facing it from its standoff, a look and a look
+round. Else to `near` -- a job's address, in the map -- over #399's
+planner, and a search round it: a look-around (`LOOK_AROUND_DEG` turns, a
+look after each) from each viewpoint `next_viewpoint` picks, the frontiers
+of its own map nearest `near` and then a lattice round it, until the tag is
+in view or its patience runs out. Every walk stops the moment the tag is
+seen, on or off an errand.
 
 PRESSING (`press_routine`). From the plate's standoff, facing its sign, a
 look; then the walk in, steered by the sign as the rack's bays are
 (`rack.walk_in_twist`), re-reading it every `dock.LOOK_EVERY_S`, to where
 the front feet stand inside the pad (`cage.PRESS_BACK_M`); a hold, and
-straight back out. The map's drift does not matter: the last step is
-measured off the tag.
+straight back out -- three stretches that run to their end, so a press
+starts them only with `FINAL_S` of its patience left. The map's drift does
+not matter: the last step is measured off the tag.
 
 KEEPING OFF (`keep_out`). Every pad the robot knows is a wall to the
 planner, so no walk crosses a plate it has seen, and a press is the only
@@ -42,7 +45,6 @@ from pluggybot.activity import cage
 from pluggybot.activity.plate import PLATE_HALF
 from pluggybot.legs import dock as dk
 from pluggybot.legs import rack as rk
-from pluggybot.mapping.frontier import OCC_THRESH
 from pluggybot.mapping.places import CLOSE_M, OBLIQUE_RAD, Places
 from pluggybot.navigator import DRIVE_STOPPED
 from pluggybot.rack.coupling import touching
@@ -68,10 +70,6 @@ LOOKED_M = 1.25
 LOOKED_OVER_M = 3.5
 #: A walk to one viewpoint gives up after this long, s.
 VIEWPOINT_PATIENCE_S = 90.0
-#: A find with no patience given, s: flown from nothing, a robot found the
-#: lab's feed plate in 62-272 s (#419: eight address errors round the
-#: facility, and its own address from three starts).
-FIND_PATIENCE_S = 300.0
 #: The press: its standoff from the sign, m -- the neighbours' signs 1 m
 #: either side are then inside the camera's 33.5 deg half-field, and one
 #: look there fits the row -- its tries, the walk in's budget, the hold on
@@ -81,25 +79,13 @@ PRESS_TRIES = 2
 WALK_IN_S = 25.0
 PRESS_HOLD_S = 1.0
 BACK_OUT_M, BACK_OUT_S = 1.0, 8.0
+#: The walk in, the hold and the walk back out run to their end, so a press
+#: starts them only with this long left of its patience, s: their budgets.
+FINAL_S = WALK_IN_S + PRESS_HOLD_S + BACK_OUT_S + dk.BACK_OUT_SETTLE_S
 #: A pad it knows is kept out to its corners' circle: the planner's
 #: inflation (0.35 m) holds the torso that far off it, and the feet, 0.26 m
 #: from the torso, 0.09 m off.
 PAD_KEEP_OUT_M = PLATE_HALF * math.sqrt(2.0)
-
-
-def heading_frame(model, data, camera: str, root: int) -> tuple[np.ndarray, np.ndarray]:
-  """The camera in the body's HEADING frame (origin at the root, x ahead,
-  levelled by the IMU's gravity): (M, p), a MuJoCo camera-frame vector v
-  at `M @ v + p` -- `dock.seen_from`'s arithmetic, kept whole so a tag's
-  normal turns with its position."""
-  cam = model.camera(camera).id
-  rot = data.xmat[root].reshape(3, 3)
-  p_mount = rot.T @ (data.cam_xpos[cam] - data.xpos[root])
-  r_mount = rot.T @ data.cam_xmat[cam].reshape(3, 3)
-  yaw = math.atan2(rot[1, 0], rot[0, 0])
-  c, s = math.cos(yaw), math.sin(yaw)
-  level = np.array([[c, s, 0.0], [-s, c, 0.0], [0.0, 0.0, 1.0]]) @ rot
-  return level @ r_mount, level @ p_mount
 
 
 def next_viewpoint(near: tuple[float, float], here: tuple[float, float],
@@ -173,7 +159,9 @@ class PlaceWalk:
     if not ids:
       return []
     from pluggybot.legs.body import NAV_EYE
-    m, p = heading_frame(self.model, self.data, self.handle.el(NAV_EYE), self.root)
+    level, r_mount, p_mount = dk.camera_mount(self.model, self.data,
+                                              self.handle.el(NAV_EYE), self.root)
+    p = level @ p_mount                          # the camera, heading frame
     x, y, th = self.pose
     c, s = math.cos(th), math.sin(th)
     cam = (x + c * p[0] - s * p[1], y + s * p[0] + c * p[1])
@@ -181,13 +169,13 @@ class PlaceWalk:
     for i in ids:
       d = dets[i]
       tx, ty, tz = d["t"]
-      h = m @ np.array([tx, -ty, -tz]) + p
+      h = level @ (r_mount @ np.array([tx, -ty, -tz]) + p_mount)   # `dock.seen_from`
       wx, wy = x + c * h[0] - s * h[1], y + s * h[0] + c * h[1]
       facing = None
       if abs(d["yaw"]) >= OBLIQUE_RAD and math.hypot(h[0] - p[0], h[1] - p[1]) <= CLOSE_M:
         nx, ny, nz = d["normal"]
-        n = m @ np.array([nx, -ny, -nz])         # into the face, heading frame
-        facing = th + math.atan2(-n[1], -n[0])   # ...and out of it, in the map
+        n = level @ (r_mount @ np.array([nx, -ny, -nz]))   # into the face, heading frame
+        facing = th + math.atan2(-n[1], -n[0])             # ...and out of it, in the map
       self.places.see(i, wx, wy, t, math.atan2(cam[1] - wy, cam[0] - wx), facing)
     return ids
 
@@ -250,7 +238,10 @@ class PlaceWalk:
   def keep_out(self) -> np.ndarray | None:
     """The cells of every pad it knows (`PAD_KEEP_OUT_M` round each), or
     None: what the planner treats as wall (`QuadMission._planning_grid`).
-    Built again only when a look changed what it knows."""
+    ⚠ A sign whose face is known only by where it was seen from ("view",
+    up to 70 deg off) has its pad anywhere `cage.SIGN_BEHIND_M` round it,
+    so all of that is kept out. Built again only when a look changed what
+    it knows."""
     v = self.places.version
     if self._keep_out is not None and self._keep_out[0] == v:
       return self._keep_out[1]
@@ -259,11 +250,14 @@ class PlaceWalk:
     for p in self.places:
       if p.tag not in self._pads:
         continue
-      f, _ = self.places.facing(p.tag)
-      px, py = cage.pad_from_sign(p.x, p.y, f)
+      f, how = self.places.facing(p.tag)
+      if how == "view":
+        (px, py), radius = (p.x, p.y), cage.SIGN_BEHIND_M + PAD_KEEP_OUT_M
+      else:
+        (px, py), radius = cage.pad_from_sign(p.x, p.y, f), PAD_KEEP_OUT_M
       if mask is None:
         mask = np.zeros_like(g.grid, dtype=bool)
-      r = int(math.ceil(PAD_KEEP_OUT_M / g.resolution))
+      r = int(math.ceil(radius / g.resolution))
       cx, cy = g.world_to_cell(px, py)
       rows, cols = mask.shape
       y0, y1 = max(cy - r, 0), min(cy + r + 1, rows)
@@ -273,7 +267,7 @@ class PlaceWalk:
       yy, xx = np.mgrid[y0:y1, x0:x1]
       wx = g.x_min + (xx + 0.5) * g.resolution
       wy = g.y_min + (yy + 0.5) * g.resolution
-      mask[y0:y1, x0:x1] |= (wx - px) ** 2 + (wy - py) ** 2 <= PAD_KEEP_OUT_M ** 2
+      mask[y0:y1, x0:x1] |= (wx - px) ** 2 + (wy - py) ** 2 <= radius ** 2
     self._keep_out = (v, mask)
     return mask
 
@@ -282,16 +276,14 @@ class PlaceWalk:
     `wall(x, y)` -- a known wall or its inflation --, `seen(x, y)` -- known
     floor within `LOOKED_OVER_M` of a look-around -- and the frontier
     cells a body could stand on, as world points."""
-    from scipy import ndimage
-
-    from pluggybot.mapping.frontier import FREE_THRESH, find_frontiers, traversable_mask
+    from pluggybot.mapping.frontier import FREE_THRESH, find_frontiers, inflated
     g = self.grid
     grid = self._planning_grid()
     rows, cols = grid.shape
-    walls = ndimage.binary_dilation(grid > OCC_THRESH, iterations=self.INFLATION_CELLS)
-    trav = traversable_mask(grid, self.INFLATION_CELLS)
-    cells = find_frontiers(grid, traversable=trav)
-    frontier = [g.cell_to_world(int(cx), int(cy)) for cx, cy in cells]
+    walls = inflated(grid, self.INFLATION_CELLS)
+    cells = find_frontiers(grid, traversable=(grid < FREE_THRESH) & ~walls)
+    frontier = np.column_stack([g.x_min + (cells[:, 0] + 0.5) * g.resolution,
+                                g.y_min + (cells[:, 1] + 0.5) * g.resolution])
 
     def cell(x: float, y: float) -> tuple[int, int] | None:
       cx, cy = g.world_to_cell(x, y)
@@ -310,14 +302,15 @@ class PlaceWalk:
 
   # ---- finding --------------------------------------------------------------------
 
-  def find_routine(self, tag: int, near: tuple[float, float] | None = None,
-                   patience: float = FIND_PATIENCE_S, stop=None) -> Routine:
+  def find_routine(self, tag: int, near: tuple[float, float] | None,
+                   patience: float, stop=None) -> Routine:
     """Find the place `tag` marks (the module docstring). Returns its
     record: `found`, `why` ("found", "not found" -- every viewpoint looked
-    from --, "out of time", or "interrupted" by `stop`, the robot's own
-    interrupt, asked as every walk is), the `seconds` it took, whether it
-    was `remembered`, how many `guesses`, `viewpoints` and look-`arounds`,
-    and where the place is (`at`) once found."""
+    from --, "out of time" after `patience` s, or "interrupted" by `stop`,
+    the robot's own interrupt, asked as every walk is), the `seconds` it
+    took, whether it was `remembered`, how many `guesses`, `viewpoints` and
+    look-`arounds`, and where the place is (`at`) once found. Out of time,
+    a walk ends where it stands and a look-around at its next look."""
     tag = int(tag)
     t0 = float(self.data.time)
     until = t0 + float(patience)
@@ -330,11 +323,19 @@ class PlaceWalk:
       p = self.places.get(tag)
       return p is not None and p.seen_t >= t0
 
-    def halt() -> bool:
-      return seen() or (stop is not None and bool(stop()))
-
     def left() -> float:
       return until - float(self.data.time)
+
+    def halt() -> bool:
+      return seen() or left() <= 0.0 or (stop is not None and bool(stop()))
+
+    def ended() -> str:
+      """Why a walk or a look-around ended the find: "" if it goes on."""
+      if seen():
+        return "found"
+      if stop is not None and stop():
+        return "interrupted"
+      return "out of time" if left() <= 0.0 else ""
 
     def done(why: str) -> dict:
       p = self.places.get(tag)
@@ -343,12 +344,6 @@ class PlaceWalk:
                  **({"at": [round(p.x, 3), round(p.y, 3)]} if p is not None and why == "found"
                     else {}))
       return rec
-
-    def ended() -> str:
-      """Why a walk or a look-around that `halt` ended ended: "" if neither."""
-      if seen():
-        return "found"
-      return "interrupted" if stop is not None and stop() else ""
 
     if tag not in self.places.ids:
       return done("not a place")
@@ -360,7 +355,7 @@ class PlaceWalk:
     guessed: list[tuple[float, float]] = []     # ...and where it was expected
     tried: list = []                            # viewpoints walked to
     went_near = near is None
-    while left() > 0.0:
+    while not ended():
       guess = self.places.expected(tag)
       if guess is not None and not any(math.hypot(guess[0] - gx, guess[1] - gy) < LOOKED_M
                                        for gx, gy in guessed):
@@ -371,31 +366,29 @@ class PlaceWalk:
         rec["guesses"] += 1
         gx, gy, gf = guess
         sx, sy = gx + STANDOFF_M * math.cos(gf), gy + STANDOFF_M * math.sin(gf)
-        yield from self.drive_to_routine(sx, sy, timeout=max(1.0, min(left(), VIEWPOINT_PATIENCE_S)),
+        yield from self.drive_to_routine(sx, sy, timeout=min(left(), VIEWPOINT_PATIENCE_S),
                                          stop=halt)
         if ended():
-          return done(ended())
+          break
         yield from self.face_routine(dk._wrap(gf + math.pi))
         self.look_for_places()
-        if seen():
-          return done("found")
+        if ended():
+          break
         rec["arounds"] += 1
         if (yield from self._look_around_routine(halt)):
-          return done(ended())
+          break
         looked.append(self.pose_xy())
         continue
       if not went_near:
         # ...else THE ADDRESS, looking as it walks
         went_near = True
-        yield from self.drive_to_routine(near[0], near[1], timeout=max(1.0, left()), stop=halt)
-        if ended():
-          return done(ended())
+        yield from self.drive_to_routine(near[0], near[1], timeout=left(), stop=halt)
         continue
       here = self.pose_xy()
       if not any(math.hypot(here[0] - lx, here[1] - ly) < LOOKED_M for lx, ly in looked):
         rec["arounds"] += 1
         if (yield from self._look_around_routine(halt)):
-          return done(ended())
+          break
         looked.append(here)
         continue
       wall, seen_over, frontier = self._search_map(looked)
@@ -405,34 +398,39 @@ class PlaceWalk:
         return done("not found")
       tried.append(vp)
       rec["viewpoints"] += 1
-      yield from self.drive_to_routine(vp[0], vp[1],
-                                       timeout=max(1.0, min(left(), VIEWPOINT_PATIENCE_S)),
+      yield from self.drive_to_routine(vp[0], vp[1], timeout=min(left(), VIEWPOINT_PATIENCE_S),
                                        stop=halt)
-      if ended():
-        return done(ended())
-    return done("found" if seen() else "out of time")
+    return done(ended())
 
   # ---- pressing ---------------------------------------------------------------------
 
   def _feet_on(self, pad: int) -> bool:
     return any(touching(self.data, f, (pad,)) for f in self._foot_gids)
 
-  def press_routine(self, tag: int, stop=None) -> Routine:
+  def press_routine(self, tag: int, patience: float, stop=None) -> Routine:
     """Walk onto the plate `tag` marks and back off it (the module
     docstring). Returns its record: `pressed` (a foot of this robot on the
     pad during the hold), `why` ("pressed", "not a plate", "not found" --
-    it has not found the plate --, "no route" to its standoff, "lost" --
-    its sign not in view there --, "not pressed", or "interrupted" by
-    `stop` on the walk to the standoff), and each attempt's walk and where
+    it has not found the plate, or forgot it on the way, a true death --,
+    "no route" to its standoff, "lost" -- its sign not in view there --,
+    "not pressed", "out of time", or "interrupted" by `stop` on the walk to
+    the standoff), the `seconds` it took, and each attempt's walk and where
     it stopped against the press pose. The walk in, the hold and the walk
-    back out are seconds long and run to their end."""
+    back out run to their end, so they start only with `FINAL_S` of the
+    `patience` left."""
     tag = int(tag)
+    t0 = float(self.data.time)
+    until = t0 + float(patience)
     rec = {"tag": tag, "attempts": []}
     self.last_press = rec
     pad = self._pads.get(tag)
 
+    def left() -> float:
+      return until - float(self.data.time)
+
     def done(why: str) -> dict:
-      rec.update(pressed=why == "pressed", why=why)
+      rec.update(pressed=why == "pressed", why=why,
+                 seconds=round(float(self.data.time) - t0, 1))
       return rec
 
     if pad is None:
@@ -442,24 +440,43 @@ class PlaceWalk:
     yield from self.stand_routine()
     why = "not pressed"
     for _ in range(PRESS_TRIES):
+      standoff = self.place_standoff(tag)
+      if standoff is None:
+        return done("not found")
+      if left() < FINAL_S:
+        return done("out of time")
       att: dict = {}
       rec["attempts"].append(att)
-      sx, sy, sh = self.place_standoff(tag)
-      arrived = yield from self.drive_to_routine(sx, sy, timeout=VIEWPOINT_PATIENCE_S,
-                                                 **({"stop": stop} if stop is not None else {}))
+      sx, sy, _ = standoff
+      arrived = yield from self.drive_to_routine(
+        sx, sy, timeout=min(VIEWPOINT_PATIENCE_S, left() - FINAL_S),
+        **({"stop": stop} if stop is not None else {}))
       if stop is not None and (self.last_drive or {}).get("why") == DRIVE_STOPPED:
         return done("interrupted")
       if not arrived and math.hypot(sx - self.pose[0], sy - self.pose[1]) > 0.5:
         att["walk"] = self.last_drive
         why = "no route"
         continue
-      yield from self.face_routine(self.place_standoff(tag)[2])
+      standoff = self.place_standoff(tag)      # as the looks on the way left it
+      if standoff is None:
+        return done("not found")
+      yield from self.face_routine(standoff[2])
       if tag not in self.look_for_places():
-        if not (yield from self._look_around_routine(lambda: tag in self._last_seen())):
-          why = att["why"] = "lost"
+        yield from self._look_around_routine(
+          lambda: tag in self._last_seen() or left() < FINAL_S)
+        if tag not in self._last_seen():
+          why = att["why"] = "lost" if left() >= FINAL_S else "out of time"
           continue
-        yield from self.face_routine(self.place_standoff(tag)[2])
+        standoff = self.place_standoff(tag)
+        if standoff is None:
+          return done("not found")
+        yield from self.face_routine(standoff[2])
+      if left() < FINAL_S:
+        return done("out of time")
       att["walkIn"] = yield from self._press_walk_in_routine(tag)
+      if att["walkIn"] == "not found":
+        yield from self._press_back_out_routine()
+        return done("not found")
       ex, ey, eth = dk.relative(self.pose, self.press_pose(tag))
       att["stop"] = [round(ex, 3), round(ey, 3), round(math.degrees(eth), 1)]
       pressed = yield from self._hold_on_routine(pad)
@@ -477,11 +494,14 @@ class PlaceWalk:
   def _press_walk_in_routine(self, tag: int) -> Routine:
     """The walk from the standoff to the press pose, steered by the sign
     (`rack.walk_in_twist`), re-read every `dock.LOOK_EVERY_S`: "stopped",
-    or "budget"."""
+    "budget", or "not found" -- the place forgotten under it."""
     from pluggybot.legs.policy import Twist
     t0 = last = float(self.data.time)
     while self.data.time - t0 < WALK_IN_S:
-      tw = rk.walk_in_twist(*dk.relative(self.pose, self.press_pose(tag)))
+      pose = self.press_pose(tag)
+      if pose is None:
+        return "not found"
+      tw = rk.walk_in_twist(*dk.relative(self.pose, pose))
       if tw == Twist():
         return "stopped"
       yield from self._twist_routine(tw.vx, tw.vy, tw.yaw_rate)
@@ -499,9 +519,5 @@ class PlaceWalk:
     return felt
 
   def _press_back_out_routine(self) -> Routine:
-    x0, y0 = self.pose_xy()
-    t0 = float(self.data.time)
-    while (math.hypot(self.odo.x - x0, self.odo.y - y0) < BACK_OUT_M
-           and self.data.time - t0 < BACK_OUT_S):
-      yield from self._twist_routine(-rk.APPROACH_V, 0.0, 0.0)
-    yield from self._drive_routine(dk.BACK_OUT_SETTLE_S, 0.0, 0.0)
+    return (yield from self._back_out_by_routine(BACK_OUT_M, BACK_OUT_S, rk.APPROACH_V,
+                                                 dk.BACK_OUT_SETTLE_S))

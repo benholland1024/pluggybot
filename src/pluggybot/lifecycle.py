@@ -212,17 +212,15 @@ LOST_TOOL_CHECK_S = 1.0
 
 #: WHAT A NEW ROBOT STARTS WITH after a true death, in points (issue #419):
 #: a PARAMETER (`start_points`) on `restart_after_s`' terms -- ON in
-#: `serve.py`, OFF in `experiment.py`, and never an intervention. Sized as
-#: the issue asks, from the time to find the world's places times upkeep,
-#: plus a margin: a fresh quadruped found the lab's plates from the
-#: facility's address in 62-460 s (#419's flights; SimNotes, "Places, not
-#: coordinates"), 4 points at worst at the shipped 30 an hour. The margin is
-#: the rest of an hour, because a balance ARMS upkeep (`Metabolism._armed`:
-#: a missed payment kills once a point is banked), so what a new robot is
-#: given is also the clock it has to earn by -- and an hour of upkeep is
-#: what buying a heart already keeps back to live on
-#: (`overseer.HEART_RESERVE_HOURS`).
-STARTING_POINTS = 30
+#: `serve.py`, OFF in `experiment.py`, and never an intervention. Ben's
+#: number (2026-09-29): a heart's price (`overseer.HEART_PRICE`), and about
+#: 6.7 hours of upkeep at the shipped 30 an hour, under the cap (600). The
+#: time to find the world's places is far inside it: a fresh quadruped found
+#: the lab's plates from the facility's address in 62-272 s (#419's flights;
+#: SimNotes, "Places, not coordinates"), 2 points at 30 an hour. ⚠ A balance
+#: ARMS upkeep (`Metabolism._armed`: a missed payment kills once a point is
+#: banked), so what a new robot is given is also the clock it has to earn by.
+STARTING_POINTS = 200
 
 
 def _minutes(s: float) -> str:

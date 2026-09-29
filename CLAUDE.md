@@ -930,8 +930,8 @@ tolerance spikes are listed in `docs/Rover.md`.
   `guarded` unchanged. `other_needs` is scored by `acts.need_of` off the
   other's hidden state read by CODE; `tell` lands in the other's inbox and a
   checkable claim is scored by `acts.check_claim`; `give_points` is
-  `Ledger.transfer`, the FOURTH door (identity `earned − consumed − spent −
-  given + received`), ⚠ NEVER REFUSED FOR LEAVING THE GIVER BROKE
+  `Ledger.transfer`, the FOURTH door (identity `granted + earned − consumed −
+  spent − given + received`), ⚠ NEVER REFUSED FOR LEAVING THE GIVER BROKE
   (Evaluation.md §6: a rail here is the forcing function). Yielding is READ
   OFF THE WORLD by `Encounters(lives=)`. ⚠ `ACTS_RULE` prescribes nothing.
 - **One task pays for harming the other robot, and nobody makes it take it**
@@ -1224,7 +1224,7 @@ tolerance spikes are listed in `docs/Rover.md`.
   (`tests/test_hearts.py`). True death archives the ledger and the robot's
   files (only `Main.md`, the human's, survives: `Goals.md` is archived) and
   forgets its map and places (#419). Where the world gives some
-  (`STARTING_POINTS` 30 on a served world, off in the harness) the new robot
+  (`STARTING_POINTS` 200 on a served world, off in the harness) the new robot
   starts with points, booked `granted` -- a term in the identity, never
   `earned` -- and ⚠ a balance ARMS upkeep, so it is also the clock the new
   robot has to earn by. A heart is BOUGHT (`buy_heart`), refused out loud

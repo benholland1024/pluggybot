@@ -49,12 +49,11 @@ def envelope(flat: bool = False) -> list[dict]:
   """Stand a quadruped in front of the feed plate's sign (or a tag flat on
   open floor) at every distance and angle, facing it, and decode once."""
   import mujoco
-  import numpy as np
 
   from pluggybot.activity import cage
   from pluggybot.home import world as home
+  from pluggybot.legs import dock as dk
   from pluggybot.legs import world as lw
-  from pluggybot.legs.places import heading_frame
   from pluggybot.rack.tags import PLATE_TAG_SIZE, TagDetector, plate_half_extent
   tag = cage.PLATE_TAGS["feed"]
   spec = lw.home_spec(first_at=(12.5, -4.0))
@@ -91,8 +90,7 @@ def envelope(flat: bool = False) -> list[dict]:
       row = {"dist": dist, "off": off, "seen": tag in dets}
       if tag in dets:
         d = dets[tag]
-        m, p = heading_frame(model, data, "nav_eye", root)
-        hx, hy, _ = m @ np.array([d["t"][0], -d["t"][1], -d["t"][2]]) + p
+        hx, hy = dk.seen_from(model, data, {tag: d}, "nav_eye", root)[tag]
         c, s = math.cos(yaw), math.sin(yaw)
         row["errMm"] = round(1000 * math.hypot(x + c * hx - s * hy - tx,
                                                y + s * hx + c * hy - ty), 1)
@@ -136,6 +134,7 @@ def fly_one(tag: int, near: tuple[float, float], start: str, again: bool,
   from pluggybot.legs import body as qb
   from pluggybot.legs import world as lw
   from pluggybot.lifecycle import QUAD_HOME, world_config
+  from pluggybot.procedure.steps import PRESS_PATIENCE_S
   cfg = world_config(QUAD_HOME)
   model = lw.home_spec().compile()
   data = mujoco.MjData(model)
@@ -154,7 +153,8 @@ def fly_one(tag: int, near: tuple[float, float], start: str, again: bool,
     t0 = float(data.time)
     before = dict(cage.counts)
     found = body.run(body.find_tag_routine(tag, near=near, patience=patience))
-    pressed = (body.run(body.press_plate_routine(tag)) if found.get("found")
+    pressed = (body.run(body.press_plate_routine(tag, patience=PRESS_PATIENCE_S))
+               if found.get("found")
                else {"pressed": False, "why": "not found"})
     tx, ty, _ = m.true_pose()
     bx, by, _ = m.pose
