@@ -3264,12 +3264,20 @@ run from the company spot round the row's EAST end. The cage stands
 between that spot and the east lane, so the planner walked round the cage
 through the 0.8 m between it and the row, and a foot came 0.17 m off the
 feed pad. North of the row the cage parts the room, so a robot there takes
-the lane on its own side of the cage (`tests/test_lab_on_legs.py` walks
-every act from every place a robot stands in the lab). Flown after the
-fix, from the dock and then round the lab (feed, company, feed, company,
-toy), every act pressed only its own plate. The nearest a foot came to
-another pad was 0.18 m, the shock pad's west edge, walking the west lane
-to keep the mouse company.
+the lane on its own side of the cage. A review then found two walks the
+first cut left out. From OUTSIDE the lab the program walked straight from
+the door to its goal, and the company spot is north of the row: 0.30 m off
+the shock pad. The walks in now take the lanes from the door
+(`lifecycle.lab_door`). And a company visit ENDED at the spot, so whatever
+the robot did next walked out over the row: from the spot to the lobby, a
+quadruped with its belief on the truth pressed the shock plate twice. A
+visit now walks back down its lane to the row's south side
+(`cage.company_exit`), where every plate act already ended.
+`tests/test_lab_on_legs.py` walks every act from every place a robot
+stands, in the lab and out of it, and asks that each ends south of the row.
+Flown round the lab (feed, company, feed, company, toy), every act pressed
+only its own plate; the nearest a foot came to another pad was 0.18 m,
+the shock pad's west edge, walking the west lane to keep the mouse company.
 
 **Measured** (`scripts/solve.py --feature mouse --pair --body quadruped`:
 the pair as deployed, the paid job offered, claimed with a prediction,
@@ -3281,9 +3289,10 @@ walked and graded by `eval_feed`, the other robot standing in the hall):
 | inside the lab (after one walk in from the hall) | 10 / 10 | 11-14 | 0 | 0.12-0.13 m |
 
 The pass registered on every walk at the policy's own pace, so it needs
-no slower gait. An act from the dock costs 1.6-1.7 Wh and 68-89 s on
-legs (`economy/energy.json`, `home_quad`), against the rover's 1.1-1.3 Wh
-from the rack: a quadruped walks at about 59 mWh a metre, twice the rover.
+no slower gait. An act from the dock costs 1.6-2.1 Wh and 68-110 s on
+legs, a company visit the dearest for its walk back down the lane
+(`economy/energy.json`, `home_quad`), against the rover's 1.1-1.3 Wh from
+the rack: a quadruped walks at about 59 mWh a metre, twice the rover.
 
 ## Debugging workflow that worked
 

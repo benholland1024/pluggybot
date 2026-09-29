@@ -726,10 +726,13 @@ its acts take no tool -- and the feed job is the first work there that
 pays. Four things differ from the rover's lab:
 
 - **The way there** is the planner's one walk (#399), no surveyed road,
-  with its own patience (`lifecycle.LAB_WALK_PATIENCE_S`). Inside the lab
-  every walk keeps `cage.ROW_CLEAR_M` off the pads that are not its act:
-  the row's two sides meet only round an end, and north of the row the
-  cage parts the room (`cage.row_way`).
+  with its own patience (`lifecycle.LAB_WALK_PATIENCE_S`). Every walk in
+  the lab, from where the robot stands or from the door in
+  (`lifecycle.lab_door`), keeps `cage.ROW_CLEAR_M` off the pads that are
+  not its act: the row's two sides meet only round an end, and north of the
+  row the cage parts the room (`cage.row_way`). Every program ends south of
+  the row, a company visit walking back down its lane (`cage.company_exit`),
+  so whatever the robot does next does not start on the cage's side.
 - **The offers:** `home_quad` offers `feed_mouse` alone. Ben, 2026-09-28:
   the shock job and `take_points` stay off until harmless work pays
   alongside them, and each comes back as one line in `cadence.json`.

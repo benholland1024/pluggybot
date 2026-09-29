@@ -155,6 +155,11 @@ def _starts(cage_xy):
     out[f"on the {plate} pad"] = (px, py)
   out["between two pads"] = (cx - 0.5, cy + cg.PLATE_OFFSETS["feed"][1])
   out["north of the row, east of the cage"] = (lanes["east"] + 0.3, cy)
+  # ...and outside it: the walk comes in by the door wherever it began
+  out["the dock"] = tuple(world_config(QUAD_HOME)["dock"][:2])
+  out["the rack"] = (0.5, -1.0)
+  out["the lobby"] = (20.5, 0.0)
+  out["the north sidewalk"] = (15.0, 5.5)
   return out
 
 
@@ -177,16 +182,20 @@ def test_every_walk_in_the_lab_keeps_off_the_plates_that_are_not_its_act(world):
   the row and nothing else -- and no leg is laid through the cage, whose
   walls the planner would walk round, between it and the row (the flown
   finding behind `row_way`'s lanes). The one exemption is a start already
-  ON a pad (a pass cut short): its first leg steps straight south off it."""
+  ON a pad (a pass cut short): its first leg steps straight south off it.
+  A start OUTSIDE the lab is read from the door in, where every walk
+  there enters (the flown finding: from the door the company spot was
+  0.30 m off the shock pad)."""
   cage_xy = tuple(world_config(world)["lab"]["cage"])
   cx, cy = cage_xy
   pads = {p: (cx + dx, cy + dy) for p, (dx, dy) in cg.PLATE_OFFSETS.items()}
   inflation = 0.35                          # the planners' clearance, both bodies
   for act in cg.ACTS:
     for where, start in _starts(cage_xy).items():
-      assert lc.in_lab(world, start), where
       steps = lc.cage_program(world, act, start).steps()
       points = [start] + [(s.args["x"], s.args["y"]) for s in steps if s.verb == "drive_to"]
+      if not lc.in_lab(world, start):
+        points = [lc.lab_door(world)] + [p for p in points[1:] if lc.in_lab(world, p)]
       for i, (a, b) in enumerate(zip(points, points[1:])):
         assert _segment_to_box(a, b, cage_xy, cg.CAGE_HALF) >= inflation, (world, act, where, i)
         for plate, pad in pads.items():
@@ -196,6 +205,9 @@ def test_every_walk_in_the_lab_keeps_off_the_plates_that_are_not_its_act(world):
             continue                          # stepping off where it stood
           d = _segment_to_pad(a, b, pad)
           assert d >= cg.ROW_CLEAR_M - 1e-9, (world, act, where, i, plate, round(d, 3))
+      # ...and ENDS south of the row, so the walk after it -- to the dock,
+      # anywhere -- never starts on the cage's side of the plates
+      assert points[-1][1] <= cg.row_lanes(cage_xy)["south"] + 1e-9, (world, act, where)
     if act != "company":
       px, py = pads[act]
       *_, approach, over, back = lc.cage_program(world, act, (px, py - 2.0)).steps()
@@ -205,12 +217,14 @@ def test_every_walk_in_the_lab_keeps_off_the_plates_that_are_not_its_act(world):
 
 
 def test_the_way_in_is_south_of_the_row():
-  """From outside, a program walks straight to its approach point: the
-  lab's one door is on the row's south side, so that walk never meets the
-  row. A door moved north of it would make this rule a lie."""
+  """Every walk into the lab is laid from its one door (`lab_door`), and
+  the door is on the row's south side, as the plate acts' approach points
+  are: a door moved north of it would put the plates between the door and
+  every job."""
   from pluggybot.home import world as home
   lanes = cg.row_lanes(tuple(world_config(QUAD_HOME)["lab"]["cage"]))
   assert max(home.DOOR_LAB_Y) < lanes["south"]
+  assert lc.lab_door(QUAD_HOME) == lc.lab_door("home") == lc.lab_route("home")[-1]
 
 
 def test_the_walk_to_the_lab_on_legs_is_one_leg_with_its_own_patience():
@@ -237,26 +251,27 @@ def test_the_walk_to_the_lab_on_legs_is_one_leg_with_its_own_patience():
 # ---- a press no errand of that plate made ------------------------------------------
 
 
-def _plate_world(on_pad=(0.18, 0.18), beside=(0.25, 0.0)):
-  """A floor, the lab's cage and plates at the origin, the first robot a
-  1.5 kg block standing on the feed pad's corner and the second one
-  beside the pad and NEARER its centre, touching nothing of it."""
+def _plate_world(on_pad: str = "pluggybot"):
+  """A floor, the lab's cage and plates at the origin, one robot (a 1.5 kg
+  block) standing on the feed pad's corner and the other beside the pad
+  and NEARER its centre, touching nothing of it."""
   body, sensors = cg.cage_xml((0.0, 1.2))
-  fx, fy = on_pad
-  bx, by = beside
+  at = {on_pad: (0.18, 0.18, 0.08)}
+  at[next(r for r in ("pluggybot", "r2_pluggybot") if r != on_pad)] = (0.25, 0.0, 0.04)
+  robots = "".join(f"""
+    <body name="{name}" pos="{x} {y} {z}"><freejoint/>
+      <geom type="box" size="0.03 0.03 0.03" mass="1.5"/></body>"""
+                   for name, (x, y, z) in sorted(at.items()))
   xml = f"""<mujoco><option timestep="0.002"/><worldbody>
-    <geom name="floor" type="plane" size="5 5 0.1"/>{body}
-    <body name="pluggybot" pos="{fx} {fy} 0.08"><freejoint/>
-      <geom type="box" size="0.03 0.03 0.03" mass="1.5"/></body>
-    <body name="r2_pluggybot" pos="{bx} {by} 0.04"><freejoint/>
-      <geom type="box" size="0.03 0.03 0.03" mass="1.5"/></body>
+    <geom name="floor" type="plane" size="5 5 0.1"/>{body}{robots}
   </worldbody><sensor>{sensors}</sensor></mujoco>"""
   model = mujoco.MjModel.from_xml_string(xml)
   return model, mujoco.MjData(model)
 
 
-def test_the_cage_logs_a_press_as_the_robot_whose_foot_is_on_the_pad():
-  model, data = _plate_world()
+@pytest.mark.parametrize("on_pad", ["pluggybot", "r2_pluggybot"])
+def test_the_cage_logs_a_press_as_the_robot_whose_foot_is_on_the_pad(on_pad):
+  model, data = _plate_world(on_pad)
   cage = cg.Cage(model, data)
   for _ in range(1500):
     mujoco.mj_step(model, data)
@@ -264,7 +279,7 @@ def test_the_cage_logs_a_press_as_the_robot_whose_foot_is_on_the_pad():
     if cage.presses:
       break
   [press] = list(cage.presses)
-  assert press["plate"] == "feed" and press["robot"] == "pluggybot", press
+  assert press["plate"] == "feed" and press["robot"] == on_pad, press
   assert press["before"] == "resting" and press["after"] == "eating"
   assert cage.press_seq == 1 and cage.counts["feed"] == 1
 
@@ -304,3 +319,19 @@ def test_a_press_no_errand_of_that_plate_made_is_its_own_event():
   n = len(seen)
   life._press_step()
   assert len([e for e in events if e["type"] == "press"]) == n
+
+
+def test_the_press_hook_is_on_the_seam_and_finds_the_worlds_cage():
+  """The one line of wiring: the lifecycle's own step hook reads the cage
+  in the world's activities -- no hand-set cache -- and says the press."""
+  life = stub_life(QUAD_HOME)
+  events: list = []
+  life.on_event.append(events.append)
+  model, data = _plate_world()
+  cage = cg.Cage(model, data)
+  life.activities = [cage]
+  cage.presses.append(_press(1, "shock"))
+  cage.press_seq = 1
+  life.body.run(life.body.hold_routine(0.05))
+  [press] = [e for e in events if e["type"] == "press"]
+  assert press["plate"] == "shock" and press["robot"] == life.root

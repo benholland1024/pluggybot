@@ -106,8 +106,8 @@
     },
     "home_quad": {
       "errandWh": {
-        "care": 1.736,
-        "care:company": 1.657,
+        "care": 2.128,
+        "care:company": 2.128,
         "care:feed": 1.656,
         "care:toy": 1.736,
         "feed": 1.677,
@@ -115,7 +115,7 @@
       },
       "exploreWhPerS": 0.02353,
       "chargeW": 201.1,
-      "measuredOn": "measured 27 Sep 2026 on the quadruped (issue #387), home_quad, 40 Wh pack, the world's 240 s explore, depth camera drawing: the explore 6.113 Wh over 259.8 s (84.7 W, the legs' windings and shafts off the drivers' torques plus 14.9 W of electronics); the dock's 216 W charger into a body lying on its pins, 5.027 Wh in 90 s (201.1 W net). No tool errand: the body has no arm (`world_config`'s `tools`). The lab's acts, which take no tool, measured 28 Sep 2026 (issue #403) on the same pack, each from the dock (the spike walks back to it between them), the planner's one walk across the street and a pass over the plate: feed 1.677 Wh in 71.0 s, care:feed 1.656, care:toy 1.736, care:company 1.657, shock 1.616 (its job is not offered on legs; priced so it is one line back). A feed flown from the explore's end, 1.529 Wh, is not carried."
+      "measuredOn": "measured 27 Sep 2026 on the quadruped (issue #387), home_quad, 40 Wh pack, the world's 240 s explore, depth camera drawing: the explore 6.113 Wh over 259.8 s (84.7 W, the legs' windings and shafts off the drivers' torques plus 14.9 W of electronics); the dock's 216 W charger into a body lying on its pins, 5.027 Wh in 90 s (201.1 W net). No tool errand: the body has no arm (`world_config`'s `tools`). The lab's acts, which take no tool, measured 28 Sep 2026 (issue #403) on the same pack, each from the dock (the spike walks back to it between them), the planner's one walk across the street and a pass over the plate: feed 1.677 Wh in 71.0 s, care:feed 1.656, care:toy 1.736, care:company 2.128 (109.5 s: the visit walks back down its lane to the row's south side), shock 1.616 (its job is not offered on legs; priced so it is one line back). A feed flown from the explore's end, 1.529 Wh, is not carried."
     }
   }
 }

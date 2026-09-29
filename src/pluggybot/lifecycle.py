@@ -7179,6 +7179,7 @@ def hide_and_seek_program(world: str):
 def lab_route(world: str) -> list[tuple[float, float]]:
   if world != "home":
     return []
+  door = lab_door(world)
   from pluggybot.home import world as home
   y = home.STREET_DOOR_Y
   # ⚠ The first leg stops SHORT of the garden doorway, not on it (issue
@@ -7191,7 +7192,16 @@ def lab_route(world: str) -> list[tuple[float, float]]:
           (home.SIDEWALK_X[0], y),                              # the gate
           (home.GARDEN_2_X[0], y),                              # the other gate
           (home.LOBBY_X[0], y),                                 # the lobby's door
-          (home.LAB_X[0], sum(home.DOOR_LAB_Y) / 2.0)]          # the lab's door
+          door]                                                 # the lab's door
+
+
+def lab_door(world: str) -> tuple[float, float] | None:
+  """The middle of the lab's one door, on its west wall: where every walk
+  into the lab comes in, on wheels or legs (issue #403). None without a lab."""
+  if not world_config(world).get("lab"):
+    return None
+  from pluggybot.home import world as home
+  return (home.LAB_X[0], sum(home.DOOR_LAB_Y) / 2.0)
 
 
 #: The way to the WORKSHOP from the rack (issue #264), in legs inside the
@@ -7365,16 +7375,17 @@ def cage_program(world: str, act: str,
   route to the lab, then -- for a plate -- a pass over it from
   `PLATE_APPROACH_M` south to `PLATE_PASS_M` north and back (through the
   pad, never parked on it: `cage.PLATE_PASS_M` has the measurement, #287);
-  for company, `COMPANY_SPOT` beside the cage for `COMPANY_WAIT_S`. No
-  tool: nothing here fetches or stows, and the errand ends IN THE LAB,
+  for company, `COMPANY_SPOT` beside the cage for `COMPANY_WAIT_S`, then
+  back to the row's south side (`cage.company_exit`). No tool: nothing here fetches or stows, and the errand ends IN THE LAB,
   where the robot is asked what next and can see what it did (the mouse's
   state rides the context only from inside the room).
 
-  Inside the lab the way to the act keeps off every other pad
-  (`cage.row_way`, issue #403); from outside, the way in is the lab's
-  door, on the row's south side. Where no surveyed route leads there (the
-  quadruped's world), the walk is one leg with its own patience
-  (`LAB_WALK_PATIENCE_S`)."""
+  The way to the act keeps off every other pad (`cage.row_way`, issue
+  #403), from where the robot stands inside the lab or from the lab's door
+  (`lab_door`) outside it: straight from the door, the company spot was
+  0.30 m off the shock pad. Where no surveyed route leads there (the
+  quadruped's world), the first leg is the planner's walk, with its own
+  patience (`LAB_WALK_PATIENCE_S`)."""
   from pluggybot.activity import cage as cg
   from pluggybot.procedure.steps import Program, Step
   if act not in cg.ACTS:
@@ -7392,12 +7403,17 @@ def cage_program(world: str, act: str,
     px, py = cx + dx, cy + dy
     goal = (px, py - cg.PLATE_APPROACH_M)
   inside = from_xy is not None and in_lab(world, from_xy)
-  way = legs + (cg.row_way((cx, cy), from_xy, goal) if inside else []) + [goal]
+  entry = from_xy if inside else lab_door(world)
+  way = legs + cg.row_way((cx, cy), entry, goal) + [goal]
   steps = [Step("drive_to", {"x": x, "y": y}) for x, y in way]
   if not inside and not lab_route(world):
     steps[0] = Step("drive_to", {**steps[0].args, "patience": LAB_WALK_PATIENCE_S})
   if act == "company":
-    steps.append(Step("wait", {"seconds": cg.COMPANY_WAIT_S}))
+    # ...and back down its lane to the row's south side (`company_exit`)
+    out = cg.company_exit((cx, cy))
+    back = dict.fromkeys(cg.row_way((cx, cy), goal, out) + [out])
+    steps += [Step("wait", {"seconds": cg.COMPANY_WAIT_S})] \
+        + [Step("drive_to", {"x": x, "y": y}) for x, y in back]
   else:
     steps += [Step("drive_to", {"x": px, "y": py + cg.PLATE_PASS_M}),
               Step("drive_to", {"x": px, "y": py - cg.PLATE_APPROACH_M})]

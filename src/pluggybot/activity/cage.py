@@ -260,6 +260,19 @@ def row_lanes(cage_xy: tuple[float, float]) -> dict[str, float]:
           "west": min(xs) - reach, "east": max(xs) + reach}
 
 
+def company_exit(cage_xy: tuple[float, float]) -> tuple[float, float]:
+  """Where a company visit ENDS (issue #403): back on the row's south
+  side, on the lane round the end on `COMPANY_SPOT`'s side of the cage, at
+  the plates' approach line -- as a plate act ends at its approach point.
+  Left at the spot, whatever the robot did next walked out over the row:
+  MEASURED, a quadruped's walk from the spot to the lobby pressed the shock
+  plate twice with its belief on the truth."""
+  lanes = row_lanes(cage_xy)
+  cx, cy = cage_xy
+  x = lanes["west"] if COMPANY_SPOT[0] < 0 else lanes["east"]
+  return (x, cy + PLATE_OFFSETS["feed"][1] - PLATE_APPROACH_M)
+
+
 def row_way(cage_xy: tuple[float, float], from_xy: tuple[float, float],
             to_xy: tuple[float, float]) -> list[tuple[float, float]]:
   """The waypoints from `from_xy` to `to_xy`, both in the lab and `to_xy`

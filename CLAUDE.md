@@ -927,7 +927,9 @@ tolerance spikes are listed in `docs/Rover.md`.
   in `cadence.json`); `LAB_RULE` names only the jobs the world OFFERS
   (`Menu.lab_jobs`) and a world with both reads it byte for byte; every
   walk in the lab keeps `cage.ROW_CLEAR_M` off the pads not its act
-  (`cage.row_way`); a plate pressed with no errand of THAT plate running
+  (`cage.row_way`, from the door in, `lifecycle.lab_door`) and every program
+  ENDS south of the row (a company visit walks back, `cage.company_exit`);
+  a plate pressed with no errand of THAT plate running
   is a `press` event (`Cage.presser`, `HubLifecycle._press_step`), never a
   `care`, a `harm` or an act.
 - **The bench is the second challenge, and it is open in method** (issue #227;
