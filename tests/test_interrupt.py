@@ -20,12 +20,10 @@ calls its substance:
   `test_the_control_arm_cannot_be_interrupted_at_all`
       `guarded` has no map, so it cannot be interrupted, so it is unchanged
 
-⚠ ONE test here is `slow` and the other two mission runs are not, which is
-issue #54's rule rather than an oversight: `slow` means expensive AND unable
-to catch a regression while you iterate. `..._puts_the_module_back_even_
-with_the_endpoint_down` is this issue's acceptance criterion and runs in
-73 s, so it stays in the loop; `..._a_later_errand_runs_cleanly` needs three whole errands and
-cannot be shortened past them.
+ONE test here flies a mission, `..._puts_the_module_back_even_with_the_
+endpoint_down`: where an aborted module ENDS UP is physics. What the loop
+does after an abort -- `..._a_later_errand_runs_cleanly` -- is a day on the
+stub.
 
 Nothing here touches the network: the client is the injected seam, as in
 tests/test_overseer.py, whose fakes these reuse.
@@ -207,29 +205,21 @@ def attach(client):
 MID_ERRAND = 0.7
 
 
-def fly(tmp_path, tag, row, client=None, errand="carry", extra=0,
-        errands_done=1, lines=None, **kw):
+def fly(tmp_path, tag, row, client=None, errand="carry", lines=None, **kw):
   """One room_hub mission whose agent has `row` in its map from the start.
 
-  `extra` appends further carry errands, which is how "the NEXT errand runs
-  cleanly" is asked: a stow that half-worked shows up on the next FETCH, not
-  on the one that went wrong.
-
   ⚠ IT ENDS WHEN THE CLAIM IS SETTLED, not when the budget runs out
-  (`HubLifecycle.stop_when`, and CLAUDE.md's rule). Every test below is about
-  what an interrupt does to an errand, so the moment the errands have run and
-  an interrupt has fired there is nothing left to learn -- and a
+  (`HubLifecycle.stop_when`, and CLAUDE.md's rule): once the errand has run
+  and an interrupt has fired there is nothing left to learn -- and a
   battery-driven loop with no work left spends the rest of its budget
-  honestly deciding what to do with its afternoon. Measured over the three
-  mission tests here: 870 s -> 449 s, and the two that stay in the iterate
-  loop are 73 s each.
+  honestly deciding what to do with its afternoon.
 
   ⚠ AND THE PREDICATE IS THE SUCCESS CONDITION. A run where nothing
   interrupted, or where an errand never came back, never satisfies it -- so
   it takes the long path and fails exactly as it did before, which is what
   stops a shortened test from passing a regression it would otherwise catch.
   """
-  from pluggybot.lifecycle import carry_errand, run_demo, world_config
+  from pluggybot.lifecycle import run_demo
 
   def ready(life):
     if client is not None:
@@ -239,15 +229,13 @@ def fly(tmp_path, tag, row, client=None, errand="carry", extra=0,
       # `log` is not in `run_demo`'s result dict, so the narration is
       # captured off the hook the live publisher uses.
       life.say_hooks.append(lambda t, msg: lines.append(msg))
-    for _ in range(extra):
-      life.errands.append(carry_errand(use_at=world_config("room_hub")["use_at"]))
   return run_demo(view=False, realtime=False, world="room_hub",
                   errand=errand, max_sim_time=400.0, overseer=True,
                   standing_orders=True, origin="seeded",
                   thoughts_root=str(tmp_path / tag),
                   ledger_state=str(tmp_path / f"{tag}.json"),
                   stop_when=lambda life: (
-                    len(life.errand_results) >= errands_done
+                    len(life.errand_results) >= 1
                     and bool(life.interrupts)),
                   on_ready=ready, **kw)
 
@@ -300,38 +288,49 @@ def test_an_aborted_errand_puts_the_module_back_even_with_the_endpoint_down(tmp_
       "and it says what actually happened"
 
 
-# ⚠ BEHIND `--endurance` (issue #158): at 317 s this is the suite's longest
-# test, and its regressable half -- an aborted errand hangs its module back
-# -- is proved in the default run by
-# `test_an_aborted_errand_puts_the_module_back_even_with_the_endpoint_down`. What only
-# this one shows is that the errand AFTER a cut-short stow also fetches
-# cleanly, which is an integration claim: run it before a release.
-@pytest.mark.slow
-@pytest.mark.endurance
-def test_a_later_errand_runs_cleanly_after_an_abort(tmp_path):
-  """The acceptance criterion, and the reason it is worth a whole mission: a
-  stow that half-worked shows up on the NEXT FETCH, not on the errand that
-  went wrong. Three carry errands with a hazard row live throughout.
+def test_a_later_errand_runs_cleanly_after_an_abort():
+  """The acceptance criterion's other half, as a day on the stub (issue
+  #380): three carry errands and a hazard row that fires once, during the
+  first pick -- and every errand after the abort fetches, carries and hangs
+  its module back UNINTERRUPTED. The latch is the errand's, not the day's.
+  Where the aborted module physically ends up is the flown
+  `test_an_aborted_errand_puts_the_module_back_even_with_the_endpoint_down`;
+  that a hung module is picked again is the swap stack's own tests'.
 
-  ⚠ WHAT IS ASSERTED IS THE RACK, not which errand got interrupted. Mission
-  runtime is emergent (Evaluation.md §0) and the pack's path through 50 %
-  depends on the whole trajectory, so pinning "the first one" would be
-  pinning noise. What must hold whatever the timing is: something WAS
-  interrupted, and every errand -- before and after -- picked its module up
-  and hung it back."""
-  row = ev.Row(event="battery_below", action="idle", value=MID_ERRAND)
-  out = fly(tmp_path, "twice", row, extra=2, errands_done=3)
-  errands = out["errands"]
-  assert len(errands) >= 2
-  cut = [i for i, e in enumerate(errands) if e.get("interrupted")]
-  assert cut, "the hazard row reached at least one errand"
-  # ⚠ AND SOMETHING RAN AFTER ONE. Without this the test passes vacuously on
-  # a run where the interrupt happened to land on the LAST errand -- which
-  # asserts nothing at all about what a cut-short stow leaves behind, and is
-  # the whole subject.
-  assert cut[0] < len(errands) - 1, \
-      "nothing ran after the interrupted errand, so nothing was tested"
-  for i, e in enumerate(errands):
+  The pack drops to 65 % DURING the pick and the body holds a think-slice,
+  so the seam that reads the map sees the crossing mid-errand: on the stub
+  a manoeuvre takes no sim time. Shown to fail by dropping
+  `self._aborting = False` from `run_errand_routine`'s per-errand reset.
+  """
+  from pluggybot.lifecycle import THINK_SLICE_S, world_config
+  from pluggybot.mission.errand import carry_errand
+
+  from test_body import stub_life
+  cfg = world_config("room_hub")
+  boss = make(Menu.for_world("room_hub", None))
+  life = stub_life("room_hub", overseer=boss,
+                   errands=[carry_errand(use_at=cfg["use_at"]) for _ in range(3)])
+  boss.event_map = ev.EventMap((ev.Row(event="battery_below", action="idle",
+                                       value=MID_ERRAND),))
+  real, dropped = life.body.fetch_tool_routine, []
+
+  def fetch(*a, **kw):
+    got = yield from real(*a, **kw)
+    if not dropped:
+      life.battery.energy_wh = life.battery.capacity_wh * (MID_ERRAND - 0.05)
+      dropped.append(float(life.data.time))
+      yield from life.body.hold_routine(THINK_SLICE_S)
+    return got
+  life.body.fetch_tool_routine = fetch
+  life.stop_when(lambda: len(life.errand_results) >= 3)
+  out = life.run(start=cfg["start"], max_sim_time=300.0)
+
+  assert [i["outcome"] for i in out["interrupts"]] == ["aborted"]
+  first, *later = out["errands"]
+  assert first["interrupted"] and first["picked"] and first["stowed"]
+  assert len(later) == 2, "the day did not go on after the abort"
+  for i, e in enumerate(later, start=1):
+    assert not e.get("interrupted"), f"errand {i} inherited the abort"
     assert e["picked"], f"errand {i} could not fetch its module"
     assert e["stowed"], f"errand {i} could not hang its module back"
     assert not e.get("error"), f"errand {i}: {e.get('error')}"

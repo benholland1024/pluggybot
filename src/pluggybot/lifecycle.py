@@ -602,7 +602,9 @@ class HubLifecycle:
     #: are permanent (issue #277); a built tool takes a built-rail bay,
     #: retiring a built tool already there.
     from pluggybot.procedure.steps import TOOL_BAYS
-    self.rack_inventory: dict[str, int] = dict(TOOL_BAYS)
+    # ...or the world's own rack's (issue #405: the tools for legs)
+    self.rack_inventory: dict[str, int] = dict(
+      world_config(world).get("tool_bays") or TOOL_BAYS)
     #: The tools the workshop built and hung, by module name.
     self.built: dict = {}
     #: Whether THIS world carries the built-tool rail (issue #277), read off
@@ -611,7 +613,7 @@ class HubLifecycle:
     #: rail's presence -- the grammar keys off `world_config`'s count, which
     #: a test holds equal to this.
     # ...and on a body that can hang one (issue #387): the rail stands in
-    # the quadruped's world, and waits for its arm.
+    # the quadruped's world, and waits for its arm to take a tool (#405).
     self.has_built_rack = (mujoco.mj_name2id(
       model, mujoco.mjtObj.mjOBJ_BODY, BUILT_RACK_BODY) >= 0
       and world_config(world).get("tools", True))
@@ -7172,7 +7174,7 @@ def hide_and_seek_program(world: str):
 #: and the second house, as `drive_to` legs no longer than the LIDAR has
 #: already mapped from the leg before (SimNotes, "A goal out of sight is
 #: aimed at through the nearest wall": a 12 m leg to an unmapped goal drove
-#: the other way; `test_home_world.loop_legs` keeps every leg under 6.7 m).
+#: the other way).
 #: Surveyed infrastructure, a work order's kind of fact -- the same class as
 #: the whiteboards' poses. `cage_route` drops the legs already behind the
 #: robot, so a second visit from inside the lab does not drive home first.
@@ -7558,22 +7560,33 @@ def world_facts(world: str, rack: dict[str, int] | None = None):
   pen knows. `rack` is a lifecycle's inventory once the workshop has hung
   a tool (issue #168); without it, the shipped five."""
   from pluggybot.procedure import axes
-  from pluggybot.procedure.steps import BODY_VERBS, TOOL_BAYS, WorldFacts
+  from pluggybot.procedure.steps import BODY_VERBS, SWAP_VERBS, TOOL_BAYS, WorldFacts
   cfg = world_config(world)
   boards: tuple = ()
   if cfg["meta"]:
     boards = tuple(json.loads(Path(cfg["meta"]).read_text())["boards"])
-  # A body with no arm (issue #387) has no tool to fetch, no axis to move
-  # and none of the fork's senses: a program naming one is refused up
-  # front, with the name, as any unknown one is.
+  # A body with no tool errand (issue #387) has none of the fork's senses,
+  # and a program naming one is refused up front, with the name, as any
+  # unknown one is. Its axes are its own (issue #405: the quadruped's arm),
+  # never another body's, and where its world has a rack at its arm's
+  # reach (`swap`) it fetches and stows that rack's tools.
   armed = cfg.get("tools", True)
-  return WorldFacts(boards=boards, tools=tuple(rack or TOOL_BAYS) if armed else (),
+  swaps = cfg.get("swap", armed)
+  own = axes.BODY_AXES[cfg.get("body", "rover")]
+  theirs = {a for axs in axes.BODY_AXES.values() for a in axs} - set(own)
+  legs = cfg.get("body", "rover") == "quadruped"
+  bays = rack or cfg.get("tool_bays") or TOOL_BAYS
+  verbs = None if armed else BODY_VERBS + (SWAP_VERBS if swaps else ())
+  return WorldFacts(boards=boards, tools=tuple(bays) if swaps else (),
                     bounds=tuple(float(v) for v in cfg["grid_bounds"]),
                     figures=tuple(n for n in strokes.PROGRAMS
                                   if n not in ("text", "answer")),
-                    axes=tuple(axes.AXES) if armed else (),
-                    sensors=tuple(axes.SENSORS) if armed else axes.BODY_SENSORS,
-                    verbs=None if armed else BODY_VERBS)
+                    axes=(tuple(a for a in axes.AXES if a not in theirs)
+                          if armed else own),
+                    sensors=(tuple(n for n in axes.SENSORS if n not in theirs)
+                             if armed else
+                             axes.LEGS_SENSORS if legs else axes.BODY_SENSORS),
+                    verbs=verbs)
 
 
 def zone_centre(world: str, name: str) -> tuple[float, float]:
@@ -7904,16 +7917,20 @@ def world_config(world: str) -> dict:
     # THE HOME WORLD WITH LEGS IN IT (issue #387): the same house, the rover
     # taken out and the quadruped and its dock put in (`legs/world.py`,
     # built at load from the rover's file, so there is one house). What
-    # differs is what the BODY can do: no tool on this body until the arm
-    # (#378), so no tool errand, no workshop and no tower. The lab is here
-    # (#403): its acts need no tool, and the way there is the planner's
-    # (#399), never the rover's surveyed route (`lab_route` is `home`'s).
-    # Its packs are the quadruped's (`legs.model.PACK_WH`).
+    # differs is what the BODY can do: its arm takes no tool until a rack
+    # of its own (#405), so no tool errand, no workshop and no tower. The
+    # lab is here (#403): its acts need no tool, and the way there is the
+    # planner's (#399), never the rover's surveyed route (`lab_route` is
+    # `home`'s). Its packs are the quadruped's (`legs.model.PACK_WH`).
     from pluggybot.legs import model as legs_model
     from pluggybot.legs import world as legs_world
     cfg = {k: v for k, v in world_config("home").items() if k != "tower"}
+    from pluggybot.legs import rack as legs_rack
     cfg.update({
       "model_name": QUAD_HOME, "body": "quadruped", "tools": False,
+      # ...but its arm takes the tools on its own rack, beside the dock
+      # (#405): a program's `fetch` and `stow`, no errand yet
+      "swap": True, "tool_bays": dict(legs_rack.TOOL_BAYS),
       "built_bays": 0, "dock": legs_world.dock_pose(),
       "battery_wh": legs_world.DEMO_WH,
       "hosting_battery_wh": legs_model.PACK_WH,

@@ -5,9 +5,9 @@ A simulated, hardware-honest robot and the autonomous agent that lives in it.
 six qualities the agent is meant to maximise, and the order of work are in
 `docs/PluggyPlan.md` § "What this project is for" — provisional wording,
 settled direction. **The body has changed**: the served pair are ~10 kg
-quadrupeds (#387, `legs/body.py`), the two-joint arm still to come; the rover
-stays in the repo, and in most tests, until #376's stage C (#375 holds the
-order and the decisions). Before doing anything, read the
+quadrupeds (#387, `legs/body.py`) with #378's two-joint arm on their backs
+(#405), a tool swap still to come; the rover stays in the repo, and in most
+tests, until #376's stage C (#375 holds the order and the decisions). Before doing anything, read the
 doc that owns what you are about to touch:
 
 | doc | what it holds | read it BEFORE |
@@ -42,15 +42,27 @@ doc that owns what you are about to touch:
   **And it is written as cheaply as it can be while still failing for the
   right reason** (Ben, 2026-09-12): pin the RULE — the inequality, the branch
   order, the one line of wiring — with a fake press, a stubbed drive, a direct
-  call; fly a whole mission only when the claim is genuinely about the
-  integration, and then stop it on the claim (`stop_when`). A flown proof
-  whose rule is already pinned goes behind `--endurance`.
+  call; an integration of the loop's bookkeeping is a day on the stub
+  (`stub_life`); fly a whole mission only when the claim is genuinely about
+  PHYSICS, and then stop it on the claim (`stop_when`). A flown proof whose
+  rule is already pinned may go behind `--endurance` — with Ben's approval,
+  below.
 - ⚠ **THE TEST SUITE HAS A BUDGET, AND EXCEEDING IT NEEDS BEN'S EXPLICIT
   APPROVAL.** The full suite is **6:53** (2026-09-26, #376). Any change to
   testing that would take it past **10 minutes on a quiet machine, or 15 on a
   busy one**, must be stated as such in the PR — the number, the test, and why
-  it cannot be cheaper — and approved by Ben personally before it merges.
-  Reducing suite time is a project priority: the suite was slowing development
+  it cannot be cheaper — and approved by Ben personally before it merges. ⚠
+  **THE BUDGET HAS NO OUTSIDE** (Ben, 2026-09-29): a test the default run
+  does not run is still testing, and leaving the default run is no way under
+  the budget. ADDING one — a flight behind `--endurance`, or any skip, gate,
+  marker or job that leaves a test out — or MOVING a test out of the default
+  run needs Ben's explicit approval in the PR, however short it is, stating
+  how long it takes (wall, `-n0`) and why it is necessary: why no test in the
+  default run can make its claim. The approved set is `APPROVED_FLIGHTS`
+  (`tests/test_endurance.py`), each with its time and its reason; the suite
+  fails on a flight not on it, on a test that skips itself, and on an
+  `addopts` that deselects. Reducing suite time is a project priority: the
+  suite was slowing development
   considerably at 18 minutes, and it gets there one reasonable-looking mission
   test at a time. Do not rely on full runs where a fast test settles the
   claim.
@@ -114,16 +126,24 @@ doc that owns what you are about to touch:
   shortened: `test_a_question_is_asked_answered_and_graded_twice_unattended`
   (issue #22) already stops on its claim, and "**twice**, with nobody
   watching" IS the claim.
-- **A flown proof whose RULE is pinned by a fast test goes behind
-  `--endurance`** (issue #158; `tests/conftest.py`, the `endurance` marker in
-  `pyproject.toml`), run deliberately, before a release or after touching the
-  mission loop: `MUJOCO_GL=egl uv run pytest -q --endurance -m endurance`. ⚠
-  Moving a test there is a claim that its rule IS pinned fast — name the pin
-  in the comment above the mark. ⚠ A flag, not `-m 'not endurance'` in
-  `addopts`: pytest keeps the LAST `-m`, so the everyday `-m "not slow"` would
-  silently switch them back on. The decision behind it (Ben, 2026-09-12):
-  while the design is moving, a generous pack is ASSUMED to fund any single
-  errand and a battery death costs a heart. ⚠
+- **Behind `--endurance` is PHYSICS no fast test can make, approved by Ben,
+  and a flight flies only when a change touches what it guards** (issues
+  #158, #380; `tests/conftest.py`, `tests/test_endurance.py`). The loop's
+  bookkeeping — the mind, the economy, the record, the wire — is a day on the
+  stub in the default run. A flight's rule is pinned fast (name the pin in
+  the comment above the mark); it is `slow`; it names the paths its claim
+  stands on, `@pytest.mark.endurance(when=(...))`; and it is in
+  `APPROVED_FLIGHTS` with its time and its reason, because the budget has no
+  outside (above). **Before calling work done:** `MUJOCO_GL=egl uv run
+  pytest -q --endurance-changed -m endurance` flies exactly the flights your
+  branch touches — usually none, when it costs a collection. There is no
+  "before a release" beyond that; `--endurance` flies every one,
+  deliberately. ⚠ A `when` path must exist (a rename fails the fence), and
+  `lifecycle.py` is in none: its rules are pinned on the stub. ⚠ A flag, not
+  `-m 'not endurance'` in `addopts`: pytest keeps the LAST `-m`, so the
+  everyday `-m "not slow"` would silently switch them back on. The decision
+  behind it (Ben, 2026-09-12): while the design is moving, a generous pack is
+  ASSUMED to fund any single errand and a battery death costs a heart. ⚠
   `test_charge_priority_survives_an_overseer_that_never_charges` stays in the
   default run: it is the proof that an LLM cannot skip charging on `guarded`.
 - Lint: `uv run ruff check src/ scripts/ tests/`
@@ -235,11 +255,11 @@ tolerance spikes are listed in `docs/Rover.md`.
 | `scripts/determinism_spike.py` | is the world the same world twice? N scripted days hashed, first divergence attributed to GPU / decoder / raycast; `--compare DIR`; `--second-robot X,Y`; `--resume-at T` flies a day against one saved and carried on in a new process (#345) |
 | `scripts/solve.py --feature {tower,bench,mouse}` | ladder A of #264: the hand-written solution to each challenge, flown the way the robot's attempt runs and graded by the feature's own grader; `--at-the-row`, `--pair [--robot 2]`, `--source FILE` (a robot's own procedure); `--feature mouse --pair --body quadruped [--n N --from dock\|lab]` flies the paid feed on legs (#403); filmstrip `solve.png` |
 | `scripts/board_png.py` | a whiteboard's ink as a PNG from the boards state file or a recording. ⚠ +lat is the viewer's LEFT, as in the site's `surfaces/board.ts`; the test pins it because every figure the pen draws is symmetric |
-| `scripts/quad_spike.py` | the quadruped body (#377; SimNotes "The quadruped body"): `--view` watches it, `--torque`/`--thermal`/`--energy`/`--sweep`/`--pupper` are the sizing tables, `--policy`/`--climb`/`--getup`/`--posture`/`--odometry`/`--determinism` fly a trained policy in OUR physics (`--climb --scan map` on the D435's map, `legs/scan.py`, #388), `--shove` the served body knocked over in the house (what `stuck_after_s` is read off, #389), `--served`/`--rays` time the pair and the sensors |
+| `scripts/quad_spike.py` | the quadruped body (#377; SimNotes "The quadruped body"): `--view` watches it, `--torque`/`--thermal`/`--energy`/`--sweep`/`--pupper` are the sizing tables (on `model.SIZING`, #377's placeholder arm, #405), `--policy`/`--climb`/`--getup`/`--posture`/`--odometry`/`--determinism` fly a trained policy in OUR physics (`--climb --scan map` on the D435's map, `legs/scan.py`, #388), `--shove` the served body knocked over in the house (what `stuck_after_s` is read off, #389), `--served`/`--rays` time the pair and the sensors |
 | `scripts/dock_spike.py` | the quadruped's dock (#378; SimNotes "The quadruped's dock"): `--capture` the funnel's envelope (premises `--sticky`, `--flat`), `--approach [--n N]` the success rate walking in by the board (premise `--blind`), `--hold` lying there: contact, preload, the anchor, standing off; `--view` dockings in the viewer, one after another; `--mouth`/`--bed` fly another width; filmstrip `dock_spike.png` |
-| `scripts/arm_spike.py` | the quadruped's arm, its coupling and the rack (#378; SimNotes "The quadruped's arm, its coupling and the rack"): `--reach` the level-tool choice and the holding torques, `--capture` the coupling's envelope placed at a bay (premises `--rover`, `--narrow`), `--approach [--n N]` walking in by the rack's tags and taking a tool, `--retention [--stairs [--first]\|--fall]` carrying one (`--first`: the fork as first built, 45° V's, the stairs' premise), `--getup` the get-up policy with the arm, `--sensors` what the arm hides, `--envelope` a tool's mass and lever; `--view [fetch\|carry\|stairs\|fall\|reach]` a scene in the viewer, looped until the window closes (MUJOCO_GL unset); filmstrip `arm_spike.png` |
+| `scripts/arm_spike.py` | the quadruped's arm, its coupling and the rack (#378; SimNotes "The quadruped's arm, its coupling and the rack"): `--reach` the level-tool choice and the holding torques, `--capture` the coupling's envelope placed at a bay (premises `--rover`, `--narrow`), `--approach [--n N]` walking in by the rack's tags and taking a tool, `--retention [--stairs [--first]\|--fall]` carrying one (`--first`: the fork as first built, 45° V's, the stairs' premise), `--getup` the get-up policy with the arm, `--sensors` what the arm hides, `--envelope` a tool's mass and lever, `--served [--pair] [--n N]` the SERVED body fetching and stowing at the house's rack from the dock and from across the house (#405); `--view [fetch\|carry\|stairs\|fall\|reach]` a scene in the viewer, looped until the window closes (MUJOCO_GL unset); filmstrip `arm_spike.png` |
 
-- **The quadruped's training stack lives in `training/`, a uv project of its own** (#377): mjlab 1.5.x (it pins `mujoco ~=3.10.0`, the served sim's), reading the body from `models/quadruped.{xml,json}` (`python -m pluggybot.legs.model` writes both; mjlab caps numpy below pluggybot's, so the two never share an environment). ⚠ Importing `legs.policy` or `legs.model` loads none of torch, jax, warp, onnx or mjlab (`tests/test_legs.py`); a policy reaches the served sim as an `.npz` that `quad_train.export` checks against its ONNX before writing, run by `legs/policy.py` in numpy. ⚠ The leg DRIVERS are MuJoCo's position-mode `dcmotor` (#385; `body_xml(drive="position")`), the PD and the envelope in C, commanded as a GDS68 is (`legs/drivers.py`): every command carries its gains — a policy's are its own, a routine's torque rides a target with the damping cancelled (the torque motor's step to 1e-14), `limp()` holds nothing — so a policy and the scripted routines share one body. The default gains are ONE definition, `actuator.driver_gains`, which `training/` reads from `quadruped.json`. `drive="torque"` (plain motors) is the sizing tables' instrument. `training/pod.sh` rents a Runpod GPU (REST API; `runpodctl pod create` needs a GraphQL-writable key) — ⚠ a POST to `/v1/pods` with an EMPTY body CREATES a pod: every field has a default.
+- **The quadruped's training stack lives in `training/`, a uv project of its own** (#377): mjlab 1.5.x (it pins `mujoco ~=3.10.0`, the served sim's), reading the body from `models/quadruped.{xml,json}` (`python -m pluggybot.legs.model` writes both; mjlab caps numpy below pluggybot's, so the two never share an environment), the arm FIXED at its stow (`quad_train.robot.freeze_arm`, #405: a policy's joints are the legs' twelve, and the arm's geometry is there to fall on). ⚠ Importing `legs.policy` or `legs.model` loads none of torch, jax, warp, onnx or mjlab (`tests/test_legs.py`); a policy reaches the served sim as an `.npz` that `quad_train.export` checks against its ONNX before writing, run by `legs/policy.py` in numpy. ⚠ The leg DRIVERS are MuJoCo's position-mode `dcmotor` (#385; `body_xml(drive="position")`), the PD and the envelope in C, commanded as a GDS68 is (`legs/drivers.py`): every command carries its gains — a policy's are its own, a routine's torque rides a target with the damping cancelled (the torque motor's step to 1e-14), `limp()` holds nothing — so a policy and the scripted routines share one body. The default gains are ONE definition, `actuator.driver_gains`, which `training/` reads from `quadruped.json`. `drive="torque"` (plain motors) is the sizing tables' instrument. `training/pod.sh` rents a Runpod GPU (REST API; `runpodctl pod create` needs a GraphQL-writable key) — ⚠ a POST to `/v1/pods` with an EMPTY body CREATES a pod: every field has a default.
 
 ### The mind (`mind/`; `docs/Overseer.md` is the design)
 
@@ -465,8 +485,10 @@ tolerance spikes are listed in `docs/Rover.md`.
   HISTORY LINE (`lifecycle.procedure_outcome`). ⚠ `fetch` checks the fork
   first. ⚠ `drive_to(x, y, patience=)` (#381): 60 s unsaid, `MAX_PATIENCE_S`
   600, never past the run's own budget (`run_verb(until=)`); an argument with
-  a `default` may be left out. ⚠ A body with no arm has no carrying pose
-  (`travel_pose`): asking for one raised before every walking verb on legs.
+  a `default` may be left out. ⚠ A body's carrying pose is its own
+  (`travel_pose`): the rover's fork arm in, the quadruped's arm folded to its
+  stow, the shoulder first (#405); asking legs for the rover's `arm` raised
+  before every walking verb (#381).
   ⚠ `PROCEDURE_RULE`'s example may not show charge, a battery threshold
   or the rack. ⚠ The site's Procedures section is built off the `procedure`
   event (`library`, `failedLine`; `failedAt` counts verb calls, not lines).
@@ -536,7 +558,8 @@ tolerance spikes are listed in `docs/Rover.md`.
   `scripts/determinism_spike.py --resume-at T` must stay IDENTICAL after the
   restore. ⚠ A signal only ASKS (`Keeper.request_stop`); no save mid stand-up
   or mid-move (a quadruped lying down, standing up or getting up is a
-  generator part-way; `Keeper.busy`), NEVER on a crash. Two refusals, said in History: a changed
+  generator part-way, or AT a bay mid-swap, `Body.working`; `Keeper.busy`),
+  NEVER on a crash. Two refusals, said in History: a changed
   GEOMETRY (`fingerprint`) keeps the clock, packs, deaths and jobs but not the
   bodies or maps; a save restored `MAX_RESUMES` (3) times without a new one is
   not trusted. ⚠ The errand in flight ends; its job does not (`_resume_jobs`;
@@ -637,7 +660,7 @@ tolerance spikes are listed in `docs/Rover.md`.
   dies mid-game). The QUADRUPED pair (`home_quad_pair`, #387): `python -m
   pluggybot.telemetry.scene --world home_quad --pair` and
   `scripts/two_robots.py --world home_quad --fast --pack demo --near-field
-  --errands none,none --battery 0.42,1.0 --max-sim-time 600 --record
+  --errands none,none --battery 0.22,1.0 --max-sim-time 600 --record
   protocol/telemetry.home_quad_pair.jsonl.gz` -- NO `--metabolism` there,
   and no `--tasks`: legs' one offer (`feed_mouse`, #403) is the
   `autonomous` arm's, so a scripted recording's board would be empty. ⚠ Elsewhere `--tasks`, `--metabolism` and
@@ -754,9 +777,13 @@ tolerance spikes are listed in `docs/Rover.md`.
   cells against `occupancy_grid.MAX_CELLS` 750,000: A* is pure Python and NOT
   linear (1.26 s across the loop), so vectorising the planner is the lever if
   the world grows again. ⚠ The QUADRUPED's home (`home_quad`) is built at
-  LOAD from that file (`legs/world.py`): the rover taken out by what names it,
-  the quadruped(s) and #378's dock put in -- one house, no second XML; its
-  robots are attached AFTER the house, so read them by name. ⚠ THE CAMERAS'
+  LOAD from that file (`legs/world.py`): the rover and its rack taken out by
+  what names them, the quadruped(s), #378's dock and its own rack put in
+  (#405: three tools on 220 mm pegs, the rover's module names and bay
+  letters, compiled exactly AT REST so `qpos0` reads hung) -- one house, no
+  second XML; its robots are attached AFTER the house, so read them by name,
+  and its near plane is 0.10 m (`legs.world.NEAR_M`: at the house's 0.37 a
+  bay's tags, 0.31 m from the nose, were clipped). ⚠ THE CAMERAS'
   NEAR PLANE IS PINNED
   (`home.CAMERA_EXTENT_M`, 37.2 m, a `<statistic>` in the generated XML):
   MuJoCo scales it by the extent it derives from the bounding box, and the
@@ -834,6 +861,27 @@ tolerance spikes are listed in `docs/Rover.md`.
   the stub arrives at once and its senses answer what the test set
   (`holding`, `on_charger`, `attitude`), but time passes only where it holds,
   so a test timing a stand-still subtracts the think slices it stood.
+- **The quadruped's arm is held on every physics step, off `qpos` alone**
+  (issue #405; `legs/arm.py`'s `ArmDriver`, `QuadMission.arm`): at its stow
+  unless a program moved it, folded on a fall and before the rest reflex
+  lies the body down. ⚠ ITS GRAVITY IS THE ARM'S OWN PLANAR MODEL, never the
+  forward pass: a restart forwards the world at the saved instant, where a
+  running world's step reads the kinematics one step old, so a controller
+  reading them EVERY step parts a resumed world at its first step (a policy
+  reads them only at a decision); and three Jacobians 122 columns wide were
+  43 of its 100 us a step (12.5 now). Its joints are the body axes
+  `shoulder`/`elbow` (`axes.BODY_AXES`; `world_facts` gives each body its
+  own) and `move` is a legs verb; the motors' `ctrl` is a TORQUE, so what an
+  axis is held to is `Body.setpoint`. Instruments hold it through
+  `PolicyDriver.step` (unheld, it falls across the nose camera); the
+  torque-driven tables fly `model.SIZING`, #377's placeholder. It FETCHES
+  AND STOWS its own rack's tools (#405 stage B, `legs/swap.py`: a program's
+  `fetch`/`stow`, `world_config`'s `swap`; no errand needs one yet): the
+  walk-in stops `rack.SETTLE_DRIFT` clockwise (the settle always turns it
+  back), a fork move fails only out of reach -- what happened is the
+  WORLD's, seated or hung (judged by the arm's arrival, hung tools were
+  lifted back off) -- and a carried tool is the body's own to its senses
+  (`QuadMission.carry`); a rest keeps it at the carry pose, a fall drops it.
 - **A robot's elements are reached through its `RobotHandle`, never by bare
   name** (issue #167; `pluggybot/robot.py`): a second robot is
   `models/pluggybot_fork.xml` ATTACHED with a prefix (`r2_`) in its own LIVERY

@@ -119,8 +119,9 @@ def serve(watchdog: "vitals.Watchdog") -> str | None:
                       default=os.environ.get("PLUGGY_BODY", "rover") or "rover",
                       help="which body the robots have (issue #387): the "
                            "wheeled rover, or the quadruped, which lives in "
-                           "the home world as `home_quad` -- no arm yet, so "
-                           "no tool errand. Default $PLUGGY_BODY, then rover")
+                           "the home world as `home_quad` -- its arm takes no "
+                           "tool yet, so no tool errand. Default $PLUGGY_BODY, "
+                           "then rover")
   parser.add_argument("--rate", type=float, default=1.0,
                       help="pacing: sim seconds per wall second")
   parser.add_argument("--free-run", action="store_true",
@@ -202,7 +203,7 @@ def serve(watchdog: "vitals.Watchdog") -> str | None:
                            "(the milestone-8 LCD errand), draw (fetch the pen, "
                            "erase a whiteboard and draw on it), draw2 (two "
                            "boards, charging in between), none. Default "
-                           "carry, and none for a body with no arm")
+                           "carry, and none for a body whose arm takes no tool")
   parser.add_argument("--boards", default=None, metavar="PATH",
                       help="JSON file the whiteboards' contents live in "
                            "between runs (default: blank boards every start)")
@@ -342,8 +343,8 @@ def serve(watchdog: "vitals.Watchdog") -> str | None:
   if args.errand is None:
     args.errand = "carry" if args.body == "rover" else "none"
   if args.body != "rover" and (args.errand != "none" or args.errand2 != "none"):
-    parser.error(f"the {args.body} has no arm yet, so no errand that takes a "
-                 "tool: --errand none (and --errand2 none)")
+    parser.error(f"the {args.body}'s arm takes no tool yet, so no errand that "
+                 "takes one: --errand none (and --errand2 none)")
 
   # WHICH ARM (issue #142). Until this, `serve.py` REPORTED an arm and had no
   # way to set one: the identity header read `autonomous` off

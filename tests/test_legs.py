@@ -49,7 +49,7 @@ def test_a_foot_grips_with_its_own_friction_not_the_floors():
   # Friction combines as the pair's MAX unless the foot claims priority
   # (SimNotes, "THE caster lesson"): without it the floor's 1.0 wins and
   # randomising the foot's friction in training would change nothing.
-  model, data = _compiled(drive="torque")
+  model, data = _compiled(qm.SIZING, drive="torque")
   for _ in range(50):
     mujoco.mj_step(model, data)
   feet = {model.geom(f"{leg}_foot").id for leg in qm.LEGS}
@@ -85,8 +85,8 @@ def test_the_knee_belt_multiplies_torque_divides_speed_and_squares_inertia():
 def test_the_scripted_gait_trots_forward_without_falling():
   # The tables' instrument: if it stops walking, every number it made is
   # unreproducible. Two seconds of a 0.5 m/s trot.
-  model, data = _compiled(drive="torque")
-  vm = VirtualModel(model, data, qm.CHOSEN)
+  model, data = _compiled(qm.SIZING, drive="torque")
+  vm = VirtualModel(model, data, qm.SIZING)
   lim = JointLimits.of(qm.CHOSEN.motor)
   for _ in range(int(2.0 / model.opt.timestep)):
     cmd = Command(gait="trot", vx=0.5 * min(data.time / 0.5, 1.0), period=0.35)
@@ -191,7 +191,7 @@ def test_the_drivers_dcmotor_is_the_pd_inside_the_envelope():
   # inside the no-load speed, the force must be the clipped PD it replaced
   # -- on the nominal pack and on an empty one (`set_bus`).
   from pluggybot.legs.policy import PolicyDriver, WalkingPolicy
-  model, data = _compiled()
+  model, data = _compiled(qm.SIZING)                 # the legs' drivers alone
   stiffness, damping = driver_gains(qm.CHOSEN.motor)
   drv = PolicyDriver(model, data, WalkingPolicy())
   rng = np.random.default_rng(0)
@@ -234,7 +234,7 @@ def test_a_policy_commands_its_own_gains_and_takes_them_back_from_a_routine(tmp_
   drv.step(Twist())                                 # not a decision step
   assert np.allclose(drv.drivers.gains()[0], training["stiffness"])
   # A body built with torque motors has no drivers to command.
-  model, data = _compiled(drive="torque")
+  model, data = _compiled(qm.SIZING, drive="torque")
   with pytest.raises(ValueError, match="no drivers"):
     Drivers(model, data)
 
@@ -246,8 +246,8 @@ def test_a_torque_through_the_drivers_steps_as_the_torque_motor_does():
   # envelope land, to rounding. With the damping left in, the implicit
   # step differed by ~1 rad/s; and `limp` holds nothing.
   from pluggybot.legs.drivers import Drivers
-  plain, plain_d = _compiled(drive="torque")
-  model, data = _compiled()
+  plain, plain_d = _compiled(qm.SIZING, drive="torque")
+  model, data = _compiled(qm.SIZING)
   drivers = Drivers(model, data)
   lim = JointLimits.of(qm.CHOSEN.motor)
   rng = np.random.default_rng(0)
@@ -318,8 +318,8 @@ def _trot_odometry(monkeypatch, lag_s):
     monkeypatch.setattr(imu, name, 0.0)
   monkeypatch.setattr(imu, "ACCEL_NOISE", (0.0, 0.0, 0.0))
   monkeypatch.setattr(od, "BACKLASH_RAD", 0.0)
-  model, data = _compiled(drive="torque")
-  vm = VirtualModel(model, data, qm.CHOSEN)
+  model, data = _compiled(qm.SIZING, drive="torque")
+  vm = VirtualModel(model, data, qm.SIZING)
   lim = JointLimits.of(qm.CHOSEN.motor)
   odo = od.LegOdometry(model, data)
   for _ in range(int(4.0 / model.opt.timestep)):
@@ -401,8 +401,8 @@ def test_the_scripted_gait_turns_on_the_spot_through_180_degrees():
   # Its attitude loop once ran about the WORLD's axes: roll and pitch are
   # the heading's, the correction reversed past 90 deg of heading, and a
   # turn on the spot flipped the body at 140 deg.
-  model, data = _compiled(drive="torque")
-  vm = VirtualModel(model, data, qm.CHOSEN)
+  model, data = _compiled(qm.SIZING, drive="torque")
+  vm = VirtualModel(model, data, qm.SIZING)
   lim = JointLimits.of(qm.CHOSEN.motor)
   lowest = 1.0
   for _ in range(int(4.5 / model.opt.timestep)):
@@ -419,7 +419,7 @@ def test_the_scripted_gait_turns_on_the_spot_through_180_degrees():
 def test_the_robot_rests_on_its_belly_with_the_drivers_holding_nothing():
   # A folded leg holds the hips 0.10 m up, so the belly pack hangs below
   # that: lying down, the legs carry nothing (SimNotes, "The belly").
-  model, data = _compiled(drive="torque")
+  model, data = _compiled(qm.SIZING, drive="torque")
   mujoco.mj_resetDataKeyframe(model, data, 1)
   for _ in range(int(1.0 / model.opt.timestep)):
     data.ctrl[:] = 0.0
@@ -452,7 +452,7 @@ def test_odometry_finds_the_robot_whatever_comes_before_it_in_qpos():
   prop = ('\n    <body name="prop" pos="3 2 0.1"><freejoint/>'
           '<geom type="box" size="0.05 0.05 0.05"/></body>')
   model = mujoco.MjModel.from_xml_string(
-    qm.body_xml(qm.CHOSEN, scenery=prop, drive="torque"))   # the scripted gait
+    qm.body_xml(qm.SIZING, scenery=prop, drive="torque"))   # the scripted gait
   data = mujoco.MjData(model)
   root = model.body("pluggybot").id
   q = model.jnt_qposadr[model.body_jntadr[root]]
@@ -461,7 +461,7 @@ def test_odometry_finds_the_robot_whatever_comes_before_it_in_qpos():
   for n, a in zip(qm.JOINT_NAMES, qm.pose_qpos(qm.CHOSEN, qm.CHOSEN.stand_height)):
     data.qpos[model.jnt_qposadr[model.joint(n).id]] = a
   mujoco.mj_forward(model, data)
-  vm = VirtualModel(model, data, qm.CHOSEN)
+  vm = VirtualModel(model, data, qm.SIZING)
   lim = JointLimits.of(qm.CHOSEN.motor)
   odo = od.LegOdometry(model, data)
   assert odo.error()[0] < 1e-9

@@ -8,8 +8,9 @@ tools at a rack, earns its keep at jobs the world offers, charges itself, and
 can die. **It is becoming a quadruped** — about 10 kg on four legs, with a
 two-joint arm and a redesigned tool coupling, in a world with a second floor,
 a curb and garden rocks (#375, decided 2026-09-26). The first quadruped
-deploy (#387) puts the pair on legs in the served house, with no arm yet, no
-job offers and no upkeep; the wheeled rover, whose constraints are
+deploy (#387) puts the pair on legs in the served house, with no job
+offers and no upkeep, and #405 puts #378's arm on their backs, taking no
+tool until its rack comes; the wheeled rover, whose constraints are
 `docs/Rover.md`, stays in the repo until the arm and the tools replace what
 it does. The website side (`rooftop-media-2026`,
 "PluggyWorld") streams that world live and lets a visitor talk to the robot.

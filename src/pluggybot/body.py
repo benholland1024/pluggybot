@@ -289,6 +289,10 @@ class Body(abc.ABC):
   #: The bay a swap is working at, by station y, from its first drive to
   #: its verdict (issue #347); None otherwise.
   swapping_at: float | None
+  #: A manoeuvre of its reach under way that no file holds (issue #405: the
+  #: quadruped's swap and arm moves, a fork half under a peg): a restart's
+  #: save waits it out (`continuation.Keeper.busy`). The rover's is False.
+  working: bool
   #: How far off the robot was that made the last swap give its bay up
   #: (issue #313), or None.
   peer_at_bay_m: float | None
@@ -412,6 +416,12 @@ class Body(abc.ABC):
                    settle: float = 0.0) -> Routine:
     """Walk one actuator's setpoint to `target` at `speed`, then settle --
     the ramping rule (CLAUDE.md), inside the primitive."""
+
+  @abc.abstractmethod
+  def setpoint(self, act: int) -> float:
+    """What one of its actuators is commanded to, in its axis's units: a
+    position servo's `ctrl` (the rover's), or the joint angle a controller
+    turns into torque (the quadruped's arm, issue #405) -- never a torque."""
 
   @abc.abstractmethod
   def settle_routine(self, seconds: float) -> Routine:
@@ -576,6 +586,7 @@ class StubBody(Body):
     self.went: list[tuple[float, float]] = []
     self.last_drive = None
     self.swapping_at = self.peer_at_bay_m = None
+    self.working = False
     self.bay_wait = None
     self.docked = self.pressing = self.resting = False
     self.others = []
@@ -765,6 +776,9 @@ class StubBody(Body):
 
   def ramp_routine(self, act, target, speed, settle=0.0):
     yield from self._wait(settle)
+
+  def setpoint(self, act) -> float:
+    raise KeyError(f"a stub body has no actuator {act!r}")
 
   def settle_routine(self, seconds):
     yield from self._wait(seconds)

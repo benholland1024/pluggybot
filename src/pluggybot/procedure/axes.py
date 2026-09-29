@@ -12,8 +12,9 @@ writes `data.ctrl`, and this module is not on it.
 
 Both are REGISTRIES, not constants: an axis or a sensor is present when the
 tool that carries it is on the fork (`requires`), and a tool built from a
-spec (#168) registers its own by the same call. The body's axes (`lift`,
-`arm`) and the mission's sensors are always present.
+spec (#168) registers its own by the same call. A body's own axes are
+always present -- the rover's `lift` and `arm`, the quadruped's `shoulder`
+and `elbow` (`BODY_AXES`) -- and the mission's sensors.
 
 Ranges and speeds are the numbers the tools already ramp with -- measured,
 and re-typed here from their constants rather than from nothing.
@@ -26,6 +27,7 @@ from typing import Callable
 
 import numpy as np
 
+from pluggybot.legs.arm import ARM_SLEW, ArmSpec
 from pluggybot.rack.coupling import CLAW_JAW_TRAVEL, PEN_TRAVEL
 from pluggybot.tick import Routine
 from pluggybot.tools.drawing import CARRIAGE_SPEED, LIFT_MAX, LIFT_MIN, PRESS_MAX
@@ -71,6 +73,14 @@ GATE_MAX = 0.024
 GATE_SPEED = 0.02
 
 
+#: The quadruped's arm (issue #405): each joint is an axis and a sensor,
+#: in radians, walked by the arm's own driver (`legs.arm.ArmDriver`, at most
+#: `ARM_SLEW`) -- the shoulder's elevation off straight ahead, the elbow's
+#: angle off the upper arm's line. The ranges are the joints' own.
+ARM_JOINTS = ("shoulder", "elbow")
+_ARM = ArmSpec()
+
+
 def _ramp(actuator: str, settle: float = 0.5):
   def run(life, target: float) -> Routine:
     axis = next(a for a in AXES.values() if a.actuator == actuator)
@@ -78,8 +88,8 @@ def _ramp(actuator: str, settle: float = 0.5):
     # and shared (issue #167) -- the handle says which
     name = actuator if axis.requires else life.body.handle.el(actuator)
     act = life.model.actuator(name).id
-    yield from life.body.ramp_routine(act, float(target), axis.speed,
-                                      settle=settle)
+    return (yield from life.body.ramp_routine(act, float(target), axis.speed,
+                                              settle=settle))
   return run
 
 
@@ -93,6 +103,12 @@ def _jaws(life, opening: float) -> Routine:
 def _jaws_setpoint(life) -> float:
   """The opening `_jaws` last commanded, off one jaw's ctrl (both carry it)."""
   return -float(life.data.ctrl[life.model.actuator("claw_l").id]) / CLAW_JAW_TRAVEL
+
+
+def _held(actuator: str):
+  """What the body holds one of its joints to (`Body.setpoint`): a torque
+  motor's `ctrl` is no setpoint."""
+  return lambda life: life.body.setpoint(life.body.actuator(actuator))
 
 
 AXES: dict[str, Axis] = {
@@ -111,6 +127,15 @@ AXES: dict[str, Axis] = {
   "seed.gate": Axis("seed.gate", 0.0, GATE_MAX, GATE_SPEED, "m",
                     "the dispenser's gate", requires="module_seed",
                     actuator="seed_gate"),
+  "shoulder": Axis("shoulder", *_ARM.shoulder_range, ARM_SLEW, "rad",
+                   "the arm's shoulder: 0 is the upper arm straight ahead, + "
+                   f"raises it; {_ARM.stow[0]:.2f} lies it back along the body, "
+                   "folded", actuator="arm_shoulder", setpoint=_held("arm_shoulder")),
+  "elbow": Axis("elbow", *_ARM.elbow_range, ARM_SLEW, "rad",
+                "the arm's elbow: the forearm off the upper arm's line, 0 "
+                f"straight, - bends it down; {_ARM.stow[1]:.2f} folds it back "
+                "along the upper arm", actuator="arm_elbow",
+                setpoint=_held("arm_elbow")),
 }
 for _a in list(AXES.values()):
   if _a.run is None:
@@ -233,12 +258,20 @@ SENSORS: dict[str, Sensor] = {
                      "the nearest tag id the last look() decoded, -1 for none"),
   "look.range": Sensor("look.range", lambda life: _last_look(life, "range", math.inf),
                        "its forward distance, m"),
+  "shoulder": Sensor("shoulder", lambda life: _joint(life, "arm_shoulder"),
+                     "the arm's shoulder, rad, measured"),
+  "elbow": Sensor("elbow", lambda life: _joint(life, "arm_elbow"),
+                  "the arm's elbow, rad, measured"),
   "look.lateral": Sensor("look.lateral", lambda life: _last_look(life, "lateral", 0.0),
                          "its lateral offset, m, + to the camera's left"),
 }
-#: What a body with no arm can read (issue #387): its pack, its wallet,
-#: the clock and its bumper -- none of the mast's, the fork's or a tool's.
+#: What every body reads (issue #387): its pack, its wallet, the clock and
+#: its bumper -- none of the mast's, the fork's or a tool's...
 BODY_SENSORS = ("battery.frac", "battery.wh", "points", "time", "bumper")
+#: ...and a legged body its arm's two joints (issue #405).
+LEGS_SENSORS = BODY_SENSORS + ARM_JOINTS
+#: Each body's own axes, present whatever is on its fork.
+BODY_AXES = {"rover": ("lift", "arm"), "quadruped": ARM_JOINTS}
 
 
 #: The ramp as the public name a built tool registers its axes with
@@ -268,10 +301,10 @@ def setpoints(life, module: str | None) -> dict[str, float]:
     try:
       if axis.setpoint is not None:
         value = axis.setpoint(life)
+      elif axis.requires:
+        value = float(life.data.ctrl[life.model.actuator(axis.actuator).id])
       else:
-        name = (axis.actuator if axis.requires
-                else life.body.handle.el(axis.actuator))
-        value = float(life.data.ctrl[life.model.actuator(name).id])
+        value = life.body.setpoint(life.body.actuator(axis.actuator))
     except KeyError:
       continue
     out[axis.name] = round(value, 4)

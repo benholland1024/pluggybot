@@ -223,7 +223,7 @@ bill of materials and the gate before the first purchase.
 | compute, two cameras, IMU | as the rover's (Raspberry Pi 5, Camera Module 3) | in `electronics` | | 6.0 W, the rover's figure less its LIDAR |
 | frame | aluminium side plates and cross members | 1.0 kg (estimated) | `null` — no design yet | `MassBudget.frame` |
 | thigh, shank, foot | tube, no belt (the knee is direct), rubber foot | 0.21 kg a leg (estimated) | `null` — no design yet | `BodySpec.*_mass` |
-| #378's arm | chosen by #378 ("The arm and its coupling", below); the body is still flown at the placeholder | 1.17 kg (the placeholder budgeted 0.9) + a tool up to 0.40 kg | — | the legs' torques re-flown with it and a tool aboard: the knee's p99.5 ≤ 9.4 N·m on the flat, 14.0 up the house's flight (13.5 without it) |
+| #378's arm | chosen by #378 ("The arm and its coupling", below); the served body's since #405 (`BodySpec.arm`; the placeholder is `model.SIZING`, what #377's tables flew) | 1.17 kg (the placeholder budgeted 0.9) + a tool up to 0.40 kg | — | the legs' torques re-flown with it and a tool aboard: the knee's p99.5 ≤ 9.4 N·m on the flat, 14.0 up the house's flight (13.5 without it); its two drivers stand by with the legs' twelve (`model.ELECTRONICS_W`) |
 
 **Why 48 V (12S).** The GIM8108-8 is rated at 48 V, and joint SPEED, not
 torque, is what binds this body: a 1.5 m/s trot drives a joint to 90 % of

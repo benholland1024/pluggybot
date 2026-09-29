@@ -153,7 +153,7 @@ def _stub_life():
   body = SimpleNamespace(
     module_state=lambda tool: {"on_fork": False, "hung": True},
     ramp_routine=routine("ramp"), pressing=False, handle=FIRST,
-    actuator=lambda name: 0,
+    actuator=lambda name: 0, setpoint=lambda act: 0.0,
     fetch_tool_routine=routine("swap", "arrived"),
     stow_tool_routine=routine("swap", "arrived"),
     go_to_routine=routine("drive_to", True), face_routine=routine("face", True),
@@ -291,7 +291,10 @@ def test_the_axes_ramp_at_the_speeds_the_tools_measured():
   assert axes.AXES["lift"].speed == LIFT_SPEED
   assert axes.AXES["pen.carriage"].speed == CARRIAGE_SPEED
   assert all(a.lo < a.hi and a.speed > 0 for a in axes.AXES.values())
-  assert set(HOME.axes) == set(axes.AXES) and set(HOME.sensors) == set(axes.SENSORS)
+  # the rover's world names every axis and sensor but the quadruped's arm (#405)
+  rover = set(axes.ARM_JOINTS)
+  assert set(HOME.axes) == set(axes.AXES) - rover
+  assert set(HOME.sensors) == set(axes.SENSORS) - rover
 
 
 # ---- determinism: the same procedure on the same world is one trajectory -------
@@ -466,13 +469,17 @@ def test_the_rules_worked_example_hands_over_no_survival_policy():
   example = text[text.index("def look_around"):text.index("Statements:")]
   for word in ("charge", "battery", "rack"):
     assert word not in example, word
-  # ...and every verb, axis and sensor is listed, so nothing is a secret
+  # ...and every verb, axis and sensor is listed, so nothing is a secret --
+  # the quadruped's arm joints in its own rule (#405), not the rover's
   for v in st.VERBS:
     assert f"  {v}(" in text
   for a in axes.AXES:
-    assert f"  {a}:" in text
+    assert (f"  {a}:" in text) is (a not in axes.ARM_JOINTS)
   for s in axes.SENSORS:
-    assert f"  {s} --" in text
+    assert (f"  {s} --" in text) is (s not in axes.ARM_JOINTS)
+  legs = ov.procedure_rule(False)
+  for n in axes.ARM_JOINTS:
+    assert f"  {n}:" in legs and f"  {n} --" in legs
 
 
 def test_the_guarded_rules_have_not_moved():
@@ -592,19 +599,20 @@ def test_a_failed_run_names_the_line_that_failed_and_why(monkeypatch):
   assert ran["outcome"] == "ran" and "failedLine" not in ran and "failedReason" not in ran
 
 
-# ---- the flown one: written by the agent, invoked by its own row ------------------
+# ---- the day: written by the agent, invoked by its own row -----------------------
 
 
-@pytest.mark.endurance
 def test_a_procedure_the_agent_wrote_is_invoked_from_its_own_row(tmp_path):
-  """The integration the issue asks for: one flown run in which the model
-  defines a procedure and writes a row that runs it, and the row fires and
-  the procedure completes -- with no scripted rotation anywhere (the arm is
-  `autonomous`). 84 s, behind --endurance: every rule it exercises (the row
-  token, the define, the errand by name, the stow) is pinned above."""
-  from test_event_map import attach
+  """The integration the issue asks for, as a day on the stub (issue #380):
+  the model defines a procedure and writes a row that runs it, the row
+  fires, and the procedure completes -- with no scripted rotation anywhere
+  (the arm is `autonomous`). The row, queued while the robot idles, runs
+  when it is next free. Shown to fail by dropping `self._define(decision)`
+  from `_after_decision_routine`.
+  """
   from test_overseer import FakeClient, full
-  from pluggybot.lifecycle import run_demo
+  from test_body import stub_life  # noqa: I001 -- tests/ is on sys.path
+  from pluggybot.mind.thoughts import ThoughtFiles
   src = "def look_twice():\n  look()\n  wait(1)\n  look()\n"
   first = full(action="idle", reason="setting up",
                define={"name": "look_twice", "source": src},
@@ -613,12 +621,14 @@ def test_a_procedure_the_agent_wrote_is_invoked_from_its_own_row(tmp_path):
                           {"event": "nothing_to_do", "action": "ask", "value": 0,
                            "kind": ""}])
   client = FakeClient(first, full(action="idle", reason="waiting"))
-  out = run_demo(view=False, realtime=False, world="room_hub", errand="none",
-                 max_sim_time=75.0, overseer=True, standing_orders=True,
-                 autonomous=True, origin="seeded",
-                 thoughts_root=str(tmp_path / "t"),
-                 ledger_state=str(tmp_path / "ledger.json"),
-                 on_ready=attach(client))
+  memory = ThoughtFiles.open(str(tmp_path / "t"))
+  boss = ov.build("room_hub", None, enabled=True, client=client, thoughts=memory,
+                  autonomous=True, origin="seeded", standing_orders=True)
+  life = stub_life("room_hub", overseer=boss, thoughts=memory, autonomous=True)
+  life.stop_when(lambda: any(e.get("procedure") for e in life.errand_results))
+  # The claim ends the day; the budget has room for late answers, which on
+  # the stub are SIM time.
+  out = life.run(start=world_config("room_hub")["start"], max_sim_time=600.0)
   fired = [d for d in out["decisions"] if d["action"] == "procedure:look_twice"]
   assert fired and fired[0]["source"] == "event:every"
   runs = [e for e in out["errands"] if e.get("procedure")]

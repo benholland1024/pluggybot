@@ -123,13 +123,17 @@ class Lidar:
     #: world invisible to every sensor on board.
     self._other_geoms: set = set()
     self._other_roots: list[str] = []
+    #: A tool riding this robot's fork (issue #405): its own for the scan,
+    #: as its body is -- the fork carries it through the plane at the rack.
+    self._carried: str | None = None
+    self._carried_geoms: set = set()
     self._dist = np.zeros(n_rays)
     self._hit = np.zeros(n_rays, dtype=np.int32)
     self._index_geoms()
 
   def _index_geoms(self) -> None:
     """The two geom sets as arrays, for the scan's `np.isin`."""
-    self._self_ids = np.fromiter(self._self_geoms, dtype=np.int32)
+    self._self_ids = np.fromiter(self._self_geoms | self._carried_geoms, dtype=np.int32)
     self._other_ids = np.fromiter(self._other_geoms, dtype=np.int32)
 
   def rebind(self, model) -> None:
@@ -141,6 +145,14 @@ class Lidar:
     self._other_geoms = set()
     for root in list(self._other_roots):
       self._other_geoms |= self._robot_geoms(model, root)
+    self._carried_geoms = (set() if self._carried is None
+                           else self._robot_geoms(model, self._carried))
+    self._index_geoms()
+
+  def carry(self, body: str | None) -> None:
+    """A body riding this robot's fork is its own to the scan, or None."""
+    self._carried = body
+    self._carried_geoms = set() if body is None else self._robot_geoms(self.model, body)
     self._index_geoms()
 
   def exclude_robot(self, root_name: str) -> None:

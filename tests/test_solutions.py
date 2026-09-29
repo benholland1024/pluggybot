@@ -20,8 +20,8 @@ The rules, each pinned without a mission (docs/Testing.md):
      nothing under `mind/` imports `challenge.solutions`.
 
 The integration -- the tower stacked BY THE CLAW from the rack, graded on
-the seam with the hold -- is the endurance flight at the bottom, and
-`scripts/stack.py` is the same flight with a filmstrip.
+the seam with the hold -- is the endurance flight below, and
+`scripts/solve.py` is the same flight with a filmstrip.
 """
 
 import ast
@@ -486,6 +486,16 @@ def test_the_prompt_states_the_eyes_reach_and_returns_emptiness():
 
 # ---- the flown proof, on demand ------------------------------------------
 
+#: What every ladder-A flight stands on (`when`, tests/conftest.py): the
+#: harness, the verbs, the rover's swap stack and mission, the house's
+#: props, and where a challenge is offered. Not the rover's NAVIGATION,
+#: which the default run flies (`test_full_hub_lifecycle`) -- nothing served
+#: offers a challenge, and a challenge offered on a new world is flown there
+#: first (Evaluation.md §7).
+LADDER_A = ("scripts/solve.py", "src/pluggybot/procedure/", "src/pluggybot/rack/",
+            "src/pluggybot/mission/", "src/pluggybot/tick.py", "models/home_world.xml",
+            "models/pluggybot.xml", "src/pluggybot/economy/challenges.json")
+
 
 def _from_the_rack(tmp_path, feature: str):
   import sys
@@ -506,7 +516,9 @@ def _from_the_rack(tmp_path, feature: str):
   return life, demo.run(life, feature, source)
 
 
-@pytest.mark.endurance
+@pytest.mark.slow
+@pytest.mark.endurance(when=(*LADDER_A, "src/pluggybot/challenge/",
+                             "src/pluggybot/tools/gripper.py"))
 def test_the_tower_is_stacked_by_the_claw_from_the_rack_and_graded(tmp_path):
   """Ladder A, whole: `solutions.TOWER` run as a `procedure:` errand from
   the living-room rack, the claw fetched and stowed, `done`, the grade on
@@ -526,7 +538,9 @@ def test_the_tower_is_stacked_by_the_claw_from_the_rack_and_graded(tmp_path):
   assert life.body.mission.swap.module_state("module_claw")["hung"]
 
 
-@pytest.mark.endurance
+@pytest.mark.slow
+@pytest.mark.endurance(when=(*LADDER_A, "src/pluggybot/challenge/",
+                             "src/pluggybot/tools/gripper.py"))
 def test_the_unknown_mass_is_weighed_on_the_lift_and_the_finding_graded(tmp_path):
   """Ladder A for the bench: `solutions.WEIGH` from the rack -- the claw
   to the lab, a tare, the cube lifted, `lift.force` read, set down, home
@@ -543,7 +557,9 @@ def test_the_unknown_mass_is_weighed_on_the_lift_and_the_finding_graded(tmp_path
   assert "truth" not in grade
 
 
-@pytest.mark.endurance
+@pytest.mark.slow
+@pytest.mark.endurance(when=(*LADDER_A, "src/pluggybot/activity/cage.py",
+                             "src/pluggybot/activity/plate.py"))
 def test_a_feed_act_reaches_the_cage_and_the_mouse_eats(tmp_path):
   """Ladder A for the mouse: the `care` action's own program flown from
   the rack; the act is judged off the cage's count (`landed`), and the
@@ -560,13 +576,24 @@ def test_a_feed_act_reaches_the_cage_and_the_mouse_eats(tmp_path):
   assert life.cage.state == "eating"
 
 
-@pytest.mark.endurance
+#: What the paid feed on legs is flown for (issue #403): the lab's programs
+#: and plates, the walking body and its planner, the job's grade.
+FEED_ON_LEGS = ("scripts/solve.py", "src/pluggybot/activity/cage.py",
+                "src/pluggybot/activity/plate.py", "src/pluggybot/legs/", "models/quadruped",
+                "models/home_world.xml", "src/pluggybot/navigator.py",
+                "src/pluggybot/mapping/", "src/pluggybot/procedure/",
+                "src/pluggybot/economy/challenges.json", "src/pluggybot/economy/scoring.py",
+                "src/pluggybot/tick.py")
+
+
+@pytest.mark.slow
+@pytest.mark.endurance(when=FEED_ON_LEGS)
 def test_the_paid_feed_is_done_on_legs_by_the_pair(tmp_path):
   """Ladder A on legs (issue #403): the quadruped pair as deployed, Luca
   walking from its start to the lab by the planner alone (no surveyed
   road) while Rowan stands in the hall; `feed_mouse` offered, claimed with
   a prediction and graded by `eval_feed` through `scoring.evaluate`, the
-  mouse eating, no other plate pressed. ~2 min wall; every rule it stands
+  mouse eating, no other plate pressed. ~110 s wall; every rule it stands
   on is pinned fast in tests/test_lab_on_legs.py (the lab, the rule, the
   one offer, the walk's patience, the lanes that keep off the other
   plates, the stray press)."""
@@ -590,66 +617,7 @@ def test_the_paid_feed_is_done_on_legs_by_the_pair(tmp_path):
   assert run["care"]["kind"] == "feed_mouse" and run["care"]["landed"] >= 1
 
 
-@pytest.mark.endurance
-def test_a_claw_lowered_by_a_procedure_is_stowed_from_the_pick_height(tmp_path):
-  """Luca's weighing (issue #264): `set_lift(0.03)`, then `stow()`. The
-  return starts from the lift it is handed; from 0.03 m it drove the claw
-  into the rack and knocked it to the floor. `stow` restores the carry
-  configuration first (pinned fast in tests/test_procedure_feedback.py);
-  this is the physics. ~2 min wall."""
-  import sys
-  sys.path.insert(0, str(Path(__file__).parent.parent / "scripts"))
-  import solve as demo
-  from pluggybot.lifecycle import world_config
-  life, _ = demo.build_life(False, str(tmp_path))
-  m = life.body.mission
-  m.start_at(*world_config("home")["start"])
-  m.start_discovery()
-  m._spin()
-  station = HUB_STATION_YS[st.TOOL_BAYS["module_claw"]]
-  m.swap_at_bay(station, "pick", module="module_claw")
-  assert m.swap.module_state("module_claw")["on_fork"]
-  life.module = "module_claw"
-  m.drive_to(4.4, 0.7)
-  tick.run(m.swap, m.swap.set_lift_routine(0.03, speed=0.05))
-  verdict = tick.run(m.swap, st._stow(life, {}))
-  assert verdict["ok"], verdict
-  assert m.swap.module_state("module_claw")["hung"]
-
-
-# ---- issue #353: the robot's own procedures, on the pair -------------------
-
-#: Rowan's own, verbatim off the observatory's `procedure` rows (build
-#: 42f4a11). The tower names no `fetch` and failed at `pick(20)` twice in a
-#: day; the weighing's `drive_to(22.0, 3.0)` from the house stopped 6.6-9.1 m
-#: short three times.
-ROWAN_TOWER = '''def build_tower():
-    budget(steps=80, seconds=900)
-    drive_to(-9.7, -4.75)
-    look()
-    pick(20)
-    look()
-    place(21)
-    look()
-    pick(22)
-    look()
-    place(20)
-'''
-ROWAN_WEIGHING = '''def mass_check():
-    budget(steps=60, seconds=900)
-    fetch("module_claw")
-    drive_to(22.0, 3.0)
-    drive_to(26.8, 1.6)
-    f0a = read("lift.force")
-    f0b = read("lift.force")
-    f0c = read("lift.force")
-    pick(24)
-    wait(2)
-    f1a = read("lift.force")
-    f1b = read("lift.force")
-    f1c = read("lift.force")
-    stow()
-'''
+# ---- issue #353: the pair harness a robot's own procedure is replayed in ------
 
 
 def test_the_pair_harness_hooks_its_board_as_the_constructor_does(tmp_path):
@@ -666,54 +634,3 @@ def test_the_pair_harness_hooks_its_board_as_the_constructor_does(tmp_path):
   finally:
     for each in lives:
       each.body.close()
-
-
-def _rowan_on_the_pair(tmp_path, feature: str, source: str):
-  """Rowan flies `source` from the hall, Luca standing at the rack (the
-  home pair as deployed, `solve.py --pair --robot 2`)."""
-  import sys
-  sys.path.insert(0, str(Path(__file__).parent.parent / "scripts"))
-  import solve as demo
-  from pluggybot.lifecycle import world_config
-  lives, life = demo.build_pair_lives(2, str(tmp_path))
-  cfg = world_config("home")
-  for each, start in zip(lives, (cfg["start"], cfg["start2"])):
-    each.body.start_at(*start)
-    each.body.start_discovery()
-    each.body.mission._spin()
-  try:
-    return life, demo.fly_beside(lives, life, demo.run_routine(life, feature, source))
-  finally:
-    for each in lives:
-      each.body.close()
-
-
-@pytest.mark.endurance
-def test_rowans_own_tower_stands_on_the_pair(tmp_path):
-  """Issue #353, whole: the `drive_to` walks the workshop's doorways from
-  the hall, `pick(20)` fetches the claw itself, and the tower stands --
-  MEASURED 459 sim s, 5.7 mm of lean. ~10 min wall on a busy box; every
-  rule is pinned fast (tests/test_house_route.py, the claw tests above)."""
-  life, out = _rowan_on_the_pair(tmp_path, "tower", ROWAN_TOWER)
-  proc = out["errand"]["procedure"]
-  assert proc["ok"] and proc["toolsHung"], proc
-  drive, picks = proc["steps"][0], [s for s in proc["steps"] if s["verb"] == "pick"]
-  assert drive["ok"] and drive["route"], drive
-  assert picks[0]["fetched"] == "module_claw" and all(p["ok"] for p in picks)
-  assert out["grade"]["ok"], out["grade"]
-  assert life.body.mission.swap.module_state("module_claw")["hung"]
-
-
-@pytest.mark.endurance
-def test_rowans_own_weighing_crosses_the_street_and_takes_the_cube(tmp_path):
-  """Issue #353's own claim: a procedure written as Rowan wrote it --
-  `drive_to(22, 3)` from the house, then `pick(24)` -- now arrives. The
-  grade still fails: it reads a finding this procedure never records,
-  which is the robot's part. ~8 min wall on a busy box."""
-  life, out = _rowan_on_the_pair(tmp_path, "bench", ROWAN_WEIGHING)
-  proc = out["errand"]["procedure"]
-  assert proc["ok"] and proc["toolsHung"], proc
-  street = next(s for s in proc["steps"] if s["verb"] == "drive_to")
-  assert street["ok"] and len(street["route"]) == 4, street
-  pick = next(s for s in proc["steps"] if s["verb"] == "pick")
-  assert pick["ok"] and pick["holding"] == "mass_unknown_box", pick

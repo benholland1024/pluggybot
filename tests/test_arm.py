@@ -298,7 +298,7 @@ def _on_a_pitched_fork(fork: am.ForkSpec, up_flank: float, seconds: float = 0.5)
   up = np.array([math.cos(f), 0.0, math.sin(f)])
   peg = base + rot @ (seat + up_flank * up)
   xml = f"""<mujoco><option timestep="0.002"/>
-    <default>{am.ARM_DEFAULTS.format(friction=0.01, tube=am.TUBE_R)}
+    <default>{am.ARM_DEFAULTS.format(friction=0.01, tube=am.TUBE_R, fork_kg=am.FORK_GEOM_KG)}
       {rk.tool_default("tool")}</default>
     <worldbody>
       <body name="arm_plate" pos="{base[0]} 0 {base[2]}"
