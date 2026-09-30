@@ -22,9 +22,10 @@ whether the walk to its zone arrived, the drive's cause when it did not,
 how long it explored and how it ended. A refused memory write says `could
 not <verb>: <why>`, then what it tried. A walk to a zone that gives up is
 now narrated as well (`EXPLORE: never reached <zone> -- <why>`). Two memory
-rules moved too: a quote whose hits are all one line written twice takes
-out the newest copy, where every such quote used to be refused; and a `pin`
-or `intend` of a line already on the page is refused. Before this, 31
+rules moved too: an `unpin`, `drop_goal` or `retract` whose hits are all
+one line written twice takes out the oldest copy, where every such quote
+used to be refused; and a `pin` or `intend` of a line already on the page
+is refused. Before this, 31
 failed decided charges and 122 decided explores to a zone in 50 h of
 `5736e23` said nothing to the robot, nor did 129 refused writes in 48 h of
 `5c6e6cf`, and the robots filed tickets about all three (Rowan's tk_0009;

@@ -518,9 +518,9 @@ class ThoughtFiles:
     History rolls (the view keeps the newest lines that fit); the robot's
     documents refuse when full -- the row says which.
 
-    ⚠ A LINE ALREADY ON THE PAGE IS REFUSED (issue #409), after the writer
-    and before the cap: a copy only fills the page, and Luca came to hold
-    four of one line that no quote could take out.
+    ⚠ A LINE ALREADY ON THE PAGE IS REFUSED (issue #409): a copy only fills
+    the page. After the writer and before the cap, so a full page that holds
+    it says so rather than "unpin one first".
     """
     line = _line(text)
     held = [r.text for r in self._core(name)] if name in CORE and line else []
@@ -634,7 +634,7 @@ class ThoughtFiles:
                    f"finding with `record`")
     notes = self._notes()
     if any(r.topic == topic and r.title == title for r in notes):
-      self._refuse(f"{NOTES}: {topic}/{title} is already written; unnote it first")
+      self._refuse(f"{NOTES}: {f'{topic}/{title}'!r} is already written; unnote it first")
     self._admit(NOTES, ROBOT, len(notes) + 1)
     rec = self.records.add(self.robot, "note", ROBOT, text, t=t, topic=topic,
                            title=title, cites=_cites(cites))
@@ -955,7 +955,8 @@ def attempted(verb: str, payload, refusal: str = "") -> str:
   """What a refused ADD tried to write, quoted short after its reason
   (issue #409): ` -- '<line>'`, a note's `topic/title`, a finding's line.
   "" for a REMOVE, for a payload that was not the shape its verb takes,
-  and where the `refusal` quotes it already -- each says so itself."""
+  and where the `refusal` quotes it already (as `repr`, the refusals'
+  quoting) -- each says so itself."""
   surface = registry.BY_VERB.get(verb)
   if surface is None or verb == surface.remove:
     return ""
@@ -967,14 +968,14 @@ def attempted(verb: str, payload, refusal: str = "") -> str:
   else:
     what = _line(payload)
   what = what[:QUOTED_CHARS]
-  return f" -- {what!r}" if what and what not in refusal else ""
+  return f" -- {what!r}" if what and repr(what) not in refusal else ""
 
 
 def _match(rows, quote: str, name: str, refuse):
   """The one row a quote picks out: an exact text wins, else the one row
   containing it, else a refusal. Hits that are all ONE text are one line
-  written twice (issue #409), and the newest of them goes: no quote could
-  tell the copies apart, and none of them says anything the rest do not."""
+  written twice (issue #409): no quote could tell them apart, so the OLDEST
+  goes -- the newest is the finding a grader reads (`_grade_mass`)."""
   hits = [r for r in rows if r.text == quote]
   if not hits:
     hits = [r for r in rows if quote in r.text]
@@ -982,7 +983,7 @@ def _match(rows, quote: str, name: str, refuse):
     refuse(f"{name}: " + ("nothing on the page matches" if not hits
                           else f"{len(hits)} lines on the page match")
            + f" {quote[:QUOTED_CHARS]!r}")
-  return hits[-1]
+  return hits[0]
 
 
 def _grouped(rows, line) -> str:

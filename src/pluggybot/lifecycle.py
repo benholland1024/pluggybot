@@ -474,6 +474,21 @@ EXPLORE_ENDS = {
 }
 
 
+def explore_outcome(zone: str, ended: str, seconds: float,
+                    walk_why: str | None = None) -> str:
+  """A decided explore's History line (issue #424): whether the walk to its
+  `zone` got there (`walk_why` is why not; None where it did, or where there
+  was no walk), how long it explored, and how it ended. "" for the run's
+  own end, which says nothing: the next run carries on (#345)."""
+  if ended not in EXPLORE_ENDS:
+    return ""
+  went = ("" if not zone else "got there and " if walk_why is None
+          else f"never got there -- {walk_why} -- and ")
+  return (f"explore{f' ({zone})' if zone else ''}: {went}explored"
+          f"{'' if walk_why is None else ' where it stopped'} for {seconds:.0f} s"
+          f"{EXPLORE_ENDS[ended]}")
+
+
 def procedure_outcome(name: str, run: dict) -> list[str]:
   """The History a procedure the robot wrote leaves behind (issue #264):
   how far it got, and -- when it stopped short -- the line, the verb and
@@ -2297,8 +2312,8 @@ class HubLifecycle:
       # robot and the clock read the same until the drive said which. Of
       # the goal last DRIVEN to -- a spin moves the standoff after it, and
       # a trip that ended in a wait that gave up is the wait's. Whoever
-      # held the bay is IN the reason: History and a stranded death read
-      # it, and the narration was the one place it was kept (issue #424).
+      # held the bay is IN the reason: History and a stranded death read it
+      # (issue #424).
       blocked = self.peer_at(*(driven or (sx, sy)))
       self.charge_failure = "never reached the charge bay" + (
         "" if driven is None else f": {self.drive_why(*driven)}") + (
@@ -4114,9 +4129,8 @@ class HubLifecycle:
         done = self.thoughts.apply(verb, payload, t=t, cites=cites)
       except ThoughtRefused as e:
         self._say(f"THOUGHT refused: {e}")
-        # ...and TOLD (issue #409): narrated alone, 129 refusals in 48 h
-        # reached the log and the wire and never the robot that made them.
-        # The reason first, what it tried after: a History line is capped.
+        # ...and TOLD, where the robot reads (issue #409): the reason first,
+        # what it tried after -- a History line is cut from the end.
         self._remember(f"could not {verb}: {e}{attempted(verb, payload, str(e))}")
         continue
       if done:
@@ -5929,36 +5943,30 @@ class HubLifecycle:
         self.state = "CHARGE"
         yield from self.charge_routine()
       else:
-        # ...and one that never began is said WHERE THE ROBOT READS (issue
-        # #424): a cycle's verdict is its History line, and this had none
-        # -- 31 in 50 h, and the robots filed tickets saying their charges
-        # vanished. No verdict: the wire's `charge` row already carries it,
-        # and a verdict would count it a second time, as a failed task.
+        # ...and one that never began is said where the robot reads (issue
+        # #424). ⚠ NOT A VERDICT: the wire's `charge` row carries it already,
+        # and a verdict would count it again, as a failed task.
         self._remember(f"charge: did not charge -- {self.charge_failure}")
       return ""
     if decision.action == "explore":
       self.state = "EXPLORE"
-      went = ""
+      walk_why = None
       if decision.zone:
         wx, wy = zone_centre(self.world, decision.zone)
         self._say(f"EXPLORE: heading for {decision.zone}")
-        if (yield from self.body.go_to_routine(wx, wy, timeout=ZONE_PATIENCE_S)):
-          went = "got there and "
-        else:
-          why = self.drive_why(wx, wy)
-          self._say(f"EXPLORE: never reached {decision.zone} -- {why}")
-          went = f"never got there -- {why} -- and "
+        if not (yield from self.body.go_to_routine(wx, wy, timeout=ZONE_PATIENCE_S)):
+          walk_why = self.drive_why(wx, wy)
+          self._say(f"EXPLORE: never reached {decision.zone} -- {walk_why}")
       t0 = float(self.data.time)
       ended = yield from self.explore_routine(budget=DECIDED_EXPLORE_S,
                                               mark_done=False)
-      # ...and how it went, in History (issue #424): 122 decided explores in
-      # 50 h and not one said how it ended, so the robot made a theory of
-      # the silence. The run's own end is said by nobody (#345).
-      if ended in EXPLORE_ENDS:
-        self._remember(
-          f"explore{f' ({decision.zone})' if decision.zone else ''}: {went}explored"
-          f"{' where it stopped' if went.startswith('never') else ''} for "
-          f"{float(self.data.time) - t0:.0f} s{EXPLORE_ENDS[ended]}")
+      # ...and how it went, where the robot reads (issue #424): one line an
+      # explore, repeats included -- the ending is what says a loop of them
+      # finds nothing
+      said = explore_outcome(decision.zone, ended, float(self.data.time) - t0,
+                             walk_why)
+      if said:
+        self._remember(said)
       return ""
     if decision.action == "idle":
       # ...AND NOT AT THE RACK (issue #298). With a mind, the loop never

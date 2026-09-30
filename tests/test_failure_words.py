@@ -504,6 +504,20 @@ def test_a_decided_explore_whose_zone_walk_gave_up_says_why_and_how_it_ended():
              for ln in life.log)
 
 
+def test_every_way_an_explore_ends_is_said_and_the_runs_own_end_is_not():
+  """The words are `explore_outcome`'s, a pure function: every ending
+  `explore_routine` answers reads as itself, and the run's end writes
+  nothing -- the next run carries on (#345)."""
+  from pluggybot.lifecycle import EXPLORE_ENDS, explore_outcome
+  assert set(EXPLORE_ENDS) == {"budget", "no-frontiers", "no-reachable", "only-near",
+                               "blocked", "battery"}
+  said = {ended: explore_outcome("", ended, 45.0) for ended in EXPLORE_ENDS}
+  assert len(set(said.values())) == len(said)
+  assert explore_outcome("lab", "time", 12.0) == ""
+  assert explore_outcome("lab", "budget", 45.0) == (
+    "explore (lab): got there and explored for 45 s, all the time one explore is given")
+
+
 def test_a_decided_explore_that_ran_its_time_says_so():
   """83 of the 122 ended `budget spent`, which is the explore working -- and
   said nowhere the robot reads."""

@@ -758,6 +758,11 @@ def test_a_refused_thought_is_told_to_the_robot_in_its_history():
   life._reconsider(ov.Decision(action="idle", pin="board b is empty"))
   assert files.lines(HISTORY)[-1].endswith(
     "could not pin: Top_of_mind.md: 'board b is empty' is already on the page")
+  note = {"topic": "bays", "title": "bay C", "text": "it sticks"}
+  life._reconsider(ov.Decision(action="idle", note=note))
+  life._reconsider(ov.Decision(action="idle", note=note))
+  assert files.lines(HISTORY)[-1].endswith(
+    "could not note: Notes.md: 'bays/bay C' is already written; unnote it first")
   with pytest.raises(ThoughtRefused):
     for i in range(40):
       files.pin(f"opinion {i}: " + "x" * 300, t=float(i))
@@ -765,6 +770,11 @@ def test_a_refused_thought_is_told_to_the_robot_in_its_history():
   last = files.lines(HISTORY)[-1]
   assert re.search(r"\] could not pin: Top_of_mind\.md is full \(\d+ of \d+ chars\); "
                    r"unpin one first -- 'y+'$", last), last
+  # ...and a line that is only WORDS of the refusal is still quoted
+  room = SPECS[TOP_OF_MIND].cap - len(files.read(TOP_OF_MIND)) - 1
+  files.pin("z" * (room - 2), t=50.0)                # all the page but two
+  life._reconsider(ov.Decision(action="idle", pin="full"))
+  assert files.lines(HISTORY)[-1].endswith("unpin one first -- 'full'")
 
 
 @pytest.mark.parametrize("remove,doc", [("unpin", TOP_OF_MIND), ("drop_goal", GOALS)])
@@ -772,14 +782,13 @@ def test_one_quote_retires_one_of_two_identical_lines(remove, doc):
   """Two identical lines were two exact hits, refused as ambiguous, and
   every part of one hit both: no quote could take out either (#409; Luca
   holds four copies of one line). They are one line written twice, so a
-  quote retires one -- the newest, keeping the page's order -- and loses
-  nothing."""
+  quote retires one -- the oldest -- and loses nothing."""
   line = "keep my points above upkeep"
   files = ThoughtFiles(texts={doc: f"{line}\n{line}\nbay C sticks"})
-  first = files._core(doc)[0].id
+  older, newer = [r.id for r in files._core(doc) if r.text == line]
   assert files.apply(remove, line, t=3.0) == line
   assert files.lines(doc) == [line, "bay C sticks"]
-  assert files._core(doc)[0].id == first, "the newest went"
+  assert [r.id for r in files._core(doc) if r.text == line] == [newer], "the oldest went"
   assert files.apply(remove, "keep my points", t=4.0) == line, "...and a quote of it"
   assert files.lines(doc) == ["bay C sticks"]
   # two DIFFERENT lines are still two, and still refused
@@ -793,13 +802,15 @@ def test_one_quote_retires_one_of_two_identical_lines(remove, doc):
 def test_a_finding_written_twice_is_retracted_once():
   """Rowan's `x = 1 x`, recorded twice, refused seven times. A finding may
   be written twice -- a second measurement that agrees -- so only the
-  retraction changes."""
+  retraction changes, and it keeps the NEWEST: the bench grades the newest
+  finding made after its claim, which a retraction of the stale one before
+  it must not take."""
   files = ThoughtFiles()
   finding = {"quantity": "x", "value": 1, "unit": "x"}
-  files.record(finding, t=1.0)
-  files.record(finding, t=2.0)
+  files.record(finding, t=1.0)                 # ...before a claim
+  files.record(finding, t=2.0)                 # ...measured again after it
   assert files.retract("x = 1 x", t=3.0) == "x = 1 x"
-  assert [f["t"] for f in files.findings()] == [1.0]
+  assert [f["t"] for f in files.findings()] == [2.0]
 
 
 @pytest.mark.parametrize("add,remove,doc", [("pin", "unpin", TOP_OF_MIND),

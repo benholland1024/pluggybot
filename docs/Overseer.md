@@ -2050,11 +2050,13 @@ gate every document write passes (the files' `append`, the library's
   narrated (`THOUGHT refused: …`) and TOLD, never swallowed: a History
   line, `could not <verb>: <why> -- '<what it tried>'`, the reason first
   because a History line is capped from the end (issue #409; narrated
-  alone, 129 refusals in 48 h reached everyone but the robot). A remove
-  quotes one line: an exact text, else the one line containing the
-  quote; hits that are all one text are a line written twice, and the
-  newest goes. A `pin` or `intend` of a line already on the page is
-  refused; a `record` of one is not (a second measurement that agrees).
+  alone, 129 refusals in 48 h reached everyone but the robot). `unpin`,
+  `drop_goal` and `retract` quote one line: an exact text, else the one
+  line containing the quote; hits that are all one text are a line
+  written twice, and the OLDEST goes (the newest is the finding a grader
+  reads). `unnote` names a note by `topic/title`, which no two share. A
+  `pin` or `intend` of a line already on the page is refused; a `record`
+  of one is not (a second measurement that agrees).
 - **It recalls.** `recall` is an ACTION: `read` a key (a note's
   `topic/title`, a topic or a family like `tasks`, `findings`, `history` for
   forty more lines, a line's `#123`) and/or `find` words (FTS5 over
