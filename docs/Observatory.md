@@ -45,6 +45,45 @@ it is gone`.
   beside this one. #426 has to be in it: robots that can dock again now
   charge longer than `UNMINDED_AFTER_S` from below about 39 %.
 
+### The robot is told what came of what it chose: a decided charge or explore, and a refused memory write (#424, #409) — opens with the release that carries #425 and #426 beside it
+
+**What changed in the world.** What the robots are TOLD, on every arm: the
+prompt did not move, and nothing is scored differently. Three outcomes that
+reached only the log and the wire now write a History line. A decided
+`charge` that never docked says `charge: did not charge -- <why>`, in the
+words of the `GO_CHARGE:` narration, and those now carry who held the bay
+where one did (so does a stranded death). Every decided `explore` says
+whether the walk to its zone arrived, the drive's cause when it did not,
+how long it explored and how it ended. A refused memory write says `could
+not <verb>: <why>`, then what it tried. A walk to a zone that gives up is
+now narrated as well (`EXPLORE: never reached <zone> -- <why>`). Two memory
+rules moved too: an `unpin`, `drop_goal` or `retract` whose hits are all
+one line written twice takes out the oldest copy, where every such quote
+used to be refused; and a `pin` or `intend` of a line already on the page
+is refused. Before this, 31
+failed decided charges and 122 decided explores to a zone in 50 h of
+`5736e23` said nothing to the robot, nor did 129 refused writes in 48 h of
+`5c6e6cf`, and the robots filed tickets about all three (Rowan's tk_0009;
+Luca's tk_0007, tk_0010, tk_0011, tk_0012).
+
+**What the period is for.**
+
+- **Does a robot act on what it is told?** `thought` rows with subject
+  `refused`: the same refusal back to back (one quote was refused 23 times
+  in 48 h) is a mind that is not reading its History. After a `could not
+  ... is full` line, the next write to that document should be a remove.
+- **Do the copies come down?** Luca's `Top_of_mind.md` held four identical
+  lines: `unpin` rows naming one of them, until one is left.
+- **What a decided explore finds**: explores that end at once with nothing
+  left to reach (26 of the 122 before) against explores that ran their
+  45 s, and whether a robot chooses the same explore again right after
+  being told it found nothing.
+- **Do the tickets stop?** A new ticket about a chosen action that
+  vanished, or a refusal nobody showed, is a path this missed.
+- ⚠ **One release, four changes.** Read #425's and #426's entries beside
+  this one. #425 should make failed charges rare, so fewer `charge: did not
+  charge` lines are its reading, not this one's.
+
 ### An `ask` counts when its row fires (#426) — opens with the release that carries #425, #424 and #409 beside it
 
 **What changed in the world.** What `unminded` counts. An `ask` row resets

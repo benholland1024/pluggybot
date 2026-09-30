@@ -738,6 +738,95 @@ def test_a_refused_thought_is_narrated_rather_than_swallowed(tmp_path):
   assert life.thoughts.refusals
 
 
+def test_a_refused_thought_is_told_to_the_robot_in_its_history():
+  """Narrated was not enough (#409): 129 refusals in 48 h on the live pair
+  reached the log and the wire, and the robot saw none -- Luca tried six
+  exact quotes and a partial one, then filed a ticket asking whether
+  `unpin` failed on duplicates or its quotes did not match. The reason goes
+  first and what was tried after it, because a History line is capped and
+  the cap cuts from the end (#307)."""
+  from test_body import stub_life
+
+  files = ThoughtFiles()
+  life = stub_life("room_hub", thoughts=files, errand=False)
+  files.pin("board a is nearly full", t=1.0)
+  files.pin("board b is empty", t=2.0)
+  life._reconsider(ov.Decision(action="idle", unpin="board"))
+  assert files.lines(HISTORY)[-1].endswith(
+    "could not unpin: Top_of_mind.md: 2 lines on the page match 'board'")
+  # ...a refusal that quotes the line is not followed by it a second time
+  life._reconsider(ov.Decision(action="idle", pin="board b is empty"))
+  assert files.lines(HISTORY)[-1].endswith(
+    "could not pin: Top_of_mind.md: 'board b is empty' is already on the page")
+  note = {"topic": "bays", "title": "bay C", "text": "it sticks"}
+  life._reconsider(ov.Decision(action="idle", note=note))
+  life._reconsider(ov.Decision(action="idle", note=note))
+  assert files.lines(HISTORY)[-1].endswith(
+    "could not note: Notes.md: 'bays/bay C' is already written; unnote it first")
+  with pytest.raises(ThoughtRefused):
+    for i in range(40):
+      files.pin(f"opinion {i}: " + "x" * 300, t=float(i))
+  life._reconsider(ov.Decision(action="idle", pin="y" * MAX_LINE_CHARS))
+  last = files.lines(HISTORY)[-1]
+  assert re.search(r"\] could not pin: Top_of_mind\.md is full \(\d+ of \d+ chars\); "
+                   r"unpin one first -- 'y+'$", last), last
+  # ...and a line that is only WORDS of the refusal is still quoted
+  room = SPECS[TOP_OF_MIND].cap - len(files.read(TOP_OF_MIND)) - 1
+  files.pin("z" * (room - 2), t=50.0)                # all the page but two
+  life._reconsider(ov.Decision(action="idle", pin="full"))
+  assert files.lines(HISTORY)[-1].endswith("unpin one first -- 'full'")
+
+
+@pytest.mark.parametrize("remove,doc", [("unpin", TOP_OF_MIND), ("drop_goal", GOALS)])
+def test_one_quote_retires_one_of_two_identical_lines(remove, doc):
+  """Two identical lines were two exact hits, refused as ambiguous, and
+  every part of one hit both: no quote could take out either (#409; Luca
+  holds four copies of one line). They are one line written twice, so a
+  quote retires one -- the oldest -- and loses nothing."""
+  line = "keep my points above upkeep"
+  files = ThoughtFiles(texts={doc: f"{line}\n{line}\nbay C sticks"})
+  older, newer = [r.id for r in files._core(doc) if r.text == line]
+  assert files.apply(remove, line, t=3.0) == line
+  assert files.lines(doc) == [line, "bay C sticks"]
+  assert [r.id for r in files._core(doc) if r.text == line] == [newer], "the oldest went"
+  assert files.apply(remove, "keep my points", t=4.0) == line, "...and a quote of it"
+  assert files.lines(doc) == ["bay C sticks"]
+  # two DIFFERENT lines are still two, and still refused
+  files.apply(remove, "bay C sticks", t=5.0)
+  for text in ("board a is full", "board b is empty"):
+    files.apply({"unpin": "pin", "drop_goal": "intend"}[remove], text, t=6.0)
+  with pytest.raises(ThoughtRefused, match="2 lines"):
+    files.apply(remove, "board", t=7.0)
+
+
+def test_a_finding_written_twice_is_retracted_once():
+  """Rowan's `x = 1 x`, recorded twice, refused seven times. A finding may
+  be written twice -- a second measurement that agrees -- so only the
+  retraction changes, and it keeps the NEWEST: the bench grades the newest
+  finding made after its claim, which a retraction of the stale one before
+  it must not take."""
+  files = ThoughtFiles()
+  finding = {"quantity": "x", "value": 1, "unit": "x"}
+  files.record(finding, t=1.0)                 # ...before a claim
+  files.record(finding, t=2.0)                 # ...measured again after it
+  assert files.retract("x = 1 x", t=3.0) == "x = 1 x"
+  assert [f["t"] for f in files.findings()] == [2.0]
+
+
+@pytest.mark.parametrize("add,remove,doc", [("pin", "unpin", TOP_OF_MIND),
+                                            ("intend", "drop_goal", GOALS)])
+def test_a_line_already_on_the_page_is_refused_not_written_twice(add, remove, doc):
+  """How the copies got there (#409): `pin` and `intend` took a line the
+  page already held. A notes title already written is refused the same way."""
+  files = ThoughtFiles()
+  files.apply(add, "keep my points above upkeep", t=1.0)
+  with pytest.raises(ThoughtRefused, match="already on the page"):
+    files.apply(add, "keep my  points above upkeep ", t=2.0)   # the same line, collapsed
+  assert files.lines(doc) == ["keep my points above upkeep"]
+  files.apply(remove, "keep my points above upkeep", t=3.0)
+  assert files.apply(add, "keep my points above upkeep", t=4.0), "taken out, it may come back"
+
+
 def test_every_memory_write_is_narrated_in_the_one_shape_the_site_parses(tmp_path):
   """`THOUGHT <verb>: <line>` is a two-repo contract (issue #159): the
   website's observatory reads it into a `thought` row, because the documents

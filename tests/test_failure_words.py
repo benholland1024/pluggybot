@@ -8,6 +8,7 @@ feed plate was never pressed" for a route that gave up in the living room,
 fast test per rule, each stubbing what is not under test; nothing flies.
 """
 
+import re
 from types import SimpleNamespace
 
 import pytest
@@ -312,9 +313,21 @@ def test_a_charge_bay_waited_for_and_given_up_reads_no_older_drive():
   _clock(life)
   life.body.mission.drive_to_routine = lambda *a, **kw: pytest.fail("the wait drove")
   assert life.body.run(life.go_charge_routine()) is False
-  assert life.charge_failure == "never reached the charge bay"
-  assert any("GO_CHARGE: never reached the charge bay -- Rowan was standing" in ln
-             for ln in life.log), life.log[-2:]
+  _held_by_rowan(life)
+  # ...and who held it reaches a stranded robot's death, not only the log
+  # (issue #424: the narration was the one place it was kept)
+  life._strand()
+  assert life.dead["why"].endswith(f": {life.charge_failure}")
+
+
+def _held_by_rowan(life):
+  """The reason is the wait's, whole -- who held the bay -- and names no
+  drive; the narration says that same sentence (issue #424)."""
+  assert life.charge_failure.startswith("never reached the charge bay -- Rowan was "
+                                        "standing"), life.charge_failure
+  assert "the drive gave up" not in life.charge_failure
+  assert any(ln.endswith(f"GO_CHARGE: {life.charge_failure}") for ln in life.log), \
+    life.log[-2:]
 
 
 def test_a_charge_trip_that_ends_in_a_wait_is_the_waits_not_an_earlier_drives():
@@ -335,9 +348,7 @@ def test_a_charge_trip_that_ends_in_a_wait_is_the_waits_not_an_earlier_drives():
   life.body.mission.drive_to_routine = drive
   life.body.mission._spin_routine = lambda *a, **kw: tick.result(None)
   assert life.body.run(life.go_charge_routine()) is False
-  assert life.charge_failure == "never reached the charge bay"
-  assert any("GO_CHARGE: never reached the charge bay -- Rowan was standing" in ln
-             for ln in life.log), life.log[-2:]
+  _held_by_rowan(life)
 
 
 # ---- 3. narration names only what happened -------------------------------------
@@ -438,3 +449,88 @@ def test_a_continuation_saved_before_the_rename_still_says_the_floor_is_explored
   back = _kept_life(tmp_path)
   _prelude(back, snap)
   assert back.floor_explored
+
+
+# ---- 5. a decided charge or explore says how it ended (#424) --------------------
+# On the live pair in 50 h, 31 decided charges failed and 122 decided explores
+# to a zone ended, and History heard of none: the robot read `chose charge`
+# and then nothing, and filed tickets saying its actions vanished. Each is a
+# day on the stub: what is pinned is where the outcome is WRITTEN.
+
+
+def _gives_up(body, why="no_route"):
+  """A stub drive that gives up the way the real one records it."""
+  def drive(x, y, timeout=90.0, stop=None):
+    body.last_drive = {"why": why, "goal": (float(x), float(y)),
+                       "seconds": 0.0, "shortM": 2.5}
+    return tick.result(False)
+  return drive
+
+
+@pytest.mark.parametrize("fails", ["dock", "drive"])
+def test_a_decided_charge_that_failed_says_why_in_history(fails):
+  from test_body import StubBody, stub_life
+  from pluggybot.mind import overseer as ov
+  body = StubBody()
+  life = stub_life(body=body)
+  if fails == "dock":
+    body.dock_routine = lambda: tick.result("no board")   # the board never in view
+    why = "no charge contact (no board)"
+  else:
+    body.go_to_routine = _gives_up(body)
+    why = "never reached the charge bay: the drive gave up (no_route)"
+  life._after_decision(ov.Decision(action="charge", reason="topping up"))
+  assert _history(life)[-1].endswith(f"charge: did not charge -- {why}"), _history(life)[-2:]
+  assert life.charge_cycles == 0 and not life.verdicts, "no charge, and no verdict for one"
+
+
+def test_a_decided_explore_whose_zone_walk_gave_up_says_why_and_how_it_ended():
+  """26 of the 122 ended at once, `no-reachable`, and a walk to the zone that
+  gave up was not even narrated: the robot decided its explores were being
+  "dropped pre-run"."""
+  from test_body import StubBody, stub_life
+  from pluggybot.mind import overseer as ov
+  body = StubBody()
+  life = stub_life("home", body=body)
+  life.begin((0.0, 0.0, 0.0))                    # the day's setup, and no day
+  body.go_to_routine = _gives_up(body)
+  body.plan_frontier = lambda blacklist: (None, "no-reachable")
+  life._after_decision(ov.Decision(action="explore", zone="lab", reason="the lab"))
+  assert _history(life)[-1].endswith(
+    "explore (lab): never got there -- the drive gave up (no_route) -- and explored "
+    "where it stopped for 0 s, until none of the floor I have not seen could be "
+    "reached"), _history(life)[-2:]
+  assert any("EXPLORE: never reached lab -- the drive gave up (no_route)" in ln
+             for ln in life.log)
+
+
+def test_every_way_an_explore_ends_is_said_and_the_runs_own_end_is_not():
+  """The words are `explore_outcome`'s, a pure function: every ending
+  `explore_routine` answers reads as itself, and the run's end writes
+  nothing -- the next run carries on (#345)."""
+  from pluggybot.lifecycle import EXPLORE_ENDS, explore_outcome
+  assert set(EXPLORE_ENDS) == {"budget", "no-frontiers", "no-reachable", "only-near",
+                               "blocked", "battery"}
+  said = {ended: explore_outcome("", ended, 45.0) for ended in EXPLORE_ENDS}
+  assert len(set(said.values())) == len(said)
+  assert explore_outcome("lab", "time", 12.0) == ""
+  assert explore_outcome("lab", "budget", 45.0) == (
+    "explore (lab): got there and explored for 45 s, all the time one explore is given")
+
+
+def test_a_decided_explore_that_ran_its_time_says_so():
+  """83 of the 122 ended `budget spent`, which is the explore working -- and
+  said nowhere the robot reads."""
+  from test_body import StubBody, stub_life
+  from pluggybot.lifecycle import DECIDED_EXPLORE_S
+  from pluggybot.mind import overseer as ov
+  body = StubBody()
+  life = stub_life(body=body)
+  life.begin((0.0, 0.0, 0.0))                    # the day's setup, and no day
+  body.plan_frontier = lambda blacklist: ([(80, 80)], "ok")    # always somewhere new
+  body.go_to_routine = lambda *a, **kw: body.hold_routine(5.0)  # ...5 s away
+  life._after_decision(ov.Decision(action="explore", reason="mapping"))
+  line = _history(life)[-1]
+  assert re.search(r"\] explore: explored for (\d+) s, all the time one explore is "
+                   r"given$", line), _history(life)[-2:]
+  assert int(re.search(r"for (\d+) s", line).group(1)) >= DECIDED_EXPLORE_S
