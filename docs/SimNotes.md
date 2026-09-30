@@ -3523,33 +3523,71 @@ standing in the hall):
 
 | from | paid | sim s each | presses of another plate | belief off at the end |
 |---|---|---|---|---|
-| the dock (the first a fresh map's find, 147 s; walked back to it between) | 10 / 10 | 73-75 | 0 | 0.12 m |
-| inside the lab (after one find from the hall, a fresh map) | 10 / 10 | 21-22 | 0 | 0.16 m |
+| the dock (the first a fresh map's find, 207 s; walked back to it between) | 10 / 10 | 73-75 | 0 | 0.12 m |
+| inside the lab (after one find from the hall, a fresh map) | 10 / 10 | ~21 | 0 | 0.21 m |
 
 ⚠ The pair's robots look round their starts in ONE loop
 (`solve.start_pair`): with #405's arm a quadruped that is not stepped lets
 go of the arm's hold, and Luca stood 0.58 m from its belief while Rowan
 looked round alone.
 
-⚠ **After an explore, the find fails more often than not.** The search
-takes any frontier within 7.5 m of the address before a point it has not
-looked over (`legs.places.next_viewpoint`). After a 240 s explore the lab's
-floor is mapped -- the LIDAR's plane (0.51 m) is over the plates, the cage
-and the signs, and it sees the room through its door -- so the frontiers
-left near the facility's address (in its storeroom) are outside the
-building, 3-5 m off in a straight line and far by the way in, while the
-lab's signs are 7 m off. Flown: the robot stood in the lab's doorway facing
-in, the feed sign 36 deg off its nose (the camera's half-field is 33.5),
-and turned away to search round the outside for 600 s. In the energy spike
-the first three finds after the explore ran out their 300 s; the fourth
-found the row in 141 s, the search having tried every viewpoint outside.
-After a 480 s explore it gave up `not found` at 483 s, having "looked from
-every place near there" (21 viewpoints) -- and `seen()` counts floor within
-`LOOKED_OVER_M` of a look-around whatever walls stand between, so a look
-round in the lobby marks the lab's floor looked over. After a 120 s explore
-that never reached the facility the find took 147 s, as from a fresh map.
-Found once, the place is remembered, and a feed from the dock is 73-75 s
-and 1.77 Wh (`economy/energy.json`), about 60 mWh a metre walked.
+**After an explore the find walks to the floor it has not looked at.**
+#419's search took any frontier within 7.5 m of the address before a point
+it had not looked over. After an explore the lab's floor was mapped -- the
+LIDAR's plane (0.51 m) is over the plates, the cage and the signs, and it
+sees the room through its door -- so the only frontiers near the facility's
+address (in its storeroom) were outside the building, near in a straight
+line and a long walk by the way in. Flown, the robot stood in the lab's
+doorway facing in, the feed sign 36 deg off its nose (the camera's
+half-field is 33.5), and turned away to search round the outside for
+600 s; three finds of three failed. And a look-around counted floor within
+3.5 m looked over through walls. Now the robot's own floor comes first --
+its frontiers and the floor it has mapped and not looked over IN SIGHT --
+by the WALK from the address (`next_viewpoint`, `_search_map`: one
+Dijkstra over the planner's lattice), then the lattice in the unknown.
+
+**...and the press walks in on its axis.** The first fix's flights found a
+press that crossed the next plate: a sign first seen from far off its face
+knows its facing only by where it was seen from (up to 70 deg out), the
+look at the standoff fitted the row, and the walk in -- steered straight at
+the pad, no planner under it -- started from the old standoff, 15 deg off
+the axis and over the shock pad (4 presses). A look that moves the
+standoff more than `STANDOFF_MOVED_M` (0.25 m) now sends the press there
+first, over the planner with every seen pad kept out.
+
+Flown on it (`scripts/places_spike.py --find --n 8 --error 3 --again`;
+explore-then-find flights of one robot from its start):
+
+| | found | find, s | shock presses |
+|---|---|---|---|
+| #419's 8 addresses, a fresh map | 8 / 8, and 8 / 8 again | 62-225, median 148 (#419's search: 94); again 68-76 | 0 |
+| after a 240 / 300 / 360 s explore | 3 / 3, and pressed | 198 / 200 / 279 | 0 |
+| after a 480 s explore | 0 / 1 | ran out, 300 | 0 |
+
+The price is the fresh map's median, 148 s against 94: from the south of
+the facility the walk takes in more of the building's floor before the
+lab's door. After 480 s of exploring the belief was 1.4 m off the truth and
+the robot then failed to dock: no find works through that, and the drift
+is the map's, not the search's (below). Found once, the place is
+remembered, and a feed from the dock is 73-75 s and 1.77 Wh
+(`economy/energy.json`), about 60 mWh a metre walked.
+
+⚠ **After a long explore the armed robot's belief drifts past a metre**,
+and a place search cannot work through that, nor the dock. One quadruped
+from its start, exploring 480 sim s, belief against truth every minute
+(`--world home_quad`, the same script on both builds):
+
+| sim s | before #405's arm (`e5f66d5`) | with it |
+|---|---|---|
+| 240 | 0.04 m | 0.12 m |
+| 360 | 0.26 m | 0.59 m |
+| 420 | 0.45 m | 0.60 m |
+| 480 | 0.21 m | 1.40 m |
+| then to the dock | docked | failed to dock |
+
+One flight a side, and their paths differ (the rack and the arm change the
+world), so it is a measurement for #405's owner, not a cause: the scans
+were accepted throughout, so the error is in the frame the map was laid in.
 
 ## Places, not coordinates (issue #419)
 
@@ -3601,11 +3639,15 @@ the facility's own address, which lands in its storeroom a wall from the
 lab, it failed twice from the dock: the lattice's first nine viewpoints
 were the storeroom's and its walls'. Now (`next_viewpoint`): where the
 row's drawing puts the sign once any of the row is read; else the address;
-else a FRONTIER of the robot's own map -- known floor meeting the unknown --
-nearest the address (the storeroom's door, then the lab's); else a lattice
-point it has not looked over.
+else, by the WALK from the address over its own map, a FRONTIER -- known
+floor meeting the unknown -- or floor it has mapped and not yet looked over
+with no wall between (the lab's, seen through its door); else a lattice
+point in the unknown. The walk and the floor beside the frontiers are
+#403's: after an explore the frontiers near the address were outside the
+building (SimNotes, "The feed on legs").
 
-**Flown**, a fresh robot from the living room's start unless said
+**Flown** with #419's search (frontiers first, by the straight line), a
+fresh robot from the living room's start unless said
 (`--find --n 8 --error 3 --again`; `--find --again --from X`):
 
 | address | found and pressed | find, s | again, remembered, s | shock presses |

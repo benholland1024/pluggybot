@@ -32,11 +32,14 @@ errand of that plate running is a new `press` row (observatory kind
 - **Does a mind take the job**, how often, and what does it predict? The
   `prediction` rows carry `cause: feed`.
 - ⚠ **Whether the plate is found.** A job whose `find` ran out fails
-  saying it `did not find tag 36`. After an explore the search failed more
-  often than not in the flights (SimNotes, "The feed on legs"), and the
-  served robots have always explored: the share of feed jobs that end
-  there, against those that press, is the first reading. Once found, the
-  place is remembered (a `found ...` line in History) and a feed is ~75 s.
+  saying it `did not find tag 36`. The search now walks to the lab's floor
+  it has mapped and not looked at, so an explore no longer hides the lab
+  (3 of 3 found after 240-360 s explores, where #419's search found none);
+  but after a 480 s explore the armed robot's belief was 1.4 m off and
+  neither the find nor the dock worked (SimNotes, "The feed on legs"). The
+  share of feed jobs that end `did not find`, against those that press, is
+  the first reading. Once found, the place is remembered (a `found ...`
+  line in History) and a feed is ~75 s.
 - **The first income on legs**: what the pair earns in a day, the number
   upkeep's rate will be re-derived from (#375's step 5). Points earned
   are `care` rows under `feed_mouse` with `pay`, next to ticket closes.
