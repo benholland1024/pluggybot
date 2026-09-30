@@ -380,6 +380,13 @@ class TaskProducer:
     """
     cfg = self.cadence.kinds.get(kind) or {}
     params: dict = dict(cfg.get("params") or {})
+    # WHERE THE JOB IS (issue #419): the building's rough address and the
+    # task area's written directions, where the target is an area a world
+    # has written -- and never a position finer than the house
+    area = (self.facts.get("places") or {}).get(target)
+    if area:
+      params.update({"address": dict(area["address"]),
+                     "directions": area["directions"]})
     programs = list(cfg.get("programs") or ())
     if programs:
       params["program"] = programs[self.figure % len(programs)]

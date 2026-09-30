@@ -120,6 +120,10 @@ class WorldFacts:
   #: the verbs this world's BODY can run (issue #387), or None for every
   #: one: a body with no arm has no tool, no claw and no pen
   verbs: tuple[str, ...] | None = None
+  #: the task areas' tags a `find` may name (issue #419), and the plates'
+  #: among them a `press` may
+  places: tuple[int, ...] = ()
+  plates: tuple[int, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -301,7 +305,13 @@ def carry_configuration_routine(life, tool: str) -> Routine:
   # go of a cube at 0.033 m and drew its arm in there came off its seat --
   # 114 mm down the fork, unpowered -- and a stow drives that to the rack.
   body = life.body
-  lift = body.actuator("lift")
+  try:
+    lift = body.actuator("lift")
+  except KeyError:
+    # a body with no lift (the quadruped, #405): its arm's own driving
+    # pose, the carry pose with a tool on the fork
+    yield from body.retract_arm_routine()
+    return {"setDown": set_down}
   up = MODULE_DRIVE_LIFT > float(life.data.ctrl[lift])
   if up:
     yield from body.ramp_routine(lift, MODULE_DRIVE_LIFT, LIFT_SPEED,
@@ -345,10 +355,11 @@ def travel_pose(life, tool: str | None) -> list[tuple[int, float, float]]:
   arm pulls them back through it; a lift that has to fall goes last, so a
   tool held out over a bench comes in before it comes down.
 
-  ⚠ A BODY WITH NO ARM HAS NO CARRYING POSE (issue #381): the quadruped's
-  `actuator` names none (#387), and asking for its arm raised before every
-  `drive_to`, `face` and `drive` -- no procedure on legs had walked a
-  step."""
+  ⚠ THE QUADRUPED'S IS ITS ARM FOLDED (issue #405): its `actuator` names
+  no `arm`, and asking for the rover's raised before every `drive_to`,
+  `face` and `drive` -- no procedure on legs had walked a step (#381). Its
+  empty fork folds to the stow, the shoulder before the elbow, so the
+  forearm comes in over the body rather than under it."""
   from pluggybot.procedure import axes
   from pluggybot.rack.swap import ARM_EXT
   from pluggybot.tools.gripper import CARRY_LIFT, CLAW_MODULE, MODULE_DRIVE_LIFT
@@ -356,6 +367,11 @@ def travel_pose(life, tool: str | None) -> list[tuple[int, float, float]]:
   if tool is None:
     try:
       return [(body.actuator("arm"), 0.0, axes.ARM_SPEED)]
+    except KeyError:
+      pass
+    try:
+      return [(body.actuator(axes.AXES[j].actuator), target, axes.AXES[j].speed)
+              for j, target in zip(axes.ARM_JOINTS, axes._ARM.stow)]
     except KeyError:
       return []
   model = life.model
@@ -371,8 +387,14 @@ def travel_pose(life, tool: str | None) -> list[tuple[int, float, float]]:
       continue
     rest = float(model.qpos0[model.jnt_qposadr[act.trnid[0]]])
     own.append((act.id, min(max(rest, axis.lo), axis.hi), axis.speed))
-  lift = (body.actuator("lift"), CARRY_LIFT if holding else MODULE_DRIVE_LIFT,
-          LIFT_SPEED)
+  try:
+    lift = (body.actuator("lift"), CARRY_LIFT if holding else MODULE_DRIVE_LIFT,
+            LIFT_SPEED)
+  except KeyError:
+    # the quadruped (#405): its arm at the carry pose, the shoulder first
+    from pluggybot.legs.arm import CARRY_Q
+    return own + [(body.actuator(axes.AXES[j].actuator), target, axes.AXES[j].speed)
+                  for j, target in zip(axes.ARM_JOINTS, CARRY_Q)]
   arm = (body.actuator("arm"), ARM_EXT if holding else 0.0, axes.ARM_SPEED)
   if lift[1] > float(life.data.ctrl[lift[0]]):
     return [lift, arm, *own]
@@ -388,7 +410,7 @@ def travel_pose_routine(life) -> Routine:
   straight line, not the pose: see `_draw`.)"""
   moved = False
   for act, target, speed in travel_pose(life, _carried(life)):
-    if abs(float(life.data.ctrl[act]) - target) > POSE_TOL:
+    if abs(life.body.setpoint(act) - target) > POSE_TOL:
       yield from life.body.ramp_routine(act, target, speed)
       moved = True
   if moved:
@@ -982,6 +1004,70 @@ def _wait(life, args: dict) -> Routine:
   return {"ok": True}
 
 
+#: How long a `find` searches when it is given no patience, s: a fresh
+#: quadruped found the lab's feed plate from the facility's address in
+#: 62-272 s (#419: eight address errors round the house, and the address
+#: itself from three starts).
+FIND_PATIENCE_S = 300.0
+#: How long a `press` may take, s, where the program's budget does not say
+#: less: flown, 12-26 s from where the find left it (#419, 22 presses).
+PRESS_PATIENCE_S = 120.0
+
+
+def _find(life, args: dict) -> Routine:
+  """Find the task area carrying a tag (issue #419): where the robot saw it
+  last, confirmed by its tag, or else searched for round (x, y) -- a job's
+  address, in its map -- until the tag is in view. ok when it was seen;
+  where it is rides the verdict (`at`), and the robot remembers it."""
+  tag = int(args["tag"])
+  x, y = float(args["x"]), float(args["y"])
+  patience = _patience(life, {"patience": args.get("patience", FIND_PATIENCE_S)})
+  rec = yield from life.body.find_tag_routine(tag, near=(x, y), patience=patience,
+                                              stop=_interrupt(life))
+  why = rec.get("why", "")
+  out = {"ok": bool(rec.get("found")), "tag": tag, "why": why,
+         "seconds": rec.get("seconds"), "remembered": bool(rec.get("remembered")),
+         **({"at": list(rec["at"])} if rec.get("at") else {})}
+  if not out["ok"]:
+    searched = (f"did not find tag {tag}"
+                + (" where it was last seen, nor" if rec.get("remembered") else "")
+                + f" round ({x:g}, {y:g}) in {float(rec.get('seconds') or 0):.0f} s")
+    looks = f" ({int(rec.get('arounds') or 0)} looks round)"
+    out["reason"] = (
+      f"stopped looking for tag {tag} by its own interrupt" if why == "interrupted"
+      else f"tag {tag} marks no place in this world" if why == "not a place"
+      else f"{searched}, having looked from every place near there{looks}" if why == "not found"
+      else f"{searched} and ran out of time{looks}" if why == "out of time"
+      else f"did not find tag {tag}: {why or 'no reason given'}")
+  return out
+
+
+#: What a `press` that did not press says, by its body's why (issue #419).
+PRESS_WHY = {
+  "not found": "tag {tag} is a plate it has not found: `find` it first",
+  "not a plate": "tag {tag} marks no plate",
+  "no route": "found no way to stand in front of tag {tag}'s plate",
+  "lost": "tag {tag} was not in view from in front of its plate",
+  "not pressed": "walked onto tag {tag}'s plate and no foot was on it",
+  "out of time": "ran out of time before stepping onto tag {tag}'s plate",
+  "interrupted": "stopped on the way to tag {tag}'s plate by its own interrupt",
+}
+
+
+def _press(life, args: dict) -> Routine:
+  """Walk onto the plate a tag marks and back off it (issue #419): a plate
+  the robot has found (`find`), the last step measured off its sign. ok
+  when one of its feet was on the pad."""
+  tag = int(args["tag"])
+  rec = yield from life.body.press_plate_routine(
+    tag, patience=_patience(life, {"patience": PRESS_PATIENCE_S}), stop=_interrupt(life))
+  why = rec.get("why", "")
+  out = {"ok": bool(rec.get("pressed")), "tag": tag, "why": why}
+  if not out["ok"]:
+    out["reason"] = PRESS_WHY.get(why, why or "did not press").format(tag=tag)
+  return out
+
+
 #: The base's command envelope for `drive`: the cruise the navigation law
 #: uses, and the spin rate the rover's look-around turns at (mission.py).
 DRIVE_V_MAX = 0.25
@@ -1011,7 +1097,10 @@ def _move(life, args: dict) -> Routine:
   if not axis.lo <= target <= axis.hi:
     return {"ok": False, "reason": f"{axis.name} target {target} is outside "
                                     f"{axis.lo}..{axis.hi} {axis.unit}".rstrip()}
-  yield from axis.run(life, target)
+  moved = yield from axis.run(life, target)
+  if moved is False:        # a joint that ran out of time (the quadruped's arm)
+    return {"ok": False, "reason": f"{axis.name} did not reach {target} "
+                                    f"{axis.unit} in time".rstrip()}
   return {"ok": True, "axis": axis.name, "target": target}
 
 
@@ -1055,6 +1144,22 @@ VERBS: dict[str, Verb] = {
                _draw, "the pen's use-phase on a board; ok when ink landed",
                drives=True),
   "look": Verb("look", {}, _look, "one tag decode from the dock camera, no motion"),
+  # PLACES (issue #419): a task area found by its tag and remembered, and a
+  # plate pressed off its sign -- the robot's own knowledge, never a
+  # coordinate handed over
+  "find": Verb("find", {"tag": Arg("float", lo=0, hi=999), "x": Arg("float"),
+                        "y": Arg("float"),
+                        "patience": Arg("float", lo=0.0, hi=MAX_PATIENCE_S,
+                                        default=FIND_PATIENCE_S)},
+               _find, "find the task area carrying this tag: where you last saw "
+               "it, else by searching round (x, y) -- a job's address -- until "
+               "the tag is in view; ok when seen, and you remember where it is. "
+               f"It gives up after `patience` seconds (at most {MAX_PATIENCE_S:.0f})",
+               drives=True),
+  "press": Verb("press", {"tag": Arg("float", lo=0, hi=999)}, _press,
+                "walk onto the plate this tag's sign marks, the last step "
+                "measured off the sign, and back off it; ok when a foot was on "
+                "it. `find` it first", drives=True),
   "wait": Verb("wait", {"seconds": Arg("float", lo=0.0, hi=MAX_WAIT_S)}, _wait,
                "stand still"),
   # The motor level (issue #166): what every verb above is built from.
@@ -1103,10 +1208,17 @@ def run_verb(life, verb: Verb, args: dict, where: dict | None = None,
     life.step_until = before_until
 
 
-#: What a body with no arm can run (issue #387): walking, turning, standing
-#: still and the base at a velocity -- nothing that needs a tool, and no
-#: `look`, whose ranges are the rover's bay tags'.
-BODY_VERBS = ("drive_to", "face", "wait", "drive")
+#: What a body whose arm takes no tool can run (issue #387): walking,
+#: turning, standing still and the base at a velocity, and its arm's joints
+#: (#405) -- nothing that needs a tool, and no `look`, whose ranges are the
+#: rover's bay tags'.
+BODY_VERBS = ("drive_to", "face", "wait", "drive", "move")
+#: ...and one whose world has a rack at its arm's reach (issue #405).
+SWAP_VERBS = ("fetch", "stow")
+#: ...and one whose world has task areas it finds by their tags (issue
+#: #419), and plates among them where its world has the lab they are in.
+PLACE_VERBS = ("find",)
+PLATE_VERBS = ("press",)
 #: ...and how a walking body's prompt describes the one whose words are the
 #: rover's.
 BODY_DOCS = {"drive_to": "walk to a world point over the map, and over floor not "
@@ -1169,7 +1281,7 @@ def check_step(verb: Verb, args: dict, facts: WorldFacts,
   """Every argument of one step. `partial` skips the missing-argument rule,
   for a language checking only the literal half of a call."""
   if facts is not None and facts.verbs is not None and verb.name not in facts.verbs:
-    return [f"{verb.name}: this body has no arm yet, so it has no {verb.name} "
+    return [f"{verb.name}: not on this body yet "
             f"(it has: {', '.join(facts.verbs)})"]
   bad = []
   extra = set(args) - set(verb.args)
@@ -1181,7 +1293,14 @@ def check_step(verb: Verb, args: dict, facts: WorldFacts,
   for name in verb.args:
     if name in args:
       bad += check_arg(verb, name, args[name], facts)
-  if verb.name == "drive_to" and all(
+  if verb.name in ("find", "press") and isinstance(args.get("tag"), (int, float)) \
+      and not isinstance(args.get("tag"), bool):
+    have = facts.places if verb.name == "find" else facts.plates
+    if int(args["tag"]) != args["tag"] or int(args["tag"]) not in have:
+      what = "place" if verb.name == "find" else "plate"
+      bad.append(f"tag {args['tag']:g} is no {what} this world has "
+                 f"(have: {', '.join(str(t) for t in have) or 'none'})")
+  if verb.name in ("drive_to", "find") and all(
       isinstance(args.get(k), (int, float)) and not isinstance(args.get(k), bool)
       for k in ("x", "y")):
     x0, y0, x1, y1 = facts.bounds

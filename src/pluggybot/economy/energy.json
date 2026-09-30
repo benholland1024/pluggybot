@@ -105,10 +105,16 @@
       "measuredOn": "re-measured 21 Sep 2026 with the built-tool rail on the north wall (issue #277) and drive_to's terminal last leg, 40 Wh pack, the world's 106 s explore: dance 0.582 -> 0.586 (dearer); carry read 0.638 as the first errand from the explore's end and keeps 0.817; exploreWhPerS read 0.008407 and keeps 0.008456. Previous: re-measured 13 Sep 2026 with the depth camera drawing (issue #34): two 40 Wh spike runs, dearer per row. carry 0.570 -> 0.817 after the world's default 113 s explore (the first-errand-through-unexplored-space effect: the pick starts wherever the explore ended); like for like with the old row (29 s explore) it read 0.505, and the committed recording's first carry 0.573 -- the trajectory reshuffles more than 2 W moves. dance 0.528 -> 0.582. The 0.7 Wh demo cell could no longer fund the job (0.63 charged), so it grew to 1.0 (lifecycle.DEMO_CAPACITY_WH), still zero-margin. chargeW is the slowest press measured (19.0) less the camera's 2 W; fresh presses read 35 net."
     },
     "home_quad": {
-      "errandWh": {},
-      "exploreWhPerS": 0.02353,
-      "chargeW": 201.1,
-      "measuredOn": "measured 27 Sep 2026 on the quadruped (issue #387), home_quad, 40 Wh pack, the world's 240 s explore, depth camera drawing: the explore 6.113 Wh over 259.8 s (84.7 W, the legs' windings and shafts off the drivers' torques plus 14.9 W of electronics); the dock's 216 W charger into a body lying on its pins, 5.027 Wh in 90 s (201.1 W net). No errand rows: the body has no arm, so no errand a tool makes (`world_config`'s `tools`)."
+      "errandWh": {
+        "care": 1.859,
+        "care:feed": 1.793,
+        "care:toy": 1.859,
+        "feed": 1.77,
+        "shock": 1.75
+      },
+      "exploreWhPerS": 0.024137,
+      "chargeW": 199.5,
+      "measuredOn": "measured 28 Sep 2026 on the quadruped with its arm aboard (issue #405), home_quad, 40 Wh pack, the world's 240 s explore, depth camera drawing: the explore 6.067 Wh over 251.4 s (86.9 W; 84.7 without the arm, #387), the legs' windings and shafts and the arm's two motors off their torques, plus 15.9 W of electronics (fourteen drivers standing by); the dock's 216 W charger into a body lying on its pins, 4.987 Wh in 90 s (199.5 W net). No tool errand: the arm takes no tool yet (`world_config`'s `tools`). The lab's acts, which take no tool, measured 30 Sep 2026 with the arm aboard (issues #403, #419), each from the dock with the plate's place remembered: `find` confirms it by its sign, `press` walks on off the sign: feed 1.770 Wh in 73.8 s, care:feed 1.793, care:toy 1.859, shock 1.750 (its job is not offered on legs; priced so it is one line back). The first find of a fresh map's robot, a search round the lab's address, cost 2.160 Wh in 89.5 s and is not carried; a search after an explore can run its whole 300 s (SimNotes, \"The feed on legs\"). Company is no `care` act on legs, so no row."
     }
   }
 }

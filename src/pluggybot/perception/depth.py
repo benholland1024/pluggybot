@@ -170,6 +170,8 @@ class DepthCamera:
     #: the height map takes the moment a second robot walked into frame.
     self.peer_rng = np.random.default_rng(seed + 1)
     self._other_roots: list[str] = []
+    #: A tool riding this robot's fork (issue #405): its own for the cloud.
+    self._carried: str | None = None
     n = width * height
     self._geomid = np.zeros(n, dtype=np.int32)
     self._dist = np.zeros(n, dtype=np.float64)
@@ -213,6 +215,8 @@ class DepthCamera:
     self.model = model
     self.cam_id = model.camera(self.camera_name).id
     self._self_geoms = robot_geoms(model, self.handle.root)
+    if self._carried is not None:
+      self._self_geoms |= robot_geoms(model, self._carried)
     self._other_geoms: set = set()
     for root in self._other_roots:
       self._other_geoms |= robot_geoms(model, root)
@@ -222,6 +226,11 @@ class DepthCamera:
     #: them apart (issue #328). Both stay out of `points`.
     self._mine = np.fromiter(self._self_geoms, dtype=np.int32)
     self._theirs = np.fromiter(self._other_geoms, dtype=np.int32)
+
+  def carry(self, body: str | None) -> None:
+    """A body riding this robot's fork is its own to the cloud, or None."""
+    self._carried = body
+    self.rebind(self.model)
 
   def exclude_robot(self, root_name: str) -> None:
     """Keep another robot's body out of the MAP's cloud, as the LIDAR keeps

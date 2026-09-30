@@ -293,6 +293,12 @@ def within(spec: ArmSpec, q: tuple[float, float]) -> bool:
           and spec.elbow_range[0] <= qe <= spec.elbow_range[1])
 
 
+#: ...and the carry pose as the chosen arm's joint angles (shoulder, elbow):
+#: where a walk puts an arm that carries a tool (`procedure.steps.travel_pose`)
+#: and a rest leaves it.
+CARRY_Q = solve_vertex(ArmSpec(), *CARRY, near=ArmSpec().stow)
+
+
 # ---- the static load -------------------------------------------------------------
 
 G = 9.81
@@ -426,6 +432,16 @@ PAD_R = 0.005
 RAMP_MU = 0.15
 
 
+#: Each of the fork's geoms, kg: its plates, prongs, ramps and pad are the
+#: plate's budget (`ArmSpec.plate_mass`), which the plate's own geom carries
+#: the rest of.
+FORK_GEOM_KG = 0.002
+
+
+def _fork_kg(spec: ArmSpec) -> float:
+  return fork_xml(spec).count("<geom ") * FORK_GEOM_KG
+
+
 def _pad_x(spec: ArmSpec) -> float:
   """The lean-pad's axis in the plate frame: its front `pad_intrude` past a
   seated module's back face."""
@@ -474,7 +490,7 @@ def arm_mjcf(spec: ArmSpec, prefix: str = "") -> dict[str, str | list[float]]:
           <body name="{prefix}arm_plate" pos="{_v(s.fore, 0, 0)}">
             {wrist_joint}
             <geom name="{prefix}arm_plate" class="arm_link" type="box" size="0.03 0.03 0.012"
-                  pos="0.02 0 -0.012" mass="{_f(s.plate_mass)}"/>
+                  pos="0.02 0 -0.012" mass="{_f(s.plate_mass - _fork_kg(s))}"/>
           {fork_xml(s, prefix)}
           </body>
         </body>
@@ -503,7 +519,8 @@ def arm_mjcf(spec: ArmSpec, prefix: str = "") -> dict[str, str | list[float]]:
   qpos = [qs, qe] + ([-(qs + qe)] if s.level in ("parallelogram", "wrist") else [])
   return {"torso": stack, "body": body, "tendon": tendon, "equality": equality,
           "actuator": "\n    ".join(act), "qpos": qpos,
-          "default": ARM_DEFAULTS.format(friction=_f(BEARING_FRICTION_NM), tube=_f(TUBE_R))}
+          "default": ARM_DEFAULTS.format(friction=_f(BEARING_FRICTION_NM), tube=_f(TUBE_R),
+                                         fork_kg=_f(FORK_GEOM_KG))}
 
 
 #: The level parallelogram's compliance: a rod and two pin joints, stiff.
@@ -527,7 +544,7 @@ ARM_DEFAULTS = """
       </default>
       <default class="fork">
         <geom contype="1" conaffinity="0" group="1" friction="0.4 0.005 0.0001"
-              priority="1" mass="0.002" rgba="0.30 0.32 0.36 1"/>
+              priority="1" mass="{fork_kg}" rgba="0.30 0.32 0.36 1"/>
       </default>
     </default>"""
 
@@ -550,31 +567,53 @@ class ArmDriver:
   targets (`solve`'s), `step()` once per physics step before `mj_step`
   writes the two torques, clipped to the motor's envelope. The elbow's
   motor holds the forearm's ABSOLUTE angle (shoulder + elbow), so that is
-  the coordinate its loop runs on."""
+  the coordinate its loop runs on.
+
+  ⚠ EVERYTHING IT READS IS `qpos` AND `qvel` (issue #405): the gravity is
+  the arm's own planar model (`gravity`), never the Jacobians of the last
+  forward pass. A restart puts a world back and forwards it at the saved
+  instant, where a running world's step reads the kinematics one step old
+  -- a controller reading them every step parts the two worlds at the
+  first step back (`scripts/determinism_spike.py --resume-at`) -- and the
+  three Jacobians, 122 columns wide in the house, were 43 of its 100 us a
+  step."""
 
   def __init__(self, model, data, spec: ArmSpec, prefix: str = ""):
-    import mujoco
     from pluggybot.legs.actuator import JointLimits
-    if spec.level == "wrist":
-      raise ValueError("a wrist motor (option b) is the reach table's, never "
-                       "driven: this driver holds a shoulder and an elbow")
+    from pluggybot.telemetry.protocol import ROBOT_ROOT
+    if spec.level != "parallelogram":
+      raise ValueError("this driver holds a shoulder and an elbow with the "
+                       "plate kept level: the wrist (b) and the body (c) "
+                       "options are the reach table's, never driven")
     self.m, self.d, self.spec = model, data, spec
     j = {n: model.joint(f"{prefix}arm_{n}").id
          for n in ("shoulder", "elbow", "wrist") if _has(model, f"{prefix}arm_{n}")}
     self.qadr = {n: model.jnt_qposadr[i] for n, i in j.items()}
     self.vadr = {n: model.jnt_dofadr[i] for n, i in j.items()}
+    self._qs, self._qe, self._qw = (int(self.qadr[n]) for n in ("shoulder", "elbow", "wrist"))
+    self._vs, self._ve = int(self.vadr["shoulder"]), int(self.vadr["elbow"])
+    root = model.body(f"{prefix}{ROBOT_ROOT}").id
+    self._quat = int(model.jnt_qposadr[model.body_jntadr[root]]) + 3
     self.act = [model.actuator(f"{prefix}arm_shoulder").id,
                 model.actuator(f"{prefix}arm_elbow").id]
     self.bodies = [model.body(f"{prefix}arm_{b}").id for b in ("upper", "fore", "plate")]
+    # The planar model: each link's mass and its CoM in its own frame (x
+    # along it, z up off it), and the seat's place on the plate.
+    self._links = [(float(model.body_mass[b]), float(model.body_ipos[b][0]),
+                    float(model.body_ipos[b][2])) for b in self.bodies]
+    seat = model.site(self._seat()).pos
+    self._seat_xz = (float(seat[0]), float(seat[2]))
     lim = JointLimits.of(spec.motor)
-    self.peak, self.sat, self.noload = lim.peak[0], lim.saturation[0], lim.noload[0]
+    self.peak, self.sat, self.noload = (float(lim.peak[0]), float(lim.saturation[0]),
+                                        float(lim.noload[0]))
     self.kp, self.kd = ARM_KP, ARM_KD
+    #: How fast the target walks to the goal, rad/s: ARM_SLEW, or slower
+    #: for a move that asks for it.
+    self.slew = ARM_SLEW
     self.target = np.array(self.q())
     self.goal = self.target.copy()
     #: A carried tool's mass and its CoM, the SEAT's frame offset (level).
     self.payload = (0.0, (0.0, 0.0))
-    self._jac = np.zeros((3, model.nv))
-    self._mj = mujoco
 
   def q(self) -> tuple[float, float]:
     """(shoulder, forearm's absolute angle)."""
@@ -592,47 +631,84 @@ class ArmDriver:
     the driver ramps toward them at ARM_SLEW."""
     self.goal = np.array([shoulder, shoulder + elbow])
 
+  def hold_at(self, shoulder: float, elbow: float) -> None:
+    """Hold the arm where it IS, at these joint angles, with no ramp: for a
+    body put there by hand (a warp, a stand-up), whose joints are there."""
+    self.goal = np.array([shoulder, shoulder + elbow])
+    self.target = self.goal.copy()
+
   def arrived(self, tol: float = 0.01) -> bool:
     return bool(np.all(np.abs(np.array(self.q()) - self.goal) < tol)
                 and np.all(self.target == self.goal))
 
   def gravity(self) -> np.ndarray:
-    """What the two motors hold against gravity, N*m: the arm's own bodies
-    and the payload, each weight through its Jacobian, split between the
-    motors as the linkage splits it (`gravity_torques`' algebra)."""
-    m, d = self.m, self.d
-    gen = np.zeros(m.nv)
-    for b in self.bodies:
-      self._mj.mj_jacBodyCom(m, d, self._jac, None, b)
-      gen += self._jac[2] * m.body_mass[b] * 9.81
+    """What the two motors hold against gravity, N*m: the arm's own links
+    and the payload, split between the motors as the linkage splits it
+    (`gravity_torques`' algebra). The arm moves in the torso's x-z plane
+    about parallel axes, so each joint holds the moment of what hangs
+    beyond it -- off the joint angles and the torso's attitude, both in
+    `qpos` (the class docstring). Equal to MuJoCo's Jacobians to 1e-15 N*m
+    at any pose, attitude and payload (`tests/test_arm.py`)."""
+    return np.array(self._gravity())
+
+  def _gravity(self) -> tuple[float, float]:
+    q = self.d.qpos
+    w, x, y, z = q[self._quat:self._quat + 4]
+    # gravity in the torso frame: the third row of the torso's rotation
+    gx = -G * 2.0 * float(x * z - w * y)
+    gz = -G * (1.0 - 2.0 * float(x * x + y * y))
+    qs = float(q[self._qs])
+    a2 = qs + float(q[self._qe])
+    a3 = a2 + float(q[self._qw])
+    c1, s1 = math.cos(qs), math.sin(qs)
+    c2, s2 = math.cos(a2), math.sin(a2)
+    c3, s3 = math.cos(a3), math.sin(a3)
+    (mu, ux, uz), (mf, fx, fz), (mp, px, pz) = self._links
+    sx, sz = self.spec.shoulder_x, self.spec.shoulder_z
+    ex, ez = sx + self.spec.upper * c1, sz + self.spec.upper * s1
+    wx, wz = ex + self.spec.fore * c2, ez + self.spec.fore * s2
+    bodies = [(mu, sx + ux * c1 - uz * s1, sz + ux * s1 + uz * c1),
+              (mf, ex + fx * c2 - fz * s2, ez + fx * s2 + fz * c2),
+              (mp, wx + px * c3 - pz * s3, wz + px * s3 + pz * c3)]
     kg, (ox, oz) = self.payload
     if kg:
-      sid = m.site(self._seat()).id
-      point = d.site_xpos[sid] + d.site_xmat[sid].reshape(3, 3) @ np.array([ox, 0.0, oz])
-      self._mj.mj_jac(m, d, self._jac, None, point, m.site_bodyid[sid])
-      gen += self._jac[2] * kg * 9.81
-    gs = gen[self.vadr["shoulder"]]
-    ge = gen[self.vadr["elbow"]]
-    gw = gen[self.vadr["wrist"]] if "wrist" in self.vadr else 0.0
-    return np.array([gs - ge, ge - gw])
+      tx, tz = self._seat_xz[0] + ox, self._seat_xz[1] + oz
+      bodies.append((kg, wx + tx * c3 - tz * s3, wz + tx * s3 + tz * c3))
+
+    def held(ax: float, az: float, links) -> float:
+      return sum(m * ((bz - az) * gx - (bx - ax) * gz) for m, bx, bz in links)
+    hs, he, hw = held(sx, sz, bodies), held(ex, ez, bodies[1:]), held(wx, wz, bodies[2:])
+    return hs - he, he - hw
 
   def _seat(self) -> str:
     name = self.m.body(self.bodies[2]).name
     return name.replace("arm_plate", "arm_seat")
 
   def step(self) -> np.ndarray:
-    dt = self.m.opt.timestep
-    self.target += np.clip(self.goal - self.target, -ARM_SLEW * dt, ARM_SLEW * dt)
-    q, qd = np.array(self.q()), np.array(self.qd())
-    tau = self.kp * (self.target - q) - self.kd * qd + self.gravity()
-    # The motor's envelope at the joint's speed (`actuator.envelope`); the
-    # forearm's motor turns at the forearm's absolute rate.
-    from pluggybot.legs.actuator import envelope
-    lo, hi = envelope(qd, np.full(2, self.sat), np.full(2, self.peak),
-                      np.full(2, self.noload))
-    tau = np.clip(tau, lo, hi)
-    self.d.ctrl[self.act] = tau
-    return tau
+    """The two torques for this physics step, written to `ctrl`. Two joints,
+    so plain floats: numpy's per-call overhead was a fifth of the step."""
+    d, t, g = self.d, self.target, self.goal
+    lim = self.slew * self.m.opt.timestep
+    t[0] += min(max(g[0] - t[0], -lim), lim)
+    t[1] += min(max(g[1] - t[1], -lim), lim)
+    qs = float(d.qpos[self._qs])
+    qf = qs + float(d.qpos[self._qe])
+    vs = float(d.qvel[self._vs])
+    vf = vs + float(d.qvel[self._ve])
+    gs, ge = self._gravity()
+    tau_s = self._envelope(self.kp * (t[0] - qs) - self.kd * vs + gs, vs)
+    tau_e = self._envelope(self.kp * (t[1] - qf) - self.kd * vf + ge, vf)
+    d.ctrl[self.act[0]] = tau_s
+    d.ctrl[self.act[1]] = tau_e
+    return np.array([tau_s, tau_e])
+
+  def _envelope(self, tau: float, qd: float) -> float:
+    """`actuator.envelope` for one motor: the DC line through (0, sat) and
+    (noload, 0), clipped at the peak; the forearm's motor turns at the
+    forearm's absolute rate."""
+    hi = min(max(self.sat * (1.0 - qd / self.noload), 0.0), self.peak)
+    lo = min(max(self.sat * (-1.0 - qd / self.noload), -self.peak), 0.0)
+    return min(max(tau, lo), hi)
 
 
 def _has(model, joint: str) -> bool:

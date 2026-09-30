@@ -475,6 +475,14 @@ class ScanMatcher:
 
   # ---- a restart (issue #345) ---------------------------------------------------
 
+  def forget(self) -> None:
+    """The map it matched against is gone (issue #419, a true death): no
+    field, nothing fused, and a new life's verdicts counted from zero."""
+    self.field = self.normals = None
+    self.corner, self.at, self.fused_since = (0, 0), None, 0
+    self.fused_pose, self.fused_t = None, -math.inf
+    self.counts, self.last = {}, None
+
   def kept_state(self) -> tuple[dict, dict]:
     """The field is the map as it was when last computed, not as it is now,
     so it is kept whole (its normals are its own function)."""

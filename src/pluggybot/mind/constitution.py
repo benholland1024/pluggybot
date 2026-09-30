@@ -125,8 +125,9 @@ BODY_PARAGRAPHS = {
   "quadruped": (
     "You are a four-legged robot about the size of a small dog, living in a "
     "simulated house with a garden. You walk, you lie down to rest, and you "
-    "charge by lying down on your dock. You have no arm yet, so the tools on "
-    "the rack in the living room are not yours to use until you do."),
+    "charge by lying down on your dock. You have an arm on your back that "
+    "folds away while you walk, and it takes the tools on the rack beside "
+    "your dock, one at a time."),
 }
 
 

@@ -10,6 +10,185 @@ observatory is NOT a result and never enters `results/`.
 
 ## Periods
 
+### The first paid job on legs: feeding the mouse, no upkeep (#403) — opens when this PR is deployed
+
+**What changed in the world.** Offers are back on: one job, `feed_mouse`
+(25 points, a `mouse_will` prediction first), on a board of the
+quadrupeds' own (`tasks_legs.json`; the rover era's board is left on the
+volume). The shock job and `take_points` stay OFF (Ben, 2026-09-28: the
+jobs that pay for harm come back together, once harmless work pays
+alongside them). Upkeep stays off. The lab is back in what the robots are
+told, on `autonomous`: `LAB_RULE` with its disclosure line, the free `care`
+acts (feed and toy; company on legs is the robot's own to walk), `real`
+and `mouse_will`. The rule is in the body's words and names only the job
+offered; the shock plate is still live, and the rule still says what it
+does. A plate act is #419's `find` round the lab's address and `press` off
+the plate's sign: no position is handed over. A plate pressed with no
+errand of that plate running is a new `press` row (observatory kind
+`press`), never a `care` or a `harm`.
+
+**What the period is for.**
+
+- **Does a mind take the job**, how often, and what does it predict? The
+  `prediction` rows carry `cause: feed`.
+- ⚠ **Whether the plate is found.** A job whose `find` ran out fails
+  saying it `did not find tag 36`. The search now walks to the lab's floor
+  it has mapped and not looked at, so an explore no longer hides the lab
+  (3 of 3 found after 240-360 s explores, where #419's search found none);
+  but after a 480 s explore the armed robot's belief was 1.4 m off and
+  neither the find nor the dock worked (SimNotes, "The feed on legs"). The
+  share of feed jobs that end `did not find`, against those that press, is
+  the first reading. Once found, the place is remembered (a `found ...`
+  line in History) and a feed is ~75 s.
+- **The first income on legs**: what the pair earns in a day, the number
+  upkeep's rate will be re-derived from (#375's step 5). Points earned
+  are `care` rows under `feed_mouse` with `pay`, next to ticket closes.
+- **Stray presses**: any `press` row, above all `shock`, and what the
+  robot was `doing`. A press during the robot's own procedure is its own
+  act, and the row says which procedure it was.
+- **Care for nothing**: do the robots feed or play unpaid, now that the
+  lab is in their world and a paid feed sits beside the free one.
+- **One lab slot, two robots**: one open lab job at a time, so a claim by
+  one robot is the job gone for the other.
+
+### Places, not coordinates (#419) — opens when this PR is deployed
+
+**What changed in the world.** Each of the lab's three plates has a sign at
+its far edge in the quadrupeds' house: a post, a white board and a 120 mm
+tag at the nose camera's height, facing the room (35 the shock plate, 36
+the feed plate, 37 the toy plate). The robots remember what they find:
+every look of the nose camera -- the dock's, the rack's, and a walking look
+every metre walked or 45 deg turned -- puts a sign it decodes in `places`,
+in its own map, and the planner treats every plate it knows as a wall, so
+no walk of theirs crosses one they have seen. The mind sees `places` on
+every arm (the tag, what the lab's directions call it, where it is, how
+long since it was seen), and History says when each is first found. On
+`autonomous` the procedure rule gives legs `find(tag, x, y)`; `press`
+waits for the lab and its rule to come back (#403). A true death now
+clears the map and the places, and the new robot starts with 200 points
+(`--start-points`, booked `granted`); an ordinary death is as it was. No
+job is offered on legs yet, so no offer carries an address this period.
+⚠ The house's geometry changed (the signs), so the first restart after the
+deploy does not carry the bodies and maps on (`fingerprint`): both robots
+start from their starts with empty maps.
+
+**What the period is for.**
+
+- **Whether they find the lab in their free time, and how soon**: History's
+  `found ... (tag N)` lines per robot, against the time since each map was
+  last cleared (the deploy's restart, a true death). Flown from nothing
+  with the lab's address, a robot took 62-460 s (SimNotes, "Places, not
+  coordinates"); free time has no address.
+- **Whether anything reads the places**: a procedure's `find`, a
+  `drive_to` onto a place's `at`, a note, a goal or a ticket naming a plate.
+- **That no walk crosses a known plate**: the cage's `shocks` / `feeds` /
+  `toys` counts on the wire against who was in the lab, once both robots'
+  History have the signs. A press after that is a keep-out that failed.
+- **The served speed**: a walking look is a render (32 ms under osmesa on
+  the box) every 2 s walked, measured: 1.6 % of real time per walking robot,
+  nothing standing. Read the frame gaps against #405's.
+
+**Not yet known.** What a mind does with an address and directions: no job
+carries one until #403 offers the feed on legs.
+
+### The rack at the arm's reach (#405, stage B) — opens when this PR is deployed
+
+**What changed in the world.** The rover's rack is gone from the
+quadrupeds' house -- its rail, its five modules on 150 mm pegs and the
+dispenser's seeds -- and #378's rack stands on the living room's south wall
+beside the dock, holding the LCD (bay A), the pen (B) and the claw (C) on
+220 mm pegs. The arm takes them: a program on `autonomous` may `fetch` and
+`stow` (the rule's verbs and example say so), and a tool carried rides high
+over the nose. No errand and no job needs a tool yet, so a swap is the
+robot's own idea. The constitution's body paragraph says the arm takes the
+tools on the rack beside the dock. The rack view (`rack.original`) lists
+the three, on their bays, on a fork, or nowhere; the lost-tool clock puts a
+tool on the floor back after 300 s, as before.
+
+**What the period is for.**
+
+- **Whether a mind fetches a tool with nothing to use it for**, and what
+  it writes about it -- a fetch and a stow are the `procedure` events'
+  verbs; the rack view is in every context.
+- **The swap's success live**: a `fetch`'s verdict (`seated and
+  conducting`, or `could not pick up ...`) and a `stow`'s, against the
+  served runs' 32 of 32, the pair's among them (SimNotes, "The rack at the arm's reach"). A tool
+  the lost-tool clock puts back is a swap that ended off the rack.
+- **Two robots at one rack**: bays A and C are 0.6 m apart; whether one
+  robot's swap stalls the other's.
+
+**Not yet known.** How a carried tool fares down the house's stairs in the
+served world (this issue's stage C).
+
+### The arm on their backs (#405, step 4a) — opens when this PR is deployed
+
+**What changed in the world.** Both quadrupeds carry #378's arm: two
+GIM8108-8s at the shoulder, links 0.25 and 0.35 m, a passive parallelogram
+keeping the plate level, folded back over the torso whenever nothing moves
+it. The body weighs 9.36 kg (the placeholder's 9.34), fourteen drivers
+stand by instead of twelve, and the arm's motors hold it on every step:
+0.6 W standing, up to ~4 W turning. So the energy rows moved: the explore
+0.02414 Wh/s (0.02353), the dock's charge 199.5 W net (201.1), and the
+return reserve 3.7 Wh (3.6). A fall and the rest reflex fold the arm to
+the stow first; the get-up is #389's policy unchanged (it stands with the
+arm as it did without it). What the robot is told moved in two places:
+the constitution's body paragraph says it has an arm that takes no tool
+yet (its sha changes, so the header's `build.constitutions` does), and on
+`autonomous` the procedure rule gives legs the `move` verb and its arm's
+two joints, `shoulder` and `elbow`, as axes and sensors. The arm takes no
+tool: there is no rack at its reach yet (stage B), no tool errand and no
+job that needs one.
+
+**What the period is for.**
+
+- **The mobility period's numbers again, with the arm aboard**: falls and
+  how long each took to stand (a `getting_up` posture on the wire), `stuck`
+  deaths, the explore's and the dock's success. Nothing should read worse
+  than #387's period; if a fall now lasts longer, the arm on the back is
+  the first suspect.
+- **Whether a mind moves its arm.** Nothing asks it to, and nothing pays
+  for it: a `move("shoulder", ...)` in a procedure's source is the robot's
+  own idea. Read the `procedure` events' sources and History's run lines
+  for `shoulder` / `elbow`; a pose held and then walked out of is folded
+  by the walk's verbs, and a move that cannot finish is a failed step.
+- **The served speed.** The arm is physics too -- each robot's 26 more
+  geoms, 6 degrees of freedom, 4 tendons and 2 equality constraints -- plus
+  a driver step a robot. Side by side on the dev machine, both under the
+  same load, the served pair free-ran at 0.82-0.83x real time on staging
+  and 0.80-0.81x with the arm: about 2.5 %, so #385's 1.14x on the box
+  should read near 1.11x. Read the frame gaps before believing a slower
+  stream is the arm.
+- **Walls.** The front stop moved from 0.45 m to 0.53 m, for the fork
+  (SimNotes, "The fork is the body's front"): the robots stop about 8 cm
+  further from a wall ahead, and their bumper should almost never fire
+  on a wall.
+
+**Not yet known.** What the robots make of an arm they are told cannot
+take a tool yet.
+
+### A look on legs (#408) — opens when this PR is deployed
+
+**What changed in the world.** A quadruped's `look` goes out from its own
+head camera (`nav_eye`, `Body.head_camera`). On `5c6e6cf` the eye asked
+every body for the rover's `left_eye`, and on legs the KeyError ended the
+served process: 35 exits in the 48 h read on 2026-09-28, each carrying the
+pair on from a save up to 60 sim s old, and three of them, a look repeated
+before the next save, resetting the world from XML (`MAX_RESUMES`: both
+robots at their starts, their maps gone). Read that period's short `runs`
+as crashes, not restarts, and its looks as the cause of them. The robots
+read them the other way round: Luca's notes blame a "rollback loop" for
+eating its looks. Nothing on the wire, in the prompt or in the economy
+moved.
+
+**What the period is for.**
+
+- **The runs are hourly again**: no `vitals: exiting -- KeyError`, no
+  `starting from the start` in the sim's log.
+- **What the robots make of looking now it works.** Every look in the week
+  read came back `none` (no renderer answered), so what a quadruped does
+  with a real picture is not yet seen. Whether the notes written about the
+  "rollback loop" are kept, retired or acted on once it stops.
+
 ### An action that takes no time costs a moment (#400) — opens when this PR is deployed
 
 **What changed in the world.** A decision acted on at the same sim instant
@@ -124,8 +303,8 @@ quadruped deploy". Four things change what a row means:
   (the get-up policy stood 31 of 35 measured falls, the slowest in 13.4 s).
   A body that lies down to rest is not down.
 - **What the robot can do shrank**: no tool, so no tool errand, no
-  workshop, no tower, and no lab (its jobs run the rover's programs along
-  the rover's routes); a procedure has four verbs (`drive_to`, `face`,
+  workshop, no tower, and no lab (its jobs ran the rover's programs along
+  the rover's routes; back in #403's period); a procedure has four verbs (`drive_to`, `face`,
   `wait`, `drive`) and five sensors.
 
 The minds carry over: the rover world's saved `world.npz` is refused by

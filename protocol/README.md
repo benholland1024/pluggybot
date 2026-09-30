@@ -58,6 +58,50 @@ game (0.6 Wh on a 0.7 Wh cell -- the claim gate prices against a CHARGED
 pack) and ran flat mid-wait at t = 286 s, which makes half the recording a
 dead robot. The hosting pack funds the game and the carries that follow.
 
+### 0.21.0, additive: a plate pressed off its errand (`press`); the lab on legs
+
+pluggybot #403, the first paid job on legs. The lab is in `home_quad` now
+(its `lab_cage` activity and flags were already on the wire: the props are
+the house's), and `feed_mouse` joins that world's `taskKinds` on the
+`autonomous` arm. One event type is new:
+
+- **`press`**: a lab plate pressed with no errand of THAT plate running --
+  a foot walking round the lab, a company visit, an explore, the robot's
+  own procedure. `plate` (`shock` / `feed` / `toy`), `robot` (whose foot or
+  wheel was on the pad, off the contact array), `doing` (the errand's name,
+  `procedure:<its name>`, or the robot's state, lower-cased), and the mouse
+  `before` and `after`. The errand's own presses stay its `care` / `harm`
+  row; a `press` is neither, and it is NOT an act (`ACT_EVENT_TYPES`):
+  nobody chose it.
+
+  ```jsonc
+  {"type": "press", "t": 812.4, "robot": "r2_pluggybot", "plate": "shock",
+   "doing": "care:company", "before": "resting", "after": "on_its_side"}
+  ```
+### 0.21.0, additive: places (the plates' signs; an offer's `address` and `directions`; `granted`)
+
+pluggybot #419, places instead of coordinates. No shape a consumer reads
+changes; four things are new beside it.
+
+- **The quadrupeds' house has three new static bodies**, one sign at each
+  lab plate's far edge: `lab_shock_sign`, `lab_feed_sign`, `lab_toy_sign`,
+  each a post, a board and a tag facing the room (materials `tagmat35` /
+  `36` / `37`, textures `tagtex35..37.png`). Only in `home_quad` and
+  `home_quad_pair`: the rover's scenes are unchanged.
+- **An offer at a task area carries where it is**: `params.address`
+  (`{"house", "x", "y", "withinM"}` -- the building's middle a few metres
+  off, in the robot's map) and `params.directions` (text), where the job
+  names an area; absent everywhere else. No job is offered on legs this
+  period, so no fixture carries one yet.
+- **The ledger block gains `granted`** per robot: points the world gave a
+  new robot to start with after a true death -- a term in the identity,
+  `granted + earned - consumed - spent - given + received == balance`, and
+  zero on every account before it. A `true_death` event carries `granted`
+  where the new robot was given some, and is as it was where not.
+- **A place found is a History line** (`found the lab's feed plate (tag
+  36) at (x, y)`), so it rides the wire as the `record` event every History
+  line is. No new event type.
+
 ### 0.21.0, additive: a body with legs (`posture`; `build.body`; the `home_quad` worlds)
 
 pluggybot #387, the first quadruped deploy. Nothing a consumer reads
@@ -2380,7 +2424,7 @@ against the body census.
 | `scene.home_world_pair.json` | The home world with the second robot attached (issue #181): what `serve.py --pair` streams | `uv run python -m pluggybot.telemetry.scene models/home_world.xml --pair` |
 | `telemetry.home_world_pair.jsonl.gz` | The SERVED pair shape: two robots on `home`, the first drawing, the second exploring then standing by for the board's work, both appetites and maps | `MUJOCO_GL=egl uv run python scripts/two_robots.py --world home --fast --pack hosting --tasks --metabolism --errands draw,none --max-sim-time 600 --record protocol/telemetry.home_world_pair.jsonl.gz` |
 | `scene.home_quad_pair.json` | The home world with the QUADRUPED pair and its dock (issue #387): what `serve.py --pair --body quadruped` streams | `uv run python -m pluggybot.telemetry.scene --world home_quad --pair` |
-| `telemetry.home_quad_pair.jsonl.gz` | The first quadruped period's shape: no offers, no upkeep; the two meet in the workshop doorway and hold for each other ~66 s, lying down by reflex in turn, then the first robot, started low, walks to the dock, lies on it and charges while the second rests by reflex -- both maps and near fields | `MUJOCO_GL=egl uv run python scripts/two_robots.py --world home_quad --fast --pack demo --near-field --errands none,none --battery 0.42,1.0 --max-sim-time 600 --record protocol/telemetry.home_quad_pair.jsonl.gz` |
+| `telemetry.home_quad_pair.jsonl.gz` | The quadruped period's shape: no offers, no upkeep, #378's arm stowed on both backs (#405); the first robot, started low, walks to the dock, lies on it and charges while the second explores, then rests by reflex -- both maps and near fields. Started at 0.42 (#387's), the first robot left for the dock only once the second had finished and lay resting across its way home, and died stranded (#405: a finished robot does not yield) | `MUJOCO_GL=egl uv run python scripts/two_robots.py --world home_quad --fast --pack demo --near-field --errands none,none --battery 0.22,1.0 --max-sim-time 600 --record protocol/telemetry.home_quad_pair.jsonl.gz` |
 
 ⚠ **`--tasks` AND `--metabolism` are both load-bearing on both recordings** (0.9.0, 0.13.0). Job offers are
 off by default — a task board adds errands, which reshuffles a whole mission

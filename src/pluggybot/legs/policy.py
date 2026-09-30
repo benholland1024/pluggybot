@@ -30,8 +30,9 @@ from pathlib import Path
 import mujoco
 import numpy as np
 
+from pluggybot.legs.arm import ArmDriver
 from pluggybot.legs.drivers import Drivers
-from pluggybot.legs.model import JOINT_NAMES
+from pluggybot.legs.model import CHOSEN, JOINT_NAMES
 from pluggybot.telemetry.protocol import ROBOT_ROOT
 
 POLICY_NPZ = Path(__file__).resolve().parents[3] / "models" / "quadruped_policy.npz"
@@ -139,14 +140,24 @@ class PolicyDriver:
     self.gyro_adr = model.sensor_adr[self.gyro]
     self.every = max(1, round(policy.period / model.opt.timestep))
     self.scan_xy = scan_offsets()
-    #: Terrain only: the robot's own geoms (groups 1, 2) never block a ray.
+    #: Terrain only: the robot's own geoms (groups 1, 2) never block a ray...
     self.scan_groups = np.array([1, 0, 0, 0, 0, 0], dtype=np.uint8)
+    #: ...nor a tool riding its fork, a body of its own in group 0: carried
+    #: over the nose it read as a 0.4 m obstacle (#378). Its body id, or -1.
+    self.scan_exclude = -1
     #: Where the scan comes from: the ideal casts, or what the robot has
     #: (`legs.scan.MapScan.scan`, #388).
     self.scan = scan if scan is not None else self.height_scan
     self.last_action = np.zeros(len(JOINT_NAMES))
     self.target = policy.default_q.copy()
     self.steps = 0
+    #: The arm (#378), where the body has one: held where it stands by
+    #: `step`, the instruments' path, as the served body holds it (a limp arm
+    #: falls across the nose camera). Built at the first `step`: the served
+    #: body drives its own (`QuadMission.arm`) and calls `command`, never
+    #: `step`.
+    self.arm: ArmDriver | None = None
+    self._arm_prefix: str | None = prefix      # None once looked for
 
   def observation(self, twist: Twist) -> np.ndarray:
     """The policy's input, term by term in the order its file names them
@@ -185,7 +196,7 @@ class PolicyDriver:
     # `mj_multiRay` (one origin, many directions) cannot cast.
     for i, (x, y) in enumerate(xy):
       dist = mujoco.mj_ray(self.m, d, np.array([body[0] + x, body[1] + y, top]),
-                           down, self.scan_groups, 1, -1, geomid)
+                           down, self.scan_groups, 1, self.scan_exclude, geomid)
       if 0 <= dist <= SCAN_MAX_M + SCAN_RAISE_M:
         out[i] = body[2] - (top - dist)
     return out
@@ -207,6 +218,18 @@ class PolicyDriver:
     self.steps += 1
 
   def step(self, twist: Twist) -> None:
-    """One physics step with the policy driving."""
+    """One physics step with the policy driving, the arm held."""
     self.command(twist)
+    if self._arm_prefix is not None:
+      self.arm = _arm_held(self.m, self.d, self._arm_prefix)
+      self._arm_prefix = None
+    if self.arm is not None:
+      self.arm.step()
     mujoco.mj_step(self.m, self.d)
+
+
+def _arm_held(model, data, prefix: str = "") -> ArmDriver | None:
+  """The body's arm held where it stands, or None on a body without one."""
+  if mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_ACTUATOR, f"{prefix}arm_shoulder") < 0:
+    return None
+  return ArmDriver(model, data, CHOSEN.arm, prefix=prefix)

@@ -15,8 +15,10 @@ negative), the `>` every quadruped of this class stands in.
 
 Masses are a BUDGET, each line a part (Parts.md, "The quadruped body"):
 actuators from the datasheet, the rest estimated from the parts named at
-`MassBudget`, and #378's arm a placeholder until #378 sizes it. Inertia is
-MuJoCo's, from each geom's shape at uniform density.
+`MassBudget`. The chosen body carries #378's ARM (`legs.arm`, issue #405),
+whose parts are its own geoms; #377's sizing tables flew a placeholder for
+it, and `SIZING` is that premise. Inertia is MuJoCo's, from each geom's
+shape at uniform density.
 """
 
 from dataclasses import dataclass, field, replace
@@ -24,6 +26,7 @@ import math
 
 from pluggybot.legs.actuator import (FRICTION_NOMINAL, GIM4305_10, GIM8108_8,
                                      JointLimits, Motor, driver_gains)
+from pluggybot.legs.arm import ArmSpec, arm_mjcf
 from pluggybot.telemetry.protocol import ROBOT_ROOT
 
 LEGS = ("FL", "FR", "HL", "HR")
@@ -52,12 +55,13 @@ class MassBudget:
   depth_cam: float = 0.09
   #: Two camera modules + mounts.
   cameras: float = 0.03
-  #: #378's arm, stowed, WITHOUT the tool: two actuators and two links.
-  #: A placeholder budget until #378 sizes it -- the torque table is flown at
-  #: this figure and must be re-flown if #378 needs more.
+  #: #378's arm, stowed, WITHOUT the tool: two actuators and two links -- a
+  #: PLACEHOLDER, #377's sizing premise (`SIZING`). A body with a real arm
+  #: (`BodySpec.arm`) budgets 0 here: the arm's parts are its own geoms.
   arm: float = 0.90
   #: The tool at the arm's tip (the rover's ~250 g practical ceiling,
-  #: ToolPattern.md "Mass and geometry class").
+  #: ToolPattern.md "Mass and geometry class"), the same placeholder's. With
+  #: a real arm a tool is a body of its own, on a rack or on the fork.
   tool: float = 0.25
 
   @property
@@ -90,10 +94,13 @@ class BodySpec:
   shank_mass: float = 0.07
   foot_mass: float = 0.02
   masses: MassBudget = field(default_factory=MassBudget)
-  #: The arm's pose for the torque table: stowed along the torso's top, or
-  #: reaching straight forward at full length with the tool.
+  #: The PLACEHOLDER arm's pose for the torque table: stowed along the
+  #: torso's top, or reaching straight forward at full length with the tool.
   arm_reach: bool = False
   arm_length: float = 0.55
+  #: The real arm (`legs.arm`, #378), built onto the torso with its joints
+  #: after the legs'; None flies the placeholder in `masses`.
+  arm: ArmSpec | None = None
   #: Hip axis -> the belly's underside. The battery hangs below the torso as
   #: a belly pack so the robot can LIE on it with its shanks flat and its
   #: legs unloaded: a folded leg (knee at its stop) holds the hips 0.10 m up,
@@ -111,10 +118,10 @@ class BodySpec:
 
   @property
   def mass(self) -> float:
-    """The whole robot, kg."""
+    """The whole robot, kg: without a tool, where the arm is real."""
     legs = 4 * (3 * self.motor.mass + self.thigh_mass + self.shank_mass
                 + self.foot_mass)
-    return legs + self.masses.total
+    return legs + self.masses.total + (self.arm.mass if self.arm else 0.0)
 
   def with_(self, **kw) -> "BodySpec":
     return replace(self, **kw)
@@ -130,16 +137,23 @@ ELECTRONICS_W = {
   # RealSense D435 streaming depth with its projector: the rover's
   # `power.DEPTH_CAMERA_W` (the maker's 3.40 W is depth AND 1080p colour).
   "depth camera": 2.0,
-  # Twelve GDS68 drivers powered, the maker's standby current (< 10 mA) at
-  # 48 V. An enabled FOC loop at zero torque is unpublished and draws more.
-  "drivers": 12 * 0.48,
+  # Fourteen GDS68 drivers powered -- the legs' twelve and the arm's two --
+  # the maker's standby current (< 10 mA) at 48 V. An enabled FOC loop at
+  # zero torque is unpublished and draws more.
+  "drivers": 14 * 0.48,
 }
 #: The pack: 12S1P Molicel P45B, twelve 3.6 V 4.5 Ah cells (Parts.md,
 #: "The quadruped body"), Wh. The served world flies it as it is (#387).
 PACK_WH = 12 * 3.6 * 4.5
 
-#: The body #377 proposes; `models/quadruped.xml` is its standalone MJCF.
-CHOSEN = BodySpec()
+#: The body #377 proposes, with #378's arm on it (issue #405);
+#: `models/quadruped.xml` is its standalone MJCF.
+CHOSEN = BodySpec(arm=ArmSpec(), masses=MassBudget(arm=0.0, tool=0.0))
+#: #377's SIZING PREMISE: the chosen body with its arm a 0.9 kg placeholder
+#: and a 0.25 kg tool on its back, what the torque, thermal and energy
+#: tables were flown on (`scripts/quad_spike.py`). The real arm weighs 1.17
+#: kg, carried in its links and motors; its loads are #378's tables.
+SIZING = CHOSEN.with_(arm=None, masses=MassBudget())
 MODEL_XML = "models/quadruped.xml"
 #: The body's constants for `training/`, which cannot import this package.
 CONSTANTS_JSON = "models/quadruped.json"
@@ -240,8 +254,14 @@ def body_xml(spec: BodySpec, *, root: str = ROBOT_ROOT,
   `actuator.JointLimits` -- a measuring instrument that commands torque.
 
   `arm` is a real arm in place of the budget's placeholder: the fragments
-  `legs.arm.arm_mjcf` builds. Its joints come AFTER the legs', so the
-  legs stay `qpos[7:19]` and the keyframes carry the arm stowed."""
+  `legs.arm.arm_mjcf` builds, by default `spec.arm`'s. Its joints come
+  AFTER the legs', so the legs stay `qpos[7:19]` and the keyframes carry
+  the arm stowed."""
+  if arm is None and spec.arm is not None:
+    if spec.arm_reach:
+      raise ValueError("a real arm reaches by its joints: arm_reach is the "
+                       "placeholder's (SIZING)")
+    arm = arm_mjcf(spec.arm)
   m = spec.motor
   tx, ty, tz = spec.torso
   h0 = spec.stand_height
@@ -483,7 +503,22 @@ def training_constants(spec: BodySpec = CHOSEN) -> dict:
     "latency_s": list(act.LATENCY_S),
     "bus_v_range": list(act.BUS_V_RANGE),
     "backlash_rad": act.BACKLASH_RAD,
+    # The arm (#378), held at its stow wherever a policy runs: the served
+    # body holds it there walking and getting up, so training fixes it
+    # there (`quad_train.robot.get_spec`) -- its joints in that pose, and
+    # the linkages that bind them.
+    "arm": _arm_constants(spec.arm),
   }
+
+
+def _arm_constants(arm: ArmSpec | None) -> dict | None:
+  if arm is None:
+    return None
+  frags = arm_mjcf(arm)
+  return {"joints": ["arm_shoulder", "arm_elbow", "arm_wrist"][:len(frags["qpos"])],
+          "stow_qpos": [round(q, 6) for q in frags["qpos"]],
+          "tendons": ["arm_fore", "arm_level"], "equalities": ["arm_level"],
+          "axis": [0.0, -1.0, 0.0]}
 
 
 def attachable(spec: BodySpec = CHOSEN, **kw):

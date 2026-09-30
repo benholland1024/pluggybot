@@ -739,12 +739,15 @@ def getup_one(args) -> dict:
   legs), with the arm folded and held at its stow -- or, `arm` False, the
   placeholder the policy trained with."""
   trial, with_arm = args
+  from pluggybot.legs.model import SIZING
   from pluggybot.legs.model import body_xml as bx
   from pluggybot.legs.policy import POLICY_NPZ
   sys.path.insert(0, str(ROOT / "scripts"))
   import quad_spike as qs
   spec = am.ArmSpec()
-  model = mujoco.MjModel.from_xml_string(bx(CHOSEN, arm=am.arm_mjcf(spec) if with_arm else None))
+  # the premise is #377's placeholder: `CHOSEN` with no arm given carries its own
+  model = mujoco.MjModel.from_xml_string(
+    bx(CHOSEN, arm=am.arm_mjcf(spec)) if with_arm else bx(SIZING))
   data = mujoco.MjData(model)
   mujoco.mj_resetDataKeyframe(model, data, 0)
   rng = np.random.default_rng(1000 + trial)
@@ -1466,6 +1469,238 @@ def view_reach() -> None:
         distance=1.9, azimuth=90.0, elevation=-5.0)
 
 
+# ---- the served world: fetch and stow at the rack in the house (#405) ---------------
+
+#: Where a flight "from across the house" starts: the house's spawns, each
+#: facing its own way, the workshop's moved off its table (the rover's
+#: spawn there is inside it: a quadruped set down on it fell), and the
+#: bedroom's and the south garden's middles -- the kitchen, the workshop
+#: and the garden are the far rooms.
+HOUSE_STARTS = {"kitchen": (-8.5, 4.0, 0.0), "workshop": (-7.0, 0.5, 0.0),
+                "hall": (-3.5, 1.0, 0.0), "bedroom": (1.5, 4.25, -1.19),
+                "garden": (7.5, 2.0, 0.0), "garden_south": (4.0, -4.0, -2.41),
+                "living": (1.5, 0.5, 1.5708)}
+#: A flight's budget, sim s: each swap walks up to the drive's patience.
+SERVED_S = 400.0
+
+
+def _served_start(kind: str, k: int, body) -> tuple[float, float, float]:
+  """Where flight `k` starts: `dock`, on the dock's approach standoff (where
+  a robot that undocked stands) jittered 0.1 m and 15 deg, or `house`, one
+  of `HOUSE_STARTS` in turn."""
+  rng = np.random.default_rng(405 + k)
+  if kind == "dock":
+    x, y, yaw = body.charge_standoff()
+    return (x + rng.uniform(-0.1, 0.1), y + rng.uniform(-0.1, 0.1),
+            yaw + math.radians(rng.uniform(-15, 15)))
+  return tuple(HOUSE_STARTS.values())[k % len(HOUSE_STARTS)]
+
+
+def served_one(args) -> dict:
+  """One served quadruped, a fresh map, from a start: fetch a tool off its
+  bay and hang it back. Measured off the world: seated and conducting after
+  the fetch, hung after the stow."""
+  kind, k = args
+  from pluggybot.home import world as home
+  from pluggybot.legs import body as qb
+  from pluggybot.legs import world as lw
+  from pluggybot.rack.coupling import STATION_YS
+  model = lw.home_spec().compile()
+  data = mujoco.MjData(model)
+  body = qb.QuadBody(model, data, realtime=False, grid_bounds=home.GRID_BOUNDS)
+  start = _served_start(kind, k, body)
+  body.start_at(*start)
+  tool = tuple(rk.TOOL_BAYS)[k % len(rk.TOOL_BAYS)]
+  station = STATION_YS[rk.TOOL_BAYS[tool]]
+  out = {"kind": kind, "k": k, "tool": tool, "start": [round(v, 2) for v in start]}
+  t0 = data.time
+  out["fetchWhy"] = body.run(body.fetch_tool_routine(station, tool))
+  out["fetchS"] = data.time - t0
+  out["fetched"] = body.module_state(tool)["on_fork"] and body.tool_powered(tool)
+  out["fetchTrace"] = body.swap_trace()
+  if out["fetched"]:
+    t0 = data.time
+    out["stowWhy"] = body.run(body.stow_tool_routine(station, tool))
+    out["stowS"] = data.time - t0
+    out["stowTrace"] = body.swap_trace()
+  st = body.module_state(tool)
+  out["stowed"] = bool(out["fetched"] and st["hung"] and not st["on_fork"])
+  out["falls"] = body.mission.falls
+  body.close()
+  return out
+
+
+def served_table(n: int = 10, jobs: int = 3) -> None:
+  """Fetch and stow in the served house: `n` flights from the dock and `n`
+  from across the house, the tools in turn."""
+  todo = [(kind, k) for kind in ("dock", "house") for k in range(n)]
+  from multiprocessing import Pool
+  with Pool(jobs) as pool:
+    rows = pool.map(served_one, todo, chunksize=1)
+  _served_report(rows)
+
+
+def _served_report(rows) -> None:
+  for r in rows:
+    print(f"{r['kind']:5s} {r['k']:2d} {r['tool']:11s} from {r['start']}: "
+          f"fetch {'yes' if r['fetched'] else 'NO '} {r['fetchS']:5.1f} s ({r['fetchWhy']}), "
+          f"stow {'yes' if r['stowed'] else 'NO '} {r.get('stowS', float('nan')):5.1f} s "
+          f"({r.get('stowWhy', '-')}); falls {r['falls']}")
+    for key in ("fetchTrace", "stowTrace"):
+      if r.get(key) and ("->" in r[key] and "picked" not in r[key] and "hung" not in r[key]
+                         or not r["fetched"] or not r["stowed"]):
+        print(f"      {key}: {r[key]}")
+  for kind in sorted({r["kind"] for r in rows}):
+    mine = [r for r in rows if r["kind"] == kind]
+    both = [r for r in mine if r["stowed"]]
+    print(f"{kind}: fetched {sum(r['fetched'] for r in mine)} of {len(mine)}, "
+          f"fetched and hung back {len(both)} of {len(mine)}"
+          + (f"; fetch median {np.median([r['fetchS'] for r in both]):.1f} s, "
+             f"stow median {np.median([r['stowS'] for r in both]):.1f} s" if both else ""))
+
+
+#: The served carry (#405, stage C): the tool fetched, then a walk through
+#: the house and back -- the hall, the kitchen, the garden by the east door
+#: -- a trot and turns on the garden's lawn, and the stow.
+CARRY_ROUTE = ((-3.5, 1.0), (-8.5, 4.0), (-3.5, 0.5), (7.5, 2.0))
+CARRY_TROT = ((3.0, 0.8, 0.0, 0.0), (2.0, 0.0, 0.0, 0.8), (3.0, 0.8, 0.0, 0.0),
+              (1.5, 0.0, 0.3, 0.0), (1.0, 0.0, 0.0, 0.0))
+
+
+def served_carry_one(k: int) -> dict:
+  """One served quadruped carries a tool through the house (`CARRY_ROUTE`,
+  `CARRY_TROT`) and hangs it back: the coupling's criterion every step --
+  how long it was open at worst, and whether the tool rode to the end."""
+  from pluggybot.home import world as home
+  from pluggybot.legs import body as qb
+  from pluggybot.legs import world as lw
+  from pluggybot.rack.coupling import STATION_YS
+  model = lw.home_spec().compile()
+  data = mujoco.MjData(model)
+  body = qb.QuadBody(model, data, realtime=False, grid_bounds=home.GRID_BOUNDS)
+  mis = body.mission
+  body.start_at(*_served_start("dock", k, body))
+  tool = tuple(rk.TOOL_BAYS)[k % len(rk.TOOL_BAYS)]
+  station = STATION_YS[rk.TOOL_BAYS[tool]]
+  out = {"k": k, "tool": tool, "legs": []}
+  body.run(body.fetch_tool_routine(station, tool))
+  out["fetched"] = body.tool_powered(tool)
+  if not out["fetched"]:
+    body.close()
+    return out
+  state = {"open": 0, "worst": 0, "steps": 0}
+
+  def watch():
+    state["steps"] += 1
+    if body.tool_powered(tool):
+      state["open"] = 0
+    else:
+      state["open"] += 1
+      state["worst"] = max(state["worst"], state["open"])
+  mis.step_hooks.append(watch)
+  for x, y in CARRY_ROUTE:
+    t0 = data.time
+    arrived = body.run(body.go_to_routine(x, y, timeout=120.0))
+    out["legs"].append({"to": [x, y], "arrived": bool(arrived), "s": round(data.time - t0, 1),
+                        "seated": body.tool_powered(tool)})
+  for seconds, vx, vy, w in CARRY_TROT:
+    body.run(mis._drive_routine(seconds, 0.0, 0.0) if not (vx or vy or w) else
+             _twist_for(mis, seconds, vx, vy, w))
+  out["afterTrot"] = body.tool_powered(tool)
+  out["carriedS"] = round(state["steps"] * model.opt.timestep, 1)
+  out["worstOpenMs"] = round(state["worst"] * model.opt.timestep * 1000, 1)
+  mis.step_hooks.remove(watch)
+  out["stowWhy"] = body.run(body.stow_tool_routine(station, tool))
+  out["stowed"] = body.module_state(tool)["hung"]
+  out["falls"] = mis.falls
+  body.close()
+  return out
+
+
+def _twist_for(mis, seconds, vx, vy, w):
+  t0 = mis.data.time
+  while mis.data.time - t0 < seconds:
+    yield from mis._twist_routine(vx, vy, w)
+
+
+def served_carry(n: int = 6, jobs: int = 3) -> None:
+  from multiprocessing import Pool
+  with Pool(jobs) as pool:
+    rows = pool.map(served_carry_one, range(n), chunksize=1)
+  for r in rows:
+    if not r["fetched"]:
+      print(f"carry {r['k']} {r['tool']}: NOT FETCHED")
+      continue
+    legs = ", ".join(f"{'ok' if g['arrived'] else 'NO'} {g['s']:.0f} s"
+                     + ("" if g["seated"] else " DROPPED") for g in r["legs"])
+    print(f"carry {r['k']} {r['tool']:11s}: {r['carriedS']:.0f} s carried, worst open "
+          f"{r['worstOpenMs']:.0f} ms; walks {legs}; after the trot "
+          f"{'seated' if r['afterTrot'] else 'DROPPED'}; stow {r['stowWhy']} "
+          f"{'hung' if r['stowed'] else 'NOT HUNG'}; falls {r['falls']}")
+  ok = [r for r in rows if r["fetched"] and r["afterTrot"] and all(g["seated"] for g in r["legs"])]
+  print(f"carried to the end {len(ok)} of {sum(r['fetched'] for r in rows)}; "
+        f"hung back {sum(r.get('stowed', False) for r in rows)}")
+
+
+def served_pair_one(k: int) -> dict:
+  """The served PAIR (`pair.build_pair`, one world, one loop): each robot
+  from its own start takes a tool -- the first bay A's, the second bay
+  C's, 0.6 m apart -- at once, then hangs it back at once."""
+  from pluggybot import tick
+  from pluggybot.pair import build_pair
+  from pluggybot.rack.coupling import STATION_YS
+  lives = build_pair(world="home_quad", errands=("none", "none"))
+  tools = (tuple(rk.TOOL_BAYS)[0], tuple(rk.TOOL_BAYS)[2])
+  rng = np.random.default_rng(1405 + k)
+  for life in lives:
+    x, y, yaw = life.body.pose
+    life.body.start_at(x + rng.uniform(-0.2, 0.2), y + rng.uniform(-0.2, 0.2),
+                       yaw + rng.uniform(-0.5, 0.5))
+  data = lives[0].data
+  out = {"k": k, "tools": tools}
+  t0 = data.time
+  whys = tick.run_many([(life.body.stepper,
+                         life.body.fetch_tool_routine(STATION_YS[rk.TOOL_BAYS[t]], t))
+                        for life, t in zip(lives, tools)])
+  out["fetchS"] = data.time - t0
+  out["fetched"] = [life.body.module_state(t)["on_fork"] and life.body.tool_powered(t)
+                    for life, t in zip(lives, tools)]
+  out["fetchWhy"], out["fetchTrace"] = whys, [life.body.swap_trace() for life in lives]
+  t0 = data.time
+  whys = tick.run_many([(life.body.stepper,
+                         life.body.stow_tool_routine(STATION_YS[rk.TOOL_BAYS[t]], t)
+                         if ok else _nothing())
+                        for life, t, ok in zip(lives, tools, out["fetched"])])
+  out["stowS"] = data.time - t0
+  out["stowed"] = [ok and life.body.module_state(t)["hung"]
+                   for life, t, ok in zip(lives, tools, out["fetched"])]
+  out["stowWhy"], out["stowTrace"] = whys, [life.body.swap_trace() for life in lives]
+  out["falls"] = [life.body.mission.falls for life in lives]
+  for life in lives:
+    life.body.close()
+  return out
+
+
+def _nothing():
+  return None
+  yield
+
+
+def served_pair(n: int = 5, jobs: int = 3) -> None:
+  from multiprocessing import Pool
+  with Pool(jobs) as pool:
+    rows = pool.map(served_pair_one, range(n), chunksize=1)
+  for r in rows:
+    print(f"pair {r['k']}: fetched {r['fetched']} in {r['fetchS']:.1f} s ({r['fetchWhy']}), "
+          f"hung back {r['stowed']} in {r['stowS']:.1f} s ({r['stowWhy']}); falls {r['falls']}")
+    if not all(r["stowed"]):
+      for key in ("fetchTrace", "stowTrace"):
+        print(f"      {key}: {r[key]}")
+  swaps = [ok for r in rows for ok in r["stowed"]]
+  print(f"pair: {sum(swaps)} of {len(swaps)} swaps fetched and hung back, "
+        f"{sum(all(r['stowed']) for r in rows)} of {len(rows)} flights both")
+
+
 VIEWS = {"fetch": view_fetch, "carry": view_carry, "stairs": view_stairs,
          "fall": view_fall, "reach": view_reach}
 
@@ -1491,6 +1726,14 @@ def main(argv=None) -> None:
   ap.add_argument("--approach", action="store_true")
   ap.add_argument("--reach", action="store_true")
   ap.add_argument("--envelope", action="store_true")
+  ap.add_argument("--served", action="store_true",
+                  help="the served quadruped fetching and stowing at the house's rack "
+                       "(#405): --n flights from the dock and --n from across the house; "
+                       "with --pair, the served pair swapping at once")
+  ap.add_argument("--pair", action="store_true", help="with --served")
+  ap.add_argument("--carry", action="store_true",
+                  help="with --served: a tool carried through the house, trotted and "
+                       "turned, then hung back -- the coupling's criterion every step")
   ap.add_argument("--view", nargs="?", const="fetch", choices=tuple(VIEWS),
                   help="watch a scene in the MuJoCo viewer (default: fetch) until "
                        "the window closes")
@@ -1518,6 +1761,12 @@ def main(argv=None) -> None:
     reach_table()
   elif args.envelope:
     envelope_table(args.jobs)
+  elif args.served and args.carry:
+    served_carry(args.n, args.jobs)
+  elif args.served and args.pair:
+    served_pair(args.n, args.jobs)
+  elif args.served:
+    served_table(args.n, args.jobs)
   elif args.view:
     VIEWS[args.view]()
   else:

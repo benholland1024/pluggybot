@@ -81,7 +81,8 @@ from pluggybot.economy.metabolism import METABOLISM_ENV, Appetite, Metabolism
 from pluggybot.mind.thoughts import ThoughtFiles
 from pluggybot.robot import BODIES, world_spec
 from pluggybot.lifecycle import (
-  LOST_TOOL_S, RESTART_AFTER_S, HubLifecycle, attach_mode_stream, board_book, errands_for,
+  LOST_TOOL_S, RESTART_AFTER_S, STARTING_POINTS, HubLifecycle, attach_mode_stream,
+  board_book, errands_for,
   points_ledger, task_board, task_producer, world_config, world_for, world_screens,
 )
 from pluggybot.telemetry.pacer import RealTimePacer
@@ -119,8 +120,9 @@ def serve(watchdog: "vitals.Watchdog") -> str | None:
                       default=os.environ.get("PLUGGY_BODY", "rover") or "rover",
                       help="which body the robots have (issue #387): the "
                            "wheeled rover, or the quadruped, which lives in "
-                           "the home world as `home_quad` -- no arm yet, so "
-                           "no tool errand. Default $PLUGGY_BODY, then rover")
+                           "the home world as `home_quad` -- its arm takes no "
+                           "tool yet, so no tool errand. Default $PLUGGY_BODY, "
+                           "then rover")
   parser.add_argument("--rate", type=float, default=1.0,
                       help="pacing: sim seconds per wall second")
   parser.add_argument("--free-run", action="store_true",
@@ -152,6 +154,12 @@ def serve(watchdog: "vitals.Watchdog") -> str | None:
                       help="SIM seconds a tool lies on no bay and no fork "
                            "before the world puts it back (issue #347; 0 "
                            "disables it). ON here and off in the experiment "
+                           "harness, on --restart-after's terms")
+  parser.add_argument("--start-points", type=int, default=STARTING_POINTS,
+                      metavar="N",
+                      help="points a new robot starts with after a true death "
+                           "(issue #419; 0 gives none, as every world did "
+                           "before). ON here and off in the experiment "
                            "harness, on --restart-after's terms")
   parser.add_argument("--robot-name", default=None, metavar="NAME",
                       help="this robot's display name on the wire (issue "
@@ -202,7 +210,7 @@ def serve(watchdog: "vitals.Watchdog") -> str | None:
                            "(the milestone-8 LCD errand), draw (fetch the pen, "
                            "erase a whiteboard and draw on it), draw2 (two "
                            "boards, charging in between), none. Default "
-                           "carry, and none for a body with no arm")
+                           "carry, and none for a body whose arm takes no tool")
   parser.add_argument("--boards", default=None, metavar="PATH",
                       help="JSON file the whiteboards' contents live in "
                            "between runs (default: blank boards every start)")
@@ -342,8 +350,8 @@ def serve(watchdog: "vitals.Watchdog") -> str | None:
   if args.errand is None:
     args.errand = "carry" if args.body == "rover" else "none"
   if args.body != "rover" and (args.errand != "none" or args.errand2 != "none"):
-    parser.error(f"the {args.body} has no arm yet, so no errand that takes a "
-                 "tool: --errand none (and --errand2 none)")
+    parser.error(f"the {args.body}'s arm takes no tool yet, so no errand that "
+                 "takes one: --errand none (and --errand2 none)")
 
   # WHICH ARM (issue #142). Until this, `serve.py` REPORTED an arm and had no
   # way to set one: the identity header read `autonomous` off
@@ -538,6 +546,8 @@ def serve(watchdog: "vitals.Watchdog") -> str | None:
                       # ...and a tool on the floor goes home (issue #347)
                       lost_tool_after_s=(args.lost_tool_after
                                          if args.lost_tool_after > 0 else None),
+                      # ...and a new robot starts with points (issue #419)
+                      start_points=args.start_points if args.start_points > 0 else None,
                       near_field=args.near_field)
   # WHICH BUILD IS BEING WATCHED (issue #132; docs/Evaluation.md §5).
   #
@@ -808,6 +818,7 @@ def serve_pair(args, flags: dict, rung, origin, watchdog) -> str | None:
                                       if args.restart_after > 0 else None),
                      lost_tool_after_s=(args.lost_tool_after
                                         if args.lost_tool_after > 0 else None),
+                     start_points=args.start_points if args.start_points > 0 else None,
                      constitutions_named=(args.constitution, args.constitution_2),
                      resume=snap)
   first, second = lives

@@ -3,7 +3,7 @@
 it can be while still failing for the right reason -- the body's members,
 the world it lives in, the rest reflex, the get-up and the `stuck` death,
 the planner's sizes, the reflexes, the prompt in its own words, and upkeep
-off as a configuration. The day flown whole is behind `--endurance`."""
+off as a configuration. Docking in the house is flown behind `--endurance`."""
 
 import math
 from types import SimpleNamespace
@@ -59,14 +59,19 @@ def test_the_quadruped_implements_every_member_and_is_chosen_by_its_legs(quad_wo
 
 
 def test_the_world_takes_out_the_rover_and_nothing_of_the_worlds(quad_world):
-  """The rover's body, actuators, sensor and exclude go; the tools' drivers
-  and the plates' sensors are the world's and stay; the robot keeps its
-  joint ranges in RADIANS (#386: in degrees the stand threw it 0.4 m up)."""
+  """The rover's body, actuators, sensor and exclude go, and its rack with
+  its modules, their drivers and the dispenser's seeds (#405: the arm's
+  fork takes a longer peg); the plates' sensors are the world's and stay;
+  the robot keeps its joint ranges in RADIANS (#386: in degrees the stand
+  threw it 0.4 m up)."""
   m = quad_world
   names = lambda n, obj: {mujoco.mj_id2name(m, obj, i) for i in range(n)}  # noqa: E731
   acts = names(m.nu, mujoco.mjtObj.mjOBJ_ACTUATOR)
-  assert not acts & {"left_motor", "right_motor", "lift", "arm"}
-  assert {"pen_carriage", "claw_l", "claw_r", "seed_gate", "FL_knee"} <= acts
+  assert not acts & {"left_motor", "right_motor", "lift", "arm", "pen_carriage",
+                     "claw_l", "claw_r", "seed_gate"}
+  assert "FL_knee" in acts
+  bodies = names(m.nbody, mujoco.mjtObj.mjOBJ_BODY)
+  assert not bodies & {"rack", "rack_built", "module_plug", "module_seed", "seed_0"}
   sensors = names(m.nsensor, mujoco.mjtObj.mjOBJ_SENSOR)
   assert "imu_gyro" not in sensors and "garden_plate_pos" in sensors
   assert m.nexclude == 0 and mujoco.mj_name2id(m, mujoco.mjtObj.mjOBJ_BODY, "dock") >= 0
@@ -75,20 +80,28 @@ def test_the_world_takes_out_the_rover_and_nothing_of_the_worlds(quad_world):
   assert (float(m.body("dock").pos[0]), float(m.body("dock").pos[1])) == pytest.approx((x, y))
 
 
-def test_home_with_legs_is_its_own_world_and_offers_no_tool():
-  """No arm yet (#378), so no errand that needs a tool, no workshop, no tool
-  verb in a procedure -- refused with the reason, as any unknown one is."""
+def test_home_with_legs_is_its_own_world_and_offers_no_tool_errand():
+  """No errand that needs a tool until the tools are rebuilt for its fork
+  (#406, #407), no workshop; a program may fetch and stow its own rack's
+  three tools (#405) and nothing else -- anything else refused with the
+  reason, as any unknown name is -- and move only its own arm's joints.
+  The lab's acts take no tool, so the lab is here (#403); the tower is not."""
+  from pluggybot.legs import rack as legs_rack
   assert world_for("home", "quadruped") == QUAD_HOME == "home_quad"
   cfg = world_config(QUAD_HOME)
   assert cfg["body"] == "quadruped" and not cfg["tools"] and cfg["built_bays"] == 0
-  assert "lab" not in cfg and "tower" not in cfg
+  assert cfg["swap"] and cfg["tool_bays"] == legs_rack.TOOL_BAYS
+  assert "lab" in cfg and "tower" not in cfg
   menu = ov.Menu.for_world(QUAD_HOME)
   assert not {"carry", "dance", "draw", "artwork", "census"} & set(menu.available())
   assert {"explore", "charge", "idle"} <= set(menu.available())
   facts = world_facts(QUAD_HOME)
-  assert facts.tools == () and facts.axes == ()
-  bad = st.check_step(st.VERBS["fetch"], {"tool": "module_pen"}, facts)
-  assert bad and "no arm" in bad[0]
+  assert facts.tools == tuple(legs_rack.TOOL_BAYS) and facts.axes == ("shoulder", "elbow")
+  assert "lift" not in facts.sensors and "shoulder" in facts.sensors
+  assert st.check_step(st.VERBS["fetch"], {"tool": "module_pen"}, facts) == []
+  assert st.check_step(st.VERBS["fetch"], {"tool": "module_seed"}, facts)
+  bad = st.check_step(st.VERBS["draw"], {"program": "circle", "board": "whiteboard_a"}, facts)
+  assert bad and "not on this body yet" in bad[0]
   assert st.check_step(st.VERBS["drive_to"], {"x": 1.0, "y": 0.0}, facts) == []
   # ...and the rover's world keeps every one
   assert "carry" in ov.Menu.for_world("home").available()
@@ -277,11 +290,20 @@ def test_the_front_stop_reads_the_corridor_ahead_not_a_cone():
   assert nav.Navigator._front_blocked(me, *wall), "the premise: the cone fires"
   ahead = np.array([0.0]), np.array([0.40])
   assert qb.QuadMission._front_blocked(me, *ahead)
-  # ...and it stops short of the clearance the planner grants (the
-  # inflation's 0.35 m, the LIDAR behind the torso's centre on the rear
-  # mast), or every waypoint along a wall fires it
+  # ...it fires before the body's front-most point meets what is ahead --
+  # the stowed arm's fork, not the nose (#405: at 0.45 the fork met the
+  # wall first) -- and stops short of the clearance the planner grants (a
+  # waypoint on the inflation's 0.35 m is dropped 0.08 m out; the LIDAR is
+  # behind the torso's centre on the rear mast), or every waypoint along a
+  # wall fires it
   lidar_behind = CHOSEN.torso[0] - 0.06
-  clearance = qb.QuadMission.INFLATION_CELLS * 0.05
+  m = mujoco.MjModel.from_xml_string(body_xml(CHOSEN))
+  d = mujoco.MjData(m)
+  mujoco.mj_resetDataKeyframe(m, d, 0)                      # standing, stowed
+  mujoco.mj_forward(m, d)
+  front = _outline(m, d, m.body("pluggybot").id)[:, 0].max()
+  assert front + lidar_behind < qb.QuadMission.FRONT_STOP_RANGE
+  clearance = qb.QuadMission.INFLATION_CELLS * 0.05 + nav.WAYPOINT_REACHED_M
   assert qb.QuadMission.FRONT_STOP_RANGE < clearance + lidar_behind
 
 
@@ -393,7 +415,9 @@ def test_the_pack_draws_what_the_drivers_do(quad_world):
       watts.append(pack.power_draw(body.data))
     assert 40.0 < np.mean(watts) < 75.0, np.mean(watts)
     assert pack.charge_w == pytest.approx(5.0 * 43.2)
-    assert pack.base_w == pytest.approx(14.91)
+    # the computer, the LIDAR, the D435 and fourteen drivers' standby: the
+    # legs' twelve and the arm's two (#405)
+    assert pack.base_w == pytest.approx(6.0 + 1.15 + 2.0 + 14 * 0.48)
   finally:
     body.close()
 
@@ -415,8 +439,9 @@ def test_upkeep_is_said_only_where_there_is_one():
 
 def test_every_rule_a_quadruped_reads_is_in_its_own_words():
   """Where it charges is its DOCK, how it dies is a fall it cannot get up
-  from, and nothing it reads offers it a fork, a lift or a wheel. The rack's
-  one mention is the constitution's: where the tools wait for the arm."""
+  from, and nothing it reads offers it a lift or a wheel. Its fork is its
+  arm's (#405). The rack's one mention is the constitution's: where the
+  arm takes its tools."""
   from pluggybot.economy.ledger import Ledger
   from pluggybot.mind.thoughts import ThoughtFiles
   boss = ov.build(QUAD_HOME, None, enabled=True, client=object(), ledger=Ledger(),
@@ -425,12 +450,13 @@ def test_every_rule_a_quadruped_reads_is_in_its_own_words():
                   origin="unseeded", standing_orders=True, others=("Rowan",))
   text = "\n".join(b["text"] for b in boss.system)
   assert "dock" in text and "a fall you cannot get up from" in text
-  for word in ("two-wheeled", "fork", "wheel", "chassis", "the mast", "set_lift",
+  assert "THE LAB" in text and "when a foot presses it" in text   # #403
+  for word in ("two-wheeled", "wheel", "chassis", "the mast", "set_lift", "lift",
                "hub's charge bay", "upkeep you cannot pay"):
     assert word not in text, word
   import re
   assert len(re.findall(r"\brack\b", text)) == 1
-  assert "tools on the rack in the living room" in text
+  assert "tools on the rack beside your dock" in text
 
 
 def test_the_constitution_is_told_its_body_and_refuses_one_that_is_not_the_rovers():
@@ -474,60 +500,59 @@ def test_the_build_identity_names_the_body_and_hashes_its_policies():
   assert "body" not in build_identity("home", arm="guarded", commit="x", hashes={})
 
 
-def test_serve_refuses_a_tool_errand_on_a_body_with_no_arm():
+def test_serve_refuses_a_tool_errand_on_a_body_whose_arm_takes_no_tool():
   import subprocess
   import sys
   out = subprocess.run([sys.executable, "scripts/serve.py", "--world", "home",
                         "--body", "quadruped", "--errand", "draw"],
                        capture_output=True, text=True, timeout=120)
-  assert out.returncode == 2 and "no arm yet" in out.stderr
+  assert out.returncode == 2 and "takes no tool yet" in out.stderr
 
 
-# ---- the day, flown whole --------------------------------------------------------
+# ---- docking in the house, flown ------------------------------------------------
 
 
-@pytest.mark.endurance
-def test_a_quadruped_pair_lives_a_scripted_home_day(tmp_path):
-  """The issue's day, on the served pair's shape (no offers, no upkeep): both
-  explore; the first starts low, walks to the dock, lies on it and charges;
-  the second is knocked over and gets up, then is emptied, dies `flat` and
-  is stood up by the timer; a robot with nothing to do lies down by reflex.
-  `determinism_spike.py --pair` flies this day twice in two processes and
-  hashes the whole world (IDENTICAL, SimNotes "The first quadruped deploy").
-  Behind --endurance (minutes of two robots' physics); every rule it
-  exercises is pinned fast: the reflex, the get-up, the `stuck` budget,
-  `test_standing_the_body_up_steps_nothing`, and test_stand_up's
-  `test_a_stand_up_never_lands_on_another_robot`."""
-  from pluggybot import pair
-  from pluggybot.mind.inbox import Inbox
-  # an inbox each, as `serve.py` builds them: with somebody who could reach
-  # in, a dead robot waits for its stand-up and its day goes on
-  lives = pair.build_pair(QUAD_HOME, pack="demo", errands=("none", "none"),
-                          inboxes=(Inbox(), Inbox()),
-                          mortal=True, restart_after_s=30.0,
-                          thoughts_root=str(tmp_path / "thoughts"),
-                          ledger_state=str(tmp_path / "ledger.json"))
-  first, second = lives
-  first.battery.energy_wh = first.battery.capacity_wh * 0.3
-  done = pair.arrange_hazards(lives, fall_at=40.0, drain_at=120.0)
-  seen: set = set()
+@pytest.mark.slow
+@pytest.mark.endurance(when=(
+  "src/pluggybot/legs/", "models/quadruped", "models/home_world.xml",
+  "src/pluggybot/navigator.py", "src/pluggybot/mapping/", "src/pluggybot/behavior/",
+  "src/pluggybot/perception/", "src/pluggybot/power.py", "src/pluggybot/tick.py"))
+def test_a_low_quadruped_walks_to_its_dock_and_charges_on_it(tmp_path):
+  """The served robot's survival path, composed: stood at its commissioned
+  start below the floor, it walks the house to its dock, finds the board,
+  walks in, lies down onto the pins and charges -- the loop's own charge
+  path on the real body. Each link is pinned fast (test_dock.py: the stop,
+  the lie-down onto the pins, the criterion while lying, the pose off the
+  board); only this flies them together. Stops once the pins have conducted
+  for a second. Shown to fail by skipping the walk-in in
+  `QuadMission.dock_routine`: every attempt stands short, and it never
+  docks."""
+  from pluggybot.lifecycle import run_demo
+  seen: dict = {}
+  states: list = []
 
-  def watch():
-    for i, life in enumerate(lives):
-      seen.add((i, life.state, life.body.posture, life.dead is not None))
-  first.body.step_hooks.append(watch)
+  def docked(life) -> bool:
+    if life.state not in states:
+      states.append(life.state)
+    if life.state == "CHARGE" and life.charging_now:
+      seen.setdefault("t", float(life.data.time))
+      seen.setdefault("wh", life.battery.energy_wh)
+      seen.update(posture=life.body.posture, why=life.body.mission.last_charge,
+                  gained=life.battery.energy_wh - seen["wh"])
+      return float(life.data.time) - seen["t"] >= 1.0
+    return False
 
-  def settled(ls) -> bool:
-    return (first.charge_cycles >= 1 and bool(second.resets)
-            and (0, "CHARGE", qb.LYING, False) in seen)
-  pair.run_pair(lives, max_sim_time=900.0, stop_when=settled)
-
-  assert {(i, "EXPLORE") for i in (0, 1)} <= {(i, s) for i, s, _, _ in seen}
-  assert (0, "CHARGE", qb.LYING, False) in seen and first.charge_cycles >= 1
-  assert done["fell"] is not None and second.body.mission.falls >= 1
-  assert (1, "EXPLORE", qb.GETTING_UP, False) in seen
-  assert [d["cause"] for d in second.deaths] == ["flat"]
-  assert second.resets and second.resets[-1]["auto"] and second.dead is None
-  assert not first.deaths, f"the first robot died: {first.deaths}"
-  assert any(p == qb.LYING and s != "CHARGE" and not dead
-             for _, s, p, dead in seen), "nobody rested by reflex"
+  r = run_demo(view=False, realtime=False, world=QUAD_HOME, errand="none",
+               pack="demo", battery_fraction=0.15, max_sim_time=120.0,
+               overseer=False, thoughts_root=str(tmp_path / "thoughts"),
+               ledger_state=str(tmp_path / "ledger.json"),
+               board_state=str(tmp_path / "boards.json"),
+               spend_state=str(tmp_path / "spend.json"), stop_when=docked)
+  assert 0.15 * world_config(QUAD_HOME)["battery_wh"] < world_config(QUAD_HOME)[
+    "low_battery_wh"], "the premise: it starts below the floor"
+  assert "t" in seen, f"never charged on the dock: {states}, {r['sim_time']:.0f} sim s"
+  assert states[-2:] == ["GO_CHARGE", "CHARGE"], states
+  assert seen["posture"] == qb.LYING
+  assert seen["why"]["attempts"][-1]["why"] == "docked", seen["why"]
+  assert seen["gained"] > 0.03, "lying on the pins and nothing flowed"
+  assert r["dead"] is None and not r["deaths"]

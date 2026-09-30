@@ -22,7 +22,7 @@ import pytest
 
 from pluggybot.evaluation.record import build_identity
 from pluggybot.lifecycle import (
-  LOOK_SLICE_S, HubLifecycle, overseer_context, world_config,
+  LOOK_SLICE_S, QUAD_HOME, HubLifecycle, overseer_context, world_config,
 )
 from pluggybot.mind import events, llm, look
 from pluggybot.mind import overseer as ov
@@ -30,7 +30,7 @@ from pluggybot.mind.inbox import (
   JPEG_MAGIC, MAX_IMAGE_BYTES, MAX_IMAGE_RAW_BYTES, MAX_RAW_BYTES, Inbox,
 )
 from pluggybot.mind.overseer import LOOK_S, MAX_LOOK_RUN, Menu, Overseer
-from pluggybot.robot import FIRST
+from pluggybot.robot import FIRST, world_spec
 from pluggybot.telemetry.protocol import (
   CODE_HANDLED_TYPES, INBOUND_TYPES, LOOK_OUTCOMES,
 )
@@ -131,14 +131,47 @@ def test_the_camera_pose_is_the_head_cameras_and_says_which_way_it_looks():
   data.qpos[q:q + 2] = (x, y)
   data.qpos[q + 3:q + 7] = (math.cos(yaw / 2), 0.0, 0.0, math.sin(yaw / 2))
   mujoco.mj_forward(model, data)
-  pose = look.camera_pose(model, data, FIRST.el(look.CAMERA))
+  pose = look.camera_pose(model, data, FIRST.el("left_eye"))
   assert pose["forward"] == pytest.approx([math.cos(yaw), math.sin(yaw), 0.0], abs=1e-4)
   assert pose["up"] == pytest.approx([0.0, 0.0, 1.0], abs=1e-4)
-  assert pose["fovy"] == float(model.cam_fovy[model.camera(FIRST.el(look.CAMERA)).id])
+  assert pose["fovy"] == float(model.cam_fovy[model.camera(FIRST.el("left_eye")).id])
   assert (pose["width"], pose["height"]) == (look.WIDTH, look.HEIGHT)
-  cid = model.camera(FIRST.el(look.CAMERA)).id
+  cid = model.camera(FIRST.el("left_eye")).id
   assert pose["pos"] == pytest.approx(list(data.cam_xpos[cid]), abs=1e-4)
   assert 0.1 < pose["pos"][2] < 0.3, "the head's height, not the floor's"
+
+
+def test_a_quadruped_looks_through_its_own_head_camera():
+  """The camera is the BODY's (issue #408). The eye asked every body for
+  the rover's `left_eye`; on legs that was a KeyError on the physics
+  thread, and on the served pair it took the process down -- 35 exits in
+  48 h, three of them resetting the world from XML. A quadruped's look
+  goes out from its nose camera, facing the way the body faces."""
+  cfg = world_config(QUAD_HOME)
+  model = world_spec(cfg["model"], body="quadruped").compile()
+  data = mujoco.MjData(model)
+  life = HubLifecycle(model, data, realtime=False, world=QUAD_HOME,
+                      battery_wh=cfg["battery_wh"], rack=cfg["rack"],
+                      grid_bounds=cfg["grid_bounds"],
+                      low_battery_wh=cfg["low_battery_wh"], errand=False)
+  seen = []
+  life.on_event.append(seen.append)
+  try:
+    life.body.start_at(*cfg["start"])
+    assert life.body.head_camera == FIRST.el("nav_eye")
+    routine = life._look_routine()
+    next(routine)                            # the request is out
+    asked = [m for m in seen if m["type"] == "look"]
+    assert [m["outcome"] for m in asked] == ["asked"]
+    camera = asked[0]["camera"]
+    assert camera == look.camera_pose(model, data, FIRST.el("nav_eye"))
+    yaw = life.body.true_pose()[2]
+    assert camera["forward"] == pytest.approx([math.cos(yaw), math.sin(yaw), 0.0], abs=1e-3)
+    assert camera["up"] == pytest.approx([0.0, 0.0, 1.0], abs=1e-3)
+    assert 0.3 < camera["pos"][2] < 0.5, "the nose's height, not the floor's"
+    routine.close()
+  finally:
+    life.body.close()
 
 
 # ---- the arm ----------------------------------------------------------------------

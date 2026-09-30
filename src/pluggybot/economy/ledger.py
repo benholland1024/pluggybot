@@ -144,6 +144,12 @@ def _account() -> dict:
           # and conserved across the pair, which is what makes a gift
           # measurable: the giver's `given` is the receiver's `received`.
           "given": 0, "received": 0,
+          # Points the WORLD gave a new robot to start with (issue #419,
+          # `archive`'s `start`): a term in the identity -- `granted + earned
+          # - consumed - spent - given + received == balance` -- and never
+          # `earned`, which only a verdict moves. Zero for every robot that
+          # started before it.
+          "granted": 0,
           # True deaths so far: hearts exhausted, the volume archived, a new
           # robot started from seed. Kept ACROSS the archive (it is the one
           # number a fresh robot inherits) so "how often does this world use
@@ -295,6 +301,9 @@ class Ledger:
         # world with one robot in it.
         "given": acct.get("given", 0),
         "received": acct.get("received", 0),
+        # What the world gave a new robot to start with (issue #419;
+        # additive): zero on every account before it.
+        "granted": acct.get("granted", 0),
         "tasks": acct["seq"],
         "pending": sum(1 for e in acct["entries"] if e.get("pending")),
         # Compact on purpose: this rides in every keyframe, and the full
@@ -622,8 +631,14 @@ class Ledger:
   def received(self, robot: str = ROBOT_ROOT) -> int:
     return int(self._acct(robot).get("received", 0))
 
-  def archive(self, robot: str = ROBOT_ROOT) -> dict:
-    """TRUE DEATH: wipe this robot's account back to seed and count it.
+  def granted(self, robot: str = ROBOT_ROOT) -> int:
+    """What the world gave this robot to start with (issue #419)."""
+    return int(self._acct(robot).get("granted", 0))
+
+  def archive(self, robot: str = ROBOT_ROOT, start: int = 0) -> dict:
+    """TRUE DEATH: wipe this robot's account back to seed and count it --
+    and give the new robot `start` points to explore with (issue #419),
+    booked as `granted`, never as `earned`.
 
     The honest version of "it does not come back" (Evaluation.md section 6):
     what made it THAT robot is what it loses. The thought files go with it --
@@ -632,9 +647,10 @@ class Ledger:
     distinguishable from a world that has never had a death in it.
 
     ⚠ THE NEW ROBOT STARTS SOLVENT. A fresh account is a full set of hearts,
-    a zero balance and NO carried fraction of a point: the no-arrears rule
-    (issue #36's, still standing) says a death may never make the next life
-    unwinnable, and debt that outlived a robot would do exactly that.
+    `start` points (zero unless the world gives some) and NO carried
+    fraction of a point: the no-arrears rule (issue #36's, still standing)
+    says a death may never make the next life unwinnable, and debt that
+    outlived a robot would do exactly that.
     """
     gens = self.generations(robot) + 1
     before = {"balance": self._acct(robot)["balance"],
@@ -642,8 +658,10 @@ class Ledger:
               "entries": len(self._acct(robot)["entries"])}
     self.robots[robot] = _account()
     self.robots[robot]["generations"] = gens
+    start = max(0, int(start))
+    self.robots[robot]["balance"] = self.robots[robot]["granted"] = start
     self.save()
-    return {"generation": gens, "archived": before}
+    return {"generation": gens, "archived": before, "granted": start}
 
   # ---- the third door, and it is an ADMIN's (issue #119) --------------------
 
@@ -748,6 +766,10 @@ class Ledger:
         # for `intervened`'s reason exactly -- a bump makes an older build
         # refuse the file and wipe the balance to protect a counter.
         "hearts": int(acct.get("hearts", HEARTS)),
+        # Absent before issue #419, and zero is what one honestly means.
+        "given": int(acct.get("given", 0)),
+        "received": int(acct.get("received", 0)),
+        "granted": int(acct.get("granted", 0)),
         "generations": int(acct.get("generations", 0)),
         "entries": entries,
       }

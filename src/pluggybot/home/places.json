@@ -1,0 +1,19 @@
+{
+  "notes": [
+    "PLACES, NOT COORDINATES (issue #419): what a job may tell a robot about where it is sent. At most the building's ADDRESS and written DIRECTIONS for the task area -- TaskPattern.md §2's dispatcher test: could someone who cannot see the room have written it? Everything finer the robot finds by the area's tags and remembers itself (`mapping/places.py`).",
+    "`houses`: each building's ADDRESS ERROR, metres in the map's axes: the deliberate offset between the middle of the building's rooms (`home.places.house_middle`, off the generator's zones) and where its address puts it -- what a street address converted to a position gets, a few metres off. Fixed per house, nothing random. The facility's lands its address in the storeroom, a wall away from the lab: the honest case, not the kind one. `withinM` is how far off the address says it may be.",
+    "`areas`: each task area by the name a job targets -- its building, the directions a person would write for someone who has never been there, and its tags by what the directions call them. Changing the words changes what the robot is told, and is a new Observatory period like any prompt change."
+  ],
+  "withinM": 4.0,
+  "houses": {
+    "house": [-1.8, 2.3],
+    "facility": [1.7, -2.4]
+  },
+  "areas": {
+    "lab": {
+      "house": "facility",
+      "directions": "The lab is the north-east room of the second house, the one across the middle street from your dock's: in through its front garden and its lobby, and the lab's door is on the lobby's east side. The mouse's cage stands against the lab's north wall, and in front of it are three pressure plates in a row, a metre apart: from left to right as you face the cage, the shock plate (tag 35), the feed plate (tag 36) and the toy plate (tag 37). Each plate's tag is on a small sign at the plate's far edge, facing the room; the plate is the square in front of its sign.",
+      "tags": {"35": "the lab's shock plate", "36": "the lab's feed plate", "37": "the lab's toy plate"}
+    }
+  }
+}

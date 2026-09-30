@@ -91,6 +91,22 @@ class RoverBody(Body):
     return self.mission._spin_routine()
 
   grid = property(lambda self: self.mission.grid)
+  #: The rover keeps no places (#419): its lab and its boards are its
+  #: surveyed routes' until it is deleted (#376's stage C).
+  places = None
+
+  def find_tag_routine(self, tag, near, patience, stop=None) -> Routine:
+    return {"tag": int(tag), "found": False, "why": "the rover keeps no places",
+            "seconds": 0.0}
+    yield
+
+  def press_plate_routine(self, tag, patience, stop=None) -> Routine:
+    return {"tag": int(tag), "pressed": False, "why": "the rover keeps no places",
+            "attempts": []}
+    yield
+
+  def forget_world(self) -> None:
+    self.mission.forget_map()
 
   def plan_frontier(self, blacklist):
     return plan(self.mission.grid, self.mission.pose, blacklist)
@@ -175,6 +191,7 @@ class RoverBody(Body):
     return None
 
   swapping_at = property(lambda self: self.mission.swapping_at)
+  working = False
   peer_at_bay_m = property(lambda self: self.mission.peer_at_bay_m)
 
   @property
@@ -244,6 +261,7 @@ class RoverBody(Body):
     return self.mission.spot(tag, at_height=at_height)
 
   pressing = property(lambda self: self.mission.swap.pressing)
+  head_camera = property(lambda self: self.handle.el("left_eye"))
 
   # ---- the others, and collisions ------------------------------------------
 
@@ -273,6 +291,9 @@ class RoverBody(Body):
 
   def ramp_routine(self, act, target, speed, settle=0.0) -> Routine:
     return self.mission.swap.ramp_routine(act, target, speed, settle=settle)
+
+  def setpoint(self, act) -> float:
+    return float(self.data.ctrl[act])
 
   def settle_routine(self, seconds) -> Routine:
     return self.mission.swap._run_routine(seconds, 0.0)

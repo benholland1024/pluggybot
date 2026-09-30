@@ -14,6 +14,7 @@ import pytest
 
 from pluggybot.legs import dock as dk
 from pluggybot.legs import model as qm
+from pluggybot.legs.arm import ArmDriver
 from pluggybot.legs.drivers import Drivers
 from pluggybot.legs.policy import Twist
 
@@ -26,8 +27,8 @@ def _world(spec=dk.DEFAULT):
 
 
 def _lying(spec=dk.DEFAULT, *, y=0.0, yaw=0.0, lift=0.002, seconds=0.5):
-  """The robot in its rest posture above the seat, let go with the drivers
-  holding nothing, `seconds` later."""
+  """The robot in its rest posture above the seat, let go with the legs'
+  drivers holding nothing and its arm held stowed, `seconds` later."""
   model, data = _world(spec)
   mujoco.mj_resetDataKeyframe(model, data, 1)       # "lie"
   data.qpos[1] = y
@@ -35,7 +36,9 @@ def _lying(spec=dk.DEFAULT, *, y=0.0, yaw=0.0, lift=0.002, seconds=0.5):
   data.qpos[3:7] = [math.cos(yaw / 2), 0, 0, math.sin(yaw / 2)]
   mujoco.mj_forward(model, data)
   Drivers(model, data).limp()
+  arm = ArmDriver(model, data, qm.CHOSEN.arm)       # stowed, as the body holds it
   for _ in range(int(seconds / model.opt.timestep)):
+    arm.step()
     mujoco.mj_step(model, data)
   return model, data
 

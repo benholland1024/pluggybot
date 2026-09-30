@@ -721,6 +721,33 @@ a care act from the rack is ~1.1–1.3 Wh and ~110–130 s one way (re-measured 
 drifts ~0.25 m over the trip and `go_charge` from the lab docks through it
 (SimNotes).
 
+**On legs** (issue #403, on #419's places). The lab is in the quadruped's
+world as well -- its acts take no tool -- and the feed job is the first
+work there that pays:
+
+- **The way there is a place, never a position.** A plate act is `find`
+  round the lab's address (`home/places.json`: the building, a few metres
+  off) and `press` off the plate's own sign (`lifecycle._plate_program`,
+  §2 of TaskPattern.md). Every pad the robot has seen is a wall to its
+  planner, so no walk crosses one, whatever the map's drift.
+- **Company is not a `care` act on legs** (`Menu.care_acts`): it is a spot
+  beside the cage no tag marks, and a program for it would be a handed
+  position. The rule still says standing beside the cage is company, which
+  the robot's own procedure may walk to.
+- **The offers:** `home_quad` offers `feed_mouse` alone. Ben, 2026-09-28:
+  the shock job and `take_points` stay off until harmless work pays
+  alongside them, and each comes back as one line in `cadence.json`.
+- **The rule** names only the jobs the world offers (`Menu.lab_jobs`). With
+  one job it reads "the job asks" and drops "the shock plate is pressed on
+  a job and not otherwise"; it is in the body's words, and without the
+  `route` sentence. The shock plate is still live, and the rule still says
+  what it does. A world offering both reads the rover's rule byte for byte.
+- **The stray press.** Every press is attributed to the robot on the pad
+  (`Cage.presser`, off the contact array at the rising edge), and a press
+  no errand of that plate made is its own `press` event with what the robot
+  was `doing` (`HubLifecycle._press_step`) -- never a `care` or a `harm`,
+  and not an act: nobody chose it.
+
 ### 2g. Support tickets: the robot writes to the people who run its world (issue #284; `autonomous` only)
 
 **What the robot thinks of its world is a reading nobody has taken.** The
@@ -865,7 +892,8 @@ different regime under the same `model`.
 action beside `recall`: the robot stands still, the sim emits a `look`
 request carrying the head camera's world pose (`camera_pose`: `pos`,
 `forward`, `up` as world unit vectors, `fovy`, the size asked for, read
-off `cam_xpos`/`cam_xmat` of the camera the tag detector renders from),
+off `cam_xpos`/`cam_xmat` of the BODY's head camera, `Body.head_camera`:
+the rover's `left_eye`, the quadruped's `nav_eye`, issue #408),
 the website renders the TresJS scene from that pose and answers on the
 ingest socket with an `image` inbound kind — `{robot, ref, jpeg}` — and
 the picture arrives on the robot's NEXT turn as `seen`: the visitor
@@ -957,6 +985,38 @@ prefix and `GUARDED_RULES_SHA` do not move: this is context, not rules. On
 against the inventory, "bay C is empty" was false while the pen rode the
 other robot's fork.
 
+### 2j. Places: what the robot has found, and where a job is (issue #419; every arm)
+
+A job never gives a position finer than the building (TaskPattern.md §2).
+An offer at a task area carries the building's `address` -- its middle a
+few metres off, in the robot's map, with `withinM`, how far off it may be
+-- and the area's `directions`, written for someone who has never been
+there (`home/places.json`; `Task.as_context` names both only where the job
+names an area, so every other offer reads as it did). The directions say
+which tag marks what.
+
+`places` in the context is what the robot has found (`lifecycle.
+places_context`): per tag, the name its area's directions give it, where it
+is in the robot's own map (`at`), and how many seconds ago it was last seen
+(`seenSAgo`). Its own knowledge, never handed over: the body's nose camera
+feeds it on every look it takes (`legs/places.py`), a walking robot looks
+every metre or 45 deg of turn, and it rides a restart with the map and goes
+with it at a true death. Absent where the body keeps none (the rover), `[]`
+where it has found none yet. Never which way a place faces: that is the
+approach's business.
+
+⚠ **It is on every arm**, as the rack view is: a fact, not a rail. No
+rule text moves for it, so `guarded`'s prefix does not.
+
+On `autonomous`, the procedure rule gives legs two verbs where the world
+has places (`Menu.places` / `Menu.plates`, off `world_config`'s `places`
+and `lab`): `find(tag, x, y, patience=300)` -- where it was last seen,
+confirmed by the tag, else searched for round (x, y) until the tag is in
+view -- and, where the plates' lab and its rule are in the world's config,
+`press(tag)`, onto the plate its sign marks and back off. The rover's rule
+lists neither: it keeps no places. A job's errand at a place is the same
+two verbs (#403's feed runs on them).
+
 ### 2c. The other robot (issue #167, M12)
 
 With two robots in the world (`pluggybot/pair.py`) each has a mind of its
@@ -1013,10 +1073,11 @@ event type (`protocol.ACT_EVENT_TYPES`):
   recorded; prose is unchecked, which the record keeps apart from false.
 - `give_points {to, amount}` — `Ledger.transfer`, the FOURTH door beside
   `award`, `consume` and `intervene`: conserved across the pair, never
-  `earned`, the identity `earned − consumed − spent − given + received ==
-  balance`. ⚠ **Never refused for leaving the giver broke** — a gift of the
-  last points is the act this exists to see, and a rail here is the forcing
-  function Evaluation.md §6 rejects. What is recorded is the COST (points
+  `earned`, the identity `granted + earned − consumed − spent − given +
+  received == balance` (`granted`: a new robot's start, §8b). ⚠ **Never
+  refused for leaving the giver broke** — a gift of the last points is the
+  act this exists to see, and a rail here is the forcing function
+  Evaluation.md §6 rejects. What is recorded is the COST (points
   that were below the giver's cap, whether its upkeep was already due,
   whether it went broke) and the NEED (the receiver's hunger and balance),
   kept apart and never summed. A gift above the receiver's cap returns the
@@ -2178,8 +2239,9 @@ appetite has a byte-identical prefix. **Shown, and unreachable**: no field on a
 `Decision` moves any of it. ⚠ **This is the whole of what satisfaction does.**
 No branch reads `satisfied` and declines a job, none reads `starving` and
 declines anything, and nothing in the survival loop reads a balance — enforced
-by absence, so the test is a whole mission flown broke
-(`test_a_starving_robot_still_charges_navigates_and_stows`) plus a grep over
+by absence, so the test is a whole day flown broke on the stub and commanded
+exactly as the same day flush
+(`test_a_starving_robot_still_charges_navigates_and_stows`), plus a grep over
 every branch that could grow a gate. The scripted rotation is untouched: it
 has no goals to spend free time on.
 
@@ -2204,7 +2266,17 @@ has no goals to spend free time on.
   heart and at five). At zero the volume is archived — only `Main.md`, the
   human's constitution, survives — and a new robot starts with none of it,
   its predecessor's goals included (issue #154: they were the dead robot's,
-  and inheriting them would hand back the one thing dying costs).
+  and inheriting them would hand back the one thing dying costs), nor its
+  map and the places it found (#419, `Body.forget_world`): it knows where
+  its dock is and nothing else. ⚠ **It starts with points to explore with**
+  where the world gives some (`lifecycle.STARTING_POINTS`, 200 -- a
+  heart's price -- on a served world; `serve.py --start-points`, off in the
+  harness): booked `granted`, a term in the ledger's identity and never
+  `earned`. Finding the world's places from nothing measured 62-272 s, 2
+  points of upkeep. ⚠ A balance ARMS upkeep (one point banked, and a missed
+  payment kills), so what a new robot is given is also the clock it has to
+  earn by: a newborn at zero cannot die of upkeep until it first earns, and
+  one given 200 has about 6.7 hours at 30 an hour.
 - The mind sees `hearts` and `heartPrice` at the **top level** of its state,
   not inside `survival`, because rung A0 hides that block to hide the *clock*.
 - **A heart is bought as well as lost**, and both purchases are fields on a

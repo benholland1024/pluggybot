@@ -91,7 +91,9 @@ def test_a_verb_that_does_not_drive_leaves_the_pose_alone(hub_model, monkeypatch
   assert r["ok"], r
   assert {k: float(life.data.ctrl[a]) for k, a in acts.items()} == pytest.approx(ROWAN)
   assert {v for v, verb in st.VERBS.items() if verb.drives} == {
-    "fetch", "stow", "drive_to", "drive", "face", "pick", "place", "draw"}
+    "fetch", "stow", "drive_to", "drive", "face", "pick", "place", "draw",
+    # ...and the places' (issue #419)
+    "find", "press"}
 
 
 def test_the_mind_is_told_which_verbs_re_pose_the_tool():
@@ -99,10 +101,15 @@ def test_the_mind_is_told_which_verbs_re_pose_the_tool():
   procedure written without knowing it would read its own tool wrong: the
   rule names every driving verb, off the flags themselves."""
   from pluggybot.mind.overseer import procedure_rule
-  drivers = [name for name, v in st.VERBS.items() if v.drives]
+  # ...the rover's: every driving verb but the places' (issue #419), which
+  # a body that keeps no places does not run
+  places = st.PLACE_VERBS + st.PLATE_VERBS
+  drivers = [name for name, v in st.VERBS.items() if v.drives and name not in places]
   rule = procedure_rule()
   assert f"moves the robot ({', '.join(f'`{d}`' for d in drivers)}) first" in rule
   assert "carrying pose" in rule
+  legs = procedure_rule(False, swaps=True, places=True, plates=True)
+  assert "`find`, `press`) first" in legs
 
 
 def test_a_tool_already_posed_costs_no_physics_step(hub_model, monkeypatch):

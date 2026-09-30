@@ -7,9 +7,9 @@ The acceptance list, one section each:
   the cap         earnings past the ceiling are refused OUT LOUD
   the rhythm      work -> satisfied -> free time -> hungry again, over a
                   synthetic day (a real one is an hour of wall clock)
-  zero            a starving robot charges, navigates and stows, on real
-                  physics -- the criterion that is enforced by ABSENCE, and
-                  so is the one that needs a whole mission to check
+  zero            a starving robot charges, navigates and stows -- the
+                  criterion enforced by ABSENCE, so it is checked as a whole
+                  day, on the stub, against the same day with a full wallet
   the data        rate and cap are re-tunable without a code change
   the wire        the state reaches the site and the model
 """
@@ -627,8 +627,7 @@ def test_the_survival_gates_decide_the_same_broke_as_flush(tmp_path):
   _mission_loop_reads_a_balance` above proves no branch NAMES the balance,
   and this proves no branch DEPENDS on it however it got there -- through a
   helper, the ledger, the appetite, or a task board's own filtering. The
-  flown proof (behind `--endurance`) shows the same thing on real physics,
-  which is worth running before a release and not on every issue.
+  day below runs the robot through every one of them, broke.
 
   Shown to fail by gating `_afford_next` on `self.metabolism.points > 0`.
   """
@@ -671,80 +670,82 @@ def test_the_survival_gates_decide_the_same_broke_as_flush(tmp_path):
         f"at {frac:.0%} pack a gate read the wallet: {broke} vs {flush}"
 
 
-@pytest.mark.slow
-@pytest.mark.endurance
-def test_a_starving_robot_still_charges_navigates_and_stows(tmp_path,
-                                                            monkeypatch):
-  """Issue #36's third acceptance criterion, on real physics.
+def _starving_day(wallet: int) -> tuple[dict, list, list]:
+  """room_hub's charge-then-carry day on the stub, with the appetite read off
+  `$PLUGGY_METABOLISM` and `wallet` points to start. Returns the summary,
+  every manoeuvre the loop commanded with the state it was in, and the
+  wallet and hunger at each command."""
+  from pluggybot.lifecycle import world_config
+  from pluggybot.mission.errand import carry_errand
+  from pluggybot.tick import MissionAborted
 
-  It has to be a WHOLE MISSION. The criterion is that no branch reads the
-  balance, and the grep above is what proves the branch is absent -- but a
-  grep cannot see a gate that arrived through a helper, an errand, or the
-  overseer's own filtering. What it takes to be sure is a robot that is
-  actually broke for the whole run doing actually everything: driving to a
-  bay, picking a module up, carrying it, hanging it back on its bracket, and
-  then finding the dock and charging.
+  from test_body import stub_life
+  appetite = Appetite.load("room_hub")
+  ledger = Ledger(path=None, cap=appetite.cap)
+  ledger.intervene(wallet, by="test")
+  hunger = Metabolism(ledger, appetite)
+  cfg = world_config("room_hub")
+  life = stub_life("room_hub", ledger=ledger, metabolism=hunger,
+                   errands=[carry_errand(use_at=cfg["use_at"])])
+  life.battery.energy_wh = life.low_battery_wh * 0.5        # it must charge
+  commands, wallets = [], []
+  for name in ("go_to_routine", "dock_routine", "dock_hold_routine",
+               "undock_routine", "fetch_tool_routine", "stow_tool_routine"):
+    def spy(*a, _real=getattr(life.body, name), _name=name, **kw):
+      if (_name, life.state) not in commands[-1:]:
+        commands.append((_name, life.state))
+      # ⚠ A REFUSING GATE SPINS HERE RATHER THAN FAILING: charging a full
+      # pack takes the stub no sim time, so the clock that would end the
+      # day never moves. Ended instead, as `aborted`.
+      if len(commands) > 40:
+        raise MissionAborted(f"the loop spun: {commands[-4:]}")
+      wallets.append((life.state, ledger.balance(), hunger.state))
+      return (yield from _real(*a, **kw))
+    setattr(life.body, name, spy)
+  return life.run(start=cfg["start"], max_sim_time=900.0), commands, wallets
 
-  Starved by CONFIGURATION rather than by a stub, which also exercises the
-  `$PLUGGY_METABOLISM` door end to end: an appetite of a point a sim-second
-  eats every job's payout inside twenty seconds, so the balance is on the
-  floor from the first minute to the last.
+
+def test_a_starving_robot_still_charges_navigates_and_stows(tmp_path, monkeypatch):
+  """Issue #36's third acceptance criterion, as a whole day on the stub
+  (issue #380): a robot broke from the first command to the last drives to
+  the charger, charges, fetches a module, carries it and hangs it back --
+  and is commanded exactly the day a robot with 400 points is.
+
+  The gates are pinned one by one above; this is the day through them,
+  where a gate that arrived through a helper, an errand or the loop's own
+  filtering would show as a manoeuvre the broke robot was never sent on.
+  The body does nothing physical and reads no balance, so only the loop's
+  choices are under test -- which is the whole criterion. Starved by
+  CONFIGURATION, through the `$PLUGGY_METABOLISM` door, at a point a
+  sim-second. The balance is read as each manoeuvre is COMMANDED: on the
+  stub a manoeuvre takes no sim time, so there is no phase to sample.
+
+  Shown to fail by gating `_afford_next` on `self.metabolism.points > 0`.
   """
-  from pluggybot.lifecycle import run_demo
-
   data_file = tmp_path / "metabolism.json"
   data_file.write_text(json.dumps({
     "version": 1,
-    "default": {"pointsPerHour": 3600.0, "cap": 90, "satisfiedAt": 45,
+    "default": {"pointsPerHour": 3600.0, "cap": 400, "satisfiedAt": 45,
                 "hungryAt": 20},
   }))
   monkeypatch.setenv("PLUGGY_METABOLISM", str(data_file))
-
-  # Stop on the CLAIM, not the budget (issue #54): the claim is settled once
-  # the tool has gone out and come back and the robot has charged. A run that
-  # fails never satisfies it and goes the whole distance, which is what keeps
-  # a shortened test able to catch the regression it exists for.
-  #
-  # The predicate also SAMPLES, on the physics seam, which is the only place
-  # the balance can be read while the robot is mid-manoeuvre: the balance at
-  # the end of the run is the balance after the charge PAID, and says nothing
-  # about what the robot had while it was driving.
-  seen: list[tuple[str, int]] = []
-  hungers: set[str] = set()
-
-  def settled(life):
-    seen.append((life.state, life.metabolism.points))
-    hungers.add(life.metabolism.state)
-    return (life.swaps_done >= 2 and life.charge_cycles >= 1
-            and life.body.mission.swap.module_state(life.module)["hung"])
-
-  r = run_demo(world="room_hub", ledger_state=str(tmp_path / "ledger.json"),
-               stop_when=settled)
-  # THE PREMISE, not the claim: the robot really was broke while it worked.
-  assert r["metabolism"]["consumed"] > 0, "the appetite never ticked"
-  assert "starving" in hungers, "never actually starved; this proves nothing"
-  # It never accumulated anything -- each job's payout was eaten inside
-  # twenty sim-seconds of landing.
-  assert max(p for _, p in seen) <= 5, "not actually broke; this proves nothing"
-  # ⚠ MINIMUM, not the balance on ARRIVAL. A job's payout lands part-way
-  # through the phase that earned it and buys the robot a few seconds of
-  # solvency, so "broke for the whole phase" and "broke when it started" are
-  # both claims about the payout's TIMING. What the criterion is actually
-  # about is whether being broke stopped the robot doing the phase -- so:
-  # it was at zero points during every phase of the mission, and did the
-  # phase anyway.
-  for phase in ("SWAP_PICK", "SWAP_RETURN", "GO_CHARGE", "CHARGE"):
-    points = [p for state, p in seen if state == phase]
-    assert points, f"the mission never reached {phase}"
-    assert min(points) == 0, f"never actually broke during {phase}"
-  # ...and it did every single thing anyway.
-  assert r["rack_discovered"], "a broke robot could not find the rack"
-  assert r["swaps_done"] == 2, "a broke robot could not run the errand"
-  assert r["module_stowed"], "a broke robot could not stow the tool"
-  assert r["charge_cycles"] >= 1, "a broke robot could not charge -- this is "\
-                                  "the failure the mechanic must never have"
-  assert r["collision_steps"] == 0
-  # It was still PAID for the work; the points were simply eaten again.
-  assert r["earned"] > 0 and r["verdicts"]
-  assert r["metabolism"]["state"] in HUNGER_STATES
-  assert all(v["ok"] for v in r["verdicts"]), r["verdicts"]
+  broke, commanded, wallets = _starving_day(0)
+  flush, commanded_flush, _ = _starving_day(400)
+  assert not broke["aborted"], f"the broke robot's loop spun: {commanded[-4:]}"
+  # THE PREMISE: broke and starving at every command, on an appetite that
+  # eats -- the same file's appetite ate the flush robot's points.
+  assert wallets and all(p == 0 and h == "starving" for _, p, h in wallets), \
+      "not actually broke; this proves nothing"
+  assert flush["metabolism"]["consumed"] > 0, "the appetite never ticked"
+  for phase in ("GO_CHARGE", "CHARGE", "SWAP_PICK", "SWAP_RETURN"):
+    assert phase in {s for s, _, _ in wallets}, f"never commanded in {phase}"
+  # ...and it did every single thing anyway, in the order a paid robot did.
+  assert commanded == commanded_flush, "being broke changed what it was sent to do"
+  assert broke["swaps_done"] == 2, "a broke robot could not run the errand"
+  assert broke["module_stowed"], "a broke robot could not stow the tool"
+  assert broke["charge_cycles"] >= 1, "a broke robot could not charge -- this "\
+                                      "is the failure the mechanic must never have"
+  # It was still PAID for the work.
+  assert broke["earned"] > 0 and {v["task"] for v in broke["verdicts"]} == {"carry", "charge"}
+  assert all(v["ok"] for v in broke["verdicts"]), broke["verdicts"]
+  assert broke["metabolism"]["state"] in HUNGER_STATES

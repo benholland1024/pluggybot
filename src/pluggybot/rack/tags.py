@@ -70,6 +70,12 @@ DOCK_TAG_SIZE = 0.060
 #: their baseline.
 LEGS_RACK_TAG_IDS = (29, 30, 31, 32, 33, 34)
 LEGS_RACK_TAG_SIZE = 0.060
+#: The lab's three pressure plates (issue #419): one tag a plate, on a sign
+#: at its far edge facing the room (`activity/cage.py`), what a robot finds
+#: the plate by. 120 mm, read from across the lab: MEASURED off the nose
+#: camera, square-on past 5 m and 70 deg off its face to 3.5 m.
+PLATE_TAG_IDS = (35, 36, 37)
+PLATE_TAG_SIZE = 0.120
 
 # Physical marker sizes (m), edge of the BLACK tag -- what the detector is
 # told, and what PnP scales its translation by. The plate carrying it is
@@ -86,7 +92,8 @@ TAG_SIZES = {RACK_TAG_ID: RACK_TAG_SIZE, CHARGE_TAG_ID: SMALL_TAG_SIZE,
              **{i: BLOCK_TAG_SIZE for i in BLOCK_TAG_IDS},
              **{i: BLOCK_TAG_SIZE for i in MASS_TAG_IDS},
              **{i: DOCK_TAG_SIZE for i in DOCK_TAG_IDS},
-             **{i: LEGS_RACK_TAG_SIZE for i in LEGS_RACK_TAG_IDS}}
+             **{i: LEGS_RACK_TAG_SIZE for i in LEGS_RACK_TAG_IDS},
+             **{i: PLATE_TAG_SIZE for i in PLATE_TAG_IDS}}
 
 TAG_DIR = Path("models/tags")
 
@@ -210,7 +217,9 @@ class TagDetector:
     self.detector = _shared_detector()
 
   def detect(self, data) -> dict:
-    """{tag_id: {"t": (x, y, z) in camera frame, "center": (u, v), "yaw": r}}.
+    """{tag_id: {"t": (x, y, z) in camera frame, "center": (u, v), "yaw": r,
+    "normal": n}}; `n` is the tag's z axis in the camera frame, pointing
+    INTO its face (away from a camera square-on), what "yaw" is read off.
 
     One render, one decode, all sizes: PnP translation is linear in the
     assumed tag size, so each id's pose is rescaled from the nominal size
@@ -248,6 +257,7 @@ class TagDetector:
         "t": tuple(float(v) * scale for v in np.asarray(det.pose_t).ravel()),
         "center": (float(det.center[0]), float(det.center[1])),
         "yaw": float(np.arctan2(normal[0], normal[2])),
+        "normal": tuple(float(v) for v in normal),
       }
     return out
 

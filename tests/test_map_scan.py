@@ -18,8 +18,11 @@ from pluggybot.perception.heightmap import HeightMap
 
 
 def _compiled(scenery: str = "", pitch: float = 0.0, drive: str = "position"):
+  # the scripted gait (torque) flies the sizing premise: its motors are the
+  # legs' twelve
+  spec = qm.SIZING if drive == "torque" else qm.CHOSEN
   model = mujoco.MjModel.from_xml_string(
-    qm.body_xml(qm.CHOSEN, scenery=scenery, drive=drive))
+    qm.body_xml(spec, scenery=scenery, drive=drive))
   data = mujoco.MjData(model)
   mujoco.mj_resetDataKeyframe(model, data, 0)
   data.qpos[3:7] = [math.cos(pitch / 2), 0.0, math.sin(pitch / 2), 0.0]

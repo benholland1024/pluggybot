@@ -14,6 +14,14 @@ rover's shape (`mission/rover.py`):
                 camera's obstacles under the LIDAR's plane, the dock
   QuadBody      the `Body` the loop reaches it through
 
+THE ARM (#378, issue #405), beside every posture: `legs.arm.ArmDriver`
+holds its two motors where they were last aimed, every physics step -- at
+the stow unless a procedure moved them -- and a fall or the rest reflex
+folds it back to the stow first. It takes tools off the rack beside the
+dock and hangs them back (`legs/swap.py`); a tool it carries rides the fork
+at the carry pose, is its own body to its senses, and is let go of in a
+fall.
+
 THE POSTURE, below every command. `standing` walks what it is told. After
 `posture.T_REST_S` with no motion command it lies down (`lying_down`, then
 `lying`): the rest reflex (Ben, 2026-09-27). A motion command to a lying
@@ -44,21 +52,22 @@ import numpy as np
 
 from pluggybot import tick
 from pluggybot.body import Body
+from pluggybot.legs import arm as am
 from pluggybot.legs import dock as dk
 from pluggybot.legs import posture as pz
 from pluggybot.legs.actuator import BUS_V_NOMINAL, JointLimits
+from pluggybot.legs.arm import ARM_SLEW, ArmDriver
 from pluggybot.legs.model import CHOSEN, ELECTRONICS_W, LEGS
 from pluggybot.legs.odometry import LegOdometry
+from pluggybot.legs.places import PlaceWalk
 from pluggybot.legs.policy import POLICY_NPZ, PolicyDriver, Twist, WalkingPolicy
 from pluggybot.legs.scripted import Command, VirtualModel
+from pluggybot.legs.swap import ToolSwap, bay_of
 from pluggybot.mapping.frontier import OCC_THRESH
 from pluggybot.navigator import Navigator, gave_up
 from pluggybot.perception.depth import PERIOD as DEPTH_PERIOD
 from pluggybot.perception.depth import DepthCamera, DepthFrame
 from pluggybot.power import Pack
-from pluggybot.rack.coupling import (
-  HUB_PEG_Z, PEG_R, RACK_HANG_X, STATION_YS, TRAY_VERTEX_DROP,
-)
 from pluggybot.rack.localize import RackPose
 from pluggybot.robot import FIRST, RobotHandle
 from pluggybot.tick import Routine
@@ -67,6 +76,12 @@ from pluggybot.tick import Routine
 GETUP_NPZ = POLICY_NPZ.with_name("quadruped_getup.npz")
 #: The command that holds the body where it is.
 STILL = (0.0, 0.0, 0.0)
+#: The nose camera: the dock's board is read through it, and it is the
+#: head camera the eye looks through (`Body.head_camera`).
+NAV_EYE = "nav_eye"
+#: The arm's two motors, by bare name: what a procedure may move
+#: (`procedure/axes.py`'s `shoulder` and `elbow`).
+ARM_ACTUATORS = ("arm_shoulder", "arm_elbow")
 #: The postures, as the wire carries them.
 STANDING, LYING_DOWN, LYING, STANDING_UP, GETTING_UP = POSTURES = (
   "standing", "lying_down", "lying", "standing_up", "getting_up")
@@ -79,10 +94,22 @@ V_MIN, W_MIN = 0.25, 0.3
 #: What the walking policy was trained to track (`training/quad_train/
 #: task.py`: LIN_X, LIN_Y, ANG_Z); a command is clamped into it.
 VX_RANGE, VY_MAX, W_MAX = (-0.8, 1.2), 0.5, 1.0
+#: THE TURN WHILE CARRYING, rad/s (#405): a tool on the fork swings out of
+#: its V's in a pivot. At the drive's full 1.0 rad/s the coupling opened
+#: for up to 160 ms (its holding capacitor is 200), at 0.6 for 56, at 0.45
+#: for 14 -- as a walk and a trot open it (`arm_spike.py --served --carry`).
+W_CARRY = 0.45
 #: How long `stand_routine` / `rest_routine` wait for the posture before
 #: they give up and say so, s: 2.2 s is a stand-up; a fall's get-up is the
 #: lifecycle's to bound.
 POSTURE_BUDGET_S = 15.0
+#: An arm joint has arrived within this, rad (its encoder's reading: the
+#: driver's PD holds a stowed arm to ~1 mrad), and a move is given this
+#: long past its ramp to get there, s.
+ARM_TOL, ARM_SETTLE_S = 0.01, 2.0
+#: The fold to the stow from anywhere in reach: the ramp's worst (the
+#: shoulder from its low stop, 4.6 rad at `ARM_SLEW`) and the settle.
+STOW_BUDGET_S = 5.0
 
 #: THE DEPTH CAMERA'S OBSTACLES (the module docstring). A point this high
 #: over the floor, and no higher, is something the body walks into: above
@@ -185,13 +212,30 @@ class LegPack(Pack):
                           (f"{leg}_{j}" for leg in LEGS
                            for j in ("hip_abd", "hip_flex", "knee"))])
     self._lim = JointLimits.of(CHOSEN.motor, CHOSEN.knee_ratio)
+    # ...and the arm's two (#405): the shoulder's, and the elbow's on the
+    # forearm's absolute angle (its tendon's velocity)
+    self._arm = tuple(int(model.actuator(f"{prefix}arm_{n}").id)
+                      for n in ("shoulder", "elbow"))
+    arm = JointLimits.of(CHOSEN.arm.motor)
+    self._arm_kt, self._arm_r = float(arm.kt[0]), float(arm.r_phase[0])
     self.base_w = float(sum(ELECTRONICS_W.values()))
 
   def power_draw(self, data) -> float:
     tau = data.actuator_force[self._act]
     qd = data.qvel[self._vadr]
+    copper, work = self._arm_w(data)
     return (self.base_w + float(self._lim.copper_w(tau).sum())
-            + float(np.clip(tau * qd, 0.0, None).sum()))
+            + float(np.clip(tau * qd, 0.0, None).sum()) + copper + work)
+
+  def _arm_w(self, data) -> tuple[float, float]:
+    """The arm's two motors' copper and shaft work, in floats: as numpy on
+    two elements they cost 6.3 us a step, for the same bits (the same
+    operations, summed in the same order)."""
+    f, v, c, kt = data.actuator_force, data.actuator_velocity, 1.5 * self._arm_r, self._arm_kt
+    s, e = self._arm
+    fs, fe = float(f[s]), float(f[e])
+    return (c * ((fs / kt) * (fs / kt)) + c * ((fe / kt) * (fe / kt)),
+            max(fs * float(v[s]), 0.0) + max(fe * float(v[e]), 0.0))
 
 
 class QuadStepper:
@@ -227,7 +271,7 @@ class QuadStepper:
     return tick.run(self, routine, name)
 
 
-class QuadMission(Navigator):
+class QuadMission(ToolSwap, PlaceWalk, Navigator):
   """The Navigator over a quadruped (the module docstring)."""
 
   #: The body's own sizes (`scripts/quad_spike.py`; SimNotes, "The first
@@ -244,13 +288,19 @@ class QuadMission(Navigator):
   #: middle of its footprint, 0.63 + 0.25 = 0.88 m, so 18.
   OTHER_ROBOT_CELLS = 14
   DOWN_ROBOT_CELLS = 18
-  #: The front stop, from the LIDAR on the rear mast. ⚠ UNDER THE CLEARANCE
-  #: THE PLANNER GRANTS: a centre 0.35 m from a wall (the inflation) puts
-  #: the LIDAR, 0.15 m behind it, 0.50 m from the wall, and a stop beyond
-  #: that fires on every waypoint the planner lays along one -- MEASURED at
-  #: 0.64 m, a drive toward the bedroom's divider backed off every second
-  #: for 135 s. At 0.45 m the nose (0.39 m ahead of the LIDAR) is 6 cm off.
-  FRONT_STOP_RANGE = 0.45
+  #: The front stop, from the LIDAR on the rear mast, 0.15 m behind the
+  #: centre. It fires before the FORK meets a wall (#405): the stowed arm's
+  #: fork is the body's front-most point, 0.35 m ahead of the centre and
+  #: 0.50 m ahead of the LIDAR, and at 0.45 m -- set for the nose, 0.39 m
+  #: ahead of it -- the fork met the wall first and the bumper backed one
+  #: walk off for 346 steps; at 0.53 it is 3 cm off and touched nothing.
+  #: ⚠ UNDER THE CLEARANCE THE PLANNER GRANTS: a waypoint 0.35 m from a
+  #: wall (the inflation) is dropped 0.08 m out, the LIDAR then 0.58 m from
+  #: the wall, and a stop beyond that fires on every waypoint the planner
+  #: lays along one -- MEASURED at 0.64 m, a drive toward the bedroom's
+  #: divider backed off every second for 135 s. A goal at the clearance
+  #: stops 3 cm short, inside `CLOSE_ENOUGH_M`.
+  FRONT_STOP_RANGE = 0.53
   #: ...tested over the CORRIDOR ahead, not the rover's 0.35 rad cone: the
   #: torso is 0.10 m either side of its line, and at 0.45 m the cone reaches
   #: 0.15 m out -- MEASURED, a wall alongside at 0.16 m fired it every scan,
@@ -294,6 +344,20 @@ class QuadMission(Navigator):
     self.getup.drivers = self.drivers = self.walker.drivers
     self.drivers.set_bus(BUS_V_NOMINAL)
     self.joints = pz.Joints.of(model, handle.prefix)
+    #: The arm (module docstring): aimed at its stow from the start; a body
+    #: whose world put it there (`legs.world.stand`) holds it at once.
+    self.arm_spec = CHOSEN.arm
+    self.arm = ArmDriver(model, data, self.arm_spec, prefix=handle.prefix)
+    self.arm.aim(*self.arm_spec.stow)
+    self.arm_acts = tuple(self.arm.act)
+    #: ...the driving poses as the driver's goals (`arm_driving`)
+    stow = self.arm_spec.stow
+    self._stow_goal = (stow[0], stow[0] + stow[1])
+    self._carry_goal = (am.CARRY_Q[0], am.CARRY_Q[0] + am.CARRY_Q[1])
+    #: An arm move or a swap at a bay under way: the rest reflex waits for
+    #: it, and so does a restart's save (`Keeper.busy`). Not kept across a
+    #: restart, which ends every routine that could own it.
+    self.working = False
     self.feet = [model.site(handle.el(f"{leg}_foot")).id for leg in LEGS]
     self.foot_r = float(model.geom_size[model.geom(handle.el("FL_foot")).id][0])
     self._vm: VirtualModel | None = None
@@ -348,6 +412,10 @@ class QuadMission(Navigator):
     self._is_ignored = np.zeros(model.ngeom, dtype=bool)
     self._is_ignored[np.concatenate((self._floor_gids, self._dock_gids,
                                      self.body_gids))] = True
+    # THE TOOL RACK (#405, `legs/swap.py`)
+    self._init_swap(model)
+    # THE PLACES IT FINDS (#419, `legs/places.py`)
+    self._init_places(model)
 
   # ---- the dock's frame -----------------------------------------------------
 
@@ -413,12 +481,26 @@ class QuadMission(Navigator):
 
   def _twist_routine(self, vx: float, vy: float, w: float) -> Routine:
     """One physics step at a velocity, as the policy can walk it -- stood
-    up first if the body is resting."""
+    up first if the body is resting, and the arm folded first if something
+    left it out: a procedure's pose outlives the procedure, and a walk
+    carried it on the floor or across the dock's board."""
     cmd = command_for(vx, vy, w)
+    if self.carrying is not None and abs(cmd[2]) > W_CARRY:
+      cmd = (cmd[0], cmd[1], math.copysign(W_CARRY, cmd[2]))
     if cmd != STILL and self.posture != STANDING:
       yield from self.stand_routine()
+    if cmd != STILL and not self.arm_driving():
+      yield from self.driving_pose_routine()
     yield cmd
     self._after_step()
+
+  def arm_driving(self) -> bool:
+    """The arm aimed at its driving pose: the stow, or the carry pose with a
+    tool on the fork -- folded, a carried tool is thrown. Read every walking
+    step, so in floats (`np.allclose` cost 16 us)."""
+    g = self.arm.goal
+    s, f = self._stow_goal if self.carrying is None else self._carry_goal
+    return abs(float(g[0]) - s) <= ARM_TOL and abs(float(g[1]) - f) <= ARM_TOL
 
   #: A plan asked for again this soon, for the same goal from within this of
   #: where the last was made, is that plan (s, m). MEASURED: at a stand-in
@@ -451,8 +533,12 @@ class QuadMission(Navigator):
 
   def _planning_grid(self) -> np.ndarray:
     """The LIDAR's grid, and what the depth camera saw under its plane
-    burned in as obstacles."""
+    burned in as obstacles -- and every plate it knows (#419,
+    `PlaceWalk.keep_out`): a press is the one way onto a pad."""
     low = self.low > LOW_OCC
+    pads = self.keep_out()
+    if pads is not None:
+      low = low | pads
     if not low.any():
       return self.grid.grid
     out = self.grid.grid.copy()
@@ -468,13 +554,15 @@ class QuadMission(Navigator):
     if moving:
       self.last_motion_t = t
     self._fall_check(t)
+    self.arm.step()
     if self._move is not None:
       if self._step_move():
         return
     p = self.posture
     if p == STANDING:
-      rest = t - self.last_motion_t >= pz.T_REST_S
-      if self.want == "lie" or (not moving and rest and self.want != "stand"):
+      rest = (t - self.last_motion_t >= pz.T_REST_S and self.want != "stand"
+              and not self.working)
+      if self.want == "lie" or (not moving and rest):
         self._begin(LYING_DOWN)
         self._step_move()
         return
@@ -497,6 +585,12 @@ class QuadMission(Navigator):
     self._pressing = self._press_now()
     if self._pressing:
       self.press_steps += 1
+    # A carried tool out of the fork's reach has fallen away -- knocked off
+    # by the other robot's at the rack, or sent home by an admin -- and
+    # nothing else lets go of it: the body walked with its arm up at
+    # W_CARRY, blind to the tool, until a fall or its next swap (#405)
+    if self._carried_bid >= 0 and not self.within_fork_reach(self._carried_bid):
+      self.carry(None)
     self._on_step()
 
   def _vm_now(self) -> VirtualModel:
@@ -523,6 +617,8 @@ class QuadMission(Navigator):
       while d.time - t0 < pz.STAND_HOLD_S:
         yield vm.torque(Command())
 
+    if posture == LYING_DOWN:
+      self.fold_arm(fall=False)
     self.posture = posture
     self._move = lie() if posture == LYING_DOWN else stand()
 
@@ -573,11 +669,116 @@ class QuadMission(Navigator):
     else:
       self._slumped_since = None
     if fallen:
+      self.fold_arm()
       self._move = None
       self.posture = GETTING_UP
       self._stood_since = None
       self.falls += 1
       self._handover(self.getup)
+
+  def fold_arm(self, fall: bool = True) -> None:
+    """The arm to its stow. A fall lets go of what it carried -- a fall
+    throws a carried tool whatever holds it (a gravity seat cannot hold
+    upside down), and the get-up rolls a body whose arm is folded (SimNotes,
+    "The quadruped's arm"). A body lying down to rest folds it first, or,
+    carrying, holds the tool at the carry pose: folded, it would swing the
+    tool into its own back."""
+    if fall or self.carrying is None:
+      self.carry(None)
+      self.arm.aim(*self.arm_spec.stow)
+    else:
+      self.arm.aim(*am.CARRY_Q)
+
+  def carry(self, module: str | None) -> None:
+    """What rides the fork, and so is this body's own to its senses: kept
+    out of the LIDAR's map, the depth camera's cloud, the press and the
+    height scan, as its own geoms are; and in the arm's feed-forward. Let go
+    of by a fall, a put, a stand-up, and a tool fallen out of the fork's
+    reach (`_after_physics`)."""
+    self.carrying = module
+    self._carried_bid = -1 if module is None else self.model.body(module).id
+    self._payload(module)
+    self.lidar.carry(module)
+    self.depth.carry(module)
+    for driver in (self.walker, self.getup):
+      driver.scan_exclude = -1 if module is None else self.model.body(module).id
+    self._is_ignored[self._carried_gids] = False
+    self._is_ignored[self.body_gids] = True
+    self._carried_gids = (self.tool_gids(module) if module is not None
+                          else np.zeros(0, dtype=np.int32))
+    self._is_ignored[self._carried_gids] = True
+
+  _carried_gids = np.zeros(0, dtype=np.int32)
+
+  def arm_setpoint(self, act: int) -> float:
+    """What the driver holds one of the arm's motors to: the shoulder's
+    angle, or the elbow's off the upper arm's line (`legs.arm.solve`'s)."""
+    s, fore = self.arm.goal
+    return float(s if act == self.arm_acts[0] else fore - s)
+
+  def arm_ramp_routine(self, act: int, target: float, speed: float,
+                       settle: float = 0.0) -> Routine:
+    """One of the arm's joints to `target`, the other held where it was
+    aimed, at `speed` (at most the driver's `ARM_SLEW`), standing: a body
+    lying down stands first, and one moving its arm does not lie down under
+    it. True once there; False if its budget ran out first, or the move was
+    taken from it -- a fall folds the arm, and a fold arrives at the stow,
+    not at the target."""
+    if act not in self.arm_acts:
+      raise KeyError(f"actuator {act} is not this body's arm")
+    if not (yield from self.stand_routine()):
+      return False
+    s, e = self.arm_setpoint(self.arm_acts[0]), self.arm_setpoint(self.arm_acts[1])
+    if act == self.arm_acts[0]:
+      s = target
+    else:
+      e = target
+    now = self.arm_setpoint(act)
+    self.arm.slew = min(max(speed, 1e-3), ARM_SLEW)
+    self.arm.aim(s, e)
+    aimed = self.arm.goal.copy()
+    budget = abs(target - now) / self.arm.slew + ARM_SETTLE_S
+    t0 = float(self.data.time)
+    was, self.working = self.working, True          # nested: the outer hold stays
+    try:
+      while not self.arm.arrived(ARM_TOL):
+        if self.data.time - t0 > budget or not self._still_aimed(aimed):
+          return False
+        yield STILL
+        self._after_step()
+      yield from self._drive_routine(settle, 0.0, 0.0)
+    finally:
+      self.working = was
+      self.arm.slew = ARM_SLEW
+      # ...and a move is motion: the rest reflex counts from its end, or a
+      # wait after it lay the body down and folded the pose it had just set
+      self.last_motion_t = float(self.data.time)
+    return self._still_aimed(aimed)
+
+  def _still_aimed(self, aimed) -> bool:
+    """The move is still this one's: standing, and nothing re-aimed it."""
+    return self.posture == STANDING and bool(np.all(self.arm.goal == aimed))
+
+  def stow_arm_routine(self) -> Routine:
+    """The arm folded to its stow, the driving configuration of an empty
+    fork; True once there."""
+    return (yield from self._arm_to_routine(self.arm_spec.stow))
+
+  def driving_pose_routine(self) -> Routine:
+    """The arm to its driving pose (`arm_driving`), at the driver's slew:
+    True once there."""
+    return (yield from self._arm_to_routine(
+      self.arm_spec.stow if self.carrying is None else am.CARRY_Q))
+
+  def _arm_to_routine(self, q) -> Routine:
+    self.arm.aim(*q)
+    t0 = float(self.data.time)
+    while not self.arm.arrived(ARM_TOL):
+      if self.data.time - t0 > STOW_BUDGET_S:
+        return False
+      yield STILL
+      self._after_step()
+    return True
 
   def _stood_check(self, t: float) -> None:
     up = (self._uprightness() > pz.UPRIGHT_COS
@@ -620,6 +821,17 @@ class QuadMission(Navigator):
   #: a flank (the torso is 0.21 m long either side, 0.10 m wide).
   PRESS_END_M = 0.15
 
+  def watch_for_peers(self, points) -> float | None:
+    """The depth camera's peer channel, recorded only on its feet: a drive
+    holds while it has a fresh sighting, the rest reflex lays a body down
+    in a long hold, and lying its nose looks along the floor -- where a
+    resting peer's stowed arm lies. Two resting robots each held for the
+    other for the rest of an explore (#405: before the arm, a resting body
+    showed nothing that low); on its feet it looks again."""
+    if self.posture != STANDING:
+      return None
+    return super().watch_for_peers(points)
+
   def _backoff_routine(self) -> Routine:
     """The retreat, away from where it was touched: a legged body steps
     SIDEWAYS off a flank -- MEASURED, reversing off a thigh that scraped the
@@ -642,7 +854,9 @@ class QuadMission(Navigator):
 
   def _look_step(self) -> None:
     """The depth camera, at its rate: what it sees under the LIDAR's plane
-    goes into the planner's layer."""
+    goes into the planner's layer; and the walking look for places (#419,
+    `PlaceWalk._place_step`)."""
+    self._place_step()
     frame = self.latest_depth()
     if self._frame_t == self._frame_used_t or frame is None:
       return
@@ -785,18 +999,21 @@ class QuadMission(Navigator):
   def _board_detector(self):
     if self._board is None:
       from pluggybot.rack.tags import DOCK_TAG_SIZE, TagDetector
-      self._board = TagDetector(self.model, self.handle.el("nav_eye"),
+      self._board = TagDetector(self.model, self.handle.el(NAV_EYE),
                                 tag_size=DOCK_TAG_SIZE)
     return self._board
 
   def detect_board(self) -> dict:
-    """One decode from the nose camera."""
-    return self._board_detector().detect(self.data)
+    """One decode from the nose camera; the places in it are remembered
+    (#419, `PlaceWalk.see_places`), whatever the look was for."""
+    dets = self._board_detector().detect(self.data)
+    self.see_places(dets)
+    return dets
 
   def look_at_board(self) -> dk.DockFix | None:
     """One look; a fit moves the dock's believed pose (odometry frame)."""
     seen = dk.seen_from(self.model, self.data, self.detect_board(),
-                        self.handle.el("nav_eye"), self.root)
+                        self.handle.el(NAV_EYE), self.root)
     fix = dk.fit_dock(seen)
     if fix is not None:
       self.dock_seen = dk.blend(self.dock_seen,
@@ -841,12 +1058,19 @@ class QuadMission(Navigator):
     return "budget"
 
   def _back_out_routine(self) -> Routine:
+    return (yield from self._back_out_by_routine(dk.BACK_OUT_M, dk.BACK_OUT_S,
+                                                 dk.APPROACH_V, dk.BACK_OUT_SETTLE_S))
+
+  def _back_out_by_routine(self, distance: float, budget: float, speed: float,
+                           settle: float) -> Routine:
+    """Straight back `distance` of odometry at `speed`, at most `budget` s,
+    and stand `settle` s: the dock's, the rack's and a plate's walk out."""
     x0, y0 = self.pose_xy()
     t0 = float(self.data.time)
-    while (math.hypot(self.odo.x - x0, self.odo.y - y0) < dk.BACK_OUT_M
-           and self.data.time - t0 < dk.BACK_OUT_S):
-      yield from self._twist_routine(-dk.APPROACH_V, 0.0, 0.0)
-    yield from self._drive_routine(dk.BACK_OUT_SETTLE_S, 0.0, 0.0)
+    while (math.hypot(self.odo.x - x0, self.odo.y - y0) < distance
+           and self.data.time - t0 < budget):
+      yield from self._twist_routine(-speed, 0.0, 0.0)
+    yield from self._drive_routine(settle, 0.0, 0.0)
 
   def dock_routine(self) -> Routine:
     """From the standoff: find the board, walk in by it, stop, check the
@@ -895,7 +1119,7 @@ class QuadMission(Navigator):
     (#378, "the dock is the map's origin"). With no decode, the seat itself:
     the funnel lays it within a few mm and 2 deg."""
     seen = dk.seen_from(self.model, self.data, self.detect_board(),
-                        self.handle.el("nav_eye"), self.root)
+                        self.handle.el(NAV_EYE), self.root)
     fix = dk.fit_dock(seen)
     x, y, yaw = self.dock_prior
     if fix is not None:
@@ -914,23 +1138,6 @@ class QuadMission(Navigator):
     yield from self.stand_routine()
     yield from self._back_out_routine()
     return "arrived"
-
-  # ---- tools: none, until the arm (#378) ---------------------------------------
-
-  def module_state(self, module: str) -> dict:
-    """Where a module is, off the world: never on this body (it has no arm
-    yet); hung, if it sits in a bay as the rover's swap would have it."""
-    d, m = self.data, self.model
-    p = d.xpos[m.body(module).id]
-    bid = m.body("rack").id
-    rp, rm = d.xpos[bid], d.xmat[bid].reshape(3, 3)
-    lx, ly, lz = (rm.T @ (p - rp)).tolist()
-    peg_rest_z = HUB_PEG_Z - TRAY_VERTEX_DROP + PEG_R
-    bay = min(range(len(STATION_YS)), key=lambda i: abs(ly - STATION_YS[i]))
-    hung = (abs(lx - RACK_HANG_X) < 0.012 and abs(lz - (peg_rest_z - 0.022)) < 0.008
-            and abs(ly - STATION_YS[bay]) < 0.030)
-    return {"pos": [float(v) for v in p], "on_fork": False, "hung": hung,
-            "bay": bay}
 
   def close(self) -> None:
     if self._board is not None:
@@ -971,6 +1178,8 @@ class QuadMission(Navigator):
       arrays.update(frameZ=f.z, framePoints=f.points, framePeers=f.peers,
                     framePeerGeoms=f.peer_geoms)
     memo = self._plan_memo
+    arrays["armTarget"] = np.array(self.arm.target, dtype=float)
+    arrays["armGoal"] = np.array(self.arm.goal, dtype=float)
     return ({"odometry": {"x": o.x, "y": o.y, "z": o.z, "v": o.v.tolist(),
                           "held": o.held, "quat": list(o.att.q),
                           "distance": o.distance,
@@ -980,6 +1189,8 @@ class QuadMission(Navigator):
              "want": self.want, "slumpedSince": self._slumped_since,
              "stoodSince": self._stood_since, "falls": self.falls,
              "docked": self.docked, "torqued": self.drivers.torqued,
+             "armPayload": [self.arm.payload[0], list(self.arm.payload[1])],
+             "carrying": self.carrying,
              "policies": policies, "frame": frame,
              "memo": None if memo is None else
              [list(memo[0]), memo[1], list(memo[2]),
@@ -995,7 +1206,12 @@ class QuadMission(Navigator):
                           self.lidar.peer_rng.bit_generator.state],
              "depthRng": [self.depth.rng.bit_generator.state,
                           self.depth.peer_rng.bit_generator.state],
-             "match": match},
+             "match": match,
+             # ...and the places it has found, with the map they are laid in
+             # (#419), and when and where it last looked for them
+             "places": self.places.kept_state(),
+             "placeLook": [None if math.isinf(self._place_look[0]) else self._place_look[0],
+                           None if self._place_look[1] is None else list(self._place_look[1])]},
             arrays)
 
   def restore_kept(self, state: dict, arrays: dict) -> bool:
@@ -1021,6 +1237,12 @@ class QuadMission(Navigator):
     if "gains" in arrays:
       self.model.actuator_gainprm[np.ix_(self.drivers.act, [3, 4, 5, 6, 7])] = arrays["gains"]
     self.drivers.torqued = bool(state.get("torqued", False))
+    self.carry(state.get("carrying"))
+    if "armTarget" in arrays:
+      self.arm.target = np.array(arrays["armTarget"], dtype=float)
+      self.arm.goal = np.array(arrays["armGoal"], dtype=float)
+      kg, (ox, oz) = state.get("armPayload", [0.0, [0.0, 0.0]])
+      self.arm.payload = (float(kg), (float(ox), float(oz)))
     for name, drv in (("walk", self.walker), ("getup", self.getup)):
       kept = state.get("policies", {}).get(name)
       if kept is not None:
@@ -1062,17 +1284,35 @@ class QuadMission(Navigator):
         self.low[...] = arrays["low"]
     if self.matcher is not None and state.get("match") and mapped:
       self.matcher.restore_kept(state["match"], arrays)
+    # ...the places only with the map they were laid in (#419): a world
+    # whose map did not come back has found nothing either
+    self.places.restore_kept(state.get("places") if mapped else None)
+    look = state.get("placeLook") or [None, None]
+    self._place_look = (-math.inf if look[0] is None else float(look[0]),
+                        None if look[1] is None else tuple(float(v) for v in look[1]))
+    self._keep_out = None
     return mapped
+
+  def forget_world(self) -> None:
+    """A true death (#419): the map, what the depth camera saw under it,
+    the last plan and every place it found, gone -- the new robot knows its
+    dock and nothing else (`Navigator.forget_map`)."""
+    self.forget_map()
+    self.low[...] = 0.0
+    self._walls_t, self._walls_mask = None, None
+    self._plan_memo = None
+    self.places.forget()
+    self._keep_out = None
 
   def rebind(self, model, data) -> None:
     """⚠ NOT DONE: a quadruped's world is never recompiled -- the seam hangs
-    a built tool (issue #168), and this body has no arm to take one until
-    #378's; its world has no workshop (`world_config`'s `built_bays`). Its
-    drivers, policies, reckoning and pack hold ids by the dozen, and a
-    rebind that missed one would drive another body's joints, so it is
-    refused out loud, not half-done."""
-    raise NotImplementedError("a quadruped's world is not recompiled: it hangs "
-                              "no tool until its arm (#378)")
+    a built tool (issue #168), and its rack (#405) has no rail for one: its
+    world has no workshop (`world_config`'s `built_bays`). Its drivers,
+    policies, reckoning and pack hold ids by the dozen, and a rebind that
+    missed one would drive another body's joints, so it is refused out
+    loud, not half-done."""
+    raise NotImplementedError("a quadruped's world is not recompiled: its rack "
+                              "has no rail for a built tool (#405)")
 
   def start_at(self, x: float, y: float, yaw: float) -> None:
     """Stand the body at a pose, on its feet, and tell its reckoning so --
@@ -1092,6 +1332,8 @@ class QuadMission(Navigator):
     self.odo.correct(x, y, yaw)
     self._vm = None
     self._handover(self.walker)
+    self.carry(None)
+    self.arm.hold_at(*self.arm_spec.stow)
     self.last_motion_t = float(self.data.time)
 
 
@@ -1112,7 +1354,6 @@ class QuadBody(Body):
   stuck_after_s = 20.0
   #: ...and this body rights itself.
   rights_itself = True
-  swapping_at = None
   peer_at_bay_m = None
   bay_wait = None
   rack_discovered = False
@@ -1173,6 +1414,17 @@ class QuadBody(Body):
   def grid(self):
     return _PlannedGrid(self.mission)
 
+  places = property(lambda self: self.mission.places)
+
+  def find_tag_routine(self, tag, near, patience, stop=None) -> Routine:
+    return self.mission.find_routine(tag, near=near, patience=patience, stop=stop)
+
+  def press_plate_routine(self, tag, patience, stop=None) -> Routine:
+    return self.mission.press_routine(tag, patience=patience, stop=stop)
+
+  def forget_world(self) -> None:
+    self.mission.forget_world()
+
   def plan_frontier(self, blacklist):
     from pluggybot.behavior.navigation import plan
     return plan(self.grid, self.pose, blacklist, self.mission.INFLATION_CELLS,
@@ -1224,33 +1476,37 @@ class QuadBody(Body):
   def refresh_rack(self):
     return None
 
+  # ---- the tool rack (#405, `legs/swap.py`): a bay is named by the
+  # lifecycle's `station_y` until #376's stage C (`swap.bay_of`)
+
+  swapping_at = property(lambda self: self.mission.swapping_at)
+  working = property(lambda self: self.mission.working)
+
   def bay_standoff(self, station_y):
-    # the tool rack's bays: this body has nothing to take from them
-    x, y = RackPose.prior().to_world(0.5, station_y)
-    return x, y, RackPose.prior().heading
+    return self.mission.rack_standoff(bay_of(station_y))
 
   def fetch_tool_routine(self, station_y, module) -> Routine:
-    return "no arm"
-    yield
+    return self.mission.fetch_routine(bay_of(station_y), module)
 
   def stow_tool_routine(self, station_y, module) -> Routine:
-    return "no arm"
-    yield
+    return self.mission.stow_routine(bay_of(station_y), module)
 
   def module_state(self, module) -> dict:
-    return self.mission.module_state(module)
+    return self.mission.tool_state(module)
 
   def tool_powered(self, module) -> bool:
-    return False
+    return self.mission.tool_powered(module)
 
   def seated_on(self, module):
-    return None
+    return self.mission.seated_on(module)
 
   def tool(self, module, **kw):
+    # a tool's own drivers are its rebuild's (#406, #407): these are a
+    # plate, a peg and a face
     return None
 
   def swap_trace(self) -> str:
-    return "no arm yet: this body takes no tool"
+    return self.mission.swap_trace()
 
   def charge_standoff(self):
     return self.mission.charge_standoff()
@@ -1312,6 +1568,7 @@ class QuadBody(Body):
     return None
 
   pressing = property(lambda self: self.mission.pressing)
+  head_camera = property(lambda self: self.handle.el(NAV_EYE))
 
   # ---- the others, and collisions ------------------------------------------
 
@@ -1337,11 +1594,17 @@ class QuadBody(Body):
   # ---- the motor level -----------------------------------------------------
 
   def actuator(self, name) -> int:
+    if name in ARM_ACTUATORS:
+      return self.model.actuator(self.handle.el(name)).id
     raise KeyError(f"no actuator {name!r} a procedure may move: the legs are "
-                   "the walking policy's, and the arm is not built yet")
+                   "the walking policy's, and the arm's are "
+                   + " and ".join(ARM_ACTUATORS))
 
   def ramp_routine(self, act, target, speed, settle=0.0) -> Routine:
-    return self.mission._drive_routine(settle, 0.0, 0.0)
+    return self.mission.arm_ramp_routine(act, target, speed, settle)
+
+  def setpoint(self, act) -> float:
+    return self.mission.arm_setpoint(act)
 
   def settle_routine(self, seconds) -> Routine:
     for _ in range(round(seconds / self.model.opt.timestep)):
@@ -1354,8 +1617,9 @@ class QuadBody(Body):
     return self.mission.travel_routine(distance, v)
 
   def retract_arm_routine(self) -> Routine:
-    return
-    yield
+    if self.mission.carrying is None:
+      return self.mission.stow_arm_routine()
+    return self.mission.carry_routine()
 
   # ---- posture and rest ----------------------------------------------------
 

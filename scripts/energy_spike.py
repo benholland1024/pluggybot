@@ -335,10 +335,11 @@ def main() -> None:
   cfg = world_config(args.world)
   explore_s = args.explore_s if args.explore_s is not None \
       else float(cfg["explore_budget"])
-  # ...and a body with no arm has no errand to price (issue #387): its
-  # rows are the explore's and the charger's
-  actions = (tuple(a for a in args.actions.split(",") if a)
-             if cfg.get("tools", True) else ())
+  # ...and a body with no arm has no tool errand to price (issue #387):
+  # its rows are the explore's, the charger's and the lab's acts, which
+  # take no tool (#403)
+  actions = tuple(a for a in args.actions.split(",") if a
+                  and (cfg.get("tools", True) or a in CAGE_ACTIONS))
   wall = time.time()
   if args.reserve:
     print(f"== {args.world}: measuring the worst-case return trip on a "

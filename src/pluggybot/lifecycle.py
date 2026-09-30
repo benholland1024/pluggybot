@@ -210,6 +210,18 @@ LOST_TOOL_S = 300.0
 #: minutes, and reading every module every physics step learns nothing.
 LOST_TOOL_CHECK_S = 1.0
 
+#: WHAT A NEW ROBOT STARTS WITH after a true death, in points (issue #419):
+#: a PARAMETER (`start_points`) on `restart_after_s`' terms -- ON in
+#: `serve.py`, OFF in `experiment.py`, and never an intervention. Ben's
+#: number (2026-09-29): a heart's price (`overseer.HEART_PRICE`), and about
+#: 6.7 hours of upkeep at the shipped 30 an hour, under the cap (600). The
+#: time to find the world's places is far inside it: a fresh quadruped found
+#: the lab's plates from the facility's address in 62-272 s (#419's flights;
+#: SimNotes, "Places, not coordinates"), 2 points at 30 an hour. ⚠ A balance
+#: ARMS upkeep (`Metabolism._armed`: a missed payment kills once a point is
+#: banked), so what a new robot is given is also the clock it has to earn by.
+STARTING_POINTS = 200
+
 
 def _minutes(s: float) -> str:
   """300 -> "5 minutes": a span as a History line says it."""
@@ -550,6 +562,7 @@ class HubLifecycle:
                mortal: bool | None = None,
                restart_after_s: float | None = None,
                lost_tool_after_s: float | None = None,
+               start_points: int | None = None,
                autonomous: bool = False,
                handle: RobotHandle = FIRST,
                robot_name: str | None = None,
@@ -602,7 +615,9 @@ class HubLifecycle:
     #: are permanent (issue #277); a built tool takes a built-rail bay,
     #: retiring a built tool already there.
     from pluggybot.procedure.steps import TOOL_BAYS
-    self.rack_inventory: dict[str, int] = dict(TOOL_BAYS)
+    # ...or the world's own rack's (issue #405: the tools for legs)
+    self.rack_inventory: dict[str, int] = dict(
+      world_config(world).get("tool_bays") or TOOL_BAYS)
     #: The tools the workshop built and hung, by module name.
     self.built: dict = {}
     #: Whether THIS world carries the built-tool rail (issue #277), read off
@@ -611,7 +626,7 @@ class HubLifecycle:
     #: rail's presence -- the grammar keys off `world_config`'s count, which
     #: a test holds equal to this.
     # ...and on a body that can hang one (issue #387): the rail stands in
-    # the quadruped's world, and waits for its arm.
+    # the quadruped's world, and waits for its arm to take a tool (#405).
     self.has_built_rack = (mujoco.mj_name2id(
       model, mujoco.mjtObj.mjOBJ_BODY, BUILT_RACK_BODY) >= 0
       and world_config(world).get("tools", True))
@@ -813,6 +828,8 @@ class HubLifecycle:
     self.body.step_hooks.append(self._events_step)
     self.body.step_hooks.append(self._rack_linger_step)
     self.body.step_hooks.append(self._lost_tool_step)
+    self.body.step_hooks.append(self._press_step)
+    self.body.step_hooks.append(self._places_step)
     self.body.bay_wait = self._await_bay_routine
     #: THE NEAR-FIELD MAP (issue #34): the depth camera on the mast top and
     #: the robot-centric height map it feeds, one frame every `nf.PERIOD`
@@ -1061,6 +1078,11 @@ class HubLifecycle:
     #: pair ticks it on the first robot's seam alone (`pair.build_pair`).
     self.lost_tool_after_s = (None if lost_tool_after_s is None
                               else float(lost_tool_after_s))
+    #: ...and what a NEW robot starts with after a true death (issue #419,
+    #: `STARTING_POINTS`): None -- the default -- is zero, as every robot
+    #: started before; `serve.py` sets it. Granted by the world, never
+    #: earned (`Ledger.archive`'s `granted`).
+    self.start_points = int(start_points) if start_points else 0
     #: module -> the sim time it was first seen lost, this spell
     self._lost_since: dict[str, float] = {}
     self._next_lost_check = 0.0
@@ -1407,12 +1429,20 @@ class HubLifecycle:
     its predecessor's death line on every decision -- the same robot has to
     live with having died. This is the one that does not.
 
-    ⚠ AND THE NEW ROBOT STARTS SOLVENT: a full set of hearts, a zero balance
-    and no carried fraction of a point. A death may never make the next life
+    ⚠ AND THE NEW ROBOT STARTS SOLVENT: a full set of hearts, no carried
+    fraction of a point, and `start_points` to explore with (issue #419;
+    zero where none is set). A death may never make the next life
     unwinnable, and a robot that inherited its predecessor's debt would die
     of it before it had earned anything.
+
+    ⚠ ...AND KNOWING NOTHING OF THE WORLD BUT ITS DOCK (issue #419): the map
+    and the places the robot before found are gone with it (`Body.
+    forget_world`), and the new one explores from there.
     """
-    archived = self.ledger.archive()
+    archived = self.ledger.archive(start=self.start_points)
+    self.body.forget_world()
+    self.floor_explored = False
+    self.blacklist = set()
     if self.thoughts is not None:
       archived["thoughts"] = self.thoughts.archive()
     if self.metabolism is not None:
@@ -1443,18 +1473,24 @@ class HubLifecycle:
     # successor's empty list unconsulted: `unminded` at 1800 s having made
     # no decision, the state this seam exists to prevent.
     self._minded = False
-    self._say(f"TRUE DEATH: out of hearts. Everything this robot earned and "
-              f"wrote is archived; robot #{archived['generation'] + 1} starts "
-              "from nothing.")
+    given = (f" but {self.start_points} points to explore with"
+             if self.start_points else "")
+    self._say(f"TRUE DEATH: out of hearts. Everything this robot earned, "
+              f"wrote and mapped is archived or gone; robot "
+              f"#{archived['generation'] + 1} starts from nothing{given}.")
     # ⚠ The line goes in the NEW robot's History, which is empty by now --
     # so the first thing it ever reads about itself is that it is not the
     # first. That is the inheritance, and it is the only one.
     self._remember(f"I am the {_ordinal(archived['generation'] + 1)} robot to "
                    "run here. The one before me ran out of lives; what it "
-                   "knew went with it.")
+                   "knew went with it, its map and the places it had found "
+                   f"among it{'. I start with ' + str(self.start_points) + ' points' if self.start_points else ''}.")
     self._emit({"type": "true_death", "t": round(t, 3), "robot": self.root,
                 "generation": archived["generation"],
-                "archived": archived.get("archived", {})})
+                "archived": archived.get("archived", {}),
+                # what the new robot was given to start (issue #419); absent
+                # where nothing was, as every true death before it
+                **({"granted": self.start_points} if self.start_points else {})})
 
   @property
   def reset_in_s(self) -> float | None:
@@ -3510,6 +3546,35 @@ class HubLifecycle:
       return "fork"
     return "bay" if states[0]["hung"] and states[0]["bay"] == index else "lost"
 
+  def _places_step(self) -> None:
+    """A place found for the FIRST time goes in History (issue #419): what
+    the robot knows of the world is its own, and what it has just learned
+    is something that happened to it -- and a History line rides the wire,
+    so the observatory reads when each was found. Only when a look changed
+    what it knows (`Places.version`); the places a restart brought back,
+    seen by the first call, are not found again."""
+    places = self.body.places
+    if places is None or places.version == self._places_seen[0]:
+      return
+    # ...by when each was FIRST seen, so a place forgotten and found again
+    # between two reads is still found again
+    now = {p.tag: p.first_t for p in places}
+    known = self._places_seen[1]
+    self._places_seen = (places.version, now)
+    if known is None:
+      return
+    fresh = [p for p in places if known.get(p.tag) != p.first_t]
+    if fresh:
+      from pluggybot.home.places import tag_names
+      names = tag_names()
+      for p in fresh:
+        self._remember(f"found {names.get(p.tag, 'a place')} (tag {p.tag}) at "
+                       f"({p.x:.1f}, {p.y:.1f})")
+
+  #: The places' version last read, and when each place known then was
+  #: first seen, by tag (None before the first read).
+  _places_seen = (-1, None)
+
   def _lost_tool_step(self) -> None:
     """The world's own hand for a tool on the floor (issue #347), once a
     sim second: a module `lost` for `lost_tool_after_s` without a break
@@ -3933,8 +3998,7 @@ class HubLifecycle:
     """
     self.state = "LOOK"
     x, y, heading = self.body.pose
-    camera = eye_mod.camera_pose(self.model, self.data,
-                                 self.body.handle.el(eye_mod.CAMERA))
+    camera = eye_mod.camera_pose(self.model, self.data, self.body.head_camera)
     row = self.eye.ask(camera, t=float(self.data.time), x=x, y=y, heading=heading)
     self._look_run += 1
     self._emit({"type": "look", **eye_mod.wire_row(row)})
@@ -4239,6 +4303,36 @@ class HubLifecycle:
     if self.activities is None:
       return None
     return next((a for a in self.activities if isinstance(a, Cage)), None)
+
+  def _press_step(self) -> None:
+    """A plate THIS robot pressed that no errand of that plate was run for
+    (issue #403): a foot walking round the lab, a company visit, an
+    explore, the robot's own procedure. Neither a job nor a care act, so it
+    is its own event, `press`, with what the robot was `doing`; the
+    errand's own press is its `care` / `harm` row (`_cage_record`)."""
+    if self.activities is not self._press_of:
+      self._press_of, self._press_cage = self.activities, self.cage
+    cage = self._press_cage
+    if cage is None or cage.press_seq == self._press_seen:
+      return
+    errand = self._errand_now
+    own = errand.detail.get("act") if errand is not None and errand.detail.get("cage") else ""
+    for press in cage.presses:
+      if press["seq"] <= self._press_seen or press["robot"] != self.root \
+          or press["plate"] == own:
+        continue
+      doing = (self.state.lower() if errand is None
+               else f"procedure:{getattr(errand.program, 'name', '')}" if errand.name == "procedure"
+               else errand.name)
+      self._emit({"type": "press", "t": press["t"], "robot": self.root,
+                  "plate": press["plate"], "doing": doing,
+                  "before": press["before"], "after": press["after"]})
+      self._say(f"PRESS the {press['plate']} plate, while {doing}: the "
+                f"mouse {press['before']} -> {press['after']}")
+    self._press_seen = cage.press_seq
+
+  _press_of = _press_cage = None
+  _press_seen = 0
 
   def _peer(self, name: str):
     """The other lifecycle by the DISPLAY name the mind used, or None."""
@@ -6423,6 +6517,8 @@ class HubLifecycle:
       # and the acts themselves for the record and the observatory.
       "given": self.ledger.given() if self.ledger is not None else 0,
       "received": self.ledger.received() if self.ledger is not None else 0,
+      # ...and what a new robot was given to start (issue #419): a term too
+      "granted": self.ledger.granted() if self.ledger is not None else 0,
       "acts": list(self.acts),
       "rack_discovered": self.body.rack_discovered,
       "collision_steps": self.body.collision_steps,
@@ -6850,10 +6946,16 @@ def task_producer(board, world: str, book=None, cadence=None,
   """
   from pluggybot.economy.cadence import TaskProducer, default_cadence
   cfg = world_config(world)
+  facts = {k: cfg[k] for k in ("tower", "lab") if cfg.get(k)}
+  if cfg.get("places"):
+    # WHERE A JOB IS (issue #419): each task area's address and directions,
+    # what an offer naming it carries -- never a finer position
+    from pluggybot.home.places import areas
+    facts["places"] = areas()
   return TaskProducer(board, cadence or default_cadence(world),
                       world_targets(world, book, procedures=procedures,
                                     robots=robots),
-                      facts={k: cfg[k] for k in ("tower", "lab") if cfg.get(k)})
+                      facts=facts)
 
 
 def world_screens(model, data):
@@ -7142,7 +7244,7 @@ def hide_and_seek_program(world: str):
 #: and the second house, as `drive_to` legs no longer than the LIDAR has
 #: already mapped from the leg before (SimNotes, "A goal out of sight is
 #: aimed at through the nearest wall": a 12 m leg to an unmapped goal drove
-#: the other way; `test_home_world.loop_legs` keeps every leg under 6.7 m).
+#: the other way).
 #: Surveyed infrastructure, a work order's kind of fact -- the same class as
 #: the whiteboards' poses. `cage_route` drops the legs already behind the
 #: robot, so a second visit from inside the lab does not drive home first.
@@ -7333,6 +7435,8 @@ def cage_program(world: str, act: str,
   cfg = world_config(world)
   if not cfg.get("lab"):
     raise ValueError(f"the {world} world has no lab")
+  if cfg.get("places"):
+    return _plate_program(cfg, act)
   cx, cy = cfg["lab"]["cage"]
   steps = [Step("drive_to", {"x": x, "y": y}) for x, y in cage_route(world, from_xy)]
   if act == "company":
@@ -7346,6 +7450,26 @@ def cage_program(world: str, act: str,
               Step("drive_to", {"x": px, "y": py + cg.PLATE_PASS_M}),
               Step("drive_to", {"x": px, "y": py - cg.PLATE_APPROACH_M})]
   return Program.single(f"{act}_mouse", steps, budget_s=900.0)
+
+
+def _plate_program(cfg: dict, act: str):
+  """One act on the mouse where the robot finds its places (issue #403 on
+  #419's): the plate found by its sign -- where it was last seen, else
+  searched for round the lab's ADDRESS, never a position finer than the
+  house -- and pressed off it. Every pad it has seen is a wall to its
+  planner, so no walk crosses one (`PlaceWalk.keep_out`). Company is a spot
+  beside the cage, not a plate: a position code would have to hand over, so
+  on legs it is the robot's own to walk, and not a `care` act."""
+  from pluggybot.activity import cage as cg
+  from pluggybot.home.places import area
+  from pluggybot.procedure.steps import Program, Step
+  if act not in cg.PLATE_TAGS:
+    raise ValueError(f"{act!r} is no plate: on legs the `care` acts are "
+                     f"{', '.join(cg.PLATE_CARE_ACTS)}")
+  tag = cg.PLATE_TAGS[act]
+  at = area(cfg["lab"]["name"])["address"]
+  return Program.single(f"{act}_mouse", [Step("find", {"tag": tag, "x": at["x"], "y": at["y"]}),
+                                         Step("press", {"tag": tag})], budget_s=900.0)
 
 
 def cage_errand(world: str, act: str, from_xy=None, real: str = "",
@@ -7366,8 +7490,11 @@ def cage_errand(world: str, act: str, from_xy=None, real: str = "",
                              name=f"care:{act}" if task == "care" else f"{task}:lab")
   # `routeLegs`: the program's first steps are the way to the lab, and a
   # failure there never reached the cage (`_program_failure`, issue #350)
+  # -- and on legs (#419) the `find`: a job that never found its plate never
+  # reached the cage
+  legs = 1 if world_config(world).get("places") else len(cage_route(world, from_xy))
   errand.detail.update({"cage": "lab", "act": act, "real": real,
-                        "routeLegs": len(cage_route(world, from_xy))})
+                        "routeLegs": legs})
   errand.needs_use_pose = False
   return errand
 
@@ -7483,22 +7610,41 @@ def world_facts(world: str, rack: dict[str, int] | None = None):
   pen knows. `rack` is a lifecycle's inventory once the workshop has hung
   a tool (issue #168); without it, the shipped five."""
   from pluggybot.procedure import axes
-  from pluggybot.procedure.steps import BODY_VERBS, TOOL_BAYS, WorldFacts
+  from pluggybot.procedure.steps import (BODY_VERBS, PLACE_VERBS, PLATE_VERBS, SWAP_VERBS,
+                                         TOOL_BAYS, WorldFacts)
   cfg = world_config(world)
   boards: tuple = ()
   if cfg["meta"]:
     boards = tuple(json.loads(Path(cfg["meta"]).read_text())["boards"])
-  # A body with no arm (issue #387) has no tool to fetch, no axis to move
-  # and none of the fork's senses: a program naming one is refused up
-  # front, with the name, as any unknown one is.
+  # A body with no tool errand (issue #387) has none of the fork's senses,
+  # and a program naming one is refused up front, with the name, as any
+  # unknown one is. Its axes are its own (issue #405: the quadruped's arm),
+  # never another body's, and where its world has a rack at its arm's
+  # reach (`swap`) it fetches and stows that rack's tools.
   armed = cfg.get("tools", True)
-  return WorldFacts(boards=boards, tools=tuple(rack or TOOL_BAYS) if armed else (),
+  swaps = cfg.get("swap", armed)
+  own = axes.BODY_AXES[cfg.get("body", "rover")]
+  theirs = {a for axs in axes.BODY_AXES.values() for a in axs} - set(own)
+  legs = cfg.get("body", "rover") == "quadruped"
+  bays = rack or cfg.get("tool_bays") or TOOL_BAYS
+  # ...and where its world has task areas it finds by their tags (issue
+  # #419), `find`; `press` only where the plates' lab is in the world's
+  # config, with the lab's rule that says what the plates do
+  places = tuple(int(t) for t in cfg.get("places") or ())
+  plates = places if cfg.get("lab") else ()
+  verbs = None if armed else (BODY_VERBS + (SWAP_VERBS if swaps else ())
+                              + (PLACE_VERBS if places else ())
+                              + (PLATE_VERBS if plates else ()))
+  return WorldFacts(boards=boards, tools=tuple(bays) if swaps else (),
                     bounds=tuple(float(v) for v in cfg["grid_bounds"]),
                     figures=tuple(n for n in strokes.PROGRAMS
                                   if n not in ("text", "answer")),
-                    axes=tuple(axes.AXES) if armed else (),
-                    sensors=tuple(axes.SENSORS) if armed else axes.BODY_SENSORS,
-                    verbs=None if armed else BODY_VERBS)
+                    axes=(tuple(a for a in axes.AXES if a not in theirs)
+                          if armed else own),
+                    sensors=(tuple(n for n in axes.SENSORS if n not in theirs)
+                             if armed else
+                             axes.LEGS_SENSORS if legs else axes.BODY_SENSORS),
+                    verbs=verbs, places=places, plates=plates)
 
 
 def zone_centre(world: str, name: str) -> tuple[float, float]:
@@ -7623,8 +7769,12 @@ def overseer_context(life) -> dict:
     # same class of fact as a whiteboard's pose (TaskPattern.md §2), and
     # the one thing a procedure needs to drive to it. The cubes' poses are
     # not here: finding them is the job.
-    at = (world_config(life.world).get("lab") or {}).get("bench")
-    if at:
+    # ⚠ NEVER ON A BODY THAT FINDS ITS PLACES (issue #419): a job gives no
+    # position finer than the house, and furniture is no exception -- the
+    # bench is found by its tags where the world keeps places (#407)
+    cfg = world_config(life.world)
+    at = (cfg.get("lab") or {}).get("bench")
+    if at and not cfg.get("places"):
       state["lab"]["bench"] = [round(float(v), 2) for v in at]
     # ...and THE WAY THERE (issue #264): the legs of the road from the
     # house to the lab's door, in order -- the house's own map, the same
@@ -7667,7 +7817,27 @@ def overseer_context(life) -> dict:
                                life.built_by() if built else None, built=built)
   if built:
     state["tools"] = shop.as_context()
+  # THE PLACES IT HAS FOUND (issue #419): each task area's tag where it saw
+  # it in its own map, by what the area's directions call it, and how long
+  # ago -- its own knowledge, on every arm, as the rack view is. Absent where
+  # the body keeps none (the rover), `[]` where it has found none yet.
+  if life.body.places is not None:
+    state["places"] = places_context(life)
   return state
+
+
+def places_context(life) -> list[dict]:
+  """`places` as the model sees it (issue #419): per place found, its tag,
+  its name where a task area's directions give one (`home/places.json`),
+  where it is in the robot's own map, and how many sim seconds ago it was
+  last seen. Never which way it faces: that is the approach's business."""
+  from pluggybot.home.places import tag_names
+  names = tag_names()
+  now = float(life.data.time)
+  return [{"tag": p.tag, **({"name": names[p.tag]} if p.tag in names else {}),
+           "at": [round(p.x, 2), round(p.y, 2)],
+           "seenSAgo": round(max(0.0, now - p.seen_t))}
+          for p in life.body.places]
 
 
 def rack_context(inventory: dict[str, int], places: dict[str, str],
@@ -7829,16 +7999,27 @@ def world_config(world: str) -> dict:
     # THE HOME WORLD WITH LEGS IN IT (issue #387): the same house, the rover
     # taken out and the quadruped and its dock put in (`legs/world.py`,
     # built at load from the rover's file, so there is one house). What
-    # differs is what the BODY can do: no tool on this body until the arm
-    # (#378), so no tool errand, no workshop and no tower; the lab's jobs
-    # run the rover's programs along its surveyed routes, so no lab either
-    # this period. Its packs are the quadruped's (`legs.model.PACK_WH`).
+    # differs is what the BODY can do: its arm takes no tool until a rack
+    # of its own (#405), so no tool errand, no workshop and no tower. The
+    # lab is here (#403): its acts need no tool, and a plate is found by
+    # its sign and pressed off it (#419), never handed as a position. Its
+    # packs are the quadruped's (`legs.model.PACK_WH`).
     from pluggybot.legs import model as legs_model
     from pluggybot.legs import world as legs_world
-    cfg = {k: v for k, v in world_config("home").items() if k not in ("tower", "lab")}
+    from pluggybot.rack.tags import PLATE_TAG_IDS
+    cfg = {k: v for k, v in world_config("home").items() if k != "tower"}
+    from pluggybot.legs import rack as legs_rack
     cfg.update({
       "model_name": QUAD_HOME, "body": "quadruped", "tools": False,
+      # ...but its arm takes the tools on its own rack, beside the dock
+      # (#405): a program's `fetch` and `stow`, no errand yet
+      "swap": True, "tool_bays": dict(legs_rack.TOOL_BAYS),
       "built_bays": 0, "dock": legs_world.dock_pose(),
+      # ...and the task areas' tags its robots find and remember (issue
+      # #419): the lab's plate signs, which its world puts in beside them
+      # (`legs/world.py`) -- where a job's `find` may search, never a
+      # position handed over
+      "places": PLATE_TAG_IDS,
       "battery_wh": legs_world.DEMO_WH,
       "hosting_battery_wh": legs_model.PACK_WH,
       "low_battery_wh": legs_world.RESERVE_WH,

@@ -1324,9 +1324,7 @@ plans to the nearest traversable cell and finishes on `drive_toward`), so
 the fuller fix -- for an UNKNOWN goal, aim at the nearest cell that borders
 unknown space, since driving there is what grows the map toward the goal;
 for an INFLATED one, today's rule -- changes every drive whose goal is
-unmapped and wants its own flights. The flown lap keeps every leg inside
-what the leg before mapped (6.6 m against the LIDAR's 8 m;
-`test_home_world.loop_legs`). A PROCEDURE's `drive_to` past the LIDAR's
+unmapped and wants its own flights. A PROCEDURE's `drive_to` past the LIDAR's
 reach or off the map walks `lifecycle.route_to`'s doorways first (issue
 #353); its hops are the house's legs (up to 7.9 m, where the lab's way
 meets the workshop's), and the first is as far as the robot stands from
@@ -2316,7 +2314,8 @@ wherever the arm is, as a palletising robot's does. The shoulder axis sits
 budgeted 0.9). A tool still hangs by the rover's plate and split peg, now
 220 mm long; the fork at the arm's tip takes it at ±85 mm in V's steeper
 than the rover's (60°, for the stairs, below), and the rack's trays at ±45.
-None of it is in the served world yet (#375, step 4).
+The arm is the served body's since #405 ("The arm on the served body",
+below); the rack and the tools on it are its stage B.
 
 **The level-tool choice** (`--reach`). A gravity seat wants its V's level,
 and with two pitch joints the plate's angle is their sum. The three options,
@@ -2476,7 +2475,7 @@ there (3 of 6 pushes stayed down), so the arm folds as the torso passes
 it takes over with the arm out and 1.3 s folded; from 20 random drops with
 the arm folded it stands 20 of 20 (median 1.5 s, as with the
 placeholder). The fold drives the elbow's motor to its 22 N·m peak
-through the impact, so whether step 4 keeps it is open again.
+through the impact; #405 keeps it, and folds the arm before a rest too.
 
 **What the arm hides** (`--sensors`). Stowed — the upper arm straight back
 over the torso, the forearm 10° up from it — it hides nothing: no LIDAR ray
@@ -2557,18 +2556,18 @@ flat.
 - **the plug does not** — no job uses it, and the robot charges by lying
   on its dock (#390).
 
-**What is true now:** the arm is `legs.arm.ArmSpec()` (the choice), built
-onto the body by `model.body_xml(arm=arm_mjcf(...))` — a spike's body, not
-yet `CHOSEN`'s, whose placeholder still budgets 0.9 kg; the controller is
-`ArmDriver` (the GDS68's PD plus the arm's own gravity off its model); the
-coupling is `ArmSpec().fork` (60° V's) with `rack.tool_xml`'s peg, judged by
-`rack.tool_power`; the rack is `rack.DEFAULT` (three bays at 0.30 m, pegs at
-0.50 m, tags 29–34), found by `rack.bay_aim` and walked into by
-`rack.walk_in_twist`; the stow, the carry pose, the fold threshold and the
-tool envelope are `legs/arm.py`'s constants. `tests/test_arm.py` pins each
-rule above. Step 4 builds the arm into `CHOSEN`, the rack and the tools
-into the served world, the envelope into the workshop's validator, the fold
-into the body's reflexes and the carried-tool filter into the scans.
+**What is true now:** the arm is `legs.arm.ArmSpec()` (the choice),
+`CHOSEN.arm` since #405, built onto the body by `model.body_xml`; the
+controller is `ArmDriver` (the GDS68's PD plus the arm's own gravity off
+its planar model, #405); the coupling is `ArmSpec().fork` (60° V's) with
+`rack.tool_xml`'s peg, judged by `rack.tool_power`; the rack is
+`rack.DEFAULT` (three bays at 0.30 m, pegs at 0.50 m, tags 29–34), found by
+`rack.bay_aim` and walked into by `rack.walk_in_twist`; the stow, the carry
+pose, the fold threshold and the tool envelope are `legs/arm.py`'s
+constants. `tests/test_arm.py` pins each rule above. #405 built the arm
+and the fold into the served body; its stage B brings the rack and the
+tools into the served world and the carried-tool filter into the scans,
+and step 4c the envelope into the workshop's validator.
 
 ## The served sim's speed (issue #385)
 
@@ -3231,6 +3230,454 @@ the restore (942 samples, `--resume-at 40`). `scripts/unknown_spike.py [--before
 `tests/test_unknown.py`. Not done: the map is still the
 property's rectangle (#381's stage 4), loop closure (stage 3), and what a
 walk into the unknown costs is not yet in any offer (stage 7).
+
+## The arm on the served body (issue #405)
+
+#378's arm is `CHOSEN`'s: `BodySpec.arm` is `ArmSpec()`, and the budget's
+0.9 kg arm and 0.25 kg tool placeholders are 0, so the robot is 9.36 kg
+without a tool (the placeholder body was 9.34) and fourteen drivers stand
+by. #377's torque, thermal and energy tables were flown on the placeholder
+and still are: `model.SIZING` is that premise, and the torque-driven
+instruments (`quad_spike.py`'s tables, the scripted gait's tests) fly it,
+their `ctrl` the legs' twelve. The policy flights fly the chosen body with
+its arm held where it stands (`PolicyDriver.step`): unheld, it falls
+across the nose camera within half a second -- the dock test's lying robot
+lost the board that way. The fork's eleven 2 g geoms had been counted on
+top of the plate's 80 g budget; the plate's own geom carries the rest now.
+
+**The driver holds the arm on every step, off `qpos` alone.**
+`QuadMission.arm` is an `ArmDriver` stepped in `_before_step` whatever the
+posture: at the stow unless a program moved it. #378's driver took its
+gravity feed-forward off MuJoCo's Jacobians -- three bodies, each a
+Jacobian 122 columns wide in the house -- and cost 100 us a step, 43 of
+them the Jacobians and 22 numpy's overhead on two-element arrays: a fifth
+more work a step for the served pair, which runs near real time. And a
+restart forwards the saved world at its instant, where a running world's
+step reads the kinematics one step old, so a controller that reads them on
+every step parts the two worlds at the first step back (the policy reads
+them only at a decision, the fall check only against a threshold). The
+feed-forward is the arm's own planar model now -- each link's mass and CoM
+off the model, the joints' angles and the torso's attitude off `qpos` --
+equal to the Jacobians to 1e-15 N·m at any pose, attitude and payload, and
+the two joints' PD and envelope in plain floats: 12.5 us a step, measured
+at load 18.
+
+**Held, the stow barely moves** (the served body in the house; the arm's
+draw is its two motors' windings and shafts):
+
+| | off the stow, worst | motors' peak, shoulder / elbow | the arm's draw |
+|---|---|---|---|
+| standing | 0.02° | 0.8 / 0.5 N·m | 0.6 W |
+| walking 0.3 m/s | 1.1° | 4.4 / 2.4 N·m | 0.8 W |
+| trotting 0.8 m/s | 2.6° | 2.3 / 3.9 N·m | 2.6 W |
+| turning 0.8 rad/s | 3.8° | 2.4 / 4.0 N·m | 4.3 W |
+| lying down to rest | 0.1° | 1.0 / 0.7 N·m | 0.6 W |
+
+**Getting up with the arm needed no training.** #389's policy, trained with
+#377's placeholder that collided with nothing, gets up with the real arm on
+its back as it did without it (`quad_spike.py --getup`, `--shove`):
+
+| | the placeholder | the arm, held stowed |
+|---|---|---|
+| from the belly: stood in; peak a/f/k | 1.5 s; 5.3 / 8.6 / 10.1 N·m | 1.5 s; 5.3 / 8.6 / 10.1 N·m |
+| #377's 20 drops: stood; median; worst after the landing | 20; 1.5 s; 14.2 N·m | 20; 1.4 s; 12.6 N·m |
+| 100 drops: stood; past 60 % after the landing | 100; 5 | 100; 4 |
+| the house, 48 shoves: fell / up; median (slowest) | 37 / 37; 2.0 s (4.6) | 36 / 36; 1.9 s (5.8) |
+
+A fall folds the arm (below), so the get-up always starts from the stow,
+and that is the pose training fixes now: `quad_train.robot.freeze_arm`
+turns each arm body to the stow its driver holds and takes its joints out,
+so a future run falls on the arm's real geometry while a policy's joints
+stay the legs' twelve (a two-iteration run builds, its actor's observation
+42 wide, as the committed get-up's).
+
+**The fold stays, and folds before a rest too.** #389 left open whether
+step 4 keeps #378's fold. A fall (the body's own test: 60°, or slumped) and
+the rest reflex's lie-down both aim the arm at the stow and let go of any
+payload: a gravity seat cannot hold a tool upside down, the get-up rolls a
+folded arm as it was trained to, and a robot lying down should not lie on
+an arm held out.
+
+**A program moves the arm's joints.** `shoulder` and `elbow` are body axes
+and sensors (`axes.BODY_AXES`; `world_facts` gives each body its own, so
+the rover's world names neither and the quadruped's neither `lift` nor
+`arm`), and `move` is a legs verb. A move stands a lying body first and
+keeps the rest reflex off while it runs; the verbs that walk fold the arm
+first (`steps.travel_pose`: the shoulder, then the elbow, so the forearm
+comes in over the body rather than under it), and so do lying down to
+rest and every walk of the body's own (`QuadMission._twist_routine`): a
+pose outlives its procedure, and the loop's next walk dragged it on the
+floor or carried it across the dock's board. A move the joint cannot
+finish in time, or that a fall takes from it, is a failed step, and its
+hold on the rest reflex (`QuadMission.working`) is never saved: kept, a
+restart restored it with nothing left to clear it. A move is motion to the
+reflex, which counts its 8.6 s from the move's end: counted from the last
+walk, a wait after a move lay the body down and folded the pose it had
+just set. The motors'
+`ctrl` is a torque, so what an axis is held to is `Body.setpoint` -- the
+rover's `ctrl`, the quadruped's driver's goal -- and a death's
+`setpoints` read that.
+
+**The fork is the body's front.** Folded, the fork reaches 0.348 m ahead of
+the torso's centre, 0.14 m past the nose, and it cannot fold further back
+without the forearm crossing the LIDAR's plane (the stow above). The front
+stop, set at 0.45 m for the nose, let the fork meet a wall first: a walk
+to a goal inside the planner's clearance ended in 346 bumper steps, every
+one the arm, and a 105 s explore made 19. At 0.53 m
+(`QuadMission.FRONT_STOP_RANGE`, from the LIDAR 0.15 m behind the centre)
+the fork stops 3 cm short: 0 presses on the same walk and explore, the same
+map, and #399's 24 zones still 24 of 24, the far ones within 4 % of their
+time. It stays under the planner's clearance because a waypoint is dropped
+0.08 m out (`navigator.WAYPOINT_REACHED_M`), and a goal at the clearance
+stops inside `CLOSE_ENOUGH_M`.
+
+**The served speed.** The arm adds physics -- 26 geoms, 6 degrees of
+freedom, 4 tendons and 2 equality constraints a robot -- and a driver step
+a robot; its motors' bill is in floats (`LegPack._arm_w`: numpy on two
+elements cost 6.3 us a step, for the same bits). Side by side, the served
+pair free-ran at 0.82-0.83x real time on staging and 0.80-0.81x with the
+arm (`serve.py --pair --free-run`, both under the dev machine's same load):
+about 2.5 %.
+
+**Energy.** `energy_spike.py --world home_quad` with the arm aboard: the
+explore 6.067 Wh over 251.4 s (86.9 W; 84.7 without the arm), the dock's
+charge 199.5 W net (201.1); the worst-case return 2.699 Wh over 44.64 m
+(60.5 mWh/m; 59.1), its dock leg 0.270 Wh against #387's 0.432, and with
+the dearer carried the reserve is 3.7 Wh (`legs.world.RESERVE_WH`, 3.6).
+
+**What is true now:** the served quadruped carries #378's arm stowed and
+held, folds it on a fall, before resting and before walking, stops for
+walls before its fork meets them, and a program on `autonomous` may move
+its two joints; `tests/test_quad_arm.py` pins each rule. A
+quadruped's day saved at 257.6 s and carried on in a new process is
+IDENTICAL after the restore (330 samples, `determinism_spike.py --world
+home_quad --resume-at 40`), and the pair's day with its arranged fall and
+drain is IDENTICAL twice (1 050 samples to 524.8 s, `--pair`). It takes no
+tool: the rack at its reach, fetch and stow, and the carried-tool filter in
+the scans are this issue's stage B.
+
+## The rack at the arm's reach, and the swap (issue #405)
+
+The quadruped's world has its own rack now (`legs/world.py`): the rover's
+rack, its built-tool rail, its five modules on their 150 mm pegs and the
+dispenser's seeds are taken out with everything that names them, and
+#378's rack stands on the living room's south wall beside the dock
+(`RACK_X` 2.1; its board spans x 1.6..2.6, the dock is at 3.5), its three
+bays holding the LCD (A, the east one), the pen (B) and the claw (C). Until
+#406 and #407 rebuild them on the 220 mm peg a tool is a plate, a peg and a
+face that says which, visual only, its mass (the rover's module's, the
+peg's swapped) on the plate: the envelope's "on its peg" case. The tools
+keep the rover's module names, and the rack's parts the rover's bay
+letters (`bay<letter>_tray_...`), so the rack view, the lost-tool clock,
+a program's `fetch` and an admin's reset read them unchanged
+(`coupling.bay_switches` reads the three bays). The lifecycle still names a
+bay by the rover's `STATION_YS` entry; here it is that entry's index
+(`swap.bay_of`), until #376's stage C deletes the rover.
+
+The swap is #378's spike's approach as the served body's routines
+(`legs/swap.py`, a mixin of `QuadMission`): the walk to a metre behind the
+bay's working pose, a look, the walk in steering by the tags, the settle,
+the measurement, the fork in under the peg, up and out, the tool to the
+carry pose over the nose; hanging it back is the reverse, with a second
+settle and look after the fork comes down from the carry pose. A program
+on `autonomous` runs it as `fetch` and `stow` (`world_config`'s `swap`:
+`SWAP_VERBS`); there is no errand, and no job, that needs a tool yet.
+
+**Four things the spike's world could not show:**
+
+- **The near plane.** The house pins its extent at 37.2 m for its cameras
+  (`home.CAMERA_EXTENT_M`), and MuJoCo's near plane is a hundredth of it:
+  0.37 m. From a bay's working pose its tags are 0.31 m from the nose
+  camera, so the robot found the rack from its approach a metre off and no
+  bay once it stood at one -- every walk-in ended "no fit at the bay". A
+  world with legs sets the near plane to 0.10 m (`legs.world.NEAR_M`: a
+  Camera Module 3 focuses from 10 cm); the rover's world keeps its own.
+- **The settle turns one way.** The walk-in stopped within a few mm and
+  about 1° of square, and in the 3 s settle the body stayed within 4 mm but
+  turned counter-clockwise every time, +1.2..+2.7°: at the peg, 5-20 mm
+  across, and 3 of 6 walk-ins failed the 15 mm gate (every try from the
+  kitchen). The walk-in now stops aimed `rack.SETTLE_DRIFT` (1.9°)
+  clockwise; the policy barely turns that finely, but the stop lands a few
+  mm to the other side, and after the settle 12 of 12 walk-ins at bays A
+  and C were inside the gate (across -6.9..+6.1 mm; before, -20.3..-5.5).
+- **Arriving is not the verdict.** At the bottom of a put the tray takes
+  the tool's weight an instant before the feed-forward lets go of it, and
+  the arm stood 0.016 rad off its goal. Judged by the arm's arrival, a tool
+  already hung counted as a failed put, the fork stayed under it, and the
+  swap lifted it straight back off: every pen and claw stow failed (the
+  LCD, lighter, scraped under the tolerance). A fork move fails only when
+  it is out of reach; what happened is the world's (seated and
+  conducting, or hung).
+- **A tool compiled 0.3 mm up** (the spike's settle) read not hung until
+  the world's first steps, so a first rack view would have said the tools
+  were off their bays; compiled exactly at rest they read hung at load and
+  move 0.008 mm in the first second.
+
+**A restart's save waits out the part of a swap AT the bay**
+(`Body.working`, read by `continuation.Keeper.busy` as a stand-up is): a
+fork half under a peg is nothing a file holds. The walk there does not:
+held off through a 45 s walk across the house, a stop outlasted Docker's
+10 s grace. A stop at the bay waits too, so a process killed first comes
+back from the save before the swap reached it.
+
+**A carried tool is the body's own to its senses** (`QuadMission.carry`):
+out of the LIDAR's map and the depth camera's cloud, as its own geoms are,
+ignored by the press, and excluded from a stairs policy's height scan
+(`PolicyDriver.scan_exclude`: it read as a 0.4 m obstacle over the nose,
+#378). Walking and lying down to rest keep it at the carry pose -- folded,
+the arm would swing it into its own back -- and a fall lets go of it, as
+does a tool out of the fork's reach (`swap.NEAR_FORK_M`): knocked off by the
+other robot's at the rack, or sent home by an admin, it had left the body
+walking with its arm up, turning slowly and blind to the tool, until a fall
+or its next swap. A fork move stops when the body goes down under it: the
+fall folds the arm, and re-aimed along its line the fork was held out
+through the get-up. A tool a pick leaves on the fork unseated is carried
+too: left unclaimed, a
+tool lying on the fork made every step of a walk a press, and a 1 m walk
+backed off to 2.97 m from its start. ⚠ Only a CARRIED tool is the body's
+own to the bumper: ignoring every tool against the fork, the pair's
+carried tools met each other's forks at the rack and were knocked off (4
+of 12 hung back), where the bump backs the two robots apart. Its power is
+read every step for the module the lifecycle watches, so a tool away from
+the fork reads no contact (`swap.NEAR_FORK_M`): 1.5 us a step, where the
+lookups by name cost 20-32.
+
+**Fetched and hung back, the served body in the house** (`arm_spike.py
+--served`; a fresh map every flight, the tools in turn):
+
+| from | fetched | hung back | fetch, median | stow, median |
+|---|---|---|---|---|
+| the dock's approach, jittered 0.1 m / 15° | 10 of 10 | 10 of 10 | 25.6 s | 38.4 s |
+| across the house (kitchen, workshop, hall, bedroom, the gardens, the living room) | 10 of 10 | 10 of 10 | 45.4 s | 39.1 s |
+| the served pair at once, each from its start, bays A and C (0.6 m apart) | 20 of 20 | 19 of 20 | 38.7 s (the slower) | 50.2 s (the slower) |
+
+A stow takes longer than a fetch because a carried tool turns at
+`W_CARRY` (below); flown before that cap, the stows took 30-31 s. Two
+house flights first started from the rover's workshop spawn, which is
+inside the workshop's table: set down on it the body fell and found no
+route, and from a clear spot in the workshop both swaps landed.
+
+**Two robots carrying at the rack can knock each other's tools off.** The
+pair's one loss: walking back to their standoffs, the two met face to face
+0.8 m apart, and one's carried LCD struck the other's carried claw -- a
+contact neither bumper reads, since each tool is its own robot's. The
+code before the review loses the same flight the same way. The bump is
+what keeps a carried tool off the other robot's FORK: with every tool
+against the fork ignored (a review fix, withdrawn), both robots' tools
+were knocked off in 4 of 6 flights. Making a carried tool a limb to its
+own robot's bumper as well landed that flight and lost three tools in two
+others (17 of 20): both robots flinched at once, bumped and backed off in
+turn until the tools fell -- withdrawn too, and #418's to settle. At the
+carry pose the fork is the body's collidable front (0.418 m ahead of the
+centre; the tools' plates 0.411, their faces visual only), past the front
+stop's 0.38 m: a carrying body walked at a wall is answered by the bump.
+
+**Carried through the house** (`arm_spike.py --served --carry`: each tool
+in turn fetched, walked to the hall, the kitchen, back and out to the
+garden by the east door, trotted at 0.8 m/s, turned, sidestepped and
+stopped, then hung back; the coupling's criterion every step): **6 of 6
+rode to the end and were hung back.** The coupling opened for up to 160 ms
+a flight (its holding capacitor is 200), and every long opening was a
+PIVOT at the drive's full 1.0 rad/s: the tool swings out of its V's. So a
+body carrying turns at most `legs.body.W_CARRY`:
+
+| the turn, carrying | the coupling's longest opening |
+|---|---|
+| 1.0 rad/s (the drive's full rate) | 160 ms (110-160 over six flights) |
+| 0.6 rad/s | 56 ms |
+| 0.45 rad/s (`W_CARRY`) | 14 ms; over six flights 4-14, and 82 in one |
+
+The house has no stairs yet (#280): a flight carried is #378's table
+(above), one descent in about 60 floating the peg at the first step.
+
+**What is true now:** the served quadruped fetches, carries and stows the
+three tools on its own rack from a program; `tests/test_quad_rack.py` pins
+each rule above, and the whole swap flies behind `--endurance`. Not done:
+tool jobs (#406, #407); a carried tool down the house's stairs (#280 builds
+them); the other robot's carried tool is not filtered from this one's
+senses (at the carry pose it is above the LIDAR's plane), and nothing
+keeps two carrying robots' tools apart at the rack (1 of 20 knocked off at
+bays A and C), nor a second robot off a bay the first is working (#418).
+## The feed on legs (issue #403)
+
+The paid feed on legs is #419's two verbs: `find` the feed plate's sign
+round the lab's address, then `press` off it (`lifecycle._plate_program`).
+Nothing the job carries is finer than the building, and every pad the robot
+has seen is a wall to its planner, so no walk crosses one whatever the
+map's drift -- the failure a handed coordinate had (#419's section, "A
+handed coordinate carries the frame's error").
+
+**One press a feed.** The pad stands 21 mm tall, under the depth camera's
+floor line (30 mm), and a foot on it is not a bump (`_press_now` leaves the
+feet out). `press` stands the front feet inside the pad, holds and backs
+out: one rising edge, where the rover's pass through the pad was two or
+more. `landed` is still a count, and "did it land" is `> 0`.
+
+**Company is not a `care` act on legs** (`Menu.care_acts`): it is a spot
+beside the cage no tag marks. The robot's own procedure may walk there.
+
+**Measured** (`scripts/solve.py --feature mouse --pair --body quadruped`:
+the pair as deployed, arm aboard, the paid job offered, claimed with a
+prediction, found, pressed and graded by `eval_feed`, the other robot
+standing in the hall):
+
+| from | paid | sim s each | presses of another plate | belief off at the end |
+|---|---|---|---|---|
+| the dock (the first a fresh map's find, 207 s; walked back to it between) | 10 / 10 | 73-75 | 0 | 0.12 m |
+| inside the lab (after one find from the hall, a fresh map) | 10 / 10 | ~21 | 0 | 0.21 m |
+
+⚠ The pair's robots look round their starts in ONE loop
+(`solve.start_pair`): with #405's arm a quadruped that is not stepped lets
+go of the arm's hold, and Luca stood 0.58 m from its belief while Rowan
+looked round alone.
+
+**After an explore the find walks to the floor it has not looked at.**
+#419's search took any frontier within 7.5 m of the address before a point
+it had not looked over. After an explore the lab's floor was mapped -- the
+LIDAR's plane (0.51 m) is over the plates, the cage and the signs, and it
+sees the room through its door -- so the only frontiers near the facility's
+address (in its storeroom) were outside the building, near in a straight
+line and a long walk by the way in. Flown, the robot stood in the lab's
+doorway facing in, the feed sign 36 deg off its nose (the camera's
+half-field is 33.5), and turned away to search round the outside for
+600 s; three finds of three failed. And a look-around counted floor within
+3.5 m looked over through walls. Now the robot's own floor comes first --
+its frontiers and the floor it has mapped and not looked over IN SIGHT --
+by the WALK from the address (`next_viewpoint`, `_search_map`: one
+Dijkstra over the planner's lattice), then the lattice in the unknown.
+
+**...and the press walks in on its axis.** The first fix's flights found a
+press that crossed the next plate: a sign first seen from far off its face
+knows its facing only by where it was seen from (up to 70 deg out), the
+look at the standoff fitted the row, and the walk in -- steered straight at
+the pad, no planner under it -- started from the old standoff, 15 deg off
+the axis and over the shock pad (4 presses). A look that moves the
+standoff more than `STANDOFF_MOVED_M` (0.25 m) now sends the press there
+first, over the planner with every seen pad kept out.
+
+Flown on it (`scripts/places_spike.py --find --n 8 --error 3 --again`;
+explore-then-find flights of one robot from its start):
+
+| | found | find, s | shock presses |
+|---|---|---|---|
+| #419's 8 addresses, a fresh map | 8 / 8, and 8 / 8 again | 62-225, median 148 (#419's search: 94); again 68-76 | 0 |
+| after a 240 / 300 / 360 s explore | 3 / 3, and pressed | 198 / 200 / 279 | 0 |
+| after a 480 s explore | 0 / 1 | ran out, 300 | 0 |
+
+The price is the fresh map's median, 148 s against 94: from the south of
+the facility the walk takes in more of the building's floor before the
+lab's door. After 480 s of exploring the belief was 1.4 m off the truth and
+the robot then failed to dock: no find works through that, and the drift
+is the map's, not the search's (below). Found once, the place is
+remembered, and a feed from the dock is 73-75 s and 1.77 Wh
+(`economy/energy.json`), about 60 mWh a metre walked.
+
+⚠ **After a long explore the armed robot's belief drifts past a metre**,
+and a place search cannot work through that, nor the dock. One quadruped
+from its start, exploring 480 sim s, belief against truth every minute
+(`--world home_quad`, the same script on both builds):
+
+| sim s | before #405's arm (`e5f66d5`) | with it |
+|---|---|---|
+| 240 | 0.04 m | 0.12 m |
+| 360 | 0.26 m | 0.59 m |
+| 420 | 0.45 m | 0.60 m |
+| 480 | 0.21 m | 1.40 m |
+| then to the dock | docked | failed to dock |
+
+One flight a side, and their paths differ (the rack and the arm change the
+world), so it is a measurement, not a cause (#422): the scans
+were accepted throughout, so the error is in the frame the map was laid in.
+
+## Places, not coordinates (issue #419)
+
+A job used to be handed where things are. On legs it is handed the
+building's address, a few metres off, and the task area's written
+directions; the robot finds the place by a tag on it, remembers where it saw
+it in its own map, and walks the last metre and a half steered by the tag.
+`scripts/places_spike.py` flies it; `tests/test_places.py` pins each rule.
+
+**A handed coordinate carries the frame's error.** #414 handed the plates'
+world positions to the feed job: after an explore with the arm aboard the
+belief reached the lab 0.43-0.45 m off, and the walk home from the feed's
+approach point pressed the shock plate five times. A place found by sight
+is laid in the frame the map and the belief are, so the drift is in all
+three and cancels.
+
+**A sign, not the floor.** The nose camera sits 0.367 m up, level, its
+vertical field 41 deg, decoded at 1280x720 (`--tags`, `--flat`):
+
+- a 120 mm tag at the camera's height, facing the room, decodes square-on
+  past 5 m, 55 deg off its face to 5 m, 70 deg off to 1.5 m; positions to
+  median 1.2 mm, worst 57 mm;
+- the same tag flat on the pad, 320 mm across, decoded in 2 cells of 77
+  (1.5 m, 40 and 55 deg): the floor is seen at a graze.
+
+So each plate has a sign at its far edge (`cage.plate_signs_xml`): a post,
+a white board and the tag at 0.37 m, its face 0.45 m past the pad's centre.
+Pressing, the torso stands 0.10 m short of the pad's centre
+(`PRESS_BACK_M`): the front feet 0.09 m inside the pad, the hind feet off
+it, the folded fork 0.2 m short of the sign, the camera 0.33 m from the tag
+and still reading it. The signs are in the quadruped's world only: the
+rover's pass through a pad ends where one stands.
+
+**One tag's rotation is a coin flip square-on.** Its reported yaw was up to
+11.6 deg wrong square-on (2 of 10 looks past 5), and 20 deg off it once came
+out mirrored (10.8 deg wrong); from 30 deg off it was within 0.6 deg at every
+range -- but one look 27 deg off at 4.1 m read 38. So a place's facing
+comes off the row of signs fitted to its drawing when two are known (their
+positions to a few mm, a metre apart), else a look at least 35 deg off and
+within 3 m, else where it was seen from. The press needs the pad within
+0.3 m of its axis and the neighbours are a metre away, so none of the three
+misleads it far.
+
+**The search follows the map, out from the address.** The first search
+took its viewpoints nearest the robot and walked out of the facility, round
+it and into the street: 600 s, not found. Taken round the address it found
+the plate from all eight directions of a 3 m error (62-460 s) -- but with
+the facility's own address, which lands in its storeroom a wall from the
+lab, it failed twice from the dock: the lattice's first nine viewpoints
+were the storeroom's and its walls'. Now (`next_viewpoint`): where the
+row's drawing puts the sign once any of the row is read; else the address;
+else, by the WALK from the address over its own map, a FRONTIER -- known
+floor meeting the unknown -- or floor it has mapped and not yet looked over
+with no wall between (the lab's, seen through its door); else a lattice
+point in the unknown. The walk and the floor beside the frontiers are
+#403's: after an explore the frontiers near the address were outside the
+building (SimNotes, "The feed on legs").
+
+**Flown** with #419's search (frontiers first, by the straight line), a
+fresh robot from the living room's start unless said
+(`--find --n 8 --error 3 --again`; `--find --again --from X`):
+
+| address | found and pressed | find, s | again, remembered, s | shock presses |
+|---|---|---|---|---|
+| 3 m off the facility's middle, 8 directions | 8 / 8 | 62-272, median 94 | 67-76 | 0 |
+| the facility's own (in the storeroom), from the dock | 1 / 1 | 123 | 64 | 0 |
+| ...from the living room | 1 / 1 | 124 | 68 | 0 |
+| ...from the hall | 1 / 1 | 157 | 81 | 0 |
+
+Every press stopped 22 mm short of its pose (the policy's run-on,
+`rack.STOP_M`), within 7 mm across and 2.1 deg of the axis; the belief was
+0.07-0.15 m off at the end, no robot fell, and the toy plate was never
+pressed either. "Again" is mostly the walk back across the street: from
+the remembered place there is no search.
+
+**Keeping off.** Every pad the robot knows is a wall to the planner
+(`PlaceWalk.keep_out`, the corners' circle, then the planner's 0.35 m
+inflation): from south of the row to between it and the cage the plan goes
+round the row's ends, where without it the plan walks over the feed plate.
+
+**The walking look costs a render**, 14-20 ms on the dev GPU under EGL and
+32 ms on the box under osmesa: at the dock's four looks a second the served
+pair would spend a quarter of the box on them. A look every metre walked or
+45 deg turned, and none standing: MEASURED on a walk across the street, 43
+looks in 86 sim s, one every 2 s -- 16 ms a sim second at the box's render,
+1.6 % of real time per walking robot.
+
+**Still open.** Loop closure (#381): the lab's frame is the one the map was
+laid in. The address is a fixed offset, not a GPS sensor. Every other task
+area's tags (#406, #407).
 
 ## Debugging workflow that worked
 
