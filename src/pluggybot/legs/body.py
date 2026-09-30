@@ -1188,9 +1188,12 @@ class QuadMission(ToolSwap, PlaceWalk, Navigator):
                     framePeerGeoms=f.peer_geoms)
     memo = self._plan_memo
     arrays["armTarget"] = np.array(self.arm.target, dtype=float)
-    if self._vm is not None:
-      arrays["vmInertia"] = np.array(self._vm.inertia, dtype=float)
     arrays["armGoal"] = np.array(self.arm.goal, dtype=float)
+    # ...the gait's inertia, built or only kept: a restart saved again
+    # before the body moved would otherwise lose it
+    inertia = self._vm.inertia if self._vm is not None else self._vm_inertia
+    if inertia is not None:
+      arrays["vmInertia"] = np.array(inertia, dtype=float)
     return ({"odometry": {"x": o.x, "y": o.y, "z": o.z, "v": o.v.tolist(),
                           "held": o.held, "quat": list(o.att.q),
                           "distance": o.distance,
