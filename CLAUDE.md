@@ -329,11 +329,15 @@ tolerance spikes are listed in `docs/Rover.md`.
     pass. Not a rate limit, not an `ACTION_FAILURES` cause;
   - **going unminded is a death** (a fourth cause, never summed), and ⚠ THE
     AGENT IS TOLD THE NUMBER (#322; a test reads it off the constant), plus
-    that a row fires when the robot is next FREE. `UNMINDED_AFTER_S` = 1800
-    sim s, measured against the worst healthy gaps (#317: a 1.31× margin, read
-    and left alone). The clock is reset by the ASK, not the answer; a
-    MID-ERRAND INTERRUPT STAMPS IT; armed ONLY where there is a map; NOT
-    prevented in code (a map that cannot remove its own `ask` row is a rail).
+    that the list is read once a second. `UNMINDED_AFTER_S` = 1800 sim s,
+    measured against the worst healthy gaps (#317: a 1.31× margin, read and
+    left alone). The clock is reset by the ASK, not the answer, and ⚠ AN
+    `ask` ROW STAMPS IT AS IT FIRES on the seam (#426: `_events_step`), a
+    row dropped `busy` and a mid-errand interrupt included, never again when
+    it runs: a restart, a full slot or a charge between the two lost the
+    period (4 of 19 deaths on legs). The queued row is KEPT across a
+    restart. Armed ONLY where there is a map; NOT prevented in code (a map
+    that cannot remove its own `ask` row is a rail).
     ⚠ THE BOOTSTRAP ASKS UNTIL THE MIND HAS ANSWERED FOR ITSELF
     (`HubLifecycle._minded`, #303) — a fallback is the box answering; a
     stand-up does not re-arm it, nor a restart over a KEPT list, and a TRUE

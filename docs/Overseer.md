@@ -1276,23 +1276,33 @@ otherwise).
   and since #322 it says the NUMBER: every other lethal threshold is shown
   (`reserveWh`, `heartPrice`, `hungryAt`), and run 1805 wrote itself `every
   3600 -> ask`, believed it had an hourly check-in and died at 2597 s. ⚠ The
-  number does not ship alone — a row fires when the robot is next free, so a
-  rule at exactly the limit arrives late every time an errand straddles it,
-  and the rule says so. A BUFFERED number was the alternative and was
-  rejected: the robot can see `lastAskedSAgo` since #317, so a stated
-  threshold that is not the real one is one it could catch us in.
-- **An interrupt consults the mind, and counts** (issue #322). The same row
-  reaches `_arbitrate` between errands and `_ask_interrupt` mid-errand — a
-  binary rather than a menu, but the same mind — and until #322 only the
-  first stamped the clock, so whether a consultation counted depended on
-  when the row happened to come true. An abort already re-stamped by
-  accident (the row stays queued); what this fixes is an interrupt answered
-  *carry on*.
+  number does not ship alone — the list is read once a second, so a rule at
+  exactly the limit fires up to a second late (measured: dead at 1800.04 s,
+  the row at 1801.0), and the rule says so. A BUFFERED number was the
+  alternative and was rejected: the robot can see `lastAskedSAgo` since
+  #317, so a stated threshold that is not the real one is one it could
+  catch us in.
+- **An `ask` counts when its row FIRES, not when it runs** (issue #426;
+  `_events_step`). The seam moves an `every` row's period on as it fires,
+  and the stamp used to wait for `_arbitrate` to run the row, so anything
+  between the two lost a whole period: a restart (the queued row was not
+  kept), a row dropped `busy`, or a charge longer than the clock — a row
+  runs when the robot is next free, and the quadruped's charge from below
+  ~39 % outlasts 1800 s. Four of the first 19 `unminded` deaths on legs
+  were maps asking every 900 or 1200 s. Now the fire is the stamp, a `busy`
+  drop included (the map has done its part; the failure is counted as
+  `busy`, never as silence); the row is stamped ONCE, so neither
+  `_arbitrate` nor a mid-errand interrupt (#322's case) stamps it again;
+  and the queued row is kept across a restart, so the question is asked
+  too. ⚠ A map whose every `ask` finds the slot full is now never
+  consulted and never dies of it; `failed.busy` is where that shows.
 - **The list is read back to the agent** (issue #317): `eventMap` in the
   volatile context is `{rows, lastAskedSAgo}` — the rows in force as an
-  answer writes them, and the silence this question closed
-  (`HubLifecycle._stamp_ask` takes the gap BEFORE it restamps the clock, or
-  a number read inside the ask it belongs to is always zero). Absent where
+  answer writes them, and the gap between the last two asks (since #426 an
+  ask is a row FIRING, so a question that waited out a charge shows the
+  map's cadence, not the wait; `HubLifecycle._stamp_ask` takes the gap
+  BEFORE it restamps the clock, or a number read inside the ask it belongs
+  to is always zero). Absent where
   the world honours no map, `[]` where there is one and nothing in it —
   which is the case that kills. ⚠ **The rows and the clock, never the
   verdict**: no `keepsAsk`, no countdown, no warning, because `events.score`
