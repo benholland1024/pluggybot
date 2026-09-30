@@ -563,10 +563,11 @@ tolerance spikes are listed in `docs/Rover.md`.
   restore. ⚠ A signal only ASKS (`Keeper.request_stop`); no save mid stand-up
   or mid-move (a quadruped lying down, standing up or getting up is a
   generator part-way, or AT a bay mid-swap, `Body.working`; `Keeper.busy`),
-  NEVER on a crash. Two refusals, said in History: a changed
+  NEVER on a crash. Three refusals, said in History: a changed
   GEOMETRY (`fingerprint`) keeps the clock, packs, deaths and jobs but not the
-  bodies or maps; a save restored `MAX_RESUMES` (3) times without a new one is
-  not trusted. ⚠ The errand in flight ends; its job does not (`_resume_jobs`;
+  bodies or maps, and so does a save of another `MAP_EPOCH` (bumped when the
+  kept maps are found laid wrong, #425); a save restored `MAX_RESUMES` (3)
+  times without a new one is not trusted. ⚠ The errand in flight ends; its job does not (`_resume_jobs`;
   `MAX_TAKE_UPS` 3). An offered challenge SETS OUT its props
   (`_set_out_props`). The hourly ceiling is still rooftop's `compose.yaml`;
   lifting it waits on #349.
@@ -1128,6 +1129,10 @@ tolerance spikes are listed in `docs/Rover.md`.
   table): an ICM-42688-P on both bodies, whole counts on the rover's
   wheels, the GDS68's CAN fields on the legs, the quadruped's tilt off its
   IMU (`imu.Attitude`); one noise stream per robot, kept across a restart.
+  ⚠ LYING, NO SCAN IS MATCHED, so the quadruped's heading is held by a
+  zero-rate update (`imu.Standstill`, #425: the posture says it rests, the
+  gyro must agree, and the offset is learned there); unheld it walked up to
+  3° a minute, past the matcher's 6° reach in two.
   The sim's own checks (`true_pose`, deaths, traces) read the truth and
   never feed a belief; the one stand-in left is the rover's map gate (its
   tilt off the pose), and it goes with the rover. ⚠ The quadruped enters a

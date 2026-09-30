@@ -10,6 +10,41 @@ observatory is NOT a result and never enters `results/`.
 
 ## Periods
 
+### The heading holds while they lie, and the askew maps are gone (#425) — opens with the release that carries #424, #409 and #426 beside it
+
+**What changed in the world.** Lying down, by the rest reflex or on the
+dock for a charge, the quadrupeds' heading no longer walks by the gyro's
+offset. While a body rests and its gyro agrees nothing turns it, the
+heading integrates nothing and the offset is learned; walking, the learned
+offset is taken off the reading (`imu.Standstill`; SimNotes, "Lying still,
+the heading holds"). On #422's probe, six minutes lying left the heading
+0.16 deg off, where it had been 15.4, and every scan after standing
+matched, where every one had been refused. **The maps kept on the volume
+are dropped at this deploy** (`continuation.MAP_EPOCH` 1). They were laid
+askew over hours of that drift, and since `c262e7d` they have been laid
+askew again. Both robots start from their start poses with empty maps and
+no places (#419), and keep the clock, their packs, their deaths and their
+jobs. History's restart line says why: `the map I had was laid askew, and
+it is gone`.
+
+**What the period is for.**
+
+- **Do the robots dock again?** In `charge_trace`, compare `docked`
+  against `no charge contact (no board)`. The last 40 runs of `5736e23`
+  docked 0 of 17 times; the whole quadruped era before this, 19 of 176.
+- **Belief against truth at each death** (`data.at.pose` against
+  `data.at.believed`). At 7 of `5736e23`'s last 8 deaths it was 4-22 m.
+  A death that is still far off is a lost robot from another cause: #422's
+  walking drift, or a robot that needs recovering.
+- **The matcher's tallies** in the saved world: `inconsistent` against
+  `ok` (Rowan's were 34 718 against 6 930).
+- ⚠ **The first hours re-explore.** Empty maps, and every place found
+  again, so a job's `find` in those hours is a first find, not a
+  regression.
+- ⚠ **One release, four changes.** Read #424's, #409's and #426's entries
+  beside this one. #426 has to be in it: robots that can dock again now
+  charge longer than `UNMINDED_AFTER_S` from below about 39 %.
+
 ### An `ask` counts when its row fires (#426) — opens with the release that carries #425, #424 and #409 beside it
 
 **What changed in the world.** What `unminded` counts. An `ask` row resets
