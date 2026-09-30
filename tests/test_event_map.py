@@ -1007,7 +1007,8 @@ def test_the_clock_is_reset_by_the_ask_and_not_by_the_answer(menu):
   issue #141 removed from `FALLBACK_LIMIT`. A mind consulted through a dead
   endpoint is still a mind being consulted.
 
-  Read off the source rather than flown: `_arbitrate` stamps the clock
+  Read off the source rather than flown: an `ask` row stamps the clock on
+  the seam as it fires (issue #426), and `_arbitrate` stamps its own asks
   before `_decide()` runs, so no outcome of the call can move it."""
   import inspect
 
@@ -1016,9 +1017,13 @@ def test_the_clock_is_reset_by_the_ask_and_not_by_the_answer(menu):
   for stamp in [i for i, _ in enumerate(src) if src.startswith("_stamp_ask()", i)]:
     assert stamp < src.index("yield from self._decide_routine(", stamp), \
         "the ask stamps the clock before the call, a failure cannot unstamp it"
-  assert src.count("_stamp_ask()") == 3, \
-      "the bootstrap, an `ask` row firing and the consult a heart lost to " \
-      "silence is owed, and nothing else in this branch"
+  assert src.count("_stamp_ask()") == 2, \
+      "the bootstrap and the consult a heart lost to silence is owed, and " \
+      "nothing else in this branch: a row stamped when it fired"
+  seam = inspect.getsource(HubLifecycle._events_step)
+  assert seam.count("_stamp_ask()") == 1
+  assert seam.index("_stamp_ask()") < seam.index('note_failure("busy")'), \
+      "a row dropped `busy` fired its ask too"
   # ...and every OTHER write is a moment a life starts, never an answer
   # arriving. Five: the constructor's zero, mission start, a stand-up,
   # `_stamp_ask` itself, and a restart putting back the clock the save held
@@ -1636,18 +1641,24 @@ def test_the_agent_is_told_the_threshold_it_dies_of(menu):
 
 def test_the_agent_is_told_a_rule_at_the_limit_arrives_late(menu):
   """The number alone would be a TRAP, which is why it does not ship alone.
-  A row fires when the robot is next free to act on it: the events poll is
-  1 s, an idle slice is 60 s, and an `every` row is not an interrupting
-  event, so it waits for a whole errand. "Ask me every 1800 seconds" is
-  therefore late every time an errand straddles the mark, and late is dead.
+  Since #426 an `ask` counts the moment its row fires, errand or no errand,
+  and the list is read once a second: "ask me every 1800 seconds" fires
+  about a second after the limit (measured on the stub: dead at 1800.0 s,
+  the row at 1801.0), and late is dead. Until #426 the reason given was the
+  errand a row waited out, which stopped being true with the stamp.
 
   ⚠ THE ALTERNATIVE WAS A BUFFERED NUMBER and it was rejected: since #317
   the robot SEES `lastAskedSAgo`, so a stated threshold that is not the real
-  one is a statement it could catch us in -- and a buffer big enough to
-  cover an errand would cost the detection the clock exists for."""
+  one is a statement it could catch us in."""
+  from pluggybot.lifecycle import EVENTS_CHECK_S
   rule = ov.EVENT_MAP_RULE
-  assert "not the moment it becomes true" in rule
+  assert "counts as asking you the moment it fires" in rule
+  assert EVENTS_CHECK_S == 1.0, "the rule says 'once a second' -- reword it"
+  assert "looked at once a second" in rule
   assert "late is dead" in rule
+  assert "not the moment it becomes true" not in rule, "the reason before #426"
+  #  ...and `lastAskedSAgo` is what `_stamp_ask` keeps, whoever asked
+  assert "between the last two times you were asked anything" in rule
   #  ...and it names the two that DO reach you mid-errand, which is the same
   #  partition `INTERRUPTING_EVENTS` is, not a second copy in prose.
   for event in ev.INTERRUPTING_EVENTS:
@@ -1660,37 +1671,162 @@ def test_the_agent_is_told_a_rule_at_the_limit_arrives_late(menu):
 
 
 def test_an_interrupt_consults_the_mind_and_says_so(menu, tmp_path):
-  """⚠ THE SAME ROW, TWO PATHS, AND ONLY ONE COUNTED. `battery_below 0.3 ->
-  ask` reaches `_arbitrate` when it fires between errands and `_ask_
-  interrupt` when it fires mid-errand -- a different QUESTION (a binary, not
-  a menu) but the same mind. Until #322 the second did not stamp, so whether
-  a consultation counted depended on when the row happened to come true, and
-  a robot could be booked as having gone quiet through half an hour of being
-  asked. `UNMINDED_AFTER_S`'s own rule is that an ask which fires and fails
-  is still a mind being consulted.
-
-  Read off the source: the stamp is before the call, so no outcome of it --
-  a timeout, a dead endpoint, an abort -- can unstamp it."""
+  """⚠ THE SAME ROW, TWO PATHS, ONE STAMP. `battery_below 0.3 -> ask`
+  reaches `_arbitrate` when it fires between errands and `_ask_interrupt`
+  when it fires mid-errand -- a different QUESTION (a binary, not a menu)
+  but the same mind. Until #322 the second did not stamp, so whether a
+  consultation counted depended on when the row happened to come true.
+  Since #426 neither does: the row stamped the clock when it FIRED, before
+  the interrupt was flagged, so no outcome of the call can unstamp it -- and
+  a second stamp at the safe point would show the next question a silence
+  of the few seconds between the two."""
   import inspect
 
   from pluggybot.lifecycle import HubLifecycle
-  src = inspect.getsource(HubLifecycle._ask_interrupt)
-  assert "_stamp_ask()" in src, "an interrupt does not reset the clock"
-  assert src.index("_stamp_ask()") < src.index("start_interrupt"), \
-      "the clock is stamped by the ASK, so it goes before the call"
+  seam = inspect.getsource(HubLifecycle._events_step)
+  assert seam.index("_stamp_ask()") < seam.index("self._interrupt_pending = row")
+  assert "_stamp_ask" not in inspect.getsource(HubLifecycle._ask_interrupt)
 
 
 def test_an_interrupt_that_carries_on_is_the_case_this_fixes(menu, tmp_path):
-  """An ABORT already re-stamped by accident -- the row stays queued and
-  `_arbitrate` takes it on the next pass, which stamps. So the leak was an
-  interrupt answered CARRY ON, and it is worth pinning that the accident is
-  still there rather than replaced."""
+  """A continue consumes the row; an abort leaves it queued for `_arbitrate`
+  to run on its next pass. The row stamped the clock when it fired (#426),
+  so which of the two it was no longer decides whether it counted."""
   import inspect
 
   from pluggybot.lifecycle import HubLifecycle
   src = inspect.getsource(HubLifecycle._resolve_interrupt)
   assert "if not self._aborting and self.queued_row is row:" in src, \
       "a continue consumes the row; an abort leaves it for `_arbitrate`"
+
+
+# ---- an `ask` counts the moment it fires (issue #426) ------------------------
+
+
+def _slow_life(menu, emap, *answers, world="home", minded=True, **kw):
+  """A mortal robot on the served arm, holding `emap` as a KEPT list (so
+  the bootstrap does not ask over it, #337, unless `minded` is False), on a
+  stub stepped at 0.1 s rather than 2 ms: half an hour of the seam in a
+  fiftieth of the steps, and nothing the stub steps is physics."""
+  import mujoco
+
+  from pluggybot.body import STUB_WORLD, StubBody
+  from pluggybot.lifecycle import world_config
+  from test_body import stub_life
+  cfg = world_config(world)
+  model = mujoco.MjModel.from_xml_string(
+    STUB_WORLD.replace("<worldbody>", '<option timestep="0.1"/><worldbody>'))
+  body = StubBody(model, mujoco.MjData(model), rack=cfg["rack"],
+                  grid_bounds=cfg["grid_bounds"])
+  boss = make(menu, *answers, origin="unseeded", event_map=ev.EventMap(
+    tuple(ev.Row(event=e, action=a, value=v) for e, a, v in emap)))
+  life = stub_life(world, body=body, overseer=boss, autonomous=True,
+                   mortal=True, **kw)
+  life._minded = minded
+  return life
+
+
+def _unminded(life) -> list:
+  return [d for d in life.deaths if d["cause"] == "unminded"]
+
+
+def test_an_ask_that_fired_before_a_restart_is_neither_lost_nor_late(
+    menu, tmp_path, monkeypatch):
+  """Path 1 of #426, three of its four deaths on legs, each 10-15 minutes
+  after the served process restarted. `every 900 -> ask` fired while the
+  robot was busy and was queued; the restart dropped the queue, and the
+  period had already moved on, so nothing asked again until 1800 s -- and
+  the clock, stamped only when a row RAN, was 1800 s old by then. Now the
+  fire is the stamp, and the queued row is kept, so the question is asked
+  too. Shown to fail with both reverted (dead at 1800 s); each assertion
+  below fails with its own half reverted."""
+  import pluggybot.lifecycle as lc
+  from pluggybot import continuation
+  from pluggybot.lifecycle import world_config
+  monkeypatch.setattr(lc, "AUTONOMOUS_IDLE_S", 1000.0)   # busy through 900 s
+  start = world_config("home")["start"]
+  row = ev.Row(event="every", action=ev.ASK, value=900.0)
+  life = _slow_life(menu, [("every", ev.ASK, 900.0)])
+  life.stop_when(lambda: life.queued_row is not None)
+  life.run(start=start, max_sim_time=1000.0)
+  assert life.queued_row == row, "the row never fired before the stop"
+  assert life._last_ask_t == pytest.approx(900.0, abs=1.0), \
+      "the clock was not stamped when the row fired"
+  path = tmp_path / "world.npz"
+  continuation.write(continuation.capture([life], life.world_fingerprint), path)
+
+  back = _slow_life(menu, [("every", ev.ASK, 900.0)], full(action="idle"))
+  seen = []
+  back.overseer.on_decision.append(seen.append)
+  # ...a budget with room: a late answer is sim time on the stub, fifty
+  # times more of it at this step, and a death ends the day anyway
+  back.stop_when(lambda: bool(seen) and back._asked_t is not None
+                 and back._asked_t >= 1800.0)
+  back.run(start=start, max_sim_time=3000.0, resume=continuation.read(path))
+  assert not _unminded(back), back.deaths
+  assert [s["state"]["askedBy"]["event"] for s in seen] == ["every"], \
+      "the question queued before the restart was lost"
+
+
+def test_an_ask_that_finds_the_slot_full_still_counts(menu, monkeypatch):
+  """Path 2 of #426: a row that fires while another is queued is dropped
+  `busy`, with its period already moved on. The map fired its `ask`, and
+  that is the map's part done -- #322's rule, an ask that fires and fails
+  is still a mind being consulted. Here it never reaches the mind at all:
+  `every 850 -> idle` fills the slot fifty seconds ahead of it every time,
+  which the record carries as `failed.busy`, never as silence. Shown to
+  fail on the stamp moved back to the run (dead at 1800 s)."""
+  import pluggybot.lifecycle as lc
+  from pluggybot.lifecycle import world_config
+  monkeypatch.setattr(lc, "AUTONOMOUS_IDLE_S", 1000.0)
+  life = _slow_life(menu, [("every", "idle", 850.0), ("every", ev.ASK, 900.0)])
+  life.stop_when(lambda: life._asked_t is not None and life._asked_t >= 1800.0)
+  life.run(start=world_config("home")["start"], max_sim_time=2000.0)
+  assert not _unminded(life), life.deaths
+  assert life.overseer.stats()["eventMap"]["failed"] == {"busy": 2}
+  assert life.overseer.client.calls == []
+
+
+def test_an_ask_that_fires_through_a_long_charge_still_counts(menu):
+  """Path 3 of #426: a row runs when the robot is next FREE, and a charge
+  holds it until 90 %. At the quadruped's 199.5 W a charge from 30 % of its
+  194 Wh pack is 2100 s, longer than `UNMINDED_AFTER_S` on its own, and the
+  clock does not stop on the dock -- so `every 900 -> ask` died on the pins
+  with its question queued. It counts when it fires; the question waits,
+  and is asked when the charge is done. Shown to fail on the stamp moved
+  back to the run (dead at 1800 s, on the dock)."""
+  from pluggybot.lifecycle import world_config
+  life = _slow_life(menu, [("every", ev.ASK, 900.0)],
+                    full(action="charge"), full(action="idle"),
+                    world="home_quad", minded=False, battery_wh=194.0)
+  life.battery.charge_w, life.battery.draw_w = life.energy.charge_w, 0.0
+  assert life.energy.charge_w == 199.5
+  life.battery.energy_wh = 0.3 * 194.0
+  seen = []
+  life.overseer.on_decision.append(seen.append)
+  life.stop_when(lambda: len(seen) >= 2)
+  # a budget with room for two late answers (`_slow_life`'s step makes each
+  # wall millisecond of one ~14 sim s); a death ends the day at 1800 s
+  life.run(start=world_config("home_quad")["start"], max_sim_time=5000.0)
+  assert not _unminded(life), life.deaths
+  assert life.charge_cycles == 1
+  assert [s["state"]["askedBy"]["event"] for s in seen] == ["bootstrap", "every"]
+  assert life.data.time > UNMINDED_AFTER_S, "the charge was not the long one"
+
+
+def test_a_list_whose_asks_never_fire_still_dies_of_it(menu):
+  """#426 moved WHEN an ask counts, never WHETHER a list without one dies:
+  `every 3600 -> ask` fires first at 3600 s, and the clock takes it at
+  `UNMINDED_AFTER_S` with the line `events.silence` writes."""
+  from pluggybot.lifecycle import world_config
+  emap = [("every", ev.ASK, 3600.0)]
+  life = _slow_life(menu, emap)
+  life.run(start=world_config("home")["start"], max_sim_time=1900.0)
+  [death] = _unminded(life)
+  assert death["t"] == pytest.approx(UNMINDED_AFTER_S, abs=0.2)
+  assert death["why"] == (f"nothing has asked me anything for "
+                          f"{UNMINDED_AFTER_S:.0f} s -- "
+                          f"{ev.silence(life.event_map)}")
 
 
 # ---- ...and a rule the agent believes it has and does not -------------------
@@ -2036,6 +2172,28 @@ def test_the_moment_is_kept_across_a_restart(menu):
   back = stub_life("home", overseer=make(menu, origin="unseeded"))
   back.restore_kept(json.loads(json.dumps(state)), arrays, in_place=False)
   assert back._decided_at == (12.5, "procedure:walk") and back._stood_still
+
+
+def test_a_kept_row_comes_back_only_to_a_list_that_still_has_it(menu):
+  """The row fired and not yet run is kept (#426) -- as the list's, so a
+  row the list in force no longer has (left out at load, edited away after
+  the save) and a world with no list get none. Shown to fail without the
+  membership check."""
+  from test_body import stub_life
+  row = ev.Row(event="every", action=ev.ASK, value=900.0)
+
+  def life_on(*rows):
+    return stub_life("home", overseer=make(menu, origin="unseeded",
+                                            event_map=ev.EventMap(rows)))
+  life = life_on(row)
+  life.queued_row = row
+  state, arrays = life.kept_state()
+  state = json.loads(json.dumps(state))
+  for back, want in [(life_on(row), row),
+                     (life_on(ev.Row(event="every", action=ev.ASK, value=600.0)), None),
+                     (stub_life("home", overseer=Overseer(menu, client=1)), None)]:
+    back.restore_kept(state, arrays, in_place=False)
+    assert back.queued_row == want
 
 
 def test_the_arbitration_loops_shape_is_unchanged():

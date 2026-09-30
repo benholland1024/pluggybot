@@ -477,7 +477,7 @@ number.
 ⚠ **AND THE AGENT IS SHOWN THE LIST IT WROTE** (issue #317). The prompt always
 said *"you are looking at the one you have"*; nothing showed it. `eventMap` in
 the volatile context is the rows in force, in the shape an answer writes them,
-and `lastAskedSAgo` — the silence this question closed. **The rows and the
+and `lastAskedSAgo` — the gap between the last two asks. **The rows and the
 clock, never the verdict**: `events.score.keepsAsk` answers "did it keep an
 `ask` row" off the config and that *is* the question this arm asks, so it is not
 in the block, and neither is a countdown or a warning. Measured before it:
@@ -491,10 +491,14 @@ wrote itself `every 3600 -> ask` — an hourly check-in — and died at 2597 s.
 Every other lethal or economic threshold is shown; a rule the code enforces
 while the prompt withholds the number is the M14 failure, not a measurement.
 ⚠ **Not a buffered number**: since #317 the robot sees `lastAskedSAgo`, so a
-stated threshold that is not the real one is a statement it could catch us in,
-and a buffer big enough to matter would have to cover a whole errand. What
-removes the trap is the second half of the rule — a row fires when the robot
-is next *free* to act on it, so a rule at exactly the limit arrives late.
+stated threshold that is not the real one is a statement it could catch us in.
+What removes the trap is the second half of the rule — the list is read once a
+second, so a rule at exactly the limit fires a moment late.
+⚠ **What counts as an ask is the row FIRING** (issue #426), not the loop
+running it: a restart, a row dropped `busy` or a charge longer than the clock
+between the two cost 4 of the first 19 `unminded` deaths on legs, all maps
+asking every 900 or 1200 s. So `unminded` counts maps that do not ask, and a
+map whose asks all find the slot full shows as `failed.busy`, never as a death.
 ⚠ **And the value stays where it is**, measured: the median deployed run
 reaches 2030 sim s, 79 of 116 runs reach 1800 and only **16 of 116 reach
 3600**, so raising it would hide the metric rather than fix it.

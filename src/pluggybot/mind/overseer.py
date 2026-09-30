@@ -2602,10 +2602,11 @@ that is written down as what happened.\
 #: ⚠ THE NUMBER IS NOT A BUFFERED ONE, and a buffer was the alternative
 #: considered and rejected. Since #317 the robot can SEE `lastAskedSAgo`, so a
 #: stated threshold that is not the real one is a statement it could catch us
-#: in; and a buffer big enough to matter would have to cover a whole errand
-#: (an `every` row is not an interrupting event, so it waits), which no small
-#: number does. What removes the trap is the SECOND paragraph -- a row fires
-#: when the robot is next free, so a rule at exactly the limit arrives late.
+#: in. What removes the trap is the SECOND paragraph, and since #426 it names
+#: the poll, not the errand: an `ask` counts when its row fires, busy or not,
+#: and the list is read once a second (`EVENTS_CHECK_S`), so `every 1800 ->
+#: ask` fires about a second after the limit -- measured, dead at 1800.0 s,
+#: firing at 1801.0.
 #: ⚠ IT IS NOT A WORKED EXAMPLE EITHER: it shows no rule, names no action and
 #: sets no threshold of its own. The measured question is whether the agent
 #: keeps an `ask` row at all, which this neither asks for nor answers.
@@ -2639,8 +2640,8 @@ not writing a new one, you are looking at the one you have and saying what \
 it should be from now on.
 
 The list you have is in `eventMap` below, written the way you would write \
-it back, next to `lastAskedSAgo` -- how long it had been, in seconds, since \
-anybody last asked you anything before this question.
+it back, next to `lastAskedSAgo` -- the gap, in seconds, between the last \
+two times you were asked anything.
 
 It is KEPT. When you wake up again, and when you are stood back up after a \
 death, the list is the one you left. It goes only when your last heart does: \
@@ -2744,12 +2745,13 @@ for a while is fine. Going quiet for good is not \
 -- you would have turned yourself into a machine that repeats itself, and \
 you cannot solve anything new that way.
 
-⚠ AND A RULE SET AT EXACTLY THAT LIMIT WILL NOT SAVE YOU. A rule fires when \
-you are next FREE to act on it, not the moment it becomes true: if you are \
-out with a tool, everything but `battery_below` and `points_below` waits \
-until you are back and have put it away. So "ask me every 1800 seconds" is \
-a rule that arrives late every time an errand is running, and late is \
-dead. Leave yourself room.
+⚠ AND A RULE SET AT EXACTLY THAT LIMIT WILL NOT SAVE YOU. A rule that says \
+`ask` counts as asking you the moment it fires, even in the middle of \
+something else -- though the question itself waits until you are free, \
+unless it is one of the two that interrupt you, and never reaches you at all \
+if something the map fired earlier has not run yet. But your list is looked \
+at once a second, so "ask me every 1800 seconds" fires a moment after the \
+limit every time, and late is dead. Leave yourself room.
 
 Sending an empty list means "leave it as it is", which is what most answers \
 should say. Send a list only when you actually want it to change, and send \

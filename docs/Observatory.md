@@ -10,6 +10,35 @@ observatory is NOT a result and never enters `results/`.
 
 ## Periods
 
+### An `ask` counts when its row fires (#426) — opens with the release that carries #425, #424 and #409 beside it
+
+**What changed in the world.** What `unminded` counts. An `ask` row resets
+the half-hour clock the moment it fires, not when the loop gets round to
+running it. That holds while the robot is on an errand or a charge, and for
+a row dropped `busy` because another was queued. The question itself still
+waits until the robot is free. A row queued when the process restarts is
+kept and asked after it. Before, all three cost the period: 4 of the 19
+`unminded` deaths on legs since 2026-09-27 21:00 UTC were maps asking every
+900 or 1200 s, three of them 10-15 minutes after a restart. The
+`autonomous` prompt moved to say so (`EVENT_MAP_RULE`). `lastAskedSAgo` is
+now "the gap between the last two times you were asked anything". A rule
+at exactly 1800 s is still late, and the reason given is now the
+once-a-second read of the list, not an errand the row waited out.
+
+**What the period is for.**
+
+- **`unminded` is only maps that do not ask.** Read the map in force at
+  each `unminded` death (`?kind=event_map`). An `every` row under 1800 s
+  that says `ask` should not appear. One that does is a path this missed.
+- ⚠ **A map whose asks all find the slot full** is now never consulted and
+  never dies of it. That shows as `failed.busy` in the run record beside
+  hours with no `llm` decision, never as a death.
+- **Charges longer than the clock.** #425 lets the pair dock again, and a
+  quadruped charge from below about 39 % outlasts 1800 s. Those robots
+  should come off the dock and be asked, not die on the pins.
+- **Where `every ... -> ask` periods sit** (#322's question): the rule no
+  longer says an errand makes a rule late, only the read.
+
 ### The first paid job on legs: feeding the mouse, no upkeep (#403) — opens when this PR is deployed
 
 **What changed in the world.** Offers are back on: one job, `feed_mouse`

@@ -5244,6 +5244,15 @@ class HubLifecycle:
     row = self.event_clock.fire(self.event_map, live, float(self.data.time))
     if row is None:
       return
+    # ⚠ AN `ask` ROW STAMPS THE UNMINDED CLOCK AS IT FIRES (issue #426), the
+    # moment the map has done its part -- not when the loop runs it, and a
+    # row dropped `busy` below included. The period moved on here, so a
+    # stamp that waited for the run lost a whole period to whatever came
+    # between: a restart, a full slot, a charge longer than the clock (4 of
+    # 19 `unminded` deaths on legs). The question still waits for the robot
+    # to be free.
+    if row.action == ev.ASK:
+      self._stamp_ask()
     if self.queued_row is not None:
       self.overseer.note_failure("busy")
       self._say(f"EVENT {row.describe()} -- but something is already queued")
@@ -5366,19 +5375,12 @@ class HubLifecycle:
     around it. Every failure resolves to ABORT (`Overseer.interrupt_result`
     carries the argument).
 
-    ⚠ AND IT STAMPS THE UNMINDED CLOCK (issue #322), which it did not until
-    this. This is a mind being consulted -- a different QUESTION from the
-    decision branch's, a binary rather than a menu, but the same mind and
-    the same row: `battery_below 0.3 -> ask` reaches `_arbitrate` when it
-    fires between errands and reaches HERE when it fires mid-errand. Not
-    stamping made the clock's answer depend on when the row happened to come
-    true, and `UNMINDED_AFTER_S`'s own rule is that an ask which fires and
-    fails is still a mind being consulted. An abort already re-stamped by
-    accident (the row stays queued and `_arbitrate` takes it next pass), so
-    what this fixes is an interrupt answered CARRY ON.
+    ⚠ THE UNMINDED CLOCK WAS STAMPED WHEN THE ROW FIRED (`_events_step`,
+    issue #426), so it is not stamped again here: this is the same row
+    `_arbitrate` runs between errands, delivered mid-errand as a binary,
+    and the silence the next question is shown is the map's.
     """
     self.state = "DECIDE"
-    self._stamp_ask()
     self.overseer.start_interrupt(
       overseer_context(self), self._errand_name,
       f"your pack is at {self.battery.fraction:.0%}")
@@ -5387,8 +5389,9 @@ class HubLifecycle:
     return self.overseer.interrupt_result()
 
   def _stamp_ask(self) -> None:
-    """The mind is being consulted NOW: reset the unminded clock and keep
-    the silence it closed (issues #127, #317).
+    """The mind is asked NOW -- an `ask` row fired (#426), or the loop asks
+    for itself (the bootstrap, a consult owed): reset the unminded clock and
+    keep the silence it closed (issues #127, #317).
 
     ⚠ THE CLOCK IS RESET BY THE ASK AND NOT BY THE ANSWER -- see
     `UNMINDED_AFTER_S`. This is the only place that does both, so the gap
@@ -5510,11 +5513,11 @@ class HubLifecycle:
       yield from self.body.hold_routine(self.idle_s)
       return
     if row.action == ev.ASK:
-      # ⚠ THE CLOCK IS RESET BY THE ASK, NOT BY THE ANSWER -- see
-      # `UNMINDED_AFTER_S`. A mind consulted through a dead endpoint is
-      # still a mind being consulted, and booking that as the agent going
-      # quiet would put the box back in the column the agent is judged on.
-      self._stamp_ask()
+      # ⚠ THE CLOCK WAS RESET WHEN THE ROW FIRED (`_events_step`, issue
+      # #426), by the ask and not by the answer -- see `UNMINDED_AFTER_S`.
+      # A mind consulted through a dead endpoint is still a mind being
+      # consulted, and booking that as the agent going quiet would put the
+      # box back in the column the agent is judged on.
       yield from self._decide_routine({"event": row.event, "kind": row.kind,
                                        "value": row.value})
       return
@@ -6020,6 +6023,12 @@ class HubLifecycle:
       "queued": [e.name for e in self.errands
                  if not e.task_id and not any(e is p for p in self._preset)],
       "eventClock": self.event_clock.kept_state(),
+      # ...and the row it fired that has not run yet (issue #426): the
+      # clock has moved its period on, so a row lost here is not asked
+      # again for a whole period.
+      "queuedRow": (None if self.queued_row is None else
+                    [self.queued_row.event, self.queued_row.action,
+                     self.queued_row.value, self.queued_row.kind]),
       "metabolism": (self.metabolism.kept_state()
                      if self.metabolism is not None else None),
     }
@@ -6079,6 +6088,12 @@ class HubLifecycle:
     self._grade_pending = str(state.get("gradePending") or "")
     if state.get("eventClock"):
       self.event_clock.restore_kept(state["eventClock"])
+    # ...only a row of the list in force: one it no longer has (left out at
+    # load, or edited away after the save) is not the robot's to run
+    queued = state.get("queuedRow")
+    if queued and self.event_map is not None:
+      row = ev.Row(*queued)
+      self.queued_row = row if row in self.event_map.rows else None
     if self.metabolism is not None and state.get("metabolism"):
       self.metabolism.restore_kept(state["metabolism"])
     self.resumed = {"inPlace": bool(in_place), "why": why,
