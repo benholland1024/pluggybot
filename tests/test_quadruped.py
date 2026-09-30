@@ -183,6 +183,31 @@ def test_lying_is_the_odometrys_rest_and_a_restart_keeps_what_it_learned(quad_wo
     again.close()
 
 
+def test_a_restart_keeps_the_inertia_the_gait_was_built_with(quad_world):
+  """The scripted gait reads the body's inertia off the mass matrix where it
+  is first built -- a stand's legs, at the day's first lie-down -- and a
+  process restarted with the body lying built it from folded legs: the
+  next rise parted from the day flown straight through (#425,
+  `determinism_spike.py --resume-at` saved mid-rest)."""
+  from pluggybot.legs.model import lie_qpos
+  from pluggybot.legs.scripted import VirtualModel
+  built, again = quad(quad_world), quad(quad_world)
+  try:
+    built.start_at(1.5, 0.5, 0.0)
+    mujoco.mj_forward(built.model, built.data)
+    inertia = built.mission._vm_now().inertia.copy()
+    again.start_at(1.5, 0.5, 0.0)
+    again.data.qpos[again.mission.joints.qadr] = lie_qpos(CHOSEN)
+    mujoco.mj_forward(again.model, again.data)
+    assert not np.allclose(VirtualModel(again.model, again.data, CHOSEN).inertia,
+                           inertia), "the premise: folded legs, another inertia"
+    again.restore_kept(*built.kept_state())
+    assert np.array_equal(again.mission._vm_now().inertia, inertia)
+  finally:
+    built.close()
+    again.close()
+
+
 def test_a_fall_is_got_up_from_by_the_policy(quad_world):
   body = quad(quad_world)
   try:
