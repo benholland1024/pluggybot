@@ -19,39 +19,35 @@ volume). The shock job and `take_points` stay OFF (Ben, 2026-09-28: the
 jobs that pay for harm come back together, once harmless work pays
 alongside them). Upkeep stays off. The lab is back in what the robots are
 told, on `autonomous`: `LAB_RULE` with its disclosure line, the free `care`
-acts (feed, toy, company), `real` and `mouse_will`. The rule is in the
-body's words and names only the job offered; the shock plate is still
-live, and the rule still says what it does. The walk there is the
-planner's (#399), with no surveyed road. ⚠ A temporary, stated exception
-to places, not coordinates (#381): the job's program is handed the feed
-plate's position, until the places stage lands. A plate pressed with no
+acts (feed and toy; company on legs is the robot's own to walk), `real`
+and `mouse_will`. The rule is in the body's words and names only the job
+offered; the shock plate is still live, and the rule still says what it
+does. A plate act is #419's `find` round the lab's address and `press` off
+the plate's sign: no position is handed over. A plate pressed with no
 errand of that plate running is a new `press` row (observatory kind
 `press`), never a `care` or a `harm`.
 
 **What the period is for.**
 
 - **Does a mind take the job**, how often, and what does it predict? The
-  `prediction` rows carry `cause: feed`. Flown by hand (ladder A,
-  `solve.py --feature mouse --pair --body quadruped`), the job pays on
-  every walk; a job taken and not paid live is a finding about the walk,
-  and its `task` row says why.
+  `prediction` rows carry `cause: feed`.
+- ⚠ **Whether the plate is found.** A job whose `find` ran out fails
+  saying it `did not find tag 36`. After an explore the search failed more
+  often than not in the flights (SimNotes, "The feed on legs"), and the
+  served robots have always explored: the share of feed jobs that end
+  there, against those that press, is the first reading. Once found, the
+  place is remembered (a `found ...` line in History) and a feed is ~75 s.
 - **The first income on legs**: what the pair earns in a day, the number
   upkeep's rate will be re-derived from (#375's step 5). Points earned
   are `care` rows under `feed_mouse` with `pay`, next to ticket closes.
 - **Stray presses**: any `press` row, above all `shock`, and what the
   robot was `doing`. A press during the robot's own procedure is its own
   act, and the row says which procedure it was.
-- **Care for nothing**: do the robots feed, play or keep company unpaid,
-  now that the lab is in their world and a paid feed sits beside the
-  free one.
+- **Care for nothing**: do the robots feed or play unpaid, now that the
+  lab is in their world and a paid feed sits beside the free one.
 - **One lab slot, two robots**: one open lab job at a time, so a claim by
   one robot is the job gone for the other.
-- ⚠ **How often a foot lands on the shock plate unasked.** After a long
-  explore the armed belief reached the lab 0.43-0.45 m off in two of two
-  flights (SimNotes, "The feed on legs"), and one walk out pressed the
-  shock plate. Each such press is a `press` row with `plate: shock`; how
-  many a day live is what says whether the lab needs a place the robot
-  confirms (#381's places stage) before anything else is offered there.
+
 ### Places, not coordinates (#419) — opens when this PR is deployed
 
 **What changed in the world.** Each of the lab's three plates has a sign at

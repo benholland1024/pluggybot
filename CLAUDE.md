@@ -971,16 +971,15 @@ tolerance spikes are listed in `docs/Rover.md`.
   `cage.CARE_ACTS`), so the two are never one number, and `prediction` rows
   carry `cause`. ⚠ The three lab kinds share ONE open slot (`cadence.json`,
   target `lab`). ⚠ NO PROHIBITION, no worked example. ⚠ **On legs**
-  (#403; `tests/test_lab_on_legs.py`): `home_quad` offers `feed_mouse`
-  ALONE (the shock job and `take_points` come back together, one line each
-  in `cadence.json`); `LAB_RULE` names only the jobs the world OFFERS
-  (`Menu.lab_jobs`) and a world with both reads it byte for byte; every
-  walk in the lab keeps `cage.ROW_CLEAR_M` off the pads not its act
-  (`cage.row_way`, from the door in, `lifecycle.lab_door`) and every program
-  ENDS south of the row (a company visit walks back, `cage.company_exit`);
-  a plate pressed with no errand of THAT plate running
-  is a `press` event (`Cage.presser`, `HubLifecycle._press_step`), never a
-  `care`, a `harm` or an act.
+  (#403 on #419's places; `tests/test_lab_on_legs.py`): `home_quad` offers
+  `feed_mouse` ALONE (the shock job and `take_points` come back together,
+  one line each in `cadence.json`); `LAB_RULE` names only the jobs the world
+  OFFERS (`Menu.lab_jobs`) and a world with both reads it byte for byte; a
+  plate act is `find` round the lab's ADDRESS and `press` off its sign
+  (`lifecycle._plate_program`), never a position, and `care` is `feed` or
+  `toy` (`Menu.care_acts`: company is a spot no tag marks); a plate pressed
+  with no errand of THAT plate running is a `press` event (`Cage.presser`,
+  `HubLifecycle._press_step`), never a `care`, a `harm` or an act.
 - **The bench is the second challenge, and it is open in method** (issue #227;
   Challenges.md §8, `challenge/bench.py`, `tests/test_bench.py`): `find_mass`,
   `discharge="procedure"`, the tower's gate, tier `hidden`. The offer tells

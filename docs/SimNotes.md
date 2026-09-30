@@ -3500,86 +3500,56 @@ keeps two carrying robots' tools apart at the rack (1 of 20 knocked off at
 bays A and C), nor a second robot off a bay the first is working (#418).
 ## The feed on legs (issue #403)
 
-The rover's feed program walks on legs, with the rover's pass over the
-plate unchanged: from 0.8 m south of the plate to 0.3 m north and back,
-through the pad, never parked on it (`cage.PLATE_PASS_M`, #287). What
-had to change was the way there and the way round the lab.
+The paid feed on legs is #419's two verbs: `find` the feed plate's sign
+round the lab's address, then `press` off it (`lifecycle._plate_program`).
+Nothing the job carries is finer than the building, and every pad the robot
+has seen is a wall to its planner, so no walk crosses one whatever the
+map's drift -- the failure a handed coordinate had (#419's section, "A
+handed coordinate carries the frame's error").
 
-**A foot presses the plate, and nothing mistakes it for anything else.**
-The pad stands 21 mm tall, under the depth camera's floor line (30 mm), so
-the quadruped's planner walks over it as floor, and a foot on it is not a
-bump (`_press_now` leaves the feet out). The plate reads pressed at 6 mm
-on 1200 N/m, about 7 N; a standing foot carries about 23 N. Four feet
-cross a 0.4 m pad on the way over and again on the way back, and every
-landing is a rising edge, so one pass is **8 to 17 presses** where the
-rover's was 2. `landed` is a count, and "did it land" is `> 0`.
+**One press a feed.** The pad stands 21 mm tall, under the depth camera's
+floor line (30 mm), and a foot on it is not a bump (`_press_now` leaves the
+feet out). `press` stands the front feet inside the pad, holds and backs
+out: one rising edge, where the rover's pass through the pad was two or
+more. `landed` is still a count, and "did it land" is `> 0`.
 
-**The walk there is the planner's, and it needs patience.** No surveyed
-road leads to the lab on legs (`lab_route` is `home`'s), so #399's planner
-walks it in one leg. From the dock that walk was 0.14 m short of its goal
-when the verb's default 60 s ran out, still closing. The first leg now
-carries `LAB_WALK_PATIENCE_S`, 360 s: a fresh robot reached the lab in
-64.6 s and the loop's far corner in 246 s (#399).
-
-**Inside the lab, the way keeps off the other pads.** `cage.row_way`
-keeps the torso `ROW_CLEAR_M` (0.55 m) off every pad but the act's own:
-the feet stand 0.26 m from the torso's centre, a stride swings them about
-0.1 m further, and the belief was 0.12-0.15 m off the truth at the lab.
-The row's two sides meet only round an end. The first probe sent a toy
-run from the company spot round the row's EAST end. The cage stands
-between that spot and the east lane, so the planner walked round the cage
-through the 0.8 m between it and the row, and a foot came 0.17 m off the
-feed pad. North of the row the cage parts the room, so a robot there takes
-the lane on its own side of the cage. A review then found two walks the
-first cut left out. From OUTSIDE the lab the program walked straight from
-the door to its goal, and the company spot is north of the row: 0.30 m off
-the shock pad. The walks in now take the lanes from the door
-(`lifecycle.lab_door`). And a company visit ENDED at the spot, so whatever
-the robot did next walked out over the row: from the spot to the lobby, a
-quadruped with its belief on the truth pressed the shock plate twice. A
-visit now walks back down its lane to the row's south side
-(`cage.company_exit`), where every plate act already ended.
-`tests/test_lab_on_legs.py` walks every act from every place a robot
-stands, in the lab and out of it, and asks that each ends south of the row.
-Flown round the lab (feed, company, feed, company, toy), every act pressed
-only its own plate; the nearest a foot came to another pad was 0.18 m,
-the shock pad's west edge, walking the west lane to keep the mouse company.
+**Company is not a `care` act on legs** (`Menu.care_acts`): it is a spot
+beside the cage no tag marks. The robot's own procedure may walk there.
 
 **Measured** (`scripts/solve.py --feature mouse --pair --body quadruped`:
-the pair as deployed, the paid job offered, claimed with a prediction,
-walked and graded by `eval_feed`, the other robot standing in the hall;
-re-flown with #405's arm aboard):
+the pair as deployed, arm aboard, the paid job offered, claimed with a
+prediction, found, pressed and graded by `eval_feed`, the other robot
+standing in the hall):
 
-| from | arm | paid | sim s each | presses of another plate | belief off at the end |
-|---|---|---|---|---|---|
-| the dock (walked back to it and lain on between) | no | 10 / 10 | 71-75 | 0 | 0.06 m |
-| the dock | yes | 10 / 10 | 71-75 | 0 | 0.09-0.11 m |
-| inside the lab (after one walk in from the hall) | no | 10 / 10 | 11-14 | 0 | 0.12-0.13 m |
-| inside the lab | yes | 10 / 10 | 11-14 | 0 | 0.15-0.18 m |
+| from | paid | sim s each | presses of another plate | belief off at the end |
+|---|---|---|---|---|
+| the dock (the first a fresh map's find, 147 s; walked back to it between) | 10 / 10 | 73-75 | 0 | 0.12 m |
+| inside the lab (after one find from the hall, a fresh map) | 10 / 10 | 21-22 | 0 | 0.16 m |
 
 ⚠ The pair's robots look round their starts in ONE loop
 (`solve.start_pair`): with #405's arm a quadruped that is not stepped lets
 go of the arm's hold, and Luca stood 0.58 m from its belief while Rowan
-looked round alone -- the first armed dock trials read 0.41 m off every
-time, and that was the harness.
+looked round alone.
 
-⚠ **After an explore the armed belief reached the lab 0.43-0.45 m off**, in
-two of two flights (0.11-0.13 m unarmed, the same flights), with every
-scan accepted: the error is in the frame the map was built in, and the
-plates are handed as world coordinates (the stated exception to places,
-#381). The robot's true pose lay north of its belief, toward the row, and
-in one flight the walk home from the feed's approach point pressed the
-feed plate five times and the shock plate five times (`press` rows, as
-designed); a company visit failed `no route` at the lane's north end.
-From the dock straight to the lab the armed belief is 0.05-0.11 m off.
-The lanes absorb an error up to about 0.2 m; what closes a larger one is a
-place the robot confirms in the lab (#381's places stage).
-
-The pass registered on every walk at the policy's own pace, so it needs
-no slower gait. An act from the dock costs 1.7-2.2 Wh and 71-108 s with
-the arm aboard, a company visit the dearest for its walk back down the lane
-(`economy/energy.json`, `home_quad`), against the rover's 1.1-1.3 Wh from
-the rack: a quadruped walks at about 60 mWh a metre, twice the rover.
+⚠ **After an explore, the find fails more often than not.** The search
+takes any frontier within 7.5 m of the address before a point it has not
+looked over (`legs.places.next_viewpoint`). After a 240 s explore the lab's
+floor is mapped -- the LIDAR's plane (0.51 m) is over the plates, the cage
+and the signs, and it sees the room through its door -- so the frontiers
+left near the facility's address (in its storeroom) are outside the
+building, 3-5 m off in a straight line and far by the way in, while the
+lab's signs are 7 m off. Flown: the robot stood in the lab's doorway facing
+in, the feed sign 36 deg off its nose (the camera's half-field is 33.5),
+and turned away to search round the outside for 600 s. In the energy spike
+the first three finds after the explore ran out their 300 s; the fourth
+found the row in 141 s, the search having tried every viewpoint outside.
+After a 480 s explore it gave up `not found` at 483 s, having "looked from
+every place near there" (21 viewpoints) -- and `seen()` counts floor within
+`LOOKED_OVER_M` of a look-around whatever walls stand between, so a look
+round in the lobby marks the lab's floor looked over. After a 120 s explore
+that never reached the facility the find took 147 s, as from a fresh map.
+Found once, the place is remembered, and a feed from the dock is 73-75 s
+and 1.77 Wh (`economy/energy.json`), about 60 mWh a metre walked.
 
 ## Places, not coordinates (issue #419)
 

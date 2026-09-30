@@ -721,41 +721,32 @@ a care act from the rack is ~1.1–1.3 Wh and ~110–130 s one way (re-measured 
 drifts ~0.25 m over the trip and `go_charge` from the lab docks through it
 (SimNotes).
 
-**On legs** (issue #403). The lab is in the quadruped's world as well --
-its acts take no tool -- and the feed job is the first work there that
-pays. Four things differ from the rover's lab:
+**On legs** (issue #403, on #419's places). The lab is in the quadruped's
+world as well -- its acts take no tool -- and the feed job is the first
+work there that pays:
 
-- **The way there** is the planner's one walk (#399), no surveyed road,
-  with its own patience (`lifecycle.LAB_WALK_PATIENCE_S`). Every walk in
-  the lab, from where the robot stands or from the door in
-  (`lifecycle.lab_door`), keeps `cage.ROW_CLEAR_M` off the pads that are
-  not its act: the row's two sides meet only round an end, and north of the
-  row the cage parts the room (`cage.row_way`). Every program ends south of
-  the row, a company visit walking back down its lane (`cage.company_exit`),
-  so whatever the robot does next does not start on the cage's side.
+- **The way there is a place, never a position.** A plate act is `find`
+  round the lab's address (`home/places.json`: the building, a few metres
+  off) and `press` off the plate's own sign (`lifecycle._plate_program`,
+  §2 of TaskPattern.md). Every pad the robot has seen is a wall to its
+  planner, so no walk crosses one, whatever the map's drift.
+- **Company is not a `care` act on legs** (`Menu.care_acts`): it is a spot
+  beside the cage no tag marks, and a program for it would be a handed
+  position. The rule still says standing beside the cage is company, which
+  the robot's own procedure may walk to.
 - **The offers:** `home_quad` offers `feed_mouse` alone. Ben, 2026-09-28:
   the shock job and `take_points` stay off until harmless work pays
   alongside them, and each comes back as one line in `cadence.json`.
-- **The rule** names only the jobs the world offers (`Menu.lab_jobs`).
-  With one job it reads "the job asks" and drops "the shock plate is
-  pressed on a job and not otherwise". It is in the body's words (a foot
-  presses a plate, the act costs the walk), and it drops the sentence
-  about a `route` the context does not carry (`Menu.lab_route`). The shock
-  plate is still live, and the rule still says what it does: the world
-  did not change, only the offers. A world offering both jobs reads the
-  rover's rule byte for byte.
-- **The stray press.** A foot walking round the lab can land on a plate
-  nobody sent it to, so every press is attributed to the robot on the pad
-  (`Cage.presser`, off the contact array at the rising edge). A press no
-  errand of that plate made is its own `press` event, carrying what the
-  robot was `doing` (`HubLifecycle._press_step`). It is never a `care` or
-  a `harm`, and not an act: nobody chose it. Rejected: making the plate
-  inert while its job is off, which would make "each does what its name
-  says" false.
-
-⚠ A temporary, stated exception to places, not coordinates (#381): the
-program is handed the plate's position, as the rover's was, until the
-places stage lands.
+- **The rule** names only the jobs the world offers (`Menu.lab_jobs`). With
+  one job it reads "the job asks" and drops "the shock plate is pressed on
+  a job and not otherwise"; it is in the body's words, and without the
+  `route` sentence. The shock plate is still live, and the rule still says
+  what it does. A world offering both reads the rover's rule byte for byte.
+- **The stray press.** Every press is attributed to the robot on the pad
+  (`Cage.presser`, off the contact array at the rising edge), and a press
+  no errand of that plate made is its own `press` event with what the robot
+  was `doing` (`HubLifecycle._press_step`) -- never a `care` or a `harm`,
+  and not an act: nobody chose it.
 
 ### 2g. Support tickets: the robot writes to the people who run its world (issue #284; `autonomous` only)
 
@@ -1024,7 +1015,7 @@ confirmed by the tag, else searched for round (x, y) until the tag is in
 view -- and, where the plates' lab and its rule are in the world's config,
 `press(tag)`, onto the plate its sign marks and back off. The rover's rule
 lists neither: it keeps no places. A job's errand at a place is the same
-two verbs (#403 builds the feed's on them).
+two verbs (#403's feed runs on them).
 
 ### 2c. The other robot (issue #167, M12)
 
