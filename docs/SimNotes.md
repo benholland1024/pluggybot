@@ -3679,6 +3679,93 @@ looks in 86 sim s, one every 2 s -- 16 ms a sim second at the box's render,
 laid in. The address is a fixed offset, not a GPS sensor. Every other task
 area's tags (#406, #407).
 
+## Lying still, the heading holds (issue #425)
+
+**What the live pair showed.** Over the last 40 runs of `5736e23` the pair
+docked 0 of 17 times, and at 7 of the 8 deaths the belief was 4-22 m from
+the truth, six of them more than 100 deg off in heading. The cause is the
+rest. A scan is matched only while the body is `level()`, and the
+quadruped is level only standing: lying, its LIDAR is at 0.29 m, not the
+0.51 m plane its map was laid at. So while it lay, nothing corrected the
+heading, and the heading integrated the gyro's offset (`imu.GYRO_BIAS`,
+up to 0.05 deg/s; Luca's is -0.0438, 2.6 deg a minute). Past 6 deg the
+matcher cannot recover: its search reaches ±0.6 m and ±6 deg round the
+belief and refuses anything else as `inconsistent`. A robot that lay 2-5
+minutes stood up lost for good, and everything it mapped from then on was
+laid askew. A charge is a rest too: the dock re-anchors the belief when
+the pins first conduct, and a charge from low lasts half an hour or more.
+At Luca's offset, a robot that docked got up about 80 deg off.
+
+**The fix: a zero angular-rate update** (`imu.Standstill`, read by
+`LegOdometry`). A body lying still is not turning, so what its gyro reads
+there is its offset. The body says when it rests: its posture is `lying`,
+its drivers limp (`LegOdometry.resting`). The gyro must agree: its
+reading, less the offset learned so far, smoothed over 0.2 s, must read
+under 0.2 deg/s. While both hold, the heading integrates nothing, and the
+reading is learned as the offset (a running average over 30 s). Otherwise,
+walking included, the odometry integrates the reading less that offset.
+The gyro gate is for a push. MEASURED, once `lying` begins the body turns
+under 0.001 deg/s, so what trips it is the other robot shoving a lying
+one, and that turn is integrated. A turn slower than the gate (a slide, a
+slow shove) is missed, as it is by any zero-rate update, and learned as
+offset. So the learned offset is bounded at twice the part's worst
+(`BIAS_MAX`): unbounded, a 0.12 deg/s slide for 2 minutes taught 0.17
+deg/s, and every walk until the next rest turned 7 deg a minute; bounded,
+3.
+
+Flown on #422's probe: Luca's draws, a look-around, six minutes lying,
+then stand and turn four times.
+
+| | before (staging `008299b`) | after |
+|---|---|---|
+| heading after lying 30 s | -0.97 deg | -0.16 deg |
+| ...after lying 360 s | -15.4 deg | -0.16 deg |
+| position after lying 360 s | 21 mm | 4 mm |
+| stood and turned four times | -16.0 deg; 102 of 102 scans `inconsistent` | within 0.08 deg; 104 of 104 `ok` |
+
+The 0.16 deg is the lie-down's own 3 s, integrated before the rest began,
+with nothing learned yet. The first rest learns the offset (-0.0437 deg/s
+against the part's -0.0438, after 150 s), and from then on it is taken off
+every reading, the lie-downs' included. Thirty minutes lying, as long as a
+charge from low, ended where it began, at -0.16 deg; unheld, that is about
+79 deg at Luca's offset. Every scan after it matched, 99 of 99. On the dock
+itself (a 279 s charge from 15 %), the body turns under 0.001 deg/s once
+lying on the pins, the update holds on every step, and the heading ended
+0.001 deg from where the dock's anchor put it; unheld, 12 deg.
+
+**Why not also match while lying**, the issue's other option: the
+standstill is enough, and a lying match has its own risk. At the start
+pose, a lying scan matched against the standing map (applied to nothing,
+fused into nothing) agreed every time, 358 of 358 over the half hour. But that was one room. At
+0.29 m the plane sees the bed and the couch the standing map does not
+hold, and a scan accepted there would move a body that is not moving.
+
+**The maps kept before it are askew.** The deploy that carries this drops
+them: `continuation.MAP_EPOCH` 1. A save of another epoch keeps the clock,
+the packs, the deaths and the jobs, as a changed geometry does, but not the
+bodies, the beliefs, the maps or the places found in them (#419).
+
+**A restart mid-rest, flown for the first time.** #387's resume check
+saved before the day's first lie-down, and a body lying moves nothing its
+belief could change, so it could not see a learned offset go missing. The
+check that can uses one quadruped on the demo pack at 60 %. It explores
+until 253 s, lies until the pack runs low, walks to the dock at 713 s and
+charges. Saved at 603 s while lying, the first restore diverged 1 s into
+the stand-up, whether or not the offset came back. The cause was not the
+offset. The scripted gait (`VirtualModel`) reads the body's inertia off
+the mass matrix where it is first built, and the restarted process built
+it from folded legs; that inertia is kept now too. Restored, the day is
+IDENTICAL after the save over 852 samples: the rest, the stand-up, the
+walk, the 272 s charge and the back-off. With the learned offset stripped
+from the same save, it parts at 718 s, as the walk begins.
+
+**What is true now.** Lying, the quadruped's heading holds at whatever
+the lie-down left, 0.16 deg with nothing learned and less after. The
+learned offset and the gait's inertia ride a restart. Not done: recovering
+a robot already lost (#422); a slow turn while lying (none measured on
+the floor or the dock); and the walking drift with the learned offset
+taken off is not measured (#422, which the smaller offset should help).
+
 ## Debugging workflow that worked
 
 1. Reproduce headlessly with printed telemetry (pose, wheel ω, contact list,

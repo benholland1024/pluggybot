@@ -385,6 +385,10 @@ def main() -> int:
   if args.compare:
     compare(sorted(Path(args.compare).glob("*.trace.jsonl")))
     return 0
+  if args.pair and args.resume_at is not None:
+    # the pair's child has no save hook: three flights, then no `saved` row
+    ap.error("--resume-at flies one robot's day (--world home_quad for legs), "
+             "not --pair")
   out = Path(args.out or tempfile.mkdtemp(prefix="pluggy-det-spike-"))
   out.mkdir(parents=True, exist_ok=True)
   cfg = {"world": args.world, "pack": args.pack, "simS": args.sim_s,

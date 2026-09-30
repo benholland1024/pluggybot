@@ -82,6 +82,41 @@ def test_a_heading_corrected_from_outside_leaves_the_tilt_alone():
   assert att.yaw() == pytest.approx(yaw + 0.4, abs=1e-12)
 
 
+def test_a_push_while_resting_is_turned_through_not_held():
+  # The zero-rate update (#425) holds the heading only while the gyro agrees
+  # that nothing turns the body: another robot shoving a lying one 30 deg
+  # round is integrated, within the gyro's scale error and the offset it
+  # has not learned yet -- and the rest is taken up again after it.
+  part, still = imu.Imu("test:push"), imu.Standstill()
+  att, dt = imu.Attitude((1.0, 0.0, 0.0, 0.0)), 0.002
+
+  def lie(seconds, rate_z=0.0):
+    for _ in range(round(seconds / dt)):
+      att.step(still.rate(part.gyro((0.0, 0.0, rate_z), dt), True, dt),
+               (0.0, 0.0, imu.G), dt)
+
+  lie(10.0)
+  assert still.still and att.yaw() == 0.0
+  lie(3.0, math.radians(10.0))
+  assert not still.still
+  assert math.degrees(att.yaw()) == pytest.approx(30.0, abs=0.3)
+  lie(2.0)
+  assert still.still
+
+
+def test_a_slide_too_slow_to_see_teaches_no_more_than_the_part_could_be_off():
+  # Lying, a turn under the gate is missed and learned as the gyro's offset
+  # (#425) -- none was measured on the floor or the dock, but nothing turns
+  # it back until the next rest: unbounded, a 0.12 deg/s slide for 2 min
+  # taught 0.17 deg/s, and every walk after it turned 7 deg a minute.
+  part, still, dt = imu.Imu("test:slide"), imu.Standstill(), 0.002
+  part.gyro_bias[:] = (0.0, 0.0, imu.GYRO_BIAS)
+  for _ in range(round(120.0 / dt)):
+    still.rate(part.gyro((0.0, 0.0, math.radians(0.12)), dt), True, dt)
+  assert still.still, "the premise: a slide the gate cannot see"
+  assert max(abs(b) for b in still.bias) <= imu.BIAS_MAX
+
+
 def test_a_wheel_encoder_reads_whole_counts():
   # 64 counts a motor turn on the Pololu #4753, 3200 at the 50:1 output.
   step = 2 * math.pi / encoders.WHEEL_COUNTS_PER_REV

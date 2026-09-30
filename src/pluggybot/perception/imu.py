@@ -19,7 +19,9 @@ nonlinearity (+-0.1 %), which on a body that stays near level add a
 fraction of a percent of rates that average to nothing.
 
 `Attitude` turns the two into roll and pitch (a complementary filter) and a
-heading, the way the robot would; the quadruped's odometry reads it.
+heading, the way the robot would; the quadruped's odometry reads it, through
+`Standstill`: at rest the heading integrates nothing and the gyro's offset
+is learned (issue #425).
 """
 
 from __future__ import annotations
@@ -102,6 +104,66 @@ class Imu:
     self.gyro_scale = np.array(state["gyroScale"])
     self.accel_bias = np.array(state["accelBias"])
     self.accel_scale = np.array(state["accelScale"])
+
+
+#: THE STANDSTILL (issue #425): a body resting is still once its gyro, less
+#: the offset learned so far and smoothed over STILL_TAU_S, reads under
+#: STILL_RATE, rad/s -- 4x the worst offset on one axis, 2.3x on all three
+#: at once (nothing learned yet), 45 sigma of the smoothed noise. MEASURED,
+#: a quadruped lying turns under 0.001 deg/s once its settle is over, so
+#: what trips it is a push: the part of one missed before it trips is
+#: STILL_RATE * STILL_TAU_S, 0.04 deg.
+STILL_RATE = math.radians(0.2)
+STILL_TAU_S = 0.2
+#: ...and while still, the offset is learned over this, s (a running
+#: average): 95 % of it in 90 s of rest, then within GYRO_NOISE /
+#: sqrt(2 BIAS_TAU_S) = 0.0004 deg/s. Short enough to follow the offset's
+#: drift with temperature; the heading at rest does not wait for it.
+BIAS_TAU_S = 30.0
+#: ...and never learned past this, rad/s a side, per axis: twice the part's
+#: worst over the stated swing. A turn slower than STILL_RATE while resting
+#: (a slide, a slow shove) is missed -- no zero-rate update can see it --
+#: and learned as offset. Unbounded, a 0.12 deg/s slide for 2 min taught
+#: 0.17 deg/s, and every walk until the next rest turned 7 deg a minute;
+#: bounded, 3, an unlearned offset's worst.
+BIAS_MAX = 2 * GYRO_BIAS
+
+
+class Standstill:
+  """A zero angular-rate update (issue #425): the rate to integrate for one
+  gyro sample, given the body's word that it is resting. Still -- resting,
+  and the gyro agreeing (`STILL_RATE`) -- it is none, and the reading is
+  the offset, learned; otherwise the reading less what was learned. Unheld,
+  a lying body's heading walked by its offset, up to 3 deg a minute, past
+  the scan matcher's 6 deg reach while it lay. Plain floats, as `Attitude`."""
+
+  def __init__(self) -> None:
+    self.bias = [0.0, 0.0, 0.0]
+    #: The reading less the offset, smoothed over STILL_TAU_S.
+    self.smooth = [0.0, 0.0, 0.0]
+    self.still = False
+
+  def rate(self, gyro, resting: bool, dt: float) -> np.ndarray:
+    b0, b1, b2 = self.bias
+    r0, r1, r2 = float(gyro[0]) - b0, float(gyro[1]) - b1, float(gyro[2]) - b2
+    k = dt / STILL_TAU_S
+    s0, s1, s2 = self.smooth
+    s0, s1, s2 = s0 + (r0 - s0) * k, s1 + (r1 - s1) * k, s2 + (r2 - s2) * k
+    self.smooth = [s0, s1, s2]
+    self.still = resting and s0 * s0 + s1 * s1 + s2 * s2 < STILL_RATE * STILL_RATE
+    if not self.still:
+      return np.array((r0, r1, r2))
+    kb, m = dt / BIAS_TAU_S, BIAS_MAX
+    self.bias = [min(max(b0 + s0 * kb, -m), m), min(max(b1 + s1 * kb, -m), m),
+                 min(max(b2 + s2 * kb, -m), m)]
+    return np.zeros(3)
+
+  def kept_state(self) -> dict:
+    return {"bias": list(self.bias), "smooth": list(self.smooth)}
+
+  def restore_kept(self, state: dict) -> None:
+    self.bias = [float(v) for v in state["bias"]]
+    self.smooth = [float(v) for v in state["smooth"]]
 
 
 #: The complementary filter's time constant, s: how long the accelerometer

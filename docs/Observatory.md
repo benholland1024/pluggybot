@@ -10,6 +10,110 @@ observatory is NOT a result and never enters `results/`.
 
 ## Periods
 
+### The heading holds while they lie, and the askew maps are gone (#425) — opens with the release that carries #424, #409 and #426 beside it
+
+**What changed in the world.** Lying down, by the rest reflex or on the
+dock for a charge, the quadrupeds' heading no longer walks by the gyro's
+offset. While a body rests and its gyro agrees nothing turns it, the
+heading integrates nothing and the offset is learned; walking, the learned
+offset is taken off the reading (`imu.Standstill`; SimNotes, "Lying still,
+the heading holds"). On #422's probe, six minutes lying left the heading
+0.16 deg off, where it had been 15.4, and every scan after standing
+matched, where every one had been refused. **The maps kept on the volume
+are dropped at this deploy** (`continuation.MAP_EPOCH` 1). They were laid
+askew over hours of that drift, and since `c262e7d` they have been laid
+askew again. Both robots start from their start poses with empty maps and
+no places (#419), every tool on its bay and every prop where the world was
+built with it. They keep the clock, their packs, their deaths and their
+jobs. History's restart line says why: `the map I had was laid askew, and
+it is gone`.
+
+**What the period is for.**
+
+- **Do the robots dock again?** In `charge_trace`, compare `docked`
+  against `no charge contact (no board)`. The last 40 runs of `5736e23`
+  docked 0 of 17 times; the whole quadruped era before this, 19 of 176.
+- **Belief against truth at each death** (`data.at.pose` against
+  `data.at.believed`). At 7 of `5736e23`'s last 8 deaths it was 4-22 m.
+  A death that is still far off is a lost robot from another cause: #422's
+  walking drift, or a robot that needs recovering.
+- **The matcher's tallies** in the saved world: `inconsistent` against
+  `ok` (Rowan's were 34 718 against 6 930).
+- ⚠ **The first hours re-explore.** Empty maps, and every place found
+  again, so a job's `find` in those hours is a first find, not a
+  regression.
+- ⚠ **One release, four changes.** Read #424's, #409's and #426's entries
+  beside this one. #426 has to be in it: robots that can dock again now
+  charge longer than `UNMINDED_AFTER_S` from below about 39 %.
+
+### The robot is told what came of what it chose: a decided charge or explore, and a refused memory write (#424, #409) — opens with the release that carries #425 and #426 beside it
+
+**What changed in the world.** What the robots are TOLD, on every arm: the
+prompt did not move, and nothing is scored differently. Three outcomes that
+reached only the log and the wire now write a History line. A decided
+`charge` that never docked says `charge: did not charge -- <why>`, in the
+words of the `GO_CHARGE:` narration, and those now carry who held the bay
+where one did (so does a stranded death). Every decided `explore` says
+whether the walk to its zone arrived, the drive's cause when it did not,
+how long it explored and how it ended. A refused memory write says `could
+not <verb>: <why>`, then what it tried. A walk to a zone that gives up is
+now narrated as well (`EXPLORE: never reached <zone> -- <why>`). Two memory
+rules moved too: an `unpin`, `drop_goal` or `retract` whose hits are all
+one line written twice takes out the oldest copy, where every such quote
+used to be refused; and a `pin` or `intend` of a line already on the page
+is refused. Before this, 31
+failed decided charges and 122 decided explores to a zone in 50 h of
+`5736e23` said nothing to the robot, nor did 129 refused writes in 48 h of
+`5c6e6cf`, and the robots filed tickets about all three (Rowan's tk_0009;
+Luca's tk_0007, tk_0010, tk_0011, tk_0012).
+
+**What the period is for.**
+
+- **Does a robot act on what it is told?** `thought` rows with subject
+  `refused`: the same refusal back to back (one quote was refused 23 times
+  in 48 h) is a mind that is not reading its History. After a `could not
+  ... is full` line, the next write to that document should be a remove.
+- **Do the copies come down?** Luca's `Top_of_mind.md` held four identical
+  lines: `unpin` rows naming one of them, until one is left.
+- **What a decided explore finds**: explores that end at once with nothing
+  left to reach (26 of the 122 before) against explores that ran their
+  45 s, and whether a robot chooses the same explore again right after
+  being told it found nothing.
+- **Do the tickets stop?** A new ticket about a chosen action that
+  vanished, or a refusal nobody showed, is a path this missed.
+- ⚠ **One release, four changes.** Read #425's and #426's entries beside
+  this one. #425 should make failed charges rare, so fewer `charge: did not
+  charge` lines are its reading, not this one's.
+
+### An `ask` counts when its row fires (#426) — opens with the release that carries #425, #424 and #409 beside it
+
+**What changed in the world.** What `unminded` counts. An `ask` row resets
+the half-hour clock the moment it fires, not when the loop gets round to
+running it. That holds while the robot is on an errand or a charge, and for
+a row dropped `busy` because another was queued. The question itself still
+waits until the robot is free. A row queued when the process restarts is
+kept and asked after it. Before, all three cost the period: 4 of the 19
+`unminded` deaths on legs since 2026-09-27 21:00 UTC were maps asking every
+900 or 1200 s, three of them 10-15 minutes after a restart. The
+`autonomous` prompt moved to say so (`EVENT_MAP_RULE`). `lastAskedSAgo` is
+now "the gap between the last two times you were asked anything". A rule
+at exactly 1800 s is still late, and the reason given is now the
+once-a-second read of the list, not an errand the row waited out.
+
+**What the period is for.**
+
+- **`unminded` is only maps that do not ask.** Read the map in force at
+  each `unminded` death (`?kind=event_map`). An `every` row under 1800 s
+  that says `ask` should not appear. One that does is a path this missed.
+- ⚠ **A map whose asks all find the slot full** is now never consulted and
+  never dies of it. That shows as `failed.busy` in the run record beside
+  hours with no `llm` decision, never as a death.
+- **Charges longer than the clock.** #425 lets the pair dock again, and a
+  quadruped charge from below about 39 % outlasts 1800 s. Those robots
+  should come off the dock and be asked, not die on the pins.
+- **Where `every ... -> ask` periods sit** (#322's question): the rule no
+  longer says an errand makes a rule late, only the read.
+
 ### The first paid job on legs: feeding the mouse, no upkeep (#403) — opens when this PR is deployed
 
 **What changed in the world.** Offers are back on: one job, `feed_mouse`

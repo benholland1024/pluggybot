@@ -275,15 +275,18 @@ rest, and `src/pluggybot/continuation.py` keeps it:
   except one touching a robot. The hourly reset used to be what made "set
   out in a row at …" true; with the world carried on, a failed attempt would
   otherwise leave them wherever it dropped them, for good.
-- **Two refusals.** A world whose geometry changed (the `fingerprint` over
+- **Three refusals.** A world whose geometry changed (the `fingerprint` over
   bodies, joints and geoms, taken before any built tool is hung) gets its
   clock, packs, deaths and jobs, but not its bodies or maps: the robots
-  start from their start poses and are told why. And a save restored
-  `MAX_RESUMES` (3) times with no new save in between is not trusted again:
-  the next start is fresh, and History says why. A file that cannot be read
-  at all (empty, torn) is a fresh start too, never a crash. A grid that does
-  not fit the build's is left empty and the robot explores again, where it
-  stands.
+  start from their start poses and are told why. A save of another
+  `MAP_EPOCH` is refused the same way: the epoch is bumped by a change that
+  finds the kept maps laid wrong (1, #425: the heading walked while the
+  quadrupeds lay), and the places found in them go with them. And a save
+  restored `MAX_RESUMES` (3) times with no new save in between is not
+  trusted again: the next start is fresh, and History says why. A file that
+  cannot be read at all (empty, torn) is a fresh start too, never a crash. A
+  grid that does not fit the build's is left empty and the robot explores
+  again, where it stands.
 - **Parity.** `scripts/determinism_spike.py --resume-at T` flies a scripted
   day straight through, then the same day saved at the first idle pass of
   the loop past T and carried on in a new process. After the restore the two

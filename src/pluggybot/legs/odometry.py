@@ -16,7 +16,8 @@ off the gyro, so it does. The estimate is only as good as the parts:
                 whole counts of its 16-bit field, the speed in its 12-bit
                 one (`perception/encoders.py`, issue #386).
   IMU           an ICM-42688-P's noise, calibration residue and scale error,
-                on all three axes of both parts (`perception/imu.py`).
+                on all three axes of both parts (`perception/imu.py`); at
+                rest, a zero-rate update (`imu.Standstill`, issue #425).
   contact       read off current, not a switch: ODRI measured a current-
                 based estimate lagging the truth by ~31 ms (Grimminger 2020),
                 so the sim's contact is delayed by `CONTACT_LAG_S`.
@@ -33,7 +34,7 @@ import numpy as np
 from pluggybot.legs.actuator import BACKLASH_RAD
 from pluggybot.legs.model import JOINT_NAMES, LEGS
 from pluggybot.perception.encoders import LEG_POSITION_LSB, LEG_VELOCITY_LSB, quantised
-from pluggybot.perception.imu import Attitude, Imu
+from pluggybot.perception.imu import Attitude, Imu, Standstill
 from pluggybot.telemetry.protocol import ROBOT_ROOT
 
 #: How late a foot's contact is known, s (ODRI's current-based estimate).
@@ -87,6 +88,11 @@ class LegOdometry:
     self.x, self.y, self.z = (float(v) for v in data.qpos[self.qroot:self.qroot + 3])
     #: The orientation as the IMU says it, from the one the body starts in.
     self.att = Attitude(data.xquat[self.root])
+    #: The body's word that it lies at rest (`legs.body`: the posture
+    #: machine's `lying`, its drivers limp), and the gyro's rate taken
+    #: through the zero-rate update that word allows (issue #425).
+    self.resting = False
+    self.still = Standstill()
     self.yaw = self.att.yaw()
     self.distance = 0.0
     #: The body's velocity estimate, body frame, and the steps it has been
@@ -119,7 +125,8 @@ class LegOdometry:
     qd = quantised(d.qvel[self.vadr], LEG_VELOCITY_LSB)
     # Measured body rate and specific force (both in the body frame), and
     # the orientation they say.
-    w_meas = self.imu.gyro(d.qvel[self.fa + 3:self.fa + 6], dt)
+    w_meas = self.still.rate(self.imu.gyro(d.qvel[self.fa + 3:self.fa + 6], dt),
+                             self.resting, dt)
     self.att.step(w_meas, self.imu.accel(d.sensordata[self.acc_adr:self.acc_adr + 3], dt), dt)
     # Leg kinematics at the measured angles, torso at the origin, level.
     k = self.kin

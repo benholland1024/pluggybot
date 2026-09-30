@@ -60,6 +60,13 @@ SAVE_EVERY_S = 60.0
 #: state crashes the process would otherwise be restored into the same
 #: crash for ever; at this many the next start is a fresh one, and says so.
 MAX_RESUMES = 3
+#: THE MAPS' EPOCH: bumped by a change that finds the kept maps laid wrong.
+#: A save from another epoch comes back as a changed world does -- the
+#: clock, the packs, the deaths and the jobs, never the bodies, the beliefs
+#: or the maps (nor the places found in them) -- and History says why
+#: (`MAPS_DROPPED`). 1: #425, the heading walked while the quadrupeds lay.
+MAP_EPOCH = 1
+MAPS_DROPPED = "the map I had was laid askew, and it is gone"
 
 
 def fingerprint(model) -> str:
@@ -229,6 +236,7 @@ def capture(lives, fingerprint_: str, resumes: int = 0) -> Snapshot:
            "producer": (first.producer.kept_state()
                         if first.producer is not None else None)}
   meta = {"format": FORMAT, "world": first.world, "fingerprint": fingerprint_,
+          "mapEpoch": MAP_EPOCH,
           "savedAt": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
           "resumes": int(resumes), "physics": index, "robots": robots,
           "state": world}
@@ -317,12 +325,14 @@ def restore(lives, snap: Snapshot) -> dict:
   routine is driven.
 
   The clock always continues. The bodies, the poses and the maps are put
-  back only where the world is the one they were saved in (`fingerprint`);
-  elsewhere the robots start from their start poses carrying their packs,
-  their clocks and their jobs, and are told why.
+  back only where the world is the one they were saved in (`fingerprint`)
+  and the maps are of this epoch (`MAP_EPOCH`); elsewhere the robots start
+  from their start poses carrying their packs, their clocks and their jobs,
+  and are told why.
   """
   first = lives[0]
-  same = snap.meta.get("fingerprint") == first.world_fingerprint
+  same_world = snap.meta.get("fingerprint") == first.world_fingerprint
+  same = same_world and snap.meta.get("mapEpoch", 0) == MAP_EPOCH
   if same:
     matched = put_physics(first.model, first.data, snap.meta["physics"], snap.arrays)
   else:
@@ -333,7 +343,8 @@ def restore(lives, snap: Snapshot) -> dict:
     # the run's budget counts from here: `begin` set it from 0, and a
     # robot the save never had starts fresh on this clock too
     life.max_sim_time += snap.t
-  why = "" if same else "the world itself changed since then"
+  why = ("" if same else MAPS_DROPPED if same_world
+         else "the world itself changed since then")
   state = snap.meta.get("state", {})
   if first.activities is not None:
     kept = state.get("activities", {})

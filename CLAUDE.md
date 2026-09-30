@@ -329,11 +329,15 @@ tolerance spikes are listed in `docs/Rover.md`.
     pass. Not a rate limit, not an `ACTION_FAILURES` cause;
   - **going unminded is a death** (a fourth cause, never summed), and ⚠ THE
     AGENT IS TOLD THE NUMBER (#322; a test reads it off the constant), plus
-    that a row fires when the robot is next FREE. `UNMINDED_AFTER_S` = 1800
-    sim s, measured against the worst healthy gaps (#317: a 1.31× margin, read
-    and left alone). The clock is reset by the ASK, not the answer; a
-    MID-ERRAND INTERRUPT STAMPS IT; armed ONLY where there is a map; NOT
-    prevented in code (a map that cannot remove its own `ask` row is a rail).
+    that the list is read once a second. `UNMINDED_AFTER_S` = 1800 sim s,
+    measured against the worst healthy gaps (#317: a 1.31× margin, read and
+    left alone). The clock is reset by the ASK, not the answer, and ⚠ AN
+    `ask` ROW STAMPS IT AS IT FIRES on the seam (#426: `_events_step`), a
+    row dropped `busy` and a mid-errand interrupt included, never again when
+    it runs: a restart, a full slot or a charge between the two lost the
+    period (4 of 19 deaths on legs). The queued row is KEPT across a
+    restart. Armed ONLY where there is a map; NOT prevented in code (a map
+    that cannot remove its own `ask` row is a rail).
     ⚠ THE BOOTSTRAP ASKS UNTIL THE MIND HAS ANSWERED FOR ITSELF
     (`HubLifecycle._minded`, #303) — a fallback is the box answering; a
     stand-up does not re-arm it, nor a restart over a KEPT list, and a TRUE
@@ -419,7 +423,8 @@ tolerance spikes are listed in `docs/Rover.md`.
   `tests/test_constitution.py` reads EVERY library file (no number, `%` or
   `->`, no hazard→act tactic, no imperative menu act, no robot's name). Every
   row is in `mind/text.py`; `text.admit` is the ONE gate every document write
-  passes; a refusal is narrated, never swallowed; on EVERY arm, memory is not
+  passes; a refusal is narrated AND written to History, the reason before
+  what it tried (#409), never swallowed; on EVERY arm, memory is not
   a rail. ⚠ **`think` is the FIRST property of the decision schema**
   (constrained decoding follows property order). ⚠ **`recall` is an ACTION**,
   never an order (`Menu.orderable`), rationed by `MAX_RECALL_RUN`;
@@ -559,10 +564,11 @@ tolerance spikes are listed in `docs/Rover.md`.
   restore. ⚠ A signal only ASKS (`Keeper.request_stop`); no save mid stand-up
   or mid-move (a quadruped lying down, standing up or getting up is a
   generator part-way, or AT a bay mid-swap, `Body.working`; `Keeper.busy`),
-  NEVER on a crash. Two refusals, said in History: a changed
+  NEVER on a crash. Three refusals, said in History: a changed
   GEOMETRY (`fingerprint`) keeps the clock, packs, deaths and jobs but not the
-  bodies or maps; a save restored `MAX_RESUMES` (3) times without a new one is
-  not trusted. ⚠ The errand in flight ends; its job does not (`_resume_jobs`;
+  bodies or maps, and so does a save of another `MAP_EPOCH` (bumped when the
+  kept maps are found laid wrong, #425); a save restored `MAX_RESUMES` (3)
+  times without a new one is not trusted. ⚠ The errand in flight ends; its job does not (`_resume_jobs`;
   `MAX_TAKE_UPS` 3). An offered challenge SETS OUT its props
   (`_set_out_props`). The hourly ceiling is still rooftop's `compose.yaml`;
   lifting it waits on #349.
@@ -1124,6 +1130,10 @@ tolerance spikes are listed in `docs/Rover.md`.
   table): an ICM-42688-P on both bodies, whole counts on the rover's
   wheels, the GDS68's CAN fields on the legs, the quadruped's tilt off its
   IMU (`imu.Attitude`); one noise stream per robot, kept across a restart.
+  ⚠ LYING, NO SCAN IS MATCHED, so the quadruped's heading is held by a
+  zero-rate update (`imu.Standstill`, #425: the posture says it rests, the
+  gyro must agree, and the offset is learned there); unheld it walked up to
+  3° a minute, past the matcher's 6° reach in two.
   The sim's own checks (`true_pose`, deaths, traces) read the truth and
   never feed a belief; the one stand-in left is the rover's map gate (its
   tilt off the pose), and it goes with the rover. ⚠ The quadruped enters a
@@ -1301,4 +1311,7 @@ tolerance spikes are listed in `docs/Rover.md`.
   FAILED VERDICT LEADS WITH THE ERRAND'S OWN FAILURE (#350;
   `evaluate(failed=)`), and a line after a failed drive ends with
   `HubLifecycle.drive_why`, one of `mission.DRIVE_GAVE_UP`'s four causes
-  (`tests/test_failure_words.py`).
+  (`tests/test_failure_words.py`). ⚠ A DECIDED `charge` or `explore` says
+  how it ended in History (#424), and a charge that never docked is NOT a
+  verdict: its `charge` row is on the wire, and a verdict would count it
+  again as a failed task.

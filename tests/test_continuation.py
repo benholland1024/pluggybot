@@ -368,6 +368,29 @@ def test_a_changed_world_keeps_the_pack_and_the_clock_but_not_the_bodies(tmp_pat
              in ln for ln in _history(back))
 
 
+def test_maps_of_another_epoch_are_dropped_as_a_changed_worlds_are(tmp_path):
+  """#425: hours of heading walked while the quadrupeds lay, and every map
+  kept since was laid askew -- and a place found in one is wrong too. The
+  world is the same, so the fingerprint cannot say it: a save of an older
+  `MAP_EPOCH` (one written before there was one included) keeps the pack
+  and the clock and puts back no body, belief or map, and says why -- in
+  History, as the changed world's test reads it."""
+  life = _life(tmp_path)
+  life.body.start_at(*world_config("room_hub")["start"])
+  life.body.mission._drive(1.0, 0.2, 0.0)
+  life.battery.energy_wh = 0.42
+  snap = _saved(life, tmp_path)
+  assert snap.meta["mapEpoch"] == continuation.MAP_EPOCH
+  del snap.meta["mapEpoch"]
+
+  back = _life(tmp_path)
+  _restored(back, snap)
+  assert back.battery.energy_wh == 0.42 and back.data.time == life.data.time
+  assert not back.resumed["inPlace"]
+  assert back.resumed["why"] == continuation.MAPS_DROPPED
+  assert not np.array_equal(back.data.qpos, life.data.qpos)
+
+
 def test_a_saved_world_that_keeps_crashing_is_left_after_three_tries(tmp_path):
   """A state that kills the process would otherwise be put back into the
   same death for ever. `load` counts itself before it is trusted and a
