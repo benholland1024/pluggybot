@@ -91,8 +91,8 @@ passing test, or to a branch the lifecycle already had (`overseer.ACTIONS`):
 | `census` | fetch the LCD, survey the garden, count the plants, show the number | — |
 | `dance` | fetch the LCD, drive somewhere visible, perform the routine | — |
 | `carry` | fetch a module, carry it across the room, hang it back up | — |
-| `explore` | frontier-drive for `DECIDED_EXPLORE_S` (45 s); optionally head for a zone first | `zone` |
-| `charge` | go and top up **now**, at any level, for any reason; it pays nothing (issue #135) | — |
+| `explore` | frontier-drive for `DECIDED_EXPLORE_S` (45 s); optionally head for a zone first. History says whether the zone was reached (the drive's cause when not) and how the explore ended, `EXPLORE_ENDS` (issue #424) | `zone` |
+| `charge` | go and top up **now**, at any level, for any reason; it pays nothing (issue #135). A trip that never docks is a History line, `charge: did not charge -- <why>`, and never a verdict: the wire's `charge` row carries it already (issue #424) | — |
 | `idle` | stand still for `DECIDED_IDLE_S` (4 s) — or `AUTONOMOUS_IDLE_S` (60 s) on that arm, so an idling agent cannot re-decide faster than `CALLS_PER_HOUR` | — |
 | `recall` | look something up in memory and stand still `RECALL_S` (10 s); the lines arrive on the next turn, at most `MAX_RECALL_RUN` (3) in a row (issue #221, §7) | `read` (a key), `find` (words) |
 | `procedure:<name>` | run a procedure the robot wrote, from its own library (issue #166; `autonomous` only, §2b) | — |
@@ -2047,7 +2047,16 @@ gate every document write passes (the files' `append`, the library's
   `cites` names the History ids a `pin` or a `note` was drawn from — the
   paper's reflection grounding — optional and unvalidated on `serves`'
   terms: a model made to cite everything learns to cite. A refusal is
-  narrated (`THOUGHT refused: …`), never swallowed.
+  narrated (`THOUGHT refused: …`) and TOLD, never swallowed: a History
+  line, `could not <verb>: <why> -- '<what it tried>'`, the reason first
+  because a History line is capped from the end (issue #409; narrated
+  alone, 129 refusals in 48 h reached everyone but the robot). `unpin`,
+  `drop_goal` and `retract` quote one line: an exact text, else the one
+  line containing the quote; hits that are all one text are a line
+  written twice, and the OLDEST goes (the newest is the finding a grader
+  reads). `unnote` names a note by `topic/title`, which no two share. A
+  `pin` or `intend` of a line already on the page is refused; a `record`
+  of one is not (a second measurement that agrees).
 - **It recalls.** `recall` is an ACTION: `read` a key (a note's
   `topic/title`, a topic or a family like `tasks`, `findings`, `history` for
   forty more lines, a line's `#123`) and/or `find` words (FTS5 over
@@ -2092,7 +2101,10 @@ ask looked the same from inside.
   a person catching up would want — waking up, which mind is thinking, each
   decision, each recall, each banked verdict, each exchange with a visitor
   or the other robot (theirs, then the robot's; §10), a death, an
-  intervention, how the day ended — never the narration. Its lines carry `verdict.reason`,
+  intervention, how the day ended — never the narration. What a decided
+  action came to is there even where no verdict is: a refused memory
+  write (#409), a decided `charge` that never docked, how a decided
+  `explore` ended (#424). Its lines carry `verdict.reason`,
   already redacted of a hidden answer, because History is read back into the
   model's context.
 - **The ownership split is the instrument** for the mission's fifth quality:

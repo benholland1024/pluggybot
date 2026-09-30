@@ -66,7 +66,9 @@ from pluggybot.mind.overseer import (
   order_runnable,
 )
 from pluggybot.tools.screen import face_for
-from pluggybot.mind.thoughts import RECALLED_CHAIN_CHARS, ThoughtFiles, ThoughtRefused
+from pluggybot.mind.thoughts import (
+  RECALLED_CHAIN_CHARS, ThoughtFiles, ThoughtRefused, attempted,
+)
 from pluggybot.economy import scoring
 from pluggybot.tools import strokes
 from pluggybot.perception import depth as nf
@@ -460,6 +462,31 @@ PROCEDURE_STOPS = {
   "steps": "it ran out of the steps its budget gave it",
   "interrupted": "it was interrupted",
 }
+#: How a decided explore ended (`explore_routine`'s answer), in its History
+#: line's words (issue #424). A key missing here is the run's own end.
+EXPLORE_ENDS = {
+  "budget": ", all the time one explore is given",
+  "no-frontiers": ", until nothing on my map was left unseen",
+  "no-reachable": ", until none of the floor I have not seen could be reached",
+  "only-near": ", until what was left unseen was too close to look at",
+  "blocked": ", until the way to the floor I have not seen was blocked",
+  "battery": ", until the pack reached the reserve",
+}
+
+
+def explore_outcome(zone: str, ended: str, seconds: float,
+                    walk_why: str | None = None) -> str:
+  """A decided explore's History line (issue #424): whether the walk to its
+  `zone` got there (`walk_why` is why not; None where it did, or where there
+  was no walk), how long it explored, and how it ended. "" for the run's
+  own end, which says nothing: the next run carries on (#345)."""
+  if ended not in EXPLORE_ENDS:
+    return ""
+  went = ("" if not zone else "got there and " if walk_why is None
+          else f"never got there -- {walk_why} -- and ")
+  return (f"explore{f' ({zone})' if zone else ''}: {went}explored"
+          f"{'' if walk_why is None else ' where it stopped'} for {seconds:.0f} s"
+          f"{EXPLORE_ENDS[ended]}")
 
 
 def procedure_outcome(name: str, run: dict) -> list[str]:
@@ -2195,6 +2222,10 @@ class HubLifecycle:
     conflating them would let the first overseer explore permanently retire
     the branch. Running out of FRONTIERS still marks it done under either
     setting: that one really is "there is nothing left to see".
+
+    Returns how it ended (issue #424): `budget`, the frontier status it
+    finished on (`no-frontiers`, `no-reachable`, `only-near`, `blocked`),
+    `battery`, or `time` -- the run's own end.
     """
     strikes = 0
     deadline = (self.data.time + budget if budget is not None
@@ -2204,7 +2235,7 @@ class HubLifecycle:
         self.floor_explored = mark_done
         self._occur("task_complete", "explore")
         self._say("EXPLORE: budget spent, stopping")
-        return
+        return "budget"
       path, status = self.body.plan_frontier(self.blacklist)
       if status == "ok":
         wx, wy = self.body.grid.cell_to_world(*path[-1])
@@ -2224,8 +2255,9 @@ class HubLifecycle:
         self.floor_explored = True
         self._occur("task_complete", "explore")
         self._say(f"EXPLORE done ({status})")
-        return
+        return status
     self._say("EXPLORE -> GO_CHARGE (battery low)")
+    return "battery" if self.needs_charge else "time"
 
   def go_charge(self) -> bool:
     return self.body.run(self.go_charge_routine())
@@ -2279,13 +2311,15 @@ class HubLifecycle:
       # WHY, and not always "no route" (issue #350): a stall, the other
       # robot and the clock read the same until the drive said which. Of
       # the goal last DRIVEN to -- a spin moves the standoff after it, and
-      # a trip that ended in a wait that gave up is the wait's
+      # a trip that ended in a wait that gave up is the wait's. Whoever
+      # held the bay is IN the reason: History and a stranded death read it
+      # (issue #424).
       blocked = self.peer_at(*(driven or (sx, sy)))
       self.charge_failure = "never reached the charge bay" + (
-        "" if driven is None else f": {self.drive_why(*driven)}")
-      self._say(f"GO_CHARGE: {self.charge_failure}"
-                + ("" if blocked is None else
-                   f" -- {self.held_for(blocked).replace('the bay', 'it', 1)}"))
+        "" if driven is None else f": {self.drive_why(*driven)}") + (
+        "" if blocked is None else
+        f" -- {self.held_for(blocked).replace('the bay', 'it', 1)}")
+      self._say(f"GO_CHARGE: {self.charge_failure}")
       return False
     # Line up on the bay's own tag and creep until the electrical criterion
     # fires -- position is believed, contact is known.
@@ -4095,6 +4129,9 @@ class HubLifecycle:
         done = self.thoughts.apply(verb, payload, t=t, cites=cites)
       except ThoughtRefused as e:
         self._say(f"THOUGHT refused: {e}")
+        # ...and TOLD, where the robot reads (issue #409): the reason first,
+        # what it tried after -- a History line is cut from the end.
+        self._remember(f"could not {verb}: {e}{attempted(verb, payload, str(e))}")
         continue
       if done:
         self._say(f"THOUGHT {verb}: {done}")
@@ -5905,14 +5942,31 @@ class HubLifecycle:
       if (yield from self.go_charge_routine()):
         self.state = "CHARGE"
         yield from self.charge_routine()
+      else:
+        # ...and one that never began is said where the robot reads (issue
+        # #424). ⚠ NOT A VERDICT: the wire's `charge` row carries it already,
+        # and a verdict would count it again, as a failed task.
+        self._remember(f"charge: did not charge -- {self.charge_failure}")
       return ""
     if decision.action == "explore":
       self.state = "EXPLORE"
+      walk_why = None
       if decision.zone:
         wx, wy = zone_centre(self.world, decision.zone)
         self._say(f"EXPLORE: heading for {decision.zone}")
-        yield from self.body.go_to_routine(wx, wy, timeout=ZONE_PATIENCE_S)
-      yield from self.explore_routine(budget=DECIDED_EXPLORE_S, mark_done=False)
+        if not (yield from self.body.go_to_routine(wx, wy, timeout=ZONE_PATIENCE_S)):
+          walk_why = self.drive_why(wx, wy)
+          self._say(f"EXPLORE: never reached {decision.zone} -- {walk_why}")
+      t0 = float(self.data.time)
+      ended = yield from self.explore_routine(budget=DECIDED_EXPLORE_S,
+                                              mark_done=False)
+      # ...and how it went, where the robot reads (issue #424): one line an
+      # explore, repeats included -- the ending is what says a loop of them
+      # finds nothing
+      said = explore_outcome(decision.zone, ended, float(self.data.time) - t0,
+                             walk_why)
+      if said:
+        self._remember(said)
       return ""
     if decision.action == "idle":
       # ...AND NOT AT THE RACK (issue #298). With a mind, the loop never
