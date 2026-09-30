@@ -1,9 +1,8 @@
 #!/usr/bin/env python3
-"""Read the six qualities off the deployed world, or off run records
-(issue #155, the sixth #265; Evaluation.md §3, "The six qualities").
+"""Read the six qualities off the deployed world (issue #155, the sixth
+#265; Evaluation.md §3, "The six qualities").
 
     scripts/qualities.py --observe [--site https://rooftop-media.org] [--days 7]
-    scripts/qualities.py --record results/<runId>.json [...]
     scripts/qualities.py ... --json
 
 `--observe` reads the ONE route the deployed world is read through
@@ -14,9 +13,9 @@ a shape sees it. Two arms in one number are the mixture Evaluation.md §5
 calls unusable; the grouping is done here because the shapes cannot see a
 build.
 
-⚠ THIS IS A READING OF THE OBSERVATORY, NOT A RESULT. Nothing here goes in
-`results/`, and the output says which commit and window it is of. A number
-from one uncontrolled run is what it is (§5); a series is `experiment.py`'s.
+⚠ THIS IS A READING OF THE OBSERVATORY, NOT A RESULT. It reports into the
+issue it informs, and the output says which commit and window it is of. A
+number from one uncontrolled run is what it is (§5).
 
 ⚠ A kind that returns exactly the route's cap is TRUNCATED, and the reading
 says so beside the regime: the cap drops the oldest rows first, so a busy
@@ -126,17 +125,6 @@ def group_observe(base: dict, events: list[dict]) -> dict[str, dict]:
   return out
 
 
-def group_records(paths: list[str]) -> dict[str, dict]:
-  out: dict[str, dict] = defaultdict(lambda: {"runs": set(), "rows": [], "kw": {}})
-  for p in paths:
-    rec = json.loads(Path(p).read_text())
-    key = regime_of({"arm": rec.get("arm"), "commit": rec.get("commit"),
-                     "world": rec.get("world"), "model": rec.get("model")})
-    out[key]["runs"].add(str(rec.get("runId")))
-    out[key]["rows"].extend(q.from_record(rec))
-  return out
-
-
 def render(regimes: dict[str, dict], head: str, notes: dict[str, str]) -> str:
   lines = [head]
   for note_kind, note in notes.items():
@@ -162,27 +150,21 @@ def main(argv=None) -> int:
   ap.add_argument("--observe", action="store_true", help="read the deployed world")
   ap.add_argument("--site", default="https://rooftop-media.org")
   ap.add_argument("--days", type=int, default=7)
-  ap.add_argument("--record", nargs="*", default=[], help="run record(s) to read")
   ap.add_argument("--json", action="store_true", help="print the readings as JSON")
   args = ap.parse_args(argv)
-  if not args.observe and not args.record:
-    ap.error("say --observe, --record PATH, or both")
+  if not args.observe:
+    ap.error("say --observe")
 
   readings: dict = {}
   notes: dict[str, str] = {}
-  head = ""
-  if args.observe:
-    token = os.environ.get("PLUGGYWORLD_READ_TOKEN", "")
-    if not token:
-      ap.error("$PLUGGYWORLD_READ_TOKEN is not set (the READ token, never the ingest one)")
-    base, events, notes = read_observe(args.site, token, args.days)
-    head = (f"observatory {args.site} · site commit {base.get('commit')} · "
-            f"window {base.get('window', {}).get('since')} → now ({args.days} d) · "
-            f"{len(base.get('runs') or [])} runs · a reading, not a result")
-    readings.update(group_observe(base, events))
-  if args.record:
-    head = (head + "\n" if head else "") + f"records: {', '.join(args.record)}"
-    readings.update(group_records(args.record))
+  token = os.environ.get("PLUGGYWORLD_READ_TOKEN", "")
+  if not token:
+    ap.error("$PLUGGYWORLD_READ_TOKEN is not set (the READ token, never the ingest one)")
+  base, events, notes = read_observe(args.site, token, args.days)
+  head = (f"observatory {args.site} · site commit {base.get('commit')} · "
+          f"window {base.get('window', {}).get('since')} → now ({args.days} d) · "
+          f"{len(base.get('runs') or [])} runs · a reading, not a result")
+  readings.update(group_observe(base, events))
 
   if args.json:
     print(json.dumps({

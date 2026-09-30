@@ -68,7 +68,7 @@ from pluggybot.navigator import Navigator, gave_up
 from pluggybot.perception.depth import PERIOD as DEPTH_PERIOD
 from pluggybot.perception.depth import DepthCamera, DepthFrame
 from pluggybot.power import Pack
-from pluggybot.rack.localize import RackPose
+from pluggybot.body import RackPose
 from pluggybot.robot import FIRST, RobotHandle
 from pluggybot.tick import Routine
 

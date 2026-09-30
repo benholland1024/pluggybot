@@ -14,22 +14,19 @@ The verbs, in the words the issue used:
 
   fetch(tool)          pick a module off its bay        `Body.fetch_tool_routine`
   stow()               hang the carried module back     `Body.stow_tool_routine`
-  drive_to(x, y)       A* to a world point              `Body.go_to_routine`
+  drive_to(x, y)       walk to a world point            `Body.go_to_routine`
   face(heading)        turn in place                    `Body.face_routine`
-  set_lift(height)     the mast, ramped                 `Body.ramp_routine`
-  grip() / release()   the claw's jaws, ramped          `ClawTool.jaws_routine`
-  pick(tag)            a tagged cube, spotted and taken  `ClawTool.drive_over_routine`
-  place(tag)           the held cube onto a tagged one   `ClawTool.place_on_routine`
-  draw(program, board) the pen's whole use-phase        `drawing_errand`
-  look()               one tag decode, no motion        `Body.detect_tags`
+  find(tag, x, y)      a task area found by its tag     `Body.find_tag_routine`
+  press(tag)           onto the plate its sign marks    `Body.press_plate_routine`
   wait(seconds)        stand still
+  move(axis, target)   one axis to a setpoint           `procedure/axes.py`
+  drive(v, w, seconds) the base at a velocity           `Body.velocity_routine`
 
 Every verb reaches the body through `Body` (issue #380, `body.py`) and
-nothing else. Each returns a verdict dict with `ok`, measured off the world (the module
-seated and powered, the jaws in contact, the ink in the board book), never
+nothing else. Each returns a verdict dict with `ok`, measured off the world
+(the module seated and powered, the arrival, a foot on the plate), never
 off the command. The runner stops at the first failed step: later steps
-assume earlier ones, and running `draw` with no pen on the fork is a pen
-pressed at empty air. The result is honest about how far it got.
+assume earlier ones. The result is honest about how far it got.
 
 Three rules the shape carries for the rungs above it:
 
@@ -41,14 +38,13 @@ Three rules the shape carries for the rungs above it:
   BUDGETS ARE CAPPED BY CODE. A program declares its own sim-time budget and
   the vocabulary caps it (`MAX_BUDGET_S`) and the step count (`MAX_STEPS`);
   a program past either does not validate. The runner checks the budget at
-  step boundaries, which are the safe points: a stopped drive is safe, a
-  stroke is not, and the draw verb hands the plotter `life.interrupted` for
-  the one place mid-step matters (issue #116).
+  step boundaries, which are the safe points; a walk is a safe point at
+  every step (issue #381), and asks `life.interrupted` as it goes (#116).
 
   ABORT MEANS STOW. Whatever ends a program early -- a failed step, the
   budget, an interrupt -- the errand around it hangs any carried module back
-  before the verdict, exactly as a native errand does. A program cannot
-  leave a tool on the floor by stopping.
+  before the verdict. A program cannot leave a tool on the floor by
+  stopping.
 
 What a program may say is what a work order may say (TaskPattern.md §2): a
 tool by name, a surveyed place by coordinate, a board by id. A program that
@@ -61,14 +57,13 @@ import math
 from dataclasses import dataclass, field
 from typing import Any, Callable
 
+from pluggybot.legs.rack import TOOL_BAYS as RACK_TOOL_BAYS
 from pluggybot.rack.coupling import STATION_YS
 from pluggybot.tick import Routine
 
-#: Which bay each hand-built module hangs in (`STATION_YS` is indexed by
-#: bay, and bay <-> tag pairing is by that index -- ToolPattern.md §6); a
-#: built tool's bay is on the second rail, past these (issue #277).
-TOOL_BAYS = {"module_lcd": 0, "module_plug": 1, "module_pen": 2,
-             "module_claw": 3, "module_seed": 4}
+#: Which bay each tool hangs in, by index into `STATION_YS` (bay <-> tag
+#: pairing is by that index): the quadruped's rack's (#405).
+TOOL_BAYS = RACK_TOOL_BAYS
 #: The one role every program has today; M12 adds the second.
 DEFAULT_ROLE = "robot"
 #: Caps, by code, on what a program may declare.
@@ -83,16 +78,6 @@ DRIVE_TIMEOUT_S = 60.0
 #: far west corner took 246 s, finding the house's walls on the way (44 m of
 #: route, 95 walked), and its second 117 s (`scripts/unknown_spike.py`).
 MAX_PATIENCE_S = 600.0
-#: A drive to where the house set a cube out that ends farther than this
-#: from it did not get there (issue #264): the robot still looks from where
-#: it stopped, but a failed look is not one "from where the house set it
-#: out", and saying it was sent a robot hunting a tag problem it did not
-#: have. A stagnated drive ends 0.1-0.3 m short, which is there.
-STAND_SHORT_M = 0.5
-#: The lift's travel, as the plotter clips it.
-LIFT_RANGE_M = (0.02, 0.30)
-LIFT_SPEED = 0.05       # m/s, the lead-screw class ceiling (tools/gripper.py)
-LIFT_SETTLE_S = 1.2     # s the mast settles after a ramp (`set_lift`'s own)
 
 
 class Refused(ValueError):
@@ -220,7 +205,7 @@ class Verb:
 
 def _rack(life) -> dict[str, int]:
   """Which module hangs where: the lifecycle's inventory, which the
-  workshop edits (issue #168), or the shipped five where there is none."""
+  workshop edits (issue #168), or the rack's own where there is none."""
   return getattr(life, "rack_inventory", None) or TOOL_BAYS
 
 
@@ -285,50 +270,12 @@ def _carried(life) -> str | None:
 
 
 def carry_configuration_routine(life, tool: str) -> Routine:
-  """The tool as a pick left it, before any RETURN (issue #264): a cube in
-  the claw's jaws set down first, the arm in, the lift where a pick leaves
-  a module (`MODULE_DRIVE_LIFT`) -- raised before the arm comes in, lowered
-  after it (`travel_pose`). A return computes its release heights from
-  the lift it STARTS at, and a procedure may have moved it: MEASURED, a
-  claw stowed from 0.03 m -- where a weighing procedure had lowered it --
-  was driven into the rack and knocked to the floor, while the same stow
-  from the pick's height hung it in 45 s. Returns what it set down."""
-  from pluggybot.tools.gripper import CLAW_MODULE, MODULE_DRIVE_LIFT
-  set_down = None
-  if tool == CLAW_MODULE:
-    claw = _claw(life)
-    held = claw.held() if claw is not None else None
-    if held is not None:
-      yield from claw.set_down_routine()
-      set_down = held
-  # ⚠ UP BEFORE IN (issue #347, `travel_pose`): MEASURED, a claw that let
-  # go of a cube at 0.033 m and drew its arm in there came off its seat --
-  # 114 mm down the fork, unpowered -- and a stow drives that to the rack.
-  body = life.body
-  try:
-    lift = body.actuator("lift")
-  except KeyError:
-    # a body with no lift (the quadruped, #405): its arm's own driving
-    # pose, the carry pose with a tool on the fork
-    yield from body.retract_arm_routine()
-    return {"setDown": set_down}
-  up = MODULE_DRIVE_LIFT > float(life.data.ctrl[lift])
-  if up:
-    yield from body.ramp_routine(lift, MODULE_DRIVE_LIFT, LIFT_SPEED,
-                                 settle=LIFT_SETTLE_S)
-  from pluggybot.tools.drawing import PEN_MODULE
-  if tool == PEN_MODULE:
-    # ...and the pen's CARRIAGE centred: parked where the last stroke left
-    # it, it jams on the bay's bracket feet and the stow fails (drawing.py,
-    # `carry_config_routine`). A restart mid-drawing leaves it anywhere in
-    # +-55 mm (issue #345, found in review: 37 mm off, never hung).
-    plotter = body.tool(PEN_MODULE)
-    yield from plotter.ramp_routine(plotter.pen_act, 0.0, settle=0.5)
-  yield from body.retract_arm_routine()
-  if not up:
-    yield from body.ramp_routine(lift, MODULE_DRIVE_LIFT, LIFT_SPEED,
-                                 settle=LIFT_SETTLE_S)
-  return {"setDown": set_down}
+  """The tool as a fetch left it, before any RETURN (issue #264): the arm at
+  its carrying pose, where a procedure may have moved it -- a stow computes
+  its approach from the pose it starts at. Returns what it set down: nothing,
+  on a body with no grip (#407 brings the claw back)."""
+  yield from life.body.retract_arm_routine()
+  return {"setDown": None}
 
 
 #: A setpoint this close to its travel value is left alone, so a verb that
@@ -338,48 +285,23 @@ POSE_TOL = 1e-3
 
 def travel_pose(life, tool: str | None) -> list[tuple[int, float, float]]:
   """The CARRYING pose as `(actuator, setpoint, speed)`, in the order to
-  move them (issue #347; the last paragraph): the tool's own axes to rest,
-  the arm in, the lift to `MODULE_DRIVE_LIFT` -- the pose a pick leaves.
-  Unlike the RETURN's
-  (`carry_configuration_routine`) it sets nothing down.
-
-  A tool's axis rests at its joint's compiled value, the pose the tool hung
-  in when the workshop checked it against the coupling envelope (the pen's
-  carriage centred, the gate shut). The claw's jaws are left as they are,
-  and a claw holding a cube keeps it where `pick` leaves it -- `CARRY_LIFT`,
-  arm out -- because tucked, the cube swings into the chassis. An empty
-  fork only draws its arm in: extended, it sweeps a rack (`set_arm_routine`).
-
-  ⚠ UP BEFORE IN, IN BEFORE DOWN. A lift that has to rise goes first, so a
-  claw that released a cube at 0.03 m lifts its open jaws off it before the
-  arm pulls them back through it; a lift that has to fall goes last, so a
-  tool held out over a bench comes in before it comes down.
-
-  ⚠ THE QUADRUPED'S IS ITS ARM FOLDED (issue #405): its `actuator` names
-  no `arm`, and asking for the rover's raised before every `drive_to`,
-  `face` and `drive` -- no procedure on legs had walked a step (#381). Its
-  empty fork folds to the stow, the shoulder before the elbow, so the
-  forearm comes in over the body rather than under it."""
+  move them (issue #347): a tool's own axes to rest -- each at its joint's
+  compiled value, the pose the tool hung in -- then the arm to its carry
+  pose over the nose (#405), the shoulder first; an empty fork folds the
+  arm to its stow, the shoulder before the elbow, so the forearm comes in
+  over the body rather than under it. It sets nothing down."""
+  from pluggybot.legs.arm import CARRY_Q
   from pluggybot.procedure import axes
-  from pluggybot.rack.swap import ARM_EXT
-  from pluggybot.tools.gripper import CARRY_LIFT, CLAW_MODULE, MODULE_DRIVE_LIFT
-  body = life.body
-  if tool is None:
-    try:
-      return [(body.actuator("arm"), 0.0, axes.ARM_SPEED)]
-    except KeyError:
-      pass
-    try:
-      return [(body.actuator(axes.AXES[j].actuator), target, axes.AXES[j].speed)
-              for j, target in zip(axes.ARM_JOINTS, axes._ARM.stow)]
-    except KeyError:
-      return []
-  model = life.model
-  claw = _claw(life) if tool == CLAW_MODULE else None
-  holding = claw is not None and claw.held() is not None
+  body, model = life.body, life.model
+  pose = axes._ARM.stow if tool is None else CARRY_Q
+  try:
+    arm = [(body.actuator(axes.AXES[j].actuator), target, axes.AXES[j].speed)
+           for j, target in zip(axes.ARM_JOINTS, pose)]
+  except KeyError:
+    return []
   own = []
   for axis in axes.AXES.values():
-    if axis.requires != tool or not axis.actuator:
+    if tool is None or axis.requires != tool or not axis.actuator:
       continue
     try:
       act = model.actuator(axis.actuator)
@@ -387,27 +309,14 @@ def travel_pose(life, tool: str | None) -> list[tuple[int, float, float]]:
       continue
     rest = float(model.qpos0[model.jnt_qposadr[act.trnid[0]]])
     own.append((act.id, min(max(rest, axis.lo), axis.hi), axis.speed))
-  try:
-    lift = (body.actuator("lift"), CARRY_LIFT if holding else MODULE_DRIVE_LIFT,
-            LIFT_SPEED)
-  except KeyError:
-    # the quadruped (#405): its arm at the carry pose, the shoulder first
-    from pluggybot.legs.arm import CARRY_Q
-    return own + [(body.actuator(axes.AXES[j].actuator), target, axes.AXES[j].speed)
-                  for j, target in zip(axes.ARM_JOINTS, CARRY_Q)]
-  arm = (body.actuator("arm"), ARM_EXT if holding else 0.0, axes.ARM_SPEED)
-  if lift[1] > float(life.data.ctrl[lift[0]]):
-    return [lift, arm, *own]
-  return [arm, *own, lift]
+  return own + arm
 
 
 def travel_pose_routine(life) -> Routine:
   """Whatever is on the fork into its carrying pose, ramped, before a verb
   drives (issue #347); only what a procedure moved is moved back. A
-  procedure leaves the axes anywhere -- Rowan's `pen_check` drove off with
-  the lift at 0.15, the arm at 0.10 and the carriage at 0.03 -- and until
-  this only a RETURN restored them. (What knocked Rowan over was `draw`'s
-  straight line, not the pose: see `_draw`.)"""
+  procedure leaves the axes anywhere, and until this only a RETURN
+  restored them."""
   moved = False
   for act, target, speed in travel_pose(life, _carried(life)):
     if abs(life.body.setpoint(act) - target) > POSE_TOL:
@@ -417,22 +326,11 @@ def travel_pose_routine(life) -> Routine:
     yield from life.body.settle_routine(0.5)
 
 
-def home_legs_routine(life) -> Routine:
-  """Back to the house along a zone's route before a RETURN (issue #264;
-  `lifecycle.home_route`): the swap's own route to its bay is one drive,
-  and from the lab that is 30 m of street. Best effort, leg by leg -- the
-  swap's route is still what ends at the bay."""
-  from pluggybot.lifecycle import home_route
-  for x, y in home_route(life.world, life.body.pose_xy()):
-    yield from life.body.go_to_routine(x, y, timeout=DRIVE_TIMEOUT_S)
-
-
 def _stow(life, args: dict) -> Routine:
   tool = _carried(life)
   if tool is None:
     return {"ok": False, "reason": "nothing on the fork to stow"}
   yield from carry_configuration_routine(life, tool)
-  yield from home_legs_routine(life)
   why = yield from life.body.stow_tool_routine(_tool_station(life, tool), tool)
   st = life.body.module_state(tool)
   hung = bool(st["hung"])
@@ -445,27 +343,6 @@ def _stow(life, args: dict) -> Routine:
   if not hung:
     _trace(life, verdict, f"stow {tool}")
   return verdict
-
-
-def legs_routine(life, legs, stop=None) -> Routine:
-  """Walk a route's legs in order, each a WAYPOINT (issue #353): reached
-  on arrival or within `LEG_DONE_M` of it, and passed by when another
-  robot stands on it -- arrival there is impossible by arithmetic
-  (`peer_on_the_goal`). MEASURED on the pair: the bench's route ended at
-  the garden_2 gate, its stand-in 0.2 m short, and the tower's in the
-  hall, where Rowan stands by on the workshop route's first leg. Returns
-  the leg it could not get near, or None; a leg its `stop` ended
-  (`go_to_routine`) is one it did not get near."""
-  from pluggybot.lifecycle import LEG_DONE_M
-  for lx, ly in legs:
-    if life.body.peer_on_the_goal(lx, ly) is not None:
-      continue
-    arrived = yield from _go(life, lx, ly, DRIVE_TIMEOUT_S, stop)
-    px, py = life.body.pose_xy()
-    if not arrived and (_stopped(life)
-                        or math.hypot(lx - px, ly - py) > LEG_DONE_M):
-      return (lx, ly)
-  return None
 
 
 def _go(life, x: float, y: float, timeout: float, stop) -> Routine:
@@ -500,51 +377,32 @@ def _patience(life, args: dict) -> float:
   return s
 
 
-def _walk_stopped(life, x: float, y: float, route: dict) -> dict:
+def _walk_stopped(life, x: float, y: float) -> dict:
   """A walk the robot's own interrupt ended (issue #381): an abort, never
   a failure -- the runners stop the program as `interrupted`."""
   px, py, _ = life.body.pose
   short = round(math.hypot(x - px, y - py), 3)
-  return {"ok": False, "stopped": "interrupted", "shortM": short, **route,
+  return {"ok": False, "stopped": "interrupted", "shortM": short,
           "reason": f"stopped on the way to ({x:g}, {y:g}) by its own interrupt, "
                     f"{short:.1f} m short, at ({px:.1f}, {py:.1f})"}
 
 
 def _drive_to(life, args: dict) -> Routine:
-  from pluggybot.lifecycle import route_to
+  """A walk to a world point over the map, and over floor not yet on it
+  (issue #381, `Navigator.OPTIMISTIC`): no route is written for it."""
   x, y = float(args["x"]), float(args["y"])
-  stop = _interrupt(life)
-  # ⚠ A GOAL ONE DRIVE CANNOT PLAN TO GOES BY THE HOUSE'S ROUTE (issue
-  # #353), as `pick` and the cage programs already did: the planner sees
-  # only the map and the LIDAR reaches 8 m, and every robot-written
-  # `drive_to(22, 3)` from the house stopped 6.6-9.1 m short. A world with
-  # no route written -- every world with legs -- walks into the unknown
-  # instead (issue #381, `Navigator.OPTIMISTIC`).
-  legs = ([] if life.body.in_sight(x, y)
-          else route_to(life.world, life.body.pose_xy(), (x, y)))
-  route = {"route": [[round(lx, 2), round(ly, 2)] for lx, ly in legs]} if legs else {}
-  stopped = yield from legs_routine(life, legs, stop=stop)
-  if stopped is not None and _stopped(life):
-    return _walk_stopped(life, x, y, route)
-  if stopped is not None:
-    (lx, ly), (px, py, _) = stopped, life.body.pose
-    why = life.drive_why(lx, ly)
-    return {"ok": False, "shortM": round(math.hypot(x - px, y - py), 3), "why": why,
-            **route, "reason": f"did not arrive at ({x:g}, {y:g}): on the house's "
-                               f"route there, the leg to ({lx:g}, {ly:g}) -- {why}, "
-                               f"at ({px:.1f}, {py:.1f})"}
-  arrived = yield from _go(life, x, y, _patience(life, args), stop)
+  arrived = yield from _go(life, x, y, _patience(life, args), _interrupt(life))
   px, py, _ = life.body.pose
   short = round(math.hypot(x - px, y - py), 3)
   if arrived:
-    return {"ok": True, "shortM": short, **route}
+    return {"ok": True, "shortM": short}
   if _stopped(life):
-    return _walk_stopped(life, x, y, route)
+    return _walk_stopped(life, x, y)
   # WHY it gave up, not only how far short (issue #350): "stopped 9.1 m
   # short of (22, 3)" was a route the planner could not make, and Rowan
   # read it as the pack -- then told Luca, and both declined the lab.
   why = life.drive_why(x, y)
-  return {"ok": False, "shortM": short, "why": why, **route,
+  return {"ok": False, "shortM": short, "why": why,
           "reason": f"did not arrive at ({x:g}, {y:g}): {why}, at ({px:.1f}, {py:.1f})"}
 
 
@@ -554,449 +412,6 @@ def _face(life, args: dict) -> Routine:
           **({} if squared else {"reason": (
             f"did not square up to heading {float(args['heading']):.2f} rad "
             "within its time")})}
-
-
-def _set_lift(life, args: dict) -> Routine:
-  yield from life.body.ramp_routine(life.body.actuator("lift"),
-                                    float(args["height"]), LIFT_SPEED,
-                                    settle=LIFT_SETTLE_S)
-  return {"ok": True, "height": float(args["height"])}
-
-
-def _claw(life):
-  from pluggybot.tools.gripper import CLAW_MODULE
-  if _carried(life) != CLAW_MODULE:
-    return None
-  return life.body.tool(CLAW_MODULE)
-
-
-def _holding_anything(claw) -> str | None:
-  """Both pads touching the same geom that belongs neither to the robot nor
-  to the claw module itself: `ClawTool.held`, the grip's contact criterion
-  without a named target."""
-  return claw.held()
-
-
-#: The lifts a `pick`/`place` looks from, in the order tried. MEASURED
-#: (issue #264, the home world's 20 mm block tags off the dock eye): a tag
-#: that size is ~24 px wide at 0.8 m and decodes patchily -- which lift
-#: sees it changes with the range by a few centimetres, and none sees the
-#: floor inside ~0.65 m, where it leaves the bottom of the frame. So the
-#: verb hunts, as `swap_at_bay` re-looks for a bay, and the lifts stay
-#: above the pads' floor contact (0.03) with a block in the jaws.
-SPOT_LIFTS = (0.06, 0.045, 0.075, 0.09, 0.105, 0.12)
-#: From the grip pose the row is ~0.3 m ahead of the axle, so the eye is
-#: ~0.2 m from it: two steps of this back reach the band it decodes from,
-#: and one step from a stage pose keeps the look under `SPOT_FAR_M`.
-SPOT_BACK_OFF_M = 0.25
-SPOT_BACK_OFFS = 2
-#: A decode is trusted for the approach only when the tag sits this close
-#: to the camera's axis AND no further than `SPOT_FAR_M` away. MEASURED:
-#: a block tag seen 0.26 m off-axis at 0.8 m placed its centre 25 mm long
-#: and 13 mm across; on-axis at 0.72 m the same decode is good to a
-#: couple of millimetres (`HubMission.spot`'s pixel-ray range). Off-axis
-#: or far, the verb stages itself to look head-on from `STAGE_M` short of
-#: the cube (the eye then ~0.74 m from it, the middle of its band) and
-#: spots again.
-SPOT_ON_AXIS_M = 0.03
-SPOT_FAR_M = 0.95
-STAGE_M = 0.55
-#: The objects `pick`/`place` know the shape of: the challenge blocks and
-#: the bench's masses (challenge/stack.py's cube, tagged on every face), so
-#: a decoded face is half an edge from the centre and the top of one is
-#: half an edge above its tag.
-_CUBE_TAGS: dict[int, float] = {}
-
-
-def _cube_half(tag: int) -> float | None:
-  if not _CUBE_TAGS:
-    from pluggybot.challenge.stack import BLOCK_HALF
-    from pluggybot.rack.tags import BLOCK_TAG_IDS, MASS_TAG_IDS
-    for i in (*BLOCK_TAG_IDS, *MASS_TAG_IDS):
-      _CUBE_TAGS[int(i)] = BLOCK_HALF
-  return _CUBE_TAGS.get(int(tag))
-
-
-def _spot_routine(life, tag: int) -> Routine:
-  """Find one tagged cube from where the robot stands: a look at each of
-  `SPOT_LIFTS` until the tag decodes, the cube's centre in the believed
-  world frame off that decode (`HubMission.spot`: the tag's centre, half
-  an edge further along the line of sight), or None. A sensor's answer --
-  the robot has to have driven somewhere it can see the thing -- with one
-  allowance: a robot that has just picked or placed stands with the grip
-  point over the row, inside the eye's blind zone, so a miss backs the
-  chassis off `SPOT_BACK_OFF_M` and looks again, `SPOT_BACK_OFFS` times."""
-  half = _cube_half(tag)
-  if half is None:
-    return None
-  body = life.body
-  for attempt in range(SPOT_BACK_OFFS + 1):
-    if attempt:
-      yield from body.travel_routine(SPOT_BACK_OFF_M, -0.10)
-      yield from body.settle_routine(0.5)
-    for lift in SPOT_LIFTS:
-      yield from body.ramp_routine(body.actuator("lift"), lift, LIFT_SPEED,
-                                   settle=0.3)
-      seen = body.spot(tag)
-      if seen is not None:
-        # which LAYER the cube stands in, off PnP's height (good to a few
-        # mm, and a layer is 26), then the position off the tag's centre
-        # pixel at that layer's known height (`HubMission.spot`'s two
-        # ranges) -- the same decode, read the precise way
-        layer = max(0, int(round((seen["xyz"][2] - half) / (2 * half))))
-        precise = body.spot(tag, at_height=half + 2 * half * layer)
-        if precise is not None:
-          seen = precise
-        x, y, z = seen["xyz"]
-        tx, ty = seen["toward"]
-        return {**seen, "centre": (x + half * tx, y + half * ty, z),
-                "half": half, "layer": layer, "lift": lift,
-                "backedOff": bool(attempt)}
-  return None
-
-
-#: How far from a set-out cube the verb stands to look for it, and on which
-#: side: the props stand in rows along y against a wall (`home.TOWER_XY`,
-#: `bench.MASS_OFFSETS`), so the open side is along x, toward the room.
-STAND_M = 0.8
-
-
-def prop_stand(world: str, tag: int):
-  """Where the house set the cube carrying `tag` out, and where to stand to
-  see it: `(zone, cube_xy, stand_xy, heading)`, or None for a tag the
-  world's config does not place. A work-order fact, on `fetch`'s terms --
-  the rack's layout tells a fetch where its bay is."""
-  from pluggybot.lifecycle import world_config, zone_centre
-  from pluggybot.rack.tags import BLOCK_TAG_IDS, MASS_TAG_IDS
-  cfg = world_config(world)
-  tag = int(tag)
-  if tag in BLOCK_TAG_IDS and cfg.get("tower"):
-    zone = cfg["tower"]["name"]
-    cube = tuple(float(v) for v in cfg["tower"]["blocks"][BLOCK_TAG_IDS.index(tag)])
-  elif tag in MASS_TAG_IDS and cfg.get("lab"):
-    from pluggybot.challenge.bench import MASS_OFFSETS
-    zone = cfg["lab"]["name"]
-    bx, by = cfg["lab"]["bench"]
-    dx, dy = MASS_OFFSETS[MASS_TAG_IDS.index(tag)]
-    cube = (float(bx) + dx, float(by) + dy)
-  else:
-    return None
-  try:
-    cx, _ = zone_centre(world, zone)
-  except ValueError:
-    return None
-  side = 1.0 if cx > cube[0] else -1.0                # the room is this way
-  stand = (cube[0] + side * STAND_M, cube[1])
-  heading = math.pi if side > 0 else 0.0               # ...and the cube the other
-  return zone, cube, stand, heading
-
-
-def _travel_routine(life, tag: int) -> Routine:
-  """Go to where the house set the cube out and face it: the zone's route
-  legs (`lifecycle.zone_route`, the lab's and the workshop's), then the
-  stand. Legs already behind the robot are dropped (`cage_route`'s rule),
-  and each is walked as a waypoint (`legs_routine`). Returns (arrived,
-  why): `why` is the clause a failed look ends with -- "never got there"
-  and "got there and could not see it" are different things to have to
-  fix (issue #264)."""
-  from pluggybot.lifecycle import legs_ahead, zone_route
-  where = prop_stand(life.world, tag)
-  if where is None:
-    return False, "and it is not one the house set out"
-  zone, _, stand, heading = where
-  legs = zone_route(life.world, zone)
-  px, py = life.body.pose_xy()
-  # drop the legs behind (`legs_ahead`); inside the zone, all of them
-  if legs:
-    inside = math.hypot(stand[0] - px, stand[1] - py) < math.hypot(
-      stand[0] - legs[-1][0], stand[1] - legs[-1][1])
-    legs = [] if inside else legs_ahead(legs, (px, py))
-  stop = _interrupt(life)
-  stopped = yield from legs_routine(life, legs, stop=stop)
-  if stopped is not None:
-    px, py = life.body.pose_xy()
-    return False, (f"and the route to where the house set it out stopped at "
-                   f"({px:.1f}, {py:.1f}): " + ("its own interrupt" if _stopped(life)
-                                                else life.drive_why(*stopped)))
-  if not (yield from _go(life, *stand, DRIVE_TIMEOUT_S, stop)):
-    px, py = life.body.pose_xy()
-    if _stopped(life):
-      return False, f"and its own interrupt stopped it on the way, at ({px:.1f}, {py:.1f})"
-    if math.hypot(stand[0] - px, stand[1] - py) > STAND_SHORT_M:
-      # ...and it LOOKS from there anyway: the cube may well be in view, as
-      # it always was before this sentence existed. Only the words change.
-      yield from life.body.face_routine(heading)
-      return True, (f"and {life.drive_why(*stand)} on the way to where the house "
-                    f"set it out, at ({px:.1f}, {py:.1f})")
-  yield from life.body.face_routine(heading)
-  return True, ""
-
-
-def _approach_routine(life, claw, tag: int, carrying: bool,
-                      hang: tuple[float, float] = (0.0, 0.0)) -> Routine:
-  """Spot the cube, then put the grip point over it: `ClawTool.
-  drive_over_routine`, the runway-and-converge approach the pickup demo
-  measured to a few millimetres. A first decode taken off-axis is only
-  good enough to STAGE by (`SPOT_ON_AXIS_M`): the robot drives to look at
-  the cube head-on from `STAGE_M` short of it, spots again, and approaches
-  off that. Carrying, the lift goes back to carry height before every
-  drive -- the looks are taken low, and at a spot lift the pads clear a
-  floor block's top by ~3 mm (measured pushing the target 8 cm along the
-  floor on a run-in). Returns (seen, arrived); seen is None when the tag
-  was never decoded."""
-  from pluggybot.tools.gripper import CARRY_LIFT
-  claw.calibrate_from_body()
-  seen = yield from _spot_routine(life, tag)
-  unseen = f"tag {tag} is not a cube this robot can see from here"
-  if seen is None:
-    # Not in view from here: go to where the house set it out (issue
-    # #264, `prop_stand`) -- `fetch` drives to its bay the same way -- and
-    # look once more. MEASURED without this: a model's `pick(20)` from the
-    # rack failed at once and the day's tower ended there.
-    if carrying:
-      yield from claw.set_lift_routine(CARRY_LIFT, settle=0.5)
-    else:
-      yield from claw.tuck_routine()
-    went, why = yield from _travel_routine(life, tag)
-    if went:
-      seen = yield from _spot_routine(life, tag)
-      if seen is not None:
-        seen = {**seen, "travelled": True}
-      elif why:                         # it looked from where it stopped short
-        unseen = f"{unseen}, {why}"
-      else:
-        cx, cy = prop_stand(life.world, tag)[1][:2]
-        unseen = (f"tag {tag} did not decode even from where the house set it "
-                  f"out, by ({cx:.2f}, {cy:.2f}): it has moved, or something "
-                  "is in the way")
-    else:
-      unseen = f"{unseen}, {why}"
-  if seen is None:
-    return None, False, unseen
-  heading = life.body.pose[2]
-  if abs(seen["lateral"]) > SPOT_ON_AXIS_M or seen["range"] > SPOT_FAR_M:
-    # stage along the heading the procedure chose (it faced the row), so
-    # the cube ends up straight ahead of the fork line -- the camera's line
-    x, y, _ = seen["centre"]
-    if carrying:
-      yield from claw.set_lift_routine(CARRY_LIFT, settle=0.5)
-    yield from claw.drive_over_routine((x - STAGE_M * math.cos(heading),
-                                        y - STAGE_M * math.sin(heading)),
-                                       heading, stow=not carrying)
-    again = yield from _spot_routine(life, tag)
-    if again is not None:
-      seen = {**again, "staged": True}
-  x, y, _ = seen["centre"]
-  # aim the held object at the target: its hang in the chassis frame,
-  # turned into the world at the approach heading, comes off the goal
-  c, sn = math.cos(heading), math.sin(heading)
-  x -= c * hang[0] - sn * hang[1]
-  y -= sn * hang[0] + c * hang[1]
-  if carrying:
-    yield from claw.set_lift_routine(CARRY_LIFT, settle=0.5)
-  arrived = yield from claw.drive_over_routine((x, y), heading, stow=not carrying)
-  return seen, bool(arrived), ""
-
-
-def _stow_first(held: str) -> str:
-  """A claw verb with another tool on the fork (`fetch`'s rule, issue #264)."""
-  return f"the fork holds {held}, not the claw; stow it first"
-
-
-def _no_claw(life) -> str:
-  """Why `grip`/`release` have no claw to work: another tool, or none."""
-  held = _carried(life)
-  return _stow_first(held) if held is not None else "the claw is not on the fork"
-
-
-def _fetch_claw(life) -> Routine:
-  """The claw onto an EMPTY fork, for `pick` (issue #353), exactly as
-  `fetch` takes it; a fork holding another tool is refused, never driven
-  into a bay. The verdict is `fetch`'s, its reason saying why `pick` went."""
-  from pluggybot.tools.gripper import CLAW_MODULE
-  held = _carried(life)
-  if held is not None:
-    return {"ok": False, "reason": _stow_first(held)}
-  if CLAW_MODULE not in _rack(life):
-    return {"ok": False, "reason": "the fork is empty, and this rack has no claw"}
-  got = yield from _fetch(life, {"tool": CLAW_MODULE})
-  if not got["ok"]:
-    got["reason"] = f"the fork was empty, and fetching the claw failed: {got['reason']}"
-  return got
-
-
-def _pick(life, args: dict) -> Routine:
-  """Pick up the cube carrying a tag (issue #264): spot it, drive the grip
-  point over it (`ClawTool.drive_over_routine`, the runway-and-converge
-  approach the pickup demo measured to a few millimetres), close, lift.
-  ok when both pads hold something afterwards -- measured, as `grip` is.
-  An empty fork fetches the claw first (issue #353): Rowan's `build_tower`
-  never did, and failed at its first `pick` twice in a day."""
-  claw, fetched = _claw(life), {}
-  if claw is None:
-    got = yield from _fetch_claw(life)
-    if not got["ok"]:
-      return {"ok": False, "reason": got["reason"],
-              **({"trace": got["trace"]} if got.get("trace") else {})}
-    claw, fetched = _claw(life), {"fetched": got["tool"]}
-  held = claw.held()
-  if held is not None:
-    return {"ok": False, "reason": f"already holding {held}", **fetched}
-  tag = int(args["tag"])
-  seen, arrived, unseen = yield from _approach_routine(life, claw, tag, carrying=False)
-  if seen is None:
-    return {"ok": False, "tag": tag, "reason": unseen, **fetched}
-  picked = yield from claw.pick_up_routine()
-  held = claw.held()
-  return {"ok": held is not None, "tag": tag, "arrived": bool(arrived),
-          "holding": held, "seenAtM": round(seen["range"], 3),
-          "grippedBeforeLift": bool(picked.get("gripped_before_lift")), **fetched}
-
-
-def _place(life, args: dict) -> Routine:
-  """Set the held cube down on top of the cube carrying a tag: spot it,
-  approach carrying (lift up, arm out), lower to its top, let go, back
-  off (`ClawTool.place_on_routine`). ok is MEASURED off the world after
-  the retreat: the cube that was held now rests on the target -- one
-  pitch above it and within half an edge sideways (challenge/stack.py's
-  own "rests on") -- and the jaws are empty. A block that fell beside
-  says so. Unlike `pick` it never fetches the claw: one off its bay holds
-  nothing to place (issue #353)."""
-  claw = _claw(life)
-  if claw is None:
-    other = _carried(life)
-    return {"ok": False, "reason": _stow_first(other) if other is not None else
-            "the fork is empty, so nothing is in the jaws to place: pick a cube first"}
-  held = claw.held()
-  if held is None:
-    return {"ok": False, "reason": "nothing in the jaws to place"}
-  tag = int(args["tag"])
-  # how the held cube hangs in the jaws (`ClawTool.held_hang`): the verb
-  # aims the CUBE at the target, not the grip point
-  hang = claw.held_hang(held)
-  seen, arrived, unseen = yield from _approach_routine(life, claw, tag, carrying=True,
-                                                       hang=hang[:2])
-  if seen is None:
-    return {"ok": False, "tag": tag, "reason": unseen}
-  x, y, z = seen["centre"]
-  half = seen["half"]
-  # ...and again on arrival: MEASURED, a cube slips ~7 mm down and ~10 mm
-  # along the pads over a carry's turns, so the hang the aim used is
-  # stale by that much. The along-track part is crept out here (the
-  # lateral has no axis to trim with and measured under a millimetre);
-  # the vertical sets the release height, or the stale one presses the
-  # cube into the target and shoves it (7 mm, measured).
-  after = claw.held_hang(held)
-  slip = hang[0] - after[0]
-  if abs(slip) > 0.002:
-    yield from life.body.travel_routine(abs(slip), 0.03 if slip > 0 else -0.03)
-    yield from life.body.settle_routine(0.5)
-  # The top of the cube off its LAYER and the cube's known edge -- geometry,
-  # not the raw z (8 mm low off-axis), because a release aimed below the
-  # surface presses the held block into it and rides the module up its fork.
-  yield from claw.place_on_routine((seen["layer"] + 1) * 2 * half,
-                                   bottom_below_grip=half - after[2])
-  model, data = life.model, life.data
-  bid = int(model.geom_bodyid[model.geom(held).id])
-  hx, hy, hz = (float(v) for v in data.xpos[bid])
-  target_geom = _cube_geom(model, tag)
-  if target_geom is not None:
-    tbid = int(model.geom_bodyid[model.geom(target_geom).id])
-    tx, ty, tz = (float(v) for v in data.xpos[tbid])
-  else:
-    tx, ty, tz = x, y, z
-  off = math.hypot(hx - tx, hy - ty)
-  dz = hz - tz
-  from pluggybot.challenge.stack import PITCH_M, PITCH_TOL_M, REST_OFFSET_M
-  rests = abs(dz - PITCH_M) <= PITCH_TOL_M and off <= REST_OFFSET_M
-  out = {"ok": rests and claw.held() is None, "tag": tag, "arrived": bool(arrived),
-         "placed": held, "offsetMm": round(off * 1000, 1),
-         "aboveMm": round(dz * 1000, 1)}
-  if not rests:
-    out["reason"] = (f"released, but it rests {off * 1000:.0f} mm across and "
-                     f"{dz * 1000:.0f} mm up from the target, not on it")
-  elif claw.held() is not None:
-    out["reason"] = "the jaws did not let go"
-  return out
-
-
-def _cube_geom(model, tag: int) -> str | None:
-  """The box geom of the cube tagged `tag`, if this world has it (the
-  tower's blocks and the bench's masses carry their tag id in `tags.py`)."""
-  from pluggybot.challenge.stack import BLOCKS
-  from pluggybot.rack.tags import BLOCK_TAG_IDS, MASS_TAG_IDS
-  names = dict(zip(BLOCK_TAG_IDS, BLOCKS))
-  names.update(zip(MASS_TAG_IDS, ("mass_known", "mass_unknown")))
-  body = names.get(int(tag))
-  if body is None:
-    return None
-  try:
-    return model.geom(f"{body}_box").name
-  except KeyError:
-    return None
-
-
-def _grip(life, args: dict) -> Routine:
-  claw = _claw(life)
-  if claw is None:
-    return {"ok": False, "reason": _no_claw(life)}
-  yield from claw.jaws_routine(1.0, settle=1.2)
-  held = _holding_anything(claw)
-  return {"ok": held is not None, "holding": held}
-
-
-def _release(life, args: dict) -> Routine:
-  claw = _claw(life)
-  if claw is None:
-    return {"ok": False, "reason": _no_claw(life)}
-  yield from claw.jaws_routine(0.0, settle=1.0)
-  return {"ok": _holding_anything(claw) is None}
-
-
-def _draw(life, args: dict) -> Routine:
-  from pluggybot.lifecycle import draw_errand_for
-  if _carried(life) != "module_pen":
-    return {"ok": False, "reason": "the pen is not on the fork"}
-  errand = draw_errand_for(life.world, life.boards, args["board"],
-                           program_name=args["figure"])
-  # ⚠ THE ROUTE FIRST, as the native errand's carry drive (issue #347). The
-  # use-phase's own approach is a straight line with no planner, meant to
-  # settle from `use_at`; called from the rack it drove at whiteboard_b
-  # through the house. Every live `pen_check` that reached `draw` knocked
-  # Rowan over, six of six, in the carrying pose or out of it; MEASURED
-  # locally, 94 deg 14 s in and the pen 3.7 m from its bay, as live.
-  if not (yield from life.body.go_to_routine(*errand.use_at,
-                                            timeout=DRIVE_TIMEOUT_S)):
-    px, py, _ = life.body.pose
-    return {"ok": False, "board": args["board"], "figure": args["figure"],
-            "reason": f"never reached {args['board']}: "
-                      f"{life.drive_why(*errand.use_at)}, at ({px:.1f}, {py:.1f})",
-            "used": {"error": "never reached the use pose"}}
-  used = yield from errand.use(life)
-  used = {k: v for k, v in (used or {}).items() if k != "plotter"}
-  return {"ok": bool(used.get("drew")), "board": args["board"],
-          "figure": args["figure"], "strokes": used.get("strokes"),
-          "strokesDrawn": used.get("strokes_drawn"),
-          **({"reason": used["reason"]} if used.get("reason") else {}),
-          # the plotter's whole account, for the ink evaluator to read as
-          # it reads a native drawing's
-          "used": used}
-
-
-def _look(life, args: dict) -> Routine:
-  """One decode from the dock camera, no motion: the sensed result a rung-two
-  program branches on through `read("look.tag")` / `look.range` /
-  `look.lateral` (procedure/axes.py), which read the NEAREST decode of the
-  last look. Camera-frame `t` is (lateral, vertical, forward)."""
-  found = life.body.detect_tags()
-  tags = [{"id": int(tid), "lateralM": round(float(d["t"][0]), 3),
-           "forwardM": round(float(d["t"][2]), 3)}
-          for tid, d in sorted(found.items())]
-  nearest = min(tags, key=lambda t: t["forwardM"], default=None)
-  life._last_look = ({"tag": nearest["id"], "range": nearest["forwardM"],
-                      "lateral": nearest["lateralM"]} if nearest else {})
-  return {"ok": True, "tags": tags}
-  yield  # a routine that steps nothing
 
 
 def _wait(life, args: dict) -> Routine:
@@ -1068,8 +483,7 @@ def _press(life, args: dict) -> Routine:
   return out
 
 
-#: The base's command envelope for `drive`: the cruise the navigation law
-#: uses, and the spin rate the rover's look-around turns at (mission.py).
+#: The base's command envelope for `drive`, forward m/s and yaw rad/s.
 DRIVE_V_MAX = 0.25
 DRIVE_W_MAX = 1.5
 
@@ -1113,37 +527,11 @@ VERBS: dict[str, Verb] = {
   "drive_to": Verb("drive_to", {"x": Arg("float"), "y": Arg("float"),
                                 "patience": Arg("float", lo=0.0, hi=MAX_PATIENCE_S,
                                                 default=DRIVE_TIMEOUT_S)},
-                   _drive_to, "A* to a world point; one past the lidar's 8 m or off "
-                   "the map goes by the house's route through its doorways "
-                   "first; ok on arrival, and it gives up after `patience` "
-                   f"seconds (at most {MAX_PATIENCE_S:.0f})", drives=True),
+                   _drive_to, "walk to a world point over the map, and over floor not "
+                   "yet on it; ok on arrival, and it gives up after "
+                   f"`patience` seconds (at most {MAX_PATIENCE_S:.0f})", drives=True),
   "face": Verb("face", {"heading": Arg("float", lo=-math.pi, hi=math.pi)},
                _face, "turn in place; ok when squared within the budget", drives=True),
-  "set_lift": Verb("set_lift", {"height": Arg("float", lo=LIFT_RANGE_M[0],
-                                              hi=LIFT_RANGE_M[1])},
-                   _set_lift, "walk the mast to a height, ramped"),
-  "grip": Verb("grip", {}, _grip, "close the claw; ok when both pads hold something"),
-  "release": Verb("release", {}, _release, "open the claw; ok when nothing is held"),
-  # The claw's pair (issue #264), at `fetch`/`stow`'s level: a tagged cube
-  # found from where the robot stands, approached closed-loop, taken or set
-  # down on another. The dock eye sees a cube's 20 mm tag from roughly
-  # 0.65-1.0 m and not closer, so a procedure drives within about a metre
-  # and faces it first.
-  "pick": Verb("pick", {"tag": Arg("float", lo=0, hi=999)}, _pick,
-               "find the cube carrying this tag, drive over it and take it; "
-               "ok when the jaws hold it. The eye decodes a cube's tag from "
-               "about 0.7-1 m away, facing it, and not from closer; a cube "
-               "not in view is looked for where it was set out, and an "
-               "empty fork fetches the claw first", drives=True),
-  "place": Verb("place", {"tag": Arg("float", lo=0, hi=999)}, _place,
-                "set the held cube down on top of the cube carrying this tag "
-                "and back off; ok when it rests there. The eye's reach is "
-                "pick's", drives=True),
-  "draw": Verb("draw", {"figure": Arg("str", choices="figures"),
-                        "board": Arg("str", choices="boards")},
-               _draw, "the pen's use-phase on a board; ok when ink landed",
-               drives=True),
-  "look": Verb("look", {}, _look, "one tag decode from the dock camera, no motion"),
   # PLACES (issue #419): a task area found by its tag and remembered, and a
   # plate pressed off its sign -- the robot's own knowledge, never a
   # coordinate handed over
@@ -1219,22 +607,17 @@ SWAP_VERBS = ("fetch", "stow")
 #: #419), and plates among them where its world has the lab they are in.
 PLACE_VERBS = ("find",)
 PLATE_VERBS = ("press",)
-#: ...and how a walking body's prompt describes the one whose words are the
-#: rover's.
-BODY_DOCS = {"drive_to": "walk to a world point over the map, and over floor not "
-                         "yet on it; ok on arrival, and it gives up after "
-                         f"`patience` seconds (at most {MAX_PATIENCE_S:.0f})"}
 
 
 def describe_vocabulary(verbs: tuple | None = None) -> list[dict]:
   """The verbs as data -- what a prompt or a validator's error names --
-  every one, or those a body can run (`verbs`, in its words). An argument
+  every one, or those a body can run (`verbs`). An argument
   that may be left out rides `defaults` with what it is when it is."""
   keep = VERBS if verbs is None else {n: VERBS[n] for n in verbs}
   out = []
   for v in keep.values():
     entry = {"verb": v.name, "args": {k: a.kind for k, a in v.args.items()},
-             "doc": v.doc if verbs is None else BODY_DOCS.get(v.name, v.doc)}
+             "doc": v.doc}
     defaults = {k: a.default for k, a in v.args.items() if a.default is not None}
     if defaults:
       entry["defaults"] = defaults

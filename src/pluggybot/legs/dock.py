@@ -276,7 +276,7 @@ def fit_dock(seen: dict[int, tuple[float, float]],
 
   `seen` maps tag id -> the horizontal (x, y) of that tag's decoded
   translation in the observer's frame; ids not on the board are ignored.
-  A least-squares 2D rigid fit (Kabsch, as `localize.fit_rack_facing`), so
+  A least-squares 2D rigid fit (Kabsch), so
   the facing comes from the BASELINE between tags and never from one tag's
   PnP yaw, which square-on is a coin flip (issue #88). None without a
   baseline (MIN_BASELINE_M) or beyond MAX_FIT_RMS_M."""

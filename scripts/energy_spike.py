@@ -73,7 +73,7 @@ def measure(world: str, actions, battery_wh: float, explore_s: float,
   cfg = world_config(world)
   # ...the world with its body in it (issue #387: `home_quad` puts the
   # quadruped and its dock in at load)
-  model = world_spec(cfg["model"], body=cfg.get("body", "rover")).compile()
+  model = world_spec(cfg["model"], body=cfg["body"]).compile()
   data = mujoco.MjData(model)
   book = board_book(world)
   screens = world_screens(model, data)
@@ -243,7 +243,7 @@ def measure_reserve(world: str, battery_wh: float, explore_s: float) -> dict:
   cfg = world_config(world)
   # ...the world with its body in it (issue #387: `home_quad` puts the
   # quadruped and its dock in at load)
-  model = world_spec(cfg["model"], body=cfg.get("body", "rover")).compile()
+  model = world_spec(cfg["model"], body=cfg["body"]).compile()
   data = mujoco.MjData(model)
   life = HubLifecycle(model, data, realtime=False, battery_wh=battery_wh,
                       rack=cfg["rack"], grid_bounds=cfg["grid_bounds"],

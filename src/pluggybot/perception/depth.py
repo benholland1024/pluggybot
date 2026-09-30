@@ -62,7 +62,6 @@ import math
 import mujoco
 import numpy as np
 
-from pluggybot import control
 from pluggybot.power import DEPTH_CAMERA_W
 from pluggybot.perception.lidar import robot_geoms
 from pluggybot.robot import FIRST, RobotHandle
@@ -157,7 +156,7 @@ class DepthCamera:
                height: int = HEIGHT, min_z: float = MIN_Z,
                max_z: float = MAX_Z, noise_k: float = NOISE_K,
                dropout: float = DROPOUT, baseline: float = BASELINE,
-               seed: int = 0, mount: str = "axle") -> None:
+               seed: int = 0, mount: str = "body") -> None:
     self.handle = handle
     self.camera_name = handle.el(camera_name)
     self.width, self.height = width, height
@@ -197,14 +196,6 @@ class DepthCamera:
       # A legged body (#388): the root body's own frame, the torso's pitch
       # left to the caller's attitude estimate -- on a flight it is 33°.
       self.origin_robot, mat = _fixed_mount(model, self.cam_id, root)
-    elif mount == "axle":
-      if int(model.cam_bodyid[self.cam_id]) != root:
-        raise ValueError(f"{self.camera_name} must sit on {handle.root} itself")
-      axle = np.mean([model.body(handle.el(w)).pos
-                      for w in ("left_wheel", "right_wheel")], axis=0)
-      self.origin_robot = (np.array(model.cam_pos[self.cam_id]) - axle
-                           + np.array([0.0, 0.0, control.WHEEL_RADIUS]))
-      mat = _quat_mat(model.cam_quat[self.cam_id])
     else:
       raise ValueError(f"unknown mount {mount!r}")
     self._dirs_robot = self._dirs_cam @ mat.T

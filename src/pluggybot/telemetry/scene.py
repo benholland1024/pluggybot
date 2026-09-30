@@ -3,8 +3,8 @@
 The browser never parses MJCF. It fetches one JSON scene description --
 transpiled here from the COMPILED MjModel, not the XML, so includes,
 defaults and generated files have all been resolved by MuJoCo itself --
-and instances a ThreeJS primitive per geom. room_hub compiles to boxes,
-cylinders, capsules, a sphere and a plane; there are no meshes, and this
+and instances a ThreeJS primitive per geom. A world compiles to boxes,
+cylinders, capsules, spheres and a plane; there are no meshes, and this
 transpiler refuses them on purpose (the primitives-only world is a design
 decision, so a mesh sneaking in should fail loudly, not ship quietly).
 
@@ -23,11 +23,10 @@ Conversions are applied HERE, unit-tested, so the client does none:
     recorder would tax every frame forever to save one line of client code.
 
 Geoms with rgba alpha 0 are skipped: those are invisible collision layers
-(the schuko socket wells alone are 99 geoms in room_hub) that the robot
-needs and no viewer ever sees.
+the robot needs and no viewer ever sees.
 
-Regenerate the committed fixture after changing any world geometry:
-  uv run python -m pluggybot.telemetry.scene
+Regenerate the committed fixtures after changing any world geometry:
+  uv run python -m pluggybot.telemetry.scene [--pair]
 """
 
 import argparse
@@ -312,49 +311,31 @@ def export_textures(model, out_dir: Path) -> list[Path]:
 
 def main() -> None:
   parser = argparse.ArgumentParser(description=__doc__)
-  parser.add_argument("model", nargs="?", default="models/room_hub.xml")
+  parser.add_argument("--world", default="home_quad", metavar="NAME",
+                      help="a world by its `world_config` name, its robots put "
+                           "in at load (`home_quad`, issue #387), named as it is "
+                           "on the wire")
+  parser.add_argument("--pair", action="store_true",
+                      help="the world with the SECOND robot where the pair "
+                           "starts it (issue #167): named <name>_pair, the "
+                           "scene a two-robot recording is replayed in")
   parser.add_argument("-o", "--out", default=None,
                       help="output JSON (default protocol/scene.<name>.json)")
   parser.add_argument("--textures", default=None,
                       help="texture PNG directory (default <out dir>/textures)")
   parser.add_argument("--meta", default=None,
                       help="generator sidecar with visualHints/zones/spawns "
-                           "(default: models/<name>.meta.json when it exists)")
-  parser.add_argument("--pair", action="store_true",
-                      help="the world with the SECOND robot attached where "
-                           "the pair demo parks it (issue #167): named "
-                           "<name>_pair, the scene a two-robot recording "
-                           "is replayed in")
-  parser.add_argument("--world", default=None, metavar="NAME",
-                      help="a world by its `world_config` name instead of a "
-                           "model file -- one whose robots are put in at load "
-                           "(`home_quad`, issue #387), named as it is on the "
-                           "wire")
+                           "(default: the world's own)")
   args = parser.parse_args()
 
-  name = Path(args.model).stem
-  if args.world:
-    from pluggybot.lifecycle import world_config
-    from pluggybot.robot import pair_model_name, world_spec
-    cfg = world_config(args.world)
-    spec = world_spec(cfg["model"], second_at=cfg["start2"][:2] if args.pair else None,
-                      body=cfg.get("body", "rover"))
-    model = spec.compile()
-    name = pair_model_name(cfg["model_name"]) if args.pair else cfg["model_name"]
-    args.model = cfg["model"]
-  elif args.pair:
-    from pluggybot.lifecycle import world_config
-    from pluggybot.robot import pair_model_name, world_with_robots
-    cfg = next((c for c in (world_config(w) for w in ("room_hub", "home"))
-                if Path(c["model"]).stem == name), None)
-    if cfg is None:
-      parser.error(f"--pair knows no world whose model is {args.model}")
-    model = world_with_robots(args.model, second_at=cfg["start2"][:2])
-    name = pair_model_name(name)
-  else:
-    model = mujoco.MjModel.from_xml_path(args.model)
-  meta_path = (Path(args.meta) if args.meta
-               else Path(args.model).with_suffix(".meta.json"))
+  from pluggybot.lifecycle import world_config
+  from pluggybot.robot import pair_model_name, world_spec
+  cfg = world_config(args.world)
+  spec = world_spec(cfg["model"], second_at=cfg["start2"][:2] if args.pair else None,
+                    body=cfg["body"])
+  model = spec.compile()
+  name = pair_model_name(cfg["model_name"]) if args.pair else cfg["model_name"]
+  meta_path = Path(args.meta) if args.meta else Path(cfg["meta"])
   meta = json.loads(meta_path.read_text()) if meta_path.exists() else None
   out = Path(args.out) if args.out else Path("protocol") / f"scene.{name}.json"
   out.parent.mkdir(parents=True, exist_ok=True)

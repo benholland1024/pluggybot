@@ -1,51 +1,47 @@
 """The body interface (issue #380, `src/pluggybot/body.py`): the day loop
-and the procedure layer reach the machine only through `Body`, the rover
-implements every member of it, and a stub body carries a lifecycle's
-bookkeeping with no robot in the world at all."""
+and the procedure layer reach the machine only through `Body`, and a stub
+body carries a lifecycle's bookkeeping with no robot in the world at all.
+(The quadruped implements every member: `tests/test_quadruped.py`.)"""
 
 import ast
 import inspect
 from pathlib import Path
 
-import mujoco
 import pytest
 
 from pluggybot import body as body_mod
-from pluggybot import tick
 from pluggybot.body import Body, StubBody, members
 from pluggybot.lifecycle import HubLifecycle, world_config
-from pluggybot.mission.rover import RoverBody
 
 SRC = Path(__file__).resolve().parents[1] / "src" / "pluggybot"
 
-#: The machines' own modules -- the rover's, deleted with it (#376, stage C),
-#: and the quadruped's (`legs/`: its model, controller, reckoning and the scan
-#: its policy reads, #388) -- the navigation both are built on
-#: (`navigator.py`, #387: a body's map, LIDAR and drive) and the one place a
-#: body is chosen (`body.body_for`). EVERY OTHER MODULE in `src/` is on the
-#: loop's side of the seam, a new one included: it reaches a robot's body
-#: only as `<life>.body.<member>`, a member being a name `Body` declares.
-BODY_SIDE = ("mission/mission.py", "mission/rover.py", "rack/", "tools/", "body.py",
-             "legs/", "navigator.py")
+#: The machine's own modules -- the quadruped's (`legs/`: its model,
+#: controller, reckoning and the scan its policy reads, #388), the navigation
+#: it is built on (`navigator.py`, #387: a body's map, LIDAR and drive), the
+#: coupling and the tools it works, and the one place a body is chosen
+#: (`body.body_for`). EVERY OTHER MODULE in `src/` is on the loop's side of
+#: the seam, a new one included: it reaches a robot's body only as
+#: `<life>.body.<member>`, a member being a name `Body` declares.
+BODY_SIDE = ("rack/", "tools/", "body.py", "legs/", "navigator.py")
 
 
 def loop_side() -> list[str]:
   return sorted(rel for rel in (str(p.relative_to(SRC)) for p in SRC.rglob("*.py"))
                 if not rel.startswith(BODY_SIDE))
-#: ...and never the rover itself: its objects, its classes and the criteria
-#: its coupling is read by. Its constants may be imported -- a number is not
-#: a reach -- but nothing that acts on or senses the rover.
-ROVER_ATTRS = frozenset({"mission", "swap", "reckoner", "lidar", "tags", "finder"})
-ROVER_NAMES = frozenset({
-  "HubMission", "HubSwap", "RoverBody", "ClawTool", "PenPlotter", "Battery",
-  "DepthCamera", "Lidar", "TagSpotter", "TagDetector", "module_power_contact",
-  "rack_charge_contact", "bay_standoff", "charge_standoff", "swap_trace",
-  "charge_trace", "gave_up"})
+#: ...and never the machine itself: its objects, its classes and the
+#: criteria its coupling is read by. Its constants may be imported -- a
+#: number is not a reach -- but nothing that acts on or senses the body.
+BODY_ATTRS = frozenset({"mission", "swap", "odometry", "lidar", "tags", "walker",
+                        "getup", "drivers"})
+BODY_NAMES = frozenset({
+  "QuadMission", "QuadBody", "QuadStepper", "PolicyDriver", "ArmDriver", "Drivers",
+  "LegOdometry", "DepthCamera", "Lidar", "TagDetector", "module_power_contact",
+  "bay_standoff", "charge_standoff", "swap_trace", "charge_trace", "gave_up"})
 
 
 def reaches(source: str) -> list[str]:
   """Every way `source` reaches a body other than through `Body`: a name
-  read off `.body` that the interface does not declare, one of the rover's
+  read off `.body` that the interface does not declare, one of the body's
   own objects as an attribute, or one of its classes or criteria by name."""
   known = members()
   bad = []
@@ -54,13 +50,13 @@ def reaches(source: str) -> list[str]:
       if (isinstance(node.value, ast.Attribute) and node.value.attr == "body"
           and node.attr not in known):
         bad.append(f"{node.lineno}: .body.{node.attr} is not a Body member")
-      if node.attr in ROVER_ATTRS:
-        bad.append(f"{node.lineno}: .{node.attr} is the rover's")
-    elif isinstance(node, ast.Name) and node.id in ROVER_NAMES:
-      bad.append(f"{node.lineno}: {node.id} is the rover's")
+      if node.attr in BODY_ATTRS:
+        bad.append(f"{node.lineno}: .{node.attr} is the body's own")
+    elif isinstance(node, ast.Name) and node.id in BODY_NAMES:
+      bad.append(f"{node.lineno}: {node.id} is the body's own")
     elif isinstance(node, ast.ImportFrom):
-      bad += [f"{node.lineno}: imports {a.name}, the rover's"
-              for a in node.names if a.name in ROVER_NAMES]
+      bad += [f"{node.lineno}: imports {a.name}, the body's own"
+              for a in node.names if a.name in BODY_NAMES]
   return bad
 
 
@@ -76,7 +72,7 @@ def test_the_fence_fails_on_every_way_past_it():
   """A fence that cannot fail is decor: each way past the interface is
   caught, and the way through it is not."""
   src = '''
-from pluggybot.mission.mission import HubMission, bay_standoff
+from pluggybot.legs.body import QuadMission, bay_standoff
 def f(self, life):
   self.body.drive_to_routine(1, 2)
   life.mission.swap.module_state("m")
@@ -85,13 +81,13 @@ def f(self, life):
   module_power_contact(self.model, self.data, "m", "")
 '''
   got = reaches(src)
-  assert any("imports HubMission" in b for b in got)
+  assert any("imports QuadMission" in b for b in got)
   assert any("imports bay_standoff" in b for b in got)
   assert any(".body.drive_to_routine is not a Body member" in b for b in got)
-  assert any(".mission is the rover's" in b for b in got)
-  assert any(".swap is the rover's" in b for b in got)
+  assert any(".mission is the body's own" in b for b in got)
+  assert any(".swap is the body's own" in b for b in got)
   assert any(".body.mission is not a Body member" in b for b in got)
-  assert any("module_power_contact is the rover's" in b for b in got)
+  assert any("module_power_contact is the body's own" in b for b in got)
   assert not any("go_to_routine" in b for b in got)
 
 
@@ -118,44 +114,25 @@ def test_the_stub_implements_every_member():
   assert not missing, missing
 
 
-def test_the_rover_implements_every_member_by_handing_it_to_its_mission():
-  model = mujoco.MjModel.from_xml_path("models/hub_world.xml")
-  rover = RoverBody(model, mujoco.MjData(model), realtime=False)
-  try:
-    missing = sorted(m for m in members() if not hasattr(rover, m))
-    assert not missing, missing
-    # ...late: a routine stubbed on the mission is what the body runs, so
-    # every stub a rover test puts on its mission stubs the loop's call too
-    rover.mission.drive_to_routine = lambda *a, **kw: tick.result("stubbed")
-    assert rover.run(rover.go_to_routine(1.0, 2.0)) == "stubbed"
-    assert rover.stepper is rover.mission.swap and rover.STILL == (0.0, 0.0)
-  finally:
-    rover.close()
-
-
-def test_a_lifecycle_built_without_a_body_lives_in_the_rover():
-  assert body_mod.body_for.__doc__ and "rover" in body_mod.body_for.__doc__
-  cfg = world_config("room_hub")
-  model = mujoco.MjModel.from_xml_path(cfg["model"])
-  life = HubLifecycle(model, mujoco.MjData(model), realtime=False, errand=False)
-  try:
-    assert isinstance(life.body, RoverBody)
-    assert not hasattr(life, "mission"), "the rover is reached through the body"
-  finally:
-    life.body.close()
+def test_a_world_with_no_robot_of_ours_is_refused_a_body():
+  """`body_for` is the one place a body is chosen: legs, by this robot's
+  names -- and a world with none under them is refused, never given a
+  body that is not there."""
+  model, data = StubBody.world()
+  with pytest.raises(ValueError, match="no body"):
+    body_mod.body_for(model, data)
 
 
 # ---- the stub: a lifecycle's bookkeeping with no robot ----------------------------
 
 
-def stub_life(world: str = "room_hub", body: StubBody | None = None, **kw) -> HubLifecycle:
+def stub_life(world: str = "home_quad", body: StubBody | None = None, **kw) -> HubLifecycle:
   """A lifecycle on a `StubBody`, in a world with no robot in it: for a test
   that needs the loop's bookkeeping -- the mind, the economy, the record --
   and no physics. `world` names the job catalogue, the energy table and the
   map's extent; the physics is the stub's floor."""
   cfg = world_config(world)
   body = body or StubBody(rack=cfg["rack"], grid_bounds=cfg["grid_bounds"])
-  kw.setdefault("errand", False)
   kw.setdefault("battery_wh", cfg["battery_wh"])
   kw.setdefault("low_battery_wh", cfg["low_battery_wh"])
   return HubLifecycle(body.model, body.data, realtime=False, world=world,

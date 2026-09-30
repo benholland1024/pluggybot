@@ -66,10 +66,11 @@ looks right is neither.
 
 import argparse
 import json
+import math
+import statistics
 import time
 from dataclasses import replace
 
-from pluggybot.evaluation.record import LATENCY_PERCENTILES, dist
 
 from pluggybot.lifecycle import board_book, points_ledger
 from pluggybot.mind import llm
@@ -78,6 +79,34 @@ from pluggybot.mind.thoughts import ThoughtFiles
 from pluggybot.robot import SECOND
 from pluggybot.telemetry.protocol import ROBOT_ROOT
 from pluggybot.mind.overseer import CALL_TIMEOUT_S, MODEL, Menu, Overseer
+
+#: Where a call-latency distribution is read (issue #117). The deadline is
+#: a CAP on this distribution, so the share of calls it cuts off is a
+#: property of the TAIL and not of the middle: a 4.88 s median under an 8 s
+#: deadline lost a third of the loaded baseline's decisions, because its
+#: worst calls were already at 7.4 s with the box doing nothing.
+LATENCY_PERCENTILES = (90.0, 95.0)
+
+
+def percentile(values: list, p: float) -> float:
+  """The NEAREST-RANK percentile: an order statistic, never an interpolation
+  between two of them -- at n=50 an interpolated p95 is a number no call
+  actually took, and the tail is what a deadline is read off. `p` is 0-100."""
+  vals = sorted(values)
+  k = max(1, math.ceil((p / 100.0) * len(vals)))
+  return vals[min(k, len(vals)) - 1]
+
+
+def dist(values: list, percentiles: tuple[float, ...] = ()) -> dict:
+  """min / median / max + the raw values, and the percentiles asked for."""
+  vals = [v for v in values if v is not None]
+  if not vals:
+    return {"n": 0, "min": None, "median": None, "max": None,
+            **{f"p{p:g}": None for p in percentiles}, "values": []}
+  return {"n": len(vals), "min": min(vals), "median": statistics.median(vals),
+          **{f"p{p:g}": percentile(vals, p) for p in percentiles},
+          "max": max(vals), "values": vals}
+
 
 #: What `--deployed` calls the other robot. The served pair's names are the
 #: deployment's (`$PLUGGY_ROBOT_NAME_2`); any name works, because the peer's

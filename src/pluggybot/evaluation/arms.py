@@ -1,23 +1,16 @@
 """What an ARM means, in ONE place (Evaluation.md §2; issue #142).
 
 An arm is a claim about who is deciding, and it has to be true wherever it
-runs: `scripted` and `guarded` show that survival is possible, `autonomous`
-asks whether the LLM can achieve it. The experiment flies arms
-(`evaluation/run.py`) and the deployed world serves one (`scripts/serve.py`),
-and BOTH read this module.
-
-⚠ **THIS FILE EXISTS BECAUSE THE SECOND READER ARRIVED.** `arm_flags` lived
-in `evaluation/run.py`, the experiment's child-process entry point, and
-`serve.py` could therefore report an arm it had no way to set: its identity
-header derived `autonomous` off `life.autonomous`, which nothing on that path
-could make True. The fix is one definition with two importers, not a second
-one written to match -- two definitions of what an arm means is exactly how a
-stream ends up claiming an arm that was not flown, which `run.py` already
-calls the worst kind of result.
+runs: `scripted` is the loop with no mind, `guarded` a mind inside code's
+rails, `autonomous` a mind with the rails off. The deployed world serves one
+(`scripts/serve.py`) and says which in its header, off this module: one
+definition, so a stream cannot claim an arm that was not flown.
 """
 
-from pluggybot.evaluation.record import BUILT_ARMS
 from pluggybot.mind.events import DEFAULT_ORIGIN, ORIGINS
+
+#: The arms that are built (Evaluation.md §2).
+BUILT_ARMS = ("scripted", "guarded", "autonomous")
 
 #: `$PLUGGY_ARM` / `$PLUGGY_RUNG` -- how the served image is told, since the
 #: deployment configures the sim with `environment:` alone. Named here rather

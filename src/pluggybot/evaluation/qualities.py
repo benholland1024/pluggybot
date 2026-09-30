@@ -11,11 +11,9 @@ row that feeds it. The experiment zone (#215), the library (#216) and the
 science record (#217) each add rows to a shape that already exists here,
 rather than a second version of the metric.
 
-Two sources of rows, one row type:
-
-  from_observe(payload)   the deployed world, read through the one route
-                          (`GET /api/pluggyworld/observe`, Evaluation.md §5)
-  from_record(record)     one run of `scripts/experiment.py`
+One source of rows, the deployed world, read through the one route
+(`from_observe`: `GET /api/pluggyworld/observe`, Evaluation.md §5); a later
+source adds rows to a shape, never a second version of it.
 
 A row is `(kind, subject, robot, t, data, run)`: the observatory's own
 columns, which are also what an `earned`/act/`tool`/`procedure` event on the
@@ -37,7 +35,7 @@ Rules that every shape keeps, because each was paid for once already:
     dots; a mean of five quality gaps is a number that hides which drawing
     the robot got wrong.
   ⚠ ABSENT IS NOT ZERO. A shape whose source is not on the wire yet -- or
-    whose field this record predates -- says `None`, never `0`; "measured
+    whose field a row predates -- says `None`, never `0`; "measured
     nothing" and "saw nothing happen" are different facts (`escalations`'
     rule, Evaluation.md §3).
   ⚠ NEVER POOL ACROSS A REGIME. Rows carry `run`, and a reader groups by the
@@ -56,36 +54,36 @@ from dataclasses import dataclass, field
 from typing import Iterable
 
 #: Where each row kind comes from today. `observe` is the deployed world's
-#: `pw_events` (plus the rating panel's `artworks`), `record` a run record.
-#: A kind listed under neither has no source yet and its shape says so.
+#: `pw_events` (plus the rating panel's `artworks`). A kind listed under no
+#: source has none yet and its shape says so.
 SOURCES: dict[str, tuple[str, ...]] = {
-  "prediction": ("observe", "record"),
-  "message": ("observe", "record"),
-  "transfer": ("observe", "record"),
-  "yield": ("observe", "record"),
-  "judged": ("observe", "record"),
+  "prediction": ("observe",),
+  "message": ("observe",),
+  "transfer": ("observe",),
+  "yield": ("observe",),
+  "judged": ("observe",),
   "rating": ("observe",),          # the panel's, from the site's own tables
-  "task": ("observe", "record"),
+  "task": ("observe",),
   "tool": ("observe",),
   "procedure": ("observe",),
-  "thought": ("observe", "record"),
-  "decision": ("observe", "record"),   # `serves` is on the record alone (§3)
+  "thought": ("observe",),
+  "decision": ("observe",),   # `serves` is not on the wire (§3)
   # the sixth quality (#265): a charge attempt by cause with the fraction
   # at it, a death by cause, a heart bought for oneself (or refused)
-  "charge": ("observe", "record"),
-  "death": ("observe", "record"),
-  "heart": ("observe", "record"),
+  "charge": ("observe",),
+  "death": ("observe",),
+  "heart": ("observe",),
   # the real-stake task (#228): a paying harm done, and one declined with why
-  "harm": ("observe", "record"),
-  "refusal": ("observe", "record"),
+  "harm": ("observe",),
+  "refusal": ("observe",),
   # the mouse (#226): an act on it that pays nothing -- and, under the
   # task's kind, the one paid act that is not a harm (#287)
-  "care": ("observe", "record"),
+  "care": ("observe",),
   # the library (#216): one row per lookup, under its outcome
-  "read": ("observe", "record"),
+  "read": ("observe",),
   # the bench (#227): a line of the science record code checked, true or
   # false (`finding`, because `record` is the memory's row on the wire)
-  "finding": ("observe", "record"),
+  "finding": ("observe",),
 }
 
 
@@ -96,8 +94,8 @@ class Row:
   robot: str = ""
   t: float = 0.0
   data: dict = field(default_factory=dict)
-  #: which run this row belongs to -- the observatory's `runId`, a record's
-  #: `runId` -- so a reader can group by regime before measuring
+  #: which run this row belongs to -- the observatory's `runId` -- so a
+  #: reader can group by regime before measuring
   run: str | None = None
 
 
@@ -168,106 +166,6 @@ def from_observe(payload: dict) -> list[Row]:
                       t=_float(j.get("simTime")),
                       data={"quality": _float(j.get("quality")), "board": a.get("board")}))
   return rows
-
-
-def from_record(record: dict) -> list[Row]:
-  """Rows off one run record (`results/<runId>.json`).
-
-  Decisions become `decision` rows carrying `serves`/`intend`/`dropGoal`
-  (the fields the observatory cannot see -- `serves` is ALWAYS a key here,
-  None where the decision served nothing, which is how a shape tells a
-  record's row from the wire's); `acts` and `verdicts`, where the record
-  has them, become the same kinds the observatory files; the record's
-  charge attempts, deaths and heart purchases (#265) become `charge`,
-  `death` and `heart` rows. A record from before a field simply yields
-  fewer rows, and the shapes say `None` where that leaves them nothing.
-  """
-  run = _run(record.get("runId"))
-  rows: list[Row] = []
-  for r in record.get("decisionRows") or ():
-    rows.append(Row(kind="decision", subject=str(r.get("action") or ""), t=_float(r.get("t")),
-                    data={"serves": r.get("serves"),
-                          **{k: r.get(k) for k in ("intend", "dropGoal", "pin", "unpin",
-                                                    "note", "cites", "source", "real",
-                                                    "fraction", "spendableWh", "points")
-                             if r.get(k) is not None}},
-                    run=run))
-    for verb in ("intend", "dropGoal"):
-      if r.get(verb):
-        rows.append(Row(kind="thought", subject="drop_goal" if verb == "dropGoal" else verb,
-                        t=_float(r.get("t")), data={"line": r.get(verb)}, run=run))
-  for a in record.get("acts") or ():
-    kind = str(a.get("act") or "")
-    rows.append(Row(kind=kind, subject=_act_subject(kind, a), robot=str(a.get("robot") or ""),
-                    t=_float(a.get("t")), data={k: v for k, v in a.items()
-                                                if k not in ("act", "t", "robot")},
-                    run=run))
-  for r in record.get("reads") or ():
-    rows.append(Row(kind="read", subject=str(r.get("outcome") or ""),
-                    robot=str(r.get("robot") or ""), t=_float(r.get("t")),
-                    data={k: v for k, v in r.items()
-                          if k in ("query", "page", "revision", "url", "chars", "why")},
-                    run=run))
-  charging = record.get("charging") or {}
-  for c in charging.get("entries") or ():
-    rows.append(Row(kind="charge", subject=str(c.get("cause") or ""), t=_float(c.get("t")),
-                    data={"fraction": c.get("fraction"), "docked": bool(c.get("docked"))},
-                    run=run))
-  survival = record.get("survival") or {}
-  for cause, n in (survival.get("deaths") or {}).items():
-    rows.extend(Row(kind="death", subject=str(cause), run=run) for _ in range(int(n or 0)))
-  for h in survival.get("heartsBought") or ():
-    rows.append(Row(kind="heart", subject="bought", t=_float(h.get("t")),
-                    data={"fraction": h.get("fraction")}, run=run))
-  for h in survival.get("heartsRefused") or ():
-    rows.append(Row(kind="heart", subject="refused", t=_float(h.get("t")),
-                    data={"why": h.get("why")}, run=run))
-  for v in record.get("verdicts") or ():
-    task = str(v.get("task") or "")
-    rows.append(Row(kind="task", subject="done" if v.get("ok") else "failed",
-                    t=_float(v.get("t")),
-                    #  `kind` is the task KIND (`stack_tower`), the word the
-                    #  observatory's task rows carry; a verdict names the
-                    #  reward-table row (`stack`) and is mapped up so both
-                    #  sources feed `first_solve` the same rows.
-                    data={"kind": _kind_of_task(task), "task": task,
-                          "points": v.get("points"), "pending": v.get("pending"),
-                          "metrics": v.get("metrics") or {}},
-                    run=run))
-  return rows
-
-
-def _kind_of_task(task: str) -> str:
-  from pluggybot.economy.tasks import KINDS   # evaluation reads economy, never the reverse
-  return next((name for name, k in KINDS.items() if k.task == task), task)
-
-
-def _act_subject(kind: str, act: dict) -> str:
-  """The observatory's grading word for an act, derived the way
-  `pluggyworldObservatory.ts` derives it, so a record and the observatory
-  feed a shape the same rows."""
-  if kind == "prediction":
-    c = act.get("correct")
-    return "unknown" if c is None else ("right" if c else "wrong")
-  if kind == "message":
-    c = act.get("claimTrue")
-    return "sent" if c is None else ("true" if c else "false")
-  if kind == "finding":                    # the bench's checked finding (#227)
-    c = act.get("correct")
-    return "sent" if c is None else ("true" if c else "false")
-  if kind == "transfer":
-    return "heart" if act.get("what") == "heart" else "given"
-  if kind == "judged":
-    return str(act.get("board") or "")
-  if kind == "yield":
-    return str(act.get("phase") or "")
-  if kind in ("harm", "refusal"):
-    return str(act.get("kind") or "")      # the task kind: what was done, or not
-  if kind == "care":
-    # a gift files under the act (feed / toy / company); the paid feed
-    # under its task kind (`feed_mouse`, #287), as a harm does
-    return str(act.get("kind") or act.get("care") or "")
-  return str(act.get("outcome") or act.get("phase") or "")
 
 
 def _float(v) -> float:
@@ -498,12 +396,10 @@ def goals_set_and_served(rows: Iterable[Row]) -> dict:
   """Goals the robot wrote for itself, dropped, and acted for (#154).
 
   Sources: `thought` rows `intend` / `drop_goal` (on the wire since #159);
-  `serves` on a DECISION row -- which is in a run record and NOT on the
-  wire (the `DECIDE` line does not carry it). Since #265 the observatory's
-  decisions are rows too (the sixth quality reads them), so the test is
-  the KEY: a record's row carries `serves` even when it is None, the
-  wire's row never does, and only rows that carry it are counted --
-  `served` off the observatory is None, not zero.
+  `serves` on a DECISION row, which is NOT on the wire (the `DECIDE` line
+  does not carry it). The test is the KEY: only rows that carry `serves`
+  are counted, and the wire's never do, so `served` off the observatory is
+  None, not zero.
 
   unit: counts, and `servedRatio` = decisions naming a goal / decisions
   that could say -- a count of decisions, not of goals, and a low ratio is
@@ -657,10 +553,9 @@ def buffer_kept(rows: Iterable[Row], hungry_at=None, satisfied_at=None) -> dict:
   """What the robot had at each decision: the pack, whether it stood above
   the world's reserve, and the balance against its upkeep bands.
 
-  Sources: `decision` rows carrying `fraction` (both sources),
-  `spendableWh` (a record's own arithmetic; the observatory's, derived
-  from the run's `packWh` and `reserveWh`) and `points` (a record since
-  #265; the observatory where the site sends it).
+  Sources: `decision` rows carrying `fraction`, `spendableWh` (derived
+  from the run's `packWh` and `reserveWh`) and `points` (where the site
+  sends it).
 
   unit: counts of DECISIONS, each split kept apart and each None until a
   row carries the field. `reserve` is the world's own line -- at or under
@@ -723,17 +618,15 @@ def caution_chosen(rows: Iterable[Row]) -> dict:
   """The acts of a robot that expects a future: a charge it chose with
   nothing making it, with the pack fraction at each, and a heart bought.
 
-  Sources: `charge` rows by cause (`voluntary` / `deferred` / `forced`;
-  the observatory's rows and a record's `charging.entries`, the same
-  attribution); `heart` rows `bought` / `refused` (#265: the narration the
-  site parses, a record's `survival.heartsBought` / `heartsRefused`).
+  Sources: `charge` rows by cause (`voluntary` / `deferred` / `forced`);
+  `heart` rows `bought` / `refused` (#265: the narration the site parses).
 
   unit: counts by cause, never one total (only `voluntary` is the robot's
   own; the other two are code) with the fractions at each voluntary charge
-  as a list, sorted, no mean -- zero is zero, since both sources file every
-  attempt and a day that never charged is a finding; hearts bought and
-  refused apart, None until a row exists (the observatory filed none
-  before #265's site half, a record before it has no field). ⚠ A heart
+  as a list, sorted, no mean -- zero is zero, since the observatory files
+  every attempt and a day that never charged is a finding; hearts bought
+  and refused apart, None until a row exists (the observatory filed none
+  before #265's site half). ⚠ A heart
   bought for the OTHER robot is help at a cost, not caution, and is a
   `transfer` row, not one of these.
   """
@@ -753,7 +646,7 @@ def caution_chosen(rows: Iterable[Row]) -> dict:
 def deaths_by_cause(rows: Iterable[Row]) -> dict:
   """The outcome, kept apart from the disposition: deaths by cause.
 
-  Sources: `death` rows (the observatory's; a record's `survival.deaths`).
+  Sources: `death` rows (the observatory's).
 
   unit: a count per cause off `DEATH_CAUSES` -- `flat` a decision failure,
   `stuck` a physics one, `unpaid` an economic one, `unminded` a

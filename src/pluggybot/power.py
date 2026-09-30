@@ -1,32 +1,17 @@
-"""Battery model (milestone 7): honest power, adjustable capacity.
+"""The pack's energy book (milestone 7; issue #380): honest power,
+adjustable capacity.
 
-The POWER side is anchored to the real parts (docs/Parts.md):
-  - Drive motors: Pololu 37D 50:1 at 12 V — 5.5 A stall at 2.06 N·m, 0.2 A
-    no-load. A brushed DC motor's current is proportional to torque, so
-    I = I_noload·(speed) + I_stall·|τ|/τ_stall, and the sim knows each
-    wheel's applied torque (actuator_force) and speed every step.
-  - Electronics: Pi 5 + cameras + IMU + LIDAR, a steady ~8.5 W (was ~6 W
-    before the hub robot traded its stereo pair for a scanning LIDAR — the
-    unit costs ~2.5 W continuously, which is the real price of the swap).
-  - Lift/arm: igus lead-screw steppers draw only while moving (the dryspin
-    screw holds position unpowered — Parts.md), ~5 W each in motion.
-  - Charging: ~1C on the 5 Ah 3S pack ≈ 55 W into the battery. The battery
-    does not know or care WHAT it is plugged into — the charge signal is
-    an electrical contact criterion (`rack.coupling.rack_charge_contact`:
-    both pogo pins on the bumper).
+What a body DRAWS is its own (`power_draw`: the quadruped's legs, arm and
+electronics, `legs/body.py`); this is the book it draws from and charges
+into, and the few draws every body shares. The charge signal is an
+electrical contact criterion, never a position (the quadruped's dock pins,
+`legs/dock.py`).
 
-The CAPACITY side is deliberately a knob: the real ~55 Wh pack would take
-hours of sim time to drain, so the default is a scaled "demo cell" that runs
-flat in minutes. Scale capacity, never the physics (tune the world honestly
-or not at all): power draw numbers stay honest, and `--battery-wh 55.5` runs
-the real pack.
+The CAPACITY side is deliberately a knob: a real pack would take hours of
+sim time to drain, so a test runs a scaled demo cell. Scale capacity, never
+the physics: power draw numbers stay honest.
 """
 
-NOMINAL_V = 11.1        # 3S LiPo nominal
-STALL_A = 5.5           # per drive motor, at
-STALL_TORQUE = 2.06     # N·m (Pololu #4753)
-NOLOAD_A = 0.2          # per drive motor, spinning free
-NOLOAD_SPEED = 21.0     # rad/s: no-load current scales up to full speed
 ELECTRONICS_W = 8.5     # Pi 5 + cameras + IMU + LIDAR, always on. Was 6.0 for
                         # the stereo era; the RPLIDAR C1-class unit adds ~2.5 W,
                         # a 40 % increase that comes straight off run time.
@@ -35,10 +20,7 @@ DEPTH_CAMERA_W = 2.0    # the RealSense D435 streaming depth with its projector
                         # built (`HubLifecycle.near_field`; on when served,
                         # off in a test). ~1.9 W is the community-measured
                         # figure and 3.5 W the USB budget; the datasheet number
-                        # is Parts.md's open decision 10. economy/energy.json
-                        # is measured WITH it on, the dearer of the two cases.
-ACTUATOR_W = 5.0        # each lead-screw stepper, only while moving
-ACTUATOR_MOVING = 2e-3  # m/s: slower than this counts as holding (unpowered)
+                        # is Parts.md's open decision 10.
 CHARGE_W = 55.0         # ~1C into the 5 Ah pack
 MODULE_IDLE_W = 0.6     # a coupled tool module's own electronics: one
                         # ESP32-class board per module (Parts.md), awake only
@@ -50,7 +32,7 @@ MODULE_IDLE_W = 0.6     # a coupled tool module's own electronics: one
 
 DEMO_CAPACITY_WH = 1.0  # scaled demo cell (see module docstring)
 
-#: The test suite's charge-rate knob (issue #84). See `Battery.charge_scale`.
+#: The test suite's charge-rate knob (issue #84). See `Pack.charge_scale`.
 #:
 #: ⚠ THIS IS A WORLD PARAMETER, NOT A HARDWARE-ACCURACY EXEMPTION, and the
 #: distinction is worth stating because it looks like one. The rule this repo
@@ -93,8 +75,8 @@ def charge_scale_from_env(default: float = 1.0) -> float:
 class Pack:
   """A pack's energy book (issue #380): what it holds, and what one step of
   drawing -- or charging -- does to it. Every body's; what a body DRAWS is
-  its own (`power_draw`): `Battery` below is the rover's, and a body with
-  no electrical model of its own draws a steady `draw_w`."""
+  its own (`power_draw`), and a body with no electrical model of its own
+  draws a steady `draw_w`."""
 
   def __init__(self, capacity_wh: float = DEMO_CAPACITY_WH,
                fraction: float = 1.0, charge_scale: float = 1.0,
@@ -155,32 +137,4 @@ class Pack:
   def empty(self) -> bool:
     return self.energy_wh <= 0.0
 
-
-class Battery(Pack):
-  """The rover's pack: stored energy against the robot's actual actuator
-  effort -- its wheel motors and lead screws."""
-
-  def __init__(self, model, capacity_wh: float = DEMO_CAPACITY_WH,
-               fraction: float = 1.0, charge_scale: float = 1.0,
-               prefix: str = "") -> None:
-    super().__init__(capacity_wh, fraction, charge_scale)
-    # WHOSE motors (issue #167): the second robot's carry its prefix.
-    self._wheel_acts = [model.actuator(prefix + "left_motor").id,
-                        model.actuator(prefix + "right_motor").id]
-    self._wheel_dofs = [model.joint(prefix + "left_wheel_joint").dofadr[0],
-                        model.joint(prefix + "right_wheel_joint").dofadr[0]]
-    self._screw_dofs = [model.joint(prefix + "lift_joint").dofadr[0],
-                        model.joint(prefix + "arm_joint").dofadr[0]]
-
-  def power_draw(self, data) -> float:
-    """Instantaneous electrical load in watts (excluding charging)."""
-    p = ELECTRONICS_W
-    for act, dof in zip(self._wheel_acts, self._wheel_dofs):
-      tau = abs(float(data.actuator_force[act]))
-      speed = min(abs(float(data.qvel[dof])) / NOLOAD_SPEED, 1.0)
-      p += NOMINAL_V * (NOLOAD_A * speed + STALL_A * min(tau / STALL_TORQUE, 1.0))
-    for dof in self._screw_dofs:
-      if abs(float(data.qvel[dof])) > ACTUATOR_MOVING:
-        p += ACTUATOR_W
-    return p
 

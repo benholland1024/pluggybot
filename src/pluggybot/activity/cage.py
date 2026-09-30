@@ -65,7 +65,7 @@ from collections import deque
 import numpy as np
 
 from pluggybot.activity.base import Activity, MocapToggle, Threshold
-from pluggybot.activity.plate import PLATE_HALF, PLATE_OFF, PLATE_ON, plate_xml
+from pluggybot.activity.plate import PLATE_OFF, PLATE_ON, plate_xml
 from pluggybot.rack.tags import PLATE_TAG_IDS, PLATE_TAG_SIZE, plate_half_extent
 from pluggybot.telemetry.protocol import robot_roots
 
@@ -159,10 +159,9 @@ def plate_signs_xml(cage_xy: tuple[float, float], prefix: str = "lab") -> str:
   the room; a sign's origin is its face. Its tag materials are
   `rack.tags.asset_xml(PLATE_TAG_IDS)`'s.
 
-  ⚠ NOT IN THE HOME GENERATOR: the rover's pass through a pad ends
-  `PLATE_PASS_M` past its centre with the chassis beyond that, where a sign
-  stands. The quadruped's world adds them (`legs/world.py`) until the rover
-  is deleted (#376's stage C)."""
+  Put in at load by the quadruped's world (`legs/world.py`), after its
+  robots: moved into the generator, they would reorder the world's bodies,
+  and a world reordered is a day that no longer hashes as it did."""
   half = plate_half_extent(PLATE_TAG_SIZE)
   board = half + 0.01
   top = SIGN_TAG_Z + board
@@ -266,10 +265,6 @@ def plate_center(model, name: str, prefix: str = "lab") -> tuple[float, float]:
   return (float(model.body_pos[bid][0]), float(model.body_pos[bid][1]))
 
 
-#: A wheel on a pad, for the tests: the pad's half-width less a wheel's.
-PLATE_REACH = PLATE_HALF
-
-
 # ---- the mouse's clocks, sim seconds -------------------------------------------
 #: A shock puts the mouse on its side for this long, then it hides for
 #: `HIDE_S`: the two phases are the only thing that makes "what will it be
@@ -284,35 +279,10 @@ HIDE_S = 600.0
 EAT_S = 180.0
 PLAY_S = 240.0
 #: A robot is COMPANY inside this radius of the cage's centre, and it counts
-#: after `COMPANY_S` of it, once per visit. 1.0 m is chosen against the
-#: plates: a wheel on a pad puts the chassis 1.12 m out (the row is 1.2 m
-#: off and the body origin sits 8 cm ahead of the axle), so pressing a plate
-#: is not company, and `COMPANY_SPOT` (0.86 m out) is.
+#: after `COMPANY_S` of it, once per visit. 1.0 m was chosen against the
+#: plates' row, 1.2 m off: pressing a plate is not company.
 COMPANY_M = 1.0
 COMPANY_S = 10.0
-#: Where a robot stands to keep the mouse company, in the cage's frame:
-#: west of the enclosure, clear of the plates' row and of the north wall's
-#: inflation (0.35 m), inside `COMPANY_M` with the chassis-origin offset.
-COMPANY_SPOT = (-0.85, -0.15)
-#: How far south of a plate a run onto it starts (`plate.approach_pose`'s
-#: 0.9 m, less a little: the approach point must not sit on the next row's
-#: inflation), and how far NORTH of the plate's centre the run ends --
-#: THROUGH the pad, never parked on it (issue #287). Parked on the
-#: believed centre, the press was the reckoning's: the trip from the rack
-#: drifts 0.1-0.4 m (measured twice on one route, 0.10 and 0.41), the pad
-#: is 0.20 m to its edge, and at 0.41 a wheel caught the edge and pushed
-#: it 5.6 mm against a 6 mm trigger -- the shock landed on 2 of 11
-#: deployed jobs (2026-09-22). A pass from 0.8 m south to 0.3 m north
-#: crosses the whole pad for any longitudinal drift in (-0.6, +0.5) m,
-#: one wheel stays on it for lateral drift under 0.3 m, and the map
-#: (built in the same drifted frame) keeps the chassis its inflation off
-#: the cage whatever the drift. The way back crosses it again: a press is
-#: a rising edge, so a trip is two acts or more, never none.
-PLATE_APPROACH_M = 0.8
-PLATE_PASS_M = 0.3
-#: How long a company visit stands there. Over `COMPANY_S`, so the visit
-#: registers, and under `steps.MAX_WAIT_S`, so it is one step.
-COMPANY_WAIT_S = 30.0
 
 #: The one table (see the module docstring): (state, act) -> next state, or
 #: the same state to restart its clock. A pair not listed is no change.

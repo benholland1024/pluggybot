@@ -42,12 +42,11 @@ from pathlib import Path
 
 import mujoco
 
-from pluggybot.rack import coupling
 from pluggybot.rack.coupling import (
   BUILT_STATION_YS, HUB_PEG_Z, RACK_HANG_X, SMALL_PLATE_HALF, TOOL_HALF_X,
   rack_frame_to_world,
 )
-from pluggybot.rack.tags import TAG_DIR, tag_image
+from pluggybot.rack.tags import MODULE_TAG_IDS, TAG_DIR, tag_image
 from pluggybot.workshop import build
 from pluggybot.workshop.spec import Tool
 
@@ -62,7 +61,7 @@ BUILT_TAG_BASE = 15
 
 #: The hand-built modules, permanent since #277: `retire` refuses them.
 #: Read off the shipped inventory rather than listed twice.
-HAND_BUILT = tuple(coupling.MODULE_TAG_IDS)
+HAND_BUILT = tuple(MODULE_TAG_IDS)
 
 
 class SeamRefused(ValueError):

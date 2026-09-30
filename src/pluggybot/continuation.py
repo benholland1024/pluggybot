@@ -25,9 +25,9 @@ lies dead for an hour. `max_sim_time` is a RUN's budget from where it
 starts (`HubLifecycle._day_routine`).
 
 ⚠ BODIES ARE MATCHED BY NAME, never by state-vector layout: a built tool
-re-hung in another order, or a new build's world, reorders `qpos`. 11 of
-room_hub's 24 joints are unnamed, so a joint's key is its body's name and
-its index there. And the solver's WARM START is kept: MEASURED, without
+re-hung in another order, or a new build's world, reorders `qpos`. A joint
+may be unnamed (the rover's world had 11 of 24), so a joint's key is its
+body's name and its index there. And the solver's WARM START is kept: MEASURED, without
 it the same step diverges by 1e-12 and a parity check means nothing.
 """
 

@@ -3,10 +3,11 @@
 The robot's life -- the day loop (`lifecycle.py`), its mind, its economy,
 its record -- is the same whatever it lives in; the machine is not. `Body`
 is everything the loop and the procedure layer (`procedure/`) may ask of
-the machine, and the ONLY way they reach it: the wheeled rover implements
-it (`mission/rover.py`), the quadruped will (#375), and `StubBody` below is
-the smallest thing that does, for a test that needs the lifecycle's
-bookkeeping and no physics. `tests/test_body.py` walks the syntax tree of
+the machine, and the ONLY way they reach it: the quadruped implements it
+(`legs/body.py`, #387), and `StubBody` below is the smallest thing that
+does, for a test that needs the lifecycle's bookkeeping and no physics. (The
+wheeled rover implemented it first, #380, and was deleted in #376;
+`rover-final` has it.) `tests/test_body.py` walks the syntax tree of
 every module on this side of the seam and fails on a reach that is not a
 member here. `robot.RobotHandle` still resolves a robot's names in the
 world; the body sits beside it (`Body.handle`), not in place of it.
@@ -21,14 +22,13 @@ an actuator walked to a setpoint, the base at a velocity, a tool's driver.
 ⚠ THE COMMAND IS THE BODY'S (the tick contract, `tick.py`). A routine
 yields one command per physics step, and only the body that yields it
 reads it: `stepper.apply(command)` turns it into actuator setpoints. The
-rover's is `(v, w)`, forward speed and yaw rate. A legged body's will be
-its velocity (forward, sideways, yaw rate) with a posture (height, pitch,
-roll), the input its walking policy tracks (#377 decides). So code on this
-side of the seam never builds a command: it composes the body's routines,
-and where it must hold one physics step still it yields `STILL`.
+quadruped's is its velocity, `(vx, vy, w)`, the input its walking policy
+tracks. So code on this side of the seam never builds a command: it
+composes the body's routines, and where it must hold one physics step still
+it yields `STILL`.
 
-⚠ A BODY BELIEVES; THE SIM KNOWS. `pose` is the body's own estimate (dead
-reckoning on the rover). `true_pose`, `root_xy`, `orientation` and
+⚠ A BODY BELIEVES; THE SIM KNOWS. `pose` is the body's own estimate (leg
+odometry and the scan matcher on the quadruped). `true_pose`, `root_xy`, `orientation` and
 `footprint_centre` read the world: the sim's own checks (a death's record,
 a failed swap's trace), and the few acts a sensor could equally make (an
 IMU's attitude; a robot lying down seen as a lump in a depth image).
@@ -41,6 +41,7 @@ from __future__ import annotations
 
 import abc
 import math
+from dataclasses import dataclass
 from typing import Any, NamedTuple
 
 import mujoco
@@ -52,12 +53,37 @@ from pluggybot.tick import Routine
 
 
 #: Torso tilt from upright that counts as knocked over (issue #107), and
-#: how long it has to hold: a wheel riding a threshold tips the body for a
-#: moment and recovers, a robot on its side does not. 60 deg is past any
-#: pose the rover's drive can right itself from, and the quadruped's
-#: get-up takes over at the same angle (`legs.posture.FALL_TILT_RAD`).
+#: how long it has to hold: a body tipped for a moment recovers, a robot on
+#: its side does not. The quadruped's get-up takes over at the same angle
+#: (`legs.posture.FALL_TILT_RAD`), and its own hold is `stuck_after_s`.
 TOPPLE_TILT_RAD = math.radians(60.0)
 TOPPLE_HOLD_S = 2.0
+
+
+@dataclass(frozen=True)
+class RackPose:
+  """The frame a body's charge logic works round (`Body.rack`): an origin
+  in the world and its outward normal, `yaw` -- on the quadruped its dock,
+  origin at the board, +x out into the room (`QuadMission._dock_as_rack`)."""
+
+  x: float
+  y: float
+  yaw: float
+
+  def to_world(self, lx: float, ly: float) -> tuple[float, float]:
+    c, s = math.cos(self.yaw), math.sin(self.yaw)
+    return self.x + lx * c - ly * s, self.y + lx * s + ly * c
+
+  @property
+  def heading(self) -> float:
+    """The heading a robot faces the frame with (into its outward normal)."""
+    return math.atan2(-math.sin(self.yaw), -math.cos(self.yaw))
+
+  def error_against(self, other: "RackPose") -> tuple[float, float]:
+    """(position error in m, yaw error in rad) -- for reports and tests."""
+    return (math.hypot(self.x - other.x, self.y - other.y),
+            abs(math.atan2(math.sin(self.yaw - other.yaw),
+                           math.cos(self.yaw - other.yaw))))
 
 
 class KeepClear(NamedTuple):
@@ -76,11 +102,10 @@ class Body(abc.ABC):
 
   #: This robot's names in the world (`robot.RobotHandle`).
   handle: RobotHandle
-  #: The command that holds this body where it is (the rover's `(0, 0)`).
+  #: The command that holds this body where it is.
   STILL: Any
   #: The tilt from upright (rad) under which this body counts as level --
-  #: the rover's map gate (`mission.MAP_TILT_RAD`); a lean below it has no
-  #: direction worth reporting.
+  #: its map gate; a lean below it has no direction worth reporting.
   level_tilt_rad: float
 
   @property
@@ -135,16 +160,16 @@ class Body(abc.ABC):
   def start_at(self, x: float, y: float, yaw: float) -> None:
     """Put the body upright at a pose and tell its estimate so: a mission
     start, and a stand-up (issue #143). ⚠ A step taken here is one no other
-    robot's stepper or hooks see (a stand-up lands mid-loop): the rover
-    settles a second, the quadruped steps nothing (issue #387)."""
+    robot's stepper or hooks see (a stand-up lands mid-loop), so the
+    quadruped steps nothing (issue #387)."""
 
   @abc.abstractmethod
   def go_to_routine(self, x: float, y: float, timeout: float = 90.0,
                     stop=None) -> Routine:
     """Go to a world point over the map, round the other robots; True on
-    arrival. Why it did not arrive is `last_drive`. The rover drives it
-    (`HubMission.drive_to_routine`); a legged body walks it, through floor
-    it has not mapped as well (issue #381). `timeout` is its patience;
+    arrival. Why it did not arrive is `last_drive`. The quadruped walks it,
+    through floor it has not mapped as well (issue #381). `timeout` is its
+    patience;
     `stop`, a callable asked every second on the way, ends it where it
     stands when it answers True (`navigator.DRIVE_STOPPED`)."""
 
@@ -169,16 +194,14 @@ class Body(abc.ABC):
 
   @abc.abstractmethod
   def look_around_routine(self) -> Routine:
-    """Look all round where it stands, to seed the map and buy sight lines
-    (the rover's 360 spin)."""
+    """Look all round where it stands, to seed the map and buy sight lines."""
 
   #: Its map of the floor (`mapping.OccupancyGrid`): what it plans over,
   #: what exploring plans frontiers on, what a census counts off.
   grid: Any
   #: THE PLACES IT HAS FOUND (issue #419, `mapping.places.Places`): each
   #: task area's tag where it saw it in its own map, kept with the map and
-  #: forgotten at a true death -- or None for a body that keeps none (the
-  #: rover).
+  #: forgotten at a true death -- or None for a body that keeps none.
   places: Any
 
   @abc.abstractmethod
@@ -261,7 +284,8 @@ class Body(abc.ABC):
 
   # ---- the rack: a tool from a bay, and back -------------------------------
 
-  #: What it believes about the rack (`rack.localize.RackPose`).
+  #: What it believes about the frame its charge logic works round
+  #: (`RackPose`): on the quadruped, its dock.
   rack: Any
   #: ...and the COMMISSIONED pose: the dock that defines its map frame
   #: (issue #42), where `anchor_at_dock` snaps its estimate.
@@ -309,16 +333,16 @@ class Body(abc.ABC):
 
   @abc.abstractmethod
   def tool(self, module: str, **kw):
-    """The driver that works `module` from this body (the rover's claw and
-    pen, `tools/gripper.py`, `tools/drawing.py`), or None for a module it
-    has no driver for. A new one every call."""
+    """The driver that works `module` from this body, or None for a module
+    it has no driver for (the quadruped has none yet: #406, #407). A new one
+    every call."""
 
   #: The bay a swap is working at, by station y, from its first drive to
   #: its verdict (issue #347); None otherwise.
   swapping_at: float | None
   #: A manoeuvre of its reach under way that no file holds (issue #405: the
   #: quadruped's swap and arm moves, a fork half under a peg): a restart's
-  #: save waits it out (`continuation.Keeper.busy`). The rover's is False.
+  #: save waits it out (`continuation.Keeper.busy`).
   working: bool
   #: How far off the robot was that made the last swap give its bay up
   #: (issue #313), or None.
@@ -347,8 +371,7 @@ class Body(abc.ABC):
   def charging(self) -> bool:
     """Its charge contacts conduct: the dock's ELECTRICAL criterion."""
 
-  #: Held on the charger: nothing it does while set is counted as travel
-  #: (the rover's reckoner holds its position through the press, #94).
+  #: Held on the charger: nothing it does while set is counted as travel.
   docked: bool
 
   @abc.abstractmethod
@@ -398,13 +421,13 @@ class Body(abc.ABC):
     """One tag's centre in the believed world frame off one decode, or None
     where it does not decode from here (issue #264)."""
 
-  #: Pressed against something it is moving into (the rover's bumper).
+  #: Pressed against something it is moving into (its bumper).
   pressing: bool
   #: The camera its eye looks through (issue #275), by its name in the
-  #: world: the one on the head, looking along the body's +x -- the rover's
-  #: `left_eye`, the quadruped's `nav_eye` -- or None where it has none (the
-  #: stub). The body's, not the eye's: the rover's name kept in the loop
-  #: took the served process down on legs (issue #408).
+  #: world: the one on the head, looking along the body's +x -- the
+  #: quadruped's `nav_eye` -- or None where it has none (the stub). The
+  #: body's, not the eye's: another body's name kept in the loop took the
+  #: served process down on legs (issue #408).
   head_camera: str | None
 
   # ---- the others, and collisions ------------------------------------------
@@ -447,8 +470,8 @@ class Body(abc.ABC):
   @abc.abstractmethod
   def setpoint(self, act: int) -> float:
     """What one of its actuators is commanded to, in its axis's units: a
-    position servo's `ctrl` (the rover's), or the joint angle a controller
-    turns into torque (the quadruped's arm, issue #405) -- never a torque."""
+    position servo's `ctrl`, or the joint angle a controller turns into
+    torque (the quadruped's arm, issue #405) -- never a torque."""
 
   @abc.abstractmethod
   def settle_routine(self, seconds: float) -> Routine:
@@ -467,32 +490,32 @@ class Body(abc.ABC):
 
   @abc.abstractmethod
   def retract_arm_routine(self) -> Routine:
-    """Its reach into the driving configuration (the rover's fork arm in)."""
+    """Its reach into the driving configuration (the quadruped's arm folded
+    to its stow)."""
 
   # ---- posture and rest ----------------------------------------------------
 
-  #: Lying down to rest. Always False on the rover, which has no posture.
+  #: Lying down to rest.
   resting: bool
   #: Its posture, as the wire carries it (issue #387): `standing`,
-  #: `lying_down`, `lying`, `standing_up` or `getting_up` -- the rover always
-  #: stands. Lying down to rest is a posture, never a fall.
+  #: `lying_down`, `lying`, `standing_up` or `getting_up`. Lying down to
+  #: rest is a posture, never a fall.
   posture: str
   #: Whether it gets itself up from a fall (issue #387): the quadruped's
-  #: get-up policy does; the rover waits for somebody.
+  #: get-up policy does; a body that cannot waits for somebody.
   rights_itself: bool
-  #: How long a fall may last before it is the `stuck` death, s: the
-  #: rover's `lifecycle.TOPPLE_HOLD_S`, a body that rights itself its
-  #: get-up's MEASURED budget.
+  #: How long a fall may last before it is the `stuck` death, s: a body that
+  #: rights itself, its get-up's MEASURED budget; one that cannot,
+  #: `TOPPLE_HOLD_S`.
   stuck_after_s: float
 
   @abc.abstractmethod
   def rest_routine(self) -> Routine:
-    """Into its resting posture; a no-op on the rover. Who calls it -- code
-    or the agent -- is #377's to decide."""
+    """Into its resting posture. Code calls it, by reflex (#387)."""
 
   @abc.abstractmethod
   def stand_routine(self) -> Routine:
-    """Out of it; a no-op on the rover."""
+    """Out of it."""
 
 
 def members() -> frozenset[str]:
@@ -504,15 +527,15 @@ def members() -> frozenset[str]:
 
 def body_for(model, data, handle: RobotHandle = FIRST, **kw) -> Body:
   """The body this robot IS, in this world: the one choice a lifecycle
-  built without one makes (`HubLifecycle(body=None)`), by what the model
-  carries under this robot's names -- legs (`legs/body.py`, issue #387) or
-  the rover (`mission/rover.py`). `kw` is its navigation: the viewer,
-  pacing, rack prior and map bounds."""
-  if is_quadruped(model, handle):
-    from pluggybot.legs.body import QuadBody
-    return QuadBody(model, data, handle=handle, **kw)
-  from pluggybot.mission.rover import RoverBody
-  return RoverBody(model, data, handle=handle, **kw)
+  built without one makes (`HubLifecycle(body=None)`) -- legs
+  (`legs/body.py`, issue #387), found by this robot's names; a world with
+  no robot of ours under them is refused. `kw` is its navigation: the
+  viewer, pacing, rack prior and map bounds."""
+  if not is_quadruped(model, handle):
+    raise ValueError(f"no body under {handle.root!r} in this world: the "
+                     "quadruped is the one body (the rover left in #376)")
+  from pluggybot.legs.body import QuadBody
+  return QuadBody(model, data, handle=handle, **kw)
 
 
 def is_quadruped(model, handle: RobotHandle = FIRST) -> bool:
@@ -524,7 +547,7 @@ def is_quadruped(model, handle: RobotHandle = FIRST) -> bool:
 # ---- the stub: a body with no physics ---------------------------------------
 
 #: The stub's world: a floor and nothing else. It compiles in a millisecond,
-#: steps in microseconds, and carries no robot to be deleted with the rover.
+#: steps in microseconds, and carries no robot to be deleted with a body.
 STUB_WORLD = """<mujoco model="stub">
   <worldbody><geom name="floor" type="plane" size="20 20 0.1"/></worldbody>
 </mujoco>"""
@@ -567,7 +590,7 @@ class StubBody(Body):
   (`hold_routine` and its kin step the stub's world), so the lifecycle's
   seams tick as they do on a real body. What a test that needs the
   lifecycle's BOOKKEEPING -- the mind, the economy, the record -- builds it
-  on, instead of the rover: `HubLifecycle(*StubBody.world(),
+  on, instead of the quadruped: `HubLifecycle(*StubBody.world(),
   body=StubBody(...))`."""
 
   STILL = ()
@@ -589,7 +612,6 @@ class StubBody(Body):
                bays: dict[str, int] | None = None, draw_w: float = 0.0) -> None:
     from pluggybot.mapping.occupancy_grid import OccupancyGrid
     from pluggybot.procedure.steps import TOOL_BAYS
-    from pluggybot.rack.localize import RackPose
     if model is None:
       model, data = self.world()
     self._model, self._data = model, data
@@ -600,7 +622,7 @@ class StubBody(Body):
     gx0, gy0, gx1, gy1 = grid_bounds
     self.grid = OccupancyGrid(x_min=gx0, y_min=gy0, x_max=gx1, y_max=gy1,
                               resolution=0.05)
-    self.rack = self.rack_prior = rack or RackPose.prior()
+    self.rack = self.rack_prior = rack or RackPose(0.0, 0.0, 0.0)
     self.rack_discovered = False
     self.bays = dict(TOOL_BAYS if bays is None else bays)
     self.draw_w = float(draw_w)

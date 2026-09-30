@@ -99,11 +99,6 @@ is exactly as hard as the walls make it and not an inch harder.
 import json
 import math
 
-from pluggybot.rack.coupling import (
-  BUILT_RACK_BODY, CHARGE_BAY_Y, HUB_STATION_YS, rack_and_modules_xml,
-  rack_frame_to_world,
-  claw_actuator_xml, dispenser_actuator_xml, pen_actuator_xml,
-)
 from pluggybot.activity.plate import (
   plate_light_xml,
 )
@@ -164,9 +159,11 @@ FENCE_HALF_H = 0.45           # 0.9 m garden fence: lidar (0.223 m) sees it
 #: so the fence line is not the literal edge of the visible world.
 GROUND_MARGIN = 1.0
 
-# The rack, against the living room's south wall, facing north into the room.
-HOME_RACK_POS = (0.5, HOUSE_Y[0] + WALL_HALF_T)
-HOME_RACK_YAW = 90.0
+#: The living room's south wall at x = 0.5, where the rover's rack stood
+#: (#376 deleted it): the last waypoint of the worst return
+#: (`HOME_WORST_RETURN_PATH`), the route the quadruped's reserve was measured
+#: over before it walks on to its dock (`legs.world.RESERVE_WH`).
+RETURN_END = (0.5, HOUSE_Y[0] + WALL_HALF_T)
 
 # Whiteboards: wall-mounted drawing surfaces (the milestone-8 board port).
 # `heading` is the robot's heading when squared up to the board; `half` is
@@ -389,44 +386,12 @@ SPAWNS = {
 GRID_BOUNDS = (LOOP_X[0] - GROUND_MARGIN, LOOP_Y[0] - GROUND_MARGIN,
                LOOP_X[1] + GROUND_MARGIN, LOOP_Y[1] + GROUND_MARGIN)
 
-# Battery tuning for the bigger floor plan (issue #6 "rides along"). The
-# reserve is absolute energy, per the milestone-7 lesson: it must cover the
-# WORST return trip to the rack plus one failed press-and-retry. Measured
-# empirically (see docs/PluggyPlan.md): a full living-room crossing plus
-# charge approach costs ~0.3 Wh at cruise draw, so the room_hub reserve of
-# 0.35 is too thin here; the demo cell grows with it so one explore + one
-# errand still runs the pack down and the loop still has to charge.
-#: MEASURED on the plan with the loop (issue #215; before it #70 / #84 /
-#: #34 -- `scripts/energy_spike.py --reserve`, runnable again whenever a
-#: wall moves). The worst-case return -- the loop's south-west corner,
-#: along the sidewalk band, up our sidewalk, through the gate and the
-#: garden door, to a REAL dock with the pins conducting:
-#:
-#:     travel   1.354 Wh over 44.63 m of route  (30.3 mWh/m)
-#:     dock     0.316 Wh  (drive to standoff + tag creep + press)
-#:     floor    1.669 Wh
-#:
-#: ...plus one failed press-and-retry, which is the constant's own definition
-#: and is priced as one more dock leg: 1.669 + 0.316 = 1.985, carried as
-#: 2.05. (Before the loop: 0.314 over 10.49 m + 0.297, 0.908 with the retry,
-#: carried as 0.95; before the depth camera, 0.90.)
-#:
-#: ⚠ THE DISTANCE IS THE RESERVE NOW. #68's finding -- the dock dominates,
-#: fifteen metres of house cost less than one docking attempt -- held while
-#: the far corner was 15 m away; the loop put it 45 m away at the same
-#: 30 mWh/m, and travel is four fifths of the floor. The reserve is still a
-#: property of the FLOOR PLAN and not of the pack: it is what a hosting
-#: pack keeps in hand (8 Wh funds it and every errand), and what sizes the
-#: demo cell below. Do not scale this with the pack, and re-measure it when
-#: the PLAN changes, not when the battery does.
-HOME_LOW_BATTERY_WH = 2.05
-
-#: The point the reserve should be measured from: one robot-length inside the
-#: loop's south-west corner, which is the farthest the robot can legally
-#: stand from the rack BY ROUTE (issue #215) -- not by straight line: the
-#: loop's east legs are further as the crow flies and closer as the robot
-#: drives, because the rack is reached only through the middle street's
-#: gate at y=3.1. Named rather than left implicit so `tests/test_world_
+#: The point the reserve is measured from (`legs.world.RESERVE_WH`): one
+#: robot-length inside the loop's south-west corner, the farthest a robot
+#: can stand from the living room BY ROUTE (issue #215) -- not by straight
+#: line: the loop's east legs are further as the crow flies and closer as the
+#: robot walks, because the living room is reached only through the middle
+#: street's gate at y=3.1. Named rather than left implicit so `tests/test_world_
 #: budget.py` can check the claim against the compiled world's own routes --
 #: a comment saying "the worst case is X" rots the moment somebody moves a
 #: wall, and #68 and #215 between them moved most of them.
@@ -435,7 +400,7 @@ HOME_WORST_RETURN = (LOOP_X[0] + 0.4, LOOP_Y[0] + 0.4)
 #: ...and the route home from there, as the waypoints a return actually
 #: threads: onto the sidewalk band, east along its south leg to the first
 #: house's own sidewalk, north up that to the gate, through the gate,
-#: through the garden doorway, to the rack. Kept here rather than in the
+#: through the garden doorway, to `RETURN_END`. Kept here rather than in the
 #: test because it is a fact about the floor plan, and the plan lives in
 #: this file; the test checks it against the compiled world's own routes.
 HOME_WORST_RETURN_PATH = (
@@ -445,48 +410,11 @@ HOME_WORST_RETURN_PATH = (
   (sum(SIDEWALK_X) / 2, STREET_DOOR_Y),      # north up the sidewalk
   (SIDEWALK_X[0], STREET_DOOR_Y),            # the street doorway
   (GARDEN_X[0], sum(DOOR_GARDEN_Y) / 2.0),   # the garden doorway
-  HOME_RACK_POS,
+  RETURN_END,
 )
 #: Its length. Measured 2026-09-19 against the plan above; 15.59 m before
 #: #215 and 11.96 m before #68.
 HOME_WORST_RETURN_M = 49.64
-
-#: SIZED FROM THE MEASURED RESERVE (issue #84; re-sized for the loop, #215),
-#: not guessed, and the arithmetic is short enough to carry here. Off one
-#: charge (`CHARGED` = 0.9) the cell must hold the reserve above plus the
-#: dearest errand (the census, 1.304 Wh): the floor is (2.05 + 1.304) / 0.9
-#: = 3.73 Wh. Carried at 4.5 -- ~20 % of headroom, the same margin 3.0 gave
-#: the 2.41 floor before the loop.
-#:
-#: ⚠ 4.5 IS ALSO A DAY WITH A CHARGE IN IT, verified on the mission the
-#: suite flies: the milestone-8 home arm starts at 55 % (2.48 Wh -- above the
-#: 2.05 floor, so the FLOOR does not fire) and its carry errand (0.914) is
-#: refused up front against that reserve, so the loop defers, charges, and
-#: resumes -- the defer-then-charge-then-resume path on real physics. A full pack funds a whole preset day with room to
-#: spare, which is why that test does not start full: a demo mission that
-#: never needs the hub proves nothing about charging.
-#:
-#: ⚠ THE MARGIN IS NON-ZERO ON THIS CELL, deliberately (issue #84). The old
-#: 1.1 Wh cell ran its errands on `overspend` and finished the recorded
-#: census at frac 0.000. The charged pack funds reserve + dearest, so
-#: `margin_wh` charges the full reserve and the mid-errand death stops
-#: being reachable on the world the tests fly most. room_hub's 1.0 Wh cell
-#: is untouched and still zero-margin.
-HOME_DEMO_CAPACITY_WH = 4.5
-#: ...and the pack a WATCHED world runs on (issue #15). The demo cell flattens
-#: in minutes by design, which is right for a test and reads as a robot that
-#: only ever charges; a hosting-sized one gives the hours-long work/charge
-#: rhythm the site wants. `--pack hosting`, `$PLUGGY_PACK=hosting`, or
-#: `--battery-wh` for anything else -- and it is what the deployment has
-#: actually been running since rooftop-media-2026 #20.
-#:
-#: ⚠ THE RESERVE IS NOT SCALED WITH IT, deliberately. It is the absolute
-#: energy needed to reach the dock -- a property of the FLOOR PLAN, not a
-#: fraction of the pack (the milestone-7 lesson) -- so it is the same
-#: HOME_LOW_BATTERY_WH on either cell. What changes on a hosting pack is that
-#: the reserve becomes a margin the robot can afford to KEEP: economy/energy.py then requires every
-#: errand to finish with it intact, which is what stops a mid-errand death.
-HOME_HOSTING_CAPACITY_WH = 8.0
 
 #: ⚠ THE CAMERAS' NEAR PLANE IS PINNED HERE, and the loop is why (issue
 #: #215). MuJoCo derives a model `statistic.extent` from the geometry's
@@ -815,11 +743,6 @@ def build_home_world() -> tuple[str, dict]:
                 (STAIRS_Y[1] - STAIRS_Y[0]) / 2, STAIRS_HALF_H,
                 "0.58 0.54 0.50 1"), "stairs", "stairs")
 
-  hints["rack"] = "rack"
-  # ...and the built-tool rail beside it (issue #277), the same silhouette
-  # for the site to reskin.
-  hints[BUILT_RACK_BODY] = "rack"
-
   # ---- the ground the website draws (issue #68) -----------------------------
   # GENERATED from the layout rather than written down, which is the point:
   # the plot grew from 7 x 8 m to 26.5 x 12 m and a literal `size="10 10"` in
@@ -877,13 +800,18 @@ def build_home_world() -> tuple[str, dict]:
      Layout constants + visual hints + zones live in home/world.py; the
      sidecar models/home_world.meta.json is emitted alongside. -->
 <mujoco model="home_world">
-  <include file="world_fork.xml"/>
+  <option integrator="implicitfast"/>
+  <visual>
+    <global offwidth="1280" offheight="720"/>
+    <quality offsamples="0"/>
+  </visual>
   <statistic center="{STATISTIC_CENTER[0]} {STATISTIC_CENTER[1]} {STATISTIC_CENTER[2]}"
              extent="{CAMERA_EXTENT_M}"/>
   <asset>
     {asset_xml(tag_ids)}
   </asset>
   <worldbody>
+    <light pos="0 0 3" dir="0 0 -1"/>
     {floor_xml}
     <light pos="1.5 0.5 3" dir="0 0 -1"/>
     <light pos="1.5 4.5 3" dir="0 0 -1"/>
@@ -891,18 +819,11 @@ def build_home_world() -> tuple[str, dict]:
 {lights}
 
 {chr(10).join(bodies)}
-
-    {rack_and_modules_xml(HOME_RACK_POS, HOME_RACK_YAW)}
   </worldbody>
   <sensor>
     {act_sensor}
     {cage_sensors}
   </sensor>
-  <actuator>
-    {pen_actuator_xml()}
-    {claw_actuator_xml()}
-    {dispenser_actuator_xml()}
-  </actuator>
 </mujoco>
 """
 
@@ -914,7 +835,6 @@ def build_home_world() -> tuple[str, dict]:
     "boards": {name: {"geom": s["geom"], "pos": list(s["pos"]),
                       "half": list(s["half"]), "heading": s["heading"]}
                for name, s in BOARDS.items()},
-    "rack": {"pos": list(HOME_RACK_POS), "yaw_deg": HOME_RACK_YAW},
     "tower": {"name": "workshop", "blocks": [list(xy) for xy in TOWER_XY]},
     # The experiment zone (issue #215): where its props stand, by the names
     # #226 and #227 read them by. The room is the `lab` zone above.
@@ -923,26 +843,8 @@ def build_home_world() -> tuple[str, dict]:
     # by body name: the site draws a glyph on the pad for visitors.
     "plates": plates,
     "gridBounds": list(GRID_BOUNDS),
-    "battery": {"lowWh": HOME_LOW_BATTERY_WH,
-                "demoCapacityWh": HOME_DEMO_CAPACITY_WH,
-                # What a WATCHED run uses (issue #15). In the sidecar because
-                # the website reads this file to know what world it is
-                # drawing, and "the robot charges twice an hour" and "the
-                # robot charges twice a minute" are different worlds.
-                "hostingCapacityWh": HOME_HOSTING_CAPACITY_WH},
   }
   return xml, meta
-
-
-def charge_bay_world() -> tuple[float, float]:
-  """World position of the home rack's charge bay (for scripts/tests)."""
-  return rack_frame_to_world(0.114, CHARGE_BAY_Y, HOME_RACK_POS, HOME_RACK_YAW)
-
-
-def bay_world(i: int) -> tuple[float, float]:
-  """World position of tool bay i's hang point."""
-  return rack_frame_to_world(0.09, HUB_STATION_YS[i], HOME_RACK_POS,
-                             HOME_RACK_YAW)
 
 
 def write_home_world(xml_path: str = "models/home_world.xml",

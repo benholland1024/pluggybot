@@ -1113,7 +1113,7 @@ class Menu:
                             if n not in ("text", "answer")))
     menu = cls(boards=tuple(book.names) if book is not None else (),
                programs=programs, zones=zones, census_zone=census,
-               tools=cfg.get("tools", True), body=cfg.get("body", "rover"),
+               tools=cfg.get("tools", True), body=cfg["body"],
                swaps=cfg.get("swap", cfg.get("tools", True)),
                places=bool(cfg.get("places")),
                plates=bool(cfg.get("places") and cfg.get("lab")))
