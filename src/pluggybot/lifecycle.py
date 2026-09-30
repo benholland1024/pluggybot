@@ -460,6 +460,16 @@ PROCEDURE_STOPS = {
   "steps": "it ran out of the steps its budget gave it",
   "interrupted": "it was interrupted",
 }
+#: How a decided explore ended (`explore_routine`'s answer), in its History
+#: line's words (issue #424). A key missing here is the run's own end.
+EXPLORE_ENDS = {
+  "budget": ", all the time one explore is given",
+  "no-frontiers": ", until nothing on my map was left unseen",
+  "no-reachable": ", until none of the floor I have not seen could be reached",
+  "only-near": ", until what was left unseen was too close to look at",
+  "blocked": ", until the way to the floor I have not seen was blocked",
+  "battery": ", until the pack reached the reserve",
+}
 
 
 def procedure_outcome(name: str, run: dict) -> list[str]:
@@ -2195,6 +2205,10 @@ class HubLifecycle:
     conflating them would let the first overseer explore permanently retire
     the branch. Running out of FRONTIERS still marks it done under either
     setting: that one really is "there is nothing left to see".
+
+    Returns how it ended (issue #424): `budget`, the frontier status it
+    finished on (`no-frontiers`, `no-reachable`, `only-near`, `blocked`),
+    `battery`, or `time` -- the run's own end.
     """
     strikes = 0
     deadline = (self.data.time + budget if budget is not None
@@ -2204,7 +2218,7 @@ class HubLifecycle:
         self.floor_explored = mark_done
         self._occur("task_complete", "explore")
         self._say("EXPLORE: budget spent, stopping")
-        return
+        return "budget"
       path, status = self.body.plan_frontier(self.blacklist)
       if status == "ok":
         wx, wy = self.body.grid.cell_to_world(*path[-1])
@@ -2224,8 +2238,9 @@ class HubLifecycle:
         self.floor_explored = True
         self._occur("task_complete", "explore")
         self._say(f"EXPLORE done ({status})")
-        return
+        return status
     self._say("EXPLORE -> GO_CHARGE (battery low)")
+    return "battery" if self.needs_charge else "time"
 
   def go_charge(self) -> bool:
     return self.body.run(self.go_charge_routine())
@@ -2279,13 +2294,15 @@ class HubLifecycle:
       # WHY, and not always "no route" (issue #350): a stall, the other
       # robot and the clock read the same until the drive said which. Of
       # the goal last DRIVEN to -- a spin moves the standoff after it, and
-      # a trip that ended in a wait that gave up is the wait's
+      # a trip that ended in a wait that gave up is the wait's. Whoever
+      # held the bay is IN the reason: History and a stranded death read
+      # it, and the narration was the one place it was kept (issue #424).
       blocked = self.peer_at(*(driven or (sx, sy)))
       self.charge_failure = "never reached the charge bay" + (
-        "" if driven is None else f": {self.drive_why(*driven)}")
-      self._say(f"GO_CHARGE: {self.charge_failure}"
-                + ("" if blocked is None else
-                   f" -- {self.held_for(blocked).replace('the bay', 'it', 1)}"))
+        "" if driven is None else f": {self.drive_why(*driven)}") + (
+        "" if blocked is None else
+        f" -- {self.held_for(blocked).replace('the bay', 'it', 1)}")
+      self._say(f"GO_CHARGE: {self.charge_failure}")
       return False
     # Line up on the bay's own tag and creep until the electrical criterion
     # fires -- position is believed, contact is known.
@@ -5905,14 +5922,37 @@ class HubLifecycle:
       if (yield from self.go_charge_routine()):
         self.state = "CHARGE"
         yield from self.charge_routine()
+      else:
+        # ...and one that never began is said WHERE THE ROBOT READS (issue
+        # #424): a cycle's verdict is its History line, and this had none
+        # -- 31 in 50 h, and the robots filed tickets saying their charges
+        # vanished. No verdict: the wire's `charge` row already carries it,
+        # and a verdict would count it a second time, as a failed task.
+        self._remember(f"charge: did not charge -- {self.charge_failure}")
       return ""
     if decision.action == "explore":
       self.state = "EXPLORE"
+      went = ""
       if decision.zone:
         wx, wy = zone_centre(self.world, decision.zone)
         self._say(f"EXPLORE: heading for {decision.zone}")
-        yield from self.body.go_to_routine(wx, wy, timeout=ZONE_PATIENCE_S)
-      yield from self.explore_routine(budget=DECIDED_EXPLORE_S, mark_done=False)
+        if (yield from self.body.go_to_routine(wx, wy, timeout=ZONE_PATIENCE_S)):
+          went = "got there and "
+        else:
+          why = self.drive_why(wx, wy)
+          self._say(f"EXPLORE: never reached {decision.zone} -- {why}")
+          went = f"never got there -- {why} -- and "
+      t0 = float(self.data.time)
+      ended = yield from self.explore_routine(budget=DECIDED_EXPLORE_S,
+                                              mark_done=False)
+      # ...and how it went, in History (issue #424): 122 decided explores in
+      # 50 h and not one said how it ended, so the robot made a theory of
+      # the silence. The run's own end is said by nobody (#345).
+      if ended in EXPLORE_ENDS:
+        self._remember(
+          f"explore{f' ({decision.zone})' if decision.zone else ''}: {went}explored"
+          f"{' where it stopped' if went.startswith('never') else ''} for "
+          f"{float(self.data.time) - t0:.0f} s{EXPLORE_ENDS[ended]}")
       return ""
     if decision.action == "idle":
       # ...AND NOT AT THE RACK (issue #298). With a mind, the loop never
