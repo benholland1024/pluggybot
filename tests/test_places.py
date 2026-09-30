@@ -17,9 +17,9 @@ and approaches it by sight. Each rule pinned as cheaply as it fails:
   5. THE VERBS, THE OFFER, THE MIND'S VIEW, THE TRUE DEATH.
 
 The walk that finds a plate and presses it is flown by
-`scripts/places_spike.py` (SimNotes, "Places, not coordinates"); no flight
-of it is in the suite -- #403's paid feed on legs is the one that will fly
-`find` and `press` end to end.
+`scripts/places_spike.py` (SimNotes, "Places, not coordinates") and #403's
+paid feed on legs by `scripts/solve.py --body quadruped`; no flight of
+either is in the suite.
 """
 
 import json
@@ -372,6 +372,65 @@ def test_the_search_goes_out_from_the_address_not_from_the_robot():
   assert math.dist(over, near) >= 3, "a lattice point it had looked over"
 
 
+def test_the_search_walks_to_floor_it_has_not_looked_at_before_a_frontier_the_long_way_round():
+  """#403: after an explore the only frontiers near the facility's address
+  were outside it -- near in a straight line, a long walk by the way in --
+  and the lab's floor, mapped through its door and never looked at, came
+  after every one of them: three finds of three failed. The robot's own
+  floor it has not looked at stands beside its frontiers, and the WALK
+  from the address orders them."""
+  near, never = (0.0, 0.0), lambda x, y: False
+  outside = (4.0, 0.0)                              # a frontier through the wall
+
+  def walk(x, y):
+    return 20.0 if x > 3.0 else math.hypot(x, y) + 2.0
+
+  def lab(x, y):
+    return y > 4.0                                  # mapped, never looked at
+  assert lp.next_viewpoint(near, near, [near], [], never, [outside], walk=walk,
+                           known=lab) == (0.0, 5.0)
+  # premise: by the straight line, with no floor known, the frontier wins
+  assert lp.next_viewpoint(near, near, [near], [], never, [outside]) == outside
+  # ...a point no walk reaches comes after every one a walk does, and is
+  # still one: a drifted map can cut the walk's field short
+  def shut(x, y):
+    return math.inf if y > 4.0 else walk(x, y)
+  assert lp.next_viewpoint(near, near, [near], [], never, [outside], walk=shut,
+                           known=lab) == outside
+  assert lp.next_viewpoint(near, near, [near], [outside], never, [outside], walk=shut,
+                           known=lab) == (0.0, 5.0)
+  # ...and the lattice in the unknown only once the robot's own floor is done
+  assert lp.next_viewpoint(near, near, [near], [outside], never, [outside], walk=walk,
+                           known=lab) == (0.0, 5.0)
+  unknown = lp.next_viewpoint(near, near, [near], [outside], never, [outside], walk=walk,
+                              known=lambda x, y: False)
+  assert unknown is not None and not lab(*unknown)
+
+
+def test_looked_over_is_in_sight_and_the_walk_goes_round_by_the_door(quad_world):
+  """A look-around marks floor looked over only with no wall between (#403:
+  a look in the lobby had marked the lab's floor, 3 m off through a wall,
+  looked over), and the walk from the address is the planner's -- round a
+  wall by its door, never the straight line through it."""
+  body = _quad(quad_world, 20.0, 0.0, 0.0)
+  m = body.mission
+  try:
+    g = m.grid
+    x0, y0 = g.world_to_cell(16.0, -4.0)
+    x1, y1 = g.world_to_cell(24.0, 4.0)
+    g.grid[y0:y1, x0:x1] = -5.0                     # mapped floor
+    wx, wy0 = g.world_to_cell(21.0, -4.0)
+    _, wy1 = g.world_to_cell(21.0, 2.5)
+    g.grid[wy0:wy1, wx:wx + 2] = 5.0                # a wall, its door north of it
+    wall, seen, frontier, walk, known = m._search_map([(20.0, 0.0)], (20.0, 0.0))
+    assert known(22.5, 0.0) and not seen(22.5, 0.0), "looked over through a wall"
+    assert seen(19.0, 0.0) and seen(20.0, 2.0)
+    assert walk(19.0, 0.0) == pytest.approx(1.0, abs=0.3)
+    assert walk(22.5, 0.0) > 6.0, "the walk went through the wall"
+  finally:
+    body.close()
+
+
 def test_a_find_goes_where_the_row_says_then_to_the_address_then_round_it(quad_world):
   """The order, on a body whose walks and looks are stubbed: the feed plate
   not yet seen but the shock plate's sign read, the first walk is to where
@@ -465,6 +524,49 @@ def test_a_press_steps_onto_a_plate_only_with_time_to_step_off_it(quad_world):
       setattr(m.data, "time", m.data.time + timeout + 1.0) or tick.result(True))
     rec = body.run(m.press_routine(FEED, patience=lp.FINAL_S + 30.0))
     assert rec["why"] == "out of time" and walked_in == [FEED]
+  finally:
+    body.close()
+
+
+def test_a_press_walks_in_from_its_standoff_as_the_look_there_left_it(quad_world):
+  """#403: a sign first seen from 40 deg off its face knows its facing only
+  by where it was seen from, so the first standoff is off the axis; the look
+  there fits the row, and the press walks to the new standoff -- over the
+  planner, the pads kept out -- before the walk in, which is steered straight
+  at the pad with no planner under it. From the old one it crossed the next
+  plate (4 shock presses in #419's spike). A look that moves nothing sends
+  it nowhere."""
+  body = _quad(quad_world, 25.0, 2.0, -math.pi / 2)
+  m = body.mission
+  went, walked_in = [], []
+  fx, fy = _sign("feed")
+
+  def drive(x, y, timeout=90.0, stop=None):
+    went.append((round(x, 3), round(y, 3)))
+    return tick.result(True)
+
+  def look():
+    m.places.see(FEED, fx, fy, float(m.data.time), view=SOUTH, tag_facing=SOUTH)
+    return [FEED]
+
+  try:
+    m.places.see(FEED, fx, fy, 0.0, view=SOUTH + math.radians(40.0))
+    first = m.place_standoff(FEED)
+    m.drive_to_routine = drive
+    m.face_routine = lambda h: tick.result(True)
+    m.look_for_places = look
+    m._press_walk_in_routine = lambda tag: walked_in.append(len(went)) or tick.result("stopped")
+    m._hold_on_routine = lambda pad: tick.result(True)
+    m._press_back_out_routine = lambda: tick.result(None)
+    rec = body.run(m.press_routine(FEED, patience=120.0))
+    square = (round(fx, 3), round(fy - lp.STANDOFF_M, 3))
+    assert went == [pytest.approx(first[:2], abs=1e-3), pytest.approx(square, abs=1e-3)]
+    assert walked_in == [2], "walked in before it stood on the axis"
+    assert rec["pressed"] and "reaim" in rec["attempts"][0]
+    # ...and with the facing known before it went, one walk
+    went.clear()
+    rec = body.run(m.press_routine(FEED, patience=120.0))
+    assert len(went) == 1 and "reaim" not in rec["attempts"][0]
   finally:
     body.close()
 
