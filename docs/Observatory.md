@@ -23,7 +23,8 @@ matched, where every one had been refused. **The maps kept on the volume
 are dropped at this deploy** (`continuation.MAP_EPOCH` 1). They were laid
 askew over hours of that drift, and since `c262e7d` they have been laid
 askew again. Both robots start from their start poses with empty maps and
-no places (#419), and keep the clock, their packs, their deaths and their
+no places (#419), every tool on its bay and every prop where the world was
+built with it. They keep the clock, their packs, their deaths and their
 jobs. History's restart line says why: `the map I had was laid askew, and
 it is gone`.
 

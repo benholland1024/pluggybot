@@ -104,6 +104,19 @@ def test_a_push_while_resting_is_turned_through_not_held():
   assert still.still
 
 
+def test_a_slide_too_slow_to_see_teaches_no_more_than_the_part_could_be_off():
+  # Lying, a turn under the gate is missed and learned as the gyro's offset
+  # (#425) -- none was measured on the floor or the dock, but nothing turns
+  # it back until the next rest: unbounded, a 0.12 deg/s slide for 2 min
+  # taught 0.17 deg/s, and every walk after it turned 7 deg a minute.
+  part, still, dt = imu.Imu("test:slide"), imu.Standstill(), 0.002
+  part.gyro_bias[:] = (0.0, 0.0, imu.GYRO_BIAS)
+  for _ in range(round(120.0 / dt)):
+    still.rate(part.gyro((0.0, 0.0, math.radians(0.12)), dt), True, dt)
+  assert still.still, "the premise: a slide the gate cannot see"
+  assert max(abs(b) for b in still.bias) <= imu.BIAS_MAX
+
+
 def test_a_wheel_encoder_reads_whole_counts():
   # 64 counts a motor turn on the Pololu #4753, 3200 at the 50:1 output.
   step = 2 * math.pi / encoders.WHEEL_COUNTS_PER_REV

@@ -1239,8 +1239,7 @@ class QuadMission(ToolSwap, PlaceWalk, Navigator):
     o.distance = float(s["distance"])
     o.rng.bit_generator.state = s["rng"]
     o.imu.restore_kept(s["imu"])
-    if "still" in s:
-      o.still.restore_kept(s["still"])
+    o.still.restore_kept(s["still"])
     if "odoHistory" in arrays:
       o.history = [np.array(row, dtype=bool) for row in arrays["odoHistory"]]
     self.posture = state["posture"]

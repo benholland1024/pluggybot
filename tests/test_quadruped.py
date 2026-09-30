@@ -178,6 +178,7 @@ def test_lying_is_the_odometrys_rest_and_a_restart_keeps_what_it_learned(quad_wo
     assert not m.odo.resting
     again.restore_kept(*body.kept_state())
     assert again.mission.odo.still.bias == m.odo.still.bias != [0.0, 0.0, 0.0]
+    assert again.mission.odo.still.smooth == m.odo.still.smooth
   finally:
     body.close()
     again.close()

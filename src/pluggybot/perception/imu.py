@@ -120,6 +120,13 @@ STILL_TAU_S = 0.2
 #: sqrt(2 BIAS_TAU_S) = 0.0004 deg/s. Short enough to follow the offset's
 #: drift with temperature; the heading at rest does not wait for it.
 BIAS_TAU_S = 30.0
+#: ...and never learned past this, rad/s a side, per axis: twice the part's
+#: worst over the stated swing. A turn slower than STILL_RATE while resting
+#: (a slide, a slow shove) is missed -- no zero-rate update can see it --
+#: and learned as offset. Unbounded, a 0.12 deg/s slide for 2 min taught
+#: 0.17 deg/s, and every walk until the next rest turned 7 deg a minute;
+#: bounded, 3, an unlearned offset's worst.
+BIAS_MAX = 2 * GYRO_BIAS
 
 
 class Standstill:
@@ -146,8 +153,9 @@ class Standstill:
     self.still = resting and s0 * s0 + s1 * s1 + s2 * s2 < STILL_RATE * STILL_RATE
     if not self.still:
       return np.array((r0, r1, r2))
-    kb = dt / BIAS_TAU_S
-    self.bias = [b0 + s0 * kb, b1 + s1 * kb, b2 + s2 * kb]
+    kb, m = dt / BIAS_TAU_S, BIAS_MAX
+    self.bias = [min(max(b0 + s0 * kb, -m), m), min(max(b1 + s1 * kb, -m), m),
+                 min(max(b2 + s2 * kb, -m), m)]
     return np.zeros(3)
 
   def kept_state(self) -> dict:

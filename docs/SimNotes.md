@@ -3706,7 +3706,12 @@ reading is learned as the offset (a running average over 30 s). Otherwise,
 walking included, the odometry integrates the reading less that offset.
 The gyro gate is for a push. MEASURED, once `lying` begins the body turns
 under 0.001 deg/s, so what trips it is the other robot shoving a lying
-one, and that turn is integrated.
+one, and that turn is integrated. A turn slower than the gate (a slide, a
+slow shove) is missed, as it is by any zero-rate update, and learned as
+offset. So the learned offset is bounded at twice the part's worst
+(`BIAS_MAX`): unbounded, a 0.12 deg/s slide for 2 minutes taught 0.17
+deg/s, and every walk until the next rest turned 7 deg a minute; bounded,
+3.
 
 Flown on #422's probe: Luca's draws, a look-around, six minutes lying,
 then stand and turn four times.
@@ -3723,7 +3728,10 @@ with nothing learned yet. The first rest learns the offset (-0.0437 deg/s
 against the part's -0.0438, after 150 s), and from then on it is taken off
 every reading, the lie-downs' included. Thirty minutes lying, as long as a
 charge from low, ended where it began, at -0.16 deg; unheld, that is about
-79 deg at Luca's offset. Every scan after it matched, 99 of 99.
+79 deg at Luca's offset. Every scan after it matched, 99 of 99. On the dock
+itself (a 279 s charge from 15 %), the body turns under 0.001 deg/s once
+lying on the pins, the update holds on every step, and the heading ended
+0.001 deg from where the dock's anchor put it; unheld, 12 deg.
 
 **Why not also match while lying**, the issue's other option: the
 standstill is enough, and a lying match has its own risk. At the start
@@ -3754,7 +3762,8 @@ from the same save, it parts at 718 s, as the walk begins.
 **What is true now.** Lying, the quadruped's heading holds at whatever
 the lie-down left, 0.16 deg with nothing learned and less after. The
 learned offset and the gait's inertia ride a restart. Not done: recovering
-a robot already lost (#422); and the walking drift with the learned offset
+a robot already lost (#422); a slow turn while lying (none measured on
+the floor or the dock); and the walking drift with the learned offset
 taken off is not measured (#422, which the smaller offset should help).
 
 ## Debugging workflow that worked
