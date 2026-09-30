@@ -361,6 +361,8 @@ class QuadMission(ToolSwap, PlaceWalk, Navigator):
     self.feet = [model.site(handle.el(f"{leg}_foot")).id for leg in LEGS]
     self.foot_r = float(model.geom_size[model.geom(handle.el("FL_foot")).id][0])
     self._vm: VirtualModel | None = None
+    #: The gait's inertia a restart kept (`_vm_now`), or None.
+    self._vm_inertia: np.ndarray | None = None
     self.odo = LegOdometry(model, data, prefix=handle.prefix)
     self.posture = STANDING
     #: What a routine has asked of the posture: "lie", "stand" or None.
@@ -579,6 +581,7 @@ class QuadMission(ToolSwap, PlaceWalk, Navigator):
 
   def _after_physics(self) -> None:
     held = (self.odo.x, self.odo.y) if self.docked else None
+    self.odo.resting = self.posture == LYING
     self.odo.step()
     if held is not None:
       self.odo.x, self.odo.y = held
@@ -594,9 +597,15 @@ class QuadMission(ToolSwap, PlaceWalk, Navigator):
     self._on_step()
 
   def _vm_now(self) -> VirtualModel:
+    """The scripted gait, built at the first move. It reads its inertia off
+    the mass matrix as the legs stand THEN, so a restart puts back the one
+    it was built with: rebuilt from a body lying folded, the next rise
+    parted from the day flown straight through (#425)."""
     if self._vm is None:
       self._vm = VirtualModel(self.model, self.data, CHOSEN,
                               prefix=self.handle.prefix)
+      if self._vm_inertia is not None:
+        self._vm.inertia = self._vm_inertia
     return self._vm
 
   def _begin(self, posture: str) -> None:
@@ -1180,11 +1189,17 @@ class QuadMission(ToolSwap, PlaceWalk, Navigator):
     memo = self._plan_memo
     arrays["armTarget"] = np.array(self.arm.target, dtype=float)
     arrays["armGoal"] = np.array(self.arm.goal, dtype=float)
+    # ...the gait's inertia, built or only kept: a restart saved again
+    # before the body moved would otherwise lose it
+    inertia = self._vm.inertia if self._vm is not None else self._vm_inertia
+    if inertia is not None:
+      arrays["vmInertia"] = np.array(inertia, dtype=float)
     return ({"odometry": {"x": o.x, "y": o.y, "z": o.z, "v": o.v.tolist(),
                           "held": o.held, "quat": list(o.att.q),
                           "distance": o.distance,
                           "rng": o.rng.bit_generator.state,
-                          "imu": o.imu.kept_state()},
+                          "imu": o.imu.kept_state(),
+                          "still": o.still.kept_state()},
              "posture": self.posture, "lastMotion": self.last_motion_t,
              "want": self.want, "slumpedSince": self._slumped_since,
              "stoodSince": self._stood_since, "falls": self.falls,
@@ -1224,10 +1239,14 @@ class QuadMission(ToolSwap, PlaceWalk, Navigator):
     o.distance = float(s["distance"])
     o.rng.bit_generator.state = s["rng"]
     o.imu.restore_kept(s["imu"])
+    o.still.restore_kept(s["still"])
     if "odoHistory" in arrays:
       o.history = [np.array(row, dtype=bool) for row in arrays["odoHistory"]]
     self.posture = state["posture"]
     self._move = None
+    self._vm = None
+    self._vm_inertia = (np.array(arrays["vmInertia"], dtype=float)
+                        if "vmInertia" in arrays else None)
     self.last_motion_t = float(state["lastMotion"])
     self.want = state.get("want")
     self._slumped_since = state.get("slumpedSince")
@@ -1330,7 +1349,7 @@ class QuadMission(ToolSwap, PlaceWalk, Navigator):
     self.docked = False
     self.odo = LegOdometry(self.model, self.data, prefix=self.handle.prefix)
     self.odo.correct(x, y, yaw)
-    self._vm = None
+    self._vm = self._vm_inertia = None
     self._handover(self.walker)
     self.carry(None)
     self.arm.hold_at(*self.arm_spec.stow)

@@ -156,6 +156,63 @@ def test_a_save_waits_out_every_move_the_body_makes():
   assert set(qb.QuadMission.MOVING) == set(continuation.MOVING_POSTURES)
 
 
+def test_lying_is_the_odometrys_rest_and_a_restart_keeps_what_it_learned(quad_world):
+  """#425's wiring: the posture machine's `lying` is what tells the
+  odometry the body rests (`LegOdometry.resting`; the rule is
+  `test_a_body_lying_still_keeps_its_heading_on_a_biased_gyro`), a stand is
+  not, and the gyro's offset learned lying rides a restart. The physics is
+  not stepped: the bookkeeping after a step is called directly."""
+  from pluggybot.perception import imu
+  body, again = quad(quad_world), quad(quad_world)
+  try:
+    body.start_at(1.5, 0.5, 0.0)
+    m = body.mission
+    m.odo.imu.gyro_bias = np.array([0.0, 0.0, imu.GYRO_BIAS])
+    m.posture = qb.LYING
+    yaw = m.odo.yaw
+    for _ in range(round(5.0 / body.model.opt.timestep)):
+      m._after_physics()
+    assert abs(math.degrees(m.odo.yaw - yaw)) < 0.01, "unheld, 0.25 deg"
+    m.posture = qb.STANDING
+    m._after_physics()
+    assert not m.odo.resting
+    again.restore_kept(*body.kept_state())
+    assert again.mission.odo.still.bias == m.odo.still.bias != [0.0, 0.0, 0.0]
+    assert again.mission.odo.still.smooth == m.odo.still.smooth
+  finally:
+    body.close()
+    again.close()
+
+
+def test_a_restart_keeps_the_inertia_the_gait_was_built_with(quad_world):
+  """The scripted gait reads the body's inertia off the mass matrix where it
+  is first built -- a stand's legs, at the day's first lie-down -- and a
+  process restarted with the body lying built it from folded legs: the
+  next rise parted from the day flown straight through (#425,
+  `determinism_spike.py --resume-at` saved mid-rest)."""
+  from pluggybot.legs.model import lie_qpos
+  from pluggybot.legs.scripted import VirtualModel
+  built, again, twice = quad(quad_world), quad(quad_world), quad(quad_world)
+  try:
+    built.start_at(1.5, 0.5, 0.0)
+    mujoco.mj_forward(built.model, built.data)
+    inertia = built.mission._vm_now().inertia.copy()
+    for body in (again, twice):                   # restarted lying, legs folded
+      body.start_at(1.5, 0.5, 0.0)
+      body.data.qpos[body.mission.joints.qadr] = lie_qpos(CHOSEN)
+      mujoco.mj_forward(body.model, body.data)
+    assert not np.allclose(VirtualModel(again.model, again.data, CHOSEN).inertia,
+                           inertia), "the premise: folded legs, another inertia"
+    again.restore_kept(*built.kept_state())
+    # ...and saved again before it moved, then restarted once more
+    twice.restore_kept(*again.kept_state())
+    for body in (again, twice):
+      assert np.array_equal(body.mission._vm_now().inertia, inertia)
+  finally:
+    for body in (built, again, twice):
+      body.close()
+
+
 def test_a_fall_is_got_up_from_by_the_policy(quad_world):
   body = quad(quad_world)
   try:
