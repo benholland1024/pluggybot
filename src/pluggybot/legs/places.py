@@ -68,6 +68,9 @@ LOOKED_M = 1.25
 #: ...and a lattice point on floor the map knows, this near a look-around,
 #: has been looked over, m: the signs read 55 deg off their face to 4 m.
 LOOKED_OVER_M = 3.5
+#: Where no walk from the address reaches a viewpoint, it ranks this far
+#: behind every one a walk does, m: after them all, never out of the search.
+UNWALKED_M = 1000.0
 #: A walk to one viewpoint gives up after this long, s.
 VIEWPOINT_PATIENCE_S = 90.0
 #: The press: its standoff from the sign, m -- the neighbours' signs 1 m
@@ -79,6 +82,9 @@ PRESS_TRIES = 2
 WALK_IN_S = 25.0
 PRESS_HOLD_S = 1.0
 BACK_OUT_M, BACK_OUT_S = 1.0, 8.0
+#: A look at the standoff that moves it this far sends the press there
+#: before its walk in (m): a facing 10 deg out puts it 0.31 m off the axis.
+STANDOFF_MOVED_M = 0.25
 #: The walk in, the hold and the walk back out run to their end, so a press
 #: starts them only with this long left of its patience, s: their budgets.
 FINAL_S = WALK_IN_S + PRESS_HOLD_S + BACK_OUT_S + dk.BACK_OUT_SETTLE_S
@@ -89,21 +95,41 @@ PAD_KEEP_OUT_M = PLATE_HALF * math.sqrt(2.0)
 
 
 def next_viewpoint(near: tuple[float, float], here: tuple[float, float],
-                   looked, tried, wall, frontier=(), seen=None) -> tuple[float, float] | None:
+                   looked, tried, wall, frontier=(), seen=None, walk=None,
+                   known=None) -> tuple[float, float] | None:
   """The next viewpoint of a search round `near`, within `SEARCH_RADIUS_M`
-  of it: a FRONTIER of the robot's own map -- known floor meeting the
-  unknown, the way into a room it has not seen -- nearest `near`; with none
-  left, a point of a lattice `SEARCH_STEP_M` apart round `near` it has not
-  already looked over (`seen(x, y)`). Never one within `LOOKED_M` of a
-  look-around (`looked`) or of a viewpoint `tried`, nor on a `wall(x, y)`
-  it knows; of those as near `near`, the nearest `here`.
+  of it. First the robot's OWN FLOOR: a FRONTIER of its map -- known floor
+  meeting the unknown, the way into a room it has not seen -- or a point of
+  a lattice `SEARCH_STEP_M` apart round `near` on floor the map knows
+  (`known(x, y)`) that no look-around has looked over (`seen(x, y)`),
+  whichever is the shorter WALK from `near` (`walk(x, y)`, over the map;
+  the straight line where none is given). With none left, a lattice point
+  in space it has not mapped, by the same walk. Never one within `LOOKED_M`
+  of a look-around (`looked`) or of a viewpoint `tried`, nor on a
+  `wall(x, y)` it knows; one no walk reaches comes after every one a walk
+  does, by the straight line (a map drifted far enough can cut the walk's
+  field short, and the search must not end on it); of those as near
+  `near`, the nearest `here`.
 
   ⚠ ROUND THE ADDRESS, NEVER ROUND THE ROBOT: nearest the robot first
   walked #419's first flight out of the house, round the building and into
-  the street (600 s, not found). ⚠ AND THE MAP BEFORE THE LATTICE: from the
-  facility's address, which is in its storeroom, the lattice's first nine
-  viewpoints were the storeroom's and its walls' (600 s, not found, twice);
-  the storeroom's frontier is its door, and the lobby's the lab's door."""
+  the street (600 s, not found). ⚠ AND THE MAP BEFORE THE LATTICE IN THE
+  UNKNOWN: from the facility's address, which is in its storeroom, the
+  lattice's first nine viewpoints were the storeroom's and its walls' (600
+  s, not found, twice); the storeroom's frontier is its door, and the
+  lobby's the lab's door. ⚠ AND BY THE WALK, WITH THE FLOOR IT HAS NOT
+  LOOKED AT BESIDE ITS FRONTIERS (#403): after an explore the only frontiers
+  near the address were outside the building -- metres off in a straight
+  line, a long walk by the way in -- and the lab's floor, mapped through its
+  door and never looked at, came after all of them: three finds of three
+  failed."""
+  def dist(x: float, y: float) -> float:
+    straight = math.hypot(x - near[0], y - near[1])
+    if walk is None:
+      return straight
+    w = walk(x, y)
+    return w if math.isfinite(w) else UNWALKED_M + straight
+
   def ok(x: float, y: float, lattice: bool) -> bool:
     if math.hypot(x - near[0], y - near[1]) > SEARCH_RADIUS_M + 1e-9:
       return False
@@ -114,18 +140,20 @@ def next_viewpoint(near: tuple[float, float], here: tuple[float, float],
   def pick(points) -> tuple[float, float] | None:
     best, best_d = None, (math.inf, math.inf)
     for x, y, lattice in points:
-      d = (round(math.hypot(x - near[0], y - near[1]), 3),
-           math.hypot(x - here[0], y - here[1]))
+      d = (round(dist(x, y), 3), math.hypot(x - here[0], y - here[1]))
       if d < best_d and ok(x, y, lattice):
         best, best_d = (round(x, 3), round(y, 3)), d
     return best
 
-  found = pick((float(x), float(y), False) for x, y in frontier)
+  n = int(SEARCH_RADIUS_M // SEARCH_STEP_M)
+  lattice = [(near[0] + i * SEARCH_STEP_M, near[1] + j * SEARCH_STEP_M)
+             for i in range(-n, n + 1) for j in range(-n, n + 1)]
+  mapped = [(x, y) for x, y in lattice if known is not None and known(x, y)]
+  found = pick([(float(x), float(y), False) for x, y in frontier]
+               + [(x, y, True) for x, y in mapped])
   if found is not None:
     return found
-  n = int(SEARCH_RADIUS_M // SEARCH_STEP_M)
-  return pick((near[0] + i * SEARCH_STEP_M, near[1] + j * SEARCH_STEP_M, True)
-              for i in range(-n, n + 1) for j in range(-n, n + 1))
+  return pick((x, y, True) for x, y in lattice if (x, y) not in mapped)
 
 
 class PlaceWalk:
@@ -271,12 +299,22 @@ class PlaceWalk:
     self._keep_out = (v, mask)
     return mask
 
-  def _search_map(self, looked):
+  def _search_map(self, looked, near: tuple[float, float]):
     """What a search's next viewpoint is picked over, off the planning map:
     `wall(x, y)` -- a known wall or its inflation --, `seen(x, y)` -- known
-    floor within `LOOKED_OVER_M` of a look-around -- and the frontier
-    cells a body could stand on, as world points."""
-    from pluggybot.mapping.frontier import FREE_THRESH, find_frontiers, inflated
+    floor within `LOOKED_OVER_M` of a look-around WITH NO WALL BETWEEN --,
+    `known(x, y)` -- floor the map knows --, `walk(x, y)` -- how far it is
+    to walk from `near` over the map, the planner's costs (`optimistic`),
+    inf where no walk gets there -- and the frontier cells a body could
+    stand on, as world points.
+
+    ⚠ IN SIGHT, NOT IN REACH (#403): a look-around in the lobby had marked
+    the lab's floor, 3 m off through a wall, looked over."""
+    from scipy.ndimage import distance_transform_edt
+
+    from pluggybot.mapping import optimistic
+    from pluggybot.mapping.astar import nearest_traversable
+    from pluggybot.mapping.frontier import FREE_THRESH, OCC_THRESH, find_frontiers, inflated
     g = self.grid
     grid = self._planning_grid()
     rows, cols = grid.shape
@@ -284,6 +322,9 @@ class PlaceWalk:
     cells = find_frontiers(grid, traversable=(grid < FREE_THRESH) & ~walls)
     frontier = np.column_stack([g.x_min + (cells[:, 0] + 0.5) * g.resolution,
                                 g.y_min + (cells[:, 1] + 0.5) * g.resolution])
+    # the LIDAR's walls are what the nose camera cannot see through; the
+    # layer under its plane (the cage, the signs) is below the camera's eye
+    blocks = g.grid > OCC_THRESH
 
     def cell(x: float, y: float) -> tuple[int, int] | None:
       cx, cy = g.world_to_cell(x, y)
@@ -293,12 +334,53 @@ class PlaceWalk:
       c = cell(x, y)
       return c is None or bool(walls[c[1], c[0]])
 
-    def seen(x: float, y: float) -> bool:
+    def known(x: float, y: float) -> bool:
       c = cell(x, y)
-      return (c is not None and bool(grid[c[1], c[0]] < FREE_THRESH)
-              and any(math.hypot(x - lx, y - ly) <= LOOKED_OVER_M for lx, ly in looked))
+      return c is not None and bool(grid[c[1], c[0]] < FREE_THRESH)
 
-    return wall, seen, frontier
+    def in_sight(ax: float, ay: float, bx: float, by: float) -> bool:
+      n = int(math.hypot(bx - ax, by - ay) / (0.5 * g.resolution)) + 1
+      t = np.linspace(0.0, 1.0, n + 1)
+      ix = np.floor((ax + (bx - ax) * t - g.x_min) / g.resolution).astype(np.int64)
+      iy = np.floor((ay + (by - ay) * t - g.y_min) / g.resolution).astype(np.int64)
+      ok = (ix >= 0) & (ix < cols) & (iy >= 0) & (iy < rows)
+      return not blocks[iy[ok], ix[ok]].any()
+
+    def seen(x: float, y: float) -> bool:
+      return known(x, y) and any(
+        math.hypot(x - lx, y - ly) <= LOOKED_OVER_M and in_sight(lx, ly, x, y)
+        for lx, ly in looked)
+
+    # THE WALK FROM THE ADDRESS: one Dijkstra over the lattice the walks plan
+    # on, from the lattice cell nearest the address a body could stand on
+    b = optimistic.BLOCK
+    cost = optimistic.coarsen(optimistic.map_costs(grid, self.INFLATION_CELLS,
+                                                   self.UNKNOWN_COST), b)
+    lat = optimistic.lattice_for(cost.shape, g.resolution * b)
+    nx, ny = g.world_to_cell(near[0], near[1])
+    src = nearest_traversable(np.isfinite(cost), (nx // b, ny // b),
+                              radius=optimistic.ESCAPE_CELLS)
+    if src is None:
+      return wall, seen, frontier, None, known
+    lat.weigh(cost)
+    dist, _ = lat.search(src[1] * cost.shape[1] + src[0])
+    field = dist.reshape(cost.shape)
+    # a point whose own lattice cell does not pass (a frontier at the edge
+    # of the floor) is read off the nearest one that does
+    finite = np.isfinite(field)
+    _, (ny_, nx_) = distance_transform_edt(~finite, return_indices=True)
+
+    def walk(x: float, y: float) -> float:
+      c = cell(x, y)
+      if c is None:
+        return math.inf
+      ly, lx = c[1] // b, c[0] // b
+      jy, jx = int(ny_[ly, lx]), int(nx_[ly, lx])
+      if math.hypot(jy - ly, jx - lx) > 2:
+        return math.inf
+      return float(field[jy, jx])
+
+    return wall, seen, frontier, walk, known
 
   # ---- finding --------------------------------------------------------------------
 
@@ -391,9 +473,10 @@ class PlaceWalk:
           break
         looked.append(here)
         continue
-      wall, seen_over, frontier = self._search_map(looked)
-      vp = next_viewpoint(near if near is not None else here, here, looked, tried,
-                          wall, frontier, seen_over)
+      centre = near if near is not None else here
+      wall, seen_over, frontier, walk, known = self._search_map(looked, centre)
+      vp = next_viewpoint(centre, here, looked, tried, wall, frontier, seen_over,
+                          walk, known)
       if vp is None:
         return done("not found")
       tried.append(vp)
@@ -471,6 +554,24 @@ class PlaceWalk:
         if standoff is None:
           return done("not found")
         yield from self.face_routine(standoff[2])
+      now = self.place_standoff(tag)           # as the look here left it
+      if (now is not None and math.hypot(now[0] - sx, now[1] - sy) > STANDOFF_MOVED_M
+          and left() >= FINAL_S):
+        standoff = now
+        # ...ON ITS AXIS BEFORE THE WALK IN (#403): the look here fitted a
+        # facing the walk there did not have -- one read off where the sign
+        # was first seen, up to 70 deg out -- and the walk in, steered
+        # straight at the press pose with no planner under it, crossed the
+        # next plate from the old standoff: 4 shock presses in one flight.
+        # So to the new one, over the planner and its kept-out pads, first.
+        att["reaim"] = [round(standoff[0] - sx, 3), round(standoff[1] - sy, 3)]
+        yield from self.drive_to_routine(
+          standoff[0], standoff[1], timeout=min(VIEWPOINT_PATIENCE_S, left() - FINAL_S),
+          **({"stop": stop} if stop is not None else {}))
+        if stop is not None and (self.last_drive or {}).get("why") == DRIVE_STOPPED:
+          return done("interrupted")
+        yield from self.face_routine(standoff[2])
+        self.look_for_places()
       if left() < FINAL_S:
         return done("out of time")
       att["walkIn"] = yield from self._press_walk_in_routine(tag)

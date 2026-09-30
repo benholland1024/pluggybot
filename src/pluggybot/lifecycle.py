@@ -828,6 +828,7 @@ class HubLifecycle:
     self.body.step_hooks.append(self._events_step)
     self.body.step_hooks.append(self._rack_linger_step)
     self.body.step_hooks.append(self._lost_tool_step)
+    self.body.step_hooks.append(self._press_step)
     self.body.step_hooks.append(self._places_step)
     self.body.bay_wait = self._await_bay_routine
     #: THE NEAR-FIELD MAP (issue #34): the depth camera on the mast top and
@@ -4303,6 +4304,36 @@ class HubLifecycle:
       return None
     return next((a for a in self.activities if isinstance(a, Cage)), None)
 
+  def _press_step(self) -> None:
+    """A plate THIS robot pressed that no errand of that plate was run for
+    (issue #403): a foot walking round the lab, a company visit, an
+    explore, the robot's own procedure. Neither a job nor a care act, so it
+    is its own event, `press`, with what the robot was `doing`; the
+    errand's own press is its `care` / `harm` row (`_cage_record`)."""
+    if self.activities is not self._press_of:
+      self._press_of, self._press_cage = self.activities, self.cage
+    cage = self._press_cage
+    if cage is None or cage.press_seq == self._press_seen:
+      return
+    errand = self._errand_now
+    own = errand.detail.get("act") if errand is not None and errand.detail.get("cage") else ""
+    for press in cage.presses:
+      if press["seq"] <= self._press_seen or press["robot"] != self.root \
+          or press["plate"] == own:
+        continue
+      doing = (self.state.lower() if errand is None
+               else f"procedure:{getattr(errand.program, 'name', '')}" if errand.name == "procedure"
+               else errand.name)
+      self._emit({"type": "press", "t": press["t"], "robot": self.root,
+                  "plate": press["plate"], "doing": doing,
+                  "before": press["before"], "after": press["after"]})
+      self._say(f"PRESS the {press['plate']} plate, while {doing}: the "
+                f"mouse {press['before']} -> {press['after']}")
+    self._press_seen = cage.press_seq
+
+  _press_of = _press_cage = None
+  _press_seen = 0
+
   def _peer(self, name: str):
     """The other lifecycle by the DISPLAY name the mind used, or None."""
     for other in self.peers:
@@ -7404,6 +7435,8 @@ def cage_program(world: str, act: str,
   cfg = world_config(world)
   if not cfg.get("lab"):
     raise ValueError(f"the {world} world has no lab")
+  if cfg.get("places"):
+    return _plate_program(cfg, act)
   cx, cy = cfg["lab"]["cage"]
   steps = [Step("drive_to", {"x": x, "y": y}) for x, y in cage_route(world, from_xy)]
   if act == "company":
@@ -7417,6 +7450,26 @@ def cage_program(world: str, act: str,
               Step("drive_to", {"x": px, "y": py + cg.PLATE_PASS_M}),
               Step("drive_to", {"x": px, "y": py - cg.PLATE_APPROACH_M})]
   return Program.single(f"{act}_mouse", steps, budget_s=900.0)
+
+
+def _plate_program(cfg: dict, act: str):
+  """One act on the mouse where the robot finds its places (issue #403 on
+  #419's): the plate found by its sign -- where it was last seen, else
+  searched for round the lab's ADDRESS, never a position finer than the
+  house -- and pressed off it. Every pad it has seen is a wall to its
+  planner, so no walk crosses one (`PlaceWalk.keep_out`). Company is a spot
+  beside the cage, not a plate: a position code would have to hand over, so
+  on legs it is the robot's own to walk, and not a `care` act."""
+  from pluggybot.activity import cage as cg
+  from pluggybot.home.places import area
+  from pluggybot.procedure.steps import Program, Step
+  if act not in cg.PLATE_TAGS:
+    raise ValueError(f"{act!r} is no plate: on legs the `care` acts are "
+                     f"{', '.join(cg.PLATE_CARE_ACTS)}")
+  tag = cg.PLATE_TAGS[act]
+  at = area(cfg["lab"]["name"])["address"]
+  return Program.single(f"{act}_mouse", [Step("find", {"tag": tag, "x": at["x"], "y": at["y"]}),
+                                         Step("press", {"tag": tag})], budget_s=900.0)
 
 
 def cage_errand(world: str, act: str, from_xy=None, real: str = "",
@@ -7437,8 +7490,11 @@ def cage_errand(world: str, act: str, from_xy=None, real: str = "",
                              name=f"care:{act}" if task == "care" else f"{task}:lab")
   # `routeLegs`: the program's first steps are the way to the lab, and a
   # failure there never reached the cage (`_program_failure`, issue #350)
+  # -- and on legs (#419) the `find`: a job that never found its plate never
+  # reached the cage
+  legs = 1 if world_config(world).get("places") else len(cage_route(world, from_xy))
   errand.detail.update({"cage": "lab", "act": act, "real": real,
-                        "routeLegs": len(cage_route(world, from_xy))})
+                        "routeLegs": legs})
   errand.needs_use_pose = False
   return errand
 
@@ -7944,13 +8000,14 @@ def world_config(world: str) -> dict:
     # taken out and the quadruped and its dock put in (`legs/world.py`,
     # built at load from the rover's file, so there is one house). What
     # differs is what the BODY can do: its arm takes no tool until a rack
-    # of its own (#405), so no tool errand, no workshop and no tower; the lab's jobs
-    # run the rover's programs along its surveyed routes, so no lab either
-    # this period. Its packs are the quadruped's (`legs.model.PACK_WH`).
+    # of its own (#405), so no tool errand, no workshop and no tower. The
+    # lab is here (#403): its acts need no tool, and a plate is found by
+    # its sign and pressed off it (#419), never handed as a position. Its
+    # packs are the quadruped's (`legs.model.PACK_WH`).
     from pluggybot.legs import model as legs_model
     from pluggybot.legs import world as legs_world
     from pluggybot.rack.tags import PLATE_TAG_IDS
-    cfg = {k: v for k, v in world_config("home").items() if k not in ("tower", "lab")}
+    cfg = {k: v for k, v in world_config("home").items() if k != "tower"}
     from pluggybot.legs import rack as legs_rack
     cfg.update({
       "model_name": QUAD_HOME, "body": "quadruped", "tools": False,

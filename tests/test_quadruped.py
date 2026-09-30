@@ -84,13 +84,14 @@ def test_home_with_legs_is_its_own_world_and_offers_no_tool_errand():
   """No errand that needs a tool until the tools are rebuilt for its fork
   (#406, #407), no workshop; a program may fetch and stow its own rack's
   three tools (#405) and nothing else -- anything else refused with the
-  reason, as any unknown name is -- and move only its own arm's joints."""
+  reason, as any unknown name is -- and move only its own arm's joints.
+  The lab's acts take no tool, so the lab is here (#403); the tower is not."""
   from pluggybot.legs import rack as legs_rack
   assert world_for("home", "quadruped") == QUAD_HOME == "home_quad"
   cfg = world_config(QUAD_HOME)
   assert cfg["body"] == "quadruped" and not cfg["tools"] and cfg["built_bays"] == 0
   assert cfg["swap"] and cfg["tool_bays"] == legs_rack.TOOL_BAYS
-  assert "lab" not in cfg and "tower" not in cfg
+  assert "lab" in cfg and "tower" not in cfg
   menu = ov.Menu.for_world(QUAD_HOME)
   assert not {"carry", "dance", "draw", "artwork", "census"} & set(menu.available())
   assert {"explore", "charge", "idle"} <= set(menu.available())
@@ -449,6 +450,7 @@ def test_every_rule_a_quadruped_reads_is_in_its_own_words():
                   origin="unseeded", standing_orders=True, others=("Rowan",))
   text = "\n".join(b["text"] for b in boss.system)
   assert "dock" in text and "a fall you cannot get up from" in text
+  assert "THE LAB" in text and "when a foot presses it" in text   # #403
   for word in ("two-wheeled", "wheel", "chassis", "the mast", "set_lift", "lift",
                "hub's charge bay", "upkeep you cannot pay"):
     assert word not in text, word

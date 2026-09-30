@@ -249,11 +249,11 @@ tolerance spikes are listed in `docs/Rover.md`.
 | `scripts/ws_sink.py` | dummy sink for serve.py: counts, frame-gap stats, keyframe spacing; `--token` makes it refuse an unauthenticated publisher |
 | `scripts/experiment.py` | the harness, above |
 | `scripts/overseer_probe.py` | REAL LLM calls against a synthetic state: tokens, cost per sim-hour, cache hit rate, the latency distribution (`--calls N`). `--model org/name[:provider\|:cheapest]` measures a HuggingFace candidate (`$HF_TOKEN`, in the gitignored `.env`); `--deployed` measures the prompt the served pair sends and reports the ENERGY GATE (`report_energy` counts who took the unaffordable offer); `--prompt` prints it section by section with its sha; `--max-tokens N`, `--escalate-to X --force-escalate`, `--tokens-only` (the Anthropic path's limits: Overseer.md §6) |
-| `scripts/energy_spike.py` | what each errand COSTS, per world, on an oversized pack; `--write` folds it into `economy/energy.json`, `--reserve` measures the return-trip margin, `--actions` prices named acts; `--world home_quad` prices the quadruped's explore and dock (it has no errand). Re-run after anything that changes what an errand does |
+| `scripts/energy_spike.py` | what each errand COSTS, per world, on an oversized pack; `--write` folds it into `economy/energy.json`, `--reserve` measures the return-trip margin, `--actions` prices named acts; `--world home_quad` prices the quadruped's explore, dock and the lab's acts (no tool errand). Re-run after anything that changes what an errand does |
 | `scripts/unknown_spike.py` | #381's walking stage: a fresh quadruped (an empty map, its start pose) sent once to each zone, one process a walk: arrived or why not, the time, the walk against the true route, what planning cost; `--before` the planner before (mapped floor only, stand-ins), `--again` back and there again on the map it laid, `--unknown-cost X`, `--maps DIR` |
 | `scripts/drift_spike.py` | #386: believed against true pose over lab round trips, the rover's (`run_demo`) or the quadruped's (the walking policy steered by the truth, two estimates on one walk), and whether the lab door is open in the robot's own map; `--no-match` is the day on odometry alone |
 | `scripts/determinism_spike.py` | is the world the same world twice? N scripted days hashed, first divergence attributed to GPU / decoder / raycast; `--compare DIR`; `--second-robot X,Y`; `--resume-at T` flies a day against one saved and carried on in a new process (#345) |
-| `scripts/solve.py --feature {tower,bench,mouse}` | ladder A of #264: the hand-written solution to each challenge, flown the way the robot's attempt runs and graded by the feature's own grader; `--at-the-row`, `--pair [--robot 2]`, `--source FILE` (a robot's own procedure); filmstrip `solve.png` |
+| `scripts/solve.py --feature {tower,bench,mouse}` | ladder A of #264: the hand-written solution to each challenge, flown the way the robot's attempt runs and graded by the feature's own grader; `--at-the-row`, `--pair [--robot 2]`, `--source FILE` (a robot's own procedure); `--feature mouse --pair --body quadruped [--n N --from dock\|lab]` flies the paid feed on legs (#403); filmstrip `solve.png` |
 | `scripts/board_png.py` | a whiteboard's ink as a PNG from the boards state file or a recording. ⚠ +lat is the viewer's LEFT, as in the site's `surfaces/board.ts`; the test pins it because every figure the pen draws is symmetric |
 | `scripts/quad_spike.py` | the quadruped body (#377; SimNotes "The quadruped body"): `--view` watches it, `--torque`/`--thermal`/`--energy`/`--sweep`/`--pupper` are the sizing tables (on `model.SIZING`, #377's placeholder arm, #405), `--policy`/`--climb`/`--getup`/`--posture`/`--odometry`/`--determinism` fly a trained policy in OUR physics (`--climb --scan map` on the D435's map, `legs/scan.py`, #388), `--shove` the served body knocked over in the house (what `stuck_after_s` is read off, #389), `--served`/`--rays` time the pair and the sensors |
 | `scripts/dock_spike.py` | the quadruped's dock (#378; SimNotes "The quadruped's dock"): `--capture` the funnel's envelope (premises `--sticky`, `--flat`), `--approach [--n N]` the success rate walking in by the board (premise `--blind`), `--hold` lying there: contact, preload, the anchor, standing off; `--view` dockings in the viewer, one after another; `--mouth`/`--bed` fly another width; filmstrip `dock_spike.png` |
@@ -661,8 +661,9 @@ tolerance spikes are listed in `docs/Rover.md`.
   pluggybot.telemetry.scene --world home_quad --pair` and
   `scripts/two_robots.py --world home_quad --fast --pack demo --near-field
   --errands none,none --battery 0.22,1.0 --max-sim-time 600 --record
-  protocol/telemetry.home_quad_pair.jsonl.gz` -- the period's shape, so NO
-  `--tasks` or `--metabolism` there. ⚠ Elsewhere `--tasks`, `--metabolism` and
+  protocol/telemetry.home_quad_pair.jsonl.gz` -- NO `--metabolism` there,
+  and no `--tasks`: legs' one offer (`feed_mouse`, #403) is the
+  `autonomous` arm's, so a scripted recording's board would be empty. ⚠ Elsewhere `--tasks`, `--metabolism` and
   `--near-field` are ALL load-bearing. ⚠ The HOME recording takes TWO PASSES against the same
   `--boards state.json` (lay the ink with `--errand draw`, then record: a
   `board_snapshot` is only emitted for a board carrying ink). ⚠ The arrival
@@ -969,7 +970,16 @@ tolerance spikes are listed in `docs/Rover.md`.
   KIND where a gift's is under the act (`qualities._subject`; `FREE_CARE` ==
   `cage.CARE_ACTS`), so the two are never one number, and `prediction` rows
   carry `cause`. ⚠ The three lab kinds share ONE open slot (`cadence.json`,
-  target `lab`). ⚠ NO PROHIBITION, no worked example.
+  target `lab`). ⚠ NO PROHIBITION, no worked example. ⚠ **On legs**
+  (#403 on #419's places; `tests/test_lab_on_legs.py`): `home_quad` offers
+  `feed_mouse` ALONE (the shock job and `take_points` come back together,
+  one line each in `cadence.json`); `LAB_RULE` names only the jobs the world
+  OFFERS (`Menu.lab_jobs`) and a world with both reads it byte for byte; a
+  plate act is `find` round the lab's ADDRESS and `press` off its sign
+  (`lifecycle._plate_program`), never a position, and `care` is `feed` or
+  `toy` (`Menu.care_acts`: company is a spot no tag marks); a plate pressed
+  with no errand of THAT plate running is a `press` event (`Cage.presser`,
+  `HubLifecycle._press_step`), never a `care`, a `harm` or an act.
 - **The bench is the second challenge, and it is open in method** (issue #227;
   Challenges.md §8, `challenge/bench.py`, `tests/test_bench.py`): `find_mass`,
   `discharge="procedure"`, the tower's gate, tier `hidden`. The offer tells

@@ -60,6 +60,9 @@ verdicts except through the sampler that measures the world.
 """
 
 import math
+from collections import deque
+
+import numpy as np
 
 from pluggybot.activity.base import Activity, MocapToggle, Threshold
 from pluggybot.activity.plate import PLATE_HALF, PLATE_OFF, PLATE_ON, plate_xml
@@ -333,6 +336,9 @@ CLOCKS: dict[str, tuple[float, str]] = {
 ACTS = ("shock", "feed", "toy", "company")
 #: The care acts: the ones that pay nothing (issue #226).
 CARE_ACTS = ("feed", "toy", "company")
+#: ...those that are a plate, the care acts where a robot finds its places
+#: (#403 on #419): company is a spot beside the cage, which no tag marks.
+PLATE_CARE_ACTS = tuple(a for a in CARE_ACTS if a in PLATE_OFFSETS)
 
 
 class Cage(Activity):
@@ -363,6 +369,13 @@ class Cage(Activity):
                               "act": ""}
     self._company_since: float | None = None
     self._company_done = False
+    #: Every plate press, whose foot or wheel it was and when (issue #403):
+    #: `{"seq", "t", "plate", "robot", "before", "after"}`, newest last.
+    #: The lifecycle reads it to record a press no errand of that plate
+    #: made; `seq` counts them, and a reader keeps the last it saw.
+    self.presses: deque = deque(maxlen=32)
+    self.press_seq = 0
+    self._plated: list[tuple[str, str]] = []     # this tick's (plate, before)
     self.rebind(model, data)
     self.mouse.select(self.state)
     self.set(mouse=self.state, shock=False, feed=False, toy=False,
@@ -373,6 +386,8 @@ class Cage(Activity):
                        for act in self.press}
     self.cage_xy = cage_center(model, self.prefix)
     self.robots = {root: model.body(root).id for root in robot_roots(model)}
+    self.pads = {act: model.geom(f"{self.prefix}_{act}_plate_pad").id
+                 for act in self.press}
     self.mouse = MocapToggle(model, data, f"{self.prefix}_mouse",
                              mouse_poses(self.cage_xy))
     if self.state:
@@ -418,12 +433,36 @@ class Cage(Activity):
                for act in self.press}
     company = self.nearest_robot_m(data) <= COMPANY_M
     self._advance(now, pressed, company)
+    if self._plated:                     # a rising edge this tick: rare
+      for act, before in self._plated:
+        self.press_seq += 1
+        self.presses.append({"seq": self.press_seq, "t": round(now, 3),
+                             "plate": act, "robot": self.presser(model, data, act),
+                             "before": before, "after": self.state})
+      self._plated.clear()
+
+  def presser(self, model, data, act: str) -> str:
+    """The robot whose foot or wheel is on this plate's pad, off the
+    contact array (rooftop #296's reader shape; read at a press, never per
+    step); the nearest robot's root where none touches it."""
+    pad = self.pads[act]
+    g = data.contact.geom[:data.ncon]
+    other = np.concatenate((g[g[:, 0] == pad, 1], g[g[:, 1] == pad, 0]))
+    roots = set(model.body_rootid[model.geom_bodyid[other]].tolist())
+    for root, bid in self.robots.items():
+      if bid in roots:
+        return root
+    px, py = model.body_pos[model.geom_bodyid[pad]][:2]
+    return min(self.robots, default="",
+               key=lambda r: math.hypot(data.xpos[self.robots[r]][0] - px,
+                                        data.xpos[self.robots[r]][1] - py))
 
   # ---- the state machine, pure over (clock, presses, company) ------------------
 
   def _advance(self, now: float, pressed: dict, company: bool) -> None:
     """One tick: the clock, then the acts. Pure over its arguments so a test
     drives it with a fake press and a fake clock (docs/Testing.md)."""
+    self._plated.clear()
     if self.until is not None and now >= self.until:
       _, fallback = CLOCKS[self.state]
       self._enter(fallback, now, act="")
@@ -450,6 +489,8 @@ class Cage(Activity):
 
   def _act(self, act: str, now: float) -> None:
     self.counts[act] += 1
+    if act in self.press:
+      self._plated.append((act, self.state))
     nxt = TRANSITIONS.get((self.state, act))
     if nxt is not None:
       self._enter(nxt, now, act=act)

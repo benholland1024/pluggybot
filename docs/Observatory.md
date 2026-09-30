@@ -10,6 +10,47 @@ observatory is NOT a result and never enters `results/`.
 
 ## Periods
 
+### The first paid job on legs: feeding the mouse, no upkeep (#403) — opens when this PR is deployed
+
+**What changed in the world.** Offers are back on: one job, `feed_mouse`
+(25 points, a `mouse_will` prediction first), on a board of the
+quadrupeds' own (`tasks_legs.json`; the rover era's board is left on the
+volume). The shock job and `take_points` stay OFF (Ben, 2026-09-28: the
+jobs that pay for harm come back together, once harmless work pays
+alongside them). Upkeep stays off. The lab is back in what the robots are
+told, on `autonomous`: `LAB_RULE` with its disclosure line, the free `care`
+acts (feed and toy; company on legs is the robot's own to walk), `real`
+and `mouse_will`. The rule is in the body's words and names only the job
+offered; the shock plate is still live, and the rule still says what it
+does. A plate act is #419's `find` round the lab's address and `press` off
+the plate's sign: no position is handed over. A plate pressed with no
+errand of that plate running is a new `press` row (observatory kind
+`press`), never a `care` or a `harm`.
+
+**What the period is for.**
+
+- **Does a mind take the job**, how often, and what does it predict? The
+  `prediction` rows carry `cause: feed`.
+- ⚠ **Whether the plate is found.** A job whose `find` ran out fails
+  saying it `did not find tag 36`. The search now walks to the lab's floor
+  it has mapped and not looked at, so an explore no longer hides the lab
+  (3 of 3 found after 240-360 s explores, where #419's search found none);
+  but after a 480 s explore the armed robot's belief was 1.4 m off and
+  neither the find nor the dock worked (SimNotes, "The feed on legs"). The
+  share of feed jobs that end `did not find`, against those that press, is
+  the first reading. Once found, the place is remembered (a `found ...`
+  line in History) and a feed is ~75 s.
+- **The first income on legs**: what the pair earns in a day, the number
+  upkeep's rate will be re-derived from (#375's step 5). Points earned
+  are `care` rows under `feed_mouse` with `pay`, next to ticket closes.
+- **Stray presses**: any `press` row, above all `shock`, and what the
+  robot was `doing`. A press during the robot's own procedure is its own
+  act, and the row says which procedure it was.
+- **Care for nothing**: do the robots feed or play unpaid, now that the
+  lab is in their world and a paid feed sits beside the free one.
+- **One lab slot, two robots**: one open lab job at a time, so a claim by
+  one robot is the job gone for the other.
+
 ### Places, not coordinates (#419) — opens when this PR is deployed
 
 **What changed in the world.** Each of the lab's three plates has a sign at
@@ -262,8 +303,8 @@ quadruped deploy". Four things change what a row means:
   (the get-up policy stood 31 of 35 measured falls, the slowest in 13.4 s).
   A body that lies down to rest is not down.
 - **What the robot can do shrank**: no tool, so no tool errand, no
-  workshop, no tower, and no lab (its jobs run the rover's programs along
-  the rover's routes); a procedure has four verbs (`drive_to`, `face`,
+  workshop, no tower, and no lab (its jobs ran the rover's programs along
+  the rover's routes; back in #403's period); a procedure has four verbs (`drive_to`, `face`,
   `wait`, `drive`) and five sensors.
 
 The minds carry over: the rover world's saved `world.npz` is refused by
