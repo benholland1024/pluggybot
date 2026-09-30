@@ -3737,11 +3737,25 @@ them: `continuation.MAP_EPOCH` 1. A save of another epoch keeps the clock,
 the packs, the deaths and the jobs, as a changed geometry does, but not the
 bodies, the beliefs, the maps or the places found in them (#419).
 
+**A restart mid-rest, flown for the first time.** #387's resume check
+saved before the day's first lie-down, and a body lying moves nothing its
+belief could change, so it could not see a learned offset go missing. The
+check that can uses one quadruped on the demo pack at 60 %. It explores
+until 253 s, lies until the pack runs low, walks to the dock at 713 s and
+charges. Saved at 603 s while lying, the first restore diverged 1 s into
+the stand-up, whether or not the offset came back. The cause was not the
+offset. The scripted gait (`VirtualModel`) reads the body's inertia off
+the mass matrix where it is first built, and the restarted process built
+it from folded legs; that inertia is kept now too. Restored, the day is
+IDENTICAL after the save over 852 samples: the rest, the stand-up, the
+walk, the 272 s charge and the back-off. With the learned offset stripped
+from the same save, it parts at 718 s, as the walk begins.
+
 **What is true now.** Lying, the quadruped's heading holds at whatever
 the lie-down left, 0.16 deg with nothing learned and less after. The
-offset learned at rest rides a restart. Not done: recovering a robot
-already lost (#422); and the walking drift with the learned offset taken
-off is not measured (#422, which the smaller offset should help).
+learned offset and the gait's inertia ride a restart. Not done: recovering
+a robot already lost (#422); and the walking drift with the learned offset
+taken off is not measured (#422, which the smaller offset should help).
 
 ## Debugging workflow that worked
 
