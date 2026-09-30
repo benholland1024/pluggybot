@@ -94,6 +94,10 @@ HISTORY_SHOWN = 12
 #: this long. The robot names topics; the index is what it sees them by.
 MAX_TOPIC_CHARS = 40
 MAX_TITLE_CHARS = 60
+#: How much of what the robot wrote a refusal quotes back to it: enough to
+#: recognise, and short enough that the reason before it always fits a
+#: History line (issue #409; #307 found a cap cutting from the end).
+QUOTED_CHARS = 60
 #: The science record's family of topics. `record` writes here and `note`
 #: may not: the record is read by code, and code reads one shape.
 FINDINGS_PREFIX = "findings/"
@@ -513,10 +517,17 @@ class ThoughtFiles:
 
     History rolls (the view keeps the newest lines that fit); the robot's
     documents refuse when full -- the row says which.
+
+    ⚠ A LINE ALREADY ON THE PAGE IS REFUSED (issue #409), after the writer
+    and before the cap: a copy only fills the page, and Luca came to hold
+    four of one line that no quote could take out.
     """
     line = _line(text)
-    size = (len("\n".join([r.text for r in self._core(name)] + [line]))
-            if name in CORE and line else 0)
+    held = [r.text for r in self._core(name)] if name in CORE and line else []
+    if line in held:
+      self._admit(name, by, 0)
+      self._refuse(f"{name}: {line[:QUOTED_CHARS]!r} is already on the page")
+    size = len("\n".join(held + [line])) if name in CORE and line else 0
     self._admit(name, by, size)            # the writer is checked regardless
     if not line:
       return ""
@@ -584,7 +595,7 @@ class ThoughtFiles:
     if not line:
       if finding:
         self._refuse(f"{FINDINGS}: a finding is a quantity, a number and a "
-                     f"unit, not {str(finding)[:60]!r}")
+                     f"unit, not {str(finding)[:QUOTED_CHARS]!r}")
       return ""
     self._admit(FINDINGS, ROBOT, len(self._findings()) + 1)
     parsed = parse_finding(line)
@@ -612,7 +623,7 @@ class ThoughtFiles:
     is no verb that replaces."""
     if not isinstance(payload, dict):
       self._refuse(f"{NOTES}: a note is a topic, a title and a text, not "
-                   f"{str(payload)[:60]!r}")
+                   f"{str(payload)[:QUOTED_CHARS]!r}")
     topic = topic_name(payload.get("topic"))
     title = title_name(payload.get("title"))
     text = _line(payload.get("text"))
@@ -646,8 +657,9 @@ class ThoughtFiles:
     if not hits:
       hits = [r for r in notes if quote in r.text or quote in r.title]
     if len(hits) != 1:
-      self._refuse(f"{NOTES}: {'nothing' if not hits else f'{len(hits)} notes'}"
-                   f" match {quote[:60]!r}")
+      self._refuse(f"{NOTES}: " + ("nothing matches" if not hits
+                                   else f"{len(hits)} notes match")
+                   + f" {quote[:QUOTED_CHARS]!r}")
     hit = hits[0]
     self._commit(NOTES, t, self.records.retire(hit.id, t=t))
     return f"{hit.topic}/{hit.title}: {hit.text}"
@@ -939,16 +951,38 @@ def _cites(cites) -> tuple[int, ...]:
   return tuple(out)
 
 
+def attempted(verb: str, payload, refusal: str = "") -> str:
+  """What a refused ADD tried to write, quoted short after its reason
+  (issue #409): ` -- '<line>'`, a note's `topic/title`, a finding's line.
+  "" for a REMOVE, for a payload that was not the shape its verb takes,
+  and where the `refusal` quotes it already -- each says so itself."""
+  surface = registry.BY_VERB.get(verb)
+  if surface is None or verb == surface.remove:
+    return ""
+  if surface.name == NOTES:
+    what = (f"{topic_name(payload.get('topic'))}/{title_name(payload.get('title'))}"
+            if isinstance(payload, dict) and payload.get("title") else "")
+  elif surface.name == FINDINGS:
+    what = format_finding(payload) if isinstance(payload, dict) else ""
+  else:
+    what = _line(payload)
+  what = what[:QUOTED_CHARS]
+  return f" -- {what!r}" if what and what not in refusal else ""
+
+
 def _match(rows, quote: str, name: str, refuse):
   """The one row a quote picks out: an exact text wins, else the one row
-  containing it, else a refusal."""
+  containing it, else a refusal. Hits that are all ONE text are one line
+  written twice (issue #409), and the newest of them goes: no quote could
+  tell the copies apart, and none of them says anything the rest do not."""
   hits = [r for r in rows if r.text == quote]
   if not hits:
     hits = [r for r in rows if quote in r.text]
-  if len(hits) != 1:
-    refuse(f"{name}: {'nothing' if not hits else f'{len(hits)} lines'}"
-           f" on the page match {quote[:60]!r}")
-  return hits[0]
+  if len({r.text for r in hits}) != 1:
+    refuse(f"{name}: " + ("nothing on the page matches" if not hits
+                          else f"{len(hits)} lines on the page match")
+           + f" {quote[:QUOTED_CHARS]!r}")
+  return hits[-1]
 
 
 def _grouped(rows, line) -> str:

@@ -66,7 +66,9 @@ from pluggybot.mind.overseer import (
   order_runnable,
 )
 from pluggybot.tools.screen import face_for
-from pluggybot.mind.thoughts import RECALLED_CHAIN_CHARS, ThoughtFiles, ThoughtRefused
+from pluggybot.mind.thoughts import (
+  RECALLED_CHAIN_CHARS, ThoughtFiles, ThoughtRefused, attempted,
+)
 from pluggybot.economy import scoring
 from pluggybot.tools import strokes
 from pluggybot.perception import depth as nf
@@ -4112,6 +4114,10 @@ class HubLifecycle:
         done = self.thoughts.apply(verb, payload, t=t, cites=cites)
       except ThoughtRefused as e:
         self._say(f"THOUGHT refused: {e}")
+        # ...and TOLD (issue #409): narrated alone, 129 refusals in 48 h
+        # reached the log and the wire and never the robot that made them.
+        # The reason first, what it tried after: a History line is capped.
+        self._remember(f"could not {verb}: {e}{attempted(verb, payload, str(e))}")
         continue
       if done:
         self._say(f"THOUGHT {verb}: {done}")
