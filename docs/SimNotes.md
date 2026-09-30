@@ -3586,7 +3586,7 @@ from its start, exploring 480 sim s, belief against truth every minute
 | then to the dock | docked | failed to dock |
 
 One flight a side, and their paths differ (the rack and the arm change the
-world), so it is a measurement for #405's owner, not a cause: the scans
+world), so it is a measurement, not a cause (#422): the scans
 were accepted throughout, so the error is in the frame the map was laid in.
 
 ## Places, not coordinates (issue #419)
