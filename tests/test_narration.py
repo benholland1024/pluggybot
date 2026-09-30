@@ -134,7 +134,8 @@ def test_an_api_outage_is_not_what_the_robot_remembers():
   both assertions then read `... [fallback:RuntimeError: Connection reset by
   peer]`.
   """
-  life = stub_life("room_hub", errand=False)
+  life = stub_life()
+  life.max_sim_time = 0.0            # the rotation's explore ends where it starts
   life.overseer = Overseer(_menu(), client=FakeClient(
     RuntimeError("Connection reset by peer")))
   said = narration(life)
@@ -172,7 +173,7 @@ def test_a_policy_fallback_is_still_not_an_incident():
   """The pre-existing rule, re-checked because #76 moved the list it lives in:
   `budget` and friends are the policy WORKING, and a run that filed every one
   of them as an error would read like an incident report."""
-  boss = Overseer(_menu(), client=FakeClient(full(action="dance", reason=".")),
+  boss = Overseer(_menu(), client=FakeClient(full(action="explore", reason=".")),
                   calls_per_hour=1)
   boss.decide({"decisions": 0})
   boss.decide({"decisions": 1})
@@ -191,7 +192,7 @@ def test_a_use_phase_that_raises_is_narrated_as_a_sentence():
   """
   from pluggybot.mission.errand import Errand
 
-  life = stub_life("room_hub", errand=False)
+  life = stub_life()
 
   def explodes(_life):
     raise IndexError("list index out of range")
@@ -221,7 +222,7 @@ def test_the_neighbouring_lines_stopped_shouting():
   is being shouted at about a recovery."""
   from pluggybot.mission.errand import Errand
 
-  life = stub_life("room_hub", errand=False)
+  life = stub_life()
   errand = Errand(name="carry:test", module="module_lcd", station_y=0.0,
                   use_at=(1.0, 1.0), use=None, needs_use_pose=False)
   life.body.go_to_routine = lambda *a, **kw: tick.result(False)        # never got there
@@ -256,7 +257,7 @@ def test_a_rating_for_a_job_that_is_not_there_reads_as_a_sentence():
   done something on the site. Shown to fail before the fix by restoring the
   single `except (KeyError, ValueError) as e: self._say(f"... {e}")`.
   """
-  life = stub_life("room_hub", errand=False)
+  life = stub_life()
   life.ledger = Ledger()
   said = _rating(life, seq=7)
 
@@ -275,7 +276,7 @@ def test_a_rating_for_a_job_that_is_not_pending_says_so_differently():
   """The two misses are caught apart so the robot can say WHICH happened --
   'I have no job 7' and 'job 1 is not waiting on a rating' are different
   facts, and the website is holding a stale row in only one of them."""
-  life = stub_life("room_hub", errand=False)
+  life = stub_life()
   life.ledger = Ledger()
   entry = life.ledger.award(evaluate("carry", {"picked": True, "stowed": True,
                                                "module": "module_lcd"}), t=1.0)
@@ -291,4 +292,4 @@ def test_a_rating_for_a_job_that_is_not_pending_says_so_differently():
 
 def _menu():
   from pluggybot.lifecycle import board_book
-  return ov.Menu.for_world("room_hub", board_book("room_hub"))
+  return ov.Menu.for_world("home_quad", board_book("home_quad"))

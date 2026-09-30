@@ -52,29 +52,31 @@ def test_the_quadruped_implements_every_member_and_is_chosen_by_its_legs(quad_wo
     assert not missing, missing
     assert body.STILL == (0.0, 0.0, 0.0) and body.rights_itself
     assert isinstance(body_for(quad_world, mujoco.MjData(quad_world)), qb.QuadBody)
-    rover = mujoco.MjModel.from_xml_path("models/home_world.xml")
-    assert is_quadruped(quad_world) and not is_quadruped(rover)
+    house = mujoco.MjModel.from_xml_path("models/home_world.xml")
+    assert is_quadruped(quad_world) and not is_quadruped(house)
   finally:
     body.close()
 
 
-def test_the_world_takes_out_the_rover_and_nothing_of_the_worlds(quad_world):
-  """The rover's body, actuators, sensor and exclude go, and its rack with
-  its modules, their drivers and the dispenser's seeds (#405: the arm's
-  fork takes a longer peg); the plates' sensors are the world's and stay;
-  the robot keeps its joint ranges in RADIANS (#386: in degrees the stand
-  threw it 0.4 m up)."""
+def test_the_house_carries_no_robot_and_the_world_puts_the_quadruped_in(quad_world):
+  """The generator's house has no robot and nothing that drives; the world
+  with legs puts in the quadruped, its dock and its rack with the tools on
+  it (#405), and keeps the house's own sensors (the plates'); the robot
+  keeps its joint ranges in RADIANS (#386: in degrees the stand threw it
+  0.4 m up)."""
+  from pluggybot.legs import rack as legs_rack
+  from pluggybot.telemetry.protocol import robot_roots
+  house = mujoco.MjModel.from_xml_path(lw.HOME_XML)
+  assert robot_roots(house) == [] and house.nu == 0
   m = quad_world
   names = lambda n, obj: {mujoco.mj_id2name(m, obj, i) for i in range(n)}  # noqa: E731
-  acts = names(m.nu, mujoco.mjtObj.mjOBJ_ACTUATOR)
-  assert not acts & {"left_motor", "right_motor", "lift", "arm", "pen_carriage",
-                     "claw_l", "claw_r", "seed_gate"}
-  assert "FL_knee" in acts
+  assert robot_roots(m) == ["pluggybot"]
+  assert "FL_knee" in names(m.nu, mujoco.mjtObj.mjOBJ_ACTUATOR)
   bodies = names(m.nbody, mujoco.mjtObj.mjOBJ_BODY)
-  assert not bodies & {"rack", "rack_built", "module_plug", "module_seed", "seed_0"}
+  assert {"dock", legs_rack.RACK_BODY, *legs_rack.TOOL_BAYS} <= bodies
   sensors = names(m.nsensor, mujoco.mjtObj.mjOBJ_SENSOR)
-  assert "imu_gyro" not in sensors and "garden_plate_pos" in sensors
-  assert m.nexclude == 0 and mujoco.mj_name2id(m, mujoco.mjtObj.mjOBJ_BODY, "dock") >= 0
+  assert {"garden_plate_pos", "imu_ang_vel"} <= sensors
+  assert m.nexclude == 0
   assert m.jnt_range[m.joint("FL_knee").id] == pytest.approx((-2.75, -0.35))
   x, y, yaw = lw.dock_pose()
   assert (float(m.body("dock").pos[0]), float(m.body("dock").pos[1])) == pytest.approx((x, y))
@@ -100,11 +102,7 @@ def test_home_with_legs_is_its_own_world_and_offers_no_tool_errand():
   assert "lift" not in facts.sensors and "shoulder" in facts.sensors
   assert st.check_step(st.VERBS["fetch"], {"tool": "module_pen"}, facts) == []
   assert st.check_step(st.VERBS["fetch"], {"tool": "module_seed"}, facts)
-  bad = st.check_step(st.VERBS["draw"], {"program": "circle", "board": "whiteboard_a"}, facts)
-  assert bad and "not on this body yet" in bad[0]
   assert st.check_step(st.VERBS["drive_to"], {"x": 1.0, "y": 0.0}, facts) == []
-  # ...and the rover's world keeps every one
-  assert "carry" in ov.Menu.for_world("home").available()
 
 
 # ---- the rest reflex, the get-up, and the `stuck` death -----------------------
@@ -270,7 +268,7 @@ def test_the_get_up_stands_from_nineteen_of_twenty_falls_without_springing():
 
 def test_a_body_that_rights_itself_is_stuck_only_past_its_budget():
   """The `stuck` death for a body that gets back up (#387): not at the
-  rover's `TOPPLE_HOLD_S`, but once its get-up's budget has run out, and in
+  default `TOPPLE_HOLD_S`, but once its get-up's budget has run out, and in
   words that say it fell and could not get up."""
   body = StubBody()
   body.rights_itself, body.stuck_after_s = True, 4.0
@@ -283,7 +281,9 @@ def test_a_body_that_rights_itself_is_stuck_only_past_its_budget():
   assert "fell and could not get up" in life.dead["why"]
 
 
-def test_the_rover_is_still_knocked_over_at_its_own_hold():
+def test_a_body_that_does_not_right_itself_is_knocked_over_at_its_own_hold():
+  """...and one that cannot get back up is `stuck` at its own hold, in
+  words that say it was knocked over."""
   body = StubBody()
   life = stub_life(body=body, mortal=True)
   body.attitude = (math.cos(0.7), math.sin(0.7), 0.0, 0.0)
@@ -337,7 +337,7 @@ def test_the_inflation_and_the_peer_disc_are_the_quadrupeds_own():
 
 
 def test_the_front_stop_reads_the_corridor_ahead_not_a_cone():
-  """A wall ALONGSIDE, 0.11-0.16 m out, fired the rover's 0.35 rad cone every scan
+  """A wall ALONGSIDE, 0.11-0.16 m out, fired the navigator's 0.35 rad cone every scan
   at the quadruped's range, and it backed 2.3 m into a corner (#387)."""
   me = SimpleNamespace(FRONT_STOP_RANGE=qb.QuadMission.FRONT_STOP_RANGE,
                        FRONT_HALF_M=qb.QuadMission.FRONT_HALF_M)
@@ -405,7 +405,7 @@ def test_the_explore_drops_frontiers_off_its_own_floor():
   path, status = plan(g, (1.0, 1.5, 0.0), bl, own_component=True)
   assert (path, status) == (None, "no-reachable") and not bl
   path, status = plan(g, (1.0, 1.5, 0.0), bl)
-  assert status == "no-reachable" and bl, "the rover's explorer tries and blacklists"
+  assert status == "no-reachable" and bl, "without it, the explorer tries and blacklists"
 
 
 def test_the_depth_layer_is_what_the_lidar_cannot_see(quad_world):
@@ -543,27 +543,23 @@ def test_upkeep_off_is_a_configuration_no_unpaid_death_and_no_metabolism_on_the_
   assert builder.header()["hungerStates"] == []
 
 
-def test_the_build_identity_names_the_body_and_hashes_its_policies():
-  from pluggybot.evaluation.record import body_identity, build_identity, world_hash
-  ident = body_identity(QUAD_HOME)
+def test_the_build_identity_names_the_body_and_hashes_its_policies(monkeypatch):
+  """The header says which body ran and hashes the policies it walked on,
+  and the world's hash reads the body's files too: a retrained policy is a
+  new regime."""
+  from pluggybot.evaluation import identity
+  ident = identity.body_identity(QUAD_HOME)
   assert ident["name"] == "quadruped"
   assert set(ident["policies"]) == {"walk", "getup"}
   assert all(len(s) == 64 for s in ident["policies"].values())
-  assert body_identity("home") is None
-  assert world_hash(QUAD_HOME) != world_hash("home")
-  header = build_identity(QUAD_HOME, arm="autonomous", commit="x", hashes={},
-                          body=ident)
+  header = identity.build_identity(QUAD_HOME, arm="autonomous", commit="x", hashes={},
+                                   body=ident)
   assert header["body"] == ident
-  assert "body" not in build_identity("home", arm="guarded", commit="x", hashes={})
-
-
-def test_serve_refuses_a_tool_errand_on_a_body_whose_arm_takes_no_tool():
-  import subprocess
-  import sys
-  out = subprocess.run([sys.executable, "scripts/serve.py", "--world", "home",
-                        "--body", "quadruped", "--errand", "draw"],
-                       capture_output=True, text=True, timeout=120)
-  assert out.returncode == 2 and "takes no tool yet" in out.stderr
+  assert "body" not in identity.build_identity(QUAD_HOME, arm="autonomous", commit="x",
+                                               hashes={})
+  with_body = identity.world_hash(QUAD_HOME)
+  monkeypatch.setattr(identity, "BODY_FILES", {"quadruped": ()})
+  assert identity.world_hash(QUAD_HOME) != with_body
 
 
 # ---- docking in the house, flown ------------------------------------------------

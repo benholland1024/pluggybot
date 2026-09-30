@@ -13,7 +13,10 @@ a synthetic (but honest) robot state, prints the token accounting per call, and
 says plainly whether caching engaged.
 
   ANTHROPIC_API_KEY=... uv run python scripts/overseer_probe.py
-  ... --calls 5 --world home
+  ... --calls 5
+  uv run python scripts/overseer_probe.py --deployed --prompt
+                        # the prefix the SERVED pair sends, section by
+                        # section, with its sha -- no key, no call
   ... --tokens-only     # count the prefix and stop -- no DECISIONS, no tokens
                         # billed. ⚠ It still needs a key: `count_tokens` is a
                         # real (free) endpoint, not a local tokenizer, and
@@ -72,7 +75,9 @@ import time
 from dataclasses import replace
 
 
-from pluggybot.lifecycle import board_book, points_ledger
+from pluggybot.legs.model import PACK_WH
+from pluggybot.legs.world import RESERVE_WH
+from pluggybot.lifecycle import QUAD_HOME, board_book, points_ledger, world_config, world_for
 from pluggybot.mind import llm
 from pluggybot.mind import overseer as ov
 from pluggybot.mind.thoughts import ThoughtFiles
@@ -142,6 +147,14 @@ def timeout_share(latencies: list[float], deadline: float) -> float:
   return sum(1 for v in latencies if v > deadline) / len(latencies)
 
 
+#: The synthetic robot's pack, Wh: the served quadruped's, run DOWN below
+#: what the offer below costs plus the reserve (the feed's 1.77 Wh in
+#: the energy table the prefix carries, `RESERVE_WH` kept back) and falling
+#: a little every call, so the standing orders are read against a battery
+#: that moves.
+SYNTHETIC_WH = 5.2
+
+
 def synthetic_state(menu: Menu, i: int) -> dict:
   """A plausible robot, drifting between calls.
 
@@ -149,46 +162,45 @@ def synthetic_state(menu: Menu, i: int) -> dict:
   cache reading meaningless (the whole request would hit, prefix or no), and
   the real volatile block changes every time.
   """
+  wh = max(0.5, SYNTHETIC_WH - 0.3 * i)
   return {
     "simTimeS": round(120.0 + 97.3 * i, 1),
-    "battery": {"fraction": round(0.92 - 0.07 * i, 3), "wh": 0.9,
-                "reserveWh": 0.55, "charging": False},
+    "battery": {"fraction": round(wh / PACK_WH, 4), "wh": round(wh, 2),
+                "reserveWh": RESERVE_WH, "charging": False},
     "floorExplored": i > 0,
     "points": 12 * i,
-    "recentTasks": [{"task": "draw", "ok": True, "points": 18,
-                     "reason": "inked 6/6 strokes on whiteboard_a"}][:i],
-    "tasksThisMission": ["draw"][:min(i, 1)],
+    "recentTasks": [{"task": "feed_mouse", "ok": True, "points": 18,
+                     "reason": "the feed plate pressed; the mouse is eating"}][:i],
+    "tasksThisMission": ["feed_mouse"][:min(i, 1)],
     "boards": {b: {"fill": 0.11 * i, "strokes": 6 * i, "programs": []}
                for b in menu.boards},
     # The documents that ride the VOLATILE half (issues #38, #221). Here
     # rather than in the prefix on purpose, and carried by the probe because
     # they are real input tokens on every call -- a measurement that left
     # them out would under-report what a decision costs.
-    "thoughts": {"History.md": [f"#{i} [t={120 * i}s] carry: fetched and "
-                                "stowed module_lcd (+2 points)"][:i],
+    "thoughts": {"History.md": [f"#{i} [t={120 * i}s] feed_mouse: found the "
+                                "feed plate by its sign and pressed it (+18 points)"][:i],
                  "Top_of_mind.md":
-                   "whiteboard_b is the one people look at" if i else "",
-                 "Notes.md": {"tasks/carry": ["what it pays"]} if i else {}},
+                   "the lab is a long walk from the dock" if i else "",
+                 "Notes.md": {"tasks/feed_mouse": ["what it pays"]} if i else {}},
     "lastThoughts": ["the pack is fine; a job is on offer"] if i else [],
     "visitorSuggestions": [],
     # A claimable offer, so the probe exercises `take_task` -- the action the
-    # acceptance run measured small models getting WRONG (the kind "draw" in
-    # `task` instead of the id, 23 times in 4 sim-hours before the prompt
-    # spelled the id shape out). A decision naming `t_0007` is the fix
-    # working; a `fallback:garbled` is it not.
-    # ⚠ AND THE OFFER IS UNAFFORDABLE, ON PURPOSE (issue #225): the pack
-    # above holds 0.9 Wh against `artwork`'s 0.992 in the energy table the
-    # prefix carries, with 0.55 to keep back. On `guarded` code hides that
-    # job; on `autonomous` and `--deployed` nothing does, and taking it is
-    # A0's failure asked directly -- reasoning about energy with every
-    # figure in front of it. `report_energy` counts it, because a candidate
-    # that answers validly and takes the job every time is the mind we
-    # have.
-    "offeredTasks": [{"id": "t_0007", "kind": "artwork",
-                      "description": "Draw a sun on whiteboard_a for people "
-                                     "to rate.",
-                      "paysUpTo": 30, "claimable": True,
-                      "needsAnswer": False}],
+    # acceptance run measured small models getting WRONG (the kind in `task`
+    # instead of the id, 23 times in 4 sim-hours before the prompt spelled
+    # the id shape out). A decision naming `t_0007` is the fix working; a
+    # `fallback:garbled` is it not.
+    # ⚠ AND THE OFFER IS UNAFFORDABLE, ON PURPOSE (issue #225): see
+    # `SYNTHETIC_WH`. On `guarded` code hides that job; on `autonomous` and
+    # `--deployed` nothing does, and taking it is A0's failure asked
+    # directly -- reasoning about energy with every figure in front of it.
+    # `report_energy` counts it, because a candidate that answers validly
+    # and takes the job every time is the mind we have.
+    "offeredTasks": [{"id": "t_0007", "kind": "feed_mouse",
+                      "description": "Feed the mouse in the lab: press the "
+                                     "feed plate by the cage.",
+                      "paysUpTo": 18, "claimable": True,
+                      "needsAnswer": True}],
     "decisions": i,
   }
 
@@ -286,7 +298,8 @@ def report_latency(latencies: list[float], boss: Overseer,
 
 def main() -> None:
   parser = argparse.ArgumentParser(description=__doc__)
-  parser.add_argument("--world", choices=("room_hub", "home"), default="home")
+  parser.add_argument("--world", choices=(QUAD_HOME, "home"), default=QUAD_HOME,
+                      help="the house with the quadruped in it; `home` names it too")
   parser.add_argument("--calls", type=int, default=4,
                       help="real decisions to make (each one costs money)")
   parser.add_argument("--model", default=None,
@@ -328,13 +341,18 @@ def main() -> None:
                       help="measure the prompt a SERVED `autonomous` pair "
                            "sends (issue #225): built through "
                            "`overseer.build()` like `pair.build_pair` does, "
-                           "with a peer, the library, the workshop, the lab, "
-                           "the wiki, appetite, mortality and hearts, at "
-                           "origin `unseeded`. `--arm autonomous` alone "
-                           "measures the rails off and nothing the arm has "
-                           "gained since #115, which is a fraction of what a "
-                           "deployed call carries; a candidate is chosen "
-                           "against THIS")
+                           "with a peer, the library, the lab, the wiki, the "
+                           "tickets, the eye, mortality and hearts, at origin "
+                           "`unseeded` -- and no upkeep, as the served "
+                           "quadruped period runs, unless --metabolism. "
+                           "`--arm autonomous` alone measures the rails off "
+                           "and nothing the arm has gained since #115, which "
+                           "is a fraction of what a deployed call carries; a "
+                           "candidate is chosen against THIS")
+  parser.add_argument("--metabolism", action="store_true",
+                      help="with --deployed: the prompt of a served world that "
+                           "names $PLUGGY_METABOLISM -- points are food, and "
+                           "the upkeep rules are in it")
   parser.add_argument("--timeout", type=float, default=PROBE_TIMEOUT_S,
                       metavar="S",
                       help="wall seconds a call is held to here. NOT the "
@@ -358,27 +376,33 @@ def main() -> None:
                            "deployment's prompt without ssh: same arm, same "
                            "thoughts directory, same text.")
   args = parser.parse_args()
+  if args.metabolism and not args.deployed:
+    parser.error("--metabolism measures a served prompt: with --deployed")
+  args.world = world_for(args.world)
 
   book = board_book(args.world)
   menu = Menu.for_world(args.world, book)
   # The REAL memory, so the prefix measured here is the prefix a deployment
   # sends: `Main.md` is in it (issue #38), and the writable documents are
   # deliberately not -- they ride the user turn below.
-  memory = ThoughtFiles.open(args.thoughts)
+  # ...told its body, as every served robot's is (`constitution.for_body`)
+  memory = ThoughtFiles.open(args.thoughts, body=world_config(args.world)["body"])
   backend = llm.resolve_backend(args.backend, args.model or "")
   model = args.model or (llm.LOCAL_MODEL if backend == "local" else MODEL)
   autonomous = args.arm == "autonomous" or args.deployed
   if args.deployed:
     # The deployed pair's overseer, on the deployed pair's terms
-    # (`pair.build_pair`): an in-memory ledger stands in for the volume's,
-    # because `hearts` and the wiki's throttle want one to read.
+    # (`serve.py`'s `serve_pair` through `pair.build_pair`): mortal, with
+    # hearts, and hungry only where the world names a metabolism. An
+    # in-memory ledger stands in for the volume's, because `hearts` and the
+    # wiki's throttle want one to read.
     ledger = points_ledger(robots=(ROBOT_ROOT, SECOND.root))
     from pluggybot.economy.ledger import Account
     boss = ov.build(args.world, book, enabled=True, thoughts=memory,
                     model=model, backend=backend, base_url=args.url,
                     escalate_to=args.escalate_to,
                     ledger=Account(ledger, ROBOT_ROOT),
-                    appetite=True, mortal=True, hearts=True,
+                    appetite=args.metabolism, mortal=True, hearts=True,
                     standing_orders=True, origin="unseeded",
                     autonomous=True, others=(PEER_NAME,),
                     timeout_s=args.timeout)

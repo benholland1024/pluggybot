@@ -11,6 +11,7 @@ import pytest
 
 from pluggybot import body as body_mod
 from pluggybot.body import Body, StubBody, members
+from pluggybot.economy import energy
 from pluggybot.lifecycle import HubLifecycle, world_config
 
 SRC = Path(__file__).resolve().parents[1] / "src" / "pluggybot"
@@ -132,7 +133,10 @@ def stub_life(world: str = "home_quad", body: StubBody | None = None, **kw) -> H
   and no physics. `world` names the job catalogue, the energy table and the
   map's extent; the physics is the stub's floor."""
   cfg = world_config(world)
-  body = body or StubBody(rack=cfg["rack"], grid_bounds=cfg["grid_bounds"])
+  # ...charging at the rate the world's energy table measured, which is
+  # what the loop sizes a charge's timeout against
+  body = body or StubBody(rack=cfg["rack"], grid_bounds=cfg["grid_bounds"],
+                          charge_w=energy.load(world).charge_w)
   kw.setdefault("battery_wh", cfg["battery_wh"])
   kw.setdefault("low_battery_wh", cfg["low_battery_wh"])
   return HubLifecycle(body.model, body.data, realtime=False, world=world,
@@ -143,7 +147,7 @@ def test_a_day_runs_on_the_stub_charge_and_all():
   """The loop's whole shape on a body that does nothing physical: the
   start, the explore, a charge trip -- the dock, the hold, the undock --
   and the end. Its seams tick as the stub's clock passes."""
-  body = StubBody(draw_w=0.0)
+  body = StubBody(draw_w=0.0, charge_w=energy.load("home_quad").charge_w)
   life = stub_life(body=body)
   life.battery.energy_wh = life.low_battery_wh * 0.5          # it must charge
   summary = life.run(start=(0.5, 3.0, 0.0), max_sim_time=120.0)
@@ -158,7 +162,7 @@ def test_the_stub_fetches_holds_and_stows_as_a_test_says():
   assert body.tool_powered("module_pen") and body.module_state("module_pen")["on_fork"]
   assert body.seated_on("module_pen") == body.handle.root
   assert body.run(body.stow_tool_routine(0.125, "module_pen")) == "arrived"
-  assert body.module_state("module_pen") == {"on_fork": False, "hung": True, "bay": 2}
+  assert body.module_state("module_pen") == {"on_fork": False, "hung": True, "bay": 1}
   t0 = float(body.data.time)
   body.run(body.hold_routine(0.5))
   assert float(body.data.time) == pytest.approx(t0 + 0.5)

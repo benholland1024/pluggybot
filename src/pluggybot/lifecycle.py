@@ -1,26 +1,22 @@
-"""The hub-era mission loop (milestone 8): explore, charge, swap tools.
+"""The mission loop: explore, charge, run the errands and the mind's choices.
 
-Milestone 7's lifecycle closed the loop that names the project — explore
-until the battery runs low, drive to an outlet, plug in, charge, resume. This
-is the same shape with the hub as the destination, and one capability added:
+The loop that names the project -- explore until the battery runs low, go
+to the dock, charge, resume -- with an errand queue and a mind:
 
   EXPLORE ---- battery low ----> GO_CHARGE --> CHARGE --+
-     ^  frontier-drive the map      nose into    press  |
-     |  while watching for the      the charge   until  |
-     |  rack's fiducial             bay          full   |
+     ^  frontier-walk the map       walk to the  lie on  |
+     |                              dock         the pins|
      |                                                  |
      +--------- recharged, errand pending --------------+
                               |
                               v
                     SWAP_PICK -> (use the tool) -> SWAP_RETURN -> DONE
 
-Two things are deliberately the same as milestone 7, because they were
-measured there and the hub does not change them: the battery drains against
-real actuator effort (pluggybot.power), and charging is confirmed by an
-ELECTRICAL criterion rather than by position — here `rack_charge_contact`,
-both pogo pins on the bumper. That criterion is why charging works whatever
-the fork is carrying, and it is the same seam the plug module will use when
-it charges away from the hub.
+Two things were measured once and hold for any body: the pack drains
+against the body's real actuator effort (`Body.pack`), and charging is
+confirmed by an ELECTRICAL criterion rather than by position -- the dock's
+pins conducting (`legs.dock.dock_charge_contact`). The body is reached only
+through `Body` (issue #380).
 """
 
 import dataclasses
@@ -199,8 +195,8 @@ SEAM_POLL_S = 5.0
 #: (issue #347), in SIM seconds: on no bay, on no robot's fork -- alive or
 #: dead, seated or not -- and not at a bay a swap is working, the whole time.
 #: Ben's number (2026-09-24), the stand-up's five minutes on the stand-up's
-#: terms: a PARAMETER (`lost_tool_after_s`), ON in `serve.py` and OFF in
-#: `experiment.py`, and never an intervention. Nine hand resets in a week
+#: terms: a PARAMETER (`lost_tool_after_s`), ON in `serve.py` and OFF in a
+#: test, and never an intervention. Nine hand resets in a week
 #: (eight of them the pen) were a person doing this job; until one did, every
 #: job needing the tool failed and both robots' History filled with it.
 LOST_TOOL_S = 300.0
@@ -210,7 +206,7 @@ LOST_TOOL_CHECK_S = 1.0
 
 #: WHAT A NEW ROBOT STARTS WITH after a true death, in points (issue #419):
 #: a PARAMETER (`start_points`) on `restart_after_s`' terms -- ON in
-#: `serve.py`, OFF in `experiment.py`, and never an intervention. Ben's
+#: `serve.py`, OFF in a test, and never an intervention. Ben's
 #: number (2026-09-29): a heart's price (`overseer.HEART_PRICE`), and about
 #: 6.7 hours of upkeep at the shipped 30 an hour, under the cap (600). The
 #: time to find the world's places is far inside it: a fresh quadruped found
@@ -337,9 +333,9 @@ RACK_LINGER_S = 90.0
 #: ordinary one, short enough that a robot that never leaves is reported
 #: rather than waited on for ever. MEASURED, the time a robot's believed
 #: pose stays within `peer_on_the_goal`'s 0.45 m of a standoff:
-#:   * a SWAP (one flight each world, `--pack hosting`): room_hub carry
-#:     pick 26.9 s, stow 34.2 s; home showcase pen pick 30.6 s, and a stow
-#:     run straight into the next pick 55.6 s -- typical 30 s for one;
+#:   * a SWAP (the rover's, `--pack hosting`): a pick 26.9-30.6 s, a stow
+#:     34.2 s, a stow run straight into the next pick 55.6 s -- typical 30 s
+#:     for one; the quadruped's is not yet measured against it;
 #:   * a CHARGE (the deployed pair on 42f4a11, 2026-09-24, 11 connected):
 #:     278-542 s, median 462 s.
 #: The bound is 3x the occupancy of whatever HOLDS the bay, not only of the
@@ -711,10 +707,10 @@ class HubLifecycle:
         overseer.restore_map(kept.emap, kept.dropped)
     self.decisions: list[dict] = []
     # The module whose electrical seating the power model watches. It follows
-    # the errand queue -- a robot that draws and then grips is carrying a
-    # different tool in each phase, and the coupling criterion has to be asked
-    # about the one actually on the fork.
-    self.module = errands[0].module if errands else module
+    # the errand queue, because the coupling criterion has to be asked about
+    # the tool actually on the fork -- and an errand that fetches nothing (a
+    # lab act) names none, where the body would look up a body called "".
+    self.module = (errands[0].module if errands else "") or module
     # The pack and the reserve are the WORLD's unless a caller names them:
     # its demo cell, and the return trip its floor plan measured.
     if battery_wh is None:
@@ -846,7 +842,7 @@ class HubLifecycle:
     self.body.step_hooks.append(self._press_step)
     self.body.step_hooks.append(self._places_step)
     self.body.bay_wait = self._await_bay_routine
-    #: THE NEAR-FIELD MAP (issue #34): the depth camera on the mast top and
+    #: THE NEAR-FIELD MAP (issue #34): the body's depth camera and
     #: the robot-centric height map it feeds, one frame every `nf.PERIOD`
     #: on this same seam, because the map is a running belief like the
     #: occupancy grid and a frame taken only between errands would see one
@@ -1055,15 +1051,13 @@ class HubLifecycle:
     # ⚠ AND THE DEFAULT IS NOT FUSSINESS. On a demo cell the pack reaches
     # ZERO mid-errand as documented behaviour (`needs_charge` is checked
     # between errands, never inside one) and the robot then limps to the
-    # rack and carries on -- the committed home recording has it finishing
-    # a census at frac 0.000. Made mortal, room_hub's own recording died at
-    # t=184 and ended with the pack back at 87 %, which is a fixture
-    # describing a robot that is not there.
+    # rack and carries on. Made mortal, a recording dies mid-errand and
+    # ends as a fixture describing a robot that is not there.
     self.mortal = bool(inbox is not None) if mortal is None else bool(mortal)
     #: AND HOW LONG IT LIES THERE BEFORE STANDING ITSELF UP (issue #143).
     #: None -- the default -- is the old behaviour exactly: a dead robot
     #: waits for a person, for ever if need be. `serve.py` sets
-    #: `RESTART_AFTER_S`; `experiment.py` deliberately does not.
+    #: `RESTART_AFTER_S`.
     #:
     #: WHY IT EXISTS: on `autonomous` the robot dies most days (A0: four in
     #: five), and a deployed world whose robot lies on the floor until a
@@ -2136,8 +2130,7 @@ class HubLifecycle:
   @property
   def needs_charge(self) -> bool:
     # The reserve is a PARAMETER of the world, not of the pack (issue #6):
-    # the cost of getting home is set by the floor plan, and home_world's
-    # worst return trip is nearly twice room_hub's.
+    # the cost of getting home is set by the floor plan.
     #
     # ⚠ RAIL ONE OF THREE, AND THE ONE THAT FIRES LEAST (issue #115). On the
     # `autonomous` arm it is off, and this is the only place that is true:
@@ -2335,11 +2328,8 @@ class HubLifecycle:
     # 828 mm of imaginary progress, and every pose downstream was computed in
     # the wrong frame: the next tool fetch drove to a standoff it believed it
     # had reached, a metre from the bay, and came away with nothing.
-    # See `Body.docked` (the rover's `HubSwap.pinned`). The bumper rule
-    # (`HubSwap.pressing`, issue #94) now catches this press by itself --
-    # the pins ARE a chassis contact ahead -- and the explicit flag stays: a
-    # caller that knows it is pressing says so, and a contact that flickers
-    # does not un-pin it.
+    # See `Body.docked`: a caller that knows it is held says so, and a
+    # contact that flickers does not un-pin it.
     self.body.docked = True
     # THE DOCK IS THE RE-ANCHOR (issue #42). Called with the pins already
     # conducting -- go_charge verified that -- which is the one moment the
@@ -3211,12 +3201,9 @@ class HubLifecycle:
     # still on the fork goes home before the verdict.
     carried = procedure._carried(self)
     if carried is not None:
-      # ...and in the configuration a pick leaves it in, a cube in the
-      # claw's jaws SET DOWN first (issue #264): MEASURED, a stacking
-      # procedure whose own budget ran out right after a pick was stowed
-      # holding the block, and a weighing that had lowered the lift was
-      # stowed from there -- both hangs failed and the claw went on the
-      # floor in front of the rack. `stow()` does the same, one helper.
+      # ...and in its carrying configuration first, anything held set down
+      # (issue #264: a stow from where a procedure left the tool failed and
+      # put it on the floor). `stow()` does the same, one helper.
       carry = yield from procedure.carry_configuration_routine(self, carried)
       if carry["setDown"] is not None:
         self._say(f"PROCEDURE {program.name} ended holding "
@@ -3224,7 +3211,6 @@ class HubLifecycle:
       self.state = "SWAP_RETURN"
       self._say(f"PROCEDURE {program.name} ended with {carried} on the fork"
                 " -- stowing it")
-      yield from procedure.home_legs_routine(self)
       yield from self.body.stow_tool_routine(
         procedure._tool_station(self, carried), carried)
       self.swaps_done += 1
@@ -4971,17 +4957,11 @@ class HubLifecycle:
   def spendable_wh(self) -> float:
     """What a job's cost is compared against, right now.
 
-    THE WHOLE CHARGE LESS THE MARGIN, and on a demo cell the margin is zero,
-    so this is the whole charge -- which is what it always was, and the
-    distinction was worth a wrong fixture to learn. The reserve is a
-    RETURN-TRIP margin: on a cell smaller than one errand it is a margin the
-    robot cannot afford to keep, because one errand costs roughly one full
-    pack (room_hub still: 0.528-0.570 Wh against a 0.700 Wh cell, leaving
-    0.28 Wh above the reserve). Gating on that would refuse every job in that
-    world forever -- a task system that silently does nothing. home LEFT that
-    regime at issue #84: a 3.0 Wh demo cell against errands re-priced to
-    0.658-1.180 Wh (#70) funds the dearest job AND the margin, so home now
-    charges the full 2.05 Wh reserve (0.95 before the loop, #215).
+    THE WHOLE CHARGE LESS THE MARGIN, and where the margin is zero this is
+    the whole charge. The reserve is a RETURN-TRIP margin: on a cell that
+    cannot fund one errand AND it, it is a margin the robot cannot afford to
+    keep, and gating on it would refuse every job in that world forever -- a
+    task system that silently does nothing.
 
     On a hosting-sized pack there IS margin to keep, the errand is required to
     finish with the return trip still in hand, and the mid-errand death this
@@ -5035,8 +5015,8 @@ class HubLifecycle:
 
     An errand that carries its own `estimate_wh` is priced by that: a task's
     figure is per KIND and knows which end of the house it is being asked
-    about, which a per-action table cannot (docs/Rover.md, "Energy on
-    wheels": the far board costs more than the near one).
+    about, which a per-action table cannot (the far board costs more than
+    the near one).
     """
     return self.energy.afford(
       errand.task or errand.name, energy_wh=self.battery.energy_wh,
@@ -5101,8 +5081,8 @@ class HubLifecycle:
     the unknown cube's mass becomes the offer's secret, on the model and
     on the spec (so a workshop recompile keeps it). Silent for any other
     kind; narrated -- without the number -- for this one. A world with
-    no bench (room_hub) says so once and moves on: the offer could not
-    have been made there, so this is a test's or a mis-pointed board's."""
+    no bench says so once and moves on: the offer could not have been made
+    there, so this is a test's or a mis-pointed board's."""
     from pluggybot.challenge import bench
     from pluggybot.economy.tasks import KINDS
     if task is None or task.kind not in KINDS or KINDS[task.kind].task != "mass":
@@ -5306,10 +5286,7 @@ class HubLifecycle:
     `needs_charge` next door is genuinely free.
 
     Call it at a SAFE POINT -- somewhere the tool is in its carry
-    configuration and stowing is legal. The census errand has checked
-    `needs_charge` at a vantage point since issue #13 and this is that shape
-    generalised; `PenPlotter.should_stop` is the same check between strokes,
-    where the pen is up.
+    configuration and stowing is legal (a walk is one at every step, #381).
 
     ⚠ ONE QUESTION PER ERRAND. Once the answer is "stow and go" every later
     safe point reads the latch and nobody is asked again -- a second
@@ -6428,10 +6405,9 @@ class HubLifecycle:
     testing.
 
     ⚠ AND DO NOT COMPENSATE WITH A NEW ASSERTION unless the design actually
-    promises it. Shortening `test_full_hub_lifecycle` came with a
-    "strictly stronger" `min(fraction) > 0` to replace an end-state check,
-    and room_hub failed it at 0.0 % -- correctly, because a pack reaching
-    empty INSIDE an errand is documented behaviour on a demo cell
+    promises it: a "strictly stronger" `min(fraction) > 0` once replaced an
+    end-state check and failed at 0.0 % -- correctly, because a pack
+    reaching empty INSIDE an errand is documented behaviour on a demo cell
     (`needs_charge` is checked between errands, never inside one). A
     plausibility guard that rejects the truth is the SimNotes lesson, and a
     shortened test is exactly where it gets invented.

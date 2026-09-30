@@ -609,7 +609,8 @@ class StubBody(Body):
   def __init__(self, model=None, data=None, handle: RobotHandle = FIRST,
                pose: tuple[float, float, float] = (0.0, 0.0, 0.0),
                rack=None, grid_bounds=(-3.0, -3.0, 7.0, 7.0),
-               bays: dict[str, int] | None = None, draw_w: float = 0.0) -> None:
+               bays: dict[str, int] | None = None, draw_w: float = 0.0,
+               charge_w: float | None = None) -> None:
     from pluggybot.mapping.occupancy_grid import OccupancyGrid
     from pluggybot.procedure.steps import TOOL_BAYS
     if model is None:
@@ -626,6 +627,8 @@ class StubBody(Body):
     self.rack_discovered = False
     self.bays = dict(TOOL_BAYS if bays is None else bays)
     self.draw_w = float(draw_w)
+    #: the charger's net rate into its pack, W; None is `power.CHARGE_W`
+    self.charge_w = charge_w
     #: what the test set: the module on its coupling, the charger's
     #: contact, the root's attitude
     self.holding: str | None = None
@@ -831,8 +834,11 @@ class StubBody(Body):
 
   def pack(self, capacity_wh, charge_scale):
     from pluggybot.power import Pack
-    return Pack(capacity_wh=capacity_wh, charge_scale=charge_scale,
+    pack = Pack(capacity_wh=capacity_wh, charge_scale=charge_scale,
                 draw_w=self.draw_w)
+    if self.charge_w is not None:
+      pack.charge_w = float(self.charge_w)
+    return pack
 
   def depth_camera(self):
     return None

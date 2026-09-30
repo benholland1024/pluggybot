@@ -10,7 +10,7 @@ order of work").
 Read alongside:
 - `docs/TaskPattern.md` §4 — grading measures the world, never the report.
   Everything here inherits that; this doc adds what a *novel* job needs on top.
-- `docs/PluggyPlan.md` — the five qualities; a challenge is an instrument for
+- `docs/PluggyPlan.md` — the six qualities; a challenge is an instrument for
   the first one (capability: can it do what it could not do yesterday).
 - `docs/Evaluation.md` §5 — what silently invalidates a number; two of its
   warnings decide against two of the candidates below.
@@ -124,7 +124,7 @@ other way round.
   centre — passes every geometric check at the call (the test asserts that
   premise) and is on the floor 0.3 s later. Reason: "a tower of 3 at the call, 1 block high
   10 s later — it fell". Without the hold this is paid.
-- *propped up*: the claw on the fork, jaws closed on the top block of a
+- *propped up*: the rover's claw, jaws closed on the top block of a
   three-high stack. Geometry passes, contacts do not: "module_claw_pad_l,
   module_claw_pad_r was holding the tower up".
 - *not stacked*: two on the floor, or two stacked and one beside — "2 of 3
@@ -138,8 +138,8 @@ other way round.
 default soft contact a stack offset by 2 and 4 mm — a tower by any standard —
 crept over and fell at 16.9 s, and one offset 6 and 12 mm at 2.6 s; only a
 perfect stack stood. That is `SimNotes.md`'s regularised-friction drift
-("The grip that leaked"), and it is fixed the way that lesson says, at its
-source: the blocks carry the jaw pads' hard `GRIP_SOLIMP`. With it, every
+("The grip that leaked"), and it is fixed at its source:
+the blocks carry the hard `GRIP_SOLIMP` (`rack/coupling.py`). With it, every
 tower whose centre of mass was over its support stood the 30 s measured, and
 every one whose was not fell inside 0.31 s, which is what wood does. A
 challenge's props are part of its criteria — a block that creeps would have
@@ -205,6 +205,12 @@ honest proxy.
 
 ## 7. What it takes to offer the tower
 
+⚠ **On legs neither challenge is offered yet**: `cadence.json` offers
+`home_quad` the paid feed alone, and the tower and the bench come back with
+the tools in #407 (#375, step 4), each solved first by hand on the
+quadruped. The props stand in the house and the graders are unchanged;
+what follows is how they were offered to the rover.
+
 The tower is written for perception-ladder tier 1 (`TaskPattern.md` §3): when
 offered, the blocks carry AprilTags. They are untagged today because the
 grader reads `xpos` and does not care, and a 20 mm tag's decode range is a
@@ -244,22 +250,20 @@ departure from it:
   challenge rows (`RewardTable.as_context(challenges=True)`); `guarded`'s
   is unchanged.
 - **The energy cost is measured off the first written procedure** (issue
-  #264, `challenge/solutions.py`): 2.7 Wh from the rack and back on the
-  hosting pack, 445 sim-seconds, the two placements 2.0 and 4.9 mm off
-  and 5.5 mm of lean at the grade. The kind's estimate carries that
-  number. Until then it was the census's 1.31, a placeholder that said so.
+  #264): 2.7 Wh from the rover's rack and back on the hosting pack. The
+  kind's estimate still carries that number, until a solution on legs
+  re-prices it.
 
 What the observatory will show, blocking nothing: claims (`task` rows,
 kind `stack_tower`), procedures written for it (`procedure` rows), and the
 first solve — the first reading of the capability metric #155 waits for.
 
-**And whether it can be done at all is settled** (issue #264): a procedure
-in the robot's own language -- `fetch("module_claw")`, `pick(20)`,
-`place(21)`, `pick(22)`, `place(20)`, `stow()`, a model's own six lines --
-passes this grader from the rack, so a robot that never does is a finding
-about the robot. The physics was never the problem; the language's reach to
-the claw was (Overseer.md §2b, the claw's pair). `scripts/solve.py
---feature tower` is the flight, `tests/test_solutions.py` its proof.
+**Whether it can be done at all was settled on the rover** (issue #264): six
+lines of the robot's own language — fetch the claw, pick and place twice,
+stow — passed this grader from the rack (`rover-final` has the solution and
+its flight). On legs it is open again, and #264's rule stands: a feature
+with no hand-written solution that passes its own grader is a defect, fixed
+before it is paid or prompted.
 
 ## 8. The bench: find an unknown mass and record it (issue #227)
 
@@ -268,8 +272,9 @@ The second challenge, and the first that is OPEN IN METHOD by design:
 floor in front of the workbench -- the tower's 26 mm block, tagged 23 and
 24 -- one weighing a stated 100 g and one weighing something the offer
 does not say. "Find out what, by any means, and record it." A balance
-from catalog parts, a comparison of pushes, a lift reading under load are
-all live routes, and the grader knows none of them.
+from catalog parts, a comparison of pushes, an actuator's load are all
+live routes, and the grader knows none of them. Not offered on legs yet
+(§7).
 
 **The criteria**, written before the physics was run: (1) the finding is
 ON THE RECORD -- one line under `findings/mass_bench` whose quantity names
@@ -289,15 +294,12 @@ grader reads the truth off the mass table at grading and nowhere else;
 `truth` and `error` are `secret` on the row, because the reported value
 beside either gives the mass away.
 
-**The honest sensor is the real part's.** The lift is an igus lead screw
-under a position servo, and what it pushes with at rest is the weight it
-carries: `read("lift.force")` (`procedure/axes.py`) is the actuator's own
-force plus a load cell's noise (`LOAD_NOISE_N`, 0.03 N, deterministic per
-physics step so a world replays). MEASURED: a cube in the claw's jaws,
-lifted and settled, moves it by exactly `dm · g` across 0.05–0.40 kg, the
-empty claw reads 6.40 N, and the jaws hold 0.40 kg (the bank's ceiling).
-A robot has to subtract the tare, or use the known cube to calibrate --
-and that is the job, not a hint the prompt gives.
+**The honest sensor is the real part's.** On the rover it was the lift's
+own load (`read("lift.force")`: the lead screw's force plus a load cell's
+noise, exact to `dm · g` across the bank's masses); the quadruped has no
+such sensor yet, and what it weighs with is #407's to choose. Either way a
+robot has to subtract the tare, or use the known cube to calibrate -- and
+that is the job, not a hint the prompt gives.
 
 **A procedure's variables are its readout.** Nothing read inside a
 procedure reached the mind before this: the run's verdicts said which
@@ -318,7 +320,7 @@ recorded correctly* shape's second source (Evaluation.md §3).
 ("no finding ... since the claim"); a wrong one (11 % off; the known mass
 copied); a sampler handed a report saying the mass was found, over a bare
 record; a missing truth (a world with no bench). What it cannot grade is
-§6's item 3, still: it pays the same for a lift reading and for a balance
+§6's item 3, still: it pays the same for a sensor reading and for a balance
 the robot built, and the method is read off the record's own line
 (`-- <method>`) rather than scored.
 

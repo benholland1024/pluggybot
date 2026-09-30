@@ -20,7 +20,7 @@ DEPTH_CAMERA_W = 2.0    # the RealSense D435 streaming depth with its projector
                         # built (`HubLifecycle.near_field`; on when served,
                         # off in a test). ~1.9 W is the community-measured
                         # figure and 3.5 W the USB budget; the datasheet number
-                        # is Parts.md's open decision 10.
+                        # is an open decision in Parts.md.
 CHARGE_W = 55.0         # ~1C into the 5 Ah pack
 MODULE_IDLE_W = 0.6     # a coupled tool module's own electronics: one
                         # ESP32-class board per module (Parts.md), awake only

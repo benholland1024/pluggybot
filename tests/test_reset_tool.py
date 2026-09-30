@@ -1,34 +1,35 @@
 """Guards for the admin tool reset (issue #30, fix 2).
 
-Prevention is the measured bay standoff (test_swap_approach.py); this is the
-RECOVERY: a module that is on the floor anyway -- a collision, an unlucky
-jam, anything measurement cannot promise away -- is invisible to the whole
-swap stack and litters the rack's approach lane, and on hardware a person
-would pick it up. `reset_tool` is that hand, reaching in through the admin
-page: an inbound message handled by CODE on the physics thread, never shown
-to the overseer, that puts the module back on its own bay.
+The RECOVERY: a module that is on the floor anyway -- a collision, an
+unlucky drop, anything measurement cannot promise away -- is invisible to
+the whole swap stack and litters the rack's approach lane, and on hardware
+a person would pick it up. `reset_tool` is that hand, reaching in through
+the admin page: an inbound message handled by CODE on the physics thread,
+never shown to the overseer, that puts the module back on its own bay. On
+the quadruped's house, whose rack the tools hang on.
 """
 
 import math
 
 import mujoco
 
-from pluggybot.mission import rover
+from pluggybot.legs import rack as legs_rack
+from pluggybot.lifecycle import QUAD_HOME, HubLifecycle, world_config
 from pluggybot.mind.inbox import Inbox
-from pluggybot.lifecycle import HubLifecycle
-from pluggybot.robot import SECOND, world_with_robots
+from pluggybot.robot import SECOND, world_spec
 from pluggybot.telemetry.protocol import CODE_HANDLED_TYPES, INBOUND_TYPES
 
 MODULE = "module_lcd"
 
 
-def lifecycle_with_inbox():
-  model = mujoco.MjModel.from_xml_path("models/hub_world.xml")
+def lifecycle_with_inbox(second_at=None):
+  cfg = world_config(QUAD_HOME)
+  model = world_spec(cfg["model"], second_at=second_at).compile()
   data = mujoco.MjData(model)
   mujoco.mj_forward(model, data)
-  life = HubLifecycle(model, data, viewer=None, realtime=False,
-                      errand=False, inbox=Inbox())
-  return life
+  return HubLifecycle(model, data, viewer=None, realtime=False, world=QUAD_HOME,
+                      rack=cfg["rack"], grid_bounds=cfg["grid_bounds"],
+                      inbox=Inbox())
 
 
 def module_qpos(life):
@@ -78,7 +79,7 @@ def test_a_tool_in_use_is_not_lost(monkeypatch):
   try:
     adr, _ = module_qpos(life)
     before = list(life.data.qpos[adr:adr + 7])
-    monkeypatch.setattr(rover, "module_power_contact", lambda *a, **k: True)
+    monkeypatch.setattr(legs_rack, "tool_power", lambda *a, **k: {"powered": True})
     life.inbox.offer({"type": "reset_tool", "id": "a_01", "module": MODULE})
     life._visitor_step()
     assert "refused" in life.log[-1] and "seated on the fork" in life.log[-1]
@@ -89,10 +90,10 @@ def test_a_tool_in_use_is_not_lost(monkeypatch):
 
 def test_a_reset_cannot_teleport_things_that_are_not_modules():
   """The admin vocabulary is modules, not arbitrary free bodies -- a reset
-  of the claw's practice block (or a garden seed) is refused by name."""
+  of a tower block (or a garden seed) is refused by name."""
   life = lifecycle_with_inbox()
   try:
-    for name in ("chassis", "no_such_module", "module_ghost"):
+    for name in ("block_1", "no_such_module", "module_ghost"):
       life.inbox.offer({"type": "reset_tool", "id": f"a_{name}",
                         "module": name})
       life._visitor_step()
@@ -114,18 +115,14 @@ def test_a_tool_the_other_robot_is_holding_is_not_lost_either(monkeypatch):
   -- so reading the primary's fork alone meant a module the SECOND robot
   was carrying read as lost, and the reset yanked it out of the coupling:
   exactly the mess the refusal exists to prevent."""
-  model = world_with_robots("models/hub_world.xml", second_at=(3.0, 3.0))
-  data = mujoco.MjData(model)
-  mujoco.mj_forward(model, data)
-  life = HubLifecycle(model, data, viewer=None, realtime=False,
-                      errand=False, inbox=Inbox())
+  life = lifecycle_with_inbox(second_at=world_config(QUAD_HOME)["start2"][:2])
   try:
     adr, _ = module_qpos(life)
     before = list(life.data.qpos[adr:adr + 7])
     #  Seated on the SECOND robot's fork and nobody else's: the first
     #  robot's own fork reads empty, which is what the old check read.
-    monkeypatch.setattr(rover, "module_power_contact",
-                        lambda m, d, name, prefix="": prefix == SECOND.prefix)
+    monkeypatch.setattr(legs_rack, "tool_power",
+                        lambda m, d, name, prefix="": {"powered": prefix == SECOND.prefix})
     life.inbox.offer({"type": "reset_tool", "id": "a_01", "module": MODULE})
     life._visitor_step()
     assert f"seated on {SECOND.root}'s fork" in life.log[-1]

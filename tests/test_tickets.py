@@ -34,10 +34,11 @@ from pluggybot.telemetry.protocol import (
 from pluggybot.telemetry.recorder import FrameBuilder
 
 from test_autonomous import GUARDED_RULES_SHA
-from test_interventions import _events, _life
+from test_body import stub_life
 from test_overseer import FakeClient, full
 
 SRC = Path(__file__).resolve().parent.parent / "src" / "pluggybot"
+WORLD = "home_quad"
 
 BUG = {"kind": "bug", "title": "the pen misses the far board",
        "text": "Twice today the pen went on the floor at whiteboard_b: the "
@@ -360,14 +361,14 @@ def test_no_decision_field_closes_a_ticket_and_nothing_in_economy_reads_the_desk
 
 
 def test_the_fields_are_offered_on_autonomous_alone_and_guarded_is_unchanged():
-  auto = ov.build("room_hub", enabled=True, client=FakeClient(), autonomous=True)
+  auto = ov.build(WORLD, enabled=True, client=FakeClient(), autonomous=True)
   assert auto.menu.tickets
   schema = auto.menu.schema(tickets=("tk_0001",))
   assert schema["properties"]["ticket"]["properties"]["kind"]["enum"] == [*TICKET_KINDS, ""]
   assert schema["properties"]["ticket_reply"]["properties"]["ticket"]["enum"] == ["tk_0001", ""]
   assert {"ticket", "ticket_reply"} <= set(schema["required"])
   assert dict(auto.sections)["SUPPORT TICKETS"] == ov.tickets_rule()
-  guarded = ov.build("room_hub", enabled=True, client=FakeClient())
+  guarded = ov.build(WORLD, enabled=True, client=FakeClient())
   assert not guarded.menu.tickets
   assert "ticket" not in guarded.menu.schema()["properties"]
   assert "SUPPORT TICKETS" not in dict(guarded.sections)
@@ -398,11 +399,11 @@ def test_the_fields_are_offered_on_autonomous_alone_and_guarded_is_unchanged():
 
 
 def test_the_ids_in_the_grammar_are_the_open_ones_off_the_state():
-  auto = ov.build("room_hub", enabled=True, client=FakeClient(), autonomous=True)
+  auto = ov.build(WORLD, enabled=True, client=FakeClient(), autonomous=True)
   state = {"tickets": {"open": [{"id": "tk_0003"}, {"id": "tk_0005"}], "closed": []}}
   assert auto._ticket_ids(state) == ("tk_0003", "tk_0005")
   assert auto._ticket_ids({}) == (), "a desk with nothing open still offers `ticket`"
-  guarded = ov.build("room_hub", enabled=True, client=FakeClient())
+  guarded = ov.build(WORLD, enabled=True, client=FakeClient())
   assert guarded._ticket_ids(state) is None
 
 
@@ -426,7 +427,7 @@ def test_ticket_replied_is_an_event_the_map_can_act_on_and_takes_no_filter():
   assert "ticket_replied" in ev.UNCONFIGURABLE_EVENTS
   assert "ticket_replied" in ev.DISCRETE_EVENTS
   assert "ticket_replied" not in ev.INTERRUPTING_EVENTS, "news that can wait"
-  menu = Menu.for_world("room_hub", None)
+  menu = Menu.for_world(WORLD, None)
   assert ev.kind_vocabulary("ticket_replied", menu) == ()
   row = ev.row({"event": "ticket_replied", "action": "idle", "kind": "bug",
                 "value": 3}, menu)
@@ -437,11 +438,25 @@ def test_ticket_replied_is_an_event_the_map_can_act_on_and_takes_no_filter():
 # ---- the flow, through a lifecycle -----------------------------------------------
 
 
+def _life(inbox=None, ledger=None, **kw):
+  """The desk is the lifecycle's bookkeeping: a stub body carries it."""
+  from pluggybot.lifecycle import world_config
+  life = stub_life(inbox=inbox, ledger=ledger, **kw)
+  life.body.start_at(*world_config(WORLD)["start"])
+  return life
+
+
+def _events(life) -> list[dict]:
+  seen: list[dict] = []
+  life.on_event.append(seen.append)
+  return seen
+
+
 def _desk_life(tmp_path, *answers, ledger=None):
   """A mind with a desk and an (empty, `unseeded`) event map, so the
   `ticket_replied` occurrence is recorded; the LIFECYCLE is left on the
   rails so an `idle` stands still 4 s rather than the arm's 60."""
-  menu = replace(Menu.for_world("room_hub", None), tickets=True)
+  menu = replace(Menu.for_world(WORLD, None), tickets=True)
   boss = Overseer(menu, client=FakeClient(*answers), autonomous=True,
                   origin="unseeded")
   life = _life(inbox=Inbox(), ledger=ledger,
@@ -623,7 +638,7 @@ def test_a_close_lands_on_any_arm_and_a_guarded_context_shows_no_desk(tmp_path):
     assert ledger.balance() == 25 and life.tickets.open_ids() == ()
   finally:
     life.body.close()
-  guarded = Overseer(Menu.for_world("room_hub", None), client=FakeClient())
+  guarded = Overseer(Menu.for_world(WORLD, None), client=FakeClient())
   life = _life(overseer=guarded, thoughts=ThoughtFiles.open(tmp_path))
   try:
     assert "tickets" not in overseer_context(life)
@@ -651,9 +666,9 @@ def test_the_inbox_takes_the_three_kinds_and_refuses_what_names_nothing():
 
 def test_the_stream_opens_with_the_open_tickets_where_there_is_a_desk(tmp_path):
   import mujoco
-  from pluggybot.lifecycle import world_config
-  cfg = world_config("room_hub")
-  model = mujoco.MjModel.from_xml_path(cfg["model"])
+  model = mujoco.MjModel.from_xml_string(      # a robot's root and nothing else
+    '<mujoco><worldbody><body name="pluggybot"><freejoint/>'
+    '<geom type="box" size=".1 .1 .1"/></body></worldbody></mujoco>')
   data = mujoco.MjData(model)
   d = desk.Desk(tmp_path)
   d.open("feedback", "f", "the street loop is long", t=1.0)

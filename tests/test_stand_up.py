@@ -8,31 +8,31 @@ next unbounded loop costs one life rather than every one after it. Ben's
 decision (2026-09-24): the robot comes back out of errand mode, and
 `stood_up` is an event its own map can act on.
 
-Every rule here is pinned without flying a death: a stubbed errand that
-never returns, a pack set to zero, and a three-second timer.
+Every rule here is pinned without flying a death, on the stub body
+(`tests/test_body.py`): a stubbed errand that never returns, a pack set to
+zero, and a three-second timer.
 """
 
 import ast
-import math
 from pathlib import Path
 
-import mujoco
 import pytest
 
 from pluggybot import lifecycle as lc
-from pluggybot.mission import rover
 from pluggybot import tick
+from pluggybot.body import StubBody
 from pluggybot.economy.tasks import TaskBoard
-from pluggybot.lifecycle import (DEATH_ENDED, STOOD_UP, HubLifecycle, board_book,
-                                 world_config)
+from pluggybot.lifecycle import (DEATH_ENDED, QUAD_HOME, STOOD_UP, HubLifecycle,
+                                 board_book, cage_errand, world_config)
 from pluggybot.mind import events as ev
 from pluggybot.mind import overseer as ov
 from pluggybot.mind.inbox import Inbox
 from pluggybot.mind.overseer import Menu, Overseer
 from pluggybot.mind.thoughts import HISTORY
-from pluggybot.mission.errand import carry_errand
+from pluggybot.robot import SECOND
 
-from test_overseer import FakeClient  # noqa: I001 -- tests/ is on sys.path
+from test_body import stub_life  # noqa: I001 -- tests/ is on sys.path
+from test_overseer import FakeClient
 
 
 #: test_auto_restart.py's timer and for its reason (issue #158): every claim
@@ -44,23 +44,31 @@ PAST_S = TIMER_S + 1.0
 
 @pytest.fixture(scope="module")
 def menu():
-  return Menu.for_world("room_hub", board_book("room_hub"))
+  return Menu.for_world(QUAD_HOME, board_book(QUAD_HOME))
 
 
-def _life(world: str = "room_hub", **kw) -> HubLifecycle:
+def _life(start=None, body=None, **kw) -> HubLifecycle:
   """A mortal robot on the short timer, standing at its start pose."""
-  cfg = world_config(world)
-  model = mujoco.MjModel.from_xml_path(cfg["model"])
-  data = mujoco.MjData(model)
-  life = HubLifecycle(model, data, realtime=False, world=world,
-                      battery_wh=cfg["battery_wh"], rack=cfg["rack"],
-                      grid_bounds=cfg["grid_bounds"],
-                      low_battery_wh=cfg["low_battery_wh"], errand=False,
-                      mortal=True, restart_after_s=TIMER_S, **kw)
-  life.body.start_at(*cfg["start"])
-  life.home_pose = tuple(cfg["start"])
-  life.survival_since = float(data.time)
+  kw.setdefault("mortal", True)
+  kw.setdefault("restart_after_s", TIMER_S)
+  life = stub_life(body=body, **kw)
+  start = start or world_config(QUAD_HOME)["start"]
+  life.body.start_at(*start)
+  life.home_pose = tuple(start)
+  life.survival_since = float(life.data.time)
   return life
+
+
+def _hold(life, seconds: float) -> None:
+  life.body.run(life.body.hold_routine(seconds))
+
+
+def _feed_job(board, life):
+  """A job with an errand behind it on legs, claimed and started."""
+  task = board.offer("feed_mouse", "lab", t=0.0)
+  board.claim(task.id, robot=life.root, t=0.0, answer="eating")
+  board.start(task.id, t=0.0)
+  return task
 
 
 def _mapped(menu, *rows) -> Overseer:
@@ -81,7 +89,7 @@ def _forever(life, errand, closed: list, kill: bool = True):
     life.battery.energy_wh = 0.0
   try:
     while True:
-      yield 0.0, 0.0
+      yield life.body.STILL
   finally:
     closed.append(float(life.data.time))
 
@@ -98,41 +106,36 @@ def test_a_stand_up_closes_the_errand_it_lands_in_and_no_other_robots_routine():
   closed the step its stand-up ends -- its `finally` runs, it is out of
   errand mode -- and robot 2's routine runs every step it asked for. An
   exception through `tick.run_many` would have been thrown into both."""
-  from pluggybot.pair import build_pair
-  cfg = world_config("room_hub")
-  a, b = build_pair("room_hub", errands=("none", "none"), mortal=True,
-                    restart_after_s=TIMER_S)
-  try:
-    for life, start in ((a, cfg["start"]), (b, cfg["start2"])):
-      life.body.start_at(*start)
-      life.home_pose = tuple(start)
-    closed: list[float] = []
-    steps = round((TIMER_S + 2.0) / a.model.opt.timestep)
+  cfg = world_config(QUAD_HOME)
+  model, data = StubBody.world()
+  a = _life(body=StubBody(model, data))
+  b = _life(start=cfg["start2"], body=StubBody(model, data, handle=SECOND),
+            robot_name="Rowan")
+  a.peers, b.peers = [b], [a]
+  closed: list[float] = []
+  steps = round((TIMER_S + 2.0) / a.model.opt.timestep)
 
-    def steady():
-      for _ in range(steps):
-        yield 0.0, 0.0
-      return steps
+  def steady():
+    for _ in range(steps):
+      yield b.body.STILL
+    return steps
 
-    errand = carry_errand(use_at=cfg["use_at"])
-    out = tick.run_many([
-      (a.body.mission.swap, a._until_stood_up_routine(_forever(a, errand, closed))),
-      (b.body.mission.swap, steady())])
+  errand = cage_errand(QUAD_HOME, "feed")
+  out = tick.run_many([
+    (a.body.stepper, a._until_stood_up_routine(_forever(a, errand, closed))),
+    (b.body.stepper, steady())])
 
-    assert [r["auto"] for r in a.resets] == [True], "the timer stood robot 1 up"
-    assert out[0] is STOOD_UP
-    #  ...closed the step the stand-up ended (after its one-second settle,
-    #  which is when the survival clock restarts), not at some later look
-    assert closed == [pytest.approx(a.survival_since, abs=2 * a.model.opt.timestep)]
-    assert not a._in_errand and a._errand_now is None and a._errand_name == ""
-    assert a.state == "EXPLORE", "out of errand mode"
-    assert a.errand_results[-1]["error"] == DEATH_ENDED
-    #  robot 2: every step it asked for, and returned rather than closed
-    assert out[1] == steps
-    assert b.resets == [] and b.dead is None
-  finally:
-    a.body.close()
-    b.body.close()
+  assert [r["auto"] for r in a.resets] == [True], "the timer stood robot 1 up"
+  assert out[0] is STOOD_UP
+  #  ...closed the step the stand-up ended, which is when the survival clock
+  #  restarts, not at some later look
+  assert closed == [pytest.approx(a.survival_since, abs=2 * a.model.opt.timestep)]
+  assert not a._in_errand and a._errand_now is None and a._errand_name == ""
+  assert a.state == "EXPLORE", "out of errand mode"
+  assert a.errand_results[-1]["error"] == DEATH_ENDED
+  #  robot 2: every step it asked for, and returned rather than closed
+  assert out[1] == steps
+  assert b.resets == [] and b.dead is None
 
 
 def test_the_day_loop_ends_an_errand_that_never_returns_at_the_stand_up():
@@ -143,7 +146,6 @@ def test_the_day_loop_ends_an_errand_that_never_returns_at_the_stand_up():
   after the stand-up (and would have driven on for ever)."""
   life = _life()
   try:
-    life.body.mission._spin_routine = lambda *a, **kw: tick.result(None)
     closed: list[float] = []
     resumed: list[float] = []
 
@@ -153,7 +155,7 @@ def test_the_day_loop_ends_an_errand_that_never_returns_at_the_stand_up():
       life.battery.energy_wh = 0.0
       try:
         while True:
-          yield 0.0, 0.0
+          yield life.body.STILL
           if life.resets:
             #  still driven after the stand-up: say so and stop, so the test
             #  FAILS here rather than hanging
@@ -163,8 +165,9 @@ def test_the_day_loop_ends_an_errand_that_never_returns_at_the_stand_up():
         closed.append(float(life.data.time))
 
     life.run_errand_routine = errand_routine
-    life.errands = [carry_errand(use_at=world_config("room_hub")["use_at"])]
-    day = life.begin(world_config("room_hub")["start"], max_sim_time=60.0,
+    errand = cage_errand(QUAD_HOME, "feed")
+    life.errands = [errand]
+    day = life.begin(world_config(QUAD_HOME)["start"], max_sim_time=60.0,
                      explore_budget=0.0)
     life.body.run(day)
 
@@ -172,7 +175,7 @@ def test_the_day_loop_ends_an_errand_that_never_returns_at_the_stand_up():
     assert len(closed) == 1 and life.resets and life.resets[0]["auto"]
     assert life.errands == [] and life.state == "DONE"
     assert life.dead is None
-    assert any("dying cut short carry" in ln for ln in _history(life))
+    assert any(f"dying cut short {errand.name}" in ln for ln in _history(life))
   finally:
     life.body.close()
 
@@ -228,7 +231,7 @@ def test_a_charge_trip_a_stand_up_ends_is_not_a_failed_dock():
       life.battery.energy_wh = 0.0
       try:
         while True:
-          yield 0.0, 0.0
+          yield life.body.STILL
       finally:
         closed.append(float(life.data.time))
 
@@ -250,13 +253,13 @@ def test_a_stand_up_inside_a_blocking_stretch_puts_the_state_back():
   life = _life()
   try:
     life.battery.energy_wh = 0.0
-    life.body.mission._drive(0.5, 0.0, 0.0)
+    _hold(life, 0.5)
     assert life.dead is not None
 
     def blocking():
-      life.body.mission._drive(PAST_S, 0.0, 0.0)       # the timer fires in here
+      _hold(life, PAST_S)                         # the timer fires in here
       life.state = "SWAP_RETURN"                  # ...and the errand runs on
-      yield 0.0, 0.0
+      yield life.body.STILL
       raise AssertionError("resumed after the stand-up")
 
     out = life.body.run(life._until_stood_up_routine(blocking()))
@@ -291,7 +294,7 @@ def test_closing_is_safe_because_no_routine_yields_in_a_finally():
   assert offenders == []
 
 
-def test_the_rescue_leaves_a_tool_whose_bay_another_robot_is_working(monkeypatch):
+def test_the_rescue_leaves_a_tool_whose_bay_another_robot_is_working():
   """#347's rule for the lost-tool clock, on the stand-up's hand: a swap
   working at the tool's bay may have a fork in it, and a module teleported
   there lands in it. The tool is left to the lost-tool clock, which waits
@@ -299,27 +302,21 @@ def test_the_rescue_leaves_a_tool_whose_bay_another_robot_is_working(monkeypatch
   from types import SimpleNamespace
   from pluggybot.rack.coupling import STATION_YS
   life = _life()
-  try:
-    monkeypatch.setattr(rover, "module_power_contact", lambda *a, **k: True)
-    adr = int(life.model.jnt_qposadr[int(life.model.body(life.module).jntadr[0])])
-    life.data.qpos[adr:adr + 3] = (1.0, 1.0, 0.4)          # carried, off its bay
-    mujoco.mj_forward(life.model, life.data)
-    #  one step, so the seam reads the stubbed contact: without it the rescue
-    #  never sees a tool on the fork and this passes with the rule deleted
-    life.body.mission._drive(0.2, 0.0, 0.0)
-    assert life.tool_powered, "the seam did not see the seated module"
-    bay_y = STATION_YS[life.rack_inventory[life.module]]
-    life.peers = [SimpleNamespace(home_pose=None,       # far from any start
-                                  body=SimpleNamespace(swapping_at=bay_y,
-                                                       footprint_centre=lambda: (9.0, 9.0)))]
-    life._die("flat", "the pack reached zero")
-    life.stand_up(lc.AUTO_RESTART_BY, auto=True)
-    assert life.dead is None
-    home = life.model.qpos0[adr:adr + 3]
-    assert math.dist(life.data.qpos[adr:adr + 3], home) > 0.5, \
-        "dropped into a bay another robot's swap was working"
-  finally:
-    life.body.close()
+  returned: list[str] = []
+  life._return_module = returned.append
+  life.body.holding = life.module                 # seated on the fork
+  #  one step, so the seam reads the seated module: without it the rescue
+  #  never sees a tool on the fork and this passes with the rule deleted
+  _hold(life, 0.2)
+  assert life.tool_powered, "the seam did not see the seated module"
+  bay_y = STATION_YS[life.rack_inventory[life.module]]
+  life.peers = [SimpleNamespace(home_pose=None,       # far from any start
+                                body=SimpleNamespace(swapping_at=bay_y,
+                                                     footprint_centre=lambda: (9.0, 9.0)))]
+  life._die("flat", "the pack reached zero")
+  life.stand_up(lc.AUTO_RESTART_BY, auto=True)
+  assert life.dead is None
+  assert returned == [], "dropped into a bay another robot's swap was working"
 
 
 # ---- the job, and what the robot and its map are told ---------------------
@@ -337,11 +334,10 @@ def test_the_job_fails_and_the_map_hears_the_stand_up_and_the_failure(menu):
   boss = _mapped(menu, ev.Row("stood_up", "idle", kind="timer"))
   life = _life(tasks=board, overseer=boss)
   try:
-    task = board.offer("fetch_module", "module_lcd", t=0.0)
-    board.claim(task.id, robot=life.root, t=0.0)
-    board.start(task.id, t=0.0)
-    errand = lc.errand_for_task(board[task.id], "room_hub")
+    task = _feed_job(board, life)
+    errand = lc.errand_for_task(board[task.id], QUAD_HOME)
     assert errand is not None and errand.task_id == task.id
+    life._next_events_check = float("inf")      # the map reads it below, once
 
     out = life.body.run(
       life._until_stood_up_routine(_forever(life, errand, [])))
@@ -355,7 +351,7 @@ def test_the_job_fails_and_the_map_hears_the_stand_up_and_the_failure(menu):
     life._next_events_check = 0.0
     life._events_step()
     assert life.queued_row == ev.Row("stood_up", "idle", kind="timer")
-    assert any(f"dying cut short {errand.name}; the job {task.id} (fetch_module) "
+    assert any(f"dying cut short {errand.name}; the job {task.id} (feed_mouse) "
                f"is failed: {DEATH_ENDED}" in ln for ln in _history(life))
   finally:
     life.body.close()
@@ -394,13 +390,13 @@ def test_who_stood_the_robot_up_is_the_kind_a_row_narrows_on(menu, who):
   life = _life(inbox=Inbox(), overseer=_mapped(menu, *rows))
   try:
     life.battery.energy_wh = 0.0
-    life.body.mission._drive(0.5, 0.0, 0.0)
+    _hold(life, 0.5)
     assert life.dead is not None
     if who == "admin":
       life.inbox.offer({"type": "reset_robot", "id": "rr_348", "from": "ben"})
       life._visitor_step()
     else:
-      life.body.mission._drive(PAST_S, 0.0, 0.0)
+      _hold(life, PAST_S)
     assert life.dead is None and life.resets[-1]["auto"] is (who == "timer")
     life._next_events_check = 0.0
     life._events_step()
@@ -418,9 +414,9 @@ def test_a_stand_up_drops_what_the_map_queued_while_the_robot_lay_dead(menu):
   life = _life(overseer=_mapped(menu, *rows))
   try:
     life.battery.energy_wh = 0.0
-    life.body.mission._drive(0.5 + ev.MIN_PERIOD_S, 0.0, 0.0)
+    _hold(life, 0.5 + ev.MIN_PERIOD_S)
     assert life.dead is not None and life.queued_row == rows[0]
-    life.body.mission._drive(PAST_S, 0.0, 0.0)
+    _hold(life, PAST_S)
     assert life.dead is None
     life._next_events_check = 0.0
     life._events_step()
@@ -453,10 +449,8 @@ def test_after_a_true_death_the_errand_is_not_the_new_robots_to_remember(menu):
   board = TaskBoard()
   life = _life(tasks=board, overseer=_mapped(menu, ev.Row("task_failed", ev.ASK)))
   try:
-    task = board.offer("fetch_module", "module_lcd", t=0.0)
-    board.claim(task.id, robot=life.root, t=0.0)
-    board.start(task.id, t=0.0)
-    errand = lc.errand_for_task(board[task.id], "room_hub")
+    task = _feed_job(board, life)
+    errand = lc.errand_for_task(board[task.id], QUAD_HOME)
     life._in_errand, life._errand_now = True, errand
     life.deaths.append({"t": 1.0, "cause": "flat", "hearts": 0})
     life._void_errand()
@@ -507,8 +501,6 @@ def test_a_stand_up_never_lands_on_another_robot():
   start no robot's body is on (`up_pose`) -- the other's, with two -- and
   waits only while every one is taken. Stub bodies: the rule is where it
   puts the robot."""
-  from pluggybot.body import StubBody
-  from test_body import stub_life  # noqa: I001 -- tests/ is on sys.path
   a_body, b_body = StubBody(), StubBody()
   a = stub_life(body=a_body, mortal=True, restart_after_s=TIMER_S)
   b = stub_life(body=b_body, robot_name="Rowan")

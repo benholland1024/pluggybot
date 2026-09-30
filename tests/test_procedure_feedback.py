@@ -1,38 +1,25 @@
-"""The development loop a robot needs to finish a challenge (issue #264).
-
-Read off the deployed pair: the robots wrote the tower's procedure right --
-`fetch("module_claw"); pick(22); place(21); pick(20); place(22); stow()` --
-and it died on its first line, five times over, because nothing told them
-why; a fix could not be written either, because "undefine it first, there
-is no replace" read as a turn of its own and the library filled with
-`stack3b` and `weigh_cube2`. Each rule here is pinned in milliseconds: the
-sentence a failed pick is said in, the fork checked before a fetch drives
-anywhere, the one History line a procedure leaves, and the one-answer
-replacement the prompt now promises.
+"""The development loop a robot needs to finish a challenge (issue #264):
+the sentence a failed pick is said in, the fork checked before a fetch
+drives anywhere, the one History line a procedure leaves, and the
+one-answer replacement the prompt promises -- each rule pinned in
+milliseconds.
 """
 
 import re
 from types import SimpleNamespace
 
-import mujoco
 import pytest
 
 from pluggybot import lifecycle as lc
 from pluggybot import tick
-from pluggybot.lifecycle import HubLifecycle, errand_from, world_config
+from pluggybot.lifecycle import HubLifecycle, errand_from
 from pluggybot.mind.overseer import Decision, FIELD_INDEX, PROCEDURE_HEAD
 from pluggybot.procedure import library as lib
 from pluggybot.procedure import steps as st
+from test_body import stub_life  # noqa: I001 -- tests/ is on sys.path
 from test_procedure import _stub_swaps
 
-
-def _room_hub_life():
-  cfg = world_config("room_hub")
-  model = mujoco.MjModel.from_xml_path(cfg["model"])
-  return HubLifecycle(model, mujoco.MjData(model), realtime=False, world="room_hub",
-                      errand=False, battery_wh=cfg["battery_wh"], rack=cfg["rack"],
-                      grid_bounds=cfg["grid_bounds"],
-                      low_battery_wh=cfg["low_battery_wh"])
+WORLD = "home_quad"
 
 
 # ---- 1. one sentence for a failed pick ---------------------------------------
@@ -139,17 +126,17 @@ def test_a_failed_fetch_carries_the_reason_the_errand_would_have_said():
 # ---- 3. one History line per procedure the robot wrote ---------------------
 
 
-def test_a_procedure_cut_short_tells_the_robot_the_line_and_the_reason(monkeypatch):
+def test_a_procedure_cut_short_tells_the_robot_the_line_and_the_reason():
   """The deployed pair's `stack3`, cut to its first two lines: the fetch
   fails, and the robot is told where and why -- on the History it reads,
   and as `failedReason` on the wire."""
-  life = _room_hub_life()
-  _stub_swaps(life, monkeypatch, fetch_ok=False, hung=True)
+  life = stub_life()
+  _stub_swaps(life, fetch_ok=False, hung=True)
   events = []
   life.on_event.append(events.append)
-  L = lib.Library(lc.world_facts("room_hub"))
+  L = lib.Library(lc.world_facts(WORLD))
   L.define("stack3", 'def stack3():\n  fetch("module_claw")\n  wait(1)\n')
-  life.run_errand(errand_from(Decision(action="procedure:stack3"), "room_hub", library=L))
+  life.run_errand(errand_from(Decision(action="procedure:stack3"), WORLD, library=L))
   history = life.thoughts.read("History.md")
   assert ("the procedure stack3 did not finish -- it stopped at line 2, fetch: "
           "could not pick up module_claw: the pick missed and it is still on its "
@@ -160,14 +147,13 @@ def test_a_procedure_cut_short_tells_the_robot_the_line_and_the_reason(monkeypat
   assert cut["failedReason"].startswith("could not pick up module_claw")
 
 
-def test_a_procedure_that_finished_says_so(monkeypatch):
+def test_a_procedure_that_finished_says_so():
   """A robot must know its procedure ENDED to say `done` after it: round 2
   of #264's probes set `done` before the run, and the grade found one block."""
-  life = _room_hub_life()
-  _stub_swaps(life, monkeypatch)
-  L = lib.Library(lc.world_facts("room_hub"))
+  life = stub_life()
+  L = lib.Library(lc.world_facts(WORLD))
   L.define("tidy", 'def tidy():\n  fetch("module_claw")\n  stow()\n')
-  life.run_errand(errand_from(Decision(action="procedure:tidy"), "room_hub", library=L))
+  life.run_errand(errand_from(Decision(action="procedure:tidy"), WORLD, library=L))
   history = life.thoughts.read("History.md")
   assert re.search(r"ran the procedure tidy to its end \(2 steps\)$", history, re.M)
 
@@ -194,7 +180,7 @@ def test_a_long_reason_never_costs_a_run_its_readout():
   "mass = 0.207812", the number arrives whole or not at all. A fault inside
   the run is named, never quoted (the exception is the log's), and keeps no
   false count."""
-  life = _room_hub_life()
+  life = stub_life()
   life.data.time = 123456.0
   for k in range(120, 420):
     run = {"ok": False, "completed": 7, "failedAt": 6, "stopped": None,
@@ -227,11 +213,11 @@ def test_one_answer_replaces_a_procedure_and_the_prompt_says_it_can():
   assert "on\nthe same answer" in PROCEDURE_HEAD or "same answer" in PROCEDURE_HEAD
   assert any(name == "undefine" and "same answer" in text
              for name, _, _, text in FIELD_INDEX)
-  life = SimpleNamespace(data=SimpleNamespace(time=0.0), world="room_hub",
+  life = SimpleNamespace(data=SimpleNamespace(time=0.0), world=WORLD,
                          rack_inventory=None, root="pluggybot",
                          _say=lambda *a, **k: None, _remember=lambda *a, **k: None,
                          _emit=lambda e: None)
-  L = lib.Library(lc.world_facts("room_hub"), cap=2)
+  L = lib.Library(lc.world_facts(WORLD), cap=2)
   L.define("a", "def a():\n  wait(1)\n")
   L.define("b", "def b():\n  wait(1)\n")          # full
   life.overseer = SimpleNamespace(library=L)
@@ -241,7 +227,7 @@ def test_one_answer_replaces_a_procedure_and_the_prompt_says_it_can():
 
 
 def test_a_refused_define_says_the_undefine_goes_on_the_same_answer():
-  L = lib.Library(lc.world_facts("room_hub"), cap=1)
+  L = lib.Library(lc.world_facts(WORLD), cap=1)
   L.define("a", "def a():\n  wait(1)\n")
   with pytest.raises(lib.LibraryRefused) as e:
     L.define("a", "def a():\n  wait(2)\n")
@@ -257,7 +243,7 @@ def _menu():
   from dataclasses import replace
   from pluggybot.mind.overseer import Menu
   from pluggybot.lifecycle import board_book
-  return replace(Menu.for_world("home", board_book("home")), procedures=True)
+  return replace(Menu.for_world(WORLD, board_book(WORLD)), procedures=True)
 
 
 def test_the_answer_that_defines_a_procedure_can_name_it_even_in_an_empty_library():
@@ -289,56 +275,54 @@ def test_procedure_new_needs_a_define_on_the_same_answer():
                 procedures=())
 
 
-def _deciding_life(monkeypatch, library):
-  life = _room_hub_life()
-  _stub_swaps(life, monkeypatch)
-  life.overseer = SimpleNamespace(library=library)
+def _deciding_life(library):
+  life = stub_life()
+  life.overseer = SimpleNamespace(library=library, event_map=None)
   events = []
   life.on_event.append(events.append)
   return life, events
 
 
-def test_procedure_new_runs_what_the_same_answer_defined_and_not_another(monkeypatch):
+def test_procedure_new_runs_what_the_same_answer_defined_and_not_another():
   from pluggybot.mind.overseer import PROCEDURE_NEW
-  L = lib.Library(lc.world_facts("room_hub"))
+  L = lib.Library(lc.world_facts(WORLD))
   L.define("old", "def old():\n  fetch(\"module_claw\")\n  stow()\n")
-  life, events = _deciding_life(monkeypatch, L)
+  life, events = _deciding_life(L)
   decision = Decision(action=PROCEDURE_NEW, reason="weigh it now",
                       define={"name": "weigh", "source": "def weigh():\n  wait(1)\n"})
-  tick.run(life.body.mission.swap, life._after_decision_routine(decision))
+  life.body.run(life._after_decision_routine(decision))
   queued = [e.program.name for e in life.errands if e.program is not None]
   assert queued == ["weigh"]                 # queued for the loop, and not `old`
 
 
-def test_procedure_new_runs_nothing_when_the_define_was_refused(monkeypatch):
+def test_procedure_new_runs_nothing_when_the_define_was_refused():
   from pluggybot.mind.overseer import PROCEDURE_NEW
-  L = lib.Library(lc.world_facts("room_hub"))
+  L = lib.Library(lc.world_facts(WORLD))
   L.define("old", "def old():\n  wait(1)\n")
-  life, events = _deciding_life(monkeypatch, L)
-  life.body.mission._drive_routine = lambda *a, **kw: tick.result(None)
+  life, events = _deciding_life(L)
   decision = Decision(action=PROCEDURE_NEW, reason="try",
                       define={"name": "bad", "source": "def bad():\n  import os\n"})
-  tick.run(life.body.mission.swap, life._after_decision_routine(decision))
+  life.body.run(life._after_decision_routine(decision))
   assert not [e for e in life.errands if e.program is not None]
   assert "ran nothing: `procedure:new`" in life.thoughts.read("History.md")
 
 
-def test_a_refused_define_is_written_where_the_robot_reads(monkeypatch):
+def test_a_refused_define_is_written_where_the_robot_reads():
   """Narrated and put on the wire, a refusal reached everyone but the robot
   that made it -- and both deployed libraries were full, so "an `undefine`
   on the same answer makes room" was said to nobody who could act on it."""
-  life, _ = _deciding_life(monkeypatch, lib.Library(lc.world_facts("room_hub")))
+  life, _ = _deciding_life(lib.Library(lc.world_facts(WORLD)))
   life._define(Decision(action="idle", reason="x",
                         define={"name": "bad", "source": "def bad():\n  import os\n"}))
   assert "could not write the procedure bad:" in life.thoughts.read("History.md")
 
 
-def test_a_one_answer_rewrite_that_is_refused_keeps_the_procedure_it_had(monkeypatch):
+def test_a_one_answer_rewrite_that_is_refused_keeps_the_procedure_it_had():
   """Undefine and define of one name is a swap: applied in order, a refused
   define had already deleted the procedure it was meant to improve."""
-  L = lib.Library(lc.world_facts("room_hub"))
+  L = lib.Library(lc.world_facts(WORLD))
   L.define("weigh", "def weigh():\n  wait(1)\n")
-  life, _ = _deciding_life(monkeypatch, L)
+  life, _ = _deciding_life(L)
   life._define(Decision(action="idle", reason="x", undefine="weigh",
                         define={"name": "weigh", "source": "def weigh():\n  import os\n"}))
   assert "weigh" in L.runnable() and "wait(1)" in L.entries["weigh"].source
@@ -351,7 +335,7 @@ def test_a_one_answer_rewrite_that_is_refused_keeps_the_procedure_it_had(monkeyp
 
 
 def test_new_is_not_a_name_a_procedure_may_take():
-  L = lib.Library(lc.world_facts("room_hub"))
+  L = lib.Library(lc.world_facts(WORLD))
   with pytest.raises(lib.LibraryRefused, match="procedure:new"):
     L.define("new", "def new():\n  wait(1)\n")
 
@@ -385,67 +369,26 @@ def test_a_drive_that_did_not_arrive_says_where_it_stopped_and_why():
 # ---- 7. a stow puts the tool back as a pick left it, first -----------------
 
 
-def test_a_stow_restores_the_carry_configuration_before_the_return(monkeypatch):
-  """A return computes its release heights from the lift it STARTS at, and
-  a procedure may have moved it. MEASURED: a claw stowed from 0.03 m -- where
-  Luca's weighing had lowered it -- was driven into the rack and knocked to
-  the floor; from the pick's height it hung -- an ordinary stow, flown
-  wherever one is. This is the order of the calls.
-  ⚠ The lift comes UP before the arm comes in (issue #347): a set-down
-  leaves it at `APPROACH_LIFT`, below the carry height, and MEASURED, a claw
-  drawn in that low comes off its seat."""
-  from pluggybot.tools.gripper import APPROACH_LIFT, CLAW_MODULE, MODULE_DRIVE_LIFT
+def test_a_stow_restores_the_carry_configuration_before_the_return():
+  """A return computes its approach from the pose it STARTS at, and a
+  procedure may have moved the arm anywhere: the arm goes back to its
+  carrying pose first. This is the order of the calls."""
   calls = []
 
-  def rec(name, *args):
+  def rec(name):
     def make(*a, **kw):
-      calls.append((name, a[0] if a else None))
+      calls.append(name)
       return tick.result("arrived")
     return make
-  state = {"on_fork": True, "hung": False}
-
-  def ramp(act, target, speed, settle=0.0):
-    calls.append(("set_lift", target))
-    return tick.result(None)
-  body = SimpleNamespace(module_state=lambda t: dict(state) if t == CLAW_MODULE
-                         else {"on_fork": False, "hung": True},
-                         actuator=lambda name: 0, ramp_routine=ramp,
+  body = SimpleNamespace(module_state=lambda t: {"on_fork": t == "module_claw",
+                                                 "hung": t != "module_claw"},
                          retract_arm_routine=rec("retract_arm"),
-                         stow_tool_routine=rec("return"), pose_xy=lambda: (0.0, 0.0),
+                         stow_tool_routine=rec("return"),
                          swap_trace=lambda: "no swap recorded")
   life = SimpleNamespace(rack_inventory=dict(st.TOOL_BAYS), swaps_done=0,
-                         model=None, world="room_hub",   # no routes home
-                         data=SimpleNamespace(ctrl=[APPROACH_LIFT]),   # where a set-down leaves it
-                         body=body)
-  held = SimpleNamespace(held=lambda: "block_1", set_down_routine=rec("set_down"))
-  monkeypatch.setattr(st, "_claw", lambda _life: held)
+                         model=None, world=WORLD, body=body)
   tick.run(SimpleNamespace(step=lambda *a: None), st._stow(life, {}))
-  assert [c[0] for c in calls] == ["set_down", "set_lift", "retract_arm", "return"]
-  assert ("set_lift", MODULE_DRIVE_LIFT) in calls
-
-
-def test_a_pick_that_cannot_see_its_cube_says_whether_it_ever_got_there(monkeypatch):
-  """Live, `pick(22)` failed "not a cube this robot can see from here" where
-  the same six lines stacked the tower locally, and the line could not say
-  whether the route to the cube never arrived or arrived and the tag did not
-  decode -- two different things to fix."""
-  claw = SimpleNamespace(calibrate_from_body=lambda: None,
-                         tuck_routine=lambda: tick.result(None))
-  life = SimpleNamespace(world="home", body=SimpleNamespace(
-    pose_xy=lambda: (-6.0, 1.0), face_routine=lambda h: tick.result(True),
-    peer_on_the_goal=lambda x, y: None),
-    drive_why=lambda x, y: "the drive gave up (why)")
-  monkeypatch.setattr(st, "_spot_routine", lambda life, tag: tick.result(None))
-  stepper = SimpleNamespace(step=lambda *a: None)
-  life.body.go_to_routine = lambda x, y, timeout: tick.result(False)
-  seen, _, unseen = tick.run(stepper, st._approach_routine(life, claw, 22, carrying=False))
-  assert seen is None
-  assert unseen.endswith("the route to where the house set it out stopped at (-6.0, 1.0): "
-                         "the drive gave up (why)")
-  life.body.go_to_routine = lambda x, y, timeout: tick.result(True)
-  seen, _, unseen = tick.run(stepper, st._approach_routine(life, claw, 22, carrying=False))
-  assert seen is None and unseen.startswith(
-    "tag 22 did not decode even from where the house set it out, by (-11.00, -4.50)")
+  assert calls == ["retract_arm", "return"]
 
 
 def test_a_refused_build_says_what_is_in_the_way(monkeypatch):
@@ -467,146 +410,39 @@ def test_a_refused_build_says_what_is_in_the_way(monkeypatch):
 
 def test_the_trace_measures_the_belief_against_the_true_pose():
   """Every live pick missed for a reason no local reproduction showed; the
-  trace says how far the belief had drifted from the truth when it tried."""
-  life = _room_hub_life()
-  m = life.body.mission
+  trace says how far the belief had drifted from the truth when it tried --
+  on the served body, its reckoning against its torso."""
+  import mujoco
+  from pluggybot.legs import body as qb
+  from pluggybot.legs.world import home_spec
+  model = home_spec().compile()
+  body = qb.QuadBody(model, mujoco.MjData(model), realtime=False,
+                     grid_bounds=lc.world_config(WORLD)["grid_bounds"])
+  m = body.mission
   m.start_at(1.0, 1.0, 0.5)
-  # the parts' noise and the scans' matching leave a start a few mm out (#386)
   start = m.truth_error()
   assert start == pytest.approx([0.0, 0.0, 0.0], abs=5.0)
-  m.swap.reckoner.x += 0.012
+  m.odo.x += 0.012
   assert m.truth_error()[0] - start[0] == pytest.approx(12.0, abs=0.2)
-
-
-def test_a_missed_pick_is_measured_where_the_approach_ended():
-  """The trace's offset is the one a miss is ABOUT: the module against the
-  fork before the lift, in the robot's frame. A fork 30 mm to the right of
-  the peg -- outside the +/-11 mm capture window -- reads the module 30 mm
-  LEFT and at the fork, and it is read before the lift's first step; read
-  after the retreat (as it first was), a miss put the fork 0.35 m away."""
-  from pluggybot.rack.coupling import HUB_STATION_YS
-  from pluggybot.rack.swap import HubSwap
-  from pluggybot.control import wheel_targets
-  model = mujoco.MjModel.from_xml_path("models/hub_world.xml")
-  swap = HubSwap(model, mujoco.MjData(model))
-  swap.place_at_standoff(HUB_STATION_YS[0], dy=0.03)
-  for cmd in swap.pick_routine(module="module_lcd"):
-    swap._step_once(*wheel_targets(*cmd))
-    if swap.approach_end is not None:
-      break                                   # the claim is settled here
-  else:
-    pytest.fail("the pick returned without measuring its approach")
-  ahead, left = swap.approach_end
-  assert 0.022 < left < 0.038, left
-  assert abs(ahead) < 0.05, ahead
 
 
 def test_a_failed_pick_puts_its_trace_in_the_log_and_never_the_status():
   """`_say`'s message is the robot's status line on the site -- a sentence
   it could say; the trace is evidence, `detail`, the log's alone."""
   from pluggybot.mission.errand import Errand
-  from pluggybot.mission.mission import swap_trace
-  from pluggybot.rack.coupling import HUB_STATION_YS
-  rec = {"verb": "pick", "route": "ok", "attempts": [
-    {"fix": "plane:2", "err": [3.0, -12.4, -1.4], "travel": 0.187, "why": "arrived",
-     "moduleFromForkMm": [2.0, 15.1]}]}
-  assert swap_trace(rec) == ("route ok; #1 fix plane:2, belief off +3,-12 mm -1.4 deg, "
-                             "travel 0.187 m -> arrived, module from fork +2 ahead +15 left mm")
-  life = _room_hub_life()
-
-  def failed(*a, **kw):
-    life.body.mission.last_swap = rec
-    return tick.result("arrived")
-  life.body.mission.swap_at_bay_routine = failed
-  life.body.mission.swap.module_state = lambda *a, **kw: {"on_fork": False, "hung": True}
-  life.body.mission.drive_to_routine = lambda *a, **kw: tick.result(True)
+  from pluggybot.rack.coupling import STATION_YS
+  life = stub_life()
+  _stub_swaps(life, fetch_ok=False)
+  life.body.swap_trace = lambda: "route ok; #1 fix plane:2, belief off +3,-12 mm"
   said = []
-  life.say_hooks.append(lambda t, msg: said.append(msg))
+  life.say_hooks.append(lambda t, msg, *a: said.append(msg))
   life.run_errand(Errand(name="carry:test", module="module_lcd",
-                         station_y=HUB_STATION_YS[0], use_at=(1.0, 1.0),
+                         station_y=STATION_YS[0], use_at=(1.0, 1.0),
                          use=lambda _l: {}, needs_use_pose=False))
   assert any("belief off +3,-12 mm" in line for line in life.log)
+  assert any("SWAP_PICK FAILED" in msg for msg in said)
   assert not any("belief off" in msg for msg in said)
 
-
-# ---- a stow from across the street comes home by the street ----------------
-
-
-def test_home_route_is_a_zones_route_reversed_from_where_the_robot_stands():
-  """Ladder B on the bench (2026-09-24): a weighing failed in the lab, the
-  stow's single drive home across the street failed twice, and the claw
-  stayed on the fork and was lost at the garden door. The way home starts at
-  the door the robot's ZONE is behind (`HOME_FROM`): by straight line, the
-  lobby was sent to the lab's door, the ring outside the facility into it,
-  and the south street nowhere at all (both reviews of #336)."""
-  lab = lc.lab_route("home")
-  assert lc.home_route("home", (27.0, 1.5)) == lab[::-1]              # the lab
-  assert lc.home_route("home", (20.5, 0.0)) == lab[3::-1]             # the lobby
-  assert lc.home_route("home", (25.0, -3.0)) == lab[3::-1]            # the store
-  assert lc.home_route("home", (17.5, 2.0)) == lab[2::-1]             # garden_2
-  for outside in ((13.0, 3.1), (28.8, 0.0), (22.0, 6.8), (8.0, -9.0)):
-    assert lc.home_route("home", outside) == lab[1::-1], outside      # the gate first
-  assert lc.home_route("home", (7.5, 1.3)) == [lab[0]]                # the garden
-  rack = world_config("home")["start"][:2]
-  for inside in (rack, (-8.5, 4.0), (-8.5, -3.0)):                     # the house
-    assert lc.home_route("home", inside) == [], inside
-  assert lc.home_route("room_hub", (1.0, 1.0)) == []
-
-def test_both_stows_drive_the_route_home_before_the_swap(monkeypatch):
-  """`stow()` and the stow after a procedure both come home by the route
-  first: the legs, in order, and then the bay."""
-  cfg = world_config("home")
-  model = mujoco.MjModel.from_xml_path(cfg["model"])
-  life = HubLifecycle(model, mujoco.MjData(model), realtime=False, world="home",
-                      errand=False, battery_wh=8.0, rack=cfg["rack"],
-                      grid_bounds=cfg["grid_bounds"], low_battery_wh=cfg["low_battery_wh"])
-  _stub_swaps(life, monkeypatch)
-  trips = []
-  real_swap = life.body.mission.swap_at_bay_routine
-
-  def drive(x, y, timeout=None):
-    trips.append(("drive", round(x, 2), round(y, 2)))
-    return tick.result(True)
-
-  def swap(station, verb, module=None, tries=2):
-    trips.append((verb,))
-    return real_swap(station, verb, module=module, tries=tries)
-  life.body.mission.drive_to_routine = drive
-  life.body.mission.swap_at_bay_routine = swap
-  legs = [("drive", round(x, 2), round(y, 2)) for x, y in lc.lab_route("home")[::-1]]
-  L = lib.Library(lc.world_facts("home"))
-  L.define("fetch_only", 'def fetch_only():\n  fetch("module_claw")\n')
-  L.define("fetch_stow", 'def fetch_stow():\n  fetch("module_claw")\n  stow()\n')
-  for name in ("fetch_stow", "fetch_only"):
-    trips.clear()
-    life.body.start_at(27.0, 1.5, 0.0)
-    life.run_errand(errand_from(Decision(action=f"procedure:{name}"), "home", library=L))
-    back = trips[trips.index(("pick",)) + 1:]
-    assert back[:len(legs)] == legs and back[len(legs)] == ("return",), (name, back)
-
-
-def test_a_drive_that_stalled_short_of_the_stand_is_not_a_look_from_it():
-  """Review of #336: a failed drive to the final stand still reported a look
-  "from where the house set it out" when it had stopped metres short. It
-  still faces the cube and LOOKS from where it stopped -- the cube may be in
-  view, as it always was (second review) -- and a failed look says where it
-  was taken from. A drive that stagnates centimetres out is there."""
-  _, _, stand, heading = st.prop_stand("home", 21)
-
-  def travel(dx):
-    faced = []
-    life = SimpleNamespace(world="home", body=SimpleNamespace(
-      pose_xy=lambda: (stand[0] + dx, stand[1]), peer_on_the_goal=lambda x, y: None,
-      go_to_routine=lambda x, y, timeout: tick.result((x, y) != stand),
-      face_routine=lambda h: (faced.append(h), tick.result(True))[1]),
-      drive_why=lambda x, y: "the drive gave up 2.0 m short after 10 s (stalled)")
-    went, why = tick.run(SimpleNamespace(step=lambda *a: None), st._travel_routine(life, 21))
-    return went, why, faced
-  went, why, faced = travel(2.0)
-  assert went and faced == [heading]
-  assert why.startswith("and the drive gave up 2.0 m short after 10 s (stalled) on the way to "
-                        "where the house set it out")
-  assert travel(0.3) == (True, "", [heading])
 
 # ---- review of #336: the library's edges -----------------------------------
 
@@ -620,7 +456,7 @@ def test_undefine_can_name_an_entry_that_cannot_run(tmp_path):
   (tmp_path / f"new{lib.SUFFIX}").write_text("def new():\n  wait(1)\n")
   (tmp_path / f"broken{lib.SUFFIX}").write_text("def broken():\n  fetch('module_gone')\n")
   (tmp_path / f"ok{lib.SUFFIX}").write_text("def ok():\n  wait(1)\n")
-  L = lib.Library(lc.world_facts("room_hub"), root=tmp_path)
+  L = lib.Library(lc.world_facts(WORLD), root=tmp_path)
   assert set(L.names()) == {"new", "broken", "ok"} and L.runnable() == ("ok",)
   schema = _menu().schema(procedures=L.runnable(), keeps=L.names())
   props = schema["properties"]
@@ -644,16 +480,16 @@ def test_a_retired_tool_on_a_peers_record_is_carried_by_nobody():
   assert lc.carrying(riding) == "module_claw"
 
 
-def test_making_room_for_a_refused_procedure_keeps_the_one_it_would_have_replaced(monkeypatch):
+def test_making_room_for_a_refused_procedure_keeps_the_one_it_would_have_replaced():
   """The refusal for a full library advises an `undefine` on the same answer
   -- and both deployed libraries were full. Applied in order, a refused
   define then cost the working procedure it was making room for (second
   review of #336); the undefine now waits for a define that goes through.
   An answer with no undefine is a plain refusal, never "kept"."""
-  L = lib.Library(lc.world_facts("room_hub"), cap=2)
+  L = lib.Library(lc.world_facts(WORLD), cap=2)
   L.define("a", "def a():\n  wait(1)\n")
   L.define("c", "def c():\n  wait(1)\n")
-  life, _ = _deciding_life(monkeypatch, L)
+  life, _ = _deciding_life(L)
   life._define(Decision(action="idle", reason="x", undefine="a",
                         define={"name": "b", "source": "def b():\n  import os\n"}))
   history = life.thoughts.read("History.md")

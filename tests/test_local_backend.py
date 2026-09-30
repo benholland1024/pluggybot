@@ -108,14 +108,14 @@ def test_an_endpoint_with_no_model_is_refused_rather_than_guessed():
 def test_build_reads_the_backend_and_its_default_model(monkeypatch):
   monkeypatch.delenv(overseer.MODEL_ENV, raising=False)
   monkeypatch.setenv(overseer.BACKEND_ENV, "local")
-  boss = overseer.build("room_hub", enabled=True, client=object())
+  boss = overseer.build("home_quad", enabled=True, client=object())
   assert boss.backend == "local"
   # ⚠ `claude-haiku-4-5` is not a thing ollama can serve: a backend chosen
   # without a model has to get THAT backend's default or the run 404s
   # against the robot's own machine.
   assert boss.model == llm.LOCAL_MODEL
   monkeypatch.setenv(overseer.MODEL_ENV, "qwen3:8b")
-  boss = overseer.build("room_hub", enabled=True, client=object())
+  boss = overseer.build("home_quad", enabled=True, client=object())
   assert (boss.backend, boss.model) == ("local", "qwen3:8b")
 
 
@@ -123,7 +123,7 @@ def test_the_anthropic_default_is_unchanged(monkeypatch):
   """The regression criterion: nothing about a default run moves."""
   monkeypatch.delenv(overseer.BACKEND_ENV, raising=False)
   monkeypatch.delenv(overseer.MODEL_ENV, raising=False)
-  boss = overseer.build("room_hub", enabled=True, client=object())
+  boss = overseer.build("home_quad", enabled=True, client=object())
   assert (boss.backend, boss.model) == ("anthropic", MODEL)
   assert boss.usage.usd_per_mtok_in == overseer.USD_PER_MTOK_IN
   assert boss.stats()["backend"] == "anthropic"
@@ -315,7 +315,7 @@ def test_serve_puts_a_named_backend_in_front_of_the_same_loop(monkeypatch):
   from test_webserver import _serve_wiring
 
   life, _, _ = _serve_wiring(monkeypatch, [
-    "--world", "room_hub", "--free-run", "--overseer",
+    "--world", "home_quad", "--free-run", "--overseer",
     "--overseer-backend", "local", "--overseer-url", "http://127.0.0.1:9/v1"])
   boss = life.init_kwargs["overseer"]
   assert (boss.backend, boss.model) == ("local", llm.LOCAL_MODEL)
@@ -333,7 +333,7 @@ def test_serve_without_the_flag_is_the_anthropic_run_it_always_was(monkeypatch):
   monkeypatch.delenv(overseer.BACKEND_ENV, raising=False)
   monkeypatch.delenv(overseer.MODEL_ENV, raising=False)
   life, _, _ = _serve_wiring(monkeypatch,
-                             ["--world", "room_hub", "--free-run",
+                             ["--world", "home_quad", "--free-run",
                               "--overseer"])
   boss = life.init_kwargs["overseer"]
   assert (boss.backend, boss.model) == ("anthropic", MODEL)

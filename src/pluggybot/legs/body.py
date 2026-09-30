@@ -1358,8 +1358,8 @@ class QuadMission(ToolSwap, PlaceWalk, Navigator):
 
 class QuadBody(Body):
   """The quadruped: `QuadMission` and everything it owns, as a `Body`.
-  Every member hands the call to the mission by name at CALL time, as
-  `RoverBody` does, so a stub on the mission is what the body runs."""
+  Every member hands the call to the mission by name at CALL time, so a
+  stub on the mission is what the body runs."""
 
   STILL = STILL
   level_tilt_rad = QuadMission.LEVEL_TILT

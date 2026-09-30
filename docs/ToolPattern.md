@@ -1,13 +1,32 @@
 # Tool Pattern — how to build the next module
 
+⚠ **Status (2026-09-30): this is the ROVER's pattern, kept until #407
+rewrites it for the arm.** Everything below was built on the wheeled rover's
+lift and fork, deleted in #376 (tag `rover-final`). Since #405 the tools
+hang on the quadruped's rack (`legs/rack.py`) and ride its two-joint arm's
+fork (`legs/arm.py`, `legs/swap.py`; SimNotes, "The quadruped's arm, its
+coupling and the rack"). What still holds is the coupling — a split peg,
+gravity as the latch, the peg's two conductors as the power
+(`rack/coupling.py`) — and the build discipline. What does not is the lift,
+the rover's rack, bays and built-tool rail, and every axis a tool counted on
+the rover to supply. Every piece of the rover's code, models, scripts and
+tests this doc names is at `rover-final`, not in the tree — among them
+`tools/gripper.py`, `tools/dispenser.py`, the pen plotter,
+`mission/mission.py`, `hub_world.xml`, `hub_rack.xml`,
+`pluggybot_fork.xml`, `scripts/{hub_spike,swap_spike,noslip_spike,pickup,
+draw,dispense}.py` and
+`tests/test_{gripper,drawing,dispenser,hub_coupling}.py`. No world has a
+built-tool rail now, so the workshop's `can_reshape` refuses (Overseer.md
+§2d).
+
 The recipe for adding a tool to PluggyBot's rack. It was mined from the first
-two tools that worked — the **pen** (an X-Y plotter, `tools/drawing.py`) and
-the **claw** (a pick-and-place gripper, `tools/gripper.py`) — and validated by
-the **seed dispenser** (`tools/dispenser.py`), which was built from this doc
-rather than for it: its stage 0 came out on paper and the mechanism worked
-first run. Every gap a build exposes is folded back in here; that is what
-makes the next tool cheaper than the last. Five modules hang on the rack
-today (LCD, plug, pen, claw, seed dispenser) and every bay is taken (§6).
+two tools that worked — the **pen** (an X-Y plotter) and the **claw** (a
+pick-and-place gripper) — and validated by the **seed dispenser**, which was
+built from this doc rather than for it: its stage 0 came out on paper and the
+mechanism worked first run. Every gap a build exposes is folded back in here;
+that is what makes the next tool cheaper than the last. Five modules hung on
+the rover's rack (LCD, plug, pen, claw, seed dispenser); three (LCD, pen,
+claw) hang on the quadruped's.
 
 The next builder may not be a person: the agent-built tools (Overseer.md
 §2d) use `rack/coupling.py`'s generator as the emitter and §2's envelope as
@@ -611,24 +630,17 @@ textures on flat plates:
 
 | marker | id(s) | physical size |
 |---|---|---|
-| rack | 0 | 120 mm (`RACK_TAG_SIZE`) — read from across the room |
-| charge bay | 3 | 30 mm (`SMALL_TAG_SIZE`) |
-| bays A–E | 1, 2, 4, 5, 6 | 30 mm — read from arm's length |
-| the rail's bays A–C | 7, 8, 9 | 30 mm |
+| (the rover's rack, charge bay and bays) | 0–9 | deleted with it (#376), not reused |
 | modules | 10 lcd, 11 plug, 12 pen, 13 claw, 14 seed | 30 mm |
-| built modules | 15 + the rail bay (15–17) | 30 mm — per BAY, reused by the next tool there |
+| built modules | 15 + the rail bay (15–19) | 30 mm — per BAY, reused by the next tool there |
 | the tower's blocks, the bench's masses | 20–22, 23–24 | 20.8 mm (cube faces) |
 | the quadruped's dock (#378) | 25–28 | 60 mm |
 | the quadruped's rack (#378; `legs/rack.py`) | 29–34, a pair a bay | 60 mm |
+| the lab's plate signs (#419) | 35–37 | 120 mm |
 
 A new hand-built tool needs a new entry in `MODULE_TAG_IDS` (next free:
-**35**; 18–19 are the built ids a longer rail would take); a new *bay*
-needs one appended to `BAY_TAG_IDS` (next free: **35** likewise).
-`RACK_TAG_FACES` — the rack-fixed layout `localize.fit_rack_facing` fits
-to what the dock camera decodes — is built from `STATION_YS` and
-`BAY_TAG_IDS`, so an appended station is fitted by itself, and the rail's
-bays are fitted with the rack's because the rail is commissioned beside it
-(the survey a real second rack would ship with, like `RackPose.prior`).
+**38**); the quadruped's rack reads its bays by `LEGS_RACK_TAG_IDS` and
+fits its facing to a bay's pair (`legs/rack.py`, `fit_rack`).
 Tag size is a range decision, not a
 detail — a tag36h11 must span ~25–30 px to decode, so the physical size sets
 the distance at which it can be seen. Ids are **not renumbered**: the gap at

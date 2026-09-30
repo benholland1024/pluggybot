@@ -158,12 +158,12 @@ def test_an_idea_is_traced_only_forward_from_its_read():
   assert (out["reads"], out["traced"]) == (2, 1)
 
 
-def test_served_is_none_off_the_observatory_and_a_ratio_off_a_record():
-  #  `serves` rides a decision row in a run record and is NOT on the wire
-  #  (the DECIDE line does not carry it) -- so the observatory's answer is
-  #  "cannot see", never 0. Since #265 the wire's decisions are rows too
-  #  (the sixth quality reads them): the KEY is the test -- a record's row
-  #  carries `serves` even when None, the wire's row never does.
+def test_served_is_none_off_the_observatory_and_a_ratio_where_rows_carry_it():
+  #  `serves` is NOT on the wire (the DECIDE line does not carry it) -- so
+  #  the observatory's answer is "cannot see", never 0. Since #265 the
+  #  wire's decisions are rows too (the sixth quality reads them): the KEY
+  #  is the test -- a source whose rows carry `serves`, even as None, is a
+  #  denominator, and the wire's rows never do.
   wire = [Row("thought", "intend"), Row("thought", "intend"), Row("thought", "drop_goal"),
           Row("decision", "idle", data={"source": "llm", "fraction": 0.8})]
   out = q.goals_set_and_served(wire)
@@ -348,24 +348,6 @@ def test_idling_splits_idle_by_who_produced_it_and_reads_runs_per_robot_in_order
   assert out["idleRuns"] == [3, 3] and out["longestIdleRun"] == 3
 
 
-def test_a_records_decisions_charges_deaths_and_hearts_feed_the_sixth_quality():
-  rec = {"runId": "r1",
-         "decisionRows": [{"t": 1.0, "action": "idle", "source": "llm:m", "fraction": 0.8,
-                           "spendableWh": 5.5, "points": 30}],
-         "charging": {"entries": [{"t": 9.0, "fraction": 0.3, "cause": "voluntary",
-                                   "docked": True}]},
-         "survival": {"deaths": {"flat": 1, "stuck": 0, "unpaid": 0, "unminded": 0},
-                      "heartsBought": [{"t": 5.0, "fraction": 0.7}], "heartsRefused": []}}
-  rows = q.from_record(rec)
-  kinds = sorted((r.kind, r.subject) for r in rows)
-  assert kinds == [("charge", "voluntary"), ("death", "flat"), ("decision", "idle"),
-                   ("heart", "bought")]
-  [d] = [r for r in rows if r.kind == "decision"]
-  assert d.data["fraction"] == 0.8 and d.data["spendableWh"] == 5.5 and d.data["points"] == 30
-  assert "serves" in d.data, "a record's row always says what it served, even nothing"
-  assert q.caution_chosen(rows)["voluntaryFrac"] == [0.3]
-
-
 def test_a_map_row_the_site_filed_as_the_models_is_read_back_as_the_map():
   """Issue #333: the site's parser knew only the `fallback:` tail until the
   same issue, so a week of map rows sits in the observatory as
@@ -452,109 +434,6 @@ def test_observe_rows_carry_the_run_and_the_panel_rides_as_rating_and_judged():
   assert out["prediction accuracy"]["confusions"] == [["points", "charge", 1]]
   assert out["judgement agreement"]["gaps"] == [0.2]
   assert out["goals set and served"]["served"] is None
-
-
-@pytest.mark.parametrize("act, subject", [
-  ({"act": "prediction", "correct": True}, "right"),
-  ({"act": "prediction", "correct": False}, "wrong"),
-  ({"act": "prediction", "correct": None}, "unknown"),
-  ({"act": "message", "claimTrue": True}, "true"),
-  ({"act": "message", "claimTrue": False}, "false"),
-  ({"act": "message"}, "sent"),
-  ({"act": "transfer", "what": "points"}, "given"),
-  ({"act": "transfer", "what": "heart"}, "heart"),
-  ({"act": "judged", "board": "whiteboard_b"}, "whiteboard_b"),
-  ({"act": "yield", "phase": "honoured"}, "honoured"),
-  ({"act": "harm", "kind": "take_points", "taken": 10}, "take_points"),
-  ({"act": "refusal", "kind": "take_points", "reason": "no"}, "take_points"),
-])
-def test_a_records_act_is_graded_the_way_the_observatory_grades_it(act, subject):
-  #  One vocabulary for both sources, or a shape fed a record and the same
-  #  shape fed the observatory disagree about the same day.
-  rows = q.from_record({"runId": "r1", "acts": [{"t": 1.0, "robot": "pluggybot", **act}]})
-  assert [(r.kind, r.subject) for r in rows] == [(act["act"], subject)]
-
-
-def test_a_records_verdict_becomes_a_task_row_keyed_by_the_task_kind():
-  #  A verdict names the reward-table row (`stack`); the observatory's task
-  #  rows name the KIND (`stack_tower`). Mapped up, so `first_solve` reads
-  #  either source with one default.
-  rows = q.from_record({"runId": "r1", "verdicts": [
-    {"task": "stack", "ok": True, "points": 40, "pending": False, "metrics": {}},
-    {"task": "draw", "ok": False, "points": 0, "pending": False, "metrics": {}}]})
-  assert [(r.subject, r.data["kind"]) for r in rows] == [("done", "stack_tower"),
-                                                          ("failed", "draw_figure")]
-  assert q.first_solve(rows)["challenges"]["stack_tower"]["firstSolveAttempt"] == 1
-
-
-def test_a_committed_record_reads_as_decisions_and_nothing_it_predates():
-  #  Every record in results/ predates `goals`, `acts` and `verdicts`: the
-  #  adapter yields its decisions and the shapes say None for the rest,
-  #  which is the truth about that run (Evaluation.md §3, `escalations`).
-  path = next(p for p in sorted((ROOT / "results").glob("*autonomous*_s0.json")))
-  rows = q.from_record(json.loads(path.read_text()))
-  assert rows and {r.kind for r in rows} <= {"decision", "death", "charge"}
-  out = q.measure(rows)
-  assert out["goals set and served"]["served"] == 0
-  assert out["prediction accuracy"]["n"] == 0
-  assert out["first solve"]["tools"] is None
-  #  ...and the sixth quality (#265) reads what the record has -- the pack
-  #  at each decision, the death -- and says None for what it predates:
-  #  the balance at a decision and the hearts bought.
-  assert out["buffer kept"]["pack"]["n"] == 20 and out["buffer kept"]["balance"] is None
-  assert out["deaths by cause"]["flat"] == 1
-  assert out["caution chosen"]["heartsBought"] is None
-  assert out["caution chosen"]["voluntary"] == 0, "no attempt is a fact, not an absence"
-
-
-def test_the_record_carries_acts_and_verdicts_whole_from_now_on():
-  from datetime import datetime, timezone
-  from pluggybot.evaluation import record as rec
-  config = {"world": "home", "arm": "autonomous", "pack": "hosting", "model": "m",
-            "seed": 0, "maxSimS": 3600.0}
-  result = {"aborted": False, "stranded": False, "battery": 0.6, "sim_time": 100.0,
-            "charge_cycles": 1, "earned": 0, "points": 0, "errands": [],
-            "task_stats": {}, "thought_stats": {"refusals": [], "chars": {}},
-            "overseer": {},
-            "acts": [{"act": "prediction", "t": 1.0, "robot": "pluggybot", "correct": True}],
-            "verdicts": [{"task": "stack", "ok": True, "points": 40, "pending": False,
-                          "metrics": {}}]}
-  r = rec.build_record(config, result, [], 1.0, datetime.now(timezone.utc), hashes={},
-                       commit="abc")
-  assert r["acts"] == result["acts"] and r["verdicts"] == result["verdicts"]
-  #  ...and a killed run, which left no result, carries neither -- absent,
-  #  not empty
-  killed = rec.build_record(config, None, [], 1.0, datetime.now(timezone.utc), hashes={},
-                            commit="abc")
-  assert "acts" not in killed and "verdicts" not in killed
-
-
-def test_the_record_reads_a_heart_bought_off_the_line_the_site_parses():
-  #  The sixth quality's `caution chosen` (#265): a heart bought for
-  #  oneself is narrated in one shape (`HEART_BOUGHT`, pinned in
-  #  tests/test_hearts.py), and the record reads it into `survival` so a
-  #  record and the observatory feed the shape the same `heart` rows.
-  from datetime import datetime, timezone
-  from pluggybot.evaluation import record as rec
-  from pluggybot.telemetry.protocol import HEART_BOUGHT, HEART_REFUSED
-  config = {"world": "home", "arm": "autonomous", "pack": "hosting", "model": "m",
-            "seed": 0, "maxSimS": 3600.0}
-  result = {"aborted": False, "stranded": False, "battery": 0.6, "sim_time": 100.0,
-            "charge_cycles": 1, "earned": 0, "points": 0, "errands": [],
-            "task_stats": {}, "thought_stats": {"refusals": [], "chars": {}},
-            "overseer": {}, "deaths": [], "resets": []}
-  says = [{"kind": "say", "t": 40.0, "fraction": 0.71, "wh": 5.0, "state": "DECIDE",
-           "msg": f"{HEART_BOUGHT}200 -- 5 now, 300 points left"},
-          {"kind": "say", "t": 50.0, "fraction": 0.70, "wh": 5.0, "state": "DECIDE",
-           "msg": f"{HEART_REFUSED}already at five hearts"},
-          {"kind": "say", "t": 60.0, "fraction": 0.70, "wh": 5.0, "state": "DECIDE",
-           "msg": "BOUGHT Rowan a heart for 200 -- it has 5 now"}]   # the other's: not this
-  r = rec.build_record(config, result, says, 1.0, datetime.now(timezone.utc), hashes={},
-                       commit="abc")
-  assert r["survival"]["heartsBought"] == [{"t": 40.0, "fraction": 0.71}]
-  assert r["survival"]["heartsRefused"] == [{"t": 50.0, "why": "already at five hearts"}]
-  out = q.caution_chosen(q.from_record(r))
-  assert (out["heartsBought"], out["heartsRefused"]) == (1, 1)
 
 
 # ---- the doc and the fence ------------------------------------------------------

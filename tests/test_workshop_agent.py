@@ -2,42 +2,48 @@
 `retire_tool` as decision fields on the `autonomous` arm, a library of
 what it built, the fabrication cost, the `tool` events.
 
+No served world carries the built-tool rail since #376 (#407 re-homes the
+workshop on legs), so the lifecycle's half runs on the stub: where a claim
+is about what happens past the rail's own check, the rail is stood in
+(`_life(rail=True)`); nothing here hangs a tool.
+
 What these hold down:
 
   1. `guarded` IS UNCHANGED. The fields, the rule and the grammar exist
      only where a workshop does; `guarded`'s prefix hash is
      `test_autonomous.py`'s and does not move.
-  2. A BUILD PAYS, WAITS, HANGS -- in that order, each on the wire. Cheap:
-     the decision is handed to the routine directly, no mind, no mission.
-  3. A REFUSAL SPENDS NOTHING: the envelope, the price and the seam are
+  2. A REFUSAL SPENDS NOTHING: the envelope, the seam and the price are
      checked before a point moves, and the reasons ride the event.
-  4. WHAT THE ROBOT BUILT SURVIVES A RESTART: the records re-validate and
-     re-hang at the start of the next day; the points are not paid twice.
-  5. THE PROMPT'S EXAMPLE IS A CAPABILITY, NOT A POLICY.
-  6. THE ORIGINALS ARE PERMANENT AND A BUILT TOOL HANGS ON ITS OWN RAIL
+  3. A PAID BUILD IS NEVER LOST: a print the rack has no room for when it
+     is done, or a stand-up in the middle of, is recorded and said.
+  4. THE PROMPT'S EXAMPLE IS A CAPABILITY, NOT A POLICY.
+  5. THE ORIGINALS ARE PERMANENT AND A BUILT TOOL HANGS ON ITS OWN RAIL
      (issue #277): `build_tool` names a bay of the built-tool rail and
-     nothing else, `retire_tool` refuses the five hand-built modules with
-     the reason, the grammar and the context say which rack is whose, and
-     a world without the rail has no workshop at all.
+     nothing else, `retire_tool` refuses the hand-built modules with the
+     reason, and a world without the rail has no workshop at all.
+  6. WHOSE TOOL, AND WHICH TOOL A PROCEDURE NEEDS (issue #324).
 """
 
 import copy
 import json
+from pathlib import Path
 
 import mujoco
 import pytest
 
-from pluggybot import tick
+from pluggybot.body import STUB_WORLD, StubBody
 from pluggybot.economy.ledger import Ledger
-from pluggybot.lifecycle import HubLifecycle, overseer_context, world_config
+from pluggybot.lifecycle import HubLifecycle, world_config
 from pluggybot.mind import overseer as ov
 from pluggybot.procedure import axes
-from pluggybot.procedure.steps import TOOL_BAYS
-from pluggybot.rack.coupling import built_bay_index
-from pluggybot.robot import world_spec
-from pluggybot.workshop import cost
+from pluggybot.rack.coupling import BUILT_STATION_YS, built_bay_index
+from pluggybot.robot import SECOND
+from pluggybot.workshop import cost, seam
 from pluggybot.workshop.library import BAYS, Workshop, WorkshopRefused
+from test_body import stub_life  # noqa: I001 -- tests/ is on sys.path
 from test_workshop import SCOOP
+
+WORLD = "home_quad"
 
 
 @pytest.fixture(autouse=True)
@@ -63,45 +69,35 @@ class _Mind:
   def __init__(self, workshop):
     self.workshop = workshop
     self.decisions = []
-    self.menu = ov.Menu.for_world("room_hub")
+    self.menu = ov.Menu.for_world(WORLD)
 
 
-def _life(tmp_path, world="room_hub", points=100, workshop=None, step=True):
-  cfg = world_config(world)
-  spec = world_spec(cfg["model"])
+def _life(tmp_path, points=100, workshop=None, rail=False):
+  """A stub lifecycle whose world was compiled from a spec, with a wallet
+  and a workshop; `rail` stands the built-tool rail in, so the seam's
+  checks past it run. The print and assembly wait is recorded, not stood
+  through (the seconds are pinned once, `test_the_cost_is_the_catalogs_price`)."""
+  cfg = world_config(WORLD)
+  spec = mujoco.MjSpec.from_string(STUB_WORLD)
+  spec.modelfiledir = str(Path(cfg["model"]).parent.resolve())
   model = spec.compile()
-  data = mujoco.MjData(model)
   ledger = Ledger(path=str(tmp_path / "ledger.json"))
   if points:
     ledger.intervene(points, t=0.0)
-  life = HubLifecycle(model, data, realtime=False, world=world,
-                      rack=cfg["rack"], grid_bounds=cfg["grid_bounds"],
-                      spec=spec, errand=False, ledger=ledger,
-                      overseer=_Mind(workshop if workshop is not None
-                                     else Workshop(tmp_path / "tools")))
+  life = stub_life(body=StubBody(model, mujoco.MjData(model), rack=cfg["rack"],
+                                 grid_bounds=cfg["grid_bounds"]),
+                   spec=spec, ledger=ledger,
+                   overseer=_Mind(workshop if workshop is not None
+                                  else Workshop(tmp_path / "tools")))
   life.state = "DECIDE"
-  # ⚠ `step=False` is the REAL path's state at `begin()`: a fresh `MjData`
-  # that nothing has stepped, `xpos` all zeros (issue #315).
-  for _ in range(200 if step else 0):
-    mujoco.mj_step(model, data)
-  # The print and assembly wait is ~15 sim-minutes of physics; the fast
-  # tests record it rather than step it (the seconds are pinned once in
-  # `test_a_build_pays_waits_and_hangs`), on the rule that a stubbed
-  # drive stubs the ROUTINE.
+  life.has_built_rack = rail
   life.waited: list = []
 
   def fabricate(seconds):
     life.waited.append(seconds)
-    yield from life.body.mission._drive_routine(0.2, 0.0, 0.0)
+    yield from life.body.hold_routine(0.2)
   life._fabricate_routine = fabricate
   return life
-
-
-#: The five originals, each hung on its own bay, as the rack view says it
-#: (issue #351).
-ON_THEIR_BAYS = {"module_lcd": "on bay A", "module_plug": "on bay B",
-                 "module_pen": "on bay C", "module_claw": "on bay D",
-                 "module_seed": "on bay E"}
 
 
 def _decision(**fields):
@@ -111,7 +107,7 @@ def _decision(**fields):
 def _run(life, decision):
   events = []
   life.on_event.append(events.append)
-  tick.run(life.body.mission.swap, life._workshop_routine(decision))
+  life.body.run(life._workshop_routine(decision))
   return events
 
 
@@ -122,7 +118,7 @@ def _outcomes(events):
 # ---- 1. guarded is unchanged -------------------------------------------------
 
 def test_the_fields_exist_only_with_a_workshop():
-  menu = ov.Menu.for_world("room_hub")
+  menu = ov.Menu.for_world(WORLD)
   plain = menu.schema()
   assert "build_tool" not in plain["properties"] and "retire_tool" not in plain["properties"]
   shop = menu.schema(tools=("scoop",))
@@ -146,7 +142,7 @@ DEPLOYED_IDLE = {"name": "", "bay": "A",
                  "spec": {"name": "scoop", "parts": []}}
 
 
-def test_the_idle_build_tool_a_decoder_emits_is_not_a_build(monkeypatch):
+def test_the_idle_build_tool_a_decoder_emits_is_not_a_build():
   """A constrained decoder fills every property, so an answer that is not
   building still carries a whole `build_tool`. MEASURED (issue #264,
   ladder B): sent to the workshop, that was refused on 13 of 24 answers
@@ -158,7 +154,7 @@ def test_the_idle_build_tool_a_decoder_emits_is_not_a_build(monkeypatch):
   fills with the first member. `parts` is the one required field whose
   zero the prompt cannot supply. A spec naming no part describes nothing
   to build, whatever it is called."""
-  menu = ov.Menu.for_world("room_hub")
+  menu = ov.Menu.for_world(WORLD)
   idle = {"name": "", "bay": "", "spec": {"name": "", "parts": []}}
   idle_part = {"name": "", "bay": "", "spec": {"name": "", "parts": [
     {"id": "", "part": "", "pos": [0, 0, 0], "euler": [0, 0, 0], "on": "",
@@ -223,56 +219,17 @@ def test_guarded_prefix_does_not_move():
   assert hashlib.sha256(ov.RULES.encode()).hexdigest() == GUARDED_RULES_SHA
   from pluggybot.economy.scoring import default_table
   from pluggybot.mind.thoughts import ThoughtFiles
-  menu = ov.Menu.for_world("room_hub")
+  menu = ov.Menu.for_world(WORLD)
   args = (ThoughtFiles(), menu, default_table())
   assert "TOOLS YOU MAY BUILD" not in "".join(p["text"] for p in ov.system_prompt(*args))
   assert "TOOLS YOU MAY BUILD" in "".join(
     p["text"] for p in ov.system_prompt(*args, workshop=True))
 
 
-# ---- 2. a build pays, waits, hangs ------------------------------------------
-
-def test_a_build_pays_waits_and_hangs(tmp_path):
-  life = _life(tmp_path, points=100)
-  from pluggybot.workshop import validate
-  bill = cost.price(validate.check(SCOOP))
-  events = _run(life, _decision(build_tool={"name": "scoop", "bay": "C", "spec": SCOOP}))
-  assert _outcomes(events) == ["specified", "built", "hung"]
-  hung = next(e for e in events if e.get("outcome") == "hung")
-  assert hung["module"] == "module_scoop" and hung["retired"] is None
-  assert hung["verbs"] == ["scoop.tilt"] and hung["cost"]["points"] == bill["points"]
-  # paid: the catalog's price in points, off the balance, counted as spent
-  assert life.ledger.balance() == 100 - bill["points"]
-  assert bill["points"] == 3          # the servo's €2.90 and 9 g of PLA
-  # waited: the print and assembly time, issued to the wait routine (the
-  # one place the number is pinned; the routine itself is a stand-still)
-  assert life.waited == [bill["waitS"]] and bill["waitS"] > 600
-  # hung: the world has it -- in the RAIL's bay C, the originals untouched
-  # -- the workshop records it, the wire saw the scene
-  assert life.rack_inventory["module_scoop"] == built_bay_index(2)
-  assert all(m in life.rack_inventory for m in TOOL_BAYS)
-  assert life.overseer.workshop.names() == ("scoop",)
-  assert any(e.get("type") == "scene_changed" for e in events)
-  # ...and the record survives on disk, whole
-  rec = json.loads((tmp_path / "tools" / "scoop.tool.json").read_text())
-  assert rec["spec"] == SCOOP and rec["bay"] == 2
-  # the model is shown both racks and its tools: the originals as a list
-  # no field can name, its own rail by the letters `build_tool` takes
-  state = overseer_context(life)
-  assert state["rack"] == {
-    "original": ON_THEIR_BAYS,
-    # ⚠ A BUILT BAY SAYS WHOSE IT IS (issue #324): the rail is the world's
-    # and a pair shares it, so "the scoop is in C" was never the whole fact.
-    # ...and where the tool IS (issue #351), off the bay's own switch.
-    "built": {"A": None, "B": None,
-              "C": {"module": "module_scoop", "by": "you", "where": "on its bay"}}}
-  assert state["tools"][0]["hung"] and state["tools"][0]["bay"] == "C"
-
-
-# ---- 3. a refusal spends nothing --------------------------------------------
+# ---- 2. a refusal spends nothing --------------------------------------------
 
 def test_an_envelope_refusal_spends_nothing(tmp_path):
-  life = _life(tmp_path, points=100)
+  life = _life(tmp_path, points=100, rail=True)
   bad = copy.deepcopy(SCOOP)
   bad["parts"][1]["size"] = [260, 2, 2]
   events = _run(life, _decision(build_tool={"name": "scoop", "bay": "C", "spec": bad}))
@@ -284,7 +241,7 @@ def test_an_envelope_refusal_spends_nothing(tmp_path):
 
 
 def test_an_unaffordable_tool_is_refused_before_anything_prints(tmp_path):
-  life = _life(tmp_path, points=1)
+  life = _life(tmp_path, points=1, rail=True)
   events = _run(life, _decision(build_tool={"name": "scoop", "bay": "C", "spec": SCOOP}))
   assert _outcomes(events) == ["specified", "refused"]
   assert any("cannot afford it: 3 points" in r for r in events[-1]["reasons"])
@@ -296,17 +253,18 @@ def test_the_seam_is_checked_before_a_point_moves(tmp_path):
   """THE ORDER (issue #315): spec -> seam -> already-hung -> price -> PAY
   -> print -> hang. A build the seam would refuse is refused before
   `Ledger.spend` runs, so a paid, refused build is not a thing the robot
-  can be handed. The one refusal that can arrive after the money is the
-  seam breaking DURING the print (a death mid-fabrication), which says so
-  with its `cost` on the event."""
-  life = _life(tmp_path, points=100)
-  life.state = "USE_TOOL"                       # what `can_reshape` refuses
-  events = _run(life, _decision(build_tool={"name": "scoop", "bay": "C", "spec": SCOOP}))
-  assert _outcomes(events) == ["specified", "refused"]
-  assert any("between errands" in r for r in events[-1]["reasons"])
-  assert "cost" not in events[-1]
-  assert life.ledger.balance() == 100 and life.waited == []
-  assert life.overseer.workshop.names() == ()
+  can be handed -- the served world's refusal (no rail) and a robot
+  mid-errand where a rail stands alike."""
+  for rail, state, why in ((False, "DECIDE", "no built-tool rack"),
+                           (True, "USE_TOOL", "between errands")):
+    life = _life(tmp_path, points=100, rail=rail)
+    life.state = state
+    events = _run(life, _decision(build_tool={"name": "scoop", "bay": "C", "spec": SCOOP}))
+    assert _outcomes(events) == ["specified", "refused"]
+    assert any(why in r for r in events[-1]["reasons"]), events[-1]["reasons"]
+    assert "cost" not in events[-1]
+    assert life.ledger.balance() == 100 and life.waited == []
+    assert life.overseer.workshop.names() == ()
 
 
 def test_a_bad_bay_or_name_or_a_taken_one_is_refused(tmp_path):
@@ -315,132 +273,203 @@ def test_a_bad_bay_or_name_or_a_taken_one_is_refused(tmp_path):
   reasons = events[-1]["reasons"]
   assert any("not a name" in r for r in reasons) and any("bay 'Z'" in r for r in reasons)
   assert any("named 'scoop', not 'Scoop!'" in r for r in reasons)
-  _run(life, _decision(build_tool={"name": "scoop", "bay": "C", "spec": SCOOP}))
+  # a tool the workshop has a record of is built, hung or not
+  shop = life.overseer.workshop
+  tool, bay = shop.check("scoop", SCOOP, "C")
+  shop.record(tool, SCOOP, bay, cost.price(tool), 0.0)
   events = _run(life, _decision(build_tool={"name": "scoop", "bay": "A", "spec": SCOOP}))
   assert any("already built" in r for r in events[-1]["reasons"])
 
 
-# ---- 6. the originals are permanent, and a built tool has its own rail ------
+# ---- 3. a paid build is never lost (issue #315) ------------------------------
 
-def test_a_hand_built_bay_cannot_be_named_and_the_refusal_says_whose_it_is(tmp_path):
-  """`build_tool.bay` is the rail's A-C. The first rack's D and E were a
-  build's to take until #277; an answer that still names one is refused
-  with whose bay it is, and nothing is spent or retired."""
-  life = _life(tmp_path, points=100)
-  for letter, module in (("D", "claw"), ("E", "seed")):
+def test_a_build_that_cannot_hang_is_kept_and_said(tmp_path, monkeypatch):
+  """When the rack never frees, THE POINTS STILL BUY SOMETHING. The tool
+  is recorded and the robot is told, and `restore_tools` hangs it at the
+  next mission start without paying again -- the same path a tool built
+  yesterday takes. Losing the points AND the tool is what this forbids."""
+  import pluggybot.lifecycle as lc
+  monkeypatch.setattr(lc, "HANG_WAIT_S", 20.0)       # keep the test in ms
+  life = _life(tmp_path, points=100, rail=True)
+  busy = {"why": ""}                                 # free until it prints
+  monkeypatch.setattr(HubLifecycle, "seam_busy", lambda self: busy["why"])
+
+  def fabricate(seconds):
+    life.waited.append(seconds)
+    busy["why"] = "Rowan is busy: mid-errand"
+    yield from life.body.hold_routine(0.2)
+  life._fabricate_routine = fabricate
+
+  events = _run(life, _decision(build_tool={"name": "scoop", "bay": "A",
+                                            "spec": SCOOP}))
+  assert _outcomes(events) == ["specified", "built", "refused"]
+  last = events[-1]
+  assert last["verb"] == "hang" and last["waitedS"] >= 20.0
+  assert any("hangs when the rack is free" in r for r in last["reasons"])
+  assert any("Rowan is busy" in r for r in last["reasons"])
+  assert "module_scoop" not in life.rack_inventory    # not on the rack
+  assert life.ledger.balance() == 97                  # but paid, once
+  assert life.overseer.workshop.names() == ("scoop",)  # ...and RECORDED
+  # ⚠ AND THE ROBOT IS NOT TOLD IT HAS IT. `hung` in the context means ON
+  # THE RACK; the entry still VALIDATES (that is what re-hangs it next
+  # run), and telling the robot those are the same thing would leave it
+  # believing it had a tool it does not.
+  shown = life.overseer.workshop.as_context()[0]
+  assert shown["hung"] is False
+  assert any("hangs when the rack is free" in r for r in shown["reasons"])
+  rec = json.loads((tmp_path / "tools" / "scoop.tool.json").read_text())
+  assert rec["spec"] == SCOOP and rec["bay"] == 0
+  # ...and it did NOT wait for ever: the bound is a constant with an argument
+  assert (lc.HANG_WAIT_S, lc.SEAM_POLL_S) == (20.0, 5.0)
+  monkeypatch.undo()
+  assert (lc.HANG_WAIT_S, lc.SEAM_POLL_S) == (600.0, 5.0)
+
+
+def test_a_stand_up_during_the_print_keeps_the_paid_tool(tmp_path):
+  """⚠ ISSUE #348: a stand-up closes the decision's action, and a build is
+  one. The points are spent before the ~15-minute print and the tool was
+  recorded only after it, so a robot that died `unpaid` two minutes into
+  the print -- the balance spent on the build -- paid and got nothing,
+  #315's "paid, refused build" by another door. Recorded like a rack that
+  never freed. Shown to fail without the `GeneratorExit` branch."""
+  from pluggybot.lifecycle import STOOD_UP
+  life = _life(tmp_path, points=100, rail=True)
+  life.home_pose = tuple(world_config(WORLD)["start"])
+
+  def fabricate(seconds):
+    yield from life.body.hold_routine(0.2)
+    life.stand_up("ben", auto=False)              # lands mid-print
+    while True:
+      yield from life.body.hold_routine(0.2)
+  life._fabricate_routine = fabricate
+
+  events: list = []
+  life.on_event.append(events.append)
+  build = _decision(build_tool={"name": "scoop", "bay": "A", "spec": SCOOP})
+  out = life.body.run(life._until_stood_up_routine(life._workshop_routine(build)))
+  assert out is STOOD_UP
+  assert life.ledger.balance() == 97                  # paid, once
+  assert life.overseer.workshop.names() == ("scoop",)  # ...and RECORDED
+  assert "module_scoop" not in life.rack_inventory
+  assert _outcomes(events) == ["specified", "built", "refused"]
+  assert any("a stand-up ended the wait" in r for r in events[-1]["reasons"])
+
+
+def test_the_wait_stops_rather_than_stranding_the_robot(tmp_path, monkeypatch):
+  """Standing still draws power: the ROBOT chose to build; the WAITING is
+  code's, so code stops spending the pack once what is left is the return
+  trip's. Not a rail -- it is on every arm, because on no arm should the
+  loop's own retry be what strands the robot."""
+  life = _life(tmp_path, points=100, rail=True)
+  busy = {"why": ""}
+  monkeypatch.setattr(HubLifecycle, "seam_busy", lambda self: busy["why"])
+
+  def fabricate(seconds):
+    life.waited.append(seconds)
+    busy["why"] = "Rowan is busy: mid-errand"      # ...and never frees
+    yield from life.body.hold_routine(0.2)
+  life._fabricate_routine = fabricate
+  # a pack already down to its reserve: the clock has 600 s left to run
+  life.battery.energy_wh = life.low_battery_wh
+  t0 = float(life.data.time)
+
+  events = _run(life, _decision(build_tool={"name": "scoop", "bay": "A",
+                                            "spec": SCOOP}))
+  assert _outcomes(events) == ["specified", "built", "refused"]
+  assert events[-1]["waitedS"] < 5.0                # gave up at once
+  assert float(life.data.time) - t0 < 5.0
+  # ...and gave up is not lost: recorded, paid once, hangs next run
+  assert life.overseer.workshop.names() == ("scoop",)
+  assert life.ledger.balance() == 97
+
+
+# ---- 5. the originals are permanent, and a built tool has its own rail ------
+
+def test_a_bay_off_the_rail_cannot_be_named_and_nothing_is_spent(tmp_path):
+  """`build_tool.bay` is the rail's A-C; an answer naming another letter is
+  refused, and nothing is spent or retired."""
+  life = _life(tmp_path, points=100, rail=True)
+  for letter in ("D", "E"):
     events = _run(life, _decision(build_tool={"name": "scoop", "bay": letter, "spec": SCOOP}))
     assert _outcomes(events) == ["specified", "refused"]
     reasons = events[-1]["reasons"]
-    assert any(f"bay '{letter}' is not one of A, B, C" in r and module in r
-               and "permanent" in r for r in reasons), reasons
+    assert any(f"bay '{letter}' is not one of A, B, C" in r for r in reasons), reasons
   assert life.ledger.balance() == 100 and life.waited == []
-  assert set(TOOL_BAYS) <= set(life.rack_inventory)
   # ...and the grammar never offered them: the enum is the rail's
   assert ov.BAY_LETTERS == BAYS == ("A", "B", "C")
-  assert ov.Menu.for_world("room_hub").schema(tools=())["properties"]["build_tool"][
+  assert ov.Menu.for_world(WORLD).schema(tools=())["properties"]["build_tool"][
     "properties"]["bay"]["enum"] == ["A", "B", "C", ""]
 
 
-@pytest.mark.parametrize("name", ["lcd", "plug", "pen", "claw", "seed"])
-def test_retiring_an_original_is_refused_with_the_reason(tmp_path, name):
+@pytest.mark.parametrize("module", seam.HAND_BUILT)
+def test_retiring_an_original_is_refused_with_the_reason(tmp_path, module):
   life = _life(tmp_path)
+  had = module in life.rack_inventory
+  name = module.removeprefix("module_")
   events = _run(life, _decision(retire_tool=name))
   assert _outcomes(events) == ["refused"]
   assert events[-1]["verb"] == "retire_tool"
   assert any("original modules" in r for r in events[-1]["reasons"]), events[-1]
-  assert f"module_{name}" in life.rack_inventory
+  assert (module in life.rack_inventory) is had
   assert life.overseer.workshop.refusals[-1]["name"] == name
 
 
 def test_a_world_without_the_rail_has_no_workshop(monkeypatch):
   """The tower's shape (issue #207): where the world cannot hang a built
   tool, `build_tool` is not in the grammar and the prompt says nothing
-  about building. Both served worlds carry the rail; a world that did not
-  is made here by telling `build()` so through `world_config`."""
+  about building. The served world has no rail; a world that did is made
+  here by telling `build()` so through `world_config`."""
   from test_overseer import FakeClient
   from pluggybot import lifecycle
+
   def grammar(boss):
     return boss.menu.schema(tools=boss._tools(), procedures=boss._procedures())["properties"]
-  with_rail = ov.build("room_hub", enabled=True, client=FakeClient(), autonomous=True)
-  assert with_rail.workshop is not None and with_rail.menu.workshop
-  assert "build_tool" in grammar(with_rail)
-  assert "TOOLS YOU MAY BUILD" in "".join(t for _, t in with_rail.sections)
   real = lifecycle.world_config
-  monkeypatch.setattr(lifecycle, "world_config",
-                      lambda world: {**real(world), "built_bays": 0})
-  without = ov.build("room_hub", enabled=True, client=FakeClient(), autonomous=True)
+  # the count the grammar keys off is the count the world carries
+  assert real(WORLD)["built_bays"] == 0
+  without = ov.build(WORLD, enabled=True, client=FakeClient(), autonomous=True)
   assert without.workshop is None and not without.menu.workshop
   assert "build_tool" not in grammar(without)
   assert "TOOLS YOU MAY BUILD" not in "".join(t for _, t in without.sections)
-  # ...and the count the grammar keys off is the count the world carries
-  assert real("room_hub")["built_bays"] == len(BAYS) == real("home")["built_bays"]
+  monkeypatch.setattr(lifecycle, "world_config",
+                      lambda world: {**real(world), "built_bays": len(BAYS)})
+  with_rail = ov.build(WORLD, enabled=True, client=FakeClient(), autonomous=True)
+  assert with_rail.workshop is not None and with_rail.menu.workshop
+  assert "build_tool" in grammar(with_rail)
+  assert "TOOLS YOU MAY BUILD" in "".join(t for _, t in with_rail.sections)
 
 
-def test_a_procedure_that_fetches_a_built_tool_goes_to_the_rail(tmp_path):
+def test_a_procedure_that_fetches_a_built_tool_goes_to_the_rail():
   """The errand a `procedure:` decision builds fetches the tool from the
-  bay the inventory says -- on the rail, past the five. MEASURED on the
-  flown proof: with `errand.py` still indexing the first rack's five, the
+  bay the inventory says -- on the rail, past the first rack. MEASURED on
+  the flown proof: with `errand.py` indexing the first rack alone, the
   rail's index raised, `errand_from` answered None and the day said
   "nothing to build" for a procedure the robot had just written."""
-  from pluggybot.lifecycle import errand_from
+  from pluggybot.lifecycle import errand_from, world_facts
   from pluggybot.mission.errand import programmed_errand
   from pluggybot.procedure import lang
   from pluggybot.procedure.library import Library
-  from pluggybot.lifecycle import world_facts
-  from pluggybot.rack.coupling import BUILT_STATION_YS
-  life = _life(tmp_path, points=100)
-  _run(life, _decision(build_tool={"name": "scoop", "bay": "B", "spec": SCOOP}))
+  from pluggybot.procedure.steps import TOOL_BAYS
+  rack = {**TOOL_BAYS, "module_scoop": built_bay_index(1)}
   src = "def scoop_up():\n  fetch(\"module_scoop\")\n  stow()\n"
-  proc = lang.compile_procedure(src, world_facts("room_hub", rack=life.rack_inventory))
-  errand = programmed_errand(proc, rack=life.rack_inventory)
+  proc = lang.compile_procedure(src, world_facts(WORLD, rack=rack))
+  errand = programmed_errand(proc, rack=rack)
   assert errand.module == "module_scoop"
   assert errand.station_y == BUILT_STATION_YS[1]
-  library = Library(world_facts("room_hub", rack=life.rack_inventory))
+  library = Library(world_facts(WORLD, rack=rack))
   library.define("scoop_up", src)
-  built = errand_from(ov.Decision(action="procedure:scoop_up", reason=""), "room_hub", None,
-                      library=library, rack=life.rack_inventory)
+  built = errand_from(ov.Decision(action="procedure:scoop_up", reason=""), WORLD, None,
+                      library=library, rack=rack)
   assert built is not None and built.station_y == BUILT_STATION_YS[1]
 
 
 def test_the_prompt_says_which_rack_is_whose():
   rule = ov.workshop_rule()
   assert '"bay": "<A-C>"' in rule and "3 bays, A-C" in rule
-  assert "five original modules hang on the first and are permanent" in rule
   assert "none of them can be retired" in rule
 
 
-def test_a_retire_empties_the_bay_and_a_build_may_take_it(tmp_path):
-  life = _life(tmp_path)
-  _run(life, _decision(build_tool={"name": "scoop", "bay": "C", "spec": SCOOP}))
-  events = _run(life, _decision(retire_tool="scoop"))
-  assert _outcomes(events) == ["retired"]
-  assert "module_scoop" not in life.rack_inventory and "scoop.tilt" not in axes.AXES
-  assert not (tmp_path / "tools" / "scoop.tool.json").exists()
-  assert overseer_context(life)["rack"] == {"original": ON_THEIR_BAYS,
-                                           "built": {"A": None, "B": None, "C": None}}
-  events = _run(life, _decision(retire_tool="scoop"))
-  assert _outcomes(events) == ["refused"]
-  # an empty bay takes a build with nothing retired
-  events = _run(life, _decision(build_tool={"name": "scoop", "bay": "C", "spec": SCOOP}))
-  assert next(e for e in events if e.get("outcome") == "hung")["retired"] is None
-
-
-# ---- 4. survives a restart ---------------------------------------------------
-
-def test_what_the_robot_built_hangs_again_next_day(tmp_path):
-  life = _life(tmp_path, points=100)
-  _run(life, _decision(build_tool={"name": "scoop", "bay": "C", "spec": SCOOP}))
-  spent = 100 - life.ledger.balance()
-  # a new process: the world from its file, the workshop from its records
-  shop = Workshop(tmp_path / "tools")
-  assert shop.names() == ("scoop",) and shop.entries["scoop"].valid
-  again = _life(tmp_path, points=0, workshop=shop)
-  again.ledger = life.ledger
-  hung = again.restore_tools()
-  assert hung == ["scoop"] and again.rack_inventory["module_scoop"] == built_bay_index(2)
-  assert "scoop.tilt" in axes.AXES
-  assert life.ledger.balance() == 100 - spent      # paid once
-
+# ---- 4. the cost and the prompt ---------------------------------------------
 
 def test_a_record_the_catalog_no_longer_validates_is_kept_and_marked(tmp_path):
   (tmp_path / "tools").mkdir()
@@ -455,8 +484,6 @@ def test_a_record_the_catalog_no_longer_validates_is_kept_and_marked(tmp_path):
   with pytest.raises(WorkshopRefused):
     shop.check("scoop", SCOOP, "C")      # the name is taken by the record
 
-
-# ---- 5. the cost and the prompt ---------------------------------------------
 
 def test_the_cost_is_the_catalogs_price():
   from pluggybot.workshop import validate
@@ -491,71 +518,17 @@ def test_the_example_is_a_capability_not_a_policy():
     assert word not in example
 
 
-# ---- the chain through the decision loop -----------------------------------------
-
-
-def test_a_tool_the_agent_specified_is_built_fetched_used_and_stowed(tmp_path, monkeypatch):
-  """What #168 asks for, through the decision loop's own door
-  (`_after_decision_routine`) with nothing stepped: the model specifies a
-  tool and the world is recompiled with it; the model defines a procedure;
-  the procedure runs -- fetching the new tool off the built rail, moving
-  the axis it named on the RECOMPILED model's actuator, and stowing it --
-  on the `autonomous` arm, whose mind this is. The swaps, drives, ramps and
-  print wait are stubs: the built module's physics is the rig's
-  (test_workshop_build.py), the seam's the recompile tests'.
-
-  Shown to fail by dropping `yield from self._workshop_routine(decision)`
-  from `_after_decision_routine`.
-  """
-  from test_overseer import FakeClient
-  from test_procedure import _stub_swaps
-  from pluggybot.mind.thoughts import ThoughtFiles
-  from pluggybot.rack.coupling import BUILT_STATION_YS
-  life = _life(tmp_path, step=False)
-  mujoco.mj_forward(life.model, life.data)
-  life.overseer = ov.build("room_hub", None, enabled=True, client=FakeClient(),
-                           thoughts=ThoughtFiles.open(str(tmp_path / "t")),
-                           ledger=life.ledger, autonomous=True, origin="seeded",
-                           standing_orders=True)
-  life.autonomous = True
-  on_fork = _stub_swaps(life, monkeypatch)
-  fetched, moved = [], []
-  swap = life.body.mission.swap_at_bay_routine
-
-  def swap_at_bay(station, verb, module=None, tries=2):
-    fetched.append((verb, station, module))
-    return swap(station, verb, module, tries)
-  life.body.mission.swap_at_bay_routine = swap_at_bay
-
-  def ramp(act, target, speed, settle=0.0):
-    moved.append((act, target))
-    return
-    yield
-  life.body.ramp_routine = ramp
-  for still in ("settle_routine", "retract_arm_routine", "hold_routine"):
-    setattr(life.body, still, lambda *a, **kw: tick.result(None))
-  life._fabricate_routine = lambda seconds: tick.result(None)
+def test_a_decisions_build_reaches_the_workshop_through_the_loops_own_door(tmp_path):
+  """A `build_tool` on an answer is applied by the decision loop's own door
+  (`_after_decision_routine`), as a `define` is. Shown to fail by dropping
+  `yield from self._workshop_routine(decision)` from it."""
+  life = _life(tmp_path, points=100)
   events: list = []
   life.on_event.append(events.append)
-  src = ("def scoop_up():\n  fetch(\"module_scoop\")\n  move(\"scoop.tilt\", 1.2)\n"
-         "  wait(1)\n  move(\"scoop.tilt\", 0)\n  stow()\n")
-  for fields in ({"build_tool": {"name": "scoop", "bay": "C", "spec": SCOOP}},
-                 {"define": {"name": "scoop_up", "source": src}}):
-    tick.run(life.body.mission.swap, life._after_decision_routine(_decision(**fields)))
-  tick.run(life.body.mission.swap, life._after_decision_routine(
-    ov.Decision(action="procedure:scoop_up", reason="using it")))
-  assert [e.name for e in life.errands] == ["procedure"], life.errands
-  run = life.run_errand(life.errands.pop(0))["procedure"]
-
-  assert _outcomes(events) == ["specified", "built", "hung"]
-  assert life.ledger.balance() == 97, "the build was not paid for, once"
-  assert run["ok"] and run["completed"] == 5, run
-  assert fetched[0] == ("pick", BUILT_STATION_YS[2], "module_scoop")
-  tilt = life.model.actuator(axes.AXES["scoop.tilt"].actuator).id
-  assert [(a, t) for a, t in moved if a == tilt] == [(tilt, 1.2), (tilt, 0.0)]
-  assert on_fork == {} and fetched[-1][0] == "return", "the scoop was not stowed"
-  assert (tmp_path / "t" / "tools" / "scoop.tool.json").exists()
-  assert float(life.data.time) == 0.0, "something stepped the physics"
+  life.body.run(life._after_decision_routine(
+    _decision(build_tool={"name": "scoop", "bay": "C", "spec": SCOOP})))
+  assert _outcomes(events) == ["specified", "refused"]
+  assert any("no built-tool rack" in r for r in events[-1]["reasons"])
 
 
 def _bare_objects(node, path=""):
@@ -581,7 +554,7 @@ def test_the_spec_is_described_so_a_strict_provider_decodes_it():
   The described spec names exactly the fields `workshop/spec.py` accepts, so
   a field added there without a grammar entry fails here."""
   from pluggybot.workshop import spec as spec_mod
-  schema = ov.Menu.for_world("room_hub").schema(tools=("scoop",))
+  schema = ov.Menu.for_world(WORLD).schema(tools=("scoop",))
   assert _bare_objects(schema) == []
   described = schema["properties"]["build_tool"]["properties"]["spec"]
   part = described["properties"]["parts"]["items"]
@@ -596,233 +569,50 @@ def test_the_spec_is_described_so_a_strict_provider_decodes_it():
     assert set(part_) >= set(part["required"]), part_
 
 
-def test_a_built_tool_comes_back_after_a_restart_on_the_real_path(tmp_path):
-  """`test_what_the_robot_built_hangs_again_next_day` calls `restore_tools`
-  on a world that has been STEPPED. The real path does not: `begin()` runs
-  it before anything has stepped, and a fresh `MjData` has `xpos` all
-  zeros -- so `module_state` read every module as on the fork, `_carried`
-  said `module_lcd`, `can_reshape` refused, and every built tool was lost
-  with "could not be hung again" (issue #315). On a served world a restart
-  is roughly hourly, so nothing built would ever have survived one."""
-  shop = Workshop(tmp_path / "tools")
-  life = _life(tmp_path, points=100, workshop=shop)
-  _run(life, _decision(build_tool={"name": "scoop", "bay": "A", "spec": SCOOP}))
-  assert "module_scoop" in life.rack_inventory
-  # ...a new day, a new world, the records the only thing carried over
-  again = _life(tmp_path, points=100, workshop=Workshop(tmp_path / "tools"),
-                step=False)
-  entry = again.overseer.workshop.entries["scoop"]
-  assert entry.valid and entry.reasons == []
-  assert "module_scoop" not in again.rack_inventory        # not yet
-  again.begin((0.0, 0.0, 0.0), max_sim_time=10.0)
-  assert again.rack_inventory.get("module_scoop") == built_bay_index(0)
-  assert again.overseer.workshop.entries["scoop"].reasons == []
-  assert again.ledger.balance() == 100                     # paid once
-
-
-# ---- 7. a build is never paid for and lost (issue #315) ---------------------
-
-def test_a_finished_build_waits_for_room_on_the_rack(tmp_path, monkeypatch):
-  """⚠ A PRINT IS LONGER THAN AN ERRAND. The scoop's print and assembly is
-  896 sim s; an errand runs 200-500. So on a pair the OTHER robot is
-  usually mid-errand by the time the parts are ready, and `can_reshape`
-  checking every robot -- which it must, because a peer's tool controller
-  is never rebound -- turned that into a build PAID FOR AND LOST: no tool,
-  no record, the points gone. That is the "paid, refused build" the issue
-  set out to prevent, arriving through a door only a pair has.
-
-  The assembly is done, so the tool hangs when there is room: the robot
-  stands still (where it already was) and polls until the seam frees."""
-  life = _life(tmp_path, points=100)
-  # free when the build is priced and paid for -- or it is refused up front,
-  # which is the OTHER half of the rule and is already pinned -- then busy
-  # the moment it starts printing, as a peer taking an errand would.
-  busy = {"why": ""}
-  monkeypatch.setattr(HubLifecycle, "seam_busy", lambda self: busy["why"])
-  real = life.body.mission._drive_routine
-
-  def fabricate(seconds):
-    life.waited.append(seconds)
-    busy["why"] = "Rowan is busy: a tool is hung between errands"
-    yield from real(0.2, 0.0, 0.0)
-  life._fabricate_routine = fabricate
-
-  # ...and the peer lets go while the finished tool stands waiting
-  def freeing(sec, v, w):
-    if life.waited and float(life.data.time) > 1.0:
-      busy["why"] = ""
-    yield from real(sec, v, w)
-  life.body.mission._drive_routine = freeing
-
-  events = _run(life, _decision(build_tool={"name": "scoop", "bay": "A",
-                                            "spec": SCOOP}))
-  assert _outcomes(events) == ["specified", "built", "hung"]
-  assert "module_scoop" in life.rack_inventory
-  assert life.ledger.balance() == 97                 # paid once, and it hung
-  # ...and the HUNG row says how long it stood: a build that waited and
-  # then hung is what a contended rack looks like, and an uncontended one
-  # reads 0. Without it the observatory sees only the give-ups.
-  assert events[-1]["waitedS"] > 0
-  assert life.overseer.workshop.names() == ("scoop",)
-  # ...and it did NOT wait for ever: the bound is a constant with an argument
-  from pluggybot.lifecycle import HANG_WAIT_S, SEAM_POLL_S
-  assert HANG_WAIT_S == 600.0 and SEAM_POLL_S == 5.0
-
-
-def test_a_build_that_cannot_hang_is_kept_and_hangs_next_run(tmp_path, monkeypatch):
-  """And when the rack never frees, THE POINTS STILL BUY SOMETHING. The
-  tool is recorded, the robot is told, and `restore_tools` hangs it at the
-  next mission start without paying again -- the same path a tool built
-  yesterday takes. Losing the points AND the tool is what this forbids."""
-  import pluggybot.lifecycle as lc
-  monkeypatch.setattr(lc, "HANG_WAIT_S", 20.0)       # keep the test in ms
-  life = _life(tmp_path, points=100)
-  busy = {"why": ""}                                 # free until it prints
-  monkeypatch.setattr(HubLifecycle, "seam_busy", lambda self: busy["why"])
-  real = life.body.mission._drive_routine
-
-  def fabricate(seconds):
-    life.waited.append(seconds)
-    busy["why"] = "Rowan is busy: mid-errand"
-    yield from real(0.2, 0.0, 0.0)
-  life._fabricate_routine = fabricate
-
-  events = _run(life, _decision(build_tool={"name": "scoop", "bay": "A",
-                                            "spec": SCOOP}))
-  assert _outcomes(events) == ["specified", "built", "refused"]
-  last = events[-1]
-  assert last["verb"] == "hang" and last["waitedS"] >= 20.0
-  assert any("hangs when the rack is free" in r for r in last["reasons"])
-  assert any("Rowan is busy" in r for r in last["reasons"])
-  assert "module_scoop" not in life.rack_inventory    # not on the rack
-  assert life.ledger.balance() == 97                  # but paid, once
-  assert life.overseer.workshop.names() == ("scoop",)  # ...and RECORDED
-  # ⚠ AND THE ROBOT IS NOT TOLD IT HAS IT. `hung` in the context means ON
-  # THE RACK; the entry still VALIDATES (that is what re-hangs it next
-  # run), and telling the robot those are the same thing would leave it
-  # believing it had a tool it does not.
-  shown = life.overseer.workshop.as_context()[0]
-  assert shown["hung"] is False
-  assert any("hangs when the rack is free" in r for r in shown["reasons"])
-  # ⚠ THE NEXT RUN HANGS IT, and does not pay again
-  monkeypatch.undo()
-  again = _life(tmp_path, points=100, workshop=Workshop(tmp_path / "tools"),
-                step=False)
-  again.begin((0.0, 0.0, 0.0), max_sim_time=10.0)
-  assert again.rack_inventory.get("module_scoop") == built_bay_index(0)
-  assert again.ledger.balance() == 100
-  # ...and now it IS hung, so why it was not is stale and gone
-  shown = again.overseer.workshop.as_context()[0]
-  assert shown["hung"] is True and "reasons" not in shown
-
-
-def test_a_stand_up_during_the_print_keeps_the_paid_tool(tmp_path):
-  """⚠ ISSUE #348: a stand-up closes the decision's action, and a build is
-  one. The points are spent before the ~15-minute print and the tool was
-  recorded only after it, so a robot that died `unpaid` two minutes into
-  the print -- the balance spent on the build -- paid and got nothing,
-  #315's "paid, refused build" by another door. Recorded like a rack that
-  never freed. Shown to fail without the `GeneratorExit` branch."""
-  from pluggybot.lifecycle import STOOD_UP
-  life = _life(tmp_path, points=100)
-  life.home_pose = tuple(world_config("room_hub")["start"])
-  real = life.body.mission._drive_routine
-
-  def fabricate(seconds):
-    yield from real(0.2, 0.0, 0.0)
-    life.stand_up("ben", auto=False)              # lands mid-print
-    while True:
-      yield from real(0.2, 0.0, 0.0)
-  life._fabricate_routine = fabricate
-
-  events: list = []
-  life.on_event.append(events.append)
-  build = _decision(build_tool={"name": "scoop", "bay": "A", "spec": SCOOP})
-  out = tick.run(life.body.mission.swap,
-                 life._until_stood_up_routine(life._workshop_routine(build)))
-  assert out is STOOD_UP
-  assert life.ledger.balance() == 97                  # paid, once
-  assert life.overseer.workshop.names() == ("scoop",)  # ...and RECORDED
-  assert "module_scoop" not in life.rack_inventory
-  assert _outcomes(events) == ["specified", "built", "refused"]
-  assert any("a stand-up ended the wait" in r for r in events[-1]["reasons"])
-
-
-def test_the_wait_stops_rather_than_stranding_the_robot(tmp_path, monkeypatch):
-  """Standing still is 10.5 W: the print alone is 2.6 Wh, a third of
-  home's hosting pack, and a full 600 s wait on top would take it to 55 %
-  against a 2.05 Wh reserve. The ROBOT chose to build; the WAITING is
-  code's, so code stops spending the pack once what is left is the return
-  trip's. Not a rail — it is on every arm, because on no arm should the
-  loop's own retry be what strands the robot."""
-  life = _life(tmp_path, points=100)
-  busy = {"why": ""}
-  monkeypatch.setattr(HubLifecycle, "seam_busy", lambda self: busy["why"])
-  real = life.body.mission._drive_routine
-
-  def fabricate(seconds):
-    life.waited.append(seconds)
-    busy["why"] = "Rowan is busy: mid-errand"      # ...and never frees
-    yield from real(0.2, 0.0, 0.0)
-  life._fabricate_routine = fabricate
-  # a pack already down to its reserve: the clock has 600 s left to run
-  life.battery.energy_wh = life.low_battery_wh
-  t0 = float(life.data.time)
-
-  events = _run(life, _decision(build_tool={"name": "scoop", "bay": "A",
-                                            "spec": SCOOP}))
-  assert _outcomes(events) == ["specified", "built", "refused"]
-  assert events[-1]["waitedS"] < 5.0                # gave up at once
-  assert float(life.data.time) - t0 < 5.0
-  # ...and gave up is not lost: recorded, paid once, hangs next run
-  assert life.overseer.workshop.names() == ("scoop",)
-  assert life.ledger.balance() == 97
-
-
-# ---- 8. whose tool is it, and which tool does a procedure need (issue #324) --
+# ---- 6. whose tool is it, and which tool does a procedure need (issue #324) --
 
 def test_a_built_bay_says_whose_tool_it_is():
   """One rail, two robots: a bay may hold the other robot's tool, which this
-  robot may not take and may not retire. Until this it could only find out
-  by trying. ⚠ The TAG cannot carry it — a built module's tag is `15 + bay`
-  and belongs to the BAY, reused by whatever hangs there next — so the
-  context is the only place ownership can be said."""
-  from pluggybot.lifecycle import rack_context, tool_places
-  from pluggybot.pair import build_pair
+  robot may not take and may not retire. ⚠ The TAG cannot carry it -- a
+  built module's tag is `15 + bay` and belongs to the BAY, reused by
+  whatever hangs there next -- so the context is the only place ownership
+  can be said. `built` is what a lifecycle hung; the rail is shared."""
+  from pluggybot.lifecycle import rack_context
   from pluggybot.workshop import validate
-  a, b = build_pair("room_hub", pack="hosting", errands=("none", "none"),
-                    realtime=False)
-  for _ in range(100):
-    mujoco.mj_step(a.model, a.data)
-  a.state = b.state = "DECIDE"
-  a.hang_tool(validate.check(SCOOP), 0)
-  b.hang_tool(validate.check({**SCOOP, "name": "grabber"}), 1)
-
-  mine = rack_context(a.rack_inventory, tool_places(a), a.built_by())["built"]
-  theirs = rack_context(b.rack_inventory, tool_places(b), b.built_by())["built"]
+  a, b = stub_life(), stub_life(body=StubBody(handle=SECOND), handle=SECOND,
+                                robot_name="Rowan")
+  b.rack_inventory = a.rack_inventory
+  a.peers, b.peers = [b], [a]
+  for life, raw, bay in ((a, SCOOP, 0), (b, {**SCOOP, "name": "grabber"}, 1)):
+    tool = validate.check(raw)
+    life.rack_inventory[tool.body] = built_bay_index(bay)       # as `hang_tool`
+    life.built[tool.body] = tool                                # leaves them
+  places = {m: "on its bay" for m in a.rack_inventory}
+  mine = rack_context(a.rack_inventory, places, a.built_by())["built"]
+  theirs = rack_context(b.rack_inventory, places, b.built_by())["built"]
   here = {"where": "on its bay"}
   assert mine["A"] == {"module": "module_scoop", "by": "you", **here}
-  assert mine["B"] == {"module": "module_grabber", "by": b.robot_name, **here}
+  assert mine["B"] == {"module": "module_grabber", "by": "Rowan", **here}
   assert theirs["A"] == {"module": "module_scoop", "by": a.robot_name, **here}
   assert theirs["B"] == {"module": "module_grabber", "by": "you", **here}
   assert mine["C"] is theirs["C"] is None
-  # ...and it agrees with what the seam will actually refuse
-  with pytest.raises(Exception, match="not yours to retire"):
-    b.retire_tool("module_scoop")
 
 
-def test_a_procedure_says_which_tool_it_needs(tmp_path):
+def test_a_procedure_says_which_tool_it_needs():
   """`build.register` puts `requires=module_<name>` on a built tool's axes
   and sensors, so `move("scoop.tilt", ...)` without the scoop on the fork
-  fails with a reason that names the module — but only at the point of
-  failure, after an errand has been committed to it. The source was always
-  shown, so the association was inferable; this states it."""
+  fails with a reason that names the module -- but only at the point of
+  failure, after an errand has been committed to it. This states it; the
+  facts name the tool's axes as a world whose rack holds it would."""
+  from dataclasses import replace
   from pluggybot.lifecycle import world_facts
   from pluggybot.procedure.library import Library
-  from pluggybot.workshop import validate
-  life = _life(tmp_path, points=100)
-  life.hang_tool(validate.check(SCOOP), 0)
-  lib = Library(world_facts("room_hub", rack=life.rack_inventory))
+  from pluggybot.workshop import build, validate
+  names = build.register(validate.check(SCOOP))
+  rack = {**world_config(WORLD)["tool_bays"], "module_scoop": built_bay_index(0)}
+  facts = world_facts(WORLD, rack=rack)
+  lib = Library(replace(facts, axes=facts.axes + tuple(names),
+                        sensors=facts.sensors + tuple(names)))
   lib.define("dig", 'def dig():\n  fetch("module_scoop")\n'
                     '  move("scoop.tilt", 1.0)\n  stow()')
   lib.define("look", 'def look():\n  wait(1.0)\n')
@@ -831,81 +621,15 @@ def test_a_procedure_says_which_tool_it_needs(tmp_path):
   assert "needs" not in rows["look"]        # absent, not empty: a learnable slot
   # the walk reaches into loops, branches and read() inside a condition
   lib.define("probe", 'def probe():\n  for i in range(2):\n'
-                      '    if read("lift.force") > 0:\n'
-                      '      move("claw.jaws", 0.02)\n')
-  # ⚠ ...AND WHAT A `fetch` NAMES, or it lies by omission. The high-level
-  # verbs declare no tool -- `draw` needs the pen, `pick` the claw, and
-  # `Verb` says neither -- so a procedure that fetches the pen and draws
-  # names no axis at all and reported NO needs, which reads as "needs no
-  # tool" and is worse than an absent field.
-  lib.define("hold", 'def hold():\n  fetch("module_claw")\n'
-                     '  grip()\n  release()\n  stow()')
+                      '    if read("scoop.tilt") > 0:\n'
+                      '      wait(1)\n')
+  # ⚠ ...AND WHAT A `fetch` NAMES, or it lies by omission: a procedure that
+  # fetches a tool and uses no axis of it names no axis at all, and
+  # reported NO needs, which reads as "needs no tool".
+  lib.define("hold", 'def hold():\n  fetch("module_claw")\n  wait(1)\n  stow()')
   rows = {r["name"]: r for r in lib.as_context()}
-  assert rows["probe"]["needs"] == ["module_claw"]
+  assert rows["probe"]["needs"] == ["module_scoop"]
   assert rows["hold"]["needs"] == ["module_claw"], rows["hold"]
   # ...and this is WHY it was missed: not one axis, not one sensor
   assert lib.get("hold").references()["axes"] == ()
   assert lib.get("hold").references()["sensors"] == ()
-
-
-def test_retiring_a_tool_takes_its_procedures_out_of_the_enum(tmp_path):
-  """An unknown axis is refused at `define` and again when the library
-  LOADS, so a restart always marked a procedure whose tool was gone —
-  ⚠ but nothing did it WITHIN a run, and the workshop can retire a tool
-  mid-day. The procedure stayed in `runnable()` and in the action enum, and
-  the robot found out by committing an errand to it and watching `move`
-  fail. Kept and MARKED, never dropped: rebuilding the tool makes it
-  runnable again, because this recompiles rather than remembering."""
-  from pluggybot.lifecycle import world_facts
-  from pluggybot.procedure.library import Library
-  from pluggybot.workshop import validate
-  life = _life(tmp_path, points=100)
-  life.hang_tool(validate.check(SCOOP), 0)
-  lib = Library(world_facts("room_hub", rack=life.rack_inventory))
-  lib.define("dig", 'def dig():\n  fetch("module_scoop")\n'
-                    '  move("scoop.tilt", 1.0)\n  stow()')
-  life.overseer.library = lib
-  assert lib.runnable() == ("dig",)
-
-  life.retire_tool("module_scoop")
-  assert lib.runnable() == ()                        # out of the enum
-  row = lib.as_context()[0]
-  assert row["runnable"] is False and "needs" not in row
-  assert any("scoop.tilt" in r for r in row["reasons"])
-  assert lib.entries["dig"].source                   # kept, not deleted
-
-  life.hang_tool(validate.check(SCOOP), 0)
-  assert lib.runnable() == ("dig",)                  # and it runs again
-  assert lib.as_context()[0]["needs"] == ["module_scoop"]
-
-
-def test_replacing_a_tool_tells_the_robot_once(tmp_path):
-  """⚠ ONE RACK CHANGE, ONE LINE. `hang_tool` calls `_retire_from_spec`,
-  so revalidating in the helper AND after `register` told the robot twice
-  in a single action that the same procedure had broken — with two
-  different reason texts, because the second pass saw the replacement's
-  axes in the "is not one of" list. History is capped; saying it twice
-  costs a line that could have been something else.
-
-  And a validity FLIP is news where a reworded reason is not: what is
-  already broken stays broken, and the fresh reasons are in the context
-  either way."""
-  from pluggybot.lifecycle import world_facts
-  from pluggybot.procedure.library import Library
-  from pluggybot.workshop import validate
-  life = _life(tmp_path, points=100)
-  life.hang_tool(validate.check(SCOOP), 0)
-  lib = Library(world_facts("room_hub", rack=life.rack_inventory))
-  lib.define("dig", 'def dig():\n  fetch("module_scoop")\n'
-                    '  move("scoop.tilt", 1.0)\n  stow()')
-  life.overseer.library = lib
-  said: list = []
-  life.say_hooks.append(lambda t, line, *a: said.append(line))
-
-  rec = life.hang_tool(validate.check({**SCOOP, "name": "scoop2"}), 0)
-  lines = [s for s in said if "LIBRARY" in s]
-  assert len(lines) == 1, lines
-  assert rec["relearned"] == ["dig"]
-  # ...and the one line describes the rack as it ENDED, not mid-swap
-  assert "module_scoop2" in lines[0] and "scoop2.tilt" in lines[0]
-  assert "relearned" not in rec["retiredWhat"]

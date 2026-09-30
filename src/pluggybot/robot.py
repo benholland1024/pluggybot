@@ -79,7 +79,7 @@ PAIR_SUFFIX = "_pair"
 
 def pair_model_name(model_name: str) -> str:
   """The wire's name for a world with the second robot attached (protocol
-  0.20.0): `room_hub` -> `room_hub_pair`. A replayer picks its scene off the
+  0.20.0): `home_quad` -> `home_quad_pair`. A replayer picks its scene off the
   header's `model`, and the second robot's bodies are in no single-robot
   scene, so the pair world is a world of its own to a consumer -- one scene
   fixture and one recording under this name, like any other."""

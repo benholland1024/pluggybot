@@ -128,6 +128,16 @@ def from_observe(payload: dict) -> list[Row]:
     data = dict(e.get("data") or {})
     if e.get("batteryFrac") is not None and e.get("kind") in ("charge", "heart"):
       data.setdefault("fraction", _float(e.get("batteryFrac")))
+    # What the site files as the row's `subject` / `detail` rather than in
+    # `data` (its `recordRefusal`, its thought lines), under the key the
+    # shape reads.
+    detail = e.get("detail")
+    if e.get("kind") == "refusal":
+      data.setdefault("kind", str(e.get("subject") or ""))
+      if detail:
+        data.setdefault("reason", str(detail))
+    elif e.get("kind") == "thought" and detail:
+      data.setdefault("line", str(detail))
     rows.append(Row(kind=str(e.get("kind") or ""), subject=str(e.get("subject") or ""),
                     robot=str(e.get("robot") or ""), t=_float(e.get("simTime")),
                     data=data, run=_run(e.get("runId"))))

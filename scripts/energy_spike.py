@@ -1,37 +1,36 @@
 #!/usr/bin/env python
-"""What an errand COSTS, measured (issue #15).
+"""What the robot's work COSTS, measured (issue #15).
 
-`economy/energy.json` says how much energy each errand takes in each world, and
-the mission loop refuses to start one it cannot pay for. Those numbers have
-to be MEASURED -- a guessed energy model is how issue #21 shipped a fixture
-in which the robot claimed a 0.93 Wh drawing at 88 %% of a 1.1 Wh cell, drew
-it perfectly, and died on the way back. This script is where they come from,
-and re-running it is how they are re-derived after anything that changes what
-an errand does: a world's layout, the swap stack, the drivetrain, a routine.
+`economy/energy.json` says how much energy each errand takes, and the mission
+loop refuses to start one it cannot pay for. Those numbers have to be
+MEASURED -- a guessed energy model is how issue #21 shipped a fixture in
+which the robot claimed a job at 88 % of its cell, did it perfectly, and died
+on the way back. This script is where they come from, and re-running it is
+how they are re-derived after anything that changes what an errand does: the
+house's layout, the body, a routine.
 
-    MUJOCO_GL=egl uv run python scripts/energy_spike.py --world home
-    MUJOCO_GL=egl uv run python scripts/energy_spike.py --world home --write
+    MUJOCO_GL=egl uv run python scripts/energy_spike.py
+    MUJOCO_GL=egl uv run python scripts/energy_spike.py --actions care:feed,care:toy,shock,feed
+    MUJOCO_GL=egl uv run python scripts/energy_spike.py --reserve
+    MUJOCO_GL=egl uv run python scripts/energy_spike.py --write
 
 The measurement is deliberately taken on an OVERSIZED pack (`--battery-wh`,
 40 Wh by default). Not to flatter the numbers -- energy per errand does not
-depend on capacity -- but because the demo cells are smaller than one errand,
-so a measurement taken on one would be measuring where the robot died rather
-than what the job costs. The census in particular breaks off early when
-`needs_charge` fires, and an errand that stopped halfway is not a cost.
+depend on capacity -- but so nothing measured is cut short by `needs_charge`:
+an errand that stopped halfway is not a cost.
 
-What comes out, per action:
+What comes out: `exploreWhPerS` (so a bounded explore slice can be priced),
+`chargeW` (the NET rate into the pack lying on the dock's pins, which the
+charge timeout is sized against), and per named act (`--actions`, the lab's
+acts on the mouse, which take no tool):
 
-    wh        SWAP_PICK -> end of SWAP_RETURN, the whole fetch-use-stow job.
-              This is the number the gate compares against the pack, because
-              it is the span the loop cannot interrupt.
+    wh        the whole errand, the span the loop cannot interrupt: what the
+              gate compares against the pack
     s         sim seconds it took, for reading the wh against
-    w         mean load over the errand, as a sanity check against
-              power.ELECTRONICS_W (8.5 W) plus a tool's MODULE_IDLE_W
+    w         mean load over the errand, as a sanity check
 
-...plus two figures that are not errands and are measured for the same file:
-`exploreWhPerS` (so a bounded explore slice can be priced) and `chargeW` (the
-NET rate into the pack, which is what `CHARGE_TIMEOUT` has to be sized
-against -- 55 W of charger minus whatever the held press is drawing).
+`--reserve` measures the return trip from the worst place in the house
+instead (`legs.world.RESERVE_WH`).
 """
 
 import argparse
@@ -45,22 +44,16 @@ import mujoco
 from pluggybot.robot import world_spec  # noqa: E402
 
 from pluggybot.lifecycle import (
-  HubLifecycle, board_book, draw_errand_for, errands_for, points_ledger,
-  world_config, world_screens,
+  QUAD_HOME, HubLifecycle, board_book, errands_for, points_ledger, world_config,
+  world_for, world_screens,
 )
 
-#: Actions worth pricing: every errand a world can build, plus the two the
-#: `showcase` queue is made of. `artwork` and `answer` are drawing errands
-#: with a different tier and a different figure, so they are priced as
-#: `draw` in economy/energy.json rather than flown twice for the same number.
-ACTIONS = ("carry", "draw", "census", "dance")
-#: The lab's acts (issues #226, #287), priced on request: `--actions
-#: care:feed,care:toy,care:company,shock,feed` (`feed` is the paid job's
-#: errand, `care:feed` the gift's -- the same program, two rows). Each is a
-#: program of `drive_to` legs to the second house and one act there, and
-#: the errand ENDS IN THE LAB, so the spike drives home between them to
-#: keep every row from the rack.
-CAGE_ACTIONS = ("care:feed", "care:toy", "care:company", "shock", "feed")
+#: The lab's acts (issues #226, #287, #403), priced on request: `--actions
+#: care:feed,care:toy,shock,feed` (`feed` is the paid job's errand,
+#: `care:feed` the gift's -- the same program, two rows). Each finds its
+#: plate by its sign and presses it, and the errand ENDS IN THE LAB, so the
+#: spike walks home to the dock between them to keep every row from there.
+CAGE_ACTIONS = ("care:feed", "care:toy", "shock", "feed")
 
 #: A pack far bigger than any errand, so nothing being measured is cut short.
 #: See the module docstring: this is about not measuring a death.
@@ -104,7 +97,7 @@ def measure(world: str, actions, battery_wh: float, explore_s: float,
     life.body.start_discovery()
     life.body.run(life.body.look_around_routine())
 
-    # ---- explore, which is also how the rack gets found -------------------
+    # ---- explore ------------------------------------------------------------
     t0, e0 = float(data.time), life.battery.energy_wh
     life.explore(budget=explore_s, mark_done=False)
     dt = max(1e-6, float(data.time) - t0)
@@ -116,14 +109,7 @@ def measure(world: str, actions, battery_wh: float, explore_s: float,
     # ---- one errand at a time ---------------------------------------------
     for action in actions:
       try:
-        # `draw:<board>` flies ONE named board, first if listed first -- the
-        # per-target row's own measurement (the `draw2` queue always flies
-        # the near board first, so the far one never pays the
-        # first-errand-through-unexplored-space price there).
-        if action.startswith("draw:"):
-          queue = [draw_errand_for(world, book, action.split(":", 1)[1])]
-        else:
-          queue = errands_for(action, world, book)
+        queue = errands_for(action, world, book)
       except ValueError as e:
         print(f"  {action:9s} skipped: {e}")
         continue
@@ -138,14 +124,9 @@ def measure(world: str, actions, battery_wh: float, explore_s: float,
         result = life.run_errand(errand)
         used = battery_wh - life.battery.energy_wh
         dt = max(1e-6, float(data.time) - t0)
-        # ⚠ KEYED BY THE ERRAND'S OWN NAME when it carries a target
-        # (`draw:whiteboard_b`), not by the action (issue #70). A queue like
-        # `draw2` flies BOTH boards, and keying by action would keep only the
-        # last one measured -- which is precisely the per-target distinction
-        # the table exists for: the far board is 7 m away through a doorway
-        # and one number for both either kills the robot on the way back or
-        # prices the near board off the demo cell.
-        key = errand.name if ":" in errand.name else action
+        # Keyed by the ACTION, the table's own row name (`feed`, never its
+        # errand's `feed:lab`)
+        key = action
         out["actions"][key] = {
           "wh": used, "s": dt, "w": used * 3600.0 / dt,
           "errand": errand.name, "stowed": bool(result.get("stowed")),
@@ -155,7 +136,7 @@ def measure(world: str, actions, battery_wh: float, explore_s: float,
               f"{'stowed' if result.get('stowed') else 'NOT STOWED'}")
         if errand.detail.get("cage"):
           # ...and how the mouse took it, which is the act's whole point,
-          # then home: the next row starts from the rack like every other.
+          # then home: the next row starts from the dock like every other.
           done = result.get("procedure", {})
           out["actions"][key]["ok"] = bool(done.get("ok"))
           out["actions"][key]["mouse"] = (life.cage.flags["mouse"]
@@ -203,7 +184,7 @@ def measure(world: str, actions, battery_wh: float, explore_s: float,
       print(f"  charge    {dt:6.1f}s  {gained:+.4f} Wh  "
             f"({out['chargeW']:5.1f} W net into the pack)")
     else:
-      print("  charge    could not reach the rack -- no chargeW measured")
+      print("  charge    could not reach the dock -- no chargeW measured")
   finally:
     life.body.close()
   return out
@@ -212,30 +193,24 @@ def measure(world: str, actions, battery_wh: float, explore_s: float,
 def measure_reserve(world: str, battery_wh: float, explore_s: float) -> dict:
   """What it COSTS to get home from the worst place to be (issues #70, #84).
 
-  `HOME_LOW_BATTERY_WH` is the one energy number that is not about an errand:
-  it is the absolute cost of reaching the dock from the worst point in the
-  floor plan, which is why it is a property of the PLAN and deliberately not
-  scaled with the pack. It was written down as ~0.3 Wh -- "a full living-room
-  crossing plus charge approach", a 2.89 m route -- and issue #68 grew the
-  plot to 26.5 x 12 m, which moves the worst point to the street's far
-  corner, 15.6 m of route away.
+  The reserve (`legs.world.RESERVE_WH`) is the one energy number that is not
+  about an errand: it is the absolute cost of reaching the dock from the
+  worst point in the floor plan, which is why it is a property of the PLAN
+  and deliberately not scaled with the pack.
 
   Two parts, measured separately because they fail differently:
 
-    travelWh   driving `home.HOME_WORST_RETURN_PATH` from the worst point to
+    travelWh   walking `home.HOME_WORST_RETURN_PATH` from the worst point to
                the garden doorway. The waypoints are FOLLOWED, not planned --
                the route is a fact about the floor plan and lives in
                home/world.py -- so this is the physical cost of the distance,
                not of the planner's mood that day.
-    dockWh     `go_charge()` from the garden doorway: the drive to the
-               standoff, the tag-servo creep and the press, which is the part
-               a plain distance model cannot predict.
+    dockWh     `go_charge()` from the garden doorway: the walk to the
+               standoff, the board, the walk in and the lie-down, which is
+               the part a plain distance model cannot predict.
 
   The sum is a FLOOR, not the constant: the constant also has to cover a
-  failed press-and-retry, so the caller adds margin and says so at the
-  constant. (An earlier draft drove the route OUTBOUND first, to open the
-  gate the street used to be behind. Issue #93 removed the gate, so the
-  street is plain floor now, and the outbound leg went with it.)
+  failed docking, so the caller adds margin and says so at the constant.
   """
   from pluggybot.behavior.navigation import drive_toward
   from pluggybot.home import world as home
@@ -274,11 +249,10 @@ def measure_reserve(world: str, battery_wh: float, explore_s: float) -> dict:
 
     t0, e0 = float(data.time), life.battery.energy_wh
     metres = 0.0
-    # ⚠ Every waypoint EXCEPT the last. The path ends at the rack itself, and
-    # driving to within 15 cm of a rack centre is driving into the rack --
-    # the final leg belongs to `go_charge`, which navigates to the charge
-    # STANDOFF and then creeps on the tag. That split is also the honest one:
-    # travel is what a distance model can predict, docking is what it cannot.
+    # ⚠ Every waypoint EXCEPT the last: the final leg belongs to `go_charge`,
+    # which walks to the dock's STANDOFF and in off its board. That split is
+    # also the honest one: travel is what a distance model can predict,
+    # docking is what it cannot.
     for wx, wy in path[1:-1]:
       metres += math.hypot(wx - life.body.pose[0],
                            wy - life.body.pose[1])
@@ -314,7 +288,8 @@ def measure_reserve(world: str, battery_wh: float, explore_s: float) -> dict:
 def main() -> None:
   ap = argparse.ArgumentParser(description=__doc__,
                                formatter_class=argparse.RawDescriptionHelpFormatter)
-  ap.add_argument("--world", default="home", choices=("home", "room_hub", "home_quad"))
+  ap.add_argument("--world", default=QUAD_HOME, choices=(QUAD_HOME, "home"),
+                  help="the house with the quadruped in it; `home` names it too")
   ap.add_argument("--battery-wh", type=float, default=BIG_PACK_WH,
                   help="an oversized pack, so nothing measured is cut short")
   ap.add_argument("--explore-s", type=float, default=None,
@@ -322,24 +297,23 @@ def main() -> None:
                        "(default: the world's explore budget)")
   ap.add_argument("--charge-s", type=float, default=90.0,
                   help="sim seconds of held press to measure the charge rate")
-  ap.add_argument("--actions", default=",".join(ACTIONS))
+  ap.add_argument("--actions", default="",
+                  help="named acts to price besides the explore and the "
+                       f"charger: any of {','.join(CAGE_ACTIONS)} (or care)")
   ap.add_argument("--reserve", action="store_true",
                   help="measure the worst-case return trip instead of the "
-                       "errands (issues #70/#84): what HOME_LOW_BATTERY_WH "
+                       "errands (issues #70/#84): what legs.world.RESERVE_WH "
                        "has to cover on the current floor plan")
   ap.add_argument("--json", default=None, help="write the raw measurement here")
   ap.add_argument("--write", action="store_true",
                   help="fold the result into src/pluggybot/economy/energy.json")
   args = ap.parse_args()
+  args.world = world_for(args.world)
 
   cfg = world_config(args.world)
   explore_s = args.explore_s if args.explore_s is not None \
       else float(cfg["explore_budget"])
-  # ...and a body with no arm has no tool errand to price (issue #387):
-  # its rows are the explore's, the charger's and the lab's acts, which
-  # take no tool (#403)
-  actions = tuple(a for a in args.actions.split(",") if a
-                  and (cfg.get("tools", True) or a in CAGE_ACTIONS))
+  actions = tuple(a for a in args.actions.split(",") if a)
   wall = time.time()
   if args.reserve:
     print(f"== {args.world}: measuring the worst-case return trip on a "
@@ -350,12 +324,12 @@ def main() -> None:
     if args.json:
       Path(args.json).write_text(json.dumps(out, indent=2) + "\n")
       print(f"wrote {args.json}")
-    # Deliberately never --write: the reserve is a constant in home/world.py
+    # Deliberately never --write: the reserve is a constant in legs/world.py
     # with a paragraph of reasoning attached, not a row in a data file, and
     # it needs a human to add the retry margin.
     return
-  print(f"== {args.world}: pricing {', '.join(actions)} on a "
-        f"{args.battery_wh:g} Wh pack")
+  print(f"== {args.world}: pricing the explore, the charger"
+        f"{''.join(', ' + a for a in actions)} on a {args.battery_wh:g} Wh pack")
   out = measure(args.world, actions, args.battery_wh, explore_s, args.charge_s)
   out["wallS"] = round(time.time() - wall, 1)
   print(f"-- {out['wallS']:.0f} s of wall clock")
@@ -370,18 +344,7 @@ def main() -> None:
     block = doc.setdefault("worlds", {}).setdefault(args.world, {})
     costs = block.setdefault("errandWh", {})
     for key, row in out["actions"].items():
-      # A `draw:whiteboard_a` measurement is ALSO the bare `draw` row: the
-      # bare action is the near-target price by the table's own convention
-      # (the per-target key wins over it only where a dearer target exists).
       costs[key] = round(row["wh"], 3)
-      if key.endswith(":whiteboard_a"):
-        costs[key.split(":")[0]] = round(row["wh"], 3)
-    # The two drawing tiers are the drawing errand: same tool, same board,
-    # same figure size. Priced together rather than flown three times.
-    for bare in ("draw", "draw:whiteboard_b"):
-      if bare in costs:
-        costs[bare.replace("draw", "artwork")] = costs[bare]
-        costs[bare.replace("draw", "answer")] = costs[bare]
     if "exploreWhPerS" in out:
       block["exploreWhPerS"] = round(out["exploreWhPerS"], 6)
     if "chargeW" in out:

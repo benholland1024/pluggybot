@@ -26,7 +26,7 @@ decreases down the image. Both flips happen here and nowhere else.
 Usage:
   uv run python scripts/board_png.py --boards /var/lib/pluggybot/boards.json \
       --board whiteboard_a house.png
-  uv run python scripts/board_png.py --recording protocol/telemetry.home_lifecycle.jsonl.gz \
+  uv run python scripts/board_png.py --recording day.jsonl.gz \
       --board whiteboard_a house.png
 """
 

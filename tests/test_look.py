@@ -20,7 +20,7 @@ import math
 import mujoco
 import pytest
 
-from pluggybot.evaluation.record import build_identity
+from pluggybot.evaluation.identity import build_identity
 from pluggybot.lifecycle import (
   LOOK_SLICE_S, QUAD_HOME, HubLifecycle, overseer_context, world_config,
 )
@@ -36,7 +36,8 @@ from pluggybot.telemetry.protocol import (
 )
 
 from test_autonomous import GUARDED_RULES_SHA
-from test_overseer import FakeClient, _lifecycle, full
+from test_body import stub_life
+from test_overseer import FakeClient, full
 
 #: A JPEG in name only: the magic bytes and some payload. The door checks
 #: the magic and the size, never the picture -- decoding is the model's.
@@ -119,26 +120,38 @@ def test_the_eye_answers_the_open_request_and_drops_every_other_picture():
   assert eye.stats() == {"asked": 2, "seen": 1, "none": 1, "dropped": {"stale": 2}}
 
 
-def test_the_camera_pose_is_the_head_cameras_and_says_which_way_it_looks():
-  """`forward` is the way the body faces and `up` is world +z, read off the
-  camera the tag detector renders from -- so the picture is taken from
-  exactly where the metric camera is."""
-  cfg = world_config("room_hub")
-  model = mujoco.MjModel.from_xml_path(cfg["model"])
+#: A head with a camera on it, looking along its own +x with +z up, and
+#: nothing else: what the eye reads off a world. Mocap, so it stays put.
+EYE_WORLD = """<mujoco model="eye">
+  <worldbody>
+    <geom name="floor" type="plane" size="20 20 0.1"/>
+    <body name="head" mocap="true" pos="0 0 0.2">
+      <geom type="box" size="0.05 0.05 0.05" contype="0" conaffinity="0"/>
+      <camera name="eye" pos="0.05 0 0.02" xyaxes="0 -1 0 0 0 1" fovy="41"/>
+    </body>
+  </worldbody>
+</mujoco>"""
+
+
+def test_the_camera_pose_is_the_cameras_and_says_which_way_it_looks():
+  """`forward` is the way the body faces and `up` is world +z, read off
+  the camera's own world pose -- so the picture is taken from exactly where
+  the camera is."""
+  model = mujoco.MjModel.from_xml_string(EYE_WORLD)
   data = mujoco.MjData(model)
   x, y, yaw = 1.0, 2.0, 0.5
-  q = FIRST.qpos_adr(model)
-  data.qpos[q:q + 2] = (x, y)
-  data.qpos[q + 3:q + 7] = (math.cos(yaw / 2), 0.0, 0.0, math.sin(yaw / 2))
+  data.mocap_pos[0] = (x, y, 0.2)
+  data.mocap_quat[0] = (math.cos(yaw / 2), 0.0, 0.0, math.sin(yaw / 2))
   mujoco.mj_forward(model, data)
-  pose = look.camera_pose(model, data, FIRST.el("left_eye"))
+  pose = look.camera_pose(model, data, "eye")
   assert pose["forward"] == pytest.approx([math.cos(yaw), math.sin(yaw), 0.0], abs=1e-4)
   assert pose["up"] == pytest.approx([0.0, 0.0, 1.0], abs=1e-4)
-  assert pose["fovy"] == float(model.cam_fovy[model.camera(FIRST.el("left_eye")).id])
+  assert pose["fovy"] == 41.0
   assert (pose["width"], pose["height"]) == (look.WIDTH, look.HEIGHT)
-  cid = model.camera(FIRST.el("left_eye")).id
+  cid = model.camera("eye").id
   assert pose["pos"] == pytest.approx(list(data.cam_xpos[cid]), abs=1e-4)
-  assert 0.1 < pose["pos"][2] < 0.3, "the head's height, not the floor's"
+  assert pose["pos"][:2] == pytest.approx([x + 0.05 * math.cos(yaw), y + 0.05 * math.sin(yaw)],
+                                          abs=1e-4)
 
 
 def test_a_quadruped_looks_through_its_own_head_camera():
@@ -153,7 +166,7 @@ def test_a_quadruped_looks_through_its_own_head_camera():
   life = HubLifecycle(model, data, realtime=False, world=QUAD_HOME,
                       battery_wh=cfg["battery_wh"], rack=cfg["rack"],
                       grid_bounds=cfg["grid_bounds"],
-                      low_battery_wh=cfg["low_battery_wh"], errand=False)
+                      low_battery_wh=cfg["low_battery_wh"])
   seen = []
   life.on_event.append(seen.append)
   try:
@@ -178,12 +191,12 @@ def test_a_quadruped_looks_through_its_own_head_camera():
 
 
 def test_look_is_offered_on_autonomous_alone_and_guarded_is_unchanged():
-  auto = ov.build("room_hub", enabled=True, client=FakeClient(), autonomous=True)
+  auto = ov.build(QUAD_HOME, enabled=True, client=FakeClient(), autonomous=True)
   assert auto.menu.look and "look" in auto.menu.available()
   assert "look" in auto.menu.schema()["properties"]["action"]["enum"]
   assert "look" not in auto.menu.schema(look=False)["properties"]["action"]["enum"]
   assert dict(auto.sections)["LOOKING"] == ov.LOOK_RULE
-  guarded = ov.build("room_hub", enabled=True, client=FakeClient())
+  guarded = ov.build(QUAD_HOME, enabled=True, client=FakeClient())
   assert not guarded.menu.look and "look" not in guarded.menu.available()
   assert "look" not in guarded.menu.schema()["properties"]["action"]["enum"]
   assert "LOOKING" not in dict(guarded.sections)
@@ -200,7 +213,7 @@ def test_look_is_offered_on_autonomous_alone_and_guarded_is_unchanged():
 
 
 def test_a_look_is_never_an_order_and_never_a_map_row():
-  auto = ov.build("room_hub", enabled=True, client=FakeClient(), autonomous=True)
+  auto = ov.build(QUAD_HOME, enabled=True, client=FakeClient(), autonomous=True)
   assert "look" not in auto.menu.orderable(())
   assert "look" not in auto.menu.schema(standing_orders=True)["properties"]["standing_order"]["enum"]
   with pytest.raises(ValueError, match="cannot be `look`"):
@@ -219,11 +232,27 @@ def test_looks_left_takes_the_action_off_the_call_and_the_state_says_so():
 # ---- the delivery ---------------------------------------------------------------------
 
 
+def _eyed_stub():
+  """A stub body whose head camera is `EYE_WORLD`'s: the eye's bookkeeping
+  with no robot to look through (the quadruped's own is pinned above)."""
+  from pluggybot.body import StubBody
+  from pluggybot.economy import energy
+  cfg = world_config(QUAD_HOME)
+  model = mujoco.MjModel.from_xml_string(EYE_WORLD)
+  data = mujoco.MjData(model)
+  mujoco.mj_forward(model, data)
+  body = StubBody(model, data, rack=cfg["rack"], grid_bounds=cfg["grid_bounds"],
+                  charge_w=energy.load(QUAD_HOME).charge_w)
+  body.head_camera = "eye"
+  return body
+
+
 def _looker(*answers, inbox=None):
-  boss = ov.build("room_hub", enabled=True, client=FakeClient(*answers),
+  boss = ov.build(QUAD_HOME, enabled=True, client=FakeClient(*answers),
                   autonomous=True)
-  life = _lifecycle("room_hub", overseer=boss, errand=False, inbox=inbox)
-  life.body.start_at(*world_config("room_hub")["start"])
+  life = stub_life(body=_eyed_stub(), overseer=boss, inbox=inbox)
+  life.body.start_at(0.5, 3.0, math.pi / 2)
+  life.max_sim_time = 0.0            # a fallback's explore ends where it starts
   return boss, life
 
 
@@ -253,15 +282,20 @@ def test_a_picture_arrives_next_turn_as_an_image_part_and_never_as_text():
   seen = []
   life.on_event.append(seen.append)
   _renderer(life, inbox, seen, after_s=1.3)
+  # ...less the think slices the call in flight was stood out in: as many as
+  # its worker thread took, which is the box's, not the look's
+  thinks = []
+  real = life.body.hold_routine
+  life.body.hold_routine = lambda s: (thinks.append(s == ov.THINK_SLICE_S), real(s))[1]
   try:
     t0 = float(life.data.time)
     life._decide()
-    waited = float(life.data.time) - t0
+    waited = float(life.data.time) - t0 - sum(thinks) * ov.THINK_SLICE_S
     assert 1.3 <= waited < 1.3 + 2 * LOOK_SLICE_S + 0.2, waited
     rows = [m for m in seen if m["type"] == "look"]
     assert [(m["outcome"], m["ref"]) for m in rows] == [
       ("asked", "look:pluggybot:1"), ("seen", "look:pluggybot:1")]
-    assert rows[0]["camera"]["fovy"] == 41.0 and rows[0]["camera"]["width"] == look.WIDTH
+    assert rows[0]["camera"] == look.camera_pose(life.model, life.data, "eye")
     assert rows[0]["robot"] == "pluggybot" and rows[0]["at"]["x"] == 0.5
     assert rows[1]["bytes"] == len(JPEG) and 1.3 <= rows[1]["waitS"] < 1.8
     assert "_jpeg" not in rows[1] and "jpeg" not in rows[1]
@@ -295,10 +329,8 @@ def test_a_picture_arrives_next_turn_as_an_image_part_and_never_as_text():
   finally:
     life.body.close()
   assert life.eye.stats() == {"asked": 1, "seen": 1, "none": 0, "dropped": {}}
-  # ...and the record's rows are the wire's: never the bytes.
+  # ...and the summary's rows are the wire's: never the bytes.
   assert "looks" in inspect.getsource(HubLifecycle.end)
-  from pluggybot.evaluation import record as rec
-  assert '"looks": list(result.get("looks")' in inspect.getsource(rec.build_record)
   assert [r["outcome"] for r in map(look.wire_row, life.eye.looks)] == ["seen"]
   assert all("_jpeg" not in look.wire_row(r) for r in life.eye.looks)
 
@@ -347,8 +379,7 @@ def test_a_late_picture_is_dropped_and_a_picture_waits_for_the_models_own_turn()
     life._decide()
     assert [m["outcome"] for m in seen if m["type"] == "look"] == ["asked", "none"]
     # The late picture is on the socket now; the next pass drains it.
-    for _ in range(3):
-      life.body.run(life.body.mission._drive_routine(0.5, 0.0, 0.0))
+    life.body.run(life.body.hold_routine(1.5))
     life._look_step()
     assert life.eye.dropped == {"stale": 1}
     assert overseer_context(life)["seen"][0]["image"] == "none"
@@ -386,8 +417,8 @@ def test_the_run_cap_takes_look_off_the_menu_then_gives_it_back():
 
 
 def test_a_guarded_world_has_no_seen_block_and_its_turn_is_a_string():
-  boss = Overseer(Menu.for_world("room_hub", None), client=FakeClient())
-  life = _lifecycle("room_hub", overseer=boss, errand=False)
+  boss = Overseer(Menu.for_world(QUAD_HOME, None), client=FakeClient())
+  life = stub_life(overseer=boss)
   try:
     state = overseer_context(life)
     assert "seen" not in state and "looksLeft" not in state
@@ -445,7 +476,7 @@ def test_the_picture_never_reaches_any_turn_as_text_including_an_interrupt():
   assert ov.model_state({"battery": {}}, False) is not None
   # ...and the interrupt's own turn.
   assert b64[:32] not in ov._interrupt_turn(ov.model_state(state, True), "draw", "low")
-  auto = ov.build("room_hub", enabled=True, autonomous=True,
+  auto = ov.build(QUAD_HOME, enabled=True, autonomous=True,
                   client=FakeClient({"continue_errand": True, "reason": "nearly done"}))
   auto.start_interrupt(state, "draw", "your pack is at 10%")
   while auto.interrupt_pending:
@@ -478,7 +509,7 @@ def test_a_stop_thrown_into_a_look_closes_the_request():
   """`stop_when`'s `MissionAborted` lands mid-wait: the request resolves
   `none` (`aborted`) so the eye is never left holding one -- `Eye.ask`
   refuses a second request while one is open."""
-  from pluggybot.mission.mission import MissionAborted
+  from pluggybot.tick import MissionAborted
   boss, life = _looker(full(action="look"), full(action="idle"))
   seen = []
   life.on_event.append(seen.append)
@@ -499,15 +530,15 @@ def test_a_stop_thrown_into_a_look_closes_the_request():
 
 def test_the_eye_can_be_switched_off_for_a_mind_that_takes_no_picture(monkeypatch):
   monkeypatch.setenv(ov.LOOK_ENV, "0")
-  off = ov.build("room_hub", enabled=True, client=FakeClient(), autonomous=True)
+  off = ov.build(QUAD_HOME, enabled=True, client=FakeClient(), autonomous=True)
   assert not off.menu.look and "look" not in off.menu.available()
   assert "LOOKING" not in dict(off.sections)
   monkeypatch.delenv(ov.LOOK_ENV)
-  on = ov.build("room_hub", enabled=True, client=FakeClient(), autonomous=True)
+  on = ov.build(QUAD_HOME, enabled=True, client=FakeClient(), autonomous=True)
   assert on.menu.look
-  assert not ov.build("room_hub", enabled=True, client=FakeClient(),
+  assert not ov.build(QUAD_HOME, enabled=True, client=FakeClient(),
                       autonomous=True, look=False).menu.look
-  guarded = ov.build("room_hub", enabled=True, client=FakeClient(), look=True)
+  guarded = ov.build(QUAD_HOME, enabled=True, client=FakeClient(), look=True)
   assert not guarded.menu.look, "the knob turns the eye off, never on"
 
 
@@ -519,10 +550,10 @@ def test_a_heading_is_reported_wrapped():
 
 
 def test_which_model_looked_is_in_the_build_identity_and_absent_without_an_eye():
-  seen = build_identity("home", arm="autonomous", model="org/m:cheapest",
+  seen = build_identity(QUAD_HOME, arm="autonomous", model="org/m:cheapest",
                         backend="huggingface", eyes="org/m:cheapest", commit="abc")
   assert seen["eyes"] == "org/m:cheapest" and seen["model"] == "org/m:cheapest"
-  blind = build_identity("home", arm="guarded", model="org/m", backend="huggingface",
+  blind = build_identity(QUAD_HOME, arm="guarded", model="org/m", backend="huggingface",
                          commit="abc")
   assert "eyes" not in blind
 

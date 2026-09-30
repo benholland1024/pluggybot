@@ -34,8 +34,8 @@ fabrication cost of slice D is paid against.
   carried out. The spike's wall approach never has the two Vs at one x, so
   its 2° pick tolerance does not transfer. That is a fact about the
   coupling's pick geometry, not about any tool: the rig runs at the yaw
-  the robot delivers (`bay_fix`, ~0.4°) and yaw tolerance stays the spike's
-  and `scripts/swap_spike.py`'s measurement.
+  the rover delivered (~0.4°), and yaw tolerance stays the spike's
+  measurement.
 
   ⚠ NOT HERE: the identity tag. It is visual-only and the spike has no
   camera; a built module hung on a REAL rack (slice C) gets its tag and

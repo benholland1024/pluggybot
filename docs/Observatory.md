@@ -6,7 +6,7 @@ while the rows were written, so this file is that record: one entry per
 period, opened by the PR that changes the deployed design and closed by
 the reading that ends it. The readings themselves (#223) and the decisions
 they lead to (#224, #225) are entries here too. A reading of the
-observatory is NOT a result and never enters `results/`.
+observatory is NOT a result: it reports into the issue it informs.
 
 ## Periods
 

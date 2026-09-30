@@ -22,7 +22,7 @@ PACE_PERIOD = 0.02   # sim-seconds between pacing checks (the viewer's cadence)
 class RealTimePacer:
   """A step hook that sleeps the physics loop to `rate` x real time.
 
-  Append `step_hook` to HubMission.step_hooks. rate=1.0 is a live world;
+  Append `step_hook` to `Body.step_hooks`. rate=1.0 is a live world;
   2.0 runs sim seconds twice as fast as wall seconds. The check is
   decimated to PACE_PERIOD of sim time, so its fast path is one float
   comparison -- same discipline as the telemetry hook.

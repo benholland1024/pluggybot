@@ -1,6 +1,6 @@
 """The contact list is read as an array, once (rooftop-media-2026 #296).
 
-MEASURED: the electrical criteria and the two chassis scans walked
+MEASURED: the electrical criteria and the body's contact scans walked
 `data.contact[i]` -- a pybind struct per contact -- every physics step per
 robot, and a py-spy profile of the served pair put 49 % of the physics
 thread there against 13 % in `mj_step`. Each reader now answers off
@@ -9,72 +9,95 @@ the struct-by-struct loop on a live world with dozens of contacts, and
 that a geom id cached by model does not survive a recompile.
 """
 
+import math
+
 import mujoco
 import numpy as np
 
+from pluggybot.legs import arm as am
+from pluggybot.legs import rack as rk
+from pluggybot.legs import world as lw
+from pluggybot.legs.model import CHOSEN
 from pluggybot.rack import coupling
-from pluggybot.rack.coupling import (
-  FORK_POLE_GEOMS, HUB_STATION_YS, contact_pairs, geom_id,
-  module_power_state, rack_charge_contact,
-)
-from pluggybot.rack.swap import HubSwap
-from pluggybot.robot import FIRST
+from pluggybot.rack.coupling import (PEG_ABOVE_BODY, bay_prefix, bay_switches,
+                                     contact_pairs, geom_id)
+
+
+def _pairs_loop(data):
+  return [{data.contact[i].geom1, data.contact[i].geom2} for i in range(data.ncon)]
 
 
 def _loop_power(model, data, name, prefix=""):
-  """The reader as it was: one struct at a time."""
+  """The fork's criterion as it was read: one struct at a time."""
   out = {}
-  for side, plates in FORK_POLE_GEOMS.items():
+  for side, plates in rk.FORK_POLES.items():
     try:
       peg = model.geom(f"{name}_peg_{side}").id
       plate_ids = {model.geom(prefix + g).id for g in plates}
     except KeyError:
       out[side] = False
       continue
-    hit = False
-    for i in range(data.ncon):
-      pair = {data.contact[i].geom1, data.contact[i].geom2}
-      if peg in pair and plate_ids & pair:
-        hit = True
-        break
-    out[side] = hit
+    out[side] = any(peg in pair and plate_ids & pair for pair in _pairs_loop(data))
   return {"left": out["l"], "right": out["r"], "powered": out["l"] and out["r"]}
 
 
-def _loop_charge(model, data, prefix=""):
-  pins = {model.geom("rack_pin_l").id, model.geom("rack_pin_r").id}
-  chassis = model.geom(prefix + "chassis").id
-  seen = set()
-  for i in range(data.ncon):
-    c = data.contact[i]
-    pair = {c.geom1, c.geom2}
-    if chassis in pair:
-      seen |= pins & pair
-  return len(seen) == 2
+def _loop_hung(model, data, name, bay):
+  """`rk.on_bay`'s contact half, struct by struct: a peg on every flank."""
+  pegs = [model.geom(f"{name}_peg_{s}").id for s in ("l", "r")]
+  flanks = [model.geom(f"{bay_prefix(bay)}tray_{lbl}_{ab}").id
+            for lbl in ("l", "r") for ab in ("a", "b")]
+  pairs = _pairs_loop(data)
+  return all(any(f in pair and set(pegs) & pair for pair in pairs) for f in flanks)
 
 
-def _picked_world():
-  """The hub world with the LCD module picked onto the fork (the swap's
-  own routine, as `test_hub_swap` does it): the electrical criterion true,
-  beside dozens of unrelated contacts."""
-  model = mujoco.MjModel.from_xml_path("models/hub_world.xml")
+def _loop_switches(model, data):
+  out = []
+  for i in range(len(coupling.STATION_YS)):
+    ids = [geom_id(model, bay_prefix(i) + p) for p in coupling.BAY_SWITCH_PLATES]
+    if None in ids:
+      out.append(None)
+      continue
+    out.append(any(set(ids) & pair for pair in _pairs_loop(data)))
+  return tuple(out)
+
+
+def _seated_world():
+  """The house with the quadruped standing in the living room, the claw
+  dropped onto its fork at the carry pose (as a pick leaves it) and the
+  lcd and the pen hung on the rack: a tenth of a second on, the claw
+  conducts, beside dozens of unrelated contacts."""
+  model = lw.home_spec().compile()
   data = mujoco.MjData(model)
-  swap = HubSwap(model, data, handle=FIRST)
-  swap.place_at_standoff(HUB_STATION_YS[0])
-  swap._run(1.0, 0.0)
-  swap.pick()
-  swap._run(1.0, 0.0)
-  return model, data, swap
+  lw.stand(model, data, "", 1.5, 0.5, 0.0)
+  for joint, q in zip(("shoulder", "elbow", "wrist"), (*am.CARRY_Q, -sum(am.CARRY_Q))):
+    data.qpos[model.jnt_qposadr[model.joint(f"arm_{joint}").id]] = q
+  mujoco.mj_forward(model, data)
+  root = model.body("pluggybot").id
+  rot = data.xmat[root].reshape(3, 3)
+  peg = data.site_xpos[model.site("arm_seat").id] + rot @ np.array(
+    [0.0, 0.0, CHOSEN.arm.fork.seat_rise() + 0.0003])
+  yaw = math.atan2(rot[1, 0], rot[0, 0]) + math.pi
+  q = model.jnt_qposadr[model.body("module_claw").jntadr[0]]
+  data.qpos[q:q + 3] = peg - np.array([0.0, 0.0, PEG_ABOVE_BODY])
+  data.qpos[q + 3:q + 7] = (math.cos(yaw / 2), 0.0, 0.0, math.sin(yaw / 2))
+  mujoco.mj_forward(model, data)
+  for _ in range(50):
+    mujoco.mj_step(model, data)
+  return model, data
 
 
 def test_the_array_readers_agree_with_the_struct_loops_on_a_live_world():
-  model, data, swap = _picked_world()
-  assert data.ncon >= 8, "a world with real contacts"
+  model, data = _seated_world()
+  assert data.ncon >= 20, "a world with real contacts"
   assert contact_pairs(data).shape == (data.ncon, 2)
-  for name in ("module_lcd", "module_pen", "no_such_module"):
-    assert module_power_state(model, data, name) == _loop_power(model, data, name)
-  assert module_power_state(model, data, "module_lcd")["powered"], "the seated one"
-  assert rack_charge_contact(model, data) == _loop_charge(model, data)
+  for name in ("module_claw", "module_lcd", "no_such_module"):
+    assert rk.tool_power(model, data, name) == _loop_power(model, data, name)
+  assert rk.tool_power(model, data, "module_claw")["powered"], "the seated one"
+  for name, bay in rk.TOOL_BAYS.items():
+    assert rk.on_bay(model, data, name, rk.DEFAULT, bay) == _loop_hung(model, data, name, bay)
+  assert [rk.on_bay(model, data, n, rk.DEFAULT, b) for n, b in rk.TOOL_BAYS.items()] \
+    == [True, True, False], "two hung, the claw's bay empty"
+  assert bay_switches(model, data) == _loop_switches(model, data)
   # Every contact geom, asked "touching what?", answers as the loop does.
   g = contact_pairs(data)
   for a in np.unique(g):
@@ -88,12 +111,13 @@ def test_the_array_readers_agree_with_the_struct_loops_on_a_live_world():
 
 
 def test_a_geom_id_is_cached_per_model_object_and_a_new_model_gets_its_own():
-  model = mujoco.MjModel.from_xml_path("models/hub_world.xml")
-  assert geom_id(model, "chassis") == model.geom("chassis").id
+  spec = lw.home_spec()
+  model = spec.compile()
+  assert geom_id(model, "belly_pad_l") == model.geom("belly_pad_l").id
   assert geom_id(model, "not_a_geom") is None
-  other = mujoco.MjModel.from_xml_path("models/hub_world.xml")
-  assert geom_id(other, "chassis") == other.geom("chassis").id
+  other = spec.compile()
+  assert geom_id(other, "belly_pad_l") == other.geom("belly_pad_l").id
   # The cache keys on identity and holds the model: a hit for `model` is
   # never handed to `other`, whatever `id()` does.
-  assert coupling._GEOM_IDS[(id(model), "chassis")][0] is model
-  assert coupling._GEOM_IDS[(id(other), "chassis")][0] is other
+  assert coupling._GEOM_IDS[(id(model), "belly_pad_l")][0] is model
+  assert coupling._GEOM_IDS[(id(other), "belly_pad_l")][0] is other

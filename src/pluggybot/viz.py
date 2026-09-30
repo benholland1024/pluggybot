@@ -2,7 +2,7 @@
 
 The same offscreen renderer the robot's cameras use, sampled on a fixed
 SIM-time cadence and streamed to an encoder, so a demo can be shared without
-screen-recording the viewer (`scripts/draw.py` / `pickup.py --record`).
+screen-recording the viewer (`--record` on a demo script).
 """
 
 import os

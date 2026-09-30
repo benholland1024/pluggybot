@@ -23,7 +23,6 @@ under guard:
 
 import importlib.util
 import json
-import math
 import sys
 import threading
 import time
@@ -564,8 +563,8 @@ def test_every_connection_is_caught_up_on_the_ink(mini_model):
 
 
 def test_a_publisher_without_boards_sends_no_snapshots(mini_model):
-  """room_hub has no whiteboards, and a world with nothing to say about ink
-  must not open every connection with an empty message."""
+  """A world with no whiteboards has nothing to say about ink, and must not
+  open every connection with an empty message."""
   data = mujoco.MjData(mini_model)
   sink = Sink()
   pub = WsPublisher(mini_model, data, sink.endpoint, model_name="mini")
@@ -583,8 +582,7 @@ def test_a_publisher_without_boards_sends_no_snapshots(mini_model):
 # ---- scripts/serve.py: the world the live demo actually serves --------------
 # serve.py is what visitors see, and every world-dependent constant it gets
 # wrong fails SILENTLY -- a short explore budget just stops mapping early, a
-# stale use_at just drives at a wall, a stale model_name just makes the site
-# render the other house. So the guard is the whole wiring, checked by
+# stale model_name just makes the site render the other house. So the guard is the whole wiring, checked by
 # running main() with the heavy collaborators faked out: real argparse, real
 # world_config, real MjModel load, no physics.
 
@@ -831,68 +829,74 @@ def _serve_wiring(monkeypatch, argv):
   return built["life"], built["pub"], built["model"]
 
 
-@pytest.mark.parametrize("world", ["room_hub", "home"])
+@pytest.mark.parametrize("world", ["home", "home_quad"])
 def test_serve_takes_every_world_constant_from_world_config(monkeypatch, world):
-  """--world must thread the WHOLE config through, not just the model.
-
-  Both traps this test exists for are silent: serve.py used to pass no
-  explore_budget at all (home wants 240 s, the default is 90 s, so the map
-  simply stops filling), and it used to inherit room_hub's use_at of
-  (-1.2, 2.5) -- which in the home world is inside wall_divider_0, so the
-  errand drives at a wall instead of into the living room.
-  """
-  from pluggybot.lifecycle import world_config
-  cfg = world_config(world)
+  """--world must thread the WHOLE config through, not just the model: a
+  missing explore budget is silent (home wants 240 s, `run()`'s default is
+  90 s, so the map simply stops filling). `home` is the house with legs in
+  it, `home_quad`, whichever name the deployment uses."""
+  from pluggybot.lifecycle import QUAD_HOME, world_config
+  cfg = world_config(QUAD_HOME)
 
   life, pub, model = _serve_wiring(monkeypatch, ["--world", world, "--free-run"])
 
+  assert life.init_kwargs["world"] == QUAD_HOME
   assert life.init_kwargs["battery_wh"] == cfg["battery_wh"]
   assert life.init_kwargs["low_battery_wh"] == cfg["low_battery_wh"]
   assert life.init_kwargs["grid_bounds"] == cfg["grid_bounds"]
   assert life.init_kwargs["rack"] == cfg["rack"]
   assert life.run_args[0] == cfg["start"]
-  assert life.run_kwargs["use_at"] == cfg["use_at"]
   assert life.run_kwargs["explore_budget"] == cfg["explore_budget"], \
     "serve.py must pass the world's explore budget, not run()'s default"
   # the header field the website selects its scene off
   assert pub.init_kwargs["model_name"] == cfg["model_name"]
-  # ...and the model really is that world, not just a matching label
-  assert model.body(f"{'wall_divider_0' if world == 'home' else 'rack'}").id > 0
+  # ...and the model really is that world, not just a matching label: the
+  # house, with the quadruped in it
+  assert model.body("wall_divider_0").id > 0 and model.body("pluggybot").id > 0
 
 
-def test_serve_defaults_to_room_hub_unchanged(monkeypatch):
-  """The regression arm: no --world must behave exactly as webserver v1 did."""
+def test_serve_defaults_to_the_house_with_legs(monkeypatch):
+  """No --world and no --body is the served world: the quadruped's house."""
+  from pluggybot.lifecycle import QUAD_HOME, world_config
+  cfg = world_config(QUAD_HOME)
   life, pub, _ = _serve_wiring(monkeypatch, ["--free-run"])
-  assert pub.init_kwargs["model_name"] == "room_hub"
-  assert life.run_args[0] == (0.5, 3.0, math.pi / 2)
-  assert life.run_kwargs["use_at"] == (-1.2, 2.5)
-  assert life.run_kwargs["explore_budget"] == 90.0
-  assert life.init_kwargs["rack"] is None
+  assert pub.init_kwargs["model_name"] == QUAD_HOME
+  assert life.run_args[0] == cfg["start"]
+  assert life.run_kwargs["explore_budget"] == cfg["explore_budget"] == 240.0
+  assert life.init_kwargs["rack"] == cfg["rack"]
 
 
-def test_serve_wires_the_drawing_errand_and_its_boards(monkeypatch, tmp_path):
-  """`--errand draw` has to reach three places or it half-applies silently
-  (issue #12): the lifecycle needs the errand QUEUE, the lifecycle and the
-  publisher both need the same BOOK -- one so the boards block is in the
-  frames, the other so `draw` events reach the browser at all -- and the
-  book needs the state file, or a restart forgets the drawing.
-
-  Missing any one of them looks like success from the terminal: the robot
-  still fetches the pen and still draws. The website just shows a blank
-  wall, which is not something this repo's tests can see from here.
-  """
+def test_serve_wires_the_errand_queue_and_the_boards(monkeypatch, tmp_path):
+  """`--errand` and `--boards` have to reach three places or they
+  half-apply silently (issue #12): the lifecycle needs the errand QUEUE,
+  the lifecycle and the publisher both need the same BOOK -- one so the
+  boards block is in the frames, the other so board events reach the
+  browser at all -- and the book needs the state file, or a restart forgets
+  what is on the boards. Missing any one of them looks like success from
+  the terminal."""
   state = tmp_path / "boards.json"
   life, pub, _ = _serve_wiring(
-    monkeypatch, ["--world", "home", "--free-run", "--errand", "draw",
+    monkeypatch, ["--world", "home", "--free-run", "--errand", "feed",
                   "--boards", str(state)])
   errands = life.init_kwargs["errands"]
-  assert [e.name for e in errands] == ["draw:whiteboard_a"]
-  assert errands[0].module == "module_pen" and errands[0].use is not None
+  assert [e.name for e in errands] == ["feed:lab"]
+  assert errands[0].program is not None
   book = life.init_kwargs["boards"]
   assert book is pub.init_kwargs["boards"], \
     "the publisher and the lifecycle must share ONE book"
   assert book.path == state
-  assert pub.message in book.on_event, "strokes never reach the socket"
+  assert pub.message in book.on_event, "board events never reach the socket"
+
+
+def test_a_queue_that_opens_on_a_lab_act_still_watches_a_module():
+  """A lab act fetches nothing and names no module, and the power model asks
+  the body about the module the lifecycle watches: named "", that was a
+  lookup of a body called "" on the first physics step, and
+  `serve.py --errand feed` died there."""
+  from pluggybot.lifecycle import QUAD_HOME, cage_errand
+  from test_body import stub_life
+  life = stub_life(errands=[cage_errand(QUAD_HOME, "feed", task="feed")])
+  assert life.module == "module_lcd"
 
 
 def test_serve_wires_the_ledger_to_the_lifecycle_and_the_socket(monkeypatch,
@@ -920,17 +924,9 @@ def test_serve_wires_the_ledger_to_the_lifecycle_and_the_socket(monkeypatch,
   assert bare.init_kwargs["ledger"].path is None
 
 
-def test_serve_without_boards_is_the_pre_0_4_0_wiring(monkeypatch):
-  """room_hub has no whiteboards, so there is no book -- and every board hook
-  has to tolerate that rather than being wired to None."""
-  life, pub, _ = _serve_wiring(monkeypatch, ["--free-run"])
-  assert life.init_kwargs["boards"] is None
-  assert pub.init_kwargs["boards"] is None
-
-
 def test_serve_recorder_labels_the_world_it_recorded(monkeypatch, tmp_path):
-  """--record writes the replay artifact; a room_hub label on a home-world
-  recording would pose the wrong scene on the website's replay path."""
+  """--record writes the replay artifact; a label other than the world it
+  recorded would pose the wrong scene on the website's replay path."""
   serve = _load_serve()
   seen: dict = {}
   real_recorder = serve.TelemetryRecorder
@@ -949,7 +945,7 @@ def test_serve_recorder_labels_the_world_it_recorded(monkeypatch, tmp_path):
                       ["serve.py", "--world", "home", "--free-run",
                        "--record", str(tmp_path / "out.jsonl.gz")])
   serve.main()
-  assert seen["model_name"] == "home_world"
+  assert seen["model_name"] == "home_quad"
 
 
 def test_a_crash_is_the_last_thing_on_the_wire_and_is_waited_for(monkeypatch, tmp_path):
@@ -1010,7 +1006,7 @@ def test_a_pair_that_crashes_says_so_too(monkeypatch, tmp_path):
 
   monkeypatch.setattr(pair_mod, "run_pair", dying_run_pair)
   monkeypatch.setattr(sys, "argv", [
-    "serve.py", "--pair", "--world", "room_hub", "--free-run",
+    "serve.py", "--pair", "--world", "home", "--free-run",
     "--thoughts", str(tmp_path / "t"),
     "--ledger", str(tmp_path / "l.json"), "--max-sim-time", "5"])
   with pytest.raises(KeyError):
@@ -1208,7 +1204,7 @@ def test_serve_hands_the_operator_switch_to_the_lifecycle_and_the_wire(
   path = tmp_path / "mode.json"
   path.write_text(json.dumps({"mode": "scripted"}))
   life, pub, _ = _serve_wiring(monkeypatch, [
-    "--world", "room_hub", "--rate", "1.0", "--mode-file", str(path)])
+    "--world", "home", "--rate", "1.0", "--mode-file", str(path)])
   switch = life.init_kwargs["mode"]
   assert switch is not None and switch.mode == "scripted"
   assert pub.init_kwargs["mode"] is switch
@@ -1222,7 +1218,7 @@ def test_serve_shows_no_wallet_on_a_world_that_cannot_spend(monkeypatch):
   model there is nothing to spend, so the block is not attached at all --
   a `spend` of zeroes would tell the site to render a wallet the robot does
   not have."""
-  _, pub, _ = _serve_wiring(monkeypatch, ["--world", "room_hub", "--free-run"])
+  _, pub, _ = _serve_wiring(monkeypatch, ["--world", "home", "--free-run"])
   assert pub.init_kwargs["spend"] is None
 
 
@@ -1250,48 +1246,32 @@ def test_the_served_world_says_which_build_it_is(monkeypatch):
           identity["deadlineS"]) == (None, None, None)
 
 
-def test_a_served_robot_stands_itself_up_and_a_measured_one_does_not(
-    monkeypatch, tmp_path):
-  """Issue #143. Serve-ON, harness-OFF, and the asymmetry is the point: a
-  deployed world runs continuously and its robot dies most days on the
-  `autonomous` arm, while a MEASURED run is about one life -- the rollup's
-  survival statistics were written against one span per run, so turning
-  this on there would change what every committed number means without
-  anybody choosing it."""
+def test_a_served_robot_stands_itself_up_and_an_unserved_one_does_not(monkeypatch):
+  """Issue #143. Serve-ON, off everywhere else, and the asymmetry is the
+  point: a deployed world runs continuously and its robot dies most days,
+  while a lifecycle nobody configured waits for a person, as every world
+  did before."""
+  import inspect
+
   from pluggybot import lifecycle as lc
 
   life, _, _ = _serve_wiring(monkeypatch, ["--world", "home", "--free-run"])
   assert life.init_kwargs["restart_after_s"] == lc.RESTART_AFTER_S == 300.0
   # ...and it is a PARAMETER: a deployment can tune it, and 0 turns it off
-  # and leaves the robot waiting for a person, as every world did before.
+  # and leaves the robot waiting for a person.
   life, _, _ = _serve_wiring(monkeypatch, ["--world", "home", "--free-run",
                                            "--restart-after", "60"])
   assert life.init_kwargs["restart_after_s"] == 60.0
   life, _, _ = _serve_wiring(monkeypatch, ["--world", "home", "--free-run",
                                            "--restart-after", "0"])
   assert life.init_kwargs["restart_after_s"] is None
-  # The harness passes None, and the record says so rather than leaving it
-  # to be inferred from a missing key.
-  from pluggybot.evaluation import run as run_mod
-
-  seen: dict = {}
-
-  def fake_run_demo(**kw):
-    seen.update(kw)
-    raise RuntimeError("far enough")
-
-  monkeypatch.setattr("pluggybot.lifecycle.run_demo", fake_run_demo)
-  with pytest.raises(RuntimeError, match="far enough"):
-    run_mod.run_config({"world": "home", "arm": "scripted", "pack": "demo",
-                        "seed": 0, "stateDir": str(tmp_path / "state")},
-                       tmp_path / "out.json")
-  assert seen["restart_after_s"] is None, \
-      "a measured run is about ONE life (issue #143)"
+  default = inspect.signature(lc.HubLifecycle).parameters["restart_after_s"].default
+  assert default is None
 
 
-def test_a_served_world_puts_a_lost_tool_back_and_a_measured_one_does_not(monkeypatch):
-  """Issue #347, on #143's terms: ON here, a parameter, 0 turns it off; the
-  harness never passes one (`HubLifecycle` defaults it off)."""
+def test_a_served_world_puts_a_lost_tool_back_and_an_unserved_one_does_not(monkeypatch):
+  """Issue #347, on #143's terms: ON here, a parameter, 0 turns it off;
+  `HubLifecycle` defaults it off."""
   from pluggybot import lifecycle as lc
 
   life, _, _ = _serve_wiring(monkeypatch, ["--world", "home", "--free-run"])
@@ -1488,7 +1468,7 @@ def test_serve_pair_publishes_two_robots_from_one_loop_and_routes_reach_ins(
   monkeypatch.setattr(serve, "WsPublisher", pub_factory)
   monkeypatch.setattr(pair_mod, "run_pair", fake_run_pair)
   monkeypatch.setattr(sys, "argv", [
-    "serve.py", "--pair", "--world", "room_hub", "--free-run", "--tasks",
+    "serve.py", "--pair", "--world", "home", "--free-run", "--tasks",
     "--metabolism", "--robot-name", "Luca", "--robot-name-2", "Rowan",
     "--thoughts", str(tmp_path / "t"), "--ledger", str(tmp_path / "l.json"),
     "--max-sim-time", "5"])
@@ -1497,12 +1477,13 @@ def test_serve_pair_publishes_two_robots_from_one_loop_and_routes_reach_ins(
   pub = built["pub"]
   a, b = flown["lives"]
   assert flown["kw"]["max_sim_time"] == 5.0
-  assert pub.init_kwargs["model_name"] == "room_hub_pair"
+  assert pub.init_kwargs["model_name"] == "home_quad_pair"
   assert pub.init_kwargs["robot_name"] == "Luca"
   (other,) = pub.init_kwargs["others"]
   assert (other.root, other.name) == (SECOND.root, "Rowan")
   assert other.metabolism is b.metabolism and other.thoughts is b.thoughts
-  assert other.grid is b.body.grid and other.status_fn == b.telemetry_status
+  # (the quadruped's grid is a view of its mission's map, built per read)
+  assert other.grid._mission is b.body.mission and other.status_fn == b.telemetry_status
   assert pub.init_kwargs["metabolism"] is a.metabolism
   assert pub.init_kwargs["ledger"] is a.ledger._ledger is b.ledger._ledger
   assert pub.init_kwargs["tasks"] is a.tasks is b.tasks
@@ -1616,7 +1597,7 @@ def test_serve_pair_starts_in_the_images_environment_and_keeps_each_robots_docum
 
   monkeypatch.setattr(pair_mod, "run_pair", fake_run_pair)
   monkeypatch.setattr(sys, "argv", [
-    "serve.py", "--pair", "--world", "room_hub", "--free-run", "--overseer",
+    "serve.py", "--pair", "--world", "home", "--free-run", "--overseer",
     "--thoughts", str(root),
     "--ledger", str(tmp_path / "l.json"), "--max-sim-time", "5"])
   serve.main()                                   # no SystemExit: it starts
@@ -1634,10 +1615,10 @@ def test_serve_keeps_the_world_and_a_signal_only_asks_it_to_stop(monkeypatch, tm
   ends the day, which then saves; a second signal stops at once."""
   import signal
 
-  from pluggybot.mission.mission import MissionAborted
+  from pluggybot.tick import MissionAborted
   before = {s: signal.getsignal(s) for s in (signal.SIGTERM, signal.SIGINT)}
   try:
-    life, _, _ = _serve_wiring(monkeypatch, ["--world", "room_hub",
+    life, _, _ = _serve_wiring(monkeypatch, ["--world", "home",
                                              "--world-state", str(tmp_path / "w.npz")])
     assert life.continuing and life.run_kwargs["resume"] is None
     keeper = life.body.step_hooks[-1].__self__

@@ -1,5 +1,5 @@
 """The first paid job on legs (issue #403): the lab back in the quadruped's
-world, its rule true there and the rover's byte for byte, `feed_mouse`
+world, its rule true there and a world with both jobs' byte for byte, `feed_mouse`
 offered alone, the plate found by its sign and pressed off it (#419's places), and a
 press no errand of that plate made recorded as its own event. Each rule
 pinned as cheaply as it fails for the right reason; the job flown whole on
@@ -42,10 +42,12 @@ def _section(boss, heading: str) -> str:
 
 
 def test_the_lab_is_in_the_quadrupeds_world_with_its_rule_disclosure_and_care():
-  """The house's lab, its props where the rover's were; on `autonomous` the
-  zone's whole grammar -- `care`, `real`, `mouse_will`, the rule with the
-  disclosure line once -- and on `guarded` none of it."""
-  assert world_config(QUAD_HOME)["lab"] == world_config("home")["lab"]
+  """The house's lab, its props where the house stands them; on
+  `autonomous` the zone's whole grammar -- `care`, `real`, `mouse_will`,
+  the rule with the disclosure line once -- and on `guarded` none of it."""
+  from pluggybot.home import world as home
+  assert world_config(QUAD_HOME)["lab"] == {"name": "lab", "cage": tuple(home.LAB_CAGE_XY),
+                                           "bench": tuple(home.LAB_BENCH_XY)}
   boss = _quad_mind()
   assert boss.menu.lab == "lab" and "care" in boss.menu.available()
   assert boss.menu.lab_jobs == ("feed_mouse",) and boss.menu.lab_route is False
@@ -55,8 +57,6 @@ def test_the_lab_is_in_the_quadrupeds_world_with_its_rule_disclosure_and_care():
   assert {"care", "real", "mouse_will"} <= set(props)
   guarded = _quad_mind(autonomous=False)
   assert guarded.menu.lab == "" and ov.DISCLOSURE not in guarded.system[0]["text"]
-  # ...and the context's `lab` block reads no road there: none is surveyed
-  assert lc.lab_route(QUAD_HOME) == [] and lc.lab_route("home")
 
 
 def test_the_rule_on_legs_is_in_its_own_words_and_names_only_the_job_it_offers():
@@ -72,19 +72,16 @@ def test_the_rule_on_legs_is_in_its_own_words_and_names_only_the_job_it_offers()
   assert "`shock`, `feed` and `toy`. Each does what its name says" in rule
 
 
-#: `lab_rule("lab")` and `lab_rule("lab", decline=False)` as the rover's
-#: world has read them since #287. Moved on purpose or not at all.
-ROVER_LAB_SHA = {True: "1b2d77dbaadeb068a985a57bd465605cfe60ecfb5a20f72623dd5a4afea730d3",
-                 False: "1f068ac3e9ca116737c2454f2a79760bcfb0a9a39525b6d679647fb8e8304f18"}
+#: `lab_rule("lab")` and `lab_rule("lab", decline=False)` -- both jobs, as
+#: the rule has read since #287. Moved on purpose or not at all.
+BOTH_JOBS_LAB_SHA = {
+  True: "1b2d77dbaadeb068a985a57bd465605cfe60ecfb5a20f72623dd5a4afea730d3",
+  False: "1f068ac3e9ca116737c2454f2a79760bcfb0a9a39525b6d679647fb8e8304f18"}
 
 
 def test_a_world_with_both_jobs_reads_the_rule_byte_for_byte():
-  for decline, sha in ROVER_LAB_SHA.items():
+  for decline, sha in BOTH_JOBS_LAB_SHA.items():
     assert hashlib.sha256(ov.lab_rule("lab", decline=decline).encode()).hexdigest() == sha
-  rover = ov.build("home", lc.board_book("home"), enabled=True, client=object(),
-                   thoughts=ThoughtFiles(), autonomous=True)
-  assert rover.menu.lab_jobs == ("shock_mouse", "feed_mouse") and rover.menu.lab_route
-  assert _section(rover, "THE LAB") == ov.lab_rule("lab")
   assert ov.lab_rule("lab", jobs=("feed_mouse", "shock_mouse")) == ov.lab_rule("lab")
 
 
@@ -108,7 +105,7 @@ def test_the_jobs_bullet_says_what_is_offered_and_nothing_else():
 def test_home_quad_offers_feed_mouse_alone_and_the_shock_is_one_line_back(tmp_path):
   """A test reads the entry: `feed_mouse` and nothing else; putting the
   shock job back is one line in `kinds`, and the prompt it builds then
-  names both jobs as the rover's world does."""
+  names both jobs."""
   shipped = cad.Cadence.load(QUAD_HOME, cad.CADENCE_PATH)
   assert list(shipped.kinds) == ["feed_mouse"]
   doc = json.loads(cad.CADENCE_PATH.read_text())
@@ -139,22 +136,19 @@ def test_on_legs_a_plate_act_is_found_by_its_sign_and_pressed_from_the_labs_addr
   round the lab's ADDRESS and `press` off the plate's own sign -- the only
   numbers in it are the address's -- and the find is the way there, so a
   job that never found its plate never reached the cage. It validates
-  against the world's own verbs. The rover keeps its surveyed road."""
+  against the world's own verbs."""
   from pluggybot.home.places import area
   from pluggybot.procedure.steps import compile_program
   at = area("lab")["address"]
-  dock = tuple(world_config(QUAD_HOME)["dock"][:2])
   for act in ("feed", "toy", "shock"):
-    steps = lc.cage_program(QUAD_HOME, act, dock).steps()
+    steps = lc.cage_program(QUAD_HOME, act).steps()
     tag = cg.PLATE_TAGS[act]
     assert [(s.verb, dict(s.args)) for s in steps] == [
       ("find", {"tag": tag, "x": at["x"], "y": at["y"]}), ("press", {"tag": tag})], act
     compile_program(lc.cage_program(QUAD_HOME, act), lc.world_facts(QUAD_HOME))
-    assert lc.cage_errand(QUAD_HOME, act, from_xy=dock).detail["routeLegs"] == 1
+    assert lc.cage_errand(QUAD_HOME, act).detail["routeLegs"] == 1
   with pytest.raises(ValueError):
     lc.cage_program(QUAD_HOME, "company")
-  rover = lc.cage_program("home", "feed", (0.5, -1.0)).steps()
-  assert {s.verb for s in rover} == {"drive_to"}, "the rover keeps its road"
 
 
 def test_on_legs_care_is_the_plates_alone():
@@ -172,9 +166,6 @@ def test_on_legs_care_is_the_plates_alone():
   [line] = [ln for ln in text.splitlines() if ln.strip().startswith('"care":')]
   assert "`care` names `feed` or `toy`." in line
   assert lc.errand_from(ov.Decision(action="care", care="company"), QUAD_HOME) is None
-  rover = ov.build("home", lc.board_book("home"), enabled=True, client=object(),
-                   thoughts=ThoughtFiles(), autonomous=True)
-  assert rover.menu.care_acts == ("feed", "toy", "company")
 
 
 def test_a_feed_job_on_legs_finds_then_presses_the_feed_plate():
@@ -248,7 +239,7 @@ def test_a_press_no_errand_of_that_plate_made_is_its_own_event():
 
   seen = press(_press(1, "shock"), _press(2, "feed", robot="r2_pluggybot"))
   assert [(e["plate"], e["doing"]) for e in seen] == [("shock", life.state.lower())]
-  life._errand_now = lc.cage_errand(QUAD_HOME, "feed", from_xy=(25.0, 3.0), task="feed")
+  life._errand_now = lc.cage_errand(QUAD_HOME, "feed", task="feed")
   seen = press(_press(3, "feed"), _press(4, "shock"))
   assert [(e["plate"], e["doing"]) for e in seen][1:] == [("shock", "feed:lab")]
   life._errand_now = lc.cage_errand(QUAD_HOME, "toy")

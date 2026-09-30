@@ -59,9 +59,9 @@ def plan(grid: OccupancyGrid, pose: Pose,
   # couch sits inside the couch's own inflation ring; `astar`'s start-cell
   # exemption is one cell deep, so every plan from there fails on the first
   # step, every failure permanently blacklists a frontier, and after a few
-  # strikes explore declares a two-thirds-unmapped house finished. The twin
-  # planner in `HubMission._plan_to` always had this escape -- this one is
-  # what exploration uses, and it did not.
+  # strikes explore declares a two-thirds-unmapped house finished. The
+  # rover's twin planner always had this escape -- this one is what
+  # exploration uses, and it did not.
   start = nearest_traversable(trav, grid.world_to_cell(pose[0], pose[1]))
   if start is None:
     return None, "no-reachable"          # off the map, not merely sealed in

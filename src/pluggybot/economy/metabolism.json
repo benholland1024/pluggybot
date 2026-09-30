@@ -68,7 +68,7 @@
   "                 free time lasts",
   "",
   "A world block overrides the default block key by key, like cadence.json.",
-  "There are none: nobody has measured room_hub's hour, and a per-world",
+  "There are none: nobody has measured a world's own hour, and a per-world",
   "number invented to look thorough is worse than one honest default.",
   "",
   "Re-tune whenever rewards.json or cadence.json moves -- both change what an",

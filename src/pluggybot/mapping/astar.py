@@ -25,7 +25,7 @@ def nearest_traversable(traversable, start: tuple[int, int],
   367 frontiers were reachable, two thirds of the house unmapped, and the
   nearest traversable cell 15 cm away.
 
-  This existed in `HubMission._plan_to` (so `drive_to` never trapped) and
+  This existed in the rover's own planner (so `drive_to` never trapped) and
   not in `navigation.plan` (so exploration did) -- two implementations of
   the same idea, one of which had quietly stopped matching the other. It
   lives HERE, next to `astar`, so the twins cannot drift again.

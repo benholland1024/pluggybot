@@ -1,8 +1,10 @@
 """Guards for the video recorder (viz.py)."""
 
+import mujoco
 import numpy as np
 import pytest
 
+from pluggybot.legs import model as qm
 from pluggybot.viz import Recorder
 
 
@@ -11,8 +13,18 @@ from pluggybot.viz import Recorder
 SMALL = (320, 180)          # keep the encoder cheap in the test suite
 
 
+@pytest.fixture(scope="module")
+def world_model():
+  """The quadruped alone on a floor."""
+  return mujoco.MjModel.from_xml_string(qm.body_xml(qm.CHOSEN))
+
+
+@pytest.fixture
+def world_data(world_model):
+  return mujoco.MjData(world_model)
+
+
 def _step_for(model, data, seconds, recorder=None):
-  import mujoco
   until = data.time + seconds
   while data.time < until:
     mujoco.mj_step(model, data)
@@ -23,7 +35,6 @@ def _step_for(model, data, seconds, recorder=None):
 def _step_n(model, data, n, recorder=None):
   """A FIXED step count, so anything that steps the sim behind our back shows
   up as extra elapsed time rather than just ending the loop sooner."""
-  import mujoco
   for _ in range(n):
     mujoco.mj_step(model, data)
     if recorder is not None:
@@ -71,9 +82,8 @@ def test_recorder_does_not_disturb_the_sim(world_model, tmp_path):
 
   Fails if anything in the capture path steps the sim -- the way an
   end-of-clip 'hold on the final pose' does when it runs before the result
-  dict is built, which silently shifted pickup.py's reported settle state.
+  dict is built, which silently shifted a demo's reported settle state.
   """
-  import mujoco
 
   def moving():
     # The scene must actually be EVOLVING or the assertion cannot fail: at

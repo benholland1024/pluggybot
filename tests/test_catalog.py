@@ -26,17 +26,18 @@ from pathlib import Path
 import mujoco
 import pytest
 
-from pluggybot import control
 from pluggybot.rack import catalog
 
 ROOT = Path(__file__).parent.parent
 FIXTURE = ROOT / "protocol" / "parts.json"
 MODULE = ROOT / "src" / "pluggybot" / "rack" / "catalog.py"
 
-#: Parts.md's ✅ CHOSEN list, by the number you would order with. The doc
-#: gains a pointer to the fixture and stops being the only copy of these.
-PARTS_MD_CHOSEN = ("4753", "1435-1439 (by colour)", "1999", "955", "D2F-01L2",
-                   "RPLIDAR C1", "Camera Module 3", "DLE-LA-0001")
+#: The body's parts Parts.md chose (the quadruped, its sensors, its dock and
+#: arm), by the number you would order with. The doc gains a pointer to the
+#: fixture and stops being the only copy of these.
+PARTS_MD_CHOSEN = ("SW-GIM8108-8-S68", "INR21700-P45B", "RPLIDAR C1", "D435",
+                   "Camera Module 3", "EV_ICM-42688-P", "0858-0-15-20-82-14-11-0",
+                   "CFT-WF-20-18-1")
 
 
 @pytest.fixture(scope="module")
@@ -52,8 +53,8 @@ def parts(fixture) -> dict:
 def test_the_fixture_is_not_stale(fixture):
   """Regenerating must reproduce the committed file exactly -- claim 1.
 
-  Shown to fail by changing any literal a feed reads (a mass in
-  `pluggybot_fork.xml`, `control.WHEEL_RADIUS`) without regenerating.
+  Shown to fail by changing any literal a feed reads (a joint's armature
+  in `models/quadruped.xml`, `perception.depth.MAX_Z`) without regenerating.
   """
   assert fixture == catalog.build(), \
       "stale: uv run python -m pluggybot.rack.catalog"
@@ -69,7 +70,7 @@ def test_every_entry_is_honest(fixture):
 
 def test_the_validator_rejects_what_the_rules_forbid(parts):
   """Claim 3, each rule shown to bite on an entry that is honest today."""
-  good = parts["gearmotor_37d_50"]
+  good = parts["gim8108_8"]
   assert catalog.validate(good) == []
   missing = {k: v for k, v in good.items() if k != "massG"}
   assert catalog.validate(missing) == ["missing massG"]
@@ -87,31 +88,33 @@ def test_the_validator_rejects_what_the_rules_forbid(parts):
   assert any("shelves" in r for r in catalog.validate(no_shelf))
   # A guess is a number where the doc has none; the rule cannot see a
   # guess, but it can see the excuse for one that was later filled in.
-  filled_in = {**parts["wheel_90x10"], "massG": 60}
+  filled_in = {**parts["amass_xt30_22_pair"], "massG": 5}
   assert any("stale excuse" in r for r in catalog.validate(filled_in))
 
 
 def test_a_moved_constant_is_caught(monkeypatch):
   """Claim 2: `expect` pins the datasheet to the sim, shown to fail.
 
-  The wheel radius is `control.WHEEL_RADIUS` and the 90 mm wheel says it is
-  0.045; move the constant and the mismatch is named. Cheap: `build()` is a
-  spec parse, not a compile.
+  The GIM8108-8's 22 N·m peak is read off the motor the legs are built
+  from, through an attribute path; move it and the mismatch is named.
+  Cheap: `build()` is a spec parse, not a compile.
   """
-  assert catalog.mismatches(catalog.build()) == []
-  monkeypatch.setattr(control, "WHEEL_RADIUS", 0.05)
-  off = catalog.mismatches(catalog.build())
-  assert off == ["wheel_90x10: control.WHEEL_RADIUS is 0.05, the part says "
-                 "0.045 m"]
+  import dataclasses
+  from pluggybot.legs import actuator
+  monkeypatch.setattr(actuator, "GIM8108_8",
+                      dataclasses.replace(actuator.GIM8108_8, peak_torque=18.0))
+  assert catalog.mismatches(catalog.build()) == [
+    "gim8108_8: legs.actuator.GIM8108_8.peak_torque is 18, the part says 22 N·m"]
 
 
-def test_a_symmetric_pair_that_comes_apart_is_refused():
-  """`same()` reads the two wheels as one number and refuses if the design
-  has quietly become asymmetric -- rather than reporting the left."""
-  spec = mujoco.MjSpec.from_file(catalog.WORLD)
-  next(g for g in spec.geoms if g.name == "right_tire").size[0] = 0.05
-  reader = catalog.same(catalog.geom("left_tire", "size", 0),
-                        catalog.geom("right_tire", "size", 0))
+def test_twelve_drivers_that_come_apart_are_refused():
+  """`legs()` reads the twelve leg drivers as one number and refuses if the
+  design has quietly come apart -- rather than reporting the first."""
+  from pluggybot.legs.model import JOINT_NAMES
+  spec = mujoco.MjSpec.from_file(catalog.WORLDS["quadruped"])
+  reader = catalog.legs(catalog.actuator, "forcerange")
+  assert reader(spec) == 22
+  next(a for a in spec.actuators if a.name == JOINT_NAMES[-1]).forcerange = [-18, 18]
   with pytest.raises(ValueError, match="asymmetric"):
     reader(spec)
 
@@ -130,16 +133,13 @@ def test_no_feed_is_typed():
 
 
 def test_parts_md_chosen_list_is_in_the_catalog_and_the_doc_points_here(parts):
-  # A part both robots carry has an entry per robot: the rover's is the
-  # one on the body shelf.
   by_number = {p["partNumber"]: p for p in parts.values()
-               if p["partNumber"] and "body" in p["shelves"]}
+               if p["partNumber"] and "build" in p["shelves"]}
   for number in PARTS_MD_CHOSEN:
     p = by_number.get(number)
-    assert p, f"Parts.md chose {number} and the catalog has no such part"
-    assert p["status"] == "chosen" and "body" in p["shelves"], number
-    # The mounting hub is an adapter: it sets nothing the sim models.
-    assert p["feeds"] or number == "1999", f"{number} is chosen and feeds nothing"
+    assert p, f"Parts.md chose {number} and the bill has no such part"
+    assert p["status"] == "chosen", number
+    assert p["feeds"], f"{number} is chosen and feeds nothing"
   doc = (ROOT / "docs" / "Parts.md").read_text()
   assert "protocol/parts.json" in doc and "pluggybot.rack.catalog" in doc
 
@@ -162,19 +162,6 @@ def test_every_used_by_names_a_body_in_its_robots_world(fixture):
     for user in p["usedBy"]:
       assert user in bodies[p["robot"]], \
           f"{p['id']} is used by {user!r}, not in the {p['robot']}'s world"
-
-
-def test_a_quadruped_feed_is_read_off_the_quadruped(monkeypatch):
-  """Claim 2 for the second world: the GIM8108-8's peak torque is read off
-  the motor the legs are built from, through an attribute path, and a
-  different number there is named rather than printed."""
-  import dataclasses
-  from pluggybot.legs import actuator
-  assert catalog.mismatches(catalog.build()) == []
-  monkeypatch.setattr(actuator, "GIM8108_8",
-                      dataclasses.replace(actuator.GIM8108_8, peak_torque=18.0))
-  off = catalog.mismatches(catalog.build())
-  assert any("legs.actuator.GIM8108_8.peak_torque is 18" in o for o in off), off
 
 
 # ---- the build's bill of materials (#379) ------------------------------------
@@ -215,8 +202,8 @@ def test_the_line_validator_rejects_what_the_rules_forbid(fixture):
   assert "a lead time is the seller's words, or null with a why" in \
       v({**priced, "leadTime": None}, parts)
   assert any("group" in r for r in v({**priced, "group": "misc"}, parts))
-  assert "gearmotor_37d_50 is not on the build shelf" in \
-      v({**priced, "part": "gearmotor_37d_50"}, parts)
+  assert "servo_fs90 is not on the build shelf" in \
+      v({**priced, "part": "servo_fs90"}, parts)
 
 
 def test_the_bill_fits_its_budget_and_is_summed_from_its_lines(fixture):
@@ -257,8 +244,9 @@ def test_an_allowance_beside_a_price_is_refused_where_it_is_written(monkeypatch)
 
 
 def test_one_part_number_is_one_set_of_facts(fixture):
-  """The rover's LIDAR and the quadruped's are one part: an entry per robot
-  (each reads its own model), one price and one mass between them."""
+  """A part with two uses is an entry per use -- the Omron switch in a bay
+  (`bay_switch`) and on a tool (`bumper_switch`) -- and one price and one
+  mass between them."""
   by_number = defaultdict(list)
   for p in fixture["parts"]:
     if p["partNumber"]:

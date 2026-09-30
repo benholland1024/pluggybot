@@ -20,9 +20,9 @@ from test_body import stub_life  # noqa: I001 -- tests/ is on sys.path
 MENU = Menu(zones=("garden",), boards=("whiteboard_a",), programs=("circle",))
 
 
-def _life(world: str = "home", **kw):
+def _life(**kw):
   """The rails are the lifecycle's bookkeeping: a stub body carries them."""
-  return stub_life(world, **kw)
+  return stub_life(**kw)
 
 
 # ---- the prompt ---------------------------------------------------------------
@@ -34,7 +34,7 @@ def _life(world: str = "home", **kw):
 #: control that no longer matches the runs it is the control for. Changing
 #: it is a deliberate act with a re-fly attached, which is exactly what a
 #: failing hash should prompt an argument about.
-#: It has moved FOUR TIMES, and every series in `results/` predates all of them:
+#: It has moved FOUR TIMES:
 #:   2026-09-11, the mission statement (docs/PluggyPlan.md) replaced "make
 #:     yourself useful" with "this life is yours" --
 #:     cbfe2e7b8f9de131228f4c0708330ad75f08aa2d61f554f2f9ec7c9de65fac05
@@ -308,23 +308,6 @@ def test_the_guard_still_catches_a_model_that_really_will_not_stop_idling():
   for _ in range(ov.MAX_IDLE_RUN):
     boss._record(ov.Decision(action="idle", source="llm"), {"decisions": 0})
   assert boss._refuse({"decisions": 0}) == "idle-run"
-
-
-def test_two_rungs_are_two_series_even_under_one_label():
-  """⚠ A rung changes what the model is SHOWN, so A0 and A1 are two
-  experiments. Both are flown quiet and both want the label `quiet`, so if
-  the rung were not in the series key they would average into one another --
-  the silent pooling `deadlineS` was added to prevent, one field along."""
-  from pluggybot.evaluation import rollup as ru
-
-  base = {"world": "home", "arm": "autonomous", "pack": "hosting",
-          "model": "m", "label": "quiet"}
-  a0 = ru.series_key({**base, "config": {"rung": "A0"}})
-  a1 = ru.series_key({**base, "config": {"rung": "A1"}})
-  assert a0 != a1
-  # ...and an arm with no ladder keeps exactly the identity it had.
-  assert ru.series_key({**base, "arm": "guarded", "label": "",
-                        "config": {}})[-1] == ""
 
 
 class _Garbler:

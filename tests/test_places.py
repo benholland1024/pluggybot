@@ -5,8 +5,8 @@ and approaches it by sight. Each rule pinned as cheaply as it fails:
   1. THE MEMORY (`mapping/places.py`): merged by tag, following new looks;
      its facing off the row, else the tag, else the view; the row's drawing
      puts a sign not yet seen; forgotten at a true death, kept by a restart.
-  2. THE SIGNS: in the quadruped's house where the drawing says, and not in
-     the rover's (its pass through a pad runs where a sign stands).
+  2. THE SIGNS: in the quadruped's house where the drawing says, put in by
+     the world with legs and not by the house's generator.
   3. THE BODY: a quadruped standing in the lab and looking once remembers
      the three signs where they are; the planner keeps off every pad it
      knows; the walking look is paid for by walking; the press stands the
@@ -149,9 +149,9 @@ def test_the_signs_stand_where_the_rows_drawing_says_and_only_on_legs(quad_world
   for name in cage.PLATE_NAMES:
     lx, ly = layout[cage.PLATE_TAGS[name]]
     assert (home.LAB_CAGE_XY[0] + lx, home.LAB_CAGE_XY[1] + ly) == pytest.approx(_sign(name))
-  rover = mujoco.MjModel.from_xml_path("models/home_world.xml")
-  assert mujoco.mj_name2id(rover, mujoco.mjtObj.mjOBJ_BODY, "lab_feed_sign") < 0, \
-    "the rover's pass through a pad runs where a sign stands"
+  house = mujoco.MjModel.from_xml_path("models/home_world.xml")
+  assert mujoco.mj_name2id(house, mujoco.mjtObj.mjOBJ_BODY, "lab_feed_sign") < 0, \
+    "the signs are the world with legs', not the house generator's"
 
 
 # ---- 3. the body -------------------------------------------------------------------
@@ -617,24 +617,26 @@ def test_find_is_a_legs_verb_where_the_world_has_places_and_press_where_its_lab_
   facts = world_facts(QUAD_HOME)
   assert facts.places == PLATE_TAG_IDS and facts.plates == PLATE_TAG_IDS
   assert "find" in facts.verbs and "press" in facts.verbs
-  rover = world_facts("home")
-  assert rover.verbs is None and rover.places == ()
   assert st.check_step(st.VERBS["find"], {"tag": FEED, "x": 25.2, "y": -2.4}, facts) == []
   assert "no place" in st.check_step(st.VERBS["find"], {"tag": 99, "x": 0, "y": 0}, facts)[0]
   assert "outside the map" in st.check_step(st.VERBS["find"],
                                             {"tag": FEED, "x": 999.0, "y": 0.0}, facts)[0]
-  assert "no place" in st.check_step(st.VERBS["find"], {"tag": FEED, "x": 1, "y": 1}, rover)[0]
   assert st.check_step(st.VERBS["press"], {"tag": FEED}, facts) == []
   assert "no plate" in st.check_step(st.VERBS["press"], {"tag": 99}, facts)[0]
-  # ...and `press` only beside the lab and its rule (#403 brought them back):
-  # a world with the plates' tags and no lab has `find` alone
+  from pluggybot import lifecycle
   real = world_config
 
-  def without_lab(world):
-    cfg = real(world)
-    return {k: v for k, v in cfg.items() if k != "lab"} if world == QUAD_HOME else cfg
-  from pluggybot import lifecycle
-  monkeypatch.setattr(lifecycle, "world_config", without_lab)
+  def without(key):
+    return lambda world: {k: v for k, v in real(world).items() if k != key}
+  # ...a world with no places names none to find
+  monkeypatch.setattr(lifecycle, "world_config", without("places"))
+  unplaced = world_facts(QUAD_HOME)
+  assert unplaced.places == () and "find" not in unplaced.verbs
+  assert "not on this body" in st.check_step(st.VERBS["find"], {"tag": FEED, "x": 1, "y": 1},
+                                             unplaced)[0]
+  # ...and `press` only beside the lab and its rule (#403 brought them back):
+  # a world with the plates' tags and no lab has `find` alone
+  monkeypatch.setattr(lifecycle, "world_config", without("lab"))
   unlabbed = world_facts(QUAD_HOME)
   assert "press" not in unlabbed.verbs and unlabbed.plates == ()
   assert "not on this body" in st.check_step(st.VERBS["press"], {"tag": FEED}, unlabbed)[0]
@@ -667,7 +669,7 @@ def test_find_and_press_keep_the_programs_budget_and_pass_on_every_why(monkeypat
   budget (`run_verb(until=)`); a why the verb has no words for is passed
   on, never read as running out of time."""
   life = _stub_quad_life()
-  asked, whys = [], ["out of time", "the rover keeps no places"]
+  asked, whys = [], ["out of time", "this body keeps no places"]
 
   def find(tag, near, patience, stop=None):
     asked.append(("find", round(patience, 3)))
@@ -685,7 +687,7 @@ def test_find_and_press_keep_the_programs_budget_and_pass_on_every_why(monkeypat
     assert "ran out of time" in out["reason"]
     out = life.body.run(st.run_verb(life, st.VERBS["find"], args,
                                     until=float(life.data.time) + 50.0))
-    assert out["reason"] == "did not find tag 36: the rover keeps no places"
+    assert out["reason"] == "did not find tag 36: this body keeps no places"
     out = life.body.run(st.run_verb(life, st.VERBS["press"], {"tag": FEED}))
     assert "ran out of time" in out["reason"]
     life.body.run(st.run_verb(life, st.VERBS["press"], {"tag": FEED},
@@ -726,7 +728,6 @@ def test_a_job_at_a_task_area_carries_its_address_and_directions_and_no_other_do
   from pluggybot.lifecycle import task_producer
   board = TaskBoard(path=None)
   assert task_producer(board, QUAD_HOME).facts["places"] == addresses.areas()
-  assert "places" not in task_producer(TaskBoard(path=None), "home").facts
   beat = Cadence(world=QUAD_HOME, first_at_s=0.0, every_s=1.0, ttl_s=100.0,
                  cooldown_s=0.0, max_offered=5, initial=1, kinds={"feed_mouse": {}})
   maker = TaskProducer(board, beat, {"cage": ["lab"], "module": ["module_lcd"]},
@@ -761,32 +762,23 @@ def test_the_mind_sees_the_places_it_found_by_name_where_and_when():
 
 
 def test_a_legs_world_is_never_shown_where_its_furniture_stands(monkeypatch):
-  """The lab's block names no position on a body that finds its places:
-  #403 brings the lab back to legs, and the rover's `lab.bench` came with
-  it. The rover's world keeps its surveyed furniture until it goes."""
+  """The lab's block names no position on a body that finds its places
+  (#419): the world knows where the bench stands, and the mind is told the
+  room and what is in the cage."""
   from dataclasses import replace
   from types import SimpleNamespace
 
-  from pluggybot import lifecycle
   from pluggybot.lifecycle import HubLifecycle
-  real = world_config
-
-  def with_lab(world):
-    cfg = real(world)
-    return {**cfg, "lab": real("home")["lab"]} if world == QUAD_HOME else cfg
-  monkeypatch.setattr(lifecycle, "world_config", with_lab)
+  assert "bench" in world_config(QUAD_HOME)["lab"], "premise: the world knows where"
   monkeypatch.setattr(HubLifecycle, "cage", property(lambda self: SimpleNamespace(
     context=lambda data, root: {"inRoom": False, "mouse": None})))
-  shown = {}
-  for world in (QUAD_HOME, "home"):
-    boss = ov.Overseer(replace(ov.Menu.for_world(world), lab="lab"), client=1)
-    life = stub_life(world, overseer=boss)
-    try:
-      shown[world] = overseer_context(life)["lab"]
-    finally:
-      life.body.close()
-  assert "bench" not in shown[QUAD_HOME] and "route" not in shown[QUAD_HOME]
-  assert "bench" in shown["home"], "premise: the rover's world still shows it"
+  boss = ov.Overseer(replace(ov.Menu.for_world(QUAD_HOME), lab="lab"), client=1)
+  life = stub_life(QUAD_HOME, overseer=boss)
+  try:
+    shown = overseer_context(life)["lab"]
+  finally:
+    life.body.close()
+  assert shown == {"room": "lab", "inRoom": False, "mouse": None}
 
 
 def test_a_place_found_is_said_once_in_history_and_one_a_restart_brought_back_is_not(

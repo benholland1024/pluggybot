@@ -1,23 +1,27 @@
-"""The hub-era mission (milestone 8): explore, charge at the hub, swap a tool.
+"""The mission: explore, dock and charge, and run what is queued -- battery-driven.
 
-The battery-driven loop from milestone 7 with the hub as its destination:
-PluggyBot explores room_hub (learning where its rack is from the fiducial
-along the way), runs low, noses into the charge bay until the pogo pins
-connect, charges, then runs a tool errand -- fetch the LCD module, carry it
-across the room, bring it back and stow it.
+The quadruped in the house (`home_quad`) explores and lays its map, walks to
+its dock when the pack runs low, lies down on the pins and charges, and runs
+its queue: an act on the lab's mouse (`--errand`), a composed program
+(`--program`), or whatever an overseer chooses once the queue is empty.
 
 Usage:
   uv run python scripts/hub_lifecycle.py --view           # watch it live
   MUJOCO_GL=egl uv run python scripts/hub_lifecycle.py    # headless
-  MUJOCO_GL=egl uv run python scripts/hub_lifecycle.py --battery-wh 0.8
+  MUJOCO_GL=egl uv run python scripts/hub_lifecycle.py --errand feed --tasks
   MUJOCO_GL=egl uv run python scripts/hub_lifecycle.py --record out.jsonl.gz
     # PluggyWorld telemetry recording (protocol/README.md); .gz compresses
 """
 
 import argparse
 
+from pluggybot.activity.cage import PLATE_CARE_ACTS
+from pluggybot.lifecycle import QUAD_HOME, run_demo, world_for
 from pluggybot.mind import llm
-from pluggybot.lifecycle import run_demo
+
+#: The queues `lifecycle.errands_for` builds: nothing, or one act on the
+#: lab's mouse -- a gift (`care`, `care:<act>`) or a job's errand.
+ERRANDS = ("none", "care", *(f"care:{a}" for a in PLATE_CARE_ACTS), "feed", "shock")
 
 
 def main() -> None:
@@ -27,17 +31,14 @@ def main() -> None:
                       help="with --view: no real-time pacing")
   parser.add_argument("--battery-wh", type=float, default=None,
                       help="battery capacity (per-world demo cell by default)")
-  parser.add_argument("--world", choices=("room_hub", "home"),
-                      default="room_hub",
-                      help="which world to run: room_hub (default) or the "
-                           "generated home world (issue #6)")
+  parser.add_argument("--world", choices=(QUAD_HOME, "home"), default=QUAD_HOME,
+                      help="the house with the quadruped in it; `home` names "
+                           "it too ($PLUGGY_WORLD's spelling)")
   parser.add_argument("--pack", choices=("demo", "hosting"), default="demo",
                       help="which cell to fly on (issue #15). `demo` is the "
-                           "minutes-long cell every mission test and both "
-                           "recordings use; `hosting` is the hours-long one "
-                           "a watched world runs on, where the return-trip "
-                           "margin becomes real. --battery-wh overrides "
-                           "either")
+                           "small cell a test day charges on; `hosting` is "
+                           "the served pack, where the return-trip margin "
+                           "becomes real. --battery-wh overrides either")
   parser.add_argument("--reserve-wh", type=float, default=None,
                       help="override the world's go-charge reserve, in Wh. "
                            "Absolute energy, not a fraction of the pack -- "
@@ -49,19 +50,11 @@ def main() -> None:
   parser.add_argument("--record", default=None, metavar="PATH",
                       help="write a PluggyWorld telemetry JSONL recording "
                            "(.gz to compress; see protocol/README.md)")
-  parser.add_argument("--errand", choices=("carry", "draw", "draw2", "census",
-                                          "dance", "artwork", "showcase",
-                                          "care", "care:feed", "care:toy",
-                                          "care:company", "shock", "feed",
-                                          "none"),
-                      default="carry",
-                      help="what the robot is FOR this run (issue #12): carry "
-                           "(the milestone-8 LCD errand), draw (pen -> erase a "
-                           "whiteboard -> draw), draw2 (two boards, charging "
-                           "in between), care[:feed|toy|company] / shock / feed "
-                           "(one act on the lab's mouse, home only; issues "
-                           "#226, #287 -- `feed` is the paid job's errand, "
-                           "`care:feed` the gift's), none")
+  parser.add_argument("--errand", choices=ERRANDS, default="none",
+                      help="what is queued at the start (issue #12): none, or "
+                           "one act on the lab's mouse (issues #226, #287, "
+                           "#403) -- `care[:<act>]` a gift, `feed` the paid "
+                           "job's errand, `shock` the shock's")
   parser.add_argument("--program", default=None, metavar="PATH",
                       help="fly a COMPOSED errand instead of --errand: a JSON "
                            "program over the step vocabulary (issue #58) or a "
@@ -70,8 +63,7 @@ def main() -> None:
                            "against the world before anything moves")
   parser.add_argument("--program-task", default="program", metavar="TASK",
                       help="which evaluator grades the program (default: the "
-                           "generic per-step verdict; 'draw' for a composed "
-                           "drawing)")
+                           "generic per-step verdict)")
   parser.add_argument("--boards", default=None, metavar="PATH",
                       help="JSON file the whiteboards' contents live in "
                            "between runs (default: blank boards every start)")
@@ -86,11 +78,10 @@ def main() -> None:
                            "on (issue #23; $PLUGGY_CADENCE re-points it). "
                            "Off by default")
   parser.add_argument("--near-field", action="store_true",
-                      help="THE FLOOR IS SEEN (issue #34): the mast-top depth "
-                           "camera builds a robot-centric height map at "
-                           "10 Hz, streamed beside the occupancy grid; it "
-                           "draws power.DEPTH_CAMERA_W while on. Off by "
-                           "default -- ~7 ms a frame; serve.py turns it on")
+                      help="THE FLOOR IS SEEN (issue #34): the depth camera "
+                           "builds a robot-centric height map, streamed "
+                           "beside the occupancy grid, and draws its power "
+                           "while on. Off by default; serve.py turns it on")
   parser.add_argument("--metabolism", action="store_true",
                       help="POINTS ARE FOOD (issue #36): the robot consumes "
                            "points at a steady rate on sim time, stops "
@@ -146,7 +137,7 @@ def main() -> None:
   r = run_demo(view=args.view,
                realtime=not args.fast, battery_wh=args.battery_wh,
                max_sim_time=args.max_sim_time, record=args.record,
-               world=args.world, errand=args.errand,
+               world=world_for(args.world), errand=args.errand,
                board_state=args.boards, program=args.program,
                program_task=args.program_task, ledger_state=args.ledger,
                overseer=args.overseer or None, thoughts_root=args.thoughts,
@@ -165,22 +156,17 @@ def main() -> None:
     print("mission aborted (viewer closed)")
     return
   print()
-  print(f"rack discovered by tag : {r['rack_discovered']}")
   print(f"charge cycles          : {r['charge_cycles']}")
   print(f"tool swaps             : {r['swaps_done']}")
-  print(f"module stowed at end   : {r['module_stowed']}")
   print(f"battery at end         : {r['battery']:.0%}")
-  print(f"chassis-contact steps  : {r['collision_steps']} (should be 0)")
   print(f"sim time               : {r['sim_time']:.1f} s")
   for e in r["errands"]:
-    extra = (f"  {e['figure']}, {e.get('inked_fraction', 0):.0%} inked,"
-             f" form {e.get('form_rms_mm') or float('nan'):.2f} mm"
-             if e.get("board") else "")
-    print(f"errand {e['errand']:<16s}: picked={e['picked']}"
-          f" stowed={e['stowed']}{extra}")
-  for name, b in r["boards"].items():
-    print(f"board {name:<17s}: {b['strokes']} strokes, {b['fill']:.0%} full, "
-          f"{b['clears']} clear(s), programs {b['programs'] or '-'}")
+    proc = e.get("procedure") or {}
+    steps = (f" {proc.get('completed')}/{proc.get('total')} steps"
+             if proc else "")
+    print(f"errand {e['errand']:<16s}: "
+          f"{'ok' if errand_ok(e) else 'FAILED'}{steps}"
+          + (f" -- {e['error']}" if e.get("error") else ""))
   # What the robot EARNED, and why (issue #14). Every line here came out of a
   # deterministic evaluator in economy/scoring.py -- the mission awards nothing.
   for v in r["verdicts"]:
@@ -236,14 +222,18 @@ def main() -> None:
             "the schema")
     for err in o["errors"]:
       print(f"overseer note          : {err}")
-  # Every errand's OWN verdict, not just the last module's: a queue where the
-  # first errand silently failed and the second stowed cleanly would report a
-  # perfect mission off `module_stowed` alone.
-  errands_ok = all(e["picked"] and e["stowed"] and not e.get("error")
-                   for e in r["errands"])
-  ok = (r["charge_cycles"] >= 1 and errands_ok and not r["errands_left"]
-        and r["collision_steps"] == 0)
+  # Every errand's OWN verdict, not just the last one's: a queue where the
+  # first errand silently failed would otherwise read as a clean day.
+  ok = (r["charge_cycles"] >= 1 and all(errand_ok(e) for e in r["errands"])
+        and not r["errands_left"])
   print("LIFECYCLE:", "OK" if ok else "INCOMPLETE")
+
+
+def errand_ok(e: dict) -> bool:
+  """An errand ran clean: no error, its program complete where it had one,
+  and nothing it fetched left off the rack."""
+  return (not e.get("error") and (e.get("procedure") or {}).get("ok", True)
+          and e.get("stowed") is not False)
 
 
 if __name__ == "__main__":

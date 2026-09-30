@@ -1,13 +1,14 @@
 """A restart is a continuation (issue #345).
 
 The served world's process ends -- a deploy, a crash, the hourly ceiling --
-and until this every new process built the world from its XML: both robots
-at their spawn poses on a full pack with an empty map, the job in hand
-failed. These pin the rules that make a restart carry on instead, each on
-the cheapest world that can fail for the right reason: the physics by name
-and exactly, what a robot believes and whether it is dead, the jobs it
-holds, the History line, the keeper's seam, and the two ways a saved world
-is NOT put back (a crash loop, a changed world). The flown parity check is
+and the next one carries on from the world it saved. These pin the rules
+that make it so, each on the cheapest world that can fail for the right
+reason: the physics by name and exactly, what a robot believes and whether
+it is dead, the jobs it holds, the History line, the keeper's seam, and
+the ways a saved world is NOT put back (a crash loop, a changed world, maps
+of another epoch). The bookkeeping is pinned on the stub body
+(`tests/test_body.py`); what is the body's -- its bodies, its maps, its
+sensors stepping on -- on the served quadruped. The flown parity check is
 `scripts/determinism_spike.py --resume-at`.
 """
 
@@ -19,33 +20,44 @@ import pytest
 
 from pluggybot import continuation, tick
 from pluggybot.economy.tasks import TaskBoard
-from pluggybot.lifecycle import HubLifecycle, task_board, world_config
+from pluggybot.lifecycle import (QUAD_HOME, HubLifecycle, cage_errand, task_board,
+                                 world_config)
 from pluggybot.mind.thoughts import HISTORY
-from pluggybot.mission.mission import MissionAborted
+from pluggybot.perception.lidar import robot_geoms
 from pluggybot.robot import world_spec
+from pluggybot.tick import MissionAborted
+from test_body import stub_life  # noqa: I001 -- tests/ is on sys.path
 
 
 class _Stop(Exception):
   """Raised at the top of the day loop: the prelude is what is under test."""
 
 
-def _world(world: str = "room_hub"):
-  cfg = world_config(world)
+def _world():
+  cfg = world_config(QUAD_HOME)
   spec = world_spec(cfg["model"])
   model = spec.compile()
   return cfg, spec, model, mujoco.MjData(model)
 
 
-def _life(tmp_path, world: str = "room_hub", tasks: bool = False,
-          rebase: bool = True, **kw) -> HubLifecycle:
-  cfg, spec, model, data = _world(world)
-  board = (task_board(str(tmp_path / "tasks.json"), world=world, rebase=rebase)
-           if tasks else None)
-  return HubLifecycle(model, data, realtime=False, world=world, spec=spec,
+def _board(tmp_path, tasks: bool, rebase: bool):
+  return (task_board(str(tmp_path / "tasks.json"), world=QUAD_HOME, rebase=rebase)
+          if tasks else None)
+
+
+def _quad(tmp_path, tasks: bool = False, rebase: bool = True, **kw) -> HubLifecycle:
+  """The served body in its house: for a claim about bodies, maps or senses."""
+  cfg, spec, model, data = _world()
+  return HubLifecycle(model, data, realtime=False, world=QUAD_HOME, spec=spec,
                       battery_wh=cfg["battery_wh"], rack=cfg["rack"],
                       grid_bounds=cfg["grid_bounds"],
-                      low_battery_wh=cfg["low_battery_wh"], errand=False,
-                      tasks=board, **kw)
+                      low_battery_wh=cfg["low_battery_wh"],
+                      tasks=_board(tmp_path, tasks, rebase), **kw)
+
+
+def _stub(tmp_path, tasks: bool = False, rebase: bool = True, **kw) -> HubLifecycle:
+  """The loop's bookkeeping on the stub body: every other claim."""
+  return stub_life(tasks=_board(tmp_path, tasks, rebase), **kw)
 
 
 def _restored(life, snap=None, max_sim_time: float = 600.0):
@@ -77,6 +89,17 @@ def _saved(life, tmp_path) -> continuation.Snapshot:
   path = tmp_path / "world.npz"
   continuation.write(continuation.capture([life], life.world_fingerprint), path)
   return continuation.read(path)
+
+
+#: A save between two of the walking policy's decisions. ⚠ One saved AT a
+#: decision parts at the first step after the restore (by ~1e-6): the policy
+#: reads the forward pass (`xmat`, the gyro), a step old in a running world
+#: and fresh after `put_physics`'s `mj_forward`.
+OFF_A_DECISION_S = 0.61
+
+
+def _hold(life, seconds: float) -> None:
+  life.body.run(life.body.hold_routine(seconds))
 
 
 # ---- the physics, by name and exactly ----------------------------------------
@@ -134,20 +157,19 @@ def test_a_body_is_put_back_by_name_not_by_where_it_sits_in_the_state():
 
 def test_a_restart_restores_the_pack_the_pose_the_maps_and_the_clock(tmp_path):
   """The issue's round trip: step a world, save it, build a fresh one from
-  the save. Pose, pack, belief, the occupancy grid, the rack's sightings,
-  the clock -- each asserted, because each one missing is a restart that
+  the save. Pose, pack, belief, the occupancy grid, the dock's frame, the
+  clock -- each asserted, because each one missing is a restart that
   resets something: a robot at 5 % in minute 59 woke at 100 %."""
-  life = _life(tmp_path)
-  cfg = world_config("room_hub")
-  life.body.start_at(*cfg["start"])
+  life = _quad(tmp_path)
+  life.body.start_at(*world_config(QUAD_HOME)["start"])
   life.body.start_discovery()
-  life.body.mission._drive(1.5, 0.15, 0.6)             # scans, a look, travel
+  life.body.mission._drive(1.0, 0.15, 0.6)             # scans, travel
   life.battery.energy_wh = 0.37
   life.floor_explored = True
   life.explore_deadline = 12.5
   snap = _saved(life, tmp_path)
 
-  back = _life(tmp_path)
+  back = _quad(tmp_path)
   _prelude(back, snap)
   assert back.data.time == life.data.time
   assert np.array_equal(back.data.qpos, life.data.qpos)
@@ -156,27 +178,26 @@ def test_a_restart_restores_the_pack_the_pose_the_maps_and_the_clock(tmp_path):
   assert np.array_equal(back.body.grid.grid, life.body.grid.grid)
   assert (life.body.grid.grid != 0).any()     # the map had something in it
   assert back.body.rack == life.body.rack
-  assert ([lm.x for lm in back.body.mission.finder.landmarks.landmarks]
-          == [lm.x for lm in life.body.mission.finder.landmarks.landmarks])
   assert back.floor_explored and back.explore_deadline == 12.5
-  # ...and it never went back to the start pose or spun: nothing moved
+  # ...and it never went back to the start pose or looked round: nothing moved
   assert back.data.time == life.data.time
 
 
 def test_a_restored_robot_senses_on_exactly_as_if_nothing_had_stopped(tmp_path):
-  """The parity rule, pinned in a second of physics: the same drive after
-  a restore steps the same bodies AND paints the same map. MEASURED, the
+  """The parity rule, pinned in a second of physics: the same walk after a
+  restore steps the same bodies AND paints the same maps. MEASURED, a
   scan's noise generator re-seeded at a restart painted a different map
-  and the route off it parted 3 s later; the depth camera has one too."""
-  life = _life(tmp_path, near_field=True)
-  cfg = world_config("room_hub")
-  life.body.start_at(*cfg["start"])
-  life.body.mission._drive(0.6, 0.1, 0.4)
+  and the route off it parted 3 s later; the IMU, the odometry and the
+  depth camera have one each."""
+  life = _quad(tmp_path, near_field=True)
+  start = world_config(QUAD_HOME)["start"]
+  life.body.start_at(*start)
+  life.body.mission._drive(OFF_A_DECISION_S, 0.1, 0.4)
   snap = _saved(life, tmp_path)
   life.body.mission._drive(0.6, 0.12, -0.3)
 
-  back = _life(tmp_path, near_field=True)
-  back.begin(cfg["start"])
+  back = _quad(tmp_path, near_field=True)
+  back.begin(start)
   continuation.restore([back], snap)
   back.body.mission._drive(0.6, 0.12, -0.3)
   assert np.array_equal(back.data.qpos, life.data.qpos)
@@ -188,23 +209,21 @@ def test_a_restored_robot_senses_on_exactly_as_if_nothing_had_stopped(tmp_path):
 
 def test_a_dead_robot_is_still_dead_after_a_restart_and_pays_no_second_heart(tmp_path):
   """A robot saved dead at 0 % that came back alive would die again on its
-  first step -- a second heart for one death -- or, before #345, stand up
-  free at 100 %. It comes back dead, its stand-up clock going on."""
-  life = _life(tmp_path, mortal=True, restart_after_s=300.0)
-  cfg = world_config("room_hub")
-  life.body.start_at(*cfg["start"])
-  life.home_pose = tuple(cfg["start"])
+  first step -- a second heart for one death -- or stand up free at 100 %.
+  It comes back dead, its stand-up clock going on."""
+  life = _stub(tmp_path, mortal=True, restart_after_s=300.0)
+  life.home_pose = tuple(world_config(QUAD_HOME)["start"])
   life.battery.energy_wh = 0.0
-  life.body.mission._drive(0.5, 0.0, 0.0)
+  _hold(life, 0.5)
   assert life.dead is not None and len(life.deaths) == 1
   left = life.reset_in_s
   snap = _saved(life, tmp_path)
 
-  back = _life(tmp_path, mortal=True, restart_after_s=300.0)
+  back = _stub(tmp_path, mortal=True, restart_after_s=300.0)
   _prelude(back, snap)
   assert back.dead == life.dead
   assert back.reset_in_s == left
-  back.body.mission._drive(1.0, 0.0, 0.0)
+  _hold(back, 1.0)
   assert back.deaths == []                        # no second death
   assert any("still down (flat)" in ln for ln in _history(back))
 
@@ -218,9 +237,9 @@ def test_a_restart_during_an_errand_keeps_the_job_and_says_so(tmp_path, monkeypa
   left on the fork is stowed first, and History names what was cut short.
   Until #345 the job came back `failed` ("interrupted by a restart")."""
   from pluggybot.procedure import steps
-  life = _life(tmp_path, tasks=True)
-  task = life.tasks.offer("fetch_module", "module_lcd", t=0.0)
-  assert life._claim_task(task.id)
+  life = _stub(tmp_path, tasks=True)
+  task = life.tasks.offer("feed_mouse", "lab", t=0.0)
+  assert life._claim_task(task.id, answer="eating")
   [errand] = life.errands
   life.tasks.start(task.id)                       # the errand is running...
   life._errand_now = errand                       # ...and the world stops
@@ -230,14 +249,14 @@ def test_a_restart_during_an_errand_keeps_the_job_and_says_so(tmp_path, monkeypa
   monkeypatch.setattr(steps, "_carried", lambda life: "module_lcd")
   monkeypatch.setattr(steps, "_stow",
                       lambda life, args: (stowed.append(True), tick.result({"ok": True}))[1])
-  back = _life(tmp_path, tasks=True, rebase=False)
+  back = _stub(tmp_path, tasks=True, rebase=False)
   assert back.tasks[task.id].state == "claimed"   # not failed
   assert back.tasks[task.id].claimed_by == back.root
   _prelude(back, snap)
   assert [e.task_id for e in back.errands] == [task.id]
   assert stowed == [True]
   assert any(f"the restart cut short {errand.name}; the job {task.id} "
-             "(fetch_module) is still mine, and is queued again" in ln
+             "(feed_mouse) is still mine, and is queued again" in ln
              for ln in _history(back))
 
 
@@ -251,7 +270,7 @@ def test_the_board_keeps_a_claim_and_gives_back_what_nobody_can_finish(tmp_path)
   b = TaskBoard(path)
   carry = b.offer("fetch_module", "module_lcd", t=0.0)
   tower = b.offer("stack_tower", "tower", t=0.0)
-  game = b.offer("hide_and_seek", "room_hub", t=0.0)
+  game = b.offer("hide_and_seek", QUAD_HOME, t=0.0)
   other = b.offer("draw_figure", "whiteboard_a", params={"program": "house"}, t=0.0)
   b.claim(carry.id, robot="pluggybot", t=1.0)
   b.start(carry.id, t=2.0)
@@ -275,15 +294,17 @@ def test_the_board_keeps_a_claim_and_gives_back_what_nobody_can_finish(tmp_path)
 
 def test_an_offer_keeps_this_worlds_price_across_a_restart(tmp_path):
   """Found by the parity check: `Task.from_json` priced a reloaded offer at
-  its kind's generic figure (0.93 Wh for a carry) instead of the world's
-  measured one (room_hub, 0.817), so after every restart a pack charged to
-  88 % could not take a job it had been offered."""
+  its kind's generic figure instead of the world's measured one, so after
+  every restart a pack could not take a job it had been offered, or took
+  one it could not fund."""
+  from pluggybot.economy.tasks import KINDS
   path = tmp_path / "tasks.json"
-  b = task_board(str(path), world="room_hub")
-  task = b.offer("fetch_module", "module_lcd", t=0.0)
-  back = task_board(str(path), world="room_hub")
-  assert back[task.id].estimate_wh == task.estimate_wh == 0.817
-  assert back[task.id].claimable(10.0, pack_wh=0.879)
+  b = task_board(str(path), world=QUAD_HOME)
+  task = b.offer("feed_mouse", "lab", t=0.0)
+  back = task_board(str(path), world=QUAD_HOME)
+  assert back[task.id].estimate_wh == task.estimate_wh == 1.77
+  assert KINDS["feed_mouse"].estimate_wh != 1.77, "the premise: two prices"
+  assert not back[task.id].claimable(10.0, pack_wh=1.5)
 
 
 def test_a_world_that_carries_on_keeps_its_deadlines_on_its_own_clock(tmp_path):
@@ -305,22 +326,23 @@ def test_history_says_restarted_where_the_process_did_and_nothing_where_it_did_n
   and the robots planned round a day that had not ended. A run that keeps
   its world says nothing at its end; the next says it restarted; a run
   with no saved world says it woke up, as it always did."""
-  life = _life(tmp_path)
+  start = world_config(QUAD_HOME)["start"]
+  life = _stub(tmp_path)
   life.continuing = True
-  life.run(world_config("room_hub")["start"], max_sim_time=0.0)
+  life.run(start, max_sim_time=0.0)
   lines = _history(life)
-  assert any("woke up in room_hub" in ln for ln in lines)
+  assert any(f"woke up in {QUAD_HOME}" in ln for ln in lines)
   assert not any("finished the day" in ln or "day ended" in ln for ln in lines)
   snap = _saved(life, tmp_path)
 
-  back = _life(tmp_path)
+  back = _stub(tmp_path)
   _prelude(back, snap)
   lines = _history(back)
   assert any("the world restarted; I carried on from" in ln for ln in lines)
   assert not any("woke up" in ln for ln in lines)
 
-  plain = _life(tmp_path / "plain")
-  plain.run(world_config("room_hub")["start"], max_sim_time=0.0)
+  plain = _stub(tmp_path / "plain")
+  plain.run(start, max_sim_time=0.0)
   assert any("finished the day" in ln for ln in _history(plain))
 
 
@@ -329,11 +351,11 @@ def test_a_resumed_run_counts_its_budget_from_where_it_starts(tmp_path):
   t=4000 and given 600 s runs to 4600, where the old absolute reading would
   have ended it before its first pass -- for a robot the save never had as
   well, which starts from its start pose on the same clock."""
-  life = _life(tmp_path)
+  life = _stub(tmp_path)
   life.data.time = 4000.0
   snap = _saved(life, tmp_path)
   snap.meta["robots"] = {}                         # nobody it knows
-  back = _life(tmp_path)
+  back = _stub(tmp_path)
   _prelude(back, snap, max_sim_time=600.0)
   assert back.max_sim_time == 4600.0
   assert back.resumed is None                      # fresh, on the clock
@@ -348,22 +370,24 @@ def test_a_changed_world_keeps_the_pack_and_the_clock_but_not_the_bodies(tmp_pat
   inside the wall, and its map is of a house that is gone. Pack, clock and
   jobs are the robot's whatever the house looks like; the bodies and the
   maps come back only into the world they were saved from."""
-  life = _life(tmp_path)
-  cfg = world_config("room_hub")
-  life.body.start_at(*cfg["start"])
-  life.body.mission._drive(1.0, 0.2, 0.0)
+  start = world_config(QUAD_HOME)["start"]
+  life = _quad(tmp_path)
+  life.body.start_at(*start)
+  life.body.mission._drive(0.5, 0.2, 0.3)
   life.battery.energy_wh = 0.42
   snap = _saved(life, tmp_path)
   snap.meta["fingerprint"] = "another-world"
 
-  back = _life(tmp_path)
+  back = _quad(tmp_path)
   day = _restored(back, snap)
   assert back.battery.energy_wh == 0.42
   assert back.data.time == life.data.time
   assert not back.resumed["inPlace"]
   assert not np.array_equal(back.data.qpos, life.data.qpos)
+  back.body.look_around_routine = lambda: tick.result(None)
   _prelude(back, day=day)
-  assert back.data.time > life.data.time           # from the start pose: spun
+  assert back.body.pose == pytest.approx(start)    # from the start pose
+  assert life.body.pose != pytest.approx(start)
   assert any("could not put me back where I was (the world itself changed"
              in ln for ln in _history(back))
 
@@ -373,17 +397,16 @@ def test_maps_of_another_epoch_are_dropped_as_a_changed_worlds_are(tmp_path):
   kept since was laid askew -- and a place found in one is wrong too. The
   world is the same, so the fingerprint cannot say it: a save of an older
   `MAP_EPOCH` (one written before there was one included) keeps the pack
-  and the clock and puts back no body, belief or map, and says why -- in
-  History, as the changed world's test reads it."""
-  life = _life(tmp_path)
-  life.body.start_at(*world_config("room_hub")["start"])
-  life.body.mission._drive(1.0, 0.2, 0.0)
+  and the clock and puts back no body, belief or map, and says why."""
+  life = _quad(tmp_path)
+  life.body.start_at(*world_config(QUAD_HOME)["start"])
+  life.body.mission._drive(0.5, 0.2, 0.0)
   life.battery.energy_wh = 0.42
   snap = _saved(life, tmp_path)
   assert snap.meta["mapEpoch"] == continuation.MAP_EPOCH
   del snap.meta["mapEpoch"]
 
-  back = _life(tmp_path)
+  back = _quad(tmp_path)
   _restored(back, snap)
   assert back.battery.energy_wh == 0.42 and back.data.time == life.data.time
   assert not back.resumed["inPlace"]
@@ -396,16 +419,16 @@ def test_a_saved_world_that_keeps_crashing_is_left_after_three_tries(tmp_path):
   same death for ever. `load` counts itself before it is trusted and a
   save puts the count back to 0; three loads with no save in between and
   the next start is a fresh one, said why."""
-  life = _life(tmp_path)
+  life = _stub(tmp_path)
   path = tmp_path / "world.npz"
   continuation.write(continuation.capture([life], life.world_fingerprint), path)
   for _ in range(continuation.MAX_RESUMES):
-    assert continuation.load(path, "room_hub").snapshot is not None
-  refused = continuation.load(path, "room_hub")
+    assert continuation.load(path, QUAD_HOME).snapshot is not None
+  refused = continuation.load(path, QUAD_HOME)
   assert refused.snapshot is None and "never got past it" in refused.why
   continuation.write(continuation.capture([life], life.world_fingerprint), path)
-  assert continuation.load(path, "room_hub").snapshot is not None
-  assert continuation.load(path, "home").snapshot is None
+  assert continuation.load(path, QUAD_HOME).snapshot is not None
+  assert continuation.load(path, "another_world").snapshot is None
 
 
 # ---- the keeper -------------------------------------------------------------
@@ -416,21 +439,21 @@ def test_the_keeper_saves_on_the_seam_and_a_signal_stops_at_a_step(tmp_path):
   stop only ASKS -- a SIGTERM lands between any two bytecodes, a ledger
   write or a death half done, so the next step boundary raises instead.
   A robot mid stand-up is half stood up, and neither happens then."""
-  life = _life(tmp_path)
+  life = _stub(tmp_path)
   path = tmp_path / "world.npz"
   keeper = continuation.Keeper([life], path, every_s=0.1)
   assert life.continuing
-  life.body.mission._drive(0.25, 0.0, 0.0)
+  _hold(life, 0.25)
   assert keeper.saves == 2 and path.exists()
   meta = json.loads(str(np.load(path)["meta"]))
-  assert meta["resumes"] == 0 and meta["world"] == "room_hub"
+  assert meta["resumes"] == 0 and meta["world"] == QUAD_HOME
 
   life._standing_up = True
   keeper.request_stop("SIGTERM")
-  life.body.mission._drive(0.01, 0.0, 0.0)             # deferred, not raised
+  _hold(life, 0.01)                                # deferred, not raised
   life._standing_up = False
   with pytest.raises(MissionAborted, match="SIGTERM"):
-    life.body.mission._drive(0.01, 0.0, 0.0)
+    _hold(life, 0.01)
 
 
 def test_the_pair_carries_on_both_robots_from_one_saved_world(tmp_path):
@@ -438,19 +461,19 @@ def test_the_pair_carries_on_both_robots_from_one_saved_world(tmp_path):
   both packs, both poses, both maps, keyed by each robot's root -- and the
   world's own activities with them (the pair's encounter count here)."""
   from pluggybot.pair import build_pair
-  cfg = world_config("room_hub")
+  cfg = world_config(QUAD_HOME)
   starts = (cfg["start"], cfg["start2"])
-  lives = build_pair("room_hub")
+  lives = build_pair(QUAD_HOME)
   for life, start in zip(lives, starts):
     life.body.start_at(*start)
-  lives[1].body.mission._drive(0.8, 0.2, 0.3)
+  lives[1].body.mission._drive(0.5, 0.2, 0.3)
   lives[0].battery.energy_wh, lives[1].battery.energy_wh = 0.3, 0.6
   lives[0].encounters.count = 4
   path = tmp_path / "world.npz"
   continuation.write(continuation.capture(lives, lives[0].world_fingerprint), path)
   snap = continuation.read(path)
 
-  back = build_pair("room_hub", resume=snap)
+  back = build_pair(QUAD_HOME, resume=snap)
   for life, start in zip(back, starts):
     life.begin(start)
   got = continuation.restore(back, snap)
@@ -463,35 +486,31 @@ def test_the_pair_carries_on_both_robots_from_one_saved_world(tmp_path):
   assert back[0].encounters.count == 4
 
 
-def test_a_world_saved_mid_charge_counts_travel_again_and_says_so(tmp_path):
-  """`pinned` is the charge routine's, set for the press and cleared in its
-  `finally` -- and a restart ends that routine. Restored with the rest, the
-  reckoner would never count travel again; the robot is told the charge
-  was cut short instead."""
-  life = _life(tmp_path)
-  life.body.start_at(*world_config("room_hub")["start"])
-  life.body.mission.swap.pinned = True
+def test_a_world_saved_mid_charge_says_the_charge_was_cut_short(tmp_path):
+  """A restart ends the charge routine: the robot is told its charge was
+  cut short, rather than believe it charged on."""
+  life = _stub(tmp_path)
   life.state = "CHARGE"
   snap = _saved(life, tmp_path)
-  back = _life(tmp_path)
+  back = _stub(tmp_path)
   _prelude(back, snap)
-  assert back.body.mission.swap.pinned is False
   assert any("it cut my charge short" in ln for ln in _history(back))
 
 
 def test_the_pair_steps_on_exactly_after_a_restart(tmp_path):
   """The parity rule on the deployed shape: two robots from one loop, the
-  depth cameras on, the pair's encounters sensing -- the same drive after
-  a restore steps the same world and paints the same two maps."""
+  depth cameras on, the pair's encounters sensing -- the same walk after a
+  restore steps the same world and paints the same two maps."""
   from pluggybot.pair import build_pair
-  cfg = world_config("room_hub")
+  cfg = world_config(QUAD_HOME)
   starts = (cfg["start"], cfg["start2"])
 
   def fly(lives):
-    tick.run_many([(life.body.mission.swap, life.body.mission._drive_routine(0.5, 0.15, w))
+    tick.run_many([(life.body.stepper,
+                    life.body.mission._drive_routine(OFF_A_DECISION_S, 0.15, w))
                    for life, w in zip(lives, (-0.3, 0.4))])
 
-  lives = build_pair("room_hub", near_field=True)
+  lives = build_pair(QUAD_HOME, near_field=True)
   for life, start in zip(lives, starts):
     life.body.start_at(*start)
   fly(lives)
@@ -500,7 +519,7 @@ def test_the_pair_steps_on_exactly_after_a_restart(tmp_path):
   snap = continuation.read(path)
   fly(lives)
 
-  back = build_pair("room_hub", near_field=True, resume=snap)
+  back = build_pair(QUAD_HOME, near_field=True, resume=snap)
   for life, start in zip(back, starts):
     life.begin(start)
   continuation.restore(back, snap)
@@ -516,35 +535,17 @@ def test_the_pair_steps_on_exactly_after_a_restart(tmp_path):
 # ---- what the review found -----------------------------------------------------
 
 
-def test_a_pen_stowed_after_a_restart_has_its_carriage_centred_first(tmp_path):
-  """A restart mid-drawing leaves the carriage where the last stroke did,
-  and off-centre it jams on the bay's bracket feet: MEASURED in review, a
-  pen stowed from 37 mm never hung and stayed on the fork for good. The
-  carry configuration every stow goes through centres it, as the drawing
-  errand's own does."""
-  from pluggybot.procedure import steps
-  life = _life(tmp_path)
-  life.body.start_at(*world_config("room_hub")["start"])
-  act = life.model.actuator("pen_carriage")
-  qadr = int(life.model.joint("pen_carriage_joint").qposadr[0])
-  life.data.ctrl[act.id] = 0.037
-  life.body.mission._drive(1.0, 0.0, 0.0)
-  assert life.data.qpos[qadr] > 0.03
-  life.body.run(steps.carry_configuration_routine(life, "module_pen"))
-  assert abs(life.data.qpos[qadr]) < 0.002
-
-
 @pytest.mark.parametrize("content", [b"", b"PK\x03\x04 torn", None])
 def test_a_save_that_cannot_be_read_is_a_fresh_start_never_a_crash(tmp_path, content):
   """Raised out of `load`, an empty or torn file killed the process before
   `MAX_RESUMES` could count, and `restart: unless-stopped` looped on it
   (found in review: EOFError, BadZipFile)."""
-  life = _life(tmp_path)
+  life = _stub(tmp_path)
   path = tmp_path / "world.npz"
   continuation.write(continuation.capture([life], life.world_fingerprint), path)
   data = path.read_bytes()
   path.write_bytes(content if content is not None else data[: len(data) // 2])
-  got = continuation.load(path, "room_hub")
+  got = continuation.load(path, QUAD_HOME)
   assert got.snapshot is None and "could not be read" in got.why
 
 
@@ -575,11 +576,11 @@ def test_a_restart_mid_swap_backs_out_and_says_so(tmp_path, monkeypatch):
   return backs it out, and History must not say a tool was carried off
   (found in review: "the restart left module_pen on my fork")."""
   from pluggybot.procedure import steps
-  life = _life(tmp_path)
+  life = _stub(tmp_path)
   snap = _saved(life, tmp_path)
   monkeypatch.setattr(steps, "_carried", lambda life: "module_lcd")
   monkeypatch.setattr(steps, "_stow", lambda life, args: tick.result({"ok": True}))
-  back = _life(tmp_path)
+  back = _stub(tmp_path)
   _prelude(back, snap)
   assert any("the restart stopped me mid-swap at module_lcd's bay; I backed "
              "out and it hangs there" in ln for ln in _history(back))
@@ -590,13 +591,13 @@ def test_a_map_that_does_not_fit_this_build_is_explored_again(tmp_path):
   not. The grid is then left empty -- and the map's verdicts with it, or a
   robot that believed its map complete would never explore the empty one
   it has (found in review). Where it IS stays put."""
-  life = _life(tmp_path)
-  life.body.start_at(*world_config("room_hub")["start"])
+  life = _quad(tmp_path)
+  life.body.start_at(*world_config(QUAD_HOME)["start"])
   life.floor_explored = True
   life.blacklist = {(1, 2)}
   snap = _saved(life, tmp_path)
   snap.arrays["pluggybot/grid"] = np.zeros((4, 4))
-  back = _life(tmp_path)
+  back = _quad(tmp_path)
   _prelude(back, snap)
   assert back.resumed["inPlace"] and back.body.pose == life.body.pose
   assert not back.floor_explored and back.blacklist == set()
@@ -606,13 +607,12 @@ def test_a_module_the_world_no_longer_has_is_not_restored_as_the_one_watched(tmp
   """`module` names what the power model watches; a retired built tool's
   name restored there fails the next `module_state` read (found in
   review)."""
-  life = _life(tmp_path)
+  life = _stub(tmp_path)
   snap = _saved(life, tmp_path)
   snap.meta["robots"]["pluggybot"]["module"] = "module_retired_long_ago"
-  back = _life(tmp_path)
+  back = _stub(tmp_path)
   _prelude(back, snap)
   assert back.module == "module_lcd"
-  back.body.mission.swap.module_state(back.module)
 
 
 def test_what_begin_says_is_stamped_on_the_restored_clock(tmp_path):
@@ -621,17 +621,17 @@ def test_what_begin_says_is_stamped_on_the_restored_clock(tmp_path):
   not 0 -- rows on the observatory in the order they happened."""
   path = tmp_path / "tasks.json"
   b = TaskBoard(path)
-  game = b.offer("hide_and_seek", "room_hub", t=0.0)
+  game = b.offer("hide_and_seek", QUAD_HOME, t=0.0)
   b.claim(game.id, robot="pluggybot", t=1.0, role="hider")
   b.claim(game.id, robot="r2_pluggybot", t=1.0, role="seeker")
   b.start(game.id, t=2.0)
-  life = _life(tmp_path / "saved")
+  life = _stub(tmp_path / "saved")
   life.data.time = 500.0
   snap = _saved(life, tmp_path)
-  back = _life(tmp_path, tasks=True, rebase=False)
+  back = _stub(tmp_path, tasks=True, rebase=False)
   heard = []
   back.say_hooks.append(lambda t, line: heard.append((t, line)))
-  back.run(world_config("room_hub")["start"], max_sim_time=0.0, resume=snap)
+  back.run(world_config(QUAD_HOME)["start"], max_sim_time=0.0, resume=snap)
   [(t, _)] = [h for h in heard if "interrupted by a restart" in h[1]]
   assert t == 500.0
 
@@ -640,21 +640,24 @@ def test_an_offered_challenge_finds_its_props_where_the_offer_says(tmp_path):
   """The offer says where the blocks stand, and the hourly reset was what
   made that true: with the world carried on, a failed attempt would leave
   them wherever it dropped them, for good. The house sets them out as it
-  offers the job (issue #345)."""
+  offers the job (issue #345) -- all but one against a robot, which is
+  somebody's mid-job."""
   from pluggybot.challenge import stack
-  life = _life(tmp_path, world="home", tasks=True)
+  life = _quad(tmp_path, tasks=True)
+  life.body.start_at(*world_config(QUAD_HOME)["start"])
   qadr = int(life.model.joint(int(life.model.body("block_1").jntadr[0])).qposadr[0])
   home = life.model.qpos0[qadr:qadr + 3]
   life.data.qpos[qadr:qadr + 3] = home + [0.6, -0.4, 0.0]  # knocked aside
-  # ...and one against a robot's chassis, which is somebody's mid-job
   held = int(life.model.joint(int(life.model.body("block_2").jntadr[0])).qposadr[0])
-  mujoco.mj_forward(life.model, life.data)            # the chassis box's centre
-  life.data.qpos[held:held + 3] = life.data.geom_xpos[life.body.mission.chassis_gid]
+  mujoco.mj_forward(life.model, life.data)            # inside the robot's torso
+  life.data.qpos[held:held + 3] = life.data.geom_xpos[life.model.geom("torso").id]
   mujoco.mj_forward(life.model, life.data)
   against = life.data.qpos[held:held + 3].copy()
   block = life.model.body("block_2").id
+  mine = list(robot_geoms(life.model, life.root))
   g = life.data.contact.geom[:life.data.ncon]
-  assert (life.model.geom_bodyid[g] == block).any()   # it IS touching
+  at = g[(life.model.geom_bodyid[g] == block).any(axis=1)]
+  assert np.isin(at, mine).any()                      # it IS touching the robot
   said = []
   life.say_hooks.append(lambda t, line: said.append(line))
   life.tasks.offer("stack_tower", "tower", t=0.0)
@@ -673,7 +676,7 @@ def test_a_pair_is_saved_after_every_robots_step_not_between_them(tmp_path):
   reckoner a step behind its body. Hooked on the last, everything the step
   does has been done."""
   from pluggybot.pair import build_pair
-  lives = build_pair("room_hub")
+  lives = build_pair(QUAD_HOME)
   keeper = continuation.Keeper(lives, tmp_path / "world.npz")
   assert keeper.step_hook in lives[-1].body.step_hooks
   assert keeper.step_hook not in lives[0].body.step_hooks
@@ -700,14 +703,13 @@ def test_an_errand_cut_short_with_no_job_behind_it_is_named_and_left(tmp_path):
   procedure the robot started -- is named in History and not queued again,
   and the line does not pretend nobody wanted it. And a second run on the
   same lifecycle does not carry the first one's restart into its own."""
-  from pluggybot.mission.errand import carry_errand
-  life = _life(tmp_path)
-  life._errand_now = carry_errand("module_lcd")
+  life = _stub(tmp_path)
+  life._errand_now = cage_errand(QUAD_HOME, "feed")
   snap = _saved(life, tmp_path)
-  back = _life(tmp_path)
+  back = _stub(tmp_path)
   _prelude(back, snap)
   assert back.errands == []
   assert any(f"the restart cut short {life._errand_now.name}; it is not "
              "queued again" in ln for ln in _history(back))
-  back.begin(world_config("room_hub")["start"])
+  back.begin(world_config(QUAD_HOME)["start"])
   assert back.resumed is None

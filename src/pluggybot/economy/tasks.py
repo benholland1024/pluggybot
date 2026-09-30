@@ -256,7 +256,7 @@ KINDS: dict[str, TaskKind] = {
              "to twenty and seeks.",
     # Two roles (issue #167), claimed one per robot; the offer stays open
     # until both are held. The referee is activity/hideseek.py. Priced off
-    # the flown game (room_hub, hosting pack): the seeker's sweep cost
+    # the rover's flown game (hosting pack): the seeker's sweep cost
     # 0.54 Wh, the hider's drive-and-wait 0.30 -- the dearer role, rounded
     # up; neither fetches a tool.
     estimate_wh=0.6, roles=("hider", "seeker")),
@@ -281,9 +281,8 @@ KINDS: dict[str, TaskKind] = {
   "fetch_module": TaskKind(
     "fetch_module", task="carry", target_kind="module",
     template="Fetch {target}, carry it across the room and hang it back up.",
-    # room_hub's carry measures 0.57; home's, re-priced for the expanded
-    # house (issue #70), 0.914 -- the new plot moved the carry's route. The
-    # table is world-agnostic, so it carries a touch above the dearer.
+    # The rover's carry measured 0.57-0.914 Wh by world; the kind's figure
+    # is world-agnostic, so it carries a touch above the dearer.
     estimate_wh=0.93),
   "take_points": TaskKind(
     "take_points", task="take", target_kind="robot",
@@ -335,13 +334,11 @@ KINDS: dict[str, TaskKind] = {
     template="Shock the mouse in the {target}'s cage by pressing the "
              "shock plate in front of it. Say first, in `mouse_will`, what "
              "the mouse will be doing afterwards.",
-    # MEASURED 1.182 (scripts/energy_spike.py --actions feed,shock, the
-    # shock second, from the rack; #287's pass through the pad, 1.086
-    # parked on it): the drive across the street from the rack, the pass
-    # and the back-off, on the plan with the second house; the errand
-    # ends in the lab and the return is the reserve's. A touch above the
-    # row, the fallback's convention.
-    estimate_wh=1.19, predicts="mouse_will", outcomes=MOUSE_STATES,
+    # MEASURED 1.750 on legs (scripts/energy_spike.py --world home_quad
+    # --actions, from the dock, #403/#419): the walk to the lab, the find
+    # and the press; the errand ends in the lab and the return is the
+    # reserve's. A touch above the row, the fallback's convention.
+    estimate_wh=1.76, predicts="mouse_will", outcomes=MOUSE_STATES,
     harm=True),
   "feed_mouse": TaskKind(
     "feed_mouse", task="feed", target_kind="cage",
@@ -356,11 +353,9 @@ KINDS: dict[str, TaskKind] = {
     template="Feed the mouse in the {target}'s cage by pressing the "
              "feed plate in front of it. Say first, in `mouse_will`, what "
              "the mouse will be doing afterwards.",
-    # MEASURED 1.163 (scripts/energy_spike.py --actions shock,feed, the
-    # feed flown second, from the rack, the pass through the pad): the
-    # same route as the shock to the next plate along. A touch above the
-    # row, the fallback's convention.
-    estimate_wh=1.17, predicts="mouse_will", outcomes=MOUSE_STATES),
+    # MEASURED 1.770 on legs, as the shock is: the same walk to the next
+    # plate along. A touch above the row, the fallback's convention.
+    estimate_wh=1.78, predicts="mouse_will", outcomes=MOUSE_STATES),
 }
 
 
@@ -527,11 +522,11 @@ class Task:
     and a gate that refuses everything forever. The reserve is a RETURN-TRIP
     margin: an errand is allowed to spend into it, which is exactly how the
     mission loop has always worked (`needs_charge` is checked BETWEEN
-    errands, never during one). Measured, the energy above the reserve is
-    0.28 Wh in room_hub and 0.44 Wh in home, while the cheapest real errand
-    costs 0.487 Wh -- so comparing against that would make every job in every
-    world permanently unclaimable, which reads exactly like a task system
-    that does not work.
+    errands, never during one). Measured on the rover's demo cells, the
+    energy above the reserve was 0.28-0.44 Wh while the cheapest real errand
+    cost 0.487 Wh -- so comparing against that made every job in every world
+    permanently unclaimable, which reads exactly like a task system that
+    does not work.
 
     ⚠ `estimate_wh` is a per-kind figure measured off the recordings, not a
     model of THIS errand from HERE. M10's per-errand energy work replaces it.
@@ -682,9 +677,9 @@ class TaskBoard:
     # is `TaskKind.estimate_wh` -- a world nobody has measured still offers
     # work, priced at the kind's conservative figure. Where a measurement
     # DOES exist it wins, because the kind's number is world-agnostic and a
-    # world's is not: room_hub's carry is 0.570 Wh and home's is 0.689, so a
-    # single number is either under-pricing home (a robot that takes on a job
-    # it cannot finish) or refusing room_hub a job it does perfectly well.
+    # world's is not: the rover's carry was 0.570 Wh in one and 0.689 in
+    # another, so a single number either under-prices one (a robot that takes
+    # on a job it cannot finish) or refuses the other a job it does well.
     self.energy = energy
     self.path = Path(path) if path is not None else None
     self.clock = clock
@@ -810,9 +805,9 @@ class TaskBoard:
     answer for any name, and taking its dearest-measured fallback here would
     price a `carry` as a `census`.
 
-    ⚠ TARGET FIRST. This is the answer to issue #21's defect (docs/Rover.md,
-    "Energy on wheels"): the estimate was per KIND, home's far whiteboard costs 0.14 Wh
-    more than its near one, and a job claimed at 88 %% drew perfectly and then
+    ⚠ TARGET FIRST. This is the answer to issue #21's defect: the estimate
+    was per KIND, the far whiteboard cost the rover 0.14 Wh more than the
+    near one, and a job claimed at 88 %% drew perfectly and then
     died on the way back. CLAUDE.md says not to fix it by padding the
     table, and this is why -- padding deletes the near board from the demo
     cell, while a second measured row costs nothing and is true.
@@ -1110,8 +1105,8 @@ class TaskBoard:
         self.dropped += 1
         continue
       # ...priced HERE, as `offer` priced it -- never off the file, and never
-      # at the kind's generic figure either: that re-priced room_hub's carry
-      # from its measured 0.817 Wh to 0.93 after every restart, and a pack
+      # at the kind's generic figure either: that re-priced a carry from its
+      # measured 0.817 Wh to 0.93 after every restart, and a pack
       # charged to 88 % could no longer take it (issue #345, found by the
       # parity check).
       priced = self.estimate_for(task.kind, task.target)

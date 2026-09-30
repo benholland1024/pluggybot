@@ -167,8 +167,8 @@ RETURN_END = (0.5, HOUSE_Y[0] + WALL_HALF_T)
 
 # Whiteboards: wall-mounted drawing surfaces (the milestone-8 board port).
 # `heading` is the robot's heading when squared up to the board; `half` is
-# (depth, width, height) in the board's own frame. Geom names are what
-# `pen_on_board` checks contact against.
+# (depth, width, height) in the board's own frame. Geom names are what ink
+# is a contact with.
 BOARDS = {
   "whiteboard_a": {                       # west wall of the living room
     "geom": "board",
@@ -189,18 +189,10 @@ PLANTS = ((6.5, -0.8), (8.8, 1.0), (7.6, 4.5), (9.2, 5.2))
 #: The bed, in the bedroom's NORTH-WEST CORNER (#305). Half-extents
 #: first, because the corner is derived from them.
 #:
-#: ⚠ IT IS IN THE CORNER SO THAT `whiteboard_b` CAN BE DRAWN ON. Standing at
-#: a board means standing at its `BOARD_STANDOFF` pose, and the LIDAR's
-#: front-stop reflex backs the robot off anything within `FRONT_STOP_RANGE`
-#: dead ahead. At (-0.5, 4.8) the bed's north-east corner sat 0.23 m from
-#: whiteboard_b's use pose (0.45, 5.62), inside that reflex: an approach
-#: that brought the corner into the front cone tripped it, reversed 0.8 s,
-#: came back and tripped again until the drive stagnated and the errand
-#: stowed an unused pen. Whether it tripped at all depended on the approach
-#: angle, so the board worked from some directions and not others -- 13 of
-#: 13 trips on a flight from the hall ranged the same point, the bed's
-#: corner, while a flight from the living-room spawn drew fine.
-#: `test_home_world.py::test_a_board_can_be_stood_in_front_of` is the bar.
+#: ⚠ IT IS IN THE CORNER SO THAT `whiteboard_b` CAN BE DRAWN ON: a robot
+#: standing at a board must be clear of the front-stop reflex, and at
+#: (-0.5, 4.8) the bed's corner sat 0.23 m from the rover's use pose and
+#: tripped it from some approaches (#305). #406 re-measures a stance on legs.
 BED_HALF = (0.90, 0.60, 0.20)
 #: ...and the gap left at the two walls. "Touching" with a millimetre to
 #: spare: a box flush against a wall face is a contact pair at settle, and
@@ -366,8 +358,8 @@ SPAWNS = {
   "lab": [25.0, 2.0, math.pi / 2],
 }
 
-# Occupancy-grid bounds for this world (HubMission takes them as a
-# parameter; room_hub keeps its historical defaults).
+# Occupancy-grid bounds for this world (a body's navigator takes them as a
+# parameter).
 #
 # ⚠ It used to reach a metre PAST the drawn floor (x_max 11.0 against a
 # shared 10.0 slab), which issue #67 documented as deliberate and safe:
@@ -480,9 +472,9 @@ def _wall_run(prefix: str, x0: float, x1: float, y0: float, y1: float,
 
 def _board_xml(name: str, spec: dict) -> str:
   """A wall-mounted whiteboard. friction+priority on the drawing face is the
-  board CONTRACT (hub_world's board comment): pair friction combines as the
-  elementwise MAX, so without priority the pen would drag at the world's
-  default 1.0 and the carriage servo would fight it all figure long."""
+  board CONTRACT: pair friction combines as the elementwise MAX, so without
+  priority a pen would drag at the world's default 1.0 and whatever holds it
+  would fight it all figure long."""
   x, y, z = spec["pos"]
   depth, width, height = spec["half"]
   h = spec["heading"]
@@ -745,10 +737,8 @@ def build_home_world() -> tuple[str, dict]:
 
   # ---- the ground the website draws (issue #68) -----------------------------
   # GENERATED from the layout rather than written down, which is the point:
-  # the plot grew from 7 x 8 m to 26.5 x 12 m and a literal `size="10 10"` in
-  # a shared include is exactly the thing that then gets forgotten. It moved
-  # out of models/world_fork.xml so growing it here cannot wrap room_hub's
-  # 8 x 8 m room in a 32 m apron of grey.
+  # the plot grew from 7 x 8 m to 26.5 x 12 m, and a literal `size="10 10"`
+  # is exactly the thing that then gets forgotten.
   #
   # ⚠ A plane's `size` is RENDERING ONLY -- collision is with the infinite
   # half-space (verified: a box 15 m outside a 1x1 plane rests at the same

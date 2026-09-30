@@ -1,8 +1,8 @@
 """The physics seam: a ROUTINE yields one drive command per physics step
 (issue #58, the tick refactor).
 
-Every manoeuvre in this repo used to be a `while` loop that called
-`HubSwap._step_once` itself -- the primitive owned the clock, and nothing
+Every manoeuvre in this repo used to be a `while` loop that stepped the
+physics itself -- the primitive owned the clock, and nothing
 above its frame ran until it returned. That is why an errand could not be
 composed, why #116 had to hand-place its abort points inside those loops,
 and why a second robot had nowhere to be ticked. A routine turns the loop
@@ -14,13 +14,12 @@ the same trajectory before and after (`scripts/determinism_spike.py
 --compare`).
 
   Command   the BODY's, and read by nothing else (issue #380, `body.py`):
-            the rover's is (v, w), forward speed m/s and yaw rate rad/s,
-            which its stepper turns into wheel setpoints
-            (`control.wheel_targets`) and `HubSwap._before_step` ramps.
+            the quadruped's is (vx, vy, w), the velocity its walking policy
+            tracks.
   Routine   a generator of Commands whose RETURN value is the manoeuvre's
-            result (`drive_to` returns whether it arrived, `pick` returns why
-            it stopped). Composed with `yield from`, exactly as the blocking
-            calls were composed with `return`.
+            result (`go_to_routine` returns whether it arrived). Composed
+            with `yield from`, exactly as the blocking calls were composed
+            with `return`.
   Step      one routine, ticked from outside: `tick()` hands back the next
             command or None when the routine has returned.
   Stepper   what drives one body's physics: `apply(command)` writes its
@@ -28,7 +27,7 @@ the same trajectory before and after (`scripts/determinism_spike.py
             bookkeeping after, `step(command)` is the three for a robot
             alone, `STILL` the command that holds it where it is, and
             `model` / `data` the world it steps (`Body.stepper`; the
-            rover's is `rack/swap.HubSwap`).
+            quadruped's is `legs.body.QuadStepper`).
   run       the blocking driver, for scripts, tests and every caller that
             wants the old shape: step until the routine returns.
 

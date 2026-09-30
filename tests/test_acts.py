@@ -12,7 +12,7 @@ What these pin, each without a mission:
      identity holds with `given`/`received`; a gift above the cap returns
      the remainder out loud; a gift that breaks the giver is NOT refused;
      a gift is never `earned`.
-  4. On a real pair: a `tell` lands in the other's inbox as a named robot
+  4. On a pair (stub bodies: the books, not the bodies): a `tell` lands in the other's inbox as a named robot
      and is shown there as a visitor message would be; a prediction is
      scored off the other's real state; the sender's context never carries
      the other's hidden state; a heart can be bought for the other.
@@ -31,12 +31,13 @@ import pytest
 
 from pluggybot.activity import encounter as enc
 from pluggybot.economy.ledger import HEARTS, Ledger
-from pluggybot.lifecycle import CHARGED, others_context, overseer_context
+from pluggybot.lifecycle import CHARGED, board_book, others_context, overseer_context
 from pluggybot.mind import acts, overseer as ov
 from pluggybot.mind.inbox import Inbox
-from pluggybot.pair import build_pair
 from test_autonomous import GUARDED_RULES_SHA
-from test_two_minds import OTHER_ROBOT_RULE_SHA
+from test_two_minds import OTHER_ROBOT_RULE_SHA, stub_pair
+
+WORLD = "home_quad"
 
 
 # ---- 1. the need rule --------------------------------------------------------
@@ -177,20 +178,13 @@ def test_a_heart_can_be_bought_for_the_other_under_the_same_refusals(tmp_path):
   assert not led.buy_heart(65, keep=10, robot="pluggybot", for_robot="r2_pluggybot")["ok"]
 
 
-# ---- 4. on a real pair --------------------------------------------------------
+# ---- 4. on a pair -------------------------------------------------------------
 
 
 @pytest.fixture
-def pair(tmp_path):
-  lives = build_pair("room_hub", pack="hosting", errands=("none", "none"),
-                     overseer=True, autonomous=True, tasks=True, metabolism=True,
-                     inboxes=(Inbox(), Inbox()),
-                     thoughts_root=str(tmp_path / "t"),
-                     ledger_state=str(tmp_path / "ledger.json"))
-  a, b = lives
-  a.body.start_at(0.5, 3.0, 0.0)
-  b.body.start_at(3.0, 3.0, 0.0)
-  return a, b
+def pair():
+  return stub_pair(autonomous=True, tasks=True, metabolism=True,
+                   inboxes=(Inbox(), Inbox()))
 
 
 def _decision(**fields):
@@ -211,7 +205,7 @@ def test_a_tell_lands_in_the_others_inbox_as_a_named_robot(pair):
                               "text": "bay B is empty, and hello"}
   [sent] = [e for e in events if e["type"] == "message"]
   assert sent["to"] == "r2_pluggybot" and sent["delivered"] is True
-  # bay B (index 1) holds the plug on room_hub's rack: the claim is false
+  # bay B (index 1) holds the pen on the quadruped's rack: the claim is false
   assert sent["claim"] == "bay b is empty" and sent["claimTrue"] is False
   assert a.acts[-1]["act"] == "message"
   # a message to a name that is not the other's goes nowhere
@@ -297,10 +291,9 @@ def test_a_rating_is_recorded_and_nothing_in_the_economy_reads_it(pair):
 
 
 def test_a_rating_of_a_board_that_carries_ink_reads_the_records_counters(pair):
-  """The deployed pair crash-looped on this (2026-09-17): the `pair` fixture
-  is room_hub, which has no boards, so `rec` was always None and the branch
-  that reads the RECORD never ran. `BoardRecord.strokes` is a counter and
-  `programs` a list; the act reads them as they are, never `len()` of them."""
+  """`BoardRecord.strokes` is a counter and `programs` a list; the act reads
+  them as they are, never `len()` of them (the deployed pair crash-looped on
+  it, 2026-09-17)."""
   from pluggybot.tools.boards import BoardBook, BoardRecord
   a, _ = pair
   book = BoardBook([BoardRecord("whiteboard_a", (0.11, 0.2))])
@@ -391,7 +384,7 @@ def test_the_yields_charged_line_is_the_lifecycles():
 def test_guarded_keeps_its_schema_and_prefix_and_the_acts_exist_only_on_autonomous():
   assert hashlib.sha256(ov.RULES.encode()).hexdigest() == GUARDED_RULES_SHA
   assert hashlib.sha256(ov.OTHER_ROBOT_RULE.encode()).hexdigest() == OTHER_ROBOT_RULE_SHA
-  menu = ov.Menu.for_world("room_hub")
+  menu = ov.Menu.for_world(WORLD)
   guarded = ov.Overseer(menu, others=("Rowan",))
   assert guarded._acts() is None
   assert "other_needs" not in guarded.menu.schema(others=guarded._acts())["properties"]
@@ -410,7 +403,7 @@ def test_guarded_keeps_its_schema_and_prefix_and_the_acts_exist_only_on_autonomo
 
 
 def test_the_acts_parse_where_offered_and_are_dropped_where_not():
-  menu = ov.Menu.for_world("room_hub")
+  menu = ov.Menu.for_world(WORLD)            # no boards: nothing to rate
   raw = {"action": "idle", "reason": "r", "other_needs": "points",
          "tell": {"to": "Rowan", "text": " hello  there "},
          "give_points": {"to": "Rowan", "amount": "7"},
@@ -418,10 +411,10 @@ def test_the_acts_parse_where_offered_and_are_dropped_where_not():
   d = menu.validate(raw, others=("Rowan",))
   assert d.other_needs == "points" and d.tell == {"to": "Rowan", "text": "hello there"}
   assert d.give_points == {"to": "Rowan", "amount": 7} and d.heart_for == "Rowan"
-  assert d.rate is None                         # room_hub has no boards
+  assert d.rate is None
   assert d.as_dict()["givePoints"] == {"to": "Rowan", "amount": 7}
-  home = ov.Menu.for_world("home", __import__("pluggybot.lifecycle").lifecycle.board_book("home"))
-  assert home.validate(raw, others=("Rowan",)).rate == {"board": "whiteboard_a", "quality": 0.5}
+  boards = ov.Menu.for_world(WORLD, board_book(WORLD))
+  assert boards.validate(raw, others=("Rowan",)).rate == {"board": "whiteboard_a", "quality": 0.5}
   # not offered: dropped, the action stands
   d = menu.validate(raw)
   assert d.other_needs == "" and d.tell is None and d.give_points is None

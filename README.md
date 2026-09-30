@@ -1,7 +1,8 @@
 # pluggybot
 
-A simulated, hardware-honest robot and the autonomous agent that lives in it.
-What the project is for, and the six qualities the agent is meant to
+A simulated, hardware-honest robot and the autonomous agent that lives in it:
+a ~10 kg quadruped with a two-joint arm, in a house it shares with a second
+one. What the project is for, and the six qualities the agent is meant to
 maximise, are in [`docs/PluggyPlan.md`](docs/PluggyPlan.md); how the mind
 sits in the loop is [`docs/Overseer.md`](docs/Overseer.md).
 
@@ -72,7 +73,8 @@ the next turn as an image, at most two looks in a row. A death
 ends whatever it lands in (issue #348): the loop starts again from the top.
 On `autonomous` the agent also writes code and builds tools: a procedure it
 defined (issue #166) is an action, `procedure:<name>`, and runs as an errand;
-a tool it specified (issue #168) is built where it stands and hung in a bay.
+a tool it specified (issue #168) is built where it stands and hung in a bay
+of a built-tool rail, which no world on legs has yet (#407).
 
 ### What each state reads and writes (the memory, issue #221)
 
@@ -133,35 +135,9 @@ closes it (paid, once) or deletes it (not).
 
 ## Scripts
 
-Start one of the various scripts:
-```bash
-uv run python scripts/hub_mission.py --view  # Explore, find + use hub
-uv run python scripts/hub_lifecycle.py --view  # Hub-era battery loop: explore,
-                                      # fetch a tool, use it, stow it, charge
-
-uv run python scripts/draw.py --view --fast
-uv run python scripts/draw.py --program square   # square circle text house
-                                      # tree sun robot -- the stroke programs
-uv run python scripts/draw.py --program text --text "GOOD MORNING"
-uv run python scripts/draw.py --program house --size 0.06   # figure box, m
-uv run python scripts/draw.py --program text --size 0.025   # cap height, m
-
-MUJOCO_GL=egl uv run python scripts/home_draw.py --program robot  # same flags,
-                                      # but the full errand in the home world:
-                                      # fetch the pen -> draw on a wall
-                                      # whiteboard -> stow it
-MUJOCO_GL=egl uv run python scripts/home_draw.py --program text \
-    --text "HELLO" --board whiteboard_b --cycles 2
-
-uv run python scripts/pickup.py --view   # claw module: pick a block off the
-                                      # floor; saves pickup.png
-
-MUJOCO_GL=egl uv run python scripts/module_power.py  # Tool power across the
-                                      # coupling; saves module_power.png
-```
-
-Headless (no window) runs want `MUJOCO_GL=egl` in front; `--view` runs want it
-left off.
+Every script takes `--help`, and CLAUDE.md's table says what each is for.
+Headless (no window) runs want `MUJOCO_GL=egl` in front; `--view` runs want
+it left off.
 
 The quadruped (#375) and its arm (#378), each scene looping until the window
 closes:
@@ -187,31 +163,12 @@ uv run python scripts/two_robots.py --world home_quad --view --errands none,none
 `--approach`, `--retention --stairs`, ...); SimNotes, "The quadruped's arm,
 its coupling and the rack", has what they measured.
 
-## Recording a demo
-
-`draw.py` and `pickup.py` take `--record PATH` (`.mp4` or `.gif`) and render
-720p video straight from the sim — no screen capture. The camera is the
-filmstrip's tracking camera, sampled on the **sim** clock, so playback speed
-is exact and `--record-speed` buys timelapse or slow motion for free:
-
+View the body alone:
 ```bash
-MUJOCO_GL=egl uv run python scripts/draw.py --program square \
-    --record draw.mp4 --record-speed 3        # 66 s of sim -> 22 s of video
-MUJOCO_GL=egl uv run python scripts/pickup.py \
-    --record pickup.gif --record-speed 4 --record-fps 20
+uv run python -m mujoco.viewer --mjcf=models/quadruped.xml
 ```
-
-`--record` works with or without `--view` (the video comes from its own
-offscreen renderer either way) and never changes what the demo reports.
-`pickup.py` carries `claw_eye` as a picture-in-picture: the camera on the
-tool itself, which no screen recording could reach. GIFs are downscaled to
-640 px and encoded through a single shared palette; for Reddit prefer `.mp4`,
-since it transcodes uploaded GIFs to video anyway.
-
-View the world:
-```bash
-uv run python -m mujoco.viewer --mjcf=models/world.xml
-```
+(`models/home_world.xml` is the house with no robot in it; the quadruped
+and its dock are put in at load, `legs/world.py`.)
 
 Run scripts in /tests/ :
 ```bash
@@ -225,25 +182,23 @@ uv run pytest -vs
 In this project, start it like so:
 ```bash
 PLUGGYWORLD_TOKEN=dev-token-change-me MUJOCO_GL=osmesa \
-  uv run python scripts/serve.py --world home \
+  uv run python scripts/serve.py \
     --endpoint ws://localhost:3000/api/pluggyworld/ingest
 ```
 
 Then, in `rooftop-media-2026`, start it with `npm run dev`
 
-`--world home` serves the generated house + garden (issue #6) — the world
-the site is meant to show. Drop the flag to serve `room_hub` instead, the
-bare rack room the hub mechanics were built in. The flag picks *everything*
-the world implies (model, scene name, rack pose, grid extent, battery size,
-start pose, errand destination, explore budget) from one table,
-`hub.lifecycle.world_config()`, because every one of those getting out of
-step fails silently rather than loudly: the wrong explore budget just stops
-filling the map, and the wrong errand destination just drives at a wall.
+It serves the generated house + garden (issue #6) with the quadruped in it
+(`home_quad`, issue #387), the one world; `--pair` serves both robots, as
+the deployed world does. Everything the world implies (model, scene name,
+dock and rack poses, grid extent, battery size, start pose, explore budget)
+comes from one table, `lifecycle.world_config()`, because every one of those
+getting out of step fails silently rather than loudly: the wrong explore
+budget just stops filling the map.
 
-Whichever world you serve, the site must be showing the matching scene —
-the header's `model` field is what it selects on (`home_world` vs
-`room_hub`), and both scenes plus a recorded mission for each are committed
-under `protocol/`.
+The site must be showing the matching scene — the header's `model` field is
+what it selects on (`home_quad` or `home_quad_pair`), and both scenes, and a
+recorded day of the pair, are committed under `protocol/`.
 
 ## Letting the robot choose its own errands
 
@@ -252,21 +207,24 @@ robot does next once the `--errand` queue is empty:
 
 ```bash
 PLUGGYWORLD_TOKEN=dev-token-change-me ANTHROPIC_API_KEY=... MUJOCO_GL=osmesa \
-  uv run python scripts/serve.py --world home --errand none --overseer \
+  uv run python scripts/serve.py --overseer \
     --endpoint ws://localhost:3000/api/pluggyworld/ingest
 ```
 
-It replaces **exactly one branch** of the mission loop — which errand, when
-the battery is fine and nothing is queued. Charging stays in code and outranks
-it, because an LLM that can decline to charge is one that bricks the world
-overnight. Every failure (no key, timeout, rate limit, a malformed answer, a
-spent call budget) falls back to a scripted rotation and says so on the wire,
-so the robot keeps working with the API unplugged — that is a tested property,
-not a hope. Its memory is a record store and the documents rendered from it,
-under `/var/lib/pluggybot/thoughts` (the diagram above; `docs/Overseer.md`
-§7): `Main.md` is yours to choose — a file from the library in
-`src/pluggybot/mind/constitutions/`, named by `$PLUGGY_CONSTITUTION` (#263) —
-the rest is the robot's and the sim's.
+On the `guarded` arm, which `--overseer` alone builds, it replaces **exactly
+one branch** of the mission loop — which errand, when the battery is fine
+and nothing is queued. Charging stays in code and outranks it, because an
+LLM that can decline to charge is one that bricks the world overnight. Every
+failure (no key, timeout, rate limit, a malformed answer, a spent call
+budget) falls back to a scripted rotation and says so on the wire, so the
+robot keeps working with the API unplugged — that is a tested property, not
+a hope. The deployed world flies `--pair --arm autonomous --origin unseeded`
+instead: the rails off, and the agent deciding when it is asked
+(Evaluation.md §2). Its memory is a record store and the documents rendered
+from it, under `/var/lib/pluggybot/thoughts` (the diagram above;
+`docs/Overseer.md` §7): `Main.md` is yours to choose — a file from the
+library in `src/pluggybot/mind/constitutions/`, named by
+`$PLUGGY_CONSTITUTION` (#263) — the rest is the robot's and the sim's.
 
 Full design, the action vocabulary, the cost numbers and the measured battery
 limit: `docs/Overseer.md`. To see what a decision actually costs before

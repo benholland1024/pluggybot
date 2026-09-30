@@ -6,8 +6,8 @@ has to remember. Companion to `docs/ToolPattern.md`, which covers the things
 the robot picks up; this covers the things it acts on.
 
 Written alongside its first consumer, the **pressure plate and light**
-(`activity/plate.py`, demo `scripts/plate.py`), so every rule here is one the
-build actually paid for.
+(`activity/plate.py`), so every rule here is one the build actually paid
+for.
 
 Read alongside:
 - `docs/SimNotes.md` — the measurements behind the numbers quoted here.
@@ -24,7 +24,7 @@ mechanisms) cheap enough to be worth doing:
 
 | layer | owns | example |
 |---|---|---|
-| **1. Rigid bodies and contacts** | MuJoCo | the plate's sprung joint; the wheel that presses it |
+| **1. Rigid bodies and contacts** | MuJoCo | the plate's sprung joint; the foot that presses it |
 | **2. Task state machines** | *this doc* — Python | "is it pressed"; "is the gate open"; "is this plot dug" |
 | **3. Browser visuals** | the website | the gate's swing, water pouring, plants growing |
 
@@ -32,13 +32,13 @@ The question is never *"can MuJoCo model soil, water, or growth"*. It is
 **"can the robot make a convincing rigid-body gesture at a known place that a
 state machine can verify"** — and layer 2 is that verification.
 
-**This is the oldest pattern in the repo, not a new one.** Charging has always
-worked this way: `rack_charge_contact` is a contact-derived criterion and the
-battery filling is bookkeeping. So are `module_power_contact`,
-`ClawTool.holding` and `pen_on_board`. Every one answers a question about the
-world with a **fact read out of the physics** rather than a belief about what
-was commanded. An activity is that pattern given a name, a memory, and a way
-onto the wire.
+**This is the oldest pattern in the repo, not a new one.** Charging has
+always worked this way: `dock_charge_contact` (`legs/dock.py`) is a
+contact-derived criterion and the battery filling is bookkeeping. So is
+`module_power_contact` (`rack/coupling.py`). Every one answers a question
+about the world with a **fact read out of the physics** rather than a belief
+about what was commanded. An activity is that pattern given a name, a
+memory, and a way onto the wire.
 
 ---
 
@@ -90,9 +90,9 @@ robot will actually have and the criterion transfers.
 
 ### 3.2 Thresholds need hysteresis
 
-A bare threshold on a sprung joint chatters: the plate rings as a wheel rolls
-over it, and a single comparison flips on every ring. Measured on the
-reference plate, one wheel crossing:
+A bare threshold on a sprung joint chatters: the plate rings as a load
+crosses it, and a single comparison flips on every ring. Measured on the
+reference plate, one (rover) wheel crossing:
 
 | | flips |
 |---|---|
@@ -160,7 +160,7 @@ so `sense()` must do no rendering, no allocation and no I/O.
 
 An analogue value defeats sparse telemetry: it differs almost every step, so
 an otherwise-constant activity ships a delta on nearly every frame. Measured
-over one wheel crossing (300 frames):
+over one (rover) wheel crossing (300 frames):
 
 | `depressMm` rounding | telemetry deltas |
 |---|---|
@@ -215,10 +215,10 @@ deltas and each shipped a random half of the state changes. Guarded by
 2. **Pick the sensed criterion** — which contact or joint sensor answers it —
    and bracket the mechanics so the criterion is reachable but not
    self-triggering. The plate's spring was chosen by arithmetic at both ends:
-   its own weight (1.47 N) must not reach the 6 mm trigger, and a drive
-   wheel's ~15 N must pass it comfortably. 1200 N/m gives 1.2 mm of sag and
-   bottoms out under a wheel. Both ends have margin, and both were checked
-   before anything was drawn.
+   its own weight (1.47 N) must not reach the 6 mm trigger, and the rover's
+   drive wheel's ~15 N had to pass it comfortably (a quadruped's foot carries
+   more). 1200 N/m gives 1.2 mm of sag and bottoms out under a wheel. Both
+   ends have margin, and both were checked before anything was drawn.
 3. **Write the module**: geometry emitter + `Activity` subclass, together.
 4. **Add it to a world generator** — one import, one call, and regenerate.
 5. **Demo with a filmstrip**, and *sweep the camera* (`ToolPattern.md` §5.4).
@@ -250,9 +250,8 @@ deltas and each shipped a random half of the state changes. Guarded by
    and is the point at which exploration and the occupancy grid start to
    care, which is a question this doc has not answered. ⚠ The one attempt
    was withdrawn: a gate designed under "blocks no route the robot needs"
-   had the street put behind it, and a robot that drove at the shut panel
-   ground its wheels and pumped metres of imaginary travel into its odometry
-   (issues #68, #93, #94; `activity/plate.py`, SimNotes).
+   had the street put behind it, and the rover that drove at the shut panel
+   pumped metres of imaginary travel into its odometry (issues #68, #94).
 2. **One activity is scored, off its own counts.** `scoring.sample_shock`
    reads the cage's shock count before and after the errand (issue #226)
    — "the mechanism ran", never the program's account of its steps — and
@@ -260,10 +259,10 @@ deltas and each shipped a random half of the state changes. Guarded by
    keeps counts (`Cage.measurements`), the sampler takes a before-reading
    (`cage_before`, `board_before`'s shape) and the evaluator grades the
    difference.
-3. **The robot has no verb for "operate a mechanism".** The plate is tripped
-   by driving over it, which needs no manipulation. A lever or a valve needs
-   a claw grip on a fixed mechanism at a known pose — the sink-lever problem
-   — and that is a tool-side capability, not an activity-side one.
+3. **The robot has no verb for "operate a mechanism".** A plate is tripped
+   by standing on it (`press`), which needs no manipulation. A lever or a
+   valve needs a grip on a fixed mechanism at a known pose — the sink-lever
+   problem — and that is a tool-side capability, not an activity-side one.
 4. **Activity state is not in the occupancy grid.** A mocap body that moves
    is geometry the map never re-observes, and a state that blocked a passage
    would be a wall the planner does not know about. Fine today because of
@@ -280,13 +279,12 @@ deltas and each shipped a random half of the state changes. Guarded by
    `_advance(now, presses, company)` a test drives with a fake press and a
    fake clock (docs/Testing.md), and a `context()` that answers only from
    inside the room. A plate is still how the robot ACTS on it, through a
-   program of `drive_to` legs THROUGH the pad (`lifecycle.cage_program`):
-   from 0.8 m south to 0.3 m north and back, never parked on it. ⚠ A pad
-   25 m from the anchor is not the garden's (#287): the trip drifts the
-   reckoning 0.1–0.4 m, the pad is 0.2 m to its edge, and a run that
-   stopped on the believed centre pressed it 2 times in 11 on the
-   deployed world -- a crossing is a rising edge whatever the drift
-   (`cage.PLATE_PASS_M`, SimNotes "A trip across the street").
+   program that finds the plate by its sign and presses it
+   (`lifecycle.cage_program`: `find`, then `press`, #403, #419): the walk
+   onto the pad is steered by the sign, never by a believed position,
+   because a pad 25 m from the dock is 0.2 m to its edge and the trip
+   drifts the reckoning further than that (#287). Every pad the robot has
+   seen is a wall to its planner, so a press is the only way onto one.
 
 ---
 

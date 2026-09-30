@@ -1,11 +1,13 @@
 """Near-field depth camera, modelled by batched ray casts (issue #34).
 
-The robot's third ranging sensor, after the LIDAR (one horizontal plane at
-0.223 m) and the navigation camera (AprilTags): a RealSense D435-class active
-stereo unit on the mast top, pitched 40° at the floor ahead, so the robot can
-find things ON the floor -- the one place the scan plane never looks. The
-decision, the runner-up sensors and the mount are docs/Parts.md "near-field
-depth camera"; the height map it feeds is `perception/heightmap.py`.
+The robot's third ranging sensor, after the LIDAR (one horizontal plane, on
+the quadruped 0.51 m up) and the navigation camera (AprilTags): a RealSense
+D435-class active stereo unit on the body, pitched at the floor ahead, so
+the robot can find things ON and near the floor -- where the scan plane
+never looks. The decision and the runner-up sensors are docs/Parts.md
+"near-field depth camera"; the height map it feeds is
+`perception/heightmap.py`, and the quadruped's planner reads its low points
+(`QuadMission._fold_low`).
 
 A DEPTH IMAGE, CAST AS RAYS. Each pixel of the D435's pinhole frustum is one
 `mj_multiRay` ray from the `depth_eye` camera element, so the frame is
@@ -18,8 +20,7 @@ Honest where the part is, and the tests pin each:
   AXIAL DEPTH, NOT RANGE. A stereo unit reports z along the optical axis,
   its limits and its noise are in z, and the point is recovered from z and
   the pixel's fixed direction -- exactly what a consumer of the real unit
-  does. `MIN_Z` is the datasheet's min-Z at full resolution; it does not
-  bind on this mount (nothing in the frame but the robot is inside 0.5 m).
+  does. `MIN_Z` is the datasheet's min-Z at full resolution.
 
   NOISE GROWS WITH z². Stereo depth error is quadratic in distance (a fixed
   sub-pixel disparity error, `NOISE_K` = 1/(f·B) x 0.08 px on the real
@@ -70,7 +71,7 @@ CAMERA = "depth_eye"
 
 #: Sim resolution. The D435's depth stream is 848 x 480 at 87° x 58°; this is
 #: its aspect at 1/7 (120/70 = 1.714 = tan 43.5° / tan 29°), 8400 rays, ~5 ms
-#: a frame (`scripts/nearfield_spike.py --cost` is the measurement). A 60 x 35
+#: a frame (measured, #34). A 60 x 35
 #: frame is ~1.3 ms and 2.4 cm a pixel at 1 m; the height map's 2 cm cell is
 #: what sets the floor at 120 wide.
 WIDTH, HEIGHT = 120, 70
@@ -80,7 +81,7 @@ PERIOD = 0.1              # s between frames: 10 Hz. The part streams 30 Hz; the
 
 MIN_Z = 0.28              # m, the datasheet's min-Z at 1280 x 720 (lower at lower
                           # resolutions; the conservative number, like the LIDAR's
-                          # 8 m). Does not bind on the mast-top mount.
+                          # 8 m).
 MAX_Z = 3.0               # m: the part ranges to 10 m, but σ is 32 mm here and the
                           # map is near-field. Also the ray cutoff, so the cost.
 BASELINE = 0.050          # m, the D435's imager baseline; sets the shadow width
@@ -89,7 +90,6 @@ NOISE_K = 0.0036          # 1/m: σ_z = NOISE_K · z². (0.08 px sub-pixel error
                           # the real 447 px focal length and 50 mm baseline.)
 DROPOUT = 0.01            # returns lost to dark or specular surfaces; the active
                           # projector makes this small, not zero
-FLOOR_TOL = 0.02          # m: a point under this is floor, for the mount metric
 
 #: One empty cloud, shared: a frame with no peer in it allocates nothing.
 _NO_POINTS = np.zeros((0, 3))
@@ -291,14 +291,3 @@ class DepthCamera:
     right_min = np.full_like(u_right, np.inf)
     right_min[:, :-1] = rev[:, 1:]
     return ((right_min <= u_right) & ~nan.reshape(u_right.shape)).reshape(-1)
-
-  def floor_band(self, data) -> tuple[float, float]:
-    """The floor the CENTRE column sees, as (nearest, farthest) x ahead of
-    the axle -- the mount metric (`scripts/nearfield_spike.py --mount`)."""
-    f = self.frame(data)
-    valid = ~np.isnan(f.z.reshape(-1))
-    centre = (np.abs(self._u) < 1.0)[valid]
-    floor = centre & (f.points[:, 2] < FLOOR_TOL)
-    if not floor.any():
-      return math.nan, math.nan
-    return float(f.points[floor, 0].min()), float(f.points[floor, 0].max())

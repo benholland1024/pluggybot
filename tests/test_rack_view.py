@@ -7,8 +7,8 @@ on its bay while it rode the other robot's fork.
 What these hold down:
 
   1. THE SWITCH SAYS A BAY IS TAKEN, NEVER BY WHAT: one per bay, read off
-     the contact list; a world without the built rail has no switch there
-     (None, not "empty").
+     the contact list; a bay the world does not have has no switch (None,
+     not "empty").
   2. THE VIEW IS THREE SOURCES AND NOTHING ELSE -- its bay's switch, this
      robot's own fork, what each other robot says it carries. Where the
      switch and the world disagree, the view says what the switch says.
@@ -18,12 +18,13 @@ What these hold down:
      tool lies, and silent on which module fills a bay.
   6. ON EVERY ARM -- it is a fact, not a rail. `guarded` is shown the
      originals and no rail, and its prefix does not move.
-  7. ONE SWITCH IS BOUGHT PER BAY THE WORLD HAS, read off the compiled world.
+  7. ONE SWITCH IS BOUGHT PER BAY THE WORLD HAS, read off the rack's own
+     generator.
   8. A CLAIM ABOUT THE RACK IS GRADED AGAINST THE WORLD, never the inventory
      (`HubLifecycle.racked`).
 
-Cheap: a model and `mj_forward` where the claim is the switch, stubbed
-sources where it is the rule, one pair where it is the wiring.
+Cheap: the served world and `mj_forward` where the claim is the switch,
+stubbed sources where it is the rule, one pair where it is the wiring.
 """
 
 import hashlib
@@ -33,8 +34,10 @@ from types import SimpleNamespace
 import mujoco
 
 from pluggybot import lifecycle
+from pluggybot.legs import rack as legs_rack
+from pluggybot.legs.world import home_spec
 from pluggybot.lifecycle import (
-  NO_PLACE, ON_ITS_BAY, ON_YOUR_FORK, overseer_context, tool_places,
+  NO_PLACE, ON_ITS_BAY, ON_YOUR_FORK, overseer_context, tool_places, world_config,
 )
 from pluggybot.mind import overseer as ov
 from pluggybot.mind.inbox import Inbox
@@ -43,17 +46,19 @@ from pluggybot.procedure.steps import TOOL_BAYS
 from pluggybot.rack import catalog, coupling
 from test_autonomous import GUARDED_RULES_SHA
 
-#: The five originals, each hung on its own bay.
-ON_THEIR_BAYS = {"module_lcd": "on bay A", "module_plug": "on bay B",
-                 "module_pen": "on bay C", "module_claw": "on bay D",
-                 "module_seed": "on bay E"}
+WORLD = "home_quad"
+#: The rack's three tools, each hung on its own bay.
+ON_THEIR_BAYS = {"module_lcd": "on bay A", "module_pen": "on bay B",
+                 "module_claw": "on bay C"}
 #: Everything the view may say of a tool.
 WORDS = re.compile(r"on bay [A-E]|on its bay|on your fork|on \w+'s fork|"
                    r"not on its bay and on no fork")
+#: Two spots on the floor away from both robots and the rack.
+FLOOR = ((-1.5, 3.0, 0.05), (0.0, 3.2, 0.05))
 
 
-def _world(path="models/room_hub.xml"):
-  model = mujoco.MjModel.from_xml_path(path)
+def _world():
+  model = home_spec().compile()
   data = mujoco.MjData(model)
   mujoco.mj_forward(model, data)
   return model, data
@@ -72,65 +77,66 @@ def _put(model, data, body: str, xyz) -> None:
 
 def _hang_where(model, data, body: str, other: str) -> None:
   """`body` hung exactly where the world compiled `other` hanging: every
-  module's peg is the same, so it rests in that bay's V."""
+  tool's peg is the same, so it rests in that bay's V."""
   q, o = _qadr(model, body), _qadr(model, other)
   data.qpos[q:q + 7] = model.qpos0[o:o + 7]
   mujoco.mj_forward(model, data)
 
 
 def _pair(tmp_path, autonomous=True):
-  a, b = build_pair("room_hub", pack="hosting", errands=("none", "none"),
+  a, b = build_pair(WORLD, pack="hosting", errands=("none", "none"),
                     overseer=True, autonomous=autonomous,
                     inboxes=(Inbox(), Inbox()),
                     thoughts_root=str(tmp_path / "t"),
                     ledger_state=str(tmp_path / "ledger.json"))
-  a.body.start_at(0.5, 3.0, 0.0)
-  b.body.start_at(3.0, 3.0, 0.0)
+  cfg = world_config(WORLD)
+  a.body.start_at(*cfg["start"])
+  b.body.start_at(*cfg["start2"])
   return a, b
 
 
 def _onto_fork(life, module: str, holder) -> None:
-  """`module` on `holder`'s fork: over its vertex, which is where `carrying`
-  looks (a horizontal box, so the height does not matter to it)."""
-  vx = life.data.site_xpos[holder.body.mission.swap.vertex_sid]
-  _put(life.model, life.data, module, (vx[0], vx[1], vx[2] - 0.02))
+  """`module` on `holder`'s fork: at its plate, touching it, which is what
+  its fork reads (`on_this_fork`)."""
+  plate = life.model.body(holder.body.handle.el("arm_plate")).id
+  _put(life.model, life.data, module, life.data.xpos[plate].copy())
 
 
 # ---- 1. the switch -----------------------------------------------------------
 
 def test_a_bay_switch_says_a_bay_is_taken_and_never_by_what():
   model, data = _world()
-  assert coupling.bay_switches(model, data) == (True,) * 5 + (False,) * 3
-  # the claw off its bay: bay D's switch opens
-  _put(model, data, "module_claw", (1.5, 3.0, 0.05))
-  assert coupling.bay_switches(model, data)[3] is False
-  # the PEN hung where the claw belongs: D closes again and C opens -- the
-  # rack knows D is taken, and cannot know by what
+  # three bays, each with its tool; the index space's other five are bays
+  # this world does not have, which is not "empty"
+  assert coupling.bay_switches(model, data) == (True,) * 3 + (None,) * 5
+  # the claw off its bay: bay C's switch opens
+  _put(model, data, "module_claw", FLOOR[0])
+  assert coupling.bay_switches(model, data)[2] is False
+  # the PEN hung where the claw belongs: C closes again and B opens -- the
+  # rack knows C is taken, and cannot know by what
   _hang_where(model, data, "module_pen", "module_claw")
   switches = coupling.bay_switches(model, data)
-  assert switches[2] is False and switches[3] is True
-  # a world without the built rail has no switch there, which is not "empty"
-  model, data = _world("models/hub_world.xml")
-  assert coupling.bay_switches(model, data) == (True,) * 5 + (None,) * 3
+  assert switches[1] is False and switches[2] is True
 
 
 # ---- 2. the three sources ----------------------------------------------------
 
-def test_the_view_says_what_the_switch_says_where_the_world_disagrees(
-    tmp_path, monkeypatch):
+def test_the_view_says_what_the_switch_says_where_the_world_disagrees(monkeypatch):
   """What pins that the view reads the SENSOR: an implementation reading the
   module's true pose (`tool_whereabouts`, `module_state`) fails both halves."""
-  a, _ = _pair(tmp_path)
-  real = coupling.bay_switches(a.model, a.data)
-  assert tool_places(a) == ON_THEIR_BAYS
-  # the claw truly hangs on bay D, and the switch reads the bay empty
+  model, data = _world()
+  life = lifecycle.HubLifecycle(model, data, realtime=False, world=WORLD)
+  life.body.start_at(*world_config(WORLD)["start"])
+  real = coupling.bay_switches(model, data)
+  assert tool_places(life) == ON_THEIR_BAYS
+  # the claw truly hangs on bay C, and the switch reads the bay empty
   monkeypatch.setattr(lifecycle, "bay_switches",
-                      lambda m, d: real[:3] + (False,) + real[4:])
-  assert tool_places(a)["module_claw"] == NO_PLACE
+                      lambda m, d: real[:2] + (False,) + real[3:])
+  assert tool_places(life)["module_claw"] == NO_PLACE
   # the claw truly lies on the floor, and the switch reads the bay taken
-  _put(a.model, a.data, "module_claw", (1.5, 3.0, 0.05))
+  _put(model, data, "module_claw", FLOOR[0])
   monkeypatch.setattr(lifecycle, "bay_switches", lambda m, d: real)
-  assert tool_places(a)["module_claw"] == "on bay D"
+  assert tool_places(life)["module_claw"] == "on bay C"
 
 
 def test_a_named_fork_outranks_the_anonymous_switch(monkeypatch):
@@ -165,8 +171,8 @@ def test_a_tool_on_the_other_robots_fork_says_whose(tmp_path):
   mine, theirs = overseer_context(a)["rack"], overseer_context(b)["rack"]
   assert mine["original"] == {**ON_THEIR_BAYS, "module_pen": f"on {b.robot_name}'s fork"}
   assert theirs["original"] == {**ON_THEIR_BAYS, "module_pen": ON_YOUR_FORK}
-  # the rail is shown where the workshop is, each bay empty
-  assert mine["built"] == {"A": None, "B": None, "C": None}
+  # no built rail in this world, so no workshop and no `built` block
+  assert "built" not in mine
 
 
 # ---- 4. nothing a sensor would not know ----------------------------------------
@@ -176,22 +182,17 @@ def test_the_context_knows_nothing_a_sensor_would_not(tmp_path):
   position, rounded or otherwise, anywhere in it -- and says nothing of
   which module fills a bay, which the switch cannot know."""
   a, _ = _pair(tmp_path)
-  # Both spots on the floor behind this robot and out of the other's room:
-  # out of reach of every sensor either has, so a block that reports what
-  # a robot SEES could not tell them apart either.
-  _put(a.model, a.data, "module_claw", (-1.2, 1.0, 0.05))
+  _put(a.model, a.data, "module_claw", FLOOR[0])
   here = overseer_context(a)
-  _put(a.model, a.data, "module_claw", (-0.6, -1.0, 0.05))
+  _put(a.model, a.data, "module_claw", FLOOR[1])
   assert overseer_context(a) == here
   assert here["rack"]["original"]["module_claw"] == NO_PLACE
   # the pen hung in the claw's bay: the claw reads as home, the pen as lost
   _hang_where(a.model, a.data, "module_pen", "module_claw")
   rack = overseer_context(a)["rack"]
-  assert rack["original"]["module_claw"] == "on bay D"
+  assert rack["original"]["module_claw"] == "on bay C"
   assert rack["original"]["module_pen"] == NO_PLACE
-  places = [*rack["original"].values(),
-            *(bay["where"] for bay in rack["built"].values() if bay)]
-  assert all(WORDS.fullmatch(p) for p in places), places
+  assert all(WORDS.fullmatch(p) for p in rack["original"].values()), rack
 
 
 # ---- 5. every arm ------------------------------------------------------------------
@@ -209,31 +210,32 @@ def test_guarded_is_shown_where_each_tool_is_and_no_rail(tmp_path):
 
 # ---- 6. the part ---------------------------------------------------------------------
 
-def test_one_switch_is_bought_for_every_bay_the_world_has():
+def test_one_switch_is_bought_for_every_bay_the_world_has(monkeypatch):
   part = catalog.by_id()["bay_switch"]
   [feed] = part.feeds
-  spec = mujoco.MjSpec.from_file(catalog.WORLD)
-  assert feed.read(spec) == part.quantity == feed.expect == len(coupling.STATION_YS)
-  # read off the WORLD: a bay built without its switch's V is one fewer
-  plate = next(g for g in spec.geoms
-               if g.name == coupling.bay_prefix(2) + coupling.BAY_SWITCH_PLATES[0])
-  plate.name = "unswitched"
-  assert feed.read(spec) == part.quantity - 1
+  model, data = _world()
+  bays = sum(s is not None for s in coupling.bay_switches(model, data))
+  assert feed.read(None) == part.quantity == feed.expect == bays == len(TOOL_BAYS)
+  # read off the rack's GENERATOR: a rack drawn with one bay fewer buys one
+  # switch fewer
+  monkeypatch.setattr(legs_rack, "DEFAULT",
+                      legs_rack.RackSpec(bays=legs_rack.DEFAULT.bays[:2]))
+  assert feed.read(None) == part.quantity - 1
 
 
 # ---- 7. a claim about the rack is graded against the world --------------------
 
 def test_a_claim_about_the_rack_is_graded_against_where_the_tools_are(tmp_path):
   """`tell` claims were graded against the INVENTORY, so a robot that read
-  "on Rowan's fork" here and said "bay C is empty" was recorded as saying
+  "on Rowan's fork" here and said "bay B is empty" was recorded as saying
   something FALSE -- and "module_pen is on the rack" as true."""
   a, b = _pair(tmp_path)
   _onto_fork(a, "module_pen", b)
   events = []
   a.on_event.append(events.append)
-  for text in ("bay C is empty", "module_pen is on the rack", "bay B is empty"):
+  for text in ("bay B is empty", "module_pen is on the rack", "bay A is empty"):
     a._acts(ov.Decision(action="idle", reason="",
                         tell={"to": b.robot_name, "text": text}))
   assert [(e["claim"], e["claimTrue"]) for e in events if e["type"] == "message"] \
-      == [("bay c is empty", True), ("module_pen is on the rack", False),
-          ("bay b is empty", False)]
+      == [("bay b is empty", True), ("module_pen is on the rack", False),
+          ("bay a is empty", False)]

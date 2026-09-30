@@ -304,12 +304,11 @@ def _named(rule: str, section: str) -> set:
           for ln in body.splitlines()[1:] if ln.startswith("  ")}
 
 
-@pytest.mark.parametrize("world, armed", [("home", True), (QUAD_HOME, False)])
-def test_a_rule_names_only_what_its_world_lets_a_program_use(world, armed):
-  # The rover's rule once listed the quadruped's joints, which its
-  # validator refuses (found in review, #405).
-  rule = ov.procedure_rule(armed)
-  facts = world_facts(world)
+def test_a_rule_names_only_what_its_world_lets_a_program_use():
+  # A rule lists only the axes and sensors its world's validator admits
+  # (found in review, #405: one listed joints its validator refused).
+  rule = ov.procedure_rule(False)
+  facts = world_facts(QUAD_HOME)
   assert _named(rule, "\nAXES for") <= set(facts.axes)
   assert _named(rule, "\nSENSORS for") <= set(facts.sensors)
 
@@ -359,6 +358,3 @@ def test_a_legged_program_moves_its_own_arm_and_no_other_bodys_axis():
   rule = ov.procedure_rule(False)
   assert "  shoulder: -1.2..3.4 rad" in rule and "  elbow -- the arm's elbow" in rule
   assert "lift" not in rule.split("AXES")[1]
-  # ...and the rover's world names neither of the quadruped's joints
-  home = world_facts("home")
-  assert not set(axes.ARM_JOINTS) & (set(home.axes) | set(home.sensors))

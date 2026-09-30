@@ -10,8 +10,9 @@ robot (PluggyPlan.md "What this project is for"; Evaluation.md §5).
 
 ## The one seam, and the one rule
 
-Every physics step bottoms out in the body's stepper (the rover's
-`HubSwap._step_once`), which fires `Body.step_hooks` — the same per-step
+Every physics step bottoms out in the body's stepper (`Body.stepper`; the
+quadruped's is `QuadStepper`, `legs/body.py`), which fires `Body.step_hooks`
+— the same per-step
 callback list the battery drains through. Everything here is another hook on that list, so it
 works regardless of who owns the loop.
 
@@ -29,15 +30,15 @@ robot. Frames are due on SIM time, so a paused sim emits none (which is why
   emitters share, and the two-repo vocabularies (visual hints, face states,
   message and inbound kinds).
 - **`scene.py`** — MJCF→JSON scene transpiler: the static world, shipped
-  once per world. `uv run python -m pluggybot.telemetry.scene
-  [models/home_world.xml]` regenerates the fixture.
+  once per world. `uv run python -m pluggybot.telemetry.scene --world
+  home_quad [--pair]` regenerates the fixture.
 - **`recorder.py`** — `FrameBuilder`: decimation to `FRAME_HZ` = 20 Hz of
   sim time, sparse frames (a body ships only when it has moved more than
   `POS_EPS` = 0.5 mm since it was last *emitted*), a full keyframe every
   `KEYFRAME_S` = 5 sim-seconds marked `"key": true`; the sparse per-key
   blocks (activities, boards, screens, ledger, …) follow the same rule and
   re-ship on every keyframe. `TelemetryRecorder` is the builder plus a JSONL
-  writer thread (`--record out.jsonl.gz` on `hub_lifecycle.py` / `serve.py`).
+  writer thread (`--record out.jsonl.gz` on `two_robots.py` / `serve.py`).
   `GridSampler` is the one grid implementation both sinks share: live at
   `GRID_HZ` = 1 Hz and never deduplicated (the relay hub caches the newest
   grid for late joiners, so silence would look like a broken path); a
@@ -102,23 +103,17 @@ a mis-deployed secret must not be a silent black hole.
 # terminal 1: any sink (the website's ingest socket in production)
 uv run python scripts/ws_sink.py --port 8765
 
-# terminal 2: the mission, live at 1x
+# terminal 2: the mission, live at 1x, in the house the site serves
 MUJOCO_GL=osmesa uv run python scripts/serve.py --endpoint ws://localhost:8765
 
-# …in the generated house + garden, which is what the site serves
-MUJOCO_GL=osmesa uv run python scripts/serve.py --world home \
+# …both robots, as deployed
+MUJOCO_GL=osmesa uv run python scripts/serve.py --pair \
   --endpoint ws://localhost:8765
 
-# …with the robot doing something: fetch the pen, erase a whiteboard, draw
-# on it, stow the pen. `--boards` keeps what it drew across restarts.
-MUJOCO_GL=osmesa uv run python scripts/serve.py --world home --errand draw \
-  --boards var/boards.json --endpoint ws://localhost:8765
-
-# …or both streamed surfaces in one run: draw, charge, then fetch the LCD
-# and take a census of the garden. This is the queue the site's fixture is
-# recorded from.
-MUJOCO_GL=osmesa uv run python scripts/serve.py --world home --errand showcase \
-  --boards var/boards.json --endpoint ws://localhost:8765
+# …with the robot doing something: walk to the lab, find the feed plate by
+# its sign and press it
+MUJOCO_GL=osmesa uv run python scripts/serve.py --errand feed \
+  --endpoint ws://localhost:8765
 
 # …or rehearse the authenticated production path
 uv run python scripts/ws_sink.py --port 8765 --token s3cret
@@ -126,16 +121,13 @@ PLUGGYWORLD_TOKEN=s3cret MUJOCO_GL=osmesa uv run python scripts/serve.py \
   --endpoint ws://localhost:8765/api/pluggyworld/ingest
 ```
 
-`serve.py --body quadruped` (`$PLUGGY_BODY`; issue #387) serves the same
-house with the rover taken out and the quadruped and its dock put in: the
-world is `home_quad` (`home_quad_pair` with `--pair`), the errand defaults
-to `none`, and a tool errand is refused -- its arm takes no tool yet. The
-deployed period flies it with no job offers (`PLUGGY_TASKS` blank, which the
-image otherwise sets) and no upkeep (no `--metabolism`). A `world.npz`
-saved by the rover's world is refused by name, so the first quadruped
-process starts from the XML; the memories, the ledger and the kept event
-maps carry on, and a kept row naming a tool errand is left out and said in
-History.
+`serve.py` serves the quadruped (issue #387), the one body: the house with
+the quadruped and its dock put in at load, `home_quad` (`home_quad_pair`
+with `--pair`); `--world home` names the same world. The errand defaults to
+`none`, and the queues it takes are the lab's acts (`care`, `feed`,
+`shock`) -- no errand fetches a tool. The deployed period flies one job
+offer, the feed (#403, on a board of its own, `tasks_legs.json`), and no
+upkeep (no `$PLUGGY_METABOLISM`); Observatory.md has what is running.
 
 `serve.py --pair` serves BOTH robots from one loop (issue #181; M12) under
 `<world>_pair`: `--errand2` is the second robot's errand (default `none` —
@@ -147,18 +139,16 @@ ledger file with an account each, one operator switch on the primary.
 
 `serve.py --rate 2.0` runs faster than life; `--free-run` disables pacing to
 measure the machine's real-time multiple; `--record` keeps a v0 recording of
-the same run; `--keyframe-s` tunes the keyframe cadence (0 disables, and late
-joiners then wait forever); `--world {room_hub,home}` picks the world, and
-picks it *whole* — model, scene name, rack pose, grid extent, battery, start
-pose, errand destination and explore budget all come from
-`lifecycle.world_config()`, since a half-applied world fails silently (a
-short explore budget just stops filling the map; a stale errand destination
-just drives at a wall). The arm, the pack, the mind and the state files are
-flags too (`--help`; CLAUDE.md). `ws_sink.py` measures received frame *gaps*
-— the wall-clock spacing between frames — which is the consumer-side proof
-the stream is smooth, reports keyframe spacing, which is the proof a late
-joiner converges, and talks back (type a line: it goes down the socket as a
-visitor message).
+the same run; `--keyframe-s` tunes the keyframe cadence (0 disables, and
+late joiners then wait forever). The world is picked *whole* — model, scene
+name, dock and rack poses, grid extent, battery, start pose and explore
+budget all come from `lifecycle.world_config()`, since a half-applied world
+fails silently (a short explore budget just stops filling the map). The arm,
+the pack, the mind and the state files are flags too (`--help`; CLAUDE.md).
+`ws_sink.py` measures received frame *gaps* — the wall-clock spacing between
+frames — which is the consumer-side proof the stream is smooth, reports
+keyframe spacing, which is the proof a late joiner converges, and talks back
+(type a line: it goes down the socket as a visitor message).
 
 ## Deploying it (rooftop-media-2026 #20)
 
@@ -212,8 +202,9 @@ encodes that matters from this side: `/var/lib/pluggybot` is a named volume
 because boards, the ledger, the task board, the journal and the thought
 files are **world** state, and `restart: unless-stopped` starts the next
 process when one ends — which since #345 carries on from where the last one
-stopped (below) rather than from the start pose. It serves `--pack hosting` (8 Wh on home) rather than the demo
-cell, which flattens in minutes; the low-battery reserve is deliberately
+stopped (below) rather than from the start pose. It serves `--pack hosting`
+(the quadruped's real pack, `legs.model.PACK_WH`, 194 Wh) rather than the
+demo cell, which flattens fast; the low-battery reserve is deliberately
 *not* scaled with the pack — it is the absolute energy needed to reach the
 dock, a property of the floor plan. Which arm the served world flies is
 `$PLUGGY_ARM` / `$PLUGGY_ORIGIN`: `autonomous`, both robots, `unseeded`
@@ -235,9 +226,11 @@ rest, and `src/pluggybot/continuation.py` keeps it:
 
 - **What is saved.** For the physics: every joint's position and velocity,
   the solver's warm start and every actuator's control, matched by NAME, plus
-  the mocap mouse and the sim clock. Per robot: its pack, its believed pose,
-  the rack belief with its sightings, the occupancy grid and the height map,
-  and the lidar's and depth camera's noise generators. Also whether it is
+  the mocap mouse and the sim clock. Per robot: its pack, its believed pose
+  (the legs' reckoning, with the contact history its lag reads), its
+  posture and its clocks, the policies' and the arm's last targets, the
+  places it has found, the occupancy grid, the depth camera's layer and the
+  sensors' noise generators. Also whether it is
   dead and since when, its survival and unminded clocks, its explore state,
   the errand it was in, and what it had queued. For the world: its
   activities (the mouse, the plates, the pair's encounters) and the
@@ -290,17 +283,14 @@ rest, and `src/pluggybot/continuation.py` keeps it:
 - **Parity.** `scripts/determinism_spike.py --resume-at T` flies a scripted
   day straight through, then the same day saved at the first idle pass of
   the loop past T and carried on in a new process. After the restore the two
-  are IDENTICAL: 761 state samples on room_hub, and 2404 over 1202 s of the
-  home world's day (four jobs, two drawings, two censuses, the cage and the
-  plates, a 503 s charge). The first check caught two
-  defects. The sensors' noise generators were re-seeded, so the first scan
-  painted a different map and the route parted 3 s later. And
-  `Task.from_json` re-priced an open offer at its kind's generic figure: a
-  room_hub carry went from 0.817 to 0.93 Wh after every restart, too dear
-  for a pack at 88 %.
-- **Cost.** About 50 ms of the physics thread per save on the home pair with
-  both maps built, 1.3 MB on disk (zlib level 1; the default level 6 cost
-  175 ms).
+  are IDENTICAL. The first check caught two defects. The sensors' noise
+  generators were re-seeded, so the first scan painted a different map and
+  the route parted 3 s later. And `Task.from_json` re-priced an open offer
+  at its kind's generic figure, too dear for a pack at 88 % after every
+  restart.
+- **Cost.** About 50 ms of the physics thread per save on the rover's pair
+  with both maps built, 1.3 MB on disk (zlib level 1; the default level 6
+  cost 175 ms).
 
 Not kept: a decision in flight, the mind's in-process context (it reads
 History), a visitor message still in the inbox, and an open `look`.
@@ -383,61 +373,26 @@ off these lines, once the fix for what they find is deployed.
 ## Measured
 
 The constraint the Dockerfile relies on: **osmesa software rendering carries
-the served world above 1× real time on four cores, and four dedicated cores
-is the floor, not a comfortable choice.** Measured on the dev machine
-(2026-08-16, `--world home --errand draw`, `MUJOCO_GL=osmesa --free-run`,
-`taskset -c 0-3`): **1.07× real time** (308.3 s sim / 287.1 s wall),
-6095 frames, **0 dropped**, peak RSS 621 MB, ~1.9 cores busy — a 7 %
-margin, where `room_hub` had shown 30 %. A paced 1× `room_hub` run held drift
-to −0.25 s over 178 s (0.14 %); its worst transient lag (~1 s) and worst
-received frame gap (~0.6 s) both sit at the tool swap, where the timestep
-drops to 1 ms and step cost doubles, and the pacer absorbs them with no
-frames lost. Keyframes are 1 % of frames and 2.6 % of bytes.
-
-⚠ These are dev-machine numbers on a world that has since grown (the
-expanded house, more errands, an overseer): re-measure with `--free-run`
-before trusting the margin, on the box that will serve, with nothing else
-running — a full-suite `pytest` starting on the same box once turned a paced
-1× run into 0.71× and −123 s of drift.
-
-**A pair costs 2.15× one robot** (2026-09-13, dev machine, EGL, all cores,
-`--world home --pack hosting --tasks --metabolism --free-run`, 180 s
-budget): one robot **1.25×** real time (321.8 s sim / 258.4 s wall), the
-pair **0.58×** (274.7 s / 473.9 s), 5 420 frames, 0 dropped. Against the
-deploy box's 1.07× for one robot on four pinned cores, a pair there lands
-near 0.5×: serve it at `PLUGGY_RATE=0.5`, or give the service ~8 cores and
-re-measure with `--pair --free-run` before trusting 1×.
-
-**The served pair ran at 0.23×, and it was the shadows** (rooftop-media-2026
-#296, 2026-09-19; SimNotes has the story). On the deploy box under osmesa a
-tag-camera frame cost 1113 ms with the home world's sixteen shadow-casting
-lights and 32 ms without; the detector renders without shadows now, and
-the same pair measured **0.54×** on the box (53.6 s sim / 100 s wall, four
-cores, the production sim contending) with the container on one core --
-the physics thread. **Then the thread was profiled** (SimNotes,
-"four-fifths bookkeeping"): half of it was Python walking the contact
-list struct by struct every step, and a tenth the map's inflation. With
-those read as arrays the same pair measured **0.96×** over the 60 s carry
-(53.6 s sim / 56 s wall) and **0.80×** over its whole day (259 s / 324 s,
-the swaps at 1 ms timesteps being the dear part), 2026-09-20. A pair is
-one physics thread: more cores do not move it, and the site's
-pace-following clock covers what is left.
+the served world near 1× real time, and one physics thread is the ceiling**
+— a pair is one loop, so more cores do not move it, and the site's
+pace-following clock plays a slow world slow rather than breaking.
+Re-measure with `--free-run` on the box that will serve, with nothing else
+running: a full-suite `pytest` on the same box once turned a paced 1× run
+into 0.71×. Two lessons from the rover's served pair (rooftop-media-2026
+#296; SimNotes has both) bind any body: the tag camera renders WITHOUT
+SHADOWS (a home frame cost 1113 ms with its sixteen shadow-casting lights
+and 32 ms without), and the contact list is read as an array, never walked
+struct by struct (half the physics thread, once).
 
 **A served day, and the core that would carry it** (issue #385, 2026-09-27;
-SimNotes, "The served sim's speed"). `--pair --free-run` on the deploy box,
-the home world, a scripted day with the jobs, hunger and the near field on
-(`--errand draw --errand2 carry --tasks --metabolism --near-field`, 4 084
-sim s), streaming to `ws_sink.py`: staging **0.97–0.98×**, this change
-**1.14×**, the narration identical line for line; no frame dropped either
-way. The same code on a rented **AMD EPYC 4564P** core (Zen 4, up to 5.88
-GHz, a shared host): **1.82×**, 1.64× the box over the span the two days
-share. A quadruped pair adds ~20 ms of wall a sim second on the box, ~11 on
-the EPYC: ~1.1× here, ~1.78× there. #377 had asked for 1.3× over a day;
-**Ben decided (2026-09-27) to stay on this box**, so the served world runs
-near 1.1× and will slip under 1× as #386's scan matching and the stairs
-land, which the site's pace-following clock plays slow rather than breaks
-(SimNotes has the reasoning). The measuring kit is the throwaway container
-the box runs beside the live world: `docker run --rm --cpus 2 --memory 3g
--e MUJOCO_GL=osmesa -e OPENBLAS_NUM_THREADS=1 -e PYTHONPATH=/w/src -v
-<tree>:/w -w /w --entrypoint sh rooftop-prod-sim`, a `ws_sink.py` in the
-background, then `serve.py` as above.
+SimNotes, "The served sim's speed"). `--pair --free-run` on the deploy box
+over a scripted day, streaming to `ws_sink.py`: the rover's pair ran
+**1.14×** after #385; a quadruped pair adds ~20 ms of wall a sim second on
+the box, ~11 on a rented **AMD EPYC 4564P** core: ~1.1× here, ~1.78× there.
+#377 had asked for 1.3× over a day; **Ben decided (2026-09-27) to stay on
+this box**, so the served world runs near 1.1× and will slip under 1× as
+#386's scan matching and the stairs land. The measuring kit is the
+throwaway container the box runs beside the live world: `docker run --rm
+--cpus 2 --memory 3g -e MUJOCO_GL=osmesa -e OPENBLAS_NUM_THREADS=1 -e
+PYTHONPATH=/w/src -v <tree>:/w -w /w --entrypoint sh rooftop-prod-sim`, a
+`ws_sink.py` in the background, then `serve.py` as above.

@@ -18,8 +18,9 @@ Three rules, and the first is the whole design:
   compiled model anyway.
 
   WHAT IS RECORDED IS WHAT THE PEN DID, not what it was asked to do. The
-  polyline comes off `PenPlotter`'s trace, filtered to the samples where the
-  shaft was actually touching the board. The same doctrine as every other
+  polyline comes off the plotter's trace (the rover's, until #406 puts the
+  pen on the arm), filtered to the samples where the pen was actually
+  touching the board. The same doctrine as every other
   criterion in this repo: a commanded path is a belief, ink is a fact. It also
   means the board shows the robot's real 0.6-1.1 mm of form error, which is
   the honest picture and the more charming one.

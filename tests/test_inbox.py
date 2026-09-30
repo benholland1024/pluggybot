@@ -496,7 +496,7 @@ def _lifecycle(**kw):
   """The visitor channel is the lifecycle's bookkeeping: a stub body carries
   it (issue #380)."""
   from test_body import stub_life
-  return stub_life("room_hub", **kw)
+  return stub_life(**kw)
 
 
 @pytest.mark.parametrize("outcome, reply", [

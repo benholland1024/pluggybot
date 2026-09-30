@@ -10,9 +10,6 @@ the rover's reach, stated as numbers, because the board state's cells and fill
 import math
 from dataclasses import dataclass
 
-PEN_MODULE = "module_pen"
-
-
 @dataclass(frozen=True)
 class Board:
   """A drawing surface (issue #6): where it is, which geom is its face (ink

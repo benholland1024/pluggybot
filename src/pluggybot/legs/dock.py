@@ -233,7 +233,7 @@ def world_xml(spec: DockSpec = DEFAULT) -> tuple[str, dict[str, bytes]]:
 
 def dock_charge_contact(model, data, prefix: str = "", name: str = "dock") -> bool:
   """Each belly pad on a pin of its own pole: the dock's ELECTRICAL
-  criterion, as `rack_charge_contact` is the rover's. A pad on the other
+  criterion. A pad on the other
   pole is a reversed robot, and is not charging. `prefix` names whose
   belly."""
   for lbl in ("l", "r"):

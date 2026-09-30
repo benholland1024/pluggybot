@@ -119,7 +119,7 @@ FORK_POLE_GEOMS = {"l": ("fork_vl_a", "fork_vl_b"),
 
 # -- carrier ("the robot", simplified) ---------------------------------------
 PUSH_FORCE = 10.0       # N cap on the approach axis
-LAT_STIFFNESS = 150.0   # N/m lateral compliance (a guess: catalog `rcc_wrist`)
+LAT_STIFFNESS = 150.0   # N/m lateral compliance (a guess: the rover's RCC wrist)
 YAW_STIFFNESS = 1.0     # N*m/rad
 START_X = 0.16          # carrier start: fork tips well clear of the peg
 
@@ -301,8 +301,8 @@ def peg_xml(name: str, z: float = PEG_ABOVE_BODY) -> str:
 
 # ---- reading the contact list (rooftop-media-2026 #296) -----------------------
 #
-# ⚠ MEASURED: the electrical criteria below and the two chassis scans in
-# `rack/swap.py` / `mission/mission.py` ran EVERY physics step, per robot,
+# ⚠ MEASURED: the electrical criteria below and the rover's two chassis
+# scans ran EVERY physics step, per robot,
 # as Python loops over `data.contact[i]` -- a pybind struct per contact,
 # 83 contacts at rest in the home world, 500 steps a sim-second, two
 # robots: ~330 000 struct constructions a sim-second. A py-spy profile of
@@ -359,8 +359,8 @@ def module_power_state(model, data, name: str = "module_lcd",
   bare `fork_v*` geoms, the second's carry its prefix. A module seated on
   the other robot's fork is not powered by this one.
 
-  The rack-side sibling of `rack_charge_contact`, and the same lesson behind
-  both: an electrical criterion beats a positional one. Milestone 6 burned
+  The same lesson as the dock's pins (`legs.dock.dock_charge_contact`): an
+  electrical criterion beats a positional one. Milestone 6 burned
   four position-based seat detectors before the charging voltage settled it;
   here the question "is the tool powered" has exactly one honest answer, and
   it is the same one the hardware will have.
@@ -395,13 +395,10 @@ def module_power_contact(model, data, name: str = "module_lcd",
 # reads its bays by (`legs.rack`, `legs.swap`), and the hang geometry the
 # workshop's rig and seam still use until #407 re-points them at the arm.
 RACK_HANG_X = 0.09        # the hang plane: pegs this far out from the wall
-RACK_RAIL_Z = 0.40        # rail height: carried peg tops out ~55 mm below
 HUB_PEG_Z = 0.30          # module peg height
 HUB_STATION_YS = (0.125, -0.125, 0.375, 0.625, 0.875)  # tool bays at 0.25 m
                           # pitch, APPENDED rather than inserted in y order:
                           # the bay<->tag pairing is by index
-RACK_HALF_W = 0.93        # side posts: five modules at 0.25 m pitch plus the
-                          # charge bay is 1.86 m of rail
 # ---- the BUILT-TOOL rail (issue #277) ---------------------------------------
 # A second rack beside the first, for the tools the robot builds: the five
 # hand-built modules are permanent and a built tool never takes one of
@@ -411,14 +408,10 @@ RACK_HALF_W = 0.93        # side posts: five modules at 0.25 m pitch plus the
 BUILT_STATION_YS = (1.175, 1.425, 1.675)  # three bays at the 0.25 m pitch,
                           # 0.30 m past bay E
 BUILT_RACK_Y = 1.375      # the second rail's centre, rack-frame
-BUILT_RACK_HALF_W = 0.355 # its posts at 1.02 and 1.73
 #: EVERY BAY, BY INDEX: the hand-built five, then the built rail's -- so it
 #: is APPENDED to, never reordered; a bay index in
 #: `HubLifecycle.rack_inventory` indexes this.
 STATION_YS = HUB_STATION_YS + BUILT_STATION_YS
-CHARGE_PIN_Z = 0.09       # the rover's pogo pins at bumper height
-PLATE_HALF_T = 0.002      # every fiducial plate is a 4 mm box; PnP returns
-                          # the printed FACE, one half-thickness proud
 SMALL_PLATE_HALF = plate_half_extent(SMALL_TAG_SIZE)
 
 
@@ -477,31 +470,10 @@ def bay_switches(model, data) -> tuple[bool | None, ...]:
 BUILT_RACK_BODY = "rack_built"
 
 
-# ---- the rover's tools (milestone 8) -----------------------------------------
-# Their geometry and servos went with the rover (#376; `rover-final` has the
-# module faces). What is left is what the parts catalog still names a part
-# by, and the claw's pad contact, which the challenge blocks share.
-PEN_TRAVEL = 0.055       # +/- along the peg axis: 110 mm of drawing width.
-                         # Bounded by the peg's own half-length (0.075) and the
-                         # fork's axial end-stops at 0.079 -- the rail must not
-                         # reach either.
-PEN_CARRIAGE_MASS = 0.030
-PEN_RAIL_MASS = 0.020
-CLAW_JAW_TRAVEL = 0.027   # inward travel to a 8 mm gap
-#: Near-rigid contact for what is gripped and stacked: the blocks carry it,
-#: or the grade is the solver's (CLAUDE.md, "A challenge is a task...").
+#: Near-rigid contact for what is gripped and stacked: the challenge blocks
+#: carry it, or the grade is the solver's (CLAUDE.md, "A challenge is a
+#: task...").
 GRIP_SOLIMP = "0.99 0.999 0.0001"
-CLAW_GRIP_KP = 600.0      # grip force = kp x squeeze past contact. 200 held
-                          # a static lift but lost the block during a TURN:
-                          # the pendant swings, and 1.8 N per pad was not
-                          # enough against that. 600 is an MG996R-class servo
-                          # (11 kg.cm) rather than a micro one -- a real part
-                          # choice, not a tuning knob.
-CLAW_REACH = 0.055        # forward offset of the grip from the module centre
-DISP_STROKE = 0.024       # the seed gate's pocket -> exit travel
-DISP_GATE_KP = 800.0      # a small linear servo, not a solenoid: metering
-                          # wants a POSITION
-LCD_SCREEN_HALF = (0.002, 0.028, 0.038)
 
 
 def rack_frame_to_world(x_local: float, y_local: float,

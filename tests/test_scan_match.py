@@ -1,8 +1,9 @@
 """Scan matching (issue #386), pinned on synthetic scans: rooms and
 corridors drawn as segments, scans cast analytically with the LIDAR's own
-noise, maps fused from known poses. Nothing here flies: the flights that
-measured it are `scripts/drift_spike.py`, and the served body walks the
-whole chain in `test_unknown.py`'s flight."""
+noise, maps fused from known poses, and the body's wiring called at its
+seam. Nothing here flies: the flights that measured it are
+`scripts/drift_spike.py`, and the served body walks the whole chain in
+`test_unknown.py`'s flight."""
 
 import math
 import time
@@ -239,7 +240,7 @@ def test_one_scan_matches_the_same_twice_and_across_a_restart(room):
 
 
 def test_the_prior_lets_go_of_odometry_that_pumps(room, monkeypatch):
-  # A robot standing still whose wheels claim 10 mm a scan (spinning on the
+  # A robot standing still whose odometry claims 10 mm a scan (spinning on the
   # lab's feed plate, measured): the robust prior lets the walls win, and
   # the pose stays. A plain prior lags the pump by its share of the fit --
   # 6 cm here, among four walls; in the lab, where the walls said less, the
@@ -281,73 +282,90 @@ def test_a_robot_standing_still_fuses_a_scan_every_few_seconds(room):
   assert m.fuses(moved._replace(why="sparse", accepted=False), 99.0)
 
 
-# ---- the rover's wiring ----------------------------------------------------------
+# ---- the body's wiring ---------------------------------------------------------
 
 
 class _FixedMatcher(sm.ScanMatcher):
-  """Answers every scan with one verdict, and records what went into the map."""
+  """Answers every scan with one verdict."""
 
   def __init__(self, grid, answer):
     super().__init__(grid)
-    self.answer, self.laid = answer, []
+    self.answer = answer
 
   def match(self, pose, angles, ranges):
     return self.answer
 
 
-def _rover():
+@pytest.fixture(scope="module")
+def quad_world():
+  from pluggybot.legs import world as lw
+  return lw.home_spec().compile()
+
+
+def _quad(model):
+  """The quadruped standing in the living room; nothing stepped."""
   import mujoco
 
-  from pluggybot.mission.mission import HubMission
-  model = mujoco.MjModel.from_xml_path("models/room_hub.xml")
-  m = HubMission(model, mujoco.MjData(model), viewer=None, realtime=False)
-  m.start_at(1.0, 1.0, 0.0)
+  from pluggybot.legs.body import QuadMission
+  from pluggybot.lifecycle import QUAD_HOME, world_config
+  m = QuadMission(model, mujoco.MjData(model), realtime=False,
+                  grid_bounds=world_config(QUAD_HOME)["grid_bounds"])
+  m.start_at(1.5, 0.5, 0.0)
   return m
 
 
-def test_the_rover_lays_each_scan_through_the_pose_its_match_found():
-  # The matched pose is the belief -- the reckoner is moved to it -- and the
-  # pose the scan goes into the map at; a refused fit leaves the belief
-  # where odometry had it, and the map untouched.
-  m = _rover()
+def test_each_scan_is_laid_through_the_pose_its_match_found(quad_world):
+  # The matched pose is the belief -- the reckoning is moved to it -- and
+  # the pose the scan goes into the map at; a refused fit leaves the belief
+  # where odometry had it, and the map untouched. The scan's own seam,
+  # called directly: the rule is the wiring, not a walk.
+  from pluggybot.perception.lidar import LIDAR_PERIOD
+  m = _quad(quad_world)
   laid = []
   real = m.grid.update
   m.grid.update = lambda pose, *a, **kw: (laid.append(tuple(pose)), real(pose, *a, **kw))
-  target = (1.2, 0.9, 0.05)
+  target = (1.7, 0.4, 0.05)
   m.matcher = _FixedMatcher(m.grid, sm.Match(target, True, "ok", 300, 0.02, 100.0,
                                              (1.0, 0.0, 0.0), 0, (0.2, -0.1, 0.05)))
-  m._next_scan = 0.0
-  m._drive(0.15, 0.0, 0.0)
-  assert laid and laid[0] == target
-  assert math.hypot(m.swap.reckoner.x - target[0], m.swap.reckoner.y - target[1]) < 0.01
+  m._scan_step()
+  assert laid == [target]
+  assert math.hypot(m.odo.x - target[0], m.odo.y - target[1]) < 0.01
   laid.clear()
   before = m.pose
   m.matcher.answer = m.matcher.answer._replace(why="slid", accepted=False, pose=before)
   m.matcher.fused_pose = None
-  m._drive(0.15, 0.0, 0.0)
+  m.data.time += LIDAR_PERIOD
+  m._scan_step()
   assert not laid, "a scan whose fit slid was laid into the map"
+  assert m.pose == before
+  m.close()
 
 
-def test_a_restart_keeps_the_matchers_field_and_the_imus_stream():
+def test_a_restart_keeps_the_matchers_field_and_the_imus_stream(quad_world):
   # A new piece of state that decides anything is kept (issue #345): the
   # field the next match reads and where the IMU's noise had got to.
-  m = _rover()
-  m._drive(1.0, 0.0, 0.0)
+  from pluggybot.perception.lidar import LIDAR_PERIOD
+  m = _quad(quad_world)
+  for _ in range(3):
+    m._scan_step()
+    m.data.time += LIDAR_PERIOD
+  for _ in range(100):
+    m.odo.imu.gyro_z(0.2, 0.002)
+  assert m.matcher.field is not None, "the premise: a field to keep"
   state, arrays = m.kept_state()
-  assert state["imu"]["rng"] and state["match"] is not None
-  n = _rover()
+  assert state["odometry"]["imu"]["rng"] and state["match"] is not None
+  n = _quad(quad_world)
   n.restore_kept(state, arrays)
-  assert n.swap.imu.gyro_z(0.1, 0.002) == m.swap.imu.gyro_z(0.1, 0.002)
-  if m.matcher.field is None:
-    assert n.matcher.field is None
-  else:
-    assert np.array_equal(n.matcher.field, m.matcher.field, equal_nan=True)
+  assert n.odo.imu.gyro_z(0.1, 0.002) == m.odo.imu.gyro_z(0.1, 0.002)
+  assert np.array_equal(n.matcher.field, m.matcher.field, equal_nan=True)
   assert n.matcher.fused_pose == m.matcher.fused_pose
+  m.close()
+  n.close()
 
 
 def test_a_pose_past_the_fits_reach_is_found_by_the_search(room):
   # 0.4 m off, the walls are past the field's reach and the fit cannot
-  # pull the pose back: MEASURED, a wheel pump while tilted left the rover
+  # pull the pose back: MEASURED, an odometry pump while tilted left a robot
   # 0.45 m out, and every scan it fused painted a second house. The fit's
   # verdict is "inconsistent", the search finds the pose, and the fit from
   # there is taken.

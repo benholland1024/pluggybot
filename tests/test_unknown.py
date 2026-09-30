@@ -19,7 +19,6 @@ from pluggybot.legs.body import QuadMission
 from pluggybot.lifecycle import QUAD_HOME, procedure_outcome, world_facts
 from pluggybot.mapping import optimistic as op
 from pluggybot.mapping.occupancy_grid import OccupancyGrid
-from pluggybot.mission.mission import HubMission
 from pluggybot.procedure import lang
 from pluggybot.procedure import steps as st
 
@@ -178,11 +177,11 @@ def test_the_lattice_search_is_dijkstra_over_its_own_edges():
 # ---- the navigator ---------------------------------------------------------------
 
 
-def test_the_quadruped_walks_into_the_unknown_and_the_rover_does_not():
-  """A new behaviour for one body is a class attribute, the rover's day as
-  it was (CLAUDE.md, the body bullet)."""
+def test_the_quadruped_walks_into_the_unknown_by_its_own_class_attributes():
+  """A new behaviour for one body is a class attribute (CLAUDE.md, the body
+  bullet), the navigator's own default unchanged."""
   assert QuadMission.OPTIMISTIC and QuadMission.PROGRESS_MAP_GROWTH
-  assert not HubMission.OPTIMISTIC and not HubMission.PROGRESS_MAP_GROWTH
+  assert not nav.Navigator.OPTIMISTIC and not nav.Navigator.PROGRESS_MAP_GROWTH
 
 
 def test_the_cut_route_check_answers_as_the_plan_would_without_the_other_robot():
@@ -288,9 +287,9 @@ def test_the_map_still_growing_is_progress_and_a_map_standing_still_is_not():
   lost = _Walk(grows=nav.MAP_GROWTH_CELLS // 20)      # half of it in a window
   tick.run(STEPPER, lost.drive_to_routine(5.0, 0.0, 40.0))
   assert lost.last_drive["why"] == "stalled" and lost.last_drive["seconds"] < 12.0
-  rover = _Walk(grows=grows, growth=False)
-  tick.run(STEPPER, rover.drive_to_routine(5.0, 0.0, 40.0))
-  assert rover.last_drive["why"] == "stalled", "the rover reads no growth"
+  blind = _Walk(grows=grows, growth=False)
+  tick.run(STEPPER, blind.drive_to_routine(5.0, 0.0, 40.0))
+  assert blind.last_drive["why"] == "stalled", "a body that reads no growth"
 
 
 def test_a_stop_ends_the_walk_as_an_abort_and_its_answer_costs_no_patience():
@@ -338,7 +337,7 @@ def test_a_body_with_no_arm_has_no_carrying_pose_to_take():
   """Every verb that moves takes the carrying pose first (`run_verb`), and
   asking a quadruped for its arm raised: no procedure on legs walked a step
   (#387's deploy). Found on the way to this stage."""
-  life = SimpleNamespace(body=SimpleNamespace(actuator=_no_arm))
+  life = SimpleNamespace(model=None, body=SimpleNamespace(actuator=_no_arm))
   assert st.travel_pose(life, None) == []
 
 
@@ -348,7 +347,8 @@ def _life(stops_at=None):
   records it) -- and an interrupt that answers "stop" once `stops_at`
   sim s have passed, latching `aborting` the way the lifecycle does."""
   walks = []
-  life = SimpleNamespace(data=SimpleNamespace(time=0.0, ctrl=[0.0]), world=QUAD_HOME,
+  life = SimpleNamespace(data=SimpleNamespace(time=0.0, ctrl=[0.0]), model=None,
+                         world=QUAD_HOME,
                          aborting=False, step_now=None, step_until=None,
                          _say=lambda *a, **k: None,
                          drive_why=lambda x, y: "the walk gave up (why)")
@@ -446,7 +446,7 @@ def test_a_decided_walk_to_a_zone_has_the_decided_patience():
     seen.append(timeout)
     return (yield from real(x, y, timeout))
   body.go_to_routine = go
-  life = stub_life("home", body=body)
+  life = stub_life(body=body)
   life.explore_routine = lambda *a, **kw: tick.result(None)
   body.run(life._after_decision_routine(Decision(action="explore", zone="lab")))
   assert seen == [lc.ZONE_PATIENCE_S] and lc.ZONE_PATIENCE_S > 60.0

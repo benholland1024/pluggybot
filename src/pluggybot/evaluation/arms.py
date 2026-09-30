@@ -52,10 +52,8 @@ LADDER_ARMS = ("autonomous",)
 #: change to what the model is shown; an origin changes what the model is
 #: shown AND what it starts with AND -- for `unseeded` -- the prompt, so it
 #: carries an ablation's asymmetry (Evaluation.md section 3): a null is
-#: strong evidence and a difference is weak. Defaulting to `none` is what
-#: keeps A0 and A1 exactly the runs `results/` already holds -- turning a
-#: map on inside the ladder would have changed what every committed A0
-#: number means without anybody choosing it.
+#: strong evidence and a difference is weak. Defaulting to `none` keeps A0
+#: and A1 the ladder they were defined as.
 ORIGIN_ARMS = ("autonomous",)
 
 
