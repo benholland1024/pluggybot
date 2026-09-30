@@ -579,6 +579,7 @@ class QuadMission(ToolSwap, PlaceWalk, Navigator):
 
   def _after_physics(self) -> None:
     held = (self.odo.x, self.odo.y) if self.docked else None
+    self.odo.resting = self.posture == LYING
     self.odo.step()
     if held is not None:
       self.odo.x, self.odo.y = held
@@ -1184,7 +1185,8 @@ class QuadMission(ToolSwap, PlaceWalk, Navigator):
                           "held": o.held, "quat": list(o.att.q),
                           "distance": o.distance,
                           "rng": o.rng.bit_generator.state,
-                          "imu": o.imu.kept_state()},
+                          "imu": o.imu.kept_state(),
+                          "still": o.still.kept_state()},
              "posture": self.posture, "lastMotion": self.last_motion_t,
              "want": self.want, "slumpedSince": self._slumped_since,
              "stoodSince": self._stood_since, "falls": self.falls,
@@ -1224,6 +1226,8 @@ class QuadMission(ToolSwap, PlaceWalk, Navigator):
     o.distance = float(s["distance"])
     o.rng.bit_generator.state = s["rng"]
     o.imu.restore_kept(s["imu"])
+    if "still" in s:
+      o.still.restore_kept(s["still"])
     if "odoHistory" in arrays:
       o.history = [np.array(row, dtype=bool) for row in arrays["odoHistory"]]
     self.posture = state["posture"]

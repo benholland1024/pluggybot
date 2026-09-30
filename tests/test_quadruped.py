@@ -156,6 +156,33 @@ def test_a_save_waits_out_every_move_the_body_makes():
   assert set(qb.QuadMission.MOVING) == set(continuation.MOVING_POSTURES)
 
 
+def test_lying_is_the_odometrys_rest_and_a_restart_keeps_what_it_learned(quad_world):
+  """#425's wiring: the posture machine's `lying` is what tells the
+  odometry the body rests (`LegOdometry.resting`; the rule is
+  `test_a_body_lying_still_keeps_its_heading_on_a_biased_gyro`), a stand is
+  not, and the gyro's offset learned lying rides a restart. The physics is
+  not stepped: the bookkeeping after a step is called directly."""
+  from pluggybot.perception import imu
+  body, again = quad(quad_world), quad(quad_world)
+  try:
+    body.start_at(1.5, 0.5, 0.0)
+    m = body.mission
+    m.odo.imu.gyro_bias = np.array([0.0, 0.0, imu.GYRO_BIAS])
+    m.posture = qb.LYING
+    yaw = m.odo.yaw
+    for _ in range(round(5.0 / body.model.opt.timestep)):
+      m._after_physics()
+    assert abs(math.degrees(m.odo.yaw - yaw)) < 0.01, "unheld, 0.25 deg"
+    m.posture = qb.STANDING
+    m._after_physics()
+    assert not m.odo.resting
+    again.restore_kept(*body.kept_state())
+    assert again.mission.odo.still.bias == m.odo.still.bias != [0.0, 0.0, 0.0]
+  finally:
+    body.close()
+    again.close()
+
+
 def test_a_fall_is_got_up_from_by_the_policy(quad_world):
   body = quad(quad_world)
   try:

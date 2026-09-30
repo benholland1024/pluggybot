@@ -343,6 +343,34 @@ def test_odometry_survives_a_contact_estimate_31_ms_late(monkeypatch):
   assert _trot_odometry(monkeypatch, lag_s=0.031) < 0.04
 
 
+def test_a_body_lying_still_keeps_its_heading_on_a_biased_gyro():
+  # Issue #425: lying, no scan is matched (the map is laid at the standing
+  # plane), and the heading integrated the gyro's offset -- up to 3 deg a
+  # minute -- past the matcher's reach (`scan_match.SEARCH_RAD`, 6 deg) in
+  # two; the robot stood up lost for good. The odometry fed a lying body's
+  # gyro at the worst offset, the physics never stepped (nothing turns it),
+  # at a coarse step: the rule is per second, and so is the noise.
+  from pluggybot.legs import odometry as od
+  from pluggybot.perception import imu
+  model, data = _compiled()
+  model.opt.timestep = 0.05
+  odo = od.LegOdometry(model, data)
+  data.sensordata[odo.acc_adr:odo.acc_adr + 3] = (0.0, 0.0, imu.G)   # level, at rest
+  odo.imu.gyro_bias = np.array([imu.GYRO_BIAS, -imu.GYRO_BIAS, imu.GYRO_BIAS])
+
+  def hold(seconds):
+    for _ in range(round(seconds / model.opt.timestep)):
+      odo.step()
+    return abs(math.degrees(odo.error()[1]))
+
+  odo.resting = True
+  assert hold(180.0) < 0.05, "unheld, 9 deg"
+  # ...and on its feet again (still, but a stand is not a rest) the offset
+  # it learned lying is taken off what it integrates: unlearned, 9 deg more
+  odo.resting = False
+  assert hold(180.0) < 0.5
+
+
 def test_the_height_scan_is_mjlabs_grid_turned_with_the_heading(tmp_path):
   # The perceptive policy was trained on mjlab's grid (x fastest, 17 x 11
   # points over 1.6 x 1.0 m) scaled by 1/5: a scrambled or unscaled scan
