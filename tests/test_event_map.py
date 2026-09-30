@@ -1642,9 +1642,9 @@ def test_the_agent_is_told_the_threshold_it_dies_of(menu):
 def test_the_agent_is_told_a_rule_at_the_limit_arrives_late(menu):
   """The number alone would be a TRAP, which is why it does not ship alone.
   Since #426 an `ask` counts the moment its row fires, errand or no errand,
-  and the list is read once a second: "ask me every 1800 seconds" fires
-  about a second after the limit (measured on the stub: dead at 1800.0 s,
-  the row at 1801.0), and late is dead. Until #426 the reason given was the
+  and the list is read once a second: "ask me every 1800 seconds" fires up
+  to a second after the limit (measured on the stub: dead at 1800.04 s, the
+  row at 1801.0), and late is dead. Until #426 the reason given was the
   errand a row waited out, which stopped being true with the stamp.
 
   ⚠ THE ALTERNATIVE WAS A BUFFERED NUMBER and it was rejected: since #317
@@ -1789,19 +1789,20 @@ def test_an_ask_that_finds_the_slot_full_still_counts(menu, monkeypatch):
 
 def test_an_ask_that_fires_through_a_long_charge_still_counts(menu):
   """Path 3 of #426: a row runs when the robot is next FREE, and a charge
-  holds it until 90 %. At the quadruped's 199.5 W a charge from 30 % of its
-  194 Wh pack is 2100 s, longer than `UNMINDED_AFTER_S` on its own, and the
-  clock does not stop on the dock -- so `every 900 -> ask` died on the pins
-  with its question queued. It counts when it fires; the question waits,
-  and is asked when the charge is done. Shown to fail on the stamp moved
-  back to the run (dead at 1800 s, on the dock)."""
-  from pluggybot.lifecycle import world_config
+  holds it until 90 %. At the quadruped's dock rate a charge from 30 % of
+  its 194 Wh pack is longer than `UNMINDED_AFTER_S` on its own (2101 s at
+  199.5 W), and the clock does not stop on the dock -- so `every 900 ->
+  ask` died on the pins with its question queued. It counts when it fires;
+  the question waits, and is asked when the charge is done. Shown to fail
+  on the stamp moved back to the run (dead at 1800 s, on the dock)."""
+  from pluggybot.lifecycle import CHARGED, world_config
   life = _slow_life(menu, [("every", ev.ASK, 900.0)],
                     full(action="charge"), full(action="idle"),
                     world="home_quad", minded=False, battery_wh=194.0)
   life.battery.charge_w, life.battery.draw_w = life.energy.charge_w, 0.0
-  assert life.energy.charge_w == 199.5
   life.battery.energy_wh = 0.3 * 194.0
+  charge_s = (CHARGED - 0.3) * 194.0 * 3600.0 / life.energy.charge_w
+  assert charge_s > UNMINDED_AFTER_S, "the premise: a charge longer than the clock"
   seen = []
   life.overseer.on_decision.append(seen.append)
   life.stop_when(lambda: len(seen) >= 2)
@@ -1811,7 +1812,7 @@ def test_an_ask_that_fires_through_a_long_charge_still_counts(menu):
   assert not _unminded(life), life.deaths
   assert life.charge_cycles == 1
   assert [s["state"]["askedBy"]["event"] for s in seen] == ["bootstrap", "every"]
-  assert life.data.time > UNMINDED_AFTER_S, "the charge was not the long one"
+  assert life.data.time > charge_s, "asked before the charge was done"
 
 
 def test_a_list_whose_asks_never_fire_still_dies_of_it(menu):

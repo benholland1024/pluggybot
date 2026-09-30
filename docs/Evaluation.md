@@ -493,7 +493,7 @@ while the prompt withholds the number is the M14 failure, not a measurement.
 ⚠ **Not a buffered number**: since #317 the robot sees `lastAskedSAgo`, so a
 stated threshold that is not the real one is a statement it could catch us in.
 What removes the trap is the second half of the rule — the list is read once a
-second, so a rule at exactly the limit fires a moment late.
+second, so a rule at exactly the limit fires up to a second late.
 ⚠ **What counts as an ask is the row FIRING** (issue #426), not the loop
 running it: a restart, a row dropped `busy` or a charge longer than the clock
 between the two cost 4 of the first 19 `unminded` deaths on legs, all maps

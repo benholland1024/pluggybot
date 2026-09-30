@@ -2604,9 +2604,11 @@ that is written down as what happened.\
 #: stated threshold that is not the real one is a statement it could catch us
 #: in. What removes the trap is the SECOND paragraph, and since #426 it names
 #: the poll, not the errand: an `ask` counts when its row fires, busy or not,
-#: and the list is read once a second (`EVENTS_CHECK_S`), so `every 1800 ->
-#: ask` fires about a second after the limit -- measured, dead at 1800.0 s,
-#: firing at 1801.0.
+#: and the list is read once a second (`EVENTS_CHECK_S`, its phase set by the
+#: last pass), so `every 1800 -> ask` fires up to a second after the limit
+#: while the death check (`DEATH_CHECK_S`, first on the seam) lands within a
+#: tenth -- measured, dead at 1800.04 s, the row at 1801.0. Not "every time":
+#: a fire inside that tenth lives, and the next period is another draw.
 #: ⚠ IT IS NOT A WORKED EXAMPLE EITHER: it shows no rule, names no action and
 #: sets no threshold of its own. The measured question is whether the agent
 #: keeps an `ask` row at all, which this neither asks for nor answers.
@@ -2750,8 +2752,8 @@ you cannot solve anything new that way.
 something else -- though the question itself waits until you are free, \
 unless it is one of the two that interrupt you, and never reaches you at all \
 if something the map fired earlier has not run yet. But your list is looked \
-at once a second, so "ask me every 1800 seconds" fires a moment after the \
-limit every time, and late is dead. Leave yourself room.
+at once a second, so "ask me every 1800 seconds" fires up to a second after \
+the limit, and late is dead. Leave yourself room.
 
 Sending an empty list means "leave it as it is", which is what most answers \
 should say. Send a list only when you actually want it to change, and send \

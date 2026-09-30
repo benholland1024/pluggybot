@@ -1277,7 +1277,7 @@ otherwise).
   (`reserveWh`, `heartPrice`, `hungryAt`), and run 1805 wrote itself `every
   3600 -> ask`, believed it had an hourly check-in and died at 2597 s. ⚠ The
   number does not ship alone — the list is read once a second, so a rule at
-  exactly the limit fires about a second late (measured: dead at 1800.0 s,
+  exactly the limit fires up to a second late (measured: dead at 1800.04 s,
   the row at 1801.0), and the rule says so. A BUFFERED number was the
   alternative and was rejected: the robot can see `lastAskedSAgo` since
   #317, so a stated threshold that is not the real one is one it could
