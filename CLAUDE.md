@@ -423,7 +423,8 @@ tolerance spikes are listed in `docs/Rover.md`.
   `tests/test_constitution.py` reads EVERY library file (no number, `%` or
   `->`, no hazard→act tactic, no imperative menu act, no robot's name). Every
   row is in `mind/text.py`; `text.admit` is the ONE gate every document write
-  passes; a refusal is narrated, never swallowed; on EVERY arm, memory is not
+  passes; a refusal is narrated AND written to History, the reason before
+  what it tried (#409), never swallowed; on EVERY arm, memory is not
   a rail. ⚠ **`think` is the FIRST property of the decision schema**
   (constrained decoding follows property order). ⚠ **`recall` is an ACTION**,
   never an order (`Menu.orderable`), rationed by `MAX_RECALL_RUN`;
@@ -1305,4 +1306,7 @@ tolerance spikes are listed in `docs/Rover.md`.
   FAILED VERDICT LEADS WITH THE ERRAND'S OWN FAILURE (#350;
   `evaluate(failed=)`), and a line after a failed drive ends with
   `HubLifecycle.drive_why`, one of `mission.DRIVE_GAVE_UP`'s four causes
-  (`tests/test_failure_words.py`).
+  (`tests/test_failure_words.py`). ⚠ A DECIDED `charge` or `explore` says
+  how it ended in History (#424), and a charge that never docked is NOT a
+  verdict: its `charge` row is on the wire, and a verdict would count it
+  again as a failed task.
