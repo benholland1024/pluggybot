@@ -568,8 +568,8 @@ def test_no_worked_example_hands_the_agent_the_answer(menu):
 def test_every_worked_row_is_one_the_robot_can_write(menu):
   """A demonstration the menu refuses teaches a refusal (#434): the ordering
   lesson's broad row ended `-> carry`, the rover's errand, which no
-  quadruped's menu has -- and the grammar's action enum holds `care` and
-  `charge`, so a copied `ca...` could come out as one of those."""
+  quadruped's menu has -- and under the grammar, whose one action starting
+  `ca` is `care`, a copied `car...` could only come out as the lab's act."""
   for line in (ln.strip() for ln in ov.EVENT_MAP_RULE.splitlines() if "->" in ln):
     when, action = (part.strip() for part in line.split("->"))
     event, _, kind = when.partition("(")
