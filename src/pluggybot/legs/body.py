@@ -68,7 +68,7 @@ from pluggybot.navigator import Navigator, gave_up
 from pluggybot.perception.depth import PERIOD as DEPTH_PERIOD
 from pluggybot.perception.depth import DepthCamera, DepthFrame
 from pluggybot.power import Pack
-from pluggybot.rack.localize import RackPose
+from pluggybot.body import RackPose
 from pluggybot.robot import FIRST, RobotHandle
 from pluggybot.tick import Routine
 
@@ -1358,8 +1358,8 @@ class QuadMission(ToolSwap, PlaceWalk, Navigator):
 
 class QuadBody(Body):
   """The quadruped: `QuadMission` and everything it owns, as a `Body`.
-  Every member hands the call to the mission by name at CALL time, as
-  `RoverBody` does, so a stub on the mission is what the body runs."""
+  Every member hands the call to the mission by name at CALL time, so a
+  stub on the mission is what the body runs."""
 
   STILL = STILL
   level_tilt_rad = QuadMission.LEVEL_TILT

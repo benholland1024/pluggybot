@@ -33,6 +33,7 @@ from pluggybot.tools.drawing import Envelope
 from pluggybot.mission.errand import Errand
 from pluggybot.economy.ledger import Ledger
 from pluggybot.mind.overseer import Menu, scripted
+from pluggybot.economy.cadence import Cadence
 from pluggybot.economy.tasks import KINDS, TaskBoard
 
 TABLE = scoring.default_table()
@@ -41,6 +42,16 @@ BANK = q.default_bank()
 
 def board(**kw) -> TaskBoard:
   return TaskBoard(clock=lambda: "2026-08-23T00:00:00", **kw)
+
+
+def menu() -> Menu:
+  return Menu.for_world(lc.QUAD_HOME, lc.board_book(lc.QUAD_HOME))
+
+
+def asking():
+  """A world that offers the question, over the house's whiteboards (none is
+  offered on legs until #406 puts the pen on the arm)."""
+  return Cadence._build("test", {"initial": 1, "kinds": {"whiteboard_answer": {}}}, None)
 
 
 def question_task(b: TaskBoard, ask="2 + 3", answer="5", target="whiteboard_a"):
@@ -387,13 +398,6 @@ def test_the_commitment_is_frozen_at_claim_time():
   b.claim(task.id, t=1.0, answer="6")
   assert b.claim(task.id, t=2.0, answer="5") is None, "a second bite"
   assert b[task.id].answer == "6"
-  errand = lc.errand_for_task(b[task.id], "home", lc.board_book("home"))
-  assert errand is not None
-  # The errand is handed the GLYPHS and nothing else: no question, no right
-  # answer, no `secret`, nothing it could be wrong about.
-  assert set(errand.detail) == {"board", "figure", "strokes", "ink_m"}
-  assert errand.detail["figure"] == "answer"
-  assert errand.task_id == task.id and errand.task == "answer"
 
 
 def test_a_robot_with_no_mind_leaves_the_question_standing():
@@ -404,12 +408,12 @@ def test_a_robot_with_no_mind_leaves_the_question_standing():
   the bank is the sim marking its own homework, and guessing puts a confident
   wrong number on a wall.
   """
-  menu = Menu.for_world("home", lc.board_book("home"))
+  m = menu()
   b = board()
   question = question_task(b)
   state = {"offeredTasks": [t.as_context(1.0, 5.0) for t in b.offered()],
            "tasksThisMission": [], "decisions": 0}
-  assert scripted(menu, state, "test").action != "take_task", \
+  assert scripted(m, state, "test").action != "take_task", \
     "the scripted policy took on a question it cannot answer"
   # ...and the loop's own claim branch skips it rather than failing it.
   # `claim_budget_wh` rather than `spendable_wh` since issue #115: what an
@@ -423,7 +427,7 @@ def test_a_robot_with_no_mind_leaves_the_question_standing():
   # that is skipped, not the task branch that is broken.
   b.offer("draw_figure", "whiteboard_a", params={"program": "house"}, t=0.0)
   state["offeredTasks"] = [t.as_context(1.0, 5.0) for t in b.offered()]
-  assert scripted(menu, state, "test").action == "take_task"
+  assert scripted(m, state, "test").action == "take_task"
 
 
 def test_the_overseer_is_told_a_job_asks_something_and_must_answer_it():
@@ -433,24 +437,24 @@ def test_the_overseer_is_told_a_job_asks_something_and_must_answer_it():
   b = board()
   task = question_task(b)
   assert task.as_context(1.0, 5.0)["needsAnswer"] is True
-  menu = Menu.for_world("home", lc.board_book("home"))
-  assert "answer" in menu.schema()["required"]
+  m = menu()
+  assert "answer" in m.schema()["required"]
   raw = {"action": "take_task", "task": task.id, "reason": "I know this one"}
   with pytest.raises(ValueError, match="asks a question"):
-    menu.validate(raw, offered=(task.id,), answering=(task.id,))
-  good = menu.validate({**raw, "answer": " 5 "}, offered=(task.id,),
-                       answering=(task.id,))
+    m.validate(raw, offered=(task.id,), answering=(task.id,))
+  good = m.validate({**raw, "answer": " 5 "}, offered=(task.id,),
+                    answering=(task.id,))
   assert good.action == "take_task" and good.answer == "5"
   assert good.as_dict()["answer"] == "5"
   # ...and an answer that is not a whole number is REFUSED in words the
   # robot can act on, never repaired into one (issue #296): "8.0" was "80".
   with pytest.raises(ValueError, match="'8.0' is not one: a whole number"):
-    menu.validate({**raw, "answer": "8.0"}, offered=(task.id,),
-                  answering=(task.id,))
+    m.validate({**raw, "answer": "8.0"}, offered=(task.id,),
+               answering=(task.id,))
   # ...and an answer attached to anything else is dropped: it is the one
   # string a model draws on a wall, and it may only ride on the job that
   # asked for it.
-  idle = menu.validate({"action": "idle", "reason": "", "answer": "7"})
+  idle = m.validate({"action": "idle", "reason": "", "answer": "7"})
   assert idle.answer == ""
 
 
@@ -506,22 +510,23 @@ def test_the_question_rotates_across_restarts():
   which counter decides -- keep this test pointed at the seq, not at the
   producer, and it goes on being true wherever the picking lives.
   """
-  book = lc.board_book("home")
+  book = lc.board_book(lc.QUAD_HOME)
   asked = []
   for seq in range(3):
     b = board()
     b.seq = seq * 10                      # ...as a board with a past would be
-    lc.task_producer(b, "home", book).seed(0.0)
+    lc.task_producer(b, lc.QUAD_HOME, book, cadence=asking()).seed(0.0)
     asked += [t.params["question"] for t in b.tasks.values()
               if t.kind == "whiteboard_answer"]
   assert len(set(asked)) == 3, f"the world asked {asked} three mornings running"
 
 
-def test_the_home_world_asks_a_question():
-  """End of the wiring: the world puts one up on its own."""
-  book = lc.board_book("home")
+def test_a_world_that_offers_the_question_puts_one_up_on_its_own():
+  """End of the wiring: the producer asks the bank's question on one of
+  the world's boards, its answer the secret."""
+  book = lc.board_book(lc.QUAD_HOME)
   b = board()
-  lc.task_producer(b, "home", book).seed(0.0)
+  lc.task_producer(b, lc.QUAD_HOME, book, cadence=asking()).seed(0.0)
   asked = [t for t in b.tasks.values() if t.kind == "whiteboard_answer"]
   assert len(asked) == 1
   task = asked[0]
@@ -531,151 +536,7 @@ def test_the_home_world_asks_a_question():
   assert task.params["question"] in task.description
 
 
-# ---- the whole way round ------------------------------------------------------
-
-
-class Arithmetician:
-  """An overseer client that reads the offers and answers the question.
-
-  A stand-in for the real Haiku call, and deliberately a stand-in for a MIND
-  rather than a shortcut: it sees exactly what the model sees -- the volatile
-  user turn, with `offeredTasks` in it -- and answers from the question text,
-  looking the sum up in the bank the way a model would know it. It has no
-  access to `Task.secret`, which is the only way it could cheat.
-
-  ⚠ Not a fixture with a hardcoded id: the ids change with what the seed put
-  up and with which offers have lapsed, so a test that named one would be
-  testing its own bookkeeping.
-  """
-
-  def __init__(self) -> None:
-    self.messages = self
-    self.answered: list[tuple[str, str]] = []
-    self.asks = {question.ask: question.answer for question in BANK.questions}
-
-  def create(self, **kwargs):
-    state = json.loads(kwargs["messages"][0]["content"]
-                       .split("\n\n", 1)[1].rsplit("\n\n", 1)[0])
-    for offer in state.get("offeredTasks", ()):
-      if offer.get("needsAnswer") and offer.get("claimable"):
-        ask = offer["description"].split(": ", 1)[-1]
-        answer = self.asks.get(ask, "")
-        self.answered.append((offer["id"], answer))
-        return _FakeResponse({"action": "take_task", "task": offer["id"],
-                              "answer": answer, "reason": f"{ask} is {answer}",
-                              "board": "", "program": "", "zone": "",
-                              "note": "", "respond_to": "", "outcome": "",
-                              "reply": ""})
-    return _FakeResponse({"action": "explore", "reason": "nothing to answer",
-                          "board": "", "program": "", "zone": "", "note": "",
-                          "respond_to": "", "outcome": "", "reply": "",
-                          "task": "", "answer": ""})
-
-
-class _FakeResponse:
-  def __init__(self, payload):
-    self.content = [SimpleNamespace(type="text", text=json.dumps(payload))]
-    self.usage = SimpleNamespace(input_tokens=1200, output_tokens=60,
-                                 cache_read_input_tokens=0,
-                                 cache_creation_input_tokens=0)
-
-
-@pytest.mark.slow
-def test_a_question_is_asked_answered_and_graded_twice_unattended():
-  """THE acceptance test for issue #22: the whole way round, twice, on the
-  world the site serves.
-
-  A real home mission -- explore, battery arbitration, fetch the pen, drive to
-  the board, erase, write, stow, score, bank, close the offer -- with a mind
-  that answers arithmetic and no human anywhere in it. Then again, because
-  the second time is a different test: the pen starts from where the first
-  cycle left it (issue #10, and the reason `--cycles 2` exists), the board
-  already has yesterday's answer on it, and the evaluator has to score the
-  ink THIS errand laid down rather than what was already there.
-
-  ⚠ The two offers are put up DIRECTLY rather than through `seed_tasks`, and
-  they are the only work on the board. The seed's mixture is about giving a
-  recording an expiry and a drawing to show; paying two more errands' worth
-  of mission time to re-confirm those here would buy nothing, and a question
-  that lost a race with a house would make this test flaky rather than
-  informative.
-
-  ⚠ The board is given home's ENERGY table, because that is what production
-  does (issue #15). A bare board falls back to `TaskKind.estimate_wh`, which
-  is deliberately the dearest world's dearest target -- more than this cell
-  holds -- so every offer would stand unclaimable and the robot would explore
-  until its budget ran out. The measured figure for a `whiteboard_a` drawing
-  is 0.929 Wh, which a freshly charged 1.1 Wh cell can just take.
-
-  ⚠ AND IT RUNS ON THE HOUSE'S OWN 1.1 Wh CELL, so a CHARGE CYCLE lands
-  between the two questions -- an answer errand costs ~0.74 Wh here, so two
-  of them cannot fit in one pack and the arbitration loop has to go to the
-  rack in the middle. That is not incidental: this test is the first thing in
-  the repo to fetch the SAME tool twice across a charge, and the first time
-  it ran it found a defect nothing else could (`tests/test_rack_belief.py`) --
-  the charge trip drives behind the rack, the free-space sum it takes the
-  rack's FACING from stops being conditioned, and the bay standoff computed
-  from a 20 deg-rotated rack sat a metre from the bay. Give this test a
-  bigger battery and that whole path stops being exercised.
-  """
-  import mujoco
-  from pluggybot.economy import energy
-  from pluggybot.mission.mission import MissionAborted
-  from pluggybot.mind.overseer import Overseer
-
-  cfg = lc.world_config("home")
-  model = mujoco.MjModel.from_xml_path(cfg["model"])
-  data = mujoco.MjData(model)
-  book = lc.board_book("home")
-  tasks = board(energy=energy.load("home"))
-  mind = Arithmetician()
-  boss = Overseer(Menu.for_world("home", book), client=mind)
-  ledger = Ledger(table=TABLE, clock=lambda: "2026-08-23T00:00:00")
-  life = lc.HubLifecycle(
-    model, data, realtime=False, world="home", battery_wh=cfg["battery_wh"],
-    rack=cfg["rack"], grid_bounds=cfg["grid_bounds"],
-    low_battery_wh=cfg["low_battery_wh"], boards=book, ledger=ledger,
-    tasks=tasks, overseer=boss, errand=False)
-  # Two DIFFERENT questions, on the same board, both standing until taken.
-  board_name = next(iter(book.names))
-  asked = [tasks.offer("whiteboard_answer", board_name,
-                       params={"question": BANK.pick(i).ask},
-                       secret={"answer": BANK.pick(i).answer}, t=0.0)
-           for i in (0, 1)]
-  assert all(asked) and asked[0].secret != asked[1].secret
-
-  # Stop the moment the second verdict lands. Without it the mission runs its
-  # whole budget deciding what to do with an afternoon it has no work left in,
-  # which is honest robot behaviour and 300 s of nothing in the suite.
-  def stop_when_both_are_graded():
-    if all(tasks[t.id].state in ("done", "failed") for t in asked):
-      raise MissionAborted
-
-  life.body.step_hooks.append(stop_when_both_are_graded)
-  life.run(cfg["start"], max_sim_time=900.0, explore_budget=10.0)
-
-  done = [tasks[t.id] for t in asked if tasks[t.id].state != "offered"]
-  assert len(done) == 2, (
-    f"{len(done)} of 2 questions were attempted -- "
-    f"{[tasks[t.id].state for t in asked]}")
-  for task in done:
-    assert task.state == "done", f"{task.description}: {task.verdict}"
-    assert task.answer == task.secret["answer"], "the mind got it wrong"
-    assert task.points > 0
-    verdict = task.verdict
-    assert verdict["ok"] and verdict["metrics"]["correct"]
-    assert verdict["metrics"]["matchMm"] <= q.ANSWER_MATCH_MM
-    # ...and what closed the task is what PAID for the errand: one evaluation,
-    # two consumers.
-    assert any(e["reason"] == verdict["reason"] and e["task"] == "answer"
-               for e in ledger.entries())
-    # The right answer is never on the wire, even when it is also the ink.
-    assert "expected" not in json.dumps(task.snapshot(TABLE))
-  # The second answer was scored on the second answer's ink. Without the
-  # erase, or with `_errand_lines` reading the whole board, the second
-  # verdict would be measured against both answers at once.
-  assert {t.answer for t in done} == {t.secret["answer"] for t in asked}
-  assert len(mind.answered) >= 2
+# ---- a shared board ---------------------------------------------------------
 
 
 def test_a_verdict_reads_only_its_own_robots_ink_off_a_shared_board():
@@ -732,10 +593,11 @@ def test_answer_is_not_a_figure_anyone_may_ask_for():
   write a lone "0" on a wall for no reason, and the string it writes is only
   safe because a question task put it through `clean_answer` first.
   """
-  menu = Menu.for_world("home", lc.board_book("home"))
+  # a body that takes a tool (`Menu.tools`, #406), so `draw` is on the menu
+  m = dataclasses.replace(menu(), tools=True)
   assert "answer" in strokes.PROGRAMS
-  assert "answer" not in menu.programs and "text" not in menu.programs
-  assert set(menu.programs) == set(strokes.LIBRARY) | {"square", "circle"}
+  assert "answer" not in m.programs and "text" not in m.programs
+  assert set(m.programs) == set(strokes.LIBRARY) | {"square", "circle"}
   with pytest.raises(ValueError, match="unknown program"):
-    menu.validate({"action": "draw", "program": "answer", "board": "",
+    m.validate({"action": "draw", "program": "answer", "board": "",
                    "zone": "", "reason": "", "note": ""})

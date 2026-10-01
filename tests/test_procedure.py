@@ -6,23 +6,22 @@ verdict per step -- and the fence that keeps the vocabulary the only surface.
 import ast
 import json
 import pathlib
+from dataclasses import replace
 from types import SimpleNamespace
 
-import mujoco
 import pytest
 
 from pluggybot import tick
 from pluggybot.economy import scoring
 from pluggybot.economy.tasks import Task
-from pluggybot.lifecycle import (
-  HubLifecycle, errand_for_task, world_config, world_facts,
-)
+from pluggybot.lifecycle import errand_for_task, world_facts
 from pluggybot.mission.errand import programmed_errand
 from pluggybot.procedure import steps as st
 from pluggybot.procedure.steps import Program, Refused, Step
+from test_body import stub_life  # noqa: I001 -- tests/ is on sys.path
 
 SRC = pathlib.Path(__file__).resolve().parents[1] / "src" / "pluggybot"
-HOME = world_facts("home")
+HOME = world_facts("home_quad")
 TABLE = scoring.challenge_table()
 
 
@@ -31,7 +30,7 @@ def two_tools(name="two-tools"):
   return Program.single(name, [
     Step("fetch", {"tool": "module_pen"}),
     Step("drive_to", {"x": 1.5, "y": 1.8}),
-    Step("draw", {"figure": "sun", "board": "whiteboard_a"}),
+    Step("move", {"axis": "shoulder", "target": 1.0}),
     Step("stow"),
     Step("fetch", {"tool": "module_lcd"}),
     Step("drive_to", {"x": 3.0, "y": 0.5}),
@@ -53,18 +52,15 @@ def test_a_program_round_trips_through_dict_and_json():
 def test_the_single_role_shorthand_is_stored_in_the_full_shape():
   """`roles` is the slot M12 fills; a person may type `steps` and gets the
   default role, and the stored shape is always the full one."""
-  p = Program.from_dict({"name": "s", "steps": [{"verb": "look"}]})
-  assert p.roles == {"robot": (Step("look"),)}
+  p = Program.from_dict({"name": "s", "steps": [{"verb": "stow"}]})
+  assert p.roles == {"robot": (Step("stow"),)}
   assert set(p.as_dict()) == {"name", "budgetS", "roles"}
 
 
 def test_the_vocabulary_is_the_issues_verbs():
-  assert set(st.VERBS) == {"fetch", "stow", "drive_to", "face", "set_lift",
-                           "grip", "release", "draw", "look", "wait",
+  assert set(st.VERBS) == {"fetch", "stow", "drive_to", "face", "wait",
                            # the motor level, issue #166
                            "move", "drive",
-                           # the claw's pair, issue #264
-                           "pick", "place",
                            # places, issue #419
                            "find", "press"}
   assert all(d["doc"] for d in st.describe_vocabulary())
@@ -78,7 +74,7 @@ def _refusals(spec, facts=HOME):
 
 
 @pytest.mark.parametrize("spec, needle", [
-  ({"name": "", "steps": [{"verb": "look"}]}, "needs a name"),
+  ({"name": "", "steps": [{"verb": "stow"}]}, "needs a name"),
   ({"name": "x", "roles": {}}, "at least one role"),
   ({"name": "x", "roles": {"robot": []}}, "has no steps"),
   ({"name": "x", "steps": [{"verb": "fly"}]}, "unknown verb 'fly'"),
@@ -93,8 +89,9 @@ def _refusals(spec, facts=HOME):
    "must be a finite number"),
   ({"name": "x", "steps": [{"verb": "wait", "args": {"seconds": 999}}]},
    "is above 60"),
-  ({"name": "x", "steps": [{"verb": "set_lift", "args": {"height": -0.1}}]},
-   "is below 0.02"),
+  ({"name": "x", "steps": [{"verb": "drive", "args": {"v": -1.0, "w": 0.0,
+                                                        "seconds": 1.0}}]},
+   "v=-1.0 is below -0.25"),
   ({"name": "x", "steps": [{"verb": "face", "args": {"heading": 7.0}}]},
    "is above 3.14"),
   ({"name": "x", "steps": [{"verb": "drive_to", "args": {"x": 99.0, "y": 0.0}}]},
@@ -103,27 +100,28 @@ def _refusals(spec, facts=HOME):
    "tool='module_x' is not one of"),
   ({"name": "x", "steps": [{"verb": "fetch", "args": {"tool": 3}}]},
    "must be a name"),
-  ({"name": "x", "steps": [{"verb": "draw", "args": {"figure": "sun",
-                                                       "board": "whiteboard_z"}}]},
-   "board='whiteboard_z' is not one of"),
-  ({"name": "x", "steps": [{"verb": "draw", "args": {"figure": "answer",
-                                                       "board": "whiteboard_a"}}]},
-   "figure='answer' is not one of"),
-  ({"name": "x", "steps": [{"verb": "look"}] * (st.MAX_STEPS + 1)},
+  ({"name": "x", "steps": [{"verb": "move", "args": {"axis": "lift", "target": 0.1}}]},
+   "axis='lift' is not one of shoulder, elbow"),
+  ({"name": "x", "steps": [{"verb": "move", "args": {"axis": "shoulder",
+                                                       "target": 9.0}}]},
+   "shoulder target 9.0 is outside"),
+  ({"name": "x", "steps": [{"verb": "find", "args": {"tag": 12, "x": 0.0, "y": 0.0}}]},
+   "tag 12 is no place this world has"),
+  ({"name": "x", "steps": [{"verb": "stow"}] * (st.MAX_STEPS + 1)},
    f"the cap is {st.MAX_STEPS}"),
-  ({"name": "x", "budgetS": st.MAX_BUDGET_S + 1, "steps": [{"verb": "look"}]},
+  ({"name": "x", "budgetS": st.MAX_BUDGET_S + 1, "steps": [{"verb": "stow"}]},
    "budgetS"),
-  ({"name": "x", "budgetS": 0, "steps": [{"verb": "look"}]}, "budgetS"),
+  ({"name": "x", "budgetS": 0, "steps": [{"verb": "stow"}]}, "budgetS"),
 ])
 def test_each_rule_refuses_with_a_readable_reason(spec, needle):
   reasons = _refusals(spec)
   assert any(needle in r for r in reasons), reasons
 
 
-def test_a_world_without_boards_refuses_a_draw():
+def test_a_world_with_an_empty_rack_refuses_a_fetch_and_says_so():
+  """The WORLD decides a name argument's choices, and none is said as none."""
   reasons = _refusals({"name": "x", "steps": [
-    {"verb": "draw", "args": {"figure": "sun", "board": "whiteboard_a"}}]},
-    world_facts("room_hub"))
+    {"verb": "fetch", "args": {"tool": "module_pen"}}]}, replace(HOME, tools=()))
   assert any("nothing this world has" in r for r in reasons), reasons
 
 
@@ -138,9 +136,13 @@ def test_a_valid_program_has_no_reasons():
   assert st.compile_program(two_tools(), HOME) == two_tools()
 
 
+def _no_actuator(name):
+  raise KeyError(name)
+
+
 def _stub_life(clock=None):
   """A life whose every primitive records itself and steps nothing: what is
-  under test is the runner, not a mission."""
+  under test is the runner, not a mission. It has no arm to pose."""
   calls: list = []
 
   def routine(name, value=True):
@@ -150,17 +152,17 @@ def _stub_life(clock=None):
     return make
   body = SimpleNamespace(
     module_state=lambda tool: {"on_fork": False, "hung": True},
-    actuator=lambda name: 0, ramp_routine=routine("set_lift"),
+    actuator=_no_actuator, ramp_routine=routine("ramp"),
     setpoint=lambda act: 0.0,
     fetch_tool_routine=routine("swap", "arrived"),
     stow_tool_routine=routine("swap", "arrived"),
     go_to_routine=routine("drive_to", True), in_sight=lambda x, y: True,
     face_routine=routine("face", True), hold_routine=routine("wait"),
-    pose=(0.0, 0.0, 0.0), detect_tags=lambda: {})
+    velocity_routine=routine("drive"), pose=(0.0, 0.0, 0.0))
   life = SimpleNamespace(body=body, data=SimpleNamespace(time=0.0, ctrl=[0.0]),
                          module="", swaps_done=0, interrupted=lambda: False,
                          _say=lambda *a, **k: None, calls=calls,
-                         model=None, world="home", boards=None,
+                         model=None, world="home_quad", boards=None,
                          drive_why=lambda x, y: "the drive gave up (why)")
   return life
 
@@ -179,8 +181,8 @@ def test_a_refused_program_never_runs_a_step():
 def test_two_roles_validate_but_one_robot_refuses_to_run_them():
   """The slot exists for M12 and is not implemented here -- refused with
   the reason, never silently run as one."""
-  p = Program(name="hide", roles={"hider": (Step("look"),),
-                                  "seeker": (Step("look"),)})
+  p = Program(name="hide", roles={"hider": (Step("stow"),),
+                                  "seeker": (Step("stow"),)})
   assert st.validate(p, HOME) == []
   with pytest.raises(Refused, match="2 roles: this robot must be told"):
     tick.run(SimpleNamespace(step=lambda *a: None),
@@ -200,12 +202,12 @@ def test_every_step_gets_a_verdict_and_the_order_is_the_programs():
   p = Program.single("p", [Step("wait", {"seconds": 1.0}),
                            Step("face", {"heading": 1.0}),
                            Step("drive_to", {"x": 1.0, "y": 1.0}),
-                           Step("look")])
+                           Step("drive", {"v": 0.1, "w": 0.0, "seconds": 1.0})])
   r = _run(life, p)
   assert r["ok"] and r["completed"] == 4 and r["total"] == 4
-  assert [s["verb"] for s in r["steps"]] == ["wait", "face", "drive_to", "look"]
+  assert [s["verb"] for s in r["steps"]] == ["wait", "face", "drive_to", "drive"]
   assert all(s["ok"] for s in r["steps"])
-  assert [c[0] for c in life.calls] == ["wait", "face", "drive_to"]
+  assert [c[0] for c in life.calls] == ["wait", "face", "drive_to", "drive"]
 
 
 def test_a_failed_step_stops_the_program_with_an_honest_partial_result():
@@ -239,58 +241,47 @@ def test_the_budget_stops_a_program_at_a_step_boundary():
 def test_an_interrupt_stops_a_program_between_steps():
   life = _stub_life()
   life.interrupted = lambda: True
-  p = Program.single("p", [Step("look"), Step("look")])
+  p = Program.single("p", [Step("wait", {"seconds": 1.0})] * 2)
   r = _run(life, p)
   assert r["stopped"] == "interrupted" and r["completed"] == 1
 
 
-def test_a_tool_verb_without_its_tool_fails_rather_than_pretending():
+def test_a_stow_with_nothing_on_the_fork_fails_rather_than_pretending():
   life = _stub_life()
-  r = _run(life, Program.single("p", [Step("grip")]))
-  assert not r["ok"] and r["steps"][0]["reason"] == "the claw is not on the fork"
   r = _run(life, Program.single("p", [Step("stow")]))
-  assert r["steps"][0]["reason"] == "nothing on the fork to stow"
+  assert not r["ok"] and r["steps"][0]["reason"] == "nothing on the fork to stow"
 
 
-# ---- two tools, two places, one verdict (stubbed drives, no mission) ----------
+# ---- two tools, two places, one verdict (on the stub) --------------------------
 
 
-def _life(world="room_hub"):
-  cfg = world_config(world)
-  model = mujoco.MjModel.from_xml_path(cfg["model"])
-  return HubLifecycle(model, mujoco.MjData(model), realtime=False, world=world,
-                      errand=False, battery_wh=cfg["battery_wh"],
-                      rack=cfg["rack"], grid_bounds=cfg["grid_bounds"],
-                      low_battery_wh=cfg["low_battery_wh"])
-
-
-def _stub_swaps(life, monkeypatch, fetch_ok=True, hung=True):
-  """The swap stack as stubs: `swap_at_bay_routine` steps nothing, the
-  coupling reports whatever the test says -- a module on the fork is seated
-  and powered (`Body.tool_powered`, the criterion the fetch verb reads)."""
+def _stub_swaps(life, monkeypatch=None, fetch_ok=True, hung=True):
+  """A stub body's swaps as the test says: a fetch seats the module or
+  misses it, and a module off the fork reads hung or not. Returns what is
+  on the fork, module -> True -- what `module_state` and `tool_powered`
+  (the criterion the fetch verb reads) answer from."""
   on_fork: dict = {}
+  body = life.body
 
-  def swap_at_bay(station, verb, module=None, tries=2):
+  def fetch(station_y, module):
     on_fork.clear()
-    if verb == "pick" and fetch_ok:
+    if fetch_ok:
       on_fork[module] = True
     return tick.result("arrived")
-  life.body.mission.swap_at_bay_routine = swap_at_bay
-  life.body.mission.swap.module_state = lambda tool: {
-    "on_fork": on_fork.get(tool, False),
-    "hung": hung and not on_fork.get(tool, False)}
-  life.body.tool_powered = lambda tool: on_fork.get(tool, False)
-  life.body.mission.drive_to_routine = lambda *a, **kw: tick.result(True)
-  life.body.mission._drive_routine = lambda *a, **kw: tick.result(None)
+
+  def stow(station_y, module):
+    on_fork.pop(module, None)
+    return tick.result("arrived")
+  body.fetch_tool_routine, body.stow_tool_routine = fetch, stow
+  body.module_state = lambda tool: {"on_fork": on_fork.get(tool, False),
+                                    "hung": hung and not on_fork.get(tool, False),
+                                    "bay": st.TOOL_BAYS.get(tool, 0)}
+  body.tool_powered = lambda tool: on_fork.get(tool, False)
   return on_fork
 
 
-def test_a_task_spanning_two_tools_and_two_places_resolves_to_one_verdict(monkeypatch):
-  life = _life()
-  _stub_swaps(life, monkeypatch)
-  # room_hub has no boards, so the two-tool program here carries the LCD
-  # somewhere and the claw somewhere else; the draw variant flies under
-  # --endurance.
+def test_a_task_spanning_two_tools_and_two_places_resolves_to_one_verdict():
+  life = stub_life()
   p = Program.single("errand", [
     Step("fetch", {"tool": "module_lcd"}), Step("drive_to", {"x": 1.0, "y": 1.0}),
     Step("wait", {"seconds": 1.0}), Step("stow"),
@@ -311,13 +302,13 @@ def test_a_task_spanning_two_tools_and_two_places_resolves_to_one_verdict(monkey
     ["validated", "ran"]
 
 
-def test_a_program_cut_short_is_stowed_and_scored_as_it_stands(monkeypatch):
+def test_a_program_cut_short_is_stowed_and_scored_as_it_stands():
   """Abort means stow: the drive fails at step 2 with the LCD on the fork,
   the loop hangs it back before the verdict, and the verdict is a failure
   that says how far it got."""
-  life = _life()
-  on_fork = _stub_swaps(life, monkeypatch)
-  life.body.mission.drive_to_routine = lambda *a, **kw: tick.result(False)
+  life = stub_life()
+  on_fork = _stub_swaps(life)
+  life.body.go_to_routine = lambda *a, **kw: tick.result(False)
   p = Program.single("short", [Step("fetch", {"tool": "module_lcd"}),
                                Step("drive_to", {"x": 1.0, "y": 1.0}),
                                Step("stow")])
@@ -334,9 +325,8 @@ def test_a_program_cut_short_is_stowed_and_scored_as_it_stands(monkeypatch):
   assert events[-1]["outcome"] == "aborted" and events[-1]["failedAt"] == 1
 
 
-def test_a_refused_program_is_an_errand_that_did_nothing(monkeypatch):
-  life = _life()
-  _stub_swaps(life, monkeypatch)
+def test_a_refused_program_is_an_errand_that_did_nothing():
+  life = stub_life()
   events: list = []
   life.on_event.append(events.append)
   bad = Program.single("bad", [Step("fetch", {"tool": "module_lcd"}), Step("fly")])
@@ -379,7 +369,7 @@ def test_a_program_rides_a_task_into_its_state_and_back(tmp_path):
   p = two_tools()
   task = Task.create("draw_figure", "whiteboard_a", "t_1",
                      params={"procedure": p.as_dict(), "program": "sun"},
-                     description="draw a sun the composed way")
+                     description="a job carrying the procedure that does it")
   state = json.loads(json.dumps(task.as_state()))
   assert Program.from_dict(state["params"]["procedure"]) == p
   back = Task.from_json(state)
@@ -387,23 +377,25 @@ def test_a_program_rides_a_task_into_its_state_and_back(tmp_path):
   # ...and on the wire, the tasks block carries it whole
   assert Program.from_dict(task.as_dict()["params"]["procedure"]) == p
   # ...and the task builds the composed errand, graded by its own kind
-  errand = errand_for_task(back, "home", book=None)
+  errand = errand_for_task(back, "home_quad", book=None)
   assert errand is not None and errand.program == p and errand.task == "draw"
-  assert errand.detail["board"] == "whiteboard_a" and errand.task_id == "t_1"
+  assert errand.task_id == "t_1"
 
 
 def test_a_task_carrying_an_invalid_program_builds_nothing():
   task = Task.create("draw_figure", "whiteboard_a", "t_2",
                      params={"procedure": {"name": "x", "steps": [{"verb": "fly"}]}})
-  assert errand_for_task(task, "home", book=None) is None
+  assert errand_for_task(task, "home_quad", book=None) is None
 
 
 def test_the_procedure_event_replays_from_a_recording(tmp_path):
+  import mujoco
+  from pluggybot.legs.world import home_spec
   from pluggybot.telemetry.recorder import TelemetryRecorder
-  model = mujoco.MjModel.from_xml_path("models/hub_world.xml")
+  model = home_spec().compile()
   data = mujoco.MjData(model)
   path = str(tmp_path / "rec.jsonl")
-  rec = TelemetryRecorder(model, data, path, model_name="hub_world")
+  rec = TelemetryRecorder(model, data, path, model_name="home_quad")
   p = two_tools()
   rec.emit({"type": "procedure", "t": 1.0, "robot": "pluggybot", "name": p.name,
             "outcome": "validated", "program": p.as_dict()})
@@ -418,7 +410,7 @@ def test_the_example_programs_validate_against_home():
   an example that no longer validates is a demo that refuses to start."""
   from pluggybot.lifecycle import load_program
   for path in sorted((SRC.parents[1] / "scripts" / "programs").iterdir()):
-    assert load_program(str(path), "home").name, path.name
+    assert load_program(str(path), "home_quad").name, path.name
 
 
 # ---- the fence: the vocabulary is the only surface -----------------------------
@@ -427,20 +419,18 @@ def test_the_example_programs_validate_against_home():
 #: The modules that may write the control register. Adding one is a design
 #: decision made here, in the test, on purpose.
 CTRL_WRITERS = {
-  "rack/swap.py", "rack/coupling.py", "mission/mission.py",
-  "tools/drawing.py", "tools/gripper.py", "tools/dispenser.py",
-  # issue #168 slice B: the workshop's RIG is `coupling.run_pick`'s shape --
-  # a spike harness driving the spike's carrier and a built tool's servos
-  # to answer hang / pick / conduct / work / stow. Not a runtime path: a
-  # built tool's verbs run through `axes.ramped` (swap.ramp_routine).
+  # issue #168 slice B: the workshop's RIG, a spike harness driving the
+  # rig's carrier and a built tool's servos to answer hang / pick / conduct
+  # / work / stow. Not a runtime path: a built tool's verbs run through
+  # `axes.ramped` (`Body.ramp_routine`).
   "workshop/build.py",
   # issue #345: a restart PUTS BACK the controls the saved world held, by
-  # actuator name -- the state the controllers above wrote, never a choice.
+  # actuator name -- the state the controllers below wrote, never a choice.
   "continuation.py",
   # issue #377, moved by #385: the quadruped's leg drivers -- a policy's
   # joint targets and gains, a routine's torque, or nothing held -- the one
-  # path its twelve joints are commanded through (the rover's is
-  # rack/swap.py). The policy commands them; it no longer writes `ctrl`.
+  # path its twelve joints are commanded through. The policy commands them;
+  # it does not write `ctrl`.
   "legs/drivers.py",
   # issue #378: the quadruped's arm driver -- its two motors' torques, a PD
   # toward a target RAMPED at ARM_SLEW plus the arm's own gravity, the one
@@ -482,90 +472,3 @@ def test_the_fence_sees_a_write():
   assert _writes_ctrl(ast.parse("d.ctrl[3] = 1.0"))
   assert _writes_ctrl(ast.parse("self.data.ctrl[a] += 0.1"))
   assert not _writes_ctrl(ast.parse("x = d.ctrl[3]"))
-
-
-# ---- the vocabulary is complete enough to draw ------------------------------------
-
-
-class _Pen:
-  """The plotter, faked: squares up at once and draws the figure it is
-  handed into `on_stroke`, stroke by stroke -- the ink is the FIGURE's, so
-  two errands that ask for one figure on one board land the same strokes.
-  The real pen's own tests are what say the ink lands where it is sent."""
-
-  pen_act = 0
-
-  def __init__(self, said: list, board) -> None:
-    self.said, self.board = said, board
-    self.on_stroke = self.should_stop = None
-    self.squared = True
-
-  def drive_to_board_routine(self):
-    self.said.append(("square_up", self.board.x, self.board.y))
-    return True
-    yield
-
-  def draw_program_routine(self, figure):
-    self.said.append(("draw", figure.name, len(figure.strokes)))
-    for i, stroke in enumerate(figure.strokes):
-      self.on_stroke(i, [tuple(map(float, p)) for p in stroke], figure.name)
-    n = len(figure.strokes)
-    return {"drew": True, "strokes": n, "strokes_drawn": n}
-    yield
-
-  def carry_config_routine(self):
-    return
-    yield
-
-  def ramp_routine(self, *a, **kw):
-    return
-    yield
-
-
-def test_a_composed_draw_commands_what_the_native_drawing_does(monkeypatch):
-  """The vocabulary is complete enough when a drawing composed from it --
-  fetch, the standoff drive, the board, stow -- commands the body and the
-  pen exactly as the native errand does: the pen from its bay, the same
-  standoff, the same figure on the same board, the pen hung back; and so
-  lands the same strokes. Nothing steps: the swaps, drives and ramps are
-  stubs and the pen is `_Pen`.
-
-  Shown to fail by making `steps._draw` ignore the figure it was named.
-  """
-  from pluggybot.lifecycle import board_book, draw_errand_for
-  from pluggybot.tools.drawing import Board, board_standoff
-
-  def fly(build):
-    life = _life("home")
-    life.boards = board_book("home")
-    _stub_swaps(life, monkeypatch)
-    for posing in ("ramp_routine", "settle_routine", "retract_arm_routine"):
-      setattr(life.body, posing, lambda *a, **kw: tick.result(None))
-    said: list = []
-    life.body.tool = lambda module, board=None, **kw: _Pen(said, board)
-    for name in ("fetch_tool_routine", "go_to_routine", "stow_tool_routine"):
-      def spy(*a, _real=getattr(life.body, name), _name=name, **kw):
-        if said[-1:] != [(_name, *a)]:
-          said.append((_name, *a))
-        return (yield from _real(*a, **kw))
-      setattr(life.body, name, spy)
-    result = life.run_errand(build(life))
-    assert result["stowed"] and not result.get("error"), result
-    assert float(life.data.time) == 0.0, "something stepped the physics"
-    rec = life.boards["whiteboard_a"]
-    return said, rec.strokes, [ln["points"] for ln in rec.lines]
-
-  native = fly(lambda life: draw_errand_for("home", life.boards, "whiteboard_a",
-                                            program_name="sun"))
-  meta = json.loads(pathlib.Path(world_config("home")["meta"]).read_text())
-  sx, sy = board_standoff(Board.from_meta(meta["boards"]["whiteboard_a"]))
-  composed = fly(lambda life: programmed_errand(Program.single("sun", [
-    Step("fetch", {"tool": "module_pen"}),
-    Step("drive_to", {"x": sx, "y": sy}),
-    Step("draw", {"figure": "sun", "board": "whiteboard_a"}),
-    Step("stow")]), task="draw"))
-  assert composed[0] == native[0], f"{composed[0]} != {native[0]}"
-  assert [c[0] for c in native[0]] == ["fetch_tool_routine", "go_to_routine",
-                                       "square_up", "draw", "stow_tool_routine"]
-  assert composed[1] == native[1] > 0
-  assert composed[2] == native[2]

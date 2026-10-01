@@ -6,8 +6,8 @@ answers perfectly -- which is also how the acceptance criterion "kill the API
 and the robot keeps working" is checked without unplugging anything.
 
 The load-bearing test is `test_charge_priority_survives_an_overseer_that_never_
-charges`: it flies a real mission with an overseer that answers `idle` to every
-question and asserts the robot still charges. Every other guarantee in this
+charges`: it runs a day on the stub with an overseer that answers `idle` to
+every question and asserts the robot still charges. Every other guarantee in this
 module is a convenience next to that one -- an LLM that can decline to charge
 is an LLM that bricks the world overnight.
 """
@@ -16,13 +16,13 @@ import json
 import threading
 import time
 from collections import Counter
+from dataclasses import replace
 
-import mujoco
 import pytest
 
 from pluggybot.mind import overseer as ov
 from pluggybot.lifecycle import (
-  HubLifecycle, board_book, errand_from, world_config, zone_centre,
+  board_book, cage_errand, errand_from, world_config, zone_centre,
 )
 from pluggybot.mind.overseer import Decision, Menu, Overseer, scripted
 from pluggybot.economy.scoring import default_table
@@ -95,12 +95,20 @@ def full(**kw) -> dict:
 
 @pytest.fixture(scope="module")
 def book():
-  return board_book("home")
+  return board_book("home_quad")
 
 
 @pytest.fixture(scope="module")
 def menu(book):
-  return Menu.for_world("home", book)
+  return Menu.for_world("home_quad", book)
+
+
+@pytest.fixture(scope="module")
+def tooled(menu):
+  """The same world's menu for a body that takes a tool (`Menu.tools`),
+  which no served body does until #406/#407: the tool errands and the
+  rotation over them."""
+  return replace(menu, tools=True)
 
 
 def make(menu, *answers, **kw) -> Overseer:
@@ -112,18 +120,20 @@ def make(menu, *answers, **kw) -> Overseer:
 
 
 def test_the_menu_offers_only_what_the_world_can_do(book):
-  home = Menu.for_world("home", book)
+  """Offering an action the world cannot perform is how a decision loop
+  finds a dead end by driving into it, so it is simply not on the menu."""
+  home = Menu.for_world("home_quad", book)
   assert set(home.boards) == {"whiteboard_a", "whiteboard_b"}
   assert home.census_zone == "garden"
-  assert {"draw", "census", "explore"} <= set(home.available())
-  # room_hub has no whiteboards, nothing countable and one undivided room.
-  # Offering `draw` there is how a decision loop finds a dead end by driving
-  # into it, so it is simply not on the menu.
-  hub = Menu.for_world("room_hub", None)
-  assert "draw" not in hub.available()
-  assert "census" not in hub.available()
-  assert "explore" not in hub.available()
-  assert "carry" in hub.available()
+  assert "explore" in home.available()
+  # The house has whiteboards and a garden, but its body takes no tool
+  # (`world_config`'s `tools`): none of the tool errands is offered.
+  assert not {"draw", "census", "carry", "dance"} & set(home.available())
+  # ...and a body that takes one, in a world with no whiteboards, nothing
+  # countable and no rooms, is offered the carry and nothing that needs them.
+  bare = Menu(tools=True)
+  assert "carry" in bare.available()
+  assert not {"draw", "census", "explore"} & set(bare.available())
 
 
 def test_text_is_not_an_offerable_figure(menu):
@@ -143,34 +153,35 @@ def test_the_schema_constrains_every_parameter_to_the_menu(menu):
 
 
 @pytest.mark.parametrize("raw, why", [
-  ({"action": "hack_the_ledger"}, "an action off the vocabulary"),
-  ({"action": "draw", "board": "the_ceiling"}, "a board that is not there"),
-  ({"action": "draw", "program": "a_portrait_of_ben"}, "an unknown figure"),
-  ({"action": "explore", "zone": "the_moon"}, "an unknown zone"),
-  ({"action": ""}, "no action at all"),
+  ({"action": "hack_the_ledger"}, "unknown action"),
+  ({"action": "draw"}, "unknown action"),
+  ({"action": "explore", "board": "the_ceiling"}, "unknown board"),
+  ({"action": "explore", "program": "a_portrait_of_ben"}, "unknown program"),
+  ({"action": "explore", "zone": "the_moon"}, "unknown zone"),
+  ({"action": ""}, "unknown action"),
 ])
 def test_an_answer_off_the_menu_is_refused(menu, raw, why):
-  with pytest.raises(ValueError):
+  with pytest.raises(ValueError, match=why):
     menu.validate(raw)
 
 
-def test_a_drawing_without_a_choice_still_draws(menu):
+def test_a_drawing_without_a_choice_still_draws(tooled):
   """A `draw` with the parameters left blank picks the first board and figure
   rather than failing: the model committed to the task, and refusing over an
   unfilled optional would send a perfectly good decision to the fallback."""
-  d = menu.validate({"action": "draw", "reason": "the wall is bare"})
-  assert d.board == menu.boards[0]
-  assert d.program == menu.programs[0]
+  d = tooled.validate({"action": "draw", "reason": "the wall is bare"})
+  assert d.board == tooled.boards[0]
+  assert d.program == tooled.programs[0]
 
 
 # ---- the failure paths, which are the ones that must never surprise ----------
 
 
 def test_a_good_answer_is_used_verbatim(menu):
-  boss = make(menu, full(action="draw", board="whiteboard_b", program="tree",
-                         reason="whiteboard_b is empty"))
+  boss = make(menu, full(action="explore", zone="garden",
+                         reason="I have not seen the garden"))
   d = boss.decide({})
-  assert (d.action, d.board, d.program) == ("draw", "whiteboard_b", "tree")
+  assert (d.action, d.zone) == ("explore", "garden")
   assert d.source == "llm" and not d.scripted
   assert boss.usage.llm_calls == 1 and boss.usage.fallbacks == 0
 
@@ -189,7 +200,7 @@ def test_a_broken_answer_falls_back_to_the_scripted_policy(menu, answer,
   assert d.source.startswith(expect)
   # ...and the fallback is a real day's work, not a shrug: the whole point of
   # the acceptance criterion is that the robot keeps DOING things.
-  assert d.action in ("draw", "census", "dance", "carry", "explore")
+  assert d.action == "explore" and d.zone in menu.zones
 
 
 def test_a_refused_answer_is_told_to_the_robot_in_the_fallback_reason(menu):
@@ -232,7 +243,7 @@ def test_a_slow_call_is_abandoned_rather_than_waited_on(menu):
 
 
 def test_the_call_budget_is_hard(menu):
-  client = FakeClient(full(action="dance", reason="."))
+  client = FakeClient(full(action="explore", reason="."))
   boss = Overseer(menu, client=client, calls_per_hour=2)
   sources = [boss.decide({"decisions": i}).source for i in range(4)]
   assert sources[:2] == ["llm", "llm"]
@@ -268,7 +279,7 @@ def test_back_to_back_decisions_all_reach_the_model(menu):
   for _ in range(BURNERS):
     threading.Thread(target=burn, daemon=True).start()
   try:
-    client = FakeClient(full(action="dance", reason="."))
+    client = FakeClient(full(action="explore", reason="."))
     boss = Overseer(menu, client=client, calls_per_hour=1000)
     sources = [boss.decide({"decisions": i}).source for i in range(DECISIONS)]
   finally:
@@ -307,7 +318,7 @@ def test_a_dead_endpoint_backs_off_instead_of_hammering(menu):
 def test_a_recovered_endpoint_is_used_again(menu):
   now = [0.0]
   client = FakeClient(*([RuntimeError("blip")] * ov.MAX_CONSECUTIVE_ERRORS),
-                      full(action="dance", reason="."))
+                      full(action="explore", reason="."))
   boss = Overseer(menu, client=client, clock=lambda: now[0])
   for _ in range(ov.MAX_CONSECUTIVE_ERRORS):
     boss.decide({})
@@ -350,7 +361,7 @@ def test_the_prompt_message_is_the_prefix_the_model_is_shown(menu, tmp_path):
     menu, client=FakeClient(), thoughts=ThoughtFiles(), autonomous=True,
     standing_orders=True, origin="unseeded", appetite=True, mortal=True,
     escalate_to="Qwen/Qwen3-235B-A22B-Instruct-2507",
-    library=Library(world_facts("home"), root=tmp_path / "procedures"),
+    library=Library(world_facts("home_quad"), root=tmp_path / "procedures"),
     workshop=Workshop(tmp_path / "tools"),
     others=("Rowan",))
   for boss in (guarded, everything):
@@ -429,7 +440,7 @@ def test_the_prompt_never_carries_a_hidden_answer(menu):
 def test_the_context_is_the_live_lifecycle_and_carries_no_truth(menu):
   """`context_for` reads the running robot rather than a parallel tally, so
   what the overseer is told cannot drift from what the robot is."""
-  life = stub_life("room_hub")
+  life = stub_life()
   life.verdicts.append({"task": "census", "ok": False, "points": 0,
                         "reason": "reported 3 in garden (wrong)",
                         "metrics": {"counted": 3, "coverage": 0.4}})
@@ -444,13 +455,19 @@ def test_the_context_is_the_live_lifecycle_and_carries_no_truth(menu):
 # ---- the scripted policy is a real policy ------------------------------------
 
 
-def test_the_fallback_rotates_rather_than_repeating(menu):
+def test_the_fallback_rotates_rather_than_repeating(menu, tooled):
+  """Over the errands a tool makes, where the body takes one, and over the
+  rooms it explores where it does not."""
   seen = []
   for i in range(4):
-    d = scripted(menu, {"tasksThisMission": seen, "decisions": i,
-                        "floorExplored": False}, "budget")
+    d = scripted(tooled, {"tasksThisMission": seen, "decisions": i,
+                          "floorExplored": False}, "budget")
     seen.append(d.action)
   assert len(set(seen)) == len(seen), f"the fallback repeated itself: {seen}"
+  zones = [scripted(menu, {"tasksThisMission": [], "decisions": i,
+                           "floorExplored": False}, "budget").zone
+           for i in range(4)]
+  assert len(set(zones)) == len(zones), f"the fallback repeated itself: {zones}"
 
 
 def test_the_fallback_is_deterministic(menu):
@@ -459,47 +476,45 @@ def test_the_fallback_is_deterministic(menu):
   assert all(r == runs[0] for r in runs)
 
 
-def test_the_fallback_still_has_something_to_do_when_everything_is_done(menu):
-  d = scripted(menu, {"tasksThisMission": ["draw", "census", "dance", "carry"],
-                      "decisions": 1, "floorExplored": True}, "budget")
-  assert d.action in menu.available()
+@pytest.mark.parametrize("which", ["menu", "tooled"])
+def test_the_fallback_still_has_something_to_do_when_everything_is_done(
+    request, which):
+  m = request.getfixturevalue(which)
+  d = scripted(m, {"tasksThisMission": ["draw", "census", "dance", "carry"],
+                   "decisions": 1, "floorExplored": True}, "budget")
+  assert d.action in m.available() and d.action not in ov.IDLE_ACTIONS
 
 
-# ---- decisions become errands, through the same builders as the presets ------
-
-
-@pytest.mark.parametrize("action, module", [
-  ("draw", "module_pen"), ("census", "module_lcd"), ("dance", "module_lcd"),
-  ("carry", "module_lcd"),
-])
-def test_every_task_action_builds_a_real_errand(book, action, module):
-  e = errand_from(Decision(action=action, board="whiteboard_a",
-                           program="house"), "home", book)
-  assert e is not None and e.module == module
-  assert e.task == action
+# ---- decisions become errands -------------------------------------------------
 
 
 @pytest.mark.parametrize("action", ["idle", "explore", "charge"])
 def test_the_non_errand_actions_build_no_errand(book, action):
-  assert errand_from(Decision(action=action), "home", book) is None
+  assert errand_from(Decision(action=action), "home_quad", book) is None
 
 
 def test_an_impossible_errand_is_none_rather_than_an_exception(book):
   """A decision is untrusted input in exactly the way a visitor message will
   be (issue #16). The mission loop's answer to "I cannot do that" is to ask
   again, never to end."""
-  assert errand_from(Decision(action="draw", board="whiteboard_a"),
-                     "room_hub", None) is None
+  # Company is a spot beside the cage no tag marks, so no plate program can
+  # be built for it on legs, and the builder raises
+  with pytest.raises(ValueError):
+    cage_errand("home_quad", "company")
+  assert errand_from(Decision(action="care", care="company"),
+                     "home_quad", book) is None
+  assert errand_from(Decision(action="procedure:nothing_by_that_name"),
+                     "home_quad", book) is None
 
 
 def test_a_zone_resolves_to_somewhere_inside_it():
-  x, y = zone_centre("home", "garden")
-  garden = next(z for z in world_config("home")["zones"]
+  x, y = zone_centre("home_quad", "garden")
+  garden = next(z for z in world_config("home_quad")["zones"]
                 if z["name"] == "garden")
   assert garden["min"][0] <= x <= garden["max"][0]
   assert garden["min"][1] <= y <= garden["max"][1]
   with pytest.raises(ValueError):
-    zone_centre("home", "the_attic")
+    zone_centre("home_quad", "the_attic")
 
 
 # ---- memory ------------------------------------------------------------------
@@ -561,121 +576,83 @@ def test_effort_is_never_sent(menu):
 
 def test_the_overseer_is_off_unless_asked_for(monkeypatch, book):
   monkeypatch.delenv(ov.ENABLE_ENV, raising=False)
-  assert ov.build("home", book) is None
-  boss = ov.build("home", book, enabled=True, client=FakeClient())
+  assert ov.build("home_quad", book) is None
+  boss = ov.build("home_quad", book, enabled=True, client=FakeClient())
   assert boss is not None
 
 
 # ---- the mission ------------------------------------------------------------
 
 
-def _lifecycle(world: str, **kw) -> HubLifecycle:
-  cfg = world_config(world)
-  model = mujoco.MjModel.from_xml_path(cfg["model"])
-  data = mujoco.MjData(model)
-  return HubLifecycle(model, data, realtime=False, world=world,
-                      battery_wh=cfg["battery_wh"], rack=cfg["rack"],
-                      grid_bounds=cfg["grid_bounds"],
-                      low_battery_wh=cfg["low_battery_wh"], **kw)
-
-
 def test_the_arbitration_loop_is_untouched_without_an_overseer():
   """Every existing demo, mission test and recording must behave exactly as
   it did. The overseer being opt-in is what makes that true."""
-  life = stub_life("room_hub")
+  life = stub_life()
   assert life.overseer is None
   assert life.decisions == []
   assert "overseer" in life.__dict__
 
 
-@pytest.mark.slow
 def test_charge_priority_survives_an_overseer_that_never_charges():
   """THE regression test for issue #15: the branch ORDER.
 
   A robot that starts below its reserve, and an overseer that answers `idle`
   to every question it is ever asked. It must charge first and be asked
   second, because `needs_charge` is checked before the overseer is reached and
-  there is no action in the vocabulary that suppresses it.
+  there is no action in the vocabulary that suppresses it. A day on the stub:
+  the claim is the loop's order, not the body's charging.
 
   Shown to fail without the fix: move the `elif self.overseer is not None`
   branch above the `if self.needs_charge` branch in `HubLifecycle.run()` and
-  this reports DECIDE before GO_CHARGE and zero charge cycles.
+  the robot never charges.
   """
-  boss = Overseer(Menu.for_world("room_hub", None),
-                  client=FakeClient(full(action="idle",
-                                         reason="I would rather not")))
-  life = _lifecycle("room_hub", overseer=boss, errand=False)
+  asked_after: list[int] = []     # charge cycles done when each question went
+
+  class Watched(FakeClient):
+    def create(self, **kwargs):
+      asked_after.append(life.charge_cycles)
+      return super().create(**kwargs)
+
+  boss = Overseer(Menu.for_world("home_quad", None),
+                  client=Watched(full(action="idle", reason="I would rather not")))
+  # `charge_scale` fills the pack in a tenth of the time: the claim is which
+  # branch runs first, not how long a charge takes
+  life = stub_life(overseer=boss, charge_scale=10.0)
   # Below the reserve at t=0. The cheapest state that puts the two branches in
   # direct conflict: the robot needs to charge AND is being told not to bother.
   life.battery.energy_wh = life.low_battery_wh * 0.6
-  states: list[str] = []
-  life.body.step_hooks.append(
-    lambda: states.append(life.state)
-    if life.state != (states[-1] if states else None) else None)
+  assert life.needs_charge
 
-  # ⚠ STOP ON THE CLAIM, NOT THE BUDGET (issue #54). The claim is settled the
-  # moment the robot has charged AND the overseer has been asked and answered
-  # -- everything after is the idling overseer being asked again. Measured
-  # 256.9 s.
-  #
-  # The predicate is the SUCCESS condition, and it does NOT encode the
-  # ordering it is testing: with the branches inverted, DECIDE lands first,
-  # the charge follows, the hook fires anyway, and `states` still reads
-  # DECIDE-before-GO_CHARGE -- so the assertion below fails as it always did.
-  life.stop_when(lambda: "DECIDE" in states and life.charge_cycles >= 1
+  # ⚠ STOP ON THE CLAIM, NOT THE BUDGET (issue #54): the robot has charged
+  # AND the overseer has been asked and answered. The predicate is the
+  # SUCCESS condition and does not encode the ordering it tests.
+  life.stop_when(lambda: life.charge_cycles >= 1
                  and any(d["source"] == "llm" for d in life.decisions))
-  r = life.run(world_config("room_hub")["start"], max_sim_time=200.0,
+  r = life.run(world_config("home_quad")["start"], max_sim_time=200.0,
                explore_budget=10.0)
 
-  assert "GO_CHARGE" in states, "an idling overseer bricked the robot"
-  assert "DECIDE" in states, "the overseer was never consulted at all"
-  assert states.index("GO_CHARGE") < states.index("DECIDE"), \
-    f"the LLM was asked before the robot charged: {states}"
-  assert r["charge_cycles"] >= 1
+  assert r["charge_cycles"] >= 1, "an idling overseer bricked the robot"
+  assert asked_after, "the overseer was never consulted at all"
+  assert asked_after[0] >= 1, "the LLM was asked before the robot charged"
   # ...and it really was the LLM being overruled, not the fallback covering
   # for it -- an overseer that never answered would prove nothing here.
   assert any(d["source"] == "llm" for d in r["decisions"])
   assert r["overseer"]["llmCalls"] >= 1
 
 
-def test_a_chosen_drawing_becomes_an_errand_for_that_exact_board(book):
-  """The overseer names a board and a figure, and both survive into the errand.
-
-  Deliberately NOT a whole mission. The claim worth testing here is that a
-  chosen drawing goes through the same `draw_errand_for` the preset queue does
-  -- a second drawing path is exactly what issue #12 spent itself removing --
-  and that is settled at the errand, not at the pen. Whether the pen then puts
-  ink on a board is `test_drawing.py`'s and the full-lifecycle test's job, and
-  paying three minutes of mission time to re-confirm it here would buy nothing.
-  """
-  a = errand_from(Decision(action="draw", board="whiteboard_b",
-                           program="tree"), "home", book)
-  assert a.detail == {"board": "whiteboard_b", "figure": "tree",
-                      "strokes": a.detail["strokes"],
-                      "ink_m": a.detail["ink_m"]}
-  assert a.name == "draw:whiteboard_b" and a.task == "draw"
-  # ...and a different choice really is a different errand, so a board id
-  # threaded through by accident would show up here.
-  b_errand = errand_from(Decision(action="draw", board="whiteboard_a",
-                                  program="sun"), "home", book)
-  assert b_errand.name == "draw:whiteboard_a"
-  assert b_errand.detail["figure"] == "sun"
-  assert b_errand.use_at != a.use_at, "both figures drove to the same board"
-
-
 def test_a_think_reaches_the_store_the_wire_and_the_narration():
   """A decision's think is written once, streamed once (as the `journal`
   message), and readable next time -- the loop that makes it memory rather
   than a log (issue #221)."""
-  boss = Overseer(Menu.for_world("room_hub", None),
-                  client=FakeClient(full(action="carry", reason="tidying up",
+  boss = Overseer(Menu.for_world("home_quad", None),
+                  client=FakeClient(full(action="idle", reason="resting",
                                          think="bay A sticks a little")))
-  life = stub_life("room_hub", overseer=boss, errand=False)
+  life = stub_life(overseer=boss)
   streamed: list[dict] = []
   life.thoughts.on_event.append(streamed.append)
   said: list[str] = []
   life.say_hooks.append(lambda t, line: said.append(line))
-  life.body.start_at(*world_config("room_hub")["start"])
+  life.body.start_at(*world_config("home_quad")["start"])
   try:
     life._decide()
   finally:
@@ -683,12 +660,9 @@ def test_a_think_reaches_the_store_the_wire_and_the_narration():
 
   assert life.thoughts.last_thoughts(2) == ["bay A sticks a little"]
   journal = [m for m in streamed if m["type"] == "journal"]
-  assert len(journal) == 1 and journal[0]["why"].startswith("carry")
+  assert len(journal) == 1 and journal[0]["why"].startswith("idle")
   assert any(line.startswith("THINK bay A sticks") for line in said)
-  assert any("DECIDE carry: tidying up" in line for line in said)
-  # The decision produced a real errand, queued for the loop rather than run
-  # inline -- so if it dropped the battery, the next pass charges first.
-  assert [e.task for e in life.errands] == ["carry"]
+  assert any("DECIDE idle: resting" in line for line in said)
 
 
 def test_a_charge_at_eighty_percent_is_allowed_and_pays_nothing():
@@ -712,12 +686,12 @@ def test_a_charge_at_eighty_percent_is_allowed_and_pays_nothing():
   """
   from pluggybot.economy.scoring import evaluate
 
-  boss = Overseer(Menu.for_world("room_hub", None),
+  boss = Overseer(Menu.for_world("home_quad", None),
                   client=FakeClient(full(action="charge",
                                          reason="topping up while it is "
                                                 "convenient")))
-  life = stub_life("room_hub", overseer=boss, errand=False)
-  life.body.start_at(*world_config("room_hub")["start"])
+  life = stub_life(overseer=boss)
+  life.body.start_at(*world_config("home_quad")["start"])
   life.battery.energy_wh = life.battery.capacity_wh * 0.80
   said: list[str] = []
   life.say_hooks.append(lambda t, line: said.append(line))
@@ -747,12 +721,12 @@ def test_the_sim_keeps_running_while_the_overseer_thinks():
   """A slow API must cost the robot a pause, not the world a freeze. The
   telemetry stream is built off physics steps, so a blocking call here would
   stop every viewer's clock for the length of an HTTP request."""
-  boss = Overseer(Menu.for_world("room_hub", None),
-                  client=FakeClient(full(action="carry", reason="."),
+  boss = Overseer(Menu.for_world("home_quad", None),
+                  client=FakeClient(full(action="idle", reason="."),
                                     delay=0.6),
                   timeout_s=2.0)
-  life = stub_life("room_hub", overseer=boss, errand=False)
-  life.body.start_at(*world_config("room_hub")["start"])
+  life = stub_life(overseer=boss)
+  life.body.start_at(*world_config("home_quad")["start"])
   life.max_sim_time = 60.0
   life.explore_deadline = life.data.time + 1.0
   life.blacklist, life.floor_explored = set(), True

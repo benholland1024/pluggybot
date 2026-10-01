@@ -10,9 +10,8 @@ approached whom is not judged here -- the event carries both robots' poses
 and states at the moment, and the reading is the observatory's.
 
 TOUCHING is the third phase (issue #316), read off the contact array the
-same step: the two robots are in contact, which until now left nothing
-behind but `HubSwap.collision_steps`, a counter on neither robot's record
-and on no wire. So a collision was a thing somebody had to be watching to
+same step: the two robots are in contact, which until then left nothing
+behind but a collision counter on neither robot's record and on no wire. So a collision was a thing somebody had to be watching to
 see, and nine `stuck` deaths in a week could not be attributed to it
 either way. It latches like the plate's press -- `touched` on the way in,
 `separated` on the way out past `CONTACT_HOLD_S` -- because a bump
@@ -52,7 +51,7 @@ CHARGED = 0.90
 #: yield to have been `honoured` -- a charge cycle's approach, generously.
 YIELD_WINDOW_S = 300.0
 #: A contact is over this long after the last one, and not before: the same
-#: 50 ms the bumper holds past its last contact (`HubSwap`, issue #94),
+#: 50 ms a bumper holds past its last contact (issue #94),
 #: because a robot meeting something at cruise speed bounces off it and a
 #: row per bounce is a row per frame of one collision.
 CONTACT_HOLD_S = 0.05

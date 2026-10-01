@@ -95,10 +95,3 @@ def test_boards_state_file_reads_the_lines(board_png, tmp_path):
   with pytest.raises(SystemExit):
     board_png.strokes_from_boards(path, "whiteboard_b")
 
-
-def test_the_committed_home_recording_yields_the_house(board_png):
-  rec = Path(__file__).resolve().parents[1] / "protocol" / "telemetry.home_lifecycle.jsonl.gz"
-  strokes = board_png.strokes_from_recording(rec, "whiteboard_a", None)
-  assert len(strokes) >= 5
-  img = board_png.render(strokes, margin=0.012, whole=False)
-  assert min(img.size) > 100

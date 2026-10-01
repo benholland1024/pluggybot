@@ -17,11 +17,10 @@ the robot perform a convincing rigid-body gesture at a known place that a
 state machine can VERIFY" -- and that verification is what lives here.
 
 This is not a new idea in the repo, it is the oldest one generalised.
-Charging has always worked exactly this way: `rack_charge_contact` is a
-contact-derived criterion and the battery filling is bookkeeping. So is
-`module_power_contact`, and `ClawTool.holding`, and `pen_on_board`. Every
-one of them answers a question about the world with a FACT read out of the
-physics rather than with a belief about what was commanded. An activity is
+Charging has always worked exactly this way: `legs.dock.dock_charge_contact`
+is a contact-derived criterion and the battery filling is bookkeeping. So is
+`module_power_contact`. Each answers a question about the world with a FACT
+read out of the physics rather than with a belief about what was commanded. An activity is
 that pattern given a name, a memory, and a way onto the wire.
 
 Four rules the base class exists to enforce:
@@ -275,7 +274,7 @@ class ActivitySet:
     return len(self.activities)
 
   def step_hook(self, model, data) -> Callable[[], None]:
-    """A zero-argument callback for `HubMission.step_hooks`. Reads the
+    """A zero-argument callback for `Body.step_hooks`. Reads the
     set's CURRENT model and data, not the ones it was made with, so a
     rebind reaches a hook already registered."""
     self.model, self.data = model, data

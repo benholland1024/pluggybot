@@ -621,7 +621,7 @@ def test_the_name_reaches_a_served_robot(monkeypatch, tmp_path):
   survive that hop -- it reached the RECORDER back in #39 and stopped
   there, which is why nothing caught this."""
   monkeypatch.delenv("PLUGGY_ROBOT_NAME", raising=False)
-  boss = ov.build("room_hub", None, enabled=True, client=FakeClient(),
+  boss = ov.build("home_quad", None, enabled=True, client=FakeClient(),
                   thoughts=ThoughtFiles(tmp_path / "thoughts"),
                   robot_name="Luca")
   assert boss.robot_name == "Luca"
@@ -665,7 +665,7 @@ def test_the_schema_offers_both_verbs_and_no_third(menu_home):
 
 @pytest.fixture(scope="module")
 def menu_home():
-  return Menu.for_world("home", board_book("home"))
+  return Menu.for_world("home_quad", board_book("home_quad"))
 
 
 def test_a_decision_writes_history_and_knowledge_through_the_mission(tmp_path):
@@ -675,19 +675,19 @@ def test_a_decision_writes_history_and_knowledge_through_the_mission(tmp_path):
   from test_body import stub_life
 
   files = ThoughtFiles(tmp_path / "thoughts")
-  boss = Overseer(Menu.for_world("room_hub", None), thoughts=files,
-                  client=FakeClient(full(action="carry", reason="tidying up",
+  boss = Overseer(Menu.for_world("home_quad", None), thoughts=files,
+                  client=FakeClient(full(action="idle", reason="tidying up",
                                          pin="bay C sticks a little")))
-  life = stub_life("room_hub", overseer=boss, thoughts=files, errand=False)
+  life = stub_life(overseer=boss, thoughts=files)
   said: list[str] = []
   life.say_hooks.append(lambda t, line: said.append(line))
-  life.body.start_at(*world_config("room_hub")["start"])
+  life.body.start_at(*world_config("home_quad")["start"])
   try:
     life._decide()
   finally:
     life.body.close()
 
-  assert "chose carry: tidying up" in files.read(HISTORY)
+  assert "chose idle: tidying up" in files.read(HISTORY)
   assert files.read(TOP_OF_MIND) == "bay C sticks a little"
   assert any(line.startswith("THOUGHT pin: bay C sticks") for line in said)
   # ...and it is on disk, because the next mission is a different process.
@@ -703,7 +703,7 @@ def test_the_mission_cannot_write_the_files_it_does_not_own(tmp_path):
   from test_body import stub_life
 
   files = ThoughtFiles(tmp_path / "thoughts")
-  life = stub_life("room_hub", thoughts=files, errand=False)
+  life = stub_life(thoughts=files)
   said: list[str] = []
   life.say_hooks.append(lambda t, line: said.append(line))
   life._remember("something happened")
@@ -723,7 +723,7 @@ def test_a_refused_thought_is_narrated_rather_than_swallowed(tmp_path):
   from test_body import stub_life
 
   files = ThoughtFiles(tmp_path / "thoughts")
-  life = stub_life("room_hub", thoughts=files, errand=False)
+  life = stub_life(thoughts=files)
   said: list[str] = []
   life.say_hooks.append(lambda t, line: said.append(line))
   # Fill the robot's file, then ask it to learn one more thing.
@@ -748,7 +748,7 @@ def test_a_refused_thought_is_told_to_the_robot_in_its_history():
   from test_body import stub_life
 
   files = ThoughtFiles()
-  life = stub_life("room_hub", thoughts=files, errand=False)
+  life = stub_life(thoughts=files)
   files.pin("board a is nearly full", t=1.0)
   files.pin("board b is empty", t=2.0)
   life._reconsider(ov.Decision(action="idle", unpin="board"))
@@ -838,7 +838,7 @@ def test_every_memory_write_is_narrated_in_the_one_shape_the_site_parses(tmp_pat
   from test_body import stub_life
 
   files = ThoughtFiles(tmp_path / "thoughts")
-  life = stub_life("room_hub", thoughts=files, errand=False)
+  life = stub_life(thoughts=files)
   said: list[str] = []
   life.say_hooks.append(lambda t, line: said.append(line))
 

@@ -3,10 +3,10 @@ behind it, on the `autonomous` arm.
 
 What these pin, each without a mission (docs/Testing.md):
 
-  1. `stack_tower` is a real kind -- evaluator, reward row, a cadence slot
-     on home -- and it is offered exactly where a procedure can be written:
-     `world_targets` names the `challenge` target on the autonomous arm and
-     not on `guarded`, so the control's offered set is unchanged.
+  1. `stack_tower` is a real kind -- evaluator, reward row -- and it is
+     offered exactly where a procedure can be written: `world_targets`
+     names the `challenge` target on the autonomous arm and not on
+     `guarded`, so the control's offered set is unchanged.
   2. Claiming it queues NOTHING: the robot's own procedure is the attempt.
      The scripted claim skips it as it skips a question.
   3. `done` is paperwork that sets the grade pending; the loop grades once
@@ -23,13 +23,17 @@ What these pin, each without a mission (docs/Testing.md):
 import mujoco
 
 from pluggybot import lifecycle as lc
+from pluggybot.body import StubBody
 from pluggybot.challenge import stack
-from pluggybot.economy.cadence import Cadence, TaskProducer, default_cadence
+from pluggybot.economy.cadence import Cadence, TaskProducer
 from pluggybot.economy.ledger import Ledger
 from pluggybot.economy.tasks import KINDS, TaskBoard
-from pluggybot.lifecycle import HubLifecycle, world_config, world_targets
+from pluggybot.lifecycle import QUAD_HOME, HubLifecycle, world_config, world_targets
 from pluggybot.mind import overseer as ov
-from pluggybot.robot import world_spec
+from test_body import stub_life  # noqa: I001 -- tests/ is on sys.path
+
+#: Open floor in the house's workshop, where its blocks are set out.
+OPEN_FLOOR = (-11.0, -4.0)
 
 
 class _Mind:
@@ -45,26 +49,21 @@ class _Mind:
   def __init__(self, library=object()):
     self.library = library
     self.decisions = []
-    self.menu = ov.Menu.for_world("room_hub")
+    self.menu = ov.Menu.for_world(QUAD_HOME)
 
 
 def _life(tmp_path, mind=None):
-  """A room_hub lifecycle with the three blocks added through MjSpec (the
-  challenge's own props), a board, and a ledger with a balance."""
-  cfg = world_config("room_hub")
-  spec = stack.add_blocks(world_spec(cfg["model"]))
-  model = spec.compile()
+  """The house with its three blocks (the challenge's own props), a board
+  and a ledger, on a stub body: the grade reads the WORLD, and the house
+  alone steps in microseconds. On the arm the tower is offered on."""
+  cfg = world_config(QUAD_HOME)
+  model = mujoco.MjModel.from_xml_path(cfg["model"])
   data = mujoco.MjData(model)
-  ledger = Ledger(path=str(tmp_path / "ledger.json"))
-  board = TaskBoard(path=str(tmp_path / "tasks.json"))
-  life = HubLifecycle(model, data, realtime=False, world="room_hub",
-                      rack=cfg["rack"], grid_bounds=cfg["grid_bounds"],
-                      spec=spec, errand=False, ledger=ledger, tasks=board,
-                      # the arm the tower is offered on: the claim rail is
-                      # off, as it is there (a 1.0 Wh demo cell could never
-                      # fund a 2.7 Wh estimate through `Task.claimable`)
-                      autonomous=True,
-                      overseer=mind if mind is not None else _Mind())
+  body = StubBody(model, data, rack=cfg["rack"], grid_bounds=cfg["grid_bounds"])
+  life = stub_life(body=body, ledger=Ledger(path=str(tmp_path / "ledger.json")),
+                   tasks=TaskBoard(path=str(tmp_path / "tasks.json")),
+                   autonomous=True,
+                   overseer=mind if mind is not None else _Mind())
   for _ in range(200):
     mujoco.mj_step(model, data)
   return life
@@ -73,8 +72,7 @@ def _life(tmp_path, mind=None):
 def _claiming_life(tmp_path, mind=None):
   """The same robot for a CLAIM, which is the board's and the ledger's
   bookkeeping: on a stub body, with no blocks to grade (issue #380)."""
-  from test_body import stub_life
-  return stub_life("room_hub", ledger=Ledger(path=str(tmp_path / "ledger.json")),
+  return stub_life(ledger=Ledger(path=str(tmp_path / "ledger.json")),
                    tasks=TaskBoard(path=str(tmp_path / "tasks.json")),
                    autonomous=True,
                    overseer=mind if mind is not None else _Mind())
@@ -89,13 +87,13 @@ def _claimed_tower(life):
   return life.tasks.get(task.id)
 
 
-def _tower(life, offsets=((0, 0), (0, 0), (0, 0)), xy=(1.10, 0.30)):
+def _tower(model, data, offsets=((0, 0), (0, 0), (0, 0)), xy=OPEN_FLOOR):
   x, y = xy
   for i, (name, (dx, dy)) in enumerate(zip(stack.BLOCKS, offsets)):
     x, y = x + dx, y + dy
-    stack.place(life.model, life.data, name,
+    stack.place(model, data, name,
                 (x, y, stack.BLOCK_HALF + i * (stack.PITCH_M + 0.0005)))
-  mujoco.mj_forward(life.model, life.data)
+  mujoco.mj_forward(model, data)
 
 
 def _grade(life, task_id):
@@ -119,17 +117,21 @@ def test_the_tower_is_a_real_kind_discharged_by_a_procedure():
   # second challenge
   assert all(k.discharge == "errand" for n, k in KINDS.items()
              if n not in ("stack_tower", "take_points", "find_mass"))
-  assert "stack_tower" in default_cadence("home").kinds
-  assert "stack_tower" not in default_cadence("room_hub").kinds
 
 
-def test_the_offer_exists_on_the_autonomous_arm_and_not_on_guarded():
+def test_the_offer_exists_on_the_autonomous_arm_and_not_on_guarded(monkeypatch):
   """The gate is the target seam, not a new field: a challenge's target is
   named only where a procedure can be written, so `guarded`'s offered set
-  is byte-for-byte what it was (its committed series stay comparable)."""
-  book = lc.board_book("home")
-  guarded = world_targets("home", book)
-  autonomous = world_targets("home", book, procedures=True)
+  is byte-for-byte what it was (its committed series stay comparable).
+  Asked of the house with its tower set out, which legs do not offer yet
+  (#407) -- and without it, neither arm names one."""
+  book = lc.board_book(QUAD_HOME)
+  assert "challenge" not in world_targets(QUAD_HOME, book, procedures=True)
+  real = lc.world_config
+  monkeypatch.setattr(lc, "world_config", lambda world: {
+    **real(world), "tower": {"name": "workshop"}})
+  guarded = world_targets(QUAD_HOME, book)
+  autonomous = world_targets(QUAD_HOME, book, procedures=True)
   assert "challenge" not in guarded
   assert autonomous["challenge"] == ["workshop"]
   # (`cage` and `bench` ride the same gate, issues #226 and #227)
@@ -137,12 +139,10 @@ def test_the_offer_exists_on_the_autonomous_arm_and_not_on_guarded():
           if k not in ("challenge", "cage", "bench")} == guarded
   # ...and the producer follows the targets: on `guarded` the rotation
   # simply has no tower in it.
-  beat = default_cadence("home")
+  beat = Cadence._build("test", {"kinds": {"feed_mouse": {}, "stack_tower": {}}}, None)
   off = TaskProducer(TaskBoard(), beat, guarded)
   on = TaskProducer(TaskBoard(), beat, autonomous)
   assert "stack_tower" not in off.kinds and "stack_tower" in on.kinds
-  # room_hub has no blocks and names no tower on either arm
-  assert "challenge" not in world_targets("room_hub", None, procedures=True)
 
 
 def test_the_producer_puts_the_tower_up_with_the_room_as_its_target():
@@ -165,7 +165,7 @@ def test_claiming_the_tower_queues_no_errand(tmp_path):
   task = _claimed_tower(life)
   assert task.state == "active" and task.claimed_by == life.root
   assert life.errands == []
-  assert lc.errand_for_task(task, "room_hub") is None
+  assert lc.errand_for_task(task, QUAD_HOME) is None
 
 
 def test_a_mind_without_a_library_cannot_claim_it(tmp_path):
@@ -199,7 +199,7 @@ def test_done_is_refused_for_a_task_this_robot_does_not_hold(tmp_path):
 def test_a_standing_tower_passes_the_hold_and_is_paid(tmp_path):
   life = _life(tmp_path)
   task = _claimed_tower(life)
-  _tower(life)
+  _tower(life.model, life.data)
   t0 = float(life.data.time)
   events = _grade(life, task.id)
   assert float(life.data.time) - t0 >= stack.HOLD_S
@@ -219,7 +219,7 @@ def test_a_tower_that_falls_during_the_hold_fails(tmp_path):
   second. Fails, resolves `failed`, pays nothing."""
   life = _life(tmp_path)
   task = _claimed_tower(life)
-  _tower(life, offsets=((0, 0), (0.009, 0), (0.009, 0)))
+  _tower(life.model, life.data, offsets=((0, 0), (0.009, 0), (0.009, 0)))
   assert stack.measure(life.model, life.data)["layers"] == 3   # the premise
   _grade(life, task.id)
   closed = life.tasks.get(task.id)
@@ -227,25 +227,29 @@ def test_a_tower_that_falls_during_the_hold_fails(tmp_path):
   assert life.ledger.balance() == 0
 
 
-def test_a_block_against_the_chassis_is_read_off_the_contact_list(tmp_path):
+def test_a_block_against_the_robot_is_read_off_the_contact_list():
   """The per-step reading behind criterion 5: `foreign_contacts` names the
   robot's geoms touching a block, and names nothing for a tower on open
-  floor. (A tower leaning on the chassis at BOTH snapshots is already
+  floor. (A tower leaning on the robot at BOTH snapshots is already
   criterion 4's "holding the tower up"; the seam's reading is for the
-  touch that comes and goes between them.)"""
-  life = _life(tmp_path)
-  _tower(life)
-  assert stack.foreign_contacts(life.model, life.data) == set()
-  cx, cy = life.data.xpos[life.body.mission.swap.chassis_bid][:2]
-  half_x = float(life.model.geom_size[life.model.geom(
-    life.body.mission.swap.handle.el("chassis")).id][0])
-  _tower(life, xy=(float(cx) + half_x + stack.BLOCK_HALF - 0.0005, float(cy)))
-  for _ in range(50):
-    mujoco.mj_step(life.model, life.data)
-  # the caster sits proud of the chassis front at floor height, so it is
-  # what a floor-standing block meets first: the robot, by any of its names
-  touched = stack.foreign_contacts(life.model, life.data)
-  assert touched and touched <= {"chassis", "caster"}, touched
+  touch that comes and goes between them.) The served body, standing, a
+  block put against its front left foot."""
+  from pluggybot.legs import world as lw
+  from pluggybot.perception.lidar import robot_geoms
+  model = lw.home_spec().compile()
+  data = mujoco.MjData(model)
+  lw.stand(model, data, x=OPEN_FLOOR[0], y=OPEN_FLOOR[1] + 1.0)
+  _tower(model, data)
+  assert stack.foreign_contacts(model, data) == set()
+  foot = model.geom("FL_foot")
+  fx, fy, _ = data.geom_xpos[foot.id]
+  stack.place(model, data, stack.BLOCKS[0],
+              (float(fx) + float(foot.size[0]) + stack.BLOCK_HALF - 0.0005,
+               float(fy), stack.BLOCK_HALF))
+  mujoco.mj_forward(model, data)
+  touched = stack.foreign_contacts(model, data)
+  ours = {model.geom(g).name for g in robot_geoms(model, "pluggybot")}
+  assert touched and touched <= ours, touched
 
 
 def test_a_touch_during_the_hold_fails_a_tower_that_stands_at_both_ends(
@@ -258,7 +262,7 @@ def test_a_touch_during_the_hold_fails_a_tower_that_stands_at_both_ends(
   both clean."""
   life = _life(tmp_path)
   task = _claimed_tower(life)
-  _tower(life)
+  _tower(life.model, life.data)
   real = stack.foreign_contacts
   t0 = float(life.data.time)
 
@@ -296,7 +300,7 @@ def test_done_rides_the_library_slot_and_guarded_never_sees_it():
   schema and parsed with a library, absent and dropped without one -- so
   `guarded`'s schema and prefix are what they were."""
   from dataclasses import replace
-  menu = replace(ov.Menu.for_world("home"), procedures=True)
+  menu = replace(ov.Menu.for_world(QUAD_HOME), procedures=True)
   with_library = menu.schema(procedures=("stack",))
   assert with_library["properties"]["done"] == {"type": "string"}
   assert "done" in with_library["required"]
@@ -305,7 +309,7 @@ def test_done_rides_the_library_slot_and_guarded_never_sees_it():
   d = menu.validate({"action": "procedure:stack", "reason": "r", "done": "t_0007"},
                     procedures=("stack",))
   assert d.done == "t_0007" and d.as_dict()["done"] == "t_0007"
-  guarded = ov.Menu.for_world("home")
+  guarded = ov.Menu.for_world(QUAD_HOME)
   dropped = guarded.validate({"action": "idle", "reason": "r", "done": "t_0007"})
   assert dropped.done == "" and "done" not in dropped.as_dict()
 

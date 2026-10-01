@@ -190,9 +190,9 @@ def test_a_full_library_and_a_full_workshop_refuse_through_the_gate():
   """The two entry documents at their caps, in memory: the refusal names
   the document and the remedy, and the record is untouched."""
   lib = procedures.Library(None, cap=1)
-  lib.define("one", "def one():\n  look()\n")
+  lib.define("one", "def one():\n  wait(1)\n")
   with pytest.raises(procedures.LibraryRefused, match=r"library is full \(it holds 1\) .*`undefine` on the same answer"):
-    lib.define("two", "def two():\n  look()\n")
+    lib.define("two", "def two():\n  wait(1)\n")
   assert lib.names() == ("one",)
   shop = workshop.Workshop(None)
   row = text.BY_NAME["tools"]
@@ -239,9 +239,9 @@ def test_the_thought_files_and_both_libraries_live_on_the_store(tmp_path):
   assert (root / TOP_OF_MIND).read_text() == "bay C sticks\n"
   assert ThoughtFiles(root).read(TOP_OF_MIND) == "bay C sticks"
   lib = procedures.Library(None, root=root / "procedures")
-  lib.define("look_around", "def look_around():\n  look()\n")
-  assert (root / "procedures" / "look_around.procedure").exists()
-  assert procedures.Library(None, root=root / "procedures").names() == ("look_around",)
+  lib.define("pause", "def pause():\n  wait(1)\n")
+  assert (root / "procedures" / "pause.procedure").exists()
+  assert procedures.Library(None, root=root / "procedures").names() == ("pause",)
   assert isinstance(workshop.Workshop(root / "tools").store, store.FileStore)
   assert isinstance(ThoughtFiles().store, store.MemoryStore)
 
@@ -329,7 +329,7 @@ def test_the_record_reaches_the_mission_through_the_one_write_path(tmp_path):
   through the same loop as `pin` -- no branch was added for them."""
   from test_body import stub_life
   files = ThoughtFiles(tmp_path / "thoughts")
-  life = stub_life("room_hub", thoughts=files, errand=False)
+  life = stub_life(thoughts=files)
   said = []
   life.say_hooks.append(lambda t, line: said.append(line))
   life._reconsider(ov.Decision(action="idle",

@@ -14,49 +14,36 @@ version, regenerate these fixtures, and re-vendor them in the website repo.
 `tests/test_telemetry.py` fails if the committed fixtures drift from the
 committed world or the committed version.
 
-⚠ **Regenerating the HOME recording takes two passes.** A `board_snapshot`
-is only emitted for a board already carrying ink when the stream opens, so a
-run against blank boards emits none — and both repos' fixture specs require
-them, since catching a late joiner up on the ink is what 0.5.0 added. Lay the
-ink first, then record against the same state file:
+**Regenerating the fixtures.** One scene per world and one recording, the
+served pair's; a replayer picks its scene off the header's `model`:
 
 ```sh
-MUJOCO_GL=egl uv run python scripts/hub_lifecycle.py --world home \
-  --errand draw --boards /tmp/pw_boards.json                      # pass 1
-MUJOCO_GL=egl uv run python scripts/hub_lifecycle.py --world home \
-  --errand showcase --tasks --metabolism --near-field --boards /tmp/pw_boards.json \
-  --record protocol/telemetry.home_lifecycle.jsonl.gz             # pass 2
+MUJOCO_GL=egl uv run python -m pluggybot.telemetry.scene --world home_quad
+MUJOCO_GL=egl uv run python -m pluggybot.telemetry.scene --world home_quad --pair
+MUJOCO_GL=egl uv run python scripts/two_robots.py --world home_quad --fast --pack demo \
+  --near-field --errands none,none --battery 0.22,1.0 --max-sim-time 600 \
+  --record protocol/telemetry.home_quad_pair.jsonl.gz
 ```
 
-⚠ **`--tasks`, `--metabolism` and `--near-field` are all load-bearing**, for
-the same reason and in the same way `--tasks` became so at 0.9.0: each is off
-by default, so a recording made without it carries no `tasks` / `metabolism`
-block or `heightmap` lines at all and the website has nothing to build its
-markers, its hunger gauge or its floor map against.
+⚠ **The recording is the deployed period's shape.** `--tasks`, `--metabolism`
+and `--near-field` are each off by default, so a recording made without one
+carries no `tasks` / `metabolism` block or `heightmap` lines, and the website
+has nothing to build its markers, its hunger gauge or its floor map against.
+The committed recording is #387's period — `--near-field`, no offers and no
+upkeep, so `taskKinds` and `hungerStates` are empty; a recording for a
+period that runs offers or upkeep takes those flags too.
+
+⚠ **A recording with ink takes two passes.** A `board_snapshot` is only
+emitted for a board already carrying ink when the stream opens, so lay the
+ink first against a `--boards` state file, then record against the same
+file. No robot on legs draws yet (#406), so the committed recording has
+none.
 
 **A pair world is a world of its own** (0.20.0, issue #167): `<model>_pair`
-is the world with the second robot attached where the pair demo parks it,
-and a replayer treats it like any other world -- one scene, one recording,
-keyed by that name (`pluggybot.robot.pair_model_name`). Two are committed:
-`room_hub_pair` (the game) and `home_world_pair` (what `serve.py --pair`
-streams, issue #181: the first robot draws, the second explores and stands
-by for the board's work):
-
-```sh
-MUJOCO_GL=egl uv run python -m pluggybot.telemetry.scene models/room_hub.xml --pair
-MUJOCO_GL=egl uv run python scripts/two_robots.py --fast --pack hosting --tasks \
-  --metabolism --near-field --game --max-sim-time 600 \
-  --record protocol/telemetry.room_hub_pair.jsonl.gz
-MUJOCO_GL=egl uv run python -m pluggybot.telemetry.scene models/home_world.xml --pair
-MUJOCO_GL=egl uv run python scripts/two_robots.py --world home --fast --pack hosting \
-  --tasks --metabolism --near-field --errands draw,none --max-sim-time 600 \
-  --record protocol/telemetry.home_world_pair.jsonl.gz
-```
-
-⚠ `--pack hosting` is load-bearing: on the demo cell the hider took the
-game (0.6 Wh on a 0.7 Wh cell -- the claim gate prices against a CHARGED
-pack) and ran flat mid-wait at t = 286 s, which makes half the recording a
-dead robot. The hosting pack funds the game and the carries that follow.
+is the world with the second robot attached where the pair starts it, and a
+replayer treats it like any other world -- one scene, one recording, keyed
+by that name (`pluggybot.robot.pair_model_name`). The served world is the
+pair, `home_quad_pair`.
 
 ### 0.21.0, additive: a plate pressed off its errand (`press`); the lab on legs
 
@@ -67,8 +54,8 @@ the house's), and `feed_mouse` joins that world's `taskKinds` on the
 
 - **`press`**: a lab plate pressed with no errand of THAT plate running --
   a foot walking round the lab, a company visit, an explore, the robot's
-  own procedure. `plate` (`shock` / `feed` / `toy`), `robot` (whose foot or
-  wheel was on the pad, off the contact array), `doing` (the errand's name,
+  own procedure. `plate` (`shock` / `feed` / `toy`), `robot` (whose foot
+  was on the pad, off the contact array), `doing` (the errand's name,
   `procedure:<its name>`, or the robot's state, lower-cased), and the mouse
   `before` and `after`. The errand's own presses stay its `care` / `harm`
   row; a `press` is neither, and it is NOT an act (`ACT_EVENT_TYPES`):
@@ -86,8 +73,7 @@ changes; four things are new beside it.
 - **The quadrupeds' house has three new static bodies**, one sign at each
   lab plate's far edge: `lab_shock_sign`, `lab_feed_sign`, `lab_toy_sign`,
   each a post, a board and a tag facing the room (materials `tagmat35` /
-  `36` / `37`, textures `tagtex35..37.png`). Only in `home_quad` and
-  `home_quad_pair`: the rover's scenes are unchanged.
+  `36` / `37`, textures `tagtex35..37.png`).
 - **An offer at a task area carries where it is**: `params.address`
   (`{"house", "x", "y", "withinM"}` -- the building's middle a few metres
   off, in the robot's map) and `params.directions` (text), where the job
@@ -113,18 +99,16 @@ changes shape; three things are new beside it.
   reflex) and stands it before the next, so `lying` is the most common
   posture of the day and is NEVER a fall: a fall is `getting_up`, and a
   fall it could not get up from is the `stuck` death (`death.why` says
-  "fell and could not get up in 20 s"). ABSENT on the rover, which always
-  stands, so its frames read as they did.
+  "fell and could not get up in 20 s").
 
   ```jsonc
   "robots": {"pluggybot": {"state": "IDLE", "posture": "lying", ...}}
   ```
 
 - **The `build` block names the body** (`build.body`), with the sha256 of
-  each policy it walks and gets up on; absent for the rover, on `rung`'s
-  terms. `dataHashes.world` hashes the body's files too (its generated
-  model, its drivers' gains, the policies), so a retrained policy is a new
-  regime:
+  each policy it walks and gets up on. `dataHashes.world` hashes the body's
+  files too (its generated model, its drivers' gains, the policies), so a
+  retrained policy is a new regime:
 
   ```jsonc
   "build": {..., "body": {"name": "quadruped",
@@ -132,7 +116,7 @@ changes shape; three things are new beside it.
   ```
 
 - **Two new worlds, `home_quad` and `home_quad_pair`**: the home world with
-  the rover taken out and the quadruped put in -- one, or the served pair --
+  the quadruped put in -- one, or the served pair --
   and #378's dock on the living room's south wall (the `dock` body, its
   pins on two sprung poles, its board's tags 25-28). The quadruped is
   primitives only (boxes, capsules, cylinders, spheres), every leg link a
@@ -148,28 +132,30 @@ explained, because a `death` carried only its cause. It now carries `at`:
 
 ```jsonc
 {"type": "death", "t": 4411.3, "robot": "r2_pluggybot", "cause": "stuck",
- "why": "knocked over (88 deg from upright)", "survivalS": 1204.3,
+ "why": "fell and could not get up in 20 s", "survivalS": 1204.3,
  "deaths": 3, "hearts": 2,
- "at": {"t": 4409.2,
-        "pose":     {"x": 3.121, "y": -4.052, "yawDeg": 88.1},
-        "believed": {"x": 3.301, "y": -4.013, "yawDeg": 91.0},
+ "at": {"t": 4391.3,
+        "pose":     {"x": 21.121, "y": -2.052, "yawDeg": 88.1},
+        "believed": {"x": 21.301, "y": -2.013, "yawDeg": 91.0},
         "tilt": {"deg": 61.3, "towardDeg": -84.0, "toward": "right"},
-        "state": "SWAP_PICK", "status": "SWAP_PICK: approaching bay ...",
-        "carrying": "module_lcd",
-        "setpoints": {"lift": 0.164, "arm": 0.0},
-        "errand": {"name": "census", "task": "tk_0042", "module": "module_lcd"},
-        "step": null, "swapping": "module_lcd",
+        "state": "USE_TOOL", "status": "USE_TOOL: find tag 36 ...",
+        "carrying": null,
+        "setpoints": {"shoulder": 2.1, "elbow": -2.6},
+        "errand": {"name": "feed:lab", "task": "t_0042", "module": ""},
+        "step": {"procedure": "feed_mouse", "n": 1, "of": 2, "verb": "find",
+                 "args": {"tag": 36, "x": 22.0, "y": -1.0}},
+        "swapping": null,
         "peer": {"name": "Luca", "robot": "pluggybot", "distanceM": 1.512,
                  "state": "CHARGE", "dead": null}}}
 ```
 
-- **`at.t` is when these were read**: as the chassis passed 60° for a
-  topple, which is `TOPPLE_HOLD_S` (2 s) BEFORE the death's own `t` (the
-  errand has had two seconds to react by then); the death's `t` for every
-  other cause.
-- `pose` is the TRUE axle pose and `believed` the dead reckoning, in the
-  same terms (axle midpoint, heading in degrees), so their difference is
-  the drift.
+- **`at.t` is when these were read**: as the body passed 60° for a
+  topple, which is the body's `stuck_after_s` (a quadruped's 20 s) BEFORE
+  the death's own `t` (the errand has reacted by then); the death's `t`
+  for every other cause.
+- `pose` is the TRUE pose and `believed` the robot's own estimate, in the
+  same terms (the body's centre on the floor, heading in degrees), so their
+  difference is the drift.
 - `tilt`: degrees from upright, and the direction the robot's top leaned
   toward in its OWN frame (0 forward, 90 its left, -90 its right, 180
   back), with `toward` the nearest of those four words. Both are null
@@ -178,8 +164,9 @@ explained, because a `death` carried only its cause. It now carries `at`:
 - `state` is the lifecycle state, `status` the last narration line (≤ 200
   chars).
 - `carrying` is the module on the fork, or null. `setpoints` is what each
-  axis present is COMMANDED to: the body's `lift` and `arm`, and those of
-  the carried tool, under the procedure language's axis names. A setpoint
+  axis present is COMMANDED to: the body's (the quadruped's arm,
+  `shoulder` and `elbow`), and those of the carried tool, under the
+  procedure language's axis names. A setpoint
   is not a position.
 - `errand` is the errand running (null outside one), and `step` the
   procedure step: `{procedure, n, verb, args}` with `line` for a
@@ -282,8 +269,8 @@ no fixture carries a `procedure` event (their worlds have no mind).
 pluggybot #316. `encounter` has carried proximity since 0.19.0 -- `met`
 within 1.5 m, `parted` beyond 2.0 m -- and CONTACT, the one thing in that
 range a consumer would actually want marked, left nothing behind at all:
-`HubSwap.collision_steps` counts a chassis contact that is not the charge
-pins, and it is on no record and no wire. So a week with 382 encounters
+the body counted a chassis contact that was not the charge pins, and it was
+on no record and no wire. So a week with 382 encounters
 and nine `stuck` deaths could not say whether any of them was one robot
 driving into the other.
 
@@ -294,8 +281,7 @@ because a robot meeting something at cruise speed bounces. The activity's
 flags gain `touching` and `bumps` (the count). `ENCOUNTER_PHASES` in
 `telemetry/protocol.py` is the vocabulary; a consumer that knows only
 `met` and `parted` ignores the rest. **No bump**: nothing existing
-changed shape, and the fixtures are not re-recorded (`room_hub_pair`
-carries no encounter at all -- the two never came within 1.5 m).
+changed shape.
 
 ### 0.21.0, additive: an earning names the life it belongs to (`earned.generation`; `rating.generation`)
 
@@ -502,7 +488,7 @@ pluggybot #226. The lab's cage is an ACTIVITY now: `lab_cage` joins the
 header's `activities` on the home world and its flags ride the frame's
 `activities` block like the garden light's -- `mouse` (`resting` /
 `eating` / `playing` / `hiding` / `on_its_side`), `shock` / `feed` /
-`toy` (a wheel on that pad, live), `company` (a robot inside 1 m, live),
+`toy` (a robot on that pad, live), `company` (a robot inside 1 m, live),
 and the counts `shocks` / `feeds` / `toys` / `visits`. The mouse's body
 (`lab_mouse`, `dynamic: true` since #215) moves with the state, so a
 frame carries where it is; a consumer that draws the mouse by its state
@@ -714,7 +700,7 @@ props for #226). Two additive things:
 - **A `plate` hint** (`VISUAL_HINTS`, `hints.json`): the garden's pad and
   the lab's three. One box, thin, and DYNAMIC in a real world -- the pad
   rides a slide joint, so a frame carries its pose as it sinks under a
-  wheel. Draw in the body's frame.
+  robot. Draw in the body's frame.
 - **`scene.plates`**, on `boards`' terms: `{<body name>: {"purpose": ...}}`
   with the purpose from `PLATE_PURPOSES` (`light`, `shock`, `feed`,
   `toy`). The site draws a glyph per purpose on the pad's top face, for
@@ -840,10 +826,8 @@ What did not move: `mode` is the OPERATOR's switch, one per world, and keeps
 its shape; `ledger` in the frame is keyed by account and already listed both
 robots' accounts at 0.19.0.
 
-Fixtures: both single-robot recordings re-flown at the new version, plus the
-pair world above (`scene.room_hub_pair.json`,
-`telemetry.room_hub_pair.jsonl.gz`: two scripted robots on `room_hub`, a
-shared board with hide-and-seek on it, both appetites).
+Fixtures: every recording re-flown at the new version, plus the first pair
+world's (the rover's; pluggybot #376 deleted it).
 
 **Serving a pair (issue #181, additive).** `serve.py --pair` puts both robots
 on the live stream under `<world>_pair`, exactly the recording's shape. Two
@@ -1354,9 +1338,9 @@ three bays at the rack's pitch past bay E, bay tags **7, 8, 9**, geoms
 `bayf_` … `bayh_` and `rack_built_<post|rail|foot|shelf|brace>_*`. The
 five hand-built modules are permanent; a built tool hangs on the rail and
 only there. **No bump**: a new dynamic body and three new textures, both
-of which a consumer already handles per body and per texture. The four
-scenes and both `--pair` scenes carry it; `tagtex7..9.png` are new under
-`textures/`; the recordings were re-flown on the new plan.
+of which a consumer already handles per body and per texture. It went
+with the rover's worlds (pluggybot #376): no world on legs has the rail
+yet.
 
 - **`scene_changed`** is unchanged in shape. `bay` on it is now the
   RAIL's index (0–2), `retired` is a built tool or null -- never one of
@@ -1549,8 +1533,7 @@ no agent can stop it, so a death here could only ever mean a dead endpoint —
 the box's failure booked in the column the agent is judged on. The threshold
 is 1800 sim seconds with no `ask` FIRING (not with no *answer* arriving: a
 mind consulted through an outage is still being consulted), measured against
-the 833 s worst healthy gap in `results/`. **The deployed world is still
-`guarded` and cannot produce one.**
+the worst healthy gaps (docs/Evaluation.md §2).
 
 ### A dead robot stands itself up, and says when
 
@@ -1604,10 +1587,11 @@ The deployed sim runs the full lifecycle 24 hours a day and, until this,
 carried `protocolVersion` and no other identity — so a week of observed
 behaviour could not be told apart from the week before it under a different
 commit, a different model or a different `rewards.json`. That is the exact
-failure `dataHashes` and `deadlineS` were added to the *experiment's* series
-key to prevent (docs/Evaluation.md §4): the experiment refuses to pool across
-two regimes, and the observatory could not even detect one. **Observatory
-data without a build identifier is not weaker data, it is unusable data.**
+failure `dataHashes` and `deadlineS` were added to the harness's series key
+to prevent (the harness refused to pool across two regimes; it went with
+the rover, pluggybot #376), and the observatory could not even detect one.
+**Observatory data without a build identifier is not weaker data, it is
+unusable data.**
 
 It is in the header because it is per-CONNECTION identity, which is what a
 header is for, and because every mission end is a restart — so one header per
@@ -1617,8 +1601,8 @@ run is exactly the granularity a consumer wants to group by. `accepts` and
 | field | what it says |
 |---|---|
 | `commit` | the sim's short git sha, **baked at image build** (`--build-arg PLUGGY_COMMIT=…`; the build is red without one, because `.git` is not in the image and a default that quietly stayed `unknown` is the whole problem) |
-| `dataHashes` | sha256 of the five economy data files **as the run resolved them** (an env override wins) plus the world's own XML and assets. The same function the `results/` records use — one implementation, not two |
-| `arm` | `scripted` / `guarded` / `autonomous` (docs/Evaluation.md §2). The deployed world is `guarded`, and it should say so rather than be assumed. ⚠ It is what RAN, not what was asked for: an arm whose mind could not be built at all is a `scripted` day |
+| `dataHashes` | sha256 of the five economy data files **as the run resolved them** (an env override wins) plus the world's own XML and assets, and the body's files and policies. One function, `evaluation.identity.data_hashes` |
+| `arm` | `scripted` / `guarded` / `autonomous` (docs/Evaluation.md §2). The deployed world is `autonomous` (#206), and it says so rather than being assumed. ⚠ It is what RAN, not what was asked for: an arm whose mind could not be built at all is a `scripted` day |
 | `rung` | which rung of the `autonomous` ladder — `A0` (the survival clock hidden) or `A1` (restored). ⚠ **ABSENT on an arm with no ladder**, rather than null: "which mind" is a question every arm answers and "which rung" is not one `guarded` has, so a `guarded` header is byte-identical to the one 0.15.0 shipped |
 | `model`, `backend` | which mind is deciding, and by which road — `Qwen/…` on the router and the same id served locally are different regimes |
 | `packWh`, `reserveWh`, `deadlineS` | the three world parameters each already shown to move behaviour. The deadline is not a data file, so no hash catches it |
@@ -1630,7 +1614,7 @@ nested block rather than six more top-level fields.
 
 ⚠ **This does not make the deployed world an experiment.** It stays one
 uncontrolled run with an operator who can pause it and an admin who resets it,
-and its numbers never enter a results table (docs/Evaluation.md §5). What it
+and a number off it is a reading, not a result (docs/Evaluation.md §5). What it
 makes possible is *saying which robot the observations are of*.
 
 ⚠ **`arm` is fixed at connection like `accepts`**, so an operator flipping the
@@ -1873,9 +1857,10 @@ identity, and the wire now carries both. The header gains one field:
 The **key stays the robot id** (`ROBOT_ROOT`, the MJCF body name): frames,
 the ledger, `goals`, `grid` and every typed message keep keying off it, so
 renaming a robot re-keys nothing and breaks no consumer mid-stream. The name
-is per sim instance (`--robot-name` on `serve.py` / `hub_lifecycle.py`, or
-`$PLUGGY_ROBOT_NAME`), defaults to `"Pluggy"`, and rides the header alone —
-it cannot change during a run, so a 20 Hz repeat would buy nothing.
+is per sim instance (`--robot-name` on `serve.py`, `--names` on
+`two_robots.py`, or `$PLUGGY_ROBOT_NAME`), defaults to `"Pluggy"`, and rides
+the header alone — it cannot change during a run, so a 20 Hz repeat would
+buy nothing.
 
 ⚠ **Absent must degrade to a default, never to blank.** A pre-0.10.0
 recording has no `robotNames` at all, and older copies of both vendored
@@ -2411,40 +2396,23 @@ against the body census.
 
 | File | What | Regenerate with |
 |---|---|---|
-| `scene.room_hub.json` | Static scene description of `models/room_hub.xml` | `uv run python -m pluggybot.telemetry.scene` |
-| `scene.home_world.json` | The generated home world, with visual hints + zones + spawns (issue #6) | `uv run python -m pluggybot.telemetry.scene models/home_world.xml` |
+| `scene.home_quad.json` | The generated home world with ONE quadruped and its dock (issue #387), with visual hints + zones + spawns | `uv run python -m pluggybot.telemetry.scene --world home_quad` |
 | `home_world.meta.json` | The generator sidecar the scene JSON was built from | `uv run python -m pluggybot.home.world` |
 | `hints.json` | The visual-hint **conformance fixture** (issue #66): per hint, one body in `scene_dict`'s exact shape plus a machine-readable rule | `uv run python -m pluggybot.telemetry.hints` |
-| `textures/*.png` | The AprilTag textures, decoded from the compiled model | (same command) |
+| `textures/*.png` | The AprilTag textures, decoded from the compiled model | (the scene command) |
 | `parts.json` | The **parts catalog** (issue #185): what Pluggy and its rack are made of and what the agent may build from, each part with its number, source, mass, price, status and the sim constants it FEEDS — every feed value read off the compiled world when the file is built. Not on the wire; vendored for the website's parts page. `schema` versions it, not `protocolVersion` | `uv run python -m pluggybot.rack.catalog` |
-| `telemetry.hub_lifecycle.jsonl.gz` | Full battery-driven mission in **room_hub** (explore → charge → fetch tool → stow), with a **task** offered, claimed and graded (0.9.0) | `MUJOCO_GL=egl uv run python scripts/hub_lifecycle.py --tasks --metabolism --near-field --record protocol/telemetry.hub_lifecycle.jsonl.gz` |
-| `telemetry.home_lifecycle.jsonl.gz` | The same loop in the **home world** (issue #9) running the **showcase** queue: a drawing errand (issue #12) *and* a census on the LCD (issue #13), so one recording exercises BOTH streamed surfaces — what the live site serves, and the fixture the canvas painter and the face component are built against | `MUJOCO_GL=egl uv run python scripts/hub_lifecycle.py --world home --errand showcase --tasks --metabolism --near-field --boards state.json --record protocol/telemetry.home_lifecycle.jsonl.gz` |
-| `scene.room_hub_pair.json` | `room_hub` with the SECOND robot attached where the pair demo parks it (0.20.0, issue #167): every `r2_*` body marked `"robot": "r2_pluggybot"` | `uv run python -m pluggybot.telemetry.scene models/room_hub.xml --pair` |
-| `telemetry.room_hub_pair.jsonl.gz` | Two scripted robots on `room_hub` from one loop, a shared board with **hide-and-seek** on it (one robot per role), both **appetites**, both **maps**, the pair's **encounters** | `MUJOCO_GL=egl uv run python scripts/two_robots.py --fast --pack hosting --tasks --metabolism --game --max-sim-time 600 --record protocol/telemetry.room_hub_pair.jsonl.gz` |
-| `scene.home_world_pair.json` | The home world with the second robot attached (issue #181): what `serve.py --pair` streams | `uv run python -m pluggybot.telemetry.scene models/home_world.xml --pair` |
-| `telemetry.home_world_pair.jsonl.gz` | The SERVED pair shape: two robots on `home`, the first drawing, the second exploring then standing by for the board's work, both appetites and maps | `MUJOCO_GL=egl uv run python scripts/two_robots.py --world home --fast --pack hosting --tasks --metabolism --errands draw,none --max-sim-time 600 --record protocol/telemetry.home_world_pair.jsonl.gz` |
-| `scene.home_quad_pair.json` | The home world with the QUADRUPED pair and its dock (issue #387): what `serve.py --pair --body quadruped` streams | `uv run python -m pluggybot.telemetry.scene --world home_quad --pair` |
+| `scene.home_quad_pair.json` | The home world with the QUADRUPED pair and its dock (issue #387): what `serve.py --pair` streams | `uv run python -m pluggybot.telemetry.scene --world home_quad --pair` |
 | `telemetry.home_quad_pair.jsonl.gz` | The quadruped period's shape: no offers, no upkeep, #378's arm stowed on both backs (#405); the first robot, started low, walks to the dock, lies on it and charges while the second explores, then rests by reflex -- both maps and near fields. Started at 0.42 (#387's), the first robot left for the dock only once the second had finished and lay resting across its way home, and died stranded (#405: a finished robot does not yield) | `MUJOCO_GL=egl uv run python scripts/two_robots.py --world home_quad --fast --pack demo --near-field --errands none,none --battery 0.22,1.0 --max-sim-time 600 --record protocol/telemetry.home_quad_pair.jsonl.gz` |
 
-⚠ **`--tasks` AND `--metabolism` are both load-bearing on both recordings** (0.9.0, 0.13.0). Job offers are
-off by default — a task board adds errands, which reshuffles a whole mission
-— so a recording made without the flag carries no `tasks` block at all and
-the website's marker code has nothing to build against.
-
-⚠ **Record the home fixture TWICE against the same `--boards state.json`, and
-keep the second.** A board that survived a previous run is what makes the
-recording open with a `board_snapshot` (0.5.0), which is the one case no other
-message in the stream can rebuild — so a fixture recorded onto blank boards
-quietly stops covering it. The ledger needs no such warm-up: a run starts the
-robot at zero and the balance climbs on the wire, which is what the site's
-scoreboard renders.
+The flags each recording needs, and the two passes a recording with ink
+takes, are at the top of this file.
 
 **One recording per scene, and they are not interchangeable.** A replayer
-picks its scene off the header's `model` field, so playing the room_hub
-recording against the home scene poses the robot inside the wrong house —
-which renders as a robot driving through walls, not as an error.
-`tests/test_telemetry.py` checks each recording's `model` label and each
-scene against its committed world.
+picks its scene off the header's `model` field, so playing a pair's
+recording against the single robot's scene poses a robot that is not
+there — which renders as a body moving with no model under it, not as an
+error. `tests/test_telemetry.py` checks each recording's `model` label and
+each scene against its committed world.
 
 ## Scene description (fetched once)
 
@@ -2454,10 +2422,10 @@ files are already resolved. Top level:
 ```jsonc
 {
   "protocolVersion": "0.3.0",
-  "model": "room_hub",
+  "model": "home_quad",
   "upAxis": "z",              // see "conventions" below
   "bodies": [ ... ],
-  "textures": [{"name": "tagtex0", "file": "tagtex0.png", "width": 240, "height": 240}]
+  "textures": [{"name": "tagtex25", "file": "tagtex25.png", "width": 240, "height": 240}]
 }
 ```
 
@@ -2603,7 +2571,7 @@ time**. A `.gz` suffix means gzip (`zcat` to inspect).
 
 ```jsonc
 // header
-{"type": "header", "protocolVersion": "0.6.0", "model": "room_hub", "hz": 20.0,
+{"type": "header", "protocolVersion": "0.6.0", "model": "home_quad", "hz": 20.0,
  "keyframeS": 5.0,                                      // sim s between keyframes
  "robots": {"pluggybot": ["pluggybot", "head", ...]},   // dynamic bodies per robot
  "robotNames": {"pluggybot": "Pluggy"},                 // id → display name (0.10.0)

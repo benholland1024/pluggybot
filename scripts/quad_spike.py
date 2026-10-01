@@ -43,8 +43,7 @@ import numpy as np  # noqa: E402
 
 from pluggybot.legs.actuator import BUS_V_NOMINAL, JointLimits  # noqa: E402
 from pluggybot.legs.model import (CHOSEN, ELECTRONICS_W, LEGS, PUPPER_CLASS, SIZING,  # noqa: E402
-                                  PUPPER_WITH_SUITE, BodySpec, attachable, body_xml,
-                                  pose_qpos)
+                                  PUPPER_WITH_SUITE, BodySpec, body_xml, pose_qpos)
 from pluggybot.legs.odometry import LegOdometry  # noqa: E402
 from pluggybot.legs.policy import POLICY_NPZ, PolicyDriver, Twist, WalkingPolicy  # noqa: E402
 from pluggybot.legs.scan import MapScan  # noqa: E402
@@ -438,15 +437,16 @@ def thermal_table(spec: BodySpec = SIZING) -> None:
 MID360_VFOV = (-7.0, 52.0)
 
 
-def ray_cost(world: str = "models/home_world.xml") -> None:
-  """What a scan costs the physics thread, in the home world: the 2D LIDAR
+def ray_cost() -> None:
+  """What a scan costs the physics thread, in the served house: the 2D LIDAR
   (360 rays in one `mj_multiRay`, as `perception/lidar.py` casts them, the
   noise drawn ray by ray) against a 3D LIDAR frame of N rays, also one
-  `mj_multiRay`."""
+  `mj_multiRay`, from the quadruped standing at its start."""
+  from pluggybot.legs import world as lw
   from pluggybot.perception.lidar import Lidar
-  model = mujoco.MjModel.from_xml_path(world)
+  model = lw.home_spec().compile()
   data = mujoco.MjData(model)
-  mujoco.mj_forward(model, data)
+  lw.stand(model, data)
   lidar = Lidar(model)
   t = time.perf_counter()
   for _ in range(50):
@@ -486,63 +486,37 @@ def _driver(model, data, policy: WalkingPolicy, prefix: str = "") -> PolicyDrive
 
 
 def quad_pair_world(policy: WalkingPolicy):
-  """The home world with its rover taken out and two quadrupeds in, 1.5 m
-  apart, each standing; returns (model, data, drivers)."""
-  spec = mujoco.MjSpec.from_file("models/home_world.xml")
-  for el in (list(spec.actuators) + list(spec.sensors) + list(spec.tendons)
-             + list(spec.equalities) + list(spec.excludes)):
-    spec.delete(el)
-  spec.delete(spec.body("pluggybot"))
-  for prefix, x in (("", 0.0), ("r2_", 1.5)):
-    frame = spec.worldbody.add_frame()
-    frame.pos = [x, 0.0, 0.0]
-    spec.attach(attachable(CHOSEN), prefix=prefix, frame=frame)
-  model = spec.compile()
+  """The served house with two quadrupeds in, 1.5 m apart, each standing;
+  returns (model, data, drivers)."""
+  from pluggybot.legs import world as lw
+  at = ((0.0, 0.0), (1.5, 0.0))
+  model = lw.home_spec(first_at=at[0], second_at=at[1]).compile()
   data = mujoco.MjData(model)
-  drivers = []
-  for prefix in ("", "r2_"):
-    root = model.jnt_qposadr[model.joint(f"{prefix}pluggybot_root").id]
-    data.qpos[root + 2] = CHOSEN.stand_height
-    j = model.jnt_qposadr[model.joint(f"{prefix}FL_hip_abd").id]
-    data.qpos[j:j + 12] = pose_qpos(CHOSEN, CHOSEN.stand_height)
-  mujoco.mj_forward(model, data)
-  for prefix in ("", "r2_"):
-    drivers.append(_driver(model, data, policy, prefix=prefix))
+  for prefix, (x, y) in zip(("", "r2_"), at):
+    lw.stand(model, data, prefix=prefix, x=x, y=y)
+  drivers = [_driver(model, data, policy, prefix=prefix) for prefix in ("", "r2_")]
   return model, data, drivers
 
 
 def served_cost(path=POLICY_NPZ, sim_s: float = 10.0, rounds: int = 3) -> None:
   """What a pair's physics thread spends per sim second on what the BODY
-  changes -- the physics and the body's own controller -- for two rovers
-  (their wheel servos are MuJoCo's) against two quadrupeds (the policy in
-  numpy, the drivers' PD in MuJoCo's dcmotor), interleaved A B A B (CLAUDE.md: wall clock tracks the
-  machine). The sensors' costs are the same rays at the same rates for either
-  body, so the ratio scales the rover pair's measured multiple on the box."""
-  from pluggybot.robot import world_with_robots
+  changes -- the physics and the body's own controller (the policy in
+  numpy, the drivers' PD in MuJoCo's dcmotor) -- for two quadrupeds
+  trotting, `rounds` times over (CLAUDE.md: wall clock tracks the machine;
+  read it against the same flight on the other side, interleaved)."""
   policy = WalkingPolicy(path)
-  rover = world_with_robots("models/home_world.xml", second_at=(1.5, 0.0))
-  results = {"rover pair": [], "quadruped pair": []}
+  runs = []
   twist = Twist(vx=0.5)
   for _ in range(rounds):
-    data = mujoco.MjData(rover)
-    mujoco.mj_forward(rover, data)
-    n = int(sim_s / rover.opt.timestep)
-    t = time.perf_counter()
-    for _ in range(n):
-      mujoco.mj_step(rover, data)
-    results["rover pair"].append((time.perf_counter() - t) / sim_s)
     model, data, drivers = quad_pair_world(policy)
     t = time.perf_counter()
     for _ in range(int(sim_s / model.opt.timestep)):
       for drv in drivers:
         drv.command(twist)
       mujoco.mj_step(model, data)
-    results["quadruped pair"].append((time.perf_counter() - t) / sim_s)
-  for name, xs in results.items():
-    print(f"{name:16s} {np.median(xs) * 1e3:7.1f} ms of wall per sim second "
-          f"(median of {rounds}: " + ", ".join(f"{x * 1e3:.0f}" for x in xs) + ")")
-  ratio = np.median(results["quadruped pair"]) / np.median(results["rover pair"])
-  print(f"quadruped / rover: {ratio:.2f}")
+    runs.append((time.perf_counter() - t) / sim_s)
+  print(f"{'quadruped pair':16s} {np.median(runs) * 1e3:7.1f} ms of wall per sim second "
+        f"(median of {rounds}: " + ", ".join(f"{x * 1e3:.0f}" for x in runs) + ")")
 
 
 def sweep() -> None:
@@ -1251,7 +1225,7 @@ def main(argv=None) -> None:
   ap.add_argument("--energy", action="store_true")
   ap.add_argument("--thermal", action="store_true")
   ap.add_argument("--served", nargs="?", const=str(POLICY_NPZ), default=None,
-                  help="a pair's physics + controller cost, quadrupeds vs rovers")
+                  help="a pair's physics + controller cost, ms of wall per sim second")
   ap.add_argument("--rays", action="store_true",
                   help="what a 2D and a 3D LIDAR scan cost the physics thread")
   ap.add_argument("--policy", nargs="?", const=str(POLICY_NPZ), default=None,

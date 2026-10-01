@@ -1,21 +1,41 @@
-"""`control.square_up` -- the ONE bounded squaring-up loop (issue #108).
-
-The pen, the claw, the dispenser and the mission each carried their own
-`while |heading error| > tol` with no bound of any kind. A robot that
-cannot turn -- ridden up onto a board mount, wheels half off the floor --
-sat in the pen's copy for 2000+ sim-seconds, drained the pack to 0 % at
-stall current and kept going past the day's budget, because both mission
-end conditions are checked between errands. These tests drive the shared
-loop with a kinematic stub, so nothing here needs MuJoCo.
+"""`control.square_up_routine` -- the ONE bounded squaring-up loop (issue
+#108). A body that cannot turn sat in an unbounded `while |heading error| >
+tol` for 2000+ sim-seconds, drained the pack to 0 % and kept going past the
+day's budget, because the mission's end conditions are checked between
+errands. These tests drive the loop with a kinematic stub, so nothing here
+needs MuJoCo.
 """
 
 import math
 
 import pytest
 
-from pluggybot.control import FACE_BUDGET_S, square_up, wrap_angle
+from pluggybot.control import (FACE_BUDGET_S, W_BREAKAWAY, square_up_routine,
+                               turn_command, wrap_angle)
 
 DT = 0.002
+
+
+def _drive(routine):
+  """Run a routine to its result: the stub steps itself, so each yield is
+  only a physics step's turn."""
+  try:
+    while True:
+      next(routine)
+  except StopIteration as done:
+    return done.value
+
+
+def square_up(error, step, settle, clock, **kw):
+  """`square_up_routine` over plain callables, driven to its result."""
+  def step_routine(w):
+    step(w)
+    yield
+
+  def settle_routine():
+    settle()
+    yield
+  return _drive(square_up_routine(error, step_routine, settle_routine, clock, **kw))
 
 
 class Body:
@@ -28,9 +48,9 @@ class Body:
     self.w = 0.0
 
   def step(self, w: float) -> None:
-    # a first-order lag on the rate stands in for `slew`: the body keeps
-    # turning for a moment after the command drops, which is the overshoot
-    # the settle-and-recheck exists for
+    # a first-order lag on the rate: the body keeps turning for a moment
+    # after the command drops, which is the overshoot the settle-and-recheck
+    # exists for
     self.w = w if not self.lag else self.w + (w - self.w) * DT / self.lag
     if not self.stuck:
       self.theta += self.w * DT
@@ -96,3 +116,16 @@ def test_tries_is_still_a_bound_on_the_recheck():
                            drifting_settle, lambda: body.t, tol=0.004,
                            tries=3)
   assert drift[0] == 3 and not squared and abs(err) > 0.004 * 4
+
+
+def test_turn_command_clears_the_breakaway_deadband():
+  """A P-turn that shrinks its command with the error parks itself in a
+  body's dead band -- commanding less than breakaway is commanding zero --
+  so every nonzero command is floored at the breakaway yaw rate, its sign
+  kept, and the clamp still holds."""
+  assert turn_command(0.0) == 0.0, "zero command must stay zero"
+  small = turn_command(0.004)
+  assert small >= W_BREAKAWAY, \
+    f"near-tolerance command {small:.3f} is inside the deadband"
+  assert turn_command(-0.004) <= -W_BREAKAWAY, "floor must preserve sign"
+  assert turn_command(1.0) == pytest.approx(0.5), "the clamp must survive"

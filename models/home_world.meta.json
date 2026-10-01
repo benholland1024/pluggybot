@@ -80,9 +80,7 @@
   "furniture_bed": "bed",
   "furniture_counter": "counter",
   "furniture_table": "table",
-  "stairs": "stairs",
-  "rack": "rack",
-  "rack_built": "rack"
+  "stairs": "stairs"
  },
  "zones": [
   {
@@ -449,13 +447,6 @@
    "heading": 1.5707963267948966
   }
  },
- "rack": {
-  "pos": [
-   0.5,
-   -1.98
-  ],
-  "yaw_deg": 90.0
- },
  "tower": {
   "name": "workshop",
   "blocks": [
@@ -503,10 +494,5 @@
   -11.5,
   33.5,
   11.5
- ],
- "battery": {
-  "lowWh": 2.05,
-  "demoCapacityWh": 4.5,
-  "hostingCapacityWh": 8.0
- }
+ ]
 }

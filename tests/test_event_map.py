@@ -22,11 +22,10 @@ tests/test_overseer.py, whose fakes these reuse.
 import json
 import math
 from contextlib import contextmanager
+from dataclasses import replace
 
 import pytest
 
-from pluggybot.evaluation import record as rec
-from pluggybot.evaluation import rollup as ru
 from pluggybot.evaluation.arms import arm_flags, origin_for
 from pluggybot.lifecycle import UNMINDED_AFTER_S, board_book
 from pluggybot.mind import events as ev
@@ -36,12 +35,12 @@ from pluggybot.mind.thoughts import ThoughtFiles
 from pluggybot.telemetry.protocol import DEATH_CAUSES
 
 from test_overseer import FakeClient, full  # noqa: I001 -- tests/ is on sys.path
-from test_experiment import _config, _decision, _result, _state
+from test_standing_orders import _state
 
 
 @pytest.fixture(scope="module")
 def menu():
-  return Menu.for_world("home", board_book("home"))
+  return Menu.for_world("home_quad", board_book("home_quad"))
 
 
 def make(menu, *answers, origin="seeded", **kw) -> Overseer:
@@ -133,7 +132,7 @@ def test_a_threshold_with_no_value_is_refused_and_a_silly_one_is_clamped(menu):
             "value": float("nan")}, menu)
   assert ev.row({"event": "battery_below", "action": "charge",
                  "value": 1.4}, menu).value == 1.0
-  assert ev.row({"event": "battery_above", "action": "draw",
+  assert ev.row({"event": "battery_above", "action": "explore",
                  "value": -3.0}, menu).value == 0.0
   # ...and a period under the seam's own tick is rounded up rather than
   # refused: it names something the physics seam cannot distinguish from
@@ -152,7 +151,7 @@ def test_message_received_carries_no_filter_however_it_is_asked_for(menu):
   whose filter does not exist, not an illegal row, and refusing the decision
   would teach it that the field matters."""
   row = ev.row({"event": "message_received", "action": "idle",
-                "value": 0.5, "kind": "draw"}, menu)
+                "value": 0.5, "kind": "explore"}, menu)
   assert row.value is None and row.kind == ""
   assert "message_received" in ev.UNCONFIGURABLE_EVENTS
   item = menu.schema(event_map=True)["properties"]["event_map"]["items"]
@@ -226,12 +225,12 @@ def test_an_every_row_measures_from_when_it_was_written(menu):
 
 
 def test_a_kind_filter_narrows_a_completion_and_a_bare_row_does_not(menu):
-  drew = ev.Row(event="task_complete", action="charge", kind="draw")
+  job = ev.Row(event="task_complete", action="charge", kind="take_task")
   anything = ev.Row(event="task_complete", action="idle")
-  emap = ev.EventMap((drew, anything))
+  emap = ev.EventMap((job, anything))
   fire = ev.EventClock().fire
-  assert fire(emap, ev.Live(occurred=(("task_complete", "draw"),)), 0.0) is drew
-  assert fire(emap, ev.Live(occurred=(("task_complete", "census"),)),
+  assert fire(emap, ev.Live(occurred=(("task_complete", "take_task"),)), 0.0) is job
+  assert fire(emap, ev.Live(occurred=(("task_complete", "explore"),)),
               1.0) is anything
 
 
@@ -252,7 +251,7 @@ def test_a_standing_order_becomes_a_decision_failed_row(menu):
   """The issue's migration, and it KEEPS WORKING for one version the way
   `LEGACY_INBOUND_TYPES` did: the field is still in the grammar, still
   validated by the same function, and what it now does is write a row."""
-  boss = make(menu, full(action="draw", standing_order="charge"))
+  boss = make(menu, full(action="explore", standing_order="charge"))
   boss.decide(_state(0.9))
   assert boss.event_map.first("decision_failed").action == "charge"
   assert boss.failure_order("timeout") == "charge"
@@ -395,12 +394,12 @@ def test_a_kind_belonging_to_another_event_is_refused(menu):
     ev.row({"event": "task_complete", "action": "idle", "kind": "timeout"},
            menu)
   with pytest.raises(ValueError, match="unknown kind"):
-    ev.row({"event": "decision_failed", "action": "idle", "kind": "draw"},
+    ev.row({"event": "decision_failed", "action": "idle", "kind": "explore"},
            menu)
   #  ...and the schema offers both vocabularies, because it has to.
   kinds = set(menu.schema(event_map=True)["properties"]["event_map"]
               ["items"]["properties"]["kind"]["enum"])
-  assert {"draw", "timeout", "failure", ""} <= kinds
+  assert {"explore", "timeout", "failure", ""} <= kinds
 
 
 def test_an_event_that_takes_no_filter_still_drops_one(menu):
@@ -448,7 +447,7 @@ def test_nothing_to_do_narrows_to_whether_the_board_shows_an_offer(menu):
   assert ev.EventClock().fire(ev.EventMap((offers,)), on_empty, 0.0) is None
   assert ev.EventClock().fire(ev.EventMap((either,)), on_empty, 0.0) == either
   with pytest.raises(ValueError, match="unknown kind"):
-    ev.row({"event": "nothing_to_do", "action": "idle", "kind": "draw"}, menu)
+    ev.row({"event": "nothing_to_do", "action": "idle", "kind": "explore"}, menu)
   with pytest.raises(ValueError, match="unknown kind"):
     ev.row({"event": "task_complete", "action": "idle", "kind": "offers"},
            menu)
@@ -481,11 +480,11 @@ def test_the_map_is_told_whether_the_robot_is_shown_an_offer(menu, shown):
               origin="unseeded",
               event_map=ev.EventMap((ev.Row(event="nothing_to_do",
                                             action=ev.ASK, kind="offers"),)))
-  life = stub_life("home", overseer=boss, tasks=board)
+  life = stub_life(overseer=boss, tasks=board)
   life._minded = True                       # past the bootstrap
   life.body.hold_routine = lambda *a, **kw: tick.result(None)
   try:
-    life.body.start_at(*world_config("home")["start"])
+    life.body.start_at(*world_config("home_quad")["start"])
     assert bool(shown_offers(life)) is shown
     life.body.run(life._arbitrate_routine())
   finally:
@@ -567,11 +566,10 @@ def test_no_worked_example_hands_the_agent_the_answer(menu):
   assert "the broad rule wins every time" in rule
 
 
-def test_the_committed_series_prefixes_do_not_move(menu):
-  """A prompt edit is a moved cache and a moved experiment -- but only for a
-  world that HAS this block. `guarded` never did, and `autonomous` at origin
-  `none` (which is how A0 and A1 were flown) never did either, so every
-  committed record's prefix is untouched by the cut above."""
+def test_a_world_with_no_map_is_told_nothing_about_one_on_either_arm(menu):
+  """A prompt edit is a moved cache -- but only for a world that HAS this
+  block. `guarded` never did, and neither does `autonomous` at origin
+  `none`, the default."""
   for kw in ({"standing_orders": True}, {"standing_orders": True,
                                          "autonomous": True}):
     boss = Overseer(menu, client=1, **kw)
@@ -597,9 +595,7 @@ def test_the_agent_is_told_the_reasons_and_the_two_groups(menu):
 def test_an_event_decision_is_neither_a_call_nor_a_fallback(menu):
   """⚠ THREE PRODUCERS SINCE THIS ISSUE, NOT TWO. Counting a row of the
   agent's own map as a fallback would make an agent that configured its day
-  well read as an agent whose endpoint was down -- and would move
-  `fallbackRate`, which `FALLBACK_LIMIT` is set against and which issue #141
-  spent a whole change making mean one thing."""
+  well read as an agent whose endpoint was down."""
   boss = make(menu)
   row = ev.Row(event="battery_below", action="charge", value=0.2)
   d = boss.decide_event(_state(0.15), row)
@@ -607,14 +603,6 @@ def test_an_event_decision_is_neither_a_call_nor_a_fallback(menu):
   assert d.by_event and not d.scripted and not d.source.startswith("llm")
   assert (boss.usage.events, boss.usage.fallbacks, boss.usage.llm_calls) \
       == (1, 0, 0)
-  events = [_decision(10, 0.15, "charge", source="event:battery_below"),
-            _decision(20, 0.5, "draw", source="fallback:timeout"),
-            _decision(30, 0.5, "draw", source="llm")]
-  r = rec.build_record(_config(), _result(), events, 1.0, _now(),
-                       hashes=rec.data_hashes("home"), commit="abc")
-  assert r["mind"]["fallbacks"] == 1 and r["mind"]["llmCalls"] == 1
-  assert r["mind"]["eventActions"] == {"charge": 1}
-  assert r["mind"]["fallbackRate"] == round(1 / 3, 4)
 
 
 # ---- the map on the stream (issue #238) ---------------------------------------
@@ -670,11 +658,11 @@ def test_the_lifecycle_fills_in_whose_map_it_is(menu, tmp_path):
   from pluggybot.lifecycle import world_config
   from test_body import stub_life
   boss = make(menu, full(action="idle", standing_order="explore"))
-  life = stub_life("home", overseer=boss)
+  life = stub_life(overseer=boss)
   seen = []
   life.on_event.append(seen.append)
   try:
-    life.body.start_at(*world_config("home")["start"])
+    life.body.start_at(*world_config("home_quad")["start"])
     life._decide()
   finally:
     life.body.close()
@@ -713,7 +701,7 @@ def test_the_map_report_is_readable_without_flying_anything(menu):
   assert score["hazards"] == ["battery"]
   # ...and the same four questions about a map that answers none of them.
   compiled = ev.EventMap(tuple(
-    ev.row(r, menu) for r in rows(("task_complete", "draw", 0, ""))))
+    ev.row(r, menu) for r in rows(("task_complete", "explore", 0, ""))))
   bad = ev.score(compiled)
   assert not bad["charges"] and not bad["keepsAsk"] and not bad["mapsFailure"]
   assert bad["chargeAt"] == [] and bad["hazards"] == []
@@ -731,48 +719,6 @@ def test_thresholds_out_of_order_are_a_rule_the_agent_does_not_have(menu):
   assert ev.thresholds_ordered(m(0.35, 0.15)) is False
   assert ev.thresholds_ordered(m(0.20)) is None
   assert ev.thresholds_ordered(m()) is None
-
-
-def test_the_rollup_pools_maps_as_run_counts_and_keeps_the_thresholds(menu):
-  """⚠ COUNTS OF RUNS, NOT AN AVERAGE OF BOOLEANS. "three of five agents
-  wrote themselves a charging rule" is a sentence; 0.6 hides whether the
-  sixth-tenths agent existed. The one distribution is `chargeAt`, for
-  `voluntaryChargeFrac`'s reason."""
-  def run(seed, score, failed):
-    r = rec.build_record(_config(arm="autonomous", rung="A0", seed=seed,
-                                 origin="seeded"),
-                         _result(), [], 1.0, _now(),
-                         hashes=rec.data_hashes("home"), commit="abc")
-    r["mind"]["eventMap"] = {"origin": "seeded", "final": [], "score": score,
-                             "edits": 2, "log": [], "fired": {"every": 3},
-                             "failed": failed, "actions": 3}
-    return rec.validate(r)
-  charging = {"charges": True, "chargeAt": [0.2], "keepsAsk": True,
-              "mapsFailure": True, "ordered": None, "rows": 3}
-  quiet = {"charges": False, "chargeAt": [], "keepsAsk": False,
-           "mapsFailure": False, "ordered": None, "rows": 1}
-  doc = ru.rollup([run(0, charging, {"busy": 2}), run(1, quiet, {"busy": 1})])
-  em = doc["series"][0]["mind"]["eventMap"]
-  assert (em["n"], em["charges"], em["keepsAsk"]) == (2, 1, 1)
-  assert em["chargeAt"]["values"] == [0.2]
-  assert em["fired"] == {"every": 6} and em["failed"] == {"busy": 3}
-  assert doc["series"][0]["origin"] == "seeded"
-
-
-def test_an_origin_is_part_of_the_series_key_and_none_pools_with_absent():
-  """⚠ MISSING AND `none` ARE THE SAME SERIES. Every record committed before
-  this issue was flown with no event map, which is exactly what `none`
-  means -- normalising them apart would split the existing A0 series in two
-  and quietly invalidate its aggregate."""
-  base = _config(arm="autonomous", rung="A0")
-  none = rec.build_record({**base, "origin": "none"}, _result(), [], 1.0,
-                          _now(), hashes=rec.data_hashes("home"), commit="a")
-  older = rec.build_record(base, _result(), [], 1.0, _now(),
-                           hashes=rec.data_hashes("home"), commit="a")
-  older["config"].pop("origin")
-  seeded = rec.build_record({**base, "origin": "seeded"}, _result(), [], 1.0,
-                            _now(), hashes=rec.data_hashes("home"), commit="a")
-  assert ru.series_key(none) == ru.series_key(older) != ru.series_key(seeded)
 
 
 # ---- the arms --------------------------------------------------------------
@@ -803,7 +749,6 @@ def test_the_default_origin_leaves_a0_exactly_as_it_was_flown():
     arm_flags("autonomous", "A0", "invented")
 
 
-@pytest.mark.slow
 def test_an_unseeded_agent_is_asked_once_or_the_arm_measures_nothing(tmp_path):
   """⚠ THE BOOTSTRAP, AND `unseeded` CANNOT RUN WITHOUT IT. An empty map has
   no `ask` row, so without this the agent is never consulted, never writes a
@@ -814,17 +759,18 @@ def test_an_unseeded_agent_is_asked_once_or_the_arm_measures_nothing(tmp_path):
   #303 -- a fallback does not count), which is what keeps it a bootstrap
   rather than a rail: an agent that has been asked and then removed every
   `ask` row has made that choice with its eyes open, and this cannot undo
-  it. The rule is pinned in milliseconds by `test_a_garbled_bootstrap_is_
-  asked_again` / `test_the_bootstrap_is_still_not_a_rail`; this flies it.
+  it. The rule is pinned pass by pass by `test_a_garbled_bootstrap_is_
+  asked_again` / `test_the_bootstrap_is_still_not_a_rail`; this is a day of
+  it on the stub.
   """
-  from pluggybot.lifecycle import run_demo
-
-  client = FakeClient(full(action="idle", reason="working it out"))
-  out = run_demo(view=False, realtime=False, world="room_hub", errand="none",
-                 max_sim_time=90.0, overseer=True, standing_orders=True,
-                 origin="unseeded", thoughts_root=str(tmp_path / "t"),
-                 ledger_state=str(tmp_path / "l.json"),
-                 on_ready=attach(client))
+  from pluggybot.lifecycle import world_config
+  from test_body import stub_life
+  thoughts = ThoughtFiles.open(str(tmp_path / "t"))
+  boss = Overseer(Menu.for_world("home_quad", None),
+                  client=FakeClient(full(action="idle", reason="working it out")),
+                  standing_orders=True, origin="unseeded", thoughts=thoughts)
+  life = stub_life(overseer=boss, thoughts=thoughts)
+  out = life.run(start=world_config("home_quad")["start"], max_sim_time=90.0)
   assert len(out["decisions"]) == 1, \
       "asked once from an empty map, and never again by the map's own rules"
   assert out["decisions"][0]["source"] == "llm"
@@ -834,7 +780,7 @@ def test_an_unseeded_agent_is_asked_once_or_the_arm_measures_nothing(tmp_path):
 def _arbitrate_twice(boss, tmp_path):
   """Two passes of the arbitration seam on a lifecycle built round `boss`."""
   from test_body import stub_life
-  life = stub_life("home", overseer=boss)
+  life = stub_life(overseer=boss)
   try:
     _pass_twice(life)
   finally:
@@ -849,7 +795,7 @@ def _pass_twice(life):
   from pluggybot import tick
   from pluggybot.lifecycle import world_config
   life.body.hold_routine = lambda *a, **kw: tick.result(None)
-  life.body.start_at(*world_config("home")["start"])
+  life.body.start_at(*world_config("home_quad")["start"])
   life.body.run(life._arbitrate_routine())
   life.body.run(life._arbitrate_routine())
 
@@ -903,7 +849,7 @@ def test_the_next_generation_is_asked(menu, tmp_path):
   boss = make(menu, full(action="idle", reason="working it out"),
               origin="unseeded")
   ledger = Ledger(path=tmp_path / "ledger.json")
-  life = stub_life("home", overseer=boss, ledger=ledger,
+  life = stub_life(overseer=boss, ledger=ledger,
                     thoughts=ThoughtFiles.open(str(tmp_path / "t")))
   life._minded = True                       # this life has answered
   ledger.robots[life.root]["hearts"] = 1    # ...and it is on its last
@@ -952,8 +898,8 @@ def test_unminded_is_a_death_cause_of_its_own_and_never_summed():
 
 def test_the_unminded_threshold_clears_every_healthy_gap_ever_measured():
   """⚠ MEASURED, the way tumble detection's 60 deg is. The longest gap
-  between consecutive model decisions across the fifteen committed LLM days
-  in `results/` is 833 s -- a `guarded` day that spent a long errand and a
+  between consecutive model decisions across the fifteen LLM days the
+  harness flew is 833 s -- a `guarded` day that spent a long errand and a
   full charge back to back. The threshold has to clear that with room, and
   still fit inside a standard 3600 s day.
 
@@ -967,11 +913,6 @@ def test_the_unminded_threshold_clears_every_healthy_gap_ever_measured():
   assert UNMINDED_AFTER_S >= 833.0 * 2
   assert UNMINDED_AFTER_S > 1375.0
   assert UNMINDED_AFTER_S < 3600.0
-
-
-def _now():
-  from datetime import datetime, timezone
-  return datetime.now(timezone.utc)
 
 
 def test_a_map_with_no_ask_row_scores_as_unminded_before_it_is_flown(menu):
@@ -1068,7 +1009,7 @@ def _context(menu, boss, **kw):
   """The volatile context a lifecycle built on this overseer would send."""
   from pluggybot.lifecycle import overseer_context
   from test_body import stub_life
-  life = stub_life("home", overseer=boss, **kw)
+  life = stub_life(overseer=boss, **kw)
   try:
     return life, overseer_context(life)
   except BaseException:                      # pragma: no cover -- fixture only
@@ -1170,7 +1111,7 @@ def test_a_robot_stood_back_up_is_shown_a_silence_of_its_own(menu, tmp_path):
   that where a carried-over number would say it had just been consulted."""
   from test_body import stub_life
   boss = make(menu, origin="unseeded")
-  life = stub_life("home", overseer=boss,
+  life = stub_life(overseer=boss,
                     thoughts=ThoughtFiles.open(str(tmp_path / "t")))
   try:
     life._asked_after_s = 12.0
@@ -1269,7 +1210,7 @@ def test_the_death_the_robot_reads_carries_the_list_that_did_it(menu,
   off the string, because the wiring is the claim."""
   from test_body import stub_life
   boss = make(menu, origin="unseeded")
-  life = stub_life("home", overseer=boss,
+  life = stub_life(overseer=boss,
                     thoughts=ThoughtFiles.open(str(tmp_path / "t")))
   try:
     life.mortal = True
@@ -1295,7 +1236,7 @@ def _run(menu, root, *answers, origin="unseeded", **kw):
   every sim-hour: a mind, and the lifecycle that keeps its list."""
   from test_body import stub_life
   memory = ThoughtFiles.open(str(root))
-  life = stub_life("home", overseer=make(menu, *answers, origin=origin,
+  life = stub_life(overseer=make(menu, *answers, origin=origin,
                                           thoughts=memory),
                     thoughts=memory, **kw)
   try:
@@ -1494,7 +1435,7 @@ def test_an_answer_that_outlives_its_robot_is_not_the_next_robots(menu,
   from pluggybot.lifecycle import world_config
   root = tmp_path / "t"
   ledger = Ledger(path=tmp_path / "l.json")
-  with _run(menu, root, full(action="draw", event_map=QUIET,
+  with _run(menu, root, full(action="explore", event_map=QUIET,
                              pin="a thought of the robot before"),
             ledger=ledger) as life:
     life.overseer.client.delay = 0.3
@@ -1505,7 +1446,7 @@ def test_an_answer_that_outlives_its_robot_is_not_the_next_robots(menu,
         life._die("flat", "the pack reached zero")
       time.sleep(0.01)
       return tick.result(None)
-    life.body.start_at(*world_config("home")["start"])    # (drives: first)
+    life.body.start_at(*world_config("home_quad")["start"])    # (drives: first)
     life.body.hold_routine = think_slice
     life.body.run(life._decide_routine())
   assert life.true_deaths, "the fixture did not die mid-think"
@@ -1703,7 +1644,7 @@ def test_an_interrupt_that_carries_on_is_the_case_this_fixes(menu, tmp_path):
 # ---- an `ask` counts the moment it fires (issue #426) ------------------------
 
 
-def _slow_life(menu, emap, *answers, world="home", minded=True, **kw):
+def _slow_life(menu, emap, *answers, minded=True, **kw):
   """A mortal robot on the served arm, holding `emap` as a KEPT list (so
   the bootstrap does not ask over it, #337, unless `minded` is False), on a
   stub stepped at 0.1 s rather than 2 ms: half an hour of the seam in a
@@ -1713,14 +1654,14 @@ def _slow_life(menu, emap, *answers, world="home", minded=True, **kw):
   from pluggybot.body import STUB_WORLD, StubBody
   from pluggybot.lifecycle import world_config
   from test_body import stub_life
-  cfg = world_config(world)
+  cfg = world_config("home_quad")
   model = mujoco.MjModel.from_xml_string(
     STUB_WORLD.replace("<worldbody>", '<option timestep="0.1"/><worldbody>'))
   body = StubBody(model, mujoco.MjData(model), rack=cfg["rack"],
                   grid_bounds=cfg["grid_bounds"])
   boss = make(menu, *answers, origin="unseeded", event_map=ev.EventMap(
     tuple(ev.Row(event=e, action=a, value=v) for e, a, v in emap)))
-  life = stub_life(world, body=body, overseer=boss, autonomous=True,
+  life = stub_life(body=body, overseer=boss, autonomous=True,
                    mortal=True, **kw)
   life._minded = minded
   return life
@@ -1744,7 +1685,7 @@ def test_an_ask_that_fired_before_a_restart_is_neither_lost_nor_late(
   from pluggybot import continuation
   from pluggybot.lifecycle import world_config
   monkeypatch.setattr(lc, "AUTONOMOUS_IDLE_S", 1000.0)   # busy through 900 s
-  start = world_config("home")["start"]
+  start = world_config("home_quad")["start"]
   row = ev.Row(event="every", action=ev.ASK, value=900.0)
   life = _slow_life(menu, [("every", ev.ASK, 900.0)])
   life.stop_when(lambda: life.queued_row is not None)
@@ -1781,7 +1722,7 @@ def test_an_ask_that_finds_the_slot_full_still_counts(menu, monkeypatch):
   monkeypatch.setattr(lc, "AUTONOMOUS_IDLE_S", 1000.0)
   life = _slow_life(menu, [("every", "idle", 850.0), ("every", ev.ASK, 900.0)])
   life.stop_when(lambda: life._asked_t is not None and life._asked_t >= 1800.0)
-  life.run(start=world_config("home")["start"], max_sim_time=2000.0)
+  life.run(start=world_config("home_quad")["start"], max_sim_time=2000.0)
   assert not _unminded(life), life.deaths
   assert life.overseer.stats()["eventMap"]["failed"] == {"busy": 2}
   assert life.overseer.client.calls == []
@@ -1798,7 +1739,7 @@ def test_an_ask_that_fires_through_a_long_charge_still_counts(menu):
   from pluggybot.lifecycle import CHARGED, world_config
   life = _slow_life(menu, [("every", ev.ASK, 900.0)],
                     full(action="charge"), full(action="idle"),
-                    world="home_quad", minded=False, battery_wh=194.0)
+                    minded=False, battery_wh=194.0)
   life.battery.charge_w, life.battery.draw_w = life.energy.charge_w, 0.0
   life.battery.energy_wh = 0.3 * 194.0
   charge_s = (CHARGED - 0.3) * 194.0 * 3600.0 / life.energy.charge_w
@@ -1822,7 +1763,7 @@ def test_a_list_whose_asks_never_fire_still_dies_of_it(menu):
   from pluggybot.lifecycle import world_config
   emap = [("every", ev.ASK, 3600.0)]
   life = _slow_life(menu, emap)
-  life.run(start=world_config("home")["start"], max_sim_time=1900.0)
+  life.run(start=world_config("home_quad")["start"], max_sim_time=1900.0)
   [death] = _unminded(life)
   assert death["t"] == pytest.approx(UNMINDED_AFTER_S, abs=0.2)
   assert death["why"] == (f"nothing has asked me anything for "
@@ -1899,26 +1840,14 @@ def test_a_level_or_periodic_row_is_never_called_shadowed(menu):
   assert ev.ASK in [r.action for r in fired if r is not None]
 
 
-def test_the_report_and_the_rollup_carry_the_new_field(menu):
-  """`score` is the instrument and the rollup pools it; a field that exists
-  only in one of them is a finding nobody reads. Additive, so every
-  committed record keeps its meaning.
-
-  ⚠ AND A RECORD THAT PREDATES THE QUESTION IS `None`, NEVER 0. A run count
-  would read every map written between #127 and #322 -- which has a score
-  and no such field -- as "this agent wrote no unreachable rule", which is
-  a finding nobody measured. `ordered`'s three-way shape, for its reason."""
+def test_the_report_carries_the_shadowed_field(menu):
+  """`score` is the instrument; a field it does not carry is a finding
+  nobody reads."""
   emap = ev.EventMap((ev.Row(event="task_complete", action="idle"),
                       ev.Row(event="task_complete", action=ev.ASK)))
   assert set(ev.score(emap)) >= {"shadowed", "shadowedEvents"}
+  assert ev.score(emap)["shadowedEvents"] == ["task_complete"]
   assert ev.score(None) == {}, "no map is still no report"
-  clean = ev.score(ev.EventMap((ev.Row(event="nothing_to_do", action=ev.ASK),)))
-  old = {k: v for k, v in clean.items() if k != "shadowed"}   # a pre-#322 score
-  pooled = ru._map_summary([{"score": ev.score(emap)}, {"score": clean},
-                            {"score": old}])
-  assert pooled["shadowed"] == {"1": 1, "0": 1, "None": 1}, \
-      "an unmeasured map is being counted as a clean one"
-  assert pooled["shadowedEvents"] == {"task_complete": 1}
 
 
 # ---- the seeded map is the pre-change loop ----------------------------------
@@ -1973,14 +1902,14 @@ def test_a_seeded_day_asks_where_the_old_one_asked():
   from test_body import stub_life  # noqa: I001 -- tests/ is on sys.path
 
   def fly(origin):
-    boss = make(Menu.for_world("room_hub", None),
+    boss = make(Menu.for_world("home_quad", None),
                 full(action="idle", reason="thinking"), origin=origin)
-    life = stub_life("room_hub", overseer=boss)
+    life = stub_life(overseer=boss)
     life.stop_when(lambda: len(life.decisions) >= 9)
     # ⚠ THE COUNT ENDS THE DAY, NEVER THE BUDGET: on the stub a late answer
     # is SIM time (~40 s per 100 ms the thread waits), so a loaded box ran
     # one day into 90 s before its ninth decision and not the other.
-    out = life.run(start=world_config("room_hub")["start"], max_sim_time=3600.0)
+    out = life.run(start=world_config("home_quad")["start"], max_sim_time=3600.0)
     return [d["action"] for d in out["decisions"]], out
 
   plain_actions, plain = fly("none")
@@ -2039,8 +1968,12 @@ def test_an_impossible_row_is_filtered_and_an_unwise_one_is_not(menu):
   empty = _state(0.9)
   assert not ov.order_runnable(menu, "take_task", empty)
   assert ov.order_runnable(menu, "charge", empty)
-  assert not ov.order_runnable(menu, "census",
-                               _state(0.9, possible=["draw", "charge"]))
+  assert not ov.order_runnable(menu, "census", empty), "off this world's menu"
+  #  ...and an errand no charge here could fund: the lab's `care`, on the
+  #  arm that offers it
+  lab = replace(menu, lab="lab")
+  assert not ov.order_runnable(lab, "care", _state(0.9, possible=["explore"]))
+  assert ov.order_runnable(lab, "care", _state(0.9, possible=["care"]))
 
 
 # ---- an action that takes no time is not the world standing still (#400) -----
@@ -2051,17 +1984,15 @@ def _instant_life(menu, *emap, **kw):
   first step -- the deployed pair's, where every walking verb did (#399) --
   and a spy that fails the test on a second decision at one sim instant,
   so the spin fails rather than hangs. The acting times are the list."""
-  from dataclasses import replace
-
   from pluggybot.lifecycle import world_facts
   from pluggybot.procedure import library as lib
   from test_body import stub_life
-  library = lib.Library(world_facts("home"))
+  library = lib.Library(world_facts("home_quad"))
   library.define("walk", "def walk():\n  drive_to(1.0, 1.0)\n")
   boss = make(replace(menu, procedures=True), origin="unseeded", library=library,
               event_map=ev.EventMap(tuple(ev.Row(event=e, action=a)
                                           for e, a in emap)), **kw)
-  life = stub_life("home", overseer=boss, autonomous=True)
+  life = stub_life(overseer=boss, autonomous=True)
 
   def raises(*a, **k):
     raise KeyError("arm")
@@ -2082,7 +2013,7 @@ def _instant_life(menu, *emap, **kw):
 
 def _fly(life, seconds: float = 10.0):
   from pluggybot.lifecycle import world_config
-  life.run(start=world_config("home")["start"], max_sim_time=seconds)
+  life.run(start=world_config("home_quad")["start"], max_sim_time=seconds)
 
 
 @pytest.mark.parametrize("emap, kw", [
@@ -2127,7 +2058,7 @@ def test_a_run_of_instant_decisions_is_said_in_history_once(menu):
   narration says every one."""
   from pluggybot.lifecycle import DECIDED_IDLE_S
   from test_body import stub_life
-  life = stub_life("home", overseer=make(menu, origin="unseeded"))
+  life = stub_life(overseer=make(menu, origin="unseeded"))
   said = lambda: life.thoughts.read("History.md").count("ended the moment it began")  # noqa: E731
   t0 = float(life.data.time)
   life._decided_at = (t0, "procedure:walk")
@@ -2167,10 +2098,10 @@ def test_the_moment_is_kept_across_a_restart(menu):
   """State that decides goes in `kept_state` (issue #345): a save at the
   loop's top can fall between a decision and the pass after it."""
   from test_body import stub_life
-  life = stub_life("home", overseer=make(menu, origin="unseeded"))
+  life = stub_life(overseer=make(menu, origin="unseeded"))
   life._decided_at, life._stood_still = (12.5, "procedure:walk"), True
   state, arrays = life.kept_state()
-  back = stub_life("home", overseer=make(menu, origin="unseeded"))
+  back = stub_life(overseer=make(menu, origin="unseeded"))
   back.restore_kept(json.loads(json.dumps(state)), arrays, in_place=False)
   assert back._decided_at == (12.5, "procedure:walk") and back._stood_still
 
@@ -2184,7 +2115,7 @@ def test_a_kept_row_comes_back_only_to_a_list_that_still_has_it(menu):
   row = ev.Row(event="every", action=ev.ASK, value=900.0)
 
   def life_on(*rows):
-    return stub_life("home", overseer=make(menu, origin="unseeded",
+    return stub_life(overseer=make(menu, origin="unseeded",
                                             event_map=ev.EventMap(rows)))
   life = life_on(row)
   life.queued_row = row
@@ -2192,7 +2123,7 @@ def test_a_kept_row_comes_back_only_to_a_list_that_still_has_it(menu):
   state = json.loads(json.dumps(state))
   for back, want in [(life_on(row), row),
                      (life_on(ev.Row(event="every", action=ev.ASK, value=600.0)), None),
-                     (stub_life("home", overseer=Overseer(menu, client=1)), None)]:
+                     (stub_life(overseer=Overseer(menu, client=1)), None)]:
     back.restore_kept(state, arrays, in_place=False)
     assert back.queued_row == want
 

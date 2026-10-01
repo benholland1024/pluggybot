@@ -4,10 +4,10 @@ knowledge, kept with its map across a restart and forgotten only at a true
 death; nothing here is handed to it.
 
 A place is a TAG, merged by its decoded identity and never by distance
-(`rack.localize.RackFinder.look`'s rule: gated by distance after drift, a
-fresh sighting made a second landmark and the belief never moved), its
-position blended with a floor on the newest look's weight (`RECENCY`, the
-rack's), so a robot whose belief has drifted re-learns the place in its
+(gated by distance after drift, the rover's rack finder made a fresh
+sighting a second landmark and its belief never moved), its position
+blended with a floor on the newest look's weight (`RECENCY`), so a robot
+whose belief has drifted re-learns the place in its
 current frame from a handful of looks. The map, the belief and the places
 are laid in one frame, which is why a place found by sight carries none of
 the error a coordinate handed over in the world's frame does (#414: 0.45 m
@@ -32,7 +32,7 @@ from dataclasses import dataclass
 
 import numpy as np
 
-#: A new look's weight never falls below this: `RackFinder`'s recency.
+#: A new look's weight never falls below this (the rover's rack finder's).
 RECENCY = 0.25
 #: One tag's own rotation is believed only off a look at least this far
 #: off its face and no further than `CLOSE_M` away. MEASURED on the lab's

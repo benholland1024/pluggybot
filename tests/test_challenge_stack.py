@@ -13,9 +13,6 @@ import pytest
 
 from pluggybot.challenge import stack
 from pluggybot.economy import scoring
-from pluggybot.rack.coupling import HUB_STATION_YS
-from pluggybot.rack.swap import HubSwap
-from pluggybot.tools.gripper import GRIP_Z, ClawTool
 
 TABLE = scoring.challenge_table()
 TOWER_XY = (1.10, 0.30)
@@ -171,23 +168,22 @@ def test_two_blocks_balanced_on_one_is_not_a_tower(model):
   assert stack.measure(model, data)["layers"] == 2
 
 
-def test_a_tower_the_claw_is_holding_up_fails(model):
-  """Criterion 4. The claw on the fork, jaws closed on the top block of a
-  three-high stack: the geometry passes, the contacts do not."""
-  data = mujoco.MjData(model)
-  swap = HubSwap(model, data)
-  swap.place_at_standoff(HUB_STATION_YS[3])
-  swap.pick()
-  claw = ClawTool(model, data, swap)
-  claw.jaws(0.0)
-  claw.lower_grip_to(GRIP_Z + 2 * stack.PITCH_M)
-  gx, gy, _ = claw.grip_world()
-  tower(model, data, xy=(gx, gy))
-  claw.jaws(1.0, settle=1.2)
-  assert claw.holding("block_2_box"), "the premise: the claw has the top block"
-  at_done = stack.measure(model, data)
+def test_a_tower_the_robot_is_holding_up_fails():
+  """Criterion 4. The served body standing with its front left foot
+  against the stack: the geometry passes, the contacts do not."""
+  from pluggybot.legs import world as lw
+  from pluggybot.perception.lidar import robot_geoms
+  house = lw.home_spec().compile()
+  data = mujoco.MjData(house)
+  lw.stand(house, data, x=-11.0, y=-3.0)
+  foot = house.geom("FL_foot")
+  fx, fy, _ = data.geom_xpos[foot.id]
+  tower(house, data, xy=(float(fx) + float(foot.size[0]) + stack.BLOCK_HALF - 0.0005,
+                         float(fy)))
+  at_done = stack.measure(house, data)
+  ours = {house.geom(g).name for g in robot_geoms(house, "pluggybot")}
   assert at_done["layers"] == 3 and not at_done["freeStanding"]
-  assert at_done["touchedBy"] == ["module_claw_pad_l", "module_claw_pad_r"]
+  assert at_done["touchedBy"] and set(at_done["touchedBy"]) <= ours, at_done["touchedBy"]
   ok, _, reason = stack.eval_stack(stack.measurements(
     at_done, {**at_done, "t": at_done["t"] + stack.HOLD_S}))
   assert not ok and "holding the tower up" in reason

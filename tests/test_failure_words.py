@@ -8,23 +8,26 @@ feed plate was never pressed" for a route that gave up in the living room,
 fast test per rule, each stubbing what is not under test; nothing flies.
 """
 
+import math
 import re
 from types import SimpleNamespace
 
 import pytest
 
 from pluggybot import tick
+from pluggybot.body import KeepClear, StubBody
 from pluggybot.economy import scoring
-from pluggybot.lifecycle import HubLifecycle
+from pluggybot.legs.body import QuadMission
+from pluggybot.lifecycle import QUAD_HOME, HubLifecycle, board_book, world_config
 from pluggybot.mission.errand import Errand
-from pluggybot.body import KeepClear
-from pluggybot.mission.mission import DRIVE_GAVE_UP, HubMission, gave_up
-from pluggybot.rack.coupling import HUB_STATION_YS
+from pluggybot.navigator import DRIVE_GAVE_UP, gave_up
+from pluggybot.procedure.steps import TOOL_BAYS
+from pluggybot.rack.coupling import STATION_YS
 from pluggybot.robot import SECOND
 
-from test_overseer import _lifecycle  # noqa: I001 -- tests/ is on sys.path
+from test_body import stub_life  # noqa: I001 -- tests/ is on sys.path
 
-STATION = HUB_STATION_YS[2]
+STATION = STATION_YS[TOOL_BAYS["module_pen"]]
 STEPPER = SimpleNamespace(step=lambda *a: None)
 
 
@@ -32,11 +35,20 @@ def _history(life) -> list[str]:
   return [ln for ln in life.thoughts.read("History.md").splitlines() if ln.strip()]
 
 
+def _life(**kw):
+  """The loop on a stub body that says why a drive gave up in the served
+  body's own words (`navigator.gave_up`), with the house's boards."""
+  cfg = world_config(QUAD_HOME)
+  body = StubBody(rack=cfg["rack"], grid_bounds=cfg["grid_bounds"])
+  body.gave_up = gave_up
+  return stub_life(body=body, boards=board_book(QUAD_HOME), **kw)
+
+
 def _stalled_at(life, seconds=60.0, short=3.0):
   """A drive stub that gives up the way the real one records it."""
-  def drive(x, y, timeout=90.0):
-    life.body.mission.last_drive = {"why": "stalled", "goal": (x, y),
-                               "seconds": seconds, "shortM": short}
+  def drive(x, y, timeout=90.0, stop=None):
+    life.body.last_drive = {"why": "stalled", "goal": (x, y),
+                            "seconds": seconds, "shortM": short}
     return tick.result(False)
   return drive
 
@@ -54,9 +66,9 @@ def test_a_refused_pick_leads_the_verdict_and_is_said_once():
   """Five of the fourteen "no ink reached whiteboard_b" were a pick refused
   at the rack. The verdict leads with the pick; the grade is still the
   board's (no ink, 0 points), and History says it once, not twice."""
-  life = _lifecycle("room_hub", errand=False)
-  life.body.mission.swap_at_bay_routine = lambda *a, **kw: tick.result(None)
-  life.body.mission.swap.module_state = lambda *a, **kw: {"on_fork": False, "hung": False}
+  life = _life()
+  life.body.fetch_tool_routine = lambda *a, **kw: tick.result("arrived")
+  life.body.module_state = lambda *a, **kw: {"on_fork": False, "hung": False}
   result = life.run_errand(_pen_errand())
   reason = result["verdict"]["reason"]
   assert reason.startswith("could not pick up module_pen: it was not on its bay"), reason
@@ -69,10 +81,8 @@ def test_a_refused_pick_leads_the_verdict_and_is_said_once():
 def test_a_drive_that_never_arrived_leads_the_verdict_with_why():
   """Six of the fourteen were "USE_TOOL: never got there" -- no History line
   and no reason. The narration and the verdict now carry both."""
-  life = _lifecycle("room_hub", errand=False)
-  life.body.mission.swap_at_bay_routine = lambda *a, **kw: tick.result(None)
-  life.body.mission.swap.module_state = lambda *a, **kw: {"on_fork": True, "hung": True}
-  life.body.mission.drive_to_routine = _stalled_at(life)
+  life = _life()
+  life.body.go_to_routine = _stalled_at(life)
   result = life.run_errand(_pen_errand())
   why = "the drive gave up 3.0 m short after 60 s (stalled, no progress for 10 s)"
   assert result["verdict"]["reason"] == (f"never reached whiteboard_a: {why} -- "
@@ -84,11 +94,9 @@ def test_a_drive_that_never_arrived_leads_the_verdict_with_why():
 def test_a_failure_a_passed_verdict_does_not_carry_is_still_in_history():
   """A carry whose drive fell short and whose tool went home was done, and
   its verdict is left alone -- so History says what failed on its own."""
-  life = _lifecycle("room_hub", errand=False)
-  life.body.mission.swap_at_bay_routine = lambda *a, **kw: tick.result(None)
-  life.body.mission.swap.module_state = lambda *a, **kw: {"on_fork": True, "hung": True}
-  life.body.mission.drive_to_routine = _stalled_at(life)
-  errand = Errand(name="carry", module="module_lcd", station_y=HUB_STATION_YS[0],
+  life = _life()
+  life.body.go_to_routine = _stalled_at(life)
+  errand = Errand(name="carry", module="module_lcd", station_y=STATION_YS[0],
                   use_at=(1.0, 1.0), use=lambda _l: {}, task="carry")
   result = life.run_errand(errand)
   assert result["verdict"]["ok"] and "never reached" not in result["verdict"]["reason"]
@@ -108,10 +116,7 @@ def test_the_lead_moves_no_point_and_leaves_a_pass_alone():
 
 def test_a_board_it_never_squared_up_to_leads_with_which_of_the_two():
   """The use-phase's own word that its work never began leads the same way."""
-  life = _lifecycle("room_hub", errand=False)
-  life.body.mission.swap_at_bay_routine = lambda *a, **kw: tick.result(None)
-  life.body.mission.swap.module_state = lambda *a, **kw: {"on_fork": True, "hung": True}
-  life.body.mission.drive_to_routine = lambda *a, **kw: tick.result(True)
+  life = _life()
   errand = _pen_errand()
   errand.use = lambda _l: {"error": "never squared up to the board",
                            "failedBefore": "never squared up to whiteboard_a: the "
@@ -125,27 +130,31 @@ def test_a_board_it_never_squared_up_to_leads_with_which_of_the_two():
 
 
 class _Drive:
-  """`drive_to_routine`'s own `self`, with the planner and the wheels
+  """`drive_to_routine`'s own `self` -- the served body's (`QuadMission`,
+  whose drive is the `Navigator`'s) -- with the planner and the legs
   stubbed: every command is 0.1 s, and the robot moves `step` m along x."""
-  drive_to_routine = HubMission.drive_to_routine
-  _drove = HubMission._drove
-  _at_stand_in = HubMission._at_stand_in
-  _other_in_the_way = HubMission._other_in_the_way
-  _bodies = HubMission._bodies
-  peer_on_the_goal = HubMission.peer_on_the_goal
-  _cells = HubMission._cells
-  _left = HubMission._left
-  PROGRESS_ALONG_ROUTE = HubMission.PROGRESS_ALONG_ROUTE
-  PROGRESS_MAP_GROWTH = HubMission.PROGRESS_MAP_GROWTH
-  # ...the rover's measured sizes, which the drive reads off its body
-  BACKOFF_V, PEER_CLEARANCE_M = HubMission.BACKOFF_V, HubMission.PEER_CLEARANCE_M
-  OTHER_ROBOT_CELLS = HubMission.OTHER_ROBOT_CELLS
-  DOWN_ROBOT_CELLS = HubMission.DOWN_ROBOT_CELLS
+  drive_to_routine = QuadMission.drive_to_routine
+  _drove = QuadMission._drove
+  _at_stand_in = QuadMission._at_stand_in
+  _other_in_the_way = QuadMission._other_in_the_way
+  _bodies = QuadMission._bodies
+  peer_on_the_goal = QuadMission.peer_on_the_goal
+  _cells = QuadMission._cells
+  _left = QuadMission._left
+  _known_cells = QuadMission._known_cells
+  PROGRESS_ALONG_ROUTE = QuadMission.PROGRESS_ALONG_ROUTE
+  PROGRESS_MAP_GROWTH = QuadMission.PROGRESS_MAP_GROWTH
+  NEW_ROUTE_M = QuadMission.NEW_ROUTE_M
+  # ...its measured sizes, which the drive reads off its body
+  BACKOFF_V, PEER_CLEARANCE_M = QuadMission.BACKOFF_V, QuadMission.PEER_CLEARANCE_M
+  OTHER_ROBOT_CELLS = QuadMission.OTHER_ROBOT_CELLS
+  DOWN_ROBOT_CELLS = QuadMission.DOWN_ROBOT_CELLS
   pressing = False
 
   def __init__(self, plan, step=0.0, others=(), sighting=None, cut=False):
+    import numpy as np
     self.data = SimpleNamespace(time=0.0)
-    self.grid = SimpleNamespace(resolution=0.05)
+    self.grid = SimpleNamespace(resolution=0.05, grid=np.zeros((4, 4)))
     self._cut = cut
     self.pose = (0.0, 0.0, 0.0)
     self.others = list(others)
@@ -248,10 +257,15 @@ def test_the_cut_route_check_answers_as_a_plan_would_without_the_other_robot():
   planning again (a plan across the home loop is ~1.3 s on the physics
   thread): held here to a REAL plan with the other robot left out, on a
   wall with a door the other robot stands in, and one with no door."""
-  from pluggybot.lifecycle import world_config
-  life = _lifecycle("room_hub", errand=False)
-  m = life.body.mission
-  m.start_at(*world_config("room_hub")["start"])          # (0.5, 3.0)
+  import mujoco
+
+  from pluggybot.legs import body as qb
+  from pluggybot.legs import world as lw
+  model = lw.home_spec().compile()
+  body = qb.QuadBody(model, mujoco.MjData(model), realtime=False,
+                     grid_bounds=world_config(QUAD_HOME)["grid_bounds"])
+  m = body.mission
+  m.start_at(0.5, 3.0, 0.0)
   door = KeepClear(2.0, 3.0)
   for gap in (True, False):
     m.grid.grid[:] = -5.0                                   # mapped and free...
@@ -261,14 +275,15 @@ def test_the_cut_route_check_answers_as_a_plan_would_without_the_other_robot():
     if gap:
       m.grid.grid[lo:hi, wall] = -5.0                       # with a 1 m door in it
     for goal in [(4.0, 3.0), (2.0, 5.0), (1.0, 1.0)]:     # beyond, in the wall, this side
-      m.others = [lambda: door]
+      m.others, m._plan_memo = [lambda: door], None
       masked = m._plan_to(*goal)
       cut = m._route_cut_by_others(*goal)
-      m.others = []
+      m.others, m._plan_memo = [], None
       alone = m._plan_to(*goal)
       assert cut == (alone is not None), (gap, goal)
       if goal == (4.0, 3.0):
         assert masked is None and cut is gap, "the door is the other robot's"
+  body.close()
 
 
 def test_the_lifecycle_names_the_other_robot_and_reads_no_stale_record():
@@ -288,9 +303,8 @@ def test_the_lifecycle_names_the_other_robot_and_reads_no_stale_record():
 def test_a_charge_trip_that_never_arrived_says_why_and_so_does_the_death():
   """ "GO_CHARGE: no route to the charge bay" was said for every failed
   drive, and the `stuck` death that followed carried nothing."""
-  life = _lifecycle("room_hub", errand=False)
-  life.body.mission.drive_to_routine = _stalled_at(life, seconds=90.0, short=2.0)
-  life.body.mission._spin_routine = lambda *a, **kw: tick.result(None)
+  life = _life()
+  life.body.go_to_routine = _stalled_at(life, seconds=90.0, short=2.0)
   assert life.body.run(life.go_charge_routine()) is False
   why = "the drive gave up 2.0 m short after 90 s (stalled, no progress for 10 s)"
   assert any(f"GO_CHARGE: never reached the charge bay: {why}" in ln
@@ -299,19 +313,47 @@ def test_a_charge_trip_that_never_arrived_says_why_and_so_does_the_death():
   assert life.dead["why"].endswith(f": never reached the charge bay: {why}")
 
 
+def _peer(x: float, y: float, state: str = "IDLE"):
+  """The other robot's PUBLIC surface and no more: a name, a state, a
+  reported pose -- mutable, so a test can walk it away -- standing, and a
+  fork with nothing on it."""
+  pos = [x, y]
+  return SimpleNamespace(robot_name="Rowan", root=SECOND.root, state=state,
+                         pos=pos, down=lambda: False, body=SimpleNamespace(
+                           pose_xy=lambda: (pos[0], pos[1]),
+                           module_state=lambda t: {"on_fork": False, "hung": True}))
+
+
+def _taken_by(life, peer, within: float = 0.45):
+  """The other robot on the goal is the body's to say (`peer_on_the_goal`):
+  here, within `within` of it; and standing still advances the clock and
+  does nothing else."""
+  def on_goal(x, y):
+    d = math.hypot(peer.pos[0] - x, peer.pos[1] - y)
+    return d if d < within else None
+
+  def still(seconds):
+    life.data.time += seconds
+    return tick.result(None)
+  life.peers = [peer]
+  life.body.peer_on_the_goal = on_goal
+  life.body.hold_routine = still
+
+
 def test_a_charge_bay_waited_for_and_given_up_reads_no_older_drive():
   """A wait that gave up drove nowhere: the record of an earlier drive to
   the same standoff is not this trip's reason."""
-  from test_rack_contention import _clock, _peer
-  from pluggybot.mission.mission import charge_standoff
-  life = _lifecycle("room_hub", errand=False)
-  sx, sy, _ = charge_standoff(life.body.rack)
-  life.body.mission.last_drive = {"why": "stalled", "goal": (sx, sy), "seconds": 90.0,
-                             "shortM": 2.0}                      # a drive long ago
-  peer = _peer(sx + 0.2, sy, "CHARGE")
-  life.peers, life.body.mission.others = [peer], [peer.body.pose_xy]
-  _clock(life)
-  life.body.mission.drive_to_routine = lambda *a, **kw: pytest.fail("the wait drove")
+  life = _life()
+  sx, sy, _ = life.body.charge_standoff()
+  life.body.last_drive = {"why": "stalled", "goal": (sx, sy), "seconds": 90.0,
+                          "shortM": 2.0}                           # a drive long ago
+  _taken_by(life, _peer(sx + 0.2, sy, "CHARGE"))
+
+  def drive(x, y, timeout=90.0, stop=None):
+    if math.hypot(x - sx, y - sy) < 1e-6:
+      pytest.fail("the wait drove to the bay")
+    return tick.result(True)                     # ...to where it waits, at most
+  life.body.go_to_routine = drive
   assert life.body.run(life.go_charge_routine()) is False
   _held_by_rowan(life)
   # ...and who held it reaches a stranded robot's death, not only the log
@@ -333,20 +375,18 @@ def _held_by_rowan(life):
 def test_a_charge_trip_that_ends_in_a_wait_is_the_waits_not_an_earlier_drives():
   """Drive, fail, find the bay taken, wait, give up: the trip ended in the
   wait, and the drive before it is not what the death should name."""
-  from test_rack_contention import _clock, _peer
-  from pluggybot.mission.mission import charge_standoff
-  life = _lifecycle("room_hub", errand=False)
-  sx, sy, _ = charge_standoff(life.body.rack)
+  life = _life()
+  sx, sy, _ = life.body.charge_standoff()
   peer = _peer(sx + 3.0, sy, "CHARGE")
-  life.peers, life.body.mission.others = [peer], [peer.body.pose_xy]
-  _clock(life)
+  _taken_by(life, peer)
   stalled = _stalled_at(life, seconds=90.0, short=2.0)
 
-  def drive(x, y, timeout=90.0):
-    peer.pos[:] = [x + 0.2, y]                 # ...and it takes the bay meanwhile
-    return stalled(x, y, timeout)
-  life.body.mission.drive_to_routine = drive
-  life.body.mission._spin_routine = lambda *a, **kw: tick.result(None)
+  def drive(x, y, timeout=90.0, stop=None):
+    if math.hypot(x - sx, y - sy) < 1e-6:
+      peer.pos[:] = [x + 0.2, y]               # ...and it takes the bay meanwhile
+      return stalled(x, y, timeout)
+    return tick.result(True)
+  life.body.go_to_routine = drive
   assert life.body.run(life.go_charge_routine()) is False
   _held_by_rowan(life)
 
@@ -376,35 +416,29 @@ def test_an_act_whose_route_gave_up_never_reached_the_cage():
   assert HubLifecycle._program_failure(SimpleNamespace(detail={}), {"procedure": run}) == ""
 
 
-def test_the_care_line_says_the_route_and_not_the_mouse(tmp_path):
-  from test_mouse import _life as _lab_life
-  from pluggybot.mind import overseer as ov
+def test_the_care_line_says_the_route_and_not_the_mouse():
   from pluggybot.lifecycle import errand_from
-  import mujoco
-  model = mujoco.MjModel.from_xml_path("models/home_world.xml")
-  life = _lab_life(model, tmp_path)
-  errand = errand_from(ov.Decision(action="care", care="company", reason=""), "home",
-                       from_xy=life.body.pose_xy())
-  assert errand.detail["routeLegs"] == 5, "from the rack, the whole route"
-  failed = "never reached the cage: the drive gave up (why), on leg 1 of 5 of the way there"
+  from pluggybot.mind import overseer as ov
+  life = _life()
+  errand = errand_from(ov.Decision(action="care", care="toy", reason=""), QUAD_HOME)
+  failed = "never reached the cage: the drive gave up (why), on leg 1 of 1 of the way there"
   life._cage_record(errand, {"procedure": {"ok": False}}, None,
                     scoring.cage_before(life, errand), failed)
-  assert life.status.endswith(f"set off to company for the mouse and {failed}")
+  assert life.status.endswith(f"set off to toy for the mouse and {failed}")
   assert "nothing registered" not in life.thoughts.read("History.md")
 
 
-def test_a_job_on_the_cage_that_never_got_there_is_said_once(tmp_path):
+def test_a_job_on_the_cage_that_never_got_there_is_said_once():
   """The paid job's verdict leads with the route's failure, so its cage
   line is narrated and not written to History a second time."""
-  from test_mouse import _life as _lab_life, _shock_errand
-  import mujoco
-  model = mujoco.MjModel.from_xml_path("models/home_world.xml")
-  life = _lab_life(model, tmp_path)
-  _, errand = _shock_errand(life)
-  failed = "never reached the cage: the drive gave up (why), on leg 1 of 5 of the way there"
+  from pluggybot.lifecycle import cage_errand
+  life = _life()
+  errand = cage_errand(QUAD_HOME, "feed", task="feed")
+  errand.task_id, errand.detail["predicted"] = "t_0001", "eating"
+  failed = "never reached the cage: the drive gave up (why), on leg 1 of 1 of the way there"
   before = scoring.cage_before(life, errand)
   result = {"procedure": {"ok": False}, "points": 0}
-  verdict = scoring.evaluate("shock", scoring.sample_shock(life, errand, result, before),
+  verdict = scoring.evaluate("feed", scoring.sample_feed(life, errand, result, before),
                              failed=failed)
   life._bank(verdict)
   life._cage_record(errand, result, verdict, before, failed)
@@ -413,7 +447,7 @@ def test_a_job_on_the_cage_that_never_got_there_is_said_once(tmp_path):
 
 
 def test_a_census_that_never_ran_names_its_zone_and_never_none():
-  errand = Errand(name="census:garden", module="module_lcd", station_y=HUB_STATION_YS[0],
+  errand = Errand(name="census:garden", module="module_lcd", station_y=STATION_YS[0],
                   use_at=(1.0, 1.0), task="census", needs_use_pose=False,
                   detail={"zone": "garden"})
   measured = scoring.sample_census(None, errand, {"errand": "census:garden"}, {})
@@ -428,26 +462,34 @@ def test_the_context_says_the_floor_is_explored_not_that_a_map_is_done():
   """Luca read `mapDone: false` as its event map not landing and filed
   tk_0001. It meant: exploring the floor has finished."""
   from pluggybot.mind import overseer as ov
-  life = _lifecycle("room_hub", errand=False)
+  life = _life()
   life.floor_explored = True
   state = ov.context_for(life)
   assert state["floorExplored"] is True and "mapDone" not in state
-  from pluggybot.lifecycle import board_book
-  menu = ov.Menu.for_world("home", board_book("home"))
+  from dataclasses import replace
+  # a body that takes a tool (`Menu.tools`, #406/#407), so the rotation
+  # has something besides exploring to turn to
+  menu = replace(ov.Menu.for_world(QUAD_HOME, board_book(QUAD_HOME)), tools=True)
   done = {"tasksThisMission": ["draw", "census", "dance", "carry"], "decisions": 3}
   assert ov.scripted(menu, {**done, "floorExplored": False}, "test").action == "explore"
   assert ov.scripted(menu, {**done, "floorExplored": True}, "test").action != "explore"
 
 
 def test_a_continuation_saved_before_the_rename_still_says_the_floor_is_explored(tmp_path):
-  from test_continuation import _life as _kept_life, _prelude, _saved
-  life = _kept_life(tmp_path)
+  from pluggybot import continuation
+  life = stub_life()
   life.floor_explored = True
-  snap = _saved(life, tmp_path)
+  path = tmp_path / "world.npz"
+  continuation.write(continuation.capture([life], life.world_fingerprint), path)
+  snap = continuation.read(path)
   state = snap.meta["robots"][life.root]
   state["mapDone"] = state.pop("floorExplored")          # what 42f4a11 wrote
-  back = _kept_life(tmp_path)
-  _prelude(back, snap)
+  back = stub_life()
+  # ...into a body whose map came back with it: the floor is only said to
+  # be explored alongside the map it was explored in
+  back.body.restore_kept = lambda state, arrays: True
+  back.begin(world_config(QUAD_HOME)["start"], max_sim_time=600.0)
+  continuation.restore([back], snap)
   assert back.floor_explored
 
 
@@ -491,7 +533,7 @@ def test_a_decided_explore_whose_zone_walk_gave_up_says_why_and_how_it_ended():
   from test_body import StubBody, stub_life
   from pluggybot.mind import overseer as ov
   body = StubBody()
-  life = stub_life("home", body=body)
+  life = stub_life(body=body)
   life.begin((0.0, 0.0, 0.0))                    # the day's setup, and no day
   body.go_to_routine = _gives_up(body)
   body.plan_frontier = lambda blacklist: (None, "no-reachable")

@@ -95,7 +95,7 @@ def test_the_conformance_bodies_are_the_real_body_shape(fixture):
   """Every conformance body has exactly the keys a scene's bodies have --
   checked against a REAL scene rather than a list written here, or this
   would pin the shape twice and drift in the same direction."""
-  scene = json.loads((FIXTURE.parent / "scene.home_world.json").read_text())
+  scene = json.loads((FIXTURE.parent / "scene.home_quad.json").read_text())
   want = set(scene["bodies"][0])
   for hint, spec in fixture["hints"].items():
     assert set(spec["body"]) == want, hint

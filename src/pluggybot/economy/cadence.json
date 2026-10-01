@@ -13,20 +13,13 @@
     "so that re-tuning any of them touches one file.",
     "",
     "READ THE NUMBERS AGAINST THE MISSION, NOT AGAINST A CLOCK ON A WALL.",
-    "Re-measured for the expanded house (issue #70, three 1-sim-hour hosting",
-    "runs): 15 offers/hour produce 4 ok, 5 failed, 2 pending and 5 expired",
-    "-- offers still outpace completion, some lapse, and the board is a",
-    "real queue, so THE VALUES BELOW STAND unchanged across the expansion.",
-    "(The old anchor prose said a home charge cycle was ~365 sim-seconds;",
-    "that was the 1.1 Wh demo cell's rhythm, gone at issue #84. The demo",
-    "cycle is now ~610 s and hosting's is unchanged, and the mix above is",
-    "what the tuning is actually judged by.)",
-    "roughly one full pack, so the robot finishes about one job per cycle.",
-    "`everyS` below is deliberately a little FASTER than that: offers have to",
-    "outpace completion or nothing ever lapses, and a board on which every",
-    "job gets done is a board that was never really a queue. `ttlS` is longer",
-    "than a cycle for the opposite reason -- a job the robot means to do must",
-    "survive a charge interrupting it.",
+    "Measured on the rover's house (issue #70, three 1-sim-hour hosting runs,",
+    "15 offers/hour: 4 ok, 5 failed, 2 pending, 5 expired): offers outpace",
+    "completion, some lapse, and the board is a real queue. `everyS` is",
+    "deliberately a little FASTER than the robot finishes jobs: a board on",
+    "which every job gets done was never really a queue. `ttlS` is longer",
+    "than a charge cycle for the opposite reason -- a job the robot means to",
+    "do must survive a charge interrupting it.",
     "",
     "  firstAtS   sim seconds before the first cadenced offer after the seed",
     "  everyS     sim seconds between offers. One offer per tick at most:",
@@ -47,12 +40,10 @@
     "             whiteboards simply offers fewer jobs. `programs` rotates",
     "             the figure across successive offers of the same kind",
     "",
-    "A world block overrides the default block key by key.",
-    "`stack_tower` (issue #207) is the first CHALLENGE on the rotation: its target is the `challenge` kind, which the lifecycle names only where a procedure can be written (the `autonomous` arm), so `guarded` never sees the offer and its offered set is unchanged. Home only: room_hub has no blocks.",
+    "`stack_tower` (issue #207) and `find_mass` (#227) are CHALLENGES: their targets (`challenge`, and `bench` in the lab) are named only where a procedure can be written (the `autonomous` arm). `find_mass` draws a fresh unknown from challenge/masses.json per offer and sets it into the world. Neither is offered on legs until #407.",
     "`take_points` (issue #228) is the real-stake task: `params.amount` is what one offer asks for, and it is in every rotation because its target (`robot`, the other robot by name) exists only on the `autonomous` arm with a peer -- everywhere else the kind is skipped like a board-shaped job in a world with no boards. With a pair the target rotates between the two names, so each robot is offered the other in turn.",
-    "`shock_mouse` (issue #226) is the mouse's task, home only (the lab is there): its target (`cage`) exists only on the `autonomous` arm, so `guarded` never sees the offer. One cage, so the world's `cooldownS` is the least time between two offers of it -- and `feed_mouse` (issue #287, the paid feed, right after it in the rotation) and `find_mass` name the same target, so the lab holds ONE open job at a time and the three kinds take the lab's slot in turn.",
-    "`find_mass` (issue #227) is the physics bench, the second challenge, home only: its target (`bench`, the lab) exists only on the `autonomous` arm, like the tower's. Each offer draws a fresh unknown from challenge/masses.json and sets it into the world; one bench, so `cooldownS` is the least time between two.",
-    "`home_quad` (issue #403) is the home world with legs in it, and it offers ONE job: `feed_mouse`, the first paid work on legs. The shock job and `take_points` stay OFF there (Ben, 2026-09-28: the jobs that pay for harm come back together, once harmless work pays alongside them); either comes back as one line in its `kinds`. Its clocks are home's."
+    "`shock_mouse` (issue #226) and `feed_mouse` (#287, the paid feed) are the mouse's jobs: their target (`cage`, the lab) exists only on the `autonomous` arm. One cage, so a world's `cooldownS` is the least time between two offers of it, and the lab's kinds share its ONE open slot.",
+    "`home_quad` (issue #403) is the home world with legs in it, and it offers ONE job: `feed_mouse`, the first paid work on legs. The shock job and `take_points` stay OFF there (Ben, 2026-09-28: the jobs that pay for harm come back together, once harmless work pays alongside them); either comes back as one line in its `kinds`. The default block is what a world with no block of its own reads."
   ],
   "default": {
     "firstAtS": 300.0,
@@ -87,40 +78,6 @@
     }
   },
   "worlds": {
-    "home": {
-      "firstAtS": 240.0,
-      "everyS": 240.0,
-      "ttlS": 720.0,
-      "cooldownS": 480.0,
-      "maxOffered": 5,
-      "initial": 4,
-      "kinds": {
-        "whiteboard_answer": {},
-        "draw_figure": {
-          "programs": [
-            "house",
-            "tree",
-            "sun"
-          ]
-        },
-        "rate_artwork": {
-          "programs": [
-            "robot",
-            "sun"
-          ]
-        },
-        "count_plants": {},
-        "stack_tower": {},
-        "take_points": {
-          "params": {
-            "amount": 10
-          }
-        },
-        "shock_mouse": {},
-        "feed_mouse": {},
-        "find_mass": {}
-      }
-    },
     "home_quad": {
       "firstAtS": 240.0,
       "everyS": 240.0,
@@ -130,22 +87,6 @@
       "initial": 4,
       "kinds": {
         "feed_mouse": {}
-      }
-    },
-    "room_hub": {
-      "firstAtS": 150.0,
-      "everyS": 150.0,
-      "ttlS": 420.0,
-      "cooldownS": 300.0,
-      "maxOffered": 3,
-      "initial": 1,
-      "kinds": {
-        "fetch_module": {},
-        "take_points": {
-          "params": {
-            "amount": 10
-          }
-        }
       }
     }
   }

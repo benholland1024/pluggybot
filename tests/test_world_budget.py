@@ -1,36 +1,21 @@
-"""What limits how big the world may get (issue #67).
+"""What limits how big the world may get (issue #67): guardrails that change
+no behaviour, so a growing world fails loudly instead of quietly.
 
-M13 grows the house, and the things that bound it were written down nowhere
-and asserted by nothing. These are guardrails: they change no behaviour, and
-they exist so the expansion's failures are loud instead of quiet.
-
-⚠ THE GROUND PLANE IS NOT THE EDGE OF THE WORLD, and the issue's premise here
-is wrong in a way worth knowing before reading the rest. A MuJoCo plane's
-`size` is used for RENDERING ONLY -- collision is with the infinite
-half-space. Verified rather than assumed: two boxes dropped onto a 1x1 plane,
-one at x=0 and one at x=15 (far outside it), both come to rest at z=0.0999.
-Nothing can drive off the world and nothing ever could.
-
-So what this file's first guard actually protects is what the WEBSITE DRAWS.
-`scene_dict` ships the plane as `size: [20, 20]` and the browser renders a
-floor of exactly that; a body outside it is drawn floating over nothing. That
-is a real bug on a milestone about dressing the world -- just a cosmetic one,
-not a robot falling into the void.
+A MuJoCo plane's `size` is used for RENDERING ONLY -- collision is with the
+infinite half-space, so nothing can walk off the world. What the first guard
+protects is what the WEBSITE DRAWS: `scene_dict` ships the plane's size and
+the browser renders a floor of exactly that; a body outside it is drawn
+floating over nothing.
 
 The three budgets, and they fail in different directions:
 
-  1. GEOMETRY vs the drawn floor. Cosmetic, and home already violates it by
-     50 mm -- see `test_nothing_hangs_off_the_ground_plane`, which is a
-     STRICT xfail for that world so the day #68 grows the plane, the suite
-     goes red and somebody deletes the marker.
+  1. GEOMETRY vs the drawn floor. Cosmetic.
   2. THE GRID vs the world. The map must cover what the robot must map.
-     Exceeding the drawn floor is deliberate; the invariant that makes it
-     safe is pinned here because it is the one that could silently stop
-     being true.
   3. THE GRID vs itself. A cell ceiling, so an accidentally 10x world is
      loud. Denominated in the half of the mapping stack that actually scales.
 """
 
+import functools
 import math
 
 import mujoco
@@ -38,28 +23,16 @@ import numpy as np
 import pytest
 
 from pluggybot.home import world as home
+from pluggybot.legs import world as lw
+from pluggybot.lifecycle import QUAD_HOME, world_config
 from pluggybot.mapping.frontier import traversable_mask
 from pluggybot.mapping.occupancy_grid import MAX_CELLS, OccupancyGrid
 from pluggybot.telemetry.protocol import robot_body_ids
-from pluggybot.lifecycle import world_config
 
-#: The worlds that share `models/world_fork.xml`, and so share its floor.
-#: `world_config`'s keys, not the model stems -- "home" builds home_world.xml.
-WORLDS = ("home", "room_hub")
-
-#: Tightest margin between any non-robot geom and the DRAWN floor's edge.
-#: Re-measured 2026-09-01 after issue #68.
-#:
-#: ⚠ home was -0.050 when this file was written -- `garden_lamp_bulb` hung
-#: 50 mm past the old shared 20x20 m slab -- and carried a STRICT xfail
-#: naming #68 as the owner. #68 generated home its own floor from the layout,
-#: the xfail XPASSed, the suite went red, and the marker was deleted. That is
-#: the whole design of a strict xfail working end to end across two issues,
-#: and it is why the exemption was never a tolerance: a tolerance would still
-#: be sitting here.
-#:
-#: These are a RATCHET: the assertion is that nothing gets worse.
-KNOWN_MARGIN_M = {"home": 0.980, "room_hub": 3.990}
+#: Tightest margin between any non-robot geom and the DRAWN floor's edge,
+#: m, the served world's (the house, its dock, its rack; measured at the
+#: loop's east fence). A RATCHET: the assertion is that nothing gets worse.
+KNOWN_MARGIN_M = 0.980
 
 #: Slack for float noise only. Anything bigger is a real move.
 RATCHET_TOL_M = 0.002
@@ -67,8 +40,11 @@ RATCHET_TOL_M = 0.002
 _GEOM = mujoco.mjtGeom
 
 
-def _model(world: str):
-  return mujoco.MjModel.from_xml_path(world_config(world)["model"])
+@functools.cache
+def _model():
+  """The served world compiled: the house with the quadruped, its dock and
+  its rack (`legs.world.home_spec`)."""
+  return lw.home_spec().compile()
 
 
 def _local_half(model, g: int) -> np.ndarray | None:
@@ -91,28 +67,25 @@ def _local_half(model, g: int) -> np.ndarray | None:
   return None                       # planes, meshes, heightfields: not bounded
 
 
-def _floor_margin(world: str) -> tuple[float, str, str]:
+def _floor_margin() -> tuple[float, str, str]:
   """Tightest (margin, geom, body) against the drawn floor's half-extents.
 
   WORLD-FRAME, which is the whole point: a rotated slab's axis-aligned box is
   bigger than its own dimensions, so checking `geom_size` would pass a geom
   that genuinely overhangs. `|R| @ half` is the standard oriented-box -> AABB
-  extent. The plane's size is read off the COMPILED model, never a literal --
-  `world_fork.xml` is included by both worlds and #68 may grow it.
+  extent. The plane's size is read off the COMPILED model, never a literal:
+  the generator grows it with the layout.
   """
-  model = _model(world)
+  model = _model()
   data = mujoco.MjData(model)
   mujoco.mj_forward(model, data)                 # world poses at qpos0
   robot = robot_body_ids(model)
 
   planes = [g for g in range(model.ngeom)
             if int(model.geom_type[g]) == _GEOM.mjGEOM_PLANE]
-  assert len(planes) == 1, f"{world} has {len(planes)} planes, expected one"
-  # ⚠ The plane's WORLD CENTRE, not the origin. The first version of this
-  # assumed a plane centred on (0,0) -- true of every world when it was
-  # written, and false the moment issue #68 generated home's floor around a
-  # property that is not centred on the origin. It reported a 250 mm overhang
-  # for a floor with a metre of margin on that side.
+  assert len(planes) == 1, f"{len(planes)} planes, expected one"
+  # The plane's WORLD CENTRE, not the origin: the property is not centred
+  # on (0, 0).
   pc = data.geom_xpos[planes[0]]
   psize = model.geom_size[planes[0]]
   hx, hy = float(psize[0]), float(psize[1])
@@ -133,46 +106,34 @@ def _floor_margin(world: str) -> tuple[float, str, str]:
     if worst is None or margin < worst[0]:
       worst = (float(margin), model.geom(g).name or f"geom{g}",
                model.body(int(model.geom_bodyid[g])).name)
-  assert worst is not None, f"{world} has no boundable geometry"
+  assert worst is not None, "no boundable geometry"
   return worst
 
 
 # ---- 1. geometry vs the floor the browser draws ------------------------------
 
 
-@pytest.mark.parametrize("world", WORLDS)
-def test_nothing_hangs_off_the_ground_plane(world):
-  """Every non-robot geom's world-frame AABB is inside the drawn floor.
+def test_nothing_hangs_off_the_ground_plane():
+  """Every non-robot geom's world-frame AABB is inside the drawn floor, the
+  floor being GENERATED from the layout (#68) so it grows with the plot.
 
-  Both worlds pass as of issue #68: home's floor is now GENERATED from its
-  layout (so it grows with the plot instead of being a literal in a shared
-  include) and room_hub kept the 20x20 m it always had.
-
-  Shown to fail by shrinking either world's plane to `size="4 4 0.1"`: the
-  failure names the offending body and the measured margin.
+  Shown to fail by shrinking the plane to `size="4 4 0.1"`: the failure
+  names the offending body and the measured margin.
   """
-  margin, geom, body = _floor_margin(world)
+  margin, geom, body = _floor_margin()
   assert margin >= 0.0, (
-    f"{world}: {geom} (body {body}) hangs {-margin * 1000:.0f} mm past the "
+    f"{geom} (body {body}) hangs {-margin * 1000:.0f} mm past the "
     f"floor the scene draws. The robot cannot fall -- a plane's size is "
     f"rendering only -- but the website draws this body over nothing.")
 
 
-@pytest.mark.parametrize("world", WORLDS)
-def test_the_floor_margin_does_not_get_worse(world):
-  """A ratchet over the measured margin, so #68 cannot quietly make it worse.
-
-  This is the half that keeps working while `home_world` is exempt above: the
-  xfail says "known bad", and this says "and no worse than this". Without it,
-  a new wall at x=20 would be swallowed by the same xfail.
-  """
-  margin, geom, body = _floor_margin(world)
-  floor = KNOWN_MARGIN_M[world] - RATCHET_TOL_M
-  assert margin >= floor, (
-    f"{world}: the tightest floor margin moved from "
-    f"{KNOWN_MARGIN_M[world]:+.3f} m to {margin:+.3f} m at {geom} "
-    f"(body {body}). Growing the world past the drawn floor is issue #68's "
-    f"job and it grows the plane to match; this is that not happening.")
+def test_the_floor_margin_does_not_get_worse():
+  """A ratchet over the measured margin: growing the world grows the plane
+  to match, and this is that not happening."""
+  margin, geom, body = _floor_margin()
+  assert margin >= KNOWN_MARGIN_M - RATCHET_TOL_M, (
+    f"the tightest floor margin moved from {KNOWN_MARGIN_M:+.3f} m to "
+    f"{margin:+.3f} m at {geom} (body {body}).")
 
 
 # ---- 2. the grid vs the world ------------------------------------------------
@@ -194,21 +155,11 @@ def test_the_grid_covers_everything_the_robot_must_map():
 
 
 def test_the_grid_covers_every_bit_of_floor_the_visitor_can_see():
-  """The map reaches at least as far as the ground the browser draws.
-
-  ⚠ THIS USED TO BE THE OPPOSITE TEST. Issue #67 found the grid reaching x=11
-  against a drawn floor that stopped at 10, documented the overhang as
-  deliberate, and pinned the invariant that made it safe. Issue #68 then
-  generated home's floor FROM the layout with the same margin the grid uses,
-  and the discrepancy simply vanished -- the two now coincide to the
-  millimetre. So the claim worth holding is the one that survived: nothing a
-  visitor watches the robot stand on is off the edge of its map.
-
-  The safety invariant is asserted below rather than deleted, because it is
-  what makes ANY mismatch harmless and the next layout change may reintroduce
-  one in either direction.
+  """The map reaches at least as far as the ground the browser draws:
+  nothing a visitor watches the robot stand on is off the edge of its map.
+  The safety invariant that makes any mismatch harmless is asserted below.
   """
-  model = _model("home")
+  model = _model()
   data = mujoco.MjData(model)
   mujoco.mj_forward(model, data)
   plane = next(g for g in range(model.ngeom)
@@ -242,24 +193,23 @@ def test_unknown_space_is_never_driveable():
 # ---- 3. the grid vs itself ---------------------------------------------------
 
 
-@pytest.mark.parametrize("world", WORLDS)
-def test_the_grid_stays_inside_its_cell_budget(world):
+def test_the_grid_stays_inside_its_cell_budget():
   """A tripwire, not a cliff. See `occupancy_grid.MAX_CELLS` for the measured
   table this is denominated in -- `binary_dilation` over every cell is the
   half of the mapping stack that scales, and `update()` is nearly flat."""
-  x0, y0, x1, y1 = world_config(world)["grid_bounds"]
+  x0, y0, x1, y1 = world_config(QUAD_HOME)["grid_bounds"]
   grid = OccupancyGrid(x_min=x0, y_min=y0, x_max=x1, y_max=y1, resolution=0.05)
   cells = int(grid.grid.size)
   assert cells <= MAX_CELLS, (
-    f"{world}: {cells:,} cells against a {MAX_CELLS:,} ceiling. Re-measure "
+    f"{cells:,} cells against a {MAX_CELLS:,} ceiling. Re-measure "
     f"before raising it -- the numbers are at the constant.")
 
 
 # ---- 4. the reserve's worst case ---------------------------------------------
 
-#: The LIDAR's height: a static box whose z-extent crosses it is a wall the
-#: robot maps and plans around; anything wholly below or above it is not.
-BEAM_Z = 0.223
+#: The LIDAR's plane, the quadruped's (`legs/body.py`): a static box whose
+#: z-extent crosses it is a wall the robot maps and plans around.
+BEAM_Z = 0.51
 #: The routing raster's cell, and the one-cell halo that stands in for the
 #: robot's half-width at this resolution. Coarse on purpose: this is a
 #: question about which POINT is farthest, not about a route's millimetres.
@@ -277,7 +227,7 @@ def _route_lengths(model, goal: tuple[float, float]) -> tuple:
   Walls are every static geom whose z-extent crosses the beam -- read off
   the model the way `test_dressing.py` reads decor, never off the zone
   list, because a doorway is a fact about the walls and not about the
-  rectangles either side of it. Dynamic bodies (the modules on the rack,
+  rectangles either side of it. Dynamic bodies (the tools on the rack,
   the blocks, the masses) are skipped: they are small, and they move.
   """
   import heapq
@@ -357,34 +307,31 @@ def _places_the_robot_can_be_sent():
 
 
 def test_the_documented_worst_return_point_is_still_the_worst():
-  """`HOME_WORST_RETURN` names the point `HOME_LOW_BATTERY_WH` should be
-  measured from. A comment saying "the worst case is X" rots the moment
-  somebody moves a wall, and #68 and #215 between them moved most of them
-  -- so the claim is checked against the compiled world's own routes.
+  """`HOME_WORST_RETURN` names the point `legs.world.RESERVE_WH` is
+  measured from; a comment saying "the worst case is X" rots the moment
+  somebody moves a wall, so the claim is checked against the compiled
+  world's own routes to the living room's south wall (`RETURN_END`).
 
-  BY ROUTE, not by straight line (issue #215). The loop's east legs are the
-  farthest from the rack as the crow flies and among the nearest as the
-  robot drives, because the rack is reached only through the middle
-  street's gate: the first version of this compared straight lines and
-  would have sized the reserve off the wrong corner by twenty metres.
+  BY ROUTE, not by straight line (issue #215): the loop's east legs are the
+  farthest as the crow flies and among the nearest as the robot walks,
+  because the living room is reached only through the middle street's gate.
 
   ⚠ This asserts WHERE the worst case is and that the documented path is
   that route's length, not that the reserve covers it -- that is
   `scripts/energy_spike.py --reserve`'s measurement, at the constant.
   """
-  rack = home.HOME_RACK_POS
+  end = home.RETURN_END
   path = home.HOME_WORST_RETURN_PATH
-  assert path[0] == home.HOME_WORST_RETURN and path[-1] == rack, \
-      "HOME_WORST_RETURN_PATH must run from the worst point to the rack"
+  assert path[0] == home.HOME_WORST_RETURN and path[-1] == end, \
+      "HOME_WORST_RETURN_PATH must run from the worst point to RETURN_END"
   routed = sum(math.dist(path[i], path[i + 1]) for i in range(len(path) - 1))
   assert routed == pytest.approx(home.HOME_WORST_RETURN_M, abs=0.05), \
       f"the routed distance from HOME_WORST_RETURN is now {routed:.2f} m, " \
       f"not the documented {home.HOME_WORST_RETURN_M} m"
 
-  # The charge approach stands in front of the rack, inside the living room;
-  # the rack itself is a wall on the raster.
-  goal = (rack[0], rack[1] + 0.7)
-  _, metres = _route_lengths(_model("home"), goal)
+  # A robot stands in the living room, off the wall's face.
+  goal = (end[0], end[1] + 0.7)
+  _, metres = _route_lengths(_model(), goal)
   ranked = sorted(((metres(x, y), where, (x, y))
                    for where, (x, y) in _places_the_robot_can_be_sent()
                    if math.isfinite(metres(x, y))), reverse=True)
@@ -393,7 +340,7 @@ def test_the_documented_worst_return_point_is_still_the_worst():
   assert math.isfinite(documented_m), "HOME_WORST_RETURN is not reachable"
   assert documented_m >= farthest_m - 0.05 * farthest_m, (
     f"{where} at {point[0]:.2f},{point[1]:.2f} routes {farthest_m:.1f} m from "
-    f"the rack against HOME_WORST_RETURN's {documented_m:.1f} m. The "
+    f"RETURN_END against HOME_WORST_RETURN's {documented_m:.1f} m. The "
     f"documented worst case is no longer the worst; re-measure the reserve.")
   # ...and the documented waypoints are that route, not a scenic one: the
   # raster's 8-connected path is within a tenth of the waypoint path.
@@ -402,12 +349,12 @@ def test_the_documented_worst_return_point_is_still_the_worst():
     f"{documented_m:.1f} m")
 
 
-def test_every_zone_can_be_reached_from_the_rack():
+def test_every_zone_can_be_reached_from_the_living_room():
   """A zone the router cannot reach is a room the robot can be sent to and
   cannot get home from -- and the reserve's worst case would be silently
   measured over the rest. Every named region routes."""
-  rack = home.HOME_RACK_POS
-  _, metres = _route_lengths(_model("home"), (rack[0], rack[1] + 0.7))
+  end = home.RETURN_END
+  _, metres = _route_lengths(_model(), (end[0], end[1] + 0.7))
   unreachable = [where for where, (x, y) in _places_the_robot_can_be_sent()
                  if where.endswith("centre") and not math.isfinite(metres(x, y))]
-  assert not unreachable, f"no route from the rack to: {unreachable}"
+  assert not unreachable, f"no route from the living room to: {unreachable}"

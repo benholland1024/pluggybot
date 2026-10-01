@@ -2,7 +2,7 @@
 
 These integrate a kinematic unicycle rather than stepping MuJoCo, deliberately:
 the failure being pinned here is a property of the CONTROL LAW, not of the
-plant, so it reproduces without contacts, slew or wheel friction in the way --
+plant, so it reproduces without contacts or a body's dynamics in the way --
 and it runs in milliseconds instead of a minute.
 """
 
@@ -35,8 +35,7 @@ def roll_out(start, target, slow_radius=None, arrive=0.015,
   return t, turned, False
 
 
-# A 0.20 m hop to a point 90 deg off the bow -- the seed dispenser's errand
-# between two points of a row, and the shape that exposed the bug.
+# A 0.20 m hop to a point 90 deg off the bow: the shape that exposed the bug.
 SHORT_HOP_START = (0.0, 0.0, 0.0)
 SHORT_HOP_TARGET = (0.0, 0.20)
 
@@ -101,9 +100,8 @@ def test_terminal_speed_tapers_with_distance():
   near, _ = drive_toward((0.0, 0.0, 0.0), (0.05, 0.0), slow_radius=0.25)
   assert far == V_MAX, "taper should not slow a distant target"
   assert near < far / 4, "no meaningful taper close in"
-  # ...but never so slow that the wheels park in their stiction deadband
-  # (frictionloss/kv = 0.1 rad/s of wheel, i.e. 0.0045 m/s of body).
-  assert near / 0.045 > 0.1, "terminal speed lands in the stiction deadband"
+  # ...but never so slow that it is no command at all.
+  assert near / 0.045 > 0.1, "terminal speed lands in the dead band"
 
 
 def test_path_following_is_untouched():
@@ -137,48 +135,6 @@ def _halo_world():
   g.grid[16:24, 8:12] = 5.0            # the couch: occupied block
   pose = (0.65, 1.0, 0.0)              # one cell east of it: sealed in
   return g, pose
-
-
-def test_an_unmapped_goal_is_aimed_at_through_the_robots_own_component():
-  """Issue #298: whiteboard_b paid nobody in 30 deployed hours, and a
-  single-robot flight never reached it either -- `SWAP_PICK done` and
-  `USE_TOOL: never got there` in the same second.
-
-  `_plan_to` aimed an unreachable goal at the KNOWN-FREE cell nearest it,
-  anywhere on the map. The bedroom, seen through its doorway from the
-  start pose, leaves one-cell islands of free space near the board; the
-  island nearest the use pose was one cell nearer than the reachable
-  wedge beside it, `astar` answered None and the drive gave up in 0 s.
-  The nearest cell of the robot's OWN component is where to aim: driving
-  there grows the map toward the goal, as the comment always said.
-
-  Minimised: everything unknown but a free corridor from the start and a
-  free island, nearer the goal than the corridor's end and joined to
-  nothing. Fails without the fix with `_plan_to` returning None.
-  """
-  import mujoco
-  from pluggybot.mission.mission import HubMission
-  model = mujoco.MjModel.from_xml_path("models/room_hub.xml")
-  data = mujoco.MjData(model)
-  m = HubMission(model, data, viewer=None, realtime=False)
-  m.start_at(1.0, 1.0, 0.0)
-  g = m.grid
-  g.grid[:] = 0.0                                       # nothing known
-  x0, y0 = g.world_to_cell(1.0, 1.0)
-  x1, _ = g.world_to_cell(2.5, 1.0)
-  g.grid[y0 - 3:y0 + 4, x0 - 3:x1 + 1] = -5.0           # a free corridor
-  ix, iy = g.world_to_cell(3.9, 1.0)
-  g.grid[iy - 1:iy + 2, ix - 1:ix + 2] = -5.0           # a free island
-  goal = (4.0, 1.0)                                     # unknown, past both
-  path = m._plan_to(*goal)
-  assert path is not None, "the island nearest the goal was aimed at, and it is not reachable"
-  assert all(x <= 2.5 + g.resolution for x, _ in path), \
-      "the plan leaves the robot's own component"
-  assert path[-1][0] > 2.3, "the plan stops short of the corridor's end"
-  # ...while a goal that IS known free, but in the island, still plans None:
-  # that shape is a frontier behind the other robot, and explore's strike
-  # logic counts on the drive stepping nothing there.
-  assert m._plan_to(3.9, 1.0) is None
 
 
 def test_a_sealed_in_robot_can_still_plan_to_a_frontier():
@@ -230,47 +186,3 @@ def test_the_escape_is_bounded_a_lost_robot_is_not_teleported():
   assert nearest_traversable(trav, (55, 55)) == (55, 55)
   assert nearest_traversable(trav, (48, 55)) == (50, 55)   # inside the bound
   assert nearest_traversable(trav, (10, 10)) is None       # genuinely lost
-
-
-def test_the_real_couch_pose_that_ended_exploration_can_plan_again():
-  """The trap flown, at the measured pose, on the real house.
-
-  The synthetic fixture above is the iterate-loop guard; this is the claim
-  that the fixture describes reality. The robot is placed where the real
-  explore run parked and gave up -- (+4.00, +0.92), 30 cm east of the couch,
-  between it and the east wall -- given one look around to map its
-  surroundings, and must then be sealed in by the couch's inflation ring and
-  STILL able to plan to a frontier.
-
-  Measured before the fix, from this exact situation: explore ended at 61 s
-  of a 900 s budget on "no-reachable", kitchen 0.0%% mapped, 60 frontiers
-  blacklisted. After: 469 s, "no-frontiers", kitchen 86.6%%, blacklist 0.
-  The full flown run is 10 minutes of wall clock, so what is pinned here is
-  its first domino -- sealed, and planning anyway -- which takes seconds.
-  """
-  import mujoco
-
-  from pluggybot.behavior.navigation import plan
-  from pluggybot.lifecycle import world_config
-  from pluggybot.mapping.frontier import traversable_mask
-  from pluggybot.mission.mission import HubMission
-
-  cfg = world_config("home")
-  model = mujoco.MjModel.from_xml_path(cfg["model"])
-  mission = HubMission(model, mujoco.MjData(model), viewer=None,
-                       realtime=False, rack=cfg["rack"],
-                       grid_bounds=cfg["grid_bounds"])
-  try:
-    mission.start_at(4.0, 0.92, math.pi)     # the measured stuck pose
-    mission._spin()                          # one look: maps couch + wall
-    trav = traversable_mask(np.asarray(mission.grid.grid))
-    rix, riy = mission.grid.world_to_cell(4.0, 0.92)
-    assert not trav[riy, rix], \
-        "the couch's halo no longer seals this pose; the premise moved -- " \
-        "re-measure before weakening anything"
-    path, status = plan(mission.grid, mission.pose, set())
-    assert status == "ok", \
-        f"sealed in beside the real couch and could not plan: {status}"
-    assert path
-  finally:
-    mission.close()

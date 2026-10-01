@@ -50,14 +50,14 @@ import numpy as np
 
 from pluggybot.rack.coupling import GRIP_SOLIMP
 
-#: The blocks. Same body as the hub world's `pickup` block, because the claw
-#: was measured against that one (70 mm jaw span, 26 mm cube).
+#: The blocks: a 26 mm cube, the size the rover's claw was measured against
+#: (70 mm jaw span).
 BLOCK_HALF = 0.013
 BLOCK_MASS = 0.06
 BLOCK_FRICTION = 1.2
 BLOCKS = ("block_0", "block_1", "block_2")
-#: Where they start: open floor east of the rack, a block's throw apart, on
-#: the same line as the pickup block so the claw's approach runway is clear.
+#: Where `add_blocks` starts them, a block's throw apart (the house sets
+#: its own out at `home.TOWER_XY`).
 START_XY = ((1.10, 0.30), (1.10, 0.05), (1.10, -0.20))
 
 # ---- the criteria (see the module docstring; numbered the same) -----------
@@ -109,8 +109,19 @@ def block_xml(name: str, x: float, y: float, tag_id: int | None = None,
           f'{indent}</body>')
 
 
-def world_with_blocks(path: str = "models/hub_world.xml") -> mujoco.MjModel:
-  return add_blocks(mujoco.MjSpec.from_file(path)).compile()
+#: The grader's own world for its tests: a floor and nothing else, at the
+#: timestep and contact the tower's hold was measured on.
+BARE_FLOOR_XML = """<mujoco model="blocks">
+  <option timestep="0.001" integrator="implicitfast"/>
+  <worldbody>
+    <light pos="0 0 3" dir="0 0 -1"/>
+    <geom name="floor" type="plane" size="5 5 0.1" rgba="0.5 0.5 0.5 1"/>
+  </worldbody>
+</mujoco>"""
+
+
+def world_with_blocks() -> mujoco.MjModel:
+  return add_blocks(mujoco.MjSpec.from_string(BARE_FLOOR_XML)).compile()
 
 
 def place(model, data, name: str, xyz, yaw: float = 0.0) -> None:

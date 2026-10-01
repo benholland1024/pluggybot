@@ -9,9 +9,6 @@ import numpy as np
 import pytest
 
 from pluggybot import tick
-from pluggybot.control import wheel_targets
-from pluggybot.mission.mission import HubMission
-from pluggybot.rack.swap import HubSwap
 
 SRC = pathlib.Path(__file__).resolve().parents[1] / "src" / "pluggybot"
 
@@ -53,20 +50,6 @@ def test_run_steps_the_swap_with_each_command_and_returns_the_value():
     return 7
   assert tick.run(swap, routine()) == 7
   assert swap.steps == [(0.2, 0.0), (0.0, 0.0)]
-
-
-def test_the_rovers_stepper_reads_its_command_as_forward_speed_and_yaw_rate(hub_model):
-  """...and the rover's stepper is where `(v, w)` becomes wheel setpoints:
-  one robot alone (`step`) and a shared world (`apply`) alike."""
-  swap = HubSwap(hub_model, mujoco.MjData(hub_model))
-  seen: list = []
-  swap._step_once = lambda tl, tr: seen.append(("step", tl, tr))
-  swap._before_step = lambda tl, tr: seen.append(("apply", tl, tr))
-  swap.step((0.2, 0.5))
-  swap.apply((0.2, 0.5))
-  swap.apply(swap.STILL)
-  assert seen == [("step", *wheel_targets(0.2, 0.5)), ("apply", *wheel_targets(0.2, 0.5)),
-                  ("apply", *wheel_targets(0.0, 0.0))]
 
 
 def test_hold_and_result_are_the_two_shapes_a_test_stubs_with():
@@ -115,53 +98,44 @@ def test_an_exception_from_the_step_is_thrown_into_the_routine():
 
 
 @pytest.fixture(scope="module")
-def hub_model():
-  return mujoco.MjModel.from_xml_path("models/hub_world.xml")
+def quad_world():
+  from pluggybot.legs import world as lw
+  return lw.home_spec().compile()
 
 
 def _hash(data):
   return np.ascontiguousarray(np.concatenate([data.qpos, data.qvel, data.ctrl])).tobytes()
 
 
-def test_the_blocking_twin_and_the_ticked_routine_are_one_trajectory(hub_model):
+def test_the_blocking_twin_and_the_ticked_routine_are_one_trajectory(quad_world):
   """The whole refactor's claim, at the scale a test can afford: driving a
   manoeuvre by its blocking name and ticking its routine from outside step
   the same commands in the same order and leave the world in the same state
-  -- byte for byte. The scripted day's version of this is
-  `scripts/determinism_spike.py --compare` (Evaluation.md)."""
-  a = mujoco.MjData(hub_model)
-  ma = HubMission(hub_model, a, viewer=None, realtime=False)
-  ma.start_at(0.5, 3.0, 0.0)
-  ma._drive(0.4, 0.15, 0.6)
-  ma.face(1.0)
+  -- byte for byte, the quadruped's policy, posture machine and reckoning
+  all in the loop. The scripted day's version of this is
+  `scripts/determinism_spike.py --compare`."""
+  from pluggybot.legs.body import QuadMission
+  from pluggybot.lifecycle import QUAD_HOME, world_config
+  bounds = world_config(QUAD_HOME)["grid_bounds"]
+  a = mujoco.MjData(quad_world)
+  ma = QuadMission(quad_world, a, realtime=False, grid_bounds=bounds)
+  ma.start_at(1.5, 0.5, 0.0)
+  ma.run(ma._drive_routine(0.3, 0.3, 0.6))
+  ma.face(0.3)
 
-  b = mujoco.MjData(hub_model)
-  mb = HubMission(hub_model, b, viewer=None, realtime=False)
-  mb.start_at(0.5, 3.0, 0.0)
-  for routine in (mb._drive_routine(0.4, 0.15, 0.6), mb.face_routine(1.0)):
+  b = mujoco.MjData(quad_world)
+  mb = QuadMission(quad_world, b, realtime=False, grid_bounds=bounds)
+  mb.start_at(1.5, 0.5, 0.0)
+  for routine in (mb._drive_routine(0.3, 0.3, 0.6), mb.face_routine(0.3)):
     step = tick.Step(routine)
     cmd = step.tick()
     while cmd is not None:
-      mb.swap.step(cmd)
+      mb.stepper.step(cmd)
       cmd = step.tick()
-  assert _hash(a) == _hash(b)
-  assert ma.step_count == mb.step_count and ma.pose == mb.pose
-
-
-def test_swap_manoeuvres_are_the_same_ticked(hub_model):
-  a = mujoco.MjData(hub_model)
-  sa = HubSwap(hub_model, a)
-  sa.place_at_standoff(0.125)
-  sa.pick()
-  b = mujoco.MjData(hub_model)
-  sb = HubSwap(hub_model, b)
-  sb.place_at_standoff(0.125)
-  step = tick.Step(sb.pick_routine())
-  cmd = step.tick()
-  while cmd is not None:
-    sb.step(cmd)
-    cmd = step.tick()
-  assert _hash(a) == _hash(b)
+  assert a.time > 0.5 and _hash(a) == _hash(b)
+  assert ma.pose == mb.pose
+  ma.close()
+  mb.close()
 
 
 # ---- the fence: a routine call is nothing until it is driven ---------------

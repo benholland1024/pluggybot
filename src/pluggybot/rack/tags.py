@@ -1,7 +1,8 @@
-"""AprilTags for the hub: real tag36h11 markers, generated and detected.
+"""AprilTags: real tag36h11 markers, generated and detected, and the one
+registry of which id is which.
 
-This replaces the colour-plate stand-in. What the real thing buys, in the
-order it matters here:
+What real tags buy over the colour plates they replaced, in the order it
+matters here:
 
   IDENTITY   every tag carries a decoded ID, so "which fiducial is this?"
              stops being a geometry puzzle. The stand-in had to guess by
@@ -18,9 +19,8 @@ order it matters here:
 
 Tag sizes are a real design decision, not a detail: a tag36h11 must span
 roughly 25-30 px before it decodes, so a marker's physical size sets the
-range at which the robot can see it. The rack's marker is big because it is
-read from across the room; the bay and module markers are small because
-they are only ever read from arm's length.
+range at which the robot can see it. A plate's sign is big because it is
+read from across the lab; a rack's are read from the working pose.
 """
 
 from pathlib import Path
@@ -33,18 +33,10 @@ QUIET_CELLS = 1          # white margin around the tag, in tag cells -- the
 PIXELS_PER_CELL = 24     # render scale of the generated PNGs
 
 # Tag identities. The whole point of real tags: these are decoded, not
-# inferred from where a blob happened to sit in the frame.
-RACK_TAG_ID = 0
-BAY_TAG_IDS = (1, 2, 4, 5, 6,   # bays A-E -- same ORDER as coupling.STATION_YS,
-               7, 8, 9)        # which is what pairs them (coupling.bay_tag_id).
-                         # Not contiguous because 3 was already the charge bay
-                         # and renumbering would invalidate every generated tag
-                         # PNG and rack model for cosmetics. Bay E (id 6) came
-                         # with the seed dispenser, appended for the same
-                         # reason the station tuple is appended to; 7-9 are
-                         # the BUILT-TOOL rail's three bays (issue #277,
-                         # coupling.BUILT_STATION_YS), appended likewise.
-CHARGE_TAG_ID = 3
+# inferred from where a blob happened to sit in the frame. 0-9 were the
+# rover's rack, charge bay and bays (#376 deleted them; not reused).
+#: The five hand-built modules, by the ids they carried on the rover's rack
+#: -- the workshop's permanent originals (`workshop.seam.HAND_BUILT`).
 MODULE_TAG_IDS = {"module_lcd": 10, "module_plug": 11, "module_pen": 12,
                   "module_claw": 13, "module_seed": 14}
 #: The tower's three blocks (issue #207; challenge/stack.py), after the
@@ -80,15 +72,12 @@ PLATE_TAG_SIZE = 0.120
 # Physical marker sizes (m), edge of the BLACK tag -- what the detector is
 # told, and what PnP scales its translation by. The plate carrying it is
 # larger by the quiet zone.
-RACK_TAG_SIZE = 0.120
 SMALL_TAG_SIZE = 0.030
 
 # Which physical size each id is, so one detection pass can serve markers of
 # different sizes: PnP translation scales linearly with the assumed tag
 # size, so a single decode can be rescaled per id exactly.
-TAG_SIZES = {RACK_TAG_ID: RACK_TAG_SIZE, CHARGE_TAG_ID: SMALL_TAG_SIZE,
-             **{i: SMALL_TAG_SIZE for i in BAY_TAG_IDS},
-             **{i: SMALL_TAG_SIZE for i in MODULE_TAG_IDS.values()},
+TAG_SIZES = {**{i: SMALL_TAG_SIZE for i in MODULE_TAG_IDS.values()},
              **{i: BLOCK_TAG_SIZE for i in BLOCK_TAG_IDS},
              **{i: BLOCK_TAG_SIZE for i in MASS_TAG_IDS},
              **{i: DOCK_TAG_SIZE for i in DOCK_TAG_IDS},
@@ -117,21 +106,15 @@ def tag_image(tag_id: int) -> np.ndarray:
   return np.kron(out, np.ones((PIXELS_PER_CELL, PIXELS_PER_CELL), dtype=np.uint8))
 
 
-#: The tags a HUB world's geoms carry: the rack's, the bays' (both rails')
-#: and the five modules'. The tower's and the bench's are the home world's
-#: props, and a built module's material is added by `seam.attach` when it
-#: hangs -- so this, not `write_tag_pngs`' list, is what the hub emitters
-#: declare (a scene test holds every declared texture referenced).
-HUB_TAG_IDS = (RACK_TAG_ID, CHARGE_TAG_ID, *BAY_TAG_IDS, *MODULE_TAG_IDS.values())
-
-
 def write_tag_pngs(directory: Path = TAG_DIR, ids=None) -> list[int]:
-  """Write every tag PNG any world references, or just `ids`. Returns the
-  ids written: the home world declares exactly these as its textures, so
-  the dock's (no world carries it yet, #387) are asked for by name."""
+  """Write the house's tag PNGs -- the tower's blocks and the bench's
+  masses -- or just `ids`. Returns the ids written: the home world declares
+  exactly these as its textures (a scene test holds every declared texture
+  referenced), and what is put in at load (the dock, the rack, the plates'
+  signs, a built module) asks for its own by name."""
   from PIL import Image
   directory.mkdir(parents=True, exist_ok=True)
-  ids = list(ids) if ids is not None else [*HUB_TAG_IDS, *BLOCK_TAG_IDS, *MASS_TAG_IDS]
+  ids = list(ids) if ids is not None else [*BLOCK_TAG_IDS, *MASS_TAG_IDS]
   for tag_id in ids:
     Image.fromarray(tag_image(tag_id)).save(directory / f"tag{tag_id}.png")
   return ids
@@ -162,10 +145,10 @@ def _shared_detector():
 
   Not an optimisation -- a crash fix. pupil-apriltags frees its tag family in
   `Detector.__del__` (apriltag_detector_destroy -> clear_families ->
-  quick_decode_uninit), and a mission holds TWO detectors: one on the dock
-  camera and one in the RackFinder. When the second was collected the family
-  was freed twice and the process took SIGSEGV, inside `HubMission.close()`,
-  killing whole test runs at random.
+  quick_decode_uninit), and a mission held TWO detectors (the rover's dock
+  camera and its rack finder). When the second was collected the family
+  was freed twice and the process took SIGSEGV, killing whole test runs at
+  random.
 
   Worth recording how nearly this was missed: the same crash had shown up
   earlier as a stack dump printed AFTER pytest reported "120 passed", which
@@ -237,8 +220,8 @@ class TagDetector:
     a bay tag's yaw -7.5..+7 deg across 2 mm of robot pose while "t"
     held to a millimetre (the detector prints "more than one new minima"
     when it happens). Fit a facing to several tags' translations instead
-    (localize.fit_rack_facing); read one tag's yaw only when it is the
-    only one there is.
+    (`legs.dock.fit_dock`, `legs.rack.fit_rack`); read one tag's yaw only
+    when it is the only one there is.
     """
     self.renderer.update_scene(data, camera=self.camera_name)
     rgb = self.renderer.render()

@@ -1,13 +1,16 @@
 """A death says where the robot was and what it was doing (issue #362).
 
 Seven topples in the week to 2026-09-24 could not be explained, because the
-`death` event carried the cause and nothing else: "at the rack, mid-fetch"
-was inferred from how long after a claim each robot fell. The event now
-carries `at` -- the true and believed pose, the lean, the state, what is on
-the fork and what every axis is commanded to, the errand and the procedure
+`death` event carried the cause and nothing else. The event now carries
+`at` -- the true and believed pose, the lean, the state, what is on the
+fork and what every axis is commanded to, the errand and the procedure
 step, the bay a swap is working and the nearest peer. A topple reads it AS
-THE ROBOT FALLS, because the death is TOPPLE_HOLD_S later and the errand
-has had that long to react.
+THE ROBOT FALLS, because the death is the body's `stuck_after_s` later and
+the errand has had that long to react.
+
+The row's bookkeeping is pinned on the stub body (`tests/test_body.py`);
+the true pose beside the believed one, and the arm's setpoints, on the
+served quadruped.
 """
 
 import math
@@ -17,28 +20,38 @@ import numpy as np
 import pytest
 
 from pluggybot import lifecycle as lc
-from pluggybot.lifecycle import HubLifecycle, world_config
+from pluggybot.body import StubBody
+from pluggybot.legs import model as qm
+from pluggybot.lifecycle import QUAD_HOME, HubLifecycle, world_config
 from pluggybot.mission.errand import programmed_errand
-from pluggybot.mission.mission import MissionAborted
 from pluggybot.procedure import axes, lang
 from pluggybot.procedure import steps as st
-from pluggybot.rack.coupling import CLAW_JAW_TRAVEL
-from pluggybot.rack.swap import align_lift
+from pluggybot.robot import SECOND, world_spec
+from pluggybot.tick import MissionAborted
+from test_body import stub_life  # noqa: I001 -- tests/ is on sys.path
 
 
-def _life(world: str = "room_hub") -> HubLifecycle:
-  cfg = world_config(world)
-  model = mujoco.MjModel.from_xml_path(cfg["model"])
-  data = mujoco.MjData(model)
-  life = HubLifecycle(model, data, realtime=False, world=world,
-                      battery_wh=cfg["battery_wh"], rack=cfg["rack"],
-                      grid_bounds=cfg["grid_bounds"],
-                      low_battery_wh=cfg["low_battery_wh"], errand=False,
-                      mortal=True)
-  life.body.start_at(*cfg["start"])
-  life.home_pose = tuple(cfg["start"])
-  life.survival_since = float(data.time)
+def _born(life) -> HubLifecycle:
+  start = world_config(QUAD_HOME)["start"]
+  life.body.start_at(*start)
+  life.home_pose = tuple(start)
+  life.survival_since = float(life.data.time)
   return life
+
+
+def _life(**kw) -> HubLifecycle:
+  return _born(stub_life(mortal=True, **kw))
+
+
+def _quad() -> HubLifecycle:
+  cfg = world_config(QUAD_HOME)
+  spec = world_spec(cfg["model"])
+  model = spec.compile()
+  return _born(HubLifecycle(model, mujoco.MjData(model), realtime=False,
+                            world=QUAD_HOME, spec=spec,
+                            battery_wh=cfg["battery_wh"], rack=cfg["rack"],
+                            grid_bounds=cfg["grid_bounds"],
+                            low_battery_wh=cfg["low_battery_wh"], mortal=True))
 
 
 def _deaths(life) -> list[dict]:
@@ -60,77 +73,73 @@ def test_a_robot_killed_mid_errand_says_where_it_was_and_what_it_was_running(
     monkeypatch):
   """The acceptance test: a procedure errand, the pack emptied during its
   second step. The row names the errand, the step by count and source line,
-  the state, the module on the fork and every axis's setpoint -- the body's
-  and that tool's, no other tool's -- and the true pose beside the believed
-  one, which are read apart (the belief is pushed 0.25 m off)."""
-  life = _life()
-  seen = _deaths(life)
-  cfg = world_config("room_hub")
-  src = "def pen_check():\n  wait(1)\n  wait(5)\n"
-  proc = lang.compile_procedure(src, lc.world_facts("room_hub"))
-  errand = programmed_errand(proc, task="program", name="procedure")
-  # the fork holds the pen, as far as anything that asks can tell
-  monkeypatch.setattr(st, "_carried", lambda life: "module_pen")
-  life.data.ctrl[life.model.actuator("pen_carriage").id] = 0.012
-  life.body.mission.swap.reckoner.x += 0.25
-  life.body.mission.swap.reckoner.theta += 2 * math.pi   # a heading is never wrapped
-  # ...and kept there: matched (#386), the scans would take the 0.25 m out
-  # before the death this reads it at
-  life.body.mission.matcher = None
-  t0 = float(life.data.time)
+  the state, the module on the fork and every axis's setpoint -- the arm's
+  -- and the true pose beside the believed one, which are read apart (the
+  belief is pushed 0.25 m off)."""
+  life = _quad()
+  try:
+    seen = _deaths(life)
+    sx, sy, syaw = world_config(QUAD_HOME)["start"]
+    src = "def pen_check():\n  wait(0.5)\n  wait(5)\n"
+    proc = lang.compile_procedure(src, lc.world_facts(QUAD_HOME))
+    errand = programmed_errand(proc, task="program", name="procedure")
+    # the fork holds the pen, as far as anything that asks can tell
+    monkeypatch.setattr(st, "_carried", lambda life: "module_pen")
+    # ...and the belief kept 0.25 m off: matched (#386), the scans would take
+    # it out before the death this reads it at
+    life.body.mission.matcher = None
+    life.body.mission.odo.x += 0.25
+    t0 = float(life.data.time)
 
-  def starve() -> None:
-    if life.data.time >= t0 + 2.0:
-      life.battery.energy_wh = 0.0
-  life.body.step_hooks.append(starve)
-  _stop_on_death(life)
-  with pytest.raises(MissionAborted):
-    life.body.run(life.run_errand_routine(errand))
+    def starve() -> None:
+      if life.data.time >= t0 + 0.7:
+        life.battery.energy_wh = 0.0
+    life.body.step_hooks.append(starve)
+    _stop_on_death(life)
+    with pytest.raises(MissionAborted):
+      life.body.run(life.run_errand_routine(errand))
 
-  assert len(seen) == 1 and seen[0]["cause"] == "flat"
-  at = seen[0]["at"]
-  assert at["t"] == seen[0]["t"], "a flat death is read as it happens"
-  assert at["errand"]["name"] == "procedure"
-  assert at["step"] == {"procedure": "pen_check", "n": 2, "line": 3,
-                        "verb": "wait", "args": {"seconds": 5.0}}
-  assert at["state"] == "USE_TOOL"
-  assert at["carrying"] == "module_pen"
-  assert at["setpoints"] == {"lift": round(align_lift(), 4), "arm": 0.0,
-                             "pen.carriage": 0.012}
-  sx, sy, syaw = cfg["start"]
-  assert at["pose"]["x"] == pytest.approx(sx, abs=0.02)
-  assert at["pose"]["y"] == pytest.approx(sy, abs=0.02)
-  assert at["pose"]["yawDeg"] == pytest.approx(math.degrees(syaw), abs=1.0)
-  assert at["believed"]["x"] - at["pose"]["x"] == pytest.approx(0.25, abs=0.02)
-  assert at["believed"]["yawDeg"] == pytest.approx(at["pose"]["yawDeg"], abs=1.0)
-  # ...and an upright robot has no lean to name: the direction of 0.02 deg
-  # is noise, and "back" would count it among the falls
-  assert at["tilt"]["deg"] < 1.0
-  assert at["tilt"]["towardDeg"] is None and at["tilt"]["toward"] is None
-  assert at["swapping"] is None and "peer" not in at
-  # ...and the step is let go when it ends, however it ended
-  assert life.step_now is None
+    assert len(seen) == 1 and seen[0]["cause"] == "flat"
+    at = seen[0]["at"]
+    assert at["t"] == seen[0]["t"], "a flat death is read as it happens"
+    assert at["errand"]["name"] == "procedure"
+    assert at["step"] == {"procedure": "pen_check", "n": 2, "line": 3,
+                          "verb": "wait", "args": {"seconds": 5.0}}
+    assert at["state"] == "USE_TOOL"
+    assert at["carrying"] == "module_pen"
+    stow = qm.CHOSEN.arm.stow
+    assert at["setpoints"] == {"shoulder": round(stow[0], 4), "elbow": round(stow[1], 4)}
+    assert at["pose"]["x"] == pytest.approx(sx, abs=0.03)
+    assert at["pose"]["y"] == pytest.approx(sy, abs=0.03)
+    assert at["pose"]["yawDeg"] == pytest.approx(math.degrees(syaw), abs=1.5)
+    assert at["believed"]["x"] - at["pose"]["x"] == pytest.approx(0.25, abs=0.03)
+    assert at["believed"]["yawDeg"] == pytest.approx(at["pose"]["yawDeg"], abs=1.5)
+    # ...and a standing robot has no lean to name: the direction of a
+    # fraction of a degree is noise, and "back" would count it among falls
+    assert at["tilt"]["deg"] < 1.5
+    assert at["tilt"]["towardDeg"] is None and at["tilt"]["toward"] is None
+    assert at["swapping"] is None and "peer" not in at
+    # ...and the step is let go when it ends, however it ended
+    assert life.step_now is None
+  finally:
+    life.body.close()
 
 
 def _lay_on_its_right_side(life, yaw: float) -> None:
-  """Roll the robot 90 deg onto its right side, facing `yaw`."""
-  d = life.data
-  q = life.body.mission.swap.root_qadr
+  """Roll the stub 90 deg onto its right side, facing `yaw`."""
   facing = np.array([math.cos(yaw / 2), 0.0, 0.0, math.sin(yaw / 2)])
   roll = np.array([math.cos(math.pi / 4), math.sin(math.pi / 4), 0.0, 0.0])
   quat = np.zeros(4)
   mujoco.mju_mulQuat(quat, facing, roll)
-  d.qpos[q + 2] += 0.15
-  d.qpos[q + 3:q + 7] = quat
-  d.qvel[:6] = 0.0
-  mujoco.mj_forward(life.model, d)
+  life.body.theta = yaw
+  life.body.attitude = tuple(quat)
 
 
 def test_a_topple_is_read_as_the_robot_falls_not_when_it_is_declared_dead():
   """A step is running when the robot goes over, and has ended by the time
-  the death is called TOPPLE_HOLD_S later: the row names the step that was
-  running AS IT FELL, at the fall's time. The lean is in the robot's OWN
-  frame -- onto its right side reads `right` whichever way it faced."""
+  the death is called `stuck_after_s` later: the row names the step that
+  was running AS IT FELL, at the fall's time. The lean is in the robot's
+  OWN frame -- onto its right side reads `right` whichever way it faced."""
   life = _life()
   seen = _deaths(life)
   t0 = float(life.data.time)
@@ -147,12 +156,13 @@ def test_a_topple_is_read_as_the_robot_falls_not_when_it_is_declared_dead():
   # ...the fall is kept across a restart, as the tilt clock is (#345)
   state, _ = life.kept_state()
   assert state["fall"] is not None and state["fall"] == life._fall
-  life.body.mission._drive(lc.TOPPLE_HOLD_S + 0.5, 0.0, 0.0)
+  hold = life.body.stuck_after_s
+  life.body.run(life.body.hold_routine(hold + 0.5))
 
   assert len(seen) == 1 and seen[0]["cause"] == "stuck"
   at = seen[0]["at"]
   assert fell[0] <= at["t"] <= fell[0] + 2 * lc.DEATH_CHECK_S
-  assert seen[0]["t"] - at["t"] >= lc.TOPPLE_HOLD_S - 1e-6
+  assert seen[0]["t"] - at["t"] >= hold - 1e-6
   assert at["step"] == {**where, "verb": "wait", "args": {"seconds": 1.0}}
   assert at["tilt"]["deg"] == pytest.approx(90.0, abs=3.0)
   assert at["tilt"]["towardDeg"] == pytest.approx(-90.0, abs=3.0)
@@ -167,39 +177,38 @@ def test_the_lean_word_is_the_nearest_of_four():
 
 
 def test_a_death_on_a_pair_names_the_nearest_peer_and_how_far_off():
-  """Measured between the two chassis off the root joints -- what the
-  encounter rows measure -- and each robot names the other, with whether
-  it is dead: a peer knocked over mid-errand keeps its errand's state."""
-  from pluggybot.pair import build_pair
-  from pluggybot.robot import SECOND
-  me, peer = build_pair("room_hub", errands=("none", "none"), mortal=True)
+  """Measured between the two bodies' roots -- what the encounter rows
+  measure -- and each robot names the other, with whether it is dead: a
+  peer knocked over mid-errand keeps its errand's state."""
+  model, data = StubBody.world()
+  me = _life(body=StubBody(model, data))
+  peer = _life(body=StubBody(model, data, handle=SECOND), robot_name="Rowan")
+  me.peers, peer.peers = [peer], [me]
   seen = _deaths(me)
-  adr = SECOND.qpos_adr(me.model)
-  me.data.qpos[adr:adr + 2] = me.data.qpos[me.body.mission.swap.root_qadr:
-                                           me.body.mission.swap.root_qadr + 2] + [0.6, 0.8]
-  mujoco.mj_forward(me.model, me.data)
+  peer.body.x, peer.body.y = me.body.x + 0.6, me.body.y + 0.8
   me._die("flat", "the pack reached zero")
-  assert seen[-1]["at"]["peer"] == {"name": peer.robot_name or peer.root,
-                                    "robot": peer.root, "distanceM": 1.0,
-                                    "state": peer.state, "dead": None}
+  assert seen[-1]["at"]["peer"] == {"name": "Rowan", "robot": peer.root,
+                                    "distanceM": 1.0, "state": peer.state,
+                                    "dead": None}
   assert peer._moment()["peer"]["robot"] == me.root
   assert peer._moment()["peer"]["dead"] == "flat"
 
 
-def test_setpoints_are_the_body_and_the_carried_tool_and_skip_what_is_gone(
-    monkeypatch):
-  """The claw's jaws are two actuators read as one axis, 0 wide .. 1 shut;
-  an axis whose actuator the world no longer has (a retired built tool) is
-  left out rather than failing the death that reads it."""
-  life = _life()
-  for act in ("claw_l", "claw_r"):
-    life.data.ctrl[life.model.actuator(act).id] = -0.5 * CLAW_JAW_TRAVEL
-  assert axes.setpoints(life, "module_claw")["claw.jaws"] == 0.5
-  assert set(axes.setpoints(life, None)) == {"lift", "arm"}
-  monkeypatch.setitem(axes.AXES, "gone.hinge", axes.Axis(
-    "gone.hinge", 0.0, 1.0, 1.0, "rad", "retired", requires="tool_gone",
-    actuator="tool_gone_hinge"))
-  assert set(axes.setpoints(life, "tool_gone")) == {"lift", "arm"}
+def test_setpoints_are_the_bodys_and_skip_what_is_gone(monkeypatch):
+  """An axis whose actuator the world no longer has (a retired built tool)
+  is left out rather than failing the death that reads it; the body's own
+  are there."""
+  from types import SimpleNamespace
+  life = _quad()
+  try:
+    view = SimpleNamespace(body=life.body, model=life.model, data=life.data)
+    assert set(axes.setpoints(view, None)) == {"shoulder", "elbow"}
+    monkeypatch.setitem(axes.AXES, "gone.hinge", axes.Axis(
+      "gone.hinge", 0.0, 1.0, 1.0, "rad", "retired", requires="tool_gone",
+      actuator="tool_gone_hinge"))
+    assert set(axes.setpoints(view, "tool_gone")) == {"shoulder", "elbow"}
+  finally:
+    life.body.close()
 
 
 def test_a_moment_that_cannot_be_read_never_costs_the_death(monkeypatch):

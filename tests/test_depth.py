@@ -1,9 +1,11 @@
-"""Guards for the near-field depth camera (perception/depth.py, issue #34).
+"""Guards for the near-field depth camera (perception/depth.py, issue #34),
+on the quadruped's nose.
 
 Each pins one honest failure of a D435-class unit and fails without it:
-the self-filter, axial depth through the nominal mount, z² noise, the
-image-left occlusion shadow, out-of-range as UNKNOWN, and the mount's
-floor band. No mission is flown; a settled robot and one frame each.
+a thing's height and place through the mount, z² noise, the image-left
+occlusion shadow, out-of-range as UNKNOWN, and the other robot filtered.
+No mission is flown; a standing robot and one frame each. (That the floor
+reconstructs through the body's own attitude is `test_map_scan.py`.)
 """
 
 import math
@@ -12,68 +14,40 @@ import mujoco
 import numpy as np
 import pytest
 
+from pluggybot.legs import model as qm
 from pluggybot.perception import depth as depthmod
 from pluggybot.perception.depth import DepthCamera
 from pluggybot.perception.heightmap import HeightMap
-from pluggybot.robot import FIRST, SECOND, world_with_robots
+from pluggybot.robot import FIRST, SECOND
 
 
 def _world(props=()):
-  """room_hub, optionally with boxes `(x, y, size_xyz)` standing on the
-  floor ahead of the robot (which starts at the origin facing +x)."""
-  spec = mujoco.MjSpec.from_file("models/room_hub.xml")
-  for i, (x, y, size) in enumerate(props):
-    g = spec.worldbody.add_geom()
-    g.name = f"prop_{i}"
-    g.type = mujoco.mjtGeom.mjGEOM_BOX
-    g.size = [s / 2 for s in size]
-    g.pos = [x, y, size[2] / 2]
-  model = spec.compile()
+  """The quadruped standing at the origin facing +x on a bare floor,
+  optionally with boxes `(x, y, size_xyz)` standing ahead of it."""
+  scenery = "".join(
+    f'<geom name="prop_{i}" type="box" size="{s[0] / 2} {s[1] / 2} {s[2] / 2}" '
+    f'pos="{x} {y} {s[2] / 2}"/>' for i, (x, y, s) in enumerate(props))
+  model = mujoco.MjModel.from_xml_string(qm.body_xml(qm.CHOSEN, scenery=scenery))
   data = mujoco.MjData(model)
-  for _ in range(300):
-    mujoco.mj_step(model, data)
+  mujoco.mj_resetDataKeyframe(model, data, 0)
+  mujoco.mj_forward(model, data)
   return model, data
+
+
+def _in_world(model, data, points, root="pluggybot"):
+  """A frame's points (the torso's own axes) in the world."""
+  r = model.body(root).id
+  return data.xpos[r] + points @ data.xmat[r].reshape(3, 3).T
 
 
 def _clean(model, **kw):
   """The geometric truth of a frame: no noise, no dropout."""
-  return DepthCamera(model, noise_k=0.0, dropout=0.0, **kw)
+  return DepthCamera(model, mount="body", noise_k=0.0, dropout=0.0, **kw)
 
 
 @pytest.fixture(scope="module")
 def room():
   return _world()
-
-
-def test_the_frame_is_the_floor_ahead_and_the_deck_is_dropped(room):
-  """The mount metric. From the mast top at 40°, the centre column sees the
-  floor from just past the bumper (the deck shadows nearer) to ~2 m, and
-  the deck itself -- chassis, LIDAR body, fork -- is dropped rather than
-  reported as a 7-17 cm thing standing where the robot is. Without the
-  self-filter the frame carries points inside the chassis footprint."""
-  model, data = room
-  cam = _clean(model)
-  frame = cam.frame(data)
-  assert 0.01 < frame.self_fraction < 0.15, frame.self_fraction
-  near, far = cam.floor_band(data)
-  assert 0.20 < near < 0.35, f"floor starts {near:.2f} m ahead of the axle"
-  assert far > 1.8, f"floor ends {far:.2f} m ahead"
-  deck = frame.points[(frame.points[:, 0] < 0.20) & (frame.points[:, 2] > 0.02)]
-  assert len(deck) == 0, f"{len(deck)} points on the robot's own deck"
-
-
-def test_the_floor_reconstructs_flat_through_the_nominal_mount(room):
-  """The point comes back through the pixel's direction and the mount as
-  the model states it -- the camera's rest pose relative to the axle on the
-  floor. Get the mount wrong (the wheel radius, the pitch, the live pose)
-  and a flat floor tilts, curves or sinks. Clean, every floor point within
-  2 m sits on z = 0 to a millimetre."""
-  model, data = room
-  frame = _clean(model).frame(data)
-  p = frame.points[(frame.points[:, 0] < 2.0) & (np.abs(frame.points[:, 1]) < 0.6)]
-  floor = p                       # nothing stands there but floor
-  assert len(floor) > 3000
-  assert np.abs(floor[:, 2]).max() < 0.002, np.abs(floor[:, 2]).max()
 
 
 def test_a_thing_on_the_floor_measures_its_height_and_place():
@@ -82,8 +56,8 @@ def test_a_thing_on_the_floor_measures_its_height_and_place():
   model, data = _world(props=(((0.9 + 0.025, 0.0, (0.05, 0.05, 0.05)),)))
   frame = _clean(model).frame(data)
   hm = HeightMap()
-  hm.update((-0.08, 0.0, 0.0), frame.points)   # the axle sits 8 cm behind
-  things = [t for t in hm.things() if abs(t["y"]) < 0.5]   # not the rack
+  hm.update((0.0, 0.0, 0.0), _in_world(model, data, frame.points))
+  things = [t for t in hm.things() if abs(t["y"]) < 0.5]
   assert len(things) == 1, things
   t = things[0]
   assert abs(t["height"] - 0.05) < 0.003, t
@@ -96,7 +70,7 @@ def test_noise_grows_with_the_square_of_depth(room):
   (16x the variance), and at 1 m it is `NOISE_K` = 3.6 mm."""
   model, data = room
   truth = _clean(model).frame(data).z.reshape(-1)
-  noisy = DepthCamera(model, dropout=0.0).frame(data).z.reshape(-1)
+  noisy = DepthCamera(model, mount="body", dropout=0.0).frame(data).z.reshape(-1)
   ok = np.isfinite(truth) & np.isfinite(noisy)
   res = (noisy - truth)[ok]
   z = truth[ok]
@@ -107,11 +81,11 @@ def test_noise_grows_with_the_square_of_depth(room):
 
 
 def test_a_near_edge_shadows_the_background_on_its_image_left():
-  """The right imager cannot see what a nearer surface hides. A 30 cm post
-  0.6 m ahead against the floor beyond: the pixels just LEFT of it in the
+  """The right imager cannot see what a nearer surface hides. A 20 cm post
+  0.8 m ahead against the floor beyond: the pixels just LEFT of it in the
   image are invalid, the pixels just right of it are not, and the band is
   f·B·(1/z_near - 1/z_far) wide. Without `_shadow` both sides are valid."""
-  model, data = _world(props=(((0.7, 0.0, (0.1, 0.1, 0.3)),)))
+  model, data = _world(props=(((0.8, 0.0, (0.1, 0.1, 0.2)),)))
   cam = _clean(model)
   z = cam.frame(data).z
   h, w = z.shape
@@ -137,38 +111,42 @@ def test_a_near_edge_shadows_the_background_on_its_image_left():
 
 def test_out_of_range_is_unknown_not_free_and_the_limit_is_axial(room):
   """The LIDAR's rule inverted: a ray past `max_z` is a NaN pixel, never a
-  point at max_z (which the map would take for floor at 3 m). The limit is
-  on z ALONG THE AXIS, as the part's is: a corner pixel at z = 1 m is 1.6 m
-  away by range and still valid. And MIN_Z does not bind on this mount: the
-  nearest thing that is not the robot is past 0.5 m."""
+  point at max_z (which the map would take for floor at 3 m) -- exactly
+  the pixels past it, and no others. The limit is on z ALONG THE AXIS, as
+  the part's is: a corner pixel at z = 1 m is further by range and still
+  valid. And MIN_Z does not bind on this mount: the nearest floor the nose
+  sees is past it."""
   model, data = room
   cam = _clean(model, max_z=1.0)
   frame = cam.frame(data)
+  full = _clean(model).frame(data)
   z = frame.z[np.isfinite(frame.z)]
   assert z.max() <= 1.0
   assert not np.any(np.isclose(z, 1.0, atol=1e-6)), "a pixel clipped to max"
-  assert len(frame.points) < 0.7 * frame.z.size, "far pixels became points"
+  assert np.array_equal(np.isnan(frame.z), np.isnan(full.z) | (full.z > 1.0)), \
+      "far pixels became points, or near ones were lost"
   ranges = np.linalg.norm(frame.points - cam.origin_robot, axis=1)
   assert ranges.max() > 1.2, f"the cut is on range ({ranges.max():.2f} m)"
-  full = _clean(model).frame(data)
-  assert np.nanmin(full.z) > 0.45, np.nanmin(full.z)
   assert depthmod.MIN_Z < np.nanmin(full.z)
 
 
 def test_a_second_robot_rides_the_handle_and_is_filtered_like_the_first():
   """The second robot's camera is `r2_depth_eye` on `r2_pluggybot`, and
   `exclude_robot` drops the FIRST robot from its frame as the LIDAR does --
-  another robot is no information about the floor."""
-  model = world_with_robots("models/room_hub.xml", second_at=(-1.0, 0.0))
+  another robot is no information about the floor. The pair stand in the
+  living room, the second a metre behind the first."""
+  from pluggybot.legs import world as lw
+  model = lw.home_spec(first_at=(1.0, -0.5), second_at=(0.0, -0.5)).compile()
   data = mujoco.MjData(model)
-  for _ in range(300):
-    mujoco.mj_step(model, data)
+  lw.stand(model, data, FIRST.prefix, 1.0, -0.5, 0.0)
+  lw.stand(model, data, SECOND.prefix, 0.0, -0.5, 0.0)
   cam = _clean(model, handle=SECOND)
   assert cam.camera_name == "r2_depth_eye"
-  seen = cam.frame(data)
-  tall = seen.points[(seen.points[:, 2] > 0.05) & (seen.points[:, 0] < 1.5)]
-  assert len(tall) > 20, "the first robot should stand in the second's frame"
+
+  def tall(frame):
+    p = frame.points
+    return p[(_in_world(model, data, p, SECOND.root)[:, 2] > 0.05) & (p[:, 0] < 1.5)]
+  assert len(tall(cam.frame(data))) > 20, "the first robot should stand in the second's frame"
   cam.exclude_robot(FIRST.root)
-  hidden = cam.frame(data)
-  tall = hidden.points[(hidden.points[:, 2] > 0.05) & (hidden.points[:, 0] < 1.5)]
-  assert len(tall) == 0, f"{len(tall)} points of the other robot remain"
+  left = tall(cam.frame(data))
+  assert len(left) == 0, f"{len(left)} points of the other robot remain"

@@ -14,8 +14,8 @@ L_OCC = 0.85    # amount to add when a ray collides a cell
 #: differently and it is worth knowing which is which before moving this:
 #:
 #:   cells     update()   frontier+mask   the world
-#:    40,000    2.4 ms       0.8 ms       room_hub today
-#:    56,000    3.1 ms       1.1 ms       home today
+#:    40,000    2.4 ms       0.8 ms       one 10 x 10 m room
+#:    56,000    3.1 ms       1.1 ms       the first house
 #:   159,600    4.3 ms       3.0 ms       the floor plan authored for #68
 #:   360,000    3.5 ms       7.0 ms       a 30x30 m park
 #:

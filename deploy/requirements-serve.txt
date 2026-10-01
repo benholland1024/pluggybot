@@ -19,10 +19,10 @@ mujoco==3.10.0
 numpy==2.5.1
 pillow==12.3.0
 # The apriltag DETECTOR (moms-apriltag, which only generates the textures,
-# stays out). It is imported inside `hub.tags._shared_detector`, so no
+# stays out). It is imported inside `rack.tags._shared_detector`, so no
 # module-level import scan finds it -- the first build of this image died on
-# it at `HubMission.__init__`, which is why the test runs a real mission
-# with these five and nothing else importable.
+# it at the first mission, which is why the test flies the robot with these
+# and nothing else importable.
 pupil-apriltags==1.0.4.post11
 scipy==1.18.0
 websockets==17.0.1

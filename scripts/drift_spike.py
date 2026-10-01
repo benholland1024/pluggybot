@@ -1,24 +1,20 @@
 #!/usr/bin/env python
 """Does the map stay true under drift? (issue #386)
 
-Believed pose against true pose over a home day, with the lab -- 25 m from
-the rack, down the street -- as the far leg, and whether the lab's door is
-still open in the robot's own map after the trips. The sim knows the truth,
-so the drift is read off it as it happens; nothing here changes the day.
+Believed pose against true pose over lab round trips -- the lab 25 m from
+the living room, down the street -- and whether the lab's door is still open
+in the robot's own map after them. The sim knows the truth, so the drift is
+read off it as it happens; nothing here changes the walk.
 
-    MUJOCO_GL=egl uv run python scripts/drift_spike.py --body rover --trips 3
-    ... --no-match          # the same day on odometry alone: the "before"
-    ... --body quadruped    # the walking policy along the rover's route
+    MUJOCO_GL=egl uv run python scripts/drift_spike.py --trips 3
     ... --out drift.json    # the trace, for --compare
     ... --compare A.json B.json
 
-  rover       the served loop (`run_demo` on home, the hosting pack): a
-              queue of the mouse's feed (the errand that ends in the lab)
-              and a carry (which ends at the rack), `--trips` times over.
-  quadruped   the walking policy along the rover's lab route and back,
-              steered by the TRUE pose -- what is measured is the robot's
-              estimate, so its steering must not depend on it -- with
-              legged odometry, the rear-mast LIDAR and the robot's own map.
+The walking policy along a route to the lab and back, steered by the TRUE
+pose -- what is measured is the robot's estimate, so its steering must not
+depend on it -- in the served house (its dock, rack and signs), with two
+estimates riding one walk: legged odometry alone, and corrected by scan
+matching against the robot's own map off the LIDAR.
 
 Reports per leg the worst and the last position error and the heading
 error; after each trip whether the lab door is open in the robot's own map
@@ -33,7 +29,6 @@ import argparse
 import json
 import math
 import sys
-import tempfile
 import time
 from pathlib import Path
 
@@ -53,7 +48,7 @@ def wrap(a: float) -> float:
 
 
 #: The places either side of the lab's door (the lobby's east wall, x = 22,
-#: y 2.5-3.5), on the rover's own route through it.
+#: y 2.5-3.5), on the route through it.
 LOBBY_XY, LAB_XY = (20.5, 3.0), (23.5, 3.55)
 
 
@@ -103,95 +98,10 @@ def map_png(grid, path: Path, box=(14.0, -3.0, 28.0, 9.0), scale: int = 3) -> No
                                     Image.NEAREST).save(path)
 
 
-# ---- the rover -----------------------------------------------------------------
-
-
-def fly_rover(trips: int, match: bool, sim_s: float, out: dict) -> None:
-  from pluggybot.lifecycle import cage_errand, carry_errand, run_demo, world_config
-  from pluggybot.mission import mission as mission_mod
-  try:
-    from pluggybot.mapping import scan_match as sm
-  except ImportError:          # a tree from before #386: the baseline
-    sm = None
-
-  mission_mod.SCAN_MATCH = match
-  cfg = world_config("home")
-  trace, doors, cost = out["trace"], out["doors"], {"n": 0, "s": 0.0}
-  real_match = sm.ScanMatcher.match if sm is not None else None
-
-  def timed(self, *a, **kw):
-    t = time.perf_counter()
-    try:
-      return real_match(self, *a, **kw)
-    finally:
-      cost["n"] += 1
-      cost["s"] += time.perf_counter() - t
-
-  if sm is not None:
-    sm.ScanMatcher.match = timed
-  state = {"next": 0.0, "errand": ""}
-  places = Places()
-
-  def on_ready(life):
-    # the day's queue: the lab and back, `trips` times
-    life.errands[:] = []
-    for _ in range(trips):
-      life.errands.append(cage_errand("home", "feed"))
-      life.errands.append(carry_errand(use_at=cfg["use_at"]))
-    d = life.data
-
-    def step():
-      name = life._errand_name
-      if name != state["errand"]:
-        if state["errand"].startswith("care:"):
-          doors.append({"t": round(float(d.time), 1), "after": state["errand"],
-                        **door_state(life.body.mission.grid, places)})
-        state["errand"] = name
-      if d.time < state["next"]:
-        return
-      state["next"] = (math.floor(d.time / EVERY_S) + 1) * EVERY_S
-      tx, ty, tth = life.body.true_pose()
-      bx, by, bth = life.body.pose
-      places.see((tx, ty), (bx, by))
-      trace.append({"t": round(float(d.time), 2), "leg": name or life.state,
-                    "err": round(math.hypot(bx - tx, by - ty), 4),
-                    "dyaw": round(math.degrees(wrap(bth - tth)), 3),
-                    "true": [round(tx, 3), round(ty, 3)]})
-    life.body.step_hooks.append(step)
-
-    def stop_when_done(life=life):
-      if not life.errands and not life._errand_name and state["errand"] == "":
-        from pluggybot.mission.mission import MissionAborted
-        raise MissionAborted("trips done")
-    life.at_loop_top.append(stop_when_done)
-    out["life"] = life
-
-  st = Path(tempfile.mkdtemp(prefix="pluggy-drift-"))
-  t0 = time.time()
-  r = run_demo(view=False, realtime=False, world="home", pack="hosting",
-               errand="none", max_sim_time=sim_s, tasks=False, metabolism=False,
-               overseer=False, thoughts_root=str(st / "thoughts"),
-               ledger_state=str(st / "ledger.json"), board_state=str(st / "boards.json"),
-               spend_state=str(st / "spend.json"), on_ready=on_ready)
-  life = out.pop("life")
-  m = getattr(life.body.mission, "matcher", None)
-  out["maps"] = {"rover": (life.body.mission.grid, places)}
-  doors.append({"t": round(float(r["sim_time"]), 1), "after": "day",
-                **door_state(life.body.mission.grid, places)})
-  out["summary"] = {"simS": round(float(r["sim_time"]), 1), "wallS": round(time.time() - t0, 1),
-                    "matcher": None if m is None else dict(m.counts),
-                    "msPerMatch": round(1e3 * cost["s"] / max(cost["n"], 1), 3),
-                    "matches": cost["n"]}
-  if sm is not None:
-    sm.ScanMatcher.match = real_match
-
-
 # ---- the quadruped ------------------------------------------------------------
 
-#: The rover's own way to the lab, as it drove it on staging (the feed's
-#: first trip, `--body rover --no-match` on 056a4a1), thinned to 0.75 m:
-#: known to clear every doorway, so the quadruped's walk tests the estimate
-#: and never the route.
+#: A way to the lab from the living room, thinned to 0.75 m: known to
+#: clear every doorway, so the walk tests the estimate and never the route.
 LAB_WALK = ((1.50, 0.50), (2.26, 0.45), (2.85, -0.01), (3.60, 0.06), (4.11, 0.62),
             (4.84, 0.89), (5.58, 1.13), (6.17, 1.62), (6.13, 2.37), (6.13, 3.12),
             (6.91, 3.12), (7.66, 3.12), (8.41, 3.12), (9.17, 3.12), (9.92, 3.12),
@@ -205,25 +115,14 @@ WALK_V, LOOKAHEAD_M, TURN_ON_SPOT_RAD, TURN_RATE = 0.5, 0.4, math.radians(50), 0
 
 
 def quad_home_world(x: float, y: float, yaw: float):
-  """The home world with its rover taken out and one quadruped standing at
-  (x, y) facing `yaw`; (model, data)."""
+  """The served house (`legs.world.home_spec`: its dock, rack and signs)
+  with one quadruped standing at (x, y) facing `yaw`; (model, data)."""
   import mujoco
 
-  from pluggybot.legs.model import CHOSEN, attachable, pose_qpos
-  spec = mujoco.MjSpec.from_file("models/home_world.xml")
-  for el in (list(spec.actuators) + list(spec.sensors) + list(spec.tendons)
-             + list(spec.equalities) + list(spec.excludes)):
-    spec.delete(el)
-  spec.delete(spec.body("pluggybot"))
-  spec.attach(attachable(CHOSEN), prefix="", frame=spec.worldbody.add_frame())
-  model = spec.compile()
+  from pluggybot.legs import world as lw
+  model = lw.home_spec(first_at=(x, y)).compile()
   data = mujoco.MjData(model)
-  root = model.jnt_qposadr[model.joint("pluggybot_root").id]
-  data.qpos[root:root + 3] = (x, y, CHOSEN.stand_height)
-  data.qpos[root + 3:root + 7] = (math.cos(yaw / 2), 0.0, 0.0, math.sin(yaw / 2))
-  j = model.jnt_qposadr[model.joint("FL_hip_abd").id]
-  data.qpos[j:j + 12] = pose_qpos(CHOSEN, CHOSEN.stand_height)
-  mujoco.mj_forward(model, data)
+  lw.stand(model, data, x=x, y=y, yaw=yaw)
   return model, data
 
 
@@ -243,8 +142,8 @@ class Estimate:
     self.places = Places()
 
   def scan(self, angles, ranges, max_range) -> None:
-    from pluggybot.mission.mission import MAP_TILT_RAD
-    if self.odo.att.tilt() > MAP_TILT_RAD:
+    from pluggybot.legs.body import QuadMission
+    if self.odo.att.tilt() > QuadMission.LEVEL_TILT:
       return
     pose = (self.odo.x, self.odo.y, self.odo.yaw)
     if self.matcher is not None:
@@ -267,7 +166,7 @@ def fly_quadruped(trips: int, out: dict, seed: int = 0) -> None:
   scan matching -- off the same IMU draws, so the only difference between
   them is the matcher."""
   from pluggybot.legs.policy import POLICY_NPZ, PolicyDriver, Twist, WalkingPolicy
-  from pluggybot.lifecycle import world_config
+  from pluggybot.lifecycle import QUAD_HOME, world_config
   from pluggybot.perception.lidar import LIDAR_PERIOD, Lidar
   from pluggybot.legs.actuator import BUS_V_NOMINAL
 
@@ -282,7 +181,7 @@ def fly_quadruped(trips: int, out: dict, seed: int = 0) -> None:
   rot = data.xmat[root].reshape(3, 3)
   rel = rot.T @ (data.site_xpos[lidar.site_id] - data.xpos[root])
   origin = (float(rel[0]), float(rel[1]))
-  bounds = world_config("home")["grid_bounds"]
+  bounds = world_config(QUAD_HOME)["grid_bounds"]
   ests = {"odometry": Estimate(model, data, bounds, origin, match=False, seed=seed),
           "matched": Estimate(model, data, bounds, origin, match=True, seed=seed)}
   route = list(LAB_WALK)
@@ -371,27 +270,6 @@ def door_words(d: dict) -> str:
 
 
 def report(out: dict) -> None:
-  if out["body"] == "quadruped":
-    return report_quadruped(out)
-  print(f"{'leg':24s} {'t0 s':>7s} {'dur s':>6s} {'worst m':>8s} {'last m':>7s} "
-        f"{'worst yaw deg':>13s}")
-  for leg in legs(out["trace"]):
-    rows = leg["rows"]
-    if rows[-1]["t"] - rows[0]["t"] < 1.0:
-      continue
-    worst = max(r["err"] for r in rows)
-    yaw = max(abs(r["dyaw"]) for r in rows)
-    print(f"{leg['leg'][:24]:24s} {leg['t0']:7.1f} {rows[-1]['t'] - rows[0]['t']:6.1f} "
-          f"{worst:8.3f} {rows[-1]['err']:7.3f} {yaw:13.2f}")
-  errs = [r["err"] for r in out["trace"]]
-  print(f"over the day: worst {max(errs):.3f} m, median {float(np.median(errs)):.3f} m, "
-        f"worst heading {max(abs(r['dyaw']) for r in out['trace']):.2f} deg")
-  for d in out["doors"]:
-    print(f"lab door after {d['after']:10s} t={d['t']:7.1f}: " + door_words(d))
-  print(json.dumps(out["summary"]))
-
-
-def report_quadruped(out: dict) -> None:
   names = ("odometry", "matched")
   print(f"{'leg':6s} {'t0 s':>7s} {'dur s':>6s} " + " ".join(
     f"{n + ' worst/last m':>22s} {'yaw deg':>7s}" for n in names))
@@ -414,11 +292,7 @@ def report_quadruped(out: dict) -> None:
 
 def main(argv=None) -> int:
   ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
-  ap.add_argument("--body", choices=("rover", "quadruped"), default="rover")
   ap.add_argument("--trips", type=int, default=3)
-  ap.add_argument("--no-match", action="store_true",
-                  help="odometry alone: the day before scan matching")
-  ap.add_argument("--sim-s", type=float, default=7200.0)
   ap.add_argument("--out", default=None)
   ap.add_argument("--compare", nargs="+", default=None, metavar="JSON")
   args = ap.parse_args(argv)
@@ -427,12 +301,8 @@ def main(argv=None) -> int:
       print(f"== {path}")
       report(json.loads(Path(path).read_text()))
     return 0
-  out = {"body": args.body, "match": not args.no_match, "trips": args.trips,
-         "trace": [], "doors": []}
-  if args.body == "rover":
-    fly_rover(args.trips, not args.no_match, args.sim_s, out)
-  else:
-    fly_quadruped(args.trips, out)
+  out = {"body": "quadruped", "trips": args.trips, "trace": [], "doors": []}
+  fly_quadruped(args.trips, out)
   maps = out.pop("maps")
   report(out)
   if args.out:

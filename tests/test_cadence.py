@@ -267,20 +267,21 @@ def test_a_world_with_no_whiteboards_offers_fewer_jobs_not_broken_ones():
   maker = producer(targets={"module": ["module_lcd"]})
   assert maker.kinds == (), "a board kind was kept in a world with no boards"
   assert run(maker, until=2000.0) == []
-  # ...and the same cadence over room_hub's actual furniture offers the carry.
+  # ...and a cadence of the carry over the same furniture offers it.
   bare = producer(cadence(kinds={"fetch_module": {}}),
                   targets={"module": ["module_lcd"]})
   assert [t.kind for t in bare.seed(0.0)] == ["fetch_module"]
 
 
 def test_the_seed_respects_the_per_target_rule_rather_than_double_booking():
-  """home has three board-shaped kinds and two whiteboards, so a seed of four
-  puts up three. Fewer offers, never two jobs on one board."""
-  book = lc.board_book("home")
-  b = lc.task_board(cadence=default_cadence("home"))
-  seeded = lc.task_producer(b, "home", book).seed(0.0)
+  """Three board-shaped kinds and the house's two whiteboards, so a seed of
+  four puts up three. Fewer offers, never two jobs on one board."""
+  book = lc.board_book(lc.QUAD_HOME)
+  beat = cadence(initial=4)
+  b = lc.task_board(cadence=beat)
+  seeded = lc.task_producer(b, lc.QUAD_HOME, book, cadence=beat).seed(0.0)
   targets = [t.target for t in seeded]
-  assert len(targets) == len(set(targets)), targets
+  assert len(targets) == len(set(targets)) == 3, targets
 
 
 # ---- it is configuration -----------------------------------------------------
@@ -381,13 +382,11 @@ def test_the_producer_runs_during_a_charge_and_cannot_touch_the_robot():
   set `self.state`: both are one line, and both would let a job put up during
   a charge interrupt it.
   """
-  # Priced for room_hub, as production does (issue #15): a bare board falls
-  # back to `TaskKind.estimate_wh`, which is deliberately the dearest world's
-  # figure and so refuses room_hub a carry it does for 0.57 Wh.
+  # Priced for the world, as production does (issue #15).
   from pluggybot.economy.energy import load as load_energy
   from test_body import stub_life
-  b = board(energy=load_energy("room_hub"))
-  life = stub_life("room_hub", tasks=b, producer=None)
+  b = board(energy=load_energy(lc.QUAD_HOME))
+  life = stub_life(tasks=b, producer=None)
   life.producer = TaskProducer(b, cadence(firstAtS=0.0, everyS=1.0, initial=0,
                                           kinds={"fetch_module": {}}),
                                {"module": ["module_lcd"]})
@@ -420,19 +419,11 @@ def test_a_use_phase_is_skipped_when_the_robot_never_reached_the_board():
   could not get there and a robot that got there and drew badly are different
   events, and both have to end with the module on the rack.
 
-  Shown to fail by restoring `self.mission.drive_to(...)` as a bare call: the
-  use-phase runs, and this test hangs rather than failing -- which is exactly
-  what it is guarding.
+  Shown to fail by restoring the drive as a bare call: the use-phase runs.
   """
-  import mujoco
   from pluggybot.mission.errand import Errand
-  cfg = lc.world_config("room_hub")
-  model = mujoco.MjModel.from_xml_path(cfg["model"])
-  life = lc.HubLifecycle(model, mujoco.MjData(model), realtime=False,
-                         world="room_hub", errand=False,
-                         battery_wh=cfg["battery_wh"], rack=cfg["rack"],
-                         grid_bounds=cfg["grid_bounds"],
-                         low_battery_wh=cfg["low_battery_wh"])
+  from test_body import stub_life
+  life = stub_life()
   ran: list[bool] = []
 
   def use(_life):
@@ -444,10 +435,7 @@ def test_a_use_phase_is_skipped_when_the_robot_never_reached_the_board():
   # test is one branch, not a mission.
   errand = Errand(name="draw:nowhere", module="module_pen", station_y=0.0,
                   use_at=(500.0, 500.0), use=use)
-  life.body.mission.drive_to_routine = lambda *a, **kw: tick.result(False)
-  life.body.mission.swap_at_bay_routine = lambda *a, **kw: tick.result(None)
-  life.body.mission.swap.module_state = lambda *a, **kw: {"on_fork": True,
-                                                     "hung": True}
+  life.body.go_to_routine = lambda *a, **kw: tick.result(False)
   result = life.run_errand(errand)
   assert not ran, "the use-phase ran at a board the robot never reached"
   assert result["error"] == "never reached the use pose"
@@ -471,15 +459,9 @@ def test_an_errand_that_navigates_itself_is_not_skipped_for_falling_short():
   show. Set `needs_use_pose` back to True for every errand and that fixture
   test is what fails.
   """
-  import mujoco
   from pluggybot.mission.errand import Errand
-  cfg = lc.world_config("room_hub")
-  model = mujoco.MjModel.from_xml_path(cfg["model"])
-  life = lc.HubLifecycle(model, mujoco.MjData(model), realtime=False,
-                         world="room_hub", errand=False,
-                         battery_wh=cfg["battery_wh"], rack=cfg["rack"],
-                         grid_bounds=cfg["grid_bounds"],
-                         low_battery_wh=cfg["low_battery_wh"])
+  from test_body import stub_life
+  life = stub_life()
   ran: list[bool] = []
 
   def use(_life):
@@ -488,28 +470,12 @@ def test_an_errand_that_navigates_itself_is_not_skipped_for_falling_short():
 
   errand = Errand(name="census:garden", module="module_lcd", station_y=0.0,
                   use_at=(500.0, 500.0), use=use, needs_use_pose=False)
-  life.body.mission.drive_to_routine = lambda *a, **kw: tick.result(False)      # the drive gave up
-  life.body.mission.swap_at_bay_routine = lambda *a, **kw: tick.result(None)
-  life.body.mission.swap.module_state = lambda *a, **kw: {"on_fork": True,
-                                                     "hung": True}
+  life.body.go_to_routine = lambda *a, **kw: tick.result(False)      # the drive gave up
   result = life.run_errand(errand)
   assert ran, "an errand that navigates itself was skipped for a short drive"
   assert "error" not in result
   assert result["counted"] == 4
   assert result["stowed"]
-
-
-def test_the_real_census_errand_navigates_itself():
-  """The flag is only worth anything if the errand that needs it carries it,
-  and a default of True means forgetting is silent. Asserted on the errand the
-  home mission actually builds rather than on one written here."""
-  census = [e for e in lc.errands_for("census", "home", None)
-            if e.task == "census"]
-  assert census, "the home world builds no census errand"
-  assert all(e.needs_use_pose is False for e in census)
-  # ...and the flag is not simply False everywhere: a pen MUST be at a board,
-  # which is the case the gate was added for in the first place.
-  assert all(e.needs_use_pose for e in lc.errands_for("carry", "room_hub", None))
 
 
 def test_a_producer_world_stands_by_instead_of_calling_it_a_day(monkeypatch):
@@ -530,19 +496,11 @@ def test_a_producer_world_stands_by_instead_of_calling_it_a_day(monkeypatch):
   Shown to fail by restoring the bare `else: break`: the run ends at t~0 with
   the whole budget unspent.
   """
-  import mujoco
-  cfg = lc.world_config("room_hub")
-  model = mujoco.MjModel.from_xml_path(cfg["model"])
-  # Priced for room_hub, as production does (issue #15): a bare board falls
-  # back to `TaskKind.estimate_wh`, which is deliberately the dearest world's
-  # figure and so refuses room_hub a carry it does for 0.57 Wh.
   from pluggybot.economy.energy import load as load_energy
-  b = board(energy=load_energy("room_hub"))
-  life = lc.HubLifecycle(model, mujoco.MjData(model), realtime=False,
-                         world="room_hub", errand=False, tasks=b,
-                         battery_wh=cfg["battery_wh"], rack=cfg["rack"],
-                         grid_bounds=cfg["grid_bounds"],
-                         low_battery_wh=cfg["low_battery_wh"])
+  from test_body import stub_life
+  start = lc.world_config(lc.QUAD_HOME)["start"]
+  b = board(energy=load_energy(lc.QUAD_HOME))
+  life = stub_life(tasks=b)
   # A world that will not offer anything for a long time, so the ONLY thing
   # keeping the loop alive is the decision to wait for it.
   life.producer = TaskProducer(b, cadence(firstAtS=1e6, everyS=1e6, initial=0,
@@ -551,12 +509,10 @@ def test_a_producer_world_stands_by_instead_of_calling_it_a_day(monkeypatch):
   # Nothing physical: the branch under test is the last one in `run()`, and
   # mapping a room to reach it would make this a mission test.
   life.explore_routine = lambda *a, **kw: tick.result(setattr(life, "floor_explored", True))
-  life.body.mission.drive_to_routine = lambda *a, **kw: tick.result(True)
 
-  # Two stand-by slices is the whole claim; 30 s of real physics for it was
-  # 27 s of wall clock in a suite where this file costs under a second.
+  # Two stand-by slices is the whole claim.
   budget = 12.0
-  r = life.run(cfg["start"], max_sim_time=budget)
+  r = life.run(start, max_sim_time=budget)
 
   assert r["state"] == "DONE"
   assert life.data.time >= budget, \
@@ -566,30 +522,19 @@ def test_a_producer_world_stands_by_instead_of_calling_it_a_day(monkeypatch):
   # -- stands by on the same terms. `expects_work` is the rule, not the
   # producer: keyed on the producer, the pair fixture's hider called its day
   # complete mid-game and never saw another offer.
-  shared = lc.HubLifecycle(model, mujoco.MjData(model), realtime=False,
-                           world="room_hub", errand=False, tasks=b,
-                           battery_wh=cfg["battery_wh"], rack=cfg["rack"],
-                           grid_bounds=cfg["grid_bounds"],
-                           low_battery_wh=cfg["low_battery_wh"])
+  shared = stub_life(tasks=b)
   assert shared.producer is None and not shared.expects_work
   shared.expects_work = True
   shared.explore_routine = lambda *a, **kw: tick.result(setattr(shared, "floor_explored", True))
-  shared.body.mission.drive_to_routine = lambda *a, **kw: tick.result(True)
-  shared.body.mission._spin_routine = lambda *a, **kw: tick.result(None)   # 7 s of physics, off-topic
   monkeypatch.setattr(lc, "WAIT_FOR_WORK_S", 0.2)                      # nor is the slice length
-  shared.run(cfg["start"], max_sim_time=1.0)
+  shared.run(start, max_sim_time=1.0)
   assert shared.data.time >= 1.0, \
     f"the second robot went home at t={shared.data.time:.1f}s with work coming"
   # ...and a world with NO producer still ends the moment it is done, which
   # is what every other mission test in this suite depends on.
-  quiet = lc.HubLifecycle(model, mujoco.MjData(model), realtime=False,
-                          world="room_hub", errand=False,
-                          battery_wh=cfg["battery_wh"], rack=cfg["rack"],
-                          grid_bounds=cfg["grid_bounds"],
-                          low_battery_wh=cfg["low_battery_wh"])
+  quiet = stub_life()
   quiet.explore_routine = lambda *a, **kw: tick.result(setattr(quiet, "floor_explored", True))
-  quiet.body.mission.drive_to_routine = lambda *a, **kw: tick.result(True)
-  quiet.run(cfg["start"], max_sim_time=budget)
+  quiet.run(start, max_sim_time=budget)
   assert quiet.data.time < budget, "a preset-errand mission stopped ending"
 
 
@@ -625,16 +570,21 @@ def test_the_rotation_resumes_where_the_last_mission_left_it(tmp_path):
 
 
 def test_hourly_restarts_no_longer_starve_the_last_kind(tmp_path):
-  """The deployed pattern in miniature: missions of 3600 s, the board
-  persisted between them, a fresh producer each time, one robot working
-  the jobs it can. Without the persisted cursor the last kind is offered
-  a fraction as often as the first; with it, the lab's three kinds share
-  the lab's one slot evenly."""
-  from pluggybot.economy.cadence import default_cadence
+  """Hourly missions in miniature: missions of 3600 s, the board persisted
+  between them, a fresh producer each time, one robot working the jobs it
+  can. Without the persisted cursor the last kinds are offered a fraction
+  as often as the first; with it, the lab's three kinds share the lab's one
+  slot evenly."""
   from pluggybot.lifecycle import board_book, world_targets
-  targets = world_targets("home", board_book("home"), procedures=True,
+  targets = world_targets(lc.QUAD_HOME, board_book(lc.QUAD_HOME), procedures=True,
                           robots=("Luca", "Rowan"))
-  beat = default_cadence("home")
+  # an eight-kind rotation, the lab's three LAST, on the served world's timing
+  beat = cadence(firstAtS=240.0, everyS=240.0, ttlS=720.0, cooldownS=480.0,
+                 maxOffered=5, maxTasks=40, initial=4, kinds={
+                   "whiteboard_answer": {}, "draw_figure": {"programs": ["house", "tree"]},
+                   "rate_artwork": {"programs": ["robot"]}, "count_plants": {},
+                   "take_points": {"params": {"amount": 10}},
+                   "shock_mouse": {}, "feed_mouse": {}, "find_mass": {}})
   path = tmp_path / "tasks.json"
   offers: dict = {}
   for _ in range(12):
@@ -664,7 +614,8 @@ def test_hourly_restarts_no_longer_starve_the_last_kind(tmp_path):
     b.save()
   lab = [offers.get(k, 0) for k in ("shock_mouse", "feed_mouse", "find_mass")]
   assert min(lab) >= 3, (lab, offers)
-  # within 2, not 1: the cursor goes BACK to a kind it passed over, so a
-  # lab kind offered in that gap comes round once more (measured 15/13/13
-  # once a claim kept across a restart books its target, issue #345)
-  assert max(lab) - min(lab) <= 2, (lab, offers)
+  # within 3, not 1: the cursor goes BACK to a kind it passed over, so a
+  # lab kind offered in that gap comes round again (measured 17/14/14, and
+  # 23/12/12 with a fresh cursor every mission; a claim kept across a
+  # restart books its target, issue #345)
+  assert max(lab) - min(lab) <= 3, (lab, offers)

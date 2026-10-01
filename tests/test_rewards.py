@@ -15,7 +15,7 @@ import pytest
 
 from pluggybot.economy import scoring
 from pluggybot.tools.boards import BoardBook, BoardRecord
-from pluggybot.mission.errand import Errand, carry_errand, dance_errand
+from pluggybot.mission.errand import Errand
 from pluggybot.economy.ledger import MAX_ENTRIES, RECENT, Ledger
 from pluggybot.economy.scoring import Curve, RewardTable, Verdict, evaluate
 
@@ -318,7 +318,7 @@ def test_an_errand_cannot_fake_a_drawing_it_did_not_draw():
 def test_a_carry_verdict_asks_the_coupling_not_the_errand():
   """`stowed` comes off `module_state` -- the coupling's own answer about
   whether the module is hanging on its bracket."""
-  errand = carry_errand()
+  errand = Errand("carry:module_lcd", "module_lcd", 0.0, (0, 0))
   lying = {"picked": True, "stowed": True}
   assert not scoring.score_errand(fake_life(module_hung=False), errand,
                                   lying, {}).ok
@@ -556,13 +556,13 @@ def test_a_rating_cannot_be_applied_twice_or_out_of_range():
 def test_every_errand_the_menu_builds_names_a_task_that_can_be_scored():
   """An errand's `task` is what selects its evaluator, and it defaults off
   the errand NAME -- so a renamed errand silently stops being scored. This is
-  the guard on that."""
-  from pluggybot.lifecycle import errands_for
-  for kind in ("carry", "dance"):
-    for errand in errands_for(kind, "room_hub"):
+  the guard on that. (A `care` gift is the narrative-only tier: it pays
+  nothing and names no evaluator, on purpose.)"""
+  from pluggybot.lifecycle import QUAD_HOME, errands_for
+  for kind in ("feed", "shock"):
+    for errand in errands_for(kind, QUAD_HOME):
       assert errand.task in scoring.EVALUATORS, \
         f"{kind}: errand {errand.name!r} has unscoreable task {errand.task!r}"
-  assert dance_errand((0, 0)).task == "dance"
   assert Errand("census:garden", "module_lcd", 0.0, (0, 0)).task == "census"
 
 
@@ -618,7 +618,7 @@ def _dearest_wh(model, kind) -> float:
   return max(rows) if rows else kind.estimate_wh
 
 
-@pytest.mark.parametrize("world", ["home", "room_hub"])
+@pytest.mark.parametrize("world", ["home_quad"])
 def test_the_always_available_work_pays_less_per_watt_hour_than_any_offer(world):
   """Ben's rule behind issue #321: `carry` and `dance` are the work that is
   always there and pays less, so neither can become the living. Read off

@@ -1113,7 +1113,7 @@ class Menu:
                             if n not in ("text", "answer")))
     menu = cls(boards=tuple(book.names) if book is not None else (),
                programs=programs, zones=zones, census_zone=census,
-               tools=cfg.get("tools", True), body=cfg.get("body", "rover"),
+               tools=cfg.get("tools", True), body=cfg["body"],
                swaps=cfg.get("swap", cfg.get("tools", True)),
                places=bool(cfg.get("places")),
                plates=bool(cfg.get("places") and cfg.get("lab")))
@@ -5668,15 +5668,14 @@ def build(world: str, book=None, enabled: bool | None = None,
     # where the prompt is (`lifecycle.world_targets`).
     zone = world_config(world).get("lab")
     if zone:
-      # ...naming the jobs the world offers on the cage, and the road
-      # there only where one is surveyed (issue #403)
+      # ...naming the jobs the world offers on the cage (issue #403); no
+      # road there is surveyed since the rover's went (#376), so none is
+      # named: the robot finds the lab's places
       from pluggybot.economy.cadence import default_cadence
       from pluggybot.economy.tasks import KINDS
-      from pluggybot.lifecycle import lab_route
       jobs = tuple(k for k in default_cadence(world).kinds
                    if KINDS[k].target_kind == "cage")
-      menu = replace(menu, lab=zone["name"], lab_jobs=jobs,
-                     lab_route=bool(lab_route(world)))
+      menu = replace(menu, lab=zone["name"], lab_jobs=jobs, lab_route=False)
     # THE DESK (issue #284): the same arm. The desk itself is the
     # LIFECYCLE's (a close pays on any arm; `HubLifecycle.tickets`); this
     # is what offers the two fields, the block and the rule.

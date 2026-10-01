@@ -6,11 +6,10 @@ bidirectional socket, admin-only at the WEBSITE's door, code-handled on the
 physics thread, never shown to the overseer, refused while a module is
 seated on the fork.
 
-What is new is the RECORD. docs/Evaluation.md §5 has said since M14 began
-that an admin intervention contaminates every survival number in its run,
-and `rollup.excluded_because` has excluded a run with a non-empty
-`interventions` array all along -- with nothing to fill it. These are the
-two kinds that fill it, and the four traces each one leaves.
+What is new is the RECORD. docs/Evaluation.md §5: an admin intervention
+contaminates every survival number in its run, so every one is written
+down. These are the two kinds that fill `interventions`, and the four
+traces each one leaves.
 
 ⚠ WHO IS AN ADMIN IS NOT A QUESTION THE SIM CAN ANSWER, here or for either
 reset. `from` is a label the website puts on the message, and the gate is
@@ -24,9 +23,7 @@ import json
 import pytest
 
 from pluggybot import lifecycle as lc
-from pluggybot.evaluation import record as rec
-from pluggybot.evaluation import rollup as rollup_mod
-from pluggybot.lifecycle import HubLifecycle, world_config
+from pluggybot.lifecycle import QUAD_HOME, HubLifecycle, world_config
 from pluggybot.mind.inbox import Inbox
 from pluggybot.mind.overseer import ACTIONS, Menu, model_state
 from pluggybot.mind.thoughts import HISTORY
@@ -37,7 +34,7 @@ from pluggybot.telemetry.protocol import (
 from test_body import stub_life  # noqa: I001 -- tests/ is on sys.path
 
 
-def _life(world: str = "room_hub", inbox=None, ledger=None,
+def _life(world: str = QUAD_HOME, inbox=None, ledger=None,
           **kw) -> HubLifecycle:
   """An admin's reach-in is the lifecycle's bookkeeping: a stub body
   carries it (issue #380)."""
@@ -120,7 +117,7 @@ def test_setting_the_battery_moves_the_pack_and_leaves_four_traces(tmp_path):
   life._visitor_step()
 
   assert life.battery.fraction == pytest.approx(1.0)
-  #  1. the run record's own list, which is what a rollup reads
+  #  1. the lifecycle's own list, which says a run is not a survival data point
   assert len(life.interventions) == 1
   entry = life.interventions[0]
   assert entry["what"] == "set_battery" and entry["by"] == "ben"
@@ -242,7 +239,7 @@ def test_neither_kind_reaches_the_overseer():
   shown."""
   assert not set(ACTIONS) & {"set_battery", "set_points", "reset_robot",
                              "reset_tool"}
-  schema = json.dumps(Menu.for_world("room_hub").schema())
+  schema = json.dumps(Menu.for_world(QUAD_HOME).schema())
   assert "set_battery" not in schema and "set_points" not in schema
 
   #  ...and nothing about one can ride in as a visitor message: the physics
@@ -253,7 +250,7 @@ def test_neither_kind_reaches_the_overseer():
   box.offer({"type": "message", "id": "m_1", "from": "ada", "text": "hello"})
   from pluggybot.mind import overseer as ov
 
-  boss = ov.build("room_hub", enabled=True)
+  boss = ov.build(QUAD_HOME, enabled=True)
   life = _life(inbox=box, overseer=boss)
   life._visitor_step()
   assert [m.kind for m in box.peek()] == ["message"]
@@ -262,56 +259,3 @@ def test_neither_kind_reaches_the_overseer():
   state = lc.overseer_context(life)
   assert "set_battery" not in json.dumps(state)
   assert "set_battery" not in json.dumps(model_state(state))
-
-
-# ---- the run record and the rollup -------------------------------------------
-
-
-def test_a_run_with_an_intervention_is_not_a_survival_data_point():
-  """The two halves that had never met: §5 has said this since M14 began and
-  `rollup` has excluded on it all along -- with nothing filling the array."""
-  result = {
-    "aborted": False, "stranded": False, "battery": 0.8, "sim_time": 3600.0,
-    "deaths": [], "resets": [], "errands": [], "charge_cycles": 1,
-    "points": 250, "earned": 0, "metabolism": {"consumed": 0, "spilled": 0},
-    "interventions": [
-      {"type": "intervention", "t": 100.0, "what": "set_points", "by": "ben",
-       "before": {"points": 0}, "after": {"points": 250},
-       "detail": "set my points 0 -> 250"},
-    ],
-  }
-  record = rec.build_record(
-    {"world": "home", "arm": "guarded", "pack": "hosting", "maxSimS": 3600.0},
-    result, [], 1.0, rec.datetime(2026, 9, 9, tzinfo=rec.timezone.utc),
-    hashes={n: "ab" * 32 for n in (*rec.DATA_FILES, "world")}, commit="abc")
-  rec.validate(record)
-
-  assert len(record["interventions"]) == 1
-  assert record["interventions"][0]["kind"] == "set_points"
-  #  The identity is recorded as BROKEN, with the reason beside it -- a bare
-  #  `false` would read as a bug in the ledger.
-  assert record["economy"]["identityHolds"] is False
-  assert record["economy"]["identityBrokenBy"] == ["set my points 0 -> 250"]
-  #  ...and the rollup already knows what to do with it: the run stays in
-  #  the series, still validates, and carries the reason it is not counted.
-  rolled = rollup_mod.rollup([record])
-  excluded = rolled["series"][0]["survival"]["excluded"]
-  assert len(excluded) == 1 and "intervention" in excluded[0]["why"]
-
-
-def test_a_battery_intervention_is_found_even_with_no_reset_in_the_run():
-  """⚠ THE BUG THIS FIXES, stated as a test: interventions used to be
-  DERIVED from `resets`, so a run whose battery was topped up and whose
-  robot was never reset recorded an empty array and passed for clean."""
-  before = rec._interventions({"resets": []}, [])
-  assert before == []
-  found = rec._interventions(
-    {"interventions": [{"t": 5.0, "what": "set_battery", "by": "ben",
-                        "detail": "set my battery 20% -> 100%",
-                        "before": {"frac": 0.2}, "after": {"frac": 1.0}}]}, [])
-  assert [i["kind"] for i in found] == ["set_battery"]
-  #  A result written before the lifecycle kept its own list still yields
-  #  the reset-derived answer rather than nothing.
-  legacy = rec._interventions({}, [{"t": 1.0, "by": "ben",
-                                    "intervention": True}])
-  assert [i["kind"] for i in legacy] == ["reset_robot"]

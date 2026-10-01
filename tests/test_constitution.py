@@ -3,8 +3,8 @@ chosen per robot, rendered to the volume rather than copied, carried in the
 build identity, and a swap on a living robot said out loud.
 
 Every rule here is pinned without flying: the library is read, a volume is
-a `tmp_path`, the announcement is one method on a lifecycle that never
-steps, and the record is built from a config dict.
+a `tmp_path`, and the announcement is one method on a lifecycle that never
+steps.
 """
 
 import json
@@ -12,8 +12,7 @@ import re
 
 import pytest
 
-from pluggybot.evaluation import record as rec
-from pluggybot.evaluation import rollup
+from pluggybot.evaluation.identity import build_identity
 from pluggybot.lifecycle import HubLifecycle
 from pluggybot.mind import constitution as c
 from pluggybot.mind import text
@@ -192,7 +191,7 @@ def _life(thoughts: ThoughtFiles) -> HubLifecycle:
   """What the robot is told about itself is the lifecycle's bookkeeping: a
   stub body carries it (issue #380)."""
   from test_body import stub_life
-  return stub_life("room_hub", thoughts=thoughts)
+  return stub_life(thoughts=thoughts)
 
 
 def test_the_lifecycle_announces_a_swap_once_in_history_and_on_the_wire(tmp_path):
@@ -254,50 +253,13 @@ def test_the_announcement_is_at_mission_start_beside_the_mind_line():
 
 def test_the_build_identity_carries_the_constitution_per_robot_root():
   both = {"pluggybot": c.load("default").as_dict(), "r2_pluggybot": c.load("curious").as_dict()}
-  identity = rec.build_identity("home", arm="autonomous", hashes={}, commit="abc",
-                                constitutions=both)
+  identity = build_identity("home_quad", arm="autonomous", hashes={}, commit="abc",
+                            constitutions=both)
   assert identity["constitutions"] == both and identity["constitutions"] is not both
-  bare = rec.build_identity("home", arm="guarded", hashes={}, commit="abc")
+  bare = build_identity("home_quad", arm="guarded", hashes={}, commit="abc")
   assert "constitutions" not in bare, "absent, never null: every older header"
-  assert "constitutions" not in rec.build_identity("home", arm="guarded", hashes={},
-                                                    commit="abc", constitutions={})
-
-
-def _config(**kw) -> dict:
-  return {"world": "home", "arm": "autonomous", "pack": "hosting", "seed": 1,
-          "maxSimS": 60.0, "dataHashes": {}, "runId": "r1", "commit": "abc", **kw}
-
-
-def test_the_run_record_carries_the_constitution_and_the_series_key_splits_on_it():
-  from datetime import datetime, timezone
-  now = datetime.now(timezone.utc)
-  curious = rec.build_record(_config(constitution=c.load("curious").as_dict()),
-                             None, [], 1.0, now, hashes={}, commit="abc")
-  assert curious["config"]["constitution"] == c.load("curious").as_dict()
-  plain = rec.build_record(_config(), None, [], 1.0, now, hashes={}, commit="abc")
-  assert "constitution" not in plain["config"], "a record from before the library"
-  default = rec.build_record(_config(constitution=c.load("default").as_dict()),
-                             None, [], 1.0, now, hashes={}, commit="abc")
-  # Missing and `default` are ONE series (every committed record flew the
-  # default's text); another name is another series.
-  assert rollup.series_key(plain) == rollup.series_key(default)
-  assert rollup.series_key(curious) != rollup.series_key(default)
-  assert rollup.series_key(curious)[-1] == "curious"
-
-
-def test_the_harness_resolves_it_and_run_demo_reads_the_name(monkeypatch):
-  """`experiment.py` puts `{name, sha}` in the config before flying (a
-  killed run's record is written by the parent from rows alone);
-  `run_demo(constitution=)` names the file the child reads."""
-  import inspect
-  from pluggybot.lifecycle import run_demo
-  from pluggybot.evaluation import run as child
-  assert "constitution" in inspect.signature(run_demo).parameters
-  src = inspect.getsource(child.fly_one) if hasattr(child, "fly_one") else inspect.getsource(child)
-  assert 'constitution=(config.get("constitution") or {}).get("name")' in src
-  from pathlib import Path
-  exp = (Path(__file__).parent.parent / "scripts" / "experiment.py").read_text()
-  assert '"constitution": constitution.resolve(args.constitution).as_dict()' in exp
+  assert "constitutions" not in build_identity("home_quad", arm="guarded", hashes={},
+                                               commit="abc", constitutions={})
 
 
 def test_the_pair_reads_one_variable_per_robot(monkeypatch):
@@ -325,7 +287,7 @@ def test_guarded_is_unchanged_and_the_robot_has_no_verb_for_it():
   no decision field names a constitution: choosing one is the human's."""
   from pluggybot.mind import overseer as ov
   from pluggybot.mind.overseer import Menu
-  schema = Menu.for_world("room_hub", None).schema()
+  schema = Menu.for_world("home_quad", None).schema()
   assert not any("constitution" in k for k in schema["properties"]), schema["properties"].keys()
   for field in ("intend", "pin", "note", "define", "build_tool"):
     assert "constitution" not in ov.__dict__.get(field.upper() + "_RULE", "")

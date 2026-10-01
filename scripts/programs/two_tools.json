@@ -3,13 +3,12 @@
   "budgetS": 900.0,
   "steps": [
     {"verb": "fetch", "args": {"tool": "module_pen"}},
-    {"verb": "drive_to", "args": {"x": -1.62, "y": 0.95}},
-    {"verb": "draw", "args": {"figure": "house", "board": "whiteboard_a"}},
+    {"verb": "drive_to", "args": {"x": 1.5, "y": 0.5}},
+    {"verb": "wait", "args": {"seconds": 5.0}},
     {"verb": "stow"},
     {"verb": "fetch", "args": {"tool": "module_lcd"}},
-    {"verb": "drive_to", "args": {"x": 3.0, "y": 0.5}},
+    {"verb": "drive_to", "args": {"x": 2.3, "y": 0.45}},
     {"verb": "wait", "args": {"seconds": 5.0}},
-    {"verb": "look"},
     {"verb": "stow"}
   ]
 }

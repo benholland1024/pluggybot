@@ -31,12 +31,6 @@ APPROVED_FLIGHTS = {
   "test_a_fresh_quadruped_walks_to_the_kitchen_by_the_hall": (
     "~24 s: 23.2-23.8 s -n0, measured 2026-09-29", "the planner, the scan "
     "matcher and the walking policy, into the unknown", "#413"),
-  "test_the_tower_is_stacked_by_the_claw_from_the_rack_and_graded": (
-    "~170 s", "ladder A: the tower can be solved (Evaluation.md §7)", "#413"),
-  "test_the_unknown_mass_is_weighed_on_the_lift_and_the_finding_graded": (
-    "~150 s", "ladder A: the bench can be solved", "#413"),
-  "test_a_feed_act_reaches_the_cage_and_the_mouse_eats": (
-    "~45 s", "ladder A: the mouse's feed act lands", "#413"),
   "test_the_served_quadruped_fetches_a_tool_and_hangs_it_back": (
     "~30 s: 30.0 s -n0, measured 2026-09-29", "the served robot's swap "
     "composed: the walk to the bay, its tags, the walk-in and settle, the "

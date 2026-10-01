@@ -14,16 +14,16 @@ import numpy as np
 import pytest
 
 from pluggybot import tick
-from pluggybot.lifecycle import HubLifecycle, errand_from, world_config, world_facts
+from pluggybot.lifecycle import errand_from, world_config, world_facts
 from pluggybot.mind import overseer as ov
 from pluggybot.mind.overseer import Decision, Menu, Overseer
-from pluggybot.mission.rover import RoverBody
 from pluggybot.procedure import axes, lang, library as lib, steps as st
 from pluggybot.procedure.steps import Refused
+from test_body import stub_life  # noqa: I001 -- tests/ is on sys.path
 
 SRC = pathlib.Path(__file__).resolve().parents[1] / "src" / "pluggybot"
-HOME = world_facts("home")
-HUB = world_facts("room_hub")
+WORLD = "home_quad"
+HOME = world_facts(WORLD)
 
 LOOK_AROUND = '''def look_around():
     budget(steps=40, seconds=240)
@@ -31,15 +31,14 @@ LOOK_AROUND = '''def look_around():
     fetch("module_lcd")
     for i in range(2):
         drive(0.0, 0.8, 1.5)
-        look()
-        if read("look.tag") >= 0 and read("look.range") < 1.5:
+        if read("bumper") >= 1 and read("time") < 100:
             wait(2)
-        elif read("look.tag") < 0:
+        elif read("bumper") < 0:
             pass
         else:
             wait(1)
-    while read("arm") < 0.04 and n < 8:
-        move("arm", read("arm") + 0.01)
+    while read("shoulder") < 1.0 and n < 8:
+        move("shoulder", read("shoulder") + 0.1)
         n += 1
     stow()
 '''
@@ -60,32 +59,32 @@ def refusals(src, facts=HOME):
 
 def test_the_worked_example_compiles():
   p = compile_ok(LOOK_AROUND)
-  assert p.name == "look_around" and p.verbs == 7
+  assert p.name == "look_around" and p.verbs == 6
   assert p.steps_budget == 40 and p.budget_s == 240.0
   assert p.first("fetch", "tool") == "module_lcd"
 
 
 @pytest.mark.parametrize("src, needle", [
-  ("look()\n", "exactly one `def name():`"),
-  ("def a():\n  look()\ndef b():\n  look()\n", "exactly one `def"),
-  ("def A():\n  look()\n", "not a name this language allows"),
-  ("def x(y):\n  look()\n", "takes no arguments"),
-  ("@dec\ndef x():\n  look()\n", "takes no arguments and no decorators"),
+  ("stow()\n", "exactly one `def name():`"),
+  ("def a():\n  stow()\ndef b():\n  stow()\n", "exactly one `def"),
+  ("def A():\n  stow()\n", "not a name this language allows"),
+  ("def x(y):\n  stow()\n", "takes no arguments"),
+  ("@dec\ndef x():\n  stow()\n", "takes no arguments and no decorators"),
   ("def x():\n  pass\n", "calls no verb"),
   ("def x():\n  \"\"\"only a docstring\"\"\"\n", "has no steps"),
   ("def x():\n  import os\n", "line 2: Import is not part"),
   ("def x():\n  print(1)\n", "unknown verb 'print'"),
   ("def x():\n  fly()\n", "unknown verb 'fly'"),
-  ("def x():\n  read(\"arm\")\n", "read(...) is an expression"),
-  ("def x():\n  wait(look())\n", "only read(...) may be used inside an expression"),
+  ("def x():\n  read(\"shoulder\")\n", "read(...) is an expression"),
+  ("def x():\n  wait(stow())\n", "only read(...) may be used inside an expression"),
   ("def x():\n  a = \"s\"\n", "a str is not a number"),
   ("def x():\n  a = [1]\n", "List is not part"),
   ("def x():\n  a = b.c\n", "Attribute is not part"),
   ("def x():\n  a = 1 < 2 < 3\n", "compare two things with one of"),
-  ("def x():\n  for i in [1, 2]:\n    look()\n", "`for name in range(N)`"),
-  ("def x():\n  for i in range(n):\n    look()\n", "literal N"),
-  ("def x():\n  for i in range(1000):\n    look()\n", "outside 0..100"),
-  ("def x():\n  while 1:\n    look()\n  else:\n    look()\n", "while takes no else"),
+  ("def x():\n  for i in [1, 2]:\n    stow()\n", "`for name in range(N)`"),
+  ("def x():\n  for i in range(n):\n    stow()\n", "literal N"),
+  ("def x():\n  for i in range(1000):\n    stow()\n", "outside 0..100"),
+  ("def x():\n  while 1:\n    stow()\n  else:\n    stow()\n", "while takes no else"),
   ("def x():\n  return 1\n", "return takes no value"),
   ("def x():\n  wait(1, 2)\n", "wait takes 1 argument"),
   ("def x():\n  wait(seconds=1, z=2)\n", "wait takes no z"),
@@ -93,20 +92,20 @@ def test_the_worked_example_compiles():
   ("def x():\n  fetch(3)\n", "fetch(tool=...) takes a name in quotes"),
   ("def x():\n  wait(\"long\")\n", "wait(seconds=...) takes a number"),
   ("def x():\n  wait(999)\n", "seconds=999.0 is above 60"),
-  ("def x():\n  move(\"lift\", 5)\n", "lift target 5.0 is outside"),
+  ("def x():\n  move(\"shoulder\", 5)\n", "shoulder target 5.0 is outside"),
   ("def x():\n  move(\"warp\", 1)\n", "axis='warp' is not one of"),
   ("def x():\n  fetch(\"module_x\")\n", "tool='module_x' is not one of"),
   ("def x():\n  a = read(\"nope\")\n", "unknown sensor 'nope'"),
   ("def x():\n  drive_to(99, 0)\n", "outside the map"),
-  ("def x():\n  budget(steps=999)\n  look()\n", "steps=999 is outside 1..200"),
-  ("def x():\n  budget(seconds=0)\n  look()\n", "seconds=0.0 is outside"),
-  ("def x():\n  budget(40)\n  look()\n", "budget takes keywords"),
-  ("def x():\n  budget(steps=\"many\")\n  look()\n", "not a literal steps or seconds"),
+  ("def x():\n  budget(steps=999)\n  stow()\n", "steps=999 is outside 1..200"),
+  ("def x():\n  budget(seconds=0)\n  stow()\n", "seconds=0.0 is outside"),
+  ("def x():\n  budget(40)\n  stow()\n", "budget takes keywords"),
+  ("def x():\n  budget(steps=\"many\")\n  stow()\n", "not a literal steps or seconds"),
   ("def x():\n  a = 1 +\n", "invalid syntax"),
-  ("def x():\n  if 1:\n    if 1:\n      if 1:\n        if 1:\n          look()\n",
+  ("def x():\n  if 1:\n    if 1:\n      if 1:\n        if 1:\n          stow()\n",
    "nested deeper than"),
-  ("def x():\n  read = 3\n  look()\n", "reserved"),
-  ("def x():\n  wait = 3\n  look()\n", "reserved"),
+  ("def x():\n  read = 3\n  stow()\n", "reserved"),
+  ("def x():\n  wait = 3\n  stow()\n", "reserved"),
 ])
 def test_each_construct_outside_the_grammar_is_refused(src, needle):
   reasons = refusals(src)
@@ -114,12 +113,12 @@ def test_each_construct_outside_the_grammar_is_refused(src, needle):
 
 
 def test_the_source_cap_is_a_refusal():
-  src = "def x():\n" + "  look()\n" * 400
+  src = "def x():\n" + "  stow()\n" * 400
   assert any("characters; the cap is" in r for r in refusals(src))
 
 
-def test_a_draw_in_a_world_without_boards_is_refused_by_the_world():
-  reasons = refusals('def x():\n  draw("sun", "whiteboard_a")\n', HUB)
+def test_a_fetch_in_a_world_with_an_empty_rack_is_refused_by_the_world():
+  reasons = refusals('def x():\n  fetch("module_pen")\n', replace(HOME, tools=()))
   assert any("nothing this world has" in r for r in reasons)
 
 
@@ -140,7 +139,13 @@ def test_the_language_never_executes_its_input():
 # ---- the interpreter, on a stubbed life ---------------------------------------
 
 
+def _no_actuator(name):
+  raise KeyError(name)
+
+
 def _stub_life():
+  """A life whose every primitive records itself and steps nothing, with
+  no arm for a drive to pose: what is under test is the interpreter."""
   calls: list = []
 
   def routine(name, value=True):
@@ -153,17 +158,17 @@ def _stub_life():
   body = SimpleNamespace(
     module_state=lambda tool: {"on_fork": False, "hung": True},
     ramp_routine=routine("ramp"), pressing=False, handle=FIRST,
-    actuator=lambda name: 0, setpoint=lambda act: 0.0,
+    actuator=_no_actuator, setpoint=lambda act: 0.0,
     fetch_tool_routine=routine("swap", "arrived"),
     stow_tool_routine=routine("swap", "arrived"),
     go_to_routine=routine("drive_to", True), face_routine=routine("face", True),
     in_sight=lambda x, y: True, hold_routine=routine("wait"),
     velocity_routine=routine("drive"), pose=(0.0, 0.0, 0.0),
-    detect_tags=lambda: {})
+    )
   return SimpleNamespace(body=body, data=SimpleNamespace(time=0.0, ctrl=[0.0]),
                          module="", swaps_done=0, interrupted=lambda: False,
                          _say=lambda *a, **k: None, calls=calls, model=model,
-                         world="home", boards=None, ledger=None,
+                         world=WORLD, boards=None, ledger=None,
                          battery=SimpleNamespace(fraction=0.5, energy_wh=4.0),
                          drive_why=lambda x, y: "the drive gave up (why)")
 
@@ -228,7 +233,7 @@ def test_a_failed_step_ends_the_procedure_honestly():
 @pytest.mark.parametrize("src, why", [
   ('def x():\n  a = 1 / 0\n  wait(1)\n', "division by zero"),
   ('def x():\n  wait(b)\n', "'b' was read before it was set"),
-  ('def x():\n  n = 0\n  while 1:\n    n += 1\n  look()\n', "loop-cap"),
+  ('def x():\n  n = 0\n  while 1:\n    n += 1\n  stow()\n', "loop-cap"),
   ('def x():\n  while 1:\n    wait(0.1)\n', "steps"),
 ])
 def test_an_evaluation_fault_and_a_runaway_loop_stop_the_procedure(src, why):
@@ -258,20 +263,37 @@ def test_the_time_budget_stops_at_a_step_boundary():
 def test_an_interrupt_stops_between_verbs():
   life = _stub_life()
   life.interrupted = lambda: True
-  r, _ = run('def x():\n  look()\n  look()\n', life)
+  r, _ = run('def x():\n  wait(1)\n  wait(1)\n', life)
   assert r["stopped"] == "interrupted" and r["completed"] == 1
 
 
-def test_move_goes_through_the_swaps_ramp_and_refuses_a_missing_tool():
-  r, life = run('def x():\n  move("lift", 0.2)\n  move("pen.carriage", 0.01)\n')
+@pytest.fixture
+def scoop_facts():
+  """A built tool's axis and sensor registered as the workshop registers
+  them (`workshop.build.register`, issue #168), each needing its module on
+  the fork, and the facts that name them; the registries put back after."""
+  from pluggybot.workshop import build, validate
+  from test_workshop import SCOOP
+  before_a, before_s = set(axes.AXES), set(axes.SENSORS)
+  names = build.register(validate.check(SCOOP))
+  yield replace(HOME, axes=HOME.axes + tuple(names), sensors=HOME.sensors + tuple(names))
+  for k in set(axes.AXES) - before_a:
+    del axes.AXES[k]
+  for k in set(axes.SENSORS) - before_s:
+    del axes.SENSORS[k]
+
+
+def test_move_goes_through_the_bodys_ramp_and_refuses_a_missing_tool(scoop_facts):
+  r, life = run('def x():\n  move("shoulder", 1.0)\n  move("scoop.tilt", 0.5)\n',
+                facts=scoop_facts)
   assert r["steps"][0]["ok"] and [c[0] for c in life.calls] == ["ramp"]
   assert not r["steps"][1]["ok"]
-  assert r["steps"][1]["reason"] == "axis 'pen.carriage' needs module_pen on the fork"
+  assert r["steps"][1]["reason"] == "axis 'scoop.tilt' needs module_scoop on the fork"
 
 
-def test_a_sensor_that_needs_a_tool_fails_without_it():
-  r, _ = run('def x():\n  a = read("pen.contact")\n  wait(1)\n')
-  assert not r["ok"] and "needs module_pen on the fork" in r["steps"][-1]["reason"]
+def test_a_sensor_that_needs_a_tool_fails_without_it(scoop_facts):
+  r, _ = run('def x():\n  a = read("scoop.tilt")\n  wait(1)\n', facts=scoop_facts)
+  assert not r["ok"] and "needs module_scoop on the fork" in r["steps"][-1]["reason"]
 
 
 # ---- the fence, extended to loops ------------------------------------------------
@@ -285,54 +307,51 @@ def test_the_language_modules_write_no_control_register():
     assert f"procedure/{name}" not in CTRL_WRITERS
 
 
-def test_the_axes_ramp_at_the_speeds_the_tools_measured():
-  from pluggybot.tools.drawing import CARRIAGE_SPEED
-  from pluggybot.tools.gripper import LIFT_SPEED
-  assert axes.AXES["lift"].speed == LIFT_SPEED
-  assert axes.AXES["pen.carriage"].speed == CARRIAGE_SPEED
+def test_the_arms_axes_ramp_at_its_slew_and_the_world_names_them_all():
+  from pluggybot.legs.arm import ARM_SLEW
+  assert {n: a.speed for n, a in axes.AXES.items()} == {"shoulder": ARM_SLEW,
+                                                        "elbow": ARM_SLEW}
   assert all(a.lo < a.hi and a.speed > 0 for a in axes.AXES.values())
-  # the rover's world names every axis and sensor but the quadruped's arm (#405)
-  rover = set(axes.ARM_JOINTS)
-  assert set(HOME.axes) == set(axes.AXES) - rover
-  assert set(HOME.sensors) == set(axes.SENSORS) - rover
+  # the quadruped's world names every axis and every sensor there is
+  assert set(HOME.axes) == set(axes.AXES) == set(axes.ARM_JOINTS)
+  assert set(HOME.sensors) == set(axes.SENSORS)
 
 
 # ---- determinism: the same procedure on the same world is one trajectory -------
-
-
-@pytest.fixture(scope="module")
-def hub_model():
-  return mujoco.MjModel.from_xml_path("models/hub_world.xml")
 
 
 def _hash(data):
   return np.concatenate([data.qpos, data.qvel, data.ctrl]).tobytes()
 
 
-def test_the_same_procedure_twice_is_one_trajectory(hub_model):
+def test_the_same_procedure_twice_is_one_trajectory():
+  """On the served body: a walk, a sensor read and a move computed from it,
+  flown twice from one start, leave the world byte for byte the same."""
+  from pluggybot.legs import body as qb
+  from pluggybot.legs.world import home_spec
   src = '''def wiggle():
-    move("lift", 0.2)
     drive(0.1, 0.4, 0.8)
-    look()
-    if read("look.tag") < 0:
-        move("lift", 0.15)
+    if read("bumper") < 1:
+        move("shoulder", read("shoulder") - 0.1)
 '''
-  proc = lang.compile_procedure(src, HUB)
+  proc = lang.compile_procedure(src, HOME)
+  model = home_spec().compile()
 
   def fly():
-    data = mujoco.MjData(hub_model)
-    body = RoverBody(hub_model, data, viewer=None, realtime=False)
-    body.start_at(0.5, 3.0, 0.0)
-    life = SimpleNamespace(body=body, model=hub_model, data=data,
+    data = mujoco.MjData(model)
+    body = qb.QuadBody(model, data, realtime=False,
+                       grid_bounds=world_config(WORLD)["grid_bounds"])
+    body.start_at(1.5, 0.5, 0.0)
+    life = SimpleNamespace(body=body, model=model, data=data,
                            module="", swaps_done=0, interrupted=lambda: False,
-                           _say=lambda *a, **k: None, world="room_hub",
+                           _say=lambda *a, **k: None, world=WORLD,
                            boards=None, ledger=None,
                            battery=SimpleNamespace(fraction=0.5, energy_wh=1.0))
-    r = body.run(lang.run_procedure_routine(life, proc, HUB))
+    r = body.run(lang.run_procedure_routine(life, proc, HOME))
     assert r["ok"], r
     return _hash(data), r["completed"]
   a, b = fly(), fly()
-  assert a == b and a[1] == 4
+  assert a == b and a[1] == 2
 
 
 # ---- the library ------------------------------------------------------------------
@@ -341,16 +360,16 @@ def test_the_same_procedure_twice_is_one_trajectory(hub_model):
 def test_define_undefine_and_the_two_refusals(tmp_path):
   L = lib.Library(HOME, root=tmp_path / "procedures", cap=2)
   L.define("look_around", LOOK_AROUND)
-  assert L.names() == ("look_around",) and L.get("look_around").verbs == 7
+  assert L.names() == ("look_around",) and L.get("look_around").verbs == 6
   with pytest.raises(lib.LibraryRefused, match="already defined"):
     L.define("look_around", LOOK_AROUND)
   with pytest.raises(lib.LibraryRefused, match="def is named 'other'"):
-    L.define("mine", "def other():\n  look()\n")
+    L.define("mine", "def other():\n  stow()\n")
   with pytest.raises(lib.LibraryRefused, match="unknown verb 'fly'"):
     L.define("bad", "def bad():\n  fly()\n")
-  L.define("two", "def two():\n  look()\n")
+  L.define("two", "def two():\n  stow()\n")
   with pytest.raises(lib.LibraryRefused, match="full"):
-    L.define("three", "def three():\n  look()\n")
+    L.define("three", "def three():\n  stow()\n")
   with pytest.raises(lib.LibraryRefused, match="no procedure named"):
     L.undefine("nope")
   L.undefine("two")
@@ -372,8 +391,8 @@ def test_the_library_survives_a_restart_and_reads_back_the_same(tmp_path):
 def test_a_procedure_the_world_moved_under_is_kept_and_marked(tmp_path):
   root = tmp_path / "procedures"
   lib.Library(HOME, root=root).define(
-    "sun", 'def sun():\n  fetch("module_pen")\n  draw("sun", "whiteboard_a")\n  stow()\n')
-  moved = lib.Library(HUB, root=root)          # a world with no boards
+    "sun", 'def sun():\n  fetch("module_pen")\n  stow()\n')
+  moved = lib.Library(replace(HOME, tools=()), root=root)     # a world with no rack
   assert moved.names() == ("sun",) and moved.runnable() == ()
   ctx = moved.as_context()[0]
   assert ctx["runnable"] is False and any("nothing this world has" in r
@@ -391,12 +410,12 @@ def test_there_is_no_replace_verb():
 @pytest.fixture(scope="module")
 def menu():
   from pluggybot.lifecycle import board_book
-  return replace(Menu.for_world("home", board_book("home")), procedures=True)
+  return replace(Menu.for_world(WORLD, board_book(WORLD)), procedures=True)
 
 
 def test_the_family_is_on_the_menu_and_the_tokens_in_the_schema(menu):
   assert "procedure" in menu.available()
-  assert "procedure" not in Menu.for_world("home").available()
+  assert "procedure" not in Menu.for_world(WORLD).available()
   schema = menu.schema(standing_orders=True, event_map=True,
                        procedures=("look_around", "sun"))
   actions = schema["properties"]["action"]["enum"]
@@ -417,17 +436,17 @@ def test_the_family_is_on_the_menu_and_the_tokens_in_the_schema(menu):
 
 def test_validate_accepts_a_library_name_and_refuses_the_rest(menu):
   d = menu.validate({"action": "procedure:sun", "reason": "r",
-                     "define": {"name": "x", "source": "def x():\n  look()\n"},
+                     "define": {"name": "x", "source": "def x():\n  stow()\n"},
                      "undefine": "sun"}, procedures=("sun",))
   assert d.action == "procedure:sun" and d.undefine == "sun"
-  assert d.define == {"name": "x", "source": "def x():\n  look()\n"}
+  assert d.define == {"name": "x", "source": "def x():\n  stow()\n"}
   assert d.as_dict()["define"]["name"] == "x" and d.as_dict()["undefine"] == "sun"
   with pytest.raises(ValueError, match="no runnable procedure named 'nope'"):
     menu.validate({"action": "procedure:nope"}, procedures=("sun",))
   with pytest.raises(ValueError, match="unknown action 'procedure'"):
     menu.validate({"action": "procedure"}, procedures=("sun",))
   # no library offered: the fields are dropped, the action refused
-  plain = Menu.for_world("home")
+  plain = Menu.for_world(WORLD)
   with pytest.raises(ValueError, match="unknown action"):
     plain.validate({"action": "procedure:sun"})
   d = plain.validate({"action": "idle", "define": {"name": "x", "source": "y"},
@@ -438,7 +457,7 @@ def test_validate_accepts_a_library_name_and_refuses_the_rest(menu):
 def test_a_procedure_may_be_a_standing_order_and_a_row(menu):
   assert ov.standing_order("procedure:sun", menu) == "procedure:sun"
   with pytest.raises(ValueError):
-    ov.standing_order("procedure:sun", Menu.for_world("home"))
+    ov.standing_order("procedure:sun", Menu.for_world(WORLD))
   with pytest.raises(ValueError, match="names a procedure"):
     ov.standing_order("procedure:", menu)
   assert ov.order_runnable(menu, "procedure:sun", {"procedures": ["sun"]})
@@ -457,7 +476,7 @@ def test_the_rule_is_on_the_autonomous_prompt_and_not_the_guarded_one(menu):
   text = boss.system[0]["text"]
   assert "PROCEDURES YOU MAY WRITE" in text
   assert boss._procedures() == () and boss.stats()["library"]["count"] == 0
-  guarded = Overseer(Menu.for_world("home"))
+  guarded = Overseer(Menu.for_world(WORLD))
   assert "PROCEDURES" not in guarded.system[0]["text"]
   assert guarded._procedures() is None and "library" not in guarded.stats()
 
@@ -465,24 +484,24 @@ def test_the_rule_is_on_the_autonomous_prompt_and_not_the_guarded_one(menu):
 def test_the_rules_worked_example_hands_over_no_survival_policy():
   """EVENT_MAP_RULE's rule, for the same reason: the example must show a
   capability, not the charging policy the arm is measured on."""
-  text = ov.procedure_rule()
+  menu = Menu.for_world(WORLD)
+  text = ov.procedure_rule(menu.tools, menu.swaps, menu.places, menu.plates)
   example = text[text.index("def look_around"):text.index("Statements:")]
   for word in ("charge", "battery", "rack"):
     assert word not in example, word
   # ...and every verb, axis and sensor is listed, so nothing is a secret --
-  # the quadruped's arm joints in its own rule (#405), not the rover's, and
-  # the places' verbs (#419) in the rule of a body that keeps places
-  places = st.PLACE_VERBS + st.PLATE_VERBS
+  # the fork's verbs where the world has a rack (#405), the places' where
+  # it keeps places and the plates' where they are (#419)
   for v in st.VERBS:
-    assert (f"  {v}(" in text) is (v not in places), v
+    assert f"  {v}(" in text, v
   for a in axes.AXES:
-    assert (f"  {a}:" in text) is (a not in axes.ARM_JOINTS)
+    assert f"  {a}:" in text and f"  {a} --" in text, a
   for s in axes.SENSORS:
-    assert (f"  {s} --" in text) is (s not in axes.ARM_JOINTS)
-  legs = ov.procedure_rule(False)
-  for n in axes.ARM_JOINTS:
-    assert f"  {n}:" in legs and f"  {n} --" in legs
-  assert not any(f"  {v}(" in legs for v in places)
+    assert f"  {s} --" in text, s
+  swaps, places = st.SWAP_VERBS, st.PLACE_VERBS + st.PLATE_VERBS
+  bare = ov.procedure_rule(False)
+  assert not any(f"  {v}(" in bare for v in swaps + places)
+  assert all(f"  {v}(" in ov.procedure_rule(False, swaps=True) for v in swaps)
   finding = ov.procedure_rule(False, places=True)
   assert "  find(" in finding and "  press(" not in finding
   assert "  press(" in ov.procedure_rule(False, places=True, plates=True)
@@ -497,30 +516,25 @@ def test_the_guarded_rules_have_not_moved():
 # ---- the lifecycle: define, run by name, stow ------------------------------------
 
 
-def _life(world="room_hub"):
-  cfg = world_config(world)
-  model = mujoco.MjModel.from_xml_path(cfg["model"])
-  return HubLifecycle(model, mujoco.MjData(model), realtime=False, world=world,
-                      errand=False, battery_wh=cfg["battery_wh"],
-                      rack=cfg["rack"], grid_bounds=cfg["grid_bounds"],
-                      low_battery_wh=cfg["low_battery_wh"])
+def _life(world=WORLD):
+  return stub_life(world)
 
 
 def test_a_decision_defines_and_undefines_and_every_refusal_is_narrated(tmp_path):
   life = _life()
-  L = lib.Library(HUB, root=tmp_path / "p")
+  L = lib.Library(HOME, root=tmp_path / "p")
   life.overseer = SimpleNamespace(library=L)
   events: list = []
   life.on_event.append(events.append)
   life._define(Decision(action="idle",
-                        define={"name": "two", "source": "def two():\n  look()\n  look()\n"}))
+                        define={"name": "two", "source": "def two():\n  stow()\n  stow()\n"}))
   assert L.names() == ("two",) and events[-1]["outcome"] == "defined"
   assert events[-1]["program"]["source"].startswith("def two")
-  life._define(Decision(action="idle", define={"name": "two", "source": "def two():\n  look()\n"}))
+  life._define(Decision(action="idle", define={"name": "two", "source": "def two():\n  stow()\n"}))
   assert events[-1]["outcome"] == "refused" and "already defined" in events[-1]["reasons"][0]
   assert any("refused" in line for line in life.log[-2:])
   life._define(Decision(action="idle", undefine="two",
-                        define={"name": "two", "source": "def two():\n  look()\n"}))
+                        define={"name": "two", "source": "def two():\n  stow()\n"}))
   assert L.names() == ("two",) and L.get("two").verbs == 1
   assert [e["outcome"] for e in events[-2:]] == ["undefined", "defined"]
 
@@ -533,33 +547,31 @@ def test_every_library_event_carries_the_library_as_it_stands_and_its_cap(tmp_pa
   Each event carries the library AFTER its own change: an undefine and a
   define in one decision are two different libraries."""
   life = _life()
-  L = lib.Library(HUB, root=tmp_path / "p", cap=2)
+  L = lib.Library(HOME, root=tmp_path / "p", cap=2)
   life.overseer = SimpleNamespace(library=L)
   events: list = []
   life.on_event.append(events.append)
-  life._define(Decision(action="idle", define={"name": "one", "source": "def one():\n  look()\n"}))
+  life._define(Decision(action="idle", define={"name": "one", "source": "def one():\n  stow()\n"}))
   assert events[-1]["library"] == {"names": ["one"], "cap": 2}
   life._define(Decision(action="idle", define={"name": "one", "source": "def one():\n  wait(1)\n"}))
   assert events[-1]["outcome"] == "refused" and events[-1]["library"] == {"names": ["one"], "cap": 2}
   life._define(Decision(action="idle", undefine="nope"))
   assert events[-1]["verb"] == "undefine" and events[-1]["library"]["names"] == ["one"]
   life._define(Decision(action="idle", undefine="one",
-                        define={"name": "two", "source": "def two():\n  look()\n"}))
+                        define={"name": "two", "source": "def two():\n  stow()\n"}))
   assert [(e["outcome"], e["library"]["names"]) for e in events[-2:]] == [
     ("undefined", []), ("defined", ["two"])]
 
 
-def test_a_procedure_runs_by_name_as_a_composed_errand(monkeypatch):
-  from test_procedure import _stub_swaps
+def test_a_procedure_runs_by_name_as_a_composed_errand():
   life = _life()
-  _stub_swaps(life, monkeypatch)
-  L = lib.Library(HUB)
+  L = lib.Library(HOME)
   L.define("carry", 'def carry():\n  fetch("module_lcd")\n  n = 0\n'
                     '  while n < 2:\n    drive_to(1, 1)\n    n += 1\n  stow()\n')
-  errand = errand_from(Decision(action="procedure:carry"), "room_hub", library=L)
+  errand = errand_from(Decision(action="procedure:carry"), WORLD, library=L)
   assert errand is not None and errand.name == "procedure"
   assert errand.program is L.get("carry") and errand.module == "module_lcd"
-  assert errand_from(Decision(action="procedure:nope"), "room_hub", library=L) is None
+  assert errand_from(Decision(action="procedure:nope"), WORLD, library=L) is None
   result = life.run_errand(errand)
   run = result["procedure"]
   assert run["ok"] and run["completed"] == 4 and result["stowed"]
@@ -567,36 +579,34 @@ def test_a_procedure_runs_by_name_as_a_composed_errand(monkeypatch):
   assert result["verdict"]["ok"] and result["verdict"]["task"] == "program"
 
 
-def test_a_procedure_cut_short_is_stowed(monkeypatch):
+def test_a_procedure_cut_short_is_stowed():
   from test_procedure import _stub_swaps
   life = _life()
-  on_fork = _stub_swaps(life, monkeypatch)
-  life.body.mission.drive_to_routine = lambda *a, **kw: tick.result(False)
-  L = lib.Library(HUB)
+  on_fork = _stub_swaps(life)
+  life.body.go_to_routine = lambda *a, **kw: tick.result(False)
+  L = lib.Library(HOME)
   L.define("short", 'def short():\n  fetch("module_lcd")\n  drive_to(1, 1)\n  stow()\n')
   result = life.run_errand(errand_from(Decision(action="procedure:short"),
-                                       "room_hub", library=L))
+                                       WORLD, library=L))
   assert result["procedure"]["failedAt"] == 1 and on_fork == {}
   assert result["stowed"] and not result["verdict"]["ok"]
 
 
-def test_a_failed_run_names_the_line_that_failed_and_why(monkeypatch):
+def test_a_failed_run_names_the_line_that_failed_and_why():
   """`failedAt` counts verb calls EXECUTED, so inside a loop it names no
   line of the source (here the third call is on line 4, not the third
   verb in the text). The `aborted` event says the line and the step's own
   reason beside the count (rooftop-media-2026 #342), which is what lets a
   reader mark the failing line on the source rather than guess it; a run
   that went through carries neither."""
-  from test_procedure import _stub_swaps
   life = _life()
-  _stub_swaps(life, monkeypatch)
   events: list = []
   life.on_event.append(events.append)
-  L = lib.Library(HUB)
+  L = lib.Library(HOME)
   L.define("loop", 'def loop():\n  for i in range(2):\n    wait(0.1)\n  stow()\n')
   L.define("fine", 'def fine():\n  for i in range(2):\n    wait(0.1)\n')
   for name in ("loop", "fine"):
-    life.run_errand(errand_from(Decision(action=f"procedure:{name}"), "room_hub", library=L))
+    life.run_errand(errand_from(Decision(action=f"procedure:{name}"), WORLD, library=L))
   aborted, ran = [e for e in events if e.get("type") == "procedure"
                   and e["outcome"] in ("aborted", "ran")]
   assert aborted["name"] == "loop" and aborted["outcome"] == "aborted"
@@ -617,29 +627,28 @@ def test_a_procedure_the_agent_wrote_is_invoked_from_its_own_row(tmp_path):
   from `_after_decision_routine`.
   """
   from test_overseer import FakeClient, full
-  from test_body import stub_life  # noqa: I001 -- tests/ is on sys.path
   from pluggybot.mind.thoughts import ThoughtFiles
-  src = "def look_twice():\n  look()\n  wait(1)\n  look()\n"
+  src = "def pace():\n  wait(1)\n  drive(0.1, 0.0, 1.0)\n  wait(1)\n"
   first = full(action="idle", reason="setting up",
-               define={"name": "look_twice", "source": src},
-               event_map=[{"event": "every", "action": "procedure:look_twice",
+               define={"name": "pace", "source": src},
+               event_map=[{"event": "every", "action": "procedure:pace",
                            "value": 20, "kind": ""},
                           {"event": "nothing_to_do", "action": "ask", "value": 0,
                            "kind": ""}])
   client = FakeClient(first, full(action="idle", reason="waiting"))
   memory = ThoughtFiles.open(str(tmp_path / "t"))
-  boss = ov.build("room_hub", None, enabled=True, client=client, thoughts=memory,
+  boss = ov.build(WORLD, None, enabled=True, client=client, thoughts=memory,
                   autonomous=True, origin="seeded", standing_orders=True)
-  life = stub_life("room_hub", overseer=boss, thoughts=memory, autonomous=True)
+  life = stub_life(WORLD, overseer=boss, thoughts=memory, autonomous=True)
   life.stop_when(lambda: any(e.get("procedure") for e in life.errand_results))
   # The claim ends the day; the budget has room for late answers, which on
   # the stub are SIM time.
-  out = life.run(start=world_config("room_hub")["start"], max_sim_time=600.0)
-  fired = [d for d in out["decisions"] if d["action"] == "procedure:look_twice"]
+  out = life.run(start=world_config(WORLD)["start"], max_sim_time=600.0)
+  fired = [d for d in out["decisions"] if d["action"] == "procedure:pace"]
   assert fired and fired[0]["source"] == "event:every"
   runs = [e for e in out["errands"] if e.get("procedure")]
   assert runs and runs[0]["procedure"]["ok"] and runs[0]["procedure"]["completed"] == 3
   assert out["overseer"]["library"] == {"count": 1, "runnable": 1, "cap": 8,
                                         "defined": 1, "undefined": 0, "refused": 0}
-  assert (tmp_path / "t" / "procedures" / "look_twice.procedure").read_text() == src
+  assert (tmp_path / "t" / "procedures" / "pace.procedure").read_text() == src
   assert not [d for d in out["decisions"] if ov.fallback_class(d["source"]) == "failure"]

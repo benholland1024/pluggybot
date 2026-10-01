@@ -1,13 +1,11 @@
 def look_around():
-    budget(steps=40, seconds=240)
-    n = 0
-    fetch("module_lcd")
+    budget(steps=40, seconds=400)
     for i in range(4):
         drive(0.0, 0.8, 1.5)
-        look()
-        if read("look.tag") >= 0 and read("look.range") < 1.5:
-            wait(2)
-    while read("arm") < 0.04 and n < 8:
-        move("arm", read("arm") + 0.01)
+        wait(1)
+    n = 0
+    while read("shoulder") > 2.4 and n < 4:
+        move("shoulder", read("shoulder") - 0.2)
         n += 1
+    fetch("module_lcd")
     stow()

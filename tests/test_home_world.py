@@ -9,13 +9,11 @@ last week's XML looks fine until a mission drives into it.
 
 import itertools
 import json
-import math
 from pathlib import Path
 
 import mujoco
 import pytest
 
-from pluggybot.tools.drawing import Board, PenPlotter
 from pluggybot.home import world as home
 from pluggybot.telemetry.protocol import VISUAL_HINTS
 from pluggybot.telemetry.scene import scene_dict
@@ -126,37 +124,21 @@ def test_scene_transpiler_rejects_an_unknown_hint(home_model):
                meta={"visualHints": {"wall_west": "wallpaper"}})
 
 
-def test_room_hub_still_transpiles_without_a_sidecar():
-  """Worlds with no generator meta keep working -- hints are optional."""
-  model = mujoco.MjModel.from_xml_path(str(REPO / "models" / "room_hub.xml"))
-  scene = scene_dict(model, "room_hub")
+def test_a_world_still_transpiles_without_a_sidecar(home_model):
+  """A world with no generator meta keeps working -- hints are optional."""
+  scene = scene_dict(home_model, "home_world")
   assert all(b["visual"] is None for b in scene["bodies"])
   assert "zones" not in scene
 
 
 # ---- the world is actually navigable ----------------------------------------
 
-def test_robot_spawns_clear_of_the_geometry(home_model):
-  """A bare MjData puts the robot at the origin, so the origin must be
-  INSIDE a room: the first cut of this layout had the house starting at
-  (0,0), which greeted every model load with a chassis wedged in the south
-  wall (78 contacts at settle)."""
-  data = mujoco.MjData(home_model)
-  for _ in range(1500):
-    mujoco.mj_step(home_model, data)
-  chassis = home_model.geom("chassis").id
-  touching = [i for i in range(data.ncon)
-              if chassis in (data.contact[i].geom1, data.contact[i].geom2)]
-  assert not touching, "the robot settles inside the world's geometry"
-
-
 def test_doorways_are_wide_enough_to_drive_through(home_model):
-  """EVERY doorway must clear the robot's 0.21 m track with margin for the
-  inflated planning mask -- a doorway the planner refuses is a wall.
-
-  All five, not the two that existed before issue #68: the wing is reachable
-  through exactly one of the new three, so a doorway too narrow to plan
-  through would quietly cut a third of the house off the map."""
+  """EVERY doorway is wider than the quadruped's inflated planning mask
+  closes from both jambs, with a cell to spare -- a doorway the planner
+  refuses is a wall, and the wing hangs off one of them."""
+  from pluggybot.legs.body import QuadMission
+  shut = 2 * QuadMission.INFLATION_CELLS * 0.05 + 0.05
   doors = {"divider": home.DOOR_DIV_X, "garden": home.DOOR_GARDEN_Y,
            "hall": home.DOOR_HALL_Y, "kitchen": home.DOOR_KITCHEN_Y,
            "workshop": home.DOOR_WORKSHOP_Y,
@@ -165,53 +147,7 @@ def test_doorways_are_wide_enough_to_drive_through(home_model):
            "garden_2": home.DOOR_GARDEN_2_Y, "lobby": home.DOOR_LOBBY_Y,
            "lab": home.DOOR_LAB_Y, "store": home.DOOR_STORE_Y}
   for name, (lo, hi) in doors.items():
-    assert hi - lo >= 0.6, f"{name} doorway too narrow for planning + control"
-
-
-def test_a_board_can_be_stood_in_front_of(home_model):
-  """A board whose USE POSE has furniture inside the front-stop reflex is a
-  board the robot cannot reliably draw on (#305).
-
-  Standing at a board means standing at `board_standoff`, and the LIDAR
-  reflex reverses the robot for `BACKOFF_TIME` whenever anything within
-  `FRONT_STOP_RANGE` of the scanner lies dead ahead. The scanner rides
-  `LIDAR_ORIGIN[0]` in front of the axle, so a thing this far from the use
-  pose is at the trip range when the robot turns to face it -- and turn it
-  does, squaring up on arrival. `whiteboard_b`'s use pose had the bed's
-  corner 0.23 m away: an approach that swung the corner through the front
-  cone tripped the reflex, reversed, came back, tripped again, and the
-  drive stagnated with the pen never reaching the board. It depended on
-  the approach angle, so the board drew from some directions and not
-  others, which is worse than never working.
-
-  FURNITURE, not the walls or the board: the standoff is measured TO the
-  board and its wall, and the robot arrives facing them deliberately. What
-  must not be there is something it was never sent to.
-  """
-  from pluggybot.behavior.navigation import FRONT_STOP_RANGE
-  from pluggybot.perception.lidar import LIDAR_ORIGIN
-  from pluggybot.tools.drawing import board_standoff
-
-  bar = FRONT_STOP_RANGE + LIDAR_ORIGIN[0]
-  data = mujoco.MjData(home_model)
-  mujoco.mj_forward(home_model, data)
-  furniture = [g for g in range(home_model.ngeom)
-               if (mujoco.mj_id2name(home_model, mujoco.mjtObj.mjOBJ_GEOM, g) or "")
-               .startswith("furniture_")]
-  assert furniture, "no furniture in the house -- the test would pass vacuously"
-  for name, spec in home.BOARDS.items():
-    ux, uy = board_standoff(Board.from_meta(
-      {"geom": spec["geom"], "pos": list(spec["pos"]),
-       "half": list(spec["half"]), "heading": spec["heading"]}))
-    for g in furniture:
-      pos, half = data.geom_xpos[g], home_model.geom_size[g]
-      gap = math.hypot(max(abs(ux - pos[0]) - half[0], 0.0),
-                       max(abs(uy - pos[1]) - half[1], 0.0))
-      assert gap >= bar, (
-        f"{mujoco.mj_id2name(home_model, mujoco.mjtObj.mjOBJ_GEOM, g)} is "
-        f"{gap:.2f} m from {name}'s use pose ({ux:.2f}, {uy:.2f}); the "
-        f"front-stop reflex needs {bar:.2f} m and the robot will bounce "
-        "off it instead of drawing")
+    assert hi - lo > shut, f"{name} doorway: its {hi - lo:.2f} m is shut by the inflation"
 
 
 def test_zones_tile_the_world_without_overlapping():
@@ -314,29 +250,6 @@ def test_both_whiteboards_are_real_drawing_geoms(home_model, meta):
     assert geom.friction[0] == pytest.approx(0.25)
 
 
-def test_board_standoff_puts_the_robot_in_front_of_any_wall(meta):
-  """The plotter was born against one hardcoded board facing -x. The home
-  world hangs boards on two different walls, so the standoff must come out
-  of the board's own heading -- offset back along it, and the fork line (not
-  the chassis centreline) landing on the board's centre."""
-  for name, spec in meta["boards"].items():
-    board = Board.from_meta(spec)
-    x, y = PenPlotter.board_standoff(
-      type("P", (), {"board": board})(), standoff=0.34)
-    back = math.hypot(x - board.x, y - board.y)
-    assert 0.3 < back < 0.42, f"{name}: standoff {back:.2f} m off the board"
-    # the robot must end up INSIDE the house, not through the wall
-    assert home.HOUSE_X[0] < x < home.HOUSE_X[1]
-    assert home.HOUSE_Y[0] < y < home.HOUSE_Y[1]
-
-
-def test_hub_board_spec_is_unchanged_by_the_port():
-  """hub_world's board is the plotter's historical contract; every existing
-  drawing demo and test still runs against it."""
-  board = Board.hub()
-  assert board.geom == "board" and board.heading == 0.0
-
-
 # ---- the loop, the fence and the lab (issue #215) ----------------------------
 
 def test_the_street_is_a_loop_round_both_houses():
@@ -408,7 +321,8 @@ def test_every_room_names_its_building_and_nothing_outdoors_does(home_model):
     return next(zone["building"] for zone in rooms
                 if zone["min"][0] <= x <= zone["max"][0]
                 and zone["min"][1] <= y <= zone["max"][1])
-  rack = data.xpos[home_model.body("rack").id]
+  from pluggybot.legs.world import rack_pose
+  rack = rack_pose()
   assert building_at(rack[0], rack[1] + 0.5) == "house"      # the rack stands on the living room's wall
   cage = data.xpos[home_model.body("lab_cage").id]
   assert building_at(cage[0], cage[1]) == "facility"
@@ -509,7 +423,8 @@ def test_the_mouse_is_a_mocap_body_and_dynamic_on_the_wire(home_model, meta):
   mouse = home_model.body("lab_mouse")
   assert int(home_model.body_mocapid[mouse.id]) >= 0
   assert dynamic_flags(home_model)[mouse.id]
-  _, world = body_census(home_model)
+  from pluggybot.legs.world import home_spec
+  _, world = body_census(home_spec().compile())      # the census needs a robot
   assert "lab_mouse" in world
   scene = scene_dict(home_model, "home_world", meta=meta)
   assert next(b for b in scene["bodies"] if b["name"] == "lab_mouse")["dynamic"]
@@ -541,70 +456,15 @@ def test_the_lab_plates_rest_below_their_own_trigger(home_model):
 
 # ---- the cameras' near plane (issue #215) --------------------------------------
 
-def _bay_fix_in(world_xml: str):
-  """`HubMission.bay_fix` for the pen's bay, with the robot standing at the
-  bay's standoff and its belief seeded from truth -- the real pipeline: the
-  dock camera renders, the detector decodes, PnP measures."""
-  from pluggybot.lifecycle import HubLifecycle, world_config
-  from pluggybot.mission.mission import bay_standoff
-  from pluggybot.procedure.steps import TOOL_BAYS
-  from pluggybot.rack.coupling import HUB_STATION_YS
-  cfg = world_config("home")
-  model = mujoco.MjModel.from_xml_path(world_xml)
-  data = mujoco.MjData(model)
-  life = HubLifecycle(model, data, realtime=False, battery_wh=4.0, rack=cfg["rack"],
-                      grid_bounds=cfg["grid_bounds"], errands=[])
-  try:
-    station_y = HUB_STATION_YS[TOOL_BAYS["module_pen"]]
-    sx, sy, hd = bay_standoff(station_y, cfg["rack"])
-    life.body.start_at(sx, sy, hd)
-    return life.body.mission.bay_fix(station_y)
-  finally:
-    life.body.close()
-
-
-def test_the_dock_camera_decodes_a_bay_tag_from_the_standoff():
-  """The tag pipeline's whole premise, held against the world's SIZE.
-
-  MuJoCo scales every camera's near clipping plane by the model's
-  `statistic.extent`, and derives the extent from the geometry's bounding
-  box unless it is written down. The loop doubled the box; the near plane
-  went from 0.37 m to 0.70 m; and the dock camera at a bay standoff --
-  0.34 m from the rack -- clipped the whole rack out of its own image.
-  Nothing raised: `bay_fix` returned None, every pick and stow ran blind,
-  and the pen went on the floor at the first stow after the change. The
-  generator pins `CAMERA_EXTENT_M`; this decodes a tag through it.
-
-  Shown to fail by deleting the `<statistic>` line from the generated
-  world -- which is exactly what the second half does, so the premise
-  cannot rot: the unpinned world must still lose the tag.
-  """
-  fix = _bay_fix_in(str(WORLD))
-  assert fix is not None, "the dock camera cannot see the pen bay's tag from its standoff"
-  sx, sy, hd = fix
-  assert math.isfinite(sx) and math.isfinite(sy) and math.isfinite(hd)
-
-  # The premise: the same world, its extent left to the bounding box.
-  xml = WORLD.read_text()
-  assert "<statistic " in xml
-  unpinned = "\n".join(line for line in xml.splitlines()
-                       if "<statistic " not in line and 'extent="' not in line)
-  scratch = WORLD.with_name("home_world_unpinned_extent.xml")   # beside the include it needs
-  try:
-    scratch.write_text(unpinned)
-    model = mujoco.MjModel.from_xml_path(str(scratch))
-    assert model.stat.extent > 2 * home.CAMERA_EXTENT_M * 0.9, \
-        "the bounding box no longer doubles the extent; re-read this test's premise"
-    assert _bay_fix_in(str(scratch)) is None, \
-        "the unpinned world decodes the tag now: the premise has moved, re-measure"
-  finally:
-    scratch.unlink(missing_ok=True)
-
-
 def test_the_camera_extent_is_written_down_not_derived(home_model):
-  """The statistic is pinned in the generated XML at the value the tag
-  pipeline was proven at, so growing the world cannot move the near plane
-  again -- and the number is the generator's own constant."""
+  """MuJoCo scales every camera's near plane by `statistic.extent`, derived
+  from the bounding box unless written down: the house pins it
+  (`CAMERA_EXTENT_M`) so growing the world cannot move a camera's near
+  plane, and the quadruped's world sets its own off it in metres
+  (`legs.world.NEAR_M`; that a bay's tags are read through it is
+  `test_quad_rack.py::test_the_nose_camera_reads_a_bays_tags_from_its_working_pose`)."""
+  from pluggybot.legs import world as lw
   assert home_model.stat.extent == pytest.approx(home.CAMERA_EXTENT_M)
-  assert home_model.vis.map.znear * home_model.stat.extent < 0.40, \
-      "the near plane is past the bay standoff's 0.34 m"
+  quad = lw.home_spec().compile()
+  assert quad.stat.extent == pytest.approx(home.CAMERA_EXTENT_M)
+  assert quad.vis.map.znear * quad.stat.extent == pytest.approx(lw.NEAR_M)

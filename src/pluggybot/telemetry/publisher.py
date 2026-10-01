@@ -89,7 +89,7 @@ INBOUND_PER_PASS = 8   # inbound messages taken per send-loop pass (issue #16)
 class WsPublisher:
   """Streams telemetry to a ws:// endpoint from the step-hook seam.
 
-  Append `step_hook` to HubMission.step_hooks; wire `event` into the
+  Append `step_hook` to `Body.step_hooks`; wire `event` into the
   lifecycle's say_hooks for narration lines; call `close()` at mission end.
   `grid`, if given, is an OccupancyGrid whose to_image() is shipped at
   grid_hz. `status_fn` is merged into every frame's robot record, exactly

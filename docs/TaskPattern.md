@@ -143,8 +143,7 @@ most, the BUILDING's rough location and written DIRECTIONS, and never a
 position finer than the house — not even for a while, not even for
 furniture that never moves. What is finer the robot finds by the task
 area's tag, remembers itself (`mapping/places.py`), and approaches by
-sight. The positions the rover's jobs were handed stay the rover's until
-#376's stage C deletes it. Worked through what reaches a quadruped:
+sight. Worked through what reaches the robot:
 
 | delivered to the robot | verdict | why |
 |---|---|---|
@@ -223,14 +222,14 @@ person reads.
 
 ⓘ *Found by building the tower:* a row for a job the robot cannot yet
 attempt does not go in `rewards.json`. That file is shown to the overseer as
-the jobs it can take and is hashed into every committed result
-(`evaluation/record.py`), so a row there is both a lie about what the robot
-can do and a regime change in the rollup. Such rows live in
+the jobs it can take and is hashed into the stream's build identity
+(`evaluation/identity.py`), so a row there is both a lie about what the robot
+can do and a new regime. Such rows live in
 `economy/challenges.json` (same format, `scoring.challenge_table()`) and
-move across in the PR that offers the kind — which re-flies `guarded`.
-The same file holds a row that is offered but NOT to the control:
+move across in the PR that offers the kind — which changes `guarded`'s
+prompt. The same file holds a row that is offered but NOT to the control:
 `take` (issue #228) is offered on `autonomous` alone, through the target
-seam, so its row stays out of the file `guarded` is shown and the results
+seam, so its row stays out of the file `guarded` is shown and out of its
 hash for as long as that is true. And one row that is no offer at all:
 `ticket` (issue #284, Overseer.md §2g) is what a support ticket the robot
 opened pays when a PERSON closes it — the one verdict a person makes,
@@ -250,21 +249,20 @@ body except by resolving to an errand off a fixed menu.
 
 ## 3. The perception ladder for object tasks
 
-Nothing can autonomously find a floor object today, and this is measured, not
-pessimism (`ToolPattern.md` §7): the LIDAR plane sits **223 mm** up, the nav
-camera is blind to the floor inside **0.48 m**, and the grip point sits
-~285 mm ahead of the axle — so grasps run open-loop from a memorised pose.
-Object tasks therefore come in tiers, and **a task kind must state which tier
-it is written for** (in the kind's comment and the errand's docstring, the
-way a tool states its tolerance class):
+Nothing can autonomously find a floor object today, and this is measured,
+not pessimism: the LIDAR plane sits **0.51 m** up, the nose's depth camera
+sees the floor only from ~0.5 m ahead (`legs/scan.py`), and no tool on the
+arm grasps yet (#407). Object tasks therefore come in tiers, and **a task
+kind must state which tier it is written for** (in the kind's comment and
+the errand's docstring, the way a tool states its tolerance class):
 
 1. **Tagged object.** The object carries an AprilTag and is found by the same
    `TagDetector` that finds the rack and the bays. Honest and realistic —
    warehouse robots fiducial their totes — and it makes "find" a genuinely
    *failable* verb: a tag out of view is a search, not a lookup. **This is
    the tier to build first**, and building it against this doc is what
-   validates the doc (see the header). It is M11's, which waits for the
-   quadruped's arm (PluggyPlan.md, "The order of work").
+   validates the doc (see the header). On legs the places' signs are its
+   first rung (#419); an object to pick up waits on #407.
 2. **Untagged object on a raised surface.** Within the sensor envelope
    (table height clears both the LIDAR plane and the camera's near blind
    zone); needs a small learned detector — with the plug era's lesson
@@ -286,7 +284,7 @@ that finds them.
 
 Immovable infrastructure sits on the ladder's first rung too, once the
 robot has legs (#419): a whiteboard or a plate carries a tag and is found
-once and remembered, where the rover was handed its pose. The one thing
+once and remembered, never handed its pose. The one thing
 below the ladder is what the owner commissioned — the dock, and the rack
 installed with it. A target that can move climbs the ladder from there.
 
@@ -347,7 +345,7 @@ design:
 And fidelity is deliberately **not handwriting recognition**, which is a
 measured decision, not a shortcut: at the 50 mm cap an answer is written at,
 a Hershey 6 and 8 sit **1.7 mm** apart while a correctly drawn answer sits
-**1.2 mm** from its own ideal (real pen, `scripts/answer_spike.py`) — so a
+**1.2 mm** from its own ideal (the rover's real pen, measured) — so a
 grader that classified the ink would fail correct drawings and pass wrong
 ones, at random, on exactly the pairs arithmetic produces. The bar
 (`ANSWER_MATCH_MM` = 4 mm, plus an ink-length ratio) is set to catch wrong
@@ -363,35 +361,30 @@ let the measurement pick the bar.
 A task system's failure modes are economic before they are mechanical, and
 every one below was hit, measured, and given a gate.
 
-- **Priced by measurement, gated against reality.** One errand can cost most
-  of a pack — room_hub's 0.53–0.57 Wh against its 0.70 Wh demo cell, still
-  zero-margin — so a guessed estimate is fatal in either direction: the first
-  table guessed 0.35 Wh for a drawing that measured 0.929, and the home
-  fixture recorded a robot claiming the job at 88 % and dying mid-stroke.
-  home left that regime at issue #84: its errands re-price to about 0.7–1.3 Wh
-  against a 4.5 Wh demo cell, which funds the dearest job AND the 2.05 Wh
-  return-trip reserve off one charge (0.95 before the loop street put the
-  far corner 45 m from the rack, #215). Costs come from
-  `scripts/energy_spike.py` into `economy/energy.json`; a cost key may name a
-  TARGET (`draw:whiteboard_b`) and wins over the bare action, because the far
-  whiteboard measurably costs more than the near one and one number for both
-  either kills the robot or prices a board off the cell. Where two honest
-  measurements disagree, the table carries the dearer. Do not pad — the
-  headroom being padded against does not exist.
+- **Priced by measurement, gated against reality.** A guessed estimate is
+  fatal in either direction: the first table guessed 0.35 Wh for a drawing
+  that measured 0.929, and a recording showed a robot claim the job at 88 %
+  and die mid-stroke. Costs come from `scripts/energy_spike.py` into
+  `economy/energy.json` (on legs, the lab's acts at 1.75–1.86 Wh against the
+  3.7 Wh return-trip reserve, `legs.world.RESERVE_WH`); a cost key may name a
+  TARGET (`care:feed`) and wins over the bare action, because one target
+  measurably costs more than another and one number for both either kills
+  the robot or prices a job off the cell. Where two honest measurements
+  disagree, the table carries the dearer. Do not pad — the headroom being
+  padded against does not exist.
 - **A claim is compared against the pack less the MARGIN, and the margin is
   all-or-nothing.** On a cell too small to fund its dearest job PLUS the
   return trip, the margin is zero and a claim sees the WHOLE remaining pack —
   because the reserve is a return-trip margin errands have always been
   allowed to spend into, and gating above it there would refuse every job in
-  every world forever: measured, room_hub has 0.28 Wh above the reserve
-  against a cheapest errand of 0.487, which is a task system that silently
-  does nothing, dressed as a safety feature. Where a charged pack DOES clear
+  that world forever — a task system that silently does nothing, dressed as
+  a safety feature. Where a charged pack DOES clear
   that bar the full margin is kept and the errand must finish with the return
   trip still in hand, which is what puts the mid-errand death out of reach
   (`HubLifecycle.spendable_wh`). The producer, meanwhile, gates new offers on
   `fundable_wh` (what a *charged* pack could pay), for the mirror-image
-  reason: gated on the instantaneous charge, home fell from 58 offers in four
-  sim-hours to 14.
+  reason: gated on the instantaneous charge, the rover's house fell from 58
+  offers in four sim-hours to 14.
 - **Charge priority is untouched, and the test for it is subtle.** Claiming
   only QUEUES an errand, and the errand queue already sits below
   `needs_charge` — so a test watching the swap states passes even with the
@@ -428,8 +421,8 @@ here.
   `starving` and declines anything at all: zero is narrative, never a
   capability lock. So a kind may not assume either state, and must not add
   the first gate. The rule is enforced by ABSENCE, which is why the test for
-  it is a whole mission flown broke plus a grep over the branches that could
-  have grown one.
+  it is a whole day on the stub flown broke plus a grep over the branches
+  that could have grown one.
 - **The cap refuses out loud, and your row may not be paid in full.** `points`
   on a ledger entry stays what the reward table paid; `banked` and `spilled`
   say how much of it fit. Silently paying less than the published table would
@@ -444,25 +437,22 @@ here.
   bargain is that upkeep is charged on a clock and a payment that cannot be
   made is a death — so what your row pays is part of whether the robot can
   meet the rent.
-- **A payout is calibrated against MEASURED throughput, on `--pack hosting`.**
-  The shipped 30 points/hour of upkeep was ~38 % of the scripted rotation's
-  measured income (**80 banked per sim-hour**, three chained unattended
-  `home` runs on `--pack hosting`) and most of the deployed LLM pair's,
-  which earns about half that — so #321 raised every offered row by 10
-  rather than touching the rate (`metabolism.json`'s note). ⚠ A new kind's
-  row must pay more per watt-hour than `carry` and `dance`, the menu-only
-  work: `tests/test_rewards.py` computes it off the table and `energy.json`. ⚠ Never tune on a
-  demo cell. It is sized to flatten in minutes so that a test always reaches
-  the rack, which makes the day mostly charging and the task economy a
-  minority of it — an hour on the old 1.1 Wh home cell completed ZERO jobs,
-  every point coming from a charge that now pays nothing at all. It is also
-  what every mission test and both committed recordings run on, so it is the
-  configuration you reach for by accident.
-  **Adding a kind moves the income**: re-run the hour and re-read
-  `metabolism.json`'s note before touching the rate, rather than adjusting by
-  feel. ⚠ And the cycle is longer than one mission — income is lumpy, so the
-  arc shows across several — which is why hunger lives in the ledger's file;
-  do not re-tune to fit a whole cycle into one run.
+- **A payout is calibrated against MEASURED throughput, on the served
+  pack.** Upkeep is off on legs (#387): it comes back once the pair's jobs
+  pay, at a rate read off what the pair earns (#375), and
+  `metabolism.json`'s note carries the rover's calibration until then. ⚠ A
+  new kind's row must pay more per watt-hour than `carry` and `dance`, the
+  menu-only work: `tests/test_rewards.py` computes it off the table and
+  `energy.json`. ⚠ Never tune on a demo cell. It is sized to flatten fast so
+  that a test always reaches the dock, which makes the day mostly charging
+  and the task economy a minority of it — an hour on the rover's old 1.1 Wh
+  cell completed ZERO jobs. It is also what the committed recording runs on,
+  so it is the configuration you reach for by accident. **Adding a kind
+  moves the income**: re-read `metabolism.json`'s note before touching the
+  rate, rather than adjusting by feel. ⚠ And the cycle is longer than one
+  mission — income is lumpy, so the arc shows across several — which is why
+  hunger lives in the ledger's file; do not re-tune to fit a whole cycle
+  into one run.
 - **The cap is not only a ceiling on hoarding, it is the savings account.**
   It is sized so that a heart (`HEART_PRICE`) is reachable — so a kind that
   pays enough to matter also shortens the robot's road back from a death.
@@ -539,13 +529,14 @@ evaluator without a physics world; that is what "pure" buys.
 
 ### 4. The errand that discharges it
 
-Usually an existing one with a different middle — the fetch/carry/stow half
-has exactly one implementation and it took two issues to make repeatable, so
-do not grow a second. Decisions the errand owns: `needs_use_pose` (the
-arrival gate is PER-ERRAND — a pen must be at its board, but the census's
-use-phase drives its own survey route and gating it deleted the census from
-the recorded showcase), and the carry-configuration rule from
-`ToolPattern.md` if the tool has a moving axis.
+Usually a program over the verbs (`procedure/steps.py`) — `find` the place
+by its sign round its address, then what is done there, as
+`lifecycle.cage_program` does for the lab's plates. Fetching and stowing a
+tool have exactly one implementation per body (`legs/swap.py`), so do not
+grow a second. Decisions the errand owns: `needs_use_pose` (the arrival
+gate is PER-ERRAND: a program's verbs judge their own arrival, so a
+programmed errand sets it False), and a carrying pose if the tool has a
+moving axis (`steps.travel_pose`).
 
 ### 5. Cadence
 
@@ -590,17 +581,18 @@ as a checklist for the new kind:
   from the errand (issue #75);
 - expiry lands as a visible `expired`, and a restart fails what it
   interrupted;
-- run at least one new test in isolation, not only the file — the dispenser's
-  shared-consumable-fixture lesson transfers whole.
+- run at least one new test in isolation, not only the file — a shared
+  fixture an earlier test used up can hide a failure.
 
 ### 8. Write it down, and re-emit the fixtures
 
 SimNotes for what was measured; a CLAUDE.md entry if a demo script came with
 it; **fold this doc's gaps back in** — that is what makes kind N+2 cheaper
-than yours was. Then regenerate the recordings **with `--tasks --metabolism`**
-— both are load-bearing: offers and hunger are off by default, so a recording
-made without them carries no `tasks` and no `metabolism` block for the website
-to build against.
+than yours was. Then regenerate the recording (protocol/README.md) in the
+deployed period's shape: offers and hunger are off by default, so a
+recording made without `--tasks` / `--metabolism` carries no `tasks` and no
+`metabolism` block for the website to build against — they go in once the
+deployed world runs them.
 
 ---
 
@@ -609,15 +601,11 @@ to build against.
 1. **The offer side has its consumers now**: the tower (#207), the
    real-stake task (#228) and the mouse's shock (#226) — the last the first
    offered kind discharged by a PROGRAM over #58's verbs
-   (`lifecycle.cage_program`), priced by flying it from the rack
-   (`energy_spike.py --actions shock`), ending where the act is rather than
-   at the rack (the return is the reserve's, and the robot decides from
-   there with the result in view). ⓘ *Found by building the shock:* an
-   errand that ends far from the rack drifts the dead reckoning (~0.25 m
-   over the 25 m out, 0.55 m by the dock), and the measured dock approach
-   absorbs it (SimNotes); a leg longer than what the LIDAR has mapped
-   fails, so a far errand is a route of short legs and `cage_route` drops
-   the ones already behind the robot.
+   (`lifecycle.cage_program`: on legs a `find` and a `press` off the plate's
+   sign, #403, #419), priced by flying it from the dock
+   (`energy_spike.py --world home_quad --actions feed`), ending where the
+   act is rather than at the dock (the return is the reserve's, and the
+   robot decides from there with the result in view).
 2. **Only tier 1 of the ladder has a build path.** Tier 2 needs a detector
    nobody has trained; tier 3 is a research question. A kind must not climb
    the ladder by delivering poses over the wire.
@@ -664,14 +652,15 @@ to build against.
     a before-reading where prior state could contaminate -- and a HOLD where
     the success has to persist (§4)
 [ ] rewards.json row; quality curves only over metrics actually returned
-[ ] errand: reuse the fetch/stow half; decide needs_use_pose deliberately
+[ ] errand: a program over the verbs; reuse the body's fetch/stow;
+    decide needs_use_pose deliberately
 [ ] cadence.json rotation entry (or a deliberate absence, written down)
 [ ] taskKinds is additive -- never rename; shape changes bump protocolVersion
 [ ] tests: unscoreable-unconstructable, energy floor, claim gates,
     acceptance-time vs battery clock, no-run == failure, no secret anywhere,
     visible expiry, restart fails active tasks
 [ ] every new assertion shown failing without its fix; one test run alone
-[ ] SimNotes; CLAUDE.md; fixtures regenerated WITH --tasks --metabolism
+[ ] SimNotes; CLAUDE.md; fixtures regenerated in the period's shape
 [ ] fold this doc's gaps back in, marked "found by building <kind>"
 [ ] MUJOCO_GL=egl uv run pytest -q; uv run ruff check src/ scripts/ tests/
 ```

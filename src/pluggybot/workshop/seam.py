@@ -8,7 +8,7 @@ module is the SPEC SURGERY and the recompile; `HubLifecycle.hang_tool` is
 the seam that owns the consequences (every holder of the old model re-
 pointed at the new one, the registries, the wire).
 
-  MEASURED (the spike, 2026-09-13, room_hub + the scoop): `MjSpec.recompile
+  MEASURED (the spike, 2026-09-13, a rover world + a scoop): `MjSpec.recompile
   (model, data)` takes ~13 ms, preserves `time` and `qpos`, keeps every
   existing element's id when a body is APPENDED (new ids come after the
   old), and returns NEW `MjModel` / `MjData` objects -- the Python binding
@@ -42,12 +42,11 @@ from pathlib import Path
 
 import mujoco
 
-from pluggybot.rack import coupling
 from pluggybot.rack.coupling import (
   BUILT_STATION_YS, HUB_PEG_Z, RACK_HANG_X, SMALL_PLATE_HALF, TOOL_HALF_X,
   rack_frame_to_world,
 )
-from pluggybot.rack.tags import TAG_DIR, tag_image
+from pluggybot.rack.tags import MODULE_TAG_IDS, TAG_DIR, tag_image
 from pluggybot.workshop import build
 from pluggybot.workshop.spec import Tool
 
@@ -62,7 +61,7 @@ BUILT_TAG_BASE = 15
 
 #: The hand-built modules, permanent since #277: `retire` refuses them.
 #: Read off the shipped inventory rather than listed twice.
-HAND_BUILT = tuple(coupling.MODULE_TAG_IDS)
+HAND_BUILT = tuple(MODULE_TAG_IDS)
 
 
 class SeamRefused(ValueError):
@@ -126,28 +125,6 @@ def write_tag_png(tag_id: int, directory: Path = TAG_DIR) -> Path:
   Image.fromarray(tag_image(tag_id)).save(tmp)
   os.replace(tmp, path)
   return path
-
-
-def write_built_tag_pngs(directory: Path = TAG_DIR,
-                         textures: Path | None = Path("protocol/textures")) -> list[int]:
-  """The built-module tags, one per built-rail bay, committed beside the hand-built ones so
-  the website can vendor them once (`python -m pluggybot.rack.coupling`
-  writes them with the rest) -- as the model's texture files under
-  `models/tags/`, and as `protocol/textures/tagtex<id>.png` in the exact
-  shape `telemetry.scene.export_textures` gives the others (RGB), which is
-  what a `scene_changed` message's scene names and the site vendors."""
-  from PIL import Image
-  ids = []
-  for b in range(len(BUILT_STATION_YS)):
-    tag_id = tag_id_for_bay(b)
-    path = write_tag_png(tag_id, directory)
-    if textures is not None:
-      textures.mkdir(parents=True, exist_ok=True)
-      out = textures / f"tagtex{tag_id}.png"
-      if not out.exists():
-        Image.open(path).convert("RGB").save(out)
-    ids.append(tag_id)
-  return ids
 
 
 def tag_face_xml(body: str, tag_id: int) -> str:

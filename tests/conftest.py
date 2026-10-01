@@ -1,20 +1,7 @@
-from pathlib import Path
 import subprocess
 
-import mujoco
 import pytest
 
-
-WORLD_MODEL_PATH = Path(__file__).parent.parent / "models" / "world.xml"
-
-
-@pytest.fixture(scope="module")
-def world_model():
-  return mujoco.MjModel.from_xml_path(str(WORLD_MODEL_PATH))
-
-@pytest.fixture
-def world_data(world_model):
-  return mujoco.MjData(world_model)
 
 # ---- endurance: the flights, flown when a change needs one ------------------
 # A flight goes behind `--endurance` only when what it proves is PHYSICS no

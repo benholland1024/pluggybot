@@ -87,7 +87,7 @@ DRAW_MAX_TRAVEL_INK = 0.25
 # A written answer's two bars -- how far the ink may sit from the glyphs, and
 # how much ink it may be written with -- are `questions.ANSWER_MATCH_MM` and
 # `questions.INK_RATIO`, and they stay there rather than here: both were
-# measured with the real pen (`scripts/answer_spike.py`), and a second copy
+# measured with the rover's pen (`rover-final`), and a second copy
 # would be a second, slowly diverging opinion about the same drawing.
 
 #: The charge cycle stops at lifecycle.CHARGED (0.90) or times out. Below this

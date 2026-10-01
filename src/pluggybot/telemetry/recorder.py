@@ -1,11 +1,11 @@
 """JSONL telemetry recorder on the mission's step-hook seam.
 
-Every physics step in the hub stack bottoms out in HubSwap._step_once,
-which fires HubMission.step_hooks -- the same seam the battery drains
-through. The recorder is one more callback there. Two rules shape it:
+Every physics step fires the body's step hooks (`Body.step_hooks`) -- the
+same seam the battery drains through. The recorder is one more callback
+there. Two rules shape it:
 
-  - DECIMATE by sim time. The hook fires at 500 Hz (1000 during swaps,
-    when the timestep drops); a frame every 1/FRAME_HZ sim-seconds is what
+  - DECIMATE by sim time. The hook fires at 500 Hz; a frame every
+    1/FRAME_HZ sim-seconds is what
     the browser wants, so the fast path of the hook is a single float
     comparison and nothing else.
   - NO I/O IN THE PHYSICS STEP. The hook builds a plain dict of rounded
@@ -725,7 +725,7 @@ def grid_samplers(grid, others, hz: float, dedupe: bool,
 class TelemetryRecorder:
   """Decimating JSONL recorder for one robot's mission.
 
-  Append `step_hook` to HubMission.step_hooks; call `close()` when the
+  Append `step_hook` to `Body.step_hooks`; call `close()` when the
   mission ends (it drains the queue and joins the writer). A path ending
   in .gz records through gzip transparently. `status_fn`, if given, is
   called once per emitted frame and its dict is merged into the robot's

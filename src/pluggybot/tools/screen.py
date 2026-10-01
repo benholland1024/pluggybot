@@ -140,7 +140,7 @@ class Screen:
       self._publish()
 
   def step_hook(self) -> Callable[[], None]:
-    """A zero-argument callback for `HubMission.step_hooks`."""
+    """A zero-argument callback for `Body.step_hooks`."""
     def hook() -> None:
       self.sense(self.model, self.data)
     return hook
@@ -202,7 +202,7 @@ class ScreenSet:
     return screen
 
   def step_hook(self) -> Callable[[], None]:
-    """A zero-argument callback for `HubMission.step_hooks`.
+    """A zero-argument callback for `Body.step_hooks`.
 
     For displays NOBODY ELSE drives. The hub lifecycle senses the screen it
     owns itself (`HubLifecycle._screen_step`), because it already has the

@@ -115,9 +115,9 @@ def test_only_catalog_shelf_chosen_parts_with_known_numbers():
   # not a part
   assert any("no catalog part 'unobtainium'" in r for r in refused(
     with_part({"id": "x", "part": "unobtainium", "pos": [0, 0, -40]})))
-  # a body-shelf part (the gearmotor) is not something a module is built from
-  assert any("body shelf" in r for r in refused(
-    with_part({"id": "x", "part": "gearmotor_37d_50", "pos": [0, 0, -40]})))
+  # a build-shelf part (the leg's motor) is not something a module is built from
+  assert any("build shelf" in r for r in refused(
+    with_part({"id": "x", "part": "gim8108_8", "pos": [0, 0, -40]})))
   # a candidate with no part behind it
   reasons = refused(with_part({"id": "x", "part": "module_servo", "pos": [0, 0, -40],
                                "axis": {"verb": "v", "dir": [0, 1, 0],

@@ -15,8 +15,8 @@ watching:
 
 The second one is checked by RUNNING the serve path with those packages
 made unimportable, not by scanning imports. Scanning is what the first
-attempt did, and it passed while the first real container died at
-`HubMission.__init__`: the apriltag detector is imported inside a function.
+attempt did, and it passed while the first real container died building
+its robot: the apriltag detector is imported inside a function.
 The forbidden set is derived from pyproject minus the image's own
 requirements, so a new heavy dependency is covered without anyone
 remembering to list it here.
@@ -103,10 +103,10 @@ def _forbidden_modules() -> dict[str, tuple[str, ...]]:
 
 # Run the REAL serve path with the omitted distributions made unimportable.
 # A module-level import scan is not enough and was measured not to be: the
-# detector is imported inside `hub.tags._shared_detector`, so the scan came
-# back clean and the first container died at `HubMission.__init__`. Blocking
-# the imports and then actually flying the robot catches a lazy import
-# wherever it hides.
+# detector is imported inside `rack.tags._shared_detector`, so the scan came
+# back clean and the first container died building its robot. Blocking the
+# imports and then actually flying the robot catches a lazy import wherever
+# it hides.
 _BLOCKED_MISSION = """
 import sys
 
@@ -123,26 +123,32 @@ sys.meta_path.insert(0, Blocked(set(sys.argv[1].split(","))))
 import mujoco
 from pluggybot.mind import overseer as ov
 from pluggybot.lifecycle import (
-  HubLifecycle, board_book, errands_for, world_config,
+  QUAD_HOME, HubLifecycle, board_book, errands_for, world_config,
 )
+from pluggybot.robot import world_spec
 from pluggybot.telemetry.publisher import WsPublisher
 
-cfg = world_config("home")
-model = mujoco.MjModel.from_xml_path(cfg["model"])
+cfg = world_config(QUAD_HOME)
+spec = world_spec(cfg["model"], body=cfg["body"])
+model = spec.compile()
 data = mujoco.MjData(model)
-book = board_book("home", state=None)
+book = board_book(QUAD_HOME, state=None)
 # The overseer is built and its client is resolved (issue #15): `anthropic`
 # is a real runtime dependency of the serve path, and `Menu.for_world` drags
-# in the stroke library and the drawing stack behind it. Enabled explicitly
-# rather than off $PLUGGY_OVERSEER, so this exercises the path the deploy
-# runs and not the one it happens to be configured for today.
-boss = ov.build("home", book, enabled=True)
+# in the stroke library behind it. Enabled explicitly and on the served
+# arm, rather than off $PLUGGY_OVERSEER, so this exercises the path the
+# deploy runs and not the one it happens to be configured for today.
+boss = ov.build(QUAD_HOME, book, enabled=True, autonomous=True,
+                standing_orders=True, origin="unseeded")
 assert boss.client is not None, boss.usage.errors
-life = HubLifecycle(model, data, battery_wh=cfg["battery_wh"],
+# The lab's job, compiled as the loop builds it from an offer; the served
+# world starts with no errand queue of its own.
+assert errands_for("feed", QUAD_HOME, book)[0].program is not None
+life = HubLifecycle(model, data, spec=spec, battery_wh=cfg["battery_wh"],
                     rack=cfg["rack"], grid_bounds=cfg["grid_bounds"],
-                    low_battery_wh=cfg["low_battery_wh"], world="home",
-                    overseer=boss,
-                    errands=errands_for("draw", "home", book), boards=book)
+                    low_battery_wh=cfg["low_battery_wh"], world=QUAD_HOME,
+                    overseer=boss, near_field=True,
+                    errands=errands_for("none", QUAD_HOME, book), boards=book)
 activities = cfg["activities"](model, data)
 life.body.step_hooks.append(activities.step_hook(model, data))
 # Port 1 is nothing: the publisher's retry loop is the point, not a peer.
@@ -154,7 +160,10 @@ life.body.step_hooks.append(pub.step_hook)
 try:
   life.body.start_at(*cfg["start"])
   life.body.start_discovery()
-  life.body.mission._spin()          # lidar, tag detection, grid, frame building
+  # the policy, the lidar, the depth camera, the grid, frame building...
+  life.body.mission._drive(0.5, 0.2, 0.3)
+  # ...and the tag detector, which is imported where it is first used
+  life.body.detect_tags()
 finally:
   pub.close()
   life.body.close()
@@ -298,7 +307,7 @@ def test_the_baked_commit_is_what_the_sim_reports():
   assert "ARG PLUGGY_COMMIT" in dockerfile
   assert "ENV PLUGGY_COMMIT=$PLUGGY_COMMIT" in dockerfile
 
-  from pluggybot.evaluation.record import COMMIT_ENV, repo_commit
+  from pluggybot.evaluation.identity import COMMIT_ENV, repo_commit
   assert COMMIT_ENV == "PLUGGY_COMMIT"
   before = os.environ.get(COMMIT_ENV)
   try:

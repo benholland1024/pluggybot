@@ -16,21 +16,19 @@ kinds:
 - **An integration** — "the refusal produces a charge and then the errand".
   If it is the loop's BOOKKEEPING — the mind, the economy, the record, the
   wire, what the body is sent to do and in what order — it is a day on the
-  stub, in the default run (§2.1). If it is PHYSICS — a dock, a walk, a
-  claw, a body in a world — fly it, stop it on the claim (`stop_when`), and
-  with its rule pinned put it behind `--endurance`, naming what it guards
-  (§4). ⚠ That is adding test time like any other: Ben approves it in the
-  PR, told how long it takes and why no default-run test can make its claim
-  (CLAUDE.md, the budget has no outside).
+  stub, in the default run (§2.1). If it is PHYSICS — a dock, a walk, a tool
+  on the fork, a body in a world — fly it, stop it on the claim
+  (`stop_when`), and with its rule pinned put it behind `--endurance`,
+  naming what it guards (§4). ⚠ That is adding test time like any other: Ben
+  approves it in the PR, told how long it takes and why no default-run test
+  can make its claim (CLAUDE.md, the budget has no outside).
 - **A premise** — the old defect still reproduces with the fix bypassed
-  (`--blind`, `--no-brake`). `slow`; it cannot catch a regression while you
-  iterate, it only stops the premise rotting.
+  (`scripts/dock_spike.py --blind`, `--sticky`). `slow`; it cannot catch a
+  regression while you iterate, it only stops the premise rotting.
 
 A flown test whose rule is NOT pinned elsewhere is not an endurance
-candidate, whatever it costs: `test_a_question_is_asked_answered_and_
-graded_twice_unattended` (247 s) stays in the default run because the charge
-between two fetches of the same tool is a path no fast test has, and it is
-the path that found `test_rack_belief`'s defect.
+candidate, whatever it costs: it stays in the default run until a fast test
+pins its rule.
 
 ## 2. The cheap levers, in the order to reach for them
 
@@ -38,15 +36,16 @@ Sim-seconds are the only cost that matters; model compilation is 12–28 ms
 and wall clock tracks the machine. So:
 
 1. **Build it on a stub body.** A claim about the loop's BOOKKEEPING — the
-   mind, the economy, the record, the wire — needs no rover:
-   `stub_life(world, **kw)` (`tests/test_body.py`) builds the lifecycle on a
-   `StubBody` (issue #380), a floor and no robot, ~25 ms against ~350 ms. Its
+   mind, the economy, the record, the wire — needs no robot:
+   `stub_life(world="home_quad", **kw)` (`tests/test_body.py`) builds the
+   lifecycle on a `StubBody` (issue #380), a floor and no robot, ~25 ms. Its
    manoeuvres arrive at once, its senses answer what the test set
-   (`holding`, `on_charger`, `attitude`), time passes only where it holds, and
-   it outlives the rover. Two robots are two stubs on ONE world
+   (`holding`, `on_charger`, `attitude`), and time passes only where it
+   holds. Two robots are two stubs on ONE world
    (`StubBody(model, data, handle=SECOND)`) ticked by `run_pair`. A claim
    about the body or the world's geometry (a camera's pose, a module on the
-   floor, the built rail) stays on the rover.
+   floor, a walk) is the quadruped's (`quad_world` in
+   `tests/test_quadruped.py`), short and stopped on its claim.
    ⚠ A stub manoeuvre takes NO sim time, so a step hook never sees one:
    wrap the body's routines and read what the loop commanded, with what
    (`test_a_starving_robot_still_charges_navigates_and_stows`). And a gate
@@ -64,22 +63,20 @@ and wall clock tracks the machine. So:
 2. **Stub the routine, not the twin.** Every manoeuvre is a generator
    (`pluggybot/tick.py`); a test stubs it with `tick.result(value)` —
    `life.body.go_to_routine = lambda *a, **kw: tick.result(True)` — and
-   records the call if the claim is "it drove home". On the rover,
-   `life.body.mission.drive_to_routine` stubs its own drives too (inside a
-   swap or a dock approach). Stubbing the blocking twin does nothing (the
-   loop calls the routine), and the fence in `tests/test_tick.py` catches an
-   undriven call.
+   records the call if the claim is "it drove home". Stubbing the blocking
+   twin does nothing (the loop calls the routine), and the fence in
+   `tests/test_tick.py` catches an undriven call.
 3. **Stub the opening look.** `_day_routine` begins with
-   `body.look_around_routine()`, the rover's ~7 s spin that seeds the map and
-   says nothing about any branch below it: `life.body.look_around_routine =
-   lambda *a, **kw: tick.result(None)` (`life.body.mission._spin_routine` for
-   the rover's own retries too).
+   `body.look_around_routine()`, a spin that seeds the map and says nothing
+   about any branch below it: `life.body.look_around_routine = lambda *a,
+   **kw: tick.result(None)` (`life.body.mission._spin_routine` for the
+   body's own retries too).
 4. **Shrink the slice.** A loop that idles in `WAIT_FOR_WORK_S` (5 s) slices
    costs 5 s per iteration however small the budget: `monkeypatch.setattr(lc,
    "WAIT_FOR_WORK_S", 0.2)`. The slice length is never the claim.
 5. **Place the belief, not the body.** Where the robot THINKS it is is its
-   estimate (the rover's reckoner, `life.body.mission.swap.reckoner.x/.y`; a
-   stub's `x`/`y`); where it IS is `qpos` at
+   estimate (the quadruped's `life.body.mission.odo`, set through
+   `odo.correct(x, y, yaw)`; a stub's `x`/`y`); where it IS is `qpos` at
    `handle.qpos_adr(model)` followed by `mj_forward`. Set whichever the branch
    reads and skip the drive that would have got it there.
 6. **Ask the world's data, not a flight.** An `Activity` is sensed off

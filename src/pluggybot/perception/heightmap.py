@@ -1,6 +1,6 @@
 """Robot-centric 2.5D height map: what is on the floor near the robot
 (issue #34; the representation decision is docs/Parts.md "near-field depth
-camera", the measurement behind it `scripts/nearfield_spike.py --cost`).
+camera").
 
 A window of `SIZE_M` square in `CELL_M` cells, WORLD-AXIS ALIGNED and
 recentred on the robot by whole cells as it moves (the elevation-map
@@ -128,7 +128,7 @@ class HeightMap:
     its world centroid, its height (the highest cell) and its footprint in
     cells, tallest first. Runs are joined across ONE unmeasured cell: from
     a standstill the camera's rows land ~3 cm apart on the floor at 1 m
-    (`nearfield_spike.py --find`), so a 5 cm cube arrives as two stripes
+    (measured, #34), so a 5 cm cube arrives as two stripes
     with a 2 cm gap; a measured floor cell between them still splits."""
     seen = np.isfinite(self.height)
     raised = seen & (np.nan_to_num(self.height, nan=-1.0) >= raised_m)

@@ -36,13 +36,13 @@ def test_the_offsets_and_scales_are_drawn_inside_the_datasheets_ranges():
 
 
 def test_two_robots_never_draw_one_stream_and_one_robot_draws_the_same_twice():
-  a, b, again = imu.Imu("rover"), imu.Imu("r2_rover"), imu.Imu("rover")
+  a, b, again = imu.Imu("pluggybot"), imu.Imu("r2_pluggybot"), imu.Imu("pluggybot")
   assert a.gyro_z(0.1, 0.002) != b.gyro_z(0.1, 0.002)
-  assert imu.Imu("rover").gyro_z(0.1, 0.002) == again.gyro_z(0.1, 0.002)
+  assert imu.Imu("pluggybot").gyro_z(0.1, 0.002) == again.gyro_z(0.1, 0.002)
 
 
 def test_a_restart_carries_the_imu_on_where_it_stopped():
-  a = imu.Imu("rover")
+  a = imu.Imu("pluggybot")
   for _ in range(100):
     a.gyro_z(0.2, 0.002)
   b = imu.Imu("something else")
@@ -117,14 +117,6 @@ def test_a_slide_too_slow_to_see_teaches_no_more_than_the_part_could_be_off():
   assert max(abs(b) for b in still.bias) <= imu.BIAS_MAX
 
 
-def test_a_wheel_encoder_reads_whole_counts():
-  # 64 counts a motor turn on the Pololu #4753, 3200 at the 50:1 output.
-  step = 2 * math.pi / encoders.WHEEL_COUNTS_PER_REV
-  assert encoders.counted(3.5 * step) == pytest.approx(3 * step)
-  assert encoders.counted(-0.5 * step) == pytest.approx(-step)
-  assert encoders.counted(10.0) <= 10.0 < encoders.counted(10.0) + step
-
-
 def test_the_leg_driver_reports_in_its_fields_counts():
   # 16 bits over +-12.5 rad, 12 over +-65 rad/s (the MIT protocol's fields).
   assert encoders.LEG_POSITION_LSB == pytest.approx(0.3815e-3, rel=1e-3)
@@ -134,23 +126,25 @@ def test_the_leg_driver_reports_in_its_fields_counts():
   assert np.allclose(got / encoders.LEG_POSITION_LSB, np.round(got / encoders.LEG_POSITION_LSB))
 
 
-def test_the_rovers_reckoner_is_told_counted_wheels_and_its_imus_rate():
-  # The wiring, not the physics: after a step the reckoner's last wheel
-  # angles are whole counts, and its heading moved by what the IMU read.
-  from pluggybot.rack.swap import HubSwap
-  model = mujoco.MjModel.from_xml_path("models/room_hub.xml")
+def test_the_legs_odometry_is_told_its_drivers_fields_and_its_imus_rate():
+  # The wiring, not the physics: after a step the leg kinematics ran at
+  # joint angles in whole counts of the driver's field, and the body's rate
+  # was read off the IMU, never the sim's.
+  from pluggybot.legs.model import CHOSEN, body_xml
+  from pluggybot.legs.odometry import LegOdometry
+  model = mujoco.MjModel.from_xml_string(body_xml(CHOSEN))
   data = mujoco.MjData(model)
-  swap = HubSwap(model, data)
+  mujoco.mj_resetDataKeyframe(model, data, 0)
+  mujoco.mj_forward(model, data)
+  odo = LegOdometry(model, data)
   read = []
-  real = swap.imu.gyro_z
-  swap.imu.gyro_z = lambda rate, dt: read.append(real(rate, dt)) or read[-1]
-  swap.reckoner.update(*swap.encoders())
-  data.qpos[swap.left_adr] += 0.1234
-  swap.step((0.0, 0.3))
-  step = 2 * math.pi / encoders.WHEEL_COUNTS_PER_REV
-  assert swap.reckoner._prev_left / step == pytest.approx(round(swap.reckoner._prev_left / step))
-  assert read, "the heading was integrated off the sim's gyro, not the IMU"
-  assert swap.reckoner.theta == pytest.approx(read[-1] * model.opt.timestep)
+  real = odo.imu.gyro
+  odo.imu.gyro = lambda w, dt: read.append(real(w, dt)) or read[-1]
+  mujoco.mj_step(model, data)
+  odo.step()
+  counts = odo.kin.qpos[odo.qadr] / encoders.LEG_POSITION_LSB
+  assert np.allclose(counts, np.round(counts), atol=1e-6), "the kinematics read the sim's angles"
+  assert read, "the body's rate was not read off the IMU"
 
 
 def test_the_quadruped_attaches_with_its_joint_ranges_in_radians():
