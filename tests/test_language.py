@@ -57,11 +57,24 @@ def refusals(src, facts=HOME):
 # ---- the parser: a construct outside the grammar is refused, with its line ---
 
 
-def test_the_worked_example_compiles():
+def test_a_procedure_in_every_construct_compiles():
   p = compile_ok(LOOK_AROUND)
   assert p.name == "look_around" and p.verbs == 6
   assert p.steps_budget == 40 and p.budget_s == 240.0
   assert p.first("fetch", "tool") == "module_lcd"
+
+
+def test_the_served_example_compiles_on_its_world():
+  """The rule's own example, as the robot reads it (#434): it walked at
+  0.3 m/s against `drive`'s 0.25, so a robot that copied it was taught a
+  refusal, while the copy above passed. With the served world's rack and
+  without."""
+  menu = Menu.for_world(WORLD)
+  assert menu.swaps, "the served rule is the one that fetches"
+  for swaps in (True, False):
+    text = ov.procedure_rule(swaps, menu.places, menu.plates)
+    example = text[text.index("def look_around"):text.index("Statements:")]
+    compile_ok(example.split("\n\n")[0] + "\n")
 
 
 @pytest.mark.parametrize("src, needle", [

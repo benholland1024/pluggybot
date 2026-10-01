@@ -2634,6 +2634,10 @@ def other_robot_rule(names) -> str:
 #: and an example that writes it hands the agent the answer through the
 #: prompt. The example below takes a tool, turns on the spot and walks until
 #: it touches something, which is a capability and not a survival policy.
+#: ⚠ AND IT COMPILES ON ITS WORLD AS SERVED (#434, a test compiles it): an
+#: example the validator refuses teaches a refusal. Its walk is `drive`'s
+#: cap, 0.25 m/s: on legs a slower `v` is raised to it (`legs.body.V_MIN`),
+#: and MEASURED, every `v` up to the cap walks 0.21 m/s.
 PROCEDURE_HEAD = """\
 PROCEDURES YOU MAY WRITE
 
@@ -2652,7 +2656,7 @@ line at fault if it uses anything else.
           drive(0.0, 0.8, 1.5)        # v m/s, w rad/s, seconds
           wait(2)
       while read("bumper") < 1 and n < 8:   # capped at 100 iterations
-          drive(0.3, 0.0, 1.0)
+          drive(0.25, 0.0, 1.0)
           n += 1
       stow()
 
@@ -2703,7 +2707,7 @@ _LEGS_WALK = """      for i in range(4):              # a literal count
           drive(0.0, 0.8, 1.5)        # v m/s, w rad/s, seconds
           wait(2)
       while read("bumper") < 1 and n < 8:   # capped at 100 iterations
-          drive(0.3, 0.0, 1.0)
+          drive(0.25, 0.0, 1.0)
           n += 1
 """
 _NO_RACK_SWAPS = (
