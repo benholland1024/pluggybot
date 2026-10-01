@@ -62,8 +62,9 @@ from pluggybot.rack.coupling import STATION_YS
 from pluggybot.tick import Routine
 
 #: Which bay each tool hangs in, by index into `STATION_YS` (bay <-> tag
-#: pairing is by that index): the quadruped's rack's (#405).
-TOOL_BAYS = RACK_TOOL_BAYS
+#: pairing is by that index): the quadruped's rack's (#405). A COPY: the
+#: rack generator lays its pegs from the original.
+TOOL_BAYS = dict(RACK_TOOL_BAYS)
 #: The one role every program has today; M12 adds the second.
 DEFAULT_ROLE = "robot"
 #: Caps, by code, on what a program may declare.

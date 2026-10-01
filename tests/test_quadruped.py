@@ -105,6 +105,21 @@ def test_home_with_legs_is_its_own_world_and_offers_no_tool_errand():
   assert st.check_step(st.VERBS["drive_to"], {"x": 1.0, "y": 0.0}, facts) == []
 
 
+def test_a_lifecycle_built_bare_maps_its_worlds_extent_and_carries_its_pack():
+  """`HubLifecycle(model, data)` is the house with legs: the map, the pack
+  and the reserve are its world's unless a caller names them -- a grid
+  sized for one room truncates every scan beyond its edge."""
+  from pluggybot.lifecycle import HubLifecycle
+  from pluggybot.robot import world_spec
+  cfg = world_config(QUAD_HOME)
+  model = world_spec(cfg["model"]).compile()
+  life = HubLifecycle(model, mujoco.MjData(model), realtime=False)
+  grid = life.body.mission.grid
+  assert (grid.x_min, grid.y_min) == tuple(cfg["grid_bounds"][:2])
+  assert life.battery.capacity_wh == cfg["battery_wh"]
+  assert life.low_battery_wh == cfg["low_battery_wh"]
+
+
 # ---- the rest reflex, the get-up, and the `stuck` death -----------------------
 
 

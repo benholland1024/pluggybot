@@ -557,7 +557,7 @@ save a filmstrip PNG named after the script.
   robot's (`_fork_holding`). FOUR traces each (`life.interventions`, an
   `intervention` event, narration, History). ⚠ A `reset` of a DEAD robot is a
   rescue, not an intervention. ⚠ `set_points` breaks `earned - consumed -
-  spent == balance` ON PURPOSE (`Ledger.intervene`, `identityBrokenBy`). ⚠
+  spent == balance` ON PURPOSE (`Ledger.intervene`, `Ledger.intervened`). ⚠
   `set_battery` does not revive a dead robot and is refused mid-swap.
 - **The header says which build produced the stream** (issue #132;
   `evaluation.identity.build_identity`): the `build` block carries the
@@ -922,7 +922,7 @@ save a filmstrip PNG named after the script.
   one line each in `cadence.json`); `LAB_RULE` names only the jobs the world
   OFFERS (`Menu.lab_jobs`) and a world with both reads it byte for byte; a
   plate act is `find` round the lab's ADDRESS and `press` off its sign
-  (`lifecycle._plate_program`), never a position, and `care` is `feed` or
+  (`lifecycle.cage_program`), never a position, and `care` is `feed` or
   `toy` (`Menu.care_acts`: company is a spot no tag marks); a plate pressed
   with no errand of THAT plate running is a `press` event (`Cage.presser`,
   `HubLifecycle._press_step`), never a `care`, a `harm` or an act.
@@ -1209,8 +1209,8 @@ save a filmstrip PNG named after the script.
 - **An errand is a tool, a place and a use-phase** (`mission/errand.py`, issue
   #12): `HubLifecycle` carries a QUEUE of them. ⚠ A result has to outlive a
   frame: Python between two physics steps costs zero sim time, so hold a
-  screen result (`_drive(PRESENT_S, 0, 0)`) and check the RECORDING. ⚠ A
-  failed pick ends the errand at the rack, saying which.
+  shown result (`body.hold_routine`) and check the RECORDING. ⚠ A failed
+  pick ends the errand at the rack, saying which.
 - **A challenge is a task whose criteria were written before the robot saw
   it** (issue #120; Challenges.md): same MEASURE / JUDGE / PAY door; the
   sampler reads the WORLD, never the errand's `result`; graded at the call and

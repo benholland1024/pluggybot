@@ -33,11 +33,23 @@ class Board:
 
 #: The rover pen's reach (`rover-final`'s `drawing.py`), which the board
 #: state is laid on until #406: the carriage's +-55 mm along the board, and
-#: the lift's 0.02-0.30 m, its zero `LIFT_ZERO_BELOW` under the board's
-#: centre (the pen tip hung 72 mm below the peg, the peg 172 mm over the lift).
+#: the lift's 0.02-0.30 m from where it held the pen at the board's centre --
+#: the tip 72 mm under the peg, the fork axis 145 mm over the lift, raised
+#: 35 mm on the wrist and 8 mm of droop given back. ⚠ Summed in THAT order
+#: (`lift_at`): folded into one constant the reach moves by an ulp and the
+#: boards' state file is rewritten.
 PEN_TRAVEL = 0.055
 LIFT_MIN, LIFT_MAX = 0.02, 0.30
-LIFT_ZERO_BELOW = 0.100
+PEN_BELOW_PEG, FORK_ABOVE_LIFT = 0.072, 0.145
+FORK_MOUNT_RAISE, DROOP_COMP = 0.035, 0.008
+
+
+def lift_at(board_z: float) -> float:
+  """The rover's lift setpoint with the pen at a board's centre height."""
+  return board_z + PEN_BELOW_PEG - FORK_ABOVE_LIFT - FORK_MOUNT_RAISE + DROOP_COMP
+
+
+
 #: m of the board's face discounted from its edge: a figure is centred on
 #: where the pen actually is, and its home sat up to 23 mm off centre.
 HOME_ALLOWANCE = 0.030
@@ -56,7 +68,7 @@ class Envelope:
 
   @classmethod
   def for_board(cls, board: "Board") -> "Envelope":
-    lift0 = board.z - LIFT_ZERO_BELOW
+    lift0 = lift_at(board.z)
     face_lat = board.half[1] - HOME_ALLOWANCE
     face_z = board.half[2] - HOME_ALLOWANCE
     return cls(

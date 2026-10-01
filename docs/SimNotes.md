@@ -571,13 +571,14 @@ the drive's stagnation check rightly ended. Near a doorway (#298) the nearest
 cell was a one-cell island at the ragged edge of the wedge of free cells a
 LIDAR paints through a door, joined to nothing: every replan found it, and a
 board in the bedroom went unreached for thirty hours of the deployed pair.
-**What is true now:** the stand-in is the nearest known-free cell of the
-robot's OWN component (`scipy.ndimage.label` over the traversable mask,
-4-connected like `astar`;
-`test_navigation.py::test_an_unmapped_goal_is_aimed_at_through_the_robots_own_component`),
-and it stays for a goal INSIDE a wall's inflation, such as a board's use
-pose. Through the unknown the quadruped plans at a price instead ("Walking
-into the unknown").
+**What is true now:** the quadruped plans through the unknown at a price
+("Walking into the unknown"), and needs a stand-in only for a goal INSIDE a
+wall's inflation, such as a board's use pose. The mapped-floor planner the
+rover drove by -- a stand-in on the robot's OWN component, `scipy.ndimage.label`
+over the traversable mask, 4-connected like `astar` -- is still
+`Navigator`'s default, flown as `unknown_spike.py --before` and pinned as the
+premise of
+`test_unknown.py::test_a_goal_past_the_map_is_walked_to_by_the_door_it_has_seen`.
 
 ## ...and then the bed was standing in its way (#305)
 
@@ -799,7 +800,7 @@ surviving would require discovering a posture, and valuing survival and
 knowing the body's trick would look the same — the forcing function
 PluggyPlan's principles rule out. The rover's parking brake was the
 precedent: a body reflex that decides nothing the mind decides. The reflex
-lies down after `T_REST` without a motion command (the break-even, ~9 s)
+lies down after `T_REST_S` without a motion command (the break-even, ~9 s)
 and stands up before the next one (2.2 s, 44 mWh), and it does NOT choose
 what to do, refuse an act, or hide itself: the posture rides the wire as a
 fact, and the stand-up is part of every errand's measured cost. Open: the

@@ -75,6 +75,8 @@ import time
 from dataclasses import replace
 
 
+from pluggybot.economy import energy
+from pluggybot.economy.tasks import TaskBoard
 from pluggybot.legs.model import PACK_WH
 from pluggybot.legs.world import RESERVE_WH
 from pluggybot.lifecycle import QUAD_HOME, board_book, points_ledger, world_config, world_for
@@ -148,11 +150,20 @@ def timeout_share(latencies: list[float], deadline: float) -> float:
 
 
 #: The synthetic robot's pack, Wh: the served quadruped's, run DOWN below
-#: what the offer below costs plus the reserve (the feed's 1.77 Wh in
-#: the energy table the prefix carries, `RESERVE_WH` kept back) and falling
-#: a little every call, so the standing orders are read against a battery
-#: that moves.
+#: what the offer costs plus the reserve (the feed's `estimateWh`, 1.77,
+#: with `RESERVE_WH` kept back) and falling a little every call, so the
+#: standing orders are read against a battery that moves.
 SYNTHETIC_WH = 5.2
+
+
+def synthetic_offer() -> dict:
+  """The feed job as the served robot is SHOWN it: offered by a real board
+  on the served world's energy table, so its price (`estimateWh`), pay and
+  prediction are the context's own. On `home_quad` the prefix carries no
+  energy table, and the offer is the one place the model reads the price."""
+  board = TaskBoard(energy=energy.load(QUAD_HOME))
+  board.offer("feed_mouse", world_config(QUAD_HOME)["lab"]["name"], t=0.0)
+  return board.context(0.0)[0]
 
 
 def synthetic_state(menu: Menu, i: int) -> dict:
@@ -169,7 +180,7 @@ def synthetic_state(menu: Menu, i: int) -> dict:
                 "reserveWh": RESERVE_WH, "charging": False},
     "floorExplored": i > 0,
     "points": 12 * i,
-    "recentTasks": [{"task": "feed_mouse", "ok": True, "points": 18,
+    "recentTasks": [{"task": "feed_mouse", "ok": True, "points": 25,
                      "reason": "the feed plate pressed; the mouse is eating"}][:i],
     "tasksThisMission": ["feed_mouse"][:min(i, 1)],
     "boards": {b: {"fill": 0.11 * i, "strokes": 6 * i, "programs": []}
@@ -179,7 +190,7 @@ def synthetic_state(menu: Menu, i: int) -> dict:
     # they are real input tokens on every call -- a measurement that left
     # them out would under-report what a decision costs.
     "thoughts": {"History.md": [f"#{i} [t={120 * i}s] feed_mouse: found the "
-                                "feed plate by its sign and pressed it (+18 points)"][:i],
+                                "feed plate by its sign and pressed it (+25 points)"][:i],
                  "Top_of_mind.md":
                    "the lab is a long walk from the dock" if i else "",
                  "Notes.md": {"tasks/feed_mouse": ["what it pays"]} if i else {}},
@@ -188,19 +199,15 @@ def synthetic_state(menu: Menu, i: int) -> dict:
     # A claimable offer, so the probe exercises `take_task` -- the action the
     # acceptance run measured small models getting WRONG (the kind in `task`
     # instead of the id, 23 times in 4 sim-hours before the prompt spelled
-    # the id shape out). A decision naming `t_0007` is the fix working; a
-    # `fallback:garbled` is it not.
+    # the id shape out). A decision naming the offer's id is the fix
+    # working; a `fallback:garbled` is it not.
     # ⚠ AND THE OFFER IS UNAFFORDABLE, ON PURPOSE (issue #225): see
     # `SYNTHETIC_WH`. On `guarded` code hides that job; on `autonomous` and
     # `--deployed` nothing does, and taking it is A0's failure asked
     # directly -- reasoning about energy with every figure in front of it.
     # `report_energy` counts it, because a candidate that answers validly
     # and takes the job every time is the mind we have.
-    "offeredTasks": [{"id": "t_0007", "kind": "feed_mouse",
-                      "description": "Feed the mouse in the lab: press the "
-                                     "feed plate by the cage.",
-                      "paysUpTo": 18, "claimable": True,
-                      "needsAnswer": True}],
+    "offeredTasks": [synthetic_offer()],
     "decisions": i,
   }
 

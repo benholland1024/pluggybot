@@ -496,7 +496,7 @@ the envelope already measured.
 Add the face and the actuator function (§3), then regenerate:
 
 ```
-uv run python -m pluggybot.rack.coupling      # hub_world.xml + hub_rack.xml
+uv run python -m pluggybot.rack.coupling      # hub_world.xml + hub_rack.xml (at `rover-final`; a no-op since #376)
 uv run python -m pluggybot.home.world        # home_world.xml + meta
 ```
 

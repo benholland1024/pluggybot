@@ -996,8 +996,8 @@ this section found:** `serves` is not on the wire. The `DECIDE` narration
 line carries the action, its detail, the reason and the source, and not the
 goal it was for, so `served` is `None`, not zero. Beyond
 that: whether a goal was FINISHED (a drop is a drop, with or without a
-reason), and whether the goals are interesting or sensible — `goalsEnd` is
-kept for a person to read. **Depends on:** the design — the ownership split
+reason), and whether the goals are interesting or sensible — the `goals`
+message on the wire is there for a person to read. **Depends on:** the design — the ownership split
 IS the instrument — and then the model, which on the observatory writes an
 `intend` on most decisions and, since the knowledge file filled, is refused
 more often than it learns (`refused` 2133 to `learn` 446 in the last seven

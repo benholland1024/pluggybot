@@ -95,8 +95,9 @@ def programmed_errand(program, task: str = "program",
   """An errand whose middle AND ends are a program's steps (issue #58).
 
   `rack` is a lifecycle's inventory (module -> bay index into STATION_YS)
-  once the workshop has hung a tool (issue #168); without it, the shipped
-  five. A built tool's index is past the five, on the rail (issue #277).
+  once the workshop has hung a tool (issue #168); without it, the world's
+  own rack's three (`steps.TOOL_BAYS`). A built tool's index is past the
+  hand-built five, on the rail (issue #277).
 
   `task` names the evaluator that grades the finished job -- "program" for
   the generic per-step verdict, or an existing kind's evaluator ("draw")

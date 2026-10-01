@@ -556,7 +556,7 @@ class HubLifecycle:
                battery_wh: float | None = None,
                rack: RackPose | None = None,
                module: str = "module_lcd",
-               grid_bounds: tuple[float, float, float, float] = (-3, -3, 7, 7),
+               grid_bounds: tuple[float, float, float, float] | None = None,
                low_battery_wh: float | None = None,
                charge_scale: float | None = None,
                errands=None, boards=None, screen=None, ledger=None,
@@ -786,6 +786,10 @@ class HubLifecycle:
     # through it. Built for WHICH ROBOT this is (issue #167; `FIRST` is the
     # bare names, so a single-robot world is unchanged) unless one is
     # handed in: a test's `StubBody`.
+    # ...mapping the WORLD's extent unless a caller names one: a grid sized
+    # for one room silently truncates every scan beyond its edge
+    if body is None and grid_bounds is None:
+      grid_bounds = world_config(world)["grid_bounds"]
     self.body = body if body is not None else body_for(
       model, data, handle=handle, viewer=viewer, realtime=realtime,
       rack=rack, grid_bounds=grid_bounds)
