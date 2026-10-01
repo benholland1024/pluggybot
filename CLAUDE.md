@@ -1108,14 +1108,16 @@ save a filmstrip PNG named after the script.
 - **Contact params combine as the elementwise MAX unless `priority` is set** —
   a low `friction` without `priority="1"` does nothing.
 - **The robot's cameras render without MSAA** (`offsamples="0"`, issue #110):
-  with it on, #110's GPU (a GTX 1660 SUPER) rendered one static scene
-  differently every time and five identical scripted days gave three
+  with it on, #110's GPU (a GTX 1660 SUPER) renders one static scene to
+  different images, and five identical scripted days gave three
   trajectories. ⚠ THAT IS THE RASTERISER'S (#440): Mesa's Intel driver and
   llvmpipe (osmesa, the deployed box) render it identically every time, so
   `tests/test_render_determinism.py` pins the fix, and its premise per
-  rasteriser (`MSAA_VARIES`; an unmeasured one warns, never fails). Sensor
-  noise is deterministic per physics step and per robot (`axes.noise`: a crc32
-  seed, never `hash()`), and a restart saves the noise generators' STATE.
+  rasteriser (`MSAA_VARIES`; where it varies it renders until it does, as
+  most of the GTX's renders are one image; an unmeasured one warns, never
+  fails). Sensor noise is deterministic per physics step and per robot
+  (`axes.noise`: a crc32 seed, never `hash()`), and a restart saves the
+  noise generators' STATE.
 - **The near-field height map: no return is NOT a reading, and nothing that
   decides reads the map** (issue #34; `perception/depth.py`, `heightmap.py`):
   an out-of-range pixel is UNKNOWN —
