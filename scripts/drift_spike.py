@@ -21,6 +21,17 @@ error; after each trip whether the lab door is open in the robot's own map
 (a plan from where it believed the lobby was to where it believed the lab
 was); the matcher's answers and cost. With `--out`, each map is saved
 beside the trace, and a picture of it round the lobby and the lab.
+
+A LONG EXPLORE (issue #422), steered by the BELIEF this time -- the loop's
+own explore, then its walk home and the dock -- for one IMU seed a process:
+
+    MUJOCO_GL=egl uv run python scripts/drift_spike.py --explore 480 --seed 3
+    ... --rest 120          # lie first: the gyro's offset learned (#425)
+    ... --out run3.json     # then --explore-table run*.json
+
+Reports belief against truth every 10 s with the zone the robot is truly
+in, the matcher's verdicts, the error the explore ended with, and whether
+`go_charge` docked, or why not.
 """
 
 from __future__ import annotations
@@ -249,6 +260,93 @@ def fly_quadruped(trips: int, out: dict, seed: int = 0) -> None:
                     "walkedM": round(ests["odometry"].odo.distance, 1)}
 
 
+# ---- a long explore (issue #422) --------------------------------------------------
+
+#: How often the explore's belief is compared with the truth, sim s.
+EXPLORE_EVERY_S = 10.0
+
+
+def zone_of(x: float, y: float) -> str:
+  from pluggybot.home import world as home
+  for z in home.ZONES:
+    (x0, y0), (x1, y1) = z["min"], z["max"]
+    if x0 <= x <= x1 and y0 <= y <= y1:
+      return z["name"]
+  return "?"
+
+
+def fly_explore(budget: float, seed: int, rest: float, start, charge: bool) -> dict:
+  """One quadruped in the served house explores for `budget` sim s from
+  `start` (the commissioned one if None) -- after lying `rest` s, if any --
+  with its IMU and encoders drawn off `seed`; then, if `charge`, walks home
+  and docks. Belief against truth throughout."""
+  import mujoco
+
+  from pluggybot.legs.odometry import LegOdometry
+  from pluggybot.lifecycle import QUAD_HOME, HubLifecycle, points_ledger, world_config
+  from pluggybot.robot import world_spec
+
+  cfg = world_config(QUAD_HOME)
+  model = world_spec(cfg["model"], body=cfg["body"]).compile()
+  data = mujoco.MjData(model)
+  life = HubLifecycle(model, data, realtime=False, battery_wh=40.0, rack=cfg["rack"],
+                      grid_bounds=cfg["grid_bounds"], low_battery_wh=cfg["low_battery_wh"],
+                      ledger=points_ledger(None), world=QUAD_HOME, errands=[], near_field=True)
+  life.max_sim_time = life.explore_deadline = 1e9
+  life.blacklist, life.floor_explored = set(), False
+  start = tuple(cfg["start"]) if start is None else start
+  life.body.start_at(*start)
+  m = life.body.mission
+  m.odo = LegOdometry(model, data, seed=seed, prefix=m.handle.prefix)
+  m.odo.correct(*start)
+  out = {"seed": seed, "start": list(start), "budget": budget, "rest": rest,
+         "gyroBiasZ": math.degrees(float(m.odo.imu.gyro_bias[2])), "rows": []}
+  due = [0.0]
+
+  def row() -> dict:
+    b, t = m.pose, m.true_pose()
+    return {"t": round(float(data.time), 1), "err": round(math.hypot(b[0] - t[0], b[1] - t[1]), 3),
+            "dyaw": round(math.degrees(wrap(b[2] - t[2])), 2), "zone": zone_of(t[0], t[1]),
+            "true": [round(t[0], 2), round(t[1], 2)], "counts": dict(m.matcher.counts)}
+
+  def hook() -> None:
+    if data.time >= due[0]:
+      due[0] = float(data.time) + EXPLORE_EVERY_S
+      out["rows"].append(row())
+
+  m.step_hooks.append(hook)
+  t0 = time.time()
+  if rest > 0:
+    life.body.run(life.body.rest_routine())
+    life.body.run(life.body.hold_routine(rest))
+  life.body.run(life.body.look_around_routine())
+  out["ended"] = life.explore(budget=budget, mark_done=False)
+  out["after"] = row()
+  if charge:
+    out["docked"] = bool(life.go_charge())
+    out["failure"] = life.charge_failure
+    out["trace"] = life.body.charge_trace()
+    out["home"] = row()
+  out["wallS"] = round(time.time() - t0, 1)
+  life.body.close()
+  return out
+
+
+def explore_table(runs: list[dict]) -> None:
+  """One line a run: the seed, its gyro's offset, the error the explore
+  ended with and the worst along the explore, the dock, and the verdicts
+  after the walk home."""
+  print(f"{'seed':>4s} {'rest':>4s} {'offset':>8s} {'ended':>6s} {'worst':>6s} {'where worst':16s}"
+        f" docked  verdicts after the walk home")
+  for r in runs:
+    worst = max((q for q in r["rows"] if q["t"] <= r["after"]["t"]), key=lambda q: q["err"])
+    home = r.get("home", r["after"])
+    docked = r.get("docked")
+    print(f"{r['seed']:4d} {r['rest']:4.0f} {r['gyroBiasZ']:+8.4f} {r['after']['err']:6.2f}"
+          f" {worst['err']:6.2f} {worst['zone']:16s} {'-' if docked is None else str(docked):6s}"
+          f"  {home['counts']}" + ("" if docked in (None, True) else f"  ({r['failure']})"))
+
+
 # ---- the report ------------------------------------------------------------------
 
 
@@ -295,7 +393,30 @@ def main(argv=None) -> int:
   ap.add_argument("--trips", type=int, default=3)
   ap.add_argument("--out", default=None)
   ap.add_argument("--compare", nargs="+", default=None, metavar="JSON")
+  ap.add_argument("--explore", type=float, default=None, metavar="SECONDS",
+                  help="a long explore steered by the belief, then home to the dock")
+  ap.add_argument("--seed", type=int, default=0, help="the IMU's and encoders' draws")
+  ap.add_argument("--rest", type=float, default=0.0, help="lie this long first, s")
+  ap.add_argument("--start", default=None,
+                  help="x,y,yaw-deg (--start=-3.5,1,0 when x is negative); the commissioned start if unset")
+  ap.add_argument("--no-charge", action="store_true", help="stop when the explore does")
+  ap.add_argument("--explore-table", nargs="+", default=None, metavar="JSON")
   args = ap.parse_args(argv)
+  if args.explore_table:
+    explore_table([json.loads(Path(p).read_text()) for p in args.explore_table])
+    return 0
+  if args.explore is not None:
+    start = None
+    if args.start:
+      x, y, yaw = (float(v) for v in args.start.split(","))
+      start = (x, y, math.radians(yaw))
+    out = fly_explore(args.explore, args.seed, args.rest, start, not args.no_charge)
+    for r in out["rows"]:
+      print(f"t={r['t']:6.1f} {r['zone']:16s} off {r['err']:.2f} m {r['dyaw']:+6.2f} deg")
+    explore_table([out])
+    if args.out:
+      Path(args.out).write_text(json.dumps(out))
+    return 0
   if args.compare:
     for path in args.compare:
       print(f"== {path}")

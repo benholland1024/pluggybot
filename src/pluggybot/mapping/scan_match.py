@@ -9,10 +9,12 @@ point pulls on the pose from up to `REACH_M` away and its residual is
 metres. Odometry's prediction is a term of the same fit (a robust prior),
 the scan may fix only the directions its walls face (`DEGENERATE`), a fit
 the map disagrees with is past the field's reach and a bounded search
-finds where to fit from (`_search`), and a scan goes into the map only
-when a fit agreed and the robot has moved (`Match.fuse`,
-`ScanMatcher.fuses`). docs/SimNotes.md, "The map stays true under drift",
-has why each piece is there and what it measured.
+finds where to fit from (`_search`), a robot its map keeps refusing is
+lost past that search and searches wider (`_relocate`, issue #422), and a
+scan goes into the map only when a fit agreed and the robot has moved
+(`Match.fuse`, `ScanMatcher.fuses`). docs/SimNotes.md, "The map stays true
+under drift" and "Lost after a long explore, and found again", has why
+each piece is there and what it measured.
 
 Deterministic: no threads, and every sum is numpy's own loop in a fixed
 order -- never a BLAS product, whose summation order is the library's.
@@ -99,6 +101,42 @@ SEARCH_M = 0.6
 SEARCH_RAD = math.radians(6.0)
 SEARCH_STEP_RAD = math.radians(1.0)
 FOUND_SHARE = 0.75
+#: ⚠ A ROBOT ITS MAP KEEPS REFUSING IS LOST PAST THE SEARCH'S REACH (issue
+#: #422): after LOST_RUN scans running "inconsistent" -- any other verdict
+#: breaks the run -- and every LOST_RUN more, the search looks WIDE_M and
+#: WIDE_RAD round the belief (`_relocate`): on a lattice WIDE_STRIDE cells
+#: apart with the walls widened to cover it, then cell by cell round its
+#: best. A pose it finds must clear FOUND_SHARE with all three directions
+#: fixed; explain the scan best of the WIDE_TRIES best PLACES (lattice poses
+#: UNIQUE_M apart at any heading: one spot at three headings is one place,
+#: and would hide a second), none of the others found explaining it as well
+#: (RIVAL_SHARE); and be found AGAIN by the next wide search, the same
+#: correction within UNIQUE_M and UNIQUE_RAD. ⚠ ONCE IS A
+#: COINCIDENCE: on a sidewalk whose thin wall the map had eroded (#401), a
+#: pose 1.8 m along it explained a scan better than the truth did, and the
+#: next search took a different one.
+LOST_RUN = 10
+WIDE_M = 2.0
+WIDE_RAD = math.radians(15.0)
+WIDE_STRIDE = 4
+WIDE_TRIES = 3
+UNIQUE_M = 0.5
+UNIQUE_RAD = math.radians(5.0)
+#: ...and a second place found stops a relocation only if it puts this
+#: share of the best's inliers on walls: a twin room explains the scan as
+#: well, to the noise. MEASURED: a pose 2 m off, most of the scan past the
+#: map's edge and the rest on its walls, was "found" with 216 inliers where
+#: the truth had 359 (0.60), and refused a relocation the truth had earned.
+RIVAL_SHARE = 0.9
+#: ⚠ AN ANCHOR RE-LAYS THE MAP ROUND IT (issue #422): once the dock has put
+#: the belief in its frame to millimetres (`anchored`), the next
+#: ANCHORED_SCANS scans that go into the map are laid at that belief,
+#: unmatched. MEASURED: a robot come home lost had laid a copy of the living
+#: room 0.9 m askew; anchored on the dock, matching against the copy pulled
+#: it 0.62 m back into it as it backed off. 30 is the undock's own back-out
+#: (0.9 m at 0.3 m/s, ten scans a second), and a wall clamped at +5 is
+#: floor after 14 misses.
+ANCHORED_SCANS = 30
 #: A scan is fused only once the pose has moved this far or turned this
 #: much since the last one fused, or FUSE_S has passed. MEASURED: docked for
 #: 388 s, every scan fused at a pose jittering by a millimetre walked the
@@ -109,10 +147,12 @@ FUSE_S = 5.0
 
 NO_STEP = (0.0, 0.0, 0.0)
 #: The verdicts that move the pose, and those whose scan may be fused
-#: (`Match.fuse`): matched, found by the search, or too little map under it
-#: to say -- never a scan whose fit slid or whose map disagreed.
-ACCEPTED = frozenset({"ok", "found"})
-FUSED = ACCEPTED | {"no map", "sparse", "unconstrained"}
+#: (`Match.fuse`): matched, found by the search, laid at an anchor, or too
+#: little map under it to say -- never a scan whose fit slid or whose map
+#: disagreed, nor the one the wide search relocated by (the next, matched
+#: from there, is).
+ACCEPTED = frozenset({"ok", "found", "relocated"})
+FUSED = frozenset({"ok", "found", "anchored", "no map", "sparse", "unconstrained"})
 
 
 class Match(NamedTuple):
@@ -120,11 +160,13 @@ class Match(NamedTuple):
   if `accepted`, else the one asked about."""
   pose: tuple[float, float, float]
   accepted: bool
-  #: "ok", "found" (by the search, the fit having been inconsistent), or
-  #: why not: "no map" (nothing mapped near), "sparse" (fewer than
-  #: MIN_INLIERS), "unconstrained" (no direction fixed), "slid" (past
-  #: MAX_STEP), "inconsistent" (the map disagreed, and the search found
-  #: nothing it agreed with).
+  #: "ok", "found" (by the search, the fit having been inconsistent),
+  #: "relocated" (by the wide search, the robot lost past the search's
+  #: reach), "anchored" (not matched: laid at an anchor's belief,
+  #: ANCHORED_SCANS), or why not: "no map" (nothing mapped near), "sparse"
+  #: (fewer than MIN_INLIERS), "unconstrained" (no direction fixed), "slid"
+  #: (past MAX_STEP), "inconsistent" (the map disagreed, and the search
+  #: found nothing it agreed with).
   why: str
   inliers: int
   #: The inliers' RMS distance to the map at the matched pose, m.
@@ -156,6 +198,13 @@ def _solve3(a: np.ndarray, b: np.ndarray) -> np.ndarray:
   x1 = (a00 * (b1 * a22 - a12 * b2) + b0 * c01 + a02 * (a10 * b2 - b1 * a20)) / det
   x2 = (a00 * (a11 * b2 - b1 * a21) + a01 * (b1 * a20 - a10 * b2) + b0 * c02) / det
   return np.array([x0, x1, x2])
+
+
+def _same(a, b) -> bool:
+  """Two poses, or two corrections, (x, y, theta) the wide search found are
+  one: within UNIQUE_M and UNIQUE_RAD of each other."""
+  turned = abs(math.atan2(math.sin(a[2] - b[2]), math.cos(a[2] - b[2])))
+  return math.hypot(a[0] - b[0], a[1] - b[1]) < UNIQUE_M and turned < UNIQUE_RAD
 
 
 def _normals(field: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
@@ -197,6 +246,13 @@ class ScanMatcher:
     #: Every verdict over a life, and the matches held along a direction.
     self.counts: dict[str, int] = {}
     self.last: Match | None = None
+    #: The scans running the map has refused ("inconsistent"): at LOST_RUN,
+    #: the wide search (`_relocate`); and the correction the last one found,
+    #: (dx, dy, dtheta), until the next finds it again.
+    self.lost_run = 0
+    self.pending: tuple[float, float, float] | None = None
+    #: Scans still to be laid at an anchor's belief, unmatched (`anchored`).
+    self.anchoring = 0
 
   # ---- the field ------------------------------------------------------------
 
@@ -258,6 +314,15 @@ class ScanMatcher:
     turned = abs(math.atan2(math.sin(th - fth), math.cos(th - fth)))
     return math.hypot(x - fx, y - fy) >= FUSE_M or turned >= FUSE_RAD
 
+  def anchored(self, on: bool = True) -> None:
+    """The belief was just put where the world says it is to millimetres
+    (the dock's board): the next ANCHORED_SCANS scans fused are laid at it,
+    unmatched, the next of them at once. `on=False` closes the window: the
+    belief was put somewhere else since."""
+    self.anchoring = ANCHORED_SCANS if on else 0
+    if on:
+      self.lost_run, self.pending, self.fused_pose = 0, None, None
+
   def fuse_next(self) -> None:
     """The next scan the verdict allows is fused, moved or not: a robot back
     on its wheels after a fall maps again at once."""
@@ -268,6 +333,8 @@ class ScanMatcher:
     self.fused_since += 1
     self.fused_pose = tuple(float(v) for v in pose)
     self.fused_t = float(t)
+    if self.anchoring:
+      self.anchoring -= 1
 
   # ---- the fit ----------------------------------------------------------------
 
@@ -320,6 +387,8 @@ class ScanMatcher:
   def match(self, pose, angles, ranges) -> Match:
     """Align one scan, taken at the believed `pose`, against the map."""
     x0, y0, th0 = (float(v) for v in pose)
+    if self.anchoring:
+      return self._done(pose, "anchored")
     if self.field is None or self._stale(x0, y0):
       self.refresh(x0, y0)
     pts = self.points(angles, ranges)
@@ -340,6 +409,14 @@ class ScanMatcher:
                                               found=True)
       if found == "found":
         return self._done(found_at, found, **found_kw)
+    # ...and refused for long enough, the robot is lost past the search's
+    # reach: search wider (LOST_RUN), and take what it finds the second time
+    self.lost_run += 1
+    if self.lost_run % LOST_RUN == 0:
+      wide = self._relocate((x0, y0, th0), pts)
+      seen, self.pending = self.pending, None if wide is None else wide[1]["step"]
+      if wide is not None and seen is not None and _same(seen, self.pending):
+        return self._done(wide[0], "relocated", **wide[1])
     return self._done(at, why, **kw)
 
   def _fit(self, start, pts: np.ndarray):
@@ -395,8 +472,9 @@ class ScanMatcher:
       return asked, "slid", kw
     return fit_pose, "ok", dict(step=(dx, dy, dth), **kw)
 
-  def _search(self, pose, pts: np.ndarray):
-    """The pose within SEARCH_M and SEARCH_RAD of `pose` at which the most
+  def _search(self, pose, pts: np.ndarray, reach_m: float = SEARCH_M,
+              reach_rad: float = SEARCH_RAD):
+    """The pose within `reach_m` and `reach_rad` of `pose` at which the most
     of the scan lands on a mapped wall (|d| < INLIER_M, the nearest cell):
     brute force over whole-cell shifts and SEARCH_STEP_RAD turns. None if
     no candidate beats `pose` itself."""
@@ -404,11 +482,11 @@ class ScanMatcher:
     res = g.resolution
     on_wall = np.abs(np.nan_to_num(f, nan=np.inf)) < INLIER_M
     h, w = f.shape
-    n = int(round(SEARCH_M / res))
+    n = int(round(reach_m / res))
     shifts = np.arange(-n, n + 1)
     x0, y0, th0 = pose
     best, best_at = -1, None
-    for dth in np.arange(-SEARCH_RAD, SEARCH_RAD + 1e-12, SEARCH_STEP_RAD):
+    for dth in np.arange(-reach_rad, reach_rad + 1e-12, SEARCH_STEP_RAD):
       wx, wy = self._world((x0, y0, th0 + dth), pts)
       i = np.floor((wx - g.x_min) / res).astype(np.int64) - self.corner[0]
       j = np.floor((wy - g.y_min) / res).astype(np.int64) - self.corner[1]
@@ -425,6 +503,61 @@ class ScanMatcher:
     if best_at is None or best <= here:
       return None
     return (x0 + best_at[0], y0 + best_at[1], th0 + best_at[2])
+
+  def _relocate(self, pose, pts: np.ndarray):
+    """The wide search (LOST_RUN): the one pose within WIDE_M and WIDE_RAD of
+    `pose` the map agrees with, as (pose, `Match`'s fields), or None. Each of
+    the best lattice places is searched cell by cell round it and fitted;
+    the "found" one with the most inliers is taken, unless another found
+    elsewhere explains the scan as well (RIVAL_SHARE)."""
+    found = []
+    for start in self._wide_candidates(pose, pts):
+      fine = self._search(start, pts, reach_m=WIDE_STRIDE * self.grid.resolution,
+                          reach_rad=SEARCH_STEP_RAD) or start
+      at, why, kw = self._judge(pose, pts, self._fit(fine, pts), found=True)
+      if why == "found":
+        found.append((at, kw))
+    if not found:
+      return None
+    best = max(found, key=lambda f: f[1]["inliers"])
+    if any(not _same(at, best[0]) and kw["inliers"] >= RIVAL_SHARE * best[1]["inliers"]
+           for at, kw in found):
+      return None
+    return best
+
+  def _wide_candidates(self, pose, pts: np.ndarray) -> list[tuple[float, float, float]]:
+    """The WIDE_TRIES best poses of a lattice WIDE_STRIDE cells and
+    SEARCH_STEP_RAD apart within WIDE_M and WIDE_RAD of `pose`, each scored
+    by its points within half a stride of a mapped wall, and each UNIQUE_M
+    from those taken before it at ANY heading: one place a candidate."""
+    g, f = self.grid, self.field
+    res = g.resolution
+    on_wall = (np.abs(np.nan_to_num(f, nan=np.inf)) < INLIER_M).astype(np.uint8)
+    near = ndimage.maximum_filter(on_wall, size=WIDE_STRIDE + 1) > 0
+    h, w = near.shape
+    n = int(round(WIDE_M / res / WIDE_STRIDE))
+    shifts = np.arange(-n, n + 1) * WIDE_STRIDE
+    turns = np.arange(-WIDE_RAD, WIDE_RAD + 1e-12, SEARCH_STEP_RAD)
+    x0, y0, th0 = pose
+    scores = np.empty((len(turns), len(shifts), len(shifts)), dtype=np.int64)
+    for k, dth in enumerate(turns):
+      wx, wy = self._world((x0, y0, th0 + dth), pts)
+      i = np.floor((wx - g.x_min) / res).astype(np.int64) - self.corner[0]
+      j = np.floor((wy - g.y_min) / res).astype(np.int64) - self.corner[1]
+      ii = i[None, None, :] + shifts[None, :, None]
+      jj = j[None, None, :] + shifts[:, None, None]
+      inside = (ii >= 0) & (ii < w) & (jj >= 0) & (jj < h)
+      scores[k] = (near[np.where(inside, jj, 0), np.where(inside, ii, 0)] & inside).sum(axis=2)
+    out: list[tuple[float, float, float]] = []
+    for flat in np.argsort(-scores, axis=None, kind="stable"):
+      k, a, b = np.unravel_index(int(flat), scores.shape)
+      cand = (x0 + float(shifts[b]) * res, y0 + float(shifts[a]) * res, th0 + float(turns[k]))
+      if any(math.hypot(cand[0] - c[0], cand[1] - c[1]) < UNIQUE_M for c in out):
+        continue
+      out.append(cand)
+      if len(out) == WIDE_TRIES:
+        break
+    return out
 
   def _on_wall_count(self, pose, pts, on_wall) -> int:
     g = self.grid
@@ -467,6 +600,10 @@ class ScanMatcher:
             step=NO_STEP) -> Match:
     m = Match(tuple(float(v) for v in pose), why in ACCEPTED, why, inliers,
               rms_m, weakest, tuple(weak_dir), held, tuple(step))
+    if why != "inconsistent":
+      # any other verdict breaks the run of refusals, and what the wide
+      # search found in it (LOST_RUN)
+      self.lost_run, self.pending = 0, None
     self.counts[why] = self.counts.get(why, 0) + 1
     if why in ACCEPTED and held:
       self.counts["held"] = self.counts.get("held", 0) + 1
@@ -482,6 +619,7 @@ class ScanMatcher:
     self.corner, self.at, self.fused_since = (0, 0), None, 0
     self.fused_pose, self.fused_t = None, -math.inf
     self.counts, self.last = {}, None
+    self.lost_run, self.pending, self.anchoring = 0, None, 0
 
   def kept_state(self) -> tuple[dict, dict]:
     """The field is the map as it was when last computed, not as it is now,
@@ -491,7 +629,9 @@ class ScanMatcher:
              "fusedSince": self.fused_since,
              "fusedPose": None if self.fused_pose is None else list(self.fused_pose),
              "fusedT": None if self.fused_pose is None else self.fused_t,
-             "counts": dict(self.counts)}
+             "counts": dict(self.counts), "lostRun": self.lost_run,
+             "pending": None if self.pending is None else list(self.pending),
+             "anchoring": self.anchoring}
     return state, ({} if self.field is None else {"matchField": self.field})
 
   def restore_kept(self, state: dict, arrays: dict) -> None:
@@ -502,5 +642,9 @@ class ScanMatcher:
       self.fused_pose = tuple(float(v) for v in state["fusedPose"])
       self.fused_t = float(state["fusedT"])
     self.counts = dict(state.get("counts", {}))
+    self.lost_run = int(state.get("lostRun", 0))
+    pending = state.get("pending")
+    self.pending = None if pending is None else tuple(float(v) for v in pending)
+    self.anchoring = int(state.get("anchoring", 0))
     self.field = arrays.get("matchField")
     self.normals = None if self.field is None else _normals(self.field)

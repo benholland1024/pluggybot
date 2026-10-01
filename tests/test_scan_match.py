@@ -341,6 +341,34 @@ def test_each_scan_is_laid_through_the_pose_its_match_found(quad_world):
   m.close()
 
 
+def test_the_served_body_set_down_far_from_its_belief_finds_itself(quad_world):
+  # The served body's own LIDAR in its house, through the scan's own seam
+  # (issue #422): the living room mapped by a scan standing, the belief then
+  # moved 1.5 m and 5 deg off -- a robot come home from a long explore. Its
+  # map refuses two runs of LOST_RUN scans and none of them is laid in; the
+  # wide search, finding the same pose twice, puts the belief back where the
+  # body stands. Nothing stepped: the scans are the standing body's.
+  from pluggybot.perception.lidar import LIDAR_PERIOD
+  m = _quad(quad_world)
+  m._scan_step()
+  laid = []
+  real = m.grid.update
+  m.grid.update = lambda pose, *a, **kw: (laid.append(tuple(pose)), real(pose, *a, **kw))
+  x, y, th = m.pose
+  m.odo.correct(x - 1.2, y + 0.9, th + math.radians(5.0))
+  whys = []
+  for _ in range(2 * sm.LOST_RUN):
+    m.data.time += LIDAR_PERIOD
+    m._scan_step()
+    whys.append(m.matcher.last.why)
+  assert whys == ["inconsistent"] * (2 * sm.LOST_RUN - 1) + ["relocated"], whys
+  assert not laid, "a refused scan was laid into the map"
+  (bx, by, bth), (tx, ty, tth) = m.pose, m.true_pose()
+  assert math.hypot(bx - tx, by - ty) < 0.05
+  assert abs(math.degrees(math.atan2(math.sin(bth - tth), math.cos(bth - tth)))) < 1.0
+  m.close()
+
+
 def test_a_restart_keeps_the_matchers_field_and_the_imus_stream(quad_world):
   # A new piece of state that decides anything is kept (issue #345): the
   # field the next match reads and where the IMU's noise had got to.
@@ -385,3 +413,210 @@ def test_a_scan_the_map_cannot_explain_is_refused_and_not_fused(room):
   got = m.match(TRUE, ANGLES, cast(elsewhere, (1.2, 1.6, 0.9), np.random.default_rng(22)))
   assert got.why == "inconsistent" and not got.accepted and not got.fuse
   assert got.pose == TRUE
+
+
+# ---- a robot come home lost (issue #422) -----------------------------------------
+
+
+#: Lost 1.2 m and 4 deg from TRUE: past the search and the fit from its best.
+LOST = (TRUE[0] - 0.9, TRUE[1] + 0.8, TRUE[2] + math.radians(4.0))
+
+
+def test_a_robot_lost_past_the_search_is_relocated_after_two_runs_of_refusals(room):
+  # Home from a long explore 0.8-1.4 m out, past the ±0.6 m search, every
+  # scan was refused (issue #422). LOST_RUN refusals running, the wide
+  # search finds the one pose the room agrees with; LOST_RUN more, it finds
+  # it again and takes it. Matched from there, the next scan is laid in.
+  m = sm.ScanMatcher(room)
+  rng = np.random.default_rng(23)
+  for _ in range(2 * sm.LOST_RUN - 1):
+    got = m.match(LOST, ANGLES, cast(ROOM, TRUE, rng))
+    assert got.why == "inconsistent" and got.pose == LOST
+  assert m.pending is not None, "the first search found nothing"
+  got = m.match(LOST, ANGLES, cast(ROOM, TRUE, rng))
+  assert got.why == "relocated" and got.accepted and not got.fuse
+  assert math.hypot(got.pose[0] - TRUE[0], got.pose[1] - TRUE[1]) < 0.02
+  assert abs(math.degrees(got.pose[2] - TRUE[2])) < 0.3
+  assert m.match(got.pose, ANGLES, cast(ROOM, TRUE, rng)).why == "ok"
+
+
+def test_a_correction_the_wide_search_finds_once_is_not_taken(room):
+  # Once is a coincidence: on a sidewalk whose thin wall the map had eroded
+  # (#401), a pose 1.8 m along it explained a scan better than the truth
+  # did, and the next search took a different one. Here the robot is lost
+  # by one correction for the first run of refusals and another for the
+  # second -- it is moved, its belief left where it was -- and nothing is
+  # taken until a third run finds the second again.
+  m = sm.ScanMatcher(room)
+  rng = np.random.default_rng(25)
+  moved = (TRUE[0] + 0.4, TRUE[1] - 0.8, TRUE[2] - math.radians(3.0))
+  lost = (2.0, 2.2, TRUE[2])
+  for k in range(3 * sm.LOST_RUN):
+    truth = TRUE if k < sm.LOST_RUN else moved
+    got = m.match(lost, ANGLES, cast(ROOM, truth, rng))
+    if k < 3 * sm.LOST_RUN - 1:
+      assert got.why == "inconsistent", k
+  assert got.why == "relocated"
+  assert math.hypot(got.pose[0] - moved[0], got.pose[1] - moved[1]) < 0.02
+
+
+def test_the_wide_search_takes_nothing_where_two_places_explain_the_scan():
+  # Two rooms alike, the robot lost between them: the scan cannot say which
+  # it stands in, and a relocation there would be a coin flip whose wrong
+  # side lays the rest of the day's map through the wrong room.
+  a = box(0.013, 0.021, 3.013, 2.521)
+  b = [(x1 + 3.4, y1, x2 + 3.4, y2) for x1, y1, x2, y2 in a]
+  rng = np.random.default_rng(3)
+  poses = [(rng.uniform(0.4, 2.6), rng.uniform(0.4, 2.1), rng.uniform(-3, 3)) for _ in range(15)]
+  true, lost = (1.5, 1.2, 0.2), (3.2, 2.0, 0.25)
+
+  def lost_for(segments, poses):
+    m = sm.ScanMatcher(mapped(segments, (-1, -1, 7.5, 3.5), poses))
+    for _ in range(2 * sm.LOST_RUN):
+      got = m.match(lost, ANGLES, cast(a, true, rng))
+    return got
+
+  both = lost_for(a + b, poses + [(x + 3.4, y, th) for x, y, th in poses])
+  assert both.why == "inconsistent" and both.pose == lost
+  # ...the premise: with only the room it stands in mapped, the same search
+  # finds it
+  one = lost_for(a, poses)
+  assert one.why == "relocated"
+  assert math.hypot(one.pose[0] - true[0], one.pose[1] - true[1]) < 0.03
+
+
+def test_any_scan_not_refused_breaks_the_run_and_what_it_found(room, monkeypatch):
+  # LOST_RUN refusals RUNNING: a scan the map did not refuse -- matched, or
+  # too little map to say -- breaks the run, and the correction the run's
+  # search found goes with it; carried across, it would confirm a search
+  # made far down the walk, when the drift was another.
+  m = sm.ScanMatcher(room)
+  rng = np.random.default_rng(26)
+  searched = []
+  real = m._relocate
+  monkeypatch.setattr(m, "_relocate", lambda pose, pts: (searched.append(1), real(pose, pts))[1])
+  for _ in range(sm.LOST_RUN + 2):
+    m.match(LOST, ANGLES, cast(ROOM, TRUE, rng))
+  assert searched and m.pending is not None, "the premise: a search found the pose"
+  empty = np.full(len(ANGLES), 8.0)                     # nothing in reach: no points
+  assert m.match(LOST, ANGLES, empty).why == "sparse"
+  assert (m.lost_run, m.pending) == (0, None)
+  for _ in range(sm.LOST_RUN - 1):
+    assert m.match(LOST, ANGLES, cast(ROOM, TRUE, rng)).why == "inconsistent"
+  assert len(searched) == 1, "searched again before LOST_RUN refusals running"
+
+
+def test_the_wide_search_weighs_places_not_headings(room):
+  # Its candidates are PLACES, UNIQUE_M apart at any heading: deduped only
+  # where position AND heading were near, its three slots went to one spot
+  # at three headings, which all fitted back to one pose -- and a twin
+  # ranked fourth would never have been looked at.
+  m = sm.ScanMatcher(room)
+  m.refresh(*LOST[:2])
+  pts = m.points(ANGLES, cast(ROOM, TRUE, np.random.default_rng(27)))
+  cands = m._wide_candidates(LOST, pts)
+  assert len(cands) == sm.WIDE_TRIES
+  for i, a in enumerate(cands):
+    for b in cands[i + 1:]:
+      assert math.hypot(a[0] - b[0], a[1] - b[1]) >= sm.UNIQUE_M, (a, b)
+
+
+def test_a_restart_keeps_the_run_of_refusals_and_what_it_found(room):
+  # Both decide when the robot relocates (issue #345's rule): restarted
+  # after the first wide search, it relocates on the same scan as a robot
+  # never stopped.
+  rng = np.random.default_rng(24)
+  scans = [cast(ROOM, TRUE, rng) for _ in range(2 * sm.LOST_RUN)]
+  a = sm.ScanMatcher(room)
+  for r in scans[:sm.LOST_RUN + 2]:
+    a.match(LOST, ANGLES, r)
+  state, arrays = a.kept_state()
+  assert state["pending"] is not None and state["lostRun"] == sm.LOST_RUN + 2
+  b = sm.ScanMatcher(room)
+  b.restore_kept(state, arrays)
+  for r in scans[sm.LOST_RUN + 2:]:
+    got_a, got_b = a.match(LOST, ANGLES, r), b.match(LOST, ANGLES, r)
+  assert got_a.why == got_b.why == "relocated" and got_a.pose == got_b.pose
+
+
+#: The copy a robot come home lost lays: the room's walls, laid through
+#: poses this far off the ones they were seen from.
+ASKEW = (0.6, -0.5, math.radians(2.0))
+
+
+def _askew_room():
+  rng = np.random.default_rng(31)
+  g = OccupancyGrid(-2, -2, 8, 6, 0.05)
+  for _ in range(30):
+    p = (rng.uniform(1.5, 4.5), rng.uniform(1.0, 3.0), rng.uniform(-3, 3))
+    laid = (p[0] + ASKEW[0], p[1] + ASKEW[1], p[2] + ASKEW[2])
+    g.update(laid, ANGLES, cast(ROOM, p, rng), 8.0, origin=(0.0, 0.0))
+  return g
+
+
+def _back_off(m, g, rng, steps):
+  """The undock's back-out from TRUE, 3 cm a scan, each scan matched and
+  laid in as `Navigator._scan_step` does: the verdicts and the last pose."""
+  whys, pose = [], TRUE
+  for k in range(steps):
+    at = (TRUE[0] - 0.03 * k * math.cos(TRUE[2]), TRUE[1] - 0.03 * k * math.sin(TRUE[2]), TRUE[2])
+    got = m.match(at, ANGLES, cast(ROOM, at, rng))
+    whys.append(got.why)
+    pose = got.pose
+    if m.fuses(got, 0.1 * k):
+      g.update(pose, ANGLES, cast(ROOM, at, rng), 8.0, origin=(0.0, 0.0))
+      m.fused(pose, 0.1 * k)
+  return whys, pose
+
+
+def test_an_anchor_lays_the_room_again_over_a_copy_laid_askew():
+  # The dock outranks the map (issue #422): anchored on it to millimetres, a
+  # robot come home lost had a copy of the living room laid 0.9 m askew, and
+  # matching against it pulled the belief 0.62 m back into it as the robot
+  # backed off the dock. Anchored, the back-out is laid in unmatched, the
+  # copy is overwritten, and the next scan matches where the robot stands.
+  g = _askew_room()
+  m = sm.ScanMatcher(g)
+  m.anchored()
+  rng = np.random.default_rng(32)
+  whys, pose = _back_off(m, g, rng, sm.ANCHORED_SCANS)
+  assert whys == ["anchored"] * sm.ANCHORED_SCANS
+  at = (TRUE[0] - 0.03 * sm.ANCHORED_SCANS * math.cos(TRUE[2]),
+        TRUE[1] - 0.03 * sm.ANCHORED_SCANS * math.sin(TRUE[2]), TRUE[2])
+  got = m.match(at, ANGLES, cast(ROOM, at, rng))
+  assert got.why == "ok" and math.hypot(got.pose[0] - at[0], got.pose[1] - at[1]) < 0.03
+  # ...the premise: matched as it backs off, the copy has the belief
+  m = sm.ScanMatcher(_askew_room())
+  _, pose = _back_off(m, m.grid, np.random.default_rng(32), sm.ANCHORED_SCANS)
+  assert math.hypot(pose[0] - at[0], pose[1] - at[1]) > 0.3
+
+
+def test_a_restart_keeps_an_anchors_window(room):
+  m = sm.ScanMatcher(room)
+  m.anchored()
+  m.fused(TRUE, 0.0)
+  state, arrays = m.kept_state()
+  n = sm.ScanMatcher(room)
+  n.restore_kept(state, arrays)
+  assert n.anchoring == sm.ANCHORED_SCANS - 1
+  assert n.match(TRUE, ANGLES, cast(ROOM, TRUE)).why == "anchored"
+
+
+def test_the_docks_board_alone_opens_the_window(quad_world, monkeypatch):
+  # The dock's anchor off its BOARD is the one anchor: to millimetres. The
+  # seat, with no decode, is good to 2 deg, and 30 scans laid unmatched
+  # through that lay the room askew themselves; the commissioned start is
+  # none either (a look-around laid unmatched smears the gyro's scale
+  # error), and a stand-up there closes a window a death on the dock left.
+  from pluggybot.legs import body as qb
+  m = _quad(quad_world)
+  assert m.matcher.anchoring == 0, "the start opened the window"
+  m.detect_board = lambda: {}
+  m.anchor_at_dock()                                    # no decode: the seat
+  assert m.matcher.anchoring == 0, "the seat opened the window"
+  monkeypatch.setattr(qb.dk, "fit_dock", lambda seen: qb.dk.DockFix(0.62, 0.0, 0.0, 4, 0.002))
+  m.anchor_at_dock()                                    # the board
+  assert m.matcher.anchoring == sm.ANCHORED_SCANS
+  m.start_at(1.5, 0.5, 0.0)                             # ...and a stand-up
+  assert m.matcher.anchoring == 0, "a stand-up kept the dock's window"
+  m.close()

@@ -1139,6 +1139,12 @@ class QuadMission(ToolSwap, PlaceWalk, Navigator):
       me = (0.0, 0.0, 0.0)
     wx, wy, wyaw = dk.compose((x, y, yaw), me)
     self.odo.correct(wx, wy, wyaw)
+    # ...and the map round it is laid again from here (issue #422,
+    # `scan_match.ANCHORED_SCANS`): the board outranks a copy laid askew.
+    # ⚠ The board's alone: the seat is good to 2 deg, and 30 scans laid
+    # unmatched through that would lay the room askew themselves
+    if self.matcher is not None and fix is not None:
+      self.matcher.anchored()
     if self.last_charge is not None:
       self.last_charge["anchor"] = "board" if fix is not None else "seat"
 
@@ -1349,6 +1355,10 @@ class QuadMission(ToolSwap, PlaceWalk, Navigator):
     self.docked = False
     self.odo = LegOdometry(self.model, self.data, prefix=self.handle.prefix)
     self.odo.correct(x, y, yaw)
+    # ...and a dock's window, if one was open (a death on the dock), is the
+    # dock's: the start is no anchor (issue #422, `scan_match.anchored`)
+    if self.matcher is not None:
+      self.matcher.anchored(on=False)
     self._vm = self._vm_inertia = None
     self._handover(self.walker)
     self.carry(None)

@@ -270,6 +270,15 @@ CHARGE_TIMEOUT_MIN = 400.0
 #: efficient, contact can drop and be re-made, and a cycle that times out one
 #: second short of full is a charge that did not happen.
 CHARGE_TIMEOUT_SLACK = 1.4
+#: ⚠ NEAR ENOUGH, THE BOARD DECIDES (issue #422): a walk to the charge
+#: standoff that gives up within this of it, m, as the robot believes,
+#: goes on to the approach -- which finds the dock's board and walks in by
+#: it, whatever the belief -- where it used to end the charge. MEASURED:
+#: three robots of eight home from a long explore gave up 0.1-0.3 m short,
+#: pressing the couch, the board never looked for. Within 0.75 m the board
+#: (1.62 m past the standoff) is within 2.4 m, where one look reads it to
+#: 6 cm (median); with no board in sight the walk's retries go on.
+NEAR_STANDOFF_M = 0.75
 SCREEN_SENSE_S = 0.02       # sim seconds between power scans of a display
                             # the robot is NOT carrying (issue #13)
 #: Sim seconds an overseer-chosen `explore` runs for before the arbitration
@@ -2273,6 +2282,7 @@ class HubLifecycle:
     # ends that wait: charging is what either would ask for.
     spins, since, arrived = 0, None, False
     driven = None                 # the goal the last drive was sent to
+    tried = None                  # why a near give-up's approach stopped
     while True:
       if self.peers and self.body.peer_on_the_goal(sx, sy) is not None:
         since = float(self.data.time) if since is None else since
@@ -2285,13 +2295,24 @@ class HubLifecycle:
         break
       if self.peers and self.body.peer_on_the_goal(sx, sy) is not None:
         continue                          # taken again: wait again, above
+      if self._near_standoff(sx, sy):
+        # ⚠ NOT `GO_CHARGE: `, which the site counts as a failed attempt
+        # (rooftop's `chargeOutcome`): this attempt's one outcome comes after
+        self._say(f"GO_CHARGE near enough -- {self.drive_why(sx, sy)}; the "
+                  "dock's board decides")
+        tried = yield from self.body.dock_routine()
+        # ...and with no board in sight from here -- a wall between, a
+        # belief further off than it says -- the walk's own retries, as
+        # before: no board is no reason to stop looking for a route
+        if tried != "no board" or self.body.charging():
+          break
       yield from self.body.look_around_routine()
       self.body.refresh_rack()
       sx, sy, hd = self.body.charge_standoff()
       spins += 1
       if spins == 2:
         break
-    if not arrived:
+    if not arrived and tried in (None, "no board"):
       # WHY, and not always "no route" (issue #350): a stall, the other
       # robot and the clock read the same until the drive said which. Of
       # the goal last DRIVEN to -- a spin moves the standoff after it, and
@@ -2301,21 +2322,32 @@ class HubLifecycle:
       blocked = self.peer_at(*(driven or (sx, sy)))
       self.charge_failure = "never reached the charge bay" + (
         "" if driven is None else f": {self.drive_why(*driven)}") + (
+        "" if tried is None else "; the board was not in sight from there") + (
         "" if blocked is None else
         f" -- {self.held_for(blocked).replace('the bay', 'it', 1)}")
       self._say(f"GO_CHARGE: {self.charge_failure}")
       return False
     # Line up on the bay's own tag and creep until the electrical criterion
     # fires -- position is believed, contact is known.
-    why = yield from self.body.dock_routine()
+    if arrived:
+      tried = yield from self.body.dock_routine()
     if not self.body.charging():
       # the approach's trace is EVIDENCE (issue #346), the log's alone
-      self.charge_failure = f"no charge contact ({why})"
+      self.charge_failure = f"no charge contact ({tried})"
       self._say(f"GO_CHARGE: {self.charge_failure}",
                 detail=self.body.charge_trace())
       return False
     self._say("GO_CHARGE -> CHARGE (pins connected)")
     return True
+
+  def _near_standoff(self, sx: float, sy: float) -> bool:
+    """Did the walk to the charge standoff give up near enough that the
+    board decides (`NEAR_STANDOFF_M`), as its own record says? Never for
+    the other robot in the way: that is waited for, or routed round."""
+    rec = self.body.last_drive
+    return (rec is not None and rec["why"] not in ("", "peer")
+            and math.hypot(rec["goal"][0] - sx, rec["goal"][1] - sy) < 1e-6
+            and rec["shortM"] <= NEAR_STANDOFF_M)
 
   def charge(self) -> None:
     return self.body.run(self.charge_routine())
