@@ -404,11 +404,14 @@ class Keeper:
     """A robot mid stand-up is half stood up: its settle drive steps the
     sim with the pose moved and the pack not yet refilled. ...And a body
     mid-move (issue #387): a quadruped lying down, standing up or getting
-    up is a scripted move or a policy part-way, which no file holds; and
-    one mid-swap (issue #405), its fork maybe half under a peg. A stop
-    waits too: killed first, the world comes back from the save before."""
+    up is a scripted move or a policy part-way, which no file holds; one
+    mid-swap (issue #405), its fork maybe half under a peg; and one
+    stepping aside for the other robot (issue #415), a walk no routine
+    holds. A stop waits too: killed first, the world comes back from the
+    save before."""
     return any(life._standing_up or life.body.posture in MOVING_POSTURES
-               or life.body.working for life in self.lives)
+               or life.body.working or life.body.making_way is not None
+               for life in self.lives)
 
   def step_hook(self) -> None:
     if self.busy():

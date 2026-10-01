@@ -137,6 +137,7 @@ class _Drive:
   _drove = QuadMission._drove
   _at_stand_in = QuadMission._at_stand_in
   _other_in_the_way = QuadMission._other_in_the_way
+  _ask_way = QuadMission._ask_way
   _bodies = QuadMission._bodies
   peer_on_the_goal = QuadMission.peer_on_the_goal
   _cells = QuadMission._cells
@@ -150,6 +151,7 @@ class _Drive:
   OTHER_ROBOT_CELLS = QuadMission.OTHER_ROBOT_CELLS
   DOWN_ROBOT_CELLS = QuadMission.DOWN_ROBOT_CELLS
   pressing = False
+  ask_way, driving = None, 0
 
   def __init__(self, plan, step=0.0, others=(), sighting=None, cut=False):
     import numpy as np

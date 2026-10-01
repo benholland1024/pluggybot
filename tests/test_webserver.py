@@ -716,7 +716,7 @@ class _FakeLife:
     # report a sim time a recompiled run had left behind.
     self.model, self.data = model, data
     self.body = types.SimpleNamespace(step_hooks=[], grid=None, posture="standing",
-                                      working=False)
+                                      working=False, making_way=None)
     self.near_field = None         # the floor map (issue #34), off here
     self.say_hooks: list = []
     # The operator's switch and its two hook lists (issue #37). Held the way

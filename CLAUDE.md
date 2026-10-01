@@ -225,6 +225,7 @@ save a filmstrip PNG named after the script.
 | `scripts/unknown_spike.py` | #381's walking stage: a fresh quadruped (an empty map, its start pose) sent once to each zone, one process a walk: arrived or why not, the time, the walk against the true route, what planning cost; `--before` the planner before (mapped floor only, stand-ins), `--again` back and there again on the map it laid, `--unknown-cost X`, `--maps DIR` |
 | `scripts/drift_spike.py` | #386: believed against true pose over lab round trips, the quadruped's (the walking policy steered by the truth, two estimates on one walk, odometry alone and matched), and whether the lab door is open in the robot's own map; `--explore SECONDS --seed K [--rest S]` the loop's own explore, steered by the belief, then home to the dock (#422), `--explore-table` across seeds |
 | `scripts/determinism_spike.py` | is the world the same world twice? N scripted days hashed, first divergence attributed to GPU / decoder / raycast; `--pair`; `--compare DIR`; `--resume-at T` flies a day against one saved and carried on in a new process (#345) |
+| `scripts/make_way_spike.py` | #415: the pair in the house on true-floor maps, one robot resting in a doorway and the other walking through it, one process a scene: the walk's end, the step aside (how far, how long, why it stopped), touches and falls; `--before` nobody asks, `--finished` the resting robot's day is over, `--scene A,B` |
 | `scripts/solve.py --feature mouse` | ladder A of #264, the paid feed on legs (#403): offered, claimed with a prediction, walked and graded by the job's own evaluator; `--pair`, `--n N`, `--from dock\|lab`; filmstrip `solve.png`. The tower's and the bench's come back with the arm (#407) |
 | `scripts/board_png.py` | a whiteboard's ink as a PNG from the boards state file or a recording. ⚠ +lat is the viewer's LEFT, as in the site's `surfaces/board.ts`; the test pins it because every figure the pen draws is symmetric |
 | `scripts/quad_spike.py` | the quadruped body (#377; SimNotes "The quadruped body"): `--view` watches it, `--torque`/`--thermal`/`--energy`/`--sweep`/`--pupper` are the sizing tables (on `model.SIZING`, #377's placeholder arm, #405), `--policy`/`--climb`/`--getup`/`--posture`/`--odometry`/`--determinism` fly a trained policy in OUR physics (`--climb --scan map` on the D435's map, `legs/scan.py`, #388), `--shove` the served body knocked over in the house (what `stuck_after_s` is read off, #389), `--served`/`--rays` time the pair and the sensors |
@@ -852,7 +853,13 @@ save a filmstrip PNG named after the script.
   dropped from the scan, the front stop is blind to the one obstacle that
   moves. ⚠ One rack, one dock: contention is the minds' opportunity (#208)
   and the geometry must not settle it. The world's activities are on the
-  FIRST robot's hooks only.
+  FIRST robot's hooks only. ⚠ A ROBOT LYING DOWN TO REST ACROSS THE
+  OTHER'S WAY IS ASKED TO MAKE WAY, and steps aside beneath whatever it
+  holds (Ben, #415; `Navigator._ask_way`, `Body.ask_way`, `legs/way.py`):
+  only resting and free to -- not docked, dead, mid-move, or inside a walk
+  of its own (#395's head-on hold is still open) -- to floor it has SEEN,
+  `aside_clear_m` off the asker's way; the asker waits `MAKE_WAY_WAIT_S`
+  from the first yes; a restart's save waits it out.
 - **Two minds, two memories, one board** (issue #167;
   `pair.build_pair(overseer=True)`, Overseer.md §2c): per robot an overseer,
   event map, standing order, thought root (the first at `thoughts_root`, the

@@ -29,7 +29,8 @@ body stands it up first (`standing_up`). A torso tilted past
 `posture.FALL_TILT_RAD`, or slumped, is a fall, and the get-up policy
 drives until the body stands (`getting_up`); how long that may take before
 it is a death is the lifecycle's (`Body.stuck_after_s`). The posture rides
-the wire (`QuadBody.posture`).
+the wire (`QuadBody.posture`). Lying across the other robot's way and asked,
+it stands and steps aside beneath a STILL command (#415, `legs/way.py`).
 
 ⚠ THE COMMAND'S DEAD BAND (#378): the policy walks nothing below ~0.2 m/s
 and barely turns below ~0.2 rad/s, so a small command is raised to
@@ -63,6 +64,7 @@ from pluggybot.legs.places import PlaceWalk
 from pluggybot.legs.policy import POLICY_NPZ, PolicyDriver, Twist, WalkingPolicy
 from pluggybot.legs.scripted import Command, VirtualModel
 from pluggybot.legs.swap import ToolSwap, bay_of
+from pluggybot.legs.way import MakeWay
 from pluggybot.mapping.frontier import OCC_THRESH
 from pluggybot.navigator import Navigator, gave_up
 from pluggybot.perception.depth import PERIOD as DEPTH_PERIOD
@@ -271,7 +273,7 @@ class QuadStepper:
     return tick.run(self, routine, name)
 
 
-class QuadMission(ToolSwap, PlaceWalk, Navigator):
+class QuadMission(ToolSwap, PlaceWalk, MakeWay, Navigator):
   """The Navigator over a quadruped (the module docstring)."""
 
   #: The body's own sizes (`scripts/quad_spike.py`; SimNotes, "The first
@@ -418,6 +420,8 @@ class QuadMission(ToolSwap, PlaceWalk, Navigator):
     self._init_swap(model)
     # THE PLACES IT FINDS (#419, `legs/places.py`)
     self._init_places(model)
+    # MAKING WAY for the other robot (#415, `legs/way.py`)
+    self._init_way()
 
   # ---- the dock's frame -----------------------------------------------------
 
@@ -527,6 +531,16 @@ class QuadMission(ToolSwap, PlaceWalk, Navigator):
 
   _plan_memo = None
 
+  def drive_to_routine(self, wx: float, wy: float, timeout: float = 90.0,
+                       stop=None) -> Routine:
+    """`Navigator.drive_to_routine`, counted while it runs (`driving`): a
+    body waiting inside a walk of its own is never asked aside (#415)."""
+    self.driving += 1
+    try:
+      return (yield from Navigator.drive_to_routine(self, wx, wy, timeout, stop))
+    finally:
+      self.driving -= 1
+
   def _front_blocked(self, angles, ranges) -> bool:
     ahead = np.cos(angles) * ranges
     side = np.sin(angles) * ranges
@@ -550,8 +564,12 @@ class QuadMission(ToolSwap, PlaceWalk, Navigator):
   # ---- the physics seam ------------------------------------------------------
 
   def _before_step(self, command) -> None:
-    """The posture machine, then the command (the module docstring)."""
+    """The posture machine, then the command (the module docstring) -- or,
+    making way for the other robot (#415), the step aside in place of a
+    STILL one (`legs/way.py`)."""
     t = float(self.data.time)
+    if self._aside is not None:
+      command = self._aside_command(command, t)
     moving = is_motion(command)
     if moving:
       self.last_motion_t = t
@@ -1350,6 +1368,9 @@ class QuadMission(ToolSwap, PlaceWalk, Navigator):
     from pluggybot.legs.world import stand
     stand(self.model, self.data, self.handle.prefix, x, y, yaw)
     self._move, self.want = None, None
+    # ...and a step aside it was making (#415) is over: the spot it was
+    # walking to is where it stood before the warp
+    self._aside, self.making_way = None, None
     self.posture = STANDING
     self._slumped_since = self._stood_since = None
     self.docked = False
@@ -1608,6 +1629,21 @@ class QuadBody(Body):
   @others.setter
   def others(self, where) -> None:
     self.mission.others = where
+
+  @property
+  def ask_way(self):
+    return self.mission.ask_way
+
+  @ask_way.setter
+  def ask_way(self, ask) -> None:
+    self.mission.ask_way = ask
+
+  def make_way(self, route, by) -> bool:
+    return self.mission.make_way(route, by)
+
+  making_way = property(lambda self: self.mission.making_way)
+  asides = property(lambda self: self.mission.asides)
+  last_aside = property(lambda self: self.mission.last_aside)
 
   def peer_on_the_goal(self, x, y):
     return self.mission.peer_on_the_goal(x, y)

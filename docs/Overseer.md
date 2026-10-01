@@ -2020,7 +2020,9 @@ ask looked the same from inside.
   intervention, how the day ended — never the narration. What a decided
   action came to is there even where no verdict is: a refused memory
   write (#409), a decided `charge` that never docked, how a decided
-  `explore` ended (#424). Its lines carry `verdict.reason`,
+  `explore` ended (#424). So is what the body did that no mind decided:
+  stepping aside for the other robot, whose way it lay across (#415). Its
+  lines carry `verdict.reason`,
   already redacted of a hidden answer, because History is read back into the
   model's context.
 - **The ownership split is the instrument** for the mission's fifth quality:

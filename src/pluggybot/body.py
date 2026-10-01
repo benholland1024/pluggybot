@@ -89,10 +89,14 @@ class RackPose:
 class KeepClear(NamedTuple):
   """Another robot, as one of `Body.others` answers it: where to keep clear
   of, and whether it is LYING DOWN (issue #365) -- a disc round its body,
-  and nothing to wait for. A bare `(x, y)` is a robot standing."""
+  and nothing to wait for. A bare `(x, y)` is a robot standing. Where the
+  pair says so, also WHO it is and whether it is RESTING (issue #415): a
+  robot lying down to rest can be asked to make way (`Body.ask_way`)."""
   x: float
   y: float
   down: bool = False
+  root: str = ""
+  resting: bool = False
 
 
 class Body(abc.ABC):
@@ -175,7 +179,9 @@ class Body(abc.ABC):
 
   #: How the last `go_to_routine` ended (issue #350): `why` ("" arrived,
   #: else the body's cause), `goal`, `seconds`, `shortM`, and for a peer
-  #: `peerAt` / `peerM` / `peerXY` / `peerDown`. None before any.
+  #: `peerAt` / `peerM` / `peerXY` / `peerDown` (`peerRests` if it lay down
+  #: to rest); `askedWay`, the robots asked to make way that said yes
+  #: (issue #415). None before any.
   last_drive: dict | None
 
   @abc.abstractmethod
@@ -435,6 +441,26 @@ class Body(abc.ABC):
   #: THE OTHER ROBOTS (issue #167): callables answering each one's reported
   #: (x, y), or a `KeepClear`; set by the pair.
   others: list
+  #: How this body asks another robot to MAKE WAY (issue #415): a callable
+  #: `(root, route) -> bool`, True while the robot named is stepping off
+  #: `route` (this body's way, a list of (x, y) from where it stands); set
+  #: by the pair, None for a robot alone.
+  ask_way: Any
+  #: The robot this body is stepping aside for, by its root, or None.
+  making_way: str | None
+  #: How many times it has stepped aside (issue #415) ...
+  asides: int
+  #: ...and the last time's record: for whom, from where to where, how
+  #: long it took, and why it ended.
+  last_aside: dict | None
+
+  @abc.abstractmethod
+  def make_way(self, route: list, by: str) -> bool:
+    """Another robot (`by`, its root) asks this body to step off `route`,
+    its way, which this body cuts (issue #415). Lying down to rest and free
+    to -- not docked, not mid-move, no walk of its own under way -- it
+    stands and walks aside beneath whatever it is holding, a rule in code
+    like the rest reflex, the mind not asked. True while it makes way."""
 
   @abc.abstractmethod
   def peer_on_the_goal(self, x: float, y: float) -> float | None:
@@ -650,6 +676,13 @@ class StubBody(Body):
     self.bay_wait = None
     self.docked = self.pressing = self.resting = False
     self.others = []
+    self.ask_way = None
+    #: whether it makes way when asked (a test sets it), and every ask:
+    #: (route, by)
+    self.makes_way = False
+    self.way_asked: list[tuple[list, str]] = []
+    self.making_way = None
+    self.asides, self.last_aside = 0, None
     self.geom_ids = np.zeros(0, dtype=np.int32)
     self.peer_holds = self.collision_steps = self.press_steps = 0
 
@@ -857,6 +890,10 @@ class StubBody(Body):
 
   def watch_for_peers(self, points):
     return None
+
+  def make_way(self, route, by) -> bool:
+    self.way_asked.append((list(route), by))
+    return self.makes_way
 
   def actuator(self, name) -> int:
     raise KeyError(f"a stub body has no actuator {name!r}")
