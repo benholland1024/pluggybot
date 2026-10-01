@@ -116,7 +116,7 @@ def test_the_body_is_placed_where_the_drivers_own_sensors_would_put_it():
   body = peer.body.footprint_centre()
   odo = me.body.mission.odo
   odo.correct(odo.x + 0.4, odo.y - 0.1, odo.yaw + 0.2)
-  x, y, _ = me.body.others[0]()
+  x, y, *_ = me.body.others[0]()
   # as far ahead, and as far round from its heading, as it truly is
   tx, ty, tth = me.body.true_pose()
   bx, by, bth = me.body.pose
@@ -127,7 +127,7 @@ def test_the_body_is_placed_where_the_drivers_own_sensors_would_put_it():
   assert math.dist((x, y), body) > 0.3, "the premise: the driver has drifted"
   # ...and a standing robot is where it SAYS it is, for everyone
   peer.stand_up("a test", auto=False)
-  assert me.body.others[0]() == peer.body.pose_xy()
+  assert me.body.others[0]()[:3] == (*peer.body.pose_xy(), False)
 
 
 def test_a_robot_lying_down_is_not_held_for():
@@ -160,7 +160,7 @@ def test_standing_up_lets_go_of_where_it_lay():
   me, peer = _downed_pair()
   peer.stand_up("a test", auto=False)
   assert not peer.down()
-  assert me.body.others[0]() == peer.body.pose_xy()
+  assert me.body.others[0]()[:3] == (*peer.body.pose_xy(), False)
   assert math.dist(peer.body.pose_xy(), peer.home_pose[:2]) < 0.01
   path = _plan(me, *GOAL)
   assert max(abs(y - Y) for _, y in path) < 0.1, "still routing round the old spot"

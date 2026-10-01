@@ -854,6 +854,7 @@ class HubLifecycle:
     self.body.step_hooks.append(self._lost_tool_step)
     self.body.step_hooks.append(self._press_step)
     self.body.step_hooks.append(self._places_step)
+    self.body.step_hooks.append(self._aside_step)
     self.body.bay_wait = self._await_bay_routine
     #: THE NEAR-FIELD MAP (issue #34): the body's depth camera and
     #: the robot-centric height map it feeds, one frame every `nf.PERIOD`
@@ -1294,13 +1295,58 @@ class HubLifecycle:
     moves -- it cannot report itself, and a real robot would see a
     robot-shaped lump -- so the TRUE body is fair to use, placed as a lump
     in a depth image would be. Standing up (`start_at`, a warp that resets
-    the reckoner) hands it back to the reported pose."""
+    the reckoner) hands it back to the reported pose.
+
+    Either way it says WHO it is, and standing or resting, whether it lies
+    down to rest (issue #415): its posture rides the wire, and a robot
+    resting across the other's way is asked to make way (`make_way`)."""
     if not self.down():
-      return self.body.pose_xy()
+      x, y = self.body.pose_xy()
+      return KeepClear(x, y, root=self.root, resting=bool(self.body.resting))
     x, y = self.body.footprint_centre()
     if seen_by is not None:
       x, y = seen_by.as_seen(x, y)
-    return KeepClear(x, y, down=True)
+    return KeepClear(x, y, down=True, root=self.root)
+
+  def make_way(self, route, by: str) -> bool:
+    """The other robot (`by`, its root) asks this one off `route`, its way,
+    which this one's body cuts (issue #415): the body's rule
+    (`Body.make_way`, `legs/way.py`), said as it starts. A dead robot is
+    not asked -- it lies where it died until it is stood up."""
+    if self.dead is not None:
+      return False
+    was = self.body.making_way
+    if not self.body.make_way(route, by):
+      return False
+    if was is None:
+      other = self._peer(by)
+      self._say(f"MAKE WAY: lying across {other.robot_name if other else by}'s "
+                "way -- standing up to step aside")
+    return True
+
+  def _aside_step(self) -> None:
+    """A step aside the body made for the other robot (issue #415), said
+    and remembered once it is over: the body moved, and the mind did not
+    decide it -- History is where it reads that it did."""
+    if self.body.asides == self._asides_seen:
+      return
+    self._asides_seen = self.body.asides
+    rec = self.body.last_aside
+    if rec is None:
+      return
+    other = self._peer(rec["by"])
+    who = other.robot_name if other is not None else rec["by"]
+    moved = math.dist(rec["from"], rec["at"])
+    if rec["why"] == "aside":
+      line = (f"stood up and stepped {moved:.1f} m aside for {who}, whose way "
+              "I was lying across")
+    else:
+      line = (f"stood up to step aside for {who}, whose way I was lying across, "
+              f"and stopped {moved:.1f} m on: {ASIDE_ENDED.get(rec['why'], rec['why'])}")
+    self._say(f"MADE WAY: {line}")
+    self._remember(line)
+
+  _asides_seen = 0
 
   def _lean(self) -> tuple[float, float | None]:
     """Which way the chassis leans: (degrees from upright, the direction
@@ -7244,6 +7290,16 @@ def posture(peers, name: str) -> str:
       # `getattr`, because a test's stand-in peer need not have a posture.
       return "lying down to rest" if getattr(p.body, "resting", False) else "standing"
   return "standing"
+
+
+#: How a step aside for the other robot that did not get there ended
+#: (issue #415, `legs/way.py`), as History says it.
+ASIDE_ENDED = {"its own walk": "my own walk took over",
+               "fell": "I fell over",
+               "no route": "I found no way there",
+               "out of time": "it took too long",
+               "met something": "I met something on the way",
+               "arm out": "my arm was out of its stow"}
 
 
 def others_context(life) -> list[dict]:

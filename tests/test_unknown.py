@@ -233,6 +233,7 @@ class _Walk:
   _drove = nav.Navigator._drove
   _at_stand_in = nav.Navigator._at_stand_in
   _other_in_the_way = nav.Navigator._other_in_the_way
+  _ask_way = nav.Navigator._ask_way
   _bodies = nav.Navigator._bodies
   peer_on_the_goal = nav.Navigator.peer_on_the_goal
   _cells = nav.Navigator._cells
@@ -243,6 +244,7 @@ class _Walk:
   DOWN_ROBOT_CELLS = QuadMission.DOWN_ROBOT_CELLS
   NEW_ROUTE_M = nav.Navigator.NEW_ROUTE_M
   pressing = False
+  ask_way = None
 
   def __init__(self, grows=0, growth=True, step=0.0):
     self.data = SimpleNamespace(time=0.0)

@@ -208,13 +208,17 @@ def build_pair(world: str = QUAD_HOME, pack: str = "demo",
   # Each mission is told where the OTHERS say they are (where they lie, once
   # knocked over), its lidar drops their bodies from the scan (see the module
   # doc and `Lidar.exclude_robot`), and its mind is shown what they broadcast
-  # (`peers`).
+  # (`peers`). And a drive can ask one resting across its way to make way
+  # (issue #415): a message between the two, as a reported pose is.
+  by_root = {life.root: life for life in lives}
   for life in lives:
     others = [other for other in lives if other is not life]
     life.peers = others
     life.body.others = [
       (lambda other=other, me=life.body: other.keep_clear(seen_by=me))
       for other in others]
+    life.body.ask_way = (lambda root, route, me=life.root:
+                         root in by_root and by_root[root].make_way(route, me))
     for other in others:
       life.body.know_peer(other.root)
       if life.depth_camera is not None:
