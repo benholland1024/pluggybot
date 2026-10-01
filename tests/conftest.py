@@ -1,6 +1,27 @@
+import os
 import subprocess
 
 import pytest
+
+# ---- rendering: one backend, and the run names the rasteriser ---------------
+# BEFORE ANYTHING IMPORTS MUJOCO, which reads MUJOCO_GL once, at import (issue
+# #440). Unset is GLFW, which needs a display, so the default is the backend
+# CLAUDE.md runs the suite on; one already in the environment wins (osmesa
+# renders as the deployed box does). ⚠ What a camera test measures is the
+# RASTERISER's, not the backend's -- EGL is a GPU on one box and llvmpipe on
+# another -- so the run ends by naming it (`test_render_determinism.py`
+# records it).
+os.environ.setdefault("MUJOCO_GL", "egl")
+RASTERISERS: set[str] = set()
+
+
+def pytest_runtest_logreport(report):
+  RASTERISERS.update(value for key, value in report.user_properties if key == "rasteriser")
+
+
+def pytest_terminal_summary(terminalreporter):
+  drew = ", ".join(sorted(RASTERISERS)) or "not read in this run"
+  terminalreporter.write_line(f"MUJOCO_GL={os.environ['MUJOCO_GL']}, rasteriser {drew}")
 
 
 # ---- endurance: the flights, flown when a change needs one ------------------

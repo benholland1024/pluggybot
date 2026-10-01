@@ -430,12 +430,19 @@ scripted days gave three trajectories, parting inside a DRIVE.
 hashes the state and every camera image, decode and scan, and reports what
 moved first: the camera images, on 2563 of 2613 looks with a tag in view, and
 the lidar on 0 of 10 784 scans. One static scene rendered ten times gave ten
-images, ±1 in 7–37 pixels at shadow edges: **the GPU's multisample resolve of
-shadowed edges is not deterministic**, and 0.6 % of looks carried it through
-a decode into the robot's beliefs. **What is true now:** every camera renders
-with `offsamples="0"` (the house, `legs/model.py`, the coupling rig),
-byte-identical at no cost to the detector; `tests/test_render_determinism.py`
-pins the fix and its premise.
+images, ±1 in 7–37 pixels at shadow edges: **that GPU's multisample resolve
+of shadowed edges is not deterministic** (a GTX 1660 SUPER), and 0.6 % of
+looks carried it through a decode into the robot's beliefs. Mesa's Intel
+driver (Meteor Lake) and llvmpipe resolve it identically every time — one
+image of 64 each, MSAA on (#440) — so the deployed box (osmesa, llvmpipe)
+never had the bug, and the backend does not say which kind a box has: EGL
+is the GPU, whichever GPU that is. Re-measured on the GTX for #440, most
+renders are one image now and a second comes within a median 4 (at most 33
+in 400 runs), so 16 renders showed no variation about one run in 22.
+**What is true now:** every camera renders with `offsamples="0"` (the
+house, `legs/model.py`, the coupling rig), byte-identical at no cost to the
+detector; `tests/test_render_determinism.py` pins the fix, and its premise
+per rasteriser (`MSAA_VARIES`, read off `GL_RENDERER`).
 
 ## A second robot perturbs the first at the last bit (issue #167)
 

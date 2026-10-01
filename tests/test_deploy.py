@@ -178,8 +178,7 @@ def test_serve_path_runs_without_the_packages_the_image_omits():
   forbidden = _forbidden_modules()
   proc = subprocess.run(
     [sys.executable, "-c", _BLOCKED_MISSION, ",".join(sorted(forbidden))],
-    cwd=ROOT, capture_output=True, text=True,
-    env={**os.environ, "MUJOCO_GL": os.environ.get("MUJOCO_GL", "osmesa")})
+    cwd=ROOT, capture_output=True, text=True)
   assert proc.returncode == 0, (
     "the serve path needs a package the deploy image does not install"
     " (deploy/requirements-serve.txt):\n" + proc.stderr[-2000:])

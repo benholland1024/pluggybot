@@ -118,6 +118,11 @@ to touch:
   (6.8–7.1× quiet); `process_time` is NOT the fix. ⚠ Mission runtimes are
   EMERGENT: a world change reshuffles the whole trajectory, so a slower suite
   is not by itself a regression.
+- **The suite renders on EGL unless the environment names a backend**
+  (`tests/conftest.py`, #440; unset is GLFW, which needs a display), and its
+  last line names the RASTERISER that drew: what a camera test measures is
+  the device's, never the backend's — EGL is a GPU on one box and llvmpipe
+  on another.
 - **`slow` means EXPENSIVE *AND* UNABLE TO CATCH A REGRESSION WHILE YOU
   ITERATE** — the rule is written out in `pyproject.toml`. Whole-mission runs
   qualify; so do PREMISE-PINNING tests (which bypass a fix and assert the old
@@ -729,9 +734,11 @@ save a filmstrip PNG named after the script.
 - **Generated worlds.** The HOME world: regenerate `models/home_world.xml` +
   `.meta.json` with `uv run python -m pluggybot.home.world` after changing any
   layout constant in `home/world.py` (the committed pair is tested against the
-  generator). Two houses inside one fence and a street loop (#215;
-  Observatory.md has the layout); a room names its `building` and the site
-  paints walls by it. ⚠ The lab's props (`activity/cage.py`,
+  generator). ⚠ So the generator runs in the suite while other workers load
+  the house: a tag texture it writes goes in WHOLE, and a current one is left
+  alone (`tags.write_tag_pngs`, #440). Two houses inside one fence and a
+  street loop (#215; Observatory.md has the layout); a room names its
+  `building` and the site paints walls by it. ⚠ The lab's props (`activity/cage.py`,
   `challenge/bench.py`) are geometry the generator emits; their behaviour is
   added beside it. The house carries no robot. ⚠ The grid is 469,200
   cells against `occupancy_grid.MAX_CELLS` 750,000: A* is pure Python and NOT
@@ -1126,11 +1133,16 @@ save a filmstrip PNG named after the script.
 - **Contact params combine as the elementwise MAX unless `priority` is set** —
   a low `friction` without `priority="1"` does nothing.
 - **The robot's cameras render without MSAA** (`offsamples="0"`, issue #110):
-  with it on, one static scene renders differently every time and five
-  identical scripted days gave three trajectories;
-  `tests/test_render_determinism.py` pins the fix and its premise. Sensor
-  noise is deterministic per physics step and per robot (`axes.noise`: a crc32
-  seed, never `hash()`), and a restart saves the noise generators' STATE.
+  with it on, #110's GPU (a GTX 1660 SUPER) renders one static scene to
+  different images, and five identical scripted days gave three
+  trajectories. ⚠ THAT IS THE RASTERISER'S (#440): Mesa's Intel driver and
+  llvmpipe (osmesa, the deployed box) render it identically every time, so
+  `tests/test_render_determinism.py` pins the fix, and its premise per
+  rasteriser (`MSAA_VARIES`; where it varies it renders until it does, as
+  most of the GTX's renders are one image; an unmeasured one warns, never
+  fails). Sensor noise is deterministic per physics step and per robot
+  (`axes.noise`: a crc32 seed, never `hash()`), and a restart saves the
+  noise generators' STATE.
 - **The near-field height map: no return is NOT a reading, and nothing that
   decides reads the map** (issue #34; `perception/depth.py`, `heightmap.py`):
   an out-of-range pixel is UNKNOWN —
