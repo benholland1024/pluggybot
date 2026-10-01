@@ -467,26 +467,73 @@ def _find(life, args: dict) -> Routine:
 PRESS_WHY = {
   "not found": "tag {tag} is a plate it has not found: `find` it first",
   "not a plate": "tag {tag} marks no plate",
-  "no route": "found no way to stand in front of tag {tag}'s plate",
+  "gave up": "did not get in front of tag {tag}'s plate",
   "lost": "tag {tag} was not in view from in front of its plate",
   "not pressed": "walked onto tag {tag}'s plate and no foot was on it",
   "out of time": "ran out of time before stepping onto tag {tag}'s plate",
   "interrupted": "stopped on the way to tag {tag}'s plate by its own interrupt",
 }
+#: ...and how its look round for a sign not in view ended (issue #439).
+PRESS_LOOKED = {"all round": ", nor all round it",
+                "cut short": ", and its time ran out looking round"}
 
 
 def _press(life, args: dict) -> Routine:
   """Walk onto the plate a tag marks and back off it (issue #419): a plate
   the robot has found (`find`), the last step measured off its sign. ok
-  when one of its feet was on the pad."""
+  when one of its feet was on the pad.
+
+  ⚠ A FAILED PRESS SAYS WHICH PART FAILED (issue #439): the try that
+  failed, a walk that gave up in #350's words, and every try in the log's
+  `trace`. Each failed live press read "ran out of time", and the robot,
+  told only that the plate was never pressed, took its sensor for faulty."""
   tag = int(args["tag"])
   rec = yield from life.body.press_plate_routine(
     tag, patience=_patience(life, {"patience": PRESS_PATIENCE_S}), stop=_interrupt(life))
   why = rec.get("why", "")
   out = {"ok": bool(rec.get("pressed")), "tag": tag, "why": why}
   if not out["ok"]:
-    out["reason"] = PRESS_WHY.get(why, why or "did not press").format(tag=tag)
+    att = (rec.get("attempts") or [{}])[-1]
+    walk = att.get("walk")
+    cause = (f": {life.drive_why(*walk['goal'], record=walk)}"
+             if walk and why in ("gave up", "out of time")
+             else PRESS_LOOKED.get(att.get("looked"), "") if why == "lost" else "")
+    out["reason"] = PRESS_WHY.get(why, why or "did not press").format(tag=tag) + cause
+    if rec.get("attempts"):
+      out["trace"] = f"press tag {tag}: {press_trace(rec)}"
   return out
+
+
+def press_trace(rec: dict) -> str:
+  """A press's tries as one line of evidence (issue #439), the log's
+  alone: each one's standoff, the walk that did not arrive, the look
+  round, where it stopped against the press pose, and where it ended --
+  the belief, and its error against the truth -- then the time too short
+  for the next."""
+  parts = []
+  for i, a in enumerate(rec.get("attempts") or (), 1):
+    sx, sy = a.get("standoff") or (math.nan, math.nan)
+    bits = [f"#{i} standoff ({sx:.2f}, {sy:.2f})"]
+    w = a.get("walk")
+    if w:
+      peer = "".join(f" {k}={w[k]}" for k in ("peerAt", "peerM", "peerDown", "peerRests")
+                     if k in w)
+      bits.append(f"walk {w.get('why')} {float(w.get('shortM') or 0):.2f} m short "
+                  f"after {float(w.get('seconds') or 0):.0f} s{peer}")
+    if "reaim" in a:
+      bits.append(f"re-aimed by {a['reaim']}")
+    if "looked" in a:
+      bits.append(f"looked round {a['looked']}")
+    if "walkIn" in a:
+      bits.append(f"walk in {a['walkIn']}, stopped {a.get('stop')} off the press pose")
+    if "at" in a:
+      dx, dy, dyaw = a.get("err") or (math.nan,) * 3
+      bits.append(f"at ({a['at'][0]:.2f}, {a['at'][1]:.2f}) after {a.get('s', 0):.0f} s, "
+                  f"belief off {dx:+.0f},{dy:+.0f} mm {dyaw:+.1f} deg")
+    parts.append(", ".join(bits) + f" -> {a.get('why', '?')}")
+  if "leftS" in rec:
+    parts.append(f"no time for #{len(parts) + 1}: {rec['leftS']:.1f} s left")
+  return "; ".join(parts)
 
 
 #: The base's command envelope for `drive`, forward m/s and yaw rad/s.
@@ -942,7 +989,8 @@ def run_program_routine(life, program: Program, facts: WorldFacts,
       result["failedAt"] = i
       life._say(f"PROCEDURE {program.name} failed at {i + 1}/{len(steps)} "
                 f"{step.describe()}" + (f" -- {verdict['reason']}"
-                                         if verdict.get("reason") else ""))
+                                         if verdict.get("reason") else ""),
+                detail=verdict.get("trace", ""))
       break
     result["completed"] = i + 1
   else:

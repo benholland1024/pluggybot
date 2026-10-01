@@ -495,12 +495,16 @@ class PlaceWalk:
     docstring). Returns its record: `pressed` (a foot of this robot on the
     pad during the hold), `why` ("pressed", "not a plate", "not found" --
     it has not found the plate, or forgot it on the way, a true death --,
-    "no route" to its standoff, "lost" -- its sign not in view there --,
-    "not pressed", "out of time", or "interrupted" by `stop` on the walk to
-    the standoff), the `seconds` it took, and each attempt's walk and where
-    it stopped against the press pose. The walk in, the hold and the walk
-    back out run to their end, so they start only with `FINAL_S` of the
-    `patience` left."""
+    "gave up" on the walk to its standoff, "lost" -- its sign not in view
+    there --, "not pressed", "out of time", or "interrupted" by `stop` on
+    the walk to the standoff), the `seconds` it took, and its `attempts`:
+    each one's standoff, a walk that did not arrive (`walk`, its
+    `last_drive`), its look round, where it stopped against the press pose,
+    and how a failed one ended -- `why`, where the belief stood (`at`) and
+    its error against the truth (`err`, a trace's), `s` into the press --
+    and `leftS` where too little was left for the next. The walk in, the
+    hold and the walk back out run to their end, so they start only with
+    `FINAL_S` of the `patience` left."""
     tag = int(tag)
     t0 = float(self.data.time)
     until = t0 + float(patience)
@@ -516,39 +520,52 @@ class PlaceWalk:
                  seconds=round(float(self.data.time) - t0, 1))
       return rec
 
+    def failed(att: dict, why: str) -> str:
+      att.update(why=why, at=[round(self.pose[0], 3), round(self.pose[1], 3)],
+                 err=self.truth_error(), s=round(float(self.data.time) - t0, 1))
+      return why
+
     if pad is None:
       return done("not a plate")
     if self.places.get(tag) is None:
       return done("not found")
     yield from self.stand_routine()
-    why = "not pressed"
+    # ⚠ A TRY THAT NEVER BEGAN IS NOT WHAT FAILED (#439): the first walk is
+    # handed all but `FINAL_S` of the patience, so a walk that used it left
+    # the second try nothing, and that try's "out of time" overwrote the
+    # walk's own cause -- 24 of 24 failed live presses, each after 85 s
+    why = "out of time"
     for _ in range(PRESS_TRIES):
       standoff = self.place_standoff(tag)
       if standoff is None:
         return done("not found")
       if left() < FINAL_S:
-        return done("out of time")
-      att: dict = {}
-      rec["attempts"].append(att)
+        if rec["attempts"]:
+          rec["leftS"] = round(left(), 1)
+        break
       sx, sy, _ = standoff
+      att: dict = {"standoff": [round(sx, 3), round(sy, 3)]}
+      rec["attempts"].append(att)
       arrived = yield from self.drive_to_routine(
         sx, sy, timeout=min(VIEWPOINT_PATIENCE_S, left() - FINAL_S),
         **({"stop": stop} if stop is not None else {}))
       if stop is not None and (self.last_drive or {}).get("why") == DRIVE_STOPPED:
         return done("interrupted")
-      if not arrived and math.hypot(sx - self.pose[0], sy - self.pose[1]) > 0.5:
+      if not arrived:
         att["walk"] = self.last_drive
-        why = "no route"
-        continue
+        if math.hypot(sx - self.pose[0], sy - self.pose[1]) > 0.5:
+          why = failed(att, "gave up")
+          continue
       standoff = self.place_standoff(tag)      # as the looks on the way left it
       if standoff is None:
         return done("not found")
       yield from self.face_routine(standoff[2])
       if tag not in self.look_for_places():
-        yield from self._look_around_routine(
+        cut = yield from self._look_around_routine(
           lambda: tag in self._last_seen() or left() < FINAL_S)
         if tag not in self._last_seen():
-          why = att["why"] = "lost" if left() >= FINAL_S else "out of time"
+          att["looked"] = "cut short" if cut else "all round"
+          why = failed(att, "lost")
           continue
         standoff = self.place_standoff(tag)
         if standoff is None:
@@ -565,15 +582,17 @@ class PlaceWalk:
         # next plate from the old standoff: 4 shock presses in one flight.
         # So to the new one, over the planner and its kept-out pads, first.
         att["reaim"] = [round(standoff[0] - sx, 3), round(standoff[1] - sy, 3)]
-        yield from self.drive_to_routine(
-          standoff[0], standoff[1], timeout=min(VIEWPOINT_PATIENCE_S, left() - FINAL_S),
-          **({"stop": stop} if stop is not None else {}))
-        if stop is not None and (self.last_drive or {}).get("why") == DRIVE_STOPPED:
-          return done("interrupted")
+        if not (yield from self.drive_to_routine(
+            standoff[0], standoff[1], timeout=min(VIEWPOINT_PATIENCE_S, left() - FINAL_S),
+            **({"stop": stop} if stop is not None else {}))):
+          if stop is not None and (self.last_drive or {}).get("why") == DRIVE_STOPPED:
+            return done("interrupted")
+          att["walk"] = self.last_drive
         yield from self.face_routine(standoff[2])
         self.look_for_places()
       if left() < FINAL_S:
-        return done("out of time")
+        why = failed(att, "out of time")
+        break
       att["walkIn"] = yield from self._press_walk_in_routine(tag)
       if att["walkIn"] == "not found":
         yield from self._press_back_out_routine()
@@ -584,7 +603,7 @@ class PlaceWalk:
       yield from self._press_back_out_routine()
       if pressed:
         return done("pressed")
-      why = att["why"] = "not pressed"
+      why = failed(att, "not pressed")
     return done(why)
 
   def _last_seen(self) -> list[int]:

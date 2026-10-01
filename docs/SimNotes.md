@@ -2415,6 +2415,19 @@ the axis and over the shock pad (4 presses). A look that moves the
 standoff more than `STANDOFF_MOVED_M` (0.25 m) now sends the press there
 first, over the planner with every seen pad kept out.
 
+**A failed press says which try failed, and why** (#439). Live, all 24
+failed presses said "ran out of time" after 85 s. The first walk to the
+standoff is handed all of `PRESS_PATIENCE_S` but `FINAL_S` (34.8 s), so a
+walk that used it left the second try nothing, and that try's "out of
+time" overwrote the walk's own cause. A press now reports the last try
+that ran: the walk, in #350's words, or its sign not in view from in front
+of the plate and how its look round ended. That reason leads the job's
+verdict (`_program_failure`). Every try goes in the step's `trace`, the
+log's alone: the walk's record, where the belief stood and its error
+against the truth, and the time too short for the next. ⚠ A first walk
+that times out still leaves no second try; whether it should is #439's
+open decision.
+
 Flown on it (`scripts/places_spike.py --find --n 8 --error 3 --again`;
 explore-then-find flights of one robot from its start):
 

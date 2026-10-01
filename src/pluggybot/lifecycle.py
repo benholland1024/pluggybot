@@ -1717,13 +1717,14 @@ class HubLifecycle:
     near = self.body.peer_on_the_goal(wx, wy)
     return None if near is None else self._nearest_peer(wx, wy, near)
 
-  def drive_why(self, wx: float, wy: float) -> str:
+  def drive_why(self, wx: float, wy: float, record: dict | None = None) -> str:
     """Why the drive to (wx, wy) gave up, as the one clause every failure
     line that follows a drive ends with (issue #350): `gave_up` off the
-    body's record, with the other robot NAMED. Only a record of a drive
-    to THIS goal is read -- any other is stale, and a stale cause names the
-    wrong failure."""
-    rec = self.body.last_drive
+    body's record -- or off `record`, one its caller kept (a press's try,
+    #439) -- with the other robot NAMED. Only a record of a drive to THIS
+    goal is read -- any other is stale, and a stale cause names the wrong
+    failure."""
+    rec = self.body.last_drive if record is None else record
     if (rec is None or not rec["why"]
         or math.hypot(rec["goal"][0] - wx, rec["goal"][1] - wy) > 1e-6):
       return "the drive gave up"
@@ -3216,7 +3217,8 @@ class HubLifecycle:
     """A program's failure BEFORE its work (issue #350): an act on the
     mouse whose route to the lab gave up -- the first `routeLegs` steps --
     never reached the cage, and its lines say so rather than that a plate
-    or a visit did not register. "" for everything else."""
+    or a visit did not register; and a `press` that failed, in its own
+    words (#439). "" for everything else."""
     legs = errand.detail.get("routeLegs")
     run = used.get("procedure") or {}
     at = run.get("failedAt")
@@ -3229,9 +3231,13 @@ class HubLifecycle:
         return ""
       return (f"never reached the cage: {PROCEDURE_STOPS[stopped]}, after "
               f"{done} of the {legs} legs of the way there")
-    if at >= legs:
-      return ""
     step = next((st for st in run.get("steps", ()) if st.get("i") == at), {})
+    if at >= legs:
+      # ...and a PRESS says which part of it failed (#439): its walk, its
+      # sign or its time, which the plate's count cannot tell apart. Told
+      # only "the feed plate was never pressed", Rowan filed the plate's
+      # sensor as faulty after 12 straight misses, and not one was the plate.
+      return step.get("reason", "") if step.get("verb") == "press" else ""
     why = step.get("why") or step.get("reason") or "the drive gave up"
     return f"never reached the cage: {why}, on leg {at + 1} of {legs} of the way there"
 

@@ -15,12 +15,14 @@ from types import SimpleNamespace
 import pytest
 
 from pluggybot import tick
+from pluggybot.activity import cage
 from pluggybot.body import KeepClear, StubBody
 from pluggybot.economy import scoring
 from pluggybot.legs.body import QuadMission
 from pluggybot.lifecycle import NEAR_STANDOFF_M, QUAD_HOME, HubLifecycle, board_book, world_config
 from pluggybot.mission.errand import Errand
 from pluggybot.navigator import DRIVE_GAVE_UP, gave_up
+from pluggybot.procedure import steps as st
 from pluggybot.procedure.steps import TOOL_BAYS
 from pluggybot.rack.coupling import STATION_YS
 from pluggybot.robot import SECOND
@@ -489,6 +491,72 @@ def test_a_job_on_the_cage_that_never_got_there_is_said_once():
   life._cage_record(errand, result, verdict, before, failed)
   assert sum(failed in ln for ln in _history(life)) == 1
   assert life.status.endswith(f"and {failed}"), "...and the narration still says it"
+
+
+def _press_gave_up(life):
+  """A press whose first walk used all its time and left the second try
+  none (#439: 24 of 24 failed live presses), as `press_routine` records it
+  -- and a later walk elsewhere, so only the press's own record names it."""
+  def press(tag, patience, stop=None):
+    goal = (25.0, 3.0)
+    walk = {"why": "timeout", "goal": goal, "seconds": 85.2, "shortM": 2.0}
+    life.body.last_drive = {"why": "stalled", "goal": (0.0, 0.0), "seconds": 9.0,
+                            "shortM": 1.0}
+    return tick.result({"tag": tag, "pressed": False, "why": "gave up", "seconds": 85.2,
+                        "leftS": 34.7,
+                        "attempts": [{"standoff": list(goal), "walk": walk, "why": "gave up",
+                                      "at": [24.1, 1.3], "err": [12.0, -340.0, 2.1],
+                                      "s": 85.2}]})
+  return press
+
+
+def test_a_press_whose_walk_gave_up_says_the_walk_and_not_the_clock(monkeypatch):
+  """#439: every failed live press read "ran out of time before stepping onto
+  tag 36's plate" -- the second try's, which never began. The press says the
+  walk that gave up in #350's words, off its OWN record, and every try goes
+  to the log as the step's trace."""
+  life = _life()
+  feed = cage.PLATE_TAGS["feed"]
+  monkeypatch.setattr(life.body, "press_plate_routine", _press_gave_up(life))
+  out = life.body.run(st.run_verb(life, st.VERBS["press"], {"tag": feed}))
+  assert out["reason"] == ("did not get in front of tag 36's plate: the drive gave up "
+                           "2.0 m short after 85 s (out of time)")
+  assert out["trace"] == (
+    "press tag 36: #1 standoff (25.00, 3.00), walk timeout 2.00 m short after 85 s, "
+    "at (24.10, 1.30) after 85 s, belief off +12,-340 mm +2.1 deg -> gave up; "
+    "no time for #2: 34.7 s left")
+  # ...and a sign out of view says how its look round ended
+  for looked, said in st.PRESS_LOOKED.items():
+    monkeypatch.setattr(life.body, "press_plate_routine", lambda *a, **kw: tick.result(
+      {"pressed": False, "why": "lost", "attempts": [{"looked": looked, "why": "lost"}]}))
+    out = life.body.run(st.run_verb(life, st.VERBS["press"], {"tag": feed}))
+    assert out["reason"] == f"tag 36 was not in view from in front of its plate{said}"
+
+
+def test_a_feed_whose_press_never_got_there_says_so_first_and_once(monkeypatch):
+  """Rowan's tk_0015, "Lab plates never register a press": told only "the
+  feed plate was never pressed", it took the plate's sensor for faulty
+  over 12 straight misses, and every one was the walk to the plate. The
+  job's verdict leads with the press's own failure, History says it once,
+  and the tries are the log's alone."""
+  from pluggybot.lifecycle import cage_errand
+  life = _life()
+  feed = cage.PLATE_TAGS["feed"]
+  life.body.places.see(feed, 25.0, 4.8, 0.0, view=-math.pi / 2)
+  monkeypatch.setattr(life.body, "press_plate_routine", _press_gave_up(life))
+  errand = cage_errand(QUAD_HOME, "feed", task="feed")
+  errand.task_id, errand.detail["predicted"] = "t_0001", "eating"
+  result = life.run_errand(errand)
+  reason = result["verdict"]["reason"]
+  assert reason.startswith("did not get in front of tag 36's plate: the drive gave up "
+                           "2.0 m short after 85 s (out of time) -- "), reason
+  said = [ln for ln in _history(life) if "in front of tag 36's plate" in ln]
+  assert len(said) == 1 and "feed: did not get in front" in said[0], _history(life)
+  assert not any("plate was never pressed" in ln and "in front" not in ln
+                 for ln in _history(life)), "the cage's count alone, said again"
+  assert any("belief off +12,-340 mm" in ln for ln in life.log), "the tries, in the log"
+  assert not any("belief off" in ln for ln in _history(life))
+  assert "belief off" not in life.status
 
 
 def test_a_census_that_never_ran_names_its_zone_and_never_none():
