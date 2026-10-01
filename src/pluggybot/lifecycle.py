@@ -474,7 +474,7 @@ def procedure_outcome(name: str, run: dict) -> list[str]:
   five times over and could not fix what it could not see. Its locals ride
   at the end, as they have since #227: they are its readout -- on a line of
   their own when the reason would push them past History's 400 characters,
-  where they would be cut without a mark.
+  where the cut would take them.
 
   ⚠ A RUN THAT STOPPED SHORT SAYS SO FIRST, and never as a fraction: the
   count is of calls MADE, so a budget stop reads "4/4" -- MEASURED (ladder
@@ -2032,7 +2032,7 @@ class HubLifecycle:
       self._remember("my list of rules came back without what this world no "
                      f"longer reads: {'; '.join(boss.dropped_at_load)}")
 
-  def _remember(self, line: str) -> None:
+  def _remember(self, line: str, room: int = 0) -> None:
     """Append one line to `History.md` (issue #38).
 
     The narrative record, and deliberately NOT the narration: `_say` fires
@@ -2042,9 +2042,12 @@ class HubLifecycle:
     how the day ended. Written by CODE, which is the point of the file: a
     robot that could edit its own history breaks the same principle that
     stops it awarding itself points.
+
+    `room` lets the line run that far past History's line cap, for a text
+    it quotes whole (`ThoughtFiles.remember`, issue #433).
     """
     try:
-      self.thoughts.remember(line, t=float(self.data.time))
+      self.thoughts.remember(line, t=float(self.data.time), room=room)
     except ThoughtRefused as e:
       # History rolls rather than refusing, so this is close to unreachable
       # -- but a memory write must never be able to end a mission, and a
@@ -4244,9 +4247,12 @@ class HubLifecycle:
                        **({"cut": True} if line.cut else {}))
     self._say(f"TICKET {ticket.id} -- {who} replied: {line.text}"
               f"{tickets_desk.cut_said(line.cut, tickets_desk.MAX_LINE)}")
-    self._remember(f"{who} replied on my ticket {ticket.id} ({ticket.title})"
-                   f"{tickets_desk.cut_note(line.cut, tickets_desk.MAX_LINE)}: "
-                   f"{line.text}")
+    # ⚠ ...AND IT REACHES HISTORY WHOLE (#433): a ticket line's room, and no
+    # title in front of it -- the `tickets` block carries the title. With
+    # one, History's line cap kept ~260 characters of a 500-character reply.
+    self._remember(f"{who} replied on my ticket {ticket.id}"
+                   f"{tickets_desk.cut_note(line.cut, tickets_desk.MAX_LINE, who)}: "
+                   f"{line.text}", room=tickets_desk.MAX_LINE)
     self._occur("ticket_replied")
 
   def _ticket_close(self, msg) -> None:
@@ -4274,12 +4280,13 @@ class HubLifecycle:
       entry = self._bank(verdict)
       if entry is not None:
         self.tickets.pay(ticket.id, entry["points"], entry["seq"])
-      said = (f"{tickets_desk.cut_note(ticket.closed_cut, tickets_desk.MAX_LINE)}"
+      said = (f"{tickets_desk.cut_note(ticket.closed_cut, tickets_desk.MAX_LINE, who)}"
               f": {ticket.closed_text}" if ticket.closed_text else "")
       paid = (f" -- {entry['points']:+d} points" if entry is not None else "")
       self._say(f"TICKET {ticket.id} closed by {who}{said}{paid}")
-      self._remember(f"{who} closed my ticket {ticket.id} ({ticket.kind}: "
-                     f"{ticket.title}){said}{paid}")
+      # The closing words reach History whole, on a reply's terms (#433).
+      self._remember(f"{who} closed my ticket {ticket.id}{said}{paid}",
+                     room=tickets_desk.MAX_LINE)
       self._occur("ticket_replied")
     self._ticket_event("closed", ticket, **{"from": ticket.closed_by},
                        text=ticket.closed_text, points=ticket.points,

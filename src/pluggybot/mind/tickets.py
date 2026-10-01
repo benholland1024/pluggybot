@@ -111,13 +111,16 @@ def cut_said(cut: bool, limit: int) -> str:
   return f" -- CUT at {limit} characters" if cut else ""
 
 
-def cut_note(cut: bool, limit: int) -> str:
+def cut_note(cut: bool, limit: int, writer: str = "I") -> str:
   """What History and the narration say when a text was cut -- the ROBOT's
   own words, in its own record, so a later turn reads what happened as
-  well as what was kept. Empty where nothing was cut: the mark means
-  something only if it is absent when the text fitted."""
-  return (f", cut at {limit} characters (I wrote more and the rest was "
-          "not kept)" if cut else "")
+  well as what was kept. `writer` is who wrote more: the robot, or the
+  operator whose line it was -- told "I wrote more" of a line ben wrote,
+  the robot would take his words for its own (#433). Empty where nothing
+  was cut: the mark means something only if it is absent when the text
+  fitted."""
+  return (f", cut at {limit} characters ({writer} wrote more and the rest "
+          "was not kept)" if cut else "")
 
 
 @dataclass

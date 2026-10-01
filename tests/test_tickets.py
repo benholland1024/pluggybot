@@ -27,7 +27,7 @@ from pluggybot.mind import inbox, text
 from pluggybot.mind import tickets as desk
 from pluggybot.mind.inbox import Inbox
 from pluggybot.mind.overseer import Menu, Overseer
-from pluggybot.mind.thoughts import ThoughtFiles
+from pluggybot.mind.thoughts import MAX_LINE_CHARS, ThoughtFiles, cut_mark
 from pluggybot.telemetry.protocol import (
   CODE_HANDLED_TYPES, INBOUND_TYPES, TICKET_KINDS, TICKET_OUTCOMES,
 )
@@ -269,6 +269,53 @@ def test_the_cut_is_narrated_and_written_into_history(tmp_path):
     assert (theirs["sender"], theirs["cut"], theirs["ref"]) == ("operator", True, "tr_9")
     assert "ben replied on my ticket tk_0001" in life.thoughts.read("History.md")
     assert history_has_cut(life), "the robot is told the line it is READING was cut"
+    # ...and WHO wrote more (#433): "I wrote more" of ben's line would hand
+    # the robot his words as its own.
+    assert "(ben wrote more and the rest was not kept)" in life.thoughts.read("History.md")
+  finally:
+    life.body.close()
+
+
+#: An operator's reply at a thread line's full length (#433), the part that
+#: matters at its END, where a cut lands.
+ANSWER = (" ".join(["Lying on the dock, nothing corrects your heading until you stand."] * 7)
+          + " Stand up, and walk a metre, then look.")
+
+
+def test_an_operators_reply_and_close_reach_history_whole(tmp_path):
+  """⚠ FOUND READING THE ROBOTS' TICKETS (#433, 2026-09-30): a 476-character
+  reply reached Luca's tk_0011 whole and stopped in its History at "nothing
+  corrects your h", right before the remedy it asked about, so Luca opened
+  tk_0014 to ask for the rest. The title rode in front of the text and
+  History cut every line at 400, so ~260 characters of the 500 the site
+  accepts survived, and nothing said so. Shown to fail without the fix:
+  drop either line's `room` and it ends mid-word; put the title back and
+  the reply's line is not the one asserted."""
+  assert len(ANSWER) == desk.MAX_LINE
+  closing = ANSWER.replace("then look", "then file")
+  ledger = Ledger()
+  boss, life = _desk_life(tmp_path, full(action="idle", ticket=dict(
+    BUG, title="t" * desk.MAX_TITLE, text=ANSWER)), ledger=ledger)
+  try:
+    life._decide()
+    life.inbox.offer({"type": "ticket_reply", "id": "tr_1", "from": "ben",
+                      "ticket": "tk_0001", "text": ANSWER})
+    life._visitor_step()
+    life.inbox.offer({"type": "ticket_close", "id": "tc_1", "from": "ben",
+                      "ticket": "tk_0001", "text": closing})
+    life._visitor_step()
+    lines = life.thoughts.lines("History.md")
+    replied = next(h for h in lines if "replied on my ticket" in h)
+    closed = next(h for h in lines if "closed my ticket" in h)
+    assert replied.endswith(f"ben replied on my ticket tk_0001: {ANSWER}")
+    assert closed.endswith(f"ben closed my ticket tk_0001: {closing} -- +25 points")
+    # ...and the title is the `tickets` block's to carry, not every line's.
+    assert "t" * desk.MAX_TITLE not in replied + closed
+    # The robot's OWN report keeps History's line cap, and where that cuts
+    # it, the line says so inside its cap -- the robot reads its report
+    # whole in the block, and History's line is not the report.
+    opened = next(h for h in lines if "opened ticket tk_0001" in h)
+    assert len(opened) <= MAX_LINE_CHARS and opened.endswith(cut_mark(MAX_LINE_CHARS))
   finally:
     life.body.close()
 
@@ -521,8 +568,7 @@ def test_a_ticket_is_filed_shown_and_answered_and_the_close_pays_once(tmp_path):
     earned = [m for m in seen if m["type"] == "earned"]
     assert earned[-1]["task"] == "ticket" and earned[-1]["points"] == 25
     history = life.thoughts.read("History.md")
-    assert "ben closed my ticket tk_0001 (bug: the pen misses the far board): " \
-           "fixed the standoff -- +25 points" in history
+    assert "ben closed my ticket tk_0001: fixed the standoff -- +25 points" in history
     assert life.tickets.open_ids() == () and ("ticket_replied", "") in life._occurred
     assert overseer_context(life)["tickets"]["closed"][0]["closedWith"] == "fixed the standoff"
     # A replayed close (the website never saw the acknowledgement): the

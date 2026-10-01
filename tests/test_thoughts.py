@@ -31,7 +31,7 @@ from pluggybot.lifecycle import board_book, world_config
 from pluggybot.mind.overseer import Menu, Overseer
 from pluggybot.mind.thoughts import (
   FINDINGS, GOALS, HISTORY, HUMAN, MAIN, MAX_LINE_CHARS, NOTES, ROBOT,
-  SYSTEM, NAMES, SPECS, TOP_OF_MIND, ThoughtFiles, ThoughtRefused,
+  SYSTEM, NAMES, SPECS, TOP_OF_MIND, ThoughtFiles, ThoughtRefused, cut_mark,
 )
 from pluggybot.telemetry.protocol import (
   THOUGHT_VERBS,
@@ -229,6 +229,30 @@ def test_a_long_line_is_trimmed_rather_than_refused(files):
   assert len(written) == MAX_LINE_CHARS
   assert files.pin("", t=1.0) == "", "an empty line is cost with no content"
   assert files.writes[TOP_OF_MIND] == 1
+
+
+def test_a_history_line_that_is_cut_says_so_inside_its_cap(files):
+  """⚠ A SILENT CUT IS THE DEFECT, on #307's terms (#433): History cut
+  every line at `MAX_LINE_CHARS` and said nothing, so an operator's reply
+  ended at "nothing corrects your h" and the robot read it as whole. The
+  mark REPLACES the end of what is kept: a line is cut from the end, so a
+  mark after the cut would be the first thing lost. Shown to fail without
+  the fix: the line is cut at the cap and nothing says so."""
+  said = "the procedure weigh did not finish -- " + "w " * 600
+  line = files.remember(said, t=5.0)
+  assert len(line) <= MAX_LINE_CHARS
+  assert line.endswith("w" + cut_mark(MAX_LINE_CHARS)), "the mark, after a word"
+  assert files.lines(HISTORY)[-1] == line, "the view the robot reads shows it"
+  # A line that fits says nothing: the mark means something only if it is
+  # absent when nothing was cut.
+  assert files.remember("woke up", t=6.0) == "[t=6s] woke up"
+  # A line given ROOM keeps what it quotes whole -- an operator's reply,
+  # bounded at its source -- and the cap is the system's own words'.
+  quoted = "x" * 500
+  assert files.remember(f"ben replied on my ticket tk_0001: {quoted}", t=7.0,
+                        room=len(quoted)).endswith(f": {quoted}")
+  # ...and room is History's to give: the robot's own lines keep their cap.
+  assert len(files.pin("y" * (MAX_LINE_CHARS * 3), t=8.0)) == MAX_LINE_CHARS
 
 
 def test_unpin_is_how_the_robot_changes_its_mind(files):

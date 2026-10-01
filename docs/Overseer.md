@@ -729,8 +729,8 @@ command shown to the model:
 
 | inbound | what happens at the desk | what the robot sees |
 |---|---|---|
-| `ticket_reply` | a line on the thread, from the admin's username | the thread; a History line, *ben replied on my ticket tk_0001 (…): …*; the event `ticket_replied` for its map |
-| `ticket_close` | the ticket ends with a message; **the reward is banked, once** | the closing words on the thread's ticket under `closed`; a History line with the points; `ticket_replied` |
+| `ticket_reply` | a line on the thread, from the admin's username | the thread; a History line carrying the reply whole, *ben replied on my ticket tk_0001: …*; the event `ticket_replied` for its map |
+| `ticket_close` | the ticket ends with a message; **the reward is banked, once** | the closing words on the thread's ticket under `closed`; a History line with the closing words whole and the points; `ticket_replied` |
 | `ticket_delete` | the ticket is erased, open or closed; nothing is paid | a History line saying it was removed (the record is append-only: the robot did file it) |
 
 **A ticket's text is 500 characters in either direction, and a cut is
@@ -750,6 +750,19 @@ marked `cut` in the block the robot reads every turn -- `wiki.Page.cut`'s
 answer, one surface over. ⚠ The History note goes BEFORE the text: a
 History line is capped at 400 and a ticket's text is 500, so a mark at
 the end is the first thing lost.
+
+**An operator's reply or close reaches History whole** (issue #433). With
+the ticket's title in front of it, History's 400 kept ~260 characters of
+a 500-character reply and nothing said so: a 476-character reply on
+Luca's `tk_0011` stopped at "nothing corrects your h", right before the
+remedy it asked about, and Luca filed `tk_0014` to ask for the rest. Both
+lines now carry the id and no title (the `tickets` block carries it) and
+take a ticket line's `room` past the cap, so an instruction the robot will
+act on is the one the operator sent. The robot's own report and reply
+keep the cap, and where it cuts them the line says so (§7, "A line cut at
+its cap says so"); the report is whole in the block. A cut note on an
+operator's line names who wrote more: "I wrote more" of ben's words would
+hand them to the robot as its own.
 
 The robot cannot close, delete or withdraw a ticket. So a full desk is
 the operator's to clear, and the refusal says so; and the two things a
@@ -2024,6 +2037,16 @@ ask looked the same from inside.
   robot document refuses when full, because silently dropping its oldest line
   leaves the robot believing it remembers something it does not — the remedy
   is the remove verb and the prompt says so.
+- **A line cut at its cap says so, inside the cap** (`thoughts._line`,
+  issue #433): the end of what is kept becomes `[line cut at 400
+  characters]`, because a line is cut from the end and a mark after the cut
+  would be the first thing lost. A History line that QUOTES a text bounded
+  where it came from is given that text's `room` past the cap
+  (`ThoughtFiles.remember`), so the cap bounds the system's own words; an
+  operator's ticket line is the one that takes it (§2g). What still runs
+  past the cap, and is marked: a decision line whose reason is long (the
+  model's `reason` has no cap), and the robot's own long ticket report or
+  reply.
 - **`History.md` is written by the lifecycle** (`_remember`) at the moments
   a person catching up would want — waking up, which mind is thinking, each
   decision, each recall, each banked verdict, each exchange with a visitor
