@@ -33,7 +33,7 @@ from pluggybot.mind.thoughts import HISTORY, TOP_OF_MIND, MAIN, GOALS, ThoughtFi
 from pluggybot.telemetry.protocol import DEATH_CAUSES
 
 
-def _life(world: str = "room_hub", points_per_hour: float = 3600.0,
+def _life(world: str = "home_quad", points_per_hour: float = 3600.0,
           balance: int = 0, tmp_path=None, **kw) -> HubLifecycle:
   """A mortal lifecycle with a ledger, an appetite and a SHORT fuse: at
   3600 points/hour a point comes due every sim-second, so an upkeep death is
@@ -317,7 +317,7 @@ def test_buying_costs_no_turn(tmp_path):
   assert "buy_heart" in fields
   # ...and it is only in the schema where there is something to buy.
   from pluggybot.lifecycle import board_book
-  menu = ov.Menu.for_world("home", board_book("home"))
+  menu = ov.Menu.for_world("home_quad", board_book("home_quad"))
   assert "buy_heart" not in menu.schema()["properties"]
   assert "buy_heart" in menu.schema(hearts=True)["properties"]
 
@@ -325,9 +325,8 @@ def test_buying_costs_no_turn(tmp_path):
 def test_a_heart_bought_for_oneself_is_narrated_in_the_shape_the_site_parses(tmp_path):
   """`BOUGHT a heart for N -- H now, P points left` and `HEART refused:
   <why>` are a two-repo contract (issue #265, on `THOUGHT <verb>:`'s
-  terms): the website's observatory parses them into a `heart` row and the
-  run record into `survival.heartsBought` / `heartsRefused`, which is how
-  the sixth quality's *caution chosen* sees a heart bought. Pinned cheaply:
+  terms): the website's observatory parses them into a `heart` row, which
+  is how the sixth quality's *caution chosen* sees a heart bought. Pinned cheaply:
   one lifecycle, one purchase, one refusal, both lines against the
   constants -- and the OTHER robot's heart is not this line (it is a
   `transfer` act, help at a cost)."""
@@ -388,7 +387,7 @@ def test_the_price_is_told_in_hours_and_the_two_cannot_drift():
   # impossible: a heart behind a ceiling lower than its price is a shop with
   # nothing in it.
   from pluggybot.economy.metabolism import Appetite
-  assert Appetite.load("home").cap >= ov.HEART_PRICE
+  assert Appetite.load("home_quad").cap >= ov.HEART_PRICE
 
 
 def test_the_cap_is_not_an_income_limit(tmp_path):
@@ -398,8 +397,8 @@ def test_the_cap_is_not_an_income_limit(tmp_path):
   accumulate is not a currency."""
   from pluggybot.economy.metabolism import Appetite
 
-  cap = Appetite.load("home").cap
-  per_hour = ov.MEASURED_INCOME_PER_HOUR - Appetite.load("home").points_per_hour
+  cap = Appetite.load("home_quad").cap
+  per_hour = ov.MEASURED_INCOME_PER_HOUR - Appetite.load("home_quad").points_per_hour
   assert per_hour > 0, "upkeep must not exceed income, or nothing is possible"
   # Room to save for a life without the ceiling taking the points first.
   assert cap >= ov.HEART_PRICE * 2, \

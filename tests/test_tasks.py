@@ -156,74 +156,37 @@ def test_a_task_that_costs_more_than_the_pack_is_not_claimable():
   """The reserve is only checked BETWEEN errands, so a job the robot cannot
   afford has to be refused before it is started, not during.
 
-  The numbers are the ones that matter here. A `draw_figure` on
-  `whiteboard_a` is priced at 0.992 Wh -- MEASURED, economy/energy.json
-  (0.929 before the depth camera, #34) -- against home's 3.0 Wh cell that
-  charges to 90 %, so a freshly-charged robot can take it and one most of
-  the way down cannot, which is the whole behaviour. The first version of this table guessed 0.35 Wh and the fixture
-  recorded a robot dying mid-stroke with the pen still on the fork.
+  The numbers are the ones that matter here. A `feed_mouse` is priced at
+  1.770 Wh -- MEASURED, economy/energy.json -- so a robot with 2 Wh to
+  spend can take it and one with 0.9 cannot, which is the whole behaviour.
 
-  ⚠ The board is given home's energy table, because that is what production
-  does (issue #15) and the price is now per WORLD and per TARGET: a bare
-  board falls back to `TaskKind.estimate_wh`, which is deliberately the FAR
-  whiteboard's figure and would not fit the cell at all.
+  ⚠ The board is given the world's energy table, because that is what
+  production does (issue #15) and the price is per WORLD and per TARGET.
   """
   from pluggybot.economy.energy import load as load_energy
-  b = board(energy=load_energy("home"))
-  task = offered(b)                       # draw_figure on whiteboard_a: 0.992
-  assert task.claimable(0.0, pack_wh=2.0)       # home, just after a charge
-  assert not task.claimable(0.0, pack_wh=0.9)   # home, most of the way down
-  assert b.claim(task.id, t=0.0, pack_wh=0.9) is None
+  b = board(energy=load_energy(lc.QUAD_HOME))
+  task = offered(b, kind="feed_mouse", target="lab", params={})
+  assert task.estimate_wh == pytest.approx(1.77)
+  assert task.claimable(0.0, pack_wh=2.0)
+  assert not task.claimable(0.0, pack_wh=0.9)
+  assert b.claim(task.id, t=0.0, pack_wh=0.9, answer="eating") is None
   assert b[task.id].state == "offered"    # still on offer for a fuller robot
-  assert b.claim(task.id, t=0.0, pack_wh=2.0) is not None
+  assert b.claim(task.id, t=0.0, pack_wh=2.0, answer="eating") is not None
 
 
-def test_the_energy_gate_is_measured_against_the_whole_pack():
-  """⚠ Not against the energy ABOVE the reserve, and the difference is the
-  difference between a gate and a wall.
-
-  An errand is allowed to spend into the reserve -- that is what the reserve
-  IS, a return-trip margin -- and measured off the recordings one errand
-  costs roughly one full pack in both worlds, while the energy above the
-  reserve is 0.28 Wh (room_hub) and 0.44 Wh (home). Comparing against that
-  would refuse every job in every world forever, which reads from outside
-  exactly like a task system nobody wired up.
-  """
-  # room_hub only since issue #84 grew home's cell to 3.0 Wh (home is in the
-  # margin regime now, and its headroom above the reserve funds a job).
-  headroom = {"room_hub": lc.DEMO_CAPACITY_WH * 0.9 - 0.350}
-  # ...of the jobs an ERRAND does: a job whose claim is the act (issue
-  # #228) moves points and nothing else, and costs no energy at all.
-  cheapest = min(k.estimate_wh for k in KINDS.values() if k.discharge != "act")
-  for world, above_reserve in headroom.items():
-    assert above_reserve < cheapest, (
-      f"{world}: {above_reserve:.2f} Wh above the reserve would now afford "
-      f"the cheapest job ({cheapest} Wh) -- re-read this test, the premise "
-      "it pins has changed")
-  # ...and every kind IS affordable off a full pack, or it could never be
-  # taken at all and offering it would be a lie about what the robot can do.
-  #
-  # ⚠ Priced PER WORLD as of issue #15 (`TaskBoard.estimate_for`), and this
-  # test is what made that necessary: room_hub's carry measures 0.570 Wh and
-  # home's 0.689, so the one world-agnostic number that used to be here was
-  # either under-pricing home or refusing room_hub a job it does perfectly
-  # well. `count_plants` is left out of the home row for the reason
-  # economy/energy.py calls `overspend`: home's census genuinely outgrows its
-  # 1.1 Wh demo cell, which the committed recording shows the robot doing
-  # anyway.
+def test_every_kind_is_affordable_off_a_full_pack():
+  """Every kind IS affordable off a full pack, or it could never be taken
+  at all and offering it would be a lie about what the robot can do --
+  priced PER WORLD (`TaskBoard.estimate_for`, issue #15), the kinds with no
+  row of their own at the dearest one the world measured."""
   from pluggybot.economy.energy import load as load_energy
-  from pluggybot.home import world as home
-  for world, cap in (("room_hub", lc.DEMO_CAPACITY_WH),
-                     ("home", home.HOME_DEMO_CAPACITY_WH)):
-    board = TaskBoard(energy=load_energy(world))
-    for name, kind in KINDS.items():
-      if world == "room_hub" and kind.target_kind in ("board", "zone",
-                                                     "challenge", "cage", "bench"):
-        continue                          # room_hub has none of them
-      priced = board.estimate_for(name)
-      if priced is None:
-        priced = kind.estimate_wh
-      assert priced <= cap * 0.9, f"{world}/{name}: {priced} Wh"
+  cap = lc.world_config(lc.QUAD_HOME)["battery_wh"]
+  board = TaskBoard(energy=load_energy(lc.QUAD_HOME))
+  for name, kind in KINDS.items():
+    priced = board.estimate_for(name)
+    if priced is None:
+      priced = kind.estimate_wh
+    assert priced <= cap * 0.9, f"{lc.QUAD_HOME}/{name}: {priced} Wh"
 
 
 def test_a_lapsed_offer_cannot_be_claimed_and_a_taken_one_cannot_be_retaken():
@@ -309,7 +272,7 @@ def test_a_task_outlives_a_restart(tmp_path):
 
 
 def _game_under_way(b: TaskBoard, t: float = 1.0) -> Task:
-  game = b.offer("hide_and_seek", "room_hub", t=0.0)
+  game = b.offer("hide_and_seek", lc.QUAD_HOME, t=0.0)
   b.claim(game.id, robot="pluggybot", t=t, role="hider")
   b.claim(game.id, robot="r2_pluggybot", t=t, role="seeker")
   b.start(game.id, t=t + 1.0)
@@ -398,7 +361,7 @@ def test_a_claim_survives_a_restart_and_a_games_roles_do_not(tmp_path):
   task = offered(b, ttl=100.0)
   asked = b.offer("whiteboard_answer", "whiteboard_b", params={"question": "3 x 4"},
                   secret={"answer": "12"}, t=0.0)
-  game = b.offer("hide_and_seek", "room_hub", t=0.0)
+  game = b.offer("hide_and_seek", lc.QUAD_HOME, t=0.0)
   done = offered(b, target="whiteboard_b", t=1.0)
   b.claim(task.id, robot="r2_pluggybot", t=1.0)
   b.claim(asked.id, robot="r2_pluggybot", t=1.0, answer="12")
@@ -564,10 +527,9 @@ def test_the_overseer_sees_what_a_job_pays_but_not_what_it_is_worth_deciding():
 def test_a_claimed_task_builds_an_errand_that_carries_its_id():
   """One evaluation, two consumers: the verdict that pays for the finished
   errand is the verdict that closes the offer."""
-  book = lc.board_book("home")
   b = board()
-  task = offered(b, target=next(iter(book.names)))
-  errand = lc.errand_for_task(task, "home", book)
+  task = offered(b, kind="feed_mouse", target="lab", params={})
+  errand = lc.errand_for_task(task, lc.QUAD_HOME, None, answer="eating")
   assert errand is not None
   assert errand.task_id == task.id
   assert errand.task == KINDS[task.kind].task
@@ -579,28 +541,13 @@ def test_a_task_this_world_cannot_build_is_left_alone_not_failed():
   leave the offer standing, so it lapses honestly."""
   b = board()
   task = offered(b, kind="count_plants", target="garden")
-  assert lc.errand_for_task(task, "room_hub", None) is None
+  assert lc.errand_for_task(task, lc.QUAD_HOME, None) is None
   assert b[task.id].state == "offered"
 
 
 # ---- the loop: charge priority, and the end-to-end flight ---------------------
 
 
-def _lifecycle(world: str, **kw):
-  """The bits of the mission stack a loop-order test needs. Deliberately the
-  same shape as `test_overseer.py`'s, because it is testing the same thing at
-  the same seam -- which branch of `run()` wins."""
-  import mujoco
-  cfg = lc.world_config(world)
-  model = mujoco.MjModel.from_xml_path(cfg["model"])
-  data = mujoco.MjData(model)
-  return lc.HubLifecycle(model, data, realtime=False, world=world,
-                         battery_wh=cfg["battery_wh"], rack=cfg["rack"],
-                         grid_bounds=cfg["grid_bounds"],
-                         low_battery_wh=cfg["low_battery_wh"], **kw)
-
-
-@pytest.mark.slow
 def test_charge_priority_is_never_overridden_by_a_claimable_task(monkeypatch):
   """THE acceptance test for issue #21, and the same claim issue #15 pinned
   from the other side: the branch ORDER in `HubLifecycle.run()`.
@@ -620,7 +567,9 @@ def test_charge_priority_is_never_overridden_by_a_claimable_task(monkeypatch):
   test watching the swap states passes either way. Measured: with the task
   branch moved above the charge branch, watching `SWAP_PICK` still passed.
 
-  And it uses a ZERO-COST job, which no real kind is. The energy gate makes
+  And it uses a ZERO-COST job, which no real kind is, carrying the
+  procedure that discharges it (the one errand a job builds on a body with
+  no tool errand). The energy gate makes
   every ordinary task unclaimable exactly when charging is due -- `usable_wh`
   is energy ABOVE the reserve, and `needs_charge` is energy BELOW it, so the
   two conditions are the same one and the gate silently covers for the branch
@@ -632,13 +581,16 @@ def test_charge_priority_is_never_overridden_by_a_claimable_task(monkeypatch):
   branch above `if self.needs_charge` in `HubLifecycle.run()`, and the job is
   taken on at t~0 with the pack below its reserve.
   """
+  from pluggybot.procedure.steps import Program, Step
+  from test_body import stub_life
   monkeypatch.setitem(KINDS, "fetch_module",
                       dataclasses.replace(KINDS["fetch_module"],
                                           estimate_wh=0.0))
   b = board()
-  task = offered(b, kind="fetch_module", target="module_lcd")
+  task = offered(b, kind="fetch_module", target="module_lcd", params={
+    "procedure": Program.single("carry", [Step("wait", {"seconds": 1.0})]).as_dict()})
   assert task.claimable(0.0, pack_wh=0.0), "the energy gate still covers"
-  life = _lifecycle("room_hub", tasks=b, errand=False)
+  life = stub_life(tasks=b)
   # Below the reserve at t=0: the cheapest state that puts the two branches
   # in direct conflict -- the robot needs to charge AND there is work waiting.
   life.battery.energy_wh = life.low_battery_wh * 0.6
@@ -657,11 +609,11 @@ def test_charge_priority_is_never_overridden_by_a_claimable_task(monkeypatch):
   #
   # The predicate is the SUCCESS condition. With the branches inverted the
   # job is claimed at t~0 below the reserve, `legal_at` is still empty, the
-  # hook does not fire, and the run goes the full 200 s and fails on the
+  # hook does not fire, and the run goes the full 900 s and fails on the
   # ordering exactly as before.
   life.stop_when(lambda: bool(legal_at) and life.charge_cycles >= 1
                  and b[task.id].claimed_t is not None)
-  r = life.run(lc.world_config("room_hub")["start"], max_sim_time=200.0,
+  r = life.run(lc.world_config(lc.QUAD_HOME)["start"], max_sim_time=900.0,
                explore_budget=10.0)
 
   assert r["charge_cycles"] >= 1, "a waiting job bricked the robot"
@@ -675,4 +627,4 @@ def test_charge_priority_is_never_overridden_by_a_claimable_task(monkeypatch):
     f"below its reserve (legal again at t={legal_at[0]:.1f} s)")
   # ...and the job really was buildable throughout, so the ordering was
   # tested rather than dodged by an offer nothing could have accepted.
-  assert lc.errand_for_task(task, "room_hub", None) is not None
+  assert lc.errand_for_task(task, lc.QUAD_HOME, None) is not None

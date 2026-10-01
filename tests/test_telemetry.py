@@ -4,8 +4,8 @@ The transpiler's conversions are exactly the kind of pure math that renders
 wrong silently -- a half-extent box is a quarter the volume and still looks
 like a box, a Z-axis cylinder rendered on Y is a fallen column. Each
 conversion is asserted numerically here, on a tiny inline model where the
-right answer is known by construction, plus a coverage pass over the real
-room_hub. The recorder tests drive the real seam contract: decimation,
+right answer is known by construction, plus a coverage pass over the served
+house. The recorder tests drive the real seam contract: decimation,
 keyframe-then-sparse frames, and everything queued reaching the file.
 """
 
@@ -21,10 +21,8 @@ import numpy as np
 import pytest
 from scipy.spatial.transform import Rotation
 
-from pluggybot import tick
-from pluggybot.telemetry.protocol import (ENCOUNTER_PHASES, HUNGER_STATES,
-                                          PROTOCOL_VERSION, body_census,
-                                          dynamic_flags)
+from pluggybot.telemetry.protocol import (ENCOUNTER_PHASES, PROTOCOL_VERSION,
+                                          body_census, dynamic_flags)
 from pluggybot.telemetry.recorder import (FrameBuilder,
                                           TelemetryRecorder)
 from pluggybot.telemetry.scene import geom_size, quat_mul, scene_dict
@@ -176,11 +174,14 @@ def test_body_poses_are_world_frame(mini_scene):
   assert post["parent"] == "world" and post["visual"] is None
 
 
-def test_room_hub_coverage():
-  """Every visible geom of the real world transpiles, all five primitive
+def test_the_served_house_transpiles_whole():
+  """Every visible geom of the served world transpiles, all five primitive
   types are exercised, and every AprilTag texture is referenced."""
-  model = mujoco.MjModel.from_xml_path(str(REPO / "models" / "room_hub.xml"))
-  scene = scene_dict(model, "room_hub")
+  from pluggybot.lifecycle import QUAD_HOME, world_config
+  from pluggybot.robot import world_spec
+  cfg = world_config(QUAD_HOME)
+  model = world_spec(cfg["model"], body=cfg["body"]).compile()
+  scene = scene_dict(model, QUAD_HOME, meta=json.loads(Path(cfg["meta"]).read_text()))
   assert scene["protocolVersion"] == PROTOCOL_VERSION
   geoms = [g for b in scene["bodies"] for g in b["geoms"]]
   visible = sum(1 for g in range(model.ngeom) if model.geom_rgba[g][3] > 0)
@@ -188,17 +189,18 @@ def test_room_hub_coverage():
   assert {g["type"] for g in geoms} == {"plane", "box", "cylinder",
                                         "capsule", "sphere"}
   referenced = {g["texture"] for g in geoms if g["texture"]}
-  assert len(referenced) == model.ntex        # all 12 tags in use
+  assert len(referenced) == model.ntex        # every tag in use
   assert {t["name"] for t in scene["textures"]} == referenced
   robot, world = body_census(model)
-  # 22 = 7 robot links + the rack + the built-tool rail (a second free
-  # body since #277) + five modules + the pen's two moving parts + the
-  # dispenser's shuttle + three loose seeds. A census, so it fails
-  # whenever the world gains or loses a dynamic body -- which is the
-  # point: every one of them costs a pose in every keyframe.
-  assert sum(dynamic_flags(model)) == len(robot) + len(world) == 22
-  assert len(robot) == 7
-  assert {"rack", "rack_built", "module_lcd", "module_seed", "seed_0"} <= set(world)
+  # 34 = the quadruped's 19 links + 15 of the world's: the tools, the
+  # tower's blocks and the bench's cubes, the lab's plates and its mouse,
+  # the garden's plate and the dock's pins. A census, so it fails whenever
+  # the world gains or loses a dynamic body -- which is the point: every
+  # one of them costs a pose in every keyframe.
+  assert sum(dynamic_flags(model)) == len(robot) + len(world) == 34
+  assert len(robot) == 19
+  assert {"module_lcd", "module_pen", "module_claw", "block_0", "lab_mouse",
+          "dock_pole_l"} <= set(world)
 
 
 # ---- recorder --------------------------------------------------------------
@@ -353,11 +355,13 @@ def test_the_scene_maps_board_names_to_their_geometry():
   scene's board table the client has a polyline it cannot place, and every
   other test here would still pass -- the geometry is present, it is just
   unreachable by the name the events use."""
-  model = mujoco.MjModel.from_xml_path(str(REPO / "models" / "home_world.xml"))
-  meta = json.loads((REPO / "models" / "home_world.meta.json").read_text())
-  scene = scene_dict(model, "home_world", meta=meta)
+  from pluggybot.lifecycle import QUAD_HOME, world_config
+  from pluggybot.robot import world_spec
+  cfg = world_config(QUAD_HOME)
+  model = world_spec(cfg["model"], body=cfg["body"]).compile()
+  scene = scene_dict(model, QUAD_HOME, meta=json.loads(Path(cfg["meta"]).read_text()))
   geoms = {g["name"] for b in scene["bodies"] for g in b["geoms"]}
-  assert scene["boards"], "the home world's drawing surfaces are missing"
+  assert scene["boards"], "the house's drawing surfaces are missing"
   for name, spec in scene["boards"].items():
     assert spec["geom"] in geoms, f"{name} points at a geom nobody renders"
     assert len(spec["half"]) == 3 and len(spec["pos"]) == 3
@@ -888,139 +892,47 @@ def _typed(q, kind):
 # fail, regenerate the fixtures or bump the protocol version deliberately.
 
 PROTOCOL = REPO / "protocol"
-
-# Every world the website can render needs BOTH artifacts: a scene to build
-# and a recording to replay in it. Serving one world's telemetry against the
-# other's scene is the failure this table exists to make impossible.
-WORLDS = [
-  # (scene fixture, model, model name, generator sidecar, recording, draws?)
-  # `draws` marks the recording that must exercise the DRAWING errand: the
-  # home world is the one the website serves, so its fixture is what the
-  # canvas-painting code on the other side is built against (issue #12).
-  ("scene.room_hub.json", "room_hub.xml", "room_hub", None,
-   "telemetry.hub_lifecycle.jsonl.gz", False),
-  ("scene.home_world.json", "home_world.xml", "home_world",
-   "home_world.meta.json", "telemetry.home_lifecycle.jsonl.gz", True),
-]
-SCENE_CASES = [(w[0], w[1], w[2], w[3]) for w in WORLDS]
-TELEMETRY_CASES = [(w[4], w[2], w[5]) for w in WORLDS]
+#: The one recording: the served pair on legs, in the first quadruped
+#: period's shape (no offers, no upkeep).
+PAIR_RECORDING = PROTOCOL / "telemetry.home_quad_pair.jsonl.gz"
 
 
-@pytest.mark.parametrize("fixture,world_xml,model_name,meta_file", SCENE_CASES,
-                         ids=[c[2] for c in SCENE_CASES])
-def test_scene_fixture_current(fixture, world_xml, model_name, meta_file):
-  """A committed scene must match the committed WORLD, not an old one.
-
-  home_world's is the one that rots fastest: the world is GENERATED, so a
-  layout constant changed in home/world.py and regenerated into models/
-  leaves this fixture describing last week's house -- and the website
-  renders walls where the robot no longer sees them.
-  """
-  path = PROTOCOL / fixture
-  scene = json.loads(path.read_text())
-  assert scene["protocolVersion"] == PROTOCOL_VERSION
-  assert scene["model"] == model_name and scene["upAxis"] == "z"
-  for tex in scene["textures"]:
-    assert (path.parent / "textures" / tex["file"]).exists()
-  meta = (json.loads((REPO / "models" / meta_file).read_text())
-          if meta_file else None)
-  model = mujoco.MjModel.from_xml_path(str(REPO / "models" / world_xml))
-  assert scene == scene_dict(model, model_name, meta=meta), \
-    f"stale fixture: uv run python -m pluggybot.telemetry.scene " \
-    f"models/{world_xml}"
+def _pair_recording() -> list[dict]:
+  with gzip.open(PAIR_RECORDING, "rt") as f:
+    return [json.loads(line) for line in f]
 
 
-PAIR_WORLDS = [("room_hub", "room_hub.xml", None, "room_hub_pair"),
-               ("home", "home_world.xml", "home_world.meta.json", "home_world_pair")]
-
-
-@pytest.mark.parametrize("world,world_xml,meta_file,model_name", PAIR_WORLDS,
-                         ids=[w[3] for w in PAIR_WORLDS])
-def test_the_pair_scene_fixture_is_current(world, world_xml, meta_file, model_name):
-  """The pair worlds (0.20.0, issue #167; #181 serves one): a world with the
-  second robot attached where the pair demo parks it. Stale on the same
-  terms as the single-robot scenes, and additionally on `world_config
-  ["start2"]` moving."""
-  from pluggybot.lifecycle import world_config
-  from pluggybot.robot import SECOND, pair_model_name, world_with_robots
-  path = PROTOCOL / f"scene.{model_name}.json"
-  scene = json.loads(path.read_text())
-  assert scene["protocolVersion"] == PROTOCOL_VERSION
-  cfg = world_config(world)
-  assert scene["model"] == pair_model_name(cfg["model_name"]) == model_name
-  meta = (json.loads((REPO / "models" / meta_file).read_text())
-          if meta_file else None)
-  model = world_with_robots(str(REPO / "models" / world_xml),
-                            second_at=cfg["start2"][:2])
-  assert scene == scene_dict(model, model_name, meta=meta), \
-    f"stale fixture: uv run python -m pluggybot.telemetry.scene models/{world_xml} --pair"
-  owners = {b["name"]: b["robot"] for b in scene["bodies"]}
-  assert owners[SECOND.root] == SECOND.root and owners["rack"] is None
-  assert [n for n, o in owners.items() if o == SECOND.root] == \
-    [SECOND.el(n) for n, o in owners.items() if o == "pluggybot"]
-
-
-@pytest.mark.parametrize("model_name,game", [("room_hub_pair", True),
-                                             ("home_world_pair", False)],
-                         ids=["room_hub_pair", "home_world_pair"])
-def test_the_pair_recording_gives_every_robot_the_same_shape(model_name, game):
-  """The pair fixtures (0.20.0): two robots from one loop, and everything the
-  wire keys by robot present for BOTH -- bodies, status, appetite, goals,
-  documents, map. `room_hub_pair` also carries what only a game produces: a
-  two-role claim and the referee. `home_world_pair` is the SERVED shape
-  (#181): the first robot draws, the second explores and stands by for the
-  board's work."""
+def test_the_pair_recording_gives_every_robot_the_same_shape():
+  """The pair fixture (0.20.0): two robots from one loop, and everything
+  the wire keys by robot present for BOTH -- bodies, status, goals,
+  documents, map. The served shape (#181, #387): the first robot walks to
+  its dock and charges, the second explores."""
   from pluggybot.mind.thoughts import NAMES
   from pluggybot.robot import FIRST, SECOND
-  with gzip.open(PROTOCOL / f"telemetry.{model_name}.jsonl.gz", "rt") as f:
-    lines = [json.loads(line) for line in f]
+  lines = _pair_recording()
   header, frames = lines[0], frames_of(lines)
   events = [x for x in lines[1:] if "type" in x]
   roots = [FIRST.root, SECOND.root]
   assert header["protocolVersion"] == PROTOCOL_VERSION
-  assert header["model"] == model_name
+  assert header["model"] == "home_quad_pair"
   assert list(header["robots"]) == roots
   assert header["robotNames"] == {FIRST.root: "Pluggy", SECOND.root: "Rowan"}
   assert header["robots"][SECOND.root] == [SECOND.el(n) for n in header["robots"][FIRST.root]]
-  assert header["ledger"] == roots and header["hungerStates"]
+  assert header["ledger"] == roots
   assert "encounters" in header["activities"]
-  assert ("hide_and_seek" in header["activities"]) == game
   # Every frame carries both; the keyframes carry both bodies whole.
   assert all(set(f["robots"]) == set(roots) for f in frames)
-  last_hunger = {}
   for root in roots:
     assert set(frames[0]["robots"][root]["bodies"]) == set(header["robots"][root])
-    hunger = [f["robots"][root]["metabolism"] for f in frames
-              if "metabolism" in f["robots"][root]]
-    assert 1 < len(hunger) < len(frames), f"{root}: no appetite of its own"
-    last_hunger[root] = hunger[-1]
     states = {f["robots"][root]["state"] for f in frames}
-    assert "DEAD" not in states, f"{root} died -- re-fly on --pack hosting"
-    # The first robot works a whole day; the second's day on the served
-    # shape may honestly be "explore, then stand by" -- home's cadence is
-    # sparse and `run_many` steps the first robot first, so an offer that
-    # lands while both are idle is the first robot's (noted on #181). And
-    # standing by has NO state of its own (the day loop says why), so the
-    # second robot's frames may carry `EXPLORE` alone: "moved" is measured
-    # off its POSE, not counted off its states -- the old count passed only
-    # when the last frame happened to catch its `DONE`.
-    if root == FIRST.root:
-      assert len(states) > 3, f"{root} barely moved: {states}"
-    else:
-      assert "EXPLORE" in states, f"{root} never explored: {states}"
-      # ...and "moved" is the FARTHEST it got from where it started, not
-      # first against last: a robot standing by goes back to its own start
-      # pose, and a room_hub_pair day that played the game and came home
-      # read 5 cm end to end (#277's re-fly: 2 swaps, 2 errands, 0.05 m).
-      first_xy = [f["robots"][root]["bodies"][root][:2] for f in frames
-                  if root in f["robots"][root].get("bodies", {})]
-      travelled = max(math.dist(first_xy[0], xy) for xy in first_xy)
-      assert travelled > 1.0, f"{root} barely moved: {travelled:.2f} m"
-  # Two APPETITES, not one block copied twice: the first robot earned and
-  # ate; the second's block is its own account's story, not a copy.
-  assert last_hunger[FIRST.root]["consumed"] > 0
-  assert last_hunger[FIRST.root] != last_hunger[SECOND.root]
-  # One goals message per robot, and every document for each.
+    assert "DEAD" not in states, f"{root} died"
+    # ...and each moved: the FARTHEST it got from where it started, since a
+    # robot standing by goes back to its own start pose
+    xy = [f["robots"][root]["bodies"][root][:2] for f in frames
+          if root in f["robots"][root].get("bodies", {})]
+    travelled = max(math.dist(xy[0], p) for p in xy)
+    assert travelled > 1.0, f"{root} barely moved: {travelled:.2f} m"
+  # One goals message per robot, and every document for each, and a map.
   goals = [e for e in events if e["type"] == "goals"]
   assert [g["robot"] for g in goals] == roots
   for root in roots:
@@ -1028,27 +940,7 @@ def test_the_pair_recording_gives_every_robot_the_same_shape(model_name, game):
     assert docs[:len(NAMES)] == list(NAMES), f"{root}: opening documents {docs[:4]}"
     assert any(e["type"] == "grid" and e["robot"] == root for e in events), \
       f"{root}: no map of its own"
-  # What only a game produces.
-  claims = [e for e in events if e["type"] == "task_claimed" and e.get("claims")]
-  referee = [f["activities"]["hide_and_seek"] for f in frames
-             if "hide_and_seek" in f.get("activities", {})]
-  if game:
-    # Roles are claimed one at a time: the first claim holds one, the last both.
-    assert claims and len(claims[0]["claims"]) == 1
-    assert set(claims[-1]["claims"]) == {"hider", "seeker"}
-    assert set(claims[-1]["claims"].values()) == set(roots), "one robot per role"
-    # Sparse like every activity block: the last flags shipped are the verdict.
-    assert referee and referee[-1]["phase"] in ("found", "over") and referee[-1]["winner"]
-  else:
-    assert not claims and not referee
-    drawn = [e for e in events if e["type"] == "draw"]
-    assert drawn and {d["robot"] for d in drawn} == {FIRST.root}, \
-      "the served shape: the first robot draws"
-  # ⚠ room_hub_pair carries NO ENCOUNTER, and that is the honest fixture:
-  # the hider won and the two never came within 1.5 m (closest 1.62 m, at
-  # 12.9 s). The activity's shape is pinned in tests/test_two_robots.py; a
-  # fixture cannot be made to meet on request without steering a robot at
-  # the other for the camera. Whatever a flight does carry is well-formed.
+  # Whatever encounter a flight carries is well-formed.
   for e in (e for e in events if e["type"] == "encounter"):
     assert e["phase"] in ENCOUNTER_PHASES and set(e["robots"]) == set(roots)
 
@@ -1099,106 +991,35 @@ def test_the_quadruped_pair_recording_is_the_periods_shape():
   assert not any(x.get("type") == "tasks" or "tasks" in x for x in lines[1:])
 
 
-def test_the_home_fixture_shows_the_census_answer():
-  """An errand's RESULT has to survive at least one frame (issue #13).
-
-  Python between two physics steps takes zero sim time, so a use-phase that
-  sets the screen and returns has its result overwritten by the next state's
-  automatic face before a single 20 Hz frame is built. The first version of
-  the census did exactly that: the recorded showcase mission carried the
-  right answer in its result dict and in NONE of its 10 850 frames, which is
-  the same as not having computed it -- the website renders the wire, not the
-  dict. Delete the `_drive(PRESENT_S, 0, 0)` hold and this is what fails.
-  """
-  with gzip.open(PROTOCOL / "telemetry.home_lifecycle.jsonl.gz", "rt") as f:
-    lines = [json.loads(line) for line in f]
-  frames = [x for x in lines[1:] if "type" not in x]
-  shown = [(fr["t"], s) for fr in frames
-           for s in (fr.get("screens") or {}).values()]
-  counts = [(t, s) for t, s in shown if s["mode"] == "count"]
-  assert counts, "the census answer never reached a frame"
-  assert counts[0][1]["label"] == "plants"
-  assert isinstance(counts[0][1]["count"], int)
-
-  # ...and it stayed up long enough to read. Measured as a DURATION, not as a
-  # frame count: the block is sparse, so a state that persists for five
-  # seconds appears once and is merely re-shipped on the next keyframe. The
-  # first version of this assertion counted frames and failed on a working
-  # fix, which is its own small lesson about sparse encodings.
-  first = counts[0][0]
-  after = [t for t, s in shown if t > first and s["mode"] != "count"]
-  held = (after[0] if after else frames[-1]["t"]) - first
-  assert held >= 4.0, f"the answer was on screen for {held:.1f} sim-seconds"
-
-
-def test_the_recordings_between_them_show_a_job_taken_on_and_judged():
-  """A job OFFERED is a screenshot; a job taken on and judged is the evidence.
-
-  Asserted across the PAIR rather than of each recording, and that is a
-  deliberate weakening of where this used to live. The two fixtures are for
-  different things: room_hub is the task loop (offers arriving on the cadence,
-  claimed, graded), home is the two STREAMED SURFACES -- ink on a board and a
-  count on the LCD -- and the site paints both from it.
-
-  ⚠ MEASURED, and the reason the assertion moved: home's showcase queue is two
-  errands and its 1.1 Wh cell does roughly ONE per charge, so the pack is spent
-  before the loop ever reaches a third. Nor can the cell simply grow --
-  `needs_charge` is an absolute reserve, so a bigger pack buys FEWER charge
-  cycles, not more: at 1.6 Wh the robot does both errands on the starting
-  charge, never charges at all (which this file's other guard requires it to)
-  and still dies, mid-census, reporting 3 of 4 plants. 1.25 Wh threads neither
-  needle. Per-errand energy is M10; until then, demanding the whole task
-  lifecycle of the recording that carries the census is demanding a mission
-  that does not exist.
-
-  What must never happen is BOTH recordings losing it, which is what this
-  catches -- the website builds its markers against `task_claimed` and
-  `task_resolved`, and neither has a body or a keyframe behind it.
-  """
-  seen = {"claimed": [], "resolved": []}
-  for fixture, model_name, _ in TELEMETRY_CASES:
-    with gzip.open(PROTOCOL / fixture, "rt") as f:
-      events = [json.loads(line) for line in f if '"type"' in line]
-    for e in events:
-      if e["type"] == "task_claimed":
-        seen["claimed"].append(model_name)
-      if e["type"] == "task_resolved" and e["state"] in ("done", "failed"):
-        seen["resolved"].append(model_name)
-  assert seen["claimed"], "no recording shows a job being taken on"
-  assert seen["resolved"], "no recording shows a job being judged"
-
-
-@pytest.mark.parametrize("fixture,model_name,draws", TELEMETRY_CASES,
-                         ids=[c[1] for c in TELEMETRY_CASES])
-def test_telemetry_fixture_is_a_full_mission(fixture, model_name, draws):
-  with gzip.open(PROTOCOL / fixture, "rt") as f:
-    lines = [json.loads(line) for line in f]
-  # Dispatch on "type"; no "type" means frame (0.4.0). A recording is a MIXED
-  # stream now -- `draw` and `board_cleared` events ride between the frames,
-  # because a stroke is not a per-tick quantity.
+def test_the_recording_is_a_whole_served_day():
+  """What the site builds against, on the one committed recording: the
+  stream's shape, the memory it opens with, and the scoreboard -- each
+  something no keyframe repairs if a fixture loses it."""
+  from pluggybot.mind import constitution as constitutions
+  from pluggybot.mind.thoughts import HISTORY, MAIN, NAMES, TOP_OF_MIND
+  from pluggybot.robot import FIRST, SECOND
+  lines = _pair_recording()
+  roots = [FIRST.root, SECOND.root]
+  # Dispatch on "type"; no "type" means frame (0.4.0). A recording is a
+  # MIXED stream: events ride between the frames.
   header = lines[0]
   frames = [x for x in lines[1:] if "type" not in x]
   assert header["protocolVersion"] == PROTOCOL_VERSION
-  # the header field the website selects its scene off -- a recording
-  # mislabelled here poses one world's robot inside the other's rooms
-  assert header["model"] == model_name
-  # The committed recordings are made with no --robot-name, so they carry
-  # the DEFAULT identity (0.10.0) -- which is itself the claim under test:
-  # an unconfigured producer still names its robot.
-  assert header["robotNames"] == {"pluggybot": "Pluggy"}
-  robot_names = set(header["robots"]["pluggybot"])
-  first = frames[0]["robots"]["pluggybot"]
-  assert set(first["bodies"]) == robot_names, "first frame must be a keyframe"
-  assert set(frames[0]["world"]) == set(header["world"])
+  first = frames[0]
+  for root in roots:
+    assert set(first["robots"][root]["bodies"]) == set(header["robots"][root]), \
+      "first frame must be a keyframe"
+  assert set(first["world"]) == set(header["world"])
 
   # Keyframes recur (0.2.0): the website's relay hub caches "last keyframe
-  # + frames since" to serve a browser that joins mid-mission, so a
-  # recording without them would be testing a stream shape we never send.
+  # + frames since" to serve a browser that joins mid-day, so a recording
+  # without them would be testing a stream shape we never send.
   keys = [f for f in frames if f.get("key")]
-  assert frames[0].get("key") is True
+  assert first.get("key") is True
   assert len(keys) > 1, "the fixture must exercise RECURRING keyframes"
   for f in keys:
-    assert set(f["robots"]["pluggybot"]["bodies"]) == robot_names
+    for root in roots:
+      assert set(f["robots"][root]["bodies"]) == set(header["robots"][root])
     assert set(f["world"]) == set(header["world"])
   gaps = [b["t"] - a["t"] for a, b in zip(keys, keys[1:])]
   # the cadence re-anchors on the frame that carried the keyframe, so it can
@@ -1207,251 +1028,96 @@ def test_telemetry_fixture_is_a_full_mission(fixture, model_name, draws):
     f"keyframe spacing drifted past the advertised cadence: max {max(gaps):.2f} s"
   times = [f["t"] for f in frames]
   assert all(b > a for a, b in zip(times, times[1:]))
-  states = {f["robots"]["pluggybot"]["state"] for f in frames}
-  assert {"EXPLORE", "GO_CHARGE", "CHARGE",
-          "SWAP_PICK", "USE_TOOL", "SWAP_RETURN"} <= states, \
-    "the fixture must cover the full battery-driven mission"
-
-  # What the robot is FOR (0.8.0). The site opens on a recording rather than
-  # on a live sim -- that is what `replay` is for -- so if the fixtures do not
-  # carry this line the goals panel is blank in the case a visitor actually
-  # meets. It is also the one message with no keyframe behind it: lose it and
-  # nothing later in the stream repairs it.
-  events = [x for x in lines[1:] if "type" in x]
-  goals = [e for e in events if e["type"] == "goals"]
-  assert len(goals) == 1, "the fixture lost the steering flag"
-  # ⚠ AND ITS TEXT IS EMPTY, WHICH IS THE POINT (0.19.0, issue #154).
-  # `Goals.md` is the ROBOT's now and these missions run the scripted
-  # rotation, so there is no mind to set a goal and there never will be.
-  # The message is emitted anyway because `steering` rides on it and nowhere
-  # else. What the robot is FOR is the constitution, asserted below with the
-  # other documents.
-  assert goals[0]["text"] == "", \
-    "a scripted fixture reported goals nothing could have written"
-  # ...and it says so honestly: nothing is reading or writing them here.
-  assert goals[0]["steering"] is False
-  assert lines.index(goals[0]) < lines.index(frames_of(lines)[0]), \
-    "goals must precede the frames"
-
-  # ...and the memory documents behind it (0.11.0, issue #38), on exactly the
-  # same terms and for the same reason: the site's Thoughts tab is built
-  # against these lines, no keyframe re-ships one, and the default view is a
-  # recording. A fixture without them leaves that tab showing a single row.
-  from pluggybot.mind.thoughts import HISTORY, TOP_OF_MIND, MAIN, NAMES
-
-  first_frame = next(i for i, x in enumerate(lines) if "type" not in x)
-  docs = [e for e in events if e["type"] == "thought"]
-  opening = [d for d in docs if lines.index(d) < first_frame]
-  assert [d["name"] for d in opening] == list(NAMES), \
-    "the fixture does not open with the robot's memory"
-  assert {d["writer"] for d in opening} == {"human", "system", "robot"}, \
-    "four documents claiming one writer render as four identical panels"
-  # Goals.md rides the wire TWICE by design -- the prose here, `steering`
-  # over there -- and the two must agree or the panel shows one and annotates
-  # the other.
-  assert next(d for d in opening if d["name"] == "Goals.md")["text"].strip() \
-      == goals[0]["text"].strip()
-  # History is written DURING the mission, so it must actually move: a
-  # fixture whose memory never changed replays a robot that had none.
-  later = [d for d in docs if lines.index(d) >= first_frame]
-  assert later, "nothing was ever written to the robot's history"
-  assert {d["name"] for d in later} == {HISTORY}, \
-    "something other than the system wrote a file mid-mission"
-  assert later[-1]["text"].count("\n") >= 2, "a one-line day"
-  # ...and the robot's OWN file is empty here, honestly: these missions run
-  # the scripted rotation, and nothing without a mind writes an opinion. The
-  # same fact `steering: False` states from the other end.
-  assert next(d for d in opening if d["name"] == TOP_OF_MIND)["text"] == ""
-  # The ROWS behind the documents (issue #238): one `records` snapshot per
-  # robot before the first frame, and a `record` line for every History
-  # line written after it -- the site's tables are built against these, and
-  # a fixture without them shows a robot whose memory has no rows.
-  snaps = [e for e in events if e["type"] == "records"]
-  assert [lines.index(s) < first_frame for s in snaps] == [True], \
-    "the fixture does not open with the robot's rows"
-  assert snaps[0]["robot"] == "pluggybot" and snaps[0]["generation"] >= 1
-  rows = [e for e in events if e["type"] == "record"]
-  assert rows and {r["record"]["kind"] for r in rows} == {"history"}, \
-    "a scripted day writes History rows and nothing else"
-  assert all(r["record"]["writer"] == "system" and r["record"]["status"] == "active"
-             and r["t"] == r["record"]["t"] for r in rows)
-  assert [r["record"]["id"] for r in rows] == sorted(r["record"]["id"] for r in rows)
-  # ...and no map and no prompt: a scripted world has no mind and says
-  # nothing, rather than an empty map or an empty prompt (`event_map` and
-  # `prompt` are a mind's, live).
-  assert not [e for e in events if e["type"] in ("event_map", "prompt")]
-  # ⚠ AND THE PERSONA IN THE FIXTURE IS THE ONE IN THE CODE (issue #39).
-  # These recordings are made with no thoughts directory, so Main.md is
-  # DEFAULT_MAIN verbatim -- and the site's default view is a recording, so a
-  # fixture carrying last month's persona is what a visitor actually reads.
-  # This is the guard that was missing: the persona changed and every shape
-  # assertion above still passed, because content drift is invisible to them.
-  from pluggybot.mind.thoughts import DEFAULT_MAIN
-  assert next(d for d in opening if d["name"] == MAIN)["text"] \
-      == DEFAULT_MAIN.strip(), \
-    "the recording's persona is stale: re-record after editing DEFAULT_MAIN"
-  # ...and it never claims the SPECIES as the robot's name: `pluggybot` is
-  # what it is, the name is per instance (`robot_display_name`), and the
-  # website renders "<name> the pluggybot" directly above this text.
-  assert "You are PluggyBot" not in next(
-    d for d in opening if d["name"] == MAIN)["text"]
-
-  # The scoreboard half (0.6.0). Every mission charges, and charging is a
-  # scored task, so BOTH worlds' fixtures must carry a ledger that moves --
-  # this is what the site's scoreboard is built against, and the balance is
-  # the only part of it that survives a mid-mission join (there is no
-  # snapshot message for points; `recent` in the keyframe is the catch-up).
-  events = [x for x in lines[1:] if "type" in x]
-  assert header["ledger"] == ["pluggybot"]
-  banked = [e for e in events if e["type"] == "earned"]
-  assert banked, "a whole mission earned nothing: no task was ever evaluated"
-  assert {"charge"} <= {e["task"] for e in banked}
-  for e in banked:
-    assert e["reason"] and e["tier"] in ("auto", "hidden", "visitor")
-    # A hidden-truth task must not publish its answer: this stream reaches
-    # both the website and (issue #15) the robot's own context.
-    assert "truth" not in e["metrics"]
-  with_ledger = [f for f in frames if "ledger" in f]
-  assert len(with_ledger) < len(frames), "an unchanged balance was re-sent"
-  # ...and the block agrees with the events it summarizes. Not necessarily
-  # with the LAST one: a mission whose final award lands on its final physics
-  # step ends before another frame is built, and a fixture is not a worse
-  # fixture for that.
-  final = with_ledger[-1]["ledger"]["pluggybot"]
-  assert 0 < final["balance"] <= banked[-1]["balance"]
-  # ⚠ NOT "the final balance is one of the awards' balances", which is what
-  # 0.6.0 asserted here. That encoded "only an award moves a balance", and
-  # issue #36 breaks it deliberately: with an appetite attached the balance
-  # also falls BETWEEN awards, a point at a time. What survives is the
-  # block's own arithmetic -- and it is the stronger check, since it is why
-  # `consumed` and `spilled` are on the wire at all: a site showing a
-  # balance it cannot reconstruct is showing points leaking.
-  assert (final["earned"] - final["consumed"] - final["spent"]
-          == final["balance"])
-  assert final["recent"] and final["tasks"] >= len(final["recent"])
-
-  # The appetite half (0.13.0, issue #36). Both fixtures are recorded with
-  # `--metabolism` for the reason they are recorded with `--tasks`: the
-  # mechanic is off by default, so without it the site has no block to build
-  # its hunger gauge against.
-  assert header["hungerStates"] == list(HUNGER_STATES)
-  # ...and since 0.20.0 the block rides the ROBOT's record, not the frame.
-  with_hunger = [f["robots"]["pluggybot"] for f in frames
-                 if "metabolism" in f["robots"]["pluggybot"]]
-  assert with_hunger, "the fixture carries no metabolism block at all -- was "\
-                      "it recorded without --metabolism?"
-  assert len(with_hunger) < len(frames), "an unchanged appetite was re-sent"
-  states = [r["metabolism"]["state"] for r in with_hunger]
-  # A fresh ledger starts the robot with nothing, and the gauge has to MOVE
-  # -- a fixture pinned at one state is a fixture a hunger panel cannot be
-  # developed against.
-  assert states[0] == "starving"
-  assert len(set(states)) > 1, f"the appetite never changed state: {set(states)}"
-  assert set(states) <= set(HUNGER_STATES)
-  last = with_hunger[-1]["metabolism"]
-  assert last["consumed"] > 0, "a whole mission ate nothing"
-  assert 0 < last["points"] <= last["cap"]
-
-  # The task half (0.9.0, issue #21): the world OFFERED work, the robot took
-  # it, and code judged the result. All three reach a consumer only through
-  # these lines and the tasks block -- a job offer has no body either.
-  assert header["taskKinds"], "the header must advertise what jobs it offers"
-  put_up = [e for e in events if e["type"] == "task_offered"]
-  closed = [e for e in events if e["type"] == "task_resolved"]
-  assert put_up, "no job was ever offered"
-  # ⚠ `taken` / `closed` are asserted ACROSS THE PAIR, not per recording --
-  # see `test_the_recordings_between_them_show_a_job_taken_on_and_judged`. The
-  # two fixtures have different jobs: room_hub demonstrates the task loop,
-  # home demonstrates the two streamed surfaces (ink and the LCD's count), and
-  # the home cell does not stretch to a claimed errand on top of both. What
-  # stays per-recording is everything that is true of any offer.
-  for e in put_up:
-    assert e["task"]["kind"] in header["taskKinds"]
-    # A task names an evaluator and a row of the reward table; what it PAYS
-    # is looked up from that table, and there is no path by which whoever
-    # created it could have set the number.
-    #
-    # base + bonus, not base: the VISITOR tier banks zero on completion by
-    # design and its points arrive later with a rating, so `rate_artwork`
-    # legitimately advertises base 0. What no job may be is worth nothing at
-    # all -- that would be a job offer nobody could ever be paid for.
-    reward = e["task"]["reward"]
-    assert reward["base"] + reward["bonus"] > 0
-    assert (reward["base"] == 0) == (reward["tier"] == "visitor")
-    assert e["task"]["state"] == "offered" and e["task"]["points"] == 0
-  # Whatever DID close here closed honestly, even if nothing did.
-  finished = [e for e in closed if e["state"] in ("done", "failed")]
-  assert all(e["verdict"] is not None for e in finished)
-  assert all("truth" not in json.dumps(e["verdict"]) for e in finished)
-  # The verdict that closed the task is the one that PAID for the errand --
-  # one evaluation with two consumers, never a second judgement.
-  for e in finished:
-    assert any(b["reason"] == e["verdict"]["reason"] for b in banked), \
-      "a task was judged by something other than the evaluator that paid"
-
-  # ⚠ THE TASKS BLOCK IS WHOLE, NOT A DELTA. This is the assertion that pins
-  # the one place the protocol's sparse-block rule does not apply: a task can
-  # cease to exist, and a per-key delta has no way to say "gone", so a
-  # consumer that merged would keep a stale marker forever. Every block must
-  # therefore carry every task offered up to that moment.
-  with_tasks = [f for f in frames if "tasks" in f]
-  assert with_tasks, "the tasks block never appeared in a frame"
-  assert len(with_tasks) < len(frames), "an unchanged board was re-sent"
-  for f in with_tasks:
-    so_far = {e["task"]["id"] for e in put_up if e["t"] <= f["t"]}
-    assert so_far <= set(f["tasks"]), \
-      f"the block at t={f['t']} is a delta, not the whole board"
-  # ...and it replays to the same state the events describe.
-  last = with_tasks[-1]["tasks"]
-  for e in closed:
-    if e["t"] <= with_tasks[-1]["t"]:
-      assert last[e["id"]]["state"] == e["state"]
-      assert last[e["id"]]["points"] == e["points"]
-
-  if not draws:
-    return
-  # The drawing half (0.4.0): the board is erased, then inked, and BOTH facts
-  # reach a consumer only through these lines and the boards block. There is
-  # no body to watch -- a fixture that lost them replays a robot miming at a
-  # blank wall, and every assertion above would still pass.
-  events = [x for x in lines[1:] if "type" in x]
-  cleared = [e for e in events if e["type"] == "board_cleared"]
-  drawn = [e for e in events if e["type"] == "draw"]
-  # The drawing errand is scored too, and on a real mission rather than on a
-  # measurement handed in by a test: the strokes that paid are the ones the
-  # pen wrote into the board book (issue #14).
-  draw_award = next(e for e in banked if e["task"] == "draw")
-  assert draw_award["ok"] and draw_award["points"] > 0
-  assert draw_award["metrics"]["strokesInked"] == len(drawn)
-  assert cleared, "no board_cleared event: the errand must erase before it draws"
-  assert len(drawn) > 1, f"only {len(drawn)} draw events in a whole drawing"
-  assert set(header["boards"]), "the header must name the world's boards"
-  for e in drawn:
-    assert e["board"] in header["boards"]
-    assert len(e["points"]) >= 2 and all(len(p) == 2 for p in e["points"])
-  # A board is erased before it is drawn on -- checked by STREAM ORDER, with
-  # the clock allowed to tie.
-  # ⚠ It used to be a strict `<`, and that was encoding an accident of the
-  # pre-issue-42 implementation rather than the claim. `book.clear` used to
-  # fire on a BELIEVED arrival, seconds ahead of the pen touching anything,
-  # which let a drifted robot narrate "erased whiteboard_a", press at empty
-  # air and blank a board it never reached. #42 moved the erase onto the
-  # first stroke, so the two now happen in the SAME physics step and carry
-  # the same `t` -- measured here at 108.303 for both. The committed
-  # recording predated that change and was the last thing still asserting
-  # the old gap.
-  assert lines.index(cleared[0]) < lines.index(drawn[0]), "drew before erasing"
-  assert cleared[0]["t"] <= drawn[0]["t"]
-  # ...and the board state itself moved off blank, in the frames
-  final = [f for f in frames if "boards" in f][-1]["boards"]
-  assert any(b["strokes"] > 0 and b["fill"] > 0 for b in final.values()), \
-    "the boards block never showed any ink"
+  states = {f["robots"][FIRST.root]["state"] for f in frames}
+  assert {"EXPLORE", "GO_CHARGE", "CHARGE"} <= states, \
+    "the fixture must cover the battery-driven day"
   for f in frames:
-    bat = f["robots"]["pluggybot"]["battery"]
-    assert 0.0 <= bat["frac"] <= 1.0
-    for pose in list(f["robots"]["pluggybot"].get("bodies", {}).values()) \
+    for root in roots:
+      bat = f["robots"][root]["battery"]
+      assert 0.0 <= bat["frac"] <= 1.0
+    for pose in [p for root in roots
+                 for p in f["robots"][root].get("bodies", {}).values()] \
         + list(f.get("world", {}).values()):
       assert len(pose) == 7
+
+  # What the robot is FOR (0.8.0), which the site's goals panel shows on a
+  # recording -- the case a visitor actually meets -- and the one message
+  # with no keyframe behind it. ⚠ ITS TEXT IS EMPTY, WHICH IS THE POINT
+  # (0.19.0, issue #154): `Goals.md` is the ROBOT's, this day runs without
+  # a mind, and `steering` rides on this message and nowhere else.
+  events = [x for x in lines[1:] if "type" in x]
+  first_frame = next(i for i, x in enumerate(lines) if "type" not in x)
+  goals = [e for e in events if e["type"] == "goals"]
+  assert [g["robot"] for g in goals] == roots, "the fixture lost the steering flag"
+  for g in goals:
+    assert g["text"] == "" and g["steering"] is False
+    assert lines.index(g) < first_frame, "goals must precede the frames"
+
+  # ...and the memory documents behind it (0.11.0, issue #38), on the same
+  # terms: the site's Thoughts tab is built against these lines.
+  docs = [e for e in events if e["type"] == "thought"]
+  # ⚠ THE PERSONA IN THE FIXTURE IS THE ONE IN THE CODE (issue #39): the
+  # default constitution in the quadruped's words (#387). A fixture carrying
+  # last month's persona is what a visitor reads.
+  persona = constitutions.for_body(constitutions.resolve(constitutions.DEFAULT_NAME),
+                                   "quadruped").text.strip()
+  for root in roots:
+    mine = [d for d in docs if d["robot"] == root]
+    opening = [d for d in mine if lines.index(d) < first_frame]
+    assert [d["name"] for d in opening] == list(NAMES), \
+      f"{root}: the fixture does not open with the robot's memory"
+    assert {d["writer"] for d in opening} == {"human", "system", "robot"}, \
+      "documents claiming one writer render as identical panels"
+    # Goals.md rides the wire twice by design, and the two must agree
+    assert next(d for d in opening if d["name"] == "Goals.md")["text"].strip() == ""
+    # History is written DURING the day, so it must actually move
+    later = [d for d in mine if lines.index(d) >= first_frame]
+    assert later and {d["name"] for d in later} == {HISTORY}, \
+      f"{root}: nothing, or something other than History, was written mid-day"
+    # ...and the robot's OWN file is empty here, honestly: nothing without
+    # a mind writes an opinion
+    assert next(d for d in opening if d["name"] == TOP_OF_MIND)["text"] == ""
+    main = next(d for d in opening if d["name"] == MAIN)["text"]
+    assert main == persona, "the recording's persona is stale: re-record"
+    # ...and it never claims the SPECIES as the robot's name
+    assert "You are PluggyBot" not in main
+  # The ROWS behind the documents (issue #238): one `records` snapshot per
+  # robot before the first frame, and a `record` line for every History
+  # line written after it.
+  snaps = [e for e in events if e["type"] == "records"]
+  assert [s["robot"] for s in snaps] == roots
+  assert all(lines.index(s) < first_frame and s["generation"] >= 1 for s in snaps)
+  rows = [e for e in events if e["type"] == "record"]
+  assert rows and {r["record"]["kind"] for r in rows} == {"history"}, \
+    "a mindless day writes History rows and nothing else"
+  assert all(r["record"]["writer"] == "system" and r["record"]["status"] == "active"
+             and r["t"] == r["record"]["t"] for r in rows)
+  for root in roots:
+    ids = [r["record"]["id"] for r in rows if r["robot"] == root]
+    assert ids == sorted(ids)
+  # ...and no map and no prompt: a world with no mind says nothing, rather
+  # than an empty map or an empty prompt
+  assert not [e for e in events if e["type"] in ("event_map", "prompt")]
+
+  # The scoreboard half (0.6.0): a charge is a scored task, so a day that
+  # charges banks it -- the site's scoreboard is built against this, and the
+  # balance is the only part of it that survives a mid-day join.
+  assert header["ledger"] == roots
+  banked = [e for e in events if e["type"] == "earned"]
+  assert banked and {e["task"] for e in banked} == {"charge"}
+  for e in banked:
+    assert e["reason"] and e["tier"] in ("auto", "hidden", "visitor")
+    assert "truth" not in e["metrics"]
+  with_ledger = [f for f in frames if "ledger" in f]
+  assert with_ledger and len(with_ledger) < len(frames), "an unchanged balance was re-sent"
+  # ...and the block's own arithmetic, which is why `consumed` and `spent`
+  # are on the wire: a balance the site cannot reconstruct is points leaking
+  final = with_ledger[-1]["ledger"]
+  for root in roots:
+    b = final[root]
+    assert b["earned"] - b["consumed"] - b["spent"] - b["given"] + b["received"] \
+        == b["balance"]
+  assert final[FIRST.root]["recent"] and final[FIRST.root]["tasks"] >= 1
 
 
 # ---- the occupancy map in a RECORDING (rooftop-media-2026 #78) -------------
@@ -1495,7 +1161,7 @@ def test_a_recording_carries_the_robots_map_belief(mini_model, tmp_path):
 
   Everything a renderer needs to place it must be ON that line: `extent` and
   `resolution` are what scale it, and hardcoding a world size instead is the
-  bug this guards -- room_hub's grid is 10 x 10 m where home's is 14 x 10.
+  bug this guards: every world's grid is its own size.
   """
   grid = _stub_grid([(5, 3, -2.0), (6, 3, 2.0)])
   path = str(tmp_path / "out.jsonl")
@@ -1598,75 +1264,6 @@ def test_the_recorder_and_the_publisher_describe_one_map(mini_model):
   assert recorded == live
 
 
-def test_a_flown_census_puts_its_count_on_the_wire_and_never_the_answer(tmp_path):
-  """The count is public; the ANSWER is not (issue #75).
-
-  `census` is the first task kind with hidden ground truth, and three
-  mechanisms keep that truth off the wire: `rewards.json` marks it `secret`,
-  `Verdict.public_metrics` filters it out, and `eval_census`'s reason line
-  says WHETHER the answer was right without saying what it was. The
-  use-phase's own narration then published it anyway -- `_say` writes
-  `life.status`, `telemetry_status()` puts that in every frame, and the site
-  renders it verbatim under the robot's portrait. The overseer reads the same
-  frames, so a hidden-truth task was narrating its answer straight back into
-  the context `Task.secret` exists to keep it out of.
-
-  Flown rather than asserted on a string: the claim is about what reaches a
-  RECORDING, which is three seams away from the f-string. The drive is
-  stubbed out (minutes of physics that cannot change what the status line
-  says) so the robot surveys from where it stands and reports a count that is
-  honestly WRONG -- which is what lets this tell the two numbers apart at
-  all. Restore `truth {verdict['truth']}` to the `_say` and the last
-  assertion fails.
-  """
-  import pluggybot.lifecycle as lc
-  from pluggybot.economy.census import Zone, true_count
-  from pluggybot.telemetry.protocol import ROBOT_ROOT
-
-  cfg = lc.world_config("home")
-  model = mujoco.MjModel.from_xml_path(cfg["model"])
-  life = lc.HubLifecycle(model, mujoco.MjData(model), realtime=False,
-                         world="home", errand=False, battery_wh=8.0,
-                         rack=cfg["rack"], grid_bounds=cfg["grid_bounds"],
-                         low_battery_wh=cfg["low_battery_wh"])
-  path = str(tmp_path / "census.jsonl")
-  rec = TelemetryRecorder(model, life.data, path, model_name="home_world",
-                          status_fn=life.telemetry_status)
-  life.body.step_hooks.append(rec.step_hook)
-  errand, = [e for e in lc.errands_for("census", "home", None)
-             if e.task == "census"]
-  life.body.mission.drive_to_routine = lambda *a, **kw: tick.result(False)     # every vantage falls short
-  try:
-    result = life.body.run(errand.use(life))
-  finally:
-    rec.close()
-
-  zone = Zone.from_meta(cfg["census_zone"])
-  truth = true_count(model, zone)
-  counted = result["census"]["counted"]
-  assert result["census"]["truth"] == truth, \
-      "the evaluator must still be handed the ground truth"
-  assert counted != truth, \
-      f"the fixture only separates the two numbers while they differ " \
-      f"(counted {counted}, truth {truth})"
-
-  with open(path) as f:
-    lines = [json.loads(x) for x in f]
-  said = [fr["robots"][ROBOT_ROOT]["status"] for fr in lines[1:]
-          if "type" not in fr and "status" in fr["robots"].get(ROBOT_ROOT, {})]
-  census_lines = [s for s in said if "census of" in s]
-  assert census_lines, "the census verdict never reached a frame"
-  # What a visitor is entitled to: the robot's own count, and whether it was
-  # right. Not the number it was graded against.
-  assert all(f"{counted} plants" in s for s in census_lines), census_lines
-  assert all(("correct" if result["census"]["correct"] else "wrong") in s
-             for s in census_lines), census_lines
-  for s in said:
-    assert "truth" not in s, f"the ground truth was published: {s!r}"
-    assert f" {truth} " not in s and f" {truth}," not in s, \
-        f"the ground truth was published: {s!r}"
-
-
 # ---- build identity in the header (issue #132) --------------------------------
 
 
@@ -1674,13 +1271,13 @@ def test_the_header_says_which_build_produced_the_stream(mini_model):
   """The deployed world is an observatory, and an observation nobody can
   attribute is not weaker data -- it is unusable data (Evaluation.md §5).
 
-  All six things the experiment's series key is made of, in the experiment's
-  own vocabulary, so a regime change is the same question in both places.
+  The things a regime is made of, so a regime change is visible in the
+  header itself.
   """
-  from pluggybot.evaluation.record import build_identity
+  from pluggybot.evaluation.identity import build_identity
 
   data = mujoco.MjData(mini_model)
-  identity = build_identity("room_hub", arm="guarded", model="a/b",
+  identity = build_identity("home_quad", arm="guarded", model="a/b",
                             backend="huggingface", pack_wh=8.0,
                             reserve_wh=0.9, deadline_s=90.0,
                             hashes={"rewards": "ab" * 32}, commit="deadbee")
@@ -1725,33 +1322,29 @@ def test_a_consumer_that_never_heard_of_the_build_block_still_works(mini_model):
   assert "build" not in bare, \
     "a run that was handed no identity must not invent one"
 
-  from pluggybot.evaluation.record import build_identity
+  from pluggybot.evaluation.identity import build_identity
   stamped = FrameBuilder(mini_model, data, model_name="mini",
-                         build=build_identity("room_hub", arm="scripted",
+                         build=build_identity("home_quad", arm="scripted",
                                               hashes={}, commit="x")).header()
   assert {k: v for k, v in stamped.items() if k != "build"} == bare, \
     "the identity changed a field a 0.15.0 consumer already reads"
 
 
-def test_the_header_and_the_experiment_record_hash_the_same_files(monkeypatch,
-                                                                 tmp_path):
-  """One implementation, not two (issue #132's fourth acceptance line).
-
-  A header and a `results/` record that computed their own hashes would
-  agree right up to the day one of them learned about a file the other did
-  not, and nothing would notice. So the header calls `data_hashes`, and the
-  proof is that re-pointing a data file moves BOTH.
-  """
+def test_the_header_hashes_the_files_the_sim_reads(monkeypatch, tmp_path):
+  """One implementation, not two (issue #132): the header calls
+  `data_hashes`, which resolves each data file exactly as the sim does --
+  the env override wins -- and the proof is that re-pointing a data file
+  moves the header's hash of it and nothing else."""
   from pluggybot.economy import scoring
-  from pluggybot.evaluation import record
+  from pluggybot.evaluation import identity
 
-  before = record.build_identity("room_hub", arm="scripted")["dataHashes"]
-  assert before == record.data_hashes("room_hub")
+  before = identity.build_identity("home_quad", arm="scripted")["dataHashes"]
+  assert before == identity.data_hashes("home_quad")
 
   tweaked = tmp_path / "rewards.json"
   tweaked.write_text(Path(scoring.TABLE_PATH).read_text() + "\n")
   monkeypatch.setenv(scoring.TABLE_ENV, str(tweaked))
-  after = record.build_identity("room_hub", arm="scripted")["dataHashes"]
+  after = identity.build_identity("home_quad", arm="scripted")["dataHashes"]
 
   assert after["rewards"] != before["rewards"], \
     "the env override the sim reads is not the file the header hashed"

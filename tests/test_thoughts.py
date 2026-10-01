@@ -31,7 +31,7 @@ from pluggybot.lifecycle import board_book, world_config
 from pluggybot.mind.overseer import Menu, Overseer
 from pluggybot.mind.thoughts import (
   FINDINGS, GOALS, HISTORY, HUMAN, MAIN, MAX_LINE_CHARS, NOTES, ROBOT,
-  SYSTEM, NAMES, SPECS, TOP_OF_MIND, ThoughtFiles, ThoughtRefused,
+  SYSTEM, NAMES, SPECS, TOP_OF_MIND, ThoughtFiles, ThoughtRefused, cut_mark,
 )
 from pluggybot.telemetry.protocol import (
   THOUGHT_VERBS,
@@ -229,6 +229,30 @@ def test_a_long_line_is_trimmed_rather_than_refused(files):
   assert len(written) == MAX_LINE_CHARS
   assert files.pin("", t=1.0) == "", "an empty line is cost with no content"
   assert files.writes[TOP_OF_MIND] == 1
+
+
+def test_a_history_line_that_is_cut_says_so_inside_its_cap(files):
+  """⚠ A SILENT CUT IS THE DEFECT, on #307's terms (#433): History cut
+  every line at `MAX_LINE_CHARS` and said nothing, so an operator's reply
+  ended at "nothing corrects your h" and the robot read it as whole. The
+  mark REPLACES the end of what is kept: a line is cut from the end, so a
+  mark after the cut would be the first thing lost. Shown to fail without
+  the fix: the line is cut at the cap and nothing says so."""
+  said = "the procedure weigh did not finish -- " + "w " * 600
+  line = files.remember(said, t=5.0)
+  assert len(line) <= MAX_LINE_CHARS
+  assert line.endswith("w" + cut_mark(MAX_LINE_CHARS)), "the mark, after a word"
+  assert files.lines(HISTORY)[-1] == line, "the view the robot reads shows it"
+  # A line that fits says nothing: the mark means something only if it is
+  # absent when nothing was cut.
+  assert files.remember("woke up", t=6.0) == "[t=6s] woke up"
+  # A line given ROOM keeps what it quotes whole -- an operator's reply,
+  # bounded at its source -- and the cap is the system's own words'.
+  quoted = "x" * 500
+  assert files.remember(f"ben replied on my ticket tk_0001: {quoted}", t=7.0,
+                        room=len(quoted)).endswith(f": {quoted}")
+  # ...and room is History's to give: the robot's own lines keep their cap.
+  assert len(files.pin("y" * (MAX_LINE_CHARS * 3), t=8.0)) == MAX_LINE_CHARS
 
 
 def test_unpin_is_how_the_robot_changes_its_mind(files):
@@ -621,7 +645,7 @@ def test_the_name_reaches_a_served_robot(monkeypatch, tmp_path):
   survive that hop -- it reached the RECORDER back in #39 and stopped
   there, which is why nothing caught this."""
   monkeypatch.delenv("PLUGGY_ROBOT_NAME", raising=False)
-  boss = ov.build("room_hub", None, enabled=True, client=FakeClient(),
+  boss = ov.build("home_quad", None, enabled=True, client=FakeClient(),
                   thoughts=ThoughtFiles(tmp_path / "thoughts"),
                   robot_name="Luca")
   assert boss.robot_name == "Luca"
@@ -665,7 +689,7 @@ def test_the_schema_offers_both_verbs_and_no_third(menu_home):
 
 @pytest.fixture(scope="module")
 def menu_home():
-  return Menu.for_world("home", board_book("home"))
+  return Menu.for_world("home_quad", board_book("home_quad"))
 
 
 def test_a_decision_writes_history_and_knowledge_through_the_mission(tmp_path):
@@ -675,19 +699,19 @@ def test_a_decision_writes_history_and_knowledge_through_the_mission(tmp_path):
   from test_body import stub_life
 
   files = ThoughtFiles(tmp_path / "thoughts")
-  boss = Overseer(Menu.for_world("room_hub", None), thoughts=files,
-                  client=FakeClient(full(action="carry", reason="tidying up",
+  boss = Overseer(Menu.for_world("home_quad", None), thoughts=files,
+                  client=FakeClient(full(action="idle", reason="tidying up",
                                          pin="bay C sticks a little")))
-  life = stub_life("room_hub", overseer=boss, thoughts=files, errand=False)
+  life = stub_life(overseer=boss, thoughts=files)
   said: list[str] = []
   life.say_hooks.append(lambda t, line: said.append(line))
-  life.body.start_at(*world_config("room_hub")["start"])
+  life.body.start_at(*world_config("home_quad")["start"])
   try:
     life._decide()
   finally:
     life.body.close()
 
-  assert "chose carry: tidying up" in files.read(HISTORY)
+  assert "chose idle: tidying up" in files.read(HISTORY)
   assert files.read(TOP_OF_MIND) == "bay C sticks a little"
   assert any(line.startswith("THOUGHT pin: bay C sticks") for line in said)
   # ...and it is on disk, because the next mission is a different process.
@@ -703,7 +727,7 @@ def test_the_mission_cannot_write_the_files_it_does_not_own(tmp_path):
   from test_body import stub_life
 
   files = ThoughtFiles(tmp_path / "thoughts")
-  life = stub_life("room_hub", thoughts=files, errand=False)
+  life = stub_life(thoughts=files)
   said: list[str] = []
   life.say_hooks.append(lambda t, line: said.append(line))
   life._remember("something happened")
@@ -723,7 +747,7 @@ def test_a_refused_thought_is_narrated_rather_than_swallowed(tmp_path):
   from test_body import stub_life
 
   files = ThoughtFiles(tmp_path / "thoughts")
-  life = stub_life("room_hub", thoughts=files, errand=False)
+  life = stub_life(thoughts=files)
   said: list[str] = []
   life.say_hooks.append(lambda t, line: said.append(line))
   # Fill the robot's file, then ask it to learn one more thing.
@@ -748,7 +772,7 @@ def test_a_refused_thought_is_told_to_the_robot_in_its_history():
   from test_body import stub_life
 
   files = ThoughtFiles()
-  life = stub_life("room_hub", thoughts=files, errand=False)
+  life = stub_life(thoughts=files)
   files.pin("board a is nearly full", t=1.0)
   files.pin("board b is empty", t=2.0)
   life._reconsider(ov.Decision(action="idle", unpin="board"))
@@ -838,7 +862,7 @@ def test_every_memory_write_is_narrated_in_the_one_shape_the_site_parses(tmp_pat
   from test_body import stub_life
 
   files = ThoughtFiles(tmp_path / "thoughts")
-  life = stub_life("room_hub", thoughts=files, errand=False)
+  life = stub_life(thoughts=files)
   said: list[str] = []
   life.say_hooks.append(lambda t, line: said.append(line))
 

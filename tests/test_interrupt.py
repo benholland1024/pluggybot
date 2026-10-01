@@ -11,19 +11,18 @@ agent's own event map, validated by the same function as everything else.
 What is here is the MECHANICS, which is what the issue's own last comment
 calls its substance:
 
-  `test_an_aborted_errand_puts_the_module_back_even_with_the_endpoint_down`
+  `test_an_aborted_procedure_hangs_its_tool_back_even_with_the_endpoint_down`
       ⚠ ABORT MEANS STOW, NEVER DROP -- the one rule that cannot be got
-      wrong -- flown with a dead client, because a row naming an action
-      asks nobody and so still works when the endpoint is down
+      wrong -- with a dead client, because a row naming an action asks
+      nobody and so still works when the endpoint is down
   `test_an_interrupt_nobody_answers_aborts_rather_than_carries_on`
       the one place in this design where failing SAFE is right
   `test_the_control_arm_cannot_be_interrupted_at_all`
       `guarded` has no map, so it cannot be interrupted, so it is unchanged
 
-ONE test here flies a mission, `..._puts_the_module_back_even_with_the_
-endpoint_down`: where an aborted module ENDS UP is physics. What the loop
-does after an abort -- `..._a_later_errand_runs_cleanly` -- is a day on the
-stub.
+The loop's half is a day on the stub body (`tests/test_body.py`); that the
+quadruped's stow hangs a tool on its bay is the rack's own flight
+(`tests/test_quad_rack.py`).
 
 Nothing here touches the network: the client is the injected seam, as in
 tests/test_overseer.py, whose fakes these reuse.
@@ -31,20 +30,30 @@ tests/test_overseer.py, whose fakes these reuse.
 
 import pytest
 
-from pluggybot.evaluation import record as rec
-from pluggybot.evaluation import rollup as ru
 from pluggybot.evaluation.arms import arm_flags
-from pluggybot.lifecycle import board_book
+from pluggybot.lifecycle import QUAD_HOME, THINK_SLICE_S, board_book, world_config, world_facts
 from pluggybot.mind import events as ev
 from pluggybot.mind.overseer import Menu, Overseer
+from pluggybot.mission.errand import programmed_errand
+from pluggybot.procedure import lang
 
-from test_overseer import FakeClient  # noqa: I001 -- tests/ is on sys.path
-from test_experiment import _config, _result, _state
+from test_body import stub_life  # noqa: I001 -- tests/ is on sys.path
+from test_overseer import FakeClient
 
 
 @pytest.fixture(scope="module")
 def menu():
-  return Menu.for_world("home", board_book("home"))
+  return Menu.for_world(QUAD_HOME, board_book(QUAD_HOME))
+
+
+def _state(fraction: float) -> dict:
+  """A synthetic decision state: what the interrupt's question is shown."""
+  return {"simTimeS": 100.0,
+          "battery": {"fraction": fraction, "wh": 8.0 * fraction,
+                      "spendableWh": max(0.0, 8.0 * fraction - 0.9)},
+          "offeredTasks": [], "affordableActions": ["explore", "charge"],
+          "possibleActions": ["explore", "charge"],
+          "tasksThisMission": [], "decisions": 0}
 
 
 def make(menu, *answers, origin="seeded", **kw) -> Overseer:
@@ -107,7 +116,7 @@ def test_the_interrupt_asks_a_binary_and_not_an_action(menu):
 
 
 def _answer(boss, state=None):
-  boss.start_interrupt(state or _state(0.1), "draw:whiteboard_b",
+  boss.start_interrupt(state or _state(0.1), "feed:lab",
                        "your pack is at 10%")
   while boss.interrupt_pending:
     pass
@@ -174,144 +183,39 @@ def test_the_question_names_the_errand_and_what_stopping_costs(menu):
   boss = make(menu, client=client)
   _answer(boss)
   turn = client.calls[-1]["messages"][0]["content"]
-  assert "draw:whiteboard_b" in turn
+  assert "feed:lab" in turn
   assert "put the tool back" in turn and "not free" in turn
   # ...and it rides the SAME cached prefix, byte for byte: a second question,
   # not a second mind.
   assert client.calls[-1]["system"] == boss.system
 
 
-# ---- the mechanics, through a real mission ----------------------------------
+# ---- the mechanics, through the loop -----------------------------------------
 
 
-def attach(client):
-  """Hand a lifecycle's overseer a fake client (`_client_ready` matters --
-  see tests/test_event_map.py, where writing `_client` alone had the
-  property quietly build a real one over the fake)."""
-  def ready(life):
-    life.overseer._client = client
-    life.overseer._client_ready = True
-  return ready
-
-
-#: The threshold the mission tests below fire on, and it is chosen rather
-#: than guessed: room_hub's demo cell (1.0 Wh since #34; 0.7 before) starts a
-#: mission at ~95 % and the first carry errand takes it to ~50 %, so 0.7 is
-#: certainly crossed DURING an errand and certainly not before one has
-#: started (the spin and the drive to the rack cost a few percent). A row
-#: that fires during the opening spin would be QUEUED rather than an
-#: interrupt -- which is the correct behaviour and not what these tests are
-#: about.
+#: The threshold the rows below fire on. The stub's pack is full until the
+#: first fetch, which drops it under this: the row fires mid-errand, never
+#: before one started (a row fired between errands is QUEUED, not an
+#: interrupt -- correct, and not what these tests are about).
 MID_ERRAND = 0.7
 
-
-def fly(tmp_path, tag, row, client=None, errand="carry", lines=None, **kw):
-  """One room_hub mission whose agent has `row` in its map from the start.
-
-  ⚠ IT ENDS WHEN THE CLAIM IS SETTLED, not when the budget runs out
-  (`HubLifecycle.stop_when`, and CLAUDE.md's rule): once the errand has run
-  and an interrupt has fired there is nothing left to learn -- and a
-  battery-driven loop with no work left spends the rest of its budget
-  honestly deciding what to do with its afternoon.
-
-  ⚠ AND THE PREDICATE IS THE SUCCESS CONDITION. A run where nothing
-  interrupted, or where an errand never came back, never satisfies it -- so
-  it takes the long path and fails exactly as it did before, which is what
-  stops a shortened test from passing a regression it would otherwise catch.
-  """
-  from pluggybot.lifecycle import run_demo
-
-  def ready(life):
-    if client is not None:
-      attach(client)(life)
-    life.overseer.event_map = ev.EventMap((row,))
-    if lines is not None:
-      # `log` is not in `run_demo`'s result dict, so the narration is
-      # captured off the hook the live publisher uses.
-      life.say_hooks.append(lambda t, msg: lines.append(msg))
-  return run_demo(view=False, realtime=False, world="room_hub",
-                  errand=errand, max_sim_time=400.0, overseer=True,
-                  standing_orders=True, origin="seeded",
-                  thoughts_root=str(tmp_path / tag),
-                  ledger_state=str(tmp_path / f"{tag}.json"),
-                  stop_when=lambda life: (
-                    len(life.errand_results) >= 1
-                    and bool(life.interrupts)),
-                  on_ready=ready, **kw)
+#: A job that fetches a tool, works with it for a while, and stows it.
+JOB = "def job():\n  fetch(\"module_lcd\")\n  wait(2)\n  wait(2)\n  stow()\n"
 
 
-@pytest.mark.slow
-def test_an_aborted_errand_puts_the_module_back_even_with_the_endpoint_down(tmp_path):
-  """⚠ THE RULE THAT CANNOT BE GOT WRONG. The fetch/carry/stow half took two
-  issues to make repeatable and a stow computes its release heights from the
-  lift it starts at, so an errand abandoned with a module on the fork is
-  issue #30's cliff on purpose -- a module dropped in the rack's approach
-  lane is what stranded a run in pass 1b.
-
-  What is asserted is where the module ENDS UP: hung, on its bracket,
-  exactly as a finished errand leaves it. Measured on the real swap stack,
-  because that is the only place this claim can be made.
-
-  ⚠ FLOWN WITH A CLIENT THAT RAISES ON EVERY CALL, which is the stronger
-  form of the same flight and the reason a row naming an action beats a
-  fixed interrupt: the agent pre-committed, so code carries the instruction
-  out and asks nobody -- it keeps working when the endpoint is DOWN, which
-  is exactly when a low-battery interrupt is worth having. The interrupt
-  still fires, still aborts, and its source is the ROW, not a fallback.
-  (Two flights until 2026-09-13 -- one with a live fake, one dead -- asserted
-  disjoint halves of this one mission; the dead flight covers both.)"""
-  row = ev.Row(event="battery_below", action="charge", value=MID_ERRAND)
-  said: list[str] = []
-  out = fly(tmp_path, "abort", row, client=FakeClient(RuntimeError("down")),
-            lines=said)
-  assert out["interrupts"], "a hazard row fired mid-errand"
-  entry = out["interrupts"][0]
-  assert entry["outcome"] == "aborted"
-  assert entry["asked"] is False, "a row naming an action makes no call"
-  assert entry["source"] == "event:battery_below"
-  assert out["module_stowed"], "abort means STOW, never drop"
-  assert out["errands"][0]["stowed"] is True
-  assert out["errands"][0]["interrupted"] is True
-  # ...and it COST something to get home, which is the honest version of the
-  # choice and why the number is recorded rather than assumed.
-  assert out["errands"][0]["abortCostWh"] >= 0.0
-  # ⚠ AND IT IS NOT AN ERROR. The errand did not fail, it was stopped on
-  # purpose -- folding the two would put an act of caution in `whFailed`.
-  assert not out["errands"][0].get("error")
-  # ...nor is it narrated as one. "never got there" is what a stagnated
-  # drive says, and a reader who cannot tell a choice from a fault will read
-  # one of them as the navigation being broken (issue #32's `stranded`).
-  assert said, "the narration hook was wired"
-  assert not any("never got there" in line for line in said), \
-      "an abort must not narrate as a failed drive"
-  assert any(line.startswith("INTERRUPT ") for line in said), \
-      "and it says what actually happened"
+def _job():
+  return programmed_errand(lang.compile_procedure(JOB, world_facts(QUAD_HOME)),
+                           task="program", name="procedure")
 
 
-def test_a_later_errand_runs_cleanly_after_an_abort():
-  """The acceptance criterion's other half, as a day on the stub (issue
-  #380): three carry errands and a hazard row that fires once, during the
-  first pick -- and every errand after the abort fetches, carries and hangs
-  its module back UNINTERRUPTED. The latch is the errand's, not the day's.
-  Where the aborted module physically ends up is the flown
-  `test_an_aborted_errand_puts_the_module_back_even_with_the_endpoint_down`;
-  that a hung module is picked again is the swap stack's own tests'.
-
-  The pack drops to 65 % DURING the pick and the body holds a think-slice,
-  so the seam that reads the map sees the crossing mid-errand: on the stub
-  a manoeuvre takes no sim time. Shown to fail by dropping
-  `self._aborting = False` from `run_errand_routine`'s per-errand reset.
-  """
-  from pluggybot.lifecycle import THINK_SLICE_S, world_config
-  from pluggybot.mission.errand import carry_errand
-
-  from test_body import stub_life
-  cfg = world_config("room_hub")
-  boss = make(Menu.for_world("room_hub", None))
-  life = stub_life("room_hub", overseer=boss,
-                   errands=[carry_errand(use_at=cfg["use_at"]) for _ in range(3)])
-  boss.event_map = ev.EventMap((ev.Row(event="battery_below", action="idle",
-                                       value=MID_ERRAND),))
+def _hazard(row, client=None, errands=()):
+  """A stub robot whose map is `row`, and whose pack drops under
+  `MID_ERRAND` during its first fetch -- held a think slice, so the seam that
+  reads the map sees the crossing mid-errand (a stub fetch takes no time)."""
+  boss = make(Menu.for_world(QUAD_HOME, None),
+              **({"client": client} if client is not None else {}))
+  life = stub_life(overseer=boss, errands=list(errands))
+  boss.event_map = ev.EventMap((row,))
   real, dropped = life.body.fetch_tool_routine, []
 
   def fetch(*a, **kw):
@@ -322,19 +226,66 @@ def test_a_later_errand_runs_cleanly_after_an_abort():
       yield from life.body.hold_routine(THINK_SLICE_S)
     return got
   life.body.fetch_tool_routine = fetch
+  return life
+
+
+def test_an_aborted_procedure_hangs_its_tool_back_even_with_the_endpoint_down():
+  """⚠ THE RULE THAT CANNOT BE GOT WRONG: an errand abandoned with a module
+  on the fork leaves it wherever it stopped, and a module dropped in the
+  rack's approach lane is what stranded a run once. The aborted job ends
+  with its tool HUNG, exactly as a finished one leaves it.
+
+  ⚠ WITH A CLIENT THAT RAISES ON EVERY CALL, which is why a row naming an
+  action beats a fixed interrupt: the agent pre-committed, so code carries
+  the instruction out and asks nobody -- it keeps working when the endpoint
+  is DOWN, which is exactly when a low-battery interrupt is worth having.
+  The interrupt still fires, still aborts, and its source is the ROW."""
+  row = ev.Row(event="battery_below", action="charge", value=MID_ERRAND)
+  life = _hazard(row, client=FakeClient(RuntimeError("down")))
+  said: list[str] = []
+  life.say_hooks.append(lambda t, msg: said.append(msg))
+  out = life.body.run(life.run_errand_routine(_job()))
+  [entry] = life.interrupts
+  assert entry["outcome"] == "aborted"
+  assert entry["asked"] is False, "a row naming an action makes no call"
+  assert entry["source"] == "event:battery_below"
+  assert out["procedure"]["stopped"] == "interrupted"
+  assert out["procedure"]["completed"] == 1, "the fetch, and nothing after it"
+  assert out["picked"] and out["stowed"], "abort means STOW, never drop"
+  assert life.body.holding is None
+  # ⚠ AND IT IS NOT AN ERROR. The job did not fail, it was stopped on
+  # purpose -- folding the two would put an act of caution in `whFailed`.
+  assert not out.get("error")
+  # ...nor is it narrated as a failed walk: a reader who cannot tell a
+  # choice from a fault reads one of them as the navigation being broken.
+  assert not any("never got there" in line for line in said), \
+      "an abort must not narrate as a failed walk"
+  assert any(line.startswith("INTERRUPT ") for line in said), \
+      "and it says what actually happened"
+
+
+def test_a_later_errand_runs_cleanly_after_an_abort():
+  """The acceptance criterion's other half, as a day on the stub: three
+  jobs and a hazard row that fires once, during the first fetch -- and
+  every job after the abort fetches, works and hangs its tool back
+  UNINTERRUPTED. The latch is the errand's, not the day's. Shown to fail
+  by dropping `self._aborting = False` from `run_errand_routine`'s
+  per-errand reset."""
+  life = _hazard(ev.Row(event="battery_below", action="idle", value=MID_ERRAND),
+                 errands=[_job() for _ in range(3)])
   life.stop_when(lambda: len(life.errand_results) >= 3)
-  out = life.run(start=cfg["start"], max_sim_time=300.0)
+  out = life.run(start=world_config(QUAD_HOME)["start"], max_sim_time=300.0)
 
   assert [i["outcome"] for i in out["interrupts"]] == ["aborted"]
   first, *later = out["errands"]
-  assert first["interrupted"] and first["picked"] and first["stowed"]
+  assert first["procedure"]["stopped"] == "interrupted"
+  assert first["picked"] and first["stowed"]
   assert len(later) == 2, "the day did not go on after the abort"
   for i, e in enumerate(later, start=1):
-    assert not e.get("interrupted"), f"errand {i} inherited the abort"
+    assert not e["procedure"].get("stopped"), f"errand {i} inherited the abort"
     assert e["picked"], f"errand {i} could not fetch its module"
     assert e["stowed"], f"errand {i} could not hang its module back"
     assert not e.get("error"), f"errand {i}: {e.get('error')}"
-  assert out["module_stowed"]
 
 
 def test_the_abort_latches_so_nobody_is_asked_twice(menu, monkeypatch):
@@ -411,100 +362,7 @@ def test_interrupted_is_a_method_because_it_has_a_side_effect(menu):
   assert isinstance(HubLifecycle.needs_charge, property)
 
 
-def test_the_pen_stops_between_strokes_and_never_inside_one():
-  """⚠ NOT MID-LINE. A pen abandoned mid-stroke is pressed against the slab
-  with the lift part-way up, which is the pose SimNotes' "The pen would not
-  stow" is about -- and the mark it leaves is scored as the robot's work."""
-  import inspect
-
-  from pluggybot.tools.drawing import PenPlotter
-  src = inspect.getsource(PenPlotter.draw_program_routine)
-  stop = src.index("self.should_stop()")
-  #  The check sits above the lift/press machinery of the stroke it guards.
-  assert stop < src.index("self.lift_pen_routine()", stop)
-  assert stop < src.index("self.press_routine()", stop)
-  #  ...and the inner segment loop, which is where "inside a stroke" is.
-  assert stop < src.index("for k in range(steps)", stop)
-
-
-def test_every_use_phase_that_loops_has_a_safe_point():
-  """The census has checked `needs_charge` at a vantage since issue #13, and
-  this is that shape generalised. An errand whose use phase runs for minutes
-  and cannot be reached is an errand the interrupt does not apply to, which
-  would make the mechanic nominal on exactly the jobs it is for."""
-  import inspect
-
-  from pluggybot.mission import errand as er
-  src = inspect.getsource(er)
-  assert src.count("life.interrupted()") >= 2       # census, dance
-  assert "plotter.should_stop = life.interrupted" in src
-
-
-def test_a_cut_short_dance_is_not_a_complete_one():
-  """`done == len(landed)` reads "complete" for a routine abandoned after one
-  move, because `landed` is only as long as the robot got -- which is the
-  evaluator being told a cut-short dance finished."""
-  import inspect
-
-  from pluggybot.mission import errand as er
-  src = inspect.getsource(er.dance_errand)
-  assert '"complete": done == len(routine)' in src
-
-
-# ---- the record and the control arm -----------------------------------------
-
-
-def test_the_record_splits_continued_from_aborted_and_never_sums_them():
-  """⚠ An agent that aborts everything is not being careful, it is being
-  useless; one that continues through every warning is the null this arm
-  exists to detect. `offered` says only that the mechanism fired."""
-  result = {**_result(), "interrupts": [
-    {"t": 100.0, "row": {"event": "battery_below", "action": "ask"},
-     "fraction": 0.12, "wh": 0.9, "errand": "draw:whiteboard_a",
-     "asked": True, "outcome": "continued", "source": "llm", "why": "close"},
-    {"t": 900.0, "row": {"event": "battery_below", "action": "charge"},
-     "fraction": 0.08, "wh": 0.6, "errand": "census:garden",
-     "asked": False, "outcome": "aborted", "source": "event:battery_below",
-     "why": "battery below 10%", "abortCostWh": 0.21},
-  ]}
-  r = rec.validate(rec.build_record(_config(arm="autonomous", rung="A0",
-                                            origin="seeded"),
-                                    result, [], 1.0, _now(),
-                                    hashes=rec.data_hashes("home"),
-                                    commit="abc"))
-  ints = r["mind"]["interrupts"]
-  assert (ints["offered"], ints["continued"], ints["aborted"]) == (2, 1, 1)
-  assert ints["asked"] == 1, "a row naming an action spends no call"
-  assert ints["fractions"] == [0.12, 0.08], "the distribution, not the mean"
-  assert ints["abortCostWh"] == [0.21]
-  assert ints["sources"] == {"llm": 1, "event:battery_below": 1}
-
-
-def test_a_run_nothing_interrupted_says_nothing_rather_than_zero():
-  """`standingOrders`' terms: "was never interrupted" and "has no interrupts
-  here" are different facts and only the first is about a run."""
-  r = rec.build_record(_config(), _result(), [], 1.0, _now(),
-                       hashes=rec.data_hashes("home"), commit="abc")
-  assert "interrupts" not in r["mind"]
-
-
-def test_the_rollup_pools_the_split_and_the_cost():
-  def run(seed, continued, aborted):
-    r = rec.build_record(_config(arm="autonomous", rung="A0", seed=seed,
-                                 origin="seeded"),
-                         _result(), [], 1.0, _now(),
-                         hashes=rec.data_hashes("home"), commit="abc")
-    r["mind"]["interrupts"] = {
-      "offered": continued + aborted, "continued": continued,
-      "aborted": aborted, "fractions": [0.1] * (continued + aborted),
-      "sources": {"llm": continued + aborted}, "asked": continued + aborted,
-      "abortCostWh": [0.2] * aborted, "rows": []}
-    return rec.validate(r)
-  doc = ru.rollup([run(0, 1, 2), run(1, 0, 1)])
-  ints = doc["series"][0]["mind"]["interrupts"]
-  assert (ints["n"], ints["continued"], ints["aborted"]) == (2, 1, 3)
-  assert ints["abortCostWh"]["values"] == [0.2, 0.2, 0.2]
-  assert ints["fractions"]["values"] == [0.1] * 4
+# ---- the control arm ------------------------------------------------------
 
 
 def test_the_control_arm_cannot_be_interrupted_at_all():
@@ -514,12 +372,6 @@ def test_the_control_arm_cannot_be_interrupted_at_all():
   is what makes it still a control."""
   assert "origin" not in arm_flags("guarded")
   assert arm_flags("autonomous", "A0")["origin"] == "none"
-  # ...and `none` means no map, so nothing can fire mid-errand there either:
-  # the ladder's A0 and A1 are the runs `results/` already holds.
+  # ...and `none` means no map, so nothing can fire mid-errand there either
   from pluggybot.mind.events import origin_map
   assert origin_map("none", None) is None
-
-
-def _now():
-  from datetime import datetime, timezone
-  return datetime.now(timezone.utc)

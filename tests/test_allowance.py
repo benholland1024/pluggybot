@@ -404,7 +404,7 @@ def test_free_mode_makes_no_api_call_and_still_decides(tmp_path):
 
   path = tmp_path / "mode.json"
   path.write_text(json.dumps({"mode": "scripted"}))
-  life = stub_life("room_hub", errand=False)
+  life = stub_life()
   life.mode = ModeSwitch(path)
   life.overseer = Overseer(MENU, client=FakeClient(answer(action="charge")))
   life._decide()
@@ -424,7 +424,7 @@ def test_a_pause_stops_the_physics_and_keeps_the_heartbeat(tmp_path):
 
   path = tmp_path / "mode.json"
   path.write_text(json.dumps({"mode": "paused"}))
-  life = stub_life("room_hub", errand=False)
+  life = stub_life()
   life.mode = ModeSwitch(path)
   beats: list = []
   life.pause_hooks.append(beats.append)
@@ -507,7 +507,7 @@ def test_the_pause_is_announced_once_and_beats_while_it_lasts(tmp_path):
 
   path = tmp_path / "mode.json"
   path.write_text(json.dumps({"mode": "paused"}))
-  life = stub_life("room_hub", errand=False)
+  life = stub_life()
   life.mode = ModeSwitch(path)
   sent: list = []
   resynced: list = []

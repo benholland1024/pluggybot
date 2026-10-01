@@ -338,13 +338,13 @@ def test_rate_and_cap_are_data_and_re_tunable_without_a_code_change(tmp_path):
     "version": 1,
     "default": {"pointsPerHour": 45.0, "cap": 90, "satisfiedAt": 45,
                 "hungryAt": 20},
-    "worlds": {"home": {"pointsPerHour": 12.0, "cap": 60}},
+    "worlds": {"home_quad": {"pointsPerHour": 12.0, "cap": 60}},
   }))
-  base = Appetite.load("room_hub", path)
+  base = Appetite.load("elsewhere", path)
   assert base.points_per_hour == 45.0 and base.cap == 90
   # A world block overrides key by key, like cadence.json -- the two
   # thresholds here are not restated and come from the default block.
-  home = Appetite.load("home", path)
+  home = Appetite.load("home_quad", path)
   assert home.points_per_hour == 12.0 and home.cap == 60
   assert home.satisfied_at == 45 and home.hungry_at == 20
 
@@ -364,7 +364,7 @@ def test_the_shipped_file_leaves_the_robot_half_its_day():
   is the free time, so an appetite that eats the whole income deletes it
   while still looking like it works.
   """
-  a = Appetite.load("home")
+  a = Appetite.load("home_quad")
   duty = a.points_per_hour / MEASURED_POINTS_PER_HOUR
   assert 0.25 <= duty <= 0.60, (
     f"an appetite of {a.points_per_hour}/h against a measured "
@@ -409,7 +409,7 @@ def test_a_future_version_of_the_file_is_refused(tmp_path):
   path = tmp_path / "metabolism.json"
   path.write_text(json.dumps({"version": 99, "default": {}}))
   with pytest.raises(ValueError, match="metabolism version"):
-    Appetite.load("home", path)
+    Appetite.load("home_quad", path)
 
 
 def test_the_committed_file_is_the_shipped_default():
@@ -504,7 +504,7 @@ def test_the_appetite_rules_ride_the_cached_prefix_and_only_when_there_is_one():
   from pluggybot.economy.scoring import default_table
   from pluggybot.mind.thoughts import ThoughtFiles
   th = ThoughtFiles.open(None)
-  menu, table = Menu.for_world("home"), default_table()
+  menu, table = Menu.for_world("home_quad"), default_table()
   off = system_prompt(th, menu, table, name="Pluggy")[0]["text"]
   on = system_prompt(th, menu, table, name="Pluggy", appetite=True)[0]["text"]
   assert "POINTS ARE WHAT KEEPS YOU RUNNING" not in off
@@ -633,20 +633,18 @@ def test_the_survival_gates_decide_the_same_broke_as_flush(tmp_path):
   """
   from pluggybot import lifecycle as lc
   from pluggybot.economy.tasks import TaskBoard
-  from pluggybot.mission.errand import Errand
 
   from test_body import stub_life
   ledger = Ledger(path=None)
   metab = Metabolism(ledger, Appetite(points_per_hour=30.0, cap=400,
                                       satisfied_at=45, hungry_at=20))
   board = TaskBoard(path=None)
-  life = stub_life("home", boards=lc.board_book("home"), ledger=ledger,
+  life = stub_life(boards=lc.board_book(lc.QUAD_HOME), ledger=ledger,
                    metabolism=metab, tasks=board)
 
   def gates() -> dict:
     """Everything the loop reads before it commits the body to anything."""
-    life.errands = [Errand("census", module="module_lcd", station_y=0.125,
-                           use_at=(0.0, 0.0), use=None)]
+    life.errands = [lc.cage_errand(lc.QUAD_HOME, "feed", task="feed")]
     return {
       "needs_charge": life.needs_charge,
       "afford_next": life._afford_next(),
@@ -671,22 +669,25 @@ def test_the_survival_gates_decide_the_same_broke_as_flush(tmp_path):
 
 
 def _starving_day(wallet: int) -> tuple[dict, list, list]:
-  """room_hub's charge-then-carry day on the stub, with the appetite read off
+  """A charge-then-carry day on the stub, with the appetite read off
   `$PLUGGY_METABOLISM` and `wallet` points to start. Returns the summary,
   every manoeuvre the loop commanded with the state it was in, and the
   wallet and hunger at each command."""
-  from pluggybot.lifecycle import world_config
-  from pluggybot.mission.errand import carry_errand
+  from pluggybot.lifecycle import QUAD_HOME, world_config
+  from pluggybot.mission.errand import Errand
+  from pluggybot.procedure.steps import TOOL_BAYS
+  from pluggybot.rack.coupling import STATION_YS
   from pluggybot.tick import MissionAborted
 
   from test_body import stub_life
-  appetite = Appetite.load("room_hub")
+  appetite = Appetite.load(QUAD_HOME)
   ledger = Ledger(path=None, cap=appetite.cap)
   ledger.intervene(wallet, by="test")
   hunger = Metabolism(ledger, appetite)
-  cfg = world_config("room_hub")
-  life = stub_life("room_hub", ledger=ledger, metabolism=hunger,
-                   errands=[carry_errand(use_at=cfg["use_at"])])
+  cfg = world_config(QUAD_HOME)
+  carry = Errand(name="carry:module_lcd", module="module_lcd",
+                 station_y=STATION_YS[TOOL_BAYS["module_lcd"]], use_at=(2.0, 1.0))
+  life = stub_life(ledger=ledger, metabolism=hunger, errands=[carry])
   life.battery.energy_wh = life.low_battery_wh * 0.5        # it must charge
   commands, wallets = [], []
   for name in ("go_to_routine", "dock_routine", "dock_hold_routine",

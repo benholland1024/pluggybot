@@ -12,7 +12,7 @@ set -eu
 
 set -- --endpoint "${PLUGGY_ENDPOINT:-ws://localhost:8765}" \
        --world "${PLUGGY_WORLD:-home}" \
-       --errand "${PLUGGY_ERRAND:-draw}" \
+       --errand "${PLUGGY_ERRAND:-none}" \
        --rate "${PLUGGY_RATE:-1.0}" \
        --max-sim-time "${PLUGGY_MAX_SIM_TIME:-3600}" \
        "$@"

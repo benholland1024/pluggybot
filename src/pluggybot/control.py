@@ -1,23 +1,7 @@
-"""Differential-drive command helpers shared by teleop and autonomous driving."""
+"""Heading helpers the navigator shares: wrap an angle, turn toward one, and
+square up to one within a budget."""
 
 import math
-
-WHEEL_RADIUS = 0.045    # m — Pololu 90x10 wheel (see docs/Parts.md)
-TRACK_WIDTH = 0.21      # m — distance between wheel centers
-MAX_WHEEL_ACCEL = 30.0  # rad/s^2 — slew limit, like a real motor controller's ramp
-
-
-def wheel_targets(vel: float, ang_vel: float) -> tuple[float, float]:
-  """Body command (v m/s, w rad/s) -> (left, right) wheel angular velocities."""
-  left = (vel - ang_vel * TRACK_WIDTH / 2) / WHEEL_RADIUS
-  right = (vel + ang_vel * TRACK_WIDTH / 2) / WHEEL_RADIUS
-  return left, right
-
-
-def slew(current: float, target: float, dt: float, max_accel: float = MAX_WHEEL_ACCEL) -> float:
-  """Move current toward target, changing by at most max_accel * dt."""
-  step = max_accel * dt
-  return current + max(-step, min(step, target - current))
 
 
 def wrap_angle(a: float) -> float:
@@ -64,42 +48,16 @@ def turn_command(err: float, gain: float = 1.2, limit: float = 0.5) -> float:
 FACE_BUDGET_S = 30.0
 
 
-def square_up(error, step, settle, clock, tol: float, tries: int = 6,
-              done_within: float = 4.0, budget_s: float = FACE_BUDGET_S,
-              gain: float = 1.2, limit: float = 0.5) -> tuple[float, bool]:
-  """Turn in place until `error()` is inside `tol`, then STOP AND CHECK,
-  repeatedly -- bounded by `budget_s` of the caller's clock.
-
-  `error()` is the wrapped heading error in radians, `step(w)` turns the
-  body one physics step at yaw rate `w`, `settle()` brakes and lets the
-  slew unwind, `clock()` is sim time. Returns `(error, squared)`:
-  `squared` is False when the budget ran out, which is the one answer the
-  four copies of this loop could not give before issue #108. The recheck
-  exists because `slew` rate-limits the wheel command: a P-controller that
-  stops commanding at the target coasts past it (measured -9.5 deg in,
-  +7.5 deg out on the pen's approach), so each try settles and looks again,
-  and a settled error within `done_within` × `tol` is accepted.
-  """
-  deadline = clock() + budget_s
-  for _ in range(tries):
-    while abs(error()) > tol:
-      if clock() >= deadline:
-        return error(), False
-      step(turn_command(error(), gain=gain, limit=limit))
-    settle()
-    if abs(error()) <= tol * done_within:
-      return error(), True
-  return error(), abs(error()) <= tol * done_within
-
-
 def square_up_routine(error, step, settle, clock, tol: float, tries: int = 6,
                       done_within: float = 4.0, budget_s: float = FACE_BUDGET_S,
                       gain: float = 1.2, limit: float = 0.5):
-  """`square_up` as a ROUTINE (pluggybot/tick.py): the same loop and the
-  same callbacks, except that `step(w)` and `settle()` RETURN the routine
-  to run for one turn step and for the brake, instead of running them.
-  Same return value; the blocking twin above is kept for callers that own
-  their own stepping."""
+  """Turn in place until `error()` is inside `tol`, then STOP AND CHECK,
+  repeatedly -- bounded by `budget_s` of the caller's clock (issue #108: a
+  loop with no floor drained a wedged robot's pack). A ROUTINE
+  (pluggybot/tick.py): `step(w)` and `settle()` return the routine to run
+  for one turn step and for the brake. Returns `(error, squared)`, and
+  `squared` is False when the budget ran out; a settled error within
+  `done_within` x `tol` is accepted."""
   deadline = clock() + budget_s
   for _ in range(tries):
     while abs(error()) > tol:

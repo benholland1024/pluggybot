@@ -1,35 +1,36 @@
 #!/usr/bin/env python
 """Two robots in one world, from one physics loop (issue #167, M12).
 
-Both robots run their own day -- the first fetches a tool and carries it,
-the second explores -- against one model, one rack and one whiteboard book,
-ticked in turn from `tick.run_many`. `--view` watches it live.
+The quadruped pair in the house (`home_quad`, issue #387): each robot runs
+its own day -- explores, docks when its pack runs low, runs its queue --
+against one model, one dock, one rack and one task board, ticked in turn
+from `tick.run_many`. `--view` watches it live.
 
-    MUJOCO_GL=egl uv run python scripts/two_robots.py --world room_hub --view
-    ... --errands carry,carry      # both fetch the LCD: the first contested bay
+    MUJOCO_GL=egl uv run python scripts/two_robots.py --view
+    ... --errands feed,none        # the first walks to the lab and feeds
     ... --overseer --tasks --thoughts /tmp/two   # two minds, one job board
 """
 
 import argparse
 import json
 
+from pluggybot.lifecycle import QUAD_HOME, world_for
 from pluggybot.pair import run_demo_pair
 
 
 def main() -> None:
   ap = argparse.ArgumentParser(description=__doc__,
                                formatter_class=argparse.RawDescriptionHelpFormatter)
-  ap.add_argument("--world", choices=("room_hub", "home", "home_quad"),
-                  default="room_hub",
-                  help="room_hub, home, or home_quad: the home world with the "
-                       "quadruped pair and its dock (issue #387)")
+  ap.add_argument("--world", choices=(QUAD_HOME, "home"), default=QUAD_HOME,
+                  help="the house with the quadruped pair, its dock and rack "
+                       "(issue #387); `home` names it too")
   ap.add_argument("--view", action="store_true", help="open the viewer")
   ap.add_argument("--fast", action="store_true", help="no real-time pacing")
   ap.add_argument("--max-sim-time", type=float, default=300.0)
   ap.add_argument("--pack", choices=("demo", "hosting"), default="demo")
-  ap.add_argument("--errands", default="carry,none", metavar="A,B",
-                  help="each robot's preset queue: carry, draw, census, "
-                       "dance, none")
+  ap.add_argument("--errands", default="none,none", metavar="A,B",
+                  help="each robot's preset queue (`lifecycle.errands_for`): "
+                       "none, care, care:<act>, feed or shock")
   ap.add_argument("--boards", default=None, metavar="PATH")
   ap.add_argument("--overseer", action="store_true",
                   help="two MINDS (issue #167 slice C): each robot its own "
@@ -42,18 +43,15 @@ def main() -> None:
                   help="points are food, for both robots (each its own "
                        "appetite over its own account)")
   ap.add_argument("--near-field", action="store_true",
-                  help="each robot's mast-top depth camera builds its own "
-                       "height map, streamed beside its grid (issue #34); "
-                       "the other robot is dropped from each frame")
+                  help="each robot's depth camera builds its own height "
+                       "map, streamed beside its grid (issue #34); the other "
+                       "robot is dropped from each frame")
   ap.add_argument("--thoughts", default=None, metavar="DIR",
                   help="thought-file root; the second robot's live under "
                        "<DIR>/r2_pluggybot/")
   ap.add_argument("--record", default=None, metavar="PATH",
                   help="record both robots' stream (protocol fixtures: "
                        "protocol/telemetry.<world>_pair.jsonl.gz)")
-  ap.add_argument("--game", action="store_true",
-                  help="put hide and seek on the board (needs --tasks; "
-                       "implies it)")
   ap.add_argument("--battery", default=None, metavar="A,B",
                   help="each robot's pack at the start, as a fraction (the "
                        "quadruped fixture starts the first low, so it docks)")
@@ -70,7 +68,7 @@ def main() -> None:
     if args.battery:
       for life, frac in zip(lives, (float(f) for f in args.battery.split(","))):
         life.battery.energy_wh = life.battery.capacity_wh * frac
-  results = run_demo_pair(world=args.world, max_sim_time=args.max_sim_time,
+  results = run_demo_pair(world=world_for(args.world), max_sim_time=args.max_sim_time,
                           view=args.view, realtime=not args.fast, pack=args.pack,
                           errands=errands, board_state=args.boards,
                           overseer=args.overseer or None,
@@ -79,11 +77,11 @@ def main() -> None:
                           metabolism=args.metabolism,
                           near_field=args.near_field,
                           thoughts_root=args.thoughts, names=names,
-                          record=args.record, game=args.game, on_ready=on_ready)
+                          record=args.record, on_ready=on_ready)
   for i, r in enumerate(results, 1):
     print(f"robot {i}: {r['state']} at {r['battery']:.0%}, "
-          f"{r['swaps_done']} swaps, {len(r['errands'])} errand(s), "
-          f"{r['collision_steps']} collision steps, dead={r['dead']}")
+          f"{r['charge_cycles']} charge(s), {r['swaps_done']} swaps, "
+          f"{len(r['errands'])} errand(s), dead={r['dead']}")
   print(json.dumps([{k: r[k] for k in ("state", "battery", "swaps_done",
                                         "sim_time", "dead")} for r in results]))
 

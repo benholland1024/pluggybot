@@ -85,8 +85,8 @@ def test_the_face_carries_no_contact_parameters(scoop):
 
 def test_the_spike_did_not_move_without_a_face():
   """The tolerance sweep's scene, compiled: same wall, same push, same
-  peg, same camera, same rest height. (`test_hub_coupling.py` is the
-  behaviour; this is the geometry the new parameters default to.)"""
+  peg, same camera, same rest height -- the geometry the new parameters
+  default to."""
   model = mujoco.MjModel.from_xml_string(coupling.scene_xml())
   back = model.geom("hub_back")
   assert model.geom_pos[back.id] == pytest.approx((-0.018, 0.0, 0.10))

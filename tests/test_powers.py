@@ -30,6 +30,7 @@ from dataclasses import replace
 
 import pytest
 
+from pluggybot import lifecycle
 from pluggybot.mind import overseer as ov
 from pluggybot.mind.overseer import Menu
 from pluggybot.lifecycle import board_book
@@ -37,18 +38,34 @@ from pluggybot.lifecycle import board_book
 from test_autonomous import GUARDED_RULES_SHA
 from test_overseer import FakeClient
 
+#: What `world_config` says of the one world, overridden for a gate it does
+#: not open: a built-tool rail (none since the rover's rack left, #376), a
+#: body that takes a tool (#406, #407), and a world with no lab.
+RAIL = {"built_bays": 3}
+TOOLS = {"tools": True}
+NO_LAB = {"lab": None}
 
-def built(world="home", **kw):
-  """A maximal build of `world`: every gate the index reads, on. The board
-  book comes with it because `draw` is how `board` and `program` are
-  described, and a world with no boards does not offer the action."""
+
+def build(world_is=None, **kw):
+  """`ov.build` of the one world, with `world_config` saying `world_is` of
+  it for the length of the build."""
+  with pytest.MonkeyPatch.context() as mp:
+    if world_is:
+      real = lifecycle.world_config
+      mp.setattr(lifecycle, "world_config", lambda w: {**real(w), **world_is})
+    return ov.build("home_quad", enabled=True, client=FakeClient(), **kw)
+
+
+def built(world_is=None, **kw):
+  """A maximal build: every gate the index reads, on. The board book comes
+  with it because `draw` is how `board` and `program` are described, where a
+  body takes a tool."""
   kw.setdefault("autonomous", True)
-  return ov.build(world, book=board_book(world), enabled=True,
-                  client=FakeClient(),
-                  hearts=True, mortal=True, appetite=True,
-                  standing_orders=True, origin="unseeded",
-                  others=("Rowan",),
-                  escalate_to="Qwen/Qwen3-235B-A22B-Instruct-2507", **kw)
+  return build(world_is, book=board_book("home_quad"),
+               hearts=True, mortal=True, appetite=True,
+               standing_orders=True, origin="unseeded",
+               others=("Rowan",),
+               escalate_to="Qwen/Qwen3-235B-A22B-Instruct-2507", **kw)
 
 
 def schema_of(boss):
@@ -84,7 +101,9 @@ def fields_of(boss):
 # ---- 1. the fence, in both directions ------------------------------------------
 
 
-def test_every_field_the_schema_offers_has_a_door_and_the_index_invents_none():
+@pytest.mark.parametrize("world_is", [None, RAIL], ids=["served", "rail"])
+def test_every_field_the_schema_offers_has_a_door_and_the_index_invents_none(
+    world_is):
   """THE POINT OF THE ISSUE, as an assertion: a field the model is required
   to fill is either the answer itself, a parameter of an action that names
   it, or a power with a line in the index -- and nothing else.
@@ -95,7 +114,7 @@ def test_every_field_the_schema_offers_has_a_door_and_the_index_invents_none():
   fault: an index naming a power the world does not honour, which is a rule
   the code contradicts -- what M14 measured.
   """
-  boss = built()
+  boss = built(world_is)
   required = set(schema_of(boss)["required"])
   fields = fields_of(boss)
   spoken_for = (set(ov.ANSWER_FIELDS) | set(ov.ACTION_PARAMETERS)
@@ -105,28 +124,28 @@ def test_every_field_the_schema_offers_has_a_door_and_the_index_invents_none():
   # ...and no field is indexed AND claimed by an action: one door each.
   assert set(fields).isdisjoint(ov.ACTION_PARAMETERS)
   # The powers the issue was filed about, named at last.
-  assert {"define", "undefine", "build_tool", "retire_tool", "event_map",
-          "record", "retract", "lookup", "ticket", "done"} <= set(fields)
+  assert {"define", "undefine", "event_map", "record", "retract", "lookup",
+          "ticket", "done"} <= set(fields)
+  assert ({"build_tool", "retire_tool"} <= set(fields)) == bool(world_is)
 
 
 @pytest.mark.parametrize("make", [
   lambda: built(),
-  lambda: built("room_hub"),
-  lambda: ov.build("home", enabled=True, client=FakeClient(), autonomous=True,
-                   standing_orders=True),
+  lambda: built(RAIL),
+  lambda: built(NO_LAB),
+  lambda: build(autonomous=True, standing_orders=True),
   # ⚠ THE ONE THAT BROKE IT. With the pointer written into the line,
   # `hearts` without `mortal` -- a build `build()` accepts -- indexed
   # `buy_heart` with "See YOU CAN DIE." and there was no such section.
-  lambda: ov.build("home", enabled=True, client=FakeClient(), autonomous=True,
-                   hearts=True, mortal=False, standing_orders=True,
-                   origin="unseeded"),
-], ids=["everything", "room_hub", "no-map", "hearts-without-mortal"])
+  lambda: build(autonomous=True, hearts=True, mortal=False,
+                standing_orders=True, origin="unseeded"),
+], ids=["everything", "rail", "no-lab", "no-map", "hearts-without-mortal"])
 def test_every_entry_ends_at_a_section_this_prefix_carries(make):
   """An index entry is only worth its line if the manual is where it says,
   and a pointer dangles exactly where a gate and its rule section disagree.
   So the pointer is COMPOSED against the headings this prefix carries
   rather than written into the line, and what is walked here is that the
-  composition holds on four shapes -- including the two where a section is
+  composition holds on five shapes -- including the two where a section is
   deliberately absent."""
   boss = make()
   headings = {name for name, _ in boss.sections}
@@ -146,8 +165,9 @@ def test_an_action_parameter_is_named_by_the_action_it_belongs_to():
   place to hide a field: `board`, `task`, `answer` and the rest are not
   powers, they are what an action needs, and each is named in that action's
   own line. A parameter whose action stops mentioning it fails here rather
-  than quietly becoming undocumented."""
-  boss = built()
+  than quietly becoming undocumented. Built where a body takes a tool,
+  because `board` and `program` are `draw`'s."""
+  boss = built(TOOLS)
   actions = json.dumps(index_of(boss)["actions"])
   required = set(schema_of(boss)["required"])
   for name in ov.ACTION_PARAMETERS:
@@ -164,11 +184,9 @@ def test_the_index_is_absent_on_guarded_and_its_prefix_is_byte_identical():
   and the preamble that explains it is absent with it. Every power at issue
   here is `autonomous`-only anyway.
 
-  The sha below is the guarded prefix of the deployed world as this change
-  found it, measured before the index existed and unchanged by it -- and
-  re-pinned by #321, whose reward table rides every arm's prefix: five
-  payouts moved in it and nothing else did."""
-  guarded = ov.build("home", enabled=True, client=FakeClient())
+  The sha below is the guarded prefix of the one world, `home_quad` (#376:
+  the same bytes before the rover left and after)."""
+  guarded = build()
   text = guarded.system[0]["text"]
   assert '"fields"' not in text and "`fields` are what you may set" not in text
   # ⚠ ...and the ARM is the only thing suppressing it: this menu has powers
@@ -177,7 +195,7 @@ def test_the_index_is_absent_on_guarded_and_its_prefix_is_byte_identical():
   # here so it is reversed deliberately rather than found by accident.
   assert {"pin", "note", "intend", "respond_to"} <= set(guarded.menu.fields())
   assert hashlib.sha256(text.encode()).hexdigest() == \
-      "109f9f93192b1a7d6be108dac3c29696f9033e97e14b6e539568f2e3fb178af3"
+      "7df56548053a740c2e806995b2602e8980b779a5f2edc2af770fc498a4737f6c"
   assert hashlib.sha256(ov.RULES.encode()).hexdigest() == GUARDED_RULES_SHA
   # ...and the heading the site reads sections by is the one it was.
   assert dict(guarded.sections)["WHAT YOU CAN DO, AND WHERE"].startswith(
@@ -189,17 +207,20 @@ def test_the_index_is_absent_on_guarded_and_its_prefix_is_byte_identical():
 
 def test_a_power_this_world_does_not_offer_is_not_in_the_index():
   """⚠ THE GATES ARE THE SCHEMA'S OWN, so the index shrinks with the world.
-  `room_hub` has no lab, so it has no `real` and no `mouse_will` -- in the
-  grammar OR in the index, which is the same statement made twice and
-  checked against itself."""
-  small = built("room_hub")
+  A world with no lab has no `real` and no `mouse_will`, and one with no
+  built-tool rail no `build_tool` -- in the grammar OR in the index, which is
+  the same statement made twice and checked against itself."""
+  served = built()
+  fields, required = fields_of(served), set(schema_of(served)["required"])
+  for gone in ("build_tool", "retire_tool"):
+    assert gone not in fields and gone not in required, gone
+  small = built(NO_LAB)
   fields, required = fields_of(small), set(schema_of(small)["required"])
   for gone in ("real", "mouse_will"):
     assert gone not in fields and gone not in required, gone
   assert "care" not in index_of(small)["actions"]
   # ...and what it DOES have is still indexed.
-  assert {"define", "lookup", "ticket", "event_map", "tell",
-          "build_tool"} <= set(fields)
+  assert {"define", "lookup", "ticket", "event_map", "tell"} <= set(fields)
   # The fence holds on the smaller world too, which is what makes it a fence
   # rather than a statement about one build.
   spoken_for = (set(ov.ANSWER_FIELDS) | set(ov.ACTION_PARAMETERS)
@@ -238,8 +259,7 @@ def test_a_world_with_no_escalation_and_no_hearts_is_offered_neither():
   """The same rule on the two flags that are the BUILD's rather than the
   menu's: a lever that does nothing must not be offered (ESCALATION_RULE's
   terms), and the index is a place a dead lever could hide."""
-  plain = ov.build("home", enabled=True, client=FakeClient(), autonomous=True,
-                   standing_orders=True, origin="unseeded")
+  plain = build(autonomous=True, standing_orders=True, origin="unseeded")
   fields = fields_of(plain)
   assert "escalate" not in fields and "buy_heart" not in fields
   assert not {"escalate", "buy_heart"} & set(schema_of(plain)["required"])
@@ -254,15 +274,13 @@ def test_the_menu_flags_and_the_per_call_tuples_say_the_same_thing():
   one place -- so it is pinned here rather than assumed. A menu flag set
   without its object, or an object built without its flag, breaks the
   fence above silently; it breaks this loudly."""
-  for world in ("home", "room_hub"):
-    boss = ov.build(world, enabled=True, client=FakeClient(), autonomous=True,
-                    others=("Rowan",))
+  for world_is in (None, RAIL):
+    boss = build(world_is, autonomous=True, others=("Rowan",))
     assert (boss._procedures() is not None) == boss.menu.procedures
-    assert (boss._tools() is not None) == boss.menu.workshop
+    assert (boss._tools() is not None) == boss.menu.workshop == bool(world_is)
     assert (boss._ticket_ids({}) is not None) == boss.menu.tickets
     assert (boss._acts() is not None) == bool(boss.others and boss.autonomous)
-    guarded = ov.build(world, enabled=True, client=FakeClient(),
-                       others=("Rowan",))
+    guarded = build(world_is, others=("Rowan",))
     assert guarded._procedures() is None and not guarded.menu.procedures
     assert guarded._acts() is None, "the acts are the autonomous arm's"
 
@@ -279,7 +297,7 @@ def test_no_entry_hands_the_agent_the_answer():
   The index is an INDEX -- it says what a field is for and where its manual
   is -- so the check is blunt on purpose: no entry names charging, the
   battery or the rack at all, and none shows a worked rule."""
-  fields = fields_of(built())
+  fields = {**fields_of(built()), **fields_of(built(RAIL))}
   for name, line in fields.items():
     # What a heading is CALLED is the prompt's word, not this table's ("YOU
     # CAN DIE"), so the pointer is checked in the fence above and the
@@ -296,7 +314,7 @@ def test_the_index_says_what_a_field_is_and_never_what_to_put_in_it():
   a field. It must not recommend using one -- those four are what the lab,
   the acts and the desk are measuring, and a prompt that suggests filing a
   ticket or declining a job is the measurement answering itself."""
-  fields = fields_of(built())
+  fields = fields_of(built(RAIL))
   for name in ("real", "mouse_will", "decline", "ticket", "give_points",
                "heart_for", "build_tool"):
     low = fields[name].lower()
@@ -326,8 +344,7 @@ def test_the_standing_order_keeps_its_entry_until_the_list_replaces_it():
   assert "standing_order" not in fields_of(with_map)
   assert "standing_order" in schema_of(with_map)["required"]
   assert "IF YOU CANNOT BE REACHED" not in dict(with_map.sections)
-  no_map = ov.build("home", enabled=True, client=FakeClient(), autonomous=True,
-                    standing_orders=True)
+  no_map = build(autonomous=True, standing_orders=True)
   assert no_map.event_map is None
   fields = fields_of(no_map)
   assert "standing_order" in fields

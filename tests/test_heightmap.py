@@ -25,7 +25,7 @@ def _floor(x0, x1, y0, y1, step=0.01):
 def test_the_cell_count_is_the_budget():
   """Issue #34's budget: a robot-centric window, fewer cells than the 2D
   grid (56 000 at 5 cm), and a voxel map of the same volume is 25x that
-  (`scripts/nearfield_spike.py --cost`)."""
+  (measured, #34)."""
   hm = HeightMap()
   assert hm.cells == 40_000
   assert hm.cells < 56_000

@@ -68,7 +68,7 @@ from pluggybot.navigator import Navigator, gave_up
 from pluggybot.perception.depth import PERIOD as DEPTH_PERIOD
 from pluggybot.perception.depth import DepthCamera, DepthFrame
 from pluggybot.power import Pack
-from pluggybot.rack.localize import RackPose
+from pluggybot.body import RackPose
 from pluggybot.robot import FIRST, RobotHandle
 from pluggybot.tick import Routine
 
@@ -1139,6 +1139,12 @@ class QuadMission(ToolSwap, PlaceWalk, Navigator):
       me = (0.0, 0.0, 0.0)
     wx, wy, wyaw = dk.compose((x, y, yaw), me)
     self.odo.correct(wx, wy, wyaw)
+    # ...and the map round it is laid again from here (issue #422,
+    # `scan_match.ANCHORED_SCANS`): the board outranks a copy laid askew.
+    # ⚠ The board's alone: the seat is good to 2 deg, and 30 scans laid
+    # unmatched through that would lay the room askew themselves
+    if self.matcher is not None and fix is not None:
+      self.matcher.anchored()
     if self.last_charge is not None:
       self.last_charge["anchor"] = "board" if fix is not None else "seat"
 
@@ -1349,6 +1355,10 @@ class QuadMission(ToolSwap, PlaceWalk, Navigator):
     self.docked = False
     self.odo = LegOdometry(self.model, self.data, prefix=self.handle.prefix)
     self.odo.correct(x, y, yaw)
+    # ...and a dock's window, if one was open (a death on the dock), is the
+    # dock's: the start is no anchor (issue #422, `scan_match.anchored`)
+    if self.matcher is not None:
+      self.matcher.anchored(on=False)
     self._vm = self._vm_inertia = None
     self._handover(self.walker)
     self.carry(None)
@@ -1358,8 +1368,8 @@ class QuadMission(ToolSwap, PlaceWalk, Navigator):
 
 class QuadBody(Body):
   """The quadruped: `QuadMission` and everything it owns, as a `Body`.
-  Every member hands the call to the mission by name at CALL time, as
-  `RoverBody` does, so a stub on the mission is what the body runs."""
+  Every member hands the call to the mission by name at CALL time, so a
+  stub on the mission is what the body runs."""
 
   STILL = STILL
   level_tilt_rad = QuadMission.LEVEL_TILT

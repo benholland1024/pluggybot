@@ -2,10 +2,9 @@
 
 A robot's map of the floor, the LIDAR that builds it, the scan matcher that
 keeps it true (issue #386), the planner, the drive to a goal round the
-other robots and the words for why a drive gave up -- everything
-`HubMission` did that is not wheels, a lift or a fork. The rover
-(`mission/mission.py`) and the quadruped (`legs/body.py`) are each a
-`Navigator`, and each supplies what only it can say:
+other robots and the words for why a drive gave up. The quadruped
+(`legs/body.py`, `QuadMission`) is a `Navigator` and supplies what only a
+body can say:
 
   pose, _set_pose   where it believes it is, and a correction to that
   _nav_routine      one physics step at a forward speed and a yaw rate --
@@ -17,11 +16,9 @@ other robots and the words for why a drive gave up -- everything
 
 ...and its own MEASURED sizes as class attributes (the planner's
 inflation, the disc round another robot, the front stop, the corridor the
-peer channel watches). The defaults are the rover's, measured on it and
-documented at the constants below; a body overrides them with its own.
-
-Moved out of `HubMission` whole, and the rover's day is the day it was
-(`scripts/determinism_spike.py --compare`).
+peer channel watches). The defaults are the rover's, measured on it
+(#376 deleted it; `rover-final`); the quadruped overrides them with its
+own.
 """
 
 import math
@@ -45,7 +42,7 @@ from pluggybot.robot import FIRST, RobotHandle
 from pluggybot.tick import MissionAborted, Routine
 
 def gave_up(rec: dict, peer: str = "the other robot") -> str:
-  """Why a drive gave up (`HubMission.last_drive`), as the clause every
+  """Why a drive gave up (`Navigator.last_drive`), as the clause every
   failure line that follows one ends with (issue #350). `peer` names the
   robot a `peer` cause was about -- the lifecycle knows names, the mission
   only poses."""
@@ -106,7 +103,7 @@ STAGNATION_S = 10.0
 #: along a wall turns this far short of it (a body's front stop is bounded
 #: by it, `legs.body.QuadMission.FRONT_STOP_RANGE`).
 WAYPOINT_REACHED_M = 0.08
-#: WHY A DRIVE GAVE UP (issue #350), `HubMission.last_drive["why"]`, one of
+#: WHY A DRIVE GAVE UP (issue #350), `Navigator.last_drive["why"]`, one of
 #: four: the planner could not route to the goal over the floor mapped so
 #: far (no plan at all, or only to a stand-in the robot then stood at); no
 #: progress for `STAGNATION_S` toward a goal the plan did reach; another
@@ -174,8 +171,7 @@ PEER_CLEARANCE_M = 0.30
 #: and stows it -- handed the plain law a goal closer than its overshoot
 #: and orbited it, 690 deg of turning in 16 s; whether the stagnation cut
 #: then landed inside `drive_to`'s 15 cm "close enough" was a coin the map
-#: tossed, and the built-tool rail beside bay E turned it over. The
-#: dispenser's own hops use the same 0.25 (`tools/dispenser.py`).
+#: tossed, and the built-tool rail beside bay E turned it over.
 ARRIVAL_SLOW_RADIUS = 0.25
 FACING_TOLERANCE = math.radians(0.5)
 
@@ -183,8 +179,7 @@ FACING_TOLERANCE = math.radians(0.5)
 class Navigator:
   """The map, the planner and the drive, over a body that says how it moves
   and where it believes it is (the module docstring). Not a body itself:
-  `mission.HubMission` and `legs.body.QuadMission` are, each wrapped as a
-  `Body` (`mission/rover.py`, `legs/body.py`)."""
+  `legs.body.QuadMission` is, wrapped as a `Body` (`legs.body.QuadBody`)."""
 
   VIEW_PERIOD = 0.02       # s of sim time between viewer syncs
   #: The LIDAR's place on the body, from the pose point (x ahead, y left).
@@ -236,9 +231,8 @@ class Navigator:
     self.lidar = Lidar(model, site_name=handle.el("lidar"),
                        robot_body=handle.root)
     self._next_scan = 0.0
-    # Bounds are per-WORLD (issue #6): room_hub keeps its historical box,
-    # home_world passes its own from the generator's meta -- a grid sized
-    # for one room silently truncates every scan beyond its edge.
+    # Bounds are per-WORLD (issue #6), from the generator's meta: a grid
+    # sized for one room silently truncates every scan beyond its edge.
     gx0, gy0, gx1, gy1 = grid_bounds
     self.grid = OccupancyGrid(x_min=gx0, y_min=gy0, x_max=gx1, y_max=gy1,
                               resolution=0.05)

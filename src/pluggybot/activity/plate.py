@@ -39,7 +39,6 @@ activity/base.py, guarded by its own synthetic-model tests, for the next
 activity that needs motion.
 """
 
-import math
 
 from pluggybot.activity.base import Activity, GeomToggle, Threshold
 
@@ -225,10 +224,3 @@ def plate_center(model, prefix: str = "garden") -> tuple[float, float]:
   return (float(model.body_pos[bid][0]), float(model.body_pos[bid][1]))
 
 
-def approach_pose(model, prefix: str = "garden",
-                  heading: float = 0.0,
-                  standoff: float = 0.9) -> tuple[float, float, float]:
-  """(x, y, heading) to start a straight run onto the plate from."""
-  px, py = plate_center(model, prefix)
-  return (px - standoff * math.cos(heading),
-          py - standoff * math.sin(heading), heading)

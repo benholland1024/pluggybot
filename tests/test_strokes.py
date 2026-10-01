@@ -1,8 +1,7 @@
 """Guards for stroke programs and the Hershey font (tools/strokes.py, issue #11).
 
 Pure content: no MuJoCo, no model, no data. That is the point of the module
-and the reason this whole file runs in milliseconds -- everything expensive
-about drawing lives on the other side of the split, in test_drawing.py.
+and the reason this whole file runs in milliseconds.
 """
 
 import json
@@ -11,18 +10,19 @@ import math
 import numpy as np
 import pytest
 
+from pluggybot.economy import questions
 from pluggybot.tools import hershey
 from pluggybot.tools import strokes as S
-from pluggybot.rack.coupling import PEN_TRAVEL
-from pluggybot.tools.drawing import Board, Envelope, PenPlotter, square_path
+from pluggybot.tools.drawing import (PEN_TRAVEL, Board, Envelope, circle_path,
+                                     square_path)
 
 
 @pytest.fixture(scope="module")
 def boards():
-  """Every board the pen can be taken to: the hub's standing one and the
-  home world's two wall-mounted ones."""
+  """Every board a pen can be taken to: the home world's two wall-mounted
+  ones."""
   meta = json.load(open("models/home_world.meta.json"))
-  return [Board.hub()] + [Board.from_meta(s) for s in meta["boards"].values()]
+  return [Board.from_meta(s) for s in meta["boards"].values()]
 
 
 # ---- the font --------------------------------------------------------------
@@ -237,8 +237,17 @@ def test_envelope_is_the_carriage_not_the_board(boards):
     assert env.size[0] < 2 * board.half[1], "the face is scenery, not reach"
 
 
+def test_the_envelope_is_the_rovers_to_the_bit(boards):
+  """The served boards' state was laid on the rover pen's reach, and a reach
+  one ulp off rewrites it: `lift_at` sums the rover's terms in the rover's
+  order, which a single folded constant (0.100 below the board) does not."""
+  for board in boards:
+    assert Envelope.for_board(board).z_max == 0.09999999999999998
+
+
 def test_nearest_does_not_invent_segments_between_strokes():
-  """Two strokes are not one polyline.
+  """Two strokes are not one polyline, to the grader that reads an answer's
+  ink (`questions._nearest`).
 
   Concatenating a program's points before measuring creates a phantom segment
   from the end of one stroke to the start of the next, and ink measured
@@ -247,6 +256,15 @@ def test_nearest_does_not_invent_segments_between_strokes():
   diagonally through (0.5, 0.5), where the real strokes are 0.5 away.
   """
   strokes = [((0.0, 0.0), (1.0, 0.0)), ((0.0, 1.0), (1.0, 1.0))]
-  d, _ = PenPlotter._nearest(np.array([[0.5, 0.5]]), strokes)
+  d, _ = questions._nearest(np.array([[0.5, 0.5]]), strokes)
   assert d[0] == pytest.approx(0.5), \
     "measured against a segment joining two separate strokes"
+
+
+def test_paths_are_closed_and_sized():
+  for path in (square_path(0.075), circle_path(0.075)):
+    assert math.dist(path[0], path[-1]) < 1e-9, "figure must close"
+    xs = [p[0] for p in path]
+    ys = [p[1] for p in path]
+    assert 0.070 < max(xs) - min(xs) <= 0.0751
+    assert 0.070 < max(ys) - min(ys) <= 0.0751

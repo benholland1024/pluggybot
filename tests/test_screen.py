@@ -19,8 +19,8 @@ import pytest
 from pluggybot.economy.census import (
   MARGIN, Zone, count_objects, score, survey_route, true_count,
 )
-from pluggybot.mission.errand import DANCE_ROUTINE, census_errand, dance_errand
-from pluggybot.lifecycle import errands_for, world_screens
+from pluggybot.legs import world as lw
+from pluggybot.lifecycle import world_screens
 from pluggybot.tools.screen import ANXIOUS_FRAC, Screen, ScreenSet, face_for
 from pluggybot.mapping.occupancy_grid import OccupancyGrid
 from pluggybot.telemetry.protocol import FACE_STATES, SCREEN_HINTS, SCREEN_MODES
@@ -33,7 +33,8 @@ GARDEN = Zone.from_meta(next(z for z in META["zones"] if z["kind"] == "garden"))
 
 @pytest.fixture(scope="module")
 def home_model():
-  return mujoco.MjModel.from_xml_path("models/home_world.xml")
+  """The served house, `home_quad`: its rack carries the LCD."""
+  return lw.home_spec().compile()
 
 
 @pytest.fixture
@@ -68,14 +69,6 @@ def test_an_unpowered_screen_shows_nothing_whatever_it_was_told(home_model,
   assert s.flags == {"mode": "off", "powered": False}
   s.sense(home_model, home_data, powered=True)
   assert s.flags["mode"] == "count" and s.flags["count"] == 4
-
-
-def test_the_module_hanging_in_its_bay_is_not_powered(home_model, home_data):
-  """The real world, not a stub: at qpos0 every module hangs on the rack."""
-  s = Screen(home_model, home_data)
-  s.sense(home_model, home_data)
-  assert s.powered is False
-  assert s.flags["mode"] == "off"
 
 
 def test_faces_and_hints_stay_inside_the_two_repo_vocabulary(screen):
@@ -163,7 +156,7 @@ def test_screens_ride_in_frames_sparsely_and_re_ship_on_a_keyframe(home_model,
 def test_the_scene_says_which_geom_carries_the_face(home_model):
   """Without this mapping a client has a face and nowhere to paint it: the
   telemetry key is `module_lcd` and the geom is `module_lcd_screen`."""
-  scene = scene_dict(home_model, "home_world", META)
+  scene = scene_dict(home_model, "home_quad", META)
   panel = scene["screens"]["module_lcd"]
   assert panel["geom"] == "module_lcd_screen"
   geoms = {g["name"] for b in scene["bodies"] if b["name"] == "module_lcd"
@@ -304,37 +297,7 @@ def test_the_survey_route_starts_at_the_door():
     assert GARDEN.contains(x, y, margin=1.0), "a vantage point inside a wall"
 
 
-# ---- the errands ------------------------------------------------------------
-
-
-def test_the_lcd_errands_are_on_the_menu():
-  census = errands_for("census", "home")
-  assert len(census) == 1 and census[0].module == "module_lcd"
-  dance = errands_for("dance", "home")
-  assert len(dance) == 1 and dance[0].module == "module_lcd"
-  with pytest.raises(ValueError):
-    errands_for("census", "room_hub")        # nothing countable in there
-
-
-def test_the_showcase_queue_leaves_both_surfaces_marked(home_model):
-  """What the site serves: one errand that puts ink on a board and one that
-  puts a face on the screen, so a single recording exercises both."""
-  from pluggybot.lifecycle import board_book
-  book = board_book("home")
-  queue = errands_for("showcase", "home", book)
-  assert [e.module for e in queue] == ["module_pen", "module_lcd"]
-
-
-def test_the_dance_is_a_routine_not_a_random_walk():
-  """Same sequence every time, or "did it dance" has no answer. And it must
-  come back to where it started: a dance that ends three metres away has
-  driven off, whatever its expressions said."""
-  net_turn = sum(w * s for _, _, _, _, w, s in DANCE_ROUTINE)
-  net_travel = sum(v * s for _, _, _, v, _, s in DANCE_ROUTINE)
-  assert abs(net_travel) < 0.05, "the routine walks away from its spot"
-  assert abs(net_turn) < 2.0, "the routine ends facing somewhere else"
-  for _, face, hint, _, _, _ in DANCE_ROUTINE:
-    assert face in FACE_STATES and hint in SCREEN_HINTS
+# ---- the set ---------------------------------------------------------------
 
 
 def test_a_screen_set_presents_the_activity_duck_type(home_model, home_data):
@@ -344,10 +307,3 @@ def test_a_screen_set_presents_the_activity_duck_type(home_model, home_data):
   assert isinstance(screens, ScreenSet)
   assert screens.names == list(screens.snapshot())
   assert len(screens) == 1
-
-
-def test_errand_construction_needs_no_physics():
-  """An overseer picks errands from a menu (issue #15); building one must not
-  require a compiled world."""
-  assert census_errand(GARDEN).use_at == survey_route(GARDEN)[0]
-  assert dance_errand((1.0, 2.0)).use_at == (1.0, 2.0)

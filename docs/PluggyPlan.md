@@ -5,14 +5,13 @@
 PluggyBot is a robot in [MuJoCo](https://mujoco.org/) whose parts are real,
 purchasable parts, and whose day is decided by an LLM: it explores, swaps
 tools at a rack, earns its keep at jobs the world offers, charges itself, and
-can die. **It is becoming a quadruped** — about 10 kg on four legs, with a
-two-joint arm and a redesigned tool coupling, in a world with a second floor,
-a curb and garden rocks (#375, decided 2026-09-26). The first quadruped
-deploy (#387) puts the pair on legs in the served house, with no job
-offers and no upkeep, and #405 puts #378's arm on their backs, taking no
-tool until its rack comes; the wheeled rover, whose constraints are
-`docs/Rover.md`, stays in the repo until the arm and the tools replace what
-it does. The website side (`rooftop-media-2026`,
+can die. **It is a quadruped** — about 10 kg on four legs, with a two-joint
+arm and a redesigned tool coupling, in a world that is to grow a second
+floor, a curb and garden rocks (#375, decided 2026-09-26). The served pair
+walk the house (#387), feed the mouse for pay (#403) and carry #378's arm on
+their backs, which takes tools off a rack beside their dock (#405). The
+wheeled rover that came before was deleted in #376; the tag `rover-final`
+is the last commit that runs it. The website side (`rooftop-media-2026`,
 "PluggyWorld") streams that world live and lets a visitor talk to the robot.
 
 ## What this project is for
@@ -87,7 +86,7 @@ is what we measure, not what it is asked to maximise on our behalf.
 **What is not the point any more.** A sellable hobby robot, task throughput,
 maximising points, or being entertaining to watch. Those framings shaped
 milestones 1–13, and some text below still shows it; the pieces stand — the
-coupling, the tasks, the economy, the measurement harness — but as apparatus,
+coupling, the tasks, the economy, the measurement — but as apparatus,
 not product. Visitors are witnesses, not customers; the deployed world is an
 observatory (Evaluation.md §5).
 
@@ -111,13 +110,16 @@ make a specific decision. The A1–A3 rungs are postponed and may be scrapped.
 
 ## The order of work
 
-The quadruped pivot sets it: #375 holds the steps, Ben's decisions and what
-carries over, and each step's issues are filed when it begins. In order: this
-cleanup (#376); measuring before building, in sim only (the body #377, the
-arm, coupling and dock #378, the hardware plan and its order gate #379, a
-body interface through the lifecycle #380); the quadruped on the served
-world; mapping for legs (#381); the arm and the tools; terrain and the
-second floor (#280); and the rover deleted.
+#375 holds it — its "The next stretch" is the live order, with Ben's
+decisions and what carried over — and this doc keeps no second copy. Done:
+the body (#377), the dock, arm and coupling (#378), the body interface
+(#380), the pair on legs in the served world (#387), places instead of
+coordinates (#419), the first paid job on legs (#403), the arm and its rack
+(#405), and the rover deleted (#376). The direction from there: staying
+alive and knowing where it is before new jobs (#425, #426, #422), then
+hide-and-seek, drawing and the other tools back on legs, `guarded`
+retired (#427), upkeep back on once those pay, terrain and the second
+floor (#280), and #379's order gate before any hardware is bought.
 
 ## Design philosophy
 
@@ -127,9 +129,8 @@ second floor (#280); and the rover deleted.
   eventual sim-to-real transfer plausible.
 - **Rigid coupling, not a cable.** Manipulating a deformable wire plug is one
   of the hardest problems in robotics; PluggyBot never does. Its tool and
-  charge couplings are rigid — on the rover a gravity latch and pogo pins
-  the base drives into; for the quadruped, the same gravity latch re-sized
-  for a two-joint arm's fork, and a dock it lies down on (#378) —
+  charge couplings are rigid — a gravity latch on a two-joint arm's fork, and
+  a dock it lies down onto, sprung pins pressing up into its belly (#378) —
   contact-rich alignment, but tractable.
 - **Decompose, don't end-to-end.** Each capability uses the cheapest adequate
   technique: supervised learning where labels are free, classical robotics
@@ -138,22 +139,19 @@ second floor (#280); and the rover deleted.
 
 ## Architecture
 
-Rows marked † are the rover's, and the quadruped replaces them (#375); the
-rest carries over.
-
 | Capability | Approach |
 |---|---|
 | Body interface | `body.py` (#380): everything the day loop and the procedure verbs may ask of a body, and the only way they reach one; the command a routine yields is the body's own; a `StubBody` carries the loop's bookkeeping in tests |
-| Body † | the wheeled rover (`docs/Rover.md`; `mission/rover.py` implements the interface) until a ~10 kg quadruped with a two-joint arm replaces it on the deployed world (#375) |
-| Ranging † | 2D scanning LIDAR (`perception/lidar.py`): 360 ray casts (one `mj_multiRay`) at 0.223 m with noise, dropout and a self-filter. Stereo was measured and dropped (Parts.md "Vision & ranging") |
-| Near field † | RealSense D435-class depth camera on the mast top (`perception/depth.py`): 8400 batched ray casts a frame, z² noise, the occlusion shadow, out-of-range as unknown; feeds a robot-centric 2.5D height map (`perception/heightmap.py`) built on the physics seam and streamed as `heightmap`. Nothing that decides reads it yet (#34) |
-| Vision | one nav camera and one dock camera; AprilTags on the rack, bays and modules (`rack/tags.py`, `rack/localize.py`) |
-| Odometry † | dead reckoning from counted wheel encoders + an ICM-42688-P gyro read with its datasheet's noise (#386), anchored at the dock (issue #42), held during presses (#94); every LIDAR scan matched against the robot's own map before it is fused, and the matched pose is the belief (`mapping/scan_match.py`, #386) |
-| Mapping & exploration | log-odds occupancy grid, frontier exploration, A* over inflated free space (`mapping/`); the quadruped plans through floor it has not seen too, at a price, and finds its doors by finding walls (`mapping/optimistic.py`, #381's walking stage) |
-| Tools † | five modules on a gravity-latched fork coupling, powered through the peg (ToolPattern.md) |
+| Body | a ~10 kg quadruped (`legs/`, #377): twelve GIM8108-8 joints with their GDS68 drivers, a walking policy trained in `training/` and run as numpy on the physics thread (`legs/policy.py`), a rest by reflex and a get-up from a fall (`legs/posture.py`), and #378's two-joint arm on its back (`legs/arm.py`, #405); `legs/body.py` is its `Body` (#387) |
+| Ranging | 2D scanning LIDAR (`perception/lidar.py`), RPLIDAR C1-class, 0.51 m up: 360 ray casts (one `mj_multiRay`) with noise, dropout and a self-filter. Stereo was measured and dropped (Parts.md "Vision & ranging") |
+| Near field | RealSense D435-class depth camera on the nose (`perception/depth.py`): batched ray casts, z² noise, the occlusion shadow, out-of-range as unknown. The planner plans round what it sees under the LIDAR's plane (#387); it also feeds a robot-centric 2.5D height map (`perception/heightmap.py`), streamed as `heightmap`, that nothing deciding reads (#34) |
+| Vision | the nose camera; AprilTags on the dock's board, the rack's bays and the places' signs (`rack/tags.py`, `legs/dock.py`, `legs/rack.py`, `legs/places.py`) |
+| Odometry | legged odometry off the joints' CAN fields and an ICM-42688-P IMU read with their datasheets' noise (`legs/odometry.py`, #386), a zero-rate update at rest (#425), a fix off the dock's board (#378); every LIDAR scan matched against the robot's own map before it is fused, and the matched pose is the belief (`mapping/scan_match.py`, #386) |
+| Mapping & exploration | log-odds occupancy grid and frontier exploration (`mapping/`); the planner plans through floor it has not seen too, at a price, and finds its doors by finding walls (`mapping/optimistic.py`, #381's walking stage); places, not coordinates: a job names a place, and the robot finds its sign (#419) |
+| Tools | three modules on the rack beside the dock (`legs/rack.py`), taken and hung back by the arm's fork (`legs/swap.py`, #405), powered through the peg; their jobs come back on legs with #406 and #407 |
 | Behaviour arbitration | `HubLifecycle.run()`: charge > queued errand > the mind > explore on `guarded`; on `autonomous` the rails are off and the agent's event map decides when it is asked at all (Overseer.md, Evaluation.md §2) |
 | Economy | task offers, code-side scoring, a points ledger with upkeep and hearts (TaskPattern.md, Overseer.md §8b) |
-| Measurement | three arms, an experiment harness, committed results (Evaluation.md) |
+| Measurement | three arms (`guarded` retires in #427), and the six qualities read as shapes off the deployed world's rows (Evaluation.md) |
 
 ## Milestones
 
@@ -176,15 +174,15 @@ that settled something; the docs named hold the rest.
 | 14 | Measurement | Sep 2026 | three arms, the harness, committed results, deaths and reset, a measured decision deadline, standing orders; A0 flown: 4 of 5 days dead flat, the agent never treating energy as a constraint. Evaluation.md |
 | 15 | The economy, and the agent that configures itself | Sep 2026 | points as a currency (charge pays nothing, upkeep, five hearts, true death), event maps, the served world can fly an arm, auto-restart. Overseer.md §2 and §8b |
 
-M11 (hands) waits for the arm and M12 (two robots) landed as #167 — see "The
-order of work". The per-issue changelog that used to sit here (~400 lines on
-milestones 8–15) is gone: the issues, `git log` and the docs above are the
-record, and CLAUDE.md carries the constraints that still bind.
+M12 (two robots) landed as #167, and M11 (hands) became the arm (#378,
+#405). Milestones 1–15 were flown on the plug robot and then the rover, both
+deleted (#376; `rover-final`): the issues, `git log` and the docs above are
+the record, and CLAUDE.md carries the constraints that still bind.
 
 ## Hardware
 
-The rover's road to hardware is retired with the rover. The quadruped's
-hardware plan, and the gate before anything is ordered — the simulated
+The quadruped's hardware plan (Parts.md's bill of materials), and the gate
+before anything is ordered — the simulated
 machine, watched on the site, shown capable with torque, thermal and energy
 margin — are #379.
 
@@ -192,20 +190,23 @@ margin — are #379.
 
 - **Simulation:** MuJoCo (MJCF models authored directly in XML during prototyping)
 - **CAD (later phase):** Onshape, exported to URDF/MJCF via [onshape-to-robot](https://github.com/Rhoban/onshape-to-robot) once the design stabilizes
-- **Learning:** none in the tree since the plug era went (#376); the walking policy's training stack is #377's choice, and it never enters the serving image.
+- **Learning:** `training/`, a uv project of its own (mjlab, #377): the
+  walking policies and the get-up, exported to `.npz` and run as numpy; it
+  never enters the serving image.
 - **Classical vision & robotics:** OpenCV, NumPy
 
 ## Where things are written down
 
 - `CLAUDE.md` — every constraint that still binds, per subsystem, with the
   measurement behind it. The first thing an agent session reads.
-- `Rover.md` — the wheeled body's constraints, deleted with the rover.
 - `SimNotes.md` — simulation lessons, in the order they were paid for.
 - `Parts.md` — the real parts, and the sim parameters they feed.
 - `ToolPattern.md`, `ActivityPattern.md`, `TaskPattern.md`, `Challenges.md`
   — the build recipes: a tool module, a mechanism that owns world state, a
   job offer, a job nobody scripted.
 - `Overseer.md` — the mind: vocabulary, event map, memory, money, visitors.
-- `Evaluation.md` — measurement: arms, metrics, the harness, the results.
+- `Evaluation.md` — measurement: arms, metrics, the observatory.
+- `Observatory.md` — the deployed world's periods: what was running when.
+- `Testing.md` — pinning a rule without paying for a mission.
 - `Webserver.md` and `protocol/README.md` — the stream, and its versioning.
 - `rooftop-media-2026/docs/pluggyworld.md` — the website's design doc.

@@ -18,11 +18,11 @@ day the house wants a real tree, it arrives as a mapped obstacle under the
 below is the tollbooth.
 
 ⚠ WHY "non-colliding" IS NOT ENOUGH, measured: the LIDAR's raycast ignores
-contype entirely -- the plants are contype 0 and are MAPPED (the census
-counts them off the occupancy grid; that is the task). So decorative safety
-has a second, independent requirement: stay out of the beam plane
-(z = 0.223 m). `test_dressing_in_the_beam_reaches_the_map` proves the
-failure is real by planting a hostile mound and watching the map change.
+contype entirely -- the plants are contype 0 and are MAPPED. So decorative
+safety has a second, independent requirement: stay out of the beam plane
+(the quadruped's, `BEAM_Z`). `test_dressing_in_the_beam_reaches_the_map`
+proves the failure is real by planting a hostile mound and watching the map
+change.
 """
 
 import tempfile
@@ -35,10 +35,10 @@ import pytest
 
 ROOT = Path(__file__).parent.parent
 
-#: The beam's absolute height, with clearance either side for the sprung
-#: chassis breathing. A decorative geom whose z-extent crosses this band is
-#: in the map whether it collides or not.
-BEAM_Z = 0.223
+#: The beam's absolute height, the quadruped standing, with clearance either
+#: side for its torso's bob as it walks. A decorative geom whose z-extent
+#: crosses this band is in the map whether it collides or not.
+BEAM_Z = 0.506
 BEAM_CLEAR = 0.05
 
 #: The one deliberate exception: plants LIVE in the beam. They are the
@@ -132,18 +132,18 @@ def test_decor_stays_out_of_the_lidar_beam(trio):
 
 
 def _scan_grid(xml_path):
-  """One spin's occupancy grid from a fixed pose -- the shortest honest map."""
-  from pluggybot.mission.mission import HubMission
-  from pluggybot.lifecycle import world_config
+  """One scan's occupancy grid from a fixed pose -- the shortest honest map:
+  the LIDAR sees all round, so the scan's seam is called once, standing."""
+  from pluggybot.legs import world as lw
+  from pluggybot.legs.body import QuadMission
+  from pluggybot.lifecycle import QUAD_HOME, world_config
 
-  cfg = world_config("home")
-  model = mujoco.MjModel.from_xml_path(str(xml_path))
-  data = mujoco.MjData(model)
-  m = HubMission(model, data, viewer=None, realtime=False,
-                 rack=cfg["rack"], grid_bounds=cfg["grid_bounds"])
+  model = lw.home_spec(path=str(xml_path)).compile()
+  m = QuadMission(model, mujoco.MjData(model), realtime=False,
+                  grid_bounds=world_config(QUAD_HOME)["grid_bounds"])
   try:
     m.start_at(7.5, -4.0, 0.0)       # garden_south, where the probe plants
-    m._spin()
+    m._scan_step()
     return np.asarray(m.grid.grid).copy()
   finally:
     m.close()
@@ -151,11 +151,11 @@ def _scan_grid(xml_path):
 
 def test_dressing_in_the_beam_reaches_the_map():
   """The failure #71's placement rules exist to prevent, demonstrated: a
-  non-colliding 0.3 m mound in the garden -- exactly a hill a dresser might
+  non-colliding 0.6 m mound in the garden -- exactly a hill a dresser might
   think 'safe' because contype is 0 -- changes the occupancy grid, because
   the LIDAR raycast never looked at contype. In the real world it would be
-  a phantom the planner routes around or the census counts; here it is the
-  proof that `test_decor_stays_out_of_the_lidar_beam` is about something.
+  a phantom the planner routes around; here it is the proof that
+  `test_decor_stays_out_of_the_lidar_beam` is about something.
 
   The clean scan is taken twice first: determinism is what makes the
   hostile diff meaningful rather than noise.
@@ -165,8 +165,8 @@ def test_dressing_in_the_beam_reaches_the_map():
     (scratch / entry.name).symlink_to(entry)
   xml = (ROOT / "models" / "home_world.xml").read_text()
   mound = '''
-    <body name="hostile_mound" pos="8.5 -4.0 0.15">
-      <geom name="hostile_mound_geom" type="box" size="0.4 0.4 0.15"
+    <body name="hostile_mound" pos="8.5 -4.0 0.3">
+      <geom name="hostile_mound_geom" type="box" size="0.4 0.4 0.3"
             contype="0" conaffinity="0" rgba="0.4 0.5 0.35 1"/>
     </body>
   </worldbody>'''
@@ -181,8 +181,8 @@ def test_dressing_in_the_beam_reaches_the_map():
   changed = int(np.count_nonzero(clean_a != dressed))
   assert changed > 0, (
     "a non-colliding mound in the beam left no trace on the map -- the "
-    "LIDAR started honouring contype, and the beam-band rule (plus the "
-    "plants' whole census) needs re-deriving")
+    "LIDAR started honouring contype, and the beam-band rule needs "
+    "re-deriving")
 
 
 def test_every_hinted_body_validates_against_its_conformance_rule(trio):
@@ -206,13 +206,17 @@ def test_every_hinted_body_validates_against_its_conformance_rule(trio):
           f"{name} ({hint}) is not a box"
 
 
-def test_the_beam_constant_is_where_the_sensor_actually_rides(trio):
+def test_the_beam_constant_is_where_the_sensor_actually_rides():
   """`BEAM_Z` above is a copy of where the scan really is; a copy that can
   drift is a rule about nothing. So it is pinned against the COMPILED
   robot: the world z of the `lidar` site the scanner itself ray-casts from
-  (`perception.lidar` takes it by name), at rest pose. Move the sensor and
-  this fails until the band -- and every judgement made with it -- follows."""
-  model, data, _ = trio
+  (`perception.lidar` takes it by name), standing in its world. Move the
+  sensor and this fails until the band -- and every judgement made with it
+  -- follows."""
+  from pluggybot.legs import world as lw
+  model = lw.home_spec().compile()
+  data = mujoco.MjData(model)
+  lw.stand(model, data, "", 1.5, 0.5, 0.0)
   z = float(data.site_xpos[model.site("lidar").id][2])
   assert abs(z - BEAM_Z) < 0.01, \
       f"the lidar site rides at z={z:.3f}, BEAM_Z says {BEAM_Z}"

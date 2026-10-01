@@ -1,21 +1,22 @@
 """A dead robot waits, visibly, and stands itself up (issue #143).
 
 The deployed world runs continuously and, on the `autonomous` arm, its robot
-dies most days -- A0 died on four days in five. Until this, a death meant a
-robot lying on the floor until a person pressed reset, which is tolerable
-briefly and annoying immediately.
+dies most days. Until this, a death meant a robot lying on the floor until a
+person pressed reset, which is tolerable briefly and annoying immediately.
 
 ⚠ THE LINE THIS FILE MOSTLY EXISTS FOR: **an auto-restart is not an
-intervention.** A run with a non-empty `interventions` array is excluded from
-survival statistics (docs/Evaluation.md §5), because an admin's hand
-contaminates a survival number. World behaviour on a timer is not a hand --
-and if it wrote an entry there, every deployed run and every multi-life run
-would be silently disqualified, with the exclusion invisible because an entry
-in that array is supposed to be believed.
+intervention.** An admin's hand contaminates a survival number
+(docs/Evaluation.md §5); world behaviour on a timer is not a hand -- and if
+it wrote an entry in `interventions`, every deployed day would be silently
+disqualified, with the exclusion invisible because an entry in that array
+is supposed to be believed.
 
 ⚠ AND IT IS NOT #136's TRUE DEATH. This one KEEPS the volume, so the next
 life reads its predecessor's `History.md` death line on every decision --
 which is the whole of what dying costs. True death archives it.
+
+The loop's bookkeeping, pinned on the stub body (`tests/test_body.py`);
+the tool a stand-up takes home, on the served quadruped.
 """
 
 import math
@@ -24,40 +25,35 @@ import mujoco
 import pytest
 
 from pluggybot import lifecycle as lc
-from pluggybot.mission import rover
-from pluggybot.lifecycle import AUTO_RESTART_BY, HubLifecycle, world_config
+from pluggybot.lifecycle import AUTO_RESTART_BY, QUAD_HOME, HubLifecycle, world_config
 from pluggybot.mind import overseer as ov
 from pluggybot.mind.inbox import Inbox
 from pluggybot.mind.thoughts import HISTORY
+from pluggybot.robot import world_spec
+from test_body import stub_life  # noqa: I001 -- tests/ is on sys.path
 
 
-#: The restart timer every test here runs on, and how long to drive to be
+#: The restart timer every test here runs on, and how long to hold to be
 #: sure it has fired. SHORT on purpose (issue #158): the claims are about
 #: the ORDER of things -- still down before the delay, up after it, the
 #: event stamped at the delay -- and none of them depends on the delay's
-#: size. At 10-20 s the ten tests here cost 89 s of physics for a few
-#: seconds of assertions; the number under test is the parameter, never
-#: the default.
+#: size; the number under test is the parameter, never the default.
 TIMER_S = 3.0
 PAST_S = TIMER_S + 1.0
 
 
-def _life(world: str = "room_hub", restart_after_s=TIMER_S, inbox=None,
-          **kw) -> HubLifecycle:
-  """A mortal lifecycle with the short restart timer above."""
-  cfg = world_config(world)
-  model = mujoco.MjModel.from_xml_path(cfg["model"])
-  data = mujoco.MjData(model)
-  life = HubLifecycle(model, data, realtime=False, world=world,
-                      battery_wh=cfg["battery_wh"], rack=cfg["rack"],
-                      grid_bounds=cfg["grid_bounds"],
-                      low_battery_wh=cfg["low_battery_wh"], errand=False,
-                      inbox=inbox, mortal=True,
-                      restart_after_s=restart_after_s, **kw)
-  life.body.start_at(*cfg["start"])
-  life.home_pose = tuple(cfg["start"])
-  life.survival_since = float(data.time)
+def _born(life) -> HubLifecycle:
+  start = world_config(QUAD_HOME)["start"]
+  life.body.start_at(*start)
+  life.home_pose = tuple(start)
+  life.survival_since = float(life.data.time)
   return life
+
+
+def _life(restart_after_s=TIMER_S, inbox=None, **kw) -> HubLifecycle:
+  """A mortal lifecycle on the stub with the short restart timer above."""
+  return _born(stub_life(inbox=inbox, mortal=True,
+                         restart_after_s=restart_after_s, **kw))
 
 
 def _events(life) -> list[dict]:
@@ -66,9 +62,13 @@ def _events(life) -> list[dict]:
   return seen
 
 
+def _hold(life, seconds: float) -> None:
+  life.body.run(life.body.hold_routine(seconds))
+
+
 def _kill(life) -> None:
   life.battery.energy_wh = 0.0
-  life.body.mission._drive(0.5, 0.0, 0.0)
+  _hold(life, 0.5)
   assert life.dead is not None
 
 
@@ -83,36 +83,29 @@ def test_a_dead_robot_stands_itself_up_after_the_delay():
   different world."""
   life = _life()
   seen = _events(life)
-  life.body.mission._drive(2.0, 0.0, 0.0)
-  moved = tuple(life.data.qpos[:3])
+  _hold(life, 4.0)
+  life.body.x, life.body.y = 2.0, 2.5                # it went somewhere
   _kill(life)
   died_at = life.dead["t"]
   # Still down after the death and before the delay is up. (The STATE is
   # whatever the death interrupted -- `DEAD` is set by the run loop's
   # `_wait_dead`, and this drives the mission directly.)
-  life.body.mission._drive(TIMER_S / 3, 0.0, 0.0)
+  _hold(life, TIMER_S / 3)
   assert life.dead is not None
   # ...and up on the far side of it.
-  life.body.mission._drive(PAST_S, 0.0, 0.0)
+  _hold(life, PAST_S)
   assert life.dead is None
   reset = next(e for e in seen if e["type"] == "reset")
   assert reset["t"] - died_at == pytest.approx(TIMER_S, abs=0.5)
   assert reset["wasDead"] == "flat"
-  # Refilled to full and then driven for a moment: `> 0.9` for the reason
-  # `test_a_dead_robot_with_an_inbox_waits_and_a_reset_resumes_the_day`
-  # uses it -- the motors draw the instant the robot is back on its feet.
+  # Refilled to full and then held for a moment: `> 0.9`, as the body may
+  # draw the instant it is back on its feet.
   assert life.battery.fraction > 0.9
-  assert tuple(life.data.qpos[:3]) != moved, "it went back to the start pose"
+  assert life.body.pose == pytest.approx(life.home_pose), "back at the start pose"
   # The survival clock restarts, which is what makes each life a data point
   # rather than one long span with a gap in it.
-  #
-  # ⚠ It starts a second LATER than the `reset` event's `t`, and that is
-  # #107's ordering rather than anything here: the event is stamped when the
-  # reset is decided, and `start_at` ends with a one-second settle drive
-  # before the clock is re-seeded. The robot is not counted as awake while
-  # it is being put down.
   since_reset = life.data.time - reset["t"]
-  assert 0.0 < life.survival_s <= since_reset
+  assert 0.0 < life.survival_s <= since_reset + 1e-3   # the event's t is rounded
   assert life.survival_s < died_at, "a NEW life, not the old clock resumed"
 
 
@@ -124,15 +117,11 @@ def test_the_delay_is_a_parameter_and_none_is_the_old_behaviour():
   life = _life(restart_after_s=None)
   assert life.restart_after_s is None
   _kill(life)
-  life.body.mission._drive(PAST_S, 0.0, 0.0)
+  _hold(life, PAST_S)
   assert life.dead is not None, "with no timer it waits for a person"
   assert life.reset_in_s is None
   # ...and the default constructor argument is that, not the constant.
-  cfg = world_config("room_hub")
-  model = mujoco.MjModel.from_xml_path(cfg["model"])
-  bare = HubLifecycle(model, mujoco.MjData(model), realtime=False,
-                      world="room_hub", rack=cfg["rack"], errand=False)
-  assert bare.restart_after_s is None
+  assert stub_life().restart_after_s is None
 
 
 # ---- the countdown -------------------------------------------------------
@@ -148,11 +137,11 @@ def test_the_remaining_time_is_on_the_wire_and_counts_down_to_zero():
   _kill(life)
   first = life.telemetry_status()["survival"]["resetInS"]
   assert first == pytest.approx(TIMER_S, abs=0.6)
-  life.body.mission._drive(1.0, 0.0, 0.0)
+  _hold(life, 1.0)
   later = life.telemetry_status()["survival"]["resetInS"]
   assert later < first and later == pytest.approx(TIMER_S - 1.0, abs=0.6)
   # ...and it is gone once the robot is up, rather than sitting at zero.
-  life.body.mission._drive(PAST_S, 0.0, 0.0)
+  _hold(life, PAST_S)
   assert life.dead is None
   assert "resetInS" not in life.telemetry_status()["survival"]
 
@@ -191,7 +180,7 @@ def test_an_auto_restart_is_not_an_intervention_and_an_admin_reset_is():
   life = _life(inbox=Inbox())
   seen = _events(life)
   _kill(life)
-  life.body.mission._drive(PAST_S, 0.0, 0.0)
+  _hold(life, PAST_S)
   assert life.dead is None, "the timer fired"
   assert life.interventions == [], \
       "an auto-restart is world behaviour, never an admin's hand"
@@ -217,7 +206,7 @@ def test_an_admin_rescue_and_a_timer_rescue_differ_only_in_who():
     seen = _events(life)
     _kill(life)
     if auto:
-      life.body.mission._drive(PAST_S, 0.0, 0.0)
+      _hold(life, PAST_S)
     else:
       life.inbox.offer({"type": "reset_robot", "id": "rr_1", "from": "ben"})
       life._visitor_step()
@@ -232,7 +221,7 @@ def test_the_world_cannot_stand_up_a_living_robot():
   robot, so `stand_up(auto=True)` can never reach the intervention branch.
   The assert is what says so out loud, and this is what keeps it honest."""
   life = _life()
-  life.body.mission._drive(PAST_S, 0.0, 0.0)
+  _hold(life, PAST_S)
   assert life.dead is None
   assert life.interventions == []
   with pytest.raises(AssertionError, match="only follow a death"):
@@ -249,7 +238,7 @@ def test_the_death_line_survives_the_restart_and_the_next_life_reads_it():
   decision."""
   life = _life()
   _kill(life)
-  life.body.mission._drive(PAST_S, 0.0, 0.0)
+  _hold(life, PAST_S)
   assert life.dead is None
   history = life.thoughts.volatile()[HISTORY]
   assert any("died" in line and "flat" in line for line in history)
@@ -270,26 +259,34 @@ def test_the_timer_does_not_wait_behind_a_seated_module_and_takes_it_home(
   seated tool down -- "wait until the errand returns", which Ben rejected
   (2026-09-24): behind an errand that never returns, the robot never gets
   up. The day loop now closes the routine a stand-up lands in
-  (`test_stand_up.py`), so nothing is left mid-stow to disagree about the
-  fork, the timer fires at its time, and the tool comes home with the robot
-  (#311's rescue). Shown to fail with the wait put back.
+  (`test_stand_up.py`), so the timer fires at its time and the tool comes
+  home with the robot (#311's rescue). Shown to fail with the wait put back.
 
-  ⚠ The seam RECOMPUTES `tool_powered` from contacts on every step, so the
-  seated module is faked where the real one is read (test_reset_robot.py's
-  own trick) rather than by setting the attribute, which the next step
-  would overwrite."""
-  life = _life()
-  monkeypatch.setattr(rover, "module_power_contact", lambda *a, **k: True)
-  assert life.module, "a lifecycle names the module it carries"
-  adr = int(life.model.jnt_qposadr[int(life.model.body(life.module).jntadr[0])])
-  life.data.qpos[adr:adr + 3] = (1.0, 1.0, 0.4)          # off its bay
-  mujoco.mj_forward(life.model, life.data)
-  home = list(life.model.qpos0[adr:adr + 3])
-  _kill(life)
-  assert life.tool_powered, "the seam did not see the seated module"
-  life.body.mission._drive(PAST_S, 0.0, 0.0)
-  assert life.dead is None, "the timer waited behind the seated module"
-  #  A distance, as #311's test states it: the module settles on its peg
-  #  while the settle drive runs.
-  assert math.dist(life.data.qpos[adr:adr + 3], home) < 0.05, \
-      "the tool was left where the robot fell"
+  ⚠ The seam RECOMPUTES `tool_powered` from the coupling on every step, so
+  the seated module is faked where the fork is read, rather than by setting
+  the attribute, which the next step would overwrite."""
+  cfg = world_config(QUAD_HOME)
+  spec = world_spec(cfg["model"])
+  model = spec.compile()
+  life = _born(HubLifecycle(model, mujoco.MjData(model), realtime=False,
+                            world=QUAD_HOME, spec=spec,
+                            battery_wh=cfg["battery_wh"], rack=cfg["rack"],
+                            grid_bounds=cfg["grid_bounds"],
+                            low_battery_wh=cfg["low_battery_wh"],
+                            mortal=True, restart_after_s=1.0))
+  try:
+    monkeypatch.setattr(life.body.mission, "tool_powered", lambda m: m is not None)
+    monkeypatch.setattr(life.body.mission, "seated_on", lambda m: life.root)
+    assert life.module, "a lifecycle names the module it carries"
+    adr = int(life.model.jnt_qposadr[int(life.model.body(life.module).jntadr[0])])
+    life.data.qpos[adr:adr + 3] = (1.0, 1.0, 0.4)          # off its bay
+    mujoco.mj_forward(life.model, life.data)
+    home = list(life.model.qpos0[adr:adr + 3])
+    _kill(life)
+    assert life.tool_powered, "the seam did not see the seated module"
+    _hold(life, 1.5)
+    assert life.dead is None, "the timer waited behind the seated module"
+    assert math.dist(life.data.qpos[adr:adr + 3], home) < 0.05, \
+        "the tool was left where the robot fell"
+  finally:
+    life.body.close()

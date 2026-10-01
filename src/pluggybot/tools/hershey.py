@@ -4,7 +4,7 @@ A pen plotter cannot draw a filled outline: it owns one pen tip and two axes,
 so a letter has to *be* a path rather than a region to fill. That is what the
 Hershey fonts are -- glyphs defined as the strokes a pen walks, which is why
 they have been the plotter world's standard since the 1960s and why writing a
-word here reduces to the waypoint lists `PenPlotter` already consumes.
+word here reduces to the waypoint lists a plotter consumes.
 
 The data below is the `futural` face (Hershey "simplex" sans, upper and lower
 case), verbatim in James Hurt's JHF format, one glyph per line for ASCII 32

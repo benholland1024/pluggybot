@@ -1,15 +1,15 @@
 """Two robots, one world, one physics loop (issue #167, M12 slice B).
 
-Each robot is a `HubLifecycle` of its own -- its own mission, swap, battery,
-odometry and reserve, its own errand queue, its own day -- built against
-the same `MjModel` and `MjData` through its `RobotHandle`. What is shared is
-the WORLD: the model, the rack and its bays, the modules, the whiteboards'
-book, the activities. The two day-routines are ticked in turn from
+Each robot is a `HubLifecycle` of its own -- its own body, pack, odometry
+and reserve, its own errand queue, its own day -- built against the same
+`MjModel` and `MjData` through its `RobotHandle`. What is shared is the
+WORLD: the model, the rack and its bays, the tools, the dock, the
+whiteboards' book, the activities. The two day-routines are ticked in turn from
 `tick.run_many`: every step, both robots' commands, one `mj_step`, both
 robots' bookkeeping. No robot ever blocks the other.
 
 Mutual awareness, the honest half: each mission is handed the other's
-REPORTED pose (`HubMission.others`) -- what a robot may know of another over
+REPORTED pose (`Body.others`) -- what a robot may know of another over
 the network -- so A* keeps clear of where it is now and a blocked drive waits
 for it to move (or, while it lies on the floor, of where its BODY is: issue
 #365, `HubLifecycle.keep_clear`); and each lidar DROPS the other's body from
@@ -20,10 +20,8 @@ and the reason the first attempt at a contested bay ended in "no route").
 What is NOT here: the other robot as a mind -- that is the minds' slice (C)
 and the context they are shown.
 
-The rack is one rack: one charge bay, five tool bays, contended. Tool
-contention is the minds' to negotiate and this module arbitrates nothing; a
-second charge bay is a generator parameter for the slice that flies both
-robots' full days.
+The rack is one rack and the dock one dock, contended. Contention is the
+minds' to negotiate and this module arbitrates nothing.
 """
 
 from typing import Callable
@@ -36,7 +34,7 @@ import mujoco
 from pluggybot import tick
 from pluggybot.economy.cadence import default_cadence
 from pluggybot.lifecycle import (
-  HubLifecycle, board_book, errands_for, points_ledger, task_board,
+  QUAD_HOME, HubLifecycle, board_book, errands_for, points_ledger, task_board,
   task_producer, world_config,
 )
 from pluggybot.mind import constitution as constitutions
@@ -54,8 +52,8 @@ DEFAULT_SECOND_NAME = "Rowan"
 CONSTITUTION_ENVS = (constitutions.NAME_ENV, constitutions.SECOND_NAME_ENV)
 
 
-def build_pair(world: str = "room_hub", pack: str = "demo",
-               errands=("carry", "none"), board_state: str | None = None,
+def build_pair(world: str = QUAD_HOME, pack: str = "demo",
+               errands=("none", "none"), board_state: str | None = None,
                view: bool = False, realtime: bool = False,
                handles: tuple = (FIRST, SECOND), names: tuple | None = None,
                overseer: bool | None = None, autonomous: bool = False,
@@ -120,7 +118,7 @@ def build_pair(world: str = "room_hub", pack: str = "demo",
   # with "this world was compiled without its spec", which is what the
   # deployed pair was hitting before it ever reached the pair rule below.
   spec = world_spec(cfg["model"], starts[1][:2], prefix=handles[1].prefix,
-                    body=cfg.get("body", "rover"))
+                    body=cfg["body"])
   model = spec.compile()
   data = mujoco.MjData(model)
   viewer = None
@@ -157,7 +155,7 @@ def build_pair(world: str = "room_hub", pack: str = "demo",
   # each robot's own environment variable, else the library's default.
   charters = tuple(constitutions.for_body(constitutions.resolve(
     (constitutions_named or (None, None))[i], env=CONSTITUTION_ENVS[i]),
-    cfg.get("body", "rover")) for i in range(len(handles)))
+    cfg["body"]) for i in range(len(handles)))
   for i, (handle, errand, name) in enumerate(zip(handles, errands, names)):
     if i == 0:
       memory = ThoughtFiles.open(thoughts_root, robot=handle.root,
@@ -419,9 +417,9 @@ def run_pair(lives: list, starts=None, max_sim_time: float = 600.0,
   return [life.end(aborted) for life in lives]
 
 
-def run_demo_pair(world: str = "room_hub", max_sim_time: float = 300.0,
+def run_demo_pair(world: str = QUAD_HOME, max_sim_time: float = 300.0,
                   view: bool = False, realtime: bool = True,
-                  pack: str = "demo", errands=("carry", "none"),
+                  pack: str = "demo", errands=("none", "none"),
                   board_state: str | None = None, on_ready=None,
                   record: str | None = None, game: bool = False,
                   **kw) -> list[dict]:

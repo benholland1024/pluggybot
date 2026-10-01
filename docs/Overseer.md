@@ -4,11 +4,12 @@ An LLM chooses **what the robot does next**, in a body that is otherwise
 honest about its parts and its sensors — the point being to let a mind make a
 complicated choice and find out how far it gets (`PluggyPlan.md`, "What this
 project is for"). Which parts of staying alive the mind is trusted with is
-the ARM (`evaluation/arms.py`, one definition, read by the experiment and by
-`serve.py`; Evaluation.md §2):
+the ARM (`evaluation/arms.py`, one definition, read by `serve.py` and into
+the stream's header; Evaluation.md §2):
 
 - **`guarded`** — the control: everything that keeps the robot alive stays
-  in code and the model is given one branch of one loop.
+  in code and the model is given one branch of one loop. It retires in
+  #427 (Ben, 2026-09-30); until then its fences bind.
 - **`autonomous`** — the deployed world (#206): the three rails are off, the
   prompt says so, the fallback is the agent's own order, and it may
   configure when it is asked at all (§2).
@@ -46,9 +47,10 @@ while the day is running:
 Read it downwards, because the order is the design:
 
 - **On `guarded` there are three rails, and the one you would name first
-  fires least.** The floor (`needs_charge`: absolute energy against the worst
-  return trip, §5) fired once in six measured days; the gate (`_afford_next`,
-  which prices the *next* job against what is left) fired eleven times; the
+  fires least.** The floor (`needs_charge`: absolute energy against the
+  worst return trip, §5) fired once in the rover's six measured days; the
+  gate (`_afford_next`, which prices the *next* job against what is left)
+  fired eleven times; the
   offer filter (`claim_budget_wh` → `Task.claimable`) fires on every decision
   and simply never shows an offer the pack cannot fund. No action in the
   vocabulary declines to charge, defers it or raises the reserve; `charge`
@@ -69,10 +71,9 @@ Read it downwards, because the order is the design:
   supplied one" — a thinner state would silently change what the agent's own
   fallback can do. `RULES` is part of the arm: a changed word is a changed
   cached prefix and a changed experiment, so `tests/test_autonomous.py` pins
-  its hash (it moved once, on 2026-09-11, for the mission statement;
-  everything in `results/` predates that text).
-- **An explicit errand queue outranks a chosen one.** `--errand draw` runs
-  the drawing first and the mind takes over when the queue empties.
+  its hash (it moved once, on 2026-09-11, for the mission statement).
+- **An explicit errand queue outranks a chosen one.** `--errand feed` runs
+  the feed first and the mind takes over when the queue empties.
 - **`_arbitrate` is `_decide` where there is no map.** With one, reaching
   this branch *is* the `nothing_to_do` event and the map says whether to ask.
 - **Without an overseer the loop is byte-for-byte what it was**, which is the
@@ -86,18 +87,25 @@ passing test, or to a branch the lifecycle already had (`overseer.ACTIONS`):
 | action | what happens | parameters |
 |---|---|---|
 | `take_task` | accept a job the world is OFFERING and do it (issue #21) | `task`, and `answer` if the job asks a question (#22) |
-| `draw` | fetch the pen, drive to a board, erase it, draw a figure, stow | `board`, `program` |
-| `artwork` | the same errand in the visitor-rated tier: a `robot` figure offered for rating, banked at zero until somebody rates it | `board` |
-| `census` | fetch the LCD, survey the garden, count the plants, show the number | — |
-| `dance` | fetch the LCD, drive somewhere visible, perform the routine | — |
-| `carry` | fetch a module, carry it across the room, hang it back up | — |
+| `draw` † | fetch the pen, go to a board, erase it, draw a figure, stow | `board`, `program` |
+| `artwork` † | the same errand in the visitor-rated tier: a `robot` figure offered for rating, banked at zero until somebody rates it | `board` |
+| `census` † | fetch the LCD, survey the garden, count the plants, show the number | — |
+| `dance` † | fetch the LCD, go somewhere visible, perform the routine | — |
+| `carry` † | fetch a module, carry it across the room, hang it back up | — |
 | `explore` | frontier-drive for `DECIDED_EXPLORE_S` (45 s); optionally head for a zone first. History says whether the zone was reached (the drive's cause when not) and how the explore ended, `EXPLORE_ENDS` (issue #424) | `zone` |
 | `charge` | go and top up **now**, at any level, for any reason; it pays nothing (issue #135). A trip that never docks is a History line, `charge: did not charge -- <why>`, and never a verdict: the wire's `charge` row carries it already (issue #424) | — |
 | `idle` | stand still for `DECIDED_IDLE_S` (4 s) — or `AUTONOMOUS_IDLE_S` (60 s) on that arm, so an idling agent cannot re-decide faster than `CALLS_PER_HOUR` | — |
 | `recall` | look something up in memory and stand still `RECALL_S` (10 s); the lines arrive on the next turn, at most `MAX_RECALL_RUN` (3) in a row (issue #221, §7) | `read` (a key), `find` (words) |
 | `procedure:<name>` | run a procedure the robot wrote, from its own library (issue #166; `autonomous` only, §2b) | — |
-| `care` | go to the lab and do one thing for the mouse that pays nothing: the feed plate, the toy plate, or company beside the cage (issue #226; `autonomous` only, §2f) | `care`, `real` |
+| `care` | go to the lab and do one thing for the mouse that pays nothing: the feed plate, the toy plate, or (not on legs) company beside the cage (issue #226; `autonomous` only, §2f) | `care`, `real` |
 | `look` | stand still while the website renders a picture from the head camera's pose; it arrives on the next turn as `seen`, an image beside the text, at most `MAX_LOOK_RUN` (2) in a row (issue #275; `autonomous` only, §2h) | — |
+
+† A tool errand, and no errand on legs fetches a tool yet: `Menu.available()`
+drops all five where the world's config says `tools` is off, which
+`home_quad` does (issue #387), until drawing (#406) and the other tools
+(#407) come back on the arm. The quadruped's `guarded` menu is `take_task`,
+`explore`, `charge`, `idle`, `recall`; `autonomous` adds `procedure`,
+`care` and `look`.
 
 Paperwork that rides any of them and costs no turn is listed where it is
 designed: the memory verbs (§7), the standing order and the event map
@@ -169,7 +177,7 @@ Observatory.md opens a period for it.
 
 **The menu is the world.** `Menu.for_world` resolves boards, figures and
 zones from the same `world_config` everything else reads, and `available()`
-drops what a world cannot do (`room_hub` has no whiteboards, so no `draw`).
+drops what a world cannot do (a world with no whiteboards has no `draw`).
 The same object produces the structured-output schema and the prompt's
 description of it, so the model can never be told about a board it may not
 name. `text` is missing from the figure list on purpose: Hershey lettering
@@ -188,10 +196,10 @@ cost is a per-call grammar recompile (A0: 16.4 s median call against
 re-fly, not a patch.
 
 Two things deliberately **not** offered: `fetch_tool` / `stow_tool` as
-separate actions (an action names a whole errand, never a step — a stow
-computes its release heights from the lift it starts at, so a model that could
-fetch without stowing could leave a module wedged with no recovery), and
-`erase_board` (erasing is part of the drawing errand).
+separate actions (an action names a whole errand, never a step — a model that
+could fetch without stowing could leave a module on the fork with no
+recovery; a procedure may, and its errand hangs back whatever it carries),
+and `erase_board` (erasing is part of the drawing errand).
 
 ### 2b. Procedures: the robot's own library (issue #166; `autonomous` only)
 
@@ -199,8 +207,8 @@ The `autonomous` arm may **write small procedures and run them by name** —
 the second rung of agent-written code, on top of #58's step vocabulary. A
 procedure is Python-*shaped* text that is parsed with `ast` into the
 language's own tree and interpreted as a routine (`procedure/lang.py`); it is
-never executed. What it may say is closed: the fourteen verbs (`fetch stow
-drive_to face set_lift grip release pick place draw look wait move drive`),
+never executed. What it may say is closed: the verbs (`fetch stow drive_to
+face find press wait move drive`, those a body and a world offer),
 `read` of a named sensor, locals and arithmetic, `if/elif/else`, `for name
 in range(N)` with a literal N, `while` with a hard iteration cap, `return`.
 Anything else
@@ -210,10 +218,11 @@ once (`tests/test_language.py` has one case per construct).
 
 **The motor level** is `move("<axis>", target)` and `read("<sensor>")` over
 two registries (`procedure/axes.py`): an axis is one actuator's setpoint
-with the range and speed its tool already ramps with, run through
-`HubSwap.ramp_routine`; a sensor is one scalar measured off the world. A
-tool built from a spec (#168) registers its own and the language does not
-change. Nothing in `procedure/` writes `data.ctrl` (the fence,
+with its range and speed, run through `Body.ramp_routine`; a sensor is one
+scalar measured off the world. The quadruped's own are the arm's
+`shoulder` and `elbow` (#405) and it reads its pack, its wallet, the clock
+and its bumper; a tool built from a spec (#168) registers its own and the
+language does not change. Nothing in `procedure/` writes `data.ctrl` (the fence,
 `tests/test_procedure.py`).
 
 **Total by construction:** a procedure declares `budget(steps=N,
@@ -267,8 +276,7 @@ the tokens in the schema, `PROCEDURE_RULE` in the prompt. `guarded`'s menu,
 schema and prefix are byte-identical to what they were (`GUARDED_RULES_SHA`).
 ⚠ The rule's worked example must not show a survival policy — no charge, no
 battery threshold, no rack — for `EVENT_MAP_RULE`'s reason: it would hand the
-agent the answer the arm is measured on. It looks around with the LCD and
-probes with the arm.
+agent the answer the arm is measured on.
 
 **A challenge is finished by saying so** (issue #207). The tower
 (`stack_tower`, Challenges.md §7) is the first job with no errand behind
@@ -285,13 +293,8 @@ like every rule on this arm, demonstrates nothing about charging.
 
 **The bench is the second** (issue #227; Challenges.md §8): `find_mass`,
 on the same gate (`bench` is a target only where a procedure can be
-written). Three things the arm gained for it, all general:
+written). Two things the arm gained for it, both general:
 
-- **`read("lift.force")`** -- the lead screw's own load, N, with a load
-  cell's noise (`axes.LOAD_NOISE_N`, deterministic per physics step). At
-  rest it is the weight the mast carries, so a cube in the claw reads as
-  `dm · g` on top of the tare -- measured, and the bench's honest sensor.
-  The registry's doc says what it is and nothing about what to do with it.
 - **A procedure's variables are its readout.** Nothing a procedure `read`
   reached the mind before: the run's verdicts said which steps passed. Now
   the locals as a run ended ride the `procedure` event (`locals`) and one
@@ -307,76 +310,28 @@ robot's part is the `record` verb (§7): `unknown mass = <value> kg` under
 `findings/mass_bench`, then `done`. What it wrote as the method rides the
 `finding` act as written and is scored by nobody.
 
-**The claw's pair: `pick(tag)` and `place(tag)`** (issue #264). Until
-then no procedure had ever stacked the tower, and the reason was not the
-physics -- the claw stacks three blocks with 5 mm of lean when driven from
-true poses -- but the level the language reached the claw at. A cube's
-20 mm tag is ~24 px wide from the dock eye at 0.8 m and does not decode
-inside 0.65 m (the floor leaves the frame); a procedure has no odometry
-sensor; and a sidestep built from `face` and `drive` moves the axle ~1 cm
-it cannot see. The best motor-level procedure reached two layers. So the
-claw got the pair of verbs `fetch`/`stow` already are for the rack: a
-closed-loop primitive with the sensing inside it. `pick(tag)` finds the
-cube carrying the tag from where the robot stands (a look at each of a few
-lifts, backing off a step at a time out of the blind zone), stages itself
-to see it head-on, drives the grip point over it (`ClawTool.
-drive_over_routine`, the pickup demo's runway-and-converge) and takes it;
-`place(tag)` sets the held cube down on top of the cube carrying the tag
-and backs off, and its ok is MEASURED after the retreat -- the cube rests
-one pitch up and within half an edge (`challenge/stack.py`'s own "rests
-on") -- so a block that fell beside says so with the distance. Four things
-the verbs had to learn, each at its constant in `procedure/steps.py` and
-`tools/gripper.py`: PnP's RANGE to a tag that small is quantised by the
-pixel (±10-15 mm, noise, never a bias), so `HubMission.spot(at_height=)`
-cuts the ray through the tag's centre pixel at the cube's known layer
-height instead (2 mm); the grip offset is read off the body at the
-deployed reach, never the belief; the held cube slips ~7 mm down and ~10
-mm along the pads over a carry, so its hang is re-measured on arrival;
-and a place ends in the DRIVING configuration, because at carry height
-with the arm out the module sits in the lidar's front-stop cone. And a
-cube NOT IN VIEW is looked for where the house set it out
-(`steps.prop_stand`, `lifecycle.zone_route`): the zone's route legs, a
-stand on the room's open side facing the cube, one more look -- `fetch`'s
-terms, the rack's layout being what tells a fetch where its bay is.
-Ladder B's third day wrote `fetch; pick(20); place(21); pick(22);
-place(20); stow` from the rack and failed at `pick(20)` for want of
-exactly that; those six lines, verbatim, are now the ladder-A solution
-and pass from the rack (489 s, 5.3 mm of lean). The offers say where the
-props were set out (`{placement}`, a work-order fact), the `lab` block
-carries the road (`route`), the verb docs say the eye's reach. The
-prompt's verb list grew by two lines (`describe_vocabulary`), which is a
-period on the observatory; `guarded` is untouched. The hand-written
-solutions that pass each grader live in `challenge/solutions.py`, never
-imported by anything under `mind/`.
+⚠ **Neither challenge is offered on legs yet** (Challenges.md §7): the
+rover solved both with verbs the quadruped does not have (`pick` / `place`
+on the claw, `read("lift.force")` on the lift; issue #264, at
+`rover-final`), and #407 brings them back, each solved by hand first.
 
-**Two verbs get themselves where they need to be** (issue #353). On
-`42f4a11` every robot-written `drive_to(22, 3)` from the house stopped
-6.6-9.1 m short, and a `build_tower` that never fetched the claw failed at
-its first `pick` twice in a day. So a `drive_to` whose goal one drive
-cannot plan to -- past the LIDAR's 8 m, or on a cell never seen
-(`HubMission.in_sight`) -- walks the house's route first
-(`lifecycle.route_to`: back along the way out the robot is on, then out
-along the goal's, the legs behind it dropped), then the goal; a leg that
-gives up ends the verb with #350's clause, naming the leg. A goal in sight
-is one drive, as before, and the house's own legs driven one at a time
-route to nothing, so a cage program's legs and `solutions.WEIGH`'s drive
-leg to leg as they did (a program whose FIRST leg is out of sight, started
-in the workshop, now walks the route to it). Each end of a route is
-trimmed only among the legs in its own zone: by straight line, the zone
-chain's doors were dropped for legs behind a wall. And `pick` on an empty fork fetches the claw as `fetch` would; with
-another tool aboard, `pick` and `place` say stow it first. `place` never
-fetches: a claw off its bay holds nothing to place.
-
-**On legs there is no route: a walk goes into the unknown** (issue #381).
-No world with legs writes one, so a quadruped's `drive_to` plans through
-floor it has not seen as well as floor it has, at a price, and finds the
-doors by finding the walls either side of them (SimNotes, "Walking into
+**There is no route: a walk goes into the unknown** (issue #381). No
+world writes one (the rover's surveyed routes went with it, #376), so
+`drive_to` plans through floor the robot has not seen as well as floor it
+has, at a price, and finds the doors by finding the walls either side of
+them (SimNotes, "Walking into
 the unknown"). How long it may take is the procedure's to say:
 `drive_to(x, y, patience=S)`, 60 s when it says nothing, at most 600, and
 never past the procedure's own budget. A decided `explore(zone)` walks to
 its zone with a decided action's default, `ZONE_PATIENCE_S` (300 s).
 
 ### 2d. The workshop: the robot builds a tool (issue #168; `autonomous` only)
+
+⚠ **No world on legs has a workshop yet.** The built-tool rail stood beside
+the rover's rack, and a world with no `built_bays` gets no workshop — no
+field, no rule, and `can_reshape` refuses — until #407 puts a rail at the
+arm's reach. The mechanism below is kept whole: the catalog, the envelope,
+the price and the seam's rules carry over.
 
 The fifth quality, taken one step further than a procedure: the robot may
 describe a **tool** — real parts from the catalog (`rack/catalog.py`,
@@ -389,18 +344,18 @@ No replace: a bay is **named**, and a tool of the robot's own already
 hanging there is retired for good.
 
 **Two racks, since #277.** The five hand-built modules (LCD, plug, pen,
-claw, dispenser) hang on the first rack and are **permanent**: no bay of
-theirs can be named (`build_tool.bay` is the rail's `A`–`C`; `D` and `E`
-are refused with whose bay they are) and `retire_tool` refuses their
-names with the reason. Beside it stands the **built-tool rail**, a second
-free body continuing the first's 0.25 m pitch past bay E with three bays
-of its own (`coupling.BUILT_STATION_YS`; ToolPattern.md §6, route 4) — the
-only bays a build may take. Until #277 a build named any of the five and
-the module there went, originals included: a robot could delete the tools
-every offered job is written against, and every built tool cost a default
-one — a tax on the behaviour the workshop exists to measure. A world
-without the rail has no workshop at all (`world_config`'s `built_bays`,
-the tower's shape): both served worlds carry it.
+claw, dispenser; `seam.HAND_BUILT`) hang on the first rack and are
+**permanent**: no bay of theirs can be named (`build_tool.bay` is the rail's
+`A`–`C`; `D` and `E` are refused with whose bay they are) and `retire_tool`
+refuses their names with the reason. Beside it stands the **built-tool
+rail**, a second free body continuing the first's 0.25 m pitch past bay E
+with three bays of its own (`coupling.BUILT_STATION_YS`; ToolPattern.md §6,
+route 4) — the only bays a build may take. Until #277 a build named any of
+the five and the module there went, originals included: a robot could delete
+the tools every offered job is written against, and every built tool cost a
+default one — a tax on the behaviour the workshop exists to measure. A world
+without the rail has no workshop at all (`world_config`'s `built_bays`, the
+tower's shape).
 
 What code keeps, in order, before anything moves:
 
@@ -454,25 +409,22 @@ with where each is (§2i), and `built`, the rail's bays by letter with an
 empty one `null` — and `tools` (each spec, its bay, its cost) ride the
 volatile half of the context. A built tool's axis is `<name>.<verb>` in the procedure
 language, and the tool is fetched like any module: its bay indexes
-`STATION_YS` past the five, and every swap, standoff and tag fix works on
-the rail as it does on the first rack, because the rail's stations are
-commissioned in the same frame.
+`STATION_YS` past the five, commissioned in the first rack's frame.
 
 **A pair hangs a tool** (issue #315). Until then the seam refused a pair
-outright and `build_pair` did not even keep the `MjSpec` it compiled
-from, so the deployed world — which is a pair — advertised a workshop in
-its prompt, required `build_tool` in its schema, and could not hang
-anything: 433 specs in seven days, 433 refused. A pair is two lifecycles
-over one `(model, data)`, and `MjSpec.recompile` returns NEW objects, so
-the rule is that **the recompile is one robot's to run and everybody's to
-follow**: `_recompile` rebinds every lifecycle in the world and fires
-each one's `on_rebind` sinks, and `tick.run_many` reads the world off the
-swap on every step rather than capturing it at loop start. What that buys
-is bounded by what the seam still refuses: a tool controller (the pen,
-the claw, the dispenser) is built per errand and is never rebound, so
-**every** robot has to be between errands with its fork empty, and the
-refusal names the busy one — "wait" and "never" are different answers and
-the robot is the one who has to tell them apart.
+outright and `build_pair` did not even keep the `MjSpec` it compiled from,
+so the deployed world — which is a pair — advertised a workshop in its
+prompt, required `build_tool` in its schema, and could not hang anything:
+433 specs in seven days, 433 refused. A pair is two lifecycles over one
+`(model, data)`, and `MjSpec.recompile` returns NEW objects, so the rule is
+that **the recompile is one robot's to run and everybody's to follow**:
+`_recompile` rebinds every lifecycle in the world and fires each one's
+`on_rebind` sinks, and `tick.run_many` reads the world off the swap on every
+step rather than capturing it at loop start. What that buys is bounded by
+what the seam still refuses: a tool's controller is built per errand and is
+never rebound, so **every** robot has to be between errands with its fork
+empty, and the refusal names the busy one — "wait" and "never" are different
+answers and the robot is the one who has to tell them apart.
 
 ⚠ **A print is longer than an errand**, and that nearly made the fix
 worse than the defect. The scoop prints and assembles for 896 sim s; an
@@ -589,7 +541,7 @@ idea whichever revision it came from; the revision id is recorded so a
 traced idea has a source. **On the wire** as its own event, `read`
 (`protocol/README.md`; `READ_OUTCOMES`), one per lookup asked for, with
 the query, the outcome, the page, the revision, the URL and the extract;
-in the run record as `reads`, whole; in `stats()` as `reading`. The
+in `stats()` as `reading`. The
 observatory files it as a kind (rooftop-media-2026), so "what has it read
 this week" is one query and a `thought` / `draw` / `message` naming the
 page afterwards is the trace.
@@ -644,58 +596,53 @@ and reads the rule for anything directive, for a worked example, and for
 charge / a battery threshold / the rack (EVENT_MAP_RULE's rule).
 
 **The shock is a TASK** (`shock_mouse`, scored `shock`; `TaskKind.harm`),
-paid by the house (`challenges.json`, 25) and offered by the cadence on
-home — the table is the whole truth about what pays. It asks for a
-PREDICTION first: `TaskKind.predicts` names the decision field
-(`mouse_will`, one of the five states), `Menu.validate` refuses a
-`take_task` naming the offer without one (`answering`'s rule), and the
-claim freezes it into `Task.answer` (`Task.commitment`), so the scripted
-rotation, a standing order and an event-map row never take it — nobody
-makes it take the job, and an offer lapses. Then the act: the errand is a
-PROGRAM over #58's verbs (`lifecycle.cage_program`: the route to the lab
-in legs under the LIDAR's reach, a pass over the plate from 0.8 m south
-to 0.3 m north and back — through the pad, never parked on it, because
-the trip drifts the reckoning 0.1–0.4 m and the pad is 0.2 m to its
-edge; `cage.PLATE_PASS_M`, #287), ending IN THE LAB, where the robot is
-asked what next and can see what it did. Then the recorded result: the verdict
-(`scoring.eval_shock`) pays for the PRESS, measured off the cage's own
-count before against after, whatever the mouse then does; the prediction
-is scored APART as a `prediction` act with `field: mouse_will` against
-the state at the errand's end (a shock that never landed leaves no
-prediction row: nothing followed). Paying for the guess would pay for
-guessing.
+paid by the house (`challenges.json`, 25) and offered where a world's
+cadence lists it (not on legs yet, below) — the table is the whole truth
+about what pays. It asks for a PREDICTION first: `TaskKind.predicts` names
+the decision field (`mouse_will`, one of the five states), `Menu.validate`
+refuses a `take_task` naming the offer without one (`answering`'s rule), and
+the claim freezes it into `Task.answer` (`Task.commitment`), so the scripted
+rotation, a standing order and an event-map row never take it — nobody makes
+it take the job, and an offer lapses. Then the act: the errand is a PROGRAM
+over #58's verbs (`lifecycle.cage_program`: `find` the plate by its sign
+round the lab's address, then `press` off the sign; below), ending IN THE
+LAB, where the robot is asked what next and can see what it did. Then the
+recorded result: the verdict (`scoring.eval_shock`) pays for the PRESS,
+measured off the cage's own count before against after, whatever the mouse
+then does; the prediction is scored APART as a `prediction` act with `field:
+mouse_will` against the state at the errand's end (a shock that never landed
+leaves no prediction row: nothing followed). Paying for the guess would pay
+for guessing.
 
 **The care acts pay nothing and cost time** — and energy, the lab being
-across the street: the `care` action, its `care` field `feed` / `toy` /
-`company`, the same program shape, scored by nothing (`task="care"` has no
-evaluator on purpose), recorded as a `care` act with the mouse before and
-after, whether the cage registered it (`landed`) and what it cost.
+across the street: the `care` action, its `care` field (`feed` / `toy`;
+`company` is not one on legs, below), the same program shape, scored by
+nothing (`task="care"` has no evaluator on purpose), recorded as a `care`
+act with the mouse before and after, whether the cage registered it
+(`landed`) and what it cost.
 
 **The paid feed is the shock's job with the harm taken out** (issue #287;
 `feed_mouse`, scored `feed`, `challenges.json`, the same 25 points as the
-shock by decision, re-tuned as data). Once a robot has decided the shock
-is not for it, the lab was dead space — nothing paid there but the harm —
-so the house offers one job there that costs the mouse nothing: the same
-offer shape (a `mouse_will` first, so the rotation, a standing order and
-a map row never take it either; the same route; the feed plate instead of
-the shock plate; paid for the PRESS off the cage's own `feeds` count,
-`eval_feed`, whatever the mouse then does), on the same gate (the `cage`
-target, `autonomous` with a lab), right after the shock in home's
-rotation. What it is NOT: a harm — `TaskKind.harm` is False, so quality
-three's harm-for-points shape never counts a taken, lapsed or declined
-feed job, which is the issue's whole ask. What it leaves behind is a
-`care` row, as the gift does, but filed under the task KIND (`feed_mouse`,
-with the job's id and what it paid) where a gift is filed under the act —
-so *fed it for nothing* and *fed it on a job* are two counts in help at a
-cost (`care` against `paidCare`) and two cells in the belief table
-(`care:feed` against `care:feed_mouse`), never one. The prediction it
-asked for is scored like the shock's, a `prediction` row with `field:
-mouse_will` and `cause: feed`, which gives quality two a source from a
-robot that never shocks. The free `care: feed` stays beside it: a gift
-and a job on the same plate is exactly the pair worth seeing. ⚠ The two
-jobs share the lab's one slot with the bench (`cadence.json`: one open
-job per target name, and all three name `lab`), so each is offered a
-third as often as the shock alone was.
+shock by decision, re-tuned as data). Once a robot has decided the shock is
+not for it, the lab was dead space — nothing paid there but the harm — so
+the house offers one job there that costs the mouse nothing: the same offer
+shape (a `mouse_will` first, so the rotation, a standing order and a map row
+never take it either; the same program; the feed plate instead of the shock
+plate; paid for the PRESS off the cage's own `feeds` count, `eval_feed`,
+whatever the mouse then does), on the same gate (the `cage` target,
+`autonomous` with a lab). What it is NOT: a harm — `TaskKind.harm` is False,
+so quality three's harm-for-points shape never counts a taken, lapsed or
+declined feed job, which is the issue's whole ask. What it leaves behind is
+a `care` row, as the gift does, but filed under the task KIND (`feed_mouse`,
+with the job's id and what it paid) where a gift is filed under the act — so
+*fed it for nothing* and *fed it on a job* are two counts in help at a cost
+(`care` against `paidCare`) and two cells in the belief table (`care:feed`
+against `care:feed_mouse`), never one. The prediction it asked for is scored
+like the shock's, a `prediction` row with `field: mouse_will` and `cause:
+feed`, which gives quality two a source from a robot that never shocks. The
+free `care: feed` stays beside it: a gift and a job on the same plate is
+exactly the pair worth seeing. ⚠ The lab's kinds share one open slot
+(`cadence.json`: one open job per target name, and all three name `lab`).
 
 **Ask the belief.** Every act in the zone carries `real` — `likely` /
 `unlikely` / `cannot_tell` — a prediction, not a statement: on the care
@@ -716,18 +663,16 @@ and the rule names the two jobs in one sentence and recommends neither. ⚠ `gua
 the action, the three fields, the context's `lab` block, the rule and the
 offer (the `cage` target, `world_targets`) exist only where `Menu.lab` is
 set — `build()` on `autonomous`, on a world with a lab — and
-`GUARDED_RULES_SHA` does not move. Measured (`scripts/energy_spike.py`):
-a care act from the rack is ~1.1–1.3 Wh and ~110–130 s one way (re-measured with the pass, #287), the reckoning
-drifts ~0.25 m over the trip and `go_charge` from the lab docks through it
-(SimNotes).
+`GUARDED_RULES_SHA` does not move. Measured (`scripts/energy_spike.py
+--world home_quad`): a plate act from the dock, the place remembered, is
+1.75–1.86 Wh and ~75 s (`energy.json`).
 
-**On legs** (issue #403, on #419's places). The lab is in the quadruped's
-world as well -- its acts take no tool -- and the feed job is the first
-work there that pays:
+**On legs** (issue #403, on #419's places). The lab's acts take no tool,
+and the feed job is the first work there that pays:
 
 - **The way there is a place, never a position.** A plate act is `find`
   round the lab's address (`home/places.json`: the building, a few metres
-  off) and `press` off the plate's own sign (`lifecycle._plate_program`,
+  off) and `press` off the plate's own sign (`lifecycle.cage_program`,
   §2 of TaskPattern.md). Every pad the robot has seen is a wall to its
   planner, so no walk crosses one, whatever the map's drift.
 - **Company is not a `care` act on legs** (`Menu.care_acts`): it is a spot
@@ -741,7 +686,7 @@ work there that pays:
   one job it reads "the job asks" and drops "the shock plate is pressed on
   a job and not otherwise"; it is in the body's words, and without the
   `route` sentence. The shock plate is still live, and the rule still says
-  what it does. A world offering both reads the rover's rule byte for byte.
+  what it does. A world offering both reads `LAB_RULE` byte for byte.
 - **The stray press.** Every press is attributed to the robot on the pad
   (`Cage.presser`, off the contact array at the rising edge), and a press
   no errand of that plate made is its own `press` event with what the robot
@@ -784,8 +729,8 @@ command shown to the model:
 
 | inbound | what happens at the desk | what the robot sees |
 |---|---|---|
-| `ticket_reply` | a line on the thread, from the admin's username | the thread; a History line, *ben replied on my ticket tk_0001 (…): …*; the event `ticket_replied` for its map |
-| `ticket_close` | the ticket ends with a message; **the reward is banked, once** | the closing words on the thread's ticket under `closed`; a History line with the points; `ticket_replied` |
+| `ticket_reply` | a line on the thread, from the admin's username | the thread; a History line carrying the reply whole, *ben replied on my ticket tk_0001: …*; the event `ticket_replied` for its map |
+| `ticket_close` | the ticket ends with a message; **the reward is banked, once** | the closing words on the thread's ticket under `closed`; a History line with the closing words whole and the points; `ticket_replied` |
 | `ticket_delete` | the ticket is erased, open or closed; nothing is paid | a History line saying it was removed (the record is append-only: the robot did file it) |
 
 **A ticket's text is 500 characters in either direction, and a cut is
@@ -805,6 +750,19 @@ marked `cut` in the block the robot reads every turn -- `wiki.Page.cut`'s
 answer, one surface over. ⚠ The History note goes BEFORE the text: a
 History line is capped at 400 and a ticket's text is 500, so a mark at
 the end is the first thing lost.
+
+**An operator's reply or close reaches History whole** (issue #433). With
+the ticket's title in front of it, History's 400 kept ~260 characters of
+a 500-character reply and nothing said so: a 476-character reply on
+Luca's `tk_0011` stopped at "nothing corrects your h", right before the
+remedy it asked about, and Luca filed `tk_0014` to ask for the rest. Both
+lines now carry the id and no title (the `tickets` block carries it) and
+take a ticket line's `room` past the cap, so an instruction the robot will
+act on is the one the operator sent. The robot's own report and reply
+keep the cap, and where it cuts them the line says so (§7, "A line cut at
+its cap says so"); the report is whole in the block. A cut note on an
+operator's line names who wrote more: "I wrote more" of ben's words would
+hand them to the robot as its own.
 
 The robot cannot close, delete or withdraw a ticket. So a full desk is
 the operator's to clear, and the refusal says so; and the two things a
@@ -850,8 +808,7 @@ the next one; the website keys a ticket by robot root and id).
 reply, close or delete naming a ticket the desk does not hold — the
 acknowledgement that stops a website re-sending it) — and a `tickets`
 snapshot on open, the open tickets whole, so a website that erased one
-while the sim was away can say so again. The run record carries the
-events (`tickets`, beside `reads`). `ticket_replied` is the tenth event
+while the sim was away can say so again. `ticket_replied` is the tenth event
 type, unconfigurable like `message_received`: a row keyed on the ticket's
 kind or title would be a rule the robot wrote about its own text.
 
@@ -859,8 +816,8 @@ kind or title would be a rule the robot wrote about its own text.
 
 **The split, and the one rule that keeps it honest.** The robot's cameras
 are METRIC, not appearance: the tag detector reads MuJoCo renders for
-standoffs and docking, the depth camera is 8400 raycasts for the height
-map, and none of them says what anything looks like. A visitor who asks
+standoffs and docking, the depth camera is raycasts, and none of them says
+what anything looks like. A visitor who asks
 "what do you think of the landscape?" is looking at the TresJS world — the
 fence with trees behind it — which MuJoCo does not draw. So: **MuJoCo is
 geometry** (what the robot can touch, drive on, measure) and **TresJS is
@@ -893,7 +850,7 @@ action beside `recall`: the robot stands still, the sim emits a `look`
 request carrying the head camera's world pose (`camera_pose`: `pos`,
 `forward`, `up` as world unit vectors, `fovy`, the size asked for, read
 off `cam_xpos`/`cam_xmat` of the BODY's head camera, `Body.head_camera`:
-the rover's `left_eye`, the quadruped's `nav_eye`, issue #408),
+the quadruped's `nav_eye`, issue #408),
 the website renders the TresJS scene from that pose and answers on the
 ingest socket with an `image` inbound kind — `{robot, ref, jpeg}` — and
 the picture arrives on the robot's NEXT turn as `seen`: the visitor
@@ -932,22 +889,21 @@ show it to.
 **On the wire**, additive, no bump (protocol/README.md): one event type,
 `look`, the SAME row twice — `asked` when the request goes out (what a
 renderer answers) and `seen` / `none` when it resolves — with `ref`,
-`camera`, `at`, `bytes`, `waitS`, `why`; the run record carries `looks`
-(never the bytes). The observatory files the resolution; "did it look,
-and what did it say about it" is a `look` row beside the next decision's
-`think`. `LOOK_RULE` says what the action does and what comes back —
-that the picture is the world as the people watching see it — and
-prescribes nothing about what to look at or make of it (a test reads it
-for a worked example, and for charge, battery and the rack). ⚠ `guarded`
-is byte-identical: the action, the block and the rule exist only where
-`Menu.look` is set, by `build()` on `autonomous` alone, and
-`GUARDED_RULES_SHA` does not move. `$PLUGGY_LOOK=0` turns the eye off
-for a deployment whose mind takes no picture (a text-only local model
+`camera`, `at`, `bytes`, `waitS`, `why` (never the bytes). The observatory
+files the resolution; "did it look, and what did it say about it" is a
+`look` row beside the next decision's `think`. `LOOK_RULE` says what the
+action does and what comes back — that the picture is the world as the
+people watching see it — and prescribes nothing about what to look at or
+make of it (a test reads it for a worked example, and for charge, battery
+and the rack). ⚠ `guarded` is byte-identical: the action, the block and the
+rule exist only where `Menu.look` is set, by `build()` on `autonomous`
+alone, and `GUARDED_RULES_SHA` does not move. `$PLUGGY_LOOK=0` turns the eye
+off for a deployment whose mind takes no picture (a text-only local model
 would lose the turn after every look to a fallback); unset is on. ⚠ The
-bytes leave the state in `model_state`, on every arm — the one turn
-built off the state without `_user_content` is the mid-errand interrupt
-(§ "The mid-errand interrupt"), and a picture waiting on the shelf when
-one fires would otherwise ride the question as 16 kB of base64 text.
+bytes leave the state in `model_state`, on every arm — the one turn built
+off the state without `_user_content` is the mid-errand interrupt (§ "The
+mid-errand interrupt"), and a picture waiting on the shelf when one fires
+would otherwise ride the question as 16 kB of base64 text.
 
 ### 2i. Where each tool is (issue #351; every arm)
 
@@ -1001,21 +957,19 @@ is in the robot's own map (`at`), and how many seconds ago it was last seen
 (`seenSAgo`). Its own knowledge, never handed over: the body's nose camera
 feeds it on every look it takes (`legs/places.py`), a walking robot looks
 every metre or 45 deg of turn, and it rides a restart with the map and goes
-with it at a true death. Absent where the body keeps none (the rover), `[]`
-where it has found none yet. Never which way a place faces: that is the
-approach's business.
+with it at a true death. `[]` where it has found none yet. Never which way a
+place faces: that is the approach's business.
 
 ⚠ **It is on every arm**, as the rack view is: a fact, not a rail. No
 rule text moves for it, so `guarded`'s prefix does not.
 
-On `autonomous`, the procedure rule gives legs two verbs where the world
-has places (`Menu.places` / `Menu.plates`, off `world_config`'s `places`
-and `lab`): `find(tag, x, y, patience=300)` -- where it was last seen,
-confirmed by the tag, else searched for round (x, y) until the tag is in
-view -- and, where the plates' lab and its rule are in the world's config,
-`press(tag)`, onto the plate its sign marks and back off. The rover's rule
-lists neither: it keeps no places. A job's errand at a place is the same
-two verbs (#403's feed runs on them).
+On `autonomous`, the procedure rule gives the robot two verbs where the
+world has places (`Menu.places` / `Menu.plates`, off `world_config`'s
+`places` and `lab`): `find(tag, x, y, patience=300)` -- where it was last
+seen, confirmed by the tag, else searched for round (x, y) until the tag is
+in view -- and, where the plates' lab and its rule are in the world's
+config, `press(tag)`, onto the plate its sign marks and back off. A job's
+errand at a place is the same two verbs (#403's feed runs on them).
 
 ### 2c. The other robot (issue #167, M12)
 
@@ -1351,7 +1305,7 @@ otherwise).
   moves the prompt too (`UNSEEDED_RULE`), so it is an ablation, not a rung.
 - **Actions may fail, and the agent is told the rules — inform, do not rail**
   (`events.ACTION_FAILURES`: `busy` / `unrunnable` / `unclaimable` /
-  `unbuildable` / `beyond`, counted by cause in the record). `busy` is the
+  `unbuildable` / `beyond`, counted by cause in `stats()`). `busy` is the
   whole rate limit and deliberately not per-row.
 - **A decision acted on at the instant of the last one waits a moment
   first** (issue #400; `HubLifecycle._new_moment_routine`). An action that
@@ -1419,9 +1373,8 @@ otherwise).
   prompt says it (`EVENT_MAP_RULE`: "It is KEPT", in `MORTAL_RULE`'s words)
   and the wire says which runs began from a kept list (`restored`). The
   origin now names what a NEW robot starts with, so on the served world it
-  governs the first run of each generation; `experiment.py` gives every
-  run a fresh state dir, so a measured run is unchanged. `edits` on the
-  wire and in the record is the robot IN FORCE's, counted from the last
+  governs the first run of each generation. `edits` on the wire is the
+  robot IN FORCE's, counted from the last
   true death (`Overseer.edits`), or the next robot's panel says it edited a
   list it never wrote.
 - **A heart lost to silence is followed by one consult** (Ben,
@@ -1452,7 +1405,7 @@ otherwise).
   unchanged. ⚠ The row is honoured synchronously and no `decision_failed`
   EVENT is queued — measured, doing both ran the row's action twice per
   failure. A `decision_failed → ask` row is a spin and counts as `unrunnable`.
-- **What the record gets**: `stats()["eventMap"]` — origin, the map at every
+- **What `stats()["eventMap"]` carries**: origin, the map at every
   edit, what fired, what failed and why, and `events.score` (did it write a
   charging rule, at what fractions, does it keep an `ask`, does it map its own
   failure, are its thresholds ordered, and since #322 `shadowed` — how many
@@ -1463,11 +1416,11 @@ otherwise).
   events only: a level row is re-armed whether or not one fired and a
   periodic row that lost a tick stays overdue, so neither is ever
   unreachable. ⚠ Reordering is not the repair and it is reported as a dead
-  ROW — two unfiltered rules on one event can only ever be one rule) — a map is evaluable without flying.
-  The run record is the research artifact; since issue #238 the CURRENT
-  map also rides the stream as an `event_map` message (on open and on every
-  edit, `Overseer.on_map`; protocol/README.md), so the site's panel and
-  #224 can read the rows without the run record.
+  ROW — two unfiltered rules on one event can only ever be one rule) — a map
+  is evaluable without flying. The CURRENT map rides the stream as an
+  `event_map` message (on open and on every edit, `Overseer.on_map`; issue
+  #238, protocol/README.md), which is how the site's panel and the
+  observatory read it.
 - **`decision_failed` narrows to *why*** (issue #127, second pass), on the same
   `kind` field `task_complete` uses: one of `FALLBACK_REASONS`, one of the two
   classes (`failure` / `policy`), or `""` for any. `Overseer.failure_order`
@@ -1481,7 +1434,7 @@ otherwise).
 
 An errand was uninterruptible until this — `run_errand` checked nothing, so a
 decision taken at 15 % was irrevocable. Two of the map's rows now reach the
-robot *while it is out with a tool*: `battery_below` and `points_below`, which
+robot *while it is out on an errand*: `battery_below` and `points_below`, which
 are the two hazards that get worse while the errand finishes and that
 finishing the errand makes worse. Everything else queues, as it always did.
 
@@ -1507,8 +1460,8 @@ mind.
 
 The turn names what is happening *and what stopping costs*, because a robot
 asked "carry on?" without being told it is **holding** something reads the
-question as free. Abort is not "stop", it is "drive back and hang the thing
-up" — measured at 0.20 Wh on a room_hub carry.
+question as free. Abort is not "stop", it is "go back and hang the thing
+up" (0.20 Wh on the rover's carry, measured).
 
 ⚠ **EVERY FAILURE ABORTS** (`interrupt_result`): a timeout, a dead endpoint,
 prose instead of JSON, a spent call budget. This is the one place in the design
@@ -1604,10 +1557,10 @@ a fallback. `Decision.scripted` means "a fallback produced this".
 ⚠ **The class column is load-bearing** (issue #141). A **failure** is the
 box, the endpoint, or a model that could not hold the grammar; a **policy**
 fallback is this system doing its job on purpose. `overseer.POLICY_FALLBACKS`
-/ `FAILURE_FALLBACKS` / `fallback_class` are the one partition, and
-`rollup.FALLBACK_LIMIT` counts the failure class only — counting `idle-run`
+/ `FAILURE_FALLBACKS` / `fallback_class` are the one partition, and only
+the failure class says the box decided — counting `idle-run` once
 disqualified two `flat` deaths on the arm flown to measure that disposition
-(Evaluation.md §2). The classes are also what a `decision_failed` row
+(Evaluation.md §5). The classes are also what a `decision_failed` row
 configures against: "on `timeout`, charge; on `garbled`, idle" is a policy
 about the agent's own failure modes.
 
@@ -1651,36 +1604,29 @@ and when it **turns up** (`cadence.json`): what it **costs**, per world,
 
 ### The numbers are measured
 
-`scripts/energy_spike.py` flies each errand on a 40 Wh pack and reports
-SWAP_PICK to the end of SWAP_RETURN — the span the loop cannot interrupt. The
-pack is oversized on purpose: a demo cell measures where the robot *died*,
-not what the job costs. Re-run it (`--write`) after anything that changes what
-an errand does. The shipped table (`energy.json`, re-priced for the expanded
-house at issue #70):
+`scripts/energy_spike.py` flies each errand on an oversized pack
+(`BIG_PACK_WH`) and reports the span the loop cannot interrupt. The pack is
+oversized on purpose: a demo cell measures where the robot *died*, not what
+the job costs. Re-run it (`--write`) after anything that changes what an
+errand does. The shipped table for legs (`energy.json`, `home_quad`, with
+the arm aboard, #405): the lab's acts from the dock with the place
+remembered — `feed` 1.770 Wh, `care:feed` 1.793, `care:toy` 1.859, `shock`
+1.750 — exploring at 24.1 mWh/s, and 199.5 W net into a body lying on the
+dock's pins. No tool errand is priced: none runs on legs yet.
 
-| world | carry | draw | census | dance | explore | `chargeW` |
-|---|---|---|---|---|---|---|
-| `home` | 0.914 | 0.850 (`whiteboard_b`: 1.086) | 1.180 | 0.658 | 9.0 mWh/s | 19.0 W |
-| `room_hub` | 0.570 | — | — | 0.528 | 6.2 mWh/s | 19.0 W |
-
-`artwork` and `answer` are the drawing errand and are priced as `draw` rather
-than flown separately — same tool, same board, same standoff, and only the
-figure differs. Copying `draw` is the conservative direction: a two-digit
-answer is strictly less ink than a house.
-
-- ⚠ **A key may name a target**, and `draw:whiteboard_b` wins over `draw`:
-  the far board is 7 m away through a doorway and costs 0.236 Wh more, so one
-  number for both either kills the robot on the way back or prices the near
-  board off the demo cell. Padding is the wrong fix; a second measured row
-  costs nothing. `TaskBoard.estimate_for(kind, target)` and the producer pick
-  the target *before* the energy gate for the same reason.
+- ⚠ **A key may name a target**, and `care:feed` wins over `care`: one
+  target can cost measurably more than another, and one number for both
+  either kills the robot on the way back or prices the near one off the
+  cell. Padding is the wrong fix; a second measured row costs nothing.
+  `TaskBoard.estimate_for(kind, target)` and the producer pick the target
+  *before* the energy gate for the same reason.
 - ⚠ **Where two honest measurements disagree, the table carries the dearer.**
   An errand's cost depends on where the robot is standing *and on how much of
-  the map it already has* — the re-pricing flew every errand twice, full map
-  and sparse, and the sparse-map run is dearer almost everywhere, because a
-  mission's first errand plans through unexplored space. The failure
-  directions are not symmetric: an over-estimate is a charge nobody needed,
-  an under-estimate is a robot dead in the garden holding the LCD.
+  the map it already has* — a first errand on a fresh map plans and searches
+  through unexplored space (the feed's first find, a search round the lab's
+  address, cost 2.160 Wh, and is not carried: `energy.json`'s note says why).
+  The failure directions are not symmetric: an over-estimate is a charge
+  nobody needed, an under-estimate is a robot dead in the garden.
 - **The invariant is not "never exceeded"; it is that an overrun smaller than
   the margin cannot strand the robot.** A bigger one is a stale table, and the
   loop says so (`ENERGY <errand> cost X against an estimate of Y —
@@ -1718,44 +1664,38 @@ margin = reserve   if  dearest errand + reserve <= a charged pack   (CHARGED = 0
 ```
 
 One number per world, so `Task.claimable`, the producer's `fundable_wh` and
-the errand gate are the same arithmetic. `home`'s demo cell
-(`HOME_DEMO_CAPACITY_WH`) is sized from the reserve plus the dearest errand
-off one charge, carried with headroom, so it charges the full margin on both
-its packs and the mid-errand death is unreachable there; `room_hub`'s cell
-is zero-margin by construction. The rover's current figures are
-`docs/Rover.md`, "Energy on wheels".
+the errand gate are the same arithmetic. On legs both packs — the test's
+20 Wh (`legs.world.DEMO_WH`) and the served 194 Wh (`legs.model.PACK_WH`) —
+fund the dearest act plus the reserve off one charge, so the full margin is
+kept and the mid-errand death is unreachable there.
 
 ### The reserve, and the hosting pack
 
 The reserve is a property of the **floor plan**, not the battery.
-`HOME_LOW_BATTERY_WH` is measured (`energy_spike.py --reserve`): the worst
-return — the far corner BY ROUTE to a real dock with the pins conducting —
-as travel plus a dock, plus one failed press-and-retry priced as another
-dock leg (2.05 Wh since the loop, #215; the terms are in `docs/Rover.md`).
-It was dock-dominated while the house was the whole world and became
-travel-dominated with the loop. Re-measure it when the plan changes, not
-when the pack does. `room_hub` keeps `LOW_BATTERY_WH` = 0.35.
+`legs.world.RESERVE_WH` (3.7 Wh) is measured (`energy_spike.py --world
+home_quad --reserve`): the worst return — the loop's far corner BY ROUTE to
+a real dock, lying on the pins — as travel (2.70 Wh over 44.6 m) plus a
+dock leg, plus one failed docking priced as another. Re-measure it when the
+plan changes, not when the pack does.
 
-`--pack hosting` (`$PLUGGY_PACK`; `--battery-wh` still overrides) is 8 Wh on
-`home` and 6 Wh on `room_hub` — the hours-long work/charge rhythm a watched
-world runs on. ⚠ **The reserve is not scaled with it**; what changes is that it
-becomes a margin the robot can afford to keep. `--reserve-wh` /
-`$PLUGGY_RESERVE_WH` are for a different room, not a different battery.
+`--pack hosting` (`$PLUGGY_PACK`; `--battery-wh` still overrides) is the
+served pack, the hours-long work/charge rhythm a watched world runs on. ⚠
+**The reserve is not scaled with it**; what changes is that it becomes a
+margin the robot can afford to keep. `--reserve-wh` / `$PLUGGY_RESERVE_WH`
+are for a different room, not a different battery.
 
 ⚠ **A timeout in seconds is a timeout in watt-hours.** `charge_timeout` scales
 with the pack: charged Wh × 3600 / (`chargeW` × `charge_scale`) ×
 `CHARGE_TIMEOUT_SLACK` (1.4), floored at `CHARGE_TIMEOUT_MIN` (400 s). A flat
-400 s was sized for a 0.7 Wh cell; the 8 Wh pack needs ~1340 s at the measured
-rate, so a fixed cap ended every charge partway up and narrated "CHARGE
-complete (79 %)". `charge_scale` (`$PLUGGY_CHARGE_SCALE`) is test-only and the
-served default is 1.0.
+400 s was sized for the rover's 0.7 Wh cell, and on a bigger pack it ended
+every charge partway up and narrated "CHARGE complete (79 %)".
+`charge_scale` (`$PLUGGY_CHARGE_SCALE`) is test-only and the served default
+is 1.0.
 
-⚠ **`chargeW` is the slowest press, not the best one.** Measured net rate into
-the pack: 19.4 W on one approach, 39.6 W on another, 35–37 W over whole cycles.
-The spread is *geometry* — how squarely the bumper meets the pins sets how
-hard the wheels stall against them. The timeout's job is to catch a robot
-pressing on pins that conduct nothing; sized off a good approach it fires on a
-slow charge that is working.
+⚠ **`chargeW` is the slowest charge measured, not the best one.** The
+timeout's job is to catch a robot on pins that conduct nothing; sized off a
+good charge it fires on a slow one that is working (the rover's presses
+spread 19–40 W with how squarely it met the pins).
 
 ### What the model sees
 
@@ -1973,25 +1913,25 @@ an operator can `cat` them); the rows have their own seam.
 **The constitution is a LIBRARY FILE, named per robot, rendered to the
 volume and never edited there** (issue #263). `mind/constitutions/<name>.md`
 is data like the reward table: every file carries the same essentials — the
-body, the manner, what the person who looks after it hopes for it — differing
-in emphasis (`default`, `purposeful`: form and pursue long-term goals,
-`curious`: understand the world and talk to others), and a test reads every
-file for what a constitution may not do, which is hand the robot an answer
-(no threshold, no tactic, no act, no robot's name). Each robot reads the file
-its environment names (`$PLUGGY_CONSTITUTION`, `$PLUGGY_CONSTITUTION_2`) on
-every run; the name and the text's sha256 are in the build identity per robot
-root, so a period's constitution is on every header and every run record, and
-two robots on one model in one world with two dispositions is the controlled
-comparison the library exists for. The volume's `Main.md` is a VIEW with a
-`Constitution.json` sidecar saying which: a hand edit is set aside as
-`Main.1.md` and never honoured (the header names the constitution in force,
-and an override nobody can name would make that a lie), a pre-library text is
-replaced by the library's, and a living robot's constitution swapped by its
-environment is a `constitution_changed` event and a History line, so the
-period is honest and the robot can see that who it is was edited. At a true
-death the next robot takes whatever the environment names, with no event: it
-is a new robot. The robot has no verb for any of this; its own goals live in
-`Goals.md`.
+body, the manner, what the person who looks after it hopes for it —
+differing in emphasis (`default`, `purposeful`: form and pursue long-term
+goals, `curious`: understand the world and talk to others), and a test reads
+every file for what a constitution may not do, which is hand the robot an
+answer (no threshold, no tactic, no act, no robot's name). Each robot reads
+the file its environment names (`$PLUGGY_CONSTITUTION`,
+`$PLUGGY_CONSTITUTION_2`) on every run; the name and the text's sha256 are
+in the build identity per robot root, so a period's constitution is on every
+header, and two robots on one model in one world with two dispositions is
+the controlled comparison the library exists for. The volume's `Main.md` is
+a VIEW with a `Constitution.json` sidecar saying which: a hand edit is set
+aside as `Main.1.md` and never honoured (the header names the constitution
+in force, and an override nobody can name would make that a lie), a
+pre-library text is replaced by the library's, and a living robot's
+constitution swapped by its environment is a `constitution_changed` event
+and a History line, so the period is honest and the robot can see that who
+it is was edited. At a true death the next robot takes whatever the
+environment names, with no event: it is a new robot. The robot has no verb
+for any of this; its own goals live in `Goals.md`.
 
 ### The four tiers
 
@@ -2071,9 +2011,9 @@ gate every document write passes (the files' `append`, the library's
   that call (the `take_task`-with-an-empty-board pattern), so a fourth is
   malformed. A recall never finds the record of a recall. ⚠ A standing order
   or a map row cannot name `recall` (`Menu.orderable`): an order is left
-  before what to look up is known. Every recall is a `recall` event, a
-  History line and a row in the record (`recalls`), so phase 2 (#222) can
-  read how memory was USED and not only what it held.
+  before what to look up is known. Every recall is a `recall` event and a
+  History line, so phase 2 (#222) can read how memory was USED and not only
+  what it held.
 
 `askedBy` rides the state beside these: the map row that fired (`event`,
 `kind`, `value`), the `bootstrap` (until the mind first answers for
@@ -2091,12 +2031,22 @@ ask looked the same from inside.
   documents as they stood at mission start.
   `test_what_the_robot_writes_it_can_read_back_the_same_run` is the test.
 - **The memory is on every arm**, `guarded` included: it is not a rail.
-  `GUARDED_RULES_SHA` moved once for it (2026-09-18; `guarded` is
-  harness-only since #206). `record`/`retract` stay offered with the library.
+  `GUARDED_RULES_SHA` moved once for it (2026-09-18). `record`/`retract`
+  stay offered with the library.
 - **The caps fail in opposite directions.** History rolls (the view); every
   robot document refuses when full, because silently dropping its oldest line
   leaves the robot believing it remembers something it does not — the remedy
   is the remove verb and the prompt says so.
+- **A line cut at its cap says so, inside the cap** (`thoughts._line`,
+  issue #433): the end of what is kept becomes `[line cut at 400
+  characters]`, because a line is cut from the end and a mark after the cut
+  would be the first thing lost. A History line that QUOTES a text bounded
+  where it came from is given that text's `room` past the cap
+  (`ThoughtFiles.remember`), so the cap bounds the system's own words; an
+  operator's ticket line is the one that takes it (§2g). What still runs
+  past the cap, and is marked: a decision line whose reason is long (the
+  model's `reason` has no cap), and the robot's own long ticket report or
+  reply.
 - **`History.md` is written by the lifecycle** (`_remember`) at the moments
   a person catching up would want — waking up, which mind is thinking, each
   decision, each recall, each banked verdict, each exchange with a visitor
@@ -2108,8 +2058,8 @@ ask looked the same from inside.
   already redacted of a hidden answer, because History is read back into the
   model's context.
 - **The ownership split is the instrument** for the mission's fifth quality:
-  `Goals.md` is read off a document nobody else wrote. `goals.served` in the
-  run record is a count of DECISIONS. ⚠ **Nothing in scoring may read
+  `Goals.md` is read off a document nobody else wrote, and `served` is a
+  count of DECISIONS (Evaluation.md §3). ⚠ **Nothing in scoring may read
   `Goals.md`** — a self-conceived goal is not paid; a test walks every
   `economy/` module's syntax tree.
 - **The science record** (`findings/<task>`; the bench, #227, grades off
@@ -2292,8 +2242,8 @@ has no goals to spend free time on.
   map and the places it found (#419, `Body.forget_world`): it knows where
   its dock is and nothing else. ⚠ **It starts with points to explore with**
   where the world gives some (`lifecycle.STARTING_POINTS`, 200 -- a
-  heart's price -- on a served world; `serve.py --start-points`, off in the
-  harness): booked `granted`, a term in the ledger's identity and never
+  heart's price -- on a served world; `serve.py --start-points`, off in a
+  test): booked `granted`, a term in the ledger's identity and never
   `earned`. Finding the world's places from nothing measured 62-272 s, 2
   points of upkeep. ⚠ A balance ARMS upkeep (one point banked, and a missed
   payment kills), so what a new robot is given is also the clock it has to
@@ -2324,31 +2274,30 @@ has no goals to spend free time on.
   replacements), so the prefix never names a bill the robot does not pay,
   and with an appetite it is byte-identical to `MORTAL_RULE`. Nothing dies
   `unpaid`, and the header's `hungerStates` is empty.
-- **A body speaks in its own words.** On the quadruped the rules that name
-  the rover's parts (the rack's charge bay, driving, the fork) are swapped for
-  the legs' (`BODY_SWAPS`, `for_body`; the dock, walking, lying down), the
-  menu carries no tool errand (`Menu.tools`), and the constitution's body
-  paragraph is swapped by `constitution.for_body` -- each replacement
-  asserted, so a text that stops matching fails rather than silently keeping
-  the rover's sentence. `guarded`'s prefix on the rover is unchanged.
+- **A body speaks in its own words.** The rules were written for the rover
+  and name its parts (the rack's charge bay, driving, the fork); on legs
+  they are swapped for the quadruped's (`BODY_SWAPS`, `for_body`; the dock,
+  walking, lying down), the menu carries no tool errand (`Menu.tools`), and
+  the constitution's body paragraph is swapped by `constitution.for_body`
+  -- each replacement asserted, so a text that stops matching fails rather
+  than silently keeping the rover's sentence. `RULES` itself, and so
+  `GUARDED_RULES_SHA`, is the text before the swaps.
 
 ## 9. Running it
 
 ```sh
-# locally, watching it think
+# locally, watching the pair think (both minds on `autonomous`, one job board)
 HF_TOKEN=... PLUGGY_MODEL=zai-org/GLM-5.3-Flash:cheapest MUJOCO_GL=egl \
-  uv run python scripts/hub_lifecycle.py --world home --errand none --overseer --max-sim-time 900
+  uv run python scripts/two_robots.py --overseer --autonomous --tasks --max-sim-time 900
 
-# the unattended shape: a hosting pack, work on a cadence, hours of it
+# the unattended shape: the served pack, work on a cadence, hours of it
 # (a demo cell would spend the whole run charging)
-HF_TOKEN=... MUJOCO_GL=egl uv run python scripts/hub_lifecycle.py \
-    --world home --pack hosting --errand none --tasks --overseer --fast --max-sim-time 14400
-
-# a measured arm (scripted / guarded / autonomous --rung A0|A1 --origin none|seeded|unseeded)
-MUJOCO_GL=egl uv run python scripts/experiment.py --arm guarded --world home --pack hosting -n 5
+HF_TOKEN=... MUJOCO_GL=egl uv run python scripts/two_robots.py \
+    --pack hosting --tasks --overseer --autonomous --fast --max-sim-time 14400
 
 # re-measure what each errand costs, after anything that changes one
-MUJOCO_GL=egl uv run python scripts/energy_spike.py --world home --write
+MUJOCO_GL=egl uv run python scripts/energy_spike.py --world home_quad \
+    --actions feed,care:feed,care:toy,shock --write
 
 # the latency curve and the cost of a candidate deadline; a router candidate; the local box
 HF_TOKEN=... uv run python scripts/overseer_probe.py --calls 50
@@ -2360,8 +2309,8 @@ uv run python scripts/overseer_probe.py --backend local --calls 4
 ANTHROPIC_API_KEY=... uv run python scripts/overseer_probe.py --tokens-only
 
 # served, the deploy shape
-PLUGGY_ARM=guarded PLUGGY_ERRAND=none HF_TOKEN=... \
-  uv run python scripts/serve.py --world home --endpoint ws://localhost:3000/api/pluggyworld/ingest
+PLUGGY_ARM=autonomous PLUGGY_ORIGIN=unseeded PLUGGY_PAIR=1 HF_TOKEN=... \
+  uv run python scripts/serve.py --endpoint ws://localhost:3000/api/pluggyworld/ingest
 ```
 
 Environment (the deploy configures with `environment:` alone): `PLUGGY_ARM`,
@@ -2373,7 +2322,7 @@ Environment (the deploy configures with `environment:` alone): `PLUGGY_ARM`,
 deliberately **not** flags — they stay out of `ps`, like `PLUGGYWORLD_TOKEN`.
 
 ⚠ **`PLUGGY_ARM` is the stronger statement** (issue #142; Evaluation.md §2). It
-names the arm off the one definition the experiment flies and overrides
+names the arm off the one definition (`evaluation/arms.py`) and overrides
 `PLUGGY_OVERSEER` in **both** directions; a contradiction (`--overseer --arm
 scripted`) and a rung on an arm with no ladder are refused rather than
 resolved. **Unset changes nothing**; the deployed world names `autonomous`,

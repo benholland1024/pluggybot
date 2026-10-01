@@ -14,10 +14,10 @@ figures, for text, and for the grid-plus-glyph games that come later.
 ## Coordinates
 
 Board-local metres, `(lat, height)`, centred on the figure's own origin --
-exactly what `PenPlotter.draw_program` consumes, which re-centres the whole
-program on where the pen actually is.
+what a plotter consumes, re-centring the whole program on where the pen
+actually is.
 
-`lat` is measured LEFT of the robot's approach heading (`PenPlotter.pen_board`),
+`lat` is measured LEFT of the robot's approach heading,
 so **+lat is the LEFT of the board as a viewer facing it sees it** and text
 advances toward -lat. Figures that are not left/right symmetric are therefore
 authored in the READING frame -- x right, y up, in a unit box -- and flipped
@@ -170,22 +170,6 @@ def program(name: str, **params) -> StrokeProgram:
     raise KeyError(f"unknown stroke program {name!r}; "
                    f"have {', '.join(sorted(PROGRAMS))}")
   return PROGRAMS[name](**params)
-
-
-def from_cli(name: str, size: float | None = None,
-             text: str | None = None) -> StrokeProgram:
-  """The demo scripts' three knobs -> a program. Shared rather than copied,
-  because `--size` means cap height for text and figure box for everything
-  else, and two scripts disagreeing about that is a bug waiting to happen."""
-  params: dict = {}
-  if name == "text":
-    if text:
-      params["text"] = text
-    if size:
-      params["cap_height"] = size
-  elif size:
-    params["size"] = size
-  return program(name, **params)
 
 
 # ---- authoring helpers -----------------------------------------------------

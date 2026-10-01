@@ -1,16 +1,13 @@
-"""Guards for whiteboards-as-state and the generalized errand (issue #12)."""
+"""Guards for whiteboards-as-state and the errand menu (issue #12)."""
 
 import json
 import math
 
-import mujoco
 import pytest
 
 from pluggybot.tools.boards import CELL, BoardBook, BoardRecord, decimate
-from pluggybot.tools.drawing import Board, Envelope, board_standoff
-from pluggybot.mission.errand import carry_errand, drawing_errand
+from pluggybot.tools.drawing import Board, Envelope
 from pluggybot.lifecycle import board_book, errands_for
-from pluggybot.tools import strokes
 
 META = json.load(open("models/home_world.meta.json"))
 BOARD_A = Board.from_meta(META["boards"]["whiteboard_a"])
@@ -321,125 +318,15 @@ def test_a_save_is_atomic(tmp_path):
 # ---- errands ----------------------------------------------------------------
 
 
-def test_a_drawing_errand_goes_to_the_plotters_own_standoff():
-  """The mission's A* destination and the plotter's fine approach must be the
-  SAME pose, or the errand navigates somewhere the drawing then has to undo.
-  One formula, in drawing.board_standoff."""
-  e = drawing_errand(book(), "whiteboard_a", BOARD_A)
-  assert e.use_at == board_standoff(BOARD_A)
-  assert e.module == "module_pen" and e.use is not None
-
-
-@pytest.mark.parametrize("name", ["whiteboard_a", "whiteboard_b"])
-def test_a_drawing_errand_stands_on_free_floor(name):
-  """The same geometric check world_config's use_at gets, for a destination
-  that is now computed rather than written down. A standoff inside a wall
-  aims a 60 s drive at scenery, and nothing raises."""
-  import numpy as np
-  board = Board.from_meta(META["boards"][name])
-  model = mujoco.MjModel.from_xml_path("models/home_world.xml")
-  data = mujoco.MjData(model)
-  mujoco.mj_forward(model, data)
-  x, y = board_standoff(board)
-  hit = np.zeros(1, dtype=np.int32)
-  dist = mujoco.mj_ray(model, data, np.array([x, y, 3.0]),
-                       np.array([0.0, 0.0, -1.0]), None, 1, -1, hit)
-  assert dist >= 0 and 3.0 - float(dist) < 0.05, (
-    f"the {name} standoff is blocked by {model.geom(int(hit[0])).name}")
-
-
-def test_an_oversized_figure_is_shrunk_not_clipped():
-  """`targets_for` CLIPS, so an oversized figure draws flattened against the
-  carriage's travel limit and reports a PERFECT trace -- the pen went exactly
-  where it was told. The errand sizes to the ENVELOPE before anything moves."""
-  huge = strokes.program("square", size=0.30)
-  assert not huge.fits(Envelope.for_board(BOARD_A))
-  e = drawing_errand(book(), "whiteboard_a", BOARD_A, program=huge)
-  assert e.detail["figure"] == "square"
-  assert e.detail["ink_m"] < huge.ink_length, "the figure was not shrunk"
-
-
-def test_the_carry_errand_is_still_the_milestone_8_one():
-  """Existing lifecycle behaviour must survive the generalization: same
-  module, same bay, and a `use` phase that does nothing."""
-  e = carry_errand()
-  assert (e.module, e.station_y, e.use) == ("module_lcd", 0.125, None)
-
-
 def test_the_errand_menu_is_by_name():
   """What the overseer will choose from (issue #15): a name, not a pile of
-  flags."""
-  b = board_book("home")
-  assert [e.detail["board"] for e in errands_for("draw2", "home", b)] == \
-    ["whiteboard_a", "whiteboard_b"]
-  assert len(errands_for("draw", "home", b)) == 1
-  assert errands_for("none", "home", b) == []
+  flags -- and a name nobody knows is refused, never guessed at."""
+  b = board_book("home_quad")
+  assert b.names == ["whiteboard_a", "whiteboard_b"]
+  assert [e.name for e in errands_for("feed", "home_quad", b)] == ["feed:lab"]
+  assert errands_for("none", "home_quad", b) == []
   with pytest.raises(ValueError, match="unknown errand queue"):
-    errands_for("juggle", "home", b)
-
-
-def test_a_world_without_boards_cannot_be_asked_to_draw():
-  """room_hub has no whiteboards -- the standing board lives in the bare
-  hub_world, which is not a navigated room. Failing here beats a mission that
-  fetches the pen and drives at a wall."""
-  assert board_book("room_hub") is None
-  with pytest.raises(ValueError, match="no whiteboards"):
-    errands_for("draw", "room_hub", None)
-
-
-# ---- the plotter -> board wiring, against real physics ---------------------
-
-
-@pytest.mark.slow
-def test_a_real_drawing_reaches_the_board_state():
-  """The seam between the two halves of issue #12, with an actual pen.
-
-  Everything above works on polylines handed in by a test. This is the claim
-  that the polylines a DRAWING produces are the ones the board records: one
-  `draw` event per stroke, carrying what the pen inked rather than what it
-  was commanded, arriving as each stroke finishes rather than in a lump at
-  the end (which is what makes a drawing watchable).
-  """
-  from pluggybot.rack.coupling import HUB_STATION_YS
-  from pluggybot.tools.drawing import PenPlotter
-  from pluggybot.rack.swap import HubSwap
-
-  model = mujoco.MjModel.from_xml_path("models/hub_world.xml")
-  data = mujoco.MjData(model)
-  swap = HubSwap(model, data)
-  swap.place_at_standoff(HUB_STATION_YS[2])
-  swap.pick()
-
-  board = Board.hub()
-  b = BoardBook([BoardRecord("board", Envelope.for_board(board).size)])
-  events: list = []
-  b.on_event.append(events.append)
-  plotter = PenPlotter(model, data, swap, board=board)
-  plotter.on_stroke = lambda i, pts, name: b.stroke(
-    "board", name or "?", pts, t=float(data.time))
-  assert plotter.drive_to_board(), "never reached the board"
-
-  program = strokes.program("text", text="HI", cap_height=0.025)
-  r = plotter.draw_program(program)
-  assert r["drew"], f"never got the pen on the board: {r}"
-
-  rec = b["board"]
-  assert rec.programs == ["text"]
-  assert rec.strokes == len(events) == len(program.strokes)
-  assert rec.ink_m > 0.02, f"a whole word left {rec.ink_m * 1000:.0f} mm of ink"
-  assert 0.0 < rec.fill < 1.0
-  # Streamed as it was drawn, not flushed at the end: each event carries the
-  # sim time of the stroke that produced it, and they are strictly ordered.
-  assert all(y["t"] > x["t"] for x, y in zip(events, events[1:])), \
-    "the strokes did not arrive one at a time"
-  # What is recorded is what the pen DID. The plotter's own form error is
-  # ~1 mm, so a polyline identical to the command would mean the trace was
-  # never consulted.
-  commanded = plotter.commanded[0]
-  inked = events[0]["points"]
-  assert max(min(math.dist(p, c) for c in commanded) for p in inked) > 0.0
-  assert all(abs(y) <= board.half[1] and abs(z) <= board.half[2]
-             for y, z in inked), "ink landed off the slab"
+    errands_for("juggle", "home_quad", b)
 
 
 def test_board_records_round_trip_through_json():

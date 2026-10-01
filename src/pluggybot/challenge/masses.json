@@ -16,7 +16,7 @@
     "into Task.secret, which the stream and the overseer's context have no",
     "path to. The offer says only that one cube's mass is unknown.",
     "",
-    "Not hashed into the build identity (evaluation/record.py): a different",
+    "Not hashed into the build identity (evaluation/identity.py): a different",
     "bank changes what is on the floor, not what the robot is told, offered",
     "or graded against."
   ],

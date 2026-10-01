@@ -40,8 +40,8 @@ the robot away from the rack. Charging it for every errand is what stops a
 mid-errand death, and it is exactly what the acceptance criterion asks for.
 
 But charge it on a DEMO cell and every errand in every world is refused
-forever, because one errand costs roughly one full pack there (home: 0.93 of
-0.99; room_hub: 0.44-0.57 of 0.63). A robot that will not do anything is a
+forever, because one errand costs roughly one full pack there (the rover's
+home: 0.93 of 0.99). A robot that will not do anything is a
 worse robot than one that occasionally runs flat, and "the task system
 silently does nothing" is the failure mode issue #21 already paid for once.
 
@@ -206,12 +206,11 @@ class EnergyModel:
   def cost(self, action: str, target: str = "") -> float:
     """What `action` takes out of the pack, Wh.
 
-    ⚠ PER TARGET FIRST, and the far whiteboard is why. A `draw` measures
-    0.929 Wh on `whiteboard_a` and 1.065 on `whiteboard_b` -- 7 m away
-    through a doorway -- so one number for "draw" is either under-pricing the
-    far board (the robot dies on the way back, which docs/Rover.md records
-    happening) or over-pricing the near one badly enough to delete it from a
-    demo cell. A row keyed `draw:whiteboard_b` wins over the row keyed
+    ⚠ PER TARGET FIRST, and the far whiteboard is why. The rover's `draw`
+    measured 0.929 Wh on `whiteboard_a` and 1.065 on `whiteboard_b` -- 7 m
+    away through a doorway -- so one number for "draw" either under-priced
+    the far board (the robot died on the way back) or over-priced the near
+    one badly enough to delete it from a demo cell. A row keyed `draw:whiteboard_b` wins over the row keyed
     `draw`, and a world that has not measured its targets separately simply
     has none of them.
 

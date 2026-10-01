@@ -1,10 +1,8 @@
 """Guards for the activity layer (issue #8): task state machines over physics.
 
-Split by cost. The Threshold/toggle/telemetry tests are pure or near-pure and
-run in milliseconds; only the last one drives the robot.
+The Threshold/toggle/telemetry tests are pure or near-pure and run in
+milliseconds; the plate is pressed by a load on its pad, no robot.
 """
-
-import math
 
 import mujoco
 import pytest
@@ -12,17 +10,22 @@ import pytest
 from pluggybot.activity.base import (
   Activity, ActivitySet, GeomToggle, MocapToggle, Threshold,
 )
-from pluggybot.activity.plate import (
-  PLATE_ON, PLATE_TRAVEL, PlateLight, plate_center,
-)
-from pluggybot.control import slew, wheel_targets
+from pluggybot.activity.plate import PLATE_ON, PLATE_TRAVEL, PlateLight
+from pluggybot.legs import world as lw
 from pluggybot.telemetry.protocol import PROTOCOL_VERSION
 from pluggybot.telemetry.recorder import FrameBuilder
 
 
 @pytest.fixture(scope="module")
 def home_model():
+  """The house alone: its activities, and no robot."""
   return mujoco.MjModel.from_xml_path("models/home_world.xml")
+
+
+@pytest.fixture(scope="module")
+def quad_model():
+  """The served house, `home_quad`: a stream needs a robot on it."""
+  return lw.home_spec().compile()
 
 
 # ---- Threshold: hysteresis and latching -------------------------------------
@@ -189,35 +192,6 @@ def test_pressing_latches_the_light_on_and_releasing_does_not_turn_it_off(home_m
       "light times out; this one leaving a mark is the activity's point"
 
 
-def test_the_robot_can_actually_drive_onto_the_plate(home_model):
-  """The criterion is only worth anything if the robot can trip it.
-
-  A plate too tall for a 90 mm wheel to climb, or too stiff for its load,
-  would pass every unit test above and be useless.
-  """
-  data = mujoco.MjData(home_model)
-  light = PlateLight(home_model, data)
-  px, py = plate_center(home_model)
-  yaw = math.pi
-  data.qpos[0], data.qpos[1], data.qpos[2] = px + 1.2, py, 0.045
-  data.qpos[3:7] = [math.cos(yaw / 2), 0, 0, math.sin(yaw / 2)]
-  mujoco.mj_forward(home_model, data)
-  left = home_model.actuator("left_motor").id
-  right = home_model.actuator("right_motor").id
-  tl, tr = wheel_targets(0.25, 0.0)
-  deepest = 0.0
-  for _ in range(9000):
-    data.ctrl[left] = slew(data.ctrl[left], tl, home_model.opt.timestep)
-    data.ctrl[right] = slew(data.ctrl[right], tr, home_model.opt.timestep)
-    mujoco.mj_step(home_model, data)
-    light.sense(home_model, data)
-    deepest = max(deepest, light.depth(data))
-  assert deepest > PLATE_ON, (
-    f"a wheel only pressed the plate {deepest * 1000:.1f} mm against a "
-    f"{PLATE_ON * 1000:.1f} mm trigger")
-  assert light.flags["state"] == "on"
-
-
 # ---- telemetry --------------------------------------------------------------
 
 class _Fake(Activity):
@@ -230,13 +204,13 @@ class _Fake(Activity):
 
 
 @pytest.fixture
-def builder_pair(home_model):
+def builder_pair(quad_model):
   """Two FrameBuilders over ONE ActivitySet -- serve.py --record's shape."""
-  data = mujoco.MjData(home_model)
+  data = mujoco.MjData(quad_model)
   act = _Fake()
   act.set(state="closed")
   acts = ActivitySet([act])
-  fb = FrameBuilder(home_model, data, hz=1000.0, model_name="home_world",
+  fb = FrameBuilder(quad_model, data, hz=1000.0, model_name="home_quad",
                     keyframe_s=0.0, activities=acts)
   return data, act, acts, fb
 
@@ -314,18 +288,18 @@ def test_a_keyframe_reships_activity_state(builder_pair):
   assert frame["activities"] == {"fake": {"state": "closed"}}
 
 
-def test_two_sinks_over_one_activity_set_stay_independent(home_model):
+def test_two_sinks_over_one_activity_set_stay_independent(quad_model):
   """`serve.py --record` runs a publisher AND a recorder over one physics,
   each with its own FrameBuilder. This failed while it was being written:
   the "already emitted" memory lived on the Activity, so the two sinks ate
   each other's deltas and each shipped a random half of the changes.
   """
-  data = mujoco.MjData(home_model)
+  data = mujoco.MjData(quad_model)
   act = _Fake()
   act.set(state="closed")
   acts = ActivitySet([act])
-  a = FrameBuilder(home_model, data, hz=1000.0, keyframe_s=0.0, activities=acts)
-  b = FrameBuilder(home_model, data, hz=1000.0, keyframe_s=0.0, activities=acts)
+  a = FrameBuilder(quad_model, data, hz=1000.0, keyframe_s=0.0, activities=acts)
+  b = FrameBuilder(quad_model, data, hz=1000.0, keyframe_s=0.0, activities=acts)
   assert a.build()["activities"] == {"fake": {"state": "closed"}}
   assert b.build()["activities"] == {"fake": {"state": "closed"}}, \
     "the second sink lost the opening state to the first"
@@ -336,33 +310,26 @@ def test_two_sinks_over_one_activity_set_stay_independent(home_model):
     "the second sink lost a state change to the first"
 
 
-def test_a_real_light_turning_on_reaches_a_telemetry_frame(home_model):
-  """End to end: robot presses plate -> flag flips -> the flip is on the wire.
+def test_a_real_light_turning_on_reaches_a_telemetry_frame(quad_model):
+  """End to end: a load on the plate -> flag flips -> the flip is on the wire.
 
-  Worth having as a test rather than trusting the committed recording. The
-  home lifecycle never happens to drive over the garden plate, so the
-  fixture shows `closed` for its whole length -- which proves activity
-  state is *carried* but not that a CHANGE propagates. This closes that gap
-  without inventing a fixture nobody replays.
+  Activity state being CARRIED is not a CHANGE propagating: here the pad is
+  pressed through the solver (a foot's load on it, then off), the hook
+  senses it, and the frames carry the light coming on -- and keep it on,
+  sparsely.
   """
-  data = mujoco.MjData(home_model)
-  acts = ActivitySet([PlateLight(home_model, data)])
-  fb = FrameBuilder(home_model, data, hz=20.0, model_name="home_world",
+  data = mujoco.MjData(quad_model)
+  acts = ActivitySet([PlateLight(quad_model, data)])
+  fb = FrameBuilder(quad_model, data, hz=20.0, model_name="home_quad",
                     activities=acts)
-  px, py = plate_center(home_model)
-  yaw = math.pi
-  data.qpos[0], data.qpos[1], data.qpos[2] = px + 1.2, py, 0.045
-  data.qpos[3:7] = [math.cos(yaw / 2), 0, 0, math.sin(yaw / 2)]
-  mujoco.mj_forward(home_model, data)
-  left = home_model.actuator("left_motor").id
-  right = home_model.actuator("right_motor").id
-  tl, tr = wheel_targets(0.25, 0.0)
+  pad = quad_model.body("garden_plate").id
   seen = []
-  hook = acts.step_hook(home_model, data)
-  for _ in range(9000):
-    data.ctrl[left] = slew(data.ctrl[left], tl, home_model.opt.timestep)
-    data.ctrl[right] = slew(data.ctrl[right], tr, home_model.opt.timestep)
-    mujoco.mj_step(home_model, data)
+  hook = acts.step_hook(quad_model, data)
+  steps = round(6.0 / quad_model.opt.timestep)
+  for k in range(steps):
+    # 25 N (a 10 kg body's share on one foot) from 2 s to 4 s
+    data.xfrc_applied[pad, 2] = -25.0 if steps // 3 <= k < 2 * steps // 3 else 0.0
+    mujoco.mj_step(quad_model, data)
     hook()
     frame = fb.build()
     if frame is not None and "activities" in frame:
@@ -374,6 +341,8 @@ def test_a_real_light_turning_on_reaches_a_telemetry_frame(home_model):
   # ...and it stays on in every later frame that mentions state at all
   after = states[states.index("on"):]
   assert set(after) == {"on"}, f"the wire turned the light back off: {after}"
+  assert any(f.get("pressed") is False for _, f in seen[1:]), \
+    "the load came off and `pressed` never said so"
   assert len(seen) < fb.frames * 0.35, (
     f"activity flags shipped in {len(seen)}/{fb.frames} frames -- that is "
     "not sparse; check the analogue-flag quantisation")

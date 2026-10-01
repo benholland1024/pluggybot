@@ -45,7 +45,7 @@ from dataclasses import dataclass, field
 
 from pluggybot.mind import text as registry
 from pluggybot.mind.store import FileStore, MemoryStore, Store
-from pluggybot.rack.coupling import MODULE_TAG_IDS
+from pluggybot.rack.tags import MODULE_TAG_IDS
 from pluggybot.workshop import validate
 from pluggybot.workshop.spec import Refused, Tool
 

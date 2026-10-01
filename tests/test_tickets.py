@@ -27,17 +27,18 @@ from pluggybot.mind import inbox, text
 from pluggybot.mind import tickets as desk
 from pluggybot.mind.inbox import Inbox
 from pluggybot.mind.overseer import Menu, Overseer
-from pluggybot.mind.thoughts import ThoughtFiles
+from pluggybot.mind.thoughts import MAX_LINE_CHARS, ThoughtFiles, cut_mark
 from pluggybot.telemetry.protocol import (
   CODE_HANDLED_TYPES, INBOUND_TYPES, TICKET_KINDS, TICKET_OUTCOMES,
 )
 from pluggybot.telemetry.recorder import FrameBuilder
 
 from test_autonomous import GUARDED_RULES_SHA
-from test_interventions import _events, _life
+from test_body import stub_life
 from test_overseer import FakeClient, full
 
 SRC = Path(__file__).resolve().parent.parent / "src" / "pluggybot"
+WORLD = "home_quad"
 
 BUG = {"kind": "bug", "title": "the pen misses the far board",
        "text": "Twice today the pen went on the floor at whiteboard_b: the "
@@ -268,6 +269,53 @@ def test_the_cut_is_narrated_and_written_into_history(tmp_path):
     assert (theirs["sender"], theirs["cut"], theirs["ref"]) == ("operator", True, "tr_9")
     assert "ben replied on my ticket tk_0001" in life.thoughts.read("History.md")
     assert history_has_cut(life), "the robot is told the line it is READING was cut"
+    # ...and WHO wrote more (#433): "I wrote more" of ben's line would hand
+    # the robot his words as its own.
+    assert "(ben wrote more and the rest was not kept)" in life.thoughts.read("History.md")
+  finally:
+    life.body.close()
+
+
+#: An operator's reply at a thread line's full length (#433), the part that
+#: matters at its END, where a cut lands.
+ANSWER = (" ".join(["Lying on the dock, nothing corrects your heading until you stand."] * 7)
+          + " Stand up, and walk a metre, then look.")
+
+
+def test_an_operators_reply_and_close_reach_history_whole(tmp_path):
+  """⚠ FOUND READING THE ROBOTS' TICKETS (#433, 2026-09-30): a 476-character
+  reply reached Luca's tk_0011 whole and stopped in its History at "nothing
+  corrects your h", right before the remedy it asked about, so Luca opened
+  tk_0014 to ask for the rest. The title rode in front of the text and
+  History cut every line at 400, so ~260 characters of the 500 the site
+  accepts survived, and nothing said so. Shown to fail without the fix:
+  drop either line's `room` and it ends mid-word; put the title back and
+  the reply's line is not the one asserted."""
+  assert len(ANSWER) == desk.MAX_LINE
+  closing = ANSWER.replace("then look", "then file")
+  ledger = Ledger()
+  boss, life = _desk_life(tmp_path, full(action="idle", ticket=dict(
+    BUG, title="t" * desk.MAX_TITLE, text=ANSWER)), ledger=ledger)
+  try:
+    life._decide()
+    life.inbox.offer({"type": "ticket_reply", "id": "tr_1", "from": "ben",
+                      "ticket": "tk_0001", "text": ANSWER})
+    life._visitor_step()
+    life.inbox.offer({"type": "ticket_close", "id": "tc_1", "from": "ben",
+                      "ticket": "tk_0001", "text": closing})
+    life._visitor_step()
+    lines = life.thoughts.lines("History.md")
+    replied = next(h for h in lines if "replied on my ticket" in h)
+    closed = next(h for h in lines if "closed my ticket" in h)
+    assert replied.endswith(f"ben replied on my ticket tk_0001: {ANSWER}")
+    assert closed.endswith(f"ben closed my ticket tk_0001: {closing} -- +25 points")
+    # ...and the title is the `tickets` block's to carry, not every line's.
+    assert "t" * desk.MAX_TITLE not in replied + closed
+    # The robot's OWN report keeps History's line cap, and where that cuts
+    # it, the line says so inside its cap -- the robot reads its report
+    # whole in the block, and History's line is not the report.
+    opened = next(h for h in lines if "opened ticket tk_0001" in h)
+    assert len(opened) <= MAX_LINE_CHARS and opened.endswith(cut_mark(MAX_LINE_CHARS))
   finally:
     life.body.close()
 
@@ -360,14 +408,14 @@ def test_no_decision_field_closes_a_ticket_and_nothing_in_economy_reads_the_desk
 
 
 def test_the_fields_are_offered_on_autonomous_alone_and_guarded_is_unchanged():
-  auto = ov.build("room_hub", enabled=True, client=FakeClient(), autonomous=True)
+  auto = ov.build(WORLD, enabled=True, client=FakeClient(), autonomous=True)
   assert auto.menu.tickets
   schema = auto.menu.schema(tickets=("tk_0001",))
   assert schema["properties"]["ticket"]["properties"]["kind"]["enum"] == [*TICKET_KINDS, ""]
   assert schema["properties"]["ticket_reply"]["properties"]["ticket"]["enum"] == ["tk_0001", ""]
   assert {"ticket", "ticket_reply"} <= set(schema["required"])
   assert dict(auto.sections)["SUPPORT TICKETS"] == ov.tickets_rule()
-  guarded = ov.build("room_hub", enabled=True, client=FakeClient())
+  guarded = ov.build(WORLD, enabled=True, client=FakeClient())
   assert not guarded.menu.tickets
   assert "ticket" not in guarded.menu.schema()["properties"]
   assert "SUPPORT TICKETS" not in dict(guarded.sections)
@@ -398,11 +446,11 @@ def test_the_fields_are_offered_on_autonomous_alone_and_guarded_is_unchanged():
 
 
 def test_the_ids_in_the_grammar_are_the_open_ones_off_the_state():
-  auto = ov.build("room_hub", enabled=True, client=FakeClient(), autonomous=True)
+  auto = ov.build(WORLD, enabled=True, client=FakeClient(), autonomous=True)
   state = {"tickets": {"open": [{"id": "tk_0003"}, {"id": "tk_0005"}], "closed": []}}
   assert auto._ticket_ids(state) == ("tk_0003", "tk_0005")
   assert auto._ticket_ids({}) == (), "a desk with nothing open still offers `ticket`"
-  guarded = ov.build("room_hub", enabled=True, client=FakeClient())
+  guarded = ov.build(WORLD, enabled=True, client=FakeClient())
   assert guarded._ticket_ids(state) is None
 
 
@@ -426,7 +474,7 @@ def test_ticket_replied_is_an_event_the_map_can_act_on_and_takes_no_filter():
   assert "ticket_replied" in ev.UNCONFIGURABLE_EVENTS
   assert "ticket_replied" in ev.DISCRETE_EVENTS
   assert "ticket_replied" not in ev.INTERRUPTING_EVENTS, "news that can wait"
-  menu = Menu.for_world("room_hub", None)
+  menu = Menu.for_world(WORLD, None)
   assert ev.kind_vocabulary("ticket_replied", menu) == ()
   row = ev.row({"event": "ticket_replied", "action": "idle", "kind": "bug",
                 "value": 3}, menu)
@@ -437,11 +485,25 @@ def test_ticket_replied_is_an_event_the_map_can_act_on_and_takes_no_filter():
 # ---- the flow, through a lifecycle -----------------------------------------------
 
 
+def _life(inbox=None, ledger=None, **kw):
+  """The desk is the lifecycle's bookkeeping: a stub body carries it."""
+  from pluggybot.lifecycle import world_config
+  life = stub_life(inbox=inbox, ledger=ledger, **kw)
+  life.body.start_at(*world_config(WORLD)["start"])
+  return life
+
+
+def _events(life) -> list[dict]:
+  seen: list[dict] = []
+  life.on_event.append(seen.append)
+  return seen
+
+
 def _desk_life(tmp_path, *answers, ledger=None):
   """A mind with a desk and an (empty, `unseeded`) event map, so the
   `ticket_replied` occurrence is recorded; the LIFECYCLE is left on the
   rails so an `idle` stands still 4 s rather than the arm's 60."""
-  menu = replace(Menu.for_world("room_hub", None), tickets=True)
+  menu = replace(Menu.for_world(WORLD, None), tickets=True)
   boss = Overseer(menu, client=FakeClient(*answers), autonomous=True,
                   origin="unseeded")
   life = _life(inbox=Inbox(), ledger=ledger,
@@ -506,8 +568,7 @@ def test_a_ticket_is_filed_shown_and_answered_and_the_close_pays_once(tmp_path):
     earned = [m for m in seen if m["type"] == "earned"]
     assert earned[-1]["task"] == "ticket" and earned[-1]["points"] == 25
     history = life.thoughts.read("History.md")
-    assert "ben closed my ticket tk_0001 (bug: the pen misses the far board): " \
-           "fixed the standoff -- +25 points" in history
+    assert "ben closed my ticket tk_0001: fixed the standoff -- +25 points" in history
     assert life.tickets.open_ids() == () and ("ticket_replied", "") in life._occurred
     assert overseer_context(life)["tickets"]["closed"][0]["closedWith"] == "fixed the standoff"
     # A replayed close (the website never saw the acknowledgement): the
@@ -623,7 +684,7 @@ def test_a_close_lands_on_any_arm_and_a_guarded_context_shows_no_desk(tmp_path):
     assert ledger.balance() == 25 and life.tickets.open_ids() == ()
   finally:
     life.body.close()
-  guarded = Overseer(Menu.for_world("room_hub", None), client=FakeClient())
+  guarded = Overseer(Menu.for_world(WORLD, None), client=FakeClient())
   life = _life(overseer=guarded, thoughts=ThoughtFiles.open(tmp_path))
   try:
     assert "tickets" not in overseer_context(life)
@@ -651,9 +712,9 @@ def test_the_inbox_takes_the_three_kinds_and_refuses_what_names_nothing():
 
 def test_the_stream_opens_with_the_open_tickets_where_there_is_a_desk(tmp_path):
   import mujoco
-  from pluggybot.lifecycle import world_config
-  cfg = world_config("room_hub")
-  model = mujoco.MjModel.from_xml_path(cfg["model"])
+  model = mujoco.MjModel.from_xml_string(      # a robot's root and nothing else
+    '<mujoco><worldbody><body name="pluggybot"><freejoint/>'
+    '<geom type="box" size=".1 .1 .1"/></body></worldbody></mujoco>')
   data = mujoco.MjData(model)
   d = desk.Desk(tmp_path)
   d.open("feedback", "f", "the street loop is long", t=1.0)

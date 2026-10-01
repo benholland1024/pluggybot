@@ -118,7 +118,7 @@ MAX_QUESTION = 200
 #: mm, before the board is not showing that answer.
 #:
 #: ⚠ A FIDELITY BAR, NOT A LEGIBILITY ONE -- see the module docstring. MEASURED
-#: with the real pen on a real board (`scripts/answer_spike.py`), which is the
+#: with the rover's pen on a real board (`rover-final`'s answer spike), the
 #: only way it could have been set: the first guess was 8.0 mm from synthetic
 #: renderings, and the robot figure below goes straight through it.
 #:
@@ -334,9 +334,8 @@ def _nearest(pts: np.ndarray, polys) -> tuple[np.ndarray, np.ndarray]:
 
   Per polyline, never over a concatenation: joining the end of one stroke to
   the start of the next invents a segment nobody drew, and ink measured
-  against it scores as a good drawing. Same rule and same reason as
-  `PenPlotter._nearest`, which this is deliberately a copy of -- that one
-  lives next to MuJoCo and the evaluator's path may not import it.
+  against it scores as a good drawing -- the rule the rover's plotter
+  measured its own form error by.
   """
   a = np.concatenate([np.asarray(p, dtype=float)[:-1] for p in polys
                       if len(p) >= 2])
@@ -392,9 +391,9 @@ def ink_match(drawn, answer: str) -> dict | None:
   ink_pts, ref_pts = _resample(ink), _resample(ref)
   if not len(ink_pts) or not len(ref_pts):
     return None
-  # Translation-only ICP, exactly as `PenPlotter.error_stats` decomposes a
-  # figure's offset from its shape: six passes is where that one converges
-  # and this is the same problem at the same scale.
+  # Translation-only ICP, the decomposition of a figure's offset from its
+  # shape the rover's plotter measured: six passes is where it converges at
+  # this scale.
   offset = np.zeros(2)
   for _ in range(6):
     _, proj = _nearest(ink_pts + offset, ref)

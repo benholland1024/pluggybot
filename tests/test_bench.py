@@ -5,19 +5,18 @@ criteria, written before the robot saw the job. What these pin, each
 without a mission (docs/Testing.md), and each shown to fail without its
 rule:
 
-  1. the sensor: `read("lift.force")` is the lift's own force with a load
-     cell's noise -- deterministic per step, fresh per step -- and, on the
-     real physics, a scale (a cube in the claw moves it by `dm * g`);
-  2. the bank rotates on the board's counter and refuses an entry the job
+  1. the bank rotates on the board's counter and refuses an entry the job
      could not be honest with;
-  3. the offer sets the world, a restart restores it, the workshop's
+  2. the offer sets the world, a restart restores it, the workshop's
      recompile keeps it, and the truth is absent from every context;
-  4. the grader: the newest finding after the claim, in kilograms, within
+  3. the grader: the newest finding after the claim, in kilograms, within
      the tolerance -- pass and fail, on a stubbed record, and the reason
      never says the truth;
-  5. `guarded`'s offered set is unchanged (the tower's gate, #207);
-  6. a procedure's locals reach History and the wire -- the readout a
+  4. `guarded`'s offered set is unchanged (the tower's gate, #207);
+  5. a procedure's locals reach History and the wire -- the readout a
      number needs to get from a sensor to a `record`.
+
+The sensor a weighing reads is the arm's to rebuild on legs (#407).
 """
 
 import json
@@ -29,33 +28,30 @@ import numpy as np
 import pytest
 
 from pluggybot import lifecycle as lc
-from pluggybot import tick
+from pluggybot.body import StubBody
 from pluggybot.challenge import bench, stack
 from pluggybot.economy import scoring
-from pluggybot.economy.cadence import Cadence, TaskProducer, default_cadence
+from pluggybot.economy.cadence import Cadence, TaskProducer
 from pluggybot.economy.ledger import Ledger
 from pluggybot.economy.tasks import KINDS, TaskBoard, kind_names
 from pluggybot.evaluation import qualities as q
 from pluggybot.evaluation.qualities import Row
-from pluggybot.lifecycle import (HubLifecycle, board_book, overseer_context,
+from pluggybot.lifecycle import (QUAD_HOME, board_book, overseer_context,
                                  world_config, world_targets)
 from pluggybot.mind import overseer as ov
 from pluggybot.mind.thoughts import ThoughtFiles
-from pluggybot.procedure import axes, lang
-from pluggybot.rack.coupling import HUB_STATION_YS
-from pluggybot.rack.swap import HubSwap
-from pluggybot.robot import world_spec
+from pluggybot.procedure import lang
 from pluggybot.telemetry.protocol import ACT_EVENT_TYPES
-from pluggybot.tools.gripper import GRIP_Z, ClawTool
 from test_autonomous import GUARDED_RULES_SHA
+from test_body import stub_life  # noqa: I001 -- tests/ is on sys.path
 
 TABLE = scoring.challenge_table()
-G = 9.81
+HOUSE = world_config(QUAD_HOME)["model"]       # the house, its bench cubes in it
 
 
 @pytest.fixture(scope="module")
 def home_model():
-  return mujoco.MjModel.from_xml_path("models/home_world.xml")
+  return mujoco.MjModel.from_xml_path(HOUSE)
 
 
 # ---- 0. the criteria are data the robot cannot move --------------------------------
@@ -90,97 +86,18 @@ def test_the_kind_is_a_challenge_offered_where_a_procedure_can_be_written():
   # the tower's gate exactly (issue #207): `bench` is named on the
   # autonomous arm alone, so `guarded`'s offered set is byte-for-byte what
   # it was, and the control stays a control
-  book = board_book("home")
-  assert "bench" not in world_targets("home", book)
-  assert world_targets("home", book, procedures=True)["bench"] == ["lab"]
-  assert "bench" not in world_targets("room_hub", None, procedures=True)
-  beat = default_cadence("home")
-  assert "find_mass" in beat.kinds and "find_mass" not in default_cadence("room_hub").kinds
-  assert "find_mass" not in TaskProducer(TaskBoard(), beat, world_targets("home", book)).kinds
+  book = board_book(QUAD_HOME)
+  assert "bench" not in world_targets(QUAD_HOME, book)
+  assert world_targets(QUAD_HOME, book, procedures=True)["bench"] == ["lab"]
+  beat = Cadence._build("test", {"kinds": {"feed_mouse": {}, "find_mass": {}}}, None)
+  assert "find_mass" not in TaskProducer(TaskBoard(), beat, world_targets(QUAD_HOME, book)).kinds
   assert "find_mass" in TaskProducer(TaskBoard(), beat,
-                                     world_targets("home", book, procedures=True)).kinds
+                                     world_targets(QUAD_HOME, book, procedures=True)).kinds
   import hashlib
   assert hashlib.sha256(ov.RULES.encode()).hexdigest() == GUARDED_RULES_SHA
 
 
-# ---- 1. the sensor -------------------------------------------------------------------
-
-
-def _fake_life(force=6.4, t=0.0, prefix="", dt=0.002):
-  return SimpleNamespace(
-    model=SimpleNamespace(opt=SimpleNamespace(timestep=dt)),
-    data=SimpleNamespace(time=t, actuator_force=np.array([0.0, 0.0, force])),
-    body=SimpleNamespace(actuator=lambda name: 2, handle=SimpleNamespace(prefix=prefix)))
-
-
-def test_the_sensor_reads_a_stubbed_load_with_a_load_cells_noise():
-  """`lift.force` is the actuator's force plus `LOAD_NOISE_N` of Gaussian
-  noise: the same step reads the same value twice, the next step a fresh
-  one, another robot its own, and over many steps the mean is the load
-  and the scatter is the constant. Deterministic, so a world replays."""
-  read = axes.SENSORS["lift.force"].read
-  assert axes.SENSORS["lift.force"].requires == ""      # the body's, always present
-  a = read(_fake_life(t=1.0))
-  assert a == read(_fake_life(t=1.0))                   # one sample per step
-  assert a != read(_fake_life(t=1.002))                 # the next step is fresh
-  assert a != read(_fake_life(t=1.0, prefix="r2_"))     # the other robot's cell
-  samples = np.array([read(_fake_life(force=6.4, t=i * 0.002)) for i in range(2000)])
-  assert abs(samples.mean() - 6.4) < 0.005
-  assert abs(samples.std() - axes.LOAD_NOISE_N) / axes.LOAD_NOISE_N < 0.1
-  # without the noise it would be the bare actuator force: the pin
-  assert not np.allclose(samples, 6.4)
-  # ...and the registry tells the prompt about it, without a method
-  doc = next(s for s in axes.describe()["sensors"] if s["name"] == "lift.force")["doc"]
-  assert "N" in doc and "noise" in doc
-
-
-def test_the_lift_is_a_scale_on_the_real_physics():
-  """The premise the sensor stands on (bench.py's docstring): a cube in the
-  claw's jaws, lifted and settled, moves the lift's force by `dm * g` --
-  read through the sensor, averaged over a second of steps, to within the
-  noise. Two masses, so the DIFFERENCE is what is asserted and the tare
-  cancels; and the claw still holds the heavier one."""
-  model = stack.world_with_blocks()
-  data = mujoco.MjData(model)
-  swap = HubSwap(model, data)
-  swap.place_at_standoff(HUB_STATION_YS[3])
-  swap.pick()
-  claw = ClawTool(model, data, swap)
-  claw.jaws(0.0)
-  claw.lower_grip_to(GRIP_Z)
-  gx, gy, _ = claw.grip_world()
-  stack.place(model, data, "block_0", (gx, gy, stack.BLOCK_HALF))
-  for b in ("block_1", "block_2"):
-    stack.place(model, data, b, (3.0, 3.0, stack.BLOCK_HALF))
-  mujoco.mj_forward(model, data)
-  claw.jaws(1.0, settle=1.2)
-  assert claw.holding("block_0_box")
-  claw.set_lift(float(data.ctrl[swap.lift_act]) + 0.05)
-  life = SimpleNamespace(model=model, data=data,
-                         body=SimpleNamespace(actuator=lambda name: swap.lift_act,
-                                              handle=swap.handle))
-  read = axes.SENSORS["lift.force"].read
-
-  def weigh(kg):
-    bid = model.body("block_0").id
-    model.body_inertia[bid] *= kg / float(model.body_mass[bid])
-    model.body_mass[bid] = kg
-    mujoco.mj_setConst(model, mujoco.MjData(model))
-    t0 = data.time
-    while data.time - t0 < 1.0:                      # settle
-      mujoco.mj_step(model, data)
-    fs = []
-    while data.time - t0 < 2.0:                      # then read
-      mujoco.mj_step(model, data)
-      fs.append(read(life))
-    return float(np.mean(fs))
-
-  light, heavy = weigh(0.10), weigh(0.30)
-  assert claw.holding("block_0_box"), "the premise: the jaws hold 0.3 kg"
-  assert abs((heavy - light) / G - 0.20) < 0.005, (light, heavy)
-
-
-# ---- 2. the bank -----------------------------------------------------------------------
+# ---- 1. the bank -----------------------------------------------------------------------
 
 
 def test_the_bank_rotates_on_the_boards_counter_and_refuses_an_unfair_entry(tmp_path, monkeypatch):
@@ -227,7 +144,7 @@ def test_the_producer_draws_the_unknown_and_tells_only_the_known():
   assert task.as_state()["secret"] == task.secret
 
 
-# ---- 3. the world ------------------------------------------------------------------------
+# ---- 2. the world ------------------------------------------------------------------------
 
 
 class _Library:
@@ -251,22 +168,23 @@ class _Mind:
   def __init__(self, lab="lab"):
     from dataclasses import replace
     self.decisions = []
-    self.menu = replace(ov.Menu.for_world("home", board_book("home")),
+    self.menu = replace(ov.Menu.for_world(QUAD_HOME, board_book(QUAD_HOME)),
                         procedures=True, lab=lab)
 
 
 def _life(home_model, tmp_path, spec=None, model=None):
-  cfg = world_config("home")
+  """The house with its bench, the world's activities on its seam, a board
+  and a ledger, on a stub body: an offer sets the WORLD and the grade reads
+  a record, neither the robot."""
+  cfg = world_config(QUAD_HOME)
   model = model if model is not None else home_model
   data = mujoco.MjData(model)
-  life = HubLifecycle(model, data, realtime=False, world="home",
-                      rack=cfg["rack"], grid_bounds=cfg["grid_bounds"],
-                      battery_wh=cfg["hosting_battery_wh"],
-                      low_battery_wh=cfg["low_battery_wh"], errand=False,
-                      ledger=Ledger(path=str(tmp_path / "ledger.json")),
-                      tasks=TaskBoard(path=str(tmp_path / "tasks.json")),
-                      autonomous=True, boards=board_book("home"), spec=spec,
-                      overseer=_Mind())
+  body = StubBody(model, data, rack=cfg["rack"], grid_bounds=cfg["grid_bounds"])
+  life = stub_life(body=body, battery_wh=cfg["hosting_battery_wh"],
+                   ledger=Ledger(path=str(tmp_path / "ledger.json")),
+                   tasks=TaskBoard(path=str(tmp_path / "tasks.json")),
+                   autonomous=True, boards=board_book(QUAD_HOME), spec=spec,
+                   overseer=_Mind())
   acts = lc.home_activities(model, data)
   life.body.step_hooks.append(acts.step_hook(model, data))
   life.activities = acts
@@ -300,8 +218,7 @@ def test_the_offer_sets_the_world_and_the_truth_is_absent_from_every_context(hom
   context at all. Its OWN model: the module's `home_model` is the one the
   other offers here set, and under `-n auto` whichever ran first decided
   whether the placeholder premise held."""
-  life = _life(home_model, tmp_path,
-               model=mujoco.MjModel.from_xml_path("models/home_world.xml"))
+  life = _life(home_model, tmp_path, model=mujoco.MjModel.from_xml_path(HOUSE))
   assert bench.unknown_mass(life.model) == bench.UNKNOWN_MASS_KG
   said = []
   life.say_hooks.append(lambda t, line: said.append(line))
@@ -335,7 +252,7 @@ def test_a_restart_restores_the_open_offers_mass_and_the_recompile_keeps_it(home
   _offer(first, kg=0.25, t=1.0)
   _offer(first, kg=0.18, t=2.0)          # the newest open offer wins
   # a fresh process over the same files: the model is the file's again
-  spec = world_spec(world_config("home")["model"])
+  spec = mujoco.MjSpec.from_file(HOUSE)
   fresh = _life(home_model, tmp_path, spec=spec, model=spec.compile())
   assert bench.unknown_mass(fresh.model) == bench.UNKNOWN_MASS_KG
   fresh.restore_bench()
@@ -343,7 +260,7 @@ def test_a_restart_restores_the_open_offers_mass_and_the_recompile_keeps_it(home
   model2, _ = spec.recompile(fresh.model, fresh.data)
   assert bench.unknown_mass(model2) == pytest.approx(0.18)
   # ...and without the spec being written, a recompile would revert: the rule
-  bare = world_spec(world_config("home")["model"])
+  bare = mujoco.MjSpec.from_file(HOUSE)
   m, d = bare.compile(), None
   d = mujoco.MjData(m)
   bench.set_unknown_mass(m, d, 0.18, spec=None)
@@ -353,7 +270,7 @@ def test_a_restart_restores_the_open_offers_mass_and_the_recompile_keeps_it(home
   t = _offer(done, kg=0.25)
   done.tasks.claim(t.id, robot=done.root, t=1.0)
   done.tasks.resolve(t.id, scoring.evaluate("mass", {"truth": None}, table=TABLE), t=2.0)
-  again = _life(home_model, tmp_path / "b", model=world_spec(world_config("home")["model"]).compile())
+  again = _life(home_model, tmp_path / "b", model=mujoco.MjModel.from_xml_path(HOUSE))
   again.restore_bench()
   assert bench.unknown_mass(again.model) == bench.UNKNOWN_MASS_KG
 
@@ -369,7 +286,7 @@ def test_setting_the_mass_keeps_the_worlds_pinned_camera_extent():
   The premise is asserted too, so it cannot rot: `mj_setConst` alone still
   moves the extent."""
   from pluggybot.home import world as home
-  model = mujoco.MjModel.from_xml_path("models/home_world.xml")
+  model = mujoco.MjModel.from_xml_path(HOUSE)
   center = model.stat.center.copy()
   assert model.stat.extent == pytest.approx(home.CAMERA_EXTENT_M)
   bench.set_unknown_mass(model, mujoco.MjData(model), 0.25)
@@ -382,26 +299,7 @@ def test_setting_the_mass_keeps_the_worlds_pinned_camera_extent():
       "mj_setConst no longer re-derives the extent; re-read this test's premise"
 
 
-def test_the_dock_camera_still_reads_a_bay_tag_after_a_bench_offer(tmp_path):
-  """The claim that failed live, on the real pipeline: an offer lands (the
-  board's own event sets the cube's mass), then the dock camera renders
-  the pen bay from its standoff, the detector decodes and PnP measures."""
-  from pluggybot.mission.mission import bay_standoff
-  from pluggybot.procedure.steps import TOOL_BAYS
-  cfg = world_config("home")
-  life = _life(None, tmp_path, model=mujoco.MjModel.from_xml_path("models/home_world.xml"))
-  try:
-    _offer(life, kg=0.25)
-    assert bench.unknown_mass(life.model) == pytest.approx(0.25)
-    station_y = HUB_STATION_YS[TOOL_BAYS["module_pen"]]
-    life.body.start_at(*bay_standoff(station_y, cfg["rack"]))
-    assert life.body.mission.bay_fix(station_y) is not None, \
-        "the dock camera is blind at the pen bay after the bench's set-out"
-  finally:
-    life.body.close()
-
-
-# ---- 4. the record and the grade -----------------------------------------------------
+# ---- 3. the record and the grade -----------------------------------------------------
 
 
 def test_reported_is_the_newest_unknown_finding_after_the_claim_in_kilograms():
@@ -463,7 +361,7 @@ def _done(life, task_id):
   life.on_event.append(events.append)
   life._done(ov.Decision(action="idle", reason="", done=task_id))
   assert life._grade_pending == task_id
-  tick.run(life.body.mission.swap, life._grade_routine())
+  life.body.run(life._grade_routine())
   return events
 
 
@@ -529,7 +427,7 @@ def test_the_grade_reads_the_world_not_the_report(home_model, tmp_path):
   assert not scoring.evaluate("mass", m, table=TABLE).ok
 
 
-# ---- 5. the shapes ---------------------------------------------------------------------
+# ---- 4. the shapes ---------------------------------------------------------------------
 
 
 def test_the_bench_feeds_first_solve_and_findings_recorded_correctly():
@@ -544,41 +442,30 @@ def test_the_bench_feeds_first_solve_and_findings_recorded_correctly():
   assert "stack_tower" in out["challenges"]
   found = q.findings_recorded_correctly(rows)
   assert found == {"true": 1, "false": 1, "unchecked": 1, "n": 3, "accuracy": 0.5}
-  # the run record's act becomes the same row the observatory files
-  rec = {"runId": "r", "acts": [{"act": "finding", "kind": "find_mass", "value": 0.26,
-                                 "correct": True, "t": 2.0, "robot": "pluggybot"}]}
-  [row] = [r for r in q.from_record(rec) if r.kind == "finding"]
-  assert row.subject == "true" and row.data["value"] == 0.26
-  assert q.SOURCES["finding"] == ("observe", "record")
+  assert q.SOURCES["finding"] == ("observe",)
   assert "record" not in q.SOURCES                # the memory's row, not a shape's source
 
 
-# ---- 6. a procedure's locals are its readout --------------------------------------------
+# ---- 5. a procedure's locals are its readout --------------------------------------------
 
 
-def test_a_procedures_locals_reach_the_run_history_and_the_wire(monkeypatch):
-  from test_language import HOME, _stub_life
-  life = _stub_life()
-  proc = lang.compile_procedure("def weigh():\n  f = read('time') + 2.5\n  n = 3\n  wait(0.1)\n", HOME)
-  r = tick.run(SimpleNamespace(step=lambda *a: None),
-               lang.run_procedure_routine(life, proc, HOME))
+def test_a_procedures_locals_reach_the_run_history_and_the_wire():
+  facts = lc.world_facts(QUAD_HOME)
+  life = stub_life()
+  proc = lang.compile_procedure("def weigh():\n  f = read('time') + 2.5\n  n = 3\n  wait(0.1)\n",
+                                facts)
+  r = life.body.run(lang.run_procedure_routine(life, proc, facts))
   assert r["ok"] and r["locals"] == {"f": 2.5, "n": 3.0}
   # ...and through the lifecycle: one History line and the `procedure` event
-  from test_procedure import _stub_swaps
-  from pluggybot.procedure import library as lib
-  from pluggybot.mind.overseer import Decision
   from pluggybot.lifecycle import errand_from
-  cfg = world_config("room_hub")
-  model = mujoco.MjModel.from_xml_path(cfg["model"])
-  life = HubLifecycle(model, mujoco.MjData(model), realtime=False, world="room_hub",
-                      errand=False, battery_wh=cfg["battery_wh"], rack=cfg["rack"],
-                      grid_bounds=cfg["grid_bounds"], low_battery_wh=cfg["low_battery_wh"])
-  _stub_swaps(life, monkeypatch)
+  from pluggybot.mind.overseer import Decision
+  from pluggybot.procedure import library as lib
+  life = stub_life()
   events = []
   life.on_event.append(events.append)
-  L = lib.Library(lc.world_facts("room_hub"))
+  L = lib.Library(facts)
   L.define("weigh", "def weigh():\n  f = read('battery.wh') * 2\n  wait(0.1)\n")
-  life.run_errand(errand_from(Decision(action="procedure:weigh"), "room_hub", library=L))
+  life.run_errand(errand_from(Decision(action="procedure:weigh"), QUAD_HOME, library=L))
   ran = next(e for e in events if e.get("type") == "procedure" and e.get("outcome") == "ran")
   assert ran["locals"] == {"f": pytest.approx(life.battery.energy_wh * 2, abs=1e-3)}
   history = life.thoughts.read("History.md")

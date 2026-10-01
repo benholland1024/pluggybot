@@ -1057,8 +1057,7 @@ def approach_table(n: int = 20, jobs: int = 3) -> None:
 # ---- the level-tool choice: reach and holding torque -------------------------------
 
 #: Working points from a seated peg, in the level plate frame (x forward,
-#: z up): the rover's claw's grip (`rack.coupling.CLAW_REACH`, 154 mm under
-#: its peg) and its pen's tip (71 mm ahead, 72 mm under, measured).
+#: z up): the rover's claw's grip (55 mm ahead, 154 mm under its peg) and its pen's tip (71 mm ahead, 72 mm under, measured).
 CLAW_GRIP = (0.055, -0.154)
 PEN_TIP = (0.071, -0.072)
 #: The posture policy's measured pitch (SimNotes, "The quadruped body": it
@@ -1472,7 +1471,7 @@ def view_reach() -> None:
 # ---- the served world: fetch and stow at the rack in the house (#405) ---------------
 
 #: Where a flight "from across the house" starts: the house's spawns, each
-#: facing its own way, the workshop's moved off its table (the rover's
+#: facing its own way, the workshop's moved off its table (the house's
 #: spawn there is inside it: a quadruped set down on it fell), and the
 #: bedroom's and the south garden's middles -- the kitchen, the workshop
 #: and the garden are the far rooms.

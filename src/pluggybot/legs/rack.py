@@ -237,9 +237,9 @@ TOOL_BAYS = {"module_lcd": 0, "module_pen": 1, "module_claw": 2}
 TOOL_KG = {"module_lcd": 0.1426 - 0.020 + PEG_MASS,
            "module_pen": 0.1816 - 0.020 + PEG_MASS,
            "module_claw": 0.2106 - 0.020 + PEG_MASS}
-#: The LCD's screen, the rover's (`coupling.LCD_SCREEN_HALF`): named as the
-#: rover's is, so the served face finds it (`tools/screen.py`).
-_SCREEN_HALF = (0.002, 0.028, 0.038)
+#: The LCD's screen, half-extents: named `module_lcd_screen`, so the served
+#: face finds it (`tools/screen.py`).
+SCREEN_HALF = (0.002, 0.028, 0.038)
 
 
 def tool_face(name: str) -> str:
@@ -250,8 +250,8 @@ def tool_face(name: str) -> str:
   back = -TOOL_HALF_X
   vis = 'contype="0" conaffinity="0" mass="0"'
   if name == "module_lcd":
-    return (f'<geom name="module_lcd_screen" type="box" size="{_v(*_SCREEN_HALF)}" '
-            f'pos="{_v(back - _SCREEN_HALF[0], 0, 0)}" {vis} rgba="0.05 0.08 0.10 1"/>')
+    return (f'<geom name="module_lcd_screen" type="box" size="{_v(*SCREEN_HALF)}" '
+            f'pos="{_v(back - SCREEN_HALF[0], 0, 0)}" {vis} rgba="0.05 0.08 0.10 1"/>')
   if name == "module_pen":
     return (f'<geom name="module_pen_rail" type="box" size="0.004 0.060 0.004" '
             f'pos="{_v(back - 0.004, 0, -0.010)}" {vis} rgba="0.55 0.57 0.60 1"/>'

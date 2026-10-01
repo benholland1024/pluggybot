@@ -6,9 +6,76 @@ while the rows were written, so this file is that record: one entry per
 period, opened by the PR that changes the deployed design and closed by
 the reading that ends it. The readings themselves (#223) and the decisions
 they lead to (#224, #225) are entries here too. A reading of the
-observatory is NOT a result and never enters `results/`.
+observatory is NOT a result: it reports into the issue it informs.
 
 ## Periods
+
+### A robot come home lost docks by the board, and the dock re-lays its map (#422) — opens when this PR is deployed
+
+**What changed in the world.** How the quadrupeds get home and find
+themselves. A walk to the charge standoff that gives up within 0.75 m of
+it now goes on to the dock's approach, which walks in by the board
+whatever the belief, and back to the walk's retries if the board is not in
+sight; before, the charge ended there. On #422's probe, three robots of
+eight came home from a long explore 0.5-0.9 m out, pressed the couch
+believing themselves 0.1-0.3 m short, and never looked for the board. Once
+docked by the board, the next 30 scans are laid in at the dock's belief,
+unmatched (`anchored`), so a copy of the living room laid askew on the way
+home is overwritten rather than pulling the robot back into it as it backs
+off. And a robot whose map refuses ten scans running searches 2 m and 15
+deg round its belief, where it searched 0.6 m and 6 deg, taking a pose
+only where no second place explains the scan as well and the next search
+finds the same (`relocated`). The drift itself is unchanged: a long
+explore round the street loop still ends up to about 1.5 m out (SimNotes,
+"Lost after a long explore, and found again"). The maps on the volume are
+kept: laid since #425's deploy dropped the last ones, by robots whose gyro
+offset is learned at rest.
+
+**What the period is for.**
+
+- **Do they dock?** Dockings against approaches, and `charge_failure`:
+  "never reached the charge bay" with a walk that gave up short is the
+  failure this addresses, and `GO_CHARGE near enough -- …; the dock's
+  board decides` is the new path taken. It is neither outcome the site
+  counts (`chargeOutcome`), so an attempt is still one row.
+- **The matcher's tallies** in the world save (`world.npz`, per robot):
+  `anchored` counts the scans taken while a dock's window was open (30 of
+  them laid in; a robot standing there adds one a scan), `relocated` the
+  wider search taken. A long run of `inconsistent` that never ends in
+  `relocated` is a robot lost past 2 m, or where parts of its map laid
+  through different drifts meet and no pose fits (#381's stage 3).
+- **Belief against truth** at deaths and in the save, against the
+  1-13 m and up to 160 deg #425's comment found before.
+
+### An operator's reply reaches History whole (#433) — opens when this PR is deployed
+
+**What changed in the world.** What the robots are TOLD, on `autonomous`
+(the one arm with tickets). The prompt did not move. An operator's ticket
+reply, and the words a ticket is closed with, now reach History whole,
+with the id and no title in front. Before, History's 400-character line
+cap kept about 260 of the 500 characters the site accepts and said
+nothing: a 476-character reply on Luca's `tk_0011` stopped at "nothing
+corrects your h", and Luca filed `tk_0014` to ask for the rest. Any History
+line the cap still cuts now ends `[line cut at 400 characters]`. Two kinds
+of line can still run past it: a decision whose reason runs long
+(`chose …: <reason>`; the model's `reason` has no cap), and the robot's own
+long ticket report or reply, which the `tickets` block carries whole. The
+close's line no longer names the kind, and a cut operator line says who
+wrote more, not "I".
+
+**What the period is for.**
+
+- **Do the follow-ups stop?** A `ticket` row that asks for the rest of an
+  operator's reply (`tk_0014`'s shape) after this deploy is a path this
+  missed.
+- **Does a long reply get acted on?** Replies can now run past 250
+  characters, the length operators were told to keep to while this was
+  open. Watch the decisions after a long reply that ends in a remedy.
+- **Where History still cuts:** `[line cut at` in `History.md` on the
+  volume (the observatory keeps no History rows), counted by kind of line.
+  Before this, a long `chose` line lost the end of its reason without a
+  word. A robot that reads the mark on its own report and files about it
+  is reading History's line as its report.
 
 ### The heading holds while they lie, and the askew maps are gone (#425) — opens with the release that carries #424, #409 and #426 beside it
 

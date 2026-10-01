@@ -1,14 +1,14 @@
 """Real-time pacer: hold headless sim time to wall time (webserver v1).
 
-Headless runs free-run (room_hub steps ~2.9x real time with EGL); a live
+Headless runs free-run (the quadruped pair ~1.1x real time on the box); a live
 world must advance at 1x so browser viewers see the robot's actual speed.
-The viewer path already paces this way (HubMission._sync sleeps off the
+The viewer path already paces this way (Navigator._sync sleeps off the
 sim's lead); this is the same pattern as a step hook, so headless server
 runs pace without a viewer.
 
 One deliberate asymmetry: the pacer only ever SLEEPS. When the sim falls
-behind wall time (an osmesa tag render burst, a swap at 1 ms timesteps) it
-does nothing -- the sim catches up by simply not sleeping once it is fast
+behind wall time (an osmesa tag render burst) it does nothing -- the sim
+catches up by simply not sleeping once it is fast
 again. Sim time therefore never jumps and never stalls; lag shows up as
 transient drift, which stats() reports so the accuracy is a measured
 number rather than a hope.
@@ -22,7 +22,7 @@ PACE_PERIOD = 0.02   # sim-seconds between pacing checks (the viewer's cadence)
 class RealTimePacer:
   """A step hook that sleeps the physics loop to `rate` x real time.
 
-  Append `step_hook` to HubMission.step_hooks. rate=1.0 is a live world;
+  Append `step_hook` to `Body.step_hooks`. rate=1.0 is a live world;
   2.0 runs sim seconds twice as fast as wall seconds. The check is
   decimated to PACE_PERIOD of sim time, so its fast path is one float
   comparison -- same discipline as the telemetry hook.

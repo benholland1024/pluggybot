@@ -19,8 +19,8 @@ driver's GOAL -- never a measurement of the last forward pass, which a
 restart would part (`legs.arm.ArmDriver`).
 
 A mixin: `QuadMission` is the rest of the body. The lifecycle names a bay
-by the rover's `coupling.STATION_YS` entry until #376's stage C, so a bay
-here is that entry's index on this rack (`bay_of`).
+by its `coupling.STATION_YS` entry (the bay index space), so a bay here is
+that entry's index on this rack (`bay_of`).
 """
 
 from __future__ import annotations

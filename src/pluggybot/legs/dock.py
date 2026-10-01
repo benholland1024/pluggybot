@@ -233,7 +233,7 @@ def world_xml(spec: DockSpec = DEFAULT) -> tuple[str, dict[str, bytes]]:
 
 def dock_charge_contact(model, data, prefix: str = "", name: str = "dock") -> bool:
   """Each belly pad on a pin of its own pole: the dock's ELECTRICAL
-  criterion, as `rack_charge_contact` is the rover's. A pad on the other
+  criterion. A pad on the other
   pole is a reversed robot, and is not charging. `prefix` names whose
   belly."""
   for lbl in ("l", "r"):
@@ -276,7 +276,7 @@ def fit_dock(seen: dict[int, tuple[float, float]],
 
   `seen` maps tag id -> the horizontal (x, y) of that tag's decoded
   translation in the observer's frame; ids not on the board are ignored.
-  A least-squares 2D rigid fit (Kabsch, as `localize.fit_rack_facing`), so
+  A least-squares 2D rigid fit (Kabsch), so
   the facing comes from the BASELINE between tags and never from one tag's
   PnP yaw, which square-on is a coin flip (issue #88). None without a
   baseline (MIN_BASELINE_M) or beyond MAX_FIT_RMS_M."""

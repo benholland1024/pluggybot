@@ -1,6 +1,6 @@
 """Live PluggyWorld publisher (webserver v1): run the mission, stream it.
 
-Runs the battery-driven hub lifecycle headless, paced to real time, while
+Runs the battery-driven lifecycle headless, paced to real time, while
 publishing protocol frames + occupancy-grid images + event lines to a
 WebSocket endpoint (an outbound CLIENT -- point it at the website's ingest
 socket, or at scripts/ws_sink.py to watch the wire locally). The sim never
@@ -11,16 +11,13 @@ Usage:
   MUJOCO_GL=egl    uv run python scripts/serve.py --endpoint ws://localhost:8765
   MUJOCO_GL=osmesa uv run python scripts/serve.py --endpoint ws://localhost:8765
     # CPU-only rendering, the deploy-server configuration
-  ... --world home      # the generated house + garden (issue #6); room_hub
-                        # is the default. Everything the world implies --
-                        # model, scene name, rack pose, grid extent, battery,
-                        # start pose, errand destination, explore budget --
-                        # comes from hub.lifecycle.world_config(), so this
-                        # flag can never half-apply.
-  ... --errand draw     # a real drawing errand (issue #12): fetch the pen,
-                        # navigate to a whiteboard, erase it, draw, stow. The
-                        # strokes stream as `draw` events for the browser to
-                        # paint -- they are never MuJoCo geometry.
+  ... --world home      # the generated house + garden (issue #6) with the
+                        # quadruped in it (`home_quad`, issue #387), the
+                        # default and the one world. Everything the world
+                        # implies -- model, scene name, grid extent, battery,
+                        # start pose, explore budget -- comes from
+                        # lifecycle.world_config(), so this flag can never
+                        # half-apply.
   ... --boards state.json     # whiteboard contents that survive a restart
   ... --world-state world.npz # the WORLD itself (issue #345): bodies, packs,
                               # poses, maps, clocks -- saved every minute and
@@ -41,7 +38,7 @@ Usage:
                         # silently contradicted.
   ... --restart-after 300     # SIM seconds a DEAD robot lies there before
                         # it stands itself up (issue #143). ON here and off
-                        # in the experiment harness; 0 leaves it waiting for
+                        # in a test; 0 leaves it waiting for
                         # a person, as every world did before. ⚠ NOT an
                         # intervention: world behaviour on a timer is not an
                         # admin's hand, and `interventions` is what excludes
@@ -76,7 +73,7 @@ from pluggybot.economy.cadence import default_cadence
 from pluggybot.evaluation.arms import (
   ARM_ENV, ORIGIN_ENV, RUNGS, RUNG_ENV, arm_flags, origin_for, rung_for,
 )
-from pluggybot.evaluation.record import body_identity, build_identity
+from pluggybot.evaluation.identity import body_identity, build_identity
 from pluggybot.economy.metabolism import METABOLISM_ENV, Appetite, Metabolism
 from pluggybot.mind.thoughts import ThoughtFiles
 from pluggybot.robot import BODIES, world_spec
@@ -91,6 +88,9 @@ from pluggybot.telemetry.protocol import (CODE_HANDLED_TYPES, INBOUND_TYPES,
 from pluggybot.telemetry.publisher import WsPublisher
 from pluggybot.telemetry.recorder import KEYFRAME_S, TelemetryRecorder
 from pluggybot.telemetry import vitals
+
+#: The errand queues a served world may be asked for (`lifecycle.errands_for`).
+ERRAND_QUEUES = ("none", "care", "feed", "shock")
 
 
 def main() -> None:
@@ -112,17 +112,14 @@ def serve(watchdog: "vitals.Watchdog") -> str | None:
   parser = argparse.ArgumentParser(description=__doc__)
   parser.add_argument("--endpoint", default="ws://localhost:8765",
                       help="WebSocket endpoint to publish to")
-  parser.add_argument("--world", choices=("room_hub", "home"),
-                      default="room_hub",
-                      help="which world to serve: room_hub (default) or the "
-                           "generated home world (issue #6)")
+  parser.add_argument("--world", choices=("home", "home_quad"), default="home",
+                      help="which world to serve: the generated home world "
+                           "(issue #6), with the quadruped in it (`home_quad`)")
   parser.add_argument("--body", choices=BODIES,
-                      default=os.environ.get("PLUGGY_BODY", "rover") or "rover",
+                      default=os.environ.get("PLUGGY_BODY") or BODIES[0],
                       help="which body the robots have (issue #387): the "
-                           "wheeled rover, or the quadruped, which lives in "
-                           "the home world as `home_quad` -- its arm takes no "
-                           "tool yet, so no tool errand. Default $PLUGGY_BODY, "
-                           "then rover")
+                           "quadruped, the one body since #376. Default "
+                           "$PLUGGY_BODY, then quadruped")
   parser.add_argument("--rate", type=float, default=1.0,
                       help="pacing: sim seconds per wall second")
   parser.add_argument("--free-run", action="store_true",
@@ -144,23 +141,22 @@ def serve(watchdog: "vitals.Watchdog") -> str | None:
                       help="SIM seconds a dead robot lies there before it "
                            "stands itself up (issue #143; 0 disables it and "
                            "the robot then waits for a person, which is what "
-                           "every world did before). ON here and off in the "
-                           "experiment harness: a served world whose robot is "
-                           "on the floor until somebody notices is not a "
-                           "world anybody can watch, and a measured run is "
-                           "about ONE life")
+                           "every world did before). ON here and off in a "
+                           "test: a served world whose robot is on the floor "
+                           "until somebody notices is not a world anybody "
+                           "can watch")
   parser.add_argument("--lost-tool-after", type=float, default=LOST_TOOL_S,
                       metavar="S",
                       help="SIM seconds a tool lies on no bay and no fork "
                            "before the world puts it back (issue #347; 0 "
-                           "disables it). ON here and off in the experiment "
-                           "harness, on --restart-after's terms")
+                           "disables it). ON here and off in a test, on "
+                           "--restart-after's terms")
   parser.add_argument("--start-points", type=int, default=STARTING_POINTS,
                       metavar="N",
                       help="points a new robot starts with after a true death "
                            "(issue #419; 0 gives none, as every world did "
-                           "before). ON here and off in the experiment "
-                           "harness, on --restart-after's terms")
+                           "before). ON here and off in a test, on "
+                           "--restart-after's terms")
   parser.add_argument("--robot-name", default=None, metavar="NAME",
                       help="this robot's display name on the wire (issue "
                            "#39): the identity the site shows, e.g. 'Luca "
@@ -184,9 +180,7 @@ def serve(watchdog: "vitals.Watchdog") -> str | None:
                            "its own mind, memory, wallet and appetite, one "
                            "shared board. The header's model is "
                            "<world>_pair. Default $PLUGGY_PAIR")
-  parser.add_argument("--errand2", choices=("carry", "draw", "draw2", "census",
-                                           "dance", "artwork", "showcase",
-                                           "none"),
+  parser.add_argument("--errand2", choices=ERRAND_QUEUES,
                       default=os.environ.get("PLUGGY_ERRAND_2", "none"),
                       help="--pair: what the SECOND robot is for this run "
                            "(default $PLUGGY_ERRAND_2, then none -- it "
@@ -202,15 +196,11 @@ def serve(watchdog: "vitals.Watchdog") -> str | None:
                       metavar="S", help="sim seconds between full keyframes"
                                         " (0 disables; late joiners then wait"
                                         " forever)")
-  parser.add_argument("--errand", choices=("carry", "draw", "draw2", "census",
-                                          "dance", "artwork", "showcase",
-                                          "none"),
-                      default=None,
-                      help="what the robot is FOR this run (issue #12): carry "
-                           "(the milestone-8 LCD errand), draw (fetch the pen, "
-                           "erase a whiteboard and draw on it), draw2 (two "
-                           "boards, charging in between), none. Default "
-                           "carry, and none for a body whose arm takes no tool")
+  parser.add_argument("--errand", choices=ERRAND_QUEUES, default="none",
+                      help="what the robot is FOR this run (issue #12): none "
+                           "(the default: it explores, then stands by for "
+                           "the board's work), or an act on the mouse "
+                           "(`lifecycle.errands_for`)")
   parser.add_argument("--boards", default=None, metavar="PATH",
                       help="JSON file the whiteboards' contents live in "
                            "between runs (default: blank boards every start)")
@@ -347,11 +337,6 @@ def serve(watchdog: "vitals.Watchdog") -> str | None:
     args.world = world_for(args.world, args.body)
   except ValueError as e:
     parser.error(str(e))
-  if args.errand is None:
-    args.errand = "carry" if args.body == "rover" else "none"
-  if args.body != "rover" and (args.errand != "none" or args.errand2 != "none"):
-    parser.error(f"the {args.body}'s arm takes no tool yet, so no errand that "
-                 "takes one: --errand none (and --errand2 none)")
 
   # WHICH ARM (issue #142). Until this, `serve.py` REPORTED an arm and had no
   # way to set one: the identity header read `autonomous` off
@@ -400,7 +385,7 @@ def serve(watchdog: "vitals.Watchdog") -> str | None:
   # Compiled FROM ITS SPEC and the spec kept (issue #168 slice C), so a
   # tool the agent builds can be hung mid-run; measured identical to
   # `from_xml_path` (tests/test_recompile.py).
-  spec = world_spec(cfg["model"], body=cfg.get("body", "rover"))
+  spec = world_spec(cfg["model"], body=cfg["body"])
   model = spec.compile()
   data = mujoco.MjData(model)
   # Board state is the world's, not the run's: loaded before the mission and
@@ -448,7 +433,7 @@ def serve(watchdog: "vitals.Watchdog") -> str | None:
   # rotation still has a history, and the site's Thoughts tab is what a
   # visitor opens first.
   memory = ThoughtFiles.open(args.thoughts, constitution=args.constitution,
-                            body=cfg.get("body", "rover"))
+                            body=cfg["body"])
   # The weekly allowance (issue #37), and world state on the same terms the
   # ledger is: a mission ends several times an hour here, so a budget that
   # lived in the process would be a budget that reset several times an hour.
@@ -551,16 +536,11 @@ def serve(watchdog: "vitals.Watchdog") -> str | None:
                       near_field=args.near_field)
   # WHICH BUILD IS BEING WATCHED (issue #132; docs/Evaluation.md §5).
   #
-  # This world is an OBSERVATORY, not an experiment: one uncontrolled
-  # continuous run, an operator who can pause it and an admin who resets it,
-  # and its numbers never enter a results table. What it can be is
-  # ATTRIBUTABLE -- and until this block existed it was not, because the
-  # header carried `protocolVersion` and nothing else, so a week of deployed
-  # behaviour could not be told apart from the week before it under a
-  # different build, a different model or a different rewards.json. That is
-  # the exact failure `dataHashes` and `deadlineS` were added to the
-  # experiment's series key to prevent; the experiment refuses to pool across
-  # those regimes, and the observatory could not even detect one.
+  # This world is an OBSERVATORY: one uncontrolled continuous run, an
+  # operator who can pause it and an admin who resets it. What it can be is
+  # ATTRIBUTABLE: without this block a week of deployed behaviour could not
+  # be told apart from the week before it under a different build, model or
+  # rewards.json.
   #
   # Built HERE rather than inside the builders because it is the RUN's
   # identity, and both sinks of one run must carry the same one.
@@ -737,8 +717,7 @@ def serve(watchdog: "vitals.Watchdog") -> str | None:
 
   wall0 = time.monotonic()
   try:
-    r = life.run(cfg["start"], use_at=cfg["use_at"],
-                 max_sim_time=args.max_sim_time,
+    r = life.run(cfg["start"], max_sim_time=args.max_sim_time,
                  explore_budget=cfg["explore_budget"], resume=snap)
     # ...and at the end, which a crash never reaches: the last minute's save
     # is what a crash carries on from, never the state that crashed.

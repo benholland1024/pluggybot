@@ -309,10 +309,9 @@ class TaskProducer:
         passed = index if passed is None else passed
         continue
       # Priced by the BOARD, which knows this world's measured costs;
-      # `spec.estimate_wh` is the fallback for a world nobody has measured. A
-      # world-agnostic figure here refused room_hub every `fetch_module` it
-      # can do perfectly well, because home's carry is 0.12 Wh dearer and one
-      # number cannot be both.
+      # `spec.estimate_wh` is the fallback for a world nobody has measured.
+      # One world-agnostic figure refused one world jobs it could do
+      # perfectly well, because another world's were dearer.
       estimate = self.board.estimate_for(kind, target)
       if estimate is None:
         estimate = spec.estimate_wh

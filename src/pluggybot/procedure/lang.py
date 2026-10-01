@@ -14,11 +14,11 @@ before a single step runs. The grammar:
         n = 0                               # locals, arithmetic
         fetch("module_lcd")                 # a verb, arguments literal or computed
         for i in range(3):                  # a literal count, <= MAX_ITER
-            look()
-            if read("look.tag") >= 0 and read("look.range") < 1.0:
+            drive(0.0, 0.8, 1.5)
+            if read("bumper") < 1:
                 wait(2)
-        while read("arm") < 0.05 and n < 10:  # capped at MAX_ITER iterations
-            move("arm", read("arm") + 0.01)   # the motor level: a ramped setpoint
+        while read("shoulder") < 1.0 and n < 10:      # capped at MAX_ITER
+            move("shoulder", read("shoulder") + 0.1)  # the motor level: a ramped setpoint
             n = n + 1
         stow()
 
@@ -35,7 +35,7 @@ vocabulary caps both, and the interpreter checks them at every verb -- which
 is a safe point (steps.py). Abort means stow, as for every program.
 
 Where it stands on the fence: a procedure reaches the motors only through a
-verb (`move` is `HubSwap.ramp_routine`), the scoring path not at all -- a
+verb (`move` is `Body.ramp_routine`), the scoring path not at all -- a
 `Verdict` is sealed -- and nothing here writes `data.ctrl`.
 """
 
@@ -146,9 +146,6 @@ class Procedure:
     def walk(block):
       for st_ in block:
         if st_[0] == "verb":
-          if st_[1] == "pick":
-            from pluggybot.tools.gripper import CLAW_MODULE
-            tools.append(CLAW_MODULE)
           for name, value in st_[2].items():
             if value[0] == "str":
               if st_[1] == "move" and name == "axis":
