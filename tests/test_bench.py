@@ -12,7 +12,7 @@ rule:
   3. the grader: the newest finding after the claim, in kilograms, within
      the tolerance -- pass and fail, on a stubbed record, and the reason
      never says the truth;
-  4. `guarded`'s offered set is unchanged (the tower's gate, #207);
+  4. the loop with no mind is not offered it (the tower's gate, #207);
   5. a procedure's locals reach History and the wire -- the readout a
      number needs to get from a sensor to a `record`.
 
@@ -42,7 +42,6 @@ from pluggybot.mind import overseer as ov
 from pluggybot.mind.thoughts import ThoughtFiles
 from pluggybot.procedure import lang
 from pluggybot.telemetry.protocol import ACT_EVENT_TYPES
-from test_autonomous import GUARDED_RULES_SHA
 from test_body import stub_life  # noqa: I001 -- tests/ is on sys.path
 
 TABLE = scoring.challenge_table()
@@ -83,9 +82,8 @@ def test_the_kind_is_a_challenge_offered_where_a_procedure_can_be_written():
   assert "100 g" in text and "tagged 23" in text and "tagged 24" in text
   assert "mass_bench" in text and "unknown mass = <value> kg" in text
   assert "point" not in text
-  # the tower's gate exactly (issue #207): `bench` is named on the
-  # autonomous arm alone, so `guarded`'s offered set is byte-for-byte what
-  # it was, and the control stays a control
+  # the tower's gate exactly (issue #207): `bench` is named only where
+  # there is a mind to write the procedure
   book = board_book(QUAD_HOME)
   assert "bench" not in world_targets(QUAD_HOME, book)
   assert world_targets(QUAD_HOME, book, procedures=True)["bench"] == ["lab"]
@@ -93,8 +91,6 @@ def test_the_kind_is_a_challenge_offered_where_a_procedure_can_be_written():
   assert "find_mass" not in TaskProducer(TaskBoard(), beat, world_targets(QUAD_HOME, book)).kinds
   assert "find_mass" in TaskProducer(TaskBoard(), beat,
                                      world_targets(QUAD_HOME, book, procedures=True)).kinds
-  import hashlib
-  assert hashlib.sha256(ov.RULES.encode()).hexdigest() == GUARDED_RULES_SHA
 
 
 # ---- 1. the bank -----------------------------------------------------------------------
@@ -183,7 +179,7 @@ def _life(home_model, tmp_path, spec=None, model=None):
   life = stub_life(body=body, battery_wh=cfg["hosting_battery_wh"],
                    ledger=Ledger(path=str(tmp_path / "ledger.json")),
                    tasks=TaskBoard(path=str(tmp_path / "tasks.json")),
-                   autonomous=True, boards=board_book(QUAD_HOME), spec=spec,
+                   boards=board_book(QUAD_HOME), spec=spec,
                    overseer=_Mind())
   acts = lc.home_activities(model, data)
   life.body.step_hooks.append(acts.step_hook(model, data))

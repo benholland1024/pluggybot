@@ -154,7 +154,7 @@
       "tier": "auto",
       "base": 0,
       "bonus": 0,
-      "detail": "Reach the hub's charge bay and fill the pack. This pays nothing: the reward for charging is not dying.",
+      "detail": "Reach your dock and lie on it until the pack is full. This pays nothing: the reward for charging is not dying.",
       "quality": [
         {
           "metric": "endFrac",

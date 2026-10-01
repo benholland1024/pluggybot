@@ -659,7 +659,7 @@ def test_a_decision_can_pin_and_note_without_spending_a_turn():
   """`pin`/`unpin`/`note`/`unnote` are orthogonal to the action, like
   `respond_to`: a robot that had to spend its turn to write a line down
   writes fewer of them than it should."""
-  menu = Menu(boards=("whiteboard_a",), programs=("house",))
+  menu = Menu(boards=("whiteboard_a",), programs=("house",), tools=True)
   boss = Overseer(menu, client=FakeClient(
     full(action="draw", board="whiteboard_a", program="house",
          pin="people look at whiteboard_a more than b",

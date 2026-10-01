@@ -3,15 +3,14 @@ world, and they answer -- a reply, a close that pays, a delete.
 
 Every rule pinned without a model and without flying: the desk against a
 temp directory (the cap counts open tickets, ids never repeat, a replayed
-close pays nothing); the field's presence on `autonomous` alone with
-`guarded`'s prefix unchanged; the rule reading as a description and not a
+close pays nothing); the field's presence on a mind and nowhere else;
+the rule reading as a description and not a
 suggestion; the event that fires for the map and takes no filter; and the
 whole flow through a lifecycle with a fake client and an inbox -- open,
 reply, close, pay ONCE through the ledger's one door, delete.
 """
 
 import ast
-import hashlib
 import json
 from dataclasses import replace
 from pathlib import Path
@@ -33,7 +32,6 @@ from pluggybot.telemetry.protocol import (
 )
 from pluggybot.telemetry.recorder import FrameBuilder
 
-from test_autonomous import GUARDED_RULES_SHA
 from test_body import stub_life
 from test_overseer import FakeClient, full
 
@@ -364,8 +362,8 @@ def test_the_ticket_row_pays_at_the_close_through_the_ledgers_one_door():
   row = table["ticket"]
   assert (row.tier, row.base, row.bonus, row.offered) == ("auto", 25, 0, False)
   assert "ticket" in scoring.EVALUATORS and "ticket" in scoring.SAMPLERS
-  # In challenges.json, for the tower's reason: shown to `autonomous`'s
-  # table and to nobody else, hashed into no result.
+  # In challenges.json, for the tower's reason: shown to a mind's table
+  # and to nobody else, hashed into no result.
   assert "ticket" in {r["task"] for r in table.as_context(challenges=True)}
   assert "ticket" not in {r["task"] for r in table.as_context()}
   assert "ticket" not in json.loads(scoring.TABLE_PATH.read_text())["tasks"]
@@ -407,23 +405,24 @@ def test_no_decision_field_closes_a_ticket_and_nothing_in_economy_reads_the_desk
 # ---- the arm ----------------------------------------------------------------------
 
 
-def test_the_fields_are_offered_on_autonomous_alone_and_guarded_is_unchanged():
-  auto = ov.build(WORLD, enabled=True, client=FakeClient(), autonomous=True)
+def test_the_fields_are_a_minds_and_a_bare_menu_has_none_of_them():
+  auto = ov.build(WORLD, enabled=True, client=FakeClient())
   assert auto.menu.tickets
   schema = auto.menu.schema(tickets=("tk_0001",))
   assert schema["properties"]["ticket"]["properties"]["kind"]["enum"] == [*TICKET_KINDS, ""]
   assert schema["properties"]["ticket_reply"]["properties"]["ticket"]["enum"] == ["tk_0001", ""]
   assert {"ticket", "ticket_reply"} <= set(schema["required"])
   assert dict(auto.sections)["SUPPORT TICKETS"] == ov.tickets_rule()
-  guarded = ov.build(WORLD, enabled=True, client=FakeClient())
-  assert not guarded.menu.tickets
-  assert "ticket" not in guarded.menu.schema()["properties"]
-  assert "SUPPORT TICKETS" not in dict(guarded.sections)
-  assert "ticket" not in ov.RULES and "ticket" not in ov.RULES_AUTONOMOUS
-  assert hashlib.sha256(ov.RULES.encode()).hexdigest() == GUARDED_RULES_SHA
-  # A guarded answer carrying the field anyway is dropped, not refused --
-  # the standing order's terms; so is a reply naming a ticket not open.
-  d = guarded.menu.validate(full(action="idle", ticket=BUG))
+  # A menu no mind was built over offers none of it, and the rules do not
+  # name it.
+  bare = Menu.for_world(WORLD)
+  assert not bare.tickets and "ticket" not in bare.schema()["properties"]
+  assert "SUPPORT TICKETS" not in dict(Overseer(bare, client=FakeClient()).sections)
+  assert "ticket" not in ov.RULES
+  # An answer carrying the field where it was not offered is dropped, not
+  # refused -- the standing order's terms; so is a reply naming a ticket
+  # not open.
+  d = bare.validate(full(action="idle", ticket=BUG))
   assert d.ticket is None and d.action == "idle"
   d = auto.menu.validate(full(action="idle", ticket=dict(BUG, title="  x  "),
                               ticket_reply={"ticket": "tk_0002", "text": "hi"}),
@@ -446,12 +445,12 @@ def test_the_fields_are_offered_on_autonomous_alone_and_guarded_is_unchanged():
 
 
 def test_the_ids_in_the_grammar_are_the_open_ones_off_the_state():
-  auto = ov.build(WORLD, enabled=True, client=FakeClient(), autonomous=True)
+  auto = ov.build(WORLD, enabled=True, client=FakeClient())
   state = {"tickets": {"open": [{"id": "tk_0003"}, {"id": "tk_0005"}], "closed": []}}
   assert auto._ticket_ids(state) == ("tk_0003", "tk_0005")
   assert auto._ticket_ids({}) == (), "a desk with nothing open still offers `ticket`"
-  guarded = ov.build(WORLD, enabled=True, client=FakeClient())
-  assert guarded._ticket_ids(state) is None
+  deskless = Overseer(Menu.for_world(WORLD), client=FakeClient())
+  assert deskless._ticket_ids(state) is None
 
 
 def test_the_rule_says_what_the_fields_do_and_prescribes_no_filing():
@@ -501,11 +500,9 @@ def _events(life) -> list[dict]:
 
 def _desk_life(tmp_path, *answers, ledger=None):
   """A mind with a desk and an (empty, `unseeded`) event map, so the
-  `ticket_replied` occurrence is recorded; the LIFECYCLE is left on the
-  rails so an `idle` stands still 4 s rather than the arm's 60."""
+  `ticket_replied` occurrence is recorded."""
   menu = replace(Menu.for_world(WORLD, None), tickets=True)
-  boss = Overseer(menu, client=FakeClient(*answers), autonomous=True,
-                  origin="unseeded")
+  boss = Overseer(menu, client=FakeClient(*answers), origin="unseeded")
   life = _life(inbox=Inbox(), ledger=ledger,
                thoughts=ThoughtFiles.open(tmp_path), overseer=boss)
   # The claim is about paperwork, not about standing still: every stand
@@ -669,10 +666,10 @@ def test_the_operators_line_is_shown_as_a_report_and_never_as_a_turn(tmp_path):
     life.body.close()
 
 
-def test_a_close_lands_on_any_arm_and_a_guarded_context_shows_no_desk(tmp_path):
-  """The desk is the LIFECYCLE's: a ticket opened on `autonomous` is closed
-  -- and paid -- by whatever runs next on the same volume, even with no
-  mind at all; what the arm decides is whether the robot may OPEN one."""
+def test_a_close_lands_with_no_mind_and_a_deskless_context_shows_no_desk(tmp_path):
+  """The desk is the LIFECYCLE's: a ticket a mind opened is closed -- and
+  paid -- by whatever runs next on the same volume, even with no mind at
+  all; whether the robot may OPEN one is the mind's (`Menu.tickets`)."""
   desk.Desk(tmp_path / "tickets").open("bug", "left over", "from yesterday", t=1.0)
   ledger = Ledger()
   life = _life(inbox=Inbox(), ledger=ledger, thoughts=ThoughtFiles.open(tmp_path))
@@ -684,8 +681,8 @@ def test_a_close_lands_on_any_arm_and_a_guarded_context_shows_no_desk(tmp_path):
     assert ledger.balance() == 25 and life.tickets.open_ids() == ()
   finally:
     life.body.close()
-  guarded = Overseer(Menu.for_world(WORLD, None), client=FakeClient())
-  life = _life(overseer=guarded, thoughts=ThoughtFiles.open(tmp_path))
+  deskless = Overseer(Menu.for_world(WORLD, None), client=FakeClient())
+  life = _life(overseer=deskless, thoughts=ThoughtFiles.open(tmp_path))
   try:
     assert "tickets" not in overseer_context(life)
   finally:

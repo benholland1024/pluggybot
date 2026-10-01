@@ -24,7 +24,7 @@ from pluggybot.mind import overseer as ov
 from pluggybot.lifecycle import (
   board_book, cage_errand, errand_from, world_config, zone_centre,
 )
-from pluggybot.mind.overseer import Decision, Menu, Overseer, scripted
+from pluggybot.mind.overseer import Decision, Menu, Overseer
 from pluggybot.economy.scoring import default_table
 
 from test_body import stub_life  # noqa: I001 -- tests/ is on sys.path
@@ -106,8 +106,7 @@ def menu(book):
 @pytest.fixture(scope="module")
 def tooled(menu):
   """The same world's menu for a body that takes a tool (`Menu.tools`),
-  which no served body does until #406/#407: the tool errands and the
-  rotation over them."""
+  which no served body does until #406/#407: the tool errands."""
   return replace(menu, tools=True)
 
 
@@ -193,14 +192,15 @@ def test_a_good_answer_is_used_verbatim(menu):
   ("I would love to draw a house!", "fallback:garbled"),
   ({"action": "delete_the_ledger", "reason": "..."}, "fallback:garbled"),
 ])
-def test_a_broken_answer_falls_back_to_the_scripted_policy(menu, answer,
-                                                           expect):
+def test_a_broken_answer_falls_back_to_the_agents_own_order(menu, answer,
+                                                            expect):
   boss = make(menu, answer)
   d = boss.decide({"tasksThisMission": [], "decisions": 0})
   assert d.source.startswith(expect)
-  # ...and the fallback is a real day's work, not a shrug: the whole point of
-  # the acceptance criterion is that the robot keeps DOING things.
-  assert d.action == "explore" and d.zone in menu.zones
+  # ...and the fallback is the AGENT's (issue #125): here it has left no
+  # order yet, so it is the floor, and the decision says so.
+  assert d.action == ov.STANDING_ORDER_FLOOR
+  assert d.reason.startswith("no standing order has been left")
 
 
 def test_a_refused_answer_is_told_to_the_robot_in_the_fallback_reason(menu):
@@ -329,14 +329,16 @@ def test_a_recovered_endpoint_is_used_again(menu):
 
 def test_it_cannot_idle_its_life_away(menu):
   """`idle` costs nothing and does nothing. Two in a row is a pause; a
-  third would be a robot narrating a life it is not living, so the
-  scripted policy takes the turn."""
-  boss = make(menu, full(action="idle", think="thinking about it"))
+  third would be a robot narrating a life it is not living, so the third
+  turn is not spent asking: `fallback:idle-run` runs the agent's own order
+  without a call."""
+  client = FakeClient(*[full(action="idle", think="thinking about it")] * 3)
+  boss = Overseer(menu, client=client)
   sources = [boss.decide({"decisions": i, "tasksThisMission": []}).source
              for i in range(ov.MAX_IDLE_RUN + 1)]
   assert sources[:ov.MAX_IDLE_RUN] == ["llm"] * ov.MAX_IDLE_RUN
   assert sources[-1] == "fallback:idle-run"
-  assert boss.decisions[-1].action not in ov.IDLE_ACTIONS
+  assert len(client.calls) == ov.MAX_IDLE_RUN, "the third turn was asked"
 
 
 # ---- the prompt --------------------------------------------------------------
@@ -345,7 +347,7 @@ def test_it_cannot_idle_its_life_away(menu):
 def test_the_prompt_message_is_the_prefix_the_model_is_shown(menu, tmp_path):
   """What the mind is told, on the stream (issue #241): the `prompt`
   message's sections, joined, ARE `Overseer.system` -- byte for byte, on
-  every arm -- so a reader of the site reads what the model reads, and
+  every build -- so a reader of the site reads what the model reads, and
   nothing the robot must not see can be in one without being in the other.
   The section names are the prompt's own headings; every optional piece
   appears once, in the order the model reads it; the sha moves with the
@@ -356,15 +358,15 @@ def test_the_prompt_message_is_the_prefix_the_model_is_shown(menu, tmp_path):
   from pluggybot.mind.thoughts import ThoughtFiles
   from pluggybot.procedure.library import Library
   from pluggybot.workshop.library import Workshop
-  guarded = Overseer(menu, client=FakeClient(), thoughts=ThoughtFiles())
+  bare = Overseer(menu, client=FakeClient(), thoughts=ThoughtFiles())
   everything = Overseer(
-    menu, client=FakeClient(), thoughts=ThoughtFiles(), autonomous=True,
-    standing_orders=True, origin="unseeded", appetite=True, mortal=True,
+    menu, client=FakeClient(), thoughts=ThoughtFiles(),
+    origin="unseeded", appetite=True, mortal=True,
     escalate_to="Qwen/Qwen3-235B-A22B-Instruct-2507",
     library=Library(world_facts("home_quad"), root=tmp_path / "procedures"),
     workshop=Workshop(tmp_path / "tools"),
     others=("Rowan",))
-  for boss in (guarded, everything):
+  for boss in (bare, everything):
     msg = boss.prompt_message(4.5, robot="r2_pluggybot")
     assert msg["type"] == "prompt" and msg["t"] == 4.5 and msg["robot"] == "r2_pluggybot"
     joined = "\n\n".join(s["text"] for s in msg["sections"])
@@ -378,7 +380,10 @@ def test_the_prompt_message_is_the_prefix_the_model_is_shown(menu, tmp_path):
     assert names[:5] == ["WHO YOU ARE", "PERSONA", "HOW YOUR LIFE WORKS",
                          "WHAT YOU CAN DO, AND WHERE", "WHAT TASKS PAY"]
     assert "Main.md" in msg["sections"][0]["text"]
-  assert [s["name"] for s in guarded.prompt_message(0.0)["sections"]][5:] == []
+  # A mind with no map is told about its standing order; one with a map
+  # is told about the map instead, and never both (issue #127).
+  assert [s["name"] for s in bare.prompt_message(0.0)["sections"]][5:] == [
+    "IF YOU CANNOT BE REACHED"]
   assert [s["name"] for s in everything.prompt_message(0.0)["sections"]][5:] == [
     "YOU CAN DIE", "POINTS ARE WHAT KEEPS YOU RUNNING", "WHEN YOU ARE ASKED",
     "YOUR LIST STARTS EMPTY", "PROCEDURES YOU MAY WRITE", "CHALLENGES",
@@ -386,8 +391,8 @@ def test_the_prompt_message_is_the_prefix_the_model_is_shown(menu, tmp_path):
     "WHAT YOU CAN DO ABOUT THE OTHER ROBOT", "THINKING HARDER"]
   # The sha is the regime marker: the same build twice is the same sha, a
   # renamed robot is another.
-  assert Overseer(menu, client=FakeClient()).prompt_sha == guarded.prompt_sha
-  assert Overseer(menu, client=FakeClient(), robot_name="Luca").prompt_sha != guarded.prompt_sha
+  assert Overseer(menu, client=FakeClient()).prompt_sha == bare.prompt_sha
+  assert Overseer(menu, client=FakeClient(), robot_name="Luca").prompt_sha != bare.prompt_sha
   # ...and nothing of the volatile turn is in it -- the byte identity above
   # is what makes the prefix's own guard (the next test) the message's too.
   assert '"simTimeS"' not in joined and "secret" not in joined
@@ -450,39 +455,6 @@ def test_the_context_is_the_live_lifecycle_and_carries_no_truth(menu):
   assert state["tasksThisMission"] == ["census"]
   assert state["visitorMessages"] == []         # nobody has said anything
   assert "truth" not in json.dumps(state)
-
-
-# ---- the scripted policy is a real policy ------------------------------------
-
-
-def test_the_fallback_rotates_rather_than_repeating(menu, tooled):
-  """Over the errands a tool makes, where the body takes one, and over the
-  rooms it explores where it does not."""
-  seen = []
-  for i in range(4):
-    d = scripted(tooled, {"tasksThisMission": seen, "decisions": i,
-                          "floorExplored": False}, "budget")
-    seen.append(d.action)
-  assert len(set(seen)) == len(seen), f"the fallback repeated itself: {seen}"
-  zones = [scripted(menu, {"tasksThisMission": [], "decisions": i,
-                           "floorExplored": False}, "budget").zone
-           for i in range(4)]
-  assert len(set(zones)) == len(zones), f"the fallback repeated itself: {zones}"
-
-
-def test_the_fallback_is_deterministic(menu):
-  state = {"tasksThisMission": ["draw"], "decisions": 3, "floorExplored": False}
-  runs = [scripted(menu, state, "budget").as_dict() for _ in range(5)]
-  assert all(r == runs[0] for r in runs)
-
-
-@pytest.mark.parametrize("which", ["menu", "tooled"])
-def test_the_fallback_still_has_something_to_do_when_everything_is_done(
-    request, which):
-  m = request.getfixturevalue(which)
-  d = scripted(m, {"tasksThisMission": ["draw", "census", "dance", "carry"],
-                   "decisions": 1, "floorExplored": True}, "budget")
-  assert d.action in m.available() and d.action not in ov.IDLE_ACTIONS
 
 
 # ---- decisions become errands -------------------------------------------------
@@ -593,18 +565,17 @@ def test_the_arbitration_loop_is_untouched_without_an_overseer():
   assert "overseer" in life.__dict__
 
 
-def test_charge_priority_survives_an_overseer_that_never_charges():
-  """THE regression test for issue #15: the branch ORDER.
+def test_a_mind_that_never_charges_is_never_charged_for():
+  """THE BRANCH ORDER, from the side that is true now (issues #15, #115,
+  #427). A robot that starts below its reserve, and a mind that answers
+  `idle` to every question it is ever asked: the mind is asked, and nothing
+  charges the robot behind its back. With a mind there is no floor, no gate
+  and no filter, so a mind that never charges runs flat -- the measurement,
+  not a bug in it. (The loop with no mind charges first: `test_body`'s day.)
+  A day on the stub: the claim is the loop's order, not the body's charging.
 
-  A robot that starts below its reserve, and an overseer that answers `idle`
-  to every question it is ever asked. It must charge first and be asked
-  second, because `needs_charge` is checked before the overseer is reached and
-  there is no action in the vocabulary that suppresses it. A day on the stub:
-  the claim is the loop's order, not the body's charging.
-
-  Shown to fail without the fix: move the `elif self.overseer is not None`
-  branch above the `if self.needs_charge` branch in `HubLifecycle.run()` and
-  the robot never charges.
+  Shown to fail by putting the floor back -- `needs_charge` ignoring
+  `autonomous` -- when the robot charges before the mind is ever asked.
   """
   asked_after: list[int] = []     # charge cycles done when each question went
 
@@ -614,30 +585,25 @@ def test_charge_priority_survives_an_overseer_that_never_charges():
       return super().create(**kwargs)
 
   boss = Overseer(Menu.for_world("home_quad", None),
-                  client=Watched(full(action="idle", reason="I would rather not")))
-  # `charge_scale` fills the pack in a tenth of the time: the claim is which
-  # branch runs first, not how long a charge takes
+                  client=Watched(*[full(action="idle", reason="I would rather not")] * 2))
+  # `charge_scale` fills the pack in a tenth of the time, so a charge the
+  # loop slipped in would land inside the budget rather than outlast it
   life = stub_life(overseer=boss, charge_scale=10.0)
-  # Below the reserve at t=0. The cheapest state that puts the two branches in
-  # direct conflict: the robot needs to charge AND is being told not to bother.
+  # Below the reserve at t=0: the state a floor exists for.
   life.battery.energy_wh = life.low_battery_wh * 0.6
-  assert life.needs_charge
+  assert not life.needs_charge
 
-  # ⚠ STOP ON THE CLAIM, NOT THE BUDGET (issue #54): the robot has charged
-  # AND the overseer has been asked and answered. The predicate is the
-  # SUCCESS condition and does not encode the ordering it tests.
-  life.stop_when(lambda: life.charge_cycles >= 1
-                 and any(d["source"] == "llm" for d in life.decisions))
+  # ⚠ STOP ON THE CLAIM, NOT THE BUDGET (issue #54): the mind has been asked
+  # and has answered twice.
+  life.stop_when(lambda: sum(d["source"] == "llm" for d in life.decisions) >= 2)
   r = life.run(world_config("home_quad")["start"], max_sim_time=200.0,
                explore_budget=10.0)
 
-  assert r["charge_cycles"] >= 1, "an idling overseer bricked the robot"
-  assert asked_after, "the overseer was never consulted at all"
-  assert asked_after[0] >= 1, "the LLM was asked before the robot charged"
-  # ...and it really was the LLM being overruled, not the fallback covering
-  # for it -- an overseer that never answered would prove nothing here.
-  assert any(d["source"] == "llm" for d in r["decisions"])
-  assert r["overseer"]["llmCalls"] >= 1
+  assert asked_after, "the mind was never consulted at all"
+  assert asked_after[0] == 0, "the robot was charged before its mind was asked"
+  assert r["charge_cycles"] == 0, "something charged a robot whose mind never chose to"
+  # ...and it really was the LLM answering, not the fallback covering for it.
+  assert r["overseer"]["llmCalls"] >= 2
 
 
 def test_a_think_reaches_the_store_the_wire_and_the_narration():
@@ -711,10 +677,9 @@ def test_a_charge_at_eighty_percent_is_allowed_and_pays_nothing():
                              "gainedWh": 0.4, "seconds": 100})
   assert paid.ok and paid.points == 0, \
       "a charge that pays is a charge that can be farmed"
-  # The forced charge is untouched -- `needs_charge` is absolute energy
-  # against the worst return trip and never consulted the floor either.
+  # ...and nothing forces one either: with a mind, the floor is off.
   life.battery.energy_wh = life.low_battery_wh * 0.5
-  assert life.needs_charge
+  assert not life.needs_charge
 
 
 def test_the_sim_keeps_running_while_the_overseer_thinks():

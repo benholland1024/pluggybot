@@ -1,5 +1,5 @@
 """The workshop as the agent's (issue #168, slice D): `build_tool` and
-`retire_tool` as decision fields on the `autonomous` arm, a library of
+`retire_tool` as decision fields of a mind with a workshop, a library of
 what it built, the fabrication cost, the `tool` events.
 
 No served world carries the built-tool rail since #376 (#407 re-homes the
@@ -9,9 +9,8 @@ is about what happens past the rail's own check, the rail is stood in
 
 What these hold down:
 
-  1. `guarded` IS UNCHANGED. The fields, the rule and the grammar exist
-     only where a workshop does; `guarded`'s prefix hash is
-     `test_autonomous.py`'s and does not move.
+  1. THE FIELDS, THE RULE AND THE GRAMMAR exist only where a workshop
+     does.
   2. A REFUSAL SPENDS NOTHING: the envelope, the seam and the price are
      checked before a point moves, and the reasons ride the event.
   3. A PAID BUILD IS NEVER LOST: a print the rack has no room for when it
@@ -115,7 +114,7 @@ def _outcomes(events):
   return [e["outcome"] for e in events if e.get("type") == "tool"]
 
 
-# ---- 1. guarded is unchanged -------------------------------------------------
+# ---- 1. only where a workshop is ---------------------------------------------
 
 def test_the_fields_exist_only_with_a_workshop():
   menu = ov.Menu.for_world(WORLD)
@@ -124,7 +123,7 @@ def test_the_fields_exist_only_with_a_workshop():
   shop = menu.schema(tools=("scoop",))
   assert shop["properties"]["retire_tool"]["enum"] == ["scoop", ""]
   assert shop["properties"]["build_tool"]["properties"]["bay"]["enum"] == [*BAYS, ""]
-  # a guarded parse DROPS the fields rather than raising on them
+  # a parse with no workshop DROPS the fields rather than raising on them
   raw = {"action": "idle", "reason": "r", "build_tool": {"name": "x", "bay": "A",
                                                           "spec": SCOOP}}
   d = menu.validate(raw)
@@ -213,10 +212,7 @@ def test_a_refusal_names_what_a_tool_may_be_built_from(tmp_path):
           if wspec.unbuildable(p) is None] == wspec.buildable()
 
 
-def test_guarded_prefix_does_not_move():
-  from test_autonomous import GUARDED_RULES_SHA
-  import hashlib
-  assert hashlib.sha256(ov.RULES.encode()).hexdigest() == GUARDED_RULES_SHA
+def test_the_rule_rides_only_where_the_workshop_does():
   from pluggybot.economy.scoring import default_table
   from pluggybot.mind.thoughts import ThoughtFiles
   menu = ov.Menu.for_world(WORLD)
@@ -358,8 +354,8 @@ def test_a_stand_up_during_the_print_keeps_the_paid_tool(tmp_path):
 def test_the_wait_stops_rather_than_stranding_the_robot(tmp_path, monkeypatch):
   """Standing still draws power: the ROBOT chose to build; the WAITING is
   code's, so code stops spending the pack once what is left is the return
-  trip's. Not a rail -- it is on every arm, because on no arm should the
-  loop's own retry be what strands the robot."""
+  trip's. Not a rail -- the waiting is code's, and the loop's own retry
+  must never be what strands the robot."""
   life = _life(tmp_path, points=100, rail=True)
   busy = {"why": ""}
   monkeypatch.setattr(HubLifecycle, "seam_busy", lambda self: busy["why"])
@@ -427,13 +423,13 @@ def test_a_world_without_the_rail_has_no_workshop(monkeypatch):
   real = lifecycle.world_config
   # the count the grammar keys off is the count the world carries
   assert real(WORLD)["built_bays"] == 0
-  without = ov.build(WORLD, enabled=True, client=FakeClient(), autonomous=True)
+  without = ov.build(WORLD, enabled=True, client=FakeClient())
   assert without.workshop is None and not without.menu.workshop
   assert "build_tool" not in grammar(without)
   assert "TOOLS YOU MAY BUILD" not in "".join(t for _, t in without.sections)
   monkeypatch.setattr(lifecycle, "world_config",
                       lambda world: {**real(world), "built_bays": len(BAYS)})
-  with_rail = ov.build(WORLD, enabled=True, client=FakeClient(), autonomous=True)
+  with_rail = ov.build(WORLD, enabled=True, client=FakeClient())
   assert with_rail.workshop is not None and with_rail.menu.workshop
   assert "build_tool" in grammar(with_rail)
   assert "TOOLS YOU MAY BUILD" in "".join(t for _, t in with_rail.sections)

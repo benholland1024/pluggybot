@@ -511,13 +511,6 @@ def test_the_context_says_the_floor_is_explored_not_that_a_map_is_done():
   life.floor_explored = True
   state = ov.context_for(life)
   assert state["floorExplored"] is True and "mapDone" not in state
-  from dataclasses import replace
-  # a body that takes a tool (`Menu.tools`, #406/#407), so the rotation
-  # has something besides exploring to turn to
-  menu = replace(ov.Menu.for_world(QUAD_HOME, board_book(QUAD_HOME)), tools=True)
-  done = {"tasksThisMission": ["draw", "census", "dance", "carry"], "decisions": 3}
-  assert ov.scripted(menu, {**done, "floorExplored": False}, "test").action == "explore"
-  assert ov.scripted(menu, {**done, "floorExplored": True}, "test").action != "explore"
 
 
 def test_a_continuation_saved_before_the_rename_still_says_the_floor_is_explored(tmp_path):

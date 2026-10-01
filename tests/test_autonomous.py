@@ -1,12 +1,12 @@
-"""The `autonomous` arm (issue #115; docs/Evaluation.md §2).
+"""The one mind (issues #115, #427; docs/Evaluation.md §2).
 
-Three rails come off, the prompt is corrected in the same change, and the
-fallback becomes the agent's own. Everything here is about the arm being a
-REAL difference and a CONTAINED one: `guarded` is the control, the deployed
-world runs it, and every assertion below has a half that says so.
+Wherever there is a mind the three rails are off, the prompt says so, the
+model is shown the numbers and never code's verdicts, and the fallback is the
+agent's own. `scripted`, the loop with no mind, keeps the rails as its own --
+and every assertion below about the rails has that half too.
 """
 
-import hashlib
+import inspect
 
 import pytest
 
@@ -17,88 +17,42 @@ from pluggybot.mind.overseer import Menu, Overseer
 
 from test_body import stub_life  # noqa: I001 -- tests/ is on sys.path
 
-MENU = Menu(zones=("garden",), boards=("whiteboard_a",), programs=("circle",))
+#: ...with the tool errands (`Menu.tools`), which no served body has until
+#: #406/#407: the actions these rules are worked through.
+MENU = Menu(zones=("garden",), boards=("whiteboard_a",), programs=("circle",),
+            tools=True)
 
 
-def _life(**kw):
-  """The rails are the lifecycle's bookkeeping: a stub body carries them."""
-  return stub_life(**kw)
+def _life(mind: bool = False, **kw):
+  """The rails are the lifecycle's bookkeeping: a stub body carries them,
+  and a mind is what takes them off."""
+  return stub_life(overseer=Overseer(MENU) if mind else None, **kw)
 
 
 # ---- the prompt ---------------------------------------------------------------
 
-#: sha256 of `RULES` as it ships. ⚠ A LITERAL, not computed from `ov.RULES`
-#: (which is what this used to be, and a hash compared with itself cannot
-#: fail). `guarded` is the control and the deployed world runs it; its prefix
-#: is CACHED, so a word changed here is a cache miss on every call and a
-#: control that no longer matches the runs it is the control for. Changing
-#: it is a deliberate act with a re-fly attached, which is exactly what a
-#: failing hash should prompt an argument about.
-#: It has moved FOUR TIMES:
-#:   2026-09-11, the mission statement (docs/PluggyPlan.md) replaced "make
-#:     yourself useful" with "this life is yours" --
-#:     cbfe2e7b8f9de131228f4c0708330ad75f08aa2d61f554f2f9ec7c9de65fac05
-#:     was the text before it;
-#:   2026-09-12, issue #154 gave the robot its own `Goals.md` and the rules
-#:     had to stop telling it a person writes them --
-#:     03686c2c7e4adbc58855e43b666d291b482e56226dda648f7089b3044cfc85f0;
-#:   2026-09-18, issue #221 rebuilt the memory (the tiers, `think`, `pin`,
-#:     `note`; `journal` retired) on EVERY arm, `guarded` included --
-#:     4b53c96e5f1ccc3feb59b6501c6f905f8f6cb16734414db225c6a9ad309992e0
-#:     was the text before it, and `guarded` is harness-only since #206;
-#:   2026-09-20, rooftop-media-2026 #125 made the visitor channel a
-#:     conversation: one bullet in VISITORS says what a follow-up's `turn`
-#:     and `earlier` are, on every arm (a message is not a rail) --
-#:     1c8fa80b9371939ae457eec4ff09c849520643eff62065c9c8a017dd8c5c679b
-#:     was the text before it.
-GUARDED_RULES_SHA = "245c05edc69329fc3b51def89dafd9c9646dea38ab0b4ddc3cdd814583c5c5c9"
 
-
-def test_the_guarded_prompt_does_not_move_when_a_second_arm_appears():
-  """The control keeps every word (issue #115). Both prompts exist at once
-  and the ARM selects; nothing about building the autonomous text may reach
-  back into the guarded one -- which is a live risk here, because the
-  autonomous rules are BUILT from the guarded ones by replacement."""
-  assert hashlib.sha256(ov.RULES.encode()).hexdigest() == GUARDED_RULES_SHA
-  assert "Charging is not your decision" in ov.RULES
-  assert "affordableActions" in ov.RULES and "`claimable`" in ov.RULES
-  assert ov.RULES_AUTONOMOUS is not ov.RULES
-
-
-def test_the_autonomous_prompt_stops_telling_the_robot_three_lies():
-  """With the rails off, the shipped text is false in three places, and the
-  robot acts on it. An arm that measures what a model does when told
-  something untrue about its own world measures nothing."""
-  text = ov.RULES_AUTONOMOUS
+def test_the_rules_do_not_tell_the_robot_three_lies():
+  """With the rails off, a prompt saying charging is code's, or naming lists
+  of verdicts the model is not shown, or a `claimable` mark nothing sets, is
+  false in three places, and the robot acts on it. A mind told something
+  untrue about its own world measures nothing."""
+  text = ov.RULES
   assert "Charging is not your decision" not in text
   assert "affordableActions" not in text and "possibleActions" not in text
   assert "only take one marked" not in text
+  assert "LOOKING AFTER YOUR OWN POWER IS YOUR JOB" in text
   # ...and it is an INSTRUCTION PLUS THE NUMBERS, never a computed verdict:
-  # the raw quantities the removed lists were derived from are named.
+  # the raw quantities the verdicts would be derived from are named.
   assert "battery.wh" in text and "reserveWh" in text
   assert "energyCostWh" in text
-  # The shared tail is shared, not copied -- one of the paragraphs neither
-  # arm changes must be identical in both (the memory section is shared
-  # whole since #221; the science record's rule is appended on this arm).
   assert "Top_of_mind.md` is YOURS" in text
-  assert text.split("- `Main.md` is who you are")[1] == \
-      ov.RULES.split("- `Main.md` is who you are")[1]
 
 
-def test_a_reworded_rule_fails_loudly_instead_of_shipping_a_lie():
-  """The autonomous text is three replacements on the guarded one, so a
-  needle that stops matching would silently ship an arm still told that
-  charging is not its decision. It raises at import instead."""
-  with pytest.raises(AssertionError, match="RULES no longer contains"):
-    ov._swap("some other rules entirely", "Charging is not your decision", "x")
-
-
-def test_the_arm_selects_the_rules():
-  guarded = Overseer(MENU).system[0]["text"]
-  autonomous = Overseer(MENU, autonomous=True).system[0]["text"]
-  assert "Charging is not your decision" in guarded
-  assert "Charging is not your decision" not in autonomous
-  assert "LOOKING AFTER YOUR OWN POWER IS YOUR JOB" in autonomous
+def test_a_mind_is_told_the_rules():
+  text = Overseer(MENU).system[0]["text"]
+  assert "LOOKING AFTER YOUR OWN POWER IS YOUR JOB" in text
+  assert "Charging is not your decision" not in text
 
 
 # ---- what the model is shown --------------------------------------------------
@@ -113,37 +67,34 @@ def _state() -> dict:
                             "estimateWh": 1.18, "kind": "census"}]}
 
 
-def test_the_verdicts_code_computed_are_what_the_arm_takes_away():
+def test_the_verdicts_code_computed_are_what_the_mind_is_not_shown():
   """`affordableActions` and `claimable` are arithmetic code did on the
-  model's behalf, and this arm exists to find out whether the model can do
+  model's behalf, and the mind is flown to find out whether the model can do
   it. ⚠ The RAW NUMBERS all stay -- nothing is hidden except the answer."""
-  shown = ov.model_state(_state(), autonomous=True, survival=True)
+  shown = ov.model_state(_state(), survival=True)
   assert "affordableActions" not in shown and "possibleActions" not in shown
   assert "claimable" not in shown["offeredTasks"][0]
   assert shown["energyCostWh"] == {"draw": 0.85, "census": 1.18}
   assert shown["battery"]["wh"] == 3.2 and shown["battery"]["reserveWh"] == 0.9
   assert shown["offeredTasks"][0]["estimateWh"] == 1.18
-  # ...and `guarded` sees exactly what it always saw, object for object.
-  assert ov.model_state(_state(), autonomous=False) == _state()
 
 
 def test_a0_hides_the_survival_clock_and_a1_puts_it_back():
   """The ladder's first rung has to take back something #107 gave every
   world, or A0 and A1 are the same run and 'does seeing the stake change
   anything' can never be asked."""
-  assert "survival" not in ov.model_state(_state(), True, survival=False)
-  assert "survival" in ov.model_state(_state(), True, survival=True)
-  assert "survival" in ov.model_state(_state(), autonomous=False)
+  assert "survival" not in ov.model_state(_state(), survival=False)
+  assert "survival" in ov.model_state(_state(), survival=True)
 
 
 def test_the_filter_is_at_presentation_so_the_fallback_still_works():
   """⚠ The state stays WHOLE and only the view narrows. `order_runnable`
   reads `possibleActions` off the same dict and treats an absent list as
-  'nobody supplied one' -- so an autonomous world that built a thinner state
-  would quietly stop filtering unrunnable orders, which is the agent's own
+  'nobody supplied one' -- so a world that built a thinner state would
+  quietly stop filtering unrunnable orders, which is the agent's own
   fallback changing behaviour as a side effect of a prompt change."""
   state = _state()
-  ov.model_state(state, autonomous=True, survival=False)
+  ov.model_state(state, survival=False)
   assert state["possibleActions"] == ["draw", "census"], "not mutated"
   assert ov.order_runnable(MENU, "draw", state) is True
   assert ov.order_runnable(MENU, "draw", {**state, "possibleActions":
@@ -153,46 +104,44 @@ def test_the_filter_is_at_presentation_so_the_fallback_still_works():
 # ---- taking a job the pack cannot fund ----------------------------------------
 
 
-def test_an_unaffordable_offer_is_takeable_on_this_arm_and_only_this_one():
+def test_an_unaffordable_offer_is_takeable():
   """The offer filter is a rail, so refusing the `take_task` in `validate`
   would put it back at the last possible moment -- and taking a job it
-  cannot finish is precisely the mistake this arm exists to permit."""
-  _, offered, _, _ = ov.limits_from(_state(), autonomous=True)
+  cannot finish is precisely the mistake the mind is free to make."""
+  _, offered, _, _ = ov.limits_from(_state())
   assert offered == ("t_0001",)
-  _, guarded_offered, _, _ = ov.limits_from(_state())
-  assert guarded_offered == (), "the control still hides what it cannot fund"
 
 
-def test_the_task_id_is_a_grammar_on_this_arm_and_a_free_string_elsewhere():
-  """Measured (issue #115): six of the seven malformed answers in the quiet
-  guarded series were a real-looking id that was not on the board, usually
-  an OLDER one copied out of the model's own history. An enum makes it
-  unrepresentable. ⚠ Off on `guarded`, which is frozen as the control."""
-  free = MENU.schema()["properties"]["task"]
-  assert free == {"type": "string"}
+def test_the_task_id_is_a_grammar():
+  """Measured (issue #115): six of the seven malformed answers in a quiet
+  series were a real-looking id that was not on the board, usually an OLDER
+  one copied out of the model's own history. An enum makes it
+  unrepresentable."""
+  assert MENU.schema()["properties"]["task"] == {"type": "string"}
   constrained = MENU.schema(task_ids=("t_0007",))["properties"]["task"]
   assert constrained == {"type": "string", "enum": ["t_0007", ""]}
-  assert Overseer(MENU)._task_ids(("t_0007",)) is None
-  assert Overseer(MENU, autonomous=True)._task_ids(("t_0007",)) == ("t_0007",)
-  # ...and the seventh was a TRUNCATION, so the arm gets a bigger budget.
-  assert Overseer(MENU, autonomous=True).max_tokens > Overseer(MENU).max_tokens
+  assert Overseer(MENU)._task_ids(("t_0007",)) == ("t_0007",)
+  # ...and the seventh was a TRUNCATION, so a decision gets the big budget;
+  # the interrupt, one boolean and a sentence, keeps the small one.
+  assert Overseer(MENU).max_tokens == ov.MAX_TOKENS_AUTONOMOUS > ov.MAX_TOKENS
 
 
 # ---- the three rails ----------------------------------------------------------
 
 
-def test_all_three_rails_are_off_on_this_arm():
-  life = _life(autonomous=True)
+def test_all_three_rails_are_off_where_there_is_a_mind():
+  life = _life(mind=True)
   life.battery.energy_wh = 0.01                      # far below the reserve
   assert life.needs_charge is False, "the floor"
   assert life._afford_next() is True, "the gate"
   assert life.claim_budget_wh is None, "the offer filter"
 
 
-def test_all_three_rails_still_fire_on_the_control():
-  """⚠ The half that matters. `guarded` is the control and the deployed
-  world runs it: an LLM that can decline to charge bricks a watched world
-  overnight, so every rail has to survive the arm that removes them."""
+def test_all_three_rails_still_fire_with_no_mind():
+  """⚠ The half that matters. The loop with no mind decides for itself --
+  it is the day that runs when no overseer is built -- and its rails are its
+  own: with nothing to look after the pack, the floor and the gate are what
+  keep a watched world from dying overnight."""
   life = _life()
   assert life.autonomous is False
   life.battery.energy_wh = 0.01
@@ -206,53 +155,62 @@ def test_all_three_rails_still_fire_on_the_control():
   assert dear.claimable(0.0, None) is True, "...and off, it is takeable"
 
 
-@pytest.mark.parametrize("autonomous", [False, True])
+@pytest.mark.parametrize("mind", [False, True])
 def test_an_offer_the_pack_cannot_fund_is_shown_exactly_where_the_filter_is_off(
-    autonomous):
-  """Rail three is OFF on this arm, and the rules tell the robot so -- "no
-  code hides a job you cannot afford", "an offer you cannot pay for is
-  listed like any other". The claim gate read `claim_budget_wh`, but the
-  context kept filtering on `spendable_wh`, so below ~37 % pack the deployed
-  robots were shown an empty board: the rail, at presentation, under a rule
-  saying it was gone. Found with issue #333, whose `nothing_to_do` kind
-  reads the same list. Shown to fail by filtering `shown_offers` on
-  `spendable_wh` again."""
+    mind):
+  """Rail three is OFF where there is a mind, and the rules tell the robot
+  so -- "no code hides a job you cannot afford", "an offer you cannot pay
+  for is listed like any other". The claim gate read `claim_budget_wh`, but
+  the context kept filtering on `spendable_wh`, so below ~37 % pack the
+  deployed robots were shown an empty board: the rail, at presentation,
+  under a rule saying it was gone. Found with issue #333, whose
+  `nothing_to_do` kind reads the same list. Shown to fail by filtering
+  `shown_offers` on `spendable_wh` again."""
   from pluggybot.economy.tasks import TaskBoard
   board = TaskBoard(path=None)
-  life = _life(autonomous=autonomous, tasks=board)
+  life = _life(mind=mind, tasks=board)
   task = board.offer("draw_figure", "whiteboard_a", params={"program": "house"})
   life.battery.energy_wh = life.reserve_margin_wh + task.estimate_wh / 2
   assert not task.claimable(0.0, life.spendable_wh), "the pack cannot fund it"
   shown = [t["id"] for t in lc.shown_offers(life)]
-  assert shown == ([task.id] if autonomous else [])
-  if autonomous:
+  assert shown == ([task.id] if mind else [])
+  if mind:
     #  ...and the model is not told whether it can pay (AUTONOMOUS_HIDDEN_OFFER)
-    [offer] = ov.model_state({"offeredTasks": lc.shown_offers(life)},
-                             autonomous=True)["offeredTasks"]
+    [offer] = ov.model_state({"offeredTasks": lc.shown_offers(life)})["offeredTasks"]
     assert "claimable" not in offer
 
 
 def test_the_rails_are_read_in_exactly_one_place_each():
-  """One flag, three readers, and nothing else. A rail removed somewhere
-  this does not name is a rail that comes off on the deployed world too."""
-  import inspect
+  """One property, three readers, and nothing else. A rail removed somewhere
+  this does not name is a rail that comes off for the loop with no mind
+  too."""
   src = inspect.getsource(lc.HubLifecycle)
-  # NAMED, not counted: everything the arm changes in the mission loop is on
-  # this list, and adding to it is a deliberate act. Three of them are the
-  # rails; `idle_s` is a cadence, and it is here so that it cannot be
-  # mistaken for a fourth rail by whoever reads the count.
+  # NAMED, not counted: everything a mind changes in the mission loop is on
+  # this list, and adding to it is a deliberate act.
   rails = {"needs_charge": lc.HubLifecycle.needs_charge.fget,
            "_afford_next": lc.HubLifecycle._afford_next,
            "claim_budget_wh": lc.HubLifecycle.claim_budget_wh.fget}
-  other = {"idle_s": lc.HubLifecycle.idle_s.fget}
-  for name, method in {**rails, **other}.items():
+  for name, method in rails.items():
     assert "self.autonomous" in inspect.getsource(method), name
-  # one assignment in `__init__`, plus exactly these readers
-  assert src.count("self.autonomous") == 1 + len(rails) + len(other), \
-      "something else in the mission loop now branches on the arm"
+  assert src.count("self.autonomous") == len(rails), \
+      "something else in the mission loop now branches on the mind"
 
 
-# ---- the guard that would have silenced the arm -------------------------------
+def test_there_is_a_mind_exactly_where_there_is_an_overseer():
+  """⚠ READ OFF THE OVERSEER, NEVER SET (issue #427). A mind inside the
+  rails was the `guarded` control, and a flag that could disagree with
+  whether a mind is here is how it would come back: there is no parameter
+  to pass and nothing to assign. Shown to fail by putting the constructor
+  parameter back."""
+  assert "autonomous" not in inspect.signature(lc.HubLifecycle).parameters
+  life = _life()
+  with pytest.raises(AttributeError):
+    life.autonomous = True
+  life.overseer = Overseer(MENU)
+  assert life.autonomous is True and life.claim_budget_wh is None
+
+
+# ---- the guard that would have silenced the mind ------------------------------
 
 
 class _Broken:
@@ -271,14 +229,14 @@ def test_a_run_of_failed_calls_does_not_silence_the_model_for_ever(monkeypatch):
   """⚠ THE LATCH (issue #115). `MAX_IDLE_RUN` exists to stop a MODEL that
   keeps answering `idle` from burning the budget.
 
-  A failed call on `autonomous` fires the agent's STANDING ORDER -- but
-  `idle` is the floor while no order has been set, which is the state every
-  mission starts in. So counting fallbacks means two early failures take the
-  counter to the limit, `_refuse` answers `idle-run` without dispatching,
-  that answer is `idle` too, and it climbs for ever. ⚠ An order can only be
-  set by a SUCCESSFUL call, so the agent can never acquire the thing that
-  would have freed it: the trap springs only when it is defenceless, and it
-  never reopens.
+  A failed call fires the agent's STANDING ORDER -- but `idle` is the floor
+  while no order has been set, which is the state every mission starts in.
+  So counting fallbacks means two early failures take the counter to the
+  limit, `_refuse` answers `idle-run` without dispatching, that answer is
+  `idle` too, and it climbs for ever. ⚠ An order can only be set by a
+  SUCCESSFUL call, so the agent can never acquire the thing that would have
+  freed it: the trap springs only when it is defenceless, and it never
+  reopens.
 
   It would not look like a bug. It would look like the finding: a record
   full of `idle` and a robot that sat still until its pack ran out.
@@ -288,8 +246,7 @@ def test_a_run_of_failed_calls_does_not_silence_the_model_for_ever(monkeypatch):
   # one thing under test.
   monkeypatch.setattr(ov, "MAX_CONSECUTIVE_ERRORS", 99)
   client = _Broken()
-  boss = Overseer(MENU, client=client, autonomous=True, standing_orders=True,
-                  calls_per_hour=99)
+  boss = Overseer(MENU, client=client, calls_per_hour=99)
   state = {"decisions": 0, "floorExplored": True}
   for _ in range(ov.MAX_IDLE_RUN + 3):
     decision = boss.decide(state)
@@ -304,7 +261,7 @@ def test_a_run_of_failed_calls_does_not_silence_the_model_for_ever(monkeypatch):
 def test_the_guard_still_catches_a_model_that_really_will_not_stop_idling():
   """The regression half: the guard is not disabled, it is narrowed to what
   it was written for. A model ANSWERING `idle` still gets cut off."""
-  boss = Overseer(MENU, client=_Broken(), standing_orders=True)
+  boss = Overseer(MENU, client=_Broken())
   for _ in range(ov.MAX_IDLE_RUN):
     boss._record(ov.Decision(action="idle", source="llm"), {"decisions": 0})
   assert boss._refuse({"decisions": 0}) == "idle-run"
@@ -336,8 +293,7 @@ def test_a_run_of_bad_answers_does_not_back_off_a_healthy_endpoint():
   model's -- and the record read as a robot that chose to sit still and died.
   """
   client = _Garbler()
-  boss = Overseer(MENU, client=client, autonomous=True, standing_orders=True,
-                  calls_per_hour=99)
+  boss = Overseer(MENU, client=client, calls_per_hour=99)
   state = {"decisions": 0, "floorExplored": True}
   for _ in range(ov.MAX_CONSECUTIVE_ERRORS + 3):
     assert boss.decide(state).source == "fallback:garbled"
@@ -349,8 +305,7 @@ def test_a_run_of_bad_answers_does_not_back_off_a_healthy_endpoint():
 def test_a_dead_endpoint_is_still_backed_off():
   """The regression half: the guard is narrowed to what it was written for,
   not disabled. Nobody answering still buys the silence."""
-  boss = Overseer(MENU, client=_Broken(), standing_orders=True,
-                  calls_per_hour=99)
+  boss = Overseer(MENU, client=_Broken(), calls_per_hour=99)
   for _ in range(ov.MAX_CONSECUTIVE_ERRORS):
     boss.decide({"decisions": 0})
   assert boss._refuse({"decisions": 0}) == "cooloff"
@@ -371,8 +326,7 @@ def test_an_empty_board_takes_take_task_off_the_menu_for_that_call():
   assert "draw" in empty and "charge" in empty, "only that one action goes"
   # ...and it is BACK the moment something is on offer.
   assert "take_task" in MENU.schema(task_ids=("t_1",))["properties"]["action"]["enum"]
-  # ⚠ `None` is not `()`: the control does not constrain at all, so its
-  # grammar is what it always was.
+  # ⚠ `None` is not `()`: a caller with no ids to hand constrains nothing.
   assert "take_task" in MENU.schema()["properties"]["action"]["enum"]
   assert MENU.schema() == MENU.schema(task_ids=None)
 
@@ -387,8 +341,7 @@ def test_the_idle_guard_throttles_rather_than_locking():
   It is the latch from the other side: there, fallbacks fed the streak;
   here, nothing could drain it. Firing must reset.
   """
-  boss = Overseer(MENU, client=_Garbler(), autonomous=True,
-                  standing_orders=True, calls_per_hour=99)
+  boss = Overseer(MENU, client=_Garbler(), calls_per_hour=99)
   state = {"decisions": 0}
   for _ in range(ov.MAX_IDLE_RUN):
     boss._record(ov.Decision(action="idle", source="llm"), state)
@@ -408,6 +361,4 @@ def test_an_idling_robot_cannot_out_run_its_own_call_budget():
   spins on `fallback:budget`. The interval is DERIVED from the budget so the
   two cannot drift apart."""
   assert lc.AUTONOMOUS_IDLE_S == 3600.0 / ov.CALLS_PER_HOUR
-  assert _life(autonomous=True).idle_s == lc.AUTONOMOUS_IDLE_S
-  # ...and the control keeps the pause it always had.
-  assert _life().idle_s == lc.DECIDED_IDLE_S == 4.0
+  assert _life(mind=True).idle_s == lc.AUTONOMOUS_IDLE_S

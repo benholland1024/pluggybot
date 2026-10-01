@@ -3,8 +3,8 @@
 Every rule pinned without a renderer, a network or a model, in
 milliseconds: the door (an `image` inbound kind with its own byte cap,
 checked for being a JPEG), the eye (one open request, a stale picture
-dropped), the arm (`look` on `autonomous` alone, `guarded`'s menu, schema
-and prefix unchanged), the orders (never a standing order, never a map
+dropped), the mind (`look` on a mind, and on nothing else), the orders
+(never a standing order, never a map
 row), the delivery (a fake renderer answering on the socket mid-wait; the
 deadline; the picture as an IMAGE PART of the next turn and never text;
 shown once, kept across a fallback; the run cap), the build identity, and
@@ -12,7 +12,6 @@ the rule's text. The whole mission is never flown.
 """
 
 import base64
-import hashlib
 import inspect
 import json
 import math
@@ -35,7 +34,6 @@ from pluggybot.telemetry.protocol import (
   CODE_HANDLED_TYPES, INBOUND_TYPES, LOOK_OUTCOMES,
 )
 
-from test_autonomous import GUARDED_RULES_SHA
 from test_body import stub_life
 from test_overseer import FakeClient, full
 
@@ -190,30 +188,31 @@ def test_a_quadruped_looks_through_its_own_head_camera():
 # ---- the arm ----------------------------------------------------------------------
 
 
-def test_look_is_offered_on_autonomous_alone_and_guarded_is_unchanged():
-  auto = ov.build(QUAD_HOME, enabled=True, client=FakeClient(), autonomous=True)
+def test_look_is_a_minds_and_a_bare_menu_has_none_of_it():
+  auto = ov.build(QUAD_HOME, enabled=True, client=FakeClient())
   assert auto.menu.look and "look" in auto.menu.available()
   assert "look" in auto.menu.schema()["properties"]["action"]["enum"]
   assert "look" not in auto.menu.schema(look=False)["properties"]["action"]["enum"]
   assert dict(auto.sections)["LOOKING"] == ov.LOOK_RULE
-  guarded = ov.build(QUAD_HOME, enabled=True, client=FakeClient())
-  assert not guarded.menu.look and "look" not in guarded.menu.available()
-  assert "look" not in guarded.menu.schema()["properties"]["action"]["enum"]
-  assert "LOOKING" not in dict(guarded.sections)
-  assert "`look`" not in ov.RULES and "`look`" not in ov.RULES_AUTONOMOUS
-  assert hashlib.sha256(ov.RULES.encode()).hexdigest() == GUARDED_RULES_SHA
-  # The prefix's action list names it on one arm and not the other.
+  # A menu no mind was built over offers none of it, and the rules do not
+  # name it.
+  bare = Overseer(Menu.for_world(QUAD_HOME), client=FakeClient())
+  assert not bare.menu.look and "look" not in bare.menu.available()
+  assert "look" not in bare.menu.schema()["properties"]["action"]["enum"]
+  assert "LOOKING" not in dict(bare.sections)
+  assert "`look`" not in ov.RULES
+  # The prefix's action list names it where it is offered and not elsewhere.
   prefix = lambda boss: "".join(t for _, t in boss.sections)   # noqa: E731
-  assert '"look":' in prefix(auto) and '"look":' not in prefix(guarded)
+  assert '"look":' in prefix(auto) and '"look":' not in prefix(bare)
   with pytest.raises(ValueError):
-    guarded.menu.validate(full(action="look"))
+    bare.menu.validate(full(action="look"))
   assert auto.menu.validate(full(action="look")).action == "look"
   with pytest.raises(ValueError, match="off the menu"):
     auto.menu.validate(full(action="look"), look=False)
 
 
 def test_a_look_is_never_an_order_and_never_a_map_row():
-  auto = ov.build(QUAD_HOME, enabled=True, client=FakeClient(), autonomous=True)
+  auto = ov.build(QUAD_HOME, enabled=True, client=FakeClient())
   assert "look" not in auto.menu.orderable(())
   assert "look" not in auto.menu.schema(standing_orders=True)["properties"]["standing_order"]["enum"]
   with pytest.raises(ValueError, match="cannot be `look`"):
@@ -248,8 +247,7 @@ def _eyed_stub():
 
 
 def _looker(*answers, inbox=None):
-  boss = ov.build(QUAD_HOME, enabled=True, client=FakeClient(*answers),
-                  autonomous=True)
+  boss = ov.build(QUAD_HOME, enabled=True, client=FakeClient(*answers))
   life = stub_life(body=_eyed_stub(), overseer=boss, inbox=inbox)
   life.body.start_at(0.5, 3.0, math.pi / 2)
   life.max_sim_time = 0.0            # a fallback's explore ends where it starts
@@ -416,7 +414,7 @@ def test_the_run_cap_takes_look_off_the_menu_then_gives_it_back():
     life.body.close()
 
 
-def test_a_guarded_world_has_no_seen_block_and_its_turn_is_a_string():
+def test_a_mind_with_no_eye_has_no_seen_block_and_its_turn_is_a_string():
   boss = Overseer(Menu.for_world(QUAD_HOME, None), client=FakeClient())
   life = stub_life(overseer=boss)
   try:
@@ -458,7 +456,7 @@ def test_an_escalation_carries_the_picture_in_its_own_backends_shape():
 
 
 def test_the_picture_never_reaches_any_turn_as_text_including_an_interrupt():
-  """`model_state` is where the bytes leave, on every arm, so the ONE turn
+  """`model_state` is where the bytes leave, for every turn, so the ONE turn
   that is built off the state without `_user_content` -- the mid-errand
   interrupt -- carries no base64 either. Shown to fail with the strip in
   `_user_content` alone: an interrupt fired while a picture waited on
@@ -468,15 +466,15 @@ def test_the_picture_never_reaches_any_turn_as_text_including_an_interrupt():
   b64 = base64.b64encode(JPEG).decode()
   state = {"battery": {"fraction": 0.1, "wh": 0.1}, "looksLeft": 1,
            "seen": [{"id": "look:pluggybot:1", "image": "attached", "jpeg": b64}]}
-  for autonomous in (False, True):
-    shown = ov.model_state(state, autonomous)
+  for survival in (False, True):
+    shown = ov.model_state(state, survival=survival)
     assert "jpeg" not in json.dumps(shown) and shown["seen"][0]["image"] == "attached"
   assert ov._pictures(state) == [b64]
   assert state["seen"][0]["jpeg"] == b64, "the raw state keeps it for the image part"
-  assert ov.model_state({"battery": {}}, False) is not None
+  assert ov.model_state({"battery": {}}) is not None
   # ...and the interrupt's own turn.
-  assert b64[:32] not in ov._interrupt_turn(ov.model_state(state, True), "draw", "low")
-  auto = ov.build(QUAD_HOME, enabled=True, autonomous=True,
+  assert b64[:32] not in ov._interrupt_turn(ov.model_state(state), "draw", "low")
+  auto = ov.build(QUAD_HOME, enabled=True,
                   client=FakeClient({"continue_errand": True, "reason": "nearly done"}))
   auto.start_interrupt(state, "draw", "your pack is at 10%")
   while auto.interrupt_pending:
@@ -530,16 +528,14 @@ def test_a_stop_thrown_into_a_look_closes_the_request():
 
 def test_the_eye_can_be_switched_off_for_a_mind_that_takes_no_picture(monkeypatch):
   monkeypatch.setenv(ov.LOOK_ENV, "0")
-  off = ov.build(QUAD_HOME, enabled=True, client=FakeClient(), autonomous=True)
+  off = ov.build(QUAD_HOME, enabled=True, client=FakeClient())
   assert not off.menu.look and "look" not in off.menu.available()
   assert "LOOKING" not in dict(off.sections)
   monkeypatch.delenv(ov.LOOK_ENV)
-  on = ov.build(QUAD_HOME, enabled=True, client=FakeClient(), autonomous=True)
+  on = ov.build(QUAD_HOME, enabled=True, client=FakeClient())
   assert on.menu.look
   assert not ov.build(QUAD_HOME, enabled=True, client=FakeClient(),
-                      autonomous=True, look=False).menu.look
-  guarded = ov.build(QUAD_HOME, enabled=True, client=FakeClient(), look=True)
-  assert not guarded.menu.look, "the knob turns the eye off, never on"
+                      look=False).menu.look
 
 
 def test_a_heading_is_reported_wrapped():
@@ -553,7 +549,7 @@ def test_which_model_looked_is_in_the_build_identity_and_absent_without_an_eye()
   seen = build_identity(QUAD_HOME, arm="autonomous", model="org/m:cheapest",
                         backend="huggingface", eyes="org/m:cheapest", commit="abc")
   assert seen["eyes"] == "org/m:cheapest" and seen["model"] == "org/m:cheapest"
-  blind = build_identity(QUAD_HOME, arm="guarded", model="org/m", backend="huggingface",
+  blind = build_identity(QUAD_HOME, arm="autonomous", model="org/m", backend="huggingface",
                          commit="abc")
   assert "eyes" not in blind
 

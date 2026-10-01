@@ -307,7 +307,7 @@ def _named(rule: str, section: str) -> set:
 def test_a_rule_names_only_what_its_world_lets_a_program_use():
   # A rule lists only the axes and sensors its world's validator admits
   # (found in review, #405: one listed joints its validator refused).
-  rule = ov.procedure_rule(False)
+  rule = ov.procedure_rule()
   facts = world_facts(QUAD_HOME)
   assert _named(rule, "\nAXES for") <= set(facts.axes)
   assert _named(rule, "\nSENSORS for") <= set(facts.sensors)
@@ -355,6 +355,6 @@ def test_a_legged_program_moves_its_own_arm_and_no_other_bodys_axis():
                          '  if read("elbow") < 0:\n    move("elbow", -1.0)\n', facts)
   with pytest.raises(st.Refused, match="lift"):
     lang.compile_procedure('def lift():\n  move("lift", 0.1)\n', facts)
-  rule = ov.procedure_rule(False)
+  rule = ov.procedure_rule()
   assert "  shoulder: -1.2..3.4 rad" in rule and "  elbow -- the arm's elbow" in rule
   assert "lift" not in rule.split("AXES")[1]

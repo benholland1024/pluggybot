@@ -34,10 +34,8 @@ def main() -> None:
   ap.add_argument("--boards", default=None, metavar="PATH")
   ap.add_argument("--overseer", action="store_true",
                   help="two MINDS (issue #167 slice C): each robot its own "
-                       "overseer, thought files, wallet and library")
-  ap.add_argument("--autonomous", action="store_true",
-                  help="both minds on the autonomous arm (rails off, standing "
-                       "orders, procedures)")
+                       "overseer, thought files, wallet and library, with the "
+                       "rails off and its own standing orders")
   ap.add_argument("--tasks", action="store_true", help="one shared task board")
   ap.add_argument("--metabolism", action="store_true",
                   help="points are food, for both robots (each its own "
@@ -71,9 +69,7 @@ def main() -> None:
   results = run_demo_pair(world=world_for(args.world), max_sim_time=args.max_sim_time,
                           view=args.view, realtime=not args.fast, pack=args.pack,
                           errands=errands, board_state=args.boards,
-                          overseer=args.overseer or None,
-                          autonomous=args.autonomous,
-                          standing_orders=args.autonomous, tasks=args.tasks,
+                          overseer=args.overseer or None, tasks=args.tasks,
                           metabolism=args.metabolism,
                           near_field=args.near_field,
                           thoughts_root=args.thoughts, names=names,

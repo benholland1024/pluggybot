@@ -405,7 +405,7 @@ def test_the_cap_is_not_an_income_limit(tmp_path):
       "the cap should bound hoarding, not the ability to buy one heart"
 
 
-def test_the_robot_is_shown_its_hearts_on_every_arm(tmp_path):
+def test_the_robot_is_shown_its_hearts_on_every_rung(tmp_path):
   """⚠ TOP LEVEL, NOT INSIDE `survival`. A0 hides that whole block to hide
   the CLOCK, so hearts put in there would be invisible on the one arm whose
   subject is what the agent does about staying alive -- and MORTAL_RULE would
@@ -414,7 +414,6 @@ def test_the_robot_is_shown_its_hearts_on_every_arm(tmp_path):
   life = _life(points_per_hour=0.0, balance=40, tmp_path=tmp_path)
   ctx = ov.context_for(life, thoughts=life.thoughts)
   assert ctx["hearts"] == HEARTS and ctx["heartPrice"] == ov.HEART_PRICE
-  for autonomous in (False, True):
-    for survival in (False, True):
-      shown = ov.model_state(ctx, autonomous, survival)
-      assert shown["hearts"] == HEARTS, (autonomous, survival)
+  for survival in (False, True):
+    shown = ov.model_state(ctx, survival=survival)
+    assert shown["hearts"] == HEARTS, survival

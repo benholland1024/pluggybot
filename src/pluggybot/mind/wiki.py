@@ -7,8 +7,8 @@ to meet ideas from outside its world -- something to think about, to talk
 about with visitors and the other robot, to draw, to turn into a goal --
 and the metric is whether an idea can be TRACED from a lookup into any of
 those (`evaluation/qualities.py`, `ideas_traced`). It feeds quality five
-(goal creation) and quality four (creativity), and it is offered on the
-`autonomous` arm alone, so `guarded`'s prefix is unchanged.
+(goal creation) and quality four (creativity), and it is a mind's (the
+loop with no mind reads nothing).
 
 Four rules, and they are the whole design:
 
@@ -180,7 +180,7 @@ def failure(e: BaseException) -> str:
 
 class Wiki:
   """The library's desk: the throttle, the fetch, and the record of every
-  read. One per mind, held by the `Overseer` on `autonomous` alone.
+  read. One per mind, held by the `Overseer`.
 
   `ledger` is what pays the throttle off; None means a refusal stands.
   `clock` is injected as `Overseer.clock` is, so a test need not wait ten

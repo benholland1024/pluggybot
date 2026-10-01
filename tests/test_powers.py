@@ -16,7 +16,7 @@ pinned here, all in milliseconds:
 
   1. the two-way fence -- every field the schema offers has a door, and the
      index invents none -- read off ONE build so the flags cannot drift;
-  2. `guarded` is untouched: no key, no preamble, no moved prefix;
+  2. every mind carries it and its preamble, a bare one too;
   3. a power this world does not offer is not in the index either;
   4. every entry ends at a section this prefix actually carries, and no
      entry hands the agent the answer (EVENT_MAP_RULE's rule, which applies
@@ -24,7 +24,6 @@ pinned here, all in milliseconds:
   5. the fields the index deliberately does not name, and why.
 """
 
-import hashlib
 import json
 from dataclasses import replace
 
@@ -35,7 +34,6 @@ from pluggybot.mind import overseer as ov
 from pluggybot.mind.overseer import Menu
 from pluggybot.lifecycle import board_book
 
-from test_autonomous import GUARDED_RULES_SHA
 from test_overseer import FakeClient
 
 #: What `world_config` says of the one world, overridden for a gate it does
@@ -60,10 +58,9 @@ def built(world_is=None, **kw):
   """A maximal build: every gate the index reads, on. The board book comes
   with it because `draw` is how `board` and `program` are described, where a
   body takes a tool."""
-  kw.setdefault("autonomous", True)
   return build(world_is, book=board_book("home_quad"),
                hearts=True, mortal=True, appetite=True,
-               standing_orders=True, origin="unseeded",
+               origin="unseeded",
                others=("Rowan",),
                escalate_to="Qwen/Qwen3-235B-A22B-Instruct-2507", **kw)
 
@@ -72,7 +69,7 @@ def schema_of(boss):
   """The grammar THIS build sends, read through the same expressions
   `_decide` reads it through -- not a second opinion about the flags."""
   return boss.menu.schema(escalation=boss.can_escalate,
-                          standing_orders=boss.standing_orders,
+                          standing_orders=True,
                           hearts=boss.hearts,
                           event_map=boss.event_map is not None,
                           task_ids=("t_0001",),
@@ -133,12 +130,11 @@ def test_every_field_the_schema_offers_has_a_door_and_the_index_invents_none(
   lambda: built(),
   lambda: built(RAIL),
   lambda: built(NO_LAB),
-  lambda: build(autonomous=True, standing_orders=True),
+  lambda: build(),
   # ⚠ THE ONE THAT BROKE IT. With the pointer written into the line,
   # `hearts` without `mortal` -- a build `build()` accepts -- indexed
   # `buy_heart` with "See YOU CAN DIE." and there was no such section.
-  lambda: build(autonomous=True, hearts=True, mortal=False,
-                standing_orders=True, origin="unseeded"),
+  lambda: build(hearts=True, mortal=False, origin="unseeded"),
 ], ids=["everything", "rail", "no-lab", "no-map", "hearts-without-mortal"])
 def test_every_entry_ends_at_a_section_this_prefix_carries(make):
   """An index entry is only worth its line if the manual is where it says,
@@ -175,31 +171,23 @@ def test_an_action_parameter_is_named_by_the_action_it_belongs_to():
       assert f"`{name}`" in actions, f"{name} is named by no action"
 
 
-# ---- 2. the control does not move ----------------------------------------------
+# ---- 2. every mind is shown the index -----------------------------------------
 
 
-def test_the_index_is_absent_on_guarded_and_its_prefix_is_byte_identical():
-  """⚠ `guarded` IS THE CONTROL (docs/Evaluation.md §2): its prefix is
-  byte-identical to the flown one, so the key is ABSENT rather than empty
-  and the preamble that explains it is absent with it. Every power at issue
-  here is `autonomous`-only anyway.
-
-  The sha below is the guarded prefix of the one world, `home_quad` (#376:
-  the same bytes before the rover left and after)."""
-  guarded = build()
-  text = guarded.system[0]["text"]
-  assert '"fields"' not in text and "`fields` are what you may set" not in text
-  # ⚠ ...and the ARM is the only thing suppressing it: this menu has powers
-  # to index, and eleven of them are the ones `autonomous` shares with the
-  # control. That is the whole cost of keeping the control frozen, stated
-  # here so it is reversed deliberately rather than found by accident.
-  assert {"pin", "note", "intend", "respond_to"} <= set(guarded.menu.fields())
-  assert hashlib.sha256(text.encode()).hexdigest() == \
-      "7df56548053a740c2e806995b2602e8980b779a5f2edc2af770fc498a4737f6c"
-  assert hashlib.sha256(ov.RULES.encode()).hexdigest() == GUARDED_RULES_SHA
+def test_every_mind_carries_the_index_and_its_preamble():
+  """The index was gated on the `autonomous` arm so the `guarded` control's
+  prefix could stay byte-identical; with the control retired (issue #427)
+  every mind is shown it -- a bare one too, whose powers are the ones every
+  mind has (the visitor channel, the memory, the goals) and its standing
+  order. Shown to fail by putting an arm gate back in `system_sections`."""
+  bare = ov.Overseer(Menu.for_world("home_quad"), client=FakeClient())
+  text = bare.system[0]["text"]
+  assert '"fields"' in text and "`fields` are what you may set" in text
+  assert {"pin", "note", "intend", "respond_to",
+          "standing_order"} <= set(fields_of(bare))
   # ...and the heading the site reads sections by is the one it was.
-  assert dict(guarded.sections)["WHAT YOU CAN DO, AND WHERE"].startswith(
-    "WHAT YOU CAN DO, AND WHERE\n{")
+  assert dict(bare.sections)["WHAT YOU CAN DO, AND WHERE"].startswith(
+    "WHAT YOU CAN DO, AND WHERE\n`actions` is the ONE thing")
 
 
 # ---- 3. a power this world does not offer --------------------------------------
@@ -259,7 +247,7 @@ def test_a_world_with_no_escalation_and_no_hearts_is_offered_neither():
   """The same rule on the two flags that are the BUILD's rather than the
   menu's: a lever that does nothing must not be offered (ESCALATION_RULE's
   terms), and the index is a place a dead lever could hide."""
-  plain = build(autonomous=True, standing_orders=True, origin="unseeded")
+  plain = build(origin="unseeded")
   fields = fields_of(plain)
   assert "escalate" not in fields and "buy_heart" not in fields
   assert not {"escalate", "buy_heart"} & set(schema_of(plain)["required"])
@@ -275,14 +263,18 @@ def test_the_menu_flags_and_the_per_call_tuples_say_the_same_thing():
   without its object, or an object built without its flag, breaks the
   fence above silently; it breaks this loudly."""
   for world_is in (None, RAIL):
-    boss = build(world_is, autonomous=True, others=("Rowan",))
+    boss = build(world_is, others=("Rowan",))
     assert (boss._procedures() is not None) == boss.menu.procedures
     assert (boss._tools() is not None) == boss.menu.workshop == bool(world_is)
     assert (boss._ticket_ids({}) is not None) == boss.menu.tickets
-    assert (boss._acts() is not None) == bool(boss.others and boss.autonomous)
-    guarded = build(world_is, others=("Rowan",))
-    assert guarded._procedures() is None and not guarded.menu.procedures
-    assert guarded._acts() is None, "the acts are the autonomous arm's"
+    assert (boss._acts() is not None) == bool(boss.others)
+  # ...and a mind built by hand, with none of the objects, has none of the
+  # flags: the same agreement from the other side.
+  bare = ov.Overseer(Menu.for_world("home_quad"), client=FakeClient())
+  assert bare._procedures() is None and not bare.menu.procedures
+  assert bare._tools() is None and not bare.menu.workshop
+  assert bare._ticket_ids({}) is None and not bare.menu.tickets
+  assert bare._acts() is None
 
 
 # ---- 4. no entry hands the agent the answer ------------------------------------
@@ -344,7 +336,7 @@ def test_the_standing_order_keeps_its_entry_until_the_list_replaces_it():
   assert "standing_order" not in fields_of(with_map)
   assert "standing_order" in schema_of(with_map)["required"]
   assert "IF YOU CANNOT BE REACHED" not in dict(with_map.sections)
-  no_map = build(autonomous=True, standing_orders=True)
+  no_map = build()
   assert no_map.event_map is None
   fields = fields_of(no_map)
   assert "standing_order" in fields

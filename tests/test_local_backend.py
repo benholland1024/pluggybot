@@ -4,7 +4,7 @@ Issue #15 gave the overseer one client seam and two vendors; this is the
 third and fourth -- a model on this machine (ollama, llama.cpp) and somebody
 else's OpenAI-compatible endpoint -- and the claim under test is that the
 decision loop cannot tell. Everything that made the Anthropic path safe (the
-call budget, the cool-off, the timeout, the tagged `fallback:<why>` rotation)
+call budget, the cool-off, the timeout, the tagged `fallback:<why>`)
 is asserted here against a LOCAL endpoint, because a local backend that
 stalls is the same failure as an API that times out and the guards are the
 only reason either is survivable.
@@ -137,7 +137,8 @@ def test_a_local_request_carries_no_key_and_the_menu_as_a_schema():
   an empty `Bearer` is a request some servers reject outright."""
   fetch = fake_fetch([ok(answer())])
   boss = local_overseer(fetch)
-  boss.decide({"decisions": 0})
+  # ...with a job on the board, or `take_task` leaves the enum (issue #115)
+  boss.decide({"decisions": 0, "offeredTasks": [{"id": "t_1", "claimable": True}]})
   call = fetch.calls[0]
   assert call["url"] == f"{llm.LOCAL_URL}/chat/completions"
   assert "Authorization" not in call["headers"]

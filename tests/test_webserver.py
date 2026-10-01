@@ -739,11 +739,12 @@ class _FakeLife:
     # it; serve.py ASSERTS that rather than setting it, so the rule lives
     # in the lifecycle alone.
     self.mortal = kw.get("inbox") is not None
-    # What the header's build identity is read off (issue #132): whether the
-    # three rails are off, and the two world parameters the pack is flown
+    # What the header's build identity is read off (issue #132): whether
+    # there is a mind (the real lifecycle's property: the rails are off
+    # exactly there, #427), and the two world parameters the pack is flown
     # with. Held off the kwargs for the mode hooks' reason above -- the real
     # lifecycle always has all three.
-    self.autonomous = bool(kw.get("autonomous", False))
+    self.autonomous = kw.get("overseer") is not None
     self.battery = types.SimpleNamespace(capacity_wh=kw.get("battery_wh"))
     self.low_battery_wh = kw.get("low_battery_wh")
     # ...and which robot (issue #167) and which memory (issue #263): the
@@ -1285,34 +1286,30 @@ def test_a_served_world_puts_a_lost_tool_back_and_an_unserved_one_does_not(monke
 
 
 def test_the_served_arm_and_the_flown_arm_are_one_definition(monkeypatch):
-  """Issue #142's shape rule. `serve.py` could REPORT an arm and not set one:
-  its identity read `autonomous` off `life.autonomous`, which nothing on that
-  path could make True, so the branch was unreachable and the deployed world
-  could only ever be `guarded`.
-
-  The fix is one definition with two importers, and this is what says so:
-  for every built arm, what the SERVED world wires up is `arm_flags`' own
-  answer, field by field. A second definition written to match would pass
-  today and drift the first time one of them learns about a flag.
+  """Issue #142's shape rule: one definition with two importers. For every
+  built arm, what the SERVED world wires up is `arm_flags`' own answer,
+  field by field. A second definition written to match would pass today and
+  drift the first time one of them learns about a flag.
   """
-  from pluggybot.evaluation.arms import arm_flags
+  from pluggybot.evaluation.arms import BUILT_ARMS, arm_flags
   from pluggybot.mind import overseer as overseer_mod
 
   monkeypatch.setenv(overseer_mod.MODEL_ENV, "Qwen/Qwen3-4B-Instruct-2507")
-  for arm in ("scripted", "guarded", "autonomous"):
+  assert BUILT_ARMS == ("scripted", "autonomous")
+  for arm in BUILT_ARMS:
     flags = arm_flags(arm)
     life, pub, _ = _serve_wiring(monkeypatch, ["--world", "home", "--free-run",
                                                "--arm", arm])
     boss = life.init_kwargs["overseer"]
+    # ...and whether there is a mind is the whole of what the RAILS read
+    # (`HubLifecycle.autonomous`): nothing else is handed to the lifecycle.
     assert (boss is not None) is flags["overseer"], arm
-    # The rails, whose ONLY reader is the lifecycle.
-    assert life.init_kwargs["autonomous"] is flags.get("autonomous", False)
+    assert "autonomous" not in life.init_kwargs
     if boss is not None:
-      # ...and the two an arm means to the MIND: whose the fallback is, and
-      # whether the robot may see its own survival clock.
-      assert boss.standing_orders is flags["standing_orders"], arm
+      # ...and the two an arm means to the MIND: the map it starts with,
+      # and whether the robot may see its own survival clock.
+      assert boss.origin == flags["origin"], arm
       assert boss.show_survival is flags.get("show_survival", True), arm
-      assert boss.autonomous is flags.get("autonomous", False), arm
     assert pub.init_kwargs["build"]["arm"] == arm
 
 
@@ -1328,7 +1325,7 @@ def test_a_served_autonomous_world_says_so_in_its_header(monkeypatch):
                                              "--arm", "autonomous"])
   identity = pub.init_kwargs["build"]
   assert identity["arm"] == "autonomous"
-  assert life.init_kwargs["autonomous"] is True
+  assert life.init_kwargs["overseer"] is not None
   # An unnamed rung is A0, the null -- recorded rather than inferred, since
   # A0 and A1 differ by what the robot is shown.
   assert identity["rung"] == DEFAULT_RUNG
@@ -1345,15 +1342,11 @@ def test_a_served_autonomous_world_says_so_in_its_header(monkeypatch):
 def test_a_rung_is_absent_where_there_is_no_ladder(monkeypatch):
   """The one place the `build` block departs from `model`/`backend`, which
   are null on an arm with no mind. "Which mind" is a question every arm
-  answers; "which rung" is not one `guarded` has an answer to, and a
-  `"rung": null` beside `"arm": "guarded"` invites a reader to look for a
-  ladder that is not there.
-
-  It also keeps a `guarded` header -- the DEPLOYED world's -- byte-identical
-  to the one issue #132 shipped, which is a property that took trouble to
-  establish."""
+  answers; "which rung" is not one `scripted` has an answer to, and a
+  `"rung": null` beside `"arm": "scripted"` invites a reader to look for a
+  ladder that is not there."""
   _, pub, _ = _serve_wiring(monkeypatch, ["--world", "home", "--free-run",
-                                          "--arm", "guarded"])
+                                          "--arm", "scripted"])
   assert "rung" not in pub.init_kwargs["build"]
   _, pub, _ = _serve_wiring(monkeypatch, ["--world", "home", "--free-run"])
   assert "rung" not in pub.init_kwargs["build"]
@@ -1371,27 +1364,38 @@ def test_the_arm_comes_from_the_environment_too(monkeypatch):
   life, pub, _ = _serve_wiring(monkeypatch, ["--world", "home", "--free-run"])
   assert pub.init_kwargs["build"]["arm"] == "autonomous"
   assert pub.init_kwargs["build"]["rung"] == "A1"
-  assert life.init_kwargs["autonomous"] is True
+  assert life.init_kwargs["overseer"] is not None
 
 
-def test_an_unnamed_arm_changes_nothing_at_all(monkeypatch):
-  """The regression arm (issue #142). Every deployment, demo and mission
-  test predates `--arm`, so an unset one must leave the overseer flag
-  deciding exactly as it did -- the same rule `--tasks` and `--metabolism`
-  are off under."""
+def test_an_unnamed_arm_is_what_the_overseer_flag_says(monkeypatch):
+  """Issue #142's regression arm, as #427 leaves it: with no `--arm`, the
+  overseer flag (or $PLUGGY_OVERSEER) still decides whether there is a mind
+  -- and a mind is THE mind, `autonomous` on its defaults, so the header
+  names the rung and the origin it ran (A0, `none`) rather than leaving them
+  out. Shown to fail by building the unnamed mind on `build()`'s defaults,
+  which show the survival clock under a header that names no rung."""
   from pluggybot.mind import overseer as overseer_mod
 
   monkeypatch.setenv(overseer_mod.MODEL_ENV, "Qwen/Qwen3-4B-Instruct-2507")
+  monkeypatch.delenv(overseer_mod.ENABLE_ENV, raising=False)
   life, pub, _ = _serve_wiring(monkeypatch, ["--world", "home", "--free-run"])
   assert life.init_kwargs["overseer"] is None
-  assert life.init_kwargs["autonomous"] is False
   assert pub.init_kwargs["build"]["arm"] == "scripted"
+  for argv, env in ((["--overseer"], None), ([], "1")):
+    if env:
+      monkeypatch.setenv(overseer_mod.ENABLE_ENV, env)
+    life, pub, _ = _serve_wiring(monkeypatch, ["--world", "home", "--free-run", *argv])
+    boss = life.init_kwargs["overseer"]
+    assert boss is not None and boss.show_survival is False, argv
+    assert boss.event_map is None, "origin `none`: no map"
+    assert pub.init_kwargs["build"]["arm"] == "autonomous"
+    assert pub.init_kwargs["build"]["rung"] == "A0"
+  # ...and a NAMED arm outranks $PLUGGY_OVERSEER: `scripted` turns the mind
+  # off rather than being refused as a contradiction of the environment.
   life, pub, _ = _serve_wiring(monkeypatch, ["--world", "home", "--free-run",
-                                             "--overseer"])
-  boss = life.init_kwargs["overseer"]
-  assert boss is not None and boss.standing_orders is False
-  assert boss.show_survival is True and life.init_kwargs["autonomous"] is False
-  assert pub.init_kwargs["build"]["arm"] == "guarded"
+                                             "--arm", "scripted"])
+  assert life.init_kwargs["overseer"] is None
+  assert pub.init_kwargs["build"]["arm"] == "scripted"
 
 
 @pytest.mark.parametrize("argv, complaint", [
@@ -1399,8 +1403,10 @@ def test_an_unnamed_arm_changes_nothing_at_all(monkeypatch):
   (["--overseer", "--arm", "scripted"], "contradicts"),
   # A rung on an arm with no ladder does NOTHING, and somebody who typed it
   # believes they changed what the robot can see.
-  (["--arm", "guarded", "--rung", "A1"], "no ladder"),
+  (["--arm", "scripted", "--rung", "A1"], "no ladder"),
   (["--rung", "A0"], "autonomous"),
+  # ...and the retired control is not an arm at all (issue #427).
+  (["--arm", "guarded"], "invalid choice"),
 ])
 def test_an_arm_that_cannot_be_flown_is_refused_rather_than_resolved(
     monkeypatch, capsys, argv, complaint):
@@ -1417,10 +1423,24 @@ def test_an_arm_that_cannot_be_flown_is_refused_rather_than_resolved(
   assert complaint in capsys.readouterr().err
 
 
+def test_a_retired_arm_named_in_the_environment_is_refused(monkeypatch, capsys):
+  """`$PLUGGY_ARM=guarded` reaches `arm_flags` past argparse's choices (a
+  default is never checked against them), and is refused there by name
+  rather than flown as something else: a stream claiming an arm nobody flew
+  is the failure `evaluation/arms.py` exists to prevent."""
+  from pluggybot.evaluation.arms import ARM_ENV
+  monkeypatch.setenv(ARM_ENV, "guarded")
+  serve = _load_serve()
+  monkeypatch.setattr(sys, "argv", ["serve.py", "--free-run"])
+  with pytest.raises(SystemExit):
+    serve.main()
+  assert "'guarded' is not built" in capsys.readouterr().err
+
+
 def test_the_arm_and_the_mind_come_off_the_overseer_that_was_built(monkeypatch):
-  """`guarded` is the deployed arm and it should SAY so rather than be
-  assumed -- and which model, by which road, since the same id on the router
-  and served locally are different regimes."""
+  """The arm a run flew should be SAID rather than assumed -- and which
+  model, by which road, since the same id on the router and served locally
+  are different regimes."""
   from pluggybot.mind import overseer as overseer_mod
 
   monkeypatch.setenv(overseer_mod.MODEL_ENV, "Qwen/Qwen3-4B-Instruct-2507")
@@ -1429,7 +1449,7 @@ def test_the_arm_and_the_mind_come_off_the_overseer_that_was_built(monkeypatch):
   identity = pub.init_kwargs["build"]
   boss = pub.init_kwargs["steering"]
   assert boss is True
-  assert identity["arm"] == "guarded"
+  assert identity["arm"] == "autonomous"
   assert identity["model"] == "Qwen/Qwen3-4B-Instruct-2507"
   assert identity["backend"] == "huggingface"
   assert identity["deadlineS"] == overseer_mod.CALL_TIMEOUT_S

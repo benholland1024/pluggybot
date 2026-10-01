@@ -12,7 +12,7 @@ never earns it is a finding about the robot.
 
   --feature hide_and_seek
                     the pair's GAME (issue #404): offered as the cadence
-                    offers it on `autonomous`, both roles claimed -- the
+                    offers it to a pair with minds, both roles claimed -- the
                     hider first -- each robot's role run from the queue
                     the referee fills, the referee's verdict banked on the
                     winner; one game a scene (`--scene`, both ways round
@@ -51,8 +51,9 @@ from pluggybot.tick import MissionAborted
 
 class _Mind:
   """What the lifecycle reads off an overseer on a job's path: a library
-  (the mark of the autonomous arm, where the lab's jobs are offered) and
-  nothing that decides. The prediction is the script's, not a model's."""
+  (the mark of a mind, where the lab's jobs are offered) and nothing that
+  decides. The prediction is the script's, not a model's. Its presence is
+  also what takes the rails off (`HubLifecycle.autonomous`)."""
   event_map = None
   pending = None
   interrupt_pending = None
@@ -81,7 +82,7 @@ def build_life(view: bool, state_dir: str):
                       low_battery_wh=cfg["low_battery_wh"],
                       ledger=Ledger(path=str(Path(state_dir) / "ledger.json")),
                       tasks=TaskBoard(path=str(Path(state_dir) / "tasks.json")),
-                      autonomous=True, overseer=_Mind(), near_field=True)
+                      overseer=_Mind(), near_field=True)
   acts = home_activities(model, data)
   life.body.step_hooks.append(acts.step_hook(model, data))
   life.activities = acts
@@ -93,7 +94,7 @@ def build_pair_lives(robot: int, state_dir: str, world: str = QUAD_HOME):
   and robot `robot` (1 or 2) given the job's mind and a task board."""
   from pluggybot.pair import build_pair
   lives = build_pair(world, pack="hosting", errands=("none", "none"),
-                     autonomous=True, overseer=False, near_field=True)
+                     overseer=False, near_field=True)
   life = lives[robot - 1]
   life.overseer = _Mind()
   life.tasks = TaskBoard(path=str(Path(state_dir) / "tasks.json"))
@@ -203,21 +204,23 @@ GAME_SCENES = {
 
 
 def build_game_pair(state_dir: str):
-  """The home pair as served, on `autonomous` -- where the game is offered
-  -- with a task board and the pair's referee, and nothing offering work:
-  the games are put up one at a time here. Both maps laid from the true
-  floor (`unknown_spike.true_floor`)."""
+  """The home pair as served, each robot with the job's mind (`_Mind`:
+  the game is offered where there are minds, and a mind takes the rails
+  off) on a shared task board, and nothing offering work: the games are
+  put up one at a time here, each refereed by the pair's referee
+  (`arrange_game`). Both maps laid from the true floor
+  (`unknown_spike.true_floor`)."""
   from unknown_spike import true_floor
 
   from pluggybot.pair import build_pair
   lives = build_pair(QUAD_HOME, pack="hosting", errands=("none", "none"),
-                     autonomous=True, overseer=False, near_field=True,
+                     overseer=False, near_field=True,
                      tasks=True, task_state=str(Path(state_dir) / "tasks.json"),
                      ledger_state=str(Path(state_dir) / "ledger.json"),
                      thoughts_root=str(Path(state_dir) / "thoughts"))
   lives[0].producer = None
-  assert lives[0].game is not None, "no referee: is hide_and_seek in home_quad's cadence?"
   for life in lives:
+    life.overseer = _Mind()
     grid = life.body.mission.grid
     grid.grid[:] = true_floor(life.model, grid)
   return lives

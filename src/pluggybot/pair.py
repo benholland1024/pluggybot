@@ -56,8 +56,8 @@ def build_pair(world: str = QUAD_HOME, pack: str = "demo",
                errands=("none", "none"), board_state: str | None = None,
                view: bool = False, realtime: bool = False,
                handles: tuple = (FIRST, SECOND), names: tuple | None = None,
-               overseer: bool | None = None, autonomous: bool = False,
-               origin: str = ev.DEFAULT_ORIGIN, standing_orders: bool = False,
+               overseer: bool | None = None,
+               origin: str = ev.DEFAULT_ORIGIN,
                thoughts_root: str | None = None, ledger_state: str | None = None,
                tasks: bool = False, metabolism: bool = False,
                mortal: bool | None = None, task_state: str | None = None,
@@ -130,16 +130,13 @@ def build_pair(world: str = QUAD_HOME, pack: str = "demo",
   names = names or (robot_display_name(None),
                     robot_display_name(os.environ.get(SECOND_NAME_ENV)
                                        or DEFAULT_SECOND_NAME))
-  # The world's task board, once, and its producer on the FIRST robot only.
+  # The world's task board, once, and its producer on the FIRST robot only
+  # -- built below, with the minds.
   tasks = tasks or task_state is not None
   beat = default_cadence(world) if tasks else None
   board = (task_board(task_state, cadence=beat, world=world, rebase=resume is None)
            if tasks else None)
-  # ...told both names, so a job done TO a robot (issue #228) can name
-  # one; the target exists on the `autonomous` arm alone.
-  maker = (task_producer(board, world, book, beat, procedures=autonomous,
-                         robots=names)
-           if board is not None else None)
+  maker = None
   appetite = Appetite.load(world) if metabolism else None
   # ONE ledger file, one ACCOUNT per robot (issue #167 slice E): separate
   # wallets, one state, and every entry on the wire names its robot. Each
@@ -153,9 +150,9 @@ def build_pair(world: str = QUAD_HOME, pack: str = "demo",
   thoughts_root = thoughts_root or os.environ.get(ROOT_ENV, "").strip() or None
   # Which constitution each robot reads (issue #263): named here, else
   # each robot's own environment variable, else the library's default.
-  charters = tuple(constitutions.for_body(constitutions.resolve(
-    (constitutions_named or (None, None))[i], env=CONSTITUTION_ENVS[i]),
-    cfg["body"]) for i in range(len(handles)))
+  charters = tuple(constitutions.resolve(
+    (constitutions_named or (None, None))[i], env=CONSTITUTION_ENVS[i])
+    for i in range(len(handles)))
   for i, (handle, errand, name) in enumerate(zip(handles, errands, names)):
     if i == 0:
       memory = ThoughtFiles.open(thoughts_root, robot=handle.root,
@@ -169,12 +166,16 @@ def build_pair(world: str = QUAD_HOME, pack: str = "demo",
               if appetite else None)
     boss = ov.build(world, book, enabled=overseer, thoughts=memory,
                     robot_name=name, ledger=ledger,
-                             appetite=hunger is not None, mortal=bool(mortal),
-                             hearts=bool(mortal) and ledger is not None,
-                             standing_orders=standing_orders, origin=origin,
-                             autonomous=autonomous,
-                             others=tuple(n for n in names if n != name),
-                             **(overseer_kw or {}))
+                    appetite=hunger is not None, mortal=bool(mortal),
+                    hearts=bool(mortal) and ledger is not None,
+                    origin=origin,
+                    others=tuple(n for n in names if n != name),
+                    **(overseer_kw or {}))
+    if i == 0 and board is not None:
+      # ...told both names, so a job done TO a robot (issue #228) can name
+      # one; the target exists where there is a mind to take it.
+      maker = task_producer(board, world, book, beat,
+                            procedures=boss is not None, robots=names)
     life = HubLifecycle(model, data, viewer=viewer if i == 0 else None,
                         realtime=realtime, battery_wh=battery_wh or default_wh,
                         rack=cfg["rack"], grid_bounds=cfg["grid_bounds"],
@@ -188,7 +189,7 @@ def build_pair(world: str = QUAD_HOME, pack: str = "demo",
                         overseer=boss, thoughts=memory, spec=spec,
                         metabolism=hunger, tasks=board,
                         producer=maker if i == 0 else None,
-                        mortal=mortal, autonomous=autonomous, **life_kw)
+                        mortal=mortal, **life_kw)
     # The board grows for BOTH robots, though only the first ticks the
     # producer: the second stands by for work like the first does.
     life.expects_work = maker is not None
@@ -238,7 +239,7 @@ def build_pair(world: str = QUAD_HOME, pack: str = "demo",
     life.activities = activities
     life.encounters = meetings
   # ...and A GAME FOR TWO (issue #404): where the board can offer hide and
-  # seek -- its target is named on `autonomous` with two robots alone --
+  # seek -- its target is named where there are minds and two robots --
   # the pair's referee is in the world from the start
   if maker is not None and "hide_and_seek" in maker.kinds:
     referee_games(lives)
@@ -318,7 +319,7 @@ def referee_games(lives: list):
 
 def arrange_game(lives: list, kind: str = "hide_and_seek", t: float = 0.0):
   """Put a game of hide and seek on the pair's board now (issue #167): the
-  offer the cadence makes on `autonomous`, made by hand -- for a test, a
+  offer the cadence makes to a pair with minds, made by hand -- for a test, a
   demo or a recording -- and refereed by the pair's referee
   (`referee_games`). Returns the task, and a state whose `game` is the
   referee once THIS game's roles are taken."""

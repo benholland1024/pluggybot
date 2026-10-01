@@ -356,7 +356,7 @@ def test_a_reply_can_only_name_a_message_that_is_really_waiting():
   """A model that answers a message that has already been dealt with must not
   be able to close somebody else's row -- and must not lose its ACTION over
   it either, since the action is the load-bearing half."""
-  menu = Menu(boards=("whiteboard_a",), programs=("house",))
+  menu = Menu(boards=("whiteboard_a",), programs=("house",), tools=True)
   good = menu.validate({"action": "carry", "reason": ".", "respond_to": "s1",
                         "outcome": "accepted", "reply": "on it"},
                        waiting=("s1",))
@@ -370,7 +370,7 @@ def test_a_reply_can_only_name_a_message_that_is_really_waiting():
 
 
 def test_a_reply_outcome_is_off_a_fixed_vocabulary():
-  menu = Menu(boards=("whiteboard_a",), programs=("house",))
+  menu = Menu(boards=("whiteboard_a",), programs=("house",), tools=True)
   d = menu.validate({"action": "carry", "reason": ".", "respond_to": "s1",
                      "outcome": "obeyed", "reply": "yes master"},
                     waiting=("s1",))
@@ -389,7 +389,7 @@ def test_a_model_cannot_claim_the_queue_ate_a_message():
   assert "dropped" in VISITOR_OUTCOMES
   assert "dropped" not in DECIDED_OUTCOMES
 
-  menu = Menu(boards=("whiteboard_a",), programs=("house",))
+  menu = Menu(boards=("whiteboard_a",), programs=("house",), tools=True)
   d = menu.validate({"action": "carry", "reason": ".", "respond_to": "s1",
                      "outcome": "dropped", "reply": ""}, waiting=("s1",))
   assert not d.responds, "a model talked its way out of answering"
@@ -400,7 +400,7 @@ def test_a_model_cannot_claim_the_queue_ate_a_message():
 
 def test_the_reply_the_visitor_reads_is_capped_too():
   """The only free text that leaves the model and reaches a human."""
-  menu = Menu(boards=("whiteboard_a",), programs=("house",))
+  menu = Menu(boards=("whiteboard_a",), programs=("house",), tools=True)
   d = menu.validate({"action": "carry", "reason": ".", "respond_to": "s1",
                      "outcome": "replied", "reply": "word " * 500},
                     waiting=("s1",))
@@ -473,7 +473,7 @@ def test_a_model_still_saying_answered_is_understood():
   to forgive it: a model working off a cached older prompt says `answered`,
   which is the same judgement under its old name. Folding it keeps the reply
   attached; dropping it would throw away the sentence a visitor was owed."""
-  menu = Menu(boards=("whiteboard_a",), programs=("house",))
+  menu = Menu(boards=("whiteboard_a",), programs=("house",), tools=True)
   d = menu.validate({"action": "carry", "reason": ".", "respond_to": "s1",
                      "outcome": "answered", "reply": "I am carrying a block"},
                     waiting=("s1",))

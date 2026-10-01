@@ -223,11 +223,11 @@ def test_the_verdict_is_the_referees_flags_and_an_unfinished_game_pays_nobody():
   assert not ok and "never refereed" in reason
 
 
-def _game_pair(tmp_path, autonomous=True):
+def _game_pair(tmp_path, minds=True):
   """The quadruped pair as served, on a shared board: the game's referee
-  is wired where the board can offer it (`autonomous`, two robots)."""
+  is wired where the board can offer it (two robots, each with a mind)."""
   return build_pair(QUAD_HOME, errands=("none", "none"), tasks=True,
-                    autonomous=autonomous, overseer=False,
+                    overseer=minds,
                     task_state=str(tmp_path / "tasks.json"),
                     ledger_state=str(tmp_path / "ledger.json"),
                     thoughts_root=str(tmp_path / "thoughts"))
@@ -295,23 +295,23 @@ def test_the_winner_is_paid_once_and_nobody_for_a_game_called_off(tmp_path):
       life.body.close()
 
 
-def test_the_game_is_offered_to_a_pair_on_autonomous_and_nowhere_else(tmp_path):
-  """Its reward row is in challenges.json, shown to `autonomous` alone, and
-  it takes two: its target (`world`, home) is named on that arm with both
-  robots and nowhere else -- and the pair's referee is in the world where
-  the board can offer it, and nowhere else (the stream's header lists the
-  activities once)."""
+def test_the_game_is_offered_to_a_pair_with_minds_and_nowhere_else(tmp_path):
+  """Its reward row is in challenges.json, shown to a mind alone, and it
+  takes two: its target (`world`, home) is named where there are minds and
+  both robots, and nowhere else -- and the pair's referee is in the world
+  where the board can offer it, and nowhere else (the stream's header lists
+  the activities once)."""
   assert world_targets(QUAD_HOME, procedures=True, robots=("Luca", "Rowan"))["world"] \
       == [GAME_TARGET]
   assert "world" not in world_targets(QUAD_HOME, procedures=True, robots=("Luca",))
   assert "world" not in world_targets(QUAD_HOME, robots=("Luca", "Rowan"))
   assert "hide_and_seek" in default_cadence(QUAD_HOME).kinds
-  for autonomous in (True, False):
-    lives = _game_pair(tmp_path / str(autonomous), autonomous=autonomous)
+  for minds in (True, False):
+    lives = _game_pair(tmp_path / str(minds), minds=minds)
     try:
       names = {a.name for a in lives[0].activities}
-      assert (lives[0].game is not None) is autonomous
-      assert ("hide_and_seek" in names) is autonomous
+      assert (lives[0].game is not None) is minds
+      assert ("hide_and_seek" in names) is minds
     finally:
       for life in lives:
         life.body.close()
@@ -428,7 +428,7 @@ def test_the_games_verbs_are_its_programs_alone():
     lang.compile_procedure("def go():\n  hide()\n", game)
   assert "unknown verb 'hide'" in str(refused.value) and "seek" not in str(refused.value)
   lang.compile_procedure("def go():\n  seek = 2\n  wait(seek)\n", plain)
-  rule = ov.procedure_rule(armed=False, swaps=True, places=True, plates=True)
+  rule = ov.procedure_rule(swaps=True, places=True, plates=True)
   assert "hide(" not in rule and "seek(" not in rule
 
 

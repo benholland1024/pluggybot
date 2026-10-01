@@ -67,8 +67,8 @@ TABLE_ENV = "PLUGGY_REWARDS"
 TABLE_VERSION = 1
 #: The CHALLENGE set's rows (docs/Challenges.md), same format, kept OUT of the
 #: shipped table until the robot can attempt one: a row in `rewards.json` is
-#: shown to the overseer and hashed into every committed result, so moving a
-#: challenge across is the PR that offers it, and a re-fly of `guarded`.
+#: shown to the overseer and hashed into the header's `dataHashes`, so moving
+#: a challenge across is the PR that offers it.
 CHALLENGES_PATH = Path(__file__).with_name("challenges.json")
 
 # ---- pass/fail thresholds ---------------------------------------------------
@@ -272,9 +272,8 @@ class RewardTable:
     """The offered table, as the overseer's context (issue #15). Scoreable
     tasks only -- a row with no evaluator cannot be earned and offering it
     would be a lie about what the robot can do -- and a challenge row only
-    where one can be attempted (`challenges`: the `autonomous` arm, whose
-    library is what discharges one; issue #207). `guarded` sees the table
-    it always saw, byte for byte."""
+    where one can be attempted (`challenges`: a mind, whose library is what
+    discharges one; issue #207)."""
     return [r.as_context() for name, r in self.tasks.items()
             if name in EVALUATORS and (r.offered or challenges)]
 
