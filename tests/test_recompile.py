@@ -228,7 +228,7 @@ def test_the_tag_png_is_written_once(tmp_path):
   stamp = p1.stat().st_mtime_ns
   p2 = seam.write_tag_png(seam.tag_id_for_bay(2), tmp_path)
   assert p1 == p2 and p2.stat().st_mtime_ns == stamp
-  assert not list(tmp_path.glob("tmp*"))
+  assert [p.name for p in tmp_path.iterdir()] == [p1.name], "a temp file was left"
 
 
 # ---- 3. no stale holder ------------------------------------------------------

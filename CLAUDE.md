@@ -729,9 +729,11 @@ save a filmstrip PNG named after the script.
 - **Generated worlds.** The HOME world: regenerate `models/home_world.xml` +
   `.meta.json` with `uv run python -m pluggybot.home.world` after changing any
   layout constant in `home/world.py` (the committed pair is tested against the
-  generator). Two houses inside one fence and a street loop (#215;
-  Observatory.md has the layout); a room names its `building` and the site
-  paints walls by it. ⚠ The lab's props (`activity/cage.py`,
+  generator). ⚠ So the generator runs in the suite while other workers load
+  the house: a tag texture it writes goes in WHOLE, and a current one is left
+  alone (`tags.write_tag_pngs`, #440). Two houses inside one fence and a
+  street loop (#215; Observatory.md has the layout); a room names its
+  `building` and the site paints walls by it. ⚠ The lab's props (`activity/cage.py`,
   `challenge/bench.py`) are geometry the generator emits; their behaviour is
   added beside it. The house carries no robot. ⚠ The grid is 469,200
   cells against `occupancy_grid.MAX_CELLS` 750,000: A* is pure Python and NOT
