@@ -10,6 +10,37 @@ observatory is NOT a result: it reports into the issue it informs.
 
 ## Periods
 
+### The prompt's worked examples are ones the robot can write (#434) — opens when this PR is deployed
+
+**What changed in the world.** What the robots are TOLD, and only that:
+two lines of the prompt. The schema, the menu, the scoring and the world
+did not move. The procedure rule's example walked `drive(0.3, 0.0, 1.0)`,
+which the validator refuses (`v=0.3 is above 0.25`), so a robot that
+copied it had its `define` refused. It walks at 0.25 now, `drive`'s cap;
+on legs a slower `v` is raised to it, and every `v` up to it walks
+0.21 m/s. The event map's ordering lesson ended `decision_failed -> carry`,
+the rover's errand, which no quadruped's menu has and the grammar cannot
+write. It ends `-> take_task` now. The deployed prefix went 44 672 →
+44 677 chars (`prompt_sha` `0e469f5d…` → `effdd6cc…`), and the diff is
+those two lines.
+
+**What the period is for.**
+
+- **The walk copied.** A `define` refused `v=… is above 0.25` after this
+  is a robot that went past the example; in the 1.5 days read before it,
+  none of 25 refusals was. Of the 50 procedures in those rows, 12 called
+  `drive` at 0.15 and 4 at 0.08 (`dock_creep`, `creep_charge`), and all of
+  them walked at 0.21, as the example's 0.25 does. Speeds moving to 0.25
+  say the example is read, and change nothing walked.
+- **The broad row copied.** Before this, on four quadruped builds, 24 of
+  30 map edits carried a `decision_failed` row. The catch-all's action was
+  `idle` 8 times, `charge` 7, `take_task` 2, `explore` 2, `ask` 1 and a
+  procedure 3, and the lesson's own `(timeout) -> idle` appeared 4 times.
+  A rise in `decision_failed -> take_task` reads as the new row copied.
+  Such a row takes the first offer shown, with no prediction, so it fails
+  `unrunnable` on an empty board and `unclaimable` on `feed_mouse`; read
+  its failures by cause.
+
 ### Hide and seek on legs (#404) — opens when this PR is deployed, with #415's below it
 
 **What changed in the world.** A second job on legs, and the first for
