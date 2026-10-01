@@ -766,7 +766,8 @@ class TaskBoard:
 
   def context(self, now: float, pack_wh: float | None = None,
               limit: int = 5, reader: str = "",
-              hidden: "set[str] | frozenset[str]" = frozenset()) -> list[dict]:
+              hidden: "set[str] | frozenset[str]" = frozenset(),
+              holder: str = "") -> list[dict]:
     """The offers the overseer is shown, oldest first and capped.
 
     Capped for the reason the visitor queue is: the robot takes at most one
@@ -779,11 +780,15 @@ class TaskBoard:
     to take, and a claim by its own target is refused by the lifecycle.
     `hidden` is the ids this reader declined: an offer it turned down is
     not put in front of it again, so a refusal is recorded once and the
-    offer lapses on its own deadline.
+    offer lapses on its own deadline. `holder` is its ROOT, which a role is
+    held by (issue #404): an offer with roles stays on offer until every
+    role is taken, and is no offer to the robot that took one -- shown, it
+    was taken again and again and refused every time.
     """
     shown = [t for t in self.claimable(now, pack_wh)
              if t.id not in hidden
-             and not (reader and t.target_kind == "robot" and t.target == reader)]
+             and not (reader and t.target_kind == "robot" and t.target == reader)
+             and not (holder and t.roles and t.role_of(holder))]
     return [t.as_context(now, pack_wh, self.table) for t in shown[:limit]]
 
   def stats(self) -> dict:
@@ -887,7 +892,7 @@ class TaskBoard:
                                 claimed_by=(robot if whole else task.claimed_by),
                                 claimed_t=(round(float(t), 3) if whole
                                            else task.claimed_t)),
-                        "task_claimed", t)
+                        "task_claimed", t, robot=robot)
     return self._move(replace(task, state="claimed", claimed_by=robot,
                               claimed_t=round(float(t), 3), answer=said,
                               restarts=0),                  # a new claim's
@@ -936,6 +941,19 @@ class TaskBoard:
                                        "reason": reason}),
                       "task_resolved", t)
 
+  def release_role(self, task_id: str, robot: str) -> Task | None:
+    """Give back the role `robot` holds in a job still on offer (issue
+    #404): the robot that took it is no more -- a true death -- and the
+    next one did not take it. Saved, not announced, as `release` is."""
+    task = self.tasks.get(task_id)
+    if task is None or task.state != "offered" or not task.role_of(robot):
+      return None
+    task = replace(task, claims={r: who for r, who in task.claims.items()
+                                 if who != robot})
+    self.tasks[task.id] = task
+    self.save()
+    return task
+
   def release_absent(self, present) -> list[Task]:
     """Give back every claim held by a robot that is not in this world."""
     return [self.release(t.id) for t in list(self.tasks.values())
@@ -949,7 +967,8 @@ class TaskBoard:
       return None
     return self._move(replace(task, state="active"), "task_claimed", t)
 
-  def resolve(self, task_id: str, verdict: Verdict, t: float = 0.0) -> Task | None:
+  def resolve(self, task_id: str, verdict: Verdict, t: float = 0.0,
+              robot: str = "") -> Task | None:
     """Close a task with an EVALUATOR's verdict, and nothing else.
 
     The type check is the same lock `Ledger.award` carries, for the same
@@ -957,7 +976,8 @@ class TaskBoard:
     verdict-shaped dict is a task that can declare itself done. The points
     recorded here are the verdict's, which the ledger has already re-derived
     from the reward table -- this is a copy for display, and the balance it
-    came from is the ledger's.
+    came from is the ledger's. `robot` is whose verdict it is where the
+    claim cannot say: a game's winner (issue #404), whose wallet it paid.
     """
     if not isinstance(verdict, Verdict):
       raise TypeError(
@@ -970,7 +990,7 @@ class TaskBoard:
     return self._move(replace(task, state="done" if verdict.ok else "failed",
                               verdict=verdict.as_dict(), points=verdict.points,
                               resolved_t=round(float(t), 3)),
-                      "task_resolved", t)
+                      "task_resolved", t, robot=robot)
 
   def expire_due(self, t: float) -> list[Task]:
     """Lapse every OFFERED task past its deadline. Returns what lapsed.
@@ -990,10 +1010,12 @@ class TaskBoard:
           gone.append(moved)
     return gone
 
-  def _move(self, task: Task, kind: str, t: float) -> Task:
+  def _move(self, task: Task, kind: str, t: float, robot: str = "") -> Task:
     self.tasks[task.id] = task
+    # ...named by who did it: the claimant, or `robot` where the claim
+    # cannot say (a role taken while the job stays on offer, a game's winner)
     msg = {"type": kind, "t": round(float(t), 3), "id": task.id,
-           "state": task.state, "robot": task.claimed_by or ROBOT_ROOT,
+           "state": task.state, "robot": robot or task.claimed_by or ROBOT_ROOT,
            # who holds which role, for a job with roles (issue #167);
            # absent otherwise, so a single-role event is what it was
            **({"claims": dict(task.claims)} if task.roles else {})}

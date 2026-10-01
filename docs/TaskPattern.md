@@ -630,7 +630,10 @@ deployed world runs them.
    name has no evaluator on purpose). ⓘ *Found putting it on legs (#404):*
    a role's claim queues nothing — the robot that took the first role is
    free until the other takes the last, and only then does the pair's
-   referee queue each robot its role (`pair.referee_games`); and a role
+   referee queue each robot its role (`pair.referee_games`); a held role is
+   no offer to its robot (shown, an order took it again and again); the
+   game starts only once every role's errand has begun, because the first
+   claimant is often still busy; and a role
    that goes somewhere is a place the robot finds on its own map, never a
    surveyed spot (§2): the hider picks its own, and the seeker is never
    told where the hider is, though the network carries every robot's

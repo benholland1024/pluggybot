@@ -952,25 +952,36 @@ save a filmstrip PNG named after the script.
   `Task.claims`, `open_roles`, `role_of`). ⚠ A ROLE'S CLAIM QUEUES NOTHING:
   once every role is held, the pair's referee queues each robot its role's
   errand (task `game` — no evaluator, so the lifecycle scores nothing), and
-  a world with no referee refuses the claim. Offered by the cadence on
-  `home_quad` to a PAIR on `autonomous` alone (target `world`,
+  a world with no referee refuses the claim. ⚠ A HELD ROLE IS NO OFFER TO
+  ITS ROBOT (`TaskBoard.context(holder=)`, `shown_offers`: shown, an order
+  took it again and again and was refused), the claim is in its History,
+  and a decline of it is refused. ⚠ THE GAME STARTS ONCE BOTH ROLES'
+  ERRANDS HAVE BEGUN (`HideAndSeek.begin`: the first claimant is often still
+  busy), and each role waits for it inside its budget. Offered by the
+  cadence on `home_quad` to a PAIR on `autonomous` alone (target `world`,
   `GAME_TARGET`; its row is challenges.json's). ⚠ NO SURVEYED SPOT (#419):
   the hider picks its own (`hide`: its own map, out of the sight of where
   the seeker SAYS it counts, `HIDE_CLEAR_M` off walls and `KEEP_CLEAR_M`
   off the dock and the rack, the seeker's longest walk in the head start's
-  reach); the seeker (`seek`) counts where it stands and searches its own
-  map outward, out of its own sight first — ⚠ NEVER TOLD WHERE THE HIDER
-  IS (a test runs the search with and without the hider's disc). `hide`
+  reach, never where its body cuts the seeker off, `_cuts_off`) and does
+  not step aside for the seeker (`make_way`); the seeker (`seek`) counts
+  where it stands and searches its own map outward, out of its own sight
+  first, pausing after a walk that never stepped — ⚠ ITS CHOICE OF WHERE
+  TO LOOK NEVER READS WHERE THE HIDER IS (a test runs the search with and
+  without the hider's disc; its walk keeps clear of the reported pose, as
+  every walk does). Sight is what stands up, never a floor plate. `hide`
   and `seek` are `steps.GAME_VERBS`, a game's program's alone
   (`world_facts(game=True)`): no procedure the robot writes may name one.
   ⚠ THE REFEREE IS AN ACTIVITY, ONE A WORLD, GAME AFTER GAME (`assign`
   ends the last game's record; a restart's is idle): `found` within
   `FIND_WITHIN_M` WITH line of sight — rays from the seeker's LIDAR to
   every geom of the hider, through the seeker's own body, within reach
-  only, every `LOS_EVERY_S` — or `over`; called off, nobody paid, when no
-  role has begun `START_WITHIN_S` after the roles were taken; the pair
-  banks ONE verdict on the WINNER's wallet. `HubLifecycle.game` is read by
-  the roles' verbs and by nothing else that decides.
+  only, every `LOS_EVERY_S` — or `over`; CALLED OFF, nobody paid, when the
+  roles have not both begun `START_WITHIN_S` after they were taken or a
+  player dies (the pair's `watch`); the pair banks ONE verdict on the
+  WINNER's wallet, and the wire names the winner. `HubLifecycle.game` is
+  read by the roles' verbs, a role's errand (`begin`) and `make_way`, and
+  by nothing else that decides.
 - **The wire keys everything by the robot's ROOT** (issue #167;
   protocol/README.md "a second robot on the stream"): `HubLifecycle.root` on
   every event; `ThoughtFiles(robot=)`, `Journal(robot=)`,

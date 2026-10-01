@@ -212,7 +212,7 @@ def build_game_pair(state_dir: str):
   (`unknown_spike.true_floor`)."""
   from unknown_spike import true_floor
 
-  from pluggybot.pair import build_pair
+  from pluggybot.pair import build_pair, referee_games
   lives = build_pair(QUAD_HOME, pack="hosting", errands=("none", "none"),
                      overseer=False, near_field=True,
                      tasks=True, task_state=str(Path(state_dir) / "tasks.json"),
@@ -223,6 +223,8 @@ def build_game_pair(state_dir: str):
     life.overseer = _Mind()
     grid = life.body.mission.grid
     grid.grid[:] = true_floor(life.model, grid)
+  # ...and the pair's referee, wired as a board that offers the game wires it
+  referee_games(lives)
   return lives
 
 
@@ -271,7 +273,8 @@ def game_once(lives: list, hider, seeker, scene) -> dict:
                  "seeker": round(wh[seeker.root] - seeker.battery.energy_wh, 3)},
           "hide": {k: hide.get(k) for k in ("hid", "why", "at", "hidden", "walkM",
                                             "seekerWalkM", "reachM", "seconds")},
-          "seek": {k: seek.get(k) for k in ("why", "targets", "gaveUp", "seconds")},
+          "seek": {k: seek.get(k) for k in ("why", "targets", "gaveUp", "deferred",
+                                             "seconds")},
           "steps": [r.get("procedure", {}).get("steps") for r in runs],
           "seconds": round(float(hider.data.time) - t0, 1)}
 
@@ -314,7 +317,8 @@ def game_main(args) -> None:
                 f"found {row['foundAtS']} over {row['overAtS']}, nearest {row['nearM']} m; "
                 f"hid {h['hid']} {h['why']} at {h['at']} hidden {h['hidden']} "
                 f"(walk {h['walkM']}, seeker's {h['seekerWalkM']}); "
-                f"seek {k['why']} {k['targets']} viewpoints; "
+                f"seek {k['why']} {k['targets']} viewpoints ({k['gaveUp']} given up, "
+                f"{k['deferred']} put off); "
                 f"Wh {row['wh']['hider']:.2f}/{row['wh']['seeker']:.2f}", flush=True)
     finally:
       for life in lives:

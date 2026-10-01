@@ -30,7 +30,8 @@ from pluggybot.legs import game as gm
 from pluggybot.legs import world as lw
 from pluggybot.legs.model import CHOSEN, lie_qpos
 from pluggybot.lifecycle import (GAME_TARGET, QUAD_HOME, hide_and_seek_program,
-                                 points_ledger, world_config, world_facts, world_targets)
+                                 points_ledger, shown_offers, world_config, world_facts,
+                                 world_targets)
 from pluggybot.mind import overseer as ov
 from pluggybot.mission.errand import programmed_errand
 from pluggybot.pair import arrange_game, build_pair
@@ -183,6 +184,31 @@ def test_each_game_ends_the_last_ones_record_and_a_restart_none(pair_world):
   assert not fresh.assigned and fresh.phase == "idle"
 
 
+def test_the_clock_starts_once_both_roles_have_begun(pair_world):
+  """The robot that took the first role is free until the other takes the
+  last, and often still busy: the game starts only once BOTH roles'
+  errands have begun -- one alone is waited for, never played against --
+  and an errand of another game is no begin of this one. One role begun
+  and the other never: called off, not played, and said why."""
+  m, d = pair_world, mujoco.MjData(pair_world)
+  ref = hs.HideAndSeek(m, start_within_s=100.0)
+  ref.assign(SECOND, FIRST, task_id="t_0001", t=0.0)
+  ref.begin("seeker", "t_0001", 5.0)
+  ref.begin("hider", "t_0002", 6.0)                        # another game's
+  assert ref.started_at is None and ref.hiding_left(7.0) == ref.head_start_s
+  ref.begin("hider", "t_0001", 30.0)
+  assert ref.started_at == 30.0 and ref.phase == "hiding"
+  ref.begin("seeker", "t_0001", 40.0)
+  assert ref.started_at == 30.0, "a begin restarted the clock"
+  ref.assign(SECOND, FIRST, task_id="t_0003", t=200.0)
+  ref.begin("seeker", "t_0003", 201.0)
+  d.time = 300.0
+  ref.sense(m, d)
+  assert ref.over_for("t_0003") and ref.started_at is None
+  v = scoring.evaluate("hide_and_seek", ref.measurements(), table=TABLE)
+  assert not v.ok and "called off" in v.reason and "not both begun" in v.reason
+
+
 # ---- 2. the board, the claims, the queue and the pay ----------------------------------
 
 
@@ -272,11 +298,18 @@ def test_the_winner_is_paid_once_and_nobody_for_a_game_called_off(tmp_path):
     me.body.start_at(-3.5, 1.0, 0.0)                    # the hider, in the hall
     peer.body.start_at(1.5, 0.5, 0.0)                   # the seeker, nowhere near
     before = (me.ledger.balance(), peer.ledger.balance())
-    game.start(0.0)
+    events: list = []
+    me.tasks.on_event.append(events.append)
+    game.begin("hider", task.id, 0.0)
+    game.begin("seeker", task.id, 0.0)
     me.data.time = game.head_start_s + game.seek_s
     game.sense(me.model, me.data)
     done = me.tasks.get(task.id)
     assert done.state == "done" and done.verdict["metrics"]["winner"] == "hider"
+    # ...and the wire names whose verdict it is: the hider's, paid -- not
+    # the last claimant's
+    resolved = [e for e in events if e["type"] == "task_resolved"]
+    assert [e["robot"] for e in resolved] == [me.root]
     assert me.ledger.balance() == before[0] + TABLE["hide_and_seek"].base
     assert peer.ledger.balance() == before[1], "the seeker was paid for losing"
     game.sense(me.model, me.data)
@@ -290,6 +323,65 @@ def test_the_winner_is_paid_once_and_nobody_for_a_game_called_off(tmp_path):
     assert me.tasks.get(nxt.id).state == "failed"
     assert (me.ledger.balance(), peer.ledger.balance()) == (
       before[0] + TABLE["hide_and_seek"].base, before[1])
+  finally:
+    for life in (me, peer):
+      life.body.close()
+
+
+def test_a_held_role_is_no_offer_to_its_robot_and_a_role_taken_is_kept(tmp_path):
+  """A game stays on offer until every role is taken -- and it is no offer
+  to the robot holding one: shown to it, a standing order or a map row took
+  it again and again and was refused every time. The robot is told it
+  holds the role, a decline of it is refused (a claim is never given back
+  by its robot), and the wire names who took it."""
+  me, peer = _game_pair(tmp_path)
+  try:
+    task, _ = arrange_game([me, peer])
+    events: list = []
+    me.tasks.on_event.append(events.append)
+    assert [o["id"] for o in shown_offers(peer)] == [task.id]
+    assert peer._claim_task(task.id)
+    assert events[-1]["type"] == "task_claimed" and events[-1]["robot"] == peer.root
+    assert shown_offers(peer) == [], "offered back to the robot holding it"
+    assert ov.claimable_offers({"offeredTasks": shown_offers(peer)}) == []
+    assert [o["id"] for o in shown_offers(me)] == [task.id]
+    assert "took the hider role in hide_and_seek" in peer.thoughts.read("History.md")
+    peer._decline(task.id, "I would rather not")
+    assert task.id not in peer.declined and "a role taken is kept" in peer.status
+    assert me.tasks.get(task.id).role_of(peer.root) == "hider"
+  finally:
+    for life in (me, peer):
+      life.body.close()
+
+
+def test_a_player_who_dies_calls_the_game_off_and_nobody_is_paid(tmp_path):
+  """A dead hider was never found and a dead seeker never sought: the
+  pair's watch calls the game off the step a player dies, nobody is paid,
+  and the job fails saying who died. A true death gives back a role its
+  robot took in a game still on offer: the next robot did not take it."""
+  me, peer = _game_pair(tmp_path)
+  try:
+    game = me.game
+    task, _ = arrange_game([me, peer])
+    me._claim_task(task.id)
+    peer._claim_task(task.id)
+    game.begin("hider", task.id, 0.0)
+    game.begin("seeker", task.id, 0.0)
+    before = (me.ledger.balance(), peer.ledger.balance())
+    watch, = [h for h in me.body.step_hooks if getattr(h, "__name__", "") == "watch"]
+    watch()
+    assert game.playing(task.id), "called off with both alive"
+    peer.dead = {"t": 1.0, "cause": "flat", "why": "the pack ran out"}
+    watch()
+    done = me.tasks.get(task.id)
+    assert done.state == "failed" and f"{peer.robot_name} died" in done.verdict["reason"]
+    assert (me.ledger.balance(), peer.ledger.balance()) == before
+    peer.dead = None
+    nxt, _ = arrange_game([me, peer], t=float(me.data.time))
+    me._claim_task(nxt.id)
+    assert me.tasks.get(nxt.id).role_of(me.root) == "hider"
+    me._true_death(float(me.data.time))
+    assert me.tasks.get(nxt.id).claims == {} and me._claim_task(nxt.id)
   finally:
     for life in (me, peer):
       life.body.close()
@@ -332,17 +424,21 @@ def test_a_role_is_not_claimed_where_nothing_referees_the_game():
 
 class _Referee:
   """The referee as the roles see it: who seeks, the head start, the find,
-  and when the game is over -- by the stub world's clock."""
+  the clock started once both roles have begun, and when the game is over
+  -- by the stub world's clock."""
 
   find_within_m = hs.FIND_WITHIN_M
 
   def __init__(self, data, seeker_root, task_id, head_s=3.0, over_t=12.0):
     self.data, self.seeker_root, self.task_id = data, seeker_root, task_id
     self.head_s, self.over_t = head_s, over_t
-    self.started = None
+    self.begun, self.started_at = set(), None
 
-  def start(self, t):
-    self.started = t if self.started is None else self.started
+  def begin(self, role, task_id, t):
+    if task_id == self.task_id:
+      self.begun.add(role)
+      if len(self.begun) == 2 and self.started_at is None:
+        self.started_at = t
 
   def playing(self, task_id):
     return task_id == self.task_id and float(self.data.time) < self.over_t
@@ -351,7 +447,9 @@ class _Referee:
     return not self.playing(task_id)
 
   def hiding_left(self, t):
-    return max(0.0, (self.started or 0.0) + self.head_s - t)
+    if self.started_at is None:
+      return self.head_s
+    return max(0.0, self.started_at + self.head_s - t)
 
 
 def _stub_pair(tmp_path):
@@ -401,8 +499,80 @@ def test_each_role_plays_its_part_and_the_seeker_is_never_told_where_the_hider_i
                                   hs.FIND_WITHIN_M + st.GAME_MARGIN_M)]
   assert seeker.body.sought == [((2.0, 3.0), hs.FIND_WITHIN_M - st.GAME_MARGIN_M)]
   assert began and began[0] >= ref.head_s, "it searched before it had counted"
-  assert ref.started == 0.0
+  assert ref.begun == {"hider", "seeker"} and ref.started_at == 0.0
   assert float(hider.data.time) == pytest.approx(ref.over_t, abs=1.0)
+
+
+def test_the_hider_hides_from_where_the_seeker_counts_once_it_has_begun(tmp_path):
+  """The seeker is still busy elsewhere when the hider's errand begins: the
+  hider waits for the game to start -- the seeker's errand begun -- and
+  hides from where the seeker counts, not from where it was, with the
+  whole head start's walk: a wait checked once a second cost it 0.3 m."""
+  hider, seeker = _stub_pair(tmp_path)
+  seeker.body.start_at(2.0, 3.0, 0.0)
+  hider.body.start_at(-1.0, -1.0, 0.0)
+  ref = _Referee(seeker.data, seeker.root, "t_0001", head_s=20.0, over_t=30.0)
+  errands = []
+  for life, role in ((hider, "hider"), (seeker, "seeker")):
+    life.game = ref
+    errand = programmed_errand(hide_and_seek_program(), task="game", role=role)
+    errand.task_id = "t_0001"
+    errands.append(errand)
+
+  def busy_then_seek():
+    yield from seeker.body.hold_routine(5.0)
+    seeker.body.start_at(6.0, 3.0, 0.0)
+    return (yield from seeker.run_errand_routine(errands[1]))
+  tick.run_many([(hider.body.stepper, hider.run_errand_routine(errands[0])),
+                 (seeker.body.stepper, busy_then_seek())], name="game")
+  assert [a for a, _, _ in hider.body.hid_from] == [(6.0, 3.0)], hider.body.hid_from
+  assert ref.started_at == pytest.approx(5.0, abs=0.1)
+  reach = hider.body.hid_from[0][1]
+  assert reach >= st.HIDE_PACE_M_S * (20.0 - 2 * st.START_POLL_S), reach
+
+
+def test_a_role_its_own_interrupt_ends_says_so():
+  """The robot's own hazard row ends its role mid-game: not a game over --
+  ok False, and `run_verb` says `stopped: interrupted`, as for any walk the
+  interrupt ends."""
+  life = stub_life()
+  ref = _Referee(life.data, "r2_pluggybot", "t_0001", over_t=60.0)
+  life.game = ref
+  life.reported_xy = lambda root: (3.0, 0.0)
+  ref.begin("seeker", "t_0001", 0.0)
+
+  def abort():                                 # the hazard row, answered "go"
+    life._aborting = True
+    return True
+  life.interrupted = abort
+  errand = programmed_errand(hide_and_seek_program(), task="game", role="hider")
+  errand.task_id = "t_0001"
+  step = life.run_errand(errand)["procedure"]["steps"][0]
+  assert not step["ok"] and step.get("stopped") == "interrupted", step
+  assert "its own interrupt" in step["reason"]
+
+
+def test_the_hider_does_not_step_aside_for_the_seeker():
+  """A hider stood up and walked out of the seeker's way would be the
+  network handing the seeker the find (#415's make-way): refused while the
+  game is on, and the robot makes way again once it is over."""
+  life = stub_life()
+  life.body.makes_way = True
+  life.game = SimpleNamespace(over_at=None, hider=SimpleNamespace(root=life.root))
+  route = [(0.0, 0.0), (2.0, 0.0)]
+  assert not life.make_way(route, "r2_pluggybot") and life.body.way_asked == []
+  life.game.over_at = 30.0
+  assert life.make_way(route, "r2_pluggybot") and life.body.way_asked
+
+
+def test_a_roles_budget_covers_the_wait_for_the_other_and_the_game():
+  """A role waits for the other's errand to begin -- `START_WITHIN_S` at
+  most, or the game is called off -- and then the game is played: a budget
+  short of both ends a role while its game goes on, and the robot walks off
+  mid-game."""
+  budget = hide_and_seek_program().budget_s
+  assert budget >= hs.START_WITHIN_S + hs.SEEK_HEAD_START_S + hs.SEEK_S
+  assert budget <= st.MAX_BUDGET_S
 
 
 def test_a_role_with_no_game_to_play_says_so():
@@ -572,3 +742,93 @@ def test_the_seekers_search_never_reads_where_the_other_robot_is(house):
     finally:
       m.close()
   assert went[True] == went[False]
+
+
+
+def _rooms_and_corridor(m):
+  """A room, x 0..4, y 0..4, the seeker counting in its south-west corner;
+  a corridor 1.8 m wide off its north wall, x 2.5..4.3, y 4..8, turning out
+  of the seeker's sight; and a second room beyond it, x 0..8, y 8..11."""
+  g = m.grid
+  g.grid[:] = 5.0
+  row = lambda y: g.world_to_cell(0.0, y)[1]   # noqa: E731
+  col = lambda x: g.world_to_cell(x, 0.0)[0]   # noqa: E731
+  g.grid[row(0.0):row(4.0), col(0.0):col(4.0)] = -5.0
+  g.grid[row(4.0):row(8.0), col(2.5):col(4.3)] = -5.0
+  g.grid[row(8.0):row(11.0), col(0.0):col(8.0)] = -5.0
+
+
+def _cell(m, xy):
+  side = m.grid.resolution * 2
+  return (int((xy[1] - m.grid.y_min) // side), int((xy[0] - m.grid.x_min) // side))
+
+
+def test_a_hider_never_lies_where_it_cuts_the_seeker_off(house):
+  """The seeker's planner keeps clear of the other robot, so a hider lying
+  in a corridor 1.8 m wide -- out of sight, the seeker's longest walk in
+  reach -- sealed the room beyond it: such a spot is never taken, and the
+  hider hides where the seeker's floor stays whole."""
+  m = _mission(house, at=(3.5, 2.0))
+  try:
+    _rooms_and_corridor(m)
+    base = (1.0, 1.0)
+    theirs = m.walk_field(m.seen_floor_lattice(), base)
+    seekers = np.isfinite(theirs)
+    src = np.unravel_index(int(np.argmin(np.where(seekers, theirs, np.inf))), theirs.shape)
+    assert m._cuts_off(seekers, src, _cell(m, (3.4, 6.0))), "the premise: the corridor"
+    assert not m._cuts_off(seekers, src, _cell(m, (1.5, 2.5)))
+    spot = m.hiding_spot(base, reach_m=5.0, clear_of_m=1.8)
+    assert spot is not None and not m._cuts_off(seekers, src, _cell(m, spot["at"])), spot
+    assert spot["at"][1] < 4.0, spot
+  finally:
+    m.close()
+
+
+def test_a_plate_hides_nothing_and_a_sight_from_a_wall_still_sees(house):
+  """Sight is stopped by what stands up: a floor plate the planner keeps
+  off is no wall to it -- a known plate's keep-out hid up to 11.7 m^2 of
+  open garden -- and a point a little drifted onto a wall still sees the
+  room round it."""
+  m = _mission(house)
+  try:
+    pad = np.zeros_like(m.grid.grid, dtype=bool)
+    r0, c0 = m.grid.world_to_cell(1.5, 2.0)[::-1]
+    pad[r0 - 4:r0 + 5, c0 - 4:c0 + 5] = True
+    m.keep_out = lambda: pad
+    assert (m._planning_grid()[pad] > qb.OCC_THRESH).all(), "the premise: a wall to the planner"
+    assert not m._sight_walls()[pad].any()
+    seen = m._seen_from((0.5, 2.0), 5.0, m._sight_walls())
+    assert seen[_cell(m, (2.5, 2.0))], "the room behind the plate is out of sight"
+    wall = m._seen_from((3.03, 1.0), 5.0, m._sight_walls())
+    assert wall[_cell(m, (2.0, 1.0))] and wall.sum() > 100, "a sight from a wall saw nothing"
+  finally:
+    m.close()
+
+
+@pytest.mark.parametrize("why", ["peer", "no_route"])
+def test_the_search_never_spins_at_one_instant_and_waits_out_the_other_robot(house, why):
+  """A walk that ends without a step -- no route, the other robot in the
+  way -- is followed by a pause before the next pick: back to back at one
+  instant, 225 of them froze both robots for 9.9 s of wall clock. And a
+  viewpoint the other robot kept the seeker from is tried again later --
+  it moves -- where one the map gave up on stays given up."""
+  m = _mission(house, at=BASE)
+  ticking = SimpleNamespace(step=lambda cmd: setattr(m.data, "time",
+                                                     m.data.time + m.model.opt.timestep))
+  starts: list = []
+
+  def refused(x, y, timeout=90.0, stop=None):
+    starts.append(float(m.data.time))
+    m.last_drive = {"why": why}
+    return False
+    yield
+  m.drive_to_routine = refused
+  try:
+    rec = tick.run(ticking, m.seek_routine(BASE, 1.2, patience=6.0))
+    assert len(starts) >= 3 and all(b > a for a, b in zip(starts, starts[1:])), starts
+    if why == "peer":
+      assert rec["deferred"] == len(starts) and rec["gaveUp"] == 0, rec
+    else:
+      assert rec["gaveUp"] == len(starts) and rec["deferred"] == 0, rec
+  finally:
+    m.close()

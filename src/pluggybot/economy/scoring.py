@@ -581,11 +581,14 @@ def eval_hide_and_seek(m: dict) -> tuple[bool, dict, str]:
   metrics = {"played": bool(played), "winner": winner,
              "foundAtS": m.get("foundAtS"), "overAtS": m.get("overAtS"),
              "distanceM": m.get("distanceM"), "los": bool(m.get("los")),
-             "seekS": m.get("seekS"), "findWithinM": m.get("findWithinM")}
+             "seekS": m.get("seekS"), "findWithinM": m.get("findWithinM"),
+             "calledOff": m.get("calledOff") or ""}
   if played is None:
     return False, metrics, "the game was never refereed"
   if not played:
-    return False, metrics, "the game was not played to a decision"
+    why = m.get("calledOff") or ""
+    return False, metrics, ("the game was not played to a decision"
+                            + (f" -- called off: {why}" if why else ""))
   if winner == "seeker":
     return True, metrics, (f"found after {float(m.get('foundAtS') or 0):.0f} s, "
                            f"{float(m.get('distanceM') or 0):.2f} m apart with "

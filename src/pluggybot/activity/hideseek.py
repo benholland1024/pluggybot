@@ -32,11 +32,14 @@ one ray at the torso among them.
 
 ONE REFEREE A WORLD, GAME AFTER GAME (#404): built idle with the world's
 activities, given each game's roles as its last role is claimed (`assign`,
-which ends the last game's record), started by the first role's errand to
-begin, and called off -- nobody wins -- when no role's errand has begun
-`START_WITHIN_S` after the roles were taken. A game does not outlive its
-process: a restart's referee is idle (the board fails the job, TaskPattern
-§1).
+which ends the last game's record), and STARTED ONCE BOTH ROLES' ERRANDS
+HAVE BEGUN (`begin`): the robot that took the first role was free until
+the other took the last, and is often still busy, so a clock started by
+one role alone was a game played against a robot charging or dead. Called
+off -- nobody wins -- when both have not begun `START_WITHIN_S` after the
+roles were taken, or when a player dies (`call_off`, the pair's watch). A
+game does not outlive its process: a restart's referee is idle (the board
+puts the job back on offer, TaskPattern §1).
 """
 
 import math
@@ -51,10 +54,10 @@ from pluggybot.robot import RobotHandle
 #: The seeker counts this long before searching -- the head start: at the
 #: drive's 0.4 m/s cruise, less its turns, about 6 m of walk to a spot.
 #: MEASURED on legs (`solve.py --feature hide_and_seek`, 14 games): every
-#: hider out of sight at its spot in 8.9-22.6 s, median 17 s.
+#: hider out of sight at its spot in 10.3-20.5 s, median 17 s.
 SEEK_HEAD_START_S = 20.0
 #: ...and searches this long before the hider wins. MEASURED on legs, the
-#: same 14 games: the seeker found 7 at 78-256 s; at the rover's 120 s, 1
+#: same 14 games: the seeker found 6 at 82-249 s; at the rover's 120 s, 1
 #: of 11 -- an honest search of its own map outward covers less than a
 #: sweep of surveyed spots did.
 SEEK_S = 240.0
@@ -62,13 +65,18 @@ SEEK_S = 240.0
 #: lengths, as the rover's 1.0 m was: the quadruped standing reaches 0.38 m
 #: from its torso's centre, so two of them nose to tail are 0.76 m.
 FIND_WITHIN_M = 1.5
-#: The rays are cast this often while the two are within reach, s: 41 rays
-#: cost 160 us, two thirds of a physics step, and a find 0.1 s late is a
-#: walk of 4 cm.
+#: The rays are cast this often while the two are within reach, s: MEASURED,
+#: 41 rays and their casts past the seeker's own body cost 0.15-0.35 ms a
+#: check (up to 1.1 ms on a loaded box) -- a tenth of a physics step's
+#: worth, spread over the 50 between -- and a find 0.1 s late is 4 cm.
 LOS_EVERY_S = 0.1
-#: Roles taken and no role's errand begun this long after: the game is
-#: called off, nobody paid -- a claimed job would otherwise hold its offer's
-#: target, and no game could be offered again.
+#: How many times one ray is cast on past the seeker's own geoms: a ray cast
+#: from inside a geom meets where it leaves, so each geom it crosses costs
+#: two, and from the mast a ray crosses the arm and a leg at most.
+PAST_OWN_BODY = 8
+#: Roles taken and both roles' errands not begun this long after: the game
+#: is called off, nobody paid -- a claimed job would otherwise hold its
+#: offer's target, and no game could be offered again.
 START_WITHIN_S = 600.0
 
 
@@ -107,6 +115,9 @@ class HideAndSeek(Activity):
     self.started_at: float | None = None
     self.found_at: float | None = None
     self.over_at: float | None = None
+    #: the roles whose errands have begun, and why the game was called off
+    self.begun: set = set()
+    self.called_off = ""
     self._los, self._next_los = False, -math.inf
     self.set(phase="idle", distanceM=None, los=False, foundAtS=None,
              overAtS=None, winner="")
@@ -166,11 +177,39 @@ class HideAndSeek(Activity):
       return self.head_start_s
     return max(0.0, self.started_at + self.head_start_s - float(t))
 
+  def begin(self, role: str, task_id: str, t: float) -> None:
+    """A role's errand for the game `task_id` has begun
+    (`HubLifecycle._run_program_routine`): the game starts once BOTH have
+    (the module docstring). An errand of another game is no begin of this
+    one."""
+    if not self.playing(task_id) or role not in ("hider", "seeker"):
+      return
+    self.begun.add(role)
+    if len(self.begun) == 2:
+      self.start(t)
+
   def start(self, t: float) -> None:
-    """The game is on: both roles claimed, a role's errand under way."""
+    """The game's clock: the head start, then the seeking. `begin` starts
+    it; a test may start it by hand."""
     if self.started_at is None and self.assigned and self.over_at is None:
       self.started_at = float(t)
       self.set(phase="hiding")
+
+  def call_off(self, t: float, why: str) -> None:
+    """End the game with nobody winning, saying why: the roles were not
+    both begun in time, or a player died (the pair's watch,
+    `pair.referee_games`) -- a game is played by two robots, and a verdict
+    over one that stopped playing would pay for whatever it did instead."""
+    if not self.assigned or self.over_at is not None:
+      return
+    self.over_at = float(t)
+    self.called_off = why
+    self._los = False
+    self.set(phase="over", winner="", los=False,
+             overAtS=(round(self.over_at - self.started_at, 2)
+                      if self.started_at is not None else None))
+    for hook in list(self.on_over):
+      hook(self)
 
   @property
   def phase(self) -> str:
@@ -194,7 +233,7 @@ class HideAndSeek(Activity):
     one = np.zeros(1, dtype=np.int32)
     for i in range(n):
       g, gone = int(hit[i]), 0.0
-      for _ in range(4):                       # past the seeker's own body
+      for _ in range(PAST_OWN_BODY):           # past the seeker's own body
         if g < 0 or g not in self._seeker_gids:
           break
         gone += float(far[i]) + 1e-4
@@ -211,11 +250,8 @@ class HideAndSeek(Activity):
     t = float(data.time)
     if self.started_at is None:
       if self.assigned_at is not None and t - self.assigned_at >= self.start_within_s:
-        # CALLED OFF: nobody began, so nobody wins (`played` is False)
-        self.over_at = t
-        self.set(phase="over", winner="")
-        for hook in list(self.on_over):
-          hook(self)
+        self.call_off(t, f"the two roles were not both begun within "
+                         f"{self.start_within_s:.0f} s")
       return
     hider = data.xpos[self.hider_bid]
     seeker = data.xpos[self.seeker_bid]
@@ -248,8 +284,9 @@ class HideAndSeek(Activity):
 
   def measurements(self) -> dict:
     """What the evaluator reads: the referee's flags, plus whether the game
-    ran to a decision at all -- a game called off before anyone began was
-    not."""
+    ran to a decision at all -- a game called off was not, and why."""
     return {**self.flags,
-            "played": self.over_at is not None and self.started_at is not None,
+            "played": (self.over_at is not None and self.started_at is not None
+                       and not self.called_off),
+            "calledOff": self.called_off,
             "seekS": self.seek_s, "findWithinM": self.find_within_m}

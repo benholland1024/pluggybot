@@ -258,8 +258,8 @@ def referee_games(lives: list):
   nothing before. It senses on the first robot's seam, and when it calls a
   game, ONE verdict is evaluated off its flags and banked on the WINNER's
   wallet -- nobody's, when the game was called off -- and the task resolves
-  with it for both. A pair already refereed keeps its referee, which is
-  returned."""
+  with it for both. A player who dies calls the game off (`watch`). A pair
+  already refereed keeps its referee, which is returned."""
   from pluggybot.activity.hideseek import HideAndSeek
   from pluggybot.economy import scoring
   first = lives[0]
@@ -283,8 +283,9 @@ def referee_games(lives: list):
       return
     verdict = scoring.evaluate("hide_and_seek", game.measurements())
     winner = by_root.get(task.claims.get(verdict.metrics.get("winner") or "", ""))
+    paid = winner if verdict.ok else None
     for life in lives:
-      if verdict.ok and life is winner:
+      if life is paid:
         life._bank(verdict)
       else:
         # ...and the one not paid reads it too: its game happened
@@ -292,8 +293,22 @@ def referee_games(lives: list):
                 f"{life.role_in(task.id) or 'other'}")
         life._say(f"GAME {said}")
         life._remember(said)
-    board.resolve(task.id, verdict, t=float(first.data.time))
+    board.resolve(task.id, verdict, t=float(first.data.time),
+                  robot=paid.root if paid is not None else "")
   game.on_over.append(settle)
+
+  def watch() -> None:
+    # A PLAYER WHO DIES ENDS THE GAME, nobody paid (issue #404): a dead
+    # hider was never found and a dead seeker never sought, and a verdict
+    # either way would pay for a death. Asked every step: two reads.
+    if not game.assigned or game.over_at is not None:
+      return
+    for root in (game.hider.root, game.seeker.root):
+      life = by_root.get(root)
+      if life is not None and life.dead is not None:
+        game.call_off(float(first.data.time), f"{life.robot_name} died")
+        return
+  first.body.step_hooks.append(watch)
 
   def on_claim(event: dict) -> None:
     if event.get("type") != "task_claimed":

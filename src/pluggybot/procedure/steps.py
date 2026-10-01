@@ -571,8 +571,12 @@ VERBS: dict[str, Verb] = {
 
 #: How long a role stands by at a time while its game goes on, s.
 GAME_HOLD_S = 1.0
+#: ...and at a time while it waits for the game to start, s: the head start
+#: runs from the start, and MEASURED, a second's wait cost the hider 0.3 m
+#: of its walk.
+START_POLL_S = 0.1
 #: How fast a hider walks to its spot, m/s: what its head start buys it in
-#: metres of walk (`_hide`). MEASURED, 5.9 m in 17-23 s (14 games), the
+#: metres of walk (`_hide`). MEASURED, 5.9 m in 15-21 s (11 games), the
 #: drive's 0.4 m/s cruise less its turns.
 HIDE_PACE_M_S = 0.3
 #: ...and the least it is left to walk, m: a hider whose errand began after
@@ -604,12 +608,25 @@ def _game_stop(life, game, task_id: str):
 
 def _until_over(life, stop) -> Routine:
   """Stand by until `stop` -- the game over -- or the program's budget is
-  spent (`life.step_until`): True if `stop` came first."""
+  spent (`life.step_until`)."""
   until = getattr(life, "step_until", None)
   while not stop():
     if until is not None and float(life.data.time) >= until:
-      return False
+      return
     yield from life.body.hold_routine(GAME_HOLD_S)
+
+
+def _until_started(life, game, stop) -> Routine:
+  """Stand by until the game's clock starts -- both roles' errands begun
+  (`HideAndSeek.begin`) -- or `stop`, or the program's budget is spent:
+  True once it has started. The robot that took the first role is often
+  still busy when the other takes the last, and a role played before the
+  other has begun is a game against a robot doing something else."""
+  until = getattr(life, "step_until", None)
+  while game.started_at is None:
+    if stop() or (until is not None and float(life.data.time) >= until):
+      return False
+    yield from life.body.hold_routine(START_POLL_S)
   return True
 
 
@@ -617,57 +634,68 @@ def _no_game(what: str) -> dict:
   return {"ok": False, "reason": f"there is no game of hide and seek to {what} in"}
 
 
+def _role_ended(life, game, task_id: str, out: dict) -> dict:
+  """A role's verdict: ok once its game is over, whoever won (the referee
+  decides, and the pair pays); otherwise what ended it first -- the
+  robot's own interrupt, which `run_verb` says as `stopped: interrupted`,
+  or the program's time."""
+  if game.over_for(task_id):
+    return {"ok": True, **out}
+  why = ("its own interrupt" if getattr(life, "aborting", False)
+         else "the program's time ran out")
+  return {"ok": False, **out, "reason": f"the game was still on: {why}"}
+
+
 def _hide(life, args: dict) -> Routine:
-  """The hider's role (issue #404): a spot of its own choosing on its own
-  map (`Body.hide_routine`), away from where the seeker counts -- where
-  the seeker SAYS it is, as a real seeker tells a real hider -- walked to
-  in what is left of the head start, and then wait there for the game's
-  end. ok when the game is over; the referee decides who won."""
+  """The hider's role (issue #404): once the game is on, a spot of its own
+  choosing on its own map (`Body.hide_routine`), away from where the
+  seeker counts -- where the seeker SAYS it is, as a real seeker tells a
+  real hider -- walked to in the head start, and then wait there for the
+  game's end. ok when the game is over; the referee decides who won."""
   game, task_id = _game(life)
   if game is None or not game.playing(task_id):
     return _no_game("hide")
   stop = _game_stop(life, game, task_id)
-  away = life.reported_xy(game.seeker_root)
-  if away is None:
-    return {"ok": False, "reason": "the seeker says nothing of where it is"}
-  reach = max(HIDE_PACE_M_S * game.hiding_left(float(life.data.time)), HIDE_MIN_REACH_M)
-  rec = yield from life.body.hide_routine(
-    away, reach, game.find_within_m + GAME_MARGIN_M,
-    _patience(life, {"patience": MAX_PATIENCE_S}), stop=stop)
-  over = yield from _until_over(life, stop)
-  out = {"ok": over, "hid": bool(rec.get("hid")), "why": rec.get("why", ""),
-         **({"at": list(rec["at"])} if rec.get("at") else {})}
-  if not over:
-    out["reason"] = "the game was still on when the program's time ran out"
-  return out
+  rec: dict = {}
+  if (yield from _until_started(life, game, stop)):
+    away = life.reported_xy(game.seeker_root)
+    if away is None:
+      return {"ok": False, "reason": "the seeker says nothing of where it is"}
+    reach = max(HIDE_PACE_M_S * game.hiding_left(float(life.data.time)),
+                HIDE_MIN_REACH_M)
+    rec = yield from life.body.hide_routine(
+      away, reach, game.find_within_m + GAME_MARGIN_M,
+      _patience(life, {"patience": MAX_PATIENCE_S}), stop=stop)
+    yield from _until_over(life, stop)
+  return _role_ended(life, game, task_id, {
+    "hid": bool(rec.get("hid")), "why": rec.get("why", ""),
+    **({"at": list(rec["at"])} if rec.get("at") else {})})
 
 
 def _seek(life, args: dict) -> Routine:
-  """The seeker's role (issue #404): count where it stands until the head
-  start is spent, then search its own map outward from there
-  (`Body.seek_routine`) -- never told where the hider is -- until the game
-  is over. ok when it is; the referee decides who won."""
+  """The seeker's role (issue #404): once the game is on, count where it
+  stands until the head start is spent, then search its own map outward
+  from there (`Body.seek_routine`) -- never told where the hider is --
+  until the game is over. ok when it is; the referee decides who won."""
   game, task_id = _game(life)
   if game is None or not game.playing(task_id):
     return _no_game("seek")
   stop = _game_stop(life, game, task_id)
-  base = life.body.pose_xy()
-  while not stop():
-    left = game.hiding_left(float(life.data.time))
-    if left <= 0.0:
-      break
-    # ...a step at least: a hold of no steps stands still in no time
-    yield from life.body.hold_routine(max(min(GAME_HOLD_S, left), 0.01))
   rec: dict = {}
-  if not stop():
-    rec = yield from life.body.seek_routine(
-      base, max(0.0, game.find_within_m - GAME_MARGIN_M),
-      _patience(life, {"patience": MAX_BUDGET_S}), stop=stop)
-  over = yield from _until_over(life, stop)
-  out = {"ok": over, "why": rec.get("why", "")}
-  if not over:
-    out["reason"] = "the game was still on when the program's time ran out"
-  return out
+  if (yield from _until_started(life, game, stop)):
+    until = getattr(life, "step_until", None)
+    while not stop() and (until is None or float(life.data.time) < until):
+      left = game.hiding_left(float(life.data.time))
+      if left <= 0.0:
+        break
+      # ...a step at least: a hold of no steps stands still in no time
+      yield from life.body.hold_routine(max(min(GAME_HOLD_S, left), 0.01))
+    if not stop():
+      rec = yield from life.body.seek_routine(
+        life.body.pose_xy(), max(0.0, game.find_within_m - GAME_MARGIN_M),
+        _patience(life, {"patience": MAX_BUDGET_S}), stop=stop)
+    yield from _until_over(life, stop)
+  return _role_ended(life, game, task_id, {"why": rec.get("why", "")})
 
 
 #: A two-role game's verbs (issue #404): its roles, each a walk over the

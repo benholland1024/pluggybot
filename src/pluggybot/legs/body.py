@@ -550,14 +550,15 @@ class QuadMission(ToolSwap, PlaceWalk, MakeWay, GameWalk, Navigator):
     return bool(((ahead > 0.0) & (ahead < self.FRONT_STOP_RANGE)
                  & (np.abs(side) <= self.FRONT_HALF_M)).any())
 
-  def _planning_grid(self) -> np.ndarray:
+  def _planning_grid(self, pads: bool = True) -> np.ndarray:
     """The LIDAR's grid, and what the depth camera saw under its plane
     burned in as obstacles -- and every plate it knows (#419,
-    `PlaceWalk.keep_out`): a press is the one way onto a pad."""
+    `PlaceWalk.keep_out`): a press is the one way onto a pad. Without the
+    plates (`pads=False`), what a line of sight is stopped by (#404)."""
     low = self.low > LOW_OCC
-    pads = self.keep_out()
-    if pads is not None:
-      low = low | pads
+    keep = self.keep_out() if pads else None
+    if keep is not None:
+      low = low | keep
     if not low.any():
       return self.grid.grid
     out = self.grid.grid.copy()

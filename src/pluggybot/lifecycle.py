@@ -1298,6 +1298,12 @@ class HubLifecycle:
     not asked -- it lies where it died until it is stood up."""
     if self.dead is not None:
       return False
+    # ...nor the HIDER in a game (issue #404): stood up and stepped out of
+    # the seeker's way, it would be the network handing the seeker the find
+    game = getattr(self, "game", None)
+    if (game is not None and game.over_at is None and game.hider is not None
+        and game.hider.root == self.root):
+      return False
     was = self.body.making_way
     if not self.body.make_way(route, by):
       return False
@@ -1487,6 +1493,12 @@ class HubLifecycle:
     forget_world`), and the new one explores from there.
     """
     archived = self.ledger.archive(start=self.start_points)
+    # ...and gives back any role it took in a game still on offer (issue
+    # #404): the next robot did not take it
+    if self.tasks is not None:
+      for task in self.tasks.offered():
+        if task.roles and task.role_of(self.root):
+          self.tasks.release_role(task.id, self.root)
     self.body.forget_world()
     self.floor_explored = False
     self.blacklist = set()
@@ -3257,11 +3269,11 @@ class HubLifecycle:
     self._emit({**base, "t": round(t, 3), "outcome": "validated",
                 "steps": len(program.steps())})
     self.state = "USE_TOOL"
-    # A GAME'S referee starts its clock when a role's errand begins (issue
-    # #167); the first of the two to begin starts it, the second is a no-op.
+    # A GAME'S referee is told its role's errand has begun (issues #167,
+    # #404), and starts its clock once BOTH roles' have (`HideAndSeek.begin`).
     game = getattr(self, "game", None)
     if game is not None and errand.role:
-      game.start(float(self.data.time))
+      game.begin(errand.role, errand.task_id, float(self.data.time))
     try:
       if is_proc:
         run = yield from lang.run_procedure_routine(self, program, facts)
@@ -4528,6 +4540,15 @@ class HubLifecycle:
     if task_id in self.declined:
       self._say(f"DECLINE {task_id}: already declined")
       return
+    held = task.role_of(self.root) if task.roles else ""
+    if held:
+      # A ROLE TAKEN IS KEPT (issue #404): the game stays on offer for the
+      # other robot, and a claim is never given back by its robot.
+      self._say(f"DECLINE {task_id}: you took its {held} role, and a role "
+                "taken is kept")
+      self._remember(f"could not decline {task.kind} {task.id}: you took its "
+                     f"{held} role")
+      return
     self.declined.add(task_id)
     other = self._peer(task.target) if task.target_kind == "robot" else None
     need, state = rules.need_of(other) if other is not None else (None, None)
@@ -5782,6 +5803,11 @@ class HubLifecycle:
       self._say(f"TASK {task.id}: " + (
         f"the {' and '.join(left)} role is still open -- the game starts once "
         "the other robot takes it" if left else "every role is taken -- the game is on"))
+      # ...and remembered: a held role is no offer any more (`shown_offers`),
+      # and nothing else in the robot's context says it is waiting on one
+      self._remember(f"took the {role} role in {task.kind} {task.id}: " + (
+        f"it starts once the other robot takes the {' and '.join(left)} role"
+        if left else "every role is taken, and the game is on"))
       return True
     if errand is None:
       # ACTIVE from the claim: an errand marks its task active when it
@@ -7235,10 +7261,9 @@ def errand_for_task(task, world: str, book=None, answer: str = "",
   return errand
 
 
-#: A game's program's budget past its head start and its seeking, s: the
-#: hider's walk ends after the head start and stands by to the end, and a
-#: role's errand may begin after the other's started the clock.
-GAME_SLACK_S = 120.0
+#: A game's program's budget past the wait for the other role, the head
+#: start and the seeking, s: room for a role to see its game end and say so.
+GAME_SLACK_S = 60.0
 
 
 def hide_and_seek_program():
@@ -7248,10 +7273,12 @@ def hide_and_seek_program():
   to the game's end; the seeker `seek`s -- counts where it stands, then
   searches its own map outward, never told where the hider is. Neither
   fetches a tool. The referee decides."""
-  from pluggybot.activity.hideseek import SEEK_HEAD_START_S, SEEK_S
+  from pluggybot.activity.hideseek import SEEK_HEAD_START_S, SEEK_S, START_WITHIN_S
   from pluggybot.procedure.steps import Program, Step
+  # ...a role waits for the other's errand to begin (`START_WITHIN_S` at
+  # most, or the game is called off), then the game is played
   return Program(name="hide_and_seek",
-                 budget_s=SEEK_HEAD_START_S + SEEK_S + GAME_SLACK_S,
+                 budget_s=START_WITHIN_S + SEEK_HEAD_START_S + SEEK_S + GAME_SLACK_S,
                  roles={"hider": (Step("hide"),), "seeker": (Step("seek"),)})
 
 
@@ -7476,7 +7503,8 @@ def shown_offers(life) -> list[dict]:
   what it pays, and whether it can be taken RIGHT NOW. The claimability
   flag is computed here rather than left to the model, because "can I
   afford this" is arithmetic with a right answer (issue #21). Never an
-  offer done TO this robot, nor one it declined (issue #228).
+  offer done TO this robot, nor one it declined (issue #228), nor a game
+  it holds a role in (issue #404).
 
   ⚠ FILTERED ON `claim_budget_wh`, THE OFFER RAIL, NOT ON `spendable_wh`:
   where there is a mind the rail is off and the rules say an offer it
@@ -7487,7 +7515,7 @@ def shown_offers(life) -> list[dict]:
     return []
   return life.tasks.context(float(life.data.time), life.claim_budget_wh,
                             limit=TASKS_SHOWN, reader=life.robot_name,
-                            hidden=life.declined)
+                            hidden=life.declined, holder=life.root)
 
 
 def overseer_context(life) -> dict:

@@ -6,15 +6,17 @@ the body.
 THE HIDER (`hide_routine`) picks its own spot, from its own map -- no
 surveyed spot and no coordinate handed over (#419): floor it has SEEN, a
 walk it can make before the seeking starts (`reach_m`), `HIDE_CLEAR_M`
-from anything in its way (never a doorway, where a robot resting cuts the
-other's way, #415), `KEEP_CLEAR_M` from the dock and the tool rack (the
-other robot's, too: both are commissioned, and the robot knows where),
-farther from where the seeker counts than a find, and out of the seeker's
-sight from there wherever the map allows; of those, the one the seeker
-would have the LONGEST WALK to over the same map, and of those, the
-hider's own shortest. Where the seeker counts is what it says on the
-network (`HubLifecycle.reported_xy`), as a real seeker would tell a real
-hider.
+from anything in its way, `KEEP_CLEAR_M` from the dock and the tool rack
+(the other robot's, too: both are commissioned, and the robot knows
+where), farther from where the seeker counts than a find, and out of the
+seeker's sight from there wherever the map allows; of those, the one the
+seeker would have the LONGEST WALK to over the same map, and of those,
+the hider's own shortest -- and never one where its body would cut the
+seeker off from the house (`_cuts_off`): the seeker's planner keeps clear
+of the other robot, and a hider lying across a sidewalk sealed the seeker
+out of the rest of the search (#415's doorway, wider). Where the seeker
+counts is what it says on the network (`HubLifecycle.reported_xy`), as a
+real seeker would tell a real hider.
 
 THE SEEKER (`seek_routine`) is never told where the hider is: it searches
 its own map outward from where it counted -- first the floor out of its
@@ -25,9 +27,10 @@ and each walk ends the moment that viewpoint has been within `cover_m` of
 it in plain sight. The referee, not the seeker, decides a find.
 
 SIGHT, both ways, is the map's (`_seen_from`): a straight line from a
-point meeting nothing the planner plans round -- the LIDAR's walls and what
-the depth camera laid under its plane. A couch hides a robot lying behind
-it from an eye 0.51 m up, and the referee's rays agree.
+point meeting nothing that stands up -- the LIDAR's walls and what the
+depth camera laid under its plane, never a floor plate the planner keeps
+off. A couch hides a robot lying behind it from an eye 0.51 m up, and the
+referee's rays agree.
 """
 
 from __future__ import annotations
@@ -40,10 +43,21 @@ from pluggybot.mapping import optimistic
 from pluggybot.mapping.frontier import OCC_THRESH
 from pluggybot.navigator import DRIVE_STOPPED
 
-#: A hiding spot is this far from anything in the way, m: a 1 m door
-#: leaves 0.5 m either side of its middle, and a robot resting there cuts
-#: the seeker's way (#415) -- the depth camera's furniture counts.
+#: A hiding spot is this far from anything in the way, m -- the depth
+#: camera's furniture counts. Not what keeps it off the seeker's way: the
+#: planner keeps 0.70 m clear of the other robot on top of its 0.35 m off
+#: walls, and MEASURED, a hider in the middle of a corridor sealed it at any
+#: width up to 2.2 m (`_cuts_off` is the rule that does).
 HIDE_CLEAR_M = 0.6
+#: A hiding spot may cut this much floor off the seeker's walk, besides the
+#: ground its own body covers, m^2: the corner of a dead end behind it, and
+#: never a room.
+CUT_OFF_M2 = 2.0
+#: How many spots are tried, best first, before the next best is taken
+#: without a check that would only fail again; a spot that cuts the way is
+#: dropped with everything round it within this, m.
+SPOT_TRIES = 24
+SPOT_DROP_M = 0.7
 #: ...and this far from the dock's seat and its standoff, and from the
 #: tool rack, m: a robot resting there is in the way of the other's charge
 #: or tool, and stood up to make way (#415) it is given away.
@@ -51,6 +65,10 @@ KEEP_CLEAR_M = 1.5
 #: How far the seeker is reckoned to see when the hider picks a spot out of
 #: its sight, m: past the LIDAR's 8 m, nothing in the house is far enough.
 SIGHT_M = 20.0
+#: A sight never stops inside its own body, m: a point a little drifted
+#: against a wall would otherwise see nothing, and every spot would be out
+#: of its sight.
+SIGHT_FROM_M = 0.35
 #: The straight lines a sight is made of: 0.5 deg apart, 9 cm at 10 m,
 #: under the lattice's 10 cm.
 SIGHT_RAYS = 720
@@ -63,6 +81,14 @@ SIGHT_RAYS = 720
 SWEEP_STEP_M = 2.0
 SWEEP_RING_M = 2.0
 SWEEP_LEG_S = 45.0
+#: A viewpoint the other robot's body kept the seeker from is tried again
+#: after this long, s -- it moves; one the map gives up on stays given up.
+PEER_RETRY_S = 20.0
+#: How long the search stands after a walk that ended without a step (no
+#: route, the other robot in the way), s, before it picks again: MEASURED,
+#: 225 such walks back to back at one instant froze both robots 9.9 s of
+#: wall clock, and gave up all but five viewpoints.
+SEEK_PAUSE_S = 1.0
 
 
 class GameWalk:
@@ -74,9 +100,10 @@ class GameWalk:
     self.last_seek: dict | None = None
 
   def _sight_walls(self) -> np.ndarray:
-    """What a line of sight is blocked by, on the map's cells: everything
-    the planner plans round (the module docstring)."""
-    return self._planning_grid() > OCC_THRESH
+    """What a line of sight is blocked by, on the map's cells: the planner's
+    obstacles but the plates it keeps off (the module docstring) -- MEASURED,
+    a known plate's keep-out hid up to 11.7 m^2 of open garden behind it."""
+    return self._planning_grid(pads=False) > OCC_THRESH
 
   def _seen_from(self, frm, radius: float, walls: np.ndarray) -> np.ndarray:
     """The planner lattice's cells `frm` sees within `radius`: `SIGHT_RAYS`
@@ -92,6 +119,8 @@ class GameWalk:
     inside = (ix >= 0) & (ix < cols) & (iy >= 0) & (iy < rows)
     hit = ~inside
     hit[inside] = walls[iy[inside], ix[inside]]
+    own = r < SIGHT_FROM_M
+    hit[:, own] &= ~inside[:, own]
     clear = np.cumsum(hit, axis=1) == 0
     seen[iy[clear] // b, ix[clear] // b] = True
     return seen
@@ -137,17 +166,46 @@ class GameWalk:
     if not ok.any():
       return None
     hidden = ok & ~self._seen_from(away_from, SIGHT_M, walls)
-    pool = hidden if hidden.any() else ok
-    # ...as long a walk is within a lattice cell of it: the lattice's own
-    # steps part two walks the same length by a cell's worth
-    best = theirs[pool].max()
-    near = pool & (theirs >= best - g.resolution * optimistic.BLOCK)
-    k = int(np.argmin(np.where(near, mine, np.inf)))
-    ky, kx = divmod(k, mine.shape[1])
-    return {"at": (round(float(cx[ky, kx]), 3), round(float(cy[ky, kx]), 3)),
-            "hidden": bool(hidden.any()),
-            "walkM": round(float(mine[ky, kx]), 2),
-            "seekerWalkM": round(float(theirs[ky, kx]), 2)}
+    side = g.resolution * optimistic.BLOCK
+    seekers = np.isfinite(theirs)
+    src = np.unravel_index(int(np.argmin(np.where(seekers, theirs, np.inf))), theirs.shape)
+    drop = SPOT_DROP_M / side
+    ys, xs = np.ogrid[:mine.shape[0], :mine.shape[1]]
+    tries = 0
+    for pool, out_of_sight in ((hidden, True), (ok & ~hidden, False)):
+      while pool.any():
+        # ...as long a walk is within a lattice cell of it: the lattice's
+        # own steps part two walks the same length by a cell's worth
+        best = theirs[pool].max()
+        near = pool & (theirs >= best - side)
+        k = int(np.argmin(np.where(near, mine, np.inf)))
+        ky, kx = divmod(k, mine.shape[1])
+        tries += 1
+        if tries > SPOT_TRIES or not self._cuts_off(seekers, src, (ky, kx)):
+          return {"at": (round(float(cx[ky, kx]), 3), round(float(cy[ky, kx]), 3)),
+                  "hidden": out_of_sight,
+                  "walkM": round(float(mine[ky, kx]), 2),
+                  "seekerWalkM": round(float(theirs[ky, kx]), 2)}
+        pool = pool & ((ys - ky) ** 2 + (xs - kx) ** 2 > drop * drop)
+    return None
+
+  def _cuts_off(self, floor: np.ndarray, src: tuple, at: tuple[int, int]) -> bool:
+    """Would this body lying at lattice cell `at` cut the floor the seeker
+    can walk (`floor`, reached from `src`) by more than `CUT_OFF_M2`
+    besides the disc it covers? The disc is the one the seeker's planner
+    keeps clear of the other robot (`OTHER_ROBOT_CELLS`), and the floor is
+    the lattice's, whose diagonal steps need both cells beside them free --
+    so four-connected is what the planner can reach."""
+    from scipy.ndimage import label
+    side = self.grid.resolution * optimistic.BLOCK
+    r = self.OTHER_ROBOT_CELLS * self.grid.resolution / side
+    ys, xs = np.ogrid[:floor.shape[0], :floor.shape[1]]
+    disc = (ys - at[0]) ** 2 + (xs - at[1]) ** 2 <= r * r
+    parts, _ = label(floor & ~disc)
+    if not parts[src]:
+      return True
+    lost = int(floor.sum()) - int((floor & disc).sum()) - int((parts == parts[src]).sum())
+    return lost * side * side > CUT_OFF_M2
 
   def hide_routine(self, away_from, reach_m: float, clear_of_m: float,
                    patience: float, stop=None):
@@ -183,11 +241,13 @@ class GameWalk:
     """`Body.seek_routine` (the module docstring). Its record: `why`
     ("stopped" by `stop`, "out of time", or "searched" -- every viewpoint
     it could reach seen round), `seconds`, how many viewpoints it set out
-    for (`targets`) and gave up on (`gaveUp`)."""
+    for (`targets`), gave up on (`gaveUp`) and was kept from by the other
+    robot, to try again (`deferred`)."""
     t0 = float(self.data.time)
     until = t0 + float(patience)
     rec: dict = {"base": [round(float(base[0]), 2), round(float(base[1]), 2)],
-                 "coverM": round(float(cover_m), 2), "targets": 0, "gaveUp": 0}
+                 "coverM": round(float(cover_m), 2), "targets": 0, "gaveUp": 0,
+                 "deferred": 0}
     self.last_seek = rec
 
     def done(why: str) -> dict:
@@ -205,11 +265,14 @@ class GameWalk:
     def cover() -> None:
       covered[...] |= self._seen_from(self.pose_xy(), cover_m, self._sight_walls())
 
+    # ...and when each viewpoint the other robot kept it from may be tried
+    retry = np.full(covered.shape, -np.inf)
     step = max(1, int(round(SWEEP_STEP_M / (self.grid.resolution * optimistic.BLOCK))))
     while True:
       if halted():
         return done("stopped")
-      if float(self.data.time) >= until:
+      now = float(self.data.time)
+      if now >= until:
         return done("out of time")
       floor = self.seen_floor_lattice()
       walk = self.walk_field(floor, base)
@@ -218,6 +281,11 @@ class GameWalk:
       todo = views & np.isfinite(walk) & ~covered
       if not todo.any():
         return done("searched")
+      todo &= retry <= now
+      if not todo.any():
+        # every viewpoint left is one the other robot is in the way of
+        yield from self._drive_routine(SEEK_PAUSE_S, 0.0, 0.0)
+        continue
       if (todo & ~in_view).any():
         todo &= ~in_view
       # the nearest ring of the search, by its walk from where it counted,
@@ -234,10 +302,18 @@ class GameWalk:
         cover()
         return halted() or bool(covered[ky, kx])
 
-      left = max(0.0, until - float(self.data.time))
+      t_leg = float(self.data.time)
+      left = max(0.0, until - t_leg)
       yield from self.drive_to_routine(tx, ty, timeout=min(left, SWEEP_LEG_S),
                                        stop=leg_stop)
       cover()
       if not covered[ky, kx]:
-        covered[ky, kx] = True              # given up on: on to the next
-        rec["gaveUp"] += 1
+        if (self.last_drive or {}).get("why") == "peer":
+          retry[ky, kx] = float(self.data.time) + PEER_RETRY_S
+          rec["deferred"] += 1
+        else:
+          covered[ky, kx] = True            # given up on: on to the next
+          rec["gaveUp"] += 1
+      if float(self.data.time) <= t_leg:
+        # ...a walk that never stepped: the world a moment on before the next
+        yield from self._drive_routine(SEEK_PAUSE_S, 0.0, 0.0)
