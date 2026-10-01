@@ -106,7 +106,7 @@ def test_the_mind_is_told_which_verbs_re_pose_the_tool():
   from pluggybot.mind.overseer import procedure_rule
   verbs = st.BODY_VERBS + st.SWAP_VERBS + st.PLACE_VERBS + st.PLATE_VERBS
   drivers = [name for name in verbs if st.VERBS[name].drives]
-  rule = procedure_rule(False, swaps=True, places=True, plates=True)
+  rule = procedure_rule(swaps=True, places=True, plates=True)
   assert f"({', '.join(f'`{d}`' for d in drivers)}) first" in rule
   assert "carrying pose" in rule
 

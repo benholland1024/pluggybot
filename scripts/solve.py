@@ -40,8 +40,9 @@ from pluggybot.tick import MissionAborted
 
 class _Mind:
   """What the lifecycle reads off an overseer on a job's path: a library
-  (the mark of the autonomous arm, where the lab's jobs are offered) and
-  nothing that decides. The prediction is the script's, not a model's."""
+  (the mark of a mind, where the lab's jobs are offered) and nothing that
+  decides. The prediction is the script's, not a model's. Its presence is
+  also what takes the rails off (`HubLifecycle.autonomous`)."""
   event_map = None
   pending = None
   interrupt_pending = None
@@ -70,7 +71,7 @@ def build_life(view: bool, state_dir: str):
                       low_battery_wh=cfg["low_battery_wh"],
                       ledger=Ledger(path=str(Path(state_dir) / "ledger.json")),
                       tasks=TaskBoard(path=str(Path(state_dir) / "tasks.json")),
-                      autonomous=True, overseer=_Mind(), near_field=True)
+                      overseer=_Mind(), near_field=True)
   acts = home_activities(model, data)
   life.body.step_hooks.append(acts.step_hook(model, data))
   life.activities = acts
@@ -82,7 +83,7 @@ def build_pair_lives(robot: int, state_dir: str, world: str = QUAD_HOME):
   and robot `robot` (1 or 2) given the job's mind and a task board."""
   from pluggybot.pair import build_pair
   lives = build_pair(world, pack="hosting", errands=("none", "none"),
-                     autonomous=True, overseer=False, near_field=True)
+                     overseer=False, near_field=True)
   life = lives[robot - 1]
   life.overseer = _Mind()
   life.tasks = TaskBoard(path=str(Path(state_dir) / "tasks.json"))

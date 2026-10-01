@@ -2,7 +2,7 @@
 
 Three places turned a CAUGHT exception into visitor-facing prose. All three
 are paths where the code recovered correctly -- nothing crashed, the tool went
-back to its bay, the rotation decided, the mission carried on -- so the only
+back to its bay, the fallback decided, the mission carried on -- so the only
 thing broken was what the robot said about itself:
 
   DECIDE explore: ... [fallback:RuntimeError: Connection reset by peer]
@@ -135,7 +135,7 @@ def test_an_api_outage_is_not_what_the_robot_remembers():
   peer]`.
   """
   life = stub_life()
-  life.max_sim_time = 0.0            # the rotation's explore ends where it starts
+  life.max_sim_time = 0.0            # the fallback's errand ends where it starts
   life.overseer = Overseer(_menu(), client=FakeClient(
     RuntimeError("Connection reset by peer")))
   said = narration(life)

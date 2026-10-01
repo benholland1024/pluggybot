@@ -115,10 +115,10 @@ decisions and what carried over — and this doc keeps no second copy. Done:
 the body (#377), the dock, arm and coupling (#378), the body interface
 (#380), the pair on legs in the served world (#387), places instead of
 coordinates (#419), the first paid job on legs (#403), the arm and its rack
-(#405), and the rover deleted (#376). The direction from there: staying
-alive and knowing where it is before new jobs (#425, #426, #422), then
-hide-and-seek, drawing and the other tools back on legs, `guarded`
-retired (#427), upkeep back on once those pay, terrain and the second
+(#405), the rover deleted (#376), and `guarded` retired (#427). The
+direction from there: staying alive and knowing where it is before new jobs
+(#425, #426, #422), then hide-and-seek, drawing and the other tools back on
+legs, upkeep back on once those pay, terrain and the second
 floor (#280), and #379's order gate before any hardware is bought.
 
 ## Design philosophy
@@ -149,9 +149,9 @@ floor (#280), and #379's order gate before any hardware is bought.
 | Odometry | legged odometry off the joints' CAN fields and an ICM-42688-P IMU read with their datasheets' noise (`legs/odometry.py`, #386), a zero-rate update at rest (#425), a fix off the dock's board (#378); every LIDAR scan matched against the robot's own map before it is fused, and the matched pose is the belief (`mapping/scan_match.py`, #386) |
 | Mapping & exploration | log-odds occupancy grid and frontier exploration (`mapping/`); the planner plans through floor it has not seen too, at a price, and finds its doors by finding walls (`mapping/optimistic.py`, #381's walking stage); places, not coordinates: a job names a place, and the robot finds its sign (#419) |
 | Tools | three modules on the rack beside the dock (`legs/rack.py`), taken and hung back by the arm's fork (`legs/swap.py`, #405), powered through the peg; their jobs come back on legs with #406 and #407 |
-| Behaviour arbitration | `HubLifecycle.run()`: charge > queued errand > the mind > explore on `guarded`; on `autonomous` the rails are off and the agent's event map decides when it is asked at all (Overseer.md, Evaluation.md §2) |
+| Behaviour arbitration | `HubLifecycle.run()`: with no mind, charge > queued errand > a claimed job > explore; with one the rails are off, the mind decides after the queue, and its event map decides when it is asked at all (Overseer.md, Evaluation.md §2) |
 | Economy | task offers, code-side scoring, a points ledger with upkeep and hearts (TaskPattern.md, Overseer.md §8b) |
-| Measurement | three arms (`guarded` retires in #427), and the six qualities read as shapes off the deployed world's rows (Evaluation.md) |
+| Measurement | two arms, `scripted` and the one mind (`guarded`, the control, retired in #427), and the six qualities read as shapes off the deployed world's rows (Evaluation.md) |
 
 ## Milestones
 

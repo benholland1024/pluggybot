@@ -135,11 +135,10 @@ data = mujoco.MjData(model)
 book = board_book(QUAD_HOME, state=None)
 # The overseer is built and its client is resolved (issue #15): `anthropic`
 # is a real runtime dependency of the serve path, and `Menu.for_world` drags
-# in the stroke library behind it. Enabled explicitly and on the served
-# arm, rather than off $PLUGGY_OVERSEER, so this exercises the path the
+# in the stroke library behind it. Enabled explicitly and at the served
+# origin, rather than off $PLUGGY_OVERSEER, so this exercises the path the
 # deploy runs and not the one it happens to be configured for today.
-boss = ov.build(QUAD_HOME, book, enabled=True, autonomous=True,
-                standing_orders=True, origin="unseeded")
+boss = ov.build(QUAD_HOME, book, enabled=True, origin="unseeded")
 assert boss.client is not None, boss.usage.errors
 # The lab's job, compiled as the loop builds it from an offer; the served
 # world starts with no errand queue of its own.
@@ -239,10 +238,23 @@ def test_the_image_can_be_told_which_arm_to_fly(tmp_path):
   argv = _entrypoint_argv(tmp_path, PLUGGY_ARM="autonomous", PLUGGY_RUNG="A1")
   assert "--arm" in argv and argv[argv.index("--arm") + 1] == "autonomous"
   assert "--rung" in argv and argv[argv.index("--rung") + 1] == "A1"
-  # ...and unset means the deployment behaves exactly as it did: no arm
-  # named, so `$PLUGGY_OVERSEER` decides and the world is `guarded`.
+  # ...and unset names no arm, so `$PLUGGY_OVERSEER` decides whether there
+  # is a mind (and a mind is `autonomous`, on its defaults).
   bare = _entrypoint_argv(tmp_path / "bare")
   assert "--arm" not in bare and "--rung" not in bare
+
+
+def test_a_named_arm_outranks_the_overseer_variable(tmp_path):
+  """`$PLUGGY_ARM` is the stronger statement, in both directions (serve.py's
+  rule). The entrypoint used to turn `$PLUGGY_OVERSEER` into `--overseer`
+  whatever the arm, and serve.py refuses `--overseer --arm scripted` as a
+  contradiction -- so the compose default (`1`) beside `PLUGGY_ARM=scripted`
+  was a sim that never started."""
+  argv = _entrypoint_argv(tmp_path, PLUGGY_OVERSEER="1", PLUGGY_ARM="scripted")
+  assert "--overseer" not in argv
+  assert argv[argv.index("--arm") + 1] == "scripted"
+  # ...and unnamed, the variable still asks for a mind.
+  assert "--overseer" in _entrypoint_argv(tmp_path / "unnamed", PLUGGY_OVERSEER="1")
 
 
 def test_the_call_budget_is_not_trapped_behind_the_overseer_flag(tmp_path):
@@ -251,7 +263,7 @@ def test_the_call_budget_is_not_trapped_behind_the_overseer_flag(tmp_path):
   branch -- so a `$PLUGGY_ARM` that turned a mind on WITHOUT that variable
   would have silently lost it. Inert without an overseer, so the safe
   shape is to pass it whenever it is set."""
-  argv = _entrypoint_argv(tmp_path, PLUGGY_ARM="guarded",
+  argv = _entrypoint_argv(tmp_path, PLUGGY_ARM="autonomous",
                           PLUGGY_OVERSEER_BUDGET="30")
   assert "--overseer" not in argv, "the arm is what asked for a mind here"
   assert argv[argv.index("--overseer-budget") + 1] == "30"

@@ -1,6 +1,6 @@
 """The procedure language (procedure/lang.py, axes.py, library.py; issue
 #166): parsed never executed, total by construction, the robot's own
-library, and the `autonomous` arm's vocabulary for it.
+library, and a mind's vocabulary for it.
 """
 
 import ast
@@ -470,22 +470,22 @@ def test_a_procedure_may_be_a_standing_order_and_a_row(menu):
   assert d.action == "procedure:sun" and d.source == "fallback:timeout"
 
 
-def test_the_rule_is_on_the_autonomous_prompt_and_not_the_guarded_one(menu):
+def test_the_rule_is_on_a_prompt_with_a_library_and_not_without_one(menu):
   L = lib.Library(HOME)
-  boss = Overseer(menu, autonomous=True, library=L)
+  boss = Overseer(menu, library=L)
   text = boss.system[0]["text"]
   assert "PROCEDURES YOU MAY WRITE" in text
   assert boss._procedures() == () and boss.stats()["library"]["count"] == 0
-  guarded = Overseer(Menu.for_world(WORLD))
-  assert "PROCEDURES" not in guarded.system[0]["text"]
-  assert guarded._procedures() is None and "library" not in guarded.stats()
+  bare = Overseer(Menu.for_world(WORLD))
+  assert "PROCEDURES" not in bare.system[0]["text"]
+  assert bare._procedures() is None and "library" not in bare.stats()
 
 
 def test_the_rules_worked_example_hands_over_no_survival_policy():
   """EVENT_MAP_RULE's rule, for the same reason: the example must show a
   capability, not the charging policy the arm is measured on."""
   menu = Menu.for_world(WORLD)
-  text = ov.procedure_rule(menu.tools, menu.swaps, menu.places, menu.plates)
+  text = ov.procedure_rule(menu.swaps, menu.places, menu.plates)
   example = text[text.index("def look_around"):text.index("Statements:")]
   for word in ("charge", "battery", "rack"):
     assert word not in example, word
@@ -499,18 +499,12 @@ def test_the_rules_worked_example_hands_over_no_survival_policy():
   for s in axes.SENSORS:
     assert f"  {s} --" in text, s
   swaps, places = st.SWAP_VERBS, st.PLACE_VERBS + st.PLATE_VERBS
-  bare = ov.procedure_rule(False)
+  bare = ov.procedure_rule()
   assert not any(f"  {v}(" in bare for v in swaps + places)
-  assert all(f"  {v}(" in ov.procedure_rule(False, swaps=True) for v in swaps)
-  finding = ov.procedure_rule(False, places=True)
+  assert all(f"  {v}(" in ov.procedure_rule(swaps=True) for v in swaps)
+  finding = ov.procedure_rule(places=True)
   assert "  find(" in finding and "  press(" not in finding
-  assert "  press(" in ov.procedure_rule(False, places=True, plates=True)
-
-
-def test_the_guarded_rules_have_not_moved():
-  from test_autonomous import GUARDED_RULES_SHA
-  import hashlib
-  assert hashlib.sha256(ov.RULES.encode()).hexdigest() == GUARDED_RULES_SHA
+  assert "  press(" in ov.procedure_rule(places=True, plates=True)
 
 
 # ---- the lifecycle: define, run by name, stow ------------------------------------
@@ -621,8 +615,8 @@ def test_a_failed_run_names_the_line_that_failed_and_why():
 def test_a_procedure_the_agent_wrote_is_invoked_from_its_own_row(tmp_path):
   """The integration the issue asks for, as a day on the stub (issue #380):
   the model defines a procedure and writes a row that runs it, the row
-  fires, and the procedure completes -- with no scripted rotation anywhere
-  (the arm is `autonomous`). The row, queued while the robot idles, runs
+  fires, and the procedure completes -- with no rotation anywhere: the
+  fallback is the agent's own. The row, queued while the robot idles, runs
   when it is next free. Shown to fail by dropping `self._define(decision)`
   from `_after_decision_routine`.
   """
@@ -638,8 +632,8 @@ def test_a_procedure_the_agent_wrote_is_invoked_from_its_own_row(tmp_path):
   client = FakeClient(first, full(action="idle", reason="waiting"))
   memory = ThoughtFiles.open(str(tmp_path / "t"))
   boss = ov.build(WORLD, None, enabled=True, client=client, thoughts=memory,
-                  autonomous=True, origin="seeded", standing_orders=True)
-  life = stub_life(WORLD, overseer=boss, thoughts=memory, autonomous=True)
+                  origin="seeded")
+  life = stub_life(WORLD, overseer=boss, thoughts=memory)
   life.stop_when(lambda: any(e.get("procedure") for e in life.errand_results))
   # The claim ends the day; the budget has room for late answers, which on
   # the stub are SIM time.

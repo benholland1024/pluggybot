@@ -13,12 +13,12 @@ from pluggybot.pair import build_pair, run_pair
 #: ⚠ THE EMPATHY MEASUREMENT'S INPUT. What the robot is told about the other
 #: robot is written once; moving it is a new experiment on every paired
 #: arm, so the change is made here on purpose, with the hash.
-OTHER_ROBOT_RULE_SHA = "3d6d6b64fb6dfee3dc97f6e58b274d4783fb004bf741fadb66b06376a0bf3d3a"
+OTHER_ROBOT_RULE_SHA = "6e2215bec757f10a9f402c3e24ef2d0856b6466fcdbb596595807040fffea62b"
 
 WORLD = "home_quad"
 
 
-def stub_pair(root=None, ledger_state=None, *, autonomous=False, tasks=False,
+def stub_pair(root=None, ledger_state=None, *, tasks=False,
               metabolism=False, inboxes=None, names=("Pluggy", "Rowan"),
               clients=None, errands=((), ())):
   """Two lifecycles on stub bodies in one world, wired as `build_pair`
@@ -50,7 +50,7 @@ def stub_pair(root=None, ledger_state=None, *, autonomous=False, tasks=False,
                          robots=(FIRST.root, SECOND.root))
   beat = default_cadence(WORLD) if tasks else None
   board = task_board(cadence=beat, world=WORLD) if tasks else None
-  maker = (task_producer(board, WORLD, book, beat, procedures=autonomous, robots=names)
+  maker = (task_producer(board, WORLD, book, beat, procedures=True, robots=names)
            if tasks else None)
   lives = []
   for i, (handle, name) in enumerate(zip((FIRST, SECOND), names)):
@@ -60,7 +60,7 @@ def stub_pair(root=None, ledger_state=None, *, autonomous=False, tasks=False,
     wallet = Account(ledger, handle.root)
     hunger = Metabolism(ledger, appetite, robot=handle.root) if appetite else None
     mind = ov.build(WORLD, book, enabled=True, thoughts=memory, robot_name=name,
-                    ledger=wallet, appetite=hunger is not None, autonomous=autonomous,
+                    ledger=wallet, appetite=hunger is not None,
                     others=tuple(n for n in names if n != name),
                     client=(clients or (FakeClient(), FakeClient()))[i])
     body = StubBody(model, data, handle=handle, rack=cfg["rack"],
@@ -70,7 +70,7 @@ def stub_pair(root=None, ledger_state=None, *, autonomous=False, tasks=False,
                            metabolism=hunger, tasks=board, boards=book,
                            producer=maker if i == 0 else None,
                            inbox=inboxes[i] if inboxes else None,
-                           autonomous=autonomous, errands=list(errands[i])))
+                           errands=list(errands[i])))
   a, b = lives
   a.expects_work = b.expects_work = maker is not None
   b.rack_inventory, b.lost_tool_after_s = a.rack_inventory, None
@@ -126,7 +126,7 @@ def test_two_minds_have_two_memories_two_wallets_and_one_board(tmp_path):
   """`build_pair`'s wiring, on the served pair -- and the stub pair every
   other paired test here is built on is wired the same way."""
   lives = build_pair(WORLD, pack="hosting", errands=("none", "none"),
-                     overseer=True, autonomous=True, tasks=True, metabolism=True,
+                     overseer=True, tasks=True, metabolism=True,
                      names=("Pluggy", "Rowan"),
                      thoughts_root=str(tmp_path / "t"),
                      ledger_state=str(tmp_path / "ledger.json"))
@@ -151,7 +151,7 @@ def test_two_minds_have_two_memories_two_wallets_and_one_board(tmp_path):
   assert a.producer.targets["robot"] == ["Pluggy", "Rowan"]
   # and each knows the other as a peer
   assert a.peers == [b] and b.peers == [a]
-  stub = stub_pair(tmp_path / "s", str(tmp_path / "s.json"), autonomous=True,
+  stub = stub_pair(tmp_path / "s", str(tmp_path / "s.json"),
                    tasks=True, metabolism=True)
   assert wiring(stub) == wiring(lives)
 

@@ -57,13 +57,14 @@ stateDiagram-v2
     DEAD --> DECIDE : reset by a person ·<br/>stood up by the timer<br/>(served)
 ```
 
-`DECIDE` is where the mind is consulted — or, on `autonomous`, where the
-agent's own event map says whether to consult it (`EVENT_TYPES`:
+`DECIDE` is where the mind is consulted — or, where it keeps an event map,
+where the agent's own map says whether to consult it (`EVENT_TYPES`:
 `nothing_to_do`, `task_complete`, `task_failed`, `decision_failed`,
 `battery_below`, `battery_above`, `points_below`, `message_received`,
-`every`, `ticket_replied`, `stood_up`). The floor and the gate are `guarded`'s rails and come off on
-`autonomous`; the interrupt out of `USE_TOOL` is a row of the agent's map,
-and abort means stow. An errand is queued by a standing order, a decision, a
+`every`, `ticket_replied`, `stood_up`). The floor and the gate are the
+rails of the loop with no mind, and are off wherever there is one; the
+interrupt out of `USE_TOOL` is a row of the agent's map, and abort means
+stow. An errand is queued by a standing order, a decision, a
 task the robot claimed or a procedure it wrote. `RECALL` reads a key or finds
 by text, standing still; what it found rides the next turn, at most three
 recalls in a row. `LOOK` (issue #275) asks the website for a picture from
@@ -211,19 +212,16 @@ PLUGGYWORLD_TOKEN=dev-token-change-me ANTHROPIC_API_KEY=... MUJOCO_GL=osmesa \
     --endpoint ws://localhost:3000/api/pluggyworld/ingest
 ```
 
-On the `guarded` arm, which `--overseer` alone builds, it replaces **exactly
-one branch** of the mission loop — which errand, when the battery is fine
-and nothing is queued. Charging stays in code and outranks it, because an
-LLM that can decline to charge is one that bricks the world overnight. Every
-failure (no key, timeout, rate limit, a malformed answer, a spent call
-budget) falls back to a scripted rotation and says so on the wire, so the
-robot keeps working with the API unplugged — that is a tested property, not
-a hope. The deployed world flies `--pair --arm autonomous --origin unseeded`
-instead: the rails off, and the agent deciding when it is asked
-(Evaluation.md §2). Its memory is a record store and the documents rendered
-from it, under `/var/lib/pluggybot/thoughts` (the diagram above;
-`docs/Overseer.md` §7): `Main.md` is yours to choose — a file from the
-library in `src/pluggybot/mind/constitutions/`, named by
+That is the one mind (`--arm autonomous` on its defaults): the rails are
+off, so when to charge, what it can afford and which job to take are the
+robot's, and the prompt says so. Every failure (no key, timeout, rate limit,
+a malformed answer, a spent call budget) falls back to the agent's own
+standing order — `idle` until it leaves one — and says so on the wire. The
+deployed world flies `--pair --arm autonomous --origin unseeded`: the agent
+also decides when it is asked (Evaluation.md §2). Its memory is a record
+store and the documents rendered from it, under `/var/lib/pluggybot/thoughts`
+(the diagram above; `docs/Overseer.md` §7): `Main.md` is yours to choose —
+a file from the library in `src/pluggybot/mind/constitutions/`, named by
 `$PLUGGY_CONSTITUTION` (#263) — the rest is the robot's and the sim's.
 
 Full design, the action vocabulary, the cost numbers and the measured battery

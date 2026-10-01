@@ -133,11 +133,10 @@ class Surface:
   #: and what each file is called. The `.md` files live at the root.
   store: str = ""
   suffix: str = ".md"
-  #: Which Menu feature OFFERS this document's verbs, or "" for every arm.
+  #: Which Menu feature OFFERS this document's verbs, or "" for every mind.
   #: The document EXISTS on every world (on disk, on the wire, archived by
-  #: a true death); what varies by arm is whether the robot is told about
-  #: it and given the verbs. `guarded` is the control and its prefix,
-  #: menu and schema stay byte-identical (GUARDED_RULES_SHA).
+  #: a true death); what varies with the menu is whether the robot is told
+  #: about it and given the verbs.
   offered_with: str = ""
 
   @property

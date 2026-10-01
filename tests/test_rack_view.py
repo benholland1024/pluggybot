@@ -16,8 +16,8 @@ What these hold down:
   4. THE EVIDENCE CASE: a tool on the other robot's fork says whose.
   5. THE CONTEXT KNOWS NOTHING A SENSOR WOULD NOT: the same wherever a lost
      tool lies, and silent on which module fills a bay.
-  6. ON EVERY ARM -- it is a fact, not a rail. `guarded` is shown the
-     originals and no rail, and its prefix does not move.
+  6. NO BUILT RAIL, NO RAIL IN THE VIEW: a mind in a house with none is
+     shown the originals, and no `built` block or `tools`.
   7. ONE SWITCH IS BOUGHT PER BAY THE WORLD HAS, read off the rack's own
      generator.
   8. A CLAIM ABOUT THE RACK IS GRADED AGAINST THE WORLD, never the inventory
@@ -27,7 +27,6 @@ Cheap: the served world and `mj_forward` where the claim is the switch,
 stubbed sources where it is the rule, one pair where it is the wiring.
 """
 
-import hashlib
 import re
 from types import SimpleNamespace
 
@@ -44,7 +43,6 @@ from pluggybot.mind.inbox import Inbox
 from pluggybot.pair import build_pair
 from pluggybot.procedure.steps import TOOL_BAYS
 from pluggybot.rack import catalog, coupling
-from test_autonomous import GUARDED_RULES_SHA
 
 WORLD = "home_quad"
 #: The rack's three tools, each hung on its own bay.
@@ -83,10 +81,9 @@ def _hang_where(model, data, body: str, other: str) -> None:
   mujoco.mj_forward(model, data)
 
 
-def _pair(tmp_path, autonomous=True):
+def _pair(tmp_path):
   a, b = build_pair(WORLD, pack="hosting", errands=("none", "none"),
-                    overseer=True, autonomous=autonomous,
-                    inboxes=(Inbox(), Inbox()),
+                    overseer=True, inboxes=(Inbox(), Inbox()),
                     thoughts_root=str(tmp_path / "t"),
                     ledger_state=str(tmp_path / "ledger.json"))
   cfg = world_config(WORLD)
@@ -171,8 +168,10 @@ def test_a_tool_on_the_other_robots_fork_says_whose(tmp_path):
   mine, theirs = overseer_context(a)["rack"], overseer_context(b)["rack"]
   assert mine["original"] == {**ON_THEIR_BAYS, "module_pen": f"on {b.robot_name}'s fork"}
   assert theirs["original"] == {**ON_THEIR_BAYS, "module_pen": ON_YOUR_FORK}
-  # no built rail in this world, so no workshop and no `built` block
-  assert "built" not in mine
+  # no built rail in this world, so no workshop, no `built` block and no
+  # `tools`
+  assert a.overseer.workshop is None
+  assert "built" not in mine and "tools" not in overseer_context(a)
 
 
 # ---- 4. nothing a sensor would not know ----------------------------------------
@@ -193,19 +192,6 @@ def test_the_context_knows_nothing_a_sensor_would_not(tmp_path):
   assert rack["original"]["module_claw"] == "on bay C"
   assert rack["original"]["module_pen"] == NO_PLACE
   assert all(WORDS.fullmatch(p) for p in rack["original"].values()), rack
-
-
-# ---- 5. every arm ------------------------------------------------------------------
-
-def test_guarded_is_shown_where_each_tool_is_and_no_rail(tmp_path):
-  a, b = _pair(tmp_path, autonomous=False)
-  _onto_fork(a, "module_pen", b)
-  state = overseer_context(a)
-  assert state["rack"] == {"original": {**ON_THEIR_BAYS,
-                                        "module_pen": f"on {b.robot_name}'s fork"}}
-  assert "tools" not in state
-  # context, not rules: `guarded`'s prefix does not move
-  assert hashlib.sha256(ov.RULES.encode()).hexdigest() == GUARDED_RULES_SHA
 
 
 # ---- 6. the part ---------------------------------------------------------------------

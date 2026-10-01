@@ -1119,12 +1119,12 @@ order the model reads them:
 
 - `sections[].name` is the piece's own heading as the prompt spells it
   (`PERSONA` where the piece has none) -- data, shown as it comes, never
-  translated. The first five are on every arm: `WHO YOU ARE` (the name and
+  translated. The first five are on every mind: `WHO YOU ARE` (the name and
   `Main.md` -- the constitution, which a consumer already has as a
   `thought` document and must not present as the robot being told it
-  twice), `PERSONA`, `HOW YOUR LIFE WORKS` (`RULES` / `RULES_AUTONOMOUS`),
-  `WHAT YOU CAN DO, AND WHERE`, `WHAT TASKS PAY`; then the arm's rules as
-  they apply: `YOU CAN DIE`, `POINTS ARE WHAT KEEPS YOU RUNNING`, `IF YOU
+  twice), `PERSONA`, `HOW YOUR LIFE WORKS` (`RULES`),
+  `WHAT YOU CAN DO, AND WHERE`, `WHAT TASKS PAY`; then the rules as they
+  apply: `YOU CAN DIE`, `POINTS ARE WHAT KEEPS YOU RUNNING`, `IF YOU
   CANNOT BE REACHED` or `WHEN YOU ARE ASKED` (+ `YOUR LIST STARTS EMPTY`),
   `PROCEDURES YOU MAY WRITE`, `CHALLENGES`, `WHAT YOU HAVE MEASURED`, `TOOLS
   YOU MAY BUILD`, `THE OTHER ROBOT`, `WHAT YOU CAN DO ABOUT THE OTHER
@@ -1133,8 +1133,8 @@ order the model reads them:
 - The sections joined with a blank line ARE the prefix, byte for byte
   (`tests/test_overseer.py` asserts it against `Overseer.system`), so
   nothing the robot must not see can be here without being shown to the
-  model -- no `Task.secret`, no other robot's hidden state. ~16.6k chars on
-  `autonomous`, ~15.4k on `guarded`; byte-stable for a run.
+  model -- no `Task.secret`, no other robot's hidden state. ~45k chars on
+  the deployed pair (2026-10-01); byte-stable for a run.
 - `sha` is the prefix's SHA-256 over the assembled bytes, name and all:
   the regime marker a reader tells two periods' prompts apart by, and what
   the observatory keeps per run beside `build`.
@@ -1236,7 +1236,7 @@ beside them until the site has moved off them.
 
 The committed recordings were re-recorded: each opens with a `records`
 line per robot and carries a `record` per History line written during the
-day. None carries an `event_map` -- the fixtures fly the scripted rotation
+day. None carries an `event_map` -- the fixtures fly the loop with no mind,
 and a scripted world has no map -- so a consumer's map rendering is built
 against the shape above, live.
 
@@ -1602,8 +1602,8 @@ run is exactly the granularity a consumer wants to group by. `accepts` and
 |---|---|
 | `commit` | the sim's short git sha, **baked at image build** (`--build-arg PLUGGY_COMMIT=…`; the build is red without one, because `.git` is not in the image and a default that quietly stayed `unknown` is the whole problem) |
 | `dataHashes` | sha256 of the five economy data files **as the run resolved them** (an env override wins) plus the world's own XML and assets, and the body's files and policies. One function, `evaluation.identity.data_hashes` |
-| `arm` | `scripted` / `guarded` / `autonomous` (docs/Evaluation.md §2). The deployed world is `autonomous` (#206), and it says so rather than being assumed. ⚠ It is what RAN, not what was asked for: an arm whose mind could not be built at all is a `scripted` day |
-| `rung` | which rung of the `autonomous` ladder — `A0` (the survival clock hidden) or `A1` (restored). ⚠ **ABSENT on an arm with no ladder**, rather than null: "which mind" is a question every arm answers and "which rung" is not one `guarded` has, so a `guarded` header is byte-identical to the one 0.15.0 shipped |
+| `arm` | `scripted` / `autonomous` (docs/Evaluation.md §2; `guarded`, the control retired in #427, appears only in streams from before it). The deployed world is `autonomous` (#206), and it says so rather than being assumed. ⚠ It is what RAN, not what was asked for: an arm whose mind could not be built at all is a `scripted` day |
+| `rung` | which rung of the `autonomous` ladder — `A0` (the survival clock hidden) or `A1` (restored). ⚠ **ABSENT on an arm with no ladder**, rather than null: "which mind" is a question every arm answers and "which rung" is not one `scripted` has |
 | `model`, `backend` | which mind is deciding, and by which road — `Qwen/…` on the router and the same id served locally are different regimes |
 | `packWh`, `reserveWh`, `deadlineS` | the three world parameters each already shown to move behaviour. The deadline is not a data file, so no hash catches it |
 | `constitutions` | which constitution each robot was told it is, per robot root -- `{root: {name, sha}}` (pluggybot #263, the entry above). ⚠ Absent on a header built without one |
@@ -2026,7 +2026,7 @@ before.
   is `Main.md`, which arrives as a `thought` document.
 - ⚠ **`steering` is the `accepts` lesson from the other end.** The goals
   file is read on every run, but only an **overseer** decides anything with
-  it. Without one the robot flies a scripted rotation and the goals are a
+  it. Without one the loop decides for itself and the goals are a
   statement of purpose rather than the thing choosing its next errand.
   Reporting both identically would let a website say "following its goals"
   about a robot with nothing reading them — the same mistake as marking a
@@ -2586,8 +2586,8 @@ time**. A `.gz` suffix means gzip (`zcat` to inspect).
    "commit": "21f44dc",                                //  additive; see below)
    "dataHashes": {"rewards": "f55a…", "cadence": "ab3c…", "energy": "144a…",
                   "metabolism": "3937…", "questions": "8554…", "world": "b946…"},
-   "arm": "guarded", "model": "Qwen/Qwen3-4B-Instruct-2507",
-   "backend": "huggingface",       //  ...and "rung": "A0" on `autonomous`
+   "arm": "autonomous", "rung": "A0", "model": "Qwen/Qwen3-4B-Instruct-2507",
+   "backend": "huggingface",
    "packWh": 8.0, "reserveWh": 0.9, "deadlineS": 90.0}}
 
 // frame
