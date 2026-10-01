@@ -58,6 +58,7 @@ from pluggybot.legs import dock as dk
 from pluggybot.legs import posture as pz
 from pluggybot.legs.actuator import BUS_V_NOMINAL, JointLimits
 from pluggybot.legs.arm import ARM_SLEW, ArmDriver
+from pluggybot.legs.game import GameWalk
 from pluggybot.legs.model import CHOSEN, ELECTRONICS_W, LEGS
 from pluggybot.legs.odometry import LegOdometry
 from pluggybot.legs.places import PlaceWalk
@@ -273,7 +274,7 @@ class QuadStepper:
     return tick.run(self, routine, name)
 
 
-class QuadMission(ToolSwap, PlaceWalk, MakeWay, Navigator):
+class QuadMission(ToolSwap, PlaceWalk, MakeWay, GameWalk, Navigator):
   """The Navigator over a quadruped (the module docstring)."""
 
   #: The body's own sizes (`scripts/quad_spike.py`; SimNotes, "The first
@@ -422,6 +423,8 @@ class QuadMission(ToolSwap, PlaceWalk, MakeWay, Navigator):
     self._init_places(model)
     # MAKING WAY for the other robot (#415, `legs/way.py`)
     self._init_way()
+    # HIDE AND SEEK's two roles (#404, `legs/game.py`)
+    self._init_game()
 
   # ---- the dock's frame -----------------------------------------------------
 
@@ -547,14 +550,15 @@ class QuadMission(ToolSwap, PlaceWalk, MakeWay, Navigator):
     return bool(((ahead > 0.0) & (ahead < self.FRONT_STOP_RANGE)
                  & (np.abs(side) <= self.FRONT_HALF_M)).any())
 
-  def _planning_grid(self) -> np.ndarray:
+  def _planning_grid(self, pads: bool = True) -> np.ndarray:
     """The LIDAR's grid, and what the depth camera saw under its plane
     burned in as obstacles -- and every plate it knows (#419,
-    `PlaceWalk.keep_out`): a press is the one way onto a pad."""
+    `PlaceWalk.keep_out`): a press is the one way onto a pad. Without the
+    plates (`pads=False`), what a line of sight is stopped by (#404)."""
     low = self.low > LOW_OCC
-    pads = self.keep_out()
-    if pads is not None:
-      low = low | pads
+    keep = self.keep_out() if pads else None
+    if keep is not None:
+      low = low | keep
     if not low.any():
       return self.grid.grid
     out = self.grid.grid.copy()
@@ -1471,6 +1475,12 @@ class QuadBody(Body):
 
   def press_plate_routine(self, tag, patience, stop=None) -> Routine:
     return self.mission.press_routine(tag, patience=patience, stop=stop)
+
+  def hide_routine(self, away_from, reach_m, clear_of_m, patience, stop=None) -> Routine:
+    return self.mission.hide_routine(away_from, reach_m, clear_of_m, patience, stop=stop)
+
+  def seek_routine(self, base, cover_m, patience, stop=None) -> Routine:
+    return self.mission.seek_routine(base, cover_m, patience, stop=stop)
 
   def forget_world(self) -> None:
     self.mission.forget_world()

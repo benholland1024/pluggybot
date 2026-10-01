@@ -226,7 +226,7 @@ save a filmstrip PNG named after the script.
 | `scripts/drift_spike.py` | #386: believed against true pose over lab round trips, the quadruped's (the walking policy steered by the truth, two estimates on one walk, odometry alone and matched), and whether the lab door is open in the robot's own map; `--explore SECONDS --seed K [--rest S]` the loop's own explore, steered by the belief, then home to the dock (#422), `--explore-table` across seeds |
 | `scripts/determinism_spike.py` | is the world the same world twice? N scripted days hashed, first divergence attributed to GPU / decoder / raycast; `--pair`; `--compare DIR`; `--resume-at T` flies a day against one saved and carried on in a new process (#345) |
 | `scripts/make_way_spike.py` | #415: the pair in the house on true-floor maps, one robot resting in a doorway and the other walking through it, one process a scene: the walk's end, the step aside (how far, how long, why it stopped), touches and falls; `--before` nobody asks, `--finished` the resting robot's day is over, `--scene A,B` |
-| `scripts/solve.py --feature mouse` | ladder A of #264, the paid feed on legs (#403): offered, claimed with a prediction, walked and graded by the job's own evaluator; `--pair`, `--n N`, `--from dock\|lab`; filmstrip `solve.png`. The tower's and the bench's come back with the arm (#407) |
+| `scripts/solve.py --feature mouse` | ladder A of #264, the paid feed on legs (#403): offered, claimed with a prediction, walked and graded by the job's own evaluator; `--pair`, `--n N`, `--from dock\|lab`; filmstrip `solve.png`. `--feature hide_and_seek` flies the pair's game (#404): offered as the cadence offers it, both roles claimed, each run from the queue the referee fills, the verdict banked; one game a scene (`--scene A,B`, `--swap` both ways round; `--find`, `--seek-s`, `--head-s` sweep the referee). The tower's and the bench's come back with the arm (#407) |
 | `scripts/board_png.py` | a whiteboard's ink as a PNG from the boards state file or a recording. ⚠ +lat is the viewer's LEFT, as in the site's `surfaces/board.ts`; the test pins it because every figure the pen draws is symmetric |
 | `scripts/quad_spike.py` | the quadruped body (#377; SimNotes "The quadruped body"): `--view` watches it, `--torque`/`--thermal`/`--energy`/`--sweep`/`--pupper` are the sizing tables (on `model.SIZING`, #377's placeholder arm, #405), `--policy`/`--climb`/`--getup`/`--posture`/`--odometry`/`--determinism` fly a trained policy in OUR physics (`--climb --scan map` on the D435's map, `legs/scan.py`, #388), `--shove` the served body knocked over in the house (what `stuck_after_s` is read off, #389), `--served`/`--rays` time the pair and the sensors |
 | `scripts/dock_spike.py` | the quadruped's dock (#378; SimNotes "The quadruped's dock"): `--capture` the funnel's envelope (premises `--sticky`, `--flat`), `--approach [--n N]` the success rate walking in by the board (premise `--blind`), `--hold` lying there: contact, preload, the anchor, standing off; `--view` dockings in the viewer, one after another; `--mouth`/`--bed` fly another width; filmstrip `dock_spike.png` |
@@ -945,18 +945,43 @@ save a filmstrip PNG named after the script.
   are not delivered, and no rule text shows a weighing. Not offered on legs
   until #407 makes the arm's joint torque its scale (the rover's was its
   lift's load).
-- **The first two-role errand is hide and seek** (issue #167;
-  `activity/hideseek.py`, `pair.arrange_game`): a `TaskKind` may carry
-  `roles`; the offer stays OFFERED until every role is held, one per robot,
-  first claimant first role (`TaskBoard.claim(role=)`, `Task.claims`,
-  `open_roles`, `role_of`); each robot runs its role's steps
-  (`run_program_routine(role=)`, `Errand.role`) as an errand whose task is
-  `game` — no evaluator, so the lifecycle scores nothing. Not played on legs
-  until #404 writes the roles' programs and re-keys the referee (it still
-  resolves the rover's names). ⚠ THE REFEREE IS AN ACTIVITY
-  (`HideAndSeek`, on the first robot's seam: `found` within `FIND_WITHIN_M`
-  WITH line of sight, or `over`), and the pair banks ONE verdict on the
-  WINNER's wallet; `HubLifecycle.game` is read by nothing that decides.
+- **The first two-role job is hide and seek** (issues #167, #404;
+  `activity/hideseek.py`, `pair.referee_games`, `legs/game.py`): a
+  `TaskKind` may carry `roles`; the offer stays OFFERED until every role is
+  held, one per robot, first claimant first role (`TaskBoard.claim(role=)`,
+  `Task.claims`, `open_roles`, `role_of`). ⚠ A ROLE'S CLAIM QUEUES NOTHING:
+  once every role is held, the pair's referee queues each robot its role's
+  errand (task `game` — no evaluator, so the lifecycle scores nothing), and
+  a world with no referee refuses the claim. ⚠ A HELD ROLE IS NO OFFER TO
+  ITS ROBOT (`TaskBoard.context(holder=)`, `shown_offers`: shown, an order
+  took it again and again and was refused), the claim is in its History,
+  and a decline of it is refused. ⚠ THE GAME STARTS ONCE BOTH ROLES'
+  ERRANDS HAVE BEGUN (`HideAndSeek.begin`: the first claimant is often still
+  busy), and each role waits for it inside its budget. Offered by the
+  cadence on `home_quad` to a PAIR on `autonomous` alone (target `world`,
+  `GAME_TARGET`; its row is challenges.json's). ⚠ NO SURVEYED SPOT (#419):
+  the hider picks its own (`hide`: its own map, out of the sight of where
+  the seeker SAYS it counts, `HIDE_CLEAR_M` off walls and `KEEP_CLEAR_M`
+  off the dock and the rack, the seeker's longest walk in the head start's
+  reach, never where its body cuts the seeker off, `_cuts_off`) and does
+  not step aside for the seeker (`make_way`); the seeker (`seek`) counts
+  where it stands and searches its own map outward, out of its own sight
+  first, pausing after a walk that never stepped — ⚠ ITS CHOICE OF WHERE
+  TO LOOK NEVER READS WHERE THE HIDER IS (a test runs the search with and
+  without the hider's disc; its walk keeps clear of the reported pose, as
+  every walk does). Sight is what stands up, never a floor plate. `hide`
+  and `seek` are `steps.GAME_VERBS`, a game's program's alone
+  (`world_facts(game=True)`): no procedure the robot writes may name one.
+  ⚠ THE REFEREE IS AN ACTIVITY, ONE A WORLD, GAME AFTER GAME (`assign`
+  ends the last game's record; a restart's is idle): `found` within
+  `FIND_WITHIN_M` WITH line of sight — rays from the seeker's LIDAR to
+  every geom of the hider, through the seeker's own body, within reach
+  only, every `LOS_EVERY_S` — or `over`; CALLED OFF, nobody paid, when the
+  roles have not both begun `START_WITHIN_S` after they were taken or a
+  player dies (the pair's `watch`); the pair banks ONE verdict on the
+  WINNER's wallet, and the wire names the winner. `HubLifecycle.game` is
+  read by the roles' verbs, a role's errand (`begin`) and `make_way`, and
+  by nothing else that decides.
 - **The wire keys everything by the robot's ROOT** (issue #167;
   protocol/README.md "a second robot on the stream"): `HubLifecycle.root` on
   every event; `ThoughtFiles(robot=)`, `Journal(robot=)`,

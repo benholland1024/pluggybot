@@ -22,6 +22,11 @@ The verbs, in the words the issue used:
   move(axis, target)   one axis to a setpoint           `procedure/axes.py`
   drive(v, w, seconds) the base at a velocity           `Body.velocity_routine`
 
+...and a two-role game's, in its program alone (`GAME_VERBS`, issue #404):
+
+  hide()               the hider's role                 `Body.hide_routine`
+  seek()               the seeker's role                `Body.seek_routine`
+
 Every verb reaches the body through `Body` (issue #380, `body.py`) and
 nothing else. Each returns a verdict dict with `ok`, measured off the world
 (the module seated and powered, the arrival, a foot on the plate), never
@@ -562,6 +567,153 @@ VERBS: dict[str, Verb] = {
 }
 
 
+# ---- the game's verbs (issue #404) ------------------------------------------------
+
+#: How long a role stands by at a time while its game goes on, s.
+GAME_HOLD_S = 1.0
+#: ...and at a time while it waits for the game to start, s: the head start
+#: runs from the start, and MEASURED, a second's wait cost the hider 0.3 m
+#: of its walk.
+START_POLL_S = 0.1
+#: How fast a hider walks to its spot, m/s: what its head start buys it in
+#: metres of walk (`_hide`). MEASURED, 5.9 m in 15-21 s (11 games), the
+#: drive's 0.4 m/s cruise less its turns.
+HIDE_PACE_M_S = 0.3
+#: ...and the least it is left to walk, m: a hider whose errand began after
+#: the head start was spent still goes round a corner.
+HIDE_MIN_REACH_M = 3.0
+#: The referee measures torso to torso and the map a spot: a hiding spot is
+#: this much farther from where the seeker counts than a find, and the
+#: seeker counts floor seen only this much nearer than a find, m.
+GAME_MARGIN_M = 0.3
+
+
+def _game(life) -> tuple:
+  """The game this robot's errand is a role in -- its referee and its task
+  id -- or (None, "")."""
+  game = getattr(life, "game", None)
+  errand = getattr(life, "_errand_now", None)
+  return game, (getattr(errand, "task_id", "") or "")
+
+
+def _game_stop(life, game, task_id: str):
+  """What a role's walks stop on: its game called, or the robot's own
+  interrupt, asked as every walk asks it (`_interrupt`)."""
+  ask = _interrupt(life)
+
+  def stop() -> bool:
+    return game.over_for(task_id) or bool(ask is not None and ask())
+  return stop
+
+
+def _until_over(life, stop) -> Routine:
+  """Stand by until `stop` -- the game over -- or the program's budget is
+  spent (`life.step_until`)."""
+  until = getattr(life, "step_until", None)
+  while not stop():
+    if until is not None and float(life.data.time) >= until:
+      return
+    yield from life.body.hold_routine(GAME_HOLD_S)
+
+
+def _until_started(life, game, stop) -> Routine:
+  """Stand by until the game's clock starts -- both roles' errands begun
+  (`HideAndSeek.begin`) -- or `stop`, or the program's budget is spent:
+  True once it has started. The robot that took the first role is often
+  still busy when the other takes the last, and a role played before the
+  other has begun is a game against a robot doing something else."""
+  until = getattr(life, "step_until", None)
+  while game.started_at is None:
+    if stop() or (until is not None and float(life.data.time) >= until):
+      return False
+    yield from life.body.hold_routine(START_POLL_S)
+  return True
+
+
+def _no_game(what: str) -> dict:
+  return {"ok": False, "reason": f"there is no game of hide and seek to {what} in"}
+
+
+def _role_ended(life, game, task_id: str, out: dict) -> dict:
+  """A role's verdict: ok once its game is over, whoever won (the referee
+  decides, and the pair pays); otherwise what ended it first -- the
+  robot's own interrupt, which `run_verb` says as `stopped: interrupted`,
+  or the program's time."""
+  if game.over_for(task_id):
+    return {"ok": True, **out}
+  why = ("its own interrupt" if getattr(life, "aborting", False)
+         else "the program's time ran out")
+  return {"ok": False, **out, "reason": f"the game was still on: {why}"}
+
+
+def _hide(life, args: dict) -> Routine:
+  """The hider's role (issue #404): once the game is on, a spot of its own
+  choosing on its own map (`Body.hide_routine`), away from where the
+  seeker counts -- where the seeker SAYS it is, as a real seeker tells a
+  real hider -- walked to in the head start, and then wait there for the
+  game's end. ok when the game is over; the referee decides who won."""
+  game, task_id = _game(life)
+  if game is None or not game.playing(task_id):
+    return _no_game("hide")
+  stop = _game_stop(life, game, task_id)
+  rec: dict = {}
+  if (yield from _until_started(life, game, stop)):
+    away = life.reported_xy(game.seeker_root)
+    if away is None:
+      return {"ok": False, "reason": "the seeker says nothing of where it is"}
+    reach = max(HIDE_PACE_M_S * game.hiding_left(float(life.data.time)),
+                HIDE_MIN_REACH_M)
+    rec = yield from life.body.hide_routine(
+      away, reach, game.find_within_m + GAME_MARGIN_M,
+      _patience(life, {"patience": MAX_PATIENCE_S}), stop=stop)
+    yield from _until_over(life, stop)
+  return _role_ended(life, game, task_id, {
+    "hid": bool(rec.get("hid")), "why": rec.get("why", ""),
+    **({"at": list(rec["at"])} if rec.get("at") else {})})
+
+
+def _seek(life, args: dict) -> Routine:
+  """The seeker's role (issue #404): once the game is on, count where it
+  stands until the head start is spent, then search its own map outward
+  from there (`Body.seek_routine`) -- never told where the hider is --
+  until the game is over. ok when it is; the referee decides who won."""
+  game, task_id = _game(life)
+  if game is None or not game.playing(task_id):
+    return _no_game("seek")
+  stop = _game_stop(life, game, task_id)
+  rec: dict = {}
+  if (yield from _until_started(life, game, stop)):
+    until = getattr(life, "step_until", None)
+    while not stop() and (until is None or float(life.data.time) < until):
+      left = game.hiding_left(float(life.data.time))
+      if left <= 0.0:
+        break
+      # ...a step at least: a hold of no steps stands still in no time
+      yield from life.body.hold_routine(max(min(GAME_HOLD_S, left), 0.01))
+    if not stop():
+      rec = yield from life.body.seek_routine(
+        life.body.pose_xy(), max(0.0, game.find_within_m - GAME_MARGIN_M),
+        _patience(life, {"patience": MAX_BUDGET_S}), stop=stop)
+    yield from _until_over(life, stop)
+  return _role_ended(life, game, task_id, {"why": rec.get("why", "")})
+
+
+#: A two-role game's verbs (issue #404): its roles, each a walk over the
+#: robot's own map with the game's referee watching. NOT the language's:
+#: no procedure the robot writes may name one (`lang` reads `VERBS`), only
+#: a game's program, validated against a world's facts that list them
+#: (`lifecycle.world_facts(game=True)`).
+GAME_VERBS: dict[str, Verb] = {
+  "hide": Verb("hide", {}, _hide, "the hider's role: a spot of its own choosing "
+               "on its own map, out of the seeker's sight, walked to in the head "
+               "start; ok when the game is over", drives=True),
+  "seek": Verb("seek", {}, _seek, "the seeker's role: count where it stands, "
+               "then search its own map outward; ok when the game is over",
+               drives=True),
+}
+GAME_VERB_NAMES = tuple(GAME_VERBS)
+
+
 def run_verb(life, verb: Verb, args: dict, where: dict | None = None,
              until: float | None = None) -> Routine:
   """One verb, as both runners call it (this module's and the language's).
@@ -722,6 +874,8 @@ def validate(program: Program, facts: WorldFacts) -> list[str]:
     for i, step in enumerate(steps):
       where = f"{role}[{i}]"
       verb = VERBS.get(step.verb)
+      if verb is None and facts is not None and step.verb in (facts.verbs or ()):
+        verb = GAME_VERBS.get(step.verb)      # a game's role (issue #404)
       if verb is None:
         bad.append(f"{where}: unknown verb {step.verb!r} "
                    f"(have: {', '.join(VERBS)})")
@@ -774,7 +928,8 @@ def run_program_routine(life, program: Program, facts: WorldFacts,
       result["stopped"] = "budget"
       break
     life._say(f"PROCEDURE {program.name} {i + 1}/{len(steps)}: {step.describe()}")
-    verdict = yield from run_verb(life, VERBS[step.verb], step.args,
+    verdict = yield from run_verb(life, VERBS.get(step.verb) or GAME_VERBS[step.verb],
+                                  step.args,
                                   {"procedure": program.name, "n": i + 1,
                                    "of": len(steps)},
                                   until=t0 + program.budget_s)

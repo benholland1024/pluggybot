@@ -104,27 +104,27 @@ def test_the_jobs_bullet_says_what_is_offered_and_nothing_else():
 # ---- the offers -----------------------------------------------------------------
 
 
-def test_home_quad_offers_feed_mouse_alone_and_the_shock_is_one_line_back(tmp_path):
-  """A test reads the entry: `feed_mouse` and nothing else; putting the
-  shock job back is one line in `kinds`, and the prompt it builds then
-  names both jobs."""
+def test_home_quad_offers_the_feed_and_the_game_and_the_shock_is_one_line_back(tmp_path):
+  """A test reads the entry: `feed_mouse` and the pair's game (#404) and
+  nothing else; putting the shock job back is one line in `kinds`, and the
+  prompt it builds then names both of the lab's jobs."""
   shipped = cad.Cadence.load(QUAD_HOME, cad.CADENCE_PATH)
-  assert list(shipped.kinds) == ["feed_mouse"]
+  assert list(shipped.kinds) == ["feed_mouse", "hide_and_seek"]
   doc = json.loads(cad.CADENCE_PATH.read_text())
   block = doc["worlds"][QUAD_HOME]
   block["kinds"] = {"shock_mouse": {}, **block["kinds"]}           # the one line
   path = tmp_path / "cadence.json"
   path.write_text(json.dumps(doc))
   back = cad.Cadence.load(QUAD_HOME, path)
-  assert list(back.kinds) == ["shock_mouse", "feed_mouse"]
-  # ...and the producer rotates the lab's jobs alone: the cage is the one
-  # target this world names for any of them
+  assert list(back.kinds) == ["shock_mouse", "feed_mouse", "hide_and_seek"]
+  # ...and the producer rotates the lab's job and the pair's game: the cage
+  # and the robots' home are the targets this world names for them
   targets = lc.world_targets(QUAD_HOME, procedures=True, robots=("Luca", "Rowan"))
-  assert targets["cage"] == ["lab"]
+  assert targets["cage"] == ["lab"] and targets["world"] == [lc.GAME_TARGET]
   from pluggybot.economy.tasks import TaskBoard
   producer = lc.task_producer(TaskBoard(), QUAD_HOME, cadence=shipped,
                               procedures=True, robots=("Luca", "Rowan"))
-  assert producer.kinds == ("feed_mouse",)
+  assert producer.kinds == ("feed_mouse", "hide_and_seek")
   # ...priced off a measured row, never the table's unpriced fallback
   from pluggybot.economy import energy
   assert energy.load(QUAD_HOME).errand_wh.get("feed", 0.0) > 0.0

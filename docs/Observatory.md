@@ -10,6 +10,45 @@ observatory is NOT a result: it reports into the issue it informs.
 
 ## Periods
 
+### Hide and seek on legs (#404) — opens when this PR is deployed, with #415's below it
+
+**What changed in the world.** A second job on legs, and the first for
+two. `home_quad`'s cadence offers hide and seek beside the feed, to the
+pair on `autonomous`: *"Hide and seek at home: the first of you to take it
+hides, the other counts to twenty where it stands, then seeks."* It pays
+the winner 25 (its challenges.json row, unchanged) and the other nothing.
+Taking a role queues nothing, and the robot that took it is no longer
+shown the offer (its History says it holds the role); once both are taken
+each robot is given its role, and the game starts once both have begun.
+The hider picks a spot from its own map -- out of sight of where the
+seeker says it is counting, off the dock and the rack, never where its
+body would cut the seeker off from the house, the seeker's longest walk it
+can make in 20 s -- and lies there, and does not step aside for the
+seeker. The seeker counts 20 s where it stands, then searches its own map
+outward for up to 240 s, never told where the hider is. A find is within 1.5 m with any part
+of the hider in sight of the seeker's LIDAR. The prompt did not move: the
+row was already in the table `autonomous` is shown. What is new is the
+offer on the board, a role's claim said out loud and remembered ("took the
+hider role in hide_and_seek t_0042: it starts once the other robot takes
+the seeker role"), and the verdict in both robots' History. The board's dearest job is now the
+seeker's role, 6.1 Wh.
+
+**What the period is for.**
+
+- **Do they play?** Offers against claims: one role or both, which robot
+  takes which, how often an offer lapses half-claimed, and what a decline
+  says.
+- **Who wins**, found or over, and how long a find takes, against the 6 of
+  14 measured on maps laid from the true floor: the deployed maps are the
+  robots' own.
+- **What it does to the rest of the day:** the feed beside it (a slot
+  each), how long a role waits for the other to begin, a game called off
+  (the two not both begun within 10 minutes, or a player dead), and deaths
+  during a game.
+- **The doorway:** `MAKE WAY` lines during a game (#415: the seeker may
+  make way, the hider never does), and two standing robots holding for
+  each other head-on (#395).
+
 ### A robot resting across the other's way steps aside (#415) — opens when this PR is deployed
 
 **What changed in the world.** How the two quadrupeds share a doorway. A

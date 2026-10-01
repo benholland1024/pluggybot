@@ -1266,8 +1266,9 @@ otherwise).
   `idle`/`explore`/`recall` — so a map carrying only `task_complete → ask`
   goes quiet on its first tick. ⚠ It is this robot's QUEUE, never the world
   (issue #333): its `kind` is `offers` when `offeredTasks` holds a job
-  (`lifecycle.shown_offers`, the one list the context and the event read)
-  and `none` when not. The rule once called it "there is nothing waiting",
+  (`lifecycle.shown_offers`, the one list the context and the event read;
+  never a game this robot already holds a role in, #404) and `none` when
+  not. The rule once called it "there is nothing waiting",
   and `nothing_to_do → idle` — the sensible answer to that — was 58 of 80
   deployed idles while offers stood open.
 - ⚠ **Three of the four fields are enums**, which is why a 4B is safe writing

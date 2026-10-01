@@ -228,6 +228,25 @@ class Body(abc.ABC):
     pad) and `why`."""
 
   @abc.abstractmethod
+  def hide_routine(self, away_from: tuple[float, float], reach_m: float,
+                   clear_of_m: float, patience: float, stop=None) -> Routine:
+    """Hide from a robot counting at `away_from` (issue #404, hide and
+    seek): pick a spot on the floor it has mapped, no further than
+    `reach_m` to walk, more than `clear_of_m` from `away_from` and out of
+    its sight where the map allows, and walk there within `patience` s;
+    `stop` as `find_tag_routine`'s. Returns its record: `hid` (arrived),
+    `at`, `why`, `seconds`."""
+
+  @abc.abstractmethod
+  def seek_routine(self, base: tuple[float, float], cover_m: float,
+                   patience: float, stop=None) -> Routine:
+    """Search its own map outward from `base`, where it counted (issue
+    #404), walking until every floor it knows within reach has been within
+    `cover_m` of it in plain sight, `patience` s are up, or `stop` says so
+    -- never told where the other robot is. Returns its record: `why`,
+    `seconds`, how many places it walked to."""
+
+  @abc.abstractmethod
   def forget_world(self) -> None:
     """A true death (issue #419): its map and its places cleared -- the new
     robot knows where its dock is and nothing else."""
@@ -669,6 +688,10 @@ class StubBody(Body):
     self.places = Places(ids=PLATE_TAG_IDS)
     self.found: list[int] = []
     self.pressed: list[int] = []
+    #: ...and each hide (from where, its reach, how far clear) and each
+    #: search (from where, its reach) it was asked for (issue #404)
+    self.hid_from: list[tuple] = []
+    self.sought: list[tuple] = []
     self.forgot = 0
     self.last_drive = None
     self.swapping_at = self.peer_at_bay_m = None
@@ -756,6 +779,33 @@ class StubBody(Body):
     return {"tag": int(tag), "pressed": known,
             "why": "pressed" if known else "not found", "attempts": []}
     yield
+
+  def hide_routine(self, away_from, reach_m, clear_of_m, patience, stop=None):
+    """Hidden at once, `clear_of_m` past `away_from` on the line through
+    where it stands (or along +x from there): the stub maps nothing."""
+    self.hid_from.append((tuple(away_from), float(reach_m), float(clear_of_m)))
+    dx, dy = self.x - away_from[0], self.y - away_from[1]
+    d = math.hypot(dx, dy)
+    ux, uy = (dx / d, dy / d) if d > 0.0 else (1.0, 0.0)
+    r = max(d, clear_of_m + 0.5)
+    at = (away_from[0] + ux * r, away_from[1] + uy * r)
+    self.x, self.y = at
+    return {"hid": True, "at": [round(at[0], 3), round(at[1], 3)], "why": "hid",
+            "seconds": 0.0}
+    yield
+
+  def seek_routine(self, base, cover_m, patience, stop=None):
+    """Seeks by standing still until `stop` says so or `patience` runs out,
+    a second at a time: the stub has no floor to walk."""
+    self.sought.append((tuple(base), float(cover_m)))
+    t0 = float(self._data.time)
+    while float(self._data.time) - t0 < patience:
+      if stop is not None and stop():
+        return {"why": "stopped", "seconds": round(float(self._data.time) - t0, 1),
+                "targets": 0}
+      yield from self._wait(min(1.0, patience - (float(self._data.time) - t0)))
+    return {"why": "out of time", "seconds": round(float(self._data.time) - t0, 1),
+            "targets": 0}
 
   def forget_world(self) -> None:
     self.grid.grid[...] = 0.0

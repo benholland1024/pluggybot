@@ -29,8 +29,6 @@ import numpy as np
 
 from pluggybot.behavior.navigation import drive_toward
 from pluggybot.mapping import optimistic
-from pluggybot.mapping.astar import nearest_traversable
-from pluggybot.mapping.frontier import FREE_THRESH
 from pluggybot.navigator import ARRIVAL_SLOW_RADIUS, CLOSE_ENOUGH_M, WAYPOINT_REACHED_M
 
 
@@ -88,26 +86,10 @@ class MakeWay:
     if not len(pts):
       return None
     g = self.grid
-    b = optimistic.BLOCK
-    side = g.resolution * b
-    planning = self._planning_grid()
-    cost = optimistic.map_costs(planning, self.INFLATION_CELLS, self.UNKNOWN_COST)
-    cost[planning >= FREE_THRESH] = np.inf        # floor it has SEEN, only
-    floor = np.isfinite(cost)
-    self._mask_others(floor)
-    cost[~floor] = np.inf
-    lat = optimistic.coarsen(cost, b)
+    side = g.resolution * optimistic.BLOCK
+    lat = self.seen_floor_lattice(mask_others=True)
     rows, cols = lat.shape
-    x, y = self.pose_xy()
-    cx, cy = g.world_to_cell(x, y)
-    src = nearest_traversable(np.isfinite(lat), (cx // b, cy // b),
-                              radius=optimistic.ESCAPE_CELLS)
-    if src is None:
-      return None
-    graph = optimistic.lattice_for(lat.shape, side)
-    graph.weigh(lat)
-    walk, _ = graph.search(src[1] * cols + src[0], limit=self.ASIDE_WALK_M)
-    walk = walk.reshape(lat.shape)
+    walk = self.walk_field(lat, self.pose_xy(), limit=self.ASIDE_WALK_M)
     # the route on the lattice, every half cell of it, and each cell's
     # distance from it
     dense = [pts[:1]]
