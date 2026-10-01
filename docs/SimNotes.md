@@ -2817,6 +2817,82 @@ resting robot only once it said no or did not clear the way in 30 s; and
 a drive's words call a robot resting "lying down to rest", "in the way"
 unless its disc covers the goal (`tests/test_make_way.py`).
 
+## Hide and seek on legs (issue #404)
+
+**What the rover's game was.** The hider drove to a surveyed spot and
+waited; the seeker counted 20 s and drove to four surveyed points
+(`HIDE_AND_SEEK_SPOTS`, coordinates neither robot ever found); a referee
+keyed on the rover's `lidar` site and `chassis` geom called a find within
+1.0 m with one ray from the seeker's LIDAR to the hider's torso. #419's
+places rule takes the spots away, and on the quadruped the referee's names
+do not exist.
+
+**Who picks the spot: code, from the hider's own map** (decided here). The
+mind does not see its map -- it sees its places (the lab's plate signs) and
+its pose -- so a spot it named would be a coordinate it never saw; and a
+role is code the way a `find`'s search is (#419: the errand searches). The
+mind still decides whether to play, and by claiming first or second, which
+role. The roles are two verbs of a game's program alone (`hide`, `seek`;
+`steps.GAME_VERBS`), never the procedure language's.
+
+- **The hider** (`legs/game.py`, `hiding_spot`): floor its map has SEEN, a
+  walk it can make in the head start (0.3 m/s), 0.6 m off anything in its
+  way (no doorway: a robot resting there cuts the other's way, #415), 1.5 m
+  off the dock and the rack, farther than a find from where the seeker
+  SAYS it counts (its reported pose, a network fact), and out of the
+  seeker's sight from there wherever the map allows; of those, the
+  seeker's longest walk, and of walks as long, its own shortest.
+- **The seeker** (`seek_routine`): counts where it stands, then searches
+  its own map outward from there -- first the floor out of its own sight
+  from where it counted, where a hider hides, then the rest -- ring by ring
+  of its walk, to the nearest viewpoint (a lattice 2 m apart) its sight
+  has not covered; each walk ends the moment its viewpoint is covered.
+  Sight is the map's, both ways: what the planner plans round, the
+  depth camera's furniture included. ⚠ It is never told where the hider
+  is, though the network carries every robot's reported pose: a test runs
+  the search with the hider's disc on its planner and without, and the
+  viewpoints are the same, in the same order.
+- **The referee's eye** is the seeker's LIDAR on its rear mast, 0.51 m up,
+  and the hider is every geom of its body. Re-keyed naively it would have
+  been blind: from the mast the eye looks down across the seeker's own
+  stowed arm, and to a robot lying 0.7-1.0 m in front of it every one of 41
+  rays met the seeker first (standing 1.4 m off, 29 of them, the rover's
+  one ray at the torso among them). So a ray that meets the seeker is cast
+  on past it. 41 rays cost 160 us, two thirds of a physics step, so they
+  are cast only within reach of a find, at most every 0.1 s.
+- **The claims.** A role's claim queues nothing; once both are held the
+  pair's referee queues each robot its role (`pair.referee_games`), so the
+  robot that took the first role is free until the other takes the last.
+  One referee a world, game after game; called off, nobody paid, when
+  neither role has begun 600 s after both were taken.
+
+**Balance, measured** (`solve.py --feature hide_and_seek --swap`: seven
+start pairs about the house, both ways round, both maps laid from the true
+floor):
+
+| the seeker's search | seeking | the find | found |
+|---|---|---|---|
+| viewpoints 1 m apart, nearest first | 120 s | 1.5 m | 0 of 14 |
+| ...out of its own sight first | 120 s | 1.5 m | 1 of 5 (stopped there) |
+| ...out of its own sight first | 120 s | 2.0 m | 0 of 6 (stopped there) |
+| 2 m apart, out of its own sight first | 240 s | 1.5 m | 7 of 14 |
+
+At 1 m the seeker stopped and turned every 4 s (28 viewpoints in 120 s),
+covering the rooms round where it counted while the hider sat a 7.7-13.7 m
+walk off. At 2 m and 240 s the finds came at 78-256 s; where the hider
+won, the seeker passed 1.9-5.4 m from it. Every hider found a spot out of
+sight and reached it in 8.9-22.6 s (median 17 s), so the head start stays
+20 s. The seeker's role is the dearer, 6.0-6.1 Wh whenever the seeking ran
+out (the hider's 0.7-1.7), and that is its row in `energy.json`. A wider
+find did not help (2.0 m at 120 s found none of six): the search's pace,
+not the find, was what lost, so the find stays two body lengths.
+
+**What is true now:** the pair plays hide and seek on `home_quad` when
+the cadence offers it to them on `autonomous`; the hider hides where its
+own map says it is hidden, the seeker searches its own map without being
+told, and the referee sees a quadruped -- any part of it, past its own body
+(`tests/test_hide_and_seek.py`).
+
 ## Debugging workflow that worked
 
 1. Reproduce headlessly with printed telemetry (pose, joint rates, contact

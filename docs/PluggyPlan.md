@@ -115,9 +115,9 @@ decisions and what carried over — and this doc keeps no second copy. Done:
 the body (#377), the dock, arm and coupling (#378), the body interface
 (#380), the pair on legs in the served world (#387), places instead of
 coordinates (#419), the first paid job on legs (#403), the arm and its rack
-(#405), and the rover deleted (#376). The direction from there: staying
-alive and knowing where it is before new jobs (#425, #426, #422), then
-hide-and-seek, drawing and the other tools back on legs, `guarded`
+(#405), the rover deleted (#376), and hide-and-seek back on legs (#404).
+The direction from there: staying alive and knowing where it is before new
+jobs (#425, #426, #422), then drawing and the other tools back on legs, `guarded`
 retired (#427), upkeep back on once those pay, terrain and the second
 floor (#280), and #379's order gate before any hardware is bought.
 

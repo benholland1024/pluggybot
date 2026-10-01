@@ -627,7 +627,14 @@ deployed world runs them.
    each robot running its role's steps, and ONE verdict — from a referee
    ACTIVITY that measures both robots off the world — banked on the
    winner's wallet by the pair, never by either robot's errand (its task
-   name has no evaluator on purpose).
+   name has no evaluator on purpose). ⓘ *Found putting it on legs (#404):*
+   a role's claim queues nothing — the robot that took the first role is
+   free until the other takes the last, and only then does the pair's
+   referee queue each robot its role (`pair.referee_games`); and a role
+   that goes somewhere is a place the robot finds on its own map, never a
+   surveyed spot (§2): the hider picks its own, and the seeker is never
+   told where the hider is, though the network carries every robot's
+   reported pose.
 4. **A claimed task cannot be honestly abandoned.** Deadlines only govern
    offers, and there is no verb for giving a job up gracefully — related to
    tool dropping (issue #30), and unowned by any pattern yet.

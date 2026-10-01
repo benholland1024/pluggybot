@@ -194,10 +194,14 @@ than discovered:
 
 The first example's predicate now exists and runs: `activity/hideseek.py`
 is the referee — the seeker within `FIND_WITHIN_M` of the hider **with line
-of sight** (a raycast from the seeker's lidar to the hider's chassis; a wall
-between them is not a find) inside `SEEK_S` of seeking, after a
-`SEEK_HEAD_START_S` head start — sensed every step, latched, and evaluated
-once for both robots (`eval_hide_and_seek`). It needed the second robot
+of sight** inside `SEEK_S` of seeking, after a `SEEK_HEAD_START_S` head
+start — sensed every step, latched, and evaluated once for both robots
+(`eval_hide_and_seek`). On legs (#404) the line of sight is rays from the
+seeker's LIDAR, on its rear mast, to every geom of the hider's body —
+a leg round a corner is a sighting, a wall or a couch between them is not —
+cast past the seeker's own body, which they cross: from its mast the eye
+looks down across its own stowed arm, and to a robot lying 0.7-1.0 m in
+front of it every ray met the seeker first. It needed the second robot
 (M12), not new sensing: the seeker does not have to *know* it found anyone.
 What is still ungradeable is the *quality* of a hiding spot — that is §6's
 item 3, method, and the hider's win rate over many games is the nearest
