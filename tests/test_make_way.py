@@ -329,6 +329,19 @@ def test_a_resting_body_asked_steps_aside_beneath_a_still_command(house):
     m.close()
 
 
+def test_a_warp_ends_the_step_aside(house):
+  """Stood up somewhere else -- a death's stand-up, a mission's start --
+  the body's step aside is over: its spot was off a way it no longer lies
+  across, and the next STILL command would walk it back there."""
+  m = _mission(house)
+  try:
+    assert m.make_way(_route(), "pluggybot")
+    m.start_at(-1.0, 3.0, 0.0)
+    assert m._aside is None and m.making_way is None
+  finally:
+    m.close()
+
+
 def test_its_own_walk_and_a_fall_end_the_step_aside(house):
   """A command that moves is the body's own business, and takes over at
   once, unchanged; a fall ends it too -- the get-up is the posture's."""

@@ -1368,6 +1368,9 @@ class QuadMission(ToolSwap, PlaceWalk, MakeWay, Navigator):
     from pluggybot.legs.world import stand
     stand(self.model, self.data, self.handle.prefix, x, y, yaw)
     self._move, self.want = None, None
+    # ...and a step aside it was making (#415) is over: the spot it was
+    # walking to is where it stood before the warp
+    self._aside, self.making_way = None, None
     self.posture = STANDING
     self._slumped_since = self._stood_since = None
     self.docked = False
