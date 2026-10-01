@@ -274,11 +274,11 @@ CHARGE_TIMEOUT_SLACK = 1.4
 #: standoff that gives up within this of it, m, as the robot believes,
 #: goes on to the approach -- which finds the dock's board and walks in by
 #: it, whatever the belief -- where it used to end the charge. MEASURED:
-#: home from a long explore 0.5-0.9 m out, three robots of eight believed
-#: themselves 0.2-0.3 m short, the planner aiming at a stand-in where a copy
-#: of the room laid askew had put the couch, and pressed the real couch
-#: until the walk gave up, the board 2.5 m off and never looked for.
-NEAR_STANDOFF_M = 1.5
+#: three robots of eight home from a long explore gave up 0.1-0.3 m short,
+#: pressing the couch, the board never looked for. Within 0.75 m the board
+#: (1.62 m past the standoff) is within 2.4 m, where one look reads it to
+#: 6 cm (median); with no board in sight the walk's retries go on.
+NEAR_STANDOFF_M = 0.75
 SCREEN_SENSE_S = 0.02       # sim seconds between power scans of a display
                             # the robot is NOT carrying (issue #13)
 #: Sim seconds an overseer-chosen `explore` runs for before the arbitration
@@ -2280,8 +2280,9 @@ class HubLifecycle:
     # is a death. So a taken charge bay is WAITED FOR (issue #346), for 3x
     # a charge's typical occupancy, and neither the pack nor an interrupt
     # ends that wait: charging is what either would ask for.
-    spins, since, arrived, near = 0, None, False, False
+    spins, since, arrived = 0, None, False
     driven = None                 # the goal the last drive was sent to
+    tried = None                  # why a near give-up's approach stopped
     while True:
       if self.peers and self.body.peer_on_the_goal(sx, sy) is not None:
         since = float(self.data.time) if since is None else since
@@ -2294,20 +2295,24 @@ class HubLifecycle:
         break
       if self.peers and self.body.peer_on_the_goal(sx, sy) is not None:
         continue                          # taken again: wait again, above
-      near = self._near_standoff(sx, sy)
-      if near:
+      if self._near_standoff(sx, sy):
         # ⚠ NOT `GO_CHARGE: `, which the site counts as a failed attempt
         # (rooftop's `chargeOutcome`): this attempt's one outcome comes after
         self._say(f"GO_CHARGE near enough -- {self.drive_why(sx, sy)}; the "
                   "dock's board decides")
-        break
+        tried = yield from self.body.dock_routine()
+        # ...and with no board in sight from here -- a wall between, a
+        # belief further off than it says -- the walk's own retries, as
+        # before: no board is no reason to stop looking for a route
+        if tried != "no board" or self.body.charging():
+          break
       yield from self.body.look_around_routine()
       self.body.refresh_rack()
       sx, sy, hd = self.body.charge_standoff()
       spins += 1
       if spins == 2:
         break
-    if not (arrived or near):
+    if not arrived and tried in (None, "no board"):
       # WHY, and not always "no route" (issue #350): a stall, the other
       # robot and the clock read the same until the drive said which. Of
       # the goal last DRIVEN to -- a spin moves the standoff after it, and
@@ -2317,16 +2322,18 @@ class HubLifecycle:
       blocked = self.peer_at(*(driven or (sx, sy)))
       self.charge_failure = "never reached the charge bay" + (
         "" if driven is None else f": {self.drive_why(*driven)}") + (
+        "" if tried is None else "; the board was not in sight from there") + (
         "" if blocked is None else
         f" -- {self.held_for(blocked).replace('the bay', 'it', 1)}")
       self._say(f"GO_CHARGE: {self.charge_failure}")
       return False
     # Line up on the bay's own tag and creep until the electrical criterion
     # fires -- position is believed, contact is known.
-    why = yield from self.body.dock_routine()
+    if arrived:
+      tried = yield from self.body.dock_routine()
     if not self.body.charging():
       # the approach's trace is EVIDENCE (issue #346), the log's alone
-      self.charge_failure = f"no charge contact ({why})"
+      self.charge_failure = f"no charge contact ({tried})"
       self._say(f"GO_CHARGE: {self.charge_failure}",
                 detail=self.body.charge_trace())
       return False

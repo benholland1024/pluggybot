@@ -314,13 +314,13 @@ def test_a_charge_trip_that_never_arrived_says_why_and_so_does_the_death():
 
 
 def test_a_walk_home_that_gives_up_near_the_standoff_goes_on_to_the_board():
-  """Home from a long explore 0.9 m out, three robots of eight believed
-  themselves 0.2-0.3 m short of the standoff, pressed the couch until the
-  walk gave up, and the charge ended there: the board, 2.5 m off, was never
-  looked for (issue #422). Near enough, the approach goes on and the board
-  decides; farther, or the other robot the cause, the walk's retries and
-  its failure stand."""
-  def trip(short, why="stalled"):
+  """Home from a long explore, three robots of eight gave up 0.1-0.3 m short
+  of the standoff, pressing the couch, and the charge ended there: the
+  board, 2.5 m off, was never looked for (issue #422). Near enough, the
+  approach goes on and the board decides. With no board in sight from
+  there, the walk's retries go on as before; farther, or the other robot
+  the cause, the retries and the failure stand as they were."""
+  def trip(short, why="stalled", board=True):
     life = _life()
     sx, sy, _ = life.body.charge_standoff()
     life.body.x, life.body.y = sx + short, sy
@@ -329,8 +329,15 @@ def test_a_walk_home_that_gives_up_near_the_standoff_goes_on_to_the_board():
       life.body.last_drive = {"why": why, "goal": (x, y), "seconds": 12.0, "shortM": short}
       return tick.result(False)
 
-    looks = []
+    looks, approaches = [], []
+
+    def dock():
+      approaches.append(1)
+      life.body.on_charger = board
+      return tick.result("docked" if board else "no board")
+
     life.body.go_to_routine = drive
+    life.body.dock_routine = dock
     life.body.look_around_routine = lambda: (looks.append(1), tick.result(None))[1]
     went = life.body.run(life.go_charge_routine())
     # ...and the attempt is narrated with ONE outcome, the one the site
@@ -338,11 +345,15 @@ def test_a_walk_home_that_gives_up_near_the_standoff_goes_on_to_the_board():
     # not a `GO_CHARGE: ` failure before the docking
     outcomes = [ln for ln in life.log if "GO_CHARGE: " in ln or "GO_CHARGE -> CHARGE" in ln]
     assert len(outcomes) == 1, outcomes
-    return went, life.body.on_charger, len(looks)
+    return went, len(approaches), len(looks), life.charge_failure
 
-  assert trip(0.2) == (True, True, 0)
-  assert trip(NEAR_STANDOFF_M + 0.5) == (False, False, 2)
-  assert trip(0.2, why="peer") == (False, False, 2)
+  assert trip(0.2) == (True, 1, 0, "")
+  went, approaches, looks, failure = trip(0.2, board=False)
+  assert (went, approaches, looks) == (False, 2, 2)
+  assert failure.startswith("never reached the charge bay: the drive gave up 0.2 m short")
+  assert failure.endswith("; the board was not in sight from there"), failure
+  assert trip(NEAR_STANDOFF_M + 0.5)[:3] == (False, 0, 2)
+  assert trip(0.2, why="peer")[:3] == (False, 0, 2)
 
 
 def _peer(x: float, y: float, state: str = "IDLE"):

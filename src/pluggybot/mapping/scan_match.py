@@ -102,17 +102,19 @@ SEARCH_RAD = math.radians(6.0)
 SEARCH_STEP_RAD = math.radians(1.0)
 FOUND_SHARE = 0.75
 #: ⚠ A ROBOT ITS MAP KEEPS REFUSING IS LOST PAST THE SEARCH'S REACH (issue
-#: #422): after LOST_RUN scans running "inconsistent", and every LOST_RUN
-#: more, the search looks WIDE_M and WIDE_RAD round the belief (`_relocate`)
-#: -- on a lattice WIDE_STRIDE cells apart with the walls widened to cover
-#: it, then cell by cell round its best. A pose it finds must clear
-#: FOUND_SHARE with all three directions fixed; be the ONLY one of the
-#: WIDE_TRIES best that does (two poses UNIQUE_M or UNIQUE_RAD apart that
-#: both explain the scan are a place that looks like another); and be found
-#: AGAIN by the next wide search, the same correction within UNIQUE_M and
-#: UNIQUE_RAD. ⚠ ONCE IS A COINCIDENCE: on a sidewalk whose thin wall the
-#: map had eroded (#401), a pose 1.8 m along it explained a scan better
-#: than the truth did, and the next search took a different one.
+#: #422): after LOST_RUN scans running "inconsistent" -- any other verdict
+#: breaks the run -- and every LOST_RUN more, the search looks WIDE_M and
+#: WIDE_RAD round the belief (`_relocate`): on a lattice WIDE_STRIDE cells
+#: apart with the walls widened to cover it, then cell by cell round its
+#: best. A pose it finds must clear FOUND_SHARE with all three directions
+#: fixed; explain the scan best of the WIDE_TRIES best PLACES (lattice poses
+#: UNIQUE_M apart at any heading: one spot at three headings is one place,
+#: and would hide a second), none of the others found explaining it as well
+#: (RIVAL_SHARE); and be found AGAIN by the next wide search, the same
+#: correction within UNIQUE_M and UNIQUE_RAD. ⚠ ONCE IS A
+#: COINCIDENCE: on a sidewalk whose thin wall the map had eroded (#401), a
+#: pose 1.8 m along it explained a scan better than the truth did, and the
+#: next search took a different one.
 LOST_RUN = 10
 WIDE_M = 2.0
 WIDE_RAD = math.radians(15.0)
@@ -120,6 +122,12 @@ WIDE_STRIDE = 4
 WIDE_TRIES = 3
 UNIQUE_M = 0.5
 UNIQUE_RAD = math.radians(5.0)
+#: ...and a second place found stops a relocation only if it puts this
+#: share of the best's inliers on walls: a twin room explains the scan as
+#: well, to the noise. MEASURED: a pose 2 m off, most of the scan past the
+#: map's edge and the rest on its walls, was "found" with 216 inliers where
+#: the truth had 359 (0.60), and refused a relocation the truth had earned.
+RIVAL_SHARE = 0.9
 #: ⚠ AN ANCHOR RE-LAYS THE MAP ROUND IT (issue #422): once the dock has put
 #: the belief in its frame to millimetres (`anchored`), the next
 #: ANCHORED_SCANS scans that go into the map are laid at that belief,
@@ -306,12 +314,14 @@ class ScanMatcher:
     turned = abs(math.atan2(math.sin(th - fth), math.cos(th - fth)))
     return math.hypot(x - fx, y - fy) >= FUSE_M or turned >= FUSE_RAD
 
-  def anchored(self) -> None:
-    """The belief was just put where the world says it is (the dock's
-    anchor): the next ANCHORED_SCANS scans fused are laid at it, unmatched,
-    the next of them at once."""
-    self.anchoring = ANCHORED_SCANS
-    self.lost_run, self.pending, self.fused_pose = 0, None, None
+  def anchored(self, on: bool = True) -> None:
+    """The belief was just put where the world says it is to millimetres
+    (the dock's board): the next ANCHORED_SCANS scans fused are laid at it,
+    unmatched, the next of them at once. `on=False` closes the window: the
+    belief was put somewhere else since."""
+    self.anchoring = ANCHORED_SCANS if on else 0
+    if on:
+      self.lost_run, self.pending, self.fused_pose = 0, None, None
 
   def fuse_next(self) -> None:
     """The next scan the verdict allows is fused, moved or not: a robot back
@@ -386,8 +396,6 @@ class ScanMatcher:
       return self._done(pose, "no map" if self.field is None else "sparse")
     at, why, kw = self._judge((x0, y0, th0), pts, self._fit((x0, y0, th0), pts))
     if why != "inconsistent":
-      if why == "ok":
-        self.lost_run, self.pending = 0, None
       return self._done(at, why, **kw)
     # Most of the scan on mapped cells and too little of it on walls: the
     # pose is off by more than the fit reaches -- a wheel pump while the
@@ -400,7 +408,6 @@ class ScanMatcher:
       found_at, found, found_kw = self._judge((x0, y0, th0), pts, self._fit(start, pts),
                                               found=True)
       if found == "found":
-        self.lost_run, self.pending = 0, None
         return self._done(found_at, found, **found_kw)
     # ...and refused for long enough, the robot is lost past the search's
     # reach: search wider (LOST_RUN), and take what it finds the second time
@@ -409,7 +416,6 @@ class ScanMatcher:
       wide = self._relocate((x0, y0, th0), pts)
       seen, self.pending = self.pending, None if wide is None else wide[1]["step"]
       if wide is not None and seen is not None and _same(seen, self.pending):
-        self.lost_run, self.pending = 0, None
         return self._done(wide[0], "relocated", **wide[1])
     return self._done(at, why, **kw)
 
@@ -501,8 +507,9 @@ class ScanMatcher:
   def _relocate(self, pose, pts: np.ndarray):
     """The wide search (LOST_RUN): the one pose within WIDE_M and WIDE_RAD of
     `pose` the map agrees with, as (pose, `Match`'s fields), or None. Each of
-    the best lattice poses is searched cell by cell round it and fitted; a
-    pose is taken only if every one that is "found" is the same pose."""
+    the best lattice places is searched cell by cell round it and fitted;
+    the "found" one with the most inliers is taken, unless another found
+    elsewhere explains the scan as well (RIVAL_SHARE)."""
     found = []
     for start in self._wide_candidates(pose, pts):
       fine = self._search(start, pts, reach_m=WIDE_STRIDE * self.grid.resolution,
@@ -510,15 +517,19 @@ class ScanMatcher:
       at, why, kw = self._judge(pose, pts, self._fit(fine, pts), found=True)
       if why == "found":
         found.append((at, kw))
-    if not found or not all(_same(other, found[0][0]) for other, _ in found[1:]):
+    if not found:
       return None
-    return found[0]
+    best = max(found, key=lambda f: f[1]["inliers"])
+    if any(not _same(at, best[0]) and kw["inliers"] >= RIVAL_SHARE * best[1]["inliers"]
+           for at, kw in found):
+      return None
+    return best
 
   def _wide_candidates(self, pose, pts: np.ndarray) -> list[tuple[float, float, float]]:
     """The WIDE_TRIES best poses of a lattice WIDE_STRIDE cells and
     SEARCH_STEP_RAD apart within WIDE_M and WIDE_RAD of `pose`, each scored
     by its points within half a stride of a mapped wall, and each UNIQUE_M
-    or UNIQUE_RAD from those taken before it."""
+    from those taken before it at ANY heading: one place a candidate."""
     g, f = self.grid, self.field
     res = g.resolution
     on_wall = (np.abs(np.nan_to_num(f, nan=np.inf)) < INLIER_M).astype(np.uint8)
@@ -541,8 +552,7 @@ class ScanMatcher:
     for flat in np.argsort(-scores, axis=None, kind="stable"):
       k, a, b = np.unravel_index(int(flat), scores.shape)
       cand = (x0 + float(shifts[b]) * res, y0 + float(shifts[a]) * res, th0 + float(turns[k]))
-      if any(math.hypot(cand[0] - c[0], cand[1] - c[1]) < UNIQUE_M
-             and abs(cand[2] - c[2]) < UNIQUE_RAD for c in out):
+      if any(math.hypot(cand[0] - c[0], cand[1] - c[1]) < UNIQUE_M for c in out):
         continue
       out.append(cand)
       if len(out) == WIDE_TRIES:
@@ -590,6 +600,10 @@ class ScanMatcher:
             step=NO_STEP) -> Match:
     m = Match(tuple(float(v) for v in pose), why in ACCEPTED, why, inliers,
               rms_m, weakest, tuple(weak_dir), held, tuple(step))
+    if why != "inconsistent":
+      # any other verdict breaks the run of refusals, and what the wide
+      # search found in it (LOST_RUN)
+      self.lost_run, self.pending = 0, None
     self.counts[why] = self.counts.get(why, 0) + 1
     if why in ACCEPTED and held:
       self.counts["held"] = self.counts.get("held", 0) + 1

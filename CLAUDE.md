@@ -1018,10 +1018,10 @@ save a filmstrip PNG named after the script.
   anchored at the dock to the COMMISSIONED PRIOR, never the belief (anchored
   to the belief, the error tracked itself 0.003 → 0.344 m over four
   sim-hours), and otherwise corrected only by the scan matcher (below); the
-  charge standoff is only how the robot reaches the dock's neighbourhood,
-  and a walk to it that gives up within `NEAR_STANDOFF_M` (1.5 m) goes on
-  to the approach, which walks in by the board (#422: three robots of eight
-  pressed the couch 0.2-0.3 m "short" and never looked for it); a
+  charge standoff is only how the robot reaches the dock's neighbourhood:
+  a walk to it that gives up within `NEAR_STANDOFF_M` (0.75 m) goes on to
+  the approach by the board, and with no board in sight, to the walk's
+  retries (#422; SimNotes, "Lost after a long explore"); a
   reading goes into the map only while the body is LEVEL — on its side a
   LIDAR paints the sky into a map that outlives the stand-up.
 - **Every level scan is matched against the robot's own map before it is
@@ -1036,17 +1036,19 @@ save a filmstrip PNG named after the script.
   slid scan is NOT FUSED, and a scan is fused only once the robot has moved
   or 5 s have passed (docked, fusing every scan walked the map 0.15 m).
   ⚠ A ROBOT ITS MAP KEEPS REFUSING SEARCHES WIDER (#422): `LOST_RUN` (10)
-  refusals running search 2 m and 15° round the belief (`_relocate`), and a
-  pose is taken only where no second place explains the scan as well AND
-  the next wide search finds the same correction -- once, on a sidewalk
-  whose thin wall the map had eroded (#401), it jumped 1.8 m along it.
-  ⚠ THE DOCK'S ANCHOR OUTRANKS THE MAP: the next `ANCHORED_SCANS` (30)
-  scans are laid at the anchored belief, unmatched (`ScanMatcher.anchored`,
-  called by `anchor_at_dock` alone), or a copy of the room laid askew by a
-  robot come home lost pulls it 0.6 m back into the copy. The run, what it
-  found and the window are kept state. ⚠ A scan is still laid in at half
-  its points on walls: a stricter bar kept the living room from being
-  laid over, and refused the scans that re-lay an eroded wall outside.
+  refusals running -- any other verdict breaks the run -- search 2 m and
+  15° round the belief (`_relocate`), over PLACES (candidates `UNIQUE_M`
+  apart at any heading), and a pose is taken only where no second place
+  explains the scan as well (`RIVAL_SHARE`) AND the next wide search finds
+  the same correction -- once, on a sidewalk whose thin wall the map had
+  eroded (#401), it jumped 1.8 m along it.
+  ⚠ THE DOCK'S BOARD OUTRANKS THE MAP: anchored off the board (never the
+  seat, good only to 2°), the next `ANCHORED_SCANS` (30) scans are laid at
+  the belief unmatched (`ScanMatcher.anchored`), or a copy of the room laid
+  askew pulls the robot 0.6 m back into it; `start_at` closes the window.
+  The run, what it found and the window are kept state. ⚠ A scan is still
+  laid in at half its points on walls: a stricter bar kept the living room
+  from being laid over, and refused the scans that re-lay an eroded wall.
   ⚠ No BLAS product (einsum's own loop); the field is kept state.
   ⚠ `Navigator(match=False)` is a measurement's switch, never a
   deployment's.

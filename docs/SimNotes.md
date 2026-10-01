@@ -2685,30 +2685,40 @@ stood in front of.
 
 **The fix, in three pieces.**
 
-- *Near enough, the board decides* (`lifecycle.NEAR_STANDOFF_M`, 1.5 m).
-  A walk to the charge standoff that gives up within it, by its own
+- *Near enough, the board decides* (`lifecycle.NEAR_STANDOFF_M`, 0.75
+  m). A walk to the charge standoff that gives up within it, by its own
   record, goes on to the approach, which finds the dock's board and walks
-  in by it whatever the belief. The standoff was only ever how the robot
-  got to the neighbourhood (`go_charge_routine`); a walk that gave up 0.2
-  m short of it ended the charge. Replayed from the three saves that
-  failed that way, all three docked on the first approach, from 0.89,
-  0.53 and 0.61 m off.
+  in by it whatever the belief; with no board in sight from there (a wall
+  between, a belief further off than it says), the walk's own retries go
+  on as before. The standoff was only ever how the robot got to the
+  neighbourhood (`go_charge_routine`); a walk that gave up 0.1-0.3 m short
+  of it ended the charge. Replayed from the three saves that failed that
+  way, all three docked on the first approach, from 0.89, 0.53 and 0.61 m
+  off. 0.75 m keeps the board within 2.4 m of a robot that believes
+  itself there, where one look reads it to 6 cm (median).
 - *An anchor re-lays the map round it* (`scan_match.ANCHORED_SCANS`, 30).
   Docked, the board puts the belief in the dock's frame to millimetres;
   the next 30 scans laid in go in at that belief, unmatched, and
   overwrite a copy laid askew. Without it, one of those robots backed off
   the dock and was 0.62 m off a second later, matched back into the copy;
   with it, 0.00-0.01 m, and each of the four then walked to the lobby
-  across the street (0.19-0.42 m off on arrival) and docked again. The
-  commissioned start is no anchor: a look-around laid unmatched smears the
-  gyro's scale error (up to 1.8 deg a turn) into the first map.
+  across the street (0.19-0.42 m off on arrival) and docked again. Only
+  the BOARD anchors: the seat, with no decode, is good to 2 deg, and 30
+  scans laid unmatched through that would lay the room askew themselves.
+  Nor is the commissioned start an anchor (a look-around laid unmatched
+  smears the gyro's scale error, up to 1.8 deg a turn, into the first
+  map), and a stand-up there closes a window a death on the dock left.
 - *A robot its map keeps refusing searches wider* (`scan_match._relocate`).
-  After ten scans running refused, the search looks 2 m and 15 deg round
-  the belief, on a lattice of 20 cm and 1 deg with the walls widened to
-  cover it, then cell by cell round its best. A pose is taken only if it
-  fixes all three directions with three quarters of the scan on walls, no
-  second place within reach explains the scan as well, and the next wide
-  search, ten refusals on, finds the same correction. 72 ms on a house
+  After ten scans running refused (any other verdict breaks the run), the
+  search looks 2 m and 15 deg round the belief, on a lattice of 20 cm and
+  1 deg with the walls widened to cover it, then cell by cell round the
+  three best PLACES (0.5 m apart at any heading: one spot at three
+  headings would hide a second place). A pose is taken only if it fixes
+  all three directions with three quarters of the scan on walls, no
+  second place within reach explains the scan as well (nine tenths of its
+  inliers: a pose 2 m off with most of the scan past the map's edge was
+  "found" with 216 where the truth had 359), and the next wide search,
+  ten refusals on, finds the same correction. 72 ms on a house
   scan (the search it widens is 32 ms, on every refused scan); one in ten
   of a lost robot's scans. It did not fire in these flights: no lost
   robot here had an intact map under it. It is the issue's own ask, for a
@@ -2726,11 +2736,12 @@ robots that had docked were lost mid-explore. The map's confidence cannot
 tell the cases apart either: an eroded wall reads -5, as sure as the
 living room's floor. It went, and a relocation must now be found twice.
 
-**What is true now.** A walk home that gives up within 1.5 m of the
-standoff goes on to the board; docked, the next 30 scans are laid at the
-dock's belief; and a robot its map refuses ten scans running searches 2 m
-and 15 deg round its belief, taking a pose that is the only one there and
-is found twice. Over the eight seeds the explores are unchanged, to the
+**What is true now.** A walk home that gives up within 0.75 m of the
+standoff goes on to the board, and back to its retries if the board is not
+in sight; docked by the board, the next 30 scans are laid at the dock's
+belief; and a robot its map refuses ten scans running searches 2 m and 15
+deg round its belief, taking a pose that no other place explains as well
+and that it finds twice. Over the eight seeds the explores are unchanged, to the
 bit, and seven dock where four did. Rested first, three of three dock, as
 on staging. From two other starts, the hall and the garden, three of four
 dock on both builds; the fourth ended its explore 0.36 m out on the west

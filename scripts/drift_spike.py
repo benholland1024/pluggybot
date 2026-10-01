@@ -397,7 +397,8 @@ def main(argv=None) -> int:
                   help="a long explore steered by the belief, then home to the dock")
   ap.add_argument("--seed", type=int, default=0, help="the IMU's and encoders' draws")
   ap.add_argument("--rest", type=float, default=0.0, help="lie this long first, s")
-  ap.add_argument("--start", default=None, help="x,y,yaw-deg; the commissioned start if unset")
+  ap.add_argument("--start", default=None,
+                  help="x,y,yaw-deg (--start=-3.5,1,0 when x is negative); the commissioned start if unset")
   ap.add_argument("--no-charge", action="store_true", help="stop when the explore does")
   ap.add_argument("--explore-table", nargs="+", default=None, metavar="JSON")
   args = ap.parse_args(argv)

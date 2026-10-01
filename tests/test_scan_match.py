@@ -485,6 +485,42 @@ def test_the_wide_search_takes_nothing_where_two_places_explain_the_scan():
   assert math.hypot(one.pose[0] - true[0], one.pose[1] - true[1]) < 0.03
 
 
+def test_any_scan_not_refused_breaks_the_run_and_what_it_found(room, monkeypatch):
+  # LOST_RUN refusals RUNNING: a scan the map did not refuse -- matched, or
+  # too little map to say -- breaks the run, and the correction the run's
+  # search found goes with it; carried across, it would confirm a search
+  # made far down the walk, when the drift was another.
+  m = sm.ScanMatcher(room)
+  rng = np.random.default_rng(26)
+  searched = []
+  real = m._relocate
+  monkeypatch.setattr(m, "_relocate", lambda pose, pts: (searched.append(1), real(pose, pts))[1])
+  for _ in range(sm.LOST_RUN + 2):
+    m.match(LOST, ANGLES, cast(ROOM, TRUE, rng))
+  assert searched and m.pending is not None, "the premise: a search found the pose"
+  empty = np.full(len(ANGLES), 8.0)                     # nothing in reach: no points
+  assert m.match(LOST, ANGLES, empty).why == "sparse"
+  assert (m.lost_run, m.pending) == (0, None)
+  for _ in range(sm.LOST_RUN - 1):
+    assert m.match(LOST, ANGLES, cast(ROOM, TRUE, rng)).why == "inconsistent"
+  assert len(searched) == 1, "searched again before LOST_RUN refusals running"
+
+
+def test_the_wide_search_weighs_places_not_headings(room):
+  # Its candidates are PLACES, UNIQUE_M apart at any heading: deduped only
+  # where position AND heading were near, its three slots went to one spot
+  # at three headings, which all fitted back to one pose -- and a twin
+  # ranked fourth would never have been looked at.
+  m = sm.ScanMatcher(room)
+  m.refresh(*LOST[:2])
+  pts = m.points(ANGLES, cast(ROOM, TRUE, np.random.default_rng(27)))
+  cands = m._wide_candidates(LOST, pts)
+  assert len(cands) == sm.WIDE_TRIES
+  for i, a in enumerate(cands):
+    for b in cands[i + 1:]:
+      assert math.hypot(a[0] - b[0], a[1] - b[1]) >= sm.UNIQUE_M, (a, b)
+
+
 def test_a_restart_keeps_the_run_of_refusals_and_what_it_found(room):
   # Both decide when the robot relocates (issue #345's rule): restarted
   # after the first wide search, it relocates on the same scan as a robot
@@ -566,13 +602,21 @@ def test_a_restart_keeps_an_anchors_window(room):
   assert n.match(TRUE, ANGLES, cast(ROOM, TRUE)).why == "anchored"
 
 
-def test_the_docks_anchor_opens_the_window(quad_world):
-  # `QuadMission.anchor_at_dock` is the one anchor: the commissioned start
-  # is not (a look-around laid unmatched smears the gyro's scale error into
-  # the first map), and nothing else knows where the robot is.
+def test_the_docks_board_alone_opens_the_window(quad_world, monkeypatch):
+  # The dock's anchor off its BOARD is the one anchor: to millimetres. The
+  # seat, with no decode, is good to 2 deg, and 30 scans laid unmatched
+  # through that lay the room askew themselves; the commissioned start is
+  # none either (a look-around laid unmatched smears the gyro's scale
+  # error), and a stand-up there closes a window a death on the dock left.
+  from pluggybot.legs import body as qb
   m = _quad(quad_world)
   assert m.matcher.anchoring == 0, "the start opened the window"
-  m.detect_board = lambda: {}                        # no decode: the seat
-  m.anchor_at_dock()
+  m.detect_board = lambda: {}
+  m.anchor_at_dock()                                    # no decode: the seat
+  assert m.matcher.anchoring == 0, "the seat opened the window"
+  monkeypatch.setattr(qb.dk, "fit_dock", lambda seen: qb.dk.DockFix(0.62, 0.0, 0.0, 4, 0.002))
+  m.anchor_at_dock()                                    # the board
   assert m.matcher.anchoring == sm.ANCHORED_SCANS
+  m.start_at(1.5, 0.5, 0.0)                             # ...and a stand-up
+  assert m.matcher.anchoring == 0, "a stand-up kept the dock's window"
   m.close()
