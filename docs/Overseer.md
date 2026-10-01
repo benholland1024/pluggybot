@@ -2043,7 +2043,10 @@ ask looked the same from inside.
   would be the first thing lost. A History line that QUOTES a text bounded
   where it came from is given that text's `room` past the cap
   (`ThoughtFiles.remember`), so the cap bounds the system's own words; an
-  operator's ticket line is the one that takes it (§2g).
+  operator's ticket line is the one that takes it (§2g). What still runs
+  past the cap, and is marked: a decision line whose reason is long (the
+  model's `reason` has no cap), and the robot's own long ticket report or
+  reply.
 - **`History.md` is written by the lifecycle** (`_remember`) at the moments
   a person catching up would want — waking up, which mind is thinking, each
   decision, each recall, each banked verdict, each exchange with a visitor
