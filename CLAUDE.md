@@ -48,9 +48,9 @@ to touch:
   rule is already pinned may go behind `--endurance` — with Ben's approval,
   below.
 - ⚠ **THE TEST SUITE HAS A BUDGET, AND EXCEEDING IT NEEDS BEN'S EXPLICIT
-  APPROVAL.** The full suite is **0:55** (2026-09-30, #376 stage C: 7:29
-  with the rover, on the same machine that day). Any change to
-  testing that would take it past **10 minutes on a quiet machine, or 15 on a
+  APPROVAL.** The full suite is **0:36** (2026-10-01, #427: 0:35 before
+  it, interleaved on one machine; 7:29 with the rover, #376 stage C). Any
+  change to testing that would take it past **10 minutes on a quiet machine, or 15 on a
   busy one**, must be stated as such in the PR — the number, the test, and why
   it cannot be cheaper — and approved by Ben personally before it merges. ⚠
   **THE BUDGET HAS NO OUTSIDE** (Ben, 2026-09-29): a test the default run
