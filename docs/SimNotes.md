@@ -1865,8 +1865,8 @@ yet decides who yields.
 (`serve.py --pair --body quadruped`); the rules above are pinned in
 `tests/test_quadruped.py`; the prompt says where a quadruped charges and
 how it dies in its own words, and nothing about upkeep where there is none
-(`overseer.mortal_rule`, `for_body`); the constitution's body paragraph is
-swapped for the quadruped's (`constitution.for_body`, asserted).
+(`overseer.mortal_rule`); the rules and the constitutions are written in
+the quadruped's words since #427, which removed the swap.
 
 ## A gentler get-up (issue #389)
 

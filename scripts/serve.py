@@ -425,8 +425,7 @@ def serve(watchdog: "vitals.Watchdog") -> str | None:
   # surfaces. Attached on EVERY served world, overseer or not: a loop with
   # no mind still has a history, and the site's Thoughts tab is what a
   # visitor opens first.
-  memory = ThoughtFiles.open(args.thoughts, constitution=args.constitution,
-                            body=cfg["body"])
+  memory = ThoughtFiles.open(args.thoughts, constitution=args.constitution)
   # The weekly allowance (issue #37), and world state on the same terms the
   # ledger is: a mission ends several times an hour here, so a budget that
   # lived in the process would be a budget that reset several times an hour.

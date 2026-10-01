@@ -385,8 +385,7 @@ def main() -> None:
   # The REAL memory, so the prefix measured here is the prefix a deployment
   # sends: `Main.md` is in it (issue #38), and the writable documents are
   # deliberately not -- they ride the user turn below.
-  # ...told its body, as every served robot's is (`constitution.for_body`)
-  memory = ThoughtFiles.open(args.thoughts, body=world_config(args.world)["body"])
+  memory = ThoughtFiles.open(args.thoughts)
   backend = llm.resolve_backend(args.backend, args.model or "")
   model = args.model or (llm.LOCAL_MODEL if backend == "local" else MODEL)
   if args.deployed:

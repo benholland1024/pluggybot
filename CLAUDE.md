@@ -384,10 +384,10 @@ save a filmstrip PNG named after the script.
   sha256 ride `build.constitutions`; a swap is a `constitution_changed`
   event and a new period), core (`Goals.md`, `Top_of_mind.md`), notes
   (`Notes.md`, `Findings.md` as `findings/<task>`) and History. ⚠ `default.md`
-  is byte-identical to the pre-#263 `DEFAULT_MAIN`;
-  a quadruped world swaps the rover's body paragraph for its own, asserted,
-  and nothing else (`constitution.for_body`, #387);
-  `tests/test_constitution.py` reads EVERY library file (no number, `%` or
+  is what the served quadruped reads, byte for byte — the fixture recording
+  carries it (`tests/test_telemetry.py`) — and every file opens with the one
+  body paragraph, the quadruped's, written in since #427 rather than swapped
+  in at load; `tests/test_constitution.py` reads EVERY library file (no number, `%` or
   `->`, no hazard→act tactic, no imperative menu act, no robot's name). Every
   row is in `mind/text.py`; `text.admit` is the ONE gate every document write
   passes; a refusal is narrated AND written to History, the reason before

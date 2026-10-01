@@ -13,7 +13,7 @@ from pluggybot.pair import build_pair, run_pair
 #: ⚠ THE EMPATHY MEASUREMENT'S INPUT. What the robot is told about the other
 #: robot is written once; moving it is a new experiment on every paired
 #: arm, so the change is made here on purpose, with the hash.
-OTHER_ROBOT_RULE_SHA = "3d6d6b64fb6dfee3dc97f6e58b274d4783fb004bf741fadb66b06376a0bf3d3a"
+OTHER_ROBOT_RULE_SHA = "6e2215bec757f10a9f402c3e24ef2d0856b6466fcdbb596595807040fffea62b"
 
 WORLD = "home_quad"
 

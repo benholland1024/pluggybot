@@ -93,7 +93,12 @@ fi
 if [ -n "${PLUGGY_ESCALATE_TO:-}" ]; then
   set -- --escalate-to "${PLUGGY_ESCALATE_TO}" "$@"
 fi
-if [ -n "${PLUGGY_OVERSEER:-}" ] && [ "${PLUGGY_OVERSEER}" != "0" ]; then
+# A mind, where no arm is named: a named arm (below) is the stronger
+# statement, and `--overseer` beside `--arm scripted` is a contradiction
+# serve.py refuses -- with the compose default (1), a world told to fly
+# `scripted` would never start.
+if [ -z "${PLUGGY_ARM:-}" ] && [ -n "${PLUGGY_OVERSEER:-}" ] \
+    && [ "${PLUGGY_OVERSEER}" != "0" ]; then
   set -- --overseer "$@"
 fi
 # WHICH ARM the deployed world flies (pluggybot #142, #427): `scripted` is

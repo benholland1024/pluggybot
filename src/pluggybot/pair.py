@@ -150,9 +150,9 @@ def build_pair(world: str = QUAD_HOME, pack: str = "demo",
   thoughts_root = thoughts_root or os.environ.get(ROOT_ENV, "").strip() or None
   # Which constitution each robot reads (issue #263): named here, else
   # each robot's own environment variable, else the library's default.
-  charters = tuple(constitutions.for_body(constitutions.resolve(
-    (constitutions_named or (None, None))[i], env=CONSTITUTION_ENVS[i]),
-    cfg["body"]) for i in range(len(handles)))
+  charters = tuple(constitutions.resolve(
+    (constitutions_named or (None, None))[i], env=CONSTITUTION_ENVS[i])
+    for i in range(len(handles)))
   for i, (handle, errand, name) in enumerate(zip(handles, errands, names)):
     if i == 0:
       memory = ThoughtFiles.open(thoughts_root, robot=handle.root,

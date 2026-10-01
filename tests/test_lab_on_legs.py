@@ -28,7 +28,7 @@ from test_body import stub_life  # noqa: I001 -- tests/ is on sys.path
 
 def _quad_mind(**kw):
   return ov.build(QUAD_HOME, None, enabled=True, client=object(), ledger=Ledger(),
-                  thoughts=ThoughtFiles.open(None, body="quadruped"),
+                  thoughts=ThoughtFiles.open(None),
                   robot_name="Luca", mortal=True, hearts=True,
                   origin="unseeded", others=("Rowan",), **kw)
 
@@ -73,10 +73,12 @@ def test_the_rule_on_legs_is_in_its_own_words_and_names_only_the_job_it_offers()
 
 
 #: `lab_rule("lab")` and `lab_rule("lab", decline=False)` -- both jobs, as
-#: the rule has read since #287. Moved on purpose or not at all.
+#: the rule has read since #287, in the quadruped's words since #427 (the
+#: text a quadruped always read; it was swapped in at load before). Moved
+#: on purpose or not at all.
 BOTH_JOBS_LAB_SHA = {
-  True: "1b2d77dbaadeb068a985a57bd465605cfe60ecfb5a20f72623dd5a4afea730d3",
-  False: "1f068ac3e9ca116737c2454f2a79760bcfb0a9a39525b6d679647fb8e8304f18"}
+  True: "58c0fb533da17c1d7fc19557667b48e5884e6a79596ed73a86b88bae0c1abb56",
+  False: "8e799d2774820b3f928e730996e1a2cbbcc0bf306199b98c95f681ff399a758f"}
 
 
 def test_a_world_with_both_jobs_reads_the_rule_byte_for_byte():

@@ -29,9 +29,22 @@ def test_the_library_holds_the_default_and_an_alternative_emphasis():
   assert c.DEFAULT_NAME in names and len(names) >= 2, names
   texts = {n: c.load(n).text for n in names}
   assert len(set(texts.values())) == len(names), "two files with one text"
-  # The default is the text the fixtures were recorded with, byte for byte
-  # (`tests/test_telemetry.py` reads the recording against DEFAULT_MAIN).
+  # The default is what an unnamed robot reads (`DEFAULT_MAIN`); that it is
+  # the text the served quadruped reads, byte for byte, is the fixture
+  # recording's to say (`tests/test_telemetry.py`).
   assert text.DEFAULT_MAIN.strip() == texts[c.DEFAULT_NAME]
+
+
+def test_every_file_opens_with_the_one_body():
+  """The body is the WORLD's and the disposition the FILE's (#263, #387):
+  every file opens with the same paragraph, the quadruped's -- written into
+  the files since #427, where it used to be swapped in at load, so what the
+  header hashes is the text the robot reads."""
+  openings = {c.load(n).text.split("\n\n")[0] for n in c.names()}
+  assert len(openings) == 1, openings
+  (opening,) = openings
+  assert opening.startswith("You are a four-legged robot"), opening
+  assert "two-wheeled" not in opening and "dock" in opening
 
 
 #: A worked answer the constitution may not hand over: a threshold (any
@@ -68,7 +81,7 @@ def test_every_library_file_carries_the_same_essentials_and_no_name(name):
   `Goals.md` -- differing in emphasis; and no robot's name (issue #39: a
   name in a file would freeze there while `$PLUGGY_ROBOT_NAME` moved)."""
   body = c.load(name).text
-  assert "two-wheeled robot" in body and "tool module" in body, "the body"
+  assert "four-legged robot" in body and "your dock" in body, "the body"
   assert "first person" in body and "honest" in body, "the manner"
   assert "WHAT THE PERSON WHO LOOKS AFTER YOU HOPES FOR YOU" in body
   assert "`Goals.md`" in body

@@ -37,9 +37,11 @@ from pathlib import Path
 
 #: The library: one `.md` per constitution, the file's stem its name.
 LIBRARY = Path(__file__).with_name("constitutions")
-#: What a robot lives by when nothing names one. Byte-identical to the
-#: default before the library existed, so the fixture recordings' persona
-#: still matches (`tests/test_telemetry.py`).
+#: What a robot lives by when nothing names one: byte for byte what the
+#: served quadruped reads, and the persona the fixture recording carries
+#: (`tests/test_telemetry.py`). Every file opens with the robot's body, in
+#: the quadruped's words since #427, which wrote it into the files rather
+#: than swapping it in at load.
 DEFAULT_NAME = "default"
 #: Which constitution each robot reads, by environment, the way the display
 #: name is (`PLUGGY_ROBOT_NAME` / `PLUGGY_ROBOT_NAME_2`, issue #39).
@@ -110,36 +112,3 @@ def resolve(name: str | None = None, env: str = NAME_ENV,
   first, `SECOND_NAME_ENV` for the second of a pair)."""
   name = (name or os.environ.get(env, "")).strip() or DEFAULT_NAME
   return load(name, library)
-
-
-#: WHAT THE ROBOT IS, per body (issue #387). Every library file opens with
-#: the rover's body; a robot with legs is told its own, and nothing else in
-#: the text moves -- the disposition is the file's, the body is the world's.
-#: The swap is ASSERTED: a file without the rover's paragraph is refused,
-#: never quietly left telling a quadruped it has wheels.
-BODY_PARAGRAPHS = {
-  "rover": (
-    "You are a small two-wheeled robot living in a simulated house with a "
-    "garden. You have a tool rack (your \"hub\") where you also charge, a fork "
-    "that carries one tool module at a time, and an LCD face."),
-  "quadruped": (
-    "You are a four-legged robot about the size of a small dog, living in a "
-    "simulated house with a garden. You walk, you lie down to rest, and you "
-    "charge by lying down on your dock. You have an arm on your back that "
-    "folds away while you walk, and it takes the tools on the rack beside "
-    "your dock, one at a time."),
-}
-
-
-def for_body(constitution: Constitution, body: str = "rover") -> Constitution:
-  """The constitution as a robot with this body reads it: the rover's
-  opening paragraph swapped for the body's own, the name kept, the hash of
-  what is read (so the header tells the two texts apart)."""
-  if body == "rover":
-    return constitution
-  rover = BODY_PARAGRAPHS["rover"]
-  if rover not in constitution.text:
-    raise ValueError(f"constitution {constitution.name!r} does not open with the "
-                     "rover's body, so it cannot be told a quadruped's")
-  return Constitution.of(constitution.name,
-                         constitution.text.replace(rover, BODY_PARAGRAPHS[body], 1))

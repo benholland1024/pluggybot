@@ -17,7 +17,10 @@ from pluggybot.mind.overseer import Menu, Overseer
 
 from test_body import stub_life  # noqa: I001 -- tests/ is on sys.path
 
-MENU = Menu(zones=("garden",), boards=("whiteboard_a",), programs=("circle",))
+#: ...with the tool errands (`Menu.tools`), which no served body has until
+#: #406/#407: the actions these rules are worked through.
+MENU = Menu(zones=("garden",), boards=("whiteboard_a",), programs=("circle",),
+            tools=True)
 
 
 def _life(mind: bool = False, **kw):

@@ -1057,10 +1057,10 @@ def test_the_recording_is_a_whole_served_day():
   # terms: the site's Thoughts tab is built against these lines.
   docs = [e for e in events if e["type"] == "thought"]
   # ⚠ THE PERSONA IN THE FIXTURE IS THE ONE IN THE CODE (issue #39): the
-  # default constitution in the quadruped's words (#387). A fixture carrying
-  # last month's persona is what a visitor reads.
-  persona = constitutions.for_body(constitutions.resolve(constitutions.DEFAULT_NAME),
-                                   "quadruped").text.strip()
+  # default constitution, the library file byte for byte (in the
+  # quadruped's words, #387, #427). A fixture carrying last month's persona
+  # is what a visitor reads.
+  persona = constitutions.resolve(constitutions.DEFAULT_NAME).text.strip()
   for root in roots:
     mine = [d for d in docs if d["robot"] == root]
     opening = [d for d in mine if lines.index(d) < first_frame]

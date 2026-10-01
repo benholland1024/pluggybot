@@ -2234,19 +2234,17 @@ has no goals to spend free time on.
   300 s on a served world), since "you cannot get up by yourself" is no longer
   true.
 - **Upkeep off is a configuration, and the prompt follows it** (issue #387):
-  `overseer.mortal_rule(appetite, body)` drops every sentence about upkeep
+  `overseer.mortal_rule(appetite)` drops every sentence about upkeep
   where no appetite is attached (`_UPKEEP_SWAPS`, asserted whole-sentence
   replacements), so the prefix never names a bill the robot does not pay,
   and with an appetite it is byte-identical to `MORTAL_RULE`. Nothing dies
   `unpaid`, and the header's `hungerStates` is empty.
-- **A body speaks in its own words.** The rules were written for the rover
-  and name its parts (the rack's charge bay, driving, the fork); on legs
-  they are swapped for the quadruped's (`BODY_SWAPS`, `for_body`; the dock,
-  walking, lying down), the menu carries no tool errand (`Menu.tools`), and
-  the constitution's body paragraph is swapped by `constitution.for_body`
-  -- each replacement asserted, so a text that stops matching fails rather
-  than silently keeping the rover's sentence. `RULES` itself is the text
-  before the swaps.
+- **A body speaks in its own words.** Every rule, the reward table's rows
+  and every constitution's opening paragraph are written in the
+  quadruped's (the dock, walking, lying down), and the menu carries no tool
+  errand (`Menu.tools`, off by default). Until #427 they were the rover's,
+  swapped into the quadruped's at load; the swapped text is now the text,
+  byte for byte, so the served prompt did not move.
 
 ## 9. Running it
 

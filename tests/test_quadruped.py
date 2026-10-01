@@ -21,7 +21,6 @@ from pluggybot.legs import world as lw
 from pluggybot.legs.model import CHOSEN, body_xml
 from pluggybot.lifecycle import QUAD_HOME, world_config, world_facts, world_for
 from pluggybot.mapping.occupancy_grid import OccupancyGrid
-from pluggybot.mind import constitution as constitutions
 from pluggybot.mind import overseer as ov
 from pluggybot.perception.lidar import robot_geoms
 from pluggybot.procedure import steps as st
@@ -501,45 +500,42 @@ def test_upkeep_is_said_only_where_there_is_one():
   """#387: a world with no appetite has no upkeep to fail and no hours of
   paid work to price a heart in; a world WITH one reads the rule byte for
   byte."""
-  assert ov.mortal_rule(True, "rover") == ov.MORTAL_RULE
-  for body in ("rover", "quadruped"):
-    text = ov.mortal_rule(False, body).lower()
-    assert "upkeep" not in text and "hours of work" not in text
-    assert "heartprice" in text and "buy_heart" in text
-  assert "upkeep you cannot pay" in ov.mortal_rule(True, "quadruped")
+  assert ov.mortal_rule(True) == ov.MORTAL_RULE
+  text = ov.mortal_rule(False).lower()
+  assert "upkeep" not in text and "hours of work" not in text
+  assert "heartprice" in text and "buy_heart" in text
+  assert "upkeep you cannot pay" in ov.mortal_rule(True)
+
+
+#: The rover's words (#376 deleted the rover), which nothing a robot reads
+#: may say: the rules are written in the quadruped's since #427, not
+#: swapped into them at load.
+ROVER_WORDS = ("two-wheeled", "wheel", "chassis", "the mast", "set_lift", "lift",
+               "hub's charge bay", "your \"hub\"", "LCD face", "drive onto")
 
 
 def test_every_rule_a_quadruped_reads_is_in_its_own_words():
   """Where it charges is its DOCK, how it dies is a fall it cannot get up
   from, and nothing it reads offers it a lift or a wheel. Its fork is its
   arm's (#405). The rack's one mention is the constitution's: where the
-  arm takes its tools."""
+  arm takes its tools. And it is so however the mind was built -- a bare
+  `Overseer` read the rover's constitution until #427 -- because the
+  rules are written in these words rather than swapped into them."""
   from pluggybot.economy.ledger import Ledger
-  from pluggybot.mind.thoughts import ThoughtFiles
   boss = ov.build(QUAD_HOME, None, enabled=True, client=object(), ledger=Ledger(),
-                  thoughts=ThoughtFiles.open(None, body="quadruped"),
                   robot_name="Luca", mortal=True, hearts=True,
                   origin="unseeded", others=("Rowan",))
   text = "\n".join(b["text"] for b in boss.system)
   assert "dock" in text and "a fall you cannot get up from" in text
   assert "THE LAB" in text and "when a foot presses it" in text   # #403
-  for word in ("two-wheeled", "wheel", "chassis", "the mast", "set_lift", "lift",
-               "hub's charge bay", "upkeep you cannot pay"):
+  for word in ROVER_WORDS + ("upkeep you cannot pay",):
     assert word not in text, word
   import re
   assert len(re.findall(r"\brack\b", text)) == 1
   assert "tools on the rack beside your dock" in text
-
-
-def test_the_constitution_is_told_its_body_and_refuses_one_that_is_not_the_rovers():
-  c = constitutions.load("default")
-  legs = constitutions.for_body(c, "quadruped")
-  assert legs.name == "default" and legs.sha != c.sha
-  assert "two-wheeled" not in legs.text and "four-legged" in legs.text
-  assert legs.text.split("\n\n")[1:] == c.text.split("\n\n")[1:], "only the body moves"
-  assert constitutions.for_body(c, "rover") is c
-  with pytest.raises(ValueError):
-    constitutions.for_body(constitutions.Constitution.of("inline", "Be kind."), "quadruped")
+  bare = ov.Overseer(ov.Menu.for_world(QUAD_HOME), client=object())
+  for word in ROVER_WORDS:
+    assert word not in "\n".join(b["text"] for b in bare.system), word
 
 
 def test_upkeep_off_is_a_configuration_no_unpaid_death_and_no_metabolism_on_the_wire(

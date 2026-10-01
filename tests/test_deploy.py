@@ -244,6 +244,19 @@ def test_the_image_can_be_told_which_arm_to_fly(tmp_path):
   assert "--arm" not in bare and "--rung" not in bare
 
 
+def test_a_named_arm_outranks_the_overseer_variable(tmp_path):
+  """`$PLUGGY_ARM` is the stronger statement, in both directions (serve.py's
+  rule). The entrypoint used to turn `$PLUGGY_OVERSEER` into `--overseer`
+  whatever the arm, and serve.py refuses `--overseer --arm scripted` as a
+  contradiction -- so the compose default (`1`) beside `PLUGGY_ARM=scripted`
+  was a sim that never started."""
+  argv = _entrypoint_argv(tmp_path, PLUGGY_OVERSEER="1", PLUGGY_ARM="scripted")
+  assert "--overseer" not in argv
+  assert argv[argv.index("--arm") + 1] == "scripted"
+  # ...and unnamed, the variable still asks for a mind.
+  assert "--overseer" in _entrypoint_argv(tmp_path / "unnamed", PLUGGY_OVERSEER="1")
+
+
 def test_the_call_budget_is_not_trapped_behind_the_overseer_flag(tmp_path):
   """⚠ The trap issue #142 walked into. `--overseer-budget` (and, until
   #221, `--journal`) used to be set only inside the `$PLUGGY_OVERSEER`

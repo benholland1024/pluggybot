@@ -485,7 +485,7 @@ def test_the_rules_worked_example_hands_over_no_survival_policy():
   """EVENT_MAP_RULE's rule, for the same reason: the example must show a
   capability, not the charging policy the arm is measured on."""
   menu = Menu.for_world(WORLD)
-  text = ov.procedure_rule(menu.tools, menu.swaps, menu.places, menu.plates)
+  text = ov.procedure_rule(menu.swaps, menu.places, menu.plates)
   example = text[text.index("def look_around"):text.index("Statements:")]
   for word in ("charge", "battery", "rack"):
     assert word not in example, word
@@ -499,12 +499,12 @@ def test_the_rules_worked_example_hands_over_no_survival_policy():
   for s in axes.SENSORS:
     assert f"  {s} --" in text, s
   swaps, places = st.SWAP_VERBS, st.PLACE_VERBS + st.PLATE_VERBS
-  bare = ov.procedure_rule(False)
+  bare = ov.procedure_rule()
   assert not any(f"  {v}(" in bare for v in swaps + places)
-  assert all(f"  {v}(" in ov.procedure_rule(False, swaps=True) for v in swaps)
-  finding = ov.procedure_rule(False, places=True)
+  assert all(f"  {v}(" in ov.procedure_rule(swaps=True) for v in swaps)
+  finding = ov.procedure_rule(places=True)
   assert "  find(" in finding and "  press(" not in finding
-  assert "  press(" in ov.procedure_rule(False, places=True, plates=True)
+  assert "  press(" in ov.procedure_rule(places=True, plates=True)
 
 
 # ---- the lifecycle: define, run by name, stow ------------------------------------
