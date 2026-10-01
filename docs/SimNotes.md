@@ -2762,6 +2762,61 @@ round the dock, nothing stepped: 95 fits), so a far look could only
 propose a pose for the matcher; and the plate signs are positions the
 robot estimated itself, the pose graph's landmarks.
 
+## A robot resting across the other's way (issue #415)
+
+**What happened.** #405's fixture day stranded the first robot four times
+in four, at the same doorway: a robot lying down by reflex is not down
+(#365), so the other's drive found its way cut by the resting robot's disc
+and gave up ("the walk gave up 8.2 m short after 9 s", then `stuck` at
+7 %), and the resting robot never moved -- it stands only for a command
+of its own, and a finished robot never gets one. Its words were wrong
+too: "Rowan standing 3.5 m from where it was going", of a robot lying in a
+doorway 3.8 m off. On today's code the fixture day's own trajectories no
+longer meet there (the four battery levels all dock), so the case is built
+instead: `scripts/make_way_spike.py` lays both maps from the true floor,
+lies one robot in a doorway of the house and walks the other through it.
+
+**The rule (Ben, 2026-09-30, #415's option 1).** A drive whose way a
+RESTING robot cuts -- a plan without that robot's disc finds one -- asks it
+off the way (`Navigator._ask_way`, over the pair's `Body.ask_way`), with
+the way it would walk; a stagnated drive asks one resting near it or its
+goal. It waits for it as for a robot that will move, `MAKE_WAY_WAIT_S`
+(30 s) from the first yes at most, and then gives up as before. The asked
+body says yes only lying down to rest and free to: not on the dock, not
+mid lie-down, stand-up or arm move, not inside a walk of its own (#395's
+head-on hold between two standing robots is that walk's, and still open),
+not dead. Then, beneath whatever routine holds it, a STILL command is
+replaced by the step aside (`legs/way.py`): stood up by the reflex's own
+rule, it walks the drive's law along one plan to the nearest floor it has
+SEEN, reached round the asker, `aside_clear_m` (0.85 m: the asker's 0.70 m
+disc and three cells) off every point of the way -- the way the asker sent
+is then open whatever it plans. Any command that moves takes over at
+once; a fall ends it. It is said ("MAKE WAY ...", "MADE WAY ..."), and
+remembered once over: the body moved and the mind did not decide it. A
+restart's save waits it out.
+
+**Measured** (`make_way_spike.py`, seven scenes, the pair in the house):
+
+| scene | before: the walk | after: the walk | the step aside |
+|---|---|---|---|
+| living <-> hall door | gave up, 0 s | arrived, 29.9 s | 0.83 m, 6.7 s |
+| ...the other way | gave up, 0 s | arrived, 30.5 s | 0.84 m, 6.7 s |
+| living <-> bedroom door | gave up, 0 s | arrived, 22.1 s | 0.87 m, 8.9 s |
+| hall <-> kitchen door | gave up, 0 s | arrived, 34.7 s | 0.82 m, 6.7 s |
+| hall <-> workshop door | gave up, 0 s | arrived, 36.8 s | 0.84 m, 7.3 s |
+| living <-> garden door | gave up, 0 s | arrived, 29.8 s | 0.86 m, 7.4 s |
+| the middle of the hall | arrived, 19.9 s | arrived, 19.9 s | not asked |
+
+No touch, no fall, in any. With the resting robot's day already over (its
+routine returned, as the fixture's had), all seven alike: the step runs
+beneath the command the loop holds a finished robot with.
+
+**What is true now:** a robot resting across the other's way is asked to
+make way and steps aside, beneath whatever it holds; a drive gives up at a
+resting robot only once it said no or did not clear the way in 30 s; and
+a drive's words call a robot resting "lying down to rest", "in the way"
+unless its disc covers the goal (`tests/test_make_way.py`).
+
 ## Debugging workflow that worked
 
 1. Reproduce headlessly with printed telemetry (pose, joint rates, contact

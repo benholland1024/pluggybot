@@ -10,6 +10,35 @@ observatory is NOT a result: it reports into the issue it informs.
 
 ## Periods
 
+### A robot resting across the other's way steps aside (#415) — opens when this PR is deployed
+
+**What changed in the world.** How the two quadrupeds share a doorway. A
+robot lying down to rest used to be waited on, or given up at, by the
+other's walk -- in a doorway, in 0 s -- and never moved: nothing told it
+it was in the way. Now the walk asks it, and a robot resting and free to
+(not on the dock, not mid-move, not inside a walk of its own) stands and
+steps about 0.85 m off the other's way, beneath whatever it was holding,
+in 7-9 s; the walk waits up to 30 s for it. The mind is not asked, as it
+is not for the rest itself. The prompt did not move. History gains one
+line where it happens -- "stood up and stepped 0.8 m aside for Rowan, whose
+way I was lying across" -- and a walk's failure line now calls a resting
+robot "lying down to rest", and "in the way" unless it is on the goal
+(it read "standing 3.5 m from where it was going" of a robot resting in a
+doorway 3.8 m off). Two robots standing head-on in a doorway still hold
+for each other (#395); that is not this.
+
+**What the period is for.**
+
+- **Does it happen, and does it work?** The narration's `MAKE WAY` and
+  `MADE WAY` lines, and the History line, per robot: how often, and how
+  each step aside ended (`aside`, or one of `ASIDE_ENDED`'s).
+- **Strandings.** `stuck` and `flat` deaths whose last walk gave up at
+  the other robot ("in the way"), against the periods before: #405's
+  fixture day lost the first robot this way four times in four.
+- **The head-on hold.** Walks that waited on a STANDING robot until their
+  patience ran out (#395), which this does not touch: if they show, they
+  are #415's next question, as the issue says.
+
 ### A robot come home lost docks by the board, and the dock re-lays its map (#422) — opens when this PR is deployed
 
 **What changed in the world.** How the quadrupeds get home and find
