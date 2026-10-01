@@ -10,6 +10,40 @@ observatory is NOT a result: it reports into the issue it informs.
 
 ## Periods
 
+### A robot come home lost docks by the board, and the dock re-lays its map (#422) — opens when this PR is deployed
+
+**What changed in the world.** How the quadrupeds get home and find
+themselves. A walk to the charge standoff that gives up within 1.5 m of
+it now goes on to the dock's approach, which walks in by the board
+whatever the belief; before, the charge ended there. On #422's probe,
+three robots of eight came home from a long explore 0.5-0.9 m out,
+pressed the couch believing themselves 0.2-0.3 m short, and never looked
+for the board. Once docked, the next 30 scans are laid in at the dock's
+belief, unmatched (`anchored`), so a copy of the living room laid askew
+on the way home is overwritten rather than pulling the robot back into
+it as it backs off. And a robot whose map refuses ten scans running
+searches 2 m and 15 deg round its belief, where it searched 0.6 m and 6
+deg, taking a pose only where no second place explains the scan as well
+and the next search finds the same (`relocated`). The drift itself is
+unchanged: a long explore round the street loop still ends up to about
+1.5 m out (SimNotes, "Lost after a long explore, and found again"). The
+maps on the volume are kept: laid since #425's deploy dropped the last
+ones, by robots whose gyro offset is learned at rest.
+
+**What the period is for.**
+
+- **Do they dock?** Dockings against approaches, and `charge_failure`:
+  "never reached the charge bay" with a walk that gave up short is the
+  failure this addresses, and a GO_CHARGE line ending "near enough, the
+  dock's board decides" is the new path taken.
+- **The matcher's tallies** in the world save (`world.npz`, per robot):
+  `anchored` counts the scans laid at the dock's belief, `relocated` the
+  wider search taken. A long run of `inconsistent` that never ends in
+  `relocated` is a robot lost past 2 m, or where parts of its map laid
+  through different drifts meet and no pose fits (#381's stage 3).
+- **Belief against truth** at deaths and in the save, against the
+  1-13 m and up to 160 deg #425's comment found before.
+
 ### An operator's reply reaches History whole (#433) — opens when this PR is deployed
 
 **What changed in the world.** What the robots are TOLD, on `autonomous`

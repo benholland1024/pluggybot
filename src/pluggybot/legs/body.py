@@ -1139,6 +1139,10 @@ class QuadMission(ToolSwap, PlaceWalk, Navigator):
       me = (0.0, 0.0, 0.0)
     wx, wy, wyaw = dk.compose((x, y, yaw), me)
     self.odo.correct(wx, wy, wyaw)
+    # ...and the map round it is laid again from here (issue #422,
+    # `scan_match.ANCHORED_SCANS`): the dock outranks a copy laid askew
+    if self.matcher is not None:
+      self.matcher.anchored()
     if self.last_charge is not None:
       self.last_charge["anchor"] = "board" if fix is not None else "seat"
 

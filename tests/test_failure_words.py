@@ -18,7 +18,7 @@ from pluggybot import tick
 from pluggybot.body import KeepClear, StubBody
 from pluggybot.economy import scoring
 from pluggybot.legs.body import QuadMission
-from pluggybot.lifecycle import QUAD_HOME, HubLifecycle, board_book, world_config
+from pluggybot.lifecycle import NEAR_STANDOFF_M, QUAD_HOME, HubLifecycle, board_book, world_config
 from pluggybot.mission.errand import Errand
 from pluggybot.navigator import DRIVE_GAVE_UP, gave_up
 from pluggybot.procedure.steps import TOOL_BAYS
@@ -311,6 +311,32 @@ def test_a_charge_trip_that_never_arrived_says_why_and_so_does_the_death():
              for ln in life.log), life.log[-3:]
   life._strand()
   assert life.dead["why"].endswith(f": never reached the charge bay: {why}")
+
+
+def test_a_walk_home_that_gives_up_near_the_standoff_goes_on_to_the_board():
+  """Home from a long explore 0.9 m out, three robots of eight believed
+  themselves 0.2-0.3 m short of the standoff, pressed the couch until the
+  walk gave up, and the charge ended there: the board, 2.5 m off, was never
+  looked for (issue #422). Near enough, the approach goes on and the board
+  decides; farther, or the other robot the cause, the walk's retries and
+  its failure stand."""
+  def trip(short, why="stalled"):
+    life = _life()
+    sx, sy, _ = life.body.charge_standoff()
+    life.body.x, life.body.y = sx + short, sy
+
+    def drive(x, y, timeout=90.0, stop=None):
+      life.body.last_drive = {"why": why, "goal": (x, y), "seconds": 12.0, "shortM": short}
+      return tick.result(False)
+
+    looks = []
+    life.body.go_to_routine = drive
+    life.body.look_around_routine = lambda: (looks.append(1), tick.result(None))[1]
+    return life.body.run(life.go_charge_routine()), life.body.on_charger, len(looks)
+
+  assert trip(0.2) == (True, True, 0)
+  assert trip(NEAR_STANDOFF_M + 0.5) == (False, False, 2)
+  assert trip(0.2, why="peer") == (False, False, 2)
 
 
 def _peer(x: float, y: float, state: str = "IDLE"):

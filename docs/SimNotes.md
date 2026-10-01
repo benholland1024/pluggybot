@@ -1690,10 +1690,11 @@ in a new process it was IDENTICAL after the restore (1 186 samples,
 from a body that is not `level()` is neither matched nor fused, so drift
 while it is not level runs free until it is and the search finds it (a
 lying quadruped's heading is #425's, "Lying still, the heading holds"); a
-robot lost beyond the search's window has only the dock (#381's loop
-closure); and the first trip through new territory carries its own drift
-into the map it lays (0.2-0.3 m by the lab), which later visits match to
-but do not correct.
+robot lost beyond the search's window searches wider after a run of
+refusals (#422, "Lost after a long explore, and found again"); and the
+first trip through new territory carries its own drift into the map it
+lays (0.2-0.3 m by the lab, ~1 m round the street loop), which later
+visits match to but do not correct (#381's loop closure).
 
 ## The first quadruped deploy (issue #387)
 
@@ -2613,10 +2614,142 @@ from the same save, it parts at 718 s, as the walk begins.
 
 **What is true now.** Lying, the quadruped's heading holds at whatever
 the lie-down left, 0.16 deg with nothing learned and less after. The
-learned offset and the gait's inertia ride a restart. Not done: recovering
-a robot already lost (#422); a slow turn while lying (none measured on
-the floor or the dock); and the walking drift with the learned offset
-taken off is not measured (#422, which the smaller offset should help).
+learned offset and the gait's inertia ride a restart. A robot already
+lost now searches wider, and a long explore drifts as far with the offset
+learned as without it (#422, "Lost after a long explore, and found
+again"). Not done: a slow turn while lying (none measured on the floor or
+the dock).
+
+## Lost after a long explore, and found again (issue #422)
+
+**What was measured.** One quadruped in `home_quad` explores for 480 sim
+s from its commissioned start, then walks home and docks
+(`scripts/drift_spike.py --explore 480 --seed K`), the belief against the
+truth every 10 s with the zone it truly stands in. A seed draws the IMU's
+offset and scale and the encoders' noise; eight a build:
+
+| build | error the explore ended with | median | over 1 m | docked |
+|---|---|---|---|---|
+| before the arm (`e5f66d5`) | 0.10-1.61 m | 0.45 m | 2 of 8 | |
+| staging (`db669ab`: the arm, #425) | 0.10-1.42 m | 0.50 m | 3 of 8 | 4 of 8 |
+| this change | the same explores, to the bit | | | 7 of 8 |
+
+The issue's one flight a side (0.21 m before the arm, 1.40 m after) was
+the luck of one path: the arm is not the cause.
+
+**Where it grows.** In the house the belief stays within 0.14 m. It grows
+on the street loop and the long sidewalks: walls on one or two sides,
+straight for 20 m, met at grazing angles (#401), every one laid by the
+robot on the same walk. There a scan can only be matched against what
+the robot laid seconds before, through the same drifting pose, so the
+matcher holds the belief to its own recent map rather than to the world,
+and 20-70 % of its matches keep a direction (the street's length)
+odometry's. Split per match, the matches take off nearly all the heading
+the gyro adds (seed 0: odometry -20.3 deg over the explore, the matches
++19.8); what is left goes into the map as it is laid.
+
+**What it is not.**
+
+- *The arm.* The legs' own odometry, their velocity estimate integrated
+  through the TRUE heading on drift_spike's lab walk (47.8 m, the truth
+  steering), reads -8.6 % along the walk and -2.0 % across it before the
+  arm, -7.6 % and -0.1 % with it.
+- *The gyro's offset.* Robots that lay two minutes first, the offset
+  learned to 97 % (#425), ended 0.82, 1.26 and 1.34 m out. With it
+  learned, the matches themselves add up to 3.4 deg outside, aligning to
+  walls laid askew on the same walk.
+- ⚠ *The legs' speed, found on the way.* Those -8 % are at drift_spike's
+  0.5 m/s. At the explore's 0.35-0.4 m/s the legs read -0.5 %, at 0.45
+  -3.2 %; with perfect sensors at 0.5, +0.6 %. A walk past 0.4 m/s is not
+  measured by its own odometry; nothing here walks that fast.
+
+**Why it failed to dock: the walk home.** In every failure the robot
+never reached the standoff, and the dock itself was never tried. Seed 0
+came home 0.9 m out. Crossing from its garden (laid drifted) into the
+living room (mapped true at the start), its scans matched "ok" with
+0.56-0.73 of their points on walls, the garden behind agreeing and the room
+ahead not, and a match need only put half its points on walls to be laid
+in. Two seconds of those painted an offset copy of the room; the field's
+next refresh put the copy in it, the share jumped to 0.91, and every scan
+after matched the copy and was laid in, erasing the room as first mapped
+(the log-odds are clamped at ±5, so a wall is floor after 14 misses). The
+standoff then lay inside the copy's couch, the planner aimed at a
+stand-in, and the robot pressed the real couch, believing itself 0.2 m
+short, until the walk gave up. Seed 2 came home 1.2 m out to a garden
+its map held two ways at once: the house's east wall and its door where it
+had first laid them, and the garden's east fence 0.45 m off, laid again
+askew as it came back along the street. No one pose fitted both: fits
+started 0.1 m from the truth put a third of the points on walls. It
+walked into the house's east wall 1.35 m north of the door it believed it
+stood in front of.
+
+**The fix, in three pieces.**
+
+- *Near enough, the board decides* (`lifecycle.NEAR_STANDOFF_M`, 1.5 m).
+  A walk to the charge standoff that gives up within it, by its own
+  record, goes on to the approach, which finds the dock's board and walks
+  in by it whatever the belief. The standoff was only ever how the robot
+  got to the neighbourhood (`go_charge_routine`); a walk that gave up 0.2
+  m short of it ended the charge. Replayed from the three saves that
+  failed that way, all three docked on the first approach, from 0.89,
+  0.53 and 0.61 m off.
+- *An anchor re-lays the map round it* (`scan_match.ANCHORED_SCANS`, 30).
+  Docked, the board puts the belief in the dock's frame to millimetres;
+  the next 30 scans laid in go in at that belief, unmatched, and
+  overwrite a copy laid askew. Without it, one of those robots backed off
+  the dock and was 0.62 m off a second later, matched back into the copy;
+  with it, 0.00-0.01 m, and each of the four then walked to the lobby
+  across the street (0.19-0.42 m off on arrival) and docked again. The
+  commissioned start is no anchor: a look-around laid unmatched smears the
+  gyro's scale error (up to 1.8 deg a turn) into the first map.
+- *A robot its map keeps refusing searches wider* (`scan_match._relocate`).
+  After ten scans running refused, the search looks 2 m and 15 deg round
+  the belief, on a lattice of 20 cm and 1 deg with the walls widened to
+  cover it, then cell by cell round its best. A pose is taken only if it
+  fixes all three directions with three quarters of the scan on walls, no
+  second place within reach explains the scan as well, and the next wide
+  search, ten refusals on, finds the same correction. 72 ms on a house
+  scan (the search it widens is 32 ms, on every refused scan); one in ten
+  of a lost robot's scans. It did not fire in these flights: no lost
+  robot here had an intact map under it. It is the issue's own ask, for a
+  robot lost with its map whole (#425's lying drift was one), and the
+  served body set down 1.5 m from its belief in its living room finds
+  itself on the twentieth scan.
+
+**What was tried and dropped: a scan laid in only where the map agrees.**
+Fused only with three quarters of its points on walls, the living room
+was not laid over, and seeds 0 and 1 docked. But on a sidewalk whose thin
+wall the map had eroded (#401), it refused the scans that would have laid
+the wall again, the share kept falling, and the wide search, then taking
+one search's answer, jumped 1.8 and then 3.4 m along the sidewalk: two
+robots that had docked were lost mid-explore. The map's confidence cannot
+tell the cases apart either: an eroded wall reads -5, as sure as the
+living room's floor. It went, and a relocation must now be found twice.
+
+**What is true now.** A walk home that gives up within 1.5 m of the
+standoff goes on to the board; docked, the next 30 scans are laid at the
+dock's belief; and a robot its map refuses ten scans running searches 2 m
+and 15 deg round its belief, taking a pose that is the only one there and
+is found twice. Over the eight seeds the explores are unchanged, to the
+bit, and seven dock where four did. Rested first, three of three dock, as
+on staging. From two other starts, the hall and the garden, three of four
+dock on both builds; the fourth ended its explore 0.36 m out on the west
+sidewalk and paced it for 270 s beside the house's 4 cm west wall, which
+its map had eroded nearly end to end: #401's shuttle, a gap the planner
+kept routing through.
+
+**Not done.** The drift itself: the map laid round the street loop is
+still laid through a belief that drifts a metre, later visits match it and
+do not correct it, and where parts laid through different drifts meet,
+no pose fits (seed 2's garden). Correcting the map behind the robot is
+#381's stage 3, a
+pose graph, and this measurement says it is needed. Relocating by tags
+away from the dock was not needed to dock. One look at the dock's board
+puts the robot within 1.2 cm and 0.4 deg (median) from inside 1.5 m, but
+up to 0.8 m and 11 deg off from past 2.5 m (the robot stood at 160 poses
+round the dock, nothing stepped: 95 fits), so a far look could only
+propose a pose for the matcher; and the plate signs are positions the
+robot estimated itself, the pose graph's landmarks.
 
 ## Debugging workflow that worked
 
