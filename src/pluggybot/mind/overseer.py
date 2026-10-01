@@ -2435,6 +2435,12 @@ that is written down as what happened.\
 #: words, so "stood back up" and "your last heart" mean one thing each --
 #: `stood_up` (issue #348) uses them too, and says what the code does: the
 #: errand a stand-up lands in ends there.
+#:
+#: ⚠ ITS WORKED ROWS PARSE AGAINST THE MENU (#434; a test parses each): the
+#: broad row ended `-> carry`, the rover's errand, which no quadruped's menu
+#: has, and under the grammar a copied `car...` can only become `care`. Its
+#: action is the one left that is not measured (`charge`, `ask`), not the
+#: lab's (`care`) and not already shown (`idle`, `explore`): `take_task`.
 EVENT_MAP_RULE = """\
 WHEN YOU ARE ASKED, AND WHAT HAPPENS WHEN YOU ARE NOT
 
@@ -2510,7 +2516,7 @@ specific one FIRST and the general one under it:
 
   decision_failed (timeout) -> idle
   decision_failed (failure) -> explore
-  decision_failed           -> carry
+  decision_failed           -> take_task
 
 The other way round, the broad rule wins every time and the specific one \
 never runs at all.

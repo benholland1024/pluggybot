@@ -565,6 +565,18 @@ def test_no_worked_example_hands_the_agent_the_answer(menu):
   assert "the broad rule wins every time" in rule
 
 
+def test_every_worked_row_is_one_the_robot_can_write(menu):
+  """A demonstration the menu refuses teaches a refusal (#434): the ordering
+  lesson's broad row ended `-> carry`, the rover's errand, which no
+  quadruped's menu has -- and the grammar's action enum holds `care` and
+  `charge`, so a copied `ca...` could come out as one of those."""
+  for line in (ln.strip() for ln in ov.EVENT_MAP_RULE.splitlines() if "->" in ln):
+    when, action = (part.strip() for part in line.split("->"))
+    event, _, kind = when.partition("(")
+    ev.row({"event": event.strip(), "kind": kind.strip(" )"), "action": action},
+           menu)
+
+
 def test_a_world_with_no_map_is_told_nothing_about_one(menu):
   """A prompt edit is a moved cache -- but only for a world that HAS this
   block, and a mind at origin `none`, the default, does not."""
