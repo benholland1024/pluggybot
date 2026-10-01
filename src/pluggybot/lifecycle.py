@@ -2296,7 +2296,9 @@ class HubLifecycle:
         continue                          # taken again: wait again, above
       near = self._near_standoff(sx, sy)
       if near:
-        self._say(f"GO_CHARGE: {self.drive_why(sx, sy)}; near enough, the "
+        # ⚠ NOT `GO_CHARGE: `, which the site counts as a failed attempt
+        # (rooftop's `chargeOutcome`): this attempt's one outcome comes after
+        self._say(f"GO_CHARGE near enough -- {self.drive_why(sx, sy)}; the "
                   "dock's board decides")
         break
       yield from self.body.look_around_routine()

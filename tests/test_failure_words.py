@@ -332,7 +332,13 @@ def test_a_walk_home_that_gives_up_near_the_standoff_goes_on_to_the_board():
     looks = []
     life.body.go_to_routine = drive
     life.body.look_around_routine = lambda: (looks.append(1), tick.result(None))[1]
-    return life.body.run(life.go_charge_routine()), life.body.on_charger, len(looks)
+    went = life.body.run(life.go_charge_routine())
+    # ...and the attempt is narrated with ONE outcome, the one the site
+    # counts a row by (rooftop's `chargeOutcome`): the near-enough line is
+    # not a `GO_CHARGE: ` failure before the docking
+    outcomes = [ln for ln in life.log if "GO_CHARGE: " in ln or "GO_CHARGE -> CHARGE" in ln]
+    assert len(outcomes) == 1, outcomes
+    return went, life.body.on_charger, len(looks)
 
   assert trip(0.2) == (True, True, 0)
   assert trip(NEAR_STANDOFF_M + 0.5) == (False, False, 2)

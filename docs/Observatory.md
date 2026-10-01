@@ -34,8 +34,9 @@ ones, by robots whose gyro offset is learned at rest.
 
 - **Do they dock?** Dockings against approaches, and `charge_failure`:
   "never reached the charge bay" with a walk that gave up short is the
-  failure this addresses, and a GO_CHARGE line ending "near enough, the
-  dock's board decides" is the new path taken.
+  failure this addresses, and `GO_CHARGE near enough -- …; the dock's
+  board decides` is the new path taken. It is neither outcome the site
+  counts (`chargeOutcome`), so an attempt is still one row.
 - **The matcher's tallies** in the world save (`world.npz`, per robot):
   `anchored` counts the scans laid at the dock's belief, `relocated` the
   wider search taken. A long run of `inconsistent` that never ends in
