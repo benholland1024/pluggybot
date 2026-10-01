@@ -152,9 +152,24 @@ def _now() -> str:
   return datetime.now(timezone.utc).replace(microsecond=0).isoformat()
 
 
-def _line(text) -> str:
-  """One line, whitespace collapsed, capped. Empty in -> empty out."""
-  return " ".join(str(text or "").split())[:MAX_LINE_CHARS]
+def cut_mark(cap: int) -> str:
+  """What a line cut at `cap` ends with (issue #433)."""
+  return f" [line cut at {cap} characters]"
+
+
+def _line(text, cap: int = MAX_LINE_CHARS) -> str:
+  """One line, whitespace collapsed, capped. Empty in -> empty out.
+
+  ⚠ A CUT SAYS SO, INSIDE THE CAP (issue #433): the mark replaces the end
+  of what is kept, because a line is cut from the end and a mark after the
+  cut would be the first thing lost (#307, one surface over). Cut silently,
+  an operator's reply stopped at "nothing corrects your h" and was read as
+  whole."""
+  line = " ".join(str(text or "").split())
+  if len(line) <= cap:
+    return line
+  mark = cut_mark(cap)
+  return line[:cap - len(mark)].rstrip() + mark
 
 
 def topic_name(text, default: str = "") -> str:
@@ -511,9 +526,10 @@ class ThoughtFiles:
       self._refuse(str(e))
 
   def append(self, name: str, text: str, by: str, t: float = 0.0,
-             cites=()) -> str:
+             cites=(), cap: int = MAX_LINE_CHARS) -> str:
     """Add one line to a core document or to History. Returns the line
-    written, "" if there was nothing to.
+    written, "" if there was nothing to. `cap` is the line's own; only
+    `remember` widens it.
 
     History rolls (the view keeps the newest lines that fit); the robot's
     documents refuse when full -- the row says which.
@@ -522,7 +538,7 @@ class ThoughtFiles:
     the page. After the writer and before the cap, so a full page that holds
     it says so rather than "unpin one first".
     """
-    line = _line(text)
+    line = _line(text, cap)
     held = [r.text for r in self._core(name)] if name in CORE and line else []
     if line in held:
       self._admit(name, by, 0)
@@ -664,11 +680,17 @@ class ThoughtFiles:
     self._commit(NOTES, t, self.records.retire(hit.id, t=t))
     return f"{hit.topic}/{hit.title}: {hit.text}"
 
-  def remember(self, text: str, t: float = 0.0) -> str:
+  def remember(self, text: str, t: float = 0.0, room: int = 0) -> str:
     """The narrative record, the SYSTEM's. Prefixed with the sim clock,
-    because a line of history with no "when" is an anecdote."""
+    because a line of history with no "when" is an anecdote.
+
+    `room` is how far past `MAX_LINE_CHARS` this one line may run (issue
+    #433): a line that QUOTES a text bounded where it came from -- an
+    operator's ticket reply, `MAX_TICKET_CHARS` -- keeps it whole, and the
+    cap bounds the system's own words. The view rolls, so a long line costs
+    the oldest lines their place, never its own end."""
     return self.append(HISTORY, f"[t={float(t):.0f}s] {text}", by=SYSTEM,
-                       t=t)
+                       t=t, cap=MAX_LINE_CHARS + max(0, room))
 
   def think(self, text: str, t: float = 0.0, why: str = "") -> str:
     """The scratch the model wrote before a decision (issue #221): a

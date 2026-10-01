@@ -424,9 +424,11 @@ save a filmstrip PNG named after the script.
   closes them** (issue #284; Overseer.md §2g; `tests/test_tickets.py`):
   `ticket {kind, title, text}` and `ticket_reply`; `TICKETS_RULE` PRESCRIBES
   NOTHING. `MAX_OPEN_TICKETS` 3, `MAX_TICKET_CHARS` 500 both ways, and ⚠ A CUT
-  IS SAID OUT LOUD. The desk is the LIFECYCLE's and survives a true death.
-  Three admin inbound kinds (`ticket_reply` / `ticket_close` /
-  `ticket_delete`); a close PAYS the `ticket` row ONCE through
+  IS SAID OUT LOUD. ⚠ An operator's reply or close reaches History WHOLE,
+  with no title (`remember(room=)`, #433), and a line History's cap does cut
+  says so inside the cap (`thoughts._line`). The desk is the LIFECYCLE's
+  and survives a true death. Three admin inbound kinds (`ticket_reply` /
+  `ticket_close` / `ticket_delete`); a close PAYS the `ticket` row ONCE through
   `scoring.evaluate` + `_bank` (a replayed close answers `paid: false`; ⚠ NOT
   the visitor tier's `settle`: a true death restarts the ledger's `seq`). ⚠ No
   decision field closes a ticket, and nothing in `economy/` imports the desk.

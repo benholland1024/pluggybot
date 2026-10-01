@@ -10,6 +10,33 @@ observatory is NOT a result: it reports into the issue it informs.
 
 ## Periods
 
+### An operator's reply reaches History whole (#433) — opens when this PR is deployed
+
+**What changed in the world.** What the robots are TOLD, on `autonomous`
+(the one arm with tickets). The prompt did not move. An operator's ticket
+reply, and the words a ticket is closed with, now reach History whole,
+with the id and no title in front. Before, History's 400-character line
+cap kept about 260 of the 500 characters the site accepts and said
+nothing: a 476-character reply on Luca's `tk_0011` stopped at "nothing
+corrects your h", and Luca filed `tk_0014` to ask for the rest. Any History
+line the cap still cuts now ends `[line cut at 400 characters]`. In
+practice that is the robot's own long report or reply, which the
+`tickets` block carries whole. The close's line no longer names the kind,
+and a cut operator line says who wrote more, not "I".
+
+**What the period is for.**
+
+- **Do the follow-ups stop?** A `ticket` row that asks for the rest of an
+  operator's reply (`tk_0014`'s shape) after this deploy is a path this
+  missed.
+- **Does a long reply get acted on?** Replies can now run past 250
+  characters, the length operators were told to keep to while this was
+  open. Watch the decisions after a long reply that ends in a remedy.
+- **Where History still cuts:** `[line cut at` in `History.md` on the
+  volume (the observatory keeps no History rows). A robot that reads the
+  mark on its own report and files about it is reading History's line as
+  its report.
+
 ### The heading holds while they lie, and the askew maps are gone (#425) — opens with the release that carries #424, #409 and #426 beside it
 
 **What changed in the world.** Lying down, by the rest reflex or on the
