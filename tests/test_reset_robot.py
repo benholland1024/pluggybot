@@ -312,8 +312,8 @@ def test_the_robot_is_told_it_can_die_only_where_it_can():
   # ...and the flag ADDS a block and changes nothing else, so an immortal
   # world's cached prefix is what it was before issue #107. (A world with
   # no appetite is told the rule without its upkeep clauses, issue #387.)
-  assert rules(True).replace(ov.mortal_rule(False, "quadruped"), "").strip() \
-      == rules(False).strip()
+  assert rules(True).replace("\n\n" + ov.mortal_rule(False, "quadruped"), "") \
+      == rules(False)
 
 
 def test_mortality_is_opt_in_and_an_immortal_day_ends_as_it_always_did():

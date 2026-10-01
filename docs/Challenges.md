@@ -86,9 +86,8 @@ MEASURE / JUDGE / PAY chain.** Concretely, a challenge is:
 5. **A reward row in `economy/challenges.json`, not `rewards.json`.** Same
    format, same loader (`scoring.challenge_table()`), deliberately a separate
    file: a row in `rewards.json` is shown to the overseer as a job it can take
-   and is hashed into every committed result, so moving a row across is the
-   PR that offers the challenge — and it re-flies `guarded`, whose cached
-   prefix is byte-identical to the flown one.
+   and is hashed into the header's `dataHashes`, so moving a row across is
+   the PR that offers the challenge, and a new period.
 
 What this gives up is generality, and that is the trade the issue predicted:
 a challenge is exactly as gradeable as its author's ability to write its
@@ -242,13 +241,11 @@ departure from it:
   recordings moved with them — three more free bodies is a new solver
   rounding and a new trajectory, as every world change is.
 - **The departure: the row stays in `challenges.json`.** The offer is gated
-  on the ARM rather than moved into `rewards.json`: the tower's target is
-  the `challenge` kind, which `lifecycle.world_targets` names only where a
-  procedure can be written (the `autonomous` arm), so `guarded` never sees
-  the offer, its offered set is byte-for-byte what it was, and the control
-  stays a control. The `autonomous` prompt's reward table carries the
-  challenge rows (`RewardTable.as_context(challenges=True)`); `guarded`'s
-  is unchanged.
+  on there being a MIND rather than moved into `rewards.json`: the tower's
+  target is the `challenge` kind, which `lifecycle.world_targets` names
+  only where a procedure can be written, so the loop with no mind never
+  sees the offer. A mind's reward table carries the challenge rows
+  (`RewardTable.as_context(challenges=True)`).
 - **The energy cost is measured off the first written procedure** (issue
   #264): 2.7 Wh from the rover's rack and back on the hosting pack. The
   kind's estimate still carries that number, until a solution on legs

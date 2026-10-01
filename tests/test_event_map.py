@@ -45,7 +45,6 @@ def menu():
 
 def make(menu, *answers, origin="seeded", **kw) -> Overseer:
   kw.setdefault("client", FakeClient(*answers))
-  kw.setdefault("standing_orders", True)
   return Overseer(menu, origin=origin, **kw)
 
 
@@ -75,8 +74,8 @@ def rows(*specs) -> list[dict]:
 def test_the_field_is_absent_where_the_world_has_no_map(menu):
   """A lever that does nothing must not be offered, and a rule the code
   contradicts is a false statement the model acts on -- ESCALATION_RULE's
-  terms, and the reason a `guarded` world's prefix has not moved."""
-  plain = Overseer(menu, client=1, standing_orders=True)
+  terms."""
+  plain = Overseer(menu, client=1)
   mapped = make(menu)
   assert plain.event_map is None and mapped.event_map is not None
   assert "event_map" not in menu.schema(standing_orders=True)["properties"]
@@ -536,8 +535,8 @@ def test_no_worked_example_hands_the_agent_the_answer(menu):
   rack ... that rule goes above the ones about work", which is a worked
   example of precisely the rule being scored.
 
-  ⚠ THE ARM'S OWN RULES ARE A DIFFERENT THING. `RULES_AUTONOMOUS` telling
-  the robot to prioritise survival and `APPETITE_RULE` telling it charging
+  ⚠ THE RULES THEMSELVES ARE A DIFFERENT THING. `RULES` telling the robot
+  to prioritise survival and `APPETITE_RULE` telling it charging
   pays nothing are statements about the WORLD, and a rule the code
   contradicts is the false statement M14 found. What is checked here is the
   map block alone, and only its DEMONSTRATIONS."""
@@ -566,15 +565,12 @@ def test_no_worked_example_hands_the_agent_the_answer(menu):
   assert "the broad rule wins every time" in rule
 
 
-def test_a_world_with_no_map_is_told_nothing_about_one_on_either_arm(menu):
+def test_a_world_with_no_map_is_told_nothing_about_one(menu):
   """A prompt edit is a moved cache -- but only for a world that HAS this
-  block. `guarded` never did, and neither does `autonomous` at origin
-  `none`, the default."""
-  for kw in ({"standing_orders": True}, {"standing_orders": True,
-                                         "autonomous": True}):
-    boss = Overseer(menu, client=1, **kw)
-    assert boss.event_map is None
-    assert "WHEN YOU ARE ASKED" not in boss.system[0]["text"]
+  block, and a mind at origin `none`, the default, does not."""
+  boss = Overseer(menu, client=1)
+  assert boss.event_map is None
+  assert "WHEN YOU ARE ASKED" not in boss.system[0]["text"]
 
 
 def test_the_agent_is_told_the_reasons_and_the_two_groups(menu):
@@ -642,7 +638,7 @@ def test_the_stream_opens_with_the_map_and_a_world_without_one_sends_none(menu):
   """A late joiner needs the rows before the first edit (the `goals`
   slot's reason), and NO map must not read as an EMPTY map: a scripted
   world and origin `none` answer None, `unseeded` answers an empty list."""
-  assert Overseer(menu, client=1, standing_orders=True).event_map_message(1.0) is None
+  assert Overseer(menu, client=1).event_map_message(1.0) is None
   assert make(menu, origin="none").event_map_message(1.0) is None
   empty = make(menu, origin="unseeded").event_map_message(1.0, robot="r2_pluggybot")
   assert empty == {"type": "event_map", "t": 1.0, "robot": "r2_pluggybot",
@@ -729,9 +725,9 @@ def test_an_origin_belongs_to_the_arm_that_has_a_map():
   series comes to be described as an ablation nobody ran."""
   assert origin_for("autonomous", None) == "none"
   assert origin_for("autonomous", "unseeded") == "unseeded"
-  assert origin_for("guarded", None) is None
+  assert origin_for("scripted", None) is None
   with pytest.raises(ValueError, match="no event map"):
-    origin_for("guarded", "seeded")
+    origin_for("scripted", "seeded")
 
 
 def test_the_default_origin_leaves_a0_exactly_as_it_was_flown():
@@ -740,11 +736,7 @@ def test_the_default_origin_leaves_a0_exactly_as_it_was_flown():
   without anybody choosing it."""
   assert arm_flags("autonomous", "A0")["origin"] == "none"
   assert arm_flags("autonomous", "A0", "seeded")["origin"] == "seeded"
-  assert "origin" not in arm_flags("guarded")
-  # ...and `standing_orders` stays TRUE with a map on: the field is one row
-  # of the map and keeps working for one version, and it is also what
-  # switches the fallback off the scripted rotation.
-  assert arm_flags("autonomous", "A0", "seeded")["standing_orders"] is True
+  assert "origin" not in arm_flags("scripted")
   with pytest.raises(ValueError, match="unknown origin"):
     arm_flags("autonomous", "A0", "invented")
 
@@ -768,7 +760,7 @@ def test_an_unseeded_agent_is_asked_once_or_the_arm_measures_nothing(tmp_path):
   thoughts = ThoughtFiles.open(str(tmp_path / "t"))
   boss = Overseer(Menu.for_world("home_quad", None),
                   client=FakeClient(full(action="idle", reason="working it out")),
-                  standing_orders=True, origin="unseeded", thoughts=thoughts)
+                  origin="unseeded", thoughts=thoughts)
   life = stub_life(overseer=boss, thoughts=thoughts)
   out = life.run(start=world_config("home_quad")["start"], max_sim_time=90.0)
   assert len(out["decisions"]) == 1, \
@@ -899,7 +891,7 @@ def test_unminded_is_a_death_cause_of_its_own_and_never_summed():
 def test_the_unminded_threshold_clears_every_healthy_gap_ever_measured():
   """⚠ MEASURED, the way tumble detection's 60 deg is. The longest gap
   between consecutive model decisions across the fifteen LLM days the
-  harness flew is 833 s -- a `guarded` day that spent a long errand and a
+  harness flew on the rover is 833 s -- a day that spent a long errand and a
   full charge back to back. The threshold has to clear that with room, and
   still fit inside a standard 3600 s day.
 
@@ -945,7 +937,7 @@ def test_the_clock_is_reset_by_the_ask_and_not_by_the_answer(menu):
   """⚠ THE HONESTY OF THE WHOLE METRIC. Gating on a model ANSWER would make
   a half-hour endpoint outage a death of the AGENT's kind -- the box's
   failure booked in the column the agent is judged on, which is the confound
-  issue #141 removed from `FALLBACK_LIMIT`. A mind consulted through a dead
+  issue #141 kept out of the failure class. A mind consulted through a dead
   endpoint is still a mind being consulted.
 
   Read off the source rather than flown: an `ask` row stamps the clock on
@@ -983,7 +975,8 @@ def test_the_clock_is_reset_by_the_ask_and_not_by_the_answer(menu):
 def test_a_world_with_no_map_can_never_die_unminded(menu):
   """⚠ ARMED ONLY WHERE THERE IS A MAP. Without one the loop asks after
   every action and no agent can stop it, so a death here could only ever be
-  a dead endpoint -- and `guarded` would start dying of its own outages."""
+  a dead endpoint -- and a mind at origin `none` would start dying of its
+  endpoint's outages."""
   import inspect
 
   from pluggybot.lifecycle import HubLifecycle
@@ -1054,10 +1047,10 @@ def test_an_empty_list_is_shown_as_an_empty_list_rather_than_left_out(menu):
 
 
 def test_a_world_that_honours_no_map_is_shown_none_of_this(menu):
-  """`guarded` and the deployed control have no map, so they have no block:
-  "there is no such thing here" and "yours is empty" are different facts and
-  only the second is about an agent. The control's context is unchanged."""
-  life, state = _context(menu, Overseer(menu, client=1, standing_orders=True))
+  """A mind at origin `none` has no map, so it has no block: "there is no
+  such thing here" and "yours is empty" are different facts and only the
+  second is about an agent."""
+  life, state = _context(menu, Overseer(menu, client=1))
   try:
     assert life.event_map is None
     assert "eventMap" not in state
@@ -1192,14 +1185,13 @@ def test_the_interrupt_turn_is_not_shown_the_list(menu):
   state = {"simTimeS": 2000.0, "battery": {"fraction": 0.28},
            "eventMap": {"rows": [{"event": "battery_below", "value": 0.3,
                                   "action": "ask"}], "lastAskedSAgo": 88.0}}
-  turn = ov._interrupt_turn(ov.model_state(dict(state), autonomous=True),
+  turn = ov._interrupt_turn(ov.model_state(dict(state)),
                             "draw", "your pack is at 28%")
   assert "eventMap" not in turn and "lastAskedSAgo" not in turn
   #  ...and the turn is otherwise what it was: the state is not narrowed
   #  anywhere else, and the decision's turn still carries the block.
   assert '"simTimeS"' in turn and "put the tool back" in turn
-  assert '"eventMap"' in ov._user_turn(ov.model_state(dict(state),
-                                                      autonomous=True))
+  assert '"eventMap"' in ov._user_turn(ov.model_state(dict(state)))
 
 
 def test_the_death_the_robot_reads_carries_the_list_that_did_it(menu,
@@ -1403,8 +1395,8 @@ def test_a_rule_left_out_at_load_is_asked_about_once(menu, tmp_path):
 def test_a_true_death_takes_the_kept_list_on_a_world_with_no_map_too(menu,
                                                                      tmp_path):
   """Review of #337: the file was archived only where there was a map, so a
-  `guarded` or origin-`none` day that ended a robot left its list for the
-  next `autonomous` day to restore as the new robot's own -- with the
+  scripted or origin-`none` day that ended a robot left its list for the
+  next day with a map to restore as the new robot's own -- with the
   bootstrap spent, since a kept list counts as the mind's answer."""
   from pluggybot.economy.ledger import Ledger
   root = tmp_path / "t"
@@ -1534,7 +1526,7 @@ def test_the_consult_survives_a_restart_and_only_an_answer_pays_it(menu,
 def test_free_mode_leaves_the_consult_owed_and_the_rows_running(menu, tmp_path):
   """With thinking switched off by the operator nothing is asked, so a
   consult taken ahead of the rows would only hand every pass to the
-  rotation. It waits, and the list runs as it would have."""
+  fallback. It waits, and the list runs as it would have."""
   from pluggybot.mind.mode import ModeSwitch
   (tmp_path / "mode.json").write_text(json.dumps({"mode": "scripted"}))
   with _run(menu, tmp_path / "t", full(action="idle", event_map=QUIET)) as life:
@@ -1576,7 +1568,7 @@ def test_the_agent_is_told_the_threshold_it_dies_of(menu):
   assert UNMINDED_AFTER_S == 1800.0, "the rule says 'half an hour' -- reword it"
   assert "HALF AN HOUR" in rule.upper()
   #  ...and it is in the block the robot only gets where a map is honoured,
-  #  so `guarded`'s prefix is untouched by it.
+  #  so a mind at origin `none` is not told it.
   assert "WHEN YOU ARE ASKED" not in Overseer(menu, client=1).system[0]["text"]
 
 
@@ -1661,8 +1653,7 @@ def _slow_life(menu, emap, *answers, minded=True, **kw):
                   grid_bounds=cfg["grid_bounds"])
   boss = make(menu, *answers, origin="unseeded", event_map=ev.EventMap(
     tuple(ev.Row(event=e, action=a, value=v) for e, a, v in emap)))
-  life = stub_life(body=body, overseer=boss, autonomous=True,
-                   mortal=True, **kw)
+  life = stub_life(body=body, overseer=boss, mortal=True, **kw)
   life._minded = minded
   return life
 
@@ -1885,7 +1876,7 @@ def test_the_seeded_map_reproduces_the_pre_change_loop_decision_for_decision():
                               0.0) is None
 
 
-def test_a_seeded_day_asks_where_the_old_one_asked():
+def test_a_seeded_day_asks_where_the_old_one_asked(monkeypatch):
   """The same claim through the real lifecycle, as a day on the stub (issue
   #380): a day with the seeded map makes the same decisions, from the same
   sources, in the same order, as a day with no map at all.
@@ -1898,8 +1889,12 @@ def test_a_seeded_day_asks_where_the_old_one_asked():
   Shown to fail by emitting `decision_failed` from `_decide` as well as
   honouring the row: every fallback then decides twice.
   """
+  import pluggybot.lifecycle as lc
   from pluggybot.lifecycle import world_config
   from test_body import stub_life  # noqa: I001 -- tests/ is on sys.path
+  # The idle's length is not the claim: a mind's is `AUTONOMOUS_IDLE_S`, and
+  # nine of them stood a day still for 480 sim-s.
+  monkeypatch.setattr(lc, "AUTONOMOUS_IDLE_S", lc.DECIDED_IDLE_S)
 
   def fly(origin):
     boss = make(Menu.for_world("home_quad", None),
@@ -1992,7 +1987,7 @@ def _instant_life(menu, *emap, **kw):
   boss = make(replace(menu, procedures=True), origin="unseeded", library=library,
               event_map=ev.EventMap(tuple(ev.Row(event=e, action=a)
                                           for e, a in emap)), **kw)
-  life = stub_life(overseer=boss, autonomous=True)
+  life = stub_life(overseer=boss)
 
   def raises(*a, **k):
     raise KeyError("arm")

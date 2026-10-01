@@ -2,11 +2,10 @@
 
 There is ALWAYS a fallback -- the physics keeps stepping, so the robot is
 doing something while and after a call fails -- and the only question is
-whose it is. `guarded` flies the one code chose (the scripted rotation) and
-must go on doing so, because that arm is the control and its whole subject is
-today's behaviour. `autonomous` cannot: a code-chosen fallback there would
-make the arm partly a measurement of code, which is the exact flaw the three
-rails were removed for (docs/Evaluation.md §2).
+whose it is. A code-chosen fallback would make the mind partly a measurement
+of code, which is the exact flaw the three rails were removed for
+(docs/Evaluation.md §2), so it is the agent's own; the scripted rotation
+that was the `guarded` control's went with that arm (issue #427).
 
 The load-bearing test is `test_the_agents_own_order_runs_when_the_endpoint_
 dies`: the model answers once, leaving an order behind, and then nothing
@@ -20,7 +19,6 @@ from dataclasses import replace
 
 import pytest
 
-from pluggybot.evaluation.arms import arm_flags
 from pluggybot.lifecycle import board_book
 from pluggybot.mind import overseer as ov
 from pluggybot.mind.overseer import Menu, Overseer
@@ -44,9 +42,9 @@ def _state(fraction: float, offers=(), affordable=None, possible=None) -> dict:
           "tasksThisMission": [], "decisions": 0}
 
 
-def make(menu, *answers, standing_orders=True, **kw) -> Overseer:
+def make(menu, *answers, **kw) -> Overseer:
   kw.setdefault("client", FakeClient(*answers))
-  return Overseer(menu, standing_orders=standing_orders, **kw)
+  return Overseer(menu, **kw)
 
 
 #: A pack that could pay for anything on this world's menu after a charge.
@@ -63,15 +61,19 @@ def offer(task_id="t_0007", **kw) -> dict:
 # ---- it is an action off the fixed menu, and nothing else --------------------
 
 
-def test_the_field_is_absent_where_the_world_does_not_honour_one(menu):
+def test_every_mind_is_offered_the_field_and_told_the_rule(menu):
   """A lever that does nothing must not be offered, and a rule the code
   contradicts is a false statement the model acts on -- ESCALATION_RULE's
-  terms exactly. A `guarded` world's prompt and schema are what they were."""
-  plain, orders = Overseer(menu, client=1), make(menu)
-  assert "standing_order" not in plain.menu.schema()["properties"]
-  assert "standing_order" in menu.schema(standing_orders=True)["properties"]
-  assert "IF YOU CANNOT BE REACHED" not in plain.system[0]["text"]
-  assert "IF YOU CANNOT BE REACHED" in orders.system[0]["text"]
+  terms exactly. Every mind's fallback IS its order (issue #427), so every
+  mind is offered the field and told the rule; a bare grammar does not
+  carry it."""
+  client = FakeClient(full(action="explore"))
+  boss = make(menu, client=client)
+  boss.decide(_state(0.9))
+  sent = client.calls[0]["output_config"]["format"]["schema"]
+  assert "standing_order" in sent["properties"] and "standing_order" in sent["required"]
+  assert "IF YOU CANNOT BE REACHED" in boss.system[0]["text"]
+  assert "standing_order" not in menu.schema()["properties"]
 
 
 def test_an_order_is_the_action_enum_rather_than_free_text(menu):
@@ -94,7 +96,7 @@ def test_an_order_off_the_menu_is_refused_the_way_an_action_is(menu, order):
 def test_an_order_nobody_offered_is_dropped_rather_than_raised_on(menu):
   """The other side of the same coin: where the field was never in the
   grammar, a model that emitted one anyway must not be able to cost a
-  `guarded` run a decision that was otherwise perfectly good."""
+  decision that was otherwise perfectly good."""
   d = menu.validate(full(action="explore", standing_order="nonsense"))
   assert d.action == "explore" and d.standing_order == ""
 
@@ -115,8 +117,7 @@ def test_writing_one_down_costs_no_turn(menu):
 
 def test_the_agents_own_order_runs_when_the_endpoint_dies(menu):
   """THE test. One good answer leaves `charge` behind; nothing answers ever
-  again. Fails without the fix -- the rotation's first pick on a fresh
-  mission is `explore`, and every later call would be one too.
+  again. Fails the moment a fallback is anything but the agent's own.
 
   ⚠ And it is `charge` on purpose. A voluntary charge is expensive and the
   baseline found zero in 182 decisions; a standing order is free unless a
@@ -136,21 +137,6 @@ def test_the_agents_own_order_runs_when_the_endpoint_dies(menu):
   assert boss.stats()["standingOrders"]["fired"] == {"charge": 1}
 
 
-def test_the_rotation_is_untouched_where_standing_orders_are_off(menu):
-  """The same client, the same dead endpoint, the `guarded` arm: code's
-  fallback, unchanged. Pinned in the same file as the other half so that
-  changing one without the other is a failing test rather than a silently
-  different control arm."""
-  boss = make(menu, full(action="explore", standing_order="charge"),
-              RuntimeError("connection reset"), standing_orders=False)
-  first = boss.decide(_state(0.9))
-  assert first.standing_order == "", "the field was never offered"
-  dead = boss.decide(_state(0.2))
-  assert dead.source == "fallback:offline"
-  assert dead.action != "charge" and dead.reason == "scripted rotation"
-  assert "standingOrders" not in boss.stats()
-
-
 @pytest.mark.parametrize("why, client", [
   ("fallback:timeout", FakeClient(full(standing_order="explore"), delay=5.0)),
   ("fallback:garbled", FakeClient("I would love to draw a house!")),
@@ -158,8 +144,7 @@ def test_the_rotation_is_untouched_where_standing_orders_are_off(menu):
 def test_every_way_a_call_can_fail_reaches_the_same_order(menu, why, client):
   """One fallback seam, not five. A timeout, a malformed answer, a spent
   budget, a cooloff and free mode all resolve through `Overseer.fallback`,
-  so which policy a run is flying is one boolean rather than a question
-  asked at every call site."""
+  so there is one policy, decided in one place."""
   boss = make(menu, client=client, timeout_s=0.05)
   boss.standing_order = "charge"
   d = boss.decide(_state(0.5, possible=ANY))
@@ -203,10 +188,9 @@ def test_an_order_that_cannot_be_run_is_recorded_as_its_own_thing(menu):
 
 
 def test_an_order_this_house_could_never_afford_is_not_run(menu):
-  """`possibleActions`, never `affordableActions` -- the same line the
-  scripted rotation draws. What is filtered is what no charge in this world
-  would cover, not what the pack cannot pay for this second. The errand is
-  the lab's `care`, on the arm that offers it."""
+  """`possibleActions`, never `affordableActions`. What is filtered is what
+  no charge in this world would cover, not what the pack cannot pay for this
+  second. The errand is the lab's `care`, on a menu with the lab."""
   boss = make(replace(menu, lab="lab"), RuntimeError("down"))
   boss.standing_order = "care"
   d = boss.decide(_state(0.5, affordable=[], possible=["explore", "charge"]))
@@ -270,32 +254,19 @@ def test_a_fallback_cannot_appoint_its_own_successor(menu):
   assert boss.orders_fired == {"explore": 3} and boss.orders_unset == 0
 
 
-def test_whose_fallback_it_is_is_part_of_what_an_arm_means():
-  """Stated on both built arms rather than left to a default: `guarded` is
-  the control, and today's fallback is the rotation."""
-  assert arm_flags("guarded")["standing_orders"] is False
-  assert arm_flags("scripted")["standing_orders"] is False
+def test_a_fallback_is_the_agents_order_or_the_floor_by_every_route(menu):
+  """⚠ NO ROTATION A MIND DID NOT CHOOSE, EVER -- INCLUDING LIVE (issue
+  #141; Evaluation.md §2). Pinned because it is a PRINCIPLE and the next
+  "sensible default" on this path has to meet it: a rotation quietly
+  keeping the robot alive answers a question nobody asked. The one there
+  was, `guarded`'s, went with that arm (issue #427).
 
-
-def test_the_rotation_is_unreachable_on_autonomous_by_every_route(menu,
-                                                                 monkeypatch):
-  """⚠ NO SCRIPTED ROTATION ON `autonomous`, EVER -- INCLUDING LIVE (issue
-  #141; Evaluation.md §2). Already the implementation, pinned here because
-  it is a PRINCIPLE and the next "sensible default" on this path has to
-  meet it: `scripted` and `guarded` show survival is possible, and a
-  rotation quietly keeping the autonomous robot alive answers a question
-  nobody asked.
-
-  Booby-trapped rather than asserted about, and swept over every `why` in
-  the closed vocabulary plus all three states an order can be in -- never
-  set, set and runnable, set and impossible. The first is the one that
-  catches a "fall back to the rotation until the agent has left an order",
-  which is exactly the reasonable-sounding change this exists to fail."""
-  def trap(*a, **kw):
-    raise AssertionError("the scripted rotation ran on the autonomous arm")
-
-  monkeypatch.setattr(ov, "scripted", trap)
-  assert arm_flags("autonomous")["standing_orders"] is True
+  Swept over every `why` in the closed vocabulary plus all three states an
+  order can be in -- never set, set and runnable, set and impossible. The
+  first is the one that catches a "fall back to a rotation until the agent
+  has left an order", which is exactly the reasonable-sounding change this
+  exists to fail."""
+  assert not hasattr(ov, "scripted"), "a code-chosen rotation is back"
   for order in (None, "explore", "take_task"):
     boss = make(menu)
     # `take_task` is on the menu and not runnable with nothing on offer, so
@@ -306,10 +277,6 @@ def test_the_rotation_is_unreachable_on_autonomous_by_every_route(menu,
       d = boss.fallback(_state(0.5, possible=ANY), why)
       assert d.source == f"fallback:{why}"
       assert d.action in (order, ov.STANDING_ORDER_FLOOR)
-  # ...and the control keeps it: the trap fires the moment it is asked.
-  with pytest.raises(AssertionError, match="scripted rotation"):
-    Overseer(menu, client=1, standing_orders=False).fallback(_state(0.5),
-                                                             "timeout")
 
 
 def test_the_floor_is_the_bootstrap_and_not_a_policy():

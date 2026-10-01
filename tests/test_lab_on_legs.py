@@ -26,12 +26,11 @@ from pluggybot.mind.thoughts import ThoughtFiles
 from test_body import stub_life  # noqa: I001 -- tests/ is on sys.path
 
 
-def _quad_mind(autonomous: bool = True, **kw):
+def _quad_mind(**kw):
   return ov.build(QUAD_HOME, None, enabled=True, client=object(), ledger=Ledger(),
                   thoughts=ThoughtFiles.open(None, body="quadruped"),
                   robot_name="Luca", mortal=True, hearts=True,
-                  autonomous=autonomous, origin="unseeded" if autonomous else "none",
-                  standing_orders=autonomous, others=("Rowan",), **kw)
+                  origin="unseeded", others=("Rowan",), **kw)
 
 
 def _section(boss, heading: str) -> str:
@@ -42,9 +41,10 @@ def _section(boss, heading: str) -> str:
 
 
 def test_the_lab_is_in_the_quadrupeds_world_with_its_rule_disclosure_and_care():
-  """The house's lab, its props where the house stands them; on
-  `autonomous` the zone's whole grammar -- `care`, `real`, `mouse_will`,
-  the rule with the disclosure line once -- and on `guarded` none of it."""
+  """The house's lab, its props where the house stands them; for a mind the
+  zone's whole grammar -- `care`, `real`, `mouse_will`, the rule with the
+  disclosure line once -- and for a menu no mind was built over none of
+  it."""
   from pluggybot.home import world as home
   assert world_config(QUAD_HOME)["lab"] == {"name": "lab", "cage": tuple(home.LAB_CAGE_XY),
                                            "bench": tuple(home.LAB_BENCH_XY)}
@@ -55,8 +55,8 @@ def test_the_lab_is_in_the_quadrupeds_world_with_its_rule_disclosure_and_care():
   assert text.count(ov.DISCLOSURE) == 1
   props = boss.menu.schema()["properties"]
   assert {"care", "real", "mouse_will"} <= set(props)
-  guarded = _quad_mind(autonomous=False)
-  assert guarded.menu.lab == "" and ov.DISCLOSURE not in guarded.system[0]["text"]
+  bare = ov.Overseer(ov.Menu.for_world(QUAD_HOME), client=object())
+  assert bare.menu.lab == "" and ov.DISCLOSURE not in bare.system[0]["text"]
 
 
 def test_the_rule_on_legs_is_in_its_own_words_and_names_only_the_job_it_offers():
@@ -94,7 +94,7 @@ def test_the_jobs_bullet_says_what_is_offered_and_nothing_else():
   menu = ov.Menu.for_world(QUAD_HOME)
   for jobs, says in (((), False), (("feed_mouse",), True), (None, True)):
     care = ov.system_prompt(ThoughtFiles(), replace(menu, lab="lab", lab_jobs=jobs),
-                            default_table(), autonomous=True, lab="lab")[0]["text"]
+                            default_table(), lab="lab")[0]["text"]
     [line] = [ln for ln in care.splitlines() if ln.strip().startswith('"care":')]
     assert ("`feed_mouse`" in line) is says, (jobs, line)
 

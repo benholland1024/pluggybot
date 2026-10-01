@@ -1,16 +1,17 @@
 """What an ARM means, in ONE place (Evaluation.md §2; issue #142).
 
 An arm is a claim about who is deciding, and it has to be true wherever it
-runs: `scripted` is the loop with no mind, `guarded` a mind inside code's
-rails, `autonomous` a mind with the rails off. The deployed world serves one
-(`scripts/serve.py`) and says which in its header, off this module: one
+runs: `scripted` is the loop with no mind, its rails its own, and
+`autonomous` is the one mind, with the rails off. The deployed world serves
+one (`scripts/serve.py`) and says which in its header, off this module: one
 definition, so a stream cannot claim an arm that was not flown.
 """
 
 from pluggybot.mind.events import DEFAULT_ORIGIN, ORIGINS
 
-#: The arms that are built (Evaluation.md §2).
-BUILT_ARMS = ("scripted", "guarded", "autonomous")
+#: The arms that are built (Evaluation.md §2). `guarded`, the control, was
+#: retired in #427: its results were the rover's, and nothing flies it.
+BUILT_ARMS = ("scripted", "autonomous")
 
 #: `$PLUGGY_ARM` / `$PLUGGY_RUNG` -- how the served image is told, since the
 #: deployment configures the sim with `environment:` alone. Named here rather
@@ -59,43 +60,27 @@ ORIGIN_ARMS = ("autonomous",)
 
 def arm_flags(arm: str, rung: str = DEFAULT_RUNG,
               origin: str = DEFAULT_ORIGIN) -> dict:
-  """What an arm means to `run_demo` -- and, since issue #142, to
-  `serve.py`. An arm that is not built is refused rather than silently run
-  as `guarded`: a record claiming an arm that was not flown is the worst
-  kind of result.
+  """What an arm means to `serve.py` (issue #142): whether there is a mind,
+  and on the one mind which map it starts with and which rung it is on. An
+  arm that is not built is refused rather than silently run as another: a
+  record claiming an arm that was not flown is the worst kind of result.
 
-  ⚠ `standing_orders` is stated on both built arms rather than left to
-  default (issue #125). WHOSE the fallback is is part of what an arm means:
-  `guarded` measures today's behaviour, and today's fallback is the scripted
-  rotation, so an arm that quietly picked up the agent's own would stop
-  being a control. It is the boolean the `autonomous` arm flips.
+  ⚠ THERE IS NOTHING ELSE TO SET (issue #427). The rails come off wherever
+  there is a mind (`HubLifecycle.autonomous` reads the overseer's presence),
+  the prompt is the one that says so, and the fallback is the agent's own
+  standing order or event map -- every one of them a property of a mind, so
+  none of them is a flag an arm could get wrong.
   """
   if arm == "scripted":
-    return {"overseer": False, "standing_orders": False}
-  if arm == "guarded":
-    return {"overseer": True, "standing_orders": False}
+    return {"overseer": False}
   if arm == "autonomous":
-    # ⚠ ALL THREE RAILS OFF, THE PROMPT CORRECTED IN THE SAME BREATH, AND
-    # THE FALLBACK THE AGENT'S OWN (issue #115). The prompt is not a later
-    # refinement: with the rails off, "charging is not your decision" is a
-    # false statement the robot would act on, and an arm that tells the
-    # robot something untrue about its own world measures nothing about
-    # self-preservation. `standing_orders` is #125's, and it is what stops
-    # the fallback being a policy WE chose sitting where the measurement is.
     if rung not in RUNGS:
       raise ValueError(f"unknown rung {rung!r}; the ladder is "
                        f"{', '.join(sorted(RUNGS))} (Evaluation.md §2)")
     if origin not in ORIGINS:
       raise ValueError(f"unknown origin {origin!r}; the origins are "
                        f"{', '.join(ORIGINS)} (Evaluation.md §2)")
-    # ⚠ `standing_orders` STAYS TRUE WITH A MAP ON (issue #127's migration).
-    # The field is one row of the map -- `Overseer.failure_order` folds it
-    # into `decision_failed` -- and it keeps working for one version, the
-    # way `LEGACY_INBOUND_TYPES` did. It is also what the FALLBACK path is
-    # switched on: a map arm whose fallback quietly reverted to the scripted
-    # rotation would be `guarded` wearing an arm's name.
-    return {"overseer": True, "standing_orders": True, "autonomous": True,
-            "origin": origin, **RUNGS[rung]}
+    return {"overseer": True, "origin": origin, **RUNGS[rung]}
   raise NotImplementedError(
     f"arm {arm!r} is not built; the built arms are {BUILT_ARMS} "
     "(docs/Evaluation.md §2)")
@@ -106,7 +91,7 @@ def rung_for(arm: str, rung: str | None) -> str | None:
 
   ⚠ NAMING A RUNG FOR AN ARM THAT HAS NONE IS AN ERROR, not a no-op. A0 and
   A1 differ by whether the robot can see its own survival clock, and somebody
-  who typed `--arm guarded --rung A1` believes they changed something.
+  who typed `--arm scripted --rung A1` believes they changed something.
   """
   if arm in LADDER_ARMS:
     return rung or DEFAULT_RUNG
@@ -121,7 +106,7 @@ def origin_for(arm: str, origin: str | None) -> str | None:
   """The origin this run is actually on, or None where the arm has none.
 
   ⚠ NAMING ONE FOR AN ARM THAT HAS NONE IS AN ERROR, `rung_for`'s rule
-  exactly: `--arm guarded --origin unseeded` is somebody who believes they
+  exactly: `--arm scripted --origin unseeded` is somebody who believes they
   changed something, and a flag that silently does nothing is how a series
   comes to be described as an ablation nobody ran.
   """

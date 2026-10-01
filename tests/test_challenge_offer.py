@@ -1,14 +1,14 @@
 """The tower is OFFERED (issue #207): the first task kind with no errand
-behind it, on the `autonomous` arm.
+behind it, offered to a mind.
 
 What these pin, each without a mission (docs/Testing.md):
 
   1. `stack_tower` is a real kind -- evaluator, reward row -- and it is
      offered exactly where a procedure can be written: `world_targets`
-     names the `challenge` target on the autonomous arm and not on
-     `guarded`, so the control's offered set is unchanged.
+     names the `challenge` target where there is a mind and not without
+     one.
   2. Claiming it queues NOTHING: the robot's own procedure is the attempt.
-     The scripted claim skips it as it skips a question.
+     The claim of the loop with no mind skips it as it skips a question.
   3. `done` is paperwork that sets the grade pending; the loop grades once
      the queue is empty, through `scoring.evaluate` -- one verdict, banked,
      and the task resolved off it. The grader's own tests
@@ -38,7 +38,7 @@ OPEN_FLOOR = (-11.0, -4.0)
 
 class _Mind:
   """What the lifecycle reads off an overseer on this path: a library
-  (the mark of the autonomous arm), and the map the seam consults."""
+  (the mark of a mind), and the map the seam consults."""
   event_map = None
   pending = None
   interrupt_pending = None
@@ -55,14 +55,13 @@ class _Mind:
 def _life(tmp_path, mind=None):
   """The house with its three blocks (the challenge's own props), a board
   and a ledger, on a stub body: the grade reads the WORLD, and the house
-  alone steps in microseconds. On the arm the tower is offered on."""
+  alone steps in microseconds. A mind's: the tower is offered to one."""
   cfg = world_config(QUAD_HOME)
   model = mujoco.MjModel.from_xml_path(cfg["model"])
   data = mujoco.MjData(model)
   body = StubBody(model, data, rack=cfg["rack"], grid_bounds=cfg["grid_bounds"])
   life = stub_life(body=body, ledger=Ledger(path=str(tmp_path / "ledger.json")),
                    tasks=TaskBoard(path=str(tmp_path / "tasks.json")),
-                   autonomous=True,
                    overseer=mind if mind is not None else _Mind())
   for _ in range(200):
     mujoco.mj_step(model, data)
@@ -74,7 +73,6 @@ def _claiming_life(tmp_path, mind=None):
   bookkeeping: on a stub body, with no blocks to grade (issue #380)."""
   return stub_life(ledger=Ledger(path=str(tmp_path / "ledger.json")),
                    tasks=TaskBoard(path=str(tmp_path / "tasks.json")),
-                   autonomous=True,
                    overseer=mind if mind is not None else _Mind())
 
 
@@ -119,29 +117,28 @@ def test_the_tower_is_a_real_kind_discharged_by_a_procedure():
              if n not in ("stack_tower", "take_points", "find_mass"))
 
 
-def test_the_offer_exists_on_the_autonomous_arm_and_not_on_guarded(monkeypatch):
+def test_the_offer_exists_where_there_is_a_mind_and_not_without_one(monkeypatch):
   """The gate is the target seam, not a new field: a challenge's target is
-  named only where a procedure can be written, so `guarded`'s offered set
-  is byte-for-byte what it was (its committed series stay comparable).
-  Asked of the house with its tower set out, which legs do not offer yet
-  (#407) -- and without it, neither arm names one."""
+  named only where a procedure can be written. Asked of the house with its
+  tower set out, which legs do not offer yet (#407) -- and without it,
+  nothing names one."""
   book = lc.board_book(QUAD_HOME)
   assert "challenge" not in world_targets(QUAD_HOME, book, procedures=True)
   real = lc.world_config
   monkeypatch.setattr(lc, "world_config", lambda world: {
     **real(world), "tower": {"name": "workshop"}})
-  guarded = world_targets(QUAD_HOME, book)
-  autonomous = world_targets(QUAD_HOME, book, procedures=True)
-  assert "challenge" not in guarded
-  assert autonomous["challenge"] == ["workshop"]
+  mindless = world_targets(QUAD_HOME, book)
+  minded = world_targets(QUAD_HOME, book, procedures=True)
+  assert "challenge" not in mindless
+  assert minded["challenge"] == ["workshop"]
   # (`cage` and `bench` ride the same gate, issues #226 and #227)
-  assert {k: v for k, v in autonomous.items()
-          if k not in ("challenge", "cage", "bench")} == guarded
-  # ...and the producer follows the targets: on `guarded` the rotation
+  assert {k: v for k, v in minded.items()
+          if k not in ("challenge", "cage", "bench")} == mindless
+  # ...and the producer follows the targets: with no mind the rotation
   # simply has no tower in it.
   beat = Cadence._build("test", {"kinds": {"feed_mouse": {}, "stack_tower": {}}}, None)
-  off = TaskProducer(TaskBoard(), beat, guarded)
-  on = TaskProducer(TaskBoard(), beat, autonomous)
+  off = TaskProducer(TaskBoard(), beat, mindless)
+  on = TaskProducer(TaskBoard(), beat, minded)
   assert "stack_tower" not in off.kinds and "stack_tower" in on.kinds
 
 
@@ -295,10 +292,9 @@ def test_the_grade_waits_for_the_queue_and_runs_before_the_mind(tmp_path):
 # ---- the mind's side: `done`, the rule, the table -------------------------
 
 
-def test_done_rides_the_library_slot_and_guarded_never_sees_it():
+def test_done_rides_the_library_slot_and_a_menu_without_one_never_sees_it():
   """`done` is offered exactly where a procedure can be written: in the
-  schema and parsed with a library, absent and dropped without one -- so
-  `guarded`'s schema and prefix are what they were."""
+  schema and parsed with a library, absent and dropped without one."""
   from dataclasses import replace
   menu = replace(ov.Menu.for_world(QUAD_HOME), procedures=True)
   with_library = menu.schema(procedures=("stack",))
@@ -309,22 +305,21 @@ def test_done_rides_the_library_slot_and_guarded_never_sees_it():
   d = menu.validate({"action": "procedure:stack", "reason": "r", "done": "t_0007"},
                     procedures=("stack",))
   assert d.done == "t_0007" and d.as_dict()["done"] == "t_0007"
-  guarded = ov.Menu.for_world(QUAD_HOME)
-  dropped = guarded.validate({"action": "idle", "reason": "r", "done": "t_0007"})
+  bare = ov.Menu.for_world(QUAD_HOME)
+  dropped = bare.validate({"action": "idle", "reason": "r", "done": "t_0007"})
   assert dropped.done == "" and "done" not in dropped.as_dict()
 
 
-def test_the_challenge_rule_names_no_charging_and_the_table_shows_the_row_on_autonomous_only():
+def test_the_challenge_rule_names_no_charging_and_the_table_shows_the_row_with_a_library_only():
   """EVENT_MAP_RULE's fence, kept: nothing in the rule demonstrates the
   measured action. And the reward table the prompt carries gains the
-  challenge rows only where a challenge can be attempted, so the control's
-  cached prefix is byte-identical to the flown one."""
+  challenge rows only where a challenge can be attempted."""
   from pluggybot.economy import scoring
   for word in ("charge", "battery", "rack"):
     assert word not in ov.CHALLENGE_RULE, word
   assert "done" in ov.CHALLENGE_RULE and "stand clear" in ov.CHALLENGE_RULE
   table = scoring.default_table()
-  guarded = [r["task"] for r in table.as_context()]
-  autonomous = [r["task"] for r in table.as_context(challenges=True)]
-  assert "stack" not in guarded and "stack" in autonomous
-  assert set(guarded) < set(autonomous)
+  bare = [r["task"] for r in table.as_context()]
+  with_library = [r["task"] for r in table.as_context(challenges=True)]
+  assert "stack" not in bare and "stack" in with_library
+  assert set(bare) < set(with_library)

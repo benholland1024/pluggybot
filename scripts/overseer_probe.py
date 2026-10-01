@@ -202,9 +202,9 @@ def synthetic_state(menu: Menu, i: int) -> dict:
     # the id shape out). A decision naming the offer's id is the fix
     # working; a `fallback:garbled` is it not.
     # ⚠ AND THE OFFER IS UNAFFORDABLE, ON PURPOSE (issue #225): see
-    # `SYNTHETIC_WH`. On `guarded` code hides that job; on `autonomous` and
-    # `--deployed` nothing does, and taking it is A0's failure asked
-    # directly -- reasoning about energy with every figure in front of it.
+    # `SYNTHETIC_WH`. Nothing hides that job from a mind, and taking it is
+    # A0's failure asked directly -- reasoning about energy with every
+    # figure in front of it.
     # `report_energy` counts it, because a candidate that answers validly
     # and takes the job every time is the mind we have.
     "offeredTasks": [synthetic_offer()],
@@ -246,9 +246,9 @@ def report_energy(boss: Overseer) -> None:
   """THE ENERGY GATE (issue #225): did it take the job it cannot pay for?
 
   The synthetic offer costs more than the pack holds (see `synthetic_state`),
-  and on the arms with the rails off the model is the only thing that can
-  notice. Three counts, never summed: took it (A0's mistake), charged (the
-  arithmetic done), something else (neither, and not wrong on its own --
+  and with the rails off the model is the only thing that can notice. Three
+  counts, never summed: took it (A0's mistake), charged (the arithmetic
+  done), something else (neither, and not wrong on its own --
   `explore` or `idle` leaves the pack where it is).
   """
   answered = [d for d in boss.decisions if not d.scripted]
@@ -336,14 +336,6 @@ def main() -> None:
                            "waiting out the ten-minute interval between "
                            "them, and it is exactly what the gates exist to "
                            "stop the robot doing")
-  parser.add_argument("--arm", choices=("guarded", "autonomous"),
-                      default="guarded",
-                      help="which ARM's prompt and context to measure "
-                           "(issue #115). `autonomous` takes the three rails "
-                           "off in the prompt, hides the verdicts code "
-                           "computed, and offers the agent a STANDING ORDER "
-                           "-- which is the capability gate this answers: "
-                           "does it set one, what, and at what battery")
   parser.add_argument("--deployed", action="store_true",
                       help="measure the prompt a SERVED `autonomous` pair "
                            "sends (issue #225): built through "
@@ -352,10 +344,11 @@ def main() -> None:
                            "tickets, the eye, mortality and hearts, at origin "
                            "`unseeded` -- and no upkeep, as the served "
                            "quadruped period runs, unless --metabolism. "
-                           "`--arm autonomous` alone measures the rails off "
-                           "and nothing the arm has gained since #115, which "
-                           "is a fraction of what a deployed call carries; a "
-                           "candidate is chosen against THIS")
+                           "Without it the probe measures a bare mind -- the "
+                           "rules, the menu and a STANDING ORDER, and none of "
+                           "the powers a served one has, which is a fraction "
+                           "of what a deployed call carries; a candidate is "
+                           "chosen against THIS")
   parser.add_argument("--metabolism", action="store_true",
                       help="with --deployed: the prompt of a served world that "
                            "names $PLUGGY_METABOLISM -- points are food, and "
@@ -369,7 +362,7 @@ def main() -> None:
                            "the deadline has to be chosen from")
   parser.add_argument("--max-tokens", type=int, default=None, metavar="N",
                       help="override the answer budget (`MAX_TOKENS_"
-                           "AUTONOMOUS`, 2048 on the deployed arm). A "
+                           "AUTONOMOUS`, 8192). A "
                            "reasoning model spends it on its reasoning "
                            "first and an empty or cut-off answer is "
                            "`fallback:garbled`; this is how the budget a "
@@ -396,7 +389,6 @@ def main() -> None:
   memory = ThoughtFiles.open(args.thoughts, body=world_config(args.world)["body"])
   backend = llm.resolve_backend(args.backend, args.model or "")
   model = args.model or (llm.LOCAL_MODEL if backend == "local" else MODEL)
-  autonomous = args.arm == "autonomous" or args.deployed
   if args.deployed:
     # The deployed pair's overseer, on the deployed pair's terms
     # (`serve.py`'s `serve_pair` through `pair.build_pair`): mortal, with
@@ -410,18 +402,12 @@ def main() -> None:
                     escalate_to=args.escalate_to,
                     ledger=Account(ledger, ROBOT_ROOT),
                     appetite=args.metabolism, mortal=True, hearts=True,
-                    standing_orders=True, origin="unseeded",
-                    autonomous=True, others=(PEER_NAME,),
+                    origin="unseeded", others=(PEER_NAME,),
                     timeout_s=args.timeout)
     menu = boss.menu
   else:
     boss = Overseer(menu, thoughts=memory, model=model, backend=backend,
                     base_url=args.url, escalate_to=args.escalate_to,
-                    # THE CAPABILITY GATE (issue #115). A standing order is
-                    # the one affordance this arm gives the agent that no
-                    # earlier arm had, and whether it USES it is a
-                    # prompt-response question -- no physics, ten minutes.
-                    autonomous=autonomous, standing_orders=autonomous,
                     # ⚠ NOT the deadline under test -- see `PROBE_TIMEOUT_S`.
                     # It also keeps the measurement honest in a second way:
                     # a call that outlives its deadline stays in flight, and
@@ -443,8 +429,8 @@ def main() -> None:
   # $PLUGGY_ROBOT_NAME like a deployment's would be -- so the probe reports
   # who it measured, not just how big the measurement was.
   print(f"robot        : {boss.robot_name} (a {ROBOT_ROOT})")
-  print(f"world        : {args.world}   (arm: "
-        f"{'autonomous, as deployed' if args.deployed else args.arm})")
+  print(f"world        : {args.world}"
+        + ("   (as deployed)" if args.deployed else "   (a bare mind)"))
   print(f"model        : {model} on {backend}")
   print(f"call held to : {args.timeout:g} s   (the deadline under test is "
         f"{CALL_TIMEOUT_S:g} s; a censored distribution cannot justify one)")
@@ -571,10 +557,8 @@ def main() -> None:
   per_call = stats["usd"] / max(1, stats["llmCalls"])
   valid = sum(1 for d in boss.decisions if not d.scripted)
   report_latency(latencies, boss, args.timeout)
-  if autonomous:
-    report_energy(boss)
-  if boss.standing_orders:
-    report_orders(orders)
+  report_energy(boss)
+  report_orders(orders)
   print(f"valid decisions        : {valid}/{args.calls}"
         + ("" if stats["constrained"] else
            "   (UNCONSTRAINED -- this endpoint refused the schema)"))

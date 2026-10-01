@@ -26,16 +26,15 @@ Usage:
   ... --ledger points.json    # the points ledger, likewise (issue #14): the
                               # balance and the earnings log the site shows
   ... --arm autonomous  # WHICH ARM this world flies (issue #142;
-                        # $PLUGGY_ARM). Unset is what it always was: the
-                        # --overseer flag decides and the arm is read off
-                        # what got built. `--rung A0|A1` picks the rung of
-                        # the autonomous ladder -- A0 HIDES the survival
-                        # clock, and without that A0 and A1 are one run.
-                        # ⚠ Flipping the DEPLOYED world to autonomous is a
-                        # deliberate act, not a config change: Evaluation.md
-                        # §2 argues it stays guarded, and that argument is
-                        # updated in the PR that changes it, never
-                        # silently contradicted.
+                        # $PLUGGY_ARM): `scripted`, the loop with no mind,
+                        # or `autonomous`, the one mind (#427 retired the
+                        # `guarded` control). Unset, --overseer decides,
+                        # and a mind is `autonomous` on its defaults.
+                        # `--rung A0|A1` picks the rung of the ladder -- A0
+                        # HIDES the survival clock, and without that A0 and
+                        # A1 are one run. ⚠ The DEPLOYED arm is a decision,
+                        # not a config change: Evaluation.md §2 carries the
+                        # argument, updated in the PR that moves it.
   ... --restart-after 300     # SIM seconds a DEAD robot lies there before
                         # it stands itself up (issue #143). ON here and off
                         # in a test; 0 leaves it waiting for
@@ -215,20 +214,19 @@ def serve(watchdog: "vitals.Watchdog") -> str | None:
                            "(issue #14; default: the robot starts at zero)")
   parser.add_argument("--overseer", action="store_true",
                       help="let an LLM choose what to do next once --errand's "
-                           "queue is empty (issue #15; $PLUGGY_OVERSEER). "
-                           "Needs $ANTHROPIC_API_KEY -- without one the robot "
-                           "runs the scripted fallback and the run reports it")
-  parser.add_argument("--arm", choices=("scripted", "guarded", "autonomous"),
+                           "queue is empty (issue #15; $PLUGGY_OVERSEER): the "
+                           "one mind, `--arm autonomous` on its defaults. "
+                           "Needs a key for its backend -- without one every "
+                           "decision is the agent's own fallback, and the run "
+                           "reports it")
+  parser.add_argument("--arm", choices=("scripted", "autonomous"),
                       default=os.environ.get(ARM_ENV) or None,
                       help="WHICH ARM this world flies (issue #142; "
                            "$PLUGGY_ARM; docs/Evaluation.md §2). `scripted` "
-                           "is the rotation with no mind, `guarded` is a mind "
-                           "with every rail on -- what the deployed world has "
-                           "always been -- and `autonomous` takes the three "
-                           "rails off, corrects the prompt to match and makes "
-                           "the fallback the agent's own standing order. "
-                           "Unset behaves exactly as before: --overseer "
-                           "decides, and the arm is READ OFF what was built")
+                           "is the loop with no mind, its rails its own; "
+                           "`autonomous` is the one mind, with the rails off, "
+                           "a prompt that says so and the agent's own "
+                           "fallback. Unset, --overseer decides")
   parser.add_argument("--origin", choices=ORIGINS,
                       default=os.environ.get(ORIGIN_ENV) or None,
                       metavar="{none,seeded,unseeded}",
@@ -338,18 +336,18 @@ def serve(watchdog: "vitals.Watchdog") -> str | None:
   except ValueError as e:
     parser.error(str(e))
 
-  # WHICH ARM (issue #142). Until this, `serve.py` REPORTED an arm and had no
-  # way to set one: the identity header read `autonomous` off
-  # `life.autonomous`, and nothing on this path could make that True.
+  # WHICH ARM (issue #142). ⚠ ONE DEFINITION, IMPORTED (`evaluation/arms.py`).
+  # Re-deriving what an arm means here is exactly how a stream comes to claim
+  # an arm nobody flew.
   #
-  # ⚠ ONE DEFINITION, IMPORTED (`evaluation/arms.py`). Re-deriving what an
-  # arm means here is exactly how a stream comes to claim an arm nobody flew.
-  #
-  # ⚠ AND AN UNNAMED ARM CHANGES NOTHING. Without `--arm`/$PLUGGY_ARM the
-  # overseer flag decides as it always has and the arm is read off what was
-  # BUILT further down -- so every existing deployment, demo and test keeps
-  # the behaviour it had, which is the same rule `--tasks` and `--metabolism`
-  # are off under.
+  # ⚠ AN UNNAMED ARM IS WHAT THE OVERSEER FLAG SAYS. Without `--arm` /
+  # $PLUGGY_ARM there is no mind unless `--overseer` / $PLUGGY_OVERSEER asks
+  # for one, and then it is THE mind (issue #427: `guarded` is retired), on
+  # its defaults -- A0, origin `none` -- so the header names the rung that
+  # ran rather than leaving it out. A NAMED arm outranks $PLUGGY_OVERSEER in
+  # both directions; only the flag beside it is a contradiction (below).
+  if not args.arm and (args.overseer or overseer.enabled_by_env()):
+    args.arm = "autonomous"
   flags = {}
   rung = None
   origin = None
@@ -418,19 +416,14 @@ def serve(watchdog: "vitals.Watchdog") -> str | None:
   tasks = (task_board(args.task_state, cadence=beat, world=args.world,
                       rebase=snap is None)
            if (args.tasks or args.task_state) else None)
-  # ...and the thing that keeps putting work up, rather than a starter set
-  # that never grows back.
-  maker = (task_producer(tasks, args.world, book, beat,
-                         procedures=bool(flags.get("autonomous")))
-           if tasks is not None else None)
   # The overseer decides what to do next once the preset queue is empty
   # (issue #15). Off unless asked for; its memory (below) is on every world.
   overseer_kw = ({"calls_per_hour": args.overseer_budget}
                  if args.overseer_budget else {})
   # The thought files (issue #38), built ONCE and shared by everything that
   # reads or writes them -- the prompt, the History writes, and both wire
-  # surfaces. Attached on EVERY served world, overseer or not: a scripted
-  # rotation still has a history, and the site's Thoughts tab is what a
+  # surfaces. Attached on EVERY served world, overseer or not: a loop with
+  # no mind still has a history, and the site's Thoughts tab is what a
   # visitor opens first.
   memory = ThoughtFiles.open(args.thoughts, constitution=args.constitution,
                             body=cfg["body"])
@@ -446,8 +439,7 @@ def serve(watchdog: "vitals.Watchdog") -> str | None:
                                  # directions: `--arm scripted` must be able
                                  # to turn a mind OFF, or the arm the header
                                  # reports is not the arm that flew.
-                                 enabled=(flags["overseer"] if flags
-                                          else args.overseer or None),
+                                 enabled=bool(flags.get("overseer")),
                                  thoughts=memory,
                                  # ...and its NAME (issue #39), so the robot
                                  # calls itself what the site's header calls
@@ -471,18 +463,21 @@ def serve(watchdog: "vitals.Watchdog") -> str | None:
                                  # served world always has a ledger, so it
                                  # always has lives to lose and to buy back.
                                  ledger=ledger, hearts=True,
-                                 # ...and WHOSE the fallback is, whether the
-                                 # rails are off, and whether the robot may
-                                 # see its own survival clock -- the three
-                                 # things an arm IS (issue #142). Absent
-                                 # means the arm was not named, and every
-                                 # one of them keeps the default it had.
+                                 # ...and which map the mind starts with and
+                                 # whether it may see its own survival clock
+                                 # -- what the arm says (issue #142).
                                  **{k: v for k, v in flags.items()
                                     if k != "overseer"},
                                  **overseer_kw)
+  # ...and the thing that keeps putting work up, rather than a starter set
+  # that never grows back -- a challenge only where there is a mind to
+  # write its procedure (issue #207).
+  maker = (task_producer(tasks, args.world, book, beat,
+                         procedures=boss is not None)
+           if tasks is not None else None)
   # The goals file is read on every run, overseer or not: the site's goals
   # panel (rooftop-media-2026 #30) shows what the robot is FOR, and that is
-  # as true of a scripted rotation as of a chosen errand. What is NOT the
+  # as true of a loop with no mind as of a chosen errand. What is NOT the
   # same is whether anything is reading them, which is what `steering` says.
   goals_prose = overseer.goals_text(thoughts=memory)
   # The visitor channel (issue #16), attached ALWAYS as of issue #30 -- but
@@ -513,16 +508,12 @@ def serve(watchdog: "vitals.Watchdog") -> str | None:
                       world=args.world,
                       boards=book, ledger=ledger, tasks=tasks,
                       producer=maker, thoughts=memory, metabolism=hunger,
-                      # THE THREE RAILS, and this is the only reader of the
-                      # flag that turns them off (issue #115): `needs_charge`,
-                      # `_afford_next` and `claim_budget_wh`. The prompt is
-                      # corrected in the same breath by `overseer.build`
-                      # above, off the same dict.
-                      autonomous=bool(flags.get("autonomous")),
-                      # ...and the dead robot's own clock (issue #143). ON by
+                      # ...the three rails off wherever `overseer` is a mind
+                      # (issue #115; `HubLifecycle.autonomous`), and the dead
+                      # robot's own clock (issue #143). ON by
                       # default HERE and nowhere else: this world runs
-                      # continuously and its robot dies most days on the
-                      # `autonomous` arm, and a robot lying on the floor
+                      # continuously and its robot dies most days, and a
+                      # robot lying on the floor
                       # until a human notices is not a world anybody can
                       # watch. ⚠ NOT an intervention -- see
                       # `HubLifecycle.restart_after_s`.
@@ -544,14 +535,12 @@ def serve(watchdog: "vitals.Watchdog") -> str | None:
   #
   # Built HERE rather than inside the builders because it is the RUN's
   # identity, and both sinks of one run must carry the same one.
-  # ⚠ READ OFF WHAT WAS BUILT, NEVER OFF WHAT WAS ASKED FOR. `--arm guarded`
-  # on a box with no key builds an overseer that answers `fallback:no-client`
-  # -- still `guarded`, and the fallback rate says the rest -- but an arm
-  # whose mind could not be constructed at all is a `scripted` day, and the
-  # header has to say the word for what ran.
-  arm = ("scripted" if boss is None
-         else "autonomous" if life.autonomous
-         else "guarded")
+  # ⚠ READ OFF WHAT WAS BUILT, NEVER OFF WHAT WAS ASKED FOR. A mind on a box
+  # with no key answers `fallback:no-client` -- still `autonomous`, and the
+  # fallback rate says the rest -- but an arm whose mind could not be
+  # constructed at all is a `scripted` day, and the header has to say the
+  # word for what ran.
+  arm = "scripted" if boss is None else "autonomous"
   identity = build_identity(
     args.world, arm=arm,
     model=boss.model if boss is not None else None,
@@ -773,8 +762,7 @@ def serve_pair(args, flags: dict, rung, origin, watchdog) -> str | None:
                  **({"calls_per_hour": args.overseer_budget}
                     if args.overseer_budget else {}),
                  **{k: v for k, v in flags.items()
-                    if k not in ("overseer", "autonomous", "origin",
-                                 "standing_orders")}}
+                    if k not in ("overseer", "origin")}}
   names = (robot_display_name(args.robot_name),
            robot_display_name(args.robot_name_2
                               or os.environ.get("PLUGGY_ROBOT_NAME_2")
@@ -782,11 +770,8 @@ def serve_pair(args, flags: dict, rung, origin, watchdog) -> str | None:
   lives = build_pair(args.world, pack=args.pack,
                      errands=(args.errand, args.errand2),
                      board_state=args.boards, names=names,
-                     overseer=(flags["overseer"] if flags
-                               else args.overseer or None),
-                     autonomous=bool(flags.get("autonomous")),
+                     overseer=bool(flags.get("overseer")),
                      origin=flags.get("origin", DEFAULT_ORIGIN),
-                     standing_orders=bool(flags.get("standing_orders")),
                      thoughts_root=args.thoughts, ledger_state=args.ledger,
                      tasks=bool(args.tasks), task_state=args.task_state,
                      metabolism=appetite_on, mortal=True, inboxes=inboxes,
@@ -809,8 +794,7 @@ def serve_pair(args, flags: dict, rung, origin, watchdog) -> str | None:
   for life in lives:
     life.screen = next(iter(screens), None)
   boss = first.overseer
-  arm = ("scripted" if boss is None
-         else "autonomous" if first.autonomous else "guarded")
+  arm = "scripted" if boss is None else "autonomous"
   identity = build_identity(
     args.world, arm=arm,
     model=boss.model if boss is not None else None,

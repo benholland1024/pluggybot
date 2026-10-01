@@ -469,9 +469,8 @@ def test_the_prompt_does_not_name_a_sixth_quality():
   #  the other five are named to it. The rule about dying stays what it was.
   from pluggybot.mind import overseer as ov
   rules = {name: text for name, text in vars(ov).items()
-           if isinstance(text, str) and (name.endswith("_RULE") or name.endswith("RULES")
-                                         or name.endswith("RULES_AUTONOMOUS"))}
-  assert "MORTAL_RULE" in rules and "RULES_AUTONOMOUS" in rules
+           if isinstance(text, str) and (name.endswith("_RULE") or name.endswith("RULES"))}
+  assert "MORTAL_RULE" in rules and "RULES" in rules
   for name, text in rules.items():
     low = text.lower()
     assert "sixth" not in low and "six qualities" not in low, name

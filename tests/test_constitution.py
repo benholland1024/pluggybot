@@ -256,9 +256,9 @@ def test_the_build_identity_carries_the_constitution_per_robot_root():
   identity = build_identity("home_quad", arm="autonomous", hashes={}, commit="abc",
                             constitutions=both)
   assert identity["constitutions"] == both and identity["constitutions"] is not both
-  bare = build_identity("home_quad", arm="guarded", hashes={}, commit="abc")
+  bare = build_identity("home_quad", arm="scripted", hashes={}, commit="abc")
   assert "constitutions" not in bare, "absent, never null: every older header"
-  assert "constitutions" not in build_identity("home_quad", arm="guarded", hashes={},
+  assert "constitutions" not in build_identity("home_quad", arm="scripted", hashes={},
                                                commit="abc", constitutions={})
 
 
@@ -281,10 +281,10 @@ def test_serve_builds_the_identity_off_what_each_robot_read():
 # ---- what did not move -------------------------------------------------------
 
 
-def test_guarded_is_unchanged_and_the_robot_has_no_verb_for_it():
+def test_the_rules_do_not_name_it_and_the_robot_has_no_verb_for_it():
   """The constitution rides its own block of the prefix; the rules block
-  and the menu do not move (`GUARDED_RULES_SHA` is pinned elsewhere). And
-  no decision field names a constitution: choosing one is the human's."""
+  and the menu do not name it. And no decision field names a
+  constitution: choosing one is the human's."""
   from pluggybot.mind import overseer as ov
   from pluggybot.mind.overseer import Menu
   schema = Menu.for_world("home_quad", None).schema()

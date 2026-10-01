@@ -500,7 +500,7 @@ def test_the_pack_draws_what_the_drivers_do(quad_world):
 def test_upkeep_is_said_only_where_there_is_one():
   """#387: a world with no appetite has no upkeep to fail and no hours of
   paid work to price a heart in; a world WITH one reads the rule byte for
-  byte (`guarded`'s experiments fly with it)."""
+  byte."""
   assert ov.mortal_rule(True, "rover") == ov.MORTAL_RULE
   for body in ("rover", "quadruped"):
     text = ov.mortal_rule(False, body).lower()
@@ -518,8 +518,8 @@ def test_every_rule_a_quadruped_reads_is_in_its_own_words():
   from pluggybot.mind.thoughts import ThoughtFiles
   boss = ov.build(QUAD_HOME, None, enabled=True, client=object(), ledger=Ledger(),
                   thoughts=ThoughtFiles.open(None, body="quadruped"),
-                  robot_name="Luca", mortal=True, hearts=True, autonomous=True,
-                  origin="unseeded", standing_orders=True, others=("Rowan",))
+                  robot_name="Luca", mortal=True, hearts=True,
+                  origin="unseeded", others=("Rowan",))
   text = "\n".join(b["text"] for b in boss.system)
   assert "dock" in text and "a fall you cannot get up from" in text
   assert "THE LAB" in text and "when a foot presses it" in text   # #403

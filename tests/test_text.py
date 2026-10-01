@@ -21,13 +21,12 @@ What is pinned here, cheaply -- no physics, no network:
   one-writer rule both depend on it.
 
   THE SCIENCE RECORD is a row: `record` writes one measured finding in a
-  shape code reads back, `retract` takes one off, and `guarded` sees none
-  of it -- the verbs ride the library's slot, the document is hidden from
-  a menu that does not offer them, and the prefix is byte-identical.
+  shape code reads back, `retract` takes one off, and a mind with no
+  library sees none of it -- the verbs ride the library's slot, and the
+  document is hidden from a menu that does not offer them.
 """
 
 import ast
-import hashlib
 import re
 from pathlib import Path
 
@@ -41,7 +40,6 @@ from pluggybot.procedure import library as procedures
 from pluggybot.telemetry.protocol import THOUGHT_FILES, THOUGHT_VERBS, THOUGHT_WRITERS
 from pluggybot.workshop import library as workshop
 
-from test_autonomous import GUARDED_RULES_SHA
 from test_overseer import FakeClient, full
 
 SRC = Path(__file__).resolve().parent.parent / "src" / "pluggybot"
@@ -288,11 +286,9 @@ def test_the_record_is_the_robots_and_goes_with_a_true_death(tmp_path):
   assert files.read(FINDINGS) == "" and (tmp_path / "t" / "Findings.1.md").exists()
 
 
-def test_the_record_is_offered_with_the_library_and_hidden_from_guarded():
+def test_the_record_is_offered_with_the_library_and_nowhere_else():
   """The verbs ride the library's slot, the document rides the context
-  only where they do, the rule rides the autonomous prefix only, and the
-  guarded prefix is the byte-identical control."""
-  assert hashlib.sha256(ov.RULES.encode()).hexdigest() == GUARDED_RULES_SHA
+  only where they do, and the rule rides a prefix with a library only."""
   assert "Findings.md" not in ov.RULES and "Findings.md" in ov.FINDINGS_RULE
   menu = Menu(boards=("whiteboard_a",), programs=("house",))
   assert "record" not in menu.schema()["properties"]
@@ -303,7 +299,7 @@ def test_the_record_is_offered_with_the_library_and_hidden_from_guarded():
   assert FINDINGS not in files.volatile(menu)
   assert FINDINGS in files.volatile(ov.replace(menu, procedures=True))
   assert set(files.volatile(menu)) == {GOALS, HISTORY, TOP_OF_MIND, NOTES}
-  # A guarded parse DROPS the fields; the decision stands.
+  # A mind with no library DROPS the fields; the decision stands.
   boss = Overseer(menu, client=FakeClient(
     full(action="idle", record={"quantity": "q", "value": 1, "unit": "", "method": ""},
          retract="q = 1")))
@@ -313,13 +309,13 @@ def test_the_record_is_offered_with_the_library_and_hidden_from_guarded():
   # ...and the rule's example shows no answer (EVENT_MAP_RULE's rule).
   for word in ("charge", "battery", "rack", "%"):
     assert word not in ov.FINDINGS_RULE.lower(), word
-  # The prefix: the rule rides the autonomous text only (since #221 the
-  # memory section itself is shared -- the tiers are on every arm).
+  # The prefix: the rule rides a prefix with a library only (the memory
+  # section itself is every mind's, issue #221).
   from pluggybot.economy.scoring import default_table
   def prefix(**kw):
     return ov.system_prompt(files, menu, default_table(), **kw)[0]["text"]
   assert "Top_of_mind.md" in ov.RULES and "Notes.md" in ov.RULES
-  assert ov.FINDINGS_RULE in prefix(autonomous=True, procedures=True)
+  assert ov.FINDINGS_RULE in prefix(procedures=True)
   assert ov.FINDINGS_RULE not in prefix() and "Findings.md" not in prefix()
 
 

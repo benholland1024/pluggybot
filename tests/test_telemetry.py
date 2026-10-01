@@ -606,7 +606,7 @@ def test_a_mindless_mode_stops_advertising_what_only_a_mind_can_hear(mini_model,
   """The `accepts` lesson, applied to the operator's switch (issue #37).
 
   `accepts` is fixed at construction from whether an overseer was BUILT, but
-  `scripted` hands deciding back to the rotation and `paused` stops it
+  `scripted` hands deciding to the agent's own order and `paused` stops it
   altogether -- and in neither does anything read a visitor's message.
   Advertising
   the full vocabulary there reintroduces exactly what the field exists to
@@ -628,7 +628,7 @@ def test_a_mindless_mode_stops_advertising_what_only_a_mind_can_hear(mini_model,
 
   assert hears("llm") == INBOUND_TYPES
   assert hears("scripted") == CODE_HANDLED_TYPES, \
-    "free mode promised a conversation the rotation cannot have"
+    "free mode promised a conversation nobody is there to have"
   assert hears("paused") == CODE_HANDLED_TYPES, \
     "a paused robot promised to act on a visitor's message"
 
@@ -1277,7 +1277,7 @@ def test_the_header_says_which_build_produced_the_stream(mini_model):
   from pluggybot.evaluation.identity import build_identity
 
   data = mujoco.MjData(mini_model)
-  identity = build_identity("home_quad", arm="guarded", model="a/b",
+  identity = build_identity("home_quad", arm="autonomous", model="a/b",
                             backend="huggingface", pack_wh=8.0,
                             reserve_wh=0.9, deadline_s=90.0,
                             hashes={"rewards": "ab" * 32}, commit="deadbee")
@@ -1285,7 +1285,7 @@ def test_the_header_says_which_build_produced_the_stream(mini_model):
                         build=identity).header()
 
   assert header["build"]["commit"] == "deadbee"
-  assert header["build"]["arm"] == "guarded"
+  assert header["build"]["arm"] == "autonomous"
   assert header["build"]["model"] == "a/b"
   assert header["build"]["backend"] == "huggingface"
   assert header["build"]["dataHashes"] == {"rewards": "ab" * 32}

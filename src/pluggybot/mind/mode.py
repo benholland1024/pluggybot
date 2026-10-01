@@ -5,9 +5,11 @@ a kill switch for a robot behaving badly, and a way to stop spending inside a
 second:
 
   llm       normal. The overseer decides, spending against the allowance.
-  scripted  free mode. The scripted rotation decides and NO API call is made
-            at all. The world keeps running and looks alive, which is the
-            point: a world that goes dark to save money looks broken.
+  scripted  free mode. The agent's own standing order decides (`idle` where
+            it left none; the name is older than that policy, #427) and NO
+            API call is made at all. The world keeps running and looks
+            alive, which is the point: a world that goes dark to save money
+            looks broken.
   paused    physics stops stepping and the socket STAYS OPEN, with a heartbeat
             saying `paused`, so the site shows a paused robot rather than a
             dead one.
@@ -141,7 +143,8 @@ class ModeSwitch:
   @property
   def thinking(self) -> bool:
     """May an LLM be asked? False in `scripted`, which is the whole of free
-    mode: the loop still runs and still decides, from the rotation."""
+    mode: the loop still runs and still decides, from the agent's own
+    order."""
     return self.mode == "llm"
 
   def snapshot(self) -> dict:

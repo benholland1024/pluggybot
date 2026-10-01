@@ -281,7 +281,7 @@ class FrameBuilder:
 
     `accepts` is fixed at construction from whether an overseer was BUILT,
     but the operator's switch (0.12.0, issue #37) retires the mind at
-    runtime: `scripted` hands the decision back to the rotation and
+    runtime: `scripted` hands the decision to the agent's own order and
     `paused` stops deciding altogether, and in neither does anything read
     a message. Advertising the full vocabulary there would reintroduce
     the exact mistake this field exists to prevent -- a site marking a
