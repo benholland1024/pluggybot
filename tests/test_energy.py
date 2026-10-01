@@ -293,9 +293,12 @@ def test_the_demo_pack_funds_the_dearest_job_with_the_reserve_intact():
   `test_affordability_has_a_now_a_later_a_never_and_a_demo_cell`, which
   builds its own too-small cell. The four answers still exist and still must
   not collapse; a future world that exercises the fourth is flown again."""
-  gift = lc.cage_errand(QUAD_HOME, "toy")                  # care, the dearest row
-  life = life_with(battery_wh=DEMO_WH, errands=[gift])
-  assert life.energy.cost("care") == life.energy.dearest_wh()
+  # the dearest row: the game's seeker (#404), as the board prices its offer
+  board = lc.task_board(world=QUAD_HOME)
+  game = board.offer("hide_and_seek", lc.GAME_TARGET, t=0.0)
+  seeker = lc.errand_for_task(game, QUAD_HOME, role="seeker")
+  life = life_with(battery_wh=DEMO_WH, errands=[seeker])
+  assert seeker.estimate_wh == life.energy.dearest_wh() == life.energy.cost("hide_and_seek")
   assert life.energy.dearest_wh() + RESERVE <= life.charged_wh, \
       "the demo pack no longer holds reserve + the dearest job"
   assert life._afford_next() is True
@@ -459,13 +462,13 @@ def test_the_prompt_still_never_carries_a_hidden_answer():
 # ---- 3, the gate and the cap -------------------------------------------------
 
 #: The SMALLEST pack that is in the margin regime here (the dearest errand,
-#: 1.859 Wh, plus the 3.7 Wh reserve must fit a charged pack: capacity >=
-#: 5.559 / 0.9 = 6.18), so these cost one short charge. The regime is what is
-#: under test, not the capacity -- the hosting pack is the same arithmetic
-#: with more room in it. A pack below the floor silently drops to zero
-#: margin (the all-or-nothing rule), which is exactly what the first
-#: assertion catches.
-MARGIN_PACK_WH = 6.2
+#: the game's seeker at 6.103 Wh (#404), plus the 3.7 Wh reserve must fit a
+#: charged pack: capacity >= 9.803 / 0.9 = 10.89), so these cost one short
+#: charge. The regime is what is under test, not the capacity -- the
+#: hosting pack is the same arithmetic with more room in it. A pack below
+#: the floor silently drops to zero margin (the all-or-nothing rule), which
+#: is exactly what the first assertion catches.
+MARGIN_PACK_WH = 10.9
 
 
 class OneNote:
@@ -598,7 +601,10 @@ def test_an_overseer_that_only_ever_picks_the_dearest_errand_is_sent_to_charge_f
   life = life_with(battery_wh=MARGIN_PACK_WH, overseer=boss,
                    boards=lc.board_book(QUAD_HOME))
   cost = life.energy.cost("care")
-  assert cost == life.energy.dearest_wh()
+  # ...the dearest a mind can choose off its menu (the game's dearer row is
+  # a job's, taken from the board, and its price rides the offer)
+  assert cost == max(wh for key, wh in life.energy.errand_wh.items()
+                     if key.split(":")[0] in boss.menu.available())
   assert life.reserve_margin_wh == RESERVE, "not in the margin regime"
   assert cost + RESERVE <= life.charged_wh
   life.battery.energy_wh = cost + RESERVE - 0.01

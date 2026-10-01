@@ -252,14 +252,14 @@ KINDS: dict[str, TaskKind] = {
     estimate_wh=1.15, needs_answer=True),
   "hide_and_seek": TaskKind(
     "hide_and_seek", task="hide_and_seek", target_kind="world",
-    template="Hide and seek in {target}: one of you hides, the other counts "
-             "to twenty and seeks.",
+    template="Hide and seek at {target}: the first of you to take it hides, "
+             "the other counts to twenty where it stands, then seeks.",
     # Two roles (issue #167), claimed one per robot; the offer stays open
-    # until both are held. The referee is activity/hideseek.py. Priced off
-    # the rover's flown game (hosting pack): the seeker's sweep cost
-    # 0.54 Wh, the hider's drive-and-wait 0.30 -- the dearer role, rounded
-    # up; neither fetches a tool.
-    estimate_wh=0.6, roles=("hider", "seeker")),
+    # until both are held, and the pair's referee (activity/hideseek.py)
+    # then queues each robot its role (#404). Priced off the quadruped
+    # pair's games (`solve.py --feature hide_and_seek`): the dearer role, the
+    # seeker over its whole 240 s, 6.10 Wh -- neither fetches a tool.
+    estimate_wh=6.2, roles=("hider", "seeker")),
   "stack_tower": TaskKind(
     "stack_tower", task="stack", target_kind="challenge",
     # ...and WHERE THE HOUSE SET THE BLOCKS OUT (issue #264): a work-order

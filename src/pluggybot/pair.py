@@ -34,8 +34,8 @@ import mujoco
 from pluggybot import tick
 from pluggybot.economy.cadence import default_cadence
 from pluggybot.lifecycle import (
-  QUAD_HOME, HubLifecycle, board_book, errands_for, points_ledger, task_board,
-  task_producer, world_config,
+  GAME_TARGET, QUAD_HOME, HubLifecycle, board_book, errand_for_task, errands_for,
+  points_ledger, task_board, task_producer, world_config,
 )
 from pluggybot.mind import constitution as constitutions
 from pluggybot.mind import events as ev
@@ -237,68 +237,101 @@ def build_pair(world: str = QUAD_HOME, pack: str = "demo",
   for life in lives:
     life.activities = activities
     life.encounters = meetings
+  # ...and A GAME FOR TWO (issue #404): where the board can offer hide and
+  # seek -- its target is named on `autonomous` with two robots alone --
+  # the pair's referee is in the world from the start
+  if maker is not None and "hide_and_seek" in maker.kinds:
+    referee_games(lives)
   return lives
 
 
-def arrange_game(lives: list, kind: str = "hide_and_seek", t: float = 0.0):
-  """Put a two-role game on the pair's board (issue #167) and referee it.
+def referee_games(lives: list):
+  """The pair's games of hide and seek, refereed (issues #167, #404).
 
-  The offer is the house's: whichever robot claims first takes the first
-  open role (the hider), the other the second, and the referee
-  (`activity/hideseek.py`) is built once both roles are held -- it has to
-  know who is who. It senses on the first robot's seam, and when it calls
-  the game, ONE verdict is evaluated off its flags and banked on the
-  WINNER's wallet; the task resolves with that verdict for both.
-  """
+  ONE referee for the world (`activity/hideseek.py`), built idle in the
+  world's activities -- the stream's header lists activities once -- and
+  kept, game after game: each game on the pair's board, offered by the
+  cadence or by `arrange_game`, is given it as its LAST role is claimed
+  (whichever robot claims first holds the first open role, the hider), and
+  each robot is then queued its role's errand (`errand_for_task(role=)`),
+  nothing before. It senses on the first robot's seam, and when it calls a
+  game, ONE verdict is evaluated off its flags and banked on the WINNER's
+  wallet -- nobody's, when the game was called off -- and the task resolves
+  with it for both. A pair already refereed keeps its referee, which is
+  returned."""
   from pluggybot.activity.hideseek import HideAndSeek
   from pluggybot.economy import scoring
-  board = lives[0].tasks
+  first = lives[0]
+  if first.game is not None:
+    return first.game
+  board = first.tasks
   if board is None:
     raise ValueError("a game needs the pair's task board (tasks=True)")
-  model, data = lives[0].model, lives[0].data
-  task = board.offer(kind, lives[0].world, t=t)
-  if task is None:
-    raise ValueError(f"the board would not offer {kind}")
   by_root = {life.root: life for life in lives}
-  # The referee is in the world's activities from the OFFER (idle, with no
-  # roles yet), so the recording's header lists it and its flags ride every
-  # frame; the roles are bound at the claim. It senses on the activity set's
-  # hook like every other activity.
-  game = HideAndSeek(model)
-  if lives[0].activities is not None:
-    lives[0].activities.add(game)
+  game = HideAndSeek(first.model)
+  if first.activities is not None:
+    first.activities.add(game)
+  else:
+    first.body.step_hooks.append(lambda: game.sense(first.model, first.data))
   for life in lives:
     life.game = game
-  state: dict = {"game": None}
 
   def settle(game) -> None:
-    verdict = scoring.evaluate(kind, game.measurements())
-    claims = board.get(task.id).claims
-    winner = by_root[claims[verdict.metrics["winner"]]]
+    task = board.get(game.task_id)
+    if task is None or not task.open:
+      return
+    verdict = scoring.evaluate("hide_and_seek", game.measurements())
+    winner = by_root.get(task.claims.get(verdict.metrics.get("winner") or "", ""))
     for life in lives:
-      if life is winner:
+      if verdict.ok and life is winner:
         life._bank(verdict)
       else:
-        life._say(f"GAME {kind}: {verdict.reason} -- nothing for the "
-                  f"{life.role_in(task.id) or 'other'}")
-    board.resolve(task.id, verdict, t=float(data.time))
+        # ...and the one not paid reads it too: its game happened
+        said = (f"hide_and_seek: {verdict.reason} -- nothing for the "
+                f"{life.role_in(task.id) or 'other'}")
+        life._say(f"GAME {said}")
+        life._remember(said)
+    board.resolve(task.id, verdict, t=float(first.data.time))
+  game.on_over.append(settle)
 
   def on_claim(event: dict) -> None:
-    if (event.get("type") != "task_claimed" or state["game"] is not None
-        or event.get("id") != task.id):
+    if event.get("type") != "task_claimed":
       return
-    claims = event.get("claims") or {}
-    if set(claims) != {"hider", "seeker"}:
+    task = board.get(event.get("id") or "")
+    if (task is None or task.kind != "hide_and_seek" or task.state != "claimed"
+        or set(task.claims) != {"hider", "seeker"}
+        or not set(task.claims.values()) <= set(by_root)):
       return
-    game.assign(hider=by_root[claims["hider"]].body.handle,
-                seeker=by_root[claims["seeker"]].body.handle)
-    state["game"] = game
-    if lives[0].activities is None:
-      lives[0].body.step_hooks.append(lambda: game.sense(model, data))
-    game.on_over.append(settle)
+    hider, seeker = by_root[task.claims["hider"]], by_root[task.claims["seeker"]]
+    game.assign(hider=hider.body.handle, seeker=seeker.body.handle,
+                task_id=task.id, t=float(first.data.time))
+    for role, life in (("hider", hider), ("seeker", seeker)):
+      errand = errand_for_task(task, life.world, role=role)
+      if errand is not None:
+        life.errands.append(errand)
     for life in lives:
-      life._say(f"GAME {kind}: {by_root[claims['hider']].robot_name} hides, "
-                f"{by_root[claims['seeker']].robot_name} seeks")
+      life._say(f"GAME hide_and_seek: {hider.robot_name} hides, "
+                f"{seeker.robot_name} seeks")
+  board.on_event.append(on_claim)
+  return game
+
+
+def arrange_game(lives: list, kind: str = "hide_and_seek", t: float = 0.0):
+  """Put a game of hide and seek on the pair's board now (issue #167): the
+  offer the cadence makes on `autonomous`, made by hand -- for a test, a
+  demo or a recording -- and refereed by the pair's referee
+  (`referee_games`). Returns the task, and a state whose `game` is the
+  referee once THIS game's roles are taken."""
+  game = referee_games(lives)
+  board = lives[0].tasks
+  task = board.offer(kind, GAME_TARGET, t=t)
+  if task is None:
+    raise ValueError(f"the board would not offer {kind}")
+  state: dict = {"game": None}
+
+  def on_claim(event: dict) -> None:
+    if event.get("id") == task.id and game.task_id == task.id:
+      state["game"] = game
   board.on_event.append(on_claim)
   return task, state
 

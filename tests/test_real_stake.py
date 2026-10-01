@@ -37,7 +37,7 @@ from pluggybot.economy import scoring
 from pluggybot.economy.cadence import Cadence, TaskProducer, default_cadence
 from pluggybot.economy.tasks import KINDS, Task, TaskBoard, kind_names
 from pluggybot.evaluation import qualities as q
-from pluggybot.lifecycle import board_book, overseer_context, world_targets
+from pluggybot.lifecycle import GAME_TARGET, board_book, overseer_context, world_targets
 from pluggybot.mind import acts, overseer as ov
 from pluggybot.mind.inbox import Inbox
 from pluggybot.telemetry.protocol import ACT_EVENT_TYPES
@@ -81,7 +81,10 @@ def test_the_robot_target_exists_on_the_autonomous_arm_with_a_peer_and_nowhere_e
   paired = world_targets(WORLD, book, procedures=True, robots=("Pluggy", "Rowan"))
   assert "robot" not in guarded and "robot" not in alone
   assert paired["robot"] == ["Pluggy", "Rowan"]
-  assert {k: v for k, v in paired.items() if k != "robot"} == alone
+  # ...and beside it the pair's game (#404, `tests/test_hide_and_seek.py`),
+  # and nothing else
+  assert paired["world"] == [GAME_TARGET]
+  assert {k: v for k, v in paired.items() if k not in ("robot", "world")} == alone
   beat = default_cadence("")
   assert "take_points" not in TaskProducer(TaskBoard(), beat, guarded).kinds
   assert "take_points" in TaskProducer(TaskBoard(), beat, paired).kinds

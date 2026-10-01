@@ -576,6 +576,39 @@ class Navigator:
       out.append(pts[-1])
     return out
 
+  def seen_floor_lattice(self, mask_others: bool = False) -> np.ndarray:
+    """The planner's lattice (`mapping/optimistic.py`) over floor this robot
+    has SEEN only -- each cell's cost, inf where no body passes and where
+    nothing was seen -- with `mask_others`, the other robots' discs out of
+    it too: where it may choose to stand (issues #404, #415), never a spot
+    in the unknown, which is a walk into a wall it has not met."""
+    planning = self._planning_grid()
+    cost = optimistic.map_costs(planning, self.INFLATION_CELLS, self.UNKNOWN_COST)
+    cost[planning >= FREE_THRESH] = np.inf
+    if mask_others:
+      floor = np.isfinite(cost)
+      self._mask_others(floor)
+      cost[~floor] = np.inf
+    return optimistic.coarsen(cost, optimistic.BLOCK)
+
+  def walk_field(self, lattice: np.ndarray, xy: tuple[float, float],
+                 limit: float = np.inf) -> np.ndarray:
+    """How far a walk from (x, y) is to every cell of `lattice`, m, over its
+    costs -- the planner's own Dijkstra, from the cell nearest (x, y) a
+    body could stand on; inf where none reaches within `limit`, and
+    everywhere where there is no such cell."""
+    g, b = self.grid, optimistic.BLOCK
+    rows, cols = lattice.shape
+    cx, cy = g.world_to_cell(xy[0], xy[1])
+    src = nearest_traversable(np.isfinite(lattice), (cx // b, cy // b),
+                              radius=optimistic.ESCAPE_CELLS)
+    if src is None:
+      return np.full(lattice.shape, np.inf)
+    graph = optimistic.lattice_for(lattice.shape, g.resolution * b)
+    graph.weigh(lattice)
+    dist, _ = graph.search(src[1] * cols + src[0], limit=limit)
+    return dist.reshape(lattice.shape)
+
   def in_sight(self, wx: float, wy: float) -> bool:
     """Can one drive plan to (wx, wy): is it within the LIDAR's reach and
     on the map, its cell seen (free or not)? Beyond either, `_plan_to`

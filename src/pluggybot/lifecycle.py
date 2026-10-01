@@ -3237,7 +3237,7 @@ class HubLifecycle:
     from pluggybot.procedure import lang
     from pluggybot.procedure import steps as procedure
     program = errand.program
-    facts = world_facts(self.world, rack=self.rack_inventory)
+    facts = world_facts(self.world, rack=self.rack_inventory, game=bool(errand.role))
     t = float(self.data.time)
     base = {"type": "procedure", "robot": self.root, "name": program.name,
             "program": program.as_dict()}
@@ -4761,6 +4761,18 @@ class HubLifecycle:
     task = self.tasks.get(task_id) if self.tasks is not None else None
     return task.role_of(self.root) if task is not None else ""
 
+  def reported_xy(self, root: str) -> tuple[float, float] | None:
+    """Where the robot `root` SAYS it is -- this one's own belief, or what
+    another broadcasts (`others_context`'s `x`, `y`): a network fact, the
+    one a game's hider is told of the seeker (issue #404). None for a
+    robot not in this world."""
+    if root == self.root:
+      return self.body.pose_xy()
+    for other in self.peers:
+      if other.root == root:
+        return other.body.pose_xy()
+    return None
+
   def _done(self, decision) -> None:
     """Take a decision's `done` (issue #207): the claimed challenge the robot
     says stands. Paperwork -- it costs no turn -- and it only SETS the grade
@@ -5699,6 +5711,9 @@ class HubLifecycle:
     # and its errand is that role's steps.
     role = next(iter(task.open_roles()), "") if task.roles else ""
     if task.roles and (not role or task.role_of(self.root)):
+      held = task.role_of(self.root)
+      self._say(f"TASK {task.id}: " + (f"you hold its {held} role already" if held
+                                        else "every role is taken"))
       return False
     from pluggybot.economy.tasks import KINDS
     discharge = KINDS[task.kind].discharge
@@ -5735,6 +5750,16 @@ class HubLifecycle:
                   "can write one")
         return False
       errand = None
+    elif task.roles:
+      # A GAME (issues #167, #404): nothing is queued at a role's claim.
+      # The pair's referee queues each robot its role's errand once every
+      # role is held (`pair.referee_games`), so the robot that took the
+      # first is free until the other takes the last -- and a world with
+      # no referee has no game to claim.
+      if getattr(self, "game", None) is None:
+        self._say(f"TASK {task.id}: a game, and nothing here referees one")
+        return False
+      errand = None
     else:
       errand = errand_for_task(task, self.world, self.boards, answer=said,
                                role=role, real=real)
@@ -5760,6 +5785,13 @@ class HubLifecycle:
               f"{task.description}"
               + (f" -- {'predicting' if task.predicts else 'answering'} {said}"
                  if said else ""))
+    if task.roles:
+      now_held = self.tasks.get(task.id)
+      left = now_held.open_roles() if now_held is not None else ()
+      self._say(f"TASK {task.id}: " + (
+        f"the {' and '.join(left)} role is still open -- the game starts once "
+        "the other robot takes it" if left else "every role is taken -- the game is on"))
+      return True
     if errand is None:
       # ACTIVE from the claim: an errand marks its task active when it
       # starts running, and a challenge's work starts the moment the robot
@@ -6989,6 +7021,11 @@ def task_board(state: str | None = None, table=None, cadence=None,
                    max_offered=cadence.max_offered, energy=costs, rebase=rebase)
 
 
+#: What a game's offer names as where it is played (issue #404): the
+#: robots' home -- the game is played round where the seeker counts.
+GAME_TARGET = "home"
+
+
 def world_targets(world: str, book=None, procedures: bool = False,
                   robots=()) -> dict:
   """What this world has for a task to be ABOUT, by `TaskKind.target_kind`.
@@ -7027,6 +7064,12 @@ def world_targets(world: str, book=None, procedures: bool = False,
     targets["challenge"] = [cfg["tower"]["name"]]
   if procedures and robots:
     targets["robot"] = [str(name) for name in robots if name]
+  # ...and a game for two (issue #404, hide and seek): played where the
+  # robots are, so its one target is home, on the same arm gate -- its
+  # reward row is in challenges.json, which only `autonomous` is shown --
+  # and only where there are two robots to play it
+  if procedures and len([name for name in robots if name]) >= 2:
+    targets["world"] = [GAME_TARGET]
   # ...and the mouse's cage (issue #226), on the same arm gate: the zone
   # exists in the `autonomous` prompt alone (the disclosure line, the
   # `care` action, the `real` field), and an offer to shock a mouse the
@@ -7146,8 +7189,10 @@ def errand_for_task(task, world: str, book=None, answer: str = "",
   carries the task's `secret`: the less of the task an errand can see, the
   less there is for it to be wrong about, and scoring reads the world and
   the frozen commitment instead. A kind whose errand this body cannot build
-  -- a drawing, a census, a carry, a game, until #404, #406 and #407 put
-  them on legs -- answers None, and the loop leaves the offer alone.
+  -- a drawing, a census, a carry, until #406 and #407 put them on legs --
+  answers None, and the loop leaves the offer alone. A game's errand is
+  ONE ROLE's (`role`), built for each robot by the pair's referee once
+  every role is held (`pair.referee_games`), never at a role's claim.
   """
   from pluggybot.economy.tasks import KINDS
   spec = KINDS.get(task.kind)
@@ -7180,6 +7225,17 @@ def errand_for_task(task, world: str, book=None, answer: str = "",
       errand = cage_errand(world, spec.task, real=real,
                            task=spec.task)
       errand.detail["predicted"] = answer or task.answer
+    elif task.kind == "hide_and_seek":
+      # The first two-role game (issue #167; on legs, #404): this robot's
+      # ROLE's step. `task` is "game" on purpose -- a name with NO
+      # evaluator, so the lifecycle scores nothing: the referee
+      # (activity/hideseek.py) scores the game ONCE for both robots and
+      # the pair banks it on the winner. An errand scored here as well
+      # would be a second scorer.
+      if role not in ("hider", "seeker"):
+        return None
+      errand = programmed_errand(hide_and_seek_program(), task="game",
+                                 name=f"game:hide_and_seek:{role}", role=role)
     else:
       return None
   except (ValueError, KeyError, IndexError):
@@ -7192,6 +7248,26 @@ def errand_for_task(task, world: str, book=None, answer: str = "",
   # by construction with the gate that refused to claim it.
   errand.estimate_wh = float(task.estimate_wh)
   return errand
+
+
+#: A game's program's budget past its head start and its seeking, s: the
+#: hider's walk ends after the head start and stands by to the end, and a
+#: role's errand may begin after the other's started the clock.
+GAME_SLACK_S = 120.0
+
+
+def hide_and_seek_program():
+  """The two roles of hide and seek (issue #167; on legs, #404), one verb
+  each over #58's vocabulary (`steps.GAME_VERBS`): the hider `hide`s -- a
+  spot of its own choosing on its own map, no surveyed one -- and stands by
+  to the game's end; the seeker `seek`s -- counts where it stands, then
+  searches its own map outward, never told where the hider is. Neither
+  fetches a tool. The referee decides."""
+  from pluggybot.activity.hideseek import SEEK_HEAD_START_S, SEEK_S
+  from pluggybot.procedure.steps import Program, Step
+  return Program(name="hide_and_seek",
+                 budget_s=SEEK_HEAD_START_S + SEEK_S + GAME_SLACK_S,
+                 roles={"hider": (Step("hide"),), "seeker": (Step("seek"),)})
 
 
 def cage_program(world: str, act: str):
@@ -7360,7 +7436,7 @@ def tool_places(life) -> dict[str, str]:
   return places
 
 
-def world_facts(world: str, rack: dict[str, int] | None = None):
+def world_facts(world: str, rack: dict[str, int] | None = None, game: bool = False):
   """What a program is validated against (procedure/steps.py): this world's
   boards, the tools on its rack, the box its map covers, the figures the
   pen knows. `rack` is a lifecycle's inventory once the workshop has hung
@@ -7371,10 +7447,12 @@ def world_facts(world: str, rack: dict[str, int] | None = None):
   unknown one is. Where its world has a rack at its arm's reach (`swap`) it
   fetches and stows that rack's tools; where it has task areas it finds by
   their tags (issue #419), `find`; `press` only where the plates' lab is in
-  the world's config, with the lab's rule that says what the plates do."""
+  the world's config, with the lab's rule that says what the plates do.
+  A two-role game's program (`game`, issue #404) may name the game's verbs
+  too, `hide` and `seek`, which no procedure the robot writes may."""
   from pluggybot.procedure import axes
-  from pluggybot.procedure.steps import (BODY_VERBS, PLACE_VERBS, PLATE_VERBS, SWAP_VERBS,
-                                         WorldFacts)
+  from pluggybot.procedure.steps import (BODY_VERBS, GAME_VERB_NAMES, PLACE_VERBS,
+                                         PLATE_VERBS, SWAP_VERBS, WorldFacts)
   cfg = world_config(world)
   boards: tuple = ()
   if cfg["meta"]:
@@ -7384,7 +7462,8 @@ def world_facts(world: str, rack: dict[str, int] | None = None):
   places = tuple(int(t) for t in cfg.get("places") or ())
   plates = places if cfg.get("lab") else ()
   verbs = (BODY_VERBS + (SWAP_VERBS if swaps else ())
-           + (PLACE_VERBS if places else ()) + (PLATE_VERBS if plates else ()))
+           + (PLACE_VERBS if places else ()) + (PLATE_VERBS if plates else ())
+           + (GAME_VERB_NAMES if game else ()))
   return WorldFacts(boards=boards, tools=tuple(bays) if swaps else (),
                     bounds=tuple(float(v) for v in cfg["grid_bounds"]),
                     figures=tuple(n for n in strokes.PROGRAMS
