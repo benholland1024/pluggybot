@@ -1561,8 +1561,9 @@ class Menu:
                look: bool = True) -> Decision:
     """A parsed answer -> a Decision, or ValueError.
 
-    `look` False means the eye's run is spent (issue #275): a `look`
-    answer is then malformed, on `recall`'s terms.
+    `look` False means the eye's run is spent (issue #275) or nothing can
+    take a picture (issue #357): a `look` answer is then malformed, on
+    `recall`'s terms.
 
     `tickets` is the desk's open ids, or None where there is no desk
     (issue #284): both ticket fields are DROPPED where none was offered,
@@ -1650,7 +1651,8 @@ class Menu:
       raise ValueError("a recall names what to look up: `read` a key or "
                        "`find` some words")
     if action == "look" and not look:
-      raise ValueError(f"look is off the menu after {MAX_LOOK_RUN} in a row")
+      raise ValueError(f"look is off the menu after {MAX_LOOK_RUN} in a row, "
+                       "or while nothing can take a picture")
     task = clean(raw.get("task"), MAX_ID)
     if action == "take_task" and task not in offered:
       raise ValueError(f"task {task!r} is not on offer "
@@ -3125,7 +3127,8 @@ you were standing when it was taken. It is the world as the people watching \
 you see it. You are shown it once; `note` or `pin` what you want to keep of \
 it. A picture that does not come back inside a few seconds says so (`image: \
 none`), and you may look at most twice in a row (`looksLeft` says how many \
-are left); then do something.\
+are left); then do something. While nothing can take a picture, `camera` \
+says so and `look` cannot be chosen.\
 """
 
 
@@ -3402,6 +3405,7 @@ def context_for(life, visitors=(), tasks=(), affordable=(), possible=(),
                 asked_by: dict | None = None,
                 seen: list | None = None,
                 looks_left: int | None = None,
+                camera: str | None = None,
                 event_map: dict | None = None) -> dict:
   """The VOLATILE half: where the robot is, what it has, what it did.
 
@@ -3412,7 +3416,8 @@ def context_for(life, visitors=(), tasks=(), affordable=(), possible=(),
   be shown (a block with the JPEG beside it as `jpeg`, which
   `model_state` strips and `Overseer._call` attaches as an image part)
   and how many looks may still run in a row; absent where the caller has
-  no eye.
+  no eye. `camera` (issue #357) is present only while nothing can take a
+  picture, and takes `look` off the call (`_look_allowed`).
 
   `recalled` / `recalls_left` / `asked_by` (issue #221) are the recall
   chain, its remaining length, and what consulted the mind; absent -- not
@@ -3533,6 +3538,8 @@ def context_for(life, visitors=(), tasks=(), affordable=(), possible=(),
     # shown once, and how many more looks may run in a row.
     **({"seen": [dict(b) for b in seen]} if seen is not None else {}),
     **({"looksLeft": int(looks_left)} if looks_left is not None else {}),
+    # ...and, while nothing can take a picture, that (issue #357).
+    **({"camera": camera} if camera else {}),
     # ...and WHY IT IS BEING ASKED: the row that fired, the bootstrap, or
     # the loop with nothing queued. Until #221 an ask at 30 % and an ask
     # with nothing to do were the same prompt.
@@ -5045,9 +5052,10 @@ class Overseer:
 
 def _look_allowed(state: dict) -> bool:
   """Is `look` on the menu this call? Off after `MAX_LOOK_RUN` in a row
-  (`looksLeft` 0); on wherever the state does not say (issue #275)."""
+  (`looksLeft` 0) and while nothing can take a picture (`camera`, issue
+  #357); on wherever the state does not say (issue #275)."""
   left = state.get("looksLeft")
-  return left is None or int(left) > 0
+  return (left is None or int(left) > 0) and not state.get("camera")
 
 
 def _pictures(state: dict) -> list[str]:

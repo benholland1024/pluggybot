@@ -4143,8 +4143,16 @@ class HubLifecycle:
     so. Either way the outcome is the SAME row sent again, a line in
     History, and a block on the `seen` shelf for the next model turn --
     the picture attached to it as an image, never as text. Standing still
-    IS the wait: the physics never blocks on the renderer, and a run with
-    no inbox (a demo, a test) times out honestly rather than pretending.
+    IS the wait: the physics never blocks on the renderer.
+
+    ⚠ A LOOK NOTHING CAN ANSWER IS NOT STOOD OUT (issue #357): with no
+    renderer there (`_no_picture`) the row resolves at once, `none` /
+    `unanswerable`. `look` is off the menu then, so this is a look that
+    raced the website's word. ⚠ The word decides whether a wait BEGINS,
+    never ends one: a renderer that drops and reconnects mid-render still
+    sends its picture (`renderer/eye.js` keeps the request), and so may a
+    hub across the sim's own blip -- ended on the word, the picture came
+    and was dropped, and the robot was told nothing could take one.
     """
     self.state = "LOOK"
     x, y, heading = self.body.pose
@@ -4154,6 +4162,10 @@ class HubLifecycle:
     self._emit({"type": "look", **eye_mod.wire_row(row)})
     self._say(f"LOOK {row['ref']}: asked for a picture from ({x:.2f}, {y:.2f}) "
               f"facing {row['at']['headingDeg']:.0f} deg")
+    if self._no_picture():
+      self._resolve_look(self.eye.give_up(float(self.data.time),
+                                          why=eye_mod.UNANSWERABLE))
+      return
     try:
       while self.eye.pending is not None:
         yield from self.body.hold_routine(LOOK_SLICE_S)
@@ -4166,6 +4178,13 @@ class HubLifecycle:
       # -- `Eye.ask` refuses a second request while one is open.
       if self.eye.pending is not None:
         self._resolve_look(self.eye.give_up(float(self.data.time), why="aborted"))
+
+  def _no_picture(self) -> bool:
+    """Can nothing take a picture now (issue #357)? Only the website's word
+    that a renderer is there (`Inbox.renderer`) says otherwise: no inbox,
+    no word yet, `connected: false` and a dropped link all mean a request
+    would reach nobody."""
+    return self.inbox is None or self.inbox.renderer is not True
 
   def _look_step(self) -> None:
     """Drain every `image` off the inbox: the open request's answer
@@ -4191,6 +4210,11 @@ class HubLifecycle:
                 f"after {row['waitS']:.1f} s")
       self._remember(f"looked from ({row['at']['x']}, {row['at']['y']}) facing "
                      f"{row['at']['headingDeg']:.0f} deg: a picture came")
+    elif row["why"] == eye_mod.UNANSWERABLE:
+      self._say(f"LOOK {row['ref']}: no renderer is there to answer it "
+                f"({row['why']})")
+      self._remember(f"looked from ({row['at']['x']}, {row['at']['y']}) facing "
+                     f"{row['at']['headingDeg']:.0f} deg: nothing could take a picture")
     else:
       self._say(f"LOOK {row['ref']}: no picture inside {row['waitS']:.0f} s "
                 f"({row['why']})")
@@ -7734,10 +7758,13 @@ def overseer_context(life) -> dict:
                          recalls_left=MAX_RECALL_RUN - life._recall_run,
                          asked_by=life._asked_by,
                          # THE EYE (issue #275): the picture waiting, and
-                         # how many looks may still run in a row. Only
+                         # how many looks may still run in a row -- and,
+                         # while nothing can take one, that (#357). Only
                          # where the menu offers `look`.
                          **({"seen": life._seen,
-                             "looks_left": MAX_LOOK_RUN - life._look_run}
+                             "looks_left": MAX_LOOK_RUN - life._look_run,
+                             "camera": (eye_mod.NO_PICTURE
+                                        if life._no_picture() else None)}
                             if getattr(life.overseer.menu, "look", False)
                             else {}),
                          # THE LIST OF RULES IT WROTE (issue #317), read

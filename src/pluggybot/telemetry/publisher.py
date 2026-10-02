@@ -66,6 +66,7 @@ deliberate choices about how:
   message to `hub.inbox.Inbox`, which is a bounded deque and nothing else.
 """
 
+import contextlib
 import json
 import queue
 import threading
@@ -167,6 +168,10 @@ class WsPublisher:
     # happens between two outbound sends.
     self.on_inbound: list[Callable[[object], None]] = []
     self.inbound_received = 0
+    # Called on the SENDER thread when a connection that was up goes down
+    # (issue #357): whatever the server said about itself -- a renderer
+    # there -- no longer holds. Must not block.
+    self.on_disconnect: list[Callable[[], None]] = []
     self._thread = threading.Thread(target=self._send_loop, daemon=True)
     self._thread.start()
 
@@ -264,7 +269,7 @@ class WsPublisher:
     while not self._stop.is_set():
       try:
         with connect(self.endpoint, open_timeout=CONNECT_TIMEOUT,
-                     additional_headers=self._headers) as ws:
+                     additional_headers=self._headers) as ws, self._link():
           self.connections += 1
           self.last_error = None       # "error since the last good connect"
           # A fresh consumer starts from nothing: drain whatever went stale
@@ -308,6 +313,20 @@ class WsPublisher:
         # connected.
         self.last_error = f"{type(e).__name__}: {e}"
         self._stop.wait(RECONNECT_DELAY)
+
+  @contextlib.contextmanager
+  def _link(self):
+    """One connection's lifetime (issue #357): on its way out, whichever
+    way it goes, `on_disconnect` hears it -- before the retry's wait. A
+    connection that never opened never enters, so says nothing."""
+    try:
+      yield
+    finally:
+      for hook in self.on_disconnect:
+        try:
+          hook()
+        except Exception:                   # noqa: BLE001 -- as `on_inbound`
+          pass
 
   def _poll_inbound(self, ws) -> None:
     """Take whatever the server has sent, without waiting for it (issue #16).

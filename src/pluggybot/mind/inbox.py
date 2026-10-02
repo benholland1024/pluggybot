@@ -204,6 +204,9 @@ class VisitorMessage:
   #: image part of its next turn, and only for the request that is open.
   ref: str = ""
   image: bytes = b""
+  #: `renderer` only (issue #357): whether the website has a renderer to
+  #: answer a `look`. Never queued -- `Inbox.offer` keeps it as a state.
+  connected: bool | None = None
   #: `ticket_reply` / `ticket_close` / `ticket_delete` only (issue #284):
   #: which of the robot's tickets the operator means, by the id the SIM
   #: gave it (`tk_0001`). An id, validated against the desk by the handler
@@ -305,6 +308,12 @@ class Inbox:
     self._evicted: deque = deque(maxlen=maxlen)
     self._seen: deque = deque(maxlen=maxlen * 4)
     self._seen_set: set = set()
+    #: IS A RENDERER THERE to answer a `look` (issue #357)? The newest
+    #: word of the website's `renderer` kind, kept rather than queued: a
+    #: state, so a burst that evicts messages cannot evict it and nothing
+    #: has to drain it. None is "nobody has said": no website, one from
+    #: before the kind, or a link that dropped (`forget_renderer`).
+    self.renderer: bool | None = None
 
   # ---- the socket side -----------------------------------------------------
 
@@ -330,6 +339,11 @@ class Inbox:
       with self._lock:
         self.dropped_invalid += 1
       return None
+    if msg.kind == "renderer":
+      # A state, not a message (issue #357): the newest word stands, and
+      # nothing is queued, deduped or narrated.
+      self.renderer = msg.connected
+      return msg
     with self._lock:
       if msg.id and msg.id in self._seen_set:
         # A replay. The website resends on its own reconnect (it cannot know
@@ -493,6 +507,13 @@ class Inbox:
         return None
       if not image.startswith(JPEG_MAGIC) or len(image) > MAX_IMAGE_BYTES:
         return None
+    connected = None
+    if kind == "renderer":
+      # Whether the website can answer a look (issue #357). A boolean or
+      # nothing: a word that might mean either is not taken as one.
+      connected = raw.get("connected")
+      if not isinstance(connected, bool):
+        return None
     ticket = ""
     if kind in TICKET_INBOUND_TYPES:
       # The operator's side of a ticket (issue #284): which one, by the
@@ -508,7 +529,8 @@ class Inbox:
                           sender=sender, seq=seq, quality=quality,
                           generation=generation,
                           module=module, frac=frac, wh=wh, points=points,
-                          ticket=ticket, ref=ref, image=image, t=float(t))
+                          ticket=ticket, ref=ref, image=image,
+                          connected=connected, t=float(t))
 
   # ---- the physics side ----------------------------------------------------
 
@@ -549,6 +571,12 @@ class Inbox:
       self._queue = keep
       self.delivered += len(out)
       return out
+
+  def forget_renderer(self) -> None:
+    """The link the website spoke on is gone (issue #357): what it said
+    about its renderer no longer holds, and a request sent now reaches
+    nobody. The next connection's hub says again."""
+    self.renderer = None
 
   def drain_evicted(self) -> list[VisitorMessage]:
     """Remove and return the messages the queue bound threw away.

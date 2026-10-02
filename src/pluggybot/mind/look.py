@@ -38,6 +38,13 @@ draw. This is the split, and the one rule that keeps it honest:
   row (a second picture from the same spot is the same picture), then
   `look` leaves the menu for a turn, as `recall` does.
 
+  A MISSING RENDERER IS SAID, NOT WAITED OUT (issue #357). The website
+  says whether a renderer is there (the `renderer` inbound kind,
+  `Inbox.renderer`); while none is, `look` is off the menu and the state
+  says `camera: NO_PICTURE`, and a look that raced the word resolves at
+  once as `none` / `UNANSWERABLE`. `unanswered` is left for a renderer
+  that was there and did not answer in time.
+
 The physics thread owns this object. The image itself arrives on the
 socket thread, into the bounded inbox like any other inbound kind, and is
 drained here between physics steps.
@@ -52,7 +59,7 @@ from collections import Counter
 import numpy as np
 
 from pluggybot.mind.inbox import VisitorMessage
-from pluggybot.telemetry.protocol import LOOK_OUTCOMES
+from pluggybot.telemetry.protocol import LOOK_OUTCOMES, LOOK_WHYS
 
 #: Who the picture arrives from, in the block the model is shown. Which
 #: camera that is, is the body's (`Body.head_camera`, issue #408).
@@ -78,6 +85,14 @@ HEIGHT = 480
 #: inbox's (`MAX_IMAGE_BYTES`, `JPEG_MAGIC`): checked at the door, because
 #: the door is where every other inbound kind is checked.
 MEDIA_TYPE = "image/jpeg"
+#: A look nothing could answer (issue #357): the website had said no
+#: renderer was there. Said at once rather than waited out -- on the
+#: deployed pair every look stood its ten seconds for a renderer that was
+#: never deployed, and nothing told a slow one from a missing one.
+UNANSWERABLE = "unanswerable"
+#: ...and what the robot is told while that is so: the state's `camera`
+#: (`look` is off the menu) and the `seen` block of a look that raced it.
+NO_PICTURE = "nothing can take a picture right now"
 
 
 def wrap_degrees(deg: float) -> float:
@@ -176,7 +191,8 @@ class Eye:
     return row
 
   def give_up(self, t: float, why: str = "unanswered") -> dict | None:
-    """The deadline passed with no picture: `none`, said so."""
+    """No picture is coming: `none`, said so, with why (`LOOK_WHYS`)."""
+    assert why in LOOK_WHYS, why
     if self.pending is None:
       return None
     row = self.pending
@@ -216,7 +232,7 @@ def as_context(row: dict) -> dict:
   """
   seen = row["outcome"] == "seen"
   text = ("the picture you took, attached to this message as an image"
-          if seen else
+          if seen else NO_PICTURE if row.get("why") == UNANSWERABLE else
           f"no picture came back inside {row.get('waitS', 0.0):.0f} s")
   msg = VisitorMessage(id=str(row["ref"]), kind="message", who=SENDER,
                        text=text)

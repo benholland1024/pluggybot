@@ -10,6 +10,35 @@ observatory is NOT a result: it reports into the issue it informs.
 
 ## Periods
 
+### `look` is offered only while a renderer is there (#357) — opens when this PR is deployed, with the site's hub half
+
+**What changed in the world.** What the robots are OFFERED, and one
+sentence of what they are told. `look` is on the menu only while the
+website's hub says a renderer is connected (the `renderer` inbound kind);
+otherwise the state says `camera: "nothing can take a picture right now"`,
+and a look that raced the word resolves at once, `none` with `why:
+unanswerable`, instead of standing ten seconds. The renderer (compose's
+`eye`) has never been deployed, so on this period's world `look` is OFF
+for both robots until it is; in the 30 days read on 2026-10-02 there were
+51 looks, all `none`. The LOOKING rule gained one sentence: the deployed
+prefix went 44 677 → 44 757 chars (`prompt_sha` `effdd6cc…` →
+`2dd061e7…`). The world, the scoring and the economy did not move. A sim
+deployed without the hub's half hears no word and keeps `look` off, which
+is what this world can do anyway.
+
+**What the period is for.**
+
+- **No look stands for nobody.** `look` rows stop; an `unanswerable` row is
+  a look that raced the word, and an `unanswered` one now means a renderer
+  that was there when the look began and did not answer in time, never a
+  missing one.
+- **The eye, when it is deployed** (Ben's step, after #276 and rooftop
+  #322): `look` comes back on the menu, and the first `seen` rows say what
+  the round trip costs on the box (`waitS`) and what a quadruped does with a
+  real picture.
+- **Whether the `camera` line is read.** A note, pin or ticket about not
+  being able to look, against the 51 looks the month before.
+
 ### A restart steps its last step again, and a tool on the fork between errands is the loop's (#420) — opens when this PR is deployed
 
 **What changed in the world.** What happens AT a restart, and nothing else:
