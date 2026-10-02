@@ -11,6 +11,7 @@ house's layout, the body, a routine.
 
     MUJOCO_GL=egl uv run python scripts/energy_spike.py
     MUJOCO_GL=egl uv run python scripts/energy_spike.py --actions care:feed,care:toy,shock,feed
+    MUJOCO_GL=egl uv run python scripts/energy_spike.py --actions draw:whiteboard_a,answer:whiteboard_b
     MUJOCO_GL=egl uv run python scripts/energy_spike.py --reserve
     MUJOCO_GL=egl uv run python scripts/energy_spike.py --write
 
@@ -54,10 +55,30 @@ from pluggybot.lifecycle import (
 #: plate by its sign and presses it, and the errand ENDS IN THE LAB, so the
 #: spike walks home to the dock between them to keep every row from there.
 CAGE_ACTIONS = ("care:feed", "care:toy", "shock", "feed")
+#: ...and the whiteboards' three jobs on each board (issue #406), each at the
+#: dearest figure its kind is offered with (`lifecycle.DEAREST_FIGURE`), each
+#: from the dock with the board's place remembered.
+BOARD_ACTIONS = tuple(f"{task}:{board}" for board in ("whiteboard_a", "whiteboard_b")
+                      for task in ("draw", "artwork", "answer"))
 
 #: A pack far bigger than any errand, so nothing being measured is cut short.
 #: See the module docstring: this is about not measuring a death.
 BIG_PACK_WH = 40.0
+
+
+def _from_the_dock(life, board: str) -> None:
+  """To the dock, the board found first if it is not remembered: where a
+  board's job is taken from (the energy table's rule)."""
+  from pluggybot.home.places import area
+  from pluggybot.tools.drawing import board_tags
+  tag = board_tags(board)[0]
+  if life.body.places.get(tag) is None:
+    at = area(board)["address"]
+    rec = life.body.run(life.body.find_tag_routine(tag, near=(at["x"], at["y"]),
+                                                   patience=600.0))
+    print(f"  (found {board} first: {rec.get('why')} in {rec.get('seconds')} s, unpriced)")
+  if life.go_charge():
+    life.charge()
 
 
 def measure(world: str, actions, battery_wh: float, explore_s: float,
@@ -114,6 +135,12 @@ def measure(world: str, actions, battery_wh: float, explore_s: float,
         print(f"  {action:9s} skipped: {e}")
         continue
       for errand in queue:
+        board = errand.detail.get("board")
+        if board:
+          # A BOARD'S JOB (issue #406) is priced FROM THE DOCK, the board's
+          # place remembered, as the lab's acts are: its find is a search
+          # once, and a first search of a fresh map is not what a row says
+          _from_the_dock(life, board)
         t0, e0 = float(data.time), life.battery.energy_wh
         # Topped up first, so every errand is measured from the same place in
         # the pack and none of them is measured against a battery that ran
@@ -134,6 +161,12 @@ def measure(world: str, actions, battery_wh: float, explore_s: float,
         print(f"  {key:18s} {dt:6.1f}s  {used:.4f} Wh  "
               f"({used * 3600.0 / dt:5.1f} W)  "
               f"{'stowed' if result.get('stowed') else 'NOT STOWED'}")
+        if board:
+          done = result.get("procedure", {})
+          out["actions"][key]["ok"] = bool((result.get("verdict") or {}).get("ok"))
+          print(f"  {'':18s} program {'ok' if done.get('ok') else 'FAILED'} "
+                f"{done.get('completed')}/{done.get('total')} steps; "
+                f"{(result.get('verdict') or {}).get('reason', '')}")
         if errand.detail.get("cage"):
           # ...and how the mouse took it, which is the act's whole point,
           # then home: the next row starts from the dock like every other.
@@ -299,7 +332,9 @@ def main() -> None:
                   help="sim seconds of held press to measure the charge rate")
   ap.add_argument("--actions", default="",
                   help="named acts to price besides the explore and the "
-                       f"charger: any of {','.join(CAGE_ACTIONS)} (or care)")
+                       f"charger: any of {','.join(CAGE_ACTIONS)} (or care), "
+                       "or a board's job, <draw|artwork|answer>:<board> "
+                       f"(e.g. {','.join(BOARD_ACTIONS[:2])})")
   ap.add_argument("--reserve", action="store_true",
                   help="measure the worst-case return trip instead of the "
                        "errands (issues #70/#84): what legs.world.RESERVE_WH "

@@ -85,10 +85,11 @@ Prices and lead times read 2026-09-28; € incl. 19% VAT; $1 = €0.8770 (ECB, 2
 | [igus igubal KCRM-05 rod end, M5 female, right-hand](https://www.igus.de/product/igubal_KCRM_KCLM?artNr=KCRM-05) `KCRM-05` | 6 | 5.43 | 32.58 | ready to ship in 24 hours (igus) | `legs.arm.ArmSpec.rods_mass` |
 | The arm's end plate, fork and lean-pad (two prongs, four 60° V's, two 53° end-ramps), and the parallelogram's three rods | 1 | allowance | 150.00 | unknown: nothing drawn to quote | `legs.arm.ArmSpec.plate_mass`, `legs.arm.ForkSpec.flank_deg`, `legs.arm.ForkSpec.fork_y`, +1 |
 | [PTFE glass-fabric adhesive tape, 0.13 mm, 25 mm x 30 m](https://shop.hightechflon.com/PTFE-Teflon-Klebeband-0-13%20mm-ptfe-glasgewebe/Page-16-1-96-183.aspx) `PTFE Klebeband 0.13 SW` | 1 | 29.67 | 29.67 | 2-4 working days (High-tech-flon) | `legs.arm.RAMP_MU` |
-| **tools** | | | **158.95** | | |
+| **tools** | | | **163.95** | | |
 | Tool peg, 220 mm: two 6 mm steel conductors on an insulating bush | 4 | allowance | 30.00 | unknown: nothing drawn to quote | `legs.rack.PEG_HALF`, `legs.rack.PEG_MASS` |
 | [FEETECH FS90MG micro servo (digital, metal gears)](https://eckstein-shop.de/Feetech-FS90MG-6V-22kgcm-Digital-Servo) `FS90MG` | 2 | 5.95 | 11.90 | unknown: not read for this bill; the price is the workshop catalog's (#199, 2026-09-14) | — |
-| [Actuonix L12-100-50-6-R micro linear servo (100 mm stroke, 50:1, 6 V, RC input)](https://www.digikey.de/de/products/detail/actuonix-motion-devices-inc/L12-100-50-6-R/11689540) `L12-100-50-6-R` | 1 | 77.05 | 77.05 | unknown: not read for this bill; the price is the workshop catalog's (#199, 2026-09-14) | — |
+| [Actuonix L12-100-50-6-R micro linear servo (100 mm stroke, 50:1, 6 V, RC input)](https://www.digikey.de/de/products/detail/actuonix-motion-devices-inc/L12-100-50-6-R/11689540) `L12-100-50-6-R` | 1 | 77.05 | 77.05 | unknown: not read for this bill; the price is the workshop catalog's (#199, 2026-09-14) | `legs.rack.PEN_TRAVEL`, `legs.rack.PEN_FORCE_N`, `legs.rack.PEN_SPEED` |
+| Linear Hall-effect sensor and a small magnet on the pen's sprung quill, reading its travel | 1 | allowance | 5.00 | unknown: no sensor chosen | `tools.drawing.QUILL_TOUCH` |
 | ESP32-class board, one per module | 4 | 5.00 | 20.00 | unknown: no board chosen | `power.MODULE_IDLE_W` |
 | Small SPI/I2C display driven by the module's ESP32 | 1 | allowance | 20.00 | unknown: no display chosen | `legs.rack.SCREEN_HALF` |
 | **rack** | | | **108.69** | | |
@@ -149,9 +150,9 @@ Prices and lead times read 2026-09-28; € incl. 19% VAT; $1 = €0.8770 (ECB, 2
 | | € | $ |
 |---|---|---|
 | priced lines | 5,977.89 | |
-| allowances (nothing designed yet) | 1,570.00 | |
-| contingency, 15% | 1,132.18 | |
-| **total** | **8,680.07** | **9,897.88** |
+| allowances (nothing designed yet) | 1,575.00 | |
+| contingency, 15% | 1,132.93 | |
+| **total** | **8,685.82** | **9,904.44** |
 | budget | 17,539.24 | 20,000.00 |
 
 **The allowances**, each a sum set aside, never a price:
@@ -160,6 +161,7 @@ Prices and lead times read 2026-09-28; € incl. 19% VAT; $1 = €0.8770 (ECB, 2
 - **The legs' motor mounts, hip brackets, knee housings and tube clamps, with their fasteners** (frame and legs), €800.00: twelve motor mounts, four hip brackets and eight tube clamps, nothing drawn, sized as machined aluminium at a job shop; printed on the shop's P1S they cost their filament
 - **The arm's end plate, fork and lean-pad (two prongs, four 60° V's, two 53° end-ramps), and the parallelogram's three rods** (arm), €150.00: one machined aluminium plate with its prongs, V's and ramps, and three 5 mm rods threaded M5: a plain 4 mm plate is €23.12 at AluFritze, the V's and ramps are machining
 - **Tool peg, 220 mm: two 6 mm steel conductors on an insulating bush** (tools), €30.00: four pegs cut and turned from a metre of 6 mm silver steel and an acetal bush each, as `peg_rod_6mm`
+- **Linear Hall-effect sensor and a small magnet on the pen's sprung quill, reading its travel** (tools), €5.00: a linear Hall sensor and a 3 mm magnet on the pen's quill, as TI's DRV5055: a few euros; none chosen yet
 - **Small SPI/I2C display driven by the module's ESP32** (tools), €20.00: a small SPI display for the LCD tool's ESP32; none chosen yet
 - **The rack's back board, its six printed V-trays, and the rack's and the dock's printed tags** (rack), €40.00: a 1.0 x 0.6 m plywood back board, six V-trays printed in PETG from the shop's spools, and the rack's six and the dock's four 60 mm tags printed and laminated
 - **The dock's cradle: the bed and funnel faces cut from the sheet, on a base** (dock), €100.00: the bed and the funnel's faces routed from the sheet and screwed to a base: an hour at a job shop, or by hand
@@ -412,6 +414,7 @@ workshop's rig (`coupling.scene_xml`) hangs a tool by the 150 mm original
 | Module electronics | one ESP32-class board per module (~€5 each) | **power-only coupling, wireless data** — keeps the mating interface dumb and tolerant. A 0.6 W load (`power.MODULE_IDLE_W`) drawn only while the coupling conducts |
 | Bay presence switches | one Omron D2F-01L2 per bay (three, €2.59 each) in the +y V-tray; an ESP32 on the rack reads them and reports them over the network | `coupling.bay_switches`: which bays are taken, never by which tool — what the robot's `rack` context is built off (Overseer.md §2i). The sim reads contact, not force: a bare switch under one tray would not close for the LCD tool (about 0.74 N a tray against its 0.78 N), so the lever has to carry the tray, or a lighter switch; open |
 | LCD module | a small SPI/I2C display driven by the module's ESP32 | display-only; the face is drawn in the browser off a streamed enum |
+| Pen module (#406) | the pen's sideways carriage is the bill's Actuonix L12-100 (below), its whole 100 mm stroke, under the plate; a sprung quill (60 N/m, 20 mm) holding the pen, and a linear Hall sensor and magnet on the quill reading its travel (`pen_quill_hall`, none chosen: an allowance) | `legs.rack.PEN_TRAVEL` (±50 mm), `PEN_FORCE_N`, `PEN_SPEED`, `PEN_QUILL_STIFFNESS`; the quill's sense is `tools.drawing.PenPlotter.quill` -- what the plotter finds a board's face by, with 0.05 mm of noise assumed (`QUILL_NOISE`) until a sensor is chosen. The module balances on its peg (SimNotes, "Drawing on legs") |
 
 ### Module power contacts
 
@@ -445,7 +448,7 @@ datasheet, never a seller's summary:
 |---|---|---|
 | micro servo | FEETECH FS90-FB (#168) | 0.147 N·m, 800 mA stall at 6 V = 4.8 W |
 | second servo, metal gear | FEETECH FS90MG | 0.216 N·m at 6 V at the SAME 800 mA stall, 12.7 g. Passed over: Tower Pro MG90S (no published current), Power HD HD-1810MG (1.4 A stall = 8.4 W, over the peg alone) |
-| slide | Actuonix L12-100-50-6-R | 100 mm stroke, 22 N lifted, 25 mm/s, 460 mA on the 6 V winding = 2.76 W, 56 g, €77. ⚠ The L16-140 that would cover the pen's 110 mm travel publishes its stall current at 12 V only, so its 6 V draw would be a guess; the bill buys this one for the pen's carriage, 10 mm short |
+| slide | Actuonix L12-100-50-6-R | 100 mm stroke, 22 N lifted, 25 mm/s, 460 mA on the 6 V winding = 2.76 W, 56 g, €77. The pen's carriage on legs is this slide's whole stroke (#406: the rover's sim gave its pen 110 mm, and a two-digit answer, 81 mm wide, fits in 100). Passed over: the L16-140, whose stall current is published at 12 V only |
 | microswitch | Omron D2F-01L2 | 0.78 N OF, 12.8 × 5.8 body, 16.5 mm free position, ≈0.5 g (the datasheet's pin-plunger figure; the lever's fraction of a gram is unpublished). On a tool it is a `contact` sense |
 | eye | Ai-Thinker ESP32-CAM | the camera whose maker publishes a draw — 0.9 W flash off, 1.55 W flash on — and the one that fits "power-only coupling, wireless data", because it is the radio. Raspberry Pi still publishes none for Camera Module 3 (both product briefs, the forum, Arducam's and InnoMaker's IMX708 sheets checked, 2026-09-14), so `pi_camera_3` stays unbuildable-from |
 

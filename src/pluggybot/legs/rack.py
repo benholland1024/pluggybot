@@ -225,15 +225,16 @@ def rack_xml(spec: RackSpec = DEFAULT, pos=(0.0, 0.0), yaw: float = 0.0,
 #: draws with the rover's rack (`visualHints`).
 RACK_BODY = "tool_rack"
 #: The tools it ships, by bay (issue #405): three of #378's four survivors,
-#: one a bay -- the LCD, the pen (#406's) and the claw (#407's); the seed
+#: one a bay -- the LCD, the pen (#406) and the claw (#407's); the seed
 #: dispenser waits for a fourth. The rover's module names, so a tool is the
 #: same tool to everything that names it (the rack view, the lost-tool
 #: clock, a program's `fetch`, an admin's reset).
 TOOL_BAYS = {"module_lcd": 0, "module_pen": 1, "module_claw": 2}
 #: Each tool's mass, kg: the rover's module (`models/home_world.xml`) with
-#: its 150 mm peg (20 g) swapped for this one. Until 4b and 4c rebuild them
-#: on the longer peg a tool is a plate, a peg and a face that says which
-#: (`tool_face`), its mass on the plate: the envelope's "on its peg" case.
+#: its 150 mm peg (20 g) swapped for this one. Until #407 rebuilds them the
+#: LCD and the claw are a plate, a peg and a face that says which
+#: (`tool_face`), the mass on the plate: the envelope's "on its peg" case.
+#: The pen is built (#406, `pen_face`), its parts' masses out of its plate's.
 TOOL_KG = {"module_lcd": 0.1426 - 0.020 + PEG_MASS,
            "module_pen": 0.1816 - 0.020 + PEG_MASS,
            "module_claw": 0.2106 - 0.020 + PEG_MASS}
@@ -242,22 +243,100 @@ TOOL_KG = {"module_lcd": 0.1426 - 0.020 + PEG_MASS,
 SCREEN_HALF = (0.002, 0.028, 0.038)
 
 
+# ---- the pen (#406) ----------------------------------------------------------------
+
+#: The pen's sideways carriage: an Actuonix L12-100 (Parts.md,
+#: `slide_l12_100`), its 100 mm stroke centred on the module -- the one axis
+#: an arm moving in its own plane lacks. A lead screw at 50:1: it holds where
+#: it was sent (12 N back-drives it), at most 25 mm/s and 22 N.
+PEN_TRAVEL = 0.050
+PEN_SPEED = 0.025
+PEN_FORCE_N = 22.0
+#: The rail (the slide's body) runs UNDER the plate, across it, and the
+#: carriage rides it with the pen's line above the rail (module frame, m).
+#: ⚠ The module balances on its peg: the rover's carriage stood off in front
+#: of its plate (`rover-final`), 56 g 26 mm ahead, which on the legs' rack
+#: hung the tool 16 deg off plumb (`rack.on_bay` asks 2), so the rail sits
+#: 2 mm behind the peg. The block's top stays under the plate's bottom.
+PEN_MOUNT_X = 0.002
+PEN_RAIL_Z = -0.048
+PEN_LINE_DZ = 0.012
+#: The pen past its holder, m: its tip 48 mm ahead of the peg and 58 under
+#: it, 36 mm short of the rack's back board with the tool hung, which leans
+#: 0.6 deg (its CoM 0.3 mm ahead of the peg).
+PEN_LEN = 0.042
+#: The pen's radius, m: its point is the shaft's rounded end, this far past
+#: the `pen_tip` site at the end's centre -- what touches a board first.
+PEN_TIP_R = 0.0025
+#: The sprung quill: the pen's pressure is the spring's, not the arm's
+#: position. Soft and long, the rover's: at 200 N/m the pen lifted off where
+#: the arm drooped (0 % ink at the top of a figure); at 60 N/m, 10 mm in is
+#: 0.6 N.
+PEN_QUILL_TRAVEL = 0.020
+PEN_QUILL_STIFFNESS = 60.0
+#: The parts' masses, kg (the rover's): the slide's body is the rail, its rod
+#: end with the pen's holder the carriage, the quill the pen.
+PEN_RAIL_KG, PEN_CARRIAGE_KG, PEN_QUILL_KG = 0.020, 0.030, 0.006
+PEN_PARTS_KG = PEN_RAIL_KG + PEN_CARRIAGE_KG + PEN_QUILL_KG
+#: Its actuator, joints, shaft and tip, by name: the world's, as the module is.
+PEN_ACTUATOR = "pen_carriage"
+PEN_CARRIAGE_JOINT = "pen_carriage_joint"
+PEN_QUILL_JOINT = "pen_quill_joint"
+PEN_SHAFT = "module_pen_shaft"
+PEN_TIP = "pen_tip"
+
+
+def pen_face() -> str:
+  """The pen's parts in the module's frame: the rail, the carriage sliding
+  along it (the peg's axis) and on the carriage the quill, sprung toward the
+  board. Ink is a contact of the shaft (`tools.drawing.pen_on_board`)."""
+  from pluggybot.rack.coupling import GRIP_SOLIMP
+  block_lo, block_hi = -0.018, 0.004            # about the pen's line
+  return (
+    f'<geom name="module_pen_rail" type="box" '
+    f'size="{_v(0.004, PEN_TRAVEL + 0.012, 0.004)}" pos="{_v(PEN_MOUNT_X, 0, PEN_RAIL_Z)}" '
+    f'mass="{_f(PEN_RAIL_KG)}" rgba="0.55 0.57 0.60 1"/>'
+    f'<body name="module_pen_carriage" pos="{_v(PEN_MOUNT_X, 0, PEN_RAIL_Z)}">'
+    f'<joint name="{PEN_CARRIAGE_JOINT}" type="slide" axis="0 1 0" '
+    f'range="{_v(-PEN_TRAVEL, PEN_TRAVEL)}" damping="2"/>'
+    f'<geom name="module_pen_block" type="box" '
+    f'size="{_v(0.008, 0.010, (block_hi - block_lo) / 2)}" '
+    f'pos="{_v(0, 0, PEN_LINE_DZ + (block_hi + block_lo) / 2)}" '
+    f'mass="{_f(PEN_CARRIAGE_KG)}" rgba="0.30 0.32 0.36 1"/>'
+    f'<body name="module_pen_quill" pos="{_v(0, 0, PEN_LINE_DZ)}">'
+    f'<joint name="{PEN_QUILL_JOINT}" type="slide" axis="1 0 0" '
+    f'range="{_v(0, PEN_QUILL_TRAVEL)}" stiffness="{_f(PEN_QUILL_STIFFNESS)}" '
+    f'damping="2" armature="1e-6"/>'
+    f'<geom name="{PEN_SHAFT}" type="capsule" size="{_f(PEN_TIP_R)}" '
+    f'fromto="{_v(-0.008, 0, 0, -(0.008 + PEN_LEN), 0, 0)}" mass="{_f(PEN_QUILL_KG)}" '
+    f'friction="0.25 0.005 0.0001" priority="1" solimp="{GRIP_SOLIMP}" '
+    f'rgba="0.90 0.30 0.25 1"/>'
+    f'<site name="{PEN_TIP}" pos="{_v(-(0.008 + PEN_LEN), 0, 0)}" size="0.002"/>'
+    f'</body></body>')
+
+
+def tool_actuators_xml() -> str:
+  """The tools' own actuators, for the world's `<actuator>`: the pen's
+  carriage, a position servo as stiff as a lead screw -- at a hobby
+  servo's kp the pen's drag on the board took 8 mm of its error, and the
+  rover's figure came out 12 mm off."""
+  return (f'<position name="{PEN_ACTUATOR}" joint="{PEN_CARRIAGE_JOINT}" kp="2000" '
+          f'kv="80" ctrlrange="{_v(-PEN_TRAVEL, PEN_TRAVEL)}" '
+          f'forcerange="{_v(-PEN_FORCE_N, PEN_FORCE_N)}"/>')
+
+
 def tool_face(name: str) -> str:
-  """What a tool shows, visual only (it collides as a plate and a peg): the
-  LCD's screen facing away from the robot that carries it, the pen's rail
-  and pen, the claw's pendant and jaws. A module faces the robot with its
-  +x, so its business end is at -x."""
+  """What a tool shows: the pen's working parts (`pen_face`), and, visual
+  only, the LCD's screen facing away from the robot that carries it and the
+  claw's pendant and jaws (they collide as a plate and a peg until #407). A
+  module faces the robot with its +x, so its business end is at -x."""
   back = -TOOL_HALF_X
   vis = 'contype="0" conaffinity="0" mass="0"'
   if name == "module_lcd":
     return (f'<geom name="module_lcd_screen" type="box" size="{_v(*SCREEN_HALF)}" '
             f'pos="{_v(back - SCREEN_HALF[0], 0, 0)}" {vis} rgba="0.05 0.08 0.10 1"/>')
   if name == "module_pen":
-    return (f'<geom name="module_pen_rail" type="box" size="0.004 0.060 0.004" '
-            f'pos="{_v(back - 0.004, 0, -0.010)}" {vis} rgba="0.55 0.57 0.60 1"/>'
-            f'<geom name="module_pen_pen" type="capsule" size="0.004" '
-            f'fromto="{_v(back - 0.008, 0, -0.012, back - 0.075, 0, -0.050)}" {vis} '
-            f'rgba="0.90 0.30 0.25 1"/>')
+    return pen_face()
   if name == "module_claw":
     return (f'<geom name="module_claw_pendant" type="box" size="0.008 0.012 0.060" '
             f'pos="{_v(back - 0.010, 0, -0.080)}" {vis} rgba="0.30 0.32 0.36 1"/>'
@@ -277,8 +356,9 @@ def tools_xml(pos=(0.0, 0.0), yaw: float = 0.0, spec: RackSpec = DEFAULT) -> tup
   defaults, bodies = [], []
   for name, bay in TOOL_BAYS.items():
     defaults.append(tool_default(name))
+    parts = PEN_PARTS_KG if name == "module_pen" else 0.0
     bodies.append(tool_xml(name, bay_peg(spec, bay, pos=pos, yaw=yaw), yaw=yaw,
-                           mass=TOOL_KG[name], face=tool_face(name)))
+                           mass=TOOL_KG[name] - parts, face=tool_face(name)))
   return "".join(defaults), "".join(bodies)
 
 

@@ -451,10 +451,33 @@ PARTS: tuple[Part, ...] = (
          "W), 56 g and 152 mm hole-to-hole closed for the 100 mm stroke, "
          "a 15 × 14.9 mm body. 20 % duty cycle, which the sim does not "
          "model. `forceN` is the lifted maximum; at speed it is the 17 N "
-         "peak-power point. ⚠ Passed over: the L16-140-35-6-R, the one "
-         "stroke that covers the pen's 110 mm travel, because its datasheet "
-         "gives stall current at 12 V only (650 mA) and the 6 V winding's "
-         "is not published -- so its draw would be a guess.",
+         "peak-power point. The pen's sideways carriage on legs is this "
+         "slide at its whole stroke (#406; the rover's sim gave its pen 110 "
+         "mm). Passed over: the L16-140-35-6-R, whose datasheet gives stall "
+         "current at 12 V only (650 mA) -- its 6 V draw would be a guess.",
+    feeds=(
+      code("legs.rack.PEN_TRAVEL", "m", "the pen's carriage: half the 100 mm stroke",
+           expect=0.050),
+      code("legs.rack.PEN_FORCE_N", "N", "the lifted maximum", expect=22.0),
+      code("legs.rack.PEN_SPEED", "m/s", "the no-load speed at 50:1", expect=0.025),
+    ),
+  ),
+  Part(
+    "pen_quill_hall", "Linear Hall-effect sensor and a small magnet on the pen's "
+    "sprung quill, reading its travel", "sensor", "candidate", ("build",), (),
+    quantity=1,
+    feeds=(
+      code("tools.drawing.QUILL_TOUCH", "m",
+           "the quill's travel the plotter reads as the pen touching a board"),
+    ),
+    why={"partNumber": "no sensor chosen", "source": "no sensor chosen",
+         "massG": "no sensor chosen", "dimensionsMm": "no sensor chosen",
+         "priceEur": "no sensor chosen"},
+    note="What the pen finds a board's face by (#406): the quill's travel, "
+         "read as a touch at 0.5 mm. A ratiometric linear Hall sensor (TI's "
+         "DRV5055 class) facing a magnet on the quill is the route; none is "
+         "chosen, and the sim reads the quill with 0.05 mm of noise "
+         "(`tools.drawing.QUILL_NOISE`), an assumption until one is.",
   ),
   Part(
     "esp32_cam", "Ai-Thinker ESP32-CAM (ESP32-S, OV2640 2 MP camera, Wi-Fi)",
@@ -1661,8 +1684,11 @@ LINES: tuple[Line, ...] = (
   Line("servo_fs90mg", 2, "tools", None, why=NOT_READ,
        note="the claw's jaws and the seed dispenser's gate"),
   Line("slide_l12_100", 1, "tools", None, why=NOT_READ,
-       note="the pen's sideways carriage: 100 mm of the 110 it wants, the "
-            "nearest slide with a published draw"),
+       note="the pen's sideways carriage, its whole 100 mm stroke (#406)"),
+  Line("pen_quill_hall", 1, "tools", None, why={"leadTime": "no sensor chosen"},
+       allowanceEur=5.0,
+       basis="a linear Hall sensor and a 3 mm magnet on the pen's quill, as TI's "
+             "DRV5055: a few euros; none chosen yet"),
   Line("module_esp32", 4, "tools", None,
        why={"leadTime": "no board chosen"}, note="one a tool"),
   Line("lcd_display", 1, "tools", None, why={"leadTime": "no display chosen"},

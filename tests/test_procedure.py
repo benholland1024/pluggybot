@@ -62,7 +62,9 @@ def test_the_vocabulary_is_the_issues_verbs():
                            # the motor level, issue #166
                            "move", "drive",
                            # places, issue #419
-                           "find", "press"}
+                           "find", "press",
+                           # a whiteboard, issue #406
+                           "draw"}
   assert all(d["doc"] for d in st.describe_vocabulary())
 
 
@@ -432,6 +434,9 @@ CTRL_WRITERS = {
   # path its twelve joints are commanded through. The policy commands them;
   # it does not write `ctrl`.
   "legs/drivers.py",
+  # issue #406: the pen's carriage, a lead screw walked by the plotter
+  # (`PenPlotter`), the one path the tool's own axis is commanded through.
+  "tools/drawing.py",
   # issue #378: the quadruped's arm driver -- its two motors' torques, a PD
   # toward a target RAMPED at ARM_SLEW plus the arm's own gravity, the one
   # path the arm's joints are commanded through: the served body's since

@@ -2224,10 +2224,11 @@ the scans are this issue's stage B.
 The quadruped's world has its own rack (`legs/world.py`): #378's rack on
 the living room's south wall beside the dock (`RACK_X` 2.1; its board spans
 x 1.6..2.6, the dock is at 3.5), its three bays holding the LCD (A, the east
-one), the pen (B) and the claw (C). Until #406 and #407 rebuild them on the
-220 mm peg a tool is a plate, a peg and a face that says which, visual only,
-its mass (the rover's module's, the peg's swapped) on the plate: the
-envelope's "on its peg" case. The tools keep the rover's module names, and
+one), the pen (B) and the claw (C). Until #407 rebuilds them on the
+220 mm peg the LCD and the claw are a plate, a peg and a face that says
+which, visual only, the mass (the rover's module's, the peg's swapped) on
+the plate: the envelope's "on its peg" case. The pen is built ("Drawing on
+legs", below). The tools keep the rover's module names, and
 the rack's parts its bay letters (`bay<letter>_tray_...`), so the rack view,
 the lost-tool clock, a program's `fetch` and an admin's reset read them
 unchanged (`coupling.bay_switches` reads the three bays). The lifecycle
@@ -2353,7 +2354,7 @@ The house has no stairs yet (#280): a flight carried is #378's table
 **What is true now:** the served quadruped fetches, carries and stows the
 three tools on its own rack from a program; `tests/test_quad_rack.py` pins
 each rule above, and the whole swap flies behind `--endurance`. Not done:
-tool jobs (#406, #407); a carried tool down the house's stairs (#280 builds
+the other tools' jobs (#407; the pen's are "Drawing on legs", below); a carried tool down the house's stairs (#280 builds
 them); the other robot's carried tool is not filtered from this one's
 senses (at the carry pose it is above the LIDAR's plane), and nothing
 keeps two carrying robots' tools apart at the rack (1 of 20 knocked off at
@@ -2550,8 +2551,8 @@ looks in 86 sim s, one every 2 s -- 16 ms a sim second at the box's render,
 1.6 % of real time per walking robot.
 
 **Still open.** Loop closure (#381): the lab's frame is the one the map was
-laid in. The address is a fixed offset, not a GPS sensor. Every other task
-area's tags (#406, #407).
+laid in. The address is a fixed offset, not a GPS sensor. The other tools'
+task areas (#407; the whiteboards' tags are "Drawing on legs", below).
 
 ## Lying still, the heading holds (issue #425)
 
@@ -2948,6 +2949,165 @@ the cadence offers it to them on `autonomous`; the hider hides where its
 own map says it is hidden, the seeker searches its own map without being
 told, and the referee sees a quadruped -- any part of it, past its own body
 (`tests/test_hide_and_seek.py`).
+
+## Drawing on legs (issue #406)
+
+The rover drew with its base braked and its lift as one axis
+(`rover-final`): the square at 0.57 mm of form error, 98 % inked. The
+quadruped draws with the pen on its arm (`tools/drawing.py`'s plotter, the
+body's half in `legs/draw.py`; `scripts/draw_spike.py` flies every table
+here): the pen module's own carriage across the board, the arm's fork up
+and down it and into it, the pen's sprung quill setting the pressure.
+
+**The pen module, rebuilt on the 220 mm peg** (`legs.rack.pen_face`). Its
+carriage is the bill's slide, the Actuonix L12-100, at its whole 100 mm
+stroke (±50 mm, 22 N, 25 mm/s): the rover's sim gave its pen 110 mm, and
+the bill bought this slide 10 mm short. The figures fit it: a house is 72
+mm wide fitted to the board, a two-digit answer 81. ⚠ **The module
+balances on its peg.** Built as the rover's -- the carriage standing off in
+front of the plate, 56 g 26 mm ahead -- its CoM sat 8.4 mm ahead of the peg,
+and on the legs' rack, which asks a hung tool to be within 2° of plumb, it
+hung 16° off and read not hung a second after load. The rail runs under
+the plate now, 2 mm behind the peg: it hangs 0.6° off, its tip 48 mm ahead
+of the peg and 58 mm under it, 36 mm short of the rack's back board (at the
+rover's pen length, 2.5). Fetched and hung back from the dock's approach,
+jittered, with a walk between: 6 of 6.
+
+**The stance is lying.** A pen pressed on a board's middle and held 30 s
+(`--sway`, where the walk in stops; three starts each, jittered 1 cm and
+1°):
+
+| stance | the ink point wandered | the torso drifted | its yaw |
+|---|---|---|---|
+| lying (the rest posture, legs limp) | 0.11-0.43 mm across, 0.04 up | 0.24-0.27 mm | 0.03° |
+| standing on the walking policy | 0.35-1.0 mm across, 0.27-0.29 up | 4.8-5.2 mm | 0.01-0.04° |
+| crouched / held on the scripted gait | fell (crouched at 0.27 m) / spun round | -- | -- |
+
+The policy never quite stops (the rack's `SETTLE_DRIFT`): standing, the
+torso backed straight off the board, 5.0-5.2 mm along its normal and
+0.09 across, which the sprung quill takes up, so the ink point wandered
+far less than the torso (placed 3.5 cm nearer, a first table had the
+torso turning 0.34° and the ink point 3.6 mm across). Over a whole figure
+it shows: a square standing came out at 0.86 mm, lying at 0.24 (below).
+The scripted gait (`legs.scripted`) is a sizing instrument with no stance
+controller to hold an arm held out. Lying costs 39 W less than standing,
+and from the floor -- the torso's centre `belly_depth` up, 0.62 m out of
+the wall the board's tags are on, 0.60 out of its face -- the arm reaches
+the board's whole height, pressed and lifted, the carriage at either end
+(`tests/test_drawing.py`). So the body walks in, lies down, draws, and
+stands up.
+
+**The squares** (`draw_spike.py --n 6`: from 1.7 m out of whiteboard_a's
+face, jittered 0.2 m and 15°, the board's tags in its memory; the stats
+off the WORLD's trace of the tip):
+
+| stance | drew | form error, RMS | shape | inked | travel ink |
+|---|---|---|---|---|---|
+| lying | 6 of 6 | 0.22-0.25 mm (median 0.24) | 0.26-0.31 mm | 97.9 % | 0 |
+| standing (the premise, `--stance stand`) | 3 of 3 | 0.86-0.90 mm (median 0.86) | 0.87-0.95 mm | 97.4 % | 0 |
+| the rover (`rover-final`) | -- | 0.57 mm | 0.60 | 98 % | -- |
+
+A two-digit answer ("42", three strokes, each pressed on afresh): 3 of 3,
+form 0.41-0.43 mm, 98 % inked. A house on whiteboard_a, end to end from the
+dock's standoff -- the board found, the pen fetched, drawn, the pen hung
+back -- inked 7 of 7 strokes at 0.53 mm and paid 30 points.
+
+**Ladder A on the pair** (`solve.py --feature answer --pair --n 4`: the
+served pair, Luca from the dock while Rowan stands in the hall; a question
+offered, claimed with its right answer, the job's errand run and graded by
+`eval_answer` off the board's ink): **4 of 4 paid**, the boards in turn,
+the ink 0.4-0.5 mm from the glyphs (the bar is 4), 164-201 s a job.
+
+**Calibration reads no ground truth** (the rover's `calibrate()` read its
+tip off the sim; PluggyPlan's "Road to hardware"). The plotter steers by
+the arm's encoders through its own kinematics, the slide's position, the
+quill's Hall sensor and the nose camera. The board's tags -- two 120 mm
+tags on the wall either side of it, level with its middle, 0.53 m apart --
+put its middle and its facing from a metre or more out: one look from
+1.0 m read its middle 1.9 mm across, its height 1.7 mm and its facing
+0.03°. Lying, the camera is under their view, so the face is found by
+TOUCH: the pen walks in at 5 mm/s at four points round the figure's middle
+until the quill reads 0.5 mm, and a plane through the four touches is the
+board in the arm's coordinates -- residuals 0.01-0.10 mm, the body's yaw
+off the board read to a tenth of a degree, its face to a millimetre. (The
+pen's point is its shaft's rounded end, `rack.PEN_TIP_R` past the tip's
+site: counted from the site, every face read 2 mm short.) Nothing needs scaling: the
+carriage is a lead screw with its own position sense, and the height is the
+arm's kinematics. `tests/test_drawing.py` flies the plotter against a
+perfect arm with the sim's records of the tip answering nonsense, and every
+command comes out the same; the rover's per-stroke re-zero read the tip, so
+it is gone, and lying the strokes need none (a house's seven strokes 0.53).
+
+**What shaped it, each measured before it was believed:**
+- **The lift off and the press on are no travel.** Recorded as travel
+  rows, the pen's own way off the board counted as ink laid travelling:
+  51 % of a one-stroke figure, past the evaluator's 25 %, and every drawing
+  would have failed "the pen did not lift". Only the move ACROSS is a
+  travel row.
+- **Face the board's middle, not its facing.** A board found by one tag
+  faces where that tag was seen from, up to 6° out: squared to that from
+  0.1 m off its axis, the other tag was past the camera's edge and the
+  approach ended "lost" (1 of 3). Facing the middle, both tags fall within
+  ±21° from the look point.
+- **The walk in is what lines the body up.** From a look point 1.0 m out
+  (0.42 m of walk) one of six lay down 5 cm off the board's axis and 5.5°
+  askew, the figure 47 mm off its middle; a two-digit answer has 9.5 mm a
+  side to spare in the carriage's stroke. From 1.4 m (0.8 m of walk, the
+  rack's is a metre) and with the rack's line-up gate (2 cm, 4°, else back
+  out and in again), six of six lay within 6 mm, and the figure goes on the
+  board's middle as far as the carriage lets it.
+- **The board before the pen.** A body carrying a tool turns at `W_CARRY`,
+  and a fresh robot searching the house with the pen aboard did not find
+  the bedroom's board in 300 s; empty-handed, with the language's whole
+  600 s, it did in 506 s (eight viewpoints round the house's address, in the
+  hall). After the day's 240 s explore both boards were in its memory, and
+  confirming one took 0-17 s. So a job finds its board first, then fetches
+  the pen.
+- **A walk's first turn is no stagnation.** After a drawing the rack is
+  behind the robot, and carrying the pen it turns at most `W_CARRY`: the
+  half-turn took 9 s of the 10 a walk may go without progress along its
+  route, and the stow after the energy spike's second drawing on the
+  living room's board gave up "stalled" as it finished turning, every time
+  that day was flown (the loop's own return then hung the pen back). The navigator now starts that clock once the walk has
+  faced its route (`navigator.AIMED_RAD`), for 10 s at most: a body that
+  cannot turn stalls 20 s after it set out, never at its patience.
+- **A fall ends the drawing.** It folds the arm and throws the pen; the
+  plotter stops aiming the arm the step the body falls -- its fall counter
+  moves -- or holds the pen no more (`PenPlotter.fell`), or it would hold
+  the fork out through the get-up. ⚠ Not its posture alone (the review):
+  a fall on the walk in was up and lying again by the stance, and it
+  probed the board with an empty fork, reading the quill of the pen on the
+  floor. So a drawing lies down only where it can draw -- the pen aboard,
+  its re-face not lost, in time, not asked to stop -- and the interrupt is
+  asked before it lies down and before every stroke. The drawing AT the
+  board -- the walk in, lying, the strokes -- is `working`, as a swap at
+  its bay is: a restart's save waits it out, and the boards' heights ride
+  a restart with the places.
+- **A job is graded on the ink IT laid.** Only the first ink erases a
+  board, so a program's errand reads the board before it runs, as the
+  rover's native errand did (`scoring.board_before`): read without it (the
+  cage's reading alone), a job that inked nothing was paid for the drawing
+  already up -- "correct, 0.0 mm from the glyphs", on the stub.
+
+**Energy** (`energy_spike.py --actions draw:whiteboard_a,...`, each from
+the dock with the board remembered, at the dearest figure its kind is
+offered with -- `lifecycle.DEAREST_FIGURE`):
+
+| board | draw (a house) | artwork (the robot) | answer ("88") |
+|---|---|---|---|
+| the living room's, `whiteboard_a` | 2.518 Wh, 187 s | 2.613, 195 | 2.448, 168 |
+| the bedroom's, `whiteboard_b` | 3.397, 222 | 3.188, 217 | 3.315, 204 |
+
+48-58 W over the job, against the explore's 87: most of a job is spent
+lying down. The kinds' own figures (`TaskKind.estimate_wh`) carry the
+bedroom's, the dearer.
+
+**What is true now:** the served quadruped draws on both whiteboards from
+a job: `draw_figure`, `rate_artwork` and `whiteboard_answer` are offered on
+`home_quad`, each a program over the step vocabulary (find, fetch, draw,
+stow; `lifecycle.draw_program`), and `draw` is a legs verb a procedure may
+call where the world has boards, a rack and places. `tests/test_drawing.py`
+pins each rule above; the flown tables are `draw_spike.py`'s.
 
 ## Debugging workflow that worked
 

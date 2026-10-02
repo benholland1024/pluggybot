@@ -228,6 +228,16 @@ class Body(abc.ABC):
     pad) and `why`."""
 
   @abc.abstractmethod
+  def draw_routine(self, board: str, program, patience: float, stop=None,
+                   on_stroke=None) -> Routine:
+    """Draw `program` (a `strokes.StrokeProgram`) on the whiteboard
+    `board`, found by its tags, the pen on the fork (issue #406): walk to
+    it, take its stance, find its face and draw, within `patience` s;
+    `stop` as `find_tag_routine`'s, asked between strokes too, and
+    `on_stroke(i, points, program)` hears each stroke's ink. Returns its
+    record: `drew` and `why`, and the figure's stats where it drew."""
+
+  @abc.abstractmethod
   def hide_routine(self, away_from: tuple[float, float], reach_m: float,
                    clear_of_m: float, patience: float, stop=None) -> Routine:
     """Hide from a robot counting at `away_from` (issue #404, hide and
@@ -355,12 +365,6 @@ class Body(abc.ABC):
   def seated_on(self, module: str) -> str | None:
     """Which robot in this world has `module` seated on its coupling, by
     root, in model order -- or None. The module is the world's."""
-
-  @abc.abstractmethod
-  def tool(self, module: str, **kw):
-    """The driver that works `module` from this body, or None for a module
-    it has no driver for (the quadruped has none yet: #406, #407). A new one
-    every call."""
 
   #: The bay a swap is working at, by station y, from its first drive to
   #: its verdict (issue #347); None otherwise.
@@ -684,10 +688,15 @@ class StubBody(Body):
     #: the places it knows (a test sees them in, `places.see`), and the tags
     #: a find or a press was asked for, in order, and the true deaths
     from pluggybot.mapping.places import Places
-    from pluggybot.rack.tags import PLATE_TAG_IDS
-    self.places = Places(ids=PLATE_TAG_IDS)
+    from pluggybot.rack.tags import BOARD_TAG_IDS, PLATE_TAG_IDS
+    self.places = Places(ids=(*PLATE_TAG_IDS,
+                              *(t for ids in BOARD_TAG_IDS.values() for t in ids)))
     self.found: list[int] = []
     self.pressed: list[int] = []
+    #: ...each drawing (board, program name) it was asked for, and whether
+    #: it draws (a test sets it): the program's own strokes as its ink
+    self.drew: list[tuple[str, str]] = []
+    self.draws = False
     #: ...and each hide (from where, its reach, how far clear) and each
     #: search (from where, its reach) it was asked for (issue #404)
     self.hid_from: list[tuple] = []
@@ -778,6 +787,21 @@ class StubBody(Body):
     known = self.places.get(tag) is not None
     return {"tag": int(tag), "pressed": known,
             "why": "pressed" if known else "not found", "attempts": []}
+    yield
+
+  def draw_routine(self, board, program, patience, stop=None, on_stroke=None):
+    """Drawn at once where the test said it draws, the figure exactly:
+    the stub has no pen and no board."""
+    self.drew.append((board, getattr(program, "name", "")))
+    if not self.draws:
+      return {"board": board, "drew": False, "why": "not found"}
+    lines = [list(s) for s in program.strokes]
+    for i, line in enumerate(lines):
+      if on_stroke is not None:
+        on_stroke(i, line, program.name)
+    return {"board": board, "drew": True, "why": "drew", "strokes": len(lines),
+            "strokes_drawn": len(lines), "inked_fraction": 1.0,
+            "travel_ink_fraction": 0.0, "shape_rms_mm": 0.0, "form_rms_mm": 0.0}
     yield
 
   def hide_routine(self, away_from, reach_m, clear_of_m, patience, stop=None):
@@ -878,9 +902,6 @@ class StubBody(Body):
 
   def seated_on(self, module):
     return self.handle.root if self.tool_powered(module) else None
-
-  def tool(self, module, **kw):
-    return None
 
   def swap_trace(self) -> str:
     return "a stub body swaps nothing"

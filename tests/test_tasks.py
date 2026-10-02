@@ -497,7 +497,7 @@ def test_the_overseer_sees_what_a_job_pays_but_not_what_it_is_worth_deciding():
   task = offered(b, ttl=100.0)
   ctx = b.context(now=10.0, pack_wh=0.2)
   assert ctx == []                        # unaffordable ones are not shown
-  ctx = b.context(now=10.0, pack_wh=2.0)
+  ctx = b.context(now=10.0, pack_wh=4.0)
   assert ctx[0]["id"] == task.id
   assert ctx[0]["claimable"] is True
   assert ctx[0]["pays"] == TABLE["draw"].base + TABLE["draw"].bonus

@@ -84,6 +84,26 @@ out first, so a request is still sent twice. No header change beyond
 `accepts`; `build.eyes` still names the model the pictures are handed to.
 No bump, and the fixtures are not re-recorded: no recorded run has a mind.
 
+### 0.21.0, additive: drawing on legs (the boards' tags; the pen built; the boards' jobs)
+
+pluggybot #406, the whiteboards back on legs. No shape a consumer reads
+changes; three things are new beside it.
+
+- **Each whiteboard has two tags on the wall either side of it** in the
+  quadrupeds' house, static bodies of the world's: `whiteboard_a_tag38`,
+  `whiteboard_a_tag39`, `whiteboard_b_tag40`, `whiteboard_b_tag41` (materials
+  `tagmat38..41`, textures `tagtex38..41.png`) -- what the robots find a
+  board by.
+- **The pen is built**: `module_pen` gains two DYNAMIC child bodies,
+  `module_pen_carriage` (its slide across the module) and `module_pen_quill`
+  (the sprung pen on it), so both stream a pose in every keyframe.
+- **The boards' three jobs are offered on `home_quad`**, on every arm --
+  the boards are the world's furniture, and a question still waits for a
+  mind to answer it (`whiteboard_answer`, `draw_figure`, `rate_artwork`), each offer with
+  the house's `address` and the board's `directions`; their ink is the
+  `draw`, `board_snapshot` and `board_cleared` events the rover's was. No
+  fixture carries a job (the pair's recording has no mind).
+
 ### 0.21.0, additive: a plate pressed off its errand (`press`); the lab on legs
 
 pluggybot #403, the first paid job on legs. The lab is in `home_quad` now

@@ -93,11 +93,13 @@ passing test, or to a branch the lifecycle already had (`overseer.ACTIONS`):
 | `care` | go to the lab and do one thing for the mouse that pays nothing: the feed plate, the toy plate, or (not on legs) company beside the cage (issue #226; where there is a lab, §2f) | `care`, `real` |
 | `look` | stand still while the website renders a picture from the head camera's pose; it arrives on the next turn as `seen`, an image beside the text, at most `MAX_LOOK_RUN` (2) in a row (issue #275, §2h) | — |
 
-† A tool errand, and no errand on legs fetches a tool yet: `Menu.available()`
-drops all five where the world's config says `tools` is off, which
-`home_quad` does (issue #387), until drawing (#406) and the other tools
-(#407) come back on the arm. The quadruped's menu is `take_task`, `explore`,
-`charge`, `idle`, `recall`, `procedure`, `care` and `look`.
+† A tool errand, which no menu on legs offers: `Menu.available()` drops all
+five where the world's config says `tools` is off, which `home_quad` does
+(issue #387). Drawing came back on the arm (#406) as the boards' three
+jobs, taken with `take_task`, and as the procedure verb `draw` -- never as
+these errands; the other tools are #407's. The quadruped's menu is
+`take_task`, `explore`, `charge`, `idle`, `recall`, `procedure`, `care` and
+`look`.
 
 Paperwork that rides any of them and costs no turn is listed where it is
 designed: the memory verbs (§7), the standing order and the event map

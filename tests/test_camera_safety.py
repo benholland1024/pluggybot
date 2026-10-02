@@ -31,15 +31,17 @@ import pytest
 from pluggybot.home import world as home
 from pluggybot.legs import world as lw
 from pluggybot.rack.tags import (
-  BLOCK_TAG_IDS, DOCK_TAG_IDS, DOCK_TAG_SIZE, LEGS_RACK_TAG_IDS, MASS_TAG_IDS,
-  PLATE_TAG_IDS, TagDetector,
+  BLOCK_TAG_IDS, BOARD_TAG_IDS, DOCK_TAG_IDS, DOCK_TAG_SIZE, LEGS_RACK_TAG_IDS,
+  MASS_TAG_IDS, PLATE_TAG_IDS, TagDetector,
 )
 
 ROOT = Path(__file__).parent.parent
 
 #: Every id the home world may legally decode: its dock's, its rack's, the
-#: lab's plate signs, the tower's blocks and the bench's masses.
+#: lab's plate signs, the whiteboards' pairs, the tower's blocks and the
+#: bench's masses.
 LEGAL_IDS = frozenset({*DOCK_TAG_IDS, *LEGS_RACK_TAG_IDS, *PLATE_TAG_IDS,
+                       *(t for ids in BOARD_TAG_IDS.values() for t in ids),
                        *BLOCK_TAG_IDS, *MASS_TAG_IDS})
 
 #: PnP range vs ground-truth distance, worst case, clean world. Measured on
