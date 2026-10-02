@@ -263,7 +263,9 @@ off it: the family on the menu, the two fields and the tokens in the schema,
 `PROCEDURE_RULE` in the prompt; a menu no mind was built over has none of it.
 ⚠ The rule's worked example must not show a survival policy — no charge, no
 battery threshold, no rack — for `EVENT_MAP_RULE`'s reason: it would hand the
-agent the answer the arm is measured on.
+agent the answer the arm is measured on. And it compiles on its world as
+served (#434; a test compiles the rule's own text, never a copy): an example
+the validator refuses teaches the robot a refusal.
 
 **A challenge is finished by saying so** (issue #207). The tower
 (`stack_tower`, Challenges.md §7) is the first job with no errand behind

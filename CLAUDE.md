@@ -248,7 +248,8 @@ save a filmstrip PNG named after the script.
   their fields. No rule hands the agent an answer: most PRESCRIBE NOTHING
   about using their power (a test reads each), and a worked example
   (procedures, the event map, the workshop) may not show charge, a battery
-  threshold or the rack.
+  threshold or the rack. The procedure rule's example compiles on its world
+  as served, and the event map's worked rows parse against the menu (#434).
 - **The overseer is OFF by default** (`--overseer`), and the loop is
   unchanged without it: there **charge priority stays in code** as three
   rails, `needs_charge` (the floor), `_afford_next` (prices the next errand)

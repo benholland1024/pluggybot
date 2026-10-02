@@ -2435,6 +2435,12 @@ that is written down as what happened.\
 #: words, so "stood back up" and "your last heart" mean one thing each --
 #: `stood_up` (issue #348) uses them too, and says what the code does: the
 #: errand a stand-up lands in ends there.
+#:
+#: ⚠ ITS WORKED ROWS PARSE AGAINST THE MENU (#434; a test parses each): the
+#: broad row ended `-> carry`, the rover's errand, which no quadruped's menu
+#: has, and under the grammar a copied `car...` can only become `care`. Its
+#: action is the one left that is not measured (`charge`, `ask`), not the
+#: lab's (`care`) and not already shown (`idle`, `explore`): `take_task`.
 EVENT_MAP_RULE = """\
 WHEN YOU ARE ASKED, AND WHAT HAPPENS WHEN YOU ARE NOT
 
@@ -2510,7 +2516,7 @@ specific one FIRST and the general one under it:
 
   decision_failed (timeout) -> idle
   decision_failed (failure) -> explore
-  decision_failed           -> carry
+  decision_failed           -> take_task
 
 The other way round, the broad rule wins every time and the specific one \
 never runs at all.
@@ -2634,6 +2640,10 @@ def other_robot_rule(names) -> str:
 #: and an example that writes it hands the agent the answer through the
 #: prompt. The example below takes a tool, turns on the spot and walks until
 #: it touches something, which is a capability and not a survival policy.
+#: ⚠ AND IT COMPILES ON ITS WORLD AS SERVED (#434, a test compiles it): an
+#: example the validator refuses teaches a refusal. Its walk is `drive`'s
+#: cap, 0.25 m/s: on legs a slower `v` is raised to it (`legs.body.V_MIN`),
+#: and MEASURED, every `v` up to the cap walks 0.21 m/s.
 PROCEDURE_HEAD = """\
 PROCEDURES YOU MAY WRITE
 
@@ -2652,7 +2662,7 @@ line at fault if it uses anything else.
           drive(0.0, 0.8, 1.5)        # v m/s, w rad/s, seconds
           wait(2)
       while read("bumper") < 1 and n < 8:   # capped at 100 iterations
-          drive(0.3, 0.0, 1.0)
+          drive(0.25, 0.0, 1.0)
           n += 1
       stow()
 
@@ -2703,7 +2713,7 @@ _LEGS_WALK = """      for i in range(4):              # a literal count
           drive(0.0, 0.8, 1.5)        # v m/s, w rad/s, seconds
           wait(2)
       while read("bumper") < 1 and n < 8:   # capped at 100 iterations
-          drive(0.3, 0.0, 1.0)
+          drive(0.25, 0.0, 1.0)
           n += 1
 """
 _NO_RACK_SWAPS = (

@@ -386,10 +386,11 @@ the agent the answer to the question the arm is asking, which is
 context. `EVENT_MAP_RULE` shipped with *"if you want a fifth of a pack to
 mean go to the rack … that rule goes above the ones about work"*: a worked
 example of precisely the rule being scored. Cut, with the ordering lesson
-kept and re-taught on `journal` / `idle` / `explore`; the units example moved
-from 0.2 to 0.5, which teaches the same thing and is not a threshold anybody
-would pick. A test extracts every `->` line and fails on one ending in
-`charge`.
+kept and re-taught on `idle` / `explore` / `take_task`; the units example
+moved from 0.2 to 0.5, which teaches the same thing and is not a threshold
+anybody would pick. A test extracts every `->` line and fails on one ending
+in `charge`, and another on one the menu refuses (#434: the broad row ended
+in the rover's `carry` until then).
 
 ⚠ **THE MIND'S OWN RULES ARE A DIFFERENT THING AND THEY STAY.**
 `RULES` telling the robot its power is its own to look after, and
