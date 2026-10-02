@@ -6164,6 +6164,8 @@ class HubLifecycle:
                  "nearField": self._next_near_field},
       "clearedRack": self._cleared_rack, "deferrals": dict(self._deferrals),
       "gradePending": self._grade_pending,
+      # ...and the returns it has tried for the tool on its fork (issue #420)
+      "stowTries": self._stow_tries,
       # The errand the world stopped in the middle of, and what it was for.
       "errand": (None if errand is None else
                  {"name": errand.name, "taskId": errand.task_id,
@@ -6222,6 +6224,7 @@ class HubLifecycle:
       self._tilted_since = state.get("tiltedSince")
       self._fall = state.get("fall")
       self._cleared_rack = bool(state.get("clearedRack"))
+      self._stow_tries = int(state.get("stowTries", 0))
     self.dead = dict(state["dead"]) if state.get("dead") else None
     self.survival_since = float(state.get("survivalSince", self.survival_since))
     self._last_ask_t = float(state.get("lastAskT", self._last_ask_t))
@@ -6335,7 +6338,9 @@ class HubLifecycle:
 
   def _stow_after_restart_routine(self) -> Routine:
     """A module the restart left on the fork goes home first (issue #345):
-    abort means stow (#116), and a restart ended the errand holding it."""
+    abort means stow (#116), and a restart ended the errand holding it.
+    Only an errand's (`_day_routine`): between errands a tool on the fork is
+    the loop's, as it would have been had nothing stopped (#420)."""
     from pluggybot.procedure import steps as procedure
     held = procedure._carried(self)
     if held is None:
@@ -6369,17 +6374,20 @@ class HubLifecycle:
   def _stow_retry_routine(self) -> Routine:
     """Take the tool on the fork back to its bay (issue #346), through the
     same stow a procedure's `stow()` runs -- the carry configuration, the
-    way home, and the bay wait inside the swap -- and say how it went."""
+    way home, and the bay wait inside the swap -- and say how it went. It
+    counts once it has run (#420): one a restart cut short is tried again
+    under its own number."""
     from pluggybot.procedure import steps as procedure
     held = procedure._carried(self)
-    self._stow_tries += 1
+    tries = self._stow_tries + 1
     self.stow_retries += 1
     self.module = held
     self.state = "SWAP_RETURN"
-    self._say(f"SWAP_RETURN again ({self._stow_tries}/{STOW_RETRIES}): "
+    self._say(f"SWAP_RETURN again ({tries}/{STOW_RETRIES}): "
               f"{held} is still on my fork -- hanging it back before "
               "anything else")
     verdict = yield from procedure._stow(self, {})
+    self._stow_tries = tries
     self._remember(f"{held} was still on my fork after a failed return; "
                    + ("I hung it back on its bay" if verdict["ok"] else
                       f"I tried again and could not: {verdict['reason']}"
@@ -6789,7 +6797,7 @@ class HubLifecycle:
     held = self._resume_jobs(resumed["errand"] if resumed is not None else None)
     if resumed is not None:
       self.errands = self._preset_left(resumed) + held
-      if resumed["inPlace"] and self.dead is None:
+      if resumed["inPlace"] and self.dead is None and resumed["errand"] is not None:
         # a stow the robot dies in is ended by its stand-up, as in the loop
         # (issue #348): a seated tool no longer holds the timer off
         yield from self._until_stood_up_routine(self._stow_after_restart_routine())

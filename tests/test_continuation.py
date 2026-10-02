@@ -13,6 +13,7 @@ sensors stepping on -- on the served quadruped. The flown parity check is
 """
 
 import json
+from types import SimpleNamespace
 
 import mujoco
 import numpy as np
@@ -20,8 +21,10 @@ import pytest
 
 from pluggybot import continuation, tick
 from pluggybot.economy.tasks import TaskBoard
-from pluggybot.lifecycle import (QUAD_HOME, HubLifecycle, cage_errand, task_board,
-                                 world_config)
+from pluggybot.lifecycle import (QUAD_HOME, STOW_RETRIES, HubLifecycle, cage_errand,
+                                 task_board, world_config, world_facts)
+from pluggybot.mission.errand import programmed_errand
+from pluggybot.procedure import lang
 from pluggybot.mind.thoughts import HISTORY
 from pluggybot.perception.lidar import robot_geoms
 from pluggybot.robot import world_spec
@@ -85,17 +88,18 @@ def _history(life) -> list[str]:
   return [ln for ln in life.thoughts.texts[HISTORY].splitlines() if ln.strip()]
 
 
-def _saved(life, tmp_path) -> continuation.Snapshot:
+def _saved(life, tmp_path, last_step=None) -> continuation.Snapshot:
   path = tmp_path / "world.npz"
-  continuation.write(continuation.capture([life], life.world_fingerprint), path)
+  continuation.write(continuation.capture([life], life.world_fingerprint,
+                                          last_step=last_step), path)
   return continuation.read(path)
 
 
-#: A save between two of the walking policy's decisions. ⚠ One saved AT a
-#: decision parts at the first step after the restore (by ~1e-6): the policy
-#: reads the forward pass (`xmat`, the gyro), a step old in a running world
-#: and fresh after `put_physics`'s `mj_forward`.
-OFF_A_DECISION_S = 0.61
+#: A save AT one of the walking policy's decisions: 300 steps from a stand
+#: (`walker.every` 10). The policy reads the forward pass (`xmat`, the gyro)
+#: on the first step after the restore, which is why the last step is
+#: stepped again (#420).
+AT_A_DECISION_S = 0.6
 
 
 def _hold(life, seconds: float) -> None:
@@ -129,6 +133,43 @@ def test_the_physics_comes_back_exactly_and_the_warm_start_is_why():
 
   assert np.array_equal(again(drop_warm=False), want)
   assert not np.array_equal(again(drop_warm=True), want)
+
+
+def test_a_restore_steps_again_the_step_it_was_saved_after():
+  """A running world's forward pass -- its contacts, positions, sensors --
+  is the one its last step began with, a step behind its `qpos`, and
+  everything between two steps reads it: the walking policy deciding, a
+  fork's contacts. Forwarded fresh at the saved instant, a restore parted
+  wherever the policy decided first (#420). The save carries where that
+  step began and the restore steps it again: what a reader sees comes back
+  bit for bit. The premise half: forwarded at the instant, none of it
+  does; and a step whose input changed after it is not replayed."""
+  _, _, model, data = _world()
+  rng = np.random.default_rng(0)
+  last = continuation.LastStep(SimpleNamespace(model=model, data=data))
+  for _ in range(400):
+    data.ctrl[:] = rng.uniform(-0.5, 0.5, model.nu)
+    mujoco.mj_step(model, data)
+    last.hook()
+  index, arrays = continuation.physics(model, data, last)
+
+  def seen(d) -> list:
+    return [d.xpos, d.xmat, d.sensordata, d.qacc, d.actuator_force,
+            d.contact.geom[:d.ncon], d.contact.pos[:d.ncon]]
+
+  back = mujoco.MjData(model)
+  continuation.put_physics(model, back, index, arrays)
+  assert not all(np.array_equal(a, b) for a, b in zip(seen(back), seen(data)))
+  assert continuation.replay(model, back, index, arrays)
+  assert all(np.array_equal(a, b) for a, b in zip(seen(back), seen(data)))
+  assert np.array_equal(back.qpos, data.qpos) and back.time == data.time
+  # ...and a step whose input moved after it lands elsewhere: the saved
+  # state is put back, forwarded at the instant
+  moved = dict(arrays, ctrl=arrays["ctrl"] + 0.1)
+  other = mujoco.MjData(model)
+  continuation.put_physics(model, other, index, moved)
+  assert not continuation.replay(model, other, index, moved)
+  assert np.array_equal(other.qpos, data.qpos) and other.time == data.time
 
 
 def test_a_body_is_put_back_by_name_not_by_where_it_sits_in_the_state():
@@ -188,12 +229,17 @@ def test_a_restored_robot_senses_on_exactly_as_if_nothing_had_stopped(tmp_path):
   restore steps the same bodies AND paints the same maps. MEASURED, a
   scan's noise generator re-seeded at a restart painted a different map
   and the route off it parted 3 s later; the IMU, the odometry and the
-  depth camera have one each."""
+  depth camera have one each. Saved where the walking policy decides next,
+  which parted at once until the last step was stepped again (#420)."""
   life = _quad(tmp_path, near_field=True)
   start = world_config(QUAD_HOME)["start"]
   life.body.start_at(*start)
-  life.body.mission._drive(OFF_A_DECISION_S, 0.1, 0.4)
-  snap = _saved(life, tmp_path)
+  last = continuation.LastStep(life)
+  life.body.step_hooks.append(last.hook)
+  life.body.mission._drive(AT_A_DECISION_S, 0.1, 0.4)
+  walker = life.body.mission.walker
+  assert walker.steps % walker.every == 0          # it decides next
+  snap = _saved(life, tmp_path, last)
   life.body.mission._drive(0.6, 0.12, -0.3)
 
   back = _quad(tmp_path, near_field=True)
@@ -316,6 +362,78 @@ def test_a_world_that_carries_on_keeps_its_deadlines_on_its_own_clock(tmp_path):
                  ttl=720.0, t=3125.0)
   assert TaskBoard(path, rebase=False)[task.id].deadline == 3845.0
   assert TaskBoard(path)[task.id].deadline == 720.0
+
+
+# ---- a tool on the fork (issue #420) -------------------------------------------
+
+
+def _returns(life, day, passes: int) -> list[str]:
+  """What `day` narrates of the tool on the fork, driven to its
+  `passes`-th pass of the loop."""
+  said, seen = [], []
+  life.say_hooks.append(lambda t, line: said.append(line))
+
+  def stop():
+    seen.append(life.data.time)
+    if len(seen) == passes:
+      raise _Stop
+  life.at_loop_top.append(stop)
+  with pytest.raises(_Stop):
+    life.body.run(day)
+  return [ln for ln in said if "SWAP_RETURN" in ln or "on my fork" in ln]
+
+
+def _returns_fail(life):
+  """Every return this body makes leaves the tool on its fork."""
+  life.body.stow_tool_routine = lambda station_y, module: tick.result("arrived")
+  return life
+
+
+def test_a_tool_on_the_fork_between_errands_is_the_loops_after_a_restart(tmp_path):
+  """Saved between errands with a tool still on the fork after a failed
+  return, the robot carries on as the day flown straight through does: the
+  loop's next return, under the next number. The restart used to take it
+  home on its own first -- a return nobody counted -- and forget the count,
+  so every restart granted returns the straight day never had (#420)."""
+  life = _returns_fail(_stub(tmp_path))
+  life.body.holding = "module_lcd"
+  life._stow_tries = STOW_RETRIES - 1               # one return left
+  saved = []
+  life.at_loop_top.append(lambda: saved or saved.append(_saved(life, tmp_path)))
+  straight = _returns(life, life.begin(world_config(QUAD_HOME)["start"]), passes=2)
+  assert straight == [f"SWAP_RETURN again ({STOW_RETRIES}/{STOW_RETRIES}): "
+                      "module_lcd is still on my fork -- hanging it back before "
+                      "anything else"]
+
+  back = _returns_fail(_stub(tmp_path))
+  assert _returns(back, _restored(back, saved[0]), passes=2) == straight
+
+
+def test_a_return_a_restart_cut_short_is_made_again_under_its_number(tmp_path):
+  """A return counts once it has run: one the world stopped in the middle
+  of -- a keeper saves mid-walk -- is the next process's to make again,
+  not one already spent (#420)."""
+  life = _stub(tmp_path)
+  life.body.holding = "module_lcd"
+
+  def slow(station_y, module):
+    yield from life.body.hold_routine(1.0)
+    return "arrived"
+  life.body.stow_tool_routine = slow
+  cut = []
+
+  def stop() -> None:
+    if life.data.time >= 0.5 and not cut:
+      cut.append(_saved(life, tmp_path))
+      raise _Stop
+  life.body.step_hooks.append(stop)
+  with pytest.raises(_Stop):
+    life.body.run(life._stow_retry_routine())
+
+  back = _returns_fail(_stub(tmp_path))
+  assert _returns(back, _restored(back, cut[0]), passes=2) == [
+    f"SWAP_RETURN again (1/{STOW_RETRIES}): module_lcd is still on my fork -- "
+    "hanging it back before anything else"]
 
 
 # ---- History ---------------------------------------------------------------
@@ -500,23 +618,26 @@ def test_a_world_saved_mid_charge_says_the_charge_was_cut_short(tmp_path):
 def test_the_pair_steps_on_exactly_after_a_restart(tmp_path):
   """The parity rule on the deployed shape: two robots from one loop, the
   depth cameras on, the pair's encounters sensing -- the same walk after a
-  restore steps the same world and paints the same two maps."""
+  restore steps the same world and paints the same two maps, saved as the
+  keeper saves it (its last step kept) where both policies decide next."""
   from pluggybot.pair import build_pair
   cfg = world_config(QUAD_HOME)
   starts = (cfg["start"], cfg["start2"])
 
   def fly(lives):
     tick.run_many([(life.body.stepper,
-                    life.body.mission._drive_routine(OFF_A_DECISION_S, 0.15, w))
+                    life.body.mission._drive_routine(AT_A_DECISION_S, 0.15, w))
                    for life, w in zip(lives, (-0.3, 0.4))])
 
   lives = build_pair(QUAD_HOME, near_field=True)
   for life, start in zip(lives, starts):
     life.body.start_at(*start)
-  fly(lives)
   path = tmp_path / "world.npz"
-  continuation.write(continuation.capture(lives, lives[0].world_fingerprint), path)
+  keeper = continuation.Keeper(lives, path, every_s=1e9)    # saved when told
+  fly(lives)
+  assert keeper.save()
   snap = continuation.read(path)
+  assert "before" in snap.meta["physics"]
   fly(lives)
 
   back = build_pair(QUAD_HOME, near_field=True, resume=snap)
@@ -577,6 +698,9 @@ def test_a_restart_mid_swap_backs_out_and_says_so(tmp_path, monkeypatch):
   (found in review: "the restart left module_pen on my fork")."""
   from pluggybot.procedure import steps
   life = _stub(tmp_path)
+  life._errand_now = programmed_errand(              # a fetch, mid-pick
+    lang.compile_procedure('def job():\n  fetch("module_lcd")\n',
+                           world_facts(QUAD_HOME)), task="program", name="procedure")
   snap = _saved(life, tmp_path)
   monkeypatch.setattr(steps, "_carried", lambda life: "module_lcd")
   monkeypatch.setattr(steps, "_stow", lambda life, args: tick.result({"ok": True}))

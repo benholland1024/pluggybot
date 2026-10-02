@@ -10,6 +10,33 @@ observatory is NOT a result: it reports into the issue it informs.
 
 ## Periods
 
+### A restart steps its last step again, and a tool on the fork between errands is the loop's (#420) — opens when this PR is deployed
+
+**What changed in the world.** What happens AT a restart, and nothing else:
+a day flown straight through is bit-identical to staging's (every step,
+scan and tag read of two days compared). Two things:
+
+- A restore puts the bodies back and steps the step the save was taken
+  after again, from where it began. A running world's contacts, positions
+  and sensors are a step behind its `qpos`; computed fresh instead, the
+  walking policy deciding on the first step back (one save in ten) took a
+  slightly different action from the day that never stopped. That was a
+  perturbation of about 1e-6, not a behaviour anyone could see.
+- A tool on the fork BETWEEN errands is the loop's after a restart: the
+  count of returns tried is kept, and a return counts once it has run. Only
+  an errand the restart cut still sends its tool home first ("abort means
+  stow"). Before, every restart with a tool riding the fork took it home
+  uncounted and then granted `STOW_RETRIES` fresh returns, which the day
+  that never stopped did not have. So "the restart left X on my fork" is
+  said only for a cut errand, and otherwise the loop's own
+  `SWAP_RETURN again (n/2)` line is.
+
+**What the period is for.** Expect nothing visible. On legs a tool rides
+the fork between errands only after a procedure's `fetch` whose return
+failed twice. Around any `mission resumed`, read the `SWAP_RETURN again` and
+`the restart left` lines: a robot that gave up on a tool (`it rides my
+fork`) now keeps riding it across a restart, as it would have without one.
+
 ### The prompt's worked examples are ones the robot can write (#434) — opens when this PR is deployed
 
 **What changed in the world.** What the robots are TOLD, and only that:

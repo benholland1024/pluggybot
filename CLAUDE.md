@@ -229,7 +229,7 @@ save a filmstrip PNG named after the script.
 | `scripts/energy_spike.py` | what each errand COSTS, per world, on an oversized pack; `--write` folds it into `economy/energy.json`, `--reserve` measures the return-trip margin, `--actions` prices named acts; `--world home_quad` prices the quadruped's explore, dock and the lab's acts (no tool errand). Re-run after anything that changes what an errand does |
 | `scripts/unknown_spike.py` | #381's walking stage: a fresh quadruped (an empty map, its start pose) sent once to each zone, one process a walk: arrived or why not, the time, the walk against the true route, what planning cost; `--before` the planner before (mapped floor only, stand-ins), `--again` back and there again on the map it laid, `--unknown-cost X`, `--maps DIR` |
 | `scripts/drift_spike.py` | #386: believed against true pose over lab round trips, the quadruped's (the walking policy steered by the truth, two estimates on one walk, odometry alone and matched), and whether the lab door is open in the robot's own map; `--explore SECONDS --seed K [--rest S]` the loop's own explore, steered by the belief, then home to the dock (#422), `--explore-table` across seeds |
-| `scripts/determinism_spike.py` | is the world the same world twice? N scripted days hashed, first divergence attributed to GPU / decoder / raycast; `--pair`; `--compare DIR`; `--resume-at T` flies a day against one saved and carried on in a new process (#345) |
+| `scripts/determinism_spike.py` | is the world the same world twice? N scripted days hashed, first divergence attributed to GPU / decoder / raycast; `--pair`; `--compare DIR`; `--resume-at T` flies a day against one saved and carried on in a new process (#345), `--on-fork MODULE` with a tool on the fork whose returns fail (#420) |
 | `scripts/make_way_spike.py` | #415: the pair in the house on true-floor maps, one robot resting in a doorway and the other walking through it, one process a scene: the walk's end, the step aside (how far, how long, why it stopped), touches and falls; `--before` nobody asks, `--finished` the resting robot's day is over, `--scene A,B` |
 | `scripts/solve.py --feature mouse` | ladder A of #264, the paid feed on legs (#403): offered, claimed with a prediction, walked and graded by the job's own evaluator; `--pair`, `--n N`, `--from dock\|lab`; filmstrip `solve.png`. `--feature hide_and_seek` flies the pair's game (#404): offered as the cadence offers it, both roles claimed, each run from the queue the referee fills, the verdict banked; one game a scene (`--scene A,B`, `--swap` both ways round; `--find`, `--seek-s`, `--head-s` sweep the referee). The tower's and the bench's come back with the arm (#407) |
 | `scripts/board_png.py` | a whiteboard's ink as a PNG from the boards state file or a recording. ⚠ +lat is the viewer's LEFT, as in the site's `surfaces/board.ts`; the test pins it because every figure the pen draws is symmetric |
@@ -533,7 +533,10 @@ save a filmstrip PNG named after the script.
   TIME CONTINUES (`data.time` comes back with the bodies; nothing is rebased;
   the board loads with `rebase=False`; `max_sim_time` is a RUN's budget). ⚠
   BODIES BY NAME, never by `qpos` layout, with the solver's WARM START
-  (without it a step parts by 1e-12). A new piece of state that decides
+  (without it a step parts by 1e-12), and the LAST STEP STEPPED AGAIN from
+  where it began (#420; `LastStep`, `replay`): a running world's forward
+  pass is a step behind its `qpos`, and one forwarded fresh parted at the
+  walking policy's first decision. A new piece of state that decides
   anything goes in a `kept_state` / `restore_kept` pair beside its class, and
   `scripts/determinism_spike.py --resume-at T` must stay IDENTICAL after the
   restore. ⚠ A signal only ASKS (`Keeper.request_stop`); no save mid stand-up
@@ -544,7 +547,9 @@ save a filmstrip PNG named after the script.
   bodies or maps, and so does a save of another `MAP_EPOCH` (bumped when the
   kept maps are found laid wrong, #425); a save restored `MAX_RESUMES` (3)
   times without a new one is not trusted. ⚠ The errand in flight ends; its job does not (`_resume_jobs`;
-  `MAX_TAKE_UPS` 3). An offered challenge SETS OUT its props
+  `MAX_TAKE_UPS` 3), and a tool it held goes home first; between errands a
+  tool on the fork is the loop's, on the count of returns it kept (#420).
+  An offered challenge SETS OUT its props
   (`_set_out_props`). The hourly ceiling is still rooftop's `compose.yaml`;
   lifting it waits on #349.
 - **An admin can reach into world state, and every reach-in is recorded**
@@ -821,11 +826,10 @@ save a filmstrip PNG named after the script.
   (issue #405; `legs/arm.py`'s `ArmDriver`, `QuadMission.arm`): at its stow
   unless a program moved it, folded on a fall and before the rest reflex
   lies the body down. ⚠ ITS GRAVITY IS THE ARM'S OWN PLANAR MODEL, never the
-  forward pass: a restart forwards the world at the saved instant, where a
-  running world's step reads the kinematics one step old, so a controller
-  reading them EVERY step parts a resumed world at its first step (a policy
-  reads them only at a decision); and three Jacobians 122 columns wide were
-  43 of its 100 us a step (12.5 now). Its joints are the body axes
+  forward pass: three Jacobians 122 columns wide were 43 of its 100 us a
+  step (12.5 now), and a restore that cannot step its last step again
+  (`continuation.replay`, #420) forwards the world fresh, a step ahead of
+  what a running world reads. Its joints are the body axes
   `shoulder`/`elbow` (`axes.BODY_AXES`; `world_facts` gives each body its
   own) and `move` is a legs verb; the motors' `ctrl` is a TORQUE, so what an
   axis is held to is `Body.setpoint`. Instruments hold it through
