@@ -1300,7 +1300,10 @@ save a filmstrip PNG named after the script.
   FAILED VERDICT LEADS WITH THE ERRAND'S OWN FAILURE (#350;
   `evaluate(failed=)`), and a line after a failed drive ends with
   `HubLifecycle.drive_why`, one of `mission.DRIVE_GAVE_UP`'s four causes
-  (`tests/test_failure_words.py`). ⚠ A DECIDED `charge` or `explore` says
+  (`tests/test_failure_words.py`). ⚠ A failed `press` says the LAST TRY
+  THAT RAN, never one too short of time to begin (#439: all 24 failed live
+  presses read "out of time"); its tries are the log's `trace`, and it
+  leads a cage job's verdict. ⚠ A DECIDED `charge` or `explore` says
   how it ended in History (#424), and a charge that never docked is NOT a
   verdict: its `charge` row is on the wire, and a verdict would count it
   again as a failed task.

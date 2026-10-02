@@ -528,6 +528,61 @@ def test_a_press_steps_onto_a_plate_only_with_time_to_step_off_it(quad_world):
     body.close()
 
 
+def test_a_press_says_the_try_that_failed_and_never_one_that_did_not_begin(quad_world):
+  """#439: the first walk is handed all but `FINAL_S` of the patience, so a
+  walk that used it left the second try none, and that try's "out of time"
+  overwrote the walk's own cause -- 24 of 24 failed live presses, each
+  after 85 s. The press says the walk; a sign not in view from in front of
+  its plate, its look round ended by the time, says the sign; and where
+  both tries ran, the second's is what it says."""
+  body = _quad(quad_world, 25.0, 2.0, -math.pi / 2)
+  m = body.mission
+  tries = []
+
+  def walk(arrives):
+    def drive(x, y, timeout=90.0, stop=None):
+      tries.append(round(timeout, 1))
+      m.data.time += timeout + 0.01            # a walk ends on the step past its time
+      m.last_drive = {"why": "" if arrives else "timeout", "goal": (x, y),
+                      "seconds": round(timeout, 1), "shortM": 0.0 if arrives else 2.0}
+      return tick.result(arrives)
+    return drive
+
+  def blind():
+    m._place_look = (float(m.data.time), m.pose)
+    return []
+
+  try:
+    m.places.see(FEED, *_sign("feed"), 0.0, view=SOUTH, tag_facing=SOUTH)
+    m.face_routine = lambda h: tick.result(True)
+    m.drive_to_routine = walk(arrives=False)
+    rec = body.run(m.press_routine(FEED, patience=st.PRESS_PATIENCE_S))
+    assert tries == [st.PRESS_PATIENCE_S - lp.FINAL_S], "one walk, and no time for a second"
+    assert rec["why"] == "gave up", "the walk, not the try that never began"
+    [att] = rec["attempts"]
+    assert att["walk"]["why"] == "timeout" and att["why"] == "gave up"
+    assert att["at"] == [pytest.approx(25.0), pytest.approx(2.0)] and len(att["err"]) == 3
+    assert rec["leftS"] == pytest.approx(lp.FINAL_S, abs=0.05)
+    # ...a sign not in view from in front of its plate, the time out as it looked round
+    tries.clear()
+    m.drive_to_routine = walk(arrives=True)
+    m.look_for_places = blind
+    m._look_around_routine = lambda stop: tick.result(bool(stop()))
+    rec = body.run(m.press_routine(FEED, patience=st.PRESS_PATIENCE_S))
+    assert rec["why"] == "lost" and len(tries) == 1
+    assert rec["attempts"][0]["looked"] == "cut short" and "walk" not in rec["attempts"][0]
+    # ...and with time for both, the second try is the one it says
+    tries.clear()
+    m.drive_to_routine = lambda x, y, timeout=90.0, stop=None: (
+      tries.append(round(timeout, 1)) or tick.result(True))
+    m._look_around_routine = lambda stop: tick.result(False)
+    rec = body.run(m.press_routine(FEED, patience=st.PRESS_PATIENCE_S))
+    assert rec["why"] == "lost" and len(tries) == lp.PRESS_TRIES and "leftS" not in rec
+    assert [a["looked"] for a in rec["attempts"]] == ["all round"] * lp.PRESS_TRIES
+  finally:
+    body.close()
+
+
 def test_a_press_walks_in_from_its_standoff_as_the_look_there_left_it(quad_world):
   """#403: a sign first seen from 40 deg off its face knows its facing only
   by where it was seen from, so the first standoff is off the axis; the look
