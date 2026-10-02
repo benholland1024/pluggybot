@@ -647,8 +647,9 @@ save a filmstrip PNG named after the script.
   pair's recording, `scripts/two_robots.py --world home_quad --fast --pack
   demo --near-field --errands none,none --battery 0.22,1.0 --max-sim-time 600
   --record protocol/telemetry.home_quad_pair.jsonl.gz` (#387): NO
-  `--metabolism` there, and no `--tasks`: legs' one offer (`feed_mouse`,
-  #403) is a mind's, so a scripted recording's board would be empty. Format
+  `--metabolism` there, and no `--tasks`, so no fixture carries a job
+  (#406's whiteboard jobs are offered on every arm, the mouse's to a mind
+  alone). Format
   and versioning rules are in `protocol/README.md`; a `protocolVersion` bump
   is a deliberate two-repo event.
 - **The parts list is DATA, and the fixture is read off the sim** (issue #185;
@@ -1135,8 +1136,9 @@ save a filmstrip PNG named after the script.
   module BALANCES ON ITS PEG -- its carriage, the bill's L12-100 at its
   whole ±50 mm, runs under the plate (in front of it, as the rover's, the
   tool hung 16° off plumb on the rack). The body LIES in front of a board
-  to draw (standing on the policy the ink point wandered 3.6 mm in 30 s,
-  lying 0.08); a board is found by its two wall tags (`BOARD_TAG_IDS`, one
+  to draw (standing on the policy its torso drifted 5 mm in 30 s and a
+  square came out at 0.86 mm, lying 0.25 and 0.24); a board is found by its
+  two wall tags (`BOARD_TAG_IDS`, one
   fixture) and its FACE BY TOUCH, four probes until the quill's Hall sensor
   reads 0.5 mm. ⚠ THE STEERING READS NO GROUND TRUTH: where the tip is and
   what it touches are the WORLD's record (the trace, the ink, the stats),
@@ -1145,11 +1147,15 @@ save a filmstrip PNG named after the script.
   and the press on read 51 % travel ink, past the evaluator's 25). ⚠ A
   job FINDS its board before it FETCHES the pen (carrying, a body turns at
   `W_CARRY`), with the find's whole 600 s; and a walk's FIRST TURN to face
-  its route is no stagnation (`navigator.AIMED_RAD`: from the board to the
-  rack, carrying, the half-turn took 9 of its 10 s). A fall ends a drawing
-  and the plotter aims the arm no more (`PenPlotter.fell`). An answer's
-  figure is `answer:<digits>`, in its own errand's facts and never a
-  procedure's.
+  its route is no stagnation for `STAGNATION_S` (`navigator.AIMED_RAD`:
+  from the board to the rack, carrying, the half-turn took 9 of its 10 s).
+  ⚠ A FALL IS THE FALL COUNTER OR THE PEN GONE, never the posture alone
+  (`PenPlotter.fell`: up and lying again, a body probed the board with an
+  empty fork), and a drawing lies down only where it can draw. ⚠ A JOB IS
+  GRADED ON THE INK IT LAID: a program's errand reads the board before it
+  runs (`scoring.board_before`), or a job that inked nothing was paid for
+  the drawing already up. An answer's figure is `answer:<digits>`, in its
+  own errand's facts and never a procedure's.
 - **The sensors that feed an estimate are the parts', never the sim's**
   (issue #386; `perception/imu.py`, `perception/encoders.py`, Parts.md's
   table): an ICM-42688-P, the GDS68's CAN fields on the legs, the tilt off

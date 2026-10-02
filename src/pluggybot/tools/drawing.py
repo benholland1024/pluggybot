@@ -10,9 +10,10 @@ THE PLOTTER is two axes the robot has and one it acquires:
   pressure  the fork driven into the board onto the pen's sprung quill: the
             spring sets the force, the arm only how far in
 
-The body LIES in front of the board while it draws (`legs/draw.py`): lying,
-a pen held pressed for 30 s moved 0.08 mm, against 3.6 mm standing on the
-walking policy, which keeps turning (SimNotes, "Drawing on legs").
+The body LIES in front of the board while it draws (`legs/draw.py`): with a
+pen held pressed for 30 s its torso drifted 0.25 mm, against 5 mm standing
+on the walking policy, and a square came out at 0.24 mm of form error
+against 0.86 (SimNotes, "Drawing on legs").
 
 CALIBRATION READS NO GROUND TRUTH, which the rover's did (`rover-final`: it
 read its pen's tip off the sim, PluggyPlan's "Road to hardware"). What the
@@ -131,13 +132,15 @@ def board_tags_xml(name: str, board: Board) -> str:
 # ---- the pen, as the arm holds it ------------------------------------------------
 
 def tip_from_vertex() -> tuple[float, float]:
-  """The pen's tip off the fork's V vertex, (ahead, up) in the torso frame,
-  the module hanging plumb: its drawing (`legs.rack`), never measured off
-  the sim. A tool faces the robot, so its -x is the robot's ahead."""
+  """The pen's point off the fork's V vertex, (ahead, up) in the torso
+  frame, the module hanging plumb: its drawing (`legs.rack`), never measured
+  off the sim. A tool faces the robot, so its -x is the robot's ahead. ⚠
+  THE POINT, `PEN_TIP_R` past the tip site: with the site, every face the
+  probes found was 2 mm short (`test_the_board_is_found_by_touch_...`)."""
   from pluggybot.legs import rack as rk
   from pluggybot.legs.arm import ArmSpec
   from pluggybot.rack.coupling import PEG_ABOVE_BODY
-  ahead = -(rk.PEN_MOUNT_X - 0.008 - rk.PEN_LEN)
+  ahead = -(rk.PEN_MOUNT_X - 0.008 - rk.PEN_LEN) + rk.PEN_TIP_R
   up = ArmSpec().fork.seat_rise() - PEG_ABOVE_BODY + rk.PEN_RAIL_Z + rk.PEN_LINE_DZ
   return ahead, up
 
@@ -270,8 +273,8 @@ class PenPlotter:
     self.model, self.data = mission.model, mission.data
     self.arm, self.spec = mission.arm, mission.arm_spec
     self.on_stroke = on_stroke
-    #: `should_stop()`, asked BETWEEN strokes with the pen up (issue #116):
-    #: the one place in a drawing where stopping is legal.
+    #: `should_stop()`, asked before each stroke with the pen up (issue
+    #: #116): the one place in a drawing where stopping is legal.
     self.should_stop = None
     m = self.model
     self.pen_act = m.actuator(rk.PEN_ACTUATOR).id
@@ -287,10 +290,13 @@ class PenPlotter:
     self.trace: list[tuple[float, float, float, float, float, bool, int]] = []
     self.commanded: tuple = ()
     self._home: np.ndarray | None = None
-    #: The posture it draws in (lying, or the premise's standing): a body
-    #: that leaves it fell, and its fall folded the arm -- the plotter aims
-    #: it no more (`_aim`).
+    #: The posture it draws in (lying, or the premise's standing) and the
+    #: body's falls so far: a body that leaves it, falls, or holds the pen no
+    #: more fell, and its fall folded the arm -- the plotter aims it no more
+    #: (`_aim`). ⚠ NOT THE POSTURE ALONE: a fall on the way in was up and
+    #: lying again by the stance, and the pen it threw lay on the floor.
     self.posture = mission.posture
+    self._falls = mission.falls
 
   # ---- what the robot senses ---------------------------------------------------
 
@@ -319,10 +325,32 @@ class PenPlotter:
     lat, h, _ = self.board.local(self.data.site_xpos[self._tip])
     return lat, h
 
-  def _trace(self, stroke: int, cmd=(math.nan, math.nan)) -> None:
+  def _trace(self, stroke: int, cmd=None) -> None:
+    """One sample of the tip; `cmd`, the figure's point about its home, put
+    where the first press landed (`_mark_home`)."""
     lat, h = self.pen_board()
-    self.trace.append((float(self.data.time), lat, h, float(cmd[0]), float(cmd[1]),
+    c = (math.nan, math.nan) if cmd is None else (cmd[0] + self._home[0], cmd[1] + self._home[1])
+    self.trace.append((float(self.data.time), lat, h, float(c[0]), float(c[1]),
                        pen_on_board(self.model, self.data, self.board.geom), stroke))
+
+  def _mark_home(self, start) -> None:
+    """THE INSTRUMENT'S ALIGNMENT, never the plotter's: the figure the stats
+    score against sits where the first press landed (the WORLD says where),
+    so `shape` is the drawing's own error after that."""
+    if self._home is None:
+      self._home = np.subtract(self.pen_board(), start)
+
+  def _drawn(self, program, i: int) -> None:
+    """Stroke `i`'s ink to whoever records it (`on_stroke`)."""
+    if self.on_stroke is not None:
+      self.on_stroke(i, self.inked_polyline(i), getattr(program, "name", None))
+
+  def _report(self, n: int, drawn: int, stopped: str) -> dict:
+    """What a figure came to, off the WORLD's trace: `drew` is ink landed
+    (a stroke of two touching samples), never a press made."""
+    inked = sum(len(self.inked_polyline(i)) >= 2 for i in range(n))
+    return {"drew": inked > 0, "strokes": n, "strokes_drawn": drawn,
+            **({"stopped": stopped} if stopped else {}), **self.error_stats()}
 
   # ---- the motions --------------------------------------------------------------
 
@@ -334,8 +362,10 @@ class PenPlotter:
         self._trace(record)
 
   def fell(self) -> bool:
-    """Did the body leave the posture it draws in (a fall, its get-up)?"""
-    return self.mission.posture != self.posture
+    """Did the body fall since it took its stance, or lose the pen?"""
+    m = self.mission
+    return (m.posture != self.posture or m.falls != self._falls
+            or m.carrying != "module_pen")
 
   def _aim(self, x: float, z: float) -> bool:
     """The fork's vertex aimed at (x, z): False out of reach, or once the
@@ -464,7 +494,7 @@ class PenPlotter:
       if self.fell():
         stopped = "fell"
         break
-      if i and self.should_stop is not None and self.should_stop():
+      if self.should_stop is not None and self.should_stop():
         stopped = "interrupted"
         break
       c0, z0 = self._targets(*path[0])
@@ -484,11 +514,7 @@ class PenPlotter:
           break
         continue                       # out of reach: a gap, not the figure's end
       yield from self._still_routine(PRESS_SETTLE_S)
-      if self._home is None:
-        # THE INSTRUMENT'S ALIGNMENT, never the plotter's: the figure the
-        # stats score against sits where the first press landed (the WORLD
-        # says where), so `shape` is the drawing's own error after that
-        self._home = np.subtract(self.pen_board(), path[0])
+      self._mark_home(path[0])
       drawn += 1
       for (ay, az), (by, bz) in zip(path, path[1:]):
         steps = max(int(math.hypot(by - ay, bz - az) / DRAW_SPEED / ts), 1)
@@ -500,18 +526,16 @@ class PenPlotter:
           if not self._aim(self._x_at(c, z, PRESS_EXTRA), z):
             break
           yield from self.mission._twist_routine(0.0, 0.0, 0.0)
-          self._trace(i, (ly + self._home[0], lz + self._home[1]))
+          self._trace(i, (ly, lz))
         if self.fell():
           break
-      if self.on_stroke is not None:
-        self.on_stroke(i, self.inked_polyline(i), getattr(program, "name", None))
+      self._drawn(program, i)
       if self.fell():
         stopped = "fell"
         break
     z_now = self._goal_vertex()[1]
     yield from self.move_routine(self._x_at(self.carriage(), z_now, -LIFT), z_now)
-    return {"drew": drawn > 0, "strokes": len(strokes), "strokes_drawn": drawn,
-            **({"stopped": stopped} if stopped else {}), **self.error_stats()}
+    return self._report(len(strokes), drawn, stopped)
 
   def inked_polyline(self, stroke: int) -> list[tuple[float, float]]:
     """Where the tip was, board-local, for the samples of `stroke` that

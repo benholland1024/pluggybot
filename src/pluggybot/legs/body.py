@@ -1254,8 +1254,10 @@ class QuadMission(ToolSwap, PlaceWalk, BoardWork, MakeWay, GameWalk, Navigator):
                           self.depth.peer_rng.bit_generator.state],
              "match": match,
              # ...and the places it has found, with the map they are laid in
-             # (#419), and when and where it last looked for them
+             # (#419), the boards' heights (#406), and when and where it last
+             # looked for them
              "places": self.places.kept_state(),
+             "boardZ": self.kept_heights(),
              "placeLook": [None if math.isinf(self._place_look[0]) else self._place_look[0],
                            None if self._place_look[1] is None else list(self._place_look[1])]},
             arrays)
@@ -1337,6 +1339,7 @@ class QuadMission(ToolSwap, PlaceWalk, BoardWork, MakeWay, GameWalk, Navigator):
     # ...the places only with the map they were laid in (#419): a world
     # whose map did not come back has found nothing either
     self.places.restore_kept(state.get("places") if mapped else None)
+    self.restore_heights(state.get("boardZ") if mapped else None)
     look = state.get("placeLook") or [None, None]
     self._place_look = (-math.inf if look[0] is None else float(look[0]),
                         None if look[1] is None else tuple(float(v) for v in look[1]))

@@ -2974,21 +2974,28 @@ rover's pen length, 2.5). Fetched and hung back from the dock's approach,
 jittered, with a walk between: 6 of 6.
 
 **The stance is lying.** A pen pressed on a board's middle and held 30 s
-(`--sway`):
+(`--sway`, where the walk in stops; three starts each, jittered 1 cm and
+1°):
 
 | stance | the ink point wandered | the torso drifted | its yaw |
 |---|---|---|---|
-| lying (the rest posture, legs limp) | 0.08 mm across, 0.01 up | 0.2 mm | 0.003° |
-| standing on the walking policy | 3.6 mm across, 0.2 up | 3.8 mm | 0.34° |
+| lying (the rest posture, legs limp) | 0.11-0.43 mm across, 0.04 up | 0.24-0.27 mm | 0.03° |
+| standing on the walking policy | 0.35-1.0 mm across, 0.27-0.29 up | 4.8-5.2 mm | 0.01-0.04° |
 | crouched / held on the scripted gait | fell (crouched at 0.27 m) / spun round | -- | -- |
 
-The policy keeps turning when stopped (the rack's `SETTLE_DRIFT`); the
-scripted gait (`legs.scripted`) is a sizing instrument with no stance
+The policy never quite stops (the rack's `SETTLE_DRIFT`): standing, the
+torso backed straight off the board, 5.0-5.2 mm along its normal and
+0.09 across, which the sprung quill takes up, so the ink point wandered
+far less than the torso (placed 3.5 cm nearer, a first table had the
+torso turning 0.34° and the ink point 3.6 mm across). Over a whole figure
+it shows: a square standing came out at 0.86 mm, lying at 0.24 (below).
+The scripted gait (`legs.scripted`) is a sizing instrument with no stance
 controller to hold an arm held out. Lying costs 39 W less than standing,
-and from the floor -- the torso's centre `belly_depth` up, 0.55 m out of
-the face -- the arm reaches the board's whole height, pressed and lifted,
-the carriage at either end (`tests/test_drawing.py`). So the body walks
-in, lies down, draws, and stands up.
+and from the floor -- the torso's centre `belly_depth` up, 0.62 m out of
+the wall the board's tags are on, 0.60 out of its face -- the arm reaches
+the board's whole height, pressed and lifted, the carriage at either end
+(`tests/test_drawing.py`). So the body walks in, lies down, draws, and
+stands up.
 
 **The squares** (`draw_spike.py --n 6`: from 1.7 m out of whiteboard_a's
 face, jittered 0.2 m and 15°, the board's tags in its memory; the stats
@@ -3022,7 +3029,9 @@ put its middle and its facing from a metre or more out: one look from
 TOUCH: the pen walks in at 5 mm/s at four points round the figure's middle
 until the quill reads 0.5 mm, and a plane through the four touches is the
 board in the arm's coordinates -- residuals 0.01-0.10 mm, the body's yaw
-off the board read to a tenth of a degree. Nothing needs scaling: the
+off the board read to a tenth of a degree, its face to a millimetre. (The
+pen's point is its shaft's rounded end, `rack.PEN_TIP_R` past the tip's
+site: counted from the site, every face read 2 mm short.) Nothing needs scaling: the
 carriage is a lead screw with its own position sense, and the height is the
 arm's kinematics. `tests/test_drawing.py` flies the plotter against a
 perfect arm with the sim's records of the tip answering nonsense, and every
@@ -3060,13 +3069,25 @@ it is gone, and lying the strokes need none (a house's seven strokes 0.53).
   route, and the stow after the energy spike's second drawing on the
   living room's board gave up "stalled" as it finished turning, every time
   that day was flown (the loop's own return then hung the pen back). The navigator now starts that clock once the walk has
-  faced its route (`navigator.AIMED_RAD`); a turn under 10 s walks as it
-  did.
+  faced its route (`navigator.AIMED_RAD`), for 10 s at most: a body that
+  cannot turn stalls 20 s after it set out, never at its patience.
 - **A fall ends the drawing.** It folds the arm and throws the pen; the
-  plotter stops aiming the arm the step the body leaves the posture it
-  draws in (`PenPlotter.fell`), or it would hold the fork out through the
-  get-up. The drawing AT the board -- the walk in, lying, the strokes -- is
-  `working`, as a swap at its bay is: a restart's save waits it out.
+  plotter stops aiming the arm the step the body falls -- its fall counter
+  moves -- or holds the pen no more (`PenPlotter.fell`), or it would hold
+  the fork out through the get-up. ⚠ Not its posture alone (the review):
+  a fall on the walk in was up and lying again by the stance, and it
+  probed the board with an empty fork, reading the quill of the pen on the
+  floor. So a drawing lies down only where it can draw -- the pen aboard,
+  its re-face not lost, in time, not asked to stop -- and the interrupt is
+  asked before it lies down and before every stroke. The drawing AT the
+  board -- the walk in, lying, the strokes -- is `working`, as a swap at
+  its bay is: a restart's save waits it out, and the boards' heights ride
+  a restart with the places.
+- **A job is graded on the ink IT laid.** Only the first ink erases a
+  board, so a program's errand reads the board before it runs, as the
+  rover's native errand did (`scoring.board_before`): read without it (the
+  cage's reading alone), a job that inked nothing was paid for the drawing
+  already up -- "correct, 0.0 mm from the glyphs", on the stub.
 
 **Energy** (`energy_spike.py --actions draw:whiteboard_a,...`, each from
 the dock with the board remembered, at the dearest figure its kind is
@@ -3075,7 +3096,7 @@ offered with -- `lifecycle.DEAREST_FIGURE`):
 | board | draw (a house) | artwork (the robot) | answer ("88") |
 |---|---|---|---|
 | the living room's, `whiteboard_a` | 2.518 Wh, 187 s | 2.613, 195 | 2.448, 168 |
-| the bedroom's, `whiteboard_b` | 3.398, 222 | 3.188, 217 | 3.315, 204 |
+| the bedroom's, `whiteboard_b` | 3.397, 222 | 3.188, 217 | 3.315, 204 |
 
 48-58 W over the job, against the explore's 87: most of a job is spent
 lying down. The kinds' own figures (`TaskKind.estimate_wh`) carry the

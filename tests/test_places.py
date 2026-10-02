@@ -318,19 +318,23 @@ def test_places_ride_a_restart_with_the_map_and_go_with_it_at_a_true_death(quad_
     m.look_for_places()
     m.grid.grid[10:20, 10:20] = 3.0
     m.low[5, 5] = 3.0
+    m.restore_heights({"whiteboard_a": [0.93, 0.95, 0.94]})   # ...and a board's height (#406)
     state, arrays = m.kept_state()
     json.dumps(state)
     other = _quad(quad_world)
     assert other.mission.restore_kept(state, arrays)
     assert [(p.tag, p.x, p.y) for p in other.mission.places] == \
         [(p.tag, p.x, p.y) for p in m.places]
+    assert other.mission.board_height("whiteboard_a") == m.board_height("whiteboard_a") == 0.94
     # ...and a map that does not come back brings no places
     third = qb.QuadBody(quad_world, mujoco.MjData(quad_world), realtime=False,
                         grid_bounds=(-3, -3, 7, 7))
     assert not third.mission.restore_kept(state, arrays) and len(third.places) == 0
+    assert third.mission.board_height("whiteboard_a") is None
     third.close()
     body.forget_world()
     assert not m.grid.grid.any() and not m.low.any() and len(m.places) == 0
+    assert m.board_height("whiteboard_a") is None
     assert m.keep_out() is None
   finally:
     body.close()

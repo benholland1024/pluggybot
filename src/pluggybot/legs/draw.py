@@ -10,11 +10,12 @@ floor (the IMU's level, the legs' kinematics). Then the walk in, steered by
 the tags as a plate's press is (`rack.walk_in_twist`), to `STAND_M`; the tags
 leave the view in its last ~0.15 m, and that is walked on the belief.
 
-THE STANCE IS LYING. Standing on the walking policy the body keeps turning
-(the rack's `SETTLE_DRIFT`), and a pen held to the board wandered 3.6 mm in
-30 s; lying, 0.08 mm, and lying costs 39 W less. The lie-down moves the body
-`dock.LIE_SHIFT_M` back, so it stands that much nearer. From the floor the
-arm reaches the board's whole height (`tests/test_drawing.py`).
+THE STANCE IS LYING. Standing on the walking policy the body never quite
+stops (the rack's `SETTLE_DRIFT`): with a pen held to the board its torso
+drifted 5 mm in 30 s, lying 0.25, and a square came out at 0.86 mm of form
+error against lying's 0.24; and lying costs 39 W less. The lie-down moves
+the body `dock.LIE_SHIFT_M` back, so it stands that much nearer. From the
+floor the arm reaches the board's whole height (`tests/test_drawing.py`).
 
 THE BOARD BY TOUCH. Lying, the nose camera is under the tags' view, so the
 board's plane is found with the pen (`PenPlotter.calibrate_routine`), from
@@ -40,12 +41,15 @@ from pluggybot.tick import Routine
 #: board: from 1.0 m (0.42 m of walk) one of six lay 5 cm off its axis and
 #: 5.5 deg askew; the rack's walk in is a metre.
 LOOK_M = 1.4
-#: Lying, the torso's centre this far out of the face, m: the pen 0.50 ahead
-#: of it, inside the arm's reach at every row of the board, the front feet
-#: 0.30 m off the wall...
-LIE_M = 0.55
-#: ...so it stands this far out before it lies down (the lie-down's shift).
-STAND_M = LIE_M + dk.LIE_SHIFT_M
+#: Lying, the torso's centre this far out of the wall the board's tags are
+#: on, m (MEASURED 0.62-0.63 over four walk-ins; its face `BOARD_PROUD_M`
+#: nearer): the fork's vertex 0.55 ahead of it with the pen on the face,
+#: inside the arm's reach at every row of the board; the front feet 0.40 m
+#: off the face...
+LIE_M = 0.62
+#: ...so it stands this much NEARER before it lies down: lying moves the body
+#: back, away from what it faces (`dock.LIE_SHIFT_M`).
+STAND_M = LIE_M - dk.LIE_SHIFT_M
 #: The walk in: its budget, s, and how often it looks, s.
 WALK_IN_S = 20.0
 LOOK_EVERY_S = 0.25
@@ -126,6 +130,15 @@ class BoardWork:
     zs = self._board_z.get(name)
     return float(np.median(zs)) if zs else None
 
+  def kept_heights(self) -> dict:
+    """The boards' heights' readings, for a restart (#345): where the pen is
+    aimed is decided off them."""
+    return {name: [float(z) for z in zs] for name, zs in self._board_z.items()}
+
+  def restore_heights(self, kept: dict | None) -> None:
+    self._board_z = {name: deque((float(z) for z in zs), maxlen=HEIGHT_LOOKS)
+                     for name, zs in (kept or {}).items()}
+
   # ---- the drawing ----------------------------------------------------------------
 
   @contextlib.contextmanager
@@ -143,14 +156,14 @@ class BoardWork:
     """Draw `program` on the board `name` the robot has found, the pen on
     its fork (the module docstring): `board` is the world's (`drawing.Board`,
     for the record of the ink, never the steering). `stop` is the robot's
-    own interrupt, asked on the walk and between strokes; `on_stroke(i,
-    points, program)` hears each stroke's ink. `stance` "stand" draws on
-    its feet, the walking policy holding it: the measurement's premise
-    (`scripts/draw_spike.py --stance stand`). Returns its record: `drew`,
-    `why` ("drew", "no pen", "not found", "gave up", "lost", "never
-    touched", "out of time", "interrupted", "fell", "not drawn"), each walk in's
-    stop against the stance (`lineups`), the plotter's stats and its
-    calibration (`cal`)."""
+    own interrupt, asked on the walk, before it lies down and before each
+    stroke; `on_stroke(i, points, program)` hears each stroke's ink.
+    `stance` "stand" draws on its feet, the walking policy holding it: the
+    measurement's premise (`scripts/draw_spike.py --stance stand`). Returns
+    its record: `drew`, `why` ("drew", "no pen", "not found", "gave up",
+    "lost", "never touched", "out of time", "interrupted", "fell", "not
+    drawn"), each walk in's stop against the stance (`lineups`), the
+    plotter's stats and its calibration (`cal`)."""
     from pluggybot.navigator import DRIVE_STOPPED
     from pluggybot.tools.drawing import PenPlotter
     t0 = float(self.data.time)
@@ -178,6 +191,8 @@ class BoardWork:
       **({"stop": stop} if stop is not None else {}))
     if stop is not None and (self.last_drive or {}).get("why") == DRIVE_STOPPED:
       return done("interrupted")
+    if self.carrying != "module_pen":
+      return done("fell")              # ...on the way, and the fall threw the pen
     if not arrived and math.hypot(sx - self.pose[0], sy - self.pose[1]) > 0.5:
       rec["walk"] = self.last_drive
       return done("gave up")
@@ -185,6 +200,7 @@ class BoardWork:
       return done("lost")
     with self._at_the_board():
       rec["lineups"] = []
+      why, used = "", {}
       for attempt in range(WALK_IN_TRIES):
         rec["walkIn"] = yield from self._board_walk_in_routine(name)
         yield from self._drive_routine(STOPPED_S, 0.0, 0.0)
@@ -197,27 +213,36 @@ class BoardWork:
         yield from self._back_out_by_routine(LOOK_M - STAND_M, WALK_IN_S, rk.APPROACH_V,
                                              dk.BACK_OUT_SETTLE_S)
         if not (yield from self._face_board_routine(name)):
+          why = "lost"
           break
-      if stance == "lie":
-        yield from self.rest_routine()
-      est = self._board_estimate(name)
-      rec["est"] = [round(v, 4) for v in (est.x_face, est.y_mid, est.z_mid)]
-      plotter = PenPlotter(self, board, on_stroke=on_stroke)
-      plotter.should_stop = stop
-      self.last_plotter = plotter
-      cal = yield from plotter.calibrate_routine(est)
-      rec["cal"] = cal
-      used: dict = {}
-      if not cal.get("ok"):
-        why = "never touched"
-      elif left() <= 0.0:
-        why = "out of time"
-      else:
-        used = yield from plotter.draw_program_routine(program)
-        why = ("fell" if used.get("stopped") == "fell"
-               else "drew" if used.get("drew")
-               else "interrupted" if used.get("stopped") == "interrupted" else "not drawn")
-      yield from self._off_the_board_routine(plotter)
+      # ...and it lies down only where it can draw: never at the look point
+      # a lost re-face left it at (every probe out of reach), past its
+      # patience, asked to stop, or without the pen a fall threw
+      why = why or ("fell" if self.carrying != "module_pen"
+                    else "out of time" if left() <= 0.0
+                    else "interrupted" if stop is not None and stop() else "")
+      if not why:
+        if stance == "lie":
+          yield from self.rest_routine()
+        est = self._board_estimate(name)
+        rec["est"] = [round(v, 4) for v in (est.x_face, est.y_mid, est.z_mid)]
+        plotter = PenPlotter(self, board, on_stroke=on_stroke)
+        plotter.should_stop = stop
+        self.last_plotter = plotter
+        cal = yield from plotter.calibrate_routine(est)
+        rec["cal"] = cal
+        if plotter.fell():
+          why = "fell"
+        elif not cal.get("ok"):
+          why = "never touched"
+        elif left() <= 0.0:
+          why = "out of time"
+        else:
+          used = yield from plotter.draw_program_routine(program)
+          stopped = used.get("stopped")
+          why = (stopped if stopped in ("fell", "interrupted")
+                 else "drew" if used.get("drew") else "not drawn")
+        yield from self._off_the_board_routine(plotter)
       yield from self.stand_routine()
     yield from self._back_out_by_routine(BACK_OUT_M, BACK_OUT_S, rk.APPROACH_V,
                                          dk.BACK_OUT_SETTLE_S)
@@ -278,5 +303,7 @@ class BoardWork:
     x, z = plotter._goal_vertex()
     yield from plotter.move_routine(x - CLEAR_BACK_M, z, carriage=0.0)
     yield from plotter.move_routine(*am.CARRY)
+    if plotter.fell():
+      return
     self.arm.aim(*am.CARRY_Q)
     yield from self._drive_routine(0.5, 0.0, 0.0)

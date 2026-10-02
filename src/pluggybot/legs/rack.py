@@ -265,6 +265,9 @@ PEN_LINE_DZ = 0.012
 #: it, 36 mm short of the rack's back board with the tool hung, which leans
 #: 0.6 deg (its CoM 0.3 mm ahead of the peg).
 PEN_LEN = 0.042
+#: The pen's radius, m: its point is the shaft's rounded end, this far past
+#: the `pen_tip` site at the end's centre -- what touches a board first.
+PEN_TIP_R = 0.0025
 #: The sprung quill: the pen's pressure is the spring's, not the arm's
 #: position. Soft and long, the rover's: at 200 N/m the pen lifted off where
 #: the arm drooped (0 % ink at the top of a figure); at 60 N/m, 10 mm in is
@@ -304,7 +307,7 @@ def pen_face() -> str:
     f'<joint name="{PEN_QUILL_JOINT}" type="slide" axis="1 0 0" '
     f'range="{_v(0, PEN_QUILL_TRAVEL)}" stiffness="{_f(PEN_QUILL_STIFFNESS)}" '
     f'damping="2" armature="1e-6"/>'
-    f'<geom name="{PEN_SHAFT}" type="capsule" size="0.0025" '
+    f'<geom name="{PEN_SHAFT}" type="capsule" size="{_f(PEN_TIP_R)}" '
     f'fromto="{_v(-0.008, 0, 0, -(0.008 + PEN_LEN), 0, 0)}" mass="{_f(PEN_QUILL_KG)}" '
     f'friction="0.25 0.005 0.0001" priority="1" solimp="{GRIP_SOLIMP}" '
     f'rgba="0.90 0.30 0.25 1"/>'

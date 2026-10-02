@@ -8,8 +8,10 @@ in a second, where a flown figure is minutes. The flown figures are
 """
 
 import ast
+import dataclasses
 import inspect
 import math
+from types import SimpleNamespace
 
 import mujoco
 import numpy as np
@@ -18,7 +20,9 @@ import pytest
 from pluggybot import tick
 from pluggybot.legs import arm as am
 from pluggybot.legs import rack as rk
+from pluggybot.legs.draw import BoardWork
 from pluggybot.legs.model import CHOSEN
+from pluggybot.legs.swap import ToolSwap
 from pluggybot.rack.coupling import PEG_ABOVE_BODY
 from pluggybot.tools import drawing as dw
 from pluggybot.tools import strokes
@@ -63,10 +67,12 @@ def test_the_pen_hangs_plumb_on_its_peg_and_fits_the_arms_envelope():
   assert m.body_subtreemass[b] <= am.TOOL_MAX_KG
   tip = d.site_xpos[m.site(rk.PEN_TIP).id] - (d.xpos[b] + [0, 0, PEG_ABOVE_BODY])
   assert -tip[2] <= am.TOOL_MAX_DROP_M
-  # the plotter's drawing of its tip off the fork is the module's own
+  # the plotter's drawing of its point off the fork is the module's own:
+  # the tip site, and the shaft's rounded end past it
   ahead, up = dw.tip_from_vertex()
   seat = am.ArmSpec().fork.seat_rise()
-  assert (ahead, up) == pytest.approx((-tip[0], tip[2] + seat))
+  assert m.geom(rk.PEN_SHAFT).size[0] == rk.PEN_TIP_R
+  assert (ahead, up) == pytest.approx((-tip[0] + rk.PEN_TIP_R, tip[2] + seat))
 
 
 def test_the_carriage_is_the_slide_the_bill_buys():
@@ -99,10 +105,12 @@ def _boards() -> dict:
 
 
 def test_the_arm_reaches_every_corner_of_the_board_from_the_floor():
-  """Lying (the torso's centre `belly_depth` up, `LIE_M` out of the face)
-  the fork reaches the envelope's four corners, pressed and lifted, with
-  the pen's carriage at either end: from the floor, not only the middle."""
+  """Lying (the torso's centre `belly_depth` up, `LIE_M` out of the wall,
+  the board's face `BOARD_PROUD_M` nearer) the fork reaches the envelope's
+  four corners, pressed and lifted, with the pen's carriage at either end:
+  from the floor, not only the middle."""
   from pluggybot.legs.draw import LIE_M
+  face = LIE_M - dw.BOARD_PROUD_M
   ahead, up = dw.tip_from_vertex()
   spec = am.ArmSpec()
   board = dw.Board.from_meta(_boards()["whiteboard_a"])
@@ -110,7 +118,7 @@ def test_the_arm_reaches_every_corner_of_the_board_from_the_floor():
   z_mid = board.z - CHOSEN.belly_depth
   for h in (env.z_min, env.z_max):
     for past in (-dw.LIFT - dw.PROBE_CLEAR, dw.PRESS_EXTRA + dw.PROBE_PAST):
-      x = LIE_M - ahead + past
+      x = face - ahead + past
       assert am.solve_vertex(spec, x, z_mid + h - up, near=am.CARRY_Q) is not None, (h, past)
 
 
@@ -142,8 +150,9 @@ class _Bench:
   turned `yaw_deg` about z -- a board the plotter knows nothing of until
   it touches it."""
 
-  def __init__(self, dist: float = 0.55, yaw_deg: float = 2.0, board_z: float = 0.10):
-    self.posture = "lying"
+  def __init__(self, dist: float = 0.60, yaw_deg: float = 2.0, board_z: float = 0.10):
+    self.posture, self.falls, self.carrying = "lying", 0, "module_pen"
+    self.face_x = dist
     self.arm_spec = am.ArmSpec()
     self.arm = _PerfectArm(self.arm_spec)
     self.handle = _Handle()
@@ -167,10 +176,7 @@ class _Bench:
     mujoco.mj_forward(self.model, self.data)
     self.commands: list = []
 
-  def _vertex_goal(self):
-    qs, qf = self.arm.goal
-    wx, wz = am.wrist_xz(self.arm_spec, float(qs), float(qf - qs))
-    return wx + self.arm_spec.fork.vertex_x, wz + self.arm_spec.fork.vertex_z
+  _vertex_goal = ToolSwap._vertex_goal
 
   def _place(self) -> None:
     """The module seated on the fork's vertex, facing the robot."""
@@ -207,6 +213,11 @@ def test_the_board_is_found_by_touch_from_where_the_tags_put_it():
   cal = bench.run(p.calibrate_routine(_estimate(bench, x_off=0.015)))
   assert cal["ok"] and cal["probes"] == 4
   assert cal["yawDeg"] == pytest.approx(3.0, abs=0.15)
+  # ...the face at the carriage's middle: where the fork's vertex was when
+  # the quill read the touch, plus the pen's point ahead of the vertex, less
+  # the quill's travel by then
+  face = p._x_at(0.0, cal["zHome"], 0.0) + p.tip_ahead - dw.QUILL_TOUCH
+  assert face == pytest.approx(bench.face_x, abs=0.001)
 
 
 def test_a_figure_is_inked_and_the_pen_lifts_between_strokes():
@@ -228,10 +239,14 @@ def test_the_plotter_steers_by_nothing_the_sim_alone_knows(monkeypatch):
   """CALIBRATION READS NO GROUND TRUTH: with the world's records of the
   tip -- where it is on the board, whether it touches -- answering
   nonsense, every command the plotter gives (the carriage, the arm's aim)
-  is the same, step for step. The rover's calibration read the tip."""
-  def fly():
+  is the same, step for step -- and with the WORLD's board (the record's,
+  handed to the plotter) put somewhere else. The rover's calibration read
+  the tip."""
+  def fly(moved: bool = False):
     bench = _Bench(yaw_deg=1.0)
-    p = dw.PenPlotter(bench, bench.board)
+    board = (dataclasses.replace(bench.board, x=bench.board.x + 0.05, z=0.3, heading=1.0)
+             if moved else bench.board)
+    p = dw.PenPlotter(bench, board)
     bench.run(p.calibrate_routine(_estimate(bench, x_off=0.01)))
     bench.run(p.draw_program_routine(strokes.program("square", size=0.03)))
     return bench.commands
@@ -240,13 +255,15 @@ def test_the_plotter_steers_by_nothing_the_sim_alone_knows(monkeypatch):
   monkeypatch.setattr(dw.PenPlotter, "pen_board", lambda self: (0.5, -0.5))
   monkeypatch.setattr(dw, "pen_on_board", lambda *a: True)
   assert fly() == truth
+  assert fly(moved=True) == truth
 
 
 def test_a_fall_ends_the_drawing_and_the_arm_is_aimed_no_more():
-  """A body that leaves the posture it draws in fell, and its fall folded
+  """A body that fell -- its fall counter moved, the pen thrown -- folded
   the arm: the plotter stops the figure there (`stopped: fell`) and never
   aims the arm again -- aimed on, it held the fork out through the get-up
-  as the swap's did before #405's review."""
+  as the swap's did before #405's review. ⚠ Whatever its posture says: a
+  body up and lying again looks as it did."""
   bench = _Bench()
   p = dw.PenPlotter(bench, bench.board)
   assert bench.run(p.calibrate_routine(_estimate(bench)))["ok"]
@@ -259,13 +276,13 @@ def test_a_fall_ends_the_drawing_and_the_arm_is_aimed_no_more():
     while True:
       cmd = next(routine)
       if k == 600:
-        bench.posture = "getting_up"
+        bench.falls, bench.carrying = 1, None      # `QuadMission._fall_check`
         aimed = bench.arm.goal.copy()
       bench.step(cmd)
       k += 1
   except StopIteration as done:
     used = done.value
-  assert used["stopped"] == "fell"
+  assert used.get("stopped") == "fell", used
   assert np.array_equal(bench.arm.goal, aimed), "aimed after the fall"
 
 
@@ -273,14 +290,122 @@ def test_the_steering_names_no_truth():
   """...and the fence behind it: what the plotter steers by reads none of
   the sim's own records of the tip or its contacts."""
   steering = ("quill", "vertex", "carriage", "_aim", "_goal_vertex", "move_routine",
-              "_probe_routine", "calibrate_routine", "_x_at", "_targets", "_home_across")
+              "_probe_routine", "calibrate_routine", "_x_at", "_targets", "_home_across",
+              "draw_program_routine")
   banned = {"site_xpos", "xpos", "xmat", "contact", "ncon", "pen_board", "pen_on_board",
-            "local", "_home", "_tip"}
+            "local", "_home", "_tip", "board", "trace", "inked_polyline", "error_stats"}
   for name in steering:
     tree = ast.parse(inspect.cleandoc("\n" + inspect.getsource(getattr(dw.PenPlotter, name))))
     seen = {n.attr for n in ast.walk(tree) if isinstance(n, ast.Attribute)}
     seen |= {n.id for n in ast.walk(tree) if isinstance(n, ast.Name)}
     assert not seen & banned, (name, seen & banned)
+
+
+# ---- the walk to the board, its routines stubbed -----------------------------------------
+
+
+class _Walk(BoardWork):
+  """`BoardWork.draw_routine`'s own `self` with the body's routines stubbed,
+  each recorded by name in `did`: the walks arrive, `fall_on` names the one
+  a fall throws the pen in (`QuadMission._fall_check`), `across` is how far
+  off the board's axis each walk in stops, and `faces` what each look
+  answers."""
+
+  def __init__(self, fall_on: str = "", across: float = 0.0, faces=(True,)):
+    self.data = SimpleNamespace(time=0.0)
+    self.carrying, self.falls, self.posture = "module_pen", 0, "standing"
+    self.pose, self.last_drive, self.working = (2.0, 0.0, math.pi), None, False
+    self.fall_on, self.across, self.faces = fall_on, across, list(faces)
+    self.did: list[str] = []
+    self._init_draw()
+
+  def _did(self, what: str) -> None:
+    self.did.append(what)
+    self.data.time += 1.0
+    if what == self.fall_on:
+      self.falls, self.carrying = self.falls + 1, None
+
+  def board_pose(self, name, dist):
+    return (dist, 0.0, math.pi)                    # its face at x = 0, facing +x
+
+  def stand_routine(self):
+    self._did("stand")
+    yield from ()
+
+  def drive_to_routine(self, x, y, timeout, stop=None):
+    self.pose = (x, y, math.pi)
+    self._did("walk")
+    return True
+    yield
+
+  def _face_board_routine(self, name):
+    self._did("face")
+    return self.faces.pop(0) if self.faces else True
+    yield
+
+  def _board_walk_in_routine(self, name):
+    from pluggybot.legs.draw import STAND_M
+    self.pose = (STAND_M, self.across, math.pi)
+    self._did("walk in")
+    return "stopped"
+    yield
+
+  def _drive_routine(self, seconds, v, w):
+    yield from ()
+
+  def _back_out_by_routine(self, *args):
+    self._did("back out")
+    yield from ()
+
+  def rest_routine(self):
+    self._did("lie")
+    yield from ()
+
+  def _board_estimate(self, name):
+    return dw.BoardEstimate(x_face=0.6, y_mid=0.0, z_mid=0.2)
+
+  def _off_the_board_routine(self, plotter):
+    self._did("off the board")
+    yield from ()
+
+
+class _Plotter:
+  """The plotter as the walk meets it: its probes recorded, never a touch."""
+
+  def __init__(self, mission, board, on_stroke=None):
+    self.mission, self.should_stop = mission, None
+
+  def calibrate_routine(self, est):
+    self.mission._did("probe")
+    return {"ok": False}
+    yield
+
+  def fell(self) -> bool:
+    return False
+
+
+def test_a_drawing_lies_down_only_where_it_can_draw(monkeypatch):
+  """A fall on the walk in threw the pen, and the body got up: it neither
+  lies down nor probes the board with an empty fork (the posture alone
+  said nothing had happened, and the pen on the floor answered its quill);
+  a re-face that lost the board leaves it at the look point, where every
+  probe is out of reach; a fall on the way to the board ends it there,
+  before it faces the board."""
+  monkeypatch.setattr(dw, "PenPlotter", _Plotter)
+  square = strokes.program("square", size=0.03)
+  for walk, why in ((_Walk(fall_on="walk in"), "fell"),
+                    (_Walk(across=0.05, faces=(True, False)), "lost"),
+                    (_Walk(fall_on="walk"), "fell")):
+    rec = tick.run(SimpleNamespace(step=lambda cmd: None),
+                   walk.draw_routine("whiteboard_a", None, square, patience=600.0))
+    assert rec["why"] == why and not rec["drew"], (walk.did, rec)
+    assert "lie" not in walk.did and "probe" not in walk.did, walk.did
+  assert walk.did == ["stand", "walk"], walk.did
+  ok = _Walk()
+  tick.run(SimpleNamespace(step=lambda cmd: None),
+           ok.draw_routine("whiteboard_a", None, square, patience=600.0))
+  assert ok.did[-5:] == ["lie", "probe", "off the board", "stand", "back out"], \
+      "the premise: lined up and holding the pen, it lies down and probes"
 
 
 # ---- the jobs, on the stub body ---------------------------------------------------------
@@ -405,12 +530,45 @@ def test_an_answer_is_paid_only_when_it_is_right_and_on_the_board():
     life.body.close()
 
 
+def test_a_job_that_inks_nothing_is_never_paid_for_the_ink_already_up():
+  """Only the first ink erases a board, so after a paid answer the board
+  still carries it: an answer, a figure and an artwork whose pen inks
+  nothing on it are never paid for that ink. The board is read BEFORE a
+  program's errand as it was before the rover's native one
+  (`scoring.board_before`); with the cage's reading alone, the second
+  answer was paid "correct, 0.0 mm from the glyphs"."""
+  from pluggybot.economy.tasks import TaskBoard
+  life = _drawing_life(tasks=TaskBoard())
+  try:
+    life.body.places.see(38, -1.98, 0.735, 0.0, 0.0)
+    life.body.places.see(39, -1.98, 1.265, 0.0, 0.0)
+    question = {"question": "What is six times seven?"}
+    for kind, params, said, draws in (
+        ("whiteboard_answer", question, "42", True),
+        ("whiteboard_answer", question, "42", False),
+        ("draw_figure", {"program": "house"}, "", False),
+        ("rate_artwork", {"program": "robot"}, "", False)):
+      life.body.draws = draws
+      task = life.tasks.offer(kind, "whiteboard_a", params=params,
+                              secret={"answer": "42"} if said else None,
+                              t=float(life.data.time))
+      assert life._claim_task(task.id, answer=said)
+      result = life.run_errand(life.errands.pop(0))
+      assert result["verdict"]["ok"] is draws, (kind, result["verdict"])
+      assert (result["points"] > 0) is draws, (kind, result["verdict"])
+    assert life.boards["whiteboard_a"].clears == 1, "the answer is still up"
+  finally:
+    life.body.close()
+
+
 def test_a_walks_first_turn_to_face_its_route_is_no_stagnation(monkeypatch):
   """After a drawing the rack is behind the robot, and carrying the pen it
   turns at most `W_CARRY`: the half-turn took 9 of the 10 s a walk may go
   without progress, and the stow gave up "stalled" as it finished turning.
   A walk's first turn to face its route is no stagnation -- a turn of 12.6 s
-  here; and without the rule (aimed from the start) the same walk stalls."""
+  here; and without the rule (aimed from the start) the same walk stalls.
+  ...for `STAGNATION_S` at most: a body that never turns stalls, never
+  spending its whole patience on the turn."""
   from pluggybot import navigator as nav
   from test_make_way import GOAL, STEPPER, _Drive  # noqa: I001 -- tests/ is on sys.path
 
@@ -425,13 +583,21 @@ def test_a_walks_first_turn_to_face_its_route_is_no_stagnation(monkeypatch):
         self.pose = (GOAL[0], GOAL[1], th)
       yield v, w
 
-  def walk():
-    drive = Turning([], plans=[GOAL])
+  def walk(cls=Turning):
+    drive = cls([], plans=[GOAL])
     drive.pose = (0.0, 0.0, math.pi)                # facing away from its route
     return tick.run(STEPPER, drive.drive_to_routine(*GOAL, 60.0)), drive.last_drive
 
+  class Stuck(Turning):
+    def _nav_routine(self, v, w):
+      self.data.time += 0.1
+      yield v, w
+
   arrived, rec = walk()
   assert arrived, rec
+  arrived, rec = walk(Stuck)
+  assert not arrived and rec["why"] == "stalled", rec
+  assert rec["seconds"] <= 2 * nav.STAGNATION_S + 0.5, rec
   monkeypatch.setattr(nav, "AIMED_RAD", math.pi + 1.0)
   arrived, rec = walk()
   assert not arrived and rec["why"] == "stalled", "the premise: it gave up turning"

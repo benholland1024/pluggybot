@@ -111,10 +111,12 @@ DOWN_CHECK_S = 0.1
 CLOSE_ENOUGH_M = 0.15
 #: A drive with no progress toward its goal for this long has stagnated.
 STAGNATION_S = 10.0
-#: ...and its FIRST TURN to face its route is no stagnation (#406): a body
-#: carrying a tool turns at most `W_CARRY`, and walking from a whiteboard to
-#: the rack behind it, a half-turn took 9 s of those 10 -- a stow after a
-#: drawing gave up "stalled" as it finished turning. Aimed means within this.
+#: ...and its FIRST TURN to face its route is no stagnation (#406), for
+#: `STAGNATION_S` at most: a body carrying a tool turns at most `W_CARRY`,
+#: and walking from a whiteboard to the rack behind it, a half-turn took 9 s
+#: of those 10 -- a stow after a drawing gave up "stalled" as it finished
+#: turning. Aimed means within this; a body that never turns stalls 20 s
+#: after it set out, never at its patience.
 AIMED_RAD = math.radians(45.0)
 #: A waypoint this near is reached and the next one steered for, m: a route
 #: along a wall turns this far short of it (a body's front stop is bounded
@@ -788,7 +790,7 @@ class Navigator:
       while waypoints and math.hypot(waypoints[0][0] - self.pose[0],
                                      waypoints[0][1] - self.pose[1]) < WAYPOINT_REACHED_M:
         waypoints.pop(0)
-      if not aimed:
+      if not aimed and self.data.time - t0 <= STAGNATION_S:
         tx, ty = waypoints[0] if waypoints else (wx, wy)
         aimed = abs(wrap_angle(math.atan2(ty - self.pose[1], tx - self.pose[0])
                                - self.pose[2])) <= AIMED_RAD

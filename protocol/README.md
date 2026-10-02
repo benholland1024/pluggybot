@@ -97,8 +97,9 @@ changes; three things are new beside it.
 - **The pen is built**: `module_pen` gains two DYNAMIC child bodies,
   `module_pen_carriage` (its slide across the module) and `module_pen_quill`
   (the sprung pen on it), so both stream a pose in every keyframe.
-- **The boards' three jobs are offered on `home_quad`** on the `autonomous`
-  arm (`whiteboard_answer`, `draw_figure`, `rate_artwork`), each offer with
+- **The boards' three jobs are offered on `home_quad`**, on every arm --
+  the boards are the world's furniture, and a question still waits for a
+  mind to answer it (`whiteboard_answer`, `draw_figure`, `rate_artwork`), each offer with
   the house's `address` and the board's `directions`; their ink is the
   `draw`, `board_snapshot` and `board_cleared` events the rover's was. No
   fixture carries a job (the pair's recording has no mind).

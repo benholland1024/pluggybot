@@ -550,7 +550,7 @@ DRAW_WHY = {
   "never touched": "lay down in front of {board} and the pen never found its face",
   "out of time": "ran out of time before drawing on {board}",
   "interrupted": "stopped drawing on {board} by its own interrupt",
-  "fell": "fell over drawing on {board}, and the fall threw the pen",
+  "fell": "fell over on its way to or at {board}, and the fall threw the pen",
   "not drawn": "drew nothing on {board}",
 }
 #: The figures a `draw` may name: the pen's menu (`tools.strokes`) without

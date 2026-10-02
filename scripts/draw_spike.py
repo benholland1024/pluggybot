@@ -126,21 +126,23 @@ def sway_one(args) -> dict:
   """The stance table's one row: the pen pressed on the board's middle and
   held 30 s."""
   stance, seconds = args
-  from pluggybot.legs.draw import LIE_M
-  from pluggybot.tools.drawing import BoardEstimate, PenPlotter
+  from pluggybot.legs.draw import LIE_M, STAND_M
+  from pluggybot.tools.drawing import BOARD_PROUD_M, BoardEstimate, PenPlotter
   model, data, body = _world()
   mis = body.mission
   board = _board("whiteboard_a")
   nx, ny = board.normal
   fx, fy = board.x + nx * board.half[0], board.y + ny * board.half[0]
-  body.start_at(fx + nx * LIE_M, fy + ny * LIE_M, board.heading)
+  # ...where the walk in stops: `STAND_M` out of the wall its tags are on
+  out = STAND_M - BOARD_PROUD_M
+  body.start_at(fx + nx * out, fy + ny * out, board.heading)
   mount_pen(body)
   mis.working = True
   if stance == "lie":
     body.run(mis.rest_routine())
   p = PenPlotter(mis, board)
-  est = BoardEstimate(x_face=LIE_M if stance == "lie" else LIE_M, y_mid=0.0,
-                      z_mid=board.z - mis._height())
+  est = BoardEstimate(x_face=(LIE_M if stance == "lie" else STAND_M) - BOARD_PROUD_M,
+                      y_mid=0.0, z_mid=board.z - mis._height())
   cal = body.run(p.calibrate_routine(est))
   x = p._x_at(0.0, cal["zHome"], 0.010)
   body.run(p.move_routine(x, cal["zHome"], speed=0.02))

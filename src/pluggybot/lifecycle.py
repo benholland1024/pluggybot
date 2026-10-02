@@ -2976,9 +2976,11 @@ class HubLifecycle:
     spent_from = self.battery.energy_wh
     began_at = float(self.data.time)
     if errand.program is not None:
-      # What the cage looked like before an errand on it (issue #226) --
-      # `board_before`'s shape; {} for every other program.
-      before = scoring.cage_before(self, errand)
+      # What the board and the cage looked like before an errand on them
+      # (issues #14, #226; {} for every other program). ⚠ THE BOARD TOO
+      # (#406): only the first ink erases, so a job that inked nothing was
+      # paid for the drawing already up -- "correct, 0.0 mm from the glyphs".
+      before = {**scoring.board_before(self, errand), **scoring.cage_before(self, errand)}
       used = yield from self._run_program_routine(errand)
       result = {"errand": errand.name, "module": errand.module,
                 "energyWh": round(max(0.0, spent_from - self.battery.energy_wh), 4),
