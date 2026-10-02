@@ -2224,10 +2224,11 @@ the scans are this issue's stage B.
 The quadruped's world has its own rack (`legs/world.py`): #378's rack on
 the living room's south wall beside the dock (`RACK_X` 2.1; its board spans
 x 1.6..2.6, the dock is at 3.5), its three bays holding the LCD (A, the east
-one), the pen (B) and the claw (C). Until #406 and #407 rebuild them on the
-220 mm peg a tool is a plate, a peg and a face that says which, visual only,
-its mass (the rover's module's, the peg's swapped) on the plate: the
-envelope's "on its peg" case. The tools keep the rover's module names, and
+one), the pen (B) and the claw (C). Until #407 rebuilds them on the
+220 mm peg the LCD and the claw are a plate, a peg and a face that says
+which, visual only, the mass (the rover's module's, the peg's swapped) on
+the plate: the envelope's "on its peg" case. The pen is built ("Drawing on
+legs", below). The tools keep the rover's module names, and
 the rack's parts its bay letters (`bay<letter>_tray_...`), so the rack view,
 the lost-tool clock, a program's `fetch` and an admin's reset read them
 unchanged (`coupling.bay_switches` reads the three bays). The lifecycle
@@ -2353,7 +2354,7 @@ The house has no stairs yet (#280): a flight carried is #378's table
 **What is true now:** the served quadruped fetches, carries and stows the
 three tools on its own rack from a program; `tests/test_quad_rack.py` pins
 each rule above, and the whole swap flies behind `--endurance`. Not done:
-tool jobs (#406, #407); a carried tool down the house's stairs (#280 builds
+the other tools' jobs (#407; the pen's are "Drawing on legs", below); a carried tool down the house's stairs (#280 builds
 them); the other robot's carried tool is not filtered from this one's
 senses (at the carry pose it is above the LIDAR's plane), and nothing
 keeps two carrying robots' tools apart at the rack (1 of 20 knocked off at
@@ -2550,8 +2551,8 @@ looks in 86 sim s, one every 2 s -- 16 ms a sim second at the box's render,
 1.6 % of real time per walking robot.
 
 **Still open.** Loop closure (#381): the lab's frame is the one the map was
-laid in. The address is a fixed offset, not a GPS sensor. Every other task
-area's tags (#406, #407).
+laid in. The address is a fixed offset, not a GPS sensor. The other tools'
+task areas (#407; the whiteboards' tags are "Drawing on legs", below).
 
 ## Lying still, the heading holds (issue #425)
 

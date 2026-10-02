@@ -66,6 +66,7 @@ from typing import Any, Callable
 from pluggybot.legs.rack import TOOL_BAYS as RACK_TOOL_BAYS
 from pluggybot.rack.coupling import STATION_YS
 from pluggybot.tick import Routine
+from pluggybot.tools.strokes import PROGRAMS
 
 #: Which bay each tool hangs in, by index into `STATION_YS` (bay <-> tag
 #: pairing is by that index): the quadruped's rack's (#405). A COPY: the
@@ -551,6 +552,9 @@ DRAW_WHY = {
   "interrupted": "stopped drawing on {board} by its own interrupt",
   "not drawn": "drew nothing on {board}",
 }
+#: The figures a `draw` may name: the pen's menu (`tools.strokes`) without
+#: the two that write text -- the validator's list (`lifecycle.world_facts`).
+DRAW_FIGURES = tuple(n for n in PROGRAMS if n not in ("text", "answer"))
 #: ...and what of its record rides the verdict as `used`: what the ink's
 #: evaluator reads (`scoring.sample_draw`).
 DRAW_USED = ("strokes", "strokes_drawn", "inked_fraction", "travel_ink_fraction",
@@ -657,10 +661,11 @@ VERBS: dict[str, Verb] = {
   # robot has found by its tags -- never a position
   "draw": Verb("draw", {"board": Arg("str", choices="boards"),
                         "figure": Arg("str", choices="figures")}, _draw,
-               "draw a figure on a whiteboard you have found (`find` one of its "
-               "tags first), the pen on your fork: you walk to it, lie down in "
-               "front of it, find its face with the pen and draw; ok when ink "
-               "landed", drives=True),
+               "draw a figure -- " + ", ".join(f'"{f}"' for f in DRAW_FIGURES)
+               + " -- on a whiteboard by its name, one you have found (`find` "
+               "one of its tags first), the pen on your fork: you walk to it, "
+               "lie down in front of it, find its face with the pen and draw; "
+               "ok when ink landed", drives=True),
   "wait": Verb("wait", {"seconds": Arg("float", lo=0.0, hi=MAX_WAIT_S)}, _wait,
                "stand still"),
   # The motor level (issue #166): what every verb above is built from.

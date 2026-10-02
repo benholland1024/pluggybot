@@ -7646,9 +7646,9 @@ def world_facts(world: str, rack: dict[str, int] | None = None, game: bool = Fal
   question's errand (`answer`, `figure_program`'s `answer:<digits>`, issue
   #406) the figure its claim froze, which no procedure may either."""
   from pluggybot.procedure import axes
-  from pluggybot.procedure.steps import (BODY_VERBS, DRAW_VERBS, GAME_VERB_NAMES,
-                                         PLACE_VERBS, PLATE_VERBS, SWAP_VERBS,
-                                         WorldFacts)
+  from pluggybot.procedure.steps import (BODY_VERBS, DRAW_FIGURES, DRAW_VERBS,
+                                         GAME_VERB_NAMES, PLACE_VERBS, PLATE_VERBS,
+                                         SWAP_VERBS, WorldFacts)
   cfg = world_config(world)
   boards: tuple = ()
   if cfg["meta"]:
@@ -7663,9 +7663,7 @@ def world_facts(world: str, rack: dict[str, int] | None = None, game: bool = Fal
            + (DRAW_VERBS if draws else ()) + (GAME_VERB_NAMES if game else ()))
   return WorldFacts(boards=boards, tools=tuple(bays) if swaps else (),
                     bounds=tuple(float(v) for v in cfg["grid_bounds"]),
-                    figures=tuple(n for n in strokes.PROGRAMS
-                                  if n not in ("text", "answer"))
-                    + ((f"{ANSWER_FIGURE}{answer}",) if answer else ()),
+                    figures=DRAW_FIGURES + ((f"{ANSWER_FIGURE}{answer}",) if answer else ()),
                     axes=axes.BODY_AXES[cfg["body"]],
                     sensors=axes.LEGS_SENSORS,
                     verbs=verbs, places=places, plates=plates)

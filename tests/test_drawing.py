@@ -350,3 +350,28 @@ def test_the_board_is_erased_by_the_first_ink_never_by_a_stroke_that_missed():
     assert life.ink_hook("board_c", "house") is None
   finally:
     life.body.close()
+
+
+def test_an_answer_is_paid_only_when_it_is_right_and_on_the_board():
+  """`whiteboard_answer` on the stub, through the claim the mind makes: the
+  right answer, drawn, is paid off the board's ink against the glyphs; a
+  wrong one is drawn and paid nothing, and its line says wrong without
+  saying what was right."""
+  from pluggybot.economy.tasks import TaskBoard
+  life = _drawing_life(tasks=TaskBoard())
+  try:
+    life.body.draws = True
+    life.body.places.see(38, -1.98, 0.735, 0.0, 0.0)
+    life.body.places.see(39, -1.98, 1.265, 0.0, 0.0)
+    for said, ok in (("42", True), ("41", False)):
+      task = life.tasks.offer("whiteboard_answer", "whiteboard_a",
+                              params={"question": "What is six times seven?"},
+                              secret={"answer": "42"}, t=float(life.data.time))
+      assert life._claim_task(task.id, answer=said)
+      result = life.run_errand(life.errands.pop(0))
+      verdict = result["verdict"]
+      assert verdict["ok"] is ok, verdict
+      assert ("correct" if ok else "wrong") in verdict["reason"]
+      assert "42" not in verdict["reason"] or ok
+  finally:
+    life.body.close()

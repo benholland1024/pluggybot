@@ -10,6 +10,44 @@ observatory is NOT a result: it reports into the issue it informs.
 
 ## Periods
 
+### Drawing on legs: the whiteboards' three jobs (#406) — opens when this PR is deployed
+
+**What changed in the world.** Three jobs come back, on the pair's board
+beside `feed_mouse` and the game: `whiteboard_answer` (a question, the
+answer given at the claim), `draw_figure` (a house, a tree or a sun) and
+`rate_artwork` (the robot or the sun, paid when a visitor rates it). Each
+is a program over the step vocabulary: the board found by its tags round
+the house's address, the pen fetched, the body lying down in front of the
+board, the board's face found with the pen, the figure drawn, the body up
+and the pen hung back. Each offer carries the house's address and the
+board's written directions (`home/places.json`), never a position. The
+house moved: each whiteboard has two tags on the wall either side of it
+(38-41), and the pen module is rebuilt -- its carriage, the bill's slide,
+under its plate -- so the scenes are new. The robots' procedure rule gains
+`draw(board, figure)`, and the places they remember include the boards'
+tags. PROMPT_LINE The rewards (`rewards.json`'s `draw`, `artwork` and
+`answer` rows) did not move; the six (job, board) pairs are priced
+(`energy.json`).
+
+**What the period is for.**
+
+- **Does ink land?** A board job's verdict leads with what failed
+  (`never found whiteboard_b: ...`, a fetch's reason, a `draw`'s), else
+  "inked n/n strokes ... mm form error". The bench's figures are a 0.24 mm
+  square and a house at 0.53; a live house far worse is the body, the
+  board or the approach, and the verdict's first clause says which.
+- **Quality four on legs, its first readings**: `artwork` pending rows, the
+  visitors' ratings and the robots' own `rate` acts -- can it create, can it
+  judge -- none of which a quadruped could do before.
+- **Answers**: wrong answers (the mind's arithmetic) and unfaithful ink
+  (`matchMm` over 4) are different failures; only the second is the pen's.
+- **Finding a board**: a fresh map searched 506 s for the bedroom's board
+  on the bench, an explored one 17 s. `find` steps' seconds after a true
+  death are the cost of forgetting.
+- **The rack now turns over all day**: the pen leaves and comes back once a
+  job, and the pair share one rack (#418 is not done). Swap failures and
+  bay waits, against the period before.
+
 ### `look` is offered only while a renderer is there (#357) — opens when this PR is deployed, with the site's hub half
 
 **What changed in the world.** What the robots are OFFERED, and one

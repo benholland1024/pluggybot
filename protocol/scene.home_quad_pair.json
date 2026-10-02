@@ -8846,13 +8846,13 @@
      "type": "box",
      "size": [
       0.008,
-      0.12,
+      0.124,
       0.008
      ],
      "pos": [
-      -0.014,
+      0.002,
       0.0,
-      -0.01
+      -0.048
      ],
      "quat": [
       1.0,
@@ -8867,24 +8867,91 @@
       1.0
      ],
      "texture": null
-    },
+    }
+   ]
+  },
+  {
+   "name": "module_pen_carriage",
+   "parent": "module_pen",
+   "dynamic": true,
+   "robot": null,
+   "visual": null,
+   "pos": [
+    2.1,
+    -1.882,
+    0.43
+   ],
+   "quat": [
+    0.707107,
+    0.0,
+    0.0,
+    0.707107
+   ],
+   "geoms": [
     {
-     "name": "module_pen_pen",
-     "type": "capsule",
+     "name": "module_pen_block",
+     "type": "box",
      "size": [
-      0.004,
-      0.077026
+      0.016,
+      0.02,
+      0.022
      ],
      "pos": [
-      -0.0515,
       0.0,
-      -0.031
+      0.0,
+      0.005
      ],
      "quat": [
-      0.611011,
-      0.611011,
-      0.3559,
-      -0.3559
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.3,
+      0.32,
+      0.36,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "module_pen_quill",
+   "parent": "module_pen_carriage",
+   "dynamic": true,
+   "robot": null,
+   "visual": null,
+   "pos": [
+    2.1,
+    -1.882,
+    0.442
+   ],
+   "quat": [
+    0.707107,
+    0.0,
+    0.0,
+    0.707107
+   ],
+   "geoms": [
+    {
+     "name": "module_pen_shaft",
+     "type": "capsule",
+     "size": [
+      0.0025,
+      0.042
+     ],
+     "pos": [
+      -0.029,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      0.5,
+      0.5,
+      0.5,
+      -0.5
      ],
      "rgba": [
       0.9,
@@ -9404,6 +9471,194 @@
      "texture": "tagtex37"
     }
    ]
+  },
+  {
+   "name": "whiteboard_a_tag38",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": null,
+   "pos": [
+    -1.979,
+    0.735,
+    0.3
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "whiteboard_a_tag38",
+     "type": "box",
+     "size": [
+      0.002,
+      0.15,
+      0.15
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+     ],
+     "texture": "tagtex38"
+    }
+   ]
+  },
+  {
+   "name": "whiteboard_a_tag39",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": null,
+   "pos": [
+    -1.979,
+    1.265,
+    0.3
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "whiteboard_a_tag39",
+     "type": "box",
+     "size": [
+      0.002,
+      0.15,
+      0.15
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+     ],
+     "texture": "tagtex39"
+    }
+   ]
+  },
+  {
+   "name": "whiteboard_b_tag40",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": null,
+   "pos": [
+    0.235,
+    5.979,
+    0.3
+   ],
+   "quat": [
+    0.707107,
+    0.0,
+    0.0,
+    -0.707107
+   ],
+   "geoms": [
+    {
+     "name": "whiteboard_b_tag40",
+     "type": "box",
+     "size": [
+      0.002,
+      0.15,
+      0.15
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+     ],
+     "texture": "tagtex40"
+    }
+   ]
+  },
+  {
+   "name": "whiteboard_b_tag41",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": null,
+   "pos": [
+    0.765,
+    5.979,
+    0.3
+   ],
+   "quat": [
+    0.707107,
+    0.0,
+    0.0,
+    -0.707107
+   ],
+   "geoms": [
+    {
+     "name": "whiteboard_b_tag41",
+     "type": "box",
+     "size": [
+      0.002,
+      0.15,
+      0.15
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+     ],
+     "texture": "tagtex41"
+    }
+   ]
   }
  ],
  "textures": [
@@ -9512,6 +9767,30 @@
   {
    "name": "tagtex37",
    "file": "tagtex37.png",
+   "width": 240,
+   "height": 240
+  },
+  {
+   "name": "tagtex38",
+   "file": "tagtex38.png",
+   "width": 240,
+   "height": 240
+  },
+  {
+   "name": "tagtex39",
+   "file": "tagtex39.png",
+   "width": 240,
+   "height": 240
+  },
+  {
+   "name": "tagtex40",
+   "file": "tagtex40.png",
+   "width": 240,
+   "height": 240
+  },
+  {
+   "name": "tagtex41",
+   "file": "tagtex41.png",
    "width": 240,
    "height": 240
   }

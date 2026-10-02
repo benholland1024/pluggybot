@@ -53,6 +53,9 @@ SRC = Path(__file__).parent.parent / "src" / "pluggybot"
 TRANSIENT_HOLDERS = {
   # `self.model` is the LLM's id, not a MuJoCo model
   "mind/overseer.py:Overseer",
+  # a drawing's plotter (#406), made for one drawing and held after it for
+  # its record: on legs, whose world is never recompiled (`QuadMission.rebind`)
+  "tools/drawing.py:PenPlotter",
 }
 
 

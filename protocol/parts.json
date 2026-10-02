@@ -514,11 +514,76 @@
     "powerW": 2.76,
     "dutyCycle": 0.2
    },
-   "feeds": [],
+   "feeds": [
+    {
+     "constant": "legs.rack.PEN_TRAVEL",
+     "where": "code",
+     "value": 0.05,
+     "unit": "m",
+     "note": "the pen's carriage: half the 100 mm stroke",
+     "expect": 0.05
+    },
+    {
+     "constant": "legs.rack.PEN_FORCE_N",
+     "where": "code",
+     "value": 22,
+     "unit": "N",
+     "note": "the lifted maximum",
+     "expect": 22
+    },
+    {
+     "constant": "legs.rack.PEN_SPEED",
+     "where": "code",
+     "value": 0.025,
+     "unit": "m/s",
+     "note": "the no-load speed at 50:1",
+     "expect": 0.025
+    }
+   ],
    "why": {},
-   "note": "The first slide the workshop can build from (issue #199). Every number is the L12 datasheet's (actuonix.com/assets/images/datasheets/ActuonixL12Datasheet.pdf): 22 N max force lifted and 25 mm/s no-load at 50:1, 460 mA stall on the 6 V winding (2.76 W), 56 g and 152 mm hole-to-hole closed for the 100 mm stroke, a 15 × 14.9 mm body. 20 % duty cycle, which the sim does not model. `forceN` is the lifted maximum; at speed it is the 17 N peak-power point. ⚠ Passed over: the L16-140-35-6-R, the one stroke that covers the pen's 110 mm travel, because its datasheet gives stall current at 12 V only (650 mA) and the 6 V winding's is not published -- so its draw would be a guess.",
+   "note": "The first slide the workshop can build from (issue #199). Every number is the L12 datasheet's (actuonix.com/assets/images/datasheets/ActuonixL12Datasheet.pdf): 22 N max force lifted and 25 mm/s no-load at 50:1, 460 mA stall on the 6 V winding (2.76 W), 56 g and 152 mm hole-to-hole closed for the 100 mm stroke, a 15 × 14.9 mm body. 20 % duty cycle, which the sim does not model. `forceN` is the lifted maximum; at speed it is the 17 N peak-power point. The pen's sideways carriage on legs is this slide at its whole stroke (#406; the rover's sim gave its pen 110 mm). Passed over: the L16-140-35-6-R, whose datasheet gives stall current at 12 V only (650 mA) -- its 6 V draw would be a guess.",
    "workshop": {
     "usable": true
+   }
+  },
+  {
+   "id": "pen_quill_hall",
+   "name": "Linear Hall-effect sensor and a small magnet on the pen's sprung quill, reading its travel",
+   "kind": "sensor",
+   "status": "candidate",
+   "shelves": [
+    "build"
+   ],
+   "robot": "quadruped",
+   "usedBy": [],
+   "partNumber": null,
+   "source": null,
+   "massG": null,
+   "dimensionsMm": null,
+   "priceEur": null,
+   "priceFor": "each",
+   "quantity": 1,
+   "capabilities": {},
+   "feeds": [
+    {
+     "constant": "tools.drawing.QUILL_TOUCH",
+     "where": "code",
+     "value": 0.0005,
+     "unit": "m",
+     "note": "the quill's travel the plotter reads as the pen touching a board"
+    }
+   ],
+   "why": {
+    "partNumber": "no sensor chosen",
+    "source": "no sensor chosen",
+    "massG": "no sensor chosen",
+    "dimensionsMm": "no sensor chosen",
+    "priceEur": "no sensor chosen"
+   },
+   "note": "What the pen finds a board's face by (#406): the quill's travel, read as a touch at 0.5 mm. A ratiometric linear Hall sensor (TI's DRV5055 class) facing a magnet on the quill is the route; none is chosen, and the sim reads the quill with 0.05 mm of noise (`tools.drawing.QUILL_NOISE`), an assumption until one is.",
+   "workshop": {
+    "usable": false,
+    "why": "on the build shelf, not the catalog"
    }
   },
   {
@@ -3802,7 +3867,23 @@
     "why": {
      "leadTime": "not read for this bill; the price is the workshop catalog's (#199, 2026-09-14)"
     },
-    "note": "the pen's sideways carriage: 100 mm of the 110 it wants, the nearest slide with a published draw"
+    "note": "the pen's sideways carriage, its whole 100 mm stroke (#406)"
+   },
+   {
+    "part": "pen_quill_hall",
+    "name": "Linear Hall-effect sensor and a small magnet on the pen's sprung quill, reading its travel",
+    "group": "tools",
+    "quantity": 1,
+    "priceFor": "each",
+    "eachEur": null,
+    "lineEur": 5.0,
+    "allowance": true,
+    "basis": "a linear Hall sensor and a 3 mm magnet on the pen's quill, as TI's DRV5055: a few euros; none chosen yet",
+    "leadTime": null,
+    "why": {
+     "leadTime": "no sensor chosen"
+    },
+    "note": ""
    },
    {
     "part": "module_esp32",
@@ -4711,10 +4792,10 @@
   ],
   "totals": {
    "sourcedEur": 5977.89,
-   "allowanceEur": 1570.0,
-   "contingencyEur": 1132.18,
-   "totalEur": 8680.07,
-   "totalUsd": 9897.88,
+   "allowanceEur": 1575.0,
+   "contingencyEur": 1132.93,
+   "totalEur": 8685.82,
+   "totalUsd": 9904.44,
    "budgetEur": 17539.24,
    "byGroup": {
     "actuation": 1894.1,
@@ -4723,7 +4804,7 @@
     "sensors": 491.8,
     "frame and legs": 1229.6,
     "arm": 270.56,
-    "tools": 158.95,
+    "tools": 163.95,
     "rack": 108.69,
     "dock": 262.98,
     "safety": 322.53,

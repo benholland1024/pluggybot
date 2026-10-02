@@ -96,7 +96,7 @@ def test_a_verb_that_does_not_drive_leaves_the_pose_alone(quad_model, monkeypatc
   finally:
     life.body.close()
   assert {v for v, verb in st.VERBS.items() if verb.drives} == {
-    "fetch", "stow", "drive_to", "drive", "face", "find", "press"}
+    "fetch", "stow", "drive_to", "drive", "face", "find", "press", "draw"}
 
 
 def test_the_mind_is_told_which_verbs_re_pose_the_tool():

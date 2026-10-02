@@ -1067,6 +1067,9 @@ class Menu:
   #: lab is in the world's config, beside the rule that says what they do
   places: bool = False
   plates: bool = False
+  #: ...and whether it draws on the boards it finds with its rack's pen
+  #: (issue #406, `world_config`'s `draws`): the `draw` verb
+  draws: bool = False
 
   @property
   def care_acts(self) -> tuple[str, ...]:
@@ -1101,7 +1104,8 @@ class Menu:
                tools=cfg.get("tools", False),
                swaps=cfg.get("swap", True),
                places=bool(cfg.get("places")),
-               plates=bool(cfg.get("places") and cfg.get("lab")))
+               plates=bool(cfg.get("places") and cfg.get("lab")),
+               draws=bool(cfg.get("draws") and cfg.get("swap") and cfg.get("places")))
     # Priced off the same table the mission loop refuses errands with, so the
     # model is never shown a cost the gate disagrees with.
     from pluggybot.economy import energy as energy_model
@@ -2748,24 +2752,26 @@ own speed
 
 
 def procedure_rule(swaps: bool = False, places: bool = False,
-                   plates: bool = False) -> str:
+                   plates: bool = False, draws: bool = False) -> str:
   """The rule in the quadruped's verbs, and only the verbs, axes and
   sensors it has (`steps.BODY_VERBS`, and `SWAP_VERBS` where a rack is at
   its arm's reach; the arm's `axes.ARM_JOINTS`, `axes.LEGS_SENSORS`) -- the
   validator refuses the rest with the reason. `swaps`: its world has that
-  rack; `places` / `plates`: it finds task areas by their tags (#419)."""
+  rack; `places` / `plates`: it finds task areas by their tags (#419);
+  `draws`: it draws on the boards it finds (#406)."""
   from pluggybot.procedure import axes
   from pluggybot.procedure.library import MAX_PROCEDURES
-  from pluggybot.procedure.steps import (BODY_VERBS, PLACE_VERBS, PLATE_VERBS,
-                                         SWAP_VERBS, VERBS, describe_vocabulary,
-                                         signature)
+  from pluggybot.procedure.steps import (BODY_VERBS, DRAW_VERBS, PLACE_VERBS,
+                                         PLATE_VERBS, SWAP_VERBS, VERBS,
+                                         describe_vocabulary, signature)
   head = PROCEDURE_HEAD
   if not swaps:
     for old, new in _NO_RACK_SWAPS:
       assert old in head, f"PROCEDURE_HEAD moved: {old[:40]!r}"
       head = head.replace(old, new)
   body_verbs = (BODY_VERBS + (SWAP_VERBS if swaps else ())
-                + (PLACE_VERBS if places else ()) + (PLATE_VERBS if plates else ()))
+                + (PLACE_VERBS if places else ()) + (PLATE_VERBS if plates else ())
+                + (DRAW_VERBS if draws else ()))
   verbs = "\n".join(f"  {signature(v)}  -- {v['doc']}"
                     for v in describe_vocabulary(body_verbs))
   drivers = ", ".join(f"`{n}`" for n in body_verbs if VERBS[n].drives)
@@ -3303,7 +3309,7 @@ def system_sections(thoughts: ThoughtFiles, menu: Menu,
     tail.append(("YOUR LIST STARTS EMPTY", UNSEEDED_RULE))
   if procedures:
     tail += [("PROCEDURES YOU MAY WRITE", procedure_rule(menu.swaps, menu.places,
-                                                         menu.plates)),
+                                                         menu.plates, menu.draws)),
                ("CHALLENGES", CHALLENGE_RULE),
                ("WHAT YOU HAVE MEASURED", FINDINGS_RULE)]
   if workshop:
