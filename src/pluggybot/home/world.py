@@ -489,7 +489,9 @@ def _board_xml(name: str, spec: dict) -> str:
 
 
 def build_home_world() -> tuple[str, dict]:
-  """(MJCF text, meta dict). Pure -- writing happens in write_home_world."""
+  """(MJCF text, meta dict); write_home_world writes them. The one write
+  here is a stale tag texture's (`tags.write_tag_pngs`), and a current one
+  is left alone -- the suite calls this while other workers load the house."""
   hints: dict[str, str] = {}
   bodies: list[str] = []
 

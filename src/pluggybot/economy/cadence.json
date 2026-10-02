@@ -43,7 +43,8 @@
     "`stack_tower` (issue #207) and `find_mass` (#227) are CHALLENGES: their targets (`challenge`, and `bench` in the lab) are named only where a procedure can be written (the `autonomous` arm). `find_mass` draws a fresh unknown from challenge/masses.json per offer and sets it into the world. Neither is offered on legs until #407.",
     "`take_points` (issue #228) is the real-stake task: `params.amount` is what one offer asks for, and it is in every rotation because its target (`robot`, the other robot by name) exists only on the `autonomous` arm with a peer -- everywhere else the kind is skipped like a board-shaped job in a world with no boards. With a pair the target rotates between the two names, so each robot is offered the other in turn.",
     "`shock_mouse` (issue #226) and `feed_mouse` (#287, the paid feed) are the mouse's jobs: their target (`cage`, the lab) exists only on the `autonomous` arm. One cage, so a world's `cooldownS` is the least time between two offers of it, and the lab's kinds share its ONE open slot.",
-    "`home_quad` (issue #403) is the home world with legs in it, and it offers ONE job: `feed_mouse`, the first paid work on legs. The shock job and `take_points` stay OFF there (Ben, 2026-09-28: the jobs that pay for harm come back together, once harmless work pays alongside them); either comes back as one line in its `kinds`. The default block is what a world with no block of its own reads."
+    "`home_quad` (issue #403) is the home world with legs in it, and it offers two jobs: `feed_mouse`, the first paid work on legs, and `hide_and_seek` (#404), the pair's game. The shock job and `take_points` stay OFF there (Ben, 2026-09-28: the jobs that pay for harm come back together, once harmless work pays alongside them); either comes back as one line in its `kinds`. The default block is what a world with no block of its own reads.",
+    "`hide_and_seek` (issues #167, #404) is a game for TWO: its target (`world`, the robots' home) is named only on the `autonomous` arm with both robots (its reward row is in challenges.json), so a robot alone, or the loop with no mind (`scripted`), is never offered it. One target, so one game stands at a time, and `cooldownS` is the least time between two offers of it."
   ],
   "default": {
     "firstAtS": 300.0,
@@ -86,7 +87,8 @@
       "maxOffered": 5,
       "initial": 4,
       "kinds": {
-        "feed_mouse": {}
+        "feed_mouse": {},
+        "hide_and_seek": {}
       }
     }
   }

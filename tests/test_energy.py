@@ -1,9 +1,10 @@
 """Guards for the per-errand energy model (issue #15).
 
-economy/energy.py exists to close the one way an overseer can still strand the
-robot: `needs_charge` is checked BETWEEN errands and never inside one, so a
-job bigger than what is left in the pack cannot be survived by any charging
-policy. What these hold down:
+economy/energy.py prices every errand. The loop with no mind gates on the
+price, because `needs_charge` is checked BETWEEN errands and never inside one,
+so a job bigger than what is left in the pack cannot be survived by any
+charging policy -- and a mind is shown the same measured price to weigh for
+itself (issue #115). What these hold down:
 
   1. THE ARITHMETIC HAS FOUR ANSWERS, not two. "charge and try again", "this
      world can never do that" and "this cell was always too small for this"
@@ -13,15 +14,14 @@ policy. What these hold down:
      dearest job plus the return trip keeps the whole reserve, and one that
      cannot keeps none. A margin charged on a battery smaller than one
      errand refuses every job in that world forever.
-  3. AN ERRAND THAT WILL NOT FIT IS DEFERRED, NOT STARTED. This is the
-     acceptance criterion, and `test_an_overseer_that_only_ever_picks_the_
-     dearest_errand_is_sent_to_charge_first` is it as a whole day.
+  3. AN ERRAND THAT WILL NOT FIT IS DEFERRED, NOT STARTED, by the loop with
+     no mind (`_afford_next`, rail two; a mind's are off).
   4. NOTHING SPINS. An errand that cannot be paid for after two charges is
      given up on, and one no pack here could cover is dropped on sight.
   5. THE MODEL IS TOLD, and told only what was measured. Costs ride the
-     cached prefix; what the pack can pay for right now rides the volatile
-     turn; an unmeasured action is priced for the GATE and never printed to
-     the model as though somebody had measured it.
+     cached prefix and the pack the volatile turn -- the numbers, never the
+     verdict (`model_state`); an unmeasured action is priced for the GATE
+     and never printed to the model as though somebody had measured it.
 """
 
 import json
@@ -59,7 +59,7 @@ def feed_errand() -> Errand:
 
 def tooled(menu):
   """A menu for a body that takes a tool (`Menu.tools`), which no served
-  body does until #406/#407: the rotation over the tool errands."""
+  body does until #406/#407: the tool errands on it."""
   return replace(menu, tools=True)
 
 
@@ -293,9 +293,12 @@ def test_the_demo_pack_funds_the_dearest_job_with_the_reserve_intact():
   `test_affordability_has_a_now_a_later_a_never_and_a_demo_cell`, which
   builds its own too-small cell. The four answers still exist and still must
   not collapse; a future world that exercises the fourth is flown again."""
-  gift = lc.cage_errand(QUAD_HOME, "toy")                  # care, the dearest row
-  life = life_with(battery_wh=DEMO_WH, errands=[gift])
-  assert life.energy.cost("care") == life.energy.dearest_wh()
+  # the dearest row: the game's seeker (#404), as the board prices its offer
+  board = lc.task_board(world=QUAD_HOME)
+  game = board.offer("hide_and_seek", lc.GAME_TARGET, t=0.0)
+  seeker = lc.errand_for_task(game, QUAD_HOME, role="seeker")
+  life = life_with(battery_wh=DEMO_WH, errands=[seeker])
+  assert seeker.estimate_wh == life.energy.dearest_wh() == life.energy.cost("hide_and_seek")
   assert life.energy.dearest_wh() + RESERVE <= life.charged_wh, \
       "the demo pack no longer holds reserve + the dearest job"
   assert life._afford_next() is True
@@ -399,38 +402,20 @@ def test_only_measured_costs_are_shown_to_the_model():
       assert free not in menu.costs_wh
 
 
-def test_the_scripted_policy_never_rotates_onto_what_the_world_cannot_do():
-  """The fallback is a real day's work, so it has to obey the same gate the
-  loop does -- otherwise the API going down means the robot proposing an
-  errand this world refuses, over and over, until the budget runs out."""
+def test_an_order_filters_on_what_the_world_can_do_never_on_the_pack_now():
+  """⚠ IMPOSSIBLE, NOT UNWISE (`order_runnable`). An errand missing from
+  `possibleActions` is one no charge here covers, and an order naming it has
+  nothing to act on; one the pack cannot pay for THIS SECOND
+  (`affordableActions`) is dangerous and runs anyway -- an agent that sets a
+  fatal order and dies of it is the result. And a caller that supplies no
+  list -- a unit test, an older context dict -- must not be read as "this
+  robot can do nothing"."""
   menu = tooled(ov.Menu.for_world(QUAD_HOME, lc.board_book(QUAD_HOME)))
-  state = {"decisions": 0, "floorExplored": True,
-           "possibleActions": ["carry", "explore", "idle", "charge"]}
-  for _ in range(4):
-    d = ov.scripted(menu, state, "test")
-    assert d.action in ("carry", "explore", "idle", "charge"), d.action
-    state["decisions"] += 1
-
-
-def test_the_scripted_policy_still_picks_what_a_charge_would_afford():
-  """⚠ THE TIGHTER LIST WOULD STARVE IT. `affordableActions` is what the pack
-  can pay for THIS SECOND, and an errand it cannot is one the loop charges for
-  and then runs -- so filtering the rotation on it would put the robot on
-  `explore` for the whole minute before every charge, which is not the
-  fallback doing a day's work."""
-  menu = tooled(ov.Menu.for_world(QUAD_HOME, lc.board_book(QUAD_HOME)))
-  d = ov.scripted(menu, {"decisions": 0, "floorExplored": True,
-                         "affordableActions": [],
-                         "possibleActions": ["draw", "carry"]}, "test")
-  assert d.action == "draw"
-
-
-def test_an_empty_possible_list_filters_nothing():
-  """A caller that supplies none -- a unit test, an older context dict --
-  must not be read as "this robot can do nothing"."""
-  menu = tooled(ov.Menu.for_world(QUAD_HOME, lc.board_book(QUAD_HOME)))
-  d = ov.scripted(menu, {"decisions": 0, "floorExplored": True}, "test")
-  assert d.action == "draw"
+  state = {"decisions": 0, "affordableActions": [],
+           "possibleActions": ["draw", "carry"]}
+  assert ov.order_runnable(menu, "draw", state)
+  assert not ov.order_runnable(menu, "dance", state)
+  assert ov.order_runnable(menu, "draw", {"decisions": 0})
 
 
 def test_the_context_carries_what_the_pack_can_actually_spend():
@@ -459,48 +444,18 @@ def test_the_prompt_still_never_carries_a_hidden_answer():
 # ---- 3, the gate and the cap -------------------------------------------------
 
 #: The SMALLEST pack that is in the margin regime here (the dearest errand,
-#: 1.859 Wh, plus the 3.7 Wh reserve must fit a charged pack: capacity >=
-#: 5.559 / 0.9 = 6.18), so these cost one short charge. The regime is what is
-#: under test, not the capacity -- the hosting pack is the same arithmetic
-#: with more room in it. A pack below the floor silently drops to zero
-#: margin (the all-or-nothing rule), which is exactly what the first
-#: assertion catches.
-MARGIN_PACK_WH = 6.2
-
-
-class OneNote:
-  """An `anthropic` client stand-in that answers the same action forever.
-
-  Deliberately local rather than imported from `tests/test_overseer.py`:
-  `tests/` is not a package, and a cross-test import that works under one
-  invocation and not another is a test that fails for a reason nobody in it
-  is talking about.
-  """
-
-  class _Response:
-    def __init__(self, payload):
-      self.content = [type("Block", (), {"type": "text",
-                                         "text": json.dumps(payload)})()]
-      self.usage = type("Usage", (), {
-        "input_tokens": 1200, "output_tokens": 40,
-        "cache_creation_input_tokens": 0, "cache_read_input_tokens": 0})()
-
-  def __init__(self, action: str, reason: str, **fields) -> None:
-    self.payload = {"action": action, "reason": reason, "board": "",
-                    "program": "", "zone": "", "note": "", "respond_to": "",
-                    "outcome": "", "reply": "", "task": "", "answer": "",
-                    **fields}
-    self.calls: list[dict] = []
-    self.messages = self
-
-  def create(self, **kwargs):
-    self.calls.append(kwargs)
-    return self._Response(self.payload)
+#: the game's seeker at 6.103 Wh (#404), plus the 3.7 Wh reserve must fit a
+#: charged pack: capacity >= 9.803 / 0.9 = 10.89), so these cost one short
+#: charge. The regime is what is under test, not the capacity -- the
+#: hosting pack is the same arithmetic with more room in it. A pack below
+#: the floor silently drops to zero margin (the all-or-nothing rule), which
+#: is exactly what the first assertion catches.
+MARGIN_PACK_WH = 10.9
 
 
 # What regresses is a RULE -- an inequality in `_afford_next`, the loop bound
 # in `charge()`, the two factors of `charge_timeout` agreeing -- pinned first,
-# then a day through each on the stub (issues #158, #380). What only physics
+# then a charge on the stub (issues #158, #380). What only physics
 # adds is the press's real rate and an errand's real cost: measurements,
 # `scripts/energy_spike.py`'s, folded into energy.json.
 
@@ -577,53 +532,6 @@ def test_the_scaled_cap_still_clears_the_time_a_full_charge_takes(pack_wh,
       "the cap sits under the slack a real press needs"
   assert life.charge_timeout >= lc.CHARGE_TIMEOUT_MIN, \
       "the floor is gone: a small pack gets less than it takes to seat the pins"
-
-
-def test_an_overseer_that_only_ever_picks_the_dearest_errand_is_sent_to_charge_first():
-  """⚠ THE ACCEPTANCE CRITERION, adversarially, as a day on the stub (issue
-  #380): an overseer that answers `care` -- the dearest errand a mind can
-  choose on legs -- to every question, on a pack just short of its cost
-  plus the return-trip reserve. The loop must refuse it IN ADVANCE, charge,
-  and only then run it: not "a sensible model plans well" but "a model that
-  plans badly cannot strand the robot", the shape of
-  `test_charge_priority_survives_an_overseer_that_never_charges`.
-
-  The refusal is the GATE's (the pack is above the floor), and the model is
-  gated rather than replaced: the act run is the one it chose. The gate is
-  rail two, so the arm is the one that keeps it, with the lab's `care` on
-  its menu. Shown to fail with `_afford_next` returning True
-  unconditionally: the act is set off on before any charge.
-  """
-  boss = ov.Overseer(lab_menu(), client=OneNote("care", "I like the mouse", care="toy"))
-  life = life_with(battery_wh=MARGIN_PACK_WH, overseer=boss,
-                   boards=lc.board_book(QUAD_HOME))
-  cost = life.energy.cost("care")
-  assert cost == life.energy.dearest_wh()
-  assert life.reserve_margin_wh == RESERVE, "not in the margin regime"
-  assert cost + RESERVE <= life.charged_wh
-  life.battery.energy_wh = cost + RESERVE - 0.01
-  assert not life.needs_charge, "the floor would refuse it; the gate is under test"
-  sent: list[tuple[str, float]] = []
-  for name in ("dock_routine", "find_tag_routine"):
-    def spy(*a, _real=getattr(life.body, name), _name=name, **kw):
-      sent.append((_name, life.battery.energy_wh))
-      return (yield from _real(*a, **kw))
-    setattr(life.body, name, spy)
-  # Ends at the first errand's result, where the claim is decided either way
-  # (charged first, or not): an ungated act decided again and again on the
-  # stub runs away rather than failing. The budget is a backstop with room
-  # for a late answer, which on the stub is SIM time.
-  life.stop_when(lambda: len(life.errand_results) >= 1)
-  r = life.run(lc.world_config(QUAD_HOME)["start"], max_sim_time=300.0)
-
-  assert any("DEFER care" in line for line in life.log), \
-      f"the act was never deferred: {life.log[-8:]}"
-  assert [n for n, _ in sent][:2] == ["dock_routine", "find_tag_routine"], \
-      f"the act started before a charge: {sent[:2]}"
-  assert sent[1][1] >= cost + RESERVE, "set off before the pack covered it"
-  assert r["errands"], r["errands"]
-  assert any(d["action"] == "care" and d["source"] == "llm"
-             for d in r["decisions"]), "the fallback chose it, not the model"
 
 
 @pytest.mark.parametrize("scale", [1.0, 5.0])

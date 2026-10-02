@@ -30,14 +30,12 @@ pointed at the new one, the registries, the wire).
 
   ⚠ THE TAG IS WRITTEN ONCE. A built module's identity tag gets the next
   id past the hand-built modules' (`BUILT_TAG_BASE`); its PNG goes to
-  `models/tags/` through a temp file and an atomic rename, because a
-  parallel test suite writing the same PNG twice is a known race.
+  `models/tags/` whole, through `tags.write_tag_pngs` (#440), and only if
+  it is not there already.
 """
 
 from __future__ import annotations
 
-import os
-import tempfile
 from pathlib import Path
 
 import mujoco
@@ -46,7 +44,7 @@ from pluggybot.rack.coupling import (
   BUILT_STATION_YS, HUB_PEG_Z, RACK_HANG_X, SMALL_PLATE_HALF, TOOL_HALF_X,
   rack_frame_to_world,
 )
-from pluggybot.rack.tags import MODULE_TAG_IDS, TAG_DIR, tag_image
+from pluggybot.rack.tags import MODULE_TAG_IDS, TAG_DIR, write_tag_pngs
 from pluggybot.workshop import build
 from pluggybot.workshop.spec import Tool
 
@@ -114,16 +112,11 @@ def tag_id_for_bay(bay: int) -> int:
 
 
 def write_tag_png(tag_id: int, directory: Path = TAG_DIR) -> Path:
-  """The tag's PNG on disk, written once and atomically."""
-  from PIL import Image
-  directory.mkdir(parents=True, exist_ok=True)
+  """The tag's PNG on disk, written once and whole. One already there is not
+  even compared: in the image `models/` is root's and the sim cannot write."""
   path = directory / f"tag{tag_id}.png"
-  if path.exists():
-    return path
-  fd, tmp = tempfile.mkstemp(dir=directory, suffix=".png")
-  os.close(fd)
-  Image.fromarray(tag_image(tag_id)).save(tmp)
-  os.replace(tmp, path)
+  if not path.exists():
+    write_tag_pngs(directory, ids=[tag_id])
   return path
 
 

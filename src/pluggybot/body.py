@@ -89,10 +89,14 @@ class RackPose:
 class KeepClear(NamedTuple):
   """Another robot, as one of `Body.others` answers it: where to keep clear
   of, and whether it is LYING DOWN (issue #365) -- a disc round its body,
-  and nothing to wait for. A bare `(x, y)` is a robot standing."""
+  and nothing to wait for. A bare `(x, y)` is a robot standing. Where the
+  pair says so, also WHO it is and whether it is RESTING (issue #415): a
+  robot lying down to rest can be asked to make way (`Body.ask_way`)."""
   x: float
   y: float
   down: bool = False
+  root: str = ""
+  resting: bool = False
 
 
 class Body(abc.ABC):
@@ -175,7 +179,9 @@ class Body(abc.ABC):
 
   #: How the last `go_to_routine` ended (issue #350): `why` ("" arrived,
   #: else the body's cause), `goal`, `seconds`, `shortM`, and for a peer
-  #: `peerAt` / `peerM` / `peerXY` / `peerDown`. None before any.
+  #: `peerAt` / `peerM` / `peerXY` / `peerDown` (`peerRests` if it lay down
+  #: to rest); `askedWay`, the robots asked to make way that said yes
+  #: (issue #415). None before any.
   last_drive: dict | None
 
   @abc.abstractmethod
@@ -220,6 +226,25 @@ class Body(abc.ABC):
     measured off the tag, within `patience` s (issue #419); `stop` as
     `find_tag_routine`'s. Returns its record: `pressed` (a foot on the
     pad) and `why`."""
+
+  @abc.abstractmethod
+  def hide_routine(self, away_from: tuple[float, float], reach_m: float,
+                   clear_of_m: float, patience: float, stop=None) -> Routine:
+    """Hide from a robot counting at `away_from` (issue #404, hide and
+    seek): pick a spot on the floor it has mapped, no further than
+    `reach_m` to walk, more than `clear_of_m` from `away_from` and out of
+    its sight where the map allows, and walk there within `patience` s;
+    `stop` as `find_tag_routine`'s. Returns its record: `hid` (arrived),
+    `at`, `why`, `seconds`."""
+
+  @abc.abstractmethod
+  def seek_routine(self, base: tuple[float, float], cover_m: float,
+                   patience: float, stop=None) -> Routine:
+    """Search its own map outward from `base`, where it counted (issue
+    #404), walking until every floor it knows within reach has been within
+    `cover_m` of it in plain sight, `patience` s are up, or `stop` says so
+    -- never told where the other robot is. Returns its record: `why`,
+    `seconds`, how many places it walked to."""
 
   @abc.abstractmethod
   def forget_world(self) -> None:
@@ -435,6 +460,26 @@ class Body(abc.ABC):
   #: THE OTHER ROBOTS (issue #167): callables answering each one's reported
   #: (x, y), or a `KeepClear`; set by the pair.
   others: list
+  #: How this body asks another robot to MAKE WAY (issue #415): a callable
+  #: `(root, route) -> bool`, True while the robot named is stepping off
+  #: `route` (this body's way, a list of (x, y) from where it stands); set
+  #: by the pair, None for a robot alone.
+  ask_way: Any
+  #: The robot this body is stepping aside for, by its root, or None.
+  making_way: str | None
+  #: How many times it has stepped aside (issue #415) ...
+  asides: int
+  #: ...and the last time's record: for whom, from where to where, how
+  #: long it took, and why it ended.
+  last_aside: dict | None
+
+  @abc.abstractmethod
+  def make_way(self, route: list, by: str) -> bool:
+    """Another robot (`by`, its root) asks this body to step off `route`,
+    its way, which this body cuts (issue #415). Lying down to rest and free
+    to -- not docked, not mid-move, no walk of its own under way -- it
+    stands and walks aside beneath whatever it is holding, a rule in code
+    like the rest reflex, the mind not asked. True while it makes way."""
 
   @abc.abstractmethod
   def peer_on_the_goal(self, x: float, y: float) -> float | None:
@@ -643,6 +688,10 @@ class StubBody(Body):
     self.places = Places(ids=PLATE_TAG_IDS)
     self.found: list[int] = []
     self.pressed: list[int] = []
+    #: ...and each hide (from where, its reach, how far clear) and each
+    #: search (from where, its reach) it was asked for (issue #404)
+    self.hid_from: list[tuple] = []
+    self.sought: list[tuple] = []
     self.forgot = 0
     self.last_drive = None
     self.swapping_at = self.peer_at_bay_m = None
@@ -650,6 +699,13 @@ class StubBody(Body):
     self.bay_wait = None
     self.docked = self.pressing = self.resting = False
     self.others = []
+    self.ask_way = None
+    #: whether it makes way when asked (a test sets it), and every ask:
+    #: (route, by)
+    self.makes_way = False
+    self.way_asked: list[tuple[list, str]] = []
+    self.making_way = None
+    self.asides, self.last_aside = 0, None
     self.geom_ids = np.zeros(0, dtype=np.int32)
     self.peer_holds = self.collision_steps = self.press_steps = 0
 
@@ -723,6 +779,33 @@ class StubBody(Body):
     return {"tag": int(tag), "pressed": known,
             "why": "pressed" if known else "not found", "attempts": []}
     yield
+
+  def hide_routine(self, away_from, reach_m, clear_of_m, patience, stop=None):
+    """Hidden at once, `clear_of_m` past `away_from` on the line through
+    where it stands (or along +x from there): the stub maps nothing."""
+    self.hid_from.append((tuple(away_from), float(reach_m), float(clear_of_m)))
+    dx, dy = self.x - away_from[0], self.y - away_from[1]
+    d = math.hypot(dx, dy)
+    ux, uy = (dx / d, dy / d) if d > 0.0 else (1.0, 0.0)
+    r = max(d, clear_of_m + 0.5)
+    at = (away_from[0] + ux * r, away_from[1] + uy * r)
+    self.x, self.y = at
+    return {"hid": True, "at": [round(at[0], 3), round(at[1], 3)], "why": "hid",
+            "seconds": 0.0}
+    yield
+
+  def seek_routine(self, base, cover_m, patience, stop=None):
+    """Seeks by standing still until `stop` says so or `patience` runs out,
+    a second at a time: the stub has no floor to walk."""
+    self.sought.append((tuple(base), float(cover_m)))
+    t0 = float(self._data.time)
+    while float(self._data.time) - t0 < patience:
+      if stop is not None and stop():
+        return {"why": "stopped", "seconds": round(float(self._data.time) - t0, 1),
+                "targets": 0}
+      yield from self._wait(min(1.0, patience - (float(self._data.time) - t0)))
+    return {"why": "out of time", "seconds": round(float(self._data.time) - t0, 1),
+            "targets": 0}
 
   def forget_world(self) -> None:
     self.grid.grid[...] = 0.0
@@ -857,6 +940,10 @@ class StubBody(Body):
 
   def watch_for_peers(self, points):
     return None
+
+  def make_way(self, route, by) -> bool:
+    self.way_asked.append((list(route), by))
+    return self.makes_way
 
   def actuator(self, name) -> int:
     raise KeyError(f"a stub body has no actuator {name!r}")

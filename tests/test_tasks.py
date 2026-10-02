@@ -22,7 +22,7 @@ import pytest
 
 from pluggybot import lifecycle as lc
 from pluggybot.economy import scoring
-from pluggybot.mind.overseer import Menu, scripted
+from pluggybot.mind.overseer import Menu
 from pluggybot.economy.tasks import (
   KINDS, MAX_DESCRIPTION, MAX_OFFERED, Task, TaskBoard, kind_names,
 )
@@ -464,23 +464,6 @@ def test_the_lifecycle_of_a_task_is_on_the_wire():
 
 
 # ---- the overseer's end -------------------------------------------------------
-
-
-def test_the_scripted_policy_takes_a_job_before_inventing_one():
-  """The fallback has to do a real day's work with the API down, and "somebody
-  asked for this" outranks the rotation. Note what it does NOT do: it takes
-  the OLDEST claimable offer, not the best-paying one, because a scripted
-  policy that optimised the reward table would be a second scorer."""
-  menu = Menu(boards=("whiteboard_a",), programs=("house",))
-  offers = [{"id": "t_0002", "claimable": True, "pays": 2},
-            {"id": "t_0003", "claimable": True, "pays": 99}]
-  decision = scripted(menu, {"offeredTasks": offers}, "timeout")
-  assert decision.action == "take_task"
-  assert decision.task == "t_0002"
-  assert decision.source == "fallback:timeout"
-  # ...and with nothing claimable it is the rotation exactly as before.
-  dull = [{"id": "t_0004", "claimable": False}]
-  assert scripted(menu, {"offeredTasks": dull}, "timeout").action != "take_task"
 
 
 def test_taking_a_task_that_is_not_on_offer_is_a_malformed_answer():

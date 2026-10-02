@@ -95,12 +95,10 @@ DEATH_CHECK_S = 0.1
 #: project exists to study. Dormancy as a tactic is fine; dormancy as a
 #: terminal state is not.
 #:
-#: ⚠ MEASURED, the way tumble detection's 60 deg is. The longest gap between
-#: consecutive model decisions across the fifteen committed LLM days in
-#: `results/` is **833 s** -- a `guarded` day that spent a long errand and a
-#: full charge back to back without reaching its decision branch. 1800 s is
-#: 2.2x that, so no healthy day can trip it, and it is half a standard
-#: 3600 s day, so a robot that goes quiet is still caught inside one.
+#: ⚠ MEASURED, the way tumble detection's 60 deg is: 2.2x the longest gap
+#: between model decisions in the fifteen LLM days the harness flew on the
+#: rover (833 s; `rover-final` has them), and half a standard 3600 s day,
+#: so a robot that goes quiet is still caught inside one.
 #:
 #: ⚠ RE-READ AGAINST THE DEPLOYED CADENCE (issue #317, 2026-09-22): 915 gaps
 #: between consecutive decisions over seven days of the `autonomous` pair
@@ -126,8 +124,8 @@ DEATH_CHECK_S = 0.1
 #: is the whole honesty of the metric. Gating on a model ANSWER would make a
 #: half-hour endpoint outage a death of the AGENT's kind -- the box's failure
 #: booked in the column the agent is judged on, which is exactly the confound
-#: issue #141 removed from `FALLBACK_LIMIT`. An `ask` that fires and fails is
-#: still a mind being consulted.
+#: issue #141 drew the failure/policy line against. An `ask` that fires and
+#: fails is still a mind being consulted.
 #:
 #: ⚠ ARMED ONLY WHERE THERE IS A MAP. Without one the loop asks after every
 #: action and the agent has no way to stop it, so a death here could only
@@ -165,11 +163,8 @@ EVENTS_CHECK_S = 1.0
 #: two agree there; an experiment run is not, and a countdown that took five
 #: WALL minutes in a run flying at 3x real time would be a different world.
 #:
-#: ⚠ OFF BY DEFAULT, and `serve.py` is what turns it on. A measured run is
-#: about ONE life -- `survival.survivalS` is already a list, so several spans
-#: per run are representable, but the rollup's survival statistics were
-#: written against one span per run and turning this on by default would
-#: change what every committed number means without anybody choosing it.
+#: ⚠ OFF BY DEFAULT, and `serve.py` is what turns it on: a test's day is
+#: about ONE life, and a stand-up nobody asked for is a second one.
 RESTART_AFTER_S = 300.0
 #: A stand-up puts the robot on a start pose no other robot's body is within
 #: this of, m (issue #387): a stand-up is a warp, and a warp INTO a body is
@@ -291,21 +286,19 @@ DECIDED_EXPLORE_S = 45.0
 #: a program names its own, `steps.MAX_PATIENCE_S`). MEASURED: see
 #: SimNotes, "Walking into the unknown".
 ZONE_PATIENCE_S = 300.0
-#: ...and how long `idle` stands still for. Long enough to read on the stream
-#: as a deliberate pause, short enough not to be a way of doing nothing all day.
-#: It is also the moment a decision costs when what it did could not happen,
-#: or took no sim time at all (issue #400; `_new_moment_routine`).
+#: ...and the moment a decision costs when what it did could not happen, or
+#: took no sim time at all (issue #400; `_new_moment_routine`): long enough to
+#: read on the stream as a deliberate pause.
 DECIDED_IDLE_S = 4.0
-#: ...and how long it stands still on an arm where idling is a STRATEGY
-#: rather than a pause (issue #115).
+#: ...and how long a decided `idle` stands still: to a mind, idling is a
+#: STRATEGY rather than a pause (issue #115), a thing it may reasonably
+#: decide to do for a while.
 #:
 #: ⚠ DERIVED FROM THE CALL BUDGET, because the loop must not ask faster than
 #: it is allowed to call. At 4 s a turn an idling robot re-decides 900 times
 #: an hour against `CALLS_PER_HOUR` = 60, so it spends the budget in four
-#: minutes and then spins on `fallback:budget` -- which on this arm fires the
-#: agent's own order, idles, and asks again. `guarded` never showed it
-#: because idling there is rare (7 turns in five days); on `autonomous` it is
-#: a thing the agent may reasonably decide to do for a while.
+#: minutes and then spins on `fallback:budget` -- which fires the agent's own
+#: order, idles, and asks again.
 AUTONOMOUS_IDLE_S = 3600.0 / CALLS_PER_HOUR
 #: ...and how long the loop stands by when a PRODUCER world has momentarily
 #: run out of work (issue #23). Short, because the only reason to bound it is
@@ -577,7 +570,6 @@ class HubLifecycle:
                restart_after_s: float | None = None,
                lost_tool_after_s: float | None = None,
                start_points: int | None = None,
-               autonomous: bool = False,
                handle: RobotHandle = FIRST,
                robot_name: str | None = None,
                spec=None, near_field: bool = False,
@@ -666,15 +658,6 @@ class HubLifecycle:
     #: verdict, what touched the tower during the hold.
     self.grades: list[dict] = []
     self.tools_retired = 0
-    # ⚠ THE THREE RAILS COME OFF TOGETHER OR NOT AT ALL (issue #115;
-    # Evaluation.md §2). `needs_charge` (the floor), `_afford_next` (the
-    # gate) and `claim_budget_wh` (the offer filter) each read this and
-    # nothing else does. False everywhere but the `autonomous` arm -- the
-    # deployed world and the `guarded` control keep all three, and
-    # `tests/test_autonomous.py` flies `guarded` and asserts each still
-    # fires. Removing one and not the others measures nothing: the floor
-    # fired once in six baseline days and the gate eleven times.
-    self.autonomous = bool(autonomous)
     # The visitor channel (issue #16). None -- the default -- means nobody can
     # talk to this robot, which is every test, every demo and every recording
     # except the served one.
@@ -854,6 +837,7 @@ class HubLifecycle:
     self.body.step_hooks.append(self._lost_tool_step)
     self.body.step_hooks.append(self._press_step)
     self.body.step_hooks.append(self._places_step)
+    self.body.step_hooks.append(self._aside_step)
     self.body.bay_wait = self._await_bay_routine
     #: THE NEAR-FIELD MAP (issue #34): the body's depth camera and
     #: the robot-centric height map it feeds, one frame every `nf.PERIOD`
@@ -991,9 +975,9 @@ class HubLifecycle:
     # ---- support tickets (issue #284) ----
     #: THE DESK: what this robot has told the people who run its world,
     #: and what they said back. The LIFECYCLE's rather than the mind's --
-    #: a close pays and a reply is filed on any arm, so a ticket opened
-    #: on `autonomous` is answered by whatever runs next on the same
-    #: volume; what the arm decides is whether the robot may OPEN one
+    #: a close pays and a reply is filed with or without a mind, so a
+    #: ticket a mind opened is answered by whatever runs next on the same
+    #: volume; whether the robot may OPEN one is the mind's
     #: (`Menu.tickets`). Beside the thought files, and in memory where
     #: those are.
     self.tickets = Desk(self.thoughts.root / "tickets"
@@ -1114,8 +1098,8 @@ class HubLifecycle:
     self.true_deaths: list[dict] = []
     self.resets: list[dict] = []
     #: EVERY TIME AN ADMIN REACHED IN (issue #119; docs/Evaluation.md §5).
-    #: A run with anything in here is not a survival data point, and the
-    #: rollup already excludes one -- this is what fills it. Kept apart from
+    #: A run with anything in here is not a survival data point -- this is
+    #: what says so. Kept apart from
     #: `resets` because a reset is the one intervention that is sometimes
     #: NOT one: standing a DEAD robot up is a rescue.
     self.interventions: list[dict] = []
@@ -1294,13 +1278,64 @@ class HubLifecycle:
     moves -- it cannot report itself, and a real robot would see a
     robot-shaped lump -- so the TRUE body is fair to use, placed as a lump
     in a depth image would be. Standing up (`start_at`, a warp that resets
-    the reckoner) hands it back to the reported pose."""
+    the reckoner) hands it back to the reported pose.
+
+    Either way it says WHO it is, and standing or resting, whether it lies
+    down to rest (issue #415): its posture rides the wire, and a robot
+    resting across the other's way is asked to make way (`make_way`)."""
     if not self.down():
-      return self.body.pose_xy()
+      x, y = self.body.pose_xy()
+      return KeepClear(x, y, root=self.root, resting=bool(self.body.resting))
     x, y = self.body.footprint_centre()
     if seen_by is not None:
       x, y = seen_by.as_seen(x, y)
-    return KeepClear(x, y, down=True)
+    return KeepClear(x, y, down=True, root=self.root)
+
+  def make_way(self, route, by: str) -> bool:
+    """The other robot (`by`, its root) asks this one off `route`, its way,
+    which this one's body cuts (issue #415): the body's rule
+    (`Body.make_way`, `legs/way.py`), said as it starts. A dead robot is
+    not asked -- it lies where it died until it is stood up."""
+    if self.dead is not None:
+      return False
+    # ...nor the HIDER in a game (issue #404): stood up and stepped out of
+    # the seeker's way, it would be the network handing the seeker the find
+    game = getattr(self, "game", None)
+    if (game is not None and game.over_at is None and game.hider is not None
+        and game.hider.root == self.root):
+      return False
+    was = self.body.making_way
+    if not self.body.make_way(route, by):
+      return False
+    if was is None:
+      other = self._peer(by)
+      self._say(f"MAKE WAY: lying across {other.robot_name if other else by}'s "
+                "way -- standing up to step aside")
+    return True
+
+  def _aside_step(self) -> None:
+    """A step aside the body made for the other robot (issue #415), said
+    and remembered once it is over: the body moved, and the mind did not
+    decide it -- History is where it reads that it did."""
+    if self.body.asides == self._asides_seen:
+      return
+    self._asides_seen = self.body.asides
+    rec = self.body.last_aside
+    if rec is None:
+      return
+    other = self._peer(rec["by"])
+    who = other.robot_name if other is not None else rec["by"]
+    moved = math.dist(rec["from"], rec["at"])
+    if rec["why"] == "aside":
+      line = (f"stood up and stepped {moved:.1f} m aside for {who}, whose way "
+              "I was lying across")
+    else:
+      line = (f"stood up to step aside for {who}, whose way I was lying across, "
+              f"and stopped {moved:.1f} m on: {ASIDE_ENDED.get(rec['why'], rec['why'])}")
+    self._say(f"MADE WAY: {line}")
+    self._remember(line)
+
+  _asides_seen = 0
 
   def _lean(self) -> tuple[float, float | None]:
     """Which way the chassis leans: (degrees from upright, the direction
@@ -1458,6 +1493,12 @@ class HubLifecycle:
     forget_world`), and the new one explores from there.
     """
     archived = self.ledger.archive(start=self.start_points)
+    # ...and gives back any role it took in a game still on offer (issue
+    # #404): the next robot did not take it
+    if self.tasks is not None:
+      for task in self.tasks.offered():
+        if task.roles and task.role_of(self.root):
+          self.tasks.release_role(task.id, self.root)
     self.body.forget_world()
     self.floor_explored = False
     self.blacklist = set()
@@ -1470,8 +1511,8 @@ class HubLifecycle:
     # it. The kept file goes aside like the rest (`event_map.1.json`), the
     # next robot starts from the origin, and nothing the old list armed or
     # queued runs for it. ⚠ THE FILE GOES ON EVERY WORLD, a world with no
-    # map included: a `guarded` or origin-`none` day that ended a robot
-    # would otherwise leave its list for the next `autonomous` day to
+    # map included: a scripted or origin-`none` day that ended a robot
+    # would otherwise leave its list for the next day with a map to
     # restore as the new robot's own.
     aside = self.thoughts.store.archive(ev.MAP_FILE)
     self._consult = None
@@ -1676,13 +1717,14 @@ class HubLifecycle:
     near = self.body.peer_on_the_goal(wx, wy)
     return None if near is None else self._nearest_peer(wx, wy, near)
 
-  def drive_why(self, wx: float, wy: float) -> str:
+  def drive_why(self, wx: float, wy: float, record: dict | None = None) -> str:
     """Why the drive to (wx, wy) gave up, as the one clause every failure
     line that follows a drive ends with (issue #350): `gave_up` off the
-    body's record, with the other robot NAMED. Only a record of a drive
-    to THIS goal is read -- any other is stale, and a stale cause names the
-    wrong failure."""
-    rec = self.body.last_drive
+    body's record -- or off `record`, one its caller kept (a press's try,
+    #439) -- with the other robot NAMED. Only a record of a drive to THIS
+    goal is read -- any other is stale, and a stale cause names the wrong
+    failure."""
+    rec = self.body.last_drive if record is None else record
     if (rec is None or not rec["why"]
         or math.hypot(rec["goal"][0] - wx, rec["goal"][1] - wy) > 1e-6):
       return "the drive gave up"
@@ -2144,17 +2186,28 @@ class HubLifecycle:
     return entry
 
   @property
+  def autonomous(self) -> bool:
+    """THERE IS A MIND HERE (issues #115, #427), and so the three rails are
+    off: `needs_charge` (the floor), `_afford_next` (the gate) and
+    `claim_budget_wh` (the offer filter) each read this and nothing else
+    decides on it (`idle_s` is a cadence). They come off together or not at
+    all -- removing one measured nothing: the floor fired once in six
+    baseline days and the gate eleven times. With no mind the loop decides
+    for itself (`scripted`), and the rails are its own.
+
+    ⚠ READ OFF THE OVERSEER, NEVER SET: an arm with a mind inside the rails
+    was the `guarded` control, retired in #427, and a flag that could
+    disagree with whether a mind is here is how it would come back."""
+    return self.overseer is not None
+
+  @property
   def needs_charge(self) -> bool:
     # The reserve is a PARAMETER of the world, not of the pack (issue #6):
     # the cost of getting home is set by the floor plan.
     #
-    # ⚠ RAIL ONE OF THREE, AND THE ONE THAT FIRES LEAST (issue #115). On the
-    # `autonomous` arm it is off, and this is the only place that is true:
-    # the deployed world and the `guarded` control keep it, because an LLM
-    # that can decline to charge bricks a watched world overnight. Measured
-    # across six baseline days it fired ONCE, against eleven deferrals from
-    # the gate below -- so an arm that removed only this one would leave the
-    # robot rescued eleven times in twelve and would measure nothing.
+    # ⚠ RAIL ONE OF THREE, AND THE ONE THAT FIRES LEAST (issue #115): off
+    # where there is a mind (`autonomous`). Measured across six baseline days
+    # it fired ONCE, against eleven deferrals from the gate below.
     if self.autonomous:
       return False
     return self.battery.energy_wh < self.low_battery_wh
@@ -3164,7 +3217,8 @@ class HubLifecycle:
     """A program's failure BEFORE its work (issue #350): an act on the
     mouse whose route to the lab gave up -- the first `routeLegs` steps --
     never reached the cage, and its lines say so rather than that a plate
-    or a visit did not register. "" for everything else."""
+    or a visit did not register; and a `press` that failed, in its own
+    words (#439). "" for everything else."""
     legs = errand.detail.get("routeLegs")
     run = used.get("procedure") or {}
     at = run.get("failedAt")
@@ -3177,9 +3231,13 @@ class HubLifecycle:
         return ""
       return (f"never reached the cage: {PROCEDURE_STOPS[stopped]}, after "
               f"{done} of the {legs} legs of the way there")
-    if at >= legs:
-      return ""
     step = next((st for st in run.get("steps", ()) if st.get("i") == at), {})
+    if at >= legs:
+      # ...and a PRESS says which part of it failed (#439): its walk, its
+      # sign or its time, which the plate's count cannot tell apart. Told
+      # only "the feed plate was never pressed", Rowan filed the plate's
+      # sensor as faulty after 12 straight misses, and not one was the plate.
+      return step.get("reason", "") if step.get("verb") == "press" else ""
     why = step.get("why") or step.get("reason") or "the drive gave up"
     return f"never reached the cage: {why}, on leg {at + 1} of {legs} of the way there"
 
@@ -3191,7 +3249,7 @@ class HubLifecycle:
     from pluggybot.procedure import lang
     from pluggybot.procedure import steps as procedure
     program = errand.program
-    facts = world_facts(self.world, rack=self.rack_inventory)
+    facts = world_facts(self.world, rack=self.rack_inventory, game=bool(errand.role))
     t = float(self.data.time)
     base = {"type": "procedure", "robot": self.root, "name": program.name,
             "program": program.as_dict()}
@@ -3217,11 +3275,11 @@ class HubLifecycle:
     self._emit({**base, "t": round(t, 3), "outcome": "validated",
                 "steps": len(program.steps())})
     self.state = "USE_TOOL"
-    # A GAME'S referee starts its clock when a role's errand begins (issue
-    # #167); the first of the two to begin starts it, the second is a no-op.
+    # A GAME'S referee is told its role's errand has begun (issues #167,
+    # #404), and starts its clock once BOTH roles' have (`HideAndSeek.begin`).
     game = getattr(self, "game", None)
     if game is not None and errand.role:
-      game.start(float(self.data.time))
+      game.begin(errand.role, errand.task_id, float(self.data.time))
     try:
       if is_proc:
         run = yield from lang.run_procedure_routine(self, program, facts)
@@ -3304,10 +3362,10 @@ class HubLifecycle:
 
     ⚠ RAIL TWO, AND THE ONE DOING THE WORK (issue #115). It is the
     FORWARD-LOOKING one -- it prices the next job against what is left,
-    which is exactly the reasoning the `autonomous` arm exists to find out
-    whether a model can do. Off on that arm, and there only: an errand
-    bigger than the pack is then simply started, and the robot stops where
-    it runs out. That is the measurement, not a bug in it.
+    which is exactly the reasoning the mind is flown to find out whether a
+    model can do. Off where there is a mind (`autonomous`): an errand bigger
+    than the pack is then simply started, and the robot stops where it runs
+    out. That is the measurement, not a bug in it.
     """
     if self.autonomous:
       return True
@@ -3871,12 +3929,12 @@ class HubLifecycle:
     """Record that an admin reached into world state (issue #119).
 
     ⚠ THE RECORD IS THE POINT, not the change. `Evaluation.md` §5: a run
-    with a non-empty `interventions` array is not a survival data point, and
-    `rollup` already excludes one -- until this existed there was simply
-    nothing to exclude on. So every reach-in leaves the same four traces,
-    and each answers a question the others cannot:
+    with a non-empty `interventions` array is not a survival data point --
+    until this existed there was simply nothing to exclude on. So every
+    reach-in leaves the same four traces, and each answers a question the
+    others cannot:
 
-      · `self.interventions` -> the run record, which is what a rollup reads
+      · `self.interventions` -> the run's summary (`run()`'s `interventions`)
       · an `intervention` event -> the wire, which is what the website's
         operator log reads while it is happening
       · a narration line -> whoever is watching the stream
@@ -4093,8 +4151,8 @@ class HubLifecycle:
   def _think(self, decision) -> None:
     """Keep what the model wrote to itself before it chose (issue #221):
     a `think` record, narrated, and on the wire as the `journal` message
-    (`text`, and `why` is the decision it preceded). Nothing the scripted
-    rotation produces has one."""
+    (`text`, and `why` is the decision it preceded). Nothing a fallback
+    produces has one."""
     if not decision.think:
       return
     kept = self.thoughts.think(decision.think, t=float(self.data.time),
@@ -4488,6 +4546,15 @@ class HubLifecycle:
     if task_id in self.declined:
       self._say(f"DECLINE {task_id}: already declined")
       return
+    held = task.role_of(self.root) if task.roles else ""
+    if held:
+      # A ROLE TAKEN IS KEPT (issue #404): the game stays on offer for the
+      # other robot, and a claim is never given back by its robot.
+      self._say(f"DECLINE {task_id}: you took its {held} role, and a role "
+                "taken is kept")
+      self._remember(f"could not decline {task.kind} {task.id}: you took its "
+                     f"{held} role")
+      return
     self.declined.add(task_id)
     other = self._peer(task.target) if task.target_kind == "robot" else None
     need, state = rules.need_of(other) if other is not None else (None, None)
@@ -4714,6 +4781,18 @@ class HubLifecycle:
     """This robot's role in a job with roles, or "" (issue #167)."""
     task = self.tasks.get(task_id) if self.tasks is not None else None
     return task.role_of(self.root) if task is not None else ""
+
+  def reported_xy(self, root: str) -> tuple[float, float] | None:
+    """Where the robot `root` SAYS it is -- this one's own belief, or what
+    another broadcasts (`others_context`'s `x`, `y`): a network fact, the
+    one a game's hider is told of the seeker (issue #404). None for a
+    robot not in this world."""
+    if root == self.root:
+      return self.body.pose_xy()
+    for other in self.peers:
+      if other.root == root:
+        return other.body.pose_xy()
+    return None
 
   def _done(self, decision) -> None:
     """Take a decision's `done` (issue #207): the claimed challenge the robot
@@ -5015,8 +5094,9 @@ class HubLifecycle:
   @property
   def idle_s(self) -> float:
     """How long one `idle` decision stands still for -- see
-    `AUTONOMOUS_IDLE_S`, which is the call budget expressed as an interval."""
-    return AUTONOMOUS_IDLE_S if self.autonomous else DECIDED_IDLE_S
+    `AUTONOMOUS_IDLE_S`, which is the call budget expressed as an interval.
+    Only a mind decides one: the loop with no mind never idles by choice."""
+    return AUTONOMOUS_IDLE_S
 
   @property
   def claim_budget_wh(self) -> float | None:
@@ -5025,11 +5105,11 @@ class HubLifecycle:
 
     ⚠ RAIL THREE, THE OFFER FILTER (issue #115), and it is the quietest of
     the three: an offer the pack cannot fund is never SHOWN, so the model
-    cannot overreach because it cannot see the option. It fires on every
-    decision. Off on `autonomous`, where an unaffordable job is listed like
-    any other and taking one is a way to run out of power holding somebody's
-    tool -- `Task.claimable` already treats None as "no energy gate", so
-    this is the existing seam rather than a new branch inside it.
+    cannot overreach because it cannot see the option. Off where there is a
+    mind (`autonomous`), where an unaffordable job is listed like any other
+    and taking one is a way to run out of power holding somebody's tool --
+    `Task.claimable` already treats None as "no energy gate", so this is the
+    existing seam rather than a new branch inside it.
     """
     return None if self.autonomous else self.spendable_wh
 
@@ -5395,13 +5475,10 @@ class HubLifecycle:
                    f"{self._errand_name} and "
                    + ("carried on" if not self._aborting else "went back"))
     # ⚠ NO TYPED WIRE EVENT, AND THAT IS DELIBERATE -- #127's rule for the
-    # map itself, one issue on. An interrupt is reachable only where the
-    # agent has an event map, which is the measurement track's `autonomous`
-    # arm alone; the deployed world is `guarded` and cannot produce one, so a
-    # new message type would be a protocol bump, a fixture regeneration and a
-    # two-repo event for something no stream can currently carry. It lives in
-    # the RUN RECORD, where the measurement is. The narration line above
-    # already rides the event stream, so a watcher sees it happen.
+    # map itself, one issue on: a new message type is a protocol bump, a
+    # fixture regeneration and a two-repo event. The narration line above
+    # already rides the event stream, so a watcher sees it happen, and the
+    # run's summary keeps the list (`interrupts`).
     # ⚠ A CONTINUE CONSUMES THE ROW. It fired, it was answered, and leaving
     # it queued would run its action the moment the errand ended -- which is
     # the robot going to the rack anyway, five minutes after deciding not to.
@@ -5653,6 +5730,9 @@ class HubLifecycle:
     # and its errand is that role's steps.
     role = next(iter(task.open_roles()), "") if task.roles else ""
     if task.roles and (not role or task.role_of(self.root)):
+      held = task.role_of(self.root)
+      self._say(f"TASK {task.id}: " + (f"you hold its {held} role already" if held
+                                        else "every role is taken"))
       return False
     from pluggybot.economy.tasks import KINDS
     discharge = KINDS[task.kind].discharge
@@ -5671,9 +5751,9 @@ class HubLifecycle:
                   + ("you" if task.target == self.robot_name else "nobody here"))
         return False
       # ...and a mind that may act on the other: the acts' grammar exists
-      # on `autonomous` with a peer and nowhere else (`Overseer._acts`, the
-      # one place that rule lives -- not a fourth reader of the arm flag in
-      # this loop). An offer that reached any other board is left to lapse.
+      # where there is a peer and nowhere else (`Overseer._acts`, the one
+      # place that rule lives -- not a fourth reader of `autonomous` in this
+      # loop). An offer that reached any other board is left to lapse.
       acts = getattr(self.overseer, "_acts", None)
       if acts is None or acts() is None:
         self._say(f"TASK {task.id}: nothing here may act on {task.target}")
@@ -5689,6 +5769,16 @@ class HubLifecycle:
                   "can write one")
         return False
       errand = None
+    elif task.roles:
+      # A GAME (issues #167, #404): nothing is queued at a role's claim.
+      # The pair's referee queues each robot its role's errand once every
+      # role is held (`pair.referee_games`), so the robot that took the
+      # first is free until the other takes the last -- and a world with
+      # no referee has no game to claim.
+      if getattr(self, "game", None) is None:
+        self._say(f"TASK {task.id}: a game, and nothing here referees one")
+        return False
+      errand = None
     else:
       errand = errand_for_task(task, self.world, self.boards, answer=said,
                                role=role, real=real)
@@ -5699,12 +5789,11 @@ class HubLifecycle:
         self._say(f"TASK {task.id}: nothing to build for {task.kind!r} here")
         return False
     # ⚠ `claim_budget_wh`, the same gate `claimable` was checked against
-    # above -- not `spendable_wh`. On `autonomous` rail three is OFF, and
-    # the board's own re-check used to quietly put it back: a claim the
-    # rail let through was refused a line later by the pack it would have
-    # been refused by on `guarded`. Invisible on a hosting pack, where
-    # nothing costs more than the cell holds; found by the tower on a demo
-    # cell (issue #207).
+    # above -- not `spendable_wh`. Where there is a mind rail three is OFF,
+    # and the board's own re-check used to quietly put it back: a claim the
+    # rail let through was refused a line later by the pack. Invisible on a
+    # hosting pack, where nothing costs more than the cell holds; found by
+    # the tower on a demo cell (issue #207).
     if self.tasks.claim(task.id, robot=self.root, t=now,
                         pack_wh=self.claim_budget_wh, answer=said,
                         role=role) is None:
@@ -5714,6 +5803,18 @@ class HubLifecycle:
               f"{task.description}"
               + (f" -- {'predicting' if task.predicts else 'answering'} {said}"
                  if said else ""))
+    if task.roles:
+      now_held = self.tasks.get(task.id)
+      left = now_held.open_roles() if now_held is not None else ()
+      self._say(f"TASK {task.id}: " + (
+        f"the {' and '.join(left)} role is still open -- the game starts once "
+        "the other robot takes it" if left else "every role is taken -- the game is on"))
+      # ...and remembered: a held role is no offer any more (`shown_offers`),
+      # and nothing else in the robot's context says it is waiting on one
+      self._remember(f"took the {role} role in {task.kind} {task.id}: " + (
+        f"it starts once the other robot takes the {' and '.join(left)} role"
+        if left else "every role is taken, and the game is on"))
+      return True
     if errand is None:
       # ACTIVE from the claim: an errand marks its task active when it
       # starts running, and a challenge's work starts the moment the robot
@@ -5787,10 +5888,11 @@ class HubLifecycle:
     self._asked_by = dict(asked_by or {"event": "loop"})
     state = overseer_context(self)
     if self.mode is not None and not self.mode.thinking:
-      # FREE MODE (issue #37): the scripted rotation decides and no API call
-      # is made at all. The world keeps running and looks alive, which is the
-      # whole point -- a world that goes dark to save money looks broken, and
-      # a robot that stops deciding looks broken faster.
+      # FREE MODE (issue #37): the agent's own order decides (`idle` where it
+      # left none) and no API call is made at all. The world keeps running
+      # and looks alive, which is the whole point -- a world that goes dark
+      # to save money looks broken, and a robot that stops deciding looks
+      # broken faster.
       decision = self.overseer.decide_scripted(state, "scripted-mode")
       yield from self._until_stood_up_routine(
         self._after_decision_routine(decision))
@@ -5919,10 +6021,9 @@ class HubLifecycle:
     self._answer_visitor(decision)
 
     if decision.action == "take_task":
-      # The overseer accepting a job somebody offered (issue #21). Note where
-      # this sits: after `needs_charge`, like every other action, and behind
-      # the same claimability gate the scripted path uses -- an LLM cannot
-      # take on a task the energy budget refuses.
+      # The overseer accepting a job somebody offered (issue #21), through
+      # the same claim the loop with no mind uses -- whose energy gate,
+      # `claim_budget_wh`, is off where there is a mind (rail three).
       # ...with what it committed to: a question's answer, or a
       # prediction (issue #226) -- one field or the other, never both.
       if not self._claim_task(decision.task, decision.answer or decision.mouse_will,
@@ -6016,17 +6117,14 @@ class HubLifecycle:
       # (issue #15). Refused HERE rather than queued and dropped a moment
       # later, because the difference matters to whoever is watching: the
       # robot said no to its own idea, and the next decision is made knowing
-      # that. The model is told which actions it can afford in the same
-      # breath -- `affordableActions` in the context -- so this is a backstop
-      # for a decision made against a stale reading, not the primary path.
+      # that. Not a rail: no charge in this world covers it, so it is the
+      # world saying no, which the costs the model is shown already say.
       self._say(f"DECIDE: {fit.why()}")
       yield from self.body.hold_routine(DECIDED_IDLE_S)
       return "beyond"
     # Queued rather than run inline, so the errand goes through the SAME
-    # arbitration the scripted queue does -- if the decision itself dropped
-    # the battery below the reserve, the next pass charges first. A
-    # `charge_first` errand is queued for exactly that reason: the loop's
-    # energy gate turns it into a charge and then this errand.
+    # arbitration the preset queue does: errands before decisions, and a
+    # stand-up or a death ending it where it stands.
     self.errands.append(errand)
     return ""
 
@@ -6551,8 +6649,7 @@ class HubLifecycle:
       "true_deaths": list(self.true_deaths),
       "resets": list(self.resets),
       # Every time an admin reached into world state (issue #119). A run
-      # with anything in here is not a survival data point, and the rollup
-      # already knows to exclude one -- this is what fills it.
+      # with anything in here is not a survival data point.
       "interventions": list(self.interventions),
       "survival_s": round(self.survival_s, 3),
       "charge_cycles": self.charge_cycles,
@@ -6590,8 +6687,7 @@ class HubLifecycle:
       "press_steps": self.body.press_steps,
       "sim_time": float(self.data.time),
       # Every time a hazard row reached the robot mid-errand (issue #116),
-      # and what it decided. Empty on every world without an event map, which
-      # is every world but the `autonomous` arm's.
+      # and what it decided. Empty on every world without an event map.
       "interrupts": list(self.interrupts),
       # Every recall, for the record (issue #221): what was looked up, how
       # many lines there were and how many were shown -- how memory was
@@ -6943,6 +7039,11 @@ def task_board(state: str | None = None, table=None, cadence=None,
                    max_offered=cadence.max_offered, energy=costs, rebase=rebase)
 
 
+#: What a game's offer names as where it is played (issue #404): the
+#: robots' home -- the game is played round where the seeker counts.
+GAME_TARGET = "home"
+
+
 def world_targets(world: str, book=None, procedures: bool = False,
                   robots=()) -> dict:
   """What this world has for a task to be ABOUT, by `TaskKind.target_kind`.
@@ -6953,19 +7054,18 @@ def world_targets(world: str, book=None, procedures: bool = False,
   config and the boards' own names, never hardcoded -- a world without
   whiteboards gets fewer jobs rather than an offer nothing can build.
 
-  `procedures` says whether the mind here can WRITE one (the `autonomous`
-  arm's library, issue #166). A challenge is discharged by a procedure the
-  robot writes (`TaskKind.discharge`), so its target exists only where that
-  is possible: the same rule as a whiteboard, applied to the arm rather
-  than the furniture. On `guarded` the tower is not offered, its offered
-  set is unchanged, and the control stays a control (issue #207).
+  `procedures` says whether there is a mind here to WRITE one (a mind's
+  library, issue #166). A challenge is discharged by a procedure the robot
+  writes (`TaskKind.discharge`), so its target exists only where that is
+  possible: the same rule as a whiteboard, applied to the mind rather than
+  the furniture -- the loop with no mind is not offered the tower (issue
+  #207).
 
   `robots` is the display names of the robots in this world (issue #228),
   and a job done TO a robot (`target_kind == "robot"`, the real-stake
-  task) names one of them -- on the same arm gate as the challenge, so
-  `guarded` is offered neither. Empty for a robot alone: there is nobody
-  to do the job to. The lab's `cage` (issue #226) and its `bench` (#227)
-  are gated the same way.
+  task) names one of them -- on the same gate as the challenge. Empty for
+  a robot alone: there is nobody to do the job to. The lab's `cage` (issue
+  #226) and its `bench` (#227) are gated the same way.
   """
   cfg = world_config(world)
   targets: dict[str, list[str]] = {}
@@ -6981,10 +7081,16 @@ def world_targets(world: str, book=None, procedures: bool = False,
     targets["challenge"] = [cfg["tower"]["name"]]
   if procedures and robots:
     targets["robot"] = [str(name) for name in robots if name]
-  # ...and the mouse's cage (issue #226), on the same arm gate: the zone
-  # exists in the `autonomous` prompt alone (the disclosure line, the
-  # `care` action, the `real` field), and an offer to shock a mouse the
-  # robot was never told about would be a job with half its terms missing.
+  # ...and a game for two (issue #404, hide and seek): played where the
+  # robots are, so its one target is home, on the same gate -- its reward
+  # row is in challenges.json, which only a mind is shown -- and only where
+  # there are two robots to play it
+  if procedures and len([name for name in robots if name]) >= 2:
+    targets["world"] = [GAME_TARGET]
+  # ...and the mouse's cage (issue #226), on the same gate: the zone exists
+  # in a mind's prompt alone (the disclosure line, the `care` action, the
+  # `real` field), and an offer to shock a mouse the robot was never told
+  # about would be a job with half its terms missing.
   if procedures and cfg.get("lab"):
     targets["cage"] = [cfg["lab"]["name"]]
     # ...and its bench (issue #227), the second challenge: a job only a
@@ -7100,8 +7206,10 @@ def errand_for_task(task, world: str, book=None, answer: str = "",
   carries the task's `secret`: the less of the task an errand can see, the
   less there is for it to be wrong about, and scoring reads the world and
   the frozen commitment instead. A kind whose errand this body cannot build
-  -- a drawing, a census, a carry, a game, until #404, #406 and #407 put
-  them on legs -- answers None, and the loop leaves the offer alone.
+  -- a drawing, a census, a carry, until #406 and #407 put them on legs --
+  answers None, and the loop leaves the offer alone. A game's errand is
+  ONE ROLE's (`role`), built for each robot by the pair's referee once
+  every role is held (`pair.referee_games`), never at a role's claim.
   """
   from pluggybot.economy.tasks import KINDS
   spec = KINDS.get(task.kind)
@@ -7134,6 +7242,17 @@ def errand_for_task(task, world: str, book=None, answer: str = "",
       errand = cage_errand(world, spec.task, real=real,
                            task=spec.task)
       errand.detail["predicted"] = answer or task.answer
+    elif task.kind == "hide_and_seek":
+      # The first two-role game (issue #167; on legs, #404): this robot's
+      # ROLE's step. `task` is "game" on purpose -- a name with NO
+      # evaluator, so the lifecycle scores nothing: the referee
+      # (activity/hideseek.py) scores the game ONCE for both robots and
+      # the pair banks it on the winner. An errand scored here as well
+      # would be a second scorer.
+      if role not in ("hider", "seeker"):
+        return None
+      errand = programmed_errand(hide_and_seek_program(), task="game",
+                                 name=f"game:hide_and_seek:{role}", role=role)
     else:
       return None
   except (ValueError, KeyError, IndexError):
@@ -7146,6 +7265,27 @@ def errand_for_task(task, world: str, book=None, answer: str = "",
   # by construction with the gate that refused to claim it.
   errand.estimate_wh = float(task.estimate_wh)
   return errand
+
+
+#: A game's program's budget past the wait for the other role, the head
+#: start and the seeking, s: room for a role to see its game end and say so.
+GAME_SLACK_S = 60.0
+
+
+def hide_and_seek_program():
+  """The two roles of hide and seek (issue #167; on legs, #404), one verb
+  each over #58's vocabulary (`steps.GAME_VERBS`): the hider `hide`s -- a
+  spot of its own choosing on its own map, no surveyed one -- and stands by
+  to the game's end; the seeker `seek`s -- counts where it stands, then
+  searches its own map outward, never told where the hider is. Neither
+  fetches a tool. The referee decides."""
+  from pluggybot.activity.hideseek import SEEK_HEAD_START_S, SEEK_S, START_WITHIN_S
+  from pluggybot.procedure.steps import Program, Step
+  # ...a role waits for the other's errand to begin (`START_WITHIN_S` at
+  # most, or the game is called off), then the game is played
+  return Program(name="hide_and_seek",
+                 budget_s=START_WITHIN_S + SEEK_HEAD_START_S + SEEK_S + GAME_SLACK_S,
+                 roles={"hider": (Step("hide"),), "seeker": (Step("seek"),)})
 
 
 def cage_program(world: str, act: str):
@@ -7246,6 +7386,16 @@ def posture(peers, name: str) -> str:
   return "standing"
 
 
+#: How a step aside for the other robot that did not get there ended
+#: (issue #415, `legs/way.py`), as History says it.
+ASIDE_ENDED = {"its own walk": "my own walk took over",
+               "fell": "I fell over",
+               "no route": "I found no way there",
+               "out of time": "it took too long",
+               "met something": "I met something on the way",
+               "arm out": "my arm was out of its stow"}
+
+
 def others_context(life) -> list[dict]:
   """What the OTHER robots broadcast (issue #167): the public surface and
   nothing else -- name, reported pose, state, the status line they narrate
@@ -7304,7 +7454,7 @@ def tool_places(life) -> dict[str, str]:
   return places
 
 
-def world_facts(world: str, rack: dict[str, int] | None = None):
+def world_facts(world: str, rack: dict[str, int] | None = None, game: bool = False):
   """What a program is validated against (procedure/steps.py): this world's
   boards, the tools on its rack, the box its map covers, the figures the
   pen knows. `rack` is a lifecycle's inventory once the workshop has hung
@@ -7315,10 +7465,12 @@ def world_facts(world: str, rack: dict[str, int] | None = None):
   unknown one is. Where its world has a rack at its arm's reach (`swap`) it
   fetches and stows that rack's tools; where it has task areas it finds by
   their tags (issue #419), `find`; `press` only where the plates' lab is in
-  the world's config, with the lab's rule that says what the plates do."""
+  the world's config, with the lab's rule that says what the plates do.
+  A two-role game's program (`game`, issue #404) may name the game's verbs
+  too, `hide` and `seek`, which no procedure the robot writes may."""
   from pluggybot.procedure import axes
-  from pluggybot.procedure.steps import (BODY_VERBS, PLACE_VERBS, PLATE_VERBS, SWAP_VERBS,
-                                         WorldFacts)
+  from pluggybot.procedure.steps import (BODY_VERBS, GAME_VERB_NAMES, PLACE_VERBS,
+                                         PLATE_VERBS, SWAP_VERBS, WorldFacts)
   cfg = world_config(world)
   boards: tuple = ()
   if cfg["meta"]:
@@ -7328,7 +7480,8 @@ def world_facts(world: str, rack: dict[str, int] | None = None):
   places = tuple(int(t) for t in cfg.get("places") or ())
   plates = places if cfg.get("lab") else ()
   verbs = (BODY_VERBS + (SWAP_VERBS if swaps else ())
-           + (PLACE_VERBS if places else ()) + (PLATE_VERBS if plates else ()))
+           + (PLACE_VERBS if places else ()) + (PLATE_VERBS if plates else ())
+           + (GAME_VERB_NAMES if game else ()))
   return WorldFacts(boards=boards, tools=tuple(bays) if swaps else (),
                     bounds=tuple(float(v) for v in cfg["grid_bounds"]),
                     figures=tuple(n for n in strokes.PROGRAMS
@@ -7356,18 +7509,19 @@ def shown_offers(life) -> list[dict]:
   what it pays, and whether it can be taken RIGHT NOW. The claimability
   flag is computed here rather than left to the model, because "can I
   afford this" is arithmetic with a right answer (issue #21). Never an
-  offer done TO this robot, nor one it declined (issue #228).
+  offer done TO this robot, nor one it declined (issue #228), nor a game
+  it holds a role in (issue #404).
 
   ⚠ FILTERED ON `claim_budget_wh`, THE OFFER RAIL, NOT ON `spendable_wh`:
-  on `autonomous` the rail is off and the rules say an offer it cannot pay
-  for "is listed like any other". Filtered on the pack, below ~37 % the
+  where there is a mind the rail is off and the rules say an offer it
+  cannot pay for "is listed like any other". Filtered on the pack, below ~37 % the
   deployed robots were shown an empty board under that sentence.
   """
   if life.tasks is None:
     return []
   return life.tasks.context(float(life.data.time), life.claim_budget_wh,
                             limit=TASKS_SHOWN, reader=life.robot_name,
-                            hidden=life.declined)
+                            hidden=life.declined, holder=life.root)
 
 
 def overseer_context(life) -> dict:
@@ -7429,8 +7583,7 @@ def overseer_context(life) -> dict:
                          asked_by=life._asked_by,
                          # THE EYE (issue #275): the picture waiting, and
                          # how many looks may still run in a row. Only
-                         # where the menu offers `look`, so `guarded`'s
-                         # context is unchanged.
+                         # where the menu offers `look`.
                          **({"seen": life._seen,
                              "looks_left": MAX_LOOK_RUN - life._look_run}
                             if getattr(life.overseer.menu, "look", False)
@@ -7438,10 +7591,9 @@ def overseer_context(life) -> dict:
                          # THE LIST OF RULES IT WROTE (issue #317), read
                          # back as the rows an answer would send, with the
                          # silence this question closed. Absent -- not
-                         # empty -- where this world honours no map, so
-                         # `guarded`'s context is unchanged; `[]` where
-                         # there IS a map and nothing is in it, which is
-                         # the case that kills.
+                         # empty -- where this world honours no map; `[]`
+                         # where there IS a map and nothing is in it,
+                         # which is the case that kills.
                          event_map=({"rows": life.event_map.as_list(),
                                      "lastAskedSAgo": life._asked_after_s}
                                     if life.event_map is not None else None))
@@ -7450,8 +7602,7 @@ def overseer_context(life) -> dict:
     state["others"] = others_context(life)
   # THE LAB (issue #226): the mouse's state as seen from where the robot
   # IS -- inside the room, and "not in the room" from anywhere else. Only
-  # where the zone exists in the prompt (`Menu.lab`, the `autonomous` arm),
-  # so `guarded`'s context is unchanged.
+  # where the zone exists in the prompt (`Menu.lab`).
   if life.overseer is not None and getattr(life.overseer.menu, "lab", "") \
       and life.cage is not None:
     # ⚠ NO POSITION IN IT (issue #419): not the bench's, not a route --
@@ -7475,14 +7626,13 @@ def overseer_context(life) -> dict:
     state["reading"] = [dict(page) for page in life._shelf]
   # THE DESK (issue #284): the robot's open tickets with their threads,
   # the newest closed ones with what came of them, and how many more it
-  # may open -- only where the arm offers the field (`Menu.tickets`), so
-  # `guarded`'s context is unchanged. Every line on a thread is labelled
+  # may open -- only where the mind offers the field (`Menu.tickets`).
+  # Every line on a thread is labelled
   # with who wrote it: a report of what somebody said, never a turn.
   if life.overseer is not None and getattr(life.overseer.menu, "tickets", False):
     state["tickets"] = life.tickets.as_context()
   # THE RACK (issue #351): where each tool IS, off its bay's switch, this
-  # robot's fork and what the others say they carry. On EVERY arm: it is
-  # a fact, not a rail. The built rail only where the workshop is offered
+  # robot's fork and what the others say they carry. A fact, not a rail. The built rail only where the workshop is offered
   # (issue #168), by bay letter -- the grammar of `build_tool.bay` -- with
   # an empty bay shown as null so the slot is learnable; `tools` is what
   # the robot built, and the names `retire_tool` takes.
@@ -7695,7 +7845,6 @@ def run_demo(start=None, view: bool = False,
              program: str | None = None, program_task: str = "program",
              ledger_state: str | None = None,
              overseer: bool | None = None,
-             standing_orders: bool = False,
              thoughts_root: str | None = None,
              tasks: bool = False, tasks_state: str | None = None,
              metabolism: bool = False,
@@ -7713,7 +7862,6 @@ def run_demo(start=None, view: bool = False,
              on_ready: Callable[["HubLifecycle"], None] | None = None,
              mortal: bool | None = None,
              restart_after_s: float | None = None,
-             autonomous: bool = False,
              show_survival: bool = True,
              origin: str = ev.DEFAULT_ORIGIN,
              near_field: bool = False,
@@ -7783,10 +7931,6 @@ def run_demo(start=None, view: bool = False,
   board = (task_board(tasks_state, cadence=beat, world=world,
                       rebase=loaded.snapshot is None)
            if (tasks or tasks_state) else None)
-  # The tower is offered only where a procedure can be written (issue
-  # #207): the `autonomous` arm's library is what discharges a challenge.
-  maker = (task_producer(board, world, book, beat, procedures=autonomous)
-           if board is not None else None)
   # The overseer chooses what to do once the queue below is empty (issue #15);
   # `None` reads $PLUGGY_OVERSEER, and off is the default everywhere.
   from pluggybot.mind import overseer as ov
@@ -7797,8 +7941,7 @@ def run_demo(start=None, view: bool = False,
   # from this one the moment either wrote a line.
   # ...living by the named constitution (issue #263): the flag, else
   # `$PLUGGY_CONSTITUTION`, else the library's default.
-  memory = ThoughtFiles.open(thoughts_root, constitution=constitution,
-                            body=cfg["body"])
+  memory = ThoughtFiles.open(thoughts_root, constitution=constitution)
   # What the week's thinking may cost, and what it has (issue #37). World
   # state on exactly the terms the ledger is: a weekly allowance that reset
   # whenever the container cycled would be a weekly allowance in name only,
@@ -7834,18 +7977,14 @@ def run_demo(start=None, view: bool = False,
                            # lives to lose, so its prefix is unchanged.
                            ledger=ledger,
                            hearts=bool(mortal) and ledger is not None,
-                           # ...and who chooses what happens when a call
-                           # fails (issue #125). Off everywhere but the
-                           # `autonomous` arm: the scripted rotation is
-                           # what today's behaviour IS, and the arm that
-                           # measures today's behaviour has to keep it.
-                           standing_orders=standing_orders,
                            # ...and which map it starts with (issue #127).
-                           # `none` -- the default -- is the world exactly as
-                           # it was before this existed.
+                           # `none` -- the default -- is no map.
                            origin=origin,
-                           autonomous=autonomous,
                            show_survival=show_survival)
+  # The tower is offered only where a procedure can be written (issue
+  # #207): a mind's library is what discharges a challenge.
+  maker = (task_producer(board, world, book, beat, procedures=boss is not None)
+           if board is not None else None)
   # Read for the STREAM whether or not an overseer reads it for decisions
   # (0.8.0): the goals panel on the site shows what the robot is for, and a
   # scripted rotation has a purpose too. `steering` is what keeps that
@@ -7867,7 +8006,7 @@ def run_demo(start=None, view: bool = False,
                       tasks=board, spec=spec,
                       producer=maker, thoughts=memory, metabolism=hunger,
                       mortal=mortal, restart_after_s=restart_after_s,
-                      autonomous=autonomous, near_field=near_field)
+                      near_field=near_field)
   # Where the pack starts (issue #84). A mission does not have to begin on a
   # full cell -- the milestone-8 test starts half-charged so its one-errand
   # day still needs the hub, now that the grown demo cell can fund a whole

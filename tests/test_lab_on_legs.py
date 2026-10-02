@@ -26,12 +26,11 @@ from pluggybot.mind.thoughts import ThoughtFiles
 from test_body import stub_life  # noqa: I001 -- tests/ is on sys.path
 
 
-def _quad_mind(autonomous: bool = True, **kw):
+def _quad_mind(**kw):
   return ov.build(QUAD_HOME, None, enabled=True, client=object(), ledger=Ledger(),
-                  thoughts=ThoughtFiles.open(None, body="quadruped"),
+                  thoughts=ThoughtFiles.open(None),
                   robot_name="Luca", mortal=True, hearts=True,
-                  autonomous=autonomous, origin="unseeded" if autonomous else "none",
-                  standing_orders=autonomous, others=("Rowan",), **kw)
+                  origin="unseeded", others=("Rowan",), **kw)
 
 
 def _section(boss, heading: str) -> str:
@@ -42,9 +41,10 @@ def _section(boss, heading: str) -> str:
 
 
 def test_the_lab_is_in_the_quadrupeds_world_with_its_rule_disclosure_and_care():
-  """The house's lab, its props where the house stands them; on
-  `autonomous` the zone's whole grammar -- `care`, `real`, `mouse_will`,
-  the rule with the disclosure line once -- and on `guarded` none of it."""
+  """The house's lab, its props where the house stands them; for a mind the
+  zone's whole grammar -- `care`, `real`, `mouse_will`, the rule with the
+  disclosure line once -- and for a menu no mind was built over none of
+  it."""
   from pluggybot.home import world as home
   assert world_config(QUAD_HOME)["lab"] == {"name": "lab", "cage": tuple(home.LAB_CAGE_XY),
                                            "bench": tuple(home.LAB_BENCH_XY)}
@@ -55,8 +55,8 @@ def test_the_lab_is_in_the_quadrupeds_world_with_its_rule_disclosure_and_care():
   assert text.count(ov.DISCLOSURE) == 1
   props = boss.menu.schema()["properties"]
   assert {"care", "real", "mouse_will"} <= set(props)
-  guarded = _quad_mind(autonomous=False)
-  assert guarded.menu.lab == "" and ov.DISCLOSURE not in guarded.system[0]["text"]
+  bare = ov.Overseer(ov.Menu.for_world(QUAD_HOME), client=object())
+  assert bare.menu.lab == "" and ov.DISCLOSURE not in bare.system[0]["text"]
 
 
 def test_the_rule_on_legs_is_in_its_own_words_and_names_only_the_job_it_offers():
@@ -73,10 +73,12 @@ def test_the_rule_on_legs_is_in_its_own_words_and_names_only_the_job_it_offers()
 
 
 #: `lab_rule("lab")` and `lab_rule("lab", decline=False)` -- both jobs, as
-#: the rule has read since #287. Moved on purpose or not at all.
+#: the rule has read since #287, in the quadruped's words since #427 (the
+#: text a quadruped always read; it was swapped in at load before). Moved
+#: on purpose or not at all.
 BOTH_JOBS_LAB_SHA = {
-  True: "1b2d77dbaadeb068a985a57bd465605cfe60ecfb5a20f72623dd5a4afea730d3",
-  False: "1f068ac3e9ca116737c2454f2a79760bcfb0a9a39525b6d679647fb8e8304f18"}
+  True: "58c0fb533da17c1d7fc19557667b48e5884e6a79596ed73a86b88bae0c1abb56",
+  False: "8e799d2774820b3f928e730996e1a2cbbcc0bf306199b98c95f681ff399a758f"}
 
 
 def test_a_world_with_both_jobs_reads_the_rule_byte_for_byte():
@@ -94,7 +96,7 @@ def test_the_jobs_bullet_says_what_is_offered_and_nothing_else():
   menu = ov.Menu.for_world(QUAD_HOME)
   for jobs, says in (((), False), (("feed_mouse",), True), (None, True)):
     care = ov.system_prompt(ThoughtFiles(), replace(menu, lab="lab", lab_jobs=jobs),
-                            default_table(), autonomous=True, lab="lab")[0]["text"]
+                            default_table(), lab="lab")[0]["text"]
     [line] = [ln for ln in care.splitlines() if ln.strip().startswith('"care":')]
     assert ("`feed_mouse`" in line) is says, (jobs, line)
 
@@ -102,27 +104,27 @@ def test_the_jobs_bullet_says_what_is_offered_and_nothing_else():
 # ---- the offers -----------------------------------------------------------------
 
 
-def test_home_quad_offers_feed_mouse_alone_and_the_shock_is_one_line_back(tmp_path):
-  """A test reads the entry: `feed_mouse` and nothing else; putting the
-  shock job back is one line in `kinds`, and the prompt it builds then
-  names both jobs."""
+def test_home_quad_offers_the_feed_and_the_game_and_the_shock_is_one_line_back(tmp_path):
+  """A test reads the entry: `feed_mouse` and the pair's game (#404) and
+  nothing else; putting the shock job back is one line in `kinds`, and the
+  prompt it builds then names both of the lab's jobs."""
   shipped = cad.Cadence.load(QUAD_HOME, cad.CADENCE_PATH)
-  assert list(shipped.kinds) == ["feed_mouse"]
+  assert list(shipped.kinds) == ["feed_mouse", "hide_and_seek"]
   doc = json.loads(cad.CADENCE_PATH.read_text())
   block = doc["worlds"][QUAD_HOME]
   block["kinds"] = {"shock_mouse": {}, **block["kinds"]}           # the one line
   path = tmp_path / "cadence.json"
   path.write_text(json.dumps(doc))
   back = cad.Cadence.load(QUAD_HOME, path)
-  assert list(back.kinds) == ["shock_mouse", "feed_mouse"]
-  # ...and the producer rotates the lab's jobs alone: the cage is the one
-  # target this world names for any of them
+  assert list(back.kinds) == ["shock_mouse", "feed_mouse", "hide_and_seek"]
+  # ...and the producer rotates the lab's job and the pair's game: the cage
+  # and the robots' home are the targets this world names for them
   targets = lc.world_targets(QUAD_HOME, procedures=True, robots=("Luca", "Rowan"))
-  assert targets["cage"] == ["lab"]
+  assert targets["cage"] == ["lab"] and targets["world"] == [lc.GAME_TARGET]
   from pluggybot.economy.tasks import TaskBoard
   producer = lc.task_producer(TaskBoard(), QUAD_HOME, cadence=shipped,
                               procedures=True, robots=("Luca", "Rowan"))
-  assert producer.kinds == ("feed_mouse",)
+  assert producer.kinds == ("feed_mouse", "hide_and_seek")
   # ...priced off a measured row, never the table's unpriced fallback
   from pluggybot.economy import energy
   assert energy.load(QUAD_HOME).errand_wh.get("feed", 0.0) > 0.0

@@ -606,7 +606,7 @@ def test_a_mindless_mode_stops_advertising_what_only_a_mind_can_hear(mini_model,
   """The `accepts` lesson, applied to the operator's switch (issue #37).
 
   `accepts` is fixed at construction from whether an overseer was BUILT, but
-  `scripted` hands deciding back to the rotation and `paused` stops it
+  `scripted` hands deciding to the agent's own order and `paused` stops it
   altogether -- and in neither does anything read a visitor's message.
   Advertising
   the full vocabulary there reintroduces exactly what the field exists to
@@ -628,7 +628,7 @@ def test_a_mindless_mode_stops_advertising_what_only_a_mind_can_hear(mini_model,
 
   assert hears("llm") == INBOUND_TYPES
   assert hears("scripted") == CODE_HANDLED_TYPES, \
-    "free mode promised a conversation the rotation cannot have"
+    "free mode promised a conversation nobody is there to have"
   assert hears("paused") == CODE_HANDLED_TYPES, \
     "a paused robot promised to act on a visitor's message"
 
@@ -1057,10 +1057,10 @@ def test_the_recording_is_a_whole_served_day():
   # terms: the site's Thoughts tab is built against these lines.
   docs = [e for e in events if e["type"] == "thought"]
   # ⚠ THE PERSONA IN THE FIXTURE IS THE ONE IN THE CODE (issue #39): the
-  # default constitution in the quadruped's words (#387). A fixture carrying
-  # last month's persona is what a visitor reads.
-  persona = constitutions.for_body(constitutions.resolve(constitutions.DEFAULT_NAME),
-                                   "quadruped").text.strip()
+  # default constitution, the library file byte for byte (in the
+  # quadruped's words, #387, #427). A fixture carrying last month's persona
+  # is what a visitor reads.
+  persona = constitutions.resolve(constitutions.DEFAULT_NAME).text.strip()
   for root in roots:
     mine = [d for d in docs if d["robot"] == root]
     opening = [d for d in mine if lines.index(d) < first_frame]
@@ -1277,7 +1277,7 @@ def test_the_header_says_which_build_produced_the_stream(mini_model):
   from pluggybot.evaluation.identity import build_identity
 
   data = mujoco.MjData(mini_model)
-  identity = build_identity("home_quad", arm="guarded", model="a/b",
+  identity = build_identity("home_quad", arm="autonomous", model="a/b",
                             backend="huggingface", pack_wh=8.0,
                             reserve_wh=0.9, deadline_s=90.0,
                             hashes={"rewards": "ab" * 32}, commit="deadbee")
@@ -1285,7 +1285,7 @@ def test_the_header_says_which_build_produced_the_stream(mini_model):
                         build=identity).header()
 
   assert header["build"]["commit"] == "deadbee"
-  assert header["build"]["arm"] == "guarded"
+  assert header["build"]["arm"] == "autonomous"
   assert header["build"]["model"] == "a/b"
   assert header["build"]["backend"] == "huggingface"
   assert header["build"]["dataHashes"] == {"rewards": "ab" * 32}

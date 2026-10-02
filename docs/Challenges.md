@@ -86,9 +86,8 @@ MEASURE / JUDGE / PAY chain.** Concretely, a challenge is:
 5. **A reward row in `economy/challenges.json`, not `rewards.json`.** Same
    format, same loader (`scoring.challenge_table()`), deliberately a separate
    file: a row in `rewards.json` is shown to the overseer as a job it can take
-   and is hashed into every committed result, so moving a row across is the
-   PR that offers the challenge — and it re-flies `guarded`, whose cached
-   prefix is byte-identical to the flown one.
+   and is hashed into the header's `dataHashes`, so moving a row across is
+   the PR that offers the challenge, and a new period.
 
 What this gives up is generality, and that is the trade the issue predicted:
 a challenge is exactly as gradeable as its author's ability to write its
@@ -194,10 +193,14 @@ than discovered:
 
 The first example's predicate now exists and runs: `activity/hideseek.py`
 is the referee — the seeker within `FIND_WITHIN_M` of the hider **with line
-of sight** (a raycast from the seeker's lidar to the hider's chassis; a wall
-between them is not a find) inside `SEEK_S` of seeking, after a
-`SEEK_HEAD_START_S` head start — sensed every step, latched, and evaluated
-once for both robots (`eval_hide_and_seek`). It needed the second robot
+of sight** inside `SEEK_S` of seeking, after a `SEEK_HEAD_START_S` head
+start — sensed every step, latched, and evaluated once for both robots
+(`eval_hide_and_seek`). On legs (#404) the line of sight is rays from the
+seeker's LIDAR, on its rear mast, to every geom of the hider's body —
+a leg round a corner is a sighting, a wall or a couch between them is not —
+cast past the seeker's own body, which they cross: from its mast the eye
+looks down across its own stowed arm, and to a robot lying 0.7-1.0 m in
+front of it every ray met the seeker first. It needed the second robot
 (M12), not new sensing: the seeker does not have to *know* it found anyone.
 What is still ungradeable is the *quality* of a hiding spot — that is §6's
 item 3, method, and the hider's win rate over many games is the nearest
@@ -242,13 +245,11 @@ departure from it:
   recordings moved with them — three more free bodies is a new solver
   rounding and a new trajectory, as every world change is.
 - **The departure: the row stays in `challenges.json`.** The offer is gated
-  on the ARM rather than moved into `rewards.json`: the tower's target is
-  the `challenge` kind, which `lifecycle.world_targets` names only where a
-  procedure can be written (the `autonomous` arm), so `guarded` never sees
-  the offer, its offered set is byte-for-byte what it was, and the control
-  stays a control. The `autonomous` prompt's reward table carries the
-  challenge rows (`RewardTable.as_context(challenges=True)`); `guarded`'s
-  is unchanged.
+  on there being a MIND rather than moved into `rewards.json`: the tower's
+  target is the `challenge` kind, which `lifecycle.world_targets` names
+  only where a procedure can be written, so the loop with no mind never
+  sees the offer. A mind's reward table carries the challenge rows
+  (`RewardTable.as_context(challenges=True)`).
 - **The energy cost is measured off the first written procedure** (issue
   #264): 2.7 Wh from the rover's rack and back on the hosting pack. The
   kind's estimate still carries that number, until a solution on legs

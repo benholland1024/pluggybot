@@ -430,12 +430,19 @@ scripted days gave three trajectories, parting inside a DRIVE.
 hashes the state and every camera image, decode and scan, and reports what
 moved first: the camera images, on 2563 of 2613 looks with a tag in view, and
 the lidar on 0 of 10 784 scans. One static scene rendered ten times gave ten
-images, ±1 in 7–37 pixels at shadow edges: **the GPU's multisample resolve of
-shadowed edges is not deterministic**, and 0.6 % of looks carried it through
-a decode into the robot's beliefs. **What is true now:** every camera renders
-with `offsamples="0"` (the house, `legs/model.py`, the coupling rig),
-byte-identical at no cost to the detector; `tests/test_render_determinism.py`
-pins the fix and its premise.
+images, ±1 in 7–37 pixels at shadow edges: **that GPU's multisample resolve
+of shadowed edges is not deterministic** (a GTX 1660 SUPER), and 0.6 % of
+looks carried it through a decode into the robot's beliefs. Mesa's Intel
+driver (Meteor Lake) and llvmpipe resolve it identically every time — one
+image of 64 each, MSAA on (#440) — so the deployed box (osmesa, llvmpipe)
+never had the bug, and the backend does not say which kind a box has: EGL
+is the GPU, whichever GPU that is. Re-measured on the GTX for #440, most
+renders are one image now and a second comes within a median 4 (at most 33
+in 400 runs), so 16 renders showed no variation about one run in 22.
+**What is true now:** every camera renders with `offsamples="0"` (the
+house, `legs/model.py`, the coupling rig), byte-identical at no cost to the
+detector; `tests/test_render_determinism.py` pins the fix, and its premise
+per rasteriser (`MSAA_VARIES`, read off `GL_RENDERER`).
 
 ## A second robot perturbs the first at the last bit (issue #167)
 
@@ -1865,8 +1872,8 @@ yet decides who yields.
 (`serve.py --pair --body quadruped`); the rules above are pinned in
 `tests/test_quadruped.py`; the prompt says where a quadruped charges and
 how it dies in its own words, and nothing about upkeep where there is none
-(`overseer.mortal_rule`, `for_body`); the constitution's body paragraph is
-swapped for the quadruped's (`constitution.for_body`, asserted).
+(`overseer.mortal_rule`); the rules and the constitutions are written in
+the quadruped's words since #427, which removed the swap.
 
 ## A gentler get-up (issue #389)
 
@@ -2408,6 +2415,19 @@ the axis and over the shock pad (4 presses). A look that moves the
 standoff more than `STANDOFF_MOVED_M` (0.25 m) now sends the press there
 first, over the planner with every seen pad kept out.
 
+**A failed press says which try failed, and why** (#439). Live, all 24
+failed presses said "ran out of time" after 85 s. The first walk to the
+standoff is handed all of `PRESS_PATIENCE_S` but `FINAL_S` (34.8 s), so a
+walk that used it left the second try nothing, and that try's "out of
+time" overwrote the walk's own cause. A press now reports the last try
+that ran: the walk, in #350's words, or its sign not in view from in front
+of the plate and how its look round ended. That reason leads the job's
+verdict (`_program_failure`). Every try goes in the step's `trace`, the
+log's alone: the walk's record, where the belief stood and its error
+against the truth, and the time too short for the next. ⚠ A first walk
+that times out still leaves no second try; whether it should is #439's
+open decision.
+
 Flown on it (`scripts/places_spike.py --find --n 8 --error 3 --again`;
 explore-then-find flights of one robot from its start):
 
@@ -2761,6 +2781,172 @@ up to 0.8 m and 11 deg off from past 2.5 m (the robot stood at 160 poses
 round the dock, nothing stepped: 95 fits), so a far look could only
 propose a pose for the matcher; and the plate signs are positions the
 robot estimated itself, the pose graph's landmarks.
+
+## A robot resting across the other's way (issue #415)
+
+**What happened.** #405's fixture day stranded the first robot four times
+in four, at the same doorway: a robot lying down by reflex is not down
+(#365), so the other's drive found its way cut by the resting robot's disc
+and gave up ("the walk gave up 8.2 m short after 9 s", then `stuck` at
+7 %), and the resting robot never moved -- it stands only for a command
+of its own, and a finished robot never gets one. Its words were wrong
+too: "Rowan standing 3.5 m from where it was going", of a robot lying in a
+doorway 3.8 m off. On today's code the fixture day's own trajectories no
+longer meet there (the four battery levels all dock), so the case is built
+instead: `scripts/make_way_spike.py` lays both maps from the true floor,
+lies one robot in a doorway of the house and walks the other through it.
+
+**The rule (Ben, 2026-09-30, #415's option 1).** A drive whose way a
+RESTING robot cuts -- a plan without that robot's disc finds one -- asks it
+off the way (`Navigator._ask_way`, over the pair's `Body.ask_way`), with
+the way it would walk; a stagnated drive asks one resting near it or its
+goal. It waits for it as for a robot that will move, `MAKE_WAY_WAIT_S`
+(30 s) from the first yes at most, and then gives up as before. The asked
+body says yes only lying down to rest and free to: not on the dock, not
+mid lie-down, stand-up or arm move, not inside a walk of its own (#395's
+head-on hold between two standing robots is that walk's, and still open),
+not dead. Then, beneath whatever routine holds it, a STILL command is
+replaced by the step aside (`legs/way.py`): stood up by the reflex's own
+rule, it walks the drive's law along one plan to the nearest floor it has
+SEEN, reached round the asker, `aside_clear_m` (0.85 m: the asker's 0.70 m
+disc and three cells) off every point of the way -- the way the asker sent
+is then open whatever it plans. Any command that moves takes over at
+once; a fall ends it. It is said ("MAKE WAY ...", "MADE WAY ..."), and
+remembered once over: the body moved and the mind did not decide it. A
+restart's save waits it out.
+
+**Measured** (`make_way_spike.py`, seven scenes, the pair in the house):
+
+| scene | before: the walk | after: the walk | the step aside |
+|---|---|---|---|
+| living <-> hall door | gave up, 0 s | arrived, 29.9 s | 0.83 m, 6.7 s |
+| ...the other way | gave up, 0 s | arrived, 30.5 s | 0.84 m, 6.7 s |
+| living <-> bedroom door | gave up, 0 s | arrived, 22.1 s | 0.87 m, 8.9 s |
+| hall <-> kitchen door | gave up, 0 s | arrived, 34.7 s | 0.82 m, 6.7 s |
+| hall <-> workshop door | gave up, 0 s | arrived, 36.8 s | 0.84 m, 7.3 s |
+| living <-> garden door | gave up, 0 s | arrived, 29.8 s | 0.86 m, 7.4 s |
+| the middle of the hall | arrived, 19.9 s | arrived, 19.9 s | not asked |
+
+No touch, no fall, in any. With the resting robot's day already over (its
+routine returned, as the fixture's had), all seven alike: the step runs
+beneath the command the loop holds a finished robot with.
+
+**What is true now:** a robot resting across the other's way is asked to
+make way and steps aside, beneath whatever it holds; a drive gives up at a
+resting robot only once it said no or did not clear the way in 30 s; and
+a drive's words call a robot resting "lying down to rest", "in the way"
+unless its disc covers the goal (`tests/test_make_way.py`).
+
+## Hide and seek on legs (issue #404)
+
+**What the rover's game was.** The hider drove to a surveyed spot and
+waited; the seeker counted 20 s and drove to four surveyed points
+(`HIDE_AND_SEEK_SPOTS`, coordinates neither robot ever found); a referee
+keyed on the rover's `lidar` site and `chassis` geom called a find within
+1.0 m with one ray from the seeker's LIDAR to the hider's torso. #419's
+places rule takes the spots away, and on the quadruped the referee's names
+do not exist.
+
+**Who picks the spot: code, from the hider's own map** (decided here). The
+mind does not see its map -- it sees its places (the lab's plate signs) and
+its pose -- so a spot it named would be a coordinate it never saw; and a
+role is code the way a `find`'s search is (#419: the errand searches). The
+mind still decides whether to play, and by claiming first or second, which
+role. The roles are two verbs of a game's program alone (`hide`, `seek`;
+`steps.GAME_VERBS`), never the procedure language's.
+
+- **The hider** (`legs/game.py`, `hiding_spot`): floor its map has SEEN, a
+  walk it can make in the head start (0.3 m/s), 0.6 m off anything in its
+  way, 1.5 m off the dock and the rack, farther than a find from where the
+  seeker SAYS it counts (its reported pose, a network fact), and out of
+  the seeker's sight from there wherever the map allows; of those, the
+  seeker's longest walk, and of walks as long, its own shortest -- and
+  never where its body would cut the seeker off from the house
+  (`_cuts_off`). The seeker's planner keeps 0.70 m clear of the other
+  robot on top of 0.35 m off walls, and MEASURED, a hider in the middle of
+  a corridor sealed it at any width up to 2.2 m (the house's sidewalks are
+  1.5 m), so a spot is taken only where the seeker's floor, the hider's
+  disc taken out of it, keeps all but 2 m^2 of what it had; in the seven
+  scenes below the first choice always passed. Nor does the hider step
+  aside for the seeker while the game is on (#415's make-way is refused):
+  stood up and walked out of the way, it would be the network handing the
+  seeker the find.
+- **The seeker** (`seek_routine`): counts where it stands, then searches
+  its own map outward from there -- first the floor out of its own sight
+  from where it counted, where a hider hides, then the rest -- ring by ring
+  of its walk, to the nearest viewpoint (a lattice 2 m apart) its sight
+  has not covered; each walk ends the moment its viewpoint is covered.
+  Sight is the map's, both ways: what stands up -- the LIDAR's walls and
+  the depth camera's furniture, never a floor plate the planner keeps off
+  (a known plate's keep-out hid up to 11.7 m^2 of open garden). ⚠ Its
+  choice of where to look never reads where the hider is, though the
+  network carries every robot's reported pose: a test runs the search with
+  the hider's disc on its planner and without, and the viewpoints are the
+  same, in the same order. The walk under it keeps clear of the hider's
+  reported pose, as every walk keeps clear of the other robot. A walk that
+  ends without a step (no route, the other robot in the way) is followed
+  by a 1 s pause before the next pick -- back to back at one instant, 225
+  of them froze both robots for 9.9 s of wall clock and gave up all but
+  five viewpoints -- and a viewpoint the other robot kept it from is tried
+  again 20 s later; one the map gives up on stays given up.
+- **The referee's eye** is the seeker's LIDAR on its rear mast, 0.51 m up,
+  and the hider is every geom of its body. Re-keyed naively it would have
+  been blind: from the mast the eye looks down across the seeker's own
+  stowed arm, and to a robot lying 0.7-1.0 m in front of it every one of 41
+  rays met the seeker first (standing 1.4 m off, 29 of them, the rover's
+  one ray at the torso among them). So a ray that meets the seeker is cast
+  on past it (a ray cast from inside a geom meets where it leaves, so each
+  geom costs two casts). 41 rays and those casts cost 0.15-0.35 ms a check,
+  so they are cast only within reach of a find, at most every 0.1 s.
+- **The claims.** A role's claim queues nothing; once both are held the
+  pair's referee queues each robot its role (`pair.referee_games`), so the
+  robot that took the first role is free until the other takes the last --
+  and is not shown the offer meanwhile: shown it, a standing order or a
+  map row took it again and again and was refused every time. The claim
+  goes in its History instead, and a decline of a held role is refused.
+- ⚠ **The game starts once BOTH roles' errands have begun**
+  (`HideAndSeek.begin`). The first claimant is often still busy -- a feed,
+  an explore, a charge -- when the other takes the last role, and with the
+  clock started by the first errand to begin, the seeker searched for a
+  hider still charging at the dock, and a hider that never hid could win.
+  Each role waits for the start, and the hider then picks its spot from
+  where the seeker counts. The wait is a role's budget too (600 s at most),
+  and the energy row does not carry it.
+- **Called off, nobody paid**: when the two have not both begun 600 s after
+  the roles were taken, and the step a player dies (the pair's `watch`) --
+  a dead hider was never found and a dead seeker never sought. A true
+  death gives back a role its robot took in a game still on offer. One
+  referee a world, game after game; the wire names a role's claimant and a
+  game's winner, not the last claimant.
+
+**Balance, measured** (`solve.py --feature hide_and_seek --swap`: seven
+start pairs about the house, both ways round, both maps laid from the true
+floor):
+
+| the seeker's search | seeking | the find | found |
+|---|---|---|---|
+| viewpoints 1 m apart, nearest first | 120 s | 1.5 m | 0 of 14 |
+| ...out of its own sight first | 120 s | 1.5 m | 1 of 5 (stopped there) |
+| ...out of its own sight first | 120 s | 2.0 m | 0 of 6 (stopped there) |
+| 2 m apart, out of its own sight first | 240 s | 1.5 m | 7 of 14 |
+| ...as it is now: begun by both, no spot that cuts the seeker off, the search's pause | 240 s | 1.5 m | 6 of 14 |
+
+At 1 m the seeker stopped and turned every 4 s (28 viewpoints in 120 s),
+covering the rooms round where it counted while the hider sat a 7.7-13.7 m
+walk off. As it is now, at 2 m and 240 s, the finds came at 82-249 s;
+where the hider won, the seeker passed 1.7-4.9 m from it. Every hider
+found a spot out of sight and reached it in 10.3-20.5 s (median 17 s), so
+the head start stays 20 s. Each game paid its winner 25 and the other
+nothing. The seeker's role is the dearer, 6.0-6.1 Wh whenever the seeking
+ran out (the hider's 0.7-1.7), and that is its row in `energy.json`. A
+wider find did not help (2.0 m at 120 s found none of six): the search's
+pace, not the find, was what lost, so the find stays two body lengths.
+
+**What is true now:** the pair plays hide and seek on `home_quad` when
+the cadence offers it to them on `autonomous`; the hider hides where its
+own map says it is hidden, the seeker searches its own map without being
+told, and the referee sees a quadruped -- any part of it, past its own body
+(`tests/test_hide_and_seek.py`).
 
 ## Debugging workflow that worked
 

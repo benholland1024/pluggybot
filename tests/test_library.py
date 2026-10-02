@@ -3,13 +3,12 @@ than answers.
 
 Every rule pinned without a network and without a model: the lookup's two
 forms (a title, then a search) against a dict of documents; the ration and
-what pays it off against an injected clock; the field's presence on
-`autonomous` alone with `guarded`'s prefix unchanged; and the delivery --
+what pays it off against an injected clock; the field's presence on a
+mind and nowhere else; and the delivery --
 a stubbed page arriving as a message from "the library", the injection
 test re-pointed at a page that pretends to be the operator.
 """
 
-import hashlib
 import inspect
 from dataclasses import replace
 import json
@@ -27,7 +26,6 @@ from pluggybot.mind import wiki
 from pluggybot.mind.overseer import Menu, Overseer
 from pluggybot.telemetry.protocol import READ_OUTCOMES
 
-from test_autonomous import GUARDED_RULES_SHA
 from test_body import stub_life
 from test_overseer import FakeClient, full
 
@@ -167,20 +165,20 @@ def test_points_pay_the_ration_off_once_per_read_and_never_bank_an_exemption():
 # ---- the arm -------------------------------------------------------------------
 
 
-def test_the_field_is_offered_on_autonomous_alone_and_guarded_is_unchanged():
-  auto = ov.build("home_quad", enabled=True, client=FakeClient(), autonomous=True)
+def test_the_field_is_a_minds_and_a_bare_menu_has_none_of_it():
+  auto = ov.build("home_quad", enabled=True, client=FakeClient())
   assert auto.menu.wiki and auto.wiki is not None
   assert "lookup" in auto.menu.schema()["properties"]
   assert dict(auto.sections)["READING"] == ov.LIBRARY_RULE
-  guarded = ov.build("home_quad", enabled=True, client=FakeClient())
-  assert not guarded.menu.wiki and guarded.wiki is None
-  assert "lookup" not in guarded.menu.schema()["properties"]
-  assert "READING" not in dict(guarded.sections)
-  assert "lookup" not in ov.RULES and "lookup" not in ov.RULES_AUTONOMOUS
-  assert hashlib.sha256(ov.RULES.encode()).hexdigest() == GUARDED_RULES_SHA
-  # A guarded answer carrying the field anyway is dropped, not refused --
-  # the standing order's terms.
-  d = guarded.menu.validate(full(action="idle", lookup="durian"))
+  # A menu no mind was built over (`build` sets the power, `for_world`
+  # never does) offers none of it, and the rules do not name it.
+  bare = Menu.for_world("home_quad")
+  assert not bare.wiki and "lookup" not in bare.schema()["properties"]
+  assert "READING" not in dict(Overseer(bare, client=FakeClient()).sections)
+  assert "lookup" not in ov.RULES
+  # An answer carrying the field where it was not offered is dropped, not
+  # refused -- the standing order's terms.
+  d = bare.validate(full(action="idle", lookup="durian"))
   assert d.lookup == "" and d.action == "idle"
   d = auto.menu.validate(full(action="idle", lookup="  durian\n"))
   assert d.lookup == "durian" and d.as_dict()["lookup"] == "durian"

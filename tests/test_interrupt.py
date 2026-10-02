@@ -17,8 +17,8 @@ calls its substance:
       nobody and so still works when the endpoint is down
   `test_an_interrupt_nobody_answers_aborts_rather_than_carries_on`
       the one place in this design where failing SAFE is right
-  `test_the_control_arm_cannot_be_interrupted_at_all`
-      `guarded` has no map, so it cannot be interrupted, so it is unchanged
+  `test_a_world_with_no_map_cannot_be_interrupted_at_all`
+      no map, no hazard row, so nothing reaches the robot mid-job
 
 The loop's half is a day on the stub body (`tests/test_body.py`); that the
 quadruped's stow hangs a tool on its bay is the rack's own flight
@@ -58,7 +58,6 @@ def _state(fraction: float) -> dict:
 
 def make(menu, *answers, origin="seeded", **kw) -> Overseer:
   kw.setdefault("client", FakeClient(*answers))
-  kw.setdefault("standing_orders", True)
   return Overseer(menu, origin=origin, **kw)
 
 
@@ -362,15 +361,15 @@ def test_interrupted_is_a_method_because_it_has_a_side_effect(menu):
   assert isinstance(HubLifecycle.needs_charge, property)
 
 
-# ---- the control arm ------------------------------------------------------
+# ---- no map, no interrupt ------------------------------------------------
 
 
-def test_the_control_arm_cannot_be_interrupted_at_all():
-  """⚠ OFF ON `guarded`, and by CONSTRUCTION rather than by a flag check: an
-  interrupt needs a hazard row, a hazard row needs an event map, and only
-  `autonomous` has one. The control arm's decision count cannot move, which
-  is what makes it still a control."""
-  assert "origin" not in arm_flags("guarded")
+def test_a_world_with_no_map_cannot_be_interrupted_at_all():
+  """⚠ OFF WHERE THERE IS NO MAP, and by CONSTRUCTION rather than by a flag
+  check: an interrupt needs a hazard row, and a hazard row needs an event
+  map -- which the loop with no mind has no origin for, and a mind at
+  origin `none`, the default, does not have."""
+  assert "origin" not in arm_flags("scripted")
   assert arm_flags("autonomous", "A0")["origin"] == "none"
   # ...and `none` means no map, so nothing can fire mid-errand there either
   from pluggybot.mind.events import origin_map

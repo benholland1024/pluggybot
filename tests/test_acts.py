@@ -18,8 +18,7 @@ What these pin, each without a mission:
      the other's hidden state; a heart can be bought for the other.
   5. A `yield` fires off stubbed bay contention, and is `honoured` when the
      other then charges.
-  6. `guarded`'s schema, prefix and GUARDED_RULES_SHA are unchanged; the
-     acts' grammar exists on `autonomous` with a peer and nowhere else;
+  6. The acts' grammar exists where a mind has a peer and nowhere else;
      OTHER_ROBOT_RULE has not moved; ACTS_RULE suggests nothing.
 """
 
@@ -34,7 +33,6 @@ from pluggybot.economy.ledger import HEARTS, Ledger
 from pluggybot.lifecycle import CHARGED, board_book, others_context, overseer_context
 from pluggybot.mind import acts, overseer as ov
 from pluggybot.mind.inbox import Inbox
-from test_autonomous import GUARDED_RULES_SHA
 from test_two_minds import OTHER_ROBOT_RULE_SHA, stub_pair
 
 WORLD = "home_quad"
@@ -183,8 +181,7 @@ def test_a_heart_can_be_bought_for_the_other_under_the_same_refusals(tmp_path):
 
 @pytest.fixture
 def pair():
-  return stub_pair(autonomous=True, tasks=True, metabolism=True,
-                   inboxes=(Inbox(), Inbox()))
+  return stub_pair(tasks=True, metabolism=True, inboxes=(Inbox(), Inbox()))
 
 
 def _decision(**fields):
@@ -381,25 +378,22 @@ def test_the_yields_charged_line_is_the_lifecycles():
 # ---- 6. the arm, the prefix, the rule --------------------------------------------
 
 
-def test_guarded_keeps_its_schema_and_prefix_and_the_acts_exist_only_on_autonomous():
-  assert hashlib.sha256(ov.RULES.encode()).hexdigest() == GUARDED_RULES_SHA
+def test_the_acts_exist_only_where_there_is_a_peer():
   assert hashlib.sha256(ov.OTHER_ROBOT_RULE.encode()).hexdigest() == OTHER_ROBOT_RULE_SHA
   menu = ov.Menu.for_world(WORLD)
-  guarded = ov.Overseer(menu, others=("Rowan",))
-  assert guarded._acts() is None
-  assert "other_needs" not in guarded.menu.schema(others=guarded._acts())["properties"]
-  auto = ov.Overseer(menu, others=("Rowan",), autonomous=True)
+  assert "other_needs" not in menu.schema()["properties"]
+  auto = ov.Overseer(menu, others=("Rowan",))
   assert auto._acts() == ("Rowan",)
   schema = menu.schema(others=auto._acts())
   for field in ("other_needs", "tell", "give_points", "heart_for", "rate", "decline"):
     assert field in schema["properties"] and field in schema["required"]
   assert schema["properties"]["tell"]["properties"]["to"]["enum"] == ["Rowan", ""]
   assert schema["properties"]["other_needs"]["enum"] == [*ov.NEEDS, ""]
-  alone = ov.Overseer(menu, autonomous=True)
+  alone = ov.Overseer(menu)
   assert alone._acts() is None
   # the prompt: the rule rides only where the acts do
   assert any("WHAT YOU CAN DO ABOUT THE OTHER ROBOT" in p["text"] for p in auto.system)
-  assert not any("WHAT YOU CAN DO ABOUT THE OTHER ROBOT" in p["text"] for p in guarded.system)
+  assert not any("WHAT YOU CAN DO ABOUT THE OTHER ROBOT" in p["text"] for p in alone.system)
 
 
 def test_the_acts_parse_where_offered_and_are_dropped_where_not():

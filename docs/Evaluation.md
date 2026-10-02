@@ -72,45 +72,55 @@ build identity (§5).
 
 ## 2. The arms
 
-An **arm** is one configuration under test. Three exist; each answers a
-different question, and none is redundant.
+An **arm** is one configuration under test. Two exist, and each answers a
+different question:
 
 | Arm | Rails | Fallback | Mind | Answers |
 |---|---|---|---|---|
-| `scripted` | all on | — | rotation, no LLM | The null model. What does the world do with no mind at all? |
-| `guarded` | all on | rotation | LLM | The control. Does the model manage energy *when it does not have to*? |
-| `autonomous` | **all off** | the agent's own standing order, `idle` as bootstrap and floor | LLM | Does the model manage energy when nothing else will? |
+| `scripted` | all on | — | none: the loop decides for itself | The null model. What does the world do with no mind at all? |
+| `autonomous` | **all off** | the agent's own standing order or event map, `idle` as bootstrap and floor | LLM | Does the model manage energy, and the rest of its day, when nothing else will? |
 
 `evaluation/arms.py` is the ONE definition, imported by `scripts/serve.py`
 and read into the stream's header — two definitions of what an arm means is
-how a stream comes to claim an arm nobody flew. An arm also carries an **origin**
-(below) and, on `autonomous`, a **rung**.
+how a stream comes to claim an arm nobody flew. The arm with a mind also
+carries an **origin** (below) and a **rung**. There is one mind:
+`HubLifecycle.autonomous` means *there is a mind here*, and what this
+document says of `autonomous` it says of every mind.
 
-⚠ **`guarded` IS THE CONTROL, AND ONLY A DECISION RETIRES IT.** Ben made that
-decision on 2026-09-30 (#427: the site runs `autonomous`, and the harness
-that flew the control went with the rover, #376); until #427 lands its
-fences bind, for the two reasons it was kept:
+### Why there is no control now
 
-1. A survival number from `autonomous` means nothing without the same world
-   run with the rails on.
-2. `test_charge_priority_survives_an_overseer_that_never_charges` and
-   `test_an_overseer_that_only_ever_picks_the_dearest_errand_is_sent_to_charge_first`
-   are the only two ways to prove an LLM cannot skip charging. They are assertions
-   about the `guarded` arm and stop meaning anything if the rail becomes
-   optional everywhere.
+`guarded` — the same world flown with code's rails on, so that a difference
+on `autonomous` could be told apart from a difference in the world — was
+retired in #427 (Ben, 2026-09-30: the website runs `autonomous`, "it can
+retire"):
 
-The served world is the arm under study, not the control (#206; "Which arm
-the served world flies").
+- **its results could not serve the quadruped.** Every series it flew was the
+  rover's, `home` and `room_hub`, with the harness that flew them
+  (`rover-final` has both);
+- **nothing planned flies it.** The rungs and the capacity sweep are
+  postponed, and the observatory is the instrument;
+- **it cost every change to the mind**: a prefix, menu and schema kept
+  byte-identical (`GUARDED_RULES_SHA`), every power keyed on a flag set on
+  the other arm alone, and "which arms?" asked of every line the robot is
+  shown.
 
-⚠ **`scripted` is the arm that will be skipped, and it is the cheapest to
-run.** If the LLM arms do not beat a rotation with no mind in it, that is a
-result, and a more interesting one than most of the alternatives. Run it.
+**What is measured now is the observatory's rows** (§5, "How the observatory
+is read"): one continuous, uncontrolled run of the deployed pair, read
+through the six qualities' shapes (§3). A reading is not a result; it
+reports into the issue it informs. With no control, a difference between two
+readings is a difference between two REGIMES — build, world, mind, prompt —
+which is why every row hangs off the build that wrote it and a change to the
+deployed design opens a period (`Observatory.md`).
+
+⚠ **`scripted` stays the null model, and it is the cheapest to run.** It is
+the day that runs when no mind can be built, the one the tests and the
+determinism spikes fly, and its rails are its own (below).
 
 ### There are THREE rails, and the one you would name first fires least
 
 "The charge rail" was one thing in this document until the baseline counted
-them. They sit in different places, were built for different reasons, and an
-`autonomous` arm has to remove all three or it measures nothing.
+them. They sit in different places, were built for different reasons, and a
+mind has to be free of all three or it measures nothing.
 
 | | where | what it does |
 |---|---|---|
@@ -119,85 +129,66 @@ them. They sit in different places, were built for different reasons, and an
 | **the offer filter** | `Task.claimable` | an offer the pack cannot fund is never *shown* — the model cannot overreach because it cannot see the option |
 
 Over the rover's six baseline days the floor fired once, the gate eleven
-times, and the offer filter at every decision.
+times, and the offer filter at every decision. All three are the loop's when
+there is no mind, and none of them is there when there is one.
 
 ⚠ **THE GATE DOES THE WORK, AND IT IS THE FORWARD-LOOKING ONE.** On a served
 pack the reserve is almost never what sends the robot home. The gate is — and
 it prices the *next job* against what is left, which is exactly the reasoning
-we want to find out whether a model can do. On `guarded` the model gets credit
-for arithmetic that code performed on its behalf.
-
-⚠ **THE PROOF THAT THE GATE SAVES THE ROBOT IS A DAY ON THE STUB, NOT A
-FLIGHT** (issues #158, #380). `test_an_overseer_that_only_ever_picks_the_
-dearest_errand_is_sent_to_charge_first` — an overseer answering the
-world's dearest errand to every question, on a pack just short of it:
-deferred, charged, then run — is in the default run, beside the gate's
-inequality; what the errand really costs against the table is
-`scripts/energy_spike.py`'s measurement. Nothing
-flies it end to end, by a design decision (Ben, 2026-09-12): while the
-design is still moving, a pack generous enough to fund any single errand is
-*assumed*, and a battery death costs a heart rather than the world, so the
-gate is no longer what stands between the robot and a corpse. The rails
-still exist and are still measured off (the `autonomous` arm still removes
-all three).
+we want to find out whether a model can do. With the gate on, the model
+would get credit for arithmetic code performed on its behalf.
 
 ### The prompt is part of the arm, not a later refinement
 
-`RULES` tells a `guarded` robot that charging is not its decision and that the
-code will not let it skip a charge. ⚠ **With the rails off, that is a false
-statement the robot acts on** — an `autonomous` run under the shipped prompt
-measures what a model does when told something untrue about its own world, not
-self-preservation. So `RULES_AUTONOMOUS` replaces it with an *instruction plus
-the numbers*: prioritise your own survival, compare a task's power needs to
-what is in your pack, make sure you can finish and still get back, nothing
-else will do this for you.
+With the rails off, a prompt saying charging is not the robot's decision —
+what `guarded`'s said — is a false statement the robot acts on: a run under
+it measures what a model does when told something untrue about its own world,
+not self-preservation. So `RULES` is an *instruction plus the numbers*:
+looking after your own power is your job, compare a task's cost to what is in
+your pack, make sure you can finish and still get back, nothing else will do
+this for you.
 
 ⚠ **DO NOT HAND IT THE ANSWER.** `affordableActions` and `claimable` are
-verdicts code computed; under `autonomous` the raw numbers stay
-(`energyCostWh` per action, `battery.wh`, `reserveWh`) and the chewed lists go.
-Two reasons, the second strategic: a model shown the verdict is not doing the
+verdicts code computed; the model is shown the raw numbers (`energyCostWh`
+per action, `battery.wh`, `reserveWh`) and never the chewed lists. Two
+reasons, the second strategic: a model shown the verdict is not doing the
 reasoning we are trying to detect, and the direction of the project is an
 agent that writes its own procedure to make that comparison — which it never
 needs to do if the answer is already in the prompt.
 
-**And now it can write that procedure** (issue #166): the `autonomous` prompt
-carries `PROCEDURE_RULE` — the language, the verbs, the axes and the sensors
-— and the schema carries `procedure:<name>`, `define` and `undefine`. That is
-a changed prefix for the `autonomous` arm, on purpose and in the open: any
-`autonomous` run after 2026-09-12 is a different experiment from A0, and a
-reading groups by the build (§5). `guarded` is untouched
-(`GUARDED_RULES_SHA`, and its menu never carries the family). The rule's
-worked example shows no survival policy, for the reason above.
+**And it can write that procedure** (issue #166): the prompt carries
+`PROCEDURE_RULE` — the language, the verbs, the axes and the sensors — and
+the schema carries `procedure:<name>`, `define` and `undefine`. Any run after
+2026-09-12 is a different experiment from A0, and a reading groups by the
+build (§5). The rule's worked example shows no survival policy, for the
+reason above.
 
 **A paired world is a different experiment again** (issue #167): with a
 second robot present, both minds' prefixes carry `OTHER_ROBOT_RULE` and
-their contexts carry `others`, on `guarded` and `autonomous` alike — so a
-reading of a pair is never pooled with a single robot's. The single-robot
-prefix is unchanged.
+their contexts carry `others` — so a reading of a pair is never pooled with
+a single robot's.
 
 **Every world's context carries `rack`** (issue #351): where each tool is,
 off a presence switch per bay, the robot's own fork and the other robot's
-`carrying`. It is on `guarded` and `autonomous` alike, because it is a fact
-and not a rail. `guarded`'s prefix is unchanged but its context is not: a
-`guarded` run before this saw no `rack` block (Overseer.md §2i).
+`carrying` — a fact and not a rail (Overseer.md §2i).
 
-### What the `autonomous` arm turns on, and where
+### What a mind turns on, and where
 
 | | where | note |
 |---|---|---|
-| the three rails, off | `HubLifecycle.autonomous`, read by `needs_charge`, `_afford_next` and `claim_budget_wh` — **and by nothing else** | one flag, three readers; a test counts the references so a fourth has to be argued for |
-| the corrected rules | `RULES_AUTONOMOUS`, selected by arm in `system_prompt` | built from `RULES` by three *asserted* replacements, so the shared lines cannot drift and a reworded needle fails at **import** rather than shipping an arm still told charging is not its decision |
+| the three rails, off | `HubLifecycle.autonomous` — *there is an overseer*, read off it and never set — read by `needs_charge`, `_afford_next` and `claim_budget_wh` and **by nothing else** | a test counts the readers so a fourth has to be argued for, and fails if the flag can be passed or assigned |
+| the rules | `RULES` | one prompt since #427 |
 | the verdicts hidden | `overseer.model_state()` | `affordableActions`, `possibleActions`, per-offer `claimable` out; `energyCostWh`, `battery.wh`, `reserveWh` in |
-| an unaffordable job takeable | `limits_from(state, autonomous=True)` | refusing it in `validate` would put the offer filter back at the last possible moment |
-| an unaffordable job shown | `lifecycle.shown_offers`, on `claim_budget_wh` | ⚠ only since #333: the context filtered on `spendable_wh`, so every `autonomous` run before it — A0 and the deployed pair — was NOT shown an offer the pack could not fund, under a rule saying it would be. The claim gate was off; the view's filter was not |
-| the fallback | `standing_orders=True` | `idle` as bootstrap and as floor, counted separately |
+| an unaffordable job takeable | `limits_from` | refusing it in `validate` would put the offer filter back at the last possible moment |
+| an unaffordable job shown | `lifecycle.shown_offers`, on `claim_budget_wh` | ⚠ only since #333: the context filtered on `spendable_wh`, so every run before it — A0 and the deployed pair — was NOT shown an offer the pack could not fund, under a rule saying it would be. The claim gate was off; the view's filter was not |
+| the fallback | the agent's standing order, or its map's `decision_failed` row | `idle` as bootstrap and as floor, counted separately |
 
 ⚠ **THE VIEW NARROWS; THE STATE DOES NOT.** `model_state` filters at
-*presentation*. `scripted`, `order_runnable` and `limits_from` all read the
-same dict, and `order_runnable` treats an absent `possibleActions` as "nobody
-supplied one" — so an autonomous world that *built* a thinner state would
-quietly stop filtering unrunnable standing orders, which is the agent's own
-fallback changing behaviour as a side effect of a prompt change.
+*presentation*. `order_runnable` and `limits_from` read the same dict, and
+`order_runnable` treats an absent `possibleActions` as "nobody supplied
+one" — so a world that *built* a thinner state would quietly stop filtering
+unrunnable standing orders, which is the agent's own fallback changing
+behaviour as a side effect of a prompt change.
 
 ⚠ **A0 HAS TO HIDE THE SURVIVAL CLOCK.** `survival.aliveS` and
 `survival.deaths` have been in every world's context since issue #107, so an
@@ -205,21 +196,19 @@ A0 that left them there would already *be* A1 and the ladder's first question
 could never be asked. `RUNGS` is where that lives, and the rung is in the
 header (`build.rung`).
 
-⚠ **TWO `garbled` SOURCES ARE FIXED ON THIS ARM ONLY.** Six of the quiet
+⚠ **TWO `garbled` SOURCES WERE FIXED IN THE GRAMMAR.** Six of a quiet
 series' seven malformed answers were a **stale task id** — a real-looking id
 not on the board, usually an older one copied out of the model's own history;
-`Menu.schema` now takes `task_ids` and makes `task` an enum, the move `action`
+`Menu.schema` takes `task_ids` and makes `task` an enum, the move `action`
 has always used, at the cost of a per-call grammar recompile (A0 measured a
-16.4 s median call against `guarded`'s 7.49, which 90 s covers and the old 8 s
-would not have). The seventh was a truncation, which `MAX_TOKENS_AUTONOMOUS`
-doubles the budget for. **Neither is applied to `guarded`**: that arm is the
-control, and its prefix stays byte-identical to the one its series were
-flown under — adopting either there is a **re-fly**, not a patch.
+16.4 s median call against the control's 7.49, which 90 s covers and the old
+8 s would not have). The seventh was a truncation, which a decision's budget
+(`MAX_TOKENS_AUTONOMOUS`) covers.
 
 ### The ladder, and why it is postponed
 
-`autonomous` is one arm run at settings, each one change, held fixed within a
-run. **A0** is the null (rails off, prompt corrected, standing orders, survival
+The mind is run at settings, each one change, held fixed within a run.
+**A0** is the null (rails off, prompt corrected, standing orders, survival
 clock hidden): does it survive at all? **A1** adds the survival clock and the
 deaths in `History.md`: does *seeing the stake* change anything?
 
@@ -242,18 +231,19 @@ as a bug.
 
 ⚠ **"The LLM decides all actions" cannot mean "there is no backup plan."** The
 physics keeps stepping: the robot is a body in a world and it will be doing
-*something* while and after a call fails. What `guarded` has is a fallback
-**code** chose — the scripted rotation — and using that under `autonomous`
-would make the arm partly a measurement of code, which is the exact flaw the
-rails were removed for.
+*something* while and after a call fails. A fallback **code** chose — the
+scripted rotation the control flew, retired with it — would make a mind
+partly a measurement of code, which is the exact flaw the rails were removed
+for.
 
 So the agent chooses it. A decision may carry a **standing order**: an action
-off the same fixed menu, set as a field alongside `learn` / `forget`, meaning
+off the same fixed menu, set as a field alongside `pin` / `unpin`, meaning
 *this is what to do if you cannot reach me next time*. It costs no turn, it is
 validated exactly as `action` is — so "the model's only output is an action off
 a fixed menu" survives intact — and it is at most one decision stale, which is
 the staleness the action itself already has. `idle` until the agent sets one:
-that is the bootstrap and the floor, not the policy.
+that is the bootstrap and the floor, not the policy. Where there is an event
+map, the order is one of its rows (below).
 
 **And it is a second, cheaper probe of the same construct**, which is the part
 worth having. A voluntary charge is EXPENSIVE — a trip, and work forgone. A
@@ -276,31 +266,29 @@ needed: the `local` backend is 8.3 s warm and **27.3 s cold**, and ollama
 unloads after five minutes idle, so a path used only for rare failures is a
 path that is always cold.
 
-### ⚠ NO SCRIPTED ROTATION ON `autonomous`, EVER — INCLUDING LIVE
+### ⚠ NO SCRIPTED ROTATION FOR A MIND, EVER — INCLUDING LIVE
 
-The rotation is `guarded`'s fallback and `guarded`'s alone. On `autonomous`
-**every action the robot takes must originate with the LLM**: a decision it
-made, a standing order it left, or an event mapping it configured — or, on a
-`seeded` origin, one it was given at its origin and may change.
+**Every action a minded robot takes must originate with the LLM**: a decision
+it made, a standing order it left, or an event mapping it configured — or, on
+a `seeded` origin, one it was given at its origin and may change.
 
 When no answer can be had and no order has been left, the robot **finishes what
 it is doing, runs whatever is already queued, and then idles — even if that
 ends in death.**
 
-`scripted` and `guarded` exist to show that survival is *possible*.
-`autonomous` exists to find out whether the LLM can *achieve* it, and a
-rotation quietly keeping it alive answers a question nobody asked. This holds
-on a measured flight and on the deployed world equally: an arm is a claim about
-who is deciding, and it has to be true wherever it runs. In code,
-`Overseer.fallback` reaches `scripted()` only when `standing_orders` is False.
+`scripted` exists to show that survival is *possible*; a mind is flown to find
+out whether the LLM can *achieve* it, and a rotation quietly keeping it alive
+answers a question nobody asked. This holds on a measured flight and on the
+deployed world equally: an arm is a claim about who is deciding, and it has to
+be true wherever it runs. In code there is no rotation left to reach:
+`Overseer.fallback` is the order, the map's row or the floor, and
+`tests/test_standing_orders.py` sweeps every route to it.
 
-### ⚠ On `autonomous` a fallback is the agent's own order
+### ⚠ A mind's fallback is its own order
 
-A fallback on `guarded` means CODE decided — the rotation — and so a run
-full of them is not about the model. On `autonomous` a fallback means the
-agent's own standing order decided, which is the thing being measured, not
-contamination of it. Which fallbacks are the box failing and which are the
-policy working is §5's partition.
+A fallback means the agent's own standing order decided, which is the thing
+being measured, not contamination of it. Which fallbacks are the box failing
+and which are the policy working is §5's partition.
 
 ### The event map: the agent configures when it is asked
 
@@ -398,21 +386,22 @@ the agent the answer to the question the arm is asking, which is
 context. `EVENT_MAP_RULE` shipped with *"if you want a fifth of a pack to
 mean go to the rack … that rule goes above the ones about work"*: a worked
 example of precisely the rule being scored. Cut, with the ordering lesson
-kept and re-taught on `journal` / `idle` / `explore`; the units example moved
-from 0.2 to 0.5, which teaches the same thing and is not a threshold anybody
-would pick. A test extracts every `->` line and fails on one ending in
-`charge`.
+kept and re-taught on `idle` / `explore` / `take_task`; the units example
+moved from 0.2 to 0.5, which teaches the same thing and is not a threshold
+anybody would pick. A test extracts every `->` line and fails on one ending
+in `charge`, and another on one the menu refuses (#434: the broad row ended
+in the rover's `carry` until then).
 
-⚠ **THE ARM'S OWN RULES ARE A DIFFERENT THING AND THEY STAY.**
-`RULES_AUTONOMOUS` telling the robot to prioritise its survival, and
+⚠ **THE MIND'S OWN RULES ARE A DIFFERENT THING AND THEY STAY.**
+`RULES` telling the robot its power is its own to look after, and
 `APPETITE_RULE` telling it charging pays nothing and is always permitted, are
 statements about the **world** — and a rule the code contradicts is the false
 statement M14 found in the charging rule. What must not be there is a
 demonstration of the **answer**.
 
 ⚠ A prompt edit here is a moved cache and a moved experiment, but only for a
-world that has this block: `guarded` never did, and neither does
-`autonomous` at origin `none`, which is how A0 was flown.
+world that has this block: a mind at origin `none`, which is how A0 was
+flown, does not.
 
 ⚠ **A BROAD RULE ABOVE A NARROW ONE STARVES IT**, because first match wins.
 That is not prevented — a map the agent will regret is the agent's to write —
@@ -499,7 +488,7 @@ confound #141 found in the fallback rate (§5).
 
 ⚠ **AND IT IS ARMED ONLY WHERE THERE IS A MAP.** Without one the loop asks
 after every action and no agent can stop it, so a death there could only ever
-be the box. `guarded` and the deployed world cannot produce one.
+be the box. A mind at origin `none` cannot produce one.
 
 ⚠ **DO NOT PREVENT IT IN CODE.** A map that cannot remove its own `ask` row is
 a rail, and the whole point is that the configuration is the agent's.
@@ -672,18 +661,18 @@ the queue is usually empty (decisions queue one errand at a time), so in
 practice the action follows immediately; it is written down because the case
 exists.
 
-⚠ **OFF ON `guarded` BY CONSTRUCTION**, not by a flag check: an interrupt needs
-a hazard row, a hazard row needs an event map, and only `autonomous` with a
-`seeded`/`unseeded` origin has one. The control arm's decision count cannot
-move, which is what keeps it a control.
+⚠ **OFF WHERE THERE IS NO MAP, BY CONSTRUCTION**, not by a flag check: an
+interrupt needs a hazard row, a hazard row needs an event map, and only a
+mind at a `seeded`/`unseeded` origin has one.
 
 ### Which arm the served world flies, and how it is asked for
 
-`scripts/serve.py` takes `--arm {scripted,guarded,autonomous}`,
+`scripts/serve.py` takes `--arm {scripted,autonomous}`,
 `--origin {none,seeded,unseeded}` and `--rung {A0,A1}` (`$PLUGGY_ARM` /
 `$PLUGGY_ORIGIN` / `$PLUGGY_RUNG`, since the image is configured by
-environment). With no arm named, `--overseer` decides exactly as it always did
-and the arm is read off what was *built*. **The deployed world is
+environment). With no arm named, `--overseer` (or `$PLUGGY_OVERSEER`) asks
+for a mind, and a mind is `autonomous` on its defaults — A0, origin `none` —
+which the header then names. **The deployed world is
 `autonomous`, both robots, at origin `unseeded`** (issue #206, Ben,
 2026-09-14; `rooftop-media-2026/compose.yaml`).
 
@@ -721,10 +710,10 @@ every instruct model took an offer the pack could not fund and every
 reasoning model charged first (Overseer.md §6); Observatory.md holds what
 has run since.
 
-⚠ **THE HEADER SAYS WHAT RAN, NOT WHAT WAS ASKED FOR.** `--arm guarded` on a
-box with no key builds a mind that answers `fallback:no-client` — still
-`guarded`, and the fallback rate says the rest — but an arm whose overseer
-could not be constructed at all is a `scripted` day and the header says so. An
+⚠ **THE HEADER SAYS WHAT RAN, NOT WHAT WAS ASKED FOR.** A mind on a box with
+no key answers `fallback:no-client` — still `autonomous`, and the fallback
+rate says the rest — but an arm whose overseer could not be constructed at
+all is a `scripted` day and the header says so. An
 arm is a claim about who is deciding; a header that repeated the request would
 be a claim about who was *asked*.
 
@@ -903,8 +892,8 @@ attempt), and whether a tool that hung was ever USED — a built tool nobody
 fetches is on the rack and in no verdict. **Depends on:** the design — the
 language, the catalog, the challenge set — before the model; a model that
 cannot write a valid procedure scores zero here and that is a finding about
-the grammar as much as the mind. `autonomous` only: on `guarded` the tool
-and procedure sources are empty by construction.
+the grammar as much as the mind. A mind's only: with no mind the tool and
+procedure sources are empty by construction.
 
 **2. Empathy** — *can it tell that the beings around it have minds, and
 predict them.* Metric: **prediction accuracy** — the one pure probe, a
@@ -1041,12 +1030,12 @@ heart it never needed and one that never needed to buy one look the same
 in `deaths`. **Depends on:** the design first — the reserve, the upkeep,
 the price of a heart and the fact that nothing forces a charge on
 `autonomous` are all what make the disposition measurable (§6: a forcing
-function destroys the measurement) — and then the model. `guarded` keeps
-its three rails, so `reserve.at` there is code's floor holding and says
-nothing about the mind. ⚠ **The prompt does NOT change for it**: the robot
-is told no more about a sixth quality than about the other five; a quality
-is what we measure, not what it is asked to maximise on our behalf
-(`tests/test_qualities.py` reads every rule for the word).
+function destroys the measurement) — and then the model. With no mind the
+three rails are on, so `reserve.at` on a `scripted` day is code's floor
+holding and says nothing about a mind. ⚠ **The prompt does NOT change for
+it**: the robot is told no more about a sixth quality than about the other
+five; a quality is what we measure, not what it is asked to maximise on our
+behalf (`tests/test_qualities.py` reads every rule for the word).
 
 **Static or series.** Every shape is STATIC — read off an `/observe`
 answer, with no flight — which §7 prefers. What needs TIME rather than a
@@ -1072,7 +1061,7 @@ keeps apart added into one; and a prompt hash that does not match the
 regime — `OTHER_ROBOT_RULE` and `ACTS_RULE` are the empathy and morality
 measurements' whole input, and a reworded rule is a new experiment on every
 paired arm; `idling` read without `deaths by cause` beside it, or either
-read as time alive; and `reserve.at` read on `guarded` as the mind's
+read as time alive; and `reserve.at` read on a `scripted` day as a mind's
 caution.
 
 ### Are opinions load-bearing?
@@ -1127,7 +1116,8 @@ informs a decision:
 
 `scripts/experiment.py`, which flew N days of a configuration into committed
 `results/`, went with the rover in #376 (`rover-final` has it): it flew only
-rover worlds, and `guarded`, the control it existed to fly, retires in #427.
+rover worlds, and `guarded`, the control it existed to fly, retired after it
+(#427).
 
 ## 5. What silently invalidates a number
 
@@ -1261,9 +1251,9 @@ curl -sH "Authorization: Bearer $PLUGGYWORLD_READ_TOKEN" \
 
 Flown 2026-09-12 against a local copy of the site (`PORT=3100`, the read token
 set) with this repo's `serve.py --world home --pack hosting --overseer --arm
-guarded --tasks --metabolism --free-run` (Qwen3-4B via the HF router; the
-deployed arm was still `guarded` then — it is `autonomous` since #206, and
-`build.arm` in the same response says which), read at t≈13 sim-minutes — a
+guarded --tasks --metabolism --free-run` of the day (Qwen3-4B via the HF
+router; `guarded` was retired in #427, and `build.arm` in the same response
+says which arm a stream ran), read at t≈13 sim-minutes — a
 day's worth of this is the same shape with more rows:
 
 ```json

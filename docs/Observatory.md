@@ -10,6 +10,143 @@ observatory is NOT a result: it reports into the issue it informs.
 
 ## Periods
 
+### The prompt's worked examples are ones the robot can write (#434) — opens when this PR is deployed
+
+**What changed in the world.** What the robots are TOLD, and only that:
+two lines of the prompt. The schema, the menu, the scoring and the world
+did not move. The procedure rule's example walked `drive(0.3, 0.0, 1.0)`,
+which the validator refuses (`v=0.3 is above 0.25`), so a robot that
+copied it had its `define` refused. It walks at 0.25 now, `drive`'s cap;
+on legs a slower `v` is raised to it, and every `v` up to it walks
+0.21 m/s. The event map's ordering lesson ended `decision_failed -> carry`,
+the rover's errand, which no quadruped's menu has and the grammar cannot
+write. It ends `-> take_task` now. The deployed prefix went 44 672 →
+44 677 chars (`prompt_sha` `0e469f5d…` → `effdd6cc…`), and the diff is
+those two lines.
+
+**What the period is for.**
+
+- **The walk copied.** A `define` refused `v=… is above 0.25` after this
+  is a robot that went past the example; in the 1.5 days read before it,
+  none of 25 refusals was. Of the 50 procedures in those rows, 12 called
+  `drive` at 0.15 and 4 at 0.08 (`dock_creep`, `creep_charge`), and all of
+  them walked at 0.21, as the example's 0.25 does. Speeds moving to 0.25
+  say the example is read, and change nothing walked.
+- **The broad row copied.** Before this, on four quadruped builds, 24 of
+  30 map edits carried a `decision_failed` row. The catch-all's action was
+  `idle` 8 times, `charge` 7, `take_task` 2, `explore` 2, `ask` 1 and a
+  procedure 3, and the lesson's own `(timeout) -> idle` appeared 4 times.
+  A rise in `decision_failed -> take_task` reads as the new row copied.
+  Such a row takes the first offer shown, with no prediction, so it fails
+  `unrunnable` on an empty board and `unclaimable` on `feed_mouse`; read
+  its failures by cause.
+
+### A failed press says what failed (#439) — opens when this PR is deployed
+
+**What changed is what the robot is TOLD.** Nothing in the world moved and
+no grade did: a press walks, looks and steps as it did, and the feed is
+graded off the cage's count as before. On `4f1288f` every one of 24 failed
+presses (Rowan 19, Luca 5) said `ran out of time before stepping onto tag
+36's plate`. That was the second try's reason, and the second try never
+began. History said only `feed: the feed plate was never pressed`, and
+Rowan filed tk_0015, "Lab plates never register a press". Now:
+
+- a failed press reports the try that failed: `did not get in front of tag
+  36's plate: the walk gave up 2.0 m short after 85 s (…)`, with #350's
+  four causes and the other robot by name; or `tag 36 was not in view from
+  in front of its plate, nor all round it` (or `…, and its time ran out
+  looking round`). `ran out of time …` is left for a press whose time ran
+  out with nothing else failing first;
+- that reason LEADS the feed's verdict (`… -- the feed plate was never
+  pressed`), and History says it once;
+- the `procedure` row's `failedReason` carries it. Every try is in the
+  container log, in brackets on the `PROCEDURE feed_mouse failed` line:
+  its standoff, the walk's record, the look round, where the belief stood
+  and its error against the truth, and the time too short for the next.
+
+The prompt did not move: History is volatile.
+
+**What the period is for.**
+
+- **#439 part 2: presses by cause, per robot.** `failedReason` on
+  `procedure` rows named `feed_mouse`, split by its words: the walk's
+  cause against the sign out of view. Read Rowan's three in four against
+  Luca's one in four off that split, and the log's `belief off` for drift.
+  If #415 is deployed beside this, read the rate on both sides of it.
+- **Does the ticket stop?** A ticket about the plates' sensor after this
+  deploy means the words still point the wrong way.
+- **#439 part 3:** how often a first walk uses all 85 s (`no time for #2`
+  in the log). The decision on `PRESS_TRIES` against `PRESS_PATIENCE_S`
+  turns on it.
+
+### Hide and seek on legs (#404) — opens when this PR is deployed, with #415's below it
+
+**What changed in the world.** A second job on legs, and the first for
+two. `home_quad`'s cadence offers hide and seek beside the feed, to the
+pair on `autonomous`: *"Hide and seek at home: the first of you to take it
+hides, the other counts to twenty where it stands, then seeks."* It pays
+the winner 25 (its challenges.json row, unchanged) and the other nothing.
+Taking a role queues nothing, and the robot that took it is no longer
+shown the offer (its History says it holds the role); once both are taken
+each robot is given its role, and the game starts once both have begun.
+The hider picks a spot from its own map -- out of sight of where the
+seeker says it is counting, off the dock and the rack, never where its
+body would cut the seeker off from the house, the seeker's longest walk it
+can make in 20 s -- and lies there, and does not step aside for the
+seeker. The seeker counts 20 s where it stands, then searches its own map
+outward for up to 240 s, never told where the hider is. A find is within 1.5 m with any part
+of the hider in sight of the seeker's LIDAR. The prompt did not move: the
+row was already in the table `autonomous` is shown. What is new is the
+offer on the board, a role's claim said out loud and remembered ("took the
+hider role in hide_and_seek t_0042: it starts once the other robot takes
+the seeker role"), and the verdict in both robots' History. The board's dearest job is now the
+seeker's role, 6.1 Wh.
+
+**What the period is for.**
+
+- **Do they play?** Offers against claims: one role or both, which robot
+  takes which, how often an offer lapses half-claimed, and what a decline
+  says.
+- **Who wins**, found or over, and how long a find takes, against the 6 of
+  14 measured on maps laid from the true floor: the deployed maps are the
+  robots' own.
+- **What it does to the rest of the day:** the feed beside it (a slot
+  each), how long a role waits for the other to begin, a game called off
+  (the two not both begun within 10 minutes, or a player dead), and deaths
+  during a game.
+- **The doorway:** `MAKE WAY` lines during a game (#415: the seeker may
+  make way, the hider never does), and two standing robots holding for
+  each other head-on (#395).
+
+### A robot resting across the other's way steps aside (#415) — opens when this PR is deployed
+
+**What changed in the world.** How the two quadrupeds share a doorway. A
+robot lying down to rest used to be waited on, or given up at, by the
+other's walk -- in a doorway, in 0 s -- and never moved: nothing told it
+it was in the way. Now the walk asks it, and a robot resting and free to
+(not on the dock, not mid-move, not inside a walk of its own) stands and
+steps about 0.85 m off the other's way, beneath whatever it was holding,
+in 7-9 s; the walk waits up to 30 s for it. The mind is not asked, as it
+is not for the rest itself. The prompt did not move. History gains one
+line where it happens -- "stood up and stepped 0.8 m aside for Rowan, whose
+way I was lying across" -- and a walk's failure line now calls a resting
+robot "lying down to rest", and "in the way" unless it is on the goal
+(it read "standing 3.5 m from where it was going" of a robot resting in a
+doorway 3.8 m off). Two robots standing head-on in a doorway still hold
+for each other (#395); that is not this.
+
+**What the period is for.**
+
+- **Does it happen, and does it work?** The narration's `MAKE WAY` and
+  `MADE WAY` lines, and the History line, per robot: how often, and how
+  each step aside ended (`aside`, or one of `ASIDE_ENDED`'s).
+- **Strandings.** `stuck` and `flat` deaths whose last walk gave up at
+  the other robot ("in the way"), against the periods before: #405's
+  fixture day lost the first robot this way four times in four.
+- **The head-on hold.** Walks that waited on a STANDING robot until their
+  patience ran out (#395), which this does not touch: if they show, they
+  are #415's next question, as the issue says.
+
 ### A robot come home lost docks by the board, and the dock re-lays its map (#422) — opens when this PR is deployed
 
 **What changed in the world.** How the quadrupeds get home and find

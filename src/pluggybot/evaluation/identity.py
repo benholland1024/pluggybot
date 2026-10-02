@@ -158,15 +158,13 @@ def build_identity(world: str, *, arm: str, model: str | None = None,
     # ⚠ ABSENT rather than null on an arm with no ladder, which is the one
     # place this block departs from `model`/`backend`. Those answer a
     # question every arm has an answer to ("which mind" -- none, on
-    # `scripted`); "which rung" is not a question `guarded` has an answer
+    # `scripted`); "which rung" is not a question `scripted` has an answer
     # to, and a `"rung": null` beside it invites a reader to look for a
-    # ladder that does not exist. It also keeps a `guarded` header -- the
-    # deployed world's -- byte-identical to the one #132 shipped.
+    # ladder that does not exist.
     **({"rung": rung} if rung else {}),
     # ...and WHICH ORIGIN the agent's event map started from (issue #127),
-    # on exactly the rung's terms: ABSENT where the arm has no map, so a
-    # `guarded` header stays byte-identical to #132's and an `autonomous`
-    # one flown at `none` stays byte-identical to #142's.
+    # on exactly the rung's terms: ABSENT where there is no map, so a mind
+    # flown at `none` keeps the header #142 shipped.
     **({"origin": origin} if origin and origin != "none" else {}),
     # ...and WHICH CONSTITUTION each robot was told it is (issue #263),
     # per robot ROOT -- `{root: {name, sha}}` -- because a pair may be

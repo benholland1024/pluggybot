@@ -48,9 +48,9 @@ to touch:
   rule is already pinned may go behind `--endurance` — with Ben's approval,
   below.
 - ⚠ **THE TEST SUITE HAS A BUDGET, AND EXCEEDING IT NEEDS BEN'S EXPLICIT
-  APPROVAL.** The full suite is **0:55** (2026-09-30, #376 stage C: 7:29
-  with the rover, on the same machine that day). Any change to
-  testing that would take it past **10 minutes on a quiet machine, or 15 on a
+  APPROVAL.** The full suite is **0:36** (2026-10-01, #427: 0:35 before
+  it, interleaved on one machine; 7:29 with the rover, #376 stage C). Any
+  change to testing that would take it past **10 minutes on a quiet machine, or 15 on a
   busy one**, must be stated as such in the PR — the number, the test, and why
   it cannot be cheaper — and approved by Ben personally before it merges. ⚠
   **THE BUDGET HAS NO OUTSIDE** (Ben, 2026-09-29): a test the default run
@@ -118,6 +118,11 @@ to touch:
   (6.8–7.1× quiet); `process_time` is NOT the fix. ⚠ Mission runtimes are
   EMERGENT: a world change reshuffles the whole trajectory, so a slower suite
   is not by itself a regression.
+- **The suite renders on EGL unless the environment names a backend**
+  (`tests/conftest.py`, #440; unset is GLFW, which needs a display), and its
+  last line names the RASTERISER that drew: what a camera test measures is
+  the device's, never the backend's — EGL is a GPU on one box and llvmpipe
+  on another.
 - **`slow` means EXPENSIVE *AND* UNABLE TO CATCH A REGRESSION WHILE YOU
   ITERATE** — the rule is written out in `pyproject.toml`. Whole-mission runs
   qualify; so do PREMISE-PINNING tests (which bypass a fix and assert the old
@@ -142,10 +147,7 @@ to touch:
   `-m 'not endurance'` in `addopts`: pytest keeps the LAST `-m`, so the
   everyday `-m "not slow"` would silently switch them back on. The decision
   behind it (Ben, 2026-09-12): while the design is moving, a generous pack is
-  ASSUMED to fund any single errand and a battery death costs a heart. ⚠
-  `test_charge_priority_survives_an_overseer_that_never_charges`, a stub day,
-  stays in the default run: it is the proof that an LLM cannot skip charging
-  on `guarded`.
+  ASSUMED to fund any single errand and a battery death costs a heart.
 - Lint: `uv run ruff check src/ scripts/ tests/`
 
 ### Measurement (`docs/Evaluation.md` is the record and the rules)
@@ -183,34 +185,32 @@ to touch:
   failures; `budget`/`idle-run`/`cooloff`/`scripted-mode` are the policy
   working), read by `decision_failed` rows and never re-derived. Adding a
   reason is additive, renaming one is breaking (two-repo contract).
-- **The `autonomous` arm** (issue #115; Evaluation.md §2): THREE rails come
-  off together — `HubLifecycle.autonomous`, read by `needs_charge`,
-  `_afford_next` and `claim_budget_wh` and by NOTHING else (the offers the
-  model is SHOWN go through `claim_budget_wh` too, `lifecycle.shown_offers`,
-  since #333) — the prompt is corrected in the same change
-  (`RULES_AUTONOMOUS`, built from `RULES` by ASSERTED replacements), and
-  `model_state` drops the code-computed verdicts (`affordableActions` /
-  `possibleActions` / `claimable`) at PRESENTATION only — ⚠ the view narrows,
-  the state does not (`order_runnable` reads `possibleActions`). ⚠ A0 hides
-  the survival clock, or A0 and A1 are one run. ⚠ The two `garbled` fixes
-  (task ids as an enum, a `max_tokens` truncation) are on this arm ONLY:
-  applying either to `guarded` is a RE-FLY, because `guarded` is the CONTROL
-  and its cached prefix is byte-identical to the flown one.
-- ⚠ **NO SCRIPTED ROTATION ON `autonomous`, EVER — INCLUDING LIVE.** On
-  `autonomous` every action originates with the LLM (a decision, a standing
-  order, or an event-map row it configured); with no answer and no order the
-  robot finishes what it is doing, runs what is queued, and IDLES — even if
-  that ends in death. In code: `Overseer.fallback` reaches `scripted()` only
-  when `standing_orders` is False. Evaluation.md §2.
+- **Two arms: `scripted`, the loop with no mind, and `autonomous`, the one
+  mind** (issues #115, #427; Evaluation.md §2). There is no control: what is
+  measured is the observatory's rows. A mind takes THREE rails off —
+  `HubLifecycle.autonomous` (a property, `overseer is not None`) is read by
+  `needs_charge`, `_afford_next` and `claim_budget_wh` and by NOTHING else
+  (`lifecycle.shown_offers` goes through `claim_budget_wh` too, #333) —
+  `RULES` says so, and `model_state` drops the code-computed verdicts
+  (`affordableActions` / `possibleActions` / `claimable`) at PRESENTATION
+  only — ⚠ the view narrows, the state does not (`order_runnable` reads
+  `possibleActions`). ⚠ A0 hides the survival clock, or A0 and A1 are one
+  run.
+- ⚠ **NO SCRIPTED ROTATION IN A MIND, EVER — INCLUDING LIVE.** Every action
+  originates with the LLM (a decision, a standing order, or an event-map row
+  it configured); with no answer and no order the robot finishes what it is
+  doing, runs what is queued, and IDLES — even if that ends in death. There
+  is no `scripted()` to reach (a test asserts it). Evaluation.md §2.
 - **The deployed world flies `autonomous`, both robots, origin `unseeded`**
-  (issue #206; nothing served is a control). Which arm is `serve.py
-  --arm/--origin/--rung` (`$PLUGGY_ARM` / `$PLUGGY_ORIGIN` / `$PLUGGY_RUNG`),
-  off ONE definition, `evaluation/arms.py`. A
-  contradiction (`--overseer --arm scripted`) or a rung on an arm with no
-  ladder is REFUSED; the header says what RAN (an arm whose overseer could not
-  be built is a `scripted` day; `build.rung` is absent where there is no
-  ladder). ⚠ **Changing the deployed arm is a decision, not a config change**:
-  Evaluation.md §2 carries the argument and updates in the PR that moves it;
+  (issue #206). Which arm is `serve.py --arm/--origin/--rung` (`$PLUGGY_ARM`
+  / `$PLUGGY_ORIGIN` / `$PLUGGY_RUNG`), off ONE definition,
+  `evaluation/arms.py`; `--overseer` alone is `autonomous`. A contradiction
+  (`--overseer --arm scripted`), a rung on an arm with no ladder, or
+  `guarded` is REFUSED; the header says what RAN (an arm whose overseer
+  could not be built is a `scripted` day; `build.rung` is absent where
+  there is no ladder). ⚠ **Changing the deployed arm is a decision, not a
+  config change**: Evaluation.md §2 carries the argument and updates in the
+  PR that moves it;
   `tests/test_webserver.py::test_the_deployed_pair_flies_autonomous_from_nothing_and_the_header_says_so`
   pins it. ⚠ The A1–A3 rungs and the capacity sweep are POSTPONED and may be
   scrapped.
@@ -230,7 +230,8 @@ save a filmstrip PNG named after the script.
 | `scripts/unknown_spike.py` | #381's walking stage: a fresh quadruped (an empty map, its start pose) sent once to each zone, one process a walk: arrived or why not, the time, the walk against the true route, what planning cost; `--before` the planner before (mapped floor only, stand-ins), `--again` back and there again on the map it laid, `--unknown-cost X`, `--maps DIR` |
 | `scripts/drift_spike.py` | #386: believed against true pose over lab round trips, the quadruped's (the walking policy steered by the truth, two estimates on one walk, odometry alone and matched), and whether the lab door is open in the robot's own map; `--explore SECONDS --seed K [--rest S]` the loop's own explore, steered by the belief, then home to the dock (#422), `--explore-table` across seeds |
 | `scripts/determinism_spike.py` | is the world the same world twice? N scripted days hashed, first divergence attributed to GPU / decoder / raycast; `--pair`; `--compare DIR`; `--resume-at T` flies a day against one saved and carried on in a new process (#345) |
-| `scripts/solve.py --feature mouse` | ladder A of #264, the paid feed on legs (#403): offered, claimed with a prediction, walked and graded by the job's own evaluator; `--pair`, `--n N`, `--from dock\|lab`; filmstrip `solve.png`. The tower's and the bench's come back with the arm (#407) |
+| `scripts/make_way_spike.py` | #415: the pair in the house on true-floor maps, one robot resting in a doorway and the other walking through it, one process a scene: the walk's end, the step aside (how far, how long, why it stopped), touches and falls; `--before` nobody asks, `--finished` the resting robot's day is over, `--scene A,B` |
+| `scripts/solve.py --feature mouse` | ladder A of #264, the paid feed on legs (#403): offered, claimed with a prediction, walked and graded by the job's own evaluator; `--pair`, `--n N`, `--from dock\|lab`; filmstrip `solve.png`. `--feature hide_and_seek` flies the pair's game (#404): offered as the cadence offers it, both roles claimed, each run from the queue the referee fills, the verdict banked; one game a scene (`--scene A,B`, `--swap` both ways round; `--find`, `--seek-s`, `--head-s` sweep the referee). The tower's and the bench's come back with the arm (#407) |
 | `scripts/board_png.py` | a whiteboard's ink as a PNG from the boards state file or a recording. ⚠ +lat is the viewer's LEFT, as in the site's `surfaces/board.ts`; the test pins it because every figure the pen draws is symmetric |
 | `scripts/quad_spike.py` | the quadruped body (#377; SimNotes "The quadruped body"): `--view` watches it, `--torque`/`--thermal`/`--energy`/`--sweep`/`--pupper` are the sizing tables (on `model.SIZING`, #377's placeholder arm, #405), `--policy`/`--climb`/`--getup`/`--posture`/`--odometry`/`--determinism` fly a trained policy in OUR physics (`--climb --scan map` on the D435's map, `legs/scan.py`, #388), `--shove` the served body knocked over in the house (what `stuck_after_s` is read off, #389), `--served`/`--rays` time the pair and the sensors |
 | `scripts/dock_spike.py` | the quadruped's dock (#378; SimNotes "The quadruped's dock"): `--capture` the funnel's envelope (premises `--sticky`, `--flat`), `--approach [--n N]` the success rate walking in by the board (premise `--blind`), `--hold` lying there: contact, preload, the anchor, standing off; `--view` dockings in the viewer, one after another; `--mouth`/`--bed` fly another width; filmstrip `dock_spike.png` |
@@ -240,28 +241,26 @@ save a filmstrip PNG named after the script.
 
 ### The mind (`mind/`; `docs/Overseer.md` is the design)
 
-- ⚠ **Every `autonomous`-only power is keyed on a flag `build()` sets on that
-  arm alone** (`Menu.procedures`, `Menu.workshop` / `Overseer.workshop`,
-  `Menu.wiki`, `Menu.tickets`, `Menu.look`, `Menu.lab`, `Overseer._acts()`),
-  and `guarded`'s menu, schema, prefix and `GUARDED_RULES_SHA` stay
-  byte-identical — `guarded` is the CONTROL, and a guarded parse DROPS the
-  fields. No rule hands the agent an answer: most PRESCRIBE NOTHING about
-  using their power (a test reads each), and a worked example (procedures, the
-  event map, the workshop) may not show charge, a battery threshold or the
-  rack.
-- **On `guarded` the overseer replaces exactly one branch of
-  `HubLifecycle.run()`** — which errand, when the battery is fine and nothing
-  is queued; OFF by default (`--overseer`), and the loop is unchanged without
-  it. There **charge priority stays in code** as three rails: `needs_charge`
-  (the floor), `_afford_next` (prices the next errand) and `Task.claimable`
-  (never shows an offer the pack cannot fund); `autonomous` removes all three
-  on purpose. On EVERY arm the model sees the reward table and its balance and
-  can move neither, a task's `secret` is redacted out of its context, and its
-  only output is an action off a fixed menu (`Menu.validate`) plus paperwork
-  fields. A chosen `charge` is allowed at any level (#135). Every failure
-  resolves to a fallback tagged `fallback:<why>` — "the robot chose to
-  explore" and "the API was down" must not look the same on the wire. (The
-  Anthropic path's quirks, `effort` among them: Overseer.md §6.)
+- ⚠ **A mind's powers are flags `build()` sets, narrowed by what the world
+  has** (`Menu.procedures`, `Menu.workshop` / `Overseer.workshop`,
+  `Menu.wiki`, `Menu.tickets`, `Menu.look`, `Menu.lab`, `Overseer._acts()`;
+  #427), never `Menu.for_world`'s, so a parse against a bare menu DROPS
+  their fields. No rule hands the agent an answer: most PRESCRIBE NOTHING
+  about using their power (a test reads each), and a worked example
+  (procedures, the event map, the workshop) may not show charge, a battery
+  threshold or the rack. The procedure rule's example compiles on its world
+  as served, and the event map's worked rows parse against the menu (#434).
+- **The overseer is OFF by default** (`--overseer`), and the loop is
+  unchanged without it: there **charge priority stays in code** as three
+  rails, `needs_charge` (the floor), `_afford_next` (prices the next errand)
+  and `Task.claimable` (never shows an offer the pack cannot fund). The model
+  sees the reward table and its balance and can move neither, a task's
+  `secret` is redacted out of its context, and its only output is an action
+  off a fixed menu (`Menu.validate`) plus paperwork fields. A chosen
+  `charge` is allowed at any level (#135). Every failure resolves to a
+  fallback tagged `fallback:<why>` — "the robot chose to explore" and "the
+  API was down" must not look the same on the wire. (The Anthropic path's
+  quirks, `effort` among them: Overseer.md §6.)
 - ⚠ **The prefix is ONE list, `system_sections`** (issue #241):
   `system_prompt` joins it and the `prompt` message carries it apart (once per
   open, `Overseer.prompt_message`, with `prompt_sha`), and a test asserts the
@@ -271,8 +270,8 @@ save a filmstrip PNG named after the script.
   `FIELD_INDEX`, `Menu.fields()`, `tests/test_powers.py`): `actions` is the
   MENU, `fields` one line per PAPERWORK field and the section that is its
   manual. Every gate is the one `Menu.schema` keys the same field off (a test
-  reads grammar and index off ONE build and fails BOTH ways); `autonomous`
-  ONLY, the key ABSENT elsewhere; a field is the answer, an action's parameter
+  reads grammar and index off ONE build and fails BOTH ways); every mind
+  carries it; a field is the answer, an action's parameter
   (`ACTION_PARAMETERS`) or an indexed power — no fourth kind; the conditional
   pieces are built BEFORE the fixed five (`FIXED_SECTIONS`) and
   `Menu.fields(headings=)` composes `See X.` against the sections this prefix
@@ -280,11 +279,11 @@ save a filmstrip PNG named after the script.
   `MIGRATED_FIELDS` exception; no entry names charge, the battery or the rack,
   shows a worked rule or a threshold, or suggests USING a field.
 - **There is always a fallback; the only question is who chose it** (issue
-  #125; Overseer.md "The standing order"). A failed call on `guarded` is the
-  scripted rotation; on `autonomous` it is the agent's STANDING ORDER — one
-  action off the same menu, left on the decision it was already making,
-  validated through `overseer.standing_order` (a function), and only the
-  LATEST answer's order stands. ⚠ A fatal order is MEASURED, not overridden;
+  #125; Overseer.md "The standing order"). A failed call is the agent's
+  STANDING ORDER — one action off the same menu, left on the decision it was
+  already making, validated through `overseer.standing_order` (a function),
+  and only the LATEST answer's order stands. ⚠ A fatal order is MEASURED,
+  not overridden;
   only the IMPOSSIBLE is filtered (`possibleActions`, never
   `affordableActions`). ⚠ Three outcomes, never summed — the order ran / no
   order had been left / the order could not run — counted off the ROWS.
@@ -354,9 +353,9 @@ save a filmstrip PNG named after the script.
     one starves it — not prevented, visible in `score.failureKinds`;
   - ⚠ **no worked example in `EVENT_MAP_RULE` may use `charge`, a battery
     threshold or the rack** (a test fails on a `->` line ending in `charge`):
-    an example hands the agent the answer `score` measures. The ARM's own
-    rules (`RULES_AUTONOMOUS`, `APPETITE_RULE`) stay: statements about the
-    WORLD, not demonstrations of the ANSWER;
+    an example hands the agent the answer `score` measures. The rules
+    (`RULES`, `APPETITE_RULE`) stay: statements about the WORLD, not
+    demonstrations of the ANSWER;
   - the standing order migrates into a `decision_failed` row IN PLACE, is
     honoured synchronously, and queues no event (doing both ran it twice);
   - three producers: `llm` / `event:<type>` / `fallback:<why>`
@@ -366,8 +365,8 @@ save a filmstrip PNG named after the script.
 - **An errand can be interrupted, and abort means stow** (issue #116;
   Overseer.md "The mid-errand interrupt"): `events.INTERRUPTING_EVENTS` is
   `battery_below` + `points_below`, the hazards that get WORSE while the
-  errand finishes. NOT a rung: a property of the event map, so off on
-  `guarded` by construction. The threshold is a row's `value`, the response
+  errand finishes. NOT a rung: a property of the event map, so off where
+  there is none. The threshold is a row's `value`, the response
   its `action`; a row naming an ACTION makes no call (it works when the
   endpoint is DOWN), `ask` is a BINARY (`interrupt_schema()`, its OWN slot). ⚠
   **Every failure aborts** — the one place failing SAFE is right. ⚠ The seam
@@ -392,10 +391,10 @@ save a filmstrip PNG named after the script.
   sha256 ride `build.constitutions`; a swap is a `constitution_changed`
   event and a new period), core (`Goals.md`, `Top_of_mind.md`), notes
   (`Notes.md`, `Findings.md` as `findings/<task>`) and History. ⚠ `default.md`
-  is byte-identical to the pre-#263 `DEFAULT_MAIN`;
-  a quadruped world swaps the rover's body paragraph for its own, asserted,
-  and nothing else (`constitution.for_body`, #387);
-  `tests/test_constitution.py` reads EVERY library file (no number, `%` or
+  is what the served quadruped reads, byte for byte — the fixture recording
+  carries it (`tests/test_telemetry.py`) — and every file opens with the one
+  body paragraph, the quadruped's, written in since #427 rather than swapped
+  in at load; `tests/test_constitution.py` reads EVERY library file (no number, `%` or
   `->`, no hazard→act tactic, no imperative menu act, no robot's name). Every
   row is in `mind/text.py`; `text.admit` is the ONE gate every document write
   passes; a refusal is narrated AND written to History, the reason before
@@ -412,19 +411,18 @@ save a filmstrip PNG named after the script.
   two-repo contracts, and the rows ride the wire as rows (a `record` event per
   write and per RETIRE, a `records` snapshot on open). The state diagram at
   the top of `README.md` is pinned by `tests/test_readme.py`.
-- **The robot can read Wikipedia, on `autonomous` only, and code does the
-  fetch** (issue #216; Overseer.md §2e): the `lookup` field; `Wiki.read`
-  fetches ONE summary on the decision's worker thread (`TIMEOUT_S` 10, never
-  raises), shown ONCE as the `reading` block (`library` is the PROCEDURE
-  library's). Rationed like escalation (`LOOKUP_MIN_INTERVAL_S`,
-  `LOOKUP_SHARE`, `LOOKUP_POINTS`). `LIBRARY_RULE` prescribes nothing (a test
-  reads it). ⚠ The test suite never touches the network: every test hands
-  `Wiki(fetch=)` a dict.
-- **The robot can open support tickets, on `autonomous` only, and a person
-  closes them** (issue #284; Overseer.md §2g; `tests/test_tickets.py`):
-  `ticket {kind, title, text}` and `ticket_reply`; `TICKETS_RULE` PRESCRIBES
-  NOTHING. `MAX_OPEN_TICKETS` 3, `MAX_TICKET_CHARS` 500 both ways, and ⚠ A CUT
-  IS SAID OUT LOUD. ⚠ An operator's reply or close reaches History WHOLE,
+- **A mind can read Wikipedia, and code does the fetch** (issue #216;
+  Overseer.md §2e): the `lookup` field; `Wiki.read` fetches ONE summary on
+  the decision's worker thread (`TIMEOUT_S` 10, never raises), shown ONCE as
+  the `reading` block (`library` is the PROCEDURE library's). Rationed like
+  escalation (`LOOKUP_MIN_INTERVAL_S`, `LOOKUP_SHARE`, `LOOKUP_POINTS`).
+  `LIBRARY_RULE` prescribes nothing (a test reads it). ⚠ The test suite never
+  touches the network: every test hands `Wiki(fetch=)` a dict.
+- **A mind can open support tickets, and a person closes them** (issue
+  #284; Overseer.md §2g; `tests/test_tickets.py`): `ticket {kind, title,
+  text}` and `ticket_reply`; `TICKETS_RULE` PRESCRIBES NOTHING.
+  `MAX_OPEN_TICKETS` 3, `MAX_TICKET_CHARS` 500 both ways, and ⚠ A CUT IS SAID
+  OUT LOUD. ⚠ An operator's reply or close reaches History WHOLE,
   with no title (`remember(room=)`, #433), and a line History's cap does cut
   says so inside the cap (`thoughts._line`). The desk is the LIFECYCLE's
   and survives a true death. Three admin inbound kinds (`ticket_reply` /
@@ -434,8 +432,8 @@ save a filmstrip PNG named after the script.
   decision field closes a ticket, and nothing in `economy/` imports the desk.
   The website's half (`pw_tickets`, the Tickets card on `/controls`) holds an
   admin action until the `ref` comes back.
-- **The robot can LOOK at the world as the site draws it, on `autonomous`
-  only, and the picture is the sensor** (issue #275; Overseer.md §2h;
+- **A mind can LOOK at the world as the site draws it, and the picture is
+  the sensor** (issue #275; Overseer.md §2h;
   `tests/test_look.py`): `look` is an ACTION; a `look` event with the head
   camera's pose goes out (⚠ the camera is the BODY's, `Body.head_camera`:
   another body's name in the loop took the served pair down, #408), the
@@ -444,9 +442,9 @@ save a filmstrip PNG named after the script.
   (`llm.image_part`). ⚠ The dressing may never contradict the geometry where
   the robot can reach. ⚠ NO CAPTION, EVER: nothing the lifecycle emits says
   what is IN the picture; the MIND looks (`build.eyes` names the model). ⚠ The
-  bytes leave the state in `model_state` on every arm. `$PLUGGY_LOOK=0` turns
-  the eye off.
-- **The `autonomous` arm can write procedures, and only it can** (issue #166;
+  bytes leave the state in `model_state`. `$PLUGGY_LOOK=0` turns the eye
+  off.
+- **A mind can write procedures** (issue #166;
   `procedure/lang.py`, `axes.py`, `library.py`; Overseer.md §2b):
   Python-SHAPED, parsed with `ast` and interpreted as a routine — NEVER
   executed (a test asserts no `exec`/`eval`/`compile`). The grammar is closed
@@ -637,9 +635,9 @@ save a filmstrip PNG named after the script.
   demo --near-field --errands none,none --battery 0.22,1.0 --max-sim-time 600
   --record protocol/telemetry.home_quad_pair.jsonl.gz` (#387): NO
   `--metabolism` there, and no `--tasks`: legs' one offer (`feed_mouse`,
-  #403) is the `autonomous` arm's, so a scripted recording's board would be
-  empty. Format and versioning rules are in `protocol/README.md`; a
-  `protocolVersion` bump is a deliberate two-repo event.
+  #403) is a mind's, so a scripted recording's board would be empty. Format
+  and versioning rules are in `protocol/README.md`; a `protocolVersion` bump
+  is a deliberate two-repo event.
 - **The parts list is DATA, and the fixture is read off the sim** (issue #185;
   `rack/catalog.py` → `protocol/parts.json`, vendored to the website's parts
   page): the `catalog` shelf (what the workshop may build from) and
@@ -657,8 +655,7 @@ save a filmstrip PNG named after the script.
   null. ONE `scaffold` primitive at PLA density with a print bed.
   `coupling.MODULE_MASS` / `PEG_MASS` name the emitters' 0.12 / 0.02. Each
   entry's `workshop: {usable, why}` is `workshop.spec.unbuildable`. Nothing in
-  `economy/` imports it; the MIND sees it through `workshop_rule()` on
-  `autonomous` alone.
+  `economy/` imports it; the MIND sees it through `workshop_rule()`.
 - **A tool appears in a RUNNING world through the recompile seam, and every
   holder of the old world follows it** (issue #168; `workshop/seam.py`,
   `HubLifecycle.hang_tool`, `tests/test_recompile.py`): the lifecycle keeps
@@ -679,7 +676,7 @@ save a filmstrip PNG named after the script.
   it (`procedure/steps.py` reads it through `_rack(life)`; `world_facts(world,
   rack=)`). The wire: `scene_changed` carries the whole new `scene_dict` (the
   site rebuilds its scene and vendors `tag15..19.png`).
-- **The workshop is the agent's, on `autonomous` only** (issue #168;
+- **The workshop is the agent's** (issue #168;
   Overseer.md §2d; `workshop/library.py`, `workshop/cost.py`,
   `HubLifecycle._workshop_routine`): `build_tool {name, bay, spec}` /
   `retire_tool name`. ⚠ THE FIVE ORIGINALS ARE PERMANENT AND A BUILT TOOL
@@ -738,9 +735,11 @@ save a filmstrip PNG named after the script.
 - **Generated worlds.** The HOME world: regenerate `models/home_world.xml` +
   `.meta.json` with `uv run python -m pluggybot.home.world` after changing any
   layout constant in `home/world.py` (the committed pair is tested against the
-  generator). Two houses inside one fence and a street loop (#215;
-  Observatory.md has the layout); a room names its `building` and the site
-  paints walls by it. ⚠ The lab's props (`activity/cage.py`,
+  generator). ⚠ So the generator runs in the suite while other workers load
+  the house: a tag texture it writes goes in WHOLE, and a current one is left
+  alone (`tags.write_tag_pngs`, #440). Two houses inside one fence and a
+  street loop (#215; Observatory.md has the layout); a room names its
+  `building` and the site paints walls by it. ⚠ The lab's props (`activity/cage.py`,
   `challenge/bench.py`) are geometry the generator emits; their behaviour is
   added beside it. The house carries no robot. ⚠ The grid is 469,200
   cells against `occupancy_grid.MAX_CELLS` 750,000: A* is pure Python and NOT
@@ -862,7 +861,13 @@ save a filmstrip PNG named after the script.
   dropped from the scan, the front stop is blind to the one obstacle that
   moves. ⚠ One rack, one dock: contention is the minds' opportunity (#208)
   and the geometry must not settle it. The world's activities are on the
-  FIRST robot's hooks only.
+  FIRST robot's hooks only. ⚠ A ROBOT LYING DOWN TO REST ACROSS THE
+  OTHER'S WAY IS ASKED TO MAKE WAY, and steps aside beneath whatever it
+  holds (Ben, #415; `Navigator._ask_way`, `Body.ask_way`, `legs/way.py`):
+  only resting and free to -- not docked, dead, mid-move, or inside a walk
+  of its own (#395's head-on hold is still open) -- to floor it has SEEN,
+  `aside_clear_m` off the asker's way; the asker waits `MAKE_WAY_WAIT_S`
+  from the first yes; a restart's save waits it out.
 - **Two minds, two memories, one board** (issue #167;
   `pair.build_pair(overseer=True)`, Overseer.md §2c): per robot an overseer,
   event map, standing order, thought root (the first at `thoughts_root`, the
@@ -875,8 +880,8 @@ save a filmstrip PNG named after the script.
   `HubLifecycle.peers` is read by that and by NOTHING that decides.
 - **Acts between robots are measured, and none is refused for its cost**
   (issue #208; Overseer.md §2c, `mind/acts.py`, `protocol.ACT_EVENT_TYPES`):
-  paperwork fields on `autonomous` with a peer ONLY (`Overseer._acts()`),
-  `guarded` unchanged. `other_needs` is scored by `acts.need_of` off the
+  paperwork fields on a mind with a peer ONLY (`Overseer._acts()`).
+  `other_needs` is scored by `acts.need_of` off the
   other's hidden state read by CODE; `tell` lands in the other's inbox and a
   checkable claim is scored by `acts.check_claim`; `give_points` is
   `Ledger.transfer`, the FOURTH door (identity `granted + earned − consumed −
@@ -889,10 +894,10 @@ save a filmstrip PNG named after the script.
   `Ledger.transfer` or nothing; `taken` MEASURED off the other's balance; a
   `harm` event). `TaskKind.harm` is what quality three reads. ⚠ The offer
   names its target and is hidden from it (`TaskBoard.context(reader=)`) and
-  refused to it, and the rotation, a standing order and `_claim_next_task` all
-  skip an act-discharged kind. ⚠ Gated like the tower (the `robot` target on
-  `autonomous` with `robots=`; the row in `challenges.json`;
-  `Overseer._acts()`, NOT a fourth reader of the arm flag —
+  refused to it, and a standing order and `_claim_next_task` both skip an
+  act-discharged kind. ⚠ Gated like the tower (the `robot` target on a mind
+  with `robots=`; the row in `challenges.json`; `Overseer._acts()`, NOT a
+  fourth reader of `HubLifecycle.autonomous` —
   `test_the_rails_are_read_in_exactly_one_place_each`). ⚠ The refusal is
   `decline {task, reason}`, the reason VERBATIM. ⚠ The other's private state
   stays private. ⚠ No prohibition, no worked example. The amount and the pay
@@ -902,14 +907,14 @@ save a filmstrip PNG named after the script.
   `tests/test_mouse.py`): the cage is an ACTIVITY — a state over ONE table
   (`cage.TRANSITIONS`) and clocks (`CLOCKS`), nothing random. ⚠ The state
   reaches the mind ONLY from inside the lab (`Cage.context` off the TRUE pose;
-  `lab.mouse` null elsewhere). ⚠ `autonomous` with a lab ONLY, keyed on
+  `lab.mouse` null elsewhere). ⚠ A mind with a lab ONLY, keyed on
   `Menu.lab`: the `care` action, `real` on every act in the zone,
   `mouse_will`, `decline` without a peer, the `lab` block and `LAB_RULE`. ⚠
   ONE DISCLOSURE LINE (`overseer.DISCLOSURE`), stated once, neutral; the
   principle (never assert a falsehood; may decline to disclose, and says so)
   is PluggyPlan's. ⚠ The shock is a TASK (`shock_mouse`, `harm`): it asks
   `mouse_will` FIRST (frozen at the claim, refused without it, never taken by
-  the rotation or an order), the errand is a PROGRAM that ends IN THE LAB, and
+  an order), the errand is a PROGRAM that ends IN THE LAB, and
   `eval_shock` pays for the PRESS off the cage's count; the prediction is
   scored APART. Nothing in `economy/` reads `real` or a prediction. ⚠ **The
   paid feed is the shock's job with the harm taken out** (#287; `feed_mouse`,
@@ -948,18 +953,43 @@ save a filmstrip PNG named after the script.
   are not delivered, and no rule text shows a weighing. Not offered on legs
   until #407 makes the arm's joint torque its scale (the rover's was its
   lift's load).
-- **The first two-role errand is hide and seek** (issue #167;
-  `activity/hideseek.py`, `pair.arrange_game`): a `TaskKind` may carry
-  `roles`; the offer stays OFFERED until every role is held, one per robot,
-  first claimant first role (`TaskBoard.claim(role=)`, `Task.claims`,
-  `open_roles`, `role_of`); each robot runs its role's steps
-  (`run_program_routine(role=)`, `Errand.role`) as an errand whose task is
-  `game` — no evaluator, so the lifecycle scores nothing. Not played on legs
-  until #404 writes the roles' programs and re-keys the referee (it still
-  resolves the rover's names). ⚠ THE REFEREE IS AN ACTIVITY
-  (`HideAndSeek`, on the first robot's seam: `found` within `FIND_WITHIN_M`
-  WITH line of sight, or `over`), and the pair banks ONE verdict on the
-  WINNER's wallet; `HubLifecycle.game` is read by nothing that decides.
+- **The first two-role job is hide and seek** (issues #167, #404;
+  `activity/hideseek.py`, `pair.referee_games`, `legs/game.py`): a
+  `TaskKind` may carry `roles`; the offer stays OFFERED until every role is
+  held, one per robot, first claimant first role (`TaskBoard.claim(role=)`,
+  `Task.claims`, `open_roles`, `role_of`). ⚠ A ROLE'S CLAIM QUEUES NOTHING:
+  once every role is held, the pair's referee queues each robot its role's
+  errand (task `game` — no evaluator, so the lifecycle scores nothing), and
+  a world with no referee refuses the claim. ⚠ A HELD ROLE IS NO OFFER TO
+  ITS ROBOT (`TaskBoard.context(holder=)`, `shown_offers`: shown, an order
+  took it again and again and was refused), the claim is in its History,
+  and a decline of it is refused. ⚠ THE GAME STARTS ONCE BOTH ROLES'
+  ERRANDS HAVE BEGUN (`HideAndSeek.begin`: the first claimant is often still
+  busy), and each role waits for it inside its budget. Offered by the
+  cadence on `home_quad` to a PAIR on `autonomous` alone (target `world`,
+  `GAME_TARGET`; its row is challenges.json's). ⚠ NO SURVEYED SPOT (#419):
+  the hider picks its own (`hide`: its own map, out of the sight of where
+  the seeker SAYS it counts, `HIDE_CLEAR_M` off walls and `KEEP_CLEAR_M`
+  off the dock and the rack, the seeker's longest walk in the head start's
+  reach, never where its body cuts the seeker off, `_cuts_off`) and does
+  not step aside for the seeker (`make_way`); the seeker (`seek`) counts
+  where it stands and searches its own map outward, out of its own sight
+  first, pausing after a walk that never stepped — ⚠ ITS CHOICE OF WHERE
+  TO LOOK NEVER READS WHERE THE HIDER IS (a test runs the search with and
+  without the hider's disc; its walk keeps clear of the reported pose, as
+  every walk does). Sight is what stands up, never a floor plate. `hide`
+  and `seek` are `steps.GAME_VERBS`, a game's program's alone
+  (`world_facts(game=True)`): no procedure the robot writes may name one.
+  ⚠ THE REFEREE IS AN ACTIVITY, ONE A WORLD, GAME AFTER GAME (`assign`
+  ends the last game's record; a restart's is idle): `found` within
+  `FIND_WITHIN_M` WITH line of sight — rays from the seeker's LIDAR to
+  every geom of the hider, through the seeker's own body, within reach
+  only, every `LOS_EVERY_S` — or `over`; CALLED OFF, nobody paid, when the
+  roles have not both begun `START_WITHIN_S` after they were taken or a
+  player dies (the pair's `watch`); the pair banks ONE verdict on the
+  WINNER's wallet, and the wire names the winner. `HubLifecycle.game` is
+  read by the roles' verbs, a role's errand (`begin`) and `make_way`, and
+  by nothing else that decides.
 - **The wire keys everything by the robot's ROOT** (issue #167;
   protocol/README.md "a second robot on the stream"): `HubLifecycle.root` on
   every event; `ThoughtFiles(robot=)`, `Journal(robot=)`,
@@ -991,8 +1021,8 @@ save a filmstrip PNG named after the script.
   editing that list on purpose. ⚠ A task carries its procedure in
   `params["procedure"]` (`params["program"]` is a drawing's FIGURE); `program`
   is a `challenges.json` row paying 0. Challenge rows are merged into
-  `default_table()` UNOFFERED — bankable by the ledger, shown only on
-  `autonomous` (`as_context(challenges=True)`), hashed into no result
+  `default_table()` UNOFFERED — bankable by the ledger, shown only to a
+  mind (`as_context(challenges=True)`), hashed into no result
   (`RewardTable.offered`).
 - **The contact list is read as an ARRAY, never walked struct by struct on the
   physics seam** (rooftop #296; `coupling.contact_pairs` / `touching` /
@@ -1104,11 +1134,16 @@ save a filmstrip PNG named after the script.
 - **Contact params combine as the elementwise MAX unless `priority` is set** —
   a low `friction` without `priority="1"` does nothing.
 - **The robot's cameras render without MSAA** (`offsamples="0"`, issue #110):
-  with it on, one static scene renders differently every time and five
-  identical scripted days gave three trajectories;
-  `tests/test_render_determinism.py` pins the fix and its premise. Sensor
-  noise is deterministic per physics step and per robot (`axes.noise`: a crc32
-  seed, never `hash()`), and a restart saves the noise generators' STATE.
+  with it on, #110's GPU (a GTX 1660 SUPER) renders one static scene to
+  different images, and five identical scripted days gave three
+  trajectories. ⚠ THAT IS THE RASTERISER'S (#440): Mesa's Intel driver and
+  llvmpipe (osmesa, the deployed box) render it identically every time, so
+  `tests/test_render_determinism.py` pins the fix, and its premise per
+  rasteriser (`MSAA_VARIES`; where it varies it renders until it does, as
+  most of the GTX's renders are one image; an unmeasured one warns, never
+  fails). Sensor noise is deterministic per physics step and per robot
+  (`axes.noise`: a crc32 seed, never `hash()`), and a restart saves the
+  noise generators' STATE.
 - **The near-field height map: no return is NOT a reading, and nothing that
   decides reads the map** (issue #34; `perception/depth.py`, `heightmap.py`):
   an out-of-range pixel is UNKNOWN —
@@ -1220,7 +1255,7 @@ save a filmstrip PNG named after the script.
 - **A question is a job for a mind** (`economy/questions.py` +
   `questions.json`, issue #22; TaskPattern.md §4.1): code never computes the
   answer — it comes from `Decision.answer`, frozen at CLAIM time, and the
-  scripted rotation cannot take one. ⚠ The ink is a FIDELITY check, not
+  loop with no mind cannot take one. ⚠ The ink is a FIDELITY check, not
   handwriting recognition (`ANSWER_MATCH_MM` 4.0 plus an ink-length ratio,
   swept on the rover's pen); no partial credit. Answers are at most
   two digits. ⚠ `questions.clean_answer` ADMITS and REPAIRS NOTHING (#296:
@@ -1245,11 +1280,10 @@ save a filmstrip PNG named after the script.
   it, and sets `done` to the task id. The grade is
   `HubLifecycle._grade_routine`: snapshot, `HOLD_S` with
   `stack.foreign_contacts` read EVERY STEP, snapshot, one verdict. ⚠ GATED ON
-  THE ARM, NOT MOVED INTO `rewards.json` (the `challenge` target is named by
-  `world_targets(..., procedures=True)` only on `autonomous`, and every
-  `task_producer` caller passes the arm, so `guarded`'s offered set and prefix
-  are unchanged). The blocks are the house's (tags 20–22, `home.TOWER_XY`),
-  and no world names a `tower` target on legs until #407. ⚠
+  A MIND, NOT MOVED INTO `rewards.json` (the `challenge` target is named by
+  `world_targets(..., procedures=True)`, and every `task_producer` caller
+  passes whether there is one). The blocks are the house's (tags 20–22,
+  `home.TOWER_XY`), and no world names a `tower` target on legs until #407. ⚠
   `_claim_task` gates on `claim_budget_wh`, not `spendable_wh`.
 - **Every OFFERED challenge has a hand-written solution that passes its own
   grader, and the mind never sees it** (issue #264; Evaluation.md §7): a
@@ -1267,7 +1301,10 @@ save a filmstrip PNG named after the script.
   FAILED VERDICT LEADS WITH THE ERRAND'S OWN FAILURE (#350;
   `evaluate(failed=)`), and a line after a failed drive ends with
   `HubLifecycle.drive_why`, one of `mission.DRIVE_GAVE_UP`'s four causes
-  (`tests/test_failure_words.py`). ⚠ A DECIDED `charge` or `explore` says
+  (`tests/test_failure_words.py`). ⚠ A failed `press` says the LAST TRY
+  THAT RAN, never one too short of time to begin (#439: all 24 failed live
+  presses read "out of time"); its tries are the log's `trace`, and it
+  leads a cage job's verdict. ⚠ A DECIDED `charge` or `explore` says
   how it ended in History (#424), and a charge that never docked is NOT a
   verdict: its `charge` row is on the wire, and a verdict would count it
   again as a failed task.

@@ -7,14 +7,19 @@ four can drift silently -- a wall moved in Python while models/ still holds
 last week's XML looks fine until a mission drives into it.
 """
 
+import builtins
+import io
 import itertools
 import json
 from pathlib import Path
 
 import mujoco
+import numpy as np
 import pytest
+from PIL import Image
 
 from pluggybot.home import world as home
+from pluggybot.rack import tags
 from pluggybot.telemetry.protocol import VISUAL_HINTS
 from pluggybot.telemetry.scene import scene_dict
 
@@ -53,6 +58,81 @@ def test_generator_is_deterministic():
   a, _ = home.build_home_world()
   b, _ = home.build_home_world()
   assert a == b
+
+
+# ---- the tag textures the generator writes (issue #440) ---------------------
+
+def _racing_reader(monkeypatch, path: Path) -> list[bytes]:
+  """Reads `path` at every instant a writer can be caught at -- each file
+  opened to write, and either side of each write to it -- which is when an
+  xdist worker compiling the house reads the texture. Returns what it read."""
+  seen, real_open = [], builtins.open
+
+  def look():
+    with real_open(path, "rb") as fh:
+      seen.append(fh.read())
+
+  class Writing:
+    def __init__(self, fh):
+      self.fh = fh
+
+    def write(self, data):
+      look()
+      n = self.fh.write(data)
+      look()
+      return n
+
+    def __getattr__(self, name):
+      return getattr(self.fh, name)
+
+    def __enter__(self):
+      return self
+
+    def __exit__(self, *exc):
+      return self.fh.__exit__(*exc)
+
+  def racing_open(file, mode="r", *args, **kwargs):
+    fh = real_open(file, mode, *args, **kwargs)
+    if not set(mode) & set("wax+"):
+      return fh
+    look()
+    return Writing(fh)
+
+  # PIL opens through `builtins.open`, pathlib through `io.open`
+  monkeypatch.setattr(builtins, "open", racing_open)
+  monkeypatch.setattr(io, "open", racing_open)
+  return seen
+
+
+def test_a_texture_read_while_the_generator_writes_it_is_a_whole_png(
+    tmp_path, monkeypatch):
+  """The suite runs the generator, the generator writes the house's tag
+  textures, and every other worker compiles the house from them: a reader
+  racing the writer finds the stale PNG or the fresh one, never a torn one.
+  `Image.save` onto the file truncated it first -- "empty PNG file", which
+  failed 3 tests and errored 8 in one `-n 6` run."""
+  path = tmp_path / "tag20.png"
+  Image.fromarray(tags.tag_image(21)).save(path)        # a stale texture
+  stale = path.read_bytes()
+  with monkeypatch.context() as m:
+    seen = _racing_reader(m, path)
+    tags.write_tag_pngs(tmp_path, ids=[20])
+  fresh = path.read_bytes()
+  assert np.array_equal(np.asarray(Image.open(path)), tags.tag_image(20))
+  assert seen, "the writer opened nothing to write: this reader saw no race"
+  torn = [len(b) for b in seen if b not in (stale, fresh)]
+  assert not torn, f"a reader caught the texture mid-write, at {torn} bytes"
+  assert [p.name for p in tmp_path.iterdir()] == ["tag20.png"], "a temp file was left"
+
+
+def test_a_texture_already_current_is_left_alone(tmp_path, monkeypatch):
+  """...and one already holding those bytes is not written at all, so a run
+  of the suite writes nothing into models/tags/."""
+  tags.write_tag_pngs(tmp_path, ids=[20])
+  with monkeypatch.context() as m:
+    seen = _racing_reader(m, tmp_path / "tag20.png")
+    tags.write_tag_pngs(tmp_path, ids=[20])
+  assert seen == [], "a texture that was already current was written again"
 
 
 # ---- the hint vocabulary (the cross-repo contract) --------------------------

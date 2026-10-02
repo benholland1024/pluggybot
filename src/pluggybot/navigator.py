@@ -55,13 +55,14 @@ def gave_up(rec: dict, peer: str = "the other robot") -> str:
     cause = "stopped by the robot's own interrupt"
   elif why == "peer":
     far, lies = rec.get("peerM"), rec.get("peerDown")
+    # ...and one lying down by choice is resting, never fallen (#387, #415)
+    how = "lying" if lies else "lying down to rest" if rec.get("peerRests") else ""
     if far is None:
       cause = f"{peer} in the way"
     elif rec.get("peerAt") == "goal":
-      cause = (f"{peer} {'lying' if lies else 'standing'} {far:.1f} m from "
-               "where it was going")
+      cause = f"{peer} {how or 'standing'} {far:.1f} m from where it was going"
     else:
-      cause = f"{peer}{' lying' if lies else ''} in the way, {far:.1f} m off"
+      cause = f"{peer}{' ' + how if how else ''} in the way, {far:.1f} m off"
   else:
     cause = "out of time"
   return (f"the drive gave up {rec['shortM']:.1f} m short after "
@@ -86,6 +87,17 @@ DOWN_ROBOT_CELLS = 14
 #: for (issue #365).
 OTHER_NEAR_M = 1.2
 OTHER_WAIT_S = 2.0
+#: A ROBOT LYING DOWN TO REST IS ASKED TO MAKE WAY (issue #415; Ben's
+#: decision, 2026-09-30). Resting by reflex is not down (#365), so a drive
+#: waited on it or gave up at its disc, and it never moved: nothing told it
+#: it was in the way, and #405's fixture day left the other robot stranded
+#: at 7 % at the same doorway four times out of four. A drive whose way such
+#: a robot cuts asks it to step off the way (`Body.ask_way`, the pair's
+#: channel) and waits for it while it does -- this long at most from its
+#: first yes, s, before it gives up as it did: 3x the slowest MEASURED
+#: (`scripts/make_way_spike.py`, six doorways of the house), where the
+#: stand-up and the walk aside took 6.7-8.9 s.
+MAKE_WAY_WAIT_S = 30.0
 #: How often a drive looks at which other robots are lying down (issue
 #: #365). A fall or a stand-up moves that robot's disc, and the plan is
 #: made again at once rather than at the next 2 s replan: the depth camera
@@ -277,6 +289,9 @@ class Navigator:
     #: avoided round its body (issue #365, `HubLifecycle.keep_clear`).
     #: `_bodies` reads both.
     self.others: list = []
+    #: ...and how one RESTING across this robot's way is asked to make way
+    #: (issue #415, `Body.ask_way`): `(root, route) -> bool`, or None.
+    self.ask_way = None
 
   def rebind(self, model, data) -> None:
     """A recompiled world (issue #168): the map and the belief are state and
@@ -561,6 +576,39 @@ class Navigator:
       out.append(pts[-1])
     return out
 
+  def seen_floor_lattice(self, mask_others: bool = False) -> np.ndarray:
+    """The planner's lattice (`mapping/optimistic.py`) over floor this robot
+    has SEEN only -- each cell's cost, inf where no body passes and where
+    nothing was seen -- with `mask_others`, the other robots' discs out of
+    it too: where it may choose to stand (issues #404, #415), never a spot
+    in the unknown, which is a walk into a wall it has not met."""
+    planning = self._planning_grid()
+    cost = optimistic.map_costs(planning, self.INFLATION_CELLS, self.UNKNOWN_COST)
+    cost[planning >= FREE_THRESH] = np.inf
+    if mask_others:
+      floor = np.isfinite(cost)
+      self._mask_others(floor)
+      cost[~floor] = np.inf
+    return optimistic.coarsen(cost, optimistic.BLOCK)
+
+  def walk_field(self, lattice: np.ndarray, xy: tuple[float, float],
+                 limit: float = np.inf) -> np.ndarray:
+    """How far a walk from (x, y) is to every cell of `lattice`, m, over its
+    costs -- the planner's own Dijkstra, from the cell nearest (x, y) a
+    body could stand on; inf where none reaches within `limit`, and
+    everywhere where there is no such cell."""
+    g, b = self.grid, optimistic.BLOCK
+    rows, cols = lattice.shape
+    cx, cy = g.world_to_cell(xy[0], xy[1])
+    src = nearest_traversable(np.isfinite(lattice), (cx // b, cy // b),
+                              radius=optimistic.ESCAPE_CELLS)
+    if src is None:
+      return np.full(lattice.shape, np.inf)
+    graph = optimistic.lattice_for(lattice.shape, g.resolution * b)
+    graph.weigh(lattice)
+    dist, _ = graph.search(src[1] * cols + src[0], limit=limit)
+    return dist.reshape(lattice.shape)
+
   def in_sight(self, wx: float, wy: float) -> bool:
     """Can one drive plan to (wx, wy): is it within the LIDAR's reach and
     on the map, its cell seen (free or not)? Beyond either, `_plan_to`
@@ -630,6 +678,8 @@ class Navigator:
     next_stop = t0 + STOP_EVERY_S
     known = self._known_cells() if self.PROGRESS_MAP_GROWTH else 0
     next_look = t0 + MAP_LOOK_S
+    # the robots asked to make way that said yes, and when first (#415)
+    self._made_way = made_way = {}
     while self.data.time - t0 < timeout:
       dist = math.hypot(wx - self.pose[0], wy - self.pose[1])
       if dist < 0.08 and not waypoints:
@@ -659,7 +709,10 @@ class Navigator:
           # move, look again -- bounded by `timeout`, which is the whole
           # of this robot's patience. Giving up here was measured: two
           # robots sent for the same bay, and the first to arrive reported
-          # "no route" after 16 s with the other crossing its path.
+          # "no route" after 16 s with the other crossing its path. One
+          # lying down to rest is asked to move first (#415): it would not
+          # move for being waited on.
+          self._ask_way(wx, wy, made_way, near=True)
           yield from self._drive_routine(OTHER_WAIT_S, 0.0, 0.0)
           last_improve = self.data.time
           waypoints = []
@@ -709,10 +762,18 @@ class Navigator:
         if planned is None:
           # no known space at all -- unless it is the other robot's disc
           # that cut the route, which a plan without it tells apart
+          cut = (dist >= CLOSE_ENOUGH_M and bool(self.others)
+                 and self._route_cut_by_others(wx, wy))
+          if cut and self._ask_way(wx, wy, made_way):
+            # ...and one RESTING across the way is stepping off it (#415):
+            # a wait, as for a robot that will move, until the plan finds
+            # the way open or `MAKE_WAY_WAIT_S` has passed
+            yield from self._drive_routine(OTHER_WAIT_S, 0.0, 0.0)
+            last_improve = self.data.time
+            waiting = True
+            continue
           return self._drove(wx, wy, t0, (
-            "" if dist < CLOSE_ENOUGH_M
-            else "peer" if self.others and self._route_cut_by_others(wx, wy)
-            else "no_route"))
+            "" if dist < CLOSE_ENOUGH_M else "peer" if cut else "no_route"))
         waypoints = planned
         if self.PROGRESS_ALONG_ROUTE:
           route = self._left(dist, waypoints, wx, wy)
@@ -775,19 +836,25 @@ class Navigator:
            "shortM": round(math.hypot(wx - px, wy - py), 3)}
     bodies = self._bodies() if why == "peer" else []
     if bodies:
-      # the ONE body the cause is about: the nearest to the goal where that
-      # is nearer than the nearest to the robot -- where it was, and
-      # whether it lies down (#365: never waited for, "lying" in the words)
+      # the ONE body the cause is about: the nearest to the goal where its
+      # disc covers the goal and it is nearer than the nearest to the robot
+      # -- where it was, and whether it lies down (#365: never waited for,
+      # "lying" in the words) or rests (#415). A body nearer the goal than
+      # the robot but nowhere ON it is in the way: one resting in a doorway
+      # 3.5 m short of the goal read "standing 3.5 m from where it was going".
       here = min(bodies, key=lambda b: math.hypot(b.x - px, b.y - py))
       there = min(bodies, key=lambda b: math.hypot(b.x - wx, b.y - wy))
       d_here = math.hypot(here.x - px, here.y - py)
       d_there = math.hypot(there.x - wx, there.y - wy)
-      at_goal = d_there < d_here
+      at_goal = d_there < min(d_here, self._cells(there) * self.grid.resolution)
       b = there if at_goal else here
       rec.update(peerAt="goal" if at_goal else "here",
                  peerM=round(d_there if at_goal else d_here, 3),
                  peerXY=(round(float(b.x), 3), round(float(b.y), 3)),
-                 peerDown=bool(b.down))
+                 peerDown=bool(b.down), **({"peerRests": True} if b.resting else {}))
+    asked = getattr(self, "_made_way", None)
+    if asked:
+      rec["askedWay"] = sorted(asked)
     self.last_drive = rec
     return not why
 
@@ -837,6 +904,51 @@ class Navigator:
                          or math.hypot(b.x - wx, b.y - wy) < OTHER_NEAR_M):
         return True
     return False
+
+  def _ask_way(self, wx: float, wy: float, made_way: dict,
+               near: bool = False) -> bool:
+    """Ask every robot lying down to REST across this drive's way to (wx,
+    wy) to step off it (issue #415, `MAKE_WAY_WAIT_S`): one whose disc is
+    what cuts the way -- a plan without it finds one (`_route_past`), which
+    is the way it is asked off -- and, `near`, only one within
+    `OTHER_NEAR_M` of this robot or the goal (a stagnated drive's test).
+    `made_way` is this drive's: who said yes, and when first. True while
+    one is making way -- it said yes, `MAKE_WAY_WAIT_S` ago at most -- and
+    the drive waits for it. A robot fallen over is never asked (#365): it
+    gets up by itself or not at all."""
+    if self.ask_way is None:
+      return False
+    now = float(self.data.time)
+    px, py, _ = self.pose
+    for b in self._bodies():
+      if b.down or not b.root or now - made_way.get(b.root, now) > MAKE_WAY_WAIT_S:
+        continue
+      if not b.resting and b.root not in made_way:
+        continue
+      if near and not (math.hypot(b.x - px, b.y - py) < OTHER_NEAR_M
+                       or math.hypot(b.x - wx, b.y - wy) < OTHER_NEAR_M):
+        continue
+      route = self._route_past(b.root, wx, wy)
+      if route is None:
+        continue
+      way = [(round(float(px), 3), round(float(py), 3))] + [
+        (round(float(x), 3), round(float(y), 3)) for x, y in route]
+      if self.ask_way(b.root, way):
+        made_way.setdefault(b.root, now)
+    return any(now - t <= MAKE_WAY_WAIT_S for t in made_way.values())
+
+  def _route_past(self, root: str, wx: float, wy: float) -> list | None:
+    """The plan this robot would walk to (wx, wy) were the robot `root` not
+    there -- every other one still kept clear of -- or None: the way that
+    robot is asked off (issue #415). The planner's own, unremembered: what
+    a plan keeps between plans (its floor, its stand-in) is put back."""
+    others, kept = self.others, (self._stand_in, self._floor)
+    self.others = [where for where in others if KeepClear(*where()).root != root]
+    try:
+      return Navigator._plan_to(self, wx, wy)
+    finally:
+      self.others = others
+      self._stand_in, self._floor = kept
 
   def peer_ahead(self, points) -> float | None:
     """The nearest point of ANOTHER ROBOT's body in the corridor this one

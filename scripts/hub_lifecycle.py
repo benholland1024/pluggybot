@@ -94,10 +94,11 @@ def main() -> None:
                       help="JSON file the task board lives in between runs "
                            "($PLUGGY_TASKS; implies --tasks)")
   parser.add_argument("--overseer", action="store_true",
-                      help="let an LLM choose the errands once --errand's "
-                           "queue is empty (issue #15). Needs $ANTHROPIC_API_"
-                           "KEY; without one it runs the scripted fallback "
-                           "and says so")
+                      help="let an LLM choose what to do once --errand's "
+                           "queue is empty (issue #15): the one mind, with "
+                           "the rails off. Needs a key for its backend; "
+                           "without one every decision is the agent's own "
+                           "fallback, and it says so")
   parser.add_argument("--overseer-backend", default=None,
                       choices=llm.BACKENDS, metavar="NAME",
                       help="WHICH MIND decides (issue #19): anthropic, "

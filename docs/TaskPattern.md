@@ -62,11 +62,11 @@ nothing moves the body. The one such kind is `take_points`, a job done TO
 the other robot (its `target_kind` is `robot`, the target the other's
 display name, and `TaskKind.harm` says the cost falls on a being): the
 offer names who it is done to because the board is shared, it is neither
-shown to nor claimable by the robot it names, and the scripted rotation,
+shown to nor claimable by the robot it names, and the loop with no mind,
 a standing order and an event-map row all skip an act-discharged kind —
 code taking it would be code deciding the act. Its `robot` target is gated
-exactly as `challenge` is (the `autonomous` arm, and only where a peer's
-name was handed to `world_targets`). Overseer.md §2c has the design.
+exactly as `challenge` is (a mind, and only where a peer's name was handed
+to `world_targets`). Overseer.md §2c has the design.
 **And since #226 a kind may ask for a PREDICTION first**: `TaskKind.
 predicts` names the decision field (`mouse_will`) and `outcomes` its words;
 the claim freezes the word into `Task.answer` (`Task.commitment`,
@@ -201,8 +201,8 @@ inherits all of it for free:
   the errand that draws it is handed glyphs and never told the question.
   Code never computes it — reading it out of the bank would be the sim
   marking its own homework — and `TaskBoard.claim` refuses a `needs_answer`
-  job with no answer, so the scripted rotation leaves questions standing and
-  they lapse honestly.
+  job with no answer, so the loop with no mind leaves questions standing
+  and they lapse honestly.
 
 ### 2.2 The mirror rule: a task never carries its own payout
 
@@ -226,11 +226,11 @@ the jobs it can take and is hashed into the stream's build identity
 (`evaluation/identity.py`), so a row there is both a lie about what the robot
 can do and a new regime. Such rows live in
 `economy/challenges.json` (same format, `scoring.challenge_table()`) and
-move across in the PR that offers the kind — which changes `guarded`'s
-prompt. The same file holds a row that is offered but NOT to the control:
-`take` (issue #228) is offered on `autonomous` alone, through the target
-seam, so its row stays out of the file `guarded` is shown and out of its
-hash for as long as that is true. And one row that is no offer at all:
+move across in the PR that offers the kind — which changes the served
+prompt, a new period. The same file holds rows offered through a target
+seam instead: `take` (issue #228) is offered only where a mind has a peer,
+so its row stays out of `rewards.json` and out of its hash. And one row
+that is no offer at all:
 `ticket` (issue #284, Overseer.md §2g) is what a support ticket the robot
 opened pays when a PERSON closes it — the one verdict a person makes,
 banked through `scoring.evaluate` and `Ledger.award` like every other, off
@@ -471,7 +471,7 @@ stage exists to make the next one's failures legible.
 Three questions, answered in the kind's comment before anything is coded:
 
 - **Body, mind, or eyes?** A job any body can do (`carry`), a job that needs
-  a MIND (`needs_answer=True` — the scripted rotation will skip it and it
+  a MIND (`needs_answer=True` — the loop with no mind will skip it and it
   will lapse when no overseer is attached, which is correct; or
   `predicts=` a field and `outcomes=` its words, #226, which is the same
   gate for a job that asks what a being will do), or a job that
@@ -627,7 +627,17 @@ deployed world runs them.
    each robot running its role's steps, and ONE verdict — from a referee
    ACTIVITY that measures both robots off the world — banked on the
    winner's wallet by the pair, never by either robot's errand (its task
-   name has no evaluator on purpose).
+   name has no evaluator on purpose). ⓘ *Found putting it on legs (#404):*
+   a role's claim queues nothing — the robot that took the first role is
+   free until the other takes the last, and only then does the pair's
+   referee queue each robot its role (`pair.referee_games`); a held role is
+   no offer to its robot (shown, an order took it again and again); the
+   game starts only once every role's errand has begun, because the first
+   claimant is often still busy; and a role
+   that goes somewhere is a place the robot finds on its own map, never a
+   surveyed spot (§2): the hider picks its own, and the seeker is never
+   told where the hider is, though the network carries every robot's
+   reported pose.
 4. **A claimed task cannot be honestly abandoned.** Deadlines only govern
    offers, and there is no verb for giving a job up gracefully — related to
    tool dropping (issue #30), and unowned by any pattern yet.

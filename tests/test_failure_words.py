@@ -15,12 +15,14 @@ from types import SimpleNamespace
 import pytest
 
 from pluggybot import tick
+from pluggybot.activity import cage
 from pluggybot.body import KeepClear, StubBody
 from pluggybot.economy import scoring
 from pluggybot.legs.body import QuadMission
 from pluggybot.lifecycle import NEAR_STANDOFF_M, QUAD_HOME, HubLifecycle, board_book, world_config
 from pluggybot.mission.errand import Errand
 from pluggybot.navigator import DRIVE_GAVE_UP, gave_up
+from pluggybot.procedure import steps as st
 from pluggybot.procedure.steps import TOOL_BAYS
 from pluggybot.rack.coupling import STATION_YS
 from pluggybot.robot import SECOND
@@ -137,6 +139,7 @@ class _Drive:
   _drove = QuadMission._drove
   _at_stand_in = QuadMission._at_stand_in
   _other_in_the_way = QuadMission._other_in_the_way
+  _ask_way = QuadMission._ask_way
   _bodies = QuadMission._bodies
   peer_on_the_goal = QuadMission.peer_on_the_goal
   _cells = QuadMission._cells
@@ -150,6 +153,7 @@ class _Drive:
   OTHER_ROBOT_CELLS = QuadMission.OTHER_ROBOT_CELLS
   DOWN_ROBOT_CELLS = QuadMission.DOWN_ROBOT_CELLS
   pressing = False
+  ask_way, driving = None, 0
 
   def __init__(self, plan, step=0.0, others=(), sighting=None, cut=False):
     import numpy as np
@@ -489,6 +493,72 @@ def test_a_job_on_the_cage_that_never_got_there_is_said_once():
   assert life.status.endswith(f"and {failed}"), "...and the narration still says it"
 
 
+def _press_gave_up(life):
+  """A press whose first walk used all its time and left the second try
+  none (#439: 24 of 24 failed live presses), as `press_routine` records it
+  -- and a later walk elsewhere, so only the press's own record names it."""
+  def press(tag, patience, stop=None):
+    goal = (25.0, 3.0)
+    walk = {"why": "timeout", "goal": goal, "seconds": 85.2, "shortM": 2.0}
+    life.body.last_drive = {"why": "stalled", "goal": (0.0, 0.0), "seconds": 9.0,
+                            "shortM": 1.0}
+    return tick.result({"tag": tag, "pressed": False, "why": "gave up", "seconds": 85.2,
+                        "leftS": 34.7,
+                        "attempts": [{"standoff": list(goal), "walk": walk, "why": "gave up",
+                                      "at": [24.1, 1.3], "err": [12.0, -340.0, 2.1],
+                                      "s": 85.2}]})
+  return press
+
+
+def test_a_press_whose_walk_gave_up_says_the_walk_and_not_the_clock(monkeypatch):
+  """#439: every failed live press read "ran out of time before stepping onto
+  tag 36's plate" -- the second try's, which never began. The press says the
+  walk that gave up in #350's words, off its OWN record, and every try goes
+  to the log as the step's trace."""
+  life = _life()
+  feed = cage.PLATE_TAGS["feed"]
+  monkeypatch.setattr(life.body, "press_plate_routine", _press_gave_up(life))
+  out = life.body.run(st.run_verb(life, st.VERBS["press"], {"tag": feed}))
+  assert out["reason"] == ("did not get in front of tag 36's plate: the drive gave up "
+                           "2.0 m short after 85 s (out of time)")
+  assert out["trace"] == (
+    "press tag 36: #1 standoff (25.00, 3.00), walk timeout 2.00 m short after 85 s, "
+    "at (24.10, 1.30) after 85 s, belief off +12,-340 mm +2.1 deg -> gave up; "
+    "no time for #2: 34.7 s left")
+  # ...and a sign out of view says how its look round ended
+  for looked, said in st.PRESS_LOOKED.items():
+    monkeypatch.setattr(life.body, "press_plate_routine", lambda *a, **kw: tick.result(
+      {"pressed": False, "why": "lost", "attempts": [{"looked": looked, "why": "lost"}]}))
+    out = life.body.run(st.run_verb(life, st.VERBS["press"], {"tag": feed}))
+    assert out["reason"] == f"tag 36 was not in view from in front of its plate{said}"
+
+
+def test_a_feed_whose_press_never_got_there_says_so_first_and_once(monkeypatch):
+  """Rowan's tk_0015, "Lab plates never register a press": told only "the
+  feed plate was never pressed", it took the plate's sensor for faulty
+  over 12 straight misses, and every one was the walk to the plate. The
+  job's verdict leads with the press's own failure, History says it once,
+  and the tries are the log's alone."""
+  from pluggybot.lifecycle import cage_errand
+  life = _life()
+  feed = cage.PLATE_TAGS["feed"]
+  life.body.places.see(feed, 25.0, 4.8, 0.0, view=-math.pi / 2)
+  monkeypatch.setattr(life.body, "press_plate_routine", _press_gave_up(life))
+  errand = cage_errand(QUAD_HOME, "feed", task="feed")
+  errand.task_id, errand.detail["predicted"] = "t_0001", "eating"
+  result = life.run_errand(errand)
+  reason = result["verdict"]["reason"]
+  assert reason.startswith("did not get in front of tag 36's plate: the drive gave up "
+                           "2.0 m short after 85 s (out of time) -- "), reason
+  said = [ln for ln in _history(life) if "in front of tag 36's plate" in ln]
+  assert len(said) == 1 and "feed: did not get in front" in said[0], _history(life)
+  assert not any("plate was never pressed" in ln and "in front" not in ln
+                 for ln in _history(life)), "the cage's count alone, said again"
+  assert any("belief off +12,-340 mm" in ln for ln in life.log), "the tries, in the log"
+  assert not any("belief off" in ln for ln in _history(life))
+  assert "belief off" not in life.status
+
+
 def test_a_census_that_never_ran_names_its_zone_and_never_none():
   errand = Errand(name="census:garden", module="module_lcd", station_y=STATION_YS[0],
                   use_at=(1.0, 1.0), task="census", needs_use_pose=False,
@@ -509,13 +579,6 @@ def test_the_context_says_the_floor_is_explored_not_that_a_map_is_done():
   life.floor_explored = True
   state = ov.context_for(life)
   assert state["floorExplored"] is True and "mapDone" not in state
-  from dataclasses import replace
-  # a body that takes a tool (`Menu.tools`, #406/#407), so the rotation
-  # has something besides exploring to turn to
-  menu = replace(ov.Menu.for_world(QUAD_HOME, board_book(QUAD_HOME)), tools=True)
-  done = {"tasksThisMission": ["draw", "census", "dance", "carry"], "decisions": 3}
-  assert ov.scripted(menu, {**done, "floorExplored": False}, "test").action == "explore"
-  assert ov.scripted(menu, {**done, "floorExplored": True}, "test").action != "explore"
 
 
 def test_a_continuation_saved_before_the_rename_still_says_the_floor_is_explored(tmp_path):

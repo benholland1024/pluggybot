@@ -23,6 +23,9 @@ range at which the robot can see it. A plate's sign is big because it is
 read from across the lab; a rack's are read from the working pose.
 """
 
+import io
+import os
+import threading
 from pathlib import Path
 
 import numpy as np
@@ -108,15 +111,31 @@ def tag_image(tag_id: int) -> np.ndarray:
 
 def write_tag_pngs(directory: Path = TAG_DIR, ids=None) -> list[int]:
   """Write the house's tag PNGs -- the tower's blocks and the bench's
-  masses -- or just `ids`. Returns the ids written: the home world declares
+  masses -- or just `ids`. Returns the ids: the home world declares
   exactly these as its textures (a scene test holds every declared texture
   referenced), and what is put in at load (the dock, the rack, the plates'
-  signs, a built module) asks for its own by name."""
+  signs, a built module) asks for its own by name.
+
+  ⚠ A PNG ALREADY HOLDING THESE BYTES IS LEFT ALONE, AND ANY OTHER IS
+  REPLACED WHOLE (issue #440): the suite runs the house's generator while
+  other workers compile the house, and `Image.save` onto the file truncates
+  it first -- they read an empty texture in 2 of 3 `-n 6` runs. Written
+  beside it under a name no other writer shares (the workers all write the
+  same files), then renamed over it."""
   from PIL import Image
   directory.mkdir(parents=True, exist_ok=True)
   ids = list(ids) if ids is not None else [*BLOCK_TAG_IDS, *MASS_TAG_IDS]
   for tag_id in ids:
-    Image.fromarray(tag_image(tag_id)).save(directory / f"tag{tag_id}.png")
+    png = io.BytesIO()
+    Image.fromarray(tag_image(tag_id)).save(png, format="PNG")
+    path = directory / f"tag{tag_id}.png"
+    if path.exists() and path.read_bytes() == png.getvalue():
+      continue
+    # Not `mkstemp`: its 0600 is renamed into models/, which the image copies
+    # as root and reads as `pluggy` -- a texture the world cannot open.
+    tmp = path.with_name(f".{path.name}.{os.getpid()}.{threading.get_ident()}.tmp")
+    tmp.write_bytes(png.getvalue())
+    os.replace(tmp, path)
   return ids
 
 

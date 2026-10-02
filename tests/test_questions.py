@@ -32,7 +32,7 @@ from pluggybot.tools.boards import BoardBook, BoardRecord, decimate
 from pluggybot.tools.drawing import Envelope
 from pluggybot.mission.errand import Errand
 from pluggybot.economy.ledger import Ledger
-from pluggybot.mind.overseer import Menu, scripted
+from pluggybot.mind.overseer import Menu, claimable_offers, order_runnable
 from pluggybot.economy.cadence import Cadence
 from pluggybot.economy.tasks import KINDS, TaskBoard
 
@@ -401,24 +401,26 @@ def test_the_commitment_is_frozen_at_claim_time():
 
 
 def test_a_robot_with_no_mind_leaves_the_question_standing():
-  """Rule 1, at both places a job can be taken without an LLM.
+  """Rule 1, at both places a job can be taken without an LLM: a standing
+  order firing because the mind could not be asked, and the loop with no
+  mind at all.
 
-  The scripted rotation has no arithmetic to offer, and the two ways code
-  could get an answer are worse than not taking the job: reading it out of
-  the bank is the sim marking its own homework, and guessing puts a confident
-  wrong number on a wall.
+  Neither has arithmetic to offer, and the two ways code could get an
+  answer are worse than not taking the job: reading it out of the bank is
+  the sim marking its own homework, and guessing puts a confident wrong
+  number on a wall.
   """
   m = menu()
   b = board()
   question = question_task(b)
   state = {"offeredTasks": [t.as_context(1.0, 5.0) for t in b.offered()],
            "tasksThisMission": [], "decisions": 0}
-  assert scripted(m, state, "test").action != "take_task", \
-    "the scripted policy took on a question it cannot answer"
+  assert claimable_offers(state) == [] and not order_runnable(m, "take_task", state), \
+    "a standing order would take on a question it cannot answer"
   # ...and the loop's own claim branch skips it rather than failing it.
-  # `claim_budget_wh` rather than `spendable_wh` since issue #115: what an
-  # offer is checked against is now the arm's business (it is None on
-  # `autonomous`, where the filter is one of the three rails that come off).
+  # `claim_budget_wh` rather than `spendable_wh` since issue #115: it is
+  # None where there is a mind, whose filter is one of the three rails that
+  # come off.
   life = SimpleNamespace(tasks=b, claim_budget_wh=5.0,
                          data=SimpleNamespace(time=1.0))
   assert not lc.HubLifecycle._claim_next_task(life)
@@ -427,7 +429,8 @@ def test_a_robot_with_no_mind_leaves_the_question_standing():
   # that is skipped, not the task branch that is broken.
   b.offer("draw_figure", "whiteboard_a", params={"program": "house"}, t=0.0)
   state["offeredTasks"] = [t.as_context(1.0, 5.0) for t in b.offered()]
-  assert scripted(m, state, "test").action == "take_task"
+  assert order_runnable(m, "take_task", state)
+  assert [t["kind"] for t in claimable_offers(state)] == ["draw_figure"]
 
 
 def test_the_overseer_is_told_a_job_asks_something_and_must_answer_it():

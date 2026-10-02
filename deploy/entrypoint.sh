@@ -93,17 +93,19 @@ fi
 if [ -n "${PLUGGY_ESCALATE_TO:-}" ]; then
   set -- --escalate-to "${PLUGGY_ESCALATE_TO}" "$@"
 fi
-if [ -n "${PLUGGY_OVERSEER:-}" ] && [ "${PLUGGY_OVERSEER}" != "0" ]; then
+# A mind, where no arm is named: a named arm (below) is the stronger
+# statement, and `--overseer` beside `--arm scripted` is a contradiction
+# serve.py refuses -- with the compose default (1), a world told to fly
+# `scripted` would never start.
+if [ -z "${PLUGGY_ARM:-}" ] && [ -n "${PLUGGY_OVERSEER:-}" ] \
+    && [ "${PLUGGY_OVERSEER}" != "0" ]; then
   set -- --overseer "$@"
 fi
-# WHICH ARM the deployed world flies (pluggybot #142). $PLUGGY_ARM is the
-# stronger statement and overrides $PLUGGY_OVERSEER in both directions --
-# `scripted` turns a mind off, `autonomous` takes the three rails away and
-# corrects the prompt to match. $PLUGGY_RUNG picks A0 or A1, and is refused
-# on any other arm rather than ignored.
-# ⚠ Setting PLUGGY_ARM=autonomous on the DEPLOYED world is a deliberate act
-# and not a tuning change: docs/Evaluation.md §2 argues it stays `guarded`,
-# and A0 died on four days in five.
+# WHICH ARM the deployed world flies (pluggybot #142, #427): `scripted` is
+# the loop with no mind, `autonomous` the one mind. $PLUGGY_ARM is the
+# stronger statement and overrides $PLUGGY_OVERSEER in both directions.
+# $PLUGGY_RUNG picks A0 or A1, and is refused on `scripted` rather than
+# ignored. `guarded` was retired in #427 and is refused by name.
 if [ -n "${PLUGGY_ARM:-}" ]; then
   set -- --arm "${PLUGGY_ARM}" "$@"
 fi
