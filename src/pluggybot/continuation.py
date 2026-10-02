@@ -238,7 +238,10 @@ def replay(model, data, index: dict, arrays: dict) -> bool:
   if it lands where the save says the world stood, bit for bit -- the
   derived quantities are then the running world's, a step behind its
   `qpos`. Otherwise (no step kept, another layout, an input changed after
-  the step) the saved state is put back and forwarded at the instant."""
+  the step) the saved state is put back and forwarded at the instant. ⚠ The
+  check is what the step integrates: an input that moves none of it -- a
+  mocap pose nothing touches, re-selected after the step -- comes back as it
+  stands, a step ahead, as everything did before."""
   t = index.get("before")
   if t is None or not _same_layout(model, index):
     return False
@@ -509,8 +512,8 @@ class Keeper:
                for life in self.lives)
 
   def step_hook(self) -> None:
-    self.last_step.hook()
-    if self.busy():
+    self.last_step.hook()                 # every step, busy or not: a save
+    if self.busy():                       # after a busy stretch replays too
       return
     if self.stop_requested:
       raise MissionAborted(f"stopping: {self.stop_requested}")

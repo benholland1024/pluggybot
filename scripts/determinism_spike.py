@@ -425,6 +425,11 @@ def main() -> int:
   if args.pair and args.resume_at is not None:
     # the pair's child has no save hook: three flights, then no `saved` row
     ap.error("--resume-at flies one robot's day, not --pair")
+  if args.on_fork is not None:
+    from pluggybot.legs.rack import TOOL_BAYS
+    if args.pair or args.on_fork not in TOOL_BAYS:
+      ap.error(f"--on-fork seats one of {sorted(TOOL_BAYS)} on one robot's fork, "
+               "not --pair's")
   out = Path(args.out or tempfile.mkdtemp(prefix="pluggy-det-spike-"))
   out.mkdir(parents=True, exist_ok=True)
   cfg = {"world": world_for(args.world), "pack": args.pack, "simS": args.sim_s,
