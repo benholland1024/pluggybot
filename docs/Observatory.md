@@ -41,6 +41,44 @@ those two lines.
   `unrunnable` on an empty board and `unclaimable` on `feed_mouse`; read
   its failures by cause.
 
+### A failed press says what failed (#439) — opens when this PR is deployed
+
+**What changed is what the robot is TOLD.** Nothing in the world moved and
+no grade did: a press walks, looks and steps as it did, and the feed is
+graded off the cage's count as before. On `4f1288f` every one of 24 failed
+presses (Rowan 19, Luca 5) said `ran out of time before stepping onto tag
+36's plate`. That was the second try's reason, and the second try never
+began. History said only `feed: the feed plate was never pressed`, and
+Rowan filed tk_0015, "Lab plates never register a press". Now:
+
+- a failed press reports the try that failed: `did not get in front of tag
+  36's plate: the walk gave up 2.0 m short after 85 s (…)`, with #350's
+  four causes and the other robot by name; or `tag 36 was not in view from
+  in front of its plate, nor all round it` (or `…, and its time ran out
+  looking round`). `ran out of time …` is left for a press whose time ran
+  out with nothing else failing first;
+- that reason LEADS the feed's verdict (`… -- the feed plate was never
+  pressed`), and History says it once;
+- the `procedure` row's `failedReason` carries it. Every try is in the
+  container log, in brackets on the `PROCEDURE feed_mouse failed` line:
+  its standoff, the walk's record, the look round, where the belief stood
+  and its error against the truth, and the time too short for the next.
+
+The prompt did not move: History is volatile.
+
+**What the period is for.**
+
+- **#439 part 2: presses by cause, per robot.** `failedReason` on
+  `procedure` rows named `feed_mouse`, split by its words: the walk's
+  cause against the sign out of view. Read Rowan's three in four against
+  Luca's one in four off that split, and the log's `belief off` for drift.
+  If #415 is deployed beside this, read the rate on both sides of it.
+- **Does the ticket stop?** A ticket about the plates' sensor after this
+  deploy means the words still point the wrong way.
+- **#439 part 3:** how often a first walk uses all 85 s (`no time for #2`
+  in the log). The decision on `PRESS_TRIES` against `PRESS_PATIENCE_S`
+  turns on it.
+
 ### Hide and seek on legs (#404) — opens when this PR is deployed, with #415's below it
 
 **What changed in the world.** A second job on legs, and the first for
