@@ -443,7 +443,11 @@ save a filmstrip PNG named after the script.
   the robot can reach. ⚠ NO CAPTION, EVER: nothing the lifecycle emits says
   what is IN the picture; the MIND looks (`build.eyes` names the model). ⚠ The
   bytes leave the state in `model_state`. `$PLUGGY_LOOK=0` turns the eye
-  off.
+  off. ⚠ ONLY THE WEBSITE'S WORD THAT A RENDERER IS THERE OFFERS `look`
+  (#357): the `renderer` inbound kind, a STATE the door keeps
+  (`Inbox.renderer`), a pair's router hands both robots and a dropped link
+  forgets; without it the state says `camera` and a look that raced the
+  word is `none` / `unanswerable` at once, never ten seconds stood.
 - **A mind can write procedures** (issue #166;
   `procedure/lang.py`, `axes.py`, `library.py`; Overseer.md §2b):
   Python-SHAPED, parsed with `ast` and interpreted as a routine — NEVER

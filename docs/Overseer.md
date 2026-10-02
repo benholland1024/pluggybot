@@ -853,6 +853,27 @@ so, with `why`. A picture for a request that is not open — timed out,
 answered, or never made — is dropped and counted (`Eye.dropped`): a late
 renderer must not hand the robot a picture of where it used to be.
 
+**A missing renderer is said, not waited out (issue #357).** Until it,
+nothing could tell a slow renderer from a missing one: the renderer was
+never deployed, and every look on the served pair stood its ten seconds
+for nobody (51 in 30 days, all `none`). The website's hub now says whether
+a renderer is connected — the `renderer` inbound kind, `{connected}`, when
+it reads a header that names the kind and again whenever one comes or goes
+— and the door keeps the newest word as a state (`Inbox.renderer`), never
+a queued message; a link that drops forgets it (`WsPublisher.on_disconnect`),
+and a pair's router hands it to both robots (`WORLD_INBOUND_TYPES`). Only
+that word means a renderer is there: no inbox, no word yet, `false` and a
+dropped link all mean a request would reach nobody
+(`HubLifecycle._no_picture`). Then `look` is off the call's grammar and
+the state says why, `camera: "nothing can take a picture right now"`
+(`look.NO_PICTURE`); a look that raced the word resolves at once, `none`
+with `why: unanswerable`, and so does a wait whose renderer goes.
+`unanswered` is left for a renderer that was there and did not answer in
+time. `build.eyes` is unchanged: it names the model a picture is handed
+to, a fact of the build, while a renderer comes and goes within a run and
+its word arrives after the header — the header's `accepts` naming
+`renderer` is what says this sim handles a missing one.
+
 **The door.** `image` is in `INBOUND_TYPES` and not in
 `CODE_HANDLED_TYPES` (a picture is for a mind); `mind/inbox.py` gives it
 its own byte cap (`MAX_IMAGE_BYTES` 400 kB decoded, `MAX_IMAGE_RAW_BYTES`

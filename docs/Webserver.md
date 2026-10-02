@@ -55,8 +55,10 @@ robot. Frames are due on SIM time, so a paused sim emits none (which is why
   living). Its own `FrameBuilder` instance, so live and recorded frames are
   identical. A bounded queue (`QUEUE_MAX` = 256, ~13 s of frames) feeds one
   sender thread, which also polls the socket for inbound visitor messages
-  between sends (`mind/inbox.py`); every failure — endpoint down, socket
-  death, slow consumer — degrades to dropped messages.
+  between sends (`mind/inbox.py`) and tells `on_disconnect` when a
+  connection goes (what the website said about its renderer goes with it,
+  #357); every failure — endpoint down, socket death, slow consumer —
+  degrades to dropped messages.
 - **`vitals.py`** — `Watchdog`: the process's memory once a minute, and a
   runaway's stacks and allocations. Not on the wire; it writes to the log
   ("When the process dies", below).
@@ -293,7 +295,9 @@ rest, and `src/pluggybot/continuation.py` keeps it:
   cost 175 ms).
 
 Not kept: a decision in flight, the mind's in-process context (it reads
-History), a visitor message still in the inbox, and an open `look`.
+History), a visitor message still in the inbox, an open `look`, and the
+website's word on its renderer (the hub says it again on the next
+connection, #357).
 
 ## When the process dies (issue #349)
 
