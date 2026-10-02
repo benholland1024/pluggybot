@@ -31,6 +31,9 @@ is the physics itself.
                                 # the save in a new process -- identical
                                 # after the restore point, or a restart
                                 # changes the world
+    ... --errand none --no-economy --on-fork module_claw --resume-at 20
+                                # issue #420: the same, saved between two
+                                # failed returns of a tool on the fork
 """
 
 import argparse
@@ -116,6 +119,8 @@ def child(cfg: dict, trace_path: Path) -> None:
             wh=round(life.battery.energy_wh, 6), s=life.state)
     life.body.step_hooks.append(step)
     life.say_hooks.append(lambda t, msg: log(k="say", t=round(float(t), 3), msg=msg))
+    if cfg.get("onFork") and not cfg.get("resume"):
+      life.at_loop_top.append(_seat_on_fork(life, cfg["onFork"], log))
     if cfg.get("saveAt") is not None:
       # the SAVING arm of --resume-at: the world written at the first pass
       # of the day loop past the mark -- where nothing is in flight -- and
@@ -123,12 +128,18 @@ def child(cfg: dict, trace_path: Path) -> None:
       from pluggybot import continuation
       from pluggybot.tick import MissionAborted
 
+      # ...with where its last step began, as the keeper's saves carry it
+      # (issue #420): hooked last
+      last = continuation.LastStep(life)
+      life.body.step_hooks.append(last.hook)
+
       def save_here():
         # ...never mid-move, as the served keeper waits it out
         # (`continuation.Keeper.busy`, issue #387)
         if (d.time >= float(cfg["saveAt"])
             and life.body.posture not in continuation.MOVING_POSTURES):
-          continuation.write(continuation.capture([life], life.world_fingerprint),
+          continuation.write(continuation.capture([life], life.world_fingerprint,
+                                                  last_step=last),
                              cfg["worldState"])
           log(k="saved", t=round(float(d.time), 4))
           raise MissionAborted("saved")
@@ -156,6 +167,51 @@ def child(cfg: dict, trace_path: Path) -> None:
   log(k="end", t=round(float(r["sim_time"]), 3), wall=round(time.time() - t0, 1),
       battery=r["battery"], charge_cycles=r["charge_cycles"])
   out.close()
+
+
+def _seat_on_fork(life, module: str, log):
+  """`--on-fork` (issue #420), an at-loop-top hook: at the first pass,
+  `module` seated on the fork at the carry pose as a pick leaves it, and
+  another tool hung in its bay, so every return of it fails. The economy
+  that once put a tool there offers legs no jobs that fetch one."""
+  import mujoco
+  import numpy as np
+
+  from pluggybot.legs import arm as am
+  from pluggybot.legs import rack as rk
+  from pluggybot.rack.coupling import PEG_ABOVE_BODY
+  done = []
+
+  def seat() -> None:
+    if done:
+      return
+    done.append(True)
+    mis, m, d = life.body.mission, life.model, life.data
+
+    def free(name):
+      j = m.body(name).jntadr[0]
+      return int(m.jnt_qposadr[j]), int(m.jnt_dofadr[j])
+    (q, v), other = free(module), next(t for t in rk.TOOL_BAYS if t != module)
+    (oq, ov) = free(other)
+    d.qpos[oq:oq + 7] = m.qpos0[q:q + 7]           # hung where `module` hangs
+    d.qvel[ov:ov + 6] = 0.0
+    mis.arm.hold_at(*am.CARRY_Q)
+    arm = {n: m.jnt_qposadr[m.joint(mis.handle.el(f"arm_{n}")).id]
+           for n in ("shoulder", "elbow", "wrist")}
+    d.qpos[arm["shoulder"]], d.qpos[arm["elbow"]] = am.CARRY_Q
+    d.qpos[arm["wrist"]] = -sum(am.CARRY_Q)
+    mujoco.mj_forward(m, d)
+    rot = d.xmat[mis.root].reshape(3, 3)
+    peg = (d.site_xpos[m.site(mis.handle.el("arm_seat")).id]
+           + rot @ np.array([0.0, 0.0, mis.arm_spec.fork.seat_rise() + 0.0003]))
+    yaw = math.atan2(rot[1, 0], rot[0, 0]) + math.pi
+    d.qpos[q:q + 3] = peg - np.array([0.0, 0.0, PEG_ABOVE_BODY])
+    d.qpos[q + 3:q + 7] = (math.cos(yaw / 2), 0.0, 0.0, math.sin(yaw / 2))
+    d.qvel[v:v + 6] = 0.0
+    mujoco.mj_forward(m, d)
+    mis.carry(module)
+    log(k="onFork", t=round(float(d.time), 4), module=module, bayTakenBy=other)
+  return seat
 
 
 def _pair_child(cfg: dict, st: Path, log, out) -> None:
@@ -355,6 +411,10 @@ def main() -> int:
                   help="issue #345: fly the day straight through AND saved at "
                        "the first idle moment past T then carried on from the "
                        "save in a new process; the two must be identical after")
+  ap.add_argument("--on-fork", default=None, metavar="MODULE",
+                  help="issue #420: MODULE seated on the fork at the loop's "
+                       "first pass, its bay taken by another tool, so every "
+                       "return fails and a save lands between two")
   args = ap.parse_args()
   if args.child:
     child(json.loads(Path(args.child[0]).read_text()), Path(args.child[1]))
@@ -365,11 +425,16 @@ def main() -> int:
   if args.pair and args.resume_at is not None:
     # the pair's child has no save hook: three flights, then no `saved` row
     ap.error("--resume-at flies one robot's day, not --pair")
+  if args.on_fork is not None:
+    from pluggybot.legs.rack import TOOL_BAYS
+    if args.pair or args.on_fork not in TOOL_BAYS:
+      ap.error(f"--on-fork seats one of {sorted(TOOL_BAYS)} on one robot's fork, "
+               "not --pair's")
   out = Path(args.out or tempfile.mkdtemp(prefix="pluggy-det-spike-"))
   out.mkdir(parents=True, exist_ok=True)
   cfg = {"world": world_for(args.world), "pack": args.pack, "simS": args.sim_s,
          "errand": args.errand, "nthreads": args.nthreads, "economy": args.economy,
-         "batteryFraction": args.battery_fraction}
+         "batteryFraction": args.battery_fraction, "onFork": args.on_fork}
   if args.pair:
     cfg.update(pair=True, fallAt=args.fall_at,
                drainAt=args.drain_at, restartAfterS=args.restart_after,

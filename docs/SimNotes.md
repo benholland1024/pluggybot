@@ -2116,10 +2116,11 @@ gravity feed-forward off MuJoCo's Jacobians -- three bodies, each a
 Jacobian 122 columns wide in the house -- and cost 100 us a step, 43 of
 them the Jacobians and 22 numpy's overhead on two-element arrays: a fifth
 more work a step for the served pair, which runs near real time. And a
-restart forwards the saved world at its instant, where a running world's
-step reads the kinematics one step old, so a controller that reads them on
-every step parts the two worlds at the first step back (the policy reads
-them only at a decision, the fall check only against a threshold). The
+restart then forwarded the saved world at its instant, where a running
+world's step reads the kinematics one step old, so a controller reading
+them on every step parted the two worlds at the first step back. A restore
+steps the last step again now (#420, Webserver.md "A restart is a
+continuation"), and forwards fresh only where it cannot. The
 feed-forward is the arm's own planar model now -- each link's mass and CoM
 off the model, the joints' angles and the torso's attitude off `qpos` --
 equal to the Jacobians to 1e-15 N·m at any pose, attitude and payload, and

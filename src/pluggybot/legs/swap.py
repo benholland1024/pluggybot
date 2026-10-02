@@ -15,8 +15,8 @@ come down from the carry pose (swinging a tool down shifts the stance about
 
 The fork moves along straight lines of its V's vertex in the torso frame,
 the plate level, the joint targets off the arm's own kinematics and the
-driver's GOAL -- never a measurement of the last forward pass, which a
-restart would part (`legs.arm.ArmDriver`).
+driver's GOAL -- never a measurement of the last forward pass
+(`legs.arm.ArmDriver` says why).
 
 A mixin: `QuadMission` is the rest of the body. The lifecycle names a bay
 by its `coupling.STATION_YS` entry (the bay index space), so a bay here is

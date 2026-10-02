@@ -571,12 +571,11 @@ class ArmDriver:
 
   ⚠ EVERYTHING IT READS IS `qpos` AND `qvel` (issue #405): the gravity is
   the arm's own planar model (`gravity`), never the Jacobians of the last
-  forward pass. A restart puts a world back and forwards it at the saved
-  instant, where a running world's step reads the kinematics one step old
-  -- a controller reading them every step parts the two worlds at the
-  first step back (`scripts/determinism_spike.py --resume-at`) -- and the
-  three Jacobians, 122 columns wide in the house, were 43 of its 100 us a
-  step."""
+  forward pass. The three, 122 columns wide in the house, were 43 of its
+  100 us a step; and a restore that cannot step its last step again
+  (`continuation.replay`, #420) forwards the world at the saved instant, a
+  step ahead of what a running world's step reads -- a controller reading
+  it every step parts the two worlds there."""
 
   def __init__(self, model, data, spec: ArmSpec, prefix: str = ""):
     from pluggybot.legs.actuator import JointLimits

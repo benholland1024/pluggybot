@@ -102,9 +102,9 @@ def test_the_drivers_gravity_is_mujocos_at_any_pose_attitude_and_payload():
 
 
 def test_the_driver_reads_nothing_a_forward_pass_writes():
-  # A restart forwards the world at the saved instant, where a running
-  # world's step reads the kinematics one step old: a driver reading them
-  # parts the two worlds at the first step back (#345's parity).
+  # A restore that cannot step its last step again forwards the world at
+  # the saved instant, a step ahead of what a running world's step reads:
+  # a driver reading the forward pass parts the two worlds there (#420).
   model, data = _standalone()
   arm = am.ArmDriver(model, data, qm.CHOSEN.arm)
   arm.aim(2.0, -2.0)
