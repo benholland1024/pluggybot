@@ -599,6 +599,7 @@ def _publishing(mini_model, sink, **kw):
   inbox = Inbox(**kw)
   pub = WsPublisher(mini_model, data, sink.endpoint, hz=20.0)
   pub.on_inbound.append(inbox.offer)
+  pub.on_disconnect.append(inbox.forget_renderer)
   return pub, inbox, data
 
 
@@ -657,11 +658,15 @@ def test_nothing_is_delivered_to_a_dead_socket(mini_model):
   try:
     assert sink.wait_live()
     assert sink.send({"type": "message", "id": "before", "text": "one"})
-    assert wait_for(lambda: len(inbox) == 1)
+    # ...and the server's word that a renderer is there (issue #357).
+    assert sink.send({"type": "renderer", "connected": True})
+    assert wait_for(lambda: len(inbox) == 1 and inbox.renderer is True)
 
     sink.stop()                              # the server goes away
     assert not sink.send({"type": "message", "id": "gone", "text": "two"}), \
       "the fake server claimed to deliver to a closed socket"
+    # What it said about itself went with it: a look now reaches nobody.
+    assert wait_for(lambda: inbox.renderer is None), "the link's word outlived it"
     time.sleep(0.3)
     assert [m.id for m in inbox.peek()] == ["before"]
 
@@ -672,6 +677,7 @@ def test_nothing_is_delivered_to_a_dead_socket(mini_model):
       assert revived.send({"type": "message", "id": "after", "text": "3"})
       assert wait_for(lambda: len(inbox) == 2)
       assert [m.id for m in inbox.peek()] == ["before", "after"]
+      assert inbox.renderer is None, "a new server has said nothing yet"
     finally:
       revived.stop()
   finally:
@@ -783,6 +789,7 @@ class _FakePublisher:
     # The downstream direction (issue #16). Always wired as of issue #30 --
     # the inbox is attached on every served world, not only overseer ones.
     self.on_inbound: list = []
+    self.on_disconnect: list = []
 
   def step_hook(self) -> None:
     pass
@@ -1159,7 +1166,10 @@ def test_serve_advertises_accepts_per_kind(monkeypatch):
   life, pub, _ = _serve_wiring(monkeypatch, ["--free-run"])
   assert tuple(pub.init_kwargs["accepts"]) == CODE_HANDLED_TYPES
   # ...and the inbox is attached regardless, so those kinds actually land.
-  assert life.init_kwargs["inbox"] is not None
+  inbox = life.init_kwargs["inbox"]
+  assert inbox is not None and pub.on_inbound == [inbox.offer]
+  # ...and the website's word on its renderer goes with the link (#357).
+  assert pub.on_disconnect == [inbox.forget_renderer]
 
 
 def test_serve_names_the_robot_in_both_artifacts(monkeypatch, tmp_path):
@@ -1529,6 +1539,13 @@ def test_serve_pair_publishes_two_robots_from_one_loop_and_routes_reach_ins(
   route("not even json")
   assert [m.id for m in b.inbox.drain()] == ["r1"]
   assert [m.id for m in a.inbox.drain()] == ["r2", "r3"]
+  # A word about the WORLD is both robots' (issue #357): one renderer
+  # answers both, so the second must not be left thinking none can.
+  route(json.dumps({"type": "renderer", "connected": True}))
+  assert a.inbox.renderer is True and b.inbox.renderer is True
+  for hook in pub.on_disconnect:                 # the link drops
+    hook()
+  assert a.inbox.renderer is None and b.inbox.renderer is None
 
 
 def test_the_deployed_pair_flies_autonomous_from_nothing_and_the_header_says_so(

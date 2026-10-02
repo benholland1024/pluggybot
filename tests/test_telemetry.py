@@ -612,10 +612,15 @@ def test_a_mindless_mode_stops_advertising_what_only_a_mind_can_hear(mini_model,
   the full vocabulary there reintroduces exactly what the field exists to
   prevent: a site marking a message "delivered" to a robot with nothing
   listening. A rating and a reset are CODE's to apply, so they survive every
-  mode.
+  mode -- and so do the eye's two kinds (issue #357): a picture answers a
+  look this sim made, and the renderer's word is a state code keeps, so
+  neither is a message to mark delivered. A header opened switched off that
+  left them out kept the eye shut after the switch went back to `llm`, for
+  the life of the link: the hub can only narrow what a header named.
   """
   from pluggybot.mind.mode import ModeSwitch
-  from pluggybot.telemetry.protocol import CODE_HANDLED_TYPES, INBOUND_TYPES
+  from pluggybot.telemetry.protocol import (CODE_HANDLED_TYPES,
+                                            EYE_INBOUND_TYPES, INBOUND_TYPES)
 
   data = mujoco.MjData(mini_model)
   path = tmp_path / "mode.json"
@@ -627,10 +632,11 @@ def test_a_mindless_mode_stops_advertising_what_only_a_mind_can_hear(mini_model,
     return tuple(builder.header()["accepts"])
 
   assert hears("llm") == INBOUND_TYPES
-  assert hears("scripted") == CODE_HANDLED_TYPES, \
+  assert hears("scripted") == CODE_HANDLED_TYPES + EYE_INBOUND_TYPES, \
     "free mode promised a conversation nobody is there to have"
-  assert hears("paused") == CODE_HANDLED_TYPES, \
+  assert hears("paused") == CODE_HANDLED_TYPES + EYE_INBOUND_TYPES, \
     "a paused robot promised to act on a visitor's message"
+  assert "message" not in hears("scripted") and "renderer" in hears("paused")
 
   # A world that never had a mind advertises the same thing in every mode --
   # the narrowing only ever removes, so it cannot invent an ability.

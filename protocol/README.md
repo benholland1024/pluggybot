@@ -45,6 +45,45 @@ replayer treats it like any other world -- one scene, one recording, keyed
 by that name (`pluggybot.robot.pair_model_name`). The served world is the
 pair, `home_quad_pair`.
 
+### 0.21.0, additive: whether a renderer is there (`renderer`, downstream); a look nothing could answer
+
+pluggybot #357; docs/Overseer.md §2h; the site's half is the hub
+(rooftop-media-2026 `server/pluggyworld.ts`). Until it the sim could not
+tell a slow renderer from a missing one, and every look on the served pair
+stood ten seconds for a renderer never deployed.
+
+**Downstream: the `renderer` kind** (`INBOUND_TYPES`, `WORLD_INBOUND_TYPES`;
+NOT `CODE_HANDLED_TYPES` -- only a mind looks). The hub's word on whether a
+renderer is connected, sent when it reads a header whose `accepts` names
+the kind (never the mode-narrowed list: a sim the operator switched to
+`scripted` still keeps the word current), whenever a renderer comes or
+goes, and again every heartbeat (30 s), so a word lost on the way heals.
+It names no `robot`: a pair's router hands it to both.
+
+```jsonc
+{"type": "renderer", "connected": false}
+```
+
+A STATE, NOT A MESSAGE: the sim keeps the newest word and queues nothing,
+and forgets it when the socket drops (the next connection's hub says it
+again). `connected` must be a boolean; anything else is dropped and the
+last word stands. Only `true` means a picture can be taken: no word, `false`
+or a dropped link take `look` off the mind's menu. ⚠ A header names
+`image` and `renderer` in EVERY mode (`EYE_INBOUND_TYPES`): a consumer
+narrows `accepts` by the `mode` message and can never widen past the
+header, so a link opened switched off would otherwise keep the eye shut
+after the switch went back to `llm`.
+
+**Upstream, on the `look` event:** a look that raced the word -- chosen
+just before it arrived -- resolves at once, `none` with `why:
+unanswerable` (`LOOK_WHYS`: `unanswered` is a renderer that was there and
+did not answer by the deadline, `aborted` a stop). The word decides
+whether a wait BEGINS, never ends one: a renderer that drops and
+reconnects mid-render still sends its picture. The `asked` row still goes
+out first, so a request is still sent twice. No header change beyond
+`accepts`; `build.eyes` still names the model the pictures are handed to.
+No bump, and the fixtures are not re-recorded: no recorded run has a mind.
+
 ### 0.21.0, additive: a plate pressed off its errand (`press`); the lab on legs
 
 pluggybot #403, the first paid job on legs. The lab is in `home_quad` now
@@ -627,7 +666,7 @@ bytes, waitS, why}`, `outcome` one of `LOOK_OUTCOMES`. The SAME row is
 sent twice: as **`asked`** the moment the request goes out, and again as
 **`seen`** (a picture came: `bytes` is its size, `waitS` the sim seconds it
 took) or **`none`** (nothing came inside the deadline, `LOOK_S` 10 sim s;
-`why` is `unanswered`). `ref` is the request's id, `look:<root>:<n>`, per
+`why` is `unanswered`, or `unanswerable` since #357, above). `ref` is the request's id, `look:<root>:<n>`, per
 robot root, and is what an answer names. `camera` is the head camera's
 WORLD pose for a renderer to stand in -- `pos` (metres), `forward` and `up`
 (unit vectors, MuJoCo's Z-up world frame: a three.js consumer sets

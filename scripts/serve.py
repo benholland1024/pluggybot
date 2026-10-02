@@ -83,7 +83,7 @@ from pluggybot.lifecycle import (
 )
 from pluggybot.telemetry.pacer import RealTimePacer
 from pluggybot.telemetry.protocol import (CODE_HANDLED_TYPES, INBOUND_TYPES,
-                                          crash_message)
+                                          WORLD_INBOUND_TYPES, crash_message)
 from pluggybot.telemetry.publisher import WsPublisher
 from pluggybot.telemetry.recorder import KEYFRAME_S, TelemetryRecorder
 from pluggybot.telemetry import vitals
@@ -651,6 +651,9 @@ def serve(watchdog: "vitals.Watchdog") -> str | None:
     # does nothing but validate and enqueue -- see mind/inbox.py for why that
     # is the whole of what it is allowed to do.
     publisher.on_inbound.append(inbox.offer)
+    # ...and what the website said about its renderer goes with the link
+    # it was said on (issue #357).
+    publisher.on_disconnect.append(inbox.forget_renderer)
   pacer = None
   if not args.free_run:
     pacer = RealTimePacer(data, rate=args.rate)
@@ -876,17 +879,25 @@ def serve_pair(args, flags: dict, rung, origin, watchdog) -> str | None:
 
   def route(raw: object) -> None:
     """Which robot a reach-in is for. Runs on the socket thread and must
-    not raise: an unreadable message is the primary's to drop."""
-    robot = None
+    not raise: an unreadable message is the primary's to drop. A word
+    about the WORLD (issue #357: is a renderer there) is every robot's."""
+    robot = kind = None
     try:
       import json
       parsed = json.loads(raw) if isinstance(raw, (str, bytes)) else raw
-      robot = parsed.get("robot") if isinstance(parsed, dict) else None
+      if isinstance(parsed, dict):
+        robot, kind = parsed.get("robot"), parsed.get("type")
     except Exception:                       # noqa: BLE001 -- see docstring
-      robot = None
+      robot = kind = None
+    if kind in WORLD_INBOUND_TYPES:
+      for inbox in inboxes:
+        inbox.offer(raw)
+      return
     by_root.get(robot, inboxes[0]).offer(raw)
 
   publisher.on_inbound.append(route)
+  for inbox in inboxes:
+    publisher.on_disconnect.append(inbox.forget_renderer)
   pacer = None
   if not args.free_run:
     pacer = RealTimePacer(data, rate=args.rate)
