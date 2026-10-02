@@ -300,7 +300,9 @@ rest, and `src/pluggybot/continuation.py` keeps it:
   generators were re-seeded, so the first scan painted a different map and
   the route parted 3 s later. And `Task.from_json` re-priced an open offer
   at its kind's generic figure, too dear for a pack at 88 % after every
-  restart.
+  restart. On legs it caught two more (#420): the fresh forward pass above,
+  and a robot saved between two failed returns of one tool made two returns
+  the straight day never made.
 - **Cost.** About 50 ms of the physics thread per save on the rover's pair
   with both maps built, 1.3 MB on disk (zlib level 1; the default level 6
   cost 175 ms).
