@@ -688,8 +688,9 @@ class StubBody(Body):
     #: the places it knows (a test sees them in, `places.see`), and the tags
     #: a find or a press was asked for, in order, and the true deaths
     from pluggybot.mapping.places import Places
-    from pluggybot.rack.tags import PLATE_TAG_IDS
-    self.places = Places(ids=PLATE_TAG_IDS)
+    from pluggybot.rack.tags import BOARD_TAG_IDS, PLATE_TAG_IDS
+    self.places = Places(ids=(*PLATE_TAG_IDS,
+                              *(t for ids in BOARD_TAG_IDS.values() for t in ids)))
     self.found: list[int] = []
     self.pressed: list[int] = []
     #: ...each drawing (board, program name) it was asked for, and whether

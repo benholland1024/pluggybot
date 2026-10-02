@@ -7393,9 +7393,12 @@ ANSWER_FIGURE = "answer:"
 #: the dearest its kind is offered with -- the house's ink, the robot's
 #: eleven strokes, and the two digits with the most ink.
 DEAREST_FIGURE = {"draw": "house", "artwork": "robot", "answer": f"{ANSWER_FIGURE}88"}
-#: A drawing job's program's budget, s: the pen fetched, the board found,
-#: the figure drawn and the pen hung back.
-DRAW_BUDGET_S = 900.0
+#: A drawing job's program's budget, s, and its find's patience: the board
+#: found, the pen fetched, the figure drawn and the pen hung back. A fresh
+#: robot that had never been in the bedroom found its board in 506 s (eight
+#: viewpoints round the house's address); after the day's explore, in 17.
+DRAW_BUDGET_S = 1200.0
+DRAW_FIND_PATIENCE_S = 600.0
 
 
 def board_spec(world: str, name: str):
@@ -7436,7 +7439,8 @@ def draw_program(world: str, board: str, figure: str):
     raise ValueError(f"{board} is no task area of the {world} world")
   at = spot["address"]
   return Program.single(f"draw_{figure.partition(':')[0]}", [
-    Step("find", {"tag": board_tags(board)[0], "x": at["x"], "y": at["y"]}),
+    Step("find", {"tag": board_tags(board)[0], "x": at["x"], "y": at["y"],
+                  "patience": DRAW_FIND_PATIENCE_S}),
     Step("fetch", {"tool": "module_pen"}),
     Step("draw", {"board": board, "figure": figure}),
     Step("stow")], budget_s=DRAW_BUDGET_S)
