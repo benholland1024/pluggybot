@@ -31,7 +31,8 @@ from pluggybot.mind.inbox import (
 from pluggybot.mind.overseer import LOOK_S, MAX_LOOK_RUN, Menu, Overseer
 from pluggybot.robot import FIRST, world_spec
 from pluggybot.telemetry.protocol import (
-  CODE_HANDLED_TYPES, INBOUND_TYPES, LOOK_OUTCOMES,
+  CODE_HANDLED_TYPES, INBOUND_TYPES, LOOK_OUTCOMES, LOOK_WHYS,
+  WORLD_INBOUND_TYPES,
 )
 
 from test_body import stub_life
@@ -47,6 +48,11 @@ def image_message(ref: str, jpeg: bytes = JPEG, robot: str = "pluggybot") -> str
                      "jpeg": base64.b64encode(jpeg).decode("ascii")})
 
 
+def renderer_message(connected: bool) -> str:
+  """The website's word on whether a renderer is there (issue #357)."""
+  return json.dumps({"type": "renderer", "connected": connected})
+
+
 # ---- the door ---------------------------------------------------------------------
 
 
@@ -54,6 +60,30 @@ def test_the_image_kind_is_inbound_and_code_does_not_handle_it():
   assert "image" in INBOUND_TYPES
   assert "image" not in CODE_HANDLED_TYPES, "a picture is for a mind"
   assert LOOK_OUTCOMES == ("asked", "seen", "none")
+
+
+def test_the_renderer_word_is_a_state_the_door_keeps_and_never_queues():
+  """Whether a renderer is there (issue #357) is a STATE: the newest word
+  stands, nothing is queued (a burst that evicts messages cannot evict
+  it, and an evicted one would go out as a `dropped` visitor reply), and
+  a link that drops forgets it. It is about the world, so a pair's router
+  hands it to both robots; and a mind's, like the picture it gates."""
+  assert "renderer" in INBOUND_TYPES and WORLD_INBOUND_TYPES == ("renderer",)
+  assert "renderer" not in CODE_HANDLED_TYPES, "only a mind looks"
+  inbox = Inbox()
+  assert inbox.renderer is None, "nobody has said"
+  assert inbox.offer(renderer_message(True)).connected is True
+  assert inbox.renderer is True and len(inbox) == 0 and inbox.received == 0
+  inbox.offer(renderer_message(False))
+  assert inbox.renderer is False and len(inbox) == 0
+  # A word that might mean either is not taken as one, and leaves the last.
+  for junk in ({"type": "renderer", "connected": "yes"},
+               {"type": "renderer", "connected": 1}, {"type": "renderer"}):
+    assert inbox.offer(json.dumps(junk)) is None
+  assert inbox.renderer is False and inbox.dropped_invalid == 3
+  inbox.offer(renderer_message(True))
+  inbox.forget_renderer()
+  assert inbox.renderer is None
 
 
 def test_a_picture_passes_its_own_cap_and_nothing_else_does():
@@ -161,10 +191,12 @@ def test_a_quadruped_looks_through_its_own_head_camera():
   cfg = world_config(QUAD_HOME)
   model = world_spec(cfg["model"], body="quadruped").compile()
   data = mujoco.MjData(model)
+  inbox = Inbox()
+  inbox.offer(renderer_message(True))      # a renderer is there (issue #357)
   life = HubLifecycle(model, data, realtime=False, world=QUAD_HOME,
                       battery_wh=cfg["battery_wh"], rack=cfg["rack"],
                       grid_bounds=cfg["grid_bounds"],
-                      low_battery_wh=cfg["low_battery_wh"])
+                      low_battery_wh=cfg["low_battery_wh"], inbox=inbox)
   seen = []
   life.on_event.append(seen.append)
   try:
@@ -246,8 +278,14 @@ def _eyed_stub():
   return body
 
 
-def _looker(*answers, inbox=None):
+def _looker(*answers, inbox=None, renderer: bool | None = True):
+  """A mind that looks, on the eyed stub. `renderer` is the website's word
+  (issue #357): a renderer is there unless a test says otherwise, and None
+  says nothing at all."""
   boss = ov.build(QUAD_HOME, enabled=True, client=FakeClient(*answers))
+  inbox = Inbox() if inbox is None else inbox
+  if renderer is not None:
+    inbox.offer(renderer_message(renderer))
   life = stub_life(body=_eyed_stub(), overseer=boss, inbox=inbox)
   life.body.start_at(0.5, 3.0, math.pi / 2)
   life.max_sim_time = 0.0            # a fallback's explore ends where it starts
@@ -334,9 +372,9 @@ def test_a_picture_arrives_next_turn_as_an_image_part_and_never_as_text():
 
 
 def test_nobody_answering_is_none_said_so_after_the_deadline():
-  """No inbox at all (a demo, a test): the robot stands still `LOOK_S`,
-  the row says `none` and why, and the next turn is told -- as text,
-  because there is no picture to attach."""
+  """A renderer the website says is there, that never answers: the robot
+  stands still `LOOK_S`, the row says `none` and why, and the next turn is
+  told -- as text, because there is no picture to attach."""
   boss, life = _looker(full(action="look"), full(action="idle"))
   seen = []
   life.on_event.append(seen.append)
@@ -410,6 +448,86 @@ def test_the_run_cap_takes_look_off_the_menu_then_gives_it_back():
     assert boss.decisions[-1].action == "idle" and not boss.decisions[-1].scripted
     assert "look" in boss.client.calls[-1]["output_config"]["format"]["schema"]["properties"]["action"]["enum"]
     assert overseer_context(life)["looksLeft"] == MAX_LOOK_RUN
+  finally:
+    life.body.close()
+
+
+def test_with_no_renderer_look_is_off_the_call_and_the_state_says_why():
+  """While nothing can take a picture (issue #357) the call's grammar has
+  no `look` and the state says so in `camera`; the website's word that a
+  renderer is there puts it back, and its word that none is takes it off
+  again. Nobody having said is no renderer: a demo with no website, a sim
+  before the hub's first word, a link that dropped. On the deployed pair
+  every look stood its ten seconds for a renderer never deployed."""
+  inbox = Inbox()
+  boss, life = _looker(full(action="idle"), full(action="idle"), inbox=inbox,
+                       renderer=None)
+  schema = lambda: boss.client.calls[-1]["output_config"]["format"]["schema"]  # noqa: E731
+  try:
+    assert overseer_context(life)["camera"] == look.NO_PICTURE
+    life._decide()
+    assert "look" not in schema()["properties"]["action"]["enum"]
+    inbox.offer(renderer_message(True))
+    assert "camera" not in overseer_context(life)
+    life._decide()
+    assert "look" in schema()["properties"]["action"]["enum"]
+    # (a third idle in a row is the idle-run policy, which calls nobody)
+    inbox.offer(renderer_message(False))
+    state = overseer_context(life)
+    assert state["camera"] == look.NO_PICTURE and not ov._look_allowed(state)
+  finally:
+    life.body.close()
+  assert not ov._look_allowed({"looksLeft": 2, "camera": look.NO_PICTURE})
+  assert ov._look_allowed({"looksLeft": 2})
+
+
+def test_a_look_that_races_the_word_is_answered_at_once_and_never_stood_out():
+  """`look` is off the menu with no renderer there, so a look that runs
+  anyway raced the website's word: it resolves at once, `none` /
+  `unanswerable`, with no ten seconds stood for nobody, and the robot is
+  told so in words that say nothing can take a picture, not that one was
+  late. Shown to fail without the at-once branch: the row stood `LOOK_S`
+  and said `unanswered`."""
+  boss, life = _looker(renderer=False)
+  seen = []
+  life.on_event.append(seen.append)
+  try:
+    t0 = float(life.data.time)
+    life.body.run(life._look_routine())
+    assert float(life.data.time) == t0, "no time stood"
+    rows = [m for m in seen if m["type"] == "look"]
+    assert [(m["outcome"], m["why"], m["waitS"]) for m in rows] == [
+      ("asked", "", 0.0), ("none", look.UNANSWERABLE, 0.0)]
+    block = overseer_context(life)["seen"][0]
+    assert block["text"] == look.NO_PICTURE and block["why"] == look.UNANSWERABLE
+    assert block["image"] == "none" and "jpeg" not in block
+    assert "nothing could take a picture" in life.thoughts.read("History.md")
+  finally:
+    life.body.close()
+  assert LOOK_WHYS == ("unanswered", "unanswerable", "aborted")
+
+
+def test_a_renderer_that_goes_mid_wait_ends_the_wait_at_once():
+  """The website says its renderer went while the robot stood for a
+  picture (issue #357): the request it was handed went with it, so the
+  wait ends at the next slice, `unanswerable`, not at the deadline."""
+  inbox = Inbox()
+  boss, life = _looker(inbox=inbox)
+  seen = []
+  life.on_event.append(seen.append)
+  gone = []
+
+  def hook():
+    pending = life.eye.pending
+    if not gone and pending and life.data.time >= pending["t"] + 1.0:
+      gone.append(True)
+      inbox.offer(renderer_message(False))
+  life.body.step_hooks.append(hook)
+  try:
+    life.body.run(life._look_routine())
+    row = [m for m in seen if m["type"] == "look"][-1]
+    assert (row["outcome"], row["why"]) == ("none", look.UNANSWERABLE)
+    assert 1.0 <= row["waitS"] <= 1.0 + 2 * LOOK_SLICE_S, row["waitS"]
   finally:
     life.body.close()
 
@@ -560,6 +678,7 @@ def test_which_model_looked_is_in_the_build_identity_and_absent_without_an_eye()
 def test_the_rule_says_what_the_action_does_and_prescribes_no_looking():
   rule = ov.LOOK_RULE
   assert "`look`" in rule and "`seen`" in rule and "`looksLeft`" in rule
+  assert "`camera`" in rule, "the key that says nothing can take a picture"
   assert "head camera" in rule and "as the people watching you see it" in rule
   for word in ("charge", "battery", "rack", "renderer", "website", "tresjs"):
     assert word not in rule.lower(), word
