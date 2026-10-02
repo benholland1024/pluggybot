@@ -507,27 +507,38 @@ def test_a_look_that_races_the_word_is_answered_at_once_and_never_stood_out():
   assert LOOK_WHYS == ("unanswered", "unanswerable", "aborted")
 
 
-def test_a_renderer_that_goes_mid_wait_ends_the_wait_at_once():
-  """The website says its renderer went while the robot stood for a
-  picture (issue #357): the request it was handed went with it, so the
-  wait ends at the next slice, `unanswerable`, not at the deadline."""
+def test_the_word_decides_whether_a_wait_begins_and_never_ends_one():
+  """A renderer that drops mid-render and comes back still sends its
+  picture: `renderer/eye.js` keeps the request across its own reconnect,
+  and a hub may relay one across the sim's blip too. So the word that it
+  went (issue #357) takes `look` off the NEXT call, and the wait already
+  begun runs to its picture or its deadline. Shown to fail when the word
+  ended the wait: the picture came a second later and was dropped as
+  stale, and the robot was told nothing could take one."""
   inbox = Inbox()
   boss, life = _looker(inbox=inbox)
   seen = []
   life.on_event.append(seen.append)
-  gone = []
+  said = []
 
-  def hook():
+  def renderer_blinks():
     pending = life.eye.pending
-    if not gone and pending and life.data.time >= pending["t"] + 1.0:
-      gone.append(True)
+    if pending is None:
+      return
+    if not said and life.data.time >= pending["t"] + 1.0:
+      said.append("gone")
       inbox.offer(renderer_message(False))
-  life.body.step_hooks.append(hook)
+    elif said == ["gone"] and life.data.time >= pending["t"] + 2.0:
+      said.append("back")
+      inbox.offer(renderer_message(True))
+      inbox.offer(image_message(pending["ref"]))
+  life.body.step_hooks.append(renderer_blinks)
   try:
     life.body.run(life._look_routine())
     row = [m for m in seen if m["type"] == "look"][-1]
-    assert (row["outcome"], row["why"]) == ("none", look.UNANSWERABLE)
-    assert 1.0 <= row["waitS"] <= 1.0 + 2 * LOOK_SLICE_S, row["waitS"]
+    assert (row["outcome"], row["bytes"]) == ("seen", len(JPEG)), row
+    assert 2.0 <= row["waitS"] <= 2.0 + 2 * LOOK_SLICE_S, row["waitS"]
+    assert life.eye.dropped == {}
   finally:
     life.body.close()
 

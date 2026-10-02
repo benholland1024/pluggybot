@@ -56,8 +56,9 @@ stood ten seconds for a renderer never deployed.
 NOT `CODE_HANDLED_TYPES` -- only a mind looks). The hub's word on whether a
 renderer is connected, sent when it reads a header whose `accepts` names
 the kind (never the mode-narrowed list: a sim the operator switched to
-`scripted` still keeps the word current) and again whenever a renderer
-comes or goes. It names no `robot`: a pair's router hands it to both.
+`scripted` still keeps the word current), whenever a renderer comes or
+goes, and again every heartbeat (30 s), so a word lost on the way heals.
+It names no `robot`: a pair's router hands it to both.
 
 ```jsonc
 {"type": "renderer", "connected": false}
@@ -67,16 +68,21 @@ A STATE, NOT A MESSAGE: the sim keeps the newest word and queues nothing,
 and forgets it when the socket drops (the next connection's hub says it
 again). `connected` must be a boolean; anything else is dropped and the
 last word stands. Only `true` means a picture can be taken: no word, `false`
-or a dropped link take `look` off the mind's menu.
+or a dropped link take `look` off the mind's menu. ⚠ A header names
+`image` and `renderer` in EVERY mode (`EYE_INBOUND_TYPES`): a consumer
+narrows `accepts` by the `mode` message and can never widen past the
+header, so a link opened switched off would otherwise keep the eye shut
+after the switch went back to `llm`.
 
 **Upstream, on the `look` event:** a look that raced the word -- chosen
-just before it arrived -- or a wait whose renderer went resolves at once,
-`none` with `why: unanswerable` (`LOOK_WHYS`: `unanswered` is left for a
-renderer that was there and did not answer by the deadline, `aborted` for a
-stop). The `asked` row still goes out first, so a request is still sent
-twice. No header change beyond `accepts`; `build.eyes` still names the
-model the pictures are handed to. No bump, and the fixtures are not
-re-recorded: no recorded run has a mind.
+just before it arrived -- resolves at once, `none` with `why:
+unanswerable` (`LOOK_WHYS`: `unanswered` is a renderer that was there and
+did not answer by the deadline, `aborted` a stop). The word decides
+whether a wait BEGINS, never ends one: a renderer that drops and
+reconnects mid-render still sends its picture. The `asked` row still goes
+out first, so a request is still sent twice. No header change beyond
+`accepts`; `build.eyes` still names the model the pictures are handed to.
+No bump, and the fixtures are not re-recorded: no recorded run has a mind.
 
 ### 0.21.0, additive: a plate pressed off its errand (`press`); the lab on legs
 

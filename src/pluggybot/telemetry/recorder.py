@@ -46,7 +46,8 @@ from typing import Callable
 
 from PIL import Image
 
-from pluggybot.telemetry.protocol import (CODE_HANDLED_TYPES, HUNGER_STATES,
+from pluggybot.telemetry.protocol import (CODE_HANDLED_TYPES,
+                                          EYE_INBOUND_TYPES, HUNGER_STATES,
                                           MODES, PROTOCOL_VERSION, ROBOT_ROOT,
                                           body_census, robot_display_name)
 
@@ -290,11 +291,15 @@ class FrameBuilder:
     ⚠ The header is per CONNECTION, so this is right when a run STARTS in
     a mindless mode and stale if the switch is flipped mid-run. The
     `mode` message carries every flip as it happens, so a consumer that
-    honours both is correct at all times; one that reads only the header
-    is correct until the operator touches the switch.
+    honours both is correct -- but only within what this header named: it
+    can narrow by mode and never widen past the header, so a link opened
+    switched off hears no visitor's message until it next connects. The
+    eye's kinds are named in every mode for that reason
+    (`EYE_INBOUND_TYPES`, issue #357): neither is a message to deliver.
     """
     if self.mode is not None and not self.mode.thinking:
-      return [k for k in self.accepts if k in CODE_HANDLED_TYPES]
+      return [k for k in self.accepts
+              if k in CODE_HANDLED_TYPES or k in EYE_INBOUND_TYPES]
     return list(self.accepts)
 
   def _census(self, model) -> None:

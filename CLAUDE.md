@@ -447,7 +447,10 @@ save a filmstrip PNG named after the script.
   (#357): the `renderer` inbound kind, a STATE the door keeps
   (`Inbox.renderer`), a pair's router hands both robots and a dropped link
   forgets; without it the state says `camera` and a look that raced the
-  word is `none` / `unanswerable` at once, never ten seconds stood.
+  word is `none` / `unanswerable` at once, never ten seconds stood. ⚠ The
+  word decides whether a wait BEGINS, never ends one (a renderer that
+  reconnects mid-render still answers), and a header names the eye's kinds
+  in every mode (`EYE_INBOUND_TYPES`): a hub never widens past a header.
 - **A mind can write procedures** (issue #166;
   `procedure/lang.py`, `axes.py`, `library.py`; Overseer.md §2b):
   Python-SHAPED, parsed with `ast` and interpreted as a routine — NEVER

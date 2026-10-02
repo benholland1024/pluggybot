@@ -30,7 +30,8 @@ is what this world can do anyway.
 
 - **No look stands for nobody.** `look` rows stop; an `unanswerable` row is
   a look that raced the word, and an `unanswered` one now means a renderer
-  that was there and slow, never a missing one.
+  that was there when the look began and did not answer in time, never a
+  missing one.
 - **The eye, when it is deployed** (Ben's step, after #276 and rooftop
   #322): `look` comes back on the menu, and the first `seen` rows say what
   the round trip costs on the box (`waitS`) and what a quadruped does with a

@@ -4098,8 +4098,12 @@ class HubLifecycle:
 
     ⚠ A LOOK NOTHING CAN ANSWER IS NOT STOOD OUT (issue #357): with no
     renderer there (`_no_picture`) the row resolves at once, `none` /
-    `unanswerable`, and so does a wait whose renderer goes. `look` is off
-    the menu then, so this is a look that raced the website's word.
+    `unanswerable`. `look` is off the menu then, so this is a look that
+    raced the website's word. ⚠ The word decides whether a wait BEGINS,
+    never ends one: a renderer that drops and reconnects mid-render still
+    sends its picture (`renderer/eye.js` keeps the request), and so may a
+    hub across the sim's own blip -- ended on the word, the picture came
+    and was dropped, and the robot was told nothing could take one.
     """
     self.state = "LOOK"
     x, y, heading = self.body.pose
@@ -4109,12 +4113,12 @@ class HubLifecycle:
     self._emit({"type": "look", **eye_mod.wire_row(row)})
     self._say(f"LOOK {row['ref']}: asked for a picture from ({x:.2f}, {y:.2f}) "
               f"facing {row['at']['headingDeg']:.0f} deg")
+    if self._no_picture():
+      self._resolve_look(self.eye.give_up(float(self.data.time),
+                                          why=eye_mod.UNANSWERABLE))
+      return
     try:
       while self.eye.pending is not None:
-        if self._no_picture():
-          self._resolve_look(self.eye.give_up(float(self.data.time),
-                                              why=eye_mod.UNANSWERABLE))
-          break
         yield from self.body.hold_routine(LOOK_SLICE_S)
         self._look_step()
         if self.eye.overdue(float(self.data.time)):

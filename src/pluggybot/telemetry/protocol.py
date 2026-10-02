@@ -183,6 +183,15 @@ INBOUND_TYPES = ("message", "rating", "reset_tool", "reset_robot",
 #: inbox -- one renderer answers both robots' looks.
 WORLD_INBOUND_TYPES = ("renderer",)
 
+#: The eye's inbound kinds (issues #275, #357), named in a header in EVERY
+#: mode (`FrameBuilder.hears`): a picture answers a look this sim made and
+#: the renderer's word is a state code keeps, so neither is a message the
+#: site could mark delivered to nobody. Left out of a header opened
+#: switched off, they stayed out after the switch went back to `llm` -- a
+#: hub can only narrow what a header named -- and the eye stayed shut for
+#: the life of the link.
+EYE_INBOUND_TYPES = ("image", "renderer")
+
 #: Why a robot died (0.15.0, issue #107), and NEVER summed into one number:
 #: `flat` is the pack reaching zero -- a decision failure, the thing the
 #: arms in docs/Evaluation.md are measured on -- and `stuck` is the body
