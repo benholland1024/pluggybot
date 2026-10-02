@@ -267,7 +267,10 @@ rest, and `src/pluggybot/continuation.py` keeps it:
 - **The errand in flight ends**, because it was a generator. Its job stays
   the robot's: an errand job is queued again (rebuilt off the task, with its
   committed answer), and a procedure job stays claimed. A module the restart
-  left on the fork is stowed first. A claim held by a robot not in the new
+  left on the fork mid-errand is stowed first. Between errands a tool on the
+  fork is the loop's, as it would have been had nothing stopped: the count
+  of returns it has tried is kept, and a return counts once it has run
+  (#420). A claim held by a robot not in the new
   world goes back on offer. A game still fails, because its referee lived in
   the process. A job taken up through `MAX_TAKE_UPS` (3) restarts without
   finishing is failed: the world's crash-loop guard counts saves, and a job

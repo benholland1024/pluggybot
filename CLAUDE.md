@@ -547,7 +547,9 @@ save a filmstrip PNG named after the script.
   bodies or maps, and so does a save of another `MAP_EPOCH` (bumped when the
   kept maps are found laid wrong, #425); a save restored `MAX_RESUMES` (3)
   times without a new one is not trusted. ⚠ The errand in flight ends; its job does not (`_resume_jobs`;
-  `MAX_TAKE_UPS` 3). An offered challenge SETS OUT its props
+  `MAX_TAKE_UPS` 3), and a tool it held goes home first; between errands a
+  tool on the fork is the loop's, on the count of returns it kept (#420).
+  An offered challenge SETS OUT its props
   (`_set_out_props`). The hourly ceiling is still rooftop's `compose.yaml`;
   lifting it waits on #349.
 - **An admin can reach into world state, and every reach-in is recorded**

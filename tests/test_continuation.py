@@ -21,8 +21,10 @@ import pytest
 
 from pluggybot import continuation, tick
 from pluggybot.economy.tasks import TaskBoard
-from pluggybot.lifecycle import (QUAD_HOME, HubLifecycle, cage_errand, task_board,
-                                 world_config)
+from pluggybot.lifecycle import (QUAD_HOME, STOW_RETRIES, HubLifecycle, cage_errand,
+                                 task_board, world_config, world_facts)
+from pluggybot.mission.errand import programmed_errand
+from pluggybot.procedure import lang
 from pluggybot.mind.thoughts import HISTORY
 from pluggybot.perception.lidar import robot_geoms
 from pluggybot.robot import world_spec
@@ -362,6 +364,78 @@ def test_a_world_that_carries_on_keeps_its_deadlines_on_its_own_clock(tmp_path):
   assert TaskBoard(path)[task.id].deadline == 720.0
 
 
+# ---- a tool on the fork (issue #420) -------------------------------------------
+
+
+def _returns(life, day, passes: int) -> list[str]:
+  """What `day` narrates of the tool on the fork, driven to its
+  `passes`-th pass of the loop."""
+  said, seen = [], []
+  life.say_hooks.append(lambda t, line: said.append(line))
+
+  def stop():
+    seen.append(life.data.time)
+    if len(seen) == passes:
+      raise _Stop
+  life.at_loop_top.append(stop)
+  with pytest.raises(_Stop):
+    life.body.run(day)
+  return [ln for ln in said if "SWAP_RETURN" in ln or "on my fork" in ln]
+
+
+def _returns_fail(life):
+  """Every return this body makes leaves the tool on its fork."""
+  life.body.stow_tool_routine = lambda station_y, module: tick.result("arrived")
+  return life
+
+
+def test_a_tool_on_the_fork_between_errands_is_the_loops_after_a_restart(tmp_path):
+  """Saved between errands with a tool still on the fork after a failed
+  return, the robot carries on as the day flown straight through does: the
+  loop's next return, under the next number. The restart used to take it
+  home on its own first -- a return nobody counted -- and forget the count,
+  so every restart granted returns the straight day never had (#420)."""
+  life = _returns_fail(_stub(tmp_path))
+  life.body.holding = "module_lcd"
+  life._stow_tries = STOW_RETRIES - 1               # one return left
+  saved = []
+  life.at_loop_top.append(lambda: saved or saved.append(_saved(life, tmp_path)))
+  straight = _returns(life, life.begin(world_config(QUAD_HOME)["start"]), passes=2)
+  assert straight == [f"SWAP_RETURN again ({STOW_RETRIES}/{STOW_RETRIES}): "
+                      "module_lcd is still on my fork -- hanging it back before "
+                      "anything else"]
+
+  back = _returns_fail(_stub(tmp_path))
+  assert _returns(back, _restored(back, saved[0]), passes=2) == straight
+
+
+def test_a_return_a_restart_cut_short_is_made_again_under_its_number(tmp_path):
+  """A return counts once it has run: one the world stopped in the middle
+  of -- a keeper saves mid-walk -- is the next process's to make again,
+  not one already spent (#420)."""
+  life = _stub(tmp_path)
+  life.body.holding = "module_lcd"
+
+  def slow(station_y, module):
+    yield from life.body.hold_routine(1.0)
+    return "arrived"
+  life.body.stow_tool_routine = slow
+  cut = []
+
+  def stop() -> None:
+    if life.data.time >= 0.5 and not cut:
+      cut.append(_saved(life, tmp_path))
+      raise _Stop
+  life.body.step_hooks.append(stop)
+  with pytest.raises(_Stop):
+    life.body.run(life._stow_retry_routine())
+
+  back = _returns_fail(_stub(tmp_path))
+  assert _returns(back, _restored(back, cut[0]), passes=2) == [
+    f"SWAP_RETURN again (1/{STOW_RETRIES}): module_lcd is still on my fork -- "
+    "hanging it back before anything else"]
+
+
 # ---- History ---------------------------------------------------------------
 
 
@@ -624,6 +698,9 @@ def test_a_restart_mid_swap_backs_out_and_says_so(tmp_path, monkeypatch):
   (found in review: "the restart left module_pen on my fork")."""
   from pluggybot.procedure import steps
   life = _stub(tmp_path)
+  life._errand_now = programmed_errand(              # a fetch, mid-pick
+    lang.compile_procedure('def job():\n  fetch("module_lcd")\n',
+                           world_facts(QUAD_HOME)), task="program", name="procedure")
   snap = _saved(life, tmp_path)
   monkeypatch.setattr(steps, "_carried", lambda life: "module_lcd")
   monkeypatch.setattr(steps, "_stow", lambda life, args: tick.result({"ok": True}))
