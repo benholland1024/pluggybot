@@ -45,7 +45,7 @@ from pluggybot.mapping.frontier import OCC_THRESH
 from pluggybot.mapping.places import Fixture, Places
 from pluggybot.mind import overseer as ov
 from pluggybot.procedure import steps as st
-from pluggybot.rack.tags import PLATE_TAG_IDS
+from pluggybot.rack.tags import BOARD_TAG_IDS, PLATE_TAG_IDS
 from test_body import stub_life  # noqa: I001 -- tests/ is on sys.path
 
 SHOCK, FEED, TOY = (cage.PLATE_TAGS[n] for n in ("shock", "feed", "toy"))
@@ -670,7 +670,8 @@ def test_a_place_forgotten_under_a_press_ends_it_backed_off_the_plate(quad_world
 def test_find_is_a_legs_verb_where_the_world_has_places_and_press_where_its_lab_is(
     monkeypatch):
   facts = world_facts(QUAD_HOME)
-  assert facts.places == PLATE_TAG_IDS and facts.plates == PLATE_TAG_IDS
+  boards = tuple(t for ids in BOARD_TAG_IDS.values() for t in ids)
+  assert facts.places == PLATE_TAG_IDS + boards and facts.plates == PLATE_TAG_IDS
   assert "find" in facts.verbs and "press" in facts.verbs
   assert st.check_step(st.VERBS["find"], {"tag": FEED, "x": 25.2, "y": -2.4}, facts) == []
   assert "no place" in st.check_step(st.VERBS["find"], {"tag": 99, "x": 0, "y": 0}, facts)[0]
@@ -774,7 +775,8 @@ def test_the_directions_pass_the_dispatcher_test():
     numbers = {int(n) for n in re.findall(r"\d+(?:\.\d+)?", spec["directions"])}
     tags = {int(t) for t in spec["tags"]}
     assert numbers == tags, (name, numbers - tags)
-  assert set(addresses.tag_names()) == set(PLATE_TAG_IDS)
+  assert set(addresses.tag_names()) == {*PLATE_TAG_IDS,
+                                        *(t for ids in BOARD_TAG_IDS.values() for t in ids)}
 
 
 def test_a_job_at_a_task_area_carries_its_address_and_directions_and_no_other_does():

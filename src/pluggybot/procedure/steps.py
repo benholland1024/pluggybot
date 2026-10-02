@@ -18,6 +18,7 @@ The verbs, in the words the issue used:
   face(heading)        turn in place                    `Body.face_routine`
   find(tag, x, y)      a task area found by its tag     `Body.find_tag_routine`
   press(tag)           onto the plate its sign marks    `Body.press_plate_routine`
+  draw(board, figure)  a figure on a found whiteboard   `Body.draw_routine`
   wait(seconds)        stand still
   move(axis, target)   one axis to a setpoint           `procedure/axes.py`
   drive(v, w, seconds) the base at a velocity           `Body.velocity_routine`
@@ -536,6 +537,57 @@ def press_trace(rec: dict) -> str:
   return "; ".join(parts)
 
 
+#: How long a `draw` may take, s, where the program's budget does not say
+#: less: flown from the board's look point, a house took 106-125 s.
+DRAW_PATIENCE_S = 420.0
+#: What a `draw` that drew nothing says, by its body's why (issue #406).
+DRAW_WHY = {
+  "no pen": "the pen is not on the fork: `fetch` module_pen first",
+  "not found": "{board} is a board it has not found: `find` one of its tags first",
+  "gave up": "did not get in front of {board}",
+  "lost": "{board}'s two tags were not in one look from in front of it",
+  "never touched": "lay down in front of {board} and the pen never found its face",
+  "out of time": "ran out of time before drawing on {board}",
+  "interrupted": "stopped drawing on {board} by its own interrupt",
+  "not drawn": "drew nothing on {board}",
+}
+#: ...and what of its record rides the verdict as `used`: what the ink's
+#: evaluator reads (`scoring.sample_draw`).
+DRAW_USED = ("strokes", "strokes_drawn", "inked_fraction", "travel_ink_fraction",
+             "shape_rms_mm", "form_rms_mm", "offset_mm", "stopped")
+
+
+def _draw(life, args: dict) -> Routine:
+  """Draw a figure on a whiteboard the robot has found (issue #406): the
+  pen on its fork, the board by its two tags (`find` one first). The body
+  walks to it, lies down, finds its face with the pen and draws, and the
+  board records the ink (`HubLifecycle.ink_hook`). ok when a stroke
+  landed; a walk that gave up says why in #350's words."""
+  from pluggybot.lifecycle import figure_program
+  board, figure = args["board"], args["figure"]
+  out = {"board": board, "figure": figure}
+  if _carried(life) != "module_pen":
+    return {**out, "ok": False, "why": "no pen",
+            "reason": DRAW_WHY["no pen"].format(board=board)}
+  program = figure_program(life.world, board, figure)
+  ink = getattr(life, "ink_hook", None)
+  rec = yield from life.body.draw_routine(
+    board, program, patience=_patience(life, {"patience": DRAW_PATIENCE_S}),
+    stop=_interrupt(life), on_stroke=ink(board, program.name) if ink is not None else None)
+  why = rec.get("why", "")
+  out.update(ok=bool(rec.get("drew")), why=why, strokes=rec.get("strokes"),
+             strokesDrawn=rec.get("strokes_drawn"),
+             used={k: rec[k] for k in DRAW_USED if rec.get(k) is not None})
+  if why == "interrupted":
+    out["stopped"] = "interrupted"
+  if not out["ok"]:
+    walk = rec.get("walk")
+    cause = (f": {life.drive_why(*walk['goal'], record=walk)}"
+             if walk and why == "gave up" and walk.get("goal") else "")
+    out["reason"] = DRAW_WHY.get(why, why or "drew nothing").format(board=board) + cause
+  return out
+
+
 #: The base's command envelope for `drive`, forward m/s and yaw rad/s.
 DRIVE_V_MAX = 0.25
 DRIVE_W_MAX = 1.5
@@ -601,6 +653,14 @@ VERBS: dict[str, Verb] = {
                 "walk onto the plate this tag's sign marks, the last step "
                 "measured off the sign, and back off it; ok when a foot was on "
                 "it. `find` it first", drives=True),
+  # A WHITEBOARD (issue #406): a figure off the pen's menu, on a board the
+  # robot has found by its tags -- never a position
+  "draw": Verb("draw", {"board": Arg("str", choices="boards"),
+                        "figure": Arg("str", choices="figures")}, _draw,
+               "draw a figure on a whiteboard you have found (`find` one of its "
+               "tags first), the pen on your fork: you walk to it, lie down in "
+               "front of it, find its face with the pen and draw; ok when ink "
+               "landed", drives=True),
   "wait": Verb("wait", {"seconds": Arg("float", lo=0.0, hi=MAX_WAIT_S)}, _wait,
                "stand still"),
   # The motor level (issue #166): what every verb above is built from.
@@ -807,6 +867,9 @@ SWAP_VERBS = ("fetch", "stow")
 #: #419), and plates among them where its world has the lab they are in.
 PLACE_VERBS = ("find",)
 PLATE_VERBS = ("press",)
+#: ...and whiteboards it finds by their tags and draws on with its rack's
+#: pen (issue #406).
+DRAW_VERBS = ("draw",)
 
 
 def describe_vocabulary(verbs: tuple | None = None) -> list[dict]:

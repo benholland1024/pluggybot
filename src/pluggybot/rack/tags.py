@@ -71,6 +71,12 @@ LEGS_RACK_TAG_SIZE = 0.060
 #: camera, square-on past 5 m and 70 deg off its face to 3.5 m.
 PLATE_TAG_IDS = (35, 36, 37)
 PLATE_TAG_SIZE = 0.120
+#: The two whiteboards (issue #406): a pair a board, on the wall either side
+#: of it level with its middle (`tools/drawing.py`), what a robot finds the
+#: board by and fits its facing to (the baseline, #88's rule). The plates'
+#: 120 mm, read from across a room.
+BOARD_TAG_IDS = {"whiteboard_a": (38, 39), "whiteboard_b": (40, 41)}
+BOARD_TAG_SIZE = 0.120
 
 # Physical marker sizes (m), edge of the BLACK tag -- what the detector is
 # told, and what PnP scales its translation by. The plate carrying it is
@@ -85,7 +91,8 @@ TAG_SIZES = {**{i: SMALL_TAG_SIZE for i in MODULE_TAG_IDS.values()},
              **{i: BLOCK_TAG_SIZE for i in MASS_TAG_IDS},
              **{i: DOCK_TAG_SIZE for i in DOCK_TAG_IDS},
              **{i: LEGS_RACK_TAG_SIZE for i in LEGS_RACK_TAG_IDS},
-             **{i: PLATE_TAG_SIZE for i in PLATE_TAG_IDS}}
+             **{i: PLATE_TAG_SIZE for i in PLATE_TAG_IDS},
+             **{i: BOARD_TAG_SIZE for ids in BOARD_TAG_IDS.values() for i in ids}}
 
 TAG_DIR = Path("models/tags")
 

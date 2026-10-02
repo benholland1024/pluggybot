@@ -58,6 +58,7 @@ from pluggybot.legs import dock as dk
 from pluggybot.legs import posture as pz
 from pluggybot.legs.actuator import BUS_V_NOMINAL, JointLimits
 from pluggybot.legs.arm import ARM_SLEW, ArmDriver
+from pluggybot.legs.draw import BoardWork
 from pluggybot.legs.game import GameWalk
 from pluggybot.legs.model import CHOSEN, ELECTRONICS_W, LEGS
 from pluggybot.legs.odometry import LegOdometry
@@ -274,7 +275,7 @@ class QuadStepper:
     return tick.run(self, routine, name)
 
 
-class QuadMission(ToolSwap, PlaceWalk, MakeWay, GameWalk, Navigator):
+class QuadMission(ToolSwap, PlaceWalk, BoardWork, MakeWay, GameWalk, Navigator):
   """The Navigator over a quadruped (the module docstring)."""
 
   #: The body's own sizes (`scripts/quad_spike.py`; SimNotes, "The first
@@ -421,6 +422,8 @@ class QuadMission(ToolSwap, PlaceWalk, MakeWay, GameWalk, Navigator):
     self._init_swap(model)
     # THE PLACES IT FINDS (#419, `legs/places.py`)
     self._init_places(model)
+    # THE WHITEBOARDS it draws on (#406, `legs/draw.py`)
+    self._init_draw()
     # MAKING WAY for the other robot (#415, `legs/way.py`)
     self._init_way()
     # HIDE AND SEEK's two roles (#404, `legs/game.py`)
@@ -1476,6 +1479,12 @@ class QuadBody(Body):
   def press_plate_routine(self, tag, patience, stop=None) -> Routine:
     return self.mission.press_routine(tag, patience=patience, stop=stop)
 
+  def draw_routine(self, board, program, patience, stop=None, on_stroke=None) -> Routine:
+    from pluggybot.home import world as home
+    from pluggybot.tools.drawing import Board
+    return self.mission.draw_routine(board, Board.from_meta(home.BOARDS[board]), program,
+                                     patience=patience, stop=stop, on_stroke=on_stroke)
+
   def hide_routine(self, away_from, reach_m, clear_of_m, patience, stop=None) -> Routine:
     return self.mission.hide_routine(away_from, reach_m, clear_of_m, patience, stop=stop)
 
@@ -1559,11 +1568,6 @@ class QuadBody(Body):
 
   def seated_on(self, module):
     return self.mission.seated_on(module)
-
-  def tool(self, module, **kw):
-    # a tool's own drivers are its rebuild's (#406, #407): these are a
-    # plate, a peg and a face
-    return None
 
   def swap_trace(self) -> str:
     return self.mission.swap_trace()
