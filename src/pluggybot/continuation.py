@@ -29,6 +29,14 @@ re-hung in another order, or a new build's world, reorders `qpos`. A joint
 may be unnamed (the rover's world had 11 of 24), so a joint's key is its
 body's name and its index there. And the solver's WARM START is kept: MEASURED, without
 it the same step diverges by 1e-12 and a parity check means nothing.
+
+⚠ THE LAST STEP IS STEPPED AGAIN (issue #420): a running world's forward
+pass -- its contacts, positions, sensors -- is the one its last step began
+with, a step behind its `qpos`, and everything between two steps reads it.
+Forwarded fresh at the saved instant instead, a restore parted wherever the
+walking policy decided on its first step (one save in ten) and could answer
+"what is on my fork" otherwise; so a save carries where that step began
+(`LastStep`) and a restore steps it again (`replay`).
 """
 
 from __future__ import annotations
@@ -106,17 +114,37 @@ def _joint_keys(model) -> list[tuple[str, int, int, int, int]]:
   return out
 
 
+def _actuator_keys(model) -> list[tuple[str, int, int]]:
+  """(name, actadr, actnum) for every actuator."""
+  return [(model.actuator(i).name, int(model.actuator_actadr[i]),
+           int(model.actuator_actnum[i])) for i in range(model.nu)]
+
+
 def _cat(parts) -> np.ndarray:
   return np.concatenate(parts) if parts else np.zeros(0)
 
 
-def physics(model, data) -> tuple[dict, dict[str, np.ndarray]]:
-  """MuJoCo's integration state, keyed by name: (index, arrays)."""
+#: What a physics step integrates, by `physics`' keys: where a replayed
+#: step begins (`replay`).
+INTEGRATED = ("qpos", "qvel", "warm", "act")
+
+
+def _integrated(model, qpos, qvel, warm, act) -> dict[str, np.ndarray]:
+  """The state a step integrates, keyed by name, off raw arrays: a world as
+  it stands, or as it stood when its last step began (`LastStep`)."""
   joints = _joint_keys(model)
-  q = [data.qpos[a:a + n] for _, a, n, _, _ in joints]
-  v = [slice(d, d + n) for _, _, _, d, n in joints]
-  acts = [(model.actuator(i).name, int(model.actuator_actadr[i]),
-           int(model.actuator_actnum[i])) for i in range(model.nu)]
+  return {"qpos": _cat([qpos[a:a + n] for _, a, n, _, _ in joints]),
+          "qvel": _cat([qvel[d:d + vn] for _, _, _, d, vn in joints]),
+          "warm": _cat([warm[d:d + vn] for _, _, _, d, vn in joints]),
+          "act": _cat([act[a:a + n] for _, a, n in _actuator_keys(model) if n > 0])}
+
+
+def physics(model, data, last_step: "LastStep | None" = None
+            ) -> tuple[dict, dict[str, np.ndarray]]:
+  """MuJoCo's integration state, keyed by name: (index, arrays) -- and
+  where its last step began, where `last_step` kept it (`replay`)."""
+  joints = _joint_keys(model)
+  acts = _actuator_keys(model)
   mocap = [model.body(b).name for b in range(model.nbody)
            if model.body_mocapid[b] >= 0]
   index = {
@@ -128,12 +156,9 @@ def physics(model, data) -> tuple[dict, dict[str, np.ndarray]]:
     "bodies": [model.body(i).name for i in range(model.nbody)],
   }
   arrays = {
-    "qpos": _cat(q),
-    "qvel": _cat([data.qvel[s] for s in v]),
-    "warm": _cat([data.qacc_warmstart[s] for s in v]),
-    "qfrc": _cat([data.qfrc_applied[s] for s in v]),
+    **_integrated(model, data.qpos, data.qvel, data.qacc_warmstart, data.act),
+    "qfrc": _cat([data.qfrc_applied[d:d + vn] for _, _, _, d, vn in joints]),
     "ctrl": np.array(data.ctrl, dtype=float),
-    "act": _cat([data.act[a:a + n] for _, a, n in acts if n > 0]),
     "mocap_pos": np.array([data.mocap_pos[model.body(b).mocapid[0]] for b in mocap])
                  .reshape(-1, 3),
     "mocap_quat": np.array([data.mocap_quat[model.body(b).mocapid[0]] for b in mocap])
@@ -141,13 +166,19 @@ def physics(model, data) -> tuple[dict, dict[str, np.ndarray]]:
     "eq_active": np.array(data.eq_active, dtype=np.uint8),
     "xfrc": np.array(data.xfrc_applied, dtype=float),
   }
+  began = last_step.began() if last_step is not None else None
+  if began is not None:
+    _, index["before"], qpos, qvel, warm, act = began
+    arrays.update({f"before/{k}": v for k, v in
+                   _integrated(model, qpos, qvel, warm, act).items()})
   return index, arrays
 
 
-def put_physics(model, data, index: dict, arrays: dict) -> dict:
+def put_physics(model, data, index: dict, arrays: dict, forward: bool = True) -> dict:
   """Put a `physics` state into a world, by name. Returns what matched: a
   body in the file and not the world is left out, one in the world and not
-  the file keeps where the XML put it."""
+  the file keeps where the XML put it. `forward` False leaves the derived
+  quantities as they were (`replay`)."""
   here = {k: (a, n, d, vn) for k, a, n, d, vn in _joint_keys(model)}
   qi = vi = 0
   matched = missed = 0
@@ -196,8 +227,64 @@ def put_physics(model, data, index: dict, arrays: dict) -> dict:
       except KeyError:
         pass
   data.time = float(index["t"])
-  mujoco.mj_forward(model, data)
+  if forward:
+    mujoco.mj_forward(model, data)
   return {"joints": matched, "jointsMissed": missed}
+
+
+def replay(model, data, index: dict, arrays: dict) -> bool:
+  """The step the save was taken after, stepped again from where it began
+  (`LastStep`, issue #420), into a world `put_physics` already holds: True
+  if it lands where the save says the world stood, bit for bit -- the
+  derived quantities are then the running world's, a step behind its
+  `qpos`. Otherwise (no step kept, another layout, an input changed after
+  the step) the saved state is put back and forwarded at the instant."""
+  t = index.get("before")
+  if t is None or not _same_layout(model, index):
+    return False
+  before = {**arrays, **{k: arrays[f"before/{k}"] for k in INTEGRATED}}
+  put_physics(model, data, {**index, "t": t}, before, forward=False)
+  mujoco.mj_step(model, data)
+  now = _integrated(model, data.qpos, data.qvel, data.qacc_warmstart, data.act)
+  if data.time == index["t"] and all(np.array_equal(now[k], arrays[k]) for k in INTEGRATED):
+    return True
+  put_physics(model, data, index, arrays)
+  return False
+
+
+def _same_layout(model, index: dict) -> bool:
+  """Every joint and actuator of the save in this world, in its order."""
+  return ([[k, n, vn] for k, _, n, _, vn in _joint_keys(model)] == index["joints"]
+          and [[name, max(num, 0)] for name, _, num in _actuator_keys(model)]
+          == index["actuators"])
+
+
+class LastStep:
+  """Where the last physics step began (issue #420), for a save to carry
+  (`capture`) and a restore to step again (`replay`). Hooked LAST on the
+  seam: what the hooks leave is what the next step begins from. Two kept,
+  ~2 us a step."""
+
+  def __init__(self, life) -> None:
+    self.life = life                      # its world, read at each step
+    self._kept: list = [None, None]
+    self._i = 0
+
+  def hook(self) -> None:
+    m, d = self.life.model, self.life.data
+    self._i ^= 1
+    self._kept[self._i] = (m, float(d.time), d.qpos.copy(), d.qvel.copy(),
+                           d.qacc_warmstart.copy(), d.act.copy())
+
+  def began(self) -> tuple | None:
+    """(model, time, qpos, qvel, warm, act) the step that left the world as
+    it stands began from -- taken a timestep before it, in this model -- or
+    None."""
+    m, d = self.life.model, self.life.data
+    for kept in self._kept:
+      if kept is not None and kept[0] is m and kept[1] + m.opt.timestep == d.time:
+        return kept
+    return None
 
 
 # ---- the file ----------------------------------------------------------------
@@ -222,10 +309,12 @@ class Snapshot:
             {k[len(pre):]: v for k, v in self.arrays.items() if k.startswith(pre)})
 
 
-def capture(lives, fingerprint_: str, resumes: int = 0) -> Snapshot:
-  """The world as it stands, off the lifecycles that share it."""
+def capture(lives, fingerprint_: str, resumes: int = 0,
+            last_step: LastStep | None = None) -> Snapshot:
+  """The world as it stands, off the lifecycles that share it -- and where
+  its last step began, where `last_step` kept it (`replay`)."""
   first = lives[0]
-  index, arrays = physics(first.model, first.data)
+  index, arrays = physics(first.model, first.data, last_step)
   robots = {}
   for life in lives:
     state, own = life.kept_state()
@@ -360,6 +449,11 @@ def restore(lives, snap: Snapshot) -> dict:
       continue
     life.restore_kept(kept, arrays, in_place=same, why=why)
     restored.append(life.root)
+  if same:
+    # ...and the step the save was taken after, once every body's drivers
+    # hold their gains again: they live in the model, and are its input
+    matched["replayed"] = replay(first.model, first.data, snap.meta["physics"],
+                                 snap.arrays)
   return {"inPlace": same, "t": snap.t, "robots": restored, **matched}
 
 
@@ -396,6 +490,7 @@ class Keeper:
     self.last_save_s: float | None = None
     self.stop_requested = ""
     self._next: float | None = None
+    self.last_step = LastStep(self.lives[0])
     for life in self.lives:
       life.continuing = True
     self.lives[-1].body.step_hooks.append(self.step_hook)
@@ -414,6 +509,7 @@ class Keeper:
                for life in self.lives)
 
   def step_hook(self) -> None:
+    self.last_step.hook()
     if self.busy():
       return
     if self.stop_requested:
@@ -433,7 +529,7 @@ class Keeper:
     world must never stop because its disk did."""
     t0 = time.monotonic()
     try:
-      write(capture(self.lives, self.fingerprint), self.path)
+      write(capture(self.lives, self.fingerprint, last_step=self.last_step), self.path)
     except Exception as e:                  # noqa: BLE001 -- see docstring
       self.last_error = f"{type(e).__name__}: {e}"
       print(f"world state: could not save ({self.last_error})")

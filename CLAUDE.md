@@ -533,7 +533,10 @@ save a filmstrip PNG named after the script.
   TIME CONTINUES (`data.time` comes back with the bodies; nothing is rebased;
   the board loads with `rebase=False`; `max_sim_time` is a RUN's budget). ⚠
   BODIES BY NAME, never by `qpos` layout, with the solver's WARM START
-  (without it a step parts by 1e-12). A new piece of state that decides
+  (without it a step parts by 1e-12), and the LAST STEP STEPPED AGAIN from
+  where it began (#420; `LastStep`, `replay`): a running world's forward
+  pass is a step behind its `qpos`, and one forwarded fresh parted at the
+  walking policy's first decision. A new piece of state that decides
   anything goes in a `kept_state` / `restore_kept` pair beside its class, and
   `scripts/determinism_spike.py --resume-at T` must stay IDENTICAL after the
   restore. ⚠ A signal only ASKS (`Keeper.request_stop`); no save mid stand-up
@@ -821,11 +824,10 @@ save a filmstrip PNG named after the script.
   (issue #405; `legs/arm.py`'s `ArmDriver`, `QuadMission.arm`): at its stow
   unless a program moved it, folded on a fall and before the rest reflex
   lies the body down. ⚠ ITS GRAVITY IS THE ARM'S OWN PLANAR MODEL, never the
-  forward pass: a restart forwards the world at the saved instant, where a
-  running world's step reads the kinematics one step old, so a controller
-  reading them EVERY step parts a resumed world at its first step (a policy
-  reads them only at a decision); and three Jacobians 122 columns wide were
-  43 of its 100 us a step (12.5 now). Its joints are the body axes
+  forward pass: three Jacobians 122 columns wide were 43 of its 100 us a
+  step (12.5 now), and a restore that cannot step its last step again
+  (`continuation.replay`, #420) forwards the world fresh, a step ahead of
+  what a running world reads. Its joints are the body axes
   `shoulder`/`elbow` (`axes.BODY_AXES`; `world_facts` gives each body its
   own) and `move` is a legs verb; the motors' `ctrl` is a TORQUE, so what an
   axis is held to is `Body.setpoint`. Instruments hold it through

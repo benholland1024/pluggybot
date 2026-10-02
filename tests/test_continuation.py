@@ -13,6 +13,7 @@ sensors stepping on -- on the served quadruped. The flown parity check is
 """
 
 import json
+from types import SimpleNamespace
 
 import mujoco
 import numpy as np
@@ -85,17 +86,18 @@ def _history(life) -> list[str]:
   return [ln for ln in life.thoughts.texts[HISTORY].splitlines() if ln.strip()]
 
 
-def _saved(life, tmp_path) -> continuation.Snapshot:
+def _saved(life, tmp_path, last_step=None) -> continuation.Snapshot:
   path = tmp_path / "world.npz"
-  continuation.write(continuation.capture([life], life.world_fingerprint), path)
+  continuation.write(continuation.capture([life], life.world_fingerprint,
+                                          last_step=last_step), path)
   return continuation.read(path)
 
 
-#: A save between two of the walking policy's decisions. ⚠ One saved AT a
-#: decision parts at the first step after the restore (by ~1e-6): the policy
-#: reads the forward pass (`xmat`, the gyro), a step old in a running world
-#: and fresh after `put_physics`'s `mj_forward`.
-OFF_A_DECISION_S = 0.61
+#: A save AT one of the walking policy's decisions: 300 steps from a stand
+#: (`walker.every` 10). The policy reads the forward pass (`xmat`, the gyro)
+#: on the first step after the restore, which is why the last step is
+#: stepped again (#420).
+AT_A_DECISION_S = 0.6
 
 
 def _hold(life, seconds: float) -> None:
@@ -129,6 +131,43 @@ def test_the_physics_comes_back_exactly_and_the_warm_start_is_why():
 
   assert np.array_equal(again(drop_warm=False), want)
   assert not np.array_equal(again(drop_warm=True), want)
+
+
+def test_a_restore_steps_again_the_step_it_was_saved_after():
+  """A running world's forward pass -- its contacts, positions, sensors --
+  is the one its last step began with, a step behind its `qpos`, and
+  everything between two steps reads it: the walking policy deciding, a
+  fork's contacts. Forwarded fresh at the saved instant, a restore parted
+  wherever the policy decided first (#420). The save carries where that
+  step began and the restore steps it again: what a reader sees comes back
+  bit for bit. The premise half: forwarded at the instant, none of it
+  does; and a step whose input changed after it is not replayed."""
+  _, _, model, data = _world()
+  rng = np.random.default_rng(0)
+  last = continuation.LastStep(SimpleNamespace(model=model, data=data))
+  for _ in range(400):
+    data.ctrl[:] = rng.uniform(-0.5, 0.5, model.nu)
+    mujoco.mj_step(model, data)
+    last.hook()
+  index, arrays = continuation.physics(model, data, last)
+
+  def seen(d) -> list:
+    return [d.xpos, d.xmat, d.sensordata, d.qacc, d.actuator_force,
+            d.contact.geom[:d.ncon], d.contact.pos[:d.ncon]]
+
+  back = mujoco.MjData(model)
+  continuation.put_physics(model, back, index, arrays)
+  assert not all(np.array_equal(a, b) for a, b in zip(seen(back), seen(data)))
+  assert continuation.replay(model, back, index, arrays)
+  assert all(np.array_equal(a, b) for a, b in zip(seen(back), seen(data)))
+  assert np.array_equal(back.qpos, data.qpos) and back.time == data.time
+  # ...and a step whose input moved after it lands elsewhere: the saved
+  # state is put back, forwarded at the instant
+  moved = dict(arrays, ctrl=arrays["ctrl"] + 0.1)
+  other = mujoco.MjData(model)
+  continuation.put_physics(model, other, index, moved)
+  assert not continuation.replay(model, other, index, moved)
+  assert np.array_equal(other.qpos, data.qpos) and other.time == data.time
 
 
 def test_a_body_is_put_back_by_name_not_by_where_it_sits_in_the_state():
@@ -188,12 +227,17 @@ def test_a_restored_robot_senses_on_exactly_as_if_nothing_had_stopped(tmp_path):
   restore steps the same bodies AND paints the same maps. MEASURED, a
   scan's noise generator re-seeded at a restart painted a different map
   and the route off it parted 3 s later; the IMU, the odometry and the
-  depth camera have one each."""
+  depth camera have one each. Saved where the walking policy decides next,
+  which parted at once until the last step was stepped again (#420)."""
   life = _quad(tmp_path, near_field=True)
   start = world_config(QUAD_HOME)["start"]
   life.body.start_at(*start)
-  life.body.mission._drive(OFF_A_DECISION_S, 0.1, 0.4)
-  snap = _saved(life, tmp_path)
+  last = continuation.LastStep(life)
+  life.body.step_hooks.append(last.hook)
+  life.body.mission._drive(AT_A_DECISION_S, 0.1, 0.4)
+  walker = life.body.mission.walker
+  assert walker.steps % walker.every == 0          # it decides next
+  snap = _saved(life, tmp_path, last)
   life.body.mission._drive(0.6, 0.12, -0.3)
 
   back = _quad(tmp_path, near_field=True)
@@ -500,23 +544,26 @@ def test_a_world_saved_mid_charge_says_the_charge_was_cut_short(tmp_path):
 def test_the_pair_steps_on_exactly_after_a_restart(tmp_path):
   """The parity rule on the deployed shape: two robots from one loop, the
   depth cameras on, the pair's encounters sensing -- the same walk after a
-  restore steps the same world and paints the same two maps."""
+  restore steps the same world and paints the same two maps, saved as the
+  keeper saves it (its last step kept) where both policies decide next."""
   from pluggybot.pair import build_pair
   cfg = world_config(QUAD_HOME)
   starts = (cfg["start"], cfg["start2"])
 
   def fly(lives):
     tick.run_many([(life.body.stepper,
-                    life.body.mission._drive_routine(OFF_A_DECISION_S, 0.15, w))
+                    life.body.mission._drive_routine(AT_A_DECISION_S, 0.15, w))
                    for life, w in zip(lives, (-0.3, 0.4))])
 
   lives = build_pair(QUAD_HOME, near_field=True)
   for life, start in zip(lives, starts):
     life.body.start_at(*start)
-  fly(lives)
   path = tmp_path / "world.npz"
-  continuation.write(continuation.capture(lives, lives[0].world_fingerprint), path)
+  keeper = continuation.Keeper(lives, path, every_s=1e9)    # saved when told
+  fly(lives)
+  assert keeper.save()
   snap = continuation.read(path)
+  assert "before" in snap.meta["physics"]
   fly(lives)
 
   back = build_pair(QUAD_HOME, near_field=True, resume=snap)

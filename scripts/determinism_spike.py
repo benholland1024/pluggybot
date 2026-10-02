@@ -123,12 +123,18 @@ def child(cfg: dict, trace_path: Path) -> None:
       from pluggybot import continuation
       from pluggybot.tick import MissionAborted
 
+      # ...with where its last step began, as the keeper's saves carry it
+      # (issue #420): hooked last
+      last = continuation.LastStep(life)
+      life.body.step_hooks.append(last.hook)
+
       def save_here():
         # ...never mid-move, as the served keeper waits it out
         # (`continuation.Keeper.busy`, issue #387)
         if (d.time >= float(cfg["saveAt"])
             and life.body.posture not in continuation.MOVING_POSTURES):
-          continuation.write(continuation.capture([life], life.world_fingerprint),
+          continuation.write(continuation.capture([life], life.world_fingerprint,
+                                                  last_step=last),
                              cfg["worldState"])
           log(k="saved", t=round(float(d.time), 4))
           raise MissionAborted("saved")
