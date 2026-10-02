@@ -25,7 +25,13 @@ house moved: each whiteboard has two tags on the wall either side of it
 (38-41), and the pen module is rebuilt -- its carriage, the bill's slide,
 under its plate -- so the scenes are new. The robots' procedure rule gains
 `draw(board, figure)`, and the places they remember include the boards'
-tags. PROMPT_LINE The rewards (`rewards.json`'s `draw`, `artwork` and
+tags. The deployed prefix went 44 757 → 45 062 chars (`prompt_sha`
+`2dd061e7…` → `77c9c402…`), and the diff is that verb's line and its name
+among the verbs that move the robot. ⚠ The house's geometry changed, so
+the first restart on this build keeps the clock, the packs, the deaths
+and the jobs but not the bodies or the maps (Webserver.md, "A restart
+is a continuation"): both robots re-learn their house and its places.
+The rewards (`rewards.json`'s `draw`, `artwork` and
 `answer` rows) did not move; the six (job, board) pairs are priced
 (`energy.json`).
 

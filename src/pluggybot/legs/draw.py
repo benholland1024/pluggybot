@@ -25,6 +25,7 @@ from __future__ import annotations
 
 import contextlib
 import math
+from collections import deque
 
 import numpy as np
 
@@ -50,8 +51,8 @@ WALK_IN_S = 20.0
 LOOK_EVERY_S = 0.25
 #: Stopped, how far off the stance it may believe it is and still lie down,
 #: m and rad; else it backs out to the look point and walks in again, at
-#: most `WALK_IN_TRIES` times. Across is what a figure has no room for: the
-#: carriage's 100 mm hold a two-digit answer's 95 with 2.4 mm a side.
+#: most `WALK_IN_TRIES` times. Across is what a figure has little room for:
+#: the carriage's 100 mm hold a two-digit answer's 81 with 9.5 mm a side.
 LINEUP_ACROSS, LINEUP_YAW = 0.02, math.radians(4.0)
 WALK_IN_TRIES = 3
 #: Stopped, it stands this long before it lies down, s: the policy's coast.
@@ -65,14 +66,16 @@ SEARCH_DEG = (12.0, -24.0, 36.0, -48.0)
 #: The fork's way off the board when the drawing is done: back this far
 #: (torso frame, m) before it rises to the carry pose.
 CLEAR_BACK_M = 0.06
+#: A board's height is the median of its tags' last this many readings.
+HEIGHT_LOOKS = 40
 
 
 class BoardWork:
   """The whiteboards' routines (the module docstring), on `QuadMission`."""
 
   def _init_draw(self) -> None:
-    #: The boards' heights above the floor, off the tags' looks (m).
-    self._board_z: dict[str, list[float]] = {}
+    #: The boards' heights above the floor, off the tags' last looks (m).
+    self._board_z: dict[str, deque] = {}
     #: The last drawing's record, and its plotter (the trace, the stats).
     self.last_draw: dict | None = None
     self.last_plotter = None
@@ -115,7 +118,7 @@ class BoardWork:
       for t in tags:
         tx, ty, tz = dets[t]["t"]
         p = level @ (r_mount @ np.array([tx, -ty, -tz]) + p_mount)
-        self._board_z.setdefault(name, []).append(float(p[2]) + h)
+        self._board_z.setdefault(name, deque(maxlen=HEIGHT_LOOKS)).append(float(p[2]) + h)
     return tags
 
   def board_height(self, name: str) -> float | None:
@@ -145,7 +148,7 @@ class BoardWork:
     its feet, the walking policy holding it: the measurement's premise
     (`scripts/draw_spike.py --stance stand`). Returns its record: `drew`,
     `why` ("drew", "no pen", "not found", "gave up", "lost", "never
-    touched", "out of time", "interrupted", "not drawn"), each walk in's
+    touched", "out of time", "interrupted", "fell", "not drawn"), each walk in's
     stop against the stance (`lineups`), the plotter's stats and its
     calibration (`cal`)."""
     from pluggybot.navigator import DRIVE_STOPPED
@@ -211,7 +214,8 @@ class BoardWork:
         why = "out of time"
       else:
         used = yield from plotter.draw_program_routine(program)
-        why = ("drew" if used.get("drew")
+        why = ("fell" if used.get("stopped") == "fell"
+               else "drew" if used.get("drew")
                else "interrupted" if used.get("stopped") == "interrupted" else "not drawn")
       yield from self._off_the_board_routine(plotter)
       yield from self.stand_routine()
@@ -268,7 +272,9 @@ class BoardWork:
   def _off_the_board_routine(self, plotter) -> Routine:
     """The pen off the board and the tool back to its carry pose: the
     carriage to its middle, the fork straight back, then up over the
-    nose."""
+    nose. Nothing, after a fall: it folded the arm and let go of the pen."""
+    if plotter.fell():
+      return
     x, z = plotter._goal_vertex()
     yield from plotter.move_routine(x - CLEAR_BACK_M, z, carriage=0.0)
     yield from plotter.move_routine(*am.CARRY)

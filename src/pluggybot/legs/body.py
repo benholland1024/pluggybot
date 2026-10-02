@@ -1353,6 +1353,7 @@ class QuadMission(ToolSwap, PlaceWalk, BoardWork, MakeWay, GameWalk, Navigator):
     self._plan_memo = None
     self.places.forget()
     self._keep_out = None
+    self._board_z.clear()
 
   def rebind(self, model, data) -> None:
     """⚠ NOT DONE: a quadruped's world is never recompiled -- the seam hangs

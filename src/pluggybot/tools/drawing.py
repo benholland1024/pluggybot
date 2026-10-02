@@ -287,6 +287,10 @@ class PenPlotter:
     self.trace: list[tuple[float, float, float, float, float, bool, int]] = []
     self.commanded: tuple = ()
     self._home: np.ndarray | None = None
+    #: The posture it draws in (lying, or the premise's standing): a body
+    #: that leaves it fell, and its fall folded the arm -- the plotter aims
+    #: it no more (`_aim`).
+    self.posture = mission.posture
 
   # ---- what the robot senses ---------------------------------------------------
 
@@ -329,8 +333,16 @@ class PenPlotter:
       if record is not None:
         self._trace(record)
 
+  def fell(self) -> bool:
+    """Did the body leave the posture it draws in (a fall, its get-up)?"""
+    return self.mission.posture != self.posture
+
   def _aim(self, x: float, z: float) -> bool:
+    """The fork's vertex aimed at (x, z): False out of reach, or once the
+    body has fallen (`fell`)."""
     from pluggybot.legs import arm as am
+    if self.fell():
+      return False
     g = self.arm.goal
     q = am.solve_vertex(self.spec, x, z, near=(float(g[0]), float(g[1] - g[0])))
     if q is None:
@@ -449,6 +461,9 @@ class PenPlotter:
     ts = self.model.opt.timestep
     drawn, stopped = 0, ""
     for i, path in enumerate(strokes):
+      if self.fell():
+        stopped = "fell"
+        break
       if i and self.should_stop is not None and self.should_stop():
         stopped = "interrupted"
         break
@@ -458,15 +473,16 @@ class PenPlotter:
       # where the lift off and the press on cross no board. The first
       # stroke's approach is no travel at all.
       z_now = self._goal_vertex()[1]
-      if not (yield from self.move_routine(self._x_at(self.carriage(), z_now, -LIFT),
-                                           z_now)):
-        continue
-      if not (yield from self.move_routine(self._x_at(c0, z0, -LIFT), z0, carriage=c0,
-                                           record=None if i == 0 else -1)):
-        continue
-      if not (yield from self.move_routine(self._x_at(c0, z0, PRESS_EXTRA), z0,
-                                           speed=PRESS_V)):
-        continue
+      if not ((yield from self.move_routine(self._x_at(self.carriage(), z_now, -LIFT),
+                                            z_now))
+              and (yield from self.move_routine(self._x_at(c0, z0, -LIFT), z0, carriage=c0,
+                                                record=None if i == 0 else -1))
+              and (yield from self.move_routine(self._x_at(c0, z0, PRESS_EXTRA), z0,
+                                                speed=PRESS_V))):
+        if self.fell():
+          stopped = "fell"
+          break
+        continue                       # out of reach: a gap, not the figure's end
       yield from self._still_routine(PRESS_SETTLE_S)
       if self._home is None:
         # THE INSTRUMENT'S ALIGNMENT, never the plotter's: the figure the
@@ -481,11 +497,17 @@ class PenPlotter:
           ly, lz = ay + (by - ay) * f, az + (bz - az) * f
           c, z = self._targets(ly, lz)
           self.data.ctrl[self.pen_act] = c
-          self._aim(self._x_at(c, z, PRESS_EXTRA), z)
+          if not self._aim(self._x_at(c, z, PRESS_EXTRA), z):
+            break
           yield from self.mission._twist_routine(0.0, 0.0, 0.0)
           self._trace(i, (ly + self._home[0], lz + self._home[1]))
+        if self.fell():
+          break
       if self.on_stroke is not None:
         self.on_stroke(i, self.inked_polyline(i), getattr(program, "name", None))
+      if self.fell():
+        stopped = "fell"
+        break
     z_now = self._goal_vertex()[1]
     yield from self.move_routine(self._x_at(self.carriage(), z_now, -LIFT), z_now)
     return {"drew": drawn > 0, "strokes": len(strokes), "strokes_drawn": drawn,

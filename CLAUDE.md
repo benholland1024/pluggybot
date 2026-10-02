@@ -1144,8 +1144,12 @@ save a filmstrip PNG named after the script.
   command the same. ⚠ Only the move ACROSS is a travel row (the lift off
   and the press on read 51 % travel ink, past the evaluator's 25). ⚠ A
   job FINDS its board before it FETCHES the pen (carrying, a body turns at
-  `W_CARRY`), with the find's whole 600 s. An answer's figure is
-  `answer:<digits>`, in its own errand's facts and never a procedure's.
+  `W_CARRY`), with the find's whole 600 s; and a walk's FIRST TURN to face
+  its route is no stagnation (`navigator.AIMED_RAD`: from the board to the
+  rack, carrying, the half-turn took 9 of its 10 s). A fall ends a drawing
+  and the plotter aims the arm no more (`PenPlotter.fell`). An answer's
+  figure is `answer:<digits>`, in its own errand's facts and never a
+  procedure's.
 - **The sensors that feed an estimate are the parts', never the sim's**
   (issue #386; `perception/imu.py`, `perception/encoders.py`, Parts.md's
   table): an ICM-42688-P, the GDS68's CAN fields on the legs, the tilt off

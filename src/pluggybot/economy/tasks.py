@@ -220,13 +220,17 @@ class _Blank(dict):
 
 
 KINDS: dict[str, TaskKind] = {
+  # The boards' jobs on legs (issue #406), MEASURED (`energy_spike.py
+  # --actions draw:whiteboard_b,...`): from the dock, the board remembered,
+  # at each kind's dearest figure -- the far board, the bedroom's, 3.19-3.40
+  # Wh; the living room's 2.45-2.61.
   "draw_figure": TaskKind(
     "draw_figure", task="draw", target_kind="board",
-    template="Draw a {program} on {target}.", estimate_wh=1.15),
+    template="Draw a {program} on {target}.", estimate_wh=3.4),
   "rate_artwork": TaskKind(
     "rate_artwork", task="artwork", target_kind="board",
     template="Draw a {program} on {target} for people to rate.",
-    estimate_wh=1.15),
+    estimate_wh=3.2),
   "count_plants": TaskKind(
     "count_plants", task="census", target_kind="zone",
     template="Survey {target} and put the number of plants on your face.",
@@ -249,7 +253,7 @@ KINDS: dict[str, TaskKind] = {
     # stale figure being the half a person reads. The wire carries both, side
     # by side, and only one of them is derived.
     template="Draw the answer to this question on {target}: {question}",
-    estimate_wh=1.15, needs_answer=True),
+    estimate_wh=3.32, needs_answer=True),
   "hide_and_seek": TaskKind(
     "hide_and_seek", task="hide_and_seek", target_kind="world",
     template="Hide and seek at {target}: the first of you to take it hides, "

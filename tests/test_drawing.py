@@ -143,6 +143,7 @@ class _Bench:
   it touches it."""
 
   def __init__(self, dist: float = 0.55, yaw_deg: float = 2.0, board_z: float = 0.10):
+    self.posture = "lying"
     self.arm_spec = am.ArmSpec()
     self.arm = _PerfectArm(self.arm_spec)
     self.handle = _Handle()
@@ -239,6 +240,33 @@ def test_the_plotter_steers_by_nothing_the_sim_alone_knows(monkeypatch):
   monkeypatch.setattr(dw.PenPlotter, "pen_board", lambda self: (0.5, -0.5))
   monkeypatch.setattr(dw, "pen_on_board", lambda *a: True)
   assert fly() == truth
+
+
+def test_a_fall_ends_the_drawing_and_the_arm_is_aimed_no_more():
+  """A body that leaves the posture it draws in fell, and its fall folded
+  the arm: the plotter stops the figure there (`stopped: fell`) and never
+  aims the arm again -- aimed on, it held the fork out through the get-up
+  as the swap's did before #405's review."""
+  bench = _Bench()
+  p = dw.PenPlotter(bench, bench.board)
+  assert bench.run(p.calibrate_routine(_estimate(bench)))["ok"]
+  prog = strokes.program("square", size=0.03)
+
+  aimed = None
+  routine = p.draw_program_routine(prog)
+  try:
+    k = 0
+    while True:
+      cmd = next(routine)
+      if k == 600:
+        bench.posture = "getting_up"
+        aimed = bench.arm.goal.copy()
+      bench.step(cmd)
+      k += 1
+  except StopIteration as done:
+    used = done.value
+  assert used["stopped"] == "fell"
+  assert np.array_equal(bench.arm.goal, aimed), "aimed after the fall"
 
 
 def test_the_steering_names_no_truth():
@@ -375,3 +403,35 @@ def test_an_answer_is_paid_only_when_it_is_right_and_on_the_board():
       assert "42" not in verdict["reason"] or ok
   finally:
     life.body.close()
+
+
+def test_a_walks_first_turn_to_face_its_route_is_no_stagnation(monkeypatch):
+  """After a drawing the rack is behind the robot, and carrying the pen it
+  turns at most `W_CARRY`: the half-turn took 9 of the 10 s a walk may go
+  without progress, and the stow gave up "stalled" as it finished turning.
+  A walk's first turn to face its route is no stagnation -- a turn of 12.6 s
+  here; and without the rule (aimed from the start) the same walk stalls."""
+  from pluggybot import navigator as nav
+  from test_make_way import GOAL, STEPPER, _Drive  # noqa: I001 -- tests/ is on sys.path
+
+  class Turning(_Drive):
+    def _nav_routine(self, v, w):
+      self.data.time += 0.1
+      x, y, th = self.pose
+      err = nav.wrap_angle(math.atan2(GOAL[1] - y, GOAL[0] - x) - th)
+      if abs(err) > math.radians(5.0):
+        self.pose = (x, y, th + math.copysign(min(0.025, abs(err)), err))   # 0.25 rad/s
+      else:
+        self.pose = (GOAL[0], GOAL[1], th)
+      yield v, w
+
+  def walk():
+    drive = Turning([], plans=[GOAL])
+    drive.pose = (0.0, 0.0, math.pi)                # facing away from its route
+    return tick.run(STEPPER, drive.drive_to_routine(*GOAL, 60.0)), drive.last_drive
+
+  arrived, rec = walk()
+  assert arrived, rec
+  monkeypatch.setattr(nav, "AIMED_RAD", math.pi + 1.0)
+  arrived, rec = walk()
+  assert not arrived and rec["why"] == "stalled", "the premise: it gave up turning"
