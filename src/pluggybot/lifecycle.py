@@ -7318,9 +7318,10 @@ def errand_for_task(task, world: str, book=None, answer: str = "",
                                 world_facts(world))
       errand = programmed_errand(program, task=spec.task)
     elif task.kind in ("draw_figure", "rate_artwork", "whiteboard_answer"):
-      # A WHITEBOARD (issue #406): the pen fetched, the board found by its
-      # tags round its address, the figure -- or the answer the claim froze,
-      # whose digits are all the errand is told -- drawn, the pen hung back
+      # A WHITEBOARD (issue #406): the board found by its tags round its
+      # address, the pen fetched, the figure -- or the answer the claim
+      # froze, whose digits are all the errand is told -- drawn, the pen
+      # hung back
       if task.kind == "whiteboard_answer":
         said = questions.clean_answer(answer or task.answer)
         if not said:
