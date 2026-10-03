@@ -257,6 +257,28 @@ def test_a_way_no_plan_walks_is_cleared_by_asking_and_waiting_or_not_walked(who)
     assert drive.asked[0][1] == way
 
 
+def test_a_robot_waiting_for_its_way_in_is_never_asked_aside(house):
+  """The press's wait is a walk of its own on the quadruped (`driving`):
+  8.6 s into it the rest reflex lies the body down, and a body lying free
+  says yes to an ask -- it would walk off its standoff before its walk
+  in, and walk in from wherever it stood aside."""
+  m = QuadMission(house, mujoco.MjData(house), realtime=False, grid_bounds=BOUNDS)
+  try:
+    m.grid.grid[:] = -5.0
+    m._set_pose(0.0, 0.0, 0.0)
+    m.others = [lambda: KeepClear(1.0, 0.0, root="r2_pluggybot", resting=True)]
+    m.ask_way = lambda root, way: True
+    wait = m.clear_way_routine([(0.0, 0.0), (2.0, 0.0)])
+    next(wait)
+    m.posture = qb.LYING
+    assert m.make_way([(4.0, 3.0), (6.0, 3.0)], "r2_pluggybot") is False, m._aside
+    assert m.way_refused == "walking"
+    wait.close()
+    assert m.driving == 0
+  finally:
+    m.close()
+
+
 def test_a_press_asks_off_its_walk_in_and_does_not_walk_into_who_stays(house):
   """The press's two halves (`PlaceWalk.press_routine`): the walk to its
   standoff carries the walk in beyond it, and before the walk in -- steered

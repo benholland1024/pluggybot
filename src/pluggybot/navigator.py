@@ -304,9 +304,9 @@ class Navigator:
     #: may not have marked yet. What a robot may know of another over the
     #: network is its reported pose -- odometry is a work order's kind of
     #: fact, not a sensor's (TaskPattern.md §2) -- and that is what is read.
-    #: A callable may answer a `KeepClear` instead: a robot lying down,
-    #: avoided round its body (issue #365, `HubLifecycle.keep_clear`).
-    #: `_bodies` reads both.
+    #: A callable may answer a `KeepClear` instead: a robot lying still --
+    #: fallen, resting or dead -- avoided round its body (issues #365, #455,
+    #: `HubLifecycle.keep_clear`). `_bodies` reads both.
     self.others: list = []
     #: ...and how one RESTING across this robot's way is asked to make way
     #: (issue #415, `Body.ask_way`): `(root, route) -> bool`, or None.
@@ -387,9 +387,10 @@ class Navigator:
     geometry: its geoms' bounding circles, boxed. MEASURED 0.08 m from the
     chassis origin upright, and 0.20-0.21 m along the mast lying down.
     ⚠ Read to ACT, unlike `true_pose`, and only for a robot lying on the
-    floor (issue #365): what another robot keeps clear of, because a real
-    one would see a robot-shaped lump there, and the one thing about a
-    fallen robot its own odometry cannot say."""
+    floor (issue #365) -- fallen, resting or dead, or stepping aside for the
+    one that reads it (#455): what another robot keeps clear of, because a
+    real one would see a robot-shaped lump there, and the one thing about a
+    fallen robot its own odometry cannot say, nor two maps that disagree."""
     xy = self.data.geom_xpos[self.body_gids, :2]
     r = self.model.geom_rbound[self.body_gids][:, None]
     lo, hi = (xy - r).min(axis=0), (xy + r).max(axis=0)
@@ -1113,11 +1114,11 @@ class Navigator:
     is not contention, contact or the planner: nothing the swap does can
     reach a goal the map has been told to keep it out of.
 
-    The distance is to the REPORTED pose (a network fact, drifting
-    0.24-0.55 m on the deployed pair), which is also what the mask uses --
-    so this answers the question the planner actually asked. A robot lying
-    down is measured to its body with its own wider disc (0.55 m; issue
-    #365), for the same reason.
+    The distance is to where the mask puts the robot -- so this answers the
+    question the planner actually asked: its REPORTED pose standing (a
+    network fact, drifting 0.24-0.55 m on the deployed pair), its body as
+    this robot sees it lying still (issues #365, #455), and a fallen one
+    with its own wider disc (0.55 m).
     """
     res = self.grid.resolution
     near = None

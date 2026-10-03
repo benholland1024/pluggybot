@@ -347,7 +347,8 @@ class Body(abc.ABC):
   @abc.abstractmethod
   def footprint_centre(self) -> tuple[float, float]:
     """The middle of the floor its body covers, off the true geometry --
-    read to act only for a robot lying down (issue #365)."""
+    read to act only for a robot lying still, fallen, resting or dead, or
+    stepping aside for the one that reads it (issues #365, #455)."""
 
   @abc.abstractmethod
   def as_seen(self, x: float, y: float) -> tuple[float, float]:

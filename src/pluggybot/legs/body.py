@@ -561,6 +561,17 @@ class QuadMission(ToolSwap, PlaceWalk, BoardWork, CubeWork, AreaSurvey, MakeWay,
     finally:
       self.driving -= 1
 
+  def clear_way_routine(self, way) -> Routine:
+    """`Navigator.clear_way_routine`, counted as a walk of its own too
+    (`driving`, #455): a press waiting for its way in lies down by the
+    rest reflex 8.6 s into the wait, and asked aside then, it would walk
+    off its standoff before its walk in."""
+    self.driving += 1
+    try:
+      return (yield from Navigator.clear_way_routine(self, way))
+    finally:
+      self.driving -= 1
+
   def _front_blocked(self, angles, ranges) -> bool:
     ahead = np.cos(angles) * ranges
     side = np.sin(angles) * ranges
