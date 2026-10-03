@@ -82,17 +82,18 @@ def test_the_house_carries_no_robot_and_the_world_puts_the_quadruped_in(quad_wor
 
 
 def test_home_with_legs_is_its_own_world_and_offers_no_tool_errand():
-  """No errand that needs a tool until the tools are rebuilt for its fork
-  (#406, #407), no workshop; a program may fetch and stow its own rack's
-  three tools (#405) and nothing else -- anything else refused with the
-  reason, as any unknown name is -- and move only its own arm's joints.
-  The lab's acts take no tool, so the lab is here (#403); the tower is not."""
+  """No menu errand that needs a tool (the jobs that take one are offered:
+  #406's boards, #407's census and challenges), no workshop; a program may
+  fetch and stow its own rack's three tools (#405) and nothing else --
+  anything else refused with the reason, as any unknown name is -- and move
+  only its own arm's joints. The lab is here (#403), and the tower's and
+  the bench's areas with the claw (#407)."""
   from pluggybot.legs import rack as legs_rack
   assert world_for("home", "quadruped") == QUAD_HOME == "home_quad"
   cfg = world_config(QUAD_HOME)
   assert cfg["body"] == "quadruped" and not cfg["tools"] and cfg["built_bays"] == 0
   assert cfg["swap"] and cfg["tool_bays"] == legs_rack.TOOL_BAYS
-  assert "lab" in cfg and "tower" not in cfg
+  assert "lab" in cfg and "tower" in cfg and "bench" in cfg
   menu = ov.Menu.for_world(QUAD_HOME)
   assert not {"carry", "dance", "draw", "artwork", "census"} & set(menu.available())
   assert {"explore", "charge", "idle"} <= set(menu.available())

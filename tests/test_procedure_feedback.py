@@ -384,11 +384,36 @@ def test_a_stow_restores_the_carry_configuration_before_the_return():
                                                  "hung": t != "module_claw"},
                          retract_arm_routine=rec("retract_arm"),
                          stow_tool_routine=rec("return"),
-                         swap_trace=lambda: "no swap recorded")
+                         swap_trace=lambda: "no swap recorded", held_cube=lambda: None)
   life = SimpleNamespace(rack_inventory=dict(st.TOOL_BAYS), swaps_done=0,
                          model=None, world=WORLD, body=body)
   tick.run(SimpleNamespace(step=lambda *a: None), st._stow(life, {}))
   assert calls == ["retract_arm", "return"]
+
+
+def test_a_cube_in_the_claw_is_set_down_before_the_claw_goes_back():
+  """A claw hung back holding a cube is a cube hung on the rack (#407): a
+  stow puts it down first, where the robot stands. Shown to fail by dropping
+  the check from `carry_configuration_routine`: the claw went back full."""
+  calls, held = [], [23]
+
+  def rec(name):
+    def make(*a, **kw):
+      calls.append(name)
+      if name == "put":
+        held.clear()
+        return tick.result({"held": 23})
+      return tick.result("arrived")
+    return make
+  body = SimpleNamespace(module_state=lambda t: {"on_fork": t == "module_claw",
+                                                 "hung": t != "module_claw"},
+                         put_cube_routine=rec("put"), retract_arm_routine=rec("retract_arm"),
+                         stow_tool_routine=rec("return"), swap_trace=lambda: "",
+                         held_cube=lambda: held[0] if held else None)
+  life = SimpleNamespace(rack_inventory=dict(st.TOOL_BAYS), swaps_done=0,
+                         model=None, world=WORLD, body=body)
+  tick.run(SimpleNamespace(step=lambda *a: None), st._stow(life, {}))
+  assert calls == ["put", "retract_arm", "return"]
 
 
 def test_a_refused_build_says_what_is_in_the_way(monkeypatch):

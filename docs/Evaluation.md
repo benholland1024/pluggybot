@@ -1524,15 +1524,16 @@ through), with the rules it stands on pinned fast. A feature whose ladder-A
 solution cannot be written is a defect in the feature, filed and fixed before
 any prompt or pay moves: the tower's, on the rover, was the language's reach
 to the claw, and the fix was two verbs, not a hint. The rover's solutions are
-at `rover-final`; on legs each challenge is solved again before it is offered
-(#407; #375, step 4). **Ladder B — a model-equipped robot finds one:** a
+at `rover-final`; on legs each challenge was solved again before it was
+offered (#407: `challenge/solutions.py`, flown by `scripts/solve.py
+--feature tower|bench`). **Ladder B — a model-equipped robot finds one:** a
 LOCAL flight on the `autonomous` arm with the deployed prompt and model, the
 feature's phrase put in the inbox at mission start as a visitor's message,
 and the run read into one word (used / errored / refused / garbled /
 declined / silence). Never a blocking test and never a result — what a model
 feels like writing that day cannot fail for a regression reason — so the
-reading is a comment on the issue it informs (the harness's `--probe` flew
-it; nothing does now). A ladder-B failure on a feature ladder A
+reading is a comment on the issue it informs (`scripts/ladder_b.py`, #407;
+the rover's harness flew it as `--probe`). A ladder-B failure on a feature ladder A
 passes is the lever question — the pay (data, a period), the rule text, or
 the model — and the comment says which, or says it does not know.
 

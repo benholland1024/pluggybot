@@ -249,12 +249,14 @@ body except by resolving to an errand off a fixed menu.
 
 ## 3. The perception ladder for object tasks
 
-Nothing can autonomously find a floor object today, and this is measured,
-not pessimism: the LIDAR plane sits **0.51 m** up, the nose's depth camera
-sees the floor only from ~0.5 m ahead (`legs/scan.py`), and no tool on the
-arm grasps yet (#407). Object tasks therefore come in tiers, and **a task
-kind must state which tier it is written for** (in the kind's comment and
-the errand's docstring, the way a tool states its tolerance class):
+A floor object is found only where a sensor can see it, and this is
+measured, not pessimism: the LIDAR plane sits **0.51 m** up, the nose's
+depth camera sees the floor only from ~0.5 m ahead (`legs/scan.py`), and a
+21 mm tag on the floor decodes only in the D435 colour imager's 0.5-0.9 m
+standing (SimNotes, "The claw on legs", #407). Object tasks therefore come
+in tiers, and **a task kind must state which tier it is written for** (in
+the kind's comment and the errand's docstring, the way a tool states its
+tolerance class):
 
 1. **Tagged object.** The object carries an AprilTag and is found by the same
    `TagDetector` that finds the rack and the bays. Honest and realistic —
@@ -262,7 +264,8 @@ the errand's docstring, the way a tool states its tolerance class):
    *failable* verb: a tag out of view is a search, not a lookup. **This is
    the tier to build first**, and building it against this doc is what
    validates the doc (see the header). On legs the places' signs are its
-   first rung (#419); an object to pick up waits on #407.
+   first rung (#419), and the cubes the claw picks up its second (#407):
+   tagged on every face, set out in front of their area's tags.
 2. **Untagged object on a raised surface.** Within the sensor envelope
    (table height clears both the LIDAR plane and the camera's near blind
    zone); needs a small learned detector — with the plug era's lesson

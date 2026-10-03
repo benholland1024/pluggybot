@@ -141,6 +141,22 @@ def _attach_board_tags(spec: mujoco.MjSpec) -> None:
   spec.attach(child, prefix="", frame=spec.worldbody.add_frame())
 
 
+def _attach_area_tags(spec: mujoco.MjSpec) -> None:
+  """The claw's and the census's areas' tags (issue #407; `home.areas`),
+  and their textures."""
+  from pluggybot.home import areas
+  for i in areas.area_ids():
+    spec.add_texture(name=f"tagtex{i}", type=mujoco.mjtTexture.mjTEXTURE_CUBE,
+                     file=f"tags/tag{i}.png")
+    mat = spec.add_material(name=f"tagmat{i}", specular=0.05, shininess=0.05,
+                            reflectance=0.0)
+    mat.textures[mujoco.mjtTextureRole.mjTEXROLE_RGB] = f"tagtex{i}"
+  child = mujoco.MjSpec.from_string(
+    f'<mujoco><compiler angle="radian"/><worldbody>{areas.area_tags_xml()}'
+    '</worldbody></mujoco>')
+  spec.attach(child, prefix="", frame=spec.worldbody.add_frame())
+
+
 def _attach_quad(spec: mujoco.MjSpec, pos, prefix: str, rgba) -> None:
   robot = attachable(CHOSEN)
   if rgba is not None and tuple(rgba) != CHASSIS_RGBA:
@@ -171,7 +187,8 @@ def home_spec(first_at=(1.5, 0.5), second_at=None, second_prefix: str = "r2_",
               second_rgba=SECOND_CHASSIS_RGBA, path: str = HOME_XML) -> mujoco.MjSpec:
   """The home world's SPEC with the quadruped at `first_at` and, optionally,
   a second at `second_at` in its own livery, the dock, the rack, the lab's
-  plate signs and the whiteboards' tags. Kept by the lifecycle (`robot.world_spec`)."""
+  plate signs, the whiteboards' tags and the claw's and the census's areas'
+  (#407). Kept by the lifecycle (`robot.world_spec`)."""
   spec = mujoco.MjSpec.from_file(path)
   _attach_quad(spec, first_at, "", None)
   if second_at is not None:
@@ -180,6 +197,7 @@ def home_spec(first_at=(1.5, 0.5), second_at=None, second_prefix: str = "r2_",
   _attach_rack(spec, rack_pose())
   _attach_signs(spec)
   _attach_board_tags(spec)
+  _attach_area_tags(spec)
   spec.visual.map.znear = NEAR_M / spec.stat.extent
   return spec
 

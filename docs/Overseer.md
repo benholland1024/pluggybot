@@ -96,8 +96,10 @@ passing test, or to a branch the lifecycle already had (`overseer.ACTIONS`):
 † A tool errand, which no menu on legs offers: `Menu.available()` drops all
 five where the world's config says `tools` is off, which `home_quad` does
 (issue #387). Drawing came back on the arm (#406) as the boards' three
-jobs, taken with `take_task`, and as the procedure verb `draw` -- never as
-these errands; the other tools are #407's. The quadruped's menu is
+jobs, taken with `take_task`, and as the procedure verb `draw`; the census
+and the claw (#407) as the jobs `count_plants`, `stack_tower` and
+`find_mass`, and as the verbs `survey`, `pick`, `place`, `put`, `grip` and
+`release` -- never as these errands. The quadruped's menu is
 `take_task`, `explore`, `charge`, `idle`, `recall`, `procedure`, `care` and
 `look`.
 
@@ -301,10 +303,12 @@ robot's part is the `record` verb (§7): `unknown mass = <value> kg` under
 `findings/mass_bench`, then `done`. What it wrote as the method rides the
 `finding` act as written and is scored by nobody.
 
-⚠ **Neither challenge is offered on legs yet** (Challenges.md §7): the
-rover solved both with verbs the quadruped does not have (`pick` / `place`
-on the claw, `read("lift.force")` on the lift; issue #264, at
-`rover-final`), and #407 brings them back, each solved by hand first.
+**On legs (#407)** both challenges are offered, each solved by hand first
+(Challenges.md §7): the claw's verbs find a cube by its tag in front of its
+area's tags and take it lying, and the bench's scale is the arm's motors
+(`read("elbow.torque")`). The procedure rule lists the claw's verbs and
+`claw.holding` only where the world has the claw and cubes (`Menu.cubes`),
+and `survey` where it has an area to survey (`Menu.surveys`).
 
 **There is no route: a walk goes into the unknown** (issue #381). No
 world writes one (the rover's surveyed routes went with it, #376), so

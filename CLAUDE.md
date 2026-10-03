@@ -226,17 +226,17 @@ save a filmstrip PNG named after the script.
 | `scripts/serve.py --endpoint ws://host:port` | the mission headless, paced to real time, streaming the protocol over an outbound WebSocket; the sim never blocks on the socket. `--free-run` measures the real-time multiple; `--pair` serves both robots; the world is `home` with legs, `home_quad` (#387; `--body`/`$PLUGGY_BODY` names the one body, the quadruped); `--world-state PATH` keeps the world and carries on from it (#345); `$PLUGGYWORLD_TOKEN` is the ingest secret (never a flag — `ps` is public). docs/Webserver.md |
 | `scripts/ws_sink.py` | dummy sink for serve.py: counts, frame-gap stats, keyframe spacing; `--token` makes it refuse an unauthenticated publisher |
 | `scripts/overseer_probe.py` | REAL LLM calls against a synthetic state: tokens, cost per sim-hour, cache hit rate, the latency distribution (`--calls N`). `--model org/name[:provider\|:cheapest]` measures a HuggingFace candidate (`$HF_TOKEN`, in the gitignored `.env`); `--deployed` measures the prompt the served pair sends and reports the ENERGY GATE (`report_energy` counts who took the unaffordable offer); `--prompt` prints it section by section with its sha; `--max-tokens N`, `--escalate-to X --force-escalate`, `--tokens-only` (the Anthropic path's limits: Overseer.md §6) |
-| `scripts/energy_spike.py` | what each errand COSTS, per world, on an oversized pack; `--write` folds it into `economy/energy.json`, `--reserve` measures the return-trip margin, `--actions` prices named acts; `--world home_quad` prices the quadruped's explore, dock, the lab's acts and the boards' jobs (`draw|artwork|answer:<board>`, from the dock, the board remembered). Re-run after anything that changes what an errand does |
+| `scripts/energy_spike.py` | what each errand COSTS, per world, on an oversized pack; `--write` folds it into `economy/energy.json`, `--reserve` measures the return-trip margin, `--actions` prices named acts; `--world home_quad` prices the quadruped's explore, dock, the lab's acts, the boards' jobs (`draw|artwork|answer:<board>`, from the dock, the board remembered) and #407's (`census`, `stack`, `mass`: from the dock, the area remembered; a challenge is its hand-written solution). Re-run after anything that changes what an errand does |
 | `scripts/unknown_spike.py` | #381's walking stage: a fresh quadruped (an empty map, its start pose) sent once to each zone, one process a walk: arrived or why not, the time, the walk against the true route, what planning cost; `--before` the planner before (mapped floor only, stand-ins), `--again` back and there again on the map it laid, `--unknown-cost X`, `--maps DIR` |
 | `scripts/drift_spike.py` | #386: believed against true pose over lab round trips, the quadruped's (the walking policy steered by the truth, two estimates on one walk, odometry alone and matched), and whether the lab door is open in the robot's own map; `--explore SECONDS --seed K [--rest S]` the loop's own explore, steered by the belief, then home to the dock (#422), `--explore-table` across seeds |
 | `scripts/determinism_spike.py` | is the world the same world twice? N scripted days hashed, first divergence attributed to GPU / decoder / raycast; `--pair`; `--compare DIR`; `--resume-at T` flies a day against one saved and carried on in a new process (#345), `--on-fork MODULE` with a tool on the fork whose returns fail (#420) |
 | `scripts/make_way_spike.py` | #415: the pair in the house on true-floor maps, one robot resting in a doorway and the other walking through it, one process a scene: the walk's end, the step aside (how far, how long, why it stopped), touches and falls; `--before` nobody asks, `--finished` the resting robot's day is over, `--scene A,B` |
-| `scripts/solve.py --feature mouse` | ladder A of #264, the paid feed on legs (#403): offered, claimed with a prediction, walked and graded by the job's own evaluator; `--pair`, `--n N`, `--from dock\|lab`; filmstrip `solve.png`. `--feature hide_and_seek` flies the pair's game (#404): offered as the cadence offers it, both roles claimed, each run from the queue the referee fills, the verdict banked; one game a scene (`--scene A,B`, `--swap` both ways round; `--find`, `--seek-s`, `--head-s` sweep the referee). `--feature answer\|draw\|artwork` flies a whiteboard's job (#406): offered on a board (`--board`, or the two in turn), claimed -- an answer with the right one -- drawn lying and graded off the board's ink. The tower's and the bench's come back with the arm (#407) |
+| `scripts/solve.py --feature mouse` | ladder A of #264, the paid feed on legs (#403): offered, claimed with a prediction, walked and graded by the job's own evaluator; `--pair`, `--n N`, `--from dock\|lab`; filmstrip `solve.png`. `--feature hide_and_seek` flies the pair's game (#404): offered as the cadence offers it, both roles claimed, each run from the queue the referee fills, the verdict banked; one game a scene (`--scene A,B`, `--swap` both ways round; `--find`, `--seek-s`, `--head-s` sweep the referee). `--feature answer\|draw\|artwork` flies a whiteboard's job (#406): offered on a board (`--board`, or the two in turn), claimed -- an answer with the right one -- drawn lying and graded off the board's ink. `--feature tower\|bench` flies a challenge (#407): offered with its area's terms, claimed, the hand-written solution run as the robot's procedure (`challenge/solutions.py`), graded by its own predicate |
 | `scripts/board_png.py` | a whiteboard's ink as a PNG from the boards state file or a recording. ⚠ +lat is the viewer's LEFT, as in the site's `surfaces/board.ts`; the test pins it because every figure the pen draws is symmetric |
 | `scripts/quad_spike.py` | the quadruped body (#377; SimNotes "The quadruped body"): `--view` watches it, `--torque`/`--thermal`/`--energy`/`--sweep`/`--pupper` are the sizing tables (on `model.SIZING`, #377's placeholder arm, #405), `--policy`/`--climb`/`--getup`/`--posture`/`--odometry`/`--determinism` fly a trained policy in OUR physics (`--climb --scan map` on the D435's map, `legs/scan.py`, #388), `--shove` the served body knocked over in the house (what `stuck_after_s` is read off, #389), `--served`/`--rays` time the pair and the sensors |
 | `scripts/dock_spike.py` | the quadruped's dock (#378; SimNotes "The quadruped's dock"): `--capture` the funnel's envelope (premises `--sticky`, `--flat`), `--approach [--n N]` the success rate walking in by the board (premise `--blind`), `--hold` lying there: contact, preload, the anchor, standing off; `--view` dockings in the viewer, one after another; `--mouth`/`--bed` fly another width; filmstrip `dock_spike.png` |
 | `scripts/draw_spike.py` | drawing on a whiteboard with the arm (#406; SimNotes "Drawing on legs"): the served body, the pen on its fork, walks to the board, lies down, finds its face by touch and draws; `--figure square\|house\|answer:NN ...`, `--board`, `--stance stand` (the premise), `--n N`; `--sway [--stance lie,stand]` the stance table; filmstrip `draw_spike.png` |
-| `scripts/arm_spike.py` | the quadruped's arm, its coupling and the rack (#378; SimNotes "The quadruped's arm, its coupling and the rack"): `--reach` the level-tool choice and the holding torques, `--capture` the coupling's envelope placed at a bay (premises `--rover`, `--narrow`), `--approach [--n N]` walking in by the rack's tags and taking a tool, `--retention [--stairs [--first]\|--fall]` carrying one (`--first`: the fork as first built, 45° V's, the stairs' premise), `--getup` the get-up policy with the arm, `--sensors` what the arm hides, `--envelope` a tool's mass and lever, `--served [--pair] [--n N]` the SERVED body fetching and stowing at the house's rack from the dock and from across the house (#405); `--view [fetch\|carry\|stairs\|fall\|reach]` a scene in the viewer, looped until the window closes (MUJOCO_GL unset); filmstrip `arm_spike.png` |
+| `scripts/arm_spike.py` | the quadruped's arm, its coupling and the rack (#378; SimNotes "The quadruped's arm, its coupling and the rack"): `--reach` the level-tool choice and the holding torques, `--capture` the coupling's envelope placed at a bay (premises `--rover`, `--narrow`), `--approach [--n N]` walking in by the rack's tags and taking a tool, `--retention [--stairs [--first]\|--fall]` carrying one (`--first`: the fork as first built, 45° V's, the stairs' premise), `--getup` the get-up policy with the arm, `--sensors` what the arm hides, `--envelope` a tool's mass and lever, `--served [--pair] [--n N]` the SERVED body fetching and stowing at the house's rack from the dock and from across the house (#405), `--pair --bays A,B\|A,C\|A,A` the pair at neighbouring bays, two apart, or one (the bay wait, #418); `--view [fetch\|carry\|stairs\|fall\|reach]` a scene in the viewer, looped until the window closes (MUJOCO_GL unset); filmstrip `arm_spike.png` |
 
 - **The quadruped's training stack lives in `training/`, a uv project of its own** (#377): mjlab 1.5.x (it pins `mujoco ~=3.10.0`, the served sim's), reading the body from `models/quadruped.{xml,json}` (`python -m pluggybot.legs.model` writes both; mjlab caps numpy below pluggybot's, so the two never share an environment), the arm FIXED at its stow (`quad_train.robot.freeze_arm`, #405: a policy's joints are the legs' twelve, and the arm's geometry is there to fall on). ⚠ Importing `legs.policy` or `legs.model` loads none of torch, jax, warp, onnx or mjlab (`tests/test_legs.py`); a policy reaches the served sim as an `.npz` that `quad_train.export` checks against its ONNX before writing, run by `legs/policy.py` in numpy. ⚠ The leg DRIVERS are MuJoCo's position-mode `dcmotor` (#385; `body_xml(drive="position")`), the PD and the envelope in C, commanded as a GDS68 is (`legs/drivers.py`): every command carries its gains — a policy's are its own, a routine's torque rides a target with the damping cancelled (the torque motor's step to 1e-14), `limp()` holds nothing — so a policy and the scripted routines share one body. The default gains are ONE definition, `actuator.driver_gains`, which `training/` reads from `quadruped.json`. `drive="torque"` (plain motors) is the sizing tables' instrument. `training/pod.sh` rents a Runpod GPU (REST API; `runpodctl pod create` needs a GraphQL-writable key) — ⚠ a POST to `/v1/pods` with an EMPTY body CREATES a pod: every field has a default.
 
@@ -845,8 +845,8 @@ save a filmstrip PNG named after the script.
   `PolicyDriver.step` (unheld, it falls across the nose camera); the
   torque-driven tables fly `model.SIZING`, #377's placeholder. It FETCHES
   AND STOWS its own rack's tools (#405 stage B, `legs/swap.py`: a program's
-  `fetch`/`stow`, `world_config`'s `swap`; no errand needs one yet): the
-  walk-in stops `rack.SETTLE_DRIFT` clockwise (the settle always turns it
+  `fetch`/`stow`, `world_config`'s `swap`; the boards' jobs take the pen,
+  the census the LCD, the challenges the claw): the walk-in stops `rack.SETTLE_DRIFT` clockwise (the settle always turns it
   back), a fork move fails only out of reach -- what happened is the
   WORLD's, seated or hung (judged by the arm's arrival, hung tools were
   lifted back off) -- and a carried tool is the body's own to its senses
@@ -873,8 +873,12 @@ save a filmstrip PNG named after the script.
   THE DRIVE: painted into the grid, a peer walls in the robot it passed;
   dropped from the scan, the front stop is blind to the one obstacle that
   moves. ⚠ One rack, one dock: contention is the minds' opportunity (#208)
-  and the geometry must not settle it. The world's activities are on the
-  FIRST robot's hooks only. ⚠ A ROBOT LYING DOWN TO REST ACROSS THE
+  and the geometry must not settle it -- but a robot HOLDS AT ITS
+  APPROACH'S START while the other works within the planner's disc (0.55 m)
+  of this bay's working pose (Ben, #418; `ToolSwap._bay_free_routine`, the
+  lifecycle's #346 wait with `hold`): at neighbouring bays both flinched
+  17 of 20; the tag-steered walk-in avoids no peer. The world's activities
+  are on the FIRST robot's hooks only. ⚠ A ROBOT LYING DOWN TO REST ACROSS THE
   OTHER'S WAY IS ASKED TO MAKE WAY, and steps aside beneath whatever it
   holds (Ben, #415; `Navigator._ask_way`, `Body.ask_way`, `legs/way.py`):
   only resting and free to -- not docked, dead, mid-move, or inside a walk
@@ -935,8 +939,8 @@ save a filmstrip PNG named after the script.
   cage's count through `scoring.CAGE_PRESSES`): its `care` row sits under its
   KIND where a gift's is under the act (`qualities._subject`; `FREE_CARE` ==
   `cage.CARE_ACTS`), so the two are never one number, and `prediction` rows
-  carry `cause`. ⚠ The three lab kinds share ONE open slot (`cadence.json`,
-  target `lab`). ⚠ NO PROHIBITION, no worked example. ⚠ **On legs**
+  carry `cause`. ⚠ The cage's kinds share ONE open slot (`cadence.json`,
+  target `lab`); the bench's is its own since #407. ⚠ NO PROHIBITION, no worked example. ⚠ **On legs**
   (#403 on #419's places; `tests/test_lab_on_legs.py`): `home_quad` offers
   `feed_mouse` ALONE (the shock job and `take_points` come back together,
   one line each in `cadence.json`); `LAB_RULE` names only the jobs the world
@@ -963,9 +967,12 @@ save a filmstrip PNG named after the script.
   `first_solve` reads `challenge_kinds_today()`. ⚠ A PROCEDURE'S LOCALS ARE
   ITS READOUT (`lang.run_procedure_routine` returns them, the `procedure`
   event carries them, one History line of `LOCALS_SHOWN`). ⚠ The cubes' poses
-  are not delivered, and no rule text shows a weighing. Not offered on legs
-  until #407 makes the arm's joint torque its scale (the rover's was its
-  lift's load).
+  are not delivered, and no rule text shows a weighing. On legs (#407) the
+  bench is an AREA OF ITS OWN (target `bench`, its tags 44–45, so it no
+  longer shares the cage's slot) and the scale is the arm's motors as their
+  drivers report torque (`shoulder.torque` / `elbow.torque`,
+  `encoders.torque_reading`: 12 bits over ±22 N·m and the current sense's
+  noise).
 - **The first two-role job is hide and seek** (issues #167, #404;
   `activity/hideseek.py`, `pair.referee_games`, `legs/game.py`): a
   `TaskKind` may carry `roles`; the offer stays OFFERED until every role is
@@ -1198,6 +1205,33 @@ save a filmstrip PNG named after the script.
   its own the planner plans round (`QuadMission._fold_low`) -- within 1.8 m,
   three frames of evidence, never beside what the LIDAR maps, each rule after
   a stray cell shut a door (`tests/test_quadruped.py`).
+- **The census counts what a SURVEY saw, and the area is the walls'**
+  (issues #13, #407; `economy/census.py`, `legs/survey.py`; SimNotes, "The
+  census on legs"; `tests/test_census.py`): `survey` walks round the area
+  its tag marks -- the known floor its walls enclose, a gap narrower than
+  `census.DOOR_M` (1.2 m) closing it -- to vantages until `SURVEY_COVERED`
+  (90 %) of its floor is seen. ⚠ NOT THE PLANNER'S LAYER: it takes a cell
+  back for floor seen round it, and a survey counted 2 of 4 plants at 91 %;
+  a survey's `CensusLayer` only adds, an object at `HITS` frames. ⚠ What a
+  LIDAR return within `LIDAR_TALL_M` (3 m) hits is taller than a plant and
+  is not counted (the garden light's pole); a farther one proves nothing --
+  a walking torso's pitch put returns 7.4-8 m off onto the plants. The
+  truth is the grader's, over `census_zones` (both garden rectangles); the
+  count goes on the LCD only while the LCD is on the fork.
+- **The claw takes a cube it FINDS, lying, by the D435's colour imager**
+  (issue #407; `tools/claw.py`, `legs/claw.py`; SimNotes, "The claw on
+  legs"; `tests/test_claw.py`): a 21 mm tag decodes 0.5-0.9 m ahead
+  standing, 0.38-0.68 lying, and only the colour imager sees the floor
+  that near. ⚠ A cube carries its tag on EVERY face: the face seen most
+  square-on is read, cut at its known height, never PnP's range (the cube
+  in the jaws is PnP's). ⚠ The search stops ALONG its area's row, each stop
+  planned off the tags as remembered when it is walked to (a pair seen from
+  the street was 0.2 m off and 6° askew). ⚠ The grip is judged by the pads'
+  DISTANCE to a body that can move, never the contact list or the jaws'
+  command; the pads are stiff (`CLAW_PAD_SOLREF`/`SOLIMP`) and the jaw servo
+  saturates at its stall force, or a held cube creeps out. `pick` fetches
+  the claw onto an EMPTY fork; a stow sets a held cube down first; the cubes
+  it saw ride a restart with the map.
 - **The robot can die, and a person or a timer stands it up** (issue #107;
   Evaluation.md §6): `HubLifecycle._death_step` on the physics seam — `flat`
   at zero pack, `stuck` (toppled past `TOPPLE_TILT_RAD` for the body's
@@ -1322,15 +1356,18 @@ save a filmstrip PNG named after the script.
   A MIND, NOT MOVED INTO `rewards.json` (the `challenge` target is named by
   `world_targets(..., procedures=True)`, and every `task_producer` caller
   passes whether there is one). The blocks are the house's (tags 20–22,
-  `home.TOWER_XY`), and no world names a `tower` target on legs until #407. ⚠
-  `_claim_task` gates on `claim_budget_wh`, not `spendable_wh`.
+  `home.TOWER_XY`), set out in front of the workshop corner's tags (42–43),
+  stacked by the claw on the arm (#407). ⚠ `_claim_task` gates on
+  `claim_budget_wh`, not `spendable_wh`.
 - **Every OFFERED challenge has a hand-written solution that passes its own
   grader, and the mind never sees it** (issue #264; Evaluation.md §7): a
   feature whose solution cannot be written is a DEFECT, fixed before pay or
-  prompt. The rover's (`challenge/solutions.py`: the tower, the bench) went
-  with it; #407 writes them for the arm before either is offered on legs,
-  and nothing under `mind/` may import them. The offers say where the props
-  were set out (`MAX_DESCRIPTION` 420).
+  prompt. On legs (#407) `challenge/solutions.py` is TOWER and WEIGH,
+  flown by `solutions.job_routine` (`scripts/solve.py --feature
+  tower|bench`), and nothing under `mind/` may import them. ⚠ The offers
+  say where by the AREA's terms -- its building's address and its
+  directions -- never the props' positions (#419's rule; the rover's said
+  where they were set out).
 - **A task is scored by CODE, and nothing awards itself points** (issue #14;
   TaskPattern.md §4): `scoring.py` measures and judges, `rewards.json` says
   what it pays, `ledger.py` banks it; a `Verdict` can only be built by

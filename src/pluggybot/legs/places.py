@@ -160,18 +160,23 @@ class PlaceWalk:
   """The places' routines (the module docstring), on `QuadMission`."""
 
   def _init_places(self, model) -> None:
+    from pluggybot.home import areas
     from pluggybot.rack.tags import BOARD_TAG_IDS
     from pluggybot.tools.drawing import board_fixture
     signs = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_BODY, "lab_feed_sign") >= 0
     boards = [name for name, (tag, _) in BOARD_TAG_IDS.items()
               if mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_BODY, f"{name}_tag{tag}") >= 0]
-    #: What it has found (`mapping.places`): the lab's plate signs and the
-    #: whiteboards' tags (#406), where the world has them.
+    found = {t for area, tags in areas.area_tags().items() for t, *_ in tags
+             if mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_BODY, f"{area}_tag{t}") >= 0}
+    #: What it has found (`mapping.places`): the lab's plate signs, the
+    #: whiteboards' tags (#406) and the claw's and the census's areas' (#407),
+    #: where the world has them.
     self.places = Places(
       ids=[*(cage.PLATE_TAGS.values() if signs else ()),
-           *(t for name in boards for t in BOARD_TAG_IDS[name])],
+           *(t for name in boards for t in BOARD_TAG_IDS[name]), *sorted(found)],
       fixtures=((cage.sign_row(),) if signs else ())
-      + tuple(board_fixture(name) for name in boards))
+      + tuple(board_fixture(name) for name in boards)
+      + tuple(f for f in areas.area_fixtures() if set(f.layout) <= found))
     #: Each plate's pad, by its sign's tag: what a press is felt on.
     self._pads = ({cage.PLATE_TAGS[n]: model.geom(f"lab_{n}_plate_pad").id
                    for n in cage.PLATE_NAMES} if signs else {})

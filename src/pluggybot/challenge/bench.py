@@ -65,10 +65,12 @@ UNKNOWN_MASS_KG = 0.150
 
 MASSES = ("mass_known", "mass_unknown")
 KNOWN, UNKNOWN = MASSES
-#: Where the two cubes START, from the bench's centre: on the floor a metre
-#: in front of it (the bench faces -x, into the lab) and half a metre apart,
-#: on no route the robot needs. The job is graded wherever they end up.
-MASS_OFFSETS = ((-1.0, -0.5), (-1.0, 0.5))
+#: Where the two cubes START, from the bench's centre: on the floor 0.7 m
+#: in front of its face (the bench faces -x, into the lab) and half a metre
+#: apart, between the bench's tags (#407, `home.areas`) -- in the claw's
+#: search's view from in front of them -- on no route the robot needs. The
+#: job is graded wherever they end up.
+MASS_OFFSETS = ((-1.0, -0.25), (-1.0, 0.25))
 
 #: Criterion 3: how far off, relative to the true mass, still passes. One
 #: in ten: wide enough that a single careful reading on the lift's own

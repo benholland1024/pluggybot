@@ -366,7 +366,8 @@ def test_the_world_only_offers_work_it_could_ever_pay_the_energy_for():
   assert maker.deferred > 0, "the deferral was not even noticed"
   # ...and the same world with a pack that could fund them offers both.
   ok = producer(cadence(kinds={"draw_figure": {}, "count_plants": {}}))
-  assert {t.kind for t in run(ok, until=2000.0, pack_wh=9.9)} == \
+  both = max(KINDS["draw_figure"].estimate_wh, KINDS["count_plants"].estimate_wh) + 0.5
+  assert {t.kind for t in run(ok, until=2000.0, pack_wh=both)} == \
     {"draw_figure", "count_plants"}
 
 
@@ -573,8 +574,9 @@ def test_hourly_restarts_no_longer_starve_the_last_kind(tmp_path):
   """Hourly missions in miniature: missions of 3600 s, the board persisted
   between them, a fresh producer each time, one robot working the jobs it
   can. Without the persisted cursor the last kinds are offered a fraction
-  as often as the first; with it, the lab's three kinds share the lab's one
-  slot evenly."""
+  as often as the first; with it, the cage's two kinds share the lab's one
+  slot evenly, and the bench -- an area of its own since #407, its offer
+  the bench's directions -- is never starved behind them."""
   from pluggybot.lifecycle import board_book, world_targets
   targets = world_targets(lc.QUAD_HOME, board_book(lc.QUAD_HOME), procedures=True,
                           robots=("Luca", "Rowan"))
@@ -586,11 +588,13 @@ def test_hourly_restarts_no_longer_starve_the_last_kind(tmp_path):
                    "take_points": {"params": {"amount": 10}},
                    "shock_mouse": {}, "feed_mouse": {}, "find_mass": {}})
   path = tmp_path / "tasks.json"
+  # ...a charged pack that funds every kind in it (the census, #407, the dearest)
+  PACK = max(KINDS[k].estimate_wh for k in beat.kinds) + 0.5
   offers: dict = {}
   for _ in range(12):
     b = TaskBoard(path=path).load()
     maker = TaskProducer(b, beat, targets)
-    for made in maker.seed(0.0, pack_wh=8.0):
+    for made in maker.seed(0.0, pack_wh=PACK):
       offers[made.kind] = offers.get(made.kind, 0) + 1
     # ...and the robot carries on with the job it held (issue #345), as
     # `HubLifecycle._resume_jobs` does: a kept claim nobody works books its
@@ -600,22 +604,39 @@ def test_hourly_restarts_no_longer_starve_the_last_kind(tmp_path):
     while t < 3600.0:
       t += 1.0
       b.expire_due(t)
-      for made in maker.tick(t, pack_wh=8.0):
+      for made in maker.tick(t, pack_wh=PACK):
         offers[made.kind] = offers.get(made.kind, 0) + 1
       if working is not None and t >= busy_until:
         b.resolve(working.id, scoring.evaluate(working.task, {}, table=b.table), t=t)
         working = None
       if working is None:
-        ready = [x for x in b.claimable(t, pack_wh=8.0)
+        ready = [x for x in b.claimable(t, pack_wh=PACK)
                  if not x.needs_answer and not x.predicts and KINDS[x.kind].discharge == "errand"]
-        if ready and b.claim(ready[0].id, t=t, pack_wh=8.0) is not None:
+        if ready and b.claim(ready[0].id, t=t, pack_wh=PACK) is not None:
           b.start(ready[0].id, t=t)
           working, busy_until = b[ready[0].id], t + 240.0
     b.save()
-  lab = [offers.get(k, 0) for k in ("shock_mouse", "feed_mouse", "find_mass")]
-  assert min(lab) >= 3, (lab, offers)
+  lab = [offers.get(k, 0) for k in ("shock_mouse", "feed_mouse")]
+  assert min(lab) >= 3 and offers.get("find_mass", 0) >= 3, (lab, offers)
   # within 3, not 1: the cursor goes BACK to a kind it passed over, so a
-  # lab kind offered in that gap comes round again (measured 17/14/14, and
-  # 23/12/12 with a fresh cursor every mission; a claim kept across a
-  # restart books its target, issue #345)
+  # lab kind offered in that gap comes round again (measured 17/14/14 with
+  # the bench in the slot, and 23/12/12 with a fresh cursor every mission; a
+  # claim kept across a restart books its target, issue #345)
   assert max(lab) - min(lab) <= 3, (lab, offers)
+
+
+def test_a_kind_the_world_can_never_fund_does_not_hold_the_head():
+  """A kind passed over keeps the head of the queue -- for a TARGET it waits
+  on. One the charged pack can never fund waits on nothing that changes:
+  held, the census priced past the pack (#407) pinned the cursor, and of the
+  two kinds sharing the lab's one slot behind it only the first was ever
+  offered. Shown to fail by letting the energy gate set `passed` again:
+  the feed is offered 0 times."""
+  beat = cadence(firstAtS=10.0, everyS=10.0, ttlS=30.0, cooldownS=0.0, maxOffered=1,
+                 initial=1, kinds={"count_plants": {}, "shock_mouse": {}, "feed_mouse": {}})
+  maker = producer(beat, {"zone": ["garden"], "cage": ["lab"]})
+  assert KINDS["count_plants"].estimate_wh > 8.0
+  made = [task.kind for task in run(maker, 600.0, pack_wh=8.0)]
+  assert "count_plants" not in made
+  assert made.count("feed_mouse") >= 5 and made.count("shock_mouse") >= 5, made
+  assert abs(made.count("feed_mouse") - made.count("shock_mouse")) <= 1, made

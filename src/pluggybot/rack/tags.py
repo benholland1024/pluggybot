@@ -77,6 +77,15 @@ PLATE_TAG_SIZE = 0.120
 #: 120 mm, read from across a room.
 BOARD_TAG_IDS = {"whiteboard_a": (38, 39), "whiteboard_b": (40, 41)}
 BOARD_TAG_SIZE = 0.120
+#: The areas the claw's cubes are set out in (issue #407): a pair of tags
+#: either side of each, the boards' size, on the workshop corner's wall
+#: behind the tower's blocks and on the bench's front behind its masses --
+#: what a robot finds the area by and fits its facing to; and one on the
+#: house's wall in the garden, what the census finds the garden by.
+TOWER_TAG_IDS = (42, 43)
+BENCH_TAG_IDS = (44, 45)
+GARDEN_TAG_IDS = (46,)
+AREA_TAG_SIZE = BOARD_TAG_SIZE
 
 # Physical marker sizes (m), edge of the BLACK tag -- what the detector is
 # told, and what PnP scales its translation by. The plate carrying it is
@@ -92,7 +101,8 @@ TAG_SIZES = {**{i: SMALL_TAG_SIZE for i in MODULE_TAG_IDS.values()},
              **{i: DOCK_TAG_SIZE for i in DOCK_TAG_IDS},
              **{i: LEGS_RACK_TAG_SIZE for i in LEGS_RACK_TAG_IDS},
              **{i: PLATE_TAG_SIZE for i in PLATE_TAG_IDS},
-             **{i: BOARD_TAG_SIZE for ids in BOARD_TAG_IDS.values() for i in ids}}
+             **{i: BOARD_TAG_SIZE for ids in BOARD_TAG_IDS.values() for i in ids},
+             **{i: AREA_TAG_SIZE for i in (*TOWER_TAG_IDS, *BENCH_TAG_IDS, *GARDEN_TAG_IDS)}}
 
 TAG_DIR = Path("models/tags")
 
@@ -249,6 +259,15 @@ class TagDetector:
     (`legs.dock.fit_dock`, `legs.rack.fit_rack`); read one tag's yaw only
     when it is the only one there is.
     """
+    return {d["id"]: {k: v for k, v in d.items() if k != "id"}
+            for d in self.detect_all(data)}
+
+  def detect_all(self, data) -> list[dict]:
+    """Every decode in one render, as `detect`'s entries with their `id`.
+    ⚠ A CUBE SHOWS ITS TAG ON EVERY FACE (`challenge.stack.block_xml`), and
+    keyed by id the last face decoded wins -- lying in front of one, that
+    was its top seen edge-on, 16 mm over the face the robot faced (#407).
+    Which face a decode is, is its `normal`."""
     self.renderer.update_scene(data, camera=self.camera_name)
     rgb = self.renderer.render()
     gray = np.ascontiguousarray(
@@ -257,17 +276,18 @@ class TagDetector:
     found = self.detector.detect(
       gray, estimate_tag_pose=True, camera_params=self.camera_params,
       tag_size=self.tag_size)
-    out = {}
+    out = []
     for det in found:
       tag_id = int(det.tag_id)
       scale = TAG_SIZES.get(tag_id, self.tag_size) / self.tag_size
       normal = np.asarray(det.pose_R) @ (0.0, 0.0, 1.0)
-      out[tag_id] = {
+      out.append({
+        "id": tag_id,
         "t": tuple(float(v) * scale for v in np.asarray(det.pose_t).ravel()),
         "center": (float(det.center[0]), float(det.center[1])),
         "yaw": float(np.arctan2(normal[0], normal[2])),
         "normal": tuple(float(v) for v in normal),
-      }
+      })
     return out
 
   def close(self) -> None:

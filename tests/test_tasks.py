@@ -523,9 +523,15 @@ def test_a_task_this_world_cannot_build_is_left_alone_not_failed():
   overseer decision is, and the loop's answer to "I cannot do that" is to
   leave the offer standing, so it lapses honestly."""
   b = board()
-  task = offered(b, kind="count_plants", target="garden")
+  task = offered(b, kind="fetch_module", target="module_lcd")
   assert lc.errand_for_task(task, lc.QUAD_HOME, None) is None
   assert b[task.id].state == "offered"
+  # ...and a census of a zone this world does not survey (#407: its
+  # garden it does)
+  assert lc.errand_for_task(offered(b, kind="count_plants", target="garden"),
+                            lc.QUAD_HOME, None) is not None
+  stray = offered(b, kind="count_plants", target="lab")
+  assert lc.errand_for_task(stray, lc.QUAD_HOME, None) is None
 
 
 # ---- the loop: charge priority, and the end-to-end flight ---------------------

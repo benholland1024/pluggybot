@@ -1884,7 +1884,7 @@ class HubLifecycle:
             else (WAIT_OCCUPANCIES * SWAP_OCCUPANCY_S, "swap"))
 
   def _await_bay_routine(self, sx: float, sy: float, kind: str,
-                         since: float) -> Routine:
+                         since: float, hold: bool = False) -> Routine:
     """Wait for another robot to leave a standoff this one needs (issue
     #346). True once it is free; False once the robot gave up, with why in
     `self.last_bay_wait` (who held it, for how long, and what ended the wait).
@@ -1905,7 +1905,9 @@ class HubLifecycle:
     inside its errand) -- and nor does a CHARGE's: charging is what either
     would ask for, and giving up on it is how the robot dies.
 
-    `kind` is the swap's verb (`pick`, `return`) or `charge`.
+    `kind` is the swap's verb (`pick`, `return`) or `charge`. `hold` waits
+    where the robot stands -- the quadruped's swap, at its approach's start
+    a metre behind the bay, out of the holder's way already (#418).
     """
     near = self.body.peer_on_the_goal(sx, sy)
     if near is None:
@@ -1920,7 +1922,7 @@ class HubLifecycle:
     first = self.last_bay_wait is None or self.last_bay_wait.get("since") != since
     # EVERY time, not only the first: a drive that found the bay taken again
     # stops at the edge of the holder's disc, which is its way out.
-    spot = self._waiting_spot(sx, sy)
+    spot = None if hold else self._waiting_spot(sx, sy)
     if first:
       self._say(f"WAIT: {who} is {posture(self.peers, who)} {near:.2f} m from "
                 f"{what} -- waiting up to {bound:.0f} s"
@@ -3395,6 +3397,9 @@ class HubLifecycle:
     for st in run["steps"]:
       if st["verb"] == "draw" and "used" in st:
         result.update(st["used"])
+      # ...and a survey's count, so the census evaluator reads it (#407)
+      if st["verb"] == "survey" and "count" in st:
+        result["census"] = {"counted": st["count"], "coverage": st["coverage"]}
     return result
 
   def _afford_next(self) -> bool:
@@ -7176,9 +7181,12 @@ def world_targets(world: str, book=None, procedures: bool = False,
   # about would be a job with half its terms missing.
   if procedures and cfg.get("lab"):
     targets["cage"] = [cfg["lab"]["name"]]
-    # ...and its bench (issue #227), the second challenge: a job only a
-    # written procedure can do, on the tower's gate exactly.
-    targets["bench"] = [cfg["lab"]["name"]]
+  # ...and the lab's bench (issue #227), the second challenge: a job only a
+  # written procedure can do, on the tower's gate exactly -- an area of its
+  # own since its cubes are found by their tags (#407), its directions not
+  # the plates'
+  if procedures and cfg.get("bench"):
+    targets["bench"] = [cfg["bench"]["name"]]
   return targets
 
 
@@ -7199,7 +7207,7 @@ def task_producer(board, world: str, book=None, cadence=None,
   """
   from pluggybot.economy.cadence import TaskProducer, default_cadence
   cfg = world_config(world)
-  facts = {k: cfg[k] for k in ("tower", "lab") if cfg.get(k)}
+  facts = {}
   if cfg.get("places"):
     # WHERE A JOB IS (issue #419): each task area's address and directions,
     # what an offer naming it carries -- never a finer position
@@ -7229,8 +7237,9 @@ def errands_for(kind: str, world: str, book=None) -> list:
   """The named errand queues a demo or the website can ask for: `none`, an
   act on the mouse (`care`, `care:<act>`, and the two jobs `shock` and
   `feed`, as the loop would build them from an offer -- what
-  `energy_spike.py --actions` prices), or a board's job, `<task>:<board>`
-  (`draw`, `artwork`, `answer`; issue #406), at its dearest figure. A
+  `energy_spike.py --actions` prices), the census of its garden (#407), or
+  a board's job, `<task>:<board>` (`draw`, `artwork`, `answer`; issue
+  #406), at its dearest figure. A
   lookup by NAME, so adding a queue never means adding an argument to
   serve.py."""
   if kind == "none":
@@ -7244,8 +7253,10 @@ def errands_for(kind: str, world: str, book=None) -> list:
     return [cage_errand(world, kind.split(":", 1)[1])]
   if kind in ("shock", "feed"):
     return [cage_errand(world, kind, task=kind)]
+  if kind == "census" and world_config(world).get("census_zone"):
+    return [census_errand(world, world_config(world)["census_zone"]["name"])]
   raise ValueError(f"unknown errand queue {kind!r} (none, care, care:<act>, "
-                   "shock, feed, or <draw|artwork|answer>:<board>)")
+                   "shock, feed, census, or <draw|artwork|answer>:<board>)")
 
 
 # ---- the overseer's seams (issue #15) ---------------------------------------
@@ -7332,6 +7343,13 @@ def errand_for_task(task, world: str, book=None, answer: str = "",
       else:
         figure = task.params.get("program") or "house"
       errand = draw_errand(world, task.target, figure, task=spec.task)
+    elif task.kind == "count_plants":
+      # THE CENSUS (issue #13; on legs #407): the area found by its tag
+      # round its address, the LCD fetched, surveyed and counted, the LCD
+      # hung back
+      if task.target != (world_config(world).get("census_zone") or {}).get("name"):
+        return None
+      errand = census_errand(world, task.target)
     elif task.kind in ("shock_mouse", "feed_mouse"):
       # The mouse's jobs (issues #226, #287): the job's plate found and
       # pressed -- the shock's or the feed's, which is the kind's `task`
@@ -7461,6 +7479,44 @@ def draw_errand(world: str, board: str, figure: str = "house", task: str = "draw
                              name=f"{task}:{board}")
   errand.detail.update({"strokes": len(prog.strokes), "ink_m": round(prog.ink_length, 3),
                         "routeLegs": 2})
+  errand.needs_use_pose = False
+  return errand
+
+
+#: The census's patience and budget, s: the garden's tag found round the
+#: house's address with the language's whole patience (#406's lesson), the
+#: walk to the rack and back, and the survey (`steps.SURVEY_PATIENCE_S`).
+CENSUS_BUDGET_S = 1800.0
+
+
+def census_program(world: str, area: str):
+  """The census as a program over #58's verbs (issue #13; on legs, #407):
+  the area found by its tag round its house's ADDRESS -- never its corners
+  -- the LCD fetched, the area surveyed and its plants counted onto the
+  LCD's face, and the LCD hung back. ⚠ THE AREA BEFORE THE TOOL, as a
+  board's (#406): a body carrying one turns at `W_CARRY`."""
+  from pluggybot.home.areas import area_tags
+  from pluggybot.home.places import area as area_terms
+  from pluggybot.procedure.steps import MAX_PATIENCE_S, Program, Step
+  spot = area_terms(area)
+  if spot is None or area not in area_tags():
+    raise ValueError(f"{area} is no surveyed area of the {world} world")
+  tag = area_tags()[area][0][0]
+  at = spot["address"]
+  return Program.single("count_plants", [
+    Step("find", {"tag": tag, "x": at["x"], "y": at["y"], "patience": MAX_PATIENCE_S}),
+    Step("fetch", {"tool": "module_lcd"}),
+    Step("survey", {"tag": tag}),
+    Step("stow")], budget_s=CENSUS_BUDGET_S)
+
+
+def census_errand(world: str, area: str):
+  """The errand for one census (issue #13; on legs #407): `census_program`'s,
+  graded by `census`'s evaluator off the survey's count against the world's
+  own plants (`scoring.sample_census`)."""
+  errand = programmed_errand(census_program(world, area), task="census",
+                             name=f"census:{area}")
+  errand.detail.update({"zone": area, "routeLegs": 2})
   errand.needs_use_pose = False
   return errand
 
@@ -7649,9 +7705,10 @@ def world_facts(world: str, rack: dict[str, int] | None = None, game: bool = Fal
   question's errand (`answer`, `figure_program`'s `answer:<digits>`, issue
   #406) the figure its claim froze, which no procedure may either."""
   from pluggybot.procedure import axes
-  from pluggybot.procedure.steps import (BODY_VERBS, DRAW_FIGURES, DRAW_VERBS,
-                                         GAME_VERB_NAMES, PLACE_VERBS, PLATE_VERBS,
-                                         SWAP_VERBS, WorldFacts)
+  from pluggybot.procedure.steps import (BODY_VERBS, CLAW_VERBS, DRAW_FIGURES,
+                                         DRAW_VERBS, GAME_VERB_NAMES, PLACE_VERBS,
+                                         PLATE_VERBS, SURVEY_VERBS, SWAP_VERBS,
+                                         WorldFacts)
   cfg = world_config(world)
   boards: tuple = ()
   if cfg["meta"]:
@@ -7661,15 +7718,19 @@ def world_facts(world: str, rack: dict[str, int] | None = None, game: bool = Fal
   places = tuple(int(t) for t in cfg.get("places") or ())
   plates = tuple(int(t) for t in cfg.get("plates") or ()) if cfg.get("lab") else ()
   draws = bool(cfg.get("draws") and boards and swaps and places)
+  cubes = (tuple(int(t) for t in cfg.get("cubes") or ())
+           if swaps and places and "module_claw" in bays else ())
+  surveys = bool(places and cfg.get("census_zone"))
   verbs = (BODY_VERBS + (SWAP_VERBS if swaps else ())
            + (PLACE_VERBS if places else ()) + (PLATE_VERBS if plates else ())
-           + (DRAW_VERBS if draws else ()) + (GAME_VERB_NAMES if game else ()))
+           + (DRAW_VERBS if draws else ()) + (CLAW_VERBS if cubes else ())
+           + (SURVEY_VERBS if surveys else ()) + (GAME_VERB_NAMES if game else ()))
   return WorldFacts(boards=boards, tools=tuple(bays) if swaps else (),
                     bounds=tuple(float(v) for v in cfg["grid_bounds"]),
                     figures=DRAW_FIGURES + ((f"{ANSWER_FIGURE}{answer}",) if answer else ()),
                     axes=axes.BODY_AXES[cfg["body"]],
-                    sensors=axes.LEGS_SENSORS,
-                    verbs=verbs, places=places, plates=plates)
+                    sensors=axes.LEGS_SENSORS + (axes.CLAW_SENSORS if cubes else ()),
+                    verbs=verbs, places=places, plates=plates, cubes=cubes)
 
 
 def zone_centre(world: str, name: str) -> tuple[float, float]:
@@ -7950,7 +8011,8 @@ def world_config(world: str) -> dict:
   from pluggybot.legs import rack as legs_rack
   from pluggybot.legs import world as legs_world
   from pluggybot.legs.dock import DEFAULT as DOCK, _wrap
-  from pluggybot.rack.tags import BOARD_TAG_IDS, PLATE_TAG_IDS
+  from pluggybot.home.areas import area_ids
+  from pluggybot.rack.tags import BLOCK_TAG_IDS, BOARD_TAG_IDS, MASS_TAG_IDS, PLATE_TAG_IDS
   dx, dy, dyaw = legs_world.dock_pose()
   return {
     # THE HOUSE WITH LEGS IN IT, built at load from the generator's file
@@ -7977,27 +8039,40 @@ def world_config(world: str) -> dict:
     "low_battery_wh": legs_world.RESERVE_WH,
     "explore_budget": 240.0,
     "activities": home_activities,
-    # The census's zone (issue #13), by NAME off the generator's own ZONES,
-    # so the rectangle a count is scored against is the one the website
-    # draws. Nothing counts plants on legs yet (#407).
+    # The census's area (issue #13; on legs #407), by NAME, the garden's
+    # place in `places.json`: what the robot surveys is the floor its walls
+    # and fence enclose, found; what it is SCORED against is the plants in
+    # the garden's two rectangles off the generator's own ZONES (the
+    # garden wraps the house, an L, #68), read by the grader alone.
     "census_zone": next(z for z in home.ZONES if z["name"] == "garden"),
-    # The experiment zone (issue #215): the room, and where its props
-    # stand, for #226's cage activity and #227's bench.
-    "lab": {"name": "lab", "cage": tuple(home.LAB_CAGE_XY),
-            "bench": tuple(home.LAB_BENCH_XY)},
+    "census_zones": [z for z in home.ZONES if z["name"] in ("garden", "garden_south")],
+    # The experiment zone (issue #215): the room, and where its cage
+    # stands, for #226's cage activity.
+    "lab": {"name": "lab", "cage": tuple(home.LAB_CAGE_XY)},
+    # ...and the two challenges' areas (#207, #227; on legs since #407),
+    # by the names their offers target -- each a place in `places.json`,
+    # found by its tags: the tower's blocks in the workshop's corner, the
+    # bench's masses in front of it.
+    "tower": {"name": "workshop"},
+    "bench": {"name": "bench"},
     # No tool errand (the arm has no use-phase yet, #406, #407); its arm
     # takes the tools on its own rack (#405): a program's `fetch` and
     # `stow`. No built-tool rail, so no workshop.
     "tools": False, "swap": True, "tool_bays": dict(legs_rack.TOOL_BAYS),
     "built_bays": 0,
     # ...and the task areas' tags its robots find and remember (issue
-    # #419): the lab's plate signs and the whiteboards' pairs (#406) --
-    # where a job's `find` may search, never a position handed over
-    "places": PLATE_TAG_IDS + tuple(t for ids in BOARD_TAG_IDS.values() for t in ids),
+    # #419): the lab's plate signs, the whiteboards' pairs (#406) and the
+    # claw's and the census's areas' (#407) -- where a job's `find` may
+    # search, never a position handed over
+    "places": PLATE_TAG_IDS + tuple(t for ids in BOARD_TAG_IDS.values() for t in ids)
+              + area_ids(),
     "plates": PLATE_TAG_IDS,
     # ...and the pen on its rack draws on the boards it finds (issue #406):
     # the `draw` verb and the boards' three jobs
     "draws": True,
+    # ...and the claw on its rack takes the cubes it finds (issue #407): the
+    # tower's blocks and the bench's masses, by their tags
+    "cubes": BLOCK_TAG_IDS + MASS_TAG_IDS,
     # Every named region, for an overseer's `explore(zone)` (issue #15),
     # off the generator's own ZONES: the region the LLM can name is the
     # region the website draws.

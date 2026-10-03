@@ -408,6 +408,9 @@ def body_xml(spec: BodySpec, *, root: str = ROBOT_ROOT,
         <geom name="depth_cam" class="visual" type="box" size="0.0125 0.045 0.0125"
               mass="{_f(budget.depth_cam)}" rgba="0.2 0.2 0.2 1"/>
         <camera name="depth_eye" pos="0.013 0 0" xyaxes="0 -1 0 0 0 1" fovy="58"/>
+        <!-- ...and the D435's colour imager beside it (#407): 69 x 42 deg,
+             what finds a cube's small tags at the robot's feet. -->
+        <camera name="color_eye" pos="0.013 -0.015 0" xyaxes="0 -1 0 0 0 1" fovy="42"/>
       </body>
       <body name="nav_cam_body" pos="{_v(tx + 0.005, 0, tz - 0.012)}">
         <geom name="nav_cam" class="visual" type="box" size="0.006 0.012 0.012"

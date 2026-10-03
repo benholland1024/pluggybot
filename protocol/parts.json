@@ -156,7 +156,7 @@
     "massG": "not recorded",
     "dimensionsMm": "not recorded"
    },
-   "note": "Power-only coupling, wireless data: keeps the mating interface dumb and tolerant. One a tool -- the LCD, the pen, the claw and the seed dispenser -- and one on the rack, which reports its bay switches over the network.",
+   "note": "Power-only coupling, wireless data: keeps the mating interface dumb and tolerant. One a tool -- the LCD, the pen and the claw -- and one on the rack, which reports its bay switches over the network.",
    "workshop": {
     "usable": false,
     "why": "mass unknown (not recorded)"
@@ -392,7 +392,7 @@
     "dimensionsMm": "no part chosen",
     "priceEur": "no part chosen"
    },
-   "note": "A servo for a tool's own axis with no part behind it. The workshop's are `servo_fs90` and `servo_fs90mg`, and the bill buys the second for the claw's jaws and the seed dispenser's gate.",
+   "note": "A servo for a tool's own axis with no part behind it. The workshop's are `servo_fs90` and `servo_fs90mg`, and the bill buys the second for the claw's jaws.",
    "workshop": {
     "usable": false,
     "why": "no part chosen"
@@ -2451,7 +2451,7 @@
    "dimensionsMm": null,
    "priceEur": null,
    "priceFor": "each",
-   "quantity": 4,
+   "quantity": 3,
    "capabilities": {},
    "feeds": [
     {
@@ -3825,12 +3825,12 @@
     "part": "quad_tool_peg",
     "name": "Tool peg, 220 mm: two 6 mm steel conductors on an insulating bush",
     "group": "tools",
-    "quantity": 4,
+    "quantity": 3,
     "priceFor": "each",
     "eachEur": null,
     "lineEur": 30.0,
     "allowance": true,
-    "basis": "four pegs cut and turned from a metre of 6 mm silver steel and an acetal bush each, as `peg_rod_6mm`",
+    "basis": "three pegs cut and turned from a metre of 6 mm silver steel and an acetal bush each, as `peg_rod_6mm`",
     "leadTime": null,
     "why": {
      "leadTime": "nothing drawn to quote"
@@ -3841,33 +3841,33 @@
     "part": "servo_fs90mg",
     "name": "FEETECH FS90MG micro servo (digital, metal gears)",
     "group": "tools",
-    "quantity": 2,
+    "quantity": 1,
     "priceFor": "each",
     "eachEur": 5.95,
-    "lineEur": 11.9,
+    "lineEur": 5.95,
     "allowance": false,
     "basis": "",
     "leadTime": null,
     "why": {
      "leadTime": "not read for this bill; the price is the workshop catalog's (#199, 2026-09-14)"
     },
-    "note": "the claw's jaws and the seed dispenser's gate"
+    "note": "the claw's jaws, through a rack and pinion (#407); the rover's seed dispenser is retired -- no job ever used it"
    },
    {
     "part": "slide_l12_100",
     "name": "Actuonix L12-100-50-6-R micro linear servo (100 mm stroke, 50:1, 6 V, RC input)",
     "group": "tools",
-    "quantity": 1,
+    "quantity": 2,
     "priceFor": "each",
     "eachEur": 77.05,
-    "lineEur": 77.05,
+    "lineEur": 154.1,
     "allowance": false,
     "basis": "",
     "leadTime": null,
     "why": {
      "leadTime": "not read for this bill; the price is the workshop catalog's (#199, 2026-09-14)"
     },
-    "note": "the pen's sideways carriage, its whole 100 mm stroke (#406)"
+    "note": "the pen's sideways carriage (#406) and the claw's (#407), each its whole 100 mm stroke"
    },
    {
     "part": "pen_quill_hall",
@@ -3889,10 +3889,10 @@
     "part": "module_esp32",
     "name": "ESP32-class board, one per module",
     "group": "tools",
-    "quantity": 4,
+    "quantity": 3,
     "priceFor": "each",
     "eachEur": 5,
-    "lineEur": 20,
+    "lineEur": 15,
     "allowance": false,
     "basis": "",
     "leadTime": null,
@@ -4791,11 +4791,11 @@
    }
   ],
   "totals": {
-   "sourcedEur": 5977.89,
+   "sourcedEur": 6043.99,
    "allowanceEur": 1575.0,
-   "contingencyEur": 1132.93,
-   "totalEur": 8685.82,
-   "totalUsd": 9904.44,
+   "contingencyEur": 1142.85,
+   "totalEur": 8761.84,
+   "totalUsd": 9991.13,
    "budgetEur": 17539.24,
    "byGroup": {
     "actuation": 1894.1,
@@ -4804,7 +4804,7 @@
     "sensors": 491.8,
     "frame and legs": 1229.6,
     "arm": 270.56,
-    "tools": 163.95,
+    "tools": 230.05,
     "rack": 108.69,
     "dock": 262.98,
     "safety": 322.53,

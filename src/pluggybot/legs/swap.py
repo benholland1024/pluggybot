@@ -41,6 +41,11 @@ from pluggybot.tick import Routine
 #: The approach starts this far behind a bay's working pose, facing the
 #: rack (the spike's `--approach`: 41 of 41 from up to 0.3 m and 30 deg off).
 APPROACH_STANDOFF_M = 1.0
+#: The walk there gives up after this long, s. MEASURED: the bench's claw
+#: hung back from the lab is the street with a tool aboard, ~100 s (the
+#: cube search's walk, `legs.claw.WALK_PATIENCE_S`), and at the walk's own
+#: 90 s every weighing ended with the claw still on the fork.
+TO_BAY_S = 240.0
 #: Walk-ins a swap tries before it gives up, and each one's budget, s.
 TRIES = 3
 WALK_IN_S = 20.0
@@ -105,6 +110,11 @@ class ToolSwap:
                                 if int(model.geom_bodyid[g]) == plate], dtype=np.int32)
     self._tool_gids: dict[str, np.ndarray] = {}
     self._poles: dict[str, tuple] = {}
+    #: WHO WAITS FOR A TAKEN BAY (#418): the lifecycle's routine, `(wx, wy,
+    #: kind, since, hold=True) -> True once free`; None waits for nobody.
+    self.bay_wait = None
+    #: How far off the robot was that made the last swap give its bay up.
+    self.peer_at_bay_m: float | None = None
 
   # ---- where things are -------------------------------------------------------
 
@@ -316,7 +326,7 @@ class ToolSwap:
     """The walk to the bay's approach start, facing the rack, and a look:
     "ok", or why not."""
     sx, sy, syaw = self.rack_standoff(bay)
-    arrived = yield from self.drive_to_routine(sx, sy)
+    arrived = yield from self.drive_to_routine(sx, sy, timeout=TO_BAY_S)
     if not arrived:
       rec["drive"] = self.last_drive
       return "no-route"
@@ -325,6 +335,27 @@ class ToolSwap:
     if not (yield from self._find_rack_routine()):
       return "no rack"
     return "ok"
+
+  def _bay_free_routine(self, bay: int, kind: str, rec: dict) -> Routine:
+    """Hold at the approach's start while another robot works this bay or
+    the next (#418, decided: the rover's #346 wait): its REPORTED pose within
+    the planner's disc of this bay's working pose (`peer_on_the_goal`: 0.55
+    m standing -- the next bay's working pose is 0.30 m off, two bays over
+    0.60). The minds choose who goes first; the wait breaks the symmetry two
+    robots walking in at once cannot, and a bump that fires on both does
+    not (#418: both flinched, 17 of 20). True once free; False if the wait
+    gave up, said in `rec`."""
+    self.peer_at_bay_m = None
+    wx, wy, _ = self.work_pose(bay)
+    if self.peer_on_the_goal(wx, wy) is None:
+      return True
+    free = False
+    if self.bay_wait is not None:
+      free = yield from self.bay_wait(wx, wy, kind, float(self.data.time), hold=True)
+    if not free:
+      self.peer_at_bay_m = self.peer_on_the_goal(wx, wy)
+      rec["why"] = "blocked"
+    return bool(free)
 
   def _lined_up_routine(self, bay: int, att: dict) -> Routine:
     """A walk in, the settle and the measurement: the bay's aim if lined
@@ -346,8 +377,8 @@ class ToolSwap:
   def fetch_routine(self, bay: int, module: str) -> Routine:
     """Walk to a bay and take its tool, carrying it at the carry pose:
     "arrived" once the fork went in (the verdict is the tool's own state),
-    "no-route" if the walk found no way there, "timeout" if no walk-in
-    lined up."""
+    "no-route" if the walk found no way there, "blocked" if another robot
+    held the bay past the wait (#418), "timeout" if no walk-in lined up."""
     rec = {"op": "fetch", "bay": bay, "module": module, "attempts": []}
     self.last_swap = rec
     if self.tool_rack_prior is None:
@@ -359,6 +390,8 @@ class ToolSwap:
     if why != "ok":
       rec["why"] = why
       return "no-route"
+    if not (yield from self._bay_free_routine(bay, "pick", rec)):
+      return "blocked"
     with self._at_the_bay(bay):
       return (yield from self._fetch_at_routine(bay, module, rec))
 
@@ -403,8 +436,8 @@ class ToolSwap:
 
   def stow_routine(self, bay: int, module: str) -> Routine:
     """Walk to the tool's bay and hang it back, folding the arm after:
-    "arrived" once the fork came down over the bay, "no-route", or
-    "timeout"."""
+    "arrived" once the fork came down over the bay, "no-route", "blocked"
+    (#418) or "timeout"."""
     rec = {"op": "stow", "bay": bay, "module": module, "attempts": []}
     self.last_swap = rec
     if self.tool_rack_prior is None:
@@ -415,6 +448,8 @@ class ToolSwap:
     if why != "ok":
       rec["why"] = why
       return "no-route"
+    if not (yield from self._bay_free_routine(bay, "return", rec)):
+      return "blocked"
     with self._at_the_bay(bay):
       return (yield from self._stow_at_routine(bay, module, rec))
 

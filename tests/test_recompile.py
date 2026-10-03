@@ -56,6 +56,9 @@ TRANSIENT_HOLDERS = {
   # a drawing's plotter (#406), made for one drawing and held after it for
   # its record: on legs, whose world is never recompiled (`QuadMission.rebind`)
   "tools/drawing.py:PenPlotter",
+  # the claw's hand (#407), made for one pick or place and dropped after it:
+  # a recompile is refused mid-errand (`HubLifecycle.seam_busy`)
+  "tools/claw.py:ClawHand",
 }
 
 

@@ -238,6 +238,44 @@ class Body(abc.ABC):
     record: `drew` and `why`, and the figure's stats where it drew."""
 
   @abc.abstractmethod
+  def pick_cube_routine(self, tag: int, patience: float, stop=None) -> Routine:
+    """Take the cube `tag` in the claw on the fork (issue #407): found by its
+    tag -- from where it stands, where it last saw it, in front of its
+    area's tags -- walked in to, lain down at and closed on, within
+    `patience` s; `stop` as `find_tag_routine`'s. Returns its record:
+    `picked` (the jaws hold it, off the world) and `why`."""
+
+  @abc.abstractmethod
+  def place_cube_routine(self, tag: int, patience: float, stop=None) -> Routine:
+    """Set the cube in the claw down on top of cube `tag`, found as a pick
+    finds one, and let go (issue #407). Returns its record: `placed` (it
+    rests on it, off the world) and `why`."""
+
+  @abc.abstractmethod
+  def put_cube_routine(self, patience: float, stop=None) -> Routine:
+    """Set the cube in the claw down on the floor in front, where it is
+    (issue #407). Returns its record: `put` and `why`, and `held`, the tag
+    it set down."""
+
+  @abc.abstractmethod
+  def claw_routine(self, closed: bool) -> Routine:
+    """The claw's jaws shut or open where it is (issue #407): True if
+    something is held once shut, or nothing once open."""
+
+  @abc.abstractmethod
+  def held_cube(self) -> int | None:
+    """The tag of the cube in the claw's jaws (both pads on it), or None."""
+
+  @abc.abstractmethod
+  def survey_routine(self, tag: int, patience: float, stop=None,
+                     on_count=None) -> Routine:
+    """Survey the area tag `tag` marks and count what stands in it (issue
+    #407, the census): the area the walls enclose round the tag's front,
+    walked until enough of its floor was seen, within `patience` s; `stop`
+    as `find_tag_routine`'s; `on_count(n)` hears the count as it climbs.
+    Returns its record: `surveyed`, `why`, `count`, `coverage`."""
+
+  @abc.abstractmethod
   def hide_routine(self, away_from: tuple[float, float], reach_m: float,
                    clear_of_m: float, patience: float, stop=None) -> Routine:
     """Hide from a robot counting at `away_from` (issue #404, hide and
@@ -523,6 +561,13 @@ class Body(abc.ABC):
     torque (the quadruped's arm, issue #405) -- never a torque."""
 
   @abc.abstractmethod
+  def arm_torque(self, act: int) -> float:
+    """What the driver of one of its arm's motors reports of that motor's
+    torque, N*m (issue #407): read off its phase current, with the current
+    sense's noise and the field's counts -- what the arm weighs with.
+    KeyError for an actuator that is not its arm's."""
+
+  @abc.abstractmethod
   def settle_routine(self, seconds: float) -> Routine:
     """Stand still while a mechanism comes to rest: the physics and the
     step hooks, none of `hold_routine`'s senses."""
@@ -687,16 +732,28 @@ class StubBody(Body):
     self.went: list[tuple[float, float]] = []
     #: the places it knows (a test sees them in, `places.see`), and the tags
     #: a find or a press was asked for, in order, and the true deaths
+    from pluggybot.home.areas import area_ids
     from pluggybot.mapping.places import Places
     from pluggybot.rack.tags import BOARD_TAG_IDS, PLATE_TAG_IDS
     self.places = Places(ids=(*PLATE_TAG_IDS,
-                              *(t for ids in BOARD_TAG_IDS.values() for t in ids)))
+                              *(t for ids in BOARD_TAG_IDS.values() for t in ids),
+                              *area_ids()))
     self.found: list[int] = []
     self.pressed: list[int] = []
     #: ...each drawing (board, program name) it was asked for, and whether
     #: it draws (a test sets it): the program's own strokes as its ink
     self.drew: list[tuple[str, str]] = []
     self.draws = False
+    #: ...the cubes it can pick (a test sets them), each pick and place it
+    #: was asked for, what is in its claw, and each cube it set on another
+    self.cubes: set[int] = set()
+    self.picked: list[int] = []
+    self.placed: list[int] = []
+    self.held: int | None = None
+    self.stacked: list[tuple[int, int]] = []
+    #: ...and each survey it was asked for, and what it counts, by tag
+    self.surveyed: list[int] = []
+    self.counts: dict[int, int] = {}
     #: ...and each hide (from where, its reach, how far clear) and each
     #: search (from where, its reach) it was asked for (issue #404)
     self.hid_from: list[tuple] = []
@@ -802,6 +859,54 @@ class StubBody(Body):
     return {"board": board, "drew": True, "why": "drew", "strokes": len(lines),
             "strokes_drawn": len(lines), "inked_fraction": 1.0,
             "travel_ink_fraction": 0.0, "shape_rms_mm": 0.0, "form_rms_mm": 0.0}
+    yield
+
+  def pick_cube_routine(self, tag, patience, stop=None):
+    """Picked at once where the test put the cube in its `cubes`, and never
+    otherwise: the stub has no claw and no floor."""
+    self.picked.append(int(tag))
+    ok = int(tag) in self.cubes and self.held is None
+    if ok:
+      self.held = int(tag)
+    return {"op": "pick", "tag": int(tag), "picked": ok,
+            "why": "picked" if ok else "holding" if self.held is not None else "not found"}
+    yield
+
+  def place_cube_routine(self, tag, patience, stop=None):
+    self.placed.append(int(tag))
+    ok = self.held is not None and int(tag) in self.cubes and int(tag) != self.held
+    why = "placed" if ok else "nothing held" if self.held is None else "not found"
+    if ok:
+      self.stacked.append((self.held, int(tag)))
+      self.held = None
+    return {"op": "place", "tag": int(tag), "placed": ok, "why": why}
+    yield
+
+  def put_cube_routine(self, patience, stop=None):
+    held, self.held = self.held, None
+    return {"op": "put", "put": held is not None, "held": held,
+            "why": "put" if held is not None else "nothing held"}
+    yield
+
+  def claw_routine(self, closed):
+    if not closed:
+      self.held = None
+    return self.held is not None if closed else True
+    yield
+
+  def held_cube(self):
+    return self.held
+
+  def survey_routine(self, tag, patience, stop=None, on_count=None):
+    """Counted at once where the test put the place in, the count the test
+    set (`counts`, by tag): the stub walks nowhere and sees nothing."""
+    self.surveyed.append(int(tag))
+    known = self.places.get(tag) is not None
+    n = self.counts.get(int(tag), 0)
+    if known and on_count is not None:
+      on_count(n)
+    return {"tag": int(tag), "surveyed": known, "why": "surveyed" if known else "not found",
+            **({"count": n, "coverage": 1.0} if known else {})}
     yield
 
   def hide_routine(self, away_from, reach_m, clear_of_m, patience, stop=None):
@@ -974,6 +1079,9 @@ class StubBody(Body):
 
   def setpoint(self, act) -> float:
     raise KeyError(f"a stub body has no actuator {act!r}")
+
+  def arm_torque(self, act) -> float:
+    raise KeyError(f"a stub body has no arm motor {act!r}")
 
   def settle_routine(self, seconds):
     yield from self._wait(seconds)

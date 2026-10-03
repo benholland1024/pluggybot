@@ -154,14 +154,31 @@ SENSORS: dict[str, Sensor] = {
                      "the arm's shoulder, rad, measured"),
   "elbow": Sensor("elbow", lambda life: _joint(life, "arm_elbow"),
                   "the arm's elbow, rad, measured"),
+  "claw.holding": Sensor(
+    "claw.holding", lambda life: 1.0 if life.body.held_cube() is not None else 0.0,
+    "1 while the claw's jaws hold a cube, both pads on it", requires="module_claw"),
+  # THE ARM'S SCALE (issue #407): each motor's torque as its driver reports
+  # it, off the current (`perception.encoders.torque_reading`)
+  "shoulder.torque": Sensor(
+    "shoulder.torque", lambda life: life.body.arm_torque(life.body.actuator("arm_shoulder")),
+    "the shoulder motor's torque, N*m, as its driver reports it: what it "
+    "holds the arm up with, + raising"),
+  "elbow.torque": Sensor(
+    "elbow.torque", lambda life: life.body.arm_torque(life.body.actuator("arm_elbow")),
+    "the elbow motor's torque, N*m, as its driver reports it: what it holds "
+    "the forearm and whatever it carries up with, + raising"),
 }
 #: What every body reads (issue #387): its pack, its wallet, the clock and
 #: its bumper...
 BODY_SENSORS = ("battery.frac", "battery.wh", "points", "time", "bumper")
-#: ...and a legged body its arm's two joints (issue #405).
-LEGS_SENSORS = BODY_SENSORS + ARM_JOINTS
+#: ...and a legged body its arm's two joints (issue #405) and its motors'
+#: torques (#407).
+ARM_TORQUES = ("shoulder.torque", "elbow.torque")
+LEGS_SENSORS = BODY_SENSORS + ARM_JOINTS + ARM_TORQUES
 #: Each body's own axes, present whatever is on its fork.
 BODY_AXES = {"quadruped": ARM_JOINTS}
+#: ...and what the claw's verbs feel (issue #407), where the world has it.
+CLAW_SENSORS = ("claw.holding",)
 
 
 #: The ramp as the public name a built tool registers its axes with

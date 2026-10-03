@@ -1,14 +1,15 @@
-"""Ladder A of issue #264: what a hand-written solution stands on, kept
-while the challenges wait for legs (#407) -- and the harness that flies
-the one feature legs have, the mouse's feed (`scripts/solve.py`).
+"""Ladder A of issue #264: what a hand-written solution stands on -- the
+challenges' on legs (#407: `challenge/solutions.py`, flown by
+`scripts/solve.py --feature tower|bench`) -- and the harness that flies them.
 
 The rules, each pinned without a mission (docs/Testing.md):
 
   1. every tool a run took off the rack is one it must hang back
      (`scoring.fetched_tools`, the procedure's `toolsHung`);
   2. nothing under `mind/` imports a challenge's solution;
-  3. an offer says where the house set its props out, and a bare one
-     carries no clause;
+  3. an offer says where by its area's terms -- the building's address and
+     the area's directions -- never a position, and a bare one carries no
+     stray clause;
   4. the prompt says what a bare `return` does, and the lab's rule names
      the way there;
   5. the pair harness hooks its board as the constructor does.
@@ -43,24 +44,34 @@ def test_the_mind_never_imports_the_solutions():
     assert "solutions" not in path.read_text(), path
 
 
-def test_the_offers_say_where_the_house_set_the_props_out(tmp_path):
+def test_the_offers_say_where_by_their_areas_terms_and_never_a_position(tmp_path):
   """Every ladder-B day that reached a challenge wrote a blind scout first:
-  the offer said "in the lab" and nothing more. The house placed the
-  cubes, so where they START is a work-order fact (TaskPattern §2), built
-  by the producer off `world_config`; a bare offer (a test's) carries no
-  clause and no stray placeholder."""
+  the offer said "in the lab" and nothing more. The rover's offers gave the
+  props' start positions; on legs a job gives at most its building's
+  address and the area's directions (#419), so #407 took the positions out:
+  each challenge's offer carries its own area's terms -- the bench's are
+  not the cage's -- its description no position, and a bare offer no stray
+  placeholder."""
+  import re
+
   from pluggybot.economy.tasks import TaskBoard
+  from pluggybot.home import places as addresses
   from pluggybot.lifecycle import QUAD_HOME, task_producer
   board = TaskBoard(path=str(tmp_path / "t.json"))
   producer = task_producer(board, QUAD_HOME, procedures=True)
-  params, secret = producer._build("find_mass", "lab")
-  bench = board.offer("find_mass", "lab", params=params, secret=secret, t=1.0).description
-  assert "(26.68, 2.00) (tag 24)" in bench and "(26.68, 1.00) (tag 23)" in bench
-  assert bench.endswith("write the procedure.")
+  for kind, area in (("find_mass", "bench"), ("stack_tower", "workshop")):
+    params, secret = producer._build(kind, area)
+    job = board.offer(kind, area, params=params, secret=secret, t=1.0)
+    shown = job.as_context(1.0)
+    assert shown["directions"] == addresses.area(area)["directions"], kind
+    assert shown["address"] == addresses.area(area)["address"], kind
+    assert not re.search(r"-?\d+\.\d+", job.description), (kind, job.description)
+    assert "write the procedure" in job.description, kind
+  assert addresses.area("bench")["directions"] != addresses.area("lab")["directions"]
   bare = board.offer("stack_tower", "workshop", t=2.0).description
   assert "{" not in bare and "  " not in bare and "None" not in bare
   # ...and the cubes' LIVE poses stay out of the context (issue #227's
-  # rule): the offer says where they were set out, the room says nothing
+  # rule): the room says nothing of them
   assert "mass" not in str(producer.facts.get("lab", {}))
 
 

@@ -447,6 +447,7 @@ class Navigator:
       # blind to its pair: 9 `stuck` deaths in the seven days that found it.
       angles, ranges, peer_angles, peer_ranges = self.lidar.scan_split(self.data)
       if self.level():
+        self._on_scan(angles, ranges)
         m = self._match(angles, ranges)
         if m is None or self.matcher.fuses(m, self.data.time):
           self.grid.update(self.pose, angles, ranges, self.lidar.max_range,
@@ -460,6 +461,10 @@ class Navigator:
         all_ranges = np.concatenate((ranges, peer_ranges))
         if self._front_blocked(all_angles, all_ranges):
           self.backoff_until = self.data.time + BACKOFF_TIME
+
+  def _on_scan(self, angles, ranges) -> None:
+    """A level scan, as it came: nothing here; a quadruped's survey keeps
+    where its returns land (`legs.survey.CensusLayer`)."""
 
   def _front_blocked(self, angles, ranges) -> bool:
     """The front stop's test, over one scan's bearings and ranges (the room

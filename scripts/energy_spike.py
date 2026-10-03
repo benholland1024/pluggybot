@@ -12,6 +12,7 @@ house's layout, the body, a routine.
     MUJOCO_GL=egl uv run python scripts/energy_spike.py
     MUJOCO_GL=egl uv run python scripts/energy_spike.py --actions care:feed,care:toy,shock,feed
     MUJOCO_GL=egl uv run python scripts/energy_spike.py --actions draw:whiteboard_a,answer:whiteboard_b
+    MUJOCO_GL=egl uv run python scripts/energy_spike.py --actions census,stack,mass
     MUJOCO_GL=egl uv run python scripts/energy_spike.py --reserve
     MUJOCO_GL=egl uv run python scripts/energy_spike.py --write
 
@@ -42,6 +43,7 @@ from pathlib import Path
 
 import mujoco
 
+from pluggybot.economy.tasks import TaskBoard
 from pluggybot.robot import world_spec  # noqa: E402
 
 from pluggybot.lifecycle import (
@@ -61,17 +63,39 @@ CAGE_ACTIONS = ("care:feed", "care:toy", "shock", "feed")
 BOARD_ACTIONS = tuple(f"{task}:{board}" for board in ("whiteboard_a", "whiteboard_b")
                       for task in ("draw", "artwork", "answer"))
 
+#: ...and the jobs #407 put on legs, each from the dock with its area's place
+#: remembered: the census (the survey of the garden) and the two challenges,
+#: each its hand-written solution (`challenge.solutions`) flown as a mind's
+#: procedure runs -- the claw fetched, the cubes moved, the claw hung back.
+AREA_ACTIONS = {"census": "garden", "stack": "workshop", "mass": "bench"}
+CHALLENGE_KINDS = {"stack": "stack_tower", "mass": "find_mass"}
+
+class _Writer:
+  """What the lifecycle reads off a mind on a challenge's path: a library,
+  the mark of something that can write a procedure, and nothing that
+  decides -- the spike prices the hand-written solution, never a model."""
+  event_map = pending = interrupt_pending = spend = workshop = None
+  can_escalate = False
+  library = object()
+  decisions: list = []
+
+  def __init__(self, world: str) -> None:
+    from pluggybot.mind import overseer as ov
+    self.menu = ov.Menu.for_world(world)
+
+
 #: A pack far bigger than any errand, so nothing being measured is cut short.
 #: See the module docstring: this is about not measuring a death.
 BIG_PACK_WH = 40.0
 
 
-def _from_the_dock(life, board: str) -> None:
-  """To the dock, the board found first if it is not remembered: where a
-  board's job is taken from (the energy table's rule)."""
+def _from_the_dock(life, board: str, tag: int | None = None) -> None:
+  """To the dock, the board (or the area whose tag is `tag`) found first if
+  it is not remembered: where a job is taken from (the energy table's
+  rule)."""
   from pluggybot.home.places import area
   from pluggybot.tools.drawing import board_tags
-  tag = board_tags(board)[0]
+  tag = board_tags(board)[0] if tag is None else tag
   if life.body.places.get(tag) is None:
     at = area(board)["address"]
     rec = life.body.run(life.body.find_tag_routine(tag, near=(at["x"], at["y"]),
@@ -96,6 +120,9 @@ def measure(world: str, actions, battery_wh: float, explore_s: float,
                       low_battery_wh=cfg["low_battery_wh"], boards=book,
                       screen=next(iter(screens), None),
                       ledger=points_ledger(None), world=world, errands=[],
+                      # ...and a board for the challenges' offers (#407), in
+                      # memory: one is offered and claimed as the loop would
+                      tasks=TaskBoard(),
                       # The served configuration (issue #34): the depth
                       # camera streams all day there, so the table prices
                       # the dearer case and a test day without it is safe.
@@ -129,6 +156,31 @@ def measure(world: str, actions, battery_wh: float, explore_s: float,
 
     # ---- one errand at a time ---------------------------------------------
     for action in actions:
+      if action in AREA_ACTIONS:
+        # an area's job (#407), its tag found first if the explore missed it
+        from pluggybot.home.areas import area_ids
+        from pluggybot.home.places import load
+        named = load()["areas"][AREA_ACTIONS[action]]["tags"]
+        _from_the_dock(life, AREA_ACTIONS[action],
+                       min(int(t) for t in named if int(t) in area_ids()))
+      if action in CHALLENGE_KINDS:
+        from pluggybot.challenge import solutions
+        t0 = float(data.time)
+        life.battery.energy_wh = battery_wh
+        life.overseer = _Writer(world)
+        try:
+          run = life.body.run(solutions.job_routine(life, CHALLENGE_KINDS[action], world))
+        finally:
+          life.overseer = None
+        used = battery_wh - life.battery.energy_wh
+        dt = max(1e-6, float(data.time) - t0)
+        out["actions"][action] = {"wh": used, "s": dt, "w": used * 3600.0 / dt,
+                                  "errand": CHALLENGE_KINDS[action],
+                                  "ok": run["grade"]["ok"]}
+        print(f"  {action:18s} {dt:6.1f}s  {used:.4f} Wh  ({used * 3600.0 / dt:5.1f} W)  "
+              f"{'PASSED' if run['grade']['ok'] else 'FAILED'} -- {run['grade']['reason']}")
+        life.battery.energy_wh = battery_wh
+        continue
       try:
         queue = errands_for(action, world, book)
       except ValueError as e:
@@ -257,6 +309,9 @@ def measure_reserve(world: str, battery_wh: float, explore_s: float) -> dict:
                       rack=cfg["rack"], grid_bounds=cfg["grid_bounds"],
                       low_battery_wh=cfg["low_battery_wh"],
                       ledger=points_ledger(None), world=world, errands=[],
+                      # ...and a board for the challenges' offers (#407), in
+                      # memory: one is offered and claimed as the loop would
+                      tasks=TaskBoard(),
                       near_field=True)
   activities = cfg["activities"](model, data) if cfg["activities"] else None
   if activities is not None:
@@ -333,8 +388,9 @@ def main() -> None:
   ap.add_argument("--actions", default="",
                   help="named acts to price besides the explore and the "
                        f"charger: any of {','.join(CAGE_ACTIONS)} (or care), "
-                       "or a board's job, <draw|artwork|answer>:<board> "
-                       f"(e.g. {','.join(BOARD_ACTIONS[:2])})")
+                       "a board's job, <draw|artwork|answer>:<board> "
+                       f"(e.g. {','.join(BOARD_ACTIONS[:2])}), or an area's "
+                       f"(#407): {','.join(AREA_ACTIONS)}")
   ap.add_argument("--reserve", action="store_true",
                   help="measure the worst-case return trip instead of the "
                        "errands (issues #70/#84): what legs.world.RESERVE_WH "

@@ -314,9 +314,9 @@ PARTS: tuple[Part, ...] = (
          "source": "no board chosen", "massG": "not recorded",
          "dimensionsMm": "not recorded"},
     note="Power-only coupling, wireless data: keeps the mating interface "
-         "dumb and tolerant. One a tool -- the LCD, the pen, the claw and the "
-         "seed dispenser -- and one on the rack, which reports its bay "
-         "switches over the network.",
+         "dumb and tolerant. One a tool -- the LCD, the pen and the claw -- "
+         "and one on the rack, which reports its bay switches over the "
+         "network.",
   ),
   Part(
     "lcd_display", "Small SPI/I2C display driven by the module's ESP32",
@@ -394,7 +394,7 @@ PARTS: tuple[Part, ...] = (
          "priceEur": "no part chosen"},
     note="A servo for a tool's own axis with no part behind it. The "
          "workshop's are `servo_fs90` and `servo_fs90mg`, and the bill buys "
-         "the second for the claw's jaws and the seed dispenser's gate.",
+         "the second for the claw's jaws.",
   ),
   Part(
     "servo_fs90", "FEETECH FS90-FB micro servo (analog, position feedback)",
@@ -1151,7 +1151,7 @@ PARTS: tuple[Part, ...] = (
   Part(
     "quad_tool_peg", "Tool peg, 220 mm: two 6 mm steel conductors on an "
     "insulating bush", "structure", "chosen", ("build",), (),
-    quantity=4,
+    quantity=3,
     feeds=(
       code("legs.rack.PEG_HALF", "m", "half its 220 mm"),
       code("legs.rack.PEG_MASS", "kg",
@@ -1678,18 +1678,20 @@ LINES: tuple[Line, ...] = (
              "at AluFritze, the V's and ramps are machining"),
   Line("ptfe_tape_glass", 1, "arm", "2-4 working days (High-tech-flon)"),
   # ---- tools ---------------------------------------------------------------
-  Line("quad_tool_peg", 4, "tools", None, why=UNDRAWN, allowanceEur=30.0,
-       basis="four pegs cut and turned from a metre of 6 mm silver steel "
+  Line("quad_tool_peg", 3, "tools", None, why=UNDRAWN, allowanceEur=30.0,
+       basis="three pegs cut and turned from a metre of 6 mm silver steel "
              "and an acetal bush each, as `peg_rod_6mm`"),
-  Line("servo_fs90mg", 2, "tools", None, why=NOT_READ,
-       note="the claw's jaws and the seed dispenser's gate"),
-  Line("slide_l12_100", 1, "tools", None, why=NOT_READ,
-       note="the pen's sideways carriage, its whole 100 mm stroke (#406)"),
+  Line("servo_fs90mg", 1, "tools", None, why=NOT_READ,
+       note="the claw's jaws, through a rack and pinion (#407); the rover's "
+            "seed dispenser is retired -- no job ever used it"),
+  Line("slide_l12_100", 2, "tools", None, why=NOT_READ,
+       note="the pen's sideways carriage (#406) and the claw's (#407), each "
+            "its whole 100 mm stroke"),
   Line("pen_quill_hall", 1, "tools", None, why={"leadTime": "no sensor chosen"},
        allowanceEur=5.0,
        basis="a linear Hall sensor and a 3 mm magnet on the pen's quill, as TI's "
              "DRV5055: a few euros; none chosen yet"),
-  Line("module_esp32", 4, "tools", None,
+  Line("module_esp32", 3, "tools", None,
        why={"leadTime": "no board chosen"}, note="one a tool"),
   Line("lcd_display", 1, "tools", None, why={"leadTime": "no display chosen"},
        allowanceEur=20.0,

@@ -10,6 +10,48 @@ observatory is NOT a result: it reports into the issue it informs.
 
 ## Periods
 
+### The claw, the census and the challenges on legs, and the pair's turn at a bay (#407, #418) — opens when this PR is deployed
+
+**What changed in the world.** Three jobs join the pair's board:
+`count_plants` (the garden's census: its tag found, the LCD fetched, the
+garden walked round until 90 % of its floor was seen, the plants counted
+off the depth camera, the count on the LCD's face, the LCD hung back) and
+the two challenges, `stack_tower` and `find_mass`, each a procedure the
+robot writes, with the claw on the arm. Each offer carries its area's
+address and directions (`home/places.json`: the workshop corner, the bench,
+the garden), never a position, and the bench is an area of its own: it no
+longer shares the cage's slot. The house moved: five area tags (42-46, the
+workshop corner's pair on its west wall, the bench's on its front, the
+garden's on its east fence), the tower's blocks 0.70 m out from the
+workshop wall, the bench's masses 0.25 m either side; the claw module is
+rebuilt (its slide and its jaws), so the scenes are new. The procedure
+rule gains `pick`, `place`, `put`, `grip`, `release` and `survey`, and the
+sensors `claw.holding`, `shoulder.torque` and `elbow.torque`: the deployed
+prefix went 45 062 → 46 475 chars (`prompt_sha` `77c9c402…` →
+`78b2d857…`). A robot holds at its approach's start while the other works
+at its bay or the next (#418). The three jobs are priced (`energy.json`:
+census 13.31 Wh, the tower 7.585, the bench 9.938), and the cadence offers
+eight kinds on `home_quad`. ⚠ The house's geometry changed, so the first
+restart on this build keeps the clock, the packs, the deaths and the jobs
+but not the bodies or the maps: both robots re-learn their house.
+
+**What the period is for.**
+
+- **Is the tower ever built, the bench ever weighed, live?** Ladder A flies
+  both from the dock (the tower 1 of 1 and the bench 2 of 2 on the pair);
+  ladder B (#407's comment) says whether the deployed model writes one when
+  asked. Live: `stack_tower` / `find_mass` reaching `done`, and defined
+  procedures that name `pick` or `read("elbow.torque")`.
+- **The census's count**: `count_plants` verdicts, counted against truth
+  and coverage. Wrong under 90 % coverage is a survey cut short; wrong
+  above it is the counter.
+- **The rack with three tools turning over** (#418): `WAIT:` lines at a bay,
+  swaps that end `blocked`, and stows that let go; the pair tables' 9 of 10
+  at neighbouring bays is the bench's figure.
+- **Finding an area**: a fresh map took 468 s to find the garden's tag from
+  the house's address; `find` steps' seconds after a true death are the
+  cost of forgetting.
+
 ### Drawing on legs: the whiteboards' three jobs (#406) — opens when this PR is deployed
 
 **What changed in the world.** Three jobs come back, on the pair's board

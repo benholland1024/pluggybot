@@ -3895,7 +3895,7 @@
    "visual": null,
    "pos": [
     26.68,
-    1.0,
+    1.25,
     0.013
    ],
    "quat": [
@@ -3942,7 +3942,7 @@
    "visual": null,
    "pos": [
     26.68,
-    2.0,
+    1.75,
     0.013
    ],
    "quat": [
@@ -4223,7 +4223,7 @@
    "robot": null,
    "visual": null,
    "pos": [
-    -11.0,
+    -11.28,
     -5.0,
     0.013
    ],
@@ -4270,7 +4270,7 @@
    "robot": null,
    "visual": null,
    "pos": [
-    -11.0,
+    -11.28,
     -4.75,
     0.013
    ],
@@ -4317,7 +4317,7 @@
    "robot": null,
    "visual": null,
    "pos": [
-    -11.0,
+    -11.28,
     -4.5,
     0.013
    ],
@@ -7626,17 +7626,64 @@
      "texture": null
     },
     {
-     "name": "module_claw_pendant",
+     "name": "module_claw_rail",
+     "type": "box",
+     "size": [
+      0.008,
+      0.124,
+      0.008
+     ],
+     "pos": [
+      0.002,
+      0.0,
+      -0.048
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.55,
+      0.57,
+      0.6,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "module_claw_carriage",
+   "parent": "module_claw",
+   "dynamic": true,
+   "robot": null,
+   "visual": null,
+   "pos": [
+    1.8,
+    -1.882,
+    0.43
+   ],
+   "quat": [
+    0.707107,
+    0.0,
+    0.0,
+    0.707107
+   ],
+   "geoms": [
+    {
+     "name": "module_claw_block",
      "type": "box",
      "size": [
       0.016,
-      0.024,
-      0.12
+      0.02,
+      0.012
      ],
      "pos": [
-      -0.02,
       0.0,
-      -0.08
+      0.0,
+      -0.006
      ],
      "quat": [
       1.0,
@@ -7653,17 +7700,91 @@
      "texture": null
     },
     {
-     "name": "module_claw_jaw_l",
+     "name": "module_claw_pendant",
      "type": "box",
      "size": [
-      0.012,
+      0.01,
+      0.01,
+      0.061
+     ],
+     "pos": [
+      -0.002,
+      0.0,
+      -0.0465
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.45,
+      0.47,
+      0.5,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "module_claw_bar",
+     "type": "box",
+     "size": [
+      0.016,
+      0.076,
+      0.008
+     ],
+     "pos": [
+      -0.002,
+      0.0,
+      -0.081
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.3,
+      0.32,
+      0.36,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "module_claw_jaw_l",
+   "parent": "module_claw_carriage",
+   "dynamic": true,
+   "robot": null,
+   "visual": null,
+   "pos": [
+    1.794,
+    -1.884,
+    0.325
+   ],
+   "quat": [
+    0.707107,
+    0.0,
+    0.0,
+    0.707107
+   ],
+   "geoms": [
+    {
+     "name": "module_claw_pad_l",
+     "type": "box",
+     "size": [
+      0.028,
       0.008,
       0.04
      ],
      "pos": [
-      -0.02,
-      0.022,
-      -0.15
+      0.0,
+      0.0,
+      0.0
      ],
      "quat": [
       1.0,
@@ -7678,19 +7799,39 @@
       1.0
      ],
      "texture": null
-    },
+    }
+   ]
+  },
+  {
+   "name": "module_claw_jaw_r",
+   "parent": "module_claw_carriage",
+   "dynamic": true,
+   "robot": null,
+   "visual": null,
+   "pos": [
+    1.806,
+    -1.884,
+    0.325
+   ],
+   "quat": [
+    0.707107,
+    0.0,
+    0.0,
+    0.707107
+   ],
+   "geoms": [
     {
-     "name": "module_claw_jaw_r",
+     "name": "module_claw_pad_r",
      "type": "box",
      "size": [
-      0.012,
+      0.028,
       0.008,
       0.04
      ],
      "pos": [
-      -0.02,
-      -0.022,
-      -0.15
+      0.0,
+      0.0,
+      0.0
      ],
      "quat": [
       1.0,
@@ -8198,6 +8339,241 @@
      "texture": "tagtex41"
     }
    ]
+  },
+  {
+   "name": "tower_tag42",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": null,
+   "pos": [
+    -11.978,
+    -5.2,
+    0.37
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "tower_tag42",
+     "type": "box",
+     "size": [
+      0.002,
+      0.15,
+      0.15
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+     ],
+     "texture": "tagtex42"
+    }
+   ]
+  },
+  {
+   "name": "tower_tag43",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": null,
+   "pos": [
+    -11.978,
+    -4.3,
+    0.37
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "tower_tag43",
+     "type": "box",
+     "size": [
+      0.002,
+      0.15,
+      0.15
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+     ],
+     "texture": "tagtex43"
+    }
+   ]
+  },
+  {
+   "name": "bench_tag44",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": null,
+   "pos": [
+    27.378,
+    1.95,
+    0.37
+   ],
+   "quat": [
+    0.0,
+    0.0,
+    0.0,
+    1.0
+   ],
+   "geoms": [
+    {
+     "name": "bench_tag44",
+     "type": "box",
+     "size": [
+      0.002,
+      0.15,
+      0.15
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+     ],
+     "texture": "tagtex44"
+    }
+   ]
+  },
+  {
+   "name": "bench_tag45",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": null,
+   "pos": [
+    27.378,
+    1.05,
+    0.37
+   ],
+   "quat": [
+    0.0,
+    0.0,
+    0.0,
+    1.0
+   ],
+   "geoms": [
+    {
+     "name": "bench_tag45",
+     "type": "box",
+     "size": [
+      0.002,
+      0.15,
+      0.15
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+     ],
+     "texture": "tagtex45"
+    }
+   ]
+  },
+  {
+   "name": "garden_tag46",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": null,
+   "pos": [
+    9.978,
+    0.7,
+    0.37
+   ],
+   "quat": [
+    0.0,
+    0.0,
+    0.0,
+    1.0
+   ],
+   "geoms": [
+    {
+     "name": "garden_tag46",
+     "type": "box",
+     "size": [
+      0.002,
+      0.15,
+      0.15
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+     ],
+     "texture": "tagtex46"
+    }
+   ]
   }
  ],
  "textures": [
@@ -8330,6 +8706,36 @@
   {
    "name": "tagtex41",
    "file": "tagtex41.png",
+   "width": 240,
+   "height": 240
+  },
+  {
+   "name": "tagtex42",
+   "file": "tagtex42.png",
+   "width": 240,
+   "height": 240
+  },
+  {
+   "name": "tagtex43",
+   "file": "tagtex43.png",
+   "width": 240,
+   "height": 240
+  },
+  {
+   "name": "tagtex44",
+   "file": "tagtex44.png",
+   "width": 240,
+   "height": 240
+  },
+  {
+   "name": "tagtex45",
+   "file": "tagtex45.png",
+   "width": 240,
+   "height": 240
+  },
+  {
+   "name": "tagtex46",
+   "file": "tagtex46.png",
    "width": 240,
    "height": 240
   }

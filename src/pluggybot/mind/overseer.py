@@ -1070,6 +1070,11 @@ class Menu:
   #: ...and whether it draws on the boards it finds with its rack's pen
   #: (issue #406, `world_config`'s `draws`): the `draw` verb
   draws: bool = False
+  #: ...whether its rack's claw takes the cubes it finds (issue #407,
+  #: `world_config`'s `cubes`): the claw's verbs and `claw.holding`; and
+  #: whether it surveys an area it finds (its `census_zone`): `survey`
+  cubes: bool = False
+  surveys: bool = False
 
   @property
   def care_acts(self) -> tuple[str, ...]:
@@ -1105,7 +1110,10 @@ class Menu:
                swaps=cfg.get("swap", True),
                places=bool(cfg.get("places")),
                plates=bool(cfg.get("places") and cfg.get("lab")),
-               draws=bool(cfg.get("draws") and cfg.get("swap") and cfg.get("places")))
+               draws=bool(cfg.get("draws") and cfg.get("swap") and cfg.get("places")),
+               cubes=bool(cfg.get("cubes") and cfg.get("swap") and cfg.get("places")
+                          and "module_claw" in (cfg.get("tool_bays") or {})),
+               surveys=bool(cfg.get("places") and cfg.get("census_zone")))
     # Priced off the same table the mission loop refuses errands with, so the
     # model is never shown a cost the gate disagrees with.
     from pluggybot.economy import energy as energy_model
@@ -2752,17 +2760,19 @@ own speed
 
 
 def procedure_rule(swaps: bool = False, places: bool = False,
-                   plates: bool = False, draws: bool = False) -> str:
+                   plates: bool = False, draws: bool = False,
+                   cubes: bool = False, surveys: bool = False) -> str:
   """The rule in the quadruped's verbs, and only the verbs, axes and
   sensors it has (`steps.BODY_VERBS`, and `SWAP_VERBS` where a rack is at
   its arm's reach; the arm's `axes.ARM_JOINTS`, `axes.LEGS_SENSORS`) -- the
   validator refuses the rest with the reason. `swaps`: its world has that
   rack; `places` / `plates`: it finds task areas by their tags (#419);
-  `draws`: it draws on the boards it finds (#406)."""
+  `draws`: it draws on the boards it finds (#406); `cubes` / `surveys`: its
+  claw takes the cubes it finds, and it surveys an area (#407)."""
   from pluggybot.procedure import axes
   from pluggybot.procedure.library import MAX_PROCEDURES
-  from pluggybot.procedure.steps import (BODY_VERBS, DRAW_VERBS, PLACE_VERBS,
-                                         PLATE_VERBS, SWAP_VERBS, VERBS,
+  from pluggybot.procedure.steps import (BODY_VERBS, CLAW_VERBS, DRAW_VERBS, PLACE_VERBS,
+                                         PLATE_VERBS, SURVEY_VERBS, SWAP_VERBS, VERBS,
                                          describe_vocabulary, signature)
   head = PROCEDURE_HEAD
   if not swaps:
@@ -2771,7 +2781,8 @@ def procedure_rule(swaps: bool = False, places: bool = False,
       head = head.replace(old, new)
   body_verbs = (BODY_VERBS + (SWAP_VERBS if swaps else ())
                 + (PLACE_VERBS if places else ()) + (PLATE_VERBS if plates else ())
-                + (DRAW_VERBS if draws else ()))
+                + (DRAW_VERBS if draws else ()) + (CLAW_VERBS if cubes else ())
+                + (SURVEY_VERBS if surveys else ()))
   verbs = "\n".join(f"  {signature(v)}  -- {v['doc']}"
                     for v in describe_vocabulary(body_verbs))
   drivers = ", ".join(f"`{n}`" for n in body_verbs if VERBS[n].drives)
@@ -2779,7 +2790,8 @@ def procedure_rule(swaps: bool = False, places: bool = False,
   reg["bumper"] = "1 while its body presses against something"
   ax = "\n".join(f"  {a.name}: {a.lo:g}..{a.hi:g} {a.unit} -- {a.doc}"
                  for a in (axes.AXES[n] for n in axes.ARM_JOINTS))
-  se = "\n".join(f"  {n} -- {reg[n]}" for n in axes.LEGS_SENSORS)
+  se = "\n".join(f"  {n} -- {reg[n]}"
+                 for n in axes.LEGS_SENSORS + (axes.CLAW_SENSORS if cubes else ()))
   return (head % {"cap": MAX_PROCEDURES, "drivers": drivers} + verbs
           + PROCEDURE_TAIL + ax + PROCEDURE_SENSORS + se)
 
@@ -3309,7 +3321,8 @@ def system_sections(thoughts: ThoughtFiles, menu: Menu,
     tail.append(("YOUR LIST STARTS EMPTY", UNSEEDED_RULE))
   if procedures:
     tail += [("PROCEDURES YOU MAY WRITE", procedure_rule(menu.swaps, menu.places,
-                                                         menu.plates, menu.draws)),
+                                                         menu.plates, menu.draws,
+                                                         menu.cubes, menu.surveys)),
                ("CHALLENGES", CHALLENGE_RULE),
                ("WHAT YOU HAVE MEASURED", FINDINGS_RULE)]
   if workshop:

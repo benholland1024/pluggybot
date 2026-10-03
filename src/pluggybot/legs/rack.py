@@ -180,13 +180,14 @@ def _v_notch(prefix: str, x: float, y: float, z: float, half_w: float) -> str:
 
 
 def rack_xml(spec: RackSpec = DEFAULT, pos=(0.0, 0.0), yaw: float = 0.0,
-             name: str = "rack") -> str:
+             name: str = "rack", tags: bool = True) -> str:
   """The rack as one static body: a back board, a rail, and each bay's two
   trays on brackets hung from the rail; its tags on the board. The tags'
   materials are `rack.tags.asset_xml(RACK_TAG_IDS)`'s. A bay's parts are
   named as the rover's are, `bay<letter>_` (`coupling.bay_prefix`): its
   presence switch is `coupling.bay_switches`' reading, the one the rack
-  view is built from (#351, #405)."""
+  view is built from (#351, #405). `tags` False leaves them off, for a
+  world with no camera (the workshop's rig)."""
   from pluggybot.rack.tags import plate_half_extent
   s = spec
   half_y = max(abs(y) for y in s.tag_ys) + s.tag_size + 0.05
@@ -210,7 +211,7 @@ def rack_xml(spec: RackSpec = DEFAULT, pos=(0.0, 0.0), yaw: float = 0.0,
                f'size="{_v(0.012, TRAY_HALF_W, 0.003)}" '
                f'pos="{_v(-0.012, ty, bot)}" rgba="0.45 0.47 0.50 1"/>')
   half = plate_half_extent(s.tag_size)
-  for tag_id, (x, y, z) in tag_layout(s).items():
+  for tag_id, (x, y, z) in (tag_layout(s).items() if tags else ()):
     g.append(f'<geom name="{name}_tag{tag_id}" type="box" size="{_v(0.001, half, half)}" '
              f'pos="{_v(x, y, z)}" contype="0" conaffinity="0" material="tagmat{tag_id}"/>')
   body = "\n      ".join(g)
@@ -230,14 +231,6 @@ RACK_BODY = "tool_rack"
 #: same tool to everything that names it (the rack view, the lost-tool
 #: clock, a program's `fetch`, an admin's reset).
 TOOL_BAYS = {"module_lcd": 0, "module_pen": 1, "module_claw": 2}
-#: Each tool's mass, kg: the rover's module (`models/home_world.xml`) with
-#: its 150 mm peg (20 g) swapped for this one. Until #407 rebuilds them the
-#: LCD and the claw are a plate, a peg and a face that says which
-#: (`tool_face`), the mass on the plate: the envelope's "on its peg" case.
-#: The pen is built (#406, `pen_face`), its parts' masses out of its plate's.
-TOOL_KG = {"module_lcd": 0.1426 - 0.020 + PEG_MASS,
-           "module_pen": 0.1816 - 0.020 + PEG_MASS,
-           "module_claw": 0.2106 - 0.020 + PEG_MASS}
 #: The LCD's screen, half-extents: named `module_lcd_screen`, so the served
 #: face finds it (`tools/screen.py`).
 SCREEN_HALF = (0.002, 0.028, 0.038)
@@ -315,21 +308,135 @@ def pen_face() -> str:
     f'</body></body>')
 
 
-def tool_actuators_xml() -> str:
-  """The tools' own actuators, for the world's `<actuator>`: the pen's
-  carriage, a position servo as stiff as a lead screw -- at a hobby
+# ---- the claw (#407) ---------------------------------------------------------------
+
+#: The claw's sideways carriage: the pen's slide, a second L12-100 (Parts.md,
+#: `slide_l12_100`), its stroke centred on the module. ⚠ THE BODY CANNOT
+#: SIDESTEP A FEW MILLIMETRES: the walking policy has a dead band (a walk-in
+#: stops within ~7 mm across at best, the rack's), and a block set on another
+#: wants its centre within half an edge (`challenge.stack.REST_OFFSET_M`,
+#: 13 mm). So the tool brings the axis, as the pen does.
+CLAW_TRAVEL = PEN_TRAVEL
+#: The rail under the plate and the carriage on it (module frame, m), the
+#: pen's mount: the module balances on its peg.
+CLAW_MOUNT_X = PEN_MOUNT_X
+CLAW_RAIL_Z = PEN_RAIL_Z
+#: The jaws' pads: their middle this far under the peg's axis, m, and their
+#: half-extents. ⚠ HUNG, THE CROSSBAR OVER THEM IS UNDER THE BAY'S TAGS
+#: (`RackSpec.tag_z`): 25 mm higher it lay across both, and no fetch of the
+#: claw fitted its bay. Their bottoms 195 mm under the peg, inside the
+#: envelope's 0.20 m (`legs.arm.TOOL_MAX_DROP_M`). 40 mm tall, the rover's
+#: (`rover-final`): set 2 mm off the floor, they touch a 26 mm cube over 24
+#: mm centred a millimetre over its middle, their tops 16 mm over its top.
+CLAW_JAW_DROP = 0.175
+CLAW_PAD_HALF = (0.014, 0.004, 0.020)
+#: Each jaw's middle off the carriage's centreline, m: closed (where it
+#: rests, hung -- the pads then hide none of the bay's tags from the working
+#: pose) and open, a 60 mm mouth between the pads' faces.
+CLAW_JAW_CLOSED = 0.006
+CLAW_JAW_OPEN = 0.034
+#: The pads' contact, stiff and hard (`solref`, `solimp`). ⚠ ON MUJOCO'S
+#: DEFAULT 20 ms THE SERVO WON: a 12 g jaw's contact is a spring far softer
+#: than its 600 N/m, so the pads sank up to 8 mm into a held cube and rang at
+#: 8 Hz, touching it now and then, and a cube carried at a walk fell out
+#: within 9 s. ⚠ AND A HELD CUBE CREEPS: its weight rides on friction, which
+#: a soft constraint lets slide, slowest at three physics steps' time
+#: constant and a 10 um impedance width -- MEASURED on the claw held in
+#: space (a cube of 60 / 150 / 320 g): 0.032 / 0.09 / 0.19 mm/s, against
+#: 0.106 on the rover's `GRIP_SOLIMP` and 1.5 with a flat 0.999; MuJoCo's
+#: friction never quite holds, so a place measures where the cube hangs
+#: before it lets go (`tools.claw`).
+CLAW_PAD_SOLREF = "0.006 1"
+CLAW_PAD_SOLIMP = "0.99 0.999 0.00001"
+#: The jaws' squeeze: an FS90MG through a 10 mm pinion (Parts.md: 0.216
+#: N.m at stall, so 21.6 N, 10 a jaw), commanded shut past what they close
+#: on -- a servo there pushes at its stall. So the position servo is stiff
+#: and its force is the clip: ⚠ AT THE ROVER'S 600 N/m THE JAWS BREATHED.
+#: Shaken 10 mm at 4 Hz on the claw held in space, a 60 g cube slid 1.6 mm/s
+#: down the pads; held by the stall force, 0.02.
+CLAW_GRIP_KP = 2000.0
+CLAW_JAW_FORCE_N = 10.0
+#: The parts' masses, kg: the slide's rail and carriage (its 56 g), the
+#: jaws' servo (an FS90MG, 12.7 g) with the pendant and crossbar, each jaw.
+CLAW_RAIL_KG, CLAW_CARRIAGE_KG, CLAW_HAND_KG, CLAW_JAW_KG = 0.020, 0.036, 0.030, 0.012
+CLAW_PARTS_KG = CLAW_RAIL_KG + CLAW_CARRIAGE_KG + CLAW_HAND_KG + 2 * CLAW_JAW_KG
+#: Its actuators, joints, pads and grip point, by name: the world's, as the
+#: module is.
+CLAW_SLIDE = "claw_slide"
+CLAW_SLIDE_JOINT = "claw_slide_joint"
+CLAW_JAWS = ("claw_l", "claw_r")
+CLAW_PADS = ("module_claw_pad_l", "module_claw_pad_r")
+CLAW_GRIP = "claw_grip"
+
+
+def claw_face() -> str:
+  """The claw's parts in the module's frame: the rail under the plate, the
+  carriage sliding along it (the peg's axis), and hanging from the carriage
+  a pendant, its crossbar and two jaws closing toward each other across it.
+  The pads grip, on a stiff, hard contact (`CLAW_PAD_SOLREF`,
+  `CLAW_PAD_SOLIMP`); `claw_grip` is the jaws' middle."""
+  jaw_z = PEG_ABOVE_BODY - CLAW_JAW_DROP - CLAW_RAIL_Z    # carriage frame
+  bar_z = jaw_z + CLAW_PAD_HALF[2] + 0.004
+  top = -0.012                                             # the block's bottom
+  jaws = "".join(
+    f'<body name="module_claw_jaw_{lbl}" pos="{_v(-CLAW_MOUNT_X, s * CLAW_JAW_CLOSED, jaw_z)}">'
+    f'<joint name="{joint}" type="slide" axis="0 {s} 0" '
+    f'range="{_v(0, CLAW_JAW_OPEN - CLAW_JAW_CLOSED)}" damping="1"/>'
+    f'<geom name="{pad}" type="box" size="{_v(*CLAW_PAD_HALF)}" mass="{_f(CLAW_JAW_KG)}" '
+    f'friction="1.5 0.005 0.0001" priority="1" solimp="{CLAW_PAD_SOLIMP}" '
+    f'solref="{CLAW_PAD_SOLREF}" rgba="0.25 0.25 0.28 1"/></body>'
+    for s, lbl, joint, pad in ((1, "l", CLAW_JAWS[0], CLAW_PADS[0]),
+                               (-1, "r", CLAW_JAWS[1], CLAW_PADS[1])))
+  return (
+    f'<geom name="module_claw_rail" type="box" '
+    f'size="{_v(0.004, CLAW_TRAVEL + 0.012, 0.004)}" pos="{_v(CLAW_MOUNT_X, 0, CLAW_RAIL_Z)}" '
+    f'mass="{_f(CLAW_RAIL_KG)}" rgba="0.55 0.57 0.60 1"/>'
+    f'<body name="module_claw_carriage" pos="{_v(CLAW_MOUNT_X, 0, CLAW_RAIL_Z)}">'
+    f'<joint name="{CLAW_SLIDE_JOINT}" type="slide" axis="0 1 0" '
+    f'range="{_v(-CLAW_TRAVEL, CLAW_TRAVEL)}" damping="2"/>'
+    f'<geom name="module_claw_block" type="box" size="0.008 0.010 0.006" '
+    f'pos="0 0 -0.006" mass="{_f(CLAW_CARRIAGE_KG)}" rgba="0.30 0.32 0.36 1"/>'
+    f'<geom name="module_claw_pendant" type="box" '
+    f'size="{_v(0.005, 0.005, (top - bar_z) / 2 - 0.004)}" '
+    f'pos="{_v(-CLAW_MOUNT_X, 0, (top + bar_z) / 2)}" mass="{_f(CLAW_HAND_KG / 2)}" '
+    f'rgba="0.45 0.47 0.50 1"/>'
+    f'<geom name="module_claw_bar" type="box" '
+    f'size="{_v(0.008, CLAW_JAW_OPEN + CLAW_PAD_HALF[1], 0.004)}" '
+    f'pos="{_v(-CLAW_MOUNT_X, 0, bar_z)}" mass="{_f(CLAW_HAND_KG / 2)}" '
+    f'rgba="0.30 0.32 0.36 1"/>'
+    f'<site name="{CLAW_GRIP}" pos="{_v(-CLAW_MOUNT_X, 0, jaw_z)}" size="0.003"/>'
+    + jaws + '</body>')
+
+
+def tool_actuators_xml(tools=("module_pen", "module_claw")) -> str:
+  """The actuators of the `tools` a world has, for its `<actuator>`: the
+  pen's carriage, a position servo as stiff as a lead screw -- at a hobby
   servo's kp the pen's drag on the board took 8 mm of its error, and the
-  rover's figure came out 12 mm off."""
-  return (f'<position name="{PEN_ACTUATOR}" joint="{PEN_CARRIAGE_JOINT}" kp="2000" '
-          f'kv="80" ctrlrange="{_v(-PEN_TRAVEL, PEN_TRAVEL)}" '
-          f'forcerange="{_v(-PEN_FORCE_N, PEN_FORCE_N)}"/>')
+  rover's figure came out 12 mm off -- and the claw's: its carriage the
+  same slide, its jaws one servo through a rack and pinion, a position
+  actuator a side commanded as one."""
+  jaw = CLAW_JAW_OPEN - CLAW_JAW_CLOSED
+  out = ""
+  if "module_pen" in tools:
+    out += (f'<position name="{PEN_ACTUATOR}" joint="{PEN_CARRIAGE_JOINT}" kp="2000" '
+            f'kv="80" ctrlrange="{_v(-PEN_TRAVEL, PEN_TRAVEL)}" '
+            f'forcerange="{_v(-PEN_FORCE_N, PEN_FORCE_N)}"/>')
+  if "module_claw" in tools:
+    out += (f'<position name="{CLAW_SLIDE}" joint="{CLAW_SLIDE_JOINT}" kp="2000" '
+            f'kv="80" ctrlrange="{_v(-CLAW_TRAVEL, CLAW_TRAVEL)}" '
+            f'forcerange="{_v(-PEN_FORCE_N, PEN_FORCE_N)}"/>'
+            + "".join(f'<position name="{j}" joint="{j}" kp="{_f(CLAW_GRIP_KP)}" kv="6" '
+                      f'ctrlrange="{_v(0, jaw)}" '
+                      f'forcerange="{_v(-CLAW_JAW_FORCE_N, CLAW_JAW_FORCE_N)}"/>'
+                      for j in CLAW_JAWS))
+  return out
 
 
 def tool_face(name: str) -> str:
-  """What a tool shows: the pen's working parts (`pen_face`), and, visual
-  only, the LCD's screen facing away from the robot that carries it and the
-  claw's pendant and jaws (they collide as a plate and a peg until #407). A
-  module faces the robot with its +x, so its business end is at -x."""
+  """What a tool shows: the pen's and the claw's working parts (`pen_face`,
+  `claw_face`), and, visual only, the LCD's screen facing away from the
+  robot that carries it. A module faces the robot with its +x, so its
+  business end is at -x."""
   back = -TOOL_HALF_X
   vis = 'contype="0" conaffinity="0" mass="0"'
   if name == "module_lcd":
@@ -338,12 +445,21 @@ def tool_face(name: str) -> str:
   if name == "module_pen":
     return pen_face()
   if name == "module_claw":
-    return (f'<geom name="module_claw_pendant" type="box" size="0.008 0.012 0.060" '
-            f'pos="{_v(back - 0.010, 0, -0.080)}" {vis} rgba="0.30 0.32 0.36 1"/>'
-            + "".join(f'<geom name="module_claw_jaw_{lbl}" type="box" size="0.006 0.004 0.020" '
-                      f'pos="{_v(back - 0.010, s * 0.022, -0.150)}" {vis} '
-                      f'rgba="0.25 0.25 0.28 1"/>' for s, lbl in ((1, "l"), (-1, "r"))))
+    return claw_face()
   return ""
+
+
+#: Each tool's mass, kg. The LCD and the pen are the rover's modules
+#: (`rover-final`'s `models/home_world.xml`) with its 150 mm peg (20 g)
+#: swapped for this one; the LCD is a plate, a peg and its screen, its mass
+#: on the plate -- the envelope's "on its peg" case. The claw is the plate
+#: and peg (`MODULE_MASS`) and its parts (#407).
+TOOL_KG = {"module_lcd": 0.1426 - 0.020 + PEG_MASS,
+           "module_pen": 0.1816 - 0.020 + PEG_MASS,
+           "module_claw": MODULE_MASS + CLAW_PARTS_KG}
+#: ...and each one's own parts' masses, kg: what its face carries, out of
+#: its plate's (`tools_xml`).
+FACE_KG = {"module_pen": PEN_PARTS_KG, "module_claw": CLAW_PARTS_KG}
 
 
 def tools_xml(pos=(0.0, 0.0), yaw: float = 0.0, spec: RackSpec = DEFAULT) -> tuple[str, str]:
@@ -356,9 +472,9 @@ def tools_xml(pos=(0.0, 0.0), yaw: float = 0.0, spec: RackSpec = DEFAULT) -> tup
   defaults, bodies = [], []
   for name, bay in TOOL_BAYS.items():
     defaults.append(tool_default(name))
-    parts = PEN_PARTS_KG if name == "module_pen" else 0.0
     bodies.append(tool_xml(name, bay_peg(spec, bay, pos=pos, yaw=yaw), yaw=yaw,
-                           mass=TOOL_KG[name] - parts, face=tool_face(name)))
+                           mass=TOOL_KG[name] - FACE_KG.get(name, 0.0),
+                           face=tool_face(name)))
   return "".join(defaults), "".join(bodies)
 
 

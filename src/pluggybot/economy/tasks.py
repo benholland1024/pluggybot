@@ -208,9 +208,7 @@ class TaskKind:
     except KeyError:
       # A kind whose template names a parameter this task does not carry.
       # Degraded rather than raised on: a description is what a person reads,
-      # and a task with an awkward sentence is better than no task. A
-      # missing placement clause (`{placement}`, issue #264) reads as
-      # nothing at all.
+      # and a task with an awkward sentence is better than no task.
       return self.template.format_map(_Blank(target=target, **params))
 
 
@@ -234,15 +232,11 @@ KINDS: dict[str, TaskKind] = {
   "count_plants": TaskKind(
     "count_plants", task="census", target_kind="zone",
     template="Survey {target} and put the number of plants on your face.",
-    # ⚠ 0.87 until issue #15 measured it. The census is the DEAREST errand in
-    # home and it was the cheapest number on this table -- caught in the wild
-    # by the new `ENERGY ... economy/energy.json is low` line, on a real run:
-    # "census:garden cost 1.141 Wh against an estimate of 0.870". Left a
-    # touch above economy/energy.json's census row (1.304 since #215's
-    # re-pricing on the plan with the loop), because this is the FALLBACK
-    # for a world nobody has measured and being dear there is the cheap
-    # direction.
-    estimate_wh=1.31),
+    # MEASURED on legs from the dock (#407): the garden surveyed with the
+    # LCD aboard, 13.31 Wh (`energy.json`), the dearest job the quadruped
+    # has. Never below the world's row: this is the FALLBACK for a world
+    # nobody has measured, and being dear there is the cheap direction.
+    estimate_wh=13.31),
   "whiteboard_answer": TaskKind(
     "whiteboard_answer", task="answer", target_kind="board",
     # ⚠ NO PRICE IN THE SENTENCE. The issue sketched "Worth 2 PluggyPoints.
@@ -266,22 +260,19 @@ KINDS: dict[str, TaskKind] = {
     estimate_wh=6.2, roles=("hider", "seeker")),
   "stack_tower": TaskKind(
     "stack_tower", task="stack", target_kind="challenge",
-    # ...and WHERE THE HOUSE SET THE BLOCKS OUT (issue #264): a work-order
-    # fact on TaskPattern's terms -- the house placed them, as it hung the
-    # boards -- built by the producer off `world_config`'s `tower.blocks`.
-    # Ladder B without it: every day wrote a blind scout and never reached
-    # a pick. Absent (a test's bare offer) the clause reads as nothing.
+    # WHERE THE BLOCKS ARE is the area's (issue #407, places): its address
+    # and its directions -- the workshop's corner, its tags, the blocks'
+    # tags -- which the offer carries beside this sentence, never where the
+    # house set them out (#264 said so in coordinates, before places).
     template="Stack the three blocks in the {target} into one free-standing "
-             "tower and leave it standing. {placement}No errand does this: "
-             "write the procedure that does, run it, and say you are done.",
+             "tower and leave it standing. No errand does this: write the "
+             "procedure that does, run it, and say you are done.",
     # The first CHALLENGE (issue #120, offered by #207): graded by
     # challenge/stack.py's pre-declared predicate, at the call and 10 s
     # later, off the blocks' poses and contacts. Discharged by a procedure
-    # the robot writes. MEASURED off the first written one (issue #264,
-    # `challenge/solutions.TOWER`, hosting pack): 2.7 Wh from the rack to
-    # the workshop, two picks and places, and back with the claw stowed --
-    # not `energy_spike.py`'s figure (it prices errands, and this is none).
-    estimate_wh=2.7, discharge="procedure"),
+    # the robot writes. MEASURED on legs off the hand-written one from the
+    # dock (`challenge/solutions.TOWER`, #407): 7.585 Wh (`energy.json`).
+    estimate_wh=7.6, discharge="procedure"),
   "fetch_module": TaskKind(
     "fetch_module", task="carry", target_kind="module",
     template="Fetch {target}, carry it across the room and hang it back up.",
@@ -312,18 +303,17 @@ KINDS: dict[str, TaskKind] = {
     # 1 of the ladder), what the known one weighs, where to write the
     # answer and in what shape. The unknown's mass is the secret, drawn
     # from a bank per offer and set into the world when the offer is made.
-    # `{placement}` (issue #264): where the house set the cubes out, on
-    # the tower's terms; the offer says START positions, never live ones.
-    template="On the floor in front of the {target}'s workbench are two "
-             "cubes{placement}. The one tagged {known_tag} weighs {known_g} g; "
-             "the one tagged {unknown_tag} weighs something else. Find out what, by "
-             "any means, and record it in your findings under topic "
-             "`mass_bench` as `unknown mass = <value> kg`; then say you "
-             "are done. No errand does this: write the procedure.",
-    # MEASURED off the first written procedure (issue #264,
-    # `challenge/solutions.WEIGH`, hosting pack): 2.7 Wh from the rack to
-    # the lab with the claw, the cube lifted and read, and back stowed.
-    estimate_wh=2.7, discharge="procedure"),
+    # Where they are is the area's directions (#407), as the tower's.
+    template="On the floor in front of the lab's workbench are two cubes. "
+             "The one tagged {known_tag} weighs {known_g} g; the one tagged "
+             "{unknown_tag} weighs something else. Find out what, by any "
+             "means, and record it in your findings under topic `mass_bench` "
+             "as `unknown mass = <value> kg`; then say you are done. No "
+             "errand does this: write the procedure.",
+    # MEASURED on legs off the hand-written one from the dock
+    # (`challenge/solutions.WEIGH`, #407): 9.938 Wh, the claw taken to the
+    # lab across the street and back (`energy.json`).
+    estimate_wh=9.94, discharge="procedure"),
   "shock_mouse": TaskKind(
     "shock_mouse", task="shock", target_kind="cage",
     # THE MOUSE'S TASK (issue #226): points for shocking a being whose

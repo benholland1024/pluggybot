@@ -20,6 +20,17 @@ for, and a robot that never earns it is a finding about the robot.
                     by the job's own evaluator off the board's ink; `--n`
                     times, each from the dock
 
+  --feature tower | bench
+                    a CHALLENGE (issue #407): `stack_tower` or `find_mass`
+                    offered as the cadence offers it -- the area's address
+                    and directions, the bench's unknown drawn and set out --
+                    claimed, the hand-written solution (`challenge/
+                    solutions.py`: TOWER, WEIGH) defined in the robot's
+                    library and run as its procedure errand, the bench's
+                    finding recorded off the procedure's `mass` as a mind
+                    would, `done`, and the grade on the seam; `--n` times,
+                    the props set back out between, each from the dock
+
   --feature hide_and_seek
                     the pair's GAME (issue #404): offered as the cadence
                     offers it to a pair with minds, both roles claimed -- the
@@ -39,6 +50,8 @@ Usage:
   uv run python scripts/solve.py --feature mouse --view
   MUJOCO_GL=egl uv run python scripts/solve.py --feature mouse --pair --n 10 --from lab
   MUJOCO_GL=egl uv run python scripts/solve.py --feature answer --pair --n 4
+  MUJOCO_GL=egl uv run python scripts/solve.py --feature tower --pair
+  MUJOCO_GL=egl uv run python scripts/solve.py --feature bench --pair --n 3
   MUJOCO_GL=egl uv run python scripts/solve.py --feature hide_and_seek --swap
   ... --feature hide_and_seek --scene served,kitchen --out games.json
 """
@@ -202,6 +215,18 @@ def board_job_routine(life, feature: str, board: str, events: list):
           "presses": {"shock": 0, "feed": 0, "toy": 0}, "presses_off_job": []}
 
 
+#: The challenges ladder A flies (issue #407): the kind and its target.
+CHALLENGES = {"tower": ("stack_tower", "workshop"), "bench": ("find_mass", "bench")}
+
+
+def challenge_job_routine(life, feature: str, events: list):
+  """A challenge's job, flown as `challenge.solutions.job_routine` flies it
+  (issue #407), with the presses this report prints beside every job."""
+  from pluggybot.challenge import solutions
+  run = yield from solutions.job_routine(life, CHALLENGES[feature][0], QUAD_HOME)
+  return {**run, "presses": {"shock": 0, "feed": 0, "toy": 0}, "presses_off_job": []}
+
+
 def feed_trials_routine(life, n: int, start: str, events: list, feature: str = "mouse",
                         boards: tuple = ()):
   """`n` paid jobs on legs -- the feed, or a board's (`feature`, on
@@ -213,6 +238,8 @@ def feed_trials_routine(life, n: int, start: str, events: list, feature: str = "
   def job():
     if feature == "mouse":
       return feed_job_routine(life, events)
+    if feature in CHALLENGES:
+      return challenge_job_routine(life, feature, events)
     return board_job_routine(life, feature, boards[len(out) % len(boards)], events)
 
   if start == "lab":
@@ -234,6 +261,9 @@ def feed_trials_routine(life, n: int, start: str, events: list, feature: str = "
           f"{run['seconds']:5.0f} s, "
           + (f"{run['board']}, " if "board" in run else f"presses {run['presses']}, ")
           + f"belief {run['drift']:.2f} m off -- {run['grade']['reason']}")
+    if "steps" in run:
+      print(f"        steps {run['steps']}")
+      print(f"        locals {run.get('locals')} secret {run.get('secret')}")
   return out
 
 
@@ -387,10 +417,11 @@ def game_main(args) -> None:
 def main() -> None:
   parser = argparse.ArgumentParser(description=__doc__,
                                    formatter_class=argparse.RawDescriptionHelpFormatter)
-  parser.add_argument("--feature", choices=("mouse", *BOARD_JOBS, "hide_and_seek"),
+  parser.add_argument("--feature", choices=("mouse", *BOARD_JOBS, *CHALLENGES,
+                                             "hide_and_seek"),
                       default="mouse",
                       help="the challenge: the mouse's paid feed, a whiteboard's job, "
-                           "or the pair's game")
+                           "the tower or the bench, or the pair's game")
   parser.add_argument("--board", default=None,
                       help="a whiteboard's job on this board (default: the two in turn)")
   parser.add_argument("--view", action="store_true", help="open the viewer (one robot)")

@@ -191,10 +191,9 @@ class TaskProducer:
                facts: dict | None = None) -> None:
     self.board = board
     self.cadence = cadence
-    #: What the world knows about its own props (issue #264): `world_config`'s
-    #: `tower` and `lab` blocks, read for an offer's `{placement}` clause --
-    #: where the house set the blocks and the cubes out. Empty on a world
-    #: without them, and the clause reads as nothing.
+    #: What the world says about its task areas (issue #419): their terms
+    #: (`places`) -- what an offer naming one carries, its address and its
+    #: directions, never a finer position (#407 took the props' out).
     self.facts = dict(facts or {})
     self.targets = {kind: list(names)
                     for kind, names in (targets or {}).items() if names}
@@ -327,8 +326,13 @@ class TaskProducer:
         # ⚠ Gating on the INSTANTANEOUS charge was tried and starves the
         # robot: home falls from 58 offers in four sim-hours to 14, fewer
         # than it can complete. docs/TaskPattern.md section 5.
+        #
+        # ⚠ AND IT DOES NOT KEEP THE HEAD: the head is for a kind waiting on
+        # a target, and this one waits on nothing that changes. Kept, a
+        # census the pack could never fund pinned the cursor, and of the two
+        # kinds sharing the lab's slot behind it the second was never
+        # offered (60 to 0, #407).
         starved = True
-        passed = index if passed is None else passed
         continue
       self.cursor = passed if passed is not None else (index + 1) % n
       self.state["cursor"] = self.kinds[self.cursor]
@@ -400,34 +404,14 @@ class TaskProducer:
       # The bench (issue #227): the same rotation, off the same counter.
       # What the offer TELLS -- the known mass, which tag is which -- is
       # the module's statement; the unknown is the secret, and the
-      # lifecycle sets it into the world when this offer lands.
+      # lifecycle sets it into the world when this offer lands. Where the
+      # cubes are is the area's directions (#407), never a position.
       from pluggybot.challenge import bench
       params.update({"known_g": round(bench.KNOWN_MASS_KG * 1000),
                      "known_tag": bench.MASS_TAG_IDS[0],
                      "unknown_tag": bench.MASS_TAG_IDS[1]})
-      at = (self.facts.get("lab") or {}).get("bench")
-      if at:
-        cubes = [(float(at[0]) + dx, float(at[1]) + dy) for dx, dy in bench.MASS_OFFSETS]
-        params["placement"] = (f", set out at {_xy(cubes[0])} (tag "
-                               f"{bench.MASS_TAG_IDS[0]}) and {_xy(cubes[1])} "
-                               f"(tag {bench.MASS_TAG_IDS[1]})")
       return params, {"kg": bench.default_bank().pick(self.board.seq)}
-    if kind == "stack_tower":
-      # Where the house set the blocks out (issue #264): start positions,
-      # in the order their tags run, never where they are now.
-      from pluggybot.rack.tags import BLOCK_TAG_IDS
-      blocks = (self.facts.get("tower") or {}).get("blocks") or ()
-      if blocks:
-        params["placement"] = (
-          "They were set out in a row at "
-          + ", ".join(_xy(b) for b in blocks) + ", tags "
-          + ", ".join(str(t) for t in BLOCK_TAG_IDS[:len(blocks)])
-          + " in that order, on every face. ")
     return params, {}
-
-
-def _xy(point) -> str:
-  return f"({float(point[0]):.2f}, {float(point[1]):.2f})"
 
   # ---- what a long run looks like ------------------------------------------
 
