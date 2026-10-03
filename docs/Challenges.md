@@ -208,11 +208,17 @@ honest proxy.
 
 ## 7. What it takes to offer the tower
 
-⚠ **On legs neither challenge is offered yet**: `cadence.json` offers
-`home_quad` the paid feed alone, and the tower and the bench come back with
-the tools in #407 (#375, step 4), each solved first by hand on the
-quadruped. The props stand in the house and the graders are unchanged;
-what follows is how they were offered to the rover.
+**On legs (#407)** both challenges are offered on `home_quad`, each solved
+first by hand on the quadruped (`challenge/solutions.py`: TOWER and WEIGH,
+flown by `scripts/solve.py --feature tower|bench`). The graders are
+unchanged. What changed is how the robot gets there: each challenge is an
+AREA found by its tags -- the workshop corner's pair (42-43) on its west
+wall, the bench's (44-45) on its front -- its props set out 0.70 m in front
+of them, and the offer gives the area's address and directions, never a
+position (#419's rule; the rover's offers said where the props were set
+out). The claw takes a cube lying, found by the D435's colour imager
+(SimNotes, "The claw on legs"). What follows is how they were first
+offered, to the rover; the gates are the same.
 
 The tower is written for perception-ladder tier 1 (`TaskPattern.md` §3): when
 offered, the blocks carry AprilTags. They are untagged today because the
@@ -250,10 +256,9 @@ departure from it:
   only where a procedure can be written, so the loop with no mind never
   sees the offer. A mind's reward table carries the challenge rows
   (`RewardTable.as_context(challenges=True)`).
-- **The energy cost is measured off the first written procedure** (issue
-  #264): 2.7 Wh from the rover's rack and back on the hosting pack. The
-  kind's estimate still carries that number, until a solution on legs
-  re-prices it.
+- **The energy cost is measured off the hand-written solution**: on legs
+  TOWER from the dock, 8.106 Wh (`energy.json`; the kind's fallback 8.11,
+  #407).
 
 What the observatory will show, blocking nothing: claims (`task` rows,
 kind `stack_tower`), procedures written for it (`procedure` rows), and the
@@ -262,9 +267,10 @@ first solve — the first reading of the capability metric #155 waits for.
 **Whether it can be done at all was settled on the rover** (issue #264): six
 lines of the robot's own language — fetch the claw, pick and place twice,
 stow — passed this grader from the rack (`rover-final` has the solution and
-its flight). On legs it is open again, and #264's rule stands: a feature
-with no hand-written solution that passes its own grader is a defect, fixed
-before it is paid or prompted.
+its flight). On legs TOWER passed it again from the dock (#407, `solve.py
+--feature tower`), and #264's rule stands: a feature with no hand-written
+solution that passes its own grader is a defect, fixed before it is paid or
+prompted.
 
 ## 8. The bench: find an unknown mass and record it (issue #227)
 
@@ -274,8 +280,8 @@ floor in front of the workbench -- the tower's 26 mm block, tagged 23 and
 24 -- one weighing a stated 100 g and one weighing something the offer
 does not say. "Find out what, by any means, and record it." A balance
 from catalog parts, a comparison of pushes, an actuator's load are all
-live routes, and the grader knows none of them. Not offered on legs yet
-(§7).
+live routes, and the grader knows none of them. Offered on legs since
+#407 (§7).
 
 **The criteria**, written before the physics was run: (1) the finding is
 ON THE RECORD -- one line under `findings/mass_bench` whose quantity names
@@ -297,10 +303,12 @@ beside either gives the mass away.
 
 **The honest sensor is the real part's.** On the rover it was the lift's
 own load (`read("lift.force")`: the lead screw's force plus a load cell's
-noise, exact to `dm · g` across the bank's masses); the quadruped has no
-such sensor yet, and what it weighs with is #407's to choose. Either way a
-robot has to subtract the tare, or use the known cube to calibrate -- and
-that is the job, not a hint the prompt gives.
+noise, exact to `dm · g` across the bank's masses). On legs it is the
+arm's motors as their drivers report torque (`read("elbow.torque")`,
+`read("shoulder.torque")`: 12 bits over +-22 N*m off a noisy phase current;
+SimNotes, "The bench's scale"). Either way a robot has to subtract the tare,
+or use the known cube to calibrate -- and that is the job, not a hint the
+prompt gives.
 
 **A procedure's variables are its readout.** Nothing read inside a
 procedure reached the mind before this: the run's verdicts said which

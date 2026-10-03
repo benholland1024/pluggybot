@@ -62,7 +62,11 @@ def test_the_vocabulary_is_the_issues_verbs():
                            # the motor level, issue #166
                            "move", "drive",
                            # places, issue #419
-                           "find", "press"}
+                           "find", "press",
+                           # a whiteboard, issue #406
+                           "draw",
+                           # the claw's cubes and the census's survey, #407
+                           "pick", "place", "put", "grip", "release", "survey"}
   assert all(d["doc"] for d in st.describe_vocabulary())
 
 
@@ -432,12 +436,23 @@ CTRL_WRITERS = {
   # path its twelve joints are commanded through. The policy commands them;
   # it does not write `ctrl`.
   "legs/drivers.py",
+  # issue #406: the pen's carriage, a lead screw walked by the plotter
+  # (`PenPlotter`), the one path the tool's own axis is commanded through.
+  "tools/drawing.py",
   # issue #378: the quadruped's arm driver -- its two motors' torques, a PD
   # toward a target RAMPED at ARM_SLEW plus the arm's own gravity, the one
   # path the arm's joints are commanded through: the served body's since
   # #405, where a procedure's `move` reaches it only as a goal
   # (`QuadMission.arm_ramp_routine`).
   "legs/arm.py",
+  # issue #407: a hung tool's own servos on legs -- the claw's jaws and
+  # slide, a built tool's axes -- RAMPED from the setpoint, the one path a
+  # tool's actuators are commanded through (`Body.ramp_routine`).
+  "tools/servo.py",
+  # issue #407: the recompile seam -- a built tool's NEW servos set once to
+  # their joints' compiled rest (the stow), where a recompile starts them
+  # at 0; never a running servo's setpoint.
+  "workshop/seam.py",
 }
 
 

@@ -59,9 +59,9 @@ class MassBudget:
   #: PLACEHOLDER, #377's sizing premise (`SIZING`). A body with a real arm
   #: (`BodySpec.arm`) budgets 0 here: the arm's parts are its own geoms.
   arm: float = 0.90
-  #: The tool at the arm's tip (the rover's ~250 g practical ceiling,
-  #: ToolPattern.md "Mass and geometry class"), the same placeholder's. With
-  #: a real arm a tool is a body of its own, on a rack or on the fork.
+  #: The tool at the arm's tip (the rover's ~250 g ceiling), the same
+  #: placeholder's. With a real arm a tool is a body of its own, on a rack or
+  #: on the fork, inside the arm's envelope (ToolPattern.md §2).
   tool: float = 0.25
 
   @property
@@ -408,6 +408,9 @@ def body_xml(spec: BodySpec, *, root: str = ROBOT_ROOT,
         <geom name="depth_cam" class="visual" type="box" size="0.0125 0.045 0.0125"
               mass="{_f(budget.depth_cam)}" rgba="0.2 0.2 0.2 1"/>
         <camera name="depth_eye" pos="0.013 0 0" xyaxes="0 -1 0 0 0 1" fovy="58"/>
+        <!-- ...and the D435's colour imager beside it (#407): 69 x 42 deg,
+             what finds a cube's small tags at the robot's feet. -->
+        <camera name="color_eye" pos="0.013 -0.015 0" xyaxes="0 -1 0 0 0 1" fovy="42"/>
       </body>
       <body name="nav_cam_body" pos="{_v(tx + 0.005, 0, tz - 0.012)}">
         <geom name="nav_cam" class="visual" type="box" size="0.006 0.012 0.012"

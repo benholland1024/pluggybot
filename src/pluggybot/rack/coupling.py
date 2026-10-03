@@ -13,42 +13,26 @@ Gravity is the latch; V depth is the retention. The peg's two conductors
 are the module's power (`module_power_state`). A V-notch is concave, and
 MuJoCo collides convex pieces only, so each is two tilted boxes.
 
-Here too: the rig the workshop runs a built tool through (`scene_xml`),
-the contact list read as an array (`touching`), and the bay index space
-(`STATION_YS`) both racks read their bays by.
+Here too: the rover's coupling rig (`scene_xml`, the noslip policy's
+test compiles it), the contact list read as an array (`touching`), and the
+bay index space (`STATION_YS`) the quadruped's rack and rail read their
+bays by.
 """
 
 import math
 
 import numpy as np
 
-from pluggybot.rack.tags import (
-  SMALL_TAG_SIZE, plate_half_extent,
-)
-
 # -- geometry (meters) --------------------------------------------------------
-#: The plate + peg budget every module is emitted at (ToolPattern.md §2 "Mass
-#: and geometry class"); the `face` adds its own on top. `PEG_MASS` is the
-#: 150 mm rod's share, split 8 + 8 + 4 g over the two conductors and the
-#: bush by `peg_xml`. Both are read into `protocol/parts.json` by
-#: `rack/catalog.py`, which is where the part behind each number is named.
+#: The rover's plate + 150 mm peg budget; the `face` adds its own on top.
+#: `PEG_MASS` is the rod's share, split 8 + 8 + 4 g over the two conductors
+#: and the bush by `peg_xml`. The quadruped's tools are these with the
+#: 220 mm peg (`legs.rack.MODULE_MASS`, `PEG_MASS`). The envelope a new tool
+#: must fit is the arm's (`legs/arm.py`; `workshop/validate.py` refuses by
+#: it; ToolPattern.md §2).
 MODULE_MASS = 0.12
 PEG_MASS = 0.02
 
-# -- the coupling envelope a NEW tool must fit (ToolPattern.md §2) ------------
-# Measured numbers, pinned by tests/test_hub_coupling.py, refused (never
-# warned about) by workshop/validate.py. A spec does not renegotiate them.
-LATCH_MOMENT_NM = 0.45      # pitch moment before the peg rides out of its V:
-                            # 400 g unseats at 150 mm out, 800 g hangs at 0
-MODULE_MASS_CEILING = 0.25  # kg; the class the lift preset, DROOP_COMP and
-                            # the pad geometry were tuned for (143-211 g built)
-WALL_CLEARANCE = 0.080      # m between a racked module's front face and the
-                            # wall: what a tool sticks out the front points at
-                            # the wall when stowed
-BRACKET_BAND_Z = (-0.030, -0.009)  # the rack's, outboard of the plate: a
-                            # set-down raises the module 31 mm through it, and
-                            # a part in the band arrives under the tray
-                            # brackets and jams (the pen's carriage at +37 mm)
 #: DESIGN DECISION, NOT MEASURED: what the two-pole peg coupling delivers,
 #: at the 12 V pack. 12 W is 1 A. Was 6 W (0.5 A), sized so one hobby servo
 #: at stall (4.8 W) plus the module's ESP32 fits and nothing else does --
@@ -154,18 +138,15 @@ def scene_xml(dy: float = 0.0, dz: float = 0.0, yaw_deg: float = 0.0,
   its V, so the coupling is the behavior a global noslip policy is most
   likely to break, and the spike must be able to measure it under that
   policy (issue #3).
-  face / actuators: a BUILT module's parts and servos (workshop/build.py,
-  issue #168), strings in the module's frame. With a face the tool carries
-  the real split peg (`peg_xml`) so the rig can read its poles; without,
-  the plain rod the envelope was measured with.
+  face / actuators: a module's own parts and servos, strings in its frame.
+  With a face the tool carries the real split peg (`peg_xml`) so the rig
+  can read its poles; without, the plain rod the envelope was measured
+  with.
   push / back_x / peg_z: the approach force, the back wall's x and the peg's
   rest height. The defaults are the SPIKE's -- a 10 N push reacted by a
   wall 4 mm behind the plate, a stand-in for the robot's measured approach
   depth, with the peg at 0.15 -- and are what the ±4 mm envelope was swept
-  with. A built module has parts on the wall side and may hang as deep as
-  the claw, so its rig puts the wall at the rack's real distance
-  (RACK_HANG_X), the peg at the rack's height (HUB_PEG_Z), and advances to
-  a measured standoff instead of to the wall (workshop/build.py).
+  with.
   """
   peg_len_color = "0.75 0.75 0.78 1"
   # The tool spawns HANGING: peg resting at the tray vertices (+ its radius).
@@ -392,27 +373,22 @@ def module_power_contact(model, data, name: str = "module_lcd",
 # ---- the rack's layout (the "bike rack for tools", designed with Ben) -------
 # The rover's rack (deleted with it in #376; `rover-final` has it): what is
 # left is the INDEX SPACE every bay lives in, which the quadruped's rack
-# reads its bays by (`legs.rack`, `legs.swap`), and the hang geometry the
-# workshop's rig and seam still use until #407 re-points them at the arm.
-RACK_HANG_X = 0.09        # the hang plane: pegs this far out from the wall
-HUB_PEG_Z = 0.30          # module peg height
+# and rail read their bays by (`legs.rack.RackSpec.stations`, `legs.swap`).
 HUB_STATION_YS = (0.125, -0.125, 0.375, 0.625, 0.875)  # tool bays at 0.25 m
                           # pitch, APPENDED rather than inserted in y order:
-                          # the bay<->tag pairing is by index
+                          # a bay is named and kept by its index
 # ---- the BUILT-TOOL rail (issue #277) ---------------------------------------
-# A second rack beside the first, for the tools the robot builds: the five
-# hand-built modules are permanent and a built tool never takes one of
-# their bays. Its stations continue the first rack's frame and pitch, so
-# `STATION_YS` is one index space for every bay. No world carries the rail
-# since #376; #407 decides where a built tool hangs on legs.
-BUILT_STATION_YS = (1.175, 1.425, 1.675)  # three bays at the 0.25 m pitch,
-                          # 0.30 m past bay E
-BUILT_RACK_Y = 1.375      # the second rail's centre, rack-frame
-#: EVERY BAY, BY INDEX: the hand-built five, then the built rail's -- so it
-#: is APPENDED to, never reordered; a bay index in
-#: `HubLifecycle.rack_inventory` indexes this.
+# For the tools the robot builds: the hand-built tools are permanent and a
+# built tool never takes one of their bays. Its stations follow the first
+# rack's, so `STATION_YS` is one index space for every bay. On legs the
+# rail is `legs.rack.BUILT` (#407), at its own positions on the rack's
+# board: these y's are its stations' place in the index space and nothing
+# more.
+BUILT_STATION_YS = (1.175, 1.425, 1.675)  # the rover's three bays
+#: EVERY BAY, BY INDEX: the rover's five (the quadruped's rack takes the
+#: first three), then the built rail's -- so it is APPENDED to, never
+#: reordered; a bay index in `HubLifecycle.rack_inventory` indexes this.
 STATION_YS = HUB_STATION_YS + BUILT_STATION_YS
-SMALL_PLATE_HALF = plate_half_extent(SMALL_TAG_SIZE)
 
 
 def bay_prefix(i: int) -> str:
@@ -424,7 +400,7 @@ def bay_prefix(i: int) -> str:
 def built_bay_index(bay: int) -> int:
   """A built-rail bay (0..len(BUILT_STATION_YS)-1, the letter the robot
   names) as its index into STATION_YS -- the space `rack_inventory` and the
-  tag pairing use. Refused, not clamped, outside the rail."""
+  bays' names use. Refused, not clamped, outside the rail."""
   if not 0 <= bay < len(BUILT_STATION_YS):
     raise ValueError(f"no built-rail bay {bay}; it has {len(BUILT_STATION_YS)}")
   return len(HUB_STATION_YS) + bay
@@ -476,12 +452,3 @@ BUILT_RACK_BODY = "rack_built"
 GRIP_SOLIMP = "0.99 0.999 0.0001"
 
 
-def rack_frame_to_world(x_local: float, y_local: float,
-                        pos: tuple[float, float],
-                        yaw_deg: float) -> tuple[float, float]:
-  """A rack-frame point in world coordinates, for a rack at `pos`, `yaw_deg`."""
-  px, py = pos
-  th = math.radians(yaw_deg)
-  c, s = math.cos(th), math.sin(th)
-  return (px + x_local * c - y_local * s,
-          py + x_local * s + y_local * c)

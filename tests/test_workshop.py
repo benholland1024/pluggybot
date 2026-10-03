@@ -1,7 +1,8 @@
-"""The workshop's spec and validator (issue #168, slice A): ToolPattern §2
-as code, one test per rule, each shown to bite on a spec that is otherwise
-fine. `SCOOP` is the reference: a servo on the plate's front, a printed
-blade on the servo -- 142 g, 0.007 N·m, and every number the catalog knows.
+"""The workshop's spec and validator (issue #168, slice A; on legs, #407):
+the arm's envelope as code, one test per rule, each shown to bite on a spec
+that is otherwise fine. `SCOOP` is the reference: a servo under the plate,
+a printed blade hanging plumb from it -- 152 g, its centre of mass under
+the peg, and every number the catalog knows.
 """
 
 import copy
@@ -9,21 +10,21 @@ import math
 
 import pytest
 
+from pluggybot.legs import arm as am
+from pluggybot.legs import rack as rk
 from pluggybot.power import MODULE_IDLE_W
 from pluggybot.rack import catalog
-from pluggybot.rack.coupling import (
-  LATCH_MOMENT_NM, MODULE_MASS, MODULE_MASS_CEILING, PEG_POWER_W,
-)
+from pluggybot.rack.coupling import PEG_POWER_W
 from pluggybot.workshop import spec, validate
 from pluggybot.workshop.spec import Refused, parse, poses
 
 SCOOP = {
   "name": "scoop",
   "parts": [
-    {"id": "hinge", "part": "servo_fs90", "pos": [-20, 0, -45],
+    {"id": "hinge", "part": "servo_fs90", "pos": [0, 0, -50],
      "axis": {"verb": "tilt", "dir": [0, 1, 0], "range": [0, 90], "stow": 0}},
-    {"id": "blade", "part": "scaffold_pla_box", "size": [60, 30, 4],
-     "pos": [-30, 0, -8], "on": "hinge"},
+    {"id": "blade", "part": "scaffold_pla_box", "size": [4, 30, 70],
+     "pos": [0, 0, -45], "on": "hinge"},
   ],
 }
 
@@ -49,33 +50,33 @@ def refused(raw) -> list[str]:
 def test_the_reference_tool_validates():
   tool = validate.check(SCOOP)
   assert tool.body == "module_scoop"
-  assert 0.14 < MODULE_MASS + tool.mass < 0.15
+  assert 0.15 < validate.MODULE_MASS + tool.mass < 0.16
   assert validate.worst_moment(tool) < 0.01
+  assert validate.hang_tilt_deg(tool) < 0.1
   assert [p.axis.verb for p in tool.axes] == ["tilt"]
 
 
 def test_units_are_converted_once_at_the_door():
-  """mm and degrees in, metres and radians out -- a pos of 20 mm is 0.02 m
+  """mm and degrees in, metres and radians out -- a pos of 50 mm is 0.05 m
   and a 90° range is π/2. Shown to fail by the bug this pins: the first
   draft placed a servo 20 012 mm out the front."""
   tool = parse(SCOOP)
   hinge = tool.by_id["hinge"]
-  assert hinge.pos == pytest.approx((-0.020, 0.0, -0.045))
+  assert hinge.pos == pytest.approx((0.0, 0.0, -0.050))
   assert hinge.axis.hi == pytest.approx(math.pi / 2)
   assert hinge.axis.speed == pytest.approx(math.radians(600))
-  assert tool.by_id["blade"].half == pytest.approx((0.030, 0.015, 0.002))
+  assert tool.by_id["blade"].half == pytest.approx((0.002, 0.015, 0.035))
 
 
 def test_a_part_on_an_actuator_rides_its_axis():
-  """The blade on the hinge: at 90° about +y a point at (-30, 0, -8) from
-  the hinge lands at (-8, 0, +30) -- checked by hand, so the validator's
-  moment and clearance at the range ends are of the pose the tool will
-  actually take."""
+  """The blade on the hinge: at 90° about +y a point 45 mm under the hinge
+  swings 45 mm out ahead of it (-x) -- checked by hand, so the validator's
+  checks at the range ends are of the pose the tool will actually take."""
   tool = parse(SCOOP)
   stow = poses(tool)["blade"][0]
   up = poses(tool, {"tilt": math.pi / 2})["blade"][0]
-  assert stow == pytest.approx((-0.050, 0.0, -0.053))
-  assert up == pytest.approx((-0.028, 0.0, -0.015))
+  assert stow == pytest.approx((0.0, 0.0, -0.095))
+  assert up == pytest.approx((-0.045, 0.0, -0.050))
 
 
 # ---- structure -------------------------------------------------------------
@@ -104,7 +105,7 @@ def test_every_reason_at_once():
   raw = with_part({"id": "sheet", "part": "scaffold_pla_box", "size": [260, 2, 2],
                    "pos": [0, 30, -20]})
   reasons = refused(raw)
-  assert {r.split(":")[0] for r in reasons} >= {"bed", "bracket"}
+  assert {r.split(":")[0] for r in reasons} >= {"bed", "board", "behind"}
 
 
 def test_a_name_the_rack_already_has_is_refused():
@@ -123,9 +124,12 @@ def test_only_catalog_shelf_chosen_parts_with_known_numbers():
                                "axis": {"verb": "v", "dir": [0, 1, 0],
                                         "range": [0, 10], "stow": 0}}))
   assert any("candidate, not chosen (no part chosen)" in r for r in reasons)
-  # chosen, on the catalog, and the catalog does not weigh it: the rod
-  reasons = refused(with_part({"id": "x", "part": "peg_rod_6mm", "pos": [0, 0, -40]}))
-  assert any("does not know peg_rod_6mm's mass" in r for r in reasons)
+  # chosen, on the catalog, and the catalog does not weigh it: the frame
+  reasons = refused(with_part({"id": "x", "part": "module_frame", "pos": [0, 0, -40]}))
+  assert any("does not know module_frame's mass" in r for r in reasons)
+  # ...or does not size it: the peg
+  reasons = refused(with_part({"id": "x", "part": "quad_tool_peg", "pos": [0, 0, -40]}))
+  assert any("does not know its size" in r for r in reasons)
 
 
 def test_the_servo_the_workshop_leans_on_has_every_number():
@@ -174,87 +178,134 @@ def test_the_assembly_graph_is_a_tree_on_the_frame():
 # ---- the envelope, one rule each -------------------------------------------
 
 def test_mass_class():
-  """A 100 × 100 × 15 mm printed block is 186 g of PLA: over the class with
-  the plate. Shown to fail by raising MODULE_MASS_CEILING to 0.5."""
-  raw = with_part({"id": "block", "part": "scaffold_pla_box", "size": [100, 100, 15],
-                   "pos": [0, 0, -50]})
+  """A 100 x 100 x 25 mm printed block is 310 g of PLA: over the arm's
+  400 g with the plate, peg and scoop. Shown to fail by raising
+  `arm.TOOL_MAX_KG` to 0.5."""
+  raw = with_part({"id": "block", "part": "scaffold_pla_box", "size": [100, 100, 25],
+                   "pos": [0, 0, -60]})
+  assert any(r.startswith("mass:") and f"over the arm's {am.TOOL_MAX_KG * 1000:.0f} g" in r
+             for r in refused(raw))
+
+
+def test_a_tool_must_hang_plumb():
+  """Hung on the trays nothing holds a tool level, and one hung off plumb
+  is not hung (`rack.on_bay`, 2 deg; the rover's scoop, carried over, hung
+  5 deg off in the rig). A 20 mm cube 60 mm ahead of the peg tilts it; the
+  same cube under the peg does not. Shown to fail by dropping the rule."""
+  raw = with_part({"id": "weight", "part": "scaffold_pla_box", "size": [20, 20, 20],
+                   "pos": [-60, 0, -40]})
   reasons = refused(raw)
-  assert any(r.startswith("mass:") and f"over the {MODULE_MASS_CEILING * 1000:.0f} g" in r
-             for r in reasons)
+  assert any(r.startswith("hangs:") and f"past the {rk.HUNG_TILT_DEG:g}" in r for r in reasons)
+  under = with_part({"id": "weight", "part": "scaffold_pla_box", "size": [20, 20, 20],
+                     "pos": [0, 0, -40]})
+  assert validate.hang_tilt_deg(validate.check(under)) < 0.1
 
 
-def test_moment_about_the_peg_and_reach_costs_more_than_mass():
-  """FINDING, from writing the rule: inside the mass class and the wall
-  clearance the moment rule cannot bite FORWARD -- 250 g at 90 mm is
-  0.22 N·m, half the latch's budget -- so what it guards is reach toward
-  the robot (+x, past the fork) and, later, a payload. A 99 g plate 480 mm
-  toward the robot is inside the class and over the moment; the reason
-  says which way to move it."""
-  near = validate.check(SCOOP)
-  assert validate.worst_moment(near) < 0.05 * LATCH_MOMENT_NM
-  raw = with_part({"id": "plate", "part": "scaffold_pla_box", "size": [100, 100, 8],
-                   "pos": [480, 0, -60]})
-  reasons = refused(raw)
-  assert any(r.startswith("moment:") and "reach costs more than mass" in r
-             for r in reasons)
-  assert not any(r.startswith("mass:") for r in reasons)
-
-
-def test_moment_is_judged_at_the_axis_ends():
-  """A blade hanging straight DOWN from the hinge has the hinge's own reach
-  at stow (20 mm) and swings out to 55 mm at ±60°. The worst moment is
-  taken over the ends, not read at the stow pose."""
+def test_ahead_and_behind_are_judged_at_the_axis_ends():
+  """The scoop's blade hangs plumb at stow and swings out ahead at 90°:
+  its centre of mass is taken at every axis end, not read at the stow
+  pose. Swung the other way, a 30 g block on the hinge puts it BEHIND the
+  peg, on the lean-pad's post, and that is refused at the end that does."""
+  tool = validate.check(SCOOP)
+  assert validate.ahead_of_peg(tool, {"tilt": math.pi / 2}) > validate.ahead_of_peg(tool) + 0.002
   raw = scoop()
-  raw["parts"][0]["axis"]["range"] = [-60, 60]
-  raw["parts"][1] = {"id": "blade", "part": "scaffold_pla_box", "size": [4, 30, 60],
-                     "pos": [0, 0, -40], "on": "hinge"}
-  tool = validate.check(raw)
-  at_stow = sum(p.mass * validate.G * abs(float(poses(tool)[p.id][0][0]))
-                for p in tool.parts)
-  assert validate.worst_moment(tool) > at_stow
+  raw["parts"][0]["axis"]["range"] = [-90, 0]
+  raw["parts"][1] = {"id": "block", "part": "scaffold_pla_box", "size": [20, 30, 40],
+                     "pos": [0, 0, -45], "on": "hinge"}
+  reasons = refused(raw)
+  assert any(r.startswith("ahead:") and "BEHIND the peg" in r and "low end" in r
+             for r in reasons)
+
+
+def test_the_moment_rule_cannot_bite_inside_the_mass_and_the_lever():
+  """FINDING, from writing the rules: at most 400 g at most 60 mm ahead is
+  0.235 N*m, under the arm's 0.35, so the moment rule is a backstop that a
+  spec inside the other two never reaches."""
+  assert validate.G * am.TOOL_MAX_KG * am.TOOL_MAX_AHEAD_M < am.TOOL_MAX_MOMENT_NM
 
 
 def test_the_fork_volume_is_the_forks():
-  """A part where the prongs hold the peg: |y| 58 mm, at the peg line, on
-  the robot's side."""
-  raw = with_part({"id": "tab", "part": "scaffold_pla_box", "size": [20, 10, 10],
-                   "pos": [20, 58, 15]})
-  assert any(r.startswith("fork:") and "'tab'" in r for r in refused(raw))
-  # ...and the mirror side
-  raw = with_part({"id": "tab", "part": "scaffold_pla_box", "size": [20, 10, 10],
-                   "pos": [20, -58, 15]})
-  assert any(r.startswith("fork:") for r in refused(raw))
+  """A part where the fork's V's hold the peg's ends: |y| 100 mm at the peg
+  line -- and its mirror."""
+  for y in (100, -100):
+    raw = with_part({"id": "tab", "part": "scaffold_pla_box", "size": [10, 10, 10],
+                     "pos": [0, y, 20]})
+    assert any(r.startswith("fork:") and "'tab'" in r for r in refused(raw)), y
 
 
 def test_the_tray_volume_is_the_racks():
   raw = with_part({"id": "tab", "part": "scaffold_pla_box", "size": [10, 10, 10],
-                   "pos": [0, 40, 22]})
+                   "pos": [0, 45, 20]})
   assert any(r.startswith("trays:") and "'tab'" in r for r in refused(raw))
 
 
-def test_the_bracket_band_outboard_of_the_plate():
-  """The pen's lesson: a part at |y| > 20 mm in z -30..-9 arrives under the
-  tray brackets on a set-down. The same part within the plate's width, or
-  below the band, is fine."""
-  raw = with_part({"id": "wing", "part": "scaffold_pla_box", "size": [10, 30, 10],
-                   "pos": [-25, 30, -20]})
-  reasons = refused(raw)
-  assert any(r.startswith("bracket:") and "'wing'" in r for r in reasons)
-  ok = with_part({"id": "wing", "part": "scaffold_pla_box", "size": [10, 30, 10],
-                  "pos": [-25, 0, -20]})
-  validate.check(ok)
-  low = with_part({"id": "wing", "part": "scaffold_pla_box", "size": [10, 30, 10],
-                   "pos": [-25, 30, -60]})
-  validate.check(low)
+def test_a_hung_tool_leaves_its_bays_tags_in_view():
+  """The claw's crossbar hid its bay's tags from the working pose, and no
+  fetch of it fitted its bay (#407): a part in front of the plate beside
+  the bay's middle, at the tags' height, is refused; the same part on the
+  middle is not."""
+  raw = with_part({"id": "wing", "part": "scaffold_pla_box", "size": [10, 10, 10],
+                   "pos": [-40, 60, -80]})
+  assert any(r.startswith("tags:") and "'wing'" in r for r in refused(raw))
+  validate.check(with_part({"id": "wing", "part": "scaffold_pla_box", "size": [10, 10, 10],
+                            "pos": [-40, 0, -80]}))
+  # ...and the plate's own slab is no shelter: the camera looks past the
+  # plate at the tags behind it, and a crossbar there 76 mm wide, as the
+  # claw's first was, hid both (#407 review: it validated, and the working
+  # pose decoded no tag of its bay)
+  bar = with_part({"id": "cross", "part": "scaffold_pla_box", "size": [16, 76, 8],
+                   "pos": [-2, 0, -104]})
+  assert any(r.startswith("tags:") and "'cross'" in r for r in refused(bar))
 
 
-def test_the_wall_is_90_mm_out_the_front():
-  raw = with_part({"id": "probe", "part": "scaffold_pla_box", "size": [60, 10, 10],
+def test_nothing_rises_into_the_racks_rail():
+  """The rail the trays hang from runs 0.11-0.13 m over the peg and out to
+  60 mm from the board, and a pick lifts a tool 56 mm (`arm.LIFT`): a part
+  that reaches it, hung or lifted, jams there. A thin handle 50 mm ahead of
+  the peg up to 150 mm validated and jammed on the rail at 15 deg (#407
+  review); the same handle stopping 60 mm over the peg does not reach it."""
+  raw = with_part({"id": "handle", "part": "scaffold_pla_box", "size": [4, 4, 140],
+                   "pos": [-50, 0, 80]})
+  assert any(r.startswith("rail:") and "'handle'" in r for r in refused(raw))
+  validate.check(with_part({"id": "handle", "part": "scaffold_pla_box", "size": [4, 4, 50],
+                            "pos": [-50, 0, 35]}))
+
+
+def test_a_tool_hangs_centred_between_the_trays():
+  """The trays hold the peg at +-45 mm: MEASURED in the rig, a centre of
+  mass 30 mm to one side hangs, is taken and hangs back with the fork 15 mm
+  either way (the walk-in's gate), at 35 mm a hang-back with the fork 15 mm
+  toward it does not seat, and at 45 it does not hang (#407 review: 70 mm
+  validated and tipped 47 deg off the trays). The rule is 25 mm."""
+  def weight(y_mm):
+    return {"name": "side", "parts": [{"id": "w", "part": "scaffold_pla_box",
+                                       "size": [20, 40, 40], "pos": [0, y_mm, -150]}]}
+  far = 35.0 * (validate.MODULE_MASS + 0.03968) / 0.03968        # its CoM at 35 mm
+  assert any(r.startswith("side:") for r in refused(weight(far)))
+  near = 20.0 * (validate.MODULE_MASS + 0.03968) / 0.03968
+  assert abs(validate.side_of_peg(validate.check(weight(near))) - 0.020) < 0.001
+
+
+def test_the_rack_board_is_a_hand_out_the_front():
+  """Hung, the rack's back board is 84 mm ahead of the peg: a part may
+  reach to 10 mm short of it."""
+  raw = with_part({"id": "probe", "part": "scaffold_pla_box", "size": [60, 5, 5],
                    "pos": [-70, 0, -60]})
-  assert any(r.startswith("wall:") and "'probe'" in r for r in refused(raw))
-  ok = with_part({"id": "probe", "part": "scaffold_pla_box", "size": [60, 10, 10],
-                  "pos": [-55, 0, -60]})
-  validate.check(ok)
+  assert any(r.startswith("board:") and "'probe'" in r for r in refused(raw))
+  validate.check(with_part({"id": "probe", "part": "scaffold_pla_box", "size": [60, 5, 5],
+                            "pos": [-40, 0, -60]}))
+
+
+def test_carried_nothing_crosses_the_lidars_plane_or_the_forks_side():
+  """Under the peg at most 200 mm at every pose (carried, the LIDAR's plane
+  is under it), and nothing behind the plate's back face, where the fork's
+  prongs and lean-pad are."""
+  deep = with_part({"id": "keel", "part": "scaffold_pla_box", "size": [5, 5, 40],
+                    "pos": [0, 0, -190]})
+  assert any(r.startswith("drop:") and "'keel'" in r for r in refused(deep))
+  back = with_part({"id": "boss", "part": "scaffold_pla_box", "size": [10, 10, 10],
+                    "pos": [20, 0, -60]})
+  assert any(r.startswith("behind:") and "'boss'" in r for r in refused(back))
 
 
 def test_the_power_budget_through_the_peg():
@@ -264,9 +315,9 @@ def test_the_power_budget_through_the_peg():
   (the Pi camera: the maker does not publish it) cannot be budgeted, so a
   tool cannot carry one -- refused with the gap named, not waved through
   at 0 W."""
-  raw = with_part({"id": "hinge2", "part": "servo_fs90", "pos": [-20, 0, -70],
+  raw = with_part({"id": "hinge2", "part": "servo_fs90", "pos": [0, 0, -80],
                    "axis": {"verb": "tilt2", "dir": [0, 1, 0], "range": [0, 90], "stow": 0}},
-                  {"id": "hinge3", "part": "servo_fs90", "pos": [-20, 20, -70],
+                  {"id": "hinge3", "part": "servo_fs90", "pos": [0, 20, -80],
                    "axis": {"verb": "tilt3", "dir": [0, 1, 0], "range": [0, 90], "stow": 0}})
   reasons = refused(raw)
   draw = MODULE_IDLE_W + 3 * 4.8
@@ -297,4 +348,4 @@ def test_a_scaffold_is_priced_by_its_volume_at_pla_density():
   tool = parse(SCOOP)
   blade = tool.by_id["blade"]
   density = catalog.by_id()["scaffold_pla_box"].capabilities["densityKgM3"]
-  assert blade.mass == pytest.approx(density * 0.060 * 0.030 * 0.004)
+  assert blade.mass == pytest.approx(density * 0.004 * 0.030 * 0.070)

@@ -111,6 +111,13 @@ DOWN_CHECK_S = 0.1
 CLOSE_ENOUGH_M = 0.15
 #: A drive with no progress toward its goal for this long has stagnated.
 STAGNATION_S = 10.0
+#: ...and its FIRST TURN to face its route is no stagnation (#406), for
+#: `STAGNATION_S` at most: a body carrying a tool turns at most `W_CARRY`,
+#: and walking from a whiteboard to the rack behind it, a half-turn took 9 s
+#: of those 10 -- a stow after a drawing gave up "stalled" as it finished
+#: turning. Aimed means within this; a body that never turns stalls 20 s
+#: after it set out, never at its patience.
+AIMED_RAD = math.radians(45.0)
 #: A waypoint this near is reached and the next one steered for, m: a route
 #: along a wall turns this far short of it (a body's front stop is bounded
 #: by it, `legs.body.QuadMission.FRONT_STOP_RANGE`).
@@ -446,6 +453,7 @@ class Navigator:
                            origin=self.LIDAR_ORIGIN)
           if m is not None:
             self.matcher.fused(self.pose, self.data.time)
+          self._on_scan(angles, ranges)
       elif self.matcher is not None:
         self.matcher.fuse_next()
       if self.data.time >= self.backoff_until:
@@ -453,6 +461,11 @@ class Navigator:
         all_ranges = np.concatenate((ranges, peer_ranges))
         if self._front_blocked(all_angles, all_ranges):
           self.backoff_until = self.data.time + BACKOFF_TIME
+
+  def _on_scan(self, angles, ranges) -> None:
+    """A scan laid into the map, at the pose it was laid from: nothing
+    here; a quadruped's survey keeps where its returns land
+    (`legs.survey.CensusLayer`)."""
 
   def _front_blocked(self, angles, ranges) -> bool:
     """The front stop's test, over one scan's bearings and ranges (the room
@@ -680,6 +693,7 @@ class Navigator:
     next_look = t0 + MAP_LOOK_S
     # the robots asked to make way that said yes, and when first (#415)
     self._made_way = made_way = {}
+    aimed = False                      # has it faced its route yet (`AIMED_RAD`)
     while self.data.time - t0 < timeout:
       dist = math.hypot(wx - self.pose[0], wy - self.pose[1])
       if dist < 0.08 and not waypoints:
@@ -782,6 +796,11 @@ class Navigator:
       while waypoints and math.hypot(waypoints[0][0] - self.pose[0],
                                      waypoints[0][1] - self.pose[1]) < WAYPOINT_REACHED_M:
         waypoints.pop(0)
+      if not aimed and self.data.time - t0 <= STAGNATION_S:
+        tx, ty = waypoints[0] if waypoints else (wx, wy)
+        aimed = abs(wrap_angle(math.atan2(ty - self.pose[1], tx - self.pose[0])
+                               - self.pose[2])) <= AIMED_RAD
+        last_improve = self.data.time
       # The last waypoint is the goal's cell and the goal is 8 cm at most
       # beyond it: both are the final approach, and get the law that
       # cannot orbit (ARRIVAL_SLOW_RADIUS); every waypoint before them is

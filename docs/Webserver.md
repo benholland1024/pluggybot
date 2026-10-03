@@ -55,8 +55,10 @@ robot. Frames are due on SIM time, so a paused sim emits none (which is why
   living). Its own `FrameBuilder` instance, so live and recorded frames are
   identical. A bounded queue (`QUEUE_MAX` = 256, ~13 s of frames) feeds one
   sender thread, which also polls the socket for inbound visitor messages
-  between sends (`mind/inbox.py`); every failure — endpoint down, socket
-  death, slow consumer — degrades to dropped messages.
+  between sends (`mind/inbox.py`) and tells `on_disconnect` when a
+  connection goes (what the website said about its renderer goes with it,
+  #357); every failure — endpoint down, socket death, slow consumer —
+  degrades to dropped messages.
 - **`vitals.py`** — `Watchdog`: the process's memory once a minute, and a
   runaway's stacks and allocations. Not on the wire; it writes to the log
   ("When the process dies", below).
@@ -226,7 +228,8 @@ rest, and `src/pluggybot/continuation.py` keeps it:
 
 - **What is saved.** For the physics: every joint's position and velocity,
   the solver's warm start and every actuator's control, matched by NAME, plus
-  the mocap mouse and the sim clock. Per robot: its pack, its believed pose
+  the mocap mouse, the sim clock and where the last step began
+  (`continuation.LastStep`). Per robot: its pack, its believed pose
   (the legs' reckoning, with the contact history its lag reads), its
   posture and its clocks, the policies' and the arm's last targets, the
   places it has found, the occupancy grid, the depth camera's layer and the
@@ -249,6 +252,15 @@ rest, and `src/pluggybot/continuation.py` keeps it:
   `continuation.restore` puts the bodies back. The day routine opens without
   moving: no start pose, no spin. History says "the world restarted; I
   carried on from (x, y) with the pack at N%".
+- **The last step is stepped again** (`continuation.replay`, #420). A running
+  world's forward pass (its contacts, positions and sensors) is the one its
+  last step began with, a step behind its `qpos`, and everything between two
+  steps reads it. A restore that forwarded the saved instant instead parted
+  wherever the walking policy decided on the first step back (one save in
+  ten), and read a different contact list off the fork. The restore steps
+  from where that step began and keeps the result only if it lands on the
+  saved state bit for bit; otherwise (no step kept, an input changed after
+  it) it forwards the saved instant, as before.
 - **Sim time continues.** Every absolute stamp keeps its meaning: the
   survival clock, the unminded clock, a dead robot's stand-up timer, an
   offer's deadline (the board loads without rebasing). `max_sim_time` is
@@ -257,7 +269,10 @@ rest, and `src/pluggybot/continuation.py` keeps it:
 - **The errand in flight ends**, because it was a generator. Its job stays
   the robot's: an errand job is queued again (rebuilt off the task, with its
   committed answer), and a procedure job stays claimed. A module the restart
-  left on the fork is stowed first. A claim held by a robot not in the new
+  left on the fork mid-errand is stowed first. Between errands a tool on the
+  fork is the loop's, as it would have been had nothing stopped: the count
+  of returns it has tried is kept, and a return counts once it has run
+  (#420). A claim held by a robot not in the new
   world goes back on offer. A game still fails, because its referee lived in
   the process. A job taken up through `MAX_TAKE_UPS` (3) restarts without
   finishing is failed: the world's crash-loop guard counts saves, and a job
@@ -287,13 +302,17 @@ rest, and `src/pluggybot/continuation.py` keeps it:
   generators were re-seeded, so the first scan painted a different map and
   the route parted 3 s later. And `Task.from_json` re-priced an open offer
   at its kind's generic figure, too dear for a pack at 88 % after every
-  restart.
+  restart. On legs it caught two more (#420): the fresh forward pass above,
+  and a robot saved between two failed returns of one tool made two returns
+  the straight day never made.
 - **Cost.** About 50 ms of the physics thread per save on the rover's pair
   with both maps built, 1.3 MB on disk (zlib level 1; the default level 6
   cost 175 ms).
 
 Not kept: a decision in flight, the mind's in-process context (it reads
-History), a visitor message still in the inbox, and an open `look`.
+History), a visitor message still in the inbox, an open `look`, and the
+website's word on its renderer (the hub says it again on the next
+connection, #357).
 
 ## When the process dies (issue #349)
 

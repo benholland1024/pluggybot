@@ -39,7 +39,7 @@ from test_overseer import FakeClient
 #: What `world_config` says of the one world, overridden for a gate it does
 #: not open: a built-tool rail (none since the rover's rack left, #376), a
 #: body that takes a tool (#406, #407), and a world with no lab.
-RAIL = {"built_bays": 3}
+NO_RAIL = {"built_bays": 0}
 TOOLS = {"tools": True}
 NO_LAB = {"lab": None}
 
@@ -98,7 +98,7 @@ def fields_of(boss):
 # ---- 1. the fence, in both directions ------------------------------------------
 
 
-@pytest.mark.parametrize("world_is", [None, RAIL], ids=["served", "rail"])
+@pytest.mark.parametrize("world_is", [None, NO_RAIL], ids=["served", "no-rail"])
 def test_every_field_the_schema_offers_has_a_door_and_the_index_invents_none(
     world_is):
   """THE POINT OF THE ISSUE, as an assertion: a field the model is required
@@ -123,19 +123,19 @@ def test_every_field_the_schema_offers_has_a_door_and_the_index_invents_none(
   # The powers the issue was filed about, named at last.
   assert {"define", "undefine", "event_map", "record", "retract", "lookup",
           "ticket", "done"} <= set(fields)
-  assert ({"build_tool", "retire_tool"} <= set(fields)) == bool(world_is)
+  assert ({"build_tool", "retire_tool"} <= set(fields)) == (world_is is None)
 
 
 @pytest.mark.parametrize("make", [
   lambda: built(),
-  lambda: built(RAIL),
+  lambda: built(NO_RAIL),
   lambda: built(NO_LAB),
   lambda: build(),
   # ⚠ THE ONE THAT BROKE IT. With the pointer written into the line,
   # `hearts` without `mortal` -- a build `build()` accepts -- indexed
   # `buy_heart` with "See YOU CAN DIE." and there was no such section.
   lambda: build(hearts=True, mortal=False, origin="unseeded"),
-], ids=["everything", "rail", "no-lab", "no-map", "hearts-without-mortal"])
+], ids=["everything", "no-rail", "no-lab", "no-map", "hearts-without-mortal"])
 def test_every_entry_ends_at_a_section_this_prefix_carries(make):
   """An index entry is only worth its line if the manual is where it says,
   and a pointer dangles exactly where a gate and its rule section disagree.
@@ -198,8 +198,8 @@ def test_a_power_this_world_does_not_offer_is_not_in_the_index():
   A world with no lab has no `real` and no `mouse_will`, and one with no
   built-tool rail no `build_tool` -- in the grammar OR in the index, which is
   the same statement made twice and checked against itself."""
-  served = built()
-  fields, required = fields_of(served), set(schema_of(served)["required"])
+  railless = built(NO_RAIL)
+  fields, required = fields_of(railless), set(schema_of(railless)["required"])
   for gone in ("build_tool", "retire_tool"):
     assert gone not in fields and gone not in required, gone
   small = built(NO_LAB)
@@ -262,10 +262,10 @@ def test_the_menu_flags_and_the_per_call_tuples_say_the_same_thing():
   one place -- so it is pinned here rather than assumed. A menu flag set
   without its object, or an object built without its flag, breaks the
   fence above silently; it breaks this loudly."""
-  for world_is in (None, RAIL):
+  for world_is in (None, NO_RAIL):
     boss = build(world_is, others=("Rowan",))
     assert (boss._procedures() is not None) == boss.menu.procedures
-    assert (boss._tools() is not None) == boss.menu.workshop == bool(world_is)
+    assert (boss._tools() is not None) == boss.menu.workshop == (world_is is None)
     assert (boss._ticket_ids({}) is not None) == boss.menu.tickets
     assert (boss._acts() is not None) == bool(boss.others)
   # ...and a mind built by hand, with none of the objects, has none of the
@@ -289,7 +289,7 @@ def test_no_entry_hands_the_agent_the_answer():
   The index is an INDEX -- it says what a field is for and where its manual
   is -- so the check is blunt on purpose: no entry names charging, the
   battery or the rack at all, and none shows a worked rule."""
-  fields = {**fields_of(built()), **fields_of(built(RAIL))}
+  fields = {**fields_of(built()), **fields_of(built(NO_RAIL))}
   for name, line in fields.items():
     # What a heading is CALLED is the prompt's word, not this table's ("YOU
     # CAN DIE"), so the pointer is checked in the fence above and the
@@ -306,7 +306,7 @@ def test_the_index_says_what_a_field_is_and_never_what_to_put_in_it():
   a field. It must not recommend using one -- those four are what the lab,
   the acts and the desk are measuring, and a prompt that suggests filing a
   ticket or declining a job is the measurement answering itself."""
-  fields = fields_of(built(RAIL))
+  fields = fields_of(built())
   for name in ("real", "mouse_will", "decline", "ticket", "give_points",
                "heart_for", "build_tool"):
     low = fields[name].lower()

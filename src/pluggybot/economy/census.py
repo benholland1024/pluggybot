@@ -1,52 +1,53 @@
-"""Counting what is in a zone, out of the map the robot built (issue #13).
+"""Counting what stands in an area, out of what the robot saw (issue #13; on
+legs, #407).
 
 The census is the first task in this repo with **hidden ground truth**: the
 sim knows how many plants stand in the garden, and the robot has to go and
 find out. Every earlier criterion was ground truth the robot could not get
 wrong by being lazy -- a contact conducts or it does not, ink lands or it
-does not. This one is failable in the interesting way: drive half the zone
-and you report half the plants, with no error anywhere and a confident number
-on the screen.
+does not. This one is failable in the interesting way: survey half the
+garden and you report half the plants, with no error anywhere and a
+confident number on the screen.
 
-Which is exactly why the count comes off the OCCUPANCY GRID rather than out
-of the model. The grid is the robot's belief, built from LIDAR returns it
-actually collected from places it actually stood; `true_count` below reads
-the model and is the evaluator's alone. Keeping those two apart is the whole
-task -- a census that counted bodies would be a lookup with a drive attached.
+Which is why the count comes off what the robot SAW rather than out of the
+model -- and on legs, off the depth camera: the plants are 0.30 m tall and
+the quadruped's LIDAR scans at 0.51 m, over them, so they are the depth
+camera's low layer (`legs.body.QuadMission.low`: what it saw 0.08-0.60 m up,
+under the LIDAR's plane, kept off the LIDAR's walls). `true_count` reads
+the model and is the evaluator's alone. Keeping those two apart is the
+whole task -- a census that counted bodies would be a lookup with a walk
+attached. ⚠ NOT THE PLANNER'S LAYER ITSELF: it takes a cell back for every
+floor point seen in it, and a stalk's cell seen from one side was erased
+from another -- a survey counted 2 of 4 plants at 91 % coverage. A survey
+keeps its own record (`legs.survey.CensusLayer`: frames that found
+something in a cell, never taken back), counted at `HITS` frames.
 
-The counting itself is deliberately dumb: threshold, label connected
-components, throw away anything the wrong size. Three filters carry it:
-
-  MARGIN. The zone's own boundary is a fence, and a fence is a long line of
-  occupied cells. Everything within `margin` of the rectangle's edge is
-  discarded, which also drops the gate and the fence posts with it.
-
-  SPAN. A plant is a 80 mm cylinder -- two or three cells across at the
-  50 mm grid. A component wider than `max_span` is scenery, not an object.
-
-  COVERAGE, which is not a filter but a confession: the fraction of the zone
-  the robot has actually SEEN. A count of 2 with 45 % coverage is not the
-  same claim as a count of 2 with 95 %, and a scoring rule that ignores the
-  difference rewards a robot for stopping early.
+THE AREA IS FOUND, NOT HANDED OVER (#419, #407): the floor the LIDAR's
+walls and fence enclose round where the robot stands, a doorway closed --
+any gap narrower than `DOOR_M` (`area_from_walls`). The counting itself is
+deliberately dumb: label the low layer's obstacle cells inside the area and
+throw away anything the wrong size (`MAX_SPAN`: a plant is an 80 mm stalk,
+two or three cells across). COVERAGE is not a filter but a confession: the
+share of the area's floor the depth camera has seen at all. A count of 2
+with 45 % coverage is not the same claim as a count of 2 with 95 %, and a
+scoring rule that ignores the difference rewards a robot for stopping early.
 """
 
 import math
 from dataclasses import dataclass
 
 import numpy as np
-from scipy.ndimage import label
+from scipy import ndimage
 
-from pluggybot.mapping.frontier import FREE_THRESH, OCC_THRESH
-
-#: m of the zone's edge treated as boundary rather than contents. The garden
-#: fence is exactly on the rectangle, and its posts are the only other
-#: plant-sized things in there.
-MARGIN = 0.40
+#: The widest gap in a wall that is a doorway, m: a doorway closes the area
+#: (every one in the house is 1.0 m), a gap wider than this does not.
+DOOR_M = 1.2
 #: m: the widest a counted object may be. Garden plants are 80 mm; the next
 #: thing up in the home world is a 1 m couch.
 MAX_SPAN = 0.35
-#: cells: below this a component is a stray return, not an object.
-MIN_CELLS = 2
+#: A cell is something standing once this many of the survey's frames
+#: found it there (`legs.survey.CensusLayer`): one is a stray point.
+HITS = 3
 
 #: 8-connectivity -- a diagonal pair of cells is one plant seen from two
 #: bearings, not two plants.
@@ -65,101 +66,70 @@ class Zone:
   def from_meta(cls, spec: dict) -> "Zone":
     return cls(name=spec["name"], min=tuple(spec["min"]), max=tuple(spec["max"]))
 
-  @property
-  def centre(self) -> tuple[float, float]:
-    return ((self.min[0] + self.max[0]) / 2, (self.min[1] + self.max[1]) / 2)
-
   def contains(self, x: float, y: float, margin: float = 0.0) -> bool:
     return (self.min[0] + margin <= x <= self.max[0] - margin
             and self.min[1] + margin <= y <= self.max[1] - margin)
 
 
-def survey_route(zone: Zone, inset: float = 1.25,
-                 entry: tuple[float, float] | None = None) -> list[tuple[float, float]]:
-  """Four standing points that between them see the whole rectangle.
-
-  A lawnmower would be thorough and slow; the LIDAR reaches 8 m and turns
-  360 degrees, so what a survey actually needs is a handful of vantage points
-  far enough from the walls to stand at. Ordered nearest-first from `entry`
-  (the doorway the robot comes in by), so the route does not open with a
-  drive across the zone and back.
-  """
-  x0, x1 = zone.min[0] + inset, zone.max[0] - inset
-  y0, y1 = zone.min[1] + inset, zone.max[1] - inset
-  if x1 < x0:
-    x0 = x1 = (x0 + x1) / 2
-  if y1 < y0:
-    y0 = y1 = (y0 + y1) / 2
-  points = [(x0, y0), (x0, y1), (x1, y1), (x1, y0)]
-  if entry is None:
-    return points
-  # Rotate the ring so it starts at the corner nearest the door, keeping the
-  # cycle order -- the points are a loop, and a loop driven from anywhere is
-  # still a loop.
-  k = min(range(len(points)),
-          key=lambda i: math.dist(points[i], entry))
-  return points[k:] + points[:k]
+def area_from_walls(occupied: np.ndarray, free: np.ndarray, seed: tuple[int, int],
+                    resolution: float, door_m: float = DOOR_M) -> np.ndarray:
+  """The floor round `seed` (a cell, (ix, iy)) that the walls enclose: the
+  known-free cells reachable from it without passing a gap narrower than
+  `door_m` -- an OPENING of the free floor by half a door (its middle kept
+  where it is half a door from every wall, the one piece holding the seed
+  grown back over the free floor, a cell a step, ⚠ NEVER THROUGH A WALL: by
+  distance alone it took in the floor behind a wall a cell thick). Empty
+  where the seed is no such floor."""
+  r = door_m / 2.0
+  clear = ndimage.distance_transform_edt(~occupied) * resolution
+  core = free & (clear >= r)
+  labels, _ = ndimage.label(core, structure=_NEIGHBOURHOOD)
+  ix, iy = seed
+  rows, cols = free.shape
+  if not (0 <= iy < rows and 0 <= ix < cols) or labels[iy, ix] == 0:
+    return np.zeros_like(free, dtype=bool)
+  return ndimage.binary_dilation(labels == labels[iy, ix], structure=_NEIGHBOURHOOD,
+                                 iterations=int(math.ceil(r / resolution)) + 1,
+                                 mask=free & ~occupied)
 
 
-def count_objects(grid, zone: Zone, margin: float = MARGIN,
-                  max_span: float = MAX_SPAN,
-                  min_cells: int = MIN_CELLS) -> dict:
-  """What the robot BELIEVES is standing in the zone, from its own map.
-
-  Returns the count, each object's world centre and cell size, and the
-  fraction of the zone the map has any opinion about at all.
-  """
-  logodds = np.asarray(grid.grid)
-  rows, cols = logodds.shape
-  res = grid.resolution
-  ix0, iy0 = grid.world_to_cell(zone.min[0] + margin, zone.min[1] + margin)
-  ix1, iy1 = grid.world_to_cell(zone.max[0] - margin, zone.max[1] - margin)
-  ix0, iy0 = max(ix0, 0), max(iy0, 0)
-  ix1, iy1 = min(ix1 + 1, cols), min(iy1 + 1, rows)
-  if ix1 <= ix0 or iy1 <= iy0:
-    return {"count": 0, "objects": [], "coverage": 0.0, "cells": 0}
-
-  window = logodds[iy0:iy1, ix0:ix1]
-  known = (window > OCC_THRESH) | (window < FREE_THRESH)
-  coverage = float(known.mean()) if known.size else 0.0
-
-  labels, n = label(window > OCC_THRESH, structure=_NEIGHBOURHOOD)
-  objects = []
+def count_low(obstacle: np.ndarray, area: np.ndarray, resolution: float,
+              max_span: float = MAX_SPAN) -> list[tuple[float, float, int]]:
+  """Each object the low layer saw inside the area: (ix, iy) of its middle
+  and its cells, one per 8-connected patch no wider than `max_span`."""
+  labels, n = ndimage.label(obstacle & area, structure=_NEIGHBOURHOOD)
+  out = []
   for i in range(1, n + 1):
     ys, xs = np.nonzero(labels == i)
-    if len(xs) < min_cells:
-      continue
-    span = float(max(xs.max() - xs.min() + 1, ys.max() - ys.min() + 1) * res)
+    span = float(max(xs.max() - xs.min() + 1, ys.max() - ys.min() + 1) * resolution)
     if span > max_span:
-      continue                       # a fence run, a wall, a piece of furniture
-    wx, wy = grid.cell_to_world(float(xs.mean()) + ix0, float(ys.mean()) + iy0)
-    # float()/int() rather than the numpy scalars they arrive as: these end up
-    # in a result dict that gets json.dumps'd, and numpy scalars are exactly
-    # what it refuses (the same trap dynamic_flags documents).
-    objects.append({"x": round(float(wx), 3), "y": round(float(wy), 3),
-                    "cells": int(len(xs)), "span": round(span, 3)})
-  objects.sort(key=lambda o: (o["x"], o["y"]))
-  return {"count": len(objects), "objects": objects,
-          "coverage": round(coverage, 3), "cells": int(known.size)}
+      continue                     # a hedge, a wall's foot, a piece of furniture
+    out.append((float(xs.mean()), float(ys.mean()), int(len(xs))))
+  return out
 
 
-def true_count(model, zone: Zone, prefix: str = "plant",
-               margin: float = MARGIN) -> int:
+def seen_share(seen: np.ndarray, area: np.ndarray) -> float:
+  """The share of the area's floor the depth camera saw, either way."""
+  cells = int(area.sum())
+  if not cells:
+    return 0.0
+  return float((seen & area).sum()) / cells
+
+
+def true_count(model, zones, prefix: str = "plant") -> int:
   """The answer, read out of the world. THE EVALUATOR'S, NEVER THE ROBOT'S.
 
   Derived from the compiled model rather than written down as a number, so a
   world that grows a fifth plant re-scores itself and cannot quietly disagree
-  with the garden the robot is standing in. `margin` matches the counter's,
-  or an object sitting in the excluded border would be scored as missed when
-  it was never countable.
-  """
+  with the garden the robot is standing in. `zones` are the rectangles the
+  area is (the garden's two, `home.world.ZONES`)."""
   n = 0
   for b in range(model.nbody):
     name = model.body(b).name or ""
     if not name.startswith(prefix):
       continue
-    pos = model.body_pos[b]
-    if zone.contains(float(pos[0]), float(pos[1]), margin=margin):
+    x, y = (float(v) for v in model.body_pos[b][:2])
+    if any(z.contains(x, y) for z in zones):
       n += 1
   return n
 

@@ -384,11 +384,69 @@ def test_a_stow_restores_the_carry_configuration_before_the_return():
                                                  "hung": t != "module_claw"},
                          retract_arm_routine=rec("retract_arm"),
                          stow_tool_routine=rec("return"),
-                         swap_trace=lambda: "no swap recorded")
+                         swap_trace=lambda: "no swap recorded", held_cube=lambda: None)
   life = SimpleNamespace(rack_inventory=dict(st.TOOL_BAYS), swaps_done=0,
                          model=None, world=WORLD, body=body)
   tick.run(SimpleNamespace(step=lambda *a: None), st._stow(life, {}))
   assert calls == ["retract_arm", "return"]
+
+
+def test_a_cube_in_the_claw_is_set_down_before_the_claw_goes_back():
+  """A claw hung back holding a cube is a cube hung on the rack (#407): a
+  stow puts it down first, where the robot stands. Shown to fail by dropping
+  the check from `carry_configuration_routine`: the claw went back full."""
+  calls, held = [], [23]
+
+  def rec(name):
+    def make(*a, **kw):
+      calls.append(name)
+      if name == "put":
+        held.clear()
+        return tick.result({"put": True, "held": 23})
+      return tick.result("arrived")
+    return make
+  body = SimpleNamespace(module_state=lambda t: {"on_fork": t == "module_claw",
+                                                 "hung": t != "module_claw"},
+                         put_cube_routine=rec("put"), retract_arm_routine=rec("retract_arm"),
+                         stow_tool_routine=rec("return"), swap_trace=lambda: "",
+                         held_cube=lambda: held[0] if held else None)
+  life = SimpleNamespace(rack_inventory=dict(st.TOOL_BAYS), swaps_done=0,
+                         model=None, world=WORLD, body=body)
+  tick.run(SimpleNamespace(step=lambda *a: None), st._stow(life, {}))
+  assert calls == ["put", "retract_arm", "return"]
+
+
+def test_a_cube_no_put_can_set_down_is_let_go_before_the_claw_goes_back():
+  """A put that found no room (or could not reach) left the cube in the
+  jaws, and the stow hung the claw back holding it, reporting it "set
+  down" (review of #407). Now it lets go where it stands, and says so."""
+  calls, held = [], [21]
+
+  def put(*a, **kw):
+    calls.append("put")
+    return tick.result({"put": False, "why": "no room", "held": 21})
+
+  def jaws(closed):
+    calls.append("open" if not closed else "shut")
+    if not closed:
+      held.clear()
+    return tick.result(True)
+
+  def rec(name):
+    def make(*a, **kw):
+      calls.append(name)
+      return tick.result("arrived")
+    return make
+  def no_actuator(name):                    # the claw's own axes are not here
+    raise KeyError(name)
+  body = SimpleNamespace(held_cube=lambda: held[0] if held else None,
+                         put_cube_routine=put, claw_routine=jaws,
+                         retract_arm_routine=rec("retract_arm"))
+  life = SimpleNamespace(body=body, model=SimpleNamespace(actuator=no_actuator))
+  out = tick.run(SimpleNamespace(step=lambda *a: None),
+                 st.carry_configuration_routine(life, "module_claw"))
+  assert out == {"setDown": None, "dropped": 21}
+  assert calls == ["put", "open", "retract_arm"]
 
 
 def test_a_refused_build_says_what_is_in_the_way(monkeypatch):
@@ -397,7 +455,9 @@ def test_a_refused_build_says_what_is_in_the_way(monkeypatch):
   module on the fork, and whose."""
   from pluggybot.procedure import steps
   me = SimpleNamespace(peers=[], state="DECIDE", robot_name="Luca", root="pluggybot",
-                       MID_ERRAND=HubLifecycle.MID_ERRAND)
+                       MID_ERRAND=HubLifecycle.MID_ERRAND, _standing_up=False,
+                       body=SimpleNamespace(posture="standing", working=False,
+                                            making_way=None))
   monkeypatch.setattr(steps, "_carried", lambda life: "module_claw")
   assert HubLifecycle.seam_busy(me).startswith("your fork holds module_claw: stow it first")
   me.peers = [SimpleNamespace(state="SWAP_PICK", robot_name="Rowan", root="r2_pluggybot")]

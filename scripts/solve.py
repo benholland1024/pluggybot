@@ -1,7 +1,7 @@
-"""Ladder A of issue #264 on legs: the mouse's paid feed, flown the way the
-robot's own attempt runs and graded by the job's own grader -- so a passing
-verdict here is the verdict a robot would be paid for, and a robot that
-never earns it is a finding about the robot.
+"""Ladder A of issue #264 on legs: the mouse's paid feed and the whiteboards'
+jobs, flown the way the robot's own attempt runs and graded by the job's own
+grader -- so a passing verdict here is the verdict a robot would be paid
+for, and a robot that never earns it is a finding about the robot.
 
   --feature mouse   the paid JOB (issue #403): `feed_mouse` offered,
                     claimed with a prediction, its errand walked (the plate
@@ -9,6 +9,27 @@ never earns it is a finding about the robot.
                     `eval_feed` -- `--n` times, each from the dock or
                     (`--from lab`) from where the last ended, after one
                     walk in
+
+  --feature answer | draw | artwork
+                    a whiteboard's JOB (issue #406): `whiteboard_answer`
+                    (claimed with the right answer to its question),
+                    `draw_figure` (a house) or `rate_artwork` (the robot)
+                    offered on a board -- `--board`, or the two in turn --
+                    claimed, its errand run (the board found, the pen
+                    fetched, drawn lying down, the pen hung back) and graded
+                    by the job's own evaluator off the board's ink; `--n`
+                    times, each from the dock
+
+  --feature tower | bench
+                    a CHALLENGE (issue #407): `stack_tower` or `find_mass`
+                    offered as the cadence offers it -- the area's address
+                    and directions, the bench's unknown drawn and set out --
+                    claimed, the hand-written solution (`challenge/
+                    solutions.py`: TOWER, WEIGH) defined in the robot's
+                    library and run as its procedure errand, the bench's
+                    finding recorded off the procedure's `mass` as a mind
+                    would, `done`, and the grade on the seam; `--n` times,
+                    the props set back out between, each from the dock
 
   --feature hide_and_seek
                     the pair's GAME (issue #404): offered as the cadence
@@ -28,6 +49,9 @@ Usage:
   MUJOCO_GL=egl uv run python scripts/solve.py --feature mouse
   uv run python scripts/solve.py --feature mouse --view
   MUJOCO_GL=egl uv run python scripts/solve.py --feature mouse --pair --n 10 --from lab
+  MUJOCO_GL=egl uv run python scripts/solve.py --feature answer --pair --n 4
+  MUJOCO_GL=egl uv run python scripts/solve.py --feature tower --pair
+  MUJOCO_GL=egl uv run python scripts/solve.py --feature bench --pair --n 3
   MUJOCO_GL=egl uv run python scripts/solve.py --feature hide_and_seek --swap
   ... --feature hide_and_seek --scene served,kitchen --out games.json
 """
@@ -43,7 +67,8 @@ import mujoco
 from pluggybot import tick
 from pluggybot.economy.ledger import Ledger
 from pluggybot.economy.tasks import TaskBoard
-from pluggybot.lifecycle import QUAD_HOME, HubLifecycle, home_activities, world_config
+from pluggybot.lifecycle import (QUAD_HOME, HubLifecycle, board_book, home_activities,
+                                 world_config)
 from pluggybot.mind import overseer as ov
 from pluggybot.robot import world_spec
 from pluggybot.tick import MissionAborted
@@ -82,7 +107,7 @@ def build_life(view: bool, state_dir: str):
                       low_battery_wh=cfg["low_battery_wh"],
                       ledger=Ledger(path=str(Path(state_dir) / "ledger.json")),
                       tasks=TaskBoard(path=str(Path(state_dir) / "tasks.json")),
-                      overseer=_Mind(), near_field=True)
+                      boards=board_book(QUAD_HOME), overseer=_Mind(), near_field=True)
   acts = home_activities(model, data)
   life.body.step_hooks.append(acts.step_hook(model, data))
   life.activities = acts
@@ -162,13 +187,63 @@ def feed_job_routine(life, events: list):
           "presses_off_job": [e for e in events if e["type"] == "press"]}
 
 
-def feed_trials_routine(life, n: int, start: str, events: list):
-  """`n` paid feeds on legs, each from the DOCK (walked back to it and
-  lain on between) or, `start == "lab"`, each from where the last ended,
-  after one walk in (issue #403: the success rate the issue asks for)."""
+#: The board jobs ladder A flies (issue #406): the kind, its params, the
+#: secret its offer carries, and the claim's answer -- the right one.
+BOARD_JOBS = {
+  "answer": ("whiteboard_answer", {"question": "What is six times seven?"},
+             {"answer": "42"}, "42"),
+  "draw": ("draw_figure", {"program": "house"}, None, ""),
+  "artwork": ("rate_artwork", {"program": "robot"}, None, ""),
+}
+
+
+def board_job_routine(life, feature: str, board: str, events: list):
+  """A whiteboard's job as a robot on legs does it (issue #406): offered
+  on `board`, claimed (an answer with its answer), its errand run and the
+  job graded by its own evaluator through `scoring.evaluate`, off the ink
+  the board book holds."""
+  kind, params, secret, said = BOARD_JOBS[feature]
+  task = life.tasks.offer(kind, board, params=params, secret=secret, t=float(life.data.time))
+  assert task is not None and life._claim_task(task.id, answer=said)
+  errand = life.errands.pop(0)
+  result = yield from life.run_errand_routine(errand)
+  done = life.tasks.get(task.id)
+  verdict = dict(done.verdict or {}) if done is not None else {}
+  return {"errand": result, "board": board,
+          "grade": {"ok": bool(verdict.get("ok")), "reason": verdict.get("reason", ""),
+                    "points": verdict.get("points", 0)},
+          "presses": {"shock": 0, "feed": 0, "toy": 0}, "presses_off_job": []}
+
+
+#: The challenges ladder A flies (issue #407): the kind and its target.
+CHALLENGES = {"tower": ("stack_tower", "workshop"), "bench": ("find_mass", "lab_bench")}
+
+
+def challenge_job_routine(life, feature: str, events: list):
+  """A challenge's job, flown as `challenge.solutions.job_routine` flies it
+  (issue #407), with the presses this report prints beside every job."""
+  from pluggybot.challenge import solutions
+  run = yield from solutions.job_routine(life, CHALLENGES[feature][0], QUAD_HOME)
+  return {**run, "presses": {"shock": 0, "feed": 0, "toy": 0}, "presses_off_job": []}
+
+
+def feed_trials_routine(life, n: int, start: str, events: list, feature: str = "mouse",
+                        boards: tuple = ()):
+  """`n` paid jobs on legs -- the feed, or a board's (`feature`, on
+  `boards` in turn) -- each from the DOCK (walked back to it and lain on
+  between) or, `start == "lab"`, each from where the last ended, after one
+  walk in (issue #403: the success rate the issue asks for)."""
   out = []
+
+  def job():
+    if feature == "mouse":
+      return feed_job_routine(life, events)
+    if feature in CHALLENGES:
+      return challenge_job_routine(life, feature, events)
+    return board_job_routine(life, feature, boards[len(out) % len(boards)], events)
+
   if start == "lab":
-    first = yield from feed_job_routine(life, events)
+    first = yield from job()
     print(f"  walk in: {'PASSED' if first['grade']['ok'] else 'FAILED'} "
           f"-- {first['grade']['reason']}")
   for i in range(n):
@@ -176,15 +251,19 @@ def feed_trials_routine(life, n: int, start: str, events: list):
       yield from life.go_charge_routine()
       yield from life.body.undock_routine()
     t0 = float(life.data.time)
-    run = yield from feed_job_routine(life, events)
+    run = yield from job()
     x, y, _ = life.body.pose
     tx, ty, _ = life.body.true_pose()
     run["seconds"] = float(life.data.time) - t0
     run["drift"] = math.hypot(x - tx, y - ty)
     out.append(run)
     print(f"  {i + 1:2d}/{n}: {'PASSED' if run['grade']['ok'] else 'FAILED'} "
-          f"{run['seconds']:5.0f} s, presses {run['presses']}, "
-          f"belief {run['drift']:.2f} m off -- {run['grade']['reason']}")
+          f"{run['seconds']:5.0f} s, "
+          + (f"{run['board']}, " if "board" in run else f"presses {run['presses']}, ")
+          + f"belief {run['drift']:.2f} m off -- {run['grade']['reason']}")
+    if "steps" in run:
+      print(f"        steps {run['steps']}")
+      print(f"        locals {run.get('locals')} secret {run.get('secret')}")
   return out
 
 
@@ -338,8 +417,13 @@ def game_main(args) -> None:
 def main() -> None:
   parser = argparse.ArgumentParser(description=__doc__,
                                    formatter_class=argparse.RawDescriptionHelpFormatter)
-  parser.add_argument("--feature", choices=("mouse", "hide_and_seek"), default="mouse",
-                      help="the challenge: the mouse's paid feed, or the pair's game")
+  parser.add_argument("--feature", choices=("mouse", *BOARD_JOBS, *CHALLENGES,
+                                             "hide_and_seek"),
+                      default="mouse",
+                      help="the challenge: the mouse's paid feed, a whiteboard's job, "
+                           "the tower or the bench, or the pair's game")
+  parser.add_argument("--board", default=None,
+                      help="a whiteboard's job on this board (default: the two in turn)")
   parser.add_argument("--view", action="store_true", help="open the viewer (one robot)")
   parser.add_argument("--pair", action="store_true",
                       help="the home pair as deployed; --robot flies, the other stands")
@@ -382,7 +466,9 @@ def main() -> None:
     life.on_event.append(events.append)
     try:
       start(lives)
-      trials = fly_beside(lives, life, feed_trials_routine(life, args.n, args.start, events))
+      boards = (args.board,) if args.board else ("whiteboard_a", "whiteboard_b")
+      trials = fly_beside(lives, life, feed_trials_routine(life, args.n, args.start, events,
+                                                           args.feature, boards))
     except MissionAborted:
       print("aborted (viewer closed)")
       return
@@ -394,7 +480,7 @@ def main() -> None:
   passed = sum(1 for run in trials if run["grade"]["ok"])
   other = {k: sum(run["presses"][k] for run in trials) for k in ("shock", "toy")}
   off = [e for e in events if e["type"] == "press"]
-  print(f"\nFEED on legs, from the {args.start}: {passed}/{len(trials)} paid; "
+  print(f"\n{args.feature.upper()} on legs, from the {args.start}: {passed}/{len(trials)} paid; "
         f"presses of another plate: {other}; `press` events: {len(off)}; "
         f"mean {sum(r['seconds'] for r in trials) / max(len(trials), 1):.0f} sim s, "
         f"belief {max((r['drift'] for r in trials), default=0.0):.2f} m off at worst")

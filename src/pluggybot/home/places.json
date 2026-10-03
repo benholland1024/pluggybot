@@ -14,6 +14,31 @@
       "house": "facility",
       "directions": "The lab is the north-east room of the second house, the one across the middle street from your dock's: in through its front garden and its lobby, and the lab's door is on the lobby's east side. The mouse's cage stands against the lab's north wall, and in front of it are three pressure plates in a row, a metre apart: from left to right as you face the cage, the shock plate (tag 35), the feed plate (tag 36) and the toy plate (tag 37). Each plate's tag is on a small sign at the plate's far edge, facing the room; the plate is the square in front of its sign.",
       "tags": {"35": "the lab's shock plate", "36": "the lab's feed plate", "37": "the lab's toy plate"}
+    },
+    "whiteboard_a": {
+      "house": "house",
+      "directions": "The living room's whiteboard is in your own house, in the room your dock is in. It hangs on the living room's west wall, the wall with the doorway to the hall, north of that doorway and low enough to draw on lying in front of it. Its tags are on the wall either side of it, level with its middle: tag 38 on its left and tag 39 on its right as you face it.",
+      "tags": {"38": "the living room whiteboard's left tag", "39": "the living room whiteboard's right tag"}
+    },
+    "whiteboard_b": {
+      "house": "house",
+      "directions": "The bedroom's whiteboard is in your own house, in the bedroom: the room north of your dock's, through the doorway in the living room's north wall. It hangs on the bedroom's north wall, east of the bed. Its tags are on the wall either side of it, level with its middle: tag 40 on its left and tag 41 on its right as you face it.",
+      "tags": {"40": "the bedroom whiteboard's left tag", "41": "the bedroom whiteboard's right tag"}
+    },
+    "workshop": {
+      "house": "house",
+      "directions": "The tower's blocks are in your own house's workshop: the room at the west end of the house, off the hall. They stand in a row on the floor in its south-west corner, in front of a pair of tags on the room's west wall: tag 42 on the left and tag 43 on the right as you face them. Each block is a small cube carrying its own tag on every face: tags 20, 21 and 22.",
+      "tags": {"42": "the workshop corner's left tag", "43": "the workshop corner's right tag", "20": "the first of the tower's blocks", "21": "the second of the tower's blocks", "22": "the third of the tower's blocks"}
+    },
+    "lab_bench": {
+      "house": "facility",
+      "directions": "The bench is in the lab, the north-east room of the second house, the one across the middle street from your dock's: in through its front garden and its lobby, and the lab's door is on the lobby's east side. The bench stands against the lab's east wall, with a pair of tags on its front: tag 44 on the left and tag 45 on the right as you face it. Two small cubes are on the floor in front of it, each carrying its own tag on every face: tag 23 and tag 24.",
+      "tags": {"44": "the bench's left tag", "45": "the bench's right tag", "23": "the bench's known mass", "24": "the bench's unknown mass"}
+    },
+    "garden": {
+      "house": "house",
+      "directions": "The garden is your own house's: the fenced ground outside the living room's east doorway, between the house and the street, and round the house's south side. Its tag, tag 46, is on its east fence straight across the grass from that doorway, facing the house. Its plants stand in the grass inside the fence.",
+      "tags": {"46": "the garden's tag"}
     }
   }
 }

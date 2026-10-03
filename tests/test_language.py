@@ -72,7 +72,7 @@ def test_the_served_example_compiles_on_its_world():
   menu = Menu.for_world(WORLD)
   assert menu.swaps, "the served rule is the one that fetches"
   for swaps in (True, False):
-    text = ov.procedure_rule(swaps, menu.places, menu.plates)
+    text = ov.procedure_rule(swaps, menu.places, menu.plates, menu.draws)
     example = text[text.index("def look_around"):text.index("Statements:")]
     compile_ok(example.split("\n\n")[0] + "\n")
 
@@ -498,7 +498,8 @@ def test_the_rules_worked_example_hands_over_no_survival_policy():
   """EVENT_MAP_RULE's rule, for the same reason: the example must show a
   capability, not the charging policy the arm is measured on."""
   menu = Menu.for_world(WORLD)
-  text = ov.procedure_rule(menu.swaps, menu.places, menu.plates)
+  text = ov.procedure_rule(menu.swaps, menu.places, menu.plates, menu.draws, menu.cubes,
+                           menu.surveys)
   example = text[text.index("def look_around"):text.index("Statements:")]
   for word in ("charge", "battery", "rack"):
     assert word not in example, word
@@ -518,6 +519,17 @@ def test_the_rules_worked_example_hands_over_no_survival_policy():
   finding = ov.procedure_rule(places=True)
   assert "  find(" in finding and "  press(" not in finding
   assert "  press(" in ov.procedure_rule(places=True, plates=True)
+  # ...and `draw` where it draws on the boards it finds (#406)
+  assert "  draw(" not in ov.procedure_rule(swaps=True, places=True)
+  assert "  draw(" in ov.procedure_rule(swaps=True, places=True, draws=True)
+  # ...and the claw's verbs and its sense where it takes the cubes it finds,
+  # `survey` where it surveys an area (#407)
+  plain = ov.procedure_rule(swaps=True, places=True)
+  claws = ov.procedure_rule(swaps=True, places=True, cubes=True)
+  assert not any(f"  {v}(" in plain for v in st.CLAW_VERBS + st.SURVEY_VERBS)
+  assert "claw.holding --" not in plain and "claw.holding --" in claws
+  assert all(f"  {v}(" in claws for v in st.CLAW_VERBS) and "  survey(" not in claws
+  assert "  survey(" in ov.procedure_rule(places=True, surveys=True)
 
 
 # ---- the lifecycle: define, run by name, stow ------------------------------------

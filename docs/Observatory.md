@@ -10,6 +10,178 @@ observatory is NOT a result: it reports into the issue it informs.
 
 ## Periods
 
+### The workshop on legs: a built tool on the rack's rail (#407) — opens when this PR is deployed
+
+**What changed in the world.** The rack's board carries on past the claw's
+bay as the built-tool rail: three more bays, 0.65–1.25 m along the board
+from the rack's middle, each with its own pair of tags (47–52) and a
+presence switch, empty until a robot builds a tool. On the `autonomous` arm
+a mind has the workshop again (`build_tool` / `retire_tool`, Overseer.md
+§2d): it pays points for catalog parts, stands still while they print, and
+the world hangs the tool in the bay it named, where either robot can fetch
+it. A spec is refused by the arm's envelope (0.40 kg; the centre of mass on
+the peg or up to 60 mm ahead, and within 25 mm of its middle; hung plumb;
+0.20 m under the peg; clear of the bay's tags and the rack's rail; 12 W),
+and by the rig the workshop tries it on first. The deployed prefix went
+46 475 → 52 579 chars (`prompt_sha` `78b2d857…` → `f3ec2e8a…`): the
+workshop's rule and its catalog. ⚠ The house's geometry changed, so the
+first restart on this build keeps the clock, the packs, the deaths and the
+jobs but not the bodies or the maps. Deployed together with the claw's PR
+(below), the two are ONE period, and the prefix goes 45 062 → 52 579 chars
+(`77c9c402…` → `f3ec2e8a…`).
+
+**What the period is for.**
+
+- **Is a tool ever built on legs?** On the rover every one of 433 specs in
+  seven days was refused (#315) and none was ever hung live (#264). Live:
+  `tool` rows by outcome (`specified`, `refused` with its reasons, `built`,
+  `hung`), and procedures that name a built tool's axis.
+- **Which rule refuses**: the `refused` reasons by rule (`hangs`, `side`,
+  `ahead`, `drop`, `tags`, `rail`, `rig:`, the catalog's) say whether the
+  envelope the prompt states is one a model can design to.
+
+### The claw, the census and the challenges on legs, and the pair's turn at a bay (#407, #418) — opens when this PR is deployed
+
+**What changed in the world.** Three jobs join the pair's board:
+`count_plants` (the garden's census: its tag found, the LCD fetched, the
+garden walked round until 90 % of its floor was seen, the plants counted
+off the depth camera, the count on the LCD's face, the LCD hung back) and
+the two challenges, `stack_tower` and `find_mass`, each a procedure the
+robot writes, with the claw on the arm. Each offer carries its area's
+address and directions (`home/places.json`: the workshop corner, the bench,
+the garden), never a position, and the bench is an area of its own: it no
+longer shares the cage's slot. The house moved: five area tags (42-46, the
+workshop corner's pair on its west wall, the bench's on its front, the
+garden's on its east fence), the tower's blocks 0.70 m out from the
+workshop wall, the bench's masses 0.25 m either side; the claw module is
+rebuilt (its slide and its jaws), so the scenes are new. The procedure
+rule gains `pick`, `place`, `put`, `grip`, `release` and `survey`, and the
+sensors `claw.holding`, `shoulder.torque` and `elbow.torque`: the deployed
+prefix went 45 062 → 46 475 chars (`prompt_sha` `77c9c402…` →
+`78b2d857…`). A robot holds at its approach's start while the other works
+at its bay or the next (#418). The three jobs are priced (`energy.json`:
+census 13.31 Wh, the tower 8.106, the bench 9.938), and the cadence offers
+eight kinds on `home_quad`. ⚠ The house's geometry changed, so the first
+restart on this build keeps the clock, the packs, the deaths and the jobs
+but not the bodies or the maps: both robots re-learn their house.
+
+**What the period is for.**
+
+- **Is the tower ever built, the bench ever weighed, live?** Ladder A flies
+  both from the dock (the tower 1 of 1 and the bench 2 of 2 on the pair);
+  ladder B (#407's comment) says whether the deployed model writes one when
+  asked. Live: `stack_tower` / `find_mass` reaching `done`, and defined
+  procedures that name `pick` or `read("elbow.torque")`.
+- **The census's count**: `count_plants` verdicts, counted against truth
+  and coverage. Wrong under 90 % coverage is a survey cut short; wrong
+  above it is the counter.
+- **The rack with three tools turning over** (#418): `WAIT:` lines at a bay,
+  swaps that end `blocked`, and stows that let go; the pair tables' 9 of 10
+  at neighbouring bays is the bench's figure.
+- **Finding an area**: a fresh map took 468 s to find the garden's tag from
+  the house's address; `find` steps' seconds after a true death are the
+  cost of forgetting.
+
+### Drawing on legs: the whiteboards' three jobs (#406) — opens when this PR is deployed
+
+**What changed in the world.** Three jobs come back, on the pair's board
+beside `feed_mouse` and the game: `whiteboard_answer` (a question, the
+answer given at the claim), `draw_figure` (a house, a tree or a sun) and
+`rate_artwork` (the robot or the sun, paid when a visitor rates it). Each
+is a program over the step vocabulary: the board found by its tags round
+the house's address, the pen fetched, the body lying down in front of the
+board, the board's face found with the pen, the figure drawn, the body up
+and the pen hung back. Each offer carries the house's address and the
+board's written directions (`home/places.json`), never a position. The
+house moved: each whiteboard has two tags on the wall either side of it
+(38-41), and the pen module is rebuilt -- its carriage, the bill's slide,
+under its plate -- so the scenes are new. The robots' procedure rule gains
+`draw(board, figure)`, and the places they remember include the boards'
+tags. The deployed prefix went 44 757 → 45 062 chars (`prompt_sha`
+`2dd061e7…` → `77c9c402…`), and the diff is that verb's line and its name
+among the verbs that move the robot. ⚠ The house's geometry changed, so
+the first restart on this build keeps the clock, the packs, the deaths
+and the jobs but not the bodies or the maps (Webserver.md, "A restart
+is a continuation"): both robots re-learn their house and its places.
+The rewards (`rewards.json`'s `draw`, `artwork` and
+`answer` rows) did not move; the six (job, board) pairs are priced
+(`energy.json`).
+
+**What the period is for.**
+
+- **Does ink land?** A board job's verdict leads with what failed
+  (`never found whiteboard_b: ...`, a fetch's reason, a `draw`'s), else
+  "inked n/n strokes ... mm form error". The bench's figures are a 0.24 mm
+  square and a house at 0.53; a live house far worse is the body, the
+  board or the approach, and the verdict's first clause says which.
+- **Quality four on legs, its first readings**: `artwork` pending rows, the
+  visitors' ratings and the robots' own `rate` acts -- can it create, can it
+  judge -- none of which a quadruped could do before.
+- **Answers**: wrong answers (the mind's arithmetic) and unfaithful ink
+  (`matchMm` over 4) are different failures; only the second is the pen's.
+- **Finding a board**: a fresh map searched 506 s for the bedroom's board
+  on the bench, an explored one 17 s. `find` steps' seconds after a true
+  death are the cost of forgetting.
+- **The rack now turns over all day**: the pen leaves and comes back once a
+  job, and the pair share one rack (#418 is not done). Swap failures and
+  bay waits, against the period before.
+
+### `look` is offered only while a renderer is there (#357) — opens when this PR is deployed, with the site's hub half
+
+**What changed in the world.** What the robots are OFFERED, and one
+sentence of what they are told. `look` is on the menu only while the
+website's hub says a renderer is connected (the `renderer` inbound kind);
+otherwise the state says `camera: "nothing can take a picture right now"`,
+and a look that raced the word resolves at once, `none` with `why:
+unanswerable`, instead of standing ten seconds. The renderer (compose's
+`eye`) has never been deployed, so on this period's world `look` is OFF
+for both robots until it is; in the 30 days read on 2026-10-02 there were
+51 looks, all `none`. The LOOKING rule gained one sentence: the deployed
+prefix went 44 677 → 44 757 chars (`prompt_sha` `effdd6cc…` →
+`2dd061e7…`). The world, the scoring and the economy did not move. A sim
+deployed without the hub's half hears no word and keeps `look` off, which
+is what this world can do anyway.
+
+**What the period is for.**
+
+- **No look stands for nobody.** `look` rows stop; an `unanswerable` row is
+  a look that raced the word, and an `unanswered` one now means a renderer
+  that was there when the look began and did not answer in time, never a
+  missing one.
+- **The eye, when it is deployed** (Ben's step, after #276 and rooftop
+  #322): `look` comes back on the menu, and the first `seen` rows say what
+  the round trip costs on the box (`waitS`) and what a quadruped does with a
+  real picture.
+- **Whether the `camera` line is read.** A note, pin or ticket about not
+  being able to look, against the 51 looks the month before.
+
+### A restart steps its last step again, and a tool on the fork between errands is the loop's (#420) — opens when this PR is deployed
+
+**What changed in the world.** What happens AT a restart, and nothing else:
+a day flown straight through is bit-identical to staging's (every step,
+scan and tag read of two days compared). Two things:
+
+- A restore puts the bodies back and steps the step the save was taken
+  after again, from where it began. A running world's contacts, positions
+  and sensors are a step behind its `qpos`; computed fresh instead, the
+  walking policy deciding on the first step back (one save in ten) took a
+  slightly different action from the day that never stopped. That was a
+  perturbation of about 1e-6, not a behaviour anyone could see.
+- A tool on the fork BETWEEN errands is the loop's after a restart: the
+  count of returns tried is kept, and a return counts once it has run. Only
+  an errand the restart cut still sends its tool home first ("abort means
+  stow"). Before, every restart with a tool riding the fork took it home
+  uncounted and then granted `STOW_RETRIES` fresh returns, which the day
+  that never stopped did not have. So "the restart left X on my fork" is
+  said only for a cut errand, and otherwise the loop's own
+  `SWAP_RETURN again (n/2)` line is.
+
+**What the period is for.** Expect nothing visible. On legs a tool rides
+the fork between errands only after a procedure's `fetch` whose return
+failed twice. Around any `mission resumed`, read the `SWAP_RETURN again` and
+`the restart left` lines: a robot that gave up on a tool (`it rides my
+fork`) now keeps riding it across a restart, as it would have without one.
+
 ### The prompt's worked examples are ones the robot can write (#434) — opens when this PR is deployed
 
 **What changed in the world.** What the robots are TOLD, and only that:

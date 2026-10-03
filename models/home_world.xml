@@ -352,11 +352,11 @@
     <body name="lab_bench" pos="27.6800 1.5000 0.4000">
       <geom name="lab_bench_geom" type="box" size="0.3000 0.6000 0.4000" rgba="0.55 0.47 0.38 1"/>
     </body>
-    <body name="mass_known" pos="26.6800 1.0000 0.0130">
+    <body name="mass_known" pos="26.6800 1.2500 0.0130">
       <freejoint/>
       <geom name="mass_known_box" type="box" size="0.013 0.013 0.013" mass="0.1" friction="1.2 0.005 0.0001" solimp="0.99 0.999 0.0001 0.9 2.0" material="tagmat23"/>
     </body>
-    <body name="mass_unknown" pos="26.6800 2.0000 0.0130">
+    <body name="mass_unknown" pos="26.6800 1.7500 0.0130">
       <freejoint/>
       <geom name="mass_unknown_box" type="box" size="0.013 0.013 0.013" mass="0.15" friction="1.2 0.005 0.0001" solimp="0.99 0.999 0.0001 0.9 2.0" material="tagmat24"/>
     </body>
@@ -375,15 +375,15 @@
     <body name="stairs" pos="-3.5000 -4.5000 0.4500">
       <geom name="stairs_geom" type="box" size="1.5000 1.5000 0.4500" rgba="0.58 0.54 0.50 1"/>
     </body>
-    <body name="block_0" pos="-11.0000 -5.0000 0.0130">
+    <body name="block_0" pos="-11.2800 -5.0000 0.0130">
       <freejoint/>
       <geom name="block_0_box" type="box" size="0.013 0.013 0.013" mass="0.06" friction="1.2 0.005 0.0001" solimp="0.99 0.999 0.0001 0.9 2.0" material="tagmat20"/>
     </body>
-    <body name="block_1" pos="-11.0000 -4.7500 0.0130">
+    <body name="block_1" pos="-11.2800 -4.7500 0.0130">
       <freejoint/>
       <geom name="block_1_box" type="box" size="0.013 0.013 0.013" mass="0.06" friction="1.2 0.005 0.0001" solimp="0.99 0.999 0.0001 0.9 2.0" material="tagmat21"/>
     </body>
-    <body name="block_2" pos="-11.0000 -4.5000 0.0130">
+    <body name="block_2" pos="-11.2800 -4.5000 0.0130">
       <freejoint/>
       <geom name="block_2_box" type="box" size="0.013 0.013 0.013" mass="0.06" friction="1.2 0.005 0.0001" solimp="0.99 0.999 0.0001 0.9 2.0" material="tagmat22"/>
     </body>

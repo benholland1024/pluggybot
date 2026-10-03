@@ -120,17 +120,18 @@ def test_the_tower_is_a_real_kind_discharged_by_a_procedure():
 def test_the_offer_exists_where_there_is_a_mind_and_not_without_one(monkeypatch):
   """The gate is the target seam, not a new field: a challenge's target is
   named only where a procedure can be written. Asked of the house with its
-  tower set out, which legs do not offer yet (#407) -- and without it,
-  nothing names one."""
+  tower set out, as legs offer it (#407) -- and without it, nothing names
+  one."""
   book = lc.board_book(QUAD_HOME)
-  assert "challenge" not in world_targets(QUAD_HOME, book, procedures=True)
-  real = lc.world_config
-  monkeypatch.setattr(lc, "world_config", lambda world: {
-    **real(world), "tower": {"name": "workshop"}})
   mindless = world_targets(QUAD_HOME, book)
   minded = world_targets(QUAD_HOME, book, procedures=True)
   assert "challenge" not in mindless
   assert minded["challenge"] == ["workshop"]
+  real = lc.world_config
+  monkeypatch.setattr(lc, "world_config", lambda world: {
+    k: v for k, v in real(world).items() if k != "tower"})
+  assert "challenge" not in world_targets(QUAD_HOME, book, procedures=True)
+  monkeypatch.setattr(lc, "world_config", real)
   # (`cage` and `bench` ride the same gate, issues #226 and #227)
   assert {k: v for k, v in minded.items()
           if k not in ("challenge", "cage", "bench")} == mindless
@@ -147,7 +148,7 @@ def test_the_producer_puts_the_tower_up_with_the_room_as_its_target():
                                   "kinds": {"stack_tower": {}}}, None)
   board = TaskBoard()
   producer = TaskProducer(board, beat, {"challenge": ["workshop"]})
-  producer.tick(1.0, pack_wh=8.0)
+  producer.tick(1.0, pack_wh=KINDS["stack_tower"].estimate_wh + 1.0)
   [task] = board.offered()
   assert task.kind == "stack_tower" and task.target == "workshop"
   assert "workshop" in task.description and "say you are done" in task.description

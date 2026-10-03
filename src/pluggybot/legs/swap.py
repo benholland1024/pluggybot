@@ -15,12 +15,13 @@ come down from the carry pose (swinging a tool down shifts the stance about
 
 The fork moves along straight lines of its V's vertex in the torso frame,
 the plate level, the joint targets off the arm's own kinematics and the
-driver's GOAL -- never a measurement of the last forward pass, which a
-restart would part (`legs.arm.ArmDriver`).
+driver's GOAL -- never a measurement of the last forward pass
+(`legs.arm.ArmDriver` says why).
 
 A mixin: `QuadMission` is the rest of the body. The lifecycle names a bay
 by its `coupling.STATION_YS` entry (the bay index space), so a bay here is
-that entry's index on this rack (`bay_of`).
+that entry's index (`bay_of`), on whichever section of the rack has it
+(`rack.spec_of`: the hand-built tools' three, the built rail's three).
 """
 
 from __future__ import annotations
@@ -41,6 +42,11 @@ from pluggybot.tick import Routine
 #: The approach starts this far behind a bay's working pose, facing the
 #: rack (the spike's `--approach`: 41 of 41 from up to 0.3 m and 30 deg off).
 APPROACH_STANDOFF_M = 1.0
+#: The walk there gives up after this long, s. MEASURED: the bench's claw
+#: hung back from the lab is the street with a tool aboard, ~100 s (the
+#: cube search's walk, `legs.claw.WALK_PATIENCE_S`), and at the walk's own
+#: 90 s every weighing ended with the claw still on the fork.
+TO_BAY_S = 240.0
 #: Walk-ins a swap tries before it gives up, and each one's budget, s.
 TRIES = 3
 WALK_IN_S = 20.0
@@ -105,12 +111,25 @@ class ToolSwap:
                                 if int(model.geom_bodyid[g]) == plate], dtype=np.int32)
     self._tool_gids: dict[str, np.ndarray] = {}
     self._poles: dict[str, tuple] = {}
+    #: WHO WAITS FOR A TAKEN BAY (#418): the lifecycle's routine, `(wx, wy,
+    #: kind, since, hold=True) -> True once free`; None waits for nobody.
+    self.bay_wait = None
+    #: How far off the robot was that made the last swap give its bay up.
+    self.peer_at_bay_m: float | None = None
+
+  def _rebind_swap(self, model) -> None:
+    """The fork's geoms by name, the per-module caches emptied (a recompiled
+    world, `QuadMission.rebind`); the rack's commissioning is the world's."""
+    plate = self._plate_bid = model.body(self.handle.el("arm_plate")).id
+    self._fork_gids = np.array([g for g in range(model.ngeom)
+                                if int(model.geom_bodyid[g]) == plate], dtype=np.int32)
+    self._tool_gids, self._poles = {}, {}
 
   # ---- where things are -------------------------------------------------------
 
   def work_pose(self, bay: int) -> tuple[float, float, float]:
     """A bay's working pose in the world, off the commissioned rack."""
-    return dk.compose(self.tool_rack_prior, rk.work_pose(rk.DEFAULT, bay))
+    return dk.compose(self.tool_rack_prior, rk.work_pose(*rk.spec_of(bay)))
 
   def rack_standoff(self, bay: int) -> tuple[float, float, float]:
     """Where the approach to a bay starts: behind its working pose, facing it."""
@@ -142,13 +161,14 @@ class ToolSwap:
     it is nearest along the rail. KeyError for a module this world lacks."""
     d, m = self.data, self.model
     p = d.xpos[m.body(module).id]
-    bay = 0
+    spec, k = rk.DEFAULT, 0
     if self.tool_rack_prior is not None:
       rx, ry, ryaw = self.tool_rack_prior
       along = -math.sin(ryaw) * (p[0] - rx) + math.cos(ryaw) * (p[1] - ry)
-      bay = min(range(len(rk.DEFAULT.bays)), key=lambda k: abs(rk.DEFAULT.bays[k] - along))
+      spec, k = min(((s, k) for s in rk.SPECS for k in range(len(s.bays))),
+                    key=lambda sk: abs(sk[0].bays[sk[1]] - along))
     return {"pos": [float(v) for v in p], "on_fork": self.on_this_fork(module),
-            "hung": rk.on_bay(m, d, module, rk.DEFAULT, bay), "bay": bay}
+            "hung": rk.on_bay(m, d, module, spec, k), "bay": spec.stations[k]}
 
   def tool_powered(self, module: str | None) -> bool:
     """The module's coupling conducting on this robot's fork. Read every
@@ -190,7 +210,7 @@ class ToolSwap:
     from pluggybot.legs.body import NAV_EYE
     seen = dk.seen_from(self.model, self.data, self.detect_board(),
                         self.handle.el(NAV_EYE), self.root)
-    fix = rk.fit_rack(seen)
+    fix = rk.fit_rack(seen, rk.SPECS)
     if fix is not None:
       self.tool_rack_seen = dk.blend(self.tool_rack_seen,
                                      dk.compose(self.pose, (fix.x, fix.y, fix.yaw)))
@@ -202,10 +222,11 @@ class ToolSwap:
     from pluggybot.legs.body import NAV_EYE
     seen = rk.seen_in_torso(self.model, self.data, self.detect_board(),
                             self.handle.el(NAV_EYE), self.root)
-    return rk.bay_aim(seen, rk.DEFAULT, bay, self.arm_spec.y)
+    spec, k = rk.spec_of(bay)
+    return rk.bay_aim(seen, spec, k, self.arm_spec.y)
 
   def _rack_error(self, bay: int) -> tuple[float, float, float]:
-    work = dk.compose(self.tool_rack_seen, rk.work_pose(rk.DEFAULT, bay))
+    work = dk.compose(self.tool_rack_seen, rk.work_pose(*rk.spec_of(bay)))
     return dk.relative(self.pose, work)
 
   def _find_rack_routine(self) -> Routine:
@@ -316,7 +337,7 @@ class ToolSwap:
     """The walk to the bay's approach start, facing the rack, and a look:
     "ok", or why not."""
     sx, sy, syaw = self.rack_standoff(bay)
-    arrived = yield from self.drive_to_routine(sx, sy)
+    arrived = yield from self.drive_to_routine(sx, sy, timeout=TO_BAY_S)
     if not arrived:
       rec["drive"] = self.last_drive
       return "no-route"
@@ -325,6 +346,27 @@ class ToolSwap:
     if not (yield from self._find_rack_routine()):
       return "no rack"
     return "ok"
+
+  def _bay_free_routine(self, bay: int, kind: str, rec: dict) -> Routine:
+    """Hold at the approach's start while another robot works this bay or
+    the next (#418, decided: the rover's #346 wait): its REPORTED pose within
+    the planner's disc of this bay's working pose (`peer_on_the_goal`: 0.55
+    m standing -- the next bay's working pose is 0.30 m off, two bays over
+    0.60). The minds choose who goes first; the wait breaks the symmetry two
+    robots walking in at once cannot, and a bump that fires on both does
+    not (#418: both flinched, 17 of 20). True once free; False if the wait
+    gave up, said in `rec`."""
+    self.peer_at_bay_m = None
+    wx, wy, _ = self.work_pose(bay)
+    if self.peer_on_the_goal(wx, wy) is None:
+      return True
+    free = False
+    if self.bay_wait is not None:
+      free = yield from self.bay_wait(wx, wy, kind, float(self.data.time), hold=True)
+    if not free:
+      self.peer_at_bay_m = self.peer_on_the_goal(wx, wy)
+      rec["why"] = "blocked"
+    return bool(free)
 
   def _lined_up_routine(self, bay: int, att: dict) -> Routine:
     """A walk in, the settle and the measurement: the bay's aim if lined
@@ -346,10 +388,10 @@ class ToolSwap:
   def fetch_routine(self, bay: int, module: str) -> Routine:
     """Walk to a bay and take its tool, carrying it at the carry pose:
     "arrived" once the fork went in (the verdict is the tool's own state),
-    "no-route" if the walk found no way there, "timeout" if no walk-in
-    lined up."""
+    "no-route" if the walk found no way there, "blocked" if another robot
+    held the bay past the wait (#418), "timeout" if no walk-in lined up."""
     rec = {"op": "fetch", "bay": bay, "module": module, "attempts": []}
-    self.last_swap = rec
+    self.last_swap, self.peer_at_bay_m = rec, None
     if self.tool_rack_prior is None:
       rec["why"] = "no rack"
       return "no-route"
@@ -359,6 +401,8 @@ class ToolSwap:
     if why != "ok":
       rec["why"] = why
       return "no-route"
+    if not (yield from self._bay_free_routine(bay, "pick", rec)):
+      return "blocked"
     with self._at_the_bay(bay):
       return (yield from self._fetch_at_routine(bay, module, rec))
 
@@ -403,10 +447,10 @@ class ToolSwap:
 
   def stow_routine(self, bay: int, module: str) -> Routine:
     """Walk to the tool's bay and hang it back, folding the arm after:
-    "arrived" once the fork came down over the bay, "no-route", or
-    "timeout"."""
+    "arrived" once the fork came down over the bay, "no-route", "blocked"
+    (#418) or "timeout"."""
     rec = {"op": "stow", "bay": bay, "module": module, "attempts": []}
-    self.last_swap = rec
+    self.last_swap, self.peer_at_bay_m = rec, None
     if self.tool_rack_prior is None:
       rec["why"] = "no rack"
       return "no-route"
@@ -415,6 +459,8 @@ class ToolSwap:
     if why != "ok":
       rec["why"] = why
       return "no-route"
+    if not (yield from self._bay_free_routine(bay, "return", rec)):
+      return "blocked"
     with self._at_the_bay(bay):
       return (yield from self._stow_at_routine(bay, module, rec))
 
@@ -446,7 +492,10 @@ class ToolSwap:
     rec = self.last_swap
     if not rec:
       return "no swap recorded"
-    parts = [f"{rec['op']} {rec['module']} at bay {chr(ord('A') + rec['bay'])}"]
+    # ...the bay in its own row's letters, as the robot is told them (#407)
+    spec, local = rk.spec_of(rec["bay"])
+    where = ("rail bay " if spec is rk.BUILT else "bay ") + chr(ord("A") + local)
+    parts = [f"{rec['op']} {rec['module']} at {where}"]
     if rec.get("why"):
       parts.append(str(rec["why"]))
     for i, a in enumerate(rec["attempts"], 1):

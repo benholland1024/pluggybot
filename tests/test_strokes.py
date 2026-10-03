@@ -13,7 +13,8 @@ import pytest
 from pluggybot.economy import questions
 from pluggybot.tools import hershey
 from pluggybot.tools import strokes as S
-from pluggybot.tools.drawing import (PEN_TRAVEL, Board, Envelope, circle_path,
+from pluggybot.legs.rack import PEN_TRAVEL
+from pluggybot.tools.drawing import (Board, Envelope, circle_path,
                                      square_path)
 
 
@@ -224,7 +225,7 @@ def test_shrink_keeps_words_whole():
 
 
 def test_envelope_is_the_carriage_not_the_board(boards):
-  """The board is 320 mm wide; the pen can reach 110 mm of it.
+  """The board is 320 mm wide; the pen can reach 100 mm of it (#406: the slide).
 
   Sizing content to the board rather than to the carriage is the obvious
   mistake here -- `targets_for` CLIPS an out-of-range command, so the figure
@@ -235,14 +236,6 @@ def test_envelope_is_the_carriage_not_the_board(boards):
     env = Envelope.for_board(board)
     assert env.size[0] == pytest.approx(2 * PEN_TRAVEL)
     assert env.size[0] < 2 * board.half[1], "the face is scenery, not reach"
-
-
-def test_the_envelope_is_the_rovers_to_the_bit(boards):
-  """The served boards' state was laid on the rover pen's reach, and a reach
-  one ulp off rewrites it: `lift_at` sums the rover's terms in the rover's
-  order, which a single folded constant (0.100 below the board) does not."""
-  for board in boards:
-    assert Envelope.for_board(board).z_max == 0.09999999999999998
 
 
 def test_nearest_does_not_invent_segments_between_strokes():

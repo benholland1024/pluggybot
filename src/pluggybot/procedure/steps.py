@@ -18,6 +18,12 @@ The verbs, in the words the issue used:
   face(heading)        turn in place                    `Body.face_routine`
   find(tag, x, y)      a task area found by its tag     `Body.find_tag_routine`
   press(tag)           onto the plate its sign marks    `Body.press_plate_routine`
+  draw(board, figure)  a figure on a found whiteboard   `Body.draw_routine`
+  pick(tag)            a cube into the claw             `Body.pick_cube_routine`
+  place(tag)           the held cube onto another       `Body.place_cube_routine`
+  put()                the held cube onto the floor     `Body.put_cube_routine`
+  grip() / release()   the claw's jaws shut / open      `Body.claw_routine`
+  survey(tag)          count what stands in an area     `Body.survey_routine`
   wait(seconds)        stand still
   move(axis, target)   one axis to a setpoint           `procedure/axes.py`
   drive(v, w, seconds) the base at a velocity           `Body.velocity_routine`
@@ -65,6 +71,7 @@ from typing import Any, Callable
 from pluggybot.legs.rack import TOOL_BAYS as RACK_TOOL_BAYS
 from pluggybot.rack.coupling import STATION_YS
 from pluggybot.tick import Routine
+from pluggybot.tools.strokes import PROGRAMS
 
 #: Which bay each tool hangs in, by index into `STATION_YS` (bay <-> tag
 #: pairing is by that index): the quadruped's rack's (#405). A COPY: the
@@ -115,6 +122,8 @@ class WorldFacts:
   #: among them a `press` may
   places: tuple[int, ...] = ()
   plates: tuple[int, ...] = ()
+  #: the cubes' tags the claw's verbs may name (issue #407)
+  cubes: tuple[int, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -276,12 +285,30 @@ def _carried(life) -> str | None:
 
 
 def carry_configuration_routine(life, tool: str) -> Routine:
-  """The tool as a fetch left it, before any RETURN (issue #264): the arm at
-  its carrying pose, where a procedure may have moved it -- a stow computes
-  its approach from the pose it starts at. Returns what it set down: nothing,
-  on a body with no grip (#407 brings the claw back)."""
+  """The tool as a fetch left it, before any RETURN (issue #264): a cube in
+  the claw set down on the floor first (#407: a claw hung back holding one
+  is a cube hung on the rack), then the arm at its carrying pose, where a
+  procedure may have moved it -- a stow computes its approach from the pose
+  it starts at. Returns what it set down, and what it let go of where it
+  stood because no put could (no room, out of reach): a claw hung back
+  holding a cube is worse."""
+  set_down = dropped = None
+  held = life.body.held_cube() if tool == "module_claw" else None
+  if held is not None:
+    rec = yield from life.body.put_cube_routine(PUT_PATIENCE_S)
+    if rec.get("put"):
+      set_down = held
+    elif life.body.held_cube() is not None:
+      yield from life.body.claw_routine(closed=False)
+      dropped = held if life.body.held_cube() is None else None
+  # ...the tool's own axes at rest, the pose it hangs plumb in (#407: a
+  # built tool's stow -- a hinge a procedure left swung was hung back swung,
+  # off plumb, and lost)
+  for act, target, speed in tool_rest(life, tool):
+    if abs(life.body.setpoint(act) - target) > POSE_TOL:
+      yield from life.body.ramp_routine(act, target, speed)
   yield from life.body.retract_arm_routine()
-  return {"setDown": None}
+  return {"setDown": set_down, "dropped": dropped}
 
 
 #: A setpoint this close to its travel value is left alone, so a verb that
@@ -289,23 +316,12 @@ def carry_configuration_routine(life, tool: str) -> Routine:
 POSE_TOL = 1e-3
 
 
-def travel_pose(life, tool: str | None) -> list[tuple[int, float, float]]:
-  """The CARRYING pose as `(actuator, setpoint, speed)`, in the order to
-  move them (issue #347): a tool's own axes to rest -- each at its joint's
-  compiled value, the pose the tool hung in -- then the arm to its carry
-  pose over the nose (#405), the shoulder first; an empty fork folds the
-  arm to its stow, the shoulder before the elbow, so the forearm comes in
-  over the body rather than under it. It sets nothing down."""
-  from pluggybot.legs.arm import CARRY_Q
+def tool_rest(life, tool: str | None) -> list[tuple[int, float, float]]:
+  """A tool's own axes at rest, as `(actuator, setpoint, speed)`: each at
+  its joint's compiled value, the pose the tool hung in -- a built tool's
+  stow, which its joint's `ref` makes `qpos0` (`workshop.build.face_xml`)."""
   from pluggybot.procedure import axes
-  body, model = life.body, life.model
-  pose = axes._ARM.stow if tool is None else CARRY_Q
-  try:
-    arm = [(body.actuator(axes.AXES[j].actuator), target, axes.AXES[j].speed)
-           for j, target in zip(axes.ARM_JOINTS, pose)]
-  except KeyError:
-    return []
-  own = []
+  model, own = life.model, []
   for axis in axes.AXES.values():
     if tool is None or axis.requires != tool or not axis.actuator:
       continue
@@ -315,7 +331,26 @@ def travel_pose(life, tool: str | None) -> list[tuple[int, float, float]]:
       continue
     rest = float(model.qpos0[model.jnt_qposadr[act.trnid[0]]])
     own.append((act.id, min(max(rest, axis.lo), axis.hi), axis.speed))
-  return own + arm
+  return own
+
+
+def travel_pose(life, tool: str | None) -> list[tuple[int, float, float]]:
+  """The CARRYING pose as `(actuator, setpoint, speed)`, in the order to
+  move them (issue #347): a tool's own axes to rest (`tool_rest`), then the
+  arm to its carry pose over the nose (#405), the shoulder first; an empty
+  fork folds the arm to its stow, the shoulder before the elbow, so the
+  forearm comes in over the body rather than under it. It sets nothing
+  down."""
+  from pluggybot.legs.arm import CARRY_Q
+  from pluggybot.procedure import axes
+  body = life.body
+  pose = axes._ARM.stow if tool is None else CARRY_Q
+  try:
+    arm = [(body.actuator(axes.AXES[j].actuator), target, axes.AXES[j].speed)
+           for j, target in zip(axes.ARM_JOINTS, pose)]
+  except KeyError:
+    return []
+  return tool_rest(life, tool) + arm
 
 
 def travel_pose_routine(life) -> Routine:
@@ -337,7 +372,8 @@ def _stow(life, args: dict) -> Routine:
   if tool is None:
     return {"ok": False, "reason": "nothing on the fork to stow"}
   yield from carry_configuration_routine(life, tool)
-  why = yield from life.body.stow_tool_routine(_tool_station(life, tool), tool)
+  station = _tool_station(life, tool)
+  why = yield from life.body.stow_tool_routine(station, tool)
   st = life.body.module_state(tool)
   hung = bool(st["hung"])
   life.swaps_done += 1
@@ -347,6 +383,12 @@ def _stow(life, args: dict) -> Routine:
                + ("it is still on the fork" if st["on_fork"] else
                   "it is neither on the fork nor on its bay"))})}
   if not hung:
+    # ...and who held the bay, where the other robot did (#418), as a
+    # fetch's reason says it (`HubLifecycle.held_for`)
+    asked = getattr(life, "peer_at_the_bay", None)
+    blocked = asked(station) if why == "blocked" and asked is not None else None
+    if blocked is not None:
+      verdict["reason"] += f": {life.held_for(blocked)}"
     _trace(life, verdict, f"stow {tool}")
   return verdict
 
@@ -536,6 +578,229 @@ def press_trace(rec: dict) -> str:
   return "; ".join(parts)
 
 
+#: How long a `draw` may take, s, where the program's budget does not say
+#: less: flown from the board's look point, a house took 106-125 s.
+DRAW_PATIENCE_S = 420.0
+#: What a `draw` that drew nothing says, by its body's why (issue #406).
+DRAW_WHY = {
+  "no pen": "the pen is not on the fork: `fetch` module_pen first",
+  "not found": "{board} is a board it has not found: `find` one of its tags first",
+  "gave up": "did not get in front of {board}",
+  "lost": "{board}'s two tags were not in one look from in front of it",
+  "never touched": "lay down in front of {board} and the pen never found its face",
+  "out of time": "ran out of time before drawing on {board}",
+  "interrupted": "stopped drawing on {board} by its own interrupt",
+  "fell": "fell over on its way to or at {board}, and the fall threw the pen",
+  "not drawn": "drew nothing on {board}",
+}
+#: The figures a `draw` may name: the pen's menu (`tools.strokes`) without
+#: the two that write text -- the validator's list (`lifecycle.world_facts`).
+DRAW_FIGURES = tuple(n for n in PROGRAMS if n not in ("text", "answer"))
+#: ...and what of its record rides the verdict as `used`: what the ink's
+#: evaluator reads (`scoring.sample_draw`).
+DRAW_USED = ("strokes", "strokes_drawn", "inked_fraction", "travel_ink_fraction",
+             "shape_rms_mm", "form_rms_mm", "offset_mm", "stopped")
+
+
+def _draw(life, args: dict) -> Routine:
+  """Draw a figure on a whiteboard the robot has found (issue #406): the
+  pen on its fork, the board by its two tags (`find` one first). The body
+  walks to it, lies down, finds its face with the pen and draws, and the
+  board records the ink (`HubLifecycle.ink_hook`). ok when a stroke
+  landed; a walk that gave up says why in #350's words."""
+  from pluggybot.lifecycle import figure_program
+  board, figure = args["board"], args["figure"]
+  out = {"board": board, "figure": figure}
+  if _carried(life) != "module_pen":
+    return {**out, "ok": False, "why": "no pen",
+            "reason": DRAW_WHY["no pen"].format(board=board)}
+  program = figure_program(life.world, board, figure)
+  ink = getattr(life, "ink_hook", None)
+  rec = yield from life.body.draw_routine(
+    board, program, patience=_patience(life, {"patience": DRAW_PATIENCE_S}),
+    stop=_interrupt(life), on_stroke=ink(board, program.name) if ink is not None else None)
+  why = rec.get("why", "")
+  out.update(ok=bool(rec.get("drew")), why=why, strokes=rec.get("strokes"),
+             strokesDrawn=rec.get("strokes_drawn"),
+             used={k: rec[k] for k in DRAW_USED if rec.get(k) is not None})
+  if why == "interrupted":
+    out["stopped"] = "interrupted"
+  if not out["ok"]:
+    walk = rec.get("walk")
+    cause = (f": {life.drive_why(*walk['goal'], record=walk)}"
+             if walk and why == "gave up" and walk.get("goal") else "")
+    out["reason"] = DRAW_WHY.get(why, why or "drew nothing").format(board=board) + cause
+  return out
+
+
+# ---- the claw (issue #407) ---------------------------------------------------
+
+#: How long a cube verb may take, s, where the program's budget does not say
+#: less: flown from where the robot stood a few metres off, a pick took
+#: 36-41 s and a place 37-61; a cube not in view is searched for in front
+#: of its area's tags, a walk or two more.
+CUBE_PATIENCE_S = 240.0
+#: ...and `put`, which walks nowhere, s.
+PUT_PATIENCE_S = 60.0
+#: What a cube verb that did not do it says, by its body's why.
+CUBE_WHY = {
+  "no claw": "the claw is not on the fork: `fetch` module_claw first",
+  "holding": "the claw already holds a cube: `place` it or `put` it down first",
+  "nothing held": "nothing is in the claw: `pick` a cube first",
+  "that cube is in the claw": "cube {tag} is the one in the claw",
+  "not found": "did not find cube {tag}: not from where it stood, not where it "
+               "saw it last, and not in front of its area's tags (`find` one of "
+               "them first)",
+  "never lined up": "walked in to cube {tag} three times and never lay down with "
+                    "it in the claw's reach",
+  "missed": "lay down at cube {tag}, closed the jaws on it and they did not hold it",
+  "the wrong cube": "lay down at cube {tag}, and the jaws closed on another cube",
+  "not on it": "let go over cube {tag}, and the cube it held does not rest on it",
+  "not down": "let go over the floor, and the cube does not rest on it",
+  "no room": "lay down to put the cube down, and there was a cube where it could",
+  "out of reach": "lay down at cube {tag} and could not reach over it",
+  "fell": "fell over on the way to or at cube {tag}, and the fall threw the claw",
+  "out of time": "ran out of time before reaching cube {tag}",
+  "interrupted": "stopped on the way to cube {tag} by its own interrupt",
+}
+#: ...and what a `put` that did not says: it walks to no cube.
+PUT_WHY = {**CUBE_WHY,
+           "out of reach": "lay down to put cube {tag} down and could not reach the floor",
+           "not down": "let go of cube {tag} over the floor, and it does not rest on it",
+           "fell": "fell over putting cube {tag} down, and the fall threw the claw"}
+
+
+def _claw_first(life) -> Routine:
+  """The claw onto an EMPTY fork, for `pick` (issue #353, `rover-final`): a
+  pick with nothing on the fork fetches the claw first, exactly as `fetch`
+  takes it, and one holding another tool is refused, never driven into a
+  bay loaded. None once the claw is on; else the failed verdict."""
+  held = _carried(life)
+  if held == "module_claw":
+    return None
+  if held is not None:
+    return {"ok": False, "reason": f"the fork holds {held}, not the claw; stow it first"}
+  if "module_claw" not in _rack(life):
+    return {"ok": False, "reason": "the fork is empty, and this rack has no claw"}
+  got = yield from _fetch(life, {"tool": "module_claw"})
+  if not got["ok"]:
+    return {**got, "reason": f"the fork was empty, and fetching the claw failed: "
+                             f"{got.get('reason', '')}"}
+  return None
+
+
+def _cube_verdict(rec: dict, key: str, tag: int | None, words: dict = CUBE_WHY) -> dict:
+  why = rec.get("why", "")
+  out = {"ok": bool(rec.get(key)), "why": why,
+         **({"tag": tag} if tag is not None else {}),
+         **({"seconds": rec["seconds"]} if "seconds" in rec else {})}
+  if why == "interrupted":
+    out["stopped"] = "interrupted"
+  if not out["ok"]:
+    out["reason"] = words.get(why, why or "did not").format(tag=tag)
+    if rec.get("tries"):
+      out["trace"] = f"{rec.get('op')} {tag}: " + "; ".join(
+        f"#{i} walk in {a.get('walkIn')}, lying at {a.get('at')} -> {a.get('why', 'in reach')}"
+        for i, a in enumerate(rec["tries"], 1))
+  return out
+
+
+def _pick(life, args: dict) -> Routine:
+  """Take the cube carrying a tag in the claw (issue #407): found by its tag
+  -- from where the robot stands, where it saw it last, or in front of its
+  area's tags -- walked in to and lain down at, then closed on. ok when the
+  jaws hold it, off the world. An empty fork fetches the claw first."""
+  tag = int(args["tag"])
+  refused = yield from _claw_first(life)
+  if refused is not None:
+    return {**refused, "tag": tag}
+  rec = yield from life.body.pick_cube_routine(
+    tag, patience=_patience(life, {"patience": CUBE_PATIENCE_S}), stop=_interrupt(life))
+  return _cube_verdict(rec, "picked", tag)
+
+
+def _place(life, args: dict) -> Routine:
+  """Set the cube in the claw down on top of the cube carrying a tag (issue
+  #407), and let go. ok when it rests on it -- one edge above it and its
+  middle within half an edge, `challenge.stack`'s "rests on" -- off the
+  world."""
+  tag = int(args["tag"])
+  if _carried(life) != "module_claw":
+    return {"ok": False, "tag": tag, "reason": CUBE_WHY["no claw"]}
+  rec = yield from life.body.place_cube_routine(
+    tag, patience=_patience(life, {"patience": CUBE_PATIENCE_S}), stop=_interrupt(life))
+  return _cube_verdict(rec, "placed", tag)
+
+
+def _put(life, args: dict) -> Routine:
+  """Set the cube in the claw down on the floor in front of the robot (issue
+  #407): ok when it rests there and the jaws are open."""
+  if _carried(life) != "module_claw":
+    return {"ok": False, "reason": CUBE_WHY["no claw"]}
+  rec = yield from life.body.put_cube_routine(
+    _patience(life, {"patience": PUT_PATIENCE_S}))
+  return _cube_verdict(rec, "put", rec.get("held"), PUT_WHY)
+
+
+def _grip(life, args: dict) -> Routine:
+  if _carried(life) != "module_claw":
+    return {"ok": False, "reason": CUBE_WHY["no claw"]}
+  held = yield from life.body.claw_routine(closed=True)
+  return {"ok": bool(held), **({} if held else {"reason": "the jaws shut on nothing"})}
+
+
+def _release(life, args: dict) -> Routine:
+  if _carried(life) != "module_claw":
+    return {"ok": False, "reason": CUBE_WHY["no claw"]}
+  free = yield from life.body.claw_routine(closed=False)
+  return {"ok": bool(free), **({} if free else {"reason": "something is still in the jaws"})}
+
+
+# ---- the census (issue #407) ------------------------------------------------
+
+#: How long a `survey` may take, s, where the program's budget does not say
+#: less: the garden, from its tag, walked round until 90 % of its floor was
+#: seen (SimNotes, "The census on legs").
+SURVEY_PATIENCE_S = 600.0
+#: What a `survey` that did not survey says, by its body's why.
+SURVEY_WHY = {
+  "not found": "tag {tag} marks a place it has not found: `find` it first",
+  "no area": "the floor in front of tag {tag} is no area its walls close",
+  "out of time": "ran out of time surveying round tag {tag}",
+  "interrupted": "stopped surveying round tag {tag} by its own interrupt",
+}
+
+
+def _survey(life, args: dict) -> Routine:
+  """Survey the area a tag marks and count what stands in it (issue #407,
+  the census): the floor the walls enclose round the tag's front, walked
+  until enough of it was seen, the depth camera's low layer counted. ok
+  when it surveyed; the count and how much of the area it saw ride the
+  verdict, and the count goes on the LCD's face while the LCD is on the
+  fork (`HubLifecycle.screen`). The answer is never in it: the grade reads
+  the world."""
+  tag = int(args["tag"])
+  screen = getattr(life, "screen", None)
+  shows = screen is not None and _carried(life) == getattr(screen, "module", None)
+
+  def on_count(n: int) -> None:
+    if shows:
+      screen.show_count(n, "plants", face="determined", hint="none")
+
+  rec = yield from life.body.survey_routine(
+    tag, patience=_patience(life, {"patience": SURVEY_PATIENCE_S}),
+    stop=_interrupt(life), on_count=on_count)
+  why = rec.get("why", "")
+  out = {"ok": bool(rec.get("surveyed")), "tag": tag, "why": why,
+         **({"count": rec["count"], "coverage": rec["coverage"]} if "count" in rec else {}),
+         "shown": shows}
+  if why == "interrupted":
+    out["stopped"] = "interrupted"
+  if not out["ok"]:
+    out["reason"] = SURVEY_WHY.get(why, why or "did not survey").format(tag=tag)
+  return out
+
+
 #: The base's command envelope for `drive`, forward m/s and yaw rad/s.
 DRIVE_V_MAX = 0.25
 DRIVE_W_MAX = 1.5
@@ -601,6 +866,40 @@ VERBS: dict[str, Verb] = {
                 "walk onto the plate this tag's sign marks, the last step "
                 "measured off the sign, and back off it; ok when a foot was on "
                 "it. `find` it first", drives=True),
+  # A WHITEBOARD (issue #406): a figure off the pen's menu, on a board the
+  # robot has found by its tags -- never a position
+  "draw": Verb("draw", {"board": Arg("str", choices="boards"),
+                        "figure": Arg("str", choices="figures")}, _draw,
+               "draw a figure -- " + ", ".join(f'"{f}"' for f in DRAW_FIGURES)
+               + " -- on a whiteboard by its name, one you have found (`find` "
+               "one of its tags first), the pen on your fork: you walk to it, "
+               "lie down in front of it, find its face with the pen and draw; "
+               "ok when ink landed", drives=True),
+  # THE CLAW (issue #407): a cube by its tag, found and taken, set down on
+  # another or on the floor -- the cube's place is the robot's to find
+  "pick": Verb("pick", {"tag": Arg("float", lo=0, hi=999)}, _pick,
+               "take the cube carrying this tag in the claw: you look for it from "
+               "where you stand, where you saw it last, and in front of its "
+               "area's tags (`find` one of them first), walk in, lie down and "
+               "close the jaws on it; ok when they hold it. An empty fork "
+               "fetches the claw first", drives=True),
+  "place": Verb("place", {"tag": Arg("float", lo=0, hi=999)}, _place,
+                "set the cube in the claw down on top of the cube carrying this "
+                "tag, found as `pick` finds one, and let go; ok when it rests "
+                "on it", drives=True),
+  "put": Verb("put", {}, _put, "set the cube in the claw down on the floor in "
+              "front of you, lying down to do it; ok when it rests there"),
+  "grip": Verb("grip", {}, _grip, "shut the claw's jaws where it is; ok when they "
+               "hold something"),
+  "release": Verb("release", {}, _release, "open the claw's jaws where it is; ok "
+                  "when nothing is in them -- a cube let go high falls"),
+  # THE CENSUS (issue #407): what stands in an area found by its tag
+  "survey": Verb("survey", {"tag": Arg("float", lo=0, hi=999)}, _survey,
+                 "walk round the area this tag marks -- the floor its walls and "
+                 "fence enclose -- and count what stands in it, low, off the depth "
+                 "camera; `find` the tag first. ok when surveyed; its count and the "
+                 "share of the area it saw ride the verdict, and the count goes on "
+                 "the LCD's face while the LCD is on your fork", drives=True),
   "wait": Verb("wait", {"seconds": Arg("float", lo=0.0, hi=MAX_WAIT_S)}, _wait,
                "stand still"),
   # The motor level (issue #166): what every verb above is built from.
@@ -807,6 +1106,13 @@ SWAP_VERBS = ("fetch", "stow")
 #: #419), and plates among them where its world has the lab they are in.
 PLACE_VERBS = ("find",)
 PLATE_VERBS = ("press",)
+#: ...and whiteboards it finds by their tags and draws on with its rack's
+#: pen (issue #406).
+DRAW_VERBS = ("draw",)
+#: ...and cubes it finds by their tags and its rack's claw takes (issue #407).
+CLAW_VERBS = ("pick", "place", "put", "grip", "release")
+#: ...and an area it surveys, found by its tag (issue #407, the census).
+SURVEY_VERBS = ("survey",)
 
 
 def describe_vocabulary(verbs: tuple | None = None) -> list[dict]:
@@ -876,13 +1182,24 @@ def check_step(verb: Verb, args: dict, facts: WorldFacts,
   for name in verb.args:
     if name in args:
       bad += check_arg(verb, name, args[name], facts)
-  if verb.name in ("find", "press") and isinstance(args.get("tag"), (int, float)) \
+  if verb.name in ("find", "press", "survey") and isinstance(args.get("tag"), (int, float)) \
       and not isinstance(args.get("tag"), bool):
-    have = facts.places if verb.name == "find" else facts.plates
+    have = facts.places if verb.name in ("find", "survey") else facts.plates
     if int(args["tag"]) != args["tag"] or int(args["tag"]) not in have:
-      what = "place" if verb.name == "find" else "plate"
+      what = "plate" if verb.name == "press" else "place"
+      # ...and what it is, where it is a cube's: a first weighing on legs
+      # asked `find` for its cube and was told only what the places are
+      cube = (f"; {args['tag']:g} is a cube's, and `pick` finds a cube by its tag"
+              if args["tag"] in facts.cubes else "")
       bad.append(f"tag {args['tag']:g} is no {what} this world has "
-                 f"(have: {', '.join(str(t) for t in have) or 'none'})")
+                 f"(have: {', '.join(str(t) for t in have) or 'none'}){cube}")
+  if verb.name in ("pick", "place") and isinstance(args.get("tag"), (int, float)) \
+      and not isinstance(args.get("tag"), bool):
+    if int(args["tag"]) != args["tag"] or int(args["tag"]) not in facts.cubes:
+      place = (f"; {args['tag']:g} marks a place, which `find` finds"
+               if args["tag"] in facts.places else "")
+      bad.append(f"tag {args['tag']:g} is no cube this world has "
+                 f"(have: {', '.join(str(t) for t in facts.cubes) or 'none'}){place}")
   if verb.name in ("drive_to", "find") and all(
       isinstance(args.get(k), (int, float)) and not isinstance(args.get(k), bool)
       for k in ("x", "y")):

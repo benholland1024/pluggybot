@@ -166,10 +166,31 @@ SCREEN_HINTS = ("none", "blink", "bounce", "shake")
 #: never as text, and only for the request it answers -- a picture for a
 #: look that is not open is dropped. Advertised in `accepts` with every
 #: other kind a mind reads.
+#:
+#: ⚠ `renderer` (issue #357) is the website saying whether anything is
+#: there to answer a `look`: `{connected: true|false}`, sent by the hub
+#: when it reads a header that names the kind and again whenever a
+#: renderer comes or goes. A STATE, NOT A MESSAGE: the door keeps the
+#: newest word (`Inbox.renderer`) and queues nothing, and a link that
+#: drops forgets it. While nothing is there, `look` is off the menu.
 INBOUND_TYPES = ("message", "rating", "reset_tool", "reset_robot",
                  "set_battery", "set_points",
                  "ticket_reply", "ticket_close", "ticket_delete",
-                 "image")
+                 "image", "renderer")
+
+#: The inbound kinds about the WORLD rather than one robot (issue #357):
+#: they name no `robot`, and a pair's router hands them to every robot's
+#: inbox -- one renderer answers both robots' looks.
+WORLD_INBOUND_TYPES = ("renderer",)
+
+#: The eye's inbound kinds (issues #275, #357), named in a header in EVERY
+#: mode (`FrameBuilder.hears`): a picture answers a look this sim made and
+#: the renderer's word is a state code keeps, so neither is a message the
+#: site could mark delivered to nobody. Left out of a header opened
+#: switched off, they stayed out after the switch went back to `llm` -- a
+#: hub can only narrow what a header named -- and the eye stayed shut for
+#: the life of the link.
+EYE_INBOUND_TYPES = ("image", "renderer")
 
 #: Why a robot died (0.15.0, issue #107), and NEVER summed into one number:
 #: `flat` is the pack reaching zero -- a decision failure, the thing the
@@ -431,6 +452,10 @@ READ_OUTCOMES = ("read", "missing", "failed", "refused")
 #: beside the next decision's `think`.
 LOOK_EVENT_TYPES = ("look",)
 LOOK_OUTCOMES = ("asked", "seen", "none")
+#: Why a look came back `none`: nothing came by the deadline, the website
+#: had said no renderer was there (issue #357: said at once, never waited
+#: out), or a stop ended the wait. Additive, like every vocabulary here.
+LOOK_WHYS = ("unanswered", "unanswerable", "aborted")
 #: What a row IS (`mind/memory.py` imports these): `core` a line of an
 #: always-shown document (its `topic` is the document's name), `note` a
 #: titled line in a topic the robot named (`findings/<task>` is the science

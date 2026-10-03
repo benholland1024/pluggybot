@@ -41,6 +41,17 @@ class Drivers:
   """One body's twelve leg drivers, in `model.JOINT_NAMES` order."""
 
   def __init__(self, model, data, prefix: str = ""):
+    self.prefix = prefix
+    self.rebind(model, data)
+    #: Whether the last command was a torque or limp, whose gains a held
+    #: target must not inherit.
+    self.torqued = False
+
+  def rebind(self, model, data) -> None:
+    """The drivers on a world (and a recompiled one, #407), by name. ⚠ A
+    recompile builds the model from its spec, so the gains a command wrote
+    into it are the defaults again until the next command writes them."""
+    prefix = self.prefix
     self.m, self.d = model, data
     self.act = np.array([model.actuator(f"{prefix}{n}").id for n in JOINT_NAMES])
     self.qadr = np.array([model.jnt_qposadr[model.joint(f"{prefix}{n}").id]
@@ -50,9 +61,6 @@ class Drivers:
                        "build the body with body_xml(drive='position')")
     g = model.actuator_gainprm[self.act]
     self._r, self._k = g[:, R].copy(), g[:, K].copy()
-    #: Whether the last command was a torque or limp, whose gains a held
-    #: target must not inherit.
-    self.torqued = False
 
   def gains(self) -> tuple[np.ndarray, np.ndarray]:
     """The torque PD (stiffness, damping) the drivers run now."""

@@ -3895,7 +3895,7 @@
    "visual": null,
    "pos": [
     26.68,
-    1.0,
+    1.25,
     0.013
    ],
    "quat": [
@@ -3942,7 +3942,7 @@
    "visual": null,
    "pos": [
     26.68,
-    2.0,
+    1.75,
     0.013
    ],
    "quat": [
@@ -4223,7 +4223,7 @@
    "robot": null,
    "visual": null,
    "pos": [
-    -11.0,
+    -11.28,
     -5.0,
     0.013
    ],
@@ -4270,7 +4270,7 @@
    "robot": null,
    "visual": null,
    "pos": [
-    -11.0,
+    -11.28,
     -4.75,
     0.013
    ],
@@ -4317,7 +4317,7 @@
    "robot": null,
    "visual": null,
    "pos": [
-    -11.0,
+    -11.28,
     -4.5,
     0.013
    ],
@@ -8567,6 +8567,890 @@
    ]
   },
   {
+   "name": "rack_built",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": null,
+   "pos": [
+    2.1,
+    -1.884,
+    0.0
+   ],
+   "quat": [
+    0.707107,
+    0.0,
+    0.0,
+    0.707107
+   ],
+   "geoms": [
+    {
+     "name": "rack_built_board",
+     "type": "box",
+     "size": [
+      0.012,
+      0.97,
+      0.62
+     ],
+     "pos": [
+      -0.09,
+      0.95,
+      0.31
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.85,
+      0.85,
+      0.82,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "rack_built_rail",
+     "type": "box",
+     "size": [
+      0.06,
+      0.97,
+      0.02
+     ],
+     "pos": [
+      -0.06,
+      0.95,
+      0.62
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.45,
+      0.47,
+      0.5,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "bayf_tray_l_a",
+     "type": "box",
+     "size": [
+      0.022,
+      0.012,
+      0.006
+     ],
+     "pos": [
+      -0.007778,
+      0.695,
+      0.499293
+     ],
+     "quat": [
+      0.92388,
+      0.0,
+      0.382683,
+      0.0
+     ],
+     "rgba": [
+      0.55,
+      0.57,
+      0.6,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "bayf_tray_l_b",
+     "type": "box",
+     "size": [
+      0.022,
+      0.012,
+      0.006
+     ],
+     "pos": [
+      0.007778,
+      0.695,
+      0.499293
+     ],
+     "quat": [
+      0.92388,
+      0.0,
+      -0.382683,
+      0.0
+     ],
+     "rgba": [
+      0.55,
+      0.57,
+      0.6,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "bayf_bracket_l",
+     "type": "box",
+     "size": [
+      0.008,
+      0.012,
+      0.126243
+     ],
+     "pos": [
+      -0.022,
+      0.695,
+      0.546879
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.45,
+      0.47,
+      0.5,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "bayf_arm_l",
+     "type": "box",
+     "size": [
+      0.024,
+      0.012,
+      0.006
+     ],
+     "pos": [
+      -0.012,
+      0.695,
+      0.483757
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.45,
+      0.47,
+      0.5,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "bayf_tray_r_a",
+     "type": "box",
+     "size": [
+      0.022,
+      0.012,
+      0.006
+     ],
+     "pos": [
+      -0.007778,
+      0.605,
+      0.499293
+     ],
+     "quat": [
+      0.92388,
+      0.0,
+      0.382683,
+      0.0
+     ],
+     "rgba": [
+      0.55,
+      0.57,
+      0.6,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "bayf_tray_r_b",
+     "type": "box",
+     "size": [
+      0.022,
+      0.012,
+      0.006
+     ],
+     "pos": [
+      0.007778,
+      0.605,
+      0.499293
+     ],
+     "quat": [
+      0.92388,
+      0.0,
+      -0.382683,
+      0.0
+     ],
+     "rgba": [
+      0.55,
+      0.57,
+      0.6,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "bayf_bracket_r",
+     "type": "box",
+     "size": [
+      0.008,
+      0.012,
+      0.126243
+     ],
+     "pos": [
+      -0.022,
+      0.605,
+      0.546879
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.45,
+      0.47,
+      0.5,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "bayf_arm_r",
+     "type": "box",
+     "size": [
+      0.024,
+      0.012,
+      0.006
+     ],
+     "pos": [
+      -0.012,
+      0.605,
+      0.483757
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.45,
+      0.47,
+      0.5,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "bayg_tray_l_a",
+     "type": "box",
+     "size": [
+      0.022,
+      0.012,
+      0.006
+     ],
+     "pos": [
+      -0.007778,
+      0.995,
+      0.499293
+     ],
+     "quat": [
+      0.92388,
+      0.0,
+      0.382683,
+      0.0
+     ],
+     "rgba": [
+      0.55,
+      0.57,
+      0.6,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "bayg_tray_l_b",
+     "type": "box",
+     "size": [
+      0.022,
+      0.012,
+      0.006
+     ],
+     "pos": [
+      0.007778,
+      0.995,
+      0.499293
+     ],
+     "quat": [
+      0.92388,
+      0.0,
+      -0.382683,
+      0.0
+     ],
+     "rgba": [
+      0.55,
+      0.57,
+      0.6,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "bayg_bracket_l",
+     "type": "box",
+     "size": [
+      0.008,
+      0.012,
+      0.126243
+     ],
+     "pos": [
+      -0.022,
+      0.995,
+      0.546879
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.45,
+      0.47,
+      0.5,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "bayg_arm_l",
+     "type": "box",
+     "size": [
+      0.024,
+      0.012,
+      0.006
+     ],
+     "pos": [
+      -0.012,
+      0.995,
+      0.483757
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.45,
+      0.47,
+      0.5,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "bayg_tray_r_a",
+     "type": "box",
+     "size": [
+      0.022,
+      0.012,
+      0.006
+     ],
+     "pos": [
+      -0.007778,
+      0.905,
+      0.499293
+     ],
+     "quat": [
+      0.92388,
+      0.0,
+      0.382683,
+      0.0
+     ],
+     "rgba": [
+      0.55,
+      0.57,
+      0.6,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "bayg_tray_r_b",
+     "type": "box",
+     "size": [
+      0.022,
+      0.012,
+      0.006
+     ],
+     "pos": [
+      0.007778,
+      0.905,
+      0.499293
+     ],
+     "quat": [
+      0.92388,
+      0.0,
+      -0.382683,
+      0.0
+     ],
+     "rgba": [
+      0.55,
+      0.57,
+      0.6,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "bayg_bracket_r",
+     "type": "box",
+     "size": [
+      0.008,
+      0.012,
+      0.126243
+     ],
+     "pos": [
+      -0.022,
+      0.905,
+      0.546879
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.45,
+      0.47,
+      0.5,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "bayg_arm_r",
+     "type": "box",
+     "size": [
+      0.024,
+      0.012,
+      0.006
+     ],
+     "pos": [
+      -0.012,
+      0.905,
+      0.483757
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.45,
+      0.47,
+      0.5,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "bayh_tray_l_a",
+     "type": "box",
+     "size": [
+      0.022,
+      0.012,
+      0.006
+     ],
+     "pos": [
+      -0.007778,
+      1.295,
+      0.499293
+     ],
+     "quat": [
+      0.92388,
+      0.0,
+      0.382683,
+      0.0
+     ],
+     "rgba": [
+      0.55,
+      0.57,
+      0.6,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "bayh_tray_l_b",
+     "type": "box",
+     "size": [
+      0.022,
+      0.012,
+      0.006
+     ],
+     "pos": [
+      0.007778,
+      1.295,
+      0.499293
+     ],
+     "quat": [
+      0.92388,
+      0.0,
+      -0.382683,
+      0.0
+     ],
+     "rgba": [
+      0.55,
+      0.57,
+      0.6,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "bayh_bracket_l",
+     "type": "box",
+     "size": [
+      0.008,
+      0.012,
+      0.126243
+     ],
+     "pos": [
+      -0.022,
+      1.295,
+      0.546879
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.45,
+      0.47,
+      0.5,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "bayh_arm_l",
+     "type": "box",
+     "size": [
+      0.024,
+      0.012,
+      0.006
+     ],
+     "pos": [
+      -0.012,
+      1.295,
+      0.483757
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.45,
+      0.47,
+      0.5,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "bayh_tray_r_a",
+     "type": "box",
+     "size": [
+      0.022,
+      0.012,
+      0.006
+     ],
+     "pos": [
+      -0.007778,
+      1.205,
+      0.499293
+     ],
+     "quat": [
+      0.92388,
+      0.0,
+      0.382683,
+      0.0
+     ],
+     "rgba": [
+      0.55,
+      0.57,
+      0.6,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "bayh_tray_r_b",
+     "type": "box",
+     "size": [
+      0.022,
+      0.012,
+      0.006
+     ],
+     "pos": [
+      0.007778,
+      1.205,
+      0.499293
+     ],
+     "quat": [
+      0.92388,
+      0.0,
+      -0.382683,
+      0.0
+     ],
+     "rgba": [
+      0.55,
+      0.57,
+      0.6,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "bayh_bracket_r",
+     "type": "box",
+     "size": [
+      0.008,
+      0.012,
+      0.126243
+     ],
+     "pos": [
+      -0.022,
+      1.205,
+      0.546879
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.45,
+      0.47,
+      0.5,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "bayh_arm_r",
+     "type": "box",
+     "size": [
+      0.024,
+      0.012,
+      0.006
+     ],
+     "pos": [
+      -0.012,
+      1.205,
+      0.483757
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.45,
+      0.47,
+      0.5,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "rack_built_tag47",
+     "type": "box",
+     "size": [
+      0.002,
+      0.075,
+      0.075
+     ],
+     "pos": [
+      -0.084,
+      0.575,
+      0.4
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+     ],
+     "texture": "tagtex47"
+    },
+    {
+     "name": "rack_built_tag48",
+     "type": "box",
+     "size": [
+      0.002,
+      0.075,
+      0.075
+     ],
+     "pos": [
+      -0.084,
+      0.725,
+      0.4
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+     ],
+     "texture": "tagtex48"
+    },
+    {
+     "name": "rack_built_tag49",
+     "type": "box",
+     "size": [
+      0.002,
+      0.075,
+      0.075
+     ],
+     "pos": [
+      -0.084,
+      0.875,
+      0.4
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+     ],
+     "texture": "tagtex49"
+    },
+    {
+     "name": "rack_built_tag50",
+     "type": "box",
+     "size": [
+      0.002,
+      0.075,
+      0.075
+     ],
+     "pos": [
+      -0.084,
+      1.025,
+      0.4
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+     ],
+     "texture": "tagtex50"
+    },
+    {
+     "name": "rack_built_tag51",
+     "type": "box",
+     "size": [
+      0.002,
+      0.075,
+      0.075
+     ],
+     "pos": [
+      -0.084,
+      1.175,
+      0.4
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+     ],
+     "texture": "tagtex51"
+    },
+    {
+     "name": "rack_built_tag52",
+     "type": "box",
+     "size": [
+      0.002,
+      0.075,
+      0.075
+     ],
+     "pos": [
+      -0.084,
+      1.325,
+      0.4
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+     ],
+     "texture": "tagtex52"
+    }
+   ]
+  },
+  {
    "name": "module_lcd",
    "parent": "world",
    "dynamic": true,
@@ -8846,13 +9730,13 @@
      "type": "box",
      "size": [
       0.008,
-      0.12,
+      0.124,
       0.008
      ],
      "pos": [
-      -0.014,
+      0.002,
       0.0,
-      -0.01
+      -0.048
      ],
      "quat": [
       1.0,
@@ -8867,24 +9751,91 @@
       1.0
      ],
      "texture": null
-    },
+    }
+   ]
+  },
+  {
+   "name": "module_pen_carriage",
+   "parent": "module_pen",
+   "dynamic": true,
+   "robot": null,
+   "visual": null,
+   "pos": [
+    2.1,
+    -1.882,
+    0.43
+   ],
+   "quat": [
+    0.707107,
+    0.0,
+    0.0,
+    0.707107
+   ],
+   "geoms": [
     {
-     "name": "module_pen_pen",
-     "type": "capsule",
+     "name": "module_pen_block",
+     "type": "box",
      "size": [
-      0.004,
-      0.077026
+      0.016,
+      0.02,
+      0.022
      ],
      "pos": [
-      -0.0515,
       0.0,
-      -0.031
+      0.0,
+      0.005
      ],
      "quat": [
-      0.611011,
-      0.611011,
-      0.3559,
-      -0.3559
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.3,
+      0.32,
+      0.36,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "module_pen_quill",
+   "parent": "module_pen_carriage",
+   "dynamic": true,
+   "robot": null,
+   "visual": null,
+   "pos": [
+    2.1,
+    -1.882,
+    0.442
+   ],
+   "quat": [
+    0.707107,
+    0.0,
+    0.0,
+    0.707107
+   ],
+   "geoms": [
+    {
+     "name": "module_pen_shaft",
+     "type": "capsule",
+     "size": [
+      0.0025,
+      0.042
+     ],
+     "pos": [
+      -0.029,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      0.5,
+      0.5,
+      0.5,
+      -0.5
      ],
      "rgba": [
       0.9,
@@ -9020,17 +9971,64 @@
      "texture": null
     },
     {
-     "name": "module_claw_pendant",
+     "name": "module_claw_rail",
+     "type": "box",
+     "size": [
+      0.008,
+      0.124,
+      0.008
+     ],
+     "pos": [
+      0.002,
+      0.0,
+      -0.048
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.55,
+      0.57,
+      0.6,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "module_claw_carriage",
+   "parent": "module_claw",
+   "dynamic": true,
+   "robot": null,
+   "visual": null,
+   "pos": [
+    1.8,
+    -1.882,
+    0.43
+   ],
+   "quat": [
+    0.707107,
+    0.0,
+    0.0,
+    0.707107
+   ],
+   "geoms": [
+    {
+     "name": "module_claw_block",
      "type": "box",
      "size": [
       0.016,
-      0.024,
-      0.12
+      0.02,
+      0.012
      ],
      "pos": [
-      -0.02,
       0.0,
-      -0.08
+      0.0,
+      -0.006
      ],
      "quat": [
       1.0,
@@ -9047,17 +10045,91 @@
      "texture": null
     },
     {
-     "name": "module_claw_jaw_l",
+     "name": "module_claw_pendant",
      "type": "box",
      "size": [
-      0.012,
+      0.01,
+      0.01,
+      0.061
+     ],
+     "pos": [
+      -0.002,
+      0.0,
+      -0.0465
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.45,
+      0.47,
+      0.5,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "module_claw_bar",
+     "type": "box",
+     "size": [
+      0.016,
+      0.076,
+      0.008
+     ],
+     "pos": [
+      -0.002,
+      0.0,
+      -0.081
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.3,
+      0.32,
+      0.36,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "module_claw_jaw_l",
+   "parent": "module_claw_carriage",
+   "dynamic": true,
+   "robot": null,
+   "visual": null,
+   "pos": [
+    1.794,
+    -1.884,
+    0.325
+   ],
+   "quat": [
+    0.707107,
+    0.0,
+    0.0,
+    0.707107
+   ],
+   "geoms": [
+    {
+     "name": "module_claw_pad_l",
+     "type": "box",
+     "size": [
+      0.028,
       0.008,
       0.04
      ],
      "pos": [
-      -0.02,
-      0.022,
-      -0.15
+      0.0,
+      0.0,
+      0.0
      ],
      "quat": [
       1.0,
@@ -9072,19 +10144,39 @@
       1.0
      ],
      "texture": null
-    },
+    }
+   ]
+  },
+  {
+   "name": "module_claw_jaw_r",
+   "parent": "module_claw_carriage",
+   "dynamic": true,
+   "robot": null,
+   "visual": null,
+   "pos": [
+    1.806,
+    -1.884,
+    0.325
+   ],
+   "quat": [
+    0.707107,
+    0.0,
+    0.0,
+    0.707107
+   ],
+   "geoms": [
     {
-     "name": "module_claw_jaw_r",
+     "name": "module_claw_pad_r",
      "type": "box",
      "size": [
-      0.012,
+      0.028,
       0.008,
       0.04
      ],
      "pos": [
-      -0.02,
-      -0.022,
-      -0.15
+      0.0,
+      0.0,
+      0.0
      ],
      "quat": [
       1.0,
@@ -9404,6 +10496,429 @@
      "texture": "tagtex37"
     }
    ]
+  },
+  {
+   "name": "whiteboard_a_tag38",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": null,
+   "pos": [
+    -1.979,
+    0.735,
+    0.3
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "whiteboard_a_tag38",
+     "type": "box",
+     "size": [
+      0.002,
+      0.15,
+      0.15
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+     ],
+     "texture": "tagtex38"
+    }
+   ]
+  },
+  {
+   "name": "whiteboard_a_tag39",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": null,
+   "pos": [
+    -1.979,
+    1.265,
+    0.3
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "whiteboard_a_tag39",
+     "type": "box",
+     "size": [
+      0.002,
+      0.15,
+      0.15
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+     ],
+     "texture": "tagtex39"
+    }
+   ]
+  },
+  {
+   "name": "whiteboard_b_tag40",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": null,
+   "pos": [
+    0.235,
+    5.979,
+    0.3
+   ],
+   "quat": [
+    0.707107,
+    0.0,
+    0.0,
+    -0.707107
+   ],
+   "geoms": [
+    {
+     "name": "whiteboard_b_tag40",
+     "type": "box",
+     "size": [
+      0.002,
+      0.15,
+      0.15
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+     ],
+     "texture": "tagtex40"
+    }
+   ]
+  },
+  {
+   "name": "whiteboard_b_tag41",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": null,
+   "pos": [
+    0.765,
+    5.979,
+    0.3
+   ],
+   "quat": [
+    0.707107,
+    0.0,
+    0.0,
+    -0.707107
+   ],
+   "geoms": [
+    {
+     "name": "whiteboard_b_tag41",
+     "type": "box",
+     "size": [
+      0.002,
+      0.15,
+      0.15
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+     ],
+     "texture": "tagtex41"
+    }
+   ]
+  },
+  {
+   "name": "tower_tag42",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": null,
+   "pos": [
+    -11.978,
+    -5.2,
+    0.37
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "tower_tag42",
+     "type": "box",
+     "size": [
+      0.002,
+      0.15,
+      0.15
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+     ],
+     "texture": "tagtex42"
+    }
+   ]
+  },
+  {
+   "name": "tower_tag43",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": null,
+   "pos": [
+    -11.978,
+    -4.3,
+    0.37
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "tower_tag43",
+     "type": "box",
+     "size": [
+      0.002,
+      0.15,
+      0.15
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+     ],
+     "texture": "tagtex43"
+    }
+   ]
+  },
+  {
+   "name": "bench_tag44",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": null,
+   "pos": [
+    27.378,
+    1.95,
+    0.37
+   ],
+   "quat": [
+    0.0,
+    0.0,
+    0.0,
+    1.0
+   ],
+   "geoms": [
+    {
+     "name": "bench_tag44",
+     "type": "box",
+     "size": [
+      0.002,
+      0.15,
+      0.15
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+     ],
+     "texture": "tagtex44"
+    }
+   ]
+  },
+  {
+   "name": "bench_tag45",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": null,
+   "pos": [
+    27.378,
+    1.05,
+    0.37
+   ],
+   "quat": [
+    0.0,
+    0.0,
+    0.0,
+    1.0
+   ],
+   "geoms": [
+    {
+     "name": "bench_tag45",
+     "type": "box",
+     "size": [
+      0.002,
+      0.15,
+      0.15
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+     ],
+     "texture": "tagtex45"
+    }
+   ]
+  },
+  {
+   "name": "garden_tag46",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": null,
+   "pos": [
+    9.978,
+    0.7,
+    0.37
+   ],
+   "quat": [
+    0.0,
+    0.0,
+    0.0,
+    1.0
+   ],
+   "geoms": [
+    {
+     "name": "garden_tag46",
+     "type": "box",
+     "size": [
+      0.002,
+      0.15,
+      0.15
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+     ],
+     "texture": "tagtex46"
+    }
+   ]
   }
  ],
  "textures": [
@@ -9498,6 +11013,42 @@
    "height": 240
   },
   {
+   "name": "tagtex47",
+   "file": "tagtex47.png",
+   "width": 240,
+   "height": 240
+  },
+  {
+   "name": "tagtex48",
+   "file": "tagtex48.png",
+   "width": 240,
+   "height": 240
+  },
+  {
+   "name": "tagtex49",
+   "file": "tagtex49.png",
+   "width": 240,
+   "height": 240
+  },
+  {
+   "name": "tagtex50",
+   "file": "tagtex50.png",
+   "width": 240,
+   "height": 240
+  },
+  {
+   "name": "tagtex51",
+   "file": "tagtex51.png",
+   "width": 240,
+   "height": 240
+  },
+  {
+   "name": "tagtex52",
+   "file": "tagtex52.png",
+   "width": 240,
+   "height": 240
+  },
+  {
    "name": "tagtex35",
    "file": "tagtex35.png",
    "width": 240,
@@ -9512,6 +11063,60 @@
   {
    "name": "tagtex37",
    "file": "tagtex37.png",
+   "width": 240,
+   "height": 240
+  },
+  {
+   "name": "tagtex38",
+   "file": "tagtex38.png",
+   "width": 240,
+   "height": 240
+  },
+  {
+   "name": "tagtex39",
+   "file": "tagtex39.png",
+   "width": 240,
+   "height": 240
+  },
+  {
+   "name": "tagtex40",
+   "file": "tagtex40.png",
+   "width": 240,
+   "height": 240
+  },
+  {
+   "name": "tagtex41",
+   "file": "tagtex41.png",
+   "width": 240,
+   "height": 240
+  },
+  {
+   "name": "tagtex42",
+   "file": "tagtex42.png",
+   "width": 240,
+   "height": 240
+  },
+  {
+   "name": "tagtex43",
+   "file": "tagtex43.png",
+   "width": 240,
+   "height": 240
+  },
+  {
+   "name": "tagtex44",
+   "file": "tagtex44.png",
+   "width": 240,
+   "height": 240
+  },
+  {
+   "name": "tagtex45",
+   "file": "tagtex45.png",
+   "width": 240,
+   "height": 240
+  },
+  {
+   "name": "tagtex46",
+   "file": "tagtex46.png",
    "width": 240,
    "height": 240
   }

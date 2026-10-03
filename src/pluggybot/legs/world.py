@@ -18,7 +18,7 @@ import mujoco
 from pluggybot.legs import dock as dk
 from pluggybot.legs import rack as rk
 from pluggybot.legs.model import CHOSEN, attachable, pose_qpos
-from pluggybot.rack.tags import DOCK_TAG_IDS, PLATE_TAG_IDS
+from pluggybot.rack.tags import BOARD_TAG_IDS, DOCK_TAG_IDS, PLATE_TAG_IDS
 from pluggybot.robot import CHASSIS_RGBA, SECOND_CHASSIS_RGBA, paint
 from pluggybot.telemetry.protocol import ROBOT_ROOT
 
@@ -58,7 +58,8 @@ def dock_pose() -> tuple[float, float, float]:
 
 
 #: The tool rack's middle bay along the south wall, m: west of the dock
-#: (x 3.5), its board spanning x 1.6..2.6 -- bay A, the east one, works
+#: (x 3.5), its board spanning x 1.6..2.6 and on with the built-tool rail
+#: to x 0.67 (#407) -- bay A, the east one, works
 #: 1.1 m from the dock's axis, over the peer disc of a robot lying there --
 #: and north of it the floor is clear to the couch's south face (y 0.3).
 RACK_X = 2.1
@@ -85,8 +86,10 @@ NEAR_M = 0.10
 
 def _attach_rack(spec: mujoco.MjSpec, pose) -> None:
   """The tool rack, its tags' textures (the generator's `tags/`) and the
-  tools hung on its bays."""
-  for i in rk.RACK_TAG_IDS:
+  tools hung on its bays -- and beside them on the same board the built-tool
+  rail (`rack.BUILT`, issue #407), empty until the workshop hangs a tool."""
+  from pluggybot.rack.coupling import BUILT_RACK_BODY
+  for i in (*rk.RACK_TAG_IDS, *rk.BUILT.tag_ids):
     spec.add_texture(name=f"tagtex{i}", type=mujoco.mjtTexture.mjTEXTURE_CUBE,
                      file=f"tags/tag{i}.png")
     mat = spec.add_material(name=f"tagmat{i}", specular=0.05, shininess=0.05,
@@ -96,8 +99,9 @@ def _attach_rack(spec: mujoco.MjSpec, pose) -> None:
   defaults, tools = rk.tools_xml(pos=(x, y), yaw=yaw)
   child = mujoco.MjSpec.from_string(
     f'<mujoco><compiler angle="radian"/><default>{defaults}</default><worldbody>'
-    + rk.rack_xml(pos=(x, y), yaw=yaw, name=rk.RACK_BODY) + tools
-    + "</worldbody></mujoco>")
+    + rk.rack_xml(pos=(x, y), yaw=yaw, name=rk.RACK_BODY)
+    + rk.rack_xml(rk.BUILT, pos=(x, y), yaw=yaw, name=BUILT_RACK_BODY) + tools
+    + f"</worldbody><actuator>{rk.tool_actuators_xml()}</actuator></mujoco>")
   spec.attach(child, prefix="", frame=spec.worldbody.add_frame())
 
 
@@ -117,6 +121,43 @@ def _attach_signs(spec: mujoco.MjSpec) -> None:
   child = mujoco.MjSpec.from_string(
     "<mujoco><compiler angle=\"radian\"/><worldbody>"
     + cage.plate_signs_xml(home.LAB_CAGE_XY) + "</worldbody></mujoco>")
+  spec.attach(child, prefix="", frame=spec.worldbody.add_frame())
+
+
+def _attach_board_tags(spec: mujoco.MjSpec) -> None:
+  """The whiteboards' tags (issue #406; `tools.drawing.board_tags_xml`), a
+  pair on the wall either side of each board the house has, and their
+  textures."""
+  from pluggybot.home import world as home
+  from pluggybot.tools.drawing import Board, board_tags_xml
+  names = [n for n in home.BOARDS if n in BOARD_TAG_IDS]
+  if not names:
+    return
+  for i in (t for n in names for t in BOARD_TAG_IDS[n]):
+    spec.add_texture(name=f"tagtex{i}", type=mujoco.mjtTexture.mjTEXTURE_CUBE,
+                     file=f"tags/tag{i}.png")
+    mat = spec.add_material(name=f"tagmat{i}", specular=0.05, shininess=0.05,
+                            reflectance=0.0)
+    mat.textures[mujoco.mjtTextureRole.mjTEXROLE_RGB] = f"tagtex{i}"
+  body = "".join(board_tags_xml(n, Board.from_meta(home.BOARDS[n])) for n in names)
+  child = mujoco.MjSpec.from_string(
+    f'<mujoco><compiler angle="radian"/><worldbody>{body}</worldbody></mujoco>')
+  spec.attach(child, prefix="", frame=spec.worldbody.add_frame())
+
+
+def _attach_area_tags(spec: mujoco.MjSpec) -> None:
+  """The claw's and the census's areas' tags (issue #407; `home.areas`),
+  and their textures."""
+  from pluggybot.home import areas
+  for i in areas.area_ids():
+    spec.add_texture(name=f"tagtex{i}", type=mujoco.mjtTexture.mjTEXTURE_CUBE,
+                     file=f"tags/tag{i}.png")
+    mat = spec.add_material(name=f"tagmat{i}", specular=0.05, shininess=0.05,
+                            reflectance=0.0)
+    mat.textures[mujoco.mjtTextureRole.mjTEXROLE_RGB] = f"tagtex{i}"
+  child = mujoco.MjSpec.from_string(
+    f'<mujoco><compiler angle="radian"/><worldbody>{areas.area_tags_xml()}'
+    '</worldbody></mujoco>')
   spec.attach(child, prefix="", frame=spec.worldbody.add_frame())
 
 
@@ -149,8 +190,9 @@ def _attach_dock(spec: mujoco.MjSpec, pose) -> None:
 def home_spec(first_at=(1.5, 0.5), second_at=None, second_prefix: str = "r2_",
               second_rgba=SECOND_CHASSIS_RGBA, path: str = HOME_XML) -> mujoco.MjSpec:
   """The home world's SPEC with the quadruped at `first_at` and, optionally,
-  a second at `second_at` in its own livery, the dock, the rack and the
-  lab's plate signs. Kept by the lifecycle (`robot.world_spec`)."""
+  a second at `second_at` in its own livery, the dock, the rack, the lab's
+  plate signs, the whiteboards' tags and the claw's and the census's areas'
+  (#407). Kept by the lifecycle (`robot.world_spec`)."""
   spec = mujoco.MjSpec.from_file(path)
   _attach_quad(spec, first_at, "", None)
   if second_at is not None:
@@ -158,6 +200,8 @@ def home_spec(first_at=(1.5, 0.5), second_at=None, second_prefix: str = "r2_",
   _attach_dock(spec, dock_pose())
   _attach_rack(spec, rack_pose())
   _attach_signs(spec)
+  _attach_board_tags(spec)
+  _attach_area_tags(spec)
   spec.visual.map.znear = NEAR_M / spec.stat.extent
   return spec
 

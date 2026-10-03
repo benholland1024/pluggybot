@@ -367,3 +367,144 @@ def test_a_peer_the_lifecycle_cannot_name_is_still_waited_for():
   assert life.data.time == pytest.approx(3 * lc.SWAP_OCCUPANCY_S,
                                          abs=lc.BAY_POLL_S)
   assert "another robot" in life.thoughts.read("History.md")
+
+
+# ---- rule 3, on legs (#418): a robot holds at its approach's start --------------
+
+
+def test_a_quadruped_holds_where_it_stands_and_the_lifecycle_is_who_it_asks():
+  """The quadruped's swap waits at its approach's start, a metre behind the
+  bay and out of the holder's way already (Ben, #418): `hold` walks
+  nowhere, where the rover's wait backs off to a spot. The body asks the
+  lifecycle's wait (`Body.bay_wait`)."""
+  life = _life()
+  assert life.body.bay_wait == life._await_bay_routine
+  sx, sy = _standoff(life)
+  peer = _peer(sx + 0.2, sy)
+  life.peers = [peer]
+  _reported(life, peer.body.pose_xy)
+  _clock(life, lambda t: peer.pos.__setitem__(0, sx + 5.0) if t >= 12.0 else None)
+  drives = []
+  life.body.go_to_routine = lambda x, y, *a, **kw: (drives.append((x, y)),
+                                                    tick.result(True))[1]
+  assert life.body.run(life._await_bay_routine(sx, sy, "pick", 0.0, hold=True)) is True
+  assert drives == [], "a held wait walked"
+  assert life.data.time == pytest.approx(12.0, abs=lc.BAY_POLL_S)
+
+
+from pluggybot.legs.swap import ToolSwap  # noqa: E402
+
+
+class _Bay(ToolSwap):
+  """`legs.swap.ToolSwap`'s wait and fetch alone: a work pose, a peer at a
+  distance from it (the planner's disc, 0.55 m standing), and a walk to the
+  approach that always arrives."""
+
+  def __init__(self, peer_m, free=True):
+    self.peer_m, self.free, self.asked, self.at_bay = peer_m, free, [], False
+    self.data = SimpleNamespace(time=3.0)
+    self.bay_wait = self._wait
+    self.peer_at_bay_m = None
+    self.tool_rack_prior = object()
+
+  def work_pose(self, bay):
+    return (1.0 + 0.3 * bay, 2.0, 0.0)
+
+  def peer_on_the_goal(self, wx, wy):
+    return self.peer_m if self.peer_m is not None and self.peer_m < 0.55 else None
+
+  def _wait(self, wx, wy, kind, since, hold=False):
+    self.asked.append((wx, wy, kind, since, hold))
+    if self.free:
+      self.peer_m = None
+    return self.free
+    yield
+
+  def stand_routine(self):
+    return
+    yield
+
+  stow_arm_routine = stand_routine
+
+  def _to_the_bay_routine(self, bay, rec):
+    return "ok"
+    yield
+
+  def _at_the_bay(self, bay):
+    import contextlib
+
+    @contextlib.contextmanager
+    def at():
+      self.at_bay = True
+      yield
+    return at()
+
+  def _fetch_at_routine(self, bay, module, rec):
+    return "arrived"
+    yield
+
+
+def _drive(gen):
+  try:
+    while True:
+      next(gen)
+  except StopIteration as stop:
+    return stop.value
+
+
+def test_the_swap_waits_on_the_work_pose_and_a_wait_that_gives_up_is_blocked():
+  """The next bay's working pose is 0.30 m off and two over 0.60: the
+  wait is the planner's disc (0.55 m standing) round THIS bay's working
+  pose, never its standoff. A wait that gave up is `blocked`, said with
+  how far off the robot in the way stood, and the robot never walks in."""
+  clear = _Bay(peer_m=0.60)
+  assert _drive(ToolSwap.fetch_routine(clear, 0, "module_lcd")) == "arrived"
+  assert clear.asked == [] and clear.at_bay
+  near = _Bay(peer_m=0.30)
+  assert _drive(ToolSwap.fetch_routine(near, 1, "module_lcd")) == "arrived"
+  assert near.asked == [(1.3, 2.0, "pick", 3.0, True)]
+  held = _Bay(peer_m=0.30, free=False)
+  rec = {}
+  assert _drive(ToolSwap._bay_free_routine(held, 1, "return", rec)) is False
+  assert rec["why"] == "blocked" and held.peer_at_bay_m == 0.30
+  held = _Bay(peer_m=0.30, free=False)
+  assert _drive(ToolSwap.fetch_routine(held, 1, "module_lcd")) == "blocked"
+  assert not held.at_bay, "it walked in to a bay another robot held"
+
+
+def test_who_held_a_bay_is_forgotten_by_the_next_swap():
+  """A wait given up for the other robot keeps how far off it stood, for
+  the failure's words; the next swap starts without it -- kept, a later
+  fetch that found no route was told "Rowan was 0.30 m from the bay"."""
+  held = _Bay(peer_m=0.30, free=False)
+  assert _drive(ToolSwap.fetch_routine(held, 1, "module_lcd")) == "blocked"
+  assert held.peer_at_bay_m == 0.30
+  held.peer_m = None
+
+  def nowhere(bay, rec):
+    return "no-route"
+    yield
+  held._to_the_bay_routine = nowhere
+  assert _drive(ToolSwap.fetch_routine(held, 1, "module_lcd")) == "no-route"
+  assert held.peer_at_bay_m is None
+
+
+def test_a_stow_given_up_for_the_other_robot_says_who_held_the_bay():
+  """A fetch given up for the other robot named it (`held_for`); a stow
+  given up the same way said only that the tool was still on the fork."""
+  from pluggybot.procedure import steps as st
+
+  def stow(station, tool):
+    return "blocked"
+    yield
+  body = SimpleNamespace(module_state=lambda t: {"on_fork": t == "module_pen",
+                                                 "hung": False},
+                         stow_tool_routine=stow, retract_arm_routine=lambda: tick.result(None),
+                         held_cube=lambda: None, swap_trace=lambda: "")
+  life = SimpleNamespace(rack_inventory=dict(st.TOOL_BAYS),
+                         swaps_done=0, model=None, world="home_quad", body=body,
+                         peer_at_the_bay=lambda station: ("Rowan", 0.3),
+                         held_for=lambda b: f"{b[0]} was {b[1]:.2f} m from the bay")
+  out = tick.run(SimpleNamespace(step=lambda *a: None), st._stow(life, {}))
+  assert not out["ok"]
+  assert out["reason"].endswith("still on the fork: Rowan was 0.30 m from the bay")
