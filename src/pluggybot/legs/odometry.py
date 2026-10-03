@@ -61,11 +61,34 @@ class LegOdometry:
   what a map of the stairs is built on (#388)."""
 
   def __init__(self, model, data, seed: int = 0, prefix: str = ""):
-    self.m, self.d = model, data
+    self.prefix = prefix
     self.rng = np.random.default_rng(seed)
     #: The IMU (issue #386), its own stream off the robot's prefix and the
     #: seed; its accelerometer is the model's.
     self.imu = Imu(f"{prefix}quad:{seed}")
+    self.rebind(model, data)
+    self.history: list[np.ndarray] = []
+    self.x, self.y, self.z = (float(v) for v in data.qpos[self.qroot:self.qroot + 3])
+    #: The orientation as the IMU says it, from the one the body starts in.
+    self.att = Attitude(data.xquat[self.root])
+    #: The body's word that it lies at rest (`legs.body`: the posture
+    #: machine's `lying`, its drivers limp), and the gyro's rate taken
+    #: through the zero-rate update that word allows (issue #425).
+    self.resting = False
+    self.still = Standstill()
+    self.yaw = self.att.yaw()
+    self.distance = 0.0
+    #: The body's velocity estimate, body frame, and the steps it has been
+    #: held with no foot agreeing.
+    self.v = np.zeros(3)
+    self.held = 0
+
+  def rebind(self, model, data) -> None:
+    """The reckoning on a world (and a recompiled one, issue #407): its
+    sensors, joints and feet by name, and a kinematic copy of the new
+    model; where it believes it is, and its contact history, are state."""
+    prefix = self.prefix
+    self.m, self.d = model, data
     self.acc_adr = int(model.sensor(f"{prefix}imu_lin_acc").adr[0])
     self.root = model.body(f"{prefix}{ROBOT_ROOT}").id
     ids = [model.joint(f"{prefix}{n}").id for n in JOINT_NAMES]
@@ -84,21 +107,6 @@ class LegOdometry:
     #: bodies before it (#378).
     self.qroot = int(model.jnt_qposadr[model.body_jntadr[self.root]])
     self.lag = max(1, round(CONTACT_LAG_S / model.opt.timestep))
-    self.history: list[np.ndarray] = []
-    self.x, self.y, self.z = (float(v) for v in data.qpos[self.qroot:self.qroot + 3])
-    #: The orientation as the IMU says it, from the one the body starts in.
-    self.att = Attitude(data.xquat[self.root])
-    #: The body's word that it lies at rest (`legs.body`: the posture
-    #: machine's `lying`, its drivers limp), and the gyro's rate taken
-    #: through the zero-rate update that word allows (issue #425).
-    self.resting = False
-    self.still = Standstill()
-    self.yaw = self.att.yaw()
-    self.distance = 0.0
-    #: The body's velocity estimate, body frame, and the steps it has been
-    #: held with no foot agreeing.
-    self.v = np.zeros(3)
-    self.held = 0
 
   def _true_yaw(self) -> float:
     w, x, y, z = self.d.xquat[self.root]

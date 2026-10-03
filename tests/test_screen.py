@@ -1,34 +1,25 @@
-"""Guards for the LCD module's display: faces, text/count, census (issue #13).
+"""Guards for the LCD module's display: faces, text/count (issue #13; the
+census's counting is `test_census.py`'s).
 
-Every assertion here is one a build actually paid for. The two that would
-have cost the most, and that fail loudly without their fix:
-
-  - a census that counts the FENCE (the zone's own boundary is a long line of
-    occupied cells, and a counter with no margin reports a garden full of
-    objects), and
-  - a face that is drawn on a module hanging unpowered on the rack, because
-    "am I carrying it" was asked instead of "is the coupling conducting".
+Every assertion here is one a build actually paid for. The one that would
+have cost the most, and that fails loudly without its fix: a face drawn on
+a module hanging unpowered on the rack, because "am I carrying it" was
+asked instead of "is the coupling conducting".
 """
 
 import json
 
 import mujoco
-import numpy as np
 import pytest
 
-from pluggybot.economy.census import (
-  MARGIN, Zone, count_objects, score, survey_route, true_count,
-)
 from pluggybot.legs import world as lw
 from pluggybot.lifecycle import world_screens
 from pluggybot.tools.screen import ANXIOUS_FRAC, Screen, ScreenSet, face_for
-from pluggybot.mapping.occupancy_grid import OccupancyGrid
 from pluggybot.telemetry.protocol import FACE_STATES, SCREEN_HINTS, SCREEN_MODES
 from pluggybot.telemetry.recorder import FrameBuilder
 from pluggybot.telemetry.scene import scene_dict, screen_map
 
 META = json.load(open("models/home_world.meta.json"))
-GARDEN = Zone.from_meta(next(z for z in META["zones"] if z["kind"] == "garden"))
 
 
 @pytest.fixture(scope="module")
@@ -180,121 +171,6 @@ def test_the_panel_is_big_enough_to_read(home_model):
   panel = screen_map(home_model)["module_lcd"]
   _, width, height = panel["size"]
   assert width >= 0.05 and height >= 0.07
-
-
-# ---- the census -------------------------------------------------------------
-
-
-def plant_grid(zone: Zone, plants, res=0.05, fence=True,
-               dropout=0.0, seed=0) -> OccupancyGrid:
-  """A believable garden map: a fence around the rectangle, plants inside.
-
-  `dropout` is the honest part. A real scan does not paint a solid line along
-  a fence -- the LIDAR loses returns to dark and specular surfaces, and its
-  rays fan out with range -- so the boundary arrives as a dotted line, and
-  the dots are exactly plant-sized.
-  """
-  grid = OccupancyGrid(zone.min[0] - 1, zone.min[1] - 1,
-                       zone.max[0] + 1, zone.max[1] + 1, resolution=res)
-  grid.grid[:] = -1.0                       # everything seen, and free
-  rng = np.random.default_rng(seed)
-  if fence:
-    for t in np.arange(zone.min[0], zone.max[0], res / 2):
-      for y in (zone.min[1], zone.max[1]):
-        if rng.random() < dropout:
-          continue
-        ix, iy = grid.world_to_cell(t, y)
-        grid.grid[iy, ix] = 2.0
-    for t in np.arange(zone.min[1], zone.max[1], res / 2):
-      for x in (zone.min[0], zone.max[0]):
-        if rng.random() < dropout:
-          continue
-        ix, iy = grid.world_to_cell(x, t)
-        grid.grid[iy, ix] = 2.0
-  for px, py in plants:
-    ix, iy = grid.world_to_cell(px, py)
-    grid.grid[iy:iy + 2, ix:ix + 2] = 2.0   # ~2 cells: an 80 mm stem
-  return grid
-
-
-PLANTS = [(6.5, -0.8), (8.8, 1.0), (7.6, 4.5), (9.2, 5.2)]
-
-
-@pytest.mark.parametrize("dropout,phantoms", [(0.3, 12), (0.5, 45)])
-def test_the_census_does_not_count_the_fence(dropout, phantoms):
-  """THE failure this task is one line away from.
-
-  A SOLID fence is rejected by the span filter -- it is one enormous
-  component -- which is why this test uses a scanned one. Drop 30 % of the
-  returns, as the real LIDAR does, and the boundary becomes a dotted line of
-  fragments that are plant-sized in every dimension the counter measures.
-  Nothing but the margin rejects those.
-  """
-  grid = plant_grid(GARDEN, PLANTS, dropout=dropout)
-  assert count_objects(grid, GARDEN)["count"] == 4
-  # Pin the defect, so the fix's premise cannot rot: without the margin the
-  # garden reports dozens of plants and does it with total confidence.
-  assert count_objects(grid, GARDEN, margin=0.0)["count"] >= phantoms
-
-
-def test_the_census_ignores_things_that_are_not_object_sized():
-  """A couch is not a plant. Span, not cell count, is the discriminator --
-  a long thin wall run has few cells per row and is still not an object."""
-  grid = plant_grid(GARDEN, [(6.5, 0.0)], fence=False)
-  ix, iy = grid.world_to_cell(8.0, 3.0)
-  grid.grid[iy:iy + 12, ix:ix + 12] = 2.0        # a 600 mm blob
-  tally = count_objects(grid, GARDEN)
-  assert tally["count"] == 1
-  assert tally["objects"][0]["x"] == pytest.approx(6.5, abs=0.1)
-
-
-def test_coverage_reports_how_much_was_actually_seen():
-  """A right answer off a third of the zone is a lucky guess, and the score
-  has to be able to tell the difference."""
-  plants = [(6.5, -0.8), (8.8, 1.0)]
-  grid = plant_grid(GARDEN, plants)
-  assert count_objects(grid, GARDEN)["coverage"] > 0.95
-  half = plant_grid(GARDEN, plants)
-  ix, _ = half.world_to_cell(7.5, 0.0)
-  half.grid[:, ix:] = 0.0                        # unknown: never scanned
-  tally = count_objects(half, GARDEN)
-  assert tally["coverage"] < 0.6
-  assert tally["count"] == 1, "counted an object in unscanned space"
-
-
-def test_ground_truth_comes_out_of_the_world(home_model):
-  """Hidden ground truth, and hidden from the ROBOT: the evaluator reads the
-  model. Written as a query rather than as the number 4, so a fifth plant
-  re-scores the task instead of quietly failing every run."""
-  assert true_count(home_model, GARDEN) == 4
-  living = Zone.from_meta(next(z for z in META["zones"] if z["name"] == "living"))
-  assert true_count(home_model, living) == 0
-
-
-def test_ground_truth_and_the_counter_exclude_the_same_border(home_model):
-  """A plant inside the counter's discarded margin would be scored as MISSED
-  when it was never countable -- the two margins have to be one number."""
-  narrow = Zone(name="edge", min=(6.0, -1.2), max=(7.0, -0.4))
-  assert true_count(home_model, narrow, margin=MARGIN) == 0
-  assert true_count(home_model, narrow, margin=0.0) == 1
-
-
-def test_the_score_is_code_and_says_when_it_is_wrong():
-  assert score(4, 4, 1.0)["correct"] is True
-  wrong = score(3, 4, 0.5)
-  assert wrong["correct"] is False and wrong["error"] == -1
-
-
-def test_the_survey_route_starts_at_the_door():
-  """A route that opens with a drive across the zone and back is a route
-  that spends the battery on travel instead of on looking."""
-  entry = (5.4, 0.7)
-  route = survey_route(GARDEN, entry=entry)
-  assert len(route) == 4
-  first = min(route, key=lambda p: (p[0] - entry[0]) ** 2 + (p[1] - entry[1]) ** 2)
-  assert route[0] == first
-  for x, y in route:
-    assert GARDEN.contains(x, y, margin=1.0), "a vantage point inside a wall"
 
 
 # ---- the set ---------------------------------------------------------------

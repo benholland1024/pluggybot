@@ -36,14 +36,61 @@ period that runs offers or upkeep takes those flags too.
 ⚠ **A recording with ink takes two passes.** A `board_snapshot` is only
 emitted for a board already carrying ink when the stream opens, so lay the
 ink first against a `--boards` state file, then record against the same
-file. No robot on legs draws yet (#406), so the committed recording has
-none.
+file. The committed recording has none: no robot in it draws.
 
 **A pair world is a world of its own** (0.20.0, issue #167): `<model>_pair`
 is the world with the second robot attached where the pair starts it, and a
 replayer treats it like any other world -- one scene, one recording, keyed
 by that name (`pluggybot.robot.pair_model_name`). The served world is the
 pair, `home_quad_pair`.
+
+### 0.21.0, additive: the built-tool rail on legs (`rack_built`, tags 47-52); a built tool carries no tag
+
+pluggybot #407, the workshop on the quadruped's rack. No shape a consumer
+reads changes; three things are new beside it.
+
+- **The rack's board carries on as the built-tool rail**: `rack_built`, a
+  static body of the world's (`dynamic: false`, no hint) beside `tool_rack`
+  in both quad scenes, its three bays 0.65, 0.95 and 1.25 m along the
+  rack's frame in line with the rack's own -- geoms `rack_built_board`,
+  `rack_built_rail`, the trays and brackets `bayf_` … `bayh_`, and the tags
+  `rack_built_tag47` … `rack_built_tag52` (materials `tagmat47..52`,
+  textures `tagtex47..52.png`), a pair a bay.
+- **A built tool carries no tag**: `scene_changed` brings its module as a
+  new dynamic body and no new texture. `bay` on it is the rail's index
+  (0–2), as since #277.
+- **`parts.json`**: the bill buys the rail (six bay switches, a 2 m board,
+  five extrusions); `module_frame` feeds the arm's envelope and the 220 mm
+  `quad_tool_peg` is on the catalog shelf too; the rover's 150 mm
+  `peg_rod_6mm` is gone.
+
+No fixture carries a build (the pair's recording has no mind).
+
+### 0.21.0, additive: the claw on legs (the areas' tags; the claw built; the census and the challenges offered)
+
+pluggybot #407, the claw and the census back on legs. No shape a consumer
+reads changes; four things are new beside it.
+
+- **The claw's and the census's areas have tags**, static bodies of the
+  quadrupeds' house: `tower_tag42` and `tower_tag43` on the workshop
+  corner's wall, `bench_tag44` and `bench_tag45` on the lab bench's front,
+  `garden_tag46` on the garden's east fence (materials `tagmat42..46`,
+  textures `tagtex42..46.png`) -- what the robots find an area by. The
+  tower's blocks and the bench's cubes were already bodies of the world.
+- **The claw is built**: `module_claw` gains three DYNAMIC child bodies,
+  `module_claw_carriage` (its slide across the module), `module_claw_jaw_l`
+  and `module_claw_jaw_r`, so each streams a pose in every keyframe.
+- **Three jobs are offered on `home_quad`**: `count_plants` (target
+  `garden`, a zone) on every arm, the count shown on the LCD's `count`
+  screen as the rover's was; and the two challenges on a mind alone,
+  `stack_tower` (target `workshop`, a zone) and `find_mass` (target
+  `lab_bench`, the bench's body). Each offer carries its area's `address`
+  and `directions`. ⚠ The challenges' offers no longer say where the house
+  set the props out: that was coordinates, and a job gives a place now.
+- **The `plant` hint's note** says the robot SEES a plant with its depth
+  camera; `collides` is still false (`hints.json`).
+
+No fixture carries a job (the pair's recording has no mind).
 
 ### 0.21.0, additive: whether a renderer is there (`renderer`, downstream); a look nothing could answer
 
@@ -1398,15 +1445,14 @@ three bays at the rack's pitch past bay E, bay tags **7, 8, 9**, geoms
 five hand-built modules are permanent; a built tool hangs on the rail and
 only there. **No bump**: a new dynamic body and three new textures, both
 of which a consumer already handles per body and per texture. It went
-with the rover's worlds (pluggybot #376): no world on legs has the rail
-yet.
+with the rover's worlds (pluggybot #376) and came back on the quadruped's
+rack with #407 (above), a static body with tags 47-52.
 
 - **`scene_changed`** is unchanged in shape. `bay` on it is now the
   RAIL's index (0–2), `retired` is a built tool or null -- never one of
   the originals -- and `reason: "retire"` likewise names a built tool.
-- **A built module's identity tag** is still `15 + bay`, so `tagtex15..17`
-  are the ones a scene can name; 18 and 19 stay committed for a rail that
-  grows and nothing references them.
+- **A built module's identity tag** was `15 + bay`; on legs a built tool
+  carries none (#407, above).
 
 ### 0.20.0, additive: `scene_changed` (a tool appears mid-run)
 
@@ -1435,11 +1481,8 @@ which is the degradation, not a break.
 - **The header a late joiner receives is the current census.** The
   publisher re-sends its header on connect, built from the recompiled
   model, so a consumer arriving after the change never sees the old rack.
-- **A built module's identity tag** is a real tag36h11 like the others,
-  id `15 + bay` (`workshop/seam.py`), one per BAY: a retired tool's id is
-  reused by the next tool in that bay. Its texture rides the scene as
-  `tags/tag<id>.png`; the PNGs are committed beside the hand-built
-  modules' so the site can vendor them once.
+- **A built module's identity tag** was a tag36h11, `15 + bay`, one per
+  BAY; on legs a built tool carries none (#407, above).
 
 The website's half -- rebuilding the three.js scene on the message and
 carrying the textures -- landed as rooftop-media-2026 #250.

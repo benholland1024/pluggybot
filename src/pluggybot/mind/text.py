@@ -172,7 +172,7 @@ MAX_PROCEDURES = 8
 
 def _bays() -> int:
   # ⚠ ONE TOOL PER BAY: the workshop's cap is the BUILT-TOOL RAIL's, not a
-  # number chosen here (ToolPattern.md §6, route 4; issue #277) -- a fourth
+  # number chosen here (ToolPattern.md §6; issue #277) -- a fourth
   # needs that rail to grow.
   from pluggybot.rack.coupling import BUILT_STATION_YS
   return len(BUILT_STATION_YS)

@@ -46,8 +46,8 @@ def test_the_lab_is_in_the_quadrupeds_world_with_its_rule_disclosure_and_care():
   disclosure line once -- and for a menu no mind was built over none of
   it."""
   from pluggybot.home import world as home
-  assert world_config(QUAD_HOME)["lab"] == {"name": "lab", "cage": tuple(home.LAB_CAGE_XY),
-                                           "bench": tuple(home.LAB_BENCH_XY)}
+  assert world_config(QUAD_HOME)["lab"] == {"name": "lab", "cage": tuple(home.LAB_CAGE_XY)}
+  assert world_config(QUAD_HOME)["bench"] == {"name": "lab_bench"}   # an area of its own (#407)
   boss = _quad_mind()
   assert boss.menu.lab == "lab" and "care" in boss.menu.available()
   assert boss.menu.lab_jobs == ("feed_mouse",) and boss.menu.lab_route is False
@@ -105,20 +105,21 @@ def test_the_jobs_bullet_says_what_is_offered_and_nothing_else():
 
 
 def test_home_quad_offers_the_feed_and_the_game_and_the_shock_is_one_line_back(tmp_path):
-  """A test reads the entry: `feed_mouse`, the whiteboards' three (#406)
-  and the pair's game (#404), and nothing else; putting the shock job back
-  is one line in `kinds`, and the prompt it builds then names both of the
-  lab's jobs."""
+  """A test reads the entry: `feed_mouse`, the whiteboards' three (#406),
+  the census and the two challenges (#407) and the pair's game (#404), and
+  nothing else; putting the shock job back is one line in `kinds`, and the
+  prompt it builds then names both of the lab's jobs."""
   shipped = cad.Cadence.load(QUAD_HOME, cad.CADENCE_PATH)
-  boards = ["whiteboard_answer", "draw_figure", "rate_artwork"]
-  assert list(shipped.kinds) == ["feed_mouse", *boards, "hide_and_seek"]
+  rest = ["whiteboard_answer", "count_plants", "draw_figure", "stack_tower", "rate_artwork",
+          "find_mass"]
+  assert list(shipped.kinds) == ["feed_mouse", *rest, "hide_and_seek"]
   doc = json.loads(cad.CADENCE_PATH.read_text())
   block = doc["worlds"][QUAD_HOME]
   block["kinds"] = {"shock_mouse": {}, **block["kinds"]}           # the one line
   path = tmp_path / "cadence.json"
   path.write_text(json.dumps(doc))
   back = cad.Cadence.load(QUAD_HOME, path)
-  assert list(back.kinds) == ["shock_mouse", "feed_mouse", *boards, "hide_and_seek"]
+  assert list(back.kinds) == ["shock_mouse", "feed_mouse", *rest, "hide_and_seek"]
   # ...and the producer rotates the lab's job and the pair's game: the cage
   # and the robots' home are the targets this world names for them
   targets = lc.world_targets(QUAD_HOME, procedures=True, robots=("Luca", "Rowan"))
@@ -126,7 +127,7 @@ def test_home_quad_offers_the_feed_and_the_game_and_the_shock_is_one_line_back(t
   from pluggybot.economy.tasks import TaskBoard
   producer = lc.task_producer(TaskBoard(), QUAD_HOME, book=lc.board_book(QUAD_HOME),
                               cadence=shipped, procedures=True, robots=("Luca", "Rowan"))
-  assert producer.kinds == ("feed_mouse", *boards, "hide_and_seek")
+  assert producer.kinds == ("feed_mouse", *rest, "hide_and_seek")
   # ...priced off a measured row, never the table's unpriced fallback
   from pluggybot.economy import energy
   assert energy.load(QUAD_HOME).errand_wh.get("feed", 0.0) > 0.0

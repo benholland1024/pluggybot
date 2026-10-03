@@ -39,7 +39,7 @@ def _pen_alone(mount_x: float = rk.PEN_MOUNT_X):
          f'</default><worldbody>'
          + rk.tool_xml("module_pen", (0, 0, 1.0), mass=rk.TOOL_KG["module_pen"] - rk.PEN_PARTS_KG,
                        face=face)
-         + f'</worldbody><actuator>{rk.tool_actuators_xml()}</actuator></mujoco>')
+         + f'</worldbody><actuator>{rk.tool_actuators_xml(("module_pen",))}</actuator></mujoco>')
   m = mujoco.MjModel.from_xml_string(xml)
   d = mujoco.MjData(m)
   mujoco.mj_forward(m, d)
@@ -169,7 +169,7 @@ class _Bench:
            f'</body><body name="module_pen" mocap="true" childclass="module_pen_tool">'
            f'<geom name="module_pen_body" type="box" size="{rk.TOOL_HALF_X} {rk.TOOL_HALF_Y} '
            f'{rk.TOOL_HALF_Z}" contype="0" conaffinity="0"/>{rk.pen_face()}</body>'
-           f'</worldbody><actuator>{rk.tool_actuators_xml()}</actuator></mujoco>')
+           f'</worldbody><actuator>{rk.tool_actuators_xml(("module_pen",))}</actuator></mujoco>')
     self.model = mujoco.MjModel.from_xml_string(xml)
     self.data = mujoco.MjData(self.model)
     self._place()

@@ -103,9 +103,9 @@ def _onto_fork(life, module: str, holder) -> None:
 
 def test_a_bay_switch_says_a_bay_is_taken_and_never_by_what():
   model, data = _world()
-  # three bays, each with its tool; the index space's other five are bays
-  # this world does not have, which is not "empty"
-  assert coupling.bay_switches(model, data) == (True,) * 3 + (None,) * 5
+  # three bays, each with its tool, the rover's two this world does not
+  # have (which is not "empty"), and the built-tool rail's three, empty
+  assert coupling.bay_switches(model, data) == (True,) * 3 + (None,) * 2 + (False,) * 3
   # the claw off its bay: bay C's switch opens
   _put(model, data, "module_claw", FLOOR[0])
   assert coupling.bay_switches(model, data)[2] is False
@@ -168,10 +168,9 @@ def test_a_tool_on_the_other_robots_fork_says_whose(tmp_path):
   mine, theirs = overseer_context(a)["rack"], overseer_context(b)["rack"]
   assert mine["original"] == {**ON_THEIR_BAYS, "module_pen": f"on {b.robot_name}'s fork"}
   assert theirs["original"] == {**ON_THEIR_BAYS, "module_pen": ON_YOUR_FORK}
-  # no built rail in this world, so no workshop, no `built` block and no
-  # `tools`
-  assert a.overseer.workshop is None
-  assert "built" not in mine and "tools" not in overseer_context(a)
+  # ...and the built-tool rail (#407): its bays, empty, and no tool built
+  assert a.overseer.workshop is not None
+  assert mine["built"] == {"A": None, "B": None, "C": None}
 
 
 # ---- 4. nothing a sensor would not know ----------------------------------------
@@ -201,11 +200,12 @@ def test_one_switch_is_bought_for_every_bay_the_world_has(monkeypatch):
   [feed] = part.feeds
   model, data = _world()
   bays = sum(s is not None for s in coupling.bay_switches(model, data))
-  assert feed.read(None) == part.quantity == feed.expect == bays == len(TOOL_BAYS)
+  assert feed.read(None) == part.quantity == feed.expect == bays \
+    == len(TOOL_BAYS) + len(legs_rack.BUILT.bays)
   # read off the rack's GENERATOR: a rack drawn with one bay fewer buys one
   # switch fewer
-  monkeypatch.setattr(legs_rack, "DEFAULT",
-                      legs_rack.RackSpec(bays=legs_rack.DEFAULT.bays[:2]))
+  monkeypatch.setattr(legs_rack, "SPECS",
+                      (legs_rack.RackSpec(bays=legs_rack.DEFAULT.bays[:2]), legs_rack.BUILT))
   assert feed.read(None) == part.quantity - 1
 
 

@@ -453,6 +453,7 @@ class Navigator:
                            origin=self.LIDAR_ORIGIN)
           if m is not None:
             self.matcher.fused(self.pose, self.data.time)
+          self._on_scan(angles, ranges)
       elif self.matcher is not None:
         self.matcher.fuse_next()
       if self.data.time >= self.backoff_until:
@@ -460,6 +461,11 @@ class Navigator:
         all_ranges = np.concatenate((ranges, peer_ranges))
         if self._front_blocked(all_angles, all_ranges):
           self.backoff_until = self.data.time + BACKOFF_TIME
+
+  def _on_scan(self, angles, ranges) -> None:
+    """A scan laid into the map, at the pose it was laid from: nothing
+    here; a quadruped's survey keeps where its returns land
+    (`legs.survey.CensusLayer`)."""
 
   def _front_blocked(self, angles, ranges) -> bool:
     """The front stop's test, over one scan's bearings and ranges (the room

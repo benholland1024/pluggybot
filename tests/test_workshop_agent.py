@@ -37,7 +37,7 @@ from pluggybot.mind import overseer as ov
 from pluggybot.procedure import axes
 from pluggybot.rack.coupling import BUILT_STATION_YS, built_bay_index
 from pluggybot.robot import SECOND
-from pluggybot.workshop import cost, seam
+from pluggybot.workshop import cost, seam, validate
 from pluggybot.workshop.library import BAYS, Workshop, WorkshopRefused
 from test_body import stub_life  # noqa: I001 -- tests/ is on sys.path
 from test_workshop import SCOOP
@@ -381,6 +381,35 @@ def test_the_wait_stops_rather_than_stranding_the_robot(tmp_path, monkeypatch):
 
 # ---- 5. the originals are permanent, and a built tool has its own rail ------
 
+def test_a_build_the_rig_refuses_costs_nothing(tmp_path):
+  """The rig is the workshop's last gate, before a point moves (#407): a
+  tool inside every static rule whose servo cannot hold its own block at
+  the axis's end is refused with the rig's reason, and nothing is spent."""
+  heavy = copy.deepcopy(SCOOP)
+  heavy["parts"][1] = {"id": "block", "part": "scaffold_pla_box", "size": [34, 50, 100],
+                       "pos": [-5, 0, -75], "on": "hinge"}
+  life = _life(tmp_path, points=100, rail=True)
+  events = _run(life, _decision(build_tool={"name": "scoop", "bay": "A", "spec": heavy}))
+  assert _outcomes(events) == ["specified", "refused"]
+  assert any(r.startswith("rig:") and "tilt did not reach its far end" in r
+             for r in events[-1]["reasons"]), events[-1]["reasons"]
+  assert life.ledger.balance() == 100 and life.waited == []
+
+
+def test_a_name_the_world_has_costs_nothing(tmp_path, monkeypatch):
+  """A tool whose parts would be named as something in the world is refused
+  before a point moves (#407): `seam.names_taken` reads the world's own spec
+  (pinned against the served world in test_recompile.py)."""
+  monkeypatch.setattr(seam, "names_taken",
+                      lambda spec, tool, retiring=None: ["module_claw_carriage"])
+  life = _life(tmp_path, points=100, rail=True)
+  events = _run(life, _decision(build_tool={"name": "scoop", "bay": "A", "spec": SCOOP}))
+  assert _outcomes(events) == ["specified", "refused"]
+  assert any("module_claw_carriage" in r and "something else" in r
+             for r in events[-1]["reasons"])
+  assert life.ledger.balance() == 100 and life.waited == []
+
+
 def test_a_bay_off_the_rail_cannot_be_named_and_nothing_is_spent(tmp_path):
   """`build_tool.bay` is the rail's A-C; an answer naming another letter is
   refused, and nothing is spent or retired."""
@@ -390,6 +419,9 @@ def test_a_bay_off_the_rail_cannot_be_named_and_nothing_is_spent(tmp_path):
     assert _outcomes(events) == ["specified", "refused"]
     reasons = events[-1]["reasons"]
     assert any(f"bay '{letter}' is not one of A, B, C" in r for r in reasons), reasons
+    # ...and says nothing false about the originals' row: on legs the claw
+    # hangs at C, and no original past it (#407)
+    assert not any(t in r for r in reasons for t in ("claw", "seed", "dispenser")), reasons
   assert life.ledger.balance() == 100 and life.waited == []
   # ...and the grammar never offered them: the enum is the rail's
   assert ov.BAY_LETTERS == BAYS == ("A", "B", "C")
@@ -413,26 +445,27 @@ def test_retiring_an_original_is_refused_with_the_reason(tmp_path, module):
 def test_a_world_without_the_rail_has_no_workshop(monkeypatch):
   """The tower's shape (issue #207): where the world cannot hang a built
   tool, `build_tool` is not in the grammar and the prompt says nothing
-  about building. The served world has no rail; a world that did is made
-  here by telling `build()` so through `world_config`."""
+  about building. The served world has the rail (#407: three bays on the
+  rack's board); a world without one is made here through `world_config`."""
   from test_overseer import FakeClient
   from pluggybot import lifecycle
+  from pluggybot.legs import rack as rk
 
   def grammar(boss):
     return boss.menu.schema(tools=boss._tools(), procedures=boss._procedures())["properties"]
   real = lifecycle.world_config
   # the count the grammar keys off is the count the world carries
-  assert real(WORLD)["built_bays"] == 0
-  without = ov.build(WORLD, enabled=True, client=FakeClient())
-  assert without.workshop is None and not without.menu.workshop
-  assert "build_tool" not in grammar(without)
-  assert "TOOLS YOU MAY BUILD" not in "".join(t for _, t in without.sections)
-  monkeypatch.setattr(lifecycle, "world_config",
-                      lambda world: {**real(world), "built_bays": len(BAYS)})
+  assert real(WORLD)["built_bays"] == len(rk.BUILT.bays) == len(BAYS)
   with_rail = ov.build(WORLD, enabled=True, client=FakeClient())
   assert with_rail.workshop is not None and with_rail.menu.workshop
   assert "build_tool" in grammar(with_rail)
   assert "TOOLS YOU MAY BUILD" in "".join(t for _, t in with_rail.sections)
+  monkeypatch.setattr(lifecycle, "world_config",
+                      lambda world: {**real(world), "built_bays": 0})
+  without = ov.build(WORLD, enabled=True, client=FakeClient())
+  assert without.workshop is None and not without.menu.workshop
+  assert "build_tool" not in grammar(without)
+  assert "TOOLS YOU MAY BUILD" not in "".join(t for _, t in without.sections)
 
 
 def test_a_procedure_that_fetches_a_built_tool_goes_to_the_rail():
@@ -483,11 +516,14 @@ def test_a_record_the_catalog_no_longer_validates_is_kept_and_marked(tmp_path):
 
 def test_the_cost_is_the_catalogs_price():
   from pluggybot.workshop import validate
-  bill = cost.price(validate.check(SCOOP))
-  assert bill["eur"] == pytest.approx(2.90 + 0.008928 * cost.FILAMENT_EUR_PER_KG, abs=0.01)
+  tool = validate.check(SCOOP)
+  blade = tool.by_id["blade"].mass                       # the scaffold, by the gram
+  bill = cost.price(tool)
+  assert bill["eur"] == pytest.approx(2.90 + blade * cost.FILAMENT_EUR_PER_KG, abs=0.01)
   assert bill["points"] == 3
-  assert bill["printedG"] == pytest.approx(8.9, abs=0.1)
-  assert bill["waitS"] == pytest.approx(8.928 * cost.PRINT_S_PER_G + 3 * cost.ASSEMBLE_S_PER_PART, abs=1)
+  assert bill["printedG"] == pytest.approx(blade * 1000, abs=0.1)
+  assert bill["waitS"] == pytest.approx(blade * 1000 * cost.PRINT_S_PER_G
+                                        + 3 * cost.ASSEMBLE_S_PER_PART, abs=1)
 
 
 def test_the_prompt_lists_only_what_can_be_built_from_and_says_why_not():
@@ -502,9 +538,20 @@ def test_the_prompt_lists_only_what_can_be_built_from_and_says_why_not():
   assert "bumper_switch" in rule and "sense contact" in rule
   assert "<name>.<id>.contact" in rule
   # the envelope the robot is told is the one the code refuses against
-  from pluggybot.rack import coupling
-  assert f"under {coupling.MODULE_MASS_CEILING * 1000:.0f} g" in rule
-  assert f"under {coupling.LATCH_MOMENT_NM:.2f} N·m" in rule
+  from pluggybot.legs import arm as am
+  from pluggybot.legs import rack as rk
+  from pluggybot.workshop import validate
+  assert f"under {am.TOOL_MAX_KG * 1000:.0f} g" in rule
+  assert f"under {am.TOOL_MAX_MOMENT_NM:.2f} N·m" in rule
+  assert f"at most {am.TOOL_MAX_AHEAD_M * 1000:.0f}\nmm" in rule
+  assert f"within {rk.HUNG_TILT_DEG:g} degrees of plumb" in rule
+  assert f"{am.TOOL_MAX_DROP_M * 1000:.0f} mm under the peg" in rule
+  assert f"stands {-validate.BOARD_X * 1000:.0f} mm ahead" in rule
+  # ...and the example in it is one the validator passes
+  example = ov.WORKSHOP_HEAD[ov.WORKSHOP_HEAD.index('{"name": "scoop"'):
+                             ov.WORKSHOP_HEAD.index("THE ENVELOPE")]
+  import json
+  assert validate.check(json.loads(example)).name == "scoop"
 
 
 def test_the_example_is_a_capability_not_a_policy():
@@ -569,10 +616,10 @@ def test_the_spec_is_described_so_a_strict_provider_decodes_it():
 
 def test_a_built_bay_says_whose_tool_it_is():
   """One rail, two robots: a bay may hold the other robot's tool, which this
-  robot may not take and may not retire. ⚠ The TAG cannot carry it -- a
-  built module's tag is `15 + bay` and belongs to the BAY, reused by
-  whatever hangs there next -- so the context is the only place ownership
-  can be said. `built` is what a lifecycle hung; the rail is shared."""
+  robot may not take and may not retire. ⚠ No tag can carry it -- a tool
+  carries none, and its bay's tags belong to the BAY -- so the context is
+  the only place ownership can be said. `built` is what a lifecycle hung;
+  the rail is shared."""
   from pluggybot.lifecycle import rack_context
   from pluggybot.workshop import validate
   a, b = stub_life(), stub_life(body=StubBody(handle=SECOND), handle=SECOND,
@@ -629,3 +676,17 @@ def test_a_procedure_says_which_tool_it_needs():
   # ...and this is WHY it was missed: not one axis, not one sensor
   assert lib.get("hold").references()["axes"] == ()
   assert lib.get("hold").references()["sensors"] == ()
+
+
+def test_a_restart_hangs_tools_again_in_the_order_they_were_built(tmp_path):
+  """`restore_tools` re-hangs what `hung()` lists, and a running world
+  attached its tools in the order they were built: re-hung in name order,
+  a restart lays the world out differently and its state cannot be put
+  back exactly (#407)."""
+  shop = Workshop(tmp_path / "tools")
+  for name, bay, t in (("alpha", 0, 50.0), ("zeta", 1, 10.0)):
+    raw = {**copy.deepcopy(SCOOP), "name": name}
+    tool = validate.check(raw)
+    shop.record(tool, raw, bay, cost.price(tool), t)
+  again = Workshop(tmp_path / "tools")
+  assert [e.name for e in again.hung()] == ["zeta", "alpha"]

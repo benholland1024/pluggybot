@@ -16,46 +16,30 @@ pointed at the new one, the registries, the wire).
   world. That last fact is the whole reason the lifecycle carries a rebind
   protocol rather than a pointer.
 
-  ⚠ A BUILT TOOL HANGS ON THE BUILT-TOOL RAIL, and the five hand-built
-  modules are permanent (issue #277; ToolPattern.md §6, route 4). A bay
-  here is one of `coupling.BUILT_STATION_YS` -- the second rack's, the
-  only bays a build may name -- and naming one that a built tool already
-  hangs in RETIRES that tool: its body (and subtree), its actuators, and
-  any free bodies that were its payload are deleted from the spec before
-  the new module is attached at the same station. `retire` refuses a
-  hand-built module by name; until #277 a bay was any of the five and the
-  module in it went, originals included. ⚠ Deleting a body SHIFTS the ids
-  of everything after it in the tree, so a rebind re-resolves every id by
-  name and trusts none.
+  ⚠ A BUILT TOOL HANGS ON THE BUILT-TOOL RAIL, and the hand-built modules
+  are permanent (issue #277; ToolPattern.md). On legs (#407) the rail is
+  three more bays on the rack's own board (`legs.rack.BUILT`); a bay here is
+  the rail's own index, the only bays a build may name, and naming one that
+  a built tool already hangs in RETIRES that tool: its body (and subtree)
+  and its actuators are deleted from the spec before the new module is
+  attached there. `retire` refuses a hand-built module by name. ⚠ Deleting
+  a body SHIFTS the ids of everything after it in the tree, so a rebind
+  re-resolves every id by name and trusts none; a built module is attached
+  LAST, after the robots, so only another built module's ids ever move.
 
-  ⚠ THE TAG IS WRITTEN ONCE. A built module's identity tag gets the next
-  id past the hand-built modules' (`BUILT_TAG_BASE`); its PNG goes to
-  `models/tags/` whole, through `tags.write_tag_pngs` (#440), and only if
-  it is not there already.
+  ⚠ NO IDENTITY TAG: on legs a tool is known by its bay -- the bay's pair
+  of tags, which the rail carries, and its presence switch.
 """
 
 from __future__ import annotations
 
-from pathlib import Path
+import math
 
 import mujoco
 
-from pluggybot.rack.coupling import (
-  BUILT_STATION_YS, HUB_PEG_Z, RACK_HANG_X, SMALL_PLATE_HALF, TOOL_HALF_X,
-  rack_frame_to_world,
-)
-from pluggybot.rack.tags import MODULE_TAG_IDS, TAG_DIR, write_tag_pngs
+from pluggybot.rack.tags import MODULE_TAG_IDS
 from pluggybot.workshop import build
 from pluggybot.workshop.spec import Tool
-
-#: Tag ids for built modules start here; the hand-built ones end at 14
-#: (`rack/tags.py`) and bay tags stop at 9. One per BUILT-RAIL BAY, not
-#: per tool: a retired tool's tag id is reused by the next tool in that
-#: bay, so the dock camera reads at most three built-module tags however
-#: many tools a day builds and retires. (15-19 were written when the bays
-#: were the first rack's five; the PNGs for 18 and 19 are kept for a rail
-#: that grows, and nothing references them.)
-BUILT_TAG_BASE = 15
 
 #: The hand-built modules, permanent since #277: `retire` refuses them.
 #: Read off the shipped inventory rather than listed twice.
@@ -90,8 +74,8 @@ def _subtree_names(spec: mujoco.MjSpec, body) -> tuple[set[str], set[str]]:
 def retire(spec: mujoco.MjSpec, module: str) -> dict:
   """Delete a BUILT module from the spec: its body and subtree, the
   actuators on its joints. Returns what went, for the record. A hand-built
-  module is refused by name (issue #277): the pen, the claw, the dispenser,
-  the LCD and the plug are what every offered job is written against."""
+  module is refused by name (issue #277): the pen, the claw and the LCD
+  are what every offered job is written against."""
   if module in HAND_BUILT:
     raise SeamRefused(f"the {module.removeprefix('module_')} is one of the "
                       "original modules and stays on the rack")
@@ -107,64 +91,89 @@ def retire(spec: mujoco.MjSpec, module: str) -> dict:
   return {"module": module, "bodies": sorted(bodies), "actuators": actuators}
 
 
-def tag_id_for_bay(bay: int) -> int:
-  return BUILT_TAG_BASE + bay
+def rack_pose(model) -> tuple[float, float, float]:
+  """The rack's commissioned frame in the world, (x, y, yaw rad), off its
+  compiled body: where the rail's bays are."""
+  from pluggybot.legs import rack as rk
+  b = model.body(rk.RACK_BODY).id
+  w, _, _, z = (float(v) for v in model.body_quat[b])
+  return float(model.body_pos[b][0]), float(model.body_pos[b][1]), 2.0 * math.atan2(z, w)
 
 
-def write_tag_png(tag_id: int, directory: Path = TAG_DIR) -> Path:
-  """The tag's PNG on disk, written once and whole. One already there is not
-  even compared: in the image `models/` is root's and the sim cannot write."""
-  path = directory / f"tag{tag_id}.png"
-  if not path.exists():
-    write_tag_pngs(directory, ids=[tag_id])
-  return path
-
-
-def tag_face_xml(body: str, tag_id: int) -> str:
-  """The identity tag on the +x face, as `_module_faces` gives the
-  hand-built modules theirs."""
-  return (f'\n      <geom name="{body}_tag" type="box" '
-          f'size="0.002 {SMALL_PLATE_HALF:.4f} {SMALL_PLATE_HALF:.4f}" '
-          f'pos="{TOOL_HALF_X:.4f} 0 0" contype="0" conaffinity="0" '
-          f'material="tagmat{tag_id}"/>')
-
-
-def attach(spec: mujoco.MjSpec, tool: Tool, bay: int, rack_pos, rack_yaw: float,
-           model_dir: Path | None = None) -> dict:
-  """The tool's module at a BUILT-RAIL bay's station (`bay` indexes
-  `BUILT_STATION_YS`), plus its actuators and tag material, into the spec.
-  Returns the names the lifecycle records."""
-  if tool.body in {b.name for b in spec.bodies}:
-    raise SeamRefused(f"the world already has a {tool.body}")
-  x, y = rack_frame_to_world(RACK_HANG_X, BUILT_STATION_YS[bay], rack_pos, rack_yaw)
-  tag_id = tag_id_for_bay(bay)
-  # the texture file is relative to the model's directory, as the hand-
-  # built tags are (`asset_xml`: file="tags/tagN.png")
-  write_tag_png(tag_id, (model_dir or Path("models")) / "tags")
-  have = {t.name for t in spec.textures}
-  if f"tagtex{tag_id}" not in have:
-    tex = spec.add_texture()
-    tex.name = f"tagtex{tag_id}"
-    tex.type = mujoco.mjtTexture.mjTEXTURE_CUBE
-    tex.file = f"tags/tag{tag_id}.png"
-    mat = spec.add_material()
-    mat.name = f"tagmat{tag_id}"
-    mat.textures[mujoco.mjtTextureRole.mjTEXROLE_RGB] = f"tagtex{tag_id}"
-    mat.specular, mat.shininess, mat.reflectance = 0.05, 0.05, 0.0
-  module = build.module_for(tool, x, y, HUB_PEG_Z, yaw_deg=rack_yaw,
-                            tag=tag_face_xml(tool.body, tag_id))
-  child = mujoco.MjSpec.from_string(
-    f"<mujoco><worldbody>{module}</worldbody>"
+def _child(tool: Tool, bay: int, rack: tuple[float, float, float]) -> mujoco.MjSpec:
+  """The tool's module as a spec of its own, hung at the rail's bay `bay`
+  (`legs.rack.BUILT`) in the rack's frame `rack` (`rack_pose`): its default
+  class, its bodies and its actuators."""
+  from pluggybot.legs import rack as rk
+  x, y, yaw = rack
+  default, module = build.module_for(tool, rk.bay_peg(rk.BUILT, bay, pos=(x, y), yaw=yaw),
+                                     yaw=yaw)
+  return mujoco.MjSpec.from_string(
+    f'<mujoco><compiler angle="radian"/><default>{default}</default>'
+    f"<worldbody>{module}</worldbody>"
     f"<actuator>{build.actuator_xml(tool, tool.body)}</actuator></mujoco>")
+
+
+_KINDS = ("bodies", "geoms", "joints", "actuators", "sites", "cameras")
+
+
+def names_taken(spec: mujoco.MjSpec, tool: Tool, retiring: str | None = None) -> list[str]:
+  """The names the tool's module would bring that the world already has,
+  kind by kind -- a body, a part, a joint, a servo of something else --
+  leaving out the built tool `retiring` takes away first. Checked before a
+  point moves (#407): `claw_carriage` named one of the claw's own bodies and
+  was refused only once its parts were bought, and `claw_pad` with a part
+  `l` named a claw pad and broke the world's compile."""
+  child = _child(tool, 0, (0.0, 0.0, 0.0))
+  gone: set[str] = set()
+  if retiring is not None and spec.body(retiring) is not None:
+    stack = [spec.body(retiring)]
+    while stack:
+      b = stack.pop()
+      gone.add(b.name)
+      gone.update(e.name for kind in ("geoms", "joints", "sites", "cameras")
+                  for e in getattr(b, kind))
+      stack.extend(b.bodies)
+  taken = []
+  for kind in _KINDS:
+    ours = {e.name for e in getattr(spec, kind)} - gone
+    if kind == "actuators":
+      ours = {a.name for a in spec.actuators if a.target not in gone}
+    theirs = {e.name for e in getattr(child, kind) if e.name}
+    theirs.discard(child.worldbody.name)          # every spec has its world
+    taken += sorted(theirs & ours)
+  return taken
+
+
+def attach(spec: mujoco.MjSpec, tool: Tool, bay: int,
+           rack: tuple[float, float, float]) -> dict:
+  """The tool's module hung at the rail's bay `bay` (`legs.rack.BUILT`), with
+  its default class and its actuators, into the spec, in the rack's frame
+  `rack` (`rack_pose`). Returns the names the lifecycle records."""
+  taken = names_taken(spec, tool)
+  if taken:
+    raise SeamRefused(f"the world already has {', '.join(taken)}")
   frame = spec.worldbody.add_frame()
-  spec.attach(child, prefix="", frame=frame)
-  return {"module": tool.body, "bay": bay, "tagId": tag_id,
+  spec.attach(_child(tool, bay, rack), prefix="", frame=frame)
+  return {"module": tool.body, "bay": bay,
           "actuators": [build.actuator_name(tool.body, p.axis.verb) for p in tool.axes]}
 
 
 def recompile(spec: mujoco.MjSpec, model, data):
   """The new (model, data), state carried across. NEW objects: the caller
-  must re-point every holder (`HubLifecycle.rebind`)."""
+  must re-point every holder (`HubLifecycle.rebind`).
+
+  ⚠ A NEW SERVO HOLDS ITS JOINT'S REST (#407): the recompile starts a new
+  actuator at ctrl 0, and a position servo at 0 drives its joint there from
+  the stow it compiled at (`build.face_xml`), so each new joint-driven
+  servo is set to its joint's `qpos0` -- the one write here, before any
+  step."""
+  old = {model.actuator(i).name for i in range(model.nu)}
   new_model, new_data = spec.recompile(model, data)
+  for i in range(new_model.nu):
+    if (new_model.actuator(i).name not in old
+        and new_model.actuator_trntype[i] == mujoco.mjtTrn.mjTRN_JOINT):
+      j = int(new_model.actuator_trnid[i][0])
+      new_data.ctrl[i] = new_model.qpos0[new_model.jnt_qposadr[j]]
   mujoco.mj_forward(new_model, new_data)
   return new_model, new_data

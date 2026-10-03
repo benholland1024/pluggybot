@@ -1,17 +1,18 @@
 """The tool spec: what an agent emits to describe a tool (issue #168).
 
-JSON, and small on purpose. The plate, the peg and the identity tag are
-NOT in it -- `module_xml` generates them, and a tool that could move its own
-peg could leave the envelope. What the agent says is which catalog parts
-go where, in the module's own frame (+x toward the robot, -x at the wall
-when stowed, z up, the peg axis along y at z = `PEG_ABOVE_BODY`):
+JSON, and small on purpose. The plate and the peg are NOT in it --
+`legs.rack.tool_xml` makes them, and a tool that could move its own peg
+could leave the envelope. What the agent says is which catalog parts go
+where, in the module's own frame (+x toward the robot, -x toward the rack's
+board when it hangs, z up, the peg axis along y at z = `PEG_ABOVE_BODY`);
+the robot's prompt shows this one (`overseer.WORKSHOP_HEAD`):
 
   {"name": "scoop",
    "parts": [
-     {"id": "hinge", "part": "servo_fs90", "pos": [-20, 0, -40],
+     {"id": "hinge", "part": "servo_fs90", "pos": [0, 0, -50],
       "axis": {"verb": "tilt", "dir": [0, 1, 0], "range": [0, 90], "stow": 0}},
-     {"id": "blade", "part": "scaffold_pla_box", "size": [60, 30, 4],
-      "pos": [-30, 0, -8], "on": "hinge"}]}
+     {"id": "blade", "part": "scaffold_pla_box", "size": [4, 30, 70],
+      "pos": [0, 0, -45], "on": "hinge"}]}
 
 Per part: `id`, `part` (a catalog id on the `catalog` shelf), `pos` in mm
 in its parent's frame, optional `euler` in degrees, optional `on` (another

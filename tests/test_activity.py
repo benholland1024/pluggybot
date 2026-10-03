@@ -80,6 +80,18 @@ def test_geom_rgba_toggles_take_effect(home_model):
   assert list(home_model.geom_rgba[lamp.gid]) == [0, 1, 0, 1]
 
 
+def test_a_selected_state_survives_a_recompile(home_model):
+  """A recompile (the workshop's seam, #407) builds a NEW model carrying the
+  geom as compiled: the rebind applies the state again, or a lit lamp goes
+  dark for good -- `select` skips the state it believes it is in."""
+  lamp = GeomToggle(home_model, "garden_light_bulb",
+                    {"a": {"rgba": [1, 0, 0, 1]}, "b": {"rgba": [0, 1, 0, 1]}})
+  lamp.select("a")
+  fresh = mujoco.MjModel.from_xml_path("models/home_world.xml")
+  lamp.rebind(fresh)
+  assert list(fresh.geom_rgba[lamp.gid]) == [1, 0, 0, 1]
+
+
 def test_an_unknown_state_is_an_error_not_a_no_op(home_model):
   lamp = GeomToggle(home_model, "garden_light_bulb", {"a": {"rgba": [1, 0, 0, 1]}})
   with pytest.raises(KeyError):

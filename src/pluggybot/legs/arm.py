@@ -176,10 +176,9 @@ CARRY = (0.40, 0.40)
 FOLD_ON_FALL_COS = math.cos(math.radians(60.0))
 
 #: THE TOOL ENVELOPE a tool on this coupling must fit (the workshop's
-#: validator's, #375 step 4; `rack.coupling`'s are the rover's). Measured
-#: (the spike's `--envelope`: carried through a 1.0 m/s trot and a stop;
-#: `--retention --stairs`: the house's flight, both ways, at 0, 30 and
-#: 60 mm ahead):
+#: validator reads it, #407). Measured (the spike's `--envelope`: carried
+#: through a 1.0 m/s trot and a stop; `--retention --stairs`: #388's flight,
+#: both ways, at 0, 30 and 60 mm ahead):
 #:   mass  a tool of 0.60 kg stayed seated with its CoM up to 60 mm off its
 #:         peg; the arm holds 0.61 kg (the claw and a 0.4 kg cube) straight
 #:         out at 39 % of its motors' continuous rating. The ceiling keeps a
@@ -579,12 +578,30 @@ class ArmDriver:
 
   def __init__(self, model, data, spec: ArmSpec, prefix: str = ""):
     from pluggybot.legs.actuator import JointLimits
-    from pluggybot.telemetry.protocol import ROBOT_ROOT
     if spec.level != "parallelogram":
       raise ValueError("this driver holds a shoulder and an elbow with the "
                        "plate kept level: the wrist (b) and the body (c) "
                        "options are the reach table's, never driven")
-    self.m, self.d, self.spec = model, data, spec
+    self.spec, self.prefix = spec, prefix
+    self.rebind(model, data)
+    lim = JointLimits.of(spec.motor)
+    self.peak, self.sat, self.noload = (float(lim.peak[0]), float(lim.saturation[0]),
+                                        float(lim.noload[0]))
+    self.kp, self.kd = ARM_KP, ARM_KD
+    #: How fast the target walks to the goal, rad/s: ARM_SLEW, or slower
+    #: for a move that asks for it.
+    self.slew = ARM_SLEW
+    self.target = np.array(self.q())
+    self.goal = self.target.copy()
+    #: A carried tool's mass and its CoM, the SEAT's frame offset (level).
+    self.payload = (0.0, (0.0, 0.0))
+
+  def rebind(self, model, data) -> None:
+    """The arm on a world (and a recompiled one, issue #407): its joints,
+    motors and links by name; its target, goal and payload are state."""
+    from pluggybot.telemetry.protocol import ROBOT_ROOT
+    prefix = self.prefix
+    self.m, self.d = model, data
     j = {n: model.joint(f"{prefix}arm_{n}").id
          for n in ("shoulder", "elbow", "wrist") if _has(model, f"{prefix}arm_{n}")}
     self.qadr = {n: model.jnt_qposadr[i] for n, i in j.items()}
@@ -602,17 +619,6 @@ class ArmDriver:
                     float(model.body_ipos[b][2])) for b in self.bodies]
     seat = model.site(self._seat()).pos
     self._seat_xz = (float(seat[0]), float(seat[2]))
-    lim = JointLimits.of(spec.motor)
-    self.peak, self.sat, self.noload = (float(lim.peak[0]), float(lim.saturation[0]),
-                                        float(lim.noload[0]))
-    self.kp, self.kd = ARM_KP, ARM_KD
-    #: How fast the target walks to the goal, rad/s: ARM_SLEW, or slower
-    #: for a move that asks for it.
-    self.slew = ARM_SLEW
-    self.target = np.array(self.q())
-    self.goal = self.target.copy()
-    #: A carried tool's mass and its CoM, the SEAT's frame offset (level).
-    self.payload = (0.0, (0.0, 0.0))
 
   def q(self) -> tuple[float, float]:
     """(shoulder, forearm's absolute angle)."""

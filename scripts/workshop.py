@@ -1,74 +1,119 @@
-"""Build an agent-described tool and run it through the coupling rig.
+"""Build an agent-described tool and try it as the workshop does (issue #168;
+on legs, #407).
 
   MUJOCO_GL=egl uv run python scripts/workshop.py --example
   MUJOCO_GL=egl uv run python scripts/workshop.py --spec my_tool.json
+  MUJOCO_GL=egl uv run python scripts/workshop.py --example --served --bay B
 
-Validates the spec against the envelope (every reason at once), builds the
-module, and answers the four questions of docs/ToolPattern.md §5 off the
-world: does it hang, is it picked, does it conduct, does it stow -- plus
-every axis run to its far end and back. Saves a filmstrip PNG named after
-the script. `--sweep` also runs the lateral envelope (±4 mm, ±8 mm).
+Validates the spec against the arm's envelope (every reason at once), then
+runs the rig the workshop gates a build on (`workshop.build.trial`): hung on
+a bay, taken by the fork, conducting, every axis to its far end and back,
+hung back -- with the fork on the bay's middle and at the walk-in's line-up
+gate either side. `--served` then hangs it on the served pair's built-tool
+rail (`HubLifecycle.hang_tool`: the recompile, every holder rebound) and has
+the first robot's arm fetch it and hang it back: SimNotes, "The workshop on
+legs". The example is the scoop the robot's prompt shows.
 """
 
 import argparse
 import json
+import math
 import sys
 import time
-
-import numpy as np
 
 from pluggybot.workshop import build, validate
 from pluggybot.workshop.spec import Refused
 
-EXAMPLE = {
-  "name": "scoop",
-  "parts": [
-    {"id": "hinge", "part": "servo_fs90", "pos": [-20, 0, -45],
-     "axis": {"verb": "tilt", "dir": [0, 1, 0], "range": [0, 90], "stow": 0}},
-    {"id": "blade", "part": "scaffold_pla_box", "size": [60, 30, 4],
-     "pos": [-30, 0, -8], "on": "hinge"},
-  ],
-}
+
+def example() -> dict:
+  """The scoop the robot's prompt shows (`overseer.WORKSHOP_HEAD`), as written."""
+  from pluggybot.mind.overseer import WORKSHOP_HEAD
+  start = WORKSHOP_HEAD.index('{"name": "scoop"')
+  return json.loads(WORKSHOP_HEAD[start:WORKSHOP_HEAD.index("THE ENVELOPE")])
 
 
-def main() -> None:
+def try_on_the_rig(tool) -> bool:
+  """The workshop's gate (`build.trial`): the rig at the bay's middle and
+  the line-up gate either side, each record printed; True when it passed."""
+  records: list = []
+  t0 = time.time()
+  reasons = build.trial(tool, records)
+  for rec in records:
+    print(f"  rig, fork {rec['dy'] * 1000:+.0f} mm: " + ", ".join(
+      f"{k}={v}" for k, v in rec.items() if k not in ("dy", "poles")))
+  print(f"trial ({time.time() - t0:.2f} s): " + ("passed" if not reasons else
+                                              f"REFUSED -- {reasons[0]}"))
+  return not reasons
+
+
+def served(tool, bay: int) -> None:
+  """Hang the tool on the served pair's rail bay `bay`, then fetch it with
+  the first robot's arm and hang it back."""
+  from pluggybot import tick
+  from pluggybot.legs import rack as rk
+  from pluggybot.pair import build_pair
+  from pluggybot.rack.coupling import STATION_YS, built_bay_index
+  lives = build_pair("home_quad", errands=("none", "none"))
+  try:
+    for life in lives:
+      life.state = "DECIDE"
+      life.body.start_at(*life.body.pose)
+    a, b = lives
+    tick.run_many([(life.body.stepper, life.body.hold_routine(2.0)) for life in lives])
+    before = [life.body.true_pose() for life in lives]
+    rec = a.hang_tool(tool, bay)
+    tick.run_many([(life.body.stepper, life.body.hold_routine(3.0)) for life in lives])
+    moved = [math.hypot(life.body.true_pose()[0] - p[0], life.body.true_pose()[1] - p[1])
+             for life, p in zip(lives, before)]
+    print(f"hung in rail bay {chr(ord('A') + bay)}: recompile {rec['recompileMs']} ms; "
+          f"the robots moved {moved[0]:.4f} / {moved[1]:.4f} m; plumb on its bay "
+          f"{bool(rk.on_bay(a.model, a.data, tool.body, rk.BUILT, bay))}")
+    station = STATION_YS[built_bay_index(bay)]
+    t0 = float(a.data.time)
+    why = tick.run_many([(a.body.stepper, a.body.fetch_tool_routine(station, tool.body)),
+                         (b.body.stepper, b.body.hold_routine(0.0))])
+    print(f"fetch: {why[0]}, powered {a.body.tool_powered(tool.body)} -- {a.body.swap_trace()}")
+    why = tick.run_many([(a.body.stepper, a.body.stow_tool_routine(station, tool.body)),
+                         (b.body.stepper, b.body.hold_routine(0.0))])
+    print(f"stow: {why[0]}, hung {bool(a.body.module_state(tool.body)['hung'])} -- "
+          f"{a.body.swap_trace()}")
+    print(f"falls {[life.body.mission.falls for life in lives]}, "
+          f"{float(a.data.time) - t0:.0f} sim s for the two swaps")
+  finally:
+    for life in lives:
+      life.body.close()
+
+
+def main(argv=None) -> int:
   parser = argparse.ArgumentParser(description=__doc__,
                                    formatter_class=argparse.RawDescriptionHelpFormatter)
   parser.add_argument("--spec", help="a tool spec, JSON")
-  parser.add_argument("--example", action="store_true", help="the scoop")
-  parser.add_argument("--sweep", action="store_true", help="the lateral envelope too")
-  parser.add_argument("--frames", type=int, default=8)
-  parser.add_argument("--out", default="workshop.png")
-  args = parser.parse_args()
-  raw = EXAMPLE if args.example or not args.spec else json.load(open(args.spec))
-
+  parser.add_argument("--example", action="store_true",
+                      help="the scoop the robot's prompt shows (the default)")
+  parser.add_argument("--served", action="store_true",
+                      help="then hang it on the served pair's rail, fetch it and hang it back")
+  parser.add_argument("--bay", default="A", choices=("A", "B", "C"),
+                      help="the rail's bay for --served")
+  args = parser.parse_args(argv)
+  raw = example() if args.example or not args.spec else json.load(open(args.spec))
   try:
     tool = validate.check(raw)
   except Refused as e:
     print("REFUSED:")
     for r in e.reasons:
       print("  -", r)
-    sys.exit(1)
-  mass = (build.coupling.MODULE_MASS + tool.mass) * 1000
-  print(f"{tool.body}: {len(tool.parts)} parts, {mass:.0f} g with plate and peg, "
-        f"{validate.worst_moment(tool):.3f} N·m worst about the peg, "
+    return 1
+  mass = (validate.MODULE_MASS + tool.mass) * 1000
+  print(f"{tool.body}: {len(tool.parts)} parts, {mass:.0f} g with the plate and peg, "
+        f"{validate.worst_moment(tool):.3f} N*m worst about the peg, "
+        f"hangs {validate.hang_tilt_deg(tool):.1f} deg off plumb and "
+        f"{validate.side_of_peg(tool) * 1000:+.0f} mm to the side; "
         f"verbs {[p.axis.verb for p in tool.axes]}")
-
-  t0 = time.time()
-  res, frames = build.rig(tool, n_frames=args.frames)
-  print(f"rig ({time.time() - t0:.1f} s): " + ", ".join(
-    f"{k}={v}" for k, v in res.items() if k != "poles"))
-  if args.sweep:
-    for dy in (0.004, -0.004, 0.008):
-      r, _ = build.rig(tool, dy=dy)
-      print(f"  dy {dy * 1000:+.0f} mm: picked={r['picked']} conducts={r['conducts']} "
-            f"stowed={r['stowed']}")
-  if frames:
-    from PIL import Image
-    strip = np.concatenate(frames, axis=1)
-    Image.fromarray(strip).save(args.out)
-    print(f"filmstrip: {args.out}")
+  ok = try_on_the_rig(tool)
+  if args.served and ok:
+    served(tool, ord(args.bay) - ord("A"))
+  return 0 if ok else 1
 
 
 if __name__ == "__main__":
-  main()
+  sys.exit(main())

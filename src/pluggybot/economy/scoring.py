@@ -932,13 +932,32 @@ def sample_answer(life, errand, result: dict, before: dict) -> dict:
 
 
 def sample_census(life, errand, result: dict, before: dict) -> dict:
+  """MEASURE: what the survey counted, off its own step (`result`'s
+  `census`), and the TRUTH off the world -- the plants in the area's
+  rectangles (`world_config`'s `census_zones`), read here and nowhere else
+  (#407: it was the use-phase's, beside the count, on the rover)."""
+  from pluggybot.economy.census import Zone, true_count
   census = result.get("census") or {}
+  truth = None
+  # ...and none where nothing was counted: a census that never ran has no
+  # truth to be measured against, nor a world to ask
+  if census.get("counted") is not None:
+    try:
+      zones = [Zone.from_meta(z) for z in _world_config(life).get("census_zones") or ()]
+    except ValueError:
+      zones = []
+    truth = true_count(life.model, zones) if zones else None
   # The zone is the ERRAND's as well as the use-phase's: a census whose
   # pick failed never ran one, and its verdict said "from None" (#350).
-  return {"counted": census.get("counted"), "truth": census.get("truth"),
+  return {"counted": census.get("counted"), "truth": truth,
           "coverage": census.get("coverage"),
           "zone": result.get("zone") or errand.detail.get("zone"),
           "vantages": result.get("vantages")}
+
+
+def _world_config(life) -> dict:
+  from pluggybot.lifecycle import world_config
+  return world_config(life.world)
 
 
 def sample_dance(life, errand, result: dict, before: dict) -> dict:

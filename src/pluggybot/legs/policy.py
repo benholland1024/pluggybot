@@ -129,16 +129,9 @@ class PolicyDriver:
 
   def __init__(self, model, data, policy: WalkingPolicy, prefix: str = "",
                scan=None):
-    self.m, self.d, self.policy = model, data, policy
-    self.root = model.body(f"{prefix}{ROBOT_ROOT}").id
-    ids = [model.joint(f"{prefix}{n}").id for n in JOINT_NAMES]
-    self.qadr = np.array([model.jnt_qposadr[j] for j in ids])
-    self.vadr = np.array([model.jnt_dofadr[j] for j in ids])
+    self.policy, self.prefix = policy, prefix
     self.drivers = Drivers(model, data, prefix)
-    self.act = self.drivers.act
-    self.gyro = model.sensor(f"{prefix}imu_ang_vel").id
-    self.gyro_adr = model.sensor_adr[self.gyro]
-    self.every = max(1, round(policy.period / model.opt.timestep))
+    self._resolve(model, data)
     self.scan_xy = scan_offsets()
     #: Terrain only: the robot's own geoms (groups 1, 2) never block a ray...
     self.scan_groups = np.array([1, 0, 0, 0, 0, 0], dtype=np.uint8)
@@ -158,6 +151,28 @@ class PolicyDriver:
     #: `step`.
     self.arm: ArmDriver | None = None
     self._arm_prefix: str | None = prefix      # None once looked for
+
+  def _resolve(self, model, data) -> None:
+    prefix = self.prefix
+    self.m, self.d = model, data
+    self.root = model.body(f"{prefix}{ROBOT_ROOT}").id
+    ids = [model.joint(f"{prefix}{n}").id for n in JOINT_NAMES]
+    self.qadr = np.array([model.jnt_qposadr[j] for j in ids])
+    self.vadr = np.array([model.jnt_dofadr[j] for j in ids])
+    self.act = self.drivers.act
+    self.gyro = model.sensor(f"{prefix}imu_ang_vel").id
+    self.gyro_adr = model.sensor_adr[self.gyro]
+    self.every = max(1, round(self.policy.period / model.opt.timestep))
+
+  def rebind(self, model, data) -> None:
+    """A recompiled world (issue #407): its drivers and its ids, by name;
+    what it is in the middle of -- its last action, its target, its step
+    count -- is state and stays. A carried tool's scan exclusion is the
+    body's to set again (`QuadMission.carry`)."""
+    self.drivers.rebind(model, data)
+    self._resolve(model, data)
+    if self.arm is not None:
+      self.arm.rebind(model, data)
 
   def observation(self, twist: Twist) -> np.ndarray:
     """The policy's input, term by term in the order its file names them

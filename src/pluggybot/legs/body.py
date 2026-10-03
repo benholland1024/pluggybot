@@ -58,6 +58,7 @@ from pluggybot.legs import dock as dk
 from pluggybot.legs import posture as pz
 from pluggybot.legs.actuator import BUS_V_NOMINAL, JointLimits
 from pluggybot.legs.arm import ARM_SLEW, ArmDriver
+from pluggybot.legs.claw import CubeWork
 from pluggybot.legs.draw import BoardWork
 from pluggybot.legs.game import GameWalk
 from pluggybot.legs.model import CHOSEN, ELECTRONICS_W, LEGS
@@ -65,6 +66,7 @@ from pluggybot.legs.odometry import LegOdometry
 from pluggybot.legs.places import PlaceWalk
 from pluggybot.legs.policy import POLICY_NPZ, PolicyDriver, Twist, WalkingPolicy
 from pluggybot.legs.scripted import Command, VirtualModel
+from pluggybot.legs.survey import AreaSurvey
 from pluggybot.legs.swap import ToolSwap, bay_of
 from pluggybot.legs.way import MakeWay
 from pluggybot.mapping.frontier import OCC_THRESH
@@ -275,7 +277,8 @@ class QuadStepper:
     return tick.run(self, routine, name)
 
 
-class QuadMission(ToolSwap, PlaceWalk, BoardWork, MakeWay, GameWalk, Navigator):
+class QuadMission(ToolSwap, PlaceWalk, BoardWork, CubeWork, AreaSurvey, MakeWay, GameWalk,
+                  Navigator):
   """The Navigator over a quadruped (the module docstring)."""
 
   #: The body's own sizes (`scripts/quad_spike.py`; SimNotes, "The first
@@ -385,6 +388,9 @@ class QuadMission(ToolSwap, PlaceWalk, BoardWork, MakeWay, GameWalk, Navigator):
     self._frame_t = -math.inf
     self._frame_used_t = -math.inf
     self.low = np.zeros_like(self.grid.grid, dtype=np.float32)
+    #: A survey's own record of what the depth camera saw (#407,
+    #: `legs.survey.CensusLayer`), while one is under way; else None.
+    self.census = None
     self._walls_t, self._walls_mask = None, None
     # THE DOCK: the commissioned pose (its board's drawing and where it was
     # installed -- the map frame is defined by it, as the rover's by its
@@ -399,11 +405,30 @@ class QuadMission(ToolSwap, PlaceWalk, BoardWork, MakeWay, GameWalk, Navigator):
     self.last_charge: dict | None = None
     self.press_steps = 0
     self._pressing = False
+    self._resolve_geoms(model)
+    # THE TOOL RACK (#405, `legs/swap.py`)
+    self._init_swap(model)
+    # THE PLACES IT FINDS (#419, `legs/places.py`)
+    self._init_places(model)
+    # THE WHITEBOARDS it draws on (#406, `legs/draw.py`)
+    self._init_draw()
+    # THE CUBES its claw takes and sets down (#407, `legs/claw.py`), and the
+    # areas it surveys (#407, the census: `legs/survey.py`)
+    self._init_claw(model)
+    self._init_survey()
+    # MAKING WAY for the other robot (#415, `legs/way.py`)
+    self._init_way()
+    # HIDE AND SEEK's two roles (#404, `legs/game.py`)
+    self._init_game()
+
+  def _resolve_geoms(self, model) -> None:
+    """What the press reads, by geom id: this body's limbs (its geoms but
+    its feet), the floors a leg brushes -- every plane, and the generated
+    worlds' floor and ground slabs (`home_floor_geom`, `garden_ground_geom`)
+    -- and the dock's, as lookups the size of the world."""
     self._contact_gids = self.body_gids[np.isin(
-      self.body_gids, [model.geom(handle.el(f"{leg}_foot")).id for leg in LEGS],
+      self.body_gids, [model.geom(self.handle.el(f"{leg}_foot")).id for leg in LEGS],
       invert=True)]
-    # ...the floors, which a leg brushes: every plane, and the generated
-    # worlds' floor and ground slabs (`home_floor_geom`, `garden_ground_geom`)
     self._floor_gids = np.array(
       [g for g in range(model.ngeom)
        if model.geom_type[g] == mujoco.mjtGeom.mjGEOM_PLANE
@@ -412,22 +437,11 @@ class QuadMission(ToolSwap, PlaceWalk, BoardWork, MakeWay, GameWalk, Navigator):
     self._dock_gids = np.array(
       [g for g in range(model.ngeom) if model.geom(g).name.startswith("dock_")],
       dtype=np.int32)
-    #: ...as lookups by geom id, for the check that runs every step
     self._is_limb = np.zeros(model.ngeom, dtype=bool)
     self._is_limb[self._contact_gids] = True
     self._is_ignored = np.zeros(model.ngeom, dtype=bool)
     self._is_ignored[np.concatenate((self._floor_gids, self._dock_gids,
                                      self.body_gids))] = True
-    # THE TOOL RACK (#405, `legs/swap.py`)
-    self._init_swap(model)
-    # THE PLACES IT FINDS (#419, `legs/places.py`)
-    self._init_places(model)
-    # THE WHITEBOARDS it draws on (#406, `legs/draw.py`)
-    self._init_draw()
-    # MAKING WAY for the other robot (#415, `legs/way.py`)
-    self._init_way()
-    # HIDE AND SEEK's two roles (#404, `legs/game.py`)
-    self._init_game()
 
   # ---- the dock's frame -----------------------------------------------------
 
@@ -942,12 +956,15 @@ class QuadMission(ToolSwap, PlaceWalk, BoardWork, MakeWay, GameWalk, Navigator):
     floor = ok & near & (z < FLOOR_Z)
     if floor.any():
       np.subtract.at(self.low, (iy[floor], ix[floor]), LOW_MISS)
+    cells = np.zeros(0, dtype=np.int64)
     if hit.any():
       # once per cell a frame: a couch's face is hundreds of points
       cells = np.unique(iy[hit] * cols + ix[hit])
       cells = cells[~self._walls().flat[cells]]
       self.low.flat[cells] += LOW_HIT
     np.clip(self.low, -LOW_CLAMP, LOW_CLAMP, out=self.low)
+    if self.census is not None:
+      self.census.fold(cells, iy[floor] * cols + ix[floor])
 
   def _walls(self) -> np.ndarray:
     """What the LIDAR maps, grown by `LOW_WALL_CELLS`, over the window the
@@ -1258,6 +1275,7 @@ class QuadMission(ToolSwap, PlaceWalk, BoardWork, MakeWay, GameWalk, Navigator):
              # looked for them
              "places": self.places.kept_state(),
              "boardZ": self.kept_heights(),
+             "cubes": self.kept_cubes(),
              "placeLook": [None if math.isinf(self._place_look[0]) else self._place_look[0],
                            None if self._place_look[1] is None else list(self._place_look[1])]},
             arrays)
@@ -1289,7 +1307,13 @@ class QuadMission(ToolSwap, PlaceWalk, BoardWork, MakeWay, GameWalk, Navigator):
     if "gains" in arrays:
       self.model.actuator_gainprm[np.ix_(self.drivers.act, [3, 4, 5, 6, 7])] = arrays["gains"]
     self.drivers.torqued = bool(state.get("torqued", False))
-    self.carry(state.get("carrying"))
+    # ...what rode the fork, where this world has it: a built tool the
+    # workshop could not hang again is no body here (#407)
+    carried = state.get("carrying")
+    if carried is not None and mujoco.mj_name2id(
+        self.model, mujoco.mjtObj.mjOBJ_BODY, carried) < 0:
+      carried = None
+    self.carry(carried)
     if "armTarget" in arrays:
       self.arm.target = np.array(arrays["armTarget"], dtype=float)
       self.arm.goal = np.array(arrays["armGoal"], dtype=float)
@@ -1340,6 +1364,7 @@ class QuadMission(ToolSwap, PlaceWalk, BoardWork, MakeWay, GameWalk, Navigator):
     # whose map did not come back has found nothing either
     self.places.restore_kept(state.get("places") if mapped else None)
     self.restore_heights(state.get("boardZ") if mapped else None)
+    self.restore_cubes(state.get("cubes") if mapped else None)
     look = state.get("placeLook") or [None, None]
     self._place_look = (-math.inf if look[0] is None else float(look[0]),
                         None if look[1] is None else tuple(float(v) for v in look[1]))
@@ -1357,16 +1382,40 @@ class QuadMission(ToolSwap, PlaceWalk, BoardWork, MakeWay, GameWalk, Navigator):
     self.places.forget()
     self._keep_out = None
     self._board_z.clear()
+    self.forget_cubes()
 
   def rebind(self, model, data) -> None:
-    """⚠ NOT DONE: a quadruped's world is never recompiled -- the seam hangs
-    a built tool (issue #168), and its rack (#405) has no rail for one: its
-    world has no workshop (`world_config`'s `built_bays`). Its drivers,
-    policies, reckoning and pack hold ids by the dozen, and a rebind that
-    missed one would drive another body's joints, so it is refused out
-    loud, not half-done."""
-    raise NotImplementedError("a quadruped's world is not recompiled: its rack "
-                              "has no rail for a built tool (#405)")
+    """A recompiled world (issue #407: a tool the workshop built, hung on
+    the rail). Every holder of the old world follows it and every id is
+    found again by NAME; what the body believes and remembers -- the map,
+    the places, the cubes, the reckoning, the posture, the arm's goal -- is
+    state and stays. The tag renderers are made again at their next look
+    (the new world's textures) and the gait's virtual model at its next use,
+    keeping its inertia. ⚠ Never mid-move: a posture move is a generator
+    holding the old data (`HubLifecycle.seam_busy` waits it out)."""
+    super().rebind(model, data)                # the LIDAR, this body's geoms
+    prefix = self.handle.prefix
+    self.root = model.body(self.handle.root).id
+    for driver in (self.walker, self.getup):   # one set of leg drivers
+      driver.rebind(model, data)
+    self.joints = pz.Joints.of(model, prefix)
+    self.arm.rebind(model, data)
+    self.arm_acts = tuple(self.arm.act)
+    self.feet = [model.site(self.handle.el(f"{leg}_foot")).id for leg in LEGS]
+    if self._vm is not None:
+      self._vm_inertia, self._vm = np.array(self._vm.inertia, dtype=float), None
+    self.odo.rebind(model, data)
+    self.depth.rebind(model)
+    for name in ("_board", "_color"):
+      if getattr(self, name, None) is not None:
+        getattr(self, name).close()
+        setattr(self, name, None)
+    self._resolve_geoms(model)
+    self._rebind_swap(model)
+    self._rebind_places(model)
+    self._rebind_claw(model)
+    self._carried_gids = np.zeros(0, dtype=np.int32)
+    self.carry(self.carrying)
 
   def start_at(self, x: float, y: float, yaw: float) -> None:
     """Stand the body at a pose, on its feet, and tell its reckoning so --
@@ -1415,8 +1464,6 @@ class QuadBody(Body):
   stuck_after_s = 20.0
   #: ...and this body rights itself.
   rights_itself = True
-  peer_at_bay_m = None
-  bay_wait = None
   rack_discovered = False
 
   def __init__(self, model, data, viewer=None, realtime: bool = True,
@@ -1489,6 +1536,26 @@ class QuadBody(Body):
     return self.mission.draw_routine(board, Board.from_meta(home.BOARDS[board]), program,
                                      patience=patience, stop=stop, on_stroke=on_stroke)
 
+  def pick_cube_routine(self, tag, patience, stop=None) -> Routine:
+    return self.mission.pick_cube_routine(tag, patience=patience, stop=stop)
+
+  def place_cube_routine(self, tag, patience, stop=None) -> Routine:
+    return self.mission.place_cube_routine(tag, patience=patience, stop=stop)
+
+  def put_cube_routine(self, patience, stop=None) -> Routine:
+    return self.mission.put_cube_routine(patience=patience, stop=stop)
+
+  def claw_routine(self, closed) -> Routine:
+    return self.mission.claw_routine(closed)
+
+  def held_cube(self):
+    if self.mission.carrying != "module_claw":
+      return None
+    return self.mission._hand().held_tag()
+
+  def survey_routine(self, tag, patience, stop=None, on_count=None) -> Routine:
+    return self.mission.survey_routine(tag, patience, stop=stop, on_count=on_count)
+
   def hide_routine(self, away_from, reach_m, clear_of_m, patience, stop=None) -> Routine:
     return self.mission.hide_routine(away_from, reach_m, clear_of_m, patience, stop=stop)
 
@@ -1554,6 +1621,15 @@ class QuadBody(Body):
 
   swapping_at = property(lambda self: self.mission.swapping_at)
   working = property(lambda self: self.mission.working)
+  peer_at_bay_m = property(lambda self: self.mission.peer_at_bay_m)
+
+  @property
+  def bay_wait(self):
+    return self.mission.bay_wait
+
+  @bay_wait.setter
+  def bay_wait(self, routine) -> None:
+    self.mission.bay_wait = routine
 
   def bay_standoff(self, station_y):
     return self.mission.rack_standoff(bay_of(station_y))
@@ -1684,10 +1760,24 @@ class QuadBody(Body):
                    + " and ".join(ARM_ACTUATORS))
 
   def ramp_routine(self, act, target, speed, settle=0.0) -> Routine:
-    return self.mission.arm_ramp_routine(act, target, speed, settle)
+    if act in self.mission.arm_acts:
+      return self.mission.arm_ramp_routine(act, target, speed, settle)
+    # ...a tool's own servo (#407: a built tool's axes, `procedure/axes.py`)
+    from pluggybot.tools import servo
+    return servo.ramp_routine(self.mission, act, target, speed, settle)
 
   def setpoint(self, act) -> float:
-    return self.mission.arm_setpoint(act)
+    if act in self.mission.arm_acts:
+      return self.mission.arm_setpoint(act)
+    return float(self.data.ctrl[act])
+
+  def arm_torque(self, act) -> float:
+    from pluggybot.perception.encoders import torque_reading
+    if act not in self.mission.arm_acts:
+      raise KeyError(f"actuator {act} is not this body's arm")
+    step = int(round(float(self.data.time) / float(self.model.opt.timestep)))
+    return torque_reading(float(self.data.actuator_force[act]),
+                          f"{self.handle.prefix}{act}", step)
 
   def settle_routine(self, seconds) -> Routine:
     for _ in range(round(seconds / self.model.opt.timestep)):

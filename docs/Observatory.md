@@ -10,6 +10,78 @@ observatory is NOT a result: it reports into the issue it informs.
 
 ## Periods
 
+### The workshop on legs: a built tool on the rack's rail (#407) — opens when this PR is deployed
+
+**What changed in the world.** The rack's board carries on past the claw's
+bay as the built-tool rail: three more bays, 0.65–1.25 m along the board
+from the rack's middle, each with its own pair of tags (47–52) and a
+presence switch, empty until a robot builds a tool. On the `autonomous` arm
+a mind has the workshop again (`build_tool` / `retire_tool`, Overseer.md
+§2d): it pays points for catalog parts, stands still while they print, and
+the world hangs the tool in the bay it named, where either robot can fetch
+it. A spec is refused by the arm's envelope (0.40 kg; the centre of mass on
+the peg or up to 60 mm ahead, and within 25 mm of its middle; hung plumb;
+0.20 m under the peg; clear of the bay's tags and the rack's rail; 12 W),
+and by the rig the workshop tries it on first. The deployed prefix went
+46 475 → 52 579 chars (`prompt_sha` `78b2d857…` → `f3ec2e8a…`): the
+workshop's rule and its catalog. ⚠ The house's geometry changed, so the
+first restart on this build keeps the clock, the packs, the deaths and the
+jobs but not the bodies or the maps. Deployed together with the claw's PR
+(below), the two are ONE period, and the prefix goes 45 062 → 52 579 chars
+(`77c9c402…` → `f3ec2e8a…`).
+
+**What the period is for.**
+
+- **Is a tool ever built on legs?** On the rover every one of 433 specs in
+  seven days was refused (#315) and none was ever hung live (#264). Live:
+  `tool` rows by outcome (`specified`, `refused` with its reasons, `built`,
+  `hung`), and procedures that name a built tool's axis.
+- **Which rule refuses**: the `refused` reasons by rule (`hangs`, `side`,
+  `ahead`, `drop`, `tags`, `rail`, `rig:`, the catalog's) say whether the
+  envelope the prompt states is one a model can design to.
+
+### The claw, the census and the challenges on legs, and the pair's turn at a bay (#407, #418) — opens when this PR is deployed
+
+**What changed in the world.** Three jobs join the pair's board:
+`count_plants` (the garden's census: its tag found, the LCD fetched, the
+garden walked round until 90 % of its floor was seen, the plants counted
+off the depth camera, the count on the LCD's face, the LCD hung back) and
+the two challenges, `stack_tower` and `find_mass`, each a procedure the
+robot writes, with the claw on the arm. Each offer carries its area's
+address and directions (`home/places.json`: the workshop corner, the bench,
+the garden), never a position, and the bench is an area of its own: it no
+longer shares the cage's slot. The house moved: five area tags (42-46, the
+workshop corner's pair on its west wall, the bench's on its front, the
+garden's on its east fence), the tower's blocks 0.70 m out from the
+workshop wall, the bench's masses 0.25 m either side; the claw module is
+rebuilt (its slide and its jaws), so the scenes are new. The procedure
+rule gains `pick`, `place`, `put`, `grip`, `release` and `survey`, and the
+sensors `claw.holding`, `shoulder.torque` and `elbow.torque`: the deployed
+prefix went 45 062 → 46 475 chars (`prompt_sha` `77c9c402…` →
+`78b2d857…`). A robot holds at its approach's start while the other works
+at its bay or the next (#418). The three jobs are priced (`energy.json`:
+census 13.31 Wh, the tower 8.106, the bench 9.938), and the cadence offers
+eight kinds on `home_quad`. ⚠ The house's geometry changed, so the first
+restart on this build keeps the clock, the packs, the deaths and the jobs
+but not the bodies or the maps: both robots re-learn their house.
+
+**What the period is for.**
+
+- **Is the tower ever built, the bench ever weighed, live?** Ladder A flies
+  both from the dock (the tower 1 of 1 and the bench 2 of 2 on the pair);
+  ladder B (#407's comment) says whether the deployed model writes one when
+  asked. Live: `stack_tower` / `find_mass` reaching `done`, and defined
+  procedures that name `pick` or `read("elbow.torque")`.
+- **The census's count**: `count_plants` verdicts, counted against truth
+  and coverage. Wrong under 90 % coverage is a survey cut short; wrong
+  above it is the counter.
+- **The rack with three tools turning over** (#418): `WAIT:` lines at a bay,
+  swaps that end `blocked`, and stows that let go; the pair tables' 9 of 10
+  at neighbouring bays is the bench's figure.
+- **Finding an area**: a fresh map took 468 s to find the garden's tag from
+  the house's address; `find` steps' seconds after a true death are the
+  cost of forgetting.
+
 ### Drawing on legs: the whiteboards' three jobs (#406) — opens when this PR is deployed
 
 **What changed in the world.** Three jobs come back, on the pair's board

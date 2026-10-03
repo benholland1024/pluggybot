@@ -1416,10 +1416,12 @@ flat.
   full height from one stance (0.19–0.41 m from 0.43 m out) and the pressing
   force, reacted by the pad;
 - **the claw** — the arm reaches the floor 0.40–0.50 m ahead with the
-  rover's 154 mm pendant, so the pendant can shorten; holding the bench's
-  0.4 kg cube it weighs 0.61 kg, carried seated as the envelope's 0.60 kg
-  rows were, and held straight out at 39 % of the motors' rating;
-- **the LCD and the seed dispenser** — unchanged but for the peg;
+  rover's 154 mm pendant; built, it hangs its jaws 175 mm under the peg, so
+  its crossbar clears its bay's tags ("The claw on legs"); holding the
+  bench's 0.4 kg cube it weighs 0.61 kg, carried seated as the envelope's
+  0.60 kg rows were, and held straight out at 39 % of the motors' rating;
+- **the LCD** — unchanged but for the peg (the seed dispenser is retired:
+  no job ever used it, #407);
 - **the plug does not** — no job uses it, and the robot charges by lying
   on its dock (#390).
 
@@ -1432,9 +1434,9 @@ its planar model, #405); the coupling is `ArmSpec().fork` (60° V's) with
 `rack.bay_aim` and walked into by `rack.walk_in_twist`; the stow, the carry
 pose, the fold threshold and the tool envelope are `legs/arm.py`'s
 constants. `tests/test_arm.py` pins each rule above. #405 built the arm
-and the fold into the served body; its stage B brings the rack and the
-tools into the served world and the carried-tool filter into the scans,
-and step 4c the envelope into the workshop's validator.
+and the fold into the served body, and the rack, the tools and the
+carried-tool filter into the served world; #407 made the envelope the
+workshop's validator ("The workshop on legs").
 
 ## The served sim's speed (issue #385)
 
@@ -2224,11 +2226,9 @@ the scans are this issue's stage B.
 The quadruped's world has its own rack (`legs/world.py`): #378's rack on
 the living room's south wall beside the dock (`RACK_X` 2.1; its board spans
 x 1.6..2.6, the dock is at 3.5), its three bays holding the LCD (A, the east
-one), the pen (B) and the claw (C). Until #407 rebuilds them on the
-220 mm peg the LCD and the claw are a plate, a peg and a face that says
-which, visual only, the mass (the rover's module's, the peg's swapped) on
-the plate: the envelope's "on its peg" case. The pen is built ("Drawing on
-legs", below). The tools keep the rover's module names, and
+one), the pen (B) and the claw (C). The LCD is a plate, a peg and its
+screen, its mass on the plate (the envelope's "on its peg" case); the pen
+and the claw are built ("Drawing on legs", "The claw on legs", below). The tools keep the rover's module names, and
 the rack's parts its bay letters (`bay<letter>_tray_...`), so the rack view,
 the lost-tool clock, a program's `fetch` and an admin's reset read them
 unchanged (`coupling.bay_switches` reads the three bays). The lifecycle
@@ -2242,7 +2242,8 @@ the measurement, the fork in under the peg, up and out, the tool to the
 carry pose over the nose; hanging it back is the reverse, with a second
 settle and look after the fork comes down from the carry pose. A program
 on `autonomous` runs it as `fetch` and `stow` (`world_config`'s `swap`:
-`SWAP_VERBS`); there is no errand, and no job, that needs a tool yet.
+`SWAP_VERBS`); the boards' jobs take the pen (#406), the census the LCD and
+the challenges the claw (#407).
 
 **Four things the spike's world could not show:**
 
@@ -2328,7 +2329,8 @@ against the fork ignored (a review fix, withdrawn), both robots' tools
 were knocked off in 4 of 6 flights. Making a carried tool a limb to its
 own robot's bumper as well landed that flight and lost three tools in two
 others (17 of 20): both robots flinched at once, bumped and backed off in
-turn until the tools fell -- withdrawn too, and #418's to settle. At the
+turn until the tools fell -- withdrawn too, and settled by #418's wait
+("Two robots at one rack, on legs", below). At the
 carry pose the fork is the body's collidable front (0.418 m ahead of the
 centre; the tools' plates 0.411, their faces visual only), past the front
 stop's 0.38 m: a carrying body walked at a wall is answered by the bump.
@@ -2354,11 +2356,11 @@ The house has no stairs yet (#280): a flight carried is #378's table
 **What is true now:** the served quadruped fetches, carries and stows the
 three tools on its own rack from a program; `tests/test_quad_rack.py` pins
 each rule above, and the whole swap flies behind `--endurance`. Not done:
-the other tools' jobs (#407; the pen's are "Drawing on legs", below); a carried tool down the house's stairs (#280 builds
+a carried tool down the house's stairs (#280 builds
 them); the other robot's carried tool is not filtered from this one's
 senses (at the carry pose it is above the LIDAR's plane), and nothing
 keeps two carrying robots' tools apart at the rack (1 of 20 knocked off at
-bays A and C), nor a second robot off a bay the first is working (#418).
+bays A and C, 0.60 m apart: outside the 0.55 m #418's wait covers).
 
 ## The feed on legs (issue #403)
 
@@ -2551,8 +2553,7 @@ looks in 86 sim s, one every 2 s -- 16 ms a sim second at the box's render,
 1.6 % of real time per walking robot.
 
 **Still open.** Loop closure (#381): the lab's frame is the one the map was
-laid in. The address is a fixed offset, not a GPS sensor. The other tools'
-task areas (#407; the whiteboards' tags are "Drawing on legs", below).
+laid in. The address is a fixed offset, not a GPS sensor.
 
 ## Lying still, the heading holds (issue #425)
 
@@ -3108,6 +3109,204 @@ a job: `draw_figure`, `rate_artwork` and `whiteboard_answer` are offered on
 stow; `lifecycle.draw_program`), and `draw` is a legs verb a procedure may
 call where the world has boards, a rack and places. `tests/test_drawing.py`
 pins each rule above; the flown tables are `draw_spike.py`'s.
+
+## The claw on legs (issue #407)
+
+The claw is rebuilt on the 220 mm peg (`legs.rack.claw_face`): two jaws
+closed by one servo, an FS90MG through a rack and pinion (two position
+actuators commanded as one), on a second L12-100 slide across the module
+-- the body cannot sidestep millimetres, so the module does. Hung, the
+jaws sit `CLAW_JAW_DROP` (0.175 m) under the peg: at 0.150 m the crossbar
+hid the bay's tags from the working pose, and no fetch of the claw fitted
+its bay.
+
+**The eye.** A cube is 26 mm, its tag 21 mm. The nose camera, level at
+0.36 m, sees no floor nearer than 1.1 m standing and decodes such a tag no
+further than 0.8 m: it never sees a cube it could reach. The D435's colour
+imager (`color_eye`, pitched 30 deg down with the depth camera; 1280 x 720,
+the offscreen buffer's size) decodes one 0.5-0.9 m ahead standing and
+0.38-0.68 m lying. A cube carries its tag on every face, so one render
+decodes its top and its sides; keyed by id, the last decode won, and lying
+in front of a cube that was its top seen edge-on, 16 mm over the face the
+robot faced. Each decode is classed by its normal and the face seen most
+square-on is read, its centre pixel cut at the face's known height -- the
+floor under the robot, through its legs or its belly, and a layer is a
+cube's edge -- never PnP's range: lying 0.58 m off, both faces put a cube
+within 0.1 mm. The cube in the jaws stands on no layer (cut at one it read
+18 mm long), so it is PnP's, from close.
+
+**The stance** is lying, as the pen's: standing, the walking policy never
+quite stops. Lying, the arm puts the jaws on the floor from 0.35 to 0.82 m
+ahead, and the imager sees a cube's whole tag from 0.40 to 0.68 -- the claw's
+working band (`tools.claw.REACH_X`). The walk in is steered by the cube's
+tag to where lying down leaves it mid-reach (`LIE_AT_M`, 0.54 m), the body
+lies and looks again; out of reach it stands, backs out and walks in again,
+three times.
+
+**The grip.** MuJoCo's soft contact lets a held cube creep at about
+(1 - d)/d * g/b. The pads are stiff (solref 0.006, solimp 0.99/0.999 with a
+10 um width) and the jaw servo saturates at its stall force (kp 2000, 10 N):
+at 600 N/m the jaws breathed and a shaken cube slipped 1.6 mm/s; now it
+creeps 0.032, 0.09 and 0.19 mm/s at 60, 150 and 320 g. condim 4 and a
+stiffer solimp (0.9995) made it worse. Held is judged by DISTANCE -- both
+pads within 0.5 mm of one body that can move -- because under the moving
+body the stiff pads' contacts came and went from step to step, and a cube
+in the jaws read "nothing held". Setting one down, the claw first shows it
+to the imager low in front of the target and measures where it hangs.
+
+**The search.** Where the cube was last seen, else in front of its area's
+tags: the workshop corner's pair (42-43) and the bench's (44-45), the props
+set out 0.70 m in front of them. From 1.2-1.5 m out the row decodes whole.
+The bench's tags, first seen from the street through two doorways, were
+remembered 0.12-0.23 m off and 6 deg askew, and from the one look point on
+their middle cube 24 decoded at 0.78 m while cube 23 stood 0.96 m off, past
+the imager: so the search stops three times along the row, each stop
+planned off the tags as remembered when it is walked to.
+
+**What is true now:** the claw picks and places lying; towers stacked by
+the body's routines stood 6 of 6 (lean 1.3-5.7 mm); ladder A flies TOWER
+and WEIGH on the served pair from the dock (`scripts/solve.py --feature
+tower|bench`, reported on #407). A claw hung back holding a cube is a cube
+hung on the rack, so a stow sets it down first.
+
+## The census on legs (issue #407)
+
+The garden's plants are 0.30 m tall and the quadruped's LIDAR scans at
+0.51 m, over them: they are the depth camera's low layer. The area is
+found, not handed over -- the known floor the LIDAR's walls and fence
+enclose round the garden's tag (46, on the east fence across from the
+living room's doorway; on the house's own wall a robot inside never saw
+it), opened by half a door (`census.DOOR_M`, 1.2 m) so the doorway closes
+it.
+
+Three counts were wrong before one was right. Counted off the planner's
+layer, a stalk's cell seen from one side was taken back by the floor seen
+round it from another: 2 of 4 at 91 % coverage. A survey keeps a layer of
+its own that only adds, an object at three frames. Then five: the garden
+light's 40 mm pole, which rays slipping past clear from the fused map,
+stood in the low layer -- what a LIDAR return hits is taller than its
+plane, so an object at one is not a plant. Then two: a walking torso's
+pitch put returns 7.4-8.0 m off onto two of the plants (the level gate is
+1.5 deg), so only a return within 3 m (`survey.LIDAR_TALL_M`) marks
+anything.
+
+**What is true now:** from the living room's doorway, 4 of 4 at 91 %
+coverage in 361 sim s over 23 vantages; from the dock the whole job (the
+tag found, the LCD fetched, the survey, the LCD hung back) took 586 s and
+13.3 Wh, and paid. The count is on the LCD while the LCD is on the fork.
+
+## The bench's scale (issue #407)
+
+The rover weighed with its lift's load. The arm's drivers report torque
+(the third field of the reply: 12 bits over +-22 N*m off the phase current,
+with a stated 25 mA x 1.19 N*m/A of sense noise -- 0.03 N*m a reading;
+`perception/encoders.py`). The weighing is a ratio: the empty claw, the
+known cube and the unknown, each held at the pose a pick leaves the arm
+in, ten readings each; the mass is the known one's times the ratio of what
+each added, so the arm's lengths, its own weight and the claw's cancel. The
+elbow read 250 g within 0.2 % and 60 g within 1.5 % (the shoulder 4.5 % and
+2.7 %, carrying the body's sway); `bench.TOLERANCE` is 10 %.
+
+**What is true now:** WEIGH recorded 0.181 kg for 0.18 on the served pair,
+paid; a robot writing its own weighing reads `shoulder.torque` and
+`elbow.torque`.
+
+## Two robots at one rack, on legs (issue #418)
+
+The rover's wait (#346) backed off to a spot. The quadruped holds where its
+approach starts, a metre behind the bay, while the other robot's reported
+pose is within the planner's disc (0.55 m standing) of THIS bay's working
+pose -- Ben's decision: the next bay's is 0.30 m off, two over 0.60. Pair
+tables (`arm_spike.py --served --pair --bays`): neighbouring bays 9 of 10
+swaps, waits 2-16 s; two apart 9 of 10, no waits; one bay, one hanging back
+while the other comes for it, 8 of 8, waits 4-9 s. One robot alone, 18 of
+18. The two misses were stows that let go (the pen at B, -11.2 mm across
+and -2.6 deg; the claw at C, +6.9 mm), each with the other robot working
+at the same time: recorded, not explained.
+
+The first one-bay table found what the wait does not cover: a robot left
+standing after its stow lay down by reflex 0.36 m inside the bay's
+approach, and the other's walk in -- steered by the bay's tags, never the
+planner -- walked over it. The loop never leaves one there (#346 sends a
+robot done at the rack away), so the table models the loop; the walk-in
+still avoids no peer.
+
+**What is true now:** `ToolSwap._bay_free_routine` asks the lifecycle's
+wait with `hold`, and a swap whose wait gave up is `blocked`.
+
+## The workshop on legs (issue #407)
+
+The rover's built-tool rail went with it (#376). The quadruped's rack has
+three bays and the three tools every offered job is written against hang in
+them (#277's rule keeps them permanent), so a built tool gets a rail of its
+own: three more bays along the same board, in line with the rack's
+(`legs.rack.BUILT`, at 0.65, 0.95 and 1.25 m in the rack's frame, a pair of
+tags a bay, 47–52). One board means one commissioned pose, one approach and
+one look that fits every tag it sees (`fit_rack(seen, SPECS)`).
+
+**The envelope is the arm's** (`workshop/validate.py`, every number read off
+`legs/arm.py` and `legs/rack.py`; ToolPattern.md §2). The rover's latch
+moment, bracket band and wall went with the rover. Each new rule was found
+by a build that broke it:
+
+- **A hung tool hangs plumb.** The rover's example scoop, its blade forward
+  of the plate, hung 5° off plumb, and `on_bay` read it as not hung; the
+  prompt's example hangs its blade straight down.
+- **...and centred.** A centre of mass 70 mm to one side validated and
+  tipped 47° off the trays. Measured in the rig, 30 mm hung, was taken and
+  hung back with the fork 15 mm either way; 35 mm did not seat with the fork
+  15 mm toward it; 45 mm (the trays' own ±45) did not hang: the rule is 25.
+- **Nothing behind the plate** (the fork's prongs, bridge and lean-pad),
+  **nothing in front of its bay's tags** — the plate's own slab included:
+  a crossbar there, 76 mm wide, hid both tags from the working pose — and
+  **nothing in reach of the rail** the trays hang from, hung or lifted by a
+  pick: a thin handle up to 150 mm over the peg jammed on it at 15°.
+
+**And the rig is the last gate** (`build.trial`), before a point moves: the
+module hung, taken, worked and hung back on a bench rack, the fork on the
+bay's middle and at the line-up gate either side, 0.25 s a try. A tool that
+cannot hang is otherwise lost the moment it hangs, and the lost-tool clock
+puts it back on the same bay every 300 s for ever. The names a module would
+bring are checked against the world's first (`seam.names_taken`): a tool
+called `claw_carriage` named a body of the claw's and was refused only once
+its parts were bought, and one called `claw_pad` with a part `l` broke the
+world's compile.
+
+**At its stow.** The validator checks a tool hanging at its stow, so the
+module compiles there: each moving part built at its axis's stow with the
+joint's `ref` set to it, so `qpos0` is the stow — the rest a walk, a
+hang-back and a reset return it to — and the seam sets each new servo to
+hold there (a recompile starts a new actuator at 0). Built at 0, a flap
+whose stow is −90° hung 14° off plumb and was lost from the moment it hung,
+and a hinge a procedure had swung was hung back swung.
+
+**Two bugs in the build path**, each pinned in `tests/test_workshop_build.py`:
+a servo's range was written in degrees into a module compiled in radians, so
+its 0–90° compiled as 0–90 rad and limited nothing; and the stand-in inertial
+given a part with no mass of its own zeroed the masses of the parts riding on
+it (only an empty load gets one now).
+
+**The seam on the served pair.** A built module is attached after the
+robots, so no robot's ids move; every holder of the old model re-resolves its
+ids by name (`QuadMission.rebind`: the drivers, the policy, the arm, the
+odometry, the places, the claw). The hang waits until every body is still: a
+body lying down, standing up, working a bay or stepping aside is a generator
+holding the world it began in, as a restart's save waits (`Keeper.busy`). A
+recompile builds the model from the spec, so whatever the running world had
+written into the old model goes: the garden lamp went dark for good until
+its toggle's rebind applied its state again. Measured (`scripts/workshop.py
+--example --served --bay A|B|C`, the pair standing): the recompile 6–10 ms
+of wall time; no stale holder in either lifecycle; neither robot moved or
+fell; the scoop hung plumb; the arm fetched it on its first walk-in
+(3.5–5.3 mm across, within 1.5°) and hung it back.
+
+**What is true now:** `home_quad` has the workshop (`world_config`'s
+`built_bays` is 3), its prompt states the arm's envelope (`workshop_rule`),
+and a bay letter past the rail's is refused without naming an original's
+bay. A robot standing by is sent clear of the rail's bays and their
+approaches as well as the dock (`rack_distance`, off each rail bay's
+standoff: computed off the dock's frame, two rail bays' approaches were
+"clear").
 
 ## Debugging workflow that worked
 

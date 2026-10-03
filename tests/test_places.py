@@ -45,7 +45,8 @@ from pluggybot.mapping.frontier import OCC_THRESH
 from pluggybot.mapping.places import Fixture, Places
 from pluggybot.mind import overseer as ov
 from pluggybot.procedure import steps as st
-from pluggybot.rack.tags import BOARD_TAG_IDS, PLATE_TAG_IDS
+from pluggybot.home.areas import area_ids
+from pluggybot.rack.tags import BLOCK_TAG_IDS, BOARD_TAG_IDS, MASS_TAG_IDS, PLATE_TAG_IDS
 from test_body import stub_life  # noqa: I001 -- tests/ is on sys.path
 
 SHOCK, FEED, TOY = (cage.PLATE_TAGS[n] for n in ("shock", "feed", "toy"))
@@ -319,6 +320,7 @@ def test_places_ride_a_restart_with_the_map_and_go_with_it_at_a_true_death(quad_
     m.grid.grid[10:20, 10:20] = 3.0
     m.low[5, 5] = 3.0
     m.restore_heights({"whiteboard_a": [0.93, 0.95, 0.94]})   # ...and a board's height (#406)
+    m.cubes[23] = (26.68, 1.25, 0, 40.0)                       # ...and a cube it saw (#407)
     state, arrays = m.kept_state()
     json.dumps(state)
     other = _quad(quad_world)
@@ -326,15 +328,16 @@ def test_places_ride_a_restart_with_the_map_and_go_with_it_at_a_true_death(quad_
     assert [(p.tag, p.x, p.y) for p in other.mission.places] == \
         [(p.tag, p.x, p.y) for p in m.places]
     assert other.mission.board_height("whiteboard_a") == m.board_height("whiteboard_a") == 0.94
-    # ...and a map that does not come back brings no places
+    assert other.mission.cubes == {23: (26.68, 1.25, 0, 40.0)}
+    # ...and a map that does not come back brings no places, nor cubes
     third = qb.QuadBody(quad_world, mujoco.MjData(quad_world), realtime=False,
                         grid_bounds=(-3, -3, 7, 7))
     assert not third.mission.restore_kept(state, arrays) and len(third.places) == 0
-    assert third.mission.board_height("whiteboard_a") is None
+    assert third.mission.board_height("whiteboard_a") is None and third.mission.cubes == {}
     third.close()
     body.forget_world()
     assert not m.grid.grid.any() and not m.low.any() and len(m.places) == 0
-    assert m.board_height("whiteboard_a") is None
+    assert m.board_height("whiteboard_a") is None and m.cubes == {}
     assert m.keep_out() is None
   finally:
     body.close()
@@ -675,7 +678,8 @@ def test_find_is_a_legs_verb_where_the_world_has_places_and_press_where_its_lab_
     monkeypatch):
   facts = world_facts(QUAD_HOME)
   boards = tuple(t for ids in BOARD_TAG_IDS.values() for t in ids)
-  assert facts.places == PLATE_TAG_IDS + boards and facts.plates == PLATE_TAG_IDS
+  assert facts.places == PLATE_TAG_IDS + boards + area_ids()
+  assert facts.plates == PLATE_TAG_IDS
   assert "find" in facts.verbs and "press" in facts.verbs
   assert st.check_step(st.VERBS["find"], {"tag": FEED, "x": 25.2, "y": -2.4}, facts) == []
   assert "no place" in st.check_step(st.VERBS["find"], {"tag": 99, "x": 0, "y": 0}, facts)[0]
@@ -779,7 +783,9 @@ def test_the_directions_pass_the_dispatcher_test():
     numbers = {int(n) for n in re.findall(r"\d+(?:\.\d+)?", spec["directions"])}
     tags = {int(t) for t in spec["tags"]}
     assert numbers == tags, (name, numbers - tags)
-  assert set(addresses.tag_names()) == {*PLATE_TAG_IDS,
+  # ...the areas' own tags, and the cubes their directions name (#407)
+  assert set(addresses.tag_names()) == {*PLATE_TAG_IDS, *area_ids(), *BLOCK_TAG_IDS,
+                                        *MASS_TAG_IDS,
                                         *(t for ids in BOARD_TAG_IDS.values() for t in ids)}
 
 
@@ -824,13 +830,13 @@ def test_the_mind_sees_the_places_it_found_by_name_where_and_when():
 
 def test_a_legs_world_is_never_shown_where_its_furniture_stands(monkeypatch):
   """The lab's block names no position on a body that finds its places
-  (#419): the world knows where the bench stands, and the mind is told the
+  (#419): the world knows where the cage stands, and the mind is told the
   room and what is in the cage."""
   from dataclasses import replace
   from types import SimpleNamespace
 
   from pluggybot.lifecycle import HubLifecycle
-  assert "bench" in world_config(QUAD_HOME)["lab"], "premise: the world knows where"
+  assert "cage" in world_config(QUAD_HOME)["lab"], "premise: the world knows where"
   monkeypatch.setattr(HubLifecycle, "cage", property(lambda self: SimpleNamespace(
     context=lambda data, root: {"inRoom": False, "mouse": None})))
   boss = ov.Overseer(replace(ov.Menu.for_world(QUAD_HOME), lab="lab"), client=1)

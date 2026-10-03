@@ -75,7 +75,7 @@ ends whatever it lands in (issue #348): the loop starts again from the top.
 On `autonomous` the agent also writes code and builds tools: a procedure it
 defined (issue #166) is an action, `procedure:<name>`, and runs as an errand;
 a tool it specified (issue #168) is built where it stands and hung in a bay
-of a built-tool rail, which no world on legs has yet (#407).
+of the built-tool rail along its rack's board (#407).
 
 ### What each state reads and writes (the memory, issue #221)
 

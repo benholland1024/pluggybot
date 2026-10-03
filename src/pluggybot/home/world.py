@@ -328,12 +328,14 @@ LOOP_ZONES = ("street_north", "street_east", "street_south", "street_west")
 
 #: THE TOWER'S BLOCKS (issue #207; challenge/stack.py): three 26 mm cubes
 #: on the workshop floor, a block's throw apart, in the room's south-west
-#: corner -- 1 m off both walls, 3 m from the workshop spawn and 6 m from
-#: its door, on no route the robot needs. The lidar plane is 22 cm up and
-#: does not see them; the depth camera does. The challenge is graded
-#: wherever the tower ends up standing, so this is where it STARTS, not
-#: where it has to be built.
-TOWER_XY = ((-11.0, -5.0), (-11.0, -4.75), (-11.0, -4.5))
+#: corner -- 0.7 m off its west wall, where a pair of tags marks the area
+#: (#407, `home.areas`: the claw's search looks in front of them, as at the
+#: bench), a metre and more off the south wall, 3 m from the workshop spawn
+#: and 6 m from its door, on no route the robot needs. No LIDAR plane sees
+#: them; the depth camera's colour imager reads their tags. The challenge is
+#: graded wherever the tower ends up standing, so this is where it STARTS,
+#: not where it has to be built.
+TOWER_XY = ((-11.28, -5.0), (-11.28, -4.75), (-11.28, -4.5))
 
 #: THE LAB'S PROPS (issue #215; activity/cage.py, challenge/bench.py). The
 #: cage against the lab's north wall, centred, its three plates a row in

@@ -1,10 +1,12 @@
-"""Slice B of issue #168: a validated spec becomes a module, and the rig
-answers the four questions the build sequence asks -- off the world.
+"""Slice B of issue #168, on legs (#407): a validated spec becomes a module,
+and the rig -- the legs rack, the arm's own fork on a carrier -- answers the
+questions the build sequence asks, off the world.
 
-The rig is a spike run (~1.1 s); three of them here, deliberately: the
-reference tool, a tool the validator passes and the rig refuses, and one
-lateral offset each way of the envelope. Everything else is the emitted
-XML and the registries, in milliseconds.
+The rig is a spike run (~0.3 s); five of them here, deliberately: the
+reference tool, a tool the validator passes and the rig refuses, and the
+fork off the bay's middle where it still takes a tool and where it no
+longer does. Everything else is the emitted XML and the registries, in
+milliseconds.
 """
 
 import copy
@@ -13,6 +15,7 @@ import math
 import mujoco
 import pytest
 
+from pluggybot.legs import rack as rk
 from pluggybot.procedure import axes
 from pluggybot.rack import coupling
 from pluggybot.workshop import build, validate
@@ -32,40 +35,46 @@ def test_the_reference_tool_passes_the_rig(scoop):
 
 
 def test_the_rig_refuses_what_the_validator_cannot_see():
-  """The validator is static; the rig has gravity and a floor. A pendant
-  that hangs below the rack's shelf is inside every envelope rule and
-  falls off its trays on the rig -- `hangs` False, before any pick."""
-  deep = copy.deepcopy(SCOOP)
-  deep["parts"].append({"id": "pendant", "part": "scaffold_pla_box",
-                        "size": [10, 10, 240], "pos": [0, 0, -180]})
-  tool = validate.check(deep)      # the validator lets it through
+  """The validator is static; the rig has gravity. A 353 g tool whose
+  FS90 must hold 0.155 N*m at its axis's end, against the servo's 0.147,
+  is inside every envelope rule and fails `works` on the rig. Shown to
+  pass the rig -- wrongly -- while an actuator's load carried a stand-in
+  inertia, which replaced its parts' masses: every moving part of a built
+  tool was massless (#407)."""
+  heavy = copy.deepcopy(SCOOP)
+  heavy["parts"][1] = {"id": "block", "part": "scaffold_pla_box", "size": [34, 50, 100],
+                       "pos": [-5, 0, -75], "on": "hinge"}
+  tool = validate.check(heavy)      # the validator lets it through
+  assert tool.by_id["block"].mass * validate.G * 0.075 > tool.by_id["hinge"].axis.force
   res, _ = build.rig(tool)
-  assert not res["hangs"] and not res["ok"]
+  assert res["hangs"] and res["picked"] and not res["works"]["tilt"] and not res["ok"]
 
 
-def test_the_lateral_envelope_holds_for_a_built_module(scoop):
-  """±4 mm is the coupling's measured window; a built module keeps it on
-  the rig (+4 mm passes) and loses it where the spike does (8 mm fails
-  the return)."""
-  ok, _ = build.rig(scoop, dy=0.004)
-  assert ok["ok"]
-  far, _ = build.rig(scoop, dy=0.008)
-  assert far["picked"] and not far["stowed"]
+def test_the_fork_takes_a_built_module_off_the_bays_middle_as_far_as_a_walk_in_stops(scoop):
+  """A walk-in stops within 15 mm across (`rack.LINEUP_ACROSS`), and a
+  built module keeps the fork's capture there; 30 mm off, the fork does
+  not take it."""
+  assert rk.LINEUP_ACROSS == pytest.approx(0.015)
+  for dy in (0.015, -0.015):
+    ok, _ = build.rig(scoop, dy=dy)
+    assert ok["ok"], (dy, ok)
+  far, _ = build.rig(scoop, dy=0.030)
+  assert not far["picked"] and not far["ok"]
 
 
-def test_joint_range_is_degrees_and_ctrlrange_is_radians(scoop):
-  """MEASURED: the compiler converts a hinge's `range` and not a position
-  actuator's `ctrlrange`. Both must come out as π/2 in the compiled model
-  or the servo would be asked for 90 radians."""
-  xml = coupling.scene_xml(face=build.face_xml(scoop, "tool"),
-                           actuators=build.actuator_xml(scoop, "tool"))
-  model = mujoco.MjModel.from_xml_string(xml)
+def test_a_hinges_range_and_its_ctrlrange_are_radians_where_it_compiles_in_radians(scoop):
+  """MEASURED: a compiler in degrees converts a hinge's `range` and never a
+  position actuator's `ctrlrange`, and every legs emitter compiles in
+  radians (the rig, the seam's child spec). Written in degrees, a 0-90 deg
+  hinge had a 0-90 RADIAN limit -- none -- and a heavy blade swung over
+  the top (#407)."""
+  model = mujoco.MjModel.from_xml_string(build.rig_xml(scoop))
   j = model.joint("tool_tilt_joint")
   a = model.actuator("tool_tilt")
   assert model.jnt_range[j.id][1] == pytest.approx(math.pi / 2)
   assert model.actuator_ctrlrange[a.id][1] == pytest.approx(math.pi / 2)
   assert model.actuator_forcerange[a.id][1] == pytest.approx(0.147)
-  assert 'range="0.000 90.000"' in build.face_xml(scoop, "tool")
+  assert 'range="0.000000 1.570796"' in build.face_xml(scoop, "tool")
 
 
 def test_the_face_carries_no_contact_parameters(scoop):
@@ -79,7 +88,7 @@ def test_the_face_carries_no_contact_parameters(scoop):
   # it rides is filtered by MuJoCo's parent-child rule
   assert '<body name="tool_hinge_load"' in face
   # and the module carries the real split peg, so the rig can read poles
-  xml = coupling.scene_xml(face=face)
+  xml = build.rig_xml(scoop)
   assert "tool_peg_l" in xml and "tool_peg_insul" in xml
 
 
@@ -97,12 +106,15 @@ def test_the_spike_did_not_move_without_a_face():
   assert model.body_pos[model.body("rail").id][2] == pytest.approx(coupling.PEG_Z)
 
 
-def test_module_for_goes_through_module_xml(scoop):
-  xml = build.module_for(scoop, 0.09, 0.125, 0.30)
-  assert '<body name="module_scoop"' in xml
+def test_module_for_goes_through_the_racks_own_tool_xml(scoop):
+  """A built module is `legs.rack.tool_xml`'s, as the hand-built ones are:
+  its default class, its body, the 220 mm peg and the plate's mass."""
+  default, xml = build.module_for(scoop, (0.09, 0.125, 0.30))
+  assert default == rk.tool_default("module_scoop")
+  assert '<body name="module_scoop"' in xml and 'childclass="module_scoop_tool"' in xml
   assert 'name="module_scoop_body"' in xml and 'name="module_scoop_peg_l"' in xml
   assert 'name="module_scoop_hinge"' in xml and 'name="module_scoop_blade"' in xml
-  assert 'mass="0.100"' in xml           # the plate: MODULE_MASS less the peg
+  assert f'mass="{rk._f(rk.MODULE_MASS - rk.peg_kg())}"' in xml   # the plate less the peg
 
 
 def test_register_puts_the_verb_in_the_registries(scoop):
@@ -155,9 +167,7 @@ def test_a_switch_on_a_tool_is_a_contact_sense_and_reads_the_world():
     sense = axes.SENSORS["feeler.switch.contact"]
     assert sense.requires == "module_feeler"
 
-    xml = coupling.scene_xml(face=build.face_xml(tool, "module_feeler"),
-                             actuators=build.actuator_xml(tool, "module_feeler"))
-    model = mujoco.MjModel.from_xml_string(xml)
+    model = mujoco.MjModel.from_xml_string(build.rig_xml(tool, body="module_feeler"))
     data = mujoco.MjData(model)
 
     class Life:
@@ -170,7 +180,7 @@ def test_a_switch_on_a_tool_is_a_contact_sense_and_reads_the_world():
     assert sense.read(life) == 0.0
     # ...pressed into the floor: the free body dropped until the switch,
     # the lowest thing on the module, is inside the plane
-    q = model.joint("tool").qposadr[0] if "tool" in [model.joint(i).name for i in range(model.njnt)] else 0
+    q = model.joint("module_feeler_free").qposadr[0]
     gid = model.geom("module_feeler_switch").id
     lowest = float(data.geom_xpos[gid][2]) - float(model.geom_size[gid][2])
     data.qpos[q + 2] -= lowest + 0.002
@@ -190,8 +200,9 @@ def test_a_camera_part_is_a_sensor_with_no_contact_sense():
   validates onto a tool, but it is not something to `read()` a touch off:
   no `sense`, no `.contact` name."""
   eyed = {"name": "eye", "parts": [
-    {"id": "mast", "part": "scaffold_pla_box", "size": [10, 10, 30], "pos": [-10, 0, -20]},
-    {"id": "cam", "part": "esp32_cam", "pos": [-20, 0, -30], "on": "mast"}]}
+    {"id": "mast", "part": "scaffold_pla_box", "size": [10, 10, 30], "pos": [0, 0, -45]},
+    {"id": "cam", "part": "esp32_cam", "pos": [0, 0, -40], "euler": [0, 90, 0],
+     "on": "mast"}]}
   tool = validate.check(eyed)
   assert build.contact_sensors(tool) == []
   assert build.register(tool) == []
@@ -207,7 +218,8 @@ def test_the_peg_budget_fits_a_servo_and_an_eye_and_refuses_three_servos():
   still do not, since the validator sums every ceiling as if simultaneous."""
   from pluggybot.workshop.spec import Refused
   eyed = copy.deepcopy(SCOOP)
-  eyed["parts"].append({"id": "eye", "part": "esp32_cam", "pos": [10, 0, -20]})
+  eyed["parts"].append({"id": "eye", "part": "esp32_cam", "pos": [0, 0, -110],
+                        "euler": [0, 90, 0]})
   validate.check(eyed)                 # 6.95 W under 12
   three = copy.deepcopy(SCOOP)
   for i, y in enumerate((-15, 15)):
@@ -216,3 +228,18 @@ def test_the_peg_budget_fits_a_servo_and_an_eye_and_refuses_three_servos():
                                     "stow": 0}})
   with pytest.raises(Refused, match=r"power: 15\.0 W .* over its 12 W"):
     validate.check(three)
+
+
+def test_the_workshop_script_tries_the_prompts_own_example(capsys):
+  """`scripts/workshop.py` validates and rigs the scoop the robot's prompt
+  shows, through the workshop's own gate (`build.trial`) -- untested, it
+  rotted once (#407: it called the rover's helpers, and its example was
+  refused)."""
+  import sys
+  from pathlib import Path
+  sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
+  import workshop as script
+  assert script.main(["--example"]) == 0
+  out = capsys.readouterr().out
+  assert "module_scoop" in out and "passed" in out
+

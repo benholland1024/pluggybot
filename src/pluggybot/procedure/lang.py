@@ -58,6 +58,9 @@ DEFAULT_BUDGET_S = st.DEFAULT_BUDGET_S
 MAX_SOURCE_CHARS = 1500
 MAX_NESTING = 4
 NAME_RE = re.compile(r"^[a-z][a-z0-9_]{0,31}$")
+#: The verbs that need the claw (issue #407): what `references` says a
+#: procedure reaches for -- a `pick` fetches it onto an empty fork (#353).
+CLAW_TOOL_VERBS = frozenset(st.CLAW_VERBS)
 #: Names a local may not shadow: the language's own words and every verb.
 RESERVED = frozenset({"read", "budget", "range", "def", "and", "or", "not",
                       "if", "elif", "else", "for", "while", "in", "return",
@@ -153,6 +156,8 @@ class Procedure:
               elif st_[1] == "fetch" and name == "tool":
                 tools.append(value[1])
             expr(value)
+          if st_[1] in CLAW_TOOL_VERBS:
+            tools.append("module_claw")
         elif st_[0] == "set":
           expr(st_[2])
         elif st_[0] == "if":

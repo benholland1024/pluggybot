@@ -1641,15 +1641,20 @@ def served_carry(n: int = 6, jobs: int = 3) -> None:
         f"hung back {sum(r.get('stowed', False) for r in rows)}")
 
 
-def served_pair_one(k: int) -> dict:
-  """The served PAIR (`pair.build_pair`, one world, one loop): each robot
-  from its own start takes a tool -- the first bay A's, the second bay
-  C's, 0.6 m apart -- at once, then hangs it back at once."""
+def served_pair_one(args) -> dict:
+  """The served PAIR (`pair.build_pair`, one world, one loop), each robot
+  from its own start. Two bays (`bays`, default A and C, 0.6 m apart; A and
+  B are neighbours, 0.3 m): both take their bay's tool at once, then hang it
+  back at once. One bay twice (#418: A,A): the first takes the tool alone,
+  then hangs it back while the second comes for it -- the second waits at
+  its approach's start (`ToolSwap._bay_free_routine`) and takes it after."""
   from pluggybot import tick
   from pluggybot.pair import build_pair
   from pluggybot.rack.coupling import STATION_YS
+  k, bays = args
   lives = build_pair(world="home_quad", errands=("none", "none"))
-  tools = (tuple(rk.TOOL_BAYS)[0], tuple(rk.TOOL_BAYS)[2])
+  by_bay = {b: t for t, b in rk.TOOL_BAYS.items()}
+  tools = tuple(by_bay[ord(b) - ord("A")] for b in bays)
   rng = np.random.default_rng(1405 + k)
   for life in lives:
     x, y, yaw = life.body.pose
@@ -1657,24 +1662,62 @@ def served_pair_one(k: int) -> dict:
                        yaw + rng.uniform(-0.5, 0.5))
   data = lives[0].data
   out = {"k": k, "tools": tools}
-  t0 = data.time
-  whys = tick.run_many([(life.body.stepper,
-                         life.body.fetch_tool_routine(STATION_YS[rk.TOOL_BAYS[t]], t))
-                        for life, t in zip(lives, tools)])
-  out["fetchS"] = data.time - t0
-  out["fetched"] = [life.body.module_state(t)["on_fork"] and life.body.tool_powered(t)
-                    for life, t in zip(lives, tools)]
-  out["fetchWhy"], out["fetchTrace"] = whys, [life.body.swap_trace() for life in lives]
-  t0 = data.time
-  whys = tick.run_many([(life.body.stepper,
-                         life.body.stow_tool_routine(STATION_YS[rk.TOOL_BAYS[t]], t)
-                         if ok else _nothing())
-                        for life, t, ok in zip(lives, tools, out["fetched"])])
-  out["stowS"] = data.time - t0
-  out["stowed"] = [ok and life.body.module_state(t)["hung"]
-                   for life, t, ok in zip(lives, tools, out["fetched"])]
+
+  def fetch(life, t):
+    return life.body.fetch_tool_routine(STATION_YS[rk.TOOL_BAYS[t]], t)
+
+  def stow(life, t):
+    return life.body.stow_tool_routine(STATION_YS[rk.TOOL_BAYS[t]], t)
+
+  def got(life, t):
+    return life.body.module_state(t)["on_fork"] and life.body.tool_powered(t)
+
+  if tools[0] == tools[1]:
+    t = tools[0]
+    tick.run_many([(lives[0].body.stepper, fetch(lives[0], t)),
+                   (lives[1].body.stepper, _still(lives[1], 0.0))])
+    first = got(lives[0], t)
+    t0 = data.time
+    hung = [False]
+
+    def stow_and_go(life):
+      # ...and gone from the rack as the loop sends it (#346: done at the
+      # rack means gone). Left standing there, the rest reflex lay it down
+      # in the bay's approach and the other's walk in, steered by the tags,
+      # walked over it
+      why = yield from stow(life, t)
+      hung[0] = life.body.module_state(t)["hung"]
+      x, y, _ = life.body.pose
+      yield from life.body.go_to_routine(x, y + 1.5)
+      return why
+    whys = tick.run_many([(lives[0].body.stepper, stow_and_go(lives[0]) if first else _nothing()),
+                          (lives[1].body.stepper, fetch(lives[1], t))])
+    out["fetchS"] = data.time - t0
+    out["fetched"] = [first, got(lives[1], t)]
+    out["fetchWhy"] = whys
+    out["fetchTrace"] = [life.body.swap_trace() for life in lives]
+    out["hungFirst"] = bool(first and hung[0]) or out["fetched"][1]
+    t0 = data.time
+    whys = [None, _alone(lives, 1, stow(lives[1], t) if out["fetched"][1] else _nothing())]
+    out["stowS"] = data.time - t0
+    out["stowed"] = [out["hungFirst"], out["fetched"][1] and lives[1].body.module_state(t)["hung"]]
+  else:
+    t0 = data.time
+    whys = tick.run_many([(life.body.stepper, fetch(life, t)) for life, t in zip(lives, tools)])
+    out["fetchS"] = data.time - t0
+    out["fetched"] = [got(life, t) for life, t in zip(lives, tools)]
+    out["fetchWhy"], out["fetchTrace"] = whys, [life.body.swap_trace() for life in lives]
+    t0 = data.time
+    whys = tick.run_many([(life.body.stepper, stow(life, t) if ok else _nothing())
+                          for life, t, ok in zip(lives, tools, out["fetched"])])
+    out["stowS"] = data.time - t0
+    out["stowed"] = [ok and life.body.module_state(t)["hung"]
+                     for life, t, ok in zip(lives, tools, out["fetched"])]
   out["stowWhy"], out["stowTrace"] = whys, [life.body.swap_trace() for life in lives]
   out["falls"] = [life.body.mission.falls for life in lives]
+  out["waits"] = [(life.bay_waits, (life.last_bay_wait or {}).get("s"),
+                   (life.last_bay_wait or {}).get("why")) for life in lives]
+  out["presses"] = [life.body.press_steps for life in lives]
   for life in lives:
     life.body.close()
   return out
@@ -1685,18 +1728,44 @@ def _nothing():
   yield
 
 
-def served_pair(n: int = 5, jobs: int = 3) -> None:
+def _alone(lives, i, routine):
+  """`routine` flown by robot `i` while the other stands, one loop for
+  both; its result."""
+  from pluggybot import tick
+  done = [False]
+
+  def flying():
+    try:
+      return (yield from routine)
+    finally:
+      done[0] = True
+
+  def standing(other):
+    while not done[0]:
+      yield other.body.STILL
+  runs = [(life.body.stepper, flying() if k == i else standing(life))
+          for k, life in enumerate(lives)]
+  return tick.run_many(runs)[i]
+
+
+def _still(life, seconds):
+  yield from life.body.hold_routine(seconds)
+
+
+def served_pair(n: int = 5, jobs: int = 3, bays: str = "A,C") -> None:
   from multiprocessing import Pool
+  pair = tuple(bays.split(","))
   with Pool(jobs) as pool:
-    rows = pool.map(served_pair_one, range(n), chunksize=1)
+    rows = pool.map(served_pair_one, [(k, pair) for k in range(n)], chunksize=1)
   for r in rows:
     print(f"pair {r['k']}: fetched {r['fetched']} in {r['fetchS']:.1f} s ({r['fetchWhy']}), "
-          f"hung back {r['stowed']} in {r['stowS']:.1f} s ({r['stowWhy']}); falls {r['falls']}")
+          f"hung back {r['stowed']} in {r['stowS']:.1f} s ({r['stowWhy']}); falls {r['falls']}; "
+          f"waits {r['waits']}; press steps {r['presses']}")
     if not all(r["stowed"]):
       for key in ("fetchTrace", "stowTrace"):
         print(f"      {key}: {r[key]}")
   swaps = [ok for r in rows for ok in r["stowed"]]
-  print(f"pair: {sum(swaps)} of {len(swaps)} swaps fetched and hung back, "
+  print(f"pair at bays {bays}: {sum(swaps)} of {len(swaps)} swaps fetched and hung back, "
         f"{sum(all(r['stowed']) for r in rows)} of {len(rows)} flights both")
 
 
@@ -1730,6 +1799,9 @@ def main(argv=None) -> None:
                        "(#405): --n flights from the dock and --n from across the house; "
                        "with --pair, the served pair swapping at once")
   ap.add_argument("--pair", action="store_true", help="with --served")
+  ap.add_argument("--bays", default="A,C",
+                  help="with --served --pair: the two robots' bays, A,C (0.6 m apart), "
+                       "A,B (neighbours) or A,A (one returns while the other comes, #418)")
   ap.add_argument("--carry", action="store_true",
                   help="with --served: a tool carried through the house, trotted and "
                        "turned, then hung back -- the coupling's criterion every step")
@@ -1763,7 +1835,7 @@ def main(argv=None) -> None:
   elif args.served and args.carry:
     served_carry(args.n, args.jobs)
   elif args.served and args.pair:
-    served_pair(args.n, args.jobs)
+    served_pair(args.n, args.jobs, args.bays)
   elif args.served:
     served_table(args.n, args.jobs)
   elif args.view:
