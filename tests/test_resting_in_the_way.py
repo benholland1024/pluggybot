@@ -230,7 +230,8 @@ def test_a_drive_whose_goal_a_resting_robot_lies_on_asks_it_at_the_plan_that_fin
   stand-in, planned from the far side of the disc, and every new route was
   progress -- and the walk circled it for its 85 s, unasked. A goal a
   resting robot lies on is a way it cuts: asked at the plan that finds it
-  there, and waited for while it steps off."""
+  there, within `PAST_M` of it, and waited for while it steps off; from
+  further off it is walked toward, as a far disc across the way is."""
   class OnTheGoal(_Drive):
     def _plan_to(self, wx, wy):
       self._stand_in = None if self._open() else (wx - 0.6, wy)
@@ -242,22 +243,52 @@ def test_a_drive_whose_goal_a_resting_robot_lies_on_asks_it_at_the_plan_that_fin
         self.pose = (GOAL[0], GOAL[1], 0.0)
       yield v, w
 
-  drive = OnTheGoal([_resting(GOAL[0] + 0.25, GOAL[1])], opens_at=8.0)
+  def walker(at=PAST_M - 0.5, **kw):
+    lying = {k: kw.pop(k) for k in ("down",) if k in kw}
+    drive = OnTheGoal([_resting(GOAL[0] + 0.25, GOAL[1], **lying)], **kw)
+    drive.pose = (GOAL[0] - at, GOAL[1], 0.0)
+    return drive
+
+  drive = walker(opens_at=8.0)
   asked_at = []
   ask = drive.ask_way
   drive.ask_way = lambda root, way: asked_at.append(drive.data.time) or ask(root, way)
   assert tick.run(STEPPER, drive.drive_to_routine(*GOAL, 60.0))
   assert asked_at and asked_at[0] == 0.0, asked_at
   assert drive.last_drive["askedWay"] == ["r2_pluggybot"]
+  # ...from across the house it is walked toward, and nobody is asked yet
+  far = walker(at=PAST_M + 1.0, opens_at=8.0)
+  assert tick.run(STEPPER, far.drive_to_routine(*GOAL, 60.0)) and far.asked == []
   # ...and one that says no is not waited for on its account, nor a fallen
   # one asked (#365): each drive ends as it did
-  no = OnTheGoal([_resting(GOAL[0] + 0.25, GOAL[1])], says=False)
+  no = walker(says=False)
   assert not tick.run(STEPPER, no.drive_to_routine(*GOAL, 30.0))
   assert no.asked and no.last_drive["why"] == "peer"
-  fallen = OnTheGoal([_resting(GOAL[0] + 0.25, GOAL[1], down=True)])
+  fallen = walker(down=True)
   assert not tick.run(STEPPER, fallen.drive_to_routine(*GOAL, 30.0))
   assert not fallen.asked and fallen.last_drive["why"] == "peer"
   assert fallen.last_drive["seconds"] <= STAGNATION_S + 0.5
+
+
+def test_a_robot_on_the_goal_that_says_no_is_asked_once_a_wait_at_most():
+  """#439's review: a drive at its stand-in, its waypoints spent, replans
+  every step, and the ask plans a way past the robot on the goal (~29 ms,
+  past the plan's memo). One that said no was asked 4 729 times in an 85 s
+  walk, 139 s of planning on the pair's one physics thread. Once every
+  `OTHER_WAIT_S` at most."""
+  class AtTheStandIn(_Drive):
+    def _plan_to(self, wx, wy):
+      self._stand_in = (wx - 0.6, wy)
+      return [self._stand_in]
+
+    def _nav_routine(self, v, w):
+      self.data.time += 0.1
+      yield v, w
+
+  drive = AtTheStandIn([_resting(GOAL[0] + 0.25, GOAL[1])], says=False)
+  drive.pose = (GOAL[0] - 0.6, GOAL[1], 0.0)      # ...standing on it
+  assert not tick.run(STEPPER, drive.drive_to_routine(*GOAL, 30.0))
+  assert 0 < len(drive.asked) <= 2 * 30.0 / nav.OTHER_WAIT_S, len(drive.asked)
 
 
 class _Clear(_Drive):

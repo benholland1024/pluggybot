@@ -28,8 +28,8 @@ the front feet stand inside the pad (`cage.PRESS_BACK_M`); a hold, and
 straight back out -- three stretches that run to their end, so a press
 starts them only with `FINAL_S` of its patience left. The map's drift does
 not matter: the last step is measured off the tag. A walk in that put no
-foot on the pad is walked in again; nothing else is tried twice
-(`PRESS_TRIES`).
+foot on the pad is walked in again, and a standoff a look moved is walked
+to; nothing is tried twice unchanged (`PRESS_TRIES`).
 
 KEEPING OFF (`keep_out`). Every pad the robot knows is a wall to the
 planner, so no walk crosses a plate it has seen, and a press is the only
@@ -79,13 +79,14 @@ VIEWPOINT_PATIENCE_S = 90.0
 #: either side are then inside the camera's 33.5 deg half-field, and one
 #: look there fits the row.
 STANDOFF_M = 1.8
-#: ...its walks IN (issue #439): the walk there, the look and the way in
-#: cleared are done once, and a walk in that put no foot on the pad is
-#: tried again, from the standoff with a fresh look -- as the dock, the
-#: rack, the claw and the boards try theirs -- the second only with
-#: `FINAL_S` left. ⚠ NEVER THE WALK THERE: on 8a61ada every failed press
-#: ran two, and each second walk, from where the first stopped to the same
-#: standoff, stopped within 32 mm of it and gave up as it had, 16 of 16.
+#: ...its tries (issue #439), each tried again only where something changed
+#: for it: a walk in that put no foot on the pad, from the standoff with a
+#: fresh look -- as the dock, the rack, the claw and the boards try theirs
+#: -- or a look round that moved the standoff (`STANDOFF_MOVED_M`); the
+#: second only with `FINAL_S` left. ⚠ NEVER THE SAME WALK THERE AGAIN: on
+#: 8a61ada every failed press ran two, and each second walk, from where the
+#: first stopped to the same standoff, stopped within 32 mm of it and gave
+#: up as it had, 16 of 16.
 PRESS_TRIES = 2
 #: ...the walk in's budget, the hold on the pad and the walk back out (s, m).
 WALK_IN_S = 25.0
@@ -525,9 +526,10 @@ class PlaceWalk:
     there --, "in the way" -- another robot across the walk in that did not
     step off it --, "not pressed", "out of time", or "interrupted" by
     `stop` on the walk to the standoff), the `seconds` it took, and its
-    `attempts`, walks in, `PRESS_TRIES` at most: a walk there that gave up,
-    a sign out of view or a robot across the way in ends the press, and
-    only a walk in that put no foot on the pad is tried again. Each one's
+    `attempts`, `PRESS_TRIES` at most: a walk there that gave up, a sign
+    out of view from a standoff no look moved, or a robot across the way in
+    ends the press, and a walk in that put no foot on the pad, or a look
+    round that moved the standoff, is tried again. Each one's
     standoff, how long its walk there took (`walkS`) and the walk's record
     where it did not arrive (`walk`, its `last_drive`), its look round,
     the robot `across` the walk in, where it stopped against the press
@@ -601,8 +603,14 @@ class PlaceWalk:
         if tag not in self._last_seen():
           att["looked"] = "cut short" if cut else "all round"
           why = ended(att, "lost")
-          # ...or the place forgotten as it looked, a true death: not found
-          return done("not found" if self.places.get(tag) is None else why)
+          now = self.place_standoff(tag)
+          if now is None:                      # ...forgotten as it looked: a true death
+            return done("not found")
+          if math.hypot(now[0] - standoff[0], now[1] - standoff[1]) <= STANDOFF_MOVED_M:
+            return done(why)
+          # ...unless what it did read moved the standoff -- a neighbour's
+          # sign, fitting the row's facing (`Places.facing`): there, once more
+          continue
         standoff = self.place_standoff(tag)
         if standoff is None:
           return done("not found")

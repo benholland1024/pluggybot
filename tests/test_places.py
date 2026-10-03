@@ -590,13 +590,14 @@ def test_a_press_says_the_try_that_failed_and_never_one_that_did_not_begin(quad_
     body.close()
 
 
-def test_a_press_tries_its_walk_in_again_and_never_its_walk(quad_world):
+def test_a_press_tries_again_only_a_walk_in_that_missed_the_pad(quad_world):
   """#439 part 3: on 8a61ada each of 16 failed presses ran both tries, and
   each second try walked from where the first had stopped to the same
   standoff and gave up as it had, its stop within 32 mm of the first. So a
   walk there that gave up, or a robot that stays across the way in, ends
   the press with its time left. What is tried again is a walk in that put
-  no foot on the pad, from its standoff -- and only with `FINAL_S` left."""
+  no foot on the pad: back to the standoff it backed out short of, a fresh
+  look, and in again -- and only with `FINAL_S` left."""
   body = _quad(quad_world, 25.0, 2.0, SOUTH)
   m = body.mission
   went, cleared, walked_in = [], [], []
@@ -656,6 +657,47 @@ def test_a_press_tries_its_walk_in_again_and_never_its_walk(quad_world):
     assert rec["why"] == "not pressed" and walked_in == [FEED]
     assert rec["leftS"] == pytest.approx(lp.FINAL_S + 10.0 - 5.0 - 20.0, abs=0.1)
     assert st.press_trace(rec).endswith(f"no time for #2: {rec['leftS']:.1f} s left")
+  finally:
+    body.close()
+
+
+def test_a_press_walks_there_again_only_to_a_standoff_a_look_moved(quad_world):
+  """#439: a sign out of view from its standoff ends the press -- a second
+  walk there repeated the first -- unless what the look round DID read
+  moved the standoff. Here the feed sign was first seen 40 deg off its face,
+  so its facing is only where it was seen from, and its neighbours' signs,
+  read round the room, fit the row's: the standoff swings onto the axis,
+  and the press walks there once more, and no more."""
+  body = _quad(quad_world, 25.0, 2.0, SOUTH)
+  m = body.mission
+  went = []
+  fx, fy = _sign("feed")
+
+  def drive(x, y, timeout=90.0, stop=None, beyond=()):
+    went.append((round(x, 3), round(y, 3)))
+    m.data.time += 5.0                         # ...so a look after it is a new one
+    return tick.result(True)
+
+  def blind():
+    m._place_look = (float(m.data.time), m.pose)
+    return []
+
+  def neighbours(stop):
+    for name in ("shock", "toy"):
+      m.places.see(cage.PLATE_TAGS[name], *_sign(name), float(m.data.time), view=SOUTH)
+    return tick.result(False)
+
+  try:
+    m.places.see(FEED, fx, fy, 0.0, view=SOUTH + math.radians(40.0))
+    first = m.place_standoff(FEED)
+    m.drive_to_routine = drive
+    m.face_routine = lambda h: tick.result(True)
+    m.look_for_places = blind
+    m._look_around_routine = neighbours
+    rec = body.run(m.press_routine(FEED, patience=st.PRESS_PATIENCE_S))
+    square = (round(fx, 3), round(fy - lp.STANDOFF_M, 3))
+    assert went == [pytest.approx(first[:2], abs=1e-3), pytest.approx(square, abs=1e-3)]
+    assert rec["why"] == "lost" and [a["why"] for a in rec["attempts"]] == ["lost", "lost"]
   finally:
     body.close()
 

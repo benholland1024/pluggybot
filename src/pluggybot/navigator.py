@@ -733,6 +733,9 @@ class Navigator:
     next_look = t0 + MAP_LOOK_S
     # the robots asked to make way that said yes, and when first (#415)
     self._made_way = made_way = {}
+    # ...and when a robot on the goal may next be asked (#439): the ask
+    # plans a way past it, and a drive at its stand-in replans every step
+    next_goal_ask = t0
     aimed = False                      # has it faced its route yet (`AIMED_RAD`)
     while self.data.time - t0 < timeout:
       dist = math.hypot(wx - self.pose[0], wy - self.pose[1])
@@ -828,9 +831,9 @@ class Navigator:
             continue
           return self._drove(wx, wy, t0, (
             "" if dist < CLOSE_ENOUGH_M else "peer" if cut else "no_route"))
-        if (self._stand_in is not None and dist >= CLOSE_ENOUGH_M
-            and self.peer_on_the_goal(wx, wy) is not None
-            and self._ask_way(wx, wy, made_way, beyond=beyond)):
+        if (self._stand_in is not None and CLOSE_ENOUGH_M <= dist <= PAST_M
+            and self.data.time >= next_goal_ask
+            and self.peer_on_the_goal(wx, wy) is not None):
           # ⚠ ...AND A GOAL ONE LIES ON IS A WAY IT CUTS (issue #439): the
           # plan ends at a stand-in beside its disc, and only a stagnation
           # asked -- which never came. Its waypoints spent there, the drive
@@ -838,11 +841,19 @@ class Navigator:
           # new route was progress: MEASURED, a press's walk circled a robot
           # lying by its standoff for all of its 85 s, asked late or never,
           # in 7 of 11 placements with the walker's map 2.9 m off and 1 of 14
-          # with both maps true
-          yield from self._drive_routine(OTHER_WAIT_S, 0.0, 0.0)
-          last_improve = self.data.time
-          waiting = True
-          continue
+          # with both maps true. Within `PAST_M` of the goal, as a disc that
+          # cuts the way is: from further off it is walked toward, and asked
+          # by the plan that gets there, never kept waiting on across a house.
+          # ⚠ ...AND ONCE EVERY `OTHER_WAIT_S` AT MOST: an ask plans a way past
+          # it (~29 ms), and a drive spent at its stand-in replans every step
+          # -- MEASURED, a robot that said no was asked 4 729 times in one
+          # 85 s walk, 139 s of planning on the pair's one physics thread
+          next_goal_ask = self.data.time + OTHER_WAIT_S
+          if self._ask_way(wx, wy, made_way, beyond=beyond):
+            yield from self._drive_routine(OTHER_WAIT_S, 0.0, 0.0)
+            last_improve = self.data.time
+            waiting = True
+            continue
         waypoints = planned
         if self.PROGRESS_ALONG_ROUTE:
           route = self._left(dist, waypoints, wx, wy)

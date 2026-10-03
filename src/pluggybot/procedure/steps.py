@@ -474,7 +474,7 @@ def _wait(life, args: dict) -> Routine:
 FIND_PATIENCE_S = 300.0
 #: How long a `press` may take, s, where the program's budget does not say
 #: less: flown, 12-26 s from where the find left it (#419, 22 presses), and
-#: 21-52 s past the other robot lying on or by its standoff, asked off it
+#: 21-44 s past the other robot lying on or by its standoff, asked off it
 #: (#439, `scripts/press_spike.py`, 30 presses). The walk there is handed
 #: all of it but `FINAL_S`, one walk in's worth -- every live failure was
 #: that walk -- and a second walk in runs on what is left (`PRESS_TRIES`).

@@ -10,26 +10,28 @@ observatory is NOT a result: it reports into the issue it informs.
 
 ## Periods
 
-### A press walks in again, never there again, and a goal a robot lies on is asked off (#439) — opens when this PR is deployed
+### A press tries again only where something changed, and a goal a robot lies on is asked off (#439) — opens when this PR is deployed
 
 **What changed in the world.** The feed job's press, and every walk whose
 goal another robot lies on. On three builds (4f1288f, a85772d, 8a61ada),
 95 of 96 failed presses had the other robot within 2 m (`encounter` rows),
 and the 96th was a walk given up at once by a map 3.4 m off.
 - **A walk whose goal a robot lying down to rest lies on asks it to step
-  aside at the plan that finds it there.** Before, only a stagnation asked.
+  aside at the plan that finds it there,** once within 3 m of the goal
+  (`PAST_M`); from further off it walks on. Before, only a stagnation asked.
   Flown with the walker's map 2.9 m off, as Luca's lab was, a press's walk
   circled a robot lying by the standoff for its whole 85 s, asked late or
   never, in 7 of 11 placements on #455's build, and in 1 of 14 with both
   maps true. Swapping between the stand-ins either side of the robot's
   disc, every new route counted as progress, so the walk never stalled.
-  With this change, 30 of 30 pressed, in 21-52 s.
-- **A press walks to its standoff, looks and clears its way in once.**
-  A walk there that gave up, a sign not in view there, or a robot across
-  the way in that would not step off ends it with that try's words. A walk
-  in that put no foot on the pad is walked in again, as before. On 8a61ada
-  every failed press had run two tries, and every second try had failed as
-  the first, 16 of 16.
+  With this change, 30 of 30 pressed, in 21-44 s.
+- **A press tries again only where something changed.** A walk to its
+  standoff that gave up, or a robot across the way in that would not step
+  off, ends it with that try's words. So does a sign not in view there,
+  unless the look round moved the standoff, which is walked to once more. A
+  walk in that put no foot on the pad is walked in again, as before. On
+  8a61ada every failed press had run two tries, and every second try had
+  walked to the same standoff and failed as the first, 16 of 16.
 - **Every press leaves its tries in the log,** pressed or not, on the
   program's last line (`PROCEDURE feed_mouse complete: 2/2 steps [press tag
   36: ...]`), with how long each walk there took (`walked N s`).

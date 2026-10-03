@@ -911,9 +911,10 @@ save a filmstrip PNG named after the script.
   `aside_clear_m` off the asker's way, TOLD RELATIVE TO ITS BODY (#455:
   laid as sent, a way ran 1.1 m off it and it stepped 0.0 m aside five
   times); the asker waits `MAKE_WAY_WAIT_S` from the first yes; ⚠ A GOAL
-  ONE LIES ON IS A WAY IT CUTS, asked at the plan that finds it there
-  (#439: only a stagnation asked, and a walk swapping between the
-  stand-ins either side of its disc circled it for 85 s); a press
+  ONE LIES ON IS A WAY IT CUTS, asked at the plan that finds it there,
+  within `PAST_M` of it (#439: only a stagnation asked, and a walk
+  swapping between the stand-ins either side of its disc circled it for
+  85 s); a press
   clears its walk in so first (`clear_way_routine`); a no is narrated with
   why; a restart's save waits it out. ⚠ A ROBOT FURTHER OFF THAN `PAST_M`
   (3 m) WHOSE DISC ALONE CUTS A WALK'S WAY IS PLANNED PAST (#455): three
@@ -1414,10 +1415,11 @@ save a filmstrip PNG named after the script.
   `HubLifecycle.drive_why`, one of `mission.DRIVE_GAVE_UP`'s four causes
   (`tests/test_failure_words.py`). ⚠ A failed `press` says the LAST TRY
   THAT RAN, never one too short of time to begin (#439: all 24 failed live
-  presses read "out of time"); ⚠ A TRY IS A WALK IN, NEVER THE WALK THERE
-  (`PRESS_TRIES`: a second walk from where the first stopped repeated it,
-  16 of 16 live); its tries are the log's `trace`, pressed or not, and a
-  failure leads a cage job's verdict. ⚠ A DECIDED `charge` or `explore` says
-  how it ended in History (#424), and a charge that never docked is NOT a
-  verdict: its `charge` row is on the wire, and a verdict would count it
-  again as a failed task.
+  presses read "out of time"); ⚠ A TRY IS TRIED AGAIN ONLY WHERE SOMETHING
+  CHANGED -- a walk in that missed the pad, a standoff a look moved -- NEVER
+  THE SAME WALK THERE (`PRESS_TRIES`: a second walk from where the first
+  stopped repeated it, 16 of 16 live); its tries are the log's `trace`,
+  pressed or not, and a failure leads a cage job's verdict. ⚠ A DECIDED
+  `charge` or `explore` says how it ended in History (#424), and a charge
+  that never docked is NOT a verdict: its `charge` row is on the wire, and
+  a verdict would count it again as a failed task.
