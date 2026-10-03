@@ -510,7 +510,7 @@ def test_a_press_steps_onto_a_plate_only_with_time_to_step_off_it(quad_world):
   m = body.mission
   timeouts, walked_in = [], []
 
-  def drive(x, y, timeout=90.0, stop=None):
+  def drive(x, y, timeout=90.0, stop=None, beyond=()):
     timeouts.append(round(timeout, 3))
     return tick.result(True)
 
@@ -527,7 +527,7 @@ def test_a_press_steps_onto_a_plate_only_with_time_to_step_off_it(quad_world):
     rec = body.run(m.press_routine(FEED, patience=lp.FINAL_S + 30.0))
     assert rec["pressed"] and walked_in == [FEED] and timeouts == [30.0]
     # ...and a walk to the standoff that ran a second over its time ends it there
-    m.drive_to_routine = lambda x, y, timeout=90.0, stop=None: (
+    m.drive_to_routine = lambda x, y, timeout=90.0, stop=None, beyond=(): (
       setattr(m.data, "time", m.data.time + timeout + 1.0) or tick.result(True))
     rec = body.run(m.press_routine(FEED, patience=lp.FINAL_S + 30.0))
     assert rec["why"] == "out of time" and walked_in == [FEED]
@@ -547,7 +547,7 @@ def test_a_press_says_the_try_that_failed_and_never_one_that_did_not_begin(quad_
   tries = []
 
   def walk(arrives):
-    def drive(x, y, timeout=90.0, stop=None):
+    def drive(x, y, timeout=90.0, stop=None, beyond=()):
       tries.append(round(timeout, 1))
       m.data.time += timeout + 0.01            # a walk ends on the step past its time
       m.last_drive = {"why": "" if arrives else "timeout", "goal": (x, y),
@@ -580,7 +580,7 @@ def test_a_press_says_the_try_that_failed_and_never_one_that_did_not_begin(quad_
     assert rec["attempts"][0]["looked"] == "cut short" and "walk" not in rec["attempts"][0]
     # ...and with time for both, the second try is the one it says
     tries.clear()
-    m.drive_to_routine = lambda x, y, timeout=90.0, stop=None: (
+    m.drive_to_routine = lambda x, y, timeout=90.0, stop=None, beyond=(): (
       tries.append(round(timeout, 1)) or tick.result(True))
     m._look_around_routine = lambda stop: tick.result(False)
     rec = body.run(m.press_routine(FEED, patience=st.PRESS_PATIENCE_S))
@@ -603,7 +603,7 @@ def test_a_press_walks_in_from_its_standoff_as_the_look_there_left_it(quad_world
   went, walked_in = [], []
   fx, fy = _sign("feed")
 
-  def drive(x, y, timeout=90.0, stop=None):
+  def drive(x, y, timeout=90.0, stop=None, beyond=()):
     went.append((round(x, 3), round(y, 3)))
     return tick.result(True)
 
@@ -649,7 +649,7 @@ def test_a_place_forgotten_under_a_press_ends_it_backed_off_the_plate(quad_world
     m._press_back_out_routine = lambda: backed.append(True) or tick.result(None)
     # ...under the walk in: the sign read, then forgotten
     m.places.see(FEED, *_sign("feed"), 0.0, view=SOUTH, tag_facing=SOUTH)
-    m.drive_to_routine = lambda x, y, timeout=90.0, stop=None: tick.result(True)
+    m.drive_to_routine = lambda x, y, timeout=90.0, stop=None, beyond=(): tick.result(True)
     m.look_for_places = lambda: forget() or [FEED]
     rec = body.run(m.press_routine(FEED, patience=300.0))
     assert rec["why"] == "not found" and backed == [True]
@@ -657,12 +657,12 @@ def test_a_place_forgotten_under_a_press_ends_it_backed_off_the_plate(quad_world
     # ...on the walk to its standoff
     backed.clear()
     m.places.see(FEED, *_sign("feed"), 1.0, view=SOUTH, tag_facing=SOUTH)
-    m.drive_to_routine = lambda x, y, timeout=90.0, stop=None: forget() or tick.result(True)
+    m.drive_to_routine = lambda x, y, timeout=90.0, stop=None, beyond=(): forget() or tick.result(True)
     rec = body.run(m.press_routine(FEED, patience=300.0))
     assert rec["why"] == "not found" and not backed
     # ...and on a look round for a sign not in view there, before a second try
     m.places.see(FEED, *_sign("feed"), 2.0, view=SOUTH, tag_facing=SOUTH)
-    m.drive_to_routine = lambda x, y, timeout=90.0, stop=None: tick.result(True)
+    m.drive_to_routine = lambda x, y, timeout=90.0, stop=None, beyond=(): tick.result(True)
     m.look_for_places = lambda: []
     m._look_around_routine = lambda stop: forget() or tick.result(False)
     rec = body.run(m.press_routine(FEED, patience=300.0))

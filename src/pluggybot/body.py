@@ -91,12 +91,15 @@ class KeepClear(NamedTuple):
   of, and whether it is LYING DOWN (issue #365) -- a disc round its body,
   and nothing to wait for. A bare `(x, y)` is a robot standing. Where the
   pair says so, also WHO it is and whether it is RESTING (issue #415): a
-  robot lying down to rest can be asked to make way (`Body.ask_way`)."""
+  robot lying down to rest can be asked to make way (`Body.ask_way`). And
+  whether it is DEAD (issue #455): it lies where it died until the world
+  stands it up, so it is neither waited for nor asked."""
   x: float
   y: float
   down: bool = False
   root: str = ""
   resting: bool = False
+  dead: bool = False
 
 
 class Body(abc.ABC):
@@ -352,6 +355,12 @@ class Body(abc.ABC):
     where it stands, placed through where it believes it stands."""
 
   @abc.abstractmethod
+  def from_seen(self, x: float, y: float) -> tuple[float, float]:
+    """`as_seen` undone: a point in its own map back to the true world
+    point (issue #455). How a way it plans reaches another robot, told
+    relative to that robot's body as this one sees it."""
+
+  @abc.abstractmethod
   def level(self) -> bool:
     """Level enough for a reading to be a map of the room (issue #339)."""
 
@@ -509,6 +518,10 @@ class Body(abc.ABC):
   ask_way: Any
   #: The robot this body is stepping aside for, by its root, or None.
   making_way: str | None
+  #: Why it last said no to making way (issue #455): "docked", "working",
+  #: "walking" (a walk of its own), "moving" (lying down or standing up),
+  #: "standing", "no spot" -- or "".
+  way_refused: str
   #: How many times it has stepped aside (issue #415) ...
   asides: int
   #: ...and the last time's record: for whom, from where to where, how
@@ -771,6 +784,7 @@ class StubBody(Body):
     self.makes_way = False
     self.way_asked: list[tuple[list, str]] = []
     self.making_way = None
+    self.way_refused = ""
     self.asides, self.last_aside = 0, None
     self.geom_ids = np.zeros(0, dtype=np.int32)
     self.peer_holds = self.collision_steps = self.press_steps = 0
@@ -973,6 +987,9 @@ class StubBody(Body):
   def as_seen(self, x, y):
     return x, y
 
+  def from_seen(self, x, y):
+    return x, y
+
   def level(self) -> bool:
     w, x, y, z = self.attitude
     return 1.0 - 2.0 * (x * x + y * y) >= math.cos(self.level_tilt_rad)
@@ -1069,6 +1086,7 @@ class StubBody(Body):
 
   def make_way(self, route, by) -> bool:
     self.way_asked.append((list(route), by))
+    self.way_refused = "" if self.makes_way else "no spot"
     return self.makes_way
 
   def actuator(self, name) -> int:

@@ -513,15 +513,17 @@ class PlaceWalk:
     pad during the hold), `why` ("pressed", "not a plate", "not found" --
     it has not found the plate, or forgot it on the way, a true death --,
     "gave up" on the walk to its standoff, "lost" -- its sign not in view
-    there --, "not pressed", "out of time", or "interrupted" by `stop` on
-    the walk to the standoff), the `seconds` it took, and its `attempts`:
-    each one's standoff, a walk that did not arrive (`walk`, its
-    `last_drive`), its look round, where it stopped against the press pose,
-    and how a failed one ended -- `why`, where the belief stood (`at`) and
-    its error against the truth (`err`, a trace's), `s` into the press --
-    and `leftS` where too little was left for the next. The walk in, the
-    hold and the walk back out run to their end, so they start only with
-    `FINAL_S` of the `patience` left."""
+    there --, "in the way" -- another robot across the walk in that did not
+    step off it --, "not pressed", "out of time", or "interrupted" by
+    `stop` on the walk to the standoff), the `seconds` it took, and its
+    `attempts`: each one's standoff, a walk that did not arrive (`walk`,
+    its `last_drive`), its look round, the robot `across` the walk in,
+    where it stopped against the press pose, and how a failed one ended --
+    `why`, where the belief stood (`at`) and its error against the truth
+    (`err`, a trace's), `s` into the press -- and `leftS` where too little
+    was left for the next. The walk in, the hold and the walk back out run
+    to their end, so they start only with `FINAL_S` of the `patience`
+    left."""
     tag = int(tag)
     t0 = float(self.data.time)
     until = t0 + float(patience)
@@ -563,8 +565,12 @@ class PlaceWalk:
       sx, sy, _ = standoff
       att: dict = {"standoff": [round(sx, 3), round(sy, 3)]}
       rec["attempts"].append(att)
+      # ...its walk in the way on past the standoff (#455): a robot asked off
+      # the walk there steps off the walk in too, not onto it -- one backed
+      # out of its own press lies 0.25 m short of this standoff
       arrived = yield from self.drive_to_routine(
         sx, sy, timeout=min(VIEWPOINT_PATIENCE_S, left() - FINAL_S),
+        beyond=self._walk_in_line(tag),
         **({"stop": stop} if stop is not None else {}))
       if stop is not None and (self.last_drive or {}).get("why") == DRIVE_STOPPED:
         return done("interrupted")
@@ -601,12 +607,26 @@ class PlaceWalk:
         att["reaim"] = [round(standoff[0] - sx, 3), round(standoff[1] - sy, 3)]
         if not (yield from self.drive_to_routine(
             standoff[0], standoff[1], timeout=min(VIEWPOINT_PATIENCE_S, left() - FINAL_S),
+            beyond=self._walk_in_line(tag),
             **({"stop": stop} if stop is not None else {}))):
           if stop is not None and (self.last_drive or {}).get("why") == DRIVE_STOPPED:
             return done("interrupted")
           att["walk"] = self.last_drive
         yield from self.face_routine(standoff[2])
         self.look_for_places()
+      if left() < FINAL_S:
+        why = failed(att, "out of time")
+        break
+      # ...ACROSS NOBODY (#455): the walk in is steered by the sign with no
+      # planner under it, so a robot lying across it is asked off it first,
+      # and one that stays is not walked into
+      across = yield from self.clear_way_routine([self.pose_xy(), *self._walk_in_line(tag)])
+      if across is not None:
+        px, py, _ = self.pose
+        att["across"] = {"root": across.root, "m": round(math.hypot(across.x - px, across.y - py), 2),
+                         "rests": across.resting, "dead": across.dead, "down": across.down}
+        why = failed(att, "in the way")
+        continue
       if left() < FINAL_S:
         why = failed(att, "out of time")
         break
@@ -622,6 +642,12 @@ class PlaceWalk:
         return done("pressed")
       why = failed(att, "not pressed")
     return done(why)
+
+  def _walk_in_line(self, tag: int) -> list[tuple[float, float]]:
+    """Where a press's walk in ends, as a way's last point (issue #455):
+    the press pose, or nothing for a plate it has not found."""
+    pose = self.press_pose(tag)
+    return [] if pose is None else [(float(pose[0]), float(pose[1]))]
 
   def _last_seen(self) -> list[int]:
     """The place tags the last look decoded, off its time."""

@@ -63,6 +63,7 @@ from pluggybot.mind.thoughts import (
 )
 from pluggybot.economy import questions, scoring
 from pluggybot.tools import strokes
+from pluggybot.navigator import MAKE_WAY_WAIT_S
 from pluggybot.perception import depth as nf
 from pluggybot.perception.heightmap import HeightMap
 from pluggybot.perception.lidar import robot_geoms
@@ -1019,6 +1020,9 @@ class HubLifecycle:
     #: Read by `others_context` for what each broadcasts, and by nothing
     #: that decides: what one robot does about another is its mind's.
     self.peers: list = []
+    #: When each ask to make way it said no to was last said, by (asker,
+    #: why): once every `MAKE_WAY_WAIT_S` (issue #455; narration only).
+    self._way_refused: dict = {}
     self.robot_name = robot_display_name(robot_name)
     #: THE GAME this robot is in, if any (issue #167): the referee activity
     #: the pair attached. Read for its clock and by the sampler; never by
@@ -1174,9 +1178,16 @@ class HubLifecycle:
     # up: MEASURED, a detour that runs straight at a robot face-down and
     # turns at its disc's edge is held 0.52 m short, and stands there until
     # the drive times out. The planner routes round that body instead
-    # (`keep_clear`), and the LIDAR's front stop and the bumper still see it.
+    # (`keep_clear`): a quadruped lying down is under the LIDAR's plane, and
+    # no front stop sees it (#455).
+    # ⚠ NOR ONE LYING DOWN TO REST, OR DEAD (issue #455): placed where its
+    # body lies, it is planned round, and asked off a way it cuts. Held for,
+    # a walk past a robot resting mid-hall stood at its disc's edge facing
+    # it while the two ways round it swapped plan by plan, and timed out --
+    # 2 of 6 placements a few cm apart before, on the very same day.
     peers = frame.peers
-    down = [p.body.geom_ids for p in self.peers if p.down()]
+    down = [p.body.geom_ids for p in self.peers
+            if p.dead is not None or p.down() or p.body.resting]
     if down and len(peers):
       peers = peers[~np.isin(frame.peer_geoms, np.concatenate(down))]
     self.body.watch_for_peers(peers)
@@ -1280,22 +1291,45 @@ class HubLifecycle:
     in a depth image would be. Standing up (`start_at`, a warp that resets
     the reckoner) hands it back to the reported pose.
 
-    Either way it says WHO it is, and standing or resting, whether it lies
-    down to rest (issue #415): its posture rides the wire, and a robot
-    resting across the other's way is asked to make way (`make_way`)."""
-    if not self.down():
+    ⚠ SO IS ONE LYING DOWN TO REST, OR DEAD, OR STEPPING ASIDE (issue #455;
+    SimNotes, "A robot resting where the other's map put it elsewhere"). Its
+    reported pose is its belief, and the two beliefs can disagree by
+    metres: for hours Luca's map of the lab sat 2.4-2.9 m and 9.5 deg off,
+    the pair's bodies were within 2 m while every reading said 3.3-3.6 m,
+    and the walks Rowan's body held were never asked past it. Lying there,
+    it is a lump on the floor where the other robot's own sensors see it,
+    and the planner, a stagnated drive's ask and the words then agree with
+    what holds the walk. Standing and walking, it is where it SAYS it is.
+
+    Either way it says WHO it is, whether it lies down to rest (issue #415)
+    -- its posture rides the wire, and a robot resting across the other's
+    way is asked to make way (`make_way`) -- and whether it is dead."""
+    down, dead = self.down(), self.dead is not None
+    resting = bool(self.body.resting)
+    if not (down or dead or resting or self.body.posture != "standing"
+            or self.body.making_way is not None):
       x, y = self.body.pose_xy()
-      return KeepClear(x, y, root=self.root, resting=bool(self.body.resting))
+      return KeepClear(x, y, root=self.root)
     x, y = self.body.footprint_centre()
     if seen_by is not None:
       x, y = seen_by.as_seen(x, y)
-    return KeepClear(x, y, down=True, root=self.root)
+    return KeepClear(x, y, down=down, root=self.root,
+                     resting=resting and not (down or dead), dead=dead)
 
   def make_way(self, route, by: str) -> bool:
     """The other robot (`by`, its root) asks this one off `route`, its way,
     which this one's body cuts (issue #415): the body's rule
-    (`Body.make_way`, `legs/way.py`), said as it starts. A dead robot is
-    not asked -- it lies where it died until it is stood up."""
+    (`Body.make_way`, `legs/way.py`), said as it starts, and a no said
+    once a while, with why (#455). A dead robot is not asked -- it lies
+    where it died until it is stood up.
+
+    ⚠ THE WAY IS TOLD RELATIVE TO THIS ROBOT'S BODY, as the asker sees it
+    (issue #455): the asker's map and this one's can be metres apart, and
+    a way laid as sent ran 1.1 m from the body it was asked off -- which
+    stepped 0.0 m aside five times running, already clear of it by its
+    own map. So each point goes from the asker's map to the world
+    (`Body.from_seen`) and into this one's (`Body.as_seen`): the same as
+    saying where the way runs against the body lying across it."""
     if self.dead is not None:
       return False
     # ...nor the HIDER in a game (issue #404): stood up and stepped out of
@@ -1304,13 +1338,20 @@ class HubLifecycle:
     if (game is not None and game.over_at is None and game.hider is not None
         and game.hider.root == self.root):
       return False
+    other = self._peer(by)
+    if other is not None:
+      route = [self.body.as_seen(*other.body.from_seen(x, y)) for x, y in route]
+    who = other.robot_name if other is not None else by
     was = self.body.making_way
     if not self.body.make_way(route, by):
+      why = WAY_REFUSED.get(self.body.way_refused)
+      t, key = float(self.data.time), (by, self.body.way_refused)
+      if why and t - self._way_refused.get(key, -math.inf) >= MAKE_WAY_WAIT_S:
+        self._way_refused[key] = t
+        self._say(f"MAKE WAY: {who} asked me off its way, and I cannot: {why}")
       return False
     if was is None:
-      other = self._peer(by)
-      self._say(f"MAKE WAY: lying across {other.robot_name if other else by}'s "
-                "way -- standing up to step aside")
+      self._say(f"MAKE WAY: lying across {who}'s way -- standing up to step aside")
     return True
 
   def _aside_step(self) -> None:
@@ -7651,6 +7692,8 @@ def posture(peers, name: str) -> str:
   the way on purpose, and History is what the mind reads back."""
   for p in peers:
     if (p.robot_name or p.root) == name:
+      if getattr(p, "dead", None) is not None:
+        return "lying dead"                          # (issue #455)
       if p.down():
         return "lying knocked over"
       # ...and one lying down by choice is resting, never fallen (#387).
@@ -7667,6 +7710,13 @@ ASIDE_ENDED = {"its own walk": "my own walk took over",
                "out of time": "it took too long",
                "met something": "I met something on the way",
                "arm out": "my arm was out of its stow"}
+#: ...and why it could not step aside at all (issue #455, `Body.way_refused`),
+#: as its narration says it -- once a while, so a no is heard. Standing or
+#: mid-move it is in nobody's way by its own rule, and says nothing.
+WAY_REFUSED = {"docked": "I am on the dock",
+               "working": "I am in the middle of a move with my arm",
+               "walking": "I am waiting inside a walk of my own",
+               "no spot": "I have seen nowhere off its way to step to"}
 
 
 def others_context(life) -> list[dict]:

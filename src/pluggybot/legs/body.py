@@ -552,12 +552,12 @@ class QuadMission(ToolSwap, PlaceWalk, BoardWork, CubeWork, AreaSurvey, MakeWay,
   _plan_memo = None
 
   def drive_to_routine(self, wx: float, wy: float, timeout: float = 90.0,
-                       stop=None) -> Routine:
+                       stop=None, beyond=()) -> Routine:
     """`Navigator.drive_to_routine`, counted while it runs (`driving`): a
     body waiting inside a walk of its own is never asked aside (#415)."""
     self.driving += 1
     try:
-      return (yield from Navigator.drive_to_routine(self, wx, wy, timeout, stop))
+      return (yield from Navigator.drive_to_routine(self, wx, wy, timeout, stop, beyond))
     finally:
       self.driving -= 1
 
@@ -1602,6 +1602,9 @@ class QuadBody(Body):
   def as_seen(self, x, y):
     return self.mission.as_seen(x, y)
 
+  def from_seen(self, x, y):
+    return self.mission.from_seen(x, y)
+
   def level(self) -> bool:
     return self.mission.level()
 
@@ -1736,6 +1739,7 @@ class QuadBody(Body):
     return self.mission.make_way(route, by)
 
   making_way = property(lambda self: self.mission.making_way)
+  way_refused = property(lambda self: self.mission.way_refused)
   asides = property(lambda self: self.mission.asides)
   last_aside = property(lambda self: self.mission.last_aside)
 
