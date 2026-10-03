@@ -492,7 +492,10 @@ class ToolSwap:
     rec = self.last_swap
     if not rec:
       return "no swap recorded"
-    parts = [f"{rec['op']} {rec['module']} at bay {chr(ord('A') + rec['bay'])}"]
+    # ...the bay in its own row's letters, as the robot is told them (#407)
+    spec, local = rk.spec_of(rec["bay"])
+    where = ("rail bay " if spec is rk.BUILT else "bay ") + chr(ord("A") + local)
+    parts = [f"{rec['op']} {rec['module']} at {where}"]
     if rec.get("why"):
       parts.append(str(rec["why"]))
     for i, a in enumerate(rec["attempts"], 1):

@@ -1307,7 +1307,13 @@ class QuadMission(ToolSwap, PlaceWalk, BoardWork, CubeWork, AreaSurvey, MakeWay,
     if "gains" in arrays:
       self.model.actuator_gainprm[np.ix_(self.drivers.act, [3, 4, 5, 6, 7])] = arrays["gains"]
     self.drivers.torqued = bool(state.get("torqued", False))
-    self.carry(state.get("carrying"))
+    # ...what rode the fork, where this world has it: a built tool the
+    # workshop could not hang again is no body here (#407)
+    carried = state.get("carrying")
+    if carried is not None and mujoco.mj_name2id(
+        self.model, mujoco.mjtObj.mjOBJ_BODY, carried) < 0:
+      carried = None
+    self.carry(carried)
     if "armTarget" in arrays:
       self.arm.target = np.array(arrays["armTarget"], dtype=float)
       self.arm.goal = np.array(arrays["armGoal"], dtype=float)

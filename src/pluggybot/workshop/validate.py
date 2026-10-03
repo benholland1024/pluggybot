@@ -11,6 +11,8 @@ What is checked, and at which pose:
             within `rack.HUNG_TILT_DEG` (2 deg) of plumb: hung on the trays
             nothing holds it level, and a tool hung off plumb is not hung
             (`rack.on_bay`; the rover's scoop hung 5 deg off)
+  side      at the stow pose the centre of mass within `rack.HUNG_SIDE_M`
+            of the peg's middle: the trays hold the peg at +-45 mm
   ahead     the centre of mass on the peg or ahead of it (away from the
             robot) by at most `arm.TOOL_MAX_AHEAD_M` (60 mm), at the stow
             pose and at every axis's two ends: ahead leans the tool onto
@@ -25,17 +27,21 @@ What is checked, and at which pose:
             peg, at the stow pose
   board     nothing nearer the rack's back board than `BOARD_CLEAR_M`, at
             the stow pose
-  tags      nothing in front of the bay's tags, at the stow pose: hung, it
-            would hide them from the working pose, and no fetch of it would
-            fit its bay (the claw's crossbar did, #407)
+  tags      nothing in front of the bay's tags, at the stow pose, from the
+            board to the plate's back face: hung, it would hide them from
+            the working pose, and no fetch of it would fit its bay (the
+            claw's crossbar did, #407)
+  rail      nothing in reach of the rail the trays hang from, hung or
+            lifted off the trays by a pick (`arm.LIFT`)
   power     the parts' draw + the module's ESP32 <= `coupling.PEG_POWER_W`;
             an actuator or a sensor whose draw the catalog does not know
             cannot be budgeted and is refused
   bed       every scaffold box fits the print bed in some orientation
 
 Not checked, and said so: the force a tool may push with (the validator
-cannot know what it will push against), and whether it is taken and hung
-back -- the rig's (`workshop.build.rig`), which has gravity and contacts.
+cannot know what it will push against). Whether it is taken, works and
+hangs back is the rig's, which has gravity and contacts: the workshop runs
+it before a point moves (`workshop.build.trial`).
 """
 
 from __future__ import annotations
@@ -79,10 +85,20 @@ BOARD_X = rk.DEFAULT.back_x + 0.006
 #: (a part there hides them) out past their outer edge, over their height.
 _TAG_HALF = 0.5 * rk.DEFAULT.tag_size * 10 / 8
 TAG_ZONE = (
-  (BOARD_X, -TOOL_HALF_X),
+  (BOARD_X, TOOL_HALF_X + 0.002),
   (rk.DEFAULT.tag_dy - _TAG_HALF - 0.012, rk.DEFAULT.tag_dy + _TAG_HALF),
   (PEG_ABOVE_BODY + rk.DEFAULT.tag_z - rk.DEFAULT.peg_z - _TAG_HALF,
    PEG_ABOVE_BODY + rk.DEFAULT.tag_z - rk.DEFAULT.peg_z + _TAG_HALF),
+)
+#: The rail the trays hang from, across the whole board: out from the board
+#: by `rack.RAIL_DEPTH`, and reached from as low as a pick lifts a tool
+#: (`arm.LIFT`) under its underside. A thin handle up to 150 mm over the
+#: peg jammed on it at 15 deg (#407).
+_RAIL_Z = PEG_ABOVE_BODY + rk.DEFAULT.rail_z - rk.DEFAULT.peg_z
+RAIL_ZONE = (
+  (rk.DEFAULT.back_x - 0.004, rk.DEFAULT.back_x + rk.RAIL_DEPTH + 0.004),
+  (-1.0, 1.0),
+  (_RAIL_Z - rk.RAIL_HALF_H - am.LIFT - 0.004, _RAIL_Z + rk.RAIL_HALF_H + 0.004),
 )
 
 
@@ -116,6 +132,13 @@ def ahead_of_peg(tool: Tool, q: dict[str, float] | None = None) -> float:
   return -moment / (MODULE_MASS + tool.mass)
 
 
+def side_of_peg(tool: Tool) -> float:
+  """How far the tool's centre of mass sits along its peg from the peg's
+  middle at the stow pose, m, signed (+y), the plate and peg centred."""
+  placed = poses(tool)
+  return sum(p.mass * float(placed[p.id][0][1]) for p in tool.parts) / (MODULE_MASS + tool.mass)
+
+
 def hang_tilt_deg(tool: Tool) -> float:
   """How far off plumb the tool hangs from its peg on the trays, deg: its
   centre of mass at the stow pose swung under the peg's axis (the plate's
@@ -140,6 +163,11 @@ def validate(tool: Tool) -> list[str]:
     reasons.append(f"hangs: hung on the trays it would tilt {tilt:.1f} deg off plumb, "
                    f"past the {rk.HUNG_TILT_DEG:g} a hung tool may; at its stow pose bring "
                    "its centre of mass under the peg")
+  side = side_of_peg(tool)
+  if abs(side) > rk.HUNG_SIDE_M + 1e-9:
+    reasons.append(f"side: at its stow pose its centre of mass sits {abs(side) * 1000:.0f} mm "
+                   f"to one side of the peg's middle, past the {rk.HUNG_SIDE_M * 1000:.0f} a "
+                   f"hung tool may; the trays hold the peg {rk.TRAY_Y * 1000:.0f} mm either side")
   if total > am.TOOL_MAX_KG + 1e-9:
     reasons.append(f"mass: {total * 1000:.0f} g with the plate and peg, over the "
                    f"arm's {am.TOOL_MAX_KG * 1000:.0f} g")
@@ -189,6 +217,10 @@ def validate(tool: Tool) -> list[str]:
       reasons.append(f"tags: {p.id!r} stands in front of its bay's tags, hung; the robot "
                      "would not see them from the working pose, and no fetch of it "
                      "would fit its bay")
+    if _overlaps(lo, hi, RAIL_ZONE, mirror_y=False):
+      reasons.append(f"rail: {p.id!r} reaches the rail the trays hang from, "
+                     f"{(_RAIL_Z - rk.RAIL_HALF_H - PEG_ABOVE_BODY) * 1000:.0f} mm over the peg, "
+                     f"hung or lifted {am.LIFT * 1000:.0f} mm off the trays by a pick")
 
   draw = MODULE_IDLE_W
   for p in tool.parts:
@@ -232,4 +264,4 @@ def worst_moment(tool: Tool) -> float:
   return max(G * total * max(ahead_of_peg(tool, q), 0.0) for _, q in _pose_set(tool))
 
 
-__all__ = ["Refused", "check", "validate", "worst_moment"]
+__all__ = ["Refused", "check", "side_of_peg", "validate", "worst_moment"]

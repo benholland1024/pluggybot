@@ -91,6 +91,12 @@ class GeomToggle:
   def rebind(self, model) -> None:
     self.model = model
     self.gid = model.geom(self.geom).id
+    # ⚠ a recompiled model carries the geom as COMPILED, never as selected
+    # (#407: the workshop's seam): the state goes on again, or a lit lamp
+    # stays dark while `select` skips the state it believes it is in
+    current, self.current = self.current, None
+    if current is not None:
+      self.select(current)
 
   def select(self, state: str) -> None:
     if state == self.current:

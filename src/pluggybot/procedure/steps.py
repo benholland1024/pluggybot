@@ -301,6 +301,12 @@ def carry_configuration_routine(life, tool: str) -> Routine:
     elif life.body.held_cube() is not None:
       yield from life.body.claw_routine(closed=False)
       dropped = held if life.body.held_cube() is None else None
+  # ...the tool's own axes at rest, the pose it hangs plumb in (#407: a
+  # built tool's stow -- a hinge a procedure left swung was hung back swung,
+  # off plumb, and lost)
+  for act, target, speed in tool_rest(life, tool):
+    if abs(life.body.setpoint(act) - target) > POSE_TOL:
+      yield from life.body.ramp_routine(act, target, speed)
   yield from life.body.retract_arm_routine()
   return {"setDown": set_down, "dropped": dropped}
 
@@ -310,23 +316,12 @@ def carry_configuration_routine(life, tool: str) -> Routine:
 POSE_TOL = 1e-3
 
 
-def travel_pose(life, tool: str | None) -> list[tuple[int, float, float]]:
-  """The CARRYING pose as `(actuator, setpoint, speed)`, in the order to
-  move them (issue #347): a tool's own axes to rest -- each at its joint's
-  compiled value, the pose the tool hung in -- then the arm to its carry
-  pose over the nose (#405), the shoulder first; an empty fork folds the
-  arm to its stow, the shoulder before the elbow, so the forearm comes in
-  over the body rather than under it. It sets nothing down."""
-  from pluggybot.legs.arm import CARRY_Q
+def tool_rest(life, tool: str | None) -> list[tuple[int, float, float]]:
+  """A tool's own axes at rest, as `(actuator, setpoint, speed)`: each at
+  its joint's compiled value, the pose the tool hung in -- a built tool's
+  stow, which its joint's `ref` makes `qpos0` (`workshop.build.face_xml`)."""
   from pluggybot.procedure import axes
-  body, model = life.body, life.model
-  pose = axes._ARM.stow if tool is None else CARRY_Q
-  try:
-    arm = [(body.actuator(axes.AXES[j].actuator), target, axes.AXES[j].speed)
-           for j, target in zip(axes.ARM_JOINTS, pose)]
-  except KeyError:
-    return []
-  own = []
+  model, own = life.model, []
   for axis in axes.AXES.values():
     if tool is None or axis.requires != tool or not axis.actuator:
       continue
@@ -336,7 +331,26 @@ def travel_pose(life, tool: str | None) -> list[tuple[int, float, float]]:
       continue
     rest = float(model.qpos0[model.jnt_qposadr[act.trnid[0]]])
     own.append((act.id, min(max(rest, axis.lo), axis.hi), axis.speed))
-  return own + arm
+  return own
+
+
+def travel_pose(life, tool: str | None) -> list[tuple[int, float, float]]:
+  """The CARRYING pose as `(actuator, setpoint, speed)`, in the order to
+  move them (issue #347): a tool's own axes to rest (`tool_rest`), then the
+  arm to its carry pose over the nose (#405), the shoulder first; an empty
+  fork folds the arm to its stow, the shoulder before the elbow, so the
+  forearm comes in over the body rather than under it. It sets nothing
+  down."""
+  from pluggybot.legs.arm import CARRY_Q
+  from pluggybot.procedure import axes
+  body = life.body
+  pose = axes._ARM.stow if tool is None else CARRY_Q
+  try:
+    arm = [(body.actuator(axes.AXES[j].actuator), target, axes.AXES[j].speed)
+           for j, target in zip(axes.ARM_JOINTS, pose)]
+  except KeyError:
+    return []
+  return tool_rest(life, tool) + arm
 
 
 def travel_pose_routine(life) -> Routine:

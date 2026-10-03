@@ -43,7 +43,7 @@ PIXELS_PER_CELL = 24     # render scale of the generated PNGs
 MODULE_TAG_IDS = {"module_lcd": 10, "module_plug": 11, "module_pen": 12,
                   "module_claw": 13, "module_seed": 14}
 #: The tower's three blocks (issue #207; challenge/stack.py), after the
-#: five built-tool ids 15-19 that workshop/seam.py hands out by bay. A
+#: rover's built-tool ids 15-19 (a tool on legs carries no tag). A
 #: block is a 26 mm cube with the tag on every face (cube mapping), so its
 #: black edge is 8/10 of the cube: the "20 mm tag" whose decode range is a
 #: measurement to make against the first attempt, not before it.

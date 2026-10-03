@@ -1136,9 +1136,10 @@ PARTS: tuple[Part, ...] = (
       code("rack.coupling.PEG_R", "m", "half the 6 mm rod", expect=0.003),
       code("rack.coupling.PEG_INSUL_HALF", "m", "half the 24 mm bush",
            expect=0.012),
-      code("rack.coupling.PEG_FRICTION", "", "honest peg friction: the "
-           "measured worst power outage under hard driving is 178 ms, which "
-           "sizes the module's holding capacitor (~200 ms)"),
+      code("rack.coupling.PEG_FRICTION", "", "honest peg friction: on legs "
+           "the coupling opens for up to 160 ms in a full-rate turn (so a body "
+           "carrying turns at `legs.body.W_CARRY`) and under 100 ms down a "
+           "flight, inside the module's ~200 ms holding capacitor"),
       code("legs.rack.PEG_MASS", "kg",
            "the rover's 150 mm rod's grams a millimetre, the bush unchanged"),
     ),
@@ -1175,16 +1176,19 @@ PARTS: tuple[Part, ...] = (
     note="€1.79 from ten, €2.20 singly: the bill buys fourteen.",
   ),
   Part(
-    "quad_rack_board", "The rack's back board, its six printed V-trays, and "
-    "the rack's and the dock's printed tags", "structure", "chosen",
+    "quad_rack_board", "The rack's back board, its twelve printed V-trays, and "
+    "the rack's, the rail's and the dock's printed tags", "structure", "chosen",
     ("build",), (), quantity=1,
     feeds=(
       code("legs.rack.TRAY_Y", "m", "the trays at ±45 mm"),
       code("legs.rack.RACK_TAG_IDS", "id", "tags 29-34, a pair a bay"),
+      code("legs.rack.BUILT.tag_ids", "id",
+           "tags 47-52, a pair a bay of the built-tool rail (#407)"),
       code("legs.dock.DockSpec.board_x", "m", "the dock's tag board"),
     ),
     why={"partNumber": "no design yet", "source": "a board and the shop's PETG",
-         "massG": "no design yet", "dimensionsMm": "about 1.0 x 0.6 m",
+         "massG": "no design yet",
+         "dimensionsMm": "about 1.9 x 0.6 m: the rack's bays and the rail's",
          "priceEur": "no design yet"},
   ),
   Part(

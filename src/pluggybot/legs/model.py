@@ -59,9 +59,9 @@ class MassBudget:
   #: PLACEHOLDER, #377's sizing premise (`SIZING`). A body with a real arm
   #: (`BodySpec.arm`) budgets 0 here: the arm's parts are its own geoms.
   arm: float = 0.90
-  #: The tool at the arm's tip (the rover's ~250 g practical ceiling,
-  #: ToolPattern.md "Mass and geometry class"), the same placeholder's. With
-  #: a real arm a tool is a body of its own, on a rack or on the fork.
+  #: The tool at the arm's tip (the rover's ~250 g ceiling), the same
+  #: placeholder's. With a real arm a tool is a body of its own, on a rack or
+  #: on the fork, inside the arm's envelope (ToolPattern.md §2).
   tool: float = 0.25
 
   @property

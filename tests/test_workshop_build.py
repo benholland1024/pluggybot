@@ -35,15 +35,15 @@ def test_the_reference_tool_passes_the_rig(scoop):
 
 
 def test_the_rig_refuses_what_the_validator_cannot_see():
-  """The validator is static; the rig has gravity. A 390 g tool whose
-  FS90 must hold 0.18 N*m at its axis's end, against the servo's 0.147,
+  """The validator is static; the rig has gravity. A 353 g tool whose
+  FS90 must hold 0.155 N*m at its axis's end, against the servo's 0.147,
   is inside every envelope rule and fails `works` on the rig. Shown to
   pass the rig -- wrongly -- while an actuator's load carried a stand-in
   inertia, which replaced its parts' masses: every moving part of a built
   tool was massless (#407)."""
   heavy = copy.deepcopy(SCOOP)
-  heavy["parts"][1] = {"id": "block", "part": "scaffold_pla_box", "size": [20, 100, 100],
-                       "pos": [0, 0, -75], "on": "hinge"}
+  heavy["parts"][1] = {"id": "block", "part": "scaffold_pla_box", "size": [34, 50, 100],
+                       "pos": [-5, 0, -75], "on": "hinge"}
   tool = validate.check(heavy)      # the validator lets it through
   assert tool.by_id["block"].mass * validate.G * 0.075 > tool.by_id["hinge"].axis.force
   res, _ = build.rig(tool)
@@ -228,3 +228,18 @@ def test_the_peg_budget_fits_a_servo_and_an_eye_and_refuses_three_servos():
                                     "stow": 0}})
   with pytest.raises(Refused, match=r"power: 15\.0 W .* over its 12 W"):
     validate.check(three)
+
+
+def test_the_workshop_script_tries_the_prompts_own_example(capsys):
+  """`scripts/workshop.py` validates and rigs the scoop the robot's prompt
+  shows, through the workshop's own gate (`build.trial`) -- untested, it
+  rotted once (#407: it called the rover's helpers, and its example was
+  refused)."""
+  import sys
+  from pathlib import Path
+  sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
+  import workshop as script
+  assert script.main(["--example"]) == 0
+  out = capsys.readouterr().out
+  assert "module_scoop" in out and "passed" in out
+

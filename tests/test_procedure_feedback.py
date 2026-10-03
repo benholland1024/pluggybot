@@ -437,10 +437,12 @@ def test_a_cube_no_put_can_set_down_is_let_go_before_the_claw_goes_back():
       calls.append(name)
       return tick.result("arrived")
     return make
+  def no_actuator(name):                    # the claw's own axes are not here
+    raise KeyError(name)
   body = SimpleNamespace(held_cube=lambda: held[0] if held else None,
                          put_cube_routine=put, claw_routine=jaws,
                          retract_arm_routine=rec("retract_arm"))
-  life = SimpleNamespace(body=body)
+  life = SimpleNamespace(body=body, model=SimpleNamespace(actuator=no_actuator))
   out = tick.run(SimpleNamespace(step=lambda *a: None),
                  st.carry_configuration_routine(life, "module_claw"))
   assert out == {"setDown": None, "dropped": 21}

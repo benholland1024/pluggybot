@@ -90,6 +90,12 @@ class RackSpec:
     return self.stations.index(int(station))
 
 
+#: The rail the trays hang from: how far it stands out from the back board,
+#: and half its height, m (`rack_xml`; the workshop's validator keeps a
+#: built tool off it).
+RAIL_DEPTH = 0.06
+RAIL_HALF_H = 0.01
+
 DEFAULT = RackSpec()
 #: THE BUILT-TOOL RAIL (issue #407; #277's rule: the hand-built tools are
 #: permanent, and a tool the workshop builds hangs on a rail of its own):
@@ -222,8 +228,8 @@ def rack_xml(spec: RackSpec = DEFAULT, pos=(0.0, 0.0), yaw: float = 0.0,
   half_y, mid_y = (hi - lo) / 2, (hi + lo) / 2
   g = [f'<geom name="{name}_board" type="box" size="{_v(0.006, half_y, s.rail_z / 2)}" '
        f'pos="{_v(s.back_x, mid_y, s.rail_z / 2)}" rgba="0.85 0.85 0.82 1"/>',
-       f'<geom name="{name}_rail" type="box" size="{_v(0.03, half_y, 0.01)}" '
-       f'pos="{_v(s.back_x + 0.03, mid_y, s.rail_z)}" rgba="0.45 0.47 0.50 1"/>']
+       f'<geom name="{name}_rail" type="box" size="{_v(RAIL_DEPTH / 2, half_y, RAIL_HALF_H)}" '
+       f'pos="{_v(s.back_x + RAIL_DEPTH / 2, mid_y, s.rail_z)}" rgba="0.45 0.47 0.50 1"/>']
   vz = s.peg_z - TRAY_VERTEX_DROP
   for k, by in enumerate(s.bays):
     bay = bay_prefix(s.stations[k])
@@ -560,6 +566,12 @@ def on_bay(model, data, name: str, spec: RackSpec, bay: int) -> bool:
 
 #: A hung tool hangs plumb: within this of it, deg.
 HUNG_TILT_DEG = 2.0
+#: ...and its centre of mass this close to the peg's middle, m, the trays
+#: holding the peg at +-`TRAY_Y`: MEASURED in the workshop's rig (#407), 30 mm
+#: to one side hung, was taken and hung back with the fork 15 mm either way
+#: (the walk-in's gate), 35 mm did not seat with the fork 15 mm toward it,
+#: and 45 mm did not hang.
+HUNG_SIDE_M = 0.025
 
 
 # ---- the rack's pose, off its tags ------------------------------------------------

@@ -2430,7 +2430,7 @@
      "where": "code",
      "value": 0.4,
      "unit": "",
-     "note": "honest peg friction: the measured worst power outage under hard driving is 178 ms, which sizes the module's holding capacitor (~200 ms)"
+     "note": "honest peg friction: on legs the coupling opens for up to 160 ms in a full-rate turn (so a body carrying turns at `legs.body.W_CARRY`) and under 100 ms down a flight, inside the module's ~200 ms holding capacitor"
     },
     {
      "constant": "legs.rack.PEG_MASS",
@@ -2528,7 +2528,7 @@
   },
   {
    "id": "quad_rack_board",
-   "name": "The rack's back board, its six printed V-trays, and the rack's and the dock's printed tags",
+   "name": "The rack's back board, its twelve printed V-trays, and the rack's, the rail's and the dock's printed tags",
    "kind": "structure",
    "status": "chosen",
    "shelves": [
@@ -2567,6 +2567,20 @@
      "note": "tags 29-34, a pair a bay"
     },
     {
+     "constant": "legs.rack.BUILT.tag_ids",
+     "where": "code",
+     "value": [
+      47,
+      48,
+      49,
+      50,
+      51,
+      52
+     ],
+     "unit": "id",
+     "note": "tags 47-52, a pair a bay of the built-tool rail (#407)"
+    },
+    {
      "constant": "legs.dock.DockSpec.board_x",
      "where": "code",
      "value": 0.62,
@@ -2578,7 +2592,7 @@
     "partNumber": "no design yet",
     "source": "a board and the shop's PETG",
     "massG": "no design yet",
-    "dimensionsMm": "about 1.0 x 0.6 m",
+    "dimensionsMm": "about 1.9 x 0.6 m: the rack's bays and the rail's",
     "priceEur": "no design yet"
    },
    "note": "",
@@ -3950,7 +3964,7 @@
    },
    {
     "part": "quad_rack_board",
-    "name": "The rack's back board, its six printed V-trays, and the rack's and the dock's printed tags",
+    "name": "The rack's back board, its twelve printed V-trays, and the rack's, the rail's and the dock's printed tags",
     "group": "rack",
     "quantity": 1,
     "priceFor": "each",

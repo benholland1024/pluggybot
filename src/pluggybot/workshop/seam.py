@@ -28,8 +28,7 @@ pointed at the new one, the registries, the wire).
   LAST, after the robots, so only another built module's ids ever move.
 
   ⚠ NO IDENTITY TAG: on legs a tool is known by its bay -- the bay's pair
-  of tags, which the rail carries, and its presence switch -- never by a
-  tag of its own (the rover's built modules carried one).
+  of tags, which the rail carries, and its presence switch.
 """
 
 from __future__ import annotations
@@ -101,30 +100,80 @@ def rack_pose(model) -> tuple[float, float, float]:
   return float(model.body_pos[b][0]), float(model.body_pos[b][1]), 2.0 * math.atan2(z, w)
 
 
+def _child(tool: Tool, bay: int, rack: tuple[float, float, float]) -> mujoco.MjSpec:
+  """The tool's module as a spec of its own, hung at the rail's bay `bay`
+  (`legs.rack.BUILT`) in the rack's frame `rack` (`rack_pose`): its default
+  class, its bodies and its actuators."""
+  from pluggybot.legs import rack as rk
+  x, y, yaw = rack
+  default, module = build.module_for(tool, rk.bay_peg(rk.BUILT, bay, pos=(x, y), yaw=yaw),
+                                     yaw=yaw)
+  return mujoco.MjSpec.from_string(
+    f'<mujoco><compiler angle="radian"/><default>{default}</default>'
+    f"<worldbody>{module}</worldbody>"
+    f"<actuator>{build.actuator_xml(tool, tool.body)}</actuator></mujoco>")
+
+
+_KINDS = ("bodies", "geoms", "joints", "actuators", "sites", "cameras")
+
+
+def names_taken(spec: mujoco.MjSpec, tool: Tool, retiring: str | None = None) -> list[str]:
+  """The names the tool's module would bring that the world already has,
+  kind by kind -- a body, a part, a joint, a servo of something else --
+  leaving out the built tool `retiring` takes away first. Checked before a
+  point moves (#407): `claw_carriage` named one of the claw's own bodies and
+  was refused only once its parts were bought, and `claw_pad` with a part
+  `l` named a claw pad and broke the world's compile."""
+  child = _child(tool, 0, (0.0, 0.0, 0.0))
+  gone: set[str] = set()
+  if retiring is not None and spec.body(retiring) is not None:
+    stack = [spec.body(retiring)]
+    while stack:
+      b = stack.pop()
+      gone.add(b.name)
+      gone.update(e.name for kind in ("geoms", "joints", "sites", "cameras")
+                  for e in getattr(b, kind))
+      stack.extend(b.bodies)
+  taken = []
+  for kind in _KINDS:
+    ours = {e.name for e in getattr(spec, kind)} - gone
+    if kind == "actuators":
+      ours = {a.name for a in spec.actuators if a.target not in gone}
+    theirs = {e.name for e in getattr(child, kind) if e.name}
+    theirs.discard(child.worldbody.name)          # every spec has its world
+    taken += sorted(theirs & ours)
+  return taken
+
+
 def attach(spec: mujoco.MjSpec, tool: Tool, bay: int,
            rack: tuple[float, float, float]) -> dict:
   """The tool's module hung at the rail's bay `bay` (`legs.rack.BUILT`), with
   its default class and its actuators, into the spec, in the rack's frame
   `rack` (`rack_pose`). Returns the names the lifecycle records."""
-  from pluggybot.legs import rack as rk
-  if tool.body in {b.name for b in spec.bodies}:
-    raise SeamRefused(f"the world already has a {tool.body}")
-  x, y, yaw = rack
-  default, module = build.module_for(tool, rk.bay_peg(rk.BUILT, bay, pos=(x, y), yaw=yaw),
-                                     yaw=yaw)
-  child = mujoco.MjSpec.from_string(
-    f'<mujoco><compiler angle="radian"/><default>{default}</default>'
-    f"<worldbody>{module}</worldbody>"
-    f"<actuator>{build.actuator_xml(tool, tool.body)}</actuator></mujoco>")
+  taken = names_taken(spec, tool)
+  if taken:
+    raise SeamRefused(f"the world already has {', '.join(taken)}")
   frame = spec.worldbody.add_frame()
-  spec.attach(child, prefix="", frame=frame)
+  spec.attach(_child(tool, bay, rack), prefix="", frame=frame)
   return {"module": tool.body, "bay": bay,
           "actuators": [build.actuator_name(tool.body, p.axis.verb) for p in tool.axes]}
 
 
 def recompile(spec: mujoco.MjSpec, model, data):
   """The new (model, data), state carried across. NEW objects: the caller
-  must re-point every holder (`HubLifecycle.rebind`)."""
+  must re-point every holder (`HubLifecycle.rebind`).
+
+  ⚠ A NEW SERVO HOLDS ITS JOINT'S REST (#407): the recompile starts a new
+  actuator at ctrl 0, and a position servo at 0 drives its joint there from
+  the stow it compiled at (`build.face_xml`), so each new joint-driven
+  servo is set to its joint's `qpos0` -- the one write here, before any
+  step."""
+  old = {model.actuator(i).name for i in range(model.nu)}
   new_model, new_data = spec.recompile(model, data)
+  for i in range(new_model.nu):
+    if (new_model.actuator(i).name not in old
+        and new_model.actuator_trntype[i] == mujoco.mjtTrn.mjTRN_JOINT):
+      j = int(new_model.actuator_trnid[i][0])
+      new_data.ctrl[i] = new_model.qpos0[new_model.jnt_qposadr[j]]
   mujoco.mj_forward(new_model, new_data)
   return new_model, new_data

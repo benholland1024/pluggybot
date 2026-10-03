@@ -249,6 +249,41 @@ def test_a_hung_tool_leaves_its_bays_tags_in_view():
   assert any(r.startswith("tags:") and "'wing'" in r for r in refused(raw))
   validate.check(with_part({"id": "wing", "part": "scaffold_pla_box", "size": [10, 10, 10],
                             "pos": [-40, 0, -80]}))
+  # ...and the plate's own slab is no shelter: the camera looks past the
+  # plate at the tags behind it, and a crossbar there 76 mm wide, as the
+  # claw's first was, hid both (#407 review: it validated, and the working
+  # pose decoded no tag of its bay)
+  bar = with_part({"id": "cross", "part": "scaffold_pla_box", "size": [16, 76, 8],
+                   "pos": [-2, 0, -104]})
+  assert any(r.startswith("tags:") and "'cross'" in r for r in refused(bar))
+
+
+def test_nothing_rises_into_the_racks_rail():
+  """The rail the trays hang from runs 0.11-0.13 m over the peg and out to
+  60 mm from the board, and a pick lifts a tool 56 mm (`arm.LIFT`): a part
+  that reaches it, hung or lifted, jams there. A thin handle 50 mm ahead of
+  the peg up to 150 mm validated and jammed on the rail at 15 deg (#407
+  review); the same handle stopping 60 mm over the peg does not reach it."""
+  raw = with_part({"id": "handle", "part": "scaffold_pla_box", "size": [4, 4, 140],
+                   "pos": [-50, 0, 80]})
+  assert any(r.startswith("rail:") and "'handle'" in r for r in refused(raw))
+  validate.check(with_part({"id": "handle", "part": "scaffold_pla_box", "size": [4, 4, 50],
+                            "pos": [-50, 0, 35]}))
+
+
+def test_a_tool_hangs_centred_between_the_trays():
+  """The trays hold the peg at +-45 mm: MEASURED in the rig, a centre of
+  mass 30 mm to one side hangs, is taken and hangs back with the fork 15 mm
+  either way (the walk-in's gate), at 35 mm a hang-back with the fork 15 mm
+  toward it does not seat, and at 45 it does not hang (#407 review: 70 mm
+  validated and tipped 47 deg off the trays). The rule is 25 mm."""
+  def weight(y_mm):
+    return {"name": "side", "parts": [{"id": "w", "part": "scaffold_pla_box",
+                                       "size": [20, 40, 40], "pos": [0, y_mm, -150]}]}
+  far = 35.0 * (validate.MODULE_MASS + 0.03968) / 0.03968        # its CoM at 35 mm
+  assert any(r.startswith("side:") for r in refused(weight(far)))
+  near = 20.0 * (validate.MODULE_MASS + 0.03968) / 0.03968
+  assert abs(validate.side_of_peg(validate.check(weight(near))) - 0.020) < 0.001
 
 
 def test_the_rack_board_is_a_hand_out_the_front():

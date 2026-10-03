@@ -336,9 +336,9 @@ that costs no turn: `build_tool: {name, bay, spec}` and `retire_tool: name`.
 No replace: a bay is **named**, and a tool of the robot's own already
 hanging there is retired for good.
 
-**Two rows, since #277.** The hand-built tools (on legs the LCD, the pen
+**Two sets of bays, since #277.** The hand-built tools (on legs the LCD, the pen
 and the claw; `seam.HAND_BUILT` refuses every original's name) hang in the
-rack's first row and are **permanent**: no bay of theirs can be named
+rack's own bays and are **permanent**: no bay of theirs can be named
 (`build_tool.bay` is the rail's `A`–`C`, and any other letter is refused)
 and `retire_tool` refuses their names with the reason. Beside them on the
 same board is the **built-tool rail**, three bays in the rack's own frame
@@ -353,11 +353,12 @@ What code keeps, in order, before anything moves:
 
 1. **The envelope** (`workshop/validate.py`, the arm's, ToolPattern §2 as
    constants): the mass; the centre of mass on the peg's line or ahead of
-   it, and its moment; hanging plumb; the drop under the peg; nothing behind
-   the plate, nor where the fork's V's or the trays hold the peg; hung,
-   nothing at the board or in front of its bay's tags; the peg's power
-   budget; the print bed. Refused with every reason at once; the robot never
-   sees a warning.
+   it, and its moment; hanging plumb and centred between the trays; the
+   drop under the peg; nothing behind the plate, nor where the fork's V's
+   or the trays hold the peg; hung, nothing at the board, in front of its
+   bay's tags or in reach of the rail; the peg's power budget; the print
+   bed. Refused with every reason at once; the robot never sees a
+   warning.
 2. **The parts** must be ones the catalog fully knows. `spec.unbuildable`
    is ONE predicate for the validator's refusal and the prompt's list, so
    the robot is never told a part is usable that the code would refuse.
@@ -372,11 +373,16 @@ What code keeps, in order, before anything moves:
    binding). The validator sums every part's ceiling as if simultaneous:
    a servo and an eye fit, three servos at stall do not
    (`test_the_peg_budget_fits_a_servo_and_an_eye_and_refuses_three_servos`).
-3. **The price** (`workshop/cost.py`): the catalog's euros as points, one
+3. **Its names and the rig** (#407): none of the names its module would
+   bring is the world's already (`seam.names_taken`), and the RIG passes
+   (`build.trial`): hung, taken, worked and hung back on a bench rack, the
+   fork on the bay's middle and at the walk-in's line-up gate either side.
+   A tool the rig refuses would be lost the moment it hung.
+4. **The price** (`workshop/cost.py`): the catalog's euros as points, one
    per euro, filament by the gram; then print and assembly **time** stood
    still. Paid before anything prints (`Ledger.spend`, no debt); an
    unaffordable tool is refused before a second passes.
-4. **The seam** (`HubLifecycle.hang_tool`, §2c of the slice plan on #168):
+5. **The seam** (`HubLifecycle.hang_tool`, §2c of the slice plan on #168):
    between errands, fork empty — **for every robot in the world**.
    Checked before the points move, so a refused hang never follows a paid
    print. The one refusal that can arrive after the money is the seam
@@ -402,8 +408,9 @@ a hang or a retire is followed by the world's `scene_changed`. What the
 robot built is shown back to it: `rack` — `original`, the originals by
 name with where each is (§2i), and `built`, the rail's bays by letter with an
 empty one `null` — and `tools` (each spec, its bay, its cost) ride the
-volatile half of the context. A built tool's axis is `<name>.<verb>` in the procedure
-language, and the tool is fetched like any module: its bay indexes
+volatile half of the context. A built tool's axis is `<name>.<verb>` in
+the procedure language, and the tool is fetched like any module: its bay
+indexes
 `STATION_YS` (5–7), in the rack's own commissioned frame.
 
 **A pair hangs a tool** (issue #315). Until then the seam refused a pair
@@ -422,7 +429,7 @@ empty, and the refusal names the busy one — "wait" and "never" are different
 answers and the robot is the one who has to tell them apart.
 
 ⚠ **A print is longer than an errand**, and that nearly made the fix
-worse than the defect. The scoop prints and assembles for 896 sim s; an
+worse than the defect. The scoop prints and assembles for 985 sim s; an
 errand runs 200–500. So on a pair the other robot is usually mid-errand
 by the time the parts are ready — and since the seam must refuse while a
 peer is mid-errand, the build was **paid for and lost**: no tool, no
@@ -441,18 +448,19 @@ The rail itself is the **world's**, like the first rack: one
 `rack_inventory` for the pair, so a tool either robot builds is one both
 can see and fetch. "The bay you name is taken" is therefore a rule about
 a robot's OWN tools — a bay the other robot's tool hangs in is refused
-with whose it is, and so is retiring it. Nothing arbitrates the rail beyond that: which of three
-bays each robot takes is the minds' to negotiate, as tool contention on
-the first rack always has been.
+with whose it is, and so is retiring it. Nothing arbitrates the rail
+beyond that: which of three bays each robot takes is the minds' to
+negotiate, as tool contention on the first rack always has been.
 
 **Whose tool is it, and which tool does a procedure need** (issue #324).
 Two facts the robot could previously only learn by failing. A built bay
 says `{module, by}` (and `where`, §2i) — `by` is "you" or the other
 robot's display name — because the rail is shared and a bay may hold a
 tool this robot may neither take nor retire; ⚠ no tag can carry it: on
-legs a tool has no tag of its own, and its bay's pair belongs to the bay. And a library entry says `needs`: the modules its
-`move` and `read` calls require, off the `requires` that
-`workshop/build.py` puts on every axis and sensor a built tool brings.
+legs a tool has no tag of its own, and its bay's pair belongs to the bay.
+And a library entry says `needs`: the modules its `move` and `read` calls
+require, off the `requires` that `workshop/build.py` puts on every axis and
+sensor a built tool brings.
 The source was always shown, so the association was inferable; this
 states it, which is the difference between reading your own code and
 being told what to fetch.
@@ -475,7 +483,8 @@ validates is kept, marked and shown; the robot wrote it. The points were
 paid once.
 
 ⚠ The fields, the grammar and the rule exist only where a workshop does
-(`Menu.workshop`, set by `build()` where the world has built bays). ⚠ The prompt's
+(`Menu.workshop`, set by `build()` where the world has built bays). ⚠ The
+prompt's
 example is a capability, not a policy — a test reads it for the words
 that would hand the agent the charging answer.
 

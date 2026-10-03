@@ -245,6 +245,22 @@ def test_a_fall_is_got_up_from_by_the_policy(quad_world):
     body.close()
 
 
+def test_a_restart_carries_only_a_tool_its_world_has(quad_world):
+  """A restart puts back what rode the fork (`QuadMission.carry`), and a
+  built tool the workshop could not hang again is no body of the new world
+  (#407: `model.body` raised, and the served process crash-looped until its
+  save was no longer trusted): the fork carries nothing."""
+  body, again = quad(quad_world), quad(quad_world)
+  try:
+    state, arrays = body.kept_state()
+    state["carrying"] = "module_gone"
+    again.restore_kept(state, arrays)
+    assert again.mission.carrying is None
+  finally:
+    body.close()
+    again.close()
+
+
 def _quad_spike():
   import sys
   from pathlib import Path

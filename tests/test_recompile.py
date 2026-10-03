@@ -23,6 +23,7 @@ rebind`):
 """
 
 import ast
+import copy
 import json
 from pathlib import Path
 
@@ -415,6 +416,94 @@ def test_a_tool_built_yesterday_hangs_again_when_the_served_pair_starts(tmp_path
   finally:
     for life in lives:
       life.body.close()
+
+
+#: A tool whose stow is not its joint's zero: hung at its stow the blade
+#: hangs straight down; at 0 it stands out ahead and the tool tilts 14 deg.
+FLAP = {"name": "flap", "parts": [
+  {"id": "hinge", "part": "servo_fs90", "pos": [0, 0, -50],
+   "axis": {"verb": "tilt", "dir": [0, 1, 0], "range": [-90, 0], "stow": -90}},
+  {"id": "blade", "part": "scaffold_pla_box", "size": [70, 40, 8], "pos": [-45, 0, 0],
+   "on": "hinge"}]}
+
+
+def test_a_built_tool_hangs_at_its_stow_and_goes_back_to_it_before_it_is_hung_back():
+  """The validator checks a tool hanging at its STOW (#407), so the world
+  hangs it there: the module compiles with each axis at its stow (the
+  joint's `ref`), its servo holding there, plumb on its bay -- and a hang-back
+  (`carry_configuration_routine`, every stow's first step) returns an axis a
+  procedure moved. Before, a new servo held 0: the flap tilted 14 deg, was
+  `lost` from the moment it hung, and a moved hinge was hung back moved."""
+  import math
+
+  from pluggybot.legs import rack as rk
+  from pluggybot.pair import build_pair
+  from pluggybot.procedure import steps
+  lives = build_pair(WORLD, errands=("none", "none"))
+  try:
+    a = lives[0]
+    for life in lives:
+      life.body.start_at(*life.body.pose)
+    a.hang_tool(validate.check(FLAP), 0)
+    tick.run_many([(life.body.stepper, life.body.hold_routine(1.0)) for life in lives])
+    q = a.model.joint("module_flap_tilt_joint").qposadr[0]
+    act = a.model.actuator("module_flap_tilt").id
+    assert abs(float(a.data.qpos[q]) + math.pi / 2) < 0.05
+    assert rk.on_bay(a.model, a.data, "module_flap", rk.BUILT, 0)
+    # ...a procedure's `move` leaves it at 0; the hang-back brings it home
+    a.body.run(a.body.ramp_routine(act, 0.0, 1.0, settle=0.5))
+    assert abs(float(a.data.qpos[q])) < 0.05
+    a.body.run(steps.carry_configuration_routine(a, "module_flap"))
+    a.body.run(a.body.hold_routine(0.5))
+    assert abs(float(a.data.qpos[q]) + math.pi / 2) < 0.05
+  finally:
+    for life in lives:
+      life.body.close()
+
+
+def test_standing_by_clear_of_the_racks_counts_the_rails_own_bays():
+  """`rack_distance` is the nearer of the dock (`body.rack_prior`, the frame
+  the charge logic works round on legs) and each rail bay's approach start,
+  so a robot standing by is sent clear of the rail's bays and their lanes
+  (`RACK_CLEAR_M`): each standoff, off the rack's own commissioned pose,
+  reads 0. Computed off the dock's frame, as first written, bays B and C's
+  read 2.04 and 2.26 m -- clear -- and a robot waiting there stayed."""
+  from pluggybot.legs import dock as dk
+  from pluggybot.legs import rack as rk
+  from pluggybot.legs.swap import APPROACH_STANDOFF_M
+  from pluggybot.pair import build_pair
+  lives = build_pair(WORLD, errands=("none", "none"))
+  try:
+    a = lives[0]
+    rack = seam.rack_pose(a.model)
+    for k in range(len(rk.BUILT.bays)):
+      work = dk.compose(rack, rk.work_pose(rk.BUILT, k))
+      x, y, _ = dk.compose(work, (-APPROACH_STANDOFF_M, 0.0, 0.0))
+      assert a.rack_distance(x, y) < 1e-6, k
+  finally:
+    for life in lives:
+      life.body.close()
+
+
+def test_a_tool_named_as_something_in_the_world_is_caught_before_it_is_bought():
+  """`seam.names_taken` on the served world's spec (#407): `claw_carriage`
+  names one of the claw's bodies, and `claw_pad` with a part `l` one of its
+  pads -- the first was refused only once its parts were bought, the second
+  broke the world's compile. A free name passes, and so does a rebuild of
+  the built tool the bay retires first."""
+  cfg = world_config(WORLD)
+  spec = world_spec(cfg["model"], body=cfg["body"])
+
+  def tool(name, part="blade"):
+    raw = copy.deepcopy(SCOOP)
+    raw["name"], raw["parts"][1]["id"] = name, part
+    return validate.check(raw)
+  assert "module_claw_carriage" in seam.names_taken(spec, tool("claw_carriage"))
+  assert "module_claw_pad_l" in seam.names_taken(spec, tool("claw_pad", "l"))
+  assert seam.names_taken(spec, tool("scoop")) == []
+  seam.attach(spec, tool("scoop"), 0, (0.0, 0.0, 0.0))
+  assert "module_scoop" in seam.names_taken(spec, tool("scoop"))
+  assert seam.names_taken(spec, tool("scoop"), retiring="module_scoop") == []
 
 
 def test_the_seam_waits_out_a_body_in_the_middle_of_a_move():

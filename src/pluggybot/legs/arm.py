@@ -176,10 +176,9 @@ CARRY = (0.40, 0.40)
 FOLD_ON_FALL_COS = math.cos(math.radians(60.0))
 
 #: THE TOOL ENVELOPE a tool on this coupling must fit (the workshop's
-#: validator's, #375 step 4; `rack.coupling`'s are the rover's). Measured
-#: (the spike's `--envelope`: carried through a 1.0 m/s trot and a stop;
-#: `--retention --stairs`: the house's flight, both ways, at 0, 30 and
-#: 60 mm ahead):
+#: validator reads it, #407). Measured (the spike's `--envelope`: carried
+#: through a 1.0 m/s trot and a stop; `--retention --stairs`: #388's flight,
+#: both ways, at 0, 30 and 60 mm ahead):
 #:   mass  a tool of 0.60 kg stayed seated with its CoM up to 60 mm off its
 #:         peg; the arm holds 0.61 kg (the claw and a 0.4 kg cube) straight
 #:         out at 39 % of its motors' continuous rating. The ceiling keeps a

@@ -9,7 +9,7 @@ one costs no turn -- `build_tool` and `retire_tool` -- and no verb that
 replaces: a bay is taken by naming it, and a built tool in it is retired
 first, on purpose, in the same decision. A bay is one of the BUILT-TOOL
 RAIL's (issue #277; on legs `legs.rack.BUILT`, #407, lettered from A): the
-hand-built tools hang in the rack's first row, cannot be named here and
+hand-built tools hang in the rack's own bays, cannot be named here and
 cannot be retired -- every offered job is written against them.
 
 Every rule fails OUT LOUD: a spec that does not validate, a price the
@@ -61,8 +61,8 @@ class WorkshopRefused(ValueError):
 
 def bay_index(letter: str) -> int:
   """'A'..'C' -> 0..2 on the built-tool rail, or WorkshopRefused. The
-  refusal names no original's bay: on legs the originals' row is A-C too
-  (#407), and the rover's "D on the original rack is the claw's" was false."""
+  refusal names no original's bay: the rack's own bays are lettered A-C
+  too, and no letter past the rail's is anybody's."""
   letter = str(letter or "").strip().upper()
   if letter not in BAYS:
     raise WorkshopRefused([f"bay {letter!r} is not one of {', '.join(BAYS)} (the "
@@ -129,7 +129,9 @@ class Workshop:
     return tuple(self.entries)
 
   def hung(self) -> list[Entry]:
-    return [e for e in self.entries.values() if e.valid]
+    """The tools to hang, in the order they were built -- the order a
+    running world attached them, so a restart lays it out the same (#407)."""
+    return sorted((e for e in self.entries.values() if e.valid), key=lambda e: e.t)
 
   def as_context(self) -> list[dict]:
     """Every tool the robot built: its spec, its bay, what it cost, and why

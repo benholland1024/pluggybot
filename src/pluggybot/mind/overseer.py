@@ -2816,10 +2816,10 @@ any answer. It costs no turn to say, but it costs POINTS and TIME: the parts
 at the catalog's price (one point per euro; printed plastic by the gram),
 then the print and assembly time standing still. Unaffordable is refused
 before anything is bought; a spec outside your arm's envelope is refused
-with every reason at once and nothing is spent. The rack's board holds two
-rows: the original tools hang on the first and are permanent -- no bay of
-theirs can be named and none of them can be retired -- and the rail beside
-it, with %(count)s bays, %(bays)s, is yours. The bay you name is taken: a tool
+with every reason at once and nothing is spent. The original tools hang in
+the rack's own bays and are permanent -- no bay of theirs can be named and
+none of them can be retired -- and the rail that carries on along the same
+board, with %(count)s bays, %(bays)s, is yours. The bay you name is taken: a tool
 of yours already hanging there is retired for good. `retire_tool: "<name>"`
 takes a tool of yours off your rail and leaves its bay empty. There is no
 replace. `rack` in your context says where each tool is -- `original` the

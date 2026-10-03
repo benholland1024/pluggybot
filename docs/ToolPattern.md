@@ -4,9 +4,10 @@ The recipe for adding a tool to the quadruped's rack (rewritten for the arm
 in #407). A tool hangs on the rack beside the dock (`legs/rack.py`), the
 robot takes it on the fork at the tip of its two-joint arm (`legs/arm.py`,
 `legs/swap.py`), and it carries the tool over its nose while it walks.
-Three hand-built tools hang in the rack's first row — the LCD (bay A), the
-pen (B) and the claw (C) — and a tool the robot builds hangs in the second,
-the built-tool rail. What carried over from the wheeled rover (`rover-final`)
+Three hand-built tools hang in the rack's own bays — the LCD (bay A), the
+pen (B) and the claw (C) — and a tool the robot builds hangs on the
+built-tool rail, three more bays along the same board. What carried over
+from the wheeled rover (`rover-final`)
 is the coupling — a split peg, gravity as the latch, the peg's two conductors
 as the power — and the build discipline; its lift, rack, lean-pad force
 table and seed dispenser are history.
@@ -93,24 +94,25 @@ took the tool and hung it back.
 | centre of mass | **on the peg's line or ahead of it** (away from the robot), at most **60 mm**, at the stow pose and at every axis's two ends | `arm.TOOL_MAX_AHEAD_M` |
 | moment about the peg | **0.35 N·m** | `arm.TOOL_MAX_MOMENT_NM` |
 | hangs plumb | within **2°** at its stow pose: hung, nothing holds it level | `rack.HUNG_TILT_DEG` |
+| hangs centred | its centre of mass within **25 mm** of the peg's middle at its stow pose: the trays hold the peg at ±45 mm (measured: 35 mm did not hang back with the fork 15 mm toward it) | `rack.HUNG_SIDE_M` |
 | drop | nothing more than **0.20 m** under the peg at any pose: carried, it clears the LIDAR's plane by 2 cm | `arm.TOOL_MAX_DROP_M` |
 | behind | nothing behind the plate's back face (the fork's prongs, bridge and lean-pad) | `validate` |
 | the peg's ends | nothing where the fork's V's or the trays hold them | `validate.FORK_ZONE`, `TRAY_ZONE` |
-| hung | nothing within 10 mm of the rack's board, nothing in front of its bay's tags | `validate.BOARD_CLEAR_M`, `TAG_ZONE` |
+| hung | nothing within 10 mm of the rack's board; nothing in front of its bay's tags, the plate's own slab included (the camera looks past the plate) | `validate.BOARD_CLEAR_M`, `TAG_ZONE` |
+| the rail | nothing in reach of the rail the trays hang from, 0.11–0.13 m over the peg, hung or lifted by a pick's 56 mm | `validate.RAIL_ZONE` |
 | power | the parts' draw plus the module's ESP32 under **12 W** | `coupling.PEG_POWER_W` |
 
 Measured (`scripts/arm_spike.py --envelope`, `--retention --stairs`): a
 0.60 kg tool stayed seated through a 1.0 m/s trot and a stop with its centre
-of mass up to 60 mm off its peg; down the house's flight at 60 mm ahead, none
-of 18 lost. The arm holds 0.61 kg — the claw and a 0.4 kg cube — straight
+of mass up to 60 mm off its peg; down #388's flight (ten 0.18 m risers) at
+60 mm ahead, none of 18 lost. The arm holds 0.61 kg — the claw and a 0.4 kg cube — straight
 out at 39 % of its motors' continuous rating, so the 0.40 kg ceiling leaves a
 payload room.
 
 **Ahead, not behind.** A centre of mass ahead of the peg leans the tool 6°
 onto the lean-pad, a round bar standing 3 mm behind the plate; behind the peg
 and below it is where the pad's post is. The pad also takes a pressing
-tool's reaction after 4° of swing. ⚠ How hard a tool may push on the arm is
-not measured past the pen's quill (~0.6 N); measure before relying on more.
+tool's reaction after 4° of swing; how hard a tool may push is open (§7).
 
 ### What a carried tool does
 
@@ -119,9 +121,7 @@ not measured past the pen's quill (~0.6 N); measure before relying on more.
 - **A pivot unseats it.** At the drive's full 1.0 rad/s the tool swung out of
   its V's for 160 ms against the peg's 200 ms holding capacitor, so a body
   carrying turns at most `legs.body.W_CARRY` (0.45 rad/s).
-- **Stairs are the open risk.** Coming down, the fork falls faster than g at
-  a step and about 1 descent in 60 floats the peg onto an end-ramp and loses
-  the tool (the house has no stairs yet, #280).
+- **Stairs are the open risk** (§7): the house has no flight yet (#280).
 - **A fall throws it**, whatever holds it; the arm folds as the torso passes
   60° (`arm.FOLD_ON_FALL_COS`).
 - **It is the body's own to its senses** (`QuadMission.carry`): out of the
@@ -131,12 +131,14 @@ not measured past the pen's quill (~0.6 N); measure before relying on more.
 ### A moving axis needs a stow pose
 
 An axis left wherever the last job ended is not a pose anyone designed. A
-built tool's spec carries `stow` per axis, and the validator checks every
-rule at the stow pose and at each axis's two ends. A hand-built tool returns
-its axes before it is hung back (the pen's carriage, the claw's slide and
-jaws); a claw hung back holding a cube is a cube hung on the rack, so a stow
-sets the cube down first, or lets it go where it stands
-(`steps.carry_configuration_routine`).
+built tool's spec carries `stow` per axis: the validator checks every rule
+at the stow pose and at each axis's two ends, the module compiles AT its
+stow (each joint's `ref`, so `qpos0` is the stow) with its servo holding
+there, and every hang-back first returns each axis of any tool to its rest
+(`steps.carry_configuration_routine`). Built at 0, a flap whose stow is −90°
+hung 14° off plumb and was lost from the moment it hung. A claw hung back
+holding a cube is a cube hung on the rack, so a stow sets the cube down
+first, or lets it go where it stands.
 
 ### If the tool carries a payload
 
@@ -145,8 +147,9 @@ sets the cube down first, or lets it go where it stands
   (1 − d)/d · g/b, so the pads are stiff (`CLAW_PAD_SOLREF` 0.006,
   `CLAW_PAD_SOLIMP` 0.99/0.999 with a 10 µm width) and the jaw servo
   saturates at its stall force (`CLAW_GRIP_KP` 2000, 10 N): a held cube
-  creeps 0.04–0.19 mm/s at 60–400 g, never read unheld; 500 g shaken across
-  the jaws is.
+  creeps 0.03–0.19 mm/s from 60 to 320 g (SimNotes, "The claw on legs"),
+  and the jaws hold 0.40 kg, never reading unheld; 0.50 kg shaken across
+  them does (`challenge/bench.py`'s `MAX_KG`).
 - **Retained by geometry** (the rover's seed magazine) — no pose in which the
   payload has anywhere to go: nothing to tune. Prefer it whenever the payload
   need not be grasped.
@@ -166,7 +169,7 @@ Everything below is in `src/pluggybot/legs/rack.py`.
 is at `pos`, its +x face turned toward the robot: the plate (20 × 40 × 60 mm,
 `coupling.TOOL_HALF_*`) and the peg (`peg_xml`). `tool_default` is its geoms'
 class. The plate and peg weigh `MODULE_MASS` (0.129 kg); a tool's face adds
-to that (the LCD 0.152 kg in all, the pen 0.191, the claw 0.239).
+to that (the LCD 0.151 kg in all, the pen 0.190, the claw 0.239).
 
 ### The peg is also the connector
 
@@ -212,9 +215,8 @@ Rules from the builds, each paid for:
 - **Mount in front of the plate, not inside it.** MuJoCo filters only
   parent-child contacts: a grandchild part collides with the plate.
 - **The structure must not occupy the working space** — and **a hung tool
-  must not hide its bay's tags.** At 150 mm under the peg the claw's crossbar
-  hid them from the working pose and no fetch of the claw fitted its bay;
-  175 mm cleared them (the validator's `tags` rule).
+  must not hide its bay's tags** (the validator's `tags` rule; the claw's
+  crossbar is SimNotes, "The claw on legs").
 - **A camera is aimed by rendering, not arithmetic** — and may not be the
   tool's: the claw finds a cube through the D435's colour imager on the body
   (SimNotes, "The claw on legs").
@@ -371,31 +373,39 @@ the PNG upscale nearest-neighbour (a marker is data).
 
 ### A built tool's bay
 
-`HubLifecycle.hang_tool(tool, bay)` takes a rail index (A = 0), retires a
-built tool already there, attaches the module at the bay's peg in the rack's
-own frame (`seam.rack_pose`, `rack.bay_peg`) and recompiles the running world
-(8–10 ms on the served pair). Every holder of the old model is rebound and
+Before a point moves the workshop checks the envelope (`validate`), that
+none of the module's names is the world's already (`seam.names_taken`), and
+the RIG (`build.trial`): the module hung, taken, worked and hung back on a
+bench rack with the fork on the bay's middle and at the line-up gate either
+side, 0.25 s a try. Then `HubLifecycle.hang_tool(tool, bay)` takes a rail
+index (A = 0), retires a built tool already there, attaches the module at
+the bay's peg in the rack's own frame (`seam.rack_pose`, `rack.bay_peg`) and
+recompiles the running world (a few milliseconds of wall time; 6–10 ms on
+the served pair here). Every holder of the old model is rebound and
 re-resolves its ids by name (`QuadMission.rebind`); the module is attached
 LAST, after the robots, so only another built module's ids ever move. The
 hang waits until every body is still (`seam_busy`). Hung, a built tool is
-fetched and stowed as a hand-built one is (`fetch("module_<name>")`).
+fetched and stowed as a hand-built one is (`fetch("module_<name>")`);
+`scripts/workshop.py --served` flies the lot.
 
 ### Bay count is a real limit
 
-A fourth rail bay is `BUILT.bays` and `.stations` appended, two tag ids, the
-board grown — and checked against the house: the walls, a door, the
-planner's inflation round the working pose. A fourth hand-built tool needs a
-row of its own the same way.
+A fourth rail bay is `coupling.BUILT_STATION_YS` (it sets the workshop's
+cap), `BUILT.bays` and `.stations` appended and two tag ids — the board
+follows its bays — and checked against the house: the walls, a door, the
+planner's inflation round the working pose. A fourth hand-built tool needs
+bays of its own the same way.
 
 ### Approach and ranging
 
 The rack is **commissioned with the dock** (Ben, 2026-09-29;
 `tool_rack_prior`), and each approach is measured off its tags. The robot
 walks to a metre behind the bay's working pose (`rack.work_pose`, 0.45 m
-out), looks, walks in steering by the bay's tags (`walk_in_twist`), settles,
-and measures the bay (`bay_aim`, off `fit_rack`: both rows' tags in one
-frame) — never off one tag's yaw, which square-on is a coin flip between two
-mirrored solutions. Inside the line-up gate it takes the tool; outside it
+out), looks (the rack's frame off every tag it sees, rack and rail
+together: `fit_rack(seen, SPECS)`), walks in steering by the bay's tags
+(`walk_in_twist`), settles, and measures the bay off its own section's tags
+(`bay_aim`) — never off one tag's yaw, which square-on is a coin flip
+between two mirrored solutions. Inside the line-up gate it takes the tool; outside it
 backs out and tries again, three times. Another robot at this bay's working
 pose (its reported pose within 0.55 m) holds it at the standoff (#418).
 
@@ -405,8 +415,9 @@ pose (its reported pose within 0.55 m) holds it at the standoff (#418).
 
 Open, and not yours to fix unless your tool makes them worse.
 
-1. **No lock.** One descent of a flight in about 60 floats the peg onto an
-   end-ramp; the levers are a slower descent, a carry pose nearer the
+1. **No lock.** Coming down a flight the fork falls faster than g at a
+   step, and about 1 descent in 60 floats the peg onto an end-ramp and loses
+   the tool; the levers are a slower descent, a carry pose nearer the
    torso's pitch axis, and a magnet in each V (Parts.md).
 2. **Two carrying robots' tools can knock each other off** at the rack: 1 of
    20 at bays A and C, 0.60 m apart — outside the wait's 0.55 m, which reads
@@ -418,7 +429,7 @@ Open, and not yours to fix unless your tool makes them worse.
    −2.6°; the claw at C, +6.9 mm), each with the other robot working at the
    same time: recorded, not explained.
 5. **The push force** a tool may exert against the pad is not measured past
-   the pen's quill.
+   the pen's quill (60 N/m over the 10 mm a drawing presses: ~0.6 N).
 
 ---
 
@@ -429,7 +440,9 @@ Open, and not yours to fix unless your tool makes them worse.
 [ ] mass / lever / drop / plumb / power against §2 before drawing anything
 [ ] tolerance class: millimetre or centimetre? (decides the controller)
 [ ] payload, if any: retained by GRIP or by GEOMETRY?
-[ ] nothing behind the plate, nothing in front of its bay's tags when hung
+[ ] nothing behind the plate, nothing in front of its bay's tags or in
+    reach of the rack's rail when hung; its centre of mass under the peg and
+    within 25 mm of its middle
 [ ] a moving axis? its STOW POSE, returned to before it is hung back
 [ ] a tolerance spike only if it adds a mating surface
 [ ] a bay: TOOL_BAYS (hand-built) or the rail (built); STATION_YS appended

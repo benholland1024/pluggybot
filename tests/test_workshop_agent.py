@@ -37,7 +37,7 @@ from pluggybot.mind import overseer as ov
 from pluggybot.procedure import axes
 from pluggybot.rack.coupling import BUILT_STATION_YS, built_bay_index
 from pluggybot.robot import SECOND
-from pluggybot.workshop import cost, seam
+from pluggybot.workshop import cost, seam, validate
 from pluggybot.workshop.library import BAYS, Workshop, WorkshopRefused
 from test_body import stub_life  # noqa: I001 -- tests/ is on sys.path
 from test_workshop import SCOOP
@@ -381,19 +381,33 @@ def test_the_wait_stops_rather_than_stranding_the_robot(tmp_path, monkeypatch):
 
 # ---- 5. the originals are permanent, and a built tool has its own rail ------
 
-def test_standing_by_clear_of_the_racks_counts_the_rails_own_bays(tmp_path):
-  """`rack_distance` is the nearer of the rack and the rail, so a robot
-  standing by is sent clear of both (`RACK_CLEAR_M`): the rail is the legs
-  rail's own bays (#407), never the rover's centre 1.375 m along the board."""
-  from pluggybot.legs import rack as rk
-  life = _life(tmp_path, rail=True)
-  r = life.body.rack_prior
-  half = (rk.BUILT.bays[-1] - rk.BUILT.bays[0]) / 2
-  for y in rk.BUILT.bays:
-    assert life.rack_distance(*r.to_world(0.0, y)) <= half + 1e-9, y
-  life.has_built_rack = False
-  assert life.rack_distance(*r.to_world(0.0, rk.BUILT.bays[-1])) == pytest.approx(
-    rk.BUILT.bays[-1])
+def test_a_build_the_rig_refuses_costs_nothing(tmp_path):
+  """The rig is the workshop's last gate, before a point moves (#407): a
+  tool inside every static rule whose servo cannot hold its own block at
+  the axis's end is refused with the rig's reason, and nothing is spent."""
+  heavy = copy.deepcopy(SCOOP)
+  heavy["parts"][1] = {"id": "block", "part": "scaffold_pla_box", "size": [34, 50, 100],
+                       "pos": [-5, 0, -75], "on": "hinge"}
+  life = _life(tmp_path, points=100, rail=True)
+  events = _run(life, _decision(build_tool={"name": "scoop", "bay": "A", "spec": heavy}))
+  assert _outcomes(events) == ["specified", "refused"]
+  assert any(r.startswith("rig:") and "tilt did not reach its far end" in r
+             for r in events[-1]["reasons"]), events[-1]["reasons"]
+  assert life.ledger.balance() == 100 and life.waited == []
+
+
+def test_a_name_the_world_has_costs_nothing(tmp_path, monkeypatch):
+  """A tool whose parts would be named as something in the world is refused
+  before a point moves (#407): `seam.names_taken` reads the world's own spec
+  (pinned against the served world in test_recompile.py)."""
+  monkeypatch.setattr(seam, "names_taken",
+                      lambda spec, tool, retiring=None: ["module_claw_carriage"])
+  life = _life(tmp_path, points=100, rail=True)
+  events = _run(life, _decision(build_tool={"name": "scoop", "bay": "A", "spec": SCOOP}))
+  assert _outcomes(events) == ["specified", "refused"]
+  assert any("module_claw_carriage" in r and "something else" in r
+             for r in events[-1]["reasons"])
+  assert life.ledger.balance() == 100 and life.waited == []
 
 
 def test_a_bay_off_the_rail_cannot_be_named_and_nothing_is_spent(tmp_path):
@@ -602,10 +616,10 @@ def test_the_spec_is_described_so_a_strict_provider_decodes_it():
 
 def test_a_built_bay_says_whose_tool_it_is():
   """One rail, two robots: a bay may hold the other robot's tool, which this
-  robot may not take and may not retire. ⚠ The TAG cannot carry it -- a
-  built module's tag is `15 + bay` and belongs to the BAY, reused by
-  whatever hangs there next -- so the context is the only place ownership
-  can be said. `built` is what a lifecycle hung; the rail is shared."""
+  robot may not take and may not retire. ⚠ No tag can carry it -- a tool
+  carries none, and its bay's tags belong to the BAY -- so the context is
+  the only place ownership can be said. `built` is what a lifecycle hung;
+  the rail is shared."""
   from pluggybot.lifecycle import rack_context
   from pluggybot.workshop import validate
   a, b = stub_life(), stub_life(body=StubBody(handle=SECOND), handle=SECOND,
@@ -662,3 +676,17 @@ def test_a_procedure_says_which_tool_it_needs():
   # ...and this is WHY it was missed: not one axis, not one sensor
   assert lib.get("hold").references()["axes"] == ()
   assert lib.get("hold").references()["sensors"] == ()
+
+
+def test_a_restart_hangs_tools_again_in_the_order_they_were_built(tmp_path):
+  """`restore_tools` re-hangs what `hung()` lists, and a running world
+  attached its tools in the order they were built: re-hung in name order,
+  a restart lays the world out differently and its state cannot be put
+  back exactly (#407)."""
+  shop = Workshop(tmp_path / "tools")
+  for name, bay, t in (("alpha", 0, 50.0), ("zeta", 1, 10.0)):
+    raw = {**copy.deepcopy(SCOOP), "name": name}
+    tool = validate.check(raw)
+    shop.record(tool, raw, bay, cost.price(tool), t)
+  again = Workshop(tmp_path / "tools")
+  assert [e.name for e in again.hung()] == ["zeta", "alpha"]

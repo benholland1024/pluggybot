@@ -15,17 +15,13 @@ MuJoCo collides convex pieces only, so each is two tilted boxes.
 
 Here too: the rover's coupling rig (`scene_xml`, the noslip policy's
 test compiles it), the contact list read as an array (`touching`), and the
-bay index space (`STATION_YS`) both of the quadruped's rows read their bays
-by.
+bay index space (`STATION_YS`) the quadruped's rack and rail read their
+bays by.
 """
 
 import math
 
 import numpy as np
-
-from pluggybot.rack.tags import (
-  SMALL_TAG_SIZE, plate_half_extent,
-)
 
 # -- geometry (meters) --------------------------------------------------------
 #: The rover's plate + 150 mm peg budget; the `face` adds its own on top.
@@ -376,11 +372,11 @@ def module_power_contact(model, data, name: str = "module_lcd",
 
 # ---- the rack's layout (the "bike rack for tools", designed with Ben) -------
 # The rover's rack (deleted with it in #376; `rover-final` has it): what is
-# left is the INDEX SPACE every bay lives in, which the quadruped's rows
-# read their bays by (`legs.rack.RackSpec.stations`, `legs.swap`).
+# left is the INDEX SPACE every bay lives in, which the quadruped's rack
+# and rail read their bays by (`legs.rack.RackSpec.stations`, `legs.swap`).
 HUB_STATION_YS = (0.125, -0.125, 0.375, 0.625, 0.875)  # tool bays at 0.25 m
                           # pitch, APPENDED rather than inserted in y order:
-                          # the bay<->tag pairing is by index
+                          # a bay is named and kept by its index
 # ---- the BUILT-TOOL rail (issue #277) ---------------------------------------
 # For the tools the robot builds: the hand-built tools are permanent and a
 # built tool never takes one of their bays. Its stations follow the first
@@ -389,11 +385,10 @@ HUB_STATION_YS = (0.125, -0.125, 0.375, 0.625, 0.875)  # tool bays at 0.25 m
 # board: these y's are its stations' place in the index space and nothing
 # more.
 BUILT_STATION_YS = (1.175, 1.425, 1.675)  # the rover's three bays
-#: EVERY BAY, BY INDEX: the hand-built five, then the built rail's -- so it
-#: is APPENDED to, never reordered; a bay index in
-#: `HubLifecycle.rack_inventory` indexes this.
+#: EVERY BAY, BY INDEX: the rover's five (the quadruped's rack takes the
+#: first three), then the built rail's -- so it is APPENDED to, never
+#: reordered; a bay index in `HubLifecycle.rack_inventory` indexes this.
 STATION_YS = HUB_STATION_YS + BUILT_STATION_YS
-SMALL_PLATE_HALF = plate_half_extent(SMALL_TAG_SIZE)
 
 
 def bay_prefix(i: int) -> str:
@@ -405,7 +400,7 @@ def bay_prefix(i: int) -> str:
 def built_bay_index(bay: int) -> int:
   """A built-rail bay (0..len(BUILT_STATION_YS)-1, the letter the robot
   names) as its index into STATION_YS -- the space `rack_inventory` and the
-  tag pairing use. Refused, not clamped, outside the rail."""
+  bays' names use. Refused, not clamped, outside the rail."""
   if not 0 <= bay < len(BUILT_STATION_YS):
     raise ValueError(f"no built-rail bay {bay}; it has {len(BUILT_STATION_YS)}")
   return len(HUB_STATION_YS) + bay
@@ -457,12 +452,3 @@ BUILT_RACK_BODY = "rack_built"
 GRIP_SOLIMP = "0.99 0.999 0.0001"
 
 
-def rack_frame_to_world(x_local: float, y_local: float,
-                        pos: tuple[float, float],
-                        yaw_deg: float) -> tuple[float, float]:
-  """A rack-frame point in world coordinates, for a rack at `pos`, `yaw_deg`."""
-  px, py = pos
-  th = math.radians(yaw_deg)
-  c, s = math.cos(th), math.sin(th)
-  return (px + x_local * c - y_local * s,
-          py + x_local * s + y_local * c)

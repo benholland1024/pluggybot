@@ -667,9 +667,9 @@ save a filmstrip PNG named after the script.
   `why`, NEVER A GUESS (`NULLABLE`, `validate`), and a `why` for a non-null
   field fails; `partNumber` is what you order by, and a class of part stays
   null. ONE `scaffold` primitive at PLA density with a print bed.
-  `legs.rack.MODULE_MASS` / `PEG_MASS` name a module's plate and 220 mm peg,
-  and the catalog's `module_frame` and `quad_tool_peg` state the arm's
-  envelope off `legs/arm.py` (#407), never typed. Each
+  `legs.rack.MODULE_MASS` / `PEG_MASS` name a module's plate and 220 mm peg
+  (`quad_tool_peg`, on both shelves), and the catalog's `module_frame` feeds
+  the arm's envelope off `legs/arm.py` (#407), never typed. Each
   entry's `workshop: {usable, why}` is `workshop.spec.unbuildable`. Nothing in
   `economy/` imports it; the MIND sees it through `workshop_rule()`.
 - **A tool appears in a RUNNING world through the recompile seam, and every
@@ -682,8 +682,13 @@ save a filmstrip PNG named after the script.
   tools, `seam.HAND_BUILT`), attaches the new one at the bay's peg in the
   rack's own frame (`seam.attach`, `seam.rack_pose`; on legs a tool has NO
   TAG, its bay's pair is the bay's, #407) and `spec.recompile(model, data)`s:
-  **~4–13 ms, NEW `MjModel`/`MjData` objects**, `time` and `qpos` carried BY
-  NAME. ⚠ So `HubLifecycle.rebind(model, data)` re-points everything the
+  **a few ms of wall time, NEW `MjModel`/`MjData` objects**, `time` and
+  `qpos` carried BY NAME, and the model REBUILT FROM THE SPEC: what the
+  running world wrote into the old model is gone (a `GeomToggle`'s rebind
+  applies its state again, #407). ⚠ A built module compiles AT ITS STOW
+  (each joint's `ref`), and the seam sets each NEW servo to its joint's
+  `qpos0` -- `workshop/seam.py`'s one `CTRL_WRITERS` write. ⚠ So
+  `HubLifecycle.rebind(model, data)` re-points everything the
   lifecycle owns and calls every `on_rebind` callback, and ⚠ EVERY REBIND
   RE-RESOLVES IDS BY NAME (deleting a module shifts every id after it). Two
   fences, both shown to fail: the RUNTIME walk (`_holders(life)`) and the
@@ -706,7 +711,8 @@ save a filmstrip PNG named after the script.
   board, stations 5–7, #407: bays `A`–`C`, `BAY_LETTERS`; any other letter is
   refused, naming no original's bay, and `retire_tool` refuses an original);
   ⚠ THE ENVELOPE IS THE ARM'S (`validate`, read off `legs/arm.py` and
-  `legs/rack.py`; ToolPattern.md §2), a hung tool plumb within 2°; the
+  `legs/rack.py`; ToolPattern.md §2), a hung tool plumb within 2° and its
+  centre of mass within 25 mm of the peg's middle (MEASURED); the
   context shows `built: {A..C: {module, by, where}|null}`, `by` off
   `HubLifecycle.built_by()` (the rail is the WORLD's; no tag can say who,
   #324), and a world with no `built_bays` gets NO workshop (`can_reshape`
@@ -717,7 +723,10 @@ save a filmstrip PNG named after the script.
   `rack_inventory` for the pair, and a bay the other robot's tool hangs in is
   refused with whose it is. ⚠ `scene_changed` carries the SIDECAR and the PAIR
   name. Order, all before a point moves: the envelope (`validate.check`), the
-  seam's preconditions, the PRICE (`cost.price`: `POINTS_PER_EUR` 1,
+  seam's preconditions, the names (`seam.names_taken`) and the RIG
+  (`build.trial`: hung, taken, worked and hung back with the fork on the
+  bay's middle and the line-up gate either side; a tool that cannot hang is
+  lost once hung), the PRICE (`cost.price`: `POINTS_PER_EUR` 1,
   `FILAMENT_EUR_PER_KG` 20, then `PRINT_S_PER_G` 60 + `ASSEMBLE_S_PER_PART`
   120 of standing still — three DESIGN DECISIONS, said so at the constants)
   via `Ledger.spend` (no debt), `_fabricate_routine` (its own routine, so a

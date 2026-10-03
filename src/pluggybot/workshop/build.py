@@ -35,8 +35,7 @@ measurement (`scripts/arm_spike.py --capture`).
   none, and a heavy blade swung over the top (#407).
   `test_workshop_build.py` pins it.
 
-  ⚠ NOT HERE: the identity tag. A built module hung on a REAL rack (slice
-  C) gets its tag and its bay there, where the PNG is written once.
+...and `trial()`, the rig as the workshop's gate before a point moves.
 """
 
 from __future__ import annotations
@@ -89,20 +88,35 @@ def face_xml(tool: Tool, body: str) -> str:
   """The tool's parts in the module's frame. A part on the frame is a geom
   of the module body; an actuator's load -- every part `on` it -- is a
   child body at the actuator's pose carrying the joint, so it moves as
-  the joint moves and MuJoCo filters its contact with its parent."""
+  the joint moves and MuJoCo filters its contact with its parent.
+
+  ⚠ AT ITS STOW (#407): each load is built turned (or slid) to its axis's
+  stow and its joint's `ref` is the stow, so the module compiles hanging as
+  the validator checked it, `qpos0` is the stow -- the rest a walk, a
+  hang-back and a reset put it back to -- and the joint still reads in the
+  spec's own units. Built at 0, a flap whose stow is -90 deg hung 14 deg
+  off plumb and was lost from the moment it hung."""
   def emit(parent_id: str, indent: str) -> list[str]:
     out = []
     for p in tool.children(parent_id):
       out.append(indent + _geom_xml(f"{body}_{p.id}", p, p.pos, p.euler))
       if p.axis is not None:
         a = p.axis
-        pos = " ".join(_f(x) for x in p.pos)
+        at = [float(x) for x in p.pos]
+        quat = ""
+        if a.kind == "slide":
+          at = [x + d * a.stow for x, d in zip(at, a.direction)]
+        else:
+          s = math.sin(a.stow / 2)
+          quat = (f' quat="{_f(math.cos(a.stow / 2))} '
+                  + " ".join(_f(d * s) for d in a.direction) + '"')
+        pos = " ".join(_f(x) for x in at)
         d = " ".join(_f(x) for x in a.direction)
         rng = f"{a.lo:.6f} {a.hi:.6f}"
-        out.append(f'{indent}<body name="{body}_{p.id}_load" pos="{pos}">')
+        out.append(f'{indent}<body name="{body}_{p.id}_load" pos="{pos}"{quat}>')
         out.append(f'{indent}  <joint name="{joint_name(body, a.verb)}" '
                    f'type="{a.kind}" axis="{d}" range="{rng}" limited="true" '
-                   f'damping="{a.force * KV_FRACTION:.4f}"/>')
+                   f'ref="{a.stow:.6f}" damping="{a.force * KV_FRACTION:.4f}"/>')
         # a load with no parts still needs an inertia to be a body -- ⚠ and
         # one WITH parts must not get it: an explicit inertial replaces its
         # geoms' masses, and every moving part of a built tool was massless
@@ -133,7 +147,7 @@ def actuator_xml(tool: Tool, body: str) -> str:
 
 
 def module_for(tool: Tool, peg: tuple[float, float, float], yaw: float = 0.0,
-               body: str | None = None, tag: str = "") -> tuple[str, str]:
+               body: str | None = None) -> tuple[str, str]:
   """The whole module hanging with its peg's axis at `peg` (world), facing
   the robot at work (`yaw`, the rack's), as the hand-built ones are
   (`legs.rack.tool_xml`): (its default class, its body). The face carries
@@ -141,7 +155,7 @@ def module_for(tool: Tool, peg: tuple[float, float, float], yaw: float = 0.0,
   from pluggybot.legs import rack as rk
   body = body or tool.body
   return rk.tool_default(body), rk.tool_xml(
-    body, peg, yaw=yaw, mass=rk.MODULE_MASS, face=face_xml(tool, body) + tag,
+    body, peg, yaw=yaw, mass=rk.MODULE_MASS, face=face_xml(tool, body),
     rgba="0.45 0.40 0.55 1")
 
 
@@ -325,4 +339,33 @@ def rig(tool: Tool, dy: float = 0.0) -> tuple[dict, list]:
   }, []
 
 
-__all__ = ["face_xml", "actuator_xml", "module_for", "register", "rig"]
+def trial(tool: Tool, records: list | None = None) -> list[str]:
+  """The rig as the workshop's last gate, BEFORE a point moves (#407): the
+  module tried on a bay with the fork on its middle, then at the walk-in's
+  line-up gate either side (`rack.LINEUP_ACROSS`). The first failure's
+  reason, or `[]`; each rig's record appended to `records` when given. The
+  validator is static, and tools it admitted jammed on the rack's rail or
+  tipped off the trays; hung, a tool that cannot hang is lost from the
+  moment it is hung."""
+  from pluggybot.legs import rack as rk
+  for dy in (0.0, rk.LINEUP_ACROSS, -rk.LINEUP_ACROSS):
+    rec, _ = rig(tool, dy=dy)
+    if records is not None:
+      records.append({"dy": dy, **rec})
+    if rec["ok"]:
+      continue
+    stuck = [verb for verb, ok in rec["works"].items() if not ok]
+    why = (f"hung on the trays it does not seat (it tilts {rec['tiltDeg']:g} deg)"
+           if not rec["hangs"] else
+           "the fork did not lift it off the trays" if not rec["picked"] else
+           "seated on the fork it did not conduct" if not rec["conducts"] else
+           f"its {', '.join(stuck)} did not reach its far end and come back" if stuck else
+           "it lost the fork's contacts while its axes moved" if not rec["held_through_use"]
+           else "hung back, it did not seat on the trays")
+    where = ("with the fork on the bay's middle" if dy == 0.0
+             else f"with the fork {dy * 1000:+.0f} mm across the bay, where a walk-in may stop")
+    return [f"rig: {why} {where} -- tried on a bench rack before anything was bought"]
+  return []
+
+
+__all__ = ["face_xml", "actuator_xml", "module_for", "register", "rig", "trial"]

@@ -58,7 +58,8 @@ def dock_pose() -> tuple[float, float, float]:
 
 
 #: The tool rack's middle bay along the south wall, m: west of the dock
-#: (x 3.5), its board spanning x 1.6..2.6 -- bay A, the east one, works
+#: (x 3.5), its board spanning x 1.6..2.6 and on with the built-tool rail
+#: to x 0.67 (#407) -- bay A, the east one, works
 #: 1.1 m from the dock's axis, over the peer disc of a robot lying there --
 #: and north of it the floor is clear to the couch's south face (y 0.3).
 RACK_X = 2.1

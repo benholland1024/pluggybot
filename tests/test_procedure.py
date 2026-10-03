@@ -449,6 +449,10 @@ CTRL_WRITERS = {
   # slide, a built tool's axes -- RAMPED from the setpoint, the one path a
   # tool's actuators are commanded through (`Body.ramp_routine`).
   "tools/servo.py",
+  # issue #407: the recompile seam -- a built tool's NEW servos set once to
+  # their joints' compiled rest (the stow), where a recompile starts them
+  # at 0; never a running servo's setpoint.
+  "workshop/seam.py",
 }
 
 

@@ -393,3 +393,20 @@ def test_the_served_quadruped_fetches_a_tool_and_hangs_it_back(quad_world):
     assert st_["hung"] and not st_["on_fork"] and body.mission.carrying is None
   finally:
     body.close()
+
+
+def test_a_swap_trace_names_a_bay_in_its_own_rows_letters():
+  """A failed fetch's verdict carries the swap's trace, and the robot is
+  told its rail's bays are A-C (#407): a rail bay is `rail bay A`, never the
+  station's letter (`F`), and the rack's own are `bay A`-`C`."""
+  from types import SimpleNamespace
+
+  from pluggybot.legs.swap import ToolSwap
+  from pluggybot.rack.coupling import built_bay_index
+
+  def trace(station):
+    rec = {"op": "fetch", "module": "module_x", "bay": station, "attempts": []}
+    return ToolSwap.swap_trace(SimpleNamespace(last_swap=rec))
+  assert trace(built_bay_index(0)) == "fetch module_x at rail bay A"
+  assert trace(built_bay_index(2)) == "fetch module_x at rail bay C"
+  assert trace(2) == "fetch module_x at bay C"
