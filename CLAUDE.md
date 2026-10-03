@@ -889,8 +889,12 @@ save a filmstrip PNG named after the script.
   robot alone is unchanged. `HubLifecycle.run()` is `begin()` + `end()`, which `run_pair`
   shares one loop between. ⚠ A hook's `MissionAborted` is thrown into EVERY
   live routine, then re-raised: one robot's stop is the day's stop. ⚠ Mutual awareness is the REPORTED pose (a
-  network fact), and every sensor keeps the other robot OUT OF THE MAP AND IN
-  THE DRIVE: painted into the grid, a peer walls in the robot it passed;
+  network fact) -- but a robot LYING STILL, fallen, resting or dead, is kept
+  clear of where its BODY lies, placed as the other's own sensors would, and
+  the depth camera's hold skips it (`keep_clear`, `_near_field_step`; #365,
+  #455: two maps 3 m apart, and no walk a resting body held ever asked it)
+  -- and every sensor keeps the other robot OUT OF THE MAP AND IN THE
+  DRIVE: painted into the grid, a peer walls in the robot it passed;
   dropped from the scan, the front stop is blind to the one obstacle that
   moves. ⚠ One rack, one dock: contention is the minds' opportunity (#208)
   and the geometry must not settle it -- but a robot HOLDS AT ITS
@@ -903,8 +907,14 @@ save a filmstrip PNG named after the script.
   holds (Ben, #415; `Navigator._ask_way`, `Body.ask_way`, `legs/way.py`):
   only resting and free to -- not docked, dead, mid-move, or inside a walk
   of its own (#395's head-on hold is still open) -- to floor it has SEEN,
-  `aside_clear_m` off the asker's way; the asker waits `MAKE_WAY_WAIT_S`
-  from the first yes; a restart's save waits it out.
+  `aside_clear_m` off the asker's way, TOLD RELATIVE TO ITS BODY (#455:
+  laid as sent, a way ran 1.1 m off it and it stepped 0.0 m aside five
+  times); the asker waits `MAKE_WAY_WAIT_S` from the first yes; a press
+  clears its walk in so first (`clear_way_routine`); a no is narrated with
+  why; a restart's save waits it out. ⚠ A ROBOT FURTHER OFF THAN `PAST_M`
+  (3 m) WHOSE DISC ALONE CUTS A WALK'S WAY IS PLANNED PAST (#455): three
+  walks gave up at once 10-25 m from one walking the hall; nearer, it is
+  the wall it was.
 - **Two minds, two memories, one board** (issue #167;
   `pair.build_pair(overseer=True)`, Overseer.md §2c): per robot an overseer,
   event map, standing order, thought root (the first at `thoughts_root`, the

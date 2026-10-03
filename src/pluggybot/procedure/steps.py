@@ -514,10 +514,26 @@ PRESS_WHY = {
   "not pressed": "walked onto tag {tag}'s plate and no foot was on it",
   "out of time": "ran out of time before stepping onto tag {tag}'s plate",
   "interrupted": "stopped on the way to tag {tag}'s plate by its own interrupt",
+  "in the way": "did not walk onto tag {tag}'s plate",
 }
 #: ...and how its look round for a sign not in view ended (issue #439).
 PRESS_LOOKED = {"all round": ", nor all round it",
                 "cut short": ", and its time ran out looking round"}
+
+
+def _across_words(life, a: dict) -> str:
+  """Who lay across a press's walk in and would not come off it (issue
+  #455), as its reason says it."""
+  other = life._peer(a["root"]) if hasattr(life, "_peer") else None
+  who = other.robot_name if other is not None else "another robot"
+  where = f"across the way onto it, {float(a['m']):.1f} m off"
+  if a.get("dead"):
+    return f"{who} lay dead {where}"
+  if a.get("down"):
+    return f"{who} lay fallen {where}"
+  if a.get("rests"):
+    return f"{who} lay {where}, and did not step off it"
+  return f"{who} stood {where}, and did not move off it"
 
 
 def _press(life, args: dict) -> Routine:
@@ -539,7 +555,9 @@ def _press(life, args: dict) -> Routine:
     walk = att.get("walk")
     cause = (f": {life.drive_why(*walk['goal'], record=walk)}"
              if walk and why in ("gave up", "out of time")
-             else PRESS_LOOKED.get(att.get("looked"), "") if why == "lost" else "")
+             else PRESS_LOOKED.get(att.get("looked"), "") if why == "lost"
+             else f": {_across_words(life, att['across'])}" if why == "in the way" and att.get("across")
+             else "")
     out["reason"] = PRESS_WHY.get(why, why or "did not press").format(tag=tag) + cause
     if rec.get("attempts"):
       out["trace"] = f"press tag {tag}: {press_trace(rec)}"
@@ -558,7 +576,8 @@ def press_trace(rec: dict) -> str:
     bits = [f"#{i} standoff ({sx:.2f}, {sy:.2f})"]
     w = a.get("walk")
     if w:
-      peer = "".join(f" {k}={w[k]}" for k in ("peerAt", "peerM", "peerDown", "peerRests")
+      peer = "".join(f" {k}={w[k]}" for k in ("peerAt", "peerM", "peerDown", "peerRests",
+                                               "peerDead", "askedWay")
                      if k in w)
       bits.append(f"walk {w.get('why')} {float(w.get('shortM') or 0):.2f} m short "
                   f"after {float(w.get('seconds') or 0):.0f} s{peer}")
@@ -566,6 +585,8 @@ def press_trace(rec: dict) -> str:
       bits.append(f"re-aimed by {a['reaim']}")
     if "looked" in a:
       bits.append(f"looked round {a['looked']}")
+    if "across" in a:
+      bits.append(f"walk in across {a['across']}")
     if "walkIn" in a:
       bits.append(f"walk in {a['walkIn']}, stopped {a.get('stop')} off the press pose")
     if "at" in a:

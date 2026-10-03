@@ -45,6 +45,8 @@ class MakeWay:
     #: began and its waypoints (None until it stands); None between.
     self._aside: dict | None = None
     self.making_way: str | None = None
+    #: Why the last ask was said no to (`Body.way_refused`), or "".
+    self.way_refused = ""
     self.asides = 0
     self.last_aside: dict | None = None
     #: Walks of its own under way (`drive_to_routine`): a body waiting in
@@ -60,15 +62,20 @@ class MakeWay:
     return (self.OTHER_ROBOT_CELLS + 3) * self.grid.resolution
 
   def make_way(self, route, by: str) -> bool:
-    """`Body.make_way`."""
+    """`Body.make_way`, and why not (`way_refused`)."""
+    self.way_refused = ""
     if self._aside is not None:
       return True
     from pluggybot.legs.body import LYING
-    if (self.posture != LYING or self.docked or self.working or self.driving
-        or self._move is not None):
+    self.way_refused = ("docked" if self.docked else "working" if self.working
+                        else "walking" if self.driving
+                        else "moving" if self._move is not None
+                        else "standing" if self.posture != LYING else "")
+    if self.way_refused:
       return False
     spot = self.aside_spot(route)
     if spot is None:
+      self.way_refused = "no spot"
       return False
     x, y = self.pose_xy()
     self._aside = {"by": by, "from": (round(float(x), 3), round(float(y), 3)),
