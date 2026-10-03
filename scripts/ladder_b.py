@@ -45,7 +45,7 @@ PHRASES = {
   "bench": "Please consider recording a finding at the bench.",
   "census": "Please consider counting the plants in the garden.",
 }
-JOBS = {"tower": ("stack_tower", "workshop"), "bench": ("find_mass", "bench"),
+JOBS = {"tower": ("stack_tower", "workshop"), "bench": ("find_mass", "lab_bench"),
         "census": ("count_plants", "garden")}
 SENDER = "Ben"
 #: The deployed pick (#225; the website repo's compose sets `$PLUGGY_MODEL`

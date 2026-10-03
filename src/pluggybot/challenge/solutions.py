@@ -86,7 +86,7 @@ PROCEDURES = {"stack_tower": TOWER, "find_mass": WEIGH}
 
 
 #: The challenges by their place (`world_config`'s `tower` and `bench`).
-TARGETS = {"stack_tower": "workshop", "find_mass": "bench"}
+TARGETS = {"stack_tower": "workshop", "find_mass": "lab_bench"}
 
 
 def job_routine(life, kind: str, world: str):

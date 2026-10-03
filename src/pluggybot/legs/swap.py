@@ -380,7 +380,7 @@ class ToolSwap:
     "no-route" if the walk found no way there, "blocked" if another robot
     held the bay past the wait (#418), "timeout" if no walk-in lined up."""
     rec = {"op": "fetch", "bay": bay, "module": module, "attempts": []}
-    self.last_swap = rec
+    self.last_swap, self.peer_at_bay_m = rec, None
     if self.tool_rack_prior is None:
       rec["why"] = "no rack"
       return "no-route"
@@ -439,7 +439,7 @@ class ToolSwap:
     "arrived" once the fork came down over the bay, "no-route", "blocked"
     (#418) or "timeout"."""
     rec = {"op": "stow", "bay": bay, "module": module, "attempts": []}
-    self.last_swap = rec
+    self.last_swap, self.peer_at_bay_m = rec, None
     if self.tool_rack_prior is None:
       rec["why"] = "no rack"
       return "no-route"

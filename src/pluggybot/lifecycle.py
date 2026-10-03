@@ -3256,6 +3256,8 @@ class HubLifecycle:
     board = "" if errand.detail.get("cage") else errand.detail.get("board", "")
     if board and legs:
       return HubLifecycle._drawing_failure(board, run, at, legs)
+    if errand.detail.get("zone") and legs:
+      return HubLifecycle._census_failure(errand.detail["zone"], run, at, legs)
     if not errand.detail.get("cage") or not legs:
       return ""
     if at is None:
@@ -3274,6 +3276,22 @@ class HubLifecycle:
       return step.get("reason", "") if step.get("verb") == "press" else ""
     why = step.get("why") or step.get("reason") or "the drive gave up"
     return f"never reached the cage: {why}, on leg {at + 1} of {legs} of the way there"
+
+  @staticmethod
+  def _census_failure(zone: str, run: dict, at, legs: int) -> str:
+    """`_program_failure` for a census (#407): a stop on the way, the find's
+    or the fetch's reason, or the survey's own (`steps.SURVEY_WHY`)."""
+    if at is None:
+      done, stopped = int(run.get("completed") or 0), run.get("stopped")
+      if stopped not in PROCEDURE_STOPS or done > legs:
+        return ""
+      return (f"never surveyed {zone}: {PROCEDURE_STOPS[stopped]}, after "
+              f"{done} of its {legs + 1} steps up to the survey")
+    step = next((st for st in run.get("steps", ()) if st.get("i") == at), {})
+    why = step.get("reason") or step.get("why") or "it failed"
+    if step.get("verb") == "find":
+      return f"never found {zone}: {why}"
+    return why if step.get("verb") in ("fetch", "survey") else ""
 
   @staticmethod
   def _drawing_failure(board: str, run: dict, at, legs: int) -> str:
@@ -3356,8 +3374,11 @@ class HubLifecycle:
       # put it on the floor). `stow()` does the same, one helper.
       carry = yield from procedure.carry_configuration_routine(self, carried)
       if carry["setDown"] is not None:
-        self._say(f"PROCEDURE {program.name} ended holding "
+        self._say(f"PROCEDURE {program.name} ended holding cube "
                   f"{carry['setDown']} -- set it down")
+      elif carry["dropped"] is not None:
+        self._say(f"PROCEDURE {program.name} ended holding cube {carry['dropped']}, "
+                  "and nowhere in front would take it -- let it go where it stood")
       self.state = "SWAP_RETURN"
       self._say(f"PROCEDURE {program.name} ended with {carried} on the fork"
                 " -- stowing it")
@@ -8054,10 +8075,12 @@ def world_config(world: str) -> dict:
     # found by its tags: the tower's blocks in the workshop's corner, the
     # bench's masses in front of it.
     "tower": {"name": "workshop"},
-    "bench": {"name": "bench"},
-    # No tool errand (the arm has no use-phase yet, #406, #407); its arm
-    # takes the tools on its own rack (#405): a program's `fetch` and
-    # `stow`. No built-tool rail, so no workshop.
+    # ...the bench's under the name the scene gives it, which is where the
+    # site puts the job's marker (it finds a board, a zone or a body)
+    "bench": {"name": "lab_bench"},
+    # No tool errand: every use of a tool is a program's (#406, #407), and
+    # the arm takes the tools on its own rack (#405), a program's `fetch`
+    # and `stow`. No built-tool rail, so no workshop.
     "tools": False, "swap": True, "tool_bays": dict(legs_rack.TOOL_BAYS),
     "built_bays": 0,
     # ...and the task areas' tags its robots find and remember (issue

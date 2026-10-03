@@ -35,13 +35,15 @@ is the job's own statement and is told to the robot in the offer;
 may read it as a truth. A bank entry within `TOLERANCE` of the known mass is
 refused at load: the job would then be answerable without weighing anything.
 
-THE HONEST SENSOR IS THE REAL PART'S: the lift is an igus lead screw under
-a position servo, and what it pushes with at rest is the weight it carries
--- `read("lift.force")`, `procedure/axes.py`, with a load cell's noise.
-MEASURED (the probe behind this module, 2026-09-20): a cube in the claw's
-jaws, lifted and settled, moves the lift's force by exactly `dm * g` (to
-1 mN across 0.05..0.40 kg; the empty claw reads 6.40 N), and the jaws hold
-0.40 kg -- `MAX_KG` is that, and the bank stays under it.
+THE HONEST SENSOR IS THE REAL PART'S: the arm's drivers report the torque
+they hold it with (`read("elbow.torque")`, `read("shoulder.torque")`: the
+GIM8108-8's 12-bit field off a noisy phase current, `perception/encoders.py`),
+and a cube held still adds its weight at its lever. A ratio against the known
+cube cancels the arm's lengths and its own weight (SimNotes, "The bench's
+scale"). MEASURED (2026-10-03, the legs claw): held still a 0.40 kg cube
+creeps 0.19 mm/s down the pads, shaken 10 mm at 4 Hz across the jaws 0.7, and
+never reads unheld; 0.50 kg shaken does -- `MAX_KG` is 0.40, and the bank
+stays under it.
 """
 
 import json
@@ -73,10 +75,10 @@ KNOWN, UNKNOWN = MASSES
 MASS_OFFSETS = ((-1.0, -0.25), (-1.0, 0.25))
 
 #: Criterion 3: how far off, relative to the true mass, still passes. One
-#: in ten: wide enough that a single careful reading on the lift's own
-#: sensor clears it (a pair of readings with `axes.LOAD_NOISE_N` of noise
-#: is ~4 g of scatter, 5 % of the lightest bank entry) and narrow enough
-#: that the known mass, or any other bank entry, is a wrong answer.
+#: in ten: wide enough that a careful weighing on the arm's own torque
+#: clears it (ten readings a cube, the elbow read the lightest bank entry,
+#: 60 g, within 1.5 %) and narrow enough that the known mass, or any other
+#: bank entry, is a wrong answer.
 TOLERANCE = 0.10
 #: The heaviest cube the claw holds (measured, module docstring); the bank
 #: refuses an entry above it, because a job that cannot be attempted is

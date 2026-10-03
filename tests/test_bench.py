@@ -87,7 +87,7 @@ def test_the_kind_is_a_challenge_offered_where_a_procedure_can_be_written():
   # (#407), found by its tags, its offer the bench's directions
   book = board_book(QUAD_HOME)
   assert "bench" not in world_targets(QUAD_HOME, book)
-  assert world_targets(QUAD_HOME, book, procedures=True)["bench"] == ["bench"]
+  assert world_targets(QUAD_HOME, book, procedures=True)["bench"] == ["lab_bench"]
   beat = Cadence._build("test", {"kinds": {"feed_mouse": {}, "find_mass": {}}}, None)
   assert "find_mass" not in TaskProducer(TaskBoard(), beat, world_targets(QUAD_HOME, book)).kinds
   assert "find_mass" in TaskProducer(TaskBoard(), beat,
@@ -127,10 +127,10 @@ def test_the_producer_draws_the_unknown_and_tells_only_the_known():
   beat = Cadence._build("home", {"firstAtS": 0.0, "everyS": 1.0, "initial": 0,
                                   "kinds": {"find_mass": {}}}, None)
   board = TaskBoard()
-  producer = TaskProducer(board, beat, {"bench": ["bench"]})
+  producer = TaskProducer(board, beat, {"bench": ["lab_bench"]})
   producer.tick(1.0, pack_wh=KINDS["find_mass"].estimate_wh + 1.0)
   [task] = board.offered()
-  assert task.kind == "find_mass" and task.target == "bench"
+  assert task.kind == "find_mass" and task.target == "lab_bench"
   assert task.secret == {"kg": bench.default_bank().pick(0)}
   assert task.params["known_g"] == 100 and task.params["known_tag"] == 23
   assert task.reward(board.table)["base"] == scoring.challenge_table()["mass"].base >= 50

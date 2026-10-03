@@ -1619,8 +1619,9 @@ the job costs. Re-run it (`--write`) after anything that changes what an
 errand does. The shipped table for legs (`energy.json`, `home_quad`, with
 the arm aboard, #405): the lab's acts from the dock with the place
 remembered — `feed` 1.770 Wh, `care:feed` 1.793, `care:toy` 1.859, `shock`
-1.750 — exploring at 24.1 mWh/s, and 199.5 W net into a body lying on the
-dock's pins. No tool errand is priced: none runs on legs yet.
+1.750 — the boards' jobs, 2.45-3.40 Wh by job and board (#406), the census
+13.31, the tower 7.585 and the bench 9.938 (#407), exploring at 24.1 mWh/s,
+and 199.5 W net into a body lying on the dock's pins.
 
 - ⚠ **A key may name a target**, and `care:feed` wins over `care`: one
   target can cost measurably more than another, and one number for both

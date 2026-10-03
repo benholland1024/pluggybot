@@ -289,13 +289,20 @@ def carry_configuration_routine(life, tool: str) -> Routine:
   the claw set down on the floor first (#407: a claw hung back holding one
   is a cube hung on the rack), then the arm at its carrying pose, where a
   procedure may have moved it -- a stow computes its approach from the pose
-  it starts at. Returns what it set down."""
-  set_down = None
-  if tool == "module_claw" and life.body.held_cube() is not None:
+  it starts at. Returns what it set down, and what it let go of where it
+  stood because no put could (no room, out of reach): a claw hung back
+  holding a cube is worse."""
+  set_down = dropped = None
+  held = life.body.held_cube() if tool == "module_claw" else None
+  if held is not None:
     rec = yield from life.body.put_cube_routine(PUT_PATIENCE_S)
-    set_down = rec.get("held")
+    if rec.get("put"):
+      set_down = held
+    elif life.body.held_cube() is not None:
+      yield from life.body.claw_routine(closed=False)
+      dropped = held if life.body.held_cube() is None else None
   yield from life.body.retract_arm_routine()
-  return {"setDown": set_down}
+  return {"setDown": set_down, "dropped": dropped}
 
 
 #: A setpoint this close to its travel value is left alone, so a verb that
@@ -351,7 +358,8 @@ def _stow(life, args: dict) -> Routine:
   if tool is None:
     return {"ok": False, "reason": "nothing on the fork to stow"}
   yield from carry_configuration_routine(life, tool)
-  why = yield from life.body.stow_tool_routine(_tool_station(life, tool), tool)
+  station = _tool_station(life, tool)
+  why = yield from life.body.stow_tool_routine(station, tool)
   st = life.body.module_state(tool)
   hung = bool(st["hung"])
   life.swaps_done += 1
@@ -361,6 +369,12 @@ def _stow(life, args: dict) -> Routine:
                + ("it is still on the fork" if st["on_fork"] else
                   "it is neither on the fork nor on its bay"))})}
   if not hung:
+    # ...and who held the bay, where the other robot did (#418), as a
+    # fetch's reason says it (`HubLifecycle.held_for`)
+    asked = getattr(life, "peer_at_the_bay", None)
+    blocked = asked(station) if why == "blocked" and asked is not None else None
+    if blocked is not None:
+      verdict["reason"] += f": {life.held_for(blocked)}"
     _trace(life, verdict, f"stow {tool}")
   return verdict
 
@@ -626,6 +640,7 @@ CUBE_WHY = {
   "never lined up": "walked in to cube {tag} three times and never lay down with "
                     "it in the claw's reach",
   "missed": "lay down at cube {tag}, closed the jaws on it and they did not hold it",
+  "the wrong cube": "lay down at cube {tag}, and the jaws closed on another cube",
   "not on it": "let go over cube {tag}, and the cube it held does not rest on it",
   "not down": "let go over the floor, and the cube does not rest on it",
   "no room": "lay down to put the cube down, and there was a cube where it could",
@@ -634,6 +649,11 @@ CUBE_WHY = {
   "out of time": "ran out of time before reaching cube {tag}",
   "interrupted": "stopped on the way to cube {tag} by its own interrupt",
 }
+#: ...and what a `put` that did not says: it walks to no cube.
+PUT_WHY = {**CUBE_WHY,
+           "out of reach": "lay down to put cube {tag} down and could not reach the floor",
+           "not down": "let go of cube {tag} over the floor, and it does not rest on it",
+           "fell": "fell over putting cube {tag} down, and the fall threw the claw"}
 
 
 def _claw_first(life) -> Routine:
@@ -655,7 +675,7 @@ def _claw_first(life) -> Routine:
   return None
 
 
-def _cube_verdict(rec: dict, key: str, tag: int | None) -> dict:
+def _cube_verdict(rec: dict, key: str, tag: int | None, words: dict = CUBE_WHY) -> dict:
   why = rec.get("why", "")
   out = {"ok": bool(rec.get(key)), "why": why,
          **({"tag": tag} if tag is not None else {}),
@@ -663,7 +683,7 @@ def _cube_verdict(rec: dict, key: str, tag: int | None) -> dict:
   if why == "interrupted":
     out["stopped"] = "interrupted"
   if not out["ok"]:
-    out["reason"] = CUBE_WHY.get(why, why or "did not").format(tag=tag)
+    out["reason"] = words.get(why, why or "did not").format(tag=tag)
     if rec.get("tries"):
       out["trace"] = f"{rec.get('op')} {tag}: " + "; ".join(
         f"#{i} walk in {a.get('walkIn')}, lying at {a.get('at')} -> {a.get('why', 'in reach')}"
@@ -705,7 +725,7 @@ def _put(life, args: dict) -> Routine:
     return {"ok": False, "reason": CUBE_WHY["no claw"]}
   rec = yield from life.body.put_cube_routine(
     _patience(life, {"patience": PUT_PATIENCE_S}))
-  return _cube_verdict(rec, "put", None)
+  return _cube_verdict(rec, "put", rec.get("held"), PUT_WHY)
 
 
 def _grip(life, args: dict) -> Routine:
@@ -731,6 +751,7 @@ SURVEY_PATIENCE_S = 600.0
 #: What a `survey` that did not survey says, by its body's why.
 SURVEY_WHY = {
   "not found": "tag {tag} marks a place it has not found: `find` it first",
+  "no area": "the floor in front of tag {tag} is no area its walls close",
   "out of time": "ran out of time surveying round tag {tag}",
   "interrupted": "stopped surveying round tag {tag} by its own interrupt",
 }

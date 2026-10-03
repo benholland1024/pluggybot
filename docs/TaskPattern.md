@@ -398,8 +398,10 @@ every one below was hit, measured, and given a gate.
   alone: `tasks.py` says what a job IS, `rewards.json` what it PAYS,
   `cadence.json` when it TURNS UP. The producer ticks on the physics seam
   (never the arbitration loop, so offers appear and lapse while the robot
-  works), places at most one offer per tick with no catch-up, lets a
-  passed-over kind keep the head of the queue, and picks targets
+  works), places at most one offer per tick with no catch-up, lets a kind
+  passed over for want of a target keep the head of the queue -- never one
+  the charged pack can never fund, which starved the kinds behind it (#407)
+  -- and picks targets
   least-recently-offered with per-target cooldowns. No RNG anywhere: the
   same run offers the same jobs at the same sim-seconds, or every mission
   test is a different test every time.

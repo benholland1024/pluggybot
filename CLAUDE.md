@@ -968,8 +968,8 @@ save a filmstrip PNG named after the script.
   ITS READOUT (`lang.run_procedure_routine` returns them, the `procedure`
   event carries them, one History line of `LOCALS_SHOWN`). ⚠ The cubes' poses
   are not delivered, and no rule text shows a weighing. On legs (#407) the
-  bench is an AREA OF ITS OWN (target `bench`, its tags 44–45, so it no
-  longer shares the cage's slot) and the scale is the arm's motors as their
+  bench is an AREA OF ITS OWN (target `lab_bench`, the bench's body and
+  place, its tags 44–45, so it no longer shares the cage's slot) and the scale is the arm's motors as their
   drivers report torque (`shoulder.torque` / `elbow.torque`,
   `encoders.torque_reading`: 12 bits over ±22 N·m and the current sense's
   noise).
@@ -1290,8 +1290,9 @@ save a filmstrip PNG named after the script.
   `TaskProducer` ticks on the physics seam (`cadence.CHECK_S` = 1 s) and can
   only offer and expire. ⚠ The energy gate is measured against a CHARGED pack
   (`fundable_wh`), not the cell right now; a claim still sees `spendable_wh`.
-  A passed-over kind KEEPS the head of the queue; one offer per tick; nothing
-  random. ⚠ **The rotation SURVIVES A RESTART** (the cursor lives in
+  A kind passed over for want of a target KEEPS the head of the queue; one
+  the charged pack can never fund does not (#407: it starved the second of
+  two kinds sharing a slot behind it); one offer per tick; nothing random. ⚠ **The rotation SURVIVES A RESTART** (the cursor lives in
   `TaskBoard.producer`), an open offer's deadline is REBASED on load (except
   where the world carries on, `rebase=False`), an offer is re-priced by the
   world's energy table on load, and only a game or an act a restart failed is

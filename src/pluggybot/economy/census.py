@@ -33,6 +33,7 @@ with 45 % coverage is not the same claim as a count of 2 with 95 %, and a
 scoring rule that ignores the difference rewards a robot for stopping early.
 """
 
+import math
 from dataclasses import dataclass
 
 import numpy as np
@@ -76,7 +77,9 @@ def area_from_walls(occupied: np.ndarray, free: np.ndarray, seed: tuple[int, int
   known-free cells reachable from it without passing a gap narrower than
   `door_m` -- an OPENING of the free floor by half a door (its middle kept
   where it is half a door from every wall, the one piece holding the seed
-  grown back over the free floor). Empty where the seed is no such floor."""
+  grown back over the free floor, a cell a step, ⚠ NEVER THROUGH A WALL: by
+  distance alone it took in the floor behind a wall a cell thick). Empty
+  where the seed is no such floor."""
   r = door_m / 2.0
   clear = ndimage.distance_transform_edt(~occupied) * resolution
   core = free & (clear >= r)
@@ -85,8 +88,9 @@ def area_from_walls(occupied: np.ndarray, free: np.ndarray, seed: tuple[int, int
   rows, cols = free.shape
   if not (0 <= iy < rows and 0 <= ix < cols) or labels[iy, ix] == 0:
     return np.zeros_like(free, dtype=bool)
-  near = ndimage.distance_transform_edt(labels != labels[iy, ix]) * resolution
-  return free & (near <= r + resolution)
+  return ndimage.binary_dilation(labels == labels[iy, ix], structure=_NEIGHBOURHOOD,
+                                 iterations=int(math.ceil(r / resolution)) + 1,
+                                 mask=free & ~occupied)
 
 
 def count_low(obstacle: np.ndarray, area: np.ndarray, resolution: float,

@@ -357,7 +357,8 @@ def test_a_verb_that_walks_carries_a_tool_at_the_carry_pose(quad_world):
     ran = []
     body.mission.carry_routine = lambda: (ran.append("carry"), tick.result(True))[1]
     body.mission.carrying = "module_pen"
-    assert body.run(st.carry_configuration_routine(life, "module_pen")) == {"setDown": None}
+    assert body.run(st.carry_configuration_routine(life, "module_pen")) == \
+      {"setDown": None, "dropped": None}
     assert ran == ["carry"]
   finally:
     body.close()

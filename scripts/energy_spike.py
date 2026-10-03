@@ -67,7 +67,7 @@ BOARD_ACTIONS = tuple(f"{task}:{board}" for board in ("whiteboard_a", "whiteboar
 #: remembered: the census (the survey of the garden) and the two challenges,
 #: each its hand-written solution (`challenge.solutions`) flown as a mind's
 #: procedure runs -- the claw fetched, the cubes moved, the claw hung back.
-AREA_ACTIONS = {"census": "garden", "stack": "workshop", "mass": "bench"}
+AREA_ACTIONS = {"census": "garden", "stack": "workshop", "mass": "lab_bench"}
 CHALLENGE_KINDS = {"stack": "stack_tower", "mass": "find_mass"}
 
 class _Writer:

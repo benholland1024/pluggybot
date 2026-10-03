@@ -470,3 +470,41 @@ def test_the_swap_waits_on_the_work_pose_and_a_wait_that_gives_up_is_blocked():
   held = _Bay(peer_m=0.30, free=False)
   assert _drive(ToolSwap.fetch_routine(held, 1, "module_lcd")) == "blocked"
   assert not held.at_bay, "it walked in to a bay another robot held"
+
+
+def test_who_held_a_bay_is_forgotten_by_the_next_swap():
+  """A wait given up for the other robot keeps how far off it stood, for
+  the failure's words; the next swap starts without it -- kept, a later
+  fetch that found no route was told "Rowan was 0.30 m from the bay"."""
+  held = _Bay(peer_m=0.30, free=False)
+  assert _drive(ToolSwap.fetch_routine(held, 1, "module_lcd")) == "blocked"
+  assert held.peer_at_bay_m == 0.30
+  held.peer_m = None
+
+  def nowhere(bay, rec):
+    return "no-route"
+    yield
+  held._to_the_bay_routine = nowhere
+  assert _drive(ToolSwap.fetch_routine(held, 1, "module_lcd")) == "no-route"
+  assert held.peer_at_bay_m is None
+
+
+def test_a_stow_given_up_for_the_other_robot_says_who_held_the_bay():
+  """A fetch given up for the other robot named it (`held_for`); a stow
+  given up the same way said only that the tool was still on the fork."""
+  from pluggybot.procedure import steps as st
+
+  def stow(station, tool):
+    return "blocked"
+    yield
+  body = SimpleNamespace(module_state=lambda t: {"on_fork": t == "module_pen",
+                                                 "hung": False},
+                         stow_tool_routine=stow, retract_arm_routine=lambda: tick.result(None),
+                         held_cube=lambda: None, swap_trace=lambda: "")
+  life = SimpleNamespace(rack_inventory=dict(st.TOOL_BAYS),
+                         swaps_done=0, model=None, world="home_quad", body=body,
+                         peer_at_the_bay=lambda station: ("Rowan", 0.3),
+                         held_for=lambda b: f"{b[0]} was {b[1]:.2f} m from the bay")
+  out = tick.run(SimpleNamespace(step=lambda *a: None), st._stow(life, {}))
+  assert not out["ok"]
+  assert out["reason"].endswith("still on the fork: Rowan was 0.30 m from the bay")

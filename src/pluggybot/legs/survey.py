@@ -35,6 +35,11 @@ VANTAGE_CLEAR_M = 0.5
 VANTAGE_SEES_M = 1.6
 #: A walk to a vantage gives up after this long, s.
 VANTAGE_PATIENCE_S = 60.0
+#: A look round at a vantage turns until the belief has turned a full
+#: circle, in at most this long, s: never timed at a turn rate -- carrying
+#: the LCD a body turns at `legs.body.W_CARRY`, and a spin timed for
+#: `W_SPIN` turned 145 deg.
+LOOK_ROUND_S = 30.0
 #: An object this many cells from a LIDAR return is the LIDAR's: what its
 #: plane hit there stands taller than a plant (`survey_count`).
 LIDAR_NEAR_CELLS = 2
@@ -56,8 +61,11 @@ class CensusLayer:
   def __init__(self, shape) -> None:
     self.hits = np.zeros(shape, dtype=np.int32)
     self.seen = np.zeros(shape, dtype=bool)
-    #: ...and where the LIDAR's returns landed: what its plane, 0.51 m up,
-    #: hit is taller than that, never a plant (`QuadMission._on_scan`)
+    #: ...and where the LIDAR's near returns landed (`LIDAR_TALL_M`): what
+    #: its plane, 0.51 m up, hit there is taller than a plant -- never one
+    #: counted -- and a wall to the area wherever the map has lost one: a
+    #: robot walking the sidewalk past the garden cleared its fence from
+    #: the map, and the area ran round the street loop, 354 m2 for 87
     self.lidar = np.zeros(shape, dtype=bool)
 
   def fold(self, hit_cells, floor_cells) -> None:
@@ -79,8 +87,11 @@ class AreaSurvey:
     from pluggybot.economy.census import area_from_walls
     from pluggybot.mapping.frontier import FREE_THRESH, OCC_THRESH
     g = self.grid
-    return area_from_walls(g.grid > OCC_THRESH, g.grid < FREE_THRESH,
-                           g.world_to_cell(*seed), g.resolution)
+    walls = g.grid > OCC_THRESH
+    if self.census is not None:
+      walls = walls | self.census.lidar
+    return area_from_walls(walls, g.grid < FREE_THRESH, g.world_to_cell(*seed),
+                           g.resolution)
 
   def survey_count(self, area: np.ndarray, layer: CensusLayer) -> tuple[list, float]:
     """What this survey saw standing inside the area, under the LIDAR's
@@ -97,8 +108,9 @@ class AreaSurvey:
     return objs, seen_share(layer.seen, area)
 
   def _on_scan(self, angles, ranges) -> None:
-    """Where a level scan's returns land, into a survey's layer while one is
-    under way (`Navigator._on_scan`)."""
+    """Where a scan laid into the map lands, into a survey's layer while one
+    is under way (`Navigator._on_scan`): a near return is something taller
+    than a plant, a wall or a pole."""
     if self.census is None:
       return
     hit = ranges < min(LIDAR_TALL_M, self.lidar.max_range - 1e-6)
@@ -115,6 +127,18 @@ class AreaSurvey:
     rows, cols = self.census.lidar.shape
     ok = (ix >= 0) & (ix < cols) & (iy >= 0) & (iy < rows)
     self.census.lidar[iy[ok], ix[ok]] = True
+
+  def _look_round_routine(self) -> Routine:
+    """A full circle by the belief's own heading (`LOOK_ROUND_S`): the
+    depth camera's layer fills as it turns."""
+    from pluggybot.behavior.navigation import W_SPIN
+    turned, last = 0.0, float(self.pose[2])
+    t0 = float(self.data.time)
+    while turned < 2 * math.pi and self.data.time - t0 < LOOK_ROUND_S:
+      yield from self._nav_routine(0.0, W_SPIN)
+      th = float(self.pose[2])
+      turned += abs(math.atan2(math.sin(th - last), math.cos(th - last)))
+      last = th
 
   def _next_vantage(self, area: np.ndarray, visited: list,
                     layer: CensusLayer) -> tuple[float, float] | None:
@@ -149,8 +173,8 @@ class AreaSurvey:
     """Survey the area tag `tag` marks and count what stands in it (the
     module docstring): `on_count(n)` hears the count after every look. Its
     record: `surveyed`, `why` ("surveyed", "seen all it could", "not
-    found", "out of time", "interrupted"), `count`, `coverage`, the
-    objects' places, the vantages stood at."""
+    found", "no area", "out of time", "interrupted"), `count`, `coverage`,
+    the objects' places, the vantages stood at."""
     t0 = float(self.data.time)
     until = t0 + float(patience)
     rec: dict = {"tag": int(tag), "vantages": 0}
@@ -185,10 +209,14 @@ class AreaSurvey:
         return done("out of time")
       kw = {"stop": stop} if stop is not None else {}
       yield from self.drive_to_routine(*goal, timeout=min(VANTAGE_PATIENCE_S, left), **kw)
-      yield from self._spin_routine()
+      if stop is not None and stop():
+        return done("interrupted")
+      yield from self._look_round_routine()
       visited.append(goal)
       rec["vantages"] = len(visited)
       area = self.survey_area(seed)
+      if not area.any():
+        return done("no area")
       objs, cover = self.survey_count(area, layer)
       rec.update(count=len(objs), coverage=round(cover, 3),
                  objects=[[round(x, 2), round(y, 2)] for x, y, _ in objs],

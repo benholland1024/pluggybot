@@ -216,7 +216,7 @@ def board_job_routine(life, feature: str, board: str, events: list):
 
 
 #: The challenges ladder A flies (issue #407): the kind and its target.
-CHALLENGES = {"tower": ("stack_tower", "workshop"), "bench": ("find_mass", "bench")}
+CHALLENGES = {"tower": ("stack_tower", "workshop"), "bench": ("find_mass", "lab_bench")}
 
 
 def challenge_job_routine(life, feature: str, events: list):

@@ -59,7 +59,7 @@ def test_the_offers_say_where_by_their_areas_terms_and_never_a_position(tmp_path
   from pluggybot.lifecycle import QUAD_HOME, task_producer
   board = TaskBoard(path=str(tmp_path / "t.json"))
   producer = task_producer(board, QUAD_HOME, procedures=True)
-  for kind, area in (("find_mass", "bench"), ("stack_tower", "workshop")):
+  for kind, area in (("find_mass", "lab_bench"), ("stack_tower", "workshop")):
     params, secret = producer._build(kind, area)
     job = board.offer(kind, area, params=params, secret=secret, t=1.0)
     shown = job.as_context(1.0)
@@ -67,12 +67,12 @@ def test_the_offers_say_where_by_their_areas_terms_and_never_a_position(tmp_path
     assert shown["address"] == addresses.area(area)["address"], kind
     assert not re.search(r"-?\d+\.\d+", job.description), (kind, job.description)
     assert "write the procedure" in job.description, kind
-  assert addresses.area("bench")["directions"] != addresses.area("lab")["directions"]
+  assert addresses.area("lab_bench")["directions"] != addresses.area("lab")["directions"]
   bare = board.offer("stack_tower", "workshop", t=2.0).description
   assert "{" not in bare and "  " not in bare and "None" not in bare
   # ...and the cubes' LIVE poses stay out of the context (issue #227's
-  # rule): the room says nothing of them
-  assert "mass" not in str(producer.facts.get("lab", {}))
+  # rule): the producer is handed the places and nothing else
+  assert set(producer.facts) == {"places"}
 
 
 def test_the_prompt_says_what_a_bare_return_does_and_the_lab_rule_names_the_route():

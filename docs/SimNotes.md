@@ -1416,10 +1416,12 @@ flat.
   full height from one stance (0.19–0.41 m from 0.43 m out) and the pressing
   force, reacted by the pad;
 - **the claw** — the arm reaches the floor 0.40–0.50 m ahead with the
-  rover's 154 mm pendant, so the pendant can shorten; holding the bench's
-  0.4 kg cube it weighs 0.61 kg, carried seated as the envelope's 0.60 kg
-  rows were, and held straight out at 39 % of the motors' rating;
-- **the LCD and the seed dispenser** — unchanged but for the peg;
+  rover's 154 mm pendant; built, it hangs its jaws 175 mm under the peg, so
+  its crossbar clears its bay's tags ("The claw on legs"); holding the
+  bench's 0.4 kg cube it weighs 0.61 kg, carried seated as the envelope's
+  0.60 kg rows were, and held straight out at 39 % of the motors' rating;
+- **the LCD** — unchanged but for the peg (the seed dispenser is retired:
+  no job ever used it, #407);
 - **the plug does not** — no job uses it, and the robot charges by lying
   on its dock (#390).
 
@@ -2240,7 +2242,8 @@ the measurement, the fork in under the peg, up and out, the tool to the
 carry pose over the nose; hanging it back is the reverse, with a second
 settle and look after the fork comes down from the carry pose. A program
 on `autonomous` runs it as `fetch` and `stow` (`world_config`'s `swap`:
-`SWAP_VERBS`); there is no errand, and no job, that needs a tool yet.
+`SWAP_VERBS`); the boards' jobs take the pen (#406), the census the LCD and
+the challenges the claw (#407).
 
 **Four things the spike's world could not show:**
 
@@ -2326,7 +2329,8 @@ against the fork ignored (a review fix, withdrawn), both robots' tools
 were knocked off in 4 of 6 flights. Making a carried tool a limb to its
 own robot's bumper as well landed that flight and lost three tools in two
 others (17 of 20): both robots flinched at once, bumped and backed off in
-turn until the tools fell -- withdrawn too, and #418's to settle. At the
+turn until the tools fell -- withdrawn too, and settled by #418's wait
+("Two robots at one rack, on legs", below). At the
 carry pose the fork is the body's collidable front (0.418 m ahead of the
 centre; the tools' plates 0.411, their faces visual only), past the front
 stop's 0.38 m: a carrying body walked at a wall is answered by the bump.
@@ -2356,7 +2360,7 @@ a carried tool down the house's stairs (#280 builds
 them); the other robot's carried tool is not filtered from this one's
 senses (at the carry pose it is above the LIDAR's plane), and nothing
 keeps two carrying robots' tools apart at the rack (1 of 20 knocked off at
-bays A and C), nor a second robot off a bay the first is working (#418).
+bays A and C, 0.60 m apart: outside the 0.55 m #418's wait covers).
 
 ## The feed on legs (issue #403)
 
@@ -3132,9 +3136,12 @@ within 0.1 mm. The cube in the jaws stands on no layer (cut at one it read
 18 mm long), so it is PnP's, from close.
 
 **The stance** is lying, as the pen's: standing, the walking policy never
-quite stops. The walk in is steered by the cube's tag to where lying down
-leaves it mid-reach (`LIE_AT_M`, 0.54 m), the body lies and looks again;
-out of reach it stands, backs out and walks in again, three times.
+quite stops. Lying, the arm puts the jaws on the floor from 0.35 to 0.82 m
+ahead, and the imager sees a cube's whole tag from 0.40 to 0.68 -- the claw's
+working band (`tools.claw.REACH_X`). The walk in is steered by the cube's
+tag to where lying down leaves it mid-reach (`LIE_AT_M`, 0.54 m), the body
+lies and looks again; out of reach it stands, backs out and walks in again,
+three times.
 
 **The grip.** MuJoCo's soft contact lets a held cube creep at about
 (1 - d)/d * g/b. The pads are stiff (solref 0.006, solimp 0.99/0.999 with a

@@ -36,14 +36,39 @@ period that runs offers or upkeep takes those flags too.
 ⚠ **A recording with ink takes two passes.** A `board_snapshot` is only
 emitted for a board already carrying ink when the stream opens, so lay the
 ink first against a `--boards` state file, then record against the same
-file. No robot on legs draws yet (#406), so the committed recording has
-none.
+file. The committed recording has none: no robot in it draws.
 
 **A pair world is a world of its own** (0.20.0, issue #167): `<model>_pair`
 is the world with the second robot attached where the pair starts it, and a
 replayer treats it like any other world -- one scene, one recording, keyed
 by that name (`pluggybot.robot.pair_model_name`). The served world is the
 pair, `home_quad_pair`.
+
+### 0.21.0, additive: the claw on legs (the areas' tags; the claw built; the census and the challenges offered)
+
+pluggybot #407, the claw and the census back on legs. No shape a consumer
+reads changes; four things are new beside it.
+
+- **The claw's and the census's areas have tags**, static bodies of the
+  quadrupeds' house: `tower_tag42` and `tower_tag43` on the workshop
+  corner's wall, `bench_tag44` and `bench_tag45` on the lab bench's front,
+  `garden_tag46` on the garden's east fence (materials `tagmat42..46`,
+  textures `tagtex42..46.png`) -- what the robots find an area by. The
+  tower's blocks and the bench's cubes were already bodies of the world.
+- **The claw is built**: `module_claw` gains three DYNAMIC child bodies,
+  `module_claw_carriage` (its slide across the module), `module_claw_jaw_l`
+  and `module_claw_jaw_r`, so each streams a pose in every keyframe.
+- **Three jobs are offered on `home_quad`**: `count_plants` (target
+  `garden`, a zone) on every arm, the count shown on the LCD's `count`
+  screen as the rover's was; and the two challenges on a mind alone,
+  `stack_tower` (target `workshop`, a zone) and `find_mass` (target
+  `lab_bench`, the bench's body). Each offer carries its area's `address`
+  and `directions`. ⚠ The challenges' offers no longer say where the house
+  set the props out: that was coordinates, and a job gives a place now.
+- **The `plant` hint's note** says the robot SEES a plant with its depth
+  camera; `collides` is still false (`hints.json`).
+
+No fixture carries a job (the pair's recording has no mind).
 
 ### 0.21.0, additive: whether a renderer is there (`renderer`, downstream); a look nothing could answer
 

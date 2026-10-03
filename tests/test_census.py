@@ -235,7 +235,7 @@ class _Walker(_Surveyor):
     return True
     yield
 
-  def _spin_routine(self):
+  def _look_round_routine(self):
     ys, xs = np.mgrid[0:self.grid.grid.shape[0], 0:self.grid.grid.shape[1]]
     wx = self.grid.x_min + (xs + 0.5) * RES
     wy = self.grid.y_min + (ys + 0.5) * RES
@@ -278,3 +278,98 @@ def test_the_survey_layer_goes_off_when_a_walk_throws():
   with pytest.raises(RuntimeError):
     _run(w.survey_routine(46, 900.0))
   assert w.census is None
+
+
+# ---- review of #407 ---------------------------------------------------------
+
+
+def test_the_area_grows_back_over_floor_never_through_a_wall():
+  """By distance alone, the area grown back from its middle took in floor
+  behind a wall a cell thick. Grown a cell a step over the free floor, it
+  stops at the wall."""
+  occ = np.zeros((60, 60), dtype=bool)
+  occ[0, :] = occ[-1, :] = occ[:, 0] = occ[:, -1] = True
+  occ[1:59, 40] = True                     # a thin wall, the floor behind it free
+  free = ~occ
+  area = area_from_walls(occ, free, (20, 30), RES)
+  assert area[30, 20] and area[30, 39]
+  assert not area[:, 41:].any(), "the area ran on behind a wall"
+
+
+def test_a_wall_the_survey_saw_closes_the_area_where_the_map_lost_it():
+  """A robot walking the sidewalk past the garden cleared its fence from
+  the map, and the area ran round the street loop -- 354 m2 for a garden
+  of 87. Every return of the survey's own scans is a wall to its area."""
+  s = _Surveyor()
+  s.grid.grid[10:111, 110] = -2.0          # the east wall gone from the map...
+  s.grid.grid[:, 111:] = -2.0              # ...and the floor beyond it known
+  open_area = s.survey_area((3.0, 3.0))
+  assert open_area[60, 115], "premise: the area runs out through the lost wall"
+  s.census.lidar[10:111, 110] = True       # what this survey's near returns hit
+  assert not s.survey_area((3.0, 3.0))[:, 111:].any()
+
+
+def test_the_look_round_turns_a_full_circle_at_the_carrying_rate():
+  """Carrying the LCD a body turns at `W_CARRY` (0.45 rad/s); the rover's
+  spin, timed for 1 rad/s, turned it 145 deg. The survey turns until its
+  own heading has gone round, inside `LOOK_ROUND_S`."""
+  from pluggybot.behavior.navigation import W_SPIN
+  w = _Walker()
+  dt = 0.002
+
+  def turn(v, rate):
+    th = w.pose[2] + min(rate, 0.45) * dt
+    w.pose = (w.pose[0], w.pose[1], math.atan2(math.sin(th), math.cos(th)))
+    w.data.time += dt
+    return
+    yield
+  w._nav_routine = turn
+  _run(sv.AreaSurvey._look_round_routine(w))
+  assert w.data.time * 0.45 >= 2 * math.pi - 1e-6
+  assert w.data.time < sv.LOOK_ROUND_S
+  assert 2 * math.pi / W_SPIN < w.data.time, "timed at the bare rate, it would stop short"
+
+
+def test_an_area_the_walls_do_not_close_is_no_survey():
+  """Seeded on no floor -- a tag whose facing put the seed in its fence --
+  the area is empty, and an empty area once read as surveyed, nothing in
+  it, nothing seen."""
+  w = _Walker()
+  w.places = SimpleNamespace(get=lambda t: SimpleNamespace(x=5.6, y=3.0),
+                             facing=lambda t: (0.0, "fixture"))
+  rec = _run(w.survey_routine(46, 900.0))
+  assert rec["why"] == "no area" and not rec["surveyed"]
+
+
+def test_a_census_that_never_found_its_garden_says_so():
+  """A census whose `find` failed told History only "no count came back
+  from garden"; it leads with what failed (#350)."""
+  from test_body import stub_life
+  from pluggybot.lifecycle import census_errand
+  life = stub_life(QUAD_HOME)
+  try:
+    missed = life.run_errand(census_errand(QUAD_HOME, "garden"))
+    assert not missed["verdict"]["ok"]
+    assert missed["verdict"]["reason"].startswith("never found garden: did not find tag 46")
+  finally:
+    life.body.close()
+
+
+def test_only_a_scan_laid_into_the_map_reaches_the_survey():
+  """The survey's layer is laid where the map is: after the match, at the
+  pose the scan was laid from, and never from a scan the matcher refused."""
+  from pluggybot.navigator import Navigator
+  seen = []
+  fake = SimpleNamespace(
+    data=SimpleNamespace(time=1.0), _next_scan=0.0, backoff_until=9e9,
+    lidar=SimpleNamespace(max_range=8.0, scan_split=lambda d: (np.zeros(2), np.ones(2),
+                                                              np.zeros(0), np.zeros(0))),
+    level=lambda: True, _match=lambda a, r: "fit", LIDAR_ORIGIN=(0.0, 0.0), pose=(0, 0, 0),
+    grid=SimpleNamespace(update=lambda *a, **kw: seen.append("map")),
+    _on_scan=lambda a, r: seen.append("survey"), _front_blocked=lambda a, r: False)
+  fake.matcher = SimpleNamespace(fuses=lambda m, t: False, fused=lambda p, t: None)
+  Navigator._scan_step(fake)
+  assert seen == [], "a refused scan reached the survey"
+  fake._next_scan, fake.matcher.fuses = 0.0, (lambda m, t: True)
+  Navigator._scan_step(fake)
+  assert seen == ["map", "survey"]

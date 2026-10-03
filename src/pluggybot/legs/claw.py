@@ -71,9 +71,11 @@ SWEEP_DEG = (30.0, -60.0)
 #: street (~100 s), and cut at 90 the search looked from the wrong side of it.
 WALK_PATIENCE_S = 90.0
 #: `put` sets a cube down `LIE_AT_M` ahead, or this far to either side where
-#: a cube a look finds is nearer than `PUT_CLEAR_M` to the spot, m.
+#: a cube a look finds is nearer than `PUT_CLEAR_M` to the spot, m: what an
+#: opening pad reaches off the jaws' middle (`rack.CLAW_JAW_OPEN` and a
+#: pad's half-width, 38 mm) and half a cube, or the release strikes it.
 PUT_SIDE_M = 0.040
-PUT_CLEAR_M = 0.045
+PUT_CLEAR_M = 0.052
 
 
 def cube_areas() -> dict[int, tuple[int, ...]]:
@@ -194,6 +196,8 @@ class CubeWork:
         return False
       kw = {"stop": stop} if stop is not None else {}
       yield from self.drive_to_routine(x, y, timeout=left, **kw)
+      if stop is not None and stop():
+        return False
       yield from self.face_routine(heading)
       if tag in self.look_cubes(ignore):
         return True
@@ -222,14 +226,17 @@ class CubeWork:
     ux, uy = ((cx - toward[0]) / d, (cy - toward[1]) / d) if d > 1e-6 else (1.0, 0.0)
     return cx - STAND_AT_M * ux, cy - STAND_AT_M * uy, math.atan2(uy, ux)
 
-  def _cube_walk_in_routine(self, tag: int, ignore, line: tuple[float, float]) -> Routine:
+  def _cube_walk_in_routine(self, tag: int, ignore, line: tuple[float, float],
+                            stop=None) -> Routine:
     """To `STAND_AT_M` off the cube along `line` (the approach's direction,
     fixed at its start), steered by the cube's tag while it is in view:
-    "stopped" or "budget"."""
+    "stopped", "budget" or "interrupted" (`stop`, asked every look)."""
     from pluggybot.legs.policy import Twist
     ux, uy = line
     t0 = last = float(self.data.time)
     while self.data.time - t0 < WALK_IN_S:
+      if stop is not None and self.data.time - last >= LOOK_EVERY_S and stop():
+        return "interrupted"
       cx, cy = self.cubes[tag][:2]
       pose = (cx - STAND_AT_M * ux, cy - STAND_AT_M * uy, math.atan2(uy, ux))
       tw = rk.walk_in_twist(*dk.relative(self.pose, pose))
@@ -274,7 +281,10 @@ class CubeWork:
       yield from self.face_routine(math.atan2(cy - self.pose[1], cx - self.pose[0]))
       self.look_cubes(ignore)
       with self._at_the_cube():
-        att["walkIn"] = yield from self._cube_walk_in_routine(tag, ignore, (ux, uy))
+        att["walkIn"] = yield from self._cube_walk_in_routine(tag, ignore, (ux, uy), stop)
+        if att["walkIn"] == "interrupted":
+          rec["why"] = "interrupted"
+          return None
         yield from self._drive_routine(STOPPED_S, 0.0, 0.0)
         if self.carrying != "module_claw":
           rec["why"] = "fell"
@@ -343,7 +353,10 @@ class CubeWork:
                                     self.root)
       got = yield from hand.pick_routine(cube, level)
       rec["held"] = hand.held()
-      why = ("fell" if hand.fell() else "picked" if got and rec["held"] else "missed")
+      # ...the cube it was asked for, and no other: between the pads is any
+      # body that can move
+      why = ("fell" if hand.fell() else "missed" if not (got and rec["held"])
+             else "picked" if hand.held_tag() == int(tag) else "the wrong cube")
       yield from self._leave_routine(hand)
     return done(why)
 
@@ -397,8 +410,9 @@ class CubeWork:
       target = seen.get(int(tag)) or target
       let_go = yield from hand.place_routine(target, level, hang)
       rests = self._rests_on(held, int(tag))
+      # ...and a place that never opened the jaws let go of nothing
       why = ("fell" if hand.fell() else "placed" if let_go and rests
-             else "not on it")
+             else "not on it" if let_go else "out of reach")
       yield from self._leave_routine(hand)
     return done(why)
 

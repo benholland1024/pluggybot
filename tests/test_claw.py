@@ -31,6 +31,7 @@ import mujoco
 import numpy as np
 import pytest
 
+from pluggybot import tick
 from pluggybot.challenge.stack import BLOCK_HALF, block_xml
 from pluggybot.legs import arm as am
 from pluggybot.legs import claw as lc
@@ -170,6 +171,62 @@ def test_open_jaws_hold_nothing_and_the_floor_between_the_pads_is_no_cube():
   m, d = _claw_world(None, fixed_box=True)
   _close(m, d, closed=True)
   assert _hand(m, d).held() is None, "something that cannot move was held"
+
+
+def _shaken(kp: float = rk.CLAW_GRIP_KP, axis: int = 1, pads=None) -> tuple[float, int]:
+  """A 60 g cube in the claw, the claw shaken 10 mm at 4 Hz along `axis`
+  for 2 s (as the pads and jaws were chosen against): the cube's slip down
+  the pads, mm/s, and the steps it read as not held."""
+  from pluggybot.challenge.stack import BLOCK_HALF as half
+  face = rk.claw_face()
+  if pads is not None:
+    face = (face.replace(f'solref="{rk.CLAW_PAD_SOLREF}"', f'solref="{pads[0]}"')
+            .replace(f'solimp="{rk.CLAW_PAD_SOLIMP}"', f'solimp="{pads[1]}"'))
+  jaw_z = 1.0 - rk.CLAW_JAW_DROP
+  cube = block_xml("block_1", 0.0, 0.0, None, mass=0.06).replace(
+    f'pos="0.0000 0.0000 {half:.4f}"', f'pos="0 0 {jaw_z:.4f}"')
+  xml = (f'<mujoco><compiler angle="radian"/><option timestep="0.002" integrator="implicitfast"/>'
+         f'<worldbody><body name="carrier" mocap="true" pos="0 0 {1.0 - 0.022}"/>'
+         f'<body name="module_claw" pos="0 0 {1.0 - 0.022}"><freejoint/>'
+         f'<geom name="plate" type="box" size="0.01 0.02 0.03" mass="0.1"/>{face}</body>'
+         f'{cube}</worldbody>'
+         f'<equality><weld body1="carrier" body2="module_claw" solref="0.004 1"/></equality>'
+         f'<actuator>{rk.tool_actuators_xml(("module_claw",))}</actuator></mujoco>')
+  m = mujoco.MjModel.from_xml_string(xml)
+  d = mujoco.MjData(m)
+  for a in (m.actuator(j).id for j in rk.CLAW_JAWS):
+    m.actuator_gainprm[a][0], m.actuator_biasprm[a][1] = kp, -kp
+  _close(m, d, closed=True, gravity_after=250)
+  hand = _hand(m, d)
+  body, grip = m.body("block_1").id, m.site(rk.CLAW_GRIP).id
+  z0 = float(d.xpos[body][2] - d.site_xpos[grip][2])
+  base, dropped = float(d.mocap_pos[0][axis]), 0
+  for k in range(1000):
+    d.mocap_pos[0][axis] = base + 0.010 * math.sin(2 * math.pi * 4.0 * k * 0.002)
+    mujoco.mj_step(m, d)
+    dropped += hand.held() is None
+  return (z0 - float(d.xpos[body][2] - d.site_xpos[grip][2])) / 2.0 * 1000, dropped
+
+
+def test_a_shaken_claw_holds_its_cube():
+  """A carried cube rides a walking body: shaken along the jaws or up and
+  down, held at every step and barely slipping -- the jaw servo at its
+  stall force (`CLAW_GRIP_KP`) across, the stiff pads (`CLAW_PAD_SOLREF` /
+  `SOLIMP`) up and down. `test_the_grip_s_premises` shows each is needed."""
+  for axis, most in ((1, 0.15), (2, 0.08)):
+    slip, dropped = _shaken(axis=axis)
+    assert abs(slip) < most and dropped == 0, (axis, slip, dropped)
+
+
+@pytest.mark.slow
+def test_the_grip_s_premises():
+  """PREMISES (#407's measurement, kept true): at the rover's 600 N/m the
+  jaws breathe when shaken across and the cube slides 2.3 mm/s; on the
+  rover's softer pads it creeps three times as fast shaken up and down."""
+  from pluggybot.challenge.stack import GRIP_SOLIMP
+  assert _shaken(kp=600.0, axis=1)[0] > 1.0
+  stiff, soft = _shaken(axis=2)[0], _shaken(axis=2, pads=("0.02 1", GRIP_SOLIMP))[0]
+  assert soft > 2.5 * stiff > 0
 
 
 # ---- 3. the search ---------------------------------------------------------------
@@ -333,3 +390,18 @@ def test_a_tag_named_to_the_wrong_verb_is_refused_with_what_it_is():
   assert why.startswith("tag 44 is no cube") and "marks a place, which `find`" in why
   [why] = st.check_step(st.VERBS["pick"], {"tag": 99}, facts)
   assert why.endswith(")"), "a tag that is nothing gets no gloss"
+
+
+def test_a_put_that_did_not_says_which_cube_in_its_own_words():
+  """A put walks to no cube: its reasons were the cube verbs', with the
+  tag left empty -- "lay down at cube None and could not reach over it"."""
+  def put(patience, stop=None):
+    return tick.result({"put": False, "why": "out of reach", "held": 21})
+  body = SimpleNamespace(module_state=lambda t: {"on_fork": t == "module_claw",
+                                                 "hung": t != "module_claw"},
+                         put_cube_routine=put)
+  life = SimpleNamespace(rack_inventory=dict(st.TOOL_BAYS), body=body)
+  out = tick.run(SimpleNamespace(step=lambda *a: None), st._put(life, {}))
+  assert out["reason"] == "lay down to put cube 21 down and could not reach the floor"
+  assert "None" not in st._cube_verdict({"why": "fell", "held": 22}, "put", 22,
+                                        st.PUT_WHY)["reason"]

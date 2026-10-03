@@ -47,7 +47,7 @@ def test_the_lab_is_in_the_quadrupeds_world_with_its_rule_disclosure_and_care():
   it."""
   from pluggybot.home import world as home
   assert world_config(QUAD_HOME)["lab"] == {"name": "lab", "cage": tuple(home.LAB_CAGE_XY)}
-  assert world_config(QUAD_HOME)["bench"] == {"name": "bench"}     # an area of its own (#407)
+  assert world_config(QUAD_HOME)["bench"] == {"name": "lab_bench"}   # an area of its own (#407)
   boss = _quad_mind()
   assert boss.menu.lab == "lab" and "care" in boss.menu.available()
   assert boss.menu.lab_jobs == ("feed_mouse",) and boss.menu.lab_route is False

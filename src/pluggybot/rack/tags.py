@@ -81,7 +81,7 @@ BOARD_TAG_SIZE = 0.120
 #: either side of each, the boards' size, on the workshop corner's wall
 #: behind the tower's blocks and on the bench's front behind its masses --
 #: what a robot finds the area by and fits its facing to; and one on the
-#: house's wall in the garden, what the census finds the garden by.
+#: garden's east fence, what the census finds the garden by.
 TOWER_TAG_IDS = (42, 43)
 BENCH_TAG_IDS = (44, 45)
 GARDEN_TAG_IDS = (46,)

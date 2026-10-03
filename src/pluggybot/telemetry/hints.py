@@ -144,8 +144,8 @@ MARKERS = [
          axes={"radius": "size0", "height": "size1"},
          build="replace",
          note="A cylinder standing on the ground, and NOT solid: the robot "
-              "maps it (the census counts it off the occupancy grid) and "
-              "drives through it. Do not draw it as an obstacle."),
+              "sees it (the census counts it off the depth camera's low "
+              "layer) and walks through it. Do not draw it as an obstacle."),
   # ---- v2 (issue #66) ------------------------------------------------------
   Marker("tree", [("cylinder", "0.06 0.9", "0 0 0.9")], collides=True,
          axes={"radius": "size0", "height": "size1"},

@@ -402,7 +402,7 @@ def test_a_cube_in_the_claw_is_set_down_before_the_claw_goes_back():
       calls.append(name)
       if name == "put":
         held.clear()
-        return tick.result({"held": 23})
+        return tick.result({"put": True, "held": 23})
       return tick.result("arrived")
     return make
   body = SimpleNamespace(module_state=lambda t: {"on_fork": t == "module_claw",
@@ -414,6 +414,37 @@ def test_a_cube_in_the_claw_is_set_down_before_the_claw_goes_back():
                          model=None, world=WORLD, body=body)
   tick.run(SimpleNamespace(step=lambda *a: None), st._stow(life, {}))
   assert calls == ["put", "retract_arm", "return"]
+
+
+def test_a_cube_no_put_can_set_down_is_let_go_before_the_claw_goes_back():
+  """A put that found no room (or could not reach) left the cube in the
+  jaws, and the stow hung the claw back holding it, reporting it "set
+  down" (review of #407). Now it lets go where it stands, and says so."""
+  calls, held = [], [21]
+
+  def put(*a, **kw):
+    calls.append("put")
+    return tick.result({"put": False, "why": "no room", "held": 21})
+
+  def jaws(closed):
+    calls.append("open" if not closed else "shut")
+    if not closed:
+      held.clear()
+    return tick.result(True)
+
+  def rec(name):
+    def make(*a, **kw):
+      calls.append(name)
+      return tick.result("arrived")
+    return make
+  body = SimpleNamespace(held_cube=lambda: held[0] if held else None,
+                         put_cube_routine=put, claw_routine=jaws,
+                         retract_arm_routine=rec("retract_arm"))
+  life = SimpleNamespace(body=body)
+  out = tick.run(SimpleNamespace(step=lambda *a: None),
+                 st.carry_configuration_routine(life, "module_claw"))
+  assert out == {"setDown": None, "dropped": 21}
+  assert calls == ["put", "open", "retract_arm"]
 
 
 def test_a_refused_build_says_what_is_in_the_way(monkeypatch):

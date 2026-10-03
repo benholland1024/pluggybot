@@ -256,10 +256,9 @@ departure from it:
   only where a procedure can be written, so the loop with no mind never
   sees the offer. A mind's reward table carries the challenge rows
   (`RewardTable.as_context(challenges=True)`).
-- **The energy cost is measured off the first written procedure** (issue
-  #264): 2.7 Wh from the rover's rack and back on the hosting pack. The
-  kind's estimate still carries that number, until a solution on legs
-  re-prices it.
+- **The energy cost is measured off the hand-written solution**: on legs
+  TOWER from the dock, 7.585 Wh (`energy.json`; the kind's fallback 7.6,
+  #407).
 
 What the observatory will show, blocking nothing: claims (`task` rows,
 kind `stack_tower`), procedures written for it (`procedure` rows), and the
@@ -268,9 +267,10 @@ first solve — the first reading of the capability metric #155 waits for.
 **Whether it can be done at all was settled on the rover** (issue #264): six
 lines of the robot's own language — fetch the claw, pick and place twice,
 stow — passed this grader from the rack (`rover-final` has the solution and
-its flight). On legs it is open again, and #264's rule stands: a feature
-with no hand-written solution that passes its own grader is a defect, fixed
-before it is paid or prompted.
+its flight). On legs TOWER passed it again from the dock (#407, `solve.py
+--feature tower`), and #264's rule stands: a feature with no hand-written
+solution that passes its own grader is a defect, fixed before it is paid or
+prompted.
 
 ## 8. The bench: find an unknown mass and record it (issue #227)
 
@@ -280,8 +280,8 @@ floor in front of the workbench -- the tower's 26 mm block, tagged 23 and
 24 -- one weighing a stated 100 g and one weighing something the offer
 does not say. "Find out what, by any means, and record it." A balance
 from catalog parts, a comparison of pushes, an actuator's load are all
-live routes, and the grader knows none of them. Not offered on legs yet
-(§7).
+live routes, and the grader knows none of them. Offered on legs since
+#407 (§7).
 
 **The criteria**, written before the physics was run: (1) the finding is
 ON THE RECORD -- one line under `findings/mass_bench` whose quantity names

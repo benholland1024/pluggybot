@@ -351,9 +351,9 @@ CLAW_PAD_SOLIMP = "0.99 0.999 0.00001"
 #: The jaws' squeeze: an FS90MG through a 10 mm pinion (Parts.md: 0.216
 #: N.m at stall, so 21.6 N, 10 a jaw), commanded shut past what they close
 #: on -- a servo there pushes at its stall. So the position servo is stiff
-#: and its force is the clip: ⚠ AT THE ROVER'S 600 N/m THE JAWS BREATHED.
-#: Shaken 10 mm at 4 Hz on the claw held in space, a 60 g cube slid 1.6 mm/s
-#: down the pads; held by the stall force, 0.02.
+#: and its force is the clip: ⚠ AT THE ROVER'S 600 N/m THE JAWS BREATHE.
+#: Shaken 10 mm at 4 Hz across (along the jaws), a 60 g cube slid 2.3 mm/s
+#: down the pads; held by the stall force, under 0.1 (`tests/test_claw.py`).
 CLAW_GRIP_KP = 2000.0
 CLAW_JAW_FORCE_N = 10.0
 #: The parts' masses, kg: the slide's rail and carriage (its 56 g), the
