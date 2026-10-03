@@ -10,6 +10,47 @@ observatory is NOT a result: it reports into the issue it informs.
 
 ## Periods
 
+### A robot lying still is where its body lies, and a far one is walked past (#455) — opens when this PR is deployed
+
+**What changed in the world.** How the two quadrupeds share the floor
+when their maps disagree. A robot lying down to rest, or dead, used to be
+kept clear of where it SAID it was, its belief: for hours on 8a61ada
+Luca's map of the lab sat 2.4-2.9 m and 9.5 deg off, the two bodies were
+within 2 m while every reading put them 3.3-3.6 m apart, and the walks the
+resting body held were never asked past it. Now a robot lying still is
+kept clear of where its body lies, placed as the other's own sensors would
+put it; the depth camera no longer holds a walk at it, as for a robot
+fallen; and the way it is asked off is told relative to its body (asked
+five times, Luca had stepped 0.0 m aside each time, already off the way by
+its own map). A robot more than 3 m off whose disc alone cuts a walk's way
+is planned past, and no longer ends the walk at once (three walks to the
+workshop gave up 10-25 m from Rowan walking the hall). A press asks a
+robot lying across its walk in to step off it first, and ends "in the
+way" rather than walk into one that stays. A dead robot is never waited
+on, held for or asked. The prompt did not move. What the robot reads
+changes in three places. A walk's failure line says "lying dead" of a dead
+robot, where it said "lying down to rest". A press can end "did not walk
+onto tag 36's plate: Rowan lay across the way onto it, 0.6 m off, and did
+not step off it". And a robot asked to make way that cannot says why in
+its narration, which the other sees as its `doing`, at most once every
+30 s.
+
+**What the period is for.**
+
+- **The press.** Feed jobs paid and failed per robot, and the failures by
+  cause (`failedReason` on `procedure` rows named `feed_mouse`). On
+  8a61ada, 14 of 18 were the walk stalling 0.7-0.9 m short of the feed
+  plate's standoff, every one with the other robot truly within 2 m
+  (`encounter` rows): one backed out of its own press lies 0.25 m from
+  that standoff. If they stay, the other robot was not the whole of it
+  (#439's part 2).
+- **Every give-up naming a robot lying down has an ask beside it**
+  (#455's acceptance): a `MAKE WAY` line, a yes or a no with why, within
+  150 s of each walk that gave up on a robot "lying down to rest" in the
+  log, and no give-up naming a robot more than a few metres off.
+- **The charge.** `GO_CHARGE: never reached the charge bay` lines naming
+  the other robot, against 6 of 17 charges on 8a61ada.
+
 ### The workshop on legs: a built tool on the rack's rail (#407) — opens when this PR is deployed
 
 **What changed in the world.** The rack's board carries on past the claw's
