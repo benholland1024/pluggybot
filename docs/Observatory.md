@@ -10,6 +10,50 @@ observatory is NOT a result: it reports into the issue it informs.
 
 ## Periods
 
+### A press walks in again, never there again, and a goal a robot lies on is asked off (#439) — opens when this PR is deployed
+
+**What changed in the world.** The feed job's press, and every walk whose
+goal another robot lies on. On three builds (4f1288f, a85772d, 8a61ada),
+95 of 96 failed presses had the other robot within 2 m (`encounter` rows),
+and the 96th was a walk given up at once by a map 3.4 m off.
+- **A walk whose goal a robot lying down to rest lies on asks it to step
+  aside at the plan that finds it there.** Before, only a stagnation asked.
+  Flown with the walker's map 2.9 m off, as Luca's lab was, a press's walk
+  circled a robot lying by the standoff for its whole 85 s, asked late or
+  never, in 7 of 11 placements on #455's build, and in 1 of 14 with both
+  maps true. Swapping between the stand-ins either side of the robot's
+  disc, every new route counted as progress, so the walk never stalled.
+  With this change, 30 of 30 pressed, in 21-52 s.
+- **A press walks to its standoff, looks and clears its way in once.**
+  A walk there that gave up, a sign not in view there, or a robot across
+  the way in that would not step off ends it with that try's words. A walk
+  in that put no foot on the pad is walked in again, as before. On 8a61ada
+  every failed press had run two tries, and every second try had failed as
+  the first, 16 of 16.
+- **Every press leaves its tries in the log,** pressed or not, on the
+  program's last line (`PROCEDURE feed_mouse complete: 2/2 steps [press tag
+  36: ...]`), with how long each walk there took (`walked N s`).
+
+The prompt did not move. What the robot reads is the same words, 0-19 s
+sooner when a press fails.
+
+**What the period is for.**
+
+- **The press, by cause and by robot.** Feeds paid and failed per robot,
+  and the failed presses against the encounter rows: with the other robot
+  near, 50-82 % failed on the three builds before, and 0-2 % with it
+  apart. A press that fails with the other robot near now means the ask did
+  not work. Its trace (`askedWay`, `peerRests`) and the `MAKE WAY` lines
+  will say which way.
+- **The second walk in.** Presses with two tries in their trace, and how
+  many of those pressed. If none in a week, `PRESS_TRIES` 1 is the honest
+  number.
+- **The walk's time** against the 85.2 s it is handed: `walked N s` in
+  every trace.
+- **The shock plate.** `press` rows on another plate while `doing` is
+  `feed:lab`: 25 on 8a61ada, in two feeds. With every press traced, each
+  one is now readable.
+
 ### A robot lying still is where its body lies, and a far one is walked past (#455) — opens when this PR is deployed
 
 **What changed in the world.** How the two quadrupeds share the floor

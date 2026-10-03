@@ -231,6 +231,7 @@ save a filmstrip PNG named after the script.
 | `scripts/drift_spike.py` | #386: believed against true pose over lab round trips, the quadruped's (the walking policy steered by the truth, two estimates on one walk, odometry alone and matched), and whether the lab door is open in the robot's own map; `--explore SECONDS --seed K [--rest S]` the loop's own explore, steered by the belief, then home to the dock (#422), `--explore-table` across seeds |
 | `scripts/determinism_spike.py` | is the world the same world twice? N scripted days hashed, first divergence attributed to GPU / decoder / raycast; `--pair`; `--compare DIR`; `--resume-at T` flies a day against one saved and carried on in a new process (#345), `--on-fork MODULE` with a tool on the fork whose returns fail (#420) |
 | `scripts/make_way_spike.py` | #415: the pair in the house on true-floor maps, one robot resting in a doorway and the other walking through it, one process a scene: the walk's end, the step aside (how far, how long, why it stopped), touches and falls; `--before` nobody asks, `--finished` the resting robot's day is over, `--scene A,B` |
+| `scripts/press_spike.py` | #439: the pair in the lab on true-floor maps, the camera on, one robot lying where a scene puts it (by default where its own press backs out, 0.25 m short of the feed plate's standoff) and the other finding and pressing the feed plate, one process a scene: how the press ended and its tries, the walk's and the way in's time, the steps aside, every plate the feet came down on; `--drift-walker`/`--drift` lay one map off as Luca's was |
 | `scripts/solve.py --feature mouse` | ladder A of #264, the paid feed on legs (#403): offered, claimed with a prediction, walked and graded by the job's own evaluator; `--pair`, `--n N`, `--from dock\|lab`; filmstrip `solve.png`. `--feature hide_and_seek` flies the pair's game (#404): offered as the cadence offers it, both roles claimed, each run from the queue the referee fills, the verdict banked; one game a scene (`--scene A,B`, `--swap` both ways round; `--find`, `--seek-s`, `--head-s` sweep the referee). `--feature answer\|draw\|artwork` flies a whiteboard's job (#406): offered on a board (`--board`, or the two in turn), claimed -- an answer with the right one -- drawn lying and graded off the board's ink. `--feature tower\|bench` flies a challenge (#407): offered with its area's terms, claimed, the hand-written solution run as the robot's procedure (`challenge/solutions.py`), graded by its own predicate |
 | `scripts/board_png.py` | a whiteboard's ink as a PNG from the boards state file or a recording. ⚠ +lat is the viewer's LEFT, as in the site's `surfaces/board.ts`; the test pins it because every figure the pen draws is symmetric |
 | `scripts/quad_spike.py` | the quadruped body (#377; SimNotes "The quadruped body"): `--view` watches it, `--torque`/`--thermal`/`--energy`/`--sweep`/`--pupper` are the sizing tables (on `model.SIZING`, #377's placeholder arm, #405), `--policy`/`--climb`/`--getup`/`--posture`/`--odometry`/`--determinism` fly a trained policy in OUR physics (`--climb --scan map` on the D435's map, `legs/scan.py`, #388), `--shove` the served body knocked over in the house (what `stuck_after_s` is read off, #389), `--served`/`--rays` time the pair and the sensors |
@@ -909,7 +910,10 @@ save a filmstrip PNG named after the script.
   of its own (#395's head-on hold is still open) -- to floor it has SEEN,
   `aside_clear_m` off the asker's way, TOLD RELATIVE TO ITS BODY (#455:
   laid as sent, a way ran 1.1 m off it and it stepped 0.0 m aside five
-  times); the asker waits `MAKE_WAY_WAIT_S` from the first yes; a press
+  times); the asker waits `MAKE_WAY_WAIT_S` from the first yes; ⚠ A GOAL
+  ONE LIES ON IS A WAY IT CUTS, asked at the plan that finds it there
+  (#439: only a stagnation asked, and a walk swapping between the
+  stand-ins either side of its disc circled it for 85 s); a press
   clears its walk in so first (`clear_way_routine`); a no is narrated with
   why; a restart's save waits it out. ⚠ A ROBOT FURTHER OFF THAN `PAST_M`
   (3 m) WHOSE DISC ALONE CUTS A WALK'S WAY IS PLANNED PAST (#455): three
@@ -1410,8 +1414,10 @@ save a filmstrip PNG named after the script.
   `HubLifecycle.drive_why`, one of `mission.DRIVE_GAVE_UP`'s four causes
   (`tests/test_failure_words.py`). ⚠ A failed `press` says the LAST TRY
   THAT RAN, never one too short of time to begin (#439: all 24 failed live
-  presses read "out of time"); its tries are the log's `trace`, and it
-  leads a cage job's verdict. ⚠ A DECIDED `charge` or `explore` says
+  presses read "out of time"); ⚠ A TRY IS A WALK IN, NEVER THE WALK THERE
+  (`PRESS_TRIES`: a second walk from where the first stopped repeated it,
+  16 of 16 live); its tries are the log's `trace`, pressed or not, and a
+  failure leads a cage job's verdict. ⚠ A DECIDED `charge` or `explore` says
   how it ended in History (#424), and a charge that never docked is NOT a
   verdict: its `charge` row is on the wire, and a verdict would count it
   again as a failed task.
