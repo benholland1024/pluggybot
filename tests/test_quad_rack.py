@@ -50,7 +50,8 @@ def test_the_world_has_its_own_rack_and_every_tool_is_compiled_hanging(quad_worl
   d = mujoco.MjData(m)
   mujoco.mj_forward(m, d)
   names = {m.body(i).name for i in range(m.nbody)}
-  assert rk.RACK_BODY in names and not {"rack", "rack_built", "module_plug"} & names
+  # ...and the built-tool rail on its board (#407), the rover's rack gone
+  assert {rk.RACK_BODY, "rack_built"} <= names and not {"rack", "module_plug"} & names
   x, y, yaw = lw.rack_pose()
   assert (float(m.body(rk.RACK_BODY).pos[0]), float(m.body(rk.RACK_BODY).pos[1])) \
     == pytest.approx((x, y))

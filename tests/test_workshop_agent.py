@@ -381,6 +381,21 @@ def test_the_wait_stops_rather_than_stranding_the_robot(tmp_path, monkeypatch):
 
 # ---- 5. the originals are permanent, and a built tool has its own rail ------
 
+def test_standing_by_clear_of_the_racks_counts_the_rails_own_bays(tmp_path):
+  """`rack_distance` is the nearer of the rack and the rail, so a robot
+  standing by is sent clear of both (`RACK_CLEAR_M`): the rail is the legs
+  rail's own bays (#407), never the rover's centre 1.375 m along the board."""
+  from pluggybot.legs import rack as rk
+  life = _life(tmp_path, rail=True)
+  r = life.body.rack_prior
+  half = (rk.BUILT.bays[-1] - rk.BUILT.bays[0]) / 2
+  for y in rk.BUILT.bays:
+    assert life.rack_distance(*r.to_world(0.0, y)) <= half + 1e-9, y
+  life.has_built_rack = False
+  assert life.rack_distance(*r.to_world(0.0, rk.BUILT.bays[-1])) == pytest.approx(
+    rk.BUILT.bays[-1])
+
+
 def test_a_bay_off_the_rail_cannot_be_named_and_nothing_is_spent(tmp_path):
   """`build_tool.bay` is the rail's A-C; an answer naming another letter is
   refused, and nothing is spent or retired."""
@@ -390,6 +405,9 @@ def test_a_bay_off_the_rail_cannot_be_named_and_nothing_is_spent(tmp_path):
     assert _outcomes(events) == ["specified", "refused"]
     reasons = events[-1]["reasons"]
     assert any(f"bay '{letter}' is not one of A, B, C" in r for r in reasons), reasons
+    # ...and says nothing false about the originals' row: on legs the claw
+    # hangs at C, and no original past it (#407)
+    assert not any(t in r for r in reasons for t in ("claw", "seed", "dispenser")), reasons
   assert life.ledger.balance() == 100 and life.waited == []
   # ...and the grammar never offered them: the enum is the rail's
   assert ov.BAY_LETTERS == BAYS == ("A", "B", "C")
@@ -413,26 +431,27 @@ def test_retiring_an_original_is_refused_with_the_reason(tmp_path, module):
 def test_a_world_without_the_rail_has_no_workshop(monkeypatch):
   """The tower's shape (issue #207): where the world cannot hang a built
   tool, `build_tool` is not in the grammar and the prompt says nothing
-  about building. The served world has no rail; a world that did is made
-  here by telling `build()` so through `world_config`."""
+  about building. The served world has the rail (#407: three bays on the
+  rack's board); a world without one is made here through `world_config`."""
   from test_overseer import FakeClient
   from pluggybot import lifecycle
+  from pluggybot.legs import rack as rk
 
   def grammar(boss):
     return boss.menu.schema(tools=boss._tools(), procedures=boss._procedures())["properties"]
   real = lifecycle.world_config
   # the count the grammar keys off is the count the world carries
-  assert real(WORLD)["built_bays"] == 0
-  without = ov.build(WORLD, enabled=True, client=FakeClient())
-  assert without.workshop is None and not without.menu.workshop
-  assert "build_tool" not in grammar(without)
-  assert "TOOLS YOU MAY BUILD" not in "".join(t for _, t in without.sections)
-  monkeypatch.setattr(lifecycle, "world_config",
-                      lambda world: {**real(world), "built_bays": len(BAYS)})
+  assert real(WORLD)["built_bays"] == len(rk.BUILT.bays) == len(BAYS)
   with_rail = ov.build(WORLD, enabled=True, client=FakeClient())
   assert with_rail.workshop is not None and with_rail.menu.workshop
   assert "build_tool" in grammar(with_rail)
   assert "TOOLS YOU MAY BUILD" in "".join(t for _, t in with_rail.sections)
+  monkeypatch.setattr(lifecycle, "world_config",
+                      lambda world: {**real(world), "built_bays": 0})
+  without = ov.build(WORLD, enabled=True, client=FakeClient())
+  assert without.workshop is None and not without.menu.workshop
+  assert "build_tool" not in grammar(without)
+  assert "TOOLS YOU MAY BUILD" not in "".join(t for _, t in without.sections)
 
 
 def test_a_procedure_that_fetches_a_built_tool_goes_to_the_rail():
@@ -483,11 +502,14 @@ def test_a_record_the_catalog_no_longer_validates_is_kept_and_marked(tmp_path):
 
 def test_the_cost_is_the_catalogs_price():
   from pluggybot.workshop import validate
-  bill = cost.price(validate.check(SCOOP))
-  assert bill["eur"] == pytest.approx(2.90 + 0.008928 * cost.FILAMENT_EUR_PER_KG, abs=0.01)
+  tool = validate.check(SCOOP)
+  blade = tool.by_id["blade"].mass                       # the scaffold, by the gram
+  bill = cost.price(tool)
+  assert bill["eur"] == pytest.approx(2.90 + blade * cost.FILAMENT_EUR_PER_KG, abs=0.01)
   assert bill["points"] == 3
-  assert bill["printedG"] == pytest.approx(8.9, abs=0.1)
-  assert bill["waitS"] == pytest.approx(8.928 * cost.PRINT_S_PER_G + 3 * cost.ASSEMBLE_S_PER_PART, abs=1)
+  assert bill["printedG"] == pytest.approx(blade * 1000, abs=0.1)
+  assert bill["waitS"] == pytest.approx(blade * 1000 * cost.PRINT_S_PER_G
+                                        + 3 * cost.ASSEMBLE_S_PER_PART, abs=1)
 
 
 def test_the_prompt_lists_only_what_can_be_built_from_and_says_why_not():
@@ -502,9 +524,20 @@ def test_the_prompt_lists_only_what_can_be_built_from_and_says_why_not():
   assert "bumper_switch" in rule and "sense contact" in rule
   assert "<name>.<id>.contact" in rule
   # the envelope the robot is told is the one the code refuses against
-  from pluggybot.rack import coupling
-  assert f"under {coupling.MODULE_MASS_CEILING * 1000:.0f} g" in rule
-  assert f"under {coupling.LATCH_MOMENT_NM:.2f} N·m" in rule
+  from pluggybot.legs import arm as am
+  from pluggybot.legs import rack as rk
+  from pluggybot.workshop import validate
+  assert f"under {am.TOOL_MAX_KG * 1000:.0f} g" in rule
+  assert f"under {am.TOOL_MAX_MOMENT_NM:.2f} N·m" in rule
+  assert f"at most {am.TOOL_MAX_AHEAD_M * 1000:.0f}\nmm" in rule
+  assert f"within {rk.HUNG_TILT_DEG:g} degrees of plumb" in rule
+  assert f"{am.TOOL_MAX_DROP_M * 1000:.0f} mm under the peg" in rule
+  assert f"stands {-validate.BOARD_X * 1000:.0f} mm ahead" in rule
+  # ...and the example in it is one the validator passes
+  example = ov.WORKSHOP_HEAD[ov.WORKSHOP_HEAD.index('{"name": "scoop"'):
+                             ov.WORKSHOP_HEAD.index("THE ENVELOPE")]
+  import json
+  assert validate.check(json.loads(example)).name == "scoop"
 
 
 def test_the_example_is_a_capability_not_a_policy():

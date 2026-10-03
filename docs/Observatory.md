@@ -10,6 +10,33 @@ observatory is NOT a result: it reports into the issue it informs.
 
 ## Periods
 
+### The workshop on legs: a built tool on the rack's rail (#407) — opens when this PR is deployed
+
+**What changed in the world.** The rack's board grows a second row, the
+built-tool rail: three bays west of the claw's, 0.65–1.25 m along the board
+from the rack's middle, each with its own pair of tags (47–52) and a
+presence switch, empty until a robot builds a tool. On the `autonomous` arm
+a mind has the workshop again (`build_tool` / `retire_tool`, Overseer.md
+§2d): it pays points for catalog parts, stands still while they print, and
+the world hangs the tool in the bay it named, where either robot can fetch
+it. A spec is refused by the arm's envelope (0.40 kg; the centre of mass on
+the peg or up to 60 mm ahead; hung plumb; 0.20 m under the peg; 12 W). The
+deployed prefix went 46 475 → 52 575 chars (`prompt_sha` `78b2d857…` →
+`92265928…`): the workshop's rule and its catalog. ⚠ The house's geometry
+changed, so the first restart on this build keeps the clock, the packs, the
+deaths and the jobs but not the bodies or the maps. Deployed with the claw's
+PR (below), the two are one period.
+
+**What the period is for.**
+
+- **Is a tool ever built on legs?** On the rover every one of 433 specs in
+  seven days was refused (#315) and none was ever hung live (#264). Live:
+  `tool` rows by outcome (`specified`, `refused` with its reasons, `built`,
+  `hung`), and procedures that name a built tool's axis.
+- **Which rule refuses**: the `refused` reasons by rule (`hangs`, `ahead`,
+  `drop`, `tags`, the catalog's) say whether the envelope the prompt states
+  is one a model can design to.
+
 ### The claw, the census and the challenges on legs, and the pair's turn at a bay (#407, #418) — opens when this PR is deployed
 
 **What changed in the world.** Three jobs join the pair's board:

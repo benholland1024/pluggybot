@@ -1,11 +1,12 @@
-"""Slice B of issue #168: a validated `Tool` becomes a module.
+"""Slice B of issue #168: a validated `Tool` becomes a module -- on legs, the
+arm's coupling's (#407).
 
-Three emitters, all in the generator's own vocabulary so a built tool
-inherits every contact rule `rack/coupling.py` already applies:
+Three emitters, in the generator's own vocabulary so a built tool inherits
+every contact rule the hand-built ones have:
 
   face_xml      the parts as geoms in the module's frame, an actuator's
-                load as a child body with the joint -- injected into
-                `module_xml` as its `face`, beside the plate and the peg
+                load as a child body with the joint -- the module's `face`,
+                beside the plate and the 220 mm peg (`legs.rack.tool_xml`)
   actuator_xml  one `<position>` per axis: forcerange is the part's own
                 torque or thrust, kp is that force over a saturation
                 error, so the servo a spec names is the servo that moves
@@ -13,33 +14,29 @@ inherits every contact rule `rack/coupling.py` already applies:
                 registries, which is how a program `move()`s a verb the
                 agent named -- no new language
 
-...and the RIG: `rig()` runs the built module through the coupling spike
-(`scene_xml(module=)`) and answers the four questions ToolPattern §5's
-build sequence asks before a tool goes near the rack -- does it hang, is it
-picked, does it conduct, does it stow -- each measured off the world, never
-off a command. A spec that validates and fails the rig is a real finding
-(the validator is static; the rig has gravity), and the rig is what the
-fabrication cost of slice D is paid against.
+...and the RIG: `rig()` puts the built module on a bay of the legs rack and
+the arm's own fork (`legs.arm.fork_xml`) on a carrier, and runs the swap's
+lines -- in under the peg, up, out, every axis to its far end and back,
+over the bay, down, out -- answering the questions ToolPattern §5's build
+sequence asks before a tool goes near the rack: does it hang (plumb, as
+`rack.on_bay` asks), is it picked, does it conduct, does it work, does it
+hang back -- each off the world, never off a command. A spec that
+validates and fails the rig is a real finding (the validator is static;
+the rig has gravity): the pen, built as the rover's, hung 16 deg off plumb
+(#406). The carrier is rigid; the body's sway at a bay is the swap's own
+measurement (`scripts/arm_spike.py --capture`).
 
-  ⚠ ANGLE UNITS, MEASURED: with the worlds' default `angle="degree"` the
-  compiler converts a joint's `range` to radians and does NOT convert an
-  actuator's `ctrlrange` -- a hinge position actuator's ctrlrange is
-  radians whatever the compiler says. So a hinge's joint range is written
-  in degrees and its ctrlrange in radians. `test_workshop_build.py` pins it.
+  ⚠ ANGLE UNITS, MEASURED: a compiler with `angle="degree"` converts a
+  joint's `range` and never an actuator's `ctrlrange`, and an attached
+  spec's elements keep their own compiler's unit. Every emitter here
+  compiles in RADIANS -- the rig, and the seam's child spec -- so a hinge's
+  range is written in radians, as its ctrlrange is: written in degrees (the
+  rover's worlds compiled in them), a 0-90 deg hinge had a 0-90 rad limit,
+  none, and a heavy blade swung over the top (#407).
+  `test_workshop_build.py` pins it.
 
-  ⚠ THE RIG'S YAW IS NOT THE SPIKE'S. Measured on its first flight: at the
-  standoff the fork's V-plates sit BESIDE the tray's V-plates with 4 mm of
-  y clearance (FORK_Y - 6 mm against TRAY_Y + 8 mm), and 2° of yaw closes
-  it -- the two interlock and the peg, seated and conducting, cannot be
-  carried out. The spike's wall approach never has the two Vs at one x, so
-  its 2° pick tolerance does not transfer. That is a fact about the
-  coupling's pick geometry, not about any tool: the rig runs at the yaw
-  the rover delivered (~0.4°), and yaw tolerance stays the spike's
-  measurement.
-
-  ⚠ NOT HERE: the identity tag. It is visual-only and the spike has no
-  camera; a built module hung on a REAL rack (slice C) gets its tag and
-  its bay there, where the PNG is written once.
+  ⚠ NOT HERE: the identity tag. A built module hung on a REAL rack (slice
+  C) gets its tag and its bay there, where the PNG is written once.
 """
 
 from __future__ import annotations
@@ -47,13 +44,8 @@ from __future__ import annotations
 import math
 
 import mujoco
-import numpy as np
 
 from pluggybot.procedure import axes
-from pluggybot.rack import coupling
-from pluggybot.rack.coupling import (
-  HUB_PEG_Z, LIFT_STEP, PUSH_FORCE, RACK_HANG_X, START_X, module_xml, scene_xml,
-)
 from pluggybot.workshop.spec import FRAME, Placed, Tool
 
 #: A position actuator's gain is the part's force over the error at which
@@ -64,23 +56,6 @@ SLIDE_SATURATION_M = 0.005
 #: Damping as a fraction of kp, the ratio the existing modules use
 #: (claw 600/6, gate 800/12, pen 2000/80 -- 1-4 %).
 KV_FRACTION = 0.02
-
-#: The spike fork's pole plates, by the names `scene_xml` gives them
-#: (`_v_notch_xml("fork_l_", ...)`); the robot's are `FORK_POLE_GEOMS`.
-SPIKE_POLES = {"l": ("fork_l_a", "fork_l_b"), "r": ("fork_r_a", "fork_r_b")}
-
-#: How far the carrier advances to put the fork's V vertex (carrier-local
-#: x = -0.055) under the peg (x = 0): what the robot's measured standoff
-#: does, rather than pushing until a wall stops it. Measured on the rig's
-#: first flight: the spike's stop is 28 mm past the peg and lifts it on
-#: the prong BAR, not in the V, so the poles never touch -- and a stand-in
-#: wall 4 mm behind the plate leaves no room for a face on the wall side.
-#: The push itself stays the spike's 10 N: at the standoff the fork never
-#: reaches the plate, so the force only sets the approach speed, and at a
-#: yaw error it is what squares the fork against the trays by contact (at
-#: 0.8 N the carrier stalled 17 mm short at 2° and never picked).
-RIG_ADVANCE_M = START_X - 0.055
-RIG_PUSH_N = PUSH_FORCE
 
 RGBA_PRINTED = "0.85 0.85 0.80 1"
 RGBA_PART = "0.30 0.32 0.36 1"
@@ -123,17 +98,18 @@ def face_xml(tool: Tool, body: str) -> str:
         a = p.axis
         pos = " ".join(_f(x) for x in p.pos)
         d = " ".join(_f(x) for x in a.direction)
-        if a.kind == "hinge":
-          rng = f"{math.degrees(a.lo):.3f} {math.degrees(a.hi):.3f}"
-        else:
-          rng = f"{_f(a.lo)} {_f(a.hi)}"
+        rng = f"{a.lo:.6f} {a.hi:.6f}"
         out.append(f'{indent}<body name="{body}_{p.id}_load" pos="{pos}">')
         out.append(f'{indent}  <joint name="{joint_name(body, a.verb)}" '
                    f'type="{a.kind}" axis="{d}" range="{rng}" limited="true" '
                    f'damping="{a.force * KV_FRACTION:.4f}"/>')
-        # a load with no parts still needs an inertia to be a body
-        out.append(f'{indent}  <inertial pos="0 0 0" mass="0.001" '
-                   f'diaginertia="1e-7 1e-7 1e-7"/>')
+        # a load with no parts still needs an inertia to be a body -- ⚠ and
+        # one WITH parts must not get it: an explicit inertial replaces its
+        # geoms' masses, and every moving part of a built tool was massless
+        # in the sim (#407: a servo could never be shown too weak)
+        if not tool.children(p.id):
+          out.append(f'{indent}  <inertial pos="0 0 0" mass="0.001" '
+                     f'diaginertia="1e-7 1e-7 1e-7"/>')
         out.extend(emit(p.id, indent + "  "))
         out.append(f"{indent}</body>")
     return out
@@ -156,14 +132,17 @@ def actuator_xml(tool: Tool, body: str) -> str:
   return "\n    ".join(out)
 
 
-def module_for(tool: Tool, x: float, y: float, peg_z: float,
-               yaw_deg: float = 0.0, body: str | None = None,
-               tag: str = "") -> str:
-  """The whole module at a station, through `module_xml` like the five
-  built by hand: plate, peg and the tool's face."""
+def module_for(tool: Tool, peg: tuple[float, float, float], yaw: float = 0.0,
+               body: str | None = None, tag: str = "") -> tuple[str, str]:
+  """The whole module hanging with its peg's axis at `peg` (world), facing
+  the robot at work (`yaw`, the rack's), as the hand-built ones are
+  (`legs.rack.tool_xml`): (its default class, its body). The face carries
+  its parts' own masses; the plate and the peg are `rack.MODULE_MASS`."""
+  from pluggybot.legs import rack as rk
   body = body or tool.body
-  return module_xml(body, x, y, peg_z, "0.45 0.40 0.55 1", face=face_xml(tool, body) + tag,
-                    yaw_deg=yaw_deg)
+  return rk.tool_default(body), rk.tool_xml(
+    body, peg, yaw=yaw, mass=rk.MODULE_MASS, face=face_xml(tool, body) + tag,
+    rgba="0.45 0.40 0.55 1")
 
 
 def sensor_name(tool: Tool, placed: Placed) -> str:
@@ -236,73 +215,90 @@ def unregister(body: str) -> list[str]:
 
 # ---- the rig ----------------------------------------------------------------
 
-def rig(tool: Tool, dy: float = 0.0, dz: float = 0.0, yaw_deg: float = 0.0,
-        n_frames: int = 0, camera: str = "side") -> tuple[dict, list[np.ndarray]]:
-  """Hang, pick, conduct, stow: the four answers the build sequence asks.
+#: The rig's carrier moves the fork along the swap's lines at the arm's
+#: `FORK_V`, and holds each stop this long, s.
+RIG_HOLD_S = 0.4
+RIG_SETTLE_S = 1.5
 
-  The module hangs in the spike's trays; the carrier slides in, lifts,
-  carries it out (PICKED: the body rose and left with the fork), the poles
-  are read off the contact list (CONDUCTS: both, via `module_power_state`
-  against the spike's own fork plates), every axis is run to its far end
-  and back to its stow (WORKS: the joint got there, measured), and the
-  carrier hangs the module back up and leaves (STOWED: peg near its rest
-  height, body near the centreline, fork clear). HANGS is the settle
-  before any of it: the module did not fall out of the trays on its own.
-  """
-  model = mujoco.MjModel.from_xml_string(
-    scene_xml(dy, dz, yaw_deg, face=face_xml(tool, "tool"),
-              actuators=actuator_xml(tool, "tool"), push=RIG_PUSH_N,
-              back_x=-RACK_HANG_X - 0.004, peg_z=HUB_PEG_Z))
+
+def rig_xml(tool: Tool, body: str = "tool", dy: float = 0.0) -> str:
+  """The rig's world: a floor, the legs rack with the tool on its middle
+  bay, and the arm's fork on a carrier welded to a mocap body, standing
+  off the bay as the arm's would at the working pose -- `dy` across it, as
+  a walk-in stops off the bay's middle."""
+  from pluggybot.legs import arm as am
+  from pluggybot.legs import rack as rk
+  spec = am.ArmSpec()
+  default, module = module_for(tool, rk.bay_peg(rk.DEFAULT, 1), body=body)
+  f = spec.fork
+  # the plate turned to face the rack (-x), its V vertex at the carrier's
+  # origin; the carrier starts at the standoff, `FORK_DROP` under the peg
+  x0, z0 = am.STANDOFF, rk.DEFAULT.peg_z - am.FORK_DROP
+  return f"""<mujoco model="rig"><compiler angle="radian"/>
+  <option timestep="0.002" integrator="implicitfast"/>
+  <default>{default}{am.ARM_DEFAULTS.format(friction=0.01, tube=am.TUBE_R, fork_kg=am.FORK_GEOM_KG)}</default>
+  <worldbody>
+    <light pos="0 0 3" dir="0 0 -1"/>
+    <geom name="floor" type="plane" size="3 3 0.1"/>
+    {rk.rack_xml(rk.DEFAULT, name="rig_rack", tags=False)}
+    {module}
+    <body name="carrier_mocap" mocap="true" pos="{x0:.4f} {dy:.4f} {z0:.4f}"/>
+    <body name="carrier" pos="{x0:.4f} {dy:.4f} {z0:.4f}" childclass="arm">
+      <freejoint/>
+      <body name="rig_plate" pos="0 0 0" quat="0 0 0 1">
+        <geom name="rig_plate_box" type="box" size="0.03 0.03 0.012" pos="{-f.vertex_x + 0.02:.4f} 0 {-f.vertex_z - 0.012:.4f}" mass="0.08"/>
+        <body pos="{-f.vertex_x:.4f} 0 {-f.vertex_z:.4f}">{am.fork_xml(spec, prefix="rig_")}</body>
+      </body>
+    </body>
+  </worldbody>
+  <equality><weld body1="carrier_mocap" body2="carrier" solref="0.004 1"/></equality>
+  <actuator>{actuator_xml(tool, body)}</actuator>
+</mujoco>"""
+
+
+def rig(tool: Tool, dy: float = 0.0) -> tuple[dict, list]:
+  """Hang, pick, conduct, work, hang back: the answers the build sequence
+  asks (the module docstring), each off the world, the fork `dy` across the
+  bay. Returns the record and no frames."""
+  from pluggybot.legs import arm as am
+  from pluggybot.legs import rack as rk
+  model = mujoco.MjModel.from_xml_string(rig_xml(tool, dy=dy))
   data = mujoco.MjData(model)
-  push = model.actuator("push").id
-  lift = model.actuator("lift").id
   tool_bid = model.body("tool").id
-  renderer = mujoco.Renderer(model, 360, 480) if n_frames else None
-  frames: list[np.ndarray] = []
-  # the filmstrip's clock: the fixed phases plus each axis out and back
-  total_time = 26.0 + sum(
-    2 * (abs(p.axis.hi - p.axis.stow) + abs(p.axis.lo - p.axis.stow)) / p.axis.speed
-    + 2 * 0.5 for p in tool.axes)
-
-  adv = model.joint("advance").qposadr[0]
-
-  def step(n, ctrl_push, ctrl_lift, until: float | None = None):
-    """`until`: stop pushing once the carrier has advanced this far -- the
-    measured standoff, not a wall."""
-    for _ in range(n):
-      if until is not None and float(data.qpos[adv]) >= until:
-        ctrl_push = 0.0
-      data.ctrl[push] = ctrl_push
-      data.ctrl[lift] = ctrl_lift
-      mujoco.mj_step(model, data)
-      if renderer is not None and len(frames) < n_frames and \
-         data.time > len(frames) * total_time / n_frames:
-        renderer.update_scene(data, camera=camera)
-        frames.append(renderer.render().copy())
-
-  def ramp(act: int, target: float, speed: float, settle_s: float = 0.5):
-    cur = float(data.ctrl[act])
-    steps = max(int(abs(target - cur) / speed / model.opt.timestep), 1)
-    for k in range(steps):
-      data.ctrl[act] = cur + (target - cur) * (k + 1) / steps
-      step(1, data.ctrl[push], data.ctrl[lift])
-    step(int(settle_s / model.opt.timestep), data.ctrl[push], data.ctrl[lift])
-
-  # stow every axis before anything (the parked pose is the stow pose)
+  dt = model.opt.timestep
   for p in tool.axes:
     data.ctrl[model.actuator(actuator_name("tool", p.axis.verb)).id] = p.axis.stow
-  step(1500, 0.0, 0.0)
-  z_rest = float(data.xpos[tool_bid][2])
-  hangs = abs(z_rest - (HUB_PEG_Z - coupling.TRAY_VERTEX_DROP + coupling.PEG_R
-                        - coupling.PEG_ABOVE_BODY)) < 0.006
 
-  step(5000, RIG_PUSH_N, 0.0, until=RIG_ADVANCE_M)   # slide under, to the standoff
-  step(2000, 0.0, LIFT_STEP)                  # lift off the trays
-  step(6500, -RIG_PUSH_N * 0.4, LIFT_STEP)    # carry out
-  picked = (float(data.xpos[tool_bid][2]) - z_rest > 0.005
-            and float(data.xpos[tool_bid][0]) > 0.05)
-  conducts = coupling.module_power_state(model, data, "tool", poles=SPIKE_POLES)
+  def step(n: int) -> None:
+    for _ in range(n):
+      mujoco.mj_step(model, data)
 
+  def line(x: float, z: float) -> None:
+    x0, _, z0 = (float(v) for v in data.mocap_pos[0])
+    n = max(1, int(math.hypot(x - x0, z - z0) / am.FORK_V / dt))
+    for k in range(1, n + 1):
+      data.mocap_pos[0] = (x0 + (x - x0) * k / n, dy, z0 + (z - z0) * k / n)
+      step(1)
+    step(int(RIG_HOLD_S / dt))
+
+  def ramp(act: int, target: float, speed: float) -> None:
+    cur = float(data.ctrl[act])
+    n = max(int(abs(target - cur) / speed / dt), 1)
+    for k in range(1, n + 1):
+      data.ctrl[act] = cur + (target - cur) * k / n
+      step(1)
+    step(int(0.5 / dt))
+
+  step(int(RIG_SETTLE_S / dt))
+  z = data.xmat[tool_bid].reshape(3, 3)[2, 2]
+  tilt = math.degrees(math.acos(min(1.0, float(z))))
+  hangs = rk.on_bay(model, data, "tool", rk.DEFAULT, 1)
+  peg_z = rk.DEFAULT.peg_z
+  line(0.0, peg_z - am.FORK_DROP)                    # in under the peg
+  line(0.0, peg_z - am.FORK_DROP + am.LIFT)          # up off the trays
+  line(am.BACK_OUT, peg_z - am.FORK_DROP + am.LIFT)  # out
+  picked = not rk.on_bay(model, data, "tool", rk.DEFAULT, 1)
+  conducts = rk.tool_power(model, data, "tool", prefix="rig_")
   works = {}
   for p in tool.axes:
     a = p.axis
@@ -314,28 +310,19 @@ def rig(tool: Tool, dy: float = 0.0, dz: float = 0.0, yaw_deg: float = 0.0,
     ramp(act, a.stow, a.speed)
     back = abs(float(data.qpos[q]) - a.stow) < (0.05 if a.kind == "hinge" else 0.002)
     works[a.verb] = reached and back
-  still_held = coupling.module_power_state(model, data, "tool", poles=SPIKE_POLES)
-
-  step(5000, RIG_PUSH_N, LIFT_STEP, until=RIG_ADVANCE_M)   # return, high, to the standoff
-  step(2000, 0.0, 0.0)                        # lower into the trays
-  step(4000, -RIG_PUSH_N * 0.4, 0.0)          # leave empty
-  tp = data.xpos[tool_bid]
-  stowed = (abs(float(tp[2]) - z_rest) < 0.006 and abs(float(tp[0])) < 0.012
-            and abs(float(tp[1])) < 0.02)
-  if renderer is not None:
-    renderer.close()
+  held = rk.tool_power(model, data, "tool", prefix="rig_")
+  line(0.0, peg_z - am.FORK_DROP + am.LIFT)          # over the bay
+  line(0.0, peg_z - am.FORK_DROP)                    # down into the trays
+  line(am.BACK_OUT, peg_z - am.FORK_DROP)            # out, empty
+  step(int(RIG_SETTLE_S / dt))
+  stowed = rk.on_bay(model, data, "tool", rk.DEFAULT, 1)
   return {
-    "hangs": hangs,
-    "picked": picked,
-    "conducts": bool(conducts["powered"]),
-    "poles": conducts,
-    "works": works,
-    "held_through_use": bool(still_held["powered"]),
-    "stowed": stowed,
+    "hangs": hangs, "tiltDeg": round(tilt, 2), "picked": picked,
+    "conducts": bool(conducts["powered"]), "poles": conducts, "works": works,
+    "held_through_use": bool(held["powered"]), "stowed": stowed,
     "ok": hangs and picked and conducts["powered"] and all(works.values())
-          and still_held["powered"] and stowed,
-  }, frames
+          and held["powered"] and stowed,
+  }, []
 
 
-__all__ = ["face_xml", "actuator_xml", "module_for", "register", "rig",
-           "SPIKE_POLES"]
+__all__ = ["face_xml", "actuator_xml", "module_for", "register", "rig"]

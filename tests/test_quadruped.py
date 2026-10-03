@@ -91,7 +91,8 @@ def test_home_with_legs_is_its_own_world_and_offers_no_tool_errand():
   from pluggybot.legs import rack as legs_rack
   assert world_for("home", "quadruped") == QUAD_HOME == "home_quad"
   cfg = world_config(QUAD_HOME)
-  assert cfg["body"] == "quadruped" and not cfg["tools"] and cfg["built_bays"] == 0
+  assert cfg["body"] == "quadruped" and not cfg["tools"]
+  assert cfg["built_bays"] == 3                     # the rail's bays (#407)
   assert cfg["swap"] and cfg["tool_bays"] == legs_rack.TOOL_BAYS
   assert "lab" in cfg and "tower" in cfg and "bench" in cfg
   menu = ov.Menu.for_world(QUAD_HOME)
@@ -532,7 +533,10 @@ def test_every_rule_a_quadruped_reads_is_in_its_own_words():
   for word in ROVER_WORDS + ("upkeep you cannot pay",):
     assert word not in text, word
   import re
-  assert len(re.findall(r"\brack\b", text)) == 1
+  # ...the workshop's rule says where a built tool hangs (#407); outside it
+  # the rack is named once
+  rest = "\n".join(t for name, t in boss.sections if name != "TOOLS YOU MAY BUILD")
+  assert len(re.findall(r"\brack\b", rest)) == 1
   assert "tools on the rack beside your dock" in text
   bare = ov.Overseer(ov.Menu.for_world(QUAD_HOME), client=object())
   for word in ROVER_WORDS:

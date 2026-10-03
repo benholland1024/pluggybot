@@ -257,20 +257,36 @@ def test_one_part_number_is_one_set_of_facts(fixture):
 
 
 def test_the_generator_reads_its_module_mass_off_the_named_constants(parts):
-  """The refactor half of the issue's constraint: `module_xml` and the spike
-  scene are emitted at `MODULE_MASS`, whose peg share is `PEG_MASS`, and
-  the fixture reads both -- one number, named, rather than a `0.12` default
-  and a `- 0.02` in two f-strings."""
-  from pluggybot.rack import coupling
+  """The refactor half of the issue's constraint: a module is emitted at
+  `MODULE_MASS`, whose peg share is `PEG_MASS`, and the fixture reads both
+  -- one number, named, rather than a default and a subtraction in two
+  f-strings. On legs (#407) the module and its peg are `legs.rack`'s, the
+  workshop's built ones too."""
+  from pluggybot.legs import rack as rk
   import inspect
-  assert inspect.signature(coupling.module_xml).parameters["mass"].default \
-      == coupling.MODULE_MASS
-  assert inspect.signature(coupling.scene_xml).parameters["tool_mass"].default \
-      == coupling.MODULE_MASS
+  assert inspect.signature(rk.tool_xml).parameters["mass"].default == rk.MODULE_MASS
+  feeds = {f["constant"]: f["value"] for f in parts["module_frame"]["feeds"]}
+  assert feeds["legs.rack.MODULE_MASS"] == pytest.approx(rk.MODULE_MASS, abs=1e-6)
+  assert {f["constant"]: f["value"] for f in parts["quad_tool_peg"]["feeds"]}[
+    "legs.rack.PEG_MASS"] == pytest.approx(rk.PEG_MASS, abs=1e-6)
+  # ...and a bare module compiles to exactly that budget
+  model = mujoco.MjModel.from_xml_string(
+    f"<mujoco><default>{rk.tool_default('m')}</default>"
+    f"<worldbody>{rk.tool_xml('m')}</worldbody></mujoco>")
+  assert model.body_subtreemass[model.body("m").id] == pytest.approx(rk.MODULE_MASS)
+
+
+def test_the_frame_carries_the_arms_envelope_not_the_rovers(parts):
+  """The catalog's module frame states the envelope the workshop's
+  validator refuses by (#407): the arm's, read off `legs/arm.py`, never the
+  rover's 250 g and 0.45 N·m typed into it."""
+  from pluggybot.legs import arm as am
   frame = parts["module_frame"]
-  assert {f["constant"]: f["value"] for f in frame["feeds"]}[
-    "rack.coupling.MODULE_MASS"] == coupling.MODULE_MASS
-  assert 'mass="0.100"' in coupling.module_xml("m", 0, 0, 0.3, "0 0 0 1")
+  feeds = {f["constant"]: f["value"] for f in frame["feeds"]}
+  assert feeds["legs.arm.TOOL_MAX_KG"] == am.TOOL_MAX_KG
+  assert feeds["legs.arm.TOOL_MAX_MOMENT_NM"] == am.TOOL_MAX_MOMENT_NM
+  assert not {"massCeilingG", "momentBudgetNm"} & set(frame["capabilities"])
+  assert "peg_rod_6mm" not in parts
 
 
 def test_nothing_in_the_economy_reads_the_catalog():

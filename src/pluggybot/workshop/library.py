@@ -8,8 +8,8 @@ hangs in, what it cost, when. Two verbs, both decision FIELDS so writing
 one costs no turn -- `build_tool` and `retire_tool` -- and no verb that
 replaces: a bay is taken by naming it, and a built tool in it is retired
 first, on purpose, in the same decision. A bay is one of the BUILT-TOOL
-RAIL's (issue #277; `coupling.BUILT_STATION_YS`, lettered from A): the
-five hand-built modules hang on the first rack, cannot be named here and
+RAIL's (issue #277; on legs `legs.rack.BUILT`, #407, lettered from A): the
+hand-built tools hang in the rack's first row, cannot be named here and
 cannot be retired -- every offered job is written against them.
 
 Every rule fails OUT LOUD: a spec that does not validate, a price the
@@ -31,8 +31,7 @@ paid once and are not paid again.
   ⚠ ONE TOOL PER BAY, THREE BAYS. The cap is the built-tool rail's, not a
   number chosen here (ToolPattern.md §6; the registry row reads it off
   `BUILT_STATION_YS`): a fourth needs that rail to grow. `Entry.bay` is
-  the rail's own index (A = 0), which is also the tag id's offset from
-  `seam.BUILT_TAG_BASE`; `coupling.built_bay_index` maps it into the
+  the rail's own index (A = 0); `coupling.built_bay_index` maps it into the
   lifecycle's inventory.
 """
 
@@ -45,7 +44,6 @@ from dataclasses import dataclass, field
 
 from pluggybot.mind import text as registry
 from pluggybot.mind.store import FileStore, MemoryStore, Store
-from pluggybot.rack.tags import MODULE_TAG_IDS
 from pluggybot.workshop import validate
 from pluggybot.workshop.spec import Refused, Tool
 
@@ -62,19 +60,13 @@ class WorkshopRefused(ValueError):
 
 
 def bay_index(letter: str) -> int:
-  """'A'..'C' -> 0..2 on the built-tool rail, or WorkshopRefused -- and a
-  letter past the rail's says whose bays those are, because until #277
-  'D' and 'E' were the claw's and the dispenser's and an answer that still
-  names them is asking to displace a permanent module."""
+  """'A'..'C' -> 0..2 on the built-tool rail, or WorkshopRefused. The
+  refusal names no original's bay: on legs the originals' row is A-C too
+  (#407), and the rover's "D on the original rack is the claw's" was false."""
   letter = str(letter or "").strip().upper()
   if letter not in BAYS:
-    why = f"bay {letter!r} is not one of {', '.join(BAYS)} (the built-tool rail's)"
-    originals = list(MODULE_TAG_IDS)          # the first rack's A-E, in bay order
-    if len(letter) == 1 and 0 <= ord(letter) - ord("A") < len(originals):
-      module = originals[ord(letter) - ord("A")].removeprefix("module_")
-      why += (f" -- {letter} on the original rack is the {module}'s, and the "
-              "original modules are permanent")
-    raise WorkshopRefused([why])
+    raise WorkshopRefused([f"bay {letter!r} is not one of {', '.join(BAYS)} (the "
+                           "built-tool rail's); the original tools' bays cannot be named"])
   return BAYS.index(letter)
 
 

@@ -159,6 +159,15 @@ def next_viewpoint(near: tuple[float, float], here: tuple[float, float],
 class PlaceWalk:
   """The places' routines (the module docstring), on `QuadMission`."""
 
+  def _rebind_places(self, model) -> None:
+    """The plates' pads and the feet, by name: what a press is felt on."""
+    from pluggybot.legs.model import LEGS
+    signs = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_BODY, "lab_feed_sign") >= 0
+    #: Each plate's pad, by its sign's tag: what a press is felt on.
+    self._pads = ({cage.PLATE_TAGS[n]: model.geom(f"lab_{n}_plate_pad").id
+                   for n in cage.PLATE_NAMES} if signs else {})
+    self._foot_gids = [model.geom(self.handle.el(f"{leg}_foot")).id for leg in LEGS]
+
   def _init_places(self, model) -> None:
     from pluggybot.home import areas
     from pluggybot.rack.tags import BOARD_TAG_IDS
@@ -177,11 +186,7 @@ class PlaceWalk:
       fixtures=((cage.sign_row(),) if signs else ())
       + tuple(board_fixture(name) for name in boards)
       + tuple(f for f in areas.area_fixtures() if set(f.layout) <= found))
-    #: Each plate's pad, by its sign's tag: what a press is felt on.
-    self._pads = ({cage.PLATE_TAGS[n]: model.geom(f"lab_{n}_plate_pad").id
-                   for n in cage.PLATE_NAMES} if signs else {})
-    from pluggybot.legs.model import LEGS
-    self._foot_gids = [model.geom(self.handle.el(f"{leg}_foot")).id for leg in LEGS]
+    self._rebind_places(model)
     #: When and from where it last looked for places (the walking look).
     self._place_look: tuple[float, tuple[float, float, float] | None] = (-math.inf, None)
     self._keep_out: tuple[int, np.ndarray | None] | None = None

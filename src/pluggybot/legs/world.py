@@ -85,8 +85,10 @@ NEAR_M = 0.10
 
 def _attach_rack(spec: mujoco.MjSpec, pose) -> None:
   """The tool rack, its tags' textures (the generator's `tags/`) and the
-  tools hung on its bays."""
-  for i in rk.RACK_TAG_IDS:
+  tools hung on its bays -- and beside them on the same board the built-tool
+  rail (`rack.BUILT`, issue #407), empty until the workshop hangs a tool."""
+  from pluggybot.rack.coupling import BUILT_RACK_BODY
+  for i in (*rk.RACK_TAG_IDS, *rk.BUILT.tag_ids):
     spec.add_texture(name=f"tagtex{i}", type=mujoco.mjtTexture.mjTEXTURE_CUBE,
                      file=f"tags/tag{i}.png")
     mat = spec.add_material(name=f"tagmat{i}", specular=0.05, shininess=0.05,
@@ -96,7 +98,8 @@ def _attach_rack(spec: mujoco.MjSpec, pose) -> None:
   defaults, tools = rk.tools_xml(pos=(x, y), yaw=yaw)
   child = mujoco.MjSpec.from_string(
     f'<mujoco><compiler angle="radian"/><default>{defaults}</default><worldbody>'
-    + rk.rack_xml(pos=(x, y), yaw=yaw, name=rk.RACK_BODY) + tools
+    + rk.rack_xml(pos=(x, y), yaw=yaw, name=rk.RACK_BODY)
+    + rk.rack_xml(rk.BUILT, pos=(x, y), yaw=yaw, name=BUILT_RACK_BODY) + tools
     + f"</worldbody><actuator>{rk.tool_actuators_xml()}</actuator></mujoco>")
   spec.attach(child, prefix="", frame=spec.worldbody.add_frame())
 

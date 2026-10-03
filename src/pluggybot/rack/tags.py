@@ -65,6 +65,9 @@ DOCK_TAG_SIZE = 0.060
 #: their baseline.
 LEGS_RACK_TAG_IDS = (29, 30, 31, 32, 33, 34)
 LEGS_RACK_TAG_SIZE = 0.060
+#: ...and its built-tool rail beside it on the same board (issue #407; the
+#: workshop's tools hang there): the same pair a bay, its own ids.
+LEGS_BUILT_TAG_IDS = (47, 48, 49, 50, 51, 52)
 #: The lab's three pressure plates (issue #419): one tag a plate, on a sign
 #: at its far edge facing the room (`activity/cage.py`), what a robot finds
 #: the plate by. 120 mm, read from across the lab: MEASURED off the nose
@@ -99,7 +102,7 @@ TAG_SIZES = {**{i: SMALL_TAG_SIZE for i in MODULE_TAG_IDS.values()},
              **{i: BLOCK_TAG_SIZE for i in BLOCK_TAG_IDS},
              **{i: BLOCK_TAG_SIZE for i in MASS_TAG_IDS},
              **{i: DOCK_TAG_SIZE for i in DOCK_TAG_IDS},
-             **{i: LEGS_RACK_TAG_SIZE for i in LEGS_RACK_TAG_IDS},
+             **{i: LEGS_RACK_TAG_SIZE for i in (*LEGS_RACK_TAG_IDS, *LEGS_BUILT_TAG_IDS)},
              **{i: PLATE_TAG_SIZE for i in PLATE_TAG_IDS},
              **{i: BOARD_TAG_SIZE for ids in BOARD_TAG_IDS.values() for i in ids},
              **{i: AREA_TAG_SIZE for i in (*TOWER_TAG_IDS, *BENCH_TAG_IDS, *GARDEN_TAG_IDS)}}

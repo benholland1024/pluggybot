@@ -453,7 +453,9 @@ def test_a_refused_build_says_what_is_in_the_way(monkeypatch):
   module on the fork, and whose."""
   from pluggybot.procedure import steps
   me = SimpleNamespace(peers=[], state="DECIDE", robot_name="Luca", root="pluggybot",
-                       MID_ERRAND=HubLifecycle.MID_ERRAND)
+                       MID_ERRAND=HubLifecycle.MID_ERRAND, _standing_up=False,
+                       body=SimpleNamespace(posture="standing", working=False,
+                                            making_way=None))
   monkeypatch.setattr(steps, "_carried", lambda life: "module_claw")
   assert HubLifecycle.seam_busy(me).startswith("your fork holds module_claw: stow it first")
   me.peers = [SimpleNamespace(state="SWAP_PICK", robot_name="Rowan", root="r2_pluggybot")]

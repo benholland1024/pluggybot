@@ -208,92 +208,6 @@
    }
   },
   {
-   "id": "peg_rod_6mm",
-   "name": "Tool peg axle: 6 mm steel rod, 150 mm, two 63 mm conductors on a 24 mm insulating bush",
-   "kind": "structure",
-   "status": "chosen",
-   "shelves": [
-    "catalog"
-   ],
-   "robot": "quadruped",
-   "usedBy": [],
-   "partNumber": null,
-   "source": null,
-   "massG": null,
-   "dimensionsMm": {
-    "diameter": 6,
-    "length": 150,
-    "conductor": 63,
-    "bush": 24
-   },
-   "priceEur": null,
-   "priceFor": "each",
-   "quantity": 0,
-   "capabilities": {
-    "conductive": true,
-    "poles": 2
-   },
-   "feeds": [
-    {
-     "constant": "rack.coupling.PEG_R",
-     "where": "code",
-     "value": 0.003,
-     "unit": "m",
-     "note": "half the 6 mm rod",
-     "expect": 0.003
-    },
-    {
-     "constant": "rack.coupling.PEG_HALF",
-     "where": "code",
-     "value": 0.075,
-     "unit": "m",
-     "note": "half the 150 mm rod",
-     "expect": 0.075
-    },
-    {
-     "constant": "rack.coupling.PEG_INSUL_HALF",
-     "where": "code",
-     "value": 0.012,
-     "unit": "m",
-     "note": "half the 24 mm bush",
-     "expect": 0.012
-    },
-    {
-     "constant": "rack.coupling.PEG_COND_HALF",
-     "where": "code",
-     "value": 0.0315,
-     "unit": "m",
-     "note": "half a 63 mm conductor",
-     "expect": 0.0315
-    },
-    {
-     "constant": "rack.coupling.PEG_FRICTION",
-     "where": "code",
-     "value": 0.4,
-     "unit": "",
-     "note": "honest peg friction: the measured worst power outage under hard driving is 178 ms, which sizes the module's holding capacitor (~200 ms)"
-    },
-    {
-     "constant": "rack.coupling.PEG_MASS",
-     "where": "code",
-     "value": 0.02,
-     "unit": "kg",
-     "note": "the rod's share of the module budget, split 8 + 8 + 4 g over the three sections"
-    }
-   ],
-   "why": {
-    "partNumber": "stock material, not a catalog part",
-    "source": "stock material, not a catalog part",
-    "massG": "not weighed. ⚠ The sim's peg totals 20 g; a 150 mm length of 6 mm steel would weigh ~33 g -- an open discrepancy for #168's validator to carry, not a number to invent here",
-    "priceEur": "stock material, not a catalog part"
-   },
-   "note": "The one loaded part AND the electrical connector: split peg + the fork's two V-notch pairs are a two-pole coupling, self-wiping on the seating slide. The workshop's rig (`coupling.scene_xml`) hangs a tool by it; the served rack's is `quad_tool_peg`, the same rod lengthened to 220 mm.",
-   "workshop": {
-    "usable": false,
-    "why": "mass unknown (not weighed. ⚠ The sim's peg totals 20 g; a 150 mm length of 6 mm steel would weigh ~33 g -- an open discrepancy for #168's validator to carry, not a number to invent here)"
-   }
-  },
-  {
    "id": "module_frame",
    "name": "Module frame: a 3D-printed plate on the common peg interface",
    "kind": "structure",
@@ -314,19 +228,14 @@
    "priceEur": null,
    "priceFor": "each",
    "quantity": 0,
-   "capabilities": {
-    "massBudgetG": 120,
-    "massCeilingG": 250,
-    "momentBudgetNm": 0.45
-   },
+   "capabilities": {},
    "feeds": [
     {
-     "constant": "rack.coupling.MODULE_MASS",
+     "constant": "legs.rack.MODULE_MASS",
      "where": "code",
-     "value": 0.12,
+     "value": 0.128889,
      "unit": "kg",
-     "note": "the plate + peg budget every module is emitted at; the face sits on top",
-     "expect": 0.12
+     "note": "the plate + 220 mm peg budget every module is emitted at; the face sits on top"
     },
     {
      "constant": "rack.coupling.TOOL_HALF_X",
@@ -348,6 +257,41 @@
      "value": 0.03,
      "unit": "m",
      "note": "half its height"
+    },
+    {
+     "constant": "legs.arm.TOOL_MAX_KG",
+     "where": "code",
+     "value": 0.4,
+     "unit": "kg",
+     "note": "the arm's ceiling for a tool, the plate and peg included"
+    },
+    {
+     "constant": "legs.arm.TOOL_MAX_AHEAD_M",
+     "where": "code",
+     "value": 0.06,
+     "unit": "m",
+     "note": "how far ahead of its peg a tool's centre of mass may sit"
+    },
+    {
+     "constant": "legs.arm.TOOL_MAX_MOMENT_NM",
+     "where": "code",
+     "value": 0.35,
+     "unit": "N·m",
+     "note": "the moment about the peg that lever may carry"
+    },
+    {
+     "constant": "legs.arm.TOOL_MAX_DROP_M",
+     "where": "code",
+     "value": 0.2,
+     "unit": "m",
+     "note": "how far under its peg a tool may hang: carried, it clears the LIDAR's plane"
+    },
+    {
+     "constant": "legs.rack.HUNG_TILT_DEG",
+     "where": "code",
+     "value": 2,
+     "unit": "deg",
+     "note": "how far off plumb a hung tool may hang"
     }
    ],
    "why": {
@@ -356,7 +300,7 @@
     "massG": "not weighed; the sim budgets 100 g for the plate, the budget less the peg. ⚠ A budget, not a print: this plate in PLA would weigh ~60 g",
     "priceEur": "printed: filament only, unpriced"
    },
-   "note": "The moment budget is the number that shapes tools: the gravity latch takes ~0.45 N·m of pitch before the peg rides out of its V, so reach is far dearer than mass (ToolPattern.md §2).",
+   "note": "The arm's envelope shapes a tool (ToolPattern.md §2, `workshop/validate.py`): its centre of mass on its peg or ahead of it, and hung, plumb.",
    "workshop": {
     "usable": false,
     "why": "mass unknown (not weighed; the sim budgets 100 g for the plate, the budget less the peg. ⚠ A budget, not a print: this plate in PLA would weigh ~60 g)"
@@ -2441,6 +2385,7 @@
    "kind": "structure",
    "status": "chosen",
    "shelves": [
+    "catalog",
     "build"
    ],
    "robot": "quadruped",
@@ -2452,7 +2397,10 @@
    "priceEur": null,
    "priceFor": "each",
    "quantity": 3,
-   "capabilities": {},
+   "capabilities": {
+    "conductive": true,
+    "poles": 2
+   },
    "feeds": [
     {
      "constant": "legs.rack.PEG_HALF",
@@ -2462,24 +2410,47 @@
      "note": "half its 220 mm"
     },
     {
+     "constant": "rack.coupling.PEG_R",
+     "where": "code",
+     "value": 0.003,
+     "unit": "m",
+     "note": "half the 6 mm rod",
+     "expect": 0.003
+    },
+    {
+     "constant": "rack.coupling.PEG_INSUL_HALF",
+     "where": "code",
+     "value": 0.012,
+     "unit": "m",
+     "note": "half the 24 mm bush",
+     "expect": 0.012
+    },
+    {
+     "constant": "rack.coupling.PEG_FRICTION",
+     "where": "code",
+     "value": 0.4,
+     "unit": "",
+     "note": "honest peg friction: the measured worst power outage under hard driving is 178 ms, which sizes the module's holding capacitor (~200 ms)"
+    },
+    {
      "constant": "legs.rack.PEG_MASS",
      "where": "code",
      "value": 0.028889,
      "unit": "kg",
-     "note": "`peg_rod_6mm`'s grams a millimetre, the bush unchanged"
+     "note": "the rover's 150 mm rod's grams a millimetre, the bush unchanged"
     }
    ],
    "why": {
     "partNumber": "no design yet",
     "source": "turned in the shop, once drawn",
-    "massG": "29 g at `peg_rod_6mm`'s grams a millimetre (`PEG_MASS`)",
+    "massG": "not weighed: 29 g at the rover's 150 mm rod's 20 g, the same grams a millimetre (`PEG_MASS`)",
     "dimensionsMm": "6 x 220 mm",
     "priceEur": "no design yet"
    },
-   "note": "",
+   "note": "The one loaded part AND the electrical connector: the split peg and the fork's two V pairs are a two-pole coupling, self-wiping on the seating slide. Every tool hangs by it, the workshop's too.",
    "workshop": {
     "usable": false,
-    "why": "on the build shelf, not the catalog"
+    "why": "mass unknown (not weighed: 29 g at the rover's 150 mm rod's 20 g, the same grams a millimetre (`PEG_MASS`))"
    }
   },
   {
@@ -2636,7 +2607,7 @@
    },
    "priceEur": 2.59,
    "priceFor": "each",
-   "quantity": 3,
+   "quantity": 6,
    "capabilities": {
     "sense": "contact",
     "operatingForceN": 0.78,
@@ -2649,10 +2620,10 @@
     {
      "constant": "bay*_tray_l_*",
      "where": "model",
-     "value": 3,
+     "value": 6,
      "unit": "bays",
-     "note": "one switch in each bay's +y V (`coupling.BAY_SWITCH_PLATES`), as the rack's generator emits it",
-     "expect": 3
+     "note": "one switch in each bay's +y V (`coupling.BAY_SWITCH_PLATES`), as the rack's generator emits it: the tools' three, the rail's three",
+     "expect": 6
     }
    ],
    "why": {},
@@ -3830,7 +3801,7 @@
     "eachEur": null,
     "lineEur": 30.0,
     "allowance": true,
-    "basis": "three pegs cut and turned from a metre of 6 mm silver steel and an acetal bush each, as `peg_rod_6mm`",
+    "basis": "three pegs cut and turned from a metre of 6 mm silver steel and an acetal bush each",
     "leadTime": null,
     "why": {
      "leadTime": "nothing drawn to quote"
@@ -3921,17 +3892,17 @@
     "part": "bay_switch",
     "name": "Bay presence switch: one Omron D2F-01L2 hinge-roller-lever microswitch in each tool bay's V-tray",
     "group": "rack",
-    "quantity": 3,
+    "quantity": 6,
     "priceFor": "each",
     "eachEur": 2.59,
-    "lineEur": 7.77,
+    "lineEur": 15.54,
     "allowance": false,
     "basis": "",
     "leadTime": null,
     "why": {
      "leadTime": "not read for this bill; the price is the workshop catalog's (#199, 2026-09-14)"
     },
-    "note": "one a bay: what the rack reports (#351)"
+    "note": "one a bay, the built-tool rail's three too (#407): what the rack reports (#351)"
    },
    {
     "part": "module_esp32",
@@ -3953,15 +3924,15 @@
     "part": "dold_3030_1m",
     "name": "Aluminium extrusion 30x30 light, B-type slot 8, cut to length (1 m)",
     "group": "rack",
-    "quantity": 4,
+    "quantity": 5,
     "priceFor": "each",
     "eachEur": 10.4,
-    "lineEur": 41.6,
+    "lineEur": 52.0,
     "allowance": false,
     "basis": "",
     "leadTime": "in stock, 4-5 working days (Dold)",
     "why": {},
-    "note": "two posts, the rail and its feet"
+    "note": "two posts, the rail's two metres (the built-tool rail's half, #407) and its feet"
    },
    {
     "part": "dold_angle_30",
@@ -3984,9 +3955,9 @@
     "quantity": 1,
     "priceFor": "each",
     "eachEur": null,
-    "lineEur": 40.0,
+    "lineEur": 60.0,
     "allowance": true,
-    "basis": "a 1.0 x 0.6 m plywood back board, six V-trays printed in PETG from the shop's spools, and the rack's six and the dock's four 60 mm tags printed and laminated",
+    "basis": "a 2.0 x 0.6 m plywood back board, twelve V-trays printed in PETG from the shop's spools, and the rack's twelve (the built-tool rail's six, #407) and the dock's four 60 mm tags printed and laminated",
     "leadTime": null,
     "why": {
      "leadTime": "a board from a DIY store; the trays and tags printed in the shop"
@@ -4791,11 +4762,11 @@
    }
   ],
   "totals": {
-   "sourcedEur": 6043.99,
-   "allowanceEur": 1575.0,
-   "contingencyEur": 1142.85,
-   "totalEur": 8761.84,
-   "totalUsd": 9991.13,
+   "sourcedEur": 6062.16,
+   "allowanceEur": 1595.0,
+   "contingencyEur": 1148.57,
+   "totalEur": 8805.73,
+   "totalUsd": 10041.17,
    "budgetEur": 17539.24,
    "byGroup": {
     "actuation": 1894.1,
@@ -4805,7 +4776,7 @@
     "frame and legs": 1229.6,
     "arm": 270.56,
     "tools": 230.05,
-    "rack": 108.69,
+    "rack": 146.86,
     "dock": 262.98,
     "safety": 322.53,
     "bench leg": 422.33,

@@ -34,7 +34,7 @@ import numpy as np
 from pluggybot import continuation
 from pluggybot.behavior.navigation import STRIKES_TO_FINISH
 from pluggybot.rack.coupling import (
-  BUILT_RACK_BODY, BUILT_RACK_Y, BUILT_STATION_YS, HUB_STATION_YS, STATION_YS,
+  BUILT_RACK_BODY, BUILT_STATION_YS, HUB_STATION_YS, STATION_YS,
   bay_switches, built_bay_index, is_built_bay,
 )
 from pluggybot.mission.errand import programmed_errand
@@ -631,11 +631,11 @@ class HubLifecycle:
     #: cannot hang at all (`can_reshape` says so). Nothing else reads the
     #: rail's presence -- the grammar keys off `world_config`'s count, which
     #: a test holds equal to this.
-    # ...and on a body that can hang one (issue #387): the rail stands in
-    # the quadruped's world, and waits for its arm to take a tool (#405).
+    # ...and in a world whose config gives it bays (issue #407: the rail on
+    # the quadruped's rack board, `legs.rack.BUILT`).
     self.has_built_rack = (mujoco.mj_name2id(
       model, mujoco.mjtObj.mjOBJ_BODY, BUILT_RACK_BODY) >= 0
-      and world_config(world).get("tools", True))
+      and bool(world_config(world).get("built_bays")))
     self.tools_built = 0
     #: Every act toward the other robot this lifecycle recorded (issue
     #: #208): predictions with their truth, messages with their claim's
@@ -1632,14 +1632,15 @@ class HubLifecycle:
       hook(dict(message))
 
   def rack_distance(self, px: float, py: float) -> float:
-    """How far a point is from the racks: the nearer of the first rack's
-    prior and the built-tool rail's centre beside it (issue #277) -- the
-    rail's far bay standoff is 1.8 m from the prior, inside the clearance
-    only just, and its approach lane not at all."""
+    """How far a point is from the racks: the nearer of the rack's prior
+    and the middle of the built-tool rail beside it on the same board
+    (`legs.rack.BUILT`, #407), whose far bay is 1.25 m along it."""
     r = self.body.rack_prior
     d = math.hypot(px - r.x, py - r.y)
     if self.has_built_rack:
-      bx, by = r.to_world(0.0, BUILT_RACK_Y)
+      from pluggybot.legs import rack as legs_rack
+      ys = legs_rack.BUILT.bays
+      bx, by = r.to_world(0.0, (ys[0] + ys[-1]) / 2)
       d = min(d, math.hypot(px - bx, py - by))
     return d
 
@@ -2515,11 +2516,7 @@ class HubLifecycle:
               "retired": retired, "t": round(float(self.data.time), 3)}
     if retired is not None:
       record["retiredWhat"] = self._retire_from_spec(retired)
-    prior = self.body.rack_prior
-    cfg = world_config(self.world)
-    record["attached"] = seam.attach(self.spec, tool, bay, (prior.x, prior.y),
-                                     math.degrees(prior.yaw),
-                                     model_dir=Path(cfg["model"]).parent)
+    record["attached"] = seam.attach(self.spec, tool, bay, seam.rack_pose(self.model))
     record["recompileMs"] = self._recompile(reason="tool", tool=tool.name,
                                             module=tool.body, bay=bay,
                                             retired=retired)
@@ -2600,6 +2597,7 @@ class HubLifecycle:
     and nothing else, so a wait can never mask a permanent refusal (no
     spec, no rail, no such bay) as something worth waiting for.
     """
+    from pluggybot.continuation import MOVING_POSTURES
     from pluggybot.procedure.steps import _carried
     for life in (self, *self.peers):
       held = _carried(life)
@@ -2612,6 +2610,13 @@ class HubLifecycle:
                 else "you are mid-errand -- ") if life is self
                else f"{life.robot_name or life.root} is busy ({what}): ")
         return (who + "a tool is hung between errands with every fork empty")
+      # ...nor while a body is in the middle of a move (#407, a restart's
+      # rule, `Keeper.busy`): lying down or standing up is a generator
+      # holding the world it began in
+      if (life._standing_up or life.body.posture in MOVING_POSTURES
+          or life.body.working or life.body.making_way is not None):
+        who = "you are" if life is self else f"{life.robot_name or life.root} is"
+        return f"{who} in the middle of a move: a tool is hung once every body is still"
     return ""
 
   def can_reshape(self, bay: int) -> None:
@@ -8080,9 +8085,10 @@ def world_config(world: str) -> dict:
     "bench": {"name": "lab_bench"},
     # No tool errand: every use of a tool is a program's (#406, #407), and
     # the arm takes the tools on its own rack (#405), a program's `fetch`
-    # and `stow`. No built-tool rail, so no workshop.
+    # and `stow`. Beside them the built-tool rail's three bays (#407), so a
+    # mind there has the workshop.
     "tools": False, "swap": True, "tool_bays": dict(legs_rack.TOOL_BAYS),
-    "built_bays": 0,
+    "built_bays": len(legs_rack.BUILT.bays),
     # ...and the task areas' tags its robots find and remember (issue
     # #419): the lab's plate signs, the whiteboards' pairs (#406) and the
     # claw's and the census's areas' (#407) -- where a job's `find` may

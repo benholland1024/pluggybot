@@ -16,7 +16,7 @@ to touch:
 | `docs/PluggyPlan.md` | the mission and the six qualities, status, architecture, the order of work | anything |
 | `docs/SimNotes.md` | simulation lessons, each ending in what is true now | touching `models/` or contact/actuator params |
 | `docs/Parts.md` | locked hardware decisions and the sim parameters they feed | changing a part or its parameter |
-| `docs/ToolPattern.md` | adding a tool module: coupling envelope, anatomy, contact rules, build sequence, rack integration -- the rover's, until #407 rewrites it for the arm | designing a new tool |
+| `docs/ToolPattern.md` | adding a tool module: the arm's coupling envelope, anatomy, contact rules, build sequence, rack integration | designing a new tool |
 | `docs/ActivityPattern.md` | adding an ACTIVITY (a mechanism that owns world state): sensed criteria, hysteresis + latching, pre-allocated geom/mocap toggles, telemetry | building a puzzle, mechanism or gardening step |
 | `docs/TaskPattern.md` | adding a TASK KIND (a job offer): the honesty rule, the perception ladder, code-side grading, how tasks, errands and activities compose — fold any gap back in | adding a task kind or touching `economy/tasks.py`, `scoring.py` or `cadence.py` |
 | `docs/Challenges.md` | grading a job nobody wrote a scorer for: a predicate written BEFORE the robot sees it, through `scoring.py`'s chain, with a hold; what it cannot grade | adding a challenge, touching `challenge/`, or reaching for an LLM judge |
@@ -667,7 +667,9 @@ save a filmstrip PNG named after the script.
   `why`, NEVER A GUESS (`NULLABLE`, `validate`), and a `why` for a non-null
   field fails; `partNumber` is what you order by, and a class of part stays
   null. ONE `scaffold` primitive at PLA density with a print bed.
-  `coupling.MODULE_MASS` / `PEG_MASS` name the emitters' 0.12 / 0.02. Each
+  `legs.rack.MODULE_MASS` / `PEG_MASS` name a module's plate and 220 mm peg,
+  and the catalog's `module_frame` and `quad_tool_peg` state the arm's
+  envelope off `legs/arm.py` (#407), never typed. Each
   entry's `workshop: {usable, why}` is `workshop.spec.unbuildable`. Nothing in
   `economy/` imports it; the MIND sees it through `workshop_rule()`.
 - **A tool appears in a RUNNING world through the recompile seam, and every
@@ -676,9 +678,10 @@ save a filmstrip PNG named after the script.
   its `MjSpec` (`robot.world_spec`, trajectory-identical to `from_xml_path`;
   `build()` and `serve.py` pass `spec=`), `hang_tool(tool, bay)` takes the
   rail's own index (`coupling.built_bay_index` maps it into `rack_inventory`),
-  retires a built tool in that bay (`seam.retire`; REFUSES the five hand-built
-  modules, `seam.HAND_BUILT`), attaches the new one with its tag
-  (`seam.attach`, tag id `15 + bay`) and `spec.recompile(model, data)`s:
+  retires a built tool in that bay (`seam.retire`; REFUSES the hand-built
+  tools, `seam.HAND_BUILT`), attaches the new one at the bay's peg in the
+  rack's own frame (`seam.attach`, `seam.rack_pose`; on legs a tool has NO
+  TAG, its bay's pair is the bay's, #407) and `spec.recompile(model, data)`s:
   **~4–13 ms, NEW `MjModel`/`MjData` objects**, `time` and `qpos` carried BY
   NAME. ⚠ So `HubLifecycle.rebind(model, data)` re-points everything the
   lifecycle owns and calls every `on_rebind` callback, and ⚠ EVERY REBIND
@@ -686,18 +689,26 @@ save a filmstrip PNG named after the script.
   fences, both shown to fail: the RUNTIME walk (`_holders(life)`) and the
   STATIC one (every class assigning `self.model`/`self.data` defines `rebind`
   or is on `TRANSIENT_HOLDERS` with a reason). ⚠ BETWEEN ERRANDS ONLY, fork
-  empty. `rack_inventory` (module → bay) is the lifecycle's and the seam edits
-  it (`procedure/steps.py` reads it through `_rack(life)`; `world_facts(world,
+  empty, every body still (`seam_busy`: lying down, standing up, at a bay or
+  making way is a generator holding the old world). ⚠ The module is attached
+  AFTER the robots, so only a built module's ids move, and
+  `QuadMission.rebind` re-resolves the body's by name. `rack_inventory`
+  (module → bay) is the lifecycle's and the seam edits it
+  (`procedure/steps.py` reads it through `_rack(life)`; `world_facts(world,
   rack=)`). The wire: `scene_changed` carries the whole new `scene_dict` (the
-  site rebuilds its scene and vendors `tag15..19.png`).
+  site rebuilds its scene; the rail's tags, `tag47..52.png`, are in it from
+  the start).
 - **The workshop is the agent's** (issue #168;
   Overseer.md §2d; `workshop/library.py`, `workshop/cost.py`,
   `HubLifecycle._workshop_routine`): `build_tool {name, bay, spec}` /
-  `retire_tool name`. ⚠ THE FIVE ORIGINALS ARE PERMANENT AND A BUILT TOOL
-  HANGS ON ITS OWN RAIL (#277: bays `A`–`C`, `BAY_LETTERS`; `D`/`E` are
-  refused with whose bay they are, and `retire_tool` refuses an original); the
+  `retire_tool name`. ⚠ THE ORIGINALS ARE PERMANENT AND A BUILT TOOL HANGS
+  ON ITS OWN RAIL (#277; on legs `legs.rack.BUILT`, three bays on the rack's
+  board, stations 5–7, #407: bays `A`–`C`, `BAY_LETTERS`; any other letter is
+  refused, naming no original's bay, and `retire_tool` refuses an original);
+  ⚠ THE ENVELOPE IS THE ARM'S (`validate`, read off `legs/arm.py` and
+  `legs/rack.py`; ToolPattern.md §2), a hung tool plumb within 2°; the
   context shows `built: {A..C: {module, by, where}|null}`, `by` off
-  `HubLifecycle.built_by()` (the rail is the WORLD's; the tag cannot say who,
+  `HubLifecycle.built_by()` (the rail is the WORLD's; no tag can say who,
   #324), and a world with no `built_bays` gets NO workshop (`can_reshape`
   refuses a world compiled without `rack_built`). ⚠ A PAIR HANGS A TOOL
   (#315): `build_pair` KEEPS the spec and both lifecycles hold it,
