@@ -20,7 +20,8 @@ driver's GOAL -- never a measurement of the last forward pass
 
 A mixin: `QuadMission` is the rest of the body. The lifecycle names a bay
 by its `coupling.STATION_YS` entry (the bay index space), so a bay here is
-that entry's index on this rack (`bay_of`).
+that entry's index (`bay_of`), on whichever section of the rack has it
+(`rack.spec_of`: the hand-built tools' three, the built rail's three).
 """
 
 from __future__ import annotations
@@ -116,11 +117,19 @@ class ToolSwap:
     #: How far off the robot was that made the last swap give its bay up.
     self.peer_at_bay_m: float | None = None
 
+  def _rebind_swap(self, model) -> None:
+    """The fork's geoms by name, the per-module caches emptied (a recompiled
+    world, `QuadMission.rebind`); the rack's commissioning is the world's."""
+    plate = self._plate_bid = model.body(self.handle.el("arm_plate")).id
+    self._fork_gids = np.array([g for g in range(model.ngeom)
+                                if int(model.geom_bodyid[g]) == plate], dtype=np.int32)
+    self._tool_gids, self._poles = {}, {}
+
   # ---- where things are -------------------------------------------------------
 
   def work_pose(self, bay: int) -> tuple[float, float, float]:
     """A bay's working pose in the world, off the commissioned rack."""
-    return dk.compose(self.tool_rack_prior, rk.work_pose(rk.DEFAULT, bay))
+    return dk.compose(self.tool_rack_prior, rk.work_pose(*rk.spec_of(bay)))
 
   def rack_standoff(self, bay: int) -> tuple[float, float, float]:
     """Where the approach to a bay starts: behind its working pose, facing it."""
@@ -152,13 +161,14 @@ class ToolSwap:
     it is nearest along the rail. KeyError for a module this world lacks."""
     d, m = self.data, self.model
     p = d.xpos[m.body(module).id]
-    bay = 0
+    spec, k = rk.DEFAULT, 0
     if self.tool_rack_prior is not None:
       rx, ry, ryaw = self.tool_rack_prior
       along = -math.sin(ryaw) * (p[0] - rx) + math.cos(ryaw) * (p[1] - ry)
-      bay = min(range(len(rk.DEFAULT.bays)), key=lambda k: abs(rk.DEFAULT.bays[k] - along))
+      spec, k = min(((s, k) for s in rk.SPECS for k in range(len(s.bays))),
+                    key=lambda sk: abs(sk[0].bays[sk[1]] - along))
     return {"pos": [float(v) for v in p], "on_fork": self.on_this_fork(module),
-            "hung": rk.on_bay(m, d, module, rk.DEFAULT, bay), "bay": bay}
+            "hung": rk.on_bay(m, d, module, spec, k), "bay": spec.stations[k]}
 
   def tool_powered(self, module: str | None) -> bool:
     """The module's coupling conducting on this robot's fork. Read every
@@ -200,7 +210,7 @@ class ToolSwap:
     from pluggybot.legs.body import NAV_EYE
     seen = dk.seen_from(self.model, self.data, self.detect_board(),
                         self.handle.el(NAV_EYE), self.root)
-    fix = rk.fit_rack(seen)
+    fix = rk.fit_rack(seen, rk.SPECS)
     if fix is not None:
       self.tool_rack_seen = dk.blend(self.tool_rack_seen,
                                      dk.compose(self.pose, (fix.x, fix.y, fix.yaw)))
@@ -212,10 +222,11 @@ class ToolSwap:
     from pluggybot.legs.body import NAV_EYE
     seen = rk.seen_in_torso(self.model, self.data, self.detect_board(),
                             self.handle.el(NAV_EYE), self.root)
-    return rk.bay_aim(seen, rk.DEFAULT, bay, self.arm_spec.y)
+    spec, k = rk.spec_of(bay)
+    return rk.bay_aim(seen, spec, k, self.arm_spec.y)
 
   def _rack_error(self, bay: int) -> tuple[float, float, float]:
-    work = dk.compose(self.tool_rack_seen, rk.work_pose(rk.DEFAULT, bay))
+    work = dk.compose(self.tool_rack_seen, rk.work_pose(*rk.spec_of(bay)))
     return dk.relative(self.pose, work)
 
   def _find_rack_routine(self) -> Routine:
@@ -481,7 +492,10 @@ class ToolSwap:
     rec = self.last_swap
     if not rec:
       return "no swap recorded"
-    parts = [f"{rec['op']} {rec['module']} at bay {chr(ord('A') + rec['bay'])}"]
+    # ...the bay in its own row's letters, as the robot is told them (#407)
+    spec, local = rk.spec_of(rec["bay"])
+    where = ("rail bay " if spec is rk.BUILT else "bay ") + chr(ord("A") + local)
+    parts = [f"{rec['op']} {rec['module']} at {where}"]
     if rec.get("why"):
       parts.append(str(rec["why"]))
     for i, a in enumerate(rec["attempts"], 1):

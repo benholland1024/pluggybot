@@ -28,7 +28,7 @@ import numpy as np
 from pluggybot.rack.coupling import (PEG_ABOVE_BODY, PEG_FRICTION, PEG_INSUL_HALF,
                                      PEG_R, TOOL_HALF_X, TOOL_HALF_Y, TOOL_HALF_Z,
                                      bay_prefix, geom_id, touching)
-from pluggybot.rack.tags import LEGS_RACK_TAG_IDS, LEGS_RACK_TAG_SIZE
+from pluggybot.rack.tags import LEGS_BUILT_TAG_IDS, LEGS_RACK_TAG_IDS, LEGS_RACK_TAG_SIZE
 
 #: The peg's half-length: the rover's 75 mm plus the fork's lateral capture
 #: (`legs.arm.ForkSpec`): the fork takes it at +-85 mm, the rack at +-45.
@@ -54,6 +54,11 @@ class RackSpec:
 
   #: Tool bays along y, the rack's frame; their count is the rack's.
   bays: tuple[float, ...] = (-0.30, 0.0, 0.30)
+  #: Each bay's index into `coupling.STATION_YS`, the space every bay lives
+  #: in (`rack_inventory`, the bay switches' names): the hand-built tools'
+  #: rack is the first three, the built-tool rail the three after the
+  #: rover's five (`coupling.built_bay_index`).
+  stations: tuple[int, ...] = (0, 1, 2)
   #: The pegs' axis, above the floor.
   peg_z: float = 0.50
   #: The rail the trays hang from, above the pegs; the back board behind.
@@ -72,22 +77,50 @@ class RackSpec:
   #: constants, carried here so the spike can fly the rover's (`--rover`).
   tray_y: float = TRAY_Y
   peg_half: float = PEG_HALF
+  #: Its tags' ids, two a bay in `tag_ys`' order (`rack.tags`, the one
+  #: registry of ids).
+  tag_ids: tuple[int, ...] = LEGS_RACK_TAG_IDS
 
   @property
   def tag_ys(self) -> tuple[float, ...]:
     return tuple(y for b in self.bays for y in (b - self.tag_dy, b + self.tag_dy))
 
+  def local(self, station: int) -> int:
+    """Which of its bays a `STATION_YS` index is; ValueError for none."""
+    return self.stations.index(int(station))
+
+
+#: The rail the trays hang from: how far it stands out from the back board,
+#: and half its height, m (`rack_xml`; the workshop's validator keeps a
+#: built tool off it).
+RAIL_DEPTH = 0.06
+RAIL_HALF_H = 0.01
 
 DEFAULT = RackSpec()
-#: The rack's tag ids, two a bay in `RackSpec.tag_ys`' order (`rack.tags`,
-#: the one registry of ids).
+#: THE BUILT-TOOL RAIL (issue #407; #277's rule: the hand-built tools are
+#: permanent, and a tool the workshop builds hangs on a rail of its own):
+#: three more bays on the same board, past the claw's, in the rack's own
+#: frame -- one commissioned pose, the same pitch, its own pair of tags a
+#: bay -- the gap before it leaves the claw's tags their 0.35 m.
+BUILT = RackSpec(bays=(0.65, 0.95, 1.25), stations=(5, 6, 7), tag_ids=LEGS_BUILT_TAG_IDS)
+#: Both, in the order their bays' stations run.
+SPECS = (DEFAULT, BUILT)
+#: The hand-built tools' rack's tag ids (`rack.tags`).
 RACK_TAG_IDS = LEGS_RACK_TAG_IDS
+
+
+def spec_of(station: int) -> tuple[RackSpec, int]:
+  """The rack section a `STATION_YS` index is on, and its bay there."""
+  for spec in SPECS:
+    if int(station) in spec.stations:
+      return spec, spec.local(station)
+  raise ValueError(f"no bay at station {station}")
 
 
 def tag_layout(spec: RackSpec = DEFAULT) -> dict[int, tuple[float, float, float]]:
   """Each rack tag's printed face in the rack frame, by id: the drawing."""
   return {i: (spec.back_x + 0.006, y, spec.tag_z)
-          for i, y in zip(RACK_TAG_IDS, spec.tag_ys)}
+          for i, y in zip(spec.tag_ids, spec.tag_ys)}
 
 
 def _f(v: float) -> str:
@@ -190,14 +223,16 @@ def rack_xml(spec: RackSpec = DEFAULT, pos=(0.0, 0.0), yaw: float = 0.0,
   world with no camera (the workshop's rig)."""
   from pluggybot.rack.tags import plate_half_extent
   s = spec
-  half_y = max(abs(y) for y in s.tag_ys) + s.tag_size + 0.05
+  lo = min(s.tag_ys) - s.tag_size - 0.05
+  hi = max(s.tag_ys) + s.tag_size + 0.05
+  half_y, mid_y = (hi - lo) / 2, (hi + lo) / 2
   g = [f'<geom name="{name}_board" type="box" size="{_v(0.006, half_y, s.rail_z / 2)}" '
-       f'pos="{_v(s.back_x, 0, s.rail_z / 2)}" rgba="0.85 0.85 0.82 1"/>',
-       f'<geom name="{name}_rail" type="box" size="{_v(0.03, half_y, 0.01)}" '
-       f'pos="{_v(s.back_x + 0.03, 0, s.rail_z)}" rgba="0.45 0.47 0.50 1"/>']
+       f'pos="{_v(s.back_x, mid_y, s.rail_z / 2)}" rgba="0.85 0.85 0.82 1"/>',
+       f'<geom name="{name}_rail" type="box" size="{_v(RAIL_DEPTH / 2, half_y, RAIL_HALF_H)}" '
+       f'pos="{_v(s.back_x + RAIL_DEPTH / 2, mid_y, s.rail_z)}" rgba="0.45 0.47 0.50 1"/>']
   vz = s.peg_z - TRAY_VERTEX_DROP
   for k, by in enumerate(s.bays):
-    bay = bay_prefix(k)
+    bay = bay_prefix(s.stations[k])
     for side, lbl in ((1, "l"), (-1, "r")):
       ty = by + side * s.tray_y
       g.append(_v_notch(f"{bay}tray_{lbl}_", 0.0, ty, vz, TRAY_HALF_W))
@@ -515,14 +550,14 @@ def tool_power(model, data, name: str, prefix: str = "") -> dict:
 
 
 def on_bay(model, data, name: str, spec: RackSpec, bay: int) -> bool:
-  """Is the tool HUNG on bay `bay`: its peg down in both trays' V's -- on
-  both flanks of each -- and the tool plumb? A peg on one flank, or a plate
+  """Is the tool HUNG on bay `bay` (of `spec`): its peg down in both trays'
+  V's -- on both flanks of each -- and the tool plumb? A peg on one flank, or a plate
   resting on a tray's corner, is a tool jammed on the rack, not hung."""
   pegs = [geom_id(model, f"{name}_peg_{s}") for s in ("l", "r")]
   pegs = [p for p in pegs if p is not None]
   for lbl in ("l", "r"):
     for ab in ("a", "b"):
-      flank = geom_id(model, f"{bay_prefix(bay)}tray_{lbl}_{ab}")
+      flank = geom_id(model, f"{bay_prefix(spec.stations[bay])}tray_{lbl}_{ab}")
       if not any(touching(data, p, [flank]) for p in pegs):
         return False
   z = data.xmat[model.body(name).id].reshape(3, 3)[2, 2]
@@ -531,6 +566,12 @@ def on_bay(model, data, name: str, spec: RackSpec, bay: int) -> bool:
 
 #: A hung tool hangs plumb: within this of it, deg.
 HUNG_TILT_DEG = 2.0
+#: ...and its centre of mass this close to the peg's middle, m, the trays
+#: holding the peg at +-`TRAY_Y`: MEASURED in the workshop's rig (#407), 30 mm
+#: to one side hung, was taken and hung back with the fork 15 mm either way
+#: (the walk-in's gate), 35 mm did not seat with the fork 15 mm toward it,
+#: and 45 mm did not hang.
+HUNG_SIDE_M = 0.025
 
 
 # ---- the rack's pose, off its tags ------------------------------------------------
@@ -550,11 +591,13 @@ class RackFix:
 
 
 def fit_rack(seen: dict[int, tuple[float, float]],
-             spec: RackSpec = DEFAULT) -> RackFix | None:
+             spec: RackSpec | tuple = DEFAULT) -> RackFix | None:
   """The rack's frame in the observer's horizontal frame, fitted to its
   decoded tags (`legs.dock.fit_dock`'s Kabsch; None without a baseline or
-  past MAX_FIT_RMS_M)."""
-  layout = tag_layout(spec)
+  past MAX_FIT_RMS_M) -- one section's, or several's (`SPECS`: the
+  hand-built tools' bays and the built rail share one frame)."""
+  specs = (spec,) if isinstance(spec, RackSpec) else tuple(spec)
+  layout = {i: p for s in specs for i, p in tag_layout(s).items()}
   ids = [i for i in seen if i in layout]
   if len(ids) < 2:
     return None

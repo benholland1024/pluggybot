@@ -101,6 +101,12 @@ class CubeWork:
     #: The last pick's or place's record.
     self.last_cube: dict | None = None
 
+  def _rebind_claw(self, model) -> None:
+    """Which cubes a recompiled world has (`QuadMission.rebind`); where it
+    saw them is its memory and stays."""
+    from pluggybot.tools.claw import cube_bodies
+    self.cube_tags = tuple(t for t, b in cube_bodies().items() if _has_body(model, b))
+
   # ---- looking ------------------------------------------------------------------
 
   def color_detector(self):

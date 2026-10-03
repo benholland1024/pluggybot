@@ -2811,51 +2811,57 @@ WORKSHOP_HEAD = """\
 TOOLS YOU MAY BUILD
 
 You may design a tool from real, purchasable parts and hang it on your own
-rack: `build_tool: {"name": "<name>", "bay": "<%(bays)s>", "spec": {...}}` on
+rail: `build_tool: {"name": "<name>", "bay": "<%(bays)s>", "spec": {...}}` on
 any answer. It costs no turn to say, but it costs POINTS and TIME: the parts
 at the catalog's price (one point per euro; printed plastic by the gram),
 then the print and assembly time standing still. Unaffordable is refused
-before anything is bought; a spec outside the coupling envelope is refused
-with every reason at once and nothing is spent. There are two racks side by
-side: the five original modules hang on the first and are permanent -- no
-bay of theirs can be named and none of them can be retired -- and a rail
-beside it with %(count)s bays, %(bays)s, is yours. The bay you name is taken:
-a tool of yours already hanging there is retired for good. `retire_tool:
-"<name>"` takes a tool of yours off your rail and leaves its bay empty. There
-is no replace. `rack` in your context says where each tool is -- `original`
-the five, `built` your bays -- and `tools` lists what you built, with its spec.
+before anything is bought; a spec outside your arm's envelope is refused
+with every reason at once and nothing is spent. The original tools hang in
+the rack's own bays and are permanent -- no bay of theirs can be named and
+none of them can be retired -- and the rail that carries on along the same
+board, with %(count)s bays, %(bays)s, is yours. The bay you name is taken: a tool
+of yours already hanging there is retired for good. `retire_tool: "<name>"`
+takes a tool of yours off your rail and leaves its bay empty. There is no
+replace. `rack` in your context says where each tool is -- `original` the
+originals, `built` your bays -- and `tools` lists what you built, with its
+spec.
 
 A built tool's axes appear in the procedure language as `<name>.<verb>`,
 so `move("scoop.tilt", 1.2)` moves a servo you specified, and
 `read("scoop.tilt")` reads it. A part whose catalog line says `sense contact`
 (a microswitch) appears as `<name>.<id>.contact`: `read()` gives 1 while that
-part touches something outside the tool, as the chassis's bumper does.
-Fetch a tool like any module: `fetch("module_<name>")`.
+part touches something outside the tool. Fetch a tool like any module:
+`fetch("module_<name>")`.
 
 THE SPEC. Parts by catalog id, positioned in the module's frame in
-millimetres: +x is toward the robot, -x toward the wall when racked, z up,
-the peg axis along y at z = 22. The plate (20 x 40 x 60 mm), the peg and the
-identity tag are made for you and are not in the spec. Each part: `id`,
-`part`, `pos` [x, y, z] mm, optional `euler` [deg], optional `on` (another
-part's id; default the plate). A scaffold part carries `size` [mm]. An
-actuator carries `axis`: {"verb", "dir" [unit vector], "range" [lo, hi] (degrees
-for a servo, mm for a screw), "stow"}. A part `on` an actuator rides its
-axis. Nothing else -- there is no field for a mass, a friction, a solver
-option, and an unknown field is refused.
+millimetres: +x is toward you when you carry it (-x toward the rack's board
+when it hangs), z up, the peg's axis along y at z = %(peg_z).0f. The plate
+(%(plate)s mm) and the %(peg_mm).0f mm peg are made for you and are not in
+the spec. Each part: `id`, `part`, `pos` [x, y, z] mm, optional `euler` [deg],
+optional `on` (another part's id; default the plate). A scaffold part carries
+`size` [mm]. An actuator carries `axis`: {"verb", "dir" [unit vector], "range"
+[lo, hi] (degrees for a servo, mm for a screw), "stow"}. A part `on` an
+actuator rides its axis. Nothing else -- there is no field for a mass, a
+friction, a solver option, and an unknown field is refused.
 
   {"name": "scoop", "parts": [
-    {"id": "hinge", "part": "servo_fs90", "pos": [-20, 0, -45],
+    {"id": "hinge", "part": "servo_fs90", "pos": [0, 0, -50],
      "axis": {"verb": "tilt", "dir": [0, 1, 0], "range": [0, 90], "stow": 0}},
-    {"id": "blade", "part": "scaffold_pla_box", "size": [60, 30, 4],
-     "pos": [-30, 0, -8], "on": "hinge"}]}
+    {"id": "blade", "part": "scaffold_pla_box", "size": [4, 30, 70],
+     "pos": [0, 0, -45], "on": "hinge"}]}
 
 THE ENVELOPE, refused, never warned about: total mass with the plate and peg
-under %(mass_g).0f g; moment about the peg under %(moment).2f N·m at every
-pose (reach costs more than mass); nothing where the fork's prongs or the
-rack's trays hold the peg; nothing outboard of the plate in the band z -30
-to -9 mm (a set-down meets the tray brackets there); nothing further than
-%(wall_mm).0f mm out the front (the wall); the parts' draw plus the module's
-own %(idle_w).1f W under %(peg_w).1f W; every printed box within a
+under %(mass_g).0f g; at its stow pose its centre of mass under the peg's axis,
+within %(tilt)g degrees of plumb (nothing holds a hung tool level); at every
+pose its centre of mass on the peg's line or ahead of it, at most %(ahead_mm).0f
+mm, and its moment about the peg under %(moment).2f N·m; nothing more than
+%(drop_mm).0f mm under the peg at any pose (carried, it would cross your scan
+plane); nothing behind the plate's back face, where the fork is; nothing where
+the fork's V's or the rack's trays hold the peg's ends; hung, nothing nearer
+the rack's board than %(board_mm).0f mm, which stands %(board_off).0f mm ahead
+of the peg, and nothing in front of the plate beside its middle at the height
+of its bay's tags, which you find the bay by; the parts' draw plus the
+module's own %(idle_w).1f W under %(peg_w).1f W; every printed box within a
 %(bed)s mm bed. The scoop above passes.
 
 THE CATALOG -- what a tool may be built from. A part the catalog does not
@@ -3016,9 +3022,11 @@ told go in your notes, not here. It has a size limit and refuses when full.
 
 
 def workshop_rule() -> str:
+  from pluggybot.legs import arm as am
+  from pluggybot.legs import rack as rk
   from pluggybot.power import MODULE_IDLE_W
   from pluggybot.rack import catalog, coupling
-  from pluggybot.workshop import cost
+  from pluggybot.workshop import cost, validate
   from pluggybot.workshop.spec import unbuildable
   lines = []
   for part in catalog.PARTS:
@@ -3049,9 +3057,14 @@ def workshop_rule() -> str:
   head = WORKSHOP_HEAD % {
     "bays": "-".join((BAY_LETTERS[0], BAY_LETTERS[-1])),
     "count": len(BAY_LETTERS),
-    "mass_g": coupling.MODULE_MASS_CEILING * 1000,
-    "moment": coupling.LATCH_MOMENT_NM,
-    "wall_mm": (coupling.TOOL_HALF_X + coupling.WALL_CLEARANCE) * 1000,
+    "peg_z": coupling.PEG_ABOVE_BODY * 1000, "peg_mm": 2 * rk.PEG_HALF * 1000,
+    "plate": " x ".join(f"{2 * h * 1000:.0f}" for h in (coupling.TOOL_HALF_X,
+                                                        coupling.TOOL_HALF_Y,
+                                                        coupling.TOOL_HALF_Z)),
+    "mass_g": am.TOOL_MAX_KG * 1000, "tilt": rk.HUNG_TILT_DEG,
+    "ahead_mm": am.TOOL_MAX_AHEAD_M * 1000, "moment": am.TOOL_MAX_MOMENT_NM,
+    "drop_mm": am.TOOL_MAX_DROP_M * 1000,
+    "board_mm": validate.BOARD_CLEAR_M * 1000, "board_off": -validate.BOARD_X * 1000,
     "idle_w": MODULE_IDLE_W, "peg_w": coupling.PEG_POWER_W,
     "bed": " × ".join(str(v) for v in scaffold.values()),
   }

@@ -405,25 +405,7 @@ class QuadMission(ToolSwap, PlaceWalk, BoardWork, CubeWork, AreaSurvey, MakeWay,
     self.last_charge: dict | None = None
     self.press_steps = 0
     self._pressing = False
-    self._contact_gids = self.body_gids[np.isin(
-      self.body_gids, [model.geom(handle.el(f"{leg}_foot")).id for leg in LEGS],
-      invert=True)]
-    # ...the floors, which a leg brushes: every plane, and the generated
-    # worlds' floor and ground slabs (`home_floor_geom`, `garden_ground_geom`)
-    self._floor_gids = np.array(
-      [g for g in range(model.ngeom)
-       if model.geom_type[g] == mujoco.mjtGeom.mjGEOM_PLANE
-       or "_floor" in model.geom(g).name or "_ground" in model.geom(g).name],
-      dtype=np.int32)
-    self._dock_gids = np.array(
-      [g for g in range(model.ngeom) if model.geom(g).name.startswith("dock_")],
-      dtype=np.int32)
-    #: ...as lookups by geom id, for the check that runs every step
-    self._is_limb = np.zeros(model.ngeom, dtype=bool)
-    self._is_limb[self._contact_gids] = True
-    self._is_ignored = np.zeros(model.ngeom, dtype=bool)
-    self._is_ignored[np.concatenate((self._floor_gids, self._dock_gids,
-                                     self.body_gids))] = True
+    self._resolve_geoms(model)
     # THE TOOL RACK (#405, `legs/swap.py`)
     self._init_swap(model)
     # THE PLACES IT FINDS (#419, `legs/places.py`)
@@ -438,6 +420,28 @@ class QuadMission(ToolSwap, PlaceWalk, BoardWork, CubeWork, AreaSurvey, MakeWay,
     self._init_way()
     # HIDE AND SEEK's two roles (#404, `legs/game.py`)
     self._init_game()
+
+  def _resolve_geoms(self, model) -> None:
+    """What the press reads, by geom id: this body's limbs (its geoms but
+    its feet), the floors a leg brushes -- every plane, and the generated
+    worlds' floor and ground slabs (`home_floor_geom`, `garden_ground_geom`)
+    -- and the dock's, as lookups the size of the world."""
+    self._contact_gids = self.body_gids[np.isin(
+      self.body_gids, [model.geom(self.handle.el(f"{leg}_foot")).id for leg in LEGS],
+      invert=True)]
+    self._floor_gids = np.array(
+      [g for g in range(model.ngeom)
+       if model.geom_type[g] == mujoco.mjtGeom.mjGEOM_PLANE
+       or "_floor" in model.geom(g).name or "_ground" in model.geom(g).name],
+      dtype=np.int32)
+    self._dock_gids = np.array(
+      [g for g in range(model.ngeom) if model.geom(g).name.startswith("dock_")],
+      dtype=np.int32)
+    self._is_limb = np.zeros(model.ngeom, dtype=bool)
+    self._is_limb[self._contact_gids] = True
+    self._is_ignored = np.zeros(model.ngeom, dtype=bool)
+    self._is_ignored[np.concatenate((self._floor_gids, self._dock_gids,
+                                     self.body_gids))] = True
 
   # ---- the dock's frame -----------------------------------------------------
 
@@ -1303,7 +1307,13 @@ class QuadMission(ToolSwap, PlaceWalk, BoardWork, CubeWork, AreaSurvey, MakeWay,
     if "gains" in arrays:
       self.model.actuator_gainprm[np.ix_(self.drivers.act, [3, 4, 5, 6, 7])] = arrays["gains"]
     self.drivers.torqued = bool(state.get("torqued", False))
-    self.carry(state.get("carrying"))
+    # ...what rode the fork, where this world has it: a built tool the
+    # workshop could not hang again is no body here (#407)
+    carried = state.get("carrying")
+    if carried is not None and mujoco.mj_name2id(
+        self.model, mujoco.mjtObj.mjOBJ_BODY, carried) < 0:
+      carried = None
+    self.carry(carried)
     if "armTarget" in arrays:
       self.arm.target = np.array(arrays["armTarget"], dtype=float)
       self.arm.goal = np.array(arrays["armGoal"], dtype=float)
@@ -1375,14 +1385,37 @@ class QuadMission(ToolSwap, PlaceWalk, BoardWork, CubeWork, AreaSurvey, MakeWay,
     self.forget_cubes()
 
   def rebind(self, model, data) -> None:
-    """⚠ NOT DONE: a quadruped's world is never recompiled -- the seam hangs
-    a built tool (issue #168), and its rack (#405) has no rail for one: its
-    world has no workshop (`world_config`'s `built_bays`). Its drivers,
-    policies, reckoning and pack hold ids by the dozen, and a rebind that
-    missed one would drive another body's joints, so it is refused out
-    loud, not half-done."""
-    raise NotImplementedError("a quadruped's world is not recompiled: its rack "
-                              "has no rail for a built tool (#405)")
+    """A recompiled world (issue #407: a tool the workshop built, hung on
+    the rail). Every holder of the old world follows it and every id is
+    found again by NAME; what the body believes and remembers -- the map,
+    the places, the cubes, the reckoning, the posture, the arm's goal -- is
+    state and stays. The tag renderers are made again at their next look
+    (the new world's textures) and the gait's virtual model at its next use,
+    keeping its inertia. ⚠ Never mid-move: a posture move is a generator
+    holding the old data (`HubLifecycle.seam_busy` waits it out)."""
+    super().rebind(model, data)                # the LIDAR, this body's geoms
+    prefix = self.handle.prefix
+    self.root = model.body(self.handle.root).id
+    for driver in (self.walker, self.getup):   # one set of leg drivers
+      driver.rebind(model, data)
+    self.joints = pz.Joints.of(model, prefix)
+    self.arm.rebind(model, data)
+    self.arm_acts = tuple(self.arm.act)
+    self.feet = [model.site(self.handle.el(f"{leg}_foot")).id for leg in LEGS]
+    if self._vm is not None:
+      self._vm_inertia, self._vm = np.array(self._vm.inertia, dtype=float), None
+    self.odo.rebind(model, data)
+    self.depth.rebind(model)
+    for name in ("_board", "_color"):
+      if getattr(self, name, None) is not None:
+        getattr(self, name).close()
+        setattr(self, name, None)
+    self._resolve_geoms(model)
+    self._rebind_swap(model)
+    self._rebind_places(model)
+    self._rebind_claw(model)
+    self._carried_gids = np.zeros(0, dtype=np.int32)
+    self.carry(self.carrying)
 
   def start_at(self, x: float, y: float, yaw: float) -> None:
     """Stand the body at a pose, on its feet, and tell its reckoning so --

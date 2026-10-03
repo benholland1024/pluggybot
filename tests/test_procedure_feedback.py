@@ -437,10 +437,12 @@ def test_a_cube_no_put_can_set_down_is_let_go_before_the_claw_goes_back():
       calls.append(name)
       return tick.result("arrived")
     return make
+  def no_actuator(name):                    # the claw's own axes are not here
+    raise KeyError(name)
   body = SimpleNamespace(held_cube=lambda: held[0] if held else None,
                          put_cube_routine=put, claw_routine=jaws,
                          retract_arm_routine=rec("retract_arm"))
-  life = SimpleNamespace(body=body)
+  life = SimpleNamespace(body=body, model=SimpleNamespace(actuator=no_actuator))
   out = tick.run(SimpleNamespace(step=lambda *a: None),
                  st.carry_configuration_routine(life, "module_claw"))
   assert out == {"setDown": None, "dropped": 21}
@@ -453,7 +455,9 @@ def test_a_refused_build_says_what_is_in_the_way(monkeypatch):
   module on the fork, and whose."""
   from pluggybot.procedure import steps
   me = SimpleNamespace(peers=[], state="DECIDE", robot_name="Luca", root="pluggybot",
-                       MID_ERRAND=HubLifecycle.MID_ERRAND)
+                       MID_ERRAND=HubLifecycle.MID_ERRAND, _standing_up=False,
+                       body=SimpleNamespace(posture="standing", working=False,
+                                            making_way=None))
   monkeypatch.setattr(steps, "_carried", lambda life: "module_claw")
   assert HubLifecycle.seam_busy(me).startswith("your fork holds module_claw: stow it first")
   me.peers = [SimpleNamespace(state="SWAP_PICK", robot_name="Rowan", root="r2_pluggybot")]

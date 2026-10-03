@@ -86,18 +86,18 @@ Prices and lead times read 2026-09-28; € incl. 19% VAT; $1 = €0.8770 (ECB, 2
 | The arm's end plate, fork and lean-pad (two prongs, four 60° V's, two 53° end-ramps), and the parallelogram's three rods | 1 | allowance | 150.00 | unknown: nothing drawn to quote | `legs.arm.ArmSpec.plate_mass`, `legs.arm.ForkSpec.flank_deg`, `legs.arm.ForkSpec.fork_y`, +1 |
 | [PTFE glass-fabric adhesive tape, 0.13 mm, 25 mm x 30 m](https://shop.hightechflon.com/PTFE-Teflon-Klebeband-0-13%20mm-ptfe-glasgewebe/Page-16-1-96-183.aspx) `PTFE Klebeband 0.13 SW` | 1 | 29.67 | 29.67 | 2-4 working days (High-tech-flon) | `legs.arm.RAMP_MU` |
 | **tools** | | | **230.05** | | |
-| Tool peg, 220 mm: two 6 mm steel conductors on an insulating bush | 3 | allowance | 30.00 | unknown: nothing drawn to quote | `legs.rack.PEG_HALF`, `legs.rack.PEG_MASS` |
+| Tool peg, 220 mm: two 6 mm steel conductors on an insulating bush | 3 | allowance | 30.00 | unknown: nothing drawn to quote | `legs.rack.PEG_HALF`, `rack.coupling.PEG_R`, `rack.coupling.PEG_INSUL_HALF`, +2 |
 | [FEETECH FS90MG micro servo (digital, metal gears)](https://eckstein-shop.de/Feetech-FS90MG-6V-22kgcm-Digital-Servo) `FS90MG` | 1 | 5.95 | 5.95 | unknown: not read for this bill; the price is the workshop catalog's (#199, 2026-09-14) | — |
 | [Actuonix L12-100-50-6-R micro linear servo (100 mm stroke, 50:1, 6 V, RC input)](https://www.digikey.de/de/products/detail/actuonix-motion-devices-inc/L12-100-50-6-R/11689540) `L12-100-50-6-R` | 2 | 77.05 | 154.10 | unknown: not read for this bill; the price is the workshop catalog's (#199, 2026-09-14) | `legs.rack.PEN_TRAVEL`, `legs.rack.PEN_FORCE_N`, `legs.rack.PEN_SPEED` |
 | Linear Hall-effect sensor and a small magnet on the pen's sprung quill, reading its travel | 1 | allowance | 5.00 | unknown: no sensor chosen | `tools.drawing.QUILL_TOUCH` |
 | ESP32-class board, one per module | 3 | 5.00 | 15.00 | unknown: no board chosen | `power.MODULE_IDLE_W` |
 | Small SPI/I2C display driven by the module's ESP32 | 1 | allowance | 20.00 | unknown: no display chosen | `legs.rack.SCREEN_HALF` |
-| **rack** | | | **108.69** | | |
-| [Bay presence switch: one Omron D2F-01L2 hinge-roller-lever microswitch in each tool bay's V-tray](https://www.digikey.de/de/products/detail/omron-electronics-inc-emc-div/D2F-01L2/368444) `D2F-01L2` | 3 | 2.59 | 7.77 | unknown: not read for this bill; the price is the workshop catalog's (#199, 2026-09-14) | `bay*_tray_l_*` |
+| **rack** | | | **146.86** | | |
+| [Bay presence switch: one Omron D2F-01L2 hinge-roller-lever microswitch in each tool bay's V-tray](https://www.digikey.de/de/products/detail/omron-electronics-inc-emc-div/D2F-01L2/368444) `D2F-01L2` | 6 | 2.59 | 15.54 | unknown: not read for this bill; the price is the workshop catalog's (#199, 2026-09-14) | `bay*_tray_l_*` |
 | ESP32-class board, one per module | 1 | 5.00 | 5.00 | unknown: no board chosen | `power.MODULE_IDLE_W` |
-| [Aluminium extrusion 30x30 light, B-type slot 8, cut to length (1 m)](https://www.dold-mechatronik.de/Aluminum-Profile-30x30L-B-Type-Groove-8-084kg-m-Customized-Cutting-50-to-6000mm) `67700-Z` | 4 | 10.40 | 41.60 | in stock, 4-5 working days (Dold) | `legs.rack.RackSpec.peg_z`, `legs.rack.RackSpec.rail_z` |
+| [Aluminium extrusion 30x30 light, B-type slot 8, cut to length (1 m)](https://www.dold-mechatronik.de/Aluminum-Profile-30x30L-B-Type-Groove-8-084kg-m-Customized-Cutting-50-to-6000mm) `67700-Z` | 5 | 10.40 | 52.00 | in stock, 4-5 working days (Dold) | `legs.rack.RackSpec.peg_z`, `legs.rack.RackSpec.rail_z` |
 | [Angle bracket 30, B-type slot 8, with its screws and hammer nuts](https://www.dold-mechatronik.de/Angle-30-B-type-groove-8-with-mounting-kit-and-cap) `66918-BSA` | 8 | 1.79 | 14.32 | in stock, 3-4 working days (Dold) | — |
-| The rack's back board, its six printed V-trays, and the rack's and the dock's printed tags | 1 | allowance | 40.00 | unknown: a board from a DIY store; the trays and tags printed in the shop | `legs.rack.TRAY_Y`, `legs.rack.RACK_TAG_IDS`, `legs.dock.DockSpec.board_x` |
+| The rack's back board, its twelve printed V-trays, and the rack's, the rail's and the dock's printed tags | 1 | allowance | 60.00 | unknown: a board from a DIY store; the trays and tags printed in the shop | `legs.rack.TRAY_Y`, `legs.rack.RACK_TAG_IDS`, `legs.rack.BUILT.tag_ids`, +1 |
 | **dock** | | | **262.98** | | |
 | [Mill-Max 0858-0-15-20-82-14-11-0 spring-loaded pin (gold, 1.27 mm plunger, 2.29 mm stroke)](https://www.digikey.de/de/products/detail/mill-max-manufacturing-corp/0858-0-15-20-82-14-11-0/7667985) `0858-0-15-20-82-14-11-0` | 4 | 2.12 | 8.48 | 18,820 in stock, the maker's standard lead 4 weeks (DigiKey DE) | `legs.dock.PIN_TRAVEL`, `legs.dock.PIN_STROKE`, `legs.dock.PIN_TIP_R`, +2 |
 | [Belly pads: 2-layer ENIG PCB, 160 x 20 mm, a batch of 6 (AISLER Budget)](https://aisler.net/en/products/boards) | 1 | 38.83 | 38.83 | dispatched in about 10 business days, then 2 days by post (AISLER) | `legs.model.PAD_HALF`, `legs.model.PAD_Y` |
@@ -149,10 +149,10 @@ Prices and lead times read 2026-09-28; € incl. 19% VAT; $1 = €0.8770 (ECB, 2
 
 | | € | $ |
 |---|---|---|
-| priced lines | 6,043.99 | |
-| allowances (nothing designed yet) | 1,575.00 | |
-| contingency, 15% | 1,142.85 | |
-| **total** | **8,761.84** | **9,991.13** |
+| priced lines | 6,062.16 | |
+| allowances (nothing designed yet) | 1,595.00 | |
+| contingency, 15% | 1,148.57 | |
+| **total** | **8,805.73** | **10,041.17** |
 | budget | 17,539.24 | 20,000.00 |
 
 **The allowances**, each a sum set aside, never a price:
@@ -160,10 +160,10 @@ Prices and lead times read 2026-09-28; € incl. 19% VAT; $1 = €0.8770 (ECB, 2
 - **The torso's frame: two 3 mm aluminium side plates, end caps and cross members** (frame and legs), €300.00: six to eight 3 mm AlMg3 parts: AluFritze's online configurator prices a plain 300 x 150 mm rectangle at €20.02 (four for €80.10, 10-14 working days); a plate with holes is priced from its drawing
 - **The legs' motor mounts, hip brackets, knee housings and tube clamps, with their fasteners** (frame and legs), €800.00: twelve motor mounts, four hip brackets and eight tube clamps, nothing drawn, sized as machined aluminium at a job shop; printed on the shop's P1S they cost their filament
 - **The arm's end plate, fork and lean-pad (two prongs, four 60° V's, two 53° end-ramps), and the parallelogram's three rods** (arm), €150.00: one machined aluminium plate with its prongs, V's and ramps, and three 5 mm rods threaded M5: a plain 4 mm plate is €23.12 at AluFritze, the V's and ramps are machining
-- **Tool peg, 220 mm: two 6 mm steel conductors on an insulating bush** (tools), €30.00: three pegs cut and turned from a metre of 6 mm silver steel and an acetal bush each, as `peg_rod_6mm`
+- **Tool peg, 220 mm: two 6 mm steel conductors on an insulating bush** (tools), €30.00: three pegs cut and turned from a metre of 6 mm silver steel and an acetal bush each
 - **Linear Hall-effect sensor and a small magnet on the pen's sprung quill, reading its travel** (tools), €5.00: a linear Hall sensor and a 3 mm magnet on the pen's quill, as TI's DRV5055: a few euros; none chosen yet
 - **Small SPI/I2C display driven by the module's ESP32** (tools), €20.00: a small SPI display for the LCD tool's ESP32; none chosen yet
-- **The rack's back board, its six printed V-trays, and the rack's and the dock's printed tags** (rack), €40.00: a 1.0 x 0.6 m plywood back board, six V-trays printed in PETG from the shop's spools, and the rack's six and the dock's four 60 mm tags printed and laminated
+- **The rack's back board, its twelve printed V-trays, and the rack's, the rail's and the dock's printed tags** (rack), €60.00: a 2.0 x 0.6 m plywood back board, twelve V-trays printed in PETG from the shop's spools, and the rack's twelve (the built-tool rail's six, #407) and the dock's four 60 mm tags printed and laminated
 - **The dock's cradle: the bed and funnel faces cut from the sheet, on a base** (dock), €100.00: the bed and the funnel's faces routed from the sheet and screwed to a base: an hour at a job shop, or by hand
 - **The bench leg's mount: the carriage's plate holding the hip, and the hop's end stops** (bench leg), €60.00: a 4 mm AlMg3 plate at AluFritze (a plain 300 x 150 mm one is €23.12) and printed end stops
 - **The gantry's fittings: angle brackets and T-nuts for 40x40 slot 8, and two eye bolts** (gantry), €40.00: eight angle brackets with T-nuts for 40x40 slot 8 and two eye bolts; the 30x30's brackets are €1.79-2.20 at Dold, the 40x40's were not read
@@ -409,16 +409,15 @@ Every tool hangs by a split PEG that a fork of V-notches takes
 (`rack/coupling.py`; ToolPattern.md §2 is the envelope): the rack's V-trays
 catch the peg near its ends and the fork grabs it outboard of them, so
 gravity is the latch and the V's depth the retention. The served rack's peg
-is 220 mm (`quad_tool_peg`, "The arm and its coupling", above); the
-workshop's rig (`coupling.scene_xml`) hangs a tool by the 150 mm original
-(`peg_rod_6mm`).
+is 220 mm (`quad_tool_peg`, "The arm and its coupling", above), and the
+workshop's built tools hang by it too (#407).
 
 | Part | Route | Notes → sim |
 |---|---|---|
-| Tool peg axles | **6 mm steel rod** (conductive, below), two conductors on an insulating centre bush | the one loaded part **and the electrical connector** — `coupling.PEG_R`, `PEG_INSUL_HALF`; `legs.rack.PEG_HALF` on the served rack |
-| Module frames | 3D-printed plates, a common peg interface | ~250 g practical ceiling (ToolPattern.md "Mass and geometry class"); the served tools are 151–239 g (`legs.rack.TOOL_KG`) |
+| Tool peg axles | **6 mm steel rod** (conductive, below), two conductors on an insulating centre bush | the one loaded part **and the electrical connector** — `coupling.PEG_R`, `PEG_INSUL_HALF`, `legs.rack.PEG_HALF` (220 mm) |
+| Module frames | 3D-printed plates, a common peg interface | the arm's envelope: 0.40 kg, the centre of mass on the peg or up to 60 mm ahead, hung plumb (`legs/arm.py`; ToolPattern.md §2); the served tools are 151–239 g (`legs.rack.TOOL_KG`) |
 | Module electronics | one ESP32-class board per module (~€5 each) | **power-only coupling, wireless data** — keeps the mating interface dumb and tolerant. A 0.6 W load (`power.MODULE_IDLE_W`) drawn only while the coupling conducts |
-| Bay presence switches | one Omron D2F-01L2 per bay (three, €2.59 each) in the +y V-tray; an ESP32 on the rack reads them and reports them over the network | `coupling.bay_switches`: which bays are taken, never by which tool — what the robot's `rack` context is built off (Overseer.md §2i). The sim reads contact, not force: a bare switch under one tray would not close for the LCD tool (about 0.74 N a tray against its 0.78 N), so the lever has to carry the tray, or a lighter switch; open |
+| Bay presence switches | one Omron D2F-01L2 per bay (six: the rack's three and the built-tool rail's, €2.59 each) in the +y V-tray; an ESP32 on the rack reads them and reports them over the network | `coupling.bay_switches`: which bays are taken, never by which tool — what the robot's `rack` context is built off (Overseer.md §2i). The sim reads contact, not force: a bare switch under one tray would not close for the LCD tool (about 0.74 N a tray against its 0.78 N), so the lever has to carry the tray, or a lighter switch; open |
 | LCD module | a small SPI/I2C display driven by the module's ESP32 | display-only; the face is drawn in the browser off a streamed enum |
 | Pen module (#406) | the pen's sideways carriage is the bill's Actuonix L12-100 (below), its whole 100 mm stroke, under the plate; a sprung quill (60 N/m, 20 mm) holding the pen, and a linear Hall sensor and magnet on the quill reading its travel (`pen_quill_hall`, none chosen: an allowance) | `legs.rack.PEN_TRAVEL` (±50 mm), `PEN_FORCE_N`, `PEN_SPEED`, `PEN_QUILL_STIFFNESS`; the quill's sense is `tools.drawing.PenPlotter.quill` -- what the plotter finds a board's face by, with 0.05 mm of noise assumed (`QUILL_NOISE`) until a sensor is chosen. The module balances on its peg (SimNotes, "Drawing on legs") |
 | Claw module (#407) | a second L12-100 carries the hand across under the plate (the body cannot sidestep millimetres); two jaws on one FS90MG through a 10 mm rack and pinion (0.216 N·m at stall: ~10 N a jaw), 40 mm pads, 175 mm under the peg | `legs.rack.CLAW_TRAVEL` (the pen's stroke), `CLAW_JAW_FORCE_N`, `CLAW_GRIP_KP` (stiff, so the stall force is the clip), `CLAW_PAD_SOLREF` / `SOLIMP`, `CLAW_JAW_DROP`; its eye is the D435's colour imager (below), its grip judged off the world (SimNotes, "The claw on legs") |

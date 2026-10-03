@@ -164,13 +164,14 @@ def switched_bays() -> Reader:
   """How many bays the served rack gives a presence switch (issue #351):
   those whose switch V (`coupling.BAY_SWITCH_PLATES`) its generator emits.
   The rack is the house's, not the robot's model, so it is read off
-  `legs.rack.rack_xml` at its drawing (`legs.rack.DEFAULT`)."""
+  `legs.rack.rack_xml` at its drawing: the hand-built tools' bays and the
+  built-tool rail's (`legs.rack.SPECS`, #407)."""
   def read(_spec):
     import mujoco
     from pluggybot.legs import rack
     from pluggybot.rack.coupling import BAY_SWITCH_PLATES, STATION_YS, bay_prefix
-    spec = mujoco.MjSpec.from_string(
-      f"<mujoco><worldbody>{rack.rack_xml(rack.DEFAULT)}</worldbody></mujoco>")
+    racks = "".join(rack.rack_xml(s, name=f"r{k}") for k, s in enumerate(rack.SPECS))
+    spec = mujoco.MjSpec.from_string(f"<mujoco><worldbody>{racks}</worldbody></mujoco>")
     names = {g.name for g in spec.geoms}
     return sum(all(bay_prefix(i) + p in names for p in BAY_SWITCH_PLATES)
                for i in range(len(STATION_YS)))
@@ -332,58 +333,35 @@ PARTS: tuple[Part, ...] = (
          "enum.",
   ),
   Part(
-    "peg_rod_6mm", "Tool peg axle: 6 mm steel rod, 150 mm, two 63 mm "
-    "conductors on a 24 mm insulating bush", "structure", "chosen",
-    ("catalog",), (),
-    dimensionsMm={"diameter": 6, "length": 150, "conductor": 63, "bush": 24},
-    capabilities={"conductive": True, "poles": 2},
-    feeds=(
-      code("rack.coupling.PEG_R", "m", "half the 6 mm rod", expect=0.003),
-      code("rack.coupling.PEG_HALF", "m", "half the 150 mm rod",
-           expect=0.075),
-      code("rack.coupling.PEG_INSUL_HALF", "m", "half the 24 mm bush",
-           expect=0.012),
-      code("rack.coupling.PEG_COND_HALF", "m", "half a 63 mm conductor",
-           expect=0.0315),
-      code("rack.coupling.PEG_FRICTION", "", "honest peg friction: the "
-           "measured worst power outage under hard driving is 178 ms, which "
-           "sizes the module's holding capacitor (~200 ms)"),
-      code("rack.coupling.PEG_MASS", "kg", "the rod's share of the module "
-           "budget, split 8 + 8 + 4 g over the three sections"),
-    ),
-    why={"partNumber": STOCK, "source": STOCK,
-         "massG": "not weighed. ⚠ The sim's peg totals 20 g; a 150 mm "
-         "length of 6 mm steel would weigh ~33 g -- an open discrepancy "
-         "for #168's validator to carry, not a number to invent here",
-         "priceEur": STOCK},
-    note="The one loaded part AND the electrical connector: split peg + "
-         "the fork's two V-notch pairs are a two-pole coupling, self-wiping "
-         "on the seating slide. The workshop's rig (`coupling.scene_xml`) "
-         "hangs a tool by it; the served rack's is `quad_tool_peg`, the "
-         "same rod lengthened to 220 mm.",
-  ),
-  Part(
     "module_frame", "Module frame: a 3D-printed plate on the common peg "
     "interface", "structure", "chosen", ("catalog",), (),
     dimensionsMm={"x": 20, "y": 40, "z": 60},
-    capabilities={"massBudgetG": 120, "massCeilingG": 250,
-                  "momentBudgetNm": 0.45},
     feeds=(
-      code("rack.coupling.MODULE_MASS", "kg",
-           "the plate + peg budget every module is emitted at; the face "
-           "sits on top", expect=0.12),
+      code("legs.rack.MODULE_MASS", "kg",
+           "the plate + 220 mm peg budget every module is emitted at; the "
+           "face sits on top"),
       code("rack.coupling.TOOL_HALF_X", "m", "the plate's half-thickness"),
       code("rack.coupling.TOOL_HALF_Y", "m", "half its width"),
       code("rack.coupling.TOOL_HALF_Z", "m", "half its height"),
+      code("legs.arm.TOOL_MAX_KG", "kg", "the arm's ceiling for a tool, the "
+           "plate and peg included"),
+      code("legs.arm.TOOL_MAX_AHEAD_M", "m", "how far ahead of its peg a "
+           "tool's centre of mass may sit"),
+      code("legs.arm.TOOL_MAX_MOMENT_NM", "N·m", "the moment about the peg "
+           "that lever may carry"),
+      code("legs.arm.TOOL_MAX_DROP_M", "m", "how far under its peg a tool "
+           "may hang: carried, it clears the LIDAR's plane"),
+      code("legs.rack.HUNG_TILT_DEG", "deg", "how far off plumb a hung tool "
+           "may hang"),
     ),
     why={"partNumber": PRINTED, "source": PRINTED,
          "massG": "not weighed; the sim budgets 100 g for the plate, the "
          "budget less the peg. ⚠ A budget, not a print: this plate in PLA "
          "would weigh ~60 g",
          "priceEur": "printed: filament only, unpriced"},
-    note="The moment budget is the number that shapes tools: the gravity "
-         "latch takes ~0.45 N·m of pitch before the peg rides out of its V, "
-         "so reach is far dearer than mass (ToolPattern.md §2).",
+    note="The arm's envelope shapes a tool (ToolPattern.md §2, "
+         "`workshop/validate.py`): its centre of mass on its peg or ahead of "
+         "it, and hung, plumb.",
   ),
   Part(
     "module_servo", "Small servo for a module axis (unspecified)", "actuator",
@@ -1150,16 +1128,28 @@ PARTS: tuple[Part, ...] = (
   # ---- tools, rack, dock ---------------------------------------------------
   Part(
     "quad_tool_peg", "Tool peg, 220 mm: two 6 mm steel conductors on an "
-    "insulating bush", "structure", "chosen", ("build",), (),
+    "insulating bush", "structure", "chosen", ("catalog", "build"), (),
     quantity=3,
+    capabilities={"conductive": True, "poles": 2},
     feeds=(
       code("legs.rack.PEG_HALF", "m", "half its 220 mm"),
+      code("rack.coupling.PEG_R", "m", "half the 6 mm rod", expect=0.003),
+      code("rack.coupling.PEG_INSUL_HALF", "m", "half the 24 mm bush",
+           expect=0.012),
+      code("rack.coupling.PEG_FRICTION", "", "honest peg friction: on legs "
+           "the coupling opens for up to 160 ms in a full-rate turn (so a body "
+           "carrying turns at `legs.body.W_CARRY`) and under 100 ms down a "
+           "flight, inside the module's ~200 ms holding capacitor"),
       code("legs.rack.PEG_MASS", "kg",
-           "`peg_rod_6mm`'s grams a millimetre, the bush unchanged"),
+           "the rover's 150 mm rod's grams a millimetre, the bush unchanged"),
     ),
     why={"partNumber": "no design yet", "source": "turned in the shop, once drawn",
-         "massG": "29 g at `peg_rod_6mm`'s grams a millimetre (`PEG_MASS`)",
+         "massG": "not weighed: 29 g at the rover's 150 mm rod's 20 g, the same "
+         "grams a millimetre (`PEG_MASS`)",
          "dimensionsMm": "6 x 220 mm", "priceEur": "no design yet"},
+    note="The one loaded part AND the electrical connector: the split peg and "
+         "the fork's two V pairs are a two-pole coupling, self-wiping on the "
+         "seating slide. Every tool hangs by it, the workshop's too.",
   ),
   Part(
     "dold_3030_1m", "Aluminium extrusion 30x30 light, B-type slot 8, cut to "
@@ -1186,16 +1176,19 @@ PARTS: tuple[Part, ...] = (
     note="€1.79 from ten, €2.20 singly: the bill buys fourteen.",
   ),
   Part(
-    "quad_rack_board", "The rack's back board, its six printed V-trays, and "
-    "the rack's and the dock's printed tags", "structure", "chosen",
+    "quad_rack_board", "The rack's back board, its twelve printed V-trays, and "
+    "the rack's, the rail's and the dock's printed tags", "structure", "chosen",
     ("build",), (), quantity=1,
     feeds=(
       code("legs.rack.TRAY_Y", "m", "the trays at ±45 mm"),
       code("legs.rack.RACK_TAG_IDS", "id", "tags 29-34, a pair a bay"),
+      code("legs.rack.BUILT.tag_ids", "id",
+           "tags 47-52, a pair a bay of the built-tool rail (#407)"),
       code("legs.dock.DockSpec.board_x", "m", "the dock's tag board"),
     ),
     why={"partNumber": "no design yet", "source": "a board and the shop's PETG",
-         "massG": "no design yet", "dimensionsMm": "about 1.0 x 0.6 m",
+         "massG": "no design yet",
+         "dimensionsMm": "about 1.9 x 0.6 m: the rack's bays and the rail's",
          "priceEur": "no design yet"},
   ),
   Part(
@@ -1205,14 +1198,15 @@ PARTS: tuple[Part, ...] = (
     source="https://www.digikey.de/de/products/detail/omron-electronics-inc-"
     "emc-div/D2F-01L2/368444",
     massG=0.5, dimensionsMm={"length": 12.8, "width": 5.8, "height": 16.5},
-    priceEur=2.59, quantity=3,
+    priceEur=2.59, quantity=6,
     capabilities={"sense": "contact", "operatingForceN": 0.78,
                   "releasingForceN": 0.05, "overtravelMm": 0.55,
                   "contactRating": "0.1 A 30 V DC", "powerW": 0},
     feeds=(
       Feed("bay*_tray_l_*", switched_bays(), "bays",
            "one switch in each bay's +y V (`coupling.BAY_SWITCH_PLATES`), as "
-           "the rack's generator emits it", expect=3),
+           "the rack's generator emits it: the tools' three, the rail's three",
+           expect=6),
     ),
     note="Feeds `coupling.bay_switches`, all the rack reports over the "
          "network: which bays are occupied, never by which tool (issue "
@@ -1680,7 +1674,7 @@ LINES: tuple[Line, ...] = (
   # ---- tools ---------------------------------------------------------------
   Line("quad_tool_peg", 3, "tools", None, why=UNDRAWN, allowanceEur=30.0,
        basis="three pegs cut and turned from a metre of 6 mm silver steel "
-             "and an acetal bush each, as `peg_rod_6mm`"),
+             "and an acetal bush each"),
   Line("servo_fs90mg", 1, "tools", None, why=NOT_READ,
        note="the claw's jaws, through a rack and pinion (#407); the rover's "
             "seed dispenser is retired -- no job ever used it"),
@@ -1697,20 +1691,23 @@ LINES: tuple[Line, ...] = (
        allowanceEur=20.0,
        basis="a small SPI display for the LCD tool's ESP32; none chosen yet"),
   # ---- rack ----------------------------------------------------------------
-  Line("bay_switch", 3, "rack", None, why=NOT_READ,
-       note="one a bay: what the rack reports (#351)"),
+  Line("bay_switch", 6, "rack", None, why=NOT_READ,
+       note="one a bay, the built-tool rail's three too (#407): what the rack "
+            "reports (#351)"),
   Line("module_esp32", 1, "rack", None, why={"leadTime": "no board chosen"},
        note="the rack's board, which reports the switches"),
-  Line("dold_3030_1m", 4, "rack", "in stock, 4-5 working days (Dold)",
-       note="two posts, the rail and its feet"),
+  Line("dold_3030_1m", 5, "rack", "in stock, 4-5 working days (Dold)",
+       note="two posts, the rail's two metres (the built-tool rail's half, "
+            "#407) and its feet"),
   Line("dold_angle_30", 8, "rack", "in stock, 3-4 working days (Dold)"),
   Line("quad_rack_board", 1, "rack", None,
        why={"leadTime": "a board from a DIY store; the trays and tags printed "
                         "in the shop"},
-       allowanceEur=40.0,
-       basis="a 1.0 x 0.6 m plywood back board, six V-trays printed in PETG "
-             "from the shop's spools, and the rack's six and the dock's four "
-             "60 mm tags printed and laminated"),
+       allowanceEur=60.0,
+       basis="a 2.0 x 0.6 m plywood back board, twelve V-trays printed in PETG "
+             "from the shop's spools, and the rack's twelve (the built-tool "
+             "rail's six, #407) and the dock's four 60 mm tags printed and "
+             "laminated"),
   # ---- power ---------------------------------------------------------------
   Line("molicel_p45b", 12, "power", "ready to ship in 1-2 days (akkuteile.de)"),
   Line("jbd_bms_12s_120a", 1, "power",

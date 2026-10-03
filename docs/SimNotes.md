@@ -1434,9 +1434,9 @@ its planar model, #405); the coupling is `ArmSpec().fork` (60° V's) with
 `rack.bay_aim` and walked into by `rack.walk_in_twist`; the stow, the carry
 pose, the fold threshold and the tool envelope are `legs/arm.py`'s
 constants. `tests/test_arm.py` pins each rule above. #405 built the arm
-and the fold into the served body; its stage B brings the rack and the
-tools into the served world and the carried-tool filter into the scans,
-and step 4c the envelope into the workshop's validator.
+and the fold into the served body, and the rack, the tools and the
+carried-tool filter into the served world; #407 made the envelope the
+workshop's validator ("The workshop on legs").
 
 ## The served sim's speed (issue #385)
 
@@ -3233,6 +3233,80 @@ still avoids no peer.
 
 **What is true now:** `ToolSwap._bay_free_routine` asks the lifecycle's
 wait with `hold`, and a swap whose wait gave up is `blocked`.
+
+## The workshop on legs (issue #407)
+
+The rover's built-tool rail went with it (#376). The quadruped's rack has
+three bays and the three tools every offered job is written against hang in
+them (#277's rule keeps them permanent), so a built tool gets a rail of its
+own: three more bays along the same board, in line with the rack's
+(`legs.rack.BUILT`, at 0.65, 0.95 and 1.25 m in the rack's frame, a pair of
+tags a bay, 47–52). One board means one commissioned pose, one approach and
+one look that fits every tag it sees (`fit_rack(seen, SPECS)`).
+
+**The envelope is the arm's** (`workshop/validate.py`, every number read off
+`legs/arm.py` and `legs/rack.py`; ToolPattern.md §2). The rover's latch
+moment, bracket band and wall went with the rover. Each new rule was found
+by a build that broke it:
+
+- **A hung tool hangs plumb.** The rover's example scoop, its blade forward
+  of the plate, hung 5° off plumb, and `on_bay` read it as not hung; the
+  prompt's example hangs its blade straight down.
+- **...and centred.** A centre of mass 70 mm to one side validated and
+  tipped 47° off the trays. Measured in the rig, 30 mm hung, was taken and
+  hung back with the fork 15 mm either way; 35 mm did not seat with the fork
+  15 mm toward it; 45 mm (the trays' own ±45) did not hang: the rule is 25.
+- **Nothing behind the plate** (the fork's prongs, bridge and lean-pad),
+  **nothing in front of its bay's tags** — the plate's own slab included:
+  a crossbar there, 76 mm wide, hid both tags from the working pose — and
+  **nothing in reach of the rail** the trays hang from, hung or lifted by a
+  pick: a thin handle up to 150 mm over the peg jammed on it at 15°.
+
+**And the rig is the last gate** (`build.trial`), before a point moves: the
+module hung, taken, worked and hung back on a bench rack, the fork on the
+bay's middle and at the line-up gate either side, 0.25 s a try. A tool that
+cannot hang is otherwise lost the moment it hangs, and the lost-tool clock
+puts it back on the same bay every 300 s for ever. The names a module would
+bring are checked against the world's first (`seam.names_taken`): a tool
+called `claw_carriage` named a body of the claw's and was refused only once
+its parts were bought, and one called `claw_pad` with a part `l` broke the
+world's compile.
+
+**At its stow.** The validator checks a tool hanging at its stow, so the
+module compiles there: each moving part built at its axis's stow with the
+joint's `ref` set to it, so `qpos0` is the stow — the rest a walk, a
+hang-back and a reset return it to — and the seam sets each new servo to
+hold there (a recompile starts a new actuator at 0). Built at 0, a flap
+whose stow is −90° hung 14° off plumb and was lost from the moment it hung,
+and a hinge a procedure had swung was hung back swung.
+
+**Two bugs in the build path**, each pinned in `tests/test_workshop_build.py`:
+a servo's range was written in degrees into a module compiled in radians, so
+its 0–90° compiled as 0–90 rad and limited nothing; and the stand-in inertial
+given a part with no mass of its own zeroed the masses of the parts riding on
+it (only an empty load gets one now).
+
+**The seam on the served pair.** A built module is attached after the
+robots, so no robot's ids move; every holder of the old model re-resolves its
+ids by name (`QuadMission.rebind`: the drivers, the policy, the arm, the
+odometry, the places, the claw). The hang waits until every body is still: a
+body lying down, standing up, working a bay or stepping aside is a generator
+holding the world it began in, as a restart's save waits (`Keeper.busy`). A
+recompile builds the model from the spec, so whatever the running world had
+written into the old model goes: the garden lamp went dark for good until
+its toggle's rebind applied its state again. Measured (`scripts/workshop.py
+--example --served --bay A|B|C`, the pair standing): the recompile 6–10 ms
+of wall time; no stale holder in either lifecycle; neither robot moved or
+fell; the scoop hung plumb; the arm fetched it on its first walk-in
+(3.5–5.3 mm across, within 1.5°) and hung it back.
+
+**What is true now:** `home_quad` has the workshop (`world_config`'s
+`built_bays` is 3), its prompt states the arm's envelope (`workshop_rule`),
+and a bay letter past the rail's is refused without naming an original's
+bay. A robot standing by is sent clear of the rail's bays and their
+approaches as well as the dock (`rack_distance`, off each rail bay's
+standoff: computed off the dock's frame, two rail bays' approaches were
+"clear").
 
 ## Debugging workflow that worked
 

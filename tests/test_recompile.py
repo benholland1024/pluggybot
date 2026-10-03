@@ -1,21 +1,21 @@
 """The recompile seam (issue #168, slice C): a tool appears in a running
 world, and every holder of the old world follows it.
 
-No served world carries the built-tool rail (the quadruped's rack has none,
-and its body refuses a recompile: #405; #407 re-homes the workshop on
-legs), so what is pinned here is the seam's own rules -- off a spec, a stub
-world, or the served world's refusal:
+The served world carries the built-tool rail on the rack's board (#407,
+`legs.rack.BUILT`), and its quadrupeds follow a recompile (`QuadMission.
+rebind`):
 
   1. THE SEAM REFUSES OUT LOUD, IN ITS ORDER: a world compiled without its
-     spec, a world without the rail (the served world), and where a rail
-     stands, a robot mid-errand or holding a module, or a bay off the rail;
-     a hand-built module by name, wherever asked.
+     spec, a world without the rail, and where a rail stands, a robot
+     mid-errand, holding a module or in the middle of a move, or a bay off
+     the rail; a hand-built module by name, wherever asked.
   2. A RETIRE TAKES A BUILT TOOL'S ACTUATORS WITH IT, and the ids after it
      shift while the state follows by name -- why every rebind resolves by
      name.
   3. NO STALE HOLDER, two ways. At run time: after a recompile, nothing
-     reachable from ANY lifecycle in the world holds the old model or data,
-     and the one physics loop steps the new world. Statically: every class
+     reachable from ANY lifecycle in the world holds the old model or data
+     -- the served quadruped pair's included, which go on standing -- and
+     the one physics loop steps the new world. Statically: every class
      in `src/` that assigns `self.model` or `self.data` defines `rebind`, or
      is on the roster below with a reason.
   4. A PAIR IS ONE WORLD (issue #315): one spec both lifecycles keep, one
@@ -23,6 +23,7 @@ world, or the served world's refusal:
 """
 
 import ast
+import copy
 import json
 from pathlib import Path
 
@@ -136,15 +137,26 @@ def _railed(life) -> HubLifecycle:
 # ---- 1. the refusals ---------------------------------------------------------
 
 
-def test_the_served_world_has_no_rail_and_the_seam_says_so():
+def test_the_served_world_has_the_rail_on_the_racks_board():
+  """Three more bays past the claw's, on the rack's own board and frame
+  (#407): the world carries them, its config counts them, and the swap
+  finds each by its station (`rack.spec_of`)."""
+  from pluggybot.legs import rack as rk
   cfg = world_config(WORLD)
+  assert cfg["built_bays"] == len(rk.BUILT.bays) == len(BUILT_STATION_YS)
   spec = world_spec(cfg["model"], body=cfg["body"])
   model = spec.compile()
   life = HubLifecycle(model, mujoco.MjData(model), realtime=False, world=WORLD,
                       spec=spec)
-  assert life.has_built_rack is False
-  with pytest.raises(SeamRefused, match="no built-tool rack"):
-    life.hang_tool(validate.check(SCOOP), 0)
+  assert life.has_built_rack
+  assert rk.BUILT.stations == tuple(coupling.built_bay_index(k)
+                                    for k in range(len(BUILT_STATION_YS)))
+  assert [rk.spec_of(s) for s in (0, 2, 5, 7)] == [(rk.DEFAULT, 0), (rk.DEFAULT, 2),
+                                                  (rk.BUILT, 0), (rk.BUILT, 2)]
+  with pytest.raises(ValueError):
+    rk.spec_of(3)
+  assert set(rk.BUILT.tag_ids).isdisjoint(rk.DEFAULT.tag_ids)
+  life.body.close()
 
 
 def test_the_seam_refuses_in_its_order():
@@ -199,7 +211,7 @@ def test_a_retire_takes_the_actuators_and_the_state_still_follows_by_name(tmp_pa
   spec, _, _ = _stub_world()
   spec.modelfiledir = str(tmp_path)
   for raw, bay in ((SCOOP, 0), (SCOOP2, 1)):
-    seam.attach(spec, validate.check(raw), bay, (0.0, 0.0), 0.0, model_dir=tmp_path)
+    seam.attach(spec, validate.check(raw), bay, (0.0, 0.0, 0.0))
   model = spec.compile()
   data = mujoco.MjData(model)
   for _ in range(500):
@@ -227,14 +239,6 @@ def test_the_rail_is_past_the_first_racks_bays_in_one_index_space():
     assert coupling.is_built_bay(first + k) and not coupling.is_built_bay(k)
   with pytest.raises(ValueError):
     coupling.built_bay_index(len(BUILT_STATION_YS))
-
-
-def test_the_tag_png_is_written_once(tmp_path):
-  p1 = seam.write_tag_png(seam.tag_id_for_bay(2), tmp_path)
-  stamp = p1.stat().st_mtime_ns
-  p2 = seam.write_tag_png(seam.tag_id_for_bay(2), tmp_path)
-  assert p1 == p2 and p2.stat().st_mtime_ns == stamp
-  assert [p.name for p in tmp_path.iterdir()] == [p1.name], "a temp file was left"
 
 
 # ---- 3. no stale holder ------------------------------------------------------
@@ -328,8 +332,192 @@ def test_a_pair_is_compiled_from_a_spec_both_lifecycles_keep():
   a, b = build_pair(WORLD, errands=("none", "none"))
   assert a.spec is not None and a.spec is b.spec
   assert a.rack_inventory is b.rack_inventory
-  with pytest.raises(SeamRefused, match="no built-tool rack"):
-    a.can_reshape(0)
+  a.can_reshape(0)                       # the rail is there, and both stand still
+  with pytest.raises(SeamRefused, match="no bay 3"):
+    a.can_reshape(3)
+  for life in (a, b):
+    life.body.close()
+
+
+def test_a_tool_hung_on_the_served_pair_leaves_no_holder_of_the_old_world():
+  """THE QUADRUPED'S REBIND (#407), on the served pair: a scoop hung on the
+  rail's first bay, the world recompiled, and nothing reachable from either
+  robot holds the old model or data -- its drivers, arm, reckoning, cameras
+  -- and neither moves, falls or lets go: the joints are where they were
+  in qpos (a built module is attached after the robots), and both go on
+  standing on the new world. The tool hangs plumb on its bay, at the
+  rail's station. A retire is the same, and the tool is gone. Shown to
+  fail with any one holder's rebind left out (the arm's, the odometry's).
+  (The arm then fetching it off the rail and hanging it back is #407's
+  measurement, reported, not flown here.)"""
+  from pluggybot.legs import rack as rk
+  from pluggybot.pair import build_pair
+  lives = build_pair(WORLD, errands=("none", "none"))
+  try:
+    for life in lives:
+      life.body.start_at(*life.body.pose)
+    tick.run_many([(life.body.stepper, life.body.hold_routine(0.5)) for life in lives])
+    a = lives[0]
+    adr = [life.body.mission.joints.qadr.copy() for life in lives]
+    old = (a.model, a.data)
+    events = []
+    a.on_event.append(events.append)
+    a.hang_tool(validate.check(SCOOP), 0)
+    for life in lives:
+      stale = [p for p, o in _holders(life, depth=9) if o is old[0] or o is old[1]]
+      assert stale == [], (life.root, stale)
+    assert [list(life.body.mission.joints.qadr) for life in lives] == [list(q) for q in adr]
+    tick.run_many([(life.body.stepper, life.body.hold_routine(1.0)) for life in lives])
+    for life in lives:
+      assert life.body.posture == "standing" and life.body.mission.falls == 0, life.root
+    assert rk.on_bay(a.model, a.data, "module_scoop", rk.BUILT, 0)
+    assert a.body.module_state("module_scoop")["bay"] == coupling.built_bay_index(0)
+    assert [e["type"] for e in events].count("scene_changed") == 1
+    old = (a.model, a.data)
+    a.retire_tool("module_scoop")
+    for life in lives:
+      assert not [p for p, o in _holders(life, depth=9) if o is old[0] or o is old[1]]
+    assert mujoco.mj_name2id(a.model, mujoco.mjtObj.mjOBJ_BODY, "module_scoop") < 0
+    tick.run_many([(life.body.stepper, life.body.hold_routine(0.5)) for life in lives])
+    assert all(life.body.mission.falls == 0 for life in lives)
+  finally:
+    for life in lives:
+      life.body.close()
+
+
+def test_a_tool_built_yesterday_hangs_again_when_the_served_pair_starts(tmp_path):
+  """A restart recompiles the world from a file that knows nothing of built
+  tools, and `begin` hangs every recorded one again, paid once
+  (`restore_tools`, #168) -- on legs (#407), the path a deployed build
+  takes at every restart: the scoop is back on its rail bay, plumb, and
+  both robots stand on the new world."""
+  from types import SimpleNamespace
+
+  from pluggybot.legs import rack as rk
+  from pluggybot.pair import build_pair
+  from pluggybot.workshop import cost
+  from pluggybot.workshop.library import Workshop
+  shop = Workshop(tmp_path / "tools")
+  tool = validate.check(SCOOP)
+  shop.record(tool, SCOOP, 1, cost.price(tool), 0.0)
+  lives = build_pair(WORLD, errands=("none", "none"))
+  try:
+    a = lives[0]
+    mind, a.overseer = a.overseer, SimpleNamespace(workshop=shop)
+    a.begin(tuple(a.body.pose))
+    a.overseer = mind               # the workshop is all `begin` asks of it
+    assert a.rack_inventory.get("module_scoop") == coupling.built_bay_index(1)
+    for life in lives:
+      life.body.start_at(*life.body.pose)
+    tick.run_many([(life.body.stepper, life.body.hold_routine(1.0)) for life in lives])
+    assert rk.on_bay(a.model, a.data, "module_scoop", rk.BUILT, 1)
+    assert all(life.body.posture == "standing" and life.body.mission.falls == 0
+               for life in lives)
+  finally:
+    for life in lives:
+      life.body.close()
+
+
+#: A tool whose stow is not its joint's zero: hung at its stow the blade
+#: hangs straight down; at 0 it stands out ahead and the tool tilts 14 deg.
+FLAP = {"name": "flap", "parts": [
+  {"id": "hinge", "part": "servo_fs90", "pos": [0, 0, -50],
+   "axis": {"verb": "tilt", "dir": [0, 1, 0], "range": [-90, 0], "stow": -90}},
+  {"id": "blade", "part": "scaffold_pla_box", "size": [70, 40, 8], "pos": [-45, 0, 0],
+   "on": "hinge"}]}
+
+
+def test_a_built_tool_hangs_at_its_stow_and_goes_back_to_it_before_it_is_hung_back():
+  """The validator checks a tool hanging at its STOW (#407), so the world
+  hangs it there: the module compiles with each axis at its stow (the
+  joint's `ref`), its servo holding there, plumb on its bay -- and a hang-back
+  (`carry_configuration_routine`, every stow's first step) returns an axis a
+  procedure moved. Before, a new servo held 0: the flap tilted 14 deg, was
+  `lost` from the moment it hung, and a moved hinge was hung back moved."""
+  import math
+
+  from pluggybot.legs import rack as rk
+  from pluggybot.pair import build_pair
+  from pluggybot.procedure import steps
+  lives = build_pair(WORLD, errands=("none", "none"))
+  try:
+    a = lives[0]
+    for life in lives:
+      life.body.start_at(*life.body.pose)
+    a.hang_tool(validate.check(FLAP), 0)
+    tick.run_many([(life.body.stepper, life.body.hold_routine(1.0)) for life in lives])
+    q = a.model.joint("module_flap_tilt_joint").qposadr[0]
+    act = a.model.actuator("module_flap_tilt").id
+    assert abs(float(a.data.qpos[q]) + math.pi / 2) < 0.05
+    assert rk.on_bay(a.model, a.data, "module_flap", rk.BUILT, 0)
+    # ...a procedure's `move` leaves it at 0; the hang-back brings it home
+    a.body.run(a.body.ramp_routine(act, 0.0, 1.0, settle=0.5))
+    assert abs(float(a.data.qpos[q])) < 0.05
+    a.body.run(steps.carry_configuration_routine(a, "module_flap"))
+    a.body.run(a.body.hold_routine(0.5))
+    assert abs(float(a.data.qpos[q]) + math.pi / 2) < 0.05
+  finally:
+    for life in lives:
+      life.body.close()
+
+
+def test_standing_by_clear_of_the_racks_counts_the_rails_own_bays():
+  """`rack_distance` is the nearer of the dock (`body.rack_prior`, the frame
+  the charge logic works round on legs) and each rail bay's approach start,
+  so a robot standing by is sent clear of the rail's bays and their lanes
+  (`RACK_CLEAR_M`): each standoff, off the rack's own commissioned pose,
+  reads 0. Computed off the dock's frame, as first written, bays B and C's
+  read 2.04 and 2.26 m -- clear -- and a robot waiting there stayed."""
+  from pluggybot.legs import dock as dk
+  from pluggybot.legs import rack as rk
+  from pluggybot.legs.swap import APPROACH_STANDOFF_M
+  from pluggybot.pair import build_pair
+  lives = build_pair(WORLD, errands=("none", "none"))
+  try:
+    a = lives[0]
+    rack = seam.rack_pose(a.model)
+    for k in range(len(rk.BUILT.bays)):
+      work = dk.compose(rack, rk.work_pose(rk.BUILT, k))
+      x, y, _ = dk.compose(work, (-APPROACH_STANDOFF_M, 0.0, 0.0))
+      assert a.rack_distance(x, y) < 1e-6, k
+  finally:
+    for life in lives:
+      life.body.close()
+
+
+def test_a_tool_named_as_something_in_the_world_is_caught_before_it_is_bought():
+  """`seam.names_taken` on the served world's spec (#407): `claw_carriage`
+  names one of the claw's bodies, and `claw_pad` with a part `l` one of its
+  pads -- the first was refused only once its parts were bought, the second
+  broke the world's compile. A free name passes, and so does a rebuild of
+  the built tool the bay retires first."""
+  cfg = world_config(WORLD)
+  spec = world_spec(cfg["model"], body=cfg["body"])
+
+  def tool(name, part="blade"):
+    raw = copy.deepcopy(SCOOP)
+    raw["name"], raw["parts"][1]["id"] = name, part
+    return validate.check(raw)
+  assert "module_claw_carriage" in seam.names_taken(spec, tool("claw_carriage"))
+  assert "module_claw_pad_l" in seam.names_taken(spec, tool("claw_pad", "l"))
+  assert seam.names_taken(spec, tool("scoop")) == []
+  seam.attach(spec, tool("scoop"), 0, (0.0, 0.0, 0.0))
+  assert "module_scoop" in seam.names_taken(spec, tool("scoop"))
+  assert seam.names_taken(spec, tool("scoop"), retiring="module_scoop") == []
+
+
+def test_the_seam_waits_out_a_body_in_the_middle_of_a_move():
+  """A posture move is a generator holding the world it began in: lying
+  down, standing up, work at a bay or a cube, a step aside -- the seam
+  waits, as a restart's save does (`Keeper.busy`), and says whose."""
+  a, b = _stub_pair()
+  a.body.posture = "lying_down"
+  assert a.seam_busy().startswith("you are in the middle of a move")
+  a.body.posture = "standing"
+  b.body.working = True
+  assert a.seam_busy().startswith("Rowan is in the middle of a move")
+  b.body.working = False
+  assert a.seam_busy() == ""
 
 
 def test_the_seam_waits_for_the_other_robot_and_says_whose_errand_it_is():
