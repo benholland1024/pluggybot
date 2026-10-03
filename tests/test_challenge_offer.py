@@ -148,7 +148,7 @@ def test_the_producer_puts_the_tower_up_with_the_room_as_its_target():
                                   "kinds": {"stack_tower": {}}}, None)
   board = TaskBoard()
   producer = TaskProducer(board, beat, {"challenge": ["workshop"]})
-  producer.tick(1.0, pack_wh=8.0)
+  producer.tick(1.0, pack_wh=KINDS["stack_tower"].estimate_wh + 1.0)
   [task] = board.offered()
   assert task.kind == "stack_tower" and task.target == "workshop"
   assert "workshop" in task.description and "say you are done" in task.description

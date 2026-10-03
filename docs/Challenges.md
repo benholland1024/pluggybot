@@ -257,7 +257,7 @@ departure from it:
   sees the offer. A mind's reward table carries the challenge rows
   (`RewardTable.as_context(challenges=True)`).
 - **The energy cost is measured off the hand-written solution**: on legs
-  TOWER from the dock, 7.585 Wh (`energy.json`; the kind's fallback 7.6,
+  TOWER from the dock, 8.106 Wh (`energy.json`; the kind's fallback 8.11,
   #407).
 
 What the observatory will show, blocking nothing: claims (`task` rows,

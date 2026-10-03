@@ -7326,8 +7326,8 @@ def errand_for_task(task, world: str, book=None, answer: str = "",
   carries the task's `secret`: the less of the task an errand can see, the
   less there is for it to be wrong about, and scoring reads the world and
   the frozen commitment instead. A kind whose errand this body cannot build
-  -- a census, a carry, until #407 puts them on legs -- answers None, and
-  the loop leaves the offer alone. A game's errand is
+  -- `fetch_module`'s carry -- answers None, and the loop leaves the offer
+  alone. A game's errand is
   ONE ROLE's (`role`), built for each robot by the pair's referee once
   every role is held (`pair.referee_games`), never at a role's claim.
   """

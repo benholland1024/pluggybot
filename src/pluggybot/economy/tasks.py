@@ -271,8 +271,8 @@ KINDS: dict[str, TaskKind] = {
     # challenge/stack.py's pre-declared predicate, at the call and 10 s
     # later, off the blocks' poses and contacts. Discharged by a procedure
     # the robot writes. MEASURED on legs off the hand-written one from the
-    # dock (`challenge/solutions.TOWER`, #407): 7.585 Wh (`energy.json`).
-    estimate_wh=7.6, discharge="procedure"),
+    # dock (`challenge/solutions.TOWER`, #407): 8.106 Wh (`energy.json`).
+    estimate_wh=8.11, discharge="procedure"),
   "fetch_module": TaskKind(
     "fetch_module", task="carry", target_kind="module",
     template="Fetch {target}, carry it across the room and hang it back up.",

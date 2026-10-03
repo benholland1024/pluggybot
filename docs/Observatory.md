@@ -30,7 +30,7 @@ sensors `claw.holding`, `shoulder.torque` and `elbow.torque`: the deployed
 prefix went 45 062 → 46 475 chars (`prompt_sha` `77c9c402…` →
 `78b2d857…`). A robot holds at its approach's start while the other works
 at its bay or the next (#418). The three jobs are priced (`energy.json`:
-census 13.31 Wh, the tower 7.585, the bench 9.938), and the cadence offers
+census 13.31 Wh, the tower 8.106, the bench 9.938), and the cadence offers
 eight kinds on `home_quad`. ⚠ The house's geometry changed, so the first
 restart on this build keeps the clock, the packs, the deaths and the jobs
 but not the bodies or the maps: both robots re-learn their house.
