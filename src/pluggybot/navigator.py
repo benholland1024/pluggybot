@@ -828,6 +828,21 @@ class Navigator:
             continue
           return self._drove(wx, wy, t0, (
             "" if dist < CLOSE_ENOUGH_M else "peer" if cut else "no_route"))
+        if (self._stand_in is not None and dist >= CLOSE_ENOUGH_M
+            and self.peer_on_the_goal(wx, wy) is not None
+            and self._ask_way(wx, wy, made_way, beyond=beyond)):
+          # ⚠ ...AND A GOAL ONE LIES ON IS A WAY IT CUTS (issue #439): the
+          # plan ends at a stand-in beside its disc, and only a stagnation
+          # asked -- which never came. Its waypoints spent there, the drive
+          # steered at the goal, planned from the disc's far side, and every
+          # new route was progress: MEASURED, a press's walk circled a robot
+          # lying by its standoff for all of its 85 s, asked late or never,
+          # in 7 of 11 placements with the walker's map 2.9 m off and 1 of 14
+          # with both maps true
+          yield from self._drive_routine(OTHER_WAIT_S, 0.0, 0.0)
+          last_improve = self.data.time
+          waiting = True
+          continue
         waypoints = planned
         if self.PROGRESS_ALONG_ROUTE:
           route = self._left(dist, waypoints, wx, wy)

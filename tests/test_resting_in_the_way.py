@@ -22,7 +22,8 @@ nothing stepped, or on the drive with its legs stubbed:
   2. THE WAY IT IS ASKED OFF is told relative to its body (`make_way`).
   3. A FAR ROBOT is planned past (`PAST_M`), and the walk walks on.
   4. THE PRESS: the walk in rides the ask, and is cleared before it is
-     walked -- or not walked, "in the way".
+     walked -- or not walked, "in the way"; and a goal one lies on, its
+     standoff, is asked off at the plan that finds it there (#439).
   5. THE WORDS: dead is dead, and a no is said, once a while.
 
 The day's attribution is in docs/SimNotes.md, "A robot resting where the
@@ -219,6 +220,44 @@ def test_the_ask_carries_the_way_on_past_the_goal():
   assert tick.run(STEPPER, drive.drive_to_routine(*GOAL, 60.0, beyond=[(6.0, 0.0)]))
   root, way = drive.asked[0]
   assert way == [(0.0, 0.0), GOAL, (6.0, 0.0)]
+
+
+def test_a_drive_whose_goal_a_resting_robot_lies_on_asks_it_at_the_plan_that_finds_it():
+  """#439's flights of the live press, the walker's map 2.9 m off as Luca's
+  was: a robot lying 0.25 m short of the standoff put the standoff inside
+  its disc, every plan ended at a stand-in beside it, and only a
+  stagnation asked. None came -- the drive steered at the goal from one
+  stand-in, planned from the far side of the disc, and every new route was
+  progress -- and the walk circled it for its 85 s, unasked. A goal a
+  resting robot lies on is a way it cuts: asked at the plan that finds it
+  there, and waited for while it steps off."""
+  class OnTheGoal(_Drive):
+    def _plan_to(self, wx, wy):
+      self._stand_in = None if self._open() else (wx - 0.6, wy)
+      return [(wx, wy)] if self._open() else [self._stand_in]
+
+    def _nav_routine(self, v, w):
+      self.data.time += 0.1
+      if self._open():
+        self.pose = (GOAL[0], GOAL[1], 0.0)
+      yield v, w
+
+  drive = OnTheGoal([_resting(GOAL[0] + 0.25, GOAL[1])], opens_at=8.0)
+  asked_at = []
+  ask = drive.ask_way
+  drive.ask_way = lambda root, way: asked_at.append(drive.data.time) or ask(root, way)
+  assert tick.run(STEPPER, drive.drive_to_routine(*GOAL, 60.0))
+  assert asked_at and asked_at[0] == 0.0, asked_at
+  assert drive.last_drive["askedWay"] == ["r2_pluggybot"]
+  # ...and one that says no is not waited for on its account, nor a fallen
+  # one asked (#365): each drive ends as it did
+  no = OnTheGoal([_resting(GOAL[0] + 0.25, GOAL[1])], says=False)
+  assert not tick.run(STEPPER, no.drive_to_routine(*GOAL, 30.0))
+  assert no.asked and no.last_drive["why"] == "peer"
+  fallen = OnTheGoal([_resting(GOAL[0] + 0.25, GOAL[1], down=True)])
+  assert not tick.run(STEPPER, fallen.drive_to_routine(*GOAL, 30.0))
+  assert not fallen.asked and fallen.last_drive["why"] == "peer"
+  assert fallen.last_drive["seconds"] <= STAGNATION_S + 0.5
 
 
 class _Clear(_Drive):
