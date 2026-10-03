@@ -3461,9 +3461,14 @@ class HubLifecycle:
                 **({"failedLine": failed["line"]} if failed.get("line") else {}),
                 **({"failedReason": failed["reason"]} if failed.get("reason") else {}),
                 **({"locals": run["locals"]} if run.get("locals") else {})})
+    # ...and the steps that went through their evidence, the log's alone: a
+    # failed step's trace rode its own line, and a press's tries are read
+    # by the day whether it pressed or not (issue #439)
     self._say(f"PROCEDURE {program.name} "
               f"{'complete' if run.get('ok') else 'cut short'}: "
-              f"{run['completed']}/{run['total']} steps")
+              f"{run['completed']}/{run['total']} steps",
+              detail="; ".join(s["trace"] for s in run["steps"]
+                               if s.get("ok") and s.get("trace")))
     # A PROCEDURE THE ROBOT WROTE REPORTS BACK, whatever happened (issues
     # #227, #264): its locals are its readout, and where it stopped and why
     # is the only way it can fix one. A house program's outcome is its

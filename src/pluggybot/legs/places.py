@@ -27,7 +27,9 @@ look; then the walk in, steered by the sign as the rack's bays are
 the front feet stand inside the pad (`cage.PRESS_BACK_M`); a hold, and
 straight back out -- three stretches that run to their end, so a press
 starts them only with `FINAL_S` of its patience left. The map's drift does
-not matter: the last step is measured off the tag.
+not matter: the last step is measured off the tag. A walk in that put no
+foot on the pad is walked in again; nothing else is tried twice
+(`PRESS_TRIES`).
 
 KEEPING OFF (`keep_out`). Every pad the robot knows is a wall to the
 planner, so no walk crosses a plate it has seen, and a press is the only
@@ -75,10 +77,17 @@ UNWALKED_M = 1000.0
 VIEWPOINT_PATIENCE_S = 90.0
 #: The press: its standoff from the sign, m -- the neighbours' signs 1 m
 #: either side are then inside the camera's 33.5 deg half-field, and one
-#: look there fits the row -- its tries, the walk in's budget, the hold on
-#: the pad and the walk back out (s, m).
+#: look there fits the row.
 STANDOFF_M = 1.8
+#: ...its walks IN (issue #439): the walk there, the look and the way in
+#: cleared are done once, and a walk in that put no foot on the pad is
+#: tried again, from the standoff with a fresh look -- as the dock, the
+#: rack, the claw and the boards try theirs -- the second only with
+#: `FINAL_S` left. ⚠ NEVER THE WALK THERE: on 8a61ada every failed press
+#: ran two, and each second walk, from where the first stopped to the same
+#: standoff, stopped within 32 mm of it and gave up as it had, 16 of 16.
 PRESS_TRIES = 2
+#: ...the walk in's budget, the hold on the pad and the walk back out (s, m).
 WALK_IN_S = 25.0
 PRESS_HOLD_S = 1.0
 BACK_OUT_M, BACK_OUT_S = 1.0, 8.0
@@ -516,14 +525,17 @@ class PlaceWalk:
     there --, "in the way" -- another robot across the walk in that did not
     step off it --, "not pressed", "out of time", or "interrupted" by
     `stop` on the walk to the standoff), the `seconds` it took, and its
-    `attempts`: each one's standoff, a walk that did not arrive (`walk`,
-    its `last_drive`), its look round, the robot `across` the walk in,
-    where it stopped against the press pose, and how a failed one ended --
-    `why`, where the belief stood (`at`) and its error against the truth
-    (`err`, a trace's), `s` into the press -- and `leftS` where too little
-    was left for the next. The walk in, the hold and the walk back out run
-    to their end, so they start only with `FINAL_S` of the `patience`
-    left."""
+    `attempts`, walks in, `PRESS_TRIES` at most: a walk there that gave up,
+    a sign out of view or a robot across the way in ends the press, and
+    only a walk in that put no foot on the pad is tried again. Each one's
+    standoff, how long its walk there took (`walkS`) and the walk's record
+    where it did not arrive (`walk`, its `last_drive`), its look round,
+    the robot `across` the walk in, where it stopped against the press
+    pose, and how it ended -- `why`, where the belief stood (`at`) and its
+    error against the truth (`err`, a trace's), `s` into the press -- and
+    `leftS` where too little was left for the next. The walk in, the hold
+    and the walk back out run to their end, so they start only with
+    `FINAL_S` of the `patience` left."""
     tag = int(tag)
     t0 = float(self.data.time)
     until = t0 + float(patience)
@@ -539,7 +551,7 @@ class PlaceWalk:
                  seconds=round(float(self.data.time) - t0, 1))
       return rec
 
-    def failed(att: dict, why: str) -> str:
+    def ended(att: dict, why: str) -> str:
       att.update(why=why, at=[round(self.pose[0], 3), round(self.pose[1], 3)],
                  err=self.truth_error(), s=round(float(self.data.time) - t0, 1))
       return why
@@ -549,10 +561,10 @@ class PlaceWalk:
     if self.places.get(tag) is None:
       return done("not found")
     yield from self.stand_routine()
-    # ⚠ A TRY THAT NEVER BEGAN IS NOT WHAT FAILED (#439): the first walk is
-    # handed all but `FINAL_S` of the patience, so a walk that used it left
-    # the second try nothing, and that try's "out of time" overwrote the
-    # walk's own cause -- 24 of 24 failed live presses, each after 85 s
+    # ⚠ A TRY THAT NEVER BEGAN IS NOT WHAT FAILED (#439): a walk in that
+    # missed leaves the next one only what its time allows, and a try with
+    # too little is `leftS` -- its "out of time" once overwrote the cause
+    # that ended the try before it, in 24 of 24 failed live presses
     why = "out of time"
     for _ in range(PRESS_TRIES):
       standoff = self.place_standoff(tag)
@@ -574,11 +586,11 @@ class PlaceWalk:
         **({"stop": stop} if stop is not None else {}))
       if stop is not None and (self.last_drive or {}).get("why") == DRIVE_STOPPED:
         return done("interrupted")
+      att["walkS"] = (self.last_drive or {}).get("seconds")
       if not arrived:
         att["walk"] = self.last_drive
         if math.hypot(sx - self.pose[0], sy - self.pose[1]) > 0.5:
-          why = failed(att, "gave up")
-          continue
+          return done(ended(att, "gave up"))
       standoff = self.place_standoff(tag)      # as the looks on the way left it
       if standoff is None:
         return done("not found")
@@ -588,8 +600,9 @@ class PlaceWalk:
           lambda: tag in self._last_seen() or left() < FINAL_S)
         if tag not in self._last_seen():
           att["looked"] = "cut short" if cut else "all round"
-          why = failed(att, "lost")
-          continue
+          why = ended(att, "lost")
+          # ...or the place forgotten as it looked, a true death: not found
+          return done("not found" if self.places.get(tag) is None else why)
         standoff = self.place_standoff(tag)
         if standoff is None:
           return done("not found")
@@ -615,7 +628,7 @@ class PlaceWalk:
         yield from self.face_routine(standoff[2])
         self.look_for_places()
       if left() < FINAL_S:
-        why = failed(att, "out of time")
+        why = ended(att, "out of time")
         break
       # ...ACROSS NOBODY (#455): the walk in is steered by the sign with no
       # planner under it, so a robot lying across it is asked off it first,
@@ -625,10 +638,9 @@ class PlaceWalk:
         px, py, _ = self.pose
         att["across"] = {"root": across.root, "m": round(math.hypot(across.x - px, across.y - py), 2),
                          "rests": across.resting, "dead": across.dead, "down": across.down}
-        why = failed(att, "in the way")
-        continue
+        return done(ended(att, "in the way"))
       if left() < FINAL_S:
-        why = failed(att, "out of time")
+        why = ended(att, "out of time")
         break
       att["walkIn"] = yield from self._press_walk_in_routine(tag)
       if att["walkIn"] == "not found":
@@ -639,8 +651,8 @@ class PlaceWalk:
       pressed = yield from self._hold_on_routine(pad)
       yield from self._press_back_out_routine()
       if pressed:
-        return done("pressed")
-      why = failed(att, "not pressed")
+        return done(ended(att, "pressed"))
+      why = ended(att, "not pressed")
     return done(why)
 
   def _walk_in_line(self, tag: int) -> list[tuple[float, float]]:
