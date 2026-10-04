@@ -473,7 +473,11 @@ def _wait(life, args: dict) -> Routine:
 #: itself from three starts).
 FIND_PATIENCE_S = 300.0
 #: How long a `press` may take, s, where the program's budget does not say
-#: less: flown, 12-26 s from where the find left it (#419, 22 presses).
+#: less: flown, 12-26 s from where the find left it (#419, 22 presses), and
+#: 21-44 s past the other robot lying on or by its standoff, asked off it
+#: (#439, `scripts/press_spike.py`, 30 presses). The walk there is handed
+#: all of it but `FINAL_S`, one walk in's worth -- every live failure was
+#: that walk -- and a second walk in runs on what is left (`PRESS_TRIES`).
 PRESS_PATIENCE_S = 120.0
 
 
@@ -544,7 +548,11 @@ def _press(life, args: dict) -> Routine:
   ⚠ A FAILED PRESS SAYS WHICH PART FAILED (issue #439): the try that
   failed, a walk that gave up in #350's words, and every try in the log's
   `trace`. Each failed live press read "ran out of time", and the robot,
-  told only that the plate was never pressed, took its sensor for faulty."""
+  told only that the plate was never pressed, took its sensor for faulty.
+  ⚠ ...AND A PRESS THAT PRESSED LEAVES ITS TRIES THERE TOO: a paid feed
+  whose press took 67 s and stepped on the shock plate 22 times on the way
+  left no record of how (8a61ada), nor would a press saved by its second
+  walk in."""
   tag = int(args["tag"])
   rec = yield from life.body.press_plate_routine(
     tag, patience=_patience(life, {"patience": PRESS_PATIENCE_S}), stop=_interrupt(life))
@@ -559,17 +567,17 @@ def _press(life, args: dict) -> Routine:
              else f": {_across_words(life, att['across'])}" if why == "in the way" and att.get("across")
              else "")
     out["reason"] = PRESS_WHY.get(why, why or "did not press").format(tag=tag) + cause
-    if rec.get("attempts"):
-      out["trace"] = f"press tag {tag}: {press_trace(rec)}"
+  if rec.get("attempts"):
+    out["trace"] = f"press tag {tag}: {press_trace(rec)}"
   return out
 
 
 def press_trace(rec: dict) -> str:
   """A press's tries as one line of evidence (issue #439), the log's
-  alone: each one's standoff, the walk that did not arrive, the look
-  round, where it stopped against the press pose, and where it ended --
-  the belief, and its error against the truth -- then the time too short
-  for the next."""
+  alone: each one's standoff, how long its walk there took or the walk that
+  did not arrive, the look round, where it stopped against the press pose,
+  and where it ended -- the belief, and its error against the truth --
+  then the time too short for the next."""
   parts = []
   for i, a in enumerate(rec.get("attempts") or (), 1):
     sx, sy = a.get("standoff") or (math.nan, math.nan)
@@ -581,6 +589,8 @@ def press_trace(rec: dict) -> str:
                      if k in w)
       bits.append(f"walk {w.get('why')} {float(w.get('shortM') or 0):.2f} m short "
                   f"after {float(w.get('seconds') or 0):.0f} s{peer}")
+    elif a.get("walkS") is not None:
+      bits.append(f"walked {float(a['walkS']):.0f} s")
     if "reaim" in a:
       bits.append(f"re-aimed by {a['reaim']}")
     if "looked" in a:
