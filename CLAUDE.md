@@ -263,6 +263,22 @@ save a filmstrip PNG named after the script.
   fallback tagged `fallback:<why>` — "the robot chose to explore" and "the
   API was down" must not look the same on the wire. (The Anthropic path's
   quirks, `effort` among them: Overseer.md §6.)
+- **A placeholder is empty, and an answer full of them buys and gives
+  nothing** (issue #462; Overseer.md §4 "Placeholders"; `overseer.unfill`,
+  `tests/test_placeholders.py`): every field is required, and the model
+  writes `n`, `none`, `:` or the field's own name where `""` was meant.
+  `validate` reads one as `""` where it can stand (`PLACEHOLDER_TEXT`,
+  `PLACEHOLDER_OBJECTS`: an object whose content is one goes whole); with
+  `FILLED_FIELDS` (3) or more (one word in three fields counts: `keep`),
+  `UNSHOWN_PAPERWORK` goes too (the heart, whom for, the gift, the rating,
+  the guess, `done`); a decline of the job the same answer takes is dropped.
+  ⚠ THE ACTION, ITS PARAMETERS, THE EVENT MAP, THE STANDING ORDER AND TEXT
+  THAT IS NO PLACEHOLDER STAND (measured: nearly all of it was meant, and
+  `procedure:new` runs its `define`). ⚠ Two letters are a word (`ok`, `hi`);
+  `answer`, `cites`, a unit and a procedure's name are never judged. ONE
+  History line and a `left_out` event (`LEFT_OUT_WHYS`); the decision carries
+  `leftOut`. Every power is judged, unshown or `PLACEHOLDER_KEPT`, and a test
+  fails on one none of them names. The prompt does not change.
 - ⚠ **The prefix is ONE list, `system_sections`** (issue #241):
   `system_prompt` joins it and the `prompt` message carries it apart (once per
   open, `Overseer.prompt_message`, with `prompt_sha`), and a test asserts the

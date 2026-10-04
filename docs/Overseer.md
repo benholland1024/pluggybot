@@ -1611,6 +1611,74 @@ doomed endpoint sixty times an hour". ⚠ A `garbled` answer does not count
 toward it: the endpoint is fine in that story, and summing them once cost a
 flown day (four bad task ids, then 238 decisions on `fallback:cooloff`).
 
+### Placeholders: a field written when nothing was meant (issue #462)
+
+Every field of the decision schema is required (the router asks for
+`strict`), so a field the model means nothing by is still written, and `""`
+(`false`, `{"to": "", "text": ""}`) is "not this time". GLM-5.3-Flash
+sometimes writes something instead: `n`, `x`, `none`, `:`, `,`, the field's
+own name (`intend`, `pin`), or, across many fields at once, a word of its own
+(`keep`, `test`, `watch_mouse`). Until #462 `validate` took any non-empty
+value as meant.
+
+**What it did.** Read off the observatory's database for 2026-09-20 →
+10-04: 37 answers held a placeholder in three or more fields (Luca 27,
+Rowan 10, on ten builds). They bought the other robot **three hearts** (600
+points; the issue found two, and the third, Luca's at t=247102, came in an
+answer of real writing whose decline, ticket and record said `test`).
+They also refused three purchases and gave five gifts of one point each.
+They guessed 34 needs (7 right) and rated 33 drawings (25 at 0.50). They
+sent 13 messages that were placeholders, declined 12 offers because "n" or
+"none", looked up "N" and "Master of None", and filed 28 tickets with a
+placeholder title. Placeholders went into 25 goals, 13 pins and 22
+findings. Another 28 declines named the offer the same answer took ("not
+declining -- taking it"); two of those offers were `take_points`, the harm
+kind.
+
+**The three rules** (`overseer.unfill`, `Menu.validate`):
+
+1. **A placeholder is empty.** Where it can stand (`PLACEHOLDER_TEXT`,
+   `PLACEHOLDER_OBJECTS`), a value of at most one letter or digit, a null
+   word (`none`, `null`, `nil`, `n/a`) or the field's own name reads as
+   `""`. An object whose content holds one goes whole: a message, a
+   decline's reason, a note, a finding's quantity or method, a procedure's
+   source, a ticket's text, a reply on one. A label reads as `""`, and a
+   ticket's title is then its text's head. Every value this matched in
+   answers otherwise meant was junk (64 of them), and so was every
+   one-letter finding quantity in 621 findings. Two letters are a word
+   (`ok`, `hi`, `no` stand), and `answer` (a digit or two), `cites`, a
+   finding's unit and a procedure's name are never judged.
+2. **An answer full of them acts on nothing it cannot show.** When three or
+   more fields hold one (one word in three fields is that answer's own
+   placeholder), `UNSHOWN_PAPERWORK` goes too: the heart and whom it is for,
+   the gift, the rating, the guess at the other's need, and `done`. A
+   boolean, a name off a list, a number and an id carry no sign that they
+   were meant. ⚠ **Free text that is no placeholder stands**, and so do the
+   action, its parameters and what the answer configures (the standing
+   order, the event map). Across the 37, the text that survives is a
+   heartbeat rule written after an `unminded` death, warnings to the other
+   robot, tickets the operators answered, and the procedures a
+   `procedure:new` then ran. Dropping all of an answer's paperwork, as the
+   issue first proposed, would have lost those and left `procedure:new`
+   nothing to run.
+3. **A decline of the job the same answer takes is left out.**
+
+**Told, and counted.** `Decision.left_out` is `{why, fields, words, acts,
+decline}`. The lifecycle writes ONE History line ("left out of that answer:
+16 fields holding only 'n' read as empty -- ...; and with 3 or more, not
+acted on either: buy_heart, heart_for, rate, other_needs, done") and narrates
+`LEFT OUT ...`. It also emits a `left_out` event, which the observatory files
+under `why` (`protocol.LEFT_OUT_WHYS`), and the decision carries the record
+as `leftOut`. The prompt did not change: the History line is how the robot
+learns how its answer was read. Every power is judged, unshown or kept
+(`PLACEHOLDER_KEPT` names each kept power's reason), and a test fails on a
+power none of them names.
+
+What it cannot do: tell a real-looking filler from a real value. In a filled
+answer a one-word lookup ("lab") or a reply "still open" stands. A heart an
+answer did mean is left out if three of its fields were placeholders, and
+the History line lets the next answer buy it.
+
 ## 5. What an errand costs, and the pack that has to pay for it
 
 `needs_charge` is checked *between* errands and never inside one, so an errand

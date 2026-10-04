@@ -44,6 +44,33 @@ replayer treats it like any other world -- one scene, one recording, keyed
 by that name (`pluggybot.robot.pair_model_name`). The served world is the
 pair, `home_quad_pair`.
 
+### 0.21.0, additive: what was left out of an answer (`left_out`)
+
+pluggybot #462. Every field of a decision is required, and a placeholder the
+model wrote where it meant nothing (`n`, `none`, `:`, the field's own name)
+used to be acted on. `Menu.validate` now reads one as empty, leaves out the
+heart, gift, rating, guess and `done` of an answer with three or more, and
+drops a decline of the job the same answer takes (docs/Overseer.md §4,
+"Placeholders"). One event type is new:
+
+- **`left_out`**: one per answer anything was left out of. `why` is one of
+  `LEFT_OUT_WHYS`, the first that holds: `filled` (three or more fields
+  held a placeholder, so the unshown paperwork went too), `placeholder`
+  (one or two did) or `decline` (neither, and a decline named the job the
+  same answer took). Beside it, where they apply: `fields` (what was read
+  as empty), `words` (the placeholders as written, at most three), `acts`
+  (the unshown paperwork left out) and `decline` (that task's id). The
+  decision carries the same record as `leftOut` in `decisions[]`, and the
+  narration says `LEFT OUT ...` after its `DECIDE` line.
+
+  ```jsonc
+  {"type": "left_out", "t": 391502.947, "robot": "pluggybot", "why": "filled",
+   "fields": ["pin", "intend", "lookup", "tell", "decline", "ticket"],
+   "words": ["n"], "acts": ["buy_heart", "heart_for", "rate", "other_needs"]}
+  ```
+
+No fixture carries one (the pair's recording has no mind).
+
 ### 0.21.0, additive: the built-tool rail on legs (`rack_built`, tags 47-52); a built tool carries no tag
 
 pluggybot #407, the workshop on the quadruped's rack. No shape a consumer

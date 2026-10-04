@@ -10,6 +10,46 @@ observatory is NOT a result: it reports into the issue it informs.
 
 ## Periods
 
+### A placeholder is empty, and an answer full of them buys and gives nothing (#462) — opens when this PR is deployed
+
+**What changed in the world.** How an answer's paperwork is read. Every
+field of a decision is required, and GLM-5.3-Flash sometimes writes `n`,
+`none`, `:` or a field's own name where `""` was meant. Each used to be acted
+on. Between 2026-09-20 and 10-04, 37 answers held a placeholder in three or
+more fields (Luca 27, Rowan 10). They bought the other robot three hearts
+(600 points), sent "n", declined because "none", looked up "N", filed
+tickets titled "n", and wrote `n` and `intend` into goals, pins, notes and
+findings. 28 declines named the job the same answer took.
+
+Now a placeholder reads as empty: a message, decline, note, finding,
+procedure or ticket whose text is one is not sent, filed or written. An
+answer with three or more (one word in three fields counts) also acts on no
+heart, gift, rating, guess or `done`, and a decline of the job the same
+answer takes is dropped. The action, its parameters, the event map, the
+standing order and any free text that is no placeholder stand. One History
+line says what was left out, and a `left_out` row records it under `filled`,
+`placeholder` or `decline`. The prompt did not move.
+
+**What the period is for.**
+
+- **No placeholder act.** For a week (#462's fourth acceptance item), count
+  these off the rows. Each should be zero:
+  - `message` rows whose text is one letter or `none`;
+  - `refusal` rows with such a reason;
+  - `read` rows for "N" or "X";
+  - `ticket` rows titled "n";
+  - `thought` rows writing `n` or `none`;
+  - `transfer` hearts at the instant of a `left_out` row with `why: filled`.
+- **How often.** `left_out` rows per robot per day under each `why`, against
+  the 37 filled answers of the period before, most of them on a85772d and
+  8a61ada (2026-10-01 → 10-03).
+- **Does the robot learn?** The History line is the only thing that changed
+  for the robot. Watch whether `filled` rows fall off once a robot has read
+  one, and what its next `think` says about it.
+- **The earlier readings.** Rows from the filled answers record acts the
+  robot did not mean (Evaluation.md §5). Whether readings across the GLM
+  builds are re-read without them is Ben's to decide (#462).
+
 ### A walk that ends in its zone got there (#454) — opens when this PR is deployed
 
 **What changed in the world.** What a decided `explore(zone)` tells the
