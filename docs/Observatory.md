@@ -25,10 +25,13 @@ Now a placeholder reads as empty: a message, decline, note, finding,
 procedure or ticket whose text is one is not sent, filed or written. An
 answer with three or more (one word in three fields counts) also acts on no
 heart, gift, rating, guess or `done`, and a decline of the job the same
-answer takes is dropped. The action, its parameters, the event map, the
-standing order and any free text that is no placeholder stand. One History
-line says what was left out, and a `left_out` row records it under `filled`,
-`placeholder` or `decline`. The prompt did not move.
+answer takes is dropped. A placeholder quote takes out only a line that is
+exactly it: before, `,` and `x` took out two of Rowan's real goals and a
+pin, and `n` one of Luca's pins and a note. The action, its parameters, the
+event map, the standing order and any free text that is no placeholder
+stand. One History line says what was left out, and a `left_out` row
+records it under `filled`, `placeholder` or `decline`. The prompt did not
+move.
 
 **What the period is for.**
 
@@ -38,7 +41,8 @@ line says what was left out, and a `left_out` row records it under `filled`,
   - `refusal` rows with such a reason;
   - `read` rows for "N" or "X";
   - `ticket` rows titled "n";
-  - `thought` rows writing `n` or `none`;
+  - `thought` rows writing `n` or `none`, or taking out a real line at the
+    instant of a `left_out` row;
   - `transfer` hearts at the instant of a `left_out` row with `why: filled`.
 - **How often.** `left_out` rows per robot per day under each `why`, against
   the 37 filled answers of the period before, most of them on a85772d and

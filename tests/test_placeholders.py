@@ -11,6 +11,8 @@ as the observatory recorded what they did.
 
 import dataclasses
 
+import pytest
+
 from pluggybot.economy.ledger import HEARTS
 from pluggybot.lifecycle import board_book
 from pluggybot.mind import overseer as ov
@@ -153,6 +155,27 @@ def test_one_word_in_three_fields_is_that_answers_placeholder():
   assert d.left_out == {"why": "filled", "words": ["keep"],
                         "fields": ["intend", "drop_goal", "retract"],
                         "acts": ["give_points", "other_needs"]}
+
+
+def test_a_quote_names_a_line_and_a_placeholder_quote_only_itself():
+  """Outside an answer full of them a placeholder QUOTE stands: Luca's `n`
+  goal, written before #462, can be picked out by nothing else. It takes out
+  only a line that is exactly it -- as a substring, Rowan's `,` took out its
+  goal and this pin (t=308982.446, build 8a61ada)."""
+  from pluggybot.mind.thoughts import TOP_OF_MIND, ThoughtFiles, ThoughtRefused
+  memory = ThoughtFiles(None)
+  memory.pin("The task id, not the kind, is what take_task reads")
+  with pytest.raises(ThoughtRefused, match="nothing on the page matches"):
+    memory.unpin(",")
+  memory.note({"topic": "tower", "title": "Block hunt plan",
+               "text": "workshop mapped; next, locate the blocks"})
+  with pytest.raises(ThoughtRefused):
+    memory.unnote("n")
+  memory.pin("n")                                   # written before #462
+  assert memory.unpin("n") == "n"
+  assert memory.read(TOP_OF_MIND).strip() == "The task id, not the kind, is what take_task reads"
+  d = _validate(_quiet(drop_goal="n"))
+  assert d.drop_goal == "n" and d.left_out is None
 
 
 def test_a_decline_of_the_job_the_same_answer_takes_is_left_out():

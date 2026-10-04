@@ -369,3 +369,30 @@ def full_message(surface: Surface, size: int, limit: int) -> str:
   remedy = (f"{surface.remove} one first" if surface.remove
             else "nothing more fits")
   return f"{surface.name} is full ({size} of {limit} {what}); {remedy}"
+
+
+# ---- a placeholder (issue #462) ---------------------------------------------
+
+#: The words that mean nothing in any field, whatever their case and the
+#: punctuation round them.
+NULL_WORDS = ("none", "null", "nil", "n/a")
+PUNCTUATION = " \t\r\n.,;:!?'\"`()[]{}<>*#-_/\\|"
+
+
+def _squeeze(text: str) -> str:
+  return "".join(c for c in text if c.isalnum())
+
+
+def placeholder(value, names: tuple[str, ...] = ()) -> bool:
+  """Is `value` what a model writes into a field it means nothing by (issue
+  #462; docs/Overseer.md "Placeholders")? At most one letter or digit (`n`,
+  `x`, `8`, `:`, `},`), a null word, or one of `names`: the field's own name,
+  `pin` in `pin`. MEASURED on the observatory's 8,328 answers: every value
+  it matched was junk. ⚠ Two letters are a word -- `ok`, `hi` and `no`
+  stand -- and `answer`, a digit or two, is never judged."""
+  text = str(value or "").strip().lower()
+  if not text:
+    return False
+  word = text.strip(PUNCTUATION)
+  return (sum(c.isalnum() for c in text) <= 1 or word in NULL_WORDS
+          or _squeeze(word) in {_squeeze(n) for n in names})

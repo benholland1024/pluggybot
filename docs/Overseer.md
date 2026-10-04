@@ -1631,9 +1631,11 @@ They guessed 34 needs (7 right) and rated 33 drawings (25 at 0.50). They
 sent 13 messages that were placeholders, declined 12 offers because "n" or
 "none", looked up "N" and "Master of None", and filed 28 tickets with a
 placeholder title. Placeholders went into 25 goals, 13 pins and 22
-findings. Another 28 declines named the offer the same answer took ("not
-declining -- taking it"); two of those offers were `take_points`, the harm
-kind.
+findings. And a placeholder quote took out real lines by being in them:
+Rowan's `,` removed a goal and a pin (t=308982), its `x` a goal (t=69), and
+Luca's `n` a pin and a note (t=402685, t=294625). Another 28 declines named
+the offer the same answer took ("not declining -- taking it"); two of those
+offers were `take_points`, the harm kind.
 
 **The three rules** (`overseer.unfill`, `Menu.validate`):
 
@@ -1647,7 +1649,12 @@ kind.
    answers otherwise meant was junk (64 of them), and so was every
    one-letter finding quantity in 621 findings. Two letters are a word
    (`ok`, `hi`, `no` stand), and `answer` (a digit or two), `cites`, a
-   finding's unit and a procedure's name are never judged.
+   finding's unit and a procedure's name are never judged. ⚠ A QUOTE is the
+   exception (`PLACEHOLDER_QUOTES`: `unpin`, `unnote`, `drop_goal`,
+   `retract`): it names a line, so outside an answer full of placeholders
+   it stands, and a placeholder quote takes out only a line that is
+   exactly it (`thoughts._match`). Luca's `n` goal, written before #462,
+   can be picked out by nothing else; `,` no longer takes out a real one.
 2. **An answer full of them acts on nothing it cannot show.** When three or
    more fields hold one (one word in three fields is that answer's own
    placeholder), `UNSHOWN_PAPERWORK` goes too: the heart and whom it is for,

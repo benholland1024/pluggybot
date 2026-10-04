@@ -70,7 +70,7 @@ from pluggybot.mind.memory import RecordStore
 from pluggybot.mind.store import FileStore, MemoryStore, Store
 from pluggybot.mind.text import (
   DEFAULT_MAIN, FINDINGS, GOALS, HISTORY, HUMAN, MAIN, NOTES, ROBOT, SYSTEM,
-  TOP_OF_MIND, Surface,
+  TOP_OF_MIND, Surface, placeholder,
 )
 from pluggybot.telemetry.protocol import CONSTITUTION_CHANGE_WHYS, ROBOT_ROOT
 
@@ -667,7 +667,7 @@ class ThoughtFiles:
       hits = [r for r in notes if r.title == quote]
     if not hits:
       hits = [r for r in notes if r.text == quote]
-    if not hits:
+    if not hits and not placeholder(quote):
       hits = [r for r in notes if quote in r.text or quote in r.title]
     if len(hits) != 1:
       self._refuse(f"{NOTES}: " + ("nothing matches" if not hits
@@ -996,7 +996,9 @@ def _match(rows, quote: str, name: str, refuse):
   written twice (issue #409): no quote could tell them apart, so the OLDEST
   goes -- the newest is the finding a grader reads (`_grade_mass`)."""
   hits = [r for r in rows if r.text == quote]
-  if not hits:
+  # ⚠ A PLACEHOLDER QUOTE MATCHES ONLY ITSELF (issue #462): as a substring,
+  # Rowan's `,` took out its goal and a pin, and Luca's `n` a pin and a note
+  if not hits and not placeholder(quote):
     hits = [r for r in rows if quote in r.text]
   if len({r.text for r in hits}) != 1:
     refuse(f"{name}: " + ("nothing on the page matches" if not hits

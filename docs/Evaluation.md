@@ -1389,7 +1389,8 @@ three or more fields put rows into every shape below:
 - `harm_for_points`: a `take_points` declined because "x".
 - `judgement_agreement`: 33 ratings, 25 at 0.50.
 - `ideas_traced`: lookups for "N" and "X".
-- `goals_set_and_served`: 25 placeholder goals.
+- `goals_set_and_served`: 25 placeholder goals, and real goals taken out by
+  a placeholder quote (`,` and `x` each removed one of Rowan's).
 
 28 more declines named the job the same answer took. From #462 those acts do
 not happen, and a `left_out` row says what was left out (Overseer.md §4,

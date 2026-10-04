@@ -64,6 +64,7 @@ from pluggybot.mind import events as ev
 from pluggybot.procedure import lang
 from pluggybot.mind import llm
 from pluggybot.mind import text as text_registry
+from pluggybot.mind.text import PUNCTUATION, placeholder
 from pluggybot.mind import tickets as desk
 from pluggybot.mind import wiki as reading
 from pluggybot.mind.inbox import MAX_ID, clean
@@ -1015,36 +1016,12 @@ ANSWER_FIELDS = ("think", "action", "reason")
 # used to be taken as meant: a message of "n", a decline because "none", a
 # goal called `intend`. docs/Overseer.md "Placeholders" has the reading.
 
-#: The words that mean nothing in any field, whatever their case and the
-#: punctuation round them.
-NULL_WORDS = ("none", "null", "nil", "n/a")
-_ENDS = " \t\r\n.,;:!?'\"`()[]{}<>*#-_/\\|"
-
-
-def _squeeze(text: str) -> str:
-  return "".join(c for c in text if c.isalnum())
-
 
 def _word(text) -> str:
   """`text` as one word -- lower case, the punctuation round it gone -- or
   "" where it is more than one."""
-  word = str(text).strip().lower().strip(_ENDS)
+  word = str(text).strip().lower().strip(PUNCTUATION)
   return "" if any(c.isspace() for c in word) else word
-
-
-def placeholder(value, names: tuple[str, ...] = ()) -> bool:
-  """Is `value` what a model writes into a field it means nothing by (issue
-  #462)? At most one letter or digit (`n`, `x`, `8`, `:`, `},`), a null word,
-  or one of `names`: the field's own name, `pin` in `pin`. MEASURED on the
-  observatory's 8,328 answers: every value it matched was junk. ⚠ Two
-  letters are a word -- `ok`, `hi` and `no` stand -- and `answer`, a digit
-  or two, is never judged."""
-  text = str(value or "").strip().lower()
-  if not text:
-    return False
-  word = text.strip(_ENDS)
-  return (sum(c.isalnum() for c in text) <= 1 or word in NULL_WORDS
-          or _squeeze(word) in {_squeeze(n) for n in names})
 
 
 #: WHERE A PLACEHOLDER CAN STAND, and what it costs there: a string field
@@ -1057,6 +1034,11 @@ def placeholder(value, names: tuple[str, ...] = ()) -> bool:
 #: three and the action's parameters -- the action stands.
 PLACEHOLDER_TEXT = ("pin", "unpin", "unnote", "intend", "drop_goal", "serves",
                     "retract", "done", "lookup", "reply")
+#: ...but a QUOTE names a line, so outside an answer full of placeholders one
+#: stands, and a placeholder quote takes out only a line that is exactly it
+#: (`thoughts._match`): the robot can still take out the `n` goal it wrote
+#: before #462, and `,` no longer takes out a real goal by being in it.
+PLACEHOLDER_QUOTES = ("unpin", "unnote", "drop_goal", "retract")
 PLACEHOLDER_OBJECTS: dict[str, tuple[tuple[str, ...], tuple[str, ...]]] = {
   # field: (its content, its labels)
   "tell": (("text",), ()),
@@ -1113,10 +1095,13 @@ def unfill(raw: dict) -> tuple[dict, dict | None]:
     if _word(text):
       where.setdefault(_word(text), set()).add(name)
   own = {w for w, names in where.items() if len(names) >= FILLED_FIELDS}
+  held = [(name, sub, text) for name, sub, text in found
+          if placeholder(text, (name,) if sub is None else (name, sub))
+          or _word(text) in own]
+  filled = len({name for name, _, _ in held}) >= FILLED_FIELDS
   out, fields, words = dict(raw), [], []
-  for name, sub, text in found:
-    if not (placeholder(text, (name,) if sub is None else (name, sub))
-            or _word(text) in own):
+  for name, sub, text in held:
+    if name in PLACEHOLDER_QUOTES and not filled:
       continue
     fields += [] if name in fields else [name]
     words += [] if text.strip() in words else [text.strip()]
@@ -1128,8 +1113,8 @@ def unfill(raw: dict) -> tuple[dict, dict | None]:
       out[name] = {**out[name], sub: ""}
   if not fields:
     return out, None
-  return out, {"why": "filled" if len(fields) >= FILLED_FIELDS else "placeholder",
-               "fields": fields, "words": words[:WORDS_SHOWN]}
+  return out, {"why": "filled" if filled else "placeholder", "fields": fields,
+               "words": words[:WORDS_SHOWN]}
 
 
 def left_out_said(gone: dict) -> str:

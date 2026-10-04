@@ -275,7 +275,10 @@ save a filmstrip PNG named after the script.
   ⚠ THE ACTION, ITS PARAMETERS, THE EVENT MAP, THE STANDING ORDER AND TEXT
   THAT IS NO PLACEHOLDER STAND (measured: nearly all of it was meant, and
   `procedure:new` runs its `define`). ⚠ Two letters are a word (`ok`, `hi`);
-  `answer`, `cites`, a unit and a procedure's name are never judged. ONE
+  `answer`, `cites`, a unit and a procedure's name are never judged. ⚠ A
+  QUOTE (`PLACEHOLDER_QUOTES`) stands outside a filled answer and takes out
+  only a line that IS the placeholder (`thoughts._match`: as a substring,
+  `,` took out Rowan's goal), so an old `n` goal can still go. ONE
   History line and a `left_out` event (`LEFT_OUT_WHYS`); the decision carries
   `leftOut`. Every power is judged, unshown or `PLACEHOLDER_KEPT`, and a test
   fails on one none of them names. The prompt does not change.
