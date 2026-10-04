@@ -320,9 +320,9 @@ the unknown"). How long it may take is the procedure's to say:
 never past the procedure's own budget. A decided `explore(zone)` walks to
 its zone with a decided action's default, `ZONE_PATIENCE_S` (300 s). The
 walk aims at the zone's middle, and one that ends anywhere inside the zone
-has got there (issue #454). The workshop's table stands on its middle, so
-13 of 13 live walks there stopped beside it, and History told the robot it
-"never got there".
+has got there (issue #454). The workshop's table stands on its middle: 8
+of 13 live walks there stopped beside it and told the robot it "never got
+there".
 
 ### 2d. The workshop: the robot builds a tool (issue #168)
 

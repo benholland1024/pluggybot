@@ -681,27 +681,34 @@ def test_a_decided_explore_whose_zone_walk_gave_up_says_why_and_how_it_ended():
              for ln in life.log)
 
 
-@pytest.mark.parametrize("at, inside", [((-8.5, -1.3), True),     # beside its table
-                                        ((-4.7, -2.0), False)])   # in the hall
-def test_a_zone_walk_that_ends_in_its_zone_got_there(at, inside):
+BESIDE_THE_TABLE, AT_THE_DOOR = (-8.5, -1.3), (-4.7, 1.0)   # the workshop's; in the hall
+
+
+@pytest.mark.parametrize("believed, truly", [(BESIDE_THE_TABLE, AT_THE_DOOR),
+                                             (AT_THE_DOOR, BESIDE_THE_TABLE)])
+def test_a_zone_walk_that_ends_in_its_zone_got_there(believed, truly):
   """The walk aims at the zone's middle, and the workshop's table stands on
-  it (#454): 13 of 13 live walks there stopped beside it, in the room, and
-  History said "never got there" -- Luca took the workshop for a room the
-  planner could not reach, and filed a ticket. One that stopped in the hall
-  did not get there."""
+  it (#454): 8 of 13 live walks there stopped beside it, in the room, and
+  said "never got there" -- Luca took the workshop for a room the planner
+  could not reach, and filed a ticket. One that stopped in the hall at the
+  room's door did not get there. Which one it was is what the robot
+  BELIEVES: the truth stands on the other side of the wall, and it is never
+  what the robot is told (#386)."""
   from test_body import StubBody, stub_life
   from pluggybot.lifecycle import in_zone
   from pluggybot.mind import overseer as ov
-  assert in_zone(QUAD_HOME, "workshop", *at) is inside
+  inside = in_zone(QUAD_HOME, "workshop", *believed)
+  assert inside is not in_zone(QUAD_HOME, "workshop", *truly)
   body = StubBody()
   life = stub_life(body=body)
   life.begin((0.0, 0.0, 0.0))                    # the day's setup, and no day
   gives_up = _gives_up(body)
 
   def walk(x, y, timeout=90.0, stop=None):
-    body.x, body.y = at                          # where the walk ended
+    body.x, body.y = believed                    # where it believes the walk ended
     return gives_up(x, y, timeout, stop)
   body.go_to_routine = walk
+  body.true_pose = lambda: (*truly, 0.0)
   body.plan_frontier = lambda blacklist: (None, "no-reachable")
   life._after_decision(ov.Decision(action="explore", zone="workshop", reason="the workshop"))
   went, said = (("got there and explored", "in workshop, short of its middle") if inside

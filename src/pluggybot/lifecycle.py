@@ -43,6 +43,7 @@ from pluggybot.body import (  # noqa: F401 -- the topple's old home
 )
 from pluggybot.body import RackPose
 from pluggybot.economy.cadence import CHECK_S
+from pluggybot.economy.census import Zone
 from pluggybot.economy import energy as energy_model
 from pluggybot.mind import events as ev
 from pluggybot.mind import look as eye_mod
@@ -6227,9 +6228,10 @@ class HubLifecycle:
         if not (yield from self.body.go_to_routine(wx, wy, timeout=ZONE_PATIENCE_S)):
           walk_why = self.drive_why(wx, wy)
           # ⚠ A WALK THAT ENDS IN ITS ZONE GOT THERE (issue #454): it aims
-          # at the middle, and furniture may stand there -- 13 of 13 live
-          # walks to the workshop stopped beside its table, said "never got
-          # there", and the robot took the room for one it could not reach
+          # at the middle, and furniture may stand there -- 8 of 13 live
+          # walks to the workshop stopped beside its table and said "never
+          # got there", and the robot took the room for one it could not
+          # reach
           if in_zone(self.world, decision.zone, *self.body.pose_xy()):
             self._say(f"EXPLORE: in {decision.zone}, short of its middle -- {walk_why}")
             walk_why = None
@@ -7853,9 +7855,7 @@ def zone_centre(world: str, name: str) -> tuple[float, float]:
 def in_zone(world: str, name: str, x: float, y: float) -> bool:
   """Is (x, y) inside a named zone -- where a walk to it has got to
   (issue #454), wherever its middle is."""
-  zone = _zone(world, name)
-  return (zone["min"][0] <= x <= zone["max"][0]
-          and zone["min"][1] <= y <= zone["max"][1])
+  return Zone.from_meta(_zone(world, name)).contains(x, y)
 
 
 def shown_offers(life) -> list[dict]:
