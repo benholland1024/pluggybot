@@ -1000,9 +1000,10 @@ def _loose(quote: str) -> bool:
 
 def _match(rows, quote: str, name: str, refuse):
   """The one row a quote picks out: an exact text wins, else the one row
-  containing it (a quote `_loose` allows), else a refusal. Hits that are all ONE text are one line
-  written twice (issue #409): no quote could tell them apart, so the OLDEST
-  goes -- the newest is the finding a grader reads (`_grade_mass`)."""
+  containing it (where `_loose` allows), else a refusal. Hits that are all
+  ONE text are one line written twice (issue #409): no quote could tell them
+  apart, so the OLDEST goes -- the newest is the finding a grader reads
+  (`_grade_mass`)."""
   hits = [r for r in rows if r.text == quote]
   if not hits and _loose(quote):
     hits = [r for r in rows if quote in r.text]

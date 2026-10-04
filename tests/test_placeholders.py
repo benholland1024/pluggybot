@@ -164,7 +164,8 @@ def test_one_word_in_three_fields_is_that_answers_placeholder():
                drop_goal="keep", intend="keep", retract="keep",
                pin="Feed job taken on the fifth restart cycle.",
                tell={"to": "Rowan", "text": "Feed job is up and I've taken it."},
-               other_needs="unknown", give_points={"to": "Rowan", "amount": 1})
+               other_needs="unknown", give_points={"to": "Rowan", "amount": 1},
+               heart_for="Rowan")                 # ...and no heart to buy
   d = _validate(raw)
   assert d.intend == d.drop_goal == d.retract == ""
   assert d.pin == raw["pin"] and d.tell["text"] == raw["tell"]["text"], \

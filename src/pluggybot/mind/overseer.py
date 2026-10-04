@@ -2064,8 +2064,10 @@ class Menu:
                     # actually is, and every one of them is narrated.
                     buy_heart=bool(raw.get("buy_heart")))
     # AN ANSWER FULL OF PLACEHOLDERS (issue #462) is not trusted with what no
-    # placeholder could show: each such field back to its default, by name.
-    acts = [name for name in UNSHOWN_PAPERWORK if getattr(decision, name)]
+    # placeholder could show: each such field back to its default, by name
+    # -- and `heart_for` counts only beside a heart it would have bought
+    acts = [name for name in UNSHOWN_PAPERWORK if getattr(decision, name)
+            and (name != "heart_for" or decision.buy_heart)]
     if gone is not None and gone["why"] == "filled" and acts:
       decision = replace(decision, **{name: _UNSET[name] for name in acts},
                          left_out={**left_out, "acts": acts})
