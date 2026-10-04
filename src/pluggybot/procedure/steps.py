@@ -473,7 +473,11 @@ def _wait(life, args: dict) -> Routine:
 #: itself from three starts).
 FIND_PATIENCE_S = 300.0
 #: How long a `press` may take, s, where the program's budget does not say
-#: less: flown, 12-26 s from where the find left it (#419, 22 presses).
+#: less: flown, 12-26 s from where the find left it (#419, 22 presses), and
+#: 21-44 s past the other robot lying on or by its standoff, asked off it
+#: (#439, `scripts/press_spike.py`, 30 presses). The walk there is handed
+#: all of it but `FINAL_S`, one walk in's worth -- every live failure was
+#: that walk -- and a second walk in runs on what is left (`PRESS_TRIES`).
 PRESS_PATIENCE_S = 120.0
 
 
@@ -514,10 +518,26 @@ PRESS_WHY = {
   "not pressed": "walked onto tag {tag}'s plate and no foot was on it",
   "out of time": "ran out of time before stepping onto tag {tag}'s plate",
   "interrupted": "stopped on the way to tag {tag}'s plate by its own interrupt",
+  "in the way": "did not walk onto tag {tag}'s plate",
 }
 #: ...and how its look round for a sign not in view ended (issue #439).
 PRESS_LOOKED = {"all round": ", nor all round it",
                 "cut short": ", and its time ran out looking round"}
+
+
+def _across_words(life, a: dict) -> str:
+  """Who lay across a press's walk in and would not come off it (issue
+  #455), as its reason says it."""
+  other = life._peer(a["root"]) if hasattr(life, "_peer") else None
+  who = other.robot_name if other is not None else "another robot"
+  where = f"across the way onto it, {float(a['m']):.1f} m off"
+  if a.get("dead"):
+    return f"{who} lay dead {where}"
+  if a.get("down"):
+    return f"{who} lay fallen {where}"
+  if a.get("rests"):
+    return f"{who} lay {where}, and did not step off it"
+  return f"{who} stood {where}, and did not move off it"
 
 
 def _press(life, args: dict) -> Routine:
@@ -528,7 +548,11 @@ def _press(life, args: dict) -> Routine:
   ⚠ A FAILED PRESS SAYS WHICH PART FAILED (issue #439): the try that
   failed, a walk that gave up in #350's words, and every try in the log's
   `trace`. Each failed live press read "ran out of time", and the robot,
-  told only that the plate was never pressed, took its sensor for faulty."""
+  told only that the plate was never pressed, took its sensor for faulty.
+  ⚠ ...AND A PRESS THAT PRESSED LEAVES ITS TRIES THERE TOO: a paid feed
+  whose press took 67 s and stepped on the shock plate 22 times on the way
+  left no record of how (8a61ada), nor would a press saved by its second
+  walk in."""
   tag = int(args["tag"])
   rec = yield from life.body.press_plate_routine(
     tag, patience=_patience(life, {"patience": PRESS_PATIENCE_S}), stop=_interrupt(life))
@@ -539,33 +563,40 @@ def _press(life, args: dict) -> Routine:
     walk = att.get("walk")
     cause = (f": {life.drive_why(*walk['goal'], record=walk)}"
              if walk and why in ("gave up", "out of time")
-             else PRESS_LOOKED.get(att.get("looked"), "") if why == "lost" else "")
+             else PRESS_LOOKED.get(att.get("looked"), "") if why == "lost"
+             else f": {_across_words(life, att['across'])}" if why == "in the way" and att.get("across")
+             else "")
     out["reason"] = PRESS_WHY.get(why, why or "did not press").format(tag=tag) + cause
-    if rec.get("attempts"):
-      out["trace"] = f"press tag {tag}: {press_trace(rec)}"
+  if rec.get("attempts"):
+    out["trace"] = f"press tag {tag}: {press_trace(rec)}"
   return out
 
 
 def press_trace(rec: dict) -> str:
   """A press's tries as one line of evidence (issue #439), the log's
-  alone: each one's standoff, the walk that did not arrive, the look
-  round, where it stopped against the press pose, and where it ended --
-  the belief, and its error against the truth -- then the time too short
-  for the next."""
+  alone: each one's standoff, how long its walk there took or the walk that
+  did not arrive, the look round, where it stopped against the press pose,
+  and where it ended -- the belief, and its error against the truth --
+  then the time too short for the next."""
   parts = []
   for i, a in enumerate(rec.get("attempts") or (), 1):
     sx, sy = a.get("standoff") or (math.nan, math.nan)
     bits = [f"#{i} standoff ({sx:.2f}, {sy:.2f})"]
     w = a.get("walk")
     if w:
-      peer = "".join(f" {k}={w[k]}" for k in ("peerAt", "peerM", "peerDown", "peerRests")
+      peer = "".join(f" {k}={w[k]}" for k in ("peerAt", "peerM", "peerDown", "peerRests",
+                                               "peerDead", "askedWay")
                      if k in w)
       bits.append(f"walk {w.get('why')} {float(w.get('shortM') or 0):.2f} m short "
                   f"after {float(w.get('seconds') or 0):.0f} s{peer}")
+    elif a.get("walkS") is not None:
+      bits.append(f"walked {float(a['walkS']):.0f} s")
     if "reaim" in a:
       bits.append(f"re-aimed by {a['reaim']}")
     if "looked" in a:
       bits.append(f"looked round {a['looked']}")
+    if "across" in a:
+      bits.append(f"walk in across {a['across']}")
     if "walkIn" in a:
       bits.append(f"walk in {a['walkIn']}, stopped {a.get('stop')} off the press pose")
     if "at" in a:

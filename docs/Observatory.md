@@ -10,6 +10,129 @@ observatory is NOT a result: it reports into the issue it informs.
 
 ## Periods
 
+### A walk that ends in its zone got there (#454) — opens when this PR is deployed
+
+**What changed in the world.** What a decided `explore(zone)` tells the
+robot about its walk. The walk aims at the zone's middle, and the
+workshop's table stands on the workshop's middle, (-8.5, -2.0). On
+a85772d (2026-10-01 → 10-02), 13 of 13 decided walks to the workshop
+narrated `EXPLORE: never reached workshop`. Eight stopped 0.6-0.7 m
+short, beside the table, with `no route over the floor mapped so far`;
+in the other five the other robot was in the way. History told the robot
+it "never got there". Luca took the workshop for a room the planner could
+not reach, drove round the table with procedures, and filed tk_0022.
+
+Now a walk that ends anywhere inside its zone, by the robot's own belief,
+has got there. History reads `explore (workshop): got there and explored
+for N s, ...`, and the narration keeps the walk's give-up: `EXPLORE: in
+workshop, short of its middle -- the walk gave up ...`. A walk that ends
+outside its zone reads as before. The walk, the explore after it and the
+prompt did not move.
+
+**What the period is for.**
+
+- **The workshop's walks.** `EXPLORE: never reached workshop` should now
+  appear only for a walk that ended outside the room, such as one held up
+  by the other robot in the hall. Each `EXPLORE: in workshop, short of its
+  middle` line is a walk that used to say it never got there.
+- **The lab and `sidewalk_2_north`.** On a85772d, 6 of 8 walks to the lab
+  stopped 0.6-1.4 m short, each with the other robot 0.2-0.5 m from the
+  lab's middle. 4 of 6 walks to `sidewalk_2_north` stopped 0.3-0.5 m short
+  with `no route`. Every one of those stops was inside its zone (the lab is
+  6 m square, the sidewalk 1.5 m wide), so they now read "got there", and
+  their `in <zone>` lines still carry the give-up. Why the sidewalk's
+  walks stop short of open floor is not diagnosed (#454).
+- **Does the robot go back?** Decided `explore(workshop)` per robot per
+  day, against the 13 over a85772d's run, and any ticket or procedure
+  about reaching the workshop.
+
+### A press tries again only where something changed, and a goal a robot lies on is asked off (#439) — opens when this PR is deployed
+
+**What changed in the world.** The feed job's press, and every walk whose
+goal another robot lies on. On three builds (4f1288f, a85772d, 8a61ada),
+95 of 96 failed presses had the other robot within 2 m (`encounter` rows),
+and the 96th was a walk given up at once by a map 3.4 m off.
+- **A walk whose goal a robot lying down to rest lies on asks it to step
+  aside at the plan that finds it there,** once within 3 m of the goal
+  (`PAST_M`); from further off it walks on. Before, only a stagnation asked.
+  Flown with the walker's map 2.9 m off, as Luca's lab was, a press's walk
+  circled a robot lying by the standoff for its whole 85 s, asked late or
+  never, in 7 of 11 placements on #455's build, and in 1 of 14 with both
+  maps true. Swapping between the stand-ins either side of the robot's
+  disc, every new route counted as progress, so the walk never stalled.
+  With this change, 30 of 30 pressed, in 21-44 s.
+- **A press tries again only where something changed.** A walk to its
+  standoff that gave up, or a robot across the way in that would not step
+  off, ends it with that try's words. So does a sign not in view there,
+  unless the look round moved the standoff, which is walked to once more. A
+  walk in that put no foot on the pad is walked in again, as before. On
+  8a61ada every failed press had run two tries, and every second try had
+  walked to the same standoff and failed as the first, 16 of 16.
+- **Every press leaves its tries in the log,** pressed or not, on the
+  program's last line (`PROCEDURE feed_mouse complete: 2/2 steps [press tag
+  36: ...]`), with how long each walk there took (`walked N s`).
+
+The prompt did not move. What the robot reads is the same words, 0-19 s
+sooner when a press fails.
+
+**What the period is for.**
+
+- **The press, by cause and by robot.** Feeds paid and failed per robot,
+  and the failed presses against the encounter rows: with the other robot
+  near, 50-82 % failed on the three builds before, and 0-2 % with it
+  apart. A press that fails with the other robot near now means the ask did
+  not work. Its trace (`askedWay`, `peerRests`) and the `MAKE WAY` lines
+  will say which way.
+- **The second walk in.** Presses with two tries in their trace, and how
+  many of those pressed. If none in a week, `PRESS_TRIES` 1 is the honest
+  number.
+- **The walk's time** against the 85.2 s it is handed: `walked N s` in
+  every trace.
+- **The shock plate.** `press` rows on another plate while `doing` is
+  `feed:lab`: 25 on 8a61ada, in two feeds. With every press traced, each
+  one is now readable.
+
+### A robot lying still is where its body lies, and a far one is walked past (#455) — opens when this PR is deployed
+
+**What changed in the world.** How the two quadrupeds share the floor
+when their maps disagree. A robot lying down to rest, or dead, used to be
+kept clear of where it SAID it was, its belief: for hours on 8a61ada
+Luca's map of the lab sat 2.4-2.9 m and 9.5 deg off, the two bodies were
+within 2 m while every reading put them 3.3-3.6 m apart, and the walks the
+resting body held were never asked past it. Now a robot lying still is
+kept clear of where its body lies, placed as the other's own sensors would
+put it; the depth camera no longer holds a walk at it, as for a robot
+fallen; and the way it is asked off is told relative to its body (asked
+five times, Luca had stepped 0.0 m aside each time, already off the way by
+its own map). A robot more than 3 m off whose disc alone cuts a walk's way
+is planned past, and no longer ends the walk at once (three walks to the
+workshop gave up 10-25 m from Rowan walking the hall). A press asks a
+robot lying across its walk in to step off it first, and ends "in the
+way" rather than walk into one that stays. A dead robot is never waited
+on, held for or asked. The prompt did not move. What the robot reads
+changes in three places. A walk's failure line says "lying dead" of a dead
+robot, where it said "lying down to rest". A press can end "did not walk
+onto tag 36's plate: Rowan lay across the way onto it, 0.6 m off, and did
+not step off it". And a robot asked to make way that cannot says why in
+its narration, which the other sees as its `doing`, at most once every
+30 s.
+
+**What the period is for.**
+
+- **The press.** Feed jobs paid and failed per robot, and the failures by
+  cause (`failedReason` on `procedure` rows named `feed_mouse`). On
+  8a61ada, 14 of 18 were the walk stalling 0.7-0.9 m short of the feed
+  plate's standoff, every one with the other robot truly within 2 m
+  (`encounter` rows): one backed out of its own press lies 0.25 m from
+  that standoff. If they stay, the other robot was not the whole of it
+  (#439's part 2).
+- **Every give-up naming a robot lying down has an ask beside it**
+  (#455's acceptance): a `MAKE WAY` line, a yes or a no with why, within
+  150 s of each walk that gave up on a robot "lying down to rest" in the
+  log, and no give-up naming a robot more than a few metres off.
+- **The charge.** `GO_CHARGE: never reached the charge bay` lines naming
+  the other robot, against 6 of 17 charges on 8a61ada.
+
 ### The workshop on legs: a built tool on the rack's rail (#407) — opens when this PR is deployed
 
 **What changed in the world.** The rack's board carries on past the claw's

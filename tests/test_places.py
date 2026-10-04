@@ -32,6 +32,7 @@ import pytest
 from pluggybot import tick
 from pluggybot.activity import cage
 from pluggybot.activity.plate import PLATE_HALF
+from pluggybot.body import KeepClear
 from pluggybot.economy.ledger import Ledger
 from pluggybot.home import places as addresses
 from pluggybot.home import world as home
@@ -510,7 +511,7 @@ def test_a_press_steps_onto_a_plate_only_with_time_to_step_off_it(quad_world):
   m = body.mission
   timeouts, walked_in = [], []
 
-  def drive(x, y, timeout=90.0, stop=None):
+  def drive(x, y, timeout=90.0, stop=None, beyond=()):
     timeouts.append(round(timeout, 3))
     return tick.result(True)
 
@@ -527,7 +528,7 @@ def test_a_press_steps_onto_a_plate_only_with_time_to_step_off_it(quad_world):
     rec = body.run(m.press_routine(FEED, patience=lp.FINAL_S + 30.0))
     assert rec["pressed"] and walked_in == [FEED] and timeouts == [30.0]
     # ...and a walk to the standoff that ran a second over its time ends it there
-    m.drive_to_routine = lambda x, y, timeout=90.0, stop=None: (
+    m.drive_to_routine = lambda x, y, timeout=90.0, stop=None, beyond=(): (
       setattr(m.data, "time", m.data.time + timeout + 1.0) or tick.result(True))
     rec = body.run(m.press_routine(FEED, patience=lp.FINAL_S + 30.0))
     assert rec["why"] == "out of time" and walked_in == [FEED]
@@ -540,14 +541,13 @@ def test_a_press_says_the_try_that_failed_and_never_one_that_did_not_begin(quad_
   walk that used it left the second try none, and that try's "out of time"
   overwrote the walk's own cause -- 24 of 24 failed live presses, each
   after 85 s. The press says the walk; a sign not in view from in front of
-  its plate, its look round ended by the time, says the sign; and where
-  both tries ran, the second's is what it says."""
+  its plate says the sign, and how its look round ended."""
   body = _quad(quad_world, 25.0, 2.0, -math.pi / 2)
   m = body.mission
   tries = []
 
   def walk(arrives):
-    def drive(x, y, timeout=90.0, stop=None):
+    def drive(x, y, timeout=90.0, stop=None, beyond=()):
       tries.append(round(timeout, 1))
       m.data.time += timeout + 0.01            # a walk ends on the step past its time
       m.last_drive = {"why": "" if arrives else "timeout", "goal": (x, y),
@@ -564,12 +564,11 @@ def test_a_press_says_the_try_that_failed_and_never_one_that_did_not_begin(quad_
     m.face_routine = lambda h: tick.result(True)
     m.drive_to_routine = walk(arrives=False)
     rec = body.run(m.press_routine(FEED, patience=st.PRESS_PATIENCE_S))
-    assert tries == [st.PRESS_PATIENCE_S - lp.FINAL_S], "one walk, and no time for a second"
+    assert tries == [min(lp.VIEWPOINT_PATIENCE_S, st.PRESS_PATIENCE_S - lp.FINAL_S)]
     assert rec["why"] == "gave up", "the walk, not the try that never began"
     [att] = rec["attempts"]
     assert att["walk"]["why"] == "timeout" and att["why"] == "gave up"
     assert att["at"] == [pytest.approx(25.0), pytest.approx(2.0)] and len(att["err"]) == 3
-    assert rec["leftS"] == pytest.approx(lp.FINAL_S, abs=0.05)
     # ...a sign not in view from in front of its plate, the time out as it looked round
     tries.clear()
     m.drive_to_routine = walk(arrives=True)
@@ -578,14 +577,127 @@ def test_a_press_says_the_try_that_failed_and_never_one_that_did_not_begin(quad_
     rec = body.run(m.press_routine(FEED, patience=st.PRESS_PATIENCE_S))
     assert rec["why"] == "lost" and len(tries) == 1
     assert rec["attempts"][0]["looked"] == "cut short" and "walk" not in rec["attempts"][0]
-    # ...and with time for both, the second try is the one it says
+    # ...or all round it, with the time for another try: no new look moved the
+    # standoff, so it is not walked to again
     tries.clear()
-    m.drive_to_routine = lambda x, y, timeout=90.0, stop=None: (
+    m.drive_to_routine = lambda x, y, timeout=90.0, stop=None, beyond=(): (
       tries.append(round(timeout, 1)) or tick.result(True))
     m._look_around_routine = lambda stop: tick.result(False)
     rec = body.run(m.press_routine(FEED, patience=st.PRESS_PATIENCE_S))
-    assert rec["why"] == "lost" and len(tries) == lp.PRESS_TRIES and "leftS" not in rec
-    assert [a["looked"] for a in rec["attempts"]] == ["all round"] * lp.PRESS_TRIES
+    assert rec["why"] == "lost" and len(tries) == 1 and "leftS" not in rec
+    assert [a["looked"] for a in rec["attempts"]] == ["all round"]
+  finally:
+    body.close()
+
+
+def test_a_press_tries_again_only_a_walk_in_that_missed_the_pad(quad_world):
+  """#439 part 3: on 8a61ada each of 16 failed presses ran both tries, and
+  each second try walked from where the first had stopped to the same
+  standoff and gave up as it had, its stop within 32 mm of the first. So a
+  walk there that gave up, or a robot that stays across the way in, ends
+  the press with its time left. What is tried again is a walk in that put
+  no foot on the pad: back to the standoff it backed out short of, a fresh
+  look, and in again -- and only with `FINAL_S` left."""
+  body = _quad(quad_world, 25.0, 2.0, SOUTH)
+  m = body.mission
+  went, cleared, walked_in = [], [], []
+
+  def walk(arrives):
+    def drive(x, y, timeout=90.0, stop=None, beyond=()):
+      went.append((round(x, 3), round(y, 3)))
+      m.data.time += 5.0
+      m.last_drive = {"why": "" if arrives else "stalled", "goal": (x, y),
+                      "seconds": 5.0, "shortM": 0.0 if arrives else 0.8}
+      return tick.result(arrives)
+    return drive
+
+  def clear(across=None):
+    return lambda way: cleared.append(len(way)) or tick.result(across)
+
+  def hold(*feet, seconds=0.0):
+    felt = iter(feet)
+
+    def on(pad):
+      m.data.time += seconds
+      return tick.result(next(felt))
+    return on
+
+  try:
+    m.places.see(FEED, *_sign("feed"), 0.0, view=SOUTH, tag_facing=SOUTH)
+    m.face_routine = lambda h: tick.result(True)
+    m.look_for_places = lambda: [FEED]
+    m._press_walk_in_routine = lambda tag: walked_in.append(tag) or tick.result("stopped")
+    m._press_back_out_routine = lambda: tick.result(None)
+    # a walk there that stalled: one walk, and the press ends on it
+    m.drive_to_routine = walk(arrives=False)
+    m.clear_way_routine = clear()
+    rec = body.run(m.press_routine(FEED, patience=st.PRESS_PATIENCE_S))
+    assert rec["why"] == "gave up" and len(went) == 1 and len(rec["attempts"]) == 1
+    assert not cleared and not walked_in and "leftS" not in rec
+    # a robot across the way in that stays: asked off once, never walked into
+    went.clear()
+    m.drive_to_routine = walk(arrives=True)
+    m.clear_way_routine = clear(KeepClear(25.0, 3.6, root="r2_pluggybot", resting=True))
+    rec = body.run(m.press_routine(FEED, patience=st.PRESS_PATIENCE_S))
+    assert rec["why"] == "in the way" and len(cleared) == 1 and len(went) == 1
+    assert not walked_in
+    # a walk in that put no foot on the pad: in again, from its standoff
+    went.clear()
+    cleared.clear()
+    m.clear_way_routine = clear()
+    m._hold_on_routine = hold(False, True)
+    rec = body.run(m.press_routine(FEED, patience=st.PRESS_PATIENCE_S))
+    assert rec["pressed"] and walked_in == [FEED, FEED] and len(went) == 2
+    assert went[1] == pytest.approx(m.place_standoff(FEED)[:2], abs=1e-3)
+    assert [a["why"] for a in rec["attempts"]] == ["not pressed", "pressed"]
+    # ...and only with the time for it: the press says how little was left
+    walked_in.clear()
+    m._hold_on_routine = hold(False, seconds=20.0)
+    rec = body.run(m.press_routine(FEED, patience=lp.FINAL_S + 10.0))
+    assert rec["why"] == "not pressed" and walked_in == [FEED]
+    assert rec["leftS"] == pytest.approx(lp.FINAL_S + 10.0 - 5.0 - 20.0, abs=0.1)
+    assert st.press_trace(rec).endswith(f"no time for #2: {rec['leftS']:.1f} s left")
+  finally:
+    body.close()
+
+
+def test_a_press_walks_there_again_only_to_a_standoff_a_look_moved(quad_world):
+  """#439: a sign out of view from its standoff ends the press -- a second
+  walk there repeated the first -- unless what the look round DID read
+  moved the standoff. Here the feed sign was first seen 40 deg off its face,
+  so its facing is only where it was seen from, and its neighbours' signs,
+  read round the room, fit the row's: the standoff swings onto the axis,
+  and the press walks there once more, and no more."""
+  body = _quad(quad_world, 25.0, 2.0, SOUTH)
+  m = body.mission
+  went = []
+  fx, fy = _sign("feed")
+
+  def drive(x, y, timeout=90.0, stop=None, beyond=()):
+    went.append((round(x, 3), round(y, 3)))
+    m.data.time += 5.0                         # ...so a look after it is a new one
+    return tick.result(True)
+
+  def blind():
+    m._place_look = (float(m.data.time), m.pose)
+    return []
+
+  def neighbours(stop):
+    for name in ("shock", "toy"):
+      m.places.see(cage.PLATE_TAGS[name], *_sign(name), float(m.data.time), view=SOUTH)
+    return tick.result(False)
+
+  try:
+    m.places.see(FEED, fx, fy, 0.0, view=SOUTH + math.radians(40.0))
+    first = m.place_standoff(FEED)
+    m.drive_to_routine = drive
+    m.face_routine = lambda h: tick.result(True)
+    m.look_for_places = blind
+    m._look_around_routine = neighbours
+    rec = body.run(m.press_routine(FEED, patience=st.PRESS_PATIENCE_S))
+    square = (round(fx, 3), round(fy - lp.STANDOFF_M, 3))
+    assert went == [pytest.approx(first[:2], abs=1e-3), pytest.approx(square, abs=1e-3)]
+    assert rec["why"] == "lost" and [a["why"] for a in rec["attempts"]] == ["lost", "lost"]
   finally:
     body.close()
 
@@ -603,7 +715,7 @@ def test_a_press_walks_in_from_its_standoff_as_the_look_there_left_it(quad_world
   went, walked_in = [], []
   fx, fy = _sign("feed")
 
-  def drive(x, y, timeout=90.0, stop=None):
+  def drive(x, y, timeout=90.0, stop=None, beyond=()):
     went.append((round(x, 3), round(y, 3)))
     return tick.result(True)
 
@@ -649,7 +761,7 @@ def test_a_place_forgotten_under_a_press_ends_it_backed_off_the_plate(quad_world
     m._press_back_out_routine = lambda: backed.append(True) or tick.result(None)
     # ...under the walk in: the sign read, then forgotten
     m.places.see(FEED, *_sign("feed"), 0.0, view=SOUTH, tag_facing=SOUTH)
-    m.drive_to_routine = lambda x, y, timeout=90.0, stop=None: tick.result(True)
+    m.drive_to_routine = lambda x, y, timeout=90.0, stop=None, beyond=(): tick.result(True)
     m.look_for_places = lambda: forget() or [FEED]
     rec = body.run(m.press_routine(FEED, patience=300.0))
     assert rec["why"] == "not found" and backed == [True]
@@ -657,12 +769,12 @@ def test_a_place_forgotten_under_a_press_ends_it_backed_off_the_plate(quad_world
     # ...on the walk to its standoff
     backed.clear()
     m.places.see(FEED, *_sign("feed"), 1.0, view=SOUTH, tag_facing=SOUTH)
-    m.drive_to_routine = lambda x, y, timeout=90.0, stop=None: forget() or tick.result(True)
+    m.drive_to_routine = lambda x, y, timeout=90.0, stop=None, beyond=(): forget() or tick.result(True)
     rec = body.run(m.press_routine(FEED, patience=300.0))
     assert rec["why"] == "not found" and not backed
-    # ...and on a look round for a sign not in view there, before a second try
+    # ...and on a look round for a sign not in view there
     m.places.see(FEED, *_sign("feed"), 2.0, view=SOUTH, tag_facing=SOUTH)
-    m.drive_to_routine = lambda x, y, timeout=90.0, stop=None: tick.result(True)
+    m.drive_to_routine = lambda x, y, timeout=90.0, stop=None, beyond=(): tick.result(True)
     m.look_for_places = lambda: []
     m._look_around_routine = lambda stop: forget() or tick.result(False)
     rec = body.run(m.press_routine(FEED, patience=300.0))

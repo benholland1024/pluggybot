@@ -2071,10 +2071,12 @@ wall clock)** against the old planner's 18.7 (1.5 %), on the same busy box
 **The patience is the robot's, and its interrupt reaches the walk.**
 `drive_to(x, y, patience=S)`: 60 s unsaid, 600 at most, never past the
 procedure's own budget; the longest walk above took 246 s. A decided
-`explore(zone)` walks with `ZONE_PATIENCE_S` (300 s: all 24 fit). A walk
-asks the robot's own hazard rows every second (`go_to_routine(stop=)`) and
-ends where it stands on the answer -- `DRIVE_STOPPED`, never one of the four
-ways a drive gives up -- and a procedure it stops is `stopped:
+`explore(zone)` walks with `ZONE_PATIENCE_S` (300 s: all 24 fit). Its goal
+is the zone's middle, which can be furniture, where the spike's was the
+nearest clear floor; a walk that ends in its zone has got there (#454). A
+walk asks the robot's own hazard rows every second (`go_to_routine(stop=)`)
+and ends where it stands on the answer -- `DRIVE_STOPPED`, never one of the
+four ways a drive gives up -- and a procedure it stops is `stopped:
 interrupted`, as between two verbs.
 
 **Found on the way: no procedure on legs had walked a step.** Every verb
@@ -2428,9 +2430,26 @@ that ran: the walk, in #350's words, or its sign not in view from in front
 of the plate and how its look round ended. That reason leads the job's
 verdict (`_program_failure`). Every try goes in the step's `trace`, the
 log's alone: the walk's record, where the belief stood and its error
-against the truth, and the time too short for the next. ⚠ A first walk
-that times out still leaves no second try; whether it should is #439's
-open decision.
+against the truth, and the time too short for the next.
+
+**A second try is tried only where something changed, never the same
+walk there again** (#439's part 3). The question was whether the patience
+should let both tries run. On 8a61ada, the first build to log them, they
+always had: every one of 16 failed presses ran two, and every second try
+walked from where the first had stopped to the same standoff (within
+14 mm), stopped within 32 mm of where the first had, and gave up as it
+had, 0-19 s later. What stopped both was the other robot lying by the
+standoff (#455, and the goal under it, below). So a walk there that gave
+up, or a robot that stays across the way in, ends the press with that
+try's words. So does a sign out of view, unless the look round moved the
+standoff (a neighbour's sign fitting the row's facing), which is walked to
+once more. A walk in that put no foot on the pad is walked in again from
+the standoff, after a fresh look, as the dock, the rack, the claw and the
+boards retry theirs. No live press has ever failed either way. Every
+press, pressed or not, now leaves its tries
+in the log, so the next week can say whether the second walk in is ever
+used: a feed whose press took 67 s and stepped on the shock plate 22 times
+on the way left no record of how.
 
 Flown on it (`scripts/places_spike.py --find --n 8 --error 3 --again`;
 explore-then-find flights of one robot from its start):
@@ -2838,7 +2857,132 @@ beneath the command the loop holds a finished robot with.
 make way and steps aside, beneath whatever it holds; a drive gives up at a
 resting robot only once it said no or did not clear the way in 30 s; and
 a drive's words call a robot resting "lying down to rest", "in the way"
-unless its disc covers the goal (`tests/test_make_way.py`).
+unless its disc covers the goal (`tests/test_make_way.py`). Where the two
+maps disagree, the next section.
+
+## A robot resting where the other's map put it elsewhere (issue #455)
+
+**What happened.** In the last 16 hours of 8a61ada's log, thirteen walks
+gave up naming a robot lying down to rest: five charges, four presses,
+two procedure walks and two explores, and two more press tries whose
+verdict said "stalled". One had an ask beside it, though make-way worked
+all 11 times it was asked. The `encounter` rows say what the log could
+not. In eleven of the thirteen the two bodies were within 2 m while the
+words put them 1.1-3.6 m apart. So were they in every press walk that
+stalled 0.7-0.9 m short of the feed plate's standoff, both robots' (14 of
+the 18 failed feeds), and in no successful press. Luca's map of the lab
+sat 2.4-2.9 m and 9.5 deg off for hours (each press trace's `belief off`),
+and its map of the house 1.1-1.7 m off at its deaths.
+
+**The mechanism.** A robot resting was kept clear of where it SAID it
+was: its belief, in its own map's frame, so two maps a few metres apart
+put its disc a few metres from its body. The walker's planner routed round
+a spot the robot was not at and straight at its body. The depth camera
+held the walk there, because a robot lying down is under the LIDAR's plane
+and only the camera sees it. The stalled drive then looked for a robot
+near it or its goal, to wait on and ask, and by the belief there was none.
+The give-up named the robot 3.4 m off, or said "stalled" if the hold had
+lapsed that instant. Once an ask was made (Rowan's charge at the dock,
+Luca's belief 1.1 m off its body), the way was sent in Rowan's frame and
+laid in Luca's, where it ran 1.1 m clear of Luca: five times it stood up,
+stepped 0.0 m and lay down again. A robot backed out of its own press
+lies 0.25 m from the plate's standoff (press pose 0.55 m from the sign,
+back-out 1.0 m, standoff 1.8 m), where the other robot walks next. Two
+more: Luca's `unminded` death left it lying 0.68 m from Rowan, whose
+charge then called it "lying down to rest" (#441 asks no dead robot); and
+three walks to the workshop gave up at once, 10-25 m from Rowan walking
+the hall, the one way in, its disc across the way at the moment of a plan.
+
+**And the hold, wherever the maps agree.** Flown with the camera on, #415's
+own doorways lost three walks of six: the robot asked stepped aside, lay
+down again 0.8 m on, and the walker's new plan ran past it close enough for
+the camera to hold. A robot resting in the middle of the hall, with the
+way round it open, did the same to the walk at two placements of six a few
+centimetres apart: held at the disc's edge facing it, while the two ways
+round it swapped plan by plan and reset the stagnation clock, until the
+walk timed out. It is #365's trap, the one that took the hold off a
+fallen robot, and a resting robot placed where its body lies is that case:
+planned round, and asked off a way it cuts.
+
+**Measured** (`make_way_spike.py --near-field`, the depth camera on as the
+served world flies it; `--drift 0,2.9` lays the resting robot's map and
+belief 2.9 m off the world together):
+
+| scene | before | after |
+|---|---|---|
+| living <-> hall door | stalled 4.4 m short, 22 s, not asked | arrived 26.9 s; aside 0.84 m |
+| living <-> bedroom door | gave up 91 s, "lying down to rest in the way, 4.0 m off"; asked, moved 0.04 m | arrived 22.9 s; aside 0.88 m |
+| hall <-> kitchen door | stalled 4.4 m short, 23 s, not asked | arrived 37.9 s; aside 0.81 m |
+| living <-> garden door | stalled 3.3 m short, 23 s, not asked | arrived 36.0 s; aside 1.02 m |
+
+With the WALKER's map and belief laid off instead, as Luca's lab was
+(`--drift-walker 1.2,-2.9`): before, all four stalled 3.1-4.4 m short in
+18-26 s, and nobody was asked; after, all four arrived in 22-38 s, the
+resting robot 0.81-1.02 m aside each time. A robot STANDING in a doorway
+10.6-13.9 m off that walks off 8 s later (`--standing 8`, the walker from
+the east garden): before, all three walks gave up at once, "12.2 m short
+after 0 s (Rowan in the way, 10.6 m off)"; after, all three arrived, in
+39-55 s. #415's seven scenes, maps true: before, 4 of 7 (the three
+doorways above lost), and the hall's middle at 4 of 6 placements; after,
+7 of 7, and 6 of 6. No touch and no fall in any. Without the camera the
+walker steps over a lying robot instead, with no contact, which is how
+#415's scenes were first flown.
+
+**...and the goal it lies on** (#439's part 2). The `encounter` rows put
+the other robot within 2 m at 95 of 96 failed presses over three builds
+(4f1288f, a85772d, 8a61ada). The 96th was a walk given up at once by a
+map 3.4 m off. With the other robot near, 50-82 % of presses failed; with
+it apart, 0-2 %. `scripts/press_spike.py` flies that geometry in the lab,
+the pair on true-floor maps with the camera on. One robot lies where its
+own press backs out (0.25 m short of the feed plate's standoff), on the
+standoff, or across the way in from the door; the other walks in from the
+door, from the south or from the east and finds and presses the feed
+plate:
+
+| code | maps true | the resting robot's 2.9 m off | the walker's 2.9 m off |
+|---|---|---|---|
+| deployed (5ba8a0c) | 8 / 8 (the door's and the south's), 21-53 s | 0 / 5: both tries stalled after 17-19 s and 14 s, nobody asked | 0 / 5, the same |
+| with the change above | 13 / 14, 21-91 s; one walk ran out at 85 s | 5 / 5, 26-56 s | 4 / 11: seven walks circled for 85-87 s, asked late or never |
+| with this | 14 / 14, 21-28 s | 5 / 5, 22-44 s | 11 / 11, 22-29 s |
+
+The deployed code's failures are the live ones, down to the seconds: on
+8a61ada a failed press's stalled walks gave up after 14-19 s, and its
+second after 14-15 s. The eight that #455's change still lost were all a
+goal under a disc. The standoff sat inside the
+resting robot's disc, so every plan ended at a stand-in beside it, and only
+a stagnation asked. None came. Its waypoints spent at the stand-in, the
+drive steered at the goal and planned again from the disc's far side, the
+stand-in swapped side to side, and every new route was progress. Whether
+the swap only delayed the ask (to about 30 s, the 91 s press) or held it
+off for good turned on where the goal fell against the planner's lattice:
+the walker's map laid off moved it, and so did a start 0.8 m nearer. A
+goal a resting robot lies on is a way it cuts now, asked at the plan that
+finds it there, as one whose disc cuts the route is -- within `PAST_M` of
+it: from further off the walk goes on, and the plan that gets it there
+asks, so no walker stands waiting on a robot across a house. Every press
+that pressed, on all three codes, pressed on its first try; none touched
+another plate, and nothing touched or fell.
+
+**What is true now:**
+
+- a robot lying still, fallen, resting or dead, is kept clear of where
+  its body lies, placed as the other's own sensors would put it
+  (`HubLifecycle.keep_clear`), and the depth camera's hold skips it
+  (`_near_field_step`); standing, it is where it says it is, and held for;
+- a walk whose goal a resting robot lies on (`peer_on_the_goal`) asks it
+  at the plan that finds it there, within `PAST_M` of it, and waits while
+  it steps off (#439);
+- the way it is asked off is told relative to its body (`make_way`:
+  `Body.from_seen`, then `Body.as_seen`);
+- a dead robot is never waited on, held for or asked, and is "lying dead";
+- a robot further off than `PAST_M` (3 m) whose disc alone cuts a walk's
+  way is planned past (`Navigator._plan_to`); nearer, it is the wall it was;
+- a press's ask carries its walk in (`drive_to_routine(beyond=)`), and
+  the walk in is cleared before it is walked (`clear_way_routine`), or the
+  try ends "in the way";
+- a robot that cannot make way says why, once every `MAKE_WAY_WAIT_S`.
+
+`tests/test_resting_in_the_way.py` pins each rule.
 
 ## Hide and seek on legs (issue #404)
 
