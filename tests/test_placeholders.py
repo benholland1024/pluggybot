@@ -74,15 +74,17 @@ LUCA_391503 = _quiet(
   ticket_reply={"ticket": "tk_0024", "text": "n"})
 
 
-def test_a_placeholder_is_one_character_a_null_word_or_the_fields_own_name():
-  for value in ("n", "X", "8", ":", "},", "  n  ", "none", "None.", ": null",
-                "n/a", "N/A", "nil"):
+def test_a_placeholder_is_punctuation_a_letter_a_null_word_or_the_fields_own_name():
+  for value in ("n", "X", ":", "},", "  n  ", 'a"}', "none", "None.", ": null",
+                "n/a", "N/A", "nil", "placeholder"):
     assert ov.placeholder(value), value
   assert ov.placeholder("intend", ("intend",))
   assert ov.placeholder("drop goal", ("drop_goal",))
   assert ov.placeholder("Text", ("tell", "text"))
-  # ⚠ a real short value stands: two letters are a word
-  for value in ("", "ok", "hi", "no", "Na", "keep", "bay C is empty"):
+  # ⚠ a real short value stands: two letters are a word, a number is a
+  # number, and one character outside ASCII may be a whole word
+  for value in ("", "ok", "hi", "no", "Na", "keep", "8", "5", "👍", "好",
+                "bay C is empty"):
     assert not ov.placeholder(value), value
   assert not ov.placeholder("intend", ("pin",)), "another field's name is a word"
 
@@ -100,7 +102,7 @@ def test_an_answer_full_of_placeholders_acts_on_nothing_and_its_action_stands():
   assert d.note is None and d.record is None and d.define is None
   assert d.left_out["why"] == "filled" and d.left_out["words"] == ["n"]
   assert d.left_out["acts"] == ["buy_heart", "heart_for", "rate", "other_needs", "done"]
-  assert len(d.left_out["fields"]) == 16 and "tell" in d.left_out["fields"]
+  assert len(d.left_out["fields"]) == 15 and "tell" in d.left_out["fields"]
   assert d.as_dict()["leftOut"] == d.left_out, "the decision's row carries it"
 
 
@@ -130,6 +132,22 @@ def test_a_real_short_value_stands():
              "method": "read the claw's load at rest", "topic": "mass_bench"}
   d = _validate(_quiet(record=finding, cites="7"))
   assert d.record["unit"] == "g" and d.cites == "7" and d.left_out is None
+  # ...a note the robot titled after a bay, a goal by its number, a smile
+  d = _validate(_quiet(note={"topic": "bays", "title": "C", "text": "holds the claw"},
+                       serves="1", tell={"to": "Rowan", "text": "👍"}))
+  assert d.note["title"] == "C" and d.serves == "1" and d.tell["text"] == "👍"
+  assert d.left_out is None
+  # ...a sum answered to a visitor (a reply rides an id only a waiting
+  # message has, and is never judged)
+  d = _validate(_quiet(respond_to="m_7", outcome="replied", reply="5"),
+                waiting=("m_7",))
+  assert (d.respond_to, d.reply, d.left_out) == ("m_7", "5", None)
+  # ...a finding whose optional method said nothing: graded all the same
+  weighed = {"quantity": "unknown mass", "value": 0.31, "unit": "kg",
+             "method": "none", "topic": "mass_bench"}
+  d = _validate(_quiet(record=weighed))
+  assert d.record == {**weighed, "method": ""}
+  assert d.left_out == {"why": "placeholder", "fields": ["record"], "words": ["none"]}
   # ...and a ticket titled with a placeholder is the desk's to title
   d = _validate(_quiet(ticket={"kind": "bug", "title": "x",
                                "text": "The feed plate never registers."}))
@@ -174,8 +192,64 @@ def test_a_quote_names_a_line_and_a_placeholder_quote_only_itself():
   memory.pin("n")                                   # written before #462
   assert memory.unpin("n") == "n"
   assert memory.read(TOP_OF_MIND).strip() == "The task id, not the kind, is what take_task reads"
+  # ...and two letters are a word, too short to be part of a line
+  memory.intend("Feed the mouse at noon")
+  with pytest.raises(ThoughtRefused):
+    memory.drop_goal("no")
   d = _validate(_quiet(drop_goal="n"))
   assert d.drop_goal == "n" and d.left_out is None
+
+
+def test_a_word_filing_a_robots_records_together_is_no_placeholder():
+  """One word in three fields is an answer's filler, but not in a topic: a
+  lookup, a note and a finding filed under `mouse` are a robot keeping its
+  records together (found in review)."""
+  raw = _quiet(lookup="Mouse",
+               note={"topic": "mouse", "title": "after a feed", "text": "it rests"},
+               record={"quantity": "rest after feed", "value": 196, "unit": "s",
+                       "method": "watched from the lab", "topic": "mouse"},
+               give_points={"to": "Rowan", "amount": 10}, buy_heart=True,
+               heart_for="Rowan")
+  d = _validate(raw)
+  assert d.left_out is None and d.lookup == "Mouse" and d.note is not None
+  assert d.give_points == {"to": "Rowan", "amount": 10} and d.buy_heart
+
+
+def test_an_undefine_beside_a_define_left_out_waits():
+  """Luca's answer, with the procedure it runs in `undefine` -- the decoder
+  fills an enum with the job in hand, as it did `done`. With the define left
+  out, the undefine alone took out `workshop_hunt`, and the same answer's
+  action had nothing to run (found in review). It waits, as it does beside a
+  define the library refuses (#264)."""
+  d = _validate({**LUCA_391503, "undefine": "workshop_hunt"})
+  assert d.undefine == "" and d.left_out["undefine"] == "workshop_hunt"
+  assert d.action == "procedure:workshop_hunt"
+  assert ("the undefine of workshop_hunt, which waits for a define that goes "
+          "through") in ov.left_out_said(d.left_out)
+  # ...and beside a define that stands it is a replacement, as ever
+  source = "def workshop_hunt():\n    wait(1)\n"
+  d = _validate(_quiet(undefine="workshop_hunt",
+                       define={"name": "workshop_hunt", "source": source}))
+  assert d.undefine == "workshop_hunt" and d.define["source"] == source
+
+
+def test_procedure_new_beside_a_placeholder_define_runs_nothing_and_the_rest_stands():
+  """A `procedure:new` whose define the library refuses runs nothing and the
+  answer stands; one whose define was a placeholder must not cost the whole
+  answer -- its rules, its message -- as a garbled one (found in review)."""
+  from test_body import stub_life
+  rule = {"event": "every", "action": "ask", "value": 1500, "kind": ""}
+  raw = _quiet(action=ov.PROCEDURE_NEW, reason="r", event_map=[rule],
+               define={"name": "n", "source": "n"},
+               tell={"to": "Rowan", "text": "Back in a minute."})
+  d = _validate(raw)
+  assert d.action == ov.PROCEDURE_NEW and d.define is None
+  assert [r.action for r in d.event_map] == ["ask"] and d.tell is not None
+  assert d.left_out == {"why": "placeholder", "fields": ["define"], "words": ["n"]}
+  life = stub_life()
+  life._after_decision(d)
+  assert life.thoughts.read("History.md").rstrip().endswith(
+    "runs the procedure the same answer defines, and that define was left out")
 
 
 def test_a_decline_of_the_job_the_same_answer_takes_is_left_out():
@@ -217,6 +291,8 @@ def test_every_power_is_judged_left_out_or_kept():
   assert powers == judged | set(ov.UNSHOWN_PAPERWORK) | set(ov.PLACEHOLDER_KEPT)
   assert not set(ov.PLACEHOLDER_KEPT) & (judged | set(ov.UNSHOWN_PAPERWORK))
   assert not set(ov.ANSWER_FIELDS + ov.ACTION_PARAMETERS) & judged, "the action stands"
+  # ...and what a filled answer leaves out goes back to the field's default
+  assert set(ov.UNSHOWN_PAPERWORK) <= {f.name for f in dataclasses.fields(ov.Decision)}
   # ...and every sub-field judged is one the schema has
   props = _menu().schema(standing_orders=True, hearts=True, event_map=True,
                          procedures=("workshop_hunt",), tools=(),

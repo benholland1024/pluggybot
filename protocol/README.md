@@ -59,7 +59,9 @@ drops a decline of the job the same answer takes (docs/Overseer.md §4,
   (one or two did) or `decline` (neither, and a decline named the job the
   same answer took). Beside it, where they apply: `fields` (what was read
   as empty), `words` (the placeholders as written, at most three), `acts`
-  (the unshown paperwork left out) and `decline` (that task's id). The
+  (the unshown paperwork left out), `decline` (that task's id) and
+  `undefine` (a procedure kept because the define beside it was left
+  out). The
   decision carries the same record as `leftOut` in `decisions[]`, and the
   narration says `LEFT OUT ...` after its `DECIDE` line.
 

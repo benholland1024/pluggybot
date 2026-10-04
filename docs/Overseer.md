@@ -1637,49 +1637,62 @@ Luca's `n` a pin and a note (t=402685, t=294625). Another 28 declines named
 the offer the same answer took ("not declining -- taking it"); two of those
 offers were `take_points`, the harm kind.
 
-**The three rules** (`overseer.unfill`, `Menu.validate`):
+**The rules** (`overseer.unfill`, `Menu.validate`):
 
 1. **A placeholder is empty.** Where it can stand (`PLACEHOLDER_TEXT`,
-   `PLACEHOLDER_OBJECTS`), a value of at most one letter or digit, a null
-   word (`none`, `null`, `nil`, `n/a`) or the field's own name reads as
-   `""`. An object whose content holds one goes whole: a message, a
-   decline's reason, a note, a finding's quantity or method, a procedure's
-   source, a ticket's text, a reply on one. A label reads as `""`, and a
-   ticket's title is then its text's head. Every value this matched in
-   answers otherwise meant was junk (64 of them), and so was every
-   one-letter finding quantity in 621 findings. Two letters are a word
-   (`ok`, `hi`, `no` stand), and `answer` (a digit or two), `cites`, a
-   finding's unit and a procedure's name are never judged. ⚠ A QUOTE is the
-   exception (`PLACEHOLDER_QUOTES`: `unpin`, `unnote`, `drop_goal`,
-   `retract`): it names a line, so outside an answer full of placeholders
-   it stands, and a placeholder quote takes out only a line that is
-   exactly it (`thoughts._match`). Luca's `n` goal, written before #462,
-   can be picked out by nothing else; `,` no longer takes out a real one.
+   `PLACEHOLDER_OBJECTS`), these values read as `""`: punctuation alone,
+   one letter, a null word (`none`, `null`, `nil`, `n/a`, and `placeholder`
+   itself), or the field's own name. An object whose content holds one goes
+   whole: a message, a decline's reason, a note's text, a finding's
+   quantity, a procedure's source, a ticket's text, a reply on one. A label
+   reads as `""`: a ticket's title (the desk titles it from its text), a
+   finding's topic, and its method, which is optional (a weighing whose
+   method said "none" is still graded). Every value this matched in answers
+   otherwise meant was junk (64 of them), and so was every one-letter
+   finding quantity in 621 findings. ⚠ Never placeholders: a number (an
+   answer, an id, "5" to a sum), two letters (`ok`, `hi`, `no`), a character
+   outside ASCII (an emoji, `好`). Never judged: `answer`, `cites`, a
+   visitor's `reply` (it rides an id only a waiting message has), a
+   finding's unit, a note's topic and title (`C`, for bay C) and a
+   procedure's name.
 2. **An answer full of them acts on nothing it cannot show.** When three or
-   more fields hold one (one word in three fields is that answer's own
-   placeholder), `UNSHOWN_PAPERWORK` goes too: the heart and whom it is for,
-   the gift, the rating, the guess at the other's need, and `done`. A
-   boolean, a name off a list, a number and an id carry no sign that they
-   were meant. ⚠ **Free text that is no placeholder stands**, and so do the
-   action, its parameters and what the answer configures (the standing
-   order, the event map). Across the 37, the text that survives is a
-   heartbeat rule written after an `unminded` death, warnings to the other
-   robot, tickets the operators answered, and the procedures a
-   `procedure:new` then ran. Dropping all of an answer's paperwork, as the
-   issue first proposed, would have lost those and left `procedure:new`
-   nothing to run.
+   more fields hold one, `UNSHOWN_PAPERWORK` goes too: the heart and whom it
+   is for, the gift, the rating, the guess at the other's need, and `done`.
+   One word in three fields is that answer's own placeholder, wherever it
+   is, though a topic does not count (one word filing a note, a finding and
+   a lookup is a robot keeping its records together). A boolean, a name off
+   a list, a number and an id carry no sign that they were meant. ⚠ **Free
+   text that is no placeholder stands**, and so do the action, its
+   parameters and what the answer configures (the standing order, the event
+   map). Across the 37, the text that survives is a heartbeat rule written
+   after an `unminded` death, warnings to the other robot, tickets the
+   operators answered, and the procedures a `procedure:new` then ran.
+   Dropping all of an answer's paperwork, as the issue first proposed, would
+   have lost those.
 3. **A decline of the job the same answer takes is left out.**
+4. **A procedure is written whole or not at all.** A `procedure:new` whose
+   define was a placeholder stands and runs nothing, as one whose define the
+   library refuses does, so the rest of the answer is kept. An `undefine`
+   beside such a define waits, as it does beside a refused one (#264):
+   alone, it took out the procedure the same answer then ran.
+5. **A quote names a line** (`PLACEHOLDER_QUOTES`: `unpin`, `unnote`,
+   `drop_goal`, `retract`). Outside an answer full of placeholders it
+   stands, but takes out a line it is only part of only if it is no
+   placeholder and has three letters or digits (`thoughts._loose`).
+   Otherwise it takes out only a line that is exactly it. Luca's `n` goal,
+   written before #462, can be picked out by nothing else, and `,` and `no`
+   no longer take out a real one.
 
 **Told, and counted.** `Decision.left_out` is `{why, fields, words, acts,
-decline}`. The lifecycle writes ONE History line ("left out of that answer:
-16 fields holding only 'n' read as empty -- ...; and with 3 or more, not
-acted on either: buy_heart, heart_for, rate, other_needs, done") and narrates
-`LEFT OUT ...`. It also emits a `left_out` event, which the observatory files
-under `why` (`protocol.LEFT_OUT_WHYS`), and the decision carries the record
-as `leftOut`. The prompt did not change: the History line is how the robot
-learns how its answer was read. Every power is judged, unshown or kept
-(`PLACEHOLDER_KEPT` names each kept power's reason), and a test fails on a
-power none of them names.
+decline, undefine}`. The lifecycle writes ONE History line ("left out of
+that answer: 15 fields holding only 'n' read as empty -- ...; and with 3 or
+more, not acted on either: buy_heart, heart_for, rate, other_needs, done")
+and narrates `LEFT OUT ...`. It also emits a `left_out` event, which the
+observatory files under `why` (`protocol.LEFT_OUT_WHYS`), and the decision
+carries the record as `leftOut`. The prompt did not change: the History line
+is how the robot learns how its answer was read. Every power is judged,
+unshown or kept (`PLACEHOLDER_KEPT` names each kept power's reason), and a
+test fails on a power none of them names.
 
 What it cannot do: tell a real-looking filler from a real value. In a filled
 answer a one-word lookup ("lab") or a reply "still open" stands. A heart an

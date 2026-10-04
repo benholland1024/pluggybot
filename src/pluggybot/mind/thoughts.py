@@ -667,7 +667,7 @@ class ThoughtFiles:
       hits = [r for r in notes if r.title == quote]
     if not hits:
       hits = [r for r in notes if r.text == quote]
-    if not hits and not placeholder(quote):
+    if not hits and _loose(quote):
       hits = [r for r in notes if quote in r.text or quote in r.title]
     if len(hits) != 1:
       self._refuse(f"{NOTES}: " + ("nothing matches" if not hits
@@ -990,15 +990,21 @@ def attempted(verb: str, payload, refusal: str = "") -> str:
   return f" -- {what!r}" if what and repr(what) not in refusal else ""
 
 
+def _loose(quote: str) -> bool:
+  """May a quote pick out a line it is only part of? ⚠ Not a placeholder,
+  nor fewer than three letters or digits (issue #462): as a substring,
+  Rowan's `,` took out its goal and a pin, and Luca's `n` a pin and a note.
+  Either still takes out a line that is exactly it."""
+  return not placeholder(quote) and sum(c.isalnum() for c in quote) >= 3
+
+
 def _match(rows, quote: str, name: str, refuse):
   """The one row a quote picks out: an exact text wins, else the one row
-  containing it, else a refusal. Hits that are all ONE text are one line
+  containing it (a quote `_loose` allows), else a refusal. Hits that are all ONE text are one line
   written twice (issue #409): no quote could tell them apart, so the OLDEST
   goes -- the newest is the finding a grader reads (`_grade_mass`)."""
   hits = [r for r in rows if r.text == quote]
-  # ⚠ A PLACEHOLDER QUOTE MATCHES ONLY ITSELF (issue #462): as a substring,
-  # Rowan's `,` took out its goal and a pin, and Luca's `n` a pin and a note
-  if not hits and not placeholder(quote):
+  if not hits and _loose(quote):
     hits = [r for r in rows if quote in r.text]
   if len({r.text for r in hits}) != 1:
     refuse(f"{name}: " + ("nothing on the page matches" if not hits

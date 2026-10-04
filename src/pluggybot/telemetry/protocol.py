@@ -594,8 +594,9 @@ TICKET_SENDERS = ("robot", "operator")
 #: bump: one `left_out` event per answer `Menu.validate` left something out
 #: of -- `why` (below), `fields` (the paperwork that held a placeholder and
 #: was read as empty), `words` (the placeholders as written, at most three),
-#: `acts` (the unshown paperwork of an answer full of them) and `decline`
-#: (the task id a decline named while the same answer took it). The
+#: `acts` (the unshown paperwork of an answer full of them), `decline` (the
+#: task id a decline named while the same answer took it) and `undefine`
+#: (a procedure kept because the define beside it was left out). The
 #: observatory files a row per event under `why`; the decision it came from
 #: carries the same record as `leftOut` in `decisions[]`.
 LEFT_OUT_EVENT_TYPES = ("left_out",)

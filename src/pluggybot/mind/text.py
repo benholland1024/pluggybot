@@ -374,8 +374,8 @@ def full_message(surface: Surface, size: int, limit: int) -> str:
 # ---- a placeholder (issue #462) ---------------------------------------------
 
 #: The words that mean nothing in any field, whatever their case and the
-#: punctuation round them.
-NULL_WORDS = ("none", "null", "nil", "n/a")
+#: punctuation round them -- `placeholder` among them, written as one.
+NULL_WORDS = ("none", "null", "nil", "n/a", "placeholder")
 PUNCTUATION = " \t\r\n.,;:!?'\"`()[]{}<>*#-_/\\|"
 
 
@@ -385,14 +385,15 @@ def _squeeze(text: str) -> str:
 
 def placeholder(value, names: tuple[str, ...] = ()) -> bool:
   """Is `value` what a model writes into a field it means nothing by (issue
-  #462; docs/Overseer.md "Placeholders")? At most one letter or digit (`n`,
-  `x`, `8`, `:`, `},`), a null word, or one of `names`: the field's own name,
+  #462; docs/Overseer.md "Placeholders")? Punctuation alone (`:`, `},`), one
+  letter (`n`, `x`), a null word, or one of `names`: the field's own name,
   `pin` in `pin`. MEASURED on the observatory's 8,328 answers: every value
-  it matched was junk. ⚠ Two letters are a word -- `ok`, `hi` and `no`
-  stand -- and `answer`, a digit or two, is never judged."""
+  it matched was junk. ⚠ A number is never one (an answer, an id, "5" to a
+  sum), nor two letters (`ok`, `hi`, `no`), nor a character outside ASCII
+  (an emoji, `好`)."""
   text = str(value or "").strip().lower()
   if not text:
     return False
   word = text.strip(PUNCTUATION)
-  return (sum(c.isalnum() for c in text) <= 1 or word in NULL_WORDS
-          or _squeeze(word) in {_squeeze(n) for n in names})
+  return (word == "" or (len(word) == 1 and word.isascii() and word.isalpha())
+          or word in NULL_WORDS or _squeeze(word) in {_squeeze(n) for n in names})

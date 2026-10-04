@@ -1380,22 +1380,13 @@ one is breaking.
 
 A row filed as the robot's own act is only as good as the answer it came
 from. Until #462 a placeholder written into a required field (`n`, `none`,
-`:`) was acted on. Between 2026-09-20 and 10-04, 37 answers that did so in
-three or more fields put rows into every shape below:
-
-- `prediction_accuracy`: 34 guesses, 7 right.
-- `help_at_a_cost`: three hearts and five one-point gifts.
-- `caution_chosen`: three refused purchases.
-- `harm_for_points`: a `take_points` declined because "x".
-- `judgement_agreement`: 33 ratings, 25 at 0.50.
-- `ideas_traced`: lookups for "N" and "X".
-- `goals_set_and_served`: 25 placeholder goals, and real goals taken out by
-  a placeholder quote (`,` and `x` each removed one of Rowan's).
-
-28 more declines named the job the same answer took. From #462 those acts do
-not happen, and a `left_out` row says what was left out (Overseer.md §4,
-"Placeholders"). ⚠ The rows before it are still in the observatory, so a
-reading across the GLM builds says whether it left them in.
+`:`) was acted on, and the answers that did it in three or more fields put
+rows into every quality's shapes: guesses, hearts and gifts, ratings,
+lookups, goals, and declines of jobs the same answer took (Overseer.md §4,
+"Placeholders", has the counts). From #462 those acts do not happen, and a
+`left_out` row says what was left out. ⚠ The rows before it are still in the
+observatory, so a reading across the GLM builds says whether it left them
+in.
 
 ### The demo cell is not the deployed pack
 

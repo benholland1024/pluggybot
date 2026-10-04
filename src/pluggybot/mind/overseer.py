@@ -57,7 +57,7 @@ import os
 import threading
 import time
 from collections import Counter, deque
-from dataclasses import dataclass, field, replace
+from dataclasses import dataclass, field, fields, replace
 from typing import Callable
 
 from pluggybot.mind import events as ev
@@ -683,10 +683,11 @@ class Decision:
   ticket: dict | None = None
   ticket_reply: dict | None = None
   #: WHAT `validate` LEFT OUT OF THE ANSWER (issue #462): `{why, fields,
-  #: words, acts, decline}` -- the fields that held a placeholder and were
-  #: read as empty, the placeholders as written, the unshown paperwork of an
-  #: answer full of them, and a decline of the job the same answer took.
-  #: None where nothing was. Said once in History and as a `left_out` event.
+  #: words, acts, decline, undefine}` -- the fields that held a placeholder
+  #: and were read as empty, the placeholders as written, the unshown
+  #: paperwork of an answer full of them, a decline of the job the same
+  #: answer took, and an undefine that waits for its define. None where
+  #: nothing was. Said once in History and as a `left_out` event.
   left_out: dict | None = None
   source: str = "llm"
 
@@ -1028,12 +1029,14 @@ def _word(text) -> str:
 #: reads as `""`; an object whose CONTENT holds one is left out whole,
 #: because its text is what names the act; a LABEL holding one reads as
 #: `""` -- a ticket's title is then its text's head (`Desk.open`), a
-#: finding's topic `findings/general`. ⚠ Never judged: `answer`, `cites` and
-#: `respond_to` (ids), a finding's `unit` (`m`, `s`, `g`), a procedure's
-#: `name` (its `def` line's, `def x():` included), and the answer's own
-#: three and the action's parameters -- the action stands.
+#: finding's topic `findings/general`, and its method, which is optional,
+#: goes (a weighing whose method said "none" is still graded). ⚠ Never
+#: judged: `answer`, `cites` and `respond_to` (ids); a visitor's `reply`
+#: (`PLACEHOLDER_KEPT`); a finding's `unit` (`m`, `s`, `g`); a note's topic
+#: and title, which the robot names (`C`, for bay C); a procedure's `name`
+#: (its `def` line's); the answer's own three and the action's parameters.
 PLACEHOLDER_TEXT = ("pin", "unpin", "unnote", "intend", "drop_goal", "serves",
-                    "retract", "done", "lookup", "reply")
+                    "retract", "done", "lookup")
 #: ...but a QUOTE names a line, so outside an answer full of placeholders one
 #: stands, and a placeholder quote takes out only a line that is exactly it
 #: (`thoughts._match`): the robot can still take out the `n` goal it wrote
@@ -1043,8 +1046,8 @@ PLACEHOLDER_OBJECTS: dict[str, tuple[tuple[str, ...], tuple[str, ...]]] = {
   # field: (its content, its labels)
   "tell": (("text",), ()),
   "decline": (("reason",), ()),
-  "note": (("topic", "title", "text"), ()),
-  "record": (("quantity", "method"), ("topic",)),
+  "note": (("text",), ()),
+  "record": (("quantity",), ("method", "topic")),
   "define": (("source",), ()),
   "ticket": (("text",), ("title",)),
   "ticket_reply": (("text",), ()),
@@ -1067,13 +1070,18 @@ UNSHOWN_PAPERWORK = ("buy_heart", "heart_for", "give_points", "rate",
 #: the heartbeat rule its robot lived by -- and `escalate`, about the
 #: decision itself); edits naming what they remove (`undefine` came with a
 #: `define` in every filled answer; `retire_tool`; `build_tool` is
-#: `idle_build`'s); ids only an id matches (`respond_to`, `cites`) and the
-#: verdict beside a reply (`outcome`); the lab's two, beside the action.
+#: `idle_build`'s) -- but an `undefine` beside a define left out waits, as
+#: beside one the library refuses (#264); ids only an id matches
+#: (`respond_to`, `cites`); a visitor's `reply` and its `outcome`, which
+#: ride an id only a waiting message has (and "5" answers a sum); the lab's
+#: two, beside the action.
 PLACEHOLDER_KEPT = ("standing_order", "event_map", "escalate", "undefine",
                     "retire_tool", "build_tool", "respond_to", "cites",
-                    "outcome", "real", "mouse_will")
+                    "reply", "outcome", "real", "mouse_will")
 #: How many of the placeholders, as written, the record quotes back.
 WORDS_SHOWN = 3
+#: What a left-out field goes back to: its default on `Decision`.
+_UNSET = {f.name: f.default for f in fields(Decision)}
 
 
 def unfill(raw: dict) -> tuple[dict, dict | None]:
@@ -1091,8 +1099,10 @@ def unfill(raw: dict) -> tuple[dict, dict | None]:
       if isinstance(obj.get(sub), str):
         found.append((name, sub, obj[sub]))
   where: dict[str, set] = {}
-  for name, _, text in found:
-    if _word(text):
+  for name, sub, text in found:
+    # ...never a topic: one word filing a note, a finding and a lookup is a
+    # robot keeping its records together (found in review: `mouse`)
+    if _word(text) and sub != "topic":
       where.setdefault(_word(text), set()).add(name)
   own = {w for w, names in where.items() if len(names) >= FILLED_FIELDS}
   held = [(name, sub, text) for name, sub, text in found
@@ -1104,7 +1114,8 @@ def unfill(raw: dict) -> tuple[dict, dict | None]:
     if name in PLACEHOLDER_QUOTES and not filled:
       continue
     fields += [] if name in fields else [name]
-    words += [] if text.strip() in words else [text.strip()]
+    if text.strip().lower() not in {w.lower() for w in words}:
+      words.append(text.strip())
     if sub is None:
       out[name] = ""
     elif sub in PLACEHOLDER_OBJECTS[name][0]:
@@ -1129,6 +1140,9 @@ def left_out_said(gone: dict) -> str:
   if gone.get("acts"):
     said.append(f"and with {FILLED_FIELDS} or more, not acted on either: "
                 f"{', '.join(gone['acts'])}")
+  if gone.get("undefine"):
+    said.append(f"the undefine of {gone['undefine']}, which waits for a "
+                "define that goes through")
   if gone.get("decline"):
     said.append(f"the decline of {gone['decline']}, the job it took")
   return "; ".join(said)
@@ -1761,16 +1775,19 @@ class Menu:
     anyway must not be able to cost a perfectly good decision.
 
     A PLACEHOLDER IS EMPTY (issue #462): `unfill` reads one as `""` before
-    anything here sees it, so a `procedure:new` whose `define` is a
-    placeholder defines nothing, as it would with `""`. An answer full of
-    them keeps its action, the action's parameters and what it configures,
-    and leaves out `UNSHOWN_PAPERWORK`; `left_out` says what went.
+    anything here sees it. An answer full of them keeps its action, the
+    action's parameters and what it configures, and leaves out
+    `UNSHOWN_PAPERWORK`; `left_out` says what went. A `procedure:new` whose
+    `define` was a placeholder stands and runs nothing, as one whose define
+    the library refuses does -- the answer did write one.
     """
     raw, gone = unfill(raw)
+    unfilled = set(gone["fields"]) if gone is not None else set()
     action = str(raw.get("action", "")).strip()
     if action == PROCEDURE_NEW and self.procedures:
       spec = raw.get("define")
-      if not (isinstance(spec, dict) and str(spec.get("source", "")).strip()):
+      if ("define" not in unfilled
+          and not (isinstance(spec, dict) and str(spec.get("source", "")).strip())):
         have = ", ".join(PROCEDURE_PREFIX + n for n in list(procedures or ())[:4])
         raise ValueError(f"{PROCEDURE_NEW} runs the procedure this same "
                          "answer defines, and this answer defines none -- to "
@@ -1869,6 +1886,12 @@ class Menu:
         define = {"name": clean(spec.get("name"), MAX_ID),
                   "source": str(spec.get("source"))[:lang.MAX_SOURCE_CHARS + 1]}
       undefine = clean(raw.get("undefine"), MAX_ID)
+    # ...and an UNDEFINE BESIDE A DEFINE LEFT OUT waits, as beside one the
+    # library refuses (#264): alone it deleted the procedure the answer was
+    # rewriting, which the same answer then ran (found in review)
+    held = ""
+    if undefine and "define" in unfilled:
+      held, undefine = undefine, ""
     # `done` rides the library's slot (issue #207): a challenge is
     # discharged by a procedure, so only a mind that can write one can
     # finish one. Dropped, not raised on, where there is no library.
@@ -1989,19 +2012,11 @@ class Menu:
       note = {"topic": clean(written.get("topic"), MAX_LINE_CHARS),
               "title": clean(written.get("title"), MAX_LINE_CHARS),
               "text": clean(written.get("text"), MAX_LINE_CHARS)}
-    buy_heart = bool(raw.get("buy_heart"))
-    # AN ANSWER FULL OF PLACEHOLDERS (issue #462) is not trusted with what
-    # no placeholder could show: in the order of `UNSHOWN_PAPERWORK`.
-    acts: list[str] = []
-    if gone is not None and gone["why"] == "filled":
-      unshown = (buy_heart, heart_for, give, rate, other_needs, done)
-      acts = [name for name, v in zip(UNSHOWN_PAPERWORK, unshown) if v]
-      buy_heart, heart_for, give, rate, other_needs, done = False, "", None, None, "", ""
-    left_out = {**(gone or {}), **({"acts": acts} if acts else {}),
-                **({"decline": taken} if taken else {})}
+    left_out = {**(gone or {}), **({"decline": taken} if taken else {}),
+                **({"undefine": held} if held else {})}
     if taken and gone is None:
       left_out["why"] = "decline"
-    return Decision(action=action, reason=str(raw.get("reason", "")).strip(),
+    decision = Decision(action=action, reason=str(raw.get("reason", "")).strip(),
                     think=clean(raw.get("think"), THINK_CHARS),
                     board=board, program=program, zone=zone,
                     read=read, find=find,
@@ -2047,7 +2062,14 @@ class Menu:
                     # REFUSALS (already at five, cannot afford it, would
                     # strand the upkeep) are the ledger's, where the balance
                     # actually is, and every one of them is narrated.
-                    buy_heart=buy_heart)
+                    buy_heart=bool(raw.get("buy_heart")))
+    # AN ANSWER FULL OF PLACEHOLDERS (issue #462) is not trusted with what no
+    # placeholder could show: each such field back to its default, by name.
+    acts = [name for name in UNSHOWN_PAPERWORK if getattr(decision, name)]
+    if gone is not None and gone["why"] == "filled" and acts:
+      decision = replace(decision, **{name: _UNSET[name] for name in acts},
+                         left_out={**left_out, "acts": acts})
+    return decision
 
 
 # ---- what a fallback may take ------------------------------------------------

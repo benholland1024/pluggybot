@@ -6286,10 +6286,13 @@ class HubLifecycle:
       # the new one was refused is the mistake this token exists to end.
       name = getattr(self, "_defined_now", None)
       if not name:
+        # ...refused by the library, or left out as a placeholder (#462)
+        why = ("left out" if "define" in ((decision.left_out or {}).get("fields") or ())
+               else "refused")
         self._say(f"DECIDE: {PROCEDURE_NEW} ran nothing -- the define on the "
-                  "same answer was refused")
+                  f"same answer was {why}")
         self._remember(f"ran nothing: `{PROCEDURE_NEW}` runs the procedure the "
-                       "same answer defines, and that define was refused")
+                       f"same answer defines, and that define was {why}")
         yield from self.body.hold_routine(DECIDED_IDLE_S)
         return "unbuildable"
       decision = dataclasses.replace(decision, action=PROCEDURE_PREFIX + name)
