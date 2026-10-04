@@ -318,7 +318,11 @@ them (SimNotes, "Walking into
 the unknown"). How long it may take is the procedure's to say:
 `drive_to(x, y, patience=S)`, 60 s when it says nothing, at most 600, and
 never past the procedure's own budget. A decided `explore(zone)` walks to
-its zone with a decided action's default, `ZONE_PATIENCE_S` (300 s).
+its zone with a decided action's default, `ZONE_PATIENCE_S` (300 s). The
+walk aims at the zone's middle, and one that ends anywhere inside the zone
+has got there (issue #454). The workshop's table stands on its middle, so
+13 of 13 live walks there stopped beside it, and History told the robot it
+"never got there".
 
 ### 2d. The workshop: the robot builds a tool (issue #168)
 

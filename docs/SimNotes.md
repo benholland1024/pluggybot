@@ -2071,10 +2071,12 @@ wall clock)** against the old planner's 18.7 (1.5 %), on the same busy box
 **The patience is the robot's, and its interrupt reaches the walk.**
 `drive_to(x, y, patience=S)`: 60 s unsaid, 600 at most, never past the
 procedure's own budget; the longest walk above took 246 s. A decided
-`explore(zone)` walks with `ZONE_PATIENCE_S` (300 s: all 24 fit). A walk
-asks the robot's own hazard rows every second (`go_to_routine(stop=)`) and
-ends where it stands on the answer -- `DRIVE_STOPPED`, never one of the four
-ways a drive gives up -- and a procedure it stops is `stopped:
+`explore(zone)` walks with `ZONE_PATIENCE_S` (300 s: all 24 fit). Its goal
+is the zone's middle, which can be furniture, where the spike's was the
+nearest clear floor; a walk that ends in its zone has got there (#454). A
+walk asks the robot's own hazard rows every second (`go_to_routine(stop=)`)
+and ends where it stands on the answer -- `DRIVE_STOPPED`, never one of the
+four ways a drive gives up -- and a procedure it stops is `stopped:
 interrupted`, as between two verbs.
 
 **Found on the way: no procedure on legs had walked a step.** Every verb
