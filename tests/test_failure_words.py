@@ -681,6 +681,38 @@ def test_a_decided_explore_whose_zone_walk_gave_up_says_why_and_how_it_ended():
              for ln in life.log)
 
 
+@pytest.mark.parametrize("at, inside", [((-8.5, -1.3), True),     # beside its table
+                                        ((-4.7, -2.0), False)])   # in the hall
+def test_a_zone_walk_that_ends_in_its_zone_got_there(at, inside):
+  """The walk aims at the zone's middle, and the workshop's table stands on
+  it (#454): 13 of 13 live walks there stopped beside it, in the room, and
+  History said "never got there" -- Luca took the workshop for a room the
+  planner could not reach, and filed a ticket. One that stopped in the hall
+  did not get there."""
+  from test_body import StubBody, stub_life
+  from pluggybot.lifecycle import in_zone
+  from pluggybot.mind import overseer as ov
+  assert in_zone(QUAD_HOME, "workshop", *at) is inside
+  body = StubBody()
+  life = stub_life(body=body)
+  life.begin((0.0, 0.0, 0.0))                    # the day's setup, and no day
+  gives_up = _gives_up(body)
+
+  def walk(x, y, timeout=90.0, stop=None):
+    body.x, body.y = at                          # where the walk ended
+    return gives_up(x, y, timeout, stop)
+  body.go_to_routine = walk
+  body.plan_frontier = lambda blacklist: (None, "no-reachable")
+  life._after_decision(ov.Decision(action="explore", zone="workshop", reason="the workshop"))
+  went, said = (("got there and explored", "in workshop, short of its middle") if inside
+                else ("never got there -- the drive gave up (no_route) -- and explored "
+                      "where it stopped", "never reached workshop"))
+  assert _history(life)[-1].endswith(
+    f"explore (workshop): {went} for 0 s, until none of the floor I have not seen "
+    "could be reached"), _history(life)[-2:]
+  assert any(f"EXPLORE: {said} -- the drive gave up (no_route)" in ln for ln in life.log)
+
+
 def test_every_way_an_explore_ends_is_said_and_the_runs_own_end_is_not():
   """The words are `explore_outcome`'s, a pure function: every ending
   `explore_routine` answers reads as itself, and the run's end writes
