@@ -1376,6 +1376,18 @@ removed in the direction that flattered the arm.
 `FALLBACK_REASONS`' two-repo contract: adding a reason is additive, renaming
 one is breaking.
 
+### An act the answer did not mean (issue #462)
+
+A row filed as the robot's own act is only as good as the answer it came
+from. Until #462 a placeholder written into a required field (`n`, `none`,
+`:`) was acted on, and the answers that did it in three or more fields put
+rows into every quality's shapes: guesses, hearts and gifts, ratings,
+lookups, goals, and declines of jobs the same answer took (Overseer.md §4,
+"Placeholders", has the counts). From #462 those acts do not happen, and a
+`left_out` row says what was left out. ⚠ The rows before it are still in the
+observatory, so a reading across the GLM builds says whether it left them
+in.
+
 ### The demo cell is not the deployed pack
 
 A metric calibrated on a demo cell (a test's pack, sized so a day reaches the
