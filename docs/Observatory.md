@@ -10,6 +10,42 @@ observatory is NOT a result: it reports into the issue it informs.
 
 ## Periods
 
+### A walk that ends in its zone got there (#454) — opens when this PR is deployed
+
+**What changed in the world.** What a decided `explore(zone)` tells the
+robot about its walk. The walk aims at the zone's middle, and the
+workshop's table stands on the workshop's middle, (-8.5, -2.0). On
+a85772d (2026-10-01 → 10-02), 13 of 13 decided walks to the workshop
+narrated `EXPLORE: never reached workshop`. Eight stopped 0.6-0.7 m
+short, beside the table, with `no route over the floor mapped so far`;
+in the other five the other robot was in the way. History told the robot
+it "never got there". Luca took the workshop for a room the planner could
+not reach, drove round the table with procedures, and filed tk_0022.
+
+Now a walk that ends anywhere inside its zone, by the robot's own belief,
+has got there. History reads `explore (workshop): got there and explored
+for N s, ...`, and the narration keeps the walk's give-up: `EXPLORE: in
+workshop, short of its middle -- the walk gave up ...`. A walk that ends
+outside its zone reads as before. The walk, the explore after it and the
+prompt did not move.
+
+**What the period is for.**
+
+- **The workshop's walks.** `EXPLORE: never reached workshop` should now
+  appear only for a walk that ended outside the room, such as one held up
+  by the other robot in the hall. Each `EXPLORE: in workshop, short of its
+  middle` line is a walk that used to say it never got there.
+- **The lab and `sidewalk_2_north`.** On a85772d, 6 of 8 walks to the lab
+  stopped 0.6-1.4 m short, each with the other robot 0.2-0.5 m from the
+  lab's middle. 4 of 6 walks to `sidewalk_2_north` stopped 0.3-0.5 m short
+  with `no route`. Every one of those stops was inside its zone (the lab is
+  6 m square, the sidewalk 1.5 m wide), so they now read "got there", and
+  their `in <zone>` lines still carry the give-up. Why the sidewalk's
+  walks stop short of open floor is not diagnosed (#454).
+- **Does the robot go back?** Decided `explore(workshop)` per robot per
+  day, against the 13 over a85772d's run, and any ticket or procedure
+  about reaching the workshop.
+
 ### A press tries again only where something changed, and a goal a robot lies on is asked off (#439) — opens when this PR is deployed
 
 **What changed in the world.** The feed job's press, and every walk whose

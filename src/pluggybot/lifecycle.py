@@ -43,6 +43,7 @@ from pluggybot.body import (  # noqa: F401 -- the topple's old home
 )
 from pluggybot.body import RackPose
 from pluggybot.economy.cadence import CHECK_S
+from pluggybot.economy.census import Zone
 from pluggybot.economy import energy as energy_model
 from pluggybot.mind import events as ev
 from pluggybot.mind import look as eye_mod
@@ -6226,7 +6227,16 @@ class HubLifecycle:
         self._say(f"EXPLORE: heading for {decision.zone}")
         if not (yield from self.body.go_to_routine(wx, wy, timeout=ZONE_PATIENCE_S)):
           walk_why = self.drive_why(wx, wy)
-          self._say(f"EXPLORE: never reached {decision.zone} -- {walk_why}")
+          # ⚠ A WALK THAT ENDS IN ITS ZONE GOT THERE (issue #454): it aims
+          # at the middle, and furniture may stand there -- 8 of 13 live
+          # walks to the workshop stopped beside its table and said "never
+          # got there", and the robot took the room for one it could not
+          # reach
+          if in_zone(self.world, decision.zone, *self.body.pose_xy()):
+            self._say(f"EXPLORE: in {decision.zone}, short of its middle -- {walk_why}")
+            walk_why = None
+          else:
+            self._say(f"EXPLORE: never reached {decision.zone} -- {walk_why}")
       t0 = float(self.data.time)
       ended = yield from self.explore_routine(budget=DECIDED_EXPLORE_S,
                                               mark_done=False)
@@ -7828,13 +7838,24 @@ def world_facts(world: str, rack: dict[str, int] | None = None, game: bool = Fal
                     verbs=verbs, places=places, plates=plates, cubes=cubes)
 
 
-def zone_centre(world: str, name: str) -> tuple[float, float]:
-  """The middle of a named zone, for a `explore(zone)` decision."""
+def _zone(world: str, name: str) -> dict:
   for zone in world_config(world)["zones"]:
     if zone["name"] == name:
-      return ((zone["min"][0] + zone["max"][0]) / 2.0,
-              (zone["min"][1] + zone["max"][1]) / 2.0)
+      return zone
   raise ValueError(f"{world} has no zone {name!r}")
+
+
+def zone_centre(world: str, name: str) -> tuple[float, float]:
+  """The middle of a named zone, for a `explore(zone)` decision."""
+  zone = _zone(world, name)
+  return ((zone["min"][0] + zone["max"][0]) / 2.0,
+          (zone["min"][1] + zone["max"][1]) / 2.0)
+
+
+def in_zone(world: str, name: str, x: float, y: float) -> bool:
+  """Is (x, y) inside a named zone -- where a walk to it has got to
+  (issue #454), wherever its middle is."""
+  return Zone.from_meta(_zone(world, name)).contains(x, y)
 
 
 def shown_offers(life) -> list[dict]:
