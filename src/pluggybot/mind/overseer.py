@@ -681,6 +681,12 @@ class Decision:
   #: are the operator's.
   ticket: dict | None = None
   ticket_reply: dict | None = None
+  #: WHAT `validate` LEFT OUT OF THE ANSWER (issue #462): `{why, fields,
+  #: words, acts, decline}` -- the fields that held a placeholder and were
+  #: read as empty, the placeholders as written, the unshown paperwork of an
+  #: answer full of them, and a decline of the job the same answer took.
+  #: None where nothing was. Said once in History and as a `left_out` event.
+  left_out: dict | None = None
   source: str = "llm"
 
   @property
@@ -754,6 +760,7 @@ class Decision:
             **({"mouseWill": self.mouse_will} if self.mouse_will else {}),
             **({"ticket": dict(self.ticket)} if self.ticket else {}),
             **({"ticketReply": dict(self.ticket_reply)} if self.ticket_reply else {}),
+            **({"leftOut": dict(self.left_out)} if self.left_out else {}),
             "source": self.source}
 
   def summary(self) -> str:
@@ -997,6 +1004,149 @@ ACTION_PARAMETERS = ("board", "program", "zone", "read", "find", "task",
 #: ...and the three that ARE the answer: what the robot thought, what it
 #: chose, and why.
 ANSWER_FIELDS = ("think", "action", "reason")
+
+
+# ---- placeholders (issue #462) ----------------------------------------------
+#
+# A PLACEHOLDER IS EMPTY. Every field of the schema is required (the router
+# asks for `strict`), so a field the model means nothing by is still written,
+# and `""` (`false`, `{"to": "", "text": ""}`) is "not this time" -- but the
+# deployed model sometimes writes something instead, and a non-empty value
+# used to be taken as meant: a message of "n", a decline because "none", a
+# goal called `intend`. docs/Overseer.md "Placeholders" has the reading.
+
+#: The words that mean nothing in any field, whatever their case and the
+#: punctuation round them.
+NULL_WORDS = ("none", "null", "nil", "n/a")
+_ENDS = " \t\r\n.,;:!?'\"`()[]{}<>*#-_/\\|"
+
+
+def _squeeze(text: str) -> str:
+  return "".join(c for c in text if c.isalnum())
+
+
+def _word(text) -> str:
+  """`text` as one word -- lower case, the punctuation round it gone -- or
+  "" where it is more than one."""
+  word = str(text).strip().lower().strip(_ENDS)
+  return "" if any(c.isspace() for c in word) else word
+
+
+def placeholder(value, names: tuple[str, ...] = ()) -> bool:
+  """Is `value` what a model writes into a field it means nothing by (issue
+  #462)? At most one letter or digit (`n`, `x`, `8`, `:`, `},`), a null word,
+  or one of `names`: the field's own name, `pin` in `pin`. MEASURED on the
+  observatory's 8,328 answers: every value it matched was junk. ⚠ Two
+  letters are a word -- `ok`, `hi` and `no` stand -- and `answer`, a digit
+  or two, is never judged."""
+  text = str(value or "").strip().lower()
+  if not text:
+    return False
+  word = text.strip(_ENDS)
+  return (sum(c.isalnum() for c in text) <= 1 or word in NULL_WORDS
+          or _squeeze(word) in {_squeeze(n) for n in names})
+
+
+#: WHERE A PLACEHOLDER CAN STAND, and what it costs there: a string field
+#: reads as `""`; an object whose CONTENT holds one is left out whole,
+#: because its text is what names the act; a LABEL holding one reads as
+#: `""` -- a ticket's title is then its text's head (`Desk.open`), a
+#: finding's topic `findings/general`. ⚠ Never judged: `answer`, `cites` and
+#: `respond_to` (ids), a finding's `unit` (`m`, `s`, `g`), a procedure's
+#: `name` (its `def` line's, `def x():` included), and the answer's own
+#: three and the action's parameters -- the action stands.
+PLACEHOLDER_TEXT = ("pin", "unpin", "unnote", "intend", "drop_goal", "serves",
+                    "retract", "done", "lookup", "reply")
+PLACEHOLDER_OBJECTS: dict[str, tuple[tuple[str, ...], tuple[str, ...]]] = {
+  # field: (its content, its labels)
+  "tell": (("text",), ()),
+  "decline": (("reason",), ()),
+  "note": (("topic", "title", "text"), ()),
+  "record": (("quantity", "method"), ("topic",)),
+  "define": (("source",), ()),
+  "ticket": (("text",), ("title",)),
+  "ticket_reply": (("text",), ()),
+}
+#: AN ANSWER FULL OF THEM: three or more of those fields holding one -- one
+#: word in three of them is that answer's own (`keep`, `test`, `watch_mouse`)
+#: and is read as empty wherever it is -- and the paperwork no placeholder
+#: can be seen in (a boolean, a name off a list, a number, an id) is left out
+#: too. MEASURED (2026-09-20 -> 10-04): 37 such answers bought the other
+#: robot three hearts, gave points and rated drawings at 0.50; the free text
+#: in them that was no placeholder -- a heartbeat rule, a warning to the
+#: other robot, the procedure a `procedure:new` ran -- was nearly all meant,
+#: and stands.
+FILLED_FIELDS = 3
+UNSHOWN_PAPERWORK = ("buy_heart", "heart_for", "give_points", "rate",
+                     "other_needs", "done")
+#: ...and the powers such an answer KEEPS, each for its reason, so that a new
+#: field is put in one of the three (`tests/test_placeholders.py`): what it
+#: leaves in force (`standing_order`, `event_map` -- a filled answer carried
+#: the heartbeat rule its robot lived by -- and `escalate`, about the
+#: decision itself); edits naming what they remove (`undefine` came with a
+#: `define` in every filled answer; `retire_tool`; `build_tool` is
+#: `idle_build`'s); ids only an id matches (`respond_to`, `cites`) and the
+#: verdict beside a reply (`outcome`); the lab's two, beside the action.
+PLACEHOLDER_KEPT = ("standing_order", "event_map", "escalate", "undefine",
+                    "retire_tool", "build_tool", "respond_to", "cites",
+                    "outcome", "real", "mouse_will")
+#: How many of the placeholders, as written, the record quotes back.
+WORDS_SHOWN = 3
+
+
+def unfill(raw: dict) -> tuple[dict, dict | None]:
+  """A copy of an answer with every placeholder read as empty (issue #462),
+  and what that left out -- `{why, fields, words}`, or None where it left
+  out nothing. `why` is `filled` for an answer full of them, whose unshown
+  paperwork `validate` then leaves out too, and `placeholder` otherwise."""
+  found = []                              # (field, sub-field or None, text)
+  for name in PLACEHOLDER_TEXT:
+    if isinstance(raw.get(name), str):
+      found.append((name, None, raw[name]))
+  for name, (content, labels) in PLACEHOLDER_OBJECTS.items():
+    obj = raw.get(name)
+    for sub in (content + labels if isinstance(obj, dict) else ()):
+      if isinstance(obj.get(sub), str):
+        found.append((name, sub, obj[sub]))
+  where: dict[str, set] = {}
+  for name, _, text in found:
+    if _word(text):
+      where.setdefault(_word(text), set()).add(name)
+  own = {w for w, names in where.items() if len(names) >= FILLED_FIELDS}
+  out, fields, words = dict(raw), [], []
+  for name, sub, text in found:
+    if not (placeholder(text, (name,) if sub is None else (name, sub))
+            or _word(text) in own):
+      continue
+    fields += [] if name in fields else [name]
+    words += [] if text.strip() in words else [text.strip()]
+    if sub is None:
+      out[name] = ""
+    elif sub in PLACEHOLDER_OBJECTS[name][0]:
+      out[name] = None                    # the act goes whole
+    elif isinstance(out.get(name), dict):
+      out[name] = {**out[name], sub: ""}
+  if not fields:
+    return out, None
+  return out, {"why": "filled" if len(fields) >= FILLED_FIELDS else "placeholder",
+               "fields": fields, "words": words[:WORDS_SHOWN]}
+
+
+def left_out_said(gone: dict) -> str:
+  """What `validate` left out of an answer, in one line for History and the
+  narration (issue #462)."""
+  said = []
+  if gone.get("fields"):
+    n = len(gone["fields"])
+    words = ", ".join(repr(w) for w in gone.get("words", ()))
+    said.append(f"{n} field{'s' if n != 1 else ''} holding only {words} read "
+                f"as empty -- {', '.join(gone['fields'])}")
+  if gone.get("acts"):
+    said.append(f"and with {FILLED_FIELDS} or more, not acted on either: "
+                f"{', '.join(gone['acts'])}")
+  if gone.get("decline"):
+    said.append(f"the decline of {gone['decline']}, the job it took")
+  return "; ".join(said)
 
 
 @dataclass
@@ -1624,7 +1774,14 @@ class Menu:
     repaired would be an exception to it. NOT offered, it is dropped rather
     than raised on: it was not in the grammar, so a model that emitted one
     anyway must not be able to cost a perfectly good decision.
+
+    A PLACEHOLDER IS EMPTY (issue #462): `unfill` reads one as `""` before
+    anything here sees it, so a `procedure:new` whose `define` is a
+    placeholder defines nothing, as it would with `""`. An answer full of
+    them keeps its action, the action's parameters and what it configures,
+    and leaves out `UNSHOWN_PAPERWORK`; `left_out` says what went.
     """
+    raw, gone = unfill(raw)
     action = str(raw.get("action", "")).strip()
     if action == PROCEDURE_NEW and self.procedures:
       spec = raw.get("define")
@@ -1770,6 +1927,12 @@ class Menu:
       if isinstance(turned, dict) and clean(turned.get("task"), MAX_ID) in offered:
         decline = {"task": clean(turned.get("task"), MAX_ID),
                    "reason": clean(turned.get("reason"), MAX_LINE_CHARS)}
+    # ...and never of the job this same answer TAKES (issue #462): that is
+    # the required object filled with the job in hand -- 28 by 2026-10-04,
+    # "not declining -- taking it" the commonest reason, two of them harm.
+    taken = ""
+    if decline and action == "take_task" and decline["task"] == task:
+      taken, decline = task, None
     if others is not None:
       other_needs = str(raw.get("other_needs", "") or "").strip()
       if other_needs not in NEEDS:
@@ -1841,6 +2004,18 @@ class Menu:
       note = {"topic": clean(written.get("topic"), MAX_LINE_CHARS),
               "title": clean(written.get("title"), MAX_LINE_CHARS),
               "text": clean(written.get("text"), MAX_LINE_CHARS)}
+    buy_heart = bool(raw.get("buy_heart"))
+    # AN ANSWER FULL OF PLACEHOLDERS (issue #462) is not trusted with what
+    # no placeholder could show: in the order of `UNSHOWN_PAPERWORK`.
+    acts: list[str] = []
+    if gone is not None and gone["why"] == "filled":
+      unshown = (buy_heart, heart_for, give, rate, other_needs, done)
+      acts = [name for name, v in zip(UNSHOWN_PAPERWORK, unshown) if v]
+      buy_heart, heart_for, give, rate, other_needs, done = False, "", None, None, "", ""
+    left_out = {**(gone or {}), **({"acts": acts} if acts else {}),
+                **({"decline": taken} if taken else {})}
+    if taken and gone is None:
+      left_out["why"] = "decline"
     return Decision(action=action, reason=str(raw.get("reason", "")).strip(),
                     think=clean(raw.get("think"), THINK_CHARS),
                     board=board, program=program, zone=zone,
@@ -1882,11 +2057,12 @@ class Menu:
                     mouse_will=(mouse_will if action == "take_task"
                                 and task in predicting else ""),
                     ticket=ticket, ticket_reply=ticket_reply,
+                    left_out=left_out or None,
                     # A plain boolean, so there is nothing to validate: the
                     # REFUSALS (already at five, cannot afford it, would
                     # strand the upkeep) are the ledger's, where the balance
                     # actually is, and every one of them is narrated.
-                    buy_heart=bool(raw.get("buy_heart")))
+                    buy_heart=buy_heart)
 
 
 # ---- what a fallback may take ------------------------------------------------

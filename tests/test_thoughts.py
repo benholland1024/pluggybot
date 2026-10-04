@@ -663,12 +663,13 @@ def test_a_decision_can_pin_and_note_without_spending_a_turn():
   boss = Overseer(menu, client=FakeClient(
     full(action="draw", board="whiteboard_a", program="house",
          pin="people look at whiteboard_a more than b",
-         note={"topic": "boards", "title": "a", "text": "the popular one"},
+         note={"topic": "boards", "title": "board a", "text": "the popular one"},
          cites="#3 #4")))
   decision = boss.decide({})
   assert decision.action == "draw"          # the action still happened
   assert decision.pin == "people look at whiteboard_a more than b"
-  assert decision.note == {"topic": "boards", "title": "a", "text": "the popular one"}
+  assert decision.note == {"topic": "boards", "title": "board a",
+                           "text": "the popular one"}
   assert decision.cites == "#3 #4"
   assert decision.source == "llm"
 

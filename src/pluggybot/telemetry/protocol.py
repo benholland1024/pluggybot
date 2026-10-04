@@ -590,6 +590,20 @@ TICKETS_MESSAGE = "tickets"
 #: Who wrote a line of a ticket's thread.
 TICKET_SENDERS = ("robot", "operator")
 
+#: WHAT WAS LEFT OUT OF AN ANSWER (issue #462), additive on the wire, no
+#: bump: one `left_out` event per answer `Menu.validate` left something out
+#: of -- `why` (below), `fields` (the paperwork that held a placeholder and
+#: was read as empty), `words` (the placeholders as written, at most three),
+#: `acts` (the unshown paperwork of an answer full of them) and `decline`
+#: (the task id a decline named while the same answer took it). The
+#: observatory files a row per event under `why`; the decision it came from
+#: carries the same record as `leftOut` in `decisions[]`.
+LEFT_OUT_EVENT_TYPES = ("left_out",)
+#: `filled` three or more fields held a placeholder, so the unshown
+#: paperwork went too; `placeholder` one or two did; `decline` neither, and
+#: a decline named the job the same answer took. The first that holds.
+LEFT_OUT_WHYS = ("filled", "placeholder", "decline")
+
 #: The `crash` message: the PROCESS is exiting on an exception, and it says
 #: so before it goes. Not a death -- a death is a designed outcome of the
 #: robot's that rides `death` and stands up again in the same process; a
