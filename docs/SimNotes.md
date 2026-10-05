@@ -3164,7 +3164,7 @@ offered, claimed with its right answer, the job's errand run and graded by
 the ink 0.4-0.5 mm from the glyphs (the bar is 4), 164-201 s a job.
 
 **Calibration reads no ground truth** (the rover's `calibrate()` read its
-tip off the sim; PluggyPlan's "Road to hardware"). The plotter steers by
+tip off the sim; PluggyPlan's "Hardware honesty"). The plotter steers by
 the arm's encoders through its own kinematics, the slide's position, the
 quill's Hall sensor and the nose camera. The board's tags -- two 120 mm
 tags on the wall either side of it, level with its middle, 0.53 m apart --
