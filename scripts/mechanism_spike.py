@@ -74,8 +74,12 @@ WALL_T = LID_T = 0.012
 KNOB = BLOCK_HALF
 STEM, STEM_HALF_W = 0.030, 0.004
 #: The drop handle: its pin this far in front of the lid's front edge, at
-#: the lid's mid-thickness, and its arm down to the stem.
-PIN_AHEAD, HANDLE_DROP = 0.020, 0.040
+#: the lid's mid-thickness, and its arm down to the stem. The claw holds the
+#: handle as it hangs while the lid turns under it, nearly 90 deg by the
+#: top, its 40 mm arm then along the lid: 20 mm out, it lay in the lid's
+#: front edge, unseen -- a body and its parent never collide, so the
+#: handle's pairs with the board are named.
+PIN_AHEAD, HANDLE_DROP = 0.050, 0.040
 PIN_Z = LID_T / 2
 #: The handle's parts, kg: its arm, its stem and the knob.
 HANDLE_KG = (0.010, 0.005, 0.020)
@@ -109,17 +113,19 @@ class Mech:
 
   kind: str = "handle"
   #: The lid's board, and a hidden weight in it this fraction of the way
-  #: from the hinge to the front edge.
+  #: from the hinge to the front edge, this high over the hinge's line.
   lid_kg: float = 0.30
   lump_kg: float = 0.0
   lump_at: float = 0.5
+  lump_z: float = LID_T / 2
   #: The drawer, loaded.
   drawer_kg: float = 0.5
   #: The joint: a spring (and where it is slack), damping, Coulomb friction.
+  #: The lids' shut by `CLOSING_MARGIN_NM` at 69 deg swept at `RATE`.
   stiffness: float = 0.0
   springref: float = 0.0
-  damping: float = 0.05
-  friction: float = 0.05
+  damping: float = 0.04
+  friction: float = 0.04
   #: A magnetic catch holding it shut, N at the knob (0: none).
   latch_n: float = 0.0
 
@@ -191,7 +197,7 @@ def mechanism_xml(m: Mech, name: str = "mech") -> str:
            f'pos="{_v(-d / 2, 0, LID_T / 2)}" mass="{_f(m.lid_kg)}" {LID_WOOD}/>']
     if m.lump_kg > 0.0:
       lid.append(f'<geom name="{name}_lump" type="box" size="0.01 0.01 0.004" '
-                 f'pos="{_v(-d * m.lump_at, 0, LID_T / 2)}" mass="{_f(m.lump_kg)}" '
+                 f'pos="{_v(-d * m.lump_at, 0, m.lump_z)}" mass="{_f(m.lump_kg)}" '
                  f'contype="0" conaffinity="0" group="3" rgba="0.8 0.2 0.2 1"/>')
     if m.kind == "handle":
       lid.append(
@@ -215,6 +221,9 @@ def mechanism_xml(m: Mech, name: str = "mech") -> str:
                    f'mass="0.008" friction="0.3 0.005 0.0001" priority="2" {LID_WOOD}/>')
     moving = (f'<body name="{name}_lid_body" pos="{_v(d, 0, h)}">' + "".join(lid) + '</body>')
     exclude = f'<exclude body1="{name}" body2="{name}_lid_body"/>'
+    if m.kind == "handle":
+      exclude += "".join(f'<pair geom1="{name}_{part}" geom2="{name}_lid"/>'
+                         for part in ("drop", "stem", "knob"))
   return (f'<mujoco><compiler angle="radian"/><worldbody>'
           f'<body name="{name}">' + "".join(g) + moving + '</body>'
           f'</worldbody><contact>{exclude}</contact></mujoco>')
@@ -237,21 +246,23 @@ KNOB_OFF = np.array([-STEM - KNOB, 0.0, -HANDLE_DROP])
 LIP_POINT = np.array([-BOX_D - LIP + UNDER_LIP, 0.0, 0.0])
 
 
-def jaws_at(kind: str, s: float, err: float = 0.0) -> np.ndarray:
+def jaws_at(kind: str, s: float, err: float = 0.0, at=None) -> np.ndarray:
   """Where the jaws' middle goes, box frame, with the mechanism opened to
   `s` (rad, or m out for the drawer) -- on a hinge `err` m further from the
   handle than it is (the radius guessed `err` long), or for the drawer a
-  pull tilted to rise `err` over its travel. The closed point is the true
-  one at any `err`: the robot sees the knob, and guesses the hinge."""
+  pull tilted to rise `err` over its travel. Shut, the jaws are on the knob
+  where the robot saw it (`at`; else where the drawing puts it): the robot
+  sees the knob, and guesses the hinge. The claw holds the handle as it
+  hangs, so the knob moves as the pin does."""
   if kind == "drawer":
-    x0 = np.array([-0.012 - STEM - KNOB, 0.0, DRAWER_Z])
+    x0 = np.array([-0.012 - STEM - KNOB, 0.0, DRAWER_Z]) if at is None else np.asarray(at)
     return x0 + np.array([-s, 0.0, err * s / OPEN_TO["drawer"]])
   p0 = PIN if kind == "handle" else LIP_POINT      # off the hinge, lid frame
   hinge = HINGE - err * p0 / np.linalg.norm(p0)
   closed = HINGE + p0
   point = hinge + _rot_y(s, closed - hinge)
   if kind == "handle":
-    return point + KNOB_OFF
+    return point - closed + (closed + KNOB_OFF if at is None else np.asarray(at))
   return point - np.array([0.0, 0.0, BAR_TOP + 0.001])
 
 
@@ -300,6 +311,10 @@ class Scene:
     self.claw_geoms = self._geoms_under(self.claw)
     self.rows: list | None = None
     self.cmd = 0.0
+    #: Where the jaws take hold, box frame (`look`), and the knob in the
+    #: claw's frame once they have: what a slip along the pads is read off.
+    self.grip_at = None
+    self.grip0 = None
     self.mis.step_hooks.append(self._row)
     if mech is None:
       return
@@ -361,7 +376,7 @@ class Scene:
   def place(self, point, ahead: float, across: float = 0.0, yaw: float = 0.0) -> None:
     """The box set down so its `point` (box frame) is `ahead` m in front of
     the torso's centre and `across` m to its left, the box turned `yaw` off
-    square about that point."""
+    square about that point -- for a knob, the knob where it hangs."""
     m, d = self.model, self.data
     c, h = self.heading()
     a = h + yaw
@@ -373,8 +388,35 @@ class Scene:
     m.body_pos[self.box] = [at[0] - off[0], at[1] - off[1], 0.0]
     m.body_quat[self.box] = [math.cos(a / 2), 0, 0, math.sin(a / 2)]
     mujoco.mj_forward(m, d)
+    # ...and a second for the drop handle to swing to rest on its pin; then
+    # the box moved so that the knob, where it hangs, is where it was asked
+    self.body.run(self.body.hold_routine(1.0))
+    if self.knob is not None:
+      m.body_pos[self.box][:2] += at - d.geom_xpos[self.knob][:2]
+      mujoco.mj_forward(m, d)
     #: Where it was set out: what a path is planned off, wherever it is now.
     self.placed = (d.xpos[self.box].copy(), d.xmat[self.box].reshape(3, 3).copy())
+    self.grip_at = self.grip0 = None
+
+  def look(self) -> None:
+    """Where the jaws are to take hold, as the robot's eye would put it: the
+    knob where it hangs -- the drop handle rests swung 19 deg on its pin, the
+    knob 15 mm off its drawing -- or the lip's point."""
+    if self.knob is None:
+      self.grip_at = None
+      return
+    pos, rot = self.placed
+    self.grip_at = rot.T @ (self.data.geom_xpos[self.knob] - pos)
+
+  def path(self, s: float, err: float = 0.0) -> np.ndarray:
+    """The jaws' target, heading frame, with the mechanism opened to `s`."""
+    return self.to_heading(jaws_at(self.mech.kind, s, err, self.grip_at))
+
+  def knob_in_claw(self) -> np.ndarray:
+    """The knob's middle off the jaws' middle, in the claw's frame, m."""
+    d = self.data
+    return d.xmat[self.claw].reshape(3, 3).T @ (d.geom_xpos[self.knob]
+                                                - d.site_xpos[self.grip_site])
 
   def away(self, gone: bool = True) -> None:
     """The box out of the arm's reach (the empty sweep's world), or back:
@@ -472,12 +514,14 @@ class Scene:
       return
     head, torso = self.contact_force() if self.mech is not None else (np.zeros(3), np.zeros(3))
     arm = self.mis.arm
+    slip = (1000 * float(np.linalg.norm(self.knob_in_claw() - self.grip0))
+            if self.grip0 is not None else 0.0)
     self.rows.append((float(self.data.time), self.cmd,
                       self.opening() if self.mech is not None else 0.0,
                       *head, torso[0], torso[2],
                       self.seated(), self.gripped() if self.mech is not None else False,
                       *arm.q(), *arm.qd(), *self.readings(), *arm.gravity(),
-                      self.claw_tilt()))
+                      self.claw_tilt(), slip))
 
   def record(self) -> None:
     self.rows = []
@@ -485,7 +529,7 @@ class Scene:
   def table(self) -> dict:
     """The rows kept since `record`, by column."""
     cols = ("t", "cmd", "open", "fx", "fy", "fz", "tx", "tz", "seated", "gripped",
-            "qs", "qf", "vs", "vf", "rs", "re", "hs", "he", "tilt")
+            "qs", "qf", "vs", "vf", "rs", "re", "hs", "he", "tilt", "slip")
     a = np.array(self.rows, dtype=float) if self.rows else np.zeros((0, len(cols)))
     self.rows = None
     return {c: a[:, k] for k, c in enumerate(cols)}
@@ -510,10 +554,11 @@ class Hand:
     return self.run(self.hand.to_routine(*p_head, self.sc.level, speed))
 
   def take(self) -> bool:
-    """Onto the knob and shut (the handle, the drawer); for the lip, the
-    jaws shut and in under it."""
+    """Onto the knob where it hangs and shut (the handle, the drawer); for
+    the lip, the jaws shut and in under it."""
     sc, kind = self.sc, self.sc.mech.kind
-    p = sc.to_heading(jaws_at(kind, 0.0))
+    sc.look()
+    p = sc.path(0.0)
     if kind == "lip":
       ok = self.to(p + [-0.06, 0.0, -0.012])
       ok = ok and self.to(p + [0.0, 0.0, -0.012], 0.04)
@@ -522,6 +567,7 @@ class Hand:
     ok = self.to(p + [0.0, 0.0, 0.045])
     ok = ok and self.to(p, 0.04)
     self.run(self.hand.jaws_routine(closed=True, settle=0.6))
+    sc.grip0 = sc.knob_in_claw()
     return ok and sc.gripped()
 
   def follow(self, s0: float, s1: float, rate: float, err: float = 0.0) -> bool:
@@ -533,7 +579,7 @@ class Hand:
     for k in range(1, n + 1):
       s = s0 + (s1 - s0) * k / n
       sc.cmd = s
-      p = sc.to_heading(jaws_at(sc.mech.kind, s, err))
+      p = sc.path(s, err)
       vx, vz, slide = self.hand.vertex_for(*p, sc.level)
       g = mis.arm.goal
       q = am.solve_vertex(mis.arm_spec, vx, vz, near=(float(g[0]), float(g[1] - g[0])))
@@ -557,9 +603,10 @@ class Hand:
 # ---- a try: up, down, and what happened -------------------------------------------------
 
 def summary(t: dict, mech: Mech, claw_kg: float) -> dict:
-  """A sweep's rows as a table row: how far it opened, the tool, the grip,
-  the peak forces on the claw (heading frame: + up, + away from the robot,
-  + to its left)."""
+  """A sweep's rows as a table row: how far it opened, the tool, the grip
+  (and how far the knob slid along the pads, mm), the peak forces on the
+  claw (heading frame: + up, + away from the robot, + to its left) and its
+  swing on its peg (deg, + its jaws away from the robot)."""
   dt = np.diff(t["t"], prepend=t["t"][:1] - 0.002)
   out_run = longest = 0.0
   for s, step in zip(t["seated"], dt):
@@ -573,6 +620,8 @@ def summary(t: dict, mech: Mech, claw_kg: float) -> dict:
     "openMs": round(1000 * longest),
     "gripPct": (round(100.0 * float(t["gripped"].mean()), 1)
                 if mech.kind != "lip" and len(t["t"]) else None),
+    "slipMm": (round(float(t["slip"].max()), 1)
+               if mech.kind != "lip" and len(t["t"]) else None),
     "up": round(float(t["fz"].max()), 2), "down": round(float(-t["fz"].min()), 2),
     "away": round(float(t["fx"].max()), 2), "toward": round(float(-t["fx"].min()), 2),
     "side": round(float(np.abs(t["fy"]).max()), 2),
@@ -676,8 +725,7 @@ WINDOW_DIRS = {"up": (0, 0, 1), "lift": (0, 0, 1), "down": (0, 0, -1),
                "toward": (-1, 0, 0), "away": (1, 0, 0), "side": (0, 1, 0)}
 #: A push is ramped this fast, N/s, to at most WINDOW_MAX_N; it TIPS the claw
 #: once it has swung this far on its peg, and UNSEATS it once the coupling's
-#: criterion has been open this long (the peg's connector rides a 200 ms
-#: holding capacitor, `legs.arm`'s envelope).
+#: criterion has been open this long -- longer than a contact's flicker.
 WINDOW_RATE, WINDOW_MAX_N = 0.25, 6.0
 TIP_DEG, UNSEAT_S = 10.0, 0.04
 
@@ -732,8 +780,9 @@ def table_one(args) -> dict:
   mech = Mech.nominal(kind)
   sc = Scene(mech)
   sc.lie()
-  ref = jaws_at(kind, 0.0)
-  sc.place(ref, LIE_AT_M + stance[0], stance[1], math.radians(stance[2]))
+  # the walk-in's yaw is the robot's heading less the line it came in on:
+  # a box square to that line is turned the other way, seen from the robot
+  sc.place(jaws_at(kind, 0.0), LIE_AT_M + stance[0], stance[1], -math.radians(stance[2]))
   hand = Hand(sc, kp)
   hand.hold(0.3)
   res = fly(sc, hand)
@@ -742,70 +791,67 @@ def table_one(args) -> dict:
 
 
 def tolerance_one(args) -> dict:
-  kind, err, kp = args
+  kind, err, kp, k, stance = args
   mech = Mech.nominal(kind)
   sc = Scene(mech)
   sc.lie()
-  sc.place(jaws_at(kind, 0.0), LIE_AT_M)
+  sc.place(jaws_at(kind, 0.0), LIE_AT_M + stance[0], stance[1], -math.radians(stance[2]))
   hand = Hand(sc, kp)
-  hand.hold(0.3)
   res = fly(sc, hand, err=err)
   res.pop("rows")
-  return {"kind": kind, "err": err, "kp": kp, **res}
+  return {"kind": kind, "err": err, "kp": kp, "k": k, **res}
 
 
 # ---- the torques: the force at the tool, and the arm's own friction ---------------------
 
-#: A joint moving slower than this, rad/s, is in its friction's dead band:
-#: what it holds there is anywhere in +-its friction.
-DEAD_BAND = 0.02
-
-
 def empty_sweep(sc: Scene, hand: Hand, rate: float, top: float | None = None) -> dict:
-  """The jaws along the candidate's path, up and back, holding nothing: the
-  box taken out of reach (the path planned where it stood), the jaws shut as
-  they would be on the knob. The rows."""
+  """The jaws along the candidate's path, up and back, holding nothing, shut
+  as they would be on the knob: the rows. The box is lifted out of the way,
+  which a robot cannot do -- but the sim's friction is a constant, so a
+  robot would calibrate its arm once, anywhere (two paths read the forearm
+  0.02 N*m apart: its passive pivots turn their own ways)."""
   kind = sc.mech.kind
   top = OPEN_TO[kind] if top is None else top
+  sc.look()
   sc.away()
   hand.run(hand.hand.jaws_routine(closed=True))
-  hand.to(sc.to_heading(jaws_at(kind, 0.0)))
+  hand.to(sc.path(0.0))
   hand.hold(0.3)
   sc.record()
   hand.follow(0.0, top, rate)
   hand.hold(0.5)
   hand.follow(top, CLOSE_TO[kind], rate)
   rows = sc.table()
-  hand.to(sc.to_heading(jaws_at(kind, 0.0)) + [-0.04, 0.0, 0.06])
+  hand.to(sc.path(0.0) + [-0.04, 0.0, 0.06])
   sc.away(False)
   hand.hold(0.3)
   return rows
 
 
+def beyond_hold(rows: dict) -> tuple[np.ndarray, np.ndarray]:
+  """Each row's readings beyond the arm's own hold, and its coordinates'
+  rates: what `legs.arm.arm_friction` and `less_friction` read."""
+  return (np.column_stack([rows["rs"] - rows["hs"], rows["re"] - rows["he"]]),
+          np.column_stack([rows["vs"], rows["vf"]]))
+
+
 def arm_friction(rows: dict) -> np.ndarray:
-  """Each motor's Coulomb friction, N*m, off a sweep holding nothing: what
-  its reading holds beyond the arm's gravity, signed by the way it turns,
-  averaged where it turns (the shoulder; the forearm's absolute angle)."""
-  out = []
-  for read, hold, rate in (("rs", "hs", "vs"), ("re", "he", "vf")):
-    v = rows[rate]
-    moving = np.abs(v) > DEAD_BAND
-    out.append(float(np.mean((rows[read] - rows[hold])[moving] * np.sign(v[moving]))))
-  return np.array(out)
+  """Each motor's Coulomb friction off an empty sweep's rows."""
+  return am.arm_friction(*beyond_hold(rows))
 
 
 def force_off_torques(rows: dict, friction=(0.0, 0.0)) -> tuple[np.ndarray, np.ndarray]:
   """The force at the tool, N, torso (x, z), off each row's torque READINGS
-  (`legs.arm.tool_force`): less the arm's gravity and, where a joint turns,
-  its friction. And a mask of the rows where both joints turned."""
+  (`legs.arm.tool_force`): less the arm's own hold and, where a joint turns,
+  its friction (`legs.arm.less_friction`). And a mask of the rows where
+  both joints turned."""
   spec = am.ArmSpec()
-  fs, fe = friction
-  ts = rows["rs"] - rows["hs"] - fs * np.sign(rows["vs"])
-  te = rows["re"] - rows["he"] - fe * np.sign(rows["vf"])
+  beyond, rates = beyond_hold(rows)
+  tau = am.less_friction(beyond, rates, friction)
   f = np.array([am.tool_force(spec, a, b, c, e)
-                for a, b, c, e in zip(rows["qs"], rows["qf"], ts, te)])
-  moving = (np.abs(rows["vs"]) > DEAD_BAND) & (np.abs(rows["vf"]) > DEAD_BAND)
-  return f.reshape(-1, 2), moving
+                for a, b, (c, e) in zip(rows["qs"], rows["qf"], tau)])
+  turning = np.all(np.abs(rates) > am.FRICTION_BAND, axis=1)
+  return f.reshape(-1, 2), turning
 
 
 def binned(x: np.ndarray, n: int = 50) -> np.ndarray:
@@ -814,21 +860,22 @@ def binned(x: np.ndarray, n: int = 50) -> np.ndarray:
   return x[:k * n].reshape(k, n, *x.shape[1:]).mean(axis=1)
 
 
-def torques_one(kind: str) -> dict:
+def torques_one(args) -> dict:
   """The candidate's oracle path flown empty (the arm's friction) and on the
-  mechanism: the force off the readings against the contact force."""
+  mechanism, at gain `kp`: the force off the readings against the contact
+  force."""
+  kind, kp = args
   mech = Mech.nominal(kind)
   sc = Scene(mech)
   sc.lie()
   sc.place(jaws_at(kind, 0.0), LIE_AT_M)
-  hand = Hand(sc)
-  hand.hold(0.3)
+  hand = Hand(sc, kp)
   empty = empty_sweep(sc, hand, RATE[kind])
   fric = arm_friction(empty)
   res = fly(sc, hand)
   rows = res.pop("rows")
   truth = np.column_stack([rows["tx"], rows["tz"]])
-  out = {"kind": kind, "friction": [round(v, 3) for v in fric]}
+  out = {"kind": kind, "kp": kp, "friction": [round(v, 3) for v in fric]}
   for label, f in (("raw", (0.0, 0.0)), ("corrected", fric)):
     est, moving = force_off_torques(rows, f)
     err = est - truth
@@ -884,12 +931,15 @@ CLOSING_MARGIN_NM = 0.05
 
 def closing_torque(m: Mech, th: np.ndarray, rate: float) -> np.ndarray:
   """What shuts the lid at `th` going down at `rate`, N*m: its gravity
-  (the board, the hidden weight, the bracket) less its spring, friction and
-  damping -- the handle's tension times its lever."""
-  g_nm = G * (m.lid_kg * BOX_D / 2 + m.lump_kg * BOX_D * m.lump_at
-              + 0.005 * (BOX_D + PIN_AHEAD / 2))
-  return (g_nm * np.cos(th) - m.stiffness * (m.springref - th) - m.friction
-          - m.damping * rate)
+  (the board, the hidden weight and the bracket, out along the lid and up
+  off the hinge's line -- the height alone is up to 0.03 N*m at 69 deg)
+  less its spring, friction and damping: the handle's tension times its
+  lever."""
+  out = (m.lid_kg * BOX_D / 2 + m.lump_kg * BOX_D * m.lump_at
+         + 0.005 * (BOX_D + PIN_AHEAD / 2 - 0.003))
+  up = (m.lid_kg + 0.005) * LID_T / 2 + m.lump_kg * m.lump_z
+  return (G * (out * np.cos(th) - up * np.sin(th)) - m.stiffness * (m.springref - th)
+          - m.friction - m.damping * rate)
 
 
 def draw(k: int) -> Mech:
@@ -956,16 +1006,16 @@ def design(th, thd, thdd) -> np.ndarray:
   return np.column_stack([np.cos(th), np.sin(th), th, np.ones_like(th), np.sign(thd), thd, thdd])
 
 
-def fit_one(k: int) -> dict:
-  """One set-out: the arm's friction off empty sweeps, then the lid swept
-  up and down at both rates; the oracle's fit of each column, the truth,
-  and the fit's own correlations."""
-  mech = draw(k)
+def fit_one(args) -> dict:
+  """One set-out `mech`, named `name`, at gain `kp`: the arm's friction
+  off an empty sweep, then the lid swept up and down at both rates; the
+  oracle's fit of each column, the truth, the fit's own correlations, the
+  claw's swing and slip, and the hinge's torque binned by angle (`curve`)."""
+  name, mech, kp = args
   sc = Scene(mech)
   sc.lie()
   sc.place(jaws_at("handle", 0.0), LIE_AT_M)
-  hand = Hand(sc)
-  hand.hold(0.3)
+  hand = Hand(sc, kp)
   fric = arm_friction(empty_sweep(sc, hand, FIT_RATES[0], FIT_TOP))
   took = hand.take()
   sc.record()
@@ -991,9 +1041,14 @@ def fit_one(k: int) -> dict:
   thdd = np.convolve(np.gradient(thd, dt), ker, mode="same")
   use = (th > FIT_FROM) & (np.abs(thd) > FIT_MOVING) & both
   a = design(th[use], thd[use], thdd[use])
-  out = {"k": k, "took": took, "reached": ok, "n": int(use.sum()),
+  out = {"name": name, "kp": kp, "took": took, "reached": ok, "n": int(use.sum()),
          "friction": [round(v, 3) for v in fric], "truth": truth, "fits": {},
-         "tiltRange": [round(float(rows["tilt"].min()), 1), round(float(rows["tilt"].max()), 1)]}
+         "tiltRange": [round(float(rows["tilt"].min()), 1), round(float(rows["tilt"].max()), 1)],
+         "slipMm": round(float(rows["slip"].max()), 1),
+         "seatedPct": round(100.0 * float(rows["seated"].mean()), 1),
+         "minMargin": round(float(closing_torque(mech, np.linspace(0, FIT_TOP, 25),
+                                                 max(FIT_RATES)).min()), 3),
+         "curve": curve(th, thd, tau, tau_true, use)}
   # the static torque the lid's gravity and spring make, at three angles: what
   # a fit's columns sum to, against the world's
   probe = np.array([0.2, 0.6, 1.0])
@@ -1014,35 +1069,71 @@ def fit_one(k: int) -> dict:
         "corr": [[round(float(v), 3) for v in row] for row in cov / np.outer(sd, sd)],
         "rms": float(np.sqrt(s2)), "cols": [FIT_COLS[c] for c in cols],
         "curveErr": [round(float(v), 4) for v in static(est) - static(truth)]}
-  # MASS AGAINST ITS LEVER ARM: the lid's gravity as m*g*r*cos(th) on the
-  # rows the fit read -- the two columns, d/dm and d/dr, at the truth
-  m_, r_ = truth["massKg"], truth["leverM"]
-  jm, jr = G * r_ * np.cos(th[use]), G * m_ * np.cos(th[use])
-  out["massLever"] = {"corr": float(np.corrcoef(jm, jr)[0, 1]),
-                      "cond": float(np.linalg.cond(np.column_stack([jm / m_, jr / r_])))}
   return out
 
 
+#: The hinge's torque binned by the lid's angle (rad), each way at each rate.
+CURVE_BIN = 0.1
+
+
+def curve(th, thd, tau, tau_true, use) -> list:
+  """The hinge's torque, off the torques and off the contact force, binned
+  by angle (`CURVE_BIN`), up and down, slow and fast: [rate, way, angle, n,
+  torques, contact, the torques' scatter in the bin]."""
+  out = []
+  fast = np.abs(thd) > (FIT_RATES[0] + FIT_RATES[1]) / 2
+  for r, rate in enumerate((~fast, fast)):
+    for way in (1, -1):
+      for lo in np.arange(FIT_FROM, FIT_TOP, CURVE_BIN):
+        sel = use & rate & (np.sign(thd) == way) & (th >= lo) & (th < lo + CURVE_BIN)
+        if sel.sum() >= 20:
+          out.append([r, way, round(float(lo + CURVE_BIN / 2), 2), int(sel.sum()),
+                      float(tau[sel].mean()), float(tau_true[sel].mean()),
+                      float(tau[sel].std() / math.sqrt(sel.sum()))])
+  return out
+
+
+#: Set-outs at the edges of the drawn ranges, the drawn rule kept -- and
+#: `open`, its premise: a spring that beats the lid's weight near the top.
+CORNERS = {
+  "heavy": Mech(kind="handle", lid_kg=0.45, lump_kg=0.15, lump_at=0.9, friction=0.12,
+                damping=0.18),
+  "light": Mech(kind="handle", lid_kg=0.15, friction=0.0, damping=0.0),
+  "springy": Mech(kind="handle", lid_kg=0.45, lump_kg=0.10, lump_at=0.6, friction=0.02,
+                  damping=0.02, stiffness=0.09, springref=SPRING_SLACK),
+  "open": Mech(kind="handle", lid_kg=0.30, stiffness=0.15, springref=SPRING_SLACK),
+}
+#: Two lids with one first moment of mass and different masses: the board
+#: alone (0.300 kg), and half the board with a weight out at its front edge
+#: and up at its top face (0.229 kg, its inertia about the hinge 21 % more).
+TWINS = {
+  "twinA": Mech(kind="handle", lid_kg=0.30, friction=0.03, damping=0.03),
+  "twinB": Mech(kind="handle", lid_kg=0.15, lump_kg=0.0789, lump_at=0.95, lump_z=0.0114,
+                friction=0.03, damping=0.03),
+}
+
+
 #: The latch's pull: along the path to here (rad, or m), slowly -- a
-#: compliant arm builds its pull only as its target runs ahead of a shut
-#: lid, and at Kp 15 a 4 N catch let go 0.4 rad of path later.
+#: compliant arm builds its pull only as its command runs ahead of a shut
+#: lid: at Kp 15 a 4 N catch held until the command was 0.84 rad open.
 LATCH_TOP = {"handle": 1.0, "lip": 1.0, "drawer": 0.10}
 LATCH_RATE = {"handle": 0.15, "lip": 0.15, "drawer": 0.015}
 
 
 def latch_one(args) -> dict:
   """A catch of `latch_n` N at the knob (the lip): the mechanism pulled from
-  shut along its path, slowly. The force at release, true and off the
-  torques; and after it, how far the mechanism ran ahead of the arm's
-  command, the most it pushed the claw up, the claw's swing, and the
-  coupling."""
+  shut along its path, slowly. Over the whole pull: the most force on the
+  claw, true and off the torques; how far the knob slid along the pads; the
+  claw's widest swing off where it took hold; and where the mechanism ended
+  against the command's top. At the release: the command, and the force in
+  the half second before it. After it: the most the claw was pushed up, its
+  swing, and the coupling."""
   kind, latch_n, kp = args
   mech = replace(Mech.nominal(kind), latch_n=latch_n)
   sc = Scene(mech)
   sc.lie()
   sc.place(jaws_at(kind, 0.0), LIE_AT_M)
   hand = Hand(sc)
-  hand.hold(0.3)
   top, rate = LATCH_TOP[kind], LATCH_RATE[kind]
   fric = arm_friction(empty_sweep(sc, hand, rate, top))
   hand = Hand(sc, kp)
@@ -1051,28 +1142,31 @@ def latch_one(args) -> dict:
   ok = hand.follow(0.0, top, rate)
   hand.hold(1.0)
   rows = sc.table()
-  out = {"kind": kind, "latchN": latch_n, "kp": kp, "took": took, "reached": ok}
+  est, _ = force_off_torques(rows, fric)
+  mag_t = np.hypot(rows["tx"], rows["tz"])
+  mag_e = np.hypot(est[:, 0], est[:, 1])
+  tilt = rows["tilt"] - rows["tilt"][0]
+  out = {"kind": kind, "latchN": latch_n, "kp": kp, "took": took, "reached": ok,
+         "peakN": round(float(mag_t.max()), 2), "peakReadN": round(float(binned(mag_e, 10).max()), 2),
+         "slipMm": round(float(rows["slip"].max()), 1) if kind != "lip" else None,
+         "swingMax": round(float(tilt[np.argmax(np.abs(tilt))]), 1),
+         "ended": round(float(rows["open"][-1]), 3), "top": top}
   opened = rows["open"] > (0.01 if kind != "drawer" else 0.005)
   if not opened.any():
     return out | {"released": False}
   i = int(np.argmax(opened))
-  est, _ = force_off_torques(rows, fric)
-  mag_t = np.hypot(rows["tx"], rows["tz"])
-  mag_e = np.hypot(est[:, 0], est[:, 1])
-  before = slice(max(0, i - 500), i + 1)
+  before = slice(max(0, i - 250), i + 1)
   after = slice(i, len(rows["t"]))
   out_run = longest = 0.0
-  for s in rows["seated"][after]:
-    out_run = 0.0 if s else out_run + 0.002
+  for seated in rows["seated"][after]:
+    out_run = 0.0 if seated else out_run + 0.002
     longest = max(longest, out_run)
   return out | {
-    "released": True, "atS": round(float(rows["t"][i] - rows["t"][0]), 2),
-    "atCmd": round(float(rows["cmd"][i]), 3),
+    "released": True, "atCmd": round(float(rows["cmd"][i]), 3),
     "trueN": round(float(mag_t[before].max()), 2),
     "readN": round(float(binned(mag_e[before], 10).max()), 2),
-    "ahead": round(float((rows["open"][after] - rows["cmd"][after]).max()), 3),
     "upAfterN": round(float(rows["fz"][after].max()), 2),
-    "swing": round(float(np.ptp(rows["tilt"][after])), 1),
+    "swingAfter": round(float(np.ptp(rows["tilt"][after])), 1),
     "openMs": round(1000 * longest), "gripped": sc.gripped() if kind != "lip" else None,
     "onFork": sc.on_fork(), "seated": sc.seated()}
 
@@ -1136,6 +1230,7 @@ def run_pool(fn, jobs, n_jobs):
 
 
 def main(argv=None) -> None:
+  import json
   ap = argparse.ArgumentParser(description=__doc__,
                                formatter_class=argparse.RawDescriptionHelpFormatter)
   for mode in ("walkin", "window", "table", "tolerance", "torques", "fit", "latch"):
@@ -1143,11 +1238,20 @@ def main(argv=None) -> None:
   ap.add_argument("--kinds", default="handle,lip,drawer",
                   help="the candidates flown, comma-separated (not --walkin, --window, --fit)")
   ap.add_argument("--n", type=int, default=15,
-                  help="--walkin's starts, --table's set-outs, --fit's set-outs")
+                  help="--walkin's starts, --table's set-outs, --fit's seeded set-outs")
+  ap.add_argument("--sets", type=int, default=1,
+                  help="--tolerance's set-outs a cell, square and then the walk-in's")
+  ap.add_argument("--kp", default=f"{am.ARM_KP:g}",
+                  help="--torques' and --fit's gains, comma-separated")
+  ap.add_argument("--corners", action="store_true",
+                  help="with --fit: the drawn ranges' corners, and the open-biased premise")
+  ap.add_argument("--twins", action="store_true",
+                  help="with --fit: two lids of one first moment and different masses")
   ap.add_argument("--jobs", type=int, default=3, help="processes in parallel")
   ap.add_argument("--out", default="mechanism_spike.png", help="the filmstrip's file")
   args = ap.parse_args(argv)
   kinds = args.kinds.split(",")
+  gains = [float(v) for v in args.kp.split(",")]
   if args.walkin:
     rows = run_pool(walkin_one, range(args.n), args.jobs)
     _print_rows(rows, ("k", "ok", "why", "tries", "ahead", "across", "yaw", "s"))
@@ -1164,34 +1268,40 @@ def main(argv=None) -> None:
     jobs = [(kind, k, st, kp) for kind in kinds for kp in (am.ARM_KP, 15.0)
             for k, st in enumerate(stances(args.n))]
     rows = run_pool(table_one, jobs, args.jobs)
-    _print_rows(rows, ("kind", "kp", "k", "stance", "took", "reached", "opened", "opens", "closedTo",
-                       "seatedPct", "openMs", "onFork", "gripPct", "up", "down", "away",
-                       "toward", "side", "tilt"))
+    _print_rows(rows, ("kind", "kp", "k", "stance", "took", "reached", "opened", "opens",
+                       "closedTo", "seatedPct", "openMs", "onFork", "gripPct", "slipMm", "up",
+                       "down", "away", "toward", "side", "tilt"))
     return
   if args.tolerance:
     errs = (-0.04, -0.02, -0.01, 0.0, 0.01, 0.02, 0.04)
-    jobs = [(kind, e, kp) for kind in kinds for kp in GAINS for e in errs]
+    jobs = [(kind, e, kp, k, st) for kind in kinds for kp in GAINS for e in errs
+            for k, st in enumerate(stances(args.sets))]
     rows = run_pool(tolerance_one, jobs, args.jobs)
-    _print_rows(rows, ("kind", "kp", "err", "took", "reached", "opened", "opens", "seatedPct", "openMs",
-                       "onFork", "gripPct", "up", "down", "away", "toward", "side", "tilt"))
+    _print_rows(rows, ("kind", "kp", "err", "k", "took", "reached", "opened", "opens",
+                       "seatedPct", "openMs", "onFork", "gripPct", "slipMm", "up", "down", "away",
+                       "toward", "side", "tilt"))
     return
   if args.torques:
-    import json
-    for r in run_pool(torques_one, kinds, args.jobs):
+    for r in run_pool(torques_one, [(kind, kp) for kind in kinds for kp in gains], args.jobs):
       print(json.dumps(r))
     return
   if args.fit:
-    import json
-    for r in run_pool(fit_one, range(args.n), args.jobs):
+    named = {f"k{k}": draw(k) for k in range(args.n)}
+    if args.corners:
+      named.update(CORNERS)
+    if args.twins:
+      named.update(TWINS)
+    jobs = [(name, mech, kp) for kp in gains for name, mech in named.items()]
+    for r in run_pool(fit_one, jobs, args.jobs):
       print(json.dumps(r))
     return
   if args.latch:
     jobs = [(kind, n, kp) for kind in kinds for kp in (am.ARM_KP, 15.0)
             for n in (1.0, 2.0, 3.0, 4.0)]
     rows = run_pool(latch_one, jobs, args.jobs)
-    _print_rows(rows, ("kind", "kp", "latchN", "took", "released", "atS", "atCmd", "trueN",
-                       "readN", "ahead", "upAfterN", "swing", "openMs", "gripped", "onFork",
-                       "seated"))
+    _print_rows(rows, ("kind", "kp", "latchN", "took", "reached", "released", "atCmd",
+                       "trueN", "readN", "peakN", "peakReadN", "slipMm", "swingMax", "ended",
+                       "upAfterN", "swingAfter", "openMs", "gripped", "onFork", "seated"))
     return
   filmstrip(args.out, kinds)
 
