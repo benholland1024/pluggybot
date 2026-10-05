@@ -11,7 +11,7 @@ Read alongside:
 - `docs/TaskPattern.md` §4 — grading measures the world, never the report.
   Everything here inherits that; this doc adds what a *novel* job needs on top.
 - `docs/PluggyPlan.md` — the six qualities; a challenge is an instrument for
-  the first one (capability: can it do what it could not do yesterday).
+  the first one (capability: can it acquire new skills by its own effort).
 - `docs/Evaluation.md` §5 — what silently invalidates a number; two of its
   warnings decide against two of the candidates below.
 

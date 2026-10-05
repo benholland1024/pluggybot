@@ -688,7 +688,7 @@ errand of that plate running is a new `press` row (observatory kind
   the first reading. Once found, the place is remembered (a `found ...`
   line in History) and a feed is ~75 s.
 - **The first income on legs**: what the pair earns in a day, the number
-  upkeep's rate will be re-derived from (#375's step 5). Points earned
+  upkeep's rate will be re-derived from (#456). Points earned
   are `care` rows under `feed_mouse` with `pay`, next to ticket closes.
 - **Stray presses**: any `press` row, above all `shock`, and what the
   robot was `doing`. A press during the robot's own procedure is its own

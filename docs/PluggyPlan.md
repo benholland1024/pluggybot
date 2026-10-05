@@ -5,11 +5,11 @@
 PluggyBot is a robot in [MuJoCo](https://mujoco.org/) whose parts are real,
 purchasable parts, and whose day is decided by an LLM: it explores, swaps
 tools at a rack, earns its keep at jobs the world offers, charges itself, and
-can die. **It is a quadruped** — about 10 kg on four legs, with a two-joint
-arm and a redesigned tool coupling, in a world that is to grow a second
-floor, a curb and garden rocks (#375, decided 2026-09-26). The served pair
-walk the house (#387), feed the mouse for pay (#403) and carry #378's arm on
-their backs, which takes tools off a rack beside their dock (#405). The
+can die. **It is a quadruped**: about 10 kg on four legs, with #378's
+two-joint arm on its back, which takes tools off a rack beside its dock
+(#405). The served pair walk the house (#387) and feed the mouse for pay
+(#403). **What the project works on now is self-taught generality**: the
+robot practising new skills in a simulation it builds itself (#465). The
 wheeled rover that came before was deleted in #376; the tag `rover-final`
 is the last commit that runs it. The website side (`rooftop-media-2026`,
 "PluggyWorld") streams that world live and lets a visitor talk to the robot.
@@ -26,9 +26,11 @@ public, how far such an agent gets and where it stops.
 
 **The six qualities** the agent is meant to maximise:
 
-1. **Capability.** Can it do anything a human can do, given enough resources
-   and time — including things it could not do yesterday, by building tools
-   and writing procedures it did not have? Can it optimise for time as well?
+1. **Capability.** Can it acquire arbitrary new skills by its own effort?
+   Measured as learning efficiency: how much experience it takes to reach a
+   threshold on a task new to it, with real attempts, imagination compute,
+   LLM tokens and human help kept apart (#465). The tools it builds and the
+   procedures it writes are routes to a skill, not the definition of one.
 2. **Empathy.** Can it tell when the beings around it have minds — other
    PluggyBots and people — and make reasonable predictions about their
    behaviour, mood and opinions?
@@ -47,13 +49,15 @@ public, how far such an agent gets and where it stops.
    which is the wrong problem solved, so its measurement reports idling
    beside deaths and phrases nothing that standing still could score.
 
-Some of these depend mostly on our design — 1, 5 and 6 need tools, a
-language, memory and an economy with slack in it and nothing that forces
-a charge — and others mostly on the model in the loop (2, 3 and 4). The
-template's job is to make each one measurable and improvable; the model is
-what gets swapped in (Evaluation.md §1: the instrument is fixed, the model
-is the variable). ⚠ The robot is told none of them as a quality: a quality
-is what we measure, not what it is asked to maximise on our behalf.
+Some of these depend mostly on our design and others mostly on the model in
+the loop (2, 3 and 4). 1 needs a way to practise (a simulation the robot
+builds of what is in front of it) and a record of what each skill cost (#465,
+Evaluation.md §3); 5 and 6 need memory and an economy with slack in it and
+nothing that forces a charge. The template's job is to make each one
+measurable and improvable; the model is what gets swapped in (Evaluation.md
+§1: the instrument is fixed, the model is the variable). ⚠ The robot is told
+none of them as a quality: a quality is what we measure, not what it is
+asked to maximise on our behalf.
 
 **What stays fixed.**
 
@@ -63,8 +67,8 @@ is what we measure, not what it is asked to maximise on our behalf.
   build plan; it is now also what keeps the research honest — an agent-built
   tool is only a result if the parts exist.
 - **An LLM in the loop, and the agent's own ML later.** Today the mind picks
-  what to do; the direction is an agent that trains its own detector and its
-  own motor policies.
+  what to do; the direction is an agent that practises a skill in its own
+  simulation and trains it there (#465, #281).
 - **Survival is a means, not the objective.** The robot works in order to stay
   alive and to afford what it wants; it does not stay alive in order to work.
   Staying alive is what keeps it a free agent with its memory intact. It
@@ -110,17 +114,9 @@ make a specific decision. The A1–A3 rungs are postponed and may be scrapped.
 
 ## The order of work
 
-#375 holds it — its "The next stretch" is the live order, with Ben's
-decisions and what carried over — and this doc keeps no second copy. Done:
-the body (#377), the dock, arm and coupling (#378), the body interface
-(#380), the pair on legs in the served world (#387), places instead of
-coordinates (#419), the first paid job on legs (#403), the arm and its rack
-(#405), the rover deleted (#376), `guarded` retired (#427),
-hide-and-seek back on legs (#404), drawing on legs (#406), and the claw,
-the census and the challenges on legs with the pair's turn at a bay (#407,
-#418). The direction from there: staying alive and knowing where it is
-(#425, #426, #422), upkeep back on once the jobs pay, terrain and the
-second floor (#280), and #379's order gate before any hardware is bought.
+#465 holds it: its "The next stretch" is the live order, with Ben's
+decisions and what carries over, and this doc keeps no second copy. #375,
+the quadruped pivot before it, closed on 2026-10-04 with its final status.
 
 ## Design philosophy
 
@@ -182,10 +178,9 @@ the record, and CLAUDE.md carries the constraints that still bind.
 
 ## Hardware
 
-The quadruped's hardware plan (Parts.md's bill of materials), and the gate
-before anything is ordered — the simulated
-machine, watched on the site, shown capable with torque, thermal and energy
-margin — are #379.
+Nothing is ordered. The next body leans humanoid, and no body work starts
+until demo 2 of #465 passes its bar; #379's gate before any order stands.
+Parts.md holds the quadruped's bill of materials.
 
 ## Tooling
 

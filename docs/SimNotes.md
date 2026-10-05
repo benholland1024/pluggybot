@@ -1411,7 +1411,7 @@ flat.
   pose.** Between the bays (±150 mm) they sat 25° off its axis, and 2.7° of
   yaw took one out of the frame; a pair a bay at ±75 mm sits at 20°.
 
-**Which tools survive** (#375 step 4 rebuilds them on the longer peg):
+**Which tools survive** (rebuilt on the longer peg, #405–#407):
 - **the pen** — it keeps its sideways carriage; the arm gives it a board's
   full height from one stance (0.19–0.41 m from 0.43 m out) and the pressing
   force, reacted by the pad;

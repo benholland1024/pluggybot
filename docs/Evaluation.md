@@ -878,22 +878,46 @@ sees them — two arms in one number are §5's unusable mixture).
 `tests/test_qualities.py` pins each; a test reads the table above and fails
 on a shape named here that is not in the module, or there and not here.
 
-**1. Capability** — *can it do what it could not do yesterday.* Metric:
-**first solve** — for each challenge with pre-declared criteria
-(Challenges.md; the tower today), whether it was solved and how many
-attempts came first, beside the two things the agent can MAKE to get there:
-tools that reached the rack and procedures that ran, each by the
-observatory's own outcome word. Measured off `task` rows whose kind is a
-challenge, `tool` rows and `procedure` rows. Unit: attempts by fate
-(`done` / `failed` / `expired`, a lapsed offer is not an attempt), the
-attempt index of the first `done` or `None`, and outcome counts. **What it
-cannot see:** time-to-solve (the rows carry sim time but no start of an
-attempt), and whether a tool that hung was ever USED — a built tool nobody
-fetches is on the rack and in no verdict. **Depends on:** the design — the
-language, the catalog, the challenge set — before the model; a model that
-cannot write a valid procedure scores zero here and that is a finding about
-the grammar as much as the mind. A mind's only: with no mind the tool and
-procedure sources are empty by construction.
+**1. Capability** — *can it acquire new skills by its own effort, and what
+does a skill cost it.* Today's metric is **first solve** — for each
+challenge with pre-declared criteria (Challenges.md: the tower and the
+bench), whether it was solved and how many attempts came first, beside the
+two things the agent can MAKE to get there: tools that reached the rack and
+procedures that ran, each by the observatory's own outcome word. Measured
+off `task` rows whose kind is a challenge, `tool` rows and `procedure` rows.
+Unit: attempts by fate (`done` / `failed` / `expired`, a lapsed offer is not
+an attempt), the attempt index of the first `done` or `None`, and outcome
+counts. **What it cannot see:** what a solve COST, which is what the quality
+is measured by now (below); time-to-solve (the rows carry sim time but no
+start of an attempt); and whether a tool that hung was ever USED — a built
+tool nobody fetches is on the rack and in no verdict. **Depends on:** the
+design — the language, the catalog, the challenge set — before the model; a
+model that cannot write a valid procedure scores zero here and that is a
+finding about the grammar as much as the mind. A mind's only: with no mind
+the tool and procedure sources are empty by construction.
+
+**The per-task record** is how the restated quality is measured (#465):
+learning efficiency, the experience it takes to reach a threshold on a task
+new to the robot (Chollet, "On the Measure of Intelligence", 2019). Per
+task, each part kept apart and never summed, because a skill bought with a
+demonstration and one bought with a thousand imagined attempts are
+different results:
+
+- **the outcome:** whether it reached the threshold, and its success rate
+  with a 95 % interval;
+- **experience:** real attempts, real sim-seconds, imagination compute
+  (CPU-seconds, because wall time measures the machine) and LLM tokens;
+- **human help:** demonstrations, interventions and scene resets;
+- **later, with #281's success test:** self-evaluation accuracy, meaning how
+  often the robot thought it had succeeded and hadn't, and how often it
+  missed a real success. Its test is scored against the world's verdict:
+  our grading, computed by code from the true state and never shown to the
+  robot (#465's three layers).
+
+⚠ **IT IS NOT A ROW IN THE SHAPE TABLE YET.** Nothing produces its rows. It
+enters the table with its function when a demo does (§7: measurement waits
+for the design), and `tests/test_qualities.py` fails on a shape that exists
+only as prose. Until then first solve is the quality's metric, unchanged.
 
 **2. Empathy** — *can it tell that the beings around it have minds, and
 predict them.* Metric: **prediction accuracy** — the one pure probe, a
@@ -1114,10 +1138,10 @@ informs a decision:
 
 ## 4. The harness
 
-`scripts/experiment.py`, which flew N days of a configuration into committed
-`results/`, went with the rover in #376 (`rover-final` has it): it flew only
-rover worlds, and `guarded`, the control it existed to fly, retired after it
-(#427).
+There is none now. `scripts/experiment.py` flew N days of a configuration
+into committed `results/` and went with the rover (#376; `rover-final` has
+it). Demo 2's controlled comparisons need a new one, built with it (#465,
+Track C).
 
 ## 5. What silently invalidates a number
 
@@ -1400,6 +1424,21 @@ time is a thing we want the agent to care about, it goes on the wire and into
 the context. Measuring it and not showing it, then reporting that the robot
 does not prioritise it, is measuring our own omission.
 
+### Practised in MuJoCo, graded in MuJoCo (#465)
+
+Track A's robot practises in a simulation it builds and is graded in a world
+that is MuJoCo too. The two share an engine, its contact model and its
+integrator, which no real robot shares with its world, so a skill transfers
+more easily here than it would on hardware.
+
+- ⚠ **A result practised in MuJoCo and graded in MuJoCo says it is an UPPER
+  BOUND on hardware**, in the result itself.
+- ⚠ **It says whether the imagination was MATCHED or MISMATCHED to the
+  world, and the two are never pooled.** Matched is the method's ceiling.
+  Mismatched — hidden parameters, and mechanisms built from constructs the
+  robot's scene language cannot express — is the number that bears on a
+  real robot, and demo 2's bar is read on it.
+
 ## 6. What death costs
 
 **Settled in issues #135 and #136, which landed together.** Five hearts, one
@@ -1508,8 +1547,8 @@ cost, the measured deadline, the fallback classes, the `autonomous` arm; the
 capacity sweep was **closed without flying** (issue #118), and the harness
 it all ran on went with the rover (#376).
 
-**What comes next is in `PluggyPlan.md`, "The order of work"**, and this section
-does not keep a second copy of it. Two rules from this tranche outlive it:
+**What comes next is #465's "The next stretch"**, and this section does not
+keep a second copy of it. Two rules from this tranche outlive it:
 
 ⚠ **MEASUREMENT WAITS FOR THE DESIGN.** A rung measured before the world's
 death conditions and points semantics settle, and one measured after, do not
