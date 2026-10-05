@@ -89,9 +89,8 @@ asked to maximise on our behalf.
 
 **What is not the point any more.** A sellable hobby robot, task throughput,
 maximising points, or being entertaining to watch. Those framings shaped
-milestones 1–13, and some text below still shows it; the pieces stand — the
-coupling, the tasks, the economy, the measurement — but as apparatus,
-not product. Visitors are witnesses, not customers; the deployed world is an
+milestones 1–13; the pieces stand — the coupling, the tasks, the economy,
+the measurement — but as apparatus, not product. Visitors are witnesses, not customers; the deployed world is an
 observatory (Evaluation.md §5).
 
 **Principles that came out of M14/M15**, and travel with the mission:
@@ -105,12 +104,11 @@ and it says so when it does** — the mouse's zone tells the robot, once, that
 it is not told what the equipment is connected to, and asks what it
 believes rather than inducing a belief (Overseer.md §2f).
 
-**Measurement waits for the design.** M14 measured too early. The A0 flight
-(Evaluation.md §3) was a real result — the agent never treated energy as a
-constraint — but every axis of the ladder and the capacity sweep was defined
-against a world the next batch replaces. So each quality gets an instrument
-only after that batch has landed, and data is collected before then only to
-make a specific decision. The A1–A3 rungs are postponed and may be scrapped.
+**Measurement waits for the design.** M14 measured too early: A0 (Evaluation.md
+§3) was a real result, but the ladder and the capacity sweep were defined
+against a world that was then replaced. So a quality gets an instrument once
+the design it measures has landed, and data is collected before then only to
+make a specific decision; the A1–A3 rungs are postponed and may be scrapped.
 
 ## The order of work
 
@@ -148,33 +146,18 @@ the quadruped pivot before it, closed on 2026-10-04 with its final status.
 | Tools | three modules on the rack beside the dock (`legs/rack.py`), taken and hung back by the arm's fork (`legs/swap.py`, #405), powered through the peg. The pen draws on the whiteboards lying in front of them, each found by its tags and its face by touch (`legs/draw.py`, `tools/drawing.py`, #406); the claw takes the cubes it finds by the D435's colour imager, lying (`legs/claw.py`, `tools/claw.py`, #407), and the LCD shows the census's count (`legs/survey.py`) |
 | Behaviour arbitration | `HubLifecycle.run()`: with no mind, charge > queued errand > a claimed job > explore; with one the rails are off, the mind decides after the queue, and its event map decides when it is asked at all (Overseer.md, Evaluation.md §2) |
 | Economy | task offers, code-side scoring, a points ledger with upkeep and hearts (TaskPattern.md, Overseer.md §8b) |
-| Measurement | two arms, `scripted` and the one mind (`guarded`, the control, retired in #427), and the six qualities read as shapes off the deployed world's rows (Evaluation.md) |
+| Measurement | two arms, `scripted` and the one mind, and the six qualities read as shapes off the deployed world's rows; capability's per-task record is defined ahead of its rows (Evaluation.md) |
 
 ## Milestones
 
-Each one was independently runnable when it closed. The numbers are the ones
-that settled something; the docs named hold the rest.
-
-| # | Milestone | Closed | What it settled |
-|---|---|---|---|
-| 1 | Teleoperable differential-drive base | Jul 2026 | |
-| 2 | Stereo camera pair | Jul 2026 | dropped for a LIDAR in Aug 2026 (Parts.md "Vision & ranging") |
-| 3 | Classical odometry | Jul 2026 | < 2 % against ground truth on straights, spins, arcs and S-curves |
-| 4 | Occupancy mapping + frontier exploration | Jul 2026 | maps both rooms collision-free and self-terminates |
-| 5 | Outlet detector on synthetic data | Aug 2026 | retired with the plug era (#376); its lessons are in SimNotes |
-| 6 | Docking controller, scripted → RL | Aug 2026 | scripted 8/24 against RL 6/24; parked by the hub, retired (#376) |
-| 7 | Battery model + the closed loop | Aug 2026 | honest electrical draw, charging on the electrical contact criterion, an absolute-energy reserve |
-| 8 | Modular tool system — the hub pivot | Aug 2026 | a gravity-latched fork coupling (±4 mm / < 2°), a rack localised off AprilTags (9 mm / 0.00°), the peg as the electrical interface, five modules (LCD, plug, pen, claw, seed dispenser), the pen drawing on a wall board at 0.57 mm form error. ToolPattern.md |
-| 9 | Tasks | Aug 2026 | a task is an offer with a code evaluator, a reward row, a cadence and a measured energy cost; the honesty rule. TaskPattern.md |
-| 10 | Minds and money | Aug 2026 | swappable backends, per-errand energy, a USD allowance with escalation and operator modes, the four thought files, points as metabolism. Overseer.md |
-| 13 | The world, dressed | Sep 2026 | the expanded house, the frozen visual-hint vocabulary, re-priced errands, browser-side cosmetics |
-| 14 | Measurement | Sep 2026 | three arms, the harness, committed results, deaths and reset, a measured decision deadline, standing orders; A0 flown: 4 of 5 days dead flat, the agent never treating energy as a constraint. Evaluation.md |
-| 15 | The economy, and the agent that configures itself | Sep 2026 | points as a currency (charge pays nothing, upkeep, five hearts, true death), event maps, the served world can fly an arm, auto-restart. Overseer.md §2 and §8b |
-
-M12 (two robots) landed as #167, and M11 (hands) became the arm (#378,
-#405). Milestones 1–15 were flown on the plug robot and then the rover, both
-deleted (#376; `rover-final`): the issues, `git log` and the docs above are
-the record, and CLAUDE.md carries the constraints that still bind.
+Milestones 1–15 (July to September 2026) were flown on the plug robot and
+then the rover, both deleted (#376; `rover-final`): a teleoperated base,
+odometry, mapping and exploration, the battery loop, the modular tool hub
+and its rack, tasks, minds and money, the dressed world, measurement (A0:
+4 of 5 days dead flat, the agent never treating energy as a constraint) and
+an economy it can die in. M12, two robots, landed as #167, and M11, hands,
+became the arm (#378, #405). The issues, `git log` and the docs are the
+record; CLAUDE.md carries the constraints that still bind.
 
 ## Hardware
 
@@ -184,7 +167,9 @@ Parts.md holds the quadruped's bill of materials.
 
 ## Tooling
 
-- **Simulation:** MuJoCo (MJCF models authored directly in XML during prototyping)
+- **Simulation:** MuJoCo. The house and the body are MJCF written by Python
+  generators (`home/world.py`, `legs/model.py`), and the served world is put
+  together at load (`legs/world.py`).
 - **CAD (later phase):** Onshape, exported to URDF/MJCF via [onshape-to-robot](https://github.com/Rhoban/onshape-to-robot) once the design stabilizes
 - **Learning:** `training/`, a uv project of its own (mjlab, #377): the
   walking policies and the get-up, exported to `.npz` and run as numpy; it
