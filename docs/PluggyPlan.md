@@ -4,11 +4,13 @@
 
 PluggyBot is a robot in [MuJoCo](https://mujoco.org/) whose parts are real,
 purchasable parts, and whose day is decided by an LLM: it explores, swaps
-tools at a rack, earns its keep at jobs the world offers, charges itself, and
+tools at a rack, earns points at jobs the world offers, charges itself, and
 can die. **It is a quadruped**: about 10 kg on four legs, with #378's
 two-joint arm on its back, which takes tools off a rack beside its dock
-(#405). The served pair walk the house (#387) and feed the mouse for pay
-(#403). **What the project works on now is self-taught generality**: the
+(#405). The served pair walk the house (#387) and take its jobs, from
+feeding the mouse (#403) and hide-and-seek (#404) to drawing, a census and
+two challenges with the arm (#406, #407). **What the project works on now is
+self-taught generality**: the
 robot practising new skills in a simulation it builds itself (#465). The
 wheeled rover that came before was deleted in #376; the tag `rover-final`
 is the last commit that runs it. The website side (`rooftop-media-2026`,
@@ -150,10 +152,11 @@ the quadruped pivot before it, closed on 2026-10-04 with its final status.
 
 ## Milestones
 
-Milestones 1–15 (July to September 2026) were flown on the plug robot and
+The milestones (July to September 2026) were flown on the plug robot and
 then the rover, both deleted (#376; `rover-final`): a teleoperated base,
 odometry, mapping and exploration, the battery loop, the modular tool hub
-and its rack, tasks, minds and money, the dressed world, measurement (A0:
+and its rack (the pen drew its square at 0.57 mm form error), tasks, minds
+and money, the dressed world, measurement (A0:
 4 of 5 days dead flat, the agent never treating energy as a constraint) and
 an economy it can die in. M12, two robots, landed as #167, and M11, hands,
 became the arm (#378, #405). The issues, `git log` and the docs are the

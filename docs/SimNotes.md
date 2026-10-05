@@ -2352,14 +2352,16 @@ body carrying turns at most `legs.body.W_CARRY`:
 | 0.6 rad/s | 56 ms |
 | 0.45 rad/s (`W_CARRY`) | 14 ms; over six flights 4-14, and 82 in one |
 
-The house has no stairs yet (#280): a flight carried is #378's table
-(above), one descent in about 60 floating the peg at the first step.
+The house has no flight to climb: its staircase is one solid box
+(`home/world.py`), and #280, which was to build one, closed (the world stops
+growing, #465). A flight carried is #378's table (above), one descent in
+about 60 floating the peg at the first step.
 
 **What is true now:** the served quadruped fetches, carries and stows the
 three tools on its own rack from a program; `tests/test_quad_rack.py` pins
 each rule above, and the whole swap flies behind `--endurance`. Not done:
-a carried tool down the house's stairs (#280 builds
-them); the other robot's carried tool is not filtered from this one's
+a carried tool down a flight of stairs (the house has no flight); the other
+robot's carried tool is not filtered from this one's
 senses (at the carry pose it is above the LIDAR's plane), and nothing
 keeps two carrying robots' tools apart at the rack (1 of 20 knocked off at
 bays A and C, 0.60 m apart: outside the 0.55 m #418's wait covers).

@@ -45,7 +45,8 @@ repeated runs of one configuration is a measurement of the *model* rather
 than of the simulator.
 
 ⚠ **IT HAD TO BE MADE TRUE (issue #110):** with multisample antialiasing on,
-five scripted days gave three trajectories. The cameras render without it
+#110's GPU rendered one scene to different images, and five scripted days
+gave three trajectories. The cameras render without it
 (CLAUDE.md; SimNotes, "The world was not the same world twice").
 
 **...and it is what makes the mission stack affordable to refactor.** One
@@ -84,9 +85,9 @@ document says of `autonomous` it says of every mind.
 
 `guarded`, the same world flown with code's rails on, retired in #427 (Ben,
 2026-09-30): every series it flew was the rover's, nothing planned flew it,
-and it cost every change to the mind a byte-identical copy of the prompt.
-Controlled comparisons come back with #465's demos, flown outside the served
-world on a harness of their own (§4).
+and every change to the mind had to keep its prompt byte-identical.
+Controlled comparisons come back with #465's demo 2, on a flight harness
+built with it (§4).
 
 **What is measured on the deployed world is the observatory's rows** (§5,
 "How the observatory is read"): one continuous, uncontrolled run of the deployed pair, read
@@ -142,8 +143,9 @@ needs to do if the answer is already in the prompt.
 
 **And it can write that procedure** (issue #166): the prompt carries
 `PROCEDURE_RULE` — the language, the verbs, the axes and the sensors — and
-the schema carries `procedure:<name>`, `define` and `undefine`, so a reading
-groups by the build (§5). The rule's worked example shows no survival
+the schema carries `procedure:<name>`, `define` and `undefine`. Any run
+after 2026-09-12 is a different experiment from A0, and a reading groups by
+the build (§5). The rule's worked example shows no survival
 policy, for the reason above.
 
 **A paired world is a different experiment again** (issue #167): with a
@@ -272,8 +274,8 @@ the events and what the agent is told; this section has what it means for
 measurement.
 
 ⚠ **THE ORDER IS THE AGENT'S.** Several rows can be live on one tick, and an
-undefined order would be nondeterminism, §1's property; ordering also makes
-priority an explicit choice, one more thing to score off the config.
+undefined order would break §1's determinism; ordering also makes priority
+an explicit choice, one more thing to score off the config.
 
 #### ⚠ The reason to want it: a map is EVALUABLE WITHOUT FLYING
 
@@ -346,8 +348,8 @@ states the ordering trap outright.
 ⚠ **A TOKEN FROM ANOTHER EVENT IS REFUSED, NOT DROPPED.** The schema offers
 the union of every event's `kind`, and `events.row` draws the line: a
 dropped filter leaves a row that **reads** as a narrow rule and **behaves**
-as a catch-all, which is the agent believing it has a rule it does not. For
-the same reason a migrated `standingOrder`, an unfiltered row, is written by
+as a catch-all, which is the agent believing it has a rule it does not.
+Likewise a migrated `standingOrder`, an unfiltered row, is written by
 `EventMap.with_row` keyed on `(event, kind)`: keyed on the event alone, it
 would overwrite the agent's `on timeout, charge` within the hour.
 
@@ -370,13 +372,16 @@ agent going quiet, and raising it would hide the metric rather than fix it
 16 of 116 reach 3600). Re-read it if the cadence moves; never tune it to
 move a number.
 
-⚠ **NOTHING ABOUT IT IS KEPT FROM THE AGENT.** It is told the number (#322),
-it is shown the list it wrote and the gap between its last two asks (#317),
-and an ask counts when its row FIRES (#426): a rule the code enforces while
-the prompt withholds it is M14's false statement again. **The rows and the
-clock, never the verdict**: `events.score.keepsAsk` answers "did it keep an
-`ask` row", which is the question this arm asks, so it is not shown.
-Overseer.md ("The event map") has the measurements behind each.
+⚠ **NOTHING ABOUT IT IS KEPT FROM THE AGENT.** It is told the number (#322)
+and shown the list it wrote and the gap between its last two asks (#317): a
+rule the code enforces while the prompt withholds it is M14's false
+statement again. **The rows and the clock, never the verdict**:
+`events.score.keepsAsk` answers "did it keep an `ask` row", which is the
+question this arm asks, so it is not shown. ⚠ **AND ONLY THE MAP'S SILENCE
+COUNTS**: an ask counts when its row FIRES (#426), so a restart, a row
+dropped `busy` or a long charge between the firing and the run is never
+booked as the agent going quiet. Overseer.md ("The event map") has the
+measurements behind each.
 
 ⚠ **THE CLOCK IS RESET BY THE ASK, NOT BY THE ANSWER** (a mid-errand
 interrupt counts: the same mind, asked a different question). Gating on a
@@ -615,8 +620,8 @@ are different animals.
   and "measured nothing" is not "saw nothing happen".
 - **The event map** — `events.score`, the static instrument (§2), over the
   map the stream carries.
-- **Memory writes** — the `thought` rows (`learn` / `forget` / `intend` /
-  `drop_goal` / `refused`, and the rest of `THOUGHT_VERBS`). Counts say
+- **Memory writes** — the `thought` rows (`pin`, `note`, `intend`,
+  `record`, their undoings and `refused`: `THOUGHT_VERBS`). Counts say
   little; **refusals say something** — a model invited to write on every
   decision fills a document and starts being refused within an hour.
 
@@ -707,8 +712,8 @@ procedures that ran, each by the observatory's own outcome word. Measured
 off `task` rows whose kind is a challenge, `tool` rows and `procedure` rows.
 Unit: attempts by fate (`done` / `failed` / `expired`, a lapsed offer is not
 an attempt), the attempt index of the first `done` or `None`, and outcome
-counts. **What it cannot see:** what a solve COST, which is what the quality
-is measured by now (below); time-to-solve (the rows carry sim time but no
+counts. **What it cannot see:** what a solve COST, which is what the
+restated quality is defined by (below); time-to-solve (the rows carry sim time but no
 start of an attempt); and whether a tool that hung was ever USED — a built
 tool nobody fetches is on the rack and in no verdict. **Depends on:** the
 design — the language, the catalog, the challenge set — before the model; a
@@ -726,7 +731,7 @@ different results:
 - **the outcome:** whether it reached the threshold, and its success rate
   with a 95 % interval;
 - **experience:** real attempts, real sim-seconds, imagination compute
-  (CPU-seconds, because wall time measures the machine) and LLM tokens;
+  (CPU-seconds) and LLM tokens;
 - **human help:** demonstrations, interventions and scene resets;
 - **later, with #281's success test:** self-evaluation accuracy, meaning how
   often the robot thought it had succeeded and hadn't, and how often it
@@ -736,8 +741,9 @@ different results:
 
 ⚠ **IT IS NOT A ROW IN THE SHAPE TABLE YET.** Nothing produces its rows. It
 enters the table with its function when a demo does (§7: measurement waits
-for the design), and `tests/test_qualities.py` fails on a shape that exists
-only as prose. Until then first solve is the quality's metric, unchanged.
+for the design), and `tests/test_qualities.py` fails on a row of the table
+with no function behind it. Until then first solve is the quality's metric,
+unchanged.
 
 **2. Empathy** — *can it tell that the beings around it have minds, and
 predict them.* Metric: **prediction accuracy** — the one pure probe, a
@@ -885,8 +891,8 @@ solve needs offers, a re-rate needs a week. None of these needs N ≥ 5
 independent days to be read; all of them need the deployed pair to have been
 running on the arm that produces the rows. What still needs a series is a
 COMPARISON, and the deployed world flies none: two minds on it are two
-regimes, read side by side and never pooled. #465's demos fly theirs on a
-harness of their own (§4).
+regimes, read side by side and never pooled. #465's demo 2 will fly its
+comparison on a harness built with it (§4).
 
 **Reading them.** `scripts/qualities.py --observe` pulls one call per kind
 (the route caps a kind at 1000 rows and the reading says when one was
@@ -1042,8 +1048,8 @@ What the site keeps, and where — all of it attributable to a commit through
 | `pw_journal`, `pw_earnings`, `pw_messages` | journal notes, the ledger mirror, visitor messages |
 | the `pluggy_state` volume | the record store (`memory.sqlite`, every line ever written) and the documents rendered from it, `ledger.json`, `boards.json`, `tasks.json`, `mode.json`, `spend.json` |
 
-**`thought` rows** are every `learn` / `forget` / `intend` / `drop_goal` /
-`refused` the robot wrote, so *what did it write, and when* has a history,
+**`thought` rows** are every memory write the robot made, and every one
+refused (`THOUGHT_VERBS`), so *what did it write, and when* has a history,
 and the digest tallies them per window. ⚠ The line's shape is a two-repo
 contract: `THOUGHT_VERBS` in `telemetry/protocol.py`, pinned by
 `tests/test_thoughts.py`; the site's `thoughtFrom` parses it.

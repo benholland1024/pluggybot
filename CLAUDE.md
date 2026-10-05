@@ -4,8 +4,8 @@ A simulated, hardware-honest robot and the autonomous agent that lives in it.
 **The project is agent-autonomy research, not a product**: the mission and
 the six qualities the agent is meant to maximise are in `docs/PluggyPlan.md`
 § "What this project is for" — provisional wording, settled direction.
-**#465 holds the order of work and the decisions**, in its "The next
-stretch"; #375, the quadruped pivot, is history. **The body is a ~10 kg
+**#465 holds the order of work** (its "The next stretch") **and the
+decisions**; #375, the quadruped pivot, is history. **The body is a ~10 kg
 quadruped** (#387, `legs/body.py`) with #378's two-joint arm on its back
 (#405), served as a pair; the wheeled rover before it was deleted in #376's
 stage C (the tag `rover-final` is the last commit that runs it). Before
@@ -163,8 +163,9 @@ doing anything, read the doc that owns what you are about to touch:
   reading of the observatory is NOT a result; it reports into the issue it
   informs. ⚠ `serves` IS NOT ON THE
   WIRE: the KEY is the test, and quality five's ratio off the observatory is
-  `None`. ⚠ A test reads the doc's shape table against `SHAPES`: a metric that
-  exists only as prose fails. ⚠ Nothing in `economy/` imports `evaluation`. ⚠
+  `None`. ⚠ A test reads §3's shape table against `SHAPES` both ways: a row
+  with no function fails, so capability's per-task record stays prose until
+  a demo gives it rows. ⚠ Nothing in `economy/` imports `evaluation`. ⚠
   **The sixth quality is NOT time alive** — five shapes read together
   (Evaluation.md §3's table), `idling` BESIDE deaths in `QUALITIES` because
   high idling with low deaths is the failure mode; hearts bought for oneself
