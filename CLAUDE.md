@@ -1,19 +1,19 @@
 # PluggyBot — notes for Claude
 
 A simulated, hardware-honest robot and the autonomous agent that lives in it.
-**The project is agent-autonomy research, not a product**: the mission, the
-six qualities the agent is meant to maximise, and the order of work are in
-`docs/PluggyPlan.md` § "What this project is for" — provisional wording,
-settled direction. **The body is a ~10 kg quadruped** (#387, `legs/body.py`)
-with #378's two-joint arm on its back (#405), served as a pair; the wheeled
-rover before it was deleted in #376's stage C (the tag `rover-final` is the
-last commit that runs it), and #375 holds the order of work and the
-decisions. Before doing anything, read the doc that owns what you are about
-to touch:
+**The project is agent-autonomy research, not a product**: the mission and
+the six qualities the agent is meant to maximise are in `docs/PluggyPlan.md`
+§ "What this project is for" — provisional wording, settled direction.
+**#465 holds the order of work** (its "The next stretch") **and the
+decisions**; #375, the quadruped pivot, is history. **The body is a ~10 kg
+quadruped** (#387, `legs/body.py`) with #378's two-joint arm on its back
+(#405), served as a pair; the wheeled rover before it was deleted in #376's
+stage C (the tag `rover-final` is the last commit that runs it). Before
+doing anything, read the doc that owns what you are about to touch:
 
 | doc | what it holds | read it BEFORE |
 |---|---|---|
-| `docs/PluggyPlan.md` | the mission and the six qualities, status, architecture, the order of work | anything |
+| `docs/PluggyPlan.md` | the mission and the six qualities, status, architecture | anything |
 | `docs/SimNotes.md` | simulation lessons, each ending in what is true now | touching `models/` or contact/actuator params |
 | `docs/Parts.md` | locked hardware decisions and the sim parameters they feed | changing a part or its parameter |
 | `docs/ToolPattern.md` | adding a tool module: the arm's coupling envelope, anatomy, contact rules, build sequence, rack integration | designing a new tool |
@@ -23,7 +23,7 @@ to touch:
 | `docs/Overseer.md` | the mind: its place in the loop and which rails each arm keeps, the vocabulary, the standing order and the event map, what it cannot do, the fallbacks, memory, money, visitors | touching `mind/`, the decision vocabulary, or what the model is shown |
 | `docs/Testing.md` | pinning a rule without paying for a mission: the three kinds of test, the cheap levers, how to measure | writing a test that flies anything |
 | `docs/Observatory.md` | the deployed world's PERIODS: what was running while the rows were written, opened by the PR that changes the deployed design | reading the observatory or changing what is deployed |
-| `docs/Evaluation.md` | measurement: the arms, the six qualities and their shapes, the observatory and how it is read, what silently invalidates a number, what death costs | adding a metric, changing an arm, or concluding anything from the observatory |
+| `docs/Evaluation.md` | measurement: the arms, the six qualities and their shapes, capability's per-task record, the observatory and how it is read, what silently invalidates a number, what death costs | adding a metric, changing an arm, or concluding anything from the observatory |
 | `docs/Webserver.md`, `protocol/README.md` | the served process, the stream and its versioning | touching `telemetry/`, `serve.py` or the wire |
 
 ## Working style
@@ -163,8 +163,9 @@ to touch:
   reading of the observatory is NOT a result; it reports into the issue it
   informs. ⚠ `serves` IS NOT ON THE
   WIRE: the KEY is the test, and quality five's ratio off the observatory is
-  `None`. ⚠ A test reads the doc's shape table against `SHAPES`: a metric that
-  exists only as prose fails. ⚠ Nothing in `economy/` imports `evaluation`. ⚠
+  `None`. ⚠ A test reads §3's shape table against `SHAPES` both ways: a row
+  with no function fails, so capability's per-task record stays prose until
+  a demo gives it rows. ⚠ Nothing in `economy/` imports `evaluation`. ⚠
   **The sixth quality is NOT time alive** — five shapes read together
   (Evaluation.md §3's table), `idling` BESIDE deaths in `QUALITIES` because
   high idling with low deaths is the failure mode; hearts bought for oneself

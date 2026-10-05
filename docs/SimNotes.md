@@ -1411,7 +1411,7 @@ flat.
   pose.** Between the bays (±150 mm) they sat 25° off its axis, and 2.7° of
   yaw took one out of the frame; a pair a bay at ±75 mm sits at 20°.
 
-**Which tools survive** (#375 step 4 rebuilds them on the longer peg):
+**Which tools survive** (rebuilt on the longer peg, #405–#407):
 - **the pen** — it keeps its sideways carriage; the arm gives it a board's
   full height from one stance (0.19–0.41 m from 0.43 m out) and the pressing
   force, reacted by the pad;
@@ -2352,14 +2352,16 @@ body carrying turns at most `legs.body.W_CARRY`:
 | 0.6 rad/s | 56 ms |
 | 0.45 rad/s (`W_CARRY`) | 14 ms; over six flights 4-14, and 82 in one |
 
-The house has no stairs yet (#280): a flight carried is #378's table
-(above), one descent in about 60 floating the peg at the first step.
+The house has no flight to climb: its staircase is one solid box
+(`home/world.py`), and #280, which was to build one, closed (the world stops
+growing, #465). A flight carried is #378's table (above), one descent in
+about 60 floating the peg at the first step.
 
 **What is true now:** the served quadruped fetches, carries and stows the
 three tools on its own rack from a program; `tests/test_quad_rack.py` pins
 each rule above, and the whole swap flies behind `--endurance`. Not done:
-a carried tool down the house's stairs (#280 builds
-them); the other robot's carried tool is not filtered from this one's
+a carried tool down a flight of stairs (the house has no flight); the other
+robot's carried tool is not filtered from this one's
 senses (at the carry pose it is above the LIDAR's plane), and nothing
 keeps two carrying robots' tools apart at the rack (1 of 20 knocked off at
 bays A and C, 0.60 m apart: outside the 0.55 m #418's wait covers).
@@ -3164,7 +3166,7 @@ offered, claimed with its right answer, the job's errand run and graded by
 the ink 0.4-0.5 mm from the glyphs (the bar is 4), 164-201 s a job.
 
 **Calibration reads no ground truth** (the rover's `calibrate()` read its
-tip off the sim; PluggyPlan's "Road to hardware"). The plotter steers by
+tip off the sim; PluggyPlan's "Hardware honesty"). The plotter steers by
 the arm's encoders through its own kinematics, the slide's position, the
 quill's Hall sensor and the nose camera. The board's tags -- two 120 mm
 tags on the wall either side of it, level with its middle, 0.53 m apart --

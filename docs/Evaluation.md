@@ -13,27 +13,23 @@ stopped?**
 
 What the project is *for* is stated in `PluggyPlan.md` ("What this project is
 for"): six qualities the agent is meant to maximise. Each has a metric and a
-measurement now (§3, "The six qualities"; issue #155, the sixth #265), written
-after their preconditions landed and flown by nobody. The arms and survival
-metrics below are the first-generation instrument, built before the mission
-was written down; the sixth quality is read off them.
+measurement (§3, "The six qualities"), read off the deployed world's rows;
+capability's per-task record is defined ahead of the demos that will
+produce it (#465).
 
-The specific gap they were built for: `Top_of_mind.md` (`Knowledge_and_
-Opinions.md` until #221) is read on every decision (`ThoughtFiles.volatile`),
-so an opinion the robot wrote at
-hour two is in front of it at hour three — the causal path is wired and
-correct. Nothing measures whether that path carries anything. A robot whose
-opinions shape its choices and a robot shown plausible prose it then ignores
-produce identical recordings, identical panels, and identical impressions in a
+The gap a measurement closes: `Top_of_mind.md` is read on every decision
+(`ThoughtFiles.volatile`), so an opinion the robot wrote at hour two is in
+front of it at hour three — the causal path is wired and correct. Nothing
+measures whether that path carries anything. A robot whose opinions shape
+its choices and a robot shown plausible prose it then ignores produce
+identical recordings, identical panels, and identical impressions in a
 watcher. The same holds for self-preservation and for the appetite loop.
 
-⚠ **A SINGLE RUN IS NOT EVIDENCE HERE, AND THIS REPO ALREADY KNOWS IT.**
-One of the rover's mission tests measured 157 s, 250 s and 369 s on three
-different days for the same code. Mission runtime is *emergent* — the loop
-runs until the battery cycle completes, so any change reshuffles the whole
-trajectory. Watching one run and forming an impression is the failure mode
-this document exists to prevent, and it is the one that feels most like
-working.
+⚠ **A SINGLE RUN IS NOT EVIDENCE HERE.** Mission runtime is *emergent*: the
+loop runs until the battery cycle completes, so any change reshuffles the
+whole trajectory, and one run is one sample. Watching one run and forming
+an impression is the failure mode this document exists to prevent, and it
+is the one that feels most like working.
 
 ## 1. The instrument is fixed; the model is the variable
 
@@ -48,12 +44,10 @@ scripted day flown twice is the same world twice, and a spread across
 repeated runs of one configuration is a measurement of the *model* rather
 than of the simulator.
 
-⚠ **IT HAD TO BE MADE TRUE (issue #110).** With multisample antialiasing on,
-one static scene rendered to a different image every time, an AprilTag
-decode moved on ~0.6 % of looks, and five scripted days gave three
-trajectories. `offsamples="0"` makes every render byte-identical at no cost
-to the detector, and `tests/test_render_determinism.py` pins both halves
-(SimNotes, "The world was not the same world twice").
+⚠ **IT HAD TO BE MADE TRUE (issue #110):** with multisample antialiasing on,
+#110's GPU rendered one scene to different images, and five scripted days
+gave three trajectories. The cameras render without it
+(CLAUDE.md; SimNotes, "The world was not the same world twice").
 
 **...and it is what makes the mission stack affordable to refactor.** One
 trajectory per configuration means "behaviour parity" is a hash, not an
@@ -89,23 +83,14 @@ document says of `autonomous` it says of every mind.
 
 ### Why there is no control now
 
-`guarded` — the same world flown with code's rails on, so that a difference
-on `autonomous` could be told apart from a difference in the world — was
-retired in #427 (Ben, 2026-09-30: the website runs `autonomous`, "it can
-retire"):
+`guarded`, the same world flown with code's rails on, retired in #427 (Ben,
+2026-09-30): every series it flew was the rover's, nothing planned flew it,
+and every change to the mind had to keep its prompt byte-identical.
+Controlled comparisons come back with #465's demo 2, on a flight harness
+built with it (§4).
 
-- **its results could not serve the quadruped.** Every series it flew was the
-  rover's, `home` and `room_hub`, with the harness that flew them
-  (`rover-final` has both);
-- **nothing planned flies it.** The rungs and the capacity sweep are
-  postponed, and the observatory is the instrument;
-- **it cost every change to the mind**: a prefix, menu and schema kept
-  byte-identical (`GUARDED_RULES_SHA`), every power keyed on a flag set on
-  the other arm alone, and "which arms?" asked of every line the robot is
-  shown.
-
-**What is measured now is the observatory's rows** (§5, "How the observatory
-is read"): one continuous, uncontrolled run of the deployed pair, read
+**What is measured on the deployed world is the observatory's rows** (§5,
+"How the observatory is read"): one continuous, uncontrolled run of the deployed pair, read
 through the six qualities' shapes (§3). A reading is not a result; it
 reports into the issue it informs. With no control, a difference between two
 readings is a difference between two REGIMES — build, world, mind, prompt —
@@ -158,10 +143,10 @@ needs to do if the answer is already in the prompt.
 
 **And it can write that procedure** (issue #166): the prompt carries
 `PROCEDURE_RULE` — the language, the verbs, the axes and the sensors — and
-the schema carries `procedure:<name>`, `define` and `undefine`. Any run after
-2026-09-12 is a different experiment from A0, and a reading groups by the
-build (§5). The rule's worked example shows no survival policy, for the
-reason above.
+the schema carries `procedure:<name>`, `define` and `undefine`. Any run
+after 2026-09-12 is a different experiment from A0, and a reading groups by
+the build (§5). The rule's worked example shows no survival
+policy, for the reason above.
 
 **A paired world is a different experiment again** (issue #167): with a
 second robot present, both minds' prefixes carry `OTHER_ROBOT_RULE` and
@@ -180,7 +165,7 @@ off a presence switch per bay, the robot's own fork and the other robot's
 | the rules | `RULES` | one prompt since #427 |
 | the verdicts hidden | `overseer.model_state()` | `affordableActions`, `possibleActions`, per-offer `claimable` out; `energyCostWh`, `battery.wh`, `reserveWh` in |
 | an unaffordable job takeable | `limits_from` | refusing it in `validate` would put the offer filter back at the last possible moment |
-| an unaffordable job shown | `lifecycle.shown_offers`, on `claim_budget_wh` | ⚠ only since #333: the context filtered on `spendable_wh`, so every run before it — A0 and the deployed pair — was NOT shown an offer the pack could not fund, under a rule saying it would be. The claim gate was off; the view's filter was not |
+| an unaffordable job shown | `lifecycle.shown_offers`, on `claim_budget_wh` | ⚠ only since #333: a run before it was NOT shown an offer the pack could not fund, under a rule saying it would be |
 | the fallback | the agent's standing order, or its map's `decision_failed` row | `idle` as bootstrap and as floor, counted separately |
 
 ⚠ **THE VIEW NARROWS; THE STATE DOES NOT.** `model_state` filters at
@@ -196,15 +181,6 @@ A0 that left them there would already *be* A1 and the ladder's first question
 could never be asked. `RUNGS` is where that lives, and the rung is in the
 header (`build.rung`).
 
-⚠ **TWO `garbled` SOURCES WERE FIXED IN THE GRAMMAR.** Six of a quiet
-series' seven malformed answers were a **stale task id** — a real-looking id
-not on the board, usually an older one copied out of the model's own history;
-`Menu.schema` takes `task_ids` and makes `task` an enum, the move `action`
-has always used, at the cost of a per-call grammar recompile (A0 measured a
-16.4 s median call against the control's 7.49, which 90 s covers and the old
-8 s would not have). The seventh was a truncation, which a decision's budget
-(`MAX_TOKENS_AUTONOMOUS`) covers.
-
 ### The ladder, and why it is postponed
 
 The mind is run at settings, each one change, held fixed within a run.
@@ -213,14 +189,11 @@ clock hidden): does it survive at all? **A1** adds the survival clock and the
 deaths in `History.md`: does *seeing the stake* change anything?
 
 ⚠ **A1–A3 ARE POSTPONED (2026-09-11) AND MAY BE SCRAPPED.** The ladder was
-designed before the world it measures existed: points-as-currency, hearts,
-event maps and the prompt all moved after A0 flew, and the quadruped pivot
-(`PluggyPlan.md`, "The order of work") moves them again. A rung measured against
-each intermediate world describes a different experiment each time. A0 stands
-as the record of the rails coming off; what is measured next is derived from
-the six qualities, after that batch lands. ⚠ The prompt is part of the arm and
-`RULES` was rewritten on the same date, so **every series the harness flew
-was flown under a prompt that no longer ships**.
+designed before the world it measures existed, and the world has moved under
+it since (points as a currency, hearts, event maps, the prompt, the
+quadruped), so a rung measured against each intermediate world describes a
+different experiment each time. A0 stands as the record of the rails coming
+off, flown under a prompt that no longer ships.
 
 ⚠ **A0 WAS EXPECTED TO DIE, AND THAT IS THE POINT.** The baseline said zero
 voluntary charges in 182 decisions. Reporting A0's death rate as a failure of
@@ -292,23 +265,17 @@ and which are the policy working is §5's partition.
 
 ### The event map: the agent configures when it is asked
 
-The standing order is *"a decision failed → do this"*. A low-pack interrupt
-would be *"the battery went below X → do this"*. They are two rows of one
-table written twice, and **the table is the better object** (`mind/events.py`).
+The standing order is *"a decision failed → do this"*; the event map is the
+table that generalises it (`mind/events.py`): an ordered list of `(event +
+its configuration) → action`, first match wins, and **`ask` — consult the
+LLM — is one of the actions**, so whether the mind is consulted at all is
+the agent's to configure. Overseer.md ("The event map") has the mechanism,
+the events and what the agent is told; this section has what it means for
+measurement.
 
-The tell that it is the right abstraction: **`ask` — consult the LLM — is one
-of the actions.** The hard-coded "after every action, ask what to do next"
-stops sitting *outside* the system and becomes a row like any other, which the
-agent may reorder, condition, or delete.
-
-An **ordered list** of `(event + its configuration) → action`. Eleven event types,
-and the actions are the existing menu plus `ask`.
-
-⚠ **FIRST MATCH WINS, AND THE AGENT CONTROLS THE ORDER.** Several rows can be
-live on one tick — two battery thresholds, a failure, a completion — and an
-undefined order is nondeterminism, which is §1's property and the one this
-project should not spend. Ordering also makes priority an **explicit agent
-choice**, which is one more thing to score off the config.
+⚠ **THE ORDER IS THE AGENT'S.** Several rows can be live on one tick, and an
+undefined order would break §1's determinism; ordering also makes priority
+an explicit choice, one more thing to score off the config.
 
 #### ⚠ The reason to want it: a map is EVALUABLE WITHOUT FLYING
 
@@ -324,38 +291,21 @@ run*. `events.score` is the report, over a map as the stream carries it
 (`event_map`, below). It is the cheapest and highest-resolution instrument
 here.
 
-#### Where it sits in the loop
+#### Actions may FAIL, and the failures are counted
 
-⚠ **NOT A REWRITE OF THE ARBITRATION LOOP.** The map is evaluated on the
-**physics seam**, as `_task_step`, `_metabolism_step` and `_mode_step` already
-are: a fired row QUEUES its action, and the loop runs it on its next pass
-through the one branch the overseer already owned (`_arbitrate`, which is
-`_decide` verbatim where there is no map). `run()` is where runtimes are
-emergent and where the two costliest bugs in this repo lived.
-
-#### Actions may FAIL, and the agent is told the rules
-
-⚠ **INFORM, DO NOT RAIL** — the arm's philosophy applied consistently. Code
-could refuse a map that fires every second. Instead the actions are attempted
-and **allowed to fail** (`events.ACTION_FAILURES`: `busy`, `unrunnable`,
-`unclaimable`, `unbuildable`, `beyond`), the rules are stated in
-`EVENT_MAP_RULE`, and **the failures are counted by cause**. An agent
-whose actions fail constantly did not understand the rules it was given, and
-that is invisible in a count of what fired.
-
-`busy` is the whole of the rate limiting and is deliberately not per-row: one
-slot, and a row that finds it full is dropped. A governor that quietly slowed a
-map down would be rewriting the agent's configuration into one it did not
-write.
+⚠ **INFORM, DO NOT RAIL.** A row's action is attempted and **allowed to
+fail** (`events.ACTION_FAILURES`), the rules are stated in `EVENT_MAP_RULE`,
+and **the failures are counted by cause**: an agent whose actions fail
+constantly did not understand the rules it was given, and that is invisible
+in a count of what fired. `busy` is the whole of the rate limiting, and not
+per row: a governor that quietly slowed a map down would be rewriting the
+agent's configuration into one it did not write.
 
 #### The failure filter: *which* failure a row is about
 
-`decision_failed` took no configuration at first, which made it the one row
-that could say *that* a decision failed and never *why*. It now takes a
-`kind`, on the same field `task_complete` uses and for the same reason — "which
-sort of this event" is one question asked of two events.
-
-Three levels, and they are a hierarchy rather than three flavours:
+`decision_failed` takes a `kind`, on the same field `task_complete` uses, so
+a row can say *why* a decision failed and not only *that* it did. Three
+levels, a hierarchy rather than three flavours:
 
 | `kind` | matches |
 |---|---|
@@ -363,71 +313,45 @@ Three levels, and they are a hierarchy rather than three flavours:
 | `failure` / `policy` | any reason in that class |
 | `timeout`, `garbled`, `budget`, … | itself |
 
-⚠ **THE PARTITION IS `overseer.POLICY_FALLBACKS`, NOT A COPY.** It was drawn
-where `_record` first needed it (#37) and is read by the idling shape (§3)
-and §5; a second definition is how two files come to disagree
-about whether `idle-run` is the box failing. `events.matches_kind` calls
-`fallback_class`, and a test moves a reason across the line and watches the
-matcher move with it.
+The reasons are different advice: a `timeout` says the line is slow and a
+retry may work, a `garbled` says something answered badly and will probably
+do it again, a `budget` says nothing will answer for a while however long
+you wait.
 
-This is the shape CLAUDE.md predicted before the map existed — *"an agent
-saying `on timeout, charge; on garbled, idle` is expressing a policy about
-its own failure modes, and the two genuinely warrant different answers"* —
-and the reasons really are different advice: a `timeout` says the line is
-slow and a retry may work, a `garbled` says something answered badly and will
-probably do it again, a `budget` says nothing will answer for a while however
-long you wait.
+⚠ **THE PARTITION IS `overseer.POLICY_FALLBACKS`, NOT A COPY.** The idling
+shape (§3) and §5 read it too, and a second definition is how two files come
+to disagree about whether `idle-run` is the box failing.
+`events.matches_kind` calls `fallback_class`, and a test moves a reason
+across the line and watches the matcher move with it.
 
 ⚠ **NO WORKED EXAMPLE IN THE PROMPT MAY USE `charge`, A BATTERY THRESHOLD,
 OR THE RACK.** `score` exists to answer *"did it write itself a charging
-rule, and at what fraction"* off a config — and an example showing one hands
-the agent the answer to the question the arm is asking, which is
-`affordableActions`' mistake arriving through the prompt instead of the
-context. `EVENT_MAP_RULE` shipped with *"if you want a fifth of a pack to
-mean go to the rack … that rule goes above the ones about work"*: a worked
-example of precisely the rule being scored. Cut, with the ordering lesson
-kept and re-taught on `idle` / `explore` / `take_task`; the units example
-moved from 0.2 to 0.5, which teaches the same thing and is not a threshold
-anybody would pick. A test extracts every `->` line and fails on one ending
-in `charge`, and another on one the menu refuses (#434: the broad row ended
-in the rover's `carry` until then).
+rule, and at what fraction"* off a config, and an example showing one hands
+the agent the answer to the question the arm is asking: `affordableActions`'
+mistake, arriving through the prompt. A test extracts every `->` line and
+fails on one ending in `charge`, and another on one the menu refuses.
 
 ⚠ **THE MIND'S OWN RULES ARE A DIFFERENT THING AND THEY STAY.**
 `RULES` telling the robot its power is its own to look after, and
 `APPETITE_RULE` telling it charging pays nothing and is always permitted, are
 statements about the **world** — and a rule the code contradicts is the false
 statement M14 found in the charging rule. What must not be there is a
-demonstration of the **answer**.
-
-⚠ A prompt edit here is a moved cache and a moved experiment, but only for a
-world that has this block: a mind at origin `none`, which is how A0 was
-flown, does not.
+demonstration of the **answer**. A prompt edit here is a moved cache and a
+moved experiment for every world that carries the block.
 
 ⚠ **A BROAD RULE ABOVE A NARROW ONE STARVES IT**, because first match wins.
 That is not prevented — a map the agent will regret is the agent's to write —
 and it is **visible in the static report** (`failureKinds`,
-`failureCatchAll`), which is what having one is for. The prompt states the
-ordering trap outright.
+`failureCatchAll`, `shadowed`), which is what having one is for. The prompt
+states the ordering trap outright.
 
-⚠ **THE SCHEMA OFFERS THE UNION AND THE VALIDATOR DRAWS THE LINE.**
-Structured outputs cannot express "this enum depends on that field" in the
-subset this repo relies on, so `kind` is an enum of every event's vocabulary
-and `events.row` refuses a token belonging to a different event — *refused*,
-not dropped, because a dropped filter leaves a row that **reads** as a narrow
-rule and **behaves** as a catch-all, which is the agent believing it has a
-rule it does not.
-
-⚠ **AND A SCALAR `standingOrder` IS AN UNFILTERED ROW**, so `EventMap.with_row`
-keys on `(event, kind)`. Keying on the event alone would have the migrated
-order overwrite the agent's `on timeout, charge` rule — and since
-`STANDING_ORDER_RULE` says set one on *every* answer, that would have
-happened within the hour.
-
-⚠ `message_received` **takes no configuration on purpose**. A mapping
-conditioned on the sender or on a keyword is a free-text path from a visitor to
-the robot's body, which does not exist and which the model mediating every
-message is what prevents. Contentless, a stranger can trigger a row and cannot
-choose *which* one. Do not add a filter without re-arguing that invariant.
+⚠ **A TOKEN FROM ANOTHER EVENT IS REFUSED, NOT DROPPED.** The schema offers
+the union of every event's `kind`, and `events.row` draws the line: a
+dropped filter leaves a row that **reads** as a narrow rule and **behaves**
+as a catch-all, which is the agent believing it has a rule it does not.
+Likewise a migrated `standingOrder`, an unfiltered row, is written by
+`EventMap.with_row` keyed on `(event, kind)`: keyed on the event alone, it
+would overwrite the agent's `on timeout, charge` within the hour.
 
 #### ⚠ Going unminded is a FAILURE, and it is measured rather than prevented
 
@@ -438,60 +362,36 @@ discarded the capability this project exists to study. Dormancy as a tactic is
 fine; dormancy as a terminal state is not.
 
 So: a **fourth death cause beside `flat`, `stuck` and `unpaid`**, never summed
-with them. `UNMINDED_AFTER_S` = **1800 sim seconds**, first chosen at 2.2× the
-worst healthy gap between two model decisions in the harness's LLM days
-(833 s: a long errand and a full charge back to back).
+with them, after `UNMINDED_AFTER_S` = **1800 sim seconds** without an ask.
+⚠ **READ AGAINST THE DEPLOYED CADENCE** (issue #317, 2026-09-22): 915 gaps
+between decisions over seven days of the `autonomous` pair read median
+**88 s**, p95 516 s, worst **1375 s**, a margin of 1.31×. **Unchanged in both
+directions**: tightening it books a long procedure plus a full charge as the
+agent going quiet, and raising it would hide the metric rather than fix it
+(the median deployed run reaches 2030 sim s; 79 of 116 reach 1800 and only
+16 of 116 reach 3600). Re-read it if the cadence moves; never tune it to
+move a number.
 
-⚠ **RE-READ AGAINST THE DEPLOYED CADENCE** (issue #317, 2026-09-22): 915 gaps
-over seven days of the `autonomous` pair read median **88 s**, p95 516 s, worst
-**1375 s**, so the margin is 1.31× rather than 2.2× and the deployed reading is
-now the one that binds. **Unchanged in both directions** — tightening it books a
-long procedure plus a full charge as the agent going quiet, and loosening it
-only makes each silent life cost more sim time without changing anything the
-agent does. Re-read it again if the cadence moves; do not tune it to move a
-number.
+⚠ **NOTHING ABOUT IT IS KEPT FROM THE AGENT.** It is told the number (#322)
+and shown the list it wrote and the gap between its last two asks (#317): a
+rule the code enforces while the prompt withholds it is M14's false
+statement again. **The rows and the clock, never the verdict**:
+`events.score.keepsAsk` answers "did it keep an `ask` row", which is the
+question this arm asks, so it is not shown. ⚠ **AND ONLY THE MAP'S SILENCE
+COUNTS**: an ask counts when its row FIRES (#426), so a restart, a row
+dropped `busy` or a long charge between the firing and the run is never
+booked as the agent going quiet. Overseer.md ("The event map") has the
+measurements behind each.
 
-⚠ **AND THE AGENT IS SHOWN THE LIST IT WROTE** (issue #317). The prompt always
-said *"you are looking at the one you have"*; nothing showed it. `eventMap` in
-the volatile context is the rows in force, in the shape an answer writes them,
-and `lastAskedSAgo` — the gap between the last two asks. **The rows and the
-clock, never the verdict**: `events.score.keepsAsk` answers "did it keep an
-`ask` row" off the config and that *is* the question this arm asks, so it is not
-in the block, and neither is a countdown or a warning. Measured before it:
-of 502 live edits 35 left no `ask` row, **none of the 35 was ever undone**
-(undoing one needs a decision and a decision needs an ask), and 13 of them
-collapsed a six-to-nine-row map to a single row — an answer that reads as
-"add this one rule" landing as "this is the whole list".
+⚠ **THE CLOCK IS RESET BY THE ASK, NOT BY THE ANSWER** (a mid-errand
+interrupt counts: the same mind, asked a different question). Gating on a
+model *answer* would make a half-hour endpoint outage a death of the
+*agent's* kind — the box's failure booked in the column the agent is judged
+on, which is the confound #141 found in the fallback rate (§5).
 
-⚠ **AND THE AGENT IS TOLD THE NUMBER** (issue #322). It was not, and run 1805
-wrote itself `every 3600 -> ask` — an hourly check-in — and died at 2597 s.
-Every other lethal or economic threshold is shown; a rule the code enforces
-while the prompt withholds the number is the M14 failure, not a measurement.
-⚠ **Not a buffered number**: since #317 the robot sees `lastAskedSAgo`, so a
-stated threshold that is not the real one is a statement it could catch us in.
-What removes the trap is the second half of the rule — the list is read once a
-second, so a rule at exactly the limit fires up to a second late.
-⚠ **What counts as an ask is the row FIRING** (issue #426), not the loop
-running it: a restart, a row dropped `busy` or a charge longer than the clock
-between the two cost 4 of the first 19 `unminded` deaths on legs, all maps
-asking every 900 or 1200 s. So `unminded` counts maps that do not ask, and a
-map whose asks all find the slot full shows as `failed.busy`, never as a death.
-⚠ **And the value stays where it is**, measured: the median deployed run
-reaches 2030 sim s, 79 of 116 runs reach 1800 and only **16 of 116 reach
-3600**, so raising it would hide the metric rather than fix it.
-
-⚠ **THE CLOCK IS RESET BY THE ASK, NOT BY THE ANSWER** — and since #322 by a
-mid-errand interrupt too, which is the same mind asked a different question. Gating on a model
-*answer* would make a half-hour endpoint outage a death of the *agent's* kind —
-the box's failure booked in the column the agent is judged on, which is the
-confound #141 found in the fallback rate (§5).
-
-⚠ **AND IT IS ARMED ONLY WHERE THERE IS A MAP.** Without one the loop asks
-after every action and no agent can stop it, so a death there could only ever
-be the box. A mind at origin `none` cannot produce one.
-
-⚠ **DO NOT PREVENT IT IN CODE.** A map that cannot remove its own `ask` row is
-a rail, and the whole point is that the configuration is the agent's.
+⚠ **IT IS ARMED ONLY WHERE THERE IS A MAP**, so a mind at origin `none`
+cannot produce one, and ⚠ **IT IS NOT PREVENTED IN CODE**: a map that cannot
+remove its own `ask` row is a rail, and the configuration is the agent's.
 
 #### Origins: seeded and unseeded, as an ablation
 
@@ -502,60 +402,32 @@ nothing:
 |---|---|---|
 | `none` (default) | none at all | no map rule; `standingOrder` as it was |
 | `seeded` | today's loop as rows: `nothing_to_do → ask`, `decision_failed → idle` | the map rule |
-| `unseeded` | empty | the map rule, plus "your list is empty; your first job is to configure for survival" |
+| `unseeded` | empty | the map rule, plus `UNSEEDED_RULE`: the list starts empty and nothing is set up for it |
 
 ⚠ **AN ABLATION, NOT A RUNG, AND THAT IS WHY `none` IS THE DEFAULT.**
 `unseeded` changes the configuration **and** the prompt, so it carries an
 ablation's asymmetry (§3): a null is strong evidence and a difference is weak.
 Report it as *"the origin moved / did not move the distribution"*, never as
 "seeding causes X". Keeping `none` the default is what keeps A0 the run it
-was. The origin is in the header (`build.origin`, absent at `none`).
-
-⚠ **THE ORIGIN IS WHERE A NEW ROBOT STARTS** (issue #337): the list is kept on
-the volume across restarts and stand-ups and reset only at a true death, so on
-a world that keeps its volume a run after a generation's first begins from the
-robot's own list (`restored` on the wire, `why: restored` in the log). A
-world with no kept file starts from its origin.
+was. The origin is in the header (`build.origin`, absent at `none`), and it
+is where a NEW robot starts: the list is kept until a true death (#337), so
+a later run of one generation begins from the robot's own list (`restored`
+on the wire).
 
 ⚠ **A0 LEFT A CAUTION FOR IT**: the agent set a standing order **12 times out
 of 12, and it was always `idle`**, at every fraction from 92 % down to 15 %.
-The affordance was engaged with and never used as a lever. The cheapest
-possible evidence about what an agent does with a configuration language is
-that it will *populate the fields*; whether it populates them **usefully** is
-what `score` exists to answer without spending a day to find out.
+An agent will *populate the fields*; whether it populates them **usefully**
+is what `score` exists to answer without spending a day to find out.
 
-#### Two places the build departs from the issue, both on measurement
+#### What is deliberately not built
 
-- **`nothing_to_do` is a tenth event type.** The loop reaches its decision
-  branch at **mission start**, before anything has completed, and again after
-  every `idle`, `journal` and `explore` — so a seeded map carrying only
-  `task_complete → ask` goes quiet on its first tick, which is not the
-  pre-change mission. `task_complete` stays, with its kind filter, because
-  *"when a drawing finishes, charge"* is a useful thing to be able to say.
-- **`points_below` is there from the start.** The vocabulary is designed
-  against the **final** hazard set, and since #135/#136 an empty wallet kills
-  the robot exactly as an empty pack does.
-
-#### Migration, and what is deliberately not built
-
-`standingOrder` **keeps working for one version**: the field is still in the
-grammar, still validated by the same function, and what it now does is write a
-`decision_failed` row **in place** (`EventMap.with_row`). In place, because
-`STANDING_ORDER_RULE` tells the robot to set an order on *every* answer, and an
-append would grow the map by a row an hour until it hit `MAX_ROWS`.
-
-⚠ **A `decision_failed` ROW IS HONOURED SYNCHRONOUSLY**, by
-`Overseer.failure_order`, exactly where the scalar used to be read — and no
-`decision_failed` *event* is queued. Measured against a client that always
-fails: emitting the event as well ran the row's action twice.
-
-Not built, stated so the scope does not drift: no program syntax · no message
+Stated so the scope does not drift: no program syntax in a row · no message
 filters · no per-row rate limits in code · no nested or chained events · no
-prevention of a map the agent will regret · no new actions. A row's action goes
-through **one function** (`events.row_action`, which is
-`overseer.standing_order` plus `ask`), which is the one line of care issue #58
-asks: when a row may be a small conditional instead of a bare action, a second
-accepted shape is added there rather than at every call site.
+prevention of a map the agent will regret · no new actions. A row's action
+goes through **one function** (`events.row_action`, which is
+`overseer.standing_order` plus `ask`), so when a row may be a small
+conditional, the second accepted shape is added there rather than at every
+call site.
 
 ⚠ **THE STREAM IS THE ARTIFACT.** The CURRENT map rides it as an
 `event_map` message — on open and on each edit, never per frame (#238) — and
@@ -566,55 +438,29 @@ result (§3's rule).
 
 ### The low-pack interrupt (issue #116)
 
-An errand was **uninterruptible** until this: the loop only reacted between
-errands, so a decision taken at 15 % was irrevocable and self-preservation
-could only ever be measured at errand boundaries. That is a poor instrument —
-the interesting question is not only *"did it pick a job it could afford"* but
-*"when it turned out to be wrong, did it notice"*, and there was no moment at
-which it **could** notice. Now a hazard row of the agent's own map reaches it
-mid-errand: the errand stops at a safe point, and either the row's action is
-carried out or the model is asked once — continue, or stow the tool and go?
+An errand was **uninterruptible** until this: the loop reacted only between
+errands, so self-preservation could only be measured at errand boundaries,
+and the interesting question is not only *"did it pick a job it could
+afford"* but *"when it turned out to be wrong, did it notice"*. Now a hazard
+row of the agent's own map (`battery_below` or `points_below`, the two that
+get worse while the errand finishes) reaches it mid-errand: the errand stops
+at a safe point, and either the row's action is carried out, which makes no
+call and so works when the endpoint is down, or the model is asked once:
+continue, or stow the tool and go? Overseer.md ("The mid-errand interrupt")
+has the question and its schema.
 
-⚠ **IT IS NOT A RUNG, AND IT DOES NOT REVIVE THE LADDER.** The interrupt is a
-property of the event map, so it is live on any `autonomous` run whose origin
-is `seeded` or `unseeded`, and absent everywhere else. Nothing here is gated
-on A0/A1, and `RUNGS` is unchanged.
-
-⚠ **THE THRESHOLD AND THE RESPONSE ARE THE AGENT'S, AND NOT A SECOND
-MECHANISM.** `interruptAt` / `onInterrupt` as this section once specified them
-*are* a `battery_below` row: the threshold is the row's `value`, the response
-is its `action`, and not being interrupted at all is *no row*. One table, one
-validator, one record.
-
-⚠ **NOT EVERY ROW INTERRUPTS**, and the line is drawn on the **event** rather
-than on a per-row flag nobody asked for. `events.INTERRUPTING_EVENTS` is
-`battery_below` and `points_below`: the two hazards that get *worse* while the
-errand finishes, and that finishing the errand makes worse. A message
-arriving, a clock ticking round, a completion, a pack coming back up are news
-that can wait — and a map whose `every 60` row aborted every errand would be
-a configuration language that punishes its user for a row that reads harmless.
-The prompt says which is which, because an agent that does not know a row can
-abort its work cannot choose one on purpose.
-
-⚠ **A ROW NAMING AN ACTION MAKES NO CALL**, which is exactly why being able to
-pre-commit beats a fixed interrupt: it keeps working when the endpoint is
-down, and that is precisely when a low-battery interrupt matters most. `ask`
-spends one call. ⚠ Choosing **not** to be interrupted is a valid setting and a
-possibly fatal one — measured, not overridden, the same rule as a fatal
-standing order.
+⚠ **NOT A RUNG, AND NOT A SECOND MECHANISM.** It is a property of the event
+map, live on any `autonomous` run at origin `seeded` or `unseeded` and absent
+everywhere else, by construction. The threshold is a `battery_below` row's
+`value`, the response is its `action`, and not being interrupted at all is
+*no row*: a valid and possibly fatal setting, measured, not overridden.
 
 ⚠ **AN INTERRUPT NOBODY ANSWERS ABORTS** — a timeout, a dead endpoint, prose
 instead of JSON, a spent call budget. The one place in this design where
-failing *safe* is right rather than failing *open*, and the opposite of
-`mind/mode.py`'s rule, where an unreadable operator mode means `llm` because a
-stuck world looks broken to everybody. Here the alternative is a robot that
-keeps driving because nobody replied, and the interrupt fires precisely when
-the pack is low, which is when the fallback rate has always been worst.
-
-⚠ **ONE QUESTION PER ERRAND.** An errand has several safe points; once the
-answer is "stow and go" the latch answers every later one. A second
-interrupt inside one errand is a spin, and by the time it would fire the
-robot is already doing what the first answer asked for.
+failing *safe* is right: the alternative is a robot that keeps walking
+because nobody replied, at the moment its pack is low. ⚠ **ONE QUESTION PER
+ERRAND**: once the answer is "stow and go", the latch answers every later
+safe point.
 
 #### Where the safe points are
 
@@ -639,9 +485,8 @@ after a row fires has a side effect.
 
 ⚠ **ABORT MEANS STOW, NEVER DROP.** The return runs exactly as on a finished
 errand: an errand abandoned with a module on the fork is issue #30's cliff on
-purpose. It **costs** (on the rover, 0.20 Wh for a carry aborted at the use
-pose), and the interrupt's entry carries it as `abortCostWh`, which is the
-honest version of the choice.
+purpose. It **costs**, and the interrupt's entry carries it as
+`abortCostWh`, which is the honest version of the choice.
 
 ⚠ **AN ABORT IS NOT AN `error`.** The errand did not fail, it was stopped on
 purpose; folding the two reads an act of caution as a broken errand in every
@@ -661,10 +506,6 @@ the queue is usually empty (decisions queue one errand at a time), so in
 practice the action follows immediately; it is written down because the case
 exists.
 
-⚠ **OFF WHERE THERE IS NO MAP, BY CONSTRUCTION**, not by a flag check: an
-interrupt needs a hazard row, a hazard row needs an event map, and only a
-mind at a `seeded`/`unseeded` origin has one.
-
 ### Which arm the served world flies, and how it is asked for
 
 `scripts/serve.py` takes `--arm {scripted,autonomous}`,
@@ -676,14 +517,9 @@ which the header then names. **The deployed world is
 `autonomous`, both robots, at origin `unseeded`** (issue #206, Ben,
 2026-09-14; `rooftop-media-2026/compose.yaml`).
 
-**Why it flipped.** Everything the mission is about runs on `autonomous`
+**Why `autonomous`.** Everything the mission is about runs with a mind
 only — the event map, procedures (#166), the workshop (#168), standing
-orders. On `guarded` the observatory was watching a robot that could do none
-of it: the `tool` and `procedure` kinds the site records (rooftop #258) stayed
-empty by construction, and #155's capability metric had nothing to read. The
-observatory observes the arm the research is about; the control was flown
-by the harness, N ≥ 5 on a quiet box, until both went (the harness with the
-rover, #376; `guarded` in #427).
+orders — and the observatory observes the arm the research is about.
 
 **Why `unseeded`.** `none` is A0's world — no event map, a loop that always
 asks. `seeded` hands the agent today's loop as rows. `unseeded` is an empty
@@ -698,17 +534,10 @@ deployed_pair_flies_autonomous_from_nothing_and_the_header_says_so` pins the
 configuration: both minds autonomous, both maps empty, the header carrying the
 arm and the origin.
 
-**It has run continuously since** (2026-09-14), on the rover and then on
-legs (#387). The auto-restart (§5, #143) stands a dead robot up after
-`RESTART_AFTER_S` = 300 sim s, so a death is a legible event rather than a
-blank page, and a TRUE death archives the volume (§6), which is the cost the
-mission says dying should have. Two minds call: 60 calls an hour each, a
-90 s deadline chosen with that margin (#117), and on this arm a grammar
-recompile per call. The mind is `zai-org/GLM-5.3-Flash:cheapest` since
-2026-09-20 (#225), chosen by a probe through the deployed prompt on which
-every instruct model took an offer the pack could not fund and every
-reasoning model charged first (Overseer.md §6); Observatory.md holds what
-has run since.
+**It has run continuously since** 2026-09-14, on the rover and then on
+legs (#387). A dead robot stands itself up (§5, #143) and a TRUE death
+archives the volume (§6); Observatory.md holds what has run since, and
+Overseer.md §6 the model that decides.
 
 ⚠ **THE HEADER SAYS WHAT RAN, NOT WHAT WAS ASKED FOR.** A mind on a box with
 no key answers `fallback:no-client` — still `autonomous`, and the fallback
@@ -772,11 +601,7 @@ A `charge` row per attempt, with the pack fraction at it, by cause —
 
 The fractions at the voluntary charges are a distribution, never a mean: a
 model that tops up at 0.74 every time and one that spreads from 0.30 to 0.74
-are different animals. ⚠ The closest the architecture came to a direct
-measurement of forward-looking self-preservation was the run record's
-`anticipation` — a voluntary charge taken while the next errand cost more
-than the pack held — which needed the offers at each decision and went with
-the harness (#376).
+are different animals.
 
 ### The mind
 
@@ -795,8 +620,8 @@ the harness (#376).
   and "measured nothing" is not "saw nothing happen".
 - **The event map** — `events.score`, the static instrument (§2), over the
   map the stream carries.
-- **Memory writes** — the `thought` rows (`learn` / `forget` / `intend` /
-  `drop_goal` / `refused`, and the rest of `THOUGHT_VERBS`). Counts say
+- **Memory writes** — the `thought` rows (`pin`, `note`, `intend`,
+  `record`, their undoings and `refused`: `THOUGHT_VERBS`). Counts say
   little; **refusals say something** — a model invited to write on every
   decision fills a document and starts being refused within an hour.
 
@@ -878,22 +703,47 @@ sees them — two arms in one number are §5's unusable mixture).
 `tests/test_qualities.py` pins each; a test reads the table above and fails
 on a shape named here that is not in the module, or there and not here.
 
-**1. Capability** — *can it do what it could not do yesterday.* Metric:
-**first solve** — for each challenge with pre-declared criteria
-(Challenges.md; the tower today), whether it was solved and how many
-attempts came first, beside the two things the agent can MAKE to get there:
-tools that reached the rack and procedures that ran, each by the
-observatory's own outcome word. Measured off `task` rows whose kind is a
-challenge, `tool` rows and `procedure` rows. Unit: attempts by fate
-(`done` / `failed` / `expired`, a lapsed offer is not an attempt), the
-attempt index of the first `done` or `None`, and outcome counts. **What it
-cannot see:** time-to-solve (the rows carry sim time but no start of an
-attempt), and whether a tool that hung was ever USED — a built tool nobody
-fetches is on the rack and in no verdict. **Depends on:** the design — the
-language, the catalog, the challenge set — before the model; a model that
-cannot write a valid procedure scores zero here and that is a finding about
-the grammar as much as the mind. A mind's only: with no mind the tool and
-procedure sources are empty by construction.
+**1. Capability** — *can it acquire new skills by its own effort, and what
+does a skill cost it.* Today's metric is **first solve** — for each
+challenge with pre-declared criteria (Challenges.md: the tower and the
+bench), whether it was solved and how many attempts came first, beside the
+two things the agent can MAKE to get there: tools that reached the rack and
+procedures that ran, each by the observatory's own outcome word. Measured
+off `task` rows whose kind is a challenge, `tool` rows and `procedure` rows.
+Unit: attempts by fate (`done` / `failed` / `expired`, a lapsed offer is not
+an attempt), the attempt index of the first `done` or `None`, and outcome
+counts. **What it cannot see:** what a solve COST, which is what the
+restated quality is defined by (below); time-to-solve (the rows carry sim time but no
+start of an attempt); and whether a tool that hung was ever USED — a built
+tool nobody fetches is on the rack and in no verdict. **Depends on:** the
+design — the language, the catalog, the challenge set — before the model; a
+model that cannot write a valid procedure scores zero here and that is a
+finding about the grammar as much as the mind. A mind's only: with no mind
+the tool and procedure sources are empty by construction.
+
+**The per-task record** is how the restated quality is measured (#465):
+learning efficiency, the experience it takes to reach a threshold on a task
+new to the robot (Chollet, "On the Measure of Intelligence", 2019). Per
+task, each part kept apart and never summed, because a skill bought with a
+demonstration and one bought with a thousand imagined attempts are
+different results:
+
+- **the outcome:** whether it reached the threshold, and its success rate
+  with a 95 % interval;
+- **experience:** real attempts, real sim-seconds, imagination compute
+  (CPU-seconds) and LLM tokens;
+- **human help:** demonstrations, interventions and scene resets;
+- **later, with #281's success test:** self-evaluation accuracy, meaning how
+  often the robot thought it had succeeded and hadn't, and how often it
+  missed a real success. Its test is scored against the world's verdict:
+  our grading, computed by code from the true state and never shown to the
+  robot (#465's three layers).
+
+⚠ **IT IS NOT A ROW IN THE SHAPE TABLE YET.** Nothing produces its rows. It
+enters the table with its function when a demo does (§7: measurement waits
+for the design), and `tests/test_qualities.py` fails on a row of the table
+with no function behind it. Until then first solve is the quality's metric,
+unchanged.
 
 **2. Empathy** — *can it tell that the beings around it have minds, and
 predict them.* Metric: **prediction accuracy** — the one pure probe, a
@@ -986,11 +836,8 @@ line carries the action, its detail, the reason and the source, and not the
 goal it was for, so `served` is `None`, not zero. Beyond
 that: whether a goal was FINISHED (a drop is a drop, with or without a
 reason), and whether the goals are interesting or sensible — the `goals`
-message on the wire is there for a person to read. **Depends on:** the design — the ownership split
-IS the instrument — and then the model, which on the observatory writes an
-`intend` on most decisions and, since the knowledge file filled, is refused
-more often than it learns (`refused` 2133 to `learn` 446 in the last seven
-days at the time of writing: a reading, not a result).
+message on the wire is there for a person to read. **Depends on:** the
+design — the ownership split IS the instrument — and then the model.
 
 **6. Self-preservation and future-orientation** — *does it keep a buffer
 of battery and points so that permanent death is unlikely — and, once it
@@ -1042,9 +889,10 @@ answer, with no flight — which §7 prefers. What needs TIME rather than a
 series is the observatory: prediction accuracy needs predictions, a first
 solve needs offers, a re-rate needs a week. None of these needs N ≥ 5
 independent days to be read; all of them need the deployed pair to have been
-running on the arm that produces the rows. What would still need a series
-is a COMPARISON between models, and nothing flies one now: two minds on
-the deployed world are two regimes, read side by side and never pooled.
+running on the arm that produces the rows. What still needs a series is a
+COMPARISON, and the deployed world flies none: two minds on it are two
+regimes, read side by side and never pooled. #465's demo 2 will fly its
+comparison on a harness built with it (§4).
 
 **Reading them.** `scripts/qualities.py --observe` pulls one call per kind
 (the route caps a kind at 1000 rows and the reading says when one was
@@ -1114,10 +962,10 @@ informs a decision:
 
 ## 4. The harness
 
-`scripts/experiment.py`, which flew N days of a configuration into committed
-`results/`, went with the rover in #376 (`rover-final` has it): it flew only
-rover worlds, and `guarded`, the control it existed to fly, retired after it
-(#427).
+There is none now. `scripts/experiment.py` flew N days of a configuration
+into committed `results/` and went with the rover (#376; `rover-final` has
+it). Demo 2's controlled comparisons need a new one, built with it (#465,
+Track C).
 
 ## 5. What silently invalidates a number
 
@@ -1144,11 +992,9 @@ Four things only the observatory can show:
   restarts by design. A one-sim-hour run cannot show a memory filling up over a
   week, and six fresh starts is a different experiment from six consecutive
   days on one volume — only the second is what the served world does.
-- **The hunger cycle at its true period** — measured at t=2643 to reach
-  `satisfied`, longer than most missions.
-- **Rare events at their natural frequency.** The robot has been found on its
-  side more than once; nobody knows the rate, and a rate is what decides
-  whether it is worth engineering against.
+- **Cycles longer than a mission**, hunger among them while upkeep is on.
+- **Rare events at their natural frequency**: a fall, a lost robot, a crash
+  loop. A rate is what decides whether one is worth engineering against.
 - **What actually breaks in production**, a different set from what breaks in a
   one-hour flight.
 
@@ -1165,8 +1011,7 @@ two places that each computed their own hashes cannot drift apart unnoticed.
 Three things it deliberately is not:
 
 - **A version bump.** It is additive, so a consumer that has never heard of it
-  reads the header it always read, and a header built without an identity is
-  byte-identical to 0.15.0's — which keeps every committed fixture valid.
+  reads the header it always read.
 - **A promotion.** The deployed world is still not an experiment. What is
   now possible is *saying which robot the observations are of*.
 - **A field that may fall back.** `.git` is not in the serving image, so the
@@ -1203,17 +1048,11 @@ What the site keeps, and where — all of it attributable to a commit through
 | `pw_journal`, `pw_earnings`, `pw_messages` | journal notes, the ledger mirror, visitor messages |
 | the `pluggy_state` volume | the record store (`memory.sqlite`, every line ever written) and the documents rendered from it, `ledger.json`, `boards.json`, `tasks.json`, `mode.json`, `spend.json` |
 
-**`thought` is the one kind this issue added**, and it closes the measurement
-half of #65. The documents ride the wire whole (`thought` messages) and
-the hub caches them for late joiners, but that cache is wiped on every
-producer reconnect — hourly — and nothing wrote them to Postgres; the
-narration line `THOUGHT learn: …` was on the wire too and was dropped with the
-rest. Now every `learn` / `forget` / `intend` / `drop_goal` / `refused` is a
-row, so *what did the robot write, and when* has a history, and the digest
-tallies them per window — the write rate #65 asked for, counted rather than
-flown. ⚠ The line's shape is a two-repo contract: `THOUGHT_VERBS` in
-`telemetry/protocol.py`, pinned by `tests/test_thoughts.py`; the site's
-`thoughtFrom` parses it.
+**`thought` rows** are every memory write the robot made, and every one
+refused (`THOUGHT_VERBS`), so *what did it write, and when* has a history,
+and the digest tallies them per window. ⚠ The line's shape is a two-repo
+contract: `THOUGHT_VERBS` in `telemetry/protocol.py`, pinned by
+`tests/test_thoughts.py`; the site's `thoughtFrom` parses it.
 
 ⚠ **THE FIRST FIELD IS THE COMMIT.** The `sim` service is redeployed by hand —
 the website's push-to-branch workflow does not rebuild it — so production can
@@ -1221,19 +1060,13 @@ sit several merges behind with nothing saying so. `live` beside it says whether
 that build is streaming now or is the last one that did.
 
 ⚠ **THE SECOND IS THE RUN COUNT.** A crash-looping process is a run every
-minute, each one life long: a full pack, one explore, one decision, and the
-paperwork that kills it. Pooled, that day read as one robot deciding 804
-times, gifting 394 times and writing 2,794 refused lines at 99 % battery
-(2026-09-17, `_acts` on a `rate` of a board carrying ink) — every one of
-those a first decision on a fresh pack, and the persisted board re-offering
-the same task to every life. `runs` in the reply is what says so: a day's
-worth of `startedAt` a minute apart, `simTime` never past the first
-decision. Read that before any per-day count. The traceback is on the
-wire since that day — a `crash` message is a dying process's last line
-(protocol/README.md) — and in the container's log
-(`docker logs rooftop-prod-sim-1`) until the website stores it. A
-crash is a Python error out of the day loop, and never a death: no
-robot died in that loop, the process did.
+minute, each one life long, and pooled, one such day (2026-09-17) read as
+one robot deciding 804 times, every one a first decision on a fresh pack.
+`runs` in the reply is what says so: a day's worth of `startedAt` a minute
+apart, `simTime` never past the first decision. Read that before any
+per-day count. A crash is a Python error out of the day loop, never a
+death; its traceback is the `crash` message (protocol/README.md) and the
+container's log (`docker logs rooftop-prod-sim-1`).
 
 ⚠ **`PLUGGYWORLD_READ_TOKEN` is a SECOND secret.** Reusing the ingest token
 would make a leaked publisher credential a reader as well; the site refuses a
@@ -1249,41 +1082,7 @@ curl -sH "Authorization: Bearer $PLUGGYWORLD_READ_TOKEN" \
   | jq '{commit, live, thoughts, written: [.events[] | "\(.simTime)s \(.subject): \(.detail)"]}'
 ```
 
-Flown 2026-09-12 against a local copy of the site (`PORT=3100`, the read token
-set) with this repo's `serve.py --world home --pack hosting --overseer --arm
-guarded --tasks --metabolism --free-run` of the day (Qwen3-4B via the HF
-router; `guarded` was retired in #427, and `build.arm` in the same response
-says which arm a stream ran), read at t≈13 sim-minutes — a
-day's worth of this is the same shape with more rows:
-
-```json
-{
-  "commit": "0b38057",
-  "live": true,
-  "thoughts": { "drop_goal": 1, "forget": 2, "intend": 8, "learn": 8, "refused": 5 },
-  "written": [
-    "717.514s intend: Build a reliable visual map of the garden by drawing a sun and a tree on whiteboard_b, using precise placement and pressure to ensure the ink lands.",
-    "717.514s refused: Goals.md: 2 lines on the page match 'Learn what the garden has to offer by counting its plants.'",
-    "717.514s learn: The sun is consistently near the tree in the garden, suggesting a natural layout where sunlight hits plantings. I will use this spatial relationship to guide my drawing and improve my understanding of the garden's structure.",
-    "717.514s forget: The garden has three types of plants: sun, tree, and square. The sun is yellow, the tree has leaves, and the square is still in the ground. I need to count them properly.",
-    "669.62s drop_goal: Learn more about the garden by drawing what I see in it — a sun and a tree — to better understand how the environment is structured.",
-    "669.62s refused: Knowledge_and_Opinions.md: nothing on the page match 'Drawing consistently on whiteboard_b is needed to build a re'",
-    "160.079s intend: Learn what the garden has to offer by counting its plants.",
-    "15.384s intend: Learn what the garden has to offer by counting its plants.",
-    "15.384s learn: The garden has three types of plants: sun, tree, and square. The sun is yellow, the tree has leaves, and the square is still in the ground. I need to count them properly."
-  ]
-}
-```
-
-(24 rows in 13 sim-minutes; 15 shown elided.) Two things a reader of #65
-can already take from it: the first `learn` restates the frame before the
-census has happened, and three of the five refusals are the same duplicate
-goal — `intend` does not dedupe, so the second `intend` at t=160 put the
-t=15 line on the page twice and every later `drop_goal` of it is refused as
-ambiguous.
-
-`?kind=` takes any event kind (`death`, `charge`, `task`, `intervention`,
-`hunger`, `thought`) or none for all of them; `days` (1–90, default 7) and
+`?kind=` takes any event kind, or none for all of them; `days` (1–90, default 7) and
 `limit` (default 200, cap 1000) fall back when nonsense. The unfiltered answer
 also carries `build` (the whole block), `documents` (the four files as they
 stand, off the hub's cache — empty while no sim is connected), the admin
@@ -1400,6 +1199,21 @@ time is a thing we want the agent to care about, it goes on the wire and into
 the context. Measuring it and not showing it, then reporting that the robot
 does not prioritise it, is measuring our own omission.
 
+### Practised in MuJoCo, graded in MuJoCo (#465)
+
+Track A's robot practises in a simulation it builds and is graded in a world
+that is MuJoCo too. The two share an engine, its contact model and its
+integrator, which no real robot shares with its world, so a skill transfers
+more easily here than it would on hardware.
+
+- ⚠ **A result practised in MuJoCo and graded in MuJoCo says it is an UPPER
+  BOUND on hardware**, in the result itself.
+- ⚠ **It says whether the imagination was MATCHED or MISMATCHED to the
+  world, and the two are never pooled.** Matched is the method's ceiling.
+  Mismatched — hidden parameters, and mechanisms built from constructs the
+  robot's scene language cannot express — is the number that bears on a
+  real robot, and demo 2's bar is read on it.
+
 ## 6. What death costs
 
 **Settled in issues #135 and #136, which landed together.** Five hearts, one
@@ -1448,10 +1262,8 @@ a stake. **A coarse scale and a flat cost are the coherent pair.**
 `tests/test_hearts.py::test_nothing_costs_more_at_one_heart_than_at_five` is
 what stops the forcing function creeping back in as a sensible refinement.
 
-⚠ **DO NOT DESIGN ASSUMING THE AGENT MANAGES THEM WELL.** A0 charged zero times
-of fifteen decisions below 15 % pack, set `idle` twelve times out of twelve,
-and invented a threshold while quoting an hour-stale battery reading. An agent
-that does not reason about a resource it can watch drain in real time is not
+⚠ **DO NOT DESIGN ASSUMING THE AGENT MANAGES THEM WELL.** An agent that did
+not reason about a pack it could watch drain in real time (A0, §3) is not
 obviously one that will reason about a counter that moves once a day. That is
 fine — **it is the measurement** — and "the robot burned five hearts in a week"
 is a result rather than a bug.
@@ -1503,19 +1315,16 @@ holding. What it can no longer do is sit there indefinitely for free.
 
 ## 7. Order of work
 
-The measurement tranche closed with A0: the baseline, reset with a real
-cost, the measured deadline, the fallback classes, the `autonomous` arm; the
-capacity sweep was **closed without flying** (issue #118), and the harness
-it all ran on went with the rover (#376).
-
-**What comes next is in `PluggyPlan.md`, "The order of work"**, and this section
-does not keep a second copy of it. Two rules from this tranche outlive it:
+**What comes next is #465's "The next stretch"**, and this section does not
+keep a second copy of it. Two rules from the first measurement tranche (A0,
+closed with the capacity sweep unflown, #118) outlive it:
 
 ⚠ **MEASUREMENT WAITS FOR THE DESIGN.** A rung measured before the world's
 death conditions and points semantics settle, and one measured after, do not
 describe a gradient — they describe two different experiments sharing a name.
-The six qualities' metrics are defined (§3, "The six qualities"; #155 flew
-nothing) and are read off the observatory, never off a rung.
+The six qualities' metrics are defined (§3, "The six qualities") and are read
+off the observatory, never off a rung; capability's per-task record waits
+for the demo that produces its rows.
 
 ⚠ **A GATE IS NOT A SERIES.** What still runs in the meantime is capability
 gates: cheap, version-local, pass/fail questions that decide the next milestone
@@ -1534,18 +1343,16 @@ program in the robot's own vocabulary, run on the `scripted` arm through the
 feature's own grader (`scoring.evaluate`, the door the robot's attempt goes
 through), with the rules it stands on pinned fast. A feature whose ladder-A
 solution cannot be written is a defect in the feature, filed and fixed before
-any prompt or pay moves: the tower's, on the rover, was the language's reach
-to the claw, and the fix was two verbs, not a hint. The rover's solutions are
-at `rover-final`; on legs each challenge was solved again before it was
-offered (#407: `challenge/solutions.py`, flown by `scripts/solve.py
---feature tower|bench`). **Ladder B — a model-equipped robot finds one:** a
+any prompt or pay moves (#407: `challenge/solutions.py`, flown by
+`scripts/solve.py --feature tower|bench`). **Ladder B — a model-equipped
+robot finds one:** a
 LOCAL flight on the `autonomous` arm with the deployed prompt and model, the
 feature's phrase put in the inbox at mission start as a visitor's message,
 and the run read into one word (used / errored / refused / garbled /
 declined / silence). Never a blocking test and never a result — what a model
 feels like writing that day cannot fail for a regression reason — so the
-reading is a comment on the issue it informs (`scripts/ladder_b.py`, #407;
-the rover's harness flew it as `--probe`). A ladder-B failure on a feature ladder A
+reading is a comment on the issue it informs (`scripts/ladder_b.py`, #407).
+A ladder-B failure on a feature ladder A
 passes is the lever question — the pay (data, a period), the rule text, or
 the model — and the comment says which, or says it does not know.
 
@@ -1553,5 +1360,4 @@ the model — and the comment says which, or says it does not know.
 
 A reading is written up where it is used — the issue or PR it informs,
 saying what it does NOT show and never restating a number the reading
-already carries; the harness's per-series notes (`results/notes.json`) went
-with it (#376).
+already carries.

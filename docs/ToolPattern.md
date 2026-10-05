@@ -121,7 +121,7 @@ tool's reaction after 4° of swing; how hard a tool may push is open (§7).
 - **A pivot unseats it.** At the drive's full 1.0 rad/s the tool swung out of
   its V's for 160 ms against the peg's 200 ms holding capacitor, so a body
   carrying turns at most `legs.body.W_CARRY` (0.45 rad/s).
-- **Stairs are the open risk** (§7): the house has no flight yet (#280).
+- **Stairs are the open risk** (§7): the house has no flight (#280 closed).
 - **A fall throws it**, whatever holds it; the arm folds as the torso passes
   60° (`arm.FOLD_ON_FALL_COS`).
 - **It is the body's own to its senses** (`QuadMission.carry`): out of the

@@ -1917,7 +1917,8 @@ Two small-model quirks, both measured and both closed: the offer id (a kind
 name in `task` instead of an id — the prompt spells the id shape and the
 probe's synthetic state carries a claimable offer so it stays measurable;
 the ids are an enum, §2), and truncation mid-write, which is why
-`MAX_TOKENS_AUTONOMOUS` is what it is. The flown evidence is Evaluation.md §3.
+`MAX_TOKENS_AUTONOMOUS` is what it is. Both were measured on A0's quiet
+series; §2 has the first's numbers.
 
 ### The local backend
 
