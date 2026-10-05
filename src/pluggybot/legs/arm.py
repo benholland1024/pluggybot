@@ -338,6 +338,29 @@ def gravity_torques(spec: ArmSpec, qs: float, qe: float,
   return tau_s, tau_e
 
 
+def tool_force(spec: ArmSpec, qs: float, qf: float,
+               tau_s: float, tau_e: float) -> tuple[float, float]:
+  """The force the world puts on the tool, N: (forward, up) in the torso
+  frame's x-z, off what the two motors hold BEYOND the arm's own weight and
+  its tool's -- `tau_s`, `tau_e`, N*m: each motor's torque less its
+  `ArmDriver.gravity()`, and less its friction where the joint moves. `qs`
+  is the shoulder's angle and `qf` the forearm's ABSOLUTE one
+  (`ArmDriver.q()`), the two coordinates the motors drive.
+
+  The plate only translates (the level parallelogram), so a force anywhere
+  on the tool moves the motors as one at the wrist would: each motor holds
+  its link's lever on it, and the force's moment about the wrist goes to the
+  torso (`gravity_torques`' algebra). So the tool's swing on its peg and
+  where on the tool the force acts read the same; the force ACROSS the arm's
+  plane and that moment read nothing. Singular with the elbow straight or
+  folded flat (`sin(qf - qs)`, the elbow's own angle)."""
+  s1, c1 = math.sin(qs), math.cos(qs)
+  s2, c2 = math.sin(qf), math.cos(qf)
+  det = math.sin(qf - qs)
+  a, b = -tau_s / spec.upper, -tau_e / spec.fore
+  return (a * c2 - b * c1) / det, (a * s2 - b * s1) / det
+
+
 # ---- the MJCF --------------------------------------------------------------------
 
 def _f(v: float) -> str:

@@ -121,6 +121,90 @@ def test_the_arm_holds_the_envelopes_heaviest_tool_and_a_payload_inside_its_rati
   assert am.TOOL_MAX_KG * 9.81 * am.TOOL_MAX_AHEAD_M < am.TOOL_MAX_MOMENT_NM
 
 
+def _claw_with_a_cube(kg: float):
+  """The arm on a torso welded in place, the claw module beside it and a
+  bench cube of `kg`, weightless (gravcomp) until the jaws shut on it."""
+  from pluggybot.challenge.stack import BLOCK_HALF, block_xml
+  from pluggybot.telemetry.protocol import ROBOT_ROOT
+  spec = am.ArmSpec()
+  claw = rk.tool_xml("module_claw", (0.0, 0.0, 2.0), yaw=math.pi,
+                     mass=rk.TOOL_KG["module_claw"] - rk.FACE_KG["module_claw"],
+                     face=rk.tool_face("module_claw"))
+  cube = block_xml("cube", 0.0, 0.0, None, mass=kg).replace(
+    f'pos="0.0000 0.0000 {BLOCK_HALF:.4f}"', 'pos="0 0 1.5" gravcomp="1"')
+  xml = qm.body_xml(qm.CHOSEN, arm=am.arm_mjcf(spec), after=claw + cube)
+  xml = xml.replace("  <default>\n", "  <default>\n    " + rk.tool_default("module_claw") + "\n", 1)
+  xml = xml.replace("</actuator>", rk.tool_actuators_xml(("module_claw",)) + "</actuator>", 1)
+  xml = xml.replace("</equality>", f'<weld body1="{ROBOT_ROOT}"/></equality>', 1)
+  model = mujoco.MjModel.from_xml_string(xml)
+  return spec, model, mujoco.MjData(model)
+
+
+def test_the_force_at_the_tool_off_the_torques_is_a_held_cubes_weight():
+  # The force at the tool a mechanism is read by (#469): the two drivers'
+  # torque READINGS (12 bits, the current sense's noise) less what the arm
+  # holds of itself and its claw (the driver's payload, `legs.swap`'s),
+  # through `tool_force`. The claw holding the bench's known cube still at
+  # three working poses reads its weight straight down, 2.3 % off at worst
+  # and a hundredth of a newton along; read through the elbow's own angle
+  # in place of the forearm's, the same readings miss by more than the
+  # weight.
+  from pluggybot.challenge.bench import KNOWN_MASS_KG
+  from pluggybot.perception.encoders import torque_reading
+  from pluggybot.rack.coupling import PEG_ABOVE_BODY
+  spec, m, d = _claw_with_a_cube(KNOWN_MASS_KG)
+  arm = am.ArmDriver(m, d, spec)
+  claw, cube = m.body("module_claw").id, m.body("cube").id
+  seat, grip = m.site("arm_seat").id, m.site(rk.CLAW_GRIP).id
+  ca = m.jnt_qposadr[m.joint("module_claw_free").id]
+  ka, kv = m.jnt_qposadr[m.body_jntadr[cube]], m.jnt_dofadr[m.body_jntadr[cube]]
+  jaws = [m.actuator(j).id for j in rk.CLAW_JAWS]
+  wide = rk.CLAW_JAW_OPEN - rk.CLAW_JAW_CLOSED
+  weight = KNOWN_MASS_KG * 9.81
+
+  def run(n):
+    for _ in range(n):
+      arm.step()
+      mujoco.mj_step(m, d)
+
+  for x, z in ((0.50, -0.08), (0.62, 0.10), (0.42, 0.20)):
+    # the jaws' middle at (x, z) in the torso frame, the claw seated plumb
+    q = am.solve_vertex(spec, x, z - spec.fork.seat_rise() + rk.CLAW_JAW_DROP, near=spec.stow)
+    for name, v in (("arm_shoulder", q[0]), ("arm_elbow", q[1]), ("arm_wrist", -sum(q))):
+      d.qpos[m.jnt_qposadr[m.joint(name).id]] = v
+    arm.hold_at(*q)
+    mujoco.mj_forward(m, d)
+    d.qpos[ca:ca + 3] = d.site_xpos[seat] + [0, 0, spec.fork.seat_rise() + 0.0003 - PEG_ABOVE_BODY]
+    d.qpos[ca + 3:ca + 7] = [0, 0, 0, 1]
+    arm.payload = (float(m.body_subtreemass[claw]), (0.0, spec.fork.seat_rise() - PEG_ABOVE_BODY))
+    for a in jaws:
+      d.ctrl[a] = wide
+    mujoco.mj_forward(m, d)
+    d.qpos[ka:ka + 3] = d.site_xpos[grip] - [0, 0, 0.009]
+    d.qpos[ka + 3:ka + 7] = [1, 0, 0, 0]
+    d.qvel[kv:kv + 6] = 0.0
+    m.body_gravcomp[cube] = 1.0
+    for k in range(400):
+      for a in jaws:
+        d.ctrl[a] = wide * max(0.0, 1 - k / 300)
+      run(1)
+    m.body_gravcomp[cube] = 0.0
+    run(500)
+    reads, held = [], []
+    for _ in range(250):
+      run(1)
+      step = int(round(d.time / m.opt.timestep))
+      reads.append([torque_reading(float(d.actuator_force[a]), str(a), step) for a in arm.act])
+      held.append(arm.gravity())
+    ext = np.mean(reads, axis=0) - np.mean(held, axis=0)
+    qs, qf = arm.q()
+    fx, fz = am.tool_force(spec, qs, qf, *ext)
+    assert np.linalg.norm(d.site_xpos[grip] - d.xpos[cube]) < 0.03, "the cube fell"
+    assert fz == pytest.approx(-weight, rel=0.03) and abs(fx) < 0.02, (x, z, fx, fz)
+    wrong = am.tool_force(spec, qs, qf - qs, *ext)
+    assert abs(wrong[1] + weight) > weight, wrong
+
+
 # ---- the sensors ----------------------------------------------------------------------
 
 @pytest.mark.parametrize("stow, hides", [(am.ArmSpec().stow, False), ((math.pi, -math.pi), True)])
