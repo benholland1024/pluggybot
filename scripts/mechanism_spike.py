@@ -260,8 +260,8 @@ def jaws_at(kind: str, s: float, err: float = 0.0) -> np.ndarray:
 #: The robot's start in the lab's storeroom (empty), facing +x.
 START = (24.0, -3.0)
 #: Lying, the knob's middle (the lip's point) this far ahead of the torso's
-#: centre: the lids' arc carries it 0.16 m further and 0.22 m up, and from
-#: 0.56 m the arm reaches 70 deg of it no longer.
+#: centre: the lids' arc carries it 0.16 m further and 0.22 m up, and with
+#: the knob 0.60 m ahead the arm reaches only 66 deg of it.
 LIE_AT_M = 0.46
 #: The claw's working gains and the compliant ones: the driver's damping
 #: kept at its ratio (Kd with the root of Kp).
