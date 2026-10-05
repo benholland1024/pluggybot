@@ -415,7 +415,7 @@ def test_the_acts_parse_where_offered_and_are_dropped_where_not():
   assert d.heart_for == "" and "tell" not in d.as_dict()
   # offered, but mis-addressed or malformed: dropped, the action stands
   d = menu.validate({"action": "idle", "reason": "r", "other_needs": "love",
-                     "tell": {"to": "Pluggy", "text": "x"},
+                     "tell": {"to": "Pluggy", "text": "bay C is empty"},
                      "give_points": {"to": "Rowan", "amount": -3},
                      "rate": {"board": "whiteboard_a", "quality": 2.0}},
                     others=("Rowan",))

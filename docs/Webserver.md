@@ -49,7 +49,7 @@ robot. Frames are due on SIM time, so a paused sim emits none (which is why
   the sim falls behind (an osmesa render burst, a 1 ms-timestep swap) it
   stops sleeping until the sim catches up, so lag is transient drift, never
   a stall or a skip. `stats()` reports the drift; `resync()` after a pause
-  stops a five-minute pause becoming a 2.9× sprint to catch up.
+  stops a long pause becoming a sprint to catch up.
 - **`publisher.py`** — `WsPublisher`: an outbound WebSocket **client** (the
   sim owns no public surface; if the endpoint is down the robot keeps
   living). Its own `FrameBuilder` instance, so live and recorded frames are

@@ -462,7 +462,8 @@ def test_validate_accepts_a_library_name_and_refuses_the_rest(menu):
   plain = Menu.for_world(WORLD)
   with pytest.raises(ValueError, match="unknown action"):
     plain.validate({"action": "procedure:sun"})
-  d = plain.validate({"action": "idle", "define": {"name": "x", "source": "y"},
+  d = plain.validate({"action": "idle",
+                      "define": {"name": "x", "source": "def x():\n  stow()\n"},
                       "undefine": "z"})
   assert d.define is None and d.undefine == ""
 

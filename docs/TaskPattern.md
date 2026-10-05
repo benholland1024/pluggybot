@@ -444,7 +444,7 @@ here.
   meet the rent.
 - **A payout is calibrated against MEASURED throughput, on the served
   pack.** Upkeep is off on legs (#387): it comes back once the pair's jobs
-  pay, at a rate read off what the pair earns (#375), and
+  pay, at a rate read off what the pair earns (#456), and
   `metabolism.json`'s note carries the rover's calibration until then. ⚠ A
   new kind's row must pay more per watt-hour than `carry` and `dance`, the
   menu-only work: `tests/test_rewards.py` computes it off the table and

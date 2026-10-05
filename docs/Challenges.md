@@ -4,14 +4,14 @@ The decision issue #120 asked for: how a challenge the robot has never seen
 gets a verdict, without the thing being graded touching the grade. Fourth of
 the pattern docs, beside `TaskPattern.md`, and written first as a decision
 with one worked example rather than a framework — the framework comes with
-the challenge set (the 2026-09-11 batch's novel tasks; PluggyPlan.md, "The
-order of work").
+the challenge set (the 2026-09-11 batch's novel tasks: the tower and the
+bench so far).
 
 Read alongside:
 - `docs/TaskPattern.md` §4 — grading measures the world, never the report.
   Everything here inherits that; this doc adds what a *novel* job needs on top.
 - `docs/PluggyPlan.md` — the six qualities; a challenge is an instrument for
-  the first one (capability: can it do what it could not do yesterday).
+  the first one (capability: can it acquire new skills by its own effort).
 - `docs/Evaluation.md` §5 — what silently invalidates a number; two of its
   warnings decide against two of the candidates below.
 

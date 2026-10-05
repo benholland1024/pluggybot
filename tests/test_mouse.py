@@ -415,7 +415,8 @@ def test_a_robot_alone_may_decline_the_mouses_job():
                             decline={"task": "t_1", "reason": "it might be real"}),
                        offered=("t_1",), procedures=(), others=None)
   assert d.decline == {"task": "t_1", "reason": "it might be real"}
-  assert _menu(lab="").validate(_raw(action="idle", decline={"task": "t_1", "reason": "x"}),
+  assert _menu(lab="").validate(_raw(action="idle",
+                                     decline={"task": "t_1", "reason": "it might be real"}),
                                 offered=("t_1",), procedures=()).decline is None
 
 

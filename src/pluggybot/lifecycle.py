@@ -56,7 +56,7 @@ from pluggybot.mind.spend import open_book
 from pluggybot.mind.overseer import (
   CALLS_PER_HOUR, HEART_PRICE, HEART_RESERVE_HOURS, MAX_LOOK_RUN,
   MAX_RECALL_RUN, PROCEDURE_NEW, PROCEDURE_PREFIX, RECALL_S, THINK_SLICE_S,
-  order_runnable,
+  left_out_said, order_runnable,
 )
 from pluggybot.tools.screen import face_for
 from pluggybot.mind.thoughts import (
@@ -4327,6 +4327,20 @@ class HubLifecycle:
     if kept:
       self._say(f"THINK {kept}")
 
+  def _left_out(self, decision) -> None:
+    """Say what `Menu.validate` left out of an answer (issue #462): ONE
+    History line -- the robot that wrote the placeholders reads why nothing
+    came of them -- narrated, and a `left_out` event the observatory files
+    under its `why`."""
+    gone = getattr(decision, "left_out", None)
+    if not gone:
+      return
+    said = left_out_said(gone)
+    self._emit({"type": "left_out", "t": round(float(self.data.time), 3),
+                "robot": self.root, **gone})
+    self._say(f"LEFT OUT {said}")
+    self._remember(f"left out of that answer: {said}")
+
   def _reconsider(self, decision) -> None:
     """Apply a decision's writes to the `.md` documents the ROBOT owns.
 
@@ -6142,6 +6156,8 @@ class HubLifecycle:
     self._think(decision)
     # ...and what it decided, into the record it cannot edit (issue #38).
     self._remember(f"chose {decision.summary()}")
+    # ...and what was left out of the answer that chose it (issue #462).
+    self._left_out(decision)
     # ...and whatever it made of the day, into the documents it can
     # (issue #38). Orthogonal to the action, like the think above: a robot
     # should not have to spend its turn to write a line down. Remove
@@ -6270,10 +6286,13 @@ class HubLifecycle:
       # the new one was refused is the mistake this token exists to end.
       name = getattr(self, "_defined_now", None)
       if not name:
+        # ...refused by the library, or left out as a placeholder (#462)
+        why = ("left out" if "define" in ((decision.left_out or {}).get("fields") or ())
+               else "refused")
         self._say(f"DECIDE: {PROCEDURE_NEW} ran nothing -- the define on the "
-                  "same answer was refused")
+                  f"same answer was {why}")
         self._remember(f"ran nothing: `{PROCEDURE_NEW}` runs the procedure the "
-                       "same answer defines, and that define was refused")
+                       f"same answer defines, and that define was {why}")
         yield from self.body.hold_routine(DECIDED_IDLE_S)
         return "unbuildable"
       decision = dataclasses.replace(decision, action=PROCEDURE_PREFIX + name)

@@ -424,10 +424,10 @@ def test_the_fields_are_a_minds_and_a_bare_menu_has_none_of_them():
   # not open.
   d = bare.validate(full(action="idle", ticket=BUG))
   assert d.ticket is None and d.action == "idle"
-  d = auto.menu.validate(full(action="idle", ticket=dict(BUG, title="  x  "),
+  d = auto.menu.validate(full(action="idle", ticket=dict(BUG, title="  ink  "),
                               ticket_reply={"ticket": "tk_0002", "text": "hi"}),
                          tickets=("tk_0001",))
-  assert d.ticket == dict(BUG, title="x") and d.ticket_reply is None
+  assert d.ticket == dict(BUG, title="ink") and d.ticket_reply is None
   d = auto.menu.validate(full(action="idle", ticket={"kind": "", "title": "", "text": ""},
                               ticket_reply={"ticket": "tk_0001", "text": " hi\n"}),
                          tickets=("tk_0001",))
