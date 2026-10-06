@@ -3,7 +3,7 @@
 # sim flights on (#469) -- and bring the results home.
 #
 #   training/pod.sh create NAME "GPU A,GPU B,..."   rent one (Runpod REST API), print its id
-#   training/pod.sh create-cpu NAME [FLAVORS] [VCPUS]  rent CPUs (cpu3c,cpu5c; 32 vCPUs)
+#   training/pod.sh create-cpu NAME [VCPUS]          rent CPUs: VCPUS (32) on a cheap GPU's machine
 #   training/pod.sh address POD                      its public "HOST PORT" for SSH, once up
 #   training/pod.sh stop POD | delete POD            stop (the volume stays, and bills) / delete
 #   training/pod.sh setup  HOST PORT     copy training/ + the body's files, install, check the GPU
@@ -13,14 +13,14 @@
 #
 #   training/pod.sh setup-sim HOST PORT [REF]         the repo at REF (HEAD), installed, a frame rendered
 #   training/pod.sh batch HOST PORT NAME CMD...        CMD from the repo's root, detached
-#   training/pod.sh batch-status HOST PORT NAME        its meta, its log's tail, the load and memory
+#   training/pod.sh batch-status HOST PORT NAME        its meta, its log's tail, the pod's share in use
 #   training/pod.sh pull-batch HOST PORT NAME          back to $BATCHES/NAME (~/pluggybot-training/batches)
 #
 # A batch of flights is CPU work -- MuJoCo steps on one core a process and the
 # cameras render in software (osmesa, as the serving image does) -- and it is
 # never flown on the dev box beside its desktop: six processes there took the
-# box into swap and its desktop down (2026-10-06). A CPU pod has no pod
-# volume, so a batch lives on the container disk: pull it, then delete.
+# box into swap and its desktop down (2026-10-06). Its pod has no volume, so
+# a batch lives on the container disk: pull it, then delete.
 #
 # HOST and PORT are the pod's public SSH address (`pod.sh address POD`).
 # The key is the one `runpodctl doctor` made; the pod gets its public half as
@@ -74,17 +74,22 @@ if not ip or not port: sys.exit('not up yet: ' + str(d.get('desiredStatus')) + '
 print(ip, port)"
     exit 0 ;;
   create-cpu)
-    name=$2 flavors=${3:-cpu3c,cpu5c} vcpus=${4:-32}
+    # The CPUs of a cheap GPU's machine, never a CPU pod: on 2026-10-06 every
+    # CPU pod over 2 vCPUs was refused while the catalog said HIGH, and one
+    # RTX 3090's share came with 32 vCPUs and 125 GB at $0.50/h, half the
+    # 32-vCPU CPU pod's price. The cheapest GPU first.
+    name=$2 vcpus=${3:-32}
     pub=$(cat "${RUNPOD_SSH_KEY:-$HOME/.runpod/ssh/runpodctl-ssh-key}.pub")
-    # cpu3c and cpu5c carry 2 GB a vCPU: 32 hold ~28 flights at ~1.2 GB each.
-    body=$(python3 - "$name" "$flavors" "$vcpus" "$pub" <<'PY'
+    body=$(python3 - "$name" "$vcpus" "$pub" <<'PY'
 import json, sys
-name, flavors, vcpus, pub = sys.argv[1:5]
+name, vcpus, pub = sys.argv[1], int(sys.argv[2]), sys.argv[3]
 print(json.dumps({
-  "name": name, "computeType": "CPU", "cpuFlavorIds": flavors.split(","),
-  "cpuFlavorPriority": "custom", "vcpuCount": int(vcpus), "cloudType": "SECURE",
+  "name": name, "computeType": "GPU", "gpuCount": 1, "gpuTypePriority": "custom",
+  "gpuTypeIds": ["NVIDIA RTX A4500", "NVIDIA RTX A5000", "NVIDIA A40", "NVIDIA L4",
+                 "NVIDIA GeForce RTX 3090", "NVIDIA RTX A6000", "NVIDIA GeForce RTX 4090"],
+  "minVCPUPerGPU": vcpus, "minRAMPerGPU": 2 * vcpus, "cloudType": "SECURE",
   "imageName": "runpod/base:1.4.0-ubuntu2404",
-  "containerDiskInGb": 30, "volumeInGb": 0,
+  "containerDiskInGb": 20, "volumeInGb": 0,
   "ports": ["22/tcp"], "env": {"PUBLIC_KEY": pub},
 }))
 PY
@@ -104,6 +109,25 @@ key=${RUNPOD_SSH_KEY:-$HOME/.runpod/ssh/runpodctl-ssh-key}
 repo=$(cd "$(dirname "$0")/.." && pwd)
 ssh_=(ssh -i "$key" -p "$port" -o StrictHostKeyChecking=accept-new -o ConnectTimeout=20 "root@$host")
 remote=/root/pluggybot
+# What a pod may use is its cgroup's: `nproc`, `free` and the load are the
+# HOST's (a 32-vCPU share read 256 CPUs and 1007 GB).
+share_py='
+def read(*paths):
+  for p in paths:
+    try:
+      return open(p).read().split()
+    except OSError:
+      pass
+  return []
+def gb(v):
+  return f"{int(v[0]) / 2**30:.0f}" if v and v[0].isdigit() else "?"
+cpu = read("/sys/fs/cgroup/cpu.max") or (read("/sys/fs/cgroup/cpu/cpu.cfs_quota_us")
+                                         + read("/sys/fs/cgroup/cpu/cpu.cfs_period_us"))
+cpus = f"{int(cpu[0]) / int(cpu[1]):.1f}" if len(cpu) == 2 and cpu[0].isdigit() else "unlimited"
+used = read("/sys/fs/cgroup/memory.current", "/sys/fs/cgroup/memory/memory.usage_in_bytes")
+cap = read("/sys/fs/cgroup/memory.max", "/sys/fs/cgroup/memory/memory.limit_in_bytes")
+print(f"the pod: {cpus} CPUs, {gb(used)} of {gb(cap)} GB in use")'
+share="python3 -c $(printf %q "$share_py")"
 
 case $cmd in
   setup)
@@ -178,7 +202,7 @@ ldconfig -p | grep -q libOSMesa.so.8 || { apt-get update -qq && \
   DEBIAN_FRONTEND=noninteractive apt-get install -y -qq libosmesa6 >/dev/null; }
 cd /root/pluggybot
 uv sync -q --frozen
-echo "$(nproc) vCPUs, $(free -g | awk '/Mem/{print $2}') GB, $(.venv/bin/python -V), commit $(cat COMMIT)"
+echo "$(.venv/bin/python -V), commit $(cat COMMIT)"
 # the house as the spikes build it, and one frame off the colour imager
 MUJOCO_GL=osmesa .venv/bin/python -c "
 import mujoco
@@ -187,6 +211,7 @@ m = lw.home_spec().compile(); d = mujoco.MjData(m); mujoco.mj_forward(m, d)
 r = mujoco.Renderer(m, 72, 128); r.update_scene(d, 'color_eye')
 print('the house built, a frame rendered', r.render().shape); r.close()"
 EOF
+    "${ssh_[@]}" "$share"
     ;;
   batch)
     # The remote shell splits the command line again, so each word goes quoted.
@@ -208,7 +233,7 @@ EOF
     ;;
   batch-status)
     name=$1
-    "${ssh_[@]}" "cat /root/batches/$name/meta.txt; tail -4 /root/batches/$name/log.txt; uptime; free -g | head -2"
+    "${ssh_[@]}" "cat /root/batches/$name/meta.txt; tail -4 /root/batches/$name/log.txt; $share"
     ;;
   pull-batch)
     name=$1
