@@ -81,11 +81,17 @@ def cpu_share() -> str:
   `os.cpu_count()` is its host's (a 32-vCPU share read 256)."""
   model = next((line.split(":", 1)[1].strip() for line in open("/proc/cpuinfo")
                 if line.startswith("model name")), platform.machine())
-  try:
-    quota, period = open("/sys/fs/cgroup/cpu.max").read().split()
-    share = f"{int(quota) / int(period):.0f} CPUs" if quota.isdigit() else "unlimited"
-  except (OSError, ValueError):
-    share = "unlimited"
+  share = "unlimited"
+  # cgroup v2's one file, or v1's two (a pod's: `training/pod.sh` reads both)
+  for paths in (("/sys/fs/cgroup/cpu.max",),
+                ("/sys/fs/cgroup/cpu/cpu.cfs_quota_us", "/sys/fs/cgroup/cpu/cpu.cfs_period_us")):
+    try:
+      quota, period = " ".join(open(p).read() for p in paths).split()[:2]
+    except (OSError, ValueError):
+      continue
+    if quota.isdigit() and period.isdigit():
+      share = f"{int(quota) / int(period):.1f} CPUs"
+    break
   return f"{model}, {os.cpu_count()} CPUs seen, this process's share {share}"
 
 

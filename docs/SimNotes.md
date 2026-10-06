@@ -3750,12 +3750,18 @@ margin (`CLOSING_MARGIN_NM`) was derived for Coulomb friction alone, and
 sit under what the torques resolve of the static curve (0.009–0.013 N·m).
 Demo 2's mismatched imagination is where a further construct belongs.
 
-**What a rollout costs** on the dev box (an i5-9600KF): 67 ms a
-sim-second, 15 times real time, the same in the worker as in this process.
-A document is parsed and compiled in 4.6 ms, and a worker starts in 0.2 s.
-MuJoCo's step is 88 of a step's 133 µs: 32 degrees of freedom and 152
-constraint rows, most of them the lying robot's belly and legs on the floor.
-A rollout replays its record bit for bit, in a worker or not.
+**What a rollout costs** (`scripts/imagination_gap.py --cost --parallel
+...`): 67 ms a sim-second on the dev box (an i5-9600KF), 15 times real
+time, and 73–75 on a pod's 31-CPU share of an EPYC 7H12, the same in a
+worker as in this process. A document is parsed and compiled in 5 ms, and a
+worker starts in 0.2–0.3 s. Workers in parallel lose nothing on the pod: 30
+at once cost 74.8 ms a sim-second each, 392 sim-seconds a wall-second
+together, which is 12 rollouts of the 32 s probe a second. On the dev box
+three at once cost 69 ms each and six 88 (65 sim-seconds a wall-second
+together), the desktop sharing its six cores. MuJoCo's step is 88 of a
+step's 133 µs: 32 degrees of freedom and 152 constraint rows, most of them
+the lying robot's belly and legs on the floor. A rollout replays its record
+bit for bit, in a worker or not.
 
 **What is true now:** the robot's imagination is `imagination/`: a document
 in the scene language, compiled with the robot's own body on the
