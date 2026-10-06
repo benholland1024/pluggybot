@@ -58,6 +58,10 @@ def one(k: int) -> dict:
   return out
 
 
+def _n(v, fmt: str) -> str:
+  return "--" if v is None else format(v, fmt)
+
+
 def table(rows: list[dict]) -> None:
   phases = list(rows[0]["catch"])
   print("chest  catch N  gravity N*m  " + "  ".join(f"{p:>13s}" for p in phases)
@@ -65,8 +69,8 @@ def table(rows: list[dict]) -> None:
   for label in ("catch", "none"):
     print(f"-- {'with its catch' if label == 'catch' else 'with no catch'}")
     for r in rows:
-      cells = "  ".join(f"{r[label][p]['force_rms']:6.3f}/{r[label][p]['force_max']:5.2f}"
-                        for p in phases)
+      cells = "  ".join(f"{_n(r[label][p]['force_rms'], '6.3f')}/"
+                        f"{_n(r[label][p]['force_max'], '5.2f')}" for p in phases)
       print(f"k{r['k']:<4d}  {r['catchN']:7.2f}  {r['gravityNm']:11.3f}  {cells}")
     for stat, fn in (("median", np.median), ("largest", np.max)):
       cells = "  ".join(f"{fn([r[label][p]['force_rms'] for r in rows]):6.3f}/"

@@ -80,6 +80,8 @@ MAX_HINGE_DEG = 360.0
 MAX_RELEASE_N = 200.0
 #: A catch on a hinge needs a lever: its point this far off the axis, mm.
 MIN_LEVER_MM = 1.0
+#: An axis is a direction, its components within this either way.
+MAX_AXIS = 1e6
 
 
 class Refused(ValueError):
@@ -155,9 +157,20 @@ def rotation(euler_rad) -> np.ndarray:
 
 # ---- parsing ----------------------------------------------------------------------
 
+def _finite(x) -> bool:
+  """A JSON number that is a float's: an integer of 309 digits is none
+  (`math.isfinite` raises on it)."""
+  if not isinstance(x, (int, float)) or isinstance(x, bool):
+    return False
+  try:
+    return math.isfinite(float(x))
+  except OverflowError:
+    return False
+
+
 def _num(v, name: str, reasons: list[str], lo: float | None = None,
          hi: float | None = None) -> float | None:
-  if not isinstance(v, (int, float)) or isinstance(v, bool) or not math.isfinite(v):
+  if not _finite(v):
     reasons.append(f"{name} must be a number")
     return None
   v = float(v)
@@ -171,9 +184,7 @@ def _num(v, name: str, reasons: list[str], lo: float | None = None,
 
 
 def _nums(v, name: str, reasons: list[str], n: int, bound: float | None = None):
-  if not isinstance(v, list) or len(v) != n or any(
-      not isinstance(x, (int, float)) or isinstance(x, bool) or not math.isfinite(x)
-      for x in v):
+  if not isinstance(v, list) or len(v) != n or not all(_finite(x) for x in v):
     reasons.append(f"{name} must be {n} numbers")
     return None
   if bound is not None and any(abs(x) > bound for x in v):
@@ -191,7 +202,7 @@ def _fields(raw: dict, allowed: set[str], where: str, reasons: list[str]) -> Non
 
 def _id(raw: dict, where: str, reasons: list[str]) -> str | None:
   v = raw.get("id")
-  if isinstance(v, str) and ID.match(v):
+  if isinstance(v, str) and ID.fullmatch(v):              # `match` lets a "\n" end it
     return v
   reasons.append(f"{where}: id must match {ID.pattern}")
   return None
@@ -248,7 +259,8 @@ def _joint(raw, i: int, reasons: list[str]) -> Joint | None:
   if not isinstance(part, str):
     reasons.append(f"{where}: part must name the part it moves")
   at = _nums(raw.get("at"), f"{where}: at", reasons, 3, MAX_POS_MM)
-  axis = _nums(raw.get("axis"), f"{where}: axis", reasons, 3)
+  # bounded, or its squares overflow and a direction of 1e200 reads as zero
+  axis = _nums(raw.get("axis"), f"{where}: axis", reasons, 3, MAX_AXIS)
   if axis is not None:
     norm = math.sqrt(sum(a * a for a in axis))
     if norm < 1e-9:

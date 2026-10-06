@@ -36,18 +36,25 @@ def chest_world(lid: ch.Lid, tags: bool = False):
 
 def test_a_draw_is_the_spikes_set_out_and_comes_back_for_its_seed():
   # #469 flew set-outs 0-7 of its own draw (`mechanism_spike.draw`, before
-  # the chest was promoted): the chest's are those, so the spike's numbers
-  # describe the chests stage 2 flies. A catch is drawn after them.
-  spike = {0: (0.30670505560205075, 0.009010072921954332, 0.0, 0.041268891271458480),
-           1: (0.43981800513069536, 0.09272442493967145, 0.01792967507716778,
-               0.02314397662942881),
-           7: (0.4035797700275241, 0.05670873163635046, 0.010736554406217307,
-               0.04365925094697502)}
-  for k, (lid_kg, lump_kg, stiffness, friction) in spike.items():
-    lid = ch.draw(k)
-    assert (lid.lid_kg, lid.lump_kg, lid.stiffness, lid.friction) == (
-      lid_kg, lump_kg, stiffness, friction)
-    assert lid == ch.draw(k)
+  # the chest was promoted): the chest's are those, every field, so the
+  # spike's numbers describe the chests stage 2 flies. A catch is drawn
+  # after them.
+  spike = {
+    0: ch.Lid(lid_kg=0.30670505560205075, lump_kg=0.009010072921954332,
+              lump_at=0.8510954118888623, stiffness=0.0, springref=2.5,
+              damping=0.007343943561794442, friction=0.04126889127145848,
+              catch_n=3.8882470660994954),
+    1: ch.Lid(lid_kg=0.43981800513069536, lump_kg=0.09272442493967145,
+              lump_at=0.4481575599093507, stiffness=0.01792967507716778, springref=2.5,
+              damping=0.017163757908979105, friction=0.02314397662942881,
+              catch_n=3.715564190304792),
+    7: ch.Lid(lid_kg=0.4035797700275241, lump_kg=0.05670873163635046,
+              lump_at=0.4289378390320254, stiffness=0.010736554406217307, springref=2.5,
+              damping=0.0280518718752657, friction=0.04365925094697502,
+              catch_n=2.246951178186034)}
+  for k, lid in spike.items():
+    assert ch.draw(k) == lid
+    assert ch.draw(k) == ch.draw(k)
   assert ch.draw(0) != ch.draw(1)
   with pytest.raises(ValueError, match="seed"):
     ch.draw(-1)
@@ -101,18 +108,35 @@ def test_the_lid_opens_and_shuts_on_hysteresis_and_opened_latches():
   assert not flags[12]["opened"] and flags[60]["opened"] and flags[0]["opened"]
 
 
-def test_the_flags_come_off_the_sensor_and_carry_nothing_of_the_truth():
+def test_the_flags_come_off_the_sensor_and_the_magnets_pull_off_the_lid():
   lid = ch.draw(3)
   model, data, chest = chest_world(lid)
   hinge = model.jnt_qposadr[model.joint("chest_hinge").id]
   data.qpos[hinge] = 0.5                # moved, and nothing has read it yet
   chest.sense(model, data)
   assert chest.flags["lid"] == "shut"
+  assert data.qfrc_applied[chest.dof] == 0.0          # out of the magnet's reach
   data.sensordata[chest.sensor_adr] = 0.5
+  data.qpos[hinge] = 0.0
   chest.sense(model, data)
   assert chest.flags["lid"] == "open"
+  # the pull is physics: the lid's angle as it is, never a sensor's
+  assert data.qfrc_applied[chest.dof] == ch.catch_torque(lid, 0.0) < 0
   assert set(chest.flags) == {"lid", "opened", "caught"}
   assert all(isinstance(v, (bool, str)) for v in chest.flags.values())
+
+
+def test_a_restart_keeps_the_latch_and_which_side_of_the_hysteresis():
+  import json
+  model, data, chest = chest_world(ch.Lid())
+  for deg in (12, 60, 7, 0.6, 1.2, 0.8):
+    chest.update(math.radians(deg))
+  saved = json.loads(json.dumps(chest.kept_state()))
+  fresh = ch.Chest(model, data, ch.Lid())
+  fresh.restore_kept(saved)
+  for c in (chest, fresh):
+    c.update(math.radians(0.8))
+  assert fresh.flags == chest.flags == {"lid": "shut", "opened": True, "caught": False}
 
 
 def test_the_chest_rests_shut_and_its_catch_lets_go_only_past_its_pull():
@@ -154,6 +178,15 @@ def _under(model, b: int, root: int) -> bool:
 
 
 # ---- the tag ---------------------------------------------------------------------------
+
+def test_two_chests_in_one_world_share_the_knobs_one_tag():
+  spec = mujoco.MjSpec.from_string(FLOOR)
+  spec.modelfiledir = str(ROOT / "models")
+  ch.attach_chest(spec, ch.Lid(), (0.0, 0.0))
+  ch.attach_chest(spec, ch.draw(1), (0.0, 0.8), name="chest2")
+  model = spec.compile()
+  assert model.ntex == 1 and model.body("chest2_lid_body") is not None
+
 
 def test_the_knob_wears_its_tag_and_the_committed_png_is_the_generators():
   from PIL import Image

@@ -3700,24 +3700,30 @@ that knows the truth.
 **The robot's own world replays the house's.** A Kp 8 sweep flown in the
 house (the spike's scene), its commands replayed through a world of a floor,
 the robot's CAD (`legs.model.attachable`), the claw and the same chest,
-started from the house's own state: the torque readings 1e-4 N·m apart RMS
-(0.011 at worst) over 33 s, the lid 0.003°. Nothing of the house matters to
+started from the house's own state: the torque readings 1e-7 N·m apart RMS
+(3e-6 at worst) over 33 s, the lid 0.004°. Nothing of the house matters to
 an arm at a box. A rollout starts from what the robot knew of itself (its
 believed pose, its tilt, its encoders) and holds its first command for 1 s
 (`SETTLE_S`) to come to rest.
 
-**The imagination's contact is its own, and not at MuJoCo's floor.** Run in
-the world's engine with the world's contact model, a model transfers better
-than it would to hardware (Evaluation.md, "Practised in MuJoCo"), so the
-parts a document describes touch on the imagination's own settings
-(`compile.CONTACT`). The first choice was a contact at two physics steps'
-time constant. With it, a lid resting on its walls jammed there, the handle
-swung on its pin instead of lifting it, and two seconds into the sweep the
-solver blew up (a NaN at the robot's root; MuJoCo reset the world). At 0.01 s
-the reference followed the world to 0.1°. In the same pass the chest's walls
-came to ride its floor in the reference: as separate parts, the lid touched
-two of them at zero distance, where the world's base is one body the lid
-never touches.
+**The imagination's contact is its own, where it applies.** Run in the
+world's engine with the world's contact model, a model transfers better than
+it would to hardware (Evaluation.md, "Practised in MuJoCo"), so a document's
+parts touch each other on the imagination's own settings
+(`compile.CONTACT`). Against the robot MuJoCo mixes a pair's settings, and
+the robot's priority geoms impose theirs: in the chest's probe the only
+scene contact is the claw's pads on the knob, on the pads' settings in
+either world, so what differs is the lid's stop (`LIMIT`) and the armature.
+The floor is MuJoCo's defaults, as the house's. The first compile had the
+chest's walls as separate parts and their contact at two physics steps:
+the lid touched two walls at zero distance, jammed, swung its handle on its
+pin instead of lifting, and blew the solver up two seconds into the sweep (a
+NaN at the robot's root; MuJoCo reset the world and stepped on). The rule
+that prevents it, found in review: everything fixed in the map is one rigid
+group, which a part hinged to it never touches (walls written on nothing
+let a lid sit on their top edges, and it was thrown to 113°). And a world
+MuJoCo resets is refused (`rollout.Diverged`), never rolled out: its
+readings stay finite and plausible.
 
 **What the language cannot say** (`scripts/imagination_gap.py --n 16`: the
 oracle's probe -- the claw onto the knob where it hangs, then sweeps up and
@@ -3727,16 +3733,16 @@ readings put apart, RMS of 0.1 s means, and its largest):
 
 | | take hold | 1st up | 1st down | 2nd up | 2nd down |
 |---|---|---|---|---|---|
-| with its catch, median | 0.001 N | 0.25 (2.2) | 0.024 (0.12) | 0.17 (0.84) | 0.019 (0.06) |
-| ...the worst of 16 | 0.001 | 0.59 (4.1) | 0.030 (0.18) | 0.39 (2.1) | 0.027 (0.12) |
-| no catch, the worst | 0.001 | 0.013 (0.03) | 0.021 (0.07) | 0.028 (0.09) | 0.024 (0.07) |
+| with its catch, median | 0.001 N | 0.26 (2.2) | 0.023 (0.11) | 0.18 (0.90) | 0.018 (0.05) |
+| ...the worst of 16 | 0.001 | 0.59 (4.1) | 0.029 (0.17) | 0.41 (2.2) | 0.023 (0.10) |
+| no catch, the worst | 0.001 | 0.013 (0.03) | 0.021 (0.07) | 0.028 (0.08) | 0.023 (0.07) |
 
 With no catch the two agree to 0.01–0.03 N, under what the torques read
-(0.04–0.06 N RMS of 0.1 s means, #469), and the lid to 0.12°: the contact
-settings and the armature cost nearly nothing. The catch is the gap. Its
-magnet pulls less as the gap opens, where the language's catch holds one
-pull for a millimetre and then lets go, so the two let go at different
-moments, and just after it the lids are up to 5.5° apart. The gap grows with
+(0.04–0.06 N RMS of 0.1 s means, #469), and the lid to 0.12°: the lid's
+stop and the armature cost nearly nothing. The catch is the gap. Its magnet
+pulls less as the gap opens, where the language's catch holds one pull for
+a millimetre and then lets go, so the two let go at different moments, and
+just after it the lids are up to 5.6° apart. The gap grows with
 the catch (0.08 N RMS at 1.1 N, 0.59 N at 3.7 N). At Kp 8 a sweep down to
 0.05 rad lets the lid fall shut and the catch take it again, so the second
 sweep up pulls it off once more. For stage 3, "the language can't say it" is
@@ -3766,10 +3772,11 @@ bit for bit, in a worker or not.
 **What is true now:** the robot's imagination is `imagination/`: a document
 in the scene language, compiled with the robot's own body on the
 imagination's own contact, and its record's commands replayed by the arm's
-own driver in a worker given JSON and numbers and nothing else. Nothing in
-it reads a mechanism's activity (`tests/test_imagination.py`). The chest's
-best-expressible reference follows the world's chest to 0.03 N where the
-language can say it, and parts from it at the catch's release.
+own driver in a worker given JSON and numbers and nothing else. Nothing it
+can load reads a mechanism's activity (`tests/test_imagination.py`), and a
+world that goes unstable is refused. The chest's best-expressible reference
+follows the world's chest to 0.03 N where the language can say it, and
+parts from it at the catch's release.
 
 ## Debugging workflow that worked
 

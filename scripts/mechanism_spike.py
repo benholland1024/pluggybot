@@ -118,7 +118,7 @@ class Mech:
   #: The drawer, loaded.
   drawer_kg: float = 0.5
   #: The joint: a spring (and where it is slack), damping, Coulomb friction.
-  #: The lids' shut by `CLOSING_MARGIN_NM` at 69 deg swept at `RATE`.
+  #: The lids' shut by `chest.CLOSING_MARGIN_NM` at 69 deg swept at `RATE`.
   stiffness: float = 0.0
   springref: float = 0.0
   damping: float = 0.04
@@ -188,21 +188,24 @@ def mechanism_xml(m: Mech, name: str = "mech") -> str:
       + _knob(name, (-0.012 - STEM - KNOB, 0, 0)) + '</body>')
     exclude = f'<exclude body1="{name}" body2="{name}_drawer"/>'
   else:
-    lid = [f'<joint name="{name}_hinge" type="hinge" axis="0 1 0" range="0 1.9" '
-           f'armature="0.0005" {joint_kw}/>',
+    lid = [f'<joint name="{name}_hinge" type="hinge" axis="0 1 0" '
+           f'range="{_v(*chest.HINGE_RANGE)}" armature="{_f(chest.HINGE_ARMATURE)}" '
+           f'{joint_kw}/>',
            f'<geom name="{name}_lid" type="box" size="{_v(d / 2, w / 2, LID_T / 2)}" '
            f'pos="{_v(-d / 2, 0, LID_T / 2)}" mass="{_f(m.lid_kg)}" {LID_WOOD}/>']
     if m.lump_kg > 0.0:
-      lid.append(f'<geom name="{name}_lump" type="box" size="0.01 0.01 0.004" '
+      lid.append(f'<geom name="{name}_lump" type="box" size="{_v(*chest.LUMP_HALF)}" '
                  f'pos="{_v(-d * m.lump_at, 0, m.lump_z)}" mass="{_f(m.lump_kg)}" '
                  f'contype="0" conaffinity="0" group="3" rgba="0.8 0.2 0.2 1"/>')
     if m.kind == "handle":
       lid.append(
         f'<geom name="{name}_bracket" type="box" size="{_v(PIN_AHEAD / 2 + 0.003, 0.006, 0.004)}" '
-        f'pos="{_v(-d - PIN_AHEAD / 2 + 0.003, 0, PIN_Z)}" mass="0.005" {LID_WOOD}/>'
+        f'pos="{_v(-d - PIN_AHEAD / 2 + 0.003, 0, PIN_Z)}" mass="{_f(chest.BRACKET_KG)}" '
+        f'{LID_WOOD}/>'
         f'<body name="{name}_handle" pos="{_v(-d - PIN_AHEAD, 0, PIN_Z)}">'
-        f'<joint name="{name}_pin" type="hinge" axis="0 1 0" damping="0.002" '
-        f'frictionloss="0.002" armature="0.0001"/>'
+        f'<joint name="{name}_pin" type="hinge" axis="0 1 0" '
+        f'damping="{_f(chest.PIN_DAMPING)}" frictionloss="{_f(chest.PIN_FRICTION)}" '
+        f'armature="{_f(chest.PIN_ARMATURE)}"/>'
         f'<geom name="{name}_drop" type="box" size="{_v(0.003, STEM_HALF_W, HANDLE_DROP / 2)}" '
         f'pos="{_v(0, 0, -HANDLE_DROP / 2)}" mass="{_f(HANDLE_KG[0])}" {METAL}/>'
         f'<geom name="{name}_stem" type="box" size="{_v(STEM / 2 + 0.003, STEM_HALF_W, 0.004)}" '
@@ -491,7 +494,7 @@ class Scene:
     r = {"handle": float(np.linalg.norm(PIN)), "lip": float(np.linalg.norm(LIP_POINT)),
          "drawer": 1.0}[mech.kind]
     gap = self.opening() * r
-    g0 = 0.0005
+    g0 = chest.CATCH_G0
     if gap > 10 * g0:
       return 0.0
     # ...less its pull at the cut, so it lets go to nothing
@@ -897,15 +900,14 @@ def torques_one(args) -> dict:
 
 # ---- the oracle fit ------------------------------------------------------------------
 
-#: The two sweep rates (rad/s), the range swept (rad), and the rows the fit
+#: The two sweep rates (rad/s), the range swept (rad) -- the chest's, which
+#: its lids are drawn to shut over (`chest.draw`) -- and the rows the fit
 #: reads: off the lid's stop, moving, and both arm joints outside their
 #: dead bands.
-FIT_RATES = (0.15, 0.45)
-FIT_TOP = 1.2
+FIT_RATES = (0.15, chest.SWEPT_RATE)
+FIT_TOP = chest.SWEPT_TO
 FIT_FROM = 0.08
 FIT_MOVING = 0.05
-#: The hidden parameters a set-out draws (seeded): the chest's (`chest.draw`).
-FIT_RANGES = chest.RANGES
 G = 9.81
 #: The fit's columns: the lid's gravity (cos and sin of its angle), the
 #: spring (the angle and a constant), Coulomb friction, damping, inertia.
@@ -919,7 +921,7 @@ FIT_MODELS = {"gravity": [0, 4, 5], "gravity+height": [0, 1, 4, 5],
 
 def draw(k: int) -> Mech:
   """Set-out `k`'s hidden parameters: the chest's draw (`chest.draw`, shut
-  by `CLOSING_MARGIN_NM` all the way up), without its catch -- the fit's
+  by `chest.CLOSING_MARGIN_NM` all the way up), without its catch -- the fit's
   set-outs had none."""
   lid = chest.draw(k)
   return Mech(kind="handle", lid_kg=lid.lid_kg, lump_kg=lid.lump_kg, lump_at=lid.lump_at,

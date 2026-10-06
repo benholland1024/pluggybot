@@ -7,9 +7,9 @@ Each part is a body of its own at its pose in the map, a child of the part
 it rides; a joint is the part's, in its frame. What touches what is the
 compiler's rule, not the document's: everything touches everything but a
 moving part and the rigid group it is hinged to -- the parts joined to that
-one without a joint, as a cupboard's walls are to its floor -- where its
-hinge would otherwise jam. A catch is a force the physics has no element for, set
-every step by `CompiledCatch`.
+one without a joint, and every part fixed in the map is one group, the
+map's -- where its hinge would otherwise jam. A catch is a force the
+physics has no element for, set every step by `CompiledCatch`.
 """
 
 from __future__ import annotations
@@ -24,14 +24,17 @@ from pluggybot.imagination.scene import Catch, Joint, Scene, lever, rotation
 #: THE IMAGINATION'S OWN CONTACT, chosen apart from the world's (MuJoCo's
 #: defaults, which the house's furniture and the chest carry): imagined in
 #: the world's engine WITH the world's contact model, a model transfers better
-#: than it would to hardware (#465's caution), so the parts it describes
-#: touch on settings of their own -- stiffer than the world's, at five
-#: physics steps' time constant, and wood on metal's friction. ⚠ At two
-#: steps, MuJoCo's floor, a lid resting on its walls jammed there and the
-#: solver blew up (#466, measured). The robot's own body keeps its CAD's,
-#: which it knows.
+#: than it would to hardware (#465's caution), so the parts a document
+#: describes touch each other on settings of their own -- stiffer than the
+#: world's, at five physics steps' time constant, and wood on wood's
+#: friction. ⚠ Against the robot, MuJoCo mixes a pair's settings (the larger
+#: friction) and the robot's priority geoms -- the claw's pads, the fork, the
+#: feet -- impose their own: the chest's probe touches the knob with the
+#: pads alone, on the pads' settings in either world. ⚠ At two steps,
+#: MuJoCo's floor, a lid resting on walls it touched jammed there and the
+#: solver blew up (#466).
 CONTACT = 'friction="0.5 0.005 0.0001" solref="0.01 1" solimp="0.95 0.99 0.001"'
-#: ...and a joint's stop, likewise.
+#: ...and a joint's stop, likewise: the one setting the chest's probe meets.
 LIMIT = 'solreflimit="0.01 1" solimplimit="0.95 0.99 0.001"'
 #: A catch holds over its first millimetre at its point (the language's one
 #: catch: a pull of `release` until the part is that far out).
@@ -40,12 +43,14 @@ CATCH_REACH_M = 0.001
 PREFIX = "scene_"
 
 #: The robot's world before a scene goes in: its physics step, and a floor
-#: under it at the map's z = 0.
-WORLD_XML = f"""<mujoco model="imagination">
+#: under it at the map's z = 0 -- the floor it lies on everywhere, on
+#: MuJoCo's defaults as the house's is: on `CONTACT`, its belly and thighs
+#: lay on a mix of the two, a solref of 0.015 (the review of #473).
+WORLD_XML = """<mujoco model="imagination">
   <compiler angle="radian" autolimits="true"/>
   <option timestep="0.002" integrator="implicitfast"/>
   <worldbody>
-    <geom name="floor" type="plane" size="50 50 0.1" {CONTACT}/>
+    <geom name="floor" type="plane" size="50 50 0.1"/>
   </worldbody>
 </mujoco>"""
 
@@ -113,8 +118,13 @@ class Imagined:
   carrying: str | None = None
 
 
-def _groups(scene: Scene) -> dict[str, int]:
-  """Each part's rigid group: the parts joined to it without a joint."""
+def _groups(scene: Scene) -> tuple[dict[str, int], int | None]:
+  """Each part's rigid group -- the parts joined to it without a joint --
+  and the map's, the one every part fixed in the map is in (None where
+  there is none). ⚠ The map joins what is fixed in it: as groups of their
+  own, a box's walls written on nothing let the lid hinged on one of them
+  sit on the others' top edges, where it jammed shut and was thrown (the
+  review of #473)."""
   moved = {j.part for j in scene.joints}
   parent = {p.id: p.id for p in scene.parts}
 
@@ -122,11 +132,15 @@ def _groups(scene: Scene) -> dict[str, int]:
     while parent[x] != x:
       x = parent[x]
     return x
+  fixed = [p.id for p in scene.parts if p.on is None and p.id not in moved]
+  for pid in fixed[1:]:
+    parent[root(pid)] = root(fixed[0])
   for p in scene.parts:
     if p.on is not None and p.id not in moved:
       parent[root(p.id)] = root(p.on)
   roots = sorted({root(p.id) for p in scene.parts})
-  return {p.id: roots.index(root(p.id)) for p in scene.parts}
+  groups = {p.id: roots.index(root(p.id)) for p in scene.parts}
+  return groups, (groups[fixed[0]] if fixed else None)
 
 
 def scene_xml(scene: Scene) -> str:
@@ -163,14 +177,15 @@ def scene_xml(scene: Scene) -> str:
     return "".join(out)
 
   roots = "".join(body(p.id) for p in scene.parts if p.on is None)
-  groups = _groups(scene)
+  groups, the_map = _groups(scene)
   excludes = []
   for j in scene.joints:
     on = scene.part(j.part).on
-    if on is None:
+    hinged_to = groups[on] if on is not None else the_map
+    if hinged_to is None:
       continue
     mine = [p.id for p in scene.parts if groups[p.id] == groups[j.part]]
-    theirs = [p.id for p in scene.parts if groups[p.id] == groups[on]]
+    theirs = [p.id for p in scene.parts if groups[p.id] == hinged_to]
     excludes += [f'<exclude body1="{PREFIX}{a}" body2="{PREFIX}{b}"/>'
                  for a in mine for b in theirs]
   contact = f"<contact>{''.join(excludes)}</contact>" if excludes else ""

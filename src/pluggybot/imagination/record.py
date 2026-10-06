@@ -9,7 +9,9 @@ besides a document. Plain numbers only:
             angle), and the module on its fork
   commands  a row a physics step (`dt`): the arm drivers' targets (rad) and
             gains (Kp N*m/rad, Kd N*m*s/rad), the claw's slide (m) and jaws
-            (m apart off shut) -- what the robot SENT, so its own
+            (m, each jaw's travel off shut, as `tools.claw` sends both) --
+            what the robot SENT, so its own; it begins with nothing in the
+            jaws, which a rollout puts where the first row sends them
   sensed    the same rows: the drivers' torque readings (N*m) and the
             encoders (rad), when the record is of a probe flown
   depth     point clouds in the map frame, m, laid there off the robot's

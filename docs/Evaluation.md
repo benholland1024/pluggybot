@@ -1213,7 +1213,7 @@ more easily here than it would on hardware.
   Mismatched — hidden parameters, and mechanisms built from constructs the
   robot's scene language cannot express — is the number that bears on a
   real robot, and demo 2's bar is read on it.
-- **The imagination touches on contact settings of its own**
+- **A document's parts touch each other on the imagination's own contact**
   (`imagination.compile.CONTACT`), never the world's, and a modelled
   mechanism's error splits against a BEST-EXPRESSIBLE REFERENCE, the
   mechanism written in the scene language by code that knows the truth: the

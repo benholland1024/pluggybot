@@ -14,7 +14,7 @@ import mujoco
 import numpy as np
 
 from pluggybot.legs import rack as rk
-from pluggybot.legs.arm import ArmDriver
+from pluggybot.legs.arm import ArmDriver, tool_payload
 from pluggybot.legs.drivers import Drivers
 from pluggybot.legs.model import CHOSEN, JOINT_NAMES, attachable
 from pluggybot.rack.coupling import PEG_ABOVE_BODY
@@ -57,7 +57,9 @@ class ImaginedBody:
   command row a step (`apply`: the arm's targets and gains, the claw's
   servos; the legs hold nothing, as lying), and read (`read`: the arm
   motors' torques, the arm's two coordinates). A row is `record.COMMANDS`'
-  order: shoulder, forearm, Kp, Kd, slide, jaws."""
+  order: shoulder, forearm, Kp, Kd, slide, jaws -- the slide and the jaws
+  the claw's (`tools.claw` sends both jaws one command, each one's travel
+  off shut), and with another tool sent nowhere."""
 
   def __init__(self, model, data, carrying: str | None) -> None:
     self.carrying = carrying
@@ -71,9 +73,7 @@ class ImaginedBody:
     self.legs.limp()
     self.arm = ArmDriver(model, data, CHOSEN.arm)
     self.slide = self.jaws = None
-    if self.carrying is not None:
-      kg = float(model.body_subtreemass[model.body(self.carrying).id])
-      self.arm.payload = (kg, (0.0, CHOSEN.arm.fork.seat_rise() - PEG_ABOVE_BODY))
+    self.arm.payload = tool_payload(model, self.carrying, CHOSEN.arm)
     if self.carrying == "module_claw":
       self.slide = model.actuator(rk.CLAW_SLIDE).id
       self.jaws = [model.actuator(j).id for j in rk.CLAW_JAWS]
@@ -89,8 +89,9 @@ class ImaginedBody:
     tilted by `attitude` (roll, pitch), lying on its belly as its CAD's
     `lie` keyframe has it, its legs' and arm's joints at their encoders
     (`arm`: the shoulder and the forearm's absolute angle), the tool it
-    carries seated on its fork and its servos where the `first` row sends
-    them. Forwards the data."""
+    carries seated on its fork, square to its plate, and its servos where
+    the `first` row sends them -- the jaws with nothing in them: a record
+    begins before the grip. Forwards the data."""
     m, d = self.model, self.data
     x, y, yaw = pose
     self._set(f"{ROBOT_ROOT}_root",
@@ -103,13 +104,17 @@ class ImaginedBody:
     self._set("arm_wrist", -fore)                     # the plate kept level
     if self.carrying is not None:
       mujoco.mj_kinematics(m, d)
-      torso = d.xmat[m.body(ROBOT_ROOT).id].reshape(3, 3)
+      root = m.body(ROBOT_ROOT).id
+      torso = d.xmat[root].reshape(3, 3)
       seat = d.site_xpos[m.site("arm_seat").id]
       peg = seat + torso @ np.array([0.0, 0.0, CHOSEN.arm.fork.seat_rise() + 0.0003])
-      turn = yaw + math.pi                            # a tool faces the robot
+      # in the plate's frame, which is the torso's (the parallelogram), and
+      # facing the robot: seated by yaw alone, a robot rolled 0.13 rad
+      # dropped it off its fork (the review of #473)
+      quat = np.zeros(4)
+      mujoco.mju_mulQuat(quat, d.xquat[root], np.array([0.0, 0.0, 0.0, 1.0]))
       self._set(f"{self.carrying}_free",
-                [*(peg - [0.0, 0.0, PEG_ABOVE_BODY]), math.cos(turn / 2), 0.0, 0.0,
-                 math.sin(turn / 2)])
+                [*(peg - torso @ np.array([0.0, 0.0, PEG_ABOVE_BODY])), *quat])
       if self.slide is not None:
         self._set(rk.CLAW_SLIDE_JOINT, first[4])
         for jaw in rk.CLAW_JAWS:

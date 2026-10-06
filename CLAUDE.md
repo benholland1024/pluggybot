@@ -265,12 +265,18 @@ save a filmstrip PNG named after the script.
   refused), so never an `MjModel` or `MjData`, and a record's depth cloud is
   (k, 3) points with the simulator's geom ids refused; and nothing in the
   package imports `activity`, `challenge`, `home`, `legs.world`,
-  `evaluation` or the spike, directly or through what it imports. ⚠ ITS
-  CONTACT IS ITS OWN (`compile.CONTACT`, 0.01 s), never the world's: at two
-  physics steps a lid jammed on its walls and the solver blew up. Its
-  readings are the drivers' EXPECTATION, their noise keyed on the worker's
-  seed, never the world's. Nothing in it is specific to a lid, and a model
-  in progress is never saved with the world.
+  `evaluation` or the spike, directly or through anything it can load. ⚠ A
+  DOCUMENT'S PARTS TOUCH EACH OTHER ON ITS OWN CONTACT (`compile.CONTACT`,
+  0.01 s), never the world's; against the robot MuJoCo mixes, and the
+  robot's priority geoms (the pads, the fork, the feet) impose theirs; the
+  floor is MuJoCo's defaults, as the house's. ⚠ EVERYTHING FIXED IN THE MAP
+  IS ONE RIGID GROUP, which a part hinged to it never touches: walls written
+  on nothing jammed a lid and threw it. ⚠ A WORLD MUJOCO RESET IS REFUSED
+  (`rollout.Diverged`): its readings stay finite and plausible. A request
+  cut off half way ends its worker. Its readings are the drivers'
+  EXPECTATION, their noise keyed on the worker's seed, never the world's.
+  Nothing in it is specific to a lid, and a model in progress is never saved
+  with the world.
 - **The drop-handle chest is demo 1's mechanism, and a demo's only**
   (`activity/chest.py`; never in the served world, where a new object moves
   the geometry hash and the fixtures): #469's box as an activity, its hidden
@@ -920,7 +926,9 @@ save a filmstrip PNG named after the script.
   (`stub_life` in `tests/test_body.py`: a floor and no robot, ~25 ms);
   the stub arrives at once and its senses answer what the test set
   (`holding`, `on_charger`, `attitude`), but time passes only where it holds,
-  so a test timing a stand-still subtracts the think slices it stood.
+  so a test timing a stand-still subtracts the think slices it stood. The
+  imagination's body is `legs/imagined.py`'s, on the body's side: its own
+  CAD in a world of its own, never a served body (#466).
 - **The quadruped's arm is held on every physics step, off `qpos` alone**
   (issue #405; `legs/arm.py`'s `ArmDriver`, `QuadMission.arm`): at its stow
   unless a program moved it, folded on a fall and before the rest reflex

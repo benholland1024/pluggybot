@@ -89,3 +89,50 @@ def test_the_oracle_holds_the_knob_where_it_hangs_and_stays_in_reach():
   assert d.qpos[world.joints["pin"][0]] == pytest.approx(pin, abs=1e-9)
   record, phases = im.oracle_record(lid, setting)
   assert list(phases) == ["take", "up0", "down0", "up1", "down1"]
+
+
+def test_the_references_parts_share_no_list():
+  # Turning the lid alone turned all eight parts that shared its `euler`
+  # list, each about its own middle, and tilting the pin's axis the hinge's
+  # too (the review of #473).
+  doc = ch.reference_document(ch.draw(0), (1.0, -0.5), 0.7, pin=-0.6)
+  lists = [v for part in doc["parts"] + doc["joints"] for v in part.values()
+           if isinstance(v, list)]
+  assert len({id(v) for v in lists}) == len(lists)
+
+
+def test_a_probe_sweeps_no_faster_than_the_chests_are_drawn_to_shut_at():
+  # The fastest sweep down is what `draw`'s shut margin is held at: faster,
+  # and a lid may push its handle back at the claw.
+  assert max(im.RATES) == ch.SWEPT_RATE and im.TOP == ch.SWEPT_TO
+  with pytest.raises(ValueError, match="drawn to shut"):
+    im.oracle_record(ch.draw(0), im.Setting(chest_x=0.5), rates=(0.15, 0.6))
+
+
+def test_a_phase_too_short_to_read_a_force_reads_none():
+  import numpy as np
+  from pluggybot.imagination.rollout import Readings
+  n = 30
+  quiet = Readings(t=np.arange(n) * 0.002, sensed=np.tile([0.5, 0.5, 2.2, 0.4], (n, 1)),
+                   joints={"hinge": np.zeros(n)})
+  pushed = Readings(t=quiet.t, sensed=quiet.sensed + [2.0, 2.0, 0, 0], joints=quiet.joints)
+  [gap] = im.compare(quiet, pushed, {"short": slice(0, n)})
+  assert gap.force_rms is None and gap.force_max is None and gap.lid_max == 0.0
+
+
+def test_the_references_walls_are_where_the_chests_are():
+  # The chest is written twice -- its MJCF and its document -- and the lid's
+  # moments pin the moving half; the walls are pinned here, centre and size.
+  import numpy as np
+  setting = im.Setting(chest_x=0.6, chest_y=-0.2, chest_yaw=0.4)
+  truth = im.truth_world(ch.Lid(), setting).model
+  td = mujoco.MjData(truth)
+  mujoco.mj_forward(truth, td)
+  ref = im.reference_world(ch.Lid(), setting, 0.0).model
+  rd = mujoco.MjData(ref)
+  mujoco.mj_forward(ref, rd)
+  for wall, part in (("floor", "floor"), ("back", "back"), ("front", "front"),
+                     ("sider", "side_r"), ("sidel", "side_l")):
+    t, r = truth.geom(f"chest_{wall}").id, ref.geom(f"{PREFIX}{part}").id
+    assert np.allclose(rd.geom_xpos[r], td.geom_xpos[t], atol=1e-9), wall
+    assert np.allclose(ref.geom_size[r], truth.geom_size[t], atol=1e-9), wall

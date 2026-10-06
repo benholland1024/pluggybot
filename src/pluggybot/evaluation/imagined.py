@@ -33,6 +33,7 @@ from pluggybot.imagination.scene import parse
 from pluggybot.legs import arm as am
 from pluggybot.legs import rack as rk
 from pluggybot.legs.model import CHOSEN, lie_qpos
+from pluggybot.telemetry.protocol import ROBOT_ROOT
 from pluggybot.tools import claw as cl
 
 #: The probe's gain (#469's choice: a hinge guessed within 4 cm keeps the
@@ -40,8 +41,11 @@ from pluggybot.tools import claw as cl
 KP = 8.0
 KD = am.ARM_KD * math.sqrt(KP / am.ARM_KP)
 #: The sweeps: up to `TOP` and back to `BOTTOM` (rad), at each rate (rad/s),
-#: held `TURN_S` at each end -- #469's `--fit`.
-RATES = (0.15, 0.45)
+#: held `TURN_S` at each end -- #469's `--fit`. ⚠ The top and the fastest
+#: rate are the chest's: its lids are drawn to shut by the margin a drop
+#: handle needs only up to them (`chest.draw`), and 0.6 rad/s left 15 of 40
+#: under it.
+RATES = (0.15, ch.SWEPT_RATE)
 TOP, BOTTOM, TURN_S = ch.SWEPT_TO, 0.05, 0.4
 #: The knob, where it hangs, this far ahead of the torso's centre (#469's
 #: `LIE_AT_M`: the lid's arc carries it 0.16 m further and 0.22 m up).
@@ -106,7 +110,7 @@ def place(lid: ch.Lid) -> tuple[Setting, float]:
   for _ in range(2):
     world = truth_world(lid, setting)
     d = settled(world, hold_record())
-    root = world.model.body("pluggybot").id
+    root = world.model.body(ROBOT_ROOT).id
     knob = d.geom_xpos[world.model.geom("chest_knob").id]
     setting = Setting(chest_x=setting.chest_x + float(d.xpos[root][0]) + KNOB_AHEAD_M
                       - float(knob[0]))
@@ -208,11 +212,14 @@ def oracle_record(lid: ch.Lid, setting: Setting,
   `take` (onto the knob and shut), then each rate's sweep up and down
   (`up0`, `down0`, ...). Planned off the truth: the knob where it hangs in
   the settled world, and the true hinge."""
+  if max(rates) > ch.SWEPT_RATE:
+    raise ValueError(f"a chest is drawn to shut only up to {ch.SWEPT_RATE} rad/s "
+                     f"(`chest.draw`), not {max(rates)}")
   world = truth_world(lid, setting)
   st = start()
   d = settled(world, hold_record())
   m = world.model
-  root = m.body("pluggybot").id
+  root = m.body(ROBOT_ROOT).id
   rot = d.xmat[root].reshape(3, 3)
   c = d.xpos[root].copy()
   yaw = math.atan2(rot[1, 0], rot[0, 0])
@@ -260,11 +267,12 @@ def oracle_record(lid: ch.Lid, setting: Setting,
 @dataclass(frozen=True)
 class Gap:
   """Two worlds along one path, a phase at a time: the force at the tool
-  their readings put apart (N: the RMS of 0.1 s means, and the largest), the
-  lid's angle apart (deg: RMS, largest), and the lid's top in each (deg)."""
+  their readings put apart (N: the RMS of 0.1 s means, and the largest;
+  None for a phase shorter than one mean), the lid's angle apart (deg: RMS,
+  largest), and the lid's top in each (deg)."""
   phase: str
-  force_rms: float
-  force_max: float
+  force_rms: float | None
+  force_max: float | None
   lid_rms: float
   lid_max: float
   top: tuple[float, float]
@@ -287,12 +295,16 @@ def compare(truth: Readings, other: Readings, phases: dict[str, slice]) -> list[
   lid_t, lid_o = np.degrees(truth.joints["hinge"]), np.degrees(other.joints["hinge"])
   out = []
   for name, rows in phases.items():
-    f = _binned(force[rows])
-    mag = np.hypot(f[:, 0], f[:, 1]) if len(f) else np.zeros(1)
     dl = lid_o[rows] - lid_t[rows]
-    out.append(Gap(phase=name, force_rms=float(np.sqrt((mag ** 2).mean())),
-                   force_max=float(mag.max()), lid_rms=float(np.sqrt((dl ** 2).mean())),
-                   lid_max=float(np.abs(dl).max()),
+    if not len(dl):
+      raise ValueError(f"phase {name!r} has no rows")
+    f = _binned(force[rows])
+    # absent is None, never 0: a phase under one mean has no force to read
+    mag = np.hypot(f[:, 0], f[:, 1]) if len(f) else None
+    out.append(Gap(phase=name,
+                   force_rms=None if mag is None else float(np.sqrt((mag ** 2).mean())),
+                   force_max=None if mag is None else float(mag.max()),
+                   lid_rms=float(np.sqrt((dl ** 2).mean())), lid_max=float(np.abs(dl).max()),
                    top=(float(lid_t[rows].max()), float(lid_o[rows].max()))))
   return out
 

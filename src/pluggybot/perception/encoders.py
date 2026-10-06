@@ -44,6 +44,18 @@ TORQUE_LSB = 2 * TORQUE_RANGE_NM / 4095
 TORQUE_NOISE_NM = CURRENT_NOISE_A * GIM8108_8.kt
 
 
+def torque_readings(tau, key: str) -> np.ndarray:
+  """`torque_reading` along a run of steps at once, its noise ONE stream
+  keyed on `key` (an imagination's rollout, `imagination.rollout`): the same
+  spread and counts, without a generator a step (40 % of a rollout)."""
+  import zlib
+  tau = np.asarray(tau, dtype=float)
+  rng = np.random.default_rng(zlib.crc32(f"torques:{key}".encode()))
+  noisy = tau + rng.normal(0.0, TORQUE_NOISE_NM, tau.shape)
+  top = int(TORQUE_RANGE_NM / TORQUE_LSB)
+  return np.clip(np.round(noisy / TORQUE_LSB), -top, top) * TORQUE_LSB
+
+
 def torque_reading(tau: float, key: str, step: int) -> float:
   """What a driver reports of a motor's torque `tau` at physics step `step`:
   its noise (deterministic on the step and `key`, a robot's motor -- a

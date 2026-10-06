@@ -341,34 +341,77 @@ def test_a_worker_is_deterministic_given_its_seed(worker):
 #: (`evaluation`), and the spike that chose the chest.
 FENCED = ("pluggybot.activity", "pluggybot.challenge", "pluggybot.home",
           "pluggybot.legs.world", "pluggybot.evaluation", "mechanism_spike")
+PACKAGE = tuple(f"pluggybot.imagination.{m}" for m in
+                ("scene", "compile", "record", "rollout", "worker"))
 
 
-def test_the_imagination_imports_nothing_of_the_worlds_mechanisms():
-  files = sorted((SRC / "imagination").rglob("*.py"))
-  assert {f.name for f in files} >= {"scene.py", "compile.py", "record.py", "rollout.py",
-                                     "worker.py"}
-  for path in files:
+def _module_file(name: str) -> Path | None:
+  parts = name.split(".")
+  if parts[0] != "pluggybot":
+    return None
+  p = SRC.joinpath(*parts[1:])
+  if p.with_suffix(".py").exists():
+    return p.with_suffix(".py")
+  return p / "__init__.py" if (p / "__init__.py").exists() else None
+
+
+def _closure(roots) -> dict[str, Path]:
+  """Every pluggybot module `roots` can load, by name: what each imports,
+  at its top or inside a function, and the packages above it."""
+  seen: dict[str, Path] = {}
+  todo = list(roots)
+  while todo:
+    name = todo.pop()
+    path = _module_file(name)
+    if name in seen or path is None:
+      continue
+    seen[name] = path
+    todo += [".".join(name.split(".")[:k]) for k in range(2, name.count(".") + 1)]
+    for node in ast.walk(ast.parse(path.read_text())):
+      if isinstance(node, ast.Import):
+        todo += [a.name for a in node.names]
+      elif isinstance(node, ast.ImportFrom) and node.module:
+        todo += [node.module] + [f"{node.module}.{a.name}" for a in node.names]
+  return seen
+
+
+def test_nothing_the_imagination_can_load_is_the_worlds_mechanisms():
+  # Walked through everything the package can reach, a function's imports
+  # included: the body's half (`legs.imagined`) and the drivers' noise are
+  # outside the package, and an import there of the chest passed a walk of
+  # the package's own files (the review of #473).
+  closure = _closure(PACKAGE)
+  assert {"pluggybot.legs.imagined", "pluggybot.perception.encoders"} <= set(closure)
+  assert not [m for m in closure if m.startswith(FENCED)], sorted(closure)
+  for name, path in closure.items():
     text = path.read_text()
-    for node in ast.walk(ast.parse(text)):
-      names = ([a.name for a in node.names] if isinstance(node, ast.Import)
-               else [node.module or ""] if isinstance(node, ast.ImportFrom) else [])
-      assert not any(n.startswith(f) for n in names for f in FENCED), (path, names)
-    for word in ("activity.chest", "activity/chest", "mechanism_spike", "import_module",
-                 "__import__"):
-      assert word not in text, (path, word)
+    # a module imported by its name as a string is one no walk can follow
+    assert "import_module" not in text and "__import__" not in text, name
+    if name.startswith("pluggybot.imagination"):
+      for word in ("activity.chest", "activity/chest", "mechanism_spike"):
+        assert word not in text, (name, word)
 
 
-def test_nothing_the_imagination_loads_reads_the_worlds_mechanisms():
-  # Transitively: a module imported by one the imagination imports.
+def test_a_rollout_loads_nothing_of_the_worlds_mechanisms():
+  # And run: a scene compiled, and a noisy rollout of it, in a process of
+  # its own -- what loads is what `sys.modules` says.
   code = ("import sys\n"
-          "import pluggybot.imagination.worker, pluggybot.imagination.compile\n"
-          "from pluggybot.imagination import rollout\n"
-          "from pluggybot.imagination.compile import robot_spec\n"
-          "robot_spec('module_claw')\n"
+          "import numpy as np\n"
+          "from pluggybot.imagination.compile import compile_scene\n"
+          "from pluggybot.imagination.record import Record, Start\n"
+          "from pluggybot.imagination.rollout import rollout\n"
+          "from pluggybot.imagination.scene import parse\n"
+          "import pluggybot.imagination.worker\n"
+          "doc = {'parts': [{'id': 'a', 'shape': 'box', 'size': [100, 100, 100],\n"
+          "                  'pos': [3000, 0, 50], 'mass': 1}]}\n"
+          "world = compile_scene(parse(doc), carrying='module_claw')\n"
+          "st = Start((0, 0, 0), (0, 0), (0.0,) * 12, (2.25, 0.4), 'module_claw')\n"
+          "rec = Record(start=st, dt=0.002, commands=np.array([[2.25, 0.4, 8, 1.5, 0, 0]]))\n"
+          "rollout(world, rec, settle_s=0.002, noise_seed=0)\n"
           "print(' '.join(m for m in sys.modules if m.startswith('pluggybot')))\n")
   out = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True,
                        check=True).stdout.split()
-  assert "pluggybot.imagination.rollout" in out
+  assert {"pluggybot.legs.imagined", "pluggybot.perception.encoders"} <= set(out)
   assert not [m for m in out if m.startswith(FENCED)], out
 
 
@@ -379,3 +422,132 @@ def test_the_languages_own_example_parses():
   example = json.loads(doc[start:doc.index("]}\n", start) + 2])
   s = sc.parse(example)
   assert [p.id for p in s.parts] == ["base", "lid"] and s.catches[0].joint == "hinge"
+
+
+#: A box whose walls stand on nothing -- each fixed in the map, as an author
+#: may well write them -- with a lid hinged on its back wall, and a flap
+#: hinged to the map itself.
+LOOSE_BOX = {
+  "parts": [
+    {"id": "base", "shape": "slab", "size": [220, 300, 12], "pos": [800, 0, 6], "mass": 1},
+    {"id": "back", "shape": "box", "size": [12, 300, 140], "pos": [904, 0, 70], "mass": 1},
+    {"id": "front", "shape": "box", "size": [12, 300, 140], "pos": [696, 0, 70], "mass": 1},
+    {"id": "left", "shape": "box", "size": [220, 12, 140], "pos": [800, 144, 70], "mass": 1},
+    {"id": "right", "shape": "box", "size": [220, 12, 140], "pos": [800, -144, 70], "mass": 1},
+    {"id": "lid", "shape": "slab", "size": [220, 300, 12], "pos": [800, 0, 146], "on": "back",
+     "mass": 0.3},
+    {"id": "flap", "shape": "slab", "size": [100, 100, 10], "pos": [640, 0, 135], "mass": 0.1}],
+  "joints": [
+    {"id": "hinge", "type": "hinge", "part": "lid", "at": [910, 0, 140], "axis": [0, 1, 0],
+     "range": [0, 109]},
+    {"id": "flap_hinge", "type": "hinge", "part": "flap", "at": [690, 0, 140],
+     "axis": [0, 1, 0], "range": [-90, 0]}]}
+
+
+def _excluded(model) -> set[frozenset]:
+  return {frozenset((model.body(int(a)).name, model.body(int(b)).name))
+          for a, b in zip(*np.divmod(model.exclude_signature, 1 << 16))}
+
+
+def test_everything_fixed_in_the_map_is_one_group_its_hinged_parts_do_not_touch():
+  # Written on nothing, a box's walls are still one rigid thing -- the map
+  # joins them -- so a lid hinged on one does not touch the others: as
+  # separate groups, its hinge sat on the side walls' top edges, and the
+  # lid jammed shut, was thrown to 113 deg and held at 0 (the review of
+  # #473). A part hinged to the map itself touches none of them either.
+  m = cp.compile_scene(sc.parse(LOOSE_BOX), carrying="module_claw").model
+  pairs = _excluded(m)
+  fixed = ("base", "back", "front", "left", "right")
+  for moving in ("lid", "flap"):
+    for wall in fixed:
+      assert frozenset((f"{cp.PREFIX}{moving}", f"{cp.PREFIX}{wall}")) in pairs, (moving, wall)
+  assert frozenset((f"{cp.PREFIX}lid", f"{cp.PREFIX}flap")) not in pairs
+
+
+#: A 10 g flap on a spring far too stiff for a 2 ms step: MuJoCo finds the
+#: world unstable and resets it, again and again, every reading finite.
+UNSTABLE = {
+  "parts": [{"id": "flap", "shape": "box", "size": [100, 100, 10], "pos": [2000, 0, 500],
+             "mass": 0.01}],
+  "joints": [{"id": "spring", "type": "hinge", "part": "flap", "at": [2050, 0, 500],
+              "axis": [0, 1, 0], "stiffness": 40, "slack": 10}]}
+
+
+def test_a_world_that_goes_unstable_is_refused_not_rolled_out(worker):
+  from pluggybot.imagination.rollout import Diverged
+  world = cp.compile_scene(sc.parse(UNSTABLE), carrying="module_claw")
+  with pytest.raises(Diverged, match="settling"):
+    settled(world, hold(1))                   # where our grading reads it alone
+  with pytest.raises(Diverged, match="unstable"):
+    rollout(world, hold(50))
+  with pytest.raises(Diverged):
+    worker.rollout(UNSTABLE, hold(50))
+  assert worker.rollout(CABINET, hold(20)).sensed.shape == (20, 4)    # still serving
+
+
+def test_a_record_is_replayed_with_the_tool_its_robot_carried(cabinet):
+  rec = hold(10)
+  bare = Record(start=Start(**{**rec.start.__dict__, "carrying": None}), dt=rec.dt,
+                commands=rec.commands)
+  with pytest.raises(ValueError, match="carried None"):
+    rollout(cabinet, bare)
+
+
+def test_a_request_cut_off_half_way_ends_the_worker(monkeypatch):
+  # Its answer would be left in the pipe, and every later request would
+  # read the one before's -- or hang, once both outgrew the pipe.
+  from pluggybot.imagination import worker as wk
+  with Imagination(seed=3) as w:
+    reads = []
+
+    def interrupted(stream):
+      reads.append(stream)
+      raise KeyboardInterrupt
+    monkeypatch.setattr(wk, "read_frame", interrupted)
+    with pytest.raises(KeyboardInterrupt):
+      w.rollout(CABINET, hold(10))
+    monkeypatch.undo()
+    with pytest.raises(RuntimeError, match="has ended"):
+      w.rollout(CABINET, hold(10))
+  w.close()                                   # twice, and after its death: no error
+
+
+def test_every_failure_in_the_worker_is_an_answer_and_it_keeps_serving(monkeypatch):
+  from pluggybot.imagination import compile as cp_mod
+  from pluggybot.imagination import worker as wk
+  rec_head, rec_arrays = hold(5).to_wire()
+
+  def ask(document):
+    return wk.unpack(wk.handle(wk.pack({"kind": "rollout", "document": document,
+                                        "record": rec_head}, rec_arrays), seed=0))[0]
+  huge = doc()
+  huge["parts"][3]["mass"] = 10 ** 400        # a JSON integer no float holds
+  assert ask(huge)["refused"] == ["part 'knob': mass must be a number"]
+
+  def broken(*a, **kw):
+    raise mujoco.FatalError("mj_stackAlloc: out of memory")
+  monkeypatch.setattr(cp_mod, "compile_scene", broken)
+  answer = ask(CABINET)
+  assert answer["ok"] is False and "out of memory" in answer["error"]
+
+
+def test_an_id_and_an_axis_are_what_they_say():
+  d = doc()
+  d["parts"][3]["id"] = "knob\n"              # `re.match` with `$` let it through
+  d["joints"][0]["axis"] = [0, 1e200, 0]      # its squares overflowed to a zero axis
+  with pytest.raises(sc.Refused) as e:
+    sc.parse(d)
+  text = " | ".join(e.value.reasons)
+  assert "id must match" in text and "axis must be within" in text
+
+
+def test_the_tool_is_seated_square_to_a_tilted_plate(cabinet):
+  # Seated by its yaw alone, a robot that read itself rolled 0.13 rad
+  # started with the claw askew on its fork, and it fell to the floor.
+  qs, qe = am.CARRY_Q
+  for roll in (0.15, -0.15):
+    st = Start(pose=(0.0, 0.0, 0.0), attitude=(roll, 0.0), legs=tuple(lie_qpos(CHOSEN)),
+               arm=(qs, qs + qe), carrying="module_claw")
+    rec = Record(start=st, dt=0.002, commands=np.array([[qs, qs + qe, 8.0, 1.5, 0.0, 0.0]]))
+    d = settled(cabinet, rec)
+    assert rk.tool_power(cabinet.model, d, "module_claw")["powered"], roll

@@ -20,9 +20,10 @@ model of the chest is always an approximation, and `reference_document` is
 the closest the language comes:
   - the catch's pull falls with the gap as a magnet's does, where the
     language's catch is one release force;
-  - the chest's own contact settings (MuJoCo's defaults, as the spike flew
-    it, with the handle's pairs named), where the imagination compiles its
-    own (`imagination.compile.CONTACT`);
+  - the chest's own contact: MuJoCo's defaults as the spike flew it, its
+    lid's stop among them, and its handle named to touch its lid -- where
+    the imagination's parts touch on settings of its own
+    (`imagination.compile`) and a part never touches what it is hinged to;
   - the hinges' armature.
 Stiction and a non-linear spring are left out: SimNotes, "The imagination's
 first world", says why.
@@ -263,9 +264,11 @@ def attach_chest(spec, lid: Lid, pos, yaw: float = 0.0, name: str = "chest",
                  tags: bool = True) -> None:
   """The chest into a world's `spec`, its frame at `pos` (x, y on the floor)
   turned `yaw` (rad) about z; with `tags`, the knob's tag texture too, off
-  the generator's `tags/` beside the world's file (`legs.world`'s)."""
+  the generator's `tags/` beside the world's file (`legs.world`'s), once a
+  world. ⚠ Every chest's knob wears the one tag: two in one world are two
+  knobs a decode cannot tell apart."""
   import mujoco
-  if tags:
+  if tags and spec.texture(f"tagtex{KNOB_TAG_ID}") is None:
     spec.add_texture(name=f"tagtex{KNOB_TAG_ID}", type=mujoco.mjtTexture.mjTEXTURE_CUBE,
                      file=f"tags/tag{KNOB_TAG_ID}.png")
     mat = spec.add_material(name=f"tagmat{KNOB_TAG_ID}", specular=0.05, shininess=0.05,
@@ -299,8 +302,11 @@ class Chest(Activity):
     caught  LIVE: the knob within the catch's reach
 
   and the catch's pull, set here for the next step: the one piece of the
-  chest's physics MuJoCo has no element for (`catch_torque`). ⚠ `lid` is the
-  truth (`draw`): nothing of it is a flag."""
+  chest's physics MuJoCo has no element for (`catch_torque`). ⚠ The pull is
+  PHYSICS, off the lid's angle as it is (`qpos`): a sensor read after a step
+  holds the angle the step began with, and a magnet a step late let go 2-3
+  steps later (the review of #473). ⚠ `lid` is the truth (`draw`): nothing
+  of it is a flag."""
 
   def __init__(self, model, data, lid: Lid, name: str = "chest") -> None:
     super().__init__(name)
@@ -314,16 +320,29 @@ class Chest(Activity):
 
   def rebind(self, model, data) -> None:
     self.sensor_adr = int(model.sensor(f"{self.name}_lid").adr[0])
-    self.dof = int(model.jnt_dofadr[model.joint(f"{self.name}_hinge").id])
+    hinge = model.joint(f"{self.name}_hinge").id
+    self.dof = int(model.jnt_dofadr[hinge])
+    self.qadr = int(model.jnt_qposadr[hinge])
 
   def angle(self, data) -> float:
     """The lid's angle off its stop, rad, as its sensor reads it."""
     return float(data.sensordata[self.sensor_adr])
 
   def sense(self, model, data) -> None:
-    a = self.angle(data)
-    data.qfrc_applied[self.dof] = catch_torque(self.lid, a)
-    self.update(a)
+    data.qfrc_applied[self.dof] = catch_torque(self.lid, float(data.qpos[self.qadr]))
+    self.update(self.angle(data))
+
+  def kept_state(self) -> dict:
+    """The flags, and the thresholds behind them: restored without them, the
+    latch let go and the hysteresis forgot which side it was on."""
+    return {**super().kept_state(), "open": self.open.value, "past": self.past.value,
+            "held": self.held.value}
+
+  def restore_kept(self, state: dict) -> None:
+    super().restore_kept(state)
+    self.open.value = bool(state.get("open", False))
+    self.past.value = bool(state.get("past", False))
+    self.held.value = bool(state.get("held", True))
 
   def update(self, angle: float) -> None:
     """The flags off one reading of the lid's angle, rad."""
@@ -379,8 +398,8 @@ def reference_document(lid: Lid, pos, yaw: float = 0.0, pin: float = 0.0) -> dic
 
   def base(pid, half, centre, on=None):
     vol = 8 * half[0] * half[1] * half[2]
-    part = {"id": pid, "shape": "box", "size": mm(half), "pos": at(centre), "euler": euler,
-            "mass": round(BASE_DENSITY * vol, 6)}
+    part = {"id": pid, "shape": "box", "size": mm(half), "pos": at(centre),
+            "euler": list(euler), "mass": round(BASE_DENSITY * vol, 6)}
     return part | ({"on": on} if on else {})
 
   # the walls ride the floor: one rigid base, as the world's is one body
@@ -393,30 +412,32 @@ def reference_document(lid: Lid, pos, yaw: float = 0.0, pin: float = 0.0) -> dic
   pin_at = lid_frame + PIN
   parts += [
     {"id": "lid", "shape": "slab", "size": mm((d / 2, w / 2, LID_T / 2)),
-     "pos": at(lid_frame + [-d / 2, 0, LID_T / 2]), "euler": euler, "on": "back",
+     "pos": at(lid_frame + [-d / 2, 0, LID_T / 2]), "euler": list(euler), "on": "back",
      "mass": lid.lid_kg},
     {"id": "bracket", "shape": "box", "size": mm((PIN_AHEAD / 2 + 0.003, 0.006, 0.004)),
-     "pos": at(lid_frame + [-d - PIN_AHEAD / 2 + 0.003, 0, PIN_Z]), "euler": euler,
+     "pos": at(lid_frame + [-d - PIN_AHEAD / 2 + 0.003, 0, PIN_Z]), "euler": list(euler),
      "on": "lid", "mass": BRACKET_KG},
     {"id": "handle", "shape": "box", "size": mm((0.003, STEM_HALF_W, HANDLE_DROP / 2)),
-     "pos": at(pin_at + swing @ [0, 0, -HANDLE_DROP / 2]), "euler": hung, "on": "bracket",
+     "pos": at(pin_at + swing @ [0, 0, -HANDLE_DROP / 2]), "euler": list(hung),
+     "on": "bracket",
      "mass": HANDLE_KG[0]},
     {"id": "stem", "shape": "box", "size": mm((STEM / 2 + 0.003, STEM_HALF_W, 0.004)),
-     "pos": at(pin_at + swing @ [-STEM / 2 + 0.003, 0, -HANDLE_DROP]), "euler": hung,
+     "pos": at(pin_at + swing @ [-STEM / 2 + 0.003, 0, -HANDLE_DROP]), "euler": list(hung),
      "on": "handle", "mass": HANDLE_KG[1]},
     {"id": "knob", "shape": "box", "size": mm((KNOB, KNOB, KNOB)),
-     "pos": at(pin_at + swing @ KNOB_OFF), "euler": hung, "on": "stem",
+     "pos": at(pin_at + swing @ KNOB_OFF), "euler": list(hung), "on": "stem",
      "mass": HANDLE_KG[2]}]
   if lid.lump_kg > 0.0:
     parts.append({"id": "lump", "shape": "box", "size": mm(LUMP_HALF),
-                  "pos": at(lid_frame + [-d * lid.lump_at, 0, lid.lump_z]), "euler": euler,
+                  "pos": at(lid_frame + [-d * lid.lump_at, 0, lid.lump_z]),
+                  "euler": list(euler),
                   "on": "lid", "mass": lid.lump_kg})
   axis = [round(-s, 9), round(c, 9), 0.0]       # the chest's y in the map
   joints = [
-    {"id": "hinge", "type": "hinge", "part": "lid", "at": at(HINGE), "axis": axis,
+    {"id": "hinge", "type": "hinge", "part": "lid", "at": at(HINGE), "axis": list(axis),
      "range": [math.degrees(v) for v in HINGE_RANGE], "stiffness": lid.stiffness,
      "slack": math.degrees(lid.springref), "damping": lid.damping, "friction": lid.friction},
-    {"id": "pin", "type": "hinge", "part": "handle", "at": at(pin_at), "axis": axis,
+    {"id": "pin", "type": "hinge", "part": "handle", "at": at(pin_at), "axis": list(axis),
      "damping": PIN_DAMPING, "friction": PIN_FRICTION}]
   doc = {"parts": parts, "joints": joints}
   if lid.catch_n > 0.0:

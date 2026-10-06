@@ -14,8 +14,10 @@ catches) set what they set. The body's half of all this is
 
 What it returns is the drivers' torques and the encoders: the readings'
 EXPECTATION -- a real driver's carry its noise and its counts
-(`perception.encoders.torque_reading`), which `noise_seed` adds, keyed on
-the seed and never on the world's.
+(`perception.encoders.torque_readings`), which `noise_seed` adds, keyed on
+the seed and never on the world's. ⚠ A world MuJoCo finds unstable is reset
+in place and steps on, finite and plausible: a rollout that saw one is
+refused (`Diverged`), never returned.
 """
 
 from __future__ import annotations
@@ -32,6 +34,23 @@ from pluggybot.imagination.record import SENSED, Record
 #: s: it is put down 1 mm over the floor and its tool on its fork, and the
 #: claw settles on its peg within a second (#469's `mount`).
 SETTLE_S = 1.0
+#: MuJoCo's counters of a world it found unstable and reset: a 10 g part on
+#: a spring of 40 N*m/rad was reset 124 times in one rollout, every reading
+#: finite (the review of #473).
+UNSTABLE = (mujoco.mjtWarning.mjWARN_BADQPOS, mujoco.mjtWarning.mjWARN_BADQVEL,
+            mujoco.mjtWarning.mjWARN_BADQACC)
+
+
+class Diverged(RuntimeError):
+  """A rollout whose world went unstable and was reset: its readings are
+  not the document's."""
+
+
+def _stable(data, when: str) -> None:
+  bad = [w.name for w in UNSTABLE if data.warning[w].number > 0]
+  if bad:
+    raise Diverged(f"the world went unstable {when} ({', '.join(bad)}) and MuJoCo reset "
+                   f"it: these readings are not the document's")
 
 
 @dataclass(frozen=True)
@@ -69,6 +88,9 @@ def settled(world: Imagined, record: Record, settle_s: float = SETTLE_S) -> mujo
   if abs(record.dt - dt) > 1e-12:
     raise ValueError(f"a record is replayed a row a physics step: its dt is "
                      f"{record.dt:g} s, the world's step {dt:g}")
+  if record.start.carrying != world.carrying:
+    raise ValueError(f"the record's robot carried {record.start.carrying!r} and this "
+                     f"world's carries {world.carrying!r}: compile it with the record's")
   d = mujoco.MjData(m)
   body = _body(world, d)
   st, first = record.start, record.commands[0]
@@ -78,6 +100,7 @@ def settled(world: Imagined, record: Record, settle_s: float = SETTLE_S) -> mujo
     mujoco.mj_step(m, d)
     for hook in world.hooks:
       hook(m, d)
+  _stable(d, "settling")
   return d
 
 
@@ -102,9 +125,9 @@ def rollout(world: Imagined, record: Record, settle_s: float = SETTLE_S,
     body.read(sensed[k])
     for name, q in adr.items():
       joints[name][k] = d.qpos[q]
+  _stable(d, "in its rows")
   if noise_seed is not None:
-    from pluggybot.perception.encoders import torque_reading
+    from pluggybot.perception.encoders import torque_readings
     for c, which in ((0, "shoulder"), (1, "elbow")):
-      sensed[:, c] = [torque_reading(v, f"imagination{noise_seed}/{which}", k)
-                      for k, v in enumerate(sensed[:, c])]
+      sensed[:, c] = torque_readings(sensed[:, c], f"imagination{noise_seed}/{which}")
   return Readings(t=t, sensed=sensed, joints=joints)

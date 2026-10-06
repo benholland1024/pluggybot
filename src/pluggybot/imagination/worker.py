@@ -29,8 +29,8 @@ import sys
 import numpy as np
 
 from pluggybot.imagination.record import Record
-from pluggybot.imagination.rollout import SETTLE_S, Readings
-from pluggybot.imagination.scene import Refused
+from pluggybot.imagination.rollout import SETTLE_S, Diverged, Readings
+from pluggybot.imagination.scene import Refused, dump, parse
 
 HEADER = "__header__"
 #: One thread a worker: a BLAS's own threads only fight the physics for the
@@ -79,10 +79,11 @@ def read_frame(stream) -> bytes | None:
 
 
 def handle(blob: bytes, seed: int) -> bytes | None:
-  """One request's answer, or None for `stop`."""
+  """One request's answer, or None for `stop`. ⚠ EVERY FAILURE IS AN ANSWER:
+  one the worker did not catch ended it for every request after (a document
+  of 24 piled parts overflowed MuJoCo's arena: `FatalError`)."""
   from pluggybot.imagination.compile import compile_scene
   from pluggybot.imagination.rollout import rollout
-  from pluggybot.imagination.scene import parse
   try:
     header, arrays = unpack(blob)
   except Exception as e:                                  # noqa: BLE001
@@ -100,7 +101,9 @@ def handle(blob: bytes, seed: int) -> bytes | None:
                   noise_seed=seed if header.get("noisy") else None)
   except Refused as e:
     return pack({"ok": False, "refused": e.reasons})
-  except (ValueError, KeyError, TypeError) as e:
+  except Diverged as e:
+    return pack({"ok": False, "diverged": str(e)})
+  except Exception as e:                                  # noqa: BLE001
     return pack({"ok": False, "error": f"{type(e).__name__}: {e}"})
   head, out_arrays = out.to_wire()
   return pack({"ok": True, **head}, out_arrays)
@@ -131,47 +134,85 @@ class Imagination:
 
   def __init__(self, seed: int = 0) -> None:
     self.seed = int(seed)
+    self.closed = False
     self.process = subprocess.Popen(
       [sys.executable, "-m", "pluggybot.imagination.worker", "--seed", str(self.seed)],
       stdin=subprocess.PIPE, stdout=subprocess.PIPE, env={**os.environ, **ONE_THREAD})
 
   def _ask(self, blob: bytes) -> tuple[dict, dict]:
+    """One request and its answer. ⚠ A request cut off half way -- an
+    exception between sending it and reading its whole answer, an
+    interrupt -- ENDS THE WORKER: its answer would be left in the pipe, and
+    every request after it would read the one before's (the review of #473:
+    one behind, silently, or a hang once both outgrew the pipe)."""
+    if self.closed:
+      raise RuntimeError("this imagination is closed")
+    if self.process.poll() is not None:
+      raise RuntimeError(f"the worker has ended ({self.process.returncode})")
     try:
       write_frame(self.process.stdin, blob)
+      answer = read_frame(self.process.stdout)
     except BrokenPipeError:
-      raise RuntimeError(f"the worker has ended ({self.process.poll()})") from None
-    answer = read_frame(self.process.stdout)
+      self._end()
+      raise RuntimeError(f"the worker has ended ({self.process.returncode})") from None
+    except BaseException:
+      self._end()
+      raise
     if answer is None:
-      raise RuntimeError(f"the worker ended without an answer ({self.process.wait()})")
+      self._end()
+      raise RuntimeError(f"the worker ended without an answer ({self.process.returncode})")
     return unpack(answer)
 
   def rollout(self, document: dict, record: Record, settle_s: float = SETTLE_S,
               noisy: bool = False) -> Readings:
     """`record`'s commands replayed in the world `document` describes,
-    worked out in the worker. Raises `Refused` with the document's reasons,
-    or `RuntimeError` with the worker's."""
+    worked out in the worker. The document is read here first, as the
+    worker will read it, so a bad one is refused (`Refused`, every reason)
+    the same in either place, and what is sent is its own canonical form.
+    Raises `Diverged` for a world that went unstable, or `RuntimeError`
+    with the worker's error."""
+    canonical = dump(parse(document))
     head, arrays = record.to_wire()
-    header, out = self._ask(pack({"kind": "rollout", "document": document, "record": head,
+    header, out = self._ask(pack({"kind": "rollout", "document": canonical, "record": head,
                                   "settle_s": float(settle_s), "noisy": bool(noisy)}, arrays))
     if not header.get("ok"):
       if "refused" in header:
         raise Refused(header["refused"])
+      if "diverged" in header:
+        raise Diverged(header["diverged"])
       raise RuntimeError(header.get("error", "the worker did not say"))
-    return Readings.from_wire(header, out)
+    readings = Readings.from_wire(header, out)
+    if len(readings.t) != record.n:
+      self._end()
+      raise RuntimeError(f"the worker answered {len(readings.t)} rows to a record of "
+                         f"{record.n}: it is out of step, and ended")
+    return readings
+
+  def _end(self) -> None:
+    if self.process.poll() is None:
+      self.process.kill()
+      self.process.wait()
 
   def close(self) -> None:
+    """Asks the worker to stop, then lets go of it; a worker that has died,
+    or a second call, is no error."""
+    if self.closed:
+      return
+    self.closed = True
     if self.process.poll() is None:
       try:
         write_frame(self.process.stdin, pack({"kind": "stop"}))
-      except (BrokenPipeError, OSError):
+      except OSError:
         pass
       try:
         self.process.wait(timeout=10)
       except subprocess.TimeoutExpired:
-        self.process.kill()
-        self.process.wait()
+        self._end()
     for stream in (self.process.stdin, self.process.stdout):
-      stream.close()
+      try:
+        stream.close()
+      except OSError:
+        pass
 
   def __enter__(self) -> "Imagination":
     return self
