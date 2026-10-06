@@ -15,7 +15,8 @@ without, so the gap splits into the catch's and the rest's.
   --into FILE   the rows as JSON lines too
   --cost        what a rollout costs, ms a sim-second: in this process and
                 in the worker (`imagination.worker`), the whole probe,
-                `--reps` times
+                `--reps` times; `--parallel 1,8,16` too, that many workers
+                at once (how a fitter would use a pod)
 
 Usage:
   uv run python scripts/imagination_gap.py [--n 16] [--jobs 3]
@@ -75,7 +76,46 @@ def table(rows: list[dict]) -> None:
     print(f"{'lid apart, largest (deg)':29s}{lid}")
 
 
-def cost(reps: int) -> None:
+def cpu_share() -> str:
+  """This machine's CPU, and the share of it this process may use: a pod's
+  `os.cpu_count()` is its host's (a 32-vCPU share read 256)."""
+  model = next((line.split(":", 1)[1].strip() for line in open("/proc/cpuinfo")
+                if line.startswith("model name")), platform.machine())
+  try:
+    quota, period = open("/sys/fs/cgroup/cpu.max").read().split()
+    share = f"{int(quota) / int(period):.0f} CPUs" if quota.isdigit() else "unlimited"
+  except (OSError, ValueError):
+    share = "unlimited"
+  return f"{model}, {os.cpu_count()} CPUs seen, this process's share {share}"
+
+
+def parallel(doc: dict, record, sim_s: float, jobs: int, reps: int) -> tuple[float, float]:
+  """`jobs` workers rolling `record` out at once, `reps` times: the median
+  rollout's ms a sim-second, and the sim-seconds they cover together a
+  wall-second."""
+  from concurrent.futures import ThreadPoolExecutor
+  from pluggybot.imagination.worker import Imagination
+  workers = [Imagination(seed=k) for k in range(jobs)]
+
+  def timed(worker) -> float:
+    t0 = time.perf_counter()
+    worker.rollout(doc, record)
+    return time.perf_counter() - t0
+  try:
+    with ThreadPoolExecutor(jobs) as pool:
+      list(pool.map(timed, workers))            # each one's imports and first world
+      each, walls = [], []
+      for _ in range(reps):
+        t0 = time.perf_counter()
+        each += list(pool.map(timed, workers))
+        walls.append(time.perf_counter() - t0)
+  finally:
+    for w in workers:
+      w.close()
+  return 1000 * float(np.median(each)) / sim_s, jobs * sim_s / float(np.median(walls))
+
+
+def cost(reps: int, jobs=()) -> None:
   """A rollout's cost, ms a sim-second, on this machine."""
   from pluggybot.imagination.compile import compile_scene
   from pluggybot.imagination.rollout import SETTLE_S, rollout
@@ -87,8 +127,8 @@ def cost(reps: int) -> None:
   doc = ch.reference_document(lid, (setting.chest_x, setting.chest_y), setting.chest_yaw,
                               pin=pin)
   sim_s = record.n * record.dt + SETTLE_S
-  print(f"{platform.processor() or platform.machine()}, {os.cpu_count()} cpus; "
-        f"the oracle's probe: {record.n} rows, {sim_s:.1f} sim s with the settle")
+  print(f"{cpu_share()}; the oracle's probe: {record.n} rows, {sim_s:.1f} sim s "
+        f"with the settle")
   t0 = time.perf_counter()
   world = compile_scene(parse(doc), carrying="module_claw")
   print(f"parse + compile: {1000 * (time.perf_counter() - t0):.1f} ms")
@@ -117,6 +157,10 @@ def cost(reps: int) -> None:
     ms = 1000 * float(np.median(times)) / sim_s
     print(f"{label}: {ms:.1f} ms a sim-second (median of {reps}; "
           f"{1000 * min(times) / sim_s:.1f}-{1000 * max(times) / sim_s:.1f})")
+  for j in jobs:
+    ms, rate = parallel(doc, record, sim_s, j, reps)
+    print(f"{j} workers at once: {ms:.1f} ms a sim-second each; together "
+          f"{rate:.0f} sim-seconds a wall-second")
 
 
 def main(argv=None) -> None:
@@ -127,9 +171,11 @@ def main(argv=None) -> None:
   ap.add_argument("--into", default=None)
   ap.add_argument("--cost", action="store_true")
   ap.add_argument("--reps", type=int, default=5)
+  ap.add_argument("--parallel", default="",
+                  help="with --cost: worker counts to roll out at once, comma-separated")
   args = ap.parse_args(argv)
   if args.cost:
-    return cost(args.reps)
+    return cost(args.reps, [int(j) for j in args.parallel.split(",") if j])
   # each chest in a process of its own (`mechanism_spike.run_pool`'s rule)
   with Pool(max(1, args.jobs), maxtasksperchild=1) as pool:
     rows = pool.map(one, range(args.n), chunksize=1)
