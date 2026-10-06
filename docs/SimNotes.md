@@ -3456,12 +3456,11 @@ standoff: computed off the dock's frame, two rail bays' approaches were
 
 ## Opening a box from lying (issue #469)
 
-#466's first demo has the robot model a mechanism from its own senses. It
-assumed the arm could open a lidded box from the claw's lying stance and
-measure the lid through its drivers; this spike measured whether
-(`scripts/mechanism_spike.py` flies every table here). Three candidates,
-each alone with one robot in the house's empty storeroom, never in the
-served world:
+#466's first demo has the robot model a mechanism from its own senses. This
+spike measured whether the arm can open one from the claw's lying stance,
+and what its drivers' torques tell about it (`scripts/mechanism_spike.py
+--all --into DIR` flies every table here, 8 minutes on a 32-vCPU pod). Three
+candidates, each alone with one robot in the house's empty storeroom:
 - a box (0.22 × 0.30 × 0.14 m, 12 mm board) whose lid is lifted by a **drop
   handle**: a knob the size of the claw's cube on an L hung from its own pin
   at the lid's front edge, so the grip does not turn as the lid does;
@@ -3469,137 +3468,168 @@ served world:
   crossbar, a finger notch taking the claw's pendant;
 - a low **drawer** pulled straight back by a knob.
 
-The robot lies with the claw on its fork and the knob 0.46 m ahead: the
-lid's arc carries it 0.16 m further and 0.22 m up, and with the knob 0.60 m
-ahead the arm reaches only 66° of it.
+The robot lies with the knob 0.46 m ahead; the lid's arc carries it 0.16 m
+further and 0.22 m up. The lids end up to 3° short of the 69° asked (4° at
+Kp 8), the arm giving under their weight; with the knob 0.60 m ahead, the
+arm's reach stops the lid at 66°.
 
-**A walk-in leaves the box within a centimetre and 1.4°** (`--walkin`: the
-claw's own tag-steered walk-in to a cube, 16 starts jittered 0.1 m and 8°
-round its look point). The 14 that saw the cube lay down on their first try,
-the cube 0.529–0.544 m ahead (sd 5 mm), −2..+17 mm across, the heading
-−1.4..+0.2° off the line walked in on; two never saw it from their start.
-Every table below sets the box out at those 14 stances.
+**A walk-in leaves the box within 17 mm across and 1.4°** (`--walkin --n
+16`: the claw's tag-steered walk-in to a cube, its starts jittered 0.1 m and
+8° round its look point). 14 of the 16 saw the cube on the dev box's GPU, 15
+under osmesa's llvmpipe, and each lay down on its first try: the cube
+0.529–0.545 m ahead (sd 5.5 mm), −2..+17 mm across, the heading −1.4..+0.2°
+off the line walked in on. Every table below sets the box out square and at
+the GPU's 14 (`WALKIN`). The walk-in stops 0.54 m from what it steers by
+(`claw.LIE_AT_M`), 8 cm past the knob's 0.46.
 
 **The claw on its fork is a pendulum: it holds a push down or toward the
-robot, and little else** (`--window`: a push at the jaws' middle, ramped 0.25 N/s, the claw at its
-working pose):
+robot, and little else** (`--window`: a push at the jaws' middle, ramped
+0.25 N/s to 6 N; a swing is + with the jaws away from the robot):
 
-| push at the jaws | holds | swings 10° | leaves its seat |
+| push at the jaws | holds | swings 10° at | leaves its seat at |
 |---|---|---|---|
-| down | 6 N and more | – | – |
-| toward the robot | 3 N, on the lean-pad at 4–6° | 3.45 N, then sits at 15° | no |
-| away from the robot | nothing: 31° at 0.5 N, 50° at 1 N | 0.15 N | no |
-| up | ~0.9 N | 0.97 N | 1.16 N, and stays off after |
+| down | 6 N, the ramp's end | – | – |
+| toward the robot | 3 N, on the lean-pad at 4–6° | 3.45 N, then sits at −15° | – |
+| away from the robot | nothing: +31° at 0.5 N, +50° at 1 N | 0.15 N | – |
+| up | ~0.9 N | 0.97 N | 1.16 N, and stays off |
 | sideways | – | – | 1.04 N |
-| lift through its centre of mass | – | – | 2.36 N, its weight |
+| up through its centre of mass | – | – | 2.36 N, its weight |
 
 The claw (0.239 kg) hangs its centre of mass 61 mm under the peg and its
-jaws 175 mm under it. So the 2.3 N that lifts it is a lift through that
-centre of mass; pushed up at the jaws it is an inverted pendulum, beaten at
-W·61/175 ≈ 0.8 N, and it tips onto the lean-pad and rolls out of its V's.
-Sideways it rolls off one V at W·85/175 ≈ 1.1 N, and away from the robot it
-has nothing to lean on. This is the push a tool may exert that #407 left
-unmeasured.
+jaws 175 mm under it: pushed up at the jaws it is an inverted pendulum,
+beaten at W·61/175 ≈ 0.8 N, and sideways it rolls off one V at
+W·85/175 ≈ 1.1 N, 85 mm being half the V's spacing. ToolPattern's "What a
+tool may push" carries the rule. A claw holding a knob is not this free
+pendulum: its jaws are tied to the mechanism, and what must hold is the grip
+and the handle's tension.
 
-**The candidates** (`--table`: 15 set-outs, square and the walk-in's 14; the
-path on the true arc, swept open and back at 0.25 rad/s or 0.03 m/s):
+**The candidates** (`--table --n 15`: square and the walk-in's 14, at Kp 60
+and 15, the path on the true arc, swept open and back at 0.25 rad/s or
+0.03 m/s):
 
-| candidate | opened (69° or 0.12 m asked) | most on the claw, N: up / down / toward / away / side | the claw's swing |
+| candidate, Kp 60 (Kp 15) | opened, of 69° or 0.12 m | most on the claw, N: up / down / toward / away | the claw's swing |
 |---|---|---|---|
-| drop handle | 65.8–66.1° (Kp 15: 64.8–65.2°) | 0.53 / 3.44 / 2.26 / 1.44 / 0.02 | −4.1..+1.4° |
-| under the lip | 68.0–68.2° (67.1–67.3°) | 0 / 3.22 / 1.17 / 0.29 / 0.07 | −3.9..+2.2° |
-| drawer | 0.086–0.104 m | 1.22 / 1.0 / 1.71 / 1.21 / 0.03 | −3.9..+11.7° |
+| drop handle | 67.0–67.1° (65.8–66.1°) | 0.11 / 1.87 / 0.77 / 0.25 (0.62 / 1.83 / 1.06 / 0.33) | −3.9..+1.1° (+2.8°) |
+| under the lip | 68.0–68.2° (67.1–67.4°) | 0 / 3.16 / 1.04 / 0.28 (0 / 3.01 / 1.13 / 0.26) | −3.9..+1.1° (+2.2°) |
+| drawer | 87–104 mm (85–104 mm) | 1.39 / 1.03 / 2.06 / 1.19 (0.80 / 0.67 / 1.09 / 1.17) | −3.9..+11.3° (+11.8°) |
 
-All 90 tries, at Kp 60 and Kp 15, took hold, opened, shut again and kept the
-claw seated throughout; the knobs never left the jaws. The drawer pulls the
-jaws away from the robot, the side with nothing to lean on: the claw swings
-10–12° on its peg, the drawer lags its command 16–34 mm, and at either gain
-12 of the 15 opened less than 0.10 m.
+Every try took hold, kept the claw seated and shut again, and no knob slid
+more than 1.6 mm along the pads. Both lids opened past 57° (`OPENED`) every
+time. The drawer pulls the jaws away from the robot, the side with nothing
+to lean on: the claw swings 11–12° on its peg, the drawer lags its command,
+and only the 3 of each gain's 15 set out square to it (within 0.05°)
+reached 0.10 m.
 
 **The arm must be compliant past a centimetre of error** (`--tolerance`:
-the hinge guessed off, its radius long or short; the drawer's pull rising or
-falling over its travel; Kd kept at its damping ratio):
+the path planned off a hinge guessed with its radius long or short, or a
+drawer's pull rising or falling over its travel; Kd kept at its damping
+ratio; 5 set-outs a cell for the handle, 3 for the others). The criterion is
+the coupling's: the claw's seat may not open longer than the peg's 200 ms
+holding capacitor, or the tool loses power.
 
 | path off | Kp 60 | Kp 30 | Kp 15 | Kp 8 |
 |---|---|---|---|---|
-| handle, radius 1 / 2 / 4 cm short | seat open 18 / 230 / 494 ms, 2.4–2.5 N up | 82 / 20 / 70 ms | 6 ms each | never open |
-| handle, 1–4 cm long | never open | never | never | never |
-| lip, 4 cm short to 2 cm long | never open | never | 2 ms at most | never |
-| lip, 4 cm long | 550 ms, 12 N up | 446 ms | 264 ms | 26 ms, 7 N up |
-| drawer, pull 1 / 2 / 4 cm low | seated 97 / 81 / 48 % | 100 / 93 / 62 % | 100 / 100 / 90 % | 100 / 100 / 99.9 % |
-| drawer, pull 4 cm high | 12.6 N down on the knob | 6.5 N | 3.3 N | 1.8 N |
+| handle, radius 1 cm short or long | held | held | held | held |
+| handle, 2 cm short | seat open over 200 ms in 3 of 5 (to 1.2 s), 2.4 N up | held | held | held |
+| handle, 4 cm short; the lid stops at 55–57° | 4 of 5 (to 2.2 s) | 3 of 5 (to 1.5 s) | 2 of 5 (to 0.4 s) | held |
+| handle, 4 cm long | 1 of 5 (0.22 s), 8.7 N down | held, 5.2 N down | held, 2.9 N down | held, 1.8 N down |
+| lip, 4 cm short to 2 cm long | held | held | held | held |
+| lip, 4 cm long | 3 of 3 (to 0.59 s), 12 N up | 3 of 3 (0.48 s) | 3 of 3 (0.30 s) | held, 7.5 N up |
+| drawer, pull 1 / 2 / 4 cm low | 1 / 3 / 3 of 3 (to 7.5 s) | held / 3 / 3 | held / held / 3 | held / held / 1 |
+| drawer, pull 4 cm high | 2 of 3 (0.5 s), 12.6 N down | held, 6.6 N down | held, 3.5 N down | held, 1.9 N down |
 
-A radius guessed short drives the handle's pin inside its arc: the stiff arm
-lifts the claw past its weight, and from 2 cm short its seat opens longer
-than the peg's 200 ms holding capacitor. Under the lip the path may err short (the lid
-rests lower on the crossbar) but not long: 4 cm long, the jaws reach past
-the lip's edge and catch it at every gain. The arm is stiffer than #466
-guessed: at Kp 60 it is 600–1,100 N/m vertically and 1,100–1,800 fore-aft at
-the knob's poses (the gains through the arm's Jacobian), so a centimetre
-into something rigid is 6–18 N, not 2; at Kp 8, 80–150 and 140–250 N/m. The
-GIM8108-8's MIT mode takes a stiffness and a damping with every command, and
-the gravity feed-forward holds the arm up at any gain, so the sweeps fly at
-Kp 8–15. That costs lag: the lid ends 1–2° short of the stiff arm's, and a
-catch needs the target further ahead (below).
+A radius guessed short drives the handle's pin inside its arc and the stiff
+arm lifts the claw off its seat; guessed long, it hauls the claw down, which
+the claw holds. Under the lip a short guess only lets the lid rest lower on
+the crossbar; a long one reaches past the lip's edge and catches it. The arm
+is stiffer than #466 guessed: at Kp 60, 600–1,100 N/m vertically and
+1,100–1,800 fore-aft at the knob's poses (the gains through the arm's
+Jacobian), so a centimetre into something rigid is 6–18 N, not 2; at Kp 8,
+80–150 and 140–250 N/m. The GIM8108-8's MIT mode takes a stiffness and a
+damping with every command, and the gravity feed-forward holds the arm up
+at any gain. **Demo 1 sweeps at Kp 8**, where a hinge guessed within 4 cm
+keeps the claw seated and adds no force (Kp 15 holds one 2 cm short or 4 cm
+long); the torques read the force there as well as at Kp 60, and the fit
+nearly as well. The cost is lag: the lid ends 4° short, and a catch lets go
+only once the command has run ahead of the shut lid.
 
 **The force at the tool off the torques** (`legs.arm.tool_force`;
-`--torques`). The plate only translates, so the motors read a force through
-the peg as they would one at the wrist: the readings, less the driver's
-gravity model with its claw the payload, through the Jacobian of what the
-motors drive (the shoulder's angle and the forearm's absolute one). Held
-still with the bench's known cube, the readings put its weight straight
-down within 2.3 % at three poses (`tests/test_arm.py`). Moving, the error
-is the arm's own Coulomb friction (`ARM_FRICTION_NM` and the passive
-pivots, 0.10–0.12 N·m a motor): 0.40–0.44 N at the tool along a lid's arc,
-the size of the lid's own forces. An empty sweep along the same path finds
-it -- the readings beyond the gravity model, signed by each joint's rate --
-and subtracted where both joints turn, the force off the readings lies
-within 0.05–0.06 N fore-aft and 0.025 vertical of the contact force (RMS
-over 0.1 s; a single reading, 0.15). Inside a joint's friction band (slower
-than 0.02 rad/s) the error is 0.15–0.19 N. The drawer's pull is the arm's
-weak axis: 0.21 N moving, 0.95 in the band.
+`--torques --kp 60,15,8`). The plate only translates, so the motors read a
+force through the peg as they would one at the wrist: the readings, less the
+driver's gravity model with its claw the payload, through the Jacobian of
+what the motors drive (the shoulder's angle and the forearm's absolute one).
+Held still with the bench's cube and a known push, they put its weight
+within 3 % at three poses (`tests/test_arm.py`). Moving, the error is the
+arm's own Coulomb friction (`ARM_FRICTION_NM` and the passive pivots,
+0.10–0.12 N·m a motor): 0.39–0.46 N at the tool along a lid's arc, the size
+of the lid's own forces. An empty sweep along the same path finds it
+(`legs.arm.arm_friction`: the readings beyond the gravity model, signed by
+each joint's rate). It was flown with the box lifted out of reach, which a
+robot cannot do, but the sim's friction is a constant, so a robot calibrates
+it once, anywhere (two paths read the forearm 0.02 N·m apart). Subtracted
+wherever a joint turns
+(`legs.arm.less_friction`) it leaves the force within 0.04–0.06 N fore-aft
+and 0.03–0.04 N vertical of the contact force while both joints turn, at
+every gain -- an RMS of 0.1 s means: a single reading scatters 0.10–0.15 N,
+and the worst 0.1 s mean was 0.29 N. Inside a joint's friction band (slower
+than 0.02 rad/s, as where the sweep turns) the friction's sign is unknown:
+0.31–0.38 N fore-aft, 0.17–0.20 vertical. The drawer pulls fore-aft at a
+pose where that is the torques' least accurate axis: 0.12–0.21 N moving.
 
-**What the sweeps resolve** (`--fit`: an oracle that knows the lid's angle
-and the handle's pin turns the force into the torque about the hinge and
-fits the lid's gravity -- with its centre of mass's height over the hinge's
-line, a sine -- a spring and its preload, Coulomb friction, damping and
-inertia; 8 set-outs drawn seeded, every other with a spring; swept up and
-down over 5–69° at 0.15 and 0.45 rad/s):
+**What the sweeps resolve** (`--fit --n 8 --corners --twins --kp 60,15,8`).
+An oracle that knows the lid's angle and the handle's pin (the robot has only
+its arm's pose, and the claw swings ±4° on its peg, 12 mm at the knob) turns
+the force into the torque about the hinge. It fits the lid's gravity (with
+its centre of mass's height off the hinge's line, a sine), a spring and its
+preload, Coulomb friction, damping and inertia to sweeps up and down over
+5–69° at 0.15 and 0.45 rad/s. Of the 8 set-outs drawn seeded every other one
+has a spring, so each figure is over 4: the error against the truth, its
+median and (worst):
 
-| parameter | off the torques | off the contact force |
-|---|---|---|
-| gravity torque, no spring | 2.0 % (median; worst 5.9) | 0.6 % (3.5) |
-| ...without its centre of mass's height | 3.5 % (3.7), a bias | 3.5 % (3.6) |
-| Coulomb friction | 0.003 N·m (7 %) | 0.002 |
-| damping | 0.004–0.006 N·m·s/rad (11–17 %) | 0.003–0.004 |
-| gravity torque, with a spring | 21 % (24) | 1.9 % (2.3) |
-| the spring's stiffness | 73 % (207) | 48 % (119) |
-| their sum at 11°, 34°, 57° | within 0.009 N·m | 0.002 |
-| the lid's inertia | 5–9× too big: the arm's own | 26–34 % |
+| what is fitted | off the torques, Kp 15 | Kp 60 / Kp 8 | off the contact force |
+|---|---|---|---|
+| gravity torque, no spring | 2.2 % (3.0) | 1.5 / 2.5 % | 0.3–0.5 % |
+| ...without its centre of mass's height | 3.8 % (4.0), a bias | 3.6 / 3.5 % | 3.4–3.6 % |
+| Coulomb friction (0.04–0.11 N·m) | 0.002 N·m (0.002) | 0.003 / 0.001 | 0.002 N·m |
+| damping (0.007–0.15 N·m·s/rad) | 0.010 (0.010) | 0.004 / 0.012 | 0.003 |
+| gravity torque, with a spring | 31 % (32) | 25 / 33 % | 1.4–2.5 % |
+| the spring's stiffness | 211 % (505) | 147 / 202 % | 78–101 % |
+| their sum at 11°, 34° and 57° | 0.012 N·m (0.012) | 0.009 / 0.013 | 0.0025 N·m |
+| the lid's inertia | 5–9 times too big: the arm's own | the same | 14–51 % high |
 
-Friction is the gap between up and down, and damping that gap growing from
-one rate to the other: both separate. Gravity and a spring do not -- over
-5–69° a cosine, a line and a constant correlate 0.98–0.998, so their sum is
-pinned and the split wanders. The inertia in the readings is the arm's own,
-5–9 times the lid's at the hinge. And **mass never separates from its lever
-arm**: in the slow sweeps the two columns of m·g·r·cos θ correlate 1.0000.
-Turning a lid on its hinge shows only the moments of its mass, Σmr in
-statics and Σmr² in dynamics, never Σm, so its mass needs an assumption
-about where the mass sits whatever the probe.
+Friction is the gap between the sweeps up and down, and damping that gap
+growing from one rate to the other: both separate. Gravity and a spring do
+not: over 5–69° the fitted coefficients of a cosine, a line and a constant
+correlate 0.98–0.998, so their sum, the static torque curve, is pinned and
+the split wanders.
+
+**Mass never separates from its lever arm.** Turning a lid on its hinge
+shows its mass only as moments, Σmr in statics and Σmr² in dynamics, never
+Σm. Two lids of one first moment (`TWINS`: the 0.30 kg board alone, and half
+the board with 0.079 kg at its front edge) read the same gravity torque to
+0.0002 N·m at every gain, off the torques and off the contact force. Only
+their inertia about the hinge differs, by 18 %: the contact force resolves
+the difference (+0.0010 kg·m², the truth +0.0010) though not either one
+(both 0.003 high, the handle's own), and the torques read it 0.0006–0.0015.
+So a lid's mass needs an assumption about where the mass sits, whatever the
+hinge allows a probe to do.
 
 **A catch** (`--latch`: a magnetic catch of 1–4 N at the knob, its pull
-falling as (1 + gap/0.5 mm)⁻², the mechanism pulled from shut at 0.15 rad/s).
-All 24 let go, and the force at release off the torques was within 0.15 N of
-the truth (4 %): 3.3–6.8 N on the handle, the catch with the lid's own
-weight and friction. The jolt lifts nothing: the mechanism never ran ahead
-of the arm, and after the release the claw was pushed up at most 0.43 N,
-swung at most 10° and stayed seated. A compliant arm pulls only as its
-target runs ahead of a shut lid: at Kp 15 a 4 N catch let go with the target
-0.84 rad past it.
+falling as (1 + gap/0.5 mm)⁻², pulled from shut at 0.15 rad/s or 0.015 m/s,
+at Kp 60 and 15). All 24 let go. On the lids the force at release off the
+torques was within 0.36 N of the truth (2.8–5.9 N: the catch with the lid's
+own weight); the handle's knob slid at most 0.5 mm along the pads; the claw
+swung at most 6° pulling and 10° after, was pushed down rather than lifted
+at the release, and stayed seated. A compliant arm pulls only as its command
+runs ahead of the shut lid: at Kp 15 a 4 N catch let go with the command
+0.16 rad open, at Kp 60 at 0.05. On the drawer the release read 0.3–0.5 N
+high at 1–2 N, and a 3–4 N catch swung the claw 14–23° and left the drawer
+36–58 mm out of the 100 asked.
 
 **The choice is the drop handle.**
-- It loads the claw only where the claw holds -- down, and onto the
-  lean-pad -- while the lid shuts harder than it is held open.
+- It opens from every stance at every gain, and keeps the claw seated along
+  a hinge guessed 4 cm off at Kp 8. Under the lip, a radius guessed long
+  catches the lip's edge; a drawer's pull unseats the claw from 2 cm low.
 - Its grip drives the lid both ways, so the sweeps up and down at two rates
   are the robot's own; under the lip, the lid follows the jaws down by its
   own weight or not at all.
@@ -3607,33 +3637,54 @@ target runs ahead of a shut lid: at Kp 15 a 4 N catch let go with the target
   is the lid's geometry; under the lip, the contact slides across the
   crossbar's 16 mm.
 - The drawer measures no gravity torque, pulls its claw onto the side with
-  no stop, and puts its force on the arm's weakest axis.
+  no stop, reaches 0.10 m in 6 of 30 tries, and puts its force on the
+  torques' least accurate axis.
 
-⚠ **A drop handle only pulls.** A set-out whose spring beat the lid's weight
-near the top pushed the handle back at the claw on the fast sweep down: it
-swung 72° on its peg and rubbed the lid. Every set-out shuts by at least
-0.05 N·m (0.2 N at the knob) at every angle swept on the fast sweep down
-(`mechanism_spike.CLOSING_MARGIN_NM`).
+⚠ **A drop handle only pulls.** A lid whose spring beats its weight near the
+top pushes the handle back at the claw on the way down: the `open` corner
+(by 0.15 N·m) swung it 9–14° on its peg, where no shut lid swung it past 8°,
+though it stayed seated. Demo 1's lids are drawn shut by at least 0.05 N·m
+(0.2 N at the knob) at every angle swept on the fast sweep down, the centre
+of mass's height counted (`mechanism_spike.CLOSING_MARGIN_NM`, `draw`).
 
-**Demo 1's hidden parameters**, inside what the claw does: the board
-0.15–0.45 kg and a hidden weight to 0.15 kg anywhere 20–90 % of the way to
-the front edge (gravity torques of 0.27–0.59 N·m); Coulomb friction to
-0.12 N·m; damping to 0.20 N·m·s/rad; a catch of 1–3 N at the knob; and a
-spring only as weak as that margin allows -- gravity's cosine at 69° is
-0.36 -- scored as part of the static torque curve, since the sweeps cannot
-split it from gravity. The grip held every pull flown, to 6.8 N at the knob:
-`bench.MAX_KG`'s 0.40 kg is a shaken cube's creep, not a pull.
+**Demo 1's hidden parameters** (`draw`): the board 0.15–0.45 kg and a hidden
+weight to 0.15 kg anywhere 20–90 % of the way to the front edge; Coulomb
+friction to 0.12 N·m; damping to 0.20 N·m·s/rad; a spring to 0.15 N·m/rad on
+every other lid; a catch of 1–4 N at the knob. They are drawn TOGETHER: a lid
+is kept only if it shuts by 0.05 N·m everywhere swept, which ties them --
+with no spring, roughly friction + 0.45 × damping ≤ 0.36 × gravity torque −
+0.05, 0.36 being 69°'s cosine -- so the springs drawn come out weak
+(0.01–0.05 N·m/rad), and are scored as part of the static torque curve.
+Flown: the 8 drawn lids (gravity torques 0.36–0.61 N·m) and the corners past
+them (`light`, 0.17 N·m and frictionless; `heavy`, 0.79 N·m with friction
+0.12 and damping 0.18; `springy`), each at Kp 60, 15 and 8, every one held
+and read. The catch stops at 4 N because that is what was flown: the pull
+at release reached 5.9 N at the knob, and the grip held it with 0.5 mm of
+slip.
 
-**No new sensor for demo 1.** The torques resolve the force at the tool, the
-gravity torque, friction, damping and the catch. What they cannot see -- the
-lid's inertia, and a joint inside its friction's band -- is what a load cell
-in the claw's wrist would buy, and no hidden parameter here needs either.
+**No new sensor for demo 1.** The torques resolve the force at the tool,
+the gravity torque, friction, damping and the catch. What they cannot see is
+the lid's inertia (the arm's own is 5–9 times it) and a joint inside its
+friction band: a load cell in the claw's wrist would buy both, and no hidden
+parameter here needs either. ⚠ That is the SIM's friction, so an upper bound
+on hardware (Evaluation.md, "Practised in MuJoCo, graded in MuJoCo").
+`ARM_FRICTION_NM` is a constant, where a real actuator's grows with its load
+(Katz's 0.09 + 4 % of load, the legs' nominal), and no empty sweep sees that
+part. MuJoCo's soft friction creeps away under a held load, where real
+stiction holds up to 0.4 N of it at the tool, so the test's 3 % held still
+is the algebra's.
+
+⚠ **The jaws go down onto a knob only once the claw hangs still**
+(`SWING_SETTLE_S`, 1 s): straight after a short approach at Kp 60 it swung
+3° on its peg, its crossbar landed on the handle's bracket, and every Kp 60
+grip after an empty sweep failed.
 
 **What is true now:** the force at the tool is `legs.arm.tool_force`, off
-the readings less the driver's gravity and, where both joints turn, their
-friction from an empty sweep. Demo 1's mechanism is the drop-handle lid of
-`scripts/mechanism_spike.py` (`mechanism_xml(Mech(kind="handle"))`), its
-hidden parameters drawn shut-biased (`draw`), swept at Kp 8–15.
+the readings less the driver's gravity and, wherever a joint turns, the
+friction an empty sweep found (`legs.arm.arm_friction`, `less_friction`).
+Demo 1's mechanism is the drop-handle lid of `scripts/mechanism_spike.py`
+(`mechanism_xml(Mech(kind="handle"))`), its hidden parameters drawn
+shut-biased (`draw`), swept at Kp 8.
 
 ## Debugging workflow that worked
 

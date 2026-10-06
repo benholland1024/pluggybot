@@ -32,7 +32,8 @@ of it as a walk-in leaves it (`--walkin`), inside the claw's reach.
   --fit         the oracle fit: code that knows the truth fits the lid's
                 gravity torque, spring, friction and damping to readings
                 over sweeps up and down at two speeds, over `--n` set-outs;
-                and mass against its lever arm
+                `--corners` past the drawn ranges, and mass against its lever
+                arm (`--twins`: two lids of one first moment)
   --latch       a magnetic catch: its release force off the torques, and
                 the jolt of its release
   (default)     a filmstrip of each candidate opening, mechanism_spike.png
@@ -716,8 +717,9 @@ def walkin_one(k: int) -> dict:
 
 
 #: MEASURED (`--walkin --n 16`): where the claw's walk-in left a cube from
-#: the lying robot, the 14 that saw it from their start (two starts turned
-#: away never did) -- ahead less `claw.LIE_AT_M` and across (m), and the
+#: the lying robot, the 14 that saw it from their start on the dev box's GPU
+#: (two starts turned away never did; under llvmpipe 15 did, as spread) --
+#: ahead less `claw.LIE_AT_M` and across (m), and the
 #: heading against the line walked in on (deg); each lined up on its first
 #: try. The table sets each try's box out at one, re-centred on `LIE_AT_M`.
 WALKIN = ((-0.0085, 0.0077, -0.50), (0.0044, 0.0167, -0.87), (0.0042, 0.0071, -0.10),
@@ -940,8 +942,9 @@ FIT_MODELS = {"gravity": [0, 4, 5], "gravity+height": [0, 1, 4, 5],
 #: push away from the robot (`--window`), so a lid must close harder than
 #: its spring, friction and damping hold it open, at every angle swept and
 #: the faster rate -- by this much, N*m at the hinge (0.2 N at the knob). A
-#: set-out whose spring won near the top pushed the handle back at the claw
-#: on the fast sweep down: it swung 72 deg on its peg and rubbed the lid.
+#: lid whose spring beat its weight near the top (`open`, by 0.15 N*m)
+#: pushed the handle back at the claw on the way down: it swung 9-14 deg on
+#: its peg, where no shut lid swung it more than 8.
 CLOSING_MARGIN_NM = 0.05
 
 
@@ -1121,7 +1124,8 @@ CORNERS = {
 }
 #: Two lids with one first moment of mass and different masses: the board
 #: alone (0.300 kg), and half the board with a weight out at its front edge
-#: and up at its top face (0.229 kg, its inertia about the hinge 21 % more).
+#: and up at its top face (0.229 kg; with the handle's bracket, its inertia
+#: about the hinge 18 % more).
 TWINS = {
   "twinA": Mech(kind="handle", lid_kg=0.30, friction=0.03, damping=0.03),
   "twinB": Mech(kind="handle", lid_kg=0.15, lump_kg=0.0789, lump_at=0.95, lump_z=0.0114,
@@ -1131,7 +1135,8 @@ TWINS = {
 
 #: The latch's pull: along the path to here (rad, or m), slowly -- a
 #: compliant arm builds its pull only as its command runs ahead of a shut
-#: lid: at Kp 15 a 4 N catch held until the command was 0.84 rad open.
+#: lid: at Kp 15 a 4 N catch held until the command was 0.16 rad open
+#: (Kp 60: 0.05).
 LATCH_TOP = {"handle": 1.0, "lip": 1.0, "drawer": 0.10}
 LATCH_RATE = {"handle": 0.15, "lip": 0.15, "drawer": 0.015}
 
