@@ -453,6 +453,10 @@ CTRL_WRITERS = {
   # their joints' compiled rest (the stow), where a recompile starts them
   # at 0; never a running servo's setpoint.
   "workshop/seam.py",
+  # issue #466: the imagined body (`legs.imagined`) -- a record's commands,
+  # ramped by the robot that sent them, replayed into a world of the
+  # robot's own imagining, never the world.
+  "legs/imagined.py",
 }
 
 
