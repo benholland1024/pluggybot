@@ -239,10 +239,53 @@ save a filmstrip PNG named after the script.
 | `scripts/dock_spike.py` | the quadruped's dock (#378; SimNotes "The quadruped's dock"): `--capture` the funnel's envelope (premises `--sticky`, `--flat`), `--approach [--n N]` the success rate walking in by the board (premise `--blind`), `--hold` lying there: contact, preload, the anchor, standing off; `--view` dockings in the viewer, one after another; `--mouth`/`--bed` fly another width; filmstrip `dock_spike.png` |
 | `scripts/draw_spike.py` | drawing on a whiteboard with the arm (#406; SimNotes "Drawing on legs"): the served body, the pen on its fork, walks to the board, lies down, finds its face by touch and draws; `--figure square\|house\|answer:NN ...`, `--board`, `--stance stand` (the premise), `--n N`; `--sway [--stance lie,stand]` the stance table; filmstrip `draw_spike.png` |
 | `scripts/arm_spike.py` | the quadruped's arm, its coupling and the rack (#378; SimNotes "The quadruped's arm, its coupling and the rack"): `--reach` the level-tool choice and the holding torques, `--capture` the coupling's envelope placed at a bay (premises `--rover`, `--narrow`), `--approach [--n N]` walking in by the rack's tags and taking a tool, `--retention [--stairs [--first]\|--fall]` carrying one (`--first`: the fork as first built, 45° V's, the stairs' premise), `--getup` the get-up policy with the arm, `--sensors` what the arm hides, `--envelope` a tool's mass and lever, `--served [--pair] [--n N]` the SERVED body fetching and stowing at the house's rack from the dock and from across the house (#405), `--pair --bays A,B\|A,C\|A,A` the pair at neighbouring bays, two apart, or one (the bay wait, #418); `--view [fetch\|carry\|stairs\|fall\|reach]` a scene in the viewer, looped until the window closes (MUJOCO_GL unset); filmstrip `arm_spike.png` |
-| `scripts/mechanism_spike.py` | what the arm can open from the claw's lying stance and what its torques measure (#469, #466's stage 0; SimNotes "Opening a box from lying"): a lid lifted by a drop handle, a lid lifted from under its lip and a drawer, each in the storeroom, never the served world. `--walkin` the spread the claw's walk-in leaves, `--window` the push the claw on its fork holds each way, `--table` the candidates, `--tolerance` the path off the true arc at four gains, `--torques` the force at the tool off the drivers (`legs.arm.tool_force`) against the contact force, `--fit` the oracle fit (`--corners` past the drawn ranges, `--twins` mass against its lever), `--latch` a magnetic catch; `--all --into DIR` the whole batch behind the report, a file a mode (a CPU pod's work, below); filmstrip `mechanism_spike.png` |
+| `scripts/mechanism_spike.py` | what the arm can open from the claw's lying stance and what its torques measure (#469, #466's stage 0; SimNotes "Opening a box from lying"): a lid lifted by a drop handle (the chest's, `activity/chest.py`, which it imports), a lid lifted from under its lip and a drawer, each in the storeroom, never the served world. `--walkin` the spread the claw's walk-in leaves, `--window` the push the claw on its fork holds each way, `--table` the candidates, `--tolerance` the path off the true arc at four gains, `--torques` the force at the tool off the drivers (`legs.arm.tool_force`) against the contact force, `--fit` the oracle fit (`--corners` past the drawn ranges, `--twins` mass against its lever), `--latch` a magnetic catch; `--all --into DIR` the whole batch behind the report, a file a mode (a CPU pod's work, below); filmstrip `mechanism_spike.png` |
+| `scripts/imagination_gap.py` | the scene language's own gap (#466's stage 1; SimNotes "The imagination's first world"), no robot flying: over drawn chests (`--n`), the oracle's probe through the world's chest and through its best-expressible reference, with its catch and without, the force at the tool apart phase by phase; `--cost` what a rollout costs, ms a sim-second, in this process and in the worker |
 
 - **The quadruped's training stack lives in `training/`, a uv project of its own** (#377): mjlab 1.5.x (it pins `mujoco ~=3.10.0`, the served sim's), reading the body from `models/quadruped.{xml,json}` (`python -m pluggybot.legs.model` writes both; mjlab caps numpy below pluggybot's, so the two never share an environment), the arm FIXED at its stow (`quad_train.robot.freeze_arm`, #405: a policy's joints are the legs' twelve, and the arm's geometry is there to fall on). ⚠ Importing `legs.policy` or `legs.model` loads none of torch, jax, warp, onnx or mjlab (`tests/test_legs.py`); a policy reaches the served sim as an `.npz` that `quad_train.export` checks against its ONNX before writing, run by `legs/policy.py` in numpy. ⚠ The leg DRIVERS are MuJoCo's position-mode `dcmotor` (#385; `body_xml(drive="position")`), the PD and the envelope in C, commanded as a GDS68 is (`legs/drivers.py`): every command carries its gains — a policy's are its own, a routine's torque rides a target with the damping cancelled (the torque motor's step to 1e-14), `limp()` holds nothing — so a policy and the scripted routines share one body. The default gains are ONE definition, `actuator.driver_gains`, which `training/` reads from `quadruped.json`. `drive="torque"` (plain motors) is the sizing tables' instrument. `training/pod.sh` rents a Runpod GPU to train on, or CPUs to fly a batch (`create-cpu`), over the REST API (`runpodctl pod create` needs a GraphQL-writable key) — ⚠ a POST to `/v1/pods` with an EMPTY body CREATES a pod: every field has a default.
 - ⚠ **A batch of flights runs on a rented pod's CPUs or under a memory cap, never bare on the dev box** (#469: six house worlds at once took it into swap and its desktop down overnight, 2026-10-06): `training/pod.sh create-cpu` → `setup-sim` (the commit, never the working tree) → `batch` → `pull-batch`, then `delete`; locally, `systemd-run --user --scope -p MemoryMax=12G -p MemorySwapMax=0 ...`. A pool of flights gives each its own process (`maxtasksperchild=1`: a world dropped in a reused worker is held until the cycle collector runs), and results go under `~`, never `/tmp`, which a reboot wipes.
+
+### The imagination (`imagination/`; #466, Track A of #465)
+
+- **The robot's imagination is a world of its own, and nothing it is built
+  from reads the world's model of a mechanism** (SimNotes, "The
+  imagination's first world"; `tests/test_imagination.py`): a document in
+  the scene language (`scene.py`, `workshop/spec.py`'s pattern: JSON, mm and
+  degrees at the door and the sim's units inside, every reason at once, an
+  unknown field refused -- ⚠ NO CONTACT FIELD, a test pins `solref`),
+  compiled with the robot's own body (`legs.model.attachable`, the CAD a
+  real robot has) on a floor at the map's z = 0 (`compile.py`), and a
+  record's commands replayed there step for step by the arm's own
+  `ArmDriver`, the legs limp, from what the robot knew of itself
+  (`record.Start`), its first command held `SETTLE_S` first (`rollout.py`;
+  the body's half is `legs/imagined.py`, so the body fence holds).
+  ⚠ THE FENCE HAS TWO HALVES: the worker (`worker.py`, `python -m
+  pluggybot.imagination.worker`, the first worker process: a program, never
+  a fork) is sent JSON and numeric arrays (`pack`/`unpack`, pickles
+  refused), so never an `MjModel` or `MjData`, and a record's depth cloud is
+  (k, 3) points with the simulator's geom ids refused; and nothing in the
+  package imports `activity`, `challenge`, `home`, `legs.world`,
+  `evaluation` or the spike, directly or through what it imports. ⚠ ITS
+  CONTACT IS ITS OWN (`compile.CONTACT`, 0.01 s), never the world's: at two
+  physics steps a lid jammed on its walls and the solver blew up. Its
+  readings are the drivers' EXPECTATION, their noise keyed on the worker's
+  seed, never the world's. Nothing in it is specific to a lid, and a model
+  in progress is never saved with the world.
+- **The drop-handle chest is demo 1's mechanism, and a demo's only**
+  (`activity/chest.py`; never in the served world, where a new object moves
+  the geometry hash and the fixtures): #469's box as an activity, its hidden
+  parameters drawn seeded (`draw(k)` is the spike's set-out k and a 1-4 N
+  catch, kept only shut by `CLOSING_MARGIN_NM`: a drop handle only pulls).
+  ⚠ THE TRUTH IS KEPT AS `Task.secret` IS, never in a flag. Its flags
+  (`lid` live with hysteresis, `opened` latched, `caught`) come off the
+  hinge's jointpos sensor, and `sense` sets the magnet's pull on the seam
+  (MuJoCo has no element for it); its knob wears tag 53
+  (`rack.tags.CHEST_TAG_IDS`). `reference_document` is the BEST-EXPRESSIBLE
+  REFERENCE: what the language cannot say is the magnet's falloff, the
+  chest's contact and its armature. Grading the robot's model is OURS, by
+  code that knows the truth (`evaluation/imagined.py`: the oracle's probe,
+  the world's chest beside the robot's body, the gap phase by phase), and
+  the robot never sees it.
 
 ### The mind (`mind/`; `docs/Overseer.md` is the design)
 
