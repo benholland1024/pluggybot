@@ -34,7 +34,7 @@ import math
 import numpy as np
 
 from pluggybot.legs.actuator import GIM8108_8, Motor
-from pluggybot.rack.coupling import PEG_R
+from pluggybot.rack.coupling import PEG_ABOVE_BODY, PEG_R
 
 #: A link's tube and the rods beside it: radius of the capsule the sim
 #: collides and draws, m (a 20/18 mm carbon tube with its rod ends).
@@ -336,6 +336,19 @@ def gravity_torques(spec: ArmSpec, qs: float, qe: float,
   if spec.level == "body":
     return tau_s, tau_e + ahead
   return tau_s, tau_e
+
+
+def tool_payload(model, module: str | None,
+                 spec: ArmSpec) -> tuple[float, tuple[float, float]]:
+  """What the arm's feed-forward carries with `module` on its fork (None:
+  nothing): the tool's mass, its CoM on its plate under the peg
+  (`rack.tool_face`: the mass is the plate's). The served body's
+  (`legs.swap`) and an imagined one's (`legs.imagined`) -- one rule, or the
+  imagination's drivers would hold a tool the world's do not."""
+  if module is None:
+    return 0.0, (0.0, 0.0)
+  kg = float(model.body_subtreemass[model.body(module).id])
+  return kg, (0.0, spec.fork.seat_rise() - PEG_ABOVE_BODY)
 
 
 def tool_force(spec: ArmSpec, qs: float, qf: float,

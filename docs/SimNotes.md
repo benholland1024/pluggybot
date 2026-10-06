@@ -3645,9 +3645,9 @@ top pushes the handle back at the claw on the way down: the `open` corner
 (by 0.15 N·m) swung it 9–14° on its peg, where no shut lid swung it past 8°,
 though it stayed seated. Demo 1's lids are drawn shut by at least 0.05 N·m
 (0.2 N at the knob) at every angle swept on the fast sweep down, the centre
-of mass's height counted (`mechanism_spike.CLOSING_MARGIN_NM`, `draw`).
+of mass's height counted (`chest.CLOSING_MARGIN_NM`, `chest.draw`).
 
-**Demo 1's hidden parameters** (`draw`): the board 0.15–0.45 kg and a hidden
+**Demo 1's hidden parameters** (`chest.draw`): the board 0.15–0.45 kg and a hidden
 weight to 0.15 kg anywhere 20–90 % of the way to the front edge; Coulomb
 friction to 0.12 N·m; damping to 0.20 N·m·s/rad; a spring to 0.15 N·m/rad on
 every other lid; a catch of 1–4 N at the knob. They are drawn TOGETHER: a lid
@@ -3682,9 +3682,101 @@ grip after an empty sweep failed.
 **What is true now:** the force at the tool is `legs.arm.tool_force`, off
 the readings less the driver's gravity and, wherever a joint turns, the
 friction an empty sweep found (`legs.arm.arm_friction`, `less_friction`).
-Demo 1's mechanism is the drop-handle lid of `scripts/mechanism_spike.py`
-(`mechanism_xml(Mech(kind="handle"))`), its hidden parameters drawn
-shut-biased (`draw`), swept at Kp 8.
+Demo 1's mechanism is the drop-handle chest, promoted from the spike to
+`activity/chest.py` (#466; the next section), its hidden parameters drawn
+shut-biased (`chest.draw`), swept at Kp 8.
+
+## The imagination's first world (issue #466, stage 1)
+
+Demo 1 has the robot model the chest from its own senses. Stage 1 built the
+machinery, with no robot flying: the chest as an activity
+(`activity/chest.py`), a scene language (`imagination/scene.py`) compiled
+with the robot's own body into a world of its own (`compile.py`), a rollout
+that replays an arm's commands there (`rollout.py`) in a worker process
+(`worker.py`), and the best-expressible reference
+(`chest.reference_document`): the chest written in the language by code
+that knows the truth.
+
+**The robot's own world replays the house's.** A Kp 8 sweep flown in the
+house (the spike's scene), its commands replayed through a world of a floor,
+the robot's CAD (`legs.model.attachable`), the claw and the same chest,
+started from the house's own state: the torque readings 1e-7 N·m apart RMS
+(3e-6 at worst) over 33 s, the lid 0.004°. Nothing of the house matters to
+an arm at a box. A rollout starts from what the robot knew of itself (its
+believed pose, its tilt, its encoders) and holds its first command for 1 s
+(`SETTLE_S`) to come to rest.
+
+**The imagination's contact is its own, where it applies.** Run in the
+world's engine with the world's contact model, a model transfers better than
+it would to hardware (Evaluation.md, "Practised in MuJoCo"), so a document's
+parts touch each other on the imagination's own settings
+(`compile.CONTACT`). Against the robot MuJoCo mixes a pair's settings, and
+the robot's priority geoms impose theirs: in the chest's probe the only
+scene contact is the claw's pads on the knob, on the pads' settings in
+either world, so what differs is the lid's stop (`LIMIT`) and the armature.
+The floor is MuJoCo's defaults, as the house's. The first compile had the
+chest's walls as separate parts and their contact at two physics steps:
+the lid touched two walls at zero distance, jammed, swung its handle on its
+pin instead of lifting, and blew the solver up two seconds into the sweep (a
+NaN at the robot's root; MuJoCo reset the world and stepped on). The rule
+that prevents it, found in review: everything fixed in the map is one rigid
+group, which a part hinged to it never touches (walls written on nothing
+let a lid sit on their top edges, and it was thrown to 113°). And a world
+MuJoCo resets is refused (`rollout.Diverged`), never rolled out: its
+readings stay finite and plausible.
+
+**What the language cannot say** (`scripts/imagination_gap.py --n 16`: the
+oracle's probe -- the claw onto the knob where it hangs, then sweeps up and
+down at 0.15 and 0.45 rad/s at Kp 8, planned off the true hinge -- through
+the world's chest and the reference; the force at the tool the two worlds'
+readings put apart, RMS of 0.1 s means, and its largest):
+
+| | take hold | 1st up | 1st down | 2nd up | 2nd down |
+|---|---|---|---|---|---|
+| with its catch, median | 0.001 N | 0.26 (2.2) | 0.023 (0.11) | 0.18 (0.90) | 0.018 (0.05) |
+| ...the worst of 16 | 0.001 | 0.59 (4.1) | 0.029 (0.17) | 0.41 (2.2) | 0.023 (0.10) |
+| no catch, the worst | 0.001 | 0.013 (0.03) | 0.021 (0.07) | 0.028 (0.08) | 0.023 (0.07) |
+
+With no catch the two agree to 0.01–0.03 N, under what the torques read
+(0.04–0.06 N RMS of 0.1 s means, #469), and the lid to 0.12°: the lid's
+stop and the armature cost nearly nothing. The catch is the gap. Its magnet
+pulls less as the gap opens, where the language's catch holds one pull for
+a millimetre and then lets go, so the two let go at different moments, and
+just after it the lids are up to 5.6° apart. The gap grows with
+the catch (0.08 N RMS at 1.1 N, 0.59 N at 3.7 N). At Kp 8 a sweep down to
+0.05 rad lets the lid fall shut and the catch take it again, so the second
+sweep up pulls it off once more. For stage 3, "the language can't say it" is
+the catch at its release, and little else.
+
+**Stiction and a non-linear spring were left out.** Stiction would hold a
+lid open at the top of a sweep against a handle that only pulls: the shut
+margin (`CLOSING_MARGIN_NM`) was derived for Coulomb friction alone, and
+#469's numbers describe a chest without it. The springs drawn are weak
+(0.01–0.05 N·m/rad: the margin ties them), and a non-linearity in them would
+sit under what the torques resolve of the static curve (0.009–0.013 N·m).
+Demo 2's mismatched imagination is where a further construct belongs.
+
+**What a rollout costs** (`scripts/imagination_gap.py --cost --parallel
+...`): 67 ms a sim-second on the dev box (an i5-9600KF), 15 times real
+time, and 73–75 on a pod's 31-CPU share of an EPYC 7H12, the same in a
+worker as in this process. A document is parsed and compiled in 5 ms, and a
+worker starts in 0.2–0.3 s. Workers in parallel lose nothing on the pod: 30
+at once cost 74.8 ms a sim-second each, 392 sim-seconds a wall-second
+together, which is 12 rollouts of the 32 s probe a second. On the dev box
+three at once cost 69 ms each and six 88 (65 sim-seconds a wall-second
+together), the desktop sharing its six cores. MuJoCo's step is 88 of a
+step's 133 µs: 32 degrees of freedom and 152 constraint rows, most of them
+the lying robot's belly and legs on the floor. A rollout replays its record
+bit for bit, in a worker or not.
+
+**What is true now:** the robot's imagination is `imagination/`: a document
+in the scene language, compiled with the robot's own body on the
+imagination's own contact, and its record's commands replayed by the arm's
+own driver in a worker given JSON and numbers and nothing else. Nothing it
+can load reads a mechanism's activity (`tests/test_imagination.py`), and a
+world that goes unstable is refused. The chest's best-expressible reference
+follows the world's chest to 0.03 N where the language can say it, and
+parts from it at the catch's release.
 
 ## Debugging workflow that worked
 

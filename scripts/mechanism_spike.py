@@ -64,6 +64,10 @@ import sys  # noqa: E402
 import mujoco  # noqa: E402
 import numpy as np  # noqa: E402
 
+from pluggybot.activity import chest  # noqa: E402
+from pluggybot.activity.chest import (  # noqa: E402
+  BOX_D, BOX_H, BOX_W, HANDLE_DROP, HANDLE_KG, HINGE, KNOB, KNOB_OFF, LID_T, PIN, PIN_AHEAD,
+  PIN_Z, SPRING_SLACK, STEM, STEM_HALF_W, WALL_T, closing_torque)
 from pluggybot.challenge.stack import BLOCK_HALF  # noqa: E402
 from pluggybot.legs import arm as am  # noqa: E402
 from pluggybot.legs import dock as dk  # noqa: E402
@@ -73,25 +77,9 @@ from pluggybot.rack.coupling import PEG_ABOVE_BODY  # noqa: E402
 # ---- the candidates ------------------------------------------------------------
 # The BOX frame: the origin on the floor under the middle of the box's front
 # face (the robot's side), +x into the box (a robot square on faces +x), z up.
+# The box, its knob and its drop handle are the chest's (`activity/chest.py`,
+# #466's promotion of the handle): one definition, imported above.
 
-#: The box: a toy chest's size, its walls and lid 12 mm board.
-BOX_D, BOX_W, BOX_H = 0.22, 0.30, 0.14
-WALL_T = LID_T = 0.012
-#: The knob the claw grips is the cube the claw is proven on (26 mm), on a
-#: stem out of what it moves: the stem leaves the jaws out of their back,
-#: under the crossbar that joins them.
-KNOB = BLOCK_HALF
-STEM, STEM_HALF_W = 0.030, 0.004
-#: The drop handle: its pin this far in front of the lid's front edge, at
-#: the lid's mid-thickness, and its arm down to the stem. The claw holds the
-#: handle as it hangs while the lid turns under it, nearly 90 deg by the
-#: top, its 40 mm arm then along the lid: 20 mm out, it lay in the lid's
-#: front edge, unseen -- a body and its parent never collide, so the
-#: handle's pairs with the board are named.
-PIN_AHEAD, HANDLE_DROP = 0.050, 0.040
-PIN_Z = LID_T / 2
-#: The handle's parts, kg: its arm, its stem and the knob.
-HANDLE_KG = (0.010, 0.005, 0.020)
 #: The lip: the lid overhangs the front face, notched in its middle for the
 #: claw's pendant (10 mm square) to rise into.
 LIP, NOTCH_HALF_W = 0.030, 0.012
@@ -130,7 +118,7 @@ class Mech:
   #: The drawer, loaded.
   drawer_kg: float = 0.5
   #: The joint: a spring (and where it is slack), damping, Coulomb friction.
-  #: The lids' shut by `CLOSING_MARGIN_NM` at 69 deg swept at `RATE`.
+  #: The lids' shut by `chest.CLOSING_MARGIN_NM` at 69 deg swept at `RATE`.
   stiffness: float = 0.0
   springref: float = 0.0
   damping: float = 0.04
@@ -200,21 +188,24 @@ def mechanism_xml(m: Mech, name: str = "mech") -> str:
       + _knob(name, (-0.012 - STEM - KNOB, 0, 0)) + '</body>')
     exclude = f'<exclude body1="{name}" body2="{name}_drawer"/>'
   else:
-    lid = [f'<joint name="{name}_hinge" type="hinge" axis="0 1 0" range="0 1.9" '
-           f'armature="0.0005" {joint_kw}/>',
+    lid = [f'<joint name="{name}_hinge" type="hinge" axis="0 1 0" '
+           f'range="{_v(*chest.HINGE_RANGE)}" armature="{_f(chest.HINGE_ARMATURE)}" '
+           f'{joint_kw}/>',
            f'<geom name="{name}_lid" type="box" size="{_v(d / 2, w / 2, LID_T / 2)}" '
            f'pos="{_v(-d / 2, 0, LID_T / 2)}" mass="{_f(m.lid_kg)}" {LID_WOOD}/>']
     if m.lump_kg > 0.0:
-      lid.append(f'<geom name="{name}_lump" type="box" size="0.01 0.01 0.004" '
+      lid.append(f'<geom name="{name}_lump" type="box" size="{_v(*chest.LUMP_HALF)}" '
                  f'pos="{_v(-d * m.lump_at, 0, m.lump_z)}" mass="{_f(m.lump_kg)}" '
                  f'contype="0" conaffinity="0" group="3" rgba="0.8 0.2 0.2 1"/>')
     if m.kind == "handle":
       lid.append(
         f'<geom name="{name}_bracket" type="box" size="{_v(PIN_AHEAD / 2 + 0.003, 0.006, 0.004)}" '
-        f'pos="{_v(-d - PIN_AHEAD / 2 + 0.003, 0, PIN_Z)}" mass="0.005" {LID_WOOD}/>'
+        f'pos="{_v(-d - PIN_AHEAD / 2 + 0.003, 0, PIN_Z)}" mass="{_f(chest.BRACKET_KG)}" '
+        f'{LID_WOOD}/>'
         f'<body name="{name}_handle" pos="{_v(-d - PIN_AHEAD, 0, PIN_Z)}">'
-        f'<joint name="{name}_pin" type="hinge" axis="0 1 0" damping="0.002" '
-        f'frictionloss="0.002" armature="0.0001"/>'
+        f'<joint name="{name}_pin" type="hinge" axis="0 1 0" '
+        f'damping="{_f(chest.PIN_DAMPING)}" frictionloss="{_f(chest.PIN_FRICTION)}" '
+        f'armature="{_f(chest.PIN_ARMATURE)}"/>'
         f'<geom name="{name}_drop" type="box" size="{_v(0.003, STEM_HALF_W, HANDLE_DROP / 2)}" '
         f'pos="{_v(0, 0, -HANDLE_DROP / 2)}" mass="{_f(HANDLE_KG[0])}" {METAL}/>'
         f'<geom name="{name}_stem" type="box" size="{_v(STEM / 2 + 0.003, STEM_HALF_W, 0.004)}" '
@@ -245,11 +236,6 @@ def _rot_y(th: float, v) -> np.ndarray:
   return np.array([v[0] * c + v[2] * s, v[1], -v[0] * s + v[2] * c])
 
 
-HINGE = np.array([BOX_D, 0.0, BOX_H])
-#: The handle's pin in the lid's frame, and the knob's middle off the pin
-#: with the handle hanging plumb.
-PIN = np.array([-BOX_D - PIN_AHEAD, 0.0, PIN_Z])
-KNOB_OFF = np.array([-STEM - KNOB, 0.0, -HANDLE_DROP])
 #: The lip's point the crossbar pushes, in the lid's frame (the lid's
 #: underside passes through the hinge's axis).
 LIP_POINT = np.array([-BOX_D - LIP + UNDER_LIP, 0.0, 0.0])
@@ -508,7 +494,7 @@ class Scene:
     r = {"handle": float(np.linalg.norm(PIN)), "lip": float(np.linalg.norm(LIP_POINT)),
          "drawer": 1.0}[mech.kind]
     gap = self.opening() * r
-    g0 = 0.0005
+    g0 = chest.CATCH_G0
     if gap > 10 * g0:
       return 0.0
     # ...less its pull at the cut, so it lets go to nothing
@@ -914,19 +900,14 @@ def torques_one(args) -> dict:
 
 # ---- the oracle fit ------------------------------------------------------------------
 
-#: The two sweep rates (rad/s), the range swept (rad), and the rows the fit
+#: The two sweep rates (rad/s), the range swept (rad) -- the chest's, which
+#: its lids are drawn to shut over (`chest.draw`) -- and the rows the fit
 #: reads: off the lid's stop, moving, and both arm joints outside their
 #: dead bands.
-FIT_RATES = (0.15, 0.45)
-FIT_TOP = 1.2
+FIT_RATES = (0.15, chest.SWEPT_RATE)
+FIT_TOP = chest.SWEPT_TO
 FIT_FROM = 0.08
 FIT_MOVING = 0.05
-#: The hidden parameters a set-out draws (seeded): the lid's board, a hidden
-#: weight and where it sits, a spring helping it open (slack past the range,
-#: so it eases the lift), its damping and its friction.
-FIT_RANGES = {"lid_kg": (0.15, 0.45), "lump_kg": (0.0, 0.15), "lump_at": (0.2, 0.9),
-              "stiffness": (0.0, 0.15), "damping": (0.0, 0.20), "friction": (0.0, 0.12)}
-SPRING_SLACK = 2.5
 G = 9.81
 #: The fit's columns: the lid's gravity (cos and sin of its angle), the
 #: spring (the angle and a constant), Coulomb friction, damping, inertia.
@@ -938,41 +919,14 @@ FIT_MODELS = {"gravity": [0, 4, 5], "gravity+height": [0, 1, 4, 5],
               "gravity+spring": [0, 2, 3, 4, 5], "full": [0, 1, 2, 3, 4, 5, 6]}
 
 
-#: A DROP HANDLE ONLY PULLS: the claw hangs on its peg and swings off any
-#: push away from the robot (`--window`), so a lid must close harder than
-#: its spring, friction and damping hold it open, at every angle swept and
-#: the faster rate -- by this much, N*m at the hinge (0.2 N at the knob). A
-#: lid whose spring beat its weight near the top (`open`, by 0.15 N*m)
-#: pushed the handle back at the claw on the way down: it swung 9-14 deg on
-#: its peg, where no shut lid swung it more than 8.
-CLOSING_MARGIN_NM = 0.05
-
-
-def closing_torque(m: Mech, th: np.ndarray, rate: float) -> np.ndarray:
-  """What shuts the lid at `th` going down at `rate`, N*m: its gravity
-  (the board, the hidden weight and the bracket, out along the lid and up
-  off the hinge's line -- the height alone is up to 0.03 N*m at 69 deg)
-  less its spring, friction and damping: the handle's tension times its
-  lever."""
-  out = (m.lid_kg * BOX_D / 2 + m.lump_kg * BOX_D * m.lump_at
-         + 0.005 * (BOX_D + PIN_AHEAD / 2 - 0.003))
-  up = (m.lid_kg + 0.005) * LID_T / 2 + m.lump_kg * m.lump_z
-  return (G * (out * np.cos(th) - up * np.sin(th)) - m.stiffness * (m.springref - th)
-          - m.friction - m.damping * rate)
-
-
 def draw(k: int) -> Mech:
-  """Set-out `k`'s hidden parameters (seeded): drawn from `FIT_RANGES` until
-  the lid shuts harder than `CLOSING_MARGIN_NM` all the way up."""
-  rng = np.random.default_rng(4690 + k)
-  th = np.linspace(0.0, FIT_TOP, 25)
-  while True:
-    kw = {n: float(rng.uniform(*r)) for n, r in FIT_RANGES.items()}
-    if k % 2 == 0:
-      kw["stiffness"] = 0.0           # every other set-out has no spring
-    m = Mech(kind="handle", springref=SPRING_SLACK, **kw)
-    if closing_torque(m, th, max(FIT_RATES)).min() >= CLOSING_MARGIN_NM:
-      return m
+  """Set-out `k`'s hidden parameters: the chest's draw (`chest.draw`, shut
+  by `chest.CLOSING_MARGIN_NM` all the way up), without its catch -- the fit's
+  set-outs had none."""
+  lid = chest.draw(k)
+  return Mech(kind="handle", lid_kg=lid.lid_kg, lump_kg=lid.lump_kg, lump_at=lid.lump_at,
+              lump_z=lid.lump_z, stiffness=lid.stiffness, springref=lid.springref,
+              damping=lid.damping, friction=lid.friction)
 
 
 def lid_truth(sc: Scene) -> dict:

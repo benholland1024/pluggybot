@@ -35,7 +35,7 @@ import numpy as np
 from pluggybot.legs import arm as am
 from pluggybot.legs import dock as dk
 from pluggybot.legs import rack as rk
-from pluggybot.rack.coupling import PEG_ABOVE_BODY, STATION_YS, contact_pairs, touching
+from pluggybot.rack.coupling import STATION_YS, contact_pairs, touching
 from pluggybot.telemetry.protocol import ROBOT_ROOT, robot_roots
 from pluggybot.tick import Routine
 
@@ -291,13 +291,8 @@ class ToolSwap:
     return self.posture == STANDING
 
   def _payload(self, module: str | None) -> None:
-    """What the arm's feed-forward carries: the tool's mass, its CoM on
-    its plate under the peg (`rack.tool_face`: the mass is the plate's)."""
-    if module is None:
-      self.arm.payload = (0.0, (0.0, 0.0))
-      return
-    kg = float(self.model.body_subtreemass[self.model.body(module).id])
-    self.arm.payload = (kg, (0.0, self.arm_spec.fork.seat_rise() - PEG_ABOVE_BODY))
+    """What the arm's feed-forward carries (`legs.arm.tool_payload`)."""
+    self.arm.payload = am.tool_payload(self.model, module, self.arm_spec)
 
   def _pick_routine(self, aim: rk.BayAim, module: str) -> Routine:
     """In under the peg the robot measured, up, back out: True if the tool
