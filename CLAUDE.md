@@ -48,8 +48,9 @@ doing anything, read the doc that owns what you are about to touch:
   rule is already pinned may go behind `--endurance` — with Ben's approval,
   below.
 - ⚠ **THE TEST SUITE HAS A BUDGET, AND EXCEEDING IT NEEDS BEN'S EXPLICIT
-  APPROVAL.** The full suite is **0:36** (2026-10-01, #427: 0:35 before
-  it, interleaved on one machine; 7:29 with the rover, #376 stage C). Any
+  APPROVAL.** The full suite is **0:43** (2026-10-06, #473: 0:53 before
+  it, interleaved on one machine — its files moved into memory; 7:29 with
+  the rover, #376 stage C). Any
   change to testing that would take it past **10 minutes on a quiet machine, or 15 on a
   busy one**, must be stated as such in the PR — the number, the test, and why
   it cannot be cheaper — and approved by Ben personally before it merges. ⚠
@@ -123,6 +124,12 @@ doing anything, read the doc that owns what you are about to touch:
   last line names the RASTERISER that drew: what a camera test measures is
   the device's, never the backend's — EGL is a GPU on one box and llvmpipe
   on another.
+- **The suite's files are IN MEMORY where `/dev/shm` has room**
+  (`tests/conftest.py`, #473; a `TMPDIR` already set wins): a memory store a
+  test leaves behind is closed by the collector wherever it next runs, and
+  on a spinning `/tmp` its fsync stalled that test 0.4–4 s, 29–39 s of worker
+  time a run. ⚠ A test that TIMES code turns the collector off for the timed
+  part, as `timeit` does, and pins it (`test_scan_match.py`).
 - **`slow` means EXPENSIVE *AND* UNABLE TO CATCH A REGRESSION WHILE YOU
   ITERATE** — the rule is written out in `pyproject.toml`. Whole-mission runs
   qualify; so do PREMISE-PINNING tests (which bypass a fix and assert the old
