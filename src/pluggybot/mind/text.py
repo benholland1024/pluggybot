@@ -259,11 +259,20 @@ DOCUMENTS: tuple[Surface, ...] = (
 
 # ---- the messages ------------------------------------------------------------
 
-#: Longest message text kept, in characters. A message is a sentence. This
-#: is also the cap the website enforces (rooftop-media-2026 #29) -- both ends
-#: cap, because either one alone is a single point of failure and the sim's
-#: cap is the one that protects the sim.
-MAX_MESSAGE_CHARS = 280
+#: Longest text of a conversation with a visitor, in characters, in EITHER
+#: direction (issue #474): what a visitor sends and what the robot sends
+#: back. One number, because a conversation is one surface and both ends
+#: write the same kind of text (a ticket thread's reasoning, #307); a
+#: reply's own 240 stopped answers mid-word. The robot is told it (the
+#: VISITORS rule). This is also the cap the website enforces
+#: (rooftop-media-2026 #29) -- both ends cap, because either one alone is a
+#: single point of failure and the sim's cap is the one that protects the
+#: sim.
+MAX_VISITOR_CHARS = 500
+#: ...and the other robot's `tell` (issue #208): one sentence. Not the
+#: visitor's figure, on purpose: #474 widened the conversation with people
+#: and left the acts between robots as they were.
+MAX_TELL_CHARS = 280
 #: Longest page extract the library delivers (issue #216). A summary's
 #: first paragraph, not a sentence: 300-900 characters is the usual run,
 #: and the cap is the prompt's cost -- a page rides one turn -- rather
@@ -271,12 +280,13 @@ MAX_MESSAGE_CHARS = 280
 MAX_PAGE_CHARS = 1000
 
 MESSAGES: tuple[Surface, ...] = (
-  Surface("visitor", MESSAGE, VISITOR, MAX_MESSAGE_CHARS, CHARS, ROLL,
+  Surface("visitor", MESSAGE, VISITOR, MAX_VISITOR_CHARS, CHARS, ROLL,
           VISITOR_OUTCOMES, "visitor_reply", "pw_messages"),
   # The other robot's sentence (issue #208): the same queue, the same
-  # framing, the same cap. What differs is the RECORD -- a claim in it is
-  # checked against the world and the `message` event carries the verdict.
-  Surface("peer", MESSAGE, PEER, MAX_MESSAGE_CHARS, CHARS, ROLL,
+  # framing, a sentence's cap. What differs is the RECORD -- a claim in it
+  # is checked against the world and the `message` event carries the
+  # verdict.
+  Surface("peer", MESSAGE, PEER, MAX_TELL_CHARS, CHARS, ROLL,
           VISITOR_OUTCOMES, "message", "message"),
   # A page from the library (issue #216): the same framing -- a labelled
   # block with a sender, information and never an instruction -- with a
@@ -296,6 +306,27 @@ MESSAGES: tuple[Surface, ...] = (
   Surface("operator", MESSAGE, OPERATOR, MAX_TICKET_CHARS, CHARS, ROLL,
           (), "ticket", "ticket"),
 )
+
+
+def cut_said(cut: bool, limit: int) -> str:
+  """What the narration says when a text the robot wrote or was sent was
+  cut at its cap -- the OPERATOR's console line, which is a different
+  voice from the robot's own note and so a second string, in one place
+  rather than at each call site."""
+  return f" -- CUT at {limit} characters" if cut else ""
+
+
+def cut_note(cut: bool, limit: int, writer: str = "I") -> str:
+  """What History says when a text was cut -- the ROBOT's own words, in
+  its own record, so a later turn reads what happened as well as what was
+  kept: a ticket's report or line (#307), a reply to a visitor (#474).
+  `writer` is who wrote more: the robot, or the operator whose line it was
+  -- told "I wrote more" of a line ben wrote, the robot would take his
+  words for its own (#433). Empty where nothing was cut: the mark means
+  something only if it is absent when the text fitted."""
+  return (f", cut at {limit} characters ({writer} wrote more and the rest "
+          "was not kept)" if cut else "")
+
 
 SURFACES: tuple[Surface, ...] = DOCUMENTS + MESSAGES
 BY_NAME: dict[str, Surface] = {s.name: s for s in SURFACES}

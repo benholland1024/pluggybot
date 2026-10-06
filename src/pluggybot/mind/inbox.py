@@ -62,19 +62,19 @@ assert set(TICKET_INBOUND_TYPES) <= set(INBOUND_TYPES)
 #: door enforces another.
 MAX_TICKET_TEXT = registry.BY_NAME["operator"].cap
 
-#: Longest message text kept, in characters: the MESSAGE rows' cap in
-#: `mind/text.py` (issue #217), one figure for a visitor's sentence and the
-#: other robot's. This is also the cap the website enforces
-#: (rooftop-media-2026 #29) -- both ends cap, because either one alone is a
-#: single point of failure and the sim's cap is the one that protects the
-#: sim.
-MAX_TEXT = registry.MAX_MESSAGE_CHARS
-# The two senders that reach this QUEUE; the library's page (issue #216)
-# is a message on the same terms with a paragraph's cap, and it never
-# comes through the socket.
-assert all(m.cap == MAX_TEXT for m in registry.MESSAGES
-           if m.writer in (registry.VISITOR, registry.PEER)), \
-  "a message row's cap disagrees with the queue's"
+#: Longest message text kept, in characters, by who sent it: the MESSAGE
+#: rows' caps in `mind/text.py` (issue #217), for the two senders that
+#: reach this QUEUE (the library's page, #216, never comes through the
+#: socket). A visitor's is a conversation's, the same both ways
+#: (`text.MAX_VISITOR_CHARS`, #474); the other robot's is a sentence.
+MAX_SENT = {m.writer: m.cap for m in registry.MESSAGES
+            if m.writer in (registry.VISITOR, registry.PEER)}
+#: ...and a visitor's, the one the socket carries: also the cap the website
+#: enforces (rooftop-media-2026 #29) -- both ends cap, because either one
+#: alone is a single point of failure and the sim's cap is the one that
+#: protects the sim. An earlier turn's words, theirs and the robot's, are a
+#: conversation's too.
+MAX_TEXT = MAX_SENT[registry.VISITOR]
 #: ...and the display name attached to it.
 MAX_WHO = 40
 #: ...and the correlation id, which the website generates and the sim only
@@ -85,8 +85,11 @@ MAX_ID = 64
 MAX_QUEUE = 32
 #: Raw bytes accepted for one message before it is dropped unread. The queue
 #: bound above is a message count, which is no protection at all against one
-#: enormous message.
-MAX_RAW_BYTES = 8192
+#: enormous message. ⚠ It must still admit the largest message the caps
+#: admit: a follow-up carrying `MAX_EARLIER` exchanges at `MAX_TEXT` both
+#: ways, every character one JSON escapes, is 9 688 characters -- past the
+#: 8192 this was until a conversation's cap became 500 (issue #474).
+MAX_RAW_BYTES = 16_384
 #: ...except a PICTURE (issue #275): the `image` kind carries a JPEG the
 #: website rendered from the robot's own camera pose, base64, and a 640 x
 #: 480 frame is 15-60 kB. Its own bound, on the decoded bytes and on the
@@ -100,9 +103,10 @@ MAX_IMAGE_RAW_BYTES = MAX_IMAGE_BYTES * 4 // 3 + 1024
 JPEG_MAGIC = b"\xff\xd8\xff"
 #: Earlier turns of a conversation a FOLLOW-UP may carry (rooftop-media-2026
 #: #125): the newest this many are kept and the rest are dropped at the
-#: door. Four exchanges is ~2 000 characters of context on the one turn that
-#: carries them and nothing on any other; the website sends the same number,
-#: and both ends cap for the reason both cap a message's length.
+#: door. Four exchanges is up to 4 000 characters of context on the one
+#: turn that carries them and nothing on any other; the website sends the
+#: same number, and both ends cap for the reason both cap a message's
+#: length.
 MAX_EARLIER = 4
 
 #: Everything outside this is stripped from visitor text: C0 and C1 control
@@ -398,16 +402,17 @@ class Inbox:
     if kind not in INBOUND_TYPES:
       return None
     # ⚠ A TICKET'S LINE IS CLEANED TO A TICKET'S LENGTH, not a message's
-    # (the length follow-up on #284). This queue's cap is a visitor's
-    # sentence, and applying it to every kind cut an operator's reply --
-    # and the close's own message -- to 280 characters at the door, before
-    # the desk that owns the number ever saw it.
+    # (the length follow-up on #284). This queue's cap is a SENDER's
+    # (`MAX_SENT`), and a visitor's applied to every kind cut an operator's
+    # reply -- and the close's own message -- to 280 characters at the
+    # door, before the desk that owns the number ever saw it.
     # ⚠ ...AND ONE MORE THAN IT, `validate`'s trick on the robot's own
     # side: the DESK owns the number and reports the cut, and a line
     # sliced to exactly the cap here would reach it indistinguishable
     # from one that fitted -- which is the silent truncation this whole
     # change is about, left in the one path the website cannot reach.
-    limit = MAX_TICKET_TEXT + 1 if kind in TICKET_INBOUND_TYPES else MAX_TEXT
+    limit = (MAX_TICKET_TEXT + 1 if kind in TICKET_INBOUND_TYPES
+             else MAX_SENT.get(sender, MAX_TEXT))
     text = clean(raw.get("text"), limit)
     if kind == "message" and not text:
       return None                           # nothing was actually said
