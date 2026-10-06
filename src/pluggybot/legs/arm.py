@@ -338,6 +338,66 @@ def gravity_torques(spec: ArmSpec, qs: float, qe: float,
   return tau_s, tau_e
 
 
+def tool_force(spec: ArmSpec, qs: float, qf: float,
+               tau_s: float, tau_e: float) -> tuple[float, float]:
+  """The force the world puts on the tool, N: (forward, up) in the torso
+  frame's x-z, off what the two motors hold BEYOND the arm's own weight and
+  its tool's -- `tau_s`, `tau_e`, N*m: each motor's torque less its
+  `ArmDriver.gravity()`, and less its friction where it turns
+  (`less_friction`). `qs` is the shoulder's angle and `qf` the forearm's
+  ABSOLUTE one (`ArmDriver.q()`), the two coordinates the motors drive.
+
+  The plate only translates (the level parallelogram), so a force anywhere
+  on the tool moves the motors as one at the wrist would: each motor holds
+  its link's lever on it, and the force's moment about the wrist goes to the
+  torso (`gravity_torques`' algebra). So the tool's swing on its peg and
+  where on the tool the force acts read the same; the force ACROSS the arm's
+  plane and that moment read nothing. Singular with the elbow straight or
+  folded flat (`sin(qf - qs)`, the elbow's own angle)."""
+  s1, c1 = math.sin(qs), math.cos(qs)
+  s2, c2 = math.sin(qf), math.cos(qf)
+  det = math.sin(qf - qs)
+  a, b = -tau_s / spec.upper, -tau_e / spec.fore
+  return (a * c2 - b * c1) / det, (a * s2 - b * s1) / det
+
+
+#: A motor whose coordinate turns slower than this, rad/s, is inside its
+#: friction's band: friction there holds anything within +- its value, so a
+#: reading there is left as it is (#469: 0.3-0.4 N off at the tool inside
+#: the band, 0.05 outside it).
+FRICTION_BAND = 0.02
+
+
+def arm_friction(beyond: np.ndarray, rates: np.ndarray) -> np.ndarray:
+  """Each motor's Coulomb friction, N*m, off a sweep holding nothing (#469):
+  what it held beyond the arm's own weight -- `beyond`, rows of (shoulder,
+  elbow): the readings less `ArmDriver.gravity()` -- signed by the way its
+  coordinate turned (`rates`, rows of `ArmDriver.qd()`), averaged where it
+  turned. A sweep that never turned a motor past `FRICTION_BAND` has no
+  friction of it to find, and is refused: the mean of no rows is NaN, and a
+  NaN friction turns every force read after it into NaN. ⚠ The sim's
+  friction is a constant; a gearbox's grows with its load, which no empty
+  sweep can see."""
+  beyond, rates = np.asarray(beyond, dtype=float), np.asarray(rates, dtype=float)
+  turning = np.abs(rates) > FRICTION_BAND
+  still = [name for k, name in enumerate(("shoulder", "elbow")) if not turning[:, k].any()]
+  if still:
+    raise ValueError(f"the sweep never turned the {' or the '.join(still)} past "
+                     f"FRICTION_BAND ({FRICTION_BAND} rad/s): no friction to find")
+  return np.array([float(np.mean(beyond[turning[:, k], k] * np.sign(rates[turning[:, k], k])))
+                   for k in range(2)])
+
+
+def less_friction(beyond: np.ndarray, rates: np.ndarray,
+                  friction: np.ndarray) -> np.ndarray:
+  """`beyond` (rows of what the motors hold beyond the arm's own weight)
+  less each motor's `friction` where its coordinate turns -- the motor
+  pushes that much more the way it turns -- and as it is inside the band."""
+  beyond, rates = np.asarray(beyond, dtype=float), np.asarray(rates, dtype=float)
+  turning = np.abs(rates) > FRICTION_BAND
+  return beyond - np.asarray(friction, dtype=float) * np.sign(rates) * turning
+
+
 # ---- the MJCF --------------------------------------------------------------------
 
 def _f(v: float) -> str:
