@@ -31,30 +31,21 @@ from pluggybot.imagination.record import Record, Start
 from pluggybot.imagination.rollout import Readings, rollout, settled
 from pluggybot.imagination.scene import parse
 from pluggybot.legs import arm as am
+from pluggybot.legs import probe as pr
 from pluggybot.legs import rack as rk
 from pluggybot.legs.model import CHOSEN, lie_qpos
 from pluggybot.telemetry.protocol import ROBOT_ROOT
 from pluggybot.tools import claw as cl
 
-#: The probe's gain (#469's choice: a hinge guessed within 4 cm keeps the
-#: claw seated), its damping kept at the working gains' ratio.
-KP = 8.0
-KD = am.ARM_KD * math.sqrt(KP / am.ARM_KP)
-#: The sweeps: up to `TOP` and back to `BOTTOM` (rad), at each rate (rad/s),
-#: held `TURN_S` at each end -- #469's `--fit`. ⚠ The top and the fastest
-#: rate are the chest's: its lids are drawn to shut by the margin a drop
-#: handle needs only up to them (`chest.draw`), and 0.6 rad/s left 15 of 40
-#: under it.
-RATES = (0.15, ch.SWEPT_RATE)
-TOP, BOTTOM, TURN_S = ch.SWEPT_TO, 0.05, 0.4
-#: The knob, where it hangs, this far ahead of the torso's centre (#469's
-#: `LIE_AT_M`: the lid's arc carries it 0.16 m further and 0.22 m up).
-KNOB_AHEAD_M = 0.46
-#: Over the knob before going down onto it, m; how long the claw hangs there
-#: first (#469's `SWING_SETTLE_S`: straight down, its crossbar met the
-#: handle's bracket); and the arm's time to arrive after a line, open loop.
-OVER_M = 0.045
-SWING_SETTLE_S = 1.0
+#: The probe's plan, the robot's own (`legs.probe`, #469's sweeps): its
+#: gain and damping, the knob's place ahead of the lying robot, the sweeps
+#: up to `TOP` and back to `BOTTOM` at each rate, held `TURN_S` at each end,
+#: and the hover and the hang before the jaws go down. ⚠ The top and the
+#: fastest rate are the chest's too: its lids are drawn to shut only up to
+#: them (`chest.draw`; `tests/test_imagined.py`).
+KP, KD, RATES, TOP, BOTTOM, TURN_S = pr.KP, pr.KD, pr.RATES, pr.TOP, pr.BOTTOM, pr.TURN_S
+KNOB_AHEAD_M, OVER_M, SWING_SETTLE_S = pr.KNOB_AHEAD_M, pr.OVER_M, pr.SWING_SETTLE_S
+#: The arm's time to arrive after a line, open loop.
 ARRIVE_S = 0.5
 JAWS_OPEN = rk.CLAW_JAW_OPEN - rk.CLAW_JAW_CLOSED
 
