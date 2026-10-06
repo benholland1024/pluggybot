@@ -545,6 +545,12 @@ class Scene:
 
 # ---- the claw's motions ---------------------------------------------------------------
 
+#: The claw swings on its peg after a move -- at Kp 60, +-3 deg after a
+#: short approach, still within a second -- so the jaws go down onto the knob
+#: only once it hangs still: at once, the crossbar landed on the handle's
+#: bracket and the claw came off its seat.
+SWING_SETTLE_S = 1.0
+
 class Hand:
   """The claw at the mechanism: `tools.claw.ClawHand`'s motions, and a path
   followed step by step with the slide tracking it across."""
@@ -569,10 +575,12 @@ class Hand:
     p = sc.path(0.0)
     if kind == "lip":
       ok = self.to(p + [-0.06, 0.0, -0.012])
+      self.hold(SWING_SETTLE_S)
       ok = ok and self.to(p + [0.0, 0.0, -0.012], 0.04)
       return ok and self.to(p, 0.02)
     self.run(self.hand.jaws_routine(closed=False))
     ok = self.to(p + [0.0, 0.0, 0.045])
+    self.hold(SWING_SETTLE_S)
     ok = ok and self.to(p, 0.04)
     self.run(self.hand.jaws_routine(closed=True, settle=0.6))
     sc.grip0 = sc.knob_in_claw()
