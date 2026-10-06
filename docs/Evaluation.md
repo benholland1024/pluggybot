@@ -1221,6 +1221,15 @@ more easily here than it would on hardware.
   against the reference "the robot didn't find it" (#466). For the chest,
   the first is nearly all the catch's release (SimNotes, "The imagination's
   first world").
+- ⚠ **A fit's bar is what the references leave on the robot's OWN probe**
+  -- its record replayed from its own start, each world set in its map --
+  never on the oracle's (#466 stage 2; SimNotes, "The probe from the robot's
+  own senses"). The world's own chest is the floor any model reaches (a
+  catch let go a tenth of a second off parts it by up to 3 N for a moment);
+  the best-expressible reference leaves about what it left on the oracle's
+  probe. Where a strong catch turned the held handle on its pin -- the
+  reference's in 5 of 128 set-outs, the flight's once -- what follows the
+  release measures no fit.
 
 ## 6. What death costs
 
