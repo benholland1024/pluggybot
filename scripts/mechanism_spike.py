@@ -858,12 +858,12 @@ def arm_friction(rows: dict) -> np.ndarray:
   return am.arm_friction(*beyond_hold(rows))
 
 
-def force_off_torques(rows: dict, friction=(0.0, 0.0)) -> tuple[np.ndarray, np.ndarray]:
+def force_off_torques(rows: dict, spec: am.ArmSpec,
+                      friction=(0.0, 0.0)) -> tuple[np.ndarray, np.ndarray]:
   """The force at the tool, N, torso (x, z), off each row's torque READINGS
-  (`legs.arm.tool_force`): less the arm's own hold and, where a joint turns,
-  its friction (`legs.arm.less_friction`). And a mask of the rows where
-  both joints turned."""
-  spec = am.ArmSpec()
+  through `spec`, the arm flown (`legs.arm.tool_force`): less the arm's own
+  hold and, where a joint turns, its friction (`legs.arm.less_friction`).
+  And a mask of the rows where both joints turned."""
   beyond, rates = beyond_hold(rows)
   tau = am.less_friction(beyond, rates, friction)
   f = np.array([am.tool_force(spec, a, b, c, e)
@@ -895,7 +895,7 @@ def torques_one(args) -> dict:
   truth = np.column_stack([rows["tx"], rows["tz"]])
   out = {"kind": kind, "kp": kp, "friction": [round(v, 3) for v in fric]}
   for label, f in (("raw", (0.0, 0.0)), ("corrected", fric)):
-    est, moving = force_off_torques(rows, f)
+    est, moving = force_off_torques(rows, sc.mis.arm_spec, f)
     err = est - truth
     for part, mask in (("all", np.ones(len(err), bool)), ("moving", moving),
                        ("deadband", ~moving)):
@@ -1048,7 +1048,7 @@ def fit_one(args) -> dict:
   rows = sc.table()
   hand.let_go()
   truth = lid_truth(sc)
-  force, both = force_off_torques(rows, fric)
+  force, both = force_off_torques(rows, sc.mis.arm_spec, fric)
   tau = hinge_torque(sc, rows, force)
   tau_true = hinge_torque(sc, rows, np.column_stack([rows["tx"], rows["tz"]]))
   th = rows["open"]
@@ -1163,7 +1163,7 @@ def latch_one(args) -> dict:
   ok = hand.follow(0.0, top, rate)
   hand.hold(1.0)
   rows = sc.table()
-  est, _ = force_off_torques(rows, fric)
+  est, _ = force_off_torques(rows, sc.mis.arm_spec, fric)
   mag_t = np.hypot(rows["tx"], rows["tz"])
   mag_e = np.hypot(est[:, 0], est[:, 1])
   tilt = rows["tilt"] - rows["tilt"][0]

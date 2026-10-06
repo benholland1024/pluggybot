@@ -363,25 +363,33 @@ def tool_force(spec: ArmSpec, qs: float, qf: float,
 
 #: A motor whose coordinate turns slower than this, rad/s, is inside its
 #: friction's band: friction there holds anything within +- its value, so a
-#: reading there is left as it is (#469: 0.1-0.2 N off at the tool inside
+#: reading there is left as it is (#469: 0.3-0.4 N off at the tool inside
 #: the band, 0.05 outside it).
 FRICTION_BAND = 0.02
 
 
-def arm_friction(beyond, rates) -> np.ndarray:
+def arm_friction(beyond: np.ndarray, rates: np.ndarray) -> np.ndarray:
   """Each motor's Coulomb friction, N*m, off a sweep holding nothing (#469):
   what it held beyond the arm's own weight -- `beyond`, rows of (shoulder,
   elbow): the readings less `ArmDriver.gravity()` -- signed by the way its
   coordinate turned (`rates`, rows of `ArmDriver.qd()`), averaged where it
-  turned. ⚠ The sim's friction is a constant; a gearbox's grows with its
-  load, which no empty sweep can see."""
+  turned. A sweep that never turned a motor past `FRICTION_BAND` has no
+  friction of it to find, and is refused: the mean of no rows is NaN, and a
+  NaN friction turns every force read after it into NaN. ⚠ The sim's
+  friction is a constant; a gearbox's grows with its load, which no empty
+  sweep can see."""
   beyond, rates = np.asarray(beyond, dtype=float), np.asarray(rates, dtype=float)
   turning = np.abs(rates) > FRICTION_BAND
+  still = [name for k, name in enumerate(("shoulder", "elbow")) if not turning[:, k].any()]
+  if still:
+    raise ValueError(f"the sweep never turned the {' or the '.join(still)} past "
+                     f"FRICTION_BAND ({FRICTION_BAND} rad/s): no friction to find")
   return np.array([float(np.mean(beyond[turning[:, k], k] * np.sign(rates[turning[:, k], k])))
                    for k in range(2)])
 
 
-def less_friction(beyond, rates, friction) -> np.ndarray:
+def less_friction(beyond: np.ndarray, rates: np.ndarray,
+                  friction: np.ndarray) -> np.ndarray:
   """`beyond` (rows of what the motors hold beyond the arm's own weight)
   less each motor's `friction` where its coordinate turns -- the motor
   pushes that much more the way it turns -- and as it is inside the band."""

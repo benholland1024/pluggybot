@@ -183,12 +183,15 @@ class _Claw:
     mujoco.mj_forward(m, d)
 
   def grab(self) -> None:
-    """The cube between the open jaws, shut on it, let go of."""
+    """The cube between the jaws, put there open -- each jaw with its servo
+    aimed where it is, so no step reaches a servo -- shut on it (ramped),
+    let go of."""
     m, d = self.m, self.d
     jaws = [m.actuator(j).id for j in rk.CLAW_JAWS]
     wide = rk.CLAW_JAW_OPEN - rk.CLAW_JAW_CLOSED
     for a in jaws:
-      d.ctrl[a] = wide
+      j = m.actuator_trnid[a, 0]
+      d.qpos[m.jnt_qposadr[j]], d.qvel[m.jnt_dofadr[j]], d.ctrl[a] = wide, 0.0, wide
     mujoco.mj_forward(m, d)
     ka = m.jnt_qposadr[m.body_jntadr[self.cube]]
     d.qpos[ka:ka + 3] = d.site_xpos[m.site(rk.CLAW_GRIP).id] - [0, 0, 0.009]
@@ -225,9 +228,10 @@ def test_the_force_at_the_tool_off_the_torques_is_a_known_load():
   # READ less what the arm holds of itself and its claw, through
   # `tool_force`. Held still at three working poses, the claw with the
   # bench's known cube in it and the cube pushed 0.5 N toward the robot
-  # reads both, within 2 % and a hundredth of a newton (500 readings); read
-  # through the elbow's own angle in place of the forearm's, the same
-  # readings miss the load by more than half of it.
+  # reads both, the weight within 3 % and the push within 0.03 N over 500
+  # readings (measured: 2.0 % and 0.006 N at worst); read through the
+  # elbow's own angle in place of the forearm's, the same readings miss the
+  # load by more than half of it.
   from pluggybot.challenge.bench import KNOWN_MASS_KG
   rig = _Claw(KNOWN_MASS_KG)
   weight, push = KNOWN_MASS_KG * 9.81, -0.5
@@ -250,11 +254,12 @@ def test_the_force_at_the_tool_off_the_torques_is_a_known_load():
 
 def test_the_arms_own_friction_off_an_empty_sweep_corrects_the_force_while_it_moves():
   # Moving, the arm's own Coulomb friction (`ARM_FRICTION_NM` at each motor,
-  # and its passive pivots') reads 0.25-0.4 N at the tool, the size of a
-  # lid's own forces (#469). An empty sweep finds it (`arm_friction`); taken
-  # off where each joint turns (`less_friction`), the same sweep with the
-  # known cube in the claw reads its weight within 0.05 N (RMS over 0.1 s),
-  # swept at a lid's pace, 0.06 m/s.
+  # and its passive pivots') reads over 0.2 N at the tool (0.41 measured),
+  # the size of a lid's own forces (#469). An empty sweep finds it
+  # (`arm_friction`); taken off where each joint turns (`less_friction`), the
+  # same sweep with the known cube in the claw reads its weight within
+  # 0.07 N, an RMS of 0.1 s means (0.05 measured), swept at a lid's pace,
+  # 0.06 m/s.
   from pluggybot.challenge.bench import KNOWN_MASS_KG
   rig = _Claw(KNOWN_MASS_KG)
   a, b = (0.44, -0.05), (0.56, 0.10)
@@ -281,6 +286,16 @@ def test_the_arms_own_friction_off_an_empty_sweep_corrects_the_force_while_it_mo
   assert rig.held(), "the cube fell"
   assert off(beyond).max() > 0.2
   assert off(am.less_friction(beyond, rates, friction)).max() < 0.07
+
+
+def test_a_sweep_that_never_turned_a_motor_finds_no_friction_and_says_so():
+  # The mean of no rows is NaN, with only a warning, and a NaN friction
+  # turns every force read after it into NaN, far from the cause.
+  beyond = np.full((100, 2), 0.1)
+  turned = np.full((100, 2), 0.1)
+  assert am.arm_friction(beyond, turned) == pytest.approx([0.1, 0.1])
+  with pytest.raises(ValueError, match="elbow"):
+    am.arm_friction(beyond, np.column_stack([turned[:, 0], np.full(100, 0.01)]))
 
 
 # ---- the sensors ----------------------------------------------------------------------

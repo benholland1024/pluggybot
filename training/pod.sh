@@ -17,10 +17,9 @@
 #   training/pod.sh pull-batch HOST PORT NAME          back to $BATCHES/NAME (~/pluggybot-training/batches)
 #
 # A batch of flights is CPU work -- MuJoCo steps on one core a process and the
-# cameras render in software (osmesa, as the serving image does) -- and it is
-# never flown on the dev box beside its desktop: six processes there took the
-# box into swap and its desktop down (2026-10-06). Its pod has no volume, so
-# a batch lives on the container disk: pull it, then delete.
+# cameras render in software (osmesa, as the serving image does) -- and never
+# flies bare on the dev box (CLAUDE.md says why). Its pod has no volume, so a
+# batch lives on the container disk: pull it, then delete.
 #
 # HOST and PORT are the pod's public SSH address (`pod.sh address POD`).
 # The key is the one `runpodctl doctor` made; the pod gets its public half as
@@ -190,6 +189,11 @@ EOF
     # names, and its id goes into every batch's meta.txt.
     ref=${1:-HEAD}
     commit=$(git -C "$repo" rev-parse --short "$ref")
+    # A batch still flying runs from this tree: replaced under it, its code
+    # and the COMMIT its meta.txt names would no longer be what it flew.
+    "${ssh_[@]}" 'for m in /root/batches/*/meta.txt; do
+      [ -f "$m" ] && ! grep -q "^exit " "$m" && { echo "refused: ${m%/meta.txt} has not exited" >&2; exit 1; }
+    done; exit 0'
     "${ssh_[@]}" "rm -rf $remote && mkdir -p $remote /root/batches"
     git -C "$repo" archive --format=tar "$ref" \
       | "${ssh_[@]}" "tar -C $remote -xf - && echo $commit > $remote/COMMIT"

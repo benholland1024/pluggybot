@@ -3479,8 +3479,8 @@ arm's reach stops the lid at 66°.
 under osmesa's llvmpipe, and each lay down on its first try: the cube
 0.529–0.545 m ahead (sd 5.5 mm), −2..+17 mm across, the heading −1.4..+0.2°
 off the line walked in on. Every table below sets the box out square and at
-the GPU's 14 (`WALKIN`). The walk-in stops 0.54 m from what it steers by
-(`claw.LIE_AT_M`), 8 cm past the knob's 0.46.
+the GPU's 14 (`WALKIN`), each moved 8 cm nearer: the walk-in lies down with
+what it steered by 0.54 m ahead (`claw.LIE_AT_M`), and the knob wants 0.46.
 
 **The claw on its fork is a pendulum: it holds a push down or toward the
 robot, and little else** (`--window`: a push at the jaws' middle, ramped

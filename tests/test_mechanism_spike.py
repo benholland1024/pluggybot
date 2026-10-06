@@ -1,9 +1,7 @@
 """scripts/mechanism_spike.py (#469): what opens from lying, flown as a batch.
 
-What is pinned is what cost a night: a flight builds the house, a body and
-its renderers, and a world dropped in a worker that lives on was held until
-the cycle collector ran -- 300 flights through six reused workers took the
-dev box into swap and its desktop down (2026-10-06).
+The rules pinned are the batch's own -- each flight in a process of its own
+(`run_pool` says why) -- and the claw's, hanging still before it grips.
 """
 
 import importlib.util
