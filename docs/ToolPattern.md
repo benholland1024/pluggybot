@@ -112,7 +112,23 @@ payload room.
 **Ahead, not behind.** A centre of mass ahead of the peg leans the tool 6°
 onto the lean-pad, a round bar standing 3 mm behind the plate; behind the peg
 and below it is where the pad's post is. The pad also takes a pressing
-tool's reaction after 4° of swing; how hard a tool may push is open (§7).
+tool's reaction after 4° of swing.
+
+**What a tool may push** (`scripts/mechanism_spike.py --window`: a push at
+the claw's jaws, 175 mm under the peg; SimNotes, "Opening a box from
+lying"). A tool hangs on its peg as a pendulum, so it holds a push one or two
+ways only:
+- **down:** at least 6 N, the ramp's end;
+- **toward the robot:** 3 N, leaning on the pad;
+- **away from the robot:** nothing — it swings 50° at 1 N;
+- **up:** about 0.9 N. Pushed up under its peg it is an inverted pendulum,
+  beaten at about its weight × (its centre of mass under the peg ÷ the
+  push's depth under the peg). It tips onto the pad and rolls out of its V's.
+  Its whole weight is needed only for a lift through its centre of mass;
+- **sideways:** about 1 N rolls it off one V.
+
+A tool that grips something which holds it is not free to swing, and what
+must hold then is the grip's pull.
 
 ### What a carried tool does
 
@@ -428,8 +444,6 @@ Open, and not yours to fix unless your tool makes them worse.
 4. **Two stows in the pair tables let go** (the pen at B, −11.2 mm and
    −2.6°; the claw at C, +6.9 mm), each with the other robot working at the
    same time: recorded, not explained.
-5. **The push force** a tool may exert against the pad is not measured past
-   the pen's quill (60 N/m over the 10 mm a drawing presses: ~0.6 N).
 
 ---
 

@@ -37,8 +37,14 @@ of it as a walk-in leaves it (`--walkin`), inside the claw's reach.
                 the jolt of its release
   (default)     a filmstrip of each candidate opening, mechanism_spike.png
 
+  --all --into DIR  every table above, one file a mode in DIR, and the
+                filmstrip: a batch, flown on a CPU pod (`training/pod.sh
+                create-cpu`), or locally under a memory cap
+
 Usage:
   MUJOCO_GL=egl uv run python scripts/mechanism_spike.py [--table|--fit|...]
+  systemd-run --user --scope -p MemoryMax=12G -p MemorySwapMax=0 \\
+    uv run python scripts/mechanism_spike.py --all --into DIR --jobs 4
 """
 
 import os
@@ -51,6 +57,8 @@ import argparse  # noqa: E402
 from dataclasses import dataclass, replace  # noqa: E402
 import math  # noqa: E402
 from multiprocessing import Pool  # noqa: E402
+from pathlib import Path  # noqa: E402
+import sys  # noqa: E402
 
 import mujoco  # noqa: E402
 import numpy as np  # noqa: E402
@@ -1223,17 +1231,58 @@ def _print_rows(rows, keys) -> None:
 
 
 def run_pool(fn, jobs, n_jobs):
-  if n_jobs <= 1:
-    return [fn(j) for j in jobs]
-  with Pool(n_jobs) as pool:
+  """`fn` over `jobs`, each in a process of its own: a world dropped in a
+  reused one kept ~40 MB until the cycle collector ran, and 300 flights
+  through six reused workers took the dev box into swap (2026-10-06)."""
+  with Pool(max(1, n_jobs), maxtasksperchild=1) as pool:
     return pool.map(fn, jobs, chunksize=1)
+
+
+#: The batch behind #469's report, mode by mode: its file in DIR, its flags.
+ALL = (("walkin", ["--walkin", "--n", "16"]), ("window", ["--window"]),
+       ("table", ["--table", "--n", "15"]),
+       ("tolerance_handle", ["--tolerance", "--kinds", "handle", "--sets", "5"]),
+       ("tolerance_others", ["--tolerance", "--kinds", "lip,drawer", "--sets", "3"]),
+       ("torques", ["--torques", "--kp", "60,15,8"]),
+       ("fit", ["--fit", "--n", "8", "--corners", "--twins", "--kp", "60,15,8"]),
+       ("latch", ["--latch"]))
+
+
+def batch(args, argv) -> None:
+  """`--all`: every mode of `ALL` into DIR/<mode>.txt, then the filmstrip;
+  or with `--into` alone, the one mode asked for into its file."""
+  import contextlib
+  import time
+  into = Path(args.into)
+  into.mkdir(parents=True, exist_ok=True)
+  if args.all:
+    modes = [(name, flags + ["--jobs", str(args.jobs)]) for name, flags in ALL]
+    modes.append(("filmstrip", []))
+  else:
+    # `--into` goes in either spelling, or `main` hands the mode back here
+    flags = [a for i, a in enumerate(argv) if not a.startswith("--into")
+             and (i == 0 or argv[i - 1] != "--into")]
+    modes = [(next((m for m in MODES if f"--{m}" in flags), "filmstrip"), flags)]
+  for name, flags in modes:
+    t0 = time.time()
+    print(f"{name}: {' '.join(flags)}", file=sys.stderr, flush=True)
+    if name == "filmstrip":
+      main(flags + ["--out", str(into / "mechanism_spike.png")])
+    else:
+      with open(into / f"{name}.txt", "w") as f, contextlib.redirect_stdout(f):
+        main(flags)
+    print(f"{name}: {time.time() - t0:.0f} s", file=sys.stderr, flush=True)
+
+
+#: The modes, as their flags name them.
+MODES = ("walkin", "window", "table", "tolerance", "torques", "fit", "latch")
 
 
 def main(argv=None) -> None:
   import json
   ap = argparse.ArgumentParser(description=__doc__,
                                formatter_class=argparse.RawDescriptionHelpFormatter)
-  for mode in ("walkin", "window", "table", "tolerance", "torques", "fit", "latch"):
+  for mode in MODES:
     ap.add_argument(f"--{mode}", action="store_true")
   ap.add_argument("--kinds", default="handle,lip,drawer",
                   help="the candidates flown, comma-separated (not --walkin, --window, --fit)")
@@ -1249,7 +1298,14 @@ def main(argv=None) -> None:
                   help="with --fit: two lids of one first moment and different masses")
   ap.add_argument("--jobs", type=int, default=3, help="processes in parallel")
   ap.add_argument("--out", default="mechanism_spike.png", help="the filmstrip's file")
+  ap.add_argument("--all", action="store_true", help="every table and the filmstrip (with --into)")
+  ap.add_argument("--into", default=None,
+                  help="write a mode's rows to DIR/<mode>.txt rather than the terminal")
   args = ap.parse_args(argv)
+  if args.all and not args.into:
+    ap.error("--all writes a file a mode: give it --into DIR")
+  if args.all or args.into:
+    return batch(args, argv if argv is not None else sys.argv[1:])
   kinds = args.kinds.split(",")
   gains = [float(v) for v in args.kp.split(",")]
   if args.walkin:
