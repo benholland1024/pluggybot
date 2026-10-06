@@ -688,7 +688,12 @@ save a filmstrip PNG named after the script.
   The header advertises `accepts` PER KIND. ⚠ Sanitising is NOT the security
   boundary; the framing and the fixed menu are. ⚠ It is a CONVERSATION
   (`thread` / `turn` / `earlier`, the website's state; `sender` is stated by
-  the CALLER of `Inbox.offer`, never read off the wire); NO NEW VERB.
+  the CALLER of `Inbox.offer`, never read off the wire); NO NEW VERB. ⚠ It
+  is ONE LENGTH BOTH WAYS, `text.MAX_VISITOR_CHARS` (500, #474; the site
+  enforces it too), and the VISITORS rule states it off the constant; a
+  reply past it is cut OUT LOUD (`cut` on `visitor_reply`, History), and
+  `MAX_RAW_BYTES` must admit a follow-up at every cap. The `tell` stays
+  280.
 - **The serving image** (`docker build -t pluggyworld-sim .`; `Dockerfile`,
   `deploy/`; Webserver.md "Deploying it") runs `serve.py` and nothing else:
   the packages in `deploy/requirements-serve.txt` (pinned to `uv.lock`),

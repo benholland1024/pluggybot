@@ -10,6 +10,39 @@ observatory is NOT a result: it reports into the issue it informs.
 
 ## Periods
 
+### A conversation is 500 characters both ways, and a cut reply says so (#474) — opens when this PR is deployed
+
+**What changed in the mind.** The VISITORS rule, on every arm with a mind:
+`reply` is "a friendly answer that person will read" where it was "one
+friendly sentence", and a new bullet gives the length — a reply is kept up
+to 500 characters, anything past that is cut, and the robot is told when.
+`reply`'s line in "What you can do" lost "the sentence". The deployed
+prefix moved, `f3ec2e8a…` → `6cefb146…` (52 579 → 52 709 characters); the
+schema, the arm, the reward table and the world did not. What a
+conversation may BE moved under it: a visitor's message was cut at 280 and
+the robot's reply at 240, silently; both are 500 now, at the sim's door,
+in `validate` and on the website. On the wire, `cut` on a `visitor_reply`,
+additive, no bump. Both History lines of an exchange are kept whole, and a
+cut reply's line says so before the text.
+
+**What the period is for.** The rows before it hold cut replies: on
+2026-10-06 Rowan's answer to Ben ended "it makes the worl", at exactly 240
+(#474's screenshot). Nothing recovers what was cut. What to read from here:
+
+- how long the replies are, per robot, now that 240 is not a wall (a
+  `conversation` row's `detail` is the whole reply), and how often `cut` is
+  true: a robot cut on most of its replies is writing to a limit that is
+  still too small, and the number is data rather than an opinion;
+- whether being told the number changes the writing — replies that stop
+  short of it;
+- whether "a friendly answer" in place of "one friendly sentence" makes a
+  reply longer for its own sake, the rule's other change.
+
+**Not yet known.** Whether 500 is the right number, which the `cut` rows
+will say first. And the website still slices UTF-16 units where the sim
+counts code points (the note on #307's period), so a reply full of emoji
+is cut further there, unmarked.
+
 ### A placeholder is empty, and an answer full of them buys and gives nothing (#462) — opens when this PR is deployed
 
 **What changed in the world.** How an answer's paperwork is read. Every
