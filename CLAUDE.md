@@ -316,17 +316,21 @@ save a filmstrip PNG named after the script.
   model replaces it: the hinge is the top's back edge (a board high), the
   pin the bracket's tip. ⚠ A test walks its imports (never
   `activity.chest`, `evaluation`, the spike) and its source (no chest
-  element by name, no grip judged off the world). OUR grading reads each
+  element by name, no grip judged off the world, no truth through the
+  body's helpers: its arm's weight and its height are its encoders' and its
+  IMU's, `ArmDriver.gravity_sensed`, `LegOdometry.height`). OUR grading reads each
   guess in ITS OWN ROBOT'S FRAME -- it measures and plans through one
   belief -- and replays the record through the world's chest and the
   best-expressible reference set in its map (`evaluation/probe.py`). ⚠ A
   CATCH OF 3.3 N OR MORE CAN TURN THE HELD HANDLE OVER ON ITS PIN (the
-  flight's once in 128 set-outs, the reference's five times): after such a
-  release the record measures no fit, so the row FLAGS it, never drops it
-  (`turned` past `TWISTED_DEG`, `twisted`; `--regrade` grades kept records
-  again). ⚠ THE REFERENCE IS NEVER FITTED TO THE WORLD by code that knows
-  the truth (Ben, on #479): where the catch is strong the bar is lenient,
-  and that is stated.
+  reference's replay six times in 128 set-outs, the world's or the flight's
+  about once): after such a release the record measures no fit, so the row
+  FLAGS it, never drops it (`turned` past `TWISTED_DEG`, `twisted`;
+  `--regrade` grades kept records again). ⚠ A REPLAY'S WORLD STARTS ITS
+  HANDLE WHERE THE FLIGHT'S HUNG (`Imagined.start`): from its compiled pose
+  the floor read up to 0.27 N. ⚠ THE REFERENCE IS NEVER FITTED TO THE WORLD
+  by code that knows the truth (Ben, on #479): where the catch is strong
+  the bar is lenient, and that is stated.
 
 ### The mind (`mind/`; `docs/Overseer.md` is the design)
 

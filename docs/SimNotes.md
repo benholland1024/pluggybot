@@ -3785,7 +3785,7 @@ sent and sensed (`legs/probe.py`). Its set-outs (`evaluation.probe.set_out`)
 put drawn chest k in the storeroom, turned up to 20 deg off the line to its
 knob, and the robot 0.75-0.95 m off with the knob in its colour imager's
 view; `scripts/probe_chest.py` flies them and grades what it sensed -- 128
-of them here, 32 on the dev box and 96 on a pod.
+of them here, on a pod, after #479's review.
 
 **Where it can see from.** Lying, the D435 sits 0.098 m over the floor and
 the knob hangs at 0.088: neither imager sees the knob, and the depth camera
@@ -3821,8 +3821,11 @@ the belief, `tests/test_box.py`):
   of 90 000 points 2.5 deg off.
 
 **Code's foresight, and what it costs.** The hinge is the top's back edge at
-the top's height: a board's thickness over the true axis, +12 mm. The pin is
-the bracket's tip at its top: +4 mm. A held knob moves as its pin does --
+the top's height: a board's thickness over the true axis, +12.5 mm. The pin
+is the bracket's tip at its top: +4.3 mm. Every height is laid over the
+floor by the torso's height as its legs' encoders and its IMU give it
+(`LegOdometry.height`), half a millimetre over what the world's own heights
+gave. A held knob moves as its pin does --
 planned as a point on the lid it would be 66 mm off the pin's arc at the
 top, past the 40 mm Kp 8 forgives. Stage 3's model of the box replaces all
 three.
@@ -3842,17 +3845,17 @@ begins where they took it.
 reckoning walks about 1 mm a second, and after a walk the IMU's pitch is
 0.38 deg off at a second, 0.18 at two and 0.10 at three (4, 2 and 1 mm at
 the top's back edge): it stands 2 s before it measures. The walk of the last
-12.5 cm and the lie-down then moved the belief -10 to +7 mm along the box
-and -7 to +5 across, over the 128 set-outs below -- and in one run before
+12.5 cm and the lie-down then moved the belief -16 to +10 mm along the box
+and -6 to +4 across, over the 128 set-outs below -- and in one run before
 the re-find 25 mm: the belief was 36 mm off the truth at the record's start,
 and the jaws missed the knob. Lying, the D435 still sees the box's front face
 (its bottom two thirds, 0.29 m off). Its place, its middle between its
 edges and its turn, read standing and again lying, say what the walk and the
 lie-down did to the belief, and the measures, the record's standing clouds
 and its decodes are moved by it (`front_face`, `Move`). What it planned
-off: the knob within 1.5 mm along and across and 2.6 mm up (its median
-0.7), the pin 0.8 mm along the box, the hinge 2.6 mm (its median 0.4) and
-the facing 1.0 deg (its median 0.00), each graded in its own robot's frame (`evaluation.probe.geometry`: the probe
+off: the knob within 1.2 mm along, 0.7 across and 2.3 mm up (its median
+1.2), the pin 0.8 mm along the box, the hinge 1.8 mm (its median 0.4) and
+the facing 1.2 deg (its median 0.04), each graded in its own robot's frame (`evaluation.probe.geometry`: the probe
 measures and plans through one belief, so the belief's own error is none of
 the guess's).
 
@@ -3864,93 +3867,110 @@ pad nearer at least 8 cm above anything that could stand in it unseen
 (`ARM_FRICTION_NM` is 0.1 a motor, and the passive pivots add 0.01-0.02,
 #469).
 
-**How often it got through: 128 of 128**, every one on its first try: 32 on
-the dev box (EGL on its GPU) and 96 on a pod (llvmpipe under osmesa, the
-deploy box's rasteriser). Each took hold of the knob and kept it in the
-jaws through both sweeps, the claw seated (open at most 24 ms), lifted the
-lid 62-65 deg and pulled its catch off, and said so off its own torques
-(the lid's weight at the knob 1.0-2.0 N); our grading and its word agreed
-on all 128.
+**How often it got through: 128 of 128**, every one on its first try, on a
+pod (llvmpipe under osmesa, the deploy box's rasteriser; before #479's
+review a batch of 128, 32 of it on the dev box's GPU, got through as well).
+Each took hold of the knob and kept it in the jaws through both sweeps, the
+claw seated (open at most 62 ms), lifted the lid 62-65 deg and pulled its
+catch off, and said so off its own torques (the lid's weight at the knob
+1.0-1.9 N); our grading and its word agreed on all 128.
 
 **The lid's angle from the arm** -- the jaws where the encoders put them,
 plumb under the peg, turned about the guessed hinge -- is 2.0 deg off the
-lid's (RMS over the sweeps, its median; 3.3 at worst, and 5.5 at a moment):
+lid's (RMS over the sweeps, its median; 2.5 at worst, and 4.3 at a moment):
 the claw leans on its peg up
 to 4 deg, 12 mm at the jaws, and the reading takes the lean for the lid.
 
 **The record, replayed** (`evaluation.probe.replay`: the world's chest and
 its best-expressible reference set in the robot's map at the record's
-start, the record rolled out from its own start; the force at the tool
-apart from what the robot sensed, RMS of 0.1 s means):
+start, the record rolled out from its own start, each handle starting
+where the flight's hung; the force at the tool apart from what the robot
+sensed, RMS of 0.1 s means, over the 122 set-outs where no handle turned
+over -- the six where one did are below):
 
 | the force apart, N | take hold | 1st up | 1st down | 2nd up | 2nd down |
 |---|---|---|---|---|---|
-| the world's chest, median | 0.027 | 0.098 | 0.031 | 0.068 | 0.044 |
-| ...9 in 10 under | 0.029 | 0.34 | 0.11 | 0.19 | 0.13 |
-| the best-expressible reference, median | 0.027 | 0.30 | 0.042 | 0.23 | 0.048 |
-| ...9 in 10 under | 0.029 | 0.55 | 0.061 | 0.41 | 0.077 |
+| the world's chest, median | 0.027 | 0.034 | 0.025 | 0.030 | 0.027 |
+| ...9 in 10 under | 0.030 | 0.059 | 0.041 | 0.054 | 0.061 |
+| ...the worst | 0.033 | 0.099 | 0.083 | 0.093 | 0.14 |
+| the best-expressible reference, median | 0.027 | 0.29 | 0.042 | 0.22 | 0.050 |
+| ...9 in 10 under | 0.030 | 0.46 | 0.064 | 0.37 | 0.075 |
 
-Both grow with the catch on the first sweep up: the world's 0.05 N at
-1-2 N, 0.10 at 2-3 and 0.27 at 3-4 (medians), the reference's 0.15, 0.30
-and 0.47. The world's own chest from the robot's own start is the floor
-any model can reach: 0.03 N where no catch lets go, and where one does a
-tenth of a second off the real one -- the start's millimetres decide the
-moment -- up to 3 N for a moment. The reference leaves about what it left
+The world's own chest from the robot's own start is the floor any model can
+reach: within 0.14 N RMS on every sweep and 0.66 N at a moment, whatever the
+catch (its first sweep up's median 0.033 N at 1-2 N, 0.033 at 2-3 and 0.042
+at 3-4). Its handle must start where the flight's hung: from the chest's
+compiled pose a rollout's second of settling left it 4.8 deg short, and the
+floor read 0.05, 0.10 and 0.27 N by catch (#479's review). The reference's
+grows with the catch -- 0.16, 0.31 and 0.43 -- and leaves about what it left
 on the oracle's probe (stage 1's median at the first release, 0.26 N).
 
 **A strong catch can turn the held handle over on its pin.** While the
 catch holds, the arm's pull turns the handle on its pin, a median 4 deg and
-in 9 of 10 under 6.5. Under a catch of 3.3 N and more it sometimes turns
-over, 35-42 deg; the catch then lets go late, and the rest of the record
-differs. The flight did in 1 of 128 (set-out 50, 3.94 N: let go 5.1 s into
-the sweep, against a median 2.2 at 3.5-4 N) where the world's own chest,
-replayed from the robot's start, did not -- it parted from what was sensed
-by 2.8 N RMS on that sweep and 0.3-0.8 after. The reference turned over in
-5 of 128 (set-outs 4, 50, 59, 88 and 126, all at 3.3 N or more), four of
-them where the flight did not: in set-out 4 it let go 1.9 s late and stayed
-0.6-1.5 N off for the rest of the record. The language's catch holds its
-whole pull over its first millimetre where the magnet's falls to a quarter
-in half of one, so its pull builds longer: with the language's catch the
-world's chest let go 0.27 s late, and with the world's magnet the reference
-let go on time (2.37 s against 2.41) -- the catch, not the contact or the
-armature.
+in 9 of 10 under 6.5. Under a catch of 3.3 N or more it can turn over,
+33-42 deg; the catch then lets go 1.5-2.4 s late, and the rest of the
+record differs. The reference's replay turned over in 6 of 128 (set-outs 4,
+50, 59, 88, 103 and 126, 3.31-3.94 N), the world's once (set-out 50) and
+the flight never. Set-out 50 sits on the edge: its flight began to turn
+over and fell back (23.1 deg, let go 3.06 s into the sweep) while its world
+replay turned over -- and in the batch before #479's review, the other way
+round. Taking the language's gaps one at a time (the release, s into the
+first sweep up):
+
+| set-out | flight | world | reference | reference, the world's magnet | world, the language's catch | world, no armature | world, the imagination's contact |
+|---|---|---|---|---|---|---|---|
+| 4 | 2.41 | 2.42 | 3.96 | 2.36 | 2.87 | 2.42 | 2.36 |
+| 88 | 2.44 | 2.44 | 4.43 | 2.40 | 4.43 | 2.46 | 2.38 |
+| 103 | 2.51 | 2.53 | 4.54 | 2.52 | 4.43 | 2.58 | 2.47 |
+| 126 | 2.39 | 2.40 | 4.43 | 2.39 | 2.84 | 2.44 | 2.34 |
+| 59 | 2.60 | 2.61 | 4.83 | 4.31 | 4.79 | 4.37 | 2.54 |
+| 50 | 3.06 | 4.90 | 5.46 | 4.90 | 5.44 | 4.94 | 3.06 |
+
+In four the catch decides it: the language's holds its whole pull over its
+first millimetre where the magnet's falls to a quarter in half of one, so
+its pull builds longer, and with the world's magnet the reference let go
+with the flight. In set-out 59 the armature the language leaves out decides
+it as much, and set-out 50 turns on a hair: on the imagination's contact
+the world's chest let go with the flight.
 
 **Such a record is flagged, never dropped** (Ben, on #479). Our grading
 reads how far the held handle turned on its pin while the catch held -- in
 the flight off the truth, in each replay off its own rollout
 (`evaluation.probe.turned`) -- and the row names those past `TWISTED_DEG`
-(25 deg, `twisted`): set-outs 4, 50, 59, 88 and 126. Below it the largest
-turns were 15.8 deg in the flight, 13.2 in the world's replay and 21.0 in
-the reference's: set-out 103, whose gap on the sweeps down was about 4
-times the other strong catches' median, against 11-33 times where the
-handle turned over. What follows a flagged release measures no fit, so
-stage 3 reads its bar set-out by set-out, a flagged one apart.
+(28 deg, `twisted`): set-outs 4, 50, 59, 88, 103 and 126. Over both batches
+a handle turned over at 33.5-42.2 deg, and otherwise at most 15.8 but for
+the two that began to and fell back (21.0 and 23.1). Where one turned over
+the reference's sweeps down read 3-29 times the gap of the strong catches
+where none did: what follows a flagged release measures no fit, so stage 3
+reads its bar set-out by set-out, a flagged one apart.
 `scripts/probe_chest.py --regrade` grades kept records again without flying
-them, and reproduced every flown replay.
+them, 5 s a set-out, and reproduced every replay the pod flew.
 
 **The reference keeps stage 1's catch** (Ben, on #479): code that knows the
 truth writes the true numbers into the language and fits nothing to the
 world, or the reference would be a second fitter to trust. So where the
-catch is strong the bar is lenient, its catch letting go later than the
-magnet: a limitation stated, not tuned away. A language whose catch could
-say how its pull falls with the gap would write the magnet as it is.
+catch is strong the bar is lenient -- its catch lets go later than the
+magnet, and it carries no armature -- a limitation stated, not tuned away.
+A language whose catch could say how its pull falls with the gap would
+write the magnet as it is.
 
-**What it costs.** A probe is 94 sim-seconds (104 at most); three at once
-on the dev box take 51 s each, thirty at once on a pod's 31-CPU share 59 s
-(96 in 4.5 minutes). Its record is 8.7 MB, 6.8 of it the depth it measured
+**What it costs.** A probe is 94 sim-seconds (104 at most); thirty at once
+on a pod's 31-CPU share take 63 s each, 128 in 6 minutes (three at once on
+the dev box, 51 s). Its record is 8.7 MB, 6.8 of it the depth it measured
 off: the rows a rollout needs are 1.3.
 
 **What is true now:** the robot probes the chest from its own senses
 (`legs/probe.py`): it measures the box standing 0.55 m off its knob, lies,
 re-finds it by its front face, takes the knob clear of its bracket and
 sweeps the lid at Kp 8, recording what it sent and sensed: 128 of 128 got
-through. What it planned off is within 2.6 mm of the truth in its own frame,
+through. What it planned off is within 2.3 mm of the truth in its own frame,
 but for what its foresight costs (the hinge a board high, the pin half a
-bracket). The record replays through the world's chest from its own start
-to a few hundredths of a newton where no catch lets go; at a catch's
-release the references part, and a strong catch can turn the held handle
-over on its pin, in the flight or in a replay: such a record is flagged and
-kept, and the reference's catch is stage 1's, fitted to nothing.
+bracket). The record replays through the world's chest from its own start,
+its handle where the flight's hung, to a few hundredths of a newton, catch
+and all; the reference parts at a catch's release, and a strong catch can
+turn the held handle over on its pin, in the flight or in a replay: such a
+record is flagged and kept, and the reference is stage 1's, fitted to
+nothing.
 
 ## Debugging workflow that worked
 
