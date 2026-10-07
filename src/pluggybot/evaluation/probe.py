@@ -52,12 +52,13 @@ TURNED = math.radians(20.0)
 #: `set_out(k)`'s seed is this plus k.
 SETOUT_SEED = 4660
 #: The held handle TURNED OVER on its pin past this while the catch held
-#: its lid shut, deg. Over 128 set-outs the arm's pull turned it a median 4
-#: (at most 15.8 in the flight, 13.2 in the world's replay, 21.0 in the
-#: reference's), and 35-42 where it turned over: the flight once, the
-#: reference five times, every catch 3.3 N or more. What follows such a
-#: release measures no fit (SimNotes, "The probe from the robot's own senses").
-TWISTED_DEG = 25.0
+#: its lid shut, deg: over two batches of 128 set-outs (#479, before its
+#: review and after) the arm's pull turned it a median 4 and at most 15.8,
+#: 21.0 and 23.1 in the two that began to turn over and fell back, and
+#: 33.5-42.2 in the thirteen that turned over, every catch 3.3 N or more.
+#: What follows such a release measures no fit (SimNotes, "The probe from
+#: the robot's own senses").
+TWISTED_DEG = 28.0
 
 
 @dataclass(frozen=True)

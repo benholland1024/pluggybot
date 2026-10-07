@@ -681,15 +681,15 @@ def test_a_record_whose_handle_turned_over_is_flagged_and_kept(monkeypatch):
   monkeypatch.setattr(ep.im, "compare", lambda truth, other, rows: [])
   out = SimpleNamespace(phases=phases, record=SimpleNamespace(
     n=n, dt=0.002, sensed=np.zeros((n, 4)), start=SimpleNamespace(pose=(24.0, -3.0, 0.0))))
-  rows = np.column_stack([np.zeros(n), held_turn(0.5), np.ones(n), np.ones(n)])
+  rows = np.column_stack([np.zeros(n), held_turn(0.55), np.ones(n), np.ones(n)])
   got = script.replayed(7, out, rows, (24.0, -3.0, 0.0), replay=True)
-  assert got["turnedDeg"] == {"flight": pytest.approx(28.6, abs=0.1),
+  assert got["turnedDeg"] == {"flight": pytest.approx(31.5, abs=0.1),
                               "world": pytest.approx(5.7, abs=0.1),
                               "reference": pytest.approx(40.1, abs=0.1)}
   assert got["twisted"] == ["flight", "reference"]
   assert set(got["replay"]) == {"world", "reference"}
   assert script.replayed(7, out, rows, (24.0, -3.0, 0.0), replay=False) == {
-    "turnedDeg": {"flight": pytest.approx(28.6, abs=0.1)}, "twisted": ["flight"]}
+    "turnedDeg": {"flight": pytest.approx(31.5, abs=0.1)}, "twisted": ["flight"]}
 
 
 class InlinePool:
