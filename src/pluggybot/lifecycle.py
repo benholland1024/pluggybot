@@ -55,8 +55,8 @@ from pluggybot.mind.mode import ModeSwitch, open_switch
 from pluggybot.mind.spend import open_book
 from pluggybot.mind.overseer import (
   CALLS_PER_HOUR, HEART_PRICE, HEART_RESERVE_HOURS, MAX_LOOK_RUN,
-  MAX_RECALL_RUN, PROCEDURE_NEW, PROCEDURE_PREFIX, RECALL_S, THINK_SLICE_S,
-  left_out_said, order_runnable,
+  MAX_RECALL_RUN, MAX_REPLY, PROCEDURE_NEW, PROCEDURE_PREFIX, RECALL_S,
+  THINK_SLICE_S, left_out_said, order_runnable,
 )
 from pluggybot.tools.screen import face_for
 from pluggybot.mind.thoughts import (
@@ -4459,7 +4459,7 @@ class HubLifecycle:
         self._ticket_event("opened", ticket, text=ticket.text,
                            **({"cut": True} if ticket.cut else {}))
         self._say(f"TICKET opened {ticket.id} ({ticket.kind}): {ticket.title}"
-                  f"{tickets_desk.cut_said(ticket.cut, tickets_desk.MAX_TEXT)}")
+                  f"{text_registry.cut_said(ticket.cut, tickets_desk.MAX_TEXT)}")
         # ⚠ THE CUT GOES IN HISTORY (the length follow-up on #284), which
         # the robot reads back: a truncation it is not told about is one
         # it goes on believing it filed whole, and four of the deployed
@@ -4471,7 +4471,7 @@ class HubLifecycle:
         # lost -- the same defect one surface over. The record keeps the
         # text whole; History keeps what happened to it.
         self._remember(f"opened ticket {ticket.id} ({ticket.kind})"
-                       f"{tickets_desk.cut_note(ticket.cut, tickets_desk.MAX_TEXT)}: "
+                       f"{text_registry.cut_note(ticket.cut, tickets_desk.MAX_TEXT)}: "
                        f"{ticket.title} -- {ticket.text}")
     if decision.ticket_reply:
       r = decision.ticket_reply
@@ -4488,9 +4488,9 @@ class HubLifecycle:
                            **{"from": self.robot_name}, text=line.text,
                            **({"cut": True} if line.cut else {}))
         self._say(f"TICKET {ticket.id} -- replied: {line.text}"
-                  f"{tickets_desk.cut_said(line.cut, tickets_desk.MAX_LINE)}")
+                  f"{text_registry.cut_said(line.cut, tickets_desk.MAX_LINE)}")
         self._remember(f"replied on ticket {ticket.id} ({ticket.title})"
-                       f"{tickets_desk.cut_note(line.cut, tickets_desk.MAX_LINE)}: "
+                       f"{text_registry.cut_note(line.cut, tickets_desk.MAX_LINE)}: "
                        f"{line.text}")
 
   def _ticket_reply(self, msg) -> None:
@@ -4517,12 +4517,12 @@ class HubLifecycle:
                        **{"from": who}, text=line.text, ref=msg.id,
                        **({"cut": True} if line.cut else {}))
     self._say(f"TICKET {ticket.id} -- {who} replied: {line.text}"
-              f"{tickets_desk.cut_said(line.cut, tickets_desk.MAX_LINE)}")
+              f"{text_registry.cut_said(line.cut, tickets_desk.MAX_LINE)}")
     # ⚠ ...AND IT REACHES HISTORY WHOLE (#433): a ticket line's room, and no
     # title in front of it -- the `tickets` block carries the title. With
     # one, History's line cap kept ~260 characters of a 500-character reply.
     self._remember(f"{who} replied on my ticket {ticket.id}"
-                   f"{tickets_desk.cut_note(line.cut, tickets_desk.MAX_LINE, who)}: "
+                   f"{text_registry.cut_note(line.cut, tickets_desk.MAX_LINE, who)}: "
                    f"{line.text}", room=tickets_desk.MAX_LINE)
     self._occur("ticket_replied")
 
@@ -4551,7 +4551,7 @@ class HubLifecycle:
       entry = self._bank(verdict)
       if entry is not None:
         self.tickets.pay(ticket.id, entry["points"], entry["seq"])
-      said = (f"{tickets_desk.cut_note(ticket.closed_cut, tickets_desk.MAX_LINE, who)}"
+      said = (f"{text_registry.cut_note(ticket.closed_cut, tickets_desk.MAX_LINE, who)}"
               f": {ticket.closed_text}" if ticket.closed_text else "")
       paid = (f" -- {entry['points']:+d} points" if entry is not None else "")
       self._say(f"TICKET {ticket.id} closed by {who}{said}{paid}")
@@ -5204,11 +5204,17 @@ class HubLifecycle:
     msg = self.inbox.take(decision.respond_to)
     if msg is None:
       return                                # already dealt with; nothing owed
+    # ⚠ A REPLY PAST ITS CAP IS CUT OUT LOUD (issue #474): `validate` kept
+    # one character over so this can tell. The person reads it ending where
+    # the cut did, so the wire says `cut` for the page to mark, and History
+    # says it to the robot -- the same text, with no space a cut left.
+    text = decision.reply[:MAX_REPLY].rstrip()
+    cut = len(decision.reply) > MAX_REPLY
     reply = {"type": "visitor_reply", "t": round(float(self.data.time), 3),
              "robot": self.root, "id": msg.id, "kind": msg.kind,
-             "outcome": decision.outcome, "reply": decision.reply,
+             "outcome": decision.outcome, "reply": text,
              "action": decision.action if decision.outcome == "accepted"
-             else "", **_conversation(msg)}
+             else "", **({"cut": True} if cut else {}), **_conversation(msg)}
     for hook in self.visitor_hooks:
       hook(dict(reply))
     self.replies.append(reply)
@@ -5219,8 +5225,9 @@ class HubLifecycle:
     # verb: "replied ada's message" was ungrammatical the moment `answered`
     # became `replied`, and all three outcomes have to read as English here.
     who = msg.who or "a visitor"
-    said = decision.reply or "(no reply)"
-    self._say(f"VISITOR message from {who} -- {decision.outcome}: {said}")
+    said = text or "(no reply)"
+    self._say(f"VISITOR message from {who} -- {decision.outcome}: {said}"
+              f"{text_registry.cut_said(cut, MAX_REPLY)}")
     # ...and REMEMBERED (rooftop-media-2026 #125): the exchange is the one
     # thing in a day that another mind said, and until this it was narrated
     # and then gone -- the tier table promised History "the senders" and no
@@ -5229,12 +5236,18 @@ class HubLifecycle:
     # across a whole life. Written by the SYSTEM quoting the sender: a
     # sender never writes a document (mind/text.py), the system writes down
     # that they spoke.
+    # ⚠ WHOLE, with a ticket line's room (#433): both texts are bounded
+    # where they were written, at a conversation's cap (`MAX_REPLY`), and
+    # History's own line cap kept 400 of either. A cut is said BEFORE the
+    # text, where a line's end cannot take it (#307).
     self._remember(f"{who} said{' (following up)' if msg.turn > 1 else ''}: "
-                   f"{msg.text}")
-    self._remember(f"took {who}'s idea ({decision.action}): {said}"
+                   f"{msg.text}", room=MAX_REPLY)
+    note = text_registry.cut_note(cut, MAX_REPLY)
+    self._remember(f"took {who}'s idea ({decision.action}){note}: {said}"
                    if decision.outcome == "accepted" else
-                   f"declined {who}: {said}" if decision.outcome == "declined"
-                   else f"replied to {who}: {said}")
+                   f"declined {who}{note}: {said}"
+                   if decision.outcome == "declined"
+                   else f"replied to {who}{note}: {said}", room=MAX_REPLY)
 
   # ---- tasks (issue #21) ----------------------------------------------------
 

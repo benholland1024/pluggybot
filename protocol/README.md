@@ -44,6 +44,23 @@ replayer treats it like any other world -- one scene, one recording, keyed
 by that name (`pluggybot.robot.pair_model_name`). The served world is the
 pair, `home_quad_pair`.
 
+### 0.21.0, additive: a conversation is 500 characters both ways, and a cut reply says so (`visitor_reply.cut`)
+
+pluggybot #474. A visitor's `message` text and the robot's
+`visitor_reply.reply` are one number, `text.MAX_VISITOR_CHARS` (500; until
+now 280 in and 240 out), and so is each half of an `earlier` turn a
+follow-up carries. The website enforces the same number both ways, and the
+robot is told it. One field is new:
+
+- **`cut: true`** on a `visitor_reply` whose robot wrote more than that:
+  `reply` is the first 500 characters and the rest was not kept. Absent
+  where the reply fitted, so the mark means something. A consumer shows
+  it: a reader is entitled to know a reply that ends mid-word was cut (the
+  robot is told in History). A `ticket`'s `cut` is the same mark.
+
+The other robot's `tell` (the `message` act) is still a sentence, 280.
+No fixture carries one (the pair's recording has no mind).
+
 ### 0.21.0, additive: what was left out of an answer (`left_out`)
 
 pluggybot #462. Every field of a decision is required, and a placeholder the
@@ -2253,17 +2270,17 @@ it opened, and a message can only arrive while that connection is up.
   deliberately *not* in the vocabulary yet: an entry with nothing behind it
   is a promise the robot cannot keep.
 
-⚠ **Visitor text is DATA, never instructions.** The sim caps it at 280
-characters, strips control characters (newlines included — a multi-line
-suggestion is how a narration line gets forged), collapses it to one line,
-and presents it to the LLM overseer inside a `visitorMessages` list under a
-rule saying these are things people *want*. The robot's freedom to decline
-is the defence. **Sanitising is not the security boundary and must not be
-mistaken for one**: it stops a forged log line and does nothing about
-"ignore your goals", which is answered instead by the fact that the model's
-only output is an action off a fixed menu — there is no free-text path from
-a visitor to the robot's body. Both ends cap length, because either one
-alone is a single point of failure.
+⚠ **Visitor text is DATA, never instructions.** The sim caps it
+(`inbox.MAX_TEXT`, 500 since #474), strips control characters (newlines
+included — a multi-line suggestion is how a narration line gets forged),
+collapses it to one line, and presents it to the LLM overseer inside a
+`visitorMessages` list under a rule saying these are things people *want*.
+The robot's freedom to decline is the defence. **Sanitising is not the
+security boundary and must not be mistaken for one**: it stops a forged log
+line and does nothing about "ignore your goals", which is answered instead
+by the fact that the model's only output is an action off a fixed menu —
+there is no free-text path from a visitor to the robot's body. Both ends cap
+length, because either one alone is a single point of failure.
 
 #### The header gains `accepts`
 

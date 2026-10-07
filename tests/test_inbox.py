@@ -26,11 +26,13 @@ import time
 
 import pytest
 
+from pluggybot.mind import overseer as ov
 from pluggybot.mind.inbox import (
-  MAX_QUEUE, MAX_RAW_BYTES, MAX_TEXT, Inbox, VisitorMessage, clean,
+  MAX_EARLIER, MAX_ID, MAX_QUEUE, MAX_RAW_BYTES, MAX_TEXT, MAX_WHO, Inbox,
+  VisitorMessage, clean,
 )
 from pluggybot.economy.scoring import default_table
-from pluggybot.mind.overseer import Decision, Menu
+from pluggybot.mind.overseer import MAX_REPLY, MAX_TELL, Decision, Menu
 from pluggybot.telemetry.protocol import (
   DECIDED_OUTCOMES, INBOUND_TYPES, VISITOR_OUTCOMES,
 )
@@ -103,10 +105,30 @@ def test_an_oversized_payload_is_dropped_unread():
   assert inbox.stats()["droppedInvalid"] == 1
 
 
+def test_a_follow_up_at_every_cap_is_read_not_dropped():
+  """...but the raw bound must admit the largest message the caps admit
+  (#474), however it is encoded: `MAX_EARLIER` exchanges at a
+  conversation's cap both ways, every character an emoji that Python's
+  default `json.dumps` escapes as a `\\uXXXX` pair, is 56 888 characters.
+  Past the bound, the person's follow-up is dropped unread. Shown to fail
+  with `MAX_RAW_BYTES` at 16 384 or below."""
+  q = "\N{GRINNING FACE}" * MAX_TEXT
+  earlier = [{"from": "a" * MAX_WHO, "text": q, "outcome": "replied",
+              "reply": q}] * MAX_EARLIER
+  raw = json.dumps(message(id="i" * MAX_ID, text=q, thread="t" * MAX_ID,
+                           turn=MAX_EARLIER + 1, earlier=earlier,
+                           **{"from": "a" * MAX_WHO}))
+  msg = Inbox().offer(raw)
+  assert msg is not None, f"a {len(raw)}-character follow-up was dropped unread"
+  assert msg.text == q and len(msg.earlier) == MAX_EARLIER
+  assert all(e.text == q and e.reply == q for e in msg.earlier)
+
+
 def test_long_text_is_capped_rather_than_refused():
-  """A visitor who wrote an essay meant to say something; the first 280
-  characters of it are still a message. Oversized RAW is a different
-  thing (above) -- that one is an attack surface, this one is a person."""
+  """A visitor who wrote an essay meant to say something; the first
+  `MAX_TEXT` characters of it are still a message. Oversized RAW is a
+  different thing (above) -- that one is an attack surface, this one is
+  a person."""
   inbox = Inbox()
   msg = inbox.offer(message(text="please " * 200))
   assert msg is not None and len(msg.text) == MAX_TEXT
@@ -399,12 +421,85 @@ def test_a_model_cannot_claim_the_queue_ate_a_message():
 
 
 def test_the_reply_the_visitor_reads_is_capped_too():
-  """The only free text that leaves the model and reaches a human."""
+  """The only free text that leaves the model and reaches a human, at a
+  conversation's cap (#474) -- and `validate` keeps ONE character over
+  it, so the reply that goes out can say it was cut (below)."""
   menu = Menu(boards=("whiteboard_a",), programs=("house",), tools=True)
   d = menu.validate({"action": "carry", "reason": ".", "respond_to": "s1",
                      "outcome": "replied", "reply": "word " * 500},
                     waiting=("s1",))
-  assert 0 < len(d.reply) <= 240
+  assert len(d.reply) == MAX_REPLY + 1 == MAX_TEXT + 1
+
+
+#: What Rowan was saying to Ben when 240 stopped it (#474), run on.
+LONG_REPLY = " ".join(
+  ["the four-legged body has carried me across two houses and a street"] * 9)
+
+
+def test_a_reply_past_the_cap_is_cut_out_loud():
+  """⚠ THE DEFECT (#474): a reply to Ben was sliced at 240 with nothing
+  said, so he read "...it makes the worl" and the robot never knew. The
+  cap is 500 now, and a reply past it says it was cut: on the wire for
+  the page to mark, in the narration, and in History BEFORE the text,
+  where the robot reads it back. A reply that fits carries no mark.
+  Shown to fail without the fix: clean the reply to `MAX_REPLY` in
+  `validate` and `cut` is never set."""
+  assert len(LONG_REPLY) > MAX_REPLY
+  inbox = Inbox()
+  life = _lifecycle(inbox=inbox)
+  sent: list = []
+  said: list = []
+  life.visitor_hooks.append(sent.append)
+  life.say_hooks.append(lambda t, line: said.append(line))
+  menu = Menu(boards=("whiteboard_a",), programs=("house",), tools=True)
+  for id_, reply in (("s1", LONG_REPLY), ("s2", "hello")):
+    inbox.offer(message(id=id_))
+    life._answer_visitor(menu.validate(
+      {"action": "carry", "reason": ".", "respond_to": id_,
+       "outcome": "replied", "reply": reply}, waiting=(id_,)))
+  cut, fits = sent
+  kept = LONG_REPLY[:MAX_REPLY]
+  assert (cut["reply"], cut["cut"]) == (kept, True)
+  assert fits["reply"] == "hello" and "cut" not in fits, "the mark means something"
+  told = [line for line in said if line.startswith("VISITOR message")]
+  assert told[0].endswith(f"{kept} -- CUT at {MAX_REPLY} characters")
+  assert "CUT" not in told[1]
+  history = life.thoughts.read("History.md")
+  assert (f"replied to ada, cut at {MAX_REPLY} characters (I wrote more and "
+          f"the rest was not kept): {kept}\n") in history
+  assert "replied to ada: hello" in history
+
+
+def test_a_cut_leaves_no_space_at_the_end():
+  """Found reviewing #474: a cut that landed just after a space sent the
+  reply out ending in one, so the words on the wire and History's (which
+  collapses whitespace) differed by it. Shown to fail without the fix:
+  drop the `rstrip`."""
+  kept = "w" * (MAX_REPLY - 1)
+  inbox = Inbox()
+  life = _lifecycle(inbox=inbox)
+  sent: list = []
+  life.visitor_hooks.append(sent.append)
+  inbox.offer(message(id="s1"))
+  menu = Menu(boards=("whiteboard_a",), programs=("house",), tools=True)
+  life._answer_visitor(menu.validate(
+    {"action": "carry", "reason": ".", "respond_to": "s1",
+     "outcome": "replied", "reply": kept + " and more"}, waiting=("s1",)))
+  assert (sent[0]["reply"], sent[0]["cut"]) == (kept, True)
+  assert life.thoughts.lines("History.md")[-1].endswith(f": {kept}")
+
+
+def test_the_robot_is_told_how_long_a_reply_may_be():
+  """Ben's other half of #474: both writers know the limit. The visitor's
+  box counts it down (the website); the robot is told it in the VISITORS
+  rule, formatted in from the cap the door enforces, so the number it
+  reads is the number that cuts. Shown to fail without the fix: the rule
+  asked for "one friendly sentence" and carried no number."""
+  from test_overseer import FakeClient
+  rule = f"A reply is kept up to {MAX_REPLY} characters."
+  assert rule in ov.RULES and "%(" not in ov.RULES
+  menu = Menu(boards=("whiteboard_a",), programs=("house",), tools=True)
+  assert rule in ov.Overseer(menu, client=FakeClient()).system[0]["text"]
 
 
 def test_the_inbound_vocabulary_is_the_protocols():
@@ -892,6 +987,24 @@ def test_the_exchange_is_remembered_by_the_system_quoting_the_sender():
   assert life.thoughts.recall(find="ada far board")["hits"] >= 1
 
 
+def test_a_conversation_at_its_cap_reaches_history_whole():
+  """Both halves of an exchange are bounded where they were written, at
+  a conversation's 500 (#474), and History's own line cap is 400: without
+  a quoted text's room (#433) each ended mid-word, the line marked cut.
+  Shown to fail without the fix: drop either line's `room`."""
+  theirs = ("x" * 9 + " ") * 49 + "x" * 10
+  ours = ("y" * 9 + " ") * 49 + "y" * 10
+  assert len(theirs) == len(ours) == MAX_TEXT == MAX_REPLY
+  inbox = Inbox()
+  life = _lifecycle(inbox=inbox)
+  inbox.offer(message(id="s1", text=theirs))
+  life._answer_visitor(Decision(action="carry", respond_to="s1",
+                                outcome="replied", reply=ours))
+  heard, answered = life.thoughts.lines("History.md")[-2:]
+  assert heard.endswith(f"ada said: {theirs}")
+  assert answered.endswith(f"replied to ada: {ours}")
+
+
 def test_the_other_robots_message_is_remembered_the_same_way():
   """A peer's sentence (issue #208) takes the visitor's path and lands in
   History under its sender's name -- the recipient used to keep no record
@@ -906,3 +1019,16 @@ def test_the_other_robots_message_is_remembered_the_same_way():
   rows = life.thoughts.records.tail(life.thoughts.robot, "history", 2)
   assert [r.text.split("] ", 1)[1] for r in rows] \
       == ["Rowan said: the pen is on bay C", "replied to Rowan: thanks"]
+
+
+def test_the_other_robots_sentence_keeps_a_sentences_cap():
+  """#474 widened a conversation with PEOPLE and left the `tell` (#208)
+  at a sentence: the door cleans each sender to its own row's cap.
+  Shown to fail without the fix: clean every sender to `MAX_TEXT`."""
+  from pluggybot.mind.text import PEER
+  inbox = Inbox()
+  told = inbox.offer({"type": "message", "id": "r2_pluggybot:1",
+                      "from": "Rowan", "text": "y" * 900}, sender=PEER)
+  heard = inbox.offer(message(id="s1", text="y" * 900))
+  assert (len(told.text), len(heard.text)) == (MAX_TELL, MAX_TEXT)
+  assert MAX_TELL < MAX_TEXT
