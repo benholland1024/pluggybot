@@ -5207,8 +5207,9 @@ class HubLifecycle:
     # ⚠ A REPLY PAST ITS CAP IS CUT OUT LOUD (issue #474): `validate` kept
     # one character over so this can tell. The person reads it ending where
     # the cut did, so the wire says `cut` for the page to mark, and History
-    # says it to the robot.
-    text, cut = decision.reply[:MAX_REPLY], len(decision.reply) > MAX_REPLY
+    # says it to the robot -- the same text, with no space a cut left.
+    text = decision.reply[:MAX_REPLY].rstrip()
+    cut = len(decision.reply) > MAX_REPLY
     reply = {"type": "visitor_reply", "t": round(float(self.data.time), 3),
              "robot": self.root, "id": msg.id, "kind": msg.kind,
              "outcome": decision.outcome, "reply": text,

@@ -126,6 +126,22 @@ def test_every_text_surface_is_a_registry_row():
                                "retract", "record", "unnote", "note")
 
 
+def test_each_message_row_names_its_own_cap():
+  """A ticket line's cap and a conversation's are one figure today (500)
+  and two decisions (#307, #474), so a row that borrowed the other's
+  constant passes every length test until one of them is re-tuned. The
+  wiring is read off the source, the one place they differ. Shown to
+  fail: put `MAX_VISITOR_CHARS` on the `operator` row."""
+  rows = {}
+  for node in ast.walk(ast.parse(Path(text.__file__).read_text())):
+    if (isinstance(node, ast.Call) and getattr(node.func, "id", "") == "Surface"
+        and isinstance(node.args[0], ast.Constant)
+        and node.args[0].value in ("visitor", "peer", "operator")):
+      rows[node.args[0].value] = node.args[3].id
+  assert rows == {"visitor": "MAX_VISITOR_CHARS", "peer": "MAX_TELL_CHARS",
+                  "operator": "MAX_TICKET_CHARS"}
+
+
 def test_the_two_shapes_stay_two():
   """A document has a writer off THOUGHT_WRITERS and a policy; a message
   has a sender and no policy but the queue's. No row is both, and the

@@ -107,11 +107,12 @@ def test_an_oversized_payload_is_dropped_unread():
 
 def test_a_follow_up_at_every_cap_is_read_not_dropped():
   """...but the raw bound must admit the largest message the caps admit
-  (#474): `MAX_EARLIER` exchanges at a conversation's cap both ways,
-  every character one JSON escapes, is 9 688 characters, and at the 8192
-  the bound was, the person's follow-up was dropped unread. Shown to fail
-  without the fix: put `MAX_RAW_BYTES` back to 8192."""
-  q = '"' * MAX_TEXT
+  (#474), however it is encoded: `MAX_EARLIER` exchanges at a
+  conversation's cap both ways, every character an emoji that Python's
+  default `json.dumps` escapes as a `\\uXXXX` pair, is 56 888 characters.
+  Past the bound, the person's follow-up is dropped unread. Shown to fail
+  with `MAX_RAW_BYTES` at 16 384 or below."""
+  q = "\N{GRINNING FACE}" * MAX_TEXT
   earlier = [{"from": "a" * MAX_WHO, "text": q, "outcome": "replied",
               "reply": q}] * MAX_EARLIER
   raw = json.dumps(message(id="i" * MAX_ID, text=q, thread="t" * MAX_ID,
@@ -467,6 +468,25 @@ def test_a_reply_past_the_cap_is_cut_out_loud():
   assert (f"replied to ada, cut at {MAX_REPLY} characters (I wrote more and "
           f"the rest was not kept): {kept}\n") in history
   assert "replied to ada: hello" in history
+
+
+def test_a_cut_leaves_no_space_at_the_end():
+  """Found reviewing #474: a cut that landed just after a space sent the
+  reply out ending in one, so the words on the wire and History's (which
+  collapses whitespace) differed by it. Shown to fail without the fix:
+  drop the `rstrip`."""
+  kept = "w" * (MAX_REPLY - 1)
+  inbox = Inbox()
+  life = _lifecycle(inbox=inbox)
+  sent: list = []
+  life.visitor_hooks.append(sent.append)
+  inbox.offer(message(id="s1"))
+  menu = Menu(boards=("whiteboard_a",), programs=("house",), tools=True)
+  life._answer_visitor(menu.validate(
+    {"action": "carry", "reason": ".", "respond_to": "s1",
+     "outcome": "replied", "reply": kept + " and more"}, waiting=("s1",)))
+  assert (sent[0]["reply"], sent[0]["cut"]) == (kept, True)
+  assert life.thoughts.lines("History.md")[-1].endswith(f": {kept}")
 
 
 def test_the_robot_is_told_how_long_a_reply_may_be():

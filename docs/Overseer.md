@@ -2486,9 +2486,10 @@ trick), `_answer_visitor` cuts it, the `visitor_reply` carries `cut: true`
 for the page to mark, the narration ends `-- CUT at 500 characters`, and
 History says it BEFORE the text, where a line's end cannot take it. Both
 History lines of an exchange carry a quoted text's room (#433), so a full
-message and a full reply are kept whole. ⚠ `MAX_RAW_BYTES` (16 KB) must
-admit a follow-up at every cap: 9 688 characters with every character
-JSON-escaped. The other robot's `tell` stays a sentence, 280.
+message and a full reply are kept whole. ⚠ `MAX_RAW_BYTES` (64 KiB) must
+admit a follow-up at every cap however it is encoded: 5 188 characters as
+the site sends it, 56 888 with every character an escaped astral pair.
+The other robot's `tell` stays a sentence, 280.
 
 **It is a conversation, not a suggestion box** (rooftop-media-2026 #125).
 A visitor can follow up on an answer, and the follow-up arrives with the

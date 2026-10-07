@@ -91,7 +91,7 @@ from pluggybot.telemetry.protocol import (
 MAX_REPLY = text_registry.BY_NAME["visitor"].cap
 #: A sentence of WHY that reaches no visitor: the mid-errand interrupt's
 #: reason (issue #116) and the words a garbled answer was refused with
-#: (#296). A reply's figure until #474, which widened only the reply.
+#: (#296). Not `MAX_REPLY`: neither is a conversation.
 MAX_WHY = 240
 #: What the other robot may be said to NEED (issue #208): the values
 #: `other_needs` takes, scored by `lifecycle.need_of` against the other's
@@ -2244,7 +2244,7 @@ your own words that a person watching you would find honest.
 #:
 #: ⚠ The reply's length is `MAX_REPLY`, formatted in (issue #474): a cap
 #: typed twice is how the prompt tells the robot one number and the door
-#: enforces another.
+#: enforces another. So a literal percent sign in it is written `%%`.
 RULES = """\
 HOW YOUR LIFE WORKS
 

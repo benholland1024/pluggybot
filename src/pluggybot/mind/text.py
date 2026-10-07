@@ -262,16 +262,15 @@ DOCUMENTS: tuple[Surface, ...] = (
 #: Longest text of a conversation with a visitor, in characters, in EITHER
 #: direction (issue #474): what a visitor sends and what the robot sends
 #: back. One number, because a conversation is one surface and both ends
-#: write the same kind of text (a ticket thread's reasoning, #307); a
-#: reply's own 240 stopped answers mid-word. The robot is told it (the
-#: VISITORS rule). This is also the cap the website enforces
-#: (rooftop-media-2026 #29) -- both ends cap, because either one alone is a
-#: single point of failure and the sim's cap is the one that protects the
-#: sim.
+#: write the same kind of text (a ticket thread's reasoning, #307). The
+#: robot is told it (the VISITORS rule). This is also the cap the website
+#: enforces (rooftop-media-2026 #29) -- both ends cap, because either one
+#: alone is a single point of failure and the sim's cap is the one that
+#: protects the sim.
 MAX_VISITOR_CHARS = 500
 #: ...and the other robot's `tell` (issue #208): one sentence. Not the
-#: visitor's figure, on purpose: #474 widened the conversation with people
-#: and left the acts between robots as they were.
+#: visitor's figure, on purpose: the acts between robots are #208's
+#: instrument, and the conversation with people is not.
 MAX_TELL_CHARS = 280
 #: Longest page extract the library delivers (issue #216). A summary's
 #: first paragraph, not a sentence: 300-900 characters is the usual run,

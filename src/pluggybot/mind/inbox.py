@@ -86,10 +86,12 @@ MAX_QUEUE = 32
 #: Raw bytes accepted for one message before it is dropped unread. The queue
 #: bound above is a message count, which is no protection at all against one
 #: enormous message. ⚠ It must still admit the largest message the caps
-#: admit: a follow-up carrying `MAX_EARLIER` exchanges at `MAX_TEXT` both
-#: ways, every character one JSON escapes, is 9 688 characters -- past the
-#: 8192 this was until a conversation's cap became 500 (issue #474).
-MAX_RAW_BYTES = 16_384
+#: admit, however its sender encodes it (issue #474): a follow-up carrying
+#: `MAX_EARLIER` exchanges at `MAX_TEXT` both ways is 5 188 characters as
+#: the site sends it (`JSON.stringify`), 19 288 bytes of UTF-8 emoji, and
+#: 56 888 characters with every one an escaped astral pair (Python's
+#: default `json.dumps`).
+MAX_RAW_BYTES = 65_536
 #: ...except a PICTURE (issue #275): the `image` kind carries a JPEG the
 #: website rendered from the robot's own camera pose, base64, and a 640 x
 #: 480 frame is 15-60 kB. Its own bound, on the decoded bytes and on the
