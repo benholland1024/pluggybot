@@ -3809,8 +3809,9 @@ tip, 0.26 m from the lens at the old stance, read nothing and the pin came
 the belief, `tests/test_box.py`):
 - the top is the highest level a large share of the points stand at;
 - an edge seen from in front -- the top's back, where the hinge is -- is read
-  off the mean of a window inside it, which neither the noise nor rows laid
-  4-5 mm apart at a grazing angle move;
+  off the mean of a window inside it, which rows laid 4-5 mm apart at a
+  grazing angle and their noise move 0.3 mm on average (0.7 at 6 mm apart
+  under 3 mm of noise);
 - an edge whose face looks at the camera -- the bracket's tip, the pin -- is
   a low percentile: its face's points stand at the tip and never past it,
   and the window's mean read it 4 mm past;
@@ -3856,7 +3857,10 @@ measures and plans through one belief, so the belief's own error is none of
 the guess's).
 
 **The friction calibrated** lying where it starts, its arm along the probe's
-arc in the air, the floor under it seen bare: 0.108 and 0.120 N*m
+arc in the air, no point seen standing under it -- standing, the D435 sees
+the floor there from 0.41 m ahead, and the claw comes down over the unseen
+pad nearer at least 8 cm above anything that could stand in it unseen
+(`FREE_HALF_M`'s note): 0.108 and 0.120 N*m
 (`ARM_FRICTION_NM` is 0.1 a motor, and the passive pivots add 0.01-0.02,
 #469).
 
@@ -3894,22 +3898,42 @@ tenth of a second off the real one -- the start's millimetres decide the
 moment -- up to 3 N for a moment. The reference leaves about what it left
 on the oracle's probe (stage 1's median at the first release, 0.26 N).
 
-**A strong catch can turn the held handle on its pin.** While the catch
-holds, the arm's pull turns the handle on its pin, a median 4 deg and in 9
-of 10 under 6.5. Under a catch of 3.3 N and more it sometimes turns 36-39
-deg instead; the catch then lets go late, and the rest of the record
+**A strong catch can turn the held handle over on its pin.** While the
+catch holds, the arm's pull turns the handle on its pin, a median 4 deg and
+in 9 of 10 under 6.5. Under a catch of 3.3 N and more it sometimes turns
+over, 35-42 deg; the catch then lets go late, and the rest of the record
 differs. The flight did in 1 of 128 (set-out 50, 3.94 N: let go 5.1 s into
 the sweep, against a median 2.2 at 3.5-4 N) where the world's own chest,
 replayed from the robot's start, did not -- it parted from what was sensed
-by 2.8 N RMS on that sweep and 0.3-0.8 after. The reference turned in 5 of
-128, all at 3.3 N or more, the flight not: in set-out 4 it let go 1.9 s
-late and stayed 0.6-1.5 N off for the rest of the record. The language's
-catch holds its whole pull for its last millimetre where the magnet weakens
-as the gap opens, so its pull builds longer: with the language's catch the
+by 2.8 N RMS on that sweep and 0.3-0.8 after. The reference turned over in
+5 of 128 (set-outs 4, 50, 59, 88 and 126, all at 3.3 N or more), four of
+them where the flight did not: in set-out 4 it let go 1.9 s late and stayed
+0.6-1.5 N off for the rest of the record. The language's catch holds its
+whole pull over its first millimetre where the magnet's falls to a quarter
+in half of one, so its pull builds longer: with the language's catch the
 world's chest let go 0.27 s late, and with the world's magnet the reference
 let go on time (2.37 s against 2.41) -- the catch, not the contact or the
-armature. Stage 3 reads its bar set-out by set-out: where either world
-turned the handle, what follows the release measures no fit.
+armature.
+
+**Such a record is flagged, never dropped** (Ben, on #479). Our grading
+reads how far the held handle turned on its pin while the catch held -- in
+the flight off the truth, in each replay off its own rollout
+(`evaluation.probe.turned`) -- and the row names those past `TWISTED_DEG`
+(25 deg, `twisted`): set-outs 4, 50, 59, 88 and 126. Below it the largest
+turns were 15.8 deg in the flight, 13.2 in the world's replay and 21.0 in
+the reference's: set-out 103, whose gap on the sweeps down was about 4
+times the other strong catches' median, against 11-33 times where the
+handle turned over. What follows a flagged release measures no fit, so
+stage 3 reads its bar set-out by set-out, a flagged one apart.
+`scripts/probe_chest.py --regrade` grades kept records again without flying
+them, and reproduced every flown replay.
+
+**The reference keeps stage 1's catch** (Ben, on #479): code that knows the
+truth writes the true numbers into the language and fits nothing to the
+world, or the reference would be a second fitter to trust. So where the
+catch is strong the bar is lenient, its catch letting go later than the
+magnet: a limitation stated, not tuned away. A language whose catch could
+say how its pull falls with the gap would write the magnet as it is.
 
 **What it costs.** A probe is 94 sim-seconds (104 at most); three at once
 on the dev box take 51 s each, thirty at once on a pod's 31-CPU share 59 s
@@ -3925,7 +3949,8 @@ but for what its foresight costs (the hinge a board high, the pin half a
 bracket). The record replays through the world's chest from its own start
 to a few hundredths of a newton where no catch lets go; at a catch's
 release the references part, and a strong catch can turn the held handle
-on its pin, in the flight or in a replay.
+over on its pin, in the flight or in a replay: such a record is flagged and
+kept, and the reference's catch is stage 1's, fitted to nothing.
 
 ## Debugging workflow that worked
 

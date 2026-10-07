@@ -16,6 +16,9 @@ reference (`evaluation.probe.replay`).
                  (probe_K.npz: `Probed.to_wire` in `imagination.worker.pack`'s
                  form, `unpack` reads it back)
   --no-replay    skip the replay
+  --regrade      grade the set-outs kept in --into again without flying
+                 them: the handle's turns and the replays anew, the rest as
+                 flown (a record is flown once)
 
 Usage:
   MUJOCO_GL=egl uv run python scripts/probe_chest.py --n 4 --jobs 2
@@ -30,11 +33,13 @@ import os
 os.environ.setdefault("OPENBLAS_NUM_THREADS", "1")
 
 import argparse  # noqa: E402
+from functools import partial  # noqa: E402
 import json  # noqa: E402
 import math  # noqa: E402
 from multiprocessing import Pool  # noqa: E402
 from pathlib import Path  # noqa: E402
 import time  # noqa: E402
+import traceback  # noqa: E402
 
 import mujoco  # noqa: E402
 import numpy as np  # noqa: E402
@@ -134,6 +139,70 @@ def _longest(flags: np.ndarray, dt: float) -> float:
   return best * dt
 
 
+def graded(out: pr.Probed, rows: np.ndarray, opened: bool, spec) -> dict:
+  """A flown record as row fields, off OUR truth along it (`rows`: the
+  lid's and the handle's angles, seated, gripped): the lid's top, its catch
+  let go, the seat's longest open, the knob in the jaws over the sweeps,
+  the lid's angle as the arm read it, and whether it got through -- its
+  sweeps flown to their end (its own word), the lid `opened` and let go,
+  the claw seated, the knob held."""
+  rec = out.record
+  lid, seated, gripped = rows[:, 0], rows[:, 2].astype(bool), rows[:, 3].astype(bool)
+  sweeps = slice(out.phases["take"][1], rec.n)
+  swept = rec.n > sweeps.start
+  got = {"rows": rec.n, "lidTopDeg": round(math.degrees(float(lid.max())), 1),
+         "released": bool((lid > ch.CAUGHT_OFF).any()),
+         "seatOpenS": round(_longest(seated, rec.dt), 3),
+         "grippedPct": round(100.0 * float(gripped[sweeps].mean()), 1) if swept else None,
+         "clouds": [len(c) for c in rec.depth], "detections": len(rec.detections),
+         "lidFromArmDeg": None}
+  got["gotThrough"] = bool(out.log.get("swept") and swept and opened and got["released"]
+                           and got["seatOpenS"] < SEAT_HOLD_S and got["grippedPct"] >= 95.0)
+  if swept:
+    err = np.degrees(pr.lid_from_arm(out, spec)[sweeps] - lid[sweeps])
+    got["lidFromArmDeg"] = {"rms": round(float(np.sqrt((err ** 2).mean())), 2),
+                            "worst": round(float(np.abs(err).max()), 2)}
+  return got
+
+
+def replayed(k: int, out: pr.Probed, rows: np.ndarray, start_true, replay: bool) -> dict:
+  """Set-out k's record as row fields: how far the held handle turned on
+  its pin while the catch held, in the flight (`rows`, OUR truth along the
+  record) and, where `replay`, in its replay through the world's chest and
+  through the reference (`evaluation.probe.replay`), with their gaps; and
+  which turned over (`twisted`: FLAGGED, never dropped)."""
+  so = ep.set_out(k)
+  lid = rows[:, 0]
+  turns = {"flight": ep.turned(rows[:, 1], lid, out.phases)}
+  got = {}
+  if replay:
+    # where the chest stands in the robot's map at the record's start: the
+    # truth through the true pose there and the belief
+    chest_map = ep.in_map(so.chest, start_true, out.record.start.pose)
+    replays = ep.replay(out.record, out.phases, so.lid, chest_map, float(rows[0, 1]), lid)
+    got["replay"] = {name: {g.phase: [None if g.force_rms is None else round(g.force_rms, 3),
+                                      None if g.force_max is None else round(g.force_max, 3)]
+                            for g in r.gaps} for name, r in replays.items()}
+    turns |= {name: r.turned for name, r in replays.items()}
+  got["turnedDeg"] = {n: None if v is None else round(v, 1) for n, v in turns.items()}
+  got["twisted"] = sorted(n for n, v in turns.items() if v is not None and v >= ep.TWISTED_DEG)
+  return got
+
+
+def regrade(args) -> dict:
+  """A kept set-out's row with its record graded again (`replayed`), off
+  what `fly` kept in `into`: its probe and OUR truth along it."""
+  k, into, row = args
+  kept = Path(into) / f"truth_{k}.npz"
+  if not kept.exists():
+    return row
+  from pluggybot.imagination.worker import unpack
+  out = pr.Probed.from_wire(*unpack((Path(into) / f"probe_{k}.npz").read_bytes()))
+  truth = np.load(kept)
+  start_true = tuple(float(v) for v in truth["start_true"])
+  return row | replayed(k, out, truth["rows"], start_true, row["gotThrough"])
+
+
 def fly(args) -> dict:
   """One set-out: flown, graded, and its probe kept (`into`)."""
   from pluggybot.home import world as home
@@ -168,35 +237,14 @@ def fly(args) -> dict:
   if out.record is not None and out.frame is not None:
     rec = out.record
     rows = truth.over(out.t0, rec.n)
-    lid, seated, gripped = rows[:, 0], rows[:, 2].astype(bool), rows[:, 3].astype(bool)
-    sweeps = slice(out.phases["take"][1], rec.n)
     b, t = rec.start.pose, probe.start_true
     row["beliefMm"] = [round(1000 * (b[0] - t[0]), 1), round(1000 * (b[1] - t[1]), 1),
                        round(math.degrees(ep._wrap(b[2] - t[2])), 2)]
     # what it planned off: its measures moved by its look at the box lying
     row["planned"] = ep.geometry(out.guess, b, t, ep.truth(so.chest), probe.start_knob)
     row["refound"] = out.log["tries"][-1].get("refound")
-    row.update({
-      "rows": rec.n, "lidTopDeg": round(math.degrees(float(lid.max())), 1),
-      "released": bool((lid > ch.CAUGHT_OFF).any()),
-      "seatOpenS": round(_longest(seated, rec.dt), 3),
-      "grippedPct": round(100.0 * float(gripped[sweeps].mean()), 1) if rec.n > sweeps.start else 0.0,
-      "clouds": [len(c) for c in rec.depth], "detections": len(rec.detections)})
-    row["gotThrough"] = bool(row["opened"] and row["released"] and row["seatOpenS"] < SEAT_HOLD_S
-                             and row["grippedPct"] >= 95.0)
-    est = pr.lid_from_arm(out, mis.arm_spec)
-    err = np.degrees(est[sweeps] - lid[sweeps])
-    row["lidFromArmDeg"] = {"rms": round(float(np.sqrt((err ** 2).mean())), 2),
-                            "worst": round(float(np.abs(err).max()), 2)}
-    if do_replay and row["gotThrough"]:
-      pin = float(rows[0, 1])
-      # where the chest stands in the robot's map at the record's start:
-      # the truth through the true pose there and the belief
-      chest_map = ep.in_map(so.chest, probe.start_true, rec.start.pose)
-      gaps = ep.replay(rec, out.phases, so.lid, chest_map, pin, lid)
-      row["replay"] = {name: {g.phase: [None if g.force_rms is None else round(g.force_rms, 3),
-                                        None if g.force_max is None else round(g.force_max, 3)]
-                              for g in gs} for name, gs in gaps.items()}
+    row.update(graded(out, rows, row["opened"], mis.arm_spec))
+    row.update(replayed(k, out, rows, probe.start_true, row["gotThrough"] and do_replay))
   else:
     row["gotThrough"] = False
   if into is not None:
@@ -210,6 +258,16 @@ def fly(args) -> dict:
                chest=np.array(so.chest), start_true=np.array(probe.start_true),
                knob=np.array(probe.start_knob))
   return row
+
+
+def guarded(fn, args) -> dict:
+  """`fn(args)`, or set-out k's row saying what it raised: `Pool.map` raises
+  the first error a worker meets, and the batch's rows go with it."""
+  try:
+    return fn(args)
+  except Exception as e:
+    traceback.print_exc()
+    return {"k": args[0], "error": f"{type(e).__name__}: {e}"}
 
 
 def run_pool(fn, jobs, n_jobs: int) -> list:
@@ -229,11 +287,21 @@ def main(argv=None) -> None:
   ap.add_argument("--jobs", type=int, default=1)
   ap.add_argument("--into", default=None)
   ap.add_argument("--no-replay", action="store_true")
+  ap.add_argument("--regrade", action="store_true")
   args = ap.parse_args(argv)
-  if args.into:
-    Path(args.into).mkdir(parents=True, exist_ok=True)
-  jobs = [(k, args.into, not args.no_replay) for k in range(args.first, args.first + args.n)]
-  rows = run_pool(fly, jobs, args.jobs)
+  if args.regrade:
+    if not args.into:
+      ap.error("--regrade grades the set-outs kept in --into")
+    with open(Path(args.into) / "rows.jsonl") as f:
+      kept = [json.loads(line) for line in f]
+    got = run_pool(partial(guarded, regrade), [(r["k"], args.into, r) for r in kept], args.jobs)
+    rows = [old | new for old, new in zip(kept, got)]
+  else:
+    if args.into:
+      Path(args.into).mkdir(parents=True, exist_ok=True)
+    jobs = [(k, args.into, not args.no_replay) for k in range(args.first, args.first + args.n)]
+    rows = [r if "error" not in r else r | {"gotThrough": False}
+            for r in run_pool(partial(guarded, fly), jobs, args.jobs)]
   for r in rows:
     print(json.dumps(r))
   if args.into:

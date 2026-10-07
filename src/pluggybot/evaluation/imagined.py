@@ -77,10 +77,13 @@ def hold_record(n: int = 1) -> Record:
 
 # ---- the world's own chest, in the robot's world ------------------------------------
 
-def truth_world(lid: ch.Lid, setting: Setting) -> Imagined:
+def truth_world(lid: ch.Lid, setting: Setting, pin: float | None = None) -> Imagined:
   """The world's chest -- its MJCF, its contact, its magnet -- beside the
   robot's own body, for the imagination's rollout: what the reference is
-  measured against. Its joints are the reference's ids."""
+  measured against. Its joints are the reference's ids. With `pin` its
+  handle STARTS there (rad on its pin), where a record's hung: from the
+  compiled pose a rollout's settle left it 4.8 deg short of a rest the house
+  had given it a minute, its knob 4.7 mm off (#479's review)."""
   spec = robot_spec("module_claw")
   ch.attach_chest(spec, lid, (setting.chest_x, setting.chest_y), setting.chest_yaw,
                   tags=False)
@@ -90,7 +93,8 @@ def truth_world(lid: ch.Lid, setting: Setting) -> Imagined:
   for jid, name in (("hinge", "chest_hinge"), ("pin", "chest_pin")):
     j = model.joint(name).id
     joints[jid] = (int(model.jnt_qposadr[j]), int(model.jnt_dofadr[j]))
-  return Imagined(model=model, hooks=(chest.sense,), joints=joints, carrying="module_claw")
+  return Imagined(model=model, hooks=(chest.sense,), joints=joints, carrying="module_claw",
+                  start={} if pin is None else {"pin": float(pin)})
 
 
 def place(lid: ch.Lid) -> tuple[Setting, float]:

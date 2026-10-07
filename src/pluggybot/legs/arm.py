@@ -738,6 +738,20 @@ class ArmDriver:
     qs = float(q[self._qs])
     a2 = qs + float(q[self._qe])
     a3 = a2 + float(q[self._qw])
+    return self._held(gx, gz, qs, a2, a3)
+
+  def gravity_sensed(self, q, level) -> np.ndarray:
+    """`gravity` as the robot's own senses put it: the arm's encoders (`q`,
+    the shoulder and the forearm's absolute angle), the plate level as its
+    parallelogram holds it, and the torso's tilt as the IMU says it
+    (`level`: `perception.imu.Attitude.level`)."""
+    return np.array(self._held(-G * float(level[2, 0]), -G * float(level[2, 2]),
+                               float(q[0]), float(q[1]), 0.0))
+
+  def _held(self, gx: float, gz: float, qs: float, a2: float,
+            a3: float) -> tuple[float, float]:
+    """What each motor holds with gravity (`gx`, `gz`) in the torso's frame
+    and the links at absolute angles `qs`, `a2` and `a3`."""
     c1, s1 = math.cos(qs), math.sin(qs)
     c2, s2 = math.cos(a2), math.sin(a2)
     c3, s3 = math.cos(a3), math.sin(a3)

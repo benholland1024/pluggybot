@@ -20,8 +20,8 @@ pin the bracket's top, half the bracket over it: what foresight costs.
 THE STEPS (`Probe.routine`), from the robot's senses alone:
   find       the knob's tag in the colour imager, and the box off depth,
              standing where it starts
-  calibrate  lying there, the arm sweeps the probe's arc in the air -- the
-             floor under it seen bare -- and its friction is read off its
+  calibrate  lying there, the arm sweeps the probe's arc in the air -- no
+             point seen standing under it -- and its friction is read off its
              torques (`legs.arm.arm_friction`): once per robot, anywhere
              free (#469)
   walk in    to a look point on the box's axis, then steered by the knob's
@@ -67,7 +67,7 @@ from pluggybot.imagination.record import Record, Start, plain
 from pluggybot.legs import arm as am
 from pluggybot.legs import dock as dk
 from pluggybot.legs import rack as rk
-from pluggybot.legs.model import JOINT_NAMES
+from pluggybot.legs.model import CHOSEN, JOINT_NAMES
 from pluggybot.perception import box
 from pluggybot.perception.encoders import (LEG_POSITION_LSB, LEG_VELOCITY_LSB, quantised,
                                            torque_reading)
@@ -200,7 +200,11 @@ PATIENCE_S = 300.0
 #: The calibration flies the probe's arc at its slower rate with the jaws
 #: shut, the knob's place `KNOB_AHEAD_M` ahead, in the air: the floor under
 #: its footprint (`FREE_HALF_M` across, `FREE_PAD_M` past either end) must
-#: hold no point standing higher than `FREE_OVER_M`.
+#: hold no point SEEN standing higher than `FREE_OVER_M`. ⚠ Unseen is not
+#: bare: standing, the D435 sees the floor there from 0.41 m ahead, and a
+#: thing up to 0.12 m tall could stand unseen in the pad nearer; the claw
+#: comes down over it no lower than 8 cm above that (set-out 0, measured).
+#: A nearer stance, another camera pitch or a longer pad moves both.
 FREE_HALF_M, FREE_PAD_M, FREE_OVER_M = 0.12, 0.08, 0.02
 
 # ---- the record's own check ------------------------------------------------------
@@ -438,8 +442,9 @@ class Recorder:
   """What the robot sent its arm and what it sensed, a row a physics step
   (the module docstring), while it is hooked on the mission's seam: after
   each step the arm driver's target is the one it applied. Beside the
-  record it keeps its driver's gravity model and the encoders' rates, row
-  by row: what the force at the tool is read off (`force`)."""
+  record it keeps the arm's weight as its own senses put it
+  (`legs.arm.ArmDriver.gravity_sensed`) and the encoders' rates, row by
+  row: what the force at the tool is read off (`force`)."""
 
   def __init__(self, mis) -> None:
     self.mis = mis
@@ -479,8 +484,9 @@ class Recorder:
                           float(arm.kd), float(d.ctrl[self.slide]), float(d.ctrl[self.jaw])))
     tau = [torque_reading(float(d.actuator_force[a]), key, step)
            for a, key in zip(self.acts, self.keys)]
-    self.sensed.append((*tau, *(float(v) for v in quantised(arm.q(), POSITION_LSB))))
-    self.gravity.append(arm.gravity())
+    q = quantised(arm.q(), POSITION_LSB)
+    self.sensed.append((*tau, *(float(v) for v in q)))
+    self.gravity.append(arm.gravity_sensed(q, mis.odo.att.level()))
     self.rates.append(quantised(arm.qd(), VELOCITY_LSB))
 
   def record(self, depth=(), detections=()) -> Record:
@@ -624,9 +630,17 @@ class Probe:
 
   # ---- the senses, into the map ------------------------------------------------
 
+  def floor(self) -> float:
+    """The torso's centre over the floor, as its own senses put it: lying,
+    its belly's depth; standing, its legs' (`LegOdometry.height`: the
+    encoders, levelled by the IMU)."""
+    from pluggybot.legs.body import LYING
+    mis = self.mis
+    return CHOSEN.belly_depth if mis.posture == LYING else mis.odo.height()
+
   def frame_now(self) -> Frame:
     mis = self.mis
-    return Frame(*(float(v) for v in mis.pose), float(mis.floor_below()))
+    return Frame(*(float(v) for v in mis.pose), self.floor())
 
   def _to_map(self, pts: np.ndarray) -> np.ndarray:
     """Torso-frame points into the map through the belief: levelled by the
@@ -637,7 +651,7 @@ class Probe:
     x, y, th = mis.pose
     c, s = math.cos(th), math.sin(th)
     return np.column_stack([x + c * p[:, 0] - s * p[:, 1], y + s * p[:, 0] + c * p[:, 1],
-                            p[:, 2] + mis.floor_below()])
+                            p[:, 2] + self.floor()])
 
   def look(self) -> list[np.ndarray]:
     """One decode of the colour imager: each face of the knob's tag it read,
@@ -756,6 +770,16 @@ class Probe:
         return f"the lid at {math.degrees(s):.0f} deg is past the slide's stroke"
     return None
 
+  def _restore(self, gains) -> None:
+    """The arm's working `gains` back on any way out, held where it IS: put
+    back mid-sweep with the probe's target ahead of it, a stiff arm's step
+    to it is the kick `RELEASE_S` lets go to avoid."""
+    arm = self.mis.arm
+    if (arm.kp, arm.kd) != tuple(gains):
+      shoulder, fore = arm.q()
+      arm.hold_at(shoulder, fore - shoulder)
+      arm.kp, arm.kd = gains
+
   def _leave_routine(self, hand, gains) -> Routine:
     """Off the knob: the jaws open and the arm let settle at the probe's
     gain (`RELEASE_S`), then its working `gains`; the fork up and back, the
@@ -782,7 +806,8 @@ class Probe:
 
   def bare(self, cloud: np.ndarray, frame: Frame, x0: float, x1: float) -> bool:
     """No point of `cloud` (map) standing on the floor between `x0` and
-    `x1` ahead in `frame`, within `FREE_HALF_M` of its line."""
+    `x1` ahead in `frame`, within `FREE_HALF_M` of its line: what was SEEN
+    (`FREE_HALF_M`'s note says what that leaves out)."""
     h = frame.of(cloud)
     return not ((h[:, 0] > x0) & (h[:, 0] < x1) & (np.abs(h[:, 1]) < FREE_HALF_M)
                 & (cloud[:, 2] > FREE_OVER_M)).any()
@@ -817,7 +842,6 @@ class Probe:
     gains = (mis.arm.kp, mis.arm.kd)
     mis.arm.kp, mis.arm.kd = KP, KD
     rec = Recorder(mis)
-    done = False
     try:
       yield from hand.jaws_routine(closed=True)
       ok = yield from hand.to_routine(*path(0.0), level)
@@ -827,14 +851,14 @@ class Probe:
       yield from self._hold(TURN_S)
       ok = ok and (yield from self.follow_routine(hand, path, TOP, BOTTOM, RATES[0], level))
       calibration = rec.record()
-      done = True
+      # before the leave, which stands it up: `fell` reads any new posture
+      fell = hand.fell()
+      yield from self._leave_routine(hand, gains)
     finally:
       rec.stop()
-      if not done:
-        mis.arm.kp, mis.arm.kd = gains
-    yield from self._leave_routine(hand, gains)
+      self._restore(gains)
     if not ok:
-      log["why"] = "the arc left the arm's reach"
+      log["why"] = "fell" if fell else "the arc left the arm's reach"
       return None
     friction = tuple(float(v) for v in am.arm_friction(*rec.beyond()))
     log["calibrated"] = [round(v, 4) for v in friction]
@@ -854,6 +878,7 @@ class Probe:
         break
     else:
       return "the knob's tag not found", np.zeros((0, 3))
+    log["foundTurnDeg"] = turn
     g, cloud = yield from self.measure_routine()
     log["found"] = g.as_dict() if isinstance(g, Guess) else g
     return g, cloud
@@ -981,7 +1006,6 @@ class Probe:
     rec = Recorder(mis)
     gains = (mis.arm.kp, mis.arm.kd)
     mis.arm.kp, mis.arm.kd = KP, KD
-    done = False
     try:
       rec.begin()
       out.t0 = rec.t0
@@ -992,7 +1016,7 @@ class Probe:
       ok = ok and (yield from hand.to_routine(*path(0.0), level, tc.WORK_V / 2))
       yield from hand.jaws_routine(closed=True, settle=tc.GRIP_SETTLE_S)
       if not ok:
-        out.why = "the knob out of reach"
+        out.why = "fell" if hand.fell() else "the knob out of reach"
       s = 0.0
       for i, rate in enumerate(RATES):
         if not ok:
@@ -1006,6 +1030,7 @@ class Probe:
         s = BOTTOM
       out.record = rec.record(depth=self.clouds, detections=self.detections)
       out.phases = rec.phases()
+      out.log["swept"] = ok
       if ok:
         down = self.held_down(rec, out.friction)
         out.log["heldDownN"] = round(down, 3)
@@ -1013,12 +1038,10 @@ class Probe:
         out.why = "probed" if out.ok else "nothing held"
       else:
         out.why = out.why or ("fell" if hand.fell() else "the path left the arm's reach")
-      done = True
+      yield from self._leave_routine(hand, gains)
     finally:
       rec.stop()
-      if not done:
-        mis.arm.kp, mis.arm.kd = gains
-    yield from self._leave_routine(hand, gains)
+      self._restore(gains)
 
   def held_down(self, rec: Recorder, friction) -> float:
     """The force at the tool down (N), its mean over the sweeps up past

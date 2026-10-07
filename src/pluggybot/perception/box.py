@@ -15,7 +15,9 @@ little inside a rough edge, uniform on [c, b], the mean is (c + b) / 2
 whatever the blur -- a symmetric blur moves no mean -- so the edge is b =
 2 * mean - c. Unbiased where the points are even across the window; the
 rows a stereo camera lays at a grazing angle, 4-5 mm apart from the probe's
-stance, average out along the edge's length.
+stance, all but average out along the edge's length: the mean of 32 reads
+within 0.3 mm at rows 4.6 mm apart under 1.5 mm of noise, 0.7 at 6 and 3
+(`tests/test_box.py`).
 
 AN EDGE WITH ITS FACE TOWARD THE CAMERA (`faced_edge`) breaks that: the
 face's points stand AT the edge, and a window a quarter of whose points

@@ -111,11 +111,14 @@ class CompiledCatch:
 class Imagined:
   """A world to roll out: its model, what it sets every step (`hooks`, each
   `hook(model, data)` after a step, as a world's step hooks are), its scene
-  joints' addresses by the document's ids, and the tool on the fork."""
+  joints' addresses by the document's ids, the tool on the fork, and where
+  a scene joint STARTS where that is not its compiled pose (`start`, by id:
+  a document's joints start where it draws its parts)."""
   model: mujoco.MjModel
   hooks: tuple = ()
   joints: dict[str, tuple[int, int]] = field(default_factory=dict)
   carrying: str | None = None
+  start: dict[str, float] = field(default_factory=dict)
 
 
 def _groups(scene: Scene) -> tuple[dict[str, int], int | None]:

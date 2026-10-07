@@ -345,8 +345,10 @@ def test_a_probe_crosses_the_wire_whole():
 def test_the_probe_reads_nothing_of_the_worlds_model_of_the_box():
   # The robot probes from its own senses: nothing it can load is the
   # chest's activity, our grading or the spike that chose the chest, and
-  # its source names no element of the chest and judges no grip off the
-  # world (`ClawHand.held` reads the bodies between the pads).
+  # its source names no element of the chest, judges no grip off the world
+  # (`ClawHand.held` reads the bodies between the pads) and reads no truth
+  # through the body's helpers (#479's review: the arm driver's `gravity`
+  # reads `qpos`, `floor_below` and `_height` the world's heights).
   from test_imagination import _closure  # noqa: I001 -- tests/ is on sys.path
   closure = _closure(["pluggybot.legs.probe"])
   assert "pluggybot.legs.probe" in closure and "pluggybot.perception.box" in closure
@@ -359,7 +361,185 @@ def test_the_probe_reads_nothing_of_the_worlds_model_of_the_box():
     assert not [w for w in words if "chest_" in w or "mechanism_spike" in w], name
     calls = {n.func.attr for n in ast.walk(tree) if isinstance(n, ast.Call)
              and isinstance(n.func, ast.Attribute)}
-    assert not calls & {"held", "held_tag", "true_pose"}, name
+    assert not calls & {"held", "held_tag", "true_pose", "gravity", "floor_below",
+                        "_height"}, name
+
+
+def test_the_record_weighs_the_arm_by_its_own_senses(lying_claw):
+  # #479's review: the arm driver's gravity model reads the torso's attitude
+  # and the joints off `qpos`, and the friction the probe calibrates and its
+  # word that it held the lid are read off the record's. The record's is its
+  # encoders' and its IMU's: the driver's model at the truth, and where the
+  # IMU is off, the IMU's.
+  from pluggybot.legs.imagined import _quat
+  from pluggybot.perception.imu import Attitude
+  lc = lying_claw
+  arm = lc.body.arm
+  assert arm.gravity_sensed(arm.q(), lc.mis.odo.att.level()) == pytest.approx(
+    arm.gravity(), abs=1e-4)
+  lc.mis.odo = SimpleNamespace(att=Attitude(_quat(0.0, 0.05, 0.0)))
+  rec = pr.Recorder(lc.mis)
+  rec.begin()
+  arm.step()
+  mujoco.mj_step(lc.m, lc.d)
+  for hook in lc.mis.step_hooks:
+    hook()
+  rec.stop()
+  sensed = arm.gravity_sensed(rec.sensed[0][2:], lc.mis.odo.att.level())
+  assert rec.gravity[0] == pytest.approx(sensed, abs=1e-12)
+  assert np.abs(rec.gravity[0] - arm.gravity()).max() > 0.01
+
+
+def test_the_legs_say_how_high_they_hold_the_torso():
+  # The probe lays its depth over the floor by its legs: their encoders,
+  # levelled by its IMU (#479's review: `floor_below` read the torso's and
+  # the feet's TRUE heights). Tilted, it still reads its own height.
+  from pluggybot.legs import world as lw
+  from pluggybot.legs.imagined import _quat
+  from pluggybot.legs.model import CHOSEN, LEGS, attachable
+  from pluggybot.legs.odometry import LegOdometry
+  spec = mujoco.MjSpec.from_string(FLOOR)
+  spec.attach(attachable(CHOSEN), prefix="", frame=spec.worldbody.add_frame())
+  m = spec.compile()
+  d = mujoco.MjData(m)
+  lw.stand(m, d, "", 0.0, 0.0, 0.0)
+  root = m.body("pluggybot").id
+  q0 = int(m.jnt_qposadr[m.body_jntadr[root]])
+  d.qpos[q0 + 3:q0 + 7] = _quat(0.02, 0.06, 0.3)
+  mujoco.mj_forward(m, d)
+  odo = LegOdometry(m, d)
+  odo.step()
+  feet = [m.site(f"{leg}_foot").id for leg in LEGS]
+  true = float(d.xpos[root][2] - min(d.site_xpos[f][2] for f in feet)) + odo.foot_r
+  assert odo.height() == pytest.approx(true, abs=0.0015)
+
+
+class _Arm:
+  """The arm driver as the probe's ways out use it."""
+
+  def __init__(self) -> None:
+    self.kp, self.kd, self.held = 60.0, 4.0, None
+
+  def q(self):
+    return (0.3, -0.2)
+
+  def hold_at(self, shoulder, elbow):
+    self.held = (shoulder, shoulder + elbow)
+
+  def aim(self, shoulder, elbow):
+    pass
+
+
+class _Recorder:
+  """A recorder that records nothing."""
+
+  def __init__(self, mis) -> None:
+    self.t0 = 0.0
+
+  def begin(self):
+    pass
+
+  def mark(self, phase):
+    pass
+
+  def stop(self):
+    pass
+
+  def record(self, **kw):
+    return None
+
+  def phases(self):
+    return {}
+
+
+def _steps(name, returns=True):
+  """A routine of two steps, the first its name."""
+  yield name
+  yield "."
+  return returns
+
+
+def _drive(routine):
+  """A routine run to its end: what it returned."""
+  try:
+    while True:
+      next(routine)
+  except StopIteration as stop:
+    return stop.value
+
+
+def _stubbed(monkeypatch, fell=lambda: False, reach=True, sweep=True):
+  """A probe on a stubbed body: its hand, its arm, every routine two steps."""
+  monkeypatch.setattr(pr, "Recorder", _Recorder)
+  arm = _Arm()
+  mis = SimpleNamespace(arm=arm, pose=(0.0, 0.0, 0.0), posture="lying",
+                        _drive_routine=lambda s, v, w: _steps("hold"),
+                        _vertex_goal=lambda: (0.4, 0.4), rest_routine=lambda: _steps("rest"),
+                        stand_routine=lambda: _steps("stand"),
+                        odo=SimpleNamespace(att=SimpleNamespace(level=lambda: np.eye(3))))
+  hand = SimpleNamespace(fell=fell, centre_routine=lambda: _steps("centre"),
+                         jaws_routine=lambda closed, settle=0.3: _steps("shut" if closed else "open"),
+                         to_routine=lambda *a, **kw: _steps("to", reach),
+                         move_routine=lambda *a, **kw: _steps("move"))
+  probe = object.__new__(pr.Probe)
+  probe.mis, probe.clouds, probe.detections = mis, [], []
+  probe.follow_routine = lambda *a: _steps("sweep", sweep)
+  probe.held_down = lambda rec, friction: 1.0
+  return probe, hand, arm
+
+
+@pytest.mark.parametrize("end", ["thrown", "closed"])
+def test_the_probe_puts_its_arms_gains_back_however_it_ends(monkeypatch, end):
+  # #479's review: the let-go ran after the gains' `finally`, so a stop
+  # thrown in as the jaws opened -- or a stand-up closing the routine it
+  # landed in -- left the arm at Kp 8 for whatever ran next. Back on every
+  # way out, and held where it IS: stiff, a step to the target the compliant
+  # arm lagged would kick the lid.
+  from pluggybot.tick import MissionAborted
+  probe, hand, arm = _stubbed(monkeypatch)
+  g = probe._probe_routine(hand, lambda s: np.zeros(3), np.eye(3), pr.Probed())
+  opened = 0
+  while opened < 2:                          # the take opens the jaws, then the let-go
+    opened += next(g) == "open"
+  assert (arm.kp, arm.kd) == (pr.KP, pr.KD)
+  if end == "thrown":
+    with pytest.raises(MissionAborted):
+      g.throw(MissionAborted("the day's stop"))
+  else:
+    g.close()
+  assert (arm.kp, arm.kd) == (60.0, 4.0) and arm.held == arm.q()
+
+
+def test_a_take_the_body_fell_from_is_said_as_a_fall(monkeypatch):
+  # #479's review: a take that failed was "the knob out of reach" before a
+  # fall could be said.
+  probe, hand, arm = _stubbed(monkeypatch, fell=lambda: True, reach=False)
+  out = pr.Probed()
+  _drive(probe._probe_routine(hand, lambda s: np.zeros(3), np.eye(3), out))
+  assert (out.ok, out.why, out.log["swept"]) == (False, "fell", False)
+  assert (arm.kp, arm.kd) == (60.0, 4.0)
+
+
+@pytest.mark.parametrize("fell, why", [(False, "the arc left the arm's reach"), (True, "fell")])
+def test_a_calibration_is_judged_before_the_stand_that_ends_it(monkeypatch, fell, why):
+  # `fell` reads any new posture, and the let-go stands the body up: read
+  # after it, an arc out of reach was a fall.
+  state = {"fell": fell}
+  probe, hand, arm = _stubbed(monkeypatch, fell=lambda: state["fell"], sweep=False)
+
+  def stand():
+    state["fell"] = True
+    yield "stand"
+  probe.mis.stand_routine = stand
+  probe.bare = lambda *a: True
+  probe.frame_now = lambda: pr.Frame(0.0, 0.0, 0.0, 0.0)
+  probe._hand = lambda: hand
+  probe.reaches = lambda *a: None
+  g = pr.Guess(knob=(0.46, 0.0, 0.09), yaw=0.0, top=0.15, hinge=(0.75, 0.0, 0.15),
+               pin=(0.45, 0.0, 0.12))
+  log = {}
+  assert _drive(probe.calibrate_routine(g, np.zeros((0, 3)), log)) is None
+  assert log["why"] == why and (arm.kp, arm.kd) == (60.0, 4.0)
 
 
 # ---- our grading ------------------------------------------------------------------------
@@ -370,16 +550,21 @@ def test_a_set_out_is_seeded_in_the_storeroom_and_its_knob_in_the_robots_view():
   assert ep.set_out(3) == ep.set_out(3) and ep.set_out(3) != ep.set_out(4)
   with pytest.raises(ValueError, match="whole number"):
     ep.set_out(-1)
-  for k in range(24):
+  # the knob drawn plumb, and where it rests swung on its pin: no further and
+  # no wider than the 128 set-outs the probe found its tag from
+  cp, sp = math.cos(REST_SWING), math.sin(REST_SWING)
+  swing = np.array([[cp, 0.0, sp], [0.0, 1.0, 0.0], [-sp, 0.0, cp]])
+  places = (((ch.HINGE + ch.PIN + ch.KNOB_OFF)[:2], ep.KNOB_FROM, ep.BEARING),
+            ((ch.HINGE + ch.PIN + swing @ ch.KNOB_OFF)[:2], (0.75, 0.985), math.radians(10.2)))
+  for k in range(128):
     so = ep.set_out(k)
     assert so.lid == ch.draw(k)
     x, y, heading = so.start
     c, s = math.cos(so.chest[2]), math.sin(so.chest[2])
-    knob = np.array(so.chest[:2]) + np.array([[c, -s], [s, c]]) @ (ch.HINGE + ch.PIN + ch.KNOB_OFF)[:2]
-    dist = math.dist(knob, (x, y))
-    bearing = math.atan2(knob[1] - y, knob[0] - x) - heading
-    assert ep.KNOB_FROM[0] - 1e-9 <= dist <= ep.KNOB_FROM[1] + 1e-9
-    assert abs(bearing) <= ep.BEARING + 1e-9, "the knob in the colour imager's view"
+    for at, (near, far), wide in places:
+      knob = np.array(so.chest[:2]) + np.array([[c, -s], [s, c]]) @ at
+      bearing = math.atan2(knob[1] - y, knob[0] - x) - heading
+      assert near - 1e-9 <= math.dist(knob, (x, y)) <= far + 1e-9 and abs(bearing) <= wide + 1e-9
     corners = [np.array(so.chest[:2]) + np.array([[c, -s], [s, c]]) @ p
                for p in ((0, -ch.BOX_W / 2), (0, ch.BOX_W / 2), (ch.BOX_D, -ch.BOX_W / 2),
                          (ch.BOX_D, ch.BOX_W / 2))]
@@ -410,26 +595,160 @@ def test_the_guess_is_graded_in_its_own_robots_frame():
   assert abs(ep.geometry(g, true_pose, true_pose, world, knob)["pinAlongMm"]) > 5.0
 
 
-def test_every_set_out_is_flown_in_a_process_of_its_own(monkeypatch):
+def probe_chest():
+  """`scripts/probe_chest.py`, imported -- the environment it sets for its
+  own BLAS left as it was."""
   import importlib.util
+  import os
+  from unittest import mock
   spec = importlib.util.spec_from_file_location("probe_chest", ROOT / "scripts" / "probe_chest.py")
   script = importlib.util.module_from_spec(spec)
-  spec.loader.exec_module(script)
-  made = []
+  with mock.patch.dict(os.environ):
+    spec.loader.exec_module(script)
+  return script
 
-  class Pool:
-    def __init__(self, processes, **kwargs):
-      made.append(kwargs)
 
-    def __enter__(self):
-      return self
+def test_a_record_replays_through_worlds_whose_handle_starts_where_it_hung(monkeypatch):
+  # The flight's handle had hung a minute when the record began, and the
+  # world's chest compiles it plumb: a rollout's second of settling left it
+  # 4.8 deg short and its knob 4.7 mm off the reference's (#479's review).
+  # Both worlds a record replays through start where its handle hung.
+  from pluggybot.evaluation import imagined as im
+  from pluggybot.evaluation import probe as ep
+  from pluggybot.imagination.rollout import Readings, settled
+  worlds, n = [], 4
 
-    def __exit__(self, *exc):
-      return False
+  def rollout(world, record):
+    worlds.append(world)
+    return Readings(t=np.zeros(n), sensed=np.zeros((n, 4)),
+                    joints={"pin": np.zeros(n), "hinge": np.zeros(n)})
+  monkeypatch.setattr(ep, "rollout", rollout)
+  monkeypatch.setattr(ep.im, "compare", lambda truth, other, rows: [])
+  ep.replay(SimpleNamespace(n=n, dt=0.002, sensed=np.zeros((n, 4))), {"take": (0, n)},
+            ch.draw(0), (0.30, 0.0, 0.0), REST_SWING, np.zeros(n))
+  world, reference = worlds
+  knobs = []
+  for w, knob in ((world, lambda m, d: d.geom_xpos[m.geom("chest_knob").id]),
+                  (reference, lambda m, d: d.xpos[m.body("scene_knob").id])):
+    d = settled(w, im.hold_record())
+    knobs.append(knob(w.model, d).copy())
+  assert d.qpos[reference.joints["pin"][0]] == pytest.approx(0.0, abs=1e-3)
+  assert np.linalg.norm(knobs[0] - knobs[1]) < 0.001, knobs
 
-    def map(self, fn, jobs, chunksize=1):
-      return [fn(j) for j in jobs]
 
-  monkeypatch.setattr(script, "Pool", Pool)
+def test_a_handle_is_judged_by_its_turn_while_the_catch_held_and_never_after():
+  # The flag (Ben, #479): shut, the handle's angle on its pin is its angle
+  # in the world. Once the lid is past the catch's reach a drop handle turns
+  # with the lid on every sweep, and a nudge before the sweep began is the
+  # take's: neither is the arm's pull turning it over.
+  from pluggybot.evaluation import probe as ep
+  n = 1000
+  phases = {"take": (0, 100), "up0": (100, 600), "down0": (600, n)}
+  hinge, pin = np.zeros(n), np.zeros(n)
+  pin[50:] = 0.3                                       # the take nudged it
+  pin[150:300] = 0.3 - np.linspace(0.0, 0.6, 150)      # held: turned 0.6 rad back
+  pin[300:] = -0.3
+  hinge[400:] = ch.CAUGHT_OFF + np.linspace(1e-3, 1.0, n - 400)  # the catch let go...
+  pin[400:600] = -0.3 - np.linspace(0.0, 1.0, 200)     # ...and it turns with the lid
+  pin[600:] = -1.3
+  assert ep.turned(pin, hinge, phases) == pytest.approx(math.degrees(0.6), abs=0.5)
+  assert ep.turned(pin, np.zeros(n), phases) == pytest.approx(math.degrees(1.6), abs=0.5), \
+    "a catch that never let go: the whole sweep up"
+  assert ep.turned(pin, hinge, {"take": (0, 100)}) is None, "no sweep began"
+
+
+def test_a_record_whose_handle_turned_over_is_flagged_and_kept(monkeypatch):
+  # The flight's turn is read off OUR truth along the record (the lid's
+  # angle, then the handle's), each replay's off its own rollout's joints;
+  # past `TWISTED_DEG` the row names it, and its gaps stay in the row.
+  from pluggybot.evaluation import probe as ep
+  from pluggybot.imagination.rollout import Readings
+  script = probe_chest()
+  n = 600
+  phases = {"take": (0, 100), "up0": (100, 400), "down0": (400, n)}
+
+  def held_turn(rad):
+    out = np.zeros(n)
+    out[150:250] = np.linspace(0.0, rad, 100)
+    out[250:] = rad
+    return out
+  turns = {"world": 0.1, "reference": 0.7}
+  monkeypatch.setattr(ep.im, "truth_world", lambda lid, setting, pin: "world")
+  monkeypatch.setattr(ep.im, "reference_world", lambda lid, setting, pin: "reference")
+  monkeypatch.setattr(ep, "rollout", lambda world, record: Readings(
+    t=np.zeros(n), sensed=np.zeros((n, 4)),
+    joints={"pin": held_turn(turns[world]), "hinge": np.zeros(n)}))
+  monkeypatch.setattr(ep.im, "compare", lambda truth, other, rows: [])
+  out = SimpleNamespace(phases=phases, record=SimpleNamespace(
+    n=n, dt=0.002, sensed=np.zeros((n, 4)), start=SimpleNamespace(pose=(24.0, -3.0, 0.0))))
+  rows = np.column_stack([np.zeros(n), held_turn(0.5), np.ones(n), np.ones(n)])
+  got = script.replayed(7, out, rows, (24.0, -3.0, 0.0), replay=True)
+  assert got["turnedDeg"] == {"flight": pytest.approx(28.6, abs=0.1),
+                              "world": pytest.approx(5.7, abs=0.1),
+                              "reference": pytest.approx(40.1, abs=0.1)}
+  assert got["twisted"] == ["flight", "reference"]
+  assert set(got["replay"]) == {"world", "reference"}
+  assert script.replayed(7, out, rows, (24.0, -3.0, 0.0), replay=False) == {
+    "turnedDeg": {"flight": pytest.approx(28.6, abs=0.1)}, "twisted": ["flight"]}
+
+
+class InlinePool:
+  """`multiprocessing.Pool` in this process, saying how it was made."""
+  made: list = []
+
+  def __init__(self, processes, **kwargs):
+    InlinePool.made.append(kwargs)
+
+  def __enter__(self):
+    return self
+
+  def __exit__(self, *exc):
+    return False
+
+  def map(self, fn, jobs, chunksize=1):
+    return [fn(j) for j in jobs]
+
+
+def test_every_set_out_is_flown_in_a_process_of_its_own(monkeypatch):
+  script = probe_chest()
+  monkeypatch.setattr(script, "Pool", InlinePool)
+  monkeypatch.setattr(InlinePool, "made", [])
   assert script.run_pool(abs, [-1, -2], 1) == [1, 2]
-  assert made == [{"maxtasksperchild": 1}]
+  assert InlinePool.made == [{"maxtasksperchild": 1}]
+
+
+def test_a_set_out_that_raises_is_its_row_and_the_batch_keeps_the_rest(monkeypatch):
+  # #479's review: `Pool.map` raises the first error a worker meets, and the
+  # batch's rows went with it.
+  from functools import partial
+  script = probe_chest()
+  monkeypatch.setattr(script, "Pool", InlinePool)
+
+  def fly(args):
+    if args[0] == 1:
+      raise ValueError("zero-size array to reduction operation maximum")
+    return {"k": args[0], "gotThrough": True}
+  rows = script.run_pool(partial(script.guarded, fly), [(0,), (1,), (2,)], 1)
+  assert [r["k"] for r in rows] == [0, 1, 2] and rows[2]["gotThrough"]
+  assert rows[1]["error"].startswith("ValueError") and "gotThrough" not in rows[1]
+
+
+def test_a_record_got_through_only_where_its_sweeps_were_flown(monkeypatch):
+  # #479's review: a sweep that failed once the lid had opened read as got
+  # through, and a take that failed -- no sweep at all -- crashed the
+  # grading. The probe's own word that its sweeps were flown is asked first.
+  script = probe_chest()
+  n = 600
+  monkeypatch.setattr(script.pr, "lid_from_arm", lambda out, spec: np.zeros(n))
+  lid = np.r_[np.zeros(300), np.full(300, 1.1)]                # opened, its catch let go
+  rows = np.column_stack([lid, np.zeros(n), np.ones(n), np.ones(n)])
+  rec = SimpleNamespace(n=n, dt=0.002, depth=(), detections=())
+  sweeps = {"take": (0, 100), "up0": (100, 350), "down0": (350, n)}
+
+  def graded(phases, swept, opened=True):
+    return script.graded(SimpleNamespace(record=rec, phases=phases, log={"swept": swept}),
+                         rows, opened, None)
+  assert graded(sweeps, True)["gotThrough"]
+  assert not graded(sweeps, False)["gotThrough"]
+  failed = graded({"take": (0, n)}, False, opened=False)
+  assert (failed["gotThrough"], failed["grippedPct"], failed["lidFromArmDeg"]) == (False, None, None)

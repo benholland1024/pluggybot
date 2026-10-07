@@ -18,6 +18,9 @@ The robot never sees any of it.
               the language's best leaves -- stage 3's bar for a poor fit
               (#466's decisions: "judged against what the best-expressible
               reference leaves on the same probe")
+  turned      how far the held handle turned on its pin while the catch
+              held, in the flight and in each replay: a record where one
+              turned over is FLAGGED, never dropped
 
 `scripts/probe_chest.py` flies the set-outs and reads them.
 """
@@ -36,17 +39,25 @@ from pluggybot.imagination.rollout import Readings, rollout
 #: Where the robot starts: the house's storeroom, empty (`home.world`'s
 #: x 22-28, y -6-0), facing +x -- #469's spike stood there.
 START = (24.0, -3.0)
-#: A set-out draws: the robot's heading off +x; the knob (hanging plumb)
-#: this far from the torso's centre, this far off that heading -- inside
-#: the colour imager's window on a cube's tag standing, 0.5-0.9 m ahead and
-#: its 69 deg across; and the chest turned this far off the line to the
-#: knob (rad, m).
+#: A set-out draws: the robot's heading off +x; the knob's PLUMB place this
+#: far from the torso's centre, this far off that heading; and the chest
+#: turned this far off the line to the knob (rad, m). Where it rests, swung
+#: on its pin, the knob hangs 33 mm further: 0.78-0.98 m off and up to 10.1
+#: deg wide over 128 set-outs -- past a cube's 0.9 m (`legs.claw`) in 51 --
+#: and the probe found its tag in every one.
 HEADING = math.radians(8.0)
 KNOB_FROM = (0.75, 0.95)
 BEARING = math.radians(10.0)
 TURNED = math.radians(20.0)
 #: `set_out(k)`'s seed is this plus k.
 SETOUT_SEED = 4660
+#: The held handle TURNED OVER on its pin past this while the catch held
+#: its lid shut, deg. Over 128 set-outs the arm's pull turned it a median 4
+#: (at most 15.8 in the flight, 13.2 in the world's replay, 21.0 in the
+#: reference's), and 35-42 where it turned over: the flight once, the
+#: reference five times, every catch 3.3 N or more. What follows such a
+#: release measures no fit (SimNotes, "The probe from the robot's own senses").
+TWISTED_DEG = 25.0
 
 
 @dataclass(frozen=True)
@@ -149,18 +160,43 @@ def flown(record, lid_angle) -> Readings:
                   joints={"hinge": np.asarray(lid_angle, dtype=float)})
 
 
+def turned(pin, hinge, phases: dict) -> float | None:
+  """How far the held handle turned on its pin while the catch held its
+  lid shut, deg: from the first sweep up's start until the lid is past the
+  catch's reach (`chest.CAUGHT_OFF`), or the sweep's end. `pin` and `hinge`
+  are the two joints' angles row by row (rad); shut, the handle's angle on
+  the lid is its angle in the world. None where no sweep began."""
+  if "up0" not in phases:
+    return None
+  a, b = phases["up0"]
+  pin, hinge = np.asarray(pin, dtype=float), np.asarray(hinge, dtype=float)
+  out = np.flatnonzero(hinge[a:b] > ch.CAUGHT_OFF)
+  end = a + (int(out[0]) if len(out) else b - a)
+  return math.degrees(float(np.abs(pin[a:end] - pin[a]).max())) if end > a else 0.0
+
+
+@dataclass(frozen=True)
+class Replayed:
+  """A record through one world: the `imagined.Gap`s phase by phase, and
+  how far its held handle turned on its pin while the catch held (deg,
+  `turned`)."""
+  gaps: list
+  turned: float | None
+
+
 def replay(record, phases: dict, lid: ch.Lid, chest_map, pin: float, lid_angle) -> dict:
   """The record through the world's chest and through the best-expressible
   reference, each set at `chest_map` in the robot's map with its handle
-  hanging `pin` rad on its pin, each against what the robot sensed with
-  the lid's true angle (`flown`): `evaluation.imagined.Gap`s, phase by
-  phase -- what a perfect model leaves, and what the language's best
-  leaves."""
+  starting `pin` rad on its pin, each against what the robot sensed with
+  the lid's true angle (`flown`), as `Replayed` -- what a perfect model
+  leaves, and what the language's best leaves."""
   setting = im.Setting(chest_x=chest_map[0], chest_y=chest_map[1], chest_yaw=chest_map[2])
   sensed = flown(record, lid_angle)
   rows = {k: slice(*v) for k, v in phases.items()}
   out = {}
-  for name, world in (("world", im.truth_world(lid, setting)),
+  for name, world in (("world", im.truth_world(lid, setting, pin)),
                       ("reference", im.reference_world(lid, setting, pin))):
-    out[name] = im.compare(sensed, rollout(world, record), rows)
+    got = rollout(world, record)
+    out[name] = Replayed(gaps=im.compare(sensed, got, rows),
+                         turned=turned(got.joints["pin"], got.joints["hinge"], phases))
   return out

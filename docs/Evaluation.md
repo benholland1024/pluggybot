@@ -1227,9 +1227,13 @@ more easily here than it would on hardware.
   own senses"). The world's own chest is the floor any model reaches (a
   catch let go a tenth of a second off parts it by up to 3 N for a moment);
   the best-expressible reference leaves about what it left on the oracle's
-  probe. Where a strong catch turned the held handle on its pin -- the
+  probe. Where a strong catch turned the held handle over on its pin -- the
   reference's in 5 of 128 set-outs, the flight's once -- what follows the
-  release measures no fit.
+  release measures no fit: the row FLAGS it (`twisted`) and keeps it, and a
+  flagged set-out is read apart. ⚠ The reference is the true numbers
+  written in the language, NEVER FITTED to the world by code that knows the
+  truth (Ben, on #479): where the catch is strong its catch lets go late
+  and the bar is lenient, and that is said, not tuned away.
 
 ## 6. What death costs
 
