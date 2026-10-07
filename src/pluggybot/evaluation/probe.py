@@ -51,6 +51,9 @@ BEARING = math.radians(10.0)
 TURNED = math.radians(20.0)
 #: `set_out(k)`'s seed is this plus k.
 SETOUT_SEED = 4660
+#: The demo's set-out, the one `protocol/`'s `home_quad_chest` fixtures fly
+#: (`scripts/imagine_chest.py --demo`).
+DEMO = 0
 #: The held handle TURNED OVER on its pin past this while the catch held
 #: its lid shut, deg: over two batches of 128 set-outs (#479, before its
 #: review and after) the arm's pull turned it a median 4 and at most 15.8,
@@ -88,6 +91,17 @@ def set_out(k: int) -> SetOut:
   c, s = math.cos(yaw), math.sin(yaw)
   chest = (kx - (c * off[0] - s * off[1]), ky - (s * off[0] + c * off[1]), yaw)
   return SetOut(k=k, lid=ch.draw(k), chest=chest, start=(START[0], START[1], heading))
+
+
+def spec_of(so: SetOut):
+  """A set-out's world: the house as the spikes build it (`legs.world.
+  home_spec`) with the robot where it starts and the chest put in where it
+  stands -- the probe's batch's, and the demo's (`home_quad_chest` on the
+  wire)."""
+  from pluggybot.legs import world as lw
+  spec = lw.home_spec(first_at=so.start[:2])
+  ch.attach_chest(spec, so.lid, so.chest[:2], so.chest[2])
+  return spec
 
 
 def truth(chest_pose) -> dict:

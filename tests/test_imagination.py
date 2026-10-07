@@ -342,7 +342,8 @@ def test_a_worker_is_deterministic_given_its_seed(worker):
 FENCED = ("pluggybot.activity", "pluggybot.challenge", "pluggybot.home",
           "pluggybot.legs.world", "pluggybot.evaluation", "mechanism_spike")
 PACKAGE = tuple(f"pluggybot.imagination.{m}" for m in
-                ("scene", "compile", "record", "rollout", "worker"))
+                ("scene", "compile", "record", "rollout", "worker", "fit", "author", "model",
+                 "ghost"))
 
 
 def _module_file(name: str) -> Path | None:
@@ -528,7 +529,13 @@ def test_every_failure_in_the_worker_is_an_answer_and_it_keeps_serving(monkeypat
     raise mujoco.FatalError("mj_stackAlloc: out of memory")
   monkeypatch.setattr(cp_mod, "compile_scene", broken)
   answer = ask(CABINET)
-  assert answer["ok"] is False and "out of memory" in answer["error"]
+  # the document's world failed, not the request: a fit answers it as it
+  # answers a world gone unstable (#466 stage 3's review), and the client
+  # raises it as the document's
+  assert answer["ok"] is False and "out of memory" in answer["unbuildable"]
+  with pytest.raises(wk.Unbuildable, match="out of memory"):
+    wk._raise(answer)
+  assert "error" not in answer
 
 
 def test_an_id_and_an_axis_are_what_they_say():

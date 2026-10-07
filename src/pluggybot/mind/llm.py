@@ -225,6 +225,49 @@ def _default_fetch(url: str, body: dict | None, headers: dict,
     return e.code, payload
 
 
+def stream_fetch(url: str, body: dict | None, headers: dict,
+                 timeout: float) -> tuple[int, dict]:
+  """`_default_fetch` over a STREAM, for an answer longer than a gateway
+  waits: the request asks for `stream`, and the deltas are put back
+  together as the one JSON a request not streamed is answered with (its
+  reasoning before its answer, in `<think>`, as `_answer_text` reads it).
+  `timeout` is each read's. MEASURED (#466): the router's gateway answers
+  504 to a request silent for 120 s, and the deployed model, shown a
+  picture, reasoned past it."""
+  if body is None:
+    return _default_fetch(url, body, headers, timeout)
+  data = json.dumps({**body, "stream": True,
+                     "stream_options": {"include_usage": True}}).encode()
+  req = urllib.request.Request(url, data=data, headers=headers, method="POST")
+  content, reasoning, usage = [], [], {}
+  try:
+    with urllib.request.urlopen(req, timeout=timeout) as resp:
+      for raw in resp:
+        line = raw.decode("utf-8", "replace").strip()
+        if not line.startswith("data:"):
+          continue
+        chunk = line[len("data:"):].strip()
+        if chunk == "[DONE]":
+          break
+        d = json.loads(chunk)
+        if "error" in d:
+          return 500, d
+        usage = d.get("usage") or usage
+        for choice in d.get("choices") or ():
+          delta = choice.get("delta") or {}
+          reasoning.append(str(delta.get("reasoning_content") or delta.get("reasoning") or ""))
+          content.append(str(delta.get("content") or ""))
+  except urllib.error.HTTPError as e:
+    try:
+      payload = json.loads(e.read().decode())
+    except Exception:                       # noqa: BLE001 -- body may be HTML
+      payload = {"error": {"message": str(e)}}
+    return e.code, payload
+  thought = "".join(reasoning)
+  text = (f"<think>{thought}</think>" if thought else "") + "".join(content)
+  return 200, {"choices": [{"message": {"content": text}}], "usage": usage}
+
+
 class ChatClient:
   """An OpenAI-compatible endpoint, wearing the Anthropic client's shape.
 

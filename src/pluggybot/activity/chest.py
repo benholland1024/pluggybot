@@ -66,7 +66,8 @@ PIN_Z = LID_T / 2
 HANDLE_KG = (0.010, 0.005, 0.020)
 BRACKET_KG = 0.005
 #: The hidden weight: a lump this size inside the board, which nothing
-#: touches.
+#: touches and nothing sees -- ⚠ its rgba's alpha is 0, so a scene omits it:
+#: where it sits is a hidden parameter, and a scene is on the wire.
 LUMP_HALF = (0.010, 0.010, 0.004)
 #: The lid's travel off its stop, rad: shut on the walls (the stop is the
 #: hinge's lower limit) to 109 deg.
@@ -248,7 +249,7 @@ def chest_xml(lid: Lid, name: str = "chest", tags: bool = True) -> str:
     lid_parts.append(
       f'<geom name="{name}_lump" type="box" size="{_v(*LUMP_HALF)}" '
       f'pos="{_v(-d * lid.lump_at, 0, lid.lump_z)}" mass="{_f(lid.lump_kg)}" '
-      f'contype="0" conaffinity="0" group="3" rgba="0.8 0.2 0.2 1"/>')
+      f'contype="0" conaffinity="0" group="3" rgba="0.8 0.2 0.2 0"/>')
   moving = (f'<body name="{name}_lid_body" pos="{_v(*HINGE)}">' + "".join(lid_parts)
             + '</body>')
   contact = (f'<exclude body1="{name}" body2="{name}_lid_body"/>'

@@ -42,11 +42,20 @@ newtons at `at`, until the part is pulled harder there: then it lets go.
   its own (`compile.CONTACT`), and a document that could carry the world's
   would be a door for it (`tests/test_imagination.py` pins `solref`).
 
+A TEMPLATE (`parse_template`) is a document some of whose numbers are not
+known yet, each written {"between": [lo, hi]} in its field's units, for a
+fitter to find (`fit.py`): what a part weighs, and how a joint or a catch
+holds (`UNKNOWABLE`). ⚠ THE GEOMETRY IS MEASURED, NEVER FITTED (#466): a
+size, a place, an axis or a range written so is refused. `placed` writes a
+document drawn in a frame of its own -- a box's, square to it -- into the
+map's.
+
 Nothing here is specific to a lid.
 """
 
 from __future__ import annotations
 
+import copy
 from dataclasses import dataclass
 import math
 import re
@@ -82,6 +91,12 @@ MAX_RELEASE_N = 200.0
 MIN_LEVER_MM = 1.0
 #: An axis is a direction, its components within this either way.
 MAX_AXIS = 1e6
+#: What a template may leave unknown, by what it is in: what the robot
+#: cannot see. Everything else is measured.
+UNKNOWABLE = {"part": ("mass",), "joint": ("stiffness", "slack", "damping", "friction"),
+              "catch": ("release",)}
+#: A template's unknowns at most: each costs the fitter a rollout a step.
+MAX_UNKNOWNS = 12
 
 
 class Refused(ValueError):
@@ -155,6 +170,15 @@ def rotation(euler_rad) -> np.ndarray:
   return rx @ ry @ rz
 
 
+def euler_of(rot) -> tuple[float, float, float]:
+  """`rotation`'s angles back from a rotation, radians (the middle one
+  within +-90 deg)."""
+  r = np.asarray(rot, dtype=float)
+  b = math.asin(max(-1.0, min(1.0, float(r[0, 2]))))
+  return (math.atan2(-float(r[1, 2]), float(r[2, 2])), b,
+          math.atan2(-float(r[0, 1]), float(r[0, 0])))
+
+
 # ---- parsing ----------------------------------------------------------------------
 
 def _finite(x) -> bool:
@@ -168,8 +192,17 @@ def _finite(x) -> bool:
     return False
 
 
+def _unknown(v) -> bool:
+  """A template's unknown, as written: {"between": [lo, hi]}."""
+  return isinstance(v, dict) and "between" in v
+
+
 def _num(v, name: str, reasons: list[str], lo: float | None = None,
          hi: float | None = None) -> float | None:
+  if _unknown(v):
+    reasons.append(f"{name} is unknown: a document to compile has every number "
+                   f"(a template's are filled by the fitter)")
+    return None
   if not _finite(v):
     reasons.append(f"{name} must be a number")
     return None
@@ -430,3 +463,162 @@ def dump(scene: Scene) -> dict:
     out["catches"] = [{"joint": c.joint, "at": _mm(c.at), "release": c.release}
                       for c in scene.catches]
   return out
+
+
+# ---- templates: what the robot cannot see, left for the fitter ------------------------
+
+#: Each list a template's unknowns can be in, and what its items are.
+_KINDS = (("parts", "part"), ("joints", "joint"), ("catches", "catch"))
+
+
+@dataclass(frozen=True)
+class Unknown:
+  """One number a template leaves to the fitter: `name` (`<id>.<field>`, a
+  catch's `<joint>.release`), where it is written (its list, its index
+  there, its field) and its range, in the author's units."""
+  name: str
+  kind: str
+  index: int
+  field: str
+  lo: float
+  hi: float
+
+  def at(self, u: float) -> float:
+    """The value a share `u` (0 to 1) of the way through its range."""
+    return self.lo + float(u) * (self.hi - self.lo)
+
+  def share(self, value: float) -> float:
+    return (float(value) - self.lo) / (self.hi - self.lo)
+
+
+@dataclass(frozen=True)
+class Template:
+  """A document as written, unknowns and all (`raw`), and its `unknowns` in
+  the order they were written."""
+  raw: dict
+  unknowns: tuple[Unknown, ...] = ()
+
+  @property
+  def names(self) -> list[str]:
+    return [u.name for u in self.unknowns]
+
+  def fill(self, values) -> dict:
+    """The document with each unknown at its value (author's units), in
+    `unknowns`' order."""
+    values = list(values)
+    if len(values) != len(self.unknowns):
+      raise ValueError(f"{len(values)} values for {len(self.unknowns)} unknowns")
+    doc = copy.deepcopy(self.raw)
+    for u, v in zip(self.unknowns, values):
+      doc[u.kind][u.index][u.field] = float(v)
+    return doc
+
+  def middle(self) -> list[float]:
+    return [u.at(0.5) for u in self.unknowns]
+
+
+def _item_name(kind: str, item: dict) -> str:
+  key = item.get("joint" if kind == "catch" else "id")
+  return key if isinstance(key, str) else "?"
+
+
+def parse_template(raw) -> Template:
+  """A template as its author wrote it -> a `Template`, or `Refused` with
+  every reason at once: an unknown's range, a geometry field written as
+  one, and everything `parse` refuses of the document filled at either end
+  of every range."""
+  if not isinstance(raw, dict):
+    raise Refused(["a template is an object of parts, joints and catches"])
+  reasons: list[str] = []
+  unknowns: list[Unknown] = []
+  for key, kind in _KINDS:
+    items = raw.get(key, [])
+    if not isinstance(items, list):
+      continue                                          # `parse` says why
+    for i, item in enumerate(items):
+      if not isinstance(item, dict):
+        continue
+      name = _item_name(kind, item)
+      where = f"catch on {name!r}" if kind == "catch" else f"{kind} {name!r}"
+      for field, v in item.items():
+        if isinstance(v, list) and any(_unknown(x) for x in v):
+          reasons.append(f"{where}: {field} is measured, never fitted, so it is written "
+                         f"as it was measured")
+          continue
+        if not _unknown(v):
+          continue
+        if field not in UNKNOWABLE[kind]:
+          reasons.append(f"{where}: {field} is measured, never fitted, so it is written as "
+                         f"it was measured; what may be unknown on a {kind} is "
+                         f"{' or '.join(UNKNOWABLE[kind])}")
+          continue
+        b = v["between"]
+        if set(v) != {"between"} or not isinstance(b, list) or len(b) != 2 \
+           or not all(_finite(x) for x in b):
+          reasons.append(f"{where}: an unknown {field} is {{\"between\": [lo, hi]}}, two "
+                         f"numbers and nothing else")
+          continue
+        lo, hi = float(b[0]), float(b[1])
+        if not lo < hi:
+          reasons.append(f"{where}: {field} between [{lo:g}, {hi:g}] must be [lo, hi] with "
+                         f"lo < hi (a number that is known is written as a number)")
+          continue
+        unknowns.append(Unknown(name=f"{name}.{field}", kind=key, index=i, field=field,
+                                lo=lo, hi=hi))
+  if len(unknowns) > MAX_UNKNOWNS:
+    reasons.append(f"{len(unknowns)} unknowns; a template may have at most {MAX_UNKNOWNS}")
+  names = [u.name for u in unknowns]
+  for n in sorted({n for n in names if names.count(n) > 1}):
+    reasons.append(f"{n} is unknown twice")
+  template = Template(raw=copy.deepcopy(raw), unknowns=tuple(unknowns))
+  # the document at both ends of every range: its structure, and each end
+  # against its field's own bounds
+  for end in ("lo", "hi"):
+    try:
+      parse(template.fill([getattr(u, end) for u in unknowns]))
+    except Refused as e:
+      reasons += [r for r in e.reasons if r not in reasons]
+  if reasons:
+    raise Refused(reasons)
+  return template
+
+
+# ---- a document drawn in a frame of its own ----------------------------------------
+
+def _xyz(v) -> bool:
+  return isinstance(v, list) and len(v) == 3 and all(_finite(x) for x in v)
+
+
+def placed(raw: dict, at, yaw_deg: float) -> dict:
+  """A document (or a template) drawn in a frame of its own -- its origin
+  at `at` (x, y, z mm in the map), turned `yaw_deg` about the map's z --
+  written in the map's: every part's place and turn, every joint's point
+  and axis and every catch's point. Unknowns are dynamics, and stay as they
+  were; a field that is not numbers is left for `parse` to refuse."""
+  doc = copy.deepcopy(raw)
+  y = math.radians(float(yaw_deg))
+  c, s = math.cos(y), math.sin(y)
+  turn = np.array([[c, -s, 0.0], [s, c, 0.0], [0.0, 0.0, 1.0]])
+  origin = np.asarray(at, dtype=float)
+
+  def point(p) -> list[float]:
+    return [float(v) for v in turn @ np.asarray(p, dtype=float) + origin]
+
+  for part in doc.get("parts", []) if isinstance(doc.get("parts"), list) else []:
+    if not isinstance(part, dict):
+      continue
+    if _xyz(part.get("pos")):
+      part["pos"] = point(part["pos"])
+    euler = part.get("euler", [0.0, 0.0, 0.0])
+    if _xyz(euler):
+      rot = turn @ rotation([math.radians(e) for e in euler])
+      part["euler"] = [math.degrees(e) for e in euler_of(rot)]
+  for key, fields in (("joints", ("at", "axis")), ("catches", ("at",))):
+    for item in doc.get(key, []) if isinstance(doc.get(key), list) else []:
+      if not isinstance(item, dict):
+        continue
+      for f in fields:
+        if _xyz(item.get(f)):
+          item[f] = (point(item[f]) if f == "at"
+                     else [float(v) for v in turn @ np.asarray(item[f], dtype=float)])
+  return doc
