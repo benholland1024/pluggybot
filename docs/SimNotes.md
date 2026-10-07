@@ -3972,6 +3972,203 @@ turn the held handle over on its pin, in the flight or in a replay: such a
 record is flagged and kept, and the reference is stage 1's, fitted to
 nothing.
 
+## The robot's model, graded (issue #466, stage 3)
+
+Stage 3 has the robot write a model of the chest it probed and fit it to
+what its arm felt, and grades the model against the truth
+(`scripts/imagine_chest.py`). The pieces:
+
+- **A template** (`imagination/scene.py`, `parse_template`): a document
+  whose numbers the robot cannot see -- masses, a joint's spring, slack,
+  damping and friction, a catch's release -- are written
+  `{"between": [lo, hi]}`. The geometry is measured, never fitted.
+- **The author** (`imagination/author.py`): a language model writes the
+  template in the box's own frame, shown the colour camera's picture, the
+  sizes depth and the tag measured (`legs.probe.sizes`) and the jaws' path
+  off the arm's encoders (`legs.probe.did`). Code places it where depth put
+  the box (`scene.placed`).
+- **The fitter** (`imagination/fit.py`): Levenberg-Marquardt over rollouts
+  in the workers, off the force at the tool the record's readings and a
+  rollout's put apart, in 0.1 s means.
+- **The rounds** (`imagination/model.py`): a fit that leaves too much goes
+  back to the author with its report, up to three structures, the one that
+  left least kept.
+- **Our grading** (`evaluation/model.py`): per parameter, against the
+  world's chest and against the best-expressible reference.
+
+The records are stage 2's probes flown again at this stage's commit, each
+now keeping its picture (`Probed.picture`): 128 of 128 got through, 119 of
+them bit for bit stage 2's flight, the same six flagged.
+
+**What depth says, in the box's frame.** The top's depth, width and height,
+the bracket's tip, width and top, and the knob, each within a millimetre of
+the chest's own drawing (`tests/test_probe.py`). ⚠ The front is read off
+the front FACE (its median along), never the top's near edge: the face's
+own points stand at that edge and pulled a window's mean 7.5 mm toward the
+robot, the box 227 mm deep for 220 -- the faced edge of `perception/box.py`
+again. A 12 mm bracket read 28 mm wide off the edge's 20 mm window: a strip
+narrower than its window reads as the window, so a strip's sides take a 3
+mm one.
+
+**The fitter alone** -- the reference's own structure and geometry, its
+lid's dynamics unknown, the hidden weight's mass among them, over ranges
+past every drawn chest's (`evaluation.model.reference_template`) -- over the
+122 clean set-outs, the median error [its 95 % interval], and 9 in 10
+under:
+
+| | median [95 %] | 9 in 10 under |
+|---|---|---|
+| static curve at 11 / 34 / 57 deg, N*m | 0.0053 / 0.0055 / 0.0025 | 0.010 / 0.010 / 0.007 |
+| friction, N*m | 0.0014 [0.0012, 0.0017] | 0.0035 |
+| damping, N*m*s/rad | 0.0031 [0.0024, 0.0038] | 0.0074 |
+| catch's release, N | 0.23 [0.23, 0.25], low | 0.33 |
+| first moment, kg*m (truth about 0.063) | 0.014 [0.012, 0.016] | 0.026 |
+| the lid's mass, kg (assumed) | 0.14 [0.11, 0.16] | 0.25 |
+
+- **The static curve is under the torques' own resolution** (0.009-0.013,
+  #469).
+- **Friction and damping are #469's oracle fit's**, which was handed the
+  lid's true angle; this fit had only the record.
+- **The first moment is a fifth off: gravity and a spring trade.** Over the
+  swept angles the two correlate 0.98-0.998 (#469). Left a spring, the
+  fitter took one of about 0.1 N*m/rad (the median), on lids with none as
+  on lids with one, and the gravity to match. Their sum, the static curve,
+  is the graded quantity; the first moment is graded too, and read with
+  this.
+- **The catch's release comes out 0.23 N low.** The language's catch holds
+  its whole pull for a millimetre, where the magnet's falls away, so at one
+  number it lets go later; the fit lowers it until the two let go
+  together. In behaviour the fit beats the reference, which writes the
+  true number: over the sweeps it leaves 0.071 N, the reference 0.198 and
+  the world's own chest 0.031.
+- **What it costs**: 183 rollouts a fit (the median; 271 at 9 in 10), 15
+  Levenberg-Marquardt steps, 130 s of wall with five workers on a pod
+  shared three ways.
+
+⚠ **This instrument must not be handed what the robot cannot see.** Its
+first run left the hidden weight at its true mass, a hidden parameter, and
+the review caught it. Given it, the fit took a spring of 0.2 N*m/rad and
+its first moment came out half off; asked for it (and with the review's
+fix to the fitter beside it), half the spring and a fifth off -- two masses
+at two places shape the curve that a spring otherwise must. Where the
+weight sits stays the reference's: that is geometry.
+
+**Judged a sweep at a time, a right structure was sent back.** Against the
+reference's 9 in 10 on each sweep, 90 of 122 fits of the reference's own
+structure (its first run) were "poor", 89 of them on the first sweep down:
+a fit spends the language's error otherwise than the reference, beating
+it on the lifts by its release and giving a little back lowering. So the
+loop judges the take alone (0.05 N) and the sweeps together, at the
+reference's 9 in 10 over them (`legs.probe.SWEEPS_N`, 0.32 N): none of the
+122 fails it. A wrong structure leaves newtons.
+
+**What an author needs to be shown.** The first authors were shown the
+picture and the sizes, as #466's decision has it, and read the chest
+otherwise:
+- **Without the jaws' path** (the words "an arc of about 70 degrees"),
+  GLM read a pendulum: a cube on a link from the bracket's tip.
+- **With the path but the picture as rendered** -- the storeroom's levels
+  29-79 of 255, the lid's lighter edge a shade apart -- three of three
+  authors read a bracket that bends or a strap that stretches.
+- **With the picture exposed** as the D435's colour sensor exposes for its
+  scene (`legs.probe.exposed`), first answers on set-outs 0 and 8:
+  - GLM and Qwen3.5-397B each found the lid, its handle on a pin, once
+    in two;
+  - DeepSeek-V4.1-Flash and Qwen3-VL-235B never;
+  - Kimi K2.5 and K2.6 did not answer within twenty minutes.
+
+Nothing tells the robot the top moved: lying, its camera sees the box's
+front, never the lid raised (rendered from the pose, the open lid is out
+of the frame). What says so is the path's arc and what the jaws felt,
+which reaches the author through a poor fit's report: there the real
+object's force sits beside the simulated (`legs.imagined.felt`, the
+record's torques less the arm's own weight and friction, after the fact).
+
+**The deployed model as an author.** GLM-5.3-Flash on the router's
+cheapest provider:
+- **Its answers are not held to the schema.** That provider takes no
+  structured output, so the adapter retries each request without it.
+- **It reasons long.** Shown the picture, an answer took 7,900 tokens (the
+  median), 28,000 at 9 in 10. At the overseer's 8,192 it wrote nothing
+  at all.
+- **Its answers must stream.** The router's gateway answers 504 to a
+  request silent for 120 s (`mind.llm.stream_fetch`).
+- **It runs out of room.** At 32,000 tokens, 70 answers in 180 were cut
+  off before their document, and five set-outs of 32 lost their revisions
+  to it. The answers that came ran up to 31,800, so a larger budget would
+  likely rescue some.
+- **It seldom revises its reading.** Of 20 first answers that missed the
+  lid, two found it in a revision. A strap it kept through two reports
+  that showed 12 N between the real arm and its model.
+
+**The robot's own model** (GLM-5.3-Flash, 32 set-outs, the kept round):
+- 5 passed their bars, 8 more found the lid's hinge and stayed poor, and
+  19 read a strap: hung from the bracket, swinging and stretching (a hinge
+  and a slide), the jaws' arc put down to the strap and not the lid.
+- **The passes came in revisions**: none at the first answer, two at the
+  second and three at the third.
+- **The ranges.** The 12 first answers that found the lid's hinge held the
+  truth for its mass 10 times in 12, damping 12 in 12, friction 11 in 12,
+  and the catch's release once in 7. It reckons a magnet at 2-5 N up to
+  40-60 N, where the chests pull 1.1-3.9 N, so the fit stops at the
+  range's end and the report says so (`at_end`).
+- **Where it found the hinge and stayed poor, its height was a lid's
+  thickness off**: 12.4 mm (the median of 8), against the passes' 6.5.
+  Nothing the robot measures places a hinge within the lid's thickness.
+
+Where it passed, against the fitter alone on the reference's structure
+(medians):
+
+| | the robot's model (n 5) | the fitter alone (n 122) |
+|---|---|---|
+| static curve at 11 / 34 / 57 deg, N*m | 0.008 / 0.006 / 0.019 | 0.005 / 0.006 / 0.003 |
+| first moment, kg*m | 0.001 | 0.014 |
+| friction, N*m | 0.0033 | 0.0014 |
+| damping, N*m*s/rad | 0.022 | 0.0031 |
+| catch's release, N | 0.17 (n 4) | 0.23 |
+| the hinge's height, mm off | 6.5 | the reference's own |
+| left on the sweeps, N | 0.19 | 0.071 |
+
+**Three authors, the same six set-outs** (0-4 and 10; three of Qwen3.5's
+were lost to a dropped connection and not flown again for the price). A
+first answer and up to two revisions each, on the router's cheapest
+provider:
+
+| author | the lid's hinge, first answer | passed | $ a set-out |
+|---|---|---|---|
+| GLM-5.3-Flash (deployed) | 2 | 1 | 0.06 |
+| Qwen3.5-397B-A17B | 3 | 1 | 0.14 |
+| Inkling | 0 | 0 | 0.32 |
+
+Inkling read the box as one solid part, with a bracket on its top and the
+cube hinged on the bracket: nine set-outs of nine, through every revision.
+
+**Decision 2: what a geometry error leaks.** The reference's structure
+with its hinge moved, fitted alone, over 7 clean set-outs (medians):
+
+| the hinge | static curve, worst angle, N*m | friction, N*m | damping, N*m*s/rad | left on the sweeps, N |
+|---|---|---|---|---|
+| where it is | 0.009 | 0.0012 | 0.0021 | 0.073 |
+| 2 mm along, either way | 0.010 / 0.013 | 0.0029 / 0.0008 | 0.0016 / 0.0028 | 0.069 / 0.080 |
+| 5 mm up | 0.008 | 0.0054 | 0.0048 | 0.16 |
+| 12.5 mm up | 0.022 | 0.012 | 0.012 | 0.37: past the bar 6 times in 7, the least 0.319 |
+
+Depth's error along the box leaks nothing past the torques' resolution.
+Up, the fitter takes the error into friction and damping, and at a lid's
+thickness what it leaves reaches the bar. So a hinge a lid's thickness off
+goes back, nearly always, to its author, the one who can move it.
+
+**What is true now.**
+- Given a structure, the fitter brings the lid's dynamics back to the
+  torques' resolution. The author is what fails: GLM found the lid in 12
+  first answers of 32, and 5 of 32 models passed. Two dearer open models
+  passed no more.
+- The geometry is the author's and never the fitter's. Depth's 2 mm leaks
+  nothing, and a hinge's height a lid's thickness off reaches the bar.
+- `MAX_ROUNDS` is 3 and every pass came in a revision. Whether a fourth
+  round, or a larger answer budget, pays is unmeasured.
+
+
 ## Debugging workflow that worked
 
 1. Reproduce headlessly with printed telemetry (pose, joint rates, contact

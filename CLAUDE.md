@@ -249,6 +249,7 @@ save a filmstrip PNG named after the script.
 | `scripts/mechanism_spike.py` | what the arm can open from the claw's lying stance and what its torques measure (#469, #466's stage 0; SimNotes "Opening a box from lying"): a lid lifted by a drop handle (the chest's, `activity/chest.py`, which it imports), a lid lifted from under its lip and a drawer, each in the storeroom, never the served world. `--walkin` the spread the claw's walk-in leaves, `--window` the push the claw on its fork holds each way, `--table` the candidates, `--tolerance` the path off the true arc at four gains, `--torques` the force at the tool off the drivers (`legs.arm.tool_force`) against the contact force, `--fit` the oracle fit (`--corners` past the drawn ranges, `--twins` mass against its lever), `--latch` a magnetic catch; `--all --into DIR` the whole batch behind the report, a file a mode (a CPU pod's work, below); filmstrip `mechanism_spike.png` |
 | `scripts/imagination_gap.py` | the scene language's own gap (#466's stage 1; SimNotes "The imagination's first world"), no robot flying: over drawn chests (`--n`), the oracle's probe through the world's chest and through its best-expressible reference, with its catch and without, the force at the tool apart phase by phase; `--cost` what a rollout costs, ms a sim-second, in this process and in the worker, `--parallel 1,8,16` that many workers at once |
 | `scripts/probe_chest.py` | the probe from the robot's own senses (#466's stage 2, `legs/probe.py`; SimNotes "The probe from the robot's own senses"), flown over seeded set-outs (`evaluation.probe.set_out`: drawn chest k in the storeroom, the robot in front of it) and graded by us: through or why not, the geometry it measured in its own frame, the lid's angle as its arm reads it, the friction it calibrated, its record replayed through the world's chest and the best-expressible reference set in its map, and how far the held handle turned on its pin in each (`twisted` past 28 deg); `--n`, `--from`, `--jobs`, `--into DIR` (each probe in the worker's wire form, our truth beside it), `--no-replay`, `--regrade` (the kept records in `--into` graded again, not flown) |
+| `scripts/imagine_chest.py` | the robot's model of the chest, graded (#466's stage 3; SimNotes "The robot's model, graded"), over the probes `probe_chest.py --into` kept: `--conditions` `model` (the author's structure -- the deployed model, `$HF_TOKEN` -- placed, fitted, judged and revised), `reference` (the fitter alone, on the reference's own structure), `leak` (its hinge moved), each graded by us against the world and the reference; `--remote H:P,...` puts the workers on pods over ssh (`--workers`, `--slots`), `--summary` the tables with intervals, `--demo K --record PATH` set-out K flown, imagined and recorded with the `imagined` event, the demo world's scene beside it |
 
 - **The quadruped's training stack lives in `training/`, a uv project of its own** (#377): mjlab 1.5.x (it pins `mujoco ~=3.10.0`, the served sim's), reading the body from `models/quadruped.{xml,json}` (`python -m pluggybot.legs.model` writes both; mjlab caps numpy below pluggybot's, so the two never share an environment), the arm FIXED at its stow (`quad_train.robot.freeze_arm`, #405: a policy's joints are the legs' twelve, and the arm's geometry is there to fall on). ⚠ Importing `legs.policy` or `legs.model` loads none of torch, jax, warp, onnx or mjlab (`tests/test_legs.py`); a policy reaches the served sim as an `.npz` that `quad_train.export` checks against its ONNX before writing, run by `legs/policy.py` in numpy. ⚠ The leg DRIVERS are MuJoCo's position-mode `dcmotor` (#385; `body_xml(drive="position")`), the PD and the envelope in C, commanded as a GDS68 is (`legs/drivers.py`): every command carries its gains — a policy's are its own, a routine's torque rides a target with the damping cancelled (the torque motor's step to 1e-14), `limp()` holds nothing — so a policy and the scripted routines share one body. The default gains are ONE definition, `actuator.driver_gains`, which `training/` reads from `quadruped.json`. `drive="torque"` (plain motors) is the sizing tables' instrument. `training/pod.sh` rents a Runpod GPU to train on, or CPUs to fly a batch (`create-cpu`), over the REST API (`runpodctl pod create` needs a GraphQL-writable key) — ⚠ a POST to `/v1/pods` with an EMPTY body CREATES a pod: every field has a default.
 - ⚠ **A batch of flights runs on a rented pod's CPUs or under a memory cap, never bare on the dev box** (#469: six house worlds at once took it into swap and its desktop down overnight, 2026-10-06): `training/pod.sh create-cpu` → `setup-sim` (the commit, never the working tree) → `batch` → `pull-batch`, then `delete`; locally, `systemd-run --user --scope -p MemoryMax=12G -p MemorySwapMax=0 ...`. A pool of flights gives each its own process (`maxtasksperchild=1`: a world dropped in a reused worker is held until the cycle collector runs), and results go under `~`, never `/tmp`, which a reboot wipes.
@@ -312,9 +313,9 @@ save a filmstrip PNG named after the script.
   (up to 25 mm; unmoved, the jaws missed). ⚠ A DROP HANDLE RESTS WITH ITS
   KNOB UNDER ITS BRACKET (its centre of mass under its pin, 9.6 mm in front
   of the tip): the jaws take it clear of the bracket (`TAKE_CLEAR_M`), and
-  a held knob moves as its pin does. ⚠ CODE'S FORESIGHT IS STATED, stage 3's
-  model replaces it: the hinge is the top's back edge (a board high), the
-  pin the bracket's tip. ⚠ A test walks its imports (never
+  a held knob moves as its pin does. ⚠ CODE'S FORESIGHT PLANS THE PROBE,
+  stated: the hinge is the top's back edge (a board high), the pin the
+  bracket's tip; the MODEL's geometry is its author's (below). ⚠ A test walks its imports (never
   `activity.chest`, `evaluation`, the spike) and its source (no chest
   element by name, no grip judged off the world, no truth through the
   body's helpers: its arm's weight and its height are its encoders' and its
@@ -331,6 +332,43 @@ save a filmstrip PNG named after the script.
   the floor read up to 0.27 N. ⚠ THE REFERENCE IS NEVER FITTED TO THE WORLD
   by code that knows the truth (Ben, on #479): where the catch is strong
   the bar is lenient, and that is stated.
+- **The robot's model is an author's STRUCTURE and a fitter's NUMBERS, in
+  rounds code runs** (stage 3; SimNotes, "The robot's model, graded";
+  `tests/test_model.py`): an LLM (`imagination/author.py`, the deployed
+  model) writes a TEMPLATE in the box's frame (`scene.parse_template`:
+  only `UNKNOWABLE` fields -- masses, a joint's spring, slack, damping,
+  friction, a catch's release -- may be `{"between": [lo, hi]}`; ⚠ THE
+  GEOMETRY IS MEASURED, NEVER FITTED: a hinge moved 2 mm along or 5 mm up
+  moved the fitted static curve under the torques' 0.009-0.013 N*m, 12.5 mm
+  up 0.022 with the sweeps at the bar), placed where depth put the box (`legs.probe.sizes`, ⚠ its
+  front off the FACE: the top's near edge read 7.5 mm short; `placed`);
+  the generic fitter (`fit.py`) finds the unknowns off the force at the
+  tool in 0.1 s means -- ⚠ a Sobol start (from the middles alone it
+  stalled 2.5 times too heavy), robust then squares (a catch's spike), an
+  unknown nothing moves UNSEEN, held mid-range -- and a poor fit goes back
+  for a revision (`model.py`, `MAX_ROUNDS` 3, the least-left round kept).
+  ⚠ POOR IS A CONSTANT: the take alone, and THE SWEEPS TOGETHER at the
+  reference's 9 in 10 over them (`legs.probe.SWEEPS_N`, 0.32 N; a sweep at
+  a time, 90 in 122 right structures were sent back), NEVER the
+  reference's residual on the probe judged: that is the truth's, and the
+  loop would read it. ⚠ THE AUTHOR IS SHOWN THE PICTURE EXPOSED
+  (`legs.probe.exposed`: rendered, its levels were 29-79 of 255), THE SIZES
+  AND THE JAWS' PATH OFF ITS ENCODERS (`legs.probe.did`; without the
+  picture it read a pendulum), and a poor fit's report what the real
+  object put on the jaws beside the simulated (`legs.imagined.felt`) --
+  never a number of the truth; its rules prescribe nothing (a test reads
+  "lid", "chest", "magnet"), and the worked example is a cupboard's door.
+  ⚠ ITS ANSWERS STREAM (`mind.llm.stream_fetch`: the router's gateway 504s
+  a request silent 120 s) up to `MAX_TOKENS` 32000 (70 answers in 180 ran
+  out; 8,192 left none). The workers may be a pod's over ssh, the same frames
+  (`worker.residual`: the record kept once, a few kB back a rollout; ⚠ one
+  ssh connection a slot of five: sshd refuses the eleventh channel). OUR
+  grading (`evaluation/model.py`) is per parameter against the world and
+  the reference, ⚠ the first moment degenerate where a spring is free (the
+  static curve is their graded sum), mass and second moment ASSUMED. The
+  ghost (`imagination/ghost.py`, `imagined`) is the robot's model only, and
+  ⚠ the chest's hidden weight is drawn with no alpha, so no scene shows
+  where it sits.
 
 ### The mind (`mind/`; `docs/Overseer.md` is the design)
 
@@ -769,7 +807,9 @@ save a filmstrip PNG named after the script.
   --record protocol/telemetry.home_quad_pair.jsonl.gz` (#387): NO
   `--metabolism` there, and no `--tasks`, so no fixture carries a job
   (#406's whiteboard jobs are offered on every arm, the mouse's to a mind
-  alone). Format
+  alone). The demo's `home_quad_chest` scene and recording (#466) are
+  `scripts/imagine_chest.py --demo 0 --record ...`'s: its author's answers
+  vary run to run, and a new recording draws a new model. Format
   and versioning rules are in `protocol/README.md`; a `protocolVersion` bump
   is a deliberate two-repo event.
 - **The parts list is DATA, and the fixture is read off the sim** (issue #185;
