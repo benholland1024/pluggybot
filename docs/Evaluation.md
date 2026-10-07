@@ -1221,6 +1221,21 @@ more easily here than it would on hardware.
   against the reference "the robot didn't find it" (#466). For the chest,
   the first is nearly all the catch's release (SimNotes, "The imagination's
   first world").
+- ⚠ **A fit's bar is what the references leave on the robot's OWN probe**
+  -- its record replayed from its own start, each world set in its map --
+  never on the oracle's (#466 stage 2; SimNotes, "The probe from the robot's
+  own senses"). The world's own chest is the floor any model reaches
+  (within 0.14 N RMS a sweep, catch and all, its handle starting where the
+  flight's hung); the best-expressible reference leaves about what it left
+  on the oracle's probe. Where a strong catch turned the held handle over
+  on its pin -- the reference's replay in 6 of 128 set-outs, the world's
+  once, the flight's once in a batch before -- what follows the release
+  measures no fit: the row FLAGS it (`twisted`) and keeps it, and a flagged
+  set-out is read apart. ⚠ The reference is the true numbers written in
+  the language, NEVER FITTED to the world by code that knows the truth
+  (Ben, on #479): where the catch is strong it lets go late (no magnet's
+  falloff, no armature) and the bar is lenient, and that is said, not
+  tuned away.
 
 ## 6. What death costs
 

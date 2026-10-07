@@ -4,8 +4,9 @@ would have read. The instrument stage 3's fitter calls, in the worker.
 
 The robot starts as the record's `start` says it knew itself -- at its
 believed pose, tilted as its IMU read, its joints at its encoders', lying on
-its belly as its CAD lies, the tool seated on its fork -- and is given
-`SETTLE_S` holding the first command to come to rest there. Then each row:
+its belly as its CAD lies, the tool seated on its fork -- the scene's joints
+where the world says they start (`Imagined.start`), and is given `SETTLE_S`
+holding the first command to come to rest there. Then each row:
 the arm's drivers run on its targets and gains as the served body's run
 (the same `legs.arm.ArmDriver`), the claw's servos take its commands, the
 legs hold nothing (it lies), the world steps, and the hooks (a scene's
@@ -95,6 +96,10 @@ def settled(world: Imagined, record: Record, settle_s: float = SETTLE_S) -> mujo
   body = _body(world, d)
   st, first = record.start, record.commands[0]
   body.place(st.pose, st.attitude, st.legs, st.arm, first)
+  if world.start:
+    for name, q in world.start.items():
+      d.qpos[world.joints[name][0]] = q
+    mujoco.mj_forward(m, d)
   for _ in range(round(settle_s / dt)):
     body.apply(first)
     mujoco.mj_step(m, d)

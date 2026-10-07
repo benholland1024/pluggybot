@@ -190,6 +190,13 @@ class LegOdometry:
     true_v = d.qvel[self.fa:self.fa + 2]
     self.distance += float(np.hypot(*true_v)) * dt
 
+  def height(self) -> float:
+    """The torso's centre over its lowest foot, m, as its own senses put it:
+    the feet where the last step's measured angles put them (the kinematic
+    copy), levelled by the IMU's tilt."""
+    feet = self.kin.site_xpos[self.feet_site] @ self.att.level().T
+    return float(self.foot_r - feet[:, 2].min())
+
   def correct(self, x: float, y: float, yaw: float) -> None:
     """A pose from outside the legs (a scan match, the dock): the position
     and the heading, the tilt left to the IMU."""
