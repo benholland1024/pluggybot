@@ -1,0 +1,10425 @@
+{
+ "protocolVersion": "0.21.0",
+ "model": "home_quad_chest",
+ "upAxis": "z",
+ "bodies": [
+  {
+   "name": "world",
+   "parent": null,
+   "dynamic": false,
+   "robot": null,
+   "visual": null,
+   "pos": [
+    0.0,
+    0.0,
+    0.0
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "floor",
+     "type": "plane",
+     "size": [
+      51.0,
+      23.0
+     ],
+     "pos": [
+      8.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.5,
+      0.5,
+      0.5,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "wall_west_0",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": "wall",
+   "pos": [
+    -2.0,
+    -1.5,
+    0.6
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "wall_west_0_geom",
+     "type": "box",
+     "size": [
+      0.04,
+      1.0,
+      1.2
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.78,
+      0.75,
+      0.7,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "wall_west_1",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": "wall",
+   "pos": [
+    -2.0,
+    3.0,
+    0.6
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "wall_west_1_geom",
+     "type": "box",
+     "size": [
+      0.04,
+      6.0,
+      1.2
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.78,
+      0.75,
+      0.7,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "wall_south",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": "wall",
+   "pos": [
+    1.5,
+    -2.0,
+    0.6
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "wall_south_geom",
+     "type": "box",
+     "size": [
+      7.0,
+      0.04,
+      1.2
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.78,
+      0.75,
+      0.7,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "wall_north",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": "wall",
+   "pos": [
+    1.5,
+    6.0,
+    0.6
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "wall_north_geom",
+     "type": "box",
+     "size": [
+      7.0,
+      0.04,
+      1.2
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.78,
+      0.75,
+      0.7,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "wall_east_0",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": "wall",
+   "pos": [
+    5.0,
+    -0.9,
+    0.6
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "wall_east_0_geom",
+     "type": "box",
+     "size": [
+      0.04,
+      2.2,
+      1.2
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.78,
+      0.75,
+      0.7,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "wall_east_1",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": "wall",
+   "pos": [
+    5.0,
+    3.6,
+    0.6
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "wall_east_1_geom",
+     "type": "box",
+     "size": [
+      0.04,
+      4.8,
+      1.2
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.78,
+      0.75,
+      0.7,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "wall_divider_0",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": "wall",
+   "pos": [
+    -0.5,
+    2.5,
+    0.6
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "wall_divider_0_geom",
+     "type": "box",
+     "size": [
+      3.0,
+      0.04,
+      1.2
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.78,
+      0.75,
+      0.7,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "wall_divider_1",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": "wall",
+   "pos": [
+    3.5,
+    2.5,
+    0.6
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "wall_divider_1_geom",
+     "type": "box",
+     "size": [
+      3.0,
+      0.04,
+      1.2
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.78,
+      0.75,
+      0.7,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "wall_wing_west",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": "wall",
+   "pos": [
+    -12.0,
+    0.0,
+    0.6
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "wall_wing_west_geom",
+     "type": "box",
+     "size": [
+      0.04,
+      12.0,
+      1.2
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.78,
+      0.75,
+      0.7,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "wall_wing_north",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": "wall",
+   "pos": [
+    -8.5,
+    6.0,
+    0.6
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "wall_wing_north_geom",
+     "type": "box",
+     "size": [
+      7.0,
+      0.04,
+      1.2
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.78,
+      0.75,
+      0.7,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "wall_wing_south",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": "wall",
+   "pos": [
+    -8.5,
+    -6.0,
+    0.6
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "wall_wing_south_geom",
+     "type": "box",
+     "size": [
+      7.0,
+      0.04,
+      1.2
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.78,
+      0.75,
+      0.7,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "wall_wing_east_0",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": "wall",
+   "pos": [
+    -5.0,
+    -2.75,
+    0.6
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "wall_wing_east_0_geom",
+     "type": "box",
+     "size": [
+      0.04,
+      6.5,
+      1.2
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.78,
+      0.75,
+      0.7,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "wall_wing_east_1",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": "wall",
+   "pos": [
+    -5.0,
+    2.5,
+    0.6
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "wall_wing_east_1_geom",
+     "type": "box",
+     "size": [
+      0.04,
+      2.0,
+      1.2
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.78,
+      0.75,
+      0.7,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "wall_wing_east_2",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": "wall",
+   "pos": [
+    -5.0,
+    5.25,
+    0.6
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "wall_wing_east_2_geom",
+     "type": "box",
+     "size": [
+      0.04,
+      1.5,
+      1.2
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.78,
+      0.75,
+      0.7,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "wall_kitchen_div",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": "wall",
+   "pos": [
+    -8.5,
+    2.0,
+    0.6
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "wall_kitchen_div_geom",
+     "type": "box",
+     "size": [
+      7.0,
+      0.04,
+      1.2
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.78,
+      0.75,
+      0.7,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "wall_hall_north",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": "wall",
+   "pos": [
+    -3.5,
+    6.0,
+    0.6
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "wall_hall_north_geom",
+     "type": "box",
+     "size": [
+      3.0,
+      0.04,
+      1.2
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.78,
+      0.75,
+      0.7,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "wall_hall_south",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": "wall",
+   "pos": [
+    -3.5,
+    -6.0,
+    0.6
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "wall_hall_south_geom",
+     "type": "box",
+     "size": [
+      3.0,
+      0.04,
+      1.2
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.78,
+      0.75,
+      0.7,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "wall_hall_east",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": "wall",
+   "pos": [
+    -2.0,
+    -4.0,
+    0.6
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "wall_hall_east_geom",
+     "type": "box",
+     "size": [
+      0.04,
+      4.0,
+      1.2
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.78,
+      0.75,
+      0.7,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "fence_south",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": "fence",
+   "pos": [
+    4.0,
+    -6.0,
+    0.45
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "fence_south_geom",
+     "type": "box",
+     "size": [
+      12.0,
+      0.04,
+      0.9
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.55,
+      0.45,
+      0.35,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "fence_north",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": "fence",
+   "pos": [
+    7.5,
+    6.0,
+    0.45
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "fence_north_geom",
+     "type": "box",
+     "size": [
+      5.0,
+      0.04,
+      0.9
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.55,
+      0.45,
+      0.35,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "fence_east_0",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": "fence",
+   "pos": [
+    10.0,
+    -1.7,
+    0.45
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "fence_east_0_geom",
+     "type": "box",
+     "size": [
+      0.04,
+      8.6,
+      0.9
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.55,
+      0.45,
+      0.35,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "fence_east_1",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": "fence",
+   "pos": [
+    10.0,
+    4.8,
+    0.45
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "fence_east_1_geom",
+     "type": "box",
+     "size": [
+      0.04,
+      2.4,
+      0.9
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.55,
+      0.45,
+      0.35,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "fence_2_west_0",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": "fence",
+   "pos": [
+    16.0,
+    -1.7,
+    0.45
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "fence_2_west_0_geom",
+     "type": "box",
+     "size": [
+      0.04,
+      8.6,
+      0.9
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.55,
+      0.45,
+      0.35,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "fence_2_west_1",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": "fence",
+   "pos": [
+    16.0,
+    4.8,
+    0.45
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "fence_2_west_1_geom",
+     "type": "box",
+     "size": [
+      0.04,
+      2.4,
+      0.9
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.55,
+      0.45,
+      0.35,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "fence_2_north",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": "fence",
+   "pos": [
+    17.5,
+    6.0,
+    0.45
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "fence_2_north_geom",
+     "type": "box",
+     "size": [
+      3.0,
+      0.04,
+      0.9
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.55,
+      0.45,
+      0.35,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "fence_2_south",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": "fence",
+   "pos": [
+    17.5,
+    -6.0,
+    0.45
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "fence_2_south_geom",
+     "type": "box",
+     "size": [
+      3.0,
+      0.04,
+      0.9
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.55,
+      0.45,
+      0.35,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "wall_2_west_0",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": "wall",
+   "pos": [
+    19.0,
+    -1.7,
+    0.6
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "wall_2_west_0_geom",
+     "type": "box",
+     "size": [
+      0.04,
+      8.6,
+      1.2
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.78,
+      0.75,
+      0.7,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "wall_2_west_1",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": "wall",
+   "pos": [
+    19.0,
+    4.8,
+    0.6
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "wall_2_west_1_geom",
+     "type": "box",
+     "size": [
+      0.04,
+      2.4,
+      1.2
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.78,
+      0.75,
+      0.7,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "wall_2_north",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": "wall",
+   "pos": [
+    23.5,
+    6.0,
+    0.6
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "wall_2_north_geom",
+     "type": "box",
+     "size": [
+      9.0,
+      0.04,
+      1.2
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.78,
+      0.75,
+      0.7,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "wall_2_south",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": "wall",
+   "pos": [
+    23.5,
+    -6.0,
+    0.6
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "wall_2_south_geom",
+     "type": "box",
+     "size": [
+      9.0,
+      0.04,
+      1.2
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.78,
+      0.75,
+      0.7,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "wall_2_east",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": "wall",
+   "pos": [
+    28.0,
+    0.0,
+    0.6
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "wall_2_east_geom",
+     "type": "box",
+     "size": [
+      0.04,
+      12.0,
+      1.2
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.78,
+      0.75,
+      0.7,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "wall_lobby_east_0",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": "wall",
+   "pos": [
+    22.0,
+    -4.75,
+    0.6
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "wall_lobby_east_0_geom",
+     "type": "box",
+     "size": [
+      0.04,
+      2.5,
+      1.2
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.78,
+      0.75,
+      0.7,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "wall_lobby_east_1",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": "wall",
+   "pos": [
+    22.0,
+    0.0,
+    0.6
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "wall_lobby_east_1_geom",
+     "type": "box",
+     "size": [
+      0.04,
+      5.0,
+      1.2
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.78,
+      0.75,
+      0.7,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "wall_lobby_east_2",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": "wall",
+   "pos": [
+    22.0,
+    4.75,
+    0.6
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "wall_lobby_east_2_geom",
+     "type": "box",
+     "size": [
+      0.04,
+      2.5,
+      1.2
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.78,
+      0.75,
+      0.7,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "wall_lab_div",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": "wall",
+   "pos": [
+    25.0,
+    0.0,
+    0.6
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "wall_lab_div_geom",
+     "type": "box",
+     "size": [
+      6.0,
+      0.04,
+      1.2
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.78,
+      0.75,
+      0.7,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "fence_loop_west",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": "fence",
+   "pos": [
+    -16.5,
+    0.0,
+    0.45
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "fence_loop_west_geom",
+     "type": "box",
+     "size": [
+      0.04,
+      21.0,
+      0.9
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.55,
+      0.45,
+      0.35,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "fence_loop_east",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": "fence",
+   "pos": [
+    32.5,
+    0.0,
+    0.45
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "fence_loop_east_geom",
+     "type": "box",
+     "size": [
+      0.04,
+      21.0,
+      0.9
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.55,
+      0.45,
+      0.35,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "fence_loop_north",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": "fence",
+   "pos": [
+    8.0,
+    10.5,
+    0.45
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "fence_loop_north_geom",
+     "type": "box",
+     "size": [
+      49.0,
+      0.04,
+      0.9
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.55,
+      0.45,
+      0.35,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "fence_loop_south",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": "fence",
+   "pos": [
+    8.0,
+    -10.5,
+    0.45
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "fence_loop_south_geom",
+     "type": "box",
+     "size": [
+      49.0,
+      0.04,
+      0.9
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.55,
+      0.45,
+      0.35,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "home_floor",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": "floor",
+   "pos": [
+    1.5,
+    2.0,
+    0.001
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "home_floor_geom",
+     "type": "box",
+     "size": [
+      7.0,
+      8.0,
+      0.002
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.62,
+      0.55,
+      0.45,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "garden_ground",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": "ground",
+   "pos": [
+    7.5,
+    2.0,
+    0.001
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "garden_ground_geom",
+     "type": "box",
+     "size": [
+      5.0,
+      8.0,
+      0.002
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.45,
+      0.52,
+      0.4,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "kitchen_floor",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": "floor",
+   "pos": [
+    -8.5,
+    4.0,
+    0.001
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "kitchen_floor_geom",
+     "type": "box",
+     "size": [
+      7.0,
+      4.0,
+      0.002
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.62,
+      0.55,
+      0.45,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "workshop_floor",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": "floor",
+   "pos": [
+    -8.5,
+    -2.0,
+    0.001
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "workshop_floor_geom",
+     "type": "box",
+     "size": [
+      7.0,
+      8.0,
+      0.002
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.62,
+      0.55,
+      0.45,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "hall_floor",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": "floor",
+   "pos": [
+    -3.5,
+    0.0,
+    0.001
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "hall_floor_geom",
+     "type": "box",
+     "size": [
+      3.0,
+      12.0,
+      0.002
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.62,
+      0.55,
+      0.45,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "lobby_floor",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": "floor",
+   "pos": [
+    20.5,
+    0.0,
+    0.001
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "lobby_floor_geom",
+     "type": "box",
+     "size": [
+      3.0,
+      12.0,
+      0.002
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.62,
+      0.55,
+      0.45,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "lab_floor",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": "floor",
+   "pos": [
+    25.0,
+    3.0,
+    0.001
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "lab_floor_geom",
+     "type": "box",
+     "size": [
+      6.0,
+      6.0,
+      0.002
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.62,
+      0.55,
+      0.45,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "store_floor",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": "floor",
+   "pos": [
+    25.0,
+    -3.0,
+    0.001
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "store_floor_geom",
+     "type": "box",
+     "size": [
+      6.0,
+      6.0,
+      0.002
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.62,
+      0.55,
+      0.45,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "garden_south_ground",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": "ground",
+   "pos": [
+    4.0,
+    -4.0,
+    0.001
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "garden_south_ground_geom",
+     "type": "box",
+     "size": [
+      12.0,
+      4.0,
+      0.002
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.45,
+      0.52,
+      0.4,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "sidewalk_ground",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": "sidewalk",
+   "pos": [
+    10.75,
+    0.0,
+    0.001
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "sidewalk_ground_geom",
+     "type": "box",
+     "size": [
+      1.5,
+      12.0,
+      0.002
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.68,
+      0.67,
+      0.64,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "street_ground",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": "street",
+   "pos": [
+    13.0,
+    0.0,
+    0.001
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "street_ground_geom",
+     "type": "box",
+     "size": [
+      3.0,
+      15.0,
+      0.002
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.3,
+      0.3,
+      0.32,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "sidewalk_2_ground",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": "sidewalk",
+   "pos": [
+    15.25,
+    0.0,
+    0.001
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "sidewalk_2_ground_geom",
+     "type": "box",
+     "size": [
+      1.5,
+      12.0,
+      0.002
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.68,
+      0.67,
+      0.64,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "garden_2_ground",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": "ground",
+   "pos": [
+    17.5,
+    0.0,
+    0.001
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "garden_2_ground_geom",
+     "type": "box",
+     "size": [
+      3.0,
+      12.0,
+      0.002
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.45,
+      0.52,
+      0.4,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "sidewalk_north_ground",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": "sidewalk",
+   "pos": [
+    -1.0,
+    6.75,
+    0.001
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "sidewalk_north_ground_geom",
+     "type": "box",
+     "size": [
+      25.0,
+      1.5,
+      0.002
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.68,
+      0.67,
+      0.64,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "sidewalk_2_north_ground",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": "sidewalk",
+   "pos": [
+    22.0,
+    6.75,
+    0.001
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "sidewalk_2_north_ground_geom",
+     "type": "box",
+     "size": [
+      15.0,
+      1.5,
+      0.002
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.68,
+      0.67,
+      0.64,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "sidewalk_south_ground",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": "sidewalk",
+   "pos": [
+    -1.0,
+    -6.75,
+    0.001
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "sidewalk_south_ground_geom",
+     "type": "box",
+     "size": [
+      25.0,
+      1.5,
+      0.002
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.68,
+      0.67,
+      0.64,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "sidewalk_2_south_ground",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": "sidewalk",
+   "pos": [
+    22.0,
+    -6.75,
+    0.001
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "sidewalk_2_south_ground_geom",
+     "type": "box",
+     "size": [
+      15.0,
+      1.5,
+      0.002
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.68,
+      0.67,
+      0.64,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "sidewalk_west_ground",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": "sidewalk",
+   "pos": [
+    -12.75,
+    0.0,
+    0.001
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "sidewalk_west_ground_geom",
+     "type": "box",
+     "size": [
+      1.5,
+      12.0,
+      0.002
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.68,
+      0.67,
+      0.64,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "sidewalk_east_ground",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": "sidewalk",
+   "pos": [
+    28.75,
+    0.0,
+    0.001
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "sidewalk_east_ground_geom",
+     "type": "box",
+     "size": [
+      1.5,
+      12.0,
+      0.002
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.68,
+      0.67,
+      0.64,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "street_north_ground",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": "street",
+   "pos": [
+    8.0,
+    9.0,
+    0.001
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "street_north_ground_geom",
+     "type": "box",
+     "size": [
+      49.0,
+      3.0,
+      0.002
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.3,
+      0.3,
+      0.32,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "street_south_ground",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": "street",
+   "pos": [
+    8.0,
+    -9.0,
+    0.001
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "street_south_ground_geom",
+     "type": "box",
+     "size": [
+      49.0,
+      3.0,
+      0.002
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.3,
+      0.3,
+      0.32,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "street_west_ground",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": "street",
+   "pos": [
+    -15.0,
+    0.0,
+    0.001
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "street_west_ground_geom",
+     "type": "box",
+     "size": [
+      3.0,
+      15.0,
+      0.002
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.3,
+      0.3,
+      0.32,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "street_east_ground",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": "street",
+   "pos": [
+    31.0,
+    0.0,
+    0.001
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "street_east_ground_geom",
+     "type": "box",
+     "size": [
+      3.0,
+      15.0,
+      0.002
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.3,
+      0.3,
+      0.32,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "whiteboard_a",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": "whiteboard",
+   "pos": [
+    -1.97,
+    1.0,
+    0.3
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "board",
+     "type": "box",
+     "size": [
+      0.02,
+      0.32,
+      0.26
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.95,
+      0.95,
+      0.93,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "whiteboard_b",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": "whiteboard",
+   "pos": [
+    0.5,
+    5.97,
+    0.3
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "board_b",
+     "type": "box",
+     "size": [
+      0.32,
+      0.02,
+      0.26
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.95,
+      0.95,
+      0.93,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "plant_0",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": "plant",
+   "pos": [
+    6.5,
+    -0.8,
+    0.15
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "plant_0_geom",
+     "type": "cylinder",
+     "size": [
+      0.04,
+      0.3
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      0.707107,
+      0.707107,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.35,
+      0.5,
+      0.3,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "plant_1",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": "plant",
+   "pos": [
+    8.8,
+    1.0,
+    0.15
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "plant_1_geom",
+     "type": "cylinder",
+     "size": [
+      0.04,
+      0.3
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      0.707107,
+      0.707107,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.35,
+      0.5,
+      0.3,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "plant_2",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": "plant",
+   "pos": [
+    7.6,
+    4.5,
+    0.15
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "plant_2_geom",
+     "type": "cylinder",
+     "size": [
+      0.04,
+      0.3
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      0.707107,
+      0.707107,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.35,
+      0.5,
+      0.3,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "plant_3",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": "plant",
+   "pos": [
+    9.2,
+    5.2,
+    0.15
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "plant_3_geom",
+     "type": "cylinder",
+     "size": [
+      0.04,
+      0.3
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      0.707107,
+      0.707107,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.35,
+      0.5,
+      0.3,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "garden_plate",
+   "parent": "world",
+   "dynamic": true,
+   "robot": null,
+   "visual": "plate",
+   "pos": [
+    5.7,
+    0.7,
+    0.016
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "garden_plate_pad",
+     "type": "box",
+     "size": [
+      0.4,
+      0.4,
+      0.01
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.42,
+      0.44,
+      0.48,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "garden_light",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": null,
+   "pos": [
+    5.7,
+    1.5,
+    0.0
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "garden_light_pole",
+     "type": "cylinder",
+     "size": [
+      0.02,
+      0.9
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.45
+     ],
+     "quat": [
+      0.707107,
+      0.707107,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.3,
+      0.31,
+      0.33,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "garden_light_bulb",
+     "type": "sphere",
+     "size": [
+      0.05
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.95
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.35,
+      0.34,
+      0.3,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "lab_cage",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": "cage",
+   "pos": [
+    25.0,
+    5.58,
+    0.0
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "lab_cage_tray",
+     "type": "box",
+     "size": [
+      0.6,
+      0.4,
+      0.02
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.01
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.72,
+      0.72,
+      0.75,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "lab_cage_wall_w",
+     "type": "box",
+     "size": [
+      0.01,
+      0.4,
+      0.3
+     ],
+     "pos": [
+      -0.295,
+      0.0,
+      0.15
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.72,
+      0.72,
+      0.75,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "lab_cage_wall_e",
+     "type": "box",
+     "size": [
+      0.01,
+      0.4,
+      0.3
+     ],
+     "pos": [
+      0.295,
+      0.0,
+      0.15
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.72,
+      0.72,
+      0.75,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "lab_cage_wall_s",
+     "type": "box",
+     "size": [
+      0.6,
+      0.01,
+      0.3
+     ],
+     "pos": [
+      0.0,
+      -0.195,
+      0.15
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.72,
+      0.72,
+      0.75,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "lab_cage_wall_n",
+     "type": "box",
+     "size": [
+      0.6,
+      0.01,
+      0.3
+     ],
+     "pos": [
+      0.0,
+      0.195,
+      0.15
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.72,
+      0.72,
+      0.75,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "lab_bowl",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": null,
+   "pos": [
+    25.2,
+    5.48,
+    0.0
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "lab_bowl_geom",
+     "type": "cylinder",
+     "size": [
+      0.03,
+      0.024
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.032
+     ],
+     "quat": [
+      0.707107,
+      0.707107,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.85,
+      0.8,
+      0.6,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "lab_wheel",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": null,
+   "pos": [
+    25.2,
+    5.68,
+    0.0
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "lab_wheel_geom",
+     "type": "cylinder",
+     "size": [
+      0.06,
+      0.016
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.08
+     ],
+     "quat": [
+      0.0,
+      1.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.6,
+      0.62,
+      0.66,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "lab_hide",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": null,
+   "pos": [
+    24.8,
+    5.68,
+    0.0
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "lab_hide_geom",
+     "type": "box",
+     "size": [
+      0.1,
+      0.08,
+      0.06
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.05
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.5,
+      0.35,
+      0.25,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "lab_mouse",
+   "parent": "world",
+   "dynamic": true,
+   "robot": null,
+   "visual": "mouse",
+   "pos": [
+    24.8,
+    5.48,
+    0.035
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "lab_mouse_body",
+     "type": "capsule",
+     "size": [
+      0.015,
+      0.04
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      0.5,
+      0.5,
+      0.5,
+      -0.5
+     ],
+     "rgba": [
+      0.55,
+      0.48,
+      0.42,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "lab_shock_plate",
+   "parent": "world",
+   "dynamic": true,
+   "robot": null,
+   "visual": "plate",
+   "pos": [
+    24.0,
+    4.38,
+    0.016
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "lab_shock_plate_pad",
+     "type": "box",
+     "size": [
+      0.4,
+      0.4,
+      0.01
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.42,
+      0.44,
+      0.48,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "lab_feed_plate",
+   "parent": "world",
+   "dynamic": true,
+   "robot": null,
+   "visual": "plate",
+   "pos": [
+    25.0,
+    4.38,
+    0.016
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "lab_feed_plate_pad",
+     "type": "box",
+     "size": [
+      0.4,
+      0.4,
+      0.01
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.42,
+      0.44,
+      0.48,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "lab_toy_plate",
+   "parent": "world",
+   "dynamic": true,
+   "robot": null,
+   "visual": "plate",
+   "pos": [
+    26.0,
+    4.38,
+    0.016
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "lab_toy_plate_pad",
+     "type": "box",
+     "size": [
+      0.4,
+      0.4,
+      0.01
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.42,
+      0.44,
+      0.48,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "lab_bench",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": "table",
+   "pos": [
+    27.68,
+    1.5,
+    0.4
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "lab_bench_geom",
+     "type": "box",
+     "size": [
+      0.6,
+      1.2,
+      0.8
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.55,
+      0.47,
+      0.38,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "mass_known",
+   "parent": "world",
+   "dynamic": true,
+   "robot": null,
+   "visual": null,
+   "pos": [
+    26.68,
+    1.25,
+    0.013
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "mass_known_box",
+     "type": "box",
+     "size": [
+      0.026,
+      0.026,
+      0.026
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+     ],
+     "texture": "tagtex23"
+    }
+   ]
+  },
+  {
+   "name": "mass_unknown",
+   "parent": "world",
+   "dynamic": true,
+   "robot": null,
+   "visual": null,
+   "pos": [
+    26.68,
+    1.75,
+    0.013
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "mass_unknown_box",
+     "type": "box",
+     "size": [
+      0.026,
+      0.026,
+      0.026
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+     ],
+     "texture": "tagtex24"
+    }
+   ]
+  },
+  {
+   "name": "furniture_couch",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": "couch",
+   "pos": [
+    3.2,
+    0.8,
+    0.25
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "furniture_couch_geom",
+     "type": "box",
+     "size": [
+      1.0,
+      0.7,
+      0.5
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.45,
+      0.4,
+      0.5,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "furniture_bed",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": "bed",
+   "pos": [
+    -1.07,
+    5.37,
+    0.2
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "furniture_bed_geom",
+     "type": "box",
+     "size": [
+      1.8,
+      1.2,
+      0.4
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.55,
+      0.5,
+      0.55,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "furniture_counter",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": "counter",
+   "pos": [
+    -8.5,
+    5.2,
+    0.45
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "furniture_counter_geom",
+     "type": "box",
+     "size": [
+      4.0,
+      0.6,
+      0.9
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.6,
+      0.56,
+      0.5,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "furniture_table",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": "table",
+   "pos": [
+    -8.5,
+    -2.0,
+    0.37
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "furniture_table_geom",
+     "type": "box",
+     "size": [
+      1.2,
+      0.8,
+      0.74
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.5,
+      0.42,
+      0.34,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "stairs",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": "stairs",
+   "pos": [
+    -3.5,
+    -4.5,
+    0.45
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "stairs_geom",
+     "type": "box",
+     "size": [
+      3.0,
+      3.0,
+      0.9
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.58,
+      0.54,
+      0.5,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "block_0",
+   "parent": "world",
+   "dynamic": true,
+   "robot": null,
+   "visual": null,
+   "pos": [
+    -11.28,
+    -5.0,
+    0.013
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "block_0_box",
+     "type": "box",
+     "size": [
+      0.026,
+      0.026,
+      0.026
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+     ],
+     "texture": "tagtex20"
+    }
+   ]
+  },
+  {
+   "name": "block_1",
+   "parent": "world",
+   "dynamic": true,
+   "robot": null,
+   "visual": null,
+   "pos": [
+    -11.28,
+    -4.75,
+    0.013
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "block_1_box",
+     "type": "box",
+     "size": [
+      0.026,
+      0.026,
+      0.026
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+     ],
+     "texture": "tagtex21"
+    }
+   ]
+  },
+  {
+   "name": "block_2",
+   "parent": "world",
+   "dynamic": true,
+   "robot": null,
+   "visual": null,
+   "pos": [
+    -11.28,
+    -4.5,
+    0.013
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "block_2_box",
+     "type": "box",
+     "size": [
+      0.026,
+      0.026,
+      0.026
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+     ],
+     "texture": "tagtex22"
+    }
+   ]
+  },
+  {
+   "name": "pluggybot",
+   "parent": "world",
+   "dynamic": true,
+   "robot": "pluggybot",
+   "visual": null,
+   "pos": [
+    24.0,
+    -3.0,
+    0.3244
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "torso",
+     "type": "box",
+     "size": [
+      0.42,
+      0.2,
+      0.11
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.2,
+      0.4,
+      0.8,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "belly",
+     "type": "box",
+     "size": [
+      0.22,
+      0.12,
+      0.05
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      -0.08
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.15,
+      0.15,
+      0.2,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "belly_pad_l",
+     "type": "box",
+     "size": [
+      0.16,
+      0.02,
+      0.003
+     ],
+     "pos": [
+      0.0,
+      0.03,
+      -0.1035
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.85,
+      0.65,
+      0.2,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "belly_pad_r",
+     "type": "box",
+     "size": [
+      0.16,
+      0.02,
+      0.003
+     ],
+     "pos": [
+      0.0,
+      -0.03,
+      -0.1035
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.85,
+      0.65,
+      0.2,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "electronics",
+     "type": "box",
+     "size": [
+      0.12,
+      0.1,
+      0.03
+     ],
+     "pos": [
+      -0.05,
+      0.0,
+      0.03
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.1,
+      0.5,
+      0.2,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "abd_motors",
+     "type": "box",
+     "size": [
+      0.38,
+      0.18,
+      0.09
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.25,
+      0.25,
+      0.28,
+      0.3
+     ],
+     "texture": null
+    },
+    {
+     "name": "arm_motors",
+     "type": "cylinder",
+     "size": [
+      0.0485,
+      0.11
+     ],
+     "pos": [
+      0.15,
+      0.0,
+      0.1
+     ],
+     "quat": [
+      0.0,
+      1.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.25,
+      0.25,
+      0.28,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "lidar_mast",
+   "parent": "pluggybot",
+   "dynamic": true,
+   "robot": "pluggybot",
+   "visual": null,
+   "pos": [
+    23.85,
+    -3.0,
+    0.3794
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "lidar_mast",
+     "type": "cylinder",
+     "size": [
+      0.012,
+      0.08
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.04
+     ],
+     "quat": [
+      0.707107,
+      0.707107,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.3,
+      0.3,
+      0.3,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "lidar",
+     "type": "cylinder",
+     "size": [
+      0.0378,
+      0.041
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.1
+     ],
+     "quat": [
+      0.707107,
+      0.707107,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.05,
+      0.05,
+      0.05,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "depth_cam_body",
+   "parent": "pluggybot",
+   "dynamic": true,
+   "robot": "pluggybot",
+   "visual": null,
+   "pos": [
+    24.222,
+    -3.0,
+    0.3244
+   ],
+   "quat": [
+    0.965926,
+    0.0,
+    0.25882,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "depth_cam",
+     "type": "box",
+     "size": [
+      0.025,
+      0.09,
+      0.025
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.2,
+      0.2,
+      0.2,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "nav_cam_body",
+   "parent": "pluggybot",
+   "dynamic": true,
+   "robot": "pluggybot",
+   "visual": null,
+   "pos": [
+    24.215,
+    -3.0,
+    0.3674
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "nav_cam",
+     "type": "box",
+     "size": [
+      0.012,
+      0.024,
+      0.024
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.1,
+      0.1,
+      0.1,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "FL_hip",
+   "parent": "pluggybot",
+   "dynamic": true,
+   "robot": "pluggybot",
+   "visual": null,
+   "pos": [
+    24.19,
+    -2.95,
+    0.3244
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "FL_stack",
+     "type": "cylinder",
+     "size": [
+      0.0485,
+      0.11
+     ],
+     "pos": [
+      0.0,
+      0.04675,
+      0.0
+     ],
+     "quat": [
+      -2e-06,
+      1.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.25,
+      0.25,
+      0.28,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "FL_thigh",
+   "parent": "FL_hip",
+   "dynamic": true,
+   "robot": "pluggybot",
+   "visual": null,
+   "pos": [
+    24.19,
+    -2.865,
+    0.3244
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "FL_thigh",
+     "type": "capsule",
+     "size": [
+      0.022,
+      0.21
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      -0.105
+     ],
+     "quat": [
+      0.707107,
+      0.707107,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.55,
+      0.55,
+      0.6,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "FL_shank",
+   "parent": "FL_thigh",
+   "dynamic": true,
+   "robot": "pluggybot",
+   "visual": null,
+   "pos": [
+    24.19,
+    -2.865,
+    0.1144
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "FL_shank",
+     "type": "capsule",
+     "size": [
+      0.016,
+      0.188
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      -0.094
+     ],
+     "quat": [
+      0.707107,
+      0.707107,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.55,
+      0.55,
+      0.6,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "FL_foot",
+     "type": "sphere",
+     "size": [
+      0.022
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      -0.21
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.1,
+      0.1,
+      0.1,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "FR_hip",
+   "parent": "pluggybot",
+   "dynamic": true,
+   "robot": "pluggybot",
+   "visual": null,
+   "pos": [
+    24.19,
+    -3.05,
+    0.3244
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "FR_stack",
+     "type": "cylinder",
+     "size": [
+      0.0485,
+      0.11
+     ],
+     "pos": [
+      0.0,
+      -0.04675,
+      0.0
+     ],
+     "quat": [
+      -2e-06,
+      1.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.25,
+      0.25,
+      0.28,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "FR_thigh",
+   "parent": "FR_hip",
+   "dynamic": true,
+   "robot": "pluggybot",
+   "visual": null,
+   "pos": [
+    24.19,
+    -3.135,
+    0.3244
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "FR_thigh",
+     "type": "capsule",
+     "size": [
+      0.022,
+      0.21
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      -0.105
+     ],
+     "quat": [
+      0.707107,
+      0.707107,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.55,
+      0.55,
+      0.6,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "FR_shank",
+   "parent": "FR_thigh",
+   "dynamic": true,
+   "robot": "pluggybot",
+   "visual": null,
+   "pos": [
+    24.19,
+    -3.135,
+    0.1144
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "FR_shank",
+     "type": "capsule",
+     "size": [
+      0.016,
+      0.188
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      -0.094
+     ],
+     "quat": [
+      0.707107,
+      0.707107,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.55,
+      0.55,
+      0.6,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "FR_foot",
+     "type": "sphere",
+     "size": [
+      0.022
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      -0.21
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.1,
+      0.1,
+      0.1,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "HL_hip",
+   "parent": "pluggybot",
+   "dynamic": true,
+   "robot": "pluggybot",
+   "visual": null,
+   "pos": [
+    23.81,
+    -2.95,
+    0.3244
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "HL_stack",
+     "type": "cylinder",
+     "size": [
+      0.0485,
+      0.11
+     ],
+     "pos": [
+      0.0,
+      0.04675,
+      0.0
+     ],
+     "quat": [
+      -2e-06,
+      1.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.25,
+      0.25,
+      0.28,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "HL_thigh",
+   "parent": "HL_hip",
+   "dynamic": true,
+   "robot": "pluggybot",
+   "visual": null,
+   "pos": [
+    23.81,
+    -2.865,
+    0.3244
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "HL_thigh",
+     "type": "capsule",
+     "size": [
+      0.022,
+      0.21
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      -0.105
+     ],
+     "quat": [
+      0.707107,
+      0.707107,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.55,
+      0.55,
+      0.6,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "HL_shank",
+   "parent": "HL_thigh",
+   "dynamic": true,
+   "robot": "pluggybot",
+   "visual": null,
+   "pos": [
+    23.81,
+    -2.865,
+    0.1144
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "HL_shank",
+     "type": "capsule",
+     "size": [
+      0.016,
+      0.188
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      -0.094
+     ],
+     "quat": [
+      0.707107,
+      0.707107,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.55,
+      0.55,
+      0.6,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "HL_foot",
+     "type": "sphere",
+     "size": [
+      0.022
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      -0.21
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.1,
+      0.1,
+      0.1,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "HR_hip",
+   "parent": "pluggybot",
+   "dynamic": true,
+   "robot": "pluggybot",
+   "visual": null,
+   "pos": [
+    23.81,
+    -3.05,
+    0.3244
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "HR_stack",
+     "type": "cylinder",
+     "size": [
+      0.0485,
+      0.11
+     ],
+     "pos": [
+      0.0,
+      -0.04675,
+      0.0
+     ],
+     "quat": [
+      -2e-06,
+      1.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.25,
+      0.25,
+      0.28,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "HR_thigh",
+   "parent": "HR_hip",
+   "dynamic": true,
+   "robot": "pluggybot",
+   "visual": null,
+   "pos": [
+    23.81,
+    -3.135,
+    0.3244
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "HR_thigh",
+     "type": "capsule",
+     "size": [
+      0.022,
+      0.21
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      -0.105
+     ],
+     "quat": [
+      0.707107,
+      0.707107,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.55,
+      0.55,
+      0.6,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "HR_shank",
+   "parent": "HR_thigh",
+   "dynamic": true,
+   "robot": "pluggybot",
+   "visual": null,
+   "pos": [
+    23.81,
+    -3.135,
+    0.1144
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "HR_shank",
+     "type": "capsule",
+     "size": [
+      0.016,
+      0.188
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      -0.094
+     ],
+     "quat": [
+      0.707107,
+      0.707107,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.55,
+      0.55,
+      0.6,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "HR_foot",
+     "type": "sphere",
+     "size": [
+      0.022
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      -0.21
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.1,
+      0.1,
+      0.1,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "arm_upper",
+   "parent": "pluggybot",
+   "dynamic": true,
+   "robot": "pluggybot",
+   "visual": null,
+   "pos": [
+    24.15,
+    -3.0,
+    0.4244
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "arm_upper",
+     "type": "capsule",
+     "size": [
+      0.011,
+      0.25
+     ],
+     "pos": [
+      0.125,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      0.5,
+      0.5,
+      -0.5,
+      0.5
+     ],
+     "rgba": [
+      0.9,
+      0.6,
+      0.1,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "arm_fore",
+   "parent": "arm_upper",
+   "dynamic": true,
+   "robot": "pluggybot",
+   "visual": null,
+   "pos": [
+    24.4,
+    -3.0,
+    0.4244
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "arm_fore",
+     "type": "capsule",
+     "size": [
+      0.011,
+      0.35
+     ],
+     "pos": [
+      0.175,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      0.5,
+      0.5,
+      -0.5,
+      0.5
+     ],
+     "rgba": [
+      0.9,
+      0.6,
+      0.1,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "arm_plate",
+   "parent": "arm_fore",
+   "dynamic": true,
+   "robot": "pluggybot",
+   "visual": null,
+   "pos": [
+    24.75,
+    -3.0,
+    0.4244
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "arm_plate",
+     "type": "box",
+     "size": [
+      0.06,
+      0.06,
+      0.024
+     ],
+     "pos": [
+      0.02,
+      0.0,
+      -0.012
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.9,
+      0.6,
+      0.1,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "arm_vl_a",
+     "type": "box",
+     "size": [
+      0.0312,
+      0.012,
+      0.006
+     ],
+     "pos": [
+      0.0772,
+      -0.085,
+      -0.02249
+     ],
+     "quat": [
+      0.866025,
+      0.0,
+      0.5,
+      0.0
+     ],
+     "rgba": [
+      0.3,
+      0.32,
+      0.36,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "arm_vl_b",
+     "type": "box",
+     "size": [
+      0.0312,
+      0.012,
+      0.006
+     ],
+     "pos": [
+      0.0928,
+      -0.085,
+      -0.02249
+     ],
+     "quat": [
+      0.866025,
+      0.0,
+      -0.5,
+      0.0
+     ],
+     "rgba": [
+      0.3,
+      0.32,
+      0.36,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "arm_prong_l",
+     "type": "box",
+     "size": [
+      0.1,
+      0.01,
+      0.008
+     ],
+     "pos": [
+      0.035,
+      -0.085,
+      -0.042
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.3,
+      0.32,
+      0.36,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "arm_ramp_l",
+     "type": "box",
+     "size": [
+      0.012,
+      0.025,
+      0.003
+     ],
+     "pos": [
+      0.085,
+      -0.119,
+      -0.0225
+     ],
+     "quat": [
+      0.894427,
+      -0.447214,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.3,
+      0.32,
+      0.36,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "arm_vr_a",
+     "type": "box",
+     "size": [
+      0.0312,
+      0.012,
+      0.006
+     ],
+     "pos": [
+      0.0772,
+      0.085,
+      -0.02249
+     ],
+     "quat": [
+      0.866025,
+      0.0,
+      0.5,
+      0.0
+     ],
+     "rgba": [
+      0.3,
+      0.32,
+      0.36,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "arm_vr_b",
+     "type": "box",
+     "size": [
+      0.0312,
+      0.012,
+      0.006
+     ],
+     "pos": [
+      0.0928,
+      0.085,
+      -0.02249
+     ],
+     "quat": [
+      0.866025,
+      0.0,
+      -0.5,
+      0.0
+     ],
+     "rgba": [
+      0.3,
+      0.32,
+      0.36,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "arm_prong_r",
+     "type": "box",
+     "size": [
+      0.1,
+      0.01,
+      0.008
+     ],
+     "pos": [
+      0.035,
+      0.085,
+      -0.042
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.3,
+      0.32,
+      0.36,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "arm_ramp_r",
+     "type": "box",
+     "size": [
+      0.012,
+      0.025,
+      0.003
+     ],
+     "pos": [
+      0.085,
+      0.119,
+      -0.0225
+     ],
+     "quat": [
+      0.894427,
+      0.447214,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.3,
+      0.32,
+      0.36,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "arm_bridge",
+     "type": "box",
+     "size": [
+      0.012,
+      0.223,
+      0.01
+     ],
+     "pos": [
+      -0.009,
+      0.0,
+      -0.042
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.3,
+      0.32,
+      0.36,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "arm_pad",
+     "type": "capsule",
+     "size": [
+      0.005,
+      0.048
+     ],
+     "pos": [
+      0.067,
+      0.0,
+      -0.07
+     ],
+     "quat": [
+      0.0,
+      1.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.3,
+      0.32,
+      0.36,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "arm_pad_post",
+     "type": "box",
+     "size": [
+      0.076,
+      0.012,
+      0.006
+     ],
+     "pos": [
+      0.029,
+      0.0,
+      -0.078
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.3,
+      0.32,
+      0.36,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "dock",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": null,
+   "pos": [
+    3.5,
+    -1.3,
+    0.0
+   ],
+   "quat": [
+    0.707107,
+    0.0,
+    0.0,
+    -0.707107
+   ],
+   "geoms": [
+    {
+     "name": "dock_base",
+     "type": "box",
+     "size": [
+      0.3,
+      0.176554,
+      0.056
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      -0.022
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.32,
+      0.33,
+      0.36,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "dock_face_l",
+     "type": "box",
+     "size": [
+      0.3,
+      0.03662,
+      0.004
+     ],
+     "pos": [
+      0.0,
+      0.076138,
+      0.019853
+     ],
+     "quat": [
+      0.886979,
+      0.46181,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.85,
+      0.85,
+      0.8,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "dock_face_r",
+     "type": "box",
+     "size": [
+      0.3,
+      0.03662,
+      0.004
+     ],
+     "pos": [
+      0.0,
+      -0.076138,
+      0.019853
+     ],
+     "quat": [
+      0.886979,
+      -0.46181,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.85,
+      0.85,
+      0.8,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "dock_post",
+     "type": "box",
+     "size": [
+      0.03,
+      0.03,
+      0.3975
+     ],
+     "pos": [
+      0.645,
+      0.0,
+      0.19875
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.32,
+      0.33,
+      0.36,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "dock_board",
+     "type": "box",
+     "size": [
+      0.01,
+      0.4,
+      0.2575
+     ],
+     "pos": [
+      0.625,
+      0.0,
+      0.26875
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.95,
+      0.95,
+      0.95,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "dock_tag25",
+     "type": "box",
+     "size": [
+      0.002,
+      0.075,
+      0.075
+     ],
+     "pos": [
+      0.619,
+      0.14,
+      0.2
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+     ],
+     "texture": "tagtex25"
+    },
+    {
+     "name": "dock_tag26",
+     "type": "box",
+     "size": [
+      0.002,
+      0.075,
+      0.075
+     ],
+     "pos": [
+      0.619,
+      -0.14,
+      0.2
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+     ],
+     "texture": "tagtex26"
+    },
+    {
+     "name": "dock_tag27",
+     "type": "box",
+     "size": [
+      0.002,
+      0.075,
+      0.075
+     ],
+     "pos": [
+      0.619,
+      0.14,
+      0.34
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+     ],
+     "texture": "tagtex27"
+    },
+    {
+     "name": "dock_tag28",
+     "type": "box",
+     "size": [
+      0.002,
+      0.075,
+      0.075
+     ],
+     "pos": [
+      0.619,
+      -0.14,
+      0.34
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+     ],
+     "texture": "tagtex28"
+    }
+   ]
+  },
+  {
+   "name": "dock_pole_l",
+   "parent": "dock",
+   "dynamic": true,
+   "robot": null,
+   "visual": null,
+   "pos": [
+    3.53,
+    -1.3,
+    0.006
+   ],
+   "quat": [
+    0.707107,
+    0.0,
+    0.0,
+    -0.707107
+   ],
+   "geoms": [
+    {
+     "name": "dock_pin_l0",
+     "type": "sphere",
+     "size": [
+      0.000635
+     ],
+     "pos": [
+      -0.01,
+      0.0,
+      0.000508
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.85,
+      0.65,
+      0.2,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "dock_pin_l1",
+     "type": "sphere",
+     "size": [
+      0.000635
+     ],
+     "pos": [
+      0.01,
+      0.0,
+      0.000508
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.85,
+      0.65,
+      0.2,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "dock_pole_r",
+   "parent": "dock",
+   "dynamic": true,
+   "robot": null,
+   "visual": null,
+   "pos": [
+    3.47,
+    -1.3,
+    0.006
+   ],
+   "quat": [
+    0.707107,
+    0.0,
+    0.0,
+    -0.707107
+   ],
+   "geoms": [
+    {
+     "name": "dock_pin_r0",
+     "type": "sphere",
+     "size": [
+      0.000635
+     ],
+     "pos": [
+      -0.01,
+      0.0,
+      0.000508
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.85,
+      0.65,
+      0.2,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "dock_pin_r1",
+     "type": "sphere",
+     "size": [
+      0.000635
+     ],
+     "pos": [
+      0.01,
+      0.0,
+      0.000508
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.85,
+      0.65,
+      0.2,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "tool_rack",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": null,
+   "pos": [
+    2.1,
+    -1.884,
+    0.0
+   ],
+   "quat": [
+    0.707107,
+    0.0,
+    0.0,
+    0.707107
+   ],
+   "geoms": [
+    {
+     "name": "tool_rack_board",
+     "type": "box",
+     "size": [
+      0.012,
+      0.97,
+      0.62
+     ],
+     "pos": [
+      -0.09,
+      0.0,
+      0.31
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.85,
+      0.85,
+      0.82,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "tool_rack_rail",
+     "type": "box",
+     "size": [
+      0.06,
+      0.97,
+      0.02
+     ],
+     "pos": [
+      -0.06,
+      0.0,
+      0.62
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.45,
+      0.47,
+      0.5,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "baya_tray_l_a",
+     "type": "box",
+     "size": [
+      0.022,
+      0.012,
+      0.006
+     ],
+     "pos": [
+      -0.007778,
+      -0.255,
+      0.499293
+     ],
+     "quat": [
+      0.92388,
+      0.0,
+      0.382683,
+      0.0
+     ],
+     "rgba": [
+      0.55,
+      0.57,
+      0.6,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "baya_tray_l_b",
+     "type": "box",
+     "size": [
+      0.022,
+      0.012,
+      0.006
+     ],
+     "pos": [
+      0.007778,
+      -0.255,
+      0.499293
+     ],
+     "quat": [
+      0.92388,
+      0.0,
+      -0.382683,
+      0.0
+     ],
+     "rgba": [
+      0.55,
+      0.57,
+      0.6,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "baya_bracket_l",
+     "type": "box",
+     "size": [
+      0.008,
+      0.012,
+      0.126243
+     ],
+     "pos": [
+      -0.022,
+      -0.255,
+      0.546879
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.45,
+      0.47,
+      0.5,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "baya_arm_l",
+     "type": "box",
+     "size": [
+      0.024,
+      0.012,
+      0.006
+     ],
+     "pos": [
+      -0.012,
+      -0.255,
+      0.483757
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.45,
+      0.47,
+      0.5,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "baya_tray_r_a",
+     "type": "box",
+     "size": [
+      0.022,
+      0.012,
+      0.006
+     ],
+     "pos": [
+      -0.007778,
+      -0.345,
+      0.499293
+     ],
+     "quat": [
+      0.92388,
+      0.0,
+      0.382683,
+      0.0
+     ],
+     "rgba": [
+      0.55,
+      0.57,
+      0.6,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "baya_tray_r_b",
+     "type": "box",
+     "size": [
+      0.022,
+      0.012,
+      0.006
+     ],
+     "pos": [
+      0.007778,
+      -0.345,
+      0.499293
+     ],
+     "quat": [
+      0.92388,
+      0.0,
+      -0.382683,
+      0.0
+     ],
+     "rgba": [
+      0.55,
+      0.57,
+      0.6,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "baya_bracket_r",
+     "type": "box",
+     "size": [
+      0.008,
+      0.012,
+      0.126243
+     ],
+     "pos": [
+      -0.022,
+      -0.345,
+      0.546879
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.45,
+      0.47,
+      0.5,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "baya_arm_r",
+     "type": "box",
+     "size": [
+      0.024,
+      0.012,
+      0.006
+     ],
+     "pos": [
+      -0.012,
+      -0.345,
+      0.483757
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.45,
+      0.47,
+      0.5,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "bayb_tray_l_a",
+     "type": "box",
+     "size": [
+      0.022,
+      0.012,
+      0.006
+     ],
+     "pos": [
+      -0.007778,
+      0.045,
+      0.499293
+     ],
+     "quat": [
+      0.92388,
+      0.0,
+      0.382683,
+      0.0
+     ],
+     "rgba": [
+      0.55,
+      0.57,
+      0.6,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "bayb_tray_l_b",
+     "type": "box",
+     "size": [
+      0.022,
+      0.012,
+      0.006
+     ],
+     "pos": [
+      0.007778,
+      0.045,
+      0.499293
+     ],
+     "quat": [
+      0.92388,
+      0.0,
+      -0.382683,
+      0.0
+     ],
+     "rgba": [
+      0.55,
+      0.57,
+      0.6,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "bayb_bracket_l",
+     "type": "box",
+     "size": [
+      0.008,
+      0.012,
+      0.126243
+     ],
+     "pos": [
+      -0.022,
+      0.045,
+      0.546879
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.45,
+      0.47,
+      0.5,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "bayb_arm_l",
+     "type": "box",
+     "size": [
+      0.024,
+      0.012,
+      0.006
+     ],
+     "pos": [
+      -0.012,
+      0.045,
+      0.483757
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.45,
+      0.47,
+      0.5,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "bayb_tray_r_a",
+     "type": "box",
+     "size": [
+      0.022,
+      0.012,
+      0.006
+     ],
+     "pos": [
+      -0.007778,
+      -0.045,
+      0.499293
+     ],
+     "quat": [
+      0.92388,
+      0.0,
+      0.382683,
+      0.0
+     ],
+     "rgba": [
+      0.55,
+      0.57,
+      0.6,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "bayb_tray_r_b",
+     "type": "box",
+     "size": [
+      0.022,
+      0.012,
+      0.006
+     ],
+     "pos": [
+      0.007778,
+      -0.045,
+      0.499293
+     ],
+     "quat": [
+      0.92388,
+      0.0,
+      -0.382683,
+      0.0
+     ],
+     "rgba": [
+      0.55,
+      0.57,
+      0.6,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "bayb_bracket_r",
+     "type": "box",
+     "size": [
+      0.008,
+      0.012,
+      0.126243
+     ],
+     "pos": [
+      -0.022,
+      -0.045,
+      0.546879
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.45,
+      0.47,
+      0.5,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "bayb_arm_r",
+     "type": "box",
+     "size": [
+      0.024,
+      0.012,
+      0.006
+     ],
+     "pos": [
+      -0.012,
+      -0.045,
+      0.483757
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.45,
+      0.47,
+      0.5,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "bayc_tray_l_a",
+     "type": "box",
+     "size": [
+      0.022,
+      0.012,
+      0.006
+     ],
+     "pos": [
+      -0.007778,
+      0.345,
+      0.499293
+     ],
+     "quat": [
+      0.92388,
+      0.0,
+      0.382683,
+      0.0
+     ],
+     "rgba": [
+      0.55,
+      0.57,
+      0.6,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "bayc_tray_l_b",
+     "type": "box",
+     "size": [
+      0.022,
+      0.012,
+      0.006
+     ],
+     "pos": [
+      0.007778,
+      0.345,
+      0.499293
+     ],
+     "quat": [
+      0.92388,
+      0.0,
+      -0.382683,
+      0.0
+     ],
+     "rgba": [
+      0.55,
+      0.57,
+      0.6,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "bayc_bracket_l",
+     "type": "box",
+     "size": [
+      0.008,
+      0.012,
+      0.126243
+     ],
+     "pos": [
+      -0.022,
+      0.345,
+      0.546879
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.45,
+      0.47,
+      0.5,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "bayc_arm_l",
+     "type": "box",
+     "size": [
+      0.024,
+      0.012,
+      0.006
+     ],
+     "pos": [
+      -0.012,
+      0.345,
+      0.483757
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.45,
+      0.47,
+      0.5,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "bayc_tray_r_a",
+     "type": "box",
+     "size": [
+      0.022,
+      0.012,
+      0.006
+     ],
+     "pos": [
+      -0.007778,
+      0.255,
+      0.499293
+     ],
+     "quat": [
+      0.92388,
+      0.0,
+      0.382683,
+      0.0
+     ],
+     "rgba": [
+      0.55,
+      0.57,
+      0.6,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "bayc_tray_r_b",
+     "type": "box",
+     "size": [
+      0.022,
+      0.012,
+      0.006
+     ],
+     "pos": [
+      0.007778,
+      0.255,
+      0.499293
+     ],
+     "quat": [
+      0.92388,
+      0.0,
+      -0.382683,
+      0.0
+     ],
+     "rgba": [
+      0.55,
+      0.57,
+      0.6,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "bayc_bracket_r",
+     "type": "box",
+     "size": [
+      0.008,
+      0.012,
+      0.126243
+     ],
+     "pos": [
+      -0.022,
+      0.255,
+      0.546879
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.45,
+      0.47,
+      0.5,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "bayc_arm_r",
+     "type": "box",
+     "size": [
+      0.024,
+      0.012,
+      0.006
+     ],
+     "pos": [
+      -0.012,
+      0.255,
+      0.483757
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.45,
+      0.47,
+      0.5,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "tool_rack_tag29",
+     "type": "box",
+     "size": [
+      0.002,
+      0.075,
+      0.075
+     ],
+     "pos": [
+      -0.084,
+      -0.375,
+      0.4
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+     ],
+     "texture": "tagtex29"
+    },
+    {
+     "name": "tool_rack_tag30",
+     "type": "box",
+     "size": [
+      0.002,
+      0.075,
+      0.075
+     ],
+     "pos": [
+      -0.084,
+      -0.225,
+      0.4
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+     ],
+     "texture": "tagtex30"
+    },
+    {
+     "name": "tool_rack_tag31",
+     "type": "box",
+     "size": [
+      0.002,
+      0.075,
+      0.075
+     ],
+     "pos": [
+      -0.084,
+      -0.075,
+      0.4
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+     ],
+     "texture": "tagtex31"
+    },
+    {
+     "name": "tool_rack_tag32",
+     "type": "box",
+     "size": [
+      0.002,
+      0.075,
+      0.075
+     ],
+     "pos": [
+      -0.084,
+      0.075,
+      0.4
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+     ],
+     "texture": "tagtex32"
+    },
+    {
+     "name": "tool_rack_tag33",
+     "type": "box",
+     "size": [
+      0.002,
+      0.075,
+      0.075
+     ],
+     "pos": [
+      -0.084,
+      0.225,
+      0.4
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+     ],
+     "texture": "tagtex33"
+    },
+    {
+     "name": "tool_rack_tag34",
+     "type": "box",
+     "size": [
+      0.002,
+      0.075,
+      0.075
+     ],
+     "pos": [
+      -0.084,
+      0.375,
+      0.4
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+     ],
+     "texture": "tagtex34"
+    }
+   ]
+  },
+  {
+   "name": "rack_built",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": null,
+   "pos": [
+    2.1,
+    -1.884,
+    0.0
+   ],
+   "quat": [
+    0.707107,
+    0.0,
+    0.0,
+    0.707107
+   ],
+   "geoms": [
+    {
+     "name": "rack_built_board",
+     "type": "box",
+     "size": [
+      0.012,
+      0.97,
+      0.62
+     ],
+     "pos": [
+      -0.09,
+      0.95,
+      0.31
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.85,
+      0.85,
+      0.82,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "rack_built_rail",
+     "type": "box",
+     "size": [
+      0.06,
+      0.97,
+      0.02
+     ],
+     "pos": [
+      -0.06,
+      0.95,
+      0.62
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.45,
+      0.47,
+      0.5,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "bayf_tray_l_a",
+     "type": "box",
+     "size": [
+      0.022,
+      0.012,
+      0.006
+     ],
+     "pos": [
+      -0.007778,
+      0.695,
+      0.499293
+     ],
+     "quat": [
+      0.92388,
+      0.0,
+      0.382683,
+      0.0
+     ],
+     "rgba": [
+      0.55,
+      0.57,
+      0.6,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "bayf_tray_l_b",
+     "type": "box",
+     "size": [
+      0.022,
+      0.012,
+      0.006
+     ],
+     "pos": [
+      0.007778,
+      0.695,
+      0.499293
+     ],
+     "quat": [
+      0.92388,
+      0.0,
+      -0.382683,
+      0.0
+     ],
+     "rgba": [
+      0.55,
+      0.57,
+      0.6,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "bayf_bracket_l",
+     "type": "box",
+     "size": [
+      0.008,
+      0.012,
+      0.126243
+     ],
+     "pos": [
+      -0.022,
+      0.695,
+      0.546879
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.45,
+      0.47,
+      0.5,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "bayf_arm_l",
+     "type": "box",
+     "size": [
+      0.024,
+      0.012,
+      0.006
+     ],
+     "pos": [
+      -0.012,
+      0.695,
+      0.483757
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.45,
+      0.47,
+      0.5,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "bayf_tray_r_a",
+     "type": "box",
+     "size": [
+      0.022,
+      0.012,
+      0.006
+     ],
+     "pos": [
+      -0.007778,
+      0.605,
+      0.499293
+     ],
+     "quat": [
+      0.92388,
+      0.0,
+      0.382683,
+      0.0
+     ],
+     "rgba": [
+      0.55,
+      0.57,
+      0.6,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "bayf_tray_r_b",
+     "type": "box",
+     "size": [
+      0.022,
+      0.012,
+      0.006
+     ],
+     "pos": [
+      0.007778,
+      0.605,
+      0.499293
+     ],
+     "quat": [
+      0.92388,
+      0.0,
+      -0.382683,
+      0.0
+     ],
+     "rgba": [
+      0.55,
+      0.57,
+      0.6,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "bayf_bracket_r",
+     "type": "box",
+     "size": [
+      0.008,
+      0.012,
+      0.126243
+     ],
+     "pos": [
+      -0.022,
+      0.605,
+      0.546879
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.45,
+      0.47,
+      0.5,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "bayf_arm_r",
+     "type": "box",
+     "size": [
+      0.024,
+      0.012,
+      0.006
+     ],
+     "pos": [
+      -0.012,
+      0.605,
+      0.483757
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.45,
+      0.47,
+      0.5,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "bayg_tray_l_a",
+     "type": "box",
+     "size": [
+      0.022,
+      0.012,
+      0.006
+     ],
+     "pos": [
+      -0.007778,
+      0.995,
+      0.499293
+     ],
+     "quat": [
+      0.92388,
+      0.0,
+      0.382683,
+      0.0
+     ],
+     "rgba": [
+      0.55,
+      0.57,
+      0.6,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "bayg_tray_l_b",
+     "type": "box",
+     "size": [
+      0.022,
+      0.012,
+      0.006
+     ],
+     "pos": [
+      0.007778,
+      0.995,
+      0.499293
+     ],
+     "quat": [
+      0.92388,
+      0.0,
+      -0.382683,
+      0.0
+     ],
+     "rgba": [
+      0.55,
+      0.57,
+      0.6,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "bayg_bracket_l",
+     "type": "box",
+     "size": [
+      0.008,
+      0.012,
+      0.126243
+     ],
+     "pos": [
+      -0.022,
+      0.995,
+      0.546879
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.45,
+      0.47,
+      0.5,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "bayg_arm_l",
+     "type": "box",
+     "size": [
+      0.024,
+      0.012,
+      0.006
+     ],
+     "pos": [
+      -0.012,
+      0.995,
+      0.483757
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.45,
+      0.47,
+      0.5,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "bayg_tray_r_a",
+     "type": "box",
+     "size": [
+      0.022,
+      0.012,
+      0.006
+     ],
+     "pos": [
+      -0.007778,
+      0.905,
+      0.499293
+     ],
+     "quat": [
+      0.92388,
+      0.0,
+      0.382683,
+      0.0
+     ],
+     "rgba": [
+      0.55,
+      0.57,
+      0.6,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "bayg_tray_r_b",
+     "type": "box",
+     "size": [
+      0.022,
+      0.012,
+      0.006
+     ],
+     "pos": [
+      0.007778,
+      0.905,
+      0.499293
+     ],
+     "quat": [
+      0.92388,
+      0.0,
+      -0.382683,
+      0.0
+     ],
+     "rgba": [
+      0.55,
+      0.57,
+      0.6,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "bayg_bracket_r",
+     "type": "box",
+     "size": [
+      0.008,
+      0.012,
+      0.126243
+     ],
+     "pos": [
+      -0.022,
+      0.905,
+      0.546879
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.45,
+      0.47,
+      0.5,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "bayg_arm_r",
+     "type": "box",
+     "size": [
+      0.024,
+      0.012,
+      0.006
+     ],
+     "pos": [
+      -0.012,
+      0.905,
+      0.483757
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.45,
+      0.47,
+      0.5,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "bayh_tray_l_a",
+     "type": "box",
+     "size": [
+      0.022,
+      0.012,
+      0.006
+     ],
+     "pos": [
+      -0.007778,
+      1.295,
+      0.499293
+     ],
+     "quat": [
+      0.92388,
+      0.0,
+      0.382683,
+      0.0
+     ],
+     "rgba": [
+      0.55,
+      0.57,
+      0.6,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "bayh_tray_l_b",
+     "type": "box",
+     "size": [
+      0.022,
+      0.012,
+      0.006
+     ],
+     "pos": [
+      0.007778,
+      1.295,
+      0.499293
+     ],
+     "quat": [
+      0.92388,
+      0.0,
+      -0.382683,
+      0.0
+     ],
+     "rgba": [
+      0.55,
+      0.57,
+      0.6,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "bayh_bracket_l",
+     "type": "box",
+     "size": [
+      0.008,
+      0.012,
+      0.126243
+     ],
+     "pos": [
+      -0.022,
+      1.295,
+      0.546879
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.45,
+      0.47,
+      0.5,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "bayh_arm_l",
+     "type": "box",
+     "size": [
+      0.024,
+      0.012,
+      0.006
+     ],
+     "pos": [
+      -0.012,
+      1.295,
+      0.483757
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.45,
+      0.47,
+      0.5,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "bayh_tray_r_a",
+     "type": "box",
+     "size": [
+      0.022,
+      0.012,
+      0.006
+     ],
+     "pos": [
+      -0.007778,
+      1.205,
+      0.499293
+     ],
+     "quat": [
+      0.92388,
+      0.0,
+      0.382683,
+      0.0
+     ],
+     "rgba": [
+      0.55,
+      0.57,
+      0.6,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "bayh_tray_r_b",
+     "type": "box",
+     "size": [
+      0.022,
+      0.012,
+      0.006
+     ],
+     "pos": [
+      0.007778,
+      1.205,
+      0.499293
+     ],
+     "quat": [
+      0.92388,
+      0.0,
+      -0.382683,
+      0.0
+     ],
+     "rgba": [
+      0.55,
+      0.57,
+      0.6,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "bayh_bracket_r",
+     "type": "box",
+     "size": [
+      0.008,
+      0.012,
+      0.126243
+     ],
+     "pos": [
+      -0.022,
+      1.205,
+      0.546879
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.45,
+      0.47,
+      0.5,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "bayh_arm_r",
+     "type": "box",
+     "size": [
+      0.024,
+      0.012,
+      0.006
+     ],
+     "pos": [
+      -0.012,
+      1.205,
+      0.483757
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.45,
+      0.47,
+      0.5,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "rack_built_tag47",
+     "type": "box",
+     "size": [
+      0.002,
+      0.075,
+      0.075
+     ],
+     "pos": [
+      -0.084,
+      0.575,
+      0.4
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+     ],
+     "texture": "tagtex47"
+    },
+    {
+     "name": "rack_built_tag48",
+     "type": "box",
+     "size": [
+      0.002,
+      0.075,
+      0.075
+     ],
+     "pos": [
+      -0.084,
+      0.725,
+      0.4
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+     ],
+     "texture": "tagtex48"
+    },
+    {
+     "name": "rack_built_tag49",
+     "type": "box",
+     "size": [
+      0.002,
+      0.075,
+      0.075
+     ],
+     "pos": [
+      -0.084,
+      0.875,
+      0.4
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+     ],
+     "texture": "tagtex49"
+    },
+    {
+     "name": "rack_built_tag50",
+     "type": "box",
+     "size": [
+      0.002,
+      0.075,
+      0.075
+     ],
+     "pos": [
+      -0.084,
+      1.025,
+      0.4
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+     ],
+     "texture": "tagtex50"
+    },
+    {
+     "name": "rack_built_tag51",
+     "type": "box",
+     "size": [
+      0.002,
+      0.075,
+      0.075
+     ],
+     "pos": [
+      -0.084,
+      1.175,
+      0.4
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+     ],
+     "texture": "tagtex51"
+    },
+    {
+     "name": "rack_built_tag52",
+     "type": "box",
+     "size": [
+      0.002,
+      0.075,
+      0.075
+     ],
+     "pos": [
+      -0.084,
+      1.325,
+      0.4
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+     ],
+     "texture": "tagtex52"
+    }
+   ]
+  },
+  {
+   "name": "module_lcd",
+   "parent": "world",
+   "dynamic": true,
+   "robot": null,
+   "visual": null,
+   "pos": [
+    2.4,
+    -1.884,
+    0.478
+   ],
+   "quat": [
+    0.707107,
+    0.0,
+    0.0,
+    0.707107
+   ],
+   "geoms": [
+    {
+     "name": "module_lcd_body",
+     "type": "box",
+     "size": [
+      0.02,
+      0.04,
+      0.06
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.2,
+      0.45,
+      0.75,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "module_lcd_peg_l",
+     "type": "cylinder",
+     "size": [
+      0.003,
+      0.098
+     ],
+     "pos": [
+      0.0,
+      0.061,
+      0.022
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.75,
+      0.75,
+      0.78,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "module_lcd_peg_r",
+     "type": "cylinder",
+     "size": [
+      0.003,
+      0.098
+     ],
+     "pos": [
+      0.0,
+      -0.061,
+      0.022
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.75,
+      0.75,
+      0.78,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "module_lcd_peg_insul",
+     "type": "cylinder",
+     "size": [
+      0.003,
+      0.024
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.022
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.12,
+      0.12,
+      0.14,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "module_lcd_screen",
+     "type": "box",
+     "size": [
+      0.004,
+      0.056,
+      0.076
+     ],
+     "pos": [
+      -0.012,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.05,
+      0.08,
+      0.1,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "module_pen",
+   "parent": "world",
+   "dynamic": true,
+   "robot": null,
+   "visual": null,
+   "pos": [
+    2.1,
+    -1.884,
+    0.478
+   ],
+   "quat": [
+    0.707107,
+    0.0,
+    0.0,
+    0.707107
+   ],
+   "geoms": [
+    {
+     "name": "module_pen_body",
+     "type": "box",
+     "size": [
+      0.02,
+      0.04,
+      0.06
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.2,
+      0.45,
+      0.75,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "module_pen_peg_l",
+     "type": "cylinder",
+     "size": [
+      0.003,
+      0.098
+     ],
+     "pos": [
+      0.0,
+      0.061,
+      0.022
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.75,
+      0.75,
+      0.78,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "module_pen_peg_r",
+     "type": "cylinder",
+     "size": [
+      0.003,
+      0.098
+     ],
+     "pos": [
+      0.0,
+      -0.061,
+      0.022
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.75,
+      0.75,
+      0.78,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "module_pen_peg_insul",
+     "type": "cylinder",
+     "size": [
+      0.003,
+      0.024
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.022
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.12,
+      0.12,
+      0.14,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "module_pen_rail",
+     "type": "box",
+     "size": [
+      0.008,
+      0.124,
+      0.008
+     ],
+     "pos": [
+      0.002,
+      0.0,
+      -0.048
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.55,
+      0.57,
+      0.6,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "module_pen_carriage",
+   "parent": "module_pen",
+   "dynamic": true,
+   "robot": null,
+   "visual": null,
+   "pos": [
+    2.1,
+    -1.882,
+    0.43
+   ],
+   "quat": [
+    0.707107,
+    0.0,
+    0.0,
+    0.707107
+   ],
+   "geoms": [
+    {
+     "name": "module_pen_block",
+     "type": "box",
+     "size": [
+      0.016,
+      0.02,
+      0.022
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.005
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.3,
+      0.32,
+      0.36,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "module_pen_quill",
+   "parent": "module_pen_carriage",
+   "dynamic": true,
+   "robot": null,
+   "visual": null,
+   "pos": [
+    2.1,
+    -1.882,
+    0.442
+   ],
+   "quat": [
+    0.707107,
+    0.0,
+    0.0,
+    0.707107
+   ],
+   "geoms": [
+    {
+     "name": "module_pen_shaft",
+     "type": "capsule",
+     "size": [
+      0.0025,
+      0.042
+     ],
+     "pos": [
+      -0.029,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      0.5,
+      0.5,
+      0.5,
+      -0.5
+     ],
+     "rgba": [
+      0.9,
+      0.3,
+      0.25,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "module_claw",
+   "parent": "world",
+   "dynamic": true,
+   "robot": null,
+   "visual": null,
+   "pos": [
+    1.8,
+    -1.884,
+    0.478
+   ],
+   "quat": [
+    0.707107,
+    0.0,
+    0.0,
+    0.707107
+   ],
+   "geoms": [
+    {
+     "name": "module_claw_body",
+     "type": "box",
+     "size": [
+      0.02,
+      0.04,
+      0.06
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.2,
+      0.45,
+      0.75,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "module_claw_peg_l",
+     "type": "cylinder",
+     "size": [
+      0.003,
+      0.098
+     ],
+     "pos": [
+      0.0,
+      0.061,
+      0.022
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.75,
+      0.75,
+      0.78,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "module_claw_peg_r",
+     "type": "cylinder",
+     "size": [
+      0.003,
+      0.098
+     ],
+     "pos": [
+      0.0,
+      -0.061,
+      0.022
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.75,
+      0.75,
+      0.78,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "module_claw_peg_insul",
+     "type": "cylinder",
+     "size": [
+      0.003,
+      0.024
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.022
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.12,
+      0.12,
+      0.14,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "module_claw_rail",
+     "type": "box",
+     "size": [
+      0.008,
+      0.124,
+      0.008
+     ],
+     "pos": [
+      0.002,
+      0.0,
+      -0.048
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.55,
+      0.57,
+      0.6,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "module_claw_carriage",
+   "parent": "module_claw",
+   "dynamic": true,
+   "robot": null,
+   "visual": null,
+   "pos": [
+    1.8,
+    -1.882,
+    0.43
+   ],
+   "quat": [
+    0.707107,
+    0.0,
+    0.0,
+    0.707107
+   ],
+   "geoms": [
+    {
+     "name": "module_claw_block",
+     "type": "box",
+     "size": [
+      0.016,
+      0.02,
+      0.012
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      -0.006
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.3,
+      0.32,
+      0.36,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "module_claw_pendant",
+     "type": "box",
+     "size": [
+      0.01,
+      0.01,
+      0.061
+     ],
+     "pos": [
+      -0.002,
+      0.0,
+      -0.0465
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.45,
+      0.47,
+      0.5,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "module_claw_bar",
+     "type": "box",
+     "size": [
+      0.016,
+      0.076,
+      0.008
+     ],
+     "pos": [
+      -0.002,
+      0.0,
+      -0.081
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.3,
+      0.32,
+      0.36,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "module_claw_jaw_l",
+   "parent": "module_claw_carriage",
+   "dynamic": true,
+   "robot": null,
+   "visual": null,
+   "pos": [
+    1.794,
+    -1.884,
+    0.325
+   ],
+   "quat": [
+    0.707107,
+    0.0,
+    0.0,
+    0.707107
+   ],
+   "geoms": [
+    {
+     "name": "module_claw_pad_l",
+     "type": "box",
+     "size": [
+      0.028,
+      0.008,
+      0.04
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.25,
+      0.25,
+      0.28,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "module_claw_jaw_r",
+   "parent": "module_claw_carriage",
+   "dynamic": true,
+   "robot": null,
+   "visual": null,
+   "pos": [
+    1.806,
+    -1.884,
+    0.325
+   ],
+   "quat": [
+    0.707107,
+    0.0,
+    0.0,
+    0.707107
+   ],
+   "geoms": [
+    {
+     "name": "module_claw_pad_r",
+     "type": "box",
+     "size": [
+      0.028,
+      0.008,
+      0.04
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.25,
+      0.25,
+      0.28,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "lab_shock_sign",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": null,
+   "pos": [
+    24.0,
+    4.83,
+    0.0
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "lab_shock_sign_post",
+     "type": "box",
+     "size": [
+      0.02,
+      0.02,
+      0.455
+     ],
+     "pos": [
+      0.0,
+      0.016,
+      0.2275
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.32,
+      0.33,
+      0.36,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "lab_shock_sign_board",
+     "type": "box",
+     "size": [
+      0.17,
+      0.006,
+      0.17
+     ],
+     "pos": [
+      0.0,
+      0.003,
+      0.37
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.95,
+      0.95,
+      0.95,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "lab_shock_sign_tag",
+     "type": "box",
+     "size": [
+      0.15,
+      0.002,
+      0.15
+     ],
+     "pos": [
+      0.0,
+      -0.001,
+      0.37
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+     ],
+     "texture": "tagtex35"
+    }
+   ]
+  },
+  {
+   "name": "lab_feed_sign",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": null,
+   "pos": [
+    25.0,
+    4.83,
+    0.0
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "lab_feed_sign_post",
+     "type": "box",
+     "size": [
+      0.02,
+      0.02,
+      0.455
+     ],
+     "pos": [
+      0.0,
+      0.016,
+      0.2275
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.32,
+      0.33,
+      0.36,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "lab_feed_sign_board",
+     "type": "box",
+     "size": [
+      0.17,
+      0.006,
+      0.17
+     ],
+     "pos": [
+      0.0,
+      0.003,
+      0.37
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.95,
+      0.95,
+      0.95,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "lab_feed_sign_tag",
+     "type": "box",
+     "size": [
+      0.15,
+      0.002,
+      0.15
+     ],
+     "pos": [
+      0.0,
+      -0.001,
+      0.37
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+     ],
+     "texture": "tagtex36"
+    }
+   ]
+  },
+  {
+   "name": "lab_toy_sign",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": null,
+   "pos": [
+    26.0,
+    4.83,
+    0.0
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "lab_toy_sign_post",
+     "type": "box",
+     "size": [
+      0.02,
+      0.02,
+      0.455
+     ],
+     "pos": [
+      0.0,
+      0.016,
+      0.2275
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.32,
+      0.33,
+      0.36,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "lab_toy_sign_board",
+     "type": "box",
+     "size": [
+      0.17,
+      0.006,
+      0.17
+     ],
+     "pos": [
+      0.0,
+      0.003,
+      0.37
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.95,
+      0.95,
+      0.95,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "lab_toy_sign_tag",
+     "type": "box",
+     "size": [
+      0.15,
+      0.002,
+      0.15
+     ],
+     "pos": [
+      0.0,
+      -0.001,
+      0.37
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+     ],
+     "texture": "tagtex37"
+    }
+   ]
+  },
+  {
+   "name": "whiteboard_a_tag38",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": null,
+   "pos": [
+    -1.979,
+    0.735,
+    0.3
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "whiteboard_a_tag38",
+     "type": "box",
+     "size": [
+      0.002,
+      0.15,
+      0.15
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+     ],
+     "texture": "tagtex38"
+    }
+   ]
+  },
+  {
+   "name": "whiteboard_a_tag39",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": null,
+   "pos": [
+    -1.979,
+    1.265,
+    0.3
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "whiteboard_a_tag39",
+     "type": "box",
+     "size": [
+      0.002,
+      0.15,
+      0.15
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+     ],
+     "texture": "tagtex39"
+    }
+   ]
+  },
+  {
+   "name": "whiteboard_b_tag40",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": null,
+   "pos": [
+    0.235,
+    5.979,
+    0.3
+   ],
+   "quat": [
+    0.707107,
+    0.0,
+    0.0,
+    -0.707107
+   ],
+   "geoms": [
+    {
+     "name": "whiteboard_b_tag40",
+     "type": "box",
+     "size": [
+      0.002,
+      0.15,
+      0.15
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+     ],
+     "texture": "tagtex40"
+    }
+   ]
+  },
+  {
+   "name": "whiteboard_b_tag41",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": null,
+   "pos": [
+    0.765,
+    5.979,
+    0.3
+   ],
+   "quat": [
+    0.707107,
+    0.0,
+    0.0,
+    -0.707107
+   ],
+   "geoms": [
+    {
+     "name": "whiteboard_b_tag41",
+     "type": "box",
+     "size": [
+      0.002,
+      0.15,
+      0.15
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+     ],
+     "texture": "tagtex41"
+    }
+   ]
+  },
+  {
+   "name": "tower_tag42",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": null,
+   "pos": [
+    -11.978,
+    -5.2,
+    0.37
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "tower_tag42",
+     "type": "box",
+     "size": [
+      0.002,
+      0.15,
+      0.15
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+     ],
+     "texture": "tagtex42"
+    }
+   ]
+  },
+  {
+   "name": "tower_tag43",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": null,
+   "pos": [
+    -11.978,
+    -4.3,
+    0.37
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "tower_tag43",
+     "type": "box",
+     "size": [
+      0.002,
+      0.15,
+      0.15
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+     ],
+     "texture": "tagtex43"
+    }
+   ]
+  },
+  {
+   "name": "bench_tag44",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": null,
+   "pos": [
+    27.378,
+    1.95,
+    0.37
+   ],
+   "quat": [
+    0.0,
+    0.0,
+    0.0,
+    1.0
+   ],
+   "geoms": [
+    {
+     "name": "bench_tag44",
+     "type": "box",
+     "size": [
+      0.002,
+      0.15,
+      0.15
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+     ],
+     "texture": "tagtex44"
+    }
+   ]
+  },
+  {
+   "name": "bench_tag45",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": null,
+   "pos": [
+    27.378,
+    1.05,
+    0.37
+   ],
+   "quat": [
+    0.0,
+    0.0,
+    0.0,
+    1.0
+   ],
+   "geoms": [
+    {
+     "name": "bench_tag45",
+     "type": "box",
+     "size": [
+      0.002,
+      0.15,
+      0.15
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+     ],
+     "texture": "tagtex45"
+    }
+   ]
+  },
+  {
+   "name": "garden_tag46",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": null,
+   "pos": [
+    9.978,
+    0.7,
+    0.37
+   ],
+   "quat": [
+    0.0,
+    0.0,
+    0.0,
+    1.0
+   ],
+   "geoms": [
+    {
+     "name": "garden_tag46",
+     "type": "box",
+     "size": [
+      0.002,
+      0.15,
+      0.15
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+     ],
+     "texture": "tagtex46"
+    }
+   ]
+  },
+  {
+   "name": "chest",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": null,
+   "pos": [
+    24.906287,
+    -2.925205,
+    0.0
+   ],
+   "quat": [
+    0.999321,
+    0.0,
+    0.0,
+    0.036852
+   ],
+   "geoms": [
+    {
+     "name": "chest_floor",
+     "type": "box",
+     "size": [
+      0.22,
+      0.3,
+      0.012
+     ],
+     "pos": [
+      0.11,
+      0.0,
+      0.006
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.55,
+      0.42,
+      0.3,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "chest_back",
+     "type": "box",
+     "size": [
+      0.012,
+      0.3,
+      0.14
+     ],
+     "pos": [
+      0.214,
+      0.0,
+      0.07
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.55,
+      0.42,
+      0.3,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "chest_front",
+     "type": "box",
+     "size": [
+      0.012,
+      0.3,
+      0.14
+     ],
+     "pos": [
+      0.006,
+      0.0,
+      0.07
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.55,
+      0.42,
+      0.3,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "chest_sider",
+     "type": "box",
+     "size": [
+      0.22,
+      0.012,
+      0.14
+     ],
+     "pos": [
+      0.11,
+      -0.144,
+      0.07
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.55,
+      0.42,
+      0.3,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "chest_sidel",
+     "type": "box",
+     "size": [
+      0.22,
+      0.012,
+      0.14
+     ],
+     "pos": [
+      0.11,
+      0.144,
+      0.07
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.55,
+      0.42,
+      0.3,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "chest_lid_body",
+   "parent": "chest",
+   "dynamic": true,
+   "robot": null,
+   "visual": null,
+   "pos": [
+    25.125689,
+    -2.909001,
+    0.14
+   ],
+   "quat": [
+    0.999321,
+    0.0,
+    0.0,
+    0.036852
+   ],
+   "geoms": [
+    {
+     "name": "chest_lid",
+     "type": "box",
+     "size": [
+      0.22,
+      0.3,
+      0.012
+     ],
+     "pos": [
+      -0.11,
+      0.0,
+      0.006
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.7,
+      0.55,
+      0.38,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "chest_bracket",
+     "type": "box",
+     "size": [
+      0.056,
+      0.012,
+      0.008
+     ],
+     "pos": [
+      -0.242,
+      0.0,
+      0.006
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.7,
+      0.55,
+      0.38,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "chest_handle",
+   "parent": "chest_lid_body",
+   "dynamic": true,
+   "robot": null,
+   "visual": null,
+   "pos": [
+    24.856423,
+    -2.928888,
+    0.146
+   ],
+   "quat": [
+    0.999321,
+    0.0,
+    0.0,
+    0.036852
+   ],
+   "geoms": [
+    {
+     "name": "chest_drop",
+     "type": "box",
+     "size": [
+      0.006,
+      0.008,
+      0.04
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      -0.02
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.2,
+      0.45,
+      0.75,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "chest_stem",
+     "type": "box",
+     "size": [
+      0.036,
+      0.008,
+      0.008
+     ],
+     "pos": [
+      -0.012,
+      0.0,
+      -0.04
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.2,
+      0.45,
+      0.75,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "chest_knob_body",
+   "parent": "chest_handle",
+   "dynamic": true,
+   "robot": null,
+   "visual": null,
+   "pos": [
+    24.81354,
+    -2.932055,
+    0.106
+   ],
+   "quat": [
+    0.999321,
+    0.0,
+    0.0,
+    0.036852
+   ],
+   "geoms": [
+    {
+     "name": "chest_knob",
+     "type": "box",
+     "size": [
+      0.026,
+      0.026,
+      0.026
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+     ],
+     "texture": "tagtex53"
+    }
+   ]
+  }
+ ],
+ "textures": [
+  {
+   "name": "tagtex20",
+   "file": "tagtex20.png",
+   "width": 240,
+   "height": 240
+  },
+  {
+   "name": "tagtex21",
+   "file": "tagtex21.png",
+   "width": 240,
+   "height": 240
+  },
+  {
+   "name": "tagtex22",
+   "file": "tagtex22.png",
+   "width": 240,
+   "height": 240
+  },
+  {
+   "name": "tagtex23",
+   "file": "tagtex23.png",
+   "width": 240,
+   "height": 240
+  },
+  {
+   "name": "tagtex24",
+   "file": "tagtex24.png",
+   "width": 240,
+   "height": 240
+  },
+  {
+   "name": "tagtex25",
+   "file": "tagtex25.png",
+   "width": 240,
+   "height": 240
+  },
+  {
+   "name": "tagtex26",
+   "file": "tagtex26.png",
+   "width": 240,
+   "height": 240
+  },
+  {
+   "name": "tagtex27",
+   "file": "tagtex27.png",
+   "width": 240,
+   "height": 240
+  },
+  {
+   "name": "tagtex28",
+   "file": "tagtex28.png",
+   "width": 240,
+   "height": 240
+  },
+  {
+   "name": "tagtex29",
+   "file": "tagtex29.png",
+   "width": 240,
+   "height": 240
+  },
+  {
+   "name": "tagtex30",
+   "file": "tagtex30.png",
+   "width": 240,
+   "height": 240
+  },
+  {
+   "name": "tagtex31",
+   "file": "tagtex31.png",
+   "width": 240,
+   "height": 240
+  },
+  {
+   "name": "tagtex32",
+   "file": "tagtex32.png",
+   "width": 240,
+   "height": 240
+  },
+  {
+   "name": "tagtex33",
+   "file": "tagtex33.png",
+   "width": 240,
+   "height": 240
+  },
+  {
+   "name": "tagtex34",
+   "file": "tagtex34.png",
+   "width": 240,
+   "height": 240
+  },
+  {
+   "name": "tagtex47",
+   "file": "tagtex47.png",
+   "width": 240,
+   "height": 240
+  },
+  {
+   "name": "tagtex48",
+   "file": "tagtex48.png",
+   "width": 240,
+   "height": 240
+  },
+  {
+   "name": "tagtex49",
+   "file": "tagtex49.png",
+   "width": 240,
+   "height": 240
+  },
+  {
+   "name": "tagtex50",
+   "file": "tagtex50.png",
+   "width": 240,
+   "height": 240
+  },
+  {
+   "name": "tagtex51",
+   "file": "tagtex51.png",
+   "width": 240,
+   "height": 240
+  },
+  {
+   "name": "tagtex52",
+   "file": "tagtex52.png",
+   "width": 240,
+   "height": 240
+  },
+  {
+   "name": "tagtex35",
+   "file": "tagtex35.png",
+   "width": 240,
+   "height": 240
+  },
+  {
+   "name": "tagtex36",
+   "file": "tagtex36.png",
+   "width": 240,
+   "height": 240
+  },
+  {
+   "name": "tagtex37",
+   "file": "tagtex37.png",
+   "width": 240,
+   "height": 240
+  },
+  {
+   "name": "tagtex38",
+   "file": "tagtex38.png",
+   "width": 240,
+   "height": 240
+  },
+  {
+   "name": "tagtex39",
+   "file": "tagtex39.png",
+   "width": 240,
+   "height": 240
+  },
+  {
+   "name": "tagtex40",
+   "file": "tagtex40.png",
+   "width": 240,
+   "height": 240
+  },
+  {
+   "name": "tagtex41",
+   "file": "tagtex41.png",
+   "width": 240,
+   "height": 240
+  },
+  {
+   "name": "tagtex42",
+   "file": "tagtex42.png",
+   "width": 240,
+   "height": 240
+  },
+  {
+   "name": "tagtex43",
+   "file": "tagtex43.png",
+   "width": 240,
+   "height": 240
+  },
+  {
+   "name": "tagtex44",
+   "file": "tagtex44.png",
+   "width": 240,
+   "height": 240
+  },
+  {
+   "name": "tagtex45",
+   "file": "tagtex45.png",
+   "width": 240,
+   "height": 240
+  },
+  {
+   "name": "tagtex46",
+   "file": "tagtex46.png",
+   "width": 240,
+   "height": 240
+  },
+  {
+   "name": "tagtex53",
+   "file": "tagtex53.png",
+   "width": 240,
+   "height": 240
+  }
+ ],
+ "zones": [
+  {
+   "name": "kitchen",
+   "kind": "room",
+   "building": "house",
+   "min": [
+    -12.0,
+    2.0
+   ],
+   "max": [
+    -5.0,
+    6.0
+   ]
+  },
+  {
+   "name": "workshop",
+   "kind": "room",
+   "building": "house",
+   "min": [
+    -12.0,
+    -6.0
+   ],
+   "max": [
+    -5.0,
+    2.0
+   ]
+  },
+  {
+   "name": "hall",
+   "kind": "room",
+   "building": "house",
+   "min": [
+    -5.0,
+    -6.0
+   ],
+   "max": [
+    -2.0,
+    6.0
+   ]
+  },
+  {
+   "name": "living",
+   "kind": "room",
+   "building": "house",
+   "min": [
+    -2.0,
+    -2.0
+   ],
+   "max": [
+    5.0,
+    2.5
+   ]
+  },
+  {
+   "name": "bedroom",
+   "kind": "room",
+   "building": "house",
+   "min": [
+    -2.0,
+    2.5
+   ],
+   "max": [
+    5.0,
+    6.0
+   ]
+  },
+  {
+   "name": "garden",
+   "kind": "garden",
+   "min": [
+    5.0,
+    -2.0
+   ],
+   "max": [
+    10.0,
+    6.0
+   ]
+  },
+  {
+   "name": "garden_south",
+   "kind": "garden",
+   "min": [
+    -2.0,
+    -6.0
+   ],
+   "max": [
+    10.0,
+    -2.0
+   ]
+  },
+  {
+   "name": "sidewalk",
+   "kind": "outdoor",
+   "min": [
+    10.0,
+    -6.0
+   ],
+   "max": [
+    11.5,
+    6.0
+   ]
+  },
+  {
+   "name": "street",
+   "kind": "outdoor",
+   "min": [
+    11.5,
+    -7.5
+   ],
+   "max": [
+    14.5,
+    7.5
+   ]
+  },
+  {
+   "name": "sidewalk_2",
+   "kind": "outdoor",
+   "min": [
+    14.5,
+    -6.0
+   ],
+   "max": [
+    16.0,
+    6.0
+   ]
+  },
+  {
+   "name": "garden_2",
+   "kind": "garden",
+   "min": [
+    16.0,
+    -6.0
+   ],
+   "max": [
+    19.0,
+    6.0
+   ]
+  },
+  {
+   "name": "lobby",
+   "kind": "room",
+   "building": "facility",
+   "min": [
+    19.0,
+    -6.0
+   ],
+   "max": [
+    22.0,
+    6.0
+   ]
+  },
+  {
+   "name": "lab",
+   "kind": "room",
+   "building": "facility",
+   "min": [
+    22.0,
+    0.0
+   ],
+   "max": [
+    28.0,
+    6.0
+   ]
+  },
+  {
+   "name": "store",
+   "kind": "room",
+   "building": "facility",
+   "min": [
+    22.0,
+    -6.0
+   ],
+   "max": [
+    28.0,
+    0.0
+   ]
+  },
+  {
+   "name": "sidewalk_north",
+   "kind": "outdoor",
+   "min": [
+    -13.5,
+    6.0
+   ],
+   "max": [
+    11.5,
+    7.5
+   ]
+  },
+  {
+   "name": "sidewalk_2_north",
+   "kind": "outdoor",
+   "min": [
+    14.5,
+    6.0
+   ],
+   "max": [
+    29.5,
+    7.5
+   ]
+  },
+  {
+   "name": "sidewalk_south",
+   "kind": "outdoor",
+   "min": [
+    -13.5,
+    -7.5
+   ],
+   "max": [
+    11.5,
+    -6.0
+   ]
+  },
+  {
+   "name": "sidewalk_2_south",
+   "kind": "outdoor",
+   "min": [
+    14.5,
+    -7.5
+   ],
+   "max": [
+    29.5,
+    -6.0
+   ]
+  },
+  {
+   "name": "sidewalk_west",
+   "kind": "outdoor",
+   "min": [
+    -13.5,
+    -6.0
+   ],
+   "max": [
+    -12.0,
+    6.0
+   ]
+  },
+  {
+   "name": "sidewalk_east",
+   "kind": "outdoor",
+   "min": [
+    28.0,
+    -6.0
+   ],
+   "max": [
+    29.5,
+    6.0
+   ]
+  },
+  {
+   "name": "street_north",
+   "kind": "outdoor",
+   "min": [
+    -16.5,
+    7.5
+   ],
+   "max": [
+    32.5,
+    10.5
+   ]
+  },
+  {
+   "name": "street_south",
+   "kind": "outdoor",
+   "min": [
+    -16.5,
+    -10.5
+   ],
+   "max": [
+    32.5,
+    -7.5
+   ]
+  },
+  {
+   "name": "street_west",
+   "kind": "outdoor",
+   "min": [
+    -16.5,
+    -7.5
+   ],
+   "max": [
+    -13.5,
+    7.5
+   ]
+  },
+  {
+   "name": "street_east",
+   "kind": "outdoor",
+   "min": [
+    29.5,
+    -7.5
+   ],
+   "max": [
+    32.5,
+    7.5
+   ]
+  }
+ ],
+ "spawns": {
+  "start": [
+   1.5,
+   0.5,
+   1.5707963267948966
+  ],
+  "garden": [
+   7.5,
+   2.0,
+   0.0
+  ],
+  "hall": [
+   -3.5,
+   1.0,
+   0.0
+  ],
+  "kitchen": [
+   -8.5,
+   4.0,
+   0.0
+  ],
+  "workshop": [
+   -8.5,
+   -2.0,
+   0.0
+  ],
+  "lobby": [
+   20.5,
+   0.0,
+   1.5707963267948966
+  ],
+  "lab": [
+   25.0,
+   2.0,
+   1.5707963267948966
+  ]
+ },
+ "boards": {
+  "whiteboard_a": {
+   "geom": "board",
+   "pos": [
+    -1.97,
+    1.0,
+    0.3
+   ],
+   "half": [
+    0.01,
+    0.16,
+    0.13
+   ],
+   "heading": 3.141592653589793
+  },
+  "whiteboard_b": {
+   "geom": "board_b",
+   "pos": [
+    0.5,
+    5.970000000000001,
+    0.3
+   ],
+   "half": [
+    0.01,
+    0.16,
+    0.13
+   ],
+   "heading": 1.5707963267948966
+  }
+ },
+ "plates": {
+  "garden_plate": {
+   "purpose": "light"
+  },
+  "lab_shock_plate": {
+   "purpose": "shock"
+  },
+  "lab_feed_plate": {
+   "purpose": "feed"
+  },
+  "lab_toy_plate": {
+   "purpose": "toy"
+  }
+ },
+ "screens": {
+  "module_lcd": {
+   "geom": "module_lcd_screen",
+   "body": "module_lcd",
+   "size": [
+    0.004,
+    0.056,
+    0.076
+   ],
+   "pos": [
+    -0.012,
+    0.0,
+    0.0
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "normal": [
+    -1.0,
+    0.0,
+    0.0
+   ]
+  }
+ }
+}

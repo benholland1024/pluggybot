@@ -1356,3 +1356,56 @@ def test_the_header_hashes_the_files_the_sim_reads(monkeypatch, tmp_path):
   assert after["rewards"] != before["rewards"], \
     "the env override the sim reads is not the file the header hashed"
   assert after["world"] == before["world"]
+
+
+# ---- the demo's world: what the robot thinks is there (#466, stage 3) -----------------
+
+CHEST_RECORDING = PROTOCOL / "telemetry.home_quad_chest.jsonl.gz"
+
+
+def test_the_demos_scene_is_its_set_outs_world():
+  """`home_quad_chest`: the house as the spikes build it, the quadruped at
+  the demo set-out's start and the chest where it stands -- a world of its
+  own, stale on any change to the house, the body or the chest's drawing."""
+  from pluggybot.evaluation import probe as ep
+  from pluggybot.lifecycle import QUAD_HOME, world_config
+  scene = json.loads((PROTOCOL / "scene.home_quad_chest.json").read_text())
+  model = ep.spec_of(ep.set_out(ep.DEMO)).compile()
+  meta = json.loads(Path(world_config(QUAD_HOME)["meta"]).read_text())
+  assert scene == scene_dict(model, "home_quad_chest", meta=meta), \
+    f"stale fixture: scripts/imagine_chest.py --demo {ep.DEMO} --record ..."
+  geoms = [g.get("name") or "" for b in scene["bodies"] for g in b["geoms"]]
+  assert "chest_lid" in geoms and not [g for g in geoms if "lump" in g], \
+    "where the hidden weight sits is a hidden parameter"
+
+
+def test_the_demos_recording_carries_the_robots_model_and_none_of_the_worlds():
+  """The demo's flight (`imagine_chest.py --demo`): the probe, the robot
+  lying still, then ONE `imagined` event -- its parts, where it drew them,
+  its replay of the probe -- and no number of a mass, a spring, damping,
+  friction or a catch, the robot's or the world's."""
+  with gzip.open(CHEST_RECORDING, "rt") as f:
+    lines = [json.loads(line) for line in f]
+  header, frames = lines[0], frames_of(lines)
+  assert header["model"] == "home_quad_chest" and header["protocolVersion"] == PROTOCOL_VERSION
+  assert "chest_lid_body" in header["world"] and "chest" in header["activities"]
+  (ghost,) = [x for x in lines[1:] if x.get("type") == "imagined"]
+  assert ghost["robot"] == "pluggybot" and ghost["parts"] and ghost["rest"]
+  assert set(ghost["rest"]) == {p["id"] for p in ghost["parts"]}
+  replay = ghost["replay"]
+  assert replay["t0"] < ghost["t"] and replay["frames"]
+  assert all(len(fr) == len(replay["parts"]) for fr in replay["frames"])
+
+  def keys(o):
+    if isinstance(o, dict):
+      return set(o) | set().union(*(keys(v) for v in o.values()))
+    if isinstance(o, list):
+      return set().union(*(keys(v) for v in o)) if o else set()
+    return set()
+  assert not keys(lines) & {"mass", "stiffness", "slack", "damping", "friction", "release",
+                            "catch_n", "lid_kg", "lump_kg"}
+  lids = [f["world"]["chest_lid_body"] for f in frames if "chest_lid_body" in f.get("world", {})]
+  assert len({tuple(p[3:]) for p in lids}) > 10, "the real lid rose in the flight"
+  opened = [f["activities"]["chest"].get("opened") for f in frames
+            if "chest" in f.get("activities", {})]
+  assert True in opened
