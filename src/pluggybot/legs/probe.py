@@ -67,6 +67,7 @@ from pluggybot.imagination.record import Record, Start, plain
 from pluggybot.legs import arm as am
 from pluggybot.legs import dock as dk
 from pluggybot.legs import rack as rk
+from pluggybot.legs.imagined import level_of
 from pluggybot.legs.model import CHOSEN, JOINT_NAMES
 from pluggybot.perception import box
 from pluggybot.perception.encoders import (LEG_POSITION_LSB, LEG_VELOCITY_LSB, quantised,
@@ -347,6 +348,163 @@ def front_face(cloud: np.ndarray, g: Guess) -> tuple[float, float, float] | None
   return along, across, -math.atan(slope)
 
 
+#: The probe as its model's author is told it (`imagination.model`): what
+#: the arm did, each phase's name, and the force a fit may leave before it
+#: is poor, N at the tool (RMS of 0.1 s means). ⚠ THE SWEEPS ARE JUDGED
+#: TOGETHER (`SWEEPS_N`): what the best-expressible reference left over
+#: them on 9 in 10 of the robot's own probes (#466 stages 2 and 3, the 122
+#: where no handle turned over). Judged a sweep at a time, at the
+#: reference's 9 in 10 there, 90 of 122 fits of the reference's own
+#: structure were poor: a fit spends the language's error otherwise than
+#: the reference, beating it on the lifts and giving some back lowering.
+#: ⚠ A BAR IS A CONSTANT, never the reference's residual on the probe being
+#: judged: that is the truth's, and the loop would read it. A take, which
+#: fits nothing, may leave 0.05: there the world's and the reference's
+#: worst was 0.033.
+DID = ("It lay down in front of the object with its claw's jaws open, came down onto "
+       "the cube from above and shut the jaws on it. Then it lifted the cube and lowered "
+       "it again, twice: slowly, then three times faster. It held the cube throughout.")
+PHASES = {"take": ("taking hold", 0.05), "up0": ("the first lift, slow", None),
+          "down0": ("the first lowering, slow", None), "up1": ("the second lift, fast", None),
+          "down1": ("the second lowering, fast", None)}
+SWEEPS_N = 0.32
+#: The jaws' path an author is shown: this many moments of the first lift.
+PATH_POINTS = 8
+
+
+def did(probed: "Probed", s: "Sizes") -> str:
+  """What the arm did, as the robot can tell it: `DID`'s words, and where
+  its jaws' middle was during the first lift off its own encoders
+  (`jaws_seen`), in the box's frame (mm) -- its motion as its arm felt it,
+  never its plan."""
+  jaws = jaws_seen(probed.record, probed.frame, CHOSEN.arm)
+  a, b = probed.phases["up0"]
+  c, sn = math.cos(math.radians(s.yaw)), math.sin(math.radians(s.yaw))
+  lines = [DID, "", "Its jaws' middle during the first lift, as its arm's encoders put it "
+           "(s from the lift's start; mm, the box's frame):"]
+  for k in np.linspace(a, b - 1, PATH_POINTS).astype(int):
+    dx, dy = 1000 * jaws[k, 0] - s.origin[0], 1000 * jaws[k, 1] - s.origin[1]
+    lines.append(f"  {(k - a) * probed.record.dt:4.1f} s  ({c * dx + sn * dy:6.1f}, "
+                 f"{-sn * dx + c * dy:6.1f}, {1000 * jaws[k, 2]:6.1f})")
+  return "\n".join(lines)
+
+
+def phases_of(probed: "Probed") -> list:
+  """The probe's phases as `imagination.model.Phase`s, and its sweeps
+  together, judged at `SWEEPS_N`."""
+  from pluggybot.imagination.model import Phase
+  out = [Phase(name=n, label=PHASES[n][0], rows=tuple(probed.phases[n]), bar=PHASES[n][1])
+         for n in PHASES if n in probed.phases]
+  rows = fit_rows(probed)
+  return out + [Phase(name="sweeps", label="all the lifts and lowerings together",
+                      rows=(rows.start, rows.stop), bar=SWEEPS_N, whole=True)]
+
+
+def fit_rows(probed: "Probed") -> slice:
+  """The rows a fit reads: the sweeps, once the jaws have shut (the take
+  moves no lid)."""
+  return slice(probed.phases["take"][1], probed.record.n)
+
+
+#: The picture's JPEG quality, and its exposure: the D435's colour sensor
+#: exposes for its scene, a picture's levels stretched from this percentile
+#: of its pixels to that (`exposed`). The storeroom renders dark, levels
+#: 29-79 of 255: its lid's lighter edge, unexposed, was a shade apart.
+PICTURE_QUALITY = 90
+EXPOSE_PCT = (1.0, 99.5)
+#: A strip's sides are read off a window this wide, m: at the edge's 20 mm a
+#: 12 mm bracket read 28 mm wide, the window wider than the strip.
+STRIP_WINDOW_M = 0.003
+
+
+def jpeg(rgb) -> bytes | None:
+  """A colour frame as a JPEG (`Probed.picture`); None with no frame."""
+  if rgb is None:
+    return None
+  import io
+  from PIL import Image
+  buf = io.BytesIO()
+  Image.fromarray(np.asarray(rgb, dtype=np.uint8)).save(buf, format="JPEG",
+                                                        quality=PICTURE_QUALITY)
+  return buf.getvalue()
+
+
+def exposed(picture: bytes) -> bytes:
+  """A picture (`Probed.picture`) as the colour sensor's auto-exposure
+  would deliver it: its levels stretched over `EXPOSE_PCT` of its pixels."""
+  import io
+  from PIL import Image
+  rgb = np.asarray(Image.open(io.BytesIO(picture)).convert("RGB"), dtype=float)
+  lo, hi = np.percentile(rgb, EXPOSE_PCT)
+  out = np.clip((rgb - lo) / max(hi - lo, 1.0) * 255.0, 0.0, 255.0)
+  return jpeg(out.astype(np.uint8))
+
+
+@dataclass(frozen=True)
+class Sizes:
+  """What depth and the tags say of the box, in ITS frame (mm): the origin
+  on the floor under the middle of its front face, x into the box, y to its
+  left seen from in front, z up -- the frame its model is drawn in, which
+  `imagination.scene.placed` puts in the map at `origin` (x, y mm) turned
+  `yaw` (deg). The box's top: its `depth` (its back edge's x), its `width`
+  and its height (`top`). The bracket over the knob: its `tip` (x), its top
+  (`bracket_top`) and its `bracket_width`. The knob: its middle, and the
+  edge of the cube it is (`knob_size`: the tag's family is printed on 26 mm
+  cubes, a tag a face). Measured only: what the box IS, is its author's."""
+  origin: tuple[float, float]
+  yaw: float
+  depth: float
+  width: float
+  top: float
+  tip: float
+  bracket_top: float
+  bracket_width: float
+  knob: tuple[float, float, float]
+  knob_size: float
+
+  def as_dict(self) -> dict:
+    return {k: (round(v, 1) if isinstance(v, float) else [round(x, 1) for x in v])
+            for k, v in self.__dict__.items()}
+
+
+def sizes(record: Record, g: Guess) -> Sizes | str:
+  """The box's `Sizes` off the record's clouds -- the points its measures
+  were made of, laid as the robot planned -- and the knob and the facing it
+  planned off (`g`); or why there are none."""
+  if not record.depth:
+    return "no depth in the record"
+  pts = np.concatenate(record.depth)
+  k = np.asarray(g.knob, dtype=float)
+  u = np.array([math.cos(g.yaw), math.sin(g.yaw)])
+  v = np.array([-u[1], u[0]])
+  rel = pts[:, :2] - k[:2]
+  pu, pv = rel @ u, rel @ v
+  on = box.on_top(pts, g.top)
+  far = box.edge(pu[on], far=True)
+  # ⚠ the front is its FACE's place: the top's near edge has that face's
+  # points standing at it, and read 7.5 mm toward the robot
+  face = front_face(pts, g)
+  front = None if face is None else face[0]
+  left, right = box.edge(pv[on], far=True), box.edge(pv[on], far=False)
+  if None in (far, front, left, right):
+    return "the top's edges not seen"
+  tongue = on & (np.abs(pv) < TONGUE_HALF_M) & (pu < front - TONGUE_GAP_M)
+  tip = box.faced_edge(pu[tongue], far=False)
+  t_left = box.edge(pv[tongue], far=True, window=STRIP_WINDOW_M)
+  t_right = box.edge(pv[tongue], far=False, window=STRIP_WINDOW_M)
+  if None in (tip, t_left, t_right):
+    return "no handle's bracket seen"
+  mid = (left + right) / 2.0
+  origin = k[:2] + front * u + mid * v
+  return Sizes(origin=(1000 * float(origin[0]), 1000 * float(origin[1])),
+               yaw=math.degrees(g.yaw), depth=1000 * (far - front), width=1000 * (left - right),
+               top=1000 * g.top, tip=1000 * (tip - front),
+               bracket_top=1000 * float(np.median(pts[tongue, 2])),
+               bracket_width=1000 * (t_left - t_right),
+               knob=(-1000 * front, -1000 * mid, 1000 * float(k[2])),
+               knob_size=2000 * tc.CUBE_HALF)
+
+
 @dataclass(frozen=True)
 class Move:
   """How far the box seems to have moved in the map between two looks at
@@ -526,7 +684,9 @@ class Probed:
   sweeps, its `phases` rows [first, past last); `calibration` the empty
   sweep and `friction` read off it; `guess` the measures it planned off and
   `frame` the belief it planned in; `t0` the sim time of the record's first
-  row; `log` how each step went."""
+  row; `log` how each step went; `picture` the colour imager's frame at the
+  stance it measured from, a JPEG: what an author of its model is shown
+  (`imagination.author`), never the worker."""
   ok: bool = False
   why: str = ""
   record: Record | None = None
@@ -537,6 +697,7 @@ class Probed:
   frame: Frame | None = None
   t0: float | None = None
   log: dict = field(default_factory=dict)
+  picture: bytes | None = None
 
   def to_wire(self) -> tuple[dict, dict[str, np.ndarray]]:
     """A JSON-ready header and named float arrays (`imagination.worker.pack`'s)."""
@@ -548,6 +709,8 @@ class Probed:
                                                       self.frame.yaw, self.frame.floor],
             "t0": self.t0, "log": plain(self.log, "the log")}
     arrays = {}
+    if self.picture is not None:
+      arrays["picture"] = np.frombuffer(self.picture, dtype=np.uint8)
     for name, rec in (("record", self.record), ("calibration", self.calibration)):
       if rec is None:
         continue
@@ -569,15 +732,8 @@ class Probed:
                calibration=recs.get("calibration"),
                friction=None if head["friction"] is None else tuple(head["friction"]),
                guess=None if g is None else Guess.from_dict(g),
-               frame=None if f is None else Frame(*f), t0=head["t0"], log=head["log"])
-
-
-def level_of(attitude) -> np.ndarray:
-  """Level from the torso, off a roll and a pitch (`attitude`)."""
-  roll, pitch = attitude
-  cr, sr, cp, sp = math.cos(roll), math.sin(roll), math.cos(pitch), math.sin(pitch)
-  return (np.array([[cp, 0.0, sp], [0.0, 1.0, 0.0], [-sp, 0.0, cp]])
-          @ np.array([[1.0, 0.0, 0.0], [0.0, cr, -sr], [0.0, sr, cr]]))
+               frame=None if f is None else Frame(*f), t0=head["t0"], log=head["log"],
+               picture=bytes(arrays["picture"]) if "picture" in arrays else None)
 
 
 def jaws_seen(record: Record, frame: Frame, spec) -> np.ndarray:
@@ -624,9 +780,11 @@ class Probe:
     self.depth = DepthCamera(mis.model, mis.handle, width=DEPTH_W, height=DEPTH_H,
                              min_z=DEPTH_MIN_Z, mount="body", seed=seed)
     self.depth.carry(mis.carrying)
-    #: What the measures at the stance were made of: the record's.
+    #: What the measures at the stance were made of: the record's, and the
+    #: colour frame of their first look (`Probed.picture`).
     self.detections: list[dict] = []
     self.clouds: list[np.ndarray] = []
+    self.picture: bytes | None = None
 
   # ---- the senses, into the map ------------------------------------------------
 
@@ -702,6 +860,8 @@ class Probe:
       yield from self._hold(APART_S)
       if k < LOOKS:
         knobs += self.look()
+        if keep and k == 0:
+          self.picture = jpeg(self.mis.color_detector().frame(self.mis.data))
       if k < FRAMES:
         clouds.append(self.cloud())
     cloud = np.concatenate(clouds)
@@ -1029,6 +1189,7 @@ class Probe:
         yield from self._hold(TURN_S)
         s = BOTTOM
       out.record = rec.record(depth=self.clouds, detections=self.detections)
+      out.picture = self.picture
       out.phases = rec.phases()
       out.log["swept"] = ok
       if ok:

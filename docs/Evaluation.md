@@ -1236,6 +1236,32 @@ more easily here than it would on hardware.
   (Ben, on #479): where the catch is strong it lets go late (no magnet's
   falloff, no armature) and the bar is lenient, and that is said, not
   tuned away.
+- ⚠ **The robot's model is graded per parameter, against the world AND the
+  reference, and its conditions are never pooled** (#466 stage 3; SimNotes,
+  "The robot's model, graded"; `evaluation/model.py`): `model` (an
+  author's structure, fitted), `reference` (the fitter alone, on the
+  reference's own structure) and `leak` (the same with its hinge moved)
+  apart; a model that passed its bars apart from one that found the lid's
+  hinge and stayed poor; clean and flagged set-outs apart; each a median
+  with its bootstrap interval and its 9 in 10. Four things a reader must
+  not misread:
+  - **per parameter, "the language can't say it" is zero by construction**:
+    the reference IS the true numbers. The language's gap shows in
+    BEHAVIOUR -- what each leaves on the probe -- and in the catch, whose
+    one number lets go later than the magnet: a fit tunes its release
+    lower to match the timing and leaves less than the reference does;
+  - **the first moment is degenerate where a spring may be fitted**: over
+    the swept angles gravity and a spring trade (#469), and the fitter took
+    a spring of about 0.1 N*m/rad on lids with none, a fifth of the first
+    moment off, the static curve their graded sum under the torques'
+    resolution. Mass and second moment are what the model ASSUMED;
+  - **the fitter's own instrument is never handed what the robot cannot
+    see**: it left the hidden weight at its true mass at first, and its
+    first moment read half off for it;
+  - ⚠ **the loop judges a fit against CONSTANTS, the sweeps together**: the
+    reference's 9 in 10 over all of them, never its residual on the probe
+    judged (the truth's). A sweep at a time, a fit of the right structure
+    was sent back 90 times in 122.
 
 ## 6. What death costs
 

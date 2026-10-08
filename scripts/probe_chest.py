@@ -207,12 +207,9 @@ def fly(args) -> dict:
   """One set-out: flown, graded, and its probe kept (`into`)."""
   from pluggybot.home import world as home
   from pluggybot.legs import body as qb
-  from pluggybot.legs import world as lw
   k, into, do_replay = args
   so = ep.set_out(k)
-  spec = lw.home_spec(first_at=so.start[:2])
-  ch.attach_chest(spec, so.lid, so.chest[:2], so.chest[2])
-  m = spec.compile()
+  m = ep.spec_of(so).compile()
   d = mujoco.MjData(m)
   mujoco.mj_forward(m, d)
   body = qb.QuadBody(m, d, realtime=False, grid_bounds=home.GRID_BOUNDS)

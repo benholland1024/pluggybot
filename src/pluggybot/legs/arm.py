@@ -374,6 +374,16 @@ def tool_force(spec: ArmSpec, qs: float, qf: float,
   return (a * c2 - b * c1) / det, (a * s2 - b * s1) / det
 
 
+def tool_forces(spec: ArmSpec, qs, qf, tau_s, tau_e) -> np.ndarray:
+  """`tool_force` row by row, over arrays: (n, 2), forward and up."""
+  qs, qf = np.asarray(qs, dtype=float), np.asarray(qf, dtype=float)
+  s1, c1, s2, c2 = np.sin(qs), np.cos(qs), np.sin(qf), np.cos(qf)
+  det = np.sin(qf - qs)
+  a = -np.asarray(tau_s, dtype=float) / spec.upper
+  b = -np.asarray(tau_e, dtype=float) / spec.fore
+  return np.stack([(a * c2 - b * c1) / det, (a * s2 - b * s1) / det], axis=-1)
+
+
 #: A motor whose coordinate turns slower than this, rad/s, is inside its
 #: friction's band: friction there holds anything within +- its value, so a
 #: reading there is left as it is (#469: 0.3-0.4 N off at the tool inside

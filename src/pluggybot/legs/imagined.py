@@ -14,7 +14,7 @@ import mujoco
 import numpy as np
 
 from pluggybot.legs import rack as rk
-from pluggybot.legs.arm import ArmDriver, tool_payload
+from pluggybot.legs.arm import ArmDriver, tool_forces, tool_payload
 from pluggybot.legs.drivers import Drivers
 from pluggybot.legs.model import CHOSEN, JOINT_NAMES, attachable
 from pluggybot.rack.coupling import PEG_ABOVE_BODY
@@ -41,6 +41,56 @@ def body_spec(carrying: str | None = None) -> mujoco.MjSpec:
       + f'</worldbody><actuator>{rk.tool_actuators_xml((carrying,))}</actuator></mujoco>')
     spec.attach(tool, prefix="", frame=spec.worldbody.add_frame())
   return spec
+
+
+def force_apart(sensed: np.ndarray, other: np.ndarray) -> np.ndarray:
+  """What two sets of the arm's readings put on the tool apart, N, row by
+  row (forward, up, the torso's frame): `other`'s torques less `sensed`'s,
+  through the arm's Jacobian at `sensed`'s pose (`legs.arm.tool_force`).
+  Both are rows of `record.SENSED`'s columns: the two torques, then the
+  shoulder and the forearm."""
+  sensed, other = np.asarray(sensed, dtype=float), np.asarray(other, dtype=float)
+  dtau = other[:, :2] - sensed[:, :2]
+  return tool_forces(CHOSEN.arm, sensed[:, 2], sensed[:, 3], dtau[:, 0], dtau[:, 1])
+
+
+def level_of(attitude) -> np.ndarray:
+  """Level from the torso, off a roll and a pitch (`attitude`)."""
+  roll, pitch = attitude
+  cr, sr, cp, sp = math.cos(roll), math.sin(roll), math.cos(pitch), math.sin(pitch)
+  return (np.array([[cp, 0.0, sp], [0.0, 1.0, 0.0], [-sp, 0.0, cp]])
+          @ np.array([[1.0, 0.0, 0.0], [0.0, cr, -sr], [0.0, sr, cr]]))
+
+
+#: The encoders' rates for friction's sign are read off positions smoothed
+#: over this many rows (the record carries positions, quantised).
+RATE_ROWS = 25
+
+
+def felt(record, friction) -> np.ndarray:
+  """What the world put on the tool, N, row by row (forward, up, the
+  torso's frame), off a record alone: its torque readings less the arm's
+  own weight -- its CAD's links at its encoders, levelled by its start's
+  tilt (`ArmDriver.gravity_sensed`) -- and less the `friction` it
+  calibrated where a joint turns (`legs.arm.less_friction`), through the
+  arm's Jacobian: `legs.probe.Recorder.force`, after the fact."""
+  from pluggybot.imagination.compile import robot_spec
+  from pluggybot.legs.arm import less_friction
+  m = robot_spec(record.start.carrying).compile()
+  body = ImaginedBody(m, mujoco.MjData(m), record.start.carrying)
+  level = level_of(record.start.attitude)
+  q = np.asarray(record.sensed[:, 2:4], dtype=float)
+  weight = np.array([body.arm.gravity_sensed(row, level) for row in q])
+  # padded with its ends, never zeros: a zero pad read an arm holding still
+  # turning 45 rad/s at either end, and took its friction off there
+  kernel = np.ones(RATE_ROWS) / RATE_ROWS
+  half = RATE_ROWS // 2
+  smooth = np.column_stack([
+    np.convolve(np.pad(q[:, i], (half, RATE_ROWS - 1 - half), mode="edge"), kernel,
+                mode="valid") for i in range(2)])
+  rates = np.gradient(smooth, record.dt, axis=0)
+  tau = less_friction(record.sensed[:, :2] - weight, rates, friction)
+  return tool_forces(CHOSEN.arm, q[:, 0], q[:, 1], tau[:, 0], tau[:, 1])
 
 
 def _quat(roll: float, pitch: float, yaw: float) -> np.ndarray:

@@ -44,6 +44,59 @@ replayer treats it like any other world -- one scene, one recording, keyed
 by that name (`pluggybot.robot.pair_model_name`). The served world is the
 pair, `home_quad_pair`.
 
+### 0.21.0, additive: what the robot thinks is there (`imagined`)
+
+pluggybot #466, stage 3. A demo's, never the served world's: the robot
+probes an object (a toy chest whose lid a drop handle lifts), writes a
+model of it in its scene language and fits the model to what its arm felt.
+One `imagined` event carries the model, so the site can draw it as a ghost
+over the real object:
+
+```jsonc
+{"type": "imagined", "robot": "pluggybot", "t": 112.4,     // sim s, the model made
+ "what": "a wooden chest with a back-hinged lid ...",      // its author's words
+ "parts": [{"id": "lid", "shape": "box",                   // box | cylinder
+            "size": [0.22, 0.3, 0.012],                    // the scene's conventions
+            "quat": [1, 0, 0, 0],                          // the geom's, local
+            "on": "body"}],                                // what it rides, or null
+ "rest": {"lid": [x, y, z, qw, qx, qy, qz]},               // drawn pose, every part
+ "joints": [{"id": "lid_hinge", "type": "hinge", "part": "lid",
+             "at": [x, y, z], "axis": [0, 1, 0],           // m; a unit vector
+             "range": [0, 1.92]}],                         // rad (a slide's m), or null
+ "replay": {"t0": 31.2, "hz": 20.0,                        // the probe's first row, s
+            "parts": ["lid", "strap", "tag"],              // the ones that move
+            "frames": [[[x, y, z, qw, qx, qy, qz], ...], ...]},   // a pose a part a tick
+ "rounds": 2, "revisions": 1,                              // how it was made
+ "attempts": {"made": 3, "this": 1, "passed": 1},          // a demo's: imaginings run
+ "residualN": {"take": 0.03, "up0": 0.12, ...}}            // N left at the jaws, a phase
+```
+
+- **A part is a scene body of one geom.** Its pose is the body's, as a
+  frame's are, and `size` and `quat` are its geom's on this file's
+  conventions (full extents; a cylinder's radius and length, its `quat`
+  already turning a ThreeJS cylinder onto the axis). A client builds a part
+  as it builds a scene body.
+- **Its frame is the robot's MAP**, which is anchored to the world's at the
+  dock: a client draws it as world coordinates, and the ghost sits off the
+  real object by the robot's own error of where it is -- part of what it
+  thinks.
+- **`attempts`** (a demo's, optional): the demo imagines afresh several
+  times at once and keeps the first, in order, whose model passed its bars
+  -- `this` is its index, `passed` how many did. A single imagining is the
+  batch's to measure; the demo shows the mechanism.
+- **`replay` is the model's own imagination of the probe**: the record's
+  commands replayed in the model's world, a frame every `1/hz` from `t0`.
+  Played against the recording from `t0`, the ghost's lid rises with the
+  real one, or not.
+- ⚠ **The robot's model, never the world's**: no mass, spring, damping,
+  friction or catch rides it, the fitted ones included -- the real chest's
+  are kept as `Task.secret` is, and the scene a demo carries draws its
+  hidden weight with no alpha, so no scene shows where it sits.
+
+The demo's recording and its scene are `scripts/imagine_chest.py --demo K
+--record PATH`'s, named `home_quad_chest` (a world of its own: the house,
+the quadruped and one drawn chest).
+
 ### 0.21.0, additive: a conversation is 500 characters both ways, and a cut reply says so (`visitor_reply.cut`)
 
 pluggybot #474. A visitor's `message` text and the robot's
@@ -2551,6 +2604,8 @@ against the body census.
 | `parts.json` | The **parts catalog** (issue #185): what Pluggy and its rack are made of and what the agent may build from, each part with its number, source, mass, price, status and the sim constants it FEEDS — every feed value read off the compiled world when the file is built. Not on the wire; vendored for the website's parts page. `schema` versions it, not `protocolVersion` | `uv run python -m pluggybot.rack.catalog` |
 | `scene.home_quad_pair.json` | The home world with the QUADRUPED pair and its dock (issue #387): what `serve.py --pair` streams | `uv run python -m pluggybot.telemetry.scene --world home_quad --pair` |
 | `telemetry.home_quad_pair.jsonl.gz` | The quadruped period's shape: no offers, no upkeep, #378's arm stowed on both backs (#405); the first robot, started low, walks to the dock, lies on it and charges while the second explores, then rests by reflex -- both maps and near fields. Started at 0.42 (#387's), the first robot left for the dock only once the second had finished and lay resting across its way home, and died stranded (#405: a finished robot does not yield) | `MUJOCO_GL=egl uv run python scripts/two_robots.py --world home_quad --fast --pack demo --near-field --errands none,none --battery 0.22,1.0 --max-sim-time 600 --record protocol/telemetry.home_quad_pair.jsonl.gz` |
+| `scene.home_quad_chest.json` | The demo's world (pluggybot #466): the house, ONE quadruped where the demo set-out starts it and the drawn chest where it stands (`evaluation.probe.spec_of`, `DEMO`) -- a world of its own, never the served one | `scripts/imagine_chest.py --demo 0 --record ...` (writes it beside the recording) |
+| `telemetry.home_quad_chest.jsonl.gz` | The demo's flight: the probe from the robot's own senses, the robot lying still while it imagines, and the ONE `imagined` event the site draws its ghost from; its author's answers vary run to run, so a new recording draws a new model | `MUJOCO_GL=egl uv run python scripts/imagine_chest.py --demo 0 --record protocol/telemetry.home_quad_chest.jsonl.gz --remote HOST:PORT` (`$HF_TOKEN`; the workers on a pod) |
 
 The flags each recording needs, and the two passes a recording with ink
 takes, are at the top of this file.

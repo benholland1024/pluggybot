@@ -20,9 +20,11 @@ built again.
 
 from __future__ import annotations
 
+from concurrent.futures import ThreadPoolExecutor
 import io
 import json
 import os
+import queue
 import subprocess
 import sys
 
@@ -33,6 +35,13 @@ from pluggybot.imagination.rollout import SETTLE_S, Diverged, Readings
 from pluggybot.imagination.scene import Refused, dump, parse
 
 HEADER = "__header__"
+
+
+class Unbuildable(RuntimeError):
+  """A document whose world could not be built or stepped (MuJoCo raised:
+  an arena overflowed, a compile failed): the document's failure, which a
+  fit and a round answer as they answer a world gone unstable -- never the
+  worker's, which serves on."""
 #: One thread a worker: a BLAS's own threads only fight the physics for the
 #: cores (`quad_spike.py`: six doubled a step), and llvmpipe's would start
 #: one a core.
@@ -78,12 +87,31 @@ def read_frame(stream) -> bytes | None:
   return blob
 
 
-def handle(blob: bytes, seed: int) -> bytes | None:
-  """One request's answer, or None for `stop`. ⚠ EVERY FAILURE IS AN ANSWER:
-  one the worker did not catch ended it for every request after (a document
-  of 24 piled parts overflowed MuJoCo's arena: `FatalError`)."""
+#: The records a worker keeps for `residual` requests, the oldest let go.
+KEPT_RECORDS = 4
+
+
+def record_id(record: Record) -> str:
+  """A record's name for `keep`: a hash of all it carries a rollout reads."""
+  import hashlib
+  head, arrays = record.to_wire()
+  h = hashlib.sha256(json.dumps(head, sort_keys=True).encode())
+  for name in sorted(arrays):
+    h.update(name.encode() + np.ascontiguousarray(arrays[name]).tobytes())
+  return h.hexdigest()[:20]
+
+
+def handle(blob: bytes, seed: int, kept: dict | None = None) -> bytes | None:
+  """One request's answer, or None for `stop`: a `rollout` (its readings),
+  a `record` to keep (`KEPT_RECORDS`, in `kept`), or a `residual` -- a kept
+  record's commands rolled out and answered as the binned force their
+  readings put apart from the record's (`fit.residual`), all a fit's search
+  reads. ⚠ EVERY FAILURE IS AN ANSWER: one the worker did not catch ended it
+  for every request after (a document of 24 piled parts overflowed MuJoCo's
+  arena: `FatalError`)."""
   from pluggybot.imagination.compile import compile_scene
   from pluggybot.imagination.rollout import rollout
+  kept = {} if kept is None else kept
   try:
     header, arrays = unpack(blob)
   except Exception as e:                                  # noqa: BLE001
@@ -91,20 +119,39 @@ def handle(blob: bytes, seed: int) -> bytes | None:
   kind = header.get("kind")
   if kind == "stop":
     return None
-  if kind != "rollout":
+  if kind not in ("rollout", "record", "residual"):
     return pack({"ok": False, "error": f"no request {kind!r}"})
   try:
+    if kind == "record":
+      kept[str(header["id"])] = Record.from_wire(header["record"], arrays)
+      while len(kept) > KEPT_RECORDS:
+        kept.pop(next(iter(kept)))
+      return pack({"ok": True})
+    if kind == "residual":
+      record = kept.get(str(header["id"]))
+      if record is None:
+        return pack({"ok": False, "missing": str(header["id"])})
+    else:
+      record = Record.from_wire(header["record"], arrays)
     scene = parse(header["document"])
-    record = Record.from_wire(header["record"], arrays)
+  except Refused as e:
+    return pack({"ok": False, "refused": e.reasons})
+  except Exception as e:                                  # noqa: BLE001
+    return pack({"ok": False, "error": f"{type(e).__name__}: {e}"})
+  # the document's own world: what fails building or stepping it is the
+  # document's (`Unbuildable`), never the request's
+  try:
     world = compile_scene(scene, carrying=record.start.carrying)
     out = rollout(world, record, settle_s=float(header.get("settle_s", SETTLE_S)),
                   noise_seed=seed if header.get("noisy") else None)
-  except Refused as e:
-    return pack({"ok": False, "refused": e.reasons})
+    if kind == "residual":
+      from pluggybot.imagination.fit import residual
+      a, b = (int(v) for v in header["rows"])
+      return pack({"ok": True}, {"bins": residual(record.sensed, out, slice(a, b), record.dt)})
   except Diverged as e:
     return pack({"ok": False, "diverged": str(e)})
   except Exception as e:                                  # noqa: BLE001
-    return pack({"ok": False, "error": f"{type(e).__name__}: {e}"})
+    return pack({"ok": False, "unbuildable": f"{type(e).__name__}: {e}"})
   head, out_arrays = out.to_wire()
   return pack({"ok": True, **head}, out_arrays)
 
@@ -121,23 +168,45 @@ def main(argv=None) -> None:
   os.dup2(2, 1)
   sys.stdout = sys.stderr
   inp = sys.stdin.buffer
+  kept: dict = {}
   while (blob := read_frame(inp)) is not None:
-    answer = handle(blob, args.seed)
+    answer = handle(blob, args.seed, kept)
     if answer is None:
       return
     write_frame(out, answer)
 
 
+def _raise(header: dict) -> None:
+  """A failed answer as what it was: refused, unstable, unbuildable -- the
+  document's -- or the request's own error."""
+  if "refused" in header:
+    raise Refused(header["refused"])
+  if "diverged" in header:
+    raise Diverged(header["diverged"])
+  if "unbuildable" in header:
+    raise Unbuildable(header["unbuildable"])
+  raise RuntimeError(header.get("error", "the worker did not say"))
+
+
+def command(seed: int = 0) -> list[str]:
+  """The worker's own command line, here."""
+  return [sys.executable, "-m", "pluggybot.imagination.worker", "--seed", str(int(seed))]
+
+
 class Imagination:
   """A worker process and the requests it serves: `rollout(document,
-  record)`."""
+  record)`, and `residual(document, record, rows)`. It is started by
+  `argv` -- by default this machine's `command`; any command whose stdin
+  and stdout are the worker's will do (an `ssh` to a pod's, the same frames
+  over its pipe) -- and a command of the caller's sets its own threads."""
 
-  def __init__(self, seed: int = 0) -> None:
+  def __init__(self, seed: int = 0, argv: list[str] | None = None) -> None:
     self.seed = int(seed)
     self.closed = False
-    self.process = subprocess.Popen(
-      [sys.executable, "-m", "pluggybot.imagination.worker", "--seed", str(self.seed)],
-      stdin=subprocess.PIPE, stdout=subprocess.PIPE, env={**os.environ, **ONE_THREAD})
+    self.held: set[str] = set()
+    env = None if argv is not None else {**os.environ, **ONE_THREAD}
+    self.process = subprocess.Popen(argv or command(self.seed), stdin=subprocess.PIPE,
+                                    stdout=subprocess.PIPE, env=env)
 
   def _ask(self, blob: bytes) -> tuple[dict, dict]:
     """One request and its answer. ⚠ A request cut off half way -- an
@@ -176,17 +245,39 @@ class Imagination:
     header, out = self._ask(pack({"kind": "rollout", "document": canonical, "record": head,
                                   "settle_s": float(settle_s), "noisy": bool(noisy)}, arrays))
     if not header.get("ok"):
-      if "refused" in header:
-        raise Refused(header["refused"])
-      if "diverged" in header:
-        raise Diverged(header["diverged"])
-      raise RuntimeError(header.get("error", "the worker did not say"))
+      _raise(header)
     readings = Readings.from_wire(header, out)
     if len(readings.t) != record.n:
       self._end()
       raise RuntimeError(f"the worker answered {len(readings.t)} rows to a record of "
                          f"{record.n}: it is out of step, and ended")
     return readings
+
+  def residual(self, document: dict, record: Record, rows: slice,
+               settle_s: float = SETTLE_S) -> np.ndarray:
+    """`fit.residual` of `record`'s rollout in `document`'s world over `rows`,
+    worked out in the worker: the record is sent once and kept there
+    (`KEPT_RECORDS`), sent again if the worker let it go. Raises as
+    `rollout` does."""
+    canonical = dump(parse(document))
+    rid = record_id(record)
+    for _ in range(2):
+      if rid not in self.held:
+        head, arrays = record.to_wire()
+        header, _ = self._ask(pack({"kind": "record", "id": rid, "record": head}, arrays))
+        if not header.get("ok"):
+          raise RuntimeError(header.get("error", "the worker did not keep the record"))
+        self.held.add(rid)
+      header, out = self._ask(pack({"kind": "residual", "document": canonical, "id": rid,
+                                    "rows": [rows.start or 0, rows.stop],
+                                    "settle_s": float(settle_s)}))
+      if header.get("missing"):
+        self.held.discard(rid)
+        continue
+      if not header.get("ok"):
+        _raise(header)
+      return out["bins"]
+    raise RuntimeError("the worker let the record go twice")
 
   def _end(self) -> None:
     if self.process.poll() is None:
@@ -215,6 +306,66 @@ class Imagination:
         pass
 
   def __enter__(self) -> "Imagination":
+    return self
+
+  def __exit__(self, *exc) -> None:
+    self.close()
+
+
+class Imaginations:
+  """`n` workers serving rollouts at once (`rollouts`): each request goes to
+  whichever is free, and the answers come back in the order asked. Whoever
+  served one, the answer is the same: a rollout steps no randomness of its
+  own, and every worker has the one seed."""
+
+  def __init__(self, n: int, seed: int = 0, argv: list[str] | None = None) -> None:
+    if n < 1:
+      raise ValueError(f"a pool has a worker or more, not {n}")
+    self.workers = [Imagination(seed, argv) for _ in range(n)]
+    self._free: queue.SimpleQueue = queue.SimpleQueue()
+    for w in self.workers:
+      self._free.put(w)
+    self._threads = ThreadPoolExecutor(n)
+
+  @property
+  def n(self) -> int:
+    return len(self.workers)
+
+  def rollouts(self, documents, record: Record, settle_s: float = SETTLE_S) -> list:
+    """Each document's rollout of `record`, in order: its `Readings`, or the
+    `Refused`, `Diverged` or `Unbuildable` it was refused with. Any other
+    failure raises."""
+    def one(document):
+      w = self._free.get()
+      try:
+        return w.rollout(document, record, settle_s)
+      except (Refused, Diverged, Unbuildable) as e:
+        return e
+      finally:
+        self._free.put(w)
+    return list(self._threads.map(one, list(documents)))
+
+  def residuals(self, documents, record: Record, rows: slice,
+                settle_s: float = SETTLE_S) -> list:
+    """Each document's `Imagination.residual`, in order: its bins, or the
+    `Refused`, `Diverged` or `Unbuildable` it was refused with. Any other
+    failure raises."""
+    def one(document):
+      w = self._free.get()
+      try:
+        return w.residual(document, record, rows, settle_s)
+      except (Refused, Diverged, Unbuildable) as e:
+        return e
+      finally:
+        self._free.put(w)
+    return list(self._threads.map(one, list(documents)))
+
+  def close(self) -> None:
+    self._threads.shutdown()
+    for w in self.workers:
+      w.close()
+
+  def __enter__(self) -> "Imaginations":
     return self
 
   def __exit__(self, *exc) -> None:

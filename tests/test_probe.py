@@ -203,6 +203,83 @@ def test_lying_the_box_is_refound_by_its_front_face_and_the_guess_moved_with_it(
   assert moved.yaw == pytest.approx(g.yaw + error[2], abs=math.radians(0.15))
 
 
+def _in_box(p) -> np.ndarray:
+  """A map point in the chest's own frame, mm."""
+  c, s = math.cos(CHEST[2]), math.sin(CHEST[2])
+  dx, dy = p[0] - CHEST[0], p[1] - CHEST[1]
+  return 1000 * np.array([c * dx + s * dy, -s * dx + c * dy, p[2]])
+
+
+def test_the_box_is_measured_in_its_own_frame_off_its_front_face(scene, measured):
+  # What its model's author is shown (#466 stage 3): the top's depth, width
+  # and height, the bracket and the knob, in a frame on the floor under the
+  # middle of its front face -- the chest's own, here.
+  from pluggybot.imagination.record import Record
+  g, cloud = measured
+  rec = Record(start=_start(), dt=0.002, commands=np.zeros((1, 6)), depth=(cloud,))
+  s = pr.sizes(rec, g)
+  assert isinstance(s, pr.Sizes), s
+  # the back edge within the 2 mm the hinge's own test allows, at a turn
+  assert (s.depth, s.width, s.top) == (pytest.approx(1000 * ch.BOX_D, abs=2.0),
+                                       pytest.approx(1000 * ch.BOX_W, abs=1.5),
+                                       pytest.approx(1000 * (ch.BOX_H + ch.LID_T), abs=1.0))
+  tip = ch.HINGE[0] + ch.PIN[0]                            # the bracket ends at the pin
+  assert s.tip == pytest.approx(1000 * tip, abs=1.0)
+  assert s.bracket_width == pytest.approx(12.0, abs=1.0)
+  assert s.bracket_top == pytest.approx(1000 * (ch.BOX_H + ch.PIN_Z + 0.004), abs=1.0)
+  assert np.allclose(s.origin, 1000 * np.array(CHEST[:2]), atol=1.0)
+  assert s.yaw == pytest.approx(math.degrees(CHEST[2]), abs=0.3)
+  assert np.allclose(s.knob, _in_box(scene.knob), atol=1.0)
+  assert s.knob_size == 26.0
+
+
+def test_the_front_is_its_faces_place_never_the_tops_near_edge(scene, measured):
+  # The premise: the face's own points stand at the top's near edge and pull
+  # a window's mean toward the robot (`perception.box`'s faced edge) -- off
+  # the top, the front read 7.5 mm short and the box 227 mm deep.
+  g, cloud = measured
+  u = np.array([math.cos(g.yaw), math.sin(g.yaw)])
+  v = np.array([-u[1], u[0]])
+  rel = cloud[:, :2] - np.asarray(g.knob[:2])
+  pu, pv = rel @ u, rel @ v
+  on = box.on_top(cloud, g.top)
+  near = box.edge(pu[on & (np.abs(pv) > pr.BESIDE_M)], far=False)
+  face = pr.front_face(cloud, g)[0]
+  truth = float((np.array(CHEST[:2]) - g.knob[:2]) @ u)
+  assert face == pytest.approx(truth, abs=0.001)
+  assert truth - near > 0.004, "the top's near edge reads toward the robot"
+
+
+def _start():
+  from pluggybot.imagination.record import Start
+  return Start(pose=(0.0, 0.0, 0.0), attitude=(0.0, 0.0), legs=(0.0,) * 12, arm=(2.2, 0.4))
+
+
+def test_the_jaws_path_an_author_is_shown_is_the_encoders_in_the_boxs_frame():
+  # Its motion as its arm felt it, in the frame the author draws in: a box
+  # turned a quarter round, 1 m ahead, sees the jaws' x as its own -y.
+  from pluggybot.imagination.record import Record
+  from pluggybot.legs.model import CHOSEN
+  n = 1000
+  sensed = np.zeros((n, 4))
+  sensed[:, 2], sensed[:, 3] = 2.2, np.linspace(0.4, 0.9, n)
+  rec = Record(start=_start(), dt=0.002, commands=np.zeros((n, 6)), sensed=sensed)
+  frame = pr.Frame(0.0, 0.0, 0.0, 0.105)
+  probed = pr.Probed(record=rec, frame=frame, phases={"take": (0, 200), "up0": (200, n)})
+  s = pr.Sizes(origin=(1000.0, 0.0), yaw=90.0, depth=220.0, width=300.0, top=152.0,
+               tip=-50.0, bracket_top=150.0, bracket_width=12.0, knob=(-60.0, 0.0, 88.0),
+               knob_size=26.0)
+  lines = pr.did(probed, s).splitlines()
+  points = [ln for ln in lines if ln.strip().endswith(")")]
+  assert len(points) == pr.PATH_POINTS and points[0].split()[0] == "0.0"
+  jaws = 1000 * pr.jaws_seen(rec, frame, CHOSEN.arm)
+  import re
+  x, y, z = (float(t) for t in re.findall(r"-?\d+\.\d", points[-1].split("s", 1)[1]))
+  assert (x, y, z) == (pytest.approx(jaws[n - 1, 1], abs=0.1),
+                       pytest.approx(1000.0 - jaws[n - 1, 0], abs=0.1),
+                       pytest.approx(jaws[n - 1, 2], abs=0.1))
+
+
 def test_the_calibration_sweeps_only_over_bare_floor():
   frame = pr.Frame(0.0, 0.0, 0.0, 0.3)
   cup = np.array([[0.5, 0.01, 0.06]])
@@ -330,8 +407,11 @@ def test_a_probe_crosses_the_wire_whole():
                   calibration=Record(start=st, dt=0.002, commands=np.zeros((2, 6)),
                                      sensed=np.zeros((2, 4))),
                   friction=(0.1, 0.12), guess=g, frame=pr.Frame(1.0, 2.0, 0.3, 0.105), t0=4.0,
-                  log={"tries": [{"walkIn": "stopped"}]})
+                  log={"tries": [{"walkIn": "stopped"}]},
+                  picture=pr.jpeg(np.full((72, 128, 3), 90, dtype=np.uint8)))
+  assert out.picture[:3] == b"\xff\xd8\xff", "a JPEG"
   back = pr.Probed.from_wire(*unpack(pack(*out.to_wire())))
+  assert back.picture == out.picture
   assert back.guess == g and back.frame == out.frame and back.phases == out.phases
   assert np.array_equal(back.record.commands, rec.commands)
   assert np.array_equal(back.record.depth[0], rec.depth[0])
@@ -482,7 +562,7 @@ def _stubbed(monkeypatch, fell=lambda: False, reach=True, sweep=True):
                          to_routine=lambda *a, **kw: _steps("to", reach),
                          move_routine=lambda *a, **kw: _steps("move"))
   probe = object.__new__(pr.Probe)
-  probe.mis, probe.clouds, probe.detections = mis, [], []
+  probe.mis, probe.clouds, probe.detections, probe.picture = mis, [], [], None
   probe.follow_routine = lambda *a: _steps("sweep", sweep)
   probe.held_down = lambda rec, friction: 1.0
   return probe, hand, arm
