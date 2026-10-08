@@ -73,7 +73,9 @@ MAX_RESUMES = 3
 #: clock, the packs, the deaths and the jobs, never the bodies, the beliefs
 #: or the maps (nor the places found in them) -- and History says why
 #: (`MAPS_DROPPED`). 1: #425, the heading walked while the quadrupeds lay.
-MAP_EPOCH = 1
+#: 2: #476, both maps askew again (Rowan's heading 12.5 deg off after every
+#: stand-up; Luca 5.0 m and Rowan 8.0 m from the truth on 2026-10-08).
+MAP_EPOCH = 2
 MAPS_DROPPED = "the map I had was laid askew, and it is gone"
 
 
