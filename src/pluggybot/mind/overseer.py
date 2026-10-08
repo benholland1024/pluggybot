@@ -596,9 +596,10 @@ class Decision:
   #: costs no turn.
   #:
   #: Empty means NO CHANGE, not "clear it" (`events.parse`), and a list
-  #: MERGES into the map in force (issue #475; `events.EventMap.edit`): each
-  #: rule takes the place of the one with its trigger, or is added, and one
-  #: whose action is `events.REMOVE` takes that rule out. Applied by
+  #: MERGES into the map in force (issue #475; `events.EventMap.edit`): a
+  #: rule new to it is added, one whose action is `events.REMOVE` takes the
+  #: rule with its trigger out, and a rule sent beside that takes its place.
+  #: Applied by
   #: `_record` from a decision the model actually made, on
   #: `standing_order`'s terms: a fallback that could rewrite the map would
   #: let code edit the artifact this issue exists to measure.
@@ -940,9 +941,9 @@ FIELD_INDEX: tuple[tuple[str, str, object, str], ...] = (
   ("standing_order", "standing_orders", "IF YOU CANNOT BE REACHED",
    "one action to fall back on if nobody can be asked next time."),
   ("event_map", "event_map", "WHEN YOU ARE ASKED",
-   "rules for your list saying who is asked and when: each goes into it, "
-   "in place of a rule of yours with the same `event`, `kind` and `value`, "
-   "or added. One whose action is `remove` takes that rule out instead."),
+   "rules for your list saying who is asked and when: a rule new to it is "
+   "added; one whose action is `remove` takes out your rule with the same "
+   "`event`, `kind` and `value`, and a rule sent with it takes its place."),
   ("buy_heart", "hearts", "YOU CAN DIE",
    "buy a life back for the points the table says. It takes no turn."),
   ("escalate", "escalation", "THINKING HARDER",
@@ -2804,13 +2805,14 @@ the limit, and late is dead. Leave yourself room.
 
 Sending an empty list means "leave it as it is". A rule you send goes INTO \
 your list; it does not replace the list. A rule is named by what it fires \
-on -- its `event`, `kind` and `value` -- and one with the same name as a \
-rule you have takes that rule's place, where it stands. Any other is added \
-at the end -- unless it has a `kind` and a rule on the same event already \
-takes that kind (an empty `kind`, or a wider one), and then it goes just \
-ahead of that rule, so it is not starved. A rule whose action is `remove` \
-takes the rule with its name out instead, and nothing else takes a rule \
-out. The list holds at most 12 rules, and a rule that would make it longer \
+on -- its `event`, `kind` and `value`. A rule whose action is `remove` \
+takes the rule with its name out, and nothing else takes a rule out. One \
+you send with the name of a rule you have changes nothing, unless the same \
+answer also sends that name with `remove`: then it takes that rule's \
+place, where it stands. Any other is added at the end -- unless it has a \
+`kind` and a rule on the same event already takes that kind (an empty \
+`kind`, or a wider one), and then it goes just ahead of that rule, so it \
+is not starved. The list holds at most 12 rules, and a rule that would make it longer \
 is left out. Every change to your list is written into your History, with \
 the list as it then stands.\
 """
@@ -4859,16 +4861,18 @@ class Overseer:
     did, for History. None where there is no map or the answer said
     nothing of it.
 
-    ⚠ A LIST MERGES (`EventMap.edit`): each rule takes the place of the one
-    with its trigger, or is added, and only a `remove` takes one out.
+    ⚠ A LIST MERGES (`EventMap.edit`): a rule new to the map is added, one
+    with the trigger of a rule there and another action replaces it only
+    beside a `remove` of it, and only a `remove` takes one out.
 
     ⚠ THE ORDER GOES IN AFTER THE LIST, in place of the catch-all
-    `decision_failed` rule -- unless the list names that rule itself: then
-    the list's own word stands, a `remove` included, and the order is not
-    in force (found in review: an order outranking it made the catch-all a
-    rule the robot could not take out while it filled the order). The list
-    is the field this prompt describes; the order is the one it never names
-    where there is a list (`MIGRATED_FIELDS`).
+    `decision_failed` rule: it rides with a `remove` of that rule, so it
+    replaces it as it always did. Unless the list names that rule itself:
+    then the list's own word stands, a `remove` included, and the order is
+    not in force (found in review: an order outranking it made the
+    catch-all a rule the robot could not take out while it filled the
+    order). The list is the field this prompt describes; the order is the
+    one it never names where there is a list (`MIGRATED_FIELDS`).
 
     ⚠ AND THE ORDER'S ROW IS IN PLACE. `STANDING_ORDER_RULE` tells the
     robot to set an order on EVERY answer, so an append would grow the map
@@ -4884,7 +4888,9 @@ class Overseer:
     if order is not None and any(r.trigger == order.trigger
                                  for r in decision.event_map):
       order, self.standing_order = None, ""
-    sent = list(decision.event_map) + ([order] if order is not None else [])
+    sent = list(decision.event_map) + (
+      [ev.Row(event=order.event, action=ev.REMOVE), order]
+      if order is not None else [])
     if not sent:
       return None
     before = self.event_map

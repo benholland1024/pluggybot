@@ -15,13 +15,16 @@ observatory is NOT a result: it reports into the issue it informs.
 **What changed in the mind.** What an answer's `event_map` does, on every
 arm with a map (the deployed pair's). What was sent used to REPLACE the
 list, and one or two rules written where `[]` was meant took whole lists
-with them, their `ask` rows included. Now a rule goes INTO the list: it
-takes the place of the rule with the same event, kind and value, where
-that rule stands, or is added, at the end or just ahead of a wider rule
-on its event. A rule whose action is the new `remove` takes the rule with
-its name out, and nothing else removes one, so the last `ask` can still go
-and a list can now be emptied (and an emptied list comes back empty after
-a restart). Where an answer names one rule twice, the last counts. A list
+with them, their `ask` rows included. Now a rule goes INTO the list: one
+new to it is added, at the end or just ahead of a wider rule on its event.
+A rule whose action is the new `remove` takes the rule with its name (event,
+kind and value) out, and nothing else removes one, so the last `ask` can
+still go and a list can now be emptied (and an emptied list comes back
+empty after a restart). A rule sent with the name of one the list has and
+another action is HELD, and said, unless the same answer also removes that
+rule: then it takes its place. Replayed through the merge, all 14 of the
+edits behind the deaths below keep a rule that asks; 3 of them only
+because of the hold. Where an answer names one rule twice, the last counts. A list
 past 12 rules adds what fits and says what it left out; the standing order
 no longer cuts the last rule to fit its own, on a full list it is not in
 force, and where the list names the catch-all `decision_failed` rule
@@ -38,7 +41,7 @@ paragraph, which now also tells the 12-rule cap a list can reach by adding.
 answered once", where it said "only while the list is still empty", which
 read as true of a list emptied later. `event_map`'s index line moved, and the
 schema's row action enum gained `remove`. The deployed prefix moved
-`6cefb146…` → `004362b5…` (52 709 → 53 344 characters). A rule taken out and
+`6cefb146…` → `55c3cf47…` (52 709 → 53 420 characters). A rule taken out and
 sent again later starts as a new rule (the event clock forgets it). The arm, the reward table, the world and the wire did
 not move: the `event_map` message is as it was, and a decision row's
 `eventMap` carries a `remove` as sent.
@@ -51,8 +54,9 @@ meant, as the list had been: in 40 answers it took out 6 rules that no
 reasoning mentioned, the charging rule among them. As an action of a rule
 in the list, `remove` appeared in none of 59. In the same 99 answers, 29
 sent a one- or two-rule list the old code would have put in place of the
-8 rules. Merged, they changed nothing, added a threshold, or once turned
-`battery_below 0.3 -> charge` into `-> ask`, and none lost an `ask`.
+8 rules. Merged, they changed nothing or added a threshold; one would have
+turned `battery_below 0.3 -> charge` into `-> ask`, and with no `remove`
+beside it that is held now. None lost an `ask`.
 
 **What the period is for.** The rows before it: 14 `unminded` deaths on
 8f68f54 between 2026-10-05 21:00 and 10-06 21:00 (Luca 11, Rowan 3), each
@@ -70,9 +74,12 @@ here:
 - **How many removals were named**, per robot per day, and how many took
   out an `ask`. On the observatory, a removal is an `edit` whose map lost
   a rule with no new rule of the same event, kind and value.
-- **Replaced actions.** A list can still change a rule's action by slip,
-  as the one `charge` → `ask` above did. Count `edit`s where a rule kept
-  its event, kind and value and changed its action, and which way.
+- **Held rules and replacements.** A rule sent with a name the list has
+  and another action changes nothing unless a `remove` of it rides beside
+  it; a held one is a History line, never an edit. Count replacements
+  (`edit`s where a rule kept its event, kind and value and changed its
+  action) and which way they went, and from the box, how often a History
+  line says "Not replaced".
 - **Whether the lists grow.** A robot that goes on sending whole lists now
   adds what it meant to drop. Watch the rules per map, and how often a
   History line says "Left out".

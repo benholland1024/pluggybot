@@ -303,8 +303,8 @@ class Row:
   @property
   def trigger(self) -> tuple[str, str, float | None]:
     """What this row fires ON -- its event, its filter and its level -- and
-    so its NAME (issue #475): a rule an answer sends takes the place of the
-    one with its trigger, and a removal names a rule by it.
+    so its NAME (issue #475): a `remove` names a rule by it, and a rule an
+    answer sends beside one takes the place of the rule with its trigger.
 
     ⚠ THE VALUE IS PART OF IT. Two thresholds on one event are two rules,
     and 29 of 427 live edits (2026-09-28 to 10-08) carried such a pair --
@@ -391,46 +391,56 @@ class EventMap:
 
     ⚠ A LIST MERGES, IT NEVER REPLACES: `event_map` is written on every
     answer, and a list that replaced the map took its `ask` rows with it
-    (14 `unminded` deaths in a day). A rule takes the place of the one with
-    its trigger, IN PLACE; any other goes at the end, or, where it has a
-    `kind`, just ahead of the first rule on its event that takes it
-    (`_covers`), so a catch-all already there does not starve it. A level
-    or periodic rule has no kind and is never starved (`shadowed`). Only a
-    `REMOVE` takes a rule out -- every row with that trigger -- and the
-    removals go first, so they make room.
+    (14 `unminded` deaths in a day). A rule new to the map goes at the end,
+    or, where it has a `kind`, just ahead of the first rule on its event
+    that takes it (`_covers`), so a catch-all already there does not starve
+    it. A level or periodic rule has no kind and is never starved
+    (`shadowed`). Only a `REMOVE` takes a rule out -- every row with that
+    trigger -- and the removals go first, so they make room.
 
-    ⚠ THE LAST RULE SENT FOR A TRIGGER COUNTS, so an answer cannot report a
-    rule both taken out and put back. The standing order (#125) is sent
-    last, an unfiltered `decision_failed` rule, so it can never touch an
-    `on timeout, charge` -- and only where the list does not name its rule
-    (`Overseer._install_map`).
+    ⚠ A RULE NEVER CHANGES ANOTHER'S ACTION BY ITSELF (Ben, 2026-10-08,
+    after a replay of the issue's 14 deaths): sent with the trigger of a
+    rule here and another action, it is HELD -- not applied, and said --
+    unless the same answer also sends that trigger with `REMOVE`; then it
+    takes that rule's place, IN PLACE (a duplicate of it goes). Replaced in
+    place by a slip, `nothing_to_do -> take_task` took the only `ask` of 3
+    of the 14. Where an answer sends one trigger twice, its last rule
+    counts. The standing order (#125) rides with a `REMOVE` of its own
+    trigger, so it replaces the catch-all as it always did -- and only
+    where the list does not name it (`Overseer._install_map`).
 
     ⚠ NOTHING IS DROPPED TO MAKE ROOM: past `MAX_ROWS` a rule is left out
     and said. The fold this replaced cut the last row to fit, and a rule
     gone in silence is one the robot believes it has.
     """
+    named = {r.trigger for r in sent if r.action == REMOVE}
     latest = {}
     for r in sent:
-      latest[r.trigger] = r
-    rows, removed, absent = list(self.rows), [], []
-    for trigger, r in latest.items():
       if r.action != REMOVE:
-        continue
+        latest[r.trigger] = r
+    rows, removed, absent = list(self.rows), [], []
+    for trigger in dict.fromkeys(r.trigger for r in sent if r.action == REMOVE):
+      if trigger in latest:
+        continue                                 # a replacement, below
       hits = [x for x in rows if x.trigger == trigger]
       if hits:
         removed += hits
         rows = [x for x in rows if x.trigger != trigger]
       else:
         absent.append(trigger)
-    added, replaced, left_out = [], [], []
+    added, replaced, held, left_out = [], [], [], []
     for trigger, r in latest.items():
-      if r.action == REMOVE:
-        continue
-      i = next((i for i, x in enumerate(rows) if x.trigger == trigger), None)
-      if i is not None:
-        if rows[i] != r:
-          replaced.append((rows[i], r))
-          rows[i] = r
+      hits = [i for i, x in enumerate(rows) if x.trigger == trigger]
+      if hits and trigger in named:
+        removed += [rows[i] for i in hits[1:]]
+        was = rows[hits[0]]
+        rows = [x for i, x in enumerate(rows) if i not in hits[1:]]
+        if was != r:
+          replaced.append((was, r))
+          rows[hits[0]] = r
+      elif hits:
+        if r not in rows:
+          held.append((rows[hits[0]], r))
       elif len(rows) >= MAX_ROWS:
         left_out.append(r)
       else:
@@ -439,14 +449,15 @@ class EventMap:
         rows.insert(j, r)
         added.append(r)
     return Edit(EventMap(tuple(rows)), tuple(added), tuple(replaced),
-                tuple(removed), tuple(absent), tuple(left_out))
+                tuple(removed), tuple(absent), tuple(left_out), tuple(held))
 
 
 class Edit(NamedTuple):
   """What one answer did to the map (issue #475): the map it left; each
   rule it added, each it replaced as `(was, now)`, each it removed; each
-  removal that named no rule there; and each new rule left out for want of
-  room. `said` is the History line."""
+  removal that named no rule there; each new rule left out for want of
+  room; and each rule held as `(kept, sent)` -- sent with another action
+  and no `REMOVE` beside it. `said` is the History line."""
 
   emap: EventMap
   added: tuple[Row, ...] = ()
@@ -454,6 +465,7 @@ class Edit(NamedTuple):
   removed: tuple[Row, ...] = ()
   absent: tuple[tuple, ...] = ()
   left_out: tuple[Row, ...] = ()
+  held: tuple[tuple[Row, Row], ...] = ()
 
   @property
   def changed(self) -> bool:
@@ -463,7 +475,7 @@ class Edit(NamedTuple):
   def worth_saying(self) -> bool:
     """Anything the robot would not see by sending the same list again:
     an answer that resends rules it has does nothing, and says nothing."""
-    return self.changed or bool(self.absent or self.left_out)
+    return self.changed or bool(self.absent or self.left_out or self.held)
 
   def said(self) -> str:
     """One History line, as a FACT, never a verdict: what the answer did to
@@ -482,6 +494,10 @@ class Edit(NamedTuple):
                                          for was, now in self.replaced) + ".")
     if self.removed:
       out.append(f"Removed {rules(self.removed)}.")
+    if self.held:
+      out.append("Not replaced, as this answer sent no `remove` for them: "
+                 + "; ".join(f"{kept.said()} (sent -> {sent.action})"
+                             for kept, sent in self.held) + ".")
     if self.left_out:
       out.append(f"Left out, as a list holds at most {MAX_ROWS} rules: "
                  f"{rules(self.left_out)}.")

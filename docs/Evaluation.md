@@ -276,9 +276,10 @@ measurement.
 ⚠ **THE ORDER IS THE AGENT'S EDITS'.** Several rows can be live on one tick,
 and an undefined order would break §1's determinism; ordering also makes
 priority a choice to score off the config. Since #475 the agent does not
-place a rule it sends: it goes in place of the rule with its trigger, just
-ahead of a wider rule on its event, or at the end (`EventMap.edit`), so
-`ordered` reads the order thresholds were added in.
+place a rule it sends: a new one goes just ahead of a wider rule on its
+event, or at the end, and one replaces a rule only beside a `remove` of it,
+in place (`EventMap.edit`), so `ordered` reads the order thresholds were
+added in.
 
 #### ⚠ The reason to want it: a map is EVALUABLE WITHOUT FLYING
 

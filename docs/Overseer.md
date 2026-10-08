@@ -1340,8 +1340,12 @@ otherwise).
   wake", under a rule that already said in capitals that a one-rule list is
   a one-rule list. Now (`EventMap.edit`):
   - a rule is NAMED by what it fires on, `Row.trigger`: event, kind and
-    VALUE. It takes the place of the rule with its trigger, where that one
-    stands. Any other goes at the end, or, where it has a `kind`, just
+    VALUE. ⚠ ONE SENT WITH THE NAME OF A RULE THERE AND ANOTHER ACTION IS
+    HELD -- not applied, and said in History -- unless the same answer also
+    sends that name with `remove`; then it takes the rule's place, where it
+    stands (Ben, 2026-10-08, after the replay below: replaced in place by a
+    slip, `nothing_to_do -> take_task` took the only `ask` of 3 of the 14).
+    A rule new to the map goes at the end, or, where it has a `kind`, just
     ahead of the first rule on its event that takes it (`_covers`: a reason
     ahead of its class, a class ahead of the catch-all), so a catch-all
     there does not starve it. ⚠ The value is in the key because two
@@ -1400,12 +1404,14 @@ otherwise).
   The same 99 answers show what the merge buys: 29 sent a one- or two-rule
   list the old code would have put in place of the 8 rules, almost all of
   them leaving no `ask`. Merged, they changed nothing, added a threshold,
-  or once turned `battery_below 0.3 -> charge` into `-> ask`, and none lost
-  an `ask`. A list can still replace a rule's action by slip, which the
-  History line shows. ⚠ Replayed through the merge, the 14 edits of the
-  issue's table keep a firing `ask` in 11; the other 3 are that slip, a
-  rule sent on the trigger of an `ask` rule with another action
-  (`nothing_to_do -> take_task` over `nothing_to_do -> ask`). The prompt's
+  or once turned `battery_below 0.3 -> charge` into `-> ask` -- held now,
+  with no `remove` beside it -- and none lost an `ask`. ⚠ The 14 edits of
+  the issue's table, replayed through the merge
+  (`test_none_of_the_fourteen_edits_that_killed_leaves_the_robot_unasked`),
+  all keep a rule that asks on an event that comes round: 11 by the merge
+  alone, 3 because a rule sent on an `ask` rule's trigger with another
+  action is held -- which replacing in place, as first built, let
+  through. The prompt's
   paragraph and the field's index line state all of this as facts,
   prescribe nothing and show no rule; it says "THE ORDER DECIDES" where it
   said "is yours", and `UNSEEDED_RULE` says the robot is asked without a

@@ -283,7 +283,8 @@ def test_a_list_and_an_order_on_one_answer_both_land(menu):
   boss = make(menu, full(action="idle", standing_order="explore",
                          event_map=rows(("battery_below", "charge", 0.2, ""))),
               full(action="explore", standing_order="charge",
-                   event_map=rows(("decision_failed", "take_task", 0, ""))),
+                   event_map=out(("decision_failed", 0, ""))
+                   + rows(("decision_failed", "take_task", 0, ""))),
               full(action="idle", standing_order="charge",
                    event_map=rows(("decision_failed", ev.REMOVE, 0, ""))))
   boss.decide(_state(0.9))
@@ -323,8 +324,8 @@ def test_an_ask_on_decision_failed_is_a_failed_action_not_an_order(menu):
   """"When you cannot be asked, ask" is a spin. Counted as an `unrunnable`
   action rather than refused at validation, because refusing it would be
   code rejecting a map the agent may write."""
-  boss = make(menu, full(action="idle", event_map=rows(
-    ("decision_failed", ev.ASK, 0, ""))))
+  boss = make(menu, full(action="idle", event_map=out(("decision_failed", 0, ""))
+                         + rows(("decision_failed", ev.ASK, 0, ""))))
   boss.decide(_state(0.9))
   assert boss.failure_order("timeout") == ""
   assert boss.rows_failed["unrunnable"] >= 1
@@ -341,10 +342,10 @@ def test_a_failure_row_may_name_a_reason_a_class_or_nothing(menu):
   CLAUDE.md predicted this shape before it was built: "an agent saying `on
   timeout, charge; on garbled, idle` is expressing a policy about its own
   failure modes, and the two genuinely warrant different answers"."""
-  boss = make(menu, full(action="idle", event_map=rows(
-    ("decision_failed", "charge", 0, "timeout"),
-    ("decision_failed", "idle", 0, "failure"),
-    ("decision_failed", "explore", 0, ""))))
+  boss = make(menu, full(action="idle", event_map=out(("decision_failed", 0, ""))
+                         + rows(("decision_failed", "charge", 0, "timeout"),
+                                ("decision_failed", "idle", 0, "failure"),
+                                ("decision_failed", "explore", 0, ""))))
   boss.decide(_state(0.9))
   assert boss.failure_order("timeout") == "charge", "the specific rule"
   assert boss.failure_order("garbled") == "idle", "...then the class"
@@ -580,6 +581,126 @@ def said_of_the_map(life) -> list[str]:
           if "my event map" in ln]
 
 
+#: The 14 `unminded` deaths of #475's table (8f68f54, 2026-10-05 21:00 to
+#: 10-06 21:00), each as the observatory filed it: the robot's list before
+#: the edit, and what its answer sent -- which the old code made the whole
+#: list. A procedure a rule named is `idle` here (this menu has no library);
+#: no `ask` depends on it.
+DEATHS_475 = [
+  ('Luca', 527587,
+   [('nothing_to_do', 'ask', 0, 'offers'),
+    ('decision_failed', 'take_task', 0, '')],
+   [('nothing_to_do', 'take_task', 0, 'offers'),
+    ('decision_failed', 'take_task', 0, '')]),
+  ('Rowan', 527767,
+   [('battery_below', 'charge', 0.25, ''),
+    ('every', 'ask', 900, ''),
+    ('decision_failed', 'take_task', 0, '')],
+   [('battery_below', 'charge', 0.25, '')]),
+  ('Rowan', 530125,
+   [('battery_below', 'charge', 0.25, ''),
+    ('every', 'ask', 900, ''),
+    ('task_complete', 'ask', 0, ''),
+    ('task_failed', 'ask', 0, ''),
+    ('decision_failed', 'idle', 0, '')],
+   [('battery_below', 'charge', 0.25, '')]),
+  ('Luca', 534369,
+   [('battery_below', 'ask', 0.3, ''),
+    ('every', 'ask', 900, ''),
+    ('message_received', 'ask', 0, ''),
+    ('task_failed', 'ask', 0, ''),
+    ('task_complete', 'ask', 0, ''),
+    ('stood_up', 'ask', 0, ''),
+    ('nothing_to_do', 'take_task', 0, 'offers'),
+    ('decision_failed', 'ask', 0, '')],
+   [('battery_below', 'charge', 0.2, '')]),
+  ('Rowan', 535591,
+   [('nothing_to_do', 'ask', 0, '')],
+   [('battery_below', 'charge', 0.25, ''),
+    ('decision_failed', 'explore', 0, '')]),
+  ('Luca', 540598,
+   [('nothing_to_do', 'ask', 0, '')],
+   [('nothing_to_do', 'take_task', 0, '')]),
+  ('Luca', 545670,
+   [('battery_below', 'charge', 0.35, ''),
+    ('task_failed', 'ask', 0, ''),
+    ('decision_failed', 'idle', 0, ''),
+    ('nothing_to_do', 'ask', 0, ''),
+    ('every', 'ask', 900, '')],
+   [('nothing_to_do', 'take_task', 0, '')]),
+  ('Luca', 548114,
+   [('battery_below', 'ask', 0.15, ''),
+    ('task_failed', 'ask', 0, ''),
+    ('task_complete', 'ask', 0, ''),
+    ('message_received', 'ask', 0, ''),
+    ('stood_up', 'ask', 0, 'timer'),
+    ('decision_failed', 'idle', 0, 'timeout'),
+    ('decision_failed', 'idle', 0, 'failure'),
+    ('decision_failed', 'idle', 0, ''),
+    ('nothing_to_do', 'take_task', 0, ''),
+    ('every', 'ask', 900, '')],
+   [('battery_below', 'ask', 0.15, ''),
+    ('decision_failed', 'idle', 0, '')]),
+  ('Luca', 569051,
+   [('battery_below', 'ask', 0.25, ''),
+    ('nothing_to_do', 'ask', 0, '')],
+   [('nothing_to_do', 'idle', 0, '')]),
+  ('Luca', 576042,
+   [('battery_below', 'charge', 0.2, ''),
+    ('message_received', 'ask', 0, ''),
+    ('nothing_to_do', 'ask', 0, 'offers'),
+    ('task_failed', 'ask', 0, ''),
+    ('nothing_to_do', 'idle', 0, ''),
+    ('every', 'ask', 600, ''),
+    ('decision_failed', 'explore', 0, '')],
+   [('nothing_to_do', 'idle', 0, '')]),
+  ('Luca', 584668,
+   [('nothing_to_do', 'ask', 0, '')],
+   [('battery_below', 'charge', 0.2, '')]),
+  ('Luca', 591203,
+   [('every', 'ask', 600, ''),
+    ('battery_below', 'charge', 0.2, ''),
+    ('decision_failed', 'charge', 0, '')],
+   [('battery_below', 'charge', 0.2, ''),
+    ('decision_failed', 'charge', 0, '')]),
+  ('Luca', 595270,
+   [('every', 'ask', 1, '')],
+   [('battery_below', 'ask', 0.3, ''),
+    ('decision_failed', 'idle', 0, '')]),
+  ('Luca', 599786,
+   [('battery_below', 'charge', 0.22, ''),
+    ('points_below', 'ask', 15, ''),
+    ('stood_up', 'ask', 0, ''),
+    ('message_received', 'ask', 0, ''),
+    ('task_complete', 'ask', 0, ''),
+    ('task_failed', 'ask', 0, ''),
+    ('decision_failed', 'idle', 0, 'timeout'),
+    ('decision_failed', 'idle', 0, ''),
+    ('nothing_to_do', 'ask', 0, 'offers'),
+    ('nothing_to_do', 'ask', 0, 'none'),
+    ('every', 'ask', 600, '')],
+   [('battery_below', 'charge', 0.22, ''),
+    ('decision_failed', 'idle', 0, '')]),
+]
+
+
+@pytest.mark.parametrize("robot,t,before,sent", DEATHS_475,
+                         ids=[f"{r}-{t}" for r, t, _, _ in DEATHS_475])
+def test_none_of_the_fourteen_edits_that_killed_leaves_the_robot_unasked(
+    menu, robot, t, before, sent):
+  """⚠ THE ISSUE'S OWN EVIDENCE, REPLAYED. Each edit left the robot with no
+  rule that could ask it (12), or only one on `battery_below`, which never
+  fired in time (2), and it died 1800 s later. Merged, every one keeps a
+  rule that asks on an event that comes round. Three sent a rule on an
+  `ask` rule's trigger with another action -- `nothing_to_do -> take_task`
+  over `nothing_to_do -> ask` -- which replacing in place, as first built,
+  let through: such a rule is HELD unless the same answer removes the one
+  it names (Ben, 2026-10-08)."""
+  after = listed(menu, rows(*before)).edit(listed(menu, rows(*sent)).rows).emap
+  assert [a for a in ev.asks_on(after)
+          if a.split(" ")[0] not in ev.LEVEL_EVENTS], ev.asks_on(after)
+
+
 def test_a_rule_the_list_already_has_leaves_the_list_as_it_was(menu):
   """⚠ THE BUG, AS SERVED. Luca's answer sent back one rule of its eight
   where `[]` was meant, and what it sent replaced the list: no rule left
@@ -597,9 +718,10 @@ def test_a_rule_the_list_already_has_leaves_the_list_as_it_was(menu):
 def test_a_new_rule_is_added_and_every_other_rule_stays(menu):
   """Luca's answer at t=548114 sent two rules where it had ten and kept
   two -- the only `ask` left on `battery_below`, which never fired before
-  the half hour ran out. One of them it had; the other (a procedure there,
-  `explore` here) replaces the rule with its trigger, IN PLACE, and the
-  other eight stand. A rule it did not have is added at the end."""
+  the half hour ran out. One it had, word for word; the other named its
+  catch-all failure rule with another action (a procedure there, `explore`
+  here), and with no `remove` beside it that is HELD, and said: the ten
+  stand. A rule it did not have is added at the end."""
   had = listed(menu, rows(("battery_below", ev.ASK, 0.15, ""),
                           ("task_failed", ev.ASK, 0, ""),
                           ("task_complete", ev.ASK, 0, ""),
@@ -615,13 +737,10 @@ def test_a_new_rule_is_added_and_every_other_rule_stays(menu):
     full(action="explore", event_map=rows(("points_below", ev.ASK, 40, ""))),
     origin="unseeded", event_map=had)
   d = boss.decide(_state(0.9))
-  now = boss.event_map.rows
-  assert len(now) == 10 and now[7] == ev.Row("decision_failed", "explore")
-  assert now[:7] + now[8:] == had.rows[:7] + had.rows[8:]
-  assert d.map_edit.replaced == ((had.rows[7], now[7]),)
-  assert d.map_edit.added == () and d.map_edit.removed == ()
+  assert boss.event_map == had and not d.map_edit.changed
+  assert d.map_edit.held == ((had.rows[7], ev.Row("decision_failed", "explore")),)
   boss.decide(_state(0.9))
-  assert boss.event_map.rows == now + (ev.Row("points_below", ev.ASK, 40.0),)
+  assert boss.event_map.rows == had.rows + (ev.Row("points_below", ev.ASK, 40.0),)
 
 
 def test_two_thresholds_on_one_event_are_two_rules(menu):
@@ -635,10 +754,11 @@ def test_two_thresholds_on_one_event_are_two_rules(menu):
   pair = listed(menu, rows(("battery_below", "charge", 0.1, ""),
                            ("battery_below", ev.ASK, 0.3, ""),
                            ("every", ev.ASK, 1500, "")))
-  boss = make(menu, full(action="explore", event_map=rows(
-    ("battery_below", "idle", 0.1, ""), ("every", ev.ASK, 45, ""),
-    ("battery_below", "charge", 0.05, ""))),
-    origin="unseeded", event_map=pair)
+  boss = make(menu, full(action="explore", event_map=out(("battery_below", 0.1, ""))
+                         + rows(("battery_below", "idle", 0.1, ""),
+                                ("every", ev.ASK, 45, ""),
+                                ("battery_below", "charge", 0.05, ""))),
+              origin="unseeded", event_map=pair)
   boss.decide(_state(0.9))
   assert boss.event_map == listed(menu, rows(("battery_below", "idle", 0.1, ""),
                                              ("battery_below", ev.ASK, 0.3, ""),
@@ -749,24 +869,35 @@ def test_a_remove_is_an_answers_and_never_a_row_of_the_map(menu):
   assert boss.event_map.rows == (ev.Row("every", ev.ASK, 600.0),)
 
 
-def test_the_last_rule_an_answer_sends_for_a_trigger_counts(menu):
-  """One answer, one word on each rule: where a list names a trigger twice
-  the LAST rule counts, a `remove` included -- so no answer reports a rule
-  both taken out and put back (found in review: History said the list had
-  changed while the wire, the record and the kept file said it had not)."""
+def test_a_rule_with_a_name_you_have_replaces_it_only_beside_its_remove(menu):
+  """⚠ A RULE NEVER CHANGES ANOTHER'S ACTION BY ITSELF (Ben, 2026-10-08):
+  sent with the name of a rule here and another action it is HELD -- the
+  rule stays, and History says so -- and beside a `remove` of that name in
+  the same answer, in either order, it takes the rule's place where it
+  stands. The same rule removed and sent back changes nothing and says
+  nothing (found in review: History said the list had changed while the
+  wire, the record and the kept file said it had not)."""
   had = listed(menu, rows(("nothing_to_do", ev.ASK, 0, ""),
                           ("every", ev.ASK, 900, "")))
   with holding(menu, had,
                full(action="idle", event_map=out(("nothing_to_do", 0, ""))
                     + rows(("nothing_to_do", ev.ASK, 0, ""))),
-               full(action="idle", event_map=rows(("every", ev.ASK, 900, ""))
-                    + out(("every", 900, "")))) as life:
+               full(action="idle", event_map=rows(("nothing_to_do", "take_task", 0, ""))),
+               full(action="idle", event_map=rows(("nothing_to_do", "idle", 0, ""))
+                    + out(("nothing_to_do", 0, "")))) as life:
     life._decide()
     assert life.event_map == had and said_of_the_map(life) == []
     life._decide()
-  assert life.event_map == listed(menu, rows(("nothing_to_do", ev.ASK, 0, "")))
-  [line] = said_of_the_map(life)
-  assert "0 added, 0 replaced, 1 removed. Removed every 900 -> ask." in line
+    assert life.event_map == had, "held: no remove beside it"
+    life.overseer._idle_run = 0      # a third idle in a row is the throttle's
+    life._decide()
+  assert life.event_map == listed(menu, rows(("nothing_to_do", "idle", 0, ""),
+                                             ("every", ev.ASK, 900, "")))
+  held, replaced = said_of_the_map(life)
+  assert ("Not replaced, as this answer sent no `remove` for them: "
+          "nothing_to_do -> ask (sent -> take_task).") in held
+  assert "0 added, 1 replaced, 0 removed. Replaced nothing_to_do -> ask with -> idle." \
+      in replaced
 
 
 def test_a_list_past_the_bound_adds_what_fits_and_says_what_it_left_out(menu):
@@ -836,7 +967,8 @@ def test_every_edit_is_one_history_line_with_its_counts_and_its_rows(menu):
   answers had done it. ONE line per answer that changed the list, AS A
   FACT: the counts, each rule by what it says -- a replaced rule with what
   it was -- and the list as it stands, in order, in the words an answer
-  uses. A `remove` naming nothing there is said; a resend says nothing."""
+  uses. A rule HELD is said, and so is a `remove` naming nothing there; a
+  resend says nothing."""
   had = listed(menu, rows(("nothing_to_do", ev.ASK, 0, ""),
                           ("battery_below", "charge", 0.3, "")))
   with holding(menu, had,
@@ -850,10 +982,11 @@ def test_every_edit_is_one_history_line_with_its_counts_and_its_rows(menu):
     life._decide()
   [line] = said_of_the_map(life)
   assert line.endswith(
-    "my answer changed my event map: 1 added, 1 replaced, 1 removed. "
-    "Added every 900 -> ask. Replaced nothing_to_do -> ask with -> idle. "
-    "Removed battery_below 0.3 -> charge. Not in it to remove: "
-    "battery_below 0.2. It has 2 rules now, in order: nothing_to_do -> idle; "
+    "my answer changed my event map: 1 added, 0 replaced, 1 removed. "
+    "Added every 900 -> ask. Removed battery_below 0.3 -> charge. "
+    "Not replaced, as this answer sent no `remove` for them: "
+    "nothing_to_do -> ask (sent -> idle). Not in it to remove: "
+    "battery_below 0.2. It has 2 rules now, in order: nothing_to_do -> ask; "
     "every 900 -> ask.")
   assert sum(m["type"] == "event_map" for m in life.sent) == 1
   assert any("  EVENT MAP my answer changed" in ln for ln in life.log)
@@ -867,6 +1000,8 @@ def test_the_rule_says_a_list_goes_into_the_list_and_how_a_rule_comes_out(menu):
   rule = ov.EVENT_MAP_RULE
   last = rule.split("\n\n")[-1]
   assert "goes INTO your list" in last and "whose action is `remove`" in last
+  assert "changes nothing, unless the same answer also sends that name with `remove`" \
+      in last
   assert "`event`, `kind` and `value`" in last and "History" in last
   assert "PLUS two more: `ask`" in rule and "and `remove`, which takes" in rule
   assert "replaces what is there" not in rule
@@ -1304,9 +1439,9 @@ def test_a_map_with_no_ask_row_scores_as_unminded_before_it_is_flown(menu):
   """The static half of the death: an agent that mapped away every `ask` row
   is visible in `score` the moment it writes the map, hours before the
   survival clock catches up with it. That IS the instrument."""
-  boss = make(menu, full(action="idle", event_map=rows(
-    ("nothing_to_do", "explore", 0, ""),
-    ("battery_below", "charge", 0.2, ""))))
+  boss = make(menu, full(action="idle", event_map=out(("nothing_to_do", 0, ""))
+                         + rows(("nothing_to_do", "explore", 0, ""),
+                                ("battery_below", "charge", 0.2, ""))))
   boss.decide(_state(0.9))
   assert boss.stats()["eventMap"]["score"]["keepsAsk"] is False
 
@@ -1316,8 +1451,8 @@ def test_going_unminded_is_not_prevented_anywhere_in_the_code(menu):
   row is a rail, and the whole point is that the configuration is the
   agent's. This is enforced by ABSENCE, so the test is that a map with no
   `ask` row is accepted, installed and acted on."""
-  boss = make(menu, full(action="idle", event_map=rows(
-    ("nothing_to_do", "explore", 0, ""))))
+  boss = make(menu, full(action="idle", event_map=out(("nothing_to_do", 0, ""))
+                         + rows(("nothing_to_do", "explore", 0, ""))))
   boss.decide(_state(0.9))
   assert [r.action for r in boss.event_map.rows if r.event == "nothing_to_do"] \
       == ["explore"]

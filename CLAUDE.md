@@ -511,15 +511,19 @@ save a filmstrip PNG named after the script.
     or two rules where `[]` was meant took the `ask` rows with them (14
     `unminded` deaths in a day). A rule is named by its TRIGGER, `(event,
     kind, value)` (`Row.trigger`) — ⚠ never `(event, kind)` alone: two
-    thresholds on one event are two rules (29 of 427 live edits). It takes
-    the place of the rule with its trigger, where it stands, or is added at
-    the end -- just ahead of the first rule on its event that takes its
-    `kind`, where it has one (`_covers`). ⚠ `events.REMOVE` is an ACTION of
+    thresholds on one event are two rules (29 of 427 live edits). A rule
+    new to the map is added at the end -- just ahead of the first rule on
+    its event that takes its `kind`, where it has one (`_covers`). ⚠ ONE
+    SENT WITH A TRIGGER THE MAP HAS AND ANOTHER ACTION IS HELD (not applied,
+    said) unless the same answer `remove`s that trigger, and then it takes
+    its place (Ben, 2026-10-08: in place, a slip took the only `ask` in 3 of
+    the issue's 14 deaths; `DEATHS_475` replays all 14). ⚠ `events.REMOVE` is an ACTION of
     an answer's rule, never a field and never a row of the map (MEASURED:
     a field was slipped like the list, 6 rules out in 40 answers; the
     action, none in 59) — the ONE way out, removals first, the last `ask`
     included (no rail). The LAST rule sent for a trigger counts; the
-    standing order is one more rule after the list unless the list names its
+    standing order rides with a `remove` of its own trigger, so it replaces
+    the catch-all as it always did, after the list, unless the list names its
     rule (then the list's word stands, a `remove` too), and on a full list is
     neither in force nor said; past `MAX_ROWS` any other rule is left out
     and said, never a rule cut to fit, and ⚠ the prompt TELLS the cap (a
