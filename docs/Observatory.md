@@ -31,10 +31,15 @@ carried on, where before neither that question nor the bootstrap came. Every ans
 counts, each rule added, replaced (with what it was) or removed, and the
 list as it then stands. Before, an edit rode the wire and left no line.
 `EVENT_MAP_RULE` moved: its first paragraph, the action paragraph (`ask`
-and `remove`), the ordering lesson's "Put", and its last paragraph; so did
-`event_map`'s index line, and the schema's row action enum gained
-`remove`. The deployed prefix moved `6cefb146…` → `049990f7…` (52 709 →
-53 178 characters). The arm, the reward table, the world and the wire did
+and `remove`), "THE ORDER DECIDES" (it was "is yours": the robot no longer
+places a rule it sends), the ordering lesson's "Put", and its last
+paragraph, which now also tells the 12-rule cap a list can reach by adding.
+`UNSEEDED_RULE` says the robot is asked without a rule "only until you have
+answered once", where it said "only while the list is still empty", which
+read as true of a list emptied later. `event_map`'s index line moved, and the
+schema's row action enum gained `remove`. The deployed prefix moved
+`6cefb146…` → `004362b5…` (52 709 → 53 344 characters). A rule taken out and
+sent again later starts as a new rule (the event clock forgets it). The arm, the reward table, the world and the wire did
 not move: the `event_map` message is as it was, and a decision row's
 `eventMap` carries a `remove` as sent.
 

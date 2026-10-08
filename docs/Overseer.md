@@ -1324,8 +1324,9 @@ otherwise).
   never heard of or an action this world cannot do. `value` clamps where out of
   range; a *missing* value on an event that needs one is refused. `MAX_ROWS`
   (12) is a grammar bound, not a policy.
-- ⚠ **The order is the agent's and it decides**: several rows can be live on
-  one tick, the first in the list wins. An empty list means "leave it as it
+- ⚠ **The order decides, and the agent's edits make it**: several rows can
+  be live on one tick, the first in the list wins; where a rule sent goes is
+  the merge's (next bullet). An empty list means "leave it as it
   is" (`pin`/`unpin`'s convention), and a list goes INTO the map (next
   bullet). `unseeded` starts a robot with an empty map, and it moves the
   prompt too (`UNSEEDED_RULE`), so it is an ablation, not a rung.
@@ -1373,7 +1374,13 @@ otherwise).
     the field where there is a list (found in review: a ~410-character line
     on every answer);
   - ⚠ **nothing is cut to make room**: past `MAX_ROWS` any other rule is
-    left out and said (the fold this replaced dropped the last row to fit);
+    left out and said (the fold this replaced dropped the last row to fit).
+    The rule TELLS the cap, read off the constant by a test, as #322's half
+    hour is: a list that only adds can now reach it;
+  - the event clock forgets a row the map no longer holds
+    (`EventClock.fire`), so a rule taken out and sent again later is a new
+    rule -- armed, its period from its return -- where a charge rule sent
+    again below its threshold had stayed latched (found in review);
   - **every edit is one History line, as a fact** (`Edit.said`,
     `HubLifecycle._map_edit`, after `chose` and `left out`): the counts;
     each rule added, replaced (with what it was) or removed; what had no
@@ -1395,8 +1402,16 @@ otherwise).
   them leaving no `ask`. Merged, they changed nothing, added a threshold,
   or once turned `battery_below 0.3 -> charge` into `-> ask`, and none lost
   an `ask`. A list can still replace a rule's action by slip, which the
-  History line shows. The prompt's paragraph and the field's index line
-  state all of this as facts, prescribe nothing and show no rule. In an
+  History line shows. ⚠ Replayed through the merge, the 14 edits of the
+  issue's table keep a firing `ask` in 11; the other 3 are that slip, a
+  rule sent on the trigger of an `ask` rule with another action
+  (`nothing_to_do -> take_task` over `nothing_to_do -> ask`). The prompt's
+  paragraph and the field's index line state all of this as facts,
+  prescribe nothing and show no rule; it says "THE ORDER DECIDES" where it
+  said "is yours", and `UNSEEDED_RULE` says the robot is asked without a
+  rule "only until you have answered once", the bootstrap's own condition,
+  where "while the list is still empty" read as true of a list emptied
+  later. In an
   answer full of placeholders the list stands whole (#462's reading), a
   `remove` with it. ⚠ Not taken: the consult the issue first proposed
   (keep replacement, ask the robot to repair each wipe), because it relied

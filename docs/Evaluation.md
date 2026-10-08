@@ -273,9 +273,12 @@ the agent's to configure. Overseer.md ("The event map") has the mechanism,
 the events and what the agent is told; this section has what it means for
 measurement.
 
-⚠ **THE ORDER IS THE AGENT'S.** Several rows can be live on one tick, and an
-undefined order would break §1's determinism; ordering also makes priority
-an explicit choice, one more thing to score off the config.
+⚠ **THE ORDER IS THE AGENT'S EDITS'.** Several rows can be live on one tick,
+and an undefined order would break §1's determinism; ordering also makes
+priority a choice to score off the config. Since #475 the agent does not
+place a rule it sends: it goes in place of the rule with its trigger, just
+ahead of a wider rule on its event, or at the end (`EventMap.edit`), so
+`ordered` reads the order thresholds were added in.
 
 #### ⚠ The reason to want it: a map is EVALUABLE WITHOUT FLYING
 

@@ -522,7 +522,9 @@ save a filmstrip PNG named after the script.
     standing order is one more rule after the list unless the list names its
     rule (then the list's word stands, a `remove` too), and on a full list is
     neither in force nor said; past `MAX_ROWS` any other rule is left out
-    and said, never a rule cut to fit; a list emptied by `remove` comes
+    and said, never a rule cut to fit, and ⚠ the prompt TELLS the cap (a
+    test reads the constant); `EventClock` forgets a row the map no longer
+    holds, so one sent again is new; a list emptied by `remove` comes
     back empty after a restart (`restore_map`). EVERY EDIT IS ONE History
     line, as a fact (`Edit.said`, `HubLifecycle._map_edit`): counts, rules,
     the list as it stands; a resend says nothing;

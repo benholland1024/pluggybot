@@ -589,7 +589,8 @@ class Decision:
   buy_heart: bool = False
   #: THE EVENT MAP (issue #127). The generalisation `standing_order` above is
   #: one row of: an ORDERED list of `(event, configuration) -> action`, first
-  #: match wins, and the order is the agent's. A field for `pin`'s reason
+  #: match wins, and the order is the agent's edits' (where a rule it sends
+  #: goes is `events.EventMap.edit`'s, issue #475). A field for `pin`'s reason
   #: exactly -- configuring yourself is paperwork rather than something the
   #: body does, so it rides the decision the model was already making and
   #: costs no turn.
@@ -2652,9 +2653,12 @@ that is written down as what happened.\
 #: with them -- 14 `unminded` deaths on the served pair in a day -- while
 #: this rule already said in capitals that a one-rule list is a one-rule
 #: list. Its last paragraph states the merge, `remove` (the one way a rule
-#: leaves, an action beside `ask`: `events.REMOVE` has the measurement) and
-#: the History line, as facts: it shows no rule and says when to remove
-#: nothing.
+#: leaves, an action beside `ask`: `events.REMOVE` has the measurement), the
+#: cap a list can now reach by adding -- `MAX_ROWS`, a number told as #322's
+#: is, read off the constant by a test -- and the History line, as facts: it
+#: shows no rule and says when to remove nothing. ⚠ "THE ORDER DECIDES", no
+#: longer "is yours": the agent does not place a rule it sends, the merge
+#: does, and the rule says where.
 #:
 #: ⚠ `nothing_to_do` IS DESCRIBED AS WHAT THE CODE CHECKS (issue #333): this
 #: robot's own queue, never the world. "There is nothing waiting" was false
@@ -2740,9 +2744,10 @@ will probably do it again; a `budget` says nothing will answer for a while \
 however long you wait. "On `timeout`, carry on charging; on anything else \
 going wrong, stand still" is a sentence, and it is two rules.
 
-⚠ THE ORDER IS YOURS AND IT DECIDES. Several rules can be true at the same \
-moment. The FIRST one in your list wins and the rest wait, so the order is \
-how you say which of two things matters more when both are true at once.
+⚠ THE ORDER DECIDES. Several rules can be true at the same moment. The \
+FIRST one in your list wins and the rest wait, so a rule's place says which \
+of two things matters more when both are true at once -- and where a rule \
+you send is put is said at the end of this.
 
 That is also how a narrow rule and a broad one live together: the specific \
 one FIRST and the general one under it.
@@ -2805,8 +2810,9 @@ at the end -- unless it has a `kind` and a rule on the same event already \
 takes that kind (an empty `kind`, or a wider one), and then it goes just \
 ahead of that rule, so it is not starved. A rule whose action is `remove` \
 takes the rule with its name out instead, and nothing else takes a rule \
-out. Every change to your list is written into your History, with the list \
-as it then stands.\
+out. The list holds at most 12 rules, and a rule that would make it longer \
+is left out. Every change to your list is written into your History, with \
+the list as it then stands.\
 """
 
 #: ...and the one paragraph an UNSEEDED origin adds (Evaluation.md section 3).
@@ -2814,12 +2820,17 @@ as it then stands.\
 #: configuration AND the prompt, so a null result is strong evidence and a
 #: difference is weak. Reported as "the origin moved / did not move the
 #: distribution", never as "seeding causes X".
+#: ⚠ "UNTIL YOU HAVE ANSWERED ONCE" IS THE BOOTSTRAP'S OWN CONDITION
+#: (`HubLifecycle._minded`). It said "only while the list is still empty",
+#: which read as true of a list emptied later -- possible since #475's
+#: `remove` -- and the bootstrap does not ask over one: a robot that believed
+#: it would be asked would die unminded (found in review).
 UNSEEDED_RULE = """\
 ⚠ YOUR LIST STARTS EMPTY. Nothing has been set up for you: no rule takes you \
 to the dock, and no rule brings this question back around. You are asked \
-without a rule asking for you only while the list is still empty -- and \
-once each time going unconsulted costs you a heart or a rule of yours is \
-left out. Otherwise nothing happens that your list does not say should \
+without a rule asking for you only until you have answered once -- after \
+that, an empty list asks nothing -- and once each time going unconsulted \
+costs you a heart or a rule of yours is left out. Otherwise nothing happens that your list does not say should \
 happen, and nobody will consult you unless your list says to. \
 `eventMap` below is what it says at this moment. Your first job is to work \
 out what you need to happen without being asked, and say so.\
@@ -3800,10 +3811,10 @@ def context_for(life, visitors=(), tasks=(), affordable=(), possible=(),
     # with nothing to do were the same prompt.
     **({"askedBy": dict(asked_by)} if asked_by else {}),
     # THE LIST IT WROTE, READ BACK TO IT (issue #317). `EVENT_MAP_RULE` has
-    # always said "you are looking at the one you have and saying what it
-    # should be from now on", and until this there was nothing to look at:
-    # the agent edited a configuration it had never been shown, under a rule
-    # that says what it sends REPLACES the list. Measured on the deployed
+    # always said "you are looking at the one you have", and until this
+    # there was nothing to look at: the agent edited a configuration it had
+    # never been shown, under a rule that then said what it sent REPLACED
+    # the list (#475 made a list merge). Measured on the deployed
     # pair over the seven days to 2026-09-22: of 502 live edits, 15
     # collapsed a six-to-nine-row map to a single row and 13 of those left
     # no `ask` in it -- an answer that reads as "add this one rule" and

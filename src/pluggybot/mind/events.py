@@ -21,7 +21,8 @@ diffable across models, across ladder rungs, and across time within one run.
 ## The model
 
 An ORDERED list of `(event + its configuration) -> action`. **First match
-wins, and the agent controls the order.** Several rows can be live on one
+wins, and the agent's own edits make the order** -- where a rule it sends
+goes is `EventMap.edit`'s (issue #475). Several rows can be live on one
 tick -- two battery thresholds, a failure and a task completion -- and an
 undefined order is nondeterminism, which is the one property `Evaluation.md`
 section 1 says this project has and should not spend. Ordering also makes
@@ -814,7 +815,8 @@ class EventClock:
   Separate from `EventMap` because the map is the artifact -- the thing the
   record keeps at origin, at every edit and at the end -- and this is the
   latch: which level rows are armed, and when each `every` row last went off.
-  Keyed by the ROW, so an edit that keeps a row keeps its arming.
+  Keyed by the ROW, so an edit that keeps a row keeps its arming -- and a
+  row the map no longer holds is forgotten (`fire`).
   """
 
   def __init__(self) -> None:
@@ -860,7 +862,7 @@ class EventClock:
 
     ⚠ ONE ROW PER TICK, AND FIRST MATCH WINS. Several rows can be live at
     once and running them all would be an undefined order in disguise; the
-    agent chose the order, so the agent chose which one matters. A row that
+    agent's edits made the order, so they chose which one matters. A row that
     was live and did not win stays live (a level row stays armed, an `every`
     row stays overdue) and wins the next tick if nothing above it does.
 
@@ -868,7 +870,17 @@ class EventClock:
     which is what makes two battery thresholds behave: 35 % and 15 % are
     independent latches, and the 15 % row must not be re-armed by the 35 %
     row winning a tick.
+
+    ⚠ STATE GOES WITH ITS ROW (issue #475): a row the map no longer holds is
+    forgotten here, so one taken out and sent again later starts as a new
+    rule -- armed, its period from when it came back -- and is not latched
+    by what it did before (found in review: a charge rule sent again below
+    its threshold never fired).
     """
+    held = set(emap.rows)
+    for state in (self._armed, self._last):
+      for r in [r for r in state if r not in held]:
+        del state[r]
     for r in emap.rows:
       if r.event in LEVEL_EVENTS:
         true = self._level_true(r, live)

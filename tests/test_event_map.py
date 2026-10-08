@@ -170,7 +170,7 @@ def test_an_empty_list_means_no_change_rather_than_clear_it(menu):
   assert ev.parse([], menu) is None and ev.parse(None, menu) is None
 
 
-# ---- first match wins, and the agent controls the order ---------------------
+# ---- first match wins, and the order decides --------------------------------
 
 
 def test_first_match_wins_and_the_order_is_the_agents(menu):
@@ -296,6 +296,14 @@ def test_a_list_and_an_order_on_one_answer_both_land(menu):
   assert boss.stats()["standingOrders"]["current"] == "", "not in force"
   boss.decide(_state(0.9))
   assert boss.event_map.first("decision_failed") is None
+  #  ...and AFTER it, which only a new row shows: an order put first would
+  #  stand above the list's own new rule
+  fresh = make(menu, full(action="idle", standing_order="explore",
+                          event_map=rows(("nothing_to_do", ev.ASK, 0, ""))),
+               origin="unseeded")
+  fresh.decide(_state(0.9))
+  assert fresh.event_map == listed(menu, rows(("nothing_to_do", ev.ASK, 0, ""),
+                                              ("decision_failed", "explore", 0, "")))
 
 
 def test_a_fallback_cannot_rewrite_the_map(menu):
@@ -690,6 +698,26 @@ def test_a_new_narrow_rule_goes_ahead_of_a_broad_one_on_its_event(menu):
   assert ev.shadowed(boss.event_map) == ()
 
 
+def test_a_rule_taken_out_and_sent_again_later_starts_as_a_new_one(menu):
+  """The clock keeps its state BY ROW, and kept a row's after the row left
+  the map: a charge rule that had fired, taken out and sent again while the
+  pack was still below it, stayed latched and never fired; an `every` row
+  came back overdue and fired at once. Found in review of #475, where a
+  `remove` makes it reachable. A row the map no longer holds is forgotten."""
+  low = ev.Row(event="battery_below", action="charge", value=0.2)
+  clock, held, gone = ev.EventClock(), ev.EventMap((low,)), ev.EventMap(())
+  assert clock.fire(held, ev.Live(battery=0.15), 0.0) is low
+  assert clock.fire(held, ev.Live(battery=0.15), 1.0) is None       # latched
+  clock.fire(gone, ev.Live(battery=0.15), 2.0)                       # taken out
+  assert clock.fire(held, ev.Live(battery=0.15), 3.0) is low, "a new rule"
+  every = ev.Row(event="every", action=ev.ASK, value=600.0)
+  clock, held = ev.EventClock(), ev.EventMap((every,))
+  assert clock.fire(held, ev.Live(), 0.0) is None                    # stamps
+  clock.fire(gone, ev.Live(), 100.0)
+  assert clock.fire(held, ev.Live(), 700.0) is None, "measured from its return"
+  assert clock.fire(held, ev.Live(), 1300.0) is every
+
+
 def test_a_remove_is_an_answers_and_never_a_row_of_the_map(menu):
   """`remove` is read off an answer by the checks any rule passes -- a level
   clamped, no value on an event that takes none, no filter on one that
@@ -842,6 +870,11 @@ def test_the_rule_says_a_list_goes_into_the_list_and_how_a_rule_comes_out(menu):
   assert "`event`, `kind` and `value`" in last and "History" in last
   assert "PLUS two more: `ask`" in rule and "and `remove`, which takes" in rule
   assert "replaces what is there" not in rule
+  #  ⚠ THE CAP A LIST CAN NOW REACH BY ADDING IS TOLD, as #322's half hour
+  #  is: off the constant, so the number and the wording move together
+  assert f"at most {ev.MAX_ROWS} rules" in last
+  #  ...and the order is not the agent's to set rule by rule any more
+  assert "THE ORDER DECIDES" in rule and "ORDER IS YOURS" not in rule
   low = last.lower()
   for nudge in ("should", "you may want", "remember to", "make sure",
                 "it is worth", "prefer ", "always ", "never forget"):
@@ -1218,6 +1251,11 @@ def test_an_unseeded_agent_starts_empty_and_is_told_so(menu):
   assert "YOUR LIST STARTS EMPTY" in bare.system[0]["text"]
   assert "YOUR LIST STARTS EMPTY" not in make(menu).system[0]["text"]
   assert "`eventMap` below is what it says at this moment" in bare.system[0]["text"]
+  #  ⚠ ...and WHEN it is asked, as the bootstrap decides it (`_minded`):
+  #  "while the list is still empty" read as true of a list emptied later,
+  #  which `remove` makes possible (#475) and nothing asks over.
+  assert "only until you have answered once" in bare.system[0]["text"]
+  assert "still empty" not in bare.system[0]["text"]
   assert bare.stats()["eventMap"]["origin"] == "unseeded"
 
 
@@ -1633,10 +1671,10 @@ def test_a_kept_list_is_an_answer_so_the_bootstrap_does_not_ask_over_it(
   """#303's rule across a restart: the bootstrap asks until the mind has
   answered for itself, and a kept list IS its answer, given in an earlier
   run. So a list with no `ask` row is unminded on its own terms after a
-  restart, as after a stand-up -- what the prompt already said ("asked
-  without a rule asking for you only while the list is still empty"),
-  which the hourly wipe made true by accident. Where nothing was kept, the
-  bootstrap still asks."""
+  restart, as after a stand-up -- what the prompt says ("asked without a
+  rule asking for you only until you have answered once"), which the
+  hourly wipe made true by accident. Where nothing was kept, the bootstrap
+  still asks."""
   root = tmp_path / "t"
   with _run(menu, root, full(action="idle", event_map=rows(
       ("battery_below", "charge", 0.2, "")))) as life:          # no `ask`
