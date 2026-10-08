@@ -78,13 +78,8 @@ def test_the_field_is_absent_where_the_world_has_no_map(menu):
   plain = Overseer(menu, client=1)
   mapped = make(menu)
   assert plain.event_map is None and mapped.event_map is not None
-  for field in ("event_map", "event_map_remove"):
-    assert field not in menu.schema(standing_orders=True)["properties"]
-    assert field in menu.schema(event_map=True)["required"]
-  # ...and a removal is a rule without its action (issue #475)
-  removal = menu.schema(event_map=True)["properties"]["event_map_remove"]["items"]
-  assert removal["required"] == ["event", "value", "kind"]
-  assert "action" not in removal["properties"]
+  assert "event_map" not in menu.schema(standing_orders=True)["properties"]
+  assert "event_map" in menu.schema(event_map=True)["properties"]
   assert "WHEN YOU ARE ASKED" not in plain.system[0]["text"]
   assert "WHEN YOU ARE ASKED" in mapped.system[0]["text"]
   # ...and the standing order's rule GOES when the map's arrives: one
@@ -94,18 +89,21 @@ def test_the_field_is_absent_where_the_world_has_no_map(menu):
   assert "IF YOU CANNOT BE REACHED" not in mapped.system[0]["text"]
 
 
-def test_a_rows_action_is_the_menu_plus_ask_and_nothing_else(menu):
+def test_a_rows_action_is_the_menu_plus_ask_and_remove_and_nothing_else(menu):
   """`ask` is IN the enum -- that is what makes the table the right object
-  -- and everything else in it is the same fixed menu `action` is."""
+  -- and everything else in it is the same fixed menu `action` is, but
+  `remove` (issue #475): what an answer's rule carries to take one out."""
   props = menu.schema(event_map=True)["properties"]["event_map"]
   item = props["items"]["properties"]
   # ...less `recall` (issue #221): a row cannot say what to look up.
-  assert set(item["action"]["enum"]) == {ev.ASK, *menu.available()} - {"recall"}
+  assert set(item["action"]["enum"]) == \
+      {ev.ASK, ev.REMOVE, *menu.available()} - {"recall"}
   assert set(item["event"]["enum"]) == set(ev.EVENT_TYPES)
   assert props["maxItems"] == ev.MAX_ROWS
   # ⚠ `ask` is NOT a member of the decision's own action enum: it is what a
   # row does to GET a decision, not something a decision may answer with.
-  assert ev.ASK not in menu.available()
+  # Nor is `remove`, which is what an answer does to its own list.
+  assert ev.ASK not in menu.available() and ev.REMOVE not in menu.available()
 
 
 @pytest.mark.parametrize("action", ["hack_the_ledger", "sleep", "fetch_tool"])
@@ -164,14 +162,12 @@ def test_message_received_carries_no_filter_however_it_is_asked_for(menu):
 
 def test_an_empty_list_means_no_change_rather_than_clear_it(menu):
   """`""`/`[]` is how every optional field on a decision says "not this
-  time", the removals' included; a map is emptied by naming its rules
-  (issue #475)."""
-  boss = make(menu, full(action="idle", event_map=[], event_map_remove=[]))
+  time"; a map is emptied by a `remove` of each rule (issue #475)."""
+  boss = make(menu, full(action="idle", event_map=[]))
   before = boss.event_map
   d = boss.decide(_state(0.9))
   assert boss.event_map == before and d.map_edit is None
   assert ev.parse([], menu) is None and ev.parse(None, menu) is None
-  assert ev.named([], menu) == () and ev.named(None, menu) == ()
 
 
 # ---- first match wins, and the agent controls the order ---------------------
@@ -540,9 +536,9 @@ def listed(menu, specs) -> ev.EventMap:
   return ev.EventMap(tuple(ev.row(r, menu) for r in specs))
 
 
-def gone(*specs) -> list[dict]:
-  """Schema-complete removals: a rule without its action."""
-  return [{"event": e, "value": v, "kind": k} for e, v, k in specs]
+def out(*specs) -> list[dict]:
+  """Schema-complete `remove` rules: each names a rule by its trigger."""
+  return rows(*[(e, ev.REMOVE, v, k) for e, v, k in specs])
 
 
 @contextmanager
@@ -633,22 +629,24 @@ def test_two_thresholds_on_one_event_are_two_rules(menu):
                                              ("battery_below", "charge", 0.05, "")))
 
 
-def test_a_named_removal_takes_out_exactly_that_rule_and_the_last_ask_too(menu):
-  """Taking a rule out is its OWN act, and the only one: a level rule is
-  named with its value, so the other threshold stays. ⚠ AND THERE IS NO
-  RAIL: the last `ask` comes out when it is named, and the list can be
-  emptied -- which, before #475, it could not be at all."""
+def test_a_remove_takes_out_exactly_that_rule_and_the_last_ask_too(menu):
+  """Taking a rule out is its OWN act, and the only one: a rule whose action
+  is `remove`. A level rule is named with its value, so the other threshold
+  stays. ⚠ AND THERE IS NO RAIL: the last `ask` comes out when it is
+  named, and the list can be emptied -- which, before #475, it could not
+  be at all."""
   had = listed(menu, rows(("nothing_to_do", ev.ASK, 0, ""),
                           ("battery_below", "charge", 0.3, ""),
                           ("battery_below", "idle", 0.15, "")))
   boss = make(menu,
-              full(action="explore", event_map_remove=gone(("battery_below", 0.15, ""))),
-              full(action="explore", event_map_remove=gone(("nothing_to_do", 0, ""))),
-              full(action="explore", event_map_remove=gone(("battery_below", 0.3, ""))),
+              full(action="explore", event_map=out(("battery_below", 0.15, ""))),
+              full(action="explore", event_map=out(("nothing_to_do", 0, ""))),
+              full(action="explore", event_map=out(("battery_below", 0.3, ""))),
               origin="unseeded", event_map=had)
   d = boss.decide(_state(0.9))
   assert boss.event_map.rows == had.rows[:2] and d.map_edit.removed == had.rows[2:]
-  assert d.as_dict()["eventMapRemove"] == [{"event": "battery_below", "value": 0.15}]
+  assert d.as_dict()["eventMap"] == [{"event": "battery_below", "action": "remove",
+                                      "value": 0.15}]
   boss.decide(_state(0.9))
   assert boss.event_map.rows == had.rows[1:2]
   assert not ev.score(boss.event_map)["keepsAsk"], "not prevented"
@@ -656,44 +654,55 @@ def test_a_named_removal_takes_out_exactly_that_rule_and_the_last_ask_too(menu):
   assert boss.event_map.rows == () and boss.stats()["eventMap"]["edits"] == 3
 
 
-def test_a_new_narrow_rule_goes_ahead_of_a_broad_one_on_its_event(menu):
-  """A catch-all already in the list must not starve a narrower rule sent
-  after it: first match wins, so a new rule goes in AHEAD of the first rule
-  on its event that takes everything it would -- a reason ahead of its
-  class, a class ahead of the catch-all -- and at the end otherwise. What
-  the rule's ordering lesson says to write, the merge writes."""
-  had = listed(menu, rows(("battery_below", "charge", 0.3, ""),
-                          ("decision_failed", "take_task", 0, ""),
-                          ("nothing_to_do", ev.ASK, 0, "")))
-  boss = make(menu, full(action="explore", event_map=rows(
-    ("decision_failed", "explore", 0, "failure"),
-    ("nothing_to_do", "take_task", 0, "offers"),
-    ("decision_failed", "idle", 0, "timeout"),
-    ("every", ev.ASK, 900, ""))), origin="unseeded", event_map=had)
+def test_a_remove_is_an_answers_and_never_a_row_of_the_map(menu):
+  """`remove` is read off an answer by the checks any rule passes -- a level
+  clamped, no value on an event that takes none, no filter on one that
+  takes no filter, an unknown event refused -- and it is never a ROW: the
+  kept file cannot hold one, nor can a standing order be one, and no map
+  is ever built with it in."""
+  sent = ev.parse(out(("battery_below", 1.4, ""), ("nothing_to_do", 7, "offers"),
+                      ("message_received", 0, "explore")), menu)
+  assert [r.trigger for r in sent.rows] == [
+    ("battery_below", "", 1.0), ("nothing_to_do", "offers", None),
+    ("message_received", "", None)]
+  with pytest.raises(ValueError, match="unknown event"):
+    ev.parse(out(("solar_flare", 0, "")), menu)
+  with pytest.raises(ValueError, match="unknown kind"):
+    ev.parse(out(("task_complete", 0, "timeout")), menu)
+  with pytest.raises(ValueError):
+    ev.row(out(("nothing_to_do", 0, ""))[0], menu)          # not an answer's
+  with pytest.raises(ValueError):
+    ov.standing_order(ev.REMOVE, menu)
+  store = ThoughtFiles().store
+  store.write(ev.MAP_FILE, json.dumps({"origin": "unseeded", "rows": out(
+    ("nothing_to_do", 0, "")) + rows(("every", ev.ASK, 900, ""))}))
+  kept = ev.load(store, menu)
+  assert kept.emap.rows == (ev.Row("every", ev.ASK, 900.0),) and kept.dropped
+  boss = make(menu, full(action="explore", event_map=out(("nothing_to_do", 0, ""))
+                         + rows(("every", ev.ASK, 600, ""))), origin="unseeded")
   boss.decide(_state(0.9))
-  assert boss.event_map == listed(menu, rows(
-    ("battery_below", "charge", 0.3, ""),
-    ("decision_failed", "idle", 0, "timeout"),
-    ("decision_failed", "explore", 0, "failure"),
-    ("decision_failed", "take_task", 0, ""),
-    ("nothing_to_do", "take_task", 0, "offers"),
-    ("nothing_to_do", ev.ASK, 0, ""),
-    ("every", ev.ASK, 900, "")))
-  assert ev.shadowed(boss.event_map) == ()
+  assert ev.REMOVE not in {r.action for r in boss.event_map.rows}
+  assert boss.event_map.rows == (ev.Row("every", ev.ASK, 600.0),)
 
 
-def test_a_rule_taken_out_and_sent_again_goes_back_in_as_a_new_one(menu):
-  """The removals go first, as an `undefine` beside a `define` does, so a
-  rule named in both goes back in where a new rule would: the one way to
-  move a rule, said as a fact in the prompt."""
+def test_the_last_rule_an_answer_sends_for_a_trigger_counts(menu):
+  """One answer, one word on each rule: where a list names a trigger twice
+  the LAST rule counts, a `remove` included -- so no answer reports a rule
+  both taken out and put back (found in review: History said the list had
+  changed while the wire, the record and the kept file said it had not)."""
   had = listed(menu, rows(("nothing_to_do", ev.ASK, 0, ""),
-                          ("battery_below", "charge", 0.3, ""),
                           ("every", ev.ASK, 900, "")))
-  boss = make(menu, full(action="explore", event_map=rows(("nothing_to_do", ev.ASK, 0, "")),
-                         event_map_remove=gone(("nothing_to_do", 0, ""))),
-              origin="unseeded", event_map=had)
-  boss.decide(_state(0.9))
-  assert boss.event_map.rows == had.rows[1:] + had.rows[:1]
+  with holding(menu, had,
+               full(action="idle", event_map=out(("nothing_to_do", 0, ""))
+                    + rows(("nothing_to_do", ev.ASK, 0, ""))),
+               full(action="idle", event_map=rows(("every", ev.ASK, 900, ""))
+                    + out(("every", 900, "")))) as life:
+    life._decide()
+    assert life.event_map == had and said_of_the_map(life) == []
+    life._decide()
+  assert life.event_map == listed(menu, rows(("nothing_to_do", ev.ASK, 0, "")))
+  [line] = said_of_the_map(life)
+  assert "0 added, 0 replaced, 1 removed. Removed every 900 -> ask." in line
 
 
 def test_a_list_past_the_bound_adds_what_fits_and_says_what_it_left_out(menu):
@@ -709,12 +718,50 @@ def test_a_list_past_the_bound_adds_what_fits_and_says_what_it_left_out(menu):
   [line] = said_of_the_map(life)
   assert ("Left out, as a list holds at most 12 rules: points_below 40 -> ask; "
           "battery_below 0.3 -> charge.") in line
-  full_list = ev.EventMap(eleven.rows + (ev.Row("every", ev.ASK, 900.0),))
-  boss = make(menu, full(action="idle", standing_order="idle"),
-              origin="unseeded", event_map=full_list)
+
+
+def test_a_full_list_has_no_room_for_the_standing_order_and_says_nothing_of_it(menu):
+  """The standing order is one more rule after the list, and a full list
+  has no room for it -- found in review: on a full list every answer that
+  set one wrote a ~410-character History line about a field this prompt
+  never names where there is a list, and the record called the order in
+  force when the map did not hold it. Not in force, so not reported as
+  in force; not the robot's doing, so not said. Its own list's rules are."""
+  twelve = listed(menu, rows(*[("every", "explore", 100 + i, "") for i in range(12)]))
+  with holding(menu, twelve, full(action="idle", standing_order="idle"),
+               full(action="idle", standing_order="idle")) as life:
+    life._decide()
+    life._decide()
+  assert life.event_map == twelve and said_of_the_map(life) == []
+  assert life.overseer.stats()["standingOrders"]["current"] == ""
+  assert life.overseer.failure_order("timeout") == ""
+  # ...and where the list itself carries that rule, the robot sent it: said
+  boss = make(menu, full(action="explore", standing_order="idle",
+                         event_map=rows(("decision_failed", "charge", 0, ""))),
+              origin="unseeded", event_map=twelve)
   d = boss.decide(_state(0.9))
-  assert boss.event_map == full_list
   assert d.map_edit.left_out == (ev.Row("decision_failed", "idle"),)
+
+
+def test_a_list_the_robot_emptied_comes_back_empty_after_a_restart(menu, tmp_path):
+  """Found in review: `restore_map` restored only a list with rules in it,
+  from before a list could be emptied. A seeded robot that took out both
+  its seeded rules had them back, in silence, at the next process start --
+  and an unseeded one was not `restored`, so the bootstrap asked over a
+  list it had kept. A list emptied by what this world no longer reads is
+  not the robot's, and still gives the origin's."""
+  root = tmp_path / "t"
+  with _run(menu, root, full(action="explore", event_map=out(
+      ("nothing_to_do", 0, ""), ("decision_failed", 0, ""))), origin="seeded") as life:
+    life.overseer.decide(_state(0.9))
+    assert life.event_map.rows == ()
+  with _run(menu, root, origin="seeded") as again:
+    assert again.event_map.rows == () and again.overseer.restored
+    assert again._minded, "a kept list is an answer, an empty one too"
+  (root / ev.MAP_FILE).write_text(json.dumps(
+    {"origin": "seeded", "rows": [{"event": "nothing_to_do", "action": "fly"}]}))
+  with _run(menu, root, origin="seeded") as third:
+    assert third.event_map == ev.seeded(menu) and not third.overseer.restored
 
 
 def test_every_edit_is_one_history_line_with_its_counts_and_its_rows(menu):
@@ -723,15 +770,14 @@ def test_every_edit_is_one_history_line_with_its_counts_and_its_rows(menu):
   answers had done it. ONE line per answer that changed the list, AS A
   FACT: the counts, each rule by what it says -- a replaced rule with what
   it was -- and the list as it stands, in order, in the words an answer
-  uses. A removal naming nothing there is said; a resend says nothing."""
+  uses. A `remove` naming nothing there is said; a resend says nothing."""
   had = listed(menu, rows(("nothing_to_do", ev.ASK, 0, ""),
                           ("battery_below", "charge", 0.3, "")))
   with holding(menu, had,
                full(action="idle",
                     event_map=rows(("every", ev.ASK, 900, ""),
-                                   ("nothing_to_do", "idle", 0, "")),
-                    event_map_remove=gone(("battery_below", 0.3, ""),
-                                          ("battery_below", 0.2, ""))),
+                                   ("nothing_to_do", "idle", 0, ""))
+                    + out(("battery_below", 0.3, ""), ("battery_below", 0.2, ""))),
                full(action="idle", event_map=rows(("every", ev.ASK, 900, "")))
                ) as life:
     life._decide()
@@ -747,36 +793,17 @@ def test_every_edit_is_one_history_line_with_its_counts_and_its_rows(menu):
   assert any("  EVENT MAP my answer changed" in ln for ln in life.log)
 
 
-def test_a_removal_is_refused_on_the_terms_a_rule_is(menu):
-  """`events.named` runs a removal through the checks a rule passes, so it
-  names a rule exactly as the rule was stored: a level clamped, no value on
-  an event that takes none, no filter on one that takes no filter -- and an
-  event that does not exist refused, not repaired."""
-  assert ev.named(gone(("battery_below", 1.4, ""), ("nothing_to_do", 7, "offers"),
-                       ("message_received", 0, "explore")), menu) == (
-    ("battery_below", "", 1.0), ("nothing_to_do", "offers", None),
-    ("message_received", "", None))
-  with pytest.raises(ValueError, match="unknown event"):
-    ev.named(gone(("solar_flare", 0, "")), menu)
-  with pytest.raises(ValueError, match="unknown kind"):
-    ev.named(gone(("task_complete", 0, "timeout")), menu)
-  with pytest.raises(ValueError, match="needs a value"):
-    ev.named([{"event": "every", "value": None, "kind": ""}], menu)
-  # ...and dropped, as the list is, where no map was offered
-  plain = menu.validate(full(action="idle", event_map_remove=gone(
-    ("nothing_to_do", 0, ""))))
-  assert plain.event_map_remove == ()
-
-
 def test_the_rule_says_a_list_goes_into_the_list_and_how_a_rule_comes_out(menu):
   """The rule said what was sent replaced what was there, and in capitals
-  that a one-rule list is a one-rule list; the slips went on. Its last
-  paragraph states the merge, the removal and the History line -- AS
-  FACTS: no nudge toward either field, no worked row."""
-  last = ov.EVENT_MAP_RULE.split("\n\n")[-1]
-  assert "goes INTO your list" in last and "`event_map_remove` does" in last
+  that a one-rule list is a one-rule list; the slips went on. It states the
+  merge, `remove` and the History line -- AS FACTS: no nudge toward either,
+  no worked row."""
+  rule = ov.EVENT_MAP_RULE
+  last = rule.split("\n\n")[-1]
+  assert "goes INTO your list" in last and "whose action is `remove`" in last
   assert "`event`, `kind` and `value`" in last and "History" in last
-  assert "replaces what is there" not in ov.EVENT_MAP_RULE
+  assert "PLUS two more: `ask`" in rule and "and `remove`, which takes" in rule
+  assert "replaces what is there" not in rule
   low = last.lower()
   for nudge in ("should", "you may want", "remember to", "make sure",
                 "it is worth", "prefer ", "always ", "never forget"):
@@ -959,8 +986,7 @@ def test_the_record_carries_the_map_at_origin_every_edit_and_at_the_end(menu):
   """The issue's acceptance, and they are ONE list: an edit history whose
   first entry IS the origin cannot disagree with the origin."""
   boss = make(menu, full(action="idle", event_map=rows(
-    ("battery_below", "charge", 0.2, "")), event_map_remove=[
-      {"event": "decision_failed", "value": 0, "kind": ""}]))
+    ("battery_below", "charge", 0.2, ""), ("decision_failed", ev.REMOVE, 0, ""))))
   boss.decide(_state(0.9))
   emap = boss.stats()["eventMap"]
   assert [e["why"] for e in emap["log"]] == ["seeded", "edit"]
@@ -1598,7 +1624,7 @@ def test_a_true_death_takes_the_list_and_a_lost_heart_does_not(menu, tmp_path,
   from pluggybot.economy.ledger import Ledger
   root = tmp_path / "t"
   written = ev.origin_map(origin, menu).edit(
-    put=ev.parse(KEPT, menu).rows).emap.as_list()
+    ev.parse(KEPT, menu).rows).emap.as_list()
   ledger = Ledger(path=tmp_path / "ledger.json")
   sent = []
   with _run(menu, root, full(action="idle", event_map=KEPT), origin=origin,

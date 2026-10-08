@@ -306,10 +306,10 @@ def test_the_index_says_what_a_field_is_and_never_what_to_put_in_it():
   a field. It must not recommend using one -- those four are what the lab,
   the acts and the desk are measuring, and a prompt that suggests filing a
   ticket or declining a job is the measurement answering itself. Nor the
-  list's two (issue #475): what they hold is what `events.score` reads."""
+  list's (issue #475): what it holds is what `events.score` reads."""
   fields = fields_of(built())
   for name in ("real", "mouse_will", "decline", "ticket", "give_points",
-               "heart_for", "build_tool", "event_map", "event_map_remove"):
+               "heart_for", "build_tool", "event_map"):
     low = fields[name].lower()
     for nudge in ("you should", "remember to", "make sure", "it is worth",
                   "prefer ", "always ", "never forget"):

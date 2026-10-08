@@ -204,6 +204,17 @@ UNCONFIGURABLE_EVENTS = ("message_received", "ticket_replied")
 #: model may answer with, it is what a row does to get an answer at all.
 ASK = "ask"
 
+#: ...and the one an ANSWER's rule may carry to take the rule with its
+#: trigger OUT (issue #475): the one way a rule leaves the map, and never a
+#: row of it -- `row_action` accepts it only off an answer (`parse`), so
+#: neither the kept file nor the standing order can hold one. A rule in the
+#: list, not a field of its own, and MEASURED (2026-10-08, 20 + 20 answers
+#: of the deployed model on Luca's served list): a field beside the list was
+#: written where `[]` was meant as the list had been, and took out 6 rules
+#: no reasoning mentioned, the charging rule among them; as an action, none
+#: in 39.
+REMOVE = "remove"
+
 #: WHY AN ACTION DID NOT HAPPEN. Closed, counted in the record by cause, and
 #: stated to the robot in `EVENT_MAP_RULE` -- an agent whose actions fail
 #: constantly is one that did not understand the rules it was given, and that
@@ -373,10 +384,9 @@ class EventMap:
     return next((r for r in self.rows
                  if r.event == event and matches_kind(r, kind)), None)
 
-  def edit(self, remove=(), put=()) -> "Edit":
-    """This map with an answer's edit applied (issue #475; Overseer.md "The
-    event map"): the rules `remove` names (by `Row.trigger`) taken out,
-    then the rules in `put` put in. What it did comes back with it.
+  def edit(self, sent=()) -> "Edit":
+    """This map with the rules an answer sent applied (issue #475;
+    Overseer.md "The event map"). What it did comes back with it.
 
     ⚠ A LIST MERGES, IT NEVER REPLACES: `event_map` is written on every
     answer, and a list that replaced the map took its `ask` rows with it
@@ -384,30 +394,35 @@ class EventMap:
     its trigger, IN PLACE; any other goes at the end, or, where it has a
     `kind`, just ahead of the first rule on its event that takes it
     (`_covers`), so a catch-all already there does not starve it. A level
-    or periodic rule has no kind and is never starved (`shadowed`). Only
-    `remove` takes a rule out -- every row with that trigger.
+    or periodic rule has no kind and is never starved (`shadowed`). Only a
+    `REMOVE` takes a rule out -- every row with that trigger -- and the
+    removals go first, so they make room.
 
-    ⚠ ONE RULE PER TRIGGER, THE LAST WINNING, so an answer cannot report a
-    rule both added and replaced; the standing order (#125), put last,
-    overrides the list's own catch-all, never `on timeout, charge`.
+    ⚠ THE LAST RULE SENT FOR A TRIGGER COUNTS, so an answer cannot report a
+    rule both taken out and put back; the standing order (#125), sent
+    last, overrides the list's own catch-all, never `on timeout, charge`.
 
     ⚠ NOTHING IS DROPPED TO MAKE ROOM: past `MAX_ROWS` a rule is left out
     and said. The fold this replaced cut the last row to fit, and a rule
     gone in silence is one the robot believes it has.
     """
+    latest = {}
+    for r in sent:
+      latest[r.trigger] = r
     rows, removed, absent = list(self.rows), [], []
-    for trigger in dict.fromkeys(remove):
-      hits = [r for r in rows if r.trigger == trigger]
+    for trigger, r in latest.items():
+      if r.action != REMOVE:
+        continue
+      hits = [x for x in rows if x.trigger == trigger]
       if hits:
         removed += hits
-        rows = [r for r in rows if r.trigger != trigger]
+        rows = [x for x in rows if x.trigger != trigger]
       else:
         absent.append(trigger)
-    latest = {}
-    for r in put:
-      latest[r.trigger] = r
     added, replaced, left_out = [], [], []
     for trigger, r in latest.items():
+      if r.action == REMOVE:
+        continue
       i = next((i for i, x in enumerate(rows) if x.trigger == trigger), None)
       if i is not None:
         if rows[i] != r:
@@ -540,8 +555,9 @@ def matches_kind(row: "Row", kind: str) -> bool:
   return False
 
 
-def row_action(raw, menu: "Menu") -> str:
-  """An accepted row action: one off the fixed menu, or `ask`.
+def row_action(raw, menu: "Menu", answer: bool = False) -> str:
+  """An accepted row action: one off the fixed menu, or `ask` -- and, on a
+  rule an `answer` sends, `remove` (issue #475).
 
   ⚠ ONE FUNCTION, and it is `overseer.standing_order` plus one member --
   which is the migration the issue asks for ("`standing_order()`'s validator
@@ -554,6 +570,8 @@ def row_action(raw, menu: "Menu") -> str:
   text = str(raw or "").strip()
   if text == ASK:
     return ASK
+  if text == REMOVE and answer:
+    return REMOVE
   order = standing_order(text, menu)
   if not order:
     raise ValueError("a row with no action is not a row "
@@ -588,8 +606,8 @@ def _level(raw, event: str) -> float:
   return max(MIN_PERIOD_S, value)                      # `every`
 
 
-def row(raw: dict, menu: "Menu") -> Row:
-  """One parsed row, or ValueError.
+def row(raw: dict, menu: "Menu", answer: bool = False) -> Row:
+  """One parsed row, or ValueError; off an `answer`, a `remove` too.
 
   Refused the same way `action` is, and for the same reason: the map is the
   ARTIFACT this issue exists to measure, and a row that was silently repaired
@@ -598,34 +616,20 @@ def row(raw: dict, menu: "Menu") -> Row:
   `action` and `kind` are enums -- which is why the one field a model can
   still get wrong (`value`) is the one that clamps rather than raises.
   """
-  event = _event(raw)
-  action = row_action(raw.get("action"), menu)
-  return Row(event=event, action=action, value=_value(raw, event),
-             kind=_kind(raw, event, menu))
-
-
-def _event(raw) -> str:
-  """A row's event, or ValueError -- a rule's or a removal's."""
   if not isinstance(raw, dict):
     raise ValueError(f"a map row is an object, not {type(raw).__name__}")
   event = str(raw.get("event", "") or "").strip()
   if event not in EVENT_TYPES:
     raise ValueError(f"unknown event {event!r} "
                      f"(offered: {', '.join(EVENT_TYPES)})")
-  return event
-
-
-def _value(raw: dict, event: str) -> float | None:
+  action = row_action(raw.get("action"), menu, answer)
   # ⚠ DROPPED, NOT REFUSED, on the events that take none -- and
   # `message_received` is why. A model that attaches a keyword to it has not
   # written an illegal row, it has written a row whose filter does not exist;
   # refusing the decision would teach it that the field matters, and honouring
   # it would open the free-text path this vocabulary is shaped to keep shut.
-  return (_level(raw.get("value"), event)
-          if event not in UNCONFIGURABLE_EVENTS + FILTERED_EVENTS else None)
-
-
-def _kind(raw: dict, event: str, menu: "Menu") -> str:
+  value = (_level(raw.get("value"), event)
+           if event not in UNCONFIGURABLE_EVENTS + FILTERED_EVENTS else None)
   allowed = kind_vocabulary(event, menu)
   kind = str(raw.get("kind", "") or "").strip() if allowed else ""
   if kind and kind not in allowed:
@@ -638,19 +642,18 @@ def _kind(raw: dict, event: str, menu: "Menu") -> str:
     # make impossible.
     raise ValueError(f"unknown kind {kind!r} for {event!r} "
                      f"(offered: {', '.join(allowed)})")
-  return kind
+  return Row(event=event, action=action, value=value, kind=kind)
 
 
 def parse(raw, menu: "Menu") -> EventMap | None:
-  """The rules an answer SENDS, as a map in the order sent, `None` for "I
-  am not changing it", or ValueError. What they do to the map in force is
-  `EventMap.edit`'s: each goes into it (issue #475), and none takes a rule
-  out.
+  """The rules an answer SENDS, in the order sent -- a `REMOVE` among them
+  -- `None` for "I am not changing it", or ValueError. What they do to the
+  map in force is `EventMap.edit`'s: each goes INTO it (issue #475), and
+  only a `REMOVE` takes a rule out, so a map can be emptied.
 
   ⚠ AN EMPTY LIST MEANS NO CHANGE, NOT "CLEAR IT": `""`/`[]` is how every
   other optional field on a decision (`pin`, `unpin`, `standing_order`)
-  says "not this time", and a list is written on every answer. Emptying a
-  map is `event_map_remove`'s (`named`).
+  says "not this time", and a list is written on every answer.
   """
   if raw is None:
     return None
@@ -658,25 +661,7 @@ def parse(raw, menu: "Menu") -> EventMap | None:
     raise ValueError(f"an event map is a list, not {type(raw).__name__}")
   if not raw:
     return None
-  return EventMap(tuple(row(r, menu) for r in raw[:MAX_ROWS]))
-
-
-def named(raw, menu: "Menu") -> tuple[tuple, ...]:
-  """The rules an answer names to TAKE OUT (issue #475), as triggers --
-  `{event, kind, value}`, the rule without its action -- or ValueError, on
-  `parse`'s terms: a removal that is not one is refused, not repaired. `[]`
-  names none. Through the same checks a rule passes, so a removal reads a
-  value exactly as the rule it names was stored (clamped, and None on an
-  event that takes none)."""
-  if raw is None:
-    return ()
-  if not isinstance(raw, (list, tuple)):
-    raise ValueError(f"a removal is a list, not {type(raw).__name__}")
-  out = []
-  for r in raw[:MAX_ROWS]:
-    event = _event(r)
-    out.append((event, _kind(r, event, menu), _value(r, event)))
-  return tuple(dict.fromkeys(out))
+  return EventMap(tuple(row(r, menu, answer=True) for r in raw[:MAX_ROWS]))
 
 
 # ---- the origins (Evaluation.md section 2) -----------------------------------
@@ -1159,6 +1144,6 @@ __all__ = ["ACTION_FAILURES", "ASK", "DEFAULT_ORIGIN", "DISCRETE_EVENTS",
            "Row", "STOOD_UP_KINDS", "UNCONFIGURABLE_EVENTS", "asks_on", "diff",
            "kind_tokens",
            "shadowed",
-           "kind_vocabulary", "load", "matches_kind", "named", "origin_map",
-           "parse", "row", "row_action", "save", "score", "seeded", "silence",
+           "kind_vocabulary", "load", "matches_kind", "origin_map", "parse",
+           "REMOVE", "row", "row_action", "save", "score", "seeded", "silence",
            "thresholds_ordered", "when"]
