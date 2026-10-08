@@ -734,7 +734,7 @@ save a filmstrip PNG named after the script.
   NEVER on a crash. Three refusals, said in History: a changed
   GEOMETRY (`fingerprint`) keeps the clock, packs, deaths and jobs but not the
   bodies or maps, and so does a save of another `MAP_EPOCH` (bumped when the
-  kept maps are found laid wrong, #425); a save restored `MAX_RESUMES` (3)
+  kept maps are found laid wrong, #425 and #476); a save restored `MAX_RESUMES` (3)
   times without a new one is not trusted. ⚠ The errand in flight ends; its job does not (`_resume_jobs`;
   `MAX_TAKE_UPS` 3), and a tool it held goes home first; between errands a
   tool on the fork is the loop's, on the count of returns it kept (#420).

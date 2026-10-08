@@ -510,19 +510,25 @@ def test_a_changed_world_keeps_the_pack_and_the_clock_but_not_the_bodies(tmp_pat
              in ln for ln in _history(back))
 
 
-def test_maps_of_another_epoch_are_dropped_as_a_changed_worlds_are(tmp_path):
+@pytest.mark.parametrize("old", [None, 1])
+def test_maps_of_another_epoch_are_dropped_as_a_changed_worlds_are(tmp_path, old):
   """#425: hours of heading walked while the quadrupeds lay, and every map
   kept since was laid askew -- and a place found in one is wrong too. The
   world is the same, so the fingerprint cannot say it: a save of an older
   `MAP_EPOCH` (one written before there was one included) keeps the pack
-  and the clock and puts back no body, belief or map, and says why."""
+  and the clock and puts back no body, belief or map, and says why. #476:
+  the deployed volume's saves are of epoch 1, and their maps were found
+  askew again, so a save of epoch 1 is dropped too."""
   life = _quad(tmp_path)
   life.body.start_at(*world_config(QUAD_HOME)["start"])
   life.body.mission._drive(0.5, 0.2, 0.0)
   life.battery.energy_wh = 0.42
   snap = _saved(life, tmp_path)
   assert snap.meta["mapEpoch"] == continuation.MAP_EPOCH
-  del snap.meta["mapEpoch"]
+  if old is None:
+    del snap.meta["mapEpoch"]
+  else:
+    snap.meta["mapEpoch"] = old
 
   back = _quad(tmp_path)
   _restored(back, snap)

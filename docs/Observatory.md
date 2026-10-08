@@ -10,6 +10,29 @@ observatory is NOT a result: it reports into the issue it informs.
 
 ## Periods
 
+### The kept maps are dropped again (#476) — opens when this PR is deployed, with #475's below it
+
+**What changed in the world.** **The maps kept on the volume are dropped at
+this deploy** (`continuation.MAP_EPOCH` 2). Nothing else moves: no code
+path, no prompt text, no wire. Both robots start from their start poses
+with empty maps and no places (#419). They keep the clock, their packs,
+hearts, points, deaths, jobs and event maps. An errand in flight ends,
+its job does not, and History's restart line says why: `the map I had was
+laid askew, and it is gone`.
+
+**Why.** Read off `8f68f54` on 2026-10-08:
+- **Both robots were lost.** In the save at t=760761, Luca's belief was 5.0 m from the truth and Rowan's 8.0 m.
+- **Rowan's heading error came back after every stand-up.** It was −10.6° to −14.1° at each failed charge from t=664990 (the `GO_CHARGE` lines' `belief off`), −12.5° at its death at t=735248, and −12.5° in the save. A stand-up puts the belief right, so a heading error that returns is a map laid askew.
+- **That cost Rowan its hearts.** It could not find the dock's board, and three flat deaths (t=670325, 697962, 735248) left it on its last heart.
+- **The cause is not fixed here.** That is #476: a matcher that never searches wider while it agrees with the wrong place.
+
+**What the period is for.**
+- **Do the robots dock again?** In the `charge` rows, compare `docked` against `no charge contact (no board)`. The failed `GO_CHARGE` lines in the box's log carry the belief's error.
+- **Does the error come back?** Read the error at each death off the `death` rows (`at.pose` against `at.believed`). If it grows again on maps laid from nothing, the map was never the cause, and #476's matcher is.
+- **What it costs to find the places again.** The first finds of the boards, the plates and the areas search outward from their buildings' addresses.
+
+**Read it with #475's period.** They deploy together, so the first day's `unminded` and `flat` deaths answer to both.
+
 ### A list goes into the list, and every edit is said (#475) — opens when this PR is deployed
 
 **What changed in the mind.** What an answer's `event_map` does, on every
