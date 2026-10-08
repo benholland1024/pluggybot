@@ -353,7 +353,8 @@ Likewise a migrated `standingOrder`, an unfiltered row, goes in by
 `EventMap.edit` keyed on the row's trigger, `(event, kind, value)`: keyed on
 the event alone, it would overwrite the agent's `on timeout, charge` within
 the hour. Since #475 every rule an answer sends goes in by the same key and
-only a named removal takes one out (Overseer.md, "The event map").
+only a rule whose action is `remove` takes one out (Overseer.md, "The event
+map").
 
 #### ⚠ Going unminded is a FAILURE, and it is measured rather than prevented
 

@@ -17,22 +17,34 @@ arm with a map (the deployed pair's). What was sent used to REPLACE the
 list, and one or two rules written where `[]` was meant took whole lists
 with them, their `ask` rows included. Now a rule goes INTO the list: it
 takes the place of the rule with the same event, kind and value, where
-that rule stands, or is added, ahead of the first broader rule on its
-event or else at the end. A new field, `event_map_remove`, names rules to
-take out, and nothing else removes one, so the last `ask` can still go and
-a list can now be emptied. A list past 12 rules adds what fits and says
-what it left out. The standing order no longer cuts the last rule to fit
-its own. Every answer that changes the list writes ONE History line: the
+that rule stands, or is added, at the end or just ahead of a wider rule
+on its event. A rule whose action is the new `remove` takes the rule with
+its name out, and nothing else removes one, so the last `ask` can still go
+and a list can now be emptied (and an emptied list comes back empty after
+a restart). Where an answer names one rule twice, the last counts. A list
+past 12 rules adds what fits and says what it left out; the standing order
+no longer cuts the last rule to fit its own, and on a full list it is not
+in force. Every answer that changes the list writes ONE History line: the
 counts, each rule added, replaced (with what it was) or removed, and the
 list as it then stands. Before, an edit rode the wire and left no line.
-In an answer full of placeholders a removal is left out (#462's
-`left_out.acts` names it). `EVENT_MAP_RULE` moved: its first and last
-paragraphs, and the ordering lesson's "Put". So did the two index lines
-(`event_map`, `event_map_remove`). The deployed prefix moved `6cefb146…` →
-`9b818e08…` (52 709 → 53 383 characters), and the schema gained the field.
-The arm, the reward table, the world and the wire did not move. The
-`event_map` message is as it was; the run record's decision rows carry
-`eventMapRemove`.
+`EVENT_MAP_RULE` moved: its first paragraph, the action paragraph (`ask`
+and `remove`), the ordering lesson's "Put", and its last paragraph; so did
+`event_map`'s index line, and the schema's row action enum gained
+`remove`. The deployed prefix moved `6cefb146…` → `049990f7…` (52 709 →
+53 178 characters). The arm, the reward table, the world and the wire did
+not move: the `event_map` message is as it was, and a decision row's
+`eventMap` carries a `remove` as sent.
+
+**Why `remove` is an action and not a field.** Measured before release on
+the deployed model (GLM-5.3-Flash, the deployed prompt, Luca's served
+8-rule list, a synthetic day that called for no change; about $0.26 of
+calls). A separate `event_map_remove` field was written where `[]` was
+meant, as the list had been: in 40 answers it took out 6 rules that no
+reasoning mentioned, the charging rule among them. As an action of a rule
+in the list, `remove` appeared in none of 59. In the same 99 answers, 29
+sent a one- or two-rule list the old code would have put in place of the
+8 rules. Merged, they changed nothing, added a threshold, or once turned
+`battery_below 0.3 -> charge` into `-> ask`, and none lost an `ask`.
 
 **What the period is for.** The rows before it: 14 `unminded` deaths on
 8f68f54 between 2026-10-05 21:00 and 10-06 21:00 (Luca 11, Rowan 3), each
@@ -44,24 +56,23 @@ here:
 
 - **`unminded` deaths that follow an edit**, against the 14. Read the
   `event_map` rows (`?kind=event_map`): an `edit` whose map lost its last
-  `ask`, then a death 1800 s later. A list alone cannot cut the map now,
-  so each such death follows a removal, or a replaced `ask` rule, that
-  the robot's History names.
+  `ask`, then a death 1800 s later. A list alone can no longer cut the
+  map, so each such death follows a `remove`, or a replaced `ask` rule,
+  that the robot's History names.
 - **How many removals were named**, per robot per day, and how many took
   out an `ask`. On the observatory, a removal is an `edit` whose map lost
   a rule with no new rule of the same event, kind and value.
+- **Replaced actions.** A list can still change a rule's action by slip,
+  as the one `charge` → `ask` above did. Count `edit`s where a rule kept
+  its event, kind and value and changed its action, and which way.
 - **Whether the lists grow.** A robot that goes on sending whole lists now
   adds what it meant to drop. Watch the rules per map, and how often a
   History line says "Left out".
-- **A removal written where `[]` was meant.** It is the one field whose
-  stray entry can take an `ask` out. An answer full of placeholders loses
-  it, but a single stray removal in an otherwise real answer stands, and
-  its History line says what went.
 
-**Not yet known.** Whether the robots find `event_map_remove` at all, or
-keep sending shorter lists that now prune nothing. Those answers change
-nothing and leave no line, so they show only as lists that stop
-shrinking.
+**Not yet known.** Whether the robots use `remove` at all when they mean
+to prune, or keep sending shorter lists that now prune nothing. Those
+answers change nothing and leave no line, so they show only as lists that
+stop shrinking.
 
 ### A conversation is 500 characters both ways, and a cut reply says so (#474) — opens when this PR is deployed
 

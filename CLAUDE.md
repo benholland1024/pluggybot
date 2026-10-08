@@ -400,10 +400,10 @@ save a filmstrip PNG named after the script.
   `PLACEHOLDER_OBJECTS`: an object whose content is one goes whole, a label
   is blanked); with `FILLED_FIELDS` (3) or more (one word in three fields
   counts, `keep`, never a topic), `UNSHOWN_PAPERWORK` goes too (the heart,
-  whom for, the gift, the rating, the guess, `done`, and a rule removal,
-  #475); a decline of the job the same answer takes is dropped. ⚠ THE
-  ACTION, ITS PARAMETERS, THE EVENT MAP'S LIST, THE STANDING ORDER AND TEXT
-  THAT IS NO PLACEHOLDER STAND (measured: nearly all of it was meant). ⚠ A number, two letters and a non-ASCII
+  whom for, the gift, the rating, the guess, `done`); a decline of the job
+  the same answer takes is dropped. ⚠ THE ACTION, ITS PARAMETERS, THE EVENT
+  MAP, THE STANDING ORDER AND TEXT THAT IS NO PLACEHOLDER STAND (measured:
+  nearly all of it was meant). ⚠ A number, two letters and a non-ASCII
   character are never placeholders; `answer`, `cites`, a visitor's `reply`,
   a unit, a note's topic and title and a procedure's name are never judged.
   ⚠ A `procedure:new` beside a placeholder define runs nothing and its
@@ -505,7 +505,7 @@ save a filmstrip PNG named after the script.
     the line). ⚠ A cross-event token is REFUSED, not dropped. ⚠ A broad row
     above a narrow one starves it — not prevented, visible in
     `score.failureKinds`;
-  - ⚠ **A LIST GOES INTO THE LIST, AND A RULE LEAVES ONLY WHEN IT IS NAMED**
+  - ⚠ **A LIST GOES INTO THE LIST, AND A RULE LEAVES ONLY BY `remove`**
     (#475; `EventMap.edit`): what an answer sent replaced the map, and one
     or two rules where `[]` was meant took the `ask` rows with them (14
     `unminded` deaths in a day). A rule is named by its TRIGGER, `(event,
@@ -513,13 +513,17 @@ save a filmstrip PNG named after the script.
     thresholds on one event are two rules (29 of 427 live edits). It takes
     the place of the rule with its trigger, where it stands, or is added at
     the end -- just ahead of the first rule on its event that takes its
-    `kind`, where it has one (`_covers`); `event_map_remove`
-    (`events.named`) is the ONE door out, applied
-    first, the last `ask` included (no rail); the standing order is one more
-    rule after the list; past `MAX_ROWS` a rule is left out and said, never
-    a rule cut to fit. EVERY EDIT IS ONE History line, as a fact
-    (`Edit.said`, `HubLifecycle._map_edit`): counts, rules, the list as it
-    stands; a resend says nothing;
+    `kind`, where it has one (`_covers`). ⚠ `events.REMOVE` is an ACTION of
+    an answer's rule, never a field and never a row of the map (MEASURED:
+    a field was slipped like the list, 6 rules out in 40 answers; the
+    action, none in 59) — the ONE way out, removals first, the last `ask`
+    included (no rail). The LAST rule sent for a trigger counts; the
+    standing order is one more rule after the list, and on a full list is
+    neither in force nor said; past `MAX_ROWS` any other rule is left out
+    and said, never a rule cut to fit; a list emptied by `remove` comes
+    back empty after a restart (`restore_map`). EVERY EDIT IS ONE History
+    line, as a fact (`Edit.said`, `HubLifecycle._map_edit`): counts, rules,
+    the list as it stands; a resend says nothing;
   - ⚠ **no worked example in `EVENT_MAP_RULE` may use `charge`, a battery
     threshold or the rack** (a test fails on a `->` line ending in `charge`):
     an example hands the agent the answer `score` measures. The rules

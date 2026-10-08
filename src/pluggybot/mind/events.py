@@ -208,11 +208,11 @@ ASK = "ask"
 #: trigger OUT (issue #475): the one way a rule leaves the map, and never a
 #: row of it -- `row_action` accepts it only off an answer (`parse`), so
 #: neither the kept file nor the standing order can hold one. A rule in the
-#: list, not a field of its own, and MEASURED (2026-10-08, 20 + 20 answers
-#: of the deployed model on Luca's served list): a field beside the list was
-#: written where `[]` was meant as the list had been, and took out 6 rules
-#: no reasoning mentioned, the charging rule among them; as an action, none
-#: in 39.
+#: list, not a field of its own, and MEASURED (2026-10-08, the deployed
+#: model on Luca's served list, a day calling for no change): a field beside
+#: the list was written where `[]` was meant as the list had been, and took
+#: out 6 rules in 40 answers that no reasoning mentioned, the charging rule
+#: among them; as an action, none in 59.
 REMOVE = "remove"
 
 #: WHY AN ACTION DID NOT HAPPEN. Closed, counted in the record by cause, and
