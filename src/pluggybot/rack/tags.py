@@ -89,6 +89,10 @@ TOWER_TAG_IDS = (42, 43)
 BENCH_TAG_IDS = (44, 45)
 GARDEN_TAG_IDS = (46,)
 AREA_TAG_SIZE = BOARD_TAG_SIZE
+#: The drop-handle chest's knob (issue #466; activity/chest.py), a demo's and
+#: never the served world's: the claw's 26 mm cube with its tag on every
+#: face, as the blocks' are, so the claw's walk-in can steer by it.
+CHEST_TAG_IDS = (53,)
 
 # Physical marker sizes (m), edge of the BLACK tag -- what the detector is
 # told, and what PnP scales its translation by. The plate carrying it is
@@ -101,6 +105,7 @@ SMALL_TAG_SIZE = 0.030
 TAG_SIZES = {**{i: SMALL_TAG_SIZE for i in MODULE_TAG_IDS.values()},
              **{i: BLOCK_TAG_SIZE for i in BLOCK_TAG_IDS},
              **{i: BLOCK_TAG_SIZE for i in MASS_TAG_IDS},
+             **{i: BLOCK_TAG_SIZE for i in CHEST_TAG_IDS},
              **{i: DOCK_TAG_SIZE for i in DOCK_TAG_IDS},
              **{i: LEGS_RACK_TAG_SIZE for i in (*LEGS_RACK_TAG_IDS, *LEGS_BUILT_TAG_IDS)},
              **{i: PLATE_TAG_SIZE for i in PLATE_TAG_IDS},
@@ -271,8 +276,7 @@ class TagDetector:
     keyed by id the last face decoded wins -- lying in front of one, that
     was its top seen edge-on, 16 mm over the face the robot faced (#407).
     Which face a decode is, is its `normal`."""
-    self.renderer.update_scene(data, camera=self.camera_name)
-    rgb = self.renderer.render()
+    rgb = self.frame(data)
     gray = np.ascontiguousarray(
       (0.299 * rgb[:, :, 0] + 0.587 * rgb[:, :, 1]
        + 0.114 * rgb[:, :, 2]).astype(np.uint8))
@@ -292,6 +296,11 @@ class TagDetector:
         "normal": tuple(float(v) for v in normal),
       })
     return out
+
+  def frame(self, data) -> np.ndarray:
+    """The camera's colour frame, (height, width, 3) uint8: what it decodes."""
+    self.renderer.update_scene(data, camera=self.camera_name)
+    return self.renderer.render()
 
   def close(self) -> None:
     self.renderer.close()

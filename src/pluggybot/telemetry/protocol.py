@@ -605,6 +605,19 @@ LEFT_OUT_EVENT_TYPES = ("left_out",)
 #: a decline named the job the same answer took. The first that holds.
 LEFT_OUT_WHYS = ("filled", "placeholder", "decline")
 
+#: WHAT THE ROBOT THINKS IS THERE (issue #466, stage 3), additive, no bump:
+#: an `imagined` event per model it made of an object in front of it --
+#: `robot`, `t`, `what` (its author's words), `parts` (`{id, shape, size,
+#: quat, on}`: one primitive a part, a scene body of one geom), `rest`
+#: (each part's drawn pose, `[x, y, z, qw, qx, qy, qz]`, the robot's MAP),
+#: `joints` (`{id, type, part, at, axis, range}`, m and rad) and, where its
+#: model was replayed along a probe, `replay` (`t0` the sim time of the
+#: probe's first row, `hz`, the moving `parts`, and `frames`: their poses
+#: tick by tick). `rounds`, `revisions` and `residualN` say how it was
+#: made. ⚠ THE ROBOT'S MODEL ONLY: no number of the world's rides it. A
+#: demo's (`scripts/imagine_chest.py --demo`), never the served world's.
+IMAGINED_EVENT_TYPES = ("imagined",)
+
 #: The `crash` message: the PROCESS is exiting on an exception, and it says
 #: so before it goes. Not a death -- a death is a designed outcome of the
 #: robot's that rides `death` and stands up again in the same process; a

@@ -60,6 +60,9 @@ TRANSIENT_HOLDERS = {
   # the claw's hand (#407), made for one pick or place and dropped after it:
   # a recompile is refused mid-errand (`HubLifecycle.seam_busy`)
   "tools/claw.py:ClawHand",
+  # a lid in a world OUR grading compiled for one grade (#466), never the
+  # served one
+  "evaluation/model.py:Lid",
 }
 
 

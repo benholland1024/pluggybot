@@ -21,7 +21,8 @@ diffable across models, across ladder rungs, and across time within one run.
 ## The model
 
 An ORDERED list of `(event + its configuration) -> action`. **First match
-wins, and the agent controls the order.** Several rows can be live on one
+wins, and the agent's own edits make the order** -- where a rule it sends
+goes is `EventMap.edit`'s (issue #475). Several rows can be live on one
 tick -- two battery thresholds, a failure and a task completion -- and an
 undefined order is nondeterminism, which is the one property `Evaluation.md`
 section 1 says this project has and should not spend. Ordering also makes
@@ -204,6 +205,17 @@ UNCONFIGURABLE_EVENTS = ("message_received", "ticket_replied")
 #: model may answer with, it is what a row does to get an answer at all.
 ASK = "ask"
 
+#: ...and the one an ANSWER's rule may carry to take the rule with its
+#: trigger OUT (issue #475): the one way a rule leaves the map, and never a
+#: row of it -- `row_action` accepts it only off an answer (`parse`), so
+#: neither the kept file nor the standing order can hold one. A rule in the
+#: list, not a field of its own, and MEASURED (2026-10-08, the deployed
+#: model on Luca's served list, a day calling for no change): a field beside
+#: the list was written where `[]` was meant as the list had been, and took
+#: out 6 rules in 40 answers that no reasoning mentioned, the charging rule
+#: among them; as an action, none in 59.
+REMOVE = "remove"
+
 #: WHY AN ACTION DID NOT HAPPEN. Closed, counted in the record by cause, and
 #: stated to the robot in `EVENT_MAP_RULE` -- an agent whose actions fail
 #: constantly is one that did not understand the rules it was given, and that
@@ -288,6 +300,26 @@ class Row:
       out["kind"] = self.kind
     return out
 
+  @property
+  def trigger(self) -> tuple[str, str, float | None]:
+    """What this row fires ON -- its event, its filter and its level -- and
+    so its NAME (issue #475): a `remove` names a rule by it, and a rule an
+    answer sends beside one takes the place of the rule with its trigger.
+
+    ⚠ THE VALUE IS PART OF IT. Two thresholds on one event are two rules,
+    and 29 of 427 live edits (2026-09-28 to 10-08) carried such a pair --
+    `battery_below 0.1 -> charge` beside `battery_below 0.3 -> ask`. Keyed
+    on `(event, kind)` alone, sending one would replace the other, an `ask`
+    among them. A discrete event's value is always None, so there the
+    trigger IS `(event, kind)`, the key the standing order's fold had.
+    """
+    return (self.event, self.kind, self.value)
+
+  def said(self) -> str:
+    """The row as History writes it, and as the observatory's `detail`
+    does: `event (kind) value -> action`, in the words an answer uses."""
+    return f"{when(self.trigger)} -> {self.action}"
+
   def describe(self) -> str:
     """One line a person watching can read."""
     what = {"battery_below": f"battery below {self.value:.0%}"
@@ -311,6 +343,17 @@ class Row:
   def filtered(self) -> bool:
     """Does this row narrow its event, or take everything it fires on?"""
     return bool(self.kind)
+
+
+def when(trigger: tuple) -> str:
+  """A trigger in an answer's words: `event (kind) value`, each part only
+  where the row has one. The value is written as the wire writes a number
+  (`900`, not `900.0`), so a line can be compared with the site's."""
+  event, kind, value = trigger
+  out = event + (f" ({kind})" if kind else "")
+  if value is not None:
+    out += " " + (str(int(value)) if float(value).is_integer() else repr(float(value)))
+  return out
 
 
 @dataclass(frozen=True)
@@ -342,30 +385,129 @@ class EventMap:
     return next((r for r in self.rows
                  if r.event == event and matches_kind(r, kind)), None)
 
-  def with_row(self, row: Row) -> "EventMap":
-    """This map with `row` in it, replacing the first row with the same
-    `(event, kind)` IN PLACE if there is one, appended otherwise.
+  def edit(self, sent=()) -> "Edit":
+    """This map with the rules an answer sent applied (issue #475;
+    Overseer.md "The event map"). What it did comes back with it.
 
-    ⚠ IN PLACE IS THE POINT. This is the `standingOrder` migration path
-    (issue #125 -> a `decision_failed` row), and an agent that keeps setting
-    `standing_order` on every answer -- which `STANDING_ORDER_RULE` tells it
-    to do -- must not push a thirteenth row onto its own map every hour, nor
-    silently reorder the map it wrote.
+    ⚠ A LIST MERGES, IT NEVER REPLACES: `event_map` is written on every
+    answer, and a list that replaced the map took its `ask` rows with it
+    (14 `unminded` deaths in a day). A rule new to the map goes at the end,
+    or, where it has a `kind`, just ahead of the first rule on its event
+    that takes it (`_covers`), so a catch-all already there does not starve
+    it. A level or periodic rule has no kind and is never starved
+    (`shadowed`). Only a `REMOVE` takes a rule out -- every row with that
+    trigger -- and the removals go first, so they make room.
 
-    ⚠ AND THE KIND IS PART OF THE KEY, which matters from the moment
-    `decision_failed` takes a filter. A scalar standing order means "on ANY
-    failure", so it is an UNFILTERED row -- and matching on the event alone
-    would have it overwrite the agent's `on timeout, charge` rule, silently
-    deleting a specific policy every time it set a general one. Measured
-    against nothing: the field is set on every answer, so it would have
-    happened within the hour.
+    ⚠ A RULE NEVER CHANGES ANOTHER'S ACTION BY ITSELF (Ben, 2026-10-08,
+    after a replay of the issue's 14 deaths): sent with the trigger of a
+    rule here and another action, it is HELD -- not applied, and said --
+    unless the same answer also sends that trigger with `REMOVE`; then it
+    takes that rule's place, IN PLACE (a duplicate of it goes). Replaced in
+    place by a slip, `nothing_to_do -> take_task` took the only `ask` of 3
+    of the 14. Where an answer sends one trigger twice, its last rule
+    counts. The standing order (#125) rides with a `REMOVE` of its own
+    trigger, so it replaces the catch-all as it always did -- and only
+    where the list does not name it (`Overseer._install_map`).
+
+    ⚠ NOTHING IS DROPPED TO MAKE ROOM: past `MAX_ROWS` a rule is left out
+    and said. The fold this replaced cut the last row to fit, and a rule
+    gone in silence is one the robot believes it has.
     """
-    rows = list(self.rows)
-    for i, existing in enumerate(rows):
-      if existing.event == row.event and existing.kind == row.kind:
-        rows[i] = row
-        return EventMap(tuple(rows))
-    return EventMap(tuple(rows[:MAX_ROWS - 1] + [row]))
+    named = {r.trigger for r in sent if r.action == REMOVE}
+    latest = {}
+    for r in sent:
+      if r.action != REMOVE:
+        latest[r.trigger] = r
+    rows, removed, absent = list(self.rows), [], []
+    for trigger in dict.fromkeys(r.trigger for r in sent if r.action == REMOVE):
+      if trigger in latest:
+        continue                                 # a replacement, below
+      hits = [x for x in rows if x.trigger == trigger]
+      if hits:
+        removed += hits
+        rows = [x for x in rows if x.trigger != trigger]
+      else:
+        absent.append(trigger)
+    added, replaced, held, left_out = [], [], [], []
+    for trigger, r in latest.items():
+      hits = [i for i, x in enumerate(rows) if x.trigger == trigger]
+      if hits and trigger in named:
+        removed += [rows[i] for i in hits[1:]]
+        was = rows[hits[0]]
+        rows = [x for i, x in enumerate(rows) if i not in hits[1:]]
+        if was != r:
+          replaced.append((was, r))
+          rows[hits[0]] = r
+      elif hits:
+        if r not in rows:
+          held.append((rows[hits[0]], r))
+      elif len(rows) >= MAX_ROWS:
+        left_out.append(r)
+      else:
+        j = next((j for j, x in enumerate(rows) if r.kind
+                  and x.event == r.event and _covers(x, r)), len(rows))
+        rows.insert(j, r)
+        added.append(r)
+    return Edit(EventMap(tuple(rows)), tuple(added), tuple(replaced),
+                tuple(removed), tuple(absent), tuple(left_out), tuple(held))
+
+
+class Edit(NamedTuple):
+  """What one answer did to the map (issue #475): the map it left; each
+  rule it added, each it replaced as `(was, now)`, each it removed; each
+  removal that named no rule there; each new rule left out for want of
+  room; and each rule held as `(kept, sent)` -- sent with another action
+  and no `REMOVE` beside it. `said` is the History line."""
+
+  emap: EventMap
+  added: tuple[Row, ...] = ()
+  replaced: tuple[tuple[Row, Row], ...] = ()
+  removed: tuple[Row, ...] = ()
+  absent: tuple[tuple, ...] = ()
+  left_out: tuple[Row, ...] = ()
+  held: tuple[tuple[Row, Row], ...] = ()
+
+  @property
+  def changed(self) -> bool:
+    return bool(self.added or self.replaced or self.removed)
+
+  @property
+  def worth_saying(self) -> bool:
+    """Anything the robot would not see by sending the same list again:
+    an answer that resends rules it has does nothing, and says nothing."""
+    return self.changed or bool(self.absent or self.left_out or self.held)
+
+  def said(self) -> str:
+    """One History line, as a FACT, never a verdict: what the answer did to
+    the list, by count and by rule -- a replaced rule with what it was --
+    and then the list as it stands, in order."""
+    def rules(rows) -> str:
+      return "; ".join(r.said() for r in rows)
+    out = [f"my answer {'changed' if self.changed else 'left'} my event map"
+           + ("" if self.changed else " as it was")
+           + (f": {len(self.added)} added, {len(self.replaced)} replaced, "
+              f"{len(self.removed)} removed." if self.changed else ".")]
+    if self.added:
+      out.append(f"Added {rules(self.added)}.")
+    if self.replaced:
+      out.append("Replaced " + "; ".join(f"{was.said()} with -> {now.action}"
+                                         for was, now in self.replaced) + ".")
+    if self.removed:
+      out.append(f"Removed {rules(self.removed)}.")
+    if self.held:
+      out.append("Not replaced, as this answer sent no `remove` for them: "
+                 + "; ".join(f"{kept.said()} (sent -> {sent.action})"
+                             for kept, sent in self.held) + ".")
+    if self.left_out:
+      out.append(f"Left out, as a list holds at most {MAX_ROWS} rules: "
+                 f"{rules(self.left_out)}.")
+    if self.absent:
+      out.append("Not in it to remove: "
+                 + "; ".join(when(t) for t in self.absent) + ".")
+    n = len(self.emap)
+    out.append(f"It has {n} rule{'' if n == 1 else 's'} now"
+               + (f", in order: {rules(self.emap.rows)}." if n else "."))
+    return " ".join(out)
 
 
 # ---- building one from an answer ---------------------------------------------
@@ -432,8 +574,9 @@ def matches_kind(row: "Row", kind: str) -> bool:
   return False
 
 
-def row_action(raw, menu: "Menu") -> str:
-  """An accepted row action: one off the fixed menu, or `ask`.
+def row_action(raw, menu: "Menu", answer: bool = False) -> str:
+  """An accepted row action: one off the fixed menu, or `ask` -- and, on a
+  rule an `answer` sends, `remove` (issue #475).
 
   ⚠ ONE FUNCTION, and it is `overseer.standing_order` plus one member --
   which is the migration the issue asks for ("`standing_order()`'s validator
@@ -446,6 +589,8 @@ def row_action(raw, menu: "Menu") -> str:
   text = str(raw or "").strip()
   if text == ASK:
     return ASK
+  if text == REMOVE and answer:
+    return REMOVE
   order = standing_order(text, menu)
   if not order:
     raise ValueError("a row with no action is not a row "
@@ -480,8 +625,8 @@ def _level(raw, event: str) -> float:
   return max(MIN_PERIOD_S, value)                      # `every`
 
 
-def row(raw: dict, menu: "Menu") -> Row:
-  """One parsed row, or ValueError.
+def row(raw: dict, menu: "Menu", answer: bool = False) -> Row:
+  """One parsed row, or ValueError; off an `answer`, a `remove` too.
 
   Refused the same way `action` is, and for the same reason: the map is the
   ARTIFACT this issue exists to measure, and a row that was silently repaired
@@ -496,7 +641,7 @@ def row(raw: dict, menu: "Menu") -> Row:
   if event not in EVENT_TYPES:
     raise ValueError(f"unknown event {event!r} "
                      f"(offered: {', '.join(EVENT_TYPES)})")
-  action = row_action(raw.get("action"), menu)
+  action = row_action(raw.get("action"), menu, answer)
   # ⚠ DROPPED, NOT REFUSED, on the events that take none -- and
   # `message_received` is why. A model that attaches a keyword to it has not
   # written an illegal row, it has written a row whose filter does not exist;
@@ -520,18 +665,14 @@ def row(raw: dict, menu: "Menu") -> Row:
 
 
 def parse(raw, menu: "Menu") -> EventMap | None:
-  """A whole map off an answer, `None` for "I am not changing it", or
-  ValueError.
+  """The rules an answer SENDS, in the order sent -- a `REMOVE` among them
+  -- `None` for "I am not changing it", or ValueError. What they do to the
+  map in force is `EventMap.edit`'s: each goes INTO it (issue #475), and
+  only a `REMOVE` takes a rule out, so a map can be emptied.
 
-  ⚠ AN EMPTY LIST MEANS NO CHANGE, NOT "CLEAR IT", and this is a limit rather
-  than a rule. A whole-map replacement is the only shape a small model can
-  reliably emit for an ORDERED list -- addressing rows by index invites an
-  edit that fires everything below an insertion -- and `""`/`[]` is how every
+  ⚠ AN EMPTY LIST MEANS NO CHANGE, NOT "CLEAR IT": `""`/`[]` is how every
   other optional field on a decision (`pin`, `unpin`, `standing_order`)
-  says "not this time". The cost is that a map cannot be emptied once
-  written, only replaced; an agent that wants nothing to happen writes one
-  row that does nothing, and `unseeded` is how an EMPTY map is reached at
-  all. Say so in the prompt rather than pretending otherwise.
+  says "not this time", and a list is written on every answer.
   """
   if raw is None:
     return None
@@ -539,7 +680,7 @@ def parse(raw, menu: "Menu") -> EventMap | None:
     raise ValueError(f"an event map is a list, not {type(raw).__name__}")
   if not raw:
     return None
-  return EventMap(tuple(row(r, menu) for r in raw[:MAX_ROWS]))
+  return EventMap(tuple(row(r, menu, answer=True) for r in raw[:MAX_ROWS]))
 
 
 # ---- the origins (Evaluation.md section 2) -----------------------------------
@@ -690,7 +831,8 @@ class EventClock:
   Separate from `EventMap` because the map is the artifact -- the thing the
   record keeps at origin, at every edit and at the end -- and this is the
   latch: which level rows are armed, and when each `every` row last went off.
-  Keyed by the ROW, so an edit that keeps a row keeps its arming.
+  Keyed by the ROW, so an edit that keeps a row keeps its arming -- and a
+  row the map no longer holds is forgotten (`fire`).
   """
 
   def __init__(self) -> None:
@@ -736,7 +878,7 @@ class EventClock:
 
     ⚠ ONE ROW PER TICK, AND FIRST MATCH WINS. Several rows can be live at
     once and running them all would be an undefined order in disguise; the
-    agent chose the order, so the agent chose which one matters. A row that
+    agent's edits made the order, so they chose which one matters. A row that
     was live and did not win stays live (a level row stays armed, an `every`
     row stays overdue) and wins the next tick if nothing above it does.
 
@@ -744,7 +886,17 @@ class EventClock:
     which is what makes two battery thresholds behave: 35 % and 15 % are
     independent latches, and the 15 % row must not be re-armed by the 35 %
     row winning a tick.
+
+    ⚠ STATE GOES WITH ITS ROW (issue #475): a row the map no longer holds is
+    forgotten here, so one taken out and sent again later starts as a new
+    rule -- armed, its period from when it came back -- and is not latched
+    by what it did before (found in review: a charge rule sent again below
+    its threshold never fired).
     """
+    held = set(emap.rows)
+    for state in (self._armed, self._last):
+      for r in [r for r in state if r not in held]:
+        del state[r]
     for r in emap.rows:
       if r.event in LEVEL_EVENTS:
         true = self._level_true(r, live)
@@ -1015,7 +1167,7 @@ def diff(before: EventMap | None, after: EventMap | None) -> dict:
 
 
 __all__ = ["ACTION_FAILURES", "ASK", "DEFAULT_ORIGIN", "DISCRETE_EVENTS",
-           "EVENT_TYPES", "EventClock", "EventMap", "FAILURE_CLASSES",
+           "EVENT_TYPES", "Edit", "EventClock", "EventMap", "FAILURE_CLASSES",
            "FILTERED_EVENTS", "INTERRUPTING_EVENTS", "INTERRUPT_OUTCOMES",
            "Kept", "LEVEL_EVENTS", "Live", "MAP_FILE", "MAX_ROWS",
            "NOTHING_TO_DO_KINDS", "ORIGINS", "PERIODIC_EVENTS",
@@ -1023,5 +1175,5 @@ __all__ = ["ACTION_FAILURES", "ASK", "DEFAULT_ORIGIN", "DISCRETE_EVENTS",
            "kind_tokens",
            "shadowed",
            "kind_vocabulary", "load", "matches_kind", "origin_map", "parse",
-           "row", "row_action", "save", "score", "seeded", "silence",
-           "thresholds_ordered"]
+           "REMOVE", "row", "row_action", "save", "score", "seeded", "silence",
+           "thresholds_ordered", "when"]

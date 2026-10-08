@@ -3454,6 +3454,721 @@ approaches as well as the dock (`rack_distance`, off each rail bay's
 standoff: computed off the dock's frame, two rail bays' approaches were
 "clear").
 
+## Opening a box from lying (issue #469)
+
+#466's first demo has the robot model a mechanism from its own senses. This
+spike measured whether the arm can open one from the claw's lying stance,
+and what its drivers' torques tell about it (`scripts/mechanism_spike.py
+--all --into DIR` flies every table here, 8 minutes on a 32-vCPU pod). Three
+candidates, each alone with one robot in the house's empty storeroom:
+- a box (0.22 × 0.30 × 0.14 m, 12 mm board) whose lid is lifted by a **drop
+  handle**: a knob the size of the claw's cube on an L hung from its own pin
+  at the lid's front edge, so the grip does not turn as the lid does;
+- the same box, its lid lifted **from under its lip** by the shut jaws'
+  crossbar, a finger notch taking the claw's pendant;
+- a low **drawer** pulled straight back by a knob.
+
+The robot lies with the knob 0.46 m ahead; the lid's arc carries it 0.16 m
+further and 0.22 m up. The lids end up to 3° short of the 69° asked (4° at
+Kp 8), the arm giving under their weight; with the knob 0.60 m ahead, the
+arm's reach stops the lid at 66°.
+
+**A walk-in leaves the box within 17 mm across and 1.4°** (`--walkin --n
+16`: the claw's tag-steered walk-in to a cube, its starts jittered 0.1 m and
+8° round its look point). 14 of the 16 saw the cube on the dev box's GPU, 15
+under osmesa's llvmpipe, and each lay down on its first try: the cube
+0.529–0.545 m ahead (sd 5.5 mm), −2..+17 mm across, the heading −1.4..+0.2°
+off the line walked in on. Every table below sets the box out square and at
+the GPU's 14 (`WALKIN`), each moved 8 cm nearer: the walk-in lies down with
+what it steered by 0.54 m ahead (`claw.LIE_AT_M`), and the knob wants 0.46.
+
+**The claw on its fork is a pendulum: it holds a push down or toward the
+robot, and little else** (`--window`: a push at the jaws' middle, ramped
+0.25 N/s to 6 N; a swing is + with the jaws away from the robot):
+
+| push at the jaws | holds | swings 10° at | leaves its seat at |
+|---|---|---|---|
+| down | 6 N, the ramp's end | – | – |
+| toward the robot | 3 N, on the lean-pad at 4–6° | 3.45 N, then sits at −15° | – |
+| away from the robot | nothing: +31° at 0.5 N, +50° at 1 N | 0.15 N | – |
+| up | ~0.9 N | 0.97 N | 1.16 N, and stays off |
+| sideways | – | – | 1.04 N |
+| up through its centre of mass | – | – | 2.36 N, its weight |
+
+The claw (0.239 kg) hangs its centre of mass 61 mm under the peg and its
+jaws 175 mm under it: pushed up at the jaws it is an inverted pendulum,
+beaten at W·61/175 ≈ 0.8 N, and sideways it rolls off one V at
+W·85/175 ≈ 1.1 N, 85 mm being half the V's spacing. ToolPattern's "What a
+tool may push" carries the rule. A claw holding a knob is not this free
+pendulum: its jaws are tied to the mechanism, and what must hold is the grip
+and the handle's tension.
+
+**The candidates** (`--table --n 15`: square and the walk-in's 14, at Kp 60
+and 15, the path on the true arc, swept open and back at 0.25 rad/s or
+0.03 m/s):
+
+| candidate, Kp 60 (Kp 15) | opened, of 69° or 0.12 m | most on the claw, N: up / down / toward / away | the claw's swing |
+|---|---|---|---|
+| drop handle | 67.0–67.1° (65.8–66.1°) | 0.11 / 1.87 / 0.77 / 0.25 (0.62 / 1.83 / 1.06 / 0.33) | −3.9..+1.1° (+2.8°) |
+| under the lip | 68.0–68.2° (67.1–67.4°) | 0 / 3.16 / 1.04 / 0.28 (0 / 3.01 / 1.13 / 0.26) | −3.9..+1.1° (+2.2°) |
+| drawer | 87–104 mm (85–104 mm) | 1.39 / 1.03 / 2.06 / 1.19 (0.80 / 0.67 / 1.09 / 1.17) | −3.9..+11.3° (+11.8°) |
+
+Every try took hold, kept the claw seated and shut again, and no knob slid
+more than 1.6 mm along the pads. Both lids opened past 57° (`OPENED`) every
+time. The drawer pulls the jaws away from the robot, the side with nothing
+to lean on: the claw swings 11–12° on its peg, the drawer lags its command,
+and only the 3 of each gain's 15 set out square to it (within 0.05°)
+reached 0.10 m.
+
+**The arm must be compliant past a centimetre of error** (`--tolerance`:
+the path planned off a hinge guessed with its radius long or short, or a
+drawer's pull rising or falling over its travel; Kd kept at its damping
+ratio; 5 set-outs a cell for the handle, 3 for the others). The criterion is
+the coupling's: the claw's seat may not open longer than the peg's 200 ms
+holding capacitor, or the tool loses power.
+
+| path off | Kp 60 | Kp 30 | Kp 15 | Kp 8 |
+|---|---|---|---|---|
+| handle, radius 1 cm short or long | held | held | held | held |
+| handle, 2 cm short | seat open over 200 ms in 3 of 5 (to 1.2 s), 2.4 N up | held | held | held |
+| handle, 4 cm short; the lid stops at 55–57° | 4 of 5 (to 2.2 s) | 3 of 5 (to 1.5 s) | 2 of 5 (to 0.4 s) | held |
+| handle, 4 cm long | 1 of 5 (0.22 s), 8.7 N down | held, 5.2 N down | held, 2.9 N down | held, 1.8 N down |
+| lip, 4 cm short to 2 cm long | held | held | held | held |
+| lip, 4 cm long | 3 of 3 (to 0.59 s), 12 N up | 3 of 3 (0.48 s) | 3 of 3 (0.30 s) | held, 7.5 N up |
+| drawer, pull 1 / 2 / 4 cm low | 1 / 3 / 3 of 3 (to 7.5 s) | held / 3 / 3 | held / held / 3 | held / held / 1 |
+| drawer, pull 4 cm high | 2 of 3 (0.5 s), 12.6 N down | held, 6.6 N down | held, 3.5 N down | held, 1.9 N down |
+
+A radius guessed short drives the handle's pin inside its arc and the stiff
+arm lifts the claw off its seat; guessed long, it hauls the claw down, which
+the claw holds. Under the lip a short guess only lets the lid rest lower on
+the crossbar; a long one reaches past the lip's edge and catches it. The arm
+is stiffer than #466 guessed: at Kp 60, 600–1,100 N/m vertically and
+1,100–1,800 fore-aft at the knob's poses (the gains through the arm's
+Jacobian), so a centimetre into something rigid is 6–18 N, not 2; at Kp 8,
+80–150 and 140–250 N/m. The GIM8108-8's MIT mode takes a stiffness and a
+damping with every command, and the gravity feed-forward holds the arm up
+at any gain. **Demo 1 sweeps at Kp 8**, where a hinge guessed within 4 cm
+keeps the claw seated and adds no force (Kp 15 holds one 2 cm short or 4 cm
+long); the torques read the force there as well as at Kp 60, and the fit
+nearly as well. The cost is lag: the lid ends 4° short, and a catch lets go
+only once the command has run ahead of the shut lid.
+
+**The force at the tool off the torques** (`legs.arm.tool_force`;
+`--torques --kp 60,15,8`). The plate only translates, so the motors read a
+force through the peg as they would one at the wrist: the readings, less the
+driver's gravity model with its claw the payload, through the Jacobian of
+what the motors drive (the shoulder's angle and the forearm's absolute one).
+Held still with the bench's cube and a known push, they put its weight
+within 3 % at three poses (`tests/test_arm.py`). Moving, the error is the
+arm's own Coulomb friction (`ARM_FRICTION_NM` and the passive pivots,
+0.10–0.12 N·m a motor): 0.39–0.46 N at the tool along a lid's arc, the size
+of the lid's own forces. An empty sweep along the same path finds it
+(`legs.arm.arm_friction`: the readings beyond the gravity model, signed by
+each joint's rate). It was flown with the box lifted out of reach, which a
+robot cannot do, but the sim's friction is a constant, so a robot calibrates
+it once, anywhere (two paths read the forearm 0.02 N·m apart). Subtracted
+wherever a joint turns
+(`legs.arm.less_friction`) it leaves the force within 0.04–0.06 N fore-aft
+and 0.03–0.04 N vertical of the contact force while both joints turn, at
+every gain -- an RMS of 0.1 s means: a single reading scatters 0.10–0.15 N,
+and the worst 0.1 s mean was 0.29 N. Inside a joint's friction band (slower
+than 0.02 rad/s, as where the sweep turns) the friction's sign is unknown:
+0.31–0.38 N fore-aft, 0.17–0.20 vertical. The drawer pulls fore-aft at a
+pose where that is the torques' least accurate axis: 0.12–0.21 N moving.
+
+**What the sweeps resolve** (`--fit --n 8 --corners --twins --kp 60,15,8`).
+An oracle that knows the lid's angle and the handle's pin (the robot has only
+its arm's pose, and the claw swings ±4° on its peg, 12 mm at the knob) turns
+the force into the torque about the hinge. It fits the lid's gravity (with
+its centre of mass's height off the hinge's line, a sine), a spring and its
+preload, Coulomb friction, damping and inertia to sweeps up and down over
+5–69° at 0.15 and 0.45 rad/s. Of the 8 set-outs drawn seeded every other one
+has a spring, so each figure is over 4: the error against the truth, its
+median and (worst):
+
+| what is fitted | off the torques, Kp 15 | Kp 60 / Kp 8 | off the contact force |
+|---|---|---|---|
+| gravity torque, no spring | 2.2 % (3.0) | 1.5 / 2.5 % | 0.3–0.5 % |
+| ...without its centre of mass's height | 3.8 % (4.0), a bias | 3.6 / 3.5 % | 3.4–3.6 % |
+| Coulomb friction (0.04–0.11 N·m) | 0.002 N·m (0.002) | 0.003 / 0.001 | 0.002 N·m |
+| damping (0.007–0.15 N·m·s/rad) | 0.010 (0.010) | 0.004 / 0.012 | 0.003 |
+| gravity torque, with a spring | 31 % (32) | 25 / 33 % | 1.4–2.5 % |
+| the spring's stiffness | 211 % (505) | 147 / 202 % | 78–101 % |
+| their sum at 11°, 34° and 57° | 0.012 N·m (0.012) | 0.009 / 0.013 | 0.0025 N·m |
+| the lid's inertia | 5–9 times too big: the arm's own | the same | 14–51 % high |
+
+Friction is the gap between the sweeps up and down, and damping that gap
+growing from one rate to the other: both separate. Gravity and a spring do
+not: over 5–69° the fitted coefficients of a cosine, a line and a constant
+correlate 0.98–0.998, so their sum, the static torque curve, is pinned and
+the split wanders.
+
+**Mass never separates from its lever arm.** Turning a lid on its hinge
+shows its mass only as moments, Σmr in statics and Σmr² in dynamics, never
+Σm. Two lids of one first moment (`TWINS`: the 0.30 kg board alone, and half
+the board with 0.079 kg at its front edge) read the same gravity torque to
+0.0002 N·m at every gain, off the torques and off the contact force. Only
+their inertia about the hinge differs, by 18 %: the contact force resolves
+the difference (+0.0010 kg·m², the truth +0.0010) though not either one
+(both 0.003 high, the handle's own), and the torques read it 0.0006–0.0015.
+So a lid's mass needs an assumption about where the mass sits, whatever the
+hinge allows a probe to do.
+
+**A catch** (`--latch`: a magnetic catch of 1–4 N at the knob, its pull
+falling as (1 + gap/0.5 mm)⁻², pulled from shut at 0.15 rad/s or 0.015 m/s,
+at Kp 60 and 15). All 24 let go. On the lids the force at release off the
+torques was within 0.36 N of the truth (2.8–5.9 N: the catch with the lid's
+own weight); the handle's knob slid at most 0.5 mm along the pads; the claw
+swung at most 6° pulling and 10° after, was pushed down rather than lifted
+at the release, and stayed seated. A compliant arm pulls only as its command
+runs ahead of the shut lid: at Kp 15 a 4 N catch let go with the command
+0.16 rad open, at Kp 60 at 0.05. On the drawer the release read 0.3–0.5 N
+high at 1–2 N, and a 3–4 N catch swung the claw 14–23° and left the drawer
+36–58 mm out of the 100 asked.
+
+**The choice is the drop handle.**
+- It opens from every stance at every gain, and keeps the claw seated along
+  a hinge guessed 4 cm off at Kp 8. Under the lip, a radius guessed long
+  catches the lip's edge; a drawer's pull unseats the claw from 2 cm low.
+- Its grip drives the lid both ways, so the sweeps up and down at two rates
+  are the robot's own; under the lip, the lid follows the jaws down by its
+  own weight or not at all.
+- Its pin is a fixed point on the lid, so the force's lever about the hinge
+  is the lid's geometry; under the lip, the contact slides across the
+  crossbar's 16 mm.
+- The drawer measures no gravity torque, pulls its claw onto the side with
+  no stop, reaches 0.10 m in 6 of 30 tries, and puts its force on the
+  torques' least accurate axis.
+
+⚠ **A drop handle only pulls.** A lid whose spring beats its weight near the
+top pushes the handle back at the claw on the way down: the `open` corner
+(by 0.15 N·m) swung it 9–14° on its peg, where no shut lid swung it past 8°,
+though it stayed seated. Demo 1's lids are drawn shut by at least 0.05 N·m
+(0.2 N at the knob) at every angle swept on the fast sweep down, the centre
+of mass's height counted (`chest.CLOSING_MARGIN_NM`, `chest.draw`).
+
+**Demo 1's hidden parameters** (`chest.draw`): the board 0.15–0.45 kg and a hidden
+weight to 0.15 kg anywhere 20–90 % of the way to the front edge; Coulomb
+friction to 0.12 N·m; damping to 0.20 N·m·s/rad; a spring to 0.15 N·m/rad on
+every other lid; a catch of 1–4 N at the knob. They are drawn TOGETHER: a lid
+is kept only if it shuts by 0.05 N·m everywhere swept, which ties them --
+with no spring, roughly friction + 0.45 × damping ≤ 0.36 × gravity torque −
+0.05, 0.36 being 69°'s cosine -- so the springs drawn come out weak
+(0.01–0.05 N·m/rad), and are scored as part of the static torque curve.
+Flown: the 8 drawn lids (gravity torques 0.36–0.61 N·m) and the corners past
+them (`light`, 0.17 N·m and frictionless; `heavy`, 0.79 N·m with friction
+0.12 and damping 0.18; `springy`), each at Kp 60, 15 and 8, every one held
+and read. The catch stops at 4 N because that is what was flown: the pull
+at release reached 5.9 N at the knob, and the grip held it with 0.5 mm of
+slip.
+
+**No new sensor for demo 1.** The torques resolve the force at the tool,
+the gravity torque, friction, damping and the catch. What they cannot see is
+the lid's inertia (the arm's own is 5–9 times it) and a joint inside its
+friction band: a load cell in the claw's wrist would buy both, and no hidden
+parameter here needs either. ⚠ That is the SIM's friction, so an upper bound
+on hardware (Evaluation.md, "Practised in MuJoCo, graded in MuJoCo").
+`ARM_FRICTION_NM` is a constant, where a real actuator's grows with its load
+(Katz's 0.09 + 4 % of load, the legs' nominal), and no empty sweep sees that
+part. MuJoCo's soft friction creeps away under a held load, where real
+stiction holds up to 0.4 N of it at the tool, so the test's 3 % held still
+is the algebra's.
+
+⚠ **The jaws go down onto a knob only once the claw hangs still**
+(`SWING_SETTLE_S`, 1 s): straight after a short approach at Kp 60 it swung
+3° on its peg, its crossbar landed on the handle's bracket, and every Kp 60
+grip after an empty sweep failed.
+
+**What is true now:** the force at the tool is `legs.arm.tool_force`, off
+the readings less the driver's gravity and, wherever a joint turns, the
+friction an empty sweep found (`legs.arm.arm_friction`, `less_friction`).
+Demo 1's mechanism is the drop-handle chest, promoted from the spike to
+`activity/chest.py` (#466; the next section), its hidden parameters drawn
+shut-biased (`chest.draw`), swept at Kp 8.
+
+## The imagination's first world (issue #466, stage 1)
+
+Demo 1 has the robot model the chest from its own senses. Stage 1 built the
+machinery, with no robot flying: the chest as an activity
+(`activity/chest.py`), a scene language (`imagination/scene.py`) compiled
+with the robot's own body into a world of its own (`compile.py`), a rollout
+that replays an arm's commands there (`rollout.py`) in a worker process
+(`worker.py`), and the best-expressible reference
+(`chest.reference_document`): the chest written in the language by code
+that knows the truth.
+
+**The robot's own world replays the house's.** A Kp 8 sweep flown in the
+house (the spike's scene), its commands replayed through a world of a floor,
+the robot's CAD (`legs.model.attachable`), the claw and the same chest,
+started from the house's own state: the torque readings 1e-7 N·m apart RMS
+(3e-6 at worst) over 33 s, the lid 0.004°. Nothing of the house matters to
+an arm at a box. A rollout starts from what the robot knew of itself (its
+believed pose, its tilt, its encoders) and holds its first command for 1 s
+(`SETTLE_S`) to come to rest.
+
+**The imagination's contact is its own, where it applies.** Run in the
+world's engine with the world's contact model, a model transfers better than
+it would to hardware (Evaluation.md, "Practised in MuJoCo"), so a document's
+parts touch each other on the imagination's own settings
+(`compile.CONTACT`). Against the robot MuJoCo mixes a pair's settings, and
+the robot's priority geoms impose theirs: in the chest's probe the only
+scene contact is the claw's pads on the knob, on the pads' settings in
+either world, so what differs is the lid's stop (`LIMIT`) and the armature.
+The floor is MuJoCo's defaults, as the house's. The first compile had the
+chest's walls as separate parts and their contact at two physics steps:
+the lid touched two walls at zero distance, jammed, swung its handle on its
+pin instead of lifting, and blew the solver up two seconds into the sweep (a
+NaN at the robot's root; MuJoCo reset the world and stepped on). The rule
+that prevents it, found in review: everything fixed in the map is one rigid
+group, which a part hinged to it never touches (walls written on nothing
+let a lid sit on their top edges, and it was thrown to 113°). And a world
+MuJoCo resets is refused (`rollout.Diverged`), never rolled out: its
+readings stay finite and plausible.
+
+**What the language cannot say** (`scripts/imagination_gap.py --n 16`: the
+oracle's probe -- the claw onto the knob where it hangs, then sweeps up and
+down at 0.15 and 0.45 rad/s at Kp 8, planned off the true hinge -- through
+the world's chest and the reference; the force at the tool the two worlds'
+readings put apart, RMS of 0.1 s means, and its largest):
+
+| | take hold | 1st up | 1st down | 2nd up | 2nd down |
+|---|---|---|---|---|---|
+| with its catch, median | 0.001 N | 0.26 (2.2) | 0.023 (0.11) | 0.18 (0.90) | 0.018 (0.05) |
+| ...the worst of 16 | 0.001 | 0.59 (4.1) | 0.029 (0.17) | 0.41 (2.2) | 0.023 (0.10) |
+| no catch, the worst | 0.001 | 0.013 (0.03) | 0.021 (0.07) | 0.028 (0.08) | 0.023 (0.07) |
+
+With no catch the two agree to 0.01–0.03 N, under what the torques read
+(0.04–0.06 N RMS of 0.1 s means, #469), and the lid to 0.12°: the lid's
+stop and the armature cost nearly nothing. The catch is the gap. Its magnet
+pulls less as the gap opens, where the language's catch holds one pull for
+a millimetre and then lets go, so the two let go at different moments, and
+just after it the lids are up to 5.6° apart. The gap grows with
+the catch (0.08 N RMS at 1.1 N, 0.59 N at 3.7 N). At Kp 8 a sweep down to
+0.05 rad lets the lid fall shut and the catch take it again, so the second
+sweep up pulls it off once more. For stage 3, "the language can't say it" is
+the catch at its release, and little else.
+
+**Stiction and a non-linear spring were left out.** Stiction would hold a
+lid open at the top of a sweep against a handle that only pulls: the shut
+margin (`CLOSING_MARGIN_NM`) was derived for Coulomb friction alone, and
+#469's numbers describe a chest without it. The springs drawn are weak
+(0.01–0.05 N·m/rad: the margin ties them), and a non-linearity in them would
+sit under what the torques resolve of the static curve (0.009–0.013 N·m).
+Demo 2's mismatched imagination is where a further construct belongs.
+
+**What a rollout costs** (`scripts/imagination_gap.py --cost --parallel
+...`): 67 ms a sim-second on the dev box (an i5-9600KF), 15 times real
+time, and 73–75 on a pod's 31-CPU share of an EPYC 7H12, the same in a
+worker as in this process. A document is parsed and compiled in 5 ms, and a
+worker starts in 0.2–0.3 s. Workers in parallel lose nothing on the pod: 30
+at once cost 74.8 ms a sim-second each, 392 sim-seconds a wall-second
+together, which is 12 rollouts of the 32 s probe a second. On the dev box
+three at once cost 69 ms each and six 88 (65 sim-seconds a wall-second
+together), the desktop sharing its six cores. MuJoCo's step is 88 of a
+step's 133 µs: 32 degrees of freedom and 152 constraint rows, most of them
+the lying robot's belly and legs on the floor. A rollout replays its record
+bit for bit, in a worker or not.
+
+**What is true now:** the robot's imagination is `imagination/`: a document
+in the scene language, compiled with the robot's own body on the
+imagination's own contact, and its record's commands replayed by the arm's
+own driver in a worker given JSON and numbers and nothing else. Nothing it
+can load reads a mechanism's activity (`tests/test_imagination.py`), and a
+world that goes unstable is refused. The chest's best-expressible reference
+follows the world's chest to 0.03 N where the language can say it, and
+parts from it at the catch's release.
+
+## The probe from the robot's own senses (issue #466, stage 2)
+
+Stage 2 has the robot open the chest from its own senses and record what it
+sent and sensed (`legs/probe.py`). Its set-outs (`evaluation.probe.set_out`)
+put drawn chest k in the storeroom, turned up to 20 deg off the line to its
+knob, and the robot 0.75-0.95 m off with the knob in its colour imager's
+view; `scripts/probe_chest.py` flies them and grades what it sensed -- 128
+of them here, on a pod, after #479's review.
+
+**Where it can see from.** Lying, the D435 sits 0.098 m over the floor and
+the knob hangs at 0.088: neither imager sees the knob, and the depth camera
+sees no top. So the robot measures standing and plans lying. From the stance
+it lies down from (the knob 0.425 m ahead, which lying moves to 0.46) the
+knob sat at the bottom of the colour frame, v 643-690 of 720: a stance 15 mm
+short cut its tag in half and five looks read nothing, and the walk in,
+steering on looks gone stale, lay 5 cm off the axis. It measures 0.55 m off
+the knob (`MEASURE_AT_M`), where the knob sits mid-frame, and walks the last
+12.5 cm on its belief.
+
+**The D435 at its own resolution.** The probe's frames are the part's 848 x
+480 (the served 120 x 70 left the top's back 3 cm unsampled), and so is
+their nearest depth: Intel's tuning guide puts min-Z at the focal length (px)
+times the baseline over the 126 disparities the ASIC searches, 17 cm at 848
+x 480 where the served camera's 0.28 is 1280 x 720's. At 0.28 the bracket's
+tip, 0.26 m from the lens at the old stance, read nothing and the pin came
+19 mm into the box.
+
+**What depth says of the box** (`perception/box.py`, the map frame through
+the belief, `tests/test_box.py`):
+- the top is the highest level a large share of the points stand at;
+- an edge seen from in front -- the top's back, where the hinge is -- is read
+  off the mean of a window inside it, which rows laid 4-5 mm apart at a
+  grazing angle and their noise move 0.3 mm on average (0.7 at 6 mm apart
+  under 3 mm of noise);
+- an edge whose face looks at the camera -- the bracket's tip, the pin -- is
+  a low percentile: its face's points stand at the tip and never past it,
+  and the window's mean read it 4 mm past;
+- which way it faces: roughly the least rectangle the top fills, then square
+  to its far edge laid slice by slice. Trimmed, the least rectangle's area
+  is flat within a degree or two of its least, and alone it read a plain lid
+  of 90 000 points 2.5 deg off.
+
+**Code's foresight, and what it costs.** The hinge is the top's back edge at
+the top's height: a board's thickness over the true axis, +12.5 mm. The pin
+is the bracket's tip at its top: +4.3 mm. Every height is laid over the
+floor by the torso's height as its legs' encoders and its IMU give it
+(`LegOdometry.height`), half a millimetre over what the world's own heights
+gave. A held knob moves as its pin does --
+planned as a point on the lid it would be 66 mm off the pin's arc at the
+top, past the 40 mm Kp 8 forgives. Stage 3's model of the box replaces all
+three.
+
+**A drop handle rests with its knob under its bracket.** Its centre of mass
+comes to rest under its pin, swung 37.6 deg, its knob 9.6 mm in front of
+the bracket's tip; the claw's crossbar is 8 mm either side of the jaws'
+middle. Straight down onto the knob it landed on the bracket 42 mm over the
+knob, and the jaws shut on the handle's arm: the lid still opened 59 deg,
+lifted by its arm, and the robot's torques said it held the lid while no pad
+touched the knob. #469's handles had been knocked to 19 deg, 28 mm clear,
+setting the box out. The jaws now take the knob at least 14 mm in front of
+the tip (`TAKE_CLEAR_M`), a few millimetres off its middle, and the path
+begins where they took it.
+
+**The belief between the measure and the plan.** Standing still the legs'
+reckoning walks about 1 mm a second, and after a walk the IMU's pitch is
+0.38 deg off at a second, 0.18 at two and 0.10 at three (4, 2 and 1 mm at
+the top's back edge): it stands 2 s before it measures. The walk of the last
+12.5 cm and the lie-down then moved the belief -16 to +10 mm along the box
+and -6 to +4 across, over the 128 set-outs below -- and in one run before
+the re-find 25 mm: the belief was 36 mm off the truth at the record's start,
+and the jaws missed the knob. Lying, the D435 still sees the box's front face
+(its bottom two thirds, 0.29 m off). Its place, its middle between its
+edges and its turn, read standing and again lying, say what the walk and the
+lie-down did to the belief, and the measures, the record's standing clouds
+and its decodes are moved by it (`front_face`, `Move`). What it planned
+off: the knob within 1.2 mm along, 0.7 across and 2.3 mm up (its median
+1.2), the pin 0.8 mm along the box, the hinge 1.8 mm (its median 0.4) and
+the facing 1.2 deg (its median 0.04), each graded in its own robot's frame (`evaluation.probe.geometry`: the probe
+measures and plans through one belief, so the belief's own error is none of
+the guess's).
+
+**The friction calibrated** lying where it starts, its arm along the probe's
+arc in the air, no point seen standing under it -- standing, the D435 sees
+the floor there from 0.41 m ahead, and the claw comes down over the unseen
+pad nearer at least 8 cm above anything that could stand in it unseen
+(`FREE_HALF_M`'s note): 0.108 and 0.120 N*m
+(`ARM_FRICTION_NM` is 0.1 a motor, and the passive pivots add 0.01-0.02,
+#469).
+
+**How often it got through: 128 of 128**, every one on its first try, on a
+pod (llvmpipe under osmesa, the deploy box's rasteriser; before #479's
+review a batch of 128, 32 of it on the dev box's GPU, got through as well).
+Each took hold of the knob and kept it in the jaws through both sweeps, the
+claw seated (open at most 62 ms), lifted the lid 62-65 deg and pulled its
+catch off, and said so off its own torques (the lid's weight at the knob
+1.0-1.9 N); our grading and its word agreed on all 128.
+
+**The lid's angle from the arm** -- the jaws where the encoders put them,
+plumb under the peg, turned about the guessed hinge -- is 2.0 deg off the
+lid's (RMS over the sweeps, its median; 2.5 at worst, and 4.3 at a moment):
+the claw leans on its peg up
+to 4 deg, 12 mm at the jaws, and the reading takes the lean for the lid.
+
+**The record, replayed** (`evaluation.probe.replay`: the world's chest and
+its best-expressible reference set in the robot's map at the record's
+start, the record rolled out from its own start, each handle starting
+where the flight's hung; the force at the tool apart from what the robot
+sensed, RMS of 0.1 s means, over the 122 set-outs where no handle turned
+over -- the six where one did are below):
+
+| the force apart, N | take hold | 1st up | 1st down | 2nd up | 2nd down |
+|---|---|---|---|---|---|
+| the world's chest, median | 0.027 | 0.034 | 0.025 | 0.030 | 0.027 |
+| ...9 in 10 under | 0.030 | 0.059 | 0.041 | 0.054 | 0.061 |
+| ...the worst | 0.033 | 0.099 | 0.083 | 0.093 | 0.14 |
+| the best-expressible reference, median | 0.027 | 0.29 | 0.042 | 0.22 | 0.050 |
+| ...9 in 10 under | 0.030 | 0.46 | 0.064 | 0.37 | 0.075 |
+
+The world's own chest from the robot's own start is the floor any model can
+reach: within 0.14 N RMS on every sweep and 0.66 N at a moment, whatever the
+catch (its first sweep up's median 0.033 N at 1-2 N, 0.033 at 2-3 and 0.042
+at 3-4). Its handle must start where the flight's hung: from the chest's
+compiled pose a rollout's second of settling left it 4.8 deg short, and the
+floor read 0.05, 0.10 and 0.27 N by catch (#479's review). The reference's
+grows with the catch -- 0.16, 0.31 and 0.43 -- and leaves about what it left
+on the oracle's probe (stage 1's median at the first release, 0.26 N).
+
+**A strong catch can turn the held handle over on its pin.** While the
+catch holds, the arm's pull turns the handle on its pin, a median 4 deg and
+in 9 of 10 under 6.5. Under a catch of 3.3 N or more it can turn over,
+33-42 deg; the catch then lets go 1.5-2.4 s late, and the rest of the
+record differs. The reference's replay turned over in 6 of 128 (set-outs 4,
+50, 59, 88, 103 and 126, 3.31-3.94 N), the world's once (set-out 50) and
+the flight never. Set-out 50 sits on the edge: its flight began to turn
+over and fell back (23.1 deg, let go 3.06 s into the sweep) while its world
+replay turned over -- and in the batch before #479's review, the other way
+round. Taking the language's gaps one at a time (the release, s into the
+first sweep up):
+
+| set-out | flight | world | reference | reference, the world's magnet | world, the language's catch | world, no armature | world, the imagination's contact |
+|---|---|---|---|---|---|---|---|
+| 4 | 2.41 | 2.42 | 3.96 | 2.36 | 2.87 | 2.42 | 2.36 |
+| 88 | 2.44 | 2.44 | 4.43 | 2.40 | 4.43 | 2.46 | 2.38 |
+| 103 | 2.51 | 2.53 | 4.54 | 2.52 | 4.43 | 2.58 | 2.47 |
+| 126 | 2.39 | 2.40 | 4.43 | 2.39 | 2.84 | 2.44 | 2.34 |
+| 59 | 2.60 | 2.61 | 4.83 | 4.31 | 4.79 | 4.37 | 2.54 |
+| 50 | 3.06 | 4.90 | 5.46 | 4.90 | 5.44 | 4.94 | 3.06 |
+
+In four the catch decides it: the language's holds its whole pull over its
+first millimetre where the magnet's falls to a quarter in half of one, so
+its pull builds longer, and with the world's magnet the reference let go
+with the flight. In set-out 59 the armature the language leaves out decides
+it as much, and set-out 50 turns on a hair: on the imagination's contact
+the world's chest let go with the flight.
+
+**Such a record is flagged, never dropped** (Ben, on #479). Our grading
+reads how far the held handle turned on its pin while the catch held -- in
+the flight off the truth, in each replay off its own rollout
+(`evaluation.probe.turned`) -- and the row names those past `TWISTED_DEG`
+(28 deg, `twisted`): set-outs 4, 50, 59, 88, 103 and 126. Over both batches
+a handle turned over at 33.5-42.2 deg, and otherwise at most 15.8 but for
+the two that began to and fell back (21.0 and 23.1). Where one turned over
+the reference's sweeps down read 3-29 times the gap of the strong catches
+where none did: what follows a flagged release measures no fit, so stage 3
+reads its bar set-out by set-out, a flagged one apart.
+`scripts/probe_chest.py --regrade` grades kept records again without flying
+them, 5 s a set-out, and reproduced every replay the pod flew.
+
+**The reference keeps stage 1's catch** (Ben, on #479): code that knows the
+truth writes the true numbers into the language and fits nothing to the
+world, or the reference would be a second fitter to trust. So where the
+catch is strong the bar is lenient -- its catch lets go later than the
+magnet, and it carries no armature -- a limitation stated, not tuned away.
+A language whose catch could say how its pull falls with the gap would
+write the magnet as it is.
+
+**What it costs.** A probe is 94 sim-seconds (104 at most); thirty at once
+on a pod's 31-CPU share take 63 s each, 128 in 6 minutes (three at once on
+the dev box, 51 s). Its record is 8.7 MB, 6.8 of it the depth it measured
+off: the rows a rollout needs are 1.3.
+
+**What is true now:** the robot probes the chest from its own senses
+(`legs/probe.py`): it measures the box standing 0.55 m off its knob, lies,
+re-finds it by its front face, takes the knob clear of its bracket and
+sweeps the lid at Kp 8, recording what it sent and sensed: 128 of 128 got
+through. What it planned off is within 2.3 mm of the truth in its own frame,
+but for what its foresight costs (the hinge a board high, the pin half a
+bracket). The record replays through the world's chest from its own start,
+its handle where the flight's hung, to a few hundredths of a newton, catch
+and all; the reference parts at a catch's release, and a strong catch can
+turn the held handle over on its pin, in the flight or in a replay: such a
+record is flagged and kept, and the reference is stage 1's, fitted to
+nothing.
+
+## The robot's model, graded (issue #466, stage 3)
+
+Stage 3 has the robot write a model of the chest it probed and fit it to
+what its arm felt, and grades the model against the truth
+(`scripts/imagine_chest.py`). The pieces:
+
+- **A template** (`imagination/scene.py`, `parse_template`): a document
+  whose numbers the robot cannot see -- masses, a joint's spring, slack,
+  damping and friction, a catch's release -- are written
+  `{"between": [lo, hi]}`. The geometry is measured, never fitted.
+- **The author** (`imagination/author.py`): a language model writes the
+  template in the box's own frame, shown the colour camera's picture, the
+  sizes depth and the tag measured (`legs.probe.sizes`) and the jaws' path
+  off the arm's encoders (`legs.probe.did`). Code places it where depth put
+  the box (`scene.placed`).
+- **The fitter** (`imagination/fit.py`): Levenberg-Marquardt over rollouts
+  in the workers, off the force at the tool the record's readings and a
+  rollout's put apart, in 0.1 s means.
+- **The rounds** (`imagination/model.py`): a fit that leaves too much goes
+  back to the author with its report, up to three structures, the one that
+  left least kept.
+- **Our grading** (`evaluation/model.py`): per parameter, against the
+  world's chest and against the best-expressible reference.
+
+The records are stage 2's probes flown again at this stage's commit, each
+now keeping its picture (`Probed.picture`): 128 of 128 got through, 119 of
+them bit for bit stage 2's flight, the same six flagged.
+
+**What depth says, in the box's frame.** The top's depth, width and height,
+the bracket's tip, width and top, and the knob, each within a millimetre of
+the chest's own drawing (`tests/test_probe.py`). ⚠ The front is read off
+the front FACE (its median along), never the top's near edge: the face's
+own points stand at that edge and pulled a window's mean 7.5 mm toward the
+robot, the box 227 mm deep for 220 -- the faced edge of `perception/box.py`
+again. A 12 mm bracket read 28 mm wide off the edge's 20 mm window: a strip
+narrower than its window reads as the window, so a strip's sides take a 3
+mm one.
+
+**The fitter alone** -- the reference's own structure and geometry, its
+lid's dynamics unknown, the hidden weight's mass among them, over ranges
+past every drawn chest's (`evaluation.model.reference_template`) -- over the
+122 clean set-outs, the median error [its 95 % interval], and 9 in 10
+under:
+
+| | median [95 %] | 9 in 10 under |
+|---|---|---|
+| static curve at 11 / 34 / 57 deg, N*m | 0.0053 / 0.0055 / 0.0025 | 0.010 / 0.010 / 0.007 |
+| friction, N*m | 0.0014 [0.0012, 0.0017] | 0.0035 |
+| damping, N*m*s/rad | 0.0031 [0.0024, 0.0038] | 0.0074 |
+| catch's release, N | 0.23 [0.23, 0.25], low | 0.33 |
+| first moment, kg*m (truth about 0.063) | 0.014 [0.012, 0.016] | 0.026 |
+| the lid's mass, kg (assumed) | 0.14 [0.11, 0.16] | 0.25 |
+
+- **The static curve is under the torques' own resolution** (0.009-0.013,
+  #469).
+- **Friction and damping are #469's oracle fit's**, which was handed the
+  lid's true angle; this fit had only the record.
+- **The first moment is a fifth off: gravity and a spring trade.** Over the
+  swept angles the two correlate 0.98-0.998 (#469). Left a spring, the
+  fitter took one of about 0.1 N*m/rad (the median), on lids with none as
+  on lids with one, and the gravity to match. Their sum, the static curve,
+  is the graded quantity; the first moment is graded too, and read with
+  this.
+- **The catch's release comes out 0.23 N low.** The language's catch holds
+  its whole pull for a millimetre, where the magnet's falls away, so at one
+  number it lets go later; the fit lowers it until the two let go
+  together. In behaviour the fit beats the reference, which writes the
+  true number: over the sweeps it leaves 0.071 N, the reference 0.198 and
+  the world's own chest 0.031.
+- **What it costs**: 183 rollouts a fit (the median; 271 at 9 in 10), 15
+  Levenberg-Marquardt steps, 130 s of wall with five workers on a pod
+  shared three ways.
+
+⚠ **This instrument must not be handed what the robot cannot see.** Its
+first run left the hidden weight at its true mass, a hidden parameter, and
+the review caught it. Given it, the fit took a spring of 0.2 N*m/rad and
+its first moment came out half off; asked for it (and with the review's
+fix to the fitter beside it), half the spring and a fifth off -- two masses
+at two places shape the curve that a spring otherwise must. Where the
+weight sits stays the reference's: that is geometry.
+
+**Judged a sweep at a time, a right structure was sent back.** Against the
+reference's 9 in 10 on each sweep, 90 of 122 fits of the reference's own
+structure (its first run) were "poor", 89 of them on the first sweep down:
+a fit spends the language's error otherwise than the reference, beating
+it on the lifts by its release and giving a little back lowering. So the
+loop judges the take alone (0.05 N) and the sweeps together, at the
+reference's 9 in 10 over them (`legs.probe.SWEEPS_N`, 0.32 N): none of the
+122 fails it. A wrong structure leaves newtons.
+
+**What an author needs to be shown.** The first authors were shown the
+picture and the sizes, as #466's decision has it, and read the chest
+otherwise:
+- **Without the jaws' path** (the words "an arc of about 70 degrees"),
+  GLM read a pendulum: a cube on a link from the bracket's tip.
+- **With the path but the picture as rendered** -- the storeroom's levels
+  29-79 of 255, the lid's lighter edge a shade apart -- three of three
+  authors read a bracket that bends or a strap that stretches.
+- **With the picture exposed** as the D435's colour sensor exposes for its
+  scene (`legs.probe.exposed`), first answers on set-outs 0 and 8:
+  - GLM and Qwen3.5-397B each found the lid, its handle on a pin, once
+    in two;
+  - DeepSeek-V4.1-Flash and Qwen3-VL-235B never;
+  - Kimi K2.5 and K2.6 did not answer within twenty minutes.
+
+Nothing tells the robot the top moved: lying, its camera sees the box's
+front, never the lid raised (rendered from the pose, the open lid is out
+of the frame). What says so is the path's arc and what the jaws felt,
+which reaches the author through a poor fit's report: there the real
+object's force sits beside the simulated (`legs.imagined.felt`, the
+record's torques less the arm's own weight and friction, after the fact).
+
+**The deployed model as an author.** GLM-5.3-Flash on the router's
+cheapest provider:
+- **Its answers are not held to the schema.** That provider takes no
+  structured output, so the adapter retries each request without it.
+- **It reasons long.** Shown the picture, an answer took 7,900 tokens (the
+  median), 28,000 at 9 in 10. At the overseer's 8,192 it wrote nothing
+  at all.
+- **Its answers must stream.** The router's gateway answers 504 to a
+  request silent for 120 s (`mind.llm.stream_fetch`).
+- **It runs out of room.** At 32,000 tokens, 70 answers in 180 were cut
+  off before their document, and five set-outs of 32 lost their revisions
+  to it. The answers that came ran up to 31,800, so a larger budget would
+  likely rescue some.
+- **It seldom revises its reading.** Of 20 first answers that missed the
+  lid, two found it in a revision. A strap it kept through two reports
+  that showed 12 N between the real arm and its model.
+
+**The robot's own model** (GLM-5.3-Flash, 32 set-outs, the kept round):
+- 5 passed their bars, 8 more found the lid's hinge and stayed poor, and
+  19 read a strap: hung from the bracket, swinging and stretching (a hinge
+  and a slide), the jaws' arc put down to the strap and not the lid.
+- **The passes came in revisions**: none at the first answer, two at the
+  second and three at the third.
+- **The ranges.** The 12 first answers that found the lid's hinge held the
+  truth for its mass 10 times in 12, damping 12 in 12, friction 11 in 12,
+  and the catch's release once in 7. It reckons a magnet at 2-5 N up to
+  40-60 N, where the chests pull 1.1-3.9 N, so the fit stops at the
+  range's end and the report says so (`at_end`).
+- **Where it found the hinge and stayed poor, its height was a lid's
+  thickness off**: 12.4 mm (the median of 8), against the passes' 6.5.
+  Nothing the robot measures places a hinge within the lid's thickness.
+
+Where it passed, against the fitter alone on the reference's structure
+(medians):
+
+| | the robot's model (n 5) | the fitter alone (n 122) |
+|---|---|---|
+| static curve at 11 / 34 / 57 deg, N*m | 0.008 / 0.006 / 0.019 | 0.005 / 0.006 / 0.003 |
+| first moment, kg*m | 0.001 | 0.014 |
+| friction, N*m | 0.0033 | 0.0014 |
+| damping, N*m*s/rad | 0.022 | 0.0031 |
+| catch's release, N | 0.17 (n 4) | 0.23 |
+| the hinge's height, mm off | 6.5 | the reference's own |
+| left on the sweeps, N | 0.19 | 0.071 |
+
+**Three authors, the same six set-outs** (0-4 and 10; three of Qwen3.5's
+were lost to a dropped connection and not flown again for the price). A
+first answer and up to two revisions each, on the router's cheapest
+provider:
+
+| author | the lid's hinge, first answer | passed | $ a set-out |
+|---|---|---|---|
+| GLM-5.3-Flash (deployed) | 2 | 1 | 0.06 |
+| Qwen3.5-397B-A17B | 3 | 1 | 0.14 |
+| Inkling | 0 | 0 | 0.32 |
+
+Inkling read the box as one solid part, with a bracket on its top and the
+cube hinged on the bracket: nine set-outs of nine, through every revision.
+
+**Decision 2: what a geometry error leaks.** The reference's structure
+with its hinge moved, fitted alone, over 7 clean set-outs (medians):
+
+| the hinge | static curve, worst angle, N*m | friction, N*m | damping, N*m*s/rad | left on the sweeps, N |
+|---|---|---|---|---|
+| where it is | 0.009 | 0.0012 | 0.0021 | 0.073 |
+| 2 mm along, either way | 0.010 / 0.013 | 0.0029 / 0.0008 | 0.0016 / 0.0028 | 0.069 / 0.080 |
+| 5 mm up | 0.008 | 0.0054 | 0.0048 | 0.16 |
+| 12.5 mm up | 0.022 | 0.012 | 0.012 | 0.37: past the bar 6 times in 7, the least 0.319 |
+
+Depth's error along the box leaks nothing past the torques' resolution.
+Up, the fitter takes the error into friction and damping, and at a lid's
+thickness what it leaves reaches the bar. So a hinge a lid's thickness off
+goes back, nearly always, to its author, the one who can move it.
+
+**What is true now.**
+- Given a structure, the fitter brings the lid's dynamics back to the
+  torques' resolution. The author is what fails: GLM found the lid in 12
+  first answers of 32, and 5 of 32 models passed. Two dearer open models
+  passed no more.
+- The geometry is the author's and never the fitter's. Depth's 2 mm leaks
+  nothing, and a hinge's height a lid's thickness off reaches the bar.
+- `MAX_ROUNDS` is 3 and every pass came in a revision. Whether a fourth
+  round, or a larger answer budget, pays is unmeasured.
+
+
 ## Debugging workflow that worked
 
 1. Reproduce headlessly with printed telemetry (pose, joint rates, contact

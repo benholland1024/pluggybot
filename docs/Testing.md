@@ -106,6 +106,14 @@ and wall clock tracks the machine. So:
   two trees whose common test timed 2.7 s on both.
 - The floor is the longest single test; no worker count beats it. Reordering
   the collection does not help (#158).
+- A test that TIMES code runs the timed part with the collector off
+  (`gc.disable()`, as `timeit` does), pinned by a threshold of one
+  (`test_scan_match.py`): a pass frees whatever the tests before it left,
+  wherever it lands. The suite's files are in memory where `/dev/shm` has
+  room (`tests/conftest.py`) because a leftover memory store closes with an
+  fsync: on a spinning `/tmp` that was 29–39 s of worker time a run, 0.4–4 s at a
+  time inside other tests (#473). A `gc.callbacks` hook loaded with `-p`,
+  logging each pass over 50 ms and the test it landed in, is how it was found.
 
 ## 4. What to write above the mark
 

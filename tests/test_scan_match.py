@@ -5,6 +5,7 @@ seam. Nothing here flies: the flights that measured it are
 `scripts/drift_spike.py`, and the served body walks the whole chain in
 `test_unknown.py`'s flight."""
 
+import gc
 import math
 import time
 
@@ -195,7 +196,11 @@ def test_a_match_costs_less_than_the_map_update_it_precedes(room):
   # The cost pinned as a RATIO, which the machine's load moves far less
   # than a wall-clock bound: one match against the grid update of the same
   # scan on the home world's grid (469,200 cells), interleaved. MEASURED
-  # ~0.4 ms against ~1.6 ms.
+  # ~0.4 ms against ~1.6 ms. ⚠ With the collector OFF, as `timeit` has it:
+  # a pass in the loop frees whatever the tests before it left (#473: their
+  # memory stores, each closed with an fsync, put 0.4-1.2 s into one match).
+  # Its threshold is a pass at every allocation, so a loop run with it on
+  # fails here at once.
   big = OccupancyGrid(-17.5, -11.5, 33.5, 11.5, 0.05)
   ix0, iy0 = big.world_to_cell(-1.0, -1.0)
   big.grid[iy0:iy0 + room.grid.shape[0], ix0:ix0 + room.grid.shape[1]] = room.grid
@@ -205,13 +210,29 @@ def test_a_match_costs_less_than_the_map_update_it_precedes(room):
   m.match(TRUE, ANGLES, scans[0])
   scratch = OccupancyGrid(-17.5, -11.5, 33.5, 11.5, 0.05)
   t_match = t_update = 0.0
-  for r in scans:
-    t = time.perf_counter()
-    m.match(TRUE, ANGLES, r)
-    t_match += time.perf_counter() - t
-    t = time.perf_counter()
-    scratch.update(TRUE, ANGLES, r, 8.0, origin=(0.0, 0.0))
-    t_update += time.perf_counter() - t
+  passes = []
+
+  def counted(phase, info):
+    passes.append(phase)
+
+  enabled, threshold = gc.isenabled(), gc.get_threshold()
+  gc.disable()
+  gc.set_threshold(1)
+  gc.callbacks.append(counted)
+  try:
+    for r in scans:
+      t = time.perf_counter()
+      m.match(TRUE, ANGLES, r)
+      t_match += time.perf_counter() - t
+      t = time.perf_counter()
+      scratch.update(TRUE, ANGLES, r, 8.0, origin=(0.0, 0.0))
+      t_update += time.perf_counter() - t
+  finally:
+    gc.callbacks.remove(counted)
+    gc.set_threshold(*threshold)
+    if enabled:
+      gc.enable()
+  assert not passes, f"the collector ran {len(passes) // 2} times inside the timed loop"
   assert t_match < t_update, f"{t_match * 50:.2f} ms against {t_update * 50:.2f} ms a scan"
 
 

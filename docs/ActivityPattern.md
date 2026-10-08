@@ -263,6 +263,9 @@ deltas and each shipped a random half of the state changes. Guarded by
    by standing on it (`press`), which needs no manipulation. A lever or a
    valve needs a grip on a fixed mechanism at a known pose — the sink-lever
    problem — and that is a tool-side capability, not an activity-side one.
+   #466's chest (`activity/chest.py`) is the first an arm will operate, its
+   lid by a drop handle (#469); its magnetic catch is the first physics an
+   activity sets on the seam, a force MuJoCo has no element for.
 4. **Activity state is not in the occupancy grid.** A mocap body that moves
    is geometry the map never re-observes, and a state that blocked a passage
    would be a wall the planner does not know about. Fine today because of

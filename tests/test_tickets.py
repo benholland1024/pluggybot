@@ -180,14 +180,13 @@ def test_a_ticket_is_a_ticket_s_length_in_both_directions_and_never_a_message_s(
   """⚠ THE DEFECT, MEASURED ON THE DEPLOYED WORLD (2026-09-22): a line of
   a thread was capped at a MESSAGE's 280 -- the `operator` row's -- so
   four of Rowan's updates on `tk_0003` ended mid-word, one of them an
-  offer to report sensor readings. Shown to fail without the fix: put
-  `MAX_MESSAGE_CHARS` back on the `operator` row and both halves cut at
-  280.
+  offer to report sensor readings. Shown to fail without the fix: put a
+  sentence's cap (`MAX_TELL_CHARS`) back on the `operator` row and both
+  halves cut at 280.
 
   One number, read off the registry by all three gates: the inbox's door,
   the desk, and the decision's own validation."""
   assert desk.MAX_TEXT == desk.MAX_LINE == text.MAX_TICKET_CHARS == 500
-  assert desk.MAX_LINE > inbox.MAX_TEXT, "a thread line is not a visitor's sentence"
   d = desk.Desk(None)
   ticket = d.open("bug", "the pen misses", REPORT, t=1.0)
   assert ticket.text == REPORT and not ticket.cut
@@ -199,9 +198,10 @@ def test_a_ticket_is_a_ticket_s_length_in_both_directions_and_never_a_message_s(
   msg = box.offer({"type": "ticket_reply", "id": "tr_1", "from": "ben",
                    "ticket": "tk_0001", "text": REPORT})
   assert msg.text == REPORT
-  # A visitor's message is untouched by any of it.
-  said = box.offer({"type": "message", "id": "m_1", "text": "x" * 400})
-  assert len(said.text) == inbox.MAX_TEXT == 280
+  # A visitor's message is untouched by any of it: a conversation's cap,
+  # off its own row (#474).
+  said = box.offer({"type": "message", "id": "m_1", "text": "x" * 900})
+  assert len(said.text) == inbox.MAX_TEXT == text.MAX_VISITOR_CHARS
 
 
 def test_text_past_the_cap_is_cut_and_the_robot_is_told_three_ways(tmp_path):

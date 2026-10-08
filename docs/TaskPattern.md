@@ -240,10 +240,11 @@ inbound close can write. It sits here because the desk is the
 
 Related, because a stranger will eventually be on this path
 (`TASK_SOURCES = system | visitor | overseer`): a description is untrusted
-text on exactly the inbox's terms — capped at 280 chars and cleaned on the
-way in. And as `mind/inbox.py` records, **sanitising is not the security
-boundary**; the boundary is that nothing a task says can reach the robot's
-body except by resolving to an errand off a fixed menu.
+text on the inbox's terms — capped (`tasks.MAX_DESCRIPTION`, 420) and
+cleaned by its normaliser on the way in. And as `mind/inbox.py` records,
+**sanitising is not the security boundary**; the boundary is that nothing
+a task says can reach the robot's body except by resolving to an errand
+off a fixed menu.
 
 ---
 

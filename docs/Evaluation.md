@@ -273,9 +273,13 @@ the agent's to configure. Overseer.md ("The event map") has the mechanism,
 the events and what the agent is told; this section has what it means for
 measurement.
 
-⚠ **THE ORDER IS THE AGENT'S.** Several rows can be live on one tick, and an
-undefined order would break §1's determinism; ordering also makes priority
-an explicit choice, one more thing to score off the config.
+⚠ **THE ORDER IS THE AGENT'S EDITS'.** Several rows can be live on one tick,
+and an undefined order would break §1's determinism; ordering also makes
+priority a choice to score off the config. Since #475 the agent does not
+place a rule it sends: a new one goes just ahead of a wider rule on its
+event, or at the end, and one replaces a rule only beside a `remove` of it,
+in place (`EventMap.edit`), so `ordered` reads the order thresholds were
+added in.
 
 #### ⚠ The reason to want it: a map is EVALUABLE WITHOUT FLYING
 
@@ -349,9 +353,12 @@ states the ordering trap outright.
 the union of every event's `kind`, and `events.row` draws the line: a
 dropped filter leaves a row that **reads** as a narrow rule and **behaves**
 as a catch-all, which is the agent believing it has a rule it does not.
-Likewise a migrated `standingOrder`, an unfiltered row, is written by
-`EventMap.with_row` keyed on `(event, kind)`: keyed on the event alone, it
-would overwrite the agent's `on timeout, charge` within the hour.
+Likewise a migrated `standingOrder`, an unfiltered row, goes in by
+`EventMap.edit` keyed on the row's trigger, `(event, kind, value)`: keyed on
+the event alone, it would overwrite the agent's `on timeout, charge` within
+the hour. Since #475 every rule an answer sends goes in by the same key and
+only a rule whose action is `remove` takes one out (Overseer.md, "The event
+map").
 
 #### ⚠ Going unminded is a FAILURE, and it is measured rather than prevented
 
@@ -1213,6 +1220,55 @@ more easily here than it would on hardware.
   Mismatched — hidden parameters, and mechanisms built from constructs the
   robot's scene language cannot express — is the number that bears on a
   real robot, and demo 2's bar is read on it.
+- **A document's parts touch each other on the imagination's own contact**
+  (`imagination.compile.CONTACT`), never the world's, and a modelled
+  mechanism's error splits against a BEST-EXPRESSIBLE REFERENCE, the
+  mechanism written in the scene language by code that knows the truth: the
+  reference against the world is "the language can't say it", the robot
+  against the reference "the robot didn't find it" (#466). For the chest,
+  the first is nearly all the catch's release (SimNotes, "The imagination's
+  first world").
+- ⚠ **A fit's bar is what the references leave on the robot's OWN probe**
+  -- its record replayed from its own start, each world set in its map --
+  never on the oracle's (#466 stage 2; SimNotes, "The probe from the robot's
+  own senses"). The world's own chest is the floor any model reaches
+  (within 0.14 N RMS a sweep, catch and all, its handle starting where the
+  flight's hung); the best-expressible reference leaves about what it left
+  on the oracle's probe. Where a strong catch turned the held handle over
+  on its pin -- the reference's replay in 6 of 128 set-outs, the world's
+  once, the flight's once in a batch before -- what follows the release
+  measures no fit: the row FLAGS it (`twisted`) and keeps it, and a flagged
+  set-out is read apart. ⚠ The reference is the true numbers written in
+  the language, NEVER FITTED to the world by code that knows the truth
+  (Ben, on #479): where the catch is strong it lets go late (no magnet's
+  falloff, no armature) and the bar is lenient, and that is said, not
+  tuned away.
+- ⚠ **The robot's model is graded per parameter, against the world AND the
+  reference, and its conditions are never pooled** (#466 stage 3; SimNotes,
+  "The robot's model, graded"; `evaluation/model.py`): `model` (an
+  author's structure, fitted), `reference` (the fitter alone, on the
+  reference's own structure) and `leak` (the same with its hinge moved)
+  apart; a model that passed its bars apart from one that found the lid's
+  hinge and stayed poor; clean and flagged set-outs apart; each a median
+  with its bootstrap interval and its 9 in 10. Four things a reader must
+  not misread:
+  - **per parameter, "the language can't say it" is zero by construction**:
+    the reference IS the true numbers. The language's gap shows in
+    BEHAVIOUR -- what each leaves on the probe -- and in the catch, whose
+    one number lets go later than the magnet: a fit tunes its release
+    lower to match the timing and leaves less than the reference does;
+  - **the first moment is degenerate where a spring may be fitted**: over
+    the swept angles gravity and a spring trade (#469), and the fitter took
+    a spring of about 0.1 N*m/rad on lids with none, a fifth of the first
+    moment off, the static curve their graded sum under the torques'
+    resolution. Mass and second moment are what the model ASSUMED;
+  - **the fitter's own instrument is never handed what the robot cannot
+    see**: it left the hidden weight at its true mass at first, and its
+    first moment read half off for it;
+  - ⚠ **the loop judges a fit against CONSTANTS, the sweeps together**: the
+    reference's 9 in 10 over all of them, never its residual on the probe
+    judged (the truth's). A sweep at a time, a fit of the right structure
+    was sent back 90 times in 122.
 
 ## 6. What death costs
 

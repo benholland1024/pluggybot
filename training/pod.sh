@@ -1,13 +1,25 @@
 #!/bin/bash
-# Train on a rented GPU (a Runpod pod) and bring the results home (#377).
+# Rent a Runpod pod -- a GPU to train on (#377), or CPUs to fly a batch of
+# sim flights on (#469) -- and bring the results home.
 #
 #   training/pod.sh create NAME "GPU A,GPU B,..."   rent one (Runpod REST API), print its id
+#   training/pod.sh create-cpu NAME [VCPUS]          rent CPUs: VCPUS (32) on a cheap GPU's machine
 #   training/pod.sh address POD                      its public "HOST PORT" for SSH, once up
 #   training/pod.sh stop POD | delete POD            stop (the volume stays, and bills) / delete
 #   training/pod.sh setup  HOST PORT     copy training/ + the body's files, install, check the GPU
 #   training/pod.sh train  HOST PORT TASK ENVS ITERS RUN [extra mjlab flags...]
 #   training/pod.sh status HOST PORT RUN
 #   training/pod.sh pull   HOST PORT     runs/ back to training/runs/ (gitignored)
+#
+#   training/pod.sh setup-sim HOST PORT [REF]         the repo at REF (HEAD), installed, a frame rendered
+#   training/pod.sh batch HOST PORT NAME CMD...        CMD from the repo's root, detached
+#   training/pod.sh batch-status HOST PORT NAME        its meta, its log's tail, the pod's share in use
+#   training/pod.sh pull-batch HOST PORT NAME          back to $BATCHES/NAME (~/pluggybot-training/batches)
+#
+# A batch of flights is CPU work -- MuJoCo steps on one core a process and the
+# cameras render in software (osmesa, as the serving image does) -- and never
+# flies bare on the dev box (CLAUDE.md says why). Its pod has no volume, so a
+# batch lives on the container disk: pull it, then delete.
 #
 # HOST and PORT are the pod's public SSH address (`pod.sh address POD`).
 # The key is the one `runpodctl doctor` made; the pod gets its public half as
@@ -60,6 +72,32 @@ ip, port = d.get('publicIp'), (d.get('portMappings') or {}).get('22')
 if not ip or not port: sys.exit('not up yet: ' + str(d.get('desiredStatus')) + ' ' + str(d.get('lastStatusChange')))
 print(ip, port)"
     exit 0 ;;
+  create-cpu)
+    # The CPUs of a cheap GPU's machine, never a CPU pod: on 2026-10-06 every
+    # CPU pod over 2 vCPUs was refused while the catalog said HIGH, and one
+    # RTX 3090's share came with 32 vCPUs and 125 GB at $0.50/h, half the
+    # 32-vCPU CPU pod's price. The cheapest GPU first.
+    name=$2 vcpus=${3:-32}
+    pub=$(cat "${RUNPOD_SSH_KEY:-$HOME/.runpod/ssh/runpodctl-ssh-key}.pub")
+    body=$(python3 - "$name" "$vcpus" "$pub" <<'PY'
+import json, sys
+name, vcpus, pub = sys.argv[1], int(sys.argv[2]), sys.argv[3]
+print(json.dumps({
+  "name": name, "computeType": "GPU", "gpuCount": 1, "gpuTypePriority": "custom",
+  "gpuTypeIds": ["NVIDIA RTX A4500", "NVIDIA RTX A5000", "NVIDIA A40", "NVIDIA L4",
+                 "NVIDIA GeForce RTX 3090", "NVIDIA RTX A6000", "NVIDIA GeForce RTX 4090"],
+  "minVCPUPerGPU": vcpus, "minRAMPerGPU": 2 * vcpus, "cloudType": "SECURE",
+  "imageName": "runpod/base:1.4.0-ubuntu2404",
+  "containerDiskInGb": 20, "volumeInGb": 0,
+  "ports": ["22/tcp"], "env": {"PUBLIC_KEY": pub},
+}))
+PY
+)
+    api POST /pods "$body" | python3 -c "
+import json,sys; d=json.load(sys.stdin)
+if 'id' not in d: sys.exit('refused: ' + json.dumps(d)[:400])
+print(d['id'], '|', d.get('vcpuCount'), 'vCPUs', d.get('memoryInGb'), 'GB |', d.get('costPerHr'), '\$/h')"
+    exit 0 ;;
   stop) api POST "/pods/$2/stop" >/dev/null && echo "stopped $2"; exit 0 ;;
   delete) api DELETE "/pods/$2" >/dev/null && echo "deleted $2"; exit 0 ;;
 esac
@@ -70,6 +108,25 @@ key=${RUNPOD_SSH_KEY:-$HOME/.runpod/ssh/runpodctl-ssh-key}
 repo=$(cd "$(dirname "$0")/.." && pwd)
 ssh_=(ssh -i "$key" -p "$port" -o StrictHostKeyChecking=accept-new -o ConnectTimeout=20 "root@$host")
 remote=/root/pluggybot
+# What a pod may use is its cgroup's: `nproc`, `free` and the load are the
+# HOST's (a 32-vCPU share read 256 CPUs and 1007 GB).
+share_py='
+def read(*paths):
+  for p in paths:
+    try:
+      return open(p).read().split()
+    except OSError:
+      pass
+  return []
+def gb(v):
+  return f"{int(v[0]) / 2**30:.0f}" if v and v[0].isdigit() else "?"
+cpu = read("/sys/fs/cgroup/cpu.max") or (read("/sys/fs/cgroup/cpu/cpu.cfs_quota_us")
+                                         + read("/sys/fs/cgroup/cpu/cpu.cfs_period_us"))
+cpus = f"{int(cpu[0]) / int(cpu[1]):.1f}" if len(cpu) == 2 and cpu[0].isdigit() else "unlimited"
+used = read("/sys/fs/cgroup/memory.current", "/sys/fs/cgroup/memory/memory.usage_in_bytes")
+cap = read("/sys/fs/cgroup/memory.max", "/sys/fs/cgroup/memory/memory.limit_in_bytes")
+print(f"the pod: {cpus} CPUs, {gb(used)} of {gb(cap)} GB in use")'
+share="python3 -c $(printf %q "$share_py")"
 
 case $cmd in
   setup)
@@ -126,6 +183,68 @@ EOF
     mkdir -p "$repo/training/runs"
     "${ssh_[@]}" "tar -C /workspace -czf - runs" | tar -C "$repo/training" -xzf -
     ls "$repo/training/runs"
+    ;;
+  setup-sim)
+    # The commit itself, never the working tree: what flies is what REF
+    # names, and its id goes into every batch's meta.txt.
+    ref=${1:-HEAD}
+    commit=$(git -C "$repo" rev-parse --short "$ref")
+    # A batch still flying runs from this tree: replaced under it, its code
+    # and the COMMIT its meta.txt names would no longer be what it flew.
+    "${ssh_[@]}" 'for m in /root/batches/*/meta.txt; do
+      [ -f "$m" ] && ! grep -q "^exit " "$m" && { echo "refused: ${m%/meta.txt} has not exited" >&2; exit 1; }
+    done; exit 0'
+    "${ssh_[@]}" "rm -rf $remote && mkdir -p $remote /root/batches"
+    git -C "$repo" archive --format=tar "$ref" \
+      | "${ssh_[@]}" "tar -C $remote -xf - && echo $commit > $remote/COMMIT"
+    "${ssh_[@]}" bash -s <<'EOF'
+set -e
+export PATH=$HOME/.local/bin:$PATH
+command -v uv >/dev/null || curl -LsSf https://astral.sh/uv/install.sh | sh
+# MuJoCo's osmesa backend dlopens libOSMesa when the first Renderer is built
+ldconfig -p | grep -q libOSMesa.so.8 || { apt-get update -qq && \
+  DEBIAN_FRONTEND=noninteractive apt-get install -y -qq libosmesa6 >/dev/null; }
+cd /root/pluggybot
+uv sync -q --frozen
+echo "$(.venv/bin/python -V), commit $(cat COMMIT)"
+# the house as the spikes build it, and one frame off the colour imager
+MUJOCO_GL=osmesa .venv/bin/python -c "
+import mujoco
+from pluggybot.legs import world as lw
+m = lw.home_spec().compile(); d = mujoco.MjData(m); mujoco.mj_forward(m, d)
+r = mujoco.Renderer(m, 72, 128); r.update_scene(d, 'color_eye')
+print('the house built, a frame rendered', r.render().shape); r.close()"
+EOF
+    "${ssh_[@]}" "$share"
+    ;;
+  batch)
+    # The remote shell splits the command line again, so each word goes quoted.
+    "${ssh_[@]}" "bash -s -- $(printf '%q ' "$@")" <<'EOF'
+set -e
+name=$1; shift
+out=/root/batches/$name
+mkdir -p "$out"
+cd /root/pluggybot
+printf '%s\n' "commit $(cat COMMIT)" "started $(date -Is)" "cmd $*" > "$out/meta.txt"
+# one BLAS thread and one llvmpipe thread a process, as a batch is a process
+# a core (llvmpipe draws the same pixels on one thread as on all of them)
+OUT=$out PATH=/root/pluggybot/.venv/bin:$HOME/.local/bin:$PATH MUJOCO_GL=osmesa \
+  OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 LP_NUM_THREADS=1 PYTHONUNBUFFERED=1 nohup bash -c \
+  '"$@" > "$OUT/log.txt" 2>&1; echo "exit $? at $(date -Is)" >> "$OUT/meta.txt"' _ "$@" \
+  </dev/null >/dev/null 2>&1 &
+echo "started $name: pid $!"
+EOF
+    ;;
+  batch-status)
+    name=$1
+    "${ssh_[@]}" "cat /root/batches/$name/meta.txt; tail -4 /root/batches/$name/log.txt; $share"
+    ;;
+  pull-batch)
+    name=$1
+    dest=${BATCHES:-$HOME/pluggybot-training/batches}
+    mkdir -p "$dest"
+    "${ssh_[@]}" "tar -C /root/batches -czf - $name" | tar -C "$dest" -xzf -
+    ls -la "$dest/$name"
     ;;
   *) echo "unknown command $cmd" >&2; exit 2 ;;
 esac

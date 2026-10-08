@@ -10,6 +10,141 @@ observatory is NOT a result: it reports into the issue it informs.
 
 ## Periods
 
+### The kept maps are dropped again (#476) — opens when this PR is deployed, with #475's below it
+
+**What changed in the world.** **The maps kept on the volume are dropped at
+this deploy** (`continuation.MAP_EPOCH` 2). Nothing else moves: no code
+path, no prompt text, no wire. Both robots start from their start poses
+with empty maps and no places (#419). They keep the clock, their packs,
+hearts, points, deaths, jobs and event maps. An errand in flight ends,
+its job does not, and History's restart line says why: `the map I had was
+laid askew, and it is gone`.
+
+**Why.** Read off `8f68f54` on 2026-10-08:
+- **Both robots were lost.** In the save at t=760761, Luca's belief was 5.0 m from the truth and Rowan's 8.0 m.
+- **Rowan's heading error came back after every stand-up.** It was −10.6° to −14.1° at each failed charge from t=664990 (the `GO_CHARGE` lines' `belief off`), −12.5° at its death at t=735248, and −12.5° in the save. A stand-up puts the belief right, so a heading error that returns is a map laid askew.
+- **That cost Rowan its hearts.** It could not find the dock's board, and three flat deaths (t=670325, 697962, 735248) left it on its last heart.
+- **The cause is not fixed here.** That is #476: a matcher that never searches wider while it agrees with the wrong place.
+
+**What the period is for.**
+- **Do the robots dock again?** In the `charge` rows, compare `docked` against `no charge contact (no board)`. The failed `GO_CHARGE` lines in the box's log carry the belief's error.
+- **Does the error come back?** Read the error at each death off the `death` rows (`at.pose` against `at.believed`). If it grows again on maps laid from nothing, the map was never the cause, and #476's matcher is.
+- **What it costs to find the places again.** The first finds of the boards, the plates and the areas search outward from their buildings' addresses.
+
+**Read it with #475's period.** They deploy together, so the first day's `unminded` and `flat` deaths answer to both.
+
+### A list goes into the list, and every edit is said (#475) — opens when this PR is deployed
+
+**What changed in the mind.** What an answer's `event_map` does, on every
+arm with a map (the deployed pair's). What was sent used to REPLACE the
+list, and one or two rules written where `[]` was meant took whole lists
+with them, their `ask` rows included. Now a rule goes INTO the list: one
+new to it is added, at the end or just ahead of a wider rule on its event.
+A rule whose action is the new `remove` takes the rule with its name (event,
+kind and value) out, and nothing else removes one, so the last `ask` can
+still go and a list can now be emptied (and an emptied list comes back
+empty after a restart). A rule sent with the name of one the list has and
+another action is HELD, and said, unless the same answer also removes that
+rule: then it takes its place. Replayed through the merge, all 14 of the
+edits behind the deaths below keep a rule that asks; 3 of them only
+because of the hold. Where an answer names one rule twice, the last counts. A list
+past 12 rules adds what fits and says what it left out; the standing order
+no longer cuts the last rule to fit its own, on a full list it is not in
+force, and where the list names the catch-all `decision_failed` rule
+itself, the list's word outranks it. A kept list that lost every rule at
+load (this world no longer reads them) is now asked about once on a world
+carried on, where before neither that question nor the bootstrap came. Every answer that changes the list writes ONE History line: the
+counts, each rule added, replaced (with what it was) or removed, and the
+list as it then stands. Before, an edit rode the wire and left no line.
+`EVENT_MAP_RULE` moved: its first paragraph, the action paragraph (`ask`
+and `remove`), "THE ORDER DECIDES" (it was "is yours": the robot no longer
+places a rule it sends), the ordering lesson's "Put", and its last
+paragraph, which now also tells the 12-rule cap a list can reach by adding.
+`UNSEEDED_RULE` says the robot is asked without a rule "only until you have
+answered once", where it said "only while the list is still empty", which
+read as true of a list emptied later. `event_map`'s index line moved, and the
+schema's row action enum gained `remove`. The deployed prefix moved
+`6cefb146…` → `55c3cf47…` (52 709 → 53 420 characters). A rule taken out and
+sent again later starts as a new rule (the event clock forgets it). The arm, the reward table, the world and the wire did
+not move: the `event_map` message is as it was, and a decision row's
+`eventMap` carries a `remove` as sent.
+
+**Why `remove` is an action and not a field.** Measured before release on
+the deployed model (GLM-5.3-Flash, the deployed prompt, Luca's served
+8-rule list, a synthetic day that called for no change; about $0.26 of
+calls). A separate `event_map_remove` field was written where `[]` was
+meant, as the list had been: in 40 answers it took out 6 rules that no
+reasoning mentioned, the charging rule among them. As an action of a rule
+in the list, `remove` appeared in none of 59. In the same 99 answers, 29
+sent a one- or two-rule list the old code would have put in place of the
+8 rules. Merged, they changed nothing or added a threshold; one would have
+turned `battery_below 0.3 -> charge` into `-> ask`, and with no `remove`
+beside it that is held now. None lost an `ask`.
+
+**What the period is for.** The rows before it: 14 `unminded` deaths on
+8f68f54 between 2026-10-05 21:00 and 10-06 21:00 (Luca 11, Rowan 3), each
+1800 s after an `llm` edit that cut the robot's own list. 12 left no rule
+that asked, and 2 left only an ask on `battery_below`, which never fired
+in time. Luca's last heart was among them. `unminded` in those rows is
+mostly answers that did not mean to change the map. What to read from
+here:
+
+- **`unminded` deaths that follow an edit**, against the 14. Read the
+  `event_map` rows (`?kind=event_map`): an `edit` whose map lost its last
+  `ask`, then a death 1800 s later. A list alone can no longer cut the
+  map, so each such death follows a `remove`, or a replaced `ask` rule,
+  that the robot's History names.
+- **How many removals were named**, per robot per day, and how many took
+  out an `ask`. On the observatory, a removal is an `edit` whose map lost
+  a rule with no new rule of the same event, kind and value.
+- **Held rules and replacements.** A rule sent with a name the list has
+  and another action changes nothing unless a `remove` of it rides beside
+  it; a held one is a History line, never an edit. Count replacements
+  (`edit`s where a rule kept its event, kind and value and changed its
+  action) and which way they went, and from the box, how often a History
+  line says "Not replaced".
+- **Whether the lists grow.** A robot that goes on sending whole lists now
+  adds what it meant to drop. Watch the rules per map, and how often a
+  History line says "Left out".
+
+**Not yet known.** Whether the robots use `remove` at all when they mean
+to prune, or keep sending shorter lists that now prune nothing. Those
+answers change nothing and leave no line, so they show only as lists that
+stop shrinking.
+
+### A conversation is 500 characters both ways, and a cut reply says so (#474) — opens when this PR is deployed
+
+**What changed in the mind.** The VISITORS rule, on every arm with a mind:
+`reply` is "a friendly answer that person will read" where it was "one
+friendly sentence", and a new bullet gives the length — a reply is kept up
+to 500 characters, anything past that is cut, and the robot is told when.
+`reply`'s line in "What you can do" lost "the sentence". The deployed
+prefix moved, `f3ec2e8a…` → `6cefb146…` (52 579 → 52 709 characters); the
+schema, the arm, the reward table and the world did not. What a
+conversation may BE moved under it: a visitor's message was cut at 280 and
+the robot's reply at 240, silently; both are 500 now, at the sim's door,
+in `validate` and on the website. On the wire, `cut` on a `visitor_reply`,
+additive, no bump. Both History lines of an exchange are kept whole, and a
+cut reply's line says so before the text.
+
+**What the period is for.** The rows before it hold cut replies: on
+2026-10-06 Rowan's answer to Ben ended "it makes the worl", at exactly 240
+(#474's screenshot). Nothing recovers what was cut. What to read from here:
+
+- how long the replies are, per robot, now that 240 is not a wall (a
+  `conversation` row's `detail` is the whole reply), and how often `cut` is
+  true: a robot cut on most of its replies is writing to a limit that is
+  still too small, and the number is data rather than an opinion;
+- whether being told the number changes the writing — replies that stop
+  short of it;
+- whether "a friendly answer" in place of "one friendly sentence" makes a
+  reply longer for its own sake, the rule's other change.
+
+**Not yet known.** Whether 500 is the right number, which the `cut` rows
+will say first. And the website still slices UTF-16 units where the sim
+counts code points (the note on #307's period), so a reply full of emoji
+is cut further there, unmarked.
+
 ### A placeholder is empty, and an answer full of them buys and gives nothing (#462) — opens when this PR is deployed
 
 **What changed in the world.** How an answer's paperwork is read. Every

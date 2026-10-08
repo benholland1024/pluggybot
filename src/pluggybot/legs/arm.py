@@ -34,7 +34,7 @@ import math
 import numpy as np
 
 from pluggybot.legs.actuator import GIM8108_8, Motor
-from pluggybot.rack.coupling import PEG_R
+from pluggybot.rack.coupling import PEG_ABOVE_BODY, PEG_R
 
 #: A link's tube and the rods beside it: radius of the capsule the sim
 #: collides and draws, m (a 20/18 mm carbon tube with its rod ends).
@@ -336,6 +336,89 @@ def gravity_torques(spec: ArmSpec, qs: float, qe: float,
   if spec.level == "body":
     return tau_s, tau_e + ahead
   return tau_s, tau_e
+
+
+def tool_payload(model, module: str | None,
+                 spec: ArmSpec) -> tuple[float, tuple[float, float]]:
+  """What the arm's feed-forward carries with `module` on its fork (None:
+  nothing): the tool's mass, its CoM on its plate under the peg
+  (`rack.tool_face`: the mass is the plate's). The served body's
+  (`legs.swap`) and an imagined one's (`legs.imagined`) -- one rule, or the
+  imagination's drivers would hold a tool the world's do not."""
+  if module is None:
+    return 0.0, (0.0, 0.0)
+  kg = float(model.body_subtreemass[model.body(module).id])
+  return kg, (0.0, spec.fork.seat_rise() - PEG_ABOVE_BODY)
+
+
+def tool_force(spec: ArmSpec, qs: float, qf: float,
+               tau_s: float, tau_e: float) -> tuple[float, float]:
+  """The force the world puts on the tool, N: (forward, up) in the torso
+  frame's x-z, off what the two motors hold BEYOND the arm's own weight and
+  its tool's -- `tau_s`, `tau_e`, N*m: each motor's torque less its
+  `ArmDriver.gravity()`, and less its friction where it turns
+  (`less_friction`). `qs` is the shoulder's angle and `qf` the forearm's
+  ABSOLUTE one (`ArmDriver.q()`), the two coordinates the motors drive.
+
+  The plate only translates (the level parallelogram), so a force anywhere
+  on the tool moves the motors as one at the wrist would: each motor holds
+  its link's lever on it, and the force's moment about the wrist goes to the
+  torso (`gravity_torques`' algebra). So the tool's swing on its peg and
+  where on the tool the force acts read the same; the force ACROSS the arm's
+  plane and that moment read nothing. Singular with the elbow straight or
+  folded flat (`sin(qf - qs)`, the elbow's own angle)."""
+  s1, c1 = math.sin(qs), math.cos(qs)
+  s2, c2 = math.sin(qf), math.cos(qf)
+  det = math.sin(qf - qs)
+  a, b = -tau_s / spec.upper, -tau_e / spec.fore
+  return (a * c2 - b * c1) / det, (a * s2 - b * s1) / det
+
+
+def tool_forces(spec: ArmSpec, qs, qf, tau_s, tau_e) -> np.ndarray:
+  """`tool_force` row by row, over arrays: (n, 2), forward and up."""
+  qs, qf = np.asarray(qs, dtype=float), np.asarray(qf, dtype=float)
+  s1, c1, s2, c2 = np.sin(qs), np.cos(qs), np.sin(qf), np.cos(qf)
+  det = np.sin(qf - qs)
+  a = -np.asarray(tau_s, dtype=float) / spec.upper
+  b = -np.asarray(tau_e, dtype=float) / spec.fore
+  return np.stack([(a * c2 - b * c1) / det, (a * s2 - b * s1) / det], axis=-1)
+
+
+#: A motor whose coordinate turns slower than this, rad/s, is inside its
+#: friction's band: friction there holds anything within +- its value, so a
+#: reading there is left as it is (#469: 0.3-0.4 N off at the tool inside
+#: the band, 0.05 outside it).
+FRICTION_BAND = 0.02
+
+
+def arm_friction(beyond: np.ndarray, rates: np.ndarray) -> np.ndarray:
+  """Each motor's Coulomb friction, N*m, off a sweep holding nothing (#469):
+  what it held beyond the arm's own weight -- `beyond`, rows of (shoulder,
+  elbow): the readings less `ArmDriver.gravity()` -- signed by the way its
+  coordinate turned (`rates`, rows of `ArmDriver.qd()`), averaged where it
+  turned. A sweep that never turned a motor past `FRICTION_BAND` has no
+  friction of it to find, and is refused: the mean of no rows is NaN, and a
+  NaN friction turns every force read after it into NaN. ⚠ The sim's
+  friction is a constant; a gearbox's grows with its load, which no empty
+  sweep can see."""
+  beyond, rates = np.asarray(beyond, dtype=float), np.asarray(rates, dtype=float)
+  turning = np.abs(rates) > FRICTION_BAND
+  still = [name for k, name in enumerate(("shoulder", "elbow")) if not turning[:, k].any()]
+  if still:
+    raise ValueError(f"the sweep never turned the {' or the '.join(still)} past "
+                     f"FRICTION_BAND ({FRICTION_BAND} rad/s): no friction to find")
+  return np.array([float(np.mean(beyond[turning[:, k], k] * np.sign(rates[turning[:, k], k])))
+                   for k in range(2)])
+
+
+def less_friction(beyond: np.ndarray, rates: np.ndarray,
+                  friction: np.ndarray) -> np.ndarray:
+  """`beyond` (rows of what the motors hold beyond the arm's own weight)
+  less each motor's `friction` where its coordinate turns -- the motor
+  pushes that much more the way it turns -- and as it is inside the band."""
+  beyond, rates = np.asarray(beyond, dtype=float), np.asarray(rates, dtype=float)
+  turning = np.abs(rates) > FRICTION_BAND
+  return beyond - np.asarray(friction, dtype=float) * np.sign(rates) * turning
 
 
 # ---- the MJCF --------------------------------------------------------------------
@@ -665,6 +748,20 @@ class ArmDriver:
     qs = float(q[self._qs])
     a2 = qs + float(q[self._qe])
     a3 = a2 + float(q[self._qw])
+    return self._held(gx, gz, qs, a2, a3)
+
+  def gravity_sensed(self, q, level) -> np.ndarray:
+    """`gravity` as the robot's own senses put it: the arm's encoders (`q`,
+    the shoulder and the forearm's absolute angle), the plate level as its
+    parallelogram holds it, and the torso's tilt as the IMU says it
+    (`level`: `perception.imu.Attitude.level`)."""
+    return np.array(self._held(-G * float(level[2, 0]), -G * float(level[2, 2]),
+                               float(q[0]), float(q[1]), 0.0))
+
+  def _held(self, gx: float, gz: float, qs: float, a2: float,
+            a3: float) -> tuple[float, float]:
+    """What each motor holds with gravity (`gx`, `gz`) in the torso's frame
+    and the links at absolute angles `qs`, `a2` and `a3`."""
     c1, s1 = math.cos(qs), math.sin(qs)
     c2, s2 = math.cos(a2), math.sin(a2)
     c3, s3 = math.cos(a3), math.sin(a3)

@@ -1,5 +1,6 @@
 import os
 import subprocess
+import tempfile
 
 import pytest
 
@@ -22,6 +23,37 @@ def pytest_runtest_logreport(report):
 def pytest_terminal_summary(terminalreporter):
   drew = ", ".join(sorted(RASTERISERS)) or "not read in this run"
   terminalreporter.write_line(f"MUJOCO_GL={os.environ['MUJOCO_GL']}, rasteriser {drew}")
+
+
+# ---- temporary files: in memory where there is room -------------------------
+# A memory store a test leaves behind is closed by the cyclic collector
+# WHEREVER it next runs, and its WAL checkpoint's fsync, on a spinning /tmp,
+# stalled whatever test was running 0.4-4 s (#473: 29-39 s of worker time a
+# run, and two timing tests failed on it); on tmpfs an fsync is free, and the
+# suite ran 53 s -> 43 s. A run writes ~11 MB, and pytest keeps three. Set
+# before pytest names its base temp (lazily) and before xdist starts the
+# workers, who inherit it. A TMPDIR already set wins, and a /dev/shm with less
+# than `SHM_FREE_GB` free (a container's is 64 MB) is left alone.
+SHM = "/dev/shm"
+SHM_FREE_GB = 1.0
+
+
+def memory_temp(environ, shm: str = SHM, free_gb: float = SHM_FREE_GB) -> str | None:
+  """Where the suite's temporary files go: a directory of this user's in
+  `shm`, where nothing has said otherwise and it has `free_gb` free, else
+  None (the platform's default)."""
+  if environ.get("TMPDIR") or not os.path.isdir(shm) or not os.access(shm, os.W_OK):
+    return None
+  free = os.statvfs(shm)
+  if free.f_bavail * free.f_frsize < free_gb * 2**30:
+    return None
+  return os.path.join(shm, f"pluggybot-tests-{os.getuid()}")
+
+
+if (_memory := memory_temp(os.environ)) is not None:
+  os.makedirs(_memory, mode=0o700, exist_ok=True)
+  os.environ["TMPDIR"] = _memory
+  tempfile.tempdir = None           # read again: capture has opened its files already
 
 
 # ---- endurance: the flights, flown when a change needs one ------------------
