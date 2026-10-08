@@ -23,8 +23,11 @@ its name out, and nothing else removes one, so the last `ask` can still go
 and a list can now be emptied (and an emptied list comes back empty after
 a restart). Where an answer names one rule twice, the last counts. A list
 past 12 rules adds what fits and says what it left out; the standing order
-no longer cuts the last rule to fit its own, and on a full list it is not
-in force. Every answer that changes the list writes ONE History line: the
+no longer cuts the last rule to fit its own, on a full list it is not in
+force, and where the list names the catch-all `decision_failed` rule
+itself, the list's word outranks it. A kept list that lost every rule at
+load (this world no longer reads them) is now asked about once on a world
+carried on, where before neither that question nor the bootstrap came. Every answer that changes the list writes ONE History line: the
 counts, each rule added, replaced (with what it was) or removed, and the
 list as it then stands. Before, an edit rode the wire and left no line.
 `EVENT_MAP_RULE` moved: its first paragraph, the action paragraph (`ask`

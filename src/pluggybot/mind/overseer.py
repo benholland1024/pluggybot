@@ -4851,23 +4851,28 @@ class Overseer:
     ⚠ A LIST MERGES (`EventMap.edit`): each rule takes the place of the one
     with its trigger, or is added, and only a `remove` takes one out.
 
-    ⚠ ORDER MATTERS HERE AND IT IS THE ONE THE ANSWER IMPLIES. A reply that
-    sends both rules and a standing order meant the order to hold, so the
-    order goes in AFTER the list, and overrides an unfiltered
-    `decision_failed` rule in it.
+    ⚠ THE ORDER GOES IN AFTER THE LIST, in place of the catch-all
+    `decision_failed` rule -- unless the list names that rule itself: then
+    the list's own word stands, a `remove` included, and the order is not
+    in force (found in review: an order outranking it made the catch-all a
+    rule the robot could not take out while it filled the order). The list
+    is the field this prompt describes; the order is the one it never names
+    where there is a list (`MIGRATED_FIELDS`).
 
     ⚠ AND THE ORDER'S ROW IS IN PLACE. `STANDING_ORDER_RULE` tells the
     robot to set an order on EVERY answer, so an append would grow the map
     by a row an hour until it hit `MAX_ROWS` and stopped accepting anything
     the agent actually wrote. ⚠ A FULL LIST HAS NO ROOM FOR IT, and then it
-    is not in force and not SAID: the field is the one this prompt never
-    names where there is a list (`MIGRATED_FIELDS`), and a line on every
-    answer about it would bury History (found in review).
+    is not in force and not SAID: a line on every answer about a field the
+    robot is not told of would bury History (found in review).
     """
     if self.event_map is None:
       return None
     order = (ev.Row(event="decision_failed", action=decision.standing_order)
              if decision.standing_order else None)
+    if order is not None and any(r.trigger == order.trigger
+                                 for r in decision.event_map):
+      order, self.standing_order = None, ""
     sent = list(decision.event_map) + ([order] if order is not None else [])
     if not sent:
       return None
@@ -4875,9 +4880,7 @@ class Overseer:
     edit = before.edit(sent)
     if order is not None and order in edit.left_out:
       self.standing_order = ""
-      if not any(r.trigger == order.trigger for r in decision.event_map):
-        edit = edit._replace(left_out=tuple(r for r in edit.left_out
-                                            if r != order))
+      edit = edit._replace(left_out=tuple(r for r in edit.left_out if r != order))
     if edit.emap == before:
       return edit
     self.event_map = edit.emap

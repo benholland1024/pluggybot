@@ -910,10 +910,14 @@ class HubLifecycle:
     #: file, so a restart between the death and the stand-up cannot swallow
     #: it; the other is found again at every load until an edit clears it.
     #: The death is still a death: this makes it one the robot hears about.
+    #: ⚠ OWED WHEREVER A RULE WAS LEFT OUT, restored or not (found in review
+    #: of #475): a list that lost every rule is not `restored`, and the
+    #: bootstrap was to ask -- but a world carried on brings `minded` back
+    #: after this (`restore_kept`), and then neither asked.
     self._consult: dict | None = None
     if kept is not None and kept.owed:
       self._consult = {"event": "unminded", "note": UNMINDED_NOTE}
-    elif kept is not None and kept.dropped and self._minded:
+    elif kept is not None and kept.dropped:
       self._consult = {"event": "rules_left_out", "note": left_out_note(kept.dropped)}
     #: WHEN THE LAST DECISION WAS ACTED ON, and its action, as `(sim s,
     #: action)` (issue #400): nothing is done about the next at that same

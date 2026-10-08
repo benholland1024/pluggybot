@@ -274,18 +274,28 @@ def test_setting_an_order_every_answer_does_not_grow_the_map(menu):
 
 def test_a_list_and_an_order_on_one_answer_both_land(menu):
   """⚠ THE ORDER OF APPLICATION IS THE ONE THE ANSWER IMPLIES: the order
-  goes in AFTER the list (issue #475's merge), so an order beside the
-  list's own catch-all failure rule is the one that stands -- as it was
-  when the list replaced the map and the order was folded into what it
-  left. The seeded `decision_failed -> idle` keeps its place."""
+  goes in AFTER the list (issue #475's merge), in place of the seeded
+  `decision_failed -> idle`. ⚠ BUT WHERE THE LIST NAMES THAT RULE ITSELF,
+  ITS OWN WORD STANDS, a `remove` included (found in review): the list is
+  the field the prompt describes where there is one, and an order that
+  outranked it made the catch-all a rule the robot could not take out
+  while it filled the order -- which it does on about one answer in six."""
   boss = make(menu, full(action="idle", standing_order="explore",
-                         event_map=rows(("battery_below", "charge", 0.2, ""),
-                                        ("decision_failed", "take_task", 0, ""))))
+                         event_map=rows(("battery_below", "charge", 0.2, ""))),
+              full(action="explore", standing_order="charge",
+                   event_map=rows(("decision_failed", "take_task", 0, ""))),
+              full(action="idle", standing_order="charge",
+                   event_map=rows(("decision_failed", ev.REMOVE, 0, ""))))
   boss.decide(_state(0.9))
   assert boss.event_map == listed(menu, rows(("nothing_to_do", ev.ASK, 0, ""),
                                              ("decision_failed", "explore", 0, ""),
                                              ("battery_below", "charge", 0.2, "")))
   assert boss.failure_order("timeout") == "explore"
+  boss.decide(_state(0.9))
+  assert boss.failure_order("timeout") == "take_task"
+  assert boss.stats()["standingOrders"]["current"] == "", "not in force"
+  boss.decide(_state(0.9))
+  assert boss.event_map.first("decision_failed") is None
 
 
 def test_a_fallback_cannot_rewrite_the_map(menu):
@@ -761,12 +771,14 @@ def test_a_full_list_has_no_room_for_the_standing_order_and_says_nothing_of_it(m
   assert life.event_map == twelve and said_of_the_map(life) == []
   assert life.overseer.stats()["standingOrders"]["current"] == ""
   assert life.overseer.failure_order("timeout") == ""
-  # ...and where the list itself carries that rule, the robot sent it: said
+  # ...and where the list itself names that rule, its own word is the one
+  # said: the order is not sent at all (found in review: the line named the
+  # order's rule, which the robot never put in its list, and not its own)
   boss = make(menu, full(action="explore", standing_order="idle",
                          event_map=rows(("decision_failed", "charge", 0, ""))),
               origin="unseeded", event_map=twelve)
   d = boss.decide(_state(0.9))
-  assert d.map_edit.left_out == (ev.Row("decision_failed", "idle"),)
+  assert d.map_edit.left_out == (ev.Row("decision_failed", "charge"),)
 
 
 def test_a_list_the_robot_emptied_comes_back_empty_after_a_restart(menu, tmp_path):
@@ -1734,6 +1746,30 @@ def test_a_rule_left_out_at_load_is_asked_about_once(menu, tmp_path):
     "event": "rules_left_out", "note": left_out_note(
       ["task_complete look -> ask (unknown kind 'look' for 'task_complete')"])}
   assert life._consult is None
+
+
+def test_a_list_that_lost_every_rule_at_load_is_asked_about_on_a_world_carried_on(
+    menu, tmp_path):
+  """Found in review of #475, and older than it: the consult for rules left
+  out was owed only to a `restored` list, and a list that lost EVERY rule
+  at load is not restored -- the bootstrap was to ask instead. But a world
+  carried on (#345) brings `minded` back after the consult is decided
+  (`restore_kept`), so neither asked, and an unseeded robot went unminded
+  against "you are asked about it once". Owed now wherever a rule went."""
+  from pluggybot.lifecycle import left_out_note
+  root = tmp_path / "t"
+  root.mkdir()
+  (root / ev.MAP_FILE).write_text(json.dumps({"origin": "unseeded", "rows": [
+    {"event": "task_complete", "kind": "look", "action": "ask"}]}))
+  with _run(menu, root, full(action="idle", reason="heard")) as life:
+    assert not life.overseer.restored and len(life.event_map) == 0
+    life._minded = True              # what a world carried on brings back
+    seen = []
+    life.overseer.on_decision.append(seen.append)
+    _pass_twice(life)
+  assert seen and seen[0]["state"]["askedBy"] == {
+    "event": "rules_left_out", "note": left_out_note(
+      ["task_complete look -> ask (unknown kind 'look' for 'task_complete')"])}
 
 
 def test_a_true_death_takes_the_kept_list_on_a_world_with_no_map_too(menu,

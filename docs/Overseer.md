@@ -1363,10 +1363,15 @@ otherwise).
     standing order can hold one, and no map is built with it in;
   - where an answer sends a trigger twice, the LAST rule counts, a
     `remove` too, so no answer reports a rule both taken out and put back.
-    The standing order is one more rule after the list; ⚠ a full list has
-    no room for it, and then it is neither in force (`standingOrders.current`
-    is `""`) nor said, since this prompt never names the field where there
-    is a list (found in review: a ~410-character line on every answer);
+    The standing order is one more rule after the list, unless the list
+    names its rule (the catch-all `decision_failed`): then the list's own
+    word stands, a `remove` included, and the order is not in force
+    (`standingOrders.current` is `""`) -- found in review: an order that
+    outranked the list made the catch-all a rule the robot could not take
+    out while it filled the order. ⚠ A full list has no room for the order,
+    and then it is neither in force nor said, since this prompt never names
+    the field where there is a list (found in review: a ~410-character line
+    on every answer);
   - ⚠ **nothing is cut to make room**: past `MAX_ROWS` any other rule is
     left out and said (the fold this replaced dropped the last row to fit);
   - **every edit is one History line, as a fact** (`Edit.said`,
@@ -1490,7 +1495,10 @@ otherwise).
   owed by nobody after a true death (the next robot has the bootstrap).
   The same slot carries the one for kept rules left out at load
   (`rules_left_out`, `left_out_note` naming them), found again at every
-  load until an edit replaces the file. Both map rules say it, since
+  load until an edit replaces the file, and owed whether or not any of the
+  list came back (review of #475: one that lost every rule was left to the
+  bootstrap, which a world carried on does not run, since it brings back
+  `minded`). Both map rules say it, since
   "nobody will consult you unless your list says to" would otherwise be
   false.
 - **The migration.** `standing_order` keeps working for one version: it

@@ -479,7 +479,8 @@ save a filmstrip PNG named after the script.
     edit, never on a reset; `Overseer.restore_map` when the next process
     builds the robot). Each kept row goes back through `events.row` against
     TODAY's menu; one that fails is left out, SAID in History, and owes a
-    consult (`rules_left_out`). A true death is the one reset
+    consult (`rules_left_out`) whether or not any rule came back (#475: a
+    world carried on brings back `minded`, so the bootstrap does not ask). A true death is the one reset
     (`Overseer.start_over`), and ⚠ it archives the file (`event_map.1.json`)
     on EVERY world. ⚠ AN ANSWER THAT OUTLIVES ITS ROBOT IS DROPPED WHOLE
     (`Overseer._starts_over`). Origin `none` never reads the file;
@@ -518,7 +519,8 @@ save a filmstrip PNG named after the script.
     a field was slipped like the list, 6 rules out in 40 answers; the
     action, none in 59) — the ONE way out, removals first, the last `ask`
     included (no rail). The LAST rule sent for a trigger counts; the
-    standing order is one more rule after the list, and on a full list is
+    standing order is one more rule after the list unless the list names its
+    rule (then the list's word stands, a `remove` too), and on a full list is
     neither in force nor said; past `MAX_ROWS` any other rule is left out
     and said, never a rule cut to fit; a list emptied by `remove` comes
     back empty after a restart (`restore_map`). EVERY EDIT IS ONE History

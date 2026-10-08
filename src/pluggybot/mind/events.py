@@ -399,8 +399,10 @@ class EventMap:
     removals go first, so they make room.
 
     ⚠ THE LAST RULE SENT FOR A TRIGGER COUNTS, so an answer cannot report a
-    rule both taken out and put back; the standing order (#125), sent
-    last, overrides the list's own catch-all, never `on timeout, charge`.
+    rule both taken out and put back. The standing order (#125) is sent
+    last, an unfiltered `decision_failed` rule, so it can never touch an
+    `on timeout, charge` -- and only where the list does not name its rule
+    (`Overseer._install_map`).
 
     ⚠ NOTHING IS DROPPED TO MAKE ROOM: past `MAX_ROWS` a rule is left out
     and said. The fold this replaced cut the last row to fit, and a rule
