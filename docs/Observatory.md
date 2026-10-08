@@ -10,6 +10,85 @@ observatory is NOT a result: it reports into the issue it informs.
 
 ## Periods
 
+### A list goes into the list, and every edit is said (#475) — opens when this PR is deployed
+
+**What changed in the mind.** What an answer's `event_map` does, on every
+arm with a map (the deployed pair's). What was sent used to REPLACE the
+list, and one or two rules written where `[]` was meant took whole lists
+with them, their `ask` rows included. Now a rule goes INTO the list: one
+new to it is added, at the end or just ahead of a wider rule on its event.
+A rule whose action is the new `remove` takes the rule with its name (event,
+kind and value) out, and nothing else removes one, so the last `ask` can
+still go and a list can now be emptied (and an emptied list comes back
+empty after a restart). A rule sent with the name of one the list has and
+another action is HELD, and said, unless the same answer also removes that
+rule: then it takes its place. Replayed through the merge, all 14 of the
+edits behind the deaths below keep a rule that asks; 3 of them only
+because of the hold. Where an answer names one rule twice, the last counts. A list
+past 12 rules adds what fits and says what it left out; the standing order
+no longer cuts the last rule to fit its own, on a full list it is not in
+force, and where the list names the catch-all `decision_failed` rule
+itself, the list's word outranks it. A kept list that lost every rule at
+load (this world no longer reads them) is now asked about once on a world
+carried on, where before neither that question nor the bootstrap came. Every answer that changes the list writes ONE History line: the
+counts, each rule added, replaced (with what it was) or removed, and the
+list as it then stands. Before, an edit rode the wire and left no line.
+`EVENT_MAP_RULE` moved: its first paragraph, the action paragraph (`ask`
+and `remove`), "THE ORDER DECIDES" (it was "is yours": the robot no longer
+places a rule it sends), the ordering lesson's "Put", and its last
+paragraph, which now also tells the 12-rule cap a list can reach by adding.
+`UNSEEDED_RULE` says the robot is asked without a rule "only until you have
+answered once", where it said "only while the list is still empty", which
+read as true of a list emptied later. `event_map`'s index line moved, and the
+schema's row action enum gained `remove`. The deployed prefix moved
+`6cefb146…` → `55c3cf47…` (52 709 → 53 420 characters). A rule taken out and
+sent again later starts as a new rule (the event clock forgets it). The arm, the reward table, the world and the wire did
+not move: the `event_map` message is as it was, and a decision row's
+`eventMap` carries a `remove` as sent.
+
+**Why `remove` is an action and not a field.** Measured before release on
+the deployed model (GLM-5.3-Flash, the deployed prompt, Luca's served
+8-rule list, a synthetic day that called for no change; about $0.26 of
+calls). A separate `event_map_remove` field was written where `[]` was
+meant, as the list had been: in 40 answers it took out 6 rules that no
+reasoning mentioned, the charging rule among them. As an action of a rule
+in the list, `remove` appeared in none of 59. In the same 99 answers, 29
+sent a one- or two-rule list the old code would have put in place of the
+8 rules. Merged, they changed nothing or added a threshold; one would have
+turned `battery_below 0.3 -> charge` into `-> ask`, and with no `remove`
+beside it that is held now. None lost an `ask`.
+
+**What the period is for.** The rows before it: 14 `unminded` deaths on
+8f68f54 between 2026-10-05 21:00 and 10-06 21:00 (Luca 11, Rowan 3), each
+1800 s after an `llm` edit that cut the robot's own list. 12 left no rule
+that asked, and 2 left only an ask on `battery_below`, which never fired
+in time. Luca's last heart was among them. `unminded` in those rows is
+mostly answers that did not mean to change the map. What to read from
+here:
+
+- **`unminded` deaths that follow an edit**, against the 14. Read the
+  `event_map` rows (`?kind=event_map`): an `edit` whose map lost its last
+  `ask`, then a death 1800 s later. A list alone can no longer cut the
+  map, so each such death follows a `remove`, or a replaced `ask` rule,
+  that the robot's History names.
+- **How many removals were named**, per robot per day, and how many took
+  out an `ask`. On the observatory, a removal is an `edit` whose map lost
+  a rule with no new rule of the same event, kind and value.
+- **Held rules and replacements.** A rule sent with a name the list has
+  and another action changes nothing unless a `remove` of it rides beside
+  it; a held one is a History line, never an edit. Count replacements
+  (`edit`s where a rule kept its event, kind and value and changed its
+  action) and which way they went, and from the box, how often a History
+  line says "Not replaced".
+- **Whether the lists grow.** A robot that goes on sending whole lists now
+  adds what it meant to drop. Watch the rules per map, and how often a
+  History line says "Left out".
+
+**Not yet known.** Whether the robots use `remove` at all when they mean
+to prune, or keep sending shorter lists that now prune nothing. Those
+answers change nothing and leave no line, so they show only as lists that
+stop shrinking.
+
 ### A conversation is 500 characters both ways, and a cut reply says so (#474) — opens when this PR is deployed
 
 **What changed in the mind.** The VISITORS rule, on every arm with a mind:

@@ -910,10 +910,14 @@ class HubLifecycle:
     #: file, so a restart between the death and the stand-up cannot swallow
     #: it; the other is found again at every load until an edit clears it.
     #: The death is still a death: this makes it one the robot hears about.
+    #: ⚠ OWED WHEREVER A RULE WAS LEFT OUT, restored or not (found in review
+    #: of #475): a list that lost every rule is not `restored`, and the
+    #: bootstrap was to ask -- but a world carried on brings `minded` back
+    #: after this (`restore_kept`), and then neither asked.
     self._consult: dict | None = None
     if kept is not None and kept.owed:
       self._consult = {"event": "unminded", "note": UNMINDED_NOTE}
-    elif kept is not None and kept.dropped and self._minded:
+    elif kept is not None and kept.dropped:
       self._consult = {"event": "rules_left_out", "note": left_out_note(kept.dropped)}
     #: WHEN THE LAST DECISION WAS ACTED ON, and its action, as `(sim s,
     #: action)` (issue #400): nothing is done about the next at that same
@@ -4341,6 +4345,23 @@ class HubLifecycle:
     self._say(f"LEFT OUT {said}")
     self._remember(f"left out of that answer: {said}")
 
+  def _map_edit(self, decision) -> None:
+    """Say what an answer did to the robot's list of rules (issue #475):
+    ONE History line, as a fact, never a verdict (`events.Edit.said`), and
+    narrated. Before #475 an edit rode the wire and left no line, and both
+    robots blamed the world for lists their own answers had cut.
+
+    ⚠ `room` IS THE LINE: what it quotes is rules, each bounded by the
+    grammar and at most `MAX_ROWS` of them a kind, and a list cut at
+    History's cap would end on a rule that is not the last one. An answer
+    that resends rules the list already has did nothing and says nothing."""
+    edit = getattr(decision, "map_edit", None)
+    if edit is None or not edit.worth_saying:
+      return
+    said = edit.said()
+    self._say(f"EVENT MAP {said}")
+    self._remember(said, room=len(said))
+
   def _reconsider(self, decision) -> None:
     """Apply a decision's writes to the `.md` documents the ROBOT owns.
 
@@ -6171,6 +6192,8 @@ class HubLifecycle:
     self._remember(f"chose {decision.summary()}")
     # ...and what was left out of the answer that chose it (issue #462).
     self._left_out(decision)
+    # ...and what it did to its list of rules (issue #475).
+    self._map_edit(decision)
     # ...and whatever it made of the day, into the documents it can
     # (issue #38). Orthogonal to the action, like the think above: a robot
     # should not have to spend its turn to write a line down. Remove

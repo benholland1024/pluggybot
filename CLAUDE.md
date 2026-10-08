@@ -479,7 +479,8 @@ save a filmstrip PNG named after the script.
     edit, never on a reset; `Overseer.restore_map` when the next process
     builds the robot). Each kept row goes back through `events.row` against
     TODAY's menu; one that fails is left out, SAID in History, and owes a
-    consult (`rules_left_out`). A true death is the one reset
+    consult (`rules_left_out`) whether or not any rule came back (#475: a
+    world carried on brings back `minded`, so the bootstrap does not ask). A true death is the one reset
     (`Overseer.start_over`), and ⚠ it archives the file (`event_map.1.json`)
     on EVERY world. ⚠ AN ANSWER THAT OUTLIVES ITS ROBOT IS DROPPED WHOLE
     (`Overseer._starts_over`). Origin `none` never reads the file;
@@ -502,16 +503,43 @@ save a filmstrip PNG named after the script.
     (`failure`/`policy`) or `""`, first match wins. `Overseer.failure_order`
     is a METHOD TAKING THE REASON. ⚠ The partition is
     `overseer.POLICY_FALLBACKS`, NOT a copy (the test MOVES a reason across
-    the line). ⚠ A cross-event token is REFUSED, not dropped. ⚠
-    `EventMap.with_row` keys on `(event, kind)`. ⚠ A broad row above a narrow
-    one starves it — not prevented, visible in `score.failureKinds`;
+    the line). ⚠ A cross-event token is REFUSED, not dropped. ⚠ A broad row
+    above a narrow one starves it — not prevented, visible in
+    `score.failureKinds`;
+  - ⚠ **A LIST GOES INTO THE LIST, AND A RULE LEAVES ONLY BY `remove`**
+    (#475; `EventMap.edit`): what an answer sent replaced the map, and one
+    or two rules where `[]` was meant took the `ask` rows with them (14
+    `unminded` deaths in a day). A rule is named by its TRIGGER, `(event,
+    kind, value)` (`Row.trigger`) — ⚠ never `(event, kind)` alone: two
+    thresholds on one event are two rules (29 of 427 live edits). A rule
+    new to the map is added at the end -- just ahead of the first rule on
+    its event that takes its `kind`, where it has one (`_covers`). ⚠ ONE
+    SENT WITH A TRIGGER THE MAP HAS AND ANOTHER ACTION IS HELD (not applied,
+    said) unless the same answer `remove`s that trigger, and then it takes
+    its place (Ben, 2026-10-08: in place, a slip took the only `ask` in 3 of
+    the issue's 14 deaths; `DEATHS_475` replays all 14). ⚠ `events.REMOVE` is an ACTION of
+    an answer's rule, never a field and never a row of the map (MEASURED:
+    a field was slipped like the list, 6 rules out in 40 answers; the
+    action, none in 59) — the ONE way out, removals first, the last `ask`
+    included (no rail). The LAST rule sent for a trigger counts; the
+    standing order rides with a `remove` of its own trigger, so it replaces
+    the catch-all as it always did, after the list, unless the list names its
+    rule (then the list's word stands, a `remove` too), and on a full list is
+    neither in force nor said; past `MAX_ROWS` any other rule is left out
+    and said, never a rule cut to fit, and ⚠ the prompt TELLS the cap (a
+    test reads the constant); `EventClock` forgets a row the map no longer
+    holds, so one sent again is new; a list emptied by `remove` comes
+    back empty after a restart (`restore_map`). EVERY EDIT IS ONE History
+    line, as a fact (`Edit.said`, `HubLifecycle._map_edit`): counts, rules,
+    the list as it stands; a resend says nothing;
   - ⚠ **no worked example in `EVENT_MAP_RULE` may use `charge`, a battery
     threshold or the rack** (a test fails on a `->` line ending in `charge`):
     an example hands the agent the answer `score` measures. The rules
     (`RULES`, `APPETITE_RULE`) stay: statements about the WORLD, not
     demonstrations of the ANSWER;
-  - the standing order migrates into a `decision_failed` row IN PLACE, is
-    honoured synchronously, and queues no event (doing both ran it twice);
+  - the standing order migrates into a `decision_failed` row IN PLACE (the
+    last rule of the answer's edit), is honoured synchronously, and queues
+    no event (doing both ran it twice);
   - three producers: `llm` / `event:<type>` / `fallback:<why>`
     (`Decision.scripted` means "a fallback produced this"); the CURRENT map
     rides the stream as `event_map` on open and on every edit, and a world

@@ -273,9 +273,13 @@ the agent's to configure. Overseer.md ("The event map") has the mechanism,
 the events and what the agent is told; this section has what it means for
 measurement.
 
-⚠ **THE ORDER IS THE AGENT'S.** Several rows can be live on one tick, and an
-undefined order would break §1's determinism; ordering also makes priority
-an explicit choice, one more thing to score off the config.
+⚠ **THE ORDER IS THE AGENT'S EDITS'.** Several rows can be live on one tick,
+and an undefined order would break §1's determinism; ordering also makes
+priority a choice to score off the config. Since #475 the agent does not
+place a rule it sends: a new one goes just ahead of a wider rule on its
+event, or at the end, and one replaces a rule only beside a `remove` of it,
+in place (`EventMap.edit`), so `ordered` reads the order thresholds were
+added in.
 
 #### ⚠ The reason to want it: a map is EVALUABLE WITHOUT FLYING
 
@@ -349,9 +353,12 @@ states the ordering trap outright.
 the union of every event's `kind`, and `events.row` draws the line: a
 dropped filter leaves a row that **reads** as a narrow rule and **behaves**
 as a catch-all, which is the agent believing it has a rule it does not.
-Likewise a migrated `standingOrder`, an unfiltered row, is written by
-`EventMap.with_row` keyed on `(event, kind)`: keyed on the event alone, it
-would overwrite the agent's `on timeout, charge` within the hour.
+Likewise a migrated `standingOrder`, an unfiltered row, goes in by
+`EventMap.edit` keyed on the row's trigger, `(event, kind, value)`: keyed on
+the event alone, it would overwrite the agent's `on timeout, charge` within
+the hour. Since #475 every rule an answer sends goes in by the same key and
+only a rule whose action is `remove` takes one out (Overseer.md, "The event
+map").
 
 #### ⚠ Going unminded is a FAILURE, and it is measured rather than prevented
 
