@@ -374,33 +374,26 @@ class EventMap:
                  if r.event == event and matches_kind(r, kind)), None)
 
   def edit(self, remove=(), put=()) -> "Edit":
-    """This map with an answer's edit applied (issue #475): the rules
-    `remove` names (by `Row.trigger`) taken out, then the rules in `put`
-    put in. What it did comes back with it, for History.
+    """This map with an answer's edit applied (issue #475; Overseer.md "The
+    event map"): the rules `remove` names (by `Row.trigger`) taken out,
+    then the rules in `put` put in. What it did comes back with it.
 
-    ⚠ A LIST MERGES, IT NEVER REPLACES. `event_map` is written on every
-    answer -- every field of the schema is required -- and one or two rules
-    where `[]` was meant used to replace the whole list, its `ask` rows
-    with it: 14 `unminded` deaths on the served pair in the day to
-    2026-10-06, each 1800 s after the robot's own answer. So a rule takes
-    the place of the one with its trigger, IN PLACE, and any other is
-    added -- ahead of the first rule on its event that takes everything it
-    would (`_covers`), so a catch-all already there does not starve it,
-    and at the end otherwise. Only `remove` takes a rule out; a removal
-    takes every row with that trigger, a dead duplicate too.
+    ⚠ A LIST MERGES, IT NEVER REPLACES: `event_map` is written on every
+    answer, and a list that replaced the map took its `ask` rows with it
+    (14 `unminded` deaths in a day). A rule takes the place of the one with
+    its trigger, IN PLACE; any other goes at the end, or, where it has a
+    `kind`, just ahead of the first rule on its event that takes it
+    (`_covers`), so a catch-all already there does not starve it. A level
+    or periodic rule has no kind and is never starved (`shadowed`). Only
+    `remove` takes a rule out -- every row with that trigger.
 
-    ⚠ THE KEY IS THE TRIGGER, NOT `(event, kind)` (`Row.trigger`), and on a
-    discrete event the two are one: the standing order (#125) rides as one
-    more rule after the list, an unfiltered `decision_failed` row, so it
-    overrides the list's own catch-all as it always did and never the
-    agent's `on timeout, charge` rule. Rules are taken one per trigger, the
-    LAST of each winning, so one answer cannot report a rule both added
-    and replaced.
+    ⚠ ONE RULE PER TRIGGER, THE LAST WINNING, so an answer cannot report a
+    rule both added and replaced; the standing order (#125), put last,
+    overrides the list's own catch-all, never `on timeout, charge`.
 
-    ⚠ NOTHING IS DROPPED TO MAKE ROOM. A rule that would take the map past
-    `MAX_ROWS` is left out and said: the fold this replaces cut the last
-    row to fit, and a rule gone in silence is one the robot believes it
-    has.
+    ⚠ NOTHING IS DROPPED TO MAKE ROOM: past `MAX_ROWS` a rule is left out
+    and said. The fold this replaced cut the last row to fit, and a rule
+    gone in silence is one the robot believes it has.
     """
     rows, removed, absent = list(self.rows), [], []
     for trigger in dict.fromkeys(remove):
@@ -423,7 +416,7 @@ class EventMap:
       elif len(rows) >= MAX_ROWS:
         left_out.append(r)
       else:
-        j = next((j for j, x in enumerate(rows) if r.event in DISCRETE_EVENTS
+        j = next((j for j, x in enumerate(rows) if r.kind
                   and x.event == r.event and _covers(x, r)), len(rows))
         rows.insert(j, r)
         added.append(r)
@@ -456,9 +449,8 @@ class Edit(NamedTuple):
 
   def said(self) -> str:
     """One History line, as a FACT, never a verdict: what the answer did to
-    the list, by count and by rule, and then the list as it stands, in
-    order -- so a shorter list that took nothing out reads as one, and a
-    rule replaced shows what it was."""
+    the list, by count and by rule -- a replaced rule with what it was --
+    and then the list as it stands, in order."""
     def rules(rows) -> str:
       return "; ".join(r.said() for r in rows)
     out = [f"my answer {'changed' if self.changed else 'left'} my event map"
@@ -658,11 +650,7 @@ def parse(raw, menu: "Menu") -> EventMap | None:
   ⚠ AN EMPTY LIST MEANS NO CHANGE, NOT "CLEAR IT": `""`/`[]` is how every
   other optional field on a decision (`pin`, `unpin`, `standing_order`)
   says "not this time", and a list is written on every answer. Emptying a
-  map is `event_map_remove`'s (`named`); before #475 it could not be done
-  at all, and whole-list replacement was taken to be the only shape a
-  small model could reliably emit. The live rows said otherwise: a
-  one-rule list where `[]` was meant replaced eight rules, the `ask` among
-  them.
+  map is `event_map_remove`'s (`named`).
   """
   if raw is None:
     return None

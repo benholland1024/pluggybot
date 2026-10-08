@@ -349,9 +349,11 @@ states the ordering trap outright.
 the union of every event's `kind`, and `events.row` draws the line: a
 dropped filter leaves a row that **reads** as a narrow rule and **behaves**
 as a catch-all, which is the agent believing it has a rule it does not.
-Likewise a migrated `standingOrder`, an unfiltered row, is written by
-`EventMap.with_row` keyed on `(event, kind)`: keyed on the event alone, it
-would overwrite the agent's `on timeout, charge` within the hour.
+Likewise a migrated `standingOrder`, an unfiltered row, goes in by
+`EventMap.edit` keyed on the row's trigger, `(event, kind, value)`: keyed on
+the event alone, it would overwrite the agent's `on timeout, charge` within
+the hour. Since #475 every rule an answer sends goes in by the same key and
+only a named removal takes one out (Overseer.md, "The event map").
 
 #### ⚠ Going unminded is a FAILURE, and it is measured rather than prevented
 

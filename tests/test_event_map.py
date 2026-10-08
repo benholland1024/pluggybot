@@ -615,18 +615,22 @@ def test_two_thresholds_on_one_event_are_two_rules(menu):
   (`Row.trigger`). 29 of 427 live edits from 2026-09-28 to 10-08 carried
   two rows on one level or periodic event -- `battery_below 0.1 -> charge`
   beside `battery_below 0.3 -> ask` among them. Keyed on the event and the
-  kind alone, sending one would replace the other, the `ask` with it."""
+  kind alone, sending one would replace the other, the `ask` with it. ⚠ And
+  a new threshold or period goes at the END, as the rule says: only a rule
+  with a `kind` goes ahead of a wider one, and a level rule has none."""
   pair = listed(menu, rows(("battery_below", "charge", 0.1, ""),
                            ("battery_below", ev.ASK, 0.3, ""),
                            ("every", ev.ASK, 1500, "")))
   boss = make(menu, full(action="explore", event_map=rows(
-    ("battery_below", "idle", 0.1, ""), ("every", ev.ASK, 45, ""))),
+    ("battery_below", "idle", 0.1, ""), ("every", ev.ASK, 45, ""),
+    ("battery_below", "charge", 0.05, ""))),
     origin="unseeded", event_map=pair)
   boss.decide(_state(0.9))
   assert boss.event_map == listed(menu, rows(("battery_below", "idle", 0.1, ""),
                                              ("battery_below", ev.ASK, 0.3, ""),
                                              ("every", ev.ASK, 1500, ""),
-                                             ("every", ev.ASK, 45, "")))
+                                             ("every", ev.ASK, 45, ""),
+                                             ("battery_below", "charge", 0.05, "")))
 
 
 def test_a_named_removal_takes_out_exactly_that_rule_and_the_last_ask_too(menu):
@@ -644,6 +648,7 @@ def test_a_named_removal_takes_out_exactly_that_rule_and_the_last_ask_too(menu):
               origin="unseeded", event_map=had)
   d = boss.decide(_state(0.9))
   assert boss.event_map.rows == had.rows[:2] and d.map_edit.removed == had.rows[2:]
+  assert d.as_dict()["eventMapRemove"] == [{"event": "battery_below", "value": 0.15}]
   boss.decide(_state(0.9))
   assert boss.event_map.rows == had.rows[1:2]
   assert not ev.score(boss.event_map)["keepsAsk"], "not prevented"

@@ -760,10 +760,10 @@ class Decision:
             # they did to the map is the map's record (`stats()["eventMap"]`).
             **({"eventMap": [r.as_dict() for r in self.event_map]}
                if self.event_map else {}),
-            **({"eventMapRemove": [{"event": e, **({"value": v} if v is not None
-                                                   else {}),
-                                    **({"kind": k} if k else {})}
-                                   for e, k, v in self.event_map_remove]}
+            **({"eventMapRemove": [
+                  {"event": e, **({"value": v} if v is not None else {}),
+                   **({"kind": k} if k else {})}
+                  for e, k, v in self.event_map_remove]}
                if self.event_map_remove else {}),
             **({"define": dict(self.define)} if self.define else {}),
             **({"undefine": self.undefine} if self.undefine else {}),
@@ -2831,10 +2831,11 @@ the limit, and late is dead. Leave yourself room.
 Sending an empty list means "leave it as it is". A rule you send goes INTO \
 your list; it does not replace the list. A rule is named by what it fires \
 on -- its `event`, `kind` and `value` -- and one with the same name as a \
-rule you have takes that rule's place, where it stands. Any other is added: \
-ahead of the first broader rule on the same event, so that rule does not \
-starve it, and at the end otherwise. Nothing you send in `event_map` takes \
-a rule out. `event_map_remove` does, and nothing else: it names each rule \
+rule you have takes that rule's place, where it stands. Any other is added \
+at the end -- unless it has a `kind` and a rule on the same event already \
+takes that kind (an empty `kind`, or a wider one), and then it goes just \
+ahead of that rule, so it is not starved. Nothing you send in `event_map` \
+takes a rule out. `event_map_remove` does, and nothing else: it names each rule \
 to go by its `event`, `kind` and `value`, as `eventMap` shows them. A rule \
 taken out and sent again in one answer goes back in as a new one. Every \
 change to your list is written into your History, with the list as it \
@@ -4882,8 +4883,6 @@ class Overseer:
 
     ⚠ A LIST MERGES (`EventMap.edit`): each rule takes the place of the one
     with its trigger, or is added, and only a named removal takes one out.
-    It replaced the whole map until #475, and one or two rules written
-    where `[]` was meant took the robot's `ask` rows with them.
 
     ⚠ ORDER MATTERS HERE AND IT IS THE ONE THE ANSWER IMPLIES. A reply that
     sends both rules and a standing order meant the order to hold, so the

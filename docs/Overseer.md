@@ -1287,8 +1287,9 @@ otherwise).
   answers exactly that off the config and it is the question the arm asks.
   Why it was needed: of 502 live edits 35 left no `ask` row and **none was
   ever undone** (undoing one needs a decision, and a decision needs an ask),
-  13 of them collapsing a six-to-nine-row map to a single row under a rule
-  saying what you send replaces what is there. The `unminded` death line now
+  13 of them collapsing a six-to-nine-row map to a single row while what
+  was sent replaced what was there (#475 made a list merge, below). The
+  `unminded` death line now
   names which of the three silences it was (`events.silence`: an empty list,
   a list with no `ask`, an `ask` on an event that never came round), because
   History is where a later life reads what happened to this one.
@@ -1325,9 +1326,60 @@ otherwise).
   (12) is a grammar bound, not a policy.
 - ⚠ **The order is the agent's and it decides**: several rows can be live on
   one tick, the first in the list wins. An empty list means "leave it as it
-  is" (`pin`/`unpin`'s convention), so a map cannot be emptied once written,
-  only replaced; `unseeded` is how an empty map is reached at all, and it
-  moves the prompt too (`UNSEEDED_RULE`), so it is an ablation, not a rung.
+  is" (`pin`/`unpin`'s convention), and a list goes INTO the map (next
+  bullet). `unseeded` starts a robot with an empty map, and it moves the
+  prompt too (`UNSEEDED_RULE`), so it is an ablation, not a rung.
+- **A list goes into the list, and a rule leaves only when it is named**
+  (issue #475; Ben's decision, 2026-10-08). `event_map` is written on every
+  answer, and what was sent used to REPLACE the map: one or two rules
+  written where `[]` was meant took whole lists with them, `ask` rows
+  included. That was 14 `unminded` deaths on the served pair in the day to
+  2026-10-06, Luca's last heart among them. Its t=517369 answer sent back
+  one rule of its eight, reasoning "the map held intact for a fifteenth
+  wake", under a rule that already said in capitals that a one-rule list is
+  a one-rule list. Now (`EventMap.edit`):
+  - a rule is NAMED by what it fires on, `Row.trigger`: event, kind and
+    VALUE. It takes the place of the rule with its trigger, where that one
+    stands. Any other goes at the end, or, where it has a `kind`, just
+    ahead of the first rule on its event that takes it (`_covers`: a reason
+    ahead of its class, a class ahead of the catch-all), so a catch-all
+    there does not starve it. ⚠ The value is in the key because two
+    thresholds on one event are two rules: 29 of 427 live edits
+    (2026-09-28 → 10-08) carried a pair, `battery_below 0.1 -> charge`
+    beside `battery_below 0.3 -> ask` among them. On a discrete event the
+    value is always None, so the key there is `(event, kind)`, the standing
+    order's fold's. So `score.shadowed` cannot grow from an edit (only a
+    kept list can hold a dead row), and `score.ordered` reads the order
+    thresholds were added in;
+  - **only `event_map_remove` takes a rule out** (`events.named`: a rule
+    without its action, through the checks a rule passes). It goes BEFORE
+    the list, as an `undefine` beside a `define` does, so a rule named in
+    both goes back in as a new one, the one way to move a rule. It takes
+    every row with that trigger. The last `ask` can go (no rail), and a map
+    can now be emptied;
+  - the answer's rules go in one per trigger, the last of each winning, and
+    the standing order is one more rule after them;
+  - ⚠ **nothing is cut to make room**: past `MAX_ROWS` a rule is left out
+    and said (the fold this replaced dropped the last row to fit);
+  - **every edit is one History line, as a fact** (`Edit.said`,
+    `HubLifecycle._map_edit`, after `chose` and `left out`): the counts;
+    each rule added, replaced (with what it was) or removed; what had no
+    room, and what was named and was not there; then the list as it stands,
+    each rule as `event (kind) value -> action`, the observatory's `detail`
+    form. It is never cut. A resend changes nothing and says nothing.
+    Before, an edit left no line, and both robots blamed the world: Luca
+    counted eight "wipes", and Rowan wrote "the vanish looks tied to the
+    restart, not to my edits" after two of its own answers had done it;
+  - in an answer full of placeholders a removal is `UNSHOWN_PAPERWORK`
+    (§4, "Placeholders"), the one field whose stray entry takes an `ask`
+    out. The list beside it only adds, and stands.
+
+  The prompt's paragraph and both index lines state all of this as facts,
+  prescribe neither field and show no rule. ⚠ Not taken: the consult the
+  issue first proposed (keep replacement, ask the robot to repair each
+  wipe), because it relied on the model that made the slip. The decision's
+  `eventMapRemove` carries the removals as named; the wire's `event_map`
+  message, the kept file, `score` and the migration are as they were.
 - **Actions may fail, and the agent is told the rules — inform, do not rail**
   (`events.ACTION_FAILURES`: `busy` / `unrunnable` / `unclaimable` /
   `unbuildable` / `beyond`, counted by cause in `stats()`). `busy` is the
@@ -1425,7 +1477,8 @@ otherwise).
   "nobody will consult you unless your list says to" would otherwise be
   false.
 - **The migration.** `standing_order` keeps working for one version: it
-  writes a `decision_failed` row **in place**, and `Overseer.failure_order`
+  writes a `decision_failed` row **in place**, one more rule after the
+  answer's list (`EventMap.edit`), and `Overseer.failure_order`
   reads the row where it read the scalar, so the three outcomes above are
   unchanged. ⚠ The row is honoured synchronously and no `decision_failed`
   EVENT is queued — measured, doing both ran the row's action twice per
@@ -1657,14 +1710,17 @@ offers were `take_points`, the harm kind.
    procedure's name.
 2. **An answer full of them acts on nothing it cannot show.** When three or
    more fields hold one, `UNSHOWN_PAPERWORK` goes too: the heart and whom it
-   is for, the gift, the rating, the guess at the other's need, and `done`.
+   is for, the gift, the rating, the guess at the other's need, `done`, and
+   (since #475) the rules it names to take out of its event map — the one
+   field whose stray entry can take an `ask` out.
    One word in three fields is that answer's own placeholder, wherever it
    is, though a topic does not count (one word filing a note, a finding and
    a lookup is a robot keeping its records together). A boolean, a name off
    a list, a number and an id carry no sign that they were meant. ⚠ **Free
    text that is no placeholder stands**, and so do the action, its
-   parameters and what the answer configures (the standing order, the event
-   map). Across the 37, the text that survives is a heartbeat rule written
+   parameters and what the answer configures (the standing order, and the
+   event map's list, which since #475 only adds). Across the 37, the text
+   that survives is a heartbeat rule written
    after an `unminded` death, warnings to the other robot, tickets the
    operators answered, and the procedures a `procedure:new` then ran.
    Dropping all of an answer's paperwork, as the issue first proposed, would
