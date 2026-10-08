@@ -43,6 +43,7 @@ def _quiet(**fields) -> dict:
          "unpin": "", "note": {"topic": "", "title": "", "text": ""},
          "unnote": "", "cites": "", "intend": "", "drop_goal": "", "serves": "",
          "standing_order": "", "buy_heart": False, "event_map": [],
+         "event_map_remove": [],
          "define": {"name": "", "source": ""}, "undefine": "", "done": "",
          "record": {"quantity": "", "value": 0, "unit": "", "method": "",
                     "topic": ""},
@@ -284,6 +285,20 @@ def test_a_filled_answer_keeps_what_it_configures_and_the_procedure_it_defines()
   assert d.left_out["why"] == "filled" and d.left_out["words"] == ["test"]
   assert d.action == ov.PROCEDURE_NEW and d.define["source"] == source
   assert [r.action for r in d.event_map] == ["ask"] and d.standing_order == "idle"
+
+
+def test_a_filled_answer_takes_no_rule_out_and_one_with_no_placeholder_does():
+  """A removal is rules named off the enums -- no placeholder can show in
+  one -- and the one field whose stray entry takes an `ask` out (issue
+  #475), so an answer full of placeholders acts on none: it is
+  `UNSHOWN_PAPERWORK`. The rules beside it only ADD now, and stand."""
+  rule = {"event": "every", "action": "ask", "value": 1500, "kind": ""}
+  out = [{"event": "nothing_to_do", "value": 0, "kind": ""}]
+  d = _validate({**LUCA_391503, "event_map": [rule], "event_map_remove": out})
+  assert d.event_map_remove == () and "event_map_remove" in d.left_out["acts"]
+  assert [r.action for r in d.event_map] == ["ask"]
+  d = _validate(_quiet(reason="that rule is spent", event_map_remove=out))
+  assert d.event_map_remove == (("nothing_to_do", "", None),) and d.left_out is None
 
 
 def test_every_power_is_judged_left_out_or_kept():

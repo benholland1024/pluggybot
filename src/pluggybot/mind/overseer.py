@@ -594,11 +594,21 @@ class Decision:
   #: body does, so it rides the decision the model was already making and
   #: costs no turn.
   #:
-  #: Empty means NO CHANGE, not "clear it" (`events.parse` carries the
-  #: argument and the limit). Applied by `_record` from a decision the model
-  #: actually made, on `standing_order`'s terms: a fallback that could rewrite
-  #: the map would let code edit the artifact this issue exists to measure.
+  #: Empty means NO CHANGE, not "clear it" (`events.parse`), and a list
+  #: MERGES into the map in force (issue #475; `events.EventMap.edit`): each
+  #: rule takes the place of the one with its trigger, or is added. Applied
+  #: by `_record` from a decision the model actually made, on
+  #: `standing_order`'s terms: a fallback that could rewrite the map would
+  #: let code edit the artifact this issue exists to measure.
   event_map: tuple = ()          # of `events.Row`
+  #: ...and the rules it names to TAKE OUT, by trigger (`events.named`):
+  #: the one way a rule leaves the map, so a list can no longer empty it by
+  #: accident (issue #475).
+  event_map_remove: tuple = ()   # of `events.Row.trigger`
+  #: What the two did to the map (`events.Edit`), set by `_record` and read
+  #: by the lifecycle for its History line -- never something the model
+  #: wrote, on `page`'s terms. None where the answer said nothing of it.
+  map_edit: ev.Edit | None = None
   #: THE LIBRARY'S TWO VERBS (issue #166), on `pin`/`unpin`'s terms:
   #: `define` is `{"name", "source"}` -- a procedure to add, compiled and
   #: refused out loud by the library -- and `undefine` names one to take
@@ -745,9 +755,16 @@ class Decision:
             # ABSENT rather than empty when nothing was said about the map
             # (issue #127), on `escalations`' terms: "left the map alone" and
             # "has no map" are different facts, and only the first is about
-            # the agent. A row list here is the map AS THE ANSWER SET IT.
+            # the agent. A row list here is the rules AS THE ANSWER SENT
+            # THEM, and the removals as it named them (issue #475); what
+            # they did to the map is the map's record (`stats()["eventMap"]`).
             **({"eventMap": [r.as_dict() for r in self.event_map]}
                if self.event_map else {}),
+            **({"eventMapRemove": [{"event": e, **({"value": v} if v is not None
+                                                   else {}),
+                                    **({"kind": k} if k else {})}
+                                   for e, k, v in self.event_map_remove]}
+               if self.event_map_remove else {}),
             **({"define": dict(self.define)} if self.define else {}),
             **({"undefine": self.undefine} if self.undefine else {}),
             **({"record": dict(self.record)} if self.record else {}),
@@ -930,8 +947,12 @@ FIELD_INDEX: tuple[tuple[str, str, object, str], ...] = (
   ("standing_order", "standing_orders", "IF YOU CANNOT BE REACHED",
    "one action to fall back on if nobody can be asked next time."),
   ("event_map", "event_map", "WHEN YOU ARE ASKED",
-   "the whole list of rules saying who is asked and when -- you write back "
-   "the list you want in force, not a new one."),
+   "rules for your list saying who is asked and when: each goes into it, "
+   "in place of a rule of yours with the same `event`, `kind` and `value`, "
+   "or added. Nothing sent here takes a rule out."),
+  ("event_map_remove", "event_map", "WHEN YOU ARE ASKED",
+   "rules to take out of your list saying who is asked and when, each named "
+   "by its `event`, `kind` and `value` as `eventMap` shows it."),
   ("buy_heart", "hearts", "YOU CAN DIE",
    "buy a life back for the points the table says. It takes no turn."),
   ("escalate", "escalation", "THINKING HARDER",
@@ -1065,10 +1086,12 @@ PLACEHOLDER_OBJECTS: dict[str, tuple[tuple[str, ...], tuple[str, ...]]] = {
 #: robot three hearts, gave points and rated drawings at 0.50; the free text
 #: in them that was no placeholder -- a heartbeat rule, a warning to the
 #: other robot, the procedure a `procedure:new` ran -- was nearly all meant,
-#: and stands.
+#: and stands. ⚠ `event_map_remove` (issue #475) is one: rules named off the
+#: enums, and the one field whose stray entry can take an `ask` out -- the
+#: list beside it only adds, so it stays (`PLACEHOLDER_KEPT`).
 FILLED_FIELDS = 3
 UNSHOWN_PAPERWORK = ("buy_heart", "heart_for", "give_points", "rate",
-                     "other_needs", "done")
+                     "other_needs", "done", "event_map_remove")
 #: ...and the powers such an answer KEEPS, each for its reason, so that a new
 #: field is put in one of the three (`tests/test_placeholders.py`): what it
 #: leaves in force (`standing_order`, `event_map` -- a filled answer carried
@@ -1466,7 +1489,7 @@ class Menu:
       + (["escalate"] if escalation else [])
       + (["standing_order"] if standing_orders else [])
       + (["buy_heart"] if hearts else [])
-      + (["event_map"] if event_map else [])
+      + (["event_map", "event_map_remove"] if event_map else [])
       + (["define", "undefine", "done", "record", "retract"]
          if procedures is not None else [])
       + (["build_tool", "retire_tool"] if tools is not None else [])
@@ -1709,6 +1732,25 @@ class Menu:
               "kind": enum(ev.kind_tokens(self)),
             },
           },
+        },
+        # ...and the rules to take OUT (issue #475): a rule without its
+        # action, named by what it fires on (`events.Row.trigger`). Its own
+        # field, because a list now MERGES -- nothing in `event_map` can
+        # take a rule out, so a list written where `[]` was meant cannot
+        # wreck the map -- and this is the one door a rule leaves by.
+        "event_map_remove": {
+          "type": "array",
+          "maxItems": ev.MAX_ROWS,
+          "items": {
+            "type": "object",
+            "additionalProperties": False,
+            "required": ["event", "value", "kind"],
+            "properties": {
+              "event": {"type": "string", "enum": list(ev.EVENT_TYPES)},
+              "value": {"type": "number"},
+              "kind": enum(ev.kind_tokens(self)),
+            },
+          },
         }} if event_map else {}),
       },
     }
@@ -1880,6 +1922,8 @@ class Menu:
     # as `standing_order` is: a model emitting one anyway must not be able to
     # cost a perfectly good decision.
     emap = (ev.parse(raw.get("event_map"), self) if event_map else None)
+    # ...and the rules it takes out, by the same checks (issue #475).
+    unmap = ev.named(raw.get("event_map_remove"), self) if event_map else ()
     define, undefine = None, ""
     if procedures is not None:
       spec = raw.get("define")
@@ -2054,6 +2098,7 @@ class Menu:
                     serves=clean(raw.get("serves"), MAX_LINE_CHARS),
                     escalate=escalate, standing_order=order,
                     event_map=emap.rows if emap is not None else (),
+                    event_map_remove=unmap,
                     define=define, undefine=undefine, done=done,
                     record=record, retract=retract,
                     build_tool=build_tool, retire_tool=retire_tool,
@@ -2631,11 +2676,17 @@ that is written down as what happened.\
 #:
 #: ⚠ ...AND IT NAMES WHERE THE LIST IS (issue #317). "You are looking at the
 #: one you have" was false for two hundred deployed lives: nothing showed it.
-#: The paragraph that says so, and the sentence under the replacement rule
-#: saying a one-row answer is a one-row list, are the whole of the change --
-#: no example, no threshold, no verdict. What a rule may not do is
-#: demonstrate the ANSWER, and "your list is in `eventMap` below" is a fact
-#: about where to look.
+#: The paragraph that says so is the whole of that change -- no example, no
+#: threshold, no verdict. What a rule may not do is demonstrate the ANSWER,
+#: and "your list is in `eventMap` below" is a fact about where to look.
+#:
+#: ⚠ ...AND A LIST GOES INTO THE LIST (issue #475). What was sent replaced
+#: it, and one or two rules written where `[]` was meant took whole lists
+#: with them -- 14 `unminded` deaths on the served pair in a day -- while
+#: this rule already said in capitals that a one-rule list is a one-rule
+#: list. Its last paragraph states the merge, the one door a rule leaves by
+#: and the History line, as facts: it shows no rule and says when to use
+#: neither field.
 #:
 #: ⚠ `nothing_to_do` IS DESCRIBED AS WHAT THE CODE CHECKS (issue #333): this
 #: robot's own queue, never the world. "There is nothing waiting" was false
@@ -2661,7 +2712,7 @@ Everything above assumes somebody asks you what to do. `event_map` is where \
 you decide who that somebody is and when. It is a LIST of rules, each one \
 "when this happens, do that", and it is the same list every time -- you are \
 not writing a new one, you are looking at the one you have and saying what \
-it should be from now on.
+changes in it.
 
 The list you have is in `eventMap` below, written the way you would write \
 it back, next to `lastAskedSAgo` -- the gap, in seconds, between the last \
@@ -2724,8 +2775,8 @@ going wrong, stand still" is a sentence, and it is two rules.
 moment. The FIRST one in your list wins and the rest wait, so the order is \
 how you say which of two things matters more when both are true at once.
 
-That is also how a narrow rule and a broad one live together. Put the \
-specific one FIRST and the general one under it:
+That is also how a narrow rule and a broad one live together: the specific \
+one FIRST and the general one under it.
 
   decision_failed (timeout) -> idle
   decision_failed (failure) -> explore
@@ -2777,12 +2828,17 @@ if something the map fired earlier has not run yet. But your list is looked \
 at once a second, so "ask me every 1800 seconds" fires up to a second after \
 the limit, and late is dead. Leave yourself room.
 
-Sending an empty list means "leave it as it is", which is what most answers \
-should say. Send a list only when you actually want it to change, and send \
-the WHOLE list when you do -- what you send replaces what is there. A list \
-with one rule in it is a list with one rule in it, however many you had \
-before, so read `eventMap` before you replace it and send back everything \
-you meant to keep.\
+Sending an empty list means "leave it as it is". A rule you send goes INTO \
+your list; it does not replace the list. A rule is named by what it fires \
+on -- its `event`, `kind` and `value` -- and one with the same name as a \
+rule you have takes that rule's place, where it stands. Any other is added: \
+ahead of the first broader rule on the same event, so that rule does not \
+starve it, and at the end otherwise. Nothing you send in `event_map` takes \
+a rule out. `event_map_remove` does, and nothing else: it names each rule \
+to go by its `event`, `kind` and `value`, as `eventMap` shows them. A rule \
+taken out and sent again in one answer goes back in as a new one. Every \
+change to your list is written into your History, with the list as it \
+then stands.\
 """
 
 #: ...and the one paragraph an UNSEEDED origin adds (Evaluation.md section 3).
@@ -4643,8 +4699,7 @@ class Overseer:
       # seam: `_call` wrote them to `usage.errors` a moment ago.
       error = next((e for e in reversed(self.usage.errors)
                     if e.startswith("call:")), "") if slot else ""
-    self._record(decision, state, error, orphaned=orphaned)
-    return decision
+    return self._record(decision, state, error, orphaned=orphaned)
 
   # ---- the mid-errand interrupt (issue #116) --------------------------------
 
@@ -4819,30 +4874,39 @@ class Overseer:
     assert cause in ev.ACTION_FAILURES, cause
     self.rows_failed[cause] = self.rows_failed.get(cause, 0) + 1
 
-  def _install_map(self, decision: Decision, state: dict | None) -> None:
-    """Apply what an answer said about the map: the whole list if it sent
-    one, and the migrated `standing_order` row either way.
+  def _install_map(self, decision: Decision, state: dict | None) -> ev.Edit | None:
+    """Apply what an answer said about the map (issue #475): the rules it
+    named in `event_map_remove` taken out, then the rules it sent put in,
+    then the migrated `standing_order` row -- and return what that did, for
+    History. None where there is no map or the answer said nothing of it.
+
+    ⚠ A LIST MERGES (`EventMap.edit`): each rule takes the place of the one
+    with its trigger, or is added, and only a named removal takes one out.
+    It replaced the whole map until #475, and one or two rules written
+    where `[]` was meant took the robot's `ask` rows with them.
 
     ⚠ ORDER MATTERS HERE AND IT IS THE ONE THE ANSWER IMPLIES. A reply that
-    sends both a new map and a standing order meant the order to hold, so the
-    fold happens AFTER the replacement -- otherwise the row would be written
-    into the old map and thrown away a line later.
+    sends both rules and a standing order meant the order to hold, so the
+    order goes in AFTER the list, and overrides an unfiltered
+    `decision_failed` rule in it.
 
-    ⚠ AND THE FOLD IS IN PLACE (`EventMap.with_row`). `STANDING_ORDER_RULE`
-    tells the robot to set an order on EVERY answer, so an append would grow
-    the map by a row an hour until it hit `MAX_ROWS` and stopped accepting
-    anything the agent actually wrote.
+    ⚠ AND THE ORDER'S ROW IS IN PLACE. `STANDING_ORDER_RULE` tells the
+    robot to set an order on EVERY answer, so an append would grow the map
+    by a row an hour until it hit `MAX_ROWS` and stopped accepting anything
+    the agent actually wrote.
     """
     if self.event_map is None:
-      return
-    before = self.event_map
-    if decision.event_map:
-      self.event_map = ev.EventMap(tuple(decision.event_map))
+      return None
+    put = list(decision.event_map)
     if decision.standing_order:
-      self.event_map = self.event_map.with_row(
-        ev.Row(event="decision_failed", action=decision.standing_order))
-    if self.event_map == before:
-      return
+      put.append(ev.Row(event="decision_failed", action=decision.standing_order))
+    if not put and not decision.event_map_remove:
+      return None
+    before = self.event_map
+    edit = before.edit(remove=decision.event_map_remove, put=put)
+    if edit.emap == before:
+      return edit
+    self.event_map = edit.emap
     t = (round(float(state.get("simTimeS")), 1)
          if state and state.get("simTimeS") is not None else None)
     self.map_log.append({"t": t, "why": "edit", "map": self.event_map.as_list(),
@@ -4850,6 +4914,7 @@ class Overseer:
     msg = self.event_map_message(t or 0.0, why="edit", source=decision.source)
     for hook in self.on_map:
       hook(dict(msg))
+    return edit
 
   def restore_map(self, kept: ev.EventMap, dropped: list[str]) -> None:
     """Start this run from the list the robot kept (issue #337; Overseer.md
@@ -4915,7 +4980,10 @@ class Overseer:
             **({"restored": True} if self.restored else {})}
 
   def _record(self, decision: Decision, state: dict | None = None,
-              error: str = "", orphaned: bool = False) -> None:
+              error: str = "", orphaned: bool = False) -> Decision:
+    """Count a decision, apply what it leaves in force, and keep it. Returns
+    it with what it did to the map (`map_edit`), which is what the caller
+    acts on."""
     self.usage.calls += 1
     if decision.by_event:
       # NEITHER a call nor a fallback (issue #127). Counted on its own so
@@ -4976,7 +5044,9 @@ class Overseer:
     # this issue exists to measure, and an `event:` decision rewriting it
     # would let the map edit itself.
     if model_answer:
-      self._install_map(decision, state)
+      edit = self._install_map(decision, state)
+      if edit is not None:
+        decision = replace(decision, map_edit=edit)
     self.decisions.append(decision)
     if self.on_decision:
       event = {"state": dict(state if state is not None
@@ -4986,6 +5056,7 @@ class Overseer:
                "error": error}
       for hook in self.on_decision:
         hook(event)
+    return decision
 
   def _tools(self) -> tuple | None:
     """The workshop's built tool names for `retire_tool`'s grammar, or

@@ -4341,6 +4341,23 @@ class HubLifecycle:
     self._say(f"LEFT OUT {said}")
     self._remember(f"left out of that answer: {said}")
 
+  def _map_edit(self, decision) -> None:
+    """Say what an answer did to the robot's list of rules (issue #475):
+    ONE History line, as a fact, never a verdict (`events.Edit.said`), and
+    narrated. Before #475 an edit rode the wire and left no line, and both
+    robots blamed the world for lists their own answers had cut.
+
+    ⚠ `room` IS THE LINE: what it quotes is rules, each bounded by the
+    grammar and at most `MAX_ROWS` of them a kind, and a list cut at
+    History's cap would end on a rule that is not the last one. An answer
+    that resends rules the list already has did nothing and says nothing."""
+    edit = getattr(decision, "map_edit", None)
+    if edit is None or not edit.worth_saying:
+      return
+    said = edit.said()
+    self._say(f"EVENT MAP {said}")
+    self._remember(said, room=len(said))
+
   def _reconsider(self, decision) -> None:
     """Apply a decision's writes to the `.md` documents the ROBOT owns.
 
@@ -6171,6 +6188,8 @@ class HubLifecycle:
     self._remember(f"chose {decision.summary()}")
     # ...and what was left out of the answer that chose it (issue #462).
     self._left_out(decision)
+    # ...and what it did to its list of rules (issue #475).
+    self._map_edit(decision)
     # ...and whatever it made of the day, into the documents it can
     # (issue #38). Orthogonal to the action, like the think above: a robot
     # should not have to spend its turn to write a line down. Remove
