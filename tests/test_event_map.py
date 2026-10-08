@@ -654,6 +654,32 @@ def test_a_remove_takes_out_exactly_that_rule_and_the_last_ask_too(menu):
   assert boss.event_map.rows == () and boss.stats()["eventMap"]["edits"] == 3
 
 
+def test_a_new_narrow_rule_goes_ahead_of_a_broad_one_on_its_event(menu):
+  """A catch-all already in the list must not starve a narrower rule sent
+  after it: first match wins, so a new rule goes in AHEAD of the first rule
+  on its event that takes everything it would -- a reason ahead of its
+  class, a class ahead of the catch-all -- and at the end otherwise. What
+  the rule's ordering lesson says to write, the merge writes."""
+  had = listed(menu, rows(("battery_below", "charge", 0.3, ""),
+                          ("decision_failed", "take_task", 0, ""),
+                          ("nothing_to_do", ev.ASK, 0, "")))
+  boss = make(menu, full(action="explore", event_map=rows(
+    ("decision_failed", "explore", 0, "failure"),
+    ("nothing_to_do", "take_task", 0, "offers"),
+    ("decision_failed", "idle", 0, "timeout"),
+    ("every", ev.ASK, 900, ""))), origin="unseeded", event_map=had)
+  boss.decide(_state(0.9))
+  assert boss.event_map == listed(menu, rows(
+    ("battery_below", "charge", 0.3, ""),
+    ("decision_failed", "idle", 0, "timeout"),
+    ("decision_failed", "explore", 0, "failure"),
+    ("decision_failed", "take_task", 0, ""),
+    ("nothing_to_do", "take_task", 0, "offers"),
+    ("nothing_to_do", ev.ASK, 0, ""),
+    ("every", ev.ASK, 900, "")))
+  assert ev.shadowed(boss.event_map) == ()
+
+
 def test_a_remove_is_an_answers_and_never_a_row_of_the_map(menu):
   """`remove` is read off an answer by the checks any rule passes -- a level
   clamped, no value on an event that takes none, no filter on one that
