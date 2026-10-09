@@ -27,6 +27,8 @@ import os
 import queue
 import subprocess
 import sys
+import threading
+import time
 
 import numpy as np
 
@@ -193,6 +195,12 @@ def command(seed: int = 0) -> list[str]:
   return [sys.executable, "-m", "pluggybot.imagination.worker", "--seed", str(int(seed))]
 
 
+class WorkerEnded(RuntimeError):
+  """The worker's process ended -- killed, or the ssh connection it ran
+  over dropped -- and the request with it: the connection's failure, never
+  the document's."""
+
+
 class Imagination:
   """A worker process and the requests it serves: `rollout(document,
   record)`, and `residual(document, record, rows)`. It is started by
@@ -217,19 +225,19 @@ class Imagination:
     if self.closed:
       raise RuntimeError("this imagination is closed")
     if self.process.poll() is not None:
-      raise RuntimeError(f"the worker has ended ({self.process.returncode})")
+      raise WorkerEnded(f"the worker has ended ({self.process.returncode})")
     try:
       write_frame(self.process.stdin, blob)
       answer = read_frame(self.process.stdout)
     except BrokenPipeError:
       self._end()
-      raise RuntimeError(f"the worker has ended ({self.process.returncode})") from None
+      raise WorkerEnded(f"the worker has ended ({self.process.returncode})") from None
     except BaseException:
       self._end()
       raise
     if answer is None:
       self._end()
-      raise RuntimeError(f"the worker ended without an answer ({self.process.returncode})")
+      raise WorkerEnded(f"the worker ended without an answer ({self.process.returncode})")
     return unpack(answer)
 
   def rollout(self, document: dict, record: Record, settle_s: float = SETTLE_S,
@@ -312,16 +320,27 @@ class Imagination:
     self.close()
 
 
+#: A worker that ended mid-request is started again and asked again this
+#: many times, this long after (s): its answer is the document's and the
+#: seed's, whoever serves it. ⚠ Every ssh connection to the pods dropped at
+#: once, and took ten set-outs of #481's batch with it (#480's, eleven).
+RESTARTS, RESTART_WAIT_S = 2, 5.0
+
+
 class Imaginations:
   """`n` workers serving rollouts at once (`rollouts`): each request goes to
   whichever is free, and the answers come back in the order asked. Whoever
   served one, the answer is the same: a rollout steps no randomness of its
-  own, and every worker has the one seed."""
+  own, and every worker has the one seed -- so a worker that ended is
+  replaced and asked again (`RESTARTS`, counted in `restarts`)."""
 
   def __init__(self, n: int, seed: int = 0, argv: list[str] | None = None) -> None:
     if n < 1:
       raise ValueError(f"a pool has a worker or more, not {n}")
+    self.seed, self.argv = seed, argv
     self.workers = [Imagination(seed, argv) for _ in range(n)]
+    self.restarts = 0
+    self._lock = threading.Lock()
     self._free: queue.SimpleQueue = queue.SimpleQueue()
     for w in self.workers:
       self._free.put(w)
@@ -331,34 +350,48 @@ class Imaginations:
   def n(self) -> int:
     return len(self.workers)
 
+  def _serve(self, ask):
+    """`ask(worker)` on a free worker: its answer, or the `Refused`,
+    `Diverged` or `Unbuildable` it was refused with; a worker that ended is
+    replaced and asked again, and any other failure raises."""
+    w = self._free.get()
+    try:
+      for tries in range(RESTARTS + 1):
+        try:
+          return ask(w)
+        except (Refused, Diverged, Unbuildable) as e:
+          return e
+        except WorkerEnded:
+          if tries == RESTARTS:
+            raise
+          time.sleep(RESTART_WAIT_S)
+          w = self._replace(w)
+    finally:
+      self._free.put(w)
+
+  def _replace(self, old: Imagination) -> Imagination:
+    old.close()
+    new = Imagination(self.seed, self.argv)
+    with self._lock:
+      self.workers[self.workers.index(old)] = new
+      self.restarts += 1
+    return new
+
   def rollouts(self, documents, record: Record, settle_s: float = SETTLE_S) -> list:
     """Each document's rollout of `record`, in order: its `Readings`, or the
     `Refused`, `Diverged` or `Unbuildable` it was refused with. Any other
     failure raises."""
-    def one(document):
-      w = self._free.get()
-      try:
-        return w.rollout(document, record, settle_s)
-      except (Refused, Diverged, Unbuildable) as e:
-        return e
-      finally:
-        self._free.put(w)
-    return list(self._threads.map(one, list(documents)))
+    return list(self._threads.map(
+      lambda d: self._serve(lambda w: w.rollout(d, record, settle_s)), list(documents)))
 
   def residuals(self, documents, record: Record, rows: slice,
                 settle_s: float = SETTLE_S) -> list:
     """Each document's `Imagination.residual`, in order: its bins, or the
     `Refused`, `Diverged` or `Unbuildable` it was refused with. Any other
     failure raises."""
-    def one(document):
-      w = self._free.get()
-      try:
-        return w.residual(document, record, rows, settle_s)
-      except (Refused, Diverged, Unbuildable) as e:
-        return e
-      finally:
-        self._free.put(w)
-    return list(self._threads.map(one, list(documents)))
+    return list(self._threads.map(
+      lambda d: self._serve(lambda w: w.residual(d, record, rows, settle_s)),
+      list(documents)))
 
   def close(self) -> None:
     self._threads.shutdown()

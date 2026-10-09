@@ -26,8 +26,8 @@ unknown's share of its range (0 to 1):
           cost, or after `MAX_STEPS`
 An unknown that moves the residual less than `UNSEEN_N` across its whole
 range is UNSEEN: held at its range's middle, and said so. An unknown that
-ends at an end of its range is said so too: the range, or the structure,
-may be what is wrong. ⚠ A probe whose world was refused (unstable, or
+ends at an end of its range is said so too, and which end: the range, or
+the structure, may be what is wrong. ⚠ A probe whose world was refused (unstable, or
 unbuildable) is tried the other way; refused both ways, its unknown is
 held that step and named (`held`), never dropped unsaid (the review).
 """
@@ -103,16 +103,17 @@ def _weights(bins) -> np.ndarray:
 class Fitted:
   """A template fitted to a record: its unknowns' `values` (author's units,
   by name), the fitted world's `readings` and `bins` (`residual`), and how
-  it went: the `steps` and `rollouts`, the unknowns `at_end` of a range,
-  those `unseen`, those `held` at the last step (no probe of theirs could
-  be read), and each step's (stage, cost) in `log`."""
+  it went: the `steps` and `rollouts`, the unknowns `at_end` of a range
+  and which (`low` or `high`, by name), those `unseen`, those `held` at the
+  last step (no probe of theirs could be read), and each step's (stage,
+  cost) in `log`."""
   template: Template
   values: dict[str, float]
   readings: Readings
   bins: np.ndarray
   steps: int
   rollouts: int
-  at_end: tuple[str, ...] = ()
+  at_end: dict[str, str] = field(default_factory=dict)
   unseen: tuple[str, ...] = ()
   held: tuple[str, ...] = ()
   log: tuple = field(default=())
@@ -127,7 +128,7 @@ class Fitted:
 
   def as_dict(self) -> dict:
     return {"values": dict(self.values), "rmsN": round(self.rms, 4), "steps": self.steps,
-            "rollouts": self.rollouts, "atEnd": list(self.at_end), "unseen": list(self.unseen),
+            "rollouts": self.rollouts, "atEnd": dict(self.at_end), "unseen": list(self.unseen),
             "held": list(self.held)}
 
 
@@ -249,8 +250,8 @@ def fit(template: Template, record: Record, rows: slice, pool, *,
     raise Unfittable(f"the fitted document's world was refused: {readings}")
   bins = residual(record.sensed, readings, rows, record.dt)
   values = {u.name: u.at(v) for u, v in zip(us, x)}
-  at_end = tuple(us[i].name for i in range(n)
-                 if i not in unseen and (x[i] < AT_END or x[i] > 1.0 - AT_END))
+  at_end = {us[i].name: "low" if x[i] < AT_END else "high" for i in range(n)
+            if i not in unseen and (x[i] < AT_END or x[i] > 1.0 - AT_END)}
   return Fitted(template=template, values=values, readings=readings, bins=bins, steps=steps,
                 rollouts=count[0], at_end=at_end, unseen=tuple(us[i].name for i in unseen),
                 held=tuple(us[i].name for i in sorted(held)), log=tuple(log))

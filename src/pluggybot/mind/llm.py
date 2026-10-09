@@ -230,7 +230,8 @@ def stream_fetch(url: str, body: dict | None, headers: dict,
   """`_default_fetch` over a STREAM, for an answer longer than a gateway
   waits: the request asks for `stream`, and the deltas are put back
   together as the one JSON a request not streamed is answered with (its
-  reasoning before its answer, in `<think>`, as `_answer_text` reads it).
+  reasoning before its answer, in `<think>`, as `_answer_text` reads it),
+  and who answered (`provider`, the router's `x-inference-provider`).
   `timeout` is each read's. MEASURED (#466): the router's gateway answers
   504 to a request silent for 120 s, and the deployed model, shown a
   picture, reasoned past it."""
@@ -240,8 +241,10 @@ def stream_fetch(url: str, body: dict | None, headers: dict,
                      "stream_options": {"include_usage": True}}).encode()
   req = urllib.request.Request(url, data=data, headers=headers, method="POST")
   content, reasoning, usage = [], [], {}
+  provider = None
   try:
     with urllib.request.urlopen(req, timeout=timeout) as resp:
+      provider = resp.headers.get("x-inference-provider")
       for raw in resp:
         line = raw.decode("utf-8", "replace").strip()
         if not line.startswith("data:"):
@@ -265,7 +268,8 @@ def stream_fetch(url: str, body: dict | None, headers: dict,
     return e.code, payload
   thought = "".join(reasoning)
   text = (f"<think>{thought}</think>" if thought else "") + "".join(content)
-  return 200, {"choices": [{"message": {"content": text}}], "usage": usage}
+  return 200, {"choices": [{"message": {"content": text}}], "usage": usage,
+               "provider": provider}
 
 
 class ChatClient:
@@ -349,7 +353,8 @@ class ChatClient:
         output_tokens=int(usage.get("completion_tokens") or 0),
         cache_read_input_tokens=0,
         cache_creation_input_tokens=0,
-      ))
+      ),
+      provider=payload.get("provider"))
 
 
 class HFClient(ChatClient):

@@ -4,9 +4,12 @@ unknowns fitted to the probe's record (`fit.py`), judged, and sent back
 for another structure where the fit left too much. Code runs the rounds;
 the mind decides nothing (when to imagine is demo 4's).
 
-  rounds  `MAX_ROUNDS` at most: the first answer and two revisions, each
+  rounds  `MAX_ROUNDS` at most: the first answer and four revisions, each
           answer repaired up to `author.MAX_REPAIRS` times where it did not
-          parse
+          parse. ⚠ THE AUTHOR IS NEVER TOLD THE CAP (a test reads every
+          text it is sent), so a run capped at five asks as one capped at
+          three until its fourth round, and a batch reads its passes by
+          round three and by round five off the same runs (#481)
   poor    a phase whose force left over passes its bar (`Phase.bar`, the
           caller's: what the language's best usually leaves there)
   kept    of the rounds that passed every bar, the one whose fit left the
@@ -26,8 +29,9 @@ from pluggybot.imagination.record import Record
 from pluggybot.imagination.rollout import Readings
 from pluggybot.imagination.scene import Refused, Template
 
-#: The rounds a model takes at most.
-MAX_ROUNDS = 3
+#: The rounds a model takes at most: at three, every pass of #480's batch
+#: came in a revision, and none in the first answer.
+MAX_ROUNDS = 5
 #: A poor phase's trace is shown in means this long, s.
 TRACE_S = 0.5
 #: The judge's means, s: the residual's own (`fit.BIN_S`).
@@ -83,12 +87,28 @@ def judge(record: Record, readings: Readings, phases: list[Phase],
   return out
 
 
+def felt_by_phase(record: Record, phases: list[Phase], felt: np.ndarray) -> list[dict]:
+  """What the first turn is shown of `felt` (rows of the force the real
+  object put on the jaws, toward it and up): each phase's `TRACE_S` means,
+  by its label; a `whole` is the stretches it spans, never shown twice."""
+  per = max(1, round(TRACE_S / record.dt))
+  out = []
+  for p in phases:
+    if p.whole:
+      continue
+    a, b = p.rows
+    out.append({"label": p.label,
+                "felt": [(round(i * TRACE_S, 2), (round(float(m[0]), 3), round(float(m[1]), 3)))
+                         for i, m in enumerate(_means(np.asarray(felt)[a:b], per))]})
+  return out
+
+
 def report(fitted: Fitted | None, judged: list[dict], failed: str = "") -> dict:
   """What a revision is shown: the values found, which ended at an end of
-  their range or were never seen, and the phases judged (or why no fit
-  could be read)."""
+  their range (and which end) or were never seen, and the phases judged
+  (or why no fit could be read)."""
   return {"values": {} if fitted is None else dict(fitted.values),
-          "atEnd": [] if fitted is None else list(fitted.at_end),
+          "atEnd": {} if fitted is None else dict(fitted.at_end),
           "unseen": [] if fitted is None else list(fitted.unseen),
           "phases": judged, "failed": failed}
 
@@ -158,9 +178,12 @@ def imagine(author: Author, record: Record, phases: list[Phase], fit_rows: slice
   docstring): `sizes` are what its author is shown of the object's frame,
   which sits at `origin_mm` turned `yaw_deg` in the map; `fit_rows` are the
   rows fitted, `pool` the workers they are rolled out in; `felt` what the
-  real object put on the jaws, shown beside a poor fit's own."""
+  real object put on the jaws, shown phase by phase in the first turn
+  (#481: the weight and a catch letting go are in it) and beside a poor
+  fit's own."""
   out: list[Round] = []
-  turn = author.first(sizes, did, picture)
+  shown = None if felt is None else felt_by_phase(record, phases, felt)
+  turn = author.first(sizes, did, picture, felt=shown)
   for r in range(rounds):
     if r:
       last = out[-1]
