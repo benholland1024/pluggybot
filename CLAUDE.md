@@ -249,7 +249,7 @@ save a filmstrip PNG named after the script.
 | `scripts/mechanism_spike.py` | what the arm can open from the claw's lying stance and what its torques measure (#469, #466's stage 0; SimNotes "Opening a box from lying"): a lid lifted by a drop handle (the chest's, `activity/chest.py`, which it imports), a lid lifted from under its lip and a drawer, each in the storeroom, never the served world. `--walkin` the spread the claw's walk-in leaves, `--window` the push the claw on its fork holds each way, `--table` the candidates, `--tolerance` the path off the true arc at four gains, `--torques` the force at the tool off the drivers (`legs.arm.tool_force`) against the contact force, `--fit` the oracle fit (`--corners` past the drawn ranges, `--twins` mass against its lever), `--latch` a magnetic catch; `--all --into DIR` the whole batch behind the report, a file a mode (a CPU pod's work, below); filmstrip `mechanism_spike.png` |
 | `scripts/imagination_gap.py` | the scene language's own gap (#466's stage 1; SimNotes "The imagination's first world"), no robot flying: over drawn chests (`--n`), the oracle's probe through the world's chest and through its best-expressible reference, with its catch and without, the force at the tool apart phase by phase; `--cost` what a rollout costs, ms a sim-second, in this process and in the worker, `--parallel 1,8,16` that many workers at once |
 | `scripts/probe_chest.py` | the probe from the robot's own senses (#466's stage 2, `legs/probe.py`; SimNotes "The probe from the robot's own senses"), flown over seeded set-outs (`evaluation.probe.set_out`: drawn chest k in the storeroom, the robot in front of it) and graded by us: through or why not, the geometry it measured in its own frame, the lid's angle as its arm reads it, the friction it calibrated, its record replayed through the world's chest and the best-expressible reference set in its map, and how far the held handle turned on its pin in each (`twisted` past 28 deg); `--n`, `--from`, `--jobs`, `--into DIR` (each probe in the worker's wire form, our truth beside it), `--no-replay`, `--regrade` (the kept records in `--into` graded again, not flown) |
-| `scripts/imagine_chest.py` | the robot's model of the chest, graded (#466's stage 3; SimNotes "The robot's model, graded"), over the probes `probe_chest.py --into` kept: `--conditions` `model` (the author's structure -- the deployed model, `$HF_TOKEN` -- placed, fitted, judged and revised), `reference` (the fitter alone, on the reference's own structure), `leak` (its hinge moved), each graded by us against the world and the reference; `--remote H:P,...` puts the workers on pods over ssh (`--workers`, `--slots`), `--summary` the tables with intervals, `--demo K --record PATH` set-out K flown, imagined and recorded with the `imagined` event, the demo world's scene beside it |
+| `scripts/imagine_chest.py` | the robot's model of the chest, graded (#466's stage 3; SimNotes "The robot's model, graded"), over the probes `probe_chest.py --into` kept: `--conditions` `model` (the author's structure -- the deployed model, `$HF_TOKEN` -- placed, fitted, judged and revised), `reference` (the fitter alone, on the reference's own structure), `leak` (its hinge moved), each graded by us against the world and the reference, a model's row carrying its settings; `--remote H:P,...` puts the workers on pods over ssh (`--workers`, `--slots`), `--summary` the tables with intervals, each settings apart -- the parameters, the structures and the rate (#481: passes and the lid's hinge by round, false passes, the answer budget, tokens, dollars, wall time and who answered) -- `--demo K --record PATH` set-out K flown, imagined and recorded with the `imagined` event, the demo world's scene beside it |
 
 - **The quadruped's training stack lives in `training/`, a uv project of its own** (#377): mjlab 1.5.x (it pins `mujoco ~=3.10.0`, the served sim's), reading the body from `models/quadruped.{xml,json}` (`python -m pluggybot.legs.model` writes both; mjlab caps numpy below pluggybot's, so the two never share an environment), the arm FIXED at its stow (`quad_train.robot.freeze_arm`, #405: a policy's joints are the legs' twelve, and the arm's geometry is there to fall on). ⚠ Importing `legs.policy` or `legs.model` loads none of torch, jax, warp, onnx or mjlab (`tests/test_legs.py`); a policy reaches the served sim as an `.npz` that `quad_train.export` checks against its ONNX before writing, run by `legs/policy.py` in numpy. ⚠ The leg DRIVERS are MuJoCo's position-mode `dcmotor` (#385; `body_xml(drive="position")`), the PD and the envelope in C, commanded as a GDS68 is (`legs/drivers.py`): every command carries its gains — a policy's are its own, a routine's torque rides a target with the damping cancelled (the torque motor's step to 1e-14), `limp()` holds nothing — so a policy and the scripted routines share one body. The default gains are ONE definition, `actuator.driver_gains`, which `training/` reads from `quadruped.json`. `drive="torque"` (plain motors) is the sizing tables' instrument. `training/pod.sh` rents a Runpod GPU to train on, or CPUs to fly a batch (`create-cpu`), over the REST API (`runpodctl pod create` needs a GraphQL-writable key) — ⚠ a POST to `/v1/pods` with an EMPTY body CREATES a pod: every field has a default.
 - ⚠ **A batch of flights runs on a rented pod's CPUs or under a memory cap, never bare on the dev box** (#469: six house worlds at once took it into swap and its desktop down overnight, 2026-10-06): `training/pod.sh create-cpu` → `setup-sim` (the commit, never the working tree) → `batch` → `pull-batch`, then `delete`; locally, `systemd-run --user --scope -p MemoryMax=12G -p MemorySwapMax=0 ...`. A pool of flights gives each its own process (`maxtasksperchild=1`: a world dropped in a reused worker is held until the cycle collector runs), and results go under `~`, never `/tmp`, which a reboot wipes.
@@ -345,8 +345,12 @@ save a filmstrip PNG named after the script.
   the generic fitter (`fit.py`) finds the unknowns off the force at the
   tool in 0.1 s means -- ⚠ a Sobol start (from the middles alone it
   stalled 2.5 times too heavy), robust then squares (a catch's spike), an
-  unknown nothing moves UNSEEN, held mid-range -- and a poor fit goes back
-  for a revision (`model.py`, `MAX_ROUNDS` 3, the least-left round kept).
+  unknown nothing moves UNSEEN, held mid-range, one at an end of its range
+  said so and WHICH end (#481) -- and a poor fit goes back for a revision
+  (`model.py`, `MAX_ROUNDS` 5, the least-left round kept; ⚠ THE CAP IS
+  NEVER TOLD TO THE AUTHOR, a test reads every text it is sent, so a cap
+  of five asks as one of three until round four and a batch reads its
+  passes by round three and by round five off the same runs).
   ⚠ POOR IS A CONSTANT: the take alone, and THE SWEEPS TOGETHER at the
   reference's 9 in 10 over them (`legs.probe.SWEEPS_N`, 0.32 N; a sweep at
   a time, 90 in 122 right structures were sent back), NEVER the
@@ -354,15 +358,25 @@ save a filmstrip PNG named after the script.
   loop would read it. ⚠ THE AUTHOR IS SHOWN THE PICTURE EXPOSED
   (`legs.probe.exposed`: rendered, its levels were 29-79 of 255), THE SIZES
   AND THE JAWS' PATH OFF ITS ENCODERS (`legs.probe.did`; without the
-  picture it read a pendulum), and a poor fit's report what the real
-  object put on the jaws beside the simulated (`legs.imagined.felt`) --
-  never a number of the truth; its rules prescribe nothing (a test reads
-  "lid", "chest", "magnet"), and the worked example is a cupboard's door.
-  ⚠ ITS ANSWERS STREAM (`mind.llm.stream_fetch`: the router's gateway 504s
-  a request silent 120 s) up to `MAX_TOKENS` 32000 (70 answers in 180 ran
-  out; 8,192 left none). The workers may be a pod's over ssh, the same frames
-  (`worker.residual`: the record kept once, a few kB back a rollout; ⚠ one
-  ssh connection a slot of five: sshd refuses the eleventh channel). OUR
+  picture it read a pendulum), and what the real object put on the jaws
+  (`legs.imagined.felt`): a stretch at a time in its first turn
+  (`model.felt_by_phase`, #481), beside the simulated in a poor fit's
+  report -- never a number of the truth; its rules prescribe nothing (a
+  test reads "lid", "chest", "magnet"), and the worked example is a
+  cupboard's door. ⚠ ITS ANSWERS STREAM (`mind.llm.stream_fetch`: the
+  router's gateway 504s a request silent 120 s) up to `MAX_TOKENS` 64000
+  (at 32,000, 70 answers in 180 ran out; 8,192 left none; every provider
+  `:cheapest` ties took 64,000), and each turn keeps who answered it (the
+  router's `x-inference-provider`: the tied providers differ in speed and
+  in how they reason). ⚠ A BATCH'S ROWS CARRY THEIR `settings` (author,
+  rounds, budget, what the author is told) and its summary never pools
+  rows whose settings differ (#480's carried none). The workers may be a
+  pod's over ssh, the same frames (`worker.residual`: the record kept once,
+  a few kB back a rollout; ⚠ one ssh connection a slot of five: sshd
+  refuses the eleventh channel), and ⚠ A POOL'S WORKER THAT ENDED IS
+  STARTED AGAIN AND ASKED AGAIN (`worker.RESTARTS`; its answer is the
+  document's and the seed's): every connection to the pods dropped at once
+  in #480's batch and in #481's, eleven set-outs and ten lost. OUR
   grading (`evaluation/model.py`) is per parameter against the world and
   the reference, ⚠ the first moment degenerate where a spring is free (the
   static curve is their graded sum), mass and second moment ASSUMED. The

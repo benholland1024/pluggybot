@@ -1248,10 +1248,13 @@ more easily here than it would on hardware.
   "The robot's model, graded"; `evaluation/model.py`): `model` (an
   author's structure, fitted), `reference` (the fitter alone, on the
   reference's own structure) and `leak` (the same with its hinge moved)
-  apart; a model that passed its bars apart from one that found the lid's
+  apart; a model's SETTINGS apart -- its author, its rounds, its answer
+  budget and what the author is told, which each row carries (#481; #480's
+  rows carried none, and read as three rounds, 32,000 tokens, no levers);
+  a model that passed its bars apart from one that found the lid's
   hinge and stayed poor; clean and flagged set-outs apart; each a median
-  with its bootstrap interval and its 9 in 10. Four things a reader must
-  not misread:
+  with its bootstrap interval and its 9 in 10, a share with its Wilson
+  interval. Four things a reader must not misread:
   - **per parameter, "the language can't say it" is zero by construction**:
     the reference IS the true numbers. The language's gap shows in
     BEHAVIOUR -- what each leaves on the probe -- and in the catch, whose
