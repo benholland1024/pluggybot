@@ -222,6 +222,7 @@ def test_a_lost_robots_search_walks_to_a_far_sighting_and_ends_at_a_fix(quad_wor
   there = dk.compose(dk.compose(lost_at, (far.x, far.y, far.yaw)), fx.LOOK_FROM["rack"])
   assert len(walked) == 1 and math.dist(walked[0][:2], there[:2]) < 1e-6, walked
   assert [e["why"] for e in m.belief_events][-2:] == ["fixed", "searched"]
+  assert m.belief_events[-1]["fixture"] == "rack" and m.belief_events[-1]["dropped"]
   assert not m._seeking, "a search left every decode trying the fixtures"
   m.close()
 
@@ -359,6 +360,18 @@ def test_every_belief_event_is_a_drift_row_and_a_loss_is_history():
                          "the map I had was laid askew, and it is gone") for ln in said), \
     "the seat is no board"
   assert len(said) == 3, "a fix within the map's reach went into History"
+  # ...and the search after a loss ends in History, its fix's line or its own
+  for seq, kw, words in ((5, dict(found=False), "saw neither"),
+                         (6, dict(found=True, fixture="rack", dropped=False),
+                          "found the rack, near where I believed I was"),
+                         (7, dict(found=True, fixture="rack", dropped=True), None)):
+    body.belief_events.append(_event(seq, "searched", (3.1, 2.0, 0.3), (3.1, 2.0, 0.3),
+                                     (3.1, 2.0, 0.3), seconds=156.4, **kw))
+    life._belief_step()
+    now = _history(life)
+    assert (now[-1].endswith(words) if words else len(now) == len(said)), (seq, now[-1])
+    said = now
+  rows[:] = [r for r in rows if r.get("why") != "searched"]
   # ...each once, and nothing of the truth in what the robot reads
   life._belief_step()
   assert len([r for r in rows if r.get("type") == "drift"]) == 4

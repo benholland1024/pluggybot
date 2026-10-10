@@ -65,7 +65,8 @@ only record of it was the box's log. One event type is new:
   `moved`, `dropped` (the map went with it) and either `tags` and `atM` (a
   look's) or `anchor` (`board` / `seat`, the dock's own); a `lost`'s
   `fixture`; a `searched`'s `found`, `ended`, `seconds`, `viewpoints` and
-  `arounds`; a `relocated`'s `inliers`. Nothing the robot is shown carries
+  `arounds`, and where one was found its `fixture` and whether it
+  `dropped` the map; a `relocated`'s `inliers`. Nothing the robot is shown carries
   the truth.
 
   ```jsonc

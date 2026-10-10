@@ -1443,8 +1443,8 @@ class HubLifecycle:
 
   def _tell_belief(self, rec: dict) -> None:
     """A belief event said, and the ones the robot should know of written
-    to History: lost at a fixture, a map dropped, a search that found
-    nothing. A fix within the map's reach and a relocation are narrated
+    to History: lost at a fixture, a map dropped, how the search after a
+    loss ended. A fix within the map's reach and a relocation are narrated
     only: the robot was put right where it would have been anyway."""
     why, what = rec["why"], FIXTURE_WORDS.get(rec.get("fixture", ""), "")
     if rec.get("anchor") == "seat":       # ...lying on it with no board read
@@ -1462,6 +1462,10 @@ class HubLifecycle:
     elif why == "searched" and not rec.get("found"):
       line = (f"I looked for the dock and the rack for {rec.get('seconds', 0):.0f} s and "
               "saw neither")
+    elif why == "searched" and not rec.get("dropped"):
+      # ...found, and near where it believed: no line said so yet
+      line = (f"I looked round for {rec.get('seconds', 0):.0f} s and found {what}, near "
+              "where I believed I was")
     else:
       if why in ("fixed", "relocated") and rec.get("moved", True):
         self._say(f"BELIEF {why}{' by ' + what if what else ''}: moved {off:.2f} m "

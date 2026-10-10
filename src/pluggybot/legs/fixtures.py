@@ -103,6 +103,8 @@ class Fixtures:
     self._sighted: tuple[float, float, float] | None = None
     #: ...and how many fixes there had been when it began to look.
     self._seek_fixes = 0
+    #: The last fix's record (`fixture_fix`), or None.
+    self.last_fix: dict | None = None
 
   # ---- a fix -------------------------------------------------------------------
 
@@ -148,8 +150,9 @@ class Fixtures:
       # ...and what it believed of the fixtures was believed in the old frame
       self.dock_seen = self.tool_rack_seen = None
     self.fixes += 1
-    return self.belief_event("fixed", before=before, fixture=fixture, tags=fit.n,
-                             atM=round(range_m, 2), moved=moved, dropped=dropped)
+    self.last_fix = self.belief_event("fixed", before=before, fixture=fixture, tags=fit.n,
+                                      atM=round(range_m, 2), moved=moved, dropped=dropped)
+    return self.last_fix
 
   def watch_fixtures(self, dets: dict) -> None:
     """A lost robot's look (`_seeking`), every decode it takes: a fix off
@@ -212,7 +215,8 @@ class Fixtures:
     from `near` as a find walks them, a look all round at each. Returns its
     record -- `found`, `why` ("found", "not found": every viewpoint walked
     to, "out of time", "interrupted"), `seconds`, `viewpoints`, `arounds`
-    -- and says it (`belief_event`, "searched")."""
+    -- and says it (`belief_event`, "searched", with the fix's `fixture`
+    and whether it `dropped` the map, where one was found)."""
     t0 = float(self.data.time)
     until = t0 + float(patience)
     fixes0 = self.fixes
@@ -267,6 +271,9 @@ class Fixtures:
     elif not why:
       why = "interrupted" if stop is not None and stop() else "out of time"
     rec.update(found=found(), why=why, seconds=round(float(self.data.time) - t0, 1))
+    fix = self.last_fix if found() else None
     self.belief_event("searched", found=rec["found"], ended=why, seconds=rec["seconds"],
-                      viewpoints=rec["viewpoints"], arounds=rec["arounds"])
+                      viewpoints=rec["viewpoints"], arounds=rec["arounds"],
+                      **({} if fix is None else {"fixture": fix["fixture"],
+                                                 "dropped": fix["dropped"]}))
     return rec
