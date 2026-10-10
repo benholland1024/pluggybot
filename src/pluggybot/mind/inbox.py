@@ -48,8 +48,8 @@ from typing import Callable
 
 from pluggybot.mind import text as registry
 from pluggybot.telemetry.protocol import (
-  INBOUND_TYPES, LEGACY_INBOUND_TYPES, LEGACY_VISITOR_OUTCOMES,
-  VISITOR_OUTCOMES,
+  DECIDED_OUTCOMES, INBOUND_TYPES, LEGACY_INBOUND_TYPES,
+  LEGACY_VISITOR_OUTCOMES, VISITOR_OUTCOMES,
 )
 
 #: The operator's three ticket kinds (issue #284), each naming a ticket.
@@ -86,11 +86,12 @@ MAX_QUEUE = 32
 #: Raw bytes accepted for one message before it is dropped unread. The queue
 #: bound above is a message count, which is no protection at all against one
 #: enormous message. ⚠ It must still admit the largest message the caps
-#: admit, however its sender encodes it (issue #474): a follow-up carrying
-#: `MAX_EARLIER` exchanges at `MAX_TEXT` both ways is 5 188 characters as
-#: the site sends it (`JSON.stringify`), 19 288 bytes of UTF-8 emoji, and
-#: 56 888 characters with every one an escaped astral pair (Python's
-#: default `json.dumps`).
+#: admit, however its sender encodes it (issue #474). The largest is a
+#: website older than #485 sending a follow-up with four exchanges at
+#: `MAX_TEXT` both ways: 5 188 characters as the site sends it
+#: (`JSON.stringify`), 19 288 bytes of UTF-8 emoji, and 56 888 characters
+#: with every one an escaped astral pair (Python's default `json.dumps`).
+#: `MAX_EARLIER` lines of a chat are fewer texts than that.
 MAX_RAW_BYTES = 65_536
 #: ...except a PICTURE (issue #275): the `image` kind carries a JPEG the
 #: website rendered from the robot's own camera pose, base64, and a 640 x
@@ -103,13 +104,14 @@ MAX_IMAGE_RAW_BYTES = MAX_IMAGE_BYTES * 4 // 3 + 1024
 #: What every JPEG starts with. Checked at the door so the bytes handed to
 #: a model are a picture and never a string somebody chose.
 JPEG_MAGIC = b"\xff\xd8\xff"
-#: Earlier turns of a conversation a FOLLOW-UP may carry (rooftop-media-2026
-#: #125): the newest this many are kept and the rest are dropped at the
-#: door. Four exchanges is up to 4 000 characters of context on the one
-#: turn that carries them and nothing on any other; the website sends the
-#: same number, and both ends cap for the reason both cap a message's
-#: length.
-MAX_EARLIER = 4
+#: Lines of the robot's chat a message carries from before it (issue #485;
+#: a follow-up carried its thread's exchanges since rooftop-media-2026
+#: #125): the newest this many are kept and the rest dropped at the door. A
+#: LINE is one message in the chat, somebody's or the robot's own -- Ben's
+#: "the most recent ~6 messages" -- and `recall` reads further back
+#: (`thoughts.CHAT`). The website sends the same number, and both ends cap
+#: for the reason both cap a message's length.
+MAX_EARLIER = 6
 
 #: Everything outside this is stripped from visitor text: C0 and C1 control
 #: characters, and the Unicode line/paragraph separators. Newlines go too --
@@ -131,24 +133,41 @@ def clean(text: object, limit: int = MAX_TEXT) -> str:
 
 
 @dataclass(frozen=True)
-class Turn:
-  """One earlier exchange of a conversation, as the WEBSITE holds it
-  (rooftop-media-2026 #125): what somebody said, what the robot did about
-  it (`outcome`), and what it said back. Carried on a follow-up because the
-  conversation is the website's state -- it outlives a mission, a restart
-  and a generation, and the robot that answered may not be this one -- and
-  a network can carry a transcript. Cleaned like everything else that
-  arrives on this socket: the sim's own earlier words come back to it as
-  DATA, on the same terms as the stranger's."""
+class Line:
+  """One line of the robot's chat from before a message (issue #485), as
+  the WEBSITE holds it: what somebody said, or what the robot said -- an
+  answer (`to` whom, and its `outcome`) or something it said unasked.
+  Carried on every message because the chat is the website's state -- it
+  outlives a mission, a restart and a generation -- and a network can
+  carry a transcript. Cleaned like everything else that arrives on this
+  socket: the sim's own earlier words come back to it as DATA, on the
+  same terms as the stranger's.
 
-  who: str
+  ⚠ THE ROBOT'S OWN LINE IS A SHAPE, NEVER A NAME: `you` is a key no
+  person's line has, so a visitor whose username is `you` still reads as
+  somebody else."""
+
   text: str
-  outcome: str
-  reply: str = ""
+  #: Somebody's label (a username, or "" for `a visitor`); "" on the
+  #: robot's own line.
+  who: str = ""
+  yours: bool = False
+  #: On the robot's answer: whom it answered, and what it did about it
+  #: (`DECIDED_OUTCOMES`). On somebody's line, only `dropped`: the queue
+  #: threw it away and the robot never saw it.
+  to: str = ""
+  outcome: str = ""
 
   def as_context(self) -> dict:
-    return {"from": self.who or "a visitor", "text": self.text,
-            "outcome": self.outcome, "reply": self.reply}
+    if self.yours:
+      out = {"you": self.text}
+      if self.outcome:
+        out.update({"to": self.to or "a visitor", "outcome": self.outcome})
+      return out
+    out = {"from": self.who or "a visitor", "text": self.text}
+    if self.outcome:
+      out["outcome"] = self.outcome
+    return out
 
 
 @dataclass(frozen=True)
@@ -164,11 +183,10 @@ class VisitorMessage:
   kind: str
   text: str = ""
   who: str = ""
-  #: `message` only (rooftop-media-2026 #125): the conversation this belongs
-  #: to (the website's id of its first message; "" for a sim older than the
-  #: field or a message outside any thread), which message of theirs this
-  #: is, and the exchanges before it. A `turn` above 1 is a FOLLOW-UP: the
-  #: person has been answered before and is answering back.
+  #: `message` only: the website's thread and turn (rooftop-media-2026
+  #: #125), echoed on the reply and never read -- since #485 a robot's chat
+  #: is one conversation, so every message from a current site is turn 1
+  #: of its own -- and the chat's last lines before it, as `Line`s.
   thread: str = ""
   turn: int = 1
   earlier: tuple = ()
@@ -235,11 +253,9 @@ class VisitorMessage:
     this is handed to a mind to do (issue #61).
     """
     out = {"id": self.id, "from": self.who or "a visitor", "text": self.text}
-    if self.turn > 1:
-      # A follow-up, with the exchange so far (rooftop-media-2026 #125).
-      # Shown only then: a first message carries exactly what it always
-      # did, and the prompt's rule for `earlier` is the other half.
-      out["turn"] = self.turn
+    if self.earlier:
+      # The chat so far (issue #485), on every message that has one: the
+      # prompt's rule for `earlier` is the other half.
       out["earlier"] = [e.as_context() for e in self.earlier]
     return out
 
@@ -247,8 +263,9 @@ class VisitorMessage:
     out = {"id": self.id, "kind": self.kind, "text": self.text,
            "from": self.who, "sender": self.sender, "t": round(self.t, 3)}
     if self.thread:
-      out.update({"thread": self.thread, "turn": self.turn,
-                  "earlier": [e.as_context() for e in self.earlier]})
+      out.update({"thread": self.thread, "turn": self.turn})
+    if self.earlier:
+      out["earlier"] = [e.as_context() for e in self.earlier]
     if self.kind == "rating":
       out.update({"seq": self.seq, "quality": self.quality})
       if self.generation is not None:
@@ -267,25 +284,44 @@ class VisitorMessage:
 
 
 def _earlier(raw: object) -> tuple:
-  """The exchanges before a follow-up, as `Turn`s: the newest `MAX_EARLIER`
-  of whatever was sent, each cleaned, each with an outcome off the wire's
-  own vocabulary (a retired name folded, anything else dropped -- an
-  outcome the sim never emits is not one it will vouch for). Anything that
-  is not a list of objects is no history at all."""
+  """The chat before a message, as `Line`s: the newest `MAX_EARLIER` of
+  whatever was sent, each cleaned, each outcome off the wire's own
+  vocabulary (a retired name folded, anything else dropped with its line --
+  an outcome the sim never emits is not one it will vouch for). Anything
+  that is not a list of objects is no history at all.
+
+  A line naming a `robot` is the robot's own (issue #485); any other is
+  somebody's. ⚠ A website older than #485 sends a thread's EXCHANGES
+  instead -- what they said, and the robot's `outcome` and `reply` on the
+  same object -- and one is read as the two lines it is."""
   if not isinstance(raw, list):
     return ()
-  turns = []
+  lines = []
   for item in raw:
     if not isinstance(item, dict):
       continue
     outcome = clean(item.get("outcome"), MAX_ID)
     outcome = LEGACY_VISITOR_OUTCOMES.get(outcome, outcome)
     text = clean(item.get("text"), MAX_TEXT)
-    if outcome not in VISITOR_OUTCOMES or not text:
+    if not text:
       continue
-    turns.append(Turn(who=clean(item.get("from"), MAX_WHO), text=text,
-                      outcome=outcome, reply=clean(item.get("reply"), MAX_TEXT)))
-  return tuple(turns[-MAX_EARLIER:])
+    # ⚠ THE KEY, NOT ITS VALUE: a `robot` that came through as null is
+    # still the robot's line, and read as somebody's it would put the
+    # robot's own words in a stranger's mouth.
+    if "robot" in item:
+      if outcome in DECIDED_OUTCOMES or not outcome:
+        lines.append(Line(text=text, yours=True, outcome=outcome,
+                          to=clean(item.get("to"), MAX_WHO) if outcome else ""))
+      continue
+    if outcome and outcome not in VISITOR_OUTCOMES:
+      continue
+    who = clean(item.get("from"), MAX_WHO)
+    lines.append(Line(text=text, who=who,
+                      outcome="dropped" if outcome == "dropped" else ""))
+    reply = clean(item.get("reply"), MAX_TEXT)
+    if reply and outcome in DECIDED_OUTCOMES:
+      lines.append(Line(text=reply, yours=True, to=who, outcome=outcome))
+  return tuple(lines[-MAX_EARLIER:])
 
 
 class Inbox:
@@ -420,18 +456,18 @@ class Inbox:
       return None                           # nothing was actually said
     thread, turn, earlier = "", 1, ()
     if kind == "message":
-      # A conversation (rooftop-media-2026 #125). All three are the
-      # website's to state and none is required: a sim older than the
-      # field, or a website older than it, reads exactly as before. A bad
-      # `turn` or a malformed `earlier` costs the follow-up its context,
-      # never the message -- what the person said still arrives.
+      # The chat around it (issue #485; a thread since rooftop-media-2026
+      # #125). All three are the website's to state and none is required:
+      # a website older than a field reads as before. A bad `turn` or a
+      # malformed `earlier` costs the message its context, never the
+      # message -- what the person said still arrives.
       thread = clean(raw.get("thread"), MAX_ID)
       if thread:
         try:
           turn = max(1, int(raw.get("turn", 1)))
         except (TypeError, ValueError):
           turn = 1
-        earlier = _earlier(raw.get("earlier"))
+      earlier = _earlier(raw.get("earlier"))
     seq, quality, generation = 0, 0.0, None
     if kind == "rating":
       try:

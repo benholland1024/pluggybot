@@ -122,6 +122,19 @@ RECALLED_CHAIN_CHARS = 8000
 #: How many History lines `read history` returns: the tail beyond the
 #: dozen the prompt always carries.
 HISTORY_RECALLED = 40
+#: THE CHAT IN HISTORY (issue #485): every line said in the robot's chat --
+#: somebody's message (`CHAT_HEARD`), the robot's answer (`CHAT_ANSWERED`),
+#: what it said unasked (`CHAT_SAID`) -- is a History row under this topic,
+#: its role the row's title, so `read chat` widens the window a message
+#: carries (`inbox.MAX_EARLIER` lines). A key like `history`, ahead of the
+#: notes: a note topic called `chat` is read by `chat/<title>`.
+CHAT = "chat"
+CHAT_HEARD, CHAT_ANSWERED, CHAT_SAID = "heard", "answered", "said"
+#: ...and how much of it `read chat` returns: the newest lines that fit the
+#: chain's whole room, oldest first. One block's room would bring back a
+#: chat of full-length messages barely longer than the window it widens.
+CHAT_RECALLED = 60
+CHAT_RECALLED_CHARS = RECALLED_CHAIN_CHARS
 #: How many History rows the `records` snapshot opens a stream with (issue
 #: #238): the newest `SNAPSHOT_HISTORY` -- what `History.md`'s roll holds is
 #: about that many at typical line lengths -- and the thinks written inside
@@ -523,10 +536,12 @@ class ThoughtFiles:
       self._refuse(str(e))
 
   def append(self, name: str, text: str, by: str, t: float = 0.0,
-             cites=(), cap: int = MAX_LINE_CHARS) -> str:
+             cites=(), cap: int = MAX_LINE_CHARS, topic: str = "",
+             title: str = "") -> str:
     """Add one line to a core document or to History. Returns the line
     written, "" if there was nothing to. `cap` is the line's own; only
-    `remember` widens it.
+    `remember` widens it, and only `remember` files a History row under a
+    `topic` and `title` (the chat's, issue #485).
 
     History rolls (the view keeps the newest lines that fit); the robot's
     documents refuse when full -- the row says which.
@@ -545,7 +560,8 @@ class ThoughtFiles:
     if not line:
       return ""
     if name == HISTORY:
-      rec = self.records.add(self.robot, "history", by, line, t=t)
+      rec = self.records.add(self.robot, "history", by, line, t=t,
+                             topic=topic, title=title)
     elif name in CORE:
       rec = self.records.add(self.robot, "core", by, line, t=t, topic=name,
                              cites=_cites(cites))
@@ -677,7 +693,8 @@ class ThoughtFiles:
     self._commit(NOTES, t, self.records.retire(hit.id, t=t))
     return f"{hit.topic}/{hit.title}: {hit.text}"
 
-  def remember(self, text: str, t: float = 0.0, room: int = 0) -> str:
+  def remember(self, text: str, t: float = 0.0, room: int = 0,
+               chat: str = "") -> str:
     """The narrative record, the SYSTEM's. Prefixed with the sim clock,
     because a line of history with no "when" is an anecdote.
 
@@ -685,9 +702,21 @@ class ThoughtFiles:
     #433): a line that QUOTES a text bounded where it came from -- an
     operator's ticket reply, `MAX_TICKET_CHARS` -- keeps it whole, and the
     cap bounds the system's own words. The view rolls, so a long line costs
-    the oldest lines their place, never its own end."""
+    the oldest lines their place, never its own end.
+
+    `chat` files a line of the robot's chat under `CHAT` (issue #485), by
+    its role: `CHAT_HEARD`, `CHAT_ANSWERED` or `CHAT_SAID`."""
     return self.append(HISTORY, f"[t={float(t):.0f}s] {text}", by=SYSTEM,
-                       t=t, cap=MAX_LINE_CHARS + max(0, room))
+                       t=t, cap=MAX_LINE_CHARS + max(0, room),
+                       topic=CHAT if chat else "", title=chat)
+
+  def last_said(self) -> float | None:
+    """When the robot last said something in its chat unasked (issue #485),
+    in sim seconds, or None this life. Off the store, so a restart keeps it
+    and a true death forgets it."""
+    rows = self.records.tail(self.robot, "history", 1, topic=CHAT,
+                             title=CHAT_SAID)
+    return rows[0].t if rows else None
 
   def think(self, text: str, t: float = 0.0, why: str = "") -> str:
     """The scratch the model wrote before a decision (issue #221): a
@@ -718,35 +747,53 @@ class ThoughtFiles:
     (as the History tail and a recalled line show it); `topic/title` one
     note; `topic` every note in it (`findings` reads every finding, a
     family by its first level); `history` the tail beyond what the prompt
-    carries. `find` is WORDS: full-text over everything this robot has
-    written or been told this life, retired lines included. Both may be
-    set. Returns the block the next turn shows: `{read, find, hits,
-    lines}`, each line `#id [where] text`, capped at `RECALLED_CHARS`."""
-    rows: list = []
+    carries; `chat` the newest of the robot's chat (issue #485). `find`
+    is WORDS: full-text over everything this robot has written or been
+    told this life, retired lines included. Both may be set. Returns the
+    block the next turn shows: `{read, find, hits, lines}`, each line
+    `#id [where] text`, capped at `RECALLED_CHARS` (`chat`'s own room,
+    `CHAT_RECALLED_CHARS`)."""
+    keyed: list = []
+    found: list = []
     seen: set[int] = set()
     key = " ".join(str(read or "").split())
+    chat = key.lower() == CHAT
     if key:
       for r in self._read(key):
         if r.id not in seen and not _about_recall(r):
-          rows.append(r)
+          keyed.append(r)
           seen.add(r.id)
     words = " ".join(str(find or "").split())
     if words:
       for r in self.records.find(self.robot, words):
         if r.id not in seen and not _about_recall(r):
-          rows.append(r)
+          found.append(r)
           seen.add(r.id)
-    lines: list[str] = []
+    cap = CHAT_RECALLED_CHARS if chat else RECALLED_CHARS
     size = 0
     cut = 0
-    for r in rows:
-      line = self._recalled_line(r)
-      if size + len(line) > RECALLED_CHARS:
-        cut += 1
-        continue
-      lines.append(line)
-      size += len(line) + 1
-    block = {"read": key, "find": words, "hits": len(rows), "lines": lines}
+
+    def fit(rows: list, window: bool = False) -> list[str]:
+      nonlocal size, cut
+      out = []
+      for i, r in enumerate(rows):
+        line = self._recalled_line(r)
+        if size + len(line) > cap:
+          if window:                    # a window has no holes in it
+            cut += len(rows) - i
+            break
+          cut += 1
+          continue
+        out.append(line)
+        size += len(line) + 1
+      return out
+
+    # ⚠ A WINDOW ONTO THE CHAT ENDS AT ITS LATEST LINE (issue #485): its
+    # lines are fitted newest first, so what the cap cuts is the oldest.
+    lines = fit(keyed[::-1], window=True)[::-1] if chat else fit(keyed)
+    lines += fit(found)
+    block = {"read": key, "find": words, "hits": len(keyed) + len(found),
+             "lines": lines}
     if cut:
       block["cut"] = cut
     return block
@@ -759,6 +806,8 @@ class ThoughtFiles:
         and r.generation == self.records.generation(self.robot) else []
     if key.lower() in ("history", HISTORY.lower()):
       return self.records.tail(self.robot, "history", HISTORY_RECALLED)
+    if key.lower() == CHAT:
+      return self.records.tail(self.robot, "history", CHAT_RECALLED, topic=CHAT)
     notes = self.records.active(self.robot, "note")
     exact = [r for r in notes if f"{r.topic}/{r.title}" == key]
     if exact:
@@ -773,7 +822,8 @@ class ThoughtFiles:
     if r.kind == "note":
       where = f"{r.topic}/{r.title}" if not r.topic.startswith(FINDINGS_PREFIX) else r.topic
     elif r.kind == "history":
-      where = "history"                 # its text carries `[t=..s]` already
+      # its text carries `[t=..s]` already
+      where = CHAT if r.topic == CHAT else "history"
     else:
       where = f"{r.topic or r.kind} t={r.t:.0f}s"
     if not r.active:

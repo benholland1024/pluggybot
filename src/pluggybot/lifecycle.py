@@ -25,6 +25,7 @@ import json
 import math
 import os
 import time
+import uuid
 from pathlib import Path
 from typing import Callable, Literal
 
@@ -56,11 +57,12 @@ from pluggybot.mind.spend import open_book
 from pluggybot.mind.overseer import (
   CALLS_PER_HOUR, HEART_PRICE, HEART_RESERVE_HOURS, MAX_LOOK_RUN,
   MAX_RECALL_RUN, MAX_REPLY, PROCEDURE_NEW, PROCEDURE_PREFIX, RECALL_S,
-  THINK_SLICE_S, left_out_said, order_runnable,
+  SAY_EVERY_S, THINK_SLICE_S, left_out_said, order_runnable, say_again_in,
 )
 from pluggybot.tools.screen import face_for
 from pluggybot.mind.thoughts import (
-  RECALLED_CHAIN_CHARS, ThoughtFiles, ThoughtRefused, attempted,
+  CHAT_ANSWERED, CHAT_HEARD, CHAT_SAID, QUOTED_CHARS, RECALLED_CHAIN_CHARS,
+  ThoughtFiles, ThoughtRefused, attempted,
 )
 from pluggybot.economy import questions, scoring
 from pluggybot.tools import strokes
@@ -672,8 +674,11 @@ class HubLifecycle:
     # except the served one.
     self.inbox = inbox
     self.replies: list[dict] = []
-    #: fired with each `visitor_reply` message; wire the publisher and the
-    #: recorder in, exactly as for boards, the ledger and the thoughts.
+    #: ...and what the robot said in its chat unasked (issue #485).
+    self.chats: list[dict] = []
+    #: fired with each `visitor_reply` and `chat` message; wire the
+    #: publisher and the recorder in, exactly as for boards, the ledger and
+    #: the thoughts.
     self.visitor_hooks: list = []
     # Which world this is, which the overseer needs to build an errand out of
     # a decision (issue #15) -- the same name `world_config` is keyed by, so
@@ -2224,7 +2229,7 @@ class HubLifecycle:
       self._remember("my list of rules came back without what this world no "
                      f"longer reads: {'; '.join(boss.dropped_at_load)}")
 
-  def _remember(self, line: str, room: int = 0) -> None:
+  def _remember(self, line: str, room: int = 0, chat: str = "") -> None:
     """Append one line to `History.md` (issue #38).
 
     The narrative record, and deliberately NOT the narration: `_say` fires
@@ -2236,10 +2241,12 @@ class HubLifecycle:
     stops it awarding itself points.
 
     `room` lets the line run that far past History's line cap, for a text
-    it quotes whole (`ThoughtFiles.remember`, issue #433).
+    it quotes whole (`ThoughtFiles.remember`, issue #433); `chat` files a
+    line of the robot's chat by its role (issue #485).
     """
     try:
-      self.thoughts.remember(line, t=float(self.data.time), room=room)
+      self.thoughts.remember(line, t=float(self.data.time), room=room,
+                             chat=chat)
     except ThoughtRefused as e:
       # History rolls rather than refusing, so this is close to unreachable
       # -- but a memory write must never be able to end a mission, and a
@@ -5368,14 +5375,59 @@ class HubLifecycle:
     # where they were written, at a conversation's cap (`MAX_REPLY`), and
     # History's own line cap kept 400 of either. A cut is said BEFORE the
     # text, where a line's end cannot take it (#307).
-    self._remember(f"{who} said{' (following up)' if msg.turn > 1 else ''}: "
-                   f"{msg.text}", room=MAX_REPLY)
+    # ⚠ ...AND FILED AS THE CHAT'S (issue #485), so `recall` reads the
+    # chat back past the lines a message carries -- a person's alone: the
+    # other robot's `tell` is not said in the chat people read.
+    chat = msg.sender == text_registry.VISITOR
+    self._remember(f"{who} said: {msg.text}", room=MAX_REPLY,
+                   chat=CHAT_HEARD if chat else "")
     note = text_registry.cut_note(cut, MAX_REPLY)
     self._remember(f"took {who}'s idea ({decision.action}){note}: {said}"
                    if decision.outcome == "accepted" else
                    f"declined {who}{note}: {said}"
                    if decision.outcome == "declined"
-                   else f"replied to {who}{note}: {said}", room=MAX_REPLY)
+                   else f"replied to {who}{note}: {said}", room=MAX_REPLY,
+                   chat=CHAT_ANSWERED if chat else "")
+
+  def _chat(self, decision) -> None:
+    """Say something in the robot's chat that answers nobody (issue #485).
+
+    A `chat` message through the visitor hooks, like a `visitor_reply`:
+    the website keeps it as a line of the robot's chat, and History files
+    it as the chat's. Rationed at `SAY_EVERY_S` off the store's own record
+    of the last one (`ThoughtFiles.last_said`: a restart keeps the clock, a
+    true death forgets it), and cut at a reply's length -- both OUT LOUD,
+    on #474's terms: one too soon is not said and History says when the
+    next may go, and a cut one says where.
+    """
+    if not decision.say:
+      return
+    t = float(self.data.time)
+    wait = say_again_in(self.thoughts, t)
+    if wait is not None:
+      # ⚠ QUOTED, NOT WHOLE (#409's refusals): the deployed model sent a
+      # `say` on 2 of 4 turns with `sayAgainInS` in front of it, so these
+      # are routine, and each is a line of the dozen History shows.
+      self._say(f"CHAT not said, {wait} s before it may: "
+                f"{decision.say[:MAX_REPLY]}")
+      self._remember(f"did not say in my chat -- one thing every "
+                     f"{SAY_EVERY_S / 60:.0f} minutes, and the next may go "
+                     f"in {math.ceil(wait / 60)} min -- "
+                     f"{decision.say[:QUOTED_CHARS]!r}")
+      return
+    text = decision.say[:MAX_REPLY].rstrip()
+    cut = len(decision.say) > MAX_REPLY
+    msg = {"type": "chat", "t": round(t, 3), "robot": self.root,
+           # The SITE's handle for the line, made here so a message sent
+           # twice is one line there (`c_` and a uuid, its own ids' shape).
+           "id": f"c_{uuid.uuid4()}", "text": text,
+           **({"cut": True} if cut else {})}
+    for hook in self.visitor_hooks:
+      hook(dict(msg))
+    self.chats.append(msg)
+    self._say(f"CHAT said: {text}{text_registry.cut_said(cut, MAX_REPLY)}")
+    self._remember(f"said in my chat{text_registry.cut_note(cut, MAX_REPLY)}: "
+                   f"{text}", room=MAX_REPLY, chat=CHAT_SAID)
 
   # ---- tasks (issue #21) ----------------------------------------------------
 
@@ -6345,6 +6397,8 @@ class HubLifecycle:
     # Before the action runs, so a visitor whose idea was taken hears
     # so at the moment it is taken rather than five minutes later.
     self._answer_visitor(decision)
+    # ...and what it says in its chat unasked (issue #485). Paperwork.
+    self._chat(decision)
 
     if decision.action == "take_task":
       # The overseer accepting a job somebody offered (issue #21), through
@@ -7064,6 +7118,7 @@ class HubLifecycle:
       # without an inbox, which is every caller that does not serve.
       "visitors": self.inbox.stats() if self.inbox is not None else {},
       "replies": list(self.replies),
+      "chats": list(self.chats),
       # The jobs this world offered and what became of them (issue #21).
       # Empty without a task board, which is every caller that does not ask
       # for one.

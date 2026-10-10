@@ -53,6 +53,7 @@ it is worth more than padding the prompt until the number looks right.
 
 import hashlib
 import json
+import math
 import os
 import threading
 import time
@@ -67,7 +68,7 @@ from pluggybot.mind import text as text_registry
 from pluggybot.mind.text import PUNCTUATION, placeholder
 from pluggybot.mind import tickets as desk
 from pluggybot.mind import wiki as reading
-from pluggybot.mind.inbox import MAX_ID, clean
+from pluggybot.mind.inbox import MAX_EARLIER, MAX_ID, clean
 from pluggybot.activity.cage import MOUSE_STATES
 from pluggybot.economy.questions import MAX_ANSWER, clean_answer
 from pluggybot.rack.coupling import BUILT_STATION_YS
@@ -84,11 +85,33 @@ from pluggybot.telemetry.protocol import (
 )
 
 #: Longest reply to a visitor: the visitor MESSAGE row's cap, one number
-#: for both directions of a conversation (issue #474). This is the only free
-#: text that leaves the model and reaches a human -- so it is capped on the
-#: way OUT as well as on the way in, the robot is told the number (VISITORS),
-#: and a reply that ran past it is cut OUT LOUD (`lifecycle._answer_visitor`).
+#: for both directions of a conversation (issue #474). With `say` (#485),
+#: the free text that leaves the model and reaches a human -- so it is
+#: capped on the way OUT as well as on the way in, the robot is told the
+#: number (VISITORS), and a reply or a `say` that ran past it is cut OUT
+#: LOUD (`lifecycle._answer_visitor`, `lifecycle._chat`).
 MAX_REPLY = text_registry.BY_NAME["visitor"].cap
+#: How often the robot may say something in its chat UNASKED (issue #485),
+#: in sim seconds: a visitor's own allowance, three an hour
+#: (rooftop-media-2026's `RATE_LIMIT_PER_HOUR`), so neither side of the
+#: chat can bury the other. A DESIGN DECISION, said to the robot (VISITORS);
+#: a `say` sooner is not said, and History says so.
+SAY_EVERY_S = 1200.0
+
+
+def say_again_in(thoughts, t: float) -> int | None:
+  """Whole seconds until the robot may `say` again (issue #485), or None
+  where it may now: off the store's record of its last line, so the state
+  that shows the wait (`sayAgainInS`) and the gate that holds it
+  (`lifecycle._chat`) are one reading. ⚠ SHOWN BEFORE IT BITES: the
+  deployed model wrote a `say` on 2 of 6 quiet turns, and every refusal is
+  a History line in the dozen it reads."""
+  last = thoughts.last_said() if thoughts is not None else None
+  if last is None or t - last >= SAY_EVERY_S:
+    return None
+  return math.ceil(SAY_EVERY_S - (t - last))
+
+
 #: A sentence of WHY that reaches no visitor: the mid-errand interrupt's
 #: reason (issue #116) and the words a garbled answer was refused with
 #: (#296). Not `MAX_REPLY`: neither is a conversation.
@@ -494,6 +517,10 @@ class Decision:
   respond_to: str = ""
   outcome: str = ""
   reply: str = ""
+  #: ...and something said in the robot's chat UNASKED (issue #485): to
+  #: everyone reading it, answering nobody. Rationed (`SAY_EVERY_S`) and
+  #: cut at a reply's length, each out loud (`lifecycle._chat`).
+  say: str = ""
   #: The task board (issue #21). Which offered job `take_task` means, by the
   #: id the SIM gave it. Like `respond_to`, and for the same reason: the
   #: offers change every call, and an enum that changes every call misses the
@@ -743,7 +770,8 @@ class Decision:
             **({"read": self.read} if self.read else {}),
             **({"find": self.find} if self.find else {}),
             "respondTo": self.respond_to, "outcome": self.outcome,
-            "reply": self.reply, "task": self.task, "answer": self.answer,
+            "reply": self.reply, **({"say": self.say} if self.say else {}),
+            "task": self.task, "answer": self.answer,
             "pin": self.pin, "unpin": self.unpin,
             **({"note": dict(self.note)} if self.note else {}),
             "unnote": self.unnote, "cites": self.cites,
@@ -919,6 +947,9 @@ FIELD_INDEX: tuple[tuple[str, str, object, str], ...] = (
    "or replied."),
   ("reply", "always", "HOW YOUR LIFE WORKS",
    "what goes back to whoever wrote to you."),
+  ("say", "always", "HOW YOUR LIFE WORKS",
+   "something said in your chat that answers nobody; everyone reading "
+   "your chat sees it."),
   ("pin", "always", "HOW YOUR LIFE WORKS",
    "add one line to `Top_of_mind.md`, which is in front of you every turn."),
   ("unpin", "always", "HOW YOUR LIFE WORKS",
@@ -1053,7 +1084,7 @@ def _word(text) -> str:
 #: and title, which the robot names (`C`, for bay C); a procedure's `name`
 #: (its `def` line's); the answer's own three and the action's parameters.
 PLACEHOLDER_TEXT = ("pin", "unpin", "unnote", "intend", "drop_goal", "serves",
-                    "retract", "done", "lookup")
+                    "retract", "done", "lookup", "say")
 #: ...but a QUOTE names a line, so outside an answer full of placeholders one
 #: stands, and a placeholder quote takes out only a line that is exactly it
 #: (`thoughts._match`): the robot can still take out the `n` goal it wrote
@@ -1472,7 +1503,7 @@ class Menu:
       "additionalProperties": False,
       "required": ["think", "action", "reason", "board", "program", "zone",
                    "read", "find",
-                   "respond_to", "outcome", "reply", "task", "answer",
+                   "respond_to", "outcome", "reply", "say", "task", "answer",
                    "pin", "unpin", "note", "unnote", "cites",
                    "intend", "drop_goal", "serves"]
       + (["escalate"] if escalation else [])
@@ -1518,6 +1549,7 @@ class Menu:
         "respond_to": {"type": "string"},
         "outcome": enum(DECIDED_OUTCOMES),
         "reply": {"type": "string"},
+        "say": {"type": "string"},
         # ...and the task id, a free string for the same reason (issue #21)
         # -- UNLESS the caller hands over the ids that are actually on offer.
         #
@@ -2028,6 +2060,9 @@ class Menu:
     #  excuse for not answering (rooftop-media-2026 #124).
     if respond_to not in waiting or outcome not in DECIDED_OUTCOMES:
       respond_to, outcome, reply = "", "", ""
+    # ...and the chat's unasked line (issue #485), one over the cap for the
+    # same reason: `_chat` cuts it and says so.
+    say = clean(raw.get("say"), MAX_REPLY + 1)
     written = raw.get("note")
     note = None
     if isinstance(written, dict) and any(str(v or "").strip() for v in written.values()):
@@ -2043,6 +2078,7 @@ class Menu:
                     board=board, program=program, zone=zone,
                     read=read, find=find,
                     respond_to=respond_to, outcome=outcome, reply=reply,
+                    say=say,
                     task=task if action == "take_task" else "",
                     # THE FIELD THE JOB ASKED FOR, and only that one (issue
                     # #296): `answer` is required on every turn and the
@@ -2365,7 +2401,8 @@ from (`#123 #140`), when it was drawn from some.
 - RECALL is how you read what is not in front of you: a note's text, an \
 old History line, what somebody said last week, a line you unpinned. Choose \
 `recall` and set `read` to a key -- a note's `topic/title`, a whole topic, \
-`history` for more of your history, or a line's number like `#123` -- and/or \
+`history` for more of your history, `chat` for more of your chat, or a \
+line's number like `#123` -- and/or \
 `find` to a few words to search for. You stand still for ten seconds and the \
 lines arrive on your next turn as `recalled`, each with its number. They \
 stay while you keep recalling and go when you do anything else, so `pin` or \
@@ -2405,12 +2442,20 @@ answered, a greeting returned, somebody told what you are up to. Answer from \
 what you actually know -- your state, your recent tasks, what is on the \
 boards -- and if you do not know, say so. A friendly message deserves a \
 friendly answer; it does not have to become work.
-- A message with a `turn` above 1 is a FOLLOW-UP: that person has been \
-answered before, and `earlier` is the conversation so far, oldest first -- \
-what they said and what you did about it (`outcome`, `reply`; `dropped` \
-means you never saw that one). Answer as the one who said those things, not \
-as a stranger: what you told them last time is what they are replying to.
-""" % {"chars": MAX_REPLY}
+- What people say to you and what you say back are ONE chat, and everyone \
+watching can read all of it. A message comes with `earlier` when anything \
+was said in your chat before it: its last %(lines)d lines, oldest first -- \
+what people said (`from`, `text`; `dropped` means it never reached you) and \
+what you said (`you`, with `to` and `outcome` where you were answering \
+somebody). Answer as the one who said those things, not as a stranger. \
+`recall` with `read` set to `chat` shows you more of it.
+- You may also say something in your chat that answers nobody: set `say`, \
+on any answer. Everyone reading your chat sees it. It is kept up to \
+%(chars)d characters, like a reply, and you may say one such thing every \
+%(minutes)d minutes: while you may not, `sayAgainInS` says how many seconds \
+are left, and a `say` sent anyway is not said, and you are told.
+""" % {"chars": MAX_REPLY, "lines": MAX_EARLIER,
+       "minutes": round(SAY_EVERY_S / 60)}
 
 
 
@@ -3768,6 +3813,10 @@ def context_for(life, visitors=(), tasks=(), affordable=(), possible=(),
     # REPORTS rather than as conversation turns, so nothing in here can look
     # like the operator talking. The rules block above is the other half.
     "visitorMessages": [m.as_context() for m in visitors],
+    # ...and how long until it may say something unasked again (issue #485),
+    # only while the ration holds.
+    **({"sayAgainInS": wait} if (wait := say_again_in(
+      thoughts, float(life.data.time))) is not None else {}),
     # The documents the robot can WATCH CHANGE (issues #38, #221): what has
     # happened to it, what it has made of that, and the index of its notes.
     # Here rather than in the cached prefix precisely BECAUSE they change

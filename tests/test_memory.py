@@ -98,3 +98,20 @@ def test_rows_survive_a_reopen_and_carry_their_cites(tmp_path):
 def test_an_unknown_kind_is_refused_at_the_store():
   with pytest.raises(AssertionError):
     RecordStore().add(R, "opinion", "robot", "x")
+
+
+def test_a_tail_by_topic_and_title_is_a_lookup_not_a_scan():
+  """`last_said` runs on every decision (issue #485), and a robot that had
+  said nothing this life scanned its whole History for the line it never
+  wrote -- 13 ms at 50 000 rows, 56 at 200 000. Read off the SQL `tail`
+  actually runs, through SQLite's own planner. Shown to fail by dropping
+  `records_topic`."""
+  m = RecordStore()
+  m.add(R, "history", "system", "said in my chat: hello", topic="chat", title="said")
+  ran: list[str] = []
+  m.db.set_trace_callback(ran.append)
+  assert len(m.tail(R, "history", 1, topic="chat", title="said")) == 1
+  m.db.set_trace_callback(None)
+  query = next(q for q in ran if q.lstrip().upper().startswith("SELECT * FROM RECORDS"))
+  plan = " ".join(str(row[-1]) for row in m.db.execute(f"EXPLAIN QUERY PLAN {query}"))
+  assert "USING INDEX records_topic" in plan, plan

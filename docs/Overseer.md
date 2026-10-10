@@ -2203,7 +2203,8 @@ gate every document write passes (the files' `append`, the library's
   of one is not (a second measurement that agrees).
 - **It recalls.** `recall` is an ACTION: `read` a key (a note's
   `topic/title`, a topic or a family like `tasks`, `findings`, `history` for
-  forty more lines, a line's `#123`) and/or `find` words (FTS5 over
+  forty more lines, `chat` for its chat in the chain's whole room (#485,
+  §10), a line's `#123`) and/or `find` words (FTS5 over
   everything this generation, retired rows included, OR-joined and bm25
   ranked; `FIND_LIMIT` 8). The robot stands still `RECALL_S` (10 s — thinking
   takes real seconds) and the block (`{read, find, hits, lines}`, each line
@@ -2577,7 +2578,7 @@ as a typed `visitor_reply`, which closes the row the website holds open.
 
 **A conversation is one length both ways** (issue #474):
 `text.MAX_VISITOR_CHARS`, 500 — what a visitor sends, what the robot
-replies, and each half of an `earlier` turn — read off the visitor row by
+replies or says, and each line of `earlier` — read off the visitor row by
 the inbox's door, `Menu.validate` and the VISITORS rule, which states the
 number. At 240 a reply stopped mid-word and nothing said so. A reply past
 the cap is cut **out loud**: `validate` keeps one character over (`define`'s
@@ -2586,36 +2587,67 @@ for the page to mark, the narration ends `-- CUT at 500 characters`, and
 History says it BEFORE the text, where a line's end cannot take it. Both
 History lines of an exchange carry a quoted text's room (#433), so a full
 message and a full reply are kept whole. ⚠ `MAX_RAW_BYTES` (64 KiB) must
-admit a follow-up at every cap however it is encoded: 5 188 characters as
-the site sends it, 56 888 with every character an escaped astral pair.
-The other robot's `tell` stays a sentence, 280.
+admit a message at every cap however it is encoded; the largest is an
+older website's follow-up, four exchanges at the cap both ways: 5 188
+characters as the site sends it, 56 888 with every character an escaped
+astral pair. The other robot's `tell` stays a sentence, 280.
 
-**It is a conversation, not a suggestion box** (rooftop-media-2026 #125).
-A visitor can follow up on an answer, and the follow-up arrives with the
-exchange so far: `thread` (the first message's id), `turn` (which message
-of theirs this is) and `earlier` (the newest `MAX_EARLIER` 4 turns, each
-`from` / `text` / `outcome` / `reply`), because the conversation is the
-WEBSITE's state — it outlives a mission, a restart and a generation, and
-in a pair the robot that answered may not be the one reading — and a
-transcript is a thing a network can carry. The model is shown `turn` and
-`earlier` on a follow-up alone, in `visitorMessages` (the user turn: the
-cached prefix is unaffected by conversation state), under one rule in the
-VISITORS block: *answer as the one who said those things, not as a
-stranger*. ⚠ The earlier turns are cleaned like everything on the socket,
-the robot's own earlier words included: they come back as DATA. ⚠ No new
-verb: the answer is still an action off the menu plus `respond_to` /
-`outcome` / `reply`, and `tests/test_inbox.py` asserts no decision field
-names a thread. A signed-in visitor is named (`from` is the username, the
+**Each robot's chat is ONE conversation** (issue #485; threads with a
+Reply button since rooftop-media-2026 #125, which Ben found unlike any
+chat). Everything said to a robot and by it is one chronological line on
+the website, its panel's Chat, which everyone watching can read — so the
+robot is shown it that way: every message carries `earlier`, the chat's
+newest `MAX_EARLIER` (6) LINES before it, because the chat is the
+WEBSITE's state — it outlives a mission, a restart and a generation — and
+a transcript is a thing a network can carry. A line is somebody's
+(`from`, `text`; `outcome: dropped` where the queue threw it away) or the
+robot's own (`you`, with `to` and `outcome` on an answer, neither on a
+line it said unasked). ⚠ The robot's own lines are a SHAPE, never a name:
+a username can be `you`, so a person's line never carries that key. The
+model sees `earlier` in `visitorMessages` (the user turn: the cached
+prefix is unaffected), under one rule in the VISITORS block: *answer as
+the one who said those things, not as a stranger*. ⚠ Every line is
+cleaned like everything on the socket, the robot's own words included:
+they come back as DATA. An older website's thread (`thread`, `turn` and
+`earlier` as exchanges, `from` / `text` / `outcome` / `reply`) is read as
+the two lines each exchange is, and `thread` and `turn` are still echoed
+on the reply. A signed-in visitor is named (`from` is the username, the
 label a rating already carries); a stranger stays `a visitor`. The reply
-echoes `from`, `sender` (`visitor` / `robot` — who OFFERED it, stated by
-the caller of `Inbox.offer` and never read off the wire), `thread` and
-`turn`, so the website's observatory files one `conversation` row per
-exchange. **And the exchange is remembered**: two History lines per
-answer, theirs then the robot's (`ada said: …` / `replied to ada: …`),
-written by the system quoting the sender — until this issue the tier
-table promised History "the senders" and nothing was written — so
-`recall find ada` finds everything ada has said across a life, and the
-notes tier (`visitors/ada`) is where the character work lands.
+echoes `from` and `sender` (`visitor` / `robot` — who OFFERED it, stated
+by the caller of `Inbox.offer` and never read off the wire), so the
+website's observatory files one `conversation` row per exchange.
+
+**And the chat is remembered**: two History lines per answer, theirs then
+the robot's (`ada said: …` / `replied to ada: …`), written by the system
+quoting the sender, so `recall find ada` finds everything ada has said
+across a life and the notes tier (`visitors/ada`) is where the character
+work lands. ⚠ Each is filed under the topic `chat` by its role (`heard`,
+`answered`, `said`), so **`recall` with `read: chat` widens the window**
+past the six lines a message carries — Ben's "an extended conversation
+window": the newest of the chat that fits the recall chain's whole room
+(`CHAT_RECALLED_CHARS`, 8 000), no hole in it, oldest first; one block's
+room would have held seven full-length lines. The other robot's `tell`
+is remembered the same way and filed as no chat's: people read the chat,
+and it was never said there.
+
+**The robot may say something unasked** (issue #485): `say`, on any
+answer, is a line of its chat that answers nobody — a `chat` message
+(`{t, robot, id, text, cut?}`), which the website keeps as the robot's own
+line, and a History line under `chat`/`said`. It is cut at a reply's 500
+out loud, and RATIONED, one every `SAY_EVERY_S` (20 minutes: a visitor's
+own three an hour, so neither side can bury the other) — a DESIGN
+DECISION the rule states. While the ration holds the state says how long
+is left (`sayAgainInS`, `overseer.say_again_in`, the gate's own reading),
+and one sent anyway is not said: History says when the next may go,
+quoting the attempt to `QUOTED_CHARS` as #409's refusals do. ⚠ MEASURED
+before release (GLM-5.3-Flash through the deployed prompt, $0.06 of
+calls): a `say` on 2 of 6 quiet turns, and on 2 of 4 turns with
+`sayAgainInS` in front of it — refusals are routine, which is why each is
+a short line in the dozen History shows. ⚠ The clock is the STORE's
+(`ThoughtFiles.last_said`, the newest `chat`/`said` row's sim time): a
+restart keeps it and a true death forgets it, with no kept state of its
+own. ⚠ A placeholder `say` (`n`) is read as nothing said
+(`PLACEHOLDER_TEXT`): a public chat is the worst place for one.
 
 **Ratings never touch the overseer.** A `rating` settles a deferred
 visitor-tier verdict, which moves a balance, so `_visitor_step` drains those
@@ -2655,7 +2687,8 @@ JOURNAL whiteboard_a is nearly full -- use b next time
 ```
 
 The typed messages, all additive (`protocol/README.md` has each version's
-shape): `visitor_reply` (`{id, kind, outcome, reply, action}`) and `journal`
+shape): `visitor_reply` (`{id, kind, outcome, reply, action}`), `chat` (what
+the robot says unasked, #485, §10) and `journal`
 (0.7.0; since 0.21.0 it carries the `think` -- `text`, and `why` is the
 decision it preceded); `goals` (`{robot, t, text, steering}`, 0.8.0), emitted when a stream
 opens and read by `overseer.goals_text` on **every** run — since 0.19.0 the
