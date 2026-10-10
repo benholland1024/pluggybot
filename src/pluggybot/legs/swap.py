@@ -387,9 +387,9 @@ class ToolSwap:
       if self.look_at_rack() is None:
         yield from self._find_rack_routine()
       return None
-    # ⚠ LINED UP AT A BAY, THE RACK'S TAGS ARE A FIX (#476): half a metre
-    # off, one look puts the robot within 0.2 cm and 0.1 deg of the truth --
-    # the aim is in the torso's frame, and moves with nothing it does
+    # ⚠ LINED UP AT A BAY, THE RACK'S TAGS ARE A FIX (#476): there one look
+    # was within 0.3 cm and 0.22 deg of the truth; the aim is in the torso's
+    # frame, and a fix moves nothing it reads
     self.look_at_rack(fixing=True)
     return aim
 

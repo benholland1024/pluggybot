@@ -1393,13 +1393,10 @@ class HubLifecycle:
 
   def _belief_step(self) -> None:
     """The belief against the truth, on the wire (issue #476): a `drift`
-    row for every event that moved the belief outside a match or lost it
+    row per event that moved the belief outside a match or lost it
     (`Body.belief_events`), and one every `DRIFT_EVERY_S` with the
-    matcher's verdicts since the last -- the sim's own check, as a death
-    row's `at.pose` is, read by nothing that decides. A loss, a map dropped
-    and a search that found nothing are the robot's to read too (History),
-    in its own terms: what a fixture said against what it believed, never
-    the truth."""
+    matcher's verdicts since the last -- the sim's own check, read by
+    nothing that decides (`_tell_belief` says the robot's part)."""
     events = self.body.belief_events
     if events and events[-1]["seq"] > self._belief_seen:
       for rec in events:
@@ -1453,9 +1450,9 @@ class HubLifecycle:
     off = math.hypot(a["x"] - b["x"], a["y"] - b["y"])
     turned = abs((a["yawDeg"] - b["yawDeg"] + 180.0) % 360.0 - 180.0)
     if why == "lost":
-      line = (f"{what} was not in sight where I believed it was in front of me: I am not "
-              "where I thought I was. The map I had is gone, and I am looking round for "
-              "the dock or the rack")
+      line = (f"{what} was not in sight where I believed it was in front of me, so I "
+              "am not where I thought: my map is gone, and I am looking round for the "
+              "dock or the rack")
     elif why == "fixed" and rec.get("dropped"):
       line = (f"{what} put me {off:.1f} m and {turned:.0f} deg from where I believed I "
               f"was: the map I had was laid askew, and it is gone")
@@ -2501,11 +2498,10 @@ class HubLifecycle:
         tried = yield from self.body.dock_routine()
         if tried != "no board" or self.body.charging():
           break
-        # ...and no board in sight from within NEAR_STANDOFF_M of the
-        # standoff is a robot LOST (issue #476): from there the board is in
-        # plain sight, and Rowan's walk 4.6 m off gave up 0.7 m short of
-        # where it believed the standoff was, twice. Once a charge; put
-        # right, the walk goes again, and else its own retries as before.
+        # ...and no board in sight from within NEAR_STANDOFF_M is a robot
+        # LOST too (issue #476): the board is in plain sight from there (a
+        # walk 4.6 m off gave up 0.7 m short, twice). Once a charge; put
+        # right, the walk goes again, and else its retries as before.
         if not searched:
           searched = True
           if (yield from self.body.lost_routine("dock")):
@@ -2536,14 +2532,15 @@ class HubLifecycle:
     if arrived:
       tried = yield from self.body.dock_routine()
       # ⚠ NO BOARD FROM THE STANDOFF THE WALK ARRIVED AT IS A ROBOT LOST
-      # (issue #476): Rowan walked to the same wrong place 31 times, 7-8 m
-      # from it, until it died flat. Put right by a fixture, it walks to the
-      # standoff again and docks from there.
+      # (issue #476): Rowan walked to the same wrong place 31 times until it
+      # died flat. Put right, it walks back, and near enough the board
+      # decides, as above.
       if tried == "no board" and not searched and not self.body.charging():
         searched = True
-        if ((yield from self.body.lost_routine("dock"))
-            and (yield from self.body.go_to_routine(sx, sy, timeout=90.0))):
-          tried = yield from self.body.dock_routine()
+        if (yield from self.body.lost_routine("dock")):
+          back = yield from self.body.go_to_routine(sx, sy, timeout=90.0)
+          if back or self._near_standoff(sx, sy):
+            tried = yield from self.body.dock_routine()
     if not self.body.charging():
       # the approach's trace is EVIDENCE (issue #346), the log's alone
       self.charge_failure = f"no charge contact ({tried})"

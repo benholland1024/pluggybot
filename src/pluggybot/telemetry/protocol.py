@@ -606,25 +606,16 @@ LEFT_OUT_EVENT_TYPES = ("left_out",)
 LEFT_OUT_WHYS = ("filled", "placeholder", "decline")
 
 #: THE BELIEF AGAINST THE TRUTH (issue #476), additive on the wire, no
-#: bump: a `drift` event per robot every `lifecycle.DRIFT_EVERY_S` and per
-#: event that moved its belief outside a scan match or lost it -- `robot`,
-#: `t`, `why` (below), `pose` (where it IS: the sim's own check, as a death
-#: row's `at.pose`), `believed` (where it believes it is, after the event),
-#: `errorM` and `headingDeg` (the belief less the truth), and `before` (the
-#: belief before it). A `sample` carries `matched` (the scan matcher's
-#: verdicts since the last sample, by verdict), `posture` and `state`; a
-#: `fixed` the `fixture` (`DRIFT_FIXTURES`), `moved`, `dropped` (the map with
-#: it) and, off an approach's look, `tags` and `atM` (their range), or off
-#: the dock's own seat, `anchor`; a `lost` the `fixture` that was not where
-#: the belief put it; a `searched` whether it `found` one, how it `ended`,
-#: the `seconds`, `viewpoints` and `arounds`; a `relocated` the `inliers`.
-#: The observatory files a row per event under `why`; nothing the robot is
-#: shown carries the truth.
+#: bump: a `drift` event per robot every `lifecycle.DRIFT_EVERY_S` and at
+#: every event that moved its belief outside a scan match or lost it, with
+#: `pose` (where it IS: the sim's own check, as a death's `at.pose`) beside
+#: `believed`; protocol/README.md has the fields. The observatory files a row
+#: per event under `why`; nothing the robot is shown carries the truth.
 DRIFT_EVENT_TYPES = ("drift",)
 #: `sample` every few minutes; `relocated` by the scan matcher's wide search
-#: (#422); `fixed` off a commissioned fixture's tags (an approach's look, or
-#: the dock's own anchor); `lost` at a fixture; `searched`, the search for
-#: one that followed. Additive, like every vocabulary here.
+#: (#422); `fixed` off a commissioned fixture (a bay's look, a lost robot's,
+#: or the dock's anchor); `lost` at a fixture; `searched`, the search for one
+#: that followed. Additive, like every vocabulary here.
 DRIFT_WHYS = ("sample", "relocated", "fixed", "lost", "searched")
 DRIFT_FIXTURES = ("dock", "rack")
 

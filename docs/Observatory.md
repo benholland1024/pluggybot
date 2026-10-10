@@ -13,68 +13,54 @@ observatory is NOT a result: it reports into the issue it informs.
 ### A lost robot is found by the dock and the rack, and the belief is on the wire (#476) — opens when this PR is deployed
 
 **What changed in the world.**
-- **The commissioned fixtures fix the belief.** Lined up at a rack's bay,
-  the rack's tags put the belief right (they were read only to line the
-  fork up); lying on the dock, its board does as before. A correction past
-  the scan matcher's own search (0.6 m or 6 deg) drops the map and the
-  places found in it, as an epoch reset does; a smaller one lays the map
-  again round the fix.
-- **A fixture missing is a robot lost.** The dock's board not in sight from
-  the standoff a charge walked to (or from within 0.75 m of it), or the
-  rack's tags not from a bay's approach, with the other robot not near the
-  fixture: the map goes, and the robot looks round for either fixture for
-  up to 300 s, then walks to the standoff and tries again. Before, the
-  charge failed and the next one walked to the same wrong place.
-- **The words.** History says, in the robot's own terms (never the truth):
-  `the dock's board was not in sight where I believed it was in front of
-  me: I am not where I thought I was. The map I had is gone, ...`, `the
-  rack put me 1.0 m and 5 deg from where I believed I was: the map I had
-  was laid askew, and it is gone`, and a search that found nothing. A
-  fetch that saw no rack says so, where it said "there was no route".
-- **The maps kept on the volume are dropped at the deploy**
-  (`continuation.MAP_EPOCH` 3), and History's restart line says so.
-- **On the wire**: a `drift` event per robot every five minutes, and at
-  every relocation, fix, loss and search (protocol/README.md). The site
-  files them as the `drift` kind (rooftop-media-2026, migration 0047);
-  deploy the site first, or the first rows are not kept.
+- **The commissioned fixtures fix the belief.** Lined up at a rack's bay
+  its tags put the belief right (they lined the fork up only), and lying
+  on the dock its board does, as before. A correction past the scan
+  matcher's own search (0.6 m or 6 deg) drops the map and its places; a
+  smaller one lays the map again round the fix.
+- **A fixture missing is a robot lost.** The board not in sight from the
+  standoff a charge reached (or within 0.75 m of it), or the rack not from
+  a bay's approach, with the other robot not near the fixture: the map
+  goes, the robot looks round for either fixture for up to 300 s, and tries
+  again. Before, the next charge walked to the same wrong place.
+- **The words.** History says, in the robot's own terms and never the
+  truth, that it was lost, that a fixture put it so far from where it
+  believed and its map is gone, or that its search found nothing. A fetch
+  that saw no rack says so, where it said "there was no route".
+- **The kept maps are dropped at the deploy** (`continuation.MAP_EPOCH` 3).
+- **On the wire**: a `drift` event per robot every five minutes and at
+  every relocation, fix, loss and search (protocol/README.md), filed by the
+  site as the `drift` kind (rooftop-media-2026, migration 0047): deploy the
+  site first, or the first rows are lost.
 
 Nothing in the mind moved: no prompt text, no decision field, no reward.
 
-**Why.** Read off `4cd0d88`, the box's log and its saves on 2026-10-08 to
-10-10:
-- **Lost again on maps laid from nothing.** After `MAP_EPOCH` 2, Rowan was
-  3.1 m from the truth at a death the same night and 8.0 m the next
-  morning, after 31 charges that saw no board.
-- **A slide and a jump onto copies the map held, never a run of
-  refusals.** Over three hours of saves two minutes apart, Luca's error
-  swung 1.2-2.5 m between saves with nearly every scan matched `ok`, and four of
-  Rowan's five relocations came where its error grew most, 1.6-2.0 m each.
-- **A belief put right was lost again on its own map.** Put at the truth on
-  either robot's map, a walk to the lab was 1.3 and 1.9 m out within 20 s
-  (`scripts/drift_spike.py --lived`); on an empty map, 0.23 m at worst.
-- SimNotes, "Lost on its own map, and found by its fixtures", has the
-  measurements; #476 the attribution.
+**Why.** Read off `4cd0d88` from 2026-10-08 to 10-10 (SimNotes, "Lost on
+its own map, and found by its fixtures", has the measurements):
+- After `MAP_EPOCH` 2 the error came back on maps laid from nothing: Rowan
+  was 8.0 m off at a death after 31 charges that saw no board.
+- It grew by slides and jumps onto copies the map held, nearly every scan
+  matched `ok`, never a run of refusals; put at the truth on either robot's
+  own map, a walk was 1.3 and 1.9 m out within 20 s.
 
 **What the period is for.**
 - **The acceptance: a week with every death's belief within 1 m of the
-  truth** (`death` rows, `at.believed` against `at.pose`).
-- **How often a robot is lost, and whether it is found.** `drift` rows
-  under `lost` and `searched` (`data.found`), per robot per day; a `lost`
-  with no `searched` after it is a process that ended mid-search.
+  truth** (`death` rows: `at.believed` against `at.pose`).
+- **How often a robot is lost, and found.** `drift` rows under `lost` and
+  `searched` (`data.found`), per robot per day. A `lost` with no `searched`
+  after it is a search a death, a stand-up or the process ended.
 - **How far off a fix finds it.** `fixed` rows: `data.before` against
-  `data.believed` is the correction, `dropped` whether the map went;
-  `data.fixture` and `anchor` say which look.
-- **When the error grows, and how.** `sample` rows: `errorM` over time and
-  `data.matched` beside it -- a growth with `relocated` in the verdicts is a
-  jump, one with only `ok` a slide.
-- **What a drop costs.** The first `find` of each place after a `dropped`
-  fix or a `lost`, and the jobs that failed "not found" in between.
-- **Charges.** `no charge contact (no board)` in the `charge` rows should
-  be rare, and each one followed by a `lost` row.
+  `data.believed`, and `dropped` whether the map went.
+- **When the error grows, and how.** `sample` rows: `errorM` over time
+  beside `data.matched` -- a growth with `relocated` in it is a jump, one
+  with only `ok` a slide.
+- **What a drop costs.** The first `find` of each place after one, and the
+  jobs that failed "not found" in between.
+- **Charges.** `no charge contact (no board)` should be rare, and come after
+  a `lost` row unless the other robot was at the dock.
 
-**Not yet known.** How often the robots are lost when nothing ends their
-day at the dock or the rack: a robot that stays in the lab for hours
-meets no fixture, and its error is read off the samples alone.
+**Not yet known.** How lost a robot gets where it meets no fixture: hours
+in the lab are read off the samples alone.
 
 ### The kept maps are dropped again (#476) — opens when this PR is deployed, with #475's below it
 

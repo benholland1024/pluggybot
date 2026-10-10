@@ -51,30 +51,32 @@ only record of it was the box's log. One event type is new:
 
 - **`drift`**: per robot, every `lifecycle.DRIFT_EVERY_S` (300 sim s) and
   at every event that moved its belief outside a scan match or lost it.
-  `why` is one of `DRIFT_WHYS`: `sample`; `relocated` (the scan matcher's
-  wide search jumped it); `fixed` (a commissioned fixture's tags put it
-  right: lying on the dock, lined up at a rack's bay, or a lost robot's
-  look); `lost` (a fixture was not where the belief put it in plain sight)
-  and `searched` (the search for one that followed). Every row carries
-  `pose` (where the robot IS -- the sim's own check, as a death's
-  `at.pose`), `believed` (where it believes it is, after the event),
-  `errorM` and `headingDeg` (the belief less the truth); an event's,
-  `before` (the belief before it). Beside them: a `sample`'s `matched` (the
-  matcher's verdicts since the last sample, by verdict), `posture` and
-  `state`; a `fixed`'s `fixture` (`DRIFT_FIXTURES`: `dock` / `rack`),
-  `moved`, `dropped` (the map went with it) and either `tags` and `atM` (a
-  look's) or `anchor` (`board` / `seat`, the dock's own); a `lost`'s
-  `fixture`; a `searched`'s `found`, `ended`, `seconds`, `viewpoints` and
-  `arounds`, and where one was found its `fixture` and whether it
-  `dropped` the map; a `relocated`'s `inliers`. Nothing the robot is shown carries
-  the truth.
+  `why` (`DRIFT_WHYS`): `sample`; `relocated` (the scan matcher's wide
+  search); `fixed` (a commissioned fixture's tags: lying on the dock, lined
+  up at a bay, or a lost robot's look); `lost` (a fixture not where the
+  belief put it in plain sight); `searched` (the search that followed).
+  Every row: `pose` (where the robot IS -- the sim's own check, as a
+  death's `at.pose`), `believed` (after the event), `errorM` and
+  `headingDeg` (the belief less the truth); an event's `before`. Beside
+  them, by `why`:
+  - `sample`: `matched` (the matcher's verdicts since the last sample),
+    `posture`, `state`;
+  - `fixed`: `fixture` (`dock` / `rack`), `moved`, `dropped` (the map went
+    too), and a look's `tags` and `atM` or the dock's own `anchor` (`board`
+    / `seat`);
+  - `lost`: `fixture`;
+  - `searched`: `found`, `ended`, `seconds`, `viewpoints`, `arounds`, and
+    where one was found its `fixture` and whether it `dropped` the map;
+  - `relocated`: `inliers`.
+
+  Nothing the robot is shown carries the truth.
 
   ```jsonc
   {"type": "drift", "t": 907645.7, "robot": "pluggybot", "why": "fixed",
    "pose": {"x": 2.4, "y": -0.6, "yawDeg": -91.2},
    "believed": {"x": 2.41, "y": -0.6, "yawDeg": -91.0},
    "before": {"x": 1.9, "y": 3.8, "yawDeg": -62.0}, "errorM": 0.01,
-   "headingDeg": 0.2, "fixture": "rack", "tags": 6, "atM": 0.55,
+   "headingDeg": 0.2, "fixture": "rack", "tags": 2, "atM": 0.55,
    "moved": true, "dropped": true}
   ```
 

@@ -285,9 +285,7 @@ class Navigator:
                                 max_range=self.lidar.max_range)
                     if match else None)
     #: WHAT MOVED THE BELIEF OUTSIDE A MATCH, OR LOST IT (issue #476): the
-    #: wide search's relocations here, and on a body that has them its
-    #: fixtures' fixes and losses (`legs.fixtures`), each `belief_event`'s
-    #: record, the newest `BELIEF_EVENTS_KEPT`, for the lifecycle to drain.
+    #: newest `belief_event` records, for the lifecycle to drain.
     self.belief_events: collections.deque = collections.deque(maxlen=BELIEF_EVENTS_KEPT)
     self._belief_seq = 0
     self.backoff_until = 0.0
@@ -532,17 +530,17 @@ class Navigator:
     m = self.matcher.match(before, angles, ranges)
     if m.accepted:
       self._set_pose(*m.pose)
-      # ...a wide search's jump is said (issue #476): onto a copy the map
-      # held, it is how a belief put right was lost again
+      # ...and a wide search's jump is said (issue #476): onto a copy, it
+      # is how a belief put right was lost again
       if m.why == "relocated":
         self.belief_event("relocated", before=before, inliers=m.inliers)
     return m
 
   def belief_event(self, why: str, before=None, **fields) -> dict:
-    """A record of what just moved the belief, or lost it (issue #476),
-    on `belief_events`: when, `why`, the belief `before` and `after` it and
-    the TRUE pose -- the sim's own check, written down for the observatory
-    and read back by nothing that decides -- and the caller's `fields`."""
+    """A record of what just moved the belief, or lost it (issue #476), on
+    `belief_events`: when, `why`, the belief `before` and `after`, the
+    caller's `fields` and the TRUE pose -- the sim's own check, read back by
+    nothing that decides."""
     self._belief_seq += 1
     rec = {"seq": self._belief_seq, "t": round(float(self.data.time), 3), "why": why,
            "before": wire_pose(self.pose if before is None else before),

@@ -38,8 +38,9 @@ fixtures and the deployed robots' own saved state (a `world.npz`, read
 only):
 
     ... --looks                     # one look at the dock's board or the
-                                    # rack from 784 poses each: the pose it
-                                    # puts the robot at, against the truth
+                                    # rack, from round each and at the
+                                    # bays: where it puts the robot, against
+                                    # the truth
     ... --lived world.npz           # LAB_WALK steered by the truth, matched
                                     # estimates starting AT THE TRUTH on the
                                     # true floor, an empty map, and each
@@ -405,6 +406,7 @@ def fly_looks() -> list[dict]:
   from pluggybot.legs import rack as rk
   from pluggybot.legs import world as lw
   from pluggybot.legs.body import NAV_EYE, QuadMission
+  from pluggybot.legs.fixtures import FIXTURE_TAGS
   from pluggybot.lifecycle import QUAD_HOME, world_config
   model = lw.home_spec().compile()
   data = mujoco.MjData(model)
@@ -440,8 +442,7 @@ def fly_looks() -> list[dict]:
         continue
       fit, range_m = got
       wx, wy, wyaw = m.fixture_pose(fixture, fit)
-      tags = [i for i in seen if i in (dk.tag_layout() if fixture == "dock" else
-                                       {i for s_ in rk.SPECS for i in rk.tag_layout(s_)})]
+      tags = [i for i in seen if i in FIXTURE_TAGS[fixture]]
       rows.append({"at": where, "fixture": fixture, "range": round(range_m, 2), "tags": fit.n,
                    "offAxis": round(float(np.mean([abs(math.degrees(math.atan2(
                      seen[i][1], seen[i][0]))) for i in tags])), 1),
@@ -646,7 +647,7 @@ def report(out: dict) -> None:
 
 def main(argv=None) -> int:
   ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
-  ap.add_argument("--trips", type=int, default=3)
+  ap.add_argument("--trips", type=int, default=None, help="out and back: 3, or 1 with --lived")
   ap.add_argument("--out", default=None)
   ap.add_argument("--compare", nargs="+", default=None, metavar="JSON")
   ap.add_argument("--explore", type=float, default=None, metavar="SECONDS",
@@ -658,7 +659,7 @@ def main(argv=None) -> int:
   ap.add_argument("--no-charge", action="store_true", help="stop when the explore does")
   ap.add_argument("--explore-table", nargs="+", default=None, metavar="JSON")
   ap.add_argument("--looks", action="store_true",
-                  help="one look at a fixture from 784 poses each, against the truth")
+                  help="one look at a fixture from round it and at the bays, against the truth")
   ap.add_argument("--lived", default=None, metavar="WORLD_NPZ",
                   help="a walk from the truth on each robot's own map out of a save")
   ap.add_argument("--lost", default=None, metavar="WORLD_NPZ",
@@ -673,7 +674,7 @@ def main(argv=None) -> int:
       Path(args.out).write_text(json.dumps(rows))
     return 0
   if args.lived:
-    out = fly_lived(args.lived, trips=args.trips if args.trips != 3 else 1, seed=args.seed)
+    out = fly_lived(args.lived, trips=args.trips or 1, seed=args.seed)
     lived_table(out)
     if args.out:
       Path(args.out).write_text(json.dumps(out))
@@ -684,7 +685,7 @@ def main(argv=None) -> int:
     print(f"{args.robot} began {math.hypot(b[0] - t[0], b[1] - t[1]):.2f} m and "
           f"{math.degrees(wrap(b[2] - t[2])):+.1f} deg off")
     for e in out["events"]:
-      print(f"  t+{e['t'] - out['events'][0]['t'] if out['events'] else 0:6.1f} {e['why']:9s} "
+      print(f"  t+{e['t'] - out['events'][0]['t']:6.1f} {e['why']:9s} "
             + " ".join(f"{k}={e[k]}" for k in ("fixture", "moved", "dropped", "found", "ended", "seconds")
                        if k in e))
     print(json.dumps({k: out[k] for k in ("docked", "failure", "fetched", "onFork", "trace", "simS",
@@ -713,8 +714,9 @@ def main(argv=None) -> int:
       print(f"== {path}")
       report(json.loads(Path(path).read_text()))
     return 0
-  out = {"body": "quadruped", "trips": args.trips, "trace": [], "doors": []}
-  fly_quadruped(args.trips, out)
+  trips = args.trips or 3
+  out = {"body": "quadruped", "trips": trips, "trace": [], "doors": []}
+  fly_quadruped(trips, out)
   maps = out.pop("maps")
   report(out)
   if args.out:

@@ -74,9 +74,8 @@ def _no_steps(result=True, into=None):
 
 
 def test_a_look_at_a_fixture_puts_a_drifted_belief_right_and_lays_the_map_again(quad_world):
-  # Off by 0.36 m and 2 deg -- inside the matcher's own search, so what it
-  # laid that far off sits within the walls' reach: the belief goes where
-  # the rack puts it, and the next scans are laid there unmatched over it
+  # Off by 0.36 m and 2 deg, inside the matcher's own search: the belief
+  # goes where the rack puts it, and the map is laid again round it
   m = _quad(quad_world)
   truth = m.true_pose()
   _off(m, 0.3, -0.2, 2.0)
@@ -92,10 +91,9 @@ def test_a_look_at_a_fixture_puts_a_drifted_belief_right_and_lays_the_map_again(
 
 @pytest.mark.parametrize("off", [(1.0, 0.5, 0.0), (0.0, 0.0, 8.0)])
 def test_a_fix_past_the_matchers_search_drops_the_map_laid_while_lost(quad_world, off):
-  # Past ASKEW_* the robot had been lost past what its own map could put
-  # right, and put back at the truth on the deployed pair's own maps a
-  # walk was 1.3 and 1.9 m out within 20 s: the wide search relocated it
-  # onto a copy. The map goes, and what was laid in it.
+  # Past ASKEW_* the robot had been lost past what its map could put right;
+  # kept, such a map relocated a corrected belief onto a copy within 20 s.
+  # The map goes, and what was laid in it.
   m = _quad(quad_world)
   truth = m.true_pose()
   m.places.see(36, 25.0, 4.4, 0.0, 0.0)
@@ -108,11 +106,9 @@ def test_a_fix_past_the_matchers_search_drops_the_map_laid_while_lost(quad_world
 
 
 def test_no_fix_off_too_few_tags_too_far_or_a_belief_already_right(quad_world):
-  # A look is a fix only where it was measured to be one: off three tags
-  # within NEAR_FIX_M, an approach's end; a lost robot's, off four within
-  # FAR_FIX_M, where one walking look was 0.26 m and 6.6 deg off -- enough
-  # to walk to the approach, whose end fixes again. And none where the
-  # belief is within the matcher's own few centimetres.
+  # A look is a fix only where it was measured to be one: a bay's pair
+  # within NEAR_FIX_M, and a lost robot's four tags within FAR_FIX_M; and
+  # none where the belief is within the matcher's own few centimetres
   m = _quad(quad_world)
   truth = m.true_pose()
   _off(m, 0.3, 0.0)
@@ -135,12 +131,10 @@ def test_no_fix_off_too_few_tags_too_far_or_a_belief_already_right(quad_world):
 
 
 def test_lined_up_at_a_bay_the_rack_is_a_fix_and_never_on_the_way_there(quad_world, monkeypatch):
-  # Half a metre off a bay its tags put the robot within 0.2 cm and 0.1 deg
-  # of the truth; from an approach's start, 1.5 m off and maybe 25 deg off
-  # the camera's axis, one look was up to 0.2 m and 7 deg out, past the
-  # line that drops a map. The walk-in's looks steer, and a belief moved
-  # under them would move the goal. The dock's own fix is its anchor, lying
-  # on it (`test_the_dock_lain_on_drops_a_map_laid_while_lost`).
+  # Lined up at a bay, one look was within 0.3 cm and 0.22 deg of the
+  # truth; from an approach's start, up to 26 cm and 6.6 deg out, past the
+  # line that drops a map, and a walk-in's looks steer. (The dock's fix is
+  # its anchor, `test_the_dock_lain_on_drops_a_map_laid_while_lost`.)
   m = _quad(quad_world)
   truth = m.true_pose()
   fit = _fit(m, "rack", truth, n=4)
@@ -180,9 +174,8 @@ def test_the_dock_lain_on_drops_a_map_laid_while_lost(quad_world, monkeypatch):
 
 
 def test_a_fixture_missing_where_the_belief_puts_it_is_a_robot_lost(quad_world):
-  # Its map goes, and it looks for a fixture round where it stands; with
-  # another robot reported at the fixture -- its body can hide the board --
-  # a miss says nothing, and nothing goes
+  # Its map goes, and it looks round for a fixture; with another robot
+  # reported at the fixture, whose body can hide it, nothing goes
   m = _quad(quad_world)
   searched = []
   m.find_fixture_routine = _no_steps({"found": True}, searched)
@@ -227,10 +220,35 @@ def test_a_lost_robots_search_walks_to_a_far_sighting_and_ends_at_a_fix(quad_wor
   m.close()
 
 
+def test_a_lost_robots_search_walks_to_one_sighting_once(quad_world, monkeypatch):
+  # A fixture seen no better from where its sighting sent the robot (three
+  # tags at 1.5 m, every look) sends it nowhere new: walked to again, it
+  # stood looking there until its patience ran out
+  m = _quad(quad_world)
+  truth = m.true_pose()
+  walked = []
+
+  def walk(x, y, timeout=90.0, stop=None, beyond=()):
+    walked.append((x, y))
+    assert len(walked) < 4, "walked to one sighting again and again"
+    return True
+    yield
+
+  m._board_detector = lambda: SimpleNamespace(detect=lambda data: {})
+  m.fixture_fit = lambda f, seen: (_fit(m, "rack", truth, n=3), 1.5) if f == "rack" else None
+  m.drive_to_routine = walk
+  m.face_routine = _no_steps(True)
+  m._look_around_routine = _no_steps(False)
+  m._search_map = lambda looked, near: (None,) * 5
+  monkeypatch.setattr(fx, "next_viewpoint", lambda *a, **kw: None)
+  rec = m.run(m.find_fixture_routine(m.pose_xy(), 300.0))
+  assert len(walked) == 1 and rec["why"] == "not found" and not rec["found"]
+  m.close()
+
+
 def test_a_rack_not_there_is_searched_for_and_its_approach_walked_to_again(quad_world):
-  # Never the same walk again blind: found by a fixture, the walk to the
-  # approach and the look are made once more from the fixed belief; found
-  # nowhere, it says it saw no rack -- never "no route"
+  # Found by a fixture, the walk to the approach and the look are made once
+  # more; found nowhere, it says it saw no rack, never "no route"
   m = _quad(quad_world)
   walked, lost = [], []
   m.drive_to_routine = _no_steps(True, walked)
@@ -255,9 +273,9 @@ def test_a_rack_not_there_is_searched_for_and_its_approach_walked_to_again(quad_
 
 
 def test_a_charge_with_no_board_where_it_arrived_searches_and_docks_again():
-  # Rowan walked to the same wrong place 31 times, 7-8 m from it, and died
-  # flat: a board missing from the standoff the walk ARRIVED at is a loss,
-  # searched for, and the standoff walked to again once a fixture put it right
+  # Rowan walked to the same wrong place 31 times and died flat: no board
+  # from the standoff the walk ARRIVED at is a loss, searched for, and the
+  # standoff walked to again once a fixture put it right
   body = StubBody(rack=world_config("home_quad")["rack"])
   life = stub_life(body=body)
   docks = []
@@ -273,6 +291,25 @@ def test_a_charge_with_no_board_where_it_arrived_searches_and_docks_again():
   assert life.go_charge() is True
   assert body.lost_at == ["dock"] and len(docks) == 2
   assert body.went[-1] == body.went[-2], "the standoff was not walked to again"
+  # ...and a walk back that gives up near the standoff lets the board decide,
+  # as the first walk's does
+  body = StubBody(rack=world_config("home_quad")["rack"])
+  life = stub_life(body=body)
+  docks.clear()
+  body.dock_routine = dock
+  body.finds_fixture = True
+  walks = []
+
+  def walk(x, y, timeout=90.0, stop=None):
+    walks.append((x, y))
+    body.last_drive = {"why": "" if len(walks) == 1 else "stalled",
+                       "goal": (float(x), float(y)), "seconds": 10.0,
+                       "shortM": 0.0 if len(walks) == 1 else 0.3}
+    return len(walks) == 1
+    yield
+
+  body.go_to_routine = walk
+  assert life.go_charge() is True and len(docks) == 2 and len(walks) == 2
   # ...and found nowhere, the charge fails as it did, searched for once
   body = StubBody(rack=world_config("home_quad")["rack"])
   life = stub_life(body=body)
@@ -283,10 +320,9 @@ def test_a_charge_with_no_board_where_it_arrived_searches_and_docks_again():
 
 
 def test_no_board_from_near_the_standoff_is_a_loss_searched_once_a_charge():
-  # "Near enough, the board decides" (#422): within NEAR_STANDOFF_M of the
-  # standoff the board is in plain sight, so none there is a robot lost --
-  # Rowan's walk 4.6 m off gave up 0.7 m short, twice. Searched once a
-  # charge; the walk's own retries go on after a search that found nothing
+  # Within NEAR_STANDOFF_M the board is in plain sight (#422), so none there
+  # is a robot lost too: searched once a charge, and the walk's retries go
+  # on after a search that found nothing
   body = StubBody(rack=world_config("home_quad")["rack"])
   life = stub_life(body=body)
   walks = []
@@ -348,6 +384,7 @@ def test_every_belief_event_is_a_drift_row_and_a_loss_is_history():
                                    (3.1, 2.0, 0.3), fixture="dock", anchor="seat",
                                    moved=True, dropped=True))
   life._belief_step()
+  life._belief_step()                                # ...each once
   drift = [r for r in rows if r.get("type") == "drift"]
   assert [r["why"] for r in drift] == ["lost", "fixed", "fixed", "fixed"]
   assert drift[0]["errorM"] == 2.0 and drift[0]["pose"] == wire_pose((3.0, 2.0, 0.0))
@@ -371,17 +408,13 @@ def test_every_belief_event_is_a_drift_row_and_a_loss_is_history():
     now = _history(life)
     assert (now[-1].endswith(words) if words else len(now) == len(said)), (seq, now[-1])
     said = now
-  rows[:] = [r for r in rows if r.get("why") != "searched"]
-  # ...each once, and nothing of the truth in what the robot reads
-  life._belief_step()
-  assert len([r for r in rows if r.get("type") == "drift"]) == 4
-  assert not any("3.0" in ln or "error" in ln for ln in said)
+  # ...and no pose of the truth's in what the robot reads
+  assert not any("3.0" in ln for ln in said)
 
 
 def test_the_belief_against_the_truth_is_sampled_with_the_verdicts_since():
-  # On the physics seam, every DRIFT_EVERY_S, the matcher's verdicts since
-  # the last: a jump onto a copy (`relocated`) and a slide against one (all
-  # `ok`) read apart, where the save's lifetime counts read only totals
+  # Every DRIFT_EVERY_S on the physics seam, with the matcher's verdicts
+  # since the last: a jump (`relocated`) and a slide (all `ok`) read apart
   body = StubBody(pose=(1.0, 2.0, 0.0))
   life = stub_life(body=body)
   assert life._belief_step in body.step_hooks

@@ -1341,28 +1341,22 @@ save a filmstrip PNG named after the script.
   ⚠ No BLAS product (einsum's own loop); the field is kept state.
   ⚠ `Navigator(match=False)` is a measurement's switch, never a
   deployment's.
-- **The commissioned fixtures outrank the robot's map, and a fixture
-  missing where the belief puts it is a robot LOST** (issue #476;
+- **The commissioned fixtures outrank the robot's map, and one missing
+  where the belief puts it is a robot LOST** (issue #476;
   `legs/fixtures.py`; SimNotes, "Lost on its own map, and found by its
-  fixtures"). A look is a fix only where one look was MEASURED to be one
-  (`scripts/drift_spike.py --looks`): lying on the dock (its board's
-  anchor), lined up at a rack's bay (the bay's own pair: 0.3 cm, 0.22°),
-  and a lost robot's looks, four tags within 2.5 m -- ⚠ NEVER at an
-  approach's start nor on a walk-in, which steer by what they see (one
-  look there was 26 cm and 6.6° out). Past `FIX_TOL_*` (10 cm, 2°) a fix
+  fixtures"). A look is a fix only where one was MEASURED to be
+  (`drift_spike.py --looks`): lying on the dock, lined up at a bay, and a
+  lost robot's looks (four tags within 2.5 m) -- ⚠ NEVER at an approach's
+  start or on a walk-in (26 cm and 6.6° out there). A fix past `FIX_TOL_*`
   moves the belief and lays the map again round it; ⚠ PAST THE MATCHER'S
-  SEARCH (`ASKEW_*` is `SEARCH_M` / `SEARCH_RAD`) THE MAP AND ITS PLACES
-  ARE DROPPED (`forget_world`): put at the truth on a map laid while lost,
-  the wide search relocated the belief onto a copy within 20 s. ⚠ The board
-  not in sight from the standoff a charge arrived at (or within
-  `NEAR_STANDOFF_M` of it), or the rack's tags not from a bay's approach,
-  with no other robot reported within `HIDDEN_BY_PEER_M` of the fixture, is
-  lost (`Body.lost_routine`): the map goes, the robot looks round for
-  either fixture (`LOST_SEARCH_S`), then walks there and tries again, ONCE
-  a charge. Every relocation, fix, loss and search is a `drift` row
-  (`Body.belief_events`, `HubLifecycle._belief_step`) beside a sample every
-  `DRIFT_EVERY_S`; ⚠ the truth rides those rows and NEVER what the robot
-  reads -- History says what a fixture said against what it believed.
+  SEARCH (`ASKEW_*`) THE MAP AND ITS PLACES ARE DROPPED: kept, a map laid
+  while lost pulled a corrected belief onto a copy within 20 s. No board
+  from the standoff a charge reached (or within `NEAR_STANDOFF_M`), or no
+  rack from a bay's approach, with no other robot near the fixture, is
+  lost (`Body.lost_routine`): the map goes, a search for either fixture,
+  then the approach again, ONCE a charge or a swap. Each relocation, fix,
+  loss and search is a `drift` row, beside a sample every `DRIFT_EVERY_S`;
+  ⚠ the truth rides those rows and never what the robot reads.
 - **A quadruped walks into the unknown** (issue #381's walking stage;
   `mapping/optimistic.py`, `Navigator.OPTIMISTIC`; SimNotes, "Walking into
   the unknown"): it plans through floor it has not seen at `UNKNOWN_COST` a
