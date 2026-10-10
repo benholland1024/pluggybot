@@ -21,6 +21,7 @@ peer channel watches). The defaults are the rover's, measured on it
 own.
 """
 
+import collections
 import math
 import time
 
@@ -205,6 +206,17 @@ PEER_CLEARANCE_M = 0.30
 #: tossed, and the built-tool rail beside bay E turned it over.
 ARRIVAL_SLOW_RADIUS = 0.25
 FACING_TOLERANCE = math.radians(0.5)
+#: How many of the belief's events a body keeps for the lifecycle to drain
+#: (`Navigator.belief_events`): drained every physics step, so a few.
+BELIEF_EVENTS_KEPT = 16
+
+
+def wire_pose(p) -> dict:
+  """A pose as the wire carries one (issue #476): metres and degrees,
+  wrapped -- a death row's `at.pose`, a `drift` row's."""
+  x, y, th = (float(v) for v in p)
+  return {"x": round(x, 3), "y": round(y, 3),
+          "yawDeg": round(math.degrees(math.atan2(math.sin(th), math.cos(th))), 1)}
 
 
 class Navigator:
@@ -272,6 +284,12 @@ class Navigator:
     self.matcher = (ScanMatcher(self.grid, origin=self.LIDAR_ORIGIN,
                                 max_range=self.lidar.max_range)
                     if match else None)
+    #: WHAT MOVED THE BELIEF OUTSIDE A MATCH, OR LOST IT (issue #476): the
+    #: wide search's relocations here, and on a body that has them its
+    #: fixtures' fixes and losses (`legs.fixtures`), each `belief_event`'s
+    #: record, the newest `BELIEF_EVENTS_KEPT`, for the lifecycle to drain.
+    self.belief_events: collections.deque = collections.deque(maxlen=BELIEF_EVENTS_KEPT)
+    self._belief_seq = 0
     self.backoff_until = 0.0
     #: How the last `drive_to` ended (issue #350): `why` ("" arrived, else
     #: one of `DRIVE_GAVE_UP`), the goal, the seconds it took, how far short
@@ -510,10 +528,27 @@ class Navigator:
     or None with no matcher."""
     if self.matcher is None:
       return None
-    m = self.matcher.match(self.pose, angles, ranges)
+    before = self.pose
+    m = self.matcher.match(before, angles, ranges)
     if m.accepted:
       self._set_pose(*m.pose)
+      # ...a wide search's jump is said (issue #476): onto a copy the map
+      # held, it is how a belief put right was lost again
+      if m.why == "relocated":
+        self.belief_event("relocated", before=before, inliers=m.inliers)
     return m
+
+  def belief_event(self, why: str, before=None, **fields) -> dict:
+    """A record of what just moved the belief, or lost it (issue #476),
+    on `belief_events`: when, `why`, the belief `before` and `after` it and
+    the TRUE pose -- the sim's own check, written down for the observatory
+    and read back by nothing that decides -- and the caller's `fields`."""
+    self._belief_seq += 1
+    rec = {"seq": self._belief_seq, "t": round(float(self.data.time), 3), "why": why,
+           "before": wire_pose(self.pose if before is None else before),
+           "after": wire_pose(self.pose), "truth": wire_pose(self.true_pose()), **fields}
+    self.belief_events.append(rec)
+    return rec
 
   def _spin(self) -> None:
     return self.run(self._spin_routine())

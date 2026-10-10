@@ -59,7 +59,9 @@ from pluggybot.legs import posture as pz
 from pluggybot.legs.actuator import BUS_V_NOMINAL, JointLimits
 from pluggybot.legs.arm import ARM_SLEW, ArmDriver
 from pluggybot.legs.claw import CubeWork
+from pluggybot.legs import fixtures as fx
 from pluggybot.legs.draw import BoardWork
+from pluggybot.legs.fixtures import Fixtures
 from pluggybot.legs.game import GameWalk
 from pluggybot.legs.model import CHOSEN, ELECTRONICS_W, LEGS
 from pluggybot.legs.odometry import LegOdometry
@@ -278,7 +280,7 @@ class QuadStepper:
 
 
 class QuadMission(ToolSwap, PlaceWalk, BoardWork, CubeWork, AreaSurvey, MakeWay, GameWalk,
-                  Navigator):
+                  Fixtures, Navigator):
   """The Navigator over a quadruped (the module docstring)."""
 
   #: The body's own sizes (`scripts/quad_spike.py`; SimNotes, "The first
@@ -420,6 +422,8 @@ class QuadMission(ToolSwap, PlaceWalk, BoardWork, CubeWork, AreaSurvey, MakeWay,
     self._init_way()
     # HIDE AND SEEK's two roles (#404, `legs/game.py`)
     self._init_game()
+    # WHERE THE DOCK AND THE RACK PUT IT, and lost (#476, `legs/fixtures.py`)
+    self._init_fixtures()
 
   def _resolve_geoms(self, model) -> None:
     """What the press reads, by geom id: this body's limbs (its geoms but
@@ -1067,9 +1071,12 @@ class QuadMission(ToolSwap, PlaceWalk, BoardWork, CubeWork, AreaSurvey, MakeWay,
 
   def detect_board(self) -> dict:
     """One decode from the nose camera; the places in it are remembered
-    (#419, `PlaceWalk.see_places`), whatever the look was for."""
+    (#419, `PlaceWalk.see_places`), whatever the look was for, and a lost
+    robot tries both fixtures off it (#476, `Fixtures.watch_fixtures`)."""
     dets = self._board_detector().detect(self.data)
     self.see_places(dets)
+    if self._seeking:
+      self.watch_fixtures(dets)
     return dets
 
   def look_at_board(self) -> dk.DockFix | None:
@@ -1190,14 +1197,24 @@ class QuadMission(ToolSwap, PlaceWalk, BoardWork, CubeWork, AreaSurvey, MakeWay,
       me = dk.relative((0.0, 0.0, 0.0), (fix.x, fix.y, fix.yaw))
     else:
       me = (0.0, 0.0, 0.0)
+    before = self.pose
     wx, wy, wyaw = dk.compose((x, y, yaw), me)
     self.odo.correct(wx, wy, wyaw)
-    # ...and the map round it is laid again from here (issue #422,
+    # ...and a belief that far off had been lost past its matcher's search,
+    # and the map it laid goes (issue #476, `fixtures.ASKEW_M`)...
+    dropped = (math.hypot(wx - before[0], wy - before[1]) > fx.ASKEW_M
+               or abs(dk._wrap(wyaw - before[2])) > fx.ASKEW_RAD)
+    if dropped:
+      self.forget_world()
+    # ...else the map round it is laid again from here (issue #422,
     # `scan_match.ANCHORED_SCANS`): the board outranks a copy laid askew.
     # ⚠ The board's alone: the seat is good to 2 deg, and 30 scans laid
     # unmatched through that would lay the room askew themselves
-    if self.matcher is not None and fix is not None:
+    elif self.matcher is not None and fix is not None:
       self.matcher.anchored()
+    self.belief_event("fixed", before=before, fixture="dock",
+                      anchor="board" if fix is not None else "seat", moved=True,
+                      dropped=dropped)
     if self.last_charge is not None:
       self.last_charge["anchor"] = "board" if fix is not None else "seat"
 
@@ -1575,6 +1592,13 @@ class QuadBody(Body):
 
   def forget_world(self) -> None:
     self.mission.forget_world()
+
+  belief_events = property(lambda self: self.mission.belief_events)
+  match_counts = property(lambda self: ({} if self.mission.matcher is None
+                                        else self.mission.matcher.counts))
+
+  def lost_routine(self, fixture, stop=None) -> Routine:
+    return self.mission.lost_routine(fixture, stop=stop)
 
   def plan_frontier(self, blacklist):
     from pluggybot.behavior.navigation import plan
