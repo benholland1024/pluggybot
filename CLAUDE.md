@@ -809,8 +809,11 @@ save a filmstrip PNG named after the script.
   `read chat` widens the window. ⚠ The robot may `say` something unasked:
   a `chat` message, cut out loud at 500 and RATIONED at `SAY_EVERY_S`
   (1200, a visitor's three an hour) off the STORE's clock
-  (`ThoughtFiles.last_said`), a refusal said in History; a placeholder
-  `say` is nothing said. ⚠ It is ONE LENGTH BOTH WAYS,
+  (`ThoughtFiles.last_said`); while it holds the state shows
+  `sayAgainInS` (`say_again_in`, the gate's own reading), and a refusal is
+  a SHORT History line, the attempt quoted to `QUOTED_CHARS` (the deployed
+  model sent a `say` on 2 of 4 turns with the wait in front of it); a
+  placeholder `say` is nothing said. ⚠ It is ONE LENGTH BOTH WAYS,
   `text.MAX_VISITOR_CHARS` (500, #474; the site enforces it too), and the
   VISITORS rule states it, the window and the interval off the constants;
   a reply past it is cut OUT LOUD (`cut` on `visitor_reply`, History), and

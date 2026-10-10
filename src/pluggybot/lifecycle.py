@@ -57,12 +57,12 @@ from pluggybot.mind.spend import open_book
 from pluggybot.mind.overseer import (
   CALLS_PER_HOUR, HEART_PRICE, HEART_RESERVE_HOURS, MAX_LOOK_RUN,
   MAX_RECALL_RUN, MAX_REPLY, PROCEDURE_NEW, PROCEDURE_PREFIX, RECALL_S,
-  SAY_EVERY_S, THINK_SLICE_S, left_out_said, order_runnable,
+  SAY_EVERY_S, THINK_SLICE_S, left_out_said, order_runnable, say_again_in,
 )
 from pluggybot.tools.screen import face_for
 from pluggybot.mind.thoughts import (
-  CHAT_ANSWERED, CHAT_HEARD, CHAT_SAID, RECALLED_CHAIN_CHARS, ThoughtFiles,
-  ThoughtRefused, attempted,
+  CHAT_ANSWERED, CHAT_HEARD, CHAT_SAID, QUOTED_CHARS, RECALLED_CHAIN_CHARS,
+  ThoughtFiles, ThoughtRefused, attempted,
 )
 from pluggybot.economy import questions, scoring
 from pluggybot.tools import strokes
@@ -5403,15 +5403,17 @@ class HubLifecycle:
     if not decision.say:
       return
     t = float(self.data.time)
-    last = self.thoughts.last_said()
-    if last is not None and t - last < SAY_EVERY_S:
-      wait = math.ceil((SAY_EVERY_S - (t - last)) / 60)
-      self._say(f"CHAT not said, {t - last:.0f} s after the last: "
+    wait = say_again_in(self.thoughts, t)
+    if wait is not None:
+      # ⚠ QUOTED, NOT WHOLE (#409's refusals): the deployed model sent a
+      # `say` on 2 of 4 turns with `sayAgainInS` in front of it, so these
+      # are routine, and each is a line of the dozen History shows.
+      self._say(f"CHAT not said, {wait} s before it may: "
                 f"{decision.say[:MAX_REPLY]}")
       self._remember(f"did not say in my chat -- one thing every "
                      f"{SAY_EVERY_S / 60:.0f} minutes, and the next may go "
-                     f"in {wait} min: {decision.say[:MAX_REPLY]}",
-                     room=MAX_REPLY)
+                     f"in {math.ceil(wait / 60)} min -- "
+                     f"{decision.say[:QUOTED_CHARS]!r}")
       return
     text = decision.say[:MAX_REPLY].rstrip()
     cut = len(decision.say) > MAX_REPLY

@@ -53,6 +53,7 @@ it is worth more than padding the prompt until the number looks right.
 
 import hashlib
 import json
+import math
 import os
 import threading
 import time
@@ -96,6 +97,19 @@ MAX_REPLY = text_registry.BY_NAME["visitor"].cap
 #: chat can bury the other. A DESIGN DECISION, said to the robot (VISITORS);
 #: a `say` sooner is not said, and History says so.
 SAY_EVERY_S = 1200.0
+
+
+def say_again_in(thoughts, t: float) -> int | None:
+  """Whole seconds until the robot may `say` again (issue #485), or None
+  where it may now: off the store's record of its last line, so the state
+  that shows the wait (`sayAgainInS`) and the gate that holds it
+  (`lifecycle._chat`) are one reading. ⚠ SHOWN BEFORE IT BITES: the
+  deployed model wrote a `say` on 2 of 6 quiet turns, a decision or two a
+  minute, and every refusal is a History line in the dozen it reads."""
+  last = thoughts.last_said() if thoughts is not None else None
+  if last is None or t - last >= SAY_EVERY_S:
+    return None
+  return math.ceil(SAY_EVERY_S - (t - last))
 #: A sentence of WHY that reaches no visitor: the mid-errand interrupt's
 #: reason (issue #116) and the words a garbled answer was refused with
 #: (#296). Not `MAX_REPLY`: neither is a conversation.
@@ -2436,7 +2450,8 @@ somebody). Answer as the one who said those things, not as a stranger. \
 - You may also say something in your chat that answers nobody: set `say`, \
 on any answer. Everyone reading your chat sees it. It is kept up to \
 %(chars)d characters, like a reply, and you may say one such thing every \
-%(minutes)d minutes; one sooner than that is not said, and you are told.
+%(minutes)d minutes: while you may not, `sayAgainInS` says how many seconds \
+are left, and a `say` sent anyway is not said, and you are told.
 """ % {"chars": MAX_REPLY, "lines": MAX_EARLIER,
        "minutes": round(SAY_EVERY_S / 60)}
 
@@ -3796,6 +3811,10 @@ def context_for(life, visitors=(), tasks=(), affordable=(), possible=(),
     # REPORTS rather than as conversation turns, so nothing in here can look
     # like the operator talking. The rules block above is the other half.
     "visitorMessages": [m.as_context() for m in visitors],
+    # ...and how long until it may say something unasked again (issue #485),
+    # only while the ration holds.
+    **({"sayAgainInS": wait} if (wait := say_again_in(
+      thoughts, float(life.data.time))) is not None else {}),
     # The documents the robot can WATCH CHANGE (issues #38, #221): what has
     # happened to it, what it has made of that, and the index of its notes.
     # Here rather than in the cached prefix precisely BECAUSE they change

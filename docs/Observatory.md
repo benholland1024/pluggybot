@@ -19,11 +19,21 @@ what it says back are ONE chat that everyone can read, and every message
 comes with `earlier`, the chat's last 6 lines, the robot's own lines as
 `you`. `recall` with `read: chat` shows more of it. And a new power, `say`:
 something said in its chat that answers nobody, kept up to 500 characters
-and one every 20 minutes, one sooner not said and the robot told. The
-RECALL bullet names the `chat` key; "What you can do" gained `say`'s line;
-the schema gained the `say` field. The deployed prefix moved `55c3cf47…` →
-`e926c2c4…` (53 420 → 53 967 characters). The arm, the reward table and
-the world did not move.
+and one every 20 minutes. While it may not, the state says how long is
+left (`sayAgainInS`), and a `say` sent anyway is not said and the robot is
+told, in a short History line. The RECALL bullet names the `chat` key;
+"What you can do" gained `say`'s line; the schema gained the `say` field.
+The deployed prefix moved `55c3cf47…` → `081aa0e9…` (53 420 → 54 035
+characters). The arm, the reward table and the world did not move.
+
+**Measured before release** (GLM-5.3-Flash through the deployed prompt, a
+synthetic robot charging with a job on offer; $0.06 of calls). With a
+visitor's message whose `earlier` held the robot's own unasked line about
+a finished drawing, all four answers used it ("the house on whiteboard_b
+is finished"). On quiet turns it sent a `say` on 2 of 6, all narrating
+what it was doing ("Charging now — pack too low for the lab run"), and on
+2 of 4 turns where `sayAgainInS` said it had to wait: the countdown does
+not stop the attempts, so the refusals below will be routine.
 
 **What moved under it.** On the website the Chat tab is one chronological
 line per robot: no threads and no Reply button, every reply its own line
@@ -38,9 +48,9 @@ History record under the topic `chat`.
 proactivity: a robot could only answer. What to read from here:
 
 - **How often each robot speaks unasked**, per robot per day, off the
-  site's chat rows the robot wrote (the `chat` messages), against the
-  ceiling of three an hour, and how often the box's History says a `say`
-  was "not said" (a robot writing to its limit).
+  observatory's `conversation` rows under `said`, against the ceiling of
+  three an hour, and how often the box's History says a `say` was "not
+  said" (a robot writing to its limit, with the wait in front of it).
 - **What it says**: to whom it is addressed (somebody by name, or
   nobody), and whether it follows a job, a death or a visitor's message.
   A robot announcing every errand is the failure mode a ration exists for.

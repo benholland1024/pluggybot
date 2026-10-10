@@ -2636,12 +2636,18 @@ answer, is a line of its chat that answers nobody — a `chat` message
 line, and a History line under `chat`/`said`. It is cut at a reply's 500
 out loud, and RATIONED, one every `SAY_EVERY_S` (20 minutes: a visitor's
 own three an hour, so neither side can bury the other) — a DESIGN
-DECISION the rule states. One sooner is not said, and History says when
-the next may go. ⚠ The clock is the STORE's (`ThoughtFiles.last_said`,
-the newest `chat`/`said` row's sim time): a restart keeps it and a true
-death forgets it, with no kept state of its own. ⚠ A placeholder `say`
-(`n`) is read as nothing said (`PLACEHOLDER_TEXT`): a public chat is the
-worst place for one.
+DECISION the rule states. While the ration holds the state says how long
+is left (`sayAgainInS`, `overseer.say_again_in`, the gate's own reading),
+and one sent anyway is not said: History says when the next may go,
+quoting the attempt to `QUOTED_CHARS` as #409's refusals do. ⚠ MEASURED
+before release (GLM-5.3-Flash through the deployed prompt, $0.06 of
+calls): a `say` on 2 of 6 quiet turns, and on 2 of 4 turns with
+`sayAgainInS` in front of it — refusals are routine, which is why each is
+a short line in the dozen History shows. ⚠ The clock is the STORE's
+(`ThoughtFiles.last_said`, the newest `chat`/`said` row's sim time): a
+restart keeps it and a true death forgets it, with no kept state of its
+own. ⚠ A placeholder `say` (`n`) is read as nothing said
+(`PLACEHOLDER_TEXT`): a public chat is the worst place for one.
 
 **Ratings never touch the overseer.** A `rating` settles a deferred
 visitor-tier verdict, which moves a balance, so `_visitor_step` drains those

@@ -1015,6 +1015,7 @@ def test_the_robot_is_told_its_window_and_how_often_it_may_speak():
   assert f"its last {MAX_EARLIER} lines" in ov.RULES
   assert f"one such thing every {round(SAY_EVERY_S / 60)} minutes" in ov.RULES
   assert "`chat` for more of your chat" in ov.RULES
+  assert "`sayAgainInS` says how many seconds" in ov.RULES
 
 
 def test_the_reply_echoes_which_conversation_it_belongs_to():
@@ -1132,10 +1133,33 @@ def test_say_is_rationed_and_a_refusal_is_said():
   assert [m["text"] for m in sent] == ["first"]
   refused = life.thoughts.lines("History.md")[-1]
   assert refused.endswith("did not say in my chat -- one thing every 20 "
-                          "minutes, and the next may go in 1 min: too soon")
+                          "minutes, and the next may go in 1 min -- 'too soon'")
+  #  ...quoted, as #409's refusals are, never the whole line: these are
+  #  routine, and History shows a dozen.
+  life._chat(Decision(action="explore", say="w" * 400))
+  assert life.thoughts.lines("History.md")[-1].endswith(f"-- '{'w' * 60}'")
   life.data.time = 1000.0 + SAY_EVERY_S
   life._chat(Decision(action="explore", say="on time"))
   assert [m["text"] for m in sent] == ["first", "on time"]
+
+
+def test_the_wait_is_shown_before_it_bites():
+  """⚠ The deployed model wrote a `say` on 2 of 6 quiet turns (#485's
+  probe, GLM-5.3-Flash through the deployed prompt), a decision or two a
+  minute against one line every 20: told only by refusal, its History --
+  the dozen lines it reads -- would fill with them. The state says how long
+  is left while the ration holds and nothing otherwise, the same reading
+  the gate makes. Shown to fail by dropping `sayAgainInS` from
+  `context_for`."""
+  from pluggybot.mind.overseer import SAY_EVERY_S, context_for
+  life = _lifecycle(inbox=Inbox())
+  life.data.time = 1000.0
+  assert "sayAgainInS" not in context_for(life, thoughts=life.thoughts)
+  life._chat(Decision(action="explore", say="first"))
+  life.data.time = 1000.0 + SAY_EVERY_S - 90.5
+  assert context_for(life, thoughts=life.thoughts)["sayAgainInS"] == 91
+  life.data.time = 1000.0 + SAY_EVERY_S
+  assert "sayAgainInS" not in context_for(life, thoughts=life.thoughts)
 
 
 def test_the_say_clock_outlives_the_process(tmp_path):
