@@ -6,17 +6,18 @@ A mixin: `QuadMission` is the rest of the body.
 
 A FIX (`fixture_fix`) is a fit of a fixture's tags turned into the robot's
 pose off the fixture's commissioned one, taken only where one look was
-MEASURED to be good enough for it: from within `NEAR_FIX_M`, at an
-approach's END -- lying on the dock (`anchor_at_dock`, the board's own
-anchor) and lined up at a rack's bay (`_lined_up_routine`) -- and, from
-within `FAR_FIX_M`, on any look a lost robot takes, which only has to bring
-it back to an approach whose end fixes again. Never at an approach's start
-nor on a walk-in's looks, which steer by what they see: from there one look
-was up to 0.26 m and 7 deg off. It moves the belief only past `FIX_TOL_*`,
-and the map is laid again round it (`ScanMatcher.anchored`); past `ASKEW_*`
-the robot had been lost past its matcher's own search, and the map it laid
+MEASURED to be good enough for it: within `NEAR_FIX_M` at an approach's
+end, lined up at a rack's bay (`_lined_up_routine`), and within `FAR_FIX_M`
+on any look a lost robot takes, which only has to bring it back to an
+approach whose end fixes again. Never at an approach's start nor on a
+walk-in's looks, which steer by what they see: from there one look was up
+to 0.26 m and 7 deg off. It moves the belief only past `FIX_TOL_*`, and the
+map is laid again round it (`ScanMatcher.anchored`); past `ASKEW_*` the
+robot had been lost past its matcher's own search, and the map it laid
 while lost is DROPPED with everything laid in it
-(`QuadMission.forget_world`).
+(`QuadMission.forget_world`). Lying on the dock, the board's own anchor
+(`anchor_at_dock`, #42) is the dock's fix, and drops the map past `ASKEW_*`
+as this does.
 
 LOST (`lost_routine`): a fixture looked for from where the belief puts it
 in plain sight -- the dock's board from its standoff, the rack's tags from a
