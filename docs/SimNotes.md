@@ -2814,8 +2814,9 @@ to the same wrong place. Read off the box's saves every two minutes for
 three hours on 10-10, the error moved two ways, and neither was a run of
 refusals:
 
-- *A slide*: Luca's swung 1.2-2.5 m between saves two minutes apart, with
-  600-1,440 scans matched `ok` in each and at most 9 refused; Rowan's went
+- *A slide*: six times in the three hours Luca's swung 1.2-2.5 m between
+  two saves, with almost every scan between them matched `ok` (at most 9
+  refused in any of those gaps); Rowan's went
   0.93 to 2.38 m on one walk from the rack to the lab, with 475 `ok`, 16
   refused and one `found`.
 - *A jump*: Rowan's matcher relocated it five times in the three hours.
