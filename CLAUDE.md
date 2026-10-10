@@ -1305,11 +1305,12 @@ save a filmstrip PNG named after the script.
   unbounded loop drains it, and a bound is not a recovery; dead reckoning is
   anchored at the dock to the COMMISSIONED PRIOR, never the belief (anchored
   to the belief, the error tracked itself 0.003 → 0.344 m over four
-  sim-hours), and otherwise corrected only by the scan matcher (below); the
+  sim-hours), and otherwise corrected only by the scan matcher and the
+  commissioned fixtures (below); the
   charge standoff is only how the robot reaches the dock's neighbourhood:
   a walk to it that gives up within `NEAR_STANDOFF_M` (0.75 m) goes on to
-  the approach by the board, and with no board in sight, to the walk's
-  retries (#422; SimNotes, "Lost after a long explore"); a
+  the approach by the board, and with no board in sight there, as from
+  the standoff itself, the robot is LOST (#476, below); a
   reading goes into the map only while the body is LEVEL — on its side a
   LIDAR paints the sky into a map that outlives the stand-up.
 - **Every level scan is matched against the robot's own map before it is
@@ -1340,6 +1341,22 @@ save a filmstrip PNG named after the script.
   ⚠ No BLAS product (einsum's own loop); the field is kept state.
   ⚠ `Navigator(match=False)` is a measurement's switch, never a
   deployment's.
+- **The commissioned fixtures outrank the robot's map, and one missing
+  where the belief puts it is a robot LOST** (issue #476;
+  `legs/fixtures.py`; SimNotes, "Lost on its own map, and found by its
+  fixtures"). A look is a fix only where one was MEASURED to be
+  (`drift_spike.py --looks`): lying on the dock, lined up at a bay, and a
+  lost robot's looks (four tags within 2.5 m) -- ⚠ NEVER at an approach's
+  start or on a walk-in (26 cm and 6.6° out there). A fix past `FIX_TOL_*`
+  moves the belief and lays the map again round it; ⚠ PAST THE MATCHER'S
+  SEARCH (`ASKEW_*`) THE MAP AND ITS PLACES ARE DROPPED: kept, a map laid
+  while lost pulled a corrected belief onto a copy within 20 s. No board
+  from the standoff a charge reached (or within `NEAR_STANDOFF_M`), or no
+  rack from a bay's approach, with no other robot near the fixture, is
+  lost (`Body.lost_routine`): the map goes, a search for either fixture,
+  then the approach again, ONCE a charge or a swap. Each relocation, fix,
+  loss and search is a `drift` row, beside a sample every `DRIFT_EVERY_S`;
+  ⚠ the truth rides those rows and never what the robot reads.
 - **A quadruped walks into the unknown** (issue #381's walking stage;
   `mapping/optimistic.py`, `Navigator.OPTIMISTIC`; SimNotes, "Walking into
   the unknown"): it plans through floor it has not seen at `UNKNOWN_COST` a
@@ -1361,7 +1378,8 @@ save a filmstrip PNG named after the script.
   furniture (Ben, 2026-09-29); a test reads every number in the directions
   as a tag. ⚠ The dock is commissioned, and THE TOOL RACK IS COMMISSIONED
   WITH IT (Ben, 2026-09-29): `tool_rack_prior` stays, each approach
-  measured off its tags; everything else is FOUND. A place is a tag merged
+  measured off its tags, and lined up at a bay they fix the belief (#476);
+  everything else is FOUND. A place is a tag merged
   by identity, never by distance, in the robot's own map; its facing off
   its fixture's drawing (two signs of the row), else its own rotation from
   a look >= 35 deg off and <= 3 m (square-on PnP swings +-10 deg), else

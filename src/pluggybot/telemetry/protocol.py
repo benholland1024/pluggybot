@@ -605,6 +605,20 @@ LEFT_OUT_EVENT_TYPES = ("left_out",)
 #: a decline named the job the same answer took. The first that holds.
 LEFT_OUT_WHYS = ("filled", "placeholder", "decline")
 
+#: THE BELIEF AGAINST THE TRUTH (issue #476), additive on the wire, no
+#: bump: a `drift` event per robot every `lifecycle.DRIFT_EVERY_S` and at
+#: every event that moved its belief outside a scan match or lost it, with
+#: `pose` (where it IS: the sim's own check, as a death's `at.pose`) beside
+#: `believed`; protocol/README.md has the fields. The observatory files a row
+#: per event under `why`; nothing the robot is shown carries the truth.
+DRIFT_EVENT_TYPES = ("drift",)
+#: `sample` every few minutes; `relocated` by the scan matcher's wide search
+#: (#422); `fixed` off a commissioned fixture (a bay's look, a lost robot's,
+#: or the dock's anchor); `lost` at a fixture; `searched`, the search for one
+#: that followed. Additive, like every vocabulary here.
+DRIFT_WHYS = ("sample", "relocated", "fixed", "lost", "searched")
+DRIFT_FIXTURES = ("dock", "rack")
+
 #: WHAT THE ROBOT THINKS IS THERE (issue #466, stage 3), additive, no bump:
 #: an `imagined` event per model it made of an object in front of it --
 #: `robot`, `t`, `what` (its author's words), `parts` (`{id, shape, size,

@@ -2797,14 +2797,81 @@ kept routing through.
 still laid through a belief that drifts a metre, later visits match it and
 do not correct it, and where parts laid through different drifts meet,
 no pose fits (seed 2's garden). Correcting the map behind the robot is
-#381's stage 3, a
-pose graph, and this measurement says it is needed. Relocating by tags
-away from the dock was not needed to dock. One look at the dock's board
-puts the robot within 1.2 cm and 0.4 deg (median) from inside 1.5 m, but
-up to 0.8 m and 11 deg off from past 2.5 m (the robot stood at 160 poses
-round the dock, nothing stepped: 95 fits), so a far look could only
-propose a pose for the matcher; and the plate signs are positions the
-robot estimated itself, the pose graph's landmarks.
+#381's stage 3, a pose graph, and this measurement says it is needed. A
+fix off the fixtures away from the dock came with #476, the next section;
+the plate signs are positions the robot estimated itself, the pose graph's
+landmarks.
+
+## Lost on its own map, and found by its fixtures (issue #476)
+
+**What the live pair showed.** Of 44 deaths from 2026-10-03, 19 had the
+belief more than 1 m from the truth. `MAP_EPOCH` 2 dropped both maps on
+10-08, and the error came back on maps laid from nothing: Rowan was 8.0 m
+off at a death the next morning, after 31 charges that walked to where it
+believed the dock was and saw no board. Read off the box's saves every two
+minutes for three hours on 10-10, the error moved two ways, neither of them
+a run of refusals:
+
+- *A slide*: six times Luca's swung 1.2-2.5 m between two saves with almost
+  every scan matched `ok`; Rowan's went 0.93 to 2.38 m on one walk from the
+  rack to the lab.
+- *A jump*: of Rowan's five relocations, one put it right and four came
+  where its error grew most, 1.6-2.0 m each.
+
+**Why: the map holds copies, and the matcher holds the belief to them.**
+Put at the truth on each robot's own map and walked to the lab and back
+(`scripts/drift_spike.py --lived`), the belief was 1.3 m out (Rowan's map)
+and 1.9 m (Luca's) within 20 s: the map refused the truth's scans, and the
+wide search (#422) relocated onto a copy, 0.9 m and 3 deg and 3.1 m and 17
+deg off. On an empty map the same walk was 0.23 m out at worst. So a belief
+put right is lost again while the map stays (Ben's reset of Rowan on 10-08
+was 7.7 m out within 500 s). The first copy is laid where the matcher
+cannot hold a walk true -- the long walks outside, #422's residue, are the
+likeliest.
+
+**The fix: the commissioned fixtures** (`legs/fixtures.py`). The dock's
+board and the rack's tags are where they were installed, so a look at
+either puts the robot in the world's frame.
+
+| one look (`--looks`, nothing stepped) | worst position | worst heading |
+|---|---|---|
+| the rack lined up at a bay, its own pair at 0.51-0.58 m (270 looks) | 0.3 cm | 0.22 deg |
+| the board, four tags or more within 2.5 m (392 poses round it) | 15 cm | 3.6 deg |
+| the rack, four tags or more within 2.5 m (392 poses) | 8 cm | 2.5 deg |
+| the board on a walk, 2.29 m and 25 deg off the camera's axis (one look, flown) | 26 cm | 6.6 deg |
+
+- *Where a fix is taken*: lying on the dock (the board's anchor, #42), lined
+  up at a bay, and on a lost robot's looks. Never at an approach's start
+  nor on a walk-in: from there one look was 26 cm and 6.6 deg out, past the
+  line that drops a map.
+- *What it does*: past 10 cm or 2 deg it moves the belief and lays the map
+  again round it; past the matcher's own search (0.6 m or 6 deg) the map
+  goes with its places, as the epoch reset did by hand.
+- *Lost*: the board not in sight from the standoff a charge reached (or
+  from within 0.75 m of it, where #422 lets the board decide), or the rack
+  not from a bay's approach, with no other robot near the fixture. The map
+  goes, the robot looks round for either fixture for up to 300 s -- a look
+  from 2.5 m is a fix there, as it need only bring the robot back to an
+  approach -- and then walks to the standoff and tries again.
+
+Flown off the box's saves, each robot's own state where it truly stood
+(`--lost`):
+
+| at the save | began | how it ended |
+|---|---|---|
+| Luca, behind the dock's board | 3.8 m, -24 deg | the rack seen 156 s into the search; docked, 1 cm out |
+| Luca, six minutes later | 4.0 m, -26 deg | the rack after 180 s; docked, 3 cm out |
+| Rowan, in the east garden | 6.2 m, -3 deg | the rack after 136 s; docked, 6 cm out |
+| Rowan, at the rack | 0.93 m, -5 deg | fixed lined up at the bay, its map dropped; the pen picked, 1 cm out |
+
+The deployed maps hold copies, so the deploy that carries this drops them
+(`MAP_EPOCH` 3). Every relocation, fix, loss and search, and a sample every
+five minutes, is a `drift` row (protocol/README.md).
+
+**Not done.** The first slip on a fresh map (a pose graph, #381's stage 3);
+a robot lost with no fixture within its search's reach; the places a drop
+forgets, found again from their addresses; and the wide search can still
+relocate onto a copy a map keeps.
 
 ## A robot resting across the other's way (issue #415)
 

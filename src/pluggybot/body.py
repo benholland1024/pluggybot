@@ -365,6 +365,20 @@ class Body(abc.ABC):
   def level(self) -> bool:
     """Level enough for a reading to be a map of the room (issue #339)."""
 
+  #: WHAT MOVED THE BELIEF OUTSIDE A MATCH, OR LOST IT (issue #476), the
+  #: newest few, as `Navigator.belief_event` records them: their `truth` is
+  #: the sim's own check, for the observatory alone.
+  belief_events: Any
+  #: Its scan matcher's verdicts by kind (`ScanMatcher.counts`), or {}.
+  match_counts: dict
+
+  @abc.abstractmethod
+  def lost_routine(self, fixture: str, stop=None) -> Routine:
+    """`fixture` (the dock or the rack) is not in sight where the belief
+    puts it in plain sight (issue #476): unless another robot can hide it,
+    the robot is lost, drops its map and looks round for either fixture
+    until one puts it right or `stop` says so. True once one has."""
+
   # ---- the rack: a tool from a bay, and back -------------------------------
 
   #: What it believes about the frame its charge logic works round
@@ -773,6 +787,12 @@ class StubBody(Body):
     self.hid_from: list[tuple] = []
     self.sought: list[tuple] = []
     self.forgot = 0
+    #: ...what moved its belief (a test puts records in), the fixtures it
+    #: was lost at, and whether a search finds one (a test sets it)
+    self.belief_events: list[dict] = []
+    self.match_counts: dict = {}
+    self.lost_at: list[str] = []
+    self.finds_fixture = False
     self.last_drive = None
     self.swapping_at = self.peer_at_bay_m = None
     self.working = False
@@ -955,6 +975,14 @@ class StubBody(Body):
     self.grid.grid[...] = 0.0
     self.places.forget()
     self.forgot += 1
+
+  def lost_routine(self, fixture, stop=None):
+    """Lost at once, its map forgotten, and found or not as the test set:
+    the stub sees nothing to search for."""
+    self.lost_at.append(fixture)
+    self.forget_world()
+    return self.finds_fixture
+    yield
 
   def plan_frontier(self, blacklist):
     from pluggybot.behavior.navigation import plan

@@ -64,7 +64,7 @@ from pluggybot.mind.thoughts import (
 )
 from pluggybot.economy import questions, scoring
 from pluggybot.tools import strokes
-from pluggybot.navigator import MAKE_WAY_WAIT_S
+from pluggybot.navigator import MAKE_WAY_WAIT_S, wire_pose
 from pluggybot.perception import depth as nf
 from pluggybot.perception.heightmap import HeightMap
 from pluggybot.perception.lidar import robot_geoms
@@ -276,6 +276,13 @@ CHARGE_TIMEOUT_SLACK = 1.4
 #: (1.62 m past the standoff) is within 2.4 m, where one look reads it to
 #: 6 cm (median); with no board in sight the walk's retries go on.
 NEAR_STANDOFF_M = 0.75
+#: THE BELIEF AGAINST THE TRUTH, on the sim's own clock (issue #476): a
+#: `drift` row this often per robot, sim s, beside one per event that moved
+#: or lost the belief (`HubLifecycle._belief_step`). A pair at one each
+#: every five minutes is 576 rows a day.
+DRIFT_EVERY_S = 300.0
+#: What each commissioned fixture is called where the robot reads of it.
+FIXTURE_WORDS = {"dock": "the dock's board", "rack": "the rack"}
 SCREEN_SENSE_S = 0.02       # sim seconds between power scans of a display
                             # the robot is NOT carrying (issue #13)
 #: Sim seconds an overseer-chosen `explore` runs for before the arbitration
@@ -840,6 +847,7 @@ class HubLifecycle:
     self.body.step_hooks.append(self._press_step)
     self.body.step_hooks.append(self._places_step)
     self.body.step_hooks.append(self._aside_step)
+    self.body.step_hooks.append(self._belief_step)
     self.body.bay_wait = self._await_bay_routine
     #: THE NEAR-FIELD MAP (issue #34): the body's depth camera and
     #: the robot-centric height map it feeds, one frame every `nf.PERIOD`
@@ -1383,6 +1391,86 @@ class HubLifecycle:
 
   _asides_seen = 0
 
+  def _belief_step(self) -> None:
+    """The belief against the truth, on the wire (issue #476): a `drift`
+    row per event that moved the belief outside a match or lost it
+    (`Body.belief_events`), and one every `DRIFT_EVERY_S` with the
+    matcher's verdicts since the last -- the sim's own check, read by
+    nothing that decides (`_tell_belief` says the robot's part)."""
+    events = self.body.belief_events
+    if events and events[-1]["seq"] > self._belief_seen:
+      for rec in events:
+        if rec["seq"] > self._belief_seen:
+          self._emit(self._drift_row(rec))
+          self._tell_belief(rec)
+      self._belief_seen = events[-1]["seq"]
+    t = float(self.data.time)
+    if self._drift_due is None:           # ...the first a period on from here,
+      self._drift_due = t + DRIFT_EVERY_S  # and its verdicts that period's: a
+      self._drift_counts = dict(self.body.match_counts)  # restart keeps a life's
+    if t < self._drift_due:
+      return
+    self._drift_due = t + DRIFT_EVERY_S
+    tx, ty, tyaw = self.body.true_pose()
+    bx, by, byaw = self.body.pose
+    counts, last = dict(self.body.match_counts), self._drift_counts or {}
+    # ...a map forgotten counts again from zero: what it holds is the growth
+    matched = {k: n - last.get(k, 0) if n >= last.get(k, 0) else n
+               for k, n in counts.items() if n != last.get(k, 0)}
+    self._drift_counts = counts
+    self._emit(self._drift_row({"t": round(t, 3), "why": "sample",
+                                "truth": wire_pose((tx, ty, tyaw)),
+                                "after": wire_pose((bx, by, byaw)), "matched": matched,
+                                "posture": self.body.posture, "state": self.state}))
+
+  _belief_seen = 0
+  _drift_due = None
+  _drift_counts = None
+
+  def _drift_row(self, rec: dict) -> dict:
+    """One `drift` row off a belief event (or a sample): the TRUE pose
+    (`pose`), the belief after it (`believed`), how far apart they are, and
+    the event's own fields -- `before`, `fixture`, `dropped`..."""
+    t, b = rec["truth"], rec["after"]
+    return {"type": "drift", "robot": self.root, "t": rec["t"], "why": rec["why"],
+            "pose": t, "believed": b,
+            "errorM": round(math.hypot(b["x"] - t["x"], b["y"] - t["y"]), 3),
+            "headingDeg": round((b["yawDeg"] - t["yawDeg"] + 180.0) % 360.0 - 180.0, 1),
+            **{k: v for k, v in rec.items() if k not in ("seq", "t", "why", "truth", "after")}}
+
+  def _tell_belief(self, rec: dict) -> None:
+    """A belief event said, and the ones the robot should know of written
+    to History: lost at a fixture, a map dropped, how the search after a
+    loss ended. A fix within the map's reach and a relocation are narrated
+    only: the robot was put right where it would have been anyway."""
+    why, what = rec["why"], FIXTURE_WORDS.get(rec.get("fixture", ""), "")
+    if rec.get("anchor") == "seat":       # ...lying on it with no board read
+      what = "the dock"
+    b, a = rec["before"], rec["after"]
+    off = math.hypot(a["x"] - b["x"], a["y"] - b["y"])
+    turned = abs((a["yawDeg"] - b["yawDeg"] + 180.0) % 360.0 - 180.0)
+    if why == "lost":
+      line = (f"{what} was not in sight where I believed it was in front of me, so I "
+              "am not where I thought: my map is gone, and I am looking round for the "
+              "dock or the rack")
+    elif why == "fixed" and rec.get("dropped"):
+      line = (f"{what} put me {off:.1f} m and {turned:.0f} deg from where I believed I "
+              f"was: the map I had was laid askew, and it is gone")
+    elif why == "searched" and not rec.get("found"):
+      line = (f"I looked for the dock and the rack for {rec.get('seconds', 0):.0f} s and "
+              "saw neither")
+    elif why == "searched" and not rec.get("dropped"):
+      # ...found, and near where it believed: no line said so yet
+      line = (f"I looked round for {rec.get('seconds', 0):.0f} s and found {what}, near "
+              "where I believed I was")
+    else:
+      if why in ("fixed", "relocated") and rec.get("moved", True):
+        self._say(f"BELIEF {why}{' by ' + what if what else ''}: moved {off:.2f} m "
+                  f"and {turned:.1f} deg")
+      return
+    self._say(f"BELIEF {why}: {line}")
+    self._remember(line)
+
   def _lean(self) -> tuple[float, float | None]:
     """Which way the chassis leans: (degrees from upright, the direction
     its top leans toward in its OWN frame -- 0 forward, 90 its left, -90
@@ -1730,6 +1818,9 @@ class HubLifecycle:
       if why == "no-route":
         return ("there was no route to where the fork lines up with its bay, "
                 "so no pick was tried; it is still hanging there")
+      if why == "no rack":        # ...got there, and saw none (issue #476)
+        return ("the rack was not in sight from where I believed its bay's "
+                "approach began, so no pick was tried; it is still hanging there")
       if why == "blocked":        # `refine_standoff` gave up (issue #339)
         return ("the way back to where the fork lines up with its bay was "
                 "blocked, so no pick was tried; it is still hanging there")
@@ -2386,6 +2477,7 @@ class HubLifecycle:
     spins, since, arrived = 0, None, False
     driven = None                 # the goal the last drive was sent to
     tried = None                  # why a near give-up's approach stopped
+    searched = False              # ...and once that was no board, lost (#476)
     while True:
       if self.peers and self.body.peer_on_the_goal(sx, sy) is not None:
         since = float(self.data.time) if since is None else since
@@ -2404,11 +2496,16 @@ class HubLifecycle:
         self._say(f"GO_CHARGE near enough -- {self.drive_why(sx, sy)}; the "
                   "dock's board decides")
         tried = yield from self.body.dock_routine()
-        # ...and with no board in sight from here -- a wall between, a
-        # belief further off than it says -- the walk's own retries, as
-        # before: no board is no reason to stop looking for a route
         if tried != "no board" or self.body.charging():
           break
+        # ...and no board in sight from within NEAR_STANDOFF_M is a robot
+        # LOST too (issue #476): the board is in plain sight from there (a
+        # walk 4.6 m off gave up 0.7 m short, twice). Once a charge; put
+        # right, the walk goes again, and else its retries as before.
+        if not searched:
+          searched = True
+          if (yield from self.body.lost_routine("dock")):
+            continue
       yield from self.body.look_around_routine()
       self.body.refresh_rack()
       sx, sy, hd = self.body.charge_standoff()
@@ -2434,6 +2531,16 @@ class HubLifecycle:
     # fires -- position is believed, contact is known.
     if arrived:
       tried = yield from self.body.dock_routine()
+      # ⚠ NO BOARD FROM THE STANDOFF THE WALK ARRIVED AT IS A ROBOT LOST
+      # (issue #476): Rowan walked to the same wrong place 31 times until it
+      # died flat. Put right, it walks back, and near enough the board
+      # decides, as above.
+      if tried == "no board" and not searched and not self.body.charging():
+        searched = True
+        if (yield from self.body.lost_routine("dock")):
+          back = yield from self.body.go_to_routine(sx, sy, timeout=90.0)
+          if back or self._near_standoff(sx, sy):
+            tried = yield from self.body.dock_routine()
     if not self.body.charging():
       # the approach's trace is EVIDENCE (issue #346), the log's alone
       self.charge_failure = f"no charge contact ({tried})"

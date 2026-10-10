@@ -44,6 +44,47 @@ replayer treats it like any other world -- one scene, one recording, keyed
 by that name (`pluggybot.robot.pair_model_name`). The served world is the
 pair, `home_quad_pair`.
 
+### 0.21.0, additive: the belief against the truth (`drift`); a swap that saw no rack
+
+pluggybot #476. Two robots were lost by 4-8 m on their own maps, and the
+only record of it was the box's log. One event type is new:
+
+- **`drift`**: per robot, every `lifecycle.DRIFT_EVERY_S` (300 sim s) and
+  at every event that moved its belief outside a scan match or lost it.
+  `why` (`DRIFT_WHYS`): `sample`; `relocated` (the scan matcher's wide
+  search); `fixed` (a commissioned fixture's tags: lying on the dock, lined
+  up at a bay, or a lost robot's look); `lost` (a fixture not where the
+  belief put it in plain sight); `searched` (the search that followed).
+  Every row: `pose` (where the robot IS -- the sim's own check, as a
+  death's `at.pose`), `believed` (after the event), `errorM` and
+  `headingDeg` (the belief less the truth); an event's `before`. Beside
+  them, by `why`:
+  - `sample`: `matched` (the matcher's verdicts since the last sample),
+    `posture`, `state`;
+  - `fixed`: `fixture` (`dock` / `rack`), `moved`, `dropped` (the map went
+    too), and a look's `tags` and `atM` or the dock's own `anchor` (`board`
+    / `seat`);
+  - `lost`: `fixture`;
+  - `searched`: `found`, `ended`, `seconds`, `viewpoints`, `arounds`, and
+    where one was found its `fixture` and whether it `dropped` the map;
+  - `relocated`: `inliers`.
+
+  Nothing the robot is shown carries the truth.
+
+  ```jsonc
+  {"type": "drift", "t": 907645.7, "robot": "pluggybot", "why": "fixed",
+   "pose": {"x": 2.4, "y": -0.6, "yawDeg": -91.2},
+   "believed": {"x": 2.41, "y": -0.6, "yawDeg": -91.0},
+   "before": {"x": 1.9, "y": 3.8, "yawDeg": -62.0}, "errorM": 0.01,
+   "headingDeg": 0.2, "fixture": "rack", "tags": 2, "atM": 0.55,
+   "moved": true, "dropped": true}
+  ```
+
+A `fetch` or `stow` step that reached its bay's approach and saw no rack
+there answers `why: "no rack"` where it answered `no-route`, and its
+`reason` says so. The pair's recording was not regenerated and carries
+none.
+
 ### 0.21.0, additive: what the robot thinks is there (`imagined`)
 
 pluggybot #466, stage 3. A demo's, never the served world's: the robot

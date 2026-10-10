@@ -389,6 +389,9 @@ def _stow(life, args: dict) -> Routine:
     blocked = asked(station) if why == "blocked" and asked is not None else None
     if blocked is not None:
       verdict["reason"] += f": {life.held_for(blocked)}"
+    elif why == "no rack":        # ...got there, and saw none (issue #476)
+      verdict["reason"] += (": the rack was not in sight from where I believed "
+                            "its bay's approach began")
     _trace(life, verdict, f"stow {tool}")
   return verdict
 

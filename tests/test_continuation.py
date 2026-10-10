@@ -510,7 +510,7 @@ def test_a_changed_world_keeps_the_pack_and_the_clock_but_not_the_bodies(tmp_pat
              in ln for ln in _history(back))
 
 
-@pytest.mark.parametrize("old", [None, 1])
+@pytest.mark.parametrize("old", [None, 1, 2])
 def test_maps_of_another_epoch_are_dropped_as_a_changed_worlds_are(tmp_path, old):
   """#425: hours of heading walked while the quadrupeds lay, and every map
   kept since was laid askew -- and a place found in one is wrong too. The
@@ -518,7 +518,8 @@ def test_maps_of_another_epoch_are_dropped_as_a_changed_worlds_are(tmp_path, old
   `MAP_EPOCH` (one written before there was one included) keeps the pack
   and the clock and puts back no body, belief or map, and says why. #476:
   the deployed volume's saves are of epoch 1, and their maps were found
-  askew again, so a save of epoch 1 is dropped too."""
+  askew again, so a save of epoch 1 is dropped too -- and then of epoch 2,
+  laid askew again before a fixture could drop a map that was."""
   life = _quad(tmp_path)
   life.body.start_at(*world_config(QUAD_HOME)["start"])
   life.body.mission._drive(0.5, 0.2, 0.0)
