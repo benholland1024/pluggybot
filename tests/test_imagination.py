@@ -513,6 +513,31 @@ def test_a_request_cut_off_half_way_ends_the_worker(monkeypatch):
   w.close()                                   # twice, and after its death: no error
 
 
+def test_a_pool_whose_worker_ended_starts_it_again_and_asks_again(monkeypatch):
+  # Every ssh connection to the pods dropped at once, and each set-out whose
+  # workers ran over them ended in an error: ten of #481's batch. A
+  # worker's answer is the document's and the seed's, whoever serves it, so
+  # one that ended is replaced and asked again -- the record sent anew.
+  from pluggybot.imagination import worker as wk
+  monkeypatch.setattr(wk, "RESTART_WAIT_S", 0.0)
+  rec = hold(40)
+  flown = rollout(cp.compile_scene(sc.parse(CABINET), carrying=rec.start.carrying), rec)
+  rec = Record(start=rec.start, dt=rec.dt, commands=rec.commands, sensed=flown.sensed)
+  with wk.Imaginations(1, seed=3) as pool:
+    first = pool.residuals([CABINET], rec, slice(5, 40))[0]
+    dead = pool.workers[0]
+    dead.process.kill()
+    dead.process.wait()
+    again = pool.residuals([CABINET], rec, slice(5, 40))[0]
+    assert np.array_equal(again, first)
+    assert pool.workers[0] is not dead and pool.restarts == 1
+  # one that ends each time it is started says so, the connection's word
+  with wk.Imaginations(1, seed=3, argv=["true"]) as pool:
+    with pytest.raises(wk.WorkerEnded):
+      pool.rollouts([CABINET], rec)
+    assert pool.restarts == wk.RESTARTS
+
+
 def test_every_failure_in_the_worker_is_an_answer_and_it_keeps_serving(monkeypatch):
   from pluggybot.imagination import compile as cp_mod
   from pluggybot.imagination import worker as wk

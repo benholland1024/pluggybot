@@ -25,6 +25,7 @@ import json
 import math
 import os
 import time
+import uuid
 from pathlib import Path
 from typing import Callable, Literal
 
@@ -56,15 +57,16 @@ from pluggybot.mind.spend import open_book
 from pluggybot.mind.overseer import (
   CALLS_PER_HOUR, HEART_PRICE, HEART_RESERVE_HOURS, MAX_LOOK_RUN,
   MAX_RECALL_RUN, MAX_REPLY, PROCEDURE_NEW, PROCEDURE_PREFIX, RECALL_S,
-  THINK_SLICE_S, left_out_said, order_runnable,
+  SAY_EVERY_S, THINK_SLICE_S, left_out_said, order_runnable, say_again_in,
 )
 from pluggybot.tools.screen import face_for
 from pluggybot.mind.thoughts import (
-  RECALLED_CHAIN_CHARS, ThoughtFiles, ThoughtRefused, attempted,
+  CHAT_ANSWERED, CHAT_HEARD, CHAT_SAID, QUOTED_CHARS, RECALLED_CHAIN_CHARS,
+  ThoughtFiles, ThoughtRefused, attempted,
 )
 from pluggybot.economy import questions, scoring
 from pluggybot.tools import strokes
-from pluggybot.navigator import MAKE_WAY_WAIT_S
+from pluggybot.navigator import MAKE_WAY_WAIT_S, wire_pose
 from pluggybot.perception import depth as nf
 from pluggybot.perception.heightmap import HeightMap
 from pluggybot.perception.lidar import robot_geoms
@@ -276,6 +278,13 @@ CHARGE_TIMEOUT_SLACK = 1.4
 #: (1.62 m past the standoff) is within 2.4 m, where one look reads it to
 #: 6 cm (median); with no board in sight the walk's retries go on.
 NEAR_STANDOFF_M = 0.75
+#: THE BELIEF AGAINST THE TRUTH, on the sim's own clock (issue #476): a
+#: `drift` row this often per robot, sim s, beside one per event that moved
+#: or lost the belief (`HubLifecycle._belief_step`). A pair at one each
+#: every five minutes is 576 rows a day.
+DRIFT_EVERY_S = 300.0
+#: What each commissioned fixture is called where the robot reads of it.
+FIXTURE_WORDS = {"dock": "the dock's board", "rack": "the rack"}
 SCREEN_SENSE_S = 0.02       # sim seconds between power scans of a display
                             # the robot is NOT carrying (issue #13)
 #: Sim seconds an overseer-chosen `explore` runs for before the arbitration
@@ -665,8 +674,11 @@ class HubLifecycle:
     # except the served one.
     self.inbox = inbox
     self.replies: list[dict] = []
-    #: fired with each `visitor_reply` message; wire the publisher and the
-    #: recorder in, exactly as for boards, the ledger and the thoughts.
+    #: ...and what the robot said in its chat unasked (issue #485).
+    self.chats: list[dict] = []
+    #: fired with each `visitor_reply` and `chat` message; wire the
+    #: publisher and the recorder in, exactly as for boards, the ledger and
+    #: the thoughts.
     self.visitor_hooks: list = []
     # Which world this is, which the overseer needs to build an errand out of
     # a decision (issue #15) -- the same name `world_config` is keyed by, so
@@ -840,6 +852,7 @@ class HubLifecycle:
     self.body.step_hooks.append(self._press_step)
     self.body.step_hooks.append(self._places_step)
     self.body.step_hooks.append(self._aside_step)
+    self.body.step_hooks.append(self._belief_step)
     self.body.bay_wait = self._await_bay_routine
     #: THE NEAR-FIELD MAP (issue #34): the body's depth camera and
     #: the robot-centric height map it feeds, one frame every `nf.PERIOD`
@@ -1383,6 +1396,86 @@ class HubLifecycle:
 
   _asides_seen = 0
 
+  def _belief_step(self) -> None:
+    """The belief against the truth, on the wire (issue #476): a `drift`
+    row per event that moved the belief outside a match or lost it
+    (`Body.belief_events`), and one every `DRIFT_EVERY_S` with the
+    matcher's verdicts since the last -- the sim's own check, read by
+    nothing that decides (`_tell_belief` says the robot's part)."""
+    events = self.body.belief_events
+    if events and events[-1]["seq"] > self._belief_seen:
+      for rec in events:
+        if rec["seq"] > self._belief_seen:
+          self._emit(self._drift_row(rec))
+          self._tell_belief(rec)
+      self._belief_seen = events[-1]["seq"]
+    t = float(self.data.time)
+    if self._drift_due is None:           # ...the first a period on from here,
+      self._drift_due = t + DRIFT_EVERY_S  # and its verdicts that period's: a
+      self._drift_counts = dict(self.body.match_counts)  # restart keeps a life's
+    if t < self._drift_due:
+      return
+    self._drift_due = t + DRIFT_EVERY_S
+    tx, ty, tyaw = self.body.true_pose()
+    bx, by, byaw = self.body.pose
+    counts, last = dict(self.body.match_counts), self._drift_counts or {}
+    # ...a map forgotten counts again from zero: what it holds is the growth
+    matched = {k: n - last.get(k, 0) if n >= last.get(k, 0) else n
+               for k, n in counts.items() if n != last.get(k, 0)}
+    self._drift_counts = counts
+    self._emit(self._drift_row({"t": round(t, 3), "why": "sample",
+                                "truth": wire_pose((tx, ty, tyaw)),
+                                "after": wire_pose((bx, by, byaw)), "matched": matched,
+                                "posture": self.body.posture, "state": self.state}))
+
+  _belief_seen = 0
+  _drift_due = None
+  _drift_counts = None
+
+  def _drift_row(self, rec: dict) -> dict:
+    """One `drift` row off a belief event (or a sample): the TRUE pose
+    (`pose`), the belief after it (`believed`), how far apart they are, and
+    the event's own fields -- `before`, `fixture`, `dropped`..."""
+    t, b = rec["truth"], rec["after"]
+    return {"type": "drift", "robot": self.root, "t": rec["t"], "why": rec["why"],
+            "pose": t, "believed": b,
+            "errorM": round(math.hypot(b["x"] - t["x"], b["y"] - t["y"]), 3),
+            "headingDeg": round((b["yawDeg"] - t["yawDeg"] + 180.0) % 360.0 - 180.0, 1),
+            **{k: v for k, v in rec.items() if k not in ("seq", "t", "why", "truth", "after")}}
+
+  def _tell_belief(self, rec: dict) -> None:
+    """A belief event said, and the ones the robot should know of written
+    to History: lost at a fixture, a map dropped, how the search after a
+    loss ended. A fix within the map's reach and a relocation are narrated
+    only: the robot was put right where it would have been anyway."""
+    why, what = rec["why"], FIXTURE_WORDS.get(rec.get("fixture", ""), "")
+    if rec.get("anchor") == "seat":       # ...lying on it with no board read
+      what = "the dock"
+    b, a = rec["before"], rec["after"]
+    off = math.hypot(a["x"] - b["x"], a["y"] - b["y"])
+    turned = abs((a["yawDeg"] - b["yawDeg"] + 180.0) % 360.0 - 180.0)
+    if why == "lost":
+      line = (f"{what} was not in sight where I believed it was in front of me, so I "
+              "am not where I thought: my map is gone, and I am looking round for the "
+              "dock or the rack")
+    elif why == "fixed" and rec.get("dropped"):
+      line = (f"{what} put me {off:.1f} m and {turned:.0f} deg from where I believed I "
+              f"was: the map I had was laid askew, and it is gone")
+    elif why == "searched" and not rec.get("found"):
+      line = (f"I looked for the dock and the rack for {rec.get('seconds', 0):.0f} s and "
+              "saw neither")
+    elif why == "searched" and not rec.get("dropped"):
+      # ...found, and near where it believed: no line said so yet
+      line = (f"I looked round for {rec.get('seconds', 0):.0f} s and found {what}, near "
+              "where I believed I was")
+    else:
+      if why in ("fixed", "relocated") and rec.get("moved", True):
+        self._say(f"BELIEF {why}{' by ' + what if what else ''}: moved {off:.2f} m "
+                  f"and {turned:.1f} deg")
+      return
+    self._say(f"BELIEF {why}: {line}")
+    self._remember(line)
+
   def _lean(self) -> tuple[float, float | None]:
     """Which way the chassis leans: (degrees from upright, the direction
     its top leans toward in its OWN frame -- 0 forward, 90 its left, -90
@@ -1730,6 +1823,9 @@ class HubLifecycle:
       if why == "no-route":
         return ("there was no route to where the fork lines up with its bay, "
                 "so no pick was tried; it is still hanging there")
+      if why == "no rack":        # ...got there, and saw none (issue #476)
+        return ("the rack was not in sight from where I believed its bay's "
+                "approach began, so no pick was tried; it is still hanging there")
       if why == "blocked":        # `refine_standoff` gave up (issue #339)
         return ("the way back to where the fork lines up with its bay was "
                 "blocked, so no pick was tried; it is still hanging there")
@@ -2133,7 +2229,7 @@ class HubLifecycle:
       self._remember("my list of rules came back without what this world no "
                      f"longer reads: {'; '.join(boss.dropped_at_load)}")
 
-  def _remember(self, line: str, room: int = 0) -> None:
+  def _remember(self, line: str, room: int = 0, chat: str = "") -> None:
     """Append one line to `History.md` (issue #38).
 
     The narrative record, and deliberately NOT the narration: `_say` fires
@@ -2145,10 +2241,12 @@ class HubLifecycle:
     stops it awarding itself points.
 
     `room` lets the line run that far past History's line cap, for a text
-    it quotes whole (`ThoughtFiles.remember`, issue #433).
+    it quotes whole (`ThoughtFiles.remember`, issue #433); `chat` files a
+    line of the robot's chat by its role (issue #485).
     """
     try:
-      self.thoughts.remember(line, t=float(self.data.time), room=room)
+      self.thoughts.remember(line, t=float(self.data.time), room=room,
+                             chat=chat)
     except ThoughtRefused as e:
       # History rolls rather than refusing, so this is close to unreachable
       # -- but a memory write must never be able to end a mission, and a
@@ -2386,6 +2484,7 @@ class HubLifecycle:
     spins, since, arrived = 0, None, False
     driven = None                 # the goal the last drive was sent to
     tried = None                  # why a near give-up's approach stopped
+    searched = False              # ...and once that was no board, lost (#476)
     while True:
       if self.peers and self.body.peer_on_the_goal(sx, sy) is not None:
         since = float(self.data.time) if since is None else since
@@ -2404,11 +2503,16 @@ class HubLifecycle:
         self._say(f"GO_CHARGE near enough -- {self.drive_why(sx, sy)}; the "
                   "dock's board decides")
         tried = yield from self.body.dock_routine()
-        # ...and with no board in sight from here -- a wall between, a
-        # belief further off than it says -- the walk's own retries, as
-        # before: no board is no reason to stop looking for a route
         if tried != "no board" or self.body.charging():
           break
+        # ...and no board in sight from within NEAR_STANDOFF_M is a robot
+        # LOST too (issue #476): the board is in plain sight from there (a
+        # walk 4.6 m off gave up 0.7 m short, twice). Once a charge; put
+        # right, the walk goes again, and else its retries as before.
+        if not searched:
+          searched = True
+          if (yield from self.body.lost_routine("dock")):
+            continue
       yield from self.body.look_around_routine()
       self.body.refresh_rack()
       sx, sy, hd = self.body.charge_standoff()
@@ -2434,6 +2538,16 @@ class HubLifecycle:
     # fires -- position is believed, contact is known.
     if arrived:
       tried = yield from self.body.dock_routine()
+      # ⚠ NO BOARD FROM THE STANDOFF THE WALK ARRIVED AT IS A ROBOT LOST
+      # (issue #476): Rowan walked to the same wrong place 31 times until it
+      # died flat. Put right, it walks back, and near enough the board
+      # decides, as above.
+      if tried == "no board" and not searched and not self.body.charging():
+        searched = True
+        if (yield from self.body.lost_routine("dock")):
+          back = yield from self.body.go_to_routine(sx, sy, timeout=90.0)
+          if back or self._near_standoff(sx, sy):
+            tried = yield from self.body.dock_routine()
     if not self.body.charging():
       # the approach's trace is EVIDENCE (issue #346), the log's alone
       self.charge_failure = f"no charge contact ({tried})"
@@ -5261,14 +5375,59 @@ class HubLifecycle:
     # where they were written, at a conversation's cap (`MAX_REPLY`), and
     # History's own line cap kept 400 of either. A cut is said BEFORE the
     # text, where a line's end cannot take it (#307).
-    self._remember(f"{who} said{' (following up)' if msg.turn > 1 else ''}: "
-                   f"{msg.text}", room=MAX_REPLY)
+    # ⚠ ...AND FILED AS THE CHAT'S (issue #485), so `recall` reads the
+    # chat back past the lines a message carries -- a person's alone: the
+    # other robot's `tell` is not said in the chat people read.
+    chat = msg.sender == text_registry.VISITOR
+    self._remember(f"{who} said: {msg.text}", room=MAX_REPLY,
+                   chat=CHAT_HEARD if chat else "")
     note = text_registry.cut_note(cut, MAX_REPLY)
     self._remember(f"took {who}'s idea ({decision.action}){note}: {said}"
                    if decision.outcome == "accepted" else
                    f"declined {who}{note}: {said}"
                    if decision.outcome == "declined"
-                   else f"replied to {who}{note}: {said}", room=MAX_REPLY)
+                   else f"replied to {who}{note}: {said}", room=MAX_REPLY,
+                   chat=CHAT_ANSWERED if chat else "")
+
+  def _chat(self, decision) -> None:
+    """Say something in the robot's chat that answers nobody (issue #485).
+
+    A `chat` message through the visitor hooks, like a `visitor_reply`:
+    the website keeps it as a line of the robot's chat, and History files
+    it as the chat's. Rationed at `SAY_EVERY_S` off the store's own record
+    of the last one (`ThoughtFiles.last_said`: a restart keeps the clock, a
+    true death forgets it), and cut at a reply's length -- both OUT LOUD,
+    on #474's terms: one too soon is not said and History says when the
+    next may go, and a cut one says where.
+    """
+    if not decision.say:
+      return
+    t = float(self.data.time)
+    wait = say_again_in(self.thoughts, t)
+    if wait is not None:
+      # ⚠ QUOTED, NOT WHOLE (#409's refusals): the deployed model sent a
+      # `say` on 2 of 4 turns with `sayAgainInS` in front of it, so these
+      # are routine, and each is a line of the dozen History shows.
+      self._say(f"CHAT not said, {wait} s before it may: "
+                f"{decision.say[:MAX_REPLY]}")
+      self._remember(f"did not say in my chat -- one thing every "
+                     f"{SAY_EVERY_S / 60:.0f} minutes, and the next may go "
+                     f"in {math.ceil(wait / 60)} min -- "
+                     f"{decision.say[:QUOTED_CHARS]!r}")
+      return
+    text = decision.say[:MAX_REPLY].rstrip()
+    cut = len(decision.say) > MAX_REPLY
+    msg = {"type": "chat", "t": round(t, 3), "robot": self.root,
+           # The SITE's handle for the line, made here so a message sent
+           # twice is one line there (`c_` and a uuid, its own ids' shape).
+           "id": f"c_{uuid.uuid4()}", "text": text,
+           **({"cut": True} if cut else {})}
+    for hook in self.visitor_hooks:
+      hook(dict(msg))
+    self.chats.append(msg)
+    self._say(f"CHAT said: {text}{text_registry.cut_said(cut, MAX_REPLY)}")
+    self._remember(f"said in my chat{text_registry.cut_note(cut, MAX_REPLY)}: "
+                   f"{text}", room=MAX_REPLY, chat=CHAT_SAID)
 
   # ---- tasks (issue #21) ----------------------------------------------------
 
@@ -6238,6 +6397,8 @@ class HubLifecycle:
     # Before the action runs, so a visitor whose idea was taken hears
     # so at the moment it is taken rather than five minutes later.
     self._answer_visitor(decision)
+    # ...and what it says in its chat unasked (issue #485). Paperwork.
+    self._chat(decision)
 
     if decision.action == "take_task":
       # The overseer accepting a job somebody offered (issue #21), through
@@ -6957,6 +7118,7 @@ class HubLifecycle:
       # without an inbox, which is every caller that does not serve.
       "visitors": self.inbox.stats() if self.inbox is not None else {},
       "replies": list(self.replies),
+      "chats": list(self.chats),
       # The jobs this world offered and what became of them (issue #21).
       # Empty without a task board, which is every caller that does not ask
       # for one.

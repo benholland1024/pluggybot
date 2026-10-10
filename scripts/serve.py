@@ -1075,6 +1075,8 @@ def report(r: dict, wall: float, life, publisher, pacer, label: str = "",
             f"{v['droppedFull']} overflowed the queue")
     for reply in r.get("replies", ()):
       print(f"visitor {reply['outcome']:<14s}: {reply['reply']}")
+  for said in r.get("chats", ()):
+    print(f"{'chat said':<22s}: {said['text']}")
   print(f"sim / wall             : {ran:.1f} s / {wall:.1f} s"
         f"  ({ran / wall:.2f}x real time)"
         + (f", the clock carried on from {t0:.1f} s" if t0 else ""))

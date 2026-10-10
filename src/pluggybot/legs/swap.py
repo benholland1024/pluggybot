@@ -204,14 +204,18 @@ class ToolSwap:
 
   # ---- the rack's tags ---------------------------------------------------------
 
-  def look_at_rack(self):
+  def look_at_rack(self, fixing: bool = False):
     """One decode from the nose camera; a fit moves the rack's believed
-    pose (the odometry frame)."""
+    pose (the odometry frame) -- and, `fixing`, the belief itself where the
+    commissioned rack puts it in the world (#476, `Fixtures.fixture_fix`):
+    lined up at a bay, never on the way there, which steers by what it sees."""
     from pluggybot.legs.body import NAV_EYE
     seen = dk.seen_from(self.model, self.data, self.detect_board(),
                         self.handle.el(NAV_EYE), self.root)
     fix = rk.fit_rack(seen, rk.SPECS)
     if fix is not None:
+      if fixing:
+        self.fixture_fix("rack", fix, self.fixture_fit("rack", seen)[1])
       self.tool_rack_seen = dk.blend(self.tool_rack_seen,
                                      dk.compose(self.pose, (fix.x, fix.y, fix.yaw)))
     return fix
@@ -330,17 +334,22 @@ class ToolSwap:
 
   def _to_the_bay_routine(self, bay: int, rec: dict) -> Routine:
     """The walk to the bay's approach start, facing the rack, and a look:
-    "ok", or why not."""
-    sx, sy, syaw = self.rack_standoff(bay)
-    arrived = yield from self.drive_to_routine(sx, sy, timeout=TO_BAY_S)
-    if not arrived:
-      rec["drive"] = self.last_drive
-      return "no-route"
-    yield from self.face_routine(syaw)
-    self.tool_rack_seen = None
-    if not (yield from self._find_rack_routine()):
-      return "no rack"
-    return "ok"
+    "ok", or why not. ⚠ A RACK NOT THERE, looked for from where the belief
+    puts it in plain sight, is a robot LOST (#476, `Fixtures.lost_routine`):
+    found by a fixture, it walks there again and looks once more."""
+    for lost in (False, True):
+      sx, sy, syaw = self.rack_standoff(bay)
+      arrived = yield from self.drive_to_routine(sx, sy, timeout=TO_BAY_S)
+      if not arrived:
+        rec["drive"] = self.last_drive
+        return "no-route"
+      yield from self.face_routine(syaw)
+      self.tool_rack_seen = None
+      if (yield from self._find_rack_routine()):
+        return "ok"
+      if lost or not (yield from self.lost_routine("rack")):
+        break
+    return "no rack"
 
   def _bay_free_routine(self, bay: int, kind: str, rec: dict) -> Routine:
     """Hold at the approach's start while another robot works this bay or
@@ -378,12 +387,17 @@ class ToolSwap:
       if self.look_at_rack() is None:
         yield from self._find_rack_routine()
       return None
+    # ⚠ LINED UP AT A BAY, THE RACK'S TAGS ARE A FIX (#476): there one look
+    # was within 0.3 cm and 0.22 deg of the truth; the aim is in the torso's
+    # frame, and a fix moves nothing it reads
+    self.look_at_rack(fixing=True)
     return aim
 
   def fetch_routine(self, bay: int, module: str) -> Routine:
     """Walk to a bay and take its tool, carrying it at the carry pose:
     "arrived" once the fork went in (the verdict is the tool's own state),
-    "no-route" if the walk found no way there, "blocked" if another robot
+    "no-route" if the walk found no way there, "no rack" if it got there and
+    the rack was not in sight from there (#476), "blocked" if another robot
     held the bay past the wait (#418), "timeout" if no walk-in lined up."""
     rec = {"op": "fetch", "bay": bay, "module": module, "attempts": []}
     self.last_swap, self.peer_at_bay_m = rec, None
@@ -395,7 +409,7 @@ class ToolSwap:
     why = yield from self._to_the_bay_routine(bay, rec)
     if why != "ok":
       rec["why"] = why
-      return "no-route"
+      return why
     if not (yield from self._bay_free_routine(bay, "pick", rec)):
       return "blocked"
     with self._at_the_bay(bay):
@@ -442,8 +456,8 @@ class ToolSwap:
 
   def stow_routine(self, bay: int, module: str) -> Routine:
     """Walk to the tool's bay and hang it back, folding the arm after:
-    "arrived" once the fork came down over the bay, "no-route", "blocked"
-    (#418) or "timeout"."""
+    "arrived" once the fork came down over the bay, "no-route", "no rack"
+    (#476), "blocked" (#418) or "timeout"."""
     rec = {"op": "stow", "bay": bay, "module": module, "attempts": []}
     self.last_swap, self.peer_at_bay_m = rec, None
     if self.tool_rack_prior is None:
@@ -453,7 +467,7 @@ class ToolSwap:
     why = yield from self._to_the_bay_routine(bay, rec)
     if why != "ok":
       rec["why"] = why
-      return "no-route"
+      return why
     if not (yield from self._bay_free_routine(bay, "return", rec)):
       return "blocked"
     with self._at_the_bay(bay):

@@ -387,6 +387,11 @@ def test_the_served_body_set_down_far_from_its_belief_finds_itself(quad_world):
   (bx, by, bth), (tx, ty, tth) = m.pose, m.true_pose()
   assert math.hypot(bx - tx, by - ty) < 0.05
   assert abs(math.degrees(math.atan2(math.sin(bth - tth), math.cos(bth - tth)))) < 1.0
+  # ...and the jump is said (issue #476): onto a copy the map held, a jump
+  # like it lost a belief put right, and only its record tells them apart
+  jumps = [e for e in m.belief_events if e["why"] == "relocated"]
+  assert len(jumps) == 1 and jumps[0]["before"]["x"] == pytest.approx(x - 1.2, abs=1e-3)
+  assert jumps[0]["after"]["x"] == pytest.approx(bx, abs=1e-3)
   m.close()
 
 
@@ -633,9 +638,11 @@ def test_the_docks_board_alone_opens_the_window(quad_world, monkeypatch):
   m = _quad(quad_world)
   assert m.matcher.anchoring == 0, "the start opened the window"
   m.detect_board = lambda: {}
+  m.odo.correct(*m.dock_prior)            # ...lying on the dock, as believed (#476)
   m.anchor_at_dock()                                    # no decode: the seat
   assert m.matcher.anchoring == 0, "the seat opened the window"
   monkeypatch.setattr(qb.dk, "fit_dock", lambda seen: qb.dk.DockFix(0.62, 0.0, 0.0, 4, 0.002))
+  m.odo.correct(*qb.dk.compose(m.dock_prior, (-0.62, 0.0, 0.0)))
   m.anchor_at_dock()                                    # the board
   assert m.matcher.anchoring == sm.ANCHORED_SCANS
   m.start_at(1.5, 0.5, 0.0)                             # ...and a stand-up

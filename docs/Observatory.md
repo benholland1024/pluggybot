@@ -10,6 +10,111 @@ observatory is NOT a result: it reports into the issue it informs.
 
 ## Periods
 
+### One chat per robot, and a robot may speak unasked (#485) — opens when this PR is deployed, with rooftop-media-2026's half
+
+**What changed in the mind.** The VISITORS rule, on every arm with a mind.
+Its last bullet told the robot a message with a `turn` above 1 was a
+follow-up carrying its thread; two replace it. What people say to it and
+what it says back are ONE chat that everyone can read, and every message
+comes with `earlier`, the chat's last 6 lines, the robot's own lines as
+`you`. `recall` with `read: chat` shows more of it. And a new power, `say`:
+something said in its chat that answers nobody, kept up to 500 characters
+and one every 20 minutes. While it may not, the state says how long is
+left (`sayAgainInS`), and a `say` sent anyway is not said and the robot is
+told, in a short History line. The RECALL bullet names the `chat` key;
+"What you can do" gained `say`'s line; the schema gained the `say` field.
+The deployed prefix moved `55c3cf47…` → `081aa0e9…` (53 420 → 54 035
+characters). The arm, the reward table and the world did not move.
+
+**Measured before release** (GLM-5.3-Flash through the deployed prompt, a
+synthetic robot charging with a job on offer; $0.06 of calls). With a
+visitor's message whose `earlier` held the robot's own unasked line about
+a finished drawing, all four answers used it ("the house on whiteboard_b
+is finished"). On quiet turns it sent a `say` on 2 of 6, all narrating
+what it was doing ("Charging now — pack too low for the lab run"), and on
+2 of 4 turns where `sayAgainInS` said it had to wait: the countdown does
+not stop the attempts, so the refusals below will be routine.
+
+**What moved under it.** On the website the Chat tab is one chronological
+line per robot: no threads and no Reply button, every reply its own line
+at the time it was given, and the robot's unasked lines among them. The
+sim used to see an earlier exchange only on a follow-up (four exchanges,
+up to eight lines); now every message carries the last six lines of the
+whole chat, other people's included. On the wire, `earlier` as lines and
+an upstream `chat` message, both additive, no bump. Each chat line is a
+History record under the topic `chat`.
+
+**What the period is for.** Nothing before it could be read for
+proactivity: a robot could only answer. What to read from here:
+
+- **How often each robot speaks unasked**, per robot per day, off the
+  observatory's `conversation` rows under `said`, against the ceiling of
+  three an hour, and how often the box's History says a `say` was "not
+  said" (a robot writing to its limit, with the wait in front of it).
+- **What it says**: to whom it is addressed (somebody by name, or
+  nobody), and whether it follows a job, a death or a visitor's message.
+  A robot announcing every errand is the failure mode a ration exists for.
+- **Whether answers read the chat**: replies that refer to something said
+  earlier by somebody else, which a thread could never show.
+- **`recall read chat`** on the `recall` rows: how often the robot widens
+  the window, and whether a widened window precedes a reply.
+
+**Not yet known.** Whether 20 minutes is the right ration, and whether six
+lines is enough for a robot to answer in a busy chat; the rows above say
+first.
+
+### A lost robot is found by the dock and the rack, and the belief is on the wire (#476) — opens when this PR is deployed
+
+**What changed in the world.**
+- **The commissioned fixtures fix the belief.** Lined up at a rack's bay
+  its tags put the belief right (they lined the fork up only), and lying
+  on the dock its board does, as before. A correction past the scan
+  matcher's own search (0.6 m or 6 deg) drops the map and its places; a
+  smaller one lays the map again round the fix.
+- **A fixture missing is a robot lost.** The board not in sight from the
+  standoff a charge reached (or within 0.75 m of it), or the rack not from
+  a bay's approach, with the other robot not near the fixture: the map
+  goes, the robot looks round for either fixture for up to 300 s, and tries
+  again. Before, the next charge walked to the same wrong place.
+- **The words.** History says, in the robot's own terms and never the
+  truth, that it was lost, that a fixture put it so far from where it
+  believed and its map is gone, or that its search found nothing. A fetch
+  that saw no rack says so, where it said "there was no route".
+- **The kept maps are dropped at the deploy** (`continuation.MAP_EPOCH` 3).
+- **On the wire**: a `drift` event per robot every five minutes and at
+  every relocation, fix, loss and search (protocol/README.md), filed by the
+  site as the `drift` kind (rooftop-media-2026, migration 0047): deploy the
+  site first, or the first rows are lost.
+
+Nothing in the mind moved: no prompt text, no decision field, no reward.
+
+**Why.** Read off `4cd0d88` from 2026-10-08 to 10-10 (SimNotes, "Lost on
+its own map, and found by its fixtures", has the measurements):
+- After `MAP_EPOCH` 2 the error came back on maps laid from nothing: Rowan
+  was 8.0 m off at a death after 31 charges that saw no board.
+- It grew by slides and jumps onto copies the map held, nearly every scan
+  matched `ok`, never a run of refusals; put at the truth on either robot's
+  own map, a walk was 1.3 and 1.9 m out within 20 s.
+
+**What the period is for.**
+- **The acceptance: a week with every death's belief within 1 m of the
+  truth** (`death` rows: `at.believed` against `at.pose`).
+- **How often a robot is lost, and found.** `drift` rows under `lost` and
+  `searched` (`data.found`), per robot per day. A `lost` with no `searched`
+  after it is a search a death, a stand-up or the process ended.
+- **How far off a fix finds it.** `fixed` rows: `data.before` against
+  `data.believed`, and `dropped` whether the map went.
+- **When the error grows, and how.** `sample` rows: `errorM` over time
+  beside `data.matched` -- a growth with `relocated` in it is a jump, one
+  with only `ok` a slide.
+- **What a drop costs.** The first `find` of each place after one, and the
+  jobs that failed "not found" in between.
+- **Charges.** `no charge contact (no board)` should be rare, and come after
+  a `lost` row unless the other robot was at the dock.
+
+**Not yet known.** How lost a robot gets where it meets no fixture: hours
+in the lab are read off the samples alone.
+
 ### The kept maps are dropped again (#476) — opens when this PR is deployed, with #475's below it
 
 **What changed in the world.** **The maps kept on the volume are dropped at

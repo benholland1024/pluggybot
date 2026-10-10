@@ -135,6 +135,35 @@ def test_a_reasoning_models_thinking_is_not_a_malformed_answer():
   assert json.loads(resp.content[0].text) == {"action": "idle"}
 
 
+def test_a_streamed_answer_says_who_answered(monkeypatch):
+  """`:cheapest` ties four providers at one price, from 12 to 97 tokens/s,
+  and one answered a trivial ask with no reasoning at all (#481's smoke
+  call): the router names who answered in a header, and the answer keeps
+  it."""
+  class Answered:
+    headers = {"x-inference-provider": "novita"}
+
+    def __enter__(self):
+      return self
+
+    def __exit__(self, *a):
+      return False
+
+    def __iter__(self):
+      yield b'data: {"choices": [{"delta": {"reasoning_content": "hm"}}]}\n'
+      yield (b'data: {"choices": [{"delta": {"content": "{\\"action\\": \\"idle\\"}"}}], '
+             b'"usage": {"prompt_tokens": 9, "completion_tokens": 3}}\n')
+      yield b"data: [DONE]\n"
+  monkeypatch.setattr(llm.urllib.request, "urlopen", lambda req, timeout: Answered())
+  status, payload = llm.stream_fetch(llm.ROUTER + "/chat/completions", {"model": "m"}, {}, 5.0)
+  assert status == 200 and payload["provider"] == "novita"
+  resp = create(fake_fetch([(status, payload)]))
+  assert resp.provider == "novita" and json.loads(resp.content[0].text) == {"action": "idle"}
+  assert resp.usage.output_tokens == 3
+  # a router that says nothing names nobody
+  assert create(fake_fetch([ok_payload('{"action": "idle"}')])).provider is None
+
+
 def test_a_missing_token_fails_at_construction(monkeypatch):
   """The opposite of `anthropic.Anthropic()`, whose late failure is why the
   cool-off exists: with no token there is nothing to back off FROM, so the

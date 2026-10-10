@@ -1194,6 +1194,17 @@ lookups, goals, and declines of jobs the same answer took (Overseer.md §4,
 observatory, so a reading across the GLM builds says whether it left them
 in.
 
+### A lost robot fails what it would have done (issue #476)
+
+A robot lost on its own map fails for no reason of the task's: it walks to
+where it believes the dock, the rack or a board is, and is somewhere else
+(Luca's jobs failed for hours that way; Rowan made 31 charges before a flat
+death), and the shapes read those rows as capability, caution and
+survival. From #476 a `drift` row says where each robot was against where
+it believed, so a reading can tell which failures came while it was lost
+(`errorM` past a metre, or between a `lost` row and the `fixed` that ended
+it). ⚠ Before #476 only the death rows carry the belief.
+
 ### The demo cell is not the deployed pack
 
 A metric calibrated on a demo cell (a test's pack, sized so a day reaches the
@@ -1248,10 +1259,13 @@ more easily here than it would on hardware.
   "The robot's model, graded"; `evaluation/model.py`): `model` (an
   author's structure, fitted), `reference` (the fitter alone, on the
   reference's own structure) and `leak` (the same with its hinge moved)
-  apart; a model that passed its bars apart from one that found the lid's
+  apart; a model's SETTINGS apart -- its author, its rounds, its answer
+  budget and what the author is told, which each row carries (#481; #480's
+  rows carried none, and read as three rounds, 32,000 tokens, no levers);
+  a model that passed its bars apart from one that found the lid's
   hinge and stayed poor; clean and flagged set-outs apart; each a median
-  with its bootstrap interval and its 9 in 10. Four things a reader must
-  not misread:
+  with its bootstrap interval and its 9 in 10, a share with its Wilson
+  interval. Four things a reader must not misread:
   - **per parameter, "the language can't say it" is zero by construction**:
     the reference IS the true numbers. The language's gap shows in
     BEHAVIOUR -- what each leaves on the probe -- and in the catch, whose

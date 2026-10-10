@@ -64,6 +64,11 @@ CREATE TABLE IF NOT EXISTS records (
   retired_t REAL
 );
 CREATE INDEX IF NOT EXISTS records_view ON records (robot, generation, kind, status, id);
+-- A tail narrowed to a topic and title (issue #485: the chat's lines, and
+-- the last line said unasked, read on every decision): without it a robot
+-- that has said nothing this life scanned its whole History, 13 ms at
+-- 50 000 rows and 56 ms at 200 000.
+CREATE INDEX IF NOT EXISTS records_topic ON records (robot, generation, kind, topic, title, id);
 CREATE VIRTUAL TABLE IF NOT EXISTS records_fts USING fts5(
   text, title, topic, content='records', content_rowid='id'
 );
@@ -234,12 +239,19 @@ class RecordStore:
     sql += " ORDER BY id"
     return [_row(r) for r in self.db.execute(sql, args)]
 
-  def tail(self, robot: str, kind: str, n: int) -> list[Record]:
-    """The newest `n` active rows of a kind, oldest first."""
-    rows = self.db.execute(
-      "SELECT * FROM records WHERE robot = ? AND generation = ? AND kind = ? "
-      "AND status = ? ORDER BY id DESC LIMIT ?",
-      (robot, self.generation(robot), kind, ACTIVE, int(n))).fetchall()
+  def tail(self, robot: str, kind: str, n: int, topic: str | None = None,
+           title: str | None = None) -> list[Record]:
+    """The newest `n` active rows of a kind, oldest first. `topic` and
+    `title` narrow it, as History's chat lines are (issue #485)."""
+    sql = ("SELECT * FROM records WHERE robot = ? AND generation = ? "
+           "AND kind = ? AND status = ?")
+    args: list = [robot, self.generation(robot), kind, ACTIVE]
+    for column, value in (("topic", topic), ("title", title)):
+      if value is not None:
+        sql += f" AND {column} = ?"
+        args.append(value)
+    rows = self.db.execute(sql + " ORDER BY id DESC LIMIT ?",
+                           (*args, int(n))).fetchall()
     return [_row(r) for r in reversed(rows)]
 
   def topics(self, robot: str, kind: str = "note") -> dict[str, list[Record]]:

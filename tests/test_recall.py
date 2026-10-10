@@ -12,8 +12,10 @@ from pluggybot.lifecycle import world_config
 from pluggybot.mind import events as ev
 from pluggybot.mind import overseer as ov
 from pluggybot.mind.overseer import Menu, Overseer
+from pluggybot.mind.inbox import MAX_EARLIER
 from pluggybot.mind.thoughts import (
-  HISTORY_RECALLED, RECALLED_CHAIN_CHARS, RECALLED_CHARS, ThoughtFiles,
+  CHAT_ANSWERED, CHAT_HEARD, CHAT_RECALLED_CHARS, CHAT_SAID, HISTORY_RECALLED,
+  RECALLED_CHAIN_CHARS, RECALLED_CHARS, ThoughtFiles,
 )
 
 from test_body import stub_life
@@ -64,6 +66,48 @@ def test_find_searches_everything_this_life_and_never_the_record_of_a_recall(fil
   assert files.recall(find="whiteboard")["hits"] == 1, "a recall found itself"
   assert files.recall(read="history")["hits"] == 1, "...or the record of one"
   assert files.recall(find="") == {"read": "", "find": "", "hits": 0, "lines": []}
+
+
+def test_read_chat_is_the_chat_in_history_and_nothing_else():
+  """`chat` (issue #485) reads the robot's chat as History holds it -- what
+  people said, what it answered, what it said unasked -- and nothing else
+  History holds, oldest first, each line marked as the chat's. Shown to
+  fail by reading `chat` as a note topic: no hits."""
+  f = ThoughtFiles()
+  f.remember("docked", t=1.0)
+  f.remember("ada said: hello", t=2.0, chat=CHAT_HEARD)
+  f.remember("replied to ada: hi ada", t=3.0, chat=CHAT_ANSWERED)
+  f.remember("charged to 90%", t=4.0)
+  f.remember("said in my chat: the sun on b is done", t=5.0, chat=CHAT_SAID)
+  block = f.recall(read="chat")
+  assert (block["hits"], "cut" in block) == (3, False)
+  assert block["lines"] == [
+    "#2 [chat] [t=2s] ada said: hello",
+    "#3 [chat] [t=3s] replied to ada: hi ada",
+    "#5 [chat] [t=5s] said in my chat: the sun on b is done"]
+  assert f.recall(read="CHAT")["lines"] == block["lines"]
+  assert f.last_said() == 5.0
+
+
+def test_read_chat_is_wider_than_a_message_and_ends_at_the_newest_line():
+  """The window `chat` opens is wider than the lines a message carries
+  (`MAX_EARLIER`) -- the chain's whole room, where one block's would hold
+  seven full-length messages -- and it is the NEWEST lines that fit, with
+  no hole: a window onto a conversation ends at its latest line, and what
+  it cuts it counts. Shown to fail with `RECALLED_CHARS` as its room, or
+  with the oldest lines kept."""
+  f = ThoughtFiles()
+  words = "w" * 470
+  for i in range(40):
+    f.remember(f"ada said: {i:02d} {words}", t=float(i), chat=CHAT_HEARD,
+               room=ov.MAX_REPLY)
+  f.remember(f"ada said: 40 {'x' * 9}", t=40.0, chat=CHAT_HEARD)
+  block = f.recall(read="chat")
+  said = [int(line.split("ada said: ")[1][:2]) for line in block["lines"]]
+  assert len(said) > 2 * MAX_EARLIER
+  assert said == list(range(41 - len(said), 41))
+  assert sum(len(line) + 1 for line in block["lines"]) <= CHAT_RECALLED_CHARS + 1
+  assert (block["hits"], block["cut"]) == (41, 41 - len(said))
 
 
 def test_a_block_is_capped_in_characters_and_says_what_it_cut():
