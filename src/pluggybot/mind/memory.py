@@ -64,6 +64,11 @@ CREATE TABLE IF NOT EXISTS records (
   retired_t REAL
 );
 CREATE INDEX IF NOT EXISTS records_view ON records (robot, generation, kind, status, id);
+-- A tail narrowed to a topic and title (issue #485: the chat's lines, and
+-- the last line said unasked, read on every decision): without it a robot
+-- that has said nothing this life scanned its whole History, 13 ms at
+-- 50 000 rows and 56 ms at 200 000.
+CREATE INDEX IF NOT EXISTS records_topic ON records (robot, generation, kind, topic, title, id);
 CREATE VIRTUAL TABLE IF NOT EXISTS records_fts USING fts5(
   text, title, topic, content='records', content_rowid='id'
 );

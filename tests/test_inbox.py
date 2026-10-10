@@ -903,6 +903,12 @@ def test_the_robots_own_lines_are_a_shape_no_name_can_forge():
   claimed = Inbox().offer(message(earlier=[own_line("x", to="ada",
                                                     outcome="dropped")]))
   assert claimed.earlier == ()
+  # ⚠ It is the KEY that marks the robot's line: one whose root came
+  # through empty is still the robot's, never somebody else's words.
+  nameless = Inbox().offer(message(earlier=[{"robot": None, "text": "mine",
+                                             "to": "ada", "outcome": "replied"}]))
+  assert nameless.as_context()["earlier"] \
+      == [{"you": "mine", "to": "ada", "outcome": "replied"}]
 
 
 def test_an_older_websites_exchanges_are_read_as_their_two_lines():

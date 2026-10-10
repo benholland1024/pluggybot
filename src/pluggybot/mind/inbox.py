@@ -305,7 +305,10 @@ def _earlier(raw: object) -> tuple:
     text = clean(item.get("text"), MAX_TEXT)
     if not text:
       continue
-    if isinstance(item.get("robot"), str):
+    # ⚠ THE KEY, NOT ITS VALUE: a `robot` that came through as null is
+    # still the robot's line, and read as somebody's it would put the
+    # robot's own words in a stranger's mouth.
+    if "robot" in item:
       if outcome in DECIDED_OUTCOMES or not outcome:
         lines.append(Line(text=text, yours=True, outcome=outcome,
                           to=clean(item.get("to"), MAX_WHO) if outcome else ""))
