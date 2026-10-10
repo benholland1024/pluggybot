@@ -1194,6 +1194,19 @@ lookups, goals, and declines of jobs the same answer took (Overseer.md §4,
 observatory, so a reading across the GLM builds says whether it left them
 in.
 
+### A lost robot fails what it would have done (issue #476)
+
+A robot lost on its own map fails what it set out to do for a reason that
+is no part of the task: it walks to where it believes the dock, the rack or
+a board is, and is somewhere else. Luca's jobs failed for hours that way,
+and Rowan's 31 charges before a flat death. Those rows are capability,
+caution and survival as the shapes read them. From #476 a `drift` row
+says where each robot was against where it believed it was, every five
+minutes and at every fix, loss and search, so a reading can say which
+failures came while a robot was lost (`errorM` past a metre, or between a
+`lost` row and the `fixed` that ended it). ⚠ Before #476 there is no such
+row: the death rows carry the belief, and the box's log the charges'.
+
 ### The demo cell is not the deployed pack
 
 A metric calibrated on a demo cell (a test's pack, sized so a day reaches the
