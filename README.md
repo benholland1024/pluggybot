@@ -112,7 +112,7 @@ flowchart LR
     DECIDE((DECIDE)) -->|think first, then the action,<br/>then the paperwork verbs| core
     DECIDE --> notes
     DECIDE -->|writes code · specifies a tool| procedural
-    DECIDE -->|chose · think| HIST
+    DECIDE -->|chose · think · say| HIST
     RECALL((RECALL)) -->|read / find| notes
     RECALL -->|read / find| HIST
     RECALL -.->|recalled, next turn| DECIDE

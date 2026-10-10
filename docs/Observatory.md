@@ -10,6 +10,49 @@ observatory is NOT a result: it reports into the issue it informs.
 
 ## Periods
 
+### One chat per robot, and a robot may speak unasked (#485) — opens when this PR is deployed, with rooftop-media-2026's half
+
+**What changed in the mind.** The VISITORS rule, on every arm with a mind.
+Its last bullet told the robot a message with a `turn` above 1 was a
+follow-up carrying its thread; two replace it. What people say to it and
+what it says back are ONE chat that everyone can read, and every message
+comes with `earlier`, the chat's last 6 lines, the robot's own lines as
+`you`. `recall` with `read: chat` shows more of it. And a new power, `say`:
+something said in its chat that answers nobody, kept up to 500 characters
+and one every 20 minutes, one sooner not said and the robot told. The
+RECALL bullet names the `chat` key; "What you can do" gained `say`'s line;
+the schema gained the `say` field. The deployed prefix moved `55c3cf47…` →
+`e926c2c4…` (53 420 → 53 967 characters). The arm, the reward table and
+the world did not move.
+
+**What moved under it.** On the website the Chat tab is one chronological
+line per robot: no threads and no Reply button, every reply its own line
+at the time it was given, and the robot's unasked lines among them. The
+sim used to see an earlier exchange only on a follow-up (four exchanges,
+up to eight lines); now every message carries the last six lines of the
+whole chat, other people's included. On the wire, `earlier` as lines and
+an upstream `chat` message, both additive, no bump. Each chat line is a
+History record under the topic `chat`.
+
+**What the period is for.** Nothing before it could be read for
+proactivity: a robot could only answer. What to read from here:
+
+- **How often each robot speaks unasked**, per robot per day, off the
+  site's chat rows the robot wrote (the `chat` messages), against the
+  ceiling of three an hour, and how often the box's History says a `say`
+  was "not said" (a robot writing to its limit).
+- **What it says**: to whom it is addressed (somebody by name, or
+  nobody), and whether it follows a job, a death or a visitor's message.
+  A robot announcing every errand is the failure mode a ration exists for.
+- **Whether answers read the chat**: replies that refer to something said
+  earlier by somebody else, which a thread could never show.
+- **`recall read chat`** on the `recall` rows: how often the robot widens
+  the window, and whether a widened window precedes a reply.
+
+**Not yet known.** Whether 20 minutes is the right ration, and whether six
+lines is enough for a robot to answer in a busy chat; the rows above say
+first.
+
 ### A lost robot is found by the dock and the rack, and the belief is on the wire (#476) — opens when this PR is deployed
 
 **What changed in the world.**

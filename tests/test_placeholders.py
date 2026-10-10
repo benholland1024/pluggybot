@@ -39,7 +39,8 @@ def _quiet(**fields) -> dict:
   every field present, `""` / `false` / an empty object where unused."""
   raw = {"think": "", "action": "idle", "reason": "", "board": "",
          "program": "", "zone": "", "read": "", "find": "", "respond_to": "",
-         "outcome": "", "reply": "", "task": "", "answer": "", "pin": "",
+         "outcome": "", "reply": "", "say": "", "task": "", "answer": "",
+         "pin": "",
          "unpin": "", "note": {"topic": "", "title": "", "text": ""},
          "unnote": "", "cites": "", "intend": "", "drop_goal": "", "serves": "",
          "standing_order": "", "buy_heart": False, "event_map": [],
@@ -174,6 +175,16 @@ def test_one_word_in_three_fields_is_that_answers_placeholder():
   assert d.left_out == {"why": "filled", "words": ["keep"],
                         "fields": ["intend", "drop_goal", "retract"],
                         "acts": ["give_points", "other_needs"]}
+
+
+def test_a_placeholder_say_is_never_said_in_the_chat():
+  """⚠ `say` reaches a public chat (issue #485), the worst place an `n`
+  could land: it reads as empty like any text field, and counts toward an
+  answer full of them. Shown to fail without `say` in `PLACEHOLDER_TEXT`."""
+  d = _validate(_quiet(say="n"))
+  assert d.say == "" and d.left_out["fields"] == ["say"]
+  meant = "Back on the dock; the sun on whiteboard_b is done."
+  assert _validate(_quiet(say=meant)).say == meant
 
 
 def test_a_quote_names_a_line_and_a_placeholder_quote_only_itself():

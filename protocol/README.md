@@ -44,6 +44,57 @@ replayer treats it like any other world -- one scene, one recording, keyed
 by that name (`pluggybot.robot.pair_model_name`). The served world is the
 pair, `home_quad_pair`.
 
+### 0.21.0, additive: one chat per robot (`earlier` as lines, on every message; `chat`, upstream)
+
+pluggybot #485. A robot's chat on the website is one chronological line,
+its panel's Chat: what everyone said to it and everything it said, with no
+threads and no Reply button. No bump: a sim or a website older than this
+reads what it always did.
+
+**Downstream: `earlier` rides EVERY `message`**, as the chat's newest
+`MAX_EARLIER` (6) LINES before it, oldest first, each one somebody's or
+the robot's own:
+
+```jsonc
+{"type": "message", "id": "m_9", "from": "ben", "text": "and the far board?",
+ "thread": "m_9", "turn": 1, "robot": "pluggybot",
+ "earlier": [
+   {"from": "ben", "text": "draw a house on whiteboard_a"},
+   {"robot": "pluggybot", "text": "whiteboard_a is full -- ask me about b",
+    "to": "ben", "outcome": "declined"},
+   {"from": "a visitor", "text": "hello?", "outcome": "dropped"},
+   {"robot": "pluggybot", "text": "I just finished a sun on whiteboard_b"}]}
+```
+
+- **A line naming a `robot` is the robot's own**: an answer carries `to`
+  (whom it answered) and `outcome` (`DECIDED_OUTCOMES`); a line it said
+  unasked carries neither. Any other line is somebody's: `from` and
+  `text`, and `outcome: "dropped"` where the queue threw it away. Each
+  text is capped at a message's length, and an outcome the sim never
+  emits drops its line. The model sees the robot's lines as `{"you": ...}`
+  -- a SHAPE no person's line has, so a visitor whose username is `you`
+  cannot put words in the robot's mouth.
+- `thread` and `turn` still ride, as each message's own (turn 1), and are
+  still echoed on the `visitor_reply`. ⚠ A sim reads an older website's
+  follow-up too: its `earlier` exchanges (`from`, `text`, `outcome`,
+  `reply` on one object) are the two lines each one is.
+
+**Upstream: one typed message is new, `chat`**: the robot said something
+in its chat that answers nobody (the decision's `say`). The website keeps
+it as a line of that robot's chat; `id` is the sim's (`c_` and a uuid),
+so the same message twice is one line. `cut` as on a `visitor_reply`:
+present, and true, only where the robot wrote more than 500 characters.
+
+```jsonc
+{"type": "chat", "t": 4120.5, "robot": "pluggybot",
+ "id": "c_7f0c2a4e-4b1d-4f43-9d3e-0b1b9e2f6a11",
+ "text": "I just finished a sun on whiteboard_b"}
+```
+
+The robot may say one such line every `SAY_EVERY_S` (20 minutes); one
+sooner is not sent, and its History says so. No fixture carries one (the
+pair's recording has no mind).
+
 ### 0.21.0, additive: the belief against the truth (`drift`); a swap that saw no rack
 
 pluggybot #476. Two robots were lost by 4-8 m on their own maps, and the
@@ -142,9 +193,9 @@ the quadruped and one drawn chest).
 
 pluggybot #474. A visitor's `message` text and the robot's
 `visitor_reply.reply` are one number, `text.MAX_VISITOR_CHARS` (500; until
-now 280 in and 240 out), and so is each half of an `earlier` turn a
-follow-up carries. The website enforces the same number both ways, and the
-robot is told it. One field is new:
+now 280 in and 240 out), and so is each line of `earlier` (#485; each
+half of a follow-up's turn until then). The website enforces the same
+number both ways, and the robot is told it. One field is new:
 
 - **`cut: true`** on a `visitor_reply` whose robot wrote more than that:
   `reply` is the first 500 characters and the rest was not kept. Absent
@@ -607,41 +658,15 @@ edited. The observatory files one row per event under `why`.
 ### 0.21.0, additive: a conversation (a follow-up carries its thread; a `visitor_reply` says whose it was)
 
 rooftop-media-2026 #125. The visitor channel was one message in and one
-outcome back. It is a conversation now: a visitor can follow up on an
-answer, and the robot is shown the exchange, not just the latest line.
-No bump; nothing existing changed shape, and a sim or a website older
-than this reads exactly as before.
+outcome back; it became a conversation. Its threads are gone since #485
+(above): `earlier` is now the robot's whole chat, on every message, and a
+thread's exchanges are read only from a website older than that. What
+#125 put on the wire that still holds:
 
-**Downstream: three optional fields on an inbound `message`.** The
-conversation is the WEBSITE's state (it outlives a mission, a restart, a
-generation, and the robot that answered may not be the robot reading),
-so the website carries it: a transcript is a thing a network can carry.
-
-```jsonc
-{"type": "message", "id": "m_02", "from": "ada", "text": "and the far board?",
- "thread": "m_01",          // the id of the conversation's FIRST message
- "turn": 2,                 // which message of theirs this is; 1 is a first message
- "earlier": [               // the exchange so far, oldest first, the newest 4
-   {"from": "ada", "text": "draw a house on whiteboard_a",
-    "outcome": "declined", "reply": "whiteboard_a is full -- ask me about b"}]}
-```
-
-- `thread` rides EVERY message from a website that has threads (a first
-  message is the root of its own); `turn` and `earlier` matter above 1.
-  The model is shown `turn` and `earlier` on a follow-up alone -- a first
-  message reaches it exactly as it always did -- under one added rule in
-  the VISITORS block: *answer as the one who said those things, not as a
-  stranger*.
-- **Cleaned like everything on this socket**, the sim's own earlier words
+- `thread` and `turn` on a `message`, each its own since #485, and a bad
+  one costs the message its context and never the message. Every text is
+  **cleaned like everything on this socket**, the sim's own earlier words
   included: they come back as DATA, on the same terms as the stranger's.
-  Each text is capped at a message's length, an outcome must be one of
-  `VISITOR_OUTCOMES` (a retired name folded, anything else dropped), and
-  only the newest `MAX_EARLIER` (4) turns are kept -- the website sends the
-  same number, and both ends cap for the reason both cap a message. A bad
-  `turn` or a malformed `earlier` costs the follow-up its context and never
-  the message. ⚠ Still no `robot` in the shape above, but a follow-up SHOULD
-  carry one: the website addresses it to the robot that answered (0.19.0's
-  reach-in rule), or a pair's second robot never hears the second half.
 - **`from` is a name where the website has one to give** -- a signed-in
   visitor's username, the same label a `rating` carries since
   rooftop-media-2026 #259 -- and `a visitor` otherwise. Continuity needs a
@@ -659,7 +684,7 @@ other robot's standing. A `dropped` reply carries the same four.
 ```jsonc
 {"type": "visitor_reply", "t": 412.5, "robot": "pluggybot", "id": "m_02",
  "kind": "message", "outcome": "replied", "reply": "b is free now", "action": "",
- "from": "ada", "sender": "visitor", "thread": "m_01", "turn": 2}
+ "from": "ada", "sender": "visitor", "thread": "m_02", "turn": 1}
 ```
 
 The website files one observatory row per exchange off this
@@ -671,8 +696,10 @@ exchanges once there are some to read.
 answer and kept no record of it: `History.md` now takes two lines per
 exchange -- *ada said: ...* then *replied to ada: ...* (or *took ada's idea
 (draw): ...* / *declined ada: ...*) -- written by the system quoting the
-sender, so `recall find ada` finds everything ada has said across a life.
-The other robot's `tell` lands the same way under its name. On the wire
+sender, so `recall find ada` finds everything ada has said across a life
+(since #485 each a `record` under the topic `chat`, its role the title:
+`heard`, `answered`, or `said` for a `chat` line). The other robot's
+`tell` lands the same way under its name, and under no topic. On the wire
 that is the `thought` document it always was, one message per write.
 
 ### 0.21.0, additive: the bench (`finding`; `locals` on a `procedure` run; a `taskKinds` entry)

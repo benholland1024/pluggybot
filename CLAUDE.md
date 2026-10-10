@@ -798,13 +798,23 @@ save a filmstrip PNG named after the script.
   inbound kind, `message`; the OUTCOME carries the distinction, and legacy
   kinds and outcomes are folded at the door (`answered` must still render). ⚠
   The header advertises `accepts` PER KIND. ⚠ Sanitising is NOT the security
-  boundary; the framing and the fixed menu are. ⚠ It is a CONVERSATION
-  (`thread` / `turn` / `earlier`, the website's state; `sender` is stated by
-  the CALLER of `Inbox.offer`, never read off the wire); NO NEW VERB. ⚠ It
-  is ONE LENGTH BOTH WAYS, `text.MAX_VISITOR_CHARS` (500, #474; the site
-  enforces it too), and the VISITORS rule states it off the constant; a
-  reply past it is cut OUT LOUD (`cut` on `visitor_reply`, History), and
-  `MAX_RAW_BYTES` must admit a follow-up at every cap. The `tell` stays
+  boundary; the framing and the fixed menu are. ⚠ It is ONE CHAT PER ROBOT
+  (#485; threads since rooftop #125): every message carries `earlier`, the
+  chat's newest `MAX_EARLIER` (6) LINES, the website's state; the robot's
+  own lines are a SHAPE (`robot` on the wire, `you` to the model), never a
+  name, because a username can be `you`; an older site's thread exchanges
+  are read as their two lines. `sender` is stated by the CALLER of
+  `Inbox.offer`, never read off the wire. Each line is filed in History
+  under the topic `chat` by its role (a peer's `tell` under none), and
+  `read chat` widens the window. ⚠ The robot may `say` something unasked:
+  a `chat` message, cut out loud at 500 and RATIONED at `SAY_EVERY_S`
+  (1200, a visitor's three an hour) off the STORE's clock
+  (`ThoughtFiles.last_said`), a refusal said in History; a placeholder
+  `say` is nothing said. ⚠ It is ONE LENGTH BOTH WAYS,
+  `text.MAX_VISITOR_CHARS` (500, #474; the site enforces it too), and the
+  VISITORS rule states it, the window and the interval off the constants;
+  a reply past it is cut OUT LOUD (`cut` on `visitor_reply`, History), and
+  `MAX_RAW_BYTES` must admit a message at every cap. The `tell` stays
   280.
 - **The serving image** (`docker build -t pluggyworld-sim .`; `Dockerfile`,
   `deploy/`; Webserver.md "Deploying it") runs `serve.py` and nothing else:
