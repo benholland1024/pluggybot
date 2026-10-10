@@ -1408,6 +1408,8 @@ class HubLifecycle:
           self._tell_belief(rec)
       self._belief_seen = events[-1]["seq"]
     t = float(self.data.time)
+    if self._drift_due is None:           # ...the first a period on from here
+      self._drift_due = t + DRIFT_EVERY_S
     if t < self._drift_due:
       return
     self._drift_due = t + DRIFT_EVERY_S
@@ -1424,8 +1426,8 @@ class HubLifecycle:
                                 "posture": self.body.posture, "state": self.state}))
 
   _belief_seen = 0
-  _drift_due = 0.0
-  _drift_counts: dict | None = None
+  _drift_due = None
+  _drift_counts = None
 
   def _drift_row(self, rec: dict) -> dict:
     """One `drift` row off a belief event (or a sample): the TRUE pose

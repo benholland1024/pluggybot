@@ -368,7 +368,9 @@ def test_the_belief_against_the_truth_is_sampled_with_the_verdicts_since():
   assert life._belief_step in body.step_hooks
   rows = []
   life.on_event.append(rows.append)
+  life._belief_step()                                # ...the first a period on
   body.match_counts = {"ok": 10}
+  life.data.time += DRIFT_EVERY_S
   life._belief_step()
   body.match_counts = {"ok": 25, "relocated": 1}
   life.data.time += DRIFT_EVERY_S - 1.0
