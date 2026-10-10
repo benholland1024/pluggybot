@@ -172,17 +172,22 @@ def test_the_fitter_finds_what_the_residual_says_and_says_what_it_cannot_see():
     assert u.share(got.values[name]) == pytest.approx(share, abs=1e-6), name
   # nothing moves the base's mass: unseen, held at its range's middle
   assert got.unseen == ("base.mass",) and got.values["base.mass"] == 3.0
-  assert got.at_end == ()
+  assert got.at_end == {}
   # the start was the middle and the spread, the best of them
   assert pool.sent[0] == 1 + ft.SOBOL_POINTS
   assert [s for s, _ in got.log][:2] == ["start", "robust"] and "squares" in dict(got.log)
 
 
-def test_an_unknown_whose_truth_is_past_its_range_ends_at_its_end():
+def test_an_unknown_whose_truth_is_past_its_range_ends_at_its_end_and_says_which():
+  # "At an end" alone told an author nothing it could act on: the catch's
+  # range missed the truth 6 times in 7, its low end above the true pull
+  # each time (#480), so the fit says WHICH end (#481).
   t = sc.parse_template(BOX)
-  got = ft.fit(t, _flown(), slice(0, 500), LinearPool(t, [0.5, 0.3, 0.6, 1.4]))
-  assert got.at_end == ("hinge.friction",)
+  got = ft.fit(t, _flown(), slice(0, 500), LinearPool(t, [0.5, 0.3, -0.4, 1.4]))
+  assert got.at_end == {"hinge.damping": "low", "hinge.friction": "high"}
+  assert got.values["hinge.damping"] == pytest.approx(0.0)
   assert got.values["hinge.friction"] == pytest.approx(0.2)
+  assert got.as_dict()["atEnd"] == {"hinge.damping": "low", "hinge.friction": "high"}
 
 
 class FailingPool(LinearPool):
@@ -268,18 +273,22 @@ def test_a_worker_answers_a_residual_as_this_process_would_and_keeps_its_record(
 # ---- the author ----------------------------------------------------------------------
 
 class Client:
-  """A client that answers what it is told to, in turn, and keeps every
-  request it was sent."""
+  """A client that answers what it is told to, in turn -- an exception
+  among the answers is raised -- and keeps every request it was sent;
+  `provider` is who the router says answered."""
 
-  def __init__(self, *answers):
-    self.answers, self.sent = list(answers), []
+  def __init__(self, *answers, provider=None):
+    self.answers, self.sent, self.provider = list(answers), [], provider
     self.messages = SimpleNamespace(create=self.create)
 
   def create(self, **kw):
     self.sent.append(copy.deepcopy(kw))
     text = self.answers.pop(0)
+    if isinstance(text, Exception):
+      raise text
     return SimpleNamespace(content=[SimpleNamespace(type="text", text=text)],
-                           usage=SimpleNamespace(input_tokens=100, output_tokens=50))
+                           usage=SimpleNamespace(input_tokens=100, output_tokens=50),
+                           provider=self.provider)
 
 
 def answer(doc, what="a box with a lid"):
@@ -373,8 +382,27 @@ def test_an_answer_that_never_came_is_asked_again_and_not_kept():
   assert parts[0]["type"] == "image_url" and parts[1]["text"].endswith(au.RETRY_NOTE)
 
 
+def test_an_ask_the_router_refused_for_its_rate_is_waited_out_unchanged():
+  # 26 asks at once, each with room for 64,000 tokens, met a provider's
+  # rolling limit, and two retries 20 s apart lost a set-out (#481). A 429
+  # never reached the model: the same ask goes again, waited out, and the
+  # retries are kept for answers that ran out of room.
+  limited = RuntimeError("HF router 429: Rate limit exceeded")
+  client = Client(limited, limited, "", answer(BOX))
+  a = au.Author(client, "org/model", retry_wait_s=0.0, rate_wait_s=0.0)
+  assert a.first(SIZES, "It lifted the cube.", None).template is not None
+  asks = [kw["messages"][-1]["content"] for kw in client.sent]
+  assert asks[1] == asks[2] == asks[0], "a 429 is asked again as it was"
+  assert asks[3] == asks[0] + au.RETRY_NOTE, "an answer that never came says so"
+  client = Client(*[limited] * (au.RATE_WAITS + 1), answer(BOX))
+  a = au.Author(client, "org/model", retry_wait_s=0.0, rate_wait_s=0.0)
+  assert a.first(SIZES, "It lifted the cube.", None).template is not None, \
+    "past the rate's waits, the retries are still there"
+
+
 def test_a_revision_is_shown_the_fit_and_where_it_left_too_much():
-  report = {"values": {"lid.mass": 0.4, "hinge.friction": 0.2}, "atEnd": ["hinge.friction"],
+  report = {"values": {"lid.mass": 0.4, "hinge.friction": 0.2, "hinge.damping": 0.0},
+            "atEnd": {"hinge.friction": "high", "hinge.damping": "low"},
             "unseen": [], "failed": "",
             "phases": [{"label": "the first lift", "rmsN": 1.2, "barN": None, "poor": False,
                         "trace": [(0.0, (0.1, -2.4)), (0.5, (0.0, 0.05))]},
@@ -383,7 +411,9 @@ def test_a_revision_is_shown_the_fit_and_where_it_left_too_much():
                        {"label": "the sweeps together", "rmsN": 0.8, "barN": 0.32, "poor": True,
                         "whole": True, "trace": [(0.0, (9.0, 9.0))]}]}
   text = au.report_text(report)
-  assert "hinge.friction = 0.2  (at an end of your range)" in text
+  assert "hinge.friction = 0.2  (at the high end of your range)" in text
+  assert "hinge.damping = 0  (at the low end of your range)" in text
+  assert "lid.mass = 0.4\n" in text
   assert "the first lift: 1.200\n" in text, "no bar where none judges"
   assert "the sweeps together: 0.800 (bar 0.320)  PAST THE BAR" in text
   # a poor whole shows the traces of the stretches it spans, never its own
@@ -404,15 +434,19 @@ def test_a_revision_is_shown_the_fit_and_where_it_left_too_much():
 
 # ---- the rounds --------------------------------------------------------------------
 
-def _rounds(monkeypatch, poor, refused=()):
-  """`imagine` with each round's fit stubbed: round r's rms is 1 - r/10 but
-  for r in `poor`, judged poor; an answer in `refused` never parses."""
+#: A stubbed round's fit leaves this, round by round.
+LEFT = [0.3, 0.1, 0.2, 0.25, 0.15]
+
+
+def _rounds(monkeypatch, poor, refused=(), rounds=mm.MAX_ROUNDS, client=None):
+  """`imagine` with each round's fit stubbed: round r leaves `LEFT[r]`,
+  judged poor for r in `poor`; an answer in `refused` never parses."""
   fits = []
 
   def fake_fit(template, record, rows, pool, **kw):
     r = len(fits)
     fits.append(template)
-    return SimpleNamespace(values={}, at_end=(), unseen=(), rms=[0.3, 0.1, 0.2][r],
+    return SimpleNamespace(values={}, at_end={}, unseen=(), rms=LEFT[r],
                            readings=None, document={"round": r},
                            as_dict=lambda: {})
   monkeypatch.setattr(mm, "fit", fake_fit)
@@ -421,9 +455,9 @@ def _rounds(monkeypatch, poor, refused=()):
      "poor": len(fits) - 1 in poor, "trace": []}])
   answers = [answer(BOX) if i not in refused else answer(box(parts=[]))
              for i in range(10)]
-  a = au.Author(Client(*answers), "org/model")
+  a = au.Author(client or Client(*answers), "org/model")
   m = mm.imagine(a, _flown(), [], slice(0, 500), SIZES, (1000.0, 0.0), 0.0, "did", None,
-                 pool=None)
+                 pool=None, rounds=rounds)
   return m, fits
 
 
@@ -431,7 +465,7 @@ def test_a_fit_left_poor_goes_back_and_the_best_round_is_kept(monkeypatch):
   m, fits = _rounds(monkeypatch, poor={0})
   assert len(m.rounds) == 2 and m.revisions == 1 and m.kept == 1
   assert m.document == {"round": 1}
-  m, fits = _rounds(monkeypatch, poor={0, 1, 2})
+  m, fits = _rounds(monkeypatch, poor=set(range(mm.MAX_ROUNDS)))
   assert len(m.rounds) == mm.MAX_ROUNDS and m.kept == 1, "the least left, not the last"
   m, fits = _rounds(monkeypatch, poor=set())
   assert len(m.rounds) == 1 and m.revisions == 0
@@ -441,6 +475,91 @@ def test_an_author_whose_document_never_parses_ends_with_no_model(monkeypatch):
   m, fits = _rounds(monkeypatch, poor={0}, refused=set(range(10)))
   assert not fits and m.kept is None and m.document is None
   assert m.rounds[0].error.startswith("its document was refused")
+
+
+def _asked(client) -> list[str]:
+  """Every text a client was sent: each request's system prompt and each
+  user turn's words."""
+  out = []
+  for kw in client.sent:
+    out += [b["text"] for b in kw["system"]]
+    for msg in kw["messages"]:
+      if msg["role"] == "user":
+        c = msg["content"]
+        out += [c] if isinstance(c, str) else [p["text"] for p in c if p.get("type") == "text"]
+  return out
+
+
+def test_the_author_is_never_told_how_many_rounds_it_has(monkeypatch):
+  # Every pass of #480's batch came in a revision, so #481 gave it five
+  # rounds for three. Never told the cap, a run capped at five asks exactly
+  # as one capped at three until its fourth round, and a batch reads its
+  # passes by round three and by round five off the same runs.
+  import re
+  from pluggybot.legs import probe as pr
+  sent = {}
+  for cap in (3, 5):
+    monkeypatch.setattr(mm, "MAX_ROUNDS", cap)
+    sent[cap] = Client(*[answer(BOX)] * 5)
+    m, _ = _rounds(monkeypatch, poor=set(range(5)), rounds=cap, client=sent[cap])
+    assert len(m.rounds) == cap
+  assert sent[5].sent[:3] == sent[3].sent, "a cap of five asks as a cap of three"
+  # ...and no word of any text it can be sent, the probe's own first turn
+  # with what its jaws felt among them, speaks of a cap
+  rec = _flown(1000)
+  phases = [mm.Phase(n, label, (0, 1000), bar) for n, (label, bar) in pr.PHASES.items()]
+  felt = mm.felt_by_phase(rec, phases, np.zeros((1000, 2)))
+  report = {"values": {"lid.mass": 0.4}, "atEnd": {"lid.mass": "low"}, "unseen": [],
+            "failed": "", "phases": [{"label": "a lift", "rmsN": 1.0, "barN": 0.5,
+                                      "poor": True, "trace": [(0.0, (0.1, 0.2))]}]}
+  texts = [*_asked(sent[5]), au.measures_text(SIZES, pr.DID, felt), au.report_text(report),
+           au.report_text({**report, "failed": "it went unstable"}), au.RETRY_NOTE]
+  for text in texts:
+    for word in ("round", "rounds", "revise", "revision", "revisions", "attempt", "attempts",
+                 "chance", "chances", "remaining", "tries", "final", "third", "fourth",
+                 "fifth"):
+      assert not re.search(rf"\b{word}\b", text, re.IGNORECASE), word
+
+
+def test_the_first_turn_shows_what_the_jaws_felt_a_stretch_at_a_time(monkeypatch):
+  # Shown only beside a poor fit, what the jaws felt reached the author
+  # after it had read a strap, and it seldom revised a reading (#480): the
+  # lid's weight and its catch letting go are both in it (#481).
+  rec = _flown(1000)
+  phases = [mm.Phase("take", "taking hold", (0, 500), 0.05),
+            mm.Phase("up0", "the first lift", (500, 1000), None),
+            mm.Phase("sweeps", "the lifts together", (500, 1000), 0.32, whole=True)]
+  felt = np.zeros((1000, 2))
+  felt[500:750] = (0.5, -2.0)
+  felt[750:] = (-1.0, -1.25)
+  shown = mm.felt_by_phase(rec, phases, felt)
+  assert [p["label"] for p in shown] == ["taking hold", "the first lift"], "a whole is its parts"
+  assert shown[1]["felt"] == [(0.0, (0.5, -2.0)), (0.5, (-1.0, -1.25))]
+  block = "The first lift:\n   0.0 s  (+0.50, -2.00)\n   0.5 s  (-1.00, -1.25)"
+  client = Client(answer(BOX))
+  au.Author(client, "org/model").first(SIZES, "It lifted the cube.", b"\xff\xd8\xff-a-jpeg",
+                                       felt=shown)
+  text = client.sent[0]["messages"][0]["content"][1]["text"]
+  assert "WHAT ITS JAWS FELT" in text and block in text
+  assert "WHAT ITS JAWS FELT" not in au.measures_text(SIZES, "did"), "none, nothing said"
+  # ...and the rounds show it from the first turn, off what the jaws felt
+  monkeypatch.setattr(mm, "fit", lambda *a, **kw: SimpleNamespace(
+    values={}, at_end={}, unseen=(), rms=0.1, readings=None, document={}, as_dict=dict))
+  monkeypatch.setattr(mm, "judge", lambda record, readings, phases, felt=None: [])
+  client = Client(answer(BOX))
+  mm.imagine(au.Author(client, "org/model"), rec, phases, slice(500, 1000), SIZES,
+             (1000.0, 0.0), 0.0, "did", None, pool=None, felt=felt)
+  assert block in client.sent[0]["messages"][0]["content"]
+
+
+def test_an_answer_keeps_who_gave_it_and_how_long_it_took():
+  # `:cheapest` ties four providers at one price, from 12 to 97 tokens/s,
+  # and one answered a trivial ask with no reasoning at all (#481's smoke
+  # call): each turn keeps who the router says answered it.
+  a = au.Author(Client(answer(BOX), provider="baseten"), "org/model")
+  turn = a.first(SIZES, "It lifted the cube.", None)
+  assert turn.provider == "baseten" and turn.wall_s >= 0.0
+  assert turn.as_dict()["provider"] == "baseten" and "wallS" in turn.as_dict()
 
 
 def test_a_phase_past_its_bar_is_poor_and_its_trace_is_the_real_less_the_imagined():
@@ -521,6 +640,81 @@ def test_an_interval_is_a_median_and_its_bootstrap_and_a_share_wilsons():
   assert em.median_interval([None]) is None
   sh = em.share_interval([True] * 8 + [False] * 2)
   assert sh["share"] == 0.8 and 0.49 < sh["lo"] < 0.8 < sh["hi"] < 0.95
+
+
+def imagine_chest():
+  """`scripts/imagine_chest.py`, imported -- the environment it sets for
+  its own BLAS left as it was."""
+  import importlib.util
+  import os
+  from pathlib import Path
+  from unittest import mock
+  path = Path(__file__).resolve().parent.parent / "scripts" / "imagine_chest.py"
+  spec = importlib.util.spec_from_file_location("imagine_chest", path)
+  script = importlib.util.module_from_spec(spec)
+  with mock.patch.dict(os.environ):
+    spec.loader.exec_module(script)
+  return script
+
+
+def _row(k, poor, lid, turns=(), settings=None):
+  """A model's row as the batch writes it: round i poor or not, and the
+  hinge we graded in it on the lid's line or a strap's."""
+  right = {"type": "hinge", "axisDeg": 1.0, "hingeAlongMm": 3.0, "hingeUpMm": 6.0}
+  strap = {"type": "hinge", "axisDeg": 1.0, "hingeAlongMm": -150.0, "hingeUpMm": -40.0}
+  row = {"k": k, "condition": "model", "catchN": 2.0, "author": "org/model",
+         "model": {"kept": 0, "rounds": [{"poor": p} for p in poor], "turns": list(turns)},
+         "rounds": [{"graded": {"model": right if ok else strap}} for ok in lid]}
+  return row | ({"settings": settings} if settings else {})
+
+
+def test_the_rate_is_read_by_round_and_a_pass_with_no_lid_is_a_false_one():
+  # #481's stage 1: passes by round three and by round five off the same
+  # runs, the lid's hinge by round, and a pass of the wrong structure -- a
+  # false success, the costly error (#465) -- counted apart.
+  script = imagine_chest()
+  rows = [_row(0, [True, False], [False, True]),
+          _row(1, [False], [False]),
+          _row(2, [True, True, True], [False, False, True],
+               turns=[{"tokensOut": 40000, "document": {}},     # what 64,000 rescued
+                      {"tokensOut": 64000, "document": None},   # cut off
+                      {"tokensOut": 31000, "document": None}])]
+  got = script.rate(rows, 64000)
+  assert [b["passed"]["k"] for b in got["byRound"]] == [1, 2, 2]
+  assert [b["found"]["k"] for b in got["byRound"]] == [0, 1, 2]
+  assert [b["answers"] for b in got["byRound"]] == [3, 2, 1]
+  assert got["passes"] == [0, 1] and got["false"] == [1]
+  assert (got["rescued"], got["cut"], got["short"], got["lost"]) == (1, 1, 1, 0)
+  # each row carries what produced it, and rows produced otherwise are
+  # never pooled, by the same author too: #480's carried no settings
+  made = script.settings("org/model")
+  assert made["maxRounds"] == mm.MAX_ROUNDS and made["maxTokens"] == au.MAX_TOKENS
+  groups = script.by_settings([_row(3, [False], [True], settings=made), *rows,
+                               _row(4, [False], [True], settings=made)])
+  assert [[r["k"] for r in g] for _, g in groups] == [[3, 4], [0, 1, 2]]
+  assert groups[1][0] == {"author": "org/model", **script.STAGE3}
+
+
+def test_of_several_imaginings_the_first_to_pass_is_kept_and_none_after_it_imagined():
+  # #481's first fallback, as Ben chose it: imaginings from nothing, one at
+  # a time, kept at the first that passes its bars -- the robot's own
+  # measure, never the truth -- so a strap that passes first is the one
+  # kept, a false pass, and an imagining after a pass is never made.
+  script = imagine_chest()
+
+  def made(k, batch, poor, lid):
+    return _row(k, poor, lid) | {"_batch": batch}
+  rows = [made(0, 1, [True, False], [False, True]), made(0, 0, [False], [False]),
+          made(1, 0, [True], [True]), made(1, 1, [True], [True]),
+          made(2, 0, [True], [False]), made(2, 2, [True], [True]),
+          made(2, 1, [True, False], [False, True]),
+          made(3, 0, [False], [True])]                      # imagined once: not read
+  got = script.first_of(rows)
+  assert got["setOuts"] == 3 and got["of"] == [2, 3]
+  assert got["passed"]["k"] == 2 and got["false"] == [0], "the strap passed first"
+  assert got["imaginings"] == (1 + 2 + 2) / 3
+  assert script.first_pass(rows[2:4]) == (None, 2), "none passed: all of them"
+  assert script.first_of(rows[-1:]) is None
 
 
 def test_the_arms_force_row_by_row_is_its_force_at_each_row():

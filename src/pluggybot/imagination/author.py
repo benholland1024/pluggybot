@@ -6,10 +6,11 @@ template in the scene language, every number it cannot see left as a range
 fits the numbers it leaves (`fit.py`); it decides nothing else.
 
 THE CONVERSATION (`Author`): the first turn is the colour camera's picture,
-the sizes depth and the tags measured, and what the arm did (`first`); a
-document that does not parse goes back with every reason (`repair`); a
-fitted one that left too much goes back with the fit's report (`revise`,
-`model.py` judges when).
+the sizes depth and the tags measured, what the arm did and what its jaws
+felt (`first`); a document that does not parse goes back with every reason
+(`repair`); a fitted one that left too much goes back with the fit's
+report (`revise`, `model.py` judges when), which says which end of its
+range a value stopped at.
 
 ⚠ IT IS TOLD NOTHING OF THE WORLD'S MODEL: what its turns carry is the
 robot's own -- the picture, the sizes, the arm's own path and what the fit
@@ -29,8 +30,10 @@ from pluggybot.imagination.scene import Refused, Template, parse_template, place
 
 #: The tokens an answer may take: the deployed model reasons first, and
 #: shown the picture it reasoned 22,351 tokens for one document (8,192, the
-#: overseer's, left it no answer at all).
-MAX_TOKENS = 32000
+#: overseer's, left it no answer at all); at 32,000, 70 answers in 180 ran
+#: out before their document, and those that came ran to 31,800 (#480).
+#: Every provider the deployed pick's `:cheapest` ties took 64,000 (#481).
+MAX_TOKENS = 64000
 #: A refused document goes back with every reason this many times a round
 #: at most, and an answer that never came (cut off, or no JSON) is asked
 #: again this many, apart -- shared, the retries left a refusal no repair --
@@ -43,6 +46,12 @@ RETRY_WAIT_S = 20.0
 #: tokens and wrote nothing, two answers in five.
 RETRY_NOTE = ("\n\n(Your last answer ran out of room before its document was written. "
               "Think as briefly as you can, then write the document.)")
+#: An ask the router refused for its rate (429) never reached the model and
+#: cost nothing: it goes again unchanged, this long times the waits so far
+#: after (s), this many times apart from the retries. ⚠ 26 asks at once,
+#: each with room for 64,000 tokens, met a provider's rolling limit, and two
+#: retries 20 s apart lost a set-out (#481).
+RATE_WAIT_S, RATE_WAITS = 60.0, 5
 
 WHAT_YOU_DO = """WHAT YOU ARE DOING
 
@@ -214,11 +223,25 @@ def extract(response) -> dict:
 
 # ---- the turns ----------------------------------------------------------------------
 
-def measures_text(sizes: dict, did: str) -> str:
+def felt_text(felt: list[dict]) -> list[str]:
+  """The first turn's lines of what the jaws felt (`model.felt_by_phase`),
+  a stretch at a time, as a poor fit's report shows the real side."""
+  lines = ["WHAT ITS JAWS FELT", "",
+           "The force the object put on the jaws, N (toward the object, up), 0.5 s at a "
+           "time: the arm's motors less the arm's own weight and friction."]
+  for p in felt:
+    lines += ["", f"{p['label'].capitalize()}:"]
+    lines += [f"  {t0:4.1f} s  ({fx:+.2f}, {fz:+.2f})" for t0, (fx, fz) in p["felt"]]
+  return lines
+
+
+def measures_text(sizes: dict, did: str, felt: list[dict] | None = None) -> str:
   """The first turn's words: what depth and the tags measured, in the box's
-  frame (`legs.probe.Sizes`), and what the arm did."""
+  frame (`legs.probe.Sizes`), what the arm did, and what its jaws felt
+  (`felt`, `model.felt_by_phase`; none, nothing said of it)."""
   s = sizes
   k = s["knob"]
+  felt_lines = [] if felt is None else [*felt_text(felt), ""]
   return "\n".join([
     "WHAT THE ROBOT MEASURED (its depth camera and the tag; mm, the box's frame)",
     "",
@@ -237,6 +260,7 @@ def measures_text(sizes: dict, did: str) -> str:
     "",
     did,
     "",
+    *felt_lines,
     "The picture is its colour camera's, before it lay down. Write the object's model."])
 
 
@@ -250,7 +274,8 @@ def report_text(report: dict) -> str:
                       "on. Answer as before: the whole document."])
   lines = ["THE FIT", "", "Code fitted your unknowns:"]
   for name, v in report["values"].items():
-    note = ("  (at an end of your range)" if name in report["atEnd"]
+    end = report["atEnd"].get(name)
+    note = (f"  (at the {end} end of your range)" if end
             else "  (nothing the arm felt moves it: held at the middle of your range)"
             if name in report["unseen"] else "")
     lines.append(f"  {name} = {v:.4g}{note}")
@@ -291,20 +316,25 @@ def report_text(report: dict) -> str:
 class Turn:
   """One answer: what was asked (`kind`: first, repair or revise), the
   answer as written, its template in the box's frame (or the reasons it
-  was refused), and the tokens it cost."""
+  was refused), the tokens it cost, how long it took (s) and who answered
+  (`provider`, where the router says: a policy's providers differ in speed
+  and in how they reason)."""
   kind: str
   answer: dict | None = None
   template: Template | None = None
   refused: list[str] = field(default_factory=list)
   error: str = ""
   tokens: tuple[int, int] = (0, 0)
+  wall_s: float = 0.0
+  provider: str | None = None
 
   def as_dict(self) -> dict:
     return {"kind": self.kind, "what": (self.answer or {}).get("what"),
             "think": (self.answer or {}).get("think"),
             "document": None if self.answer is None else template_of(self.answer),
             "refused": list(self.refused), "error": self.error,
-            "tokensIn": self.tokens[0], "tokensOut": self.tokens[1]}
+            "tokensIn": self.tokens[0], "tokensOut": self.tokens[1],
+            "wallS": round(self.wall_s, 1), "provider": self.provider}
 
 
 def _noted(content):
@@ -327,18 +357,21 @@ class Author:
   (`mind.llm.build_client`); `backend` says how a picture is attached."""
 
   def __init__(self, client, model: str, backend: str = "huggingface",
-               max_tokens: int = MAX_TOKENS, retry_wait_s: float = RETRY_WAIT_S) -> None:
+               max_tokens: int = MAX_TOKENS, retry_wait_s: float = RETRY_WAIT_S,
+               rate_wait_s: float = RATE_WAIT_S) -> None:
     self.client, self.model_id, self.backend = client, model, backend
     self.max_tokens = max_tokens
-    self.retry_wait_s = retry_wait_s
+    self.retry_wait_s, self.rate_wait_s = retry_wait_s, rate_wait_s
     self.messages: list[dict] = []
     self.turns: list[Turn] = []
     self._last_asked = None
 
   def _ask(self, kind: str, content) -> Turn:
+    import time
     self._last_asked = content
     self.messages.append({"role": "user", "content": content})
     turn = Turn(kind=kind)
+    t0 = time.monotonic()
     try:
       response = self.client.messages.create(
         model=self.model_id, max_tokens=self.max_tokens,
@@ -348,9 +381,12 @@ class Author:
       usage = getattr(response, "usage", None)
       turn.tokens = (int(getattr(usage, "input_tokens", 0) or 0),
                      int(getattr(usage, "output_tokens", 0) or 0))
+      turn.provider = getattr(response, "provider", None)
+      turn.wall_s = time.monotonic() - t0
       turn.answer = extract(response)
     except Exception as e:                                # noqa: BLE001 -- an answer said why
       turn.error = f"{type(e).__name__}: {e}"
+      turn.wall_s = time.monotonic() - t0
       self.messages.pop()
       self.turns.append(turn)
       return turn
@@ -364,26 +400,35 @@ class Author:
 
   def _settled(self, turn: Turn) -> Turn:
     """`turn`, or the repairs it took: a refused document goes back with
-    every reason (`MAX_REPAIRS`), and an answer that never came or was no
-    JSON is asked again, saying so (`MAX_RETRIES`; its turn not kept)."""
-    repairs = retries = 0
+    every reason (`MAX_REPAIRS`), an ask the router refused for its rate
+    goes again unchanged, waited out (`RATE_WAITS`), and an answer that
+    never came or was no JSON is asked again, saying so (`MAX_RETRIES`; its
+    turn not kept)."""
+    import time
+    repairs = retries = waits = 0
     while True:
       if turn.refused and repairs < MAX_REPAIRS:
         repairs += 1
         turn = self._ask("repair", "Your document was refused:\n" +
                          "\n".join(f"- {r}" for r in turn.refused) +
                          "\n\nAnswer again, the whole document, every reason answered.")
+      elif (" 429" in turn.error and waits < RATE_WAITS
+            and self._last_asked is not None):
+        waits += 1
+        time.sleep(self.rate_wait_s * waits)
+        turn = self._ask("retry", self._last_asked)
       elif turn.error and retries < MAX_RETRIES and self._last_asked is not None:
         retries += 1
-        import time
         time.sleep(self.retry_wait_s)
         turn = self._ask("retry", _noted(self._last_asked))
       else:
         return turn
 
-  def first(self, sizes: dict, did: str, picture: bytes | None) -> Turn:
-    """The first answer: the picture, the sizes and what the arm did."""
-    text = measures_text(sizes, did)
+  def first(self, sizes: dict, did: str, picture: bytes | None,
+            felt: list[dict] | None = None) -> Turn:
+    """The first answer: the picture, the sizes, what the arm did and what
+    its jaws felt (`model.felt_by_phase`)."""
+    text = measures_text(sizes, did, felt)
     if picture is None:
       content = text
     else:

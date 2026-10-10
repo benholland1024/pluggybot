@@ -4165,8 +4165,125 @@ goes back, nearly always, to its author, the one who can move it.
   passed no more.
 - The geometry is the author's and never the fitter's. Depth's 2 mm leaks
   nothing, and a hinge's height a lid's thickness off reaches the bar.
-- `MAX_ROUNDS` is 3 and every pass came in a revision. Whether a fourth
-  round, or a larger answer budget, pays is unmeasured.
+- At three rounds every pass came in a revision. What five rounds, a
+  larger answer and two more things shown bought is the next section's.
+
+
+## The model's rate, with the cheap levers (issue #481, stage 1)
+
+Demo 2 (#481) compares early success with rehearsal against without. If
+rehearsal helps only when the robot's model is right, the share of right
+models caps what it can add: at #480's 5 in 32, even a perfect benefit
+falls short of the demo's +20-point bar. So stage 1 measured how often the
+robot imagines the chest right, with four changes made together and read
+as a package (`scripts/imagine_chest.py --summary`), over the same 32
+set-outs as #480's batch:
+
+- **Five rounds for three** (`model.MAX_ROUNDS`). The author is never told
+  the cap (a test reads every text it is sent), so passes by round three
+  and by round five come off the same runs.
+- **A 64,000-token answer** (`author.MAX_TOKENS`). A smoke call first:
+  every provider the deployed pick's `:cheapest` ties took it.
+- **The report says which end** of a range a fitted value stopped at.
+- **The first turn shows what the jaws felt** (`model.felt_by_phase`), a
+  stretch at a time: the lid's weight and its catch letting go are in it,
+  and a strap's pull is not.
+
+Each row carries its settings, and #480's rows are read beside these,
+never pooled with them.
+
+**The rate, by round** (GLM-5.3-Flash on `:cheapest`; passed: the fit
+passed every bar; the lid's hinge: our grading, within 20 mm and 5 deg of
+the lid's line, in any answer so far):
+
+| round | passed, #480 | passed, #481 | the lid's hinge, #480 | #481 |
+|---|---|---|---|---|
+| 1 | 0 of 32 | 2 of 32 | 12 | 16 |
+| 2 | 2 | 5 | 13 | 16 |
+| 3 | 5 | 8 | 14 | 16 |
+| 4 | -- | 8 | -- | 17 |
+| 5 | -- | 9: 0.28 [0.16, 0.45] | -- | 17 |
+
+- **Below the bar.** 9 in 32 passed by round five, where demo 2 asks 2 in
+  5 (Ben, 2026-10-08). By round three, 8 against #480's 5; the fourth and
+  fifth rounds added one.
+- **No false pass**: every model that passed had the lid's hinge.
+- **The structure is read in the first answer, nearly always.** 16 first
+  answers found the lid's hinge (#480: 12), and one later round found one
+  the first had missed. Every pass in a revision was a right structure put
+  right -- a catch added, a pin -- and over all 96 imaginings (below) one
+  revision read the lid where its first answer had not, and passed.
+- **What the jaws felt changed the ranges.** Of the first answers that
+  found the lid's hinge, the catch's release was given a range 3.25 N
+  wide (the median; #480's 56) and it held the truth 6 times in 12
+  (#480: 1 in 7); the lid's mass 1.35 kg wide (#480's 3.7).
+- **The larger answer did not finish more answers.** 28 of the 31 first
+  answers that reached the model came with no document at 64,000 tokens
+  (#480: 23 of 32 at 32,000): the model reasons until its room runs out,
+  and the document comes from the retry that asks it to think briefly. 25 answers past 32,000 tokens
+  came with a document, but 9 conversations ended on three answers with
+  none (#480: 5), each a set-out lost.
+- **What it cost**: $0.10 a set-out (the median; 192,000 tokens out),
+  $3.83 for the 32, and 58 minutes of wall each: a 64,000-token answer
+  takes about 18 minutes at the provider's 60 tokens a second.
+
+**Fallback 1, the first pass of three imaginings.** Below the bar, #481's
+first fallback: two more imaginings of every set-out, from nothing and
+under the same settings (`--also`), read in the order they were imagined.
+The robot keeps the first that passes its bars -- its own measure, never
+the truth -- and imagines no more (`first_pass`; Ben chose the first pass
+over the best of three, 2026-10-09):
+
+| | passed by round five | false passes | imaginings a set-out |
+|---|---|---|---|
+| one imagining | 27 of 96: 0.28 [0.20, 0.38] | 0 | 1 |
+| the first pass of three | 18 of 32: 0.56 [0.39, 0.72] | 0 | 2.28 |
+
+- **It clears the bar**, coarsely: the interval's lower end is 0.39.
+  Each batch alone read 9 of 32 for one imagining.
+- **The imaginings are not quite independent.** Three at 0.28 each would
+  pass 0.63. Of the 32 set-outs, 14 never passed, 11 passed once, 5 twice
+  and 2 three times, where independence would give about 12, 14, 6 and
+  1: some set-outs are hard for this author, whichever answer it gives.
+- **It changes what one imagining is.** It costs 2.28 times the tokens
+  ($0.24 a set-out): 9 set-outs stop at the first imagining, 5 at the
+  second and 18 take all three. Run one after another, it also takes 2.28
+  times the wall.
+
+**What running it taught.**
+- **A stream ends at 20 minutes.** Nine answers came back cut at
+  1,200.3 s with no document, under the token cap: 50,000 to 63,000
+  tokens at the provider's speed. The room an answer really has is the lesser of the cap
+  and 20 minutes at its provider's speed, and the providers `:cheapest`
+  ties run at different speeds; here every answer came from baseten, at
+  60 tokens a second. Each turn now keeps who answered it (the router's
+  `x-inference-provider`) and how long it took.
+- **Every ssh connection to the pods dropped at once**, about 47 minutes
+  after they opened, and ten set-outs ended in an error with them (#480's
+  batch lost eleven the same way). A pool's worker that ended is now
+  started again and asked again (`worker.RESTARTS`): its answer is the
+  document's and the seed's, whoever serves it. The set-outs lost before
+  the fix were flown again with it.
+- **The router refused for its rate (429)**: 26 asks at once, each with
+  room for 64,000 tokens, met the provider's rolling limit, and two
+  retries 20 s apart did not outlast it. An ask refused so is now waited
+  out and asked again unchanged (`author.RATE_WAITS`): it never reached
+  the model, so it spends no retry and is not told it ran out of room.
+- **A conversation the router ended is flown again**, its row kept aside
+  (`lost/`) and said: five were (one to an HTTP 500 and a silent stream,
+  four to 429s), and none passed when flown again, so counting them as
+  failures reads the same.
+
+**What is true now.**
+- One imagining by the deployed author, with the four levers, passes its
+  bars 0.28 of the time; the first pass of three, 0.56: over demo 2's bar
+  of 2 in 5, coarsely, at 2.28 imaginings a set-out. No pass was false.
+- The author reads the lid's hinge in its first answer, nearly always (one
+  revision in 96 imaginings found one its first answer missed); its
+  revisions put a right structure right.
+- 64,000 tokens finished no more answers than 32,000 did and lost more
+  conversations to empty answers; the document comes from the retry that
+  asks for a brief think.
 
 
 ## Debugging workflow that worked
