@@ -75,7 +75,10 @@ MAX_RESUMES = 3
 #: (`MAPS_DROPPED`). 1: #425, the heading walked while the quadrupeds lay.
 #: 2: #476, both maps askew again (Rowan's heading 12.5 deg off after every
 #: stand-up; Luca 5.0 m and Rowan 8.0 m from the truth on 2026-10-08).
-MAP_EPOCH = 2
+#: 3: #476's fix, which drops a map a commissioned fixture finds askew, on
+#: maps laid askew without it (put at the truth on them, a walk was 1.3 and
+#: 1.9 m out within 20 s).
+MAP_EPOCH = 3
 MAPS_DROPPED = "the map I had was laid askew, and it is gone"
 
 
