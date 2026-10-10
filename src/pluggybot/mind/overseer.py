@@ -104,12 +104,14 @@ def say_again_in(thoughts, t: float) -> int | None:
   where it may now: off the store's record of its last line, so the state
   that shows the wait (`sayAgainInS`) and the gate that holds it
   (`lifecycle._chat`) are one reading. ⚠ SHOWN BEFORE IT BITES: the
-  deployed model wrote a `say` on 2 of 6 quiet turns, a decision or two a
-  minute, and every refusal is a History line in the dozen it reads."""
+  deployed model wrote a `say` on 2 of 6 quiet turns, and every refusal is
+  a History line in the dozen it reads."""
   last = thoughts.last_said() if thoughts is not None else None
   if last is None or t - last >= SAY_EVERY_S:
     return None
   return math.ceil(SAY_EVERY_S - (t - last))
+
+
 #: A sentence of WHY that reaches no visitor: the mid-errand interrupt's
 #: reason (issue #116) and the words a garbled answer was refused with
 #: (#296). Not `MAX_REPLY`: neither is a conversation.
