@@ -343,19 +343,25 @@ def test_every_belief_event_is_a_drift_row_and_a_loss_is_history():
   body.belief_events.append(_event(3, "fixed", (3.0, 2.0, 0.3), (3.1, 2.0, 0.3),
                                    (3.1, 2.0, 0.3), fixture="dock", moved=True,
                                    dropped=False))
+  body.belief_events.append(_event(4, "fixed", (2.0, 2.0, 0.3), (3.1, 2.0, 0.3),
+                                   (3.1, 2.0, 0.3), fixture="dock", anchor="seat",
+                                   moved=True, dropped=True))
   life._belief_step()
   drift = [r for r in rows if r.get("type") == "drift"]
-  assert [r["why"] for r in drift] == ["lost", "fixed", "fixed"]
+  assert [r["why"] for r in drift] == ["lost", "fixed", "fixed", "fixed"]
   assert drift[0]["errorM"] == 2.0 and drift[0]["pose"] == wire_pose((3.0, 2.0, 0.0))
   assert drift[1]["errorM"] == 0.0 and drift[1]["dropped"] and drift[1]["fixture"] == "rack"
   assert all(r["robot"] == life.root and "seq" not in r for r in drift)
   said = _history(life)
   assert any("the dock's board was not in sight" in ln for ln in said)
   assert any("the rack put me 2.0 m and 17 deg" in ln and "is gone" in ln for ln in said)
-  assert len(said) == 2, "a fix within the map's reach went into History"
+  assert any(ln.endswith("the dock put me 1.1 m and 0 deg from where I believed I was: "
+                         "the map I had was laid askew, and it is gone") for ln in said), \
+    "the seat is no board"
+  assert len(said) == 3, "a fix within the map's reach went into History"
   # ...each once, and nothing of the truth in what the robot reads
   life._belief_step()
-  assert len([r for r in rows if r.get("type") == "drift"]) == 3
+  assert len([r for r in rows if r.get("type") == "drift"]) == 4
   assert not any("3.0" in ln or "error" in ln for ln in said)
 
 
@@ -368,11 +374,12 @@ def test_the_belief_against_the_truth_is_sampled_with_the_verdicts_since():
   assert life._belief_step in body.step_hooks
   rows = []
   life.on_event.append(rows.append)
+  body.match_counts = {"ok": 7}                      # ...a restored life's own
   life._belief_step()                                # ...the first a period on
-  body.match_counts = {"ok": 10}
+  body.match_counts = {"ok": 17}
   life.data.time += DRIFT_EVERY_S
   life._belief_step()
-  body.match_counts = {"ok": 25, "relocated": 1}
+  body.match_counts = {"ok": 32, "relocated": 1}
   life.data.time += DRIFT_EVERY_S - 1.0
   life._belief_step()
   life.data.time += 1.0

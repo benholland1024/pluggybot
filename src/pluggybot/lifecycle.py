@@ -1408,8 +1408,9 @@ class HubLifecycle:
           self._tell_belief(rec)
       self._belief_seen = events[-1]["seq"]
     t = float(self.data.time)
-    if self._drift_due is None:           # ...the first a period on from here
-      self._drift_due = t + DRIFT_EVERY_S
+    if self._drift_due is None:           # ...the first a period on from here,
+      self._drift_due = t + DRIFT_EVERY_S  # and its verdicts that period's: a
+      self._drift_counts = dict(self.body.match_counts)  # restart keeps a life's
     if t < self._drift_due:
       return
     self._drift_due = t + DRIFT_EVERY_S
@@ -1446,6 +1447,8 @@ class HubLifecycle:
     nothing. A fix within the map's reach and a relocation are narrated
     only: the robot was put right where it would have been anyway."""
     why, what = rec["why"], FIXTURE_WORDS.get(rec.get("fixture", ""), "")
+    if rec.get("anchor") == "seat":       # ...lying on it with no board read
+      what = "the dock"
     b, a = rec["before"], rec["after"]
     off = math.hypot(a["x"] - b["x"], a["y"] - b["y"])
     turned = abs((a["yawDeg"] - b["yawDeg"] + 180.0) % 360.0 - 180.0)
