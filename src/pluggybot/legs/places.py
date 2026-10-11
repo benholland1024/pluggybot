@@ -19,8 +19,9 @@ planner, and a search round it: a look-around (`LOOK_AROUND_DEG` turns, a
 look after each) from each viewpoint `next_viewpoint` picks, the frontiers
 of its own map nearest `near` and then a lattice round it, until the tag is
 in view or its patience runs out. Every walk stops the moment the tag is
-seen, on or off an errand. A search none of whose walks got it anywhere to
-look from gave up, in its last walk's words, and never "not found".
+seen, on or off an errand. A search whose walks to its viewpoints took it
+nowhere new to look from gave up, in its last walk's words, and was never
+"not found".
 
 PRESSING (`press_routine`). From the plate's standoff, facing its sign, a
 look; then the walk in, steered by the sign as the rack's bays are
@@ -416,17 +417,17 @@ class PlaceWalk:
                    patience: float, stop=None) -> Routine:
     """Find the place `tag` marks (the module docstring). Returns its
     record: `found`, `why` ("found", "not found" -- every viewpoint looked
-    from --, "gave up" -- every viewpoint walked for and none of the walks
-    took it anywhere to look from but where it began, the last one its
-    `walk` --, "out of time" after `patience` s, or "interrupted" by
-    `stop`, the robot's own interrupt, asked as every walk is), the
-    `seconds` it took, whether it was `remembered`, how many `guesses`,
-    `viewpoints` and look-`arounds`, where the place is (`at`) once found,
-    and its `trail`, in order: each walk -- what to (`to`: "seen", where the
-    place should be; "address"; "viewpoint") and how it ended (its
-    `last_drive`) -- and each look round (`lookedAt`); then where the
-    belief stood (`err` against the truth, a trace's). Out of time, a walk
-    ends where it stands and a look-around at its next look."""
+    from --, "gave up" -- every viewpoint walked for, and no walk to one
+    took it anywhere new to look from, the last its `walk` --, "out of
+    time" after `patience` s, or "interrupted" by `stop`, the robot's own
+    interrupt, asked as every walk is), the `seconds` it took, whether it
+    was `remembered`, how many `guesses`, `viewpoints` and look-`arounds`,
+    where the place is (`at`) once found, and its `trail`, in order: each
+    walk -- what to (`to`: "guess", where the place should be; "address";
+    "viewpoint") and how it ended (its `last_drive`) -- and each look round
+    (`lookedAt`); then where the belief stood (`err` against the truth, a
+    trace's). Out of time, a walk ends where it stands and a look-around at
+    its next look."""
     tag = int(tag)
     t0 = float(self.data.time)
     until = t0 + float(patience)
@@ -467,14 +468,14 @@ class PlaceWalk:
       stopped it -- "found", "out of time" or "interrupted"."""
       d = self.last_drive
       mine = d is not None and math.hypot(d["goal"][0] - x, d["goal"][1] - y) < 1e-6
-      walk = {"to": to, **(d if mine else {"goal": (float(x), float(y))})}
-      if walk.get("why") == DRIVE_STOPPED:
-        walk["why"] = ended() or DRIVE_STOPPED
-      rec["trail"].append(walk)
+      entry = {"to": to, **(d if mine else {"goal": (float(x), float(y))})}
+      if entry.get("why") == DRIVE_STOPPED:
+        entry["why"] = ended() or DRIVE_STOPPED
+      rec["trail"].append(entry)
 
-    def looked_round() -> None:
-      looked.append(self.pose_xy())
-      rec["trail"].append({"lookedAt": [round(looked[-1][0], 2), round(looked[-1][1], 2)]})
+    def looked_round(at: tuple[float, float]) -> None:
+      looked.append(at)
+      rec["trail"].append({"lookedAt": [round(at[0], 2), round(at[1], 2)]})
 
     if tag not in self.places.ids:
       return done("not a place")
@@ -482,10 +483,10 @@ class PlaceWalk:
     self.look_for_places()
     if seen():
       return done("found")
-    start = self.pose_xy()
     looked: list[tuple[float, float]] = []      # where a look-around was done
     guessed: list[tuple[float, float]] = []     # ...and where it was expected
     tried: list = []                            # viewpoints walked to
+    began = 0                                   # ...and the looks before the first
     went_near = near is None
     while not ended():
       guess = self.places.expected(tag)
@@ -500,7 +501,7 @@ class PlaceWalk:
         sx, sy = gx + STANDOFF_M * math.cos(gf), gy + STANDOFF_M * math.sin(gf)
         yield from self.drive_to_routine(sx, sy, timeout=min(left(), VIEWPOINT_PATIENCE_S),
                                          stop=halt)
-        walked("seen", sx, sy)
+        walked("guess", sx, sy)
         if ended():
           break
         yield from self.face_routine(dk._wrap(gf + math.pi))
@@ -510,7 +511,7 @@ class PlaceWalk:
         rec["arounds"] += 1
         if (yield from self._look_around_routine(halt)):
           break
-        looked_round()
+        looked_round(self.pose_xy())
         continue
       if not went_near:
         # ...else THE ADDRESS, looking as it walks
@@ -523,23 +524,25 @@ class PlaceWalk:
         rec["arounds"] += 1
         if (yield from self._look_around_routine(halt)):
           break
-        looked_round()
+        looked_round(here)
         continue
       centre = near if near is not None else here
       wall, seen_over, frontier, walk, known = self._search_map(looked, centre)
       vp = next_viewpoint(centre, here, looked, tried, wall, frontier, seen_over,
                           walk, known)
       if vp is None:
-        # ⚠ NOT FOUND MEANS LOOKED (#439): with the other robot resting
-        # across the way out of the rack's corner, every walk gave up where
-        # it stood, the lattice ran out in 23 s, and the find said it had
+        # ⚠ NOT FOUND MEANS LOOKED (#439): the other robot resting in front
+        # of the dock with nowhere to step, every walk gave up where it
+        # stood, the lattice ran out in 23 s, and the find said it had
         # looked from every place near there -- Rowan took the board's tags
-        # for moved. A search no walk took past its first look says the
-        # last walk's words.
-        if all(math.hypot(lx - start[0], ly - start[1]) < LOOKED_M for lx, ly in looked):
+        # for moved. A search none of whose viewpoints' walks took it
+        # anywhere new to look from gave up, in the last walk's words.
+        if tried and len(looked) == began:
           rec["walk"] = next((w for w in reversed(rec["trail"]) if "to" in w), None)
           return done("gave up")
         return done("not found")
+      if not tried:
+        began = len(looked)
       tried.append(vp)
       rec["viewpoints"] += 1
       yield from self.drive_to_routine(vp[0], vp[1], timeout=min(left(), VIEWPOINT_PATIENCE_S),

@@ -476,15 +476,16 @@ def test_a_find_goes_where_the_row_says_then_to_the_address_then_round_it(quad_w
     body.close()
 
 
-def test_a_find_no_walk_took_past_where_it_stood_gave_up_and_keeps_the_last_walk(quad_world,
-                                                                                monkeypatch):
+def test_a_find_whose_walks_took_it_nowhere_to_look_from_gave_up(quad_world, monkeypatch):
   """#439, the find's turn: on afb473a two feeds failed at the find in 23 s,
-  the other robot resting across the way out of the rack's corner with
-  nowhere to step. Every walk gave up where it stood, the lattice ran out,
-  and the find said it had looked from every place near there; told so of a
-  board, Rowan took its tags for moved. A search no walk took past its first
-  look GAVE UP, keeping its last walk; one whose walks got somewhere and
-  looked there is still not found. Its trail keeps every walk and look."""
+  the other robot resting in front of the dock with nowhere to step. Every
+  walk gave up where it stood, the lattice ran out, and the find said it
+  had looked from every place near there; told so of a board, Rowan took
+  its tags for moved. A search none of whose viewpoints' walks took it
+  anywhere new to look from GAVE UP, keeping its last walk -- from where it
+  stood, or from the address it did reach -- and one whose walks got
+  somewhere and looked there is still not found. Its trail keeps every
+  walk and look, the looks where they always were."""
   monkeypatch.setattr(lp, "SEARCH_RADIUS_M", lp.SEARCH_STEP_M)   # nine viewpoints, not 49
   body = _quad(quad_world, 20.0, 0.0, 0.0)
   m = body.mission
@@ -501,6 +502,9 @@ def test_a_find_no_walk_took_past_where_it_stood_gave_up_and_keeps_the_last_walk
     m.last_drive = {"why": "", "goal": (x, y), "seconds": 5.0, "shortM": 0.0}
     return tick.result(True)
 
+  def looked_at(rec):
+    return [e["lookedAt"] for e in rec["trail"] if "lookedAt" in e]
+
   try:
     m.face_routine = lambda h: tick.result(True)
     m.look_for_places = lambda: []
@@ -513,8 +517,12 @@ def test_a_find_no_walk_took_past_where_it_stood_gave_up_and_keeps_the_last_walk
     assert rec["walk"] == walks[-1] and rec["walk"]["why"] == "peer"
     assert walks[0]["to"] == "address" and walks[0]["goal"] == near
     assert {w["to"] for w in walks[1:]} == {"viewpoint"}
-    assert [e for e in rec["trail"] if "lookedAt" in e] == [{"lookedAt": [20.0, 0.0]}]
+    assert looked_at(rec) == [[20.0, 0.0]]
     assert len(rec["err"]) == 3, "where the belief stood, for the trace"
+    # ...and from the address it walked to, every viewpoint's walk going nowhere
+    m.drive_to_routine = lambda x, y, **kw: (arrives if (x, y) == near else stuck)(x, y, **kw)
+    rec = body.run(m.find_routine(FEED, near=near, patience=600.0))
+    assert rec["why"] == "gave up" and looked_at(rec) == [list(near)] and rec["viewpoints"] > 1
     m.drive_to_routine = arrives
     rec = body.run(m.find_routine(FEED, near=near, patience=600.0))
     assert rec["why"] == "not found" and rec["arounds"] > 1 and "walk" not in rec

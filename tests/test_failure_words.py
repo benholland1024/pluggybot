@@ -597,9 +597,9 @@ def test_a_press_that_pressed_leaves_its_tries_in_the_log_alone(monkeypatch):
 
 
 def _find_gave_up(life):
-  """A find none of whose walks got it past where it stood, as
-  `find_routine` records it -- and a later walk elsewhere, so only the
-  find's own record names the walk (#439: two feeds on afb473a)."""
+  """A find whose walks took it nowhere to look from, as `find_routine`
+  records it -- and a later walk elsewhere, so only the find's own record
+  names the walk (#439: two feeds on afb473a)."""
   def find(tag, near, patience, stop=None):
     def walk(to, goal, short):
       return {"to": to, "why": "peer", "goal": goal, "seconds": 0.0, "shortM": short,
@@ -617,22 +617,22 @@ def _find_gave_up(life):
   return find
 
 
-def test_a_find_whose_walks_never_left_where_it_stood_says_the_walk(monkeypatch):
+def test_a_find_whose_walks_took_it_nowhere_says_the_last_walk(monkeypatch):
   """#439, the find's turn (afb473a): two feeds failed at the find in 23 s,
   "having looked from every place near there (1 looks round)", when every
-  walk had given up where it stood, the other robot resting across the way
-  out of the rack's corner; and Rowan, told so of a board, took its tags
-  for moved. The find says its last walk in #350's words, off its OWN
-  record; the feed's verdict leads with all of it, never the bare "not
-  found" it said; History says it once, and the walks are the log's."""
+  walk had given up where it stood, the other robot resting in front of the
+  dock; and Rowan, told so of a board, took its tags for moved. The find
+  says its last walk in #350's words, off its OWN record; the feed's
+  verdict leads with all of it, never the bare "not found" it said;
+  History says it once, and the walks are the log's."""
   from pluggybot.lifecycle import cage_errand
   life = _life()
   feed = cage.PLATE_TAGS["feed"]
   monkeypatch.setattr(life.body, "find_tag_routine", _find_gave_up(life))
   out = life.body.run(st.run_verb(life, st.VERBS["find"], {"tag": feed, "x": 25.2, "y": -2.4}))
-  said = ("did not find tag 36 round (25.2, -2.4) in 23 s, having looked only from where it "
-          "stood (1 looks round): the drive gave up 24.1 m short after 0 s (the other robot "
-          "lying down to rest in the way, 0.1 m off)")
+  said = ("did not find tag 36 round (25.2, -2.4) in 23 s, and no walk took it anywhere else "
+          "to look from (1 looks round): the drive gave up 24.1 m short after 0 s (the other "
+          "robot lying down to rest in the way, 0.1 m off)")
   assert out["reason"] == said
   peer = "peerAt=here peerM=0.1 peerDown=False peerRests=True"
   assert out["trace"] == (

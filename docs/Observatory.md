@@ -10,21 +10,23 @@ observatory is NOT a result: it reports into the issue it informs.
 
 ## Periods
 
-### A find that never left where it stood says so, and a feed says what its find said (#439) — opens when this PR is deployed
+### A find whose walks took it nowhere says so, and a feed says what its find said (#439) — opens when this PR is deployed
 
 **What changed is what the robot is TOLD**, and what the log keeps. A find
 walks, looks and searches as it did. On afb473a (2026-10-10 → 10-11) the
 press pressed 42 of 42, and what failed a feed was its find:
 
-- **A find none of whose walks took it past where it stood GAVE UP, in its
-  last walk's words.** Twice (t=955594, t=959407) the other robot was
-  resting across the way out of the rack's corner and had nowhere to step
+- **A find whose walks to its viewpoints took it nowhere new to look from
+  GAVE UP, in its last walk's words.** Twice (t=955594, t=959407) the other
+  robot was resting in front of the dock, 0.1 m off, with nowhere to step
   to. Every walk of the search gave up where it stood, the lattice ran out
   in 23 s, and the find said `having looked from every place near there (1
-  looks round)`. Told the same of whiteboard_b a minute before, Rowan
-  decided the board's tags had been "re-rolled". Now it reads `... in 23 s,
-  having looked only from where it stood (1 looks round): the walk gave up
-  ... (Luca lying down to rest in the way, 0.1 m off)`.
+  looks round)`. Told the same of whiteboard_b just before, Rowan decided
+  the board's tags had been "re-rolled". Now it reads `... in 23 s, and no
+  walk took it anywhere else to look from (1 looks round): the walk gave
+  up ... (Luca lying down to rest in the way, 0.1 m off)`. The same goes
+  for a find that reached the address, looked there, and could walk to no
+  viewpoint beyond it.
 - **A feed whose find failed says the find's words.** History read `never
   reached the cage: not found, on leg 1 of 1 of the way there`. It now
   reads `never reached the cage: <the find's reason>`, as the boards' and
@@ -41,7 +43,8 @@ The prompt did not move.
 
 - **The feed by step, per robot**: `failedAt` 0 (the find) against 1 (the
   press). On afb473a the press failed 0 of 42 and the find 3 of 46: the two
-  above, and one by a robot whose every scan in the lab was refused (#476).
+  above, and one by a robot whose scans in the lab were nearly all refused
+  (#476).
   A fourth feed was interrupted by the robot's own battery row.
 - **Finds that give up, and whom they name.** One beside a resting robot
   that cannot step aside is #455's case.

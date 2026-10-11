@@ -504,7 +504,7 @@ def _find(life, args: dict) -> Routine:
                 + f" round ({x:g}, {y:g}) in {float(rec.get('seconds') or 0):.0f} s")
     looks = f" ({int(rec.get('arounds') or 0)} looks round)"
     walk = rec.get("walk") or {}
-    # ...and one whose walks never got it past where it stood says the last
+    # ...and one whose walks took it nowhere to look from says the last
     # walk's words (#439): "having looked from every place near there", in
     # 23 s beside the other robot, was read as the board's tags moved
     walk_why = (f": {life.drive_why(*walk['goal'], record=walk)}"
@@ -513,7 +513,7 @@ def _find(life, args: dict) -> Routine:
       f"stopped looking for tag {tag} by its own interrupt" if why == "interrupted"
       else f"tag {tag} marks no place in this world" if why == "not a place"
       else f"{searched}, having looked from every place near there{looks}" if why == "not found"
-      else f"{searched}, having looked only from where it stood{looks}{walk_why}"
+      else f"{searched}, and no walk took it anywhere else to look from{looks}{walk_why}"
       if why == "gave up"
       else f"{searched} and ran out of time{looks}" if why == "out of time"
       else f"did not find tag {tag}: {why or 'no reason given'}")
@@ -534,7 +534,7 @@ def _walk_trace(w: dict) -> str:
 
 
 #: What a find's trace calls each walk's goal (`PlaceWalk.find_routine`).
-FIND_WALKS = {"seen": "where it should be", "address": "the address", "viewpoint": "viewpoint"}
+FIND_WALKS = {"guess": "where it should be", "address": "the address", "viewpoint": "viewpoint"}
 
 
 def find_trace(rec: dict) -> str:
@@ -559,7 +559,7 @@ def find_trace(rec: dict) -> str:
       j += 1
     if j - i >= 2:
       longest = max(float(w.get("seconds") or 0) for w in trail[i:j + 1])
-      parts.append(f"{j - i + 1} viewpoints, each {e.get('why') or 'arrived'} "
+      parts.append(f"{j - i + 1} viewpoints, each {e.get('why', '?') or 'arrived'} "
                    f"after {longest:.0f} s at most")
     else:
       for w in trail[i:j + 1]:
