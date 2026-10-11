@@ -3453,6 +3453,10 @@ class HubLifecycle:
       # only "the feed plate was never pressed", Rowan filed the plate's
       # sensor as faulty after 12 straight misses, and not one was the plate.
       return step.get("reason", "") if step.get("verb") == "press" else ""
+    if step.get("verb") == "find" and step.get("reason"):
+      # ...and a FIND, the whole way there on legs, in its own words (#439):
+      # its why alone told the robot "not found, on leg 1 of 1"
+      return f"never reached the cage: {step['reason']}"
     why = step.get("why") or step.get("reason") or "the drive gave up"
     return f"never reached the cage: {why}, on leg {at + 1} of {legs} of the way there"
 

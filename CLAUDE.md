@@ -1653,7 +1653,11 @@ save a filmstrip PNG named after the script.
   CHANGED -- a walk in that missed the pad, a standoff a look moved -- NEVER
   THE SAME WALK THERE (`PRESS_TRIES`: a second walk from where the first
   stopped repeated it, 16 of 16 live); its tries are the log's `trace`,
-  pressed or not, and a failure leads a cage job's verdict. ⚠ A DECIDED
+  pressed or not, and a failure leads a cage job's verdict. ⚠ A `find` NO
+  WALK TOOK PAST WHERE IT STOOD "gave up", in its last walk's words, never
+  "not found" (#439: "looked from every place near there" in 23 s beside a
+  resting robot), and a cage job's verdict quotes a find's reason, never
+  its why; its walks are the log's `trace`. ⚠ A DECIDED
   `charge` or `explore` says how it ended in History (#424), and a charge
   that never docked is NOT a verdict: its `charge` row is on the wire, and
   a verdict would count it again as a failed task.
