@@ -503,13 +503,74 @@ def _find(life, args: dict) -> Routine:
                 + (" where it was last seen, nor" if rec.get("remembered") else "")
                 + f" round ({x:g}, {y:g}) in {float(rec.get('seconds') or 0):.0f} s")
     looks = f" ({int(rec.get('arounds') or 0)} looks round)"
+    walk = rec.get("walk") or {}
+    # ...and one whose walks took it nowhere to look from says the last
+    # walk's words (#439): "having looked from every place near there", in
+    # 23 s beside the other robot, was read as the board's tags moved
+    walk_why = (f": {life.drive_why(*walk['goal'], record=walk)}"
+                if walk.get("why") and walk.get("goal") else "")
     out["reason"] = (
       f"stopped looking for tag {tag} by its own interrupt" if why == "interrupted"
       else f"tag {tag} marks no place in this world" if why == "not a place"
       else f"{searched}, having looked from every place near there{looks}" if why == "not found"
+      else f"{searched}, and no walk took it anywhere else to look from{looks}{walk_why}"
+      if why == "gave up"
       else f"{searched} and ran out of time{looks}" if why == "out of time"
       else f"did not find tag {tag}: {why or 'no reason given'}")
+  if rec.get("trail"):
+    out["trace"] = f"find tag {tag}: {find_trace(rec)}"
   return out
+
+
+def _walk_trace(w: dict) -> str:
+  """A walk's record (`Navigator.last_drive`) as a trace says it: how it
+  ended, how far short and after how long, and the robot it was about."""
+  if "why" not in w:
+    return "?"
+  peer = "".join(f" {k}={w[k]}" for k in ("peerAt", "peerM", "peerDown", "peerRests",
+                                           "peerDead", "askedWay") if k in w)
+  how = "arrived" if not w["why"] else f"{w['why']} {float(w.get('shortM') or 0):.2f} m short"
+  return f"{how} after {float(w.get('seconds') or 0):.0f} s{peer}"
+
+
+#: What a find's trace calls each walk's goal (`PlaceWalk.find_routine`).
+FIND_WALKS = {"guess": "where it should be", "address": "the address", "viewpoint": "viewpoint"}
+
+
+def find_trace(rec: dict) -> str:
+  """A find's trail as one line of evidence (issue #439), the log's alone:
+  each walk -- where to, and how it ended -- and each look round, a run of
+  three or more viewpoints whose walks ended alike as one; then how the
+  find ended and where its belief stood against the truth. A failed find
+  said "ran out of time (1 looks round)", and nothing in the log told a long
+  walk from the house from a robot lost in the lab."""
+  parts: list[str] = []
+  trail = list(rec.get("trail") or ())
+  i = 0
+  while i < len(trail):
+    e = trail[i]
+    if "lookedAt" in e:
+      parts.append(f"looked round at ({e['lookedAt'][0]:.2f}, {e['lookedAt'][1]:.2f})")
+      i += 1
+      continue
+    j = i
+    while (e.get("to") == "viewpoint" and j + 1 < len(trail)
+           and trail[j + 1].get("to") == "viewpoint" and trail[j + 1].get("why") == e.get("why")):
+      j += 1
+    if j - i >= 2:
+      longest = max(float(w.get("seconds") or 0) for w in trail[i:j + 1])
+      parts.append(f"{j - i + 1} viewpoints, each {e.get('why', '?') or 'arrived'} "
+                   f"after {longest:.0f} s at most")
+    else:
+      for w in trail[i:j + 1]:
+        gx, gy = w.get("goal") or (math.nan, math.nan)
+        parts.append(f"to {FIND_WALKS.get(w.get('to'), w.get('to'))} ({gx:.2f}, {gy:.2f}) "
+                     f"{_walk_trace(w)}")
+    i = j + 1
+  dx, dy, dyaw = rec.get("err") or (math.nan,) * 3
+  parts.append(f"-> {rec.get('why', '?')} after {float(rec.get('seconds') or 0):.0f} s, "
+               f"belief off {dx:+.0f},{dy:+.0f} mm {dyaw:+.1f} deg")
+  return ", ".join(parts)
 
 
 #: What a `press` that did not press says, by its body's why (issue #419).
@@ -587,11 +648,7 @@ def press_trace(rec: dict) -> str:
     bits = [f"#{i} standoff ({sx:.2f}, {sy:.2f})"]
     w = a.get("walk")
     if w:
-      peer = "".join(f" {k}={w[k]}" for k in ("peerAt", "peerM", "peerDown", "peerRests",
-                                               "peerDead", "askedWay")
-                     if k in w)
-      bits.append(f"walk {w.get('why')} {float(w.get('shortM') or 0):.2f} m short "
-                  f"after {float(w.get('seconds') or 0):.0f} s{peer}")
+      bits.append(f"walk {_walk_trace(w)}")
     elif a.get("walkS") is not None:
       bits.append(f"walked {float(a['walkS']):.0f} s")
     if "reaim" in a:

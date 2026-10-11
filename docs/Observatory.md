@@ -10,6 +10,53 @@ observatory is NOT a result: it reports into the issue it informs.
 
 ## Periods
 
+### A find whose walks took it nowhere says so, and a feed says what its find said (#439) — opens when this PR is deployed
+
+**What changed is what the robot is TOLD**, and what the log keeps. A find
+walks, looks and searches as it did. On afb473a (2026-10-10 → 10-11) the
+press pressed 42 of 42, and what failed a feed was its find:
+
+- **A find whose walks to its viewpoints took it nowhere new to look from
+  GAVE UP, in its last walk's words.** Twice (t=955594, t=959407) the other
+  robot was resting in front of the dock, 0.1 m off, with nowhere to step
+  to. Every walk of the search gave up where it stood, the lattice ran out
+  in 23 s, and the find said `having looked from every place near there (1
+  looks round)`. Told the same of whiteboard_b just before, Rowan decided
+  the board's tags had been "re-rolled". Now it reads `... in 23 s, and no
+  walk took it anywhere else to look from (1 looks round): the walk gave
+  up ... (Luca lying down to rest in the way, 0.1 m off)`. The same goes
+  for a find that reached the address, looked there, and could walk to no
+  viewpoint beyond it.
+- **A feed whose find failed says the find's words.** History read `never
+  reached the cage: not found, on leg 1 of 1 of the way there`. It now
+  reads `never reached the cage: <the find's reason>`, as the boards' and
+  the census's jobs already did.
+- **A find that walked leaves its walks in the log.** If it failed, they go
+  on the failure line. If it found the place, they go on the program's last
+  line beside the press's tries. Each walk is listed with where it was to
+  and how it ended, then each look round, and where the belief stood
+  against the truth.
+
+The prompt did not move.
+
+**What the period is for.**
+
+- **The feed by step, per robot**: `failedAt` 0 (the find) against 1 (the
+  press). On afb473a the press failed 0 of 42 and the find 3 of 46: the two
+  above, and one by a robot whose scans in the lab were nearly all refused
+  (#476).
+  A fourth feed was interrupted by the robot's own battery row.
+- **Finds that give up, and whom they name.** One beside a resting robot
+  that cannot step aside is #455's case.
+- **The find's time**, read off its walks. On afb473a most finds that
+  started in the house took 50-94 s of `FIND_PATIENCE_S`'s 300, but four
+  took 206-246 s, and nothing in the log said where the time went. A find
+  that runs out with its last walk still on the way is the case for a
+  longer patience. None did on afb473a.
+- **The second walk in** (carried from #459's period): 0 of 45 presses in
+  afb473a's log ran a second try, and each walk there took 0-17 s of its
+  85.2.
+
 ### One chat per robot, and a robot may speak unasked (#485) — opens when this PR is deployed, with rooftop-media-2026's half
 
 **What changed in the mind.** The VISITORS rule, on every arm with a mind.
