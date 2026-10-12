@@ -10,6 +10,22 @@ observatory is NOT a result: it reports into the issue it informs.
 
 ## Periods
 
+### The purse is 9.30, as decided (rooftop-media-2026 #404) — opens when that release deploys
+
+**What changed is the money, not the mind.** The weekly purse moves from $10
+to 9.30, the $40 a month decided in #225. The docs said 9.30 from that
+period on, but nothing set it: the website's `compose.yaml` passed an empty
+`PLUGGY_WEEKLY_USD`, the sim's own default held, and every run since the
+purse was first recorded (2026-09-17, 789 runs in `pw_runs`) has
+`weekly_usd` 10. Compose now passes 9.30, so the robots are shown an
+allowance 7 % smaller. The world, the arm, the mind and the prompt are the
+same.
+
+**What to read.** Nothing new is asked of this period. The purse has sat at
+its cap since 2026-09-28 and refused 67–77 % of asks (`fallback:allowance`),
+so expect that share to rise a little. Every run records `weekly_usd`, so a
+reading across the switch splits on it rather than pooling.
+
 ### A find whose walks took it nowhere says so, and a feed says what its find said (#439) — opens when this PR is deployed
 
 **What changed is what the robot is TOLD**, and what the log keeps. A find
@@ -2478,7 +2494,9 @@ provider the router prefers), `PLUGGY_ESCALATE_TO` is unset (the
 `escalate` field and its rule leave the schema and the prompt), and
 `PLUGGY_WEEKLY_USD` is 9.30 — $40 a month as a weekly share — and now caps
 the routine mind as well as escalations (`fallback:allowance`, Overseer.md
-§8). `build.model` is in the identity, so nothing before this deploy pools
+§8). ⚠ Corrected 2026-10-12: it was never set, and this period ran at the
+sim's default of $10 a week (`weekly_usd` on every run; the period above
+pins 9.30). `build.model` is in the identity, so nothing before this deploy pools
 with anything after it. The answer budget on `autonomous` is 8192 tokens
 (a reasoning model's, Overseer.md §6). Same world, same arm (`autonomous`,
 origin `unseeded`), same pair, same memory. The choice is the sweep in
@@ -2520,7 +2538,8 @@ commit:
   empty answer is a reasoning budget spent; 8192 should make it rare), and
   the new `fallback:allowance` — any at all means the purse emptied, and
   the `spend` block's `calls` × cost says how fast.
-- The bill: `spend.spentUsd` against 9.30 across the rolling week, and the
+- The bill: `spend.spentUsd` against the run's `weeklyUsd` (10 in this
+  period) across the rolling week, and the
   decision rate itself (calls per wall-hour for the pair, 13.6 on the 4B):
   a mind that idles less makes fewer decisions an hour, not more, and the
   monthly figure follows the rate.
