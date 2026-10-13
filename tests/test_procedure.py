@@ -110,7 +110,7 @@ def _refusals(spec, facts=HOME):
                                                        "target": 9.0}}]},
    "shoulder target 9.0 is outside"),
   ({"name": "x", "steps": [{"verb": "find", "args": {"tag": 12, "x": 0.0, "y": 0.0}}]},
-   "tag 12 is no place this world has"),
+   "find(tag=12) names no place this world has"),
   ({"name": "x", "steps": [{"verb": "stow"}] * (st.MAX_STEPS + 1)},
    f"the cap is {st.MAX_STEPS}"),
   ({"name": "x", "budgetS": st.MAX_BUDGET_S + 1, "steps": [{"verb": "stow"}]},
@@ -120,6 +120,21 @@ def _refusals(spec, facts=HOME):
 def test_each_rule_refuses_with_a_readable_reason(spec, needle):
   reasons = _refusals(spec)
   assert any(needle in r for r in reasons), reasons
+
+
+@pytest.mark.parametrize("verb, args", [
+  ("find", {"tag": 20, "x": 25.2, "y": -2.4}),
+  ("survey", {"tag": 20}),
+  ("press", {"tag": 20}),
+  ("pick", {"tag": 42}),
+  ("place", {"tag": 42}),
+])
+def test_a_tag_refusal_names_the_call_it_refuses(verb, args):
+  """"tag 20 is no place this world has", refusing a `find`, was read as a
+  refusal of `place`, and the robot ticketed a wrong cause and told the
+  other robot it (#463). Each verb's tag refusal leads with its call."""
+  [why] = st.check_step(st.VERBS[verb], args, HOME)
+  assert why.startswith(f"{verb}(tag={args['tag']}) names no "), why
 
 
 def test_a_world_with_an_empty_rack_refuses_a_fetch_and_says_so():

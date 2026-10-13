@@ -1273,6 +1273,8 @@ def check_step(verb: Verb, args: dict, facts: WorldFacts,
   for name in verb.args:
     if name in args:
       bad += check_arg(verb, name, args[name], facts)
+  # A tag's refusal leads with its call: "tag 20 is no place", refusing a
+  # `find`, was read as a refusal of `place` and a wrong cause told (#463)
   if verb.name in ("find", "press", "survey") and isinstance(args.get("tag"), (int, float)) \
       and not isinstance(args.get("tag"), bool):
     have = facts.places if verb.name in ("find", "survey") else facts.plates
@@ -1282,15 +1284,15 @@ def check_step(verb: Verb, args: dict, facts: WorldFacts,
       # asked `find` for its cube and was told only what the places are
       cube = (f"; {args['tag']:g} is a cube's, and `pick` finds a cube by its tag"
               if args["tag"] in facts.cubes else "")
-      bad.append(f"tag {args['tag']:g} is no {what} this world has "
-                 f"(have: {', '.join(str(t) for t in have) or 'none'}){cube}")
+      bad.append(f"{verb.name}(tag={args['tag']:g}) names no {what} this world has "
+                 f"({what}s: {', '.join(str(t) for t in have) or 'none'}){cube}")
   if verb.name in ("pick", "place") and isinstance(args.get("tag"), (int, float)) \
       and not isinstance(args.get("tag"), bool):
     if int(args["tag"]) != args["tag"] or int(args["tag"]) not in facts.cubes:
       place = (f"; {args['tag']:g} marks a place, which `find` finds"
                if args["tag"] in facts.places else "")
-      bad.append(f"tag {args['tag']:g} is no cube this world has "
-                 f"(have: {', '.join(str(t) for t in facts.cubes) or 'none'}){place}")
+      bad.append(f"{verb.name}(tag={args['tag']:g}) names no cube this world has "
+                 f"(cubes: {', '.join(str(t) for t in facts.cubes) or 'none'}){place}")
   if verb.name in ("drive_to", "find") and all(
       isinstance(args.get(k), (int, float)) and not isinstance(args.get(k), bool)
       for k in ("x", "y")):
