@@ -128,13 +128,46 @@ def test_each_rule_refuses_with_a_readable_reason(spec, needle):
   ("press", {"tag": 20}),
   ("pick", {"tag": 42}),
   ("place", {"tag": 42}),
+  ("press", {"tag": 1000}),
 ])
 def test_a_tag_refusal_names_the_call_it_refuses(verb, args):
   """"tag 20 is no place this world has", refusing a `find`, was read as a
-  refusal of `place`, and the robot ticketed a wrong cause and told the
-  other robot it (#463). Each verb's tag refusal leads with its call."""
+  refusal of `place`: the robot ticketed a wrong cause and told it to the
+  other robot (#463). Each verb's tag refusal leads with its call, and is
+  the only one: a bound said `tag=1000.0 is above 999` first, with no call."""
   [why] = st.check_step(st.VERBS[verb], args, HOME)
   assert why.startswith(f"{verb}(tag={args['tag']}) names no "), why
+
+
+@pytest.mark.parametrize("tag", [float("inf"), float("nan")])
+@pytest.mark.parametrize("verb, args", [("find", {"x": 25.2, "y": -2.4}), ("pick", {})])
+def test_a_tag_that_is_no_number_is_refused_never_raised(verb, args, tag):
+  """A computed tag can overflow (`t = 1e308 * 10`): the tag check's
+  `int(tag)` raised, and the run ended on a fault, its steps, its locals
+  and the reason lost."""
+  reasons = st.check_step(st.VERBS[verb], {**args, "tag": tag}, HOME)
+  assert any(r.startswith(f"{verb}(tag={tag!r}) names no ") for r in reasons), reasons
+
+
+def test_a_tag_refusal_quotes_the_tag_as_written():
+  """`:g` kept six digits: 23.0000001 was quoted `pick(tag=23)`, a call that
+  passes, beside a list holding 23, and 1234567 as `1.23457e+06`."""
+  [why] = st.check_step(st.VERBS["pick"], {"tag": 23.0000001}, HOME)
+  assert why.startswith("pick(tag=23.0000001) names no cube"), why
+  reasons = st.check_step(st.VERBS["find"], {"tag": 1234567, "x": 25.2, "y": -2.4}, HOME)
+  assert any(r.startswith("find(tag=1234567) names no place") for r in reasons), reasons
+
+
+def test_a_tag_refusal_lists_a_run_of_tags_as_lo_to_hi():
+  """A refused define reaches the robot as ONE History line, cut at 400
+  characters, and #463's own refused rewrite -- two `find`s, each listing
+  the twelve places in full -- reached 401 once the call led them. A run of
+  three or more is `lo..hi`."""
+  [why] = st.check_step(st.VERBS["find"], {"tag": 20, "x": 25.2, "y": -2.4}, HOME)
+  assert "(places: 35..46)" in why, why
+  odd = replace(HOME, cubes=(5, 7, 8, 9, 12, 23, 24))
+  [why] = st.check_step(st.VERBS["pick"], {"tag": 99}, odd)
+  assert why.endswith("(cubes: 5, 7..9, 12, 23, 24)"), why
 
 
 def test_a_world_with_an_empty_rack_refuses_a_fetch_and_says_so():

@@ -944,7 +944,7 @@ VERBS: dict[str, Verb] = {
   # PLACES (issue #419): a task area found by its tag and remembered, and a
   # plate pressed off its sign -- the robot's own knowledge, never a
   # coordinate handed over
-  "find": Verb("find", {"tag": Arg("float", lo=0, hi=999), "x": Arg("float"),
+  "find": Verb("find", {"tag": Arg("float"), "x": Arg("float"),
                         "y": Arg("float"),
                         "patience": Arg("float", lo=0.0, hi=MAX_PATIENCE_S,
                                         default=FIND_PATIENCE_S)},
@@ -953,7 +953,7 @@ VERBS: dict[str, Verb] = {
                "the tag is in view; ok when seen, and you remember where it is. "
                f"It gives up after `patience` seconds (at most {MAX_PATIENCE_S:.0f})",
                drives=True),
-  "press": Verb("press", {"tag": Arg("float", lo=0, hi=999)}, _press,
+  "press": Verb("press", {"tag": Arg("float")}, _press,
                 "walk onto the plate this tag's sign marks, the last step "
                 "measured off the sign, and back off it; ok when a foot was on "
                 "it. `find` it first", drives=True),
@@ -968,13 +968,13 @@ VERBS: dict[str, Verb] = {
                "ok when ink landed", drives=True),
   # THE CLAW (issue #407): a cube by its tag, found and taken, set down on
   # another or on the floor -- the cube's place is the robot's to find
-  "pick": Verb("pick", {"tag": Arg("float", lo=0, hi=999)}, _pick,
+  "pick": Verb("pick", {"tag": Arg("float")}, _pick,
                "take the cube carrying this tag in the claw: you look for it from "
                "where you stand, where you saw it last, and in front of its "
                "area's tags (`find` one of them first), walk in, lie down and "
                "close the jaws on it; ok when they hold it. An empty fork "
                "fetches the claw first", drives=True),
-  "place": Verb("place", {"tag": Arg("float", lo=0, hi=999)}, _place,
+  "place": Verb("place", {"tag": Arg("float")}, _place,
                 "set the cube in the claw down on top of the cube carrying this "
                 "tag, found as `pick` finds one, and let go; ok when it rests "
                 "on it", drives=True),
@@ -985,7 +985,7 @@ VERBS: dict[str, Verb] = {
   "release": Verb("release", {}, _release, "open the claw's jaws where it is; ok "
                   "when nothing is in them -- a cube let go high falls"),
   # THE CENSUS (issue #407): what stands in an area found by its tag
-  "survey": Verb("survey", {"tag": Arg("float", lo=0, hi=999)}, _survey,
+  "survey": Verb("survey", {"tag": Arg("float")}, _survey,
                  "walk round the area this tag marks -- the floor its walls and "
                  "fence enclose -- and count what stands in it, low, off the depth "
                  "camera; `find` the tag first. ok when surveyed; its count and the "
@@ -1256,6 +1256,39 @@ def check_arg(verb: Verb, name: str, value, facts: WorldFacts) -> list[str]:
   return []
 
 
+#: What a verb's tag names, and so the `WorldFacts` list it must be on
+#: (`places`, `plates`, `cubes`; issues #419, #407). A tag `Arg` has no
+#: bound: the list refuses every other tag by its call, where a bound
+#: refused it a second time without one (#463).
+TAG_NAMES = {"find": "place", "survey": "place", "press": "plate",
+             "pick": "cube", "place": "cube"}
+#: ...and what a tag of the other kind is, said beside its refusal (#407: a
+#: first weighing on legs asked `find` for its cube and was told only what
+#: the places are).
+TAG_GLOSS = {"cube": "is a cube's, and `pick` finds a cube by its tag",
+             "place": "marks a place, which `find` finds"}
+
+
+def _number(v) -> str:
+  """A number as written: `20` for 20.0, and every digit of 23.0000001,
+  which `:g` quoted as `23`, a tag the same refusal listed as the world's."""
+  return repr(float(v)).removesuffix(".0")
+
+
+def _tags(tags) -> str:
+  """A world's tags, a run of three or more as `lo..hi`: a refused define
+  is one History line, cut at 400 characters, and the twelve places listed
+  in full twice cut #463's own refused rewrite short (401)."""
+  runs: list[list[int]] = []
+  for t in tags:
+    if runs and t == runs[-1][-1] + 1:
+      runs[-1].append(t)
+    else:
+      runs.append([t])
+  return ", ".join(f"{r[0]}..{r[-1]}" if len(r) >= 3 else ", ".join(map(str, r))
+                   for r in runs) or "none"
+
+
 def check_step(verb: Verb, args: dict, facts: WorldFacts,
                partial: bool = False) -> list[str]:
   """Every argument of one step. `partial` skips the missing-argument rule,
@@ -1274,25 +1307,17 @@ def check_step(verb: Verb, args: dict, facts: WorldFacts,
     if name in args:
       bad += check_arg(verb, name, args[name], facts)
   # A tag's refusal leads with its call: "tag 20 is no place", refusing a
-  # `find`, was read as a refusal of `place` and a wrong cause told (#463)
-  if verb.name in ("find", "press", "survey") and isinstance(args.get("tag"), (int, float)) \
-      and not isinstance(args.get("tag"), bool):
-    have = facts.places if verb.name in ("find", "survey") else facts.plates
-    if int(args["tag"]) != args["tag"] or int(args["tag"]) not in have:
-      what = "plate" if verb.name == "press" else "place"
-      # ...and what it is, where it is a cube's: a first weighing on legs
-      # asked `find` for its cube and was told only what the places are
-      cube = (f"; {args['tag']:g} is a cube's, and `pick` finds a cube by its tag"
-              if args["tag"] in facts.cubes else "")
-      bad.append(f"{verb.name}(tag={args['tag']:g}) names no {what} this world has "
-                 f"({what}s: {', '.join(str(t) for t in have) or 'none'}){cube}")
-  if verb.name in ("pick", "place") and isinstance(args.get("tag"), (int, float)) \
-      and not isinstance(args.get("tag"), bool):
-    if int(args["tag"]) != args["tag"] or int(args["tag"]) not in facts.cubes:
-      place = (f"; {args['tag']:g} marks a place, which `find` finds"
-               if args["tag"] in facts.places else "")
-      bad.append(f"{verb.name}(tag={args['tag']:g}) names no cube this world has "
-                 f"(cubes: {', '.join(str(t) for t in facts.cubes) or 'none'}){place}")
+  # `find`, was read as a refusal of `place` (#463)
+  noun, tag = TAG_NAMES.get(verb.name), args.get("tag")
+  if noun and isinstance(tag, (int, float)) and not isinstance(tag, bool):
+    have = getattr(facts, noun + "s")
+    # `in`, never `int(tag)`: a computed inf or nan reaches here, and int() raised
+    if tag not in have:
+      other = "place" if noun == "cube" else "cube"
+      gloss = (f"; {_number(tag)} {TAG_GLOSS[other]}"
+               if tag in getattr(facts, other + "s") else "")
+      bad.append(f"{verb.name}(tag={_number(tag)}) names no {noun} this world has "
+                 f"({noun}s: {_tags(have)}){gloss}")
   if verb.name in ("drive_to", "find") and all(
       isinstance(args.get(k), (int, float)) and not isinstance(args.get(k), bool)
       for k in ("x", "y")):

@@ -69,6 +69,11 @@ RESERVED = frozenset({"read", "budget", "range", "def", "and", "or", "not",
 _BIN = {ast.Add: "+", ast.Sub: "-", ast.Mult: "*", ast.Div: "/"}
 _CMP = {ast.Lt: "<", ast.LtE: "<=", ast.Gt: ">", ast.GtE: ">=",
         ast.Eq: "==", ast.NotEq: "!="}
+#: What an expression the parser refused stands in as: no value, so the
+#: world's check never refuses it again (a stand-in 0 read `pick(tag=0)
+#: names no cube`, a call the source never wrote, #463). It never runs:
+#: a parse with a reason is refused whole.
+_REFUSED = ("refused",)
 
 
 @dataclass(frozen=True)
@@ -205,7 +210,7 @@ class _Parser:
       if isinstance(node.value, (int, float)) and math.isfinite(node.value):
         return ("num", float(node.value))
       self.refuse(node, f"a {type(node.value).__name__} is not a number")
-      return ("num", 0.0)
+      return _REFUSED
     if isinstance(node, ast.Name):
       if not NAME_RE.match(node.id) or node.id in RESERVED or node.id in st.VERBS:
         self.refuse(node, f"{node.id!r} is not a name this language allows")
@@ -217,11 +222,11 @@ class _Parser:
             or not isinstance(node.args[0], ast.Constant)
             or not isinstance(node.args[0].value, str)):
           self.refuse(node, "read takes one sensor name in quotes")
-          return ("num", 0.0)
+          return _REFUSED
         return ("read", node.args[0].value)
       self.refuse(node, "only read(...) may be used inside an expression; "
                         "a verb is a statement of its own")
-      return ("num", 0.0)
+      return _REFUSED
     if isinstance(node, ast.BinOp) and type(node.op) in _BIN:
       return ("bin", _BIN[type(node.op)], self.expr(node.left), self.expr(node.right))
     if isinstance(node, ast.UnaryOp) and isinstance(node.op, ast.USub):
@@ -231,7 +236,7 @@ class _Parser:
     if isinstance(node, ast.Compare):
       if len(node.ops) != 1 or type(node.ops[0]) not in _CMP:
         self.refuse(node, "compare two things with one of < <= > >= == !=")
-        return ("num", 0.0)
+        return _REFUSED
       return ("cmp", _CMP[type(node.ops[0])], self.expr(node.left),
               self.expr(node.comparators[0]))
     if isinstance(node, ast.BoolOp):
@@ -241,7 +246,7 @@ class _Parser:
         out = (op, out, self.expr(v))
       return out
     self.refuse(node, f"{type(node).__name__} is not part of this language")
-    return ("num", 0.0)
+    return _REFUSED
 
   def arg(self, node) -> Any:
     """A verb argument: a quoted name, or a numeric expression."""

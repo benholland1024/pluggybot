@@ -135,11 +135,19 @@ def test_a_fetch_in_a_world_with_an_empty_rack_is_refused_by_the_world():
   assert any("nothing this world has" in r for r in reasons)
 
 
-def test_a_refused_find_beside_a_place_that_passed_is_said_as_the_finds():
+def test_a_refused_find_beside_a_place_that_passed_names_the_find():
   """#463's procedure: `find` asked for a cube and `place` given one. The
   refusal names the `find` on its line, so it reads as no refusal of `place`."""
   [why] = refusals("def x():\n  pick(21)\n  find(20, 25.2, -2.4, 300)\n  place(20)\n")
   assert why.startswith("line 3: find(tag=20) names no place this world has"), why
+
+
+def test_an_argument_the_parser_refused_is_not_refused_again_as_a_call():
+  """The parser stood a refused argument in as 0, and the world's check
+  refused that 0 as well: `pick(int(t))` also read `tag 0 is no cube`, and
+  with the call named, `pick(tag=0)`, a call the source never wrote (#463)."""
+  [why] = refusals("def x():\n  t = 21\n  pick(int(t))\n")
+  assert why.startswith("line 3: only read(...) may be used"), why
 
 
 def test_every_reason_is_reported_at_once():

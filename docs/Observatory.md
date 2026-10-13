@@ -10,6 +10,37 @@ observatory is NOT a result: it reports into the issue it informs.
 
 ## Periods
 
+### A tag's refusal names the call it refuses (#463) — opens when this PR is deployed
+
+**What changed is what the robot is TOLD.** A procedure's refusal of a tag
+now leads with the call it refuses, and lists the world's tags by kind, a
+run of three or more as `lo..hi`: `find(tag=20) names no place this world
+has (places: 35..46)`, where it read `tag 20 is no place this world has
+(have: 35, 36, …, 46)`. `survey`, `press` (`plates: 35..37`), `pick` and
+`place` (`cubes: 20..24`) say theirs the same way. On `5ba8a0c` Luca read a
+refused `find(20, …)` as a refusal of its `place(20)`, filed tk_0028, and
+told Rowan the cube tags register once the blocks are seen. Three refusals
+beside it changed too:
+
+- a tag on none of the lists is refused once, by its call, where
+  `tag=1000.0 is above 999` came first;
+- a computed tag that is no number (`inf`, `nan`) fails its step, where the
+  run ended on a fault with its steps and locals lost;
+- an argument the parser refused is not refused again as a 0, where
+  `pick(int(t))` also read `tag 0 is no cube this world has`.
+
+The robot reads these in History, when a define is refused and when a
+computed tag stops a run. The prompt did not move.
+
+**What the period is for.**
+
+- **Does the misreading stop?** Count tickets and `tell`s after a tag
+  refusal that blame a call the refusal did not name. On `5ba8a0c` there were
+  3 refusals of this kind, all Luca's, and one was read into a ticket and a
+  tell.
+- ⚠ **A count by the words splits at this deploy.** Before it, `tag N is no
+  place|plate|cube … (have: …)`; after it, `names no place|plate|cube`.
+
 ### `test` and the form's coined names are placeholders too (#462's closing reading) — opens when this PR is deployed
 
 **What changed is how an answer's paperwork is read.** #462's week
