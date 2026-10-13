@@ -138,9 +138,9 @@ def test_a_quote_that_is_a_fields_name_never_stands():
   line = life.thoughts.record({"quantity": "charge_rate", "value": 0.3,
                                "unit": "W", "method": "watched the pack docked"})
   d = _validate(_quiet(retract="rate"))
-  assert d.left_out == {"why": "placeholder", "fields": ["retract"], "words": ["rate"]}
   life._reconsider(d)
   assert line in life.thoughts.read(FINDINGS), "'rate' took out the charge_rate finding"
+  assert d.left_out == {"why": "placeholder", "fields": ["retract"], "words": ["rate"]}
   # ...and `test`, a placeholder now, takes out only a line that is exactly it
   life.thoughts.pin("pen_bay_test is running: read its History line first")
   with pytest.raises(ThoughtRefused, match="nothing on the page matches"):

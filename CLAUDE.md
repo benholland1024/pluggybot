@@ -409,10 +409,12 @@ save a filmstrip PNG named after the script.
 - **A placeholder is empty, and an answer full of them buys and gives
   nothing** (issue #462; Overseer.md §4 "Placeholders"; `overseer.unfill`,
   `tests/test_placeholders.py`): every field is required, and the model
-  writes `n`, `none`, `:` or the field's own name where `""` was meant.
-  `validate` reads one as `""` where it can stand (`PLACEHOLDER_TEXT`,
-  `PLACEHOLDER_OBJECTS`: an object whose content is one goes whole, a label
-  is blanked); with `FILLED_FIELDS` (3) or more (one word in three fields
+  writes `n`, `none`, `:`, `test` or a field's name where `""` was meant --
+  any field's in a field of its own, an object's own names alone (a finding
+  is named for what it measures: `mouse_will`). `validate` reads one as
+  `""` where it can stand (`PLACEHOLDER_TEXT`, `PLACEHOLDER_OBJECTS`: an
+  object whose content is one goes whole, a label is blanked); with
+  `FILLED_FIELDS` (3) or more (one word in three fields
   counts, `keep`, never a topic), `UNSHOWN_PAPERWORK` goes too (the heart,
   whom for, the gift, the rating, the guess, `done`); a decline of the job
   the same answer takes is dropped. ⚠ THE ACTION, ITS PARAMETERS, THE EVENT
@@ -421,14 +423,17 @@ save a filmstrip PNG named after the script.
   character are never placeholders; `answer`, `cites`, a visitor's `reply`,
   a unit, a note's topic and title and a procedure's name are never judged.
   ⚠ A `procedure:new` beside a placeholder define runs nothing and its
-  `undefine` waits (#264's rule), never a garbled answer. ⚠ A QUOTE
-  (`PLACEHOLDER_QUOTES`) stands outside a filled answer, and takes out a line
-  it is only part of only with three letters and no placeholder
+  `undefine` waits (#264's rule), never a garbled answer. ⚠ A placeholder
+  QUOTE (`PLACEHOLDER_QUOTES`) stands outside a filled answer, and takes out
+  a line it is only part of only with three letters and no placeholder
   (`thoughts._loose`: `,` took out Rowan's goal), so an old `n` goal can
-  still go. ONE History line and a `left_out` event (`LEFT_OUT_WHYS`); the
-  decision carries `leftOut`. Every power is judged, unshown or
-  `PLACEHOLDER_KEPT`, and a test fails on one none of them names. The prompt
-  does not change.
+  still go; a field's name never stands (`retract` "rate"). ONE History
+  line and a `left_out` event (`LEFT_OUT_WHYS`); the decision carries
+  `leftOut`. Every power is judged, unshown or `PLACEHOLDER_KEPT`, and a
+  test fails on one none of them names. The prompt does not change. ⚠ IT
+  SEES NO CHOICE: outside a filled answer a heart, a gift or a rating is
+  acted on as meant, and on #462's closing reading most were not
+  (Evaluation.md §5).
 - ⚠ **The prefix is ONE list, `system_sections`** (issue #241):
   `system_prompt` joins it and the `prompt` message carries it apart (once per
   open, `Overseer.prompt_message`, with `prompt_sha`), and a test asserts the

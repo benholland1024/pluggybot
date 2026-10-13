@@ -1715,10 +1715,10 @@ flown day (four bad task ids, then 238 decisions on `fallback:cooloff`).
 Every field of the decision schema is required (the router asks for
 `strict`), so a field the model means nothing by is still written, and `""`
 (`false`, `{"to": "", "text": ""}`) is "not this time". GLM-5.3-Flash
-sometimes writes something instead: `n`, `x`, `none`, `:`, `,`, the field's
-own name (`intend`, `pin`), or, across many fields at once, a word of its own
-(`keep`, `test`, `watch_mouse`). Until #462 `validate` took any non-empty
-value as meant.
+sometimes writes something instead: `n`, `x`, `none`, `:`, `,`, `test`, a
+field's name (`intend` in `intend`, `unpin` in `pin`, `tell:` in `say`), or,
+across many fields at once, a word of its own (`keep`, `robot`,
+`watch_mouse`). Until #462 `validate` took any non-empty value as meant.
 
 **What it did.** Read off the observatory's database for 2026-09-20 →
 10-04: 37 answers held a placeholder in three or more fields (Luca 27,
@@ -1740,15 +1740,22 @@ offers were `take_points`, the harm kind.
 
 1. **A placeholder is empty.** Where it can stand (`PLACEHOLDER_TEXT`,
    `PLACEHOLDER_OBJECTS`), these values read as `""`: punctuation alone,
-   one letter, a null word (`none`, `null`, `nil`, `n/a`, and `placeholder`
-   itself), or the field's own name. An object whose content holds one goes
+   one letter, a null word (`none`, `null`, `nil`, `n/a`, `placeholder`
+   itself and `test`), or a field's name. In a field of its own (a goal, a
+   pin, a quote, a lookup, a chat line, `serves`, `done`) that is any of the
+   answer's fields; in an object it is the object's own names alone,
+   because a finding is named for what it measures (`mouse_will`, `answer
+   = 24 -- calculated from 6×4`). An object whose content holds one goes
    whole: a message, a decline's reason, a note's text, a finding's
    quantity, a procedure's source, a ticket's text, a reply on one. A label
    reads as `""`: a ticket's title (the desk titles it from its text), a
    finding's topic, and its method, which is optional (a weighing whose
    method said "none" is still graded). Every value this matched in answers
    otherwise meant was junk (64 of them), and so was every one-letter
-   finding quantity in 621 findings. ⚠ Never placeholders: a number (an
+   finding quantity in 621 findings. `test` and a field's name came in with
+   the closing reading (below): over the whole observatory, 24 write-ins
+   were `test` alone and 10 held a field's name in a field of its own, and
+   none of the 34 was meant. ⚠ Never placeholders: a number (an
    answer, an id, "5" to a sum), two letters (`ok`, `hi`, `no`), a character
    outside ASCII (an emoji, `好`). Never judged: `answer`, `cites`, a
    visitor's `reply` (it rides an id only a waiting message has), a
@@ -1780,7 +1787,10 @@ offers were `take_points`, the harm kind.
    placeholder and has three letters or digits (`thoughts._loose`).
    Otherwise it takes out only a line that is exactly it. Luca's `n` goal,
    written before #462, can be picked out by nothing else, and `,` and `no`
-   no longer take out a real one.
+   no longer take out a real one. ⚠ A field's name never stands as a quote:
+   it is no placeholder to `_loose`, so it would take out a line it is part
+   of. Rowan's `retract` "rate" (t=923279) was refused only because none of
+   its findings said "rate".
 
 **Told, and counted.** `Decision.left_out` is `{why, fields, words, acts,
 decline, undefine}`. The lifecycle writes ONE History line ("left out of
@@ -1793,10 +1803,29 @@ is how the robot learns how its answer was read. Every power is judged,
 unshown or kept (`PLACEHOLDER_KEPT` names each kept power's reason), and a
 test fails on a power none of them names.
 
+**The week after** (2026-10-05 → 10-13, builds 8f68f54, 4cd0d88 and
+afb473a, 2,302 answers; #462's closing reading): no value these rules
+called a placeholder reached an act. 98 answers had something left out (by
+`why`: 39 `filled`, 43 `placeholder`, 16 `decline`), and no heart, gift,
+rating, guess or `done` came from a filled one. The robots did
+not learn from the History line: filled answers did not fall off (1.7 % of
+answers, 10 of the 39 on the last full day), and 3 of the 39 next thoughts
+mentioned one. What still got through was `test` and a field's name, now
+placeholders too.
+
 What it cannot do: tell a real-looking filler from a real value. In a filled
-answer a one-word lookup ("lab") or a reply "still open" stands. A heart an
-answer did mean is left out if three of its fields were placeholders, and
-the History line lets the next answer buy it.
+answer a one-word lookup ("lab") or a reply "still open" stands, and an
+answer of plausible filler is not filled at all (Rowan, t=1047389: a decline
+"testing decline path" of the game it meant to claim, and a tool built). An
+act an answer did mean is left out if three of its fields were placeholders,
+and the History line lets the next answer do it again: the week's one was
+Luca's `done` beside six `,` (t=1166900), sent again by its next answer.
+⚠ **Nor can it see a choice
+outside a filled answer**: a boolean, a name off a list and a number carry
+no sign that they were meant. On the closing reading's builds whose
+thoughts the site keeps whole, 8 of 9 hearts bought for the other robot, 32
+of 35 gifts and 125 of 140 ratings were in neither the robot's thinking nor
+its reason (Evaluation.md §5, "An act the answer did not mean").
 
 ## 5. What an errand costs, and the pack that has to pay for it
 
