@@ -408,27 +408,33 @@ save a filmstrip PNG named after the script.
   quirks, `effort` among them: Overseer.md §6.)
 - **A placeholder is empty, and an answer full of them buys and gives
   nothing** (issue #462; Overseer.md §4 "Placeholders"; `overseer.unfill`,
-  `tests/test_placeholders.py`): every field is required, and the model
-  writes `n`, `none`, `:` or the field's own name where `""` was meant.
-  `validate` reads one as `""` where it can stand (`PLACEHOLDER_TEXT`,
-  `PLACEHOLDER_OBJECTS`: an object whose content is one goes whole, a label
-  is blanked); with `FILLED_FIELDS` (3) or more (one word in three fields
-  counts, `keep`, never a topic), `UNSHOWN_PAPERWORK` goes too (the heart,
-  whom for, the gift, the rating, the guess, `done`); a decline of the job
-  the same answer takes is dropped. ⚠ THE ACTION, ITS PARAMETERS, THE EVENT
-  MAP, THE STANDING ORDER AND TEXT THAT IS NO PLACEHOLDER STAND (measured:
-  nearly all of it was meant). ⚠ A number, two letters and a non-ASCII
-  character are never placeholders; `answer`, `cites`, a visitor's `reply`,
-  a unit, a note's topic and title and a procedure's name are never judged.
-  ⚠ A `procedure:new` beside a placeholder define runs nothing and its
+  `tests/test_placeholders.py`): every field is required, and the model writes
+  `n`, `none`, `:`, `test` or a field's name where `""` was meant -- its own,
+  and in a field of its own any the form coined (`COINED`: `drop_goal`,
+  `unpin`), never an everyday one (`done`: "Done!" may be meant); an object
+  is judged by its own names alone (a finding is named for what it measures:
+  `mouse_will`). `validate` reads one as `""` where it can stand
+  (`PLACEHOLDER_TEXT`, `PLACEHOLDER_OBJECTS`: an object whose content is one
+  goes whole, a label is blanked); with `FILLED_FIELDS` (3) or more (one word
+  in three fields counts, `keep`, never a topic), `UNSHOWN_PAPERWORK` goes too
+  (the heart, whom for, the gift, the rating, the guess, `done`); a decline of
+  the job the same answer takes is dropped. ⚠ THE ACTION, ITS PARAMETERS, THE
+  EVENT MAP, THE STANDING ORDER AND TEXT THAT IS NO PLACEHOLDER STAND
+  (measured: nearly all of it was meant). ⚠ A number, two letters and a
+  non-ASCII character are never placeholders; `answer`, `cites`, a visitor's
+  `reply`, a unit, a note's topic and title and a procedure's name are never
+  judged. ⚠ A `procedure:new` beside a placeholder define runs nothing and its
   `undefine` waits (#264's rule), never a garbled answer. ⚠ A QUOTE
-  (`PLACEHOLDER_QUOTES`) stands outside a filled answer, and takes out a line
-  it is only part of only with three letters and no placeholder
-  (`thoughts._loose`: `,` took out Rowan's goal), so an old `n` goal can
-  still go. ONE History line and a `left_out` event (`LEFT_OUT_WHYS`); the
-  decision carries `leftOut`. Every power is judged, unshown or
-  `PLACEHOLDER_KEPT`, and a test fails on one none of them names. The prompt
-  does not change.
+  (`PLACEHOLDER_QUOTES`) takes out a line it is only part of only with three
+  letters and no placeholder (`thoughts._loose`: `,` took out Rowan's goal); a
+  placeholder quote stands outside a filled answer and takes out only a line
+  that is exactly it, so an old `n` goal can still go, and a coined one
+  stands too (`retract` "mouse_will"). ONE History line and a `left_out` event
+  (`LEFT_OUT_WHYS`); the decision carries `leftOut`. Every power is judged,
+  unshown or `PLACEHOLDER_KEPT`, and a test fails on one none of them names.
+  The prompt does not change. ⚠ IT SEES NO CHOICE: outside a filled answer a
+  heart, a gift or a rating is acted on as meant, and on #462's closing
+  reading most were not (Evaluation.md §5).
 - ⚠ **The prefix is ONE list, `system_sections`** (issue #241):
   `system_prompt` joins it and the `prompt` message carries it apart (once per
   open, `Overseer.prompt_message`, with `prompt_sha`), and a test asserts the

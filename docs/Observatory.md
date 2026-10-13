@@ -10,6 +10,40 @@ observatory is NOT a result: it reports into the issue it informs.
 
 ## Periods
 
+### `test` and the form's coined names are placeholders too (#462's closing reading) — opens when this PR is deployed
+
+**What changed is how an answer's paperwork is read.** #462's week
+(2026-10-05 → 10-13) found no value its rules call a placeholder in any act
+but a quote taking out a line that was exactly it, and two kinds of filler
+outside them. One is `test`: a ticket titled and written `test` held one of
+Rowan's three slots through eight nudges to close it, and a message "test"
+went to Luca. The other is a field's name written where nothing was meant:
+a goal `drop_goal`, a pin `unpin`, lookups for `give_points`, `heart_for`
+and `cites`, and `tell:` said in the chat. Now `test` reads as empty
+wherever a placeholder is judged, and so does a name the form coined (an
+underscore, or `un` before another field: `drop_goal`, `unpin`) in a field
+of its own. A field named by an everyday word (`done`, `tell`, `cites`) is
+judged only as its own field's name, since "Done!" may be meant in the
+chat, so `tell:` and `cites` would still stand. An object is still judged by
+its own names, so a finding named `mouse_will` stands, and so does a quote
+of it. An answer with three or more of these is filled, so a few more
+answers leave out their unshown paperwork. The prompt did not move.
+
+**What the period is for.**
+
+- **No `test` or coined-name act.** Count the write-ins whose whole value
+  is `test` (`message` texts, `refusal` reasons, `read` queries, `ticket`
+  titles, `conversation` rows `said`, `thought` rows writing one), and
+  those that are a coined name where one is judged: `read` queries, `said`
+  rows, and `thought` rows writing a pin or a goal. Each should be zero. An
+  everyday field name, or a coined one in a message, a reason or a title,
+  stands by design.
+- **How often.** `left_out` rows per robot per day under each `why`,
+  against #462's week: 39 filled, 43 placeholder and 16 decline in 2,302
+  answers. `placeholder` and `filled` should rise a little.
+- ⚠ **What it does not change.** A heart, a gift or a rating outside a
+  filled answer is still acted on as meant (Evaluation.md §5).
+
 ### The purse is 9.30, as decided (rooftop-media-2026 #404) — opens when that release deploys
 
 **What changed is the money, not the mind.** The weekly purse moves from $10

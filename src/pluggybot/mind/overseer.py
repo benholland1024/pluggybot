@@ -1054,6 +1054,14 @@ ACTION_PARAMETERS = ("board", "program", "zone", "read", "find", "task",
 #: ...and the three that ARE the answer: what the robot thought, what it
 #: chose, and why.
 ANSWER_FIELDS = ("think", "action", "reason")
+#: EVERY FIELD OF THE FORM, whichever a world offers: the answer, the
+#: action's parameters and the indexed powers -- whose coined names are a
+#: placeholder in a field of its own (`COINED`). Never an answer's own keys:
+#: one on the prose retry (`llm.ChatClient`, `constrained` False) leaves its
+#: empty fields out, and its filler stood.
+FORM_FIELDS = tuple(dict.fromkeys(
+  ANSWER_FIELDS + ACTION_PARAMETERS + MIGRATED_FIELDS
+  + tuple(name for name, *_ in FIELD_INDEX)))
 
 
 # ---- placeholders (issue #462) ----------------------------------------------
@@ -1085,10 +1093,25 @@ def _word(text) -> str:
 #: (its `def` line's); the answer's own three and the action's parameters.
 PLACEHOLDER_TEXT = ("pin", "unpin", "unnote", "intend", "drop_goal", "serves",
                     "retract", "done", "lookup", "say")
+#: ...and in one of THOSE, a name the FORM COINED -- an underscore, or `un`
+#: before another field -- is the form's word, never the robot's: `pin`
+#: "unpin", `intend` "drop_goal", `lookup` "heart_for". MEASURED to
+#: 2026-10-13: 6 of the 10 field names written alone in a field of their
+#: own, every one filler. ⚠ Not a field named by an everyday word (`done`,
+#: `reason`, `tell`): it may be meant there ("Done!" in the chat), and
+#: counted, it would make an answer filled and leave out the `done` it
+#: meant, so it is judged only as its own field's name (found in review;
+#: Rowan's `say` "tell:" stands). Nor in an object, judged by its own names:
+#: of the four findings named for a field, three were meant (`answer = 24
+#: -- calculated from 6×4`).
+COINED = tuple(name for name in FORM_FIELDS
+               if "_" in name or (name.startswith("un") and name[2:] in FORM_FIELDS))
 #: ...but a QUOTE names a line, so outside an answer full of placeholders one
 #: stands, and a placeholder quote takes out only a line that is exactly it
 #: (`thoughts._match`): the robot can still take out the `n` goal it wrote
-#: before #462, and `,` no longer takes out a real goal by being in it.
+#: before #462, and `,` no longer takes out a real goal by being in it. ⚠ So
+#: does a coined one: a finding is named for what it measures, and
+#: `retract` "mouse_will" picks it out (found in review).
 PLACEHOLDER_QUOTES = ("unpin", "unnote", "drop_goal", "retract")
 PLACEHOLDER_OBJECTS: dict[str, tuple[tuple[str, ...], tuple[str, ...]]] = {
   # field: (its content, its labels)
@@ -1101,7 +1124,7 @@ PLACEHOLDER_OBJECTS: dict[str, tuple[tuple[str, ...], tuple[str, ...]]] = {
   "ticket_reply": (("text",), ()),
 }
 #: AN ANSWER FULL OF THEM: three or more of those fields holding one -- one
-#: word in three of them is that answer's own (`keep`, `test`, `watch_mouse`)
+#: word in three of them is that answer's own (`keep`, `robot`, `watch_mouse`)
 #: and is read as empty wherever it is -- and the paperwork no placeholder
 #: can be seen in (a boolean, a name off a list, a number, an id) is left out
 #: too. MEASURED (2026-09-20 -> 10-04): 37 such answers bought the other
@@ -1155,7 +1178,7 @@ def unfill(raw: dict) -> tuple[dict, dict | None]:
   own = {w for w, names in where.items() if len(names) >= FILLED_FIELDS}
   held = [(name, sub, text) for name, sub, text in found
           if placeholder(text, (name,) if sub is None else (name, sub))
-          or _word(text) in own]
+          or (sub is None and _word(text) in COINED) or _word(text) in own]
   filled = len({name for name, _, _ in held}) >= FILLED_FIELDS
   out, fields, words = dict(raw), [], []
   for name, sub, text in held:
