@@ -404,8 +404,11 @@ def full_message(surface: Surface, size: int, limit: int) -> str:
 # ---- a placeholder (issue #462) ---------------------------------------------
 
 #: The words that mean nothing in any field, whatever their case and the
-#: punctuation round them -- `placeholder` among them, written as one.
-NULL_WORDS = ("none", "null", "nil", "n/a", "placeholder")
+#: punctuation round them -- `placeholder` among them, written as one, and
+#: `test`: 24 write-ins were `test` alone to 2026-10-13, and not one was
+#: meant (a ticket titled and written `test` held one of Rowan's three
+#: slots through eight nudges to close it).
+NULL_WORDS = ("none", "null", "nil", "n/a", "placeholder", "test")
 PUNCTUATION = " \t\r\n.,;:!?'\"`()[]{}<>*#-_/\\|"
 
 
@@ -416,9 +419,9 @@ def _squeeze(text: str) -> str:
 def placeholder(value, names: tuple[str, ...] = ()) -> bool:
   """Is `value` what a model writes into a field it means nothing by (issue
   #462; docs/Overseer.md "Placeholders")? Punctuation alone (`:`, `},`), one
-  letter (`n`, `x`), a null word, or one of `names`: the field's own name,
-  `pin` in `pin`. MEASURED on the observatory's 8,328 answers: every value
-  it matched was junk. ⚠ A number is never one (an answer, an id, "5" to a
+  letter (`n`, `x`), a null word, or one of `names`: a field's name, `pin`
+  in `pin`. MEASURED on the observatory's answers: every value it matched
+  was junk. ⚠ A number is never one (an answer, an id, "5" to a
   sum), nor two letters (`ok`, `hi`, `no`), nor a character outside ASCII
   (an emoji, `好`)."""
   text = str(value or "").strip().lower()

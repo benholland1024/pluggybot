@@ -1085,10 +1085,20 @@ def _word(text) -> str:
 #: (its `def` line's); the answer's own three and the action's parameters.
 PLACEHOLDER_TEXT = ("pin", "unpin", "unnote", "intend", "drop_goal", "serves",
                     "retract", "done", "lookup", "say")
-#: ...but a QUOTE names a line, so outside an answer full of placeholders one
-#: stands, and a placeholder quote takes out only a line that is exactly it
+#: ...and in one of THOSE, ANY FIELD'S NAME is the form's word, never the
+#: robot's (the answer's own keys: every field is required): `pin`
+#: "unpin", `intend` "drop_goal", `lookup` "heart_for", `say` "tell:".
+#: MEASURED to 2026-10-13: 10 such values, every one filler. ⚠ Not in an
+#: object, which is judged by its own names: of the four findings named for
+#: a field, three were meant (`answer = 24 -- calculated from 6×4`).
+#:
+#: ...but a QUOTE names a line, so outside an answer full of placeholders a
+#: placeholder quote stands, and takes out only a line that is exactly it
 #: (`thoughts._match`): the robot can still take out the `n` goal it wrote
-#: before #462, and `,` no longer takes out a real goal by being in it.
+#: before #462, and `,` no longer takes out a real goal by being in it. ⚠ A
+#: field's name never stands: it is no placeholder there, so it would take
+#: out a line it is part of (Rowan's `retract` "rate", t=923279: refused only
+#: because no finding of its said "rate").
 PLACEHOLDER_QUOTES = ("unpin", "unnote", "drop_goal", "retract")
 PLACEHOLDER_OBJECTS: dict[str, tuple[tuple[str, ...], tuple[str, ...]]] = {
   # field: (its content, its labels)
@@ -1101,7 +1111,7 @@ PLACEHOLDER_OBJECTS: dict[str, tuple[tuple[str, ...], tuple[str, ...]]] = {
   "ticket_reply": (("text",), ()),
 }
 #: AN ANSWER FULL OF THEM: three or more of those fields holding one -- one
-#: word in three of them is that answer's own (`keep`, `test`, `watch_mouse`)
+#: word in three of them is that answer's own (`keep`, `robot`, `watch_mouse`)
 #: and is read as empty wherever it is -- and the paperwork no placeholder
 #: can be seen in (a boolean, a name off a list, a number, an id) is left out
 #: too. MEASURED (2026-09-20 -> 10-04): 37 such answers bought the other
@@ -1154,12 +1164,12 @@ def unfill(raw: dict) -> tuple[dict, dict | None]:
       where.setdefault(_word(text), set()).add(name)
   own = {w for w, names in where.items() if len(names) >= FILLED_FIELDS}
   held = [(name, sub, text) for name, sub, text in found
-          if placeholder(text, (name,) if sub is None else (name, sub))
+          if placeholder(text, tuple(raw) if sub is None else (name, sub))
           or _word(text) in own]
   filled = len({name for name, _, _ in held}) >= FILLED_FIELDS
   out, fields, words = dict(raw), [], []
   for name, sub, text in held:
-    if name in PLACEHOLDER_QUOTES and not filled:
+    if name in PLACEHOLDER_QUOTES and not filled and placeholder(text):
       continue
     fields += [] if name in fields else [name]
     if text.strip().lower() not in {w.lower() for w in words}:

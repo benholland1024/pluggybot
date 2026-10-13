@@ -75,9 +75,9 @@ LUCA_391503 = _quiet(
   ticket_reply={"ticket": "tk_0024", "text": "n"})
 
 
-def test_a_placeholder_is_punctuation_a_letter_a_null_word_or_the_fields_own_name():
+def test_a_placeholder_is_punctuation_a_letter_a_null_word_or_a_fields_name():
   for value in ("n", "X", ":", "},", "  n  ", 'a"}', "none", "None.", ": null",
-                "n/a", "N/A", "nil", "placeholder"):
+                "n/a", "N/A", "nil", "placeholder", "test", "Test."):
     assert ov.placeholder(value), value
   assert ov.placeholder("intend", ("intend",))
   assert ov.placeholder("drop goal", ("drop_goal",))
@@ -85,9 +85,67 @@ def test_a_placeholder_is_punctuation_a_letter_a_null_word_or_the_fields_own_nam
   # ⚠ a real short value stands: two letters are a word, a number is a
   # number, and one character outside ASCII may be a whole word
   for value in ("", "ok", "hi", "no", "Na", "keep", "8", "5", "👍", "好",
-                "bay C is empty"):
+                "bay C is empty", "testing the dock again"):
     assert not ov.placeholder(value), value
-  assert not ov.placeholder("intend", ("pin",)), "another field's name is a word"
+  assert not ov.placeholder("intend", ("pin",)), "only the names it is handed"
+
+
+def test_test_is_a_placeholder():
+  """Rowan's tk_0037 (t=1047389.606, build afb473a), titled and written
+  `test` in an answer with nothing else left out: it held one of Rowan's
+  three slots through eight nudges to close it. Its `tell` "test" went to
+  Luca (t=618921.494, 8f68f54). In all 24 write-ins that were `test` alone,
+  none was meant."""
+  d = _validate(_quiet(ticket={"kind": "question", "title": "test", "text": "test"},
+                       tell={"to": "Rowan", "text": "test"}))
+  assert d.ticket is None, "a ticket of 'test' took a slot on the desk"
+  assert d.tell is None
+  assert d.left_out == {"why": "placeholder", "fields": ["tell", "ticket"],
+                        "words": ["test"]}
+  said = "Testing the dock again at low battery."
+  assert _validate(_quiet(tell={"to": "Rowan", "text": said})).tell["text"] == said
+
+
+def test_a_fields_name_in_a_field_of_its_own_is_the_forms_word():
+  """Rowan set the goal "drop_goal" and looked up "give_points" (t=923279.523,
+  build 4cd0d88), pinned "unpin" (t=618921.494) and said "tell:" in its
+  public chat (t=1110967.439): the names of the form it fills, written where
+  it meant nothing, and each one acted on."""
+  d = _validate(_quiet(pin="unpin"))
+  assert d.pin == "", "Rowan pinned the line 'unpin'"
+  assert d.left_out == {"why": "placeholder", "fields": ["pin"], "words": ["unpin"]}
+  d = _validate(_quiet(intend="drop_goal", lookup="give_points", say="tell:",
+                       rate={"board": "whiteboard_a", "quality": 0.5}))
+  assert d.intend == d.lookup == d.say == ""
+  assert d.left_out["why"] == "filled" and d.rate is None
+  # ⚠ ...but an object is judged by its own names alone: a finding is named
+  # for what it measures (Luca, t=1058451.09), and a message is a message
+  finding = {"quantity": "mouse_will", "value": 1, "unit": "state",
+             "method": "mouse last seen resting after a feed", "topic": "lab"}
+  d = _validate(_quiet(record=finding, tell={"to": "Rowan", "text": "done"}))
+  assert d.record["quantity"] == "mouse_will" and d.tell["text"] == "done"
+  assert d.left_out is None
+
+
+def test_a_quote_that_is_a_fields_name_never_stands():
+  """Rowan's `retract` "rate" (t=923279.523) is no placeholder, so it stood,
+  and it takes out the one line it is part of: that answer's was refused
+  only because none of Rowan's findings said "rate". A placeholder quote
+  still stands, matched only to a line that is exactly it."""
+  from pluggybot.mind.thoughts import FINDINGS, ThoughtRefused
+  from test_body import stub_life
+  life = stub_life()
+  line = life.thoughts.record({"quantity": "charge_rate", "value": 0.3,
+                               "unit": "W", "method": "watched the pack docked"})
+  d = _validate(_quiet(retract="rate"))
+  assert d.left_out == {"why": "placeholder", "fields": ["retract"], "words": ["rate"]}
+  life._reconsider(d)
+  assert line in life.thoughts.read(FINDINGS), "'rate' took out the charge_rate finding"
+  # ...and `test`, a placeholder now, takes out only a line that is exactly it
+  life.thoughts.pin("pen_bay_test is running: read its History line first")
+  with pytest.raises(ThoughtRefused, match="nothing on the page matches"):
+    life.thoughts.unpin("test")
+  assert _validate(_quiet(drop_goal="n")).drop_goal == "n"
 
 
 def test_an_answer_full_of_placeholders_acts_on_nothing_and_its_action_stands():
