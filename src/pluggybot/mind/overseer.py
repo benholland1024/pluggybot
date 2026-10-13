@@ -1054,6 +1054,14 @@ ACTION_PARAMETERS = ("board", "program", "zone", "read", "find", "task",
 #: ...and the three that ARE the answer: what the robot thought, what it
 #: chose, and why.
 ANSWER_FIELDS = ("think", "action", "reason")
+#: EVERY FIELD OF THE FORM, whichever a world offers: the answer, the
+#: action's parameters and the indexed powers -- whose coined names are a
+#: placeholder in a field of its own (`COINED`). Never an answer's own keys:
+#: one on the prose retry (`llm.ChatClient`, `constrained` False) leaves its
+#: empty fields out, and its filler stood.
+FORM_FIELDS = tuple(dict.fromkeys(
+  ANSWER_FIELDS + ACTION_PARAMETERS + MIGRATED_FIELDS
+  + tuple(name for name, *_ in FIELD_INDEX)))
 
 
 # ---- placeholders (issue #462) ----------------------------------------------
@@ -1085,20 +1093,25 @@ def _word(text) -> str:
 #: (its `def` line's); the answer's own three and the action's parameters.
 PLACEHOLDER_TEXT = ("pin", "unpin", "unnote", "intend", "drop_goal", "serves",
                     "retract", "done", "lookup", "say")
-#: ...and in one of THOSE, ANY FIELD'S NAME is the form's word, never the
-#: robot's (the answer's own keys: every field is required): `pin`
-#: "unpin", `intend` "drop_goal", `lookup` "heart_for", `say` "tell:".
-#: MEASURED to 2026-10-13: 10 such values, every one filler. ⚠ Not in an
-#: object, which is judged by its own names: of the four findings named for
-#: a field, three were meant (`answer = 24 -- calculated from 6×4`).
-#:
-#: ...but a QUOTE names a line, so outside an answer full of placeholders a
-#: placeholder quote stands, and takes out only a line that is exactly it
+#: ...and in one of THOSE, a name the FORM COINED -- an underscore, or `un`
+#: before another field -- is the form's word, never the robot's: `pin`
+#: "unpin", `intend` "drop_goal", `lookup` "heart_for". MEASURED to
+#: 2026-10-13: 6 of the 10 field names written alone in a field of their
+#: own, every one filler. ⚠ Not a field named by an everyday word (`done`,
+#: `reason`, `tell`): it may be meant there ("Done!" in the chat), and
+#: counted, it would make an answer filled and leave out the `done` it
+#: meant, so it is judged only as its own field's name (found in review;
+#: Rowan's `say` "tell:" stands). Nor in an object, judged by its own names:
+#: of the four findings named for a field, three were meant (`answer = 24
+#: -- calculated from 6×4`).
+COINED = tuple(name for name in FORM_FIELDS
+               if "_" in name or (name.startswith("un") and name[2:] in FORM_FIELDS))
+#: ...but a QUOTE names a line, so outside an answer full of placeholders one
+#: stands, and a placeholder quote takes out only a line that is exactly it
 #: (`thoughts._match`): the robot can still take out the `n` goal it wrote
-#: before #462, and `,` no longer takes out a real goal by being in it. ⚠ A
-#: field's name never stands: it is no placeholder there, so it would take
-#: out a line it is part of (Rowan's `retract` "rate", t=923279: refused only
-#: because no finding of its said "rate").
+#: before #462, and `,` no longer takes out a real goal by being in it. ⚠ So
+#: does a coined one: a finding is named for what it measures, and
+#: `retract` "mouse_will" picks it out (found in review).
 PLACEHOLDER_QUOTES = ("unpin", "unnote", "drop_goal", "retract")
 PLACEHOLDER_OBJECTS: dict[str, tuple[tuple[str, ...], tuple[str, ...]]] = {
   # field: (its content, its labels)
@@ -1164,12 +1177,12 @@ def unfill(raw: dict) -> tuple[dict, dict | None]:
       where.setdefault(_word(text), set()).add(name)
   own = {w for w, names in where.items() if len(names) >= FILLED_FIELDS}
   held = [(name, sub, text) for name, sub, text in found
-          if placeholder(text, tuple(raw) if sub is None else (name, sub))
-          or _word(text) in own]
+          if placeholder(text, (name,) if sub is None else (name, sub))
+          or (sub is None and _word(text) in COINED) or _word(text) in own]
   filled = len({name for name, _, _ in held}) >= FILLED_FIELDS
   out, fields, words = dict(raw), [], []
   for name, sub, text in held:
-    if name in PLACEHOLDER_QUOTES and not filled and placeholder(text):
+    if name in PLACEHOLDER_QUOTES and not filled:
       continue
     fields += [] if name in fields else [name]
     if text.strip().lower() not in {w.lower() for w in words}:

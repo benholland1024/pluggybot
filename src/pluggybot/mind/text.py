@@ -407,7 +407,9 @@ def full_message(surface: Surface, size: int, limit: int) -> str:
 #: punctuation round them -- `placeholder` among them, written as one, and
 #: `test`: 24 write-ins were `test` alone to 2026-10-13, and not one was
 #: meant (a ticket titled and written `test` held one of Rowan's three
-#: slots through eight nudges to close it).
+#: slots through eight nudges to close it). ⚠ Those rows carry a ticket's
+#: title, never its text: Luca's tk_0019, titled for what was wrong and
+#: written `test`, was meant, and one like it now goes whole.
 NULL_WORDS = ("none", "null", "nil", "n/a", "placeholder", "test")
 PUNCTUATION = " \t\r\n.,;:!?'\"`()[]{}<>*#-_/\\|"
 
