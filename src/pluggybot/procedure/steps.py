@@ -1270,22 +1270,23 @@ TAG_GLOSS = {"cube": "is a cube's, and `pick` finds a cube by its tag",
 
 
 def _number(v) -> str:
-  """A number as written: `20` for 20.0, and every digit of 23.0000001,
-  which `:g` quoted as `23`, a tag the same refusal listed as the world's."""
-  return repr(float(v)).removesuffix(".0")
+  """A tag exactly as checked: every digit of 23.0000001, which `:g` quoted
+  as `23` beside a list holding 23, and a whole float without its `.0`."""
+  return str(v) if isinstance(v, int) else repr(v).removesuffix(".0")
 
 
 def _tags(tags) -> str:
-  """A world's tags, a run of three or more as `lo..hi`: a refused define
+  """A world's tags, a run of three or more as `lo to hi`: a refused define
   is one History line, cut at 400 characters, and the twelve places listed
-  in full twice cut #463's own refused rewrite short (401)."""
+  in full twice cut #463's own refused rewrite short (401). Never `lo..hi`,
+  which reads as leaving `hi` out."""
   runs: list[list[int]] = []
   for t in tags:
     if runs and t == runs[-1][-1] + 1:
       runs[-1].append(t)
     else:
       runs.append([t])
-  return ", ".join(f"{r[0]}..{r[-1]}" if len(r) >= 3 else ", ".join(map(str, r))
+  return ", ".join(f"{r[0]} to {r[-1]}" if len(r) >= 3 else ", ".join(map(str, r))
                    for r in runs) or "none"
 
 
@@ -1303,28 +1304,33 @@ def check_step(verb: Verb, args: dict, facts: WorldFacts,
     bad.append(f"{verb.name} takes no {', '.join(sorted(extra))}")
   if missing and not partial:
     bad.append(f"{verb.name} needs {', '.join(sorted(missing))}")
-  for name in verb.args:
-    if name in args:
-      bad += check_arg(verb, name, args[name], facts)
   # A tag's refusal leads with its call: "tag 20 is no place", refusing a
-  # `find`, was read as a refusal of `place` (#463)
+  # `find`, was read as a refusal of `place` (#463). A number for a tag is
+  # the list's alone to refuse, so one that is no number (inf, nan) is
+  # refused once, by its call, too.
   noun, tag = TAG_NAMES.get(verb.name), args.get("tag")
-  if noun and isinstance(tag, (int, float)) and not isinstance(tag, bool):
-    have = getattr(facts, noun + "s")
-    # `in`, never `int(tag)`: a computed inf or nan reaches here, and int() raised
-    if tag not in have:
-      other = "place" if noun == "cube" else "cube"
-      gloss = (f"; {_number(tag)} {TAG_GLOSS[other]}"
-               if tag in getattr(facts, other + "s") else "")
-      bad.append(f"{verb.name}(tag={_number(tag)}) names no {noun} this world has "
-                 f"({noun}s: {_tags(have)}){gloss}")
-  if verb.name in ("drive_to", "find") and all(
-      isinstance(args.get(k), (int, float)) and not isinstance(args.get(k), bool)
-      for k in ("x", "y")):
+  tagged = noun is not None and isinstance(tag, (int, float)) and not isinstance(tag, bool)
+  for name in verb.args:
+    if name in args and not (tagged and name == "tag"):
+      bad += check_arg(verb, name, args[name], facts)
+  # `in`, never `int(tag)`: a computed inf or nan reaches here, and int() raised
+  if tagged and tag not in getattr(facts, noun + "s"):
+    other = "place" if noun == "cube" else "cube"
+    gloss = (f"; {_number(tag)} {TAG_GLOSS[other]}"
+             if tag in getattr(facts, other + "s") else "")
+    bad.append(f"{verb.name}(tag={_number(tag)}) names no {noun} this world has "
+               f"({noun}s: {_tags(getattr(facts, noun + 's'))}){gloss}")
+  at = {k: float(args[k]) for k in ("x", "y")
+        if isinstance(args.get(k), (int, float)) and not isinstance(args.get(k), bool)}
+  if verb.name in ("drive_to", "find") and at:
     x0, y0, x1, y1 = facts.bounds
-    x, y = float(args["x"]), float(args["y"])
-    if not (x0 <= x <= x1 and y0 <= y <= y1):
-      bad.append(f"({x}, {y}) is outside the map [{x0}, {x1}] x [{y0}, {y1}]")
+    if len(at) == 2 and not (x0 <= at["x"] <= x1 and y0 <= at["y"] <= y1):
+      bad.append(f"({at['x']}, {at['y']}) is outside the map [{x0}, {x1}] x [{y0}, {y1}]")
+    # ...and one written as a number beside one computed or refused is
+    # checked alone, never beside a stand-in (#463: `_REFUSED`)
+    for k, lo, hi in (("x", x0, x1), ("y", y0, y1)):
+      if len(at) == 1 and k in at and not lo <= at[k] <= hi:
+        bad.append(f"{k}={at[k]} is outside the map's [{lo}, {hi}]")
   if verb.name == "move" and isinstance(args.get("axis"), str) \
       and isinstance(args.get("target"), (int, float)) \
       and not isinstance(args.get("target"), bool):

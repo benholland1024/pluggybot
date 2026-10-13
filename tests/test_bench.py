@@ -467,3 +467,22 @@ def test_a_procedures_locals_reach_the_run_history_and_the_wire():
   assert ran["locals"] == {"f": pytest.approx(life.battery.energy_wh * 2, abs=1e-3)}
   history = life.thoughts.read("History.md")
   assert re.search(r"ran the procedure weigh to its end \(1 step\) -- it ended with f = [\d.]+", history)
+
+
+def test_a_local_that_is_no_number_stays_off_the_wire_and_in_history():
+  """JSON has no word for inf or nan: the publisher wrote `Infinity`, the
+  site's parser threw, and the whole `procedure` event was dropped -- which
+  #463 made the end of a run that computed its tag past a float."""
+  from pluggybot.lifecycle import errand_from
+  from pluggybot.mind.overseer import Decision
+  from pluggybot.procedure import library as lib
+  life = stub_life()
+  events = []
+  life.on_event.append(events.append)
+  L = lib.Library(lc.world_facts(QUAD_HOME))
+  L.define("big", "def big():\n  t = 1e308 * 10\n  u = t - t\n  n = 3\n  wait(0.1)\n")
+  life.run_errand(errand_from(Decision(action="procedure:big"), QUAD_HOME, library=L))
+  ran = next(e for e in events if e.get("type") == "procedure" and e.get("outcome") == "ran")
+  json.dumps(ran, allow_nan=False)
+  assert ran["locals"] == {"n": 3.0}
+  assert "it ended with t = inf, u = nan, n = 3" in life.thoughts.read("History.md")

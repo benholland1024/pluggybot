@@ -3577,13 +3577,17 @@ class HubLifecycle:
     # wire at all -- a reader could see a run was cut short, not what cut it.
     failed = next((s for s in run["steps"]
                    if run.get("failedAt") is not None and s.get("i") == run["failedAt"]), {})
+    # A local that is no number (inf, nan) stays off the wire: JSON has no
+    # word for it, and the site's parser dropped the whole event (#463).
+    # History still says it (`procedure_outcome`).
+    shown = {k: v for k, v in (run.get("locals") or {}).items() if math.isfinite(v)}
     self._emit({**base, "t": round(float(self.data.time), 3),
                 "outcome": "ran" if run.get("ok") else "aborted",
                 "completed": run["completed"], "total": run["total"],
                 "failedAt": run.get("failedAt"), "stopped": run.get("stopped"),
                 **({"failedLine": failed["line"]} if failed.get("line") else {}),
                 **({"failedReason": failed["reason"]} if failed.get("reason") else {}),
-                **({"locals": run["locals"]} if run.get("locals") else {})})
+                **({"locals": shown} if shown else {})})
     # ...and the steps that went through their evidence, the log's alone: a
     # failed step's trace rode its own line, and a press's tries are read
     # by the day whether it pressed or not (issue #439)

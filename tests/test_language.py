@@ -142,12 +142,20 @@ def test_a_refused_find_beside_a_place_that_passed_names_the_find():
   assert why.startswith("line 3: find(tag=20) names no place this world has"), why
 
 
-def test_an_argument_the_parser_refused_is_not_refused_again_as_a_call():
+@pytest.mark.parametrize("arg, said", [
+  ("None", "a NoneType is not a number"),
+  ("read(1)", "read takes one sensor name"),
+  ("int(21)", "only read(...) may be used"),
+  ("1 < 2 < 3", "compare two things with one of"),
+  ("+21", "UnaryOp is not part of this language"),
+])
+def test_an_argument_the_parser_refused_is_not_refused_again_as_a_call(arg, said):
   """The parser stood a refused argument in as 0, and the world's check
   refused that 0 as well: `pick(int(t))` also read `tag 0 is no cube`, and
-  with the call named, `pick(tag=0)`, a call the source never wrote (#463)."""
-  [why] = refusals("def x():\n  t = 21\n  pick(int(t))\n")
-  assert why.startswith("line 3: only read(...) may be used"), why
+  with the call named, `pick(tag=0)`, a call the source never wrote (#463).
+  One case for each place the parser refuses an expression."""
+  [why] = refusals(f"def x():\n  pick({arg})\n")
+  assert why.startswith(f"line 2: {said}"), why
 
 
 def test_every_reason_is_reported_at_once():

@@ -122,52 +122,62 @@ def test_each_rule_refuses_with_a_readable_reason(spec, needle):
   assert any(needle in r for r in reasons), reasons
 
 
-@pytest.mark.parametrize("verb, args", [
-  ("find", {"tag": 20, "x": 25.2, "y": -2.4}),
-  ("survey", {"tag": 20}),
-  ("press", {"tag": 20}),
-  ("pick", {"tag": 42}),
-  ("place", {"tag": 42}),
-  ("press", {"tag": 1000}),
-])
-def test_a_tag_refusal_names_the_call_it_refuses(verb, args):
+@pytest.mark.parametrize("verb, extra, other_kind", [
+  ("find", {"x": 25.2, "y": -2.4}, 20), ("survey", {}, 20), ("press", {}, 20),
+  ("pick", {}, 42), ("place", {}, 42)])
+@pytest.mark.parametrize("tag", [None, 1000, float("inf"), float("nan")])
+def test_a_tag_refusal_names_the_call_it_refuses_and_is_the_only_one(verb, extra,
+                                                                     other_kind, tag):
   """"tag 20 is no place this world has", refusing a `find`, was read as a
   refusal of `place`: the robot ticketed a wrong cause and told it to the
   other robot (#463). Each verb's tag refusal leads with its call, and is
-  the only one: a bound said `tag=1000.0 is above 999` first, with no call."""
-  [why] = st.check_step(st.VERBS[verb], args, HOME)
-  assert why.startswith(f"{verb}(tag={args['tag']}) names no "), why
+  the only one: a bound said `tag=1000.0 is above 999` first, and a tag that
+  is no number `tag must be a finite number`, neither with a call -- where
+  `int(tag)` had not raised on it first."""
+  tag = other_kind if tag is None else tag
+  [why] = st.check_step(st.VERBS[verb], {**extra, "tag": tag}, HOME)
+  assert why.startswith(f"{verb}(tag={tag}) names no "), why
 
 
-@pytest.mark.parametrize("tag", [float("inf"), float("nan")])
-@pytest.mark.parametrize("verb, args", [("find", {"x": 25.2, "y": -2.4}), ("pick", {})])
-def test_a_tag_that_is_no_number_is_refused_never_raised(verb, args, tag):
-  """A computed tag can overflow (`t = 1e308 * 10`): the tag check's
-  `int(tag)` raised, and the run ended on a fault, its steps, its locals
-  and the reason lost."""
-  reasons = st.check_step(st.VERBS[verb], {**args, "tag": tag}, HOME)
-  assert any(r.startswith(f"{verb}(tag={tag!r}) names no ") for r in reasons), reasons
+def test_every_verb_that_takes_a_tag_has_its_list():
+  """A tag `Arg` carries no bound, so `TAG_NAMES` is a tag's only check: a
+  verb that took a tag and was left off it would take any number."""
+  verbs = {**st.VERBS, **st.GAME_VERBS}
+  assert {n for n, v in verbs.items() if "tag" in v.args} == set(st.TAG_NAMES)
 
 
-def test_a_tag_refusal_quotes_the_tag_as_written():
+def test_a_tag_refusal_quotes_the_tag_exactly():
   """`:g` kept six digits: 23.0000001 was quoted `pick(tag=23)`, a call that
-  passes, beside a list holding 23, and 1234567 as `1.23457e+06`."""
+  passes, beside a list holding 23, and 1234567 as `1.23457e+06`; and a
+  program's tag is an int, never rounded through a float."""
   [why] = st.check_step(st.VERBS["pick"], {"tag": 23.0000001}, HOME)
   assert why.startswith("pick(tag=23.0000001) names no cube"), why
-  reasons = st.check_step(st.VERBS["find"], {"tag": 1234567, "x": 25.2, "y": -2.4}, HOME)
-  assert any(r.startswith("find(tag=1234567) names no place") for r in reasons), reasons
+  [why] = st.check_step(st.VERBS["find"], {"tag": 1234567, "x": 25.2, "y": -2.4}, HOME)
+  assert why.startswith("find(tag=1234567) names no place"), why
+  [why] = st.check_step(st.VERBS["pick"], {"tag": 2**53 + 1}, HOME)
+  assert why.startswith(f"pick(tag={2**53 + 1}) names no cube"), why
 
 
 def test_a_tag_refusal_lists_a_run_of_tags_as_lo_to_hi():
   """A refused define reaches the robot as ONE History line, cut at 400
   characters, and #463's own refused rewrite -- two `find`s, each listing
   the twelve places in full -- reached 401 once the call led them. A run of
-  three or more is `lo..hi`."""
+  three or more is `lo to hi`, never `lo..hi`, which reads as leaving `hi` out."""
   [why] = st.check_step(st.VERBS["find"], {"tag": 20, "x": 25.2, "y": -2.4}, HOME)
-  assert "(places: 35..46)" in why, why
+  assert "(places: 35 to 46)" in why, why
   odd = replace(HOME, cubes=(5, 7, 8, 9, 12, 23, 24))
   [why] = st.check_step(st.VERBS["pick"], {"tag": 99}, odd)
-  assert why.endswith("(cubes: 5, 7..9, 12, 23, 24)"), why
+  assert why.endswith("(cubes: 5, 7 to 9, 12, 23, 24)"), why
+
+
+def test_a_coordinate_written_as_a_number_is_checked_beside_one_that_is_not():
+  """A coordinate the parser refused stands in as nothing now, never as 0
+  (#463), and one computed is checked when it is computed -- so a written
+  one beside either is checked on its own, or a y off the map was said only
+  after the robot had mended the x and defined again."""
+  [why] = st.check_step(st.VERBS["drive_to"], {"y": 99999.0}, HOME, partial=True)
+  assert why.startswith("y=99999.0 is outside the map's ["), why
+  assert st.check_step(st.VERBS["find"], {"tag": 35, "x": 1.0}, HOME, partial=True) == []
 
 
 def test_a_world_with_an_empty_rack_refuses_a_fetch_and_says_so():

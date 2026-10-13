@@ -14,23 +14,30 @@ observatory is NOT a result: it reports into the issue it informs.
 
 **What changed is what the robot is TOLD.** A procedure's refusal of a tag
 now leads with the call it refuses, and lists the world's tags by kind, a
-run of three or more as `lo..hi`: `find(tag=20) names no place this world
-has (places: 35..46)`, where it read `tag 20 is no place this world has
-(have: 35, 36, …, 46)`. `survey`, `press` (`plates: 35..37`), `pick` and
-`place` (`cubes: 20..24`) say theirs the same way. On `5ba8a0c` Luca read a
-refused `find(20, …)` as a refusal of its `place(20)`, filed tk_0028, and
-told Rowan the cube tags register once the blocks are seen. Three refusals
+run of three or more as `lo to hi`: `find(tag=20) names no place this world
+has (places: 35 to 46)`, where it read `tag 20 is no place this world has
+(have: 35, 36, …, 46)`. `survey`, `press` (`plates: 35 to 37`), `pick` and
+`place` (`cubes: 20 to 24`) say theirs the same way. On `5ba8a0c` Luca read
+a refused `find(20, …)` as a refusal of its `place(20)`, filed tk_0028, and
+told Rowan the cube tags register once the blocks are seen. Four refusals
 beside it changed too:
 
-- a tag on none of the lists is refused once, by its call, where
+- a tag outside 0..999 is refused once, by its call, where
   `tag=1000.0 is above 999` came first;
-- a computed tag that is no number (`inf`, `nan`) fails its step, where the
-  run ended on a fault with its steps and locals lost;
+- a computed tag that is no number (`inf`, `nan`) is refused once, by its
+  call, and fails its step, where the run ended on a fault with its steps
+  and locals lost;
 - an argument the parser refused is not refused again as a 0, where
-  `pick(int(t))` also read `tag 0 is no cube this world has`.
+  `pick(int(t))` also read `tag 0 is no cube this world has`;
+- a coordinate written as a number beside one computed or refused is checked
+  against the map on its own (`y=99999.0 is outside the map's [-11.5,
+  11.5]`), where it waited for the other.
 
 The robot reads these in History, when a define is refused and when a
-computed tag stops a run. The prompt did not move.
+computed tag stops a run. The prompt did not move. On the wire, a
+procedure's local that is no number (`inf`, `nan`) is left off its
+`procedure` event: JSON has no word for it, and the site dropped the whole
+event. History still says it.
 
 **What the period is for.**
 
