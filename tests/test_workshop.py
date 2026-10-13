@@ -95,6 +95,18 @@ def test_a_spec_cannot_carry_a_solver_option():
   assert any("unknown field 'friction'" in r for r in refused(raw))
 
 
+def test_a_number_too_large_for_a_float_is_refused_never_raised():
+  """JSON keeps every digit of an int, and `math.isfinite` raised
+  OverflowError on one past a float's range -- out through `build_tool` on
+  the physics thread, and the served process ended with it."""
+  raw = scoop()
+  raw["parts"][0]["pos"] = [10**400, 0, -50]
+  assert any("pos must be 3 numbers" in r for r in refused(raw))
+  raw = scoop()
+  raw["parts"][0]["axis"]["stow"] = -10**400
+  assert any("stow must be a number" in r for r in refused(raw))
+
+
 def test_every_reason_at_once():
   """Structure first (a spec that does not hang together has no envelope
   to check), and within a stage every reason together."""

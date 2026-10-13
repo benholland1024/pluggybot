@@ -41,6 +41,7 @@ from __future__ import annotations
 
 import math
 import re
+import sys
 from dataclasses import dataclass, field
 
 import numpy as np
@@ -189,14 +190,21 @@ def aabb(centre: np.ndarray, rot: np.ndarray, half) -> tuple[np.ndarray, np.ndar
 
 # ---- parsing ---------------------------------------------------------------
 
+def _held(x) -> bool:
+  """A number a float holds. Never `math.isfinite`: an int past a float's
+  range (JSON keeps every digit) raised OverflowError there, out through
+  `build_tool` on the physics thread, and the served process ended."""
+  return abs(x) <= sys.float_info.max
+
+
 def _num(v, name: str, reasons: list[str], n: int | None = None):
   if n is None:
-    if not isinstance(v, (int, float)) or isinstance(v, bool) or not math.isfinite(v):
+    if not isinstance(v, (int, float)) or isinstance(v, bool) or not _held(v):
       reasons.append(f"{name} must be a number")
       return None
     return float(v)
   if not isinstance(v, list) or len(v) != n or any(
-      not isinstance(x, (int, float)) or isinstance(x, bool) or not math.isfinite(x)
+      not isinstance(x, (int, float)) or isinstance(x, bool) or not _held(x)
       for x in v):
     reasons.append(f"{name} must be {n} numbers")
     return None

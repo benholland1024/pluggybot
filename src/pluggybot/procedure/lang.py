@@ -42,6 +42,7 @@ verb (`move` is `Body.ramp_routine`), the scoring path not at all -- a
 import ast
 import math
 import re
+import sys
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -357,6 +358,14 @@ def _parse(source: str) -> tuple:
     tree = ast.parse(source)
   except SyntaxError as e:
     raise Refused([f"line {e.lineno or 0}: {e.msg}"]) from None
+  # A number past a float's range is refused here, as a syntax error is,
+  # before anything converts it: `float()` raised OverflowError out of the
+  # define, and nothing above it caught that before the served process ended
+  huge = sorted({n.lineno for n in ast.walk(tree) if isinstance(n, ast.Constant)
+                 and isinstance(n.value, int) and abs(n.value) > sys.float_info.max})
+  if huge:
+    raise Refused([f"line {line}: a number is too large (the largest is about "
+                   f"{sys.float_info.max:.1e})" for line in huge])
   if len(tree.body) != 1 or not isinstance(tree.body[0], ast.FunctionDef):
     raise Refused(["a procedure is exactly one `def name():`"])
   fn = tree.body[0]

@@ -130,6 +130,19 @@ def test_the_source_cap_is_a_refusal():
   assert any("characters; the cap is" in r for r in refusals(src))
 
 
+@pytest.mark.parametrize("src", [
+  "def x():\n  wait(" + "9" * 309 + ")\n",
+  "def x():\n  t = 0x" + "f" * 260 + "\n  wait(1)\n",
+  "def x():\n  budget(seconds=" + "9" * 309 + ")\n  wait(1)\n",
+], ids=["an argument", "a hex assignment", "a budget"])
+def test_a_number_too_large_for_a_float_is_refused_never_raised(src):
+  """`float()` raised OverflowError on an int past a float's range, out
+  through the define, and nothing above it caught that: one answer of 330
+  characters ended the served process, both robots with it."""
+  [why] = refusals(src)
+  assert why.startswith("line 2: a number is too large"), why
+
+
 def test_a_fetch_in_a_world_with_an_empty_rack_is_refused_by_the_world():
   reasons = refusals('def x():\n  fetch("module_pen")\n', replace(HOME, tools=()))
   assert any("nothing this world has" in r for r in reasons)
