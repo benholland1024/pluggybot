@@ -40,12 +40,11 @@ verb (`move` is `Body.ramp_routine`), the scoring path not at all -- a
 """
 
 import ast
-import math
 import re
-import sys
 from dataclasses import dataclass, field
 from typing import Any
 
+from pluggybot.finite import finite
 from pluggybot.procedure import steps as st
 from pluggybot.procedure.steps import Refused, WorldFacts
 from pluggybot.tick import Routine
@@ -58,6 +57,10 @@ MAX_BUDGET_S = st.MAX_BUDGET_S
 DEFAULT_BUDGET_S = st.DEFAULT_BUDGET_S
 MAX_SOURCE_CHARS = 1500
 MAX_NESTING = 4
+#: How deep an expression nests. Each level was one frame of the parser's
+#: recursion, and ~980 unary minuses (a source of 1,000 characters) raised
+#: RecursionError out of the define and ended the served process (#500).
+MAX_EXPR_DEPTH = 50
 NAME_RE = re.compile(r"^[a-z][a-z0-9_]{0,31}$")
 #: The verbs that need the claw (issue #407): what `references` says a
 #: procedure reaches for -- a `pick` fetches it onto an empty fork (#353).
@@ -203,6 +206,7 @@ class _Parser:
     #: (#463). The CALL's line, never a part's: a call written across lines
     #: read as two calls of one verb.
     self.call: tuple[str, int] | None = None
+    self.depth = 0
 
   def refuse(self, node, what: str) -> None:
     if self.call:
@@ -213,11 +217,26 @@ class _Parser:
 
   # -- expressions --
   def expr(self, node) -> Any:
+    self.depth += 1
+    try:
+      if self.depth > MAX_EXPR_DEPTH:
+        self.refuse(node, f"an expression nests deeper than {MAX_EXPR_DEPTH}")
+        return _REFUSED
+      return self._expr(node)
+    finally:
+      self.depth -= 1
+
+  def _expr(self, node) -> Any:
     if isinstance(node, ast.Constant):
       if isinstance(node.value, bool):
         return ("num", 1.0 if node.value else 0.0)
-      if isinstance(node.value, (int, float)) and math.isfinite(node.value):
+      if finite(node.value):
         return ("num", float(node.value))
+      if isinstance(node.value, (int, float)):
+        # past a float's range (309 digits, or 1e400): `float()` raised
+        # OverflowError out of the define, and the served process ended (#500)
+        self.refuse(node, "a number is too large to hold")
+        return _REFUSED
       self.refuse(node, f"a {type(node.value).__name__} is not a number")
       return _REFUSED
     if isinstance(node, ast.Name):
@@ -249,6 +268,10 @@ class _Parser:
       return ("cmp", _CMP[type(node.ops[0])], self.expr(node.left),
               self.expr(node.comparators[0]))
     if isinstance(node, ast.BoolOp):
+      # a chain of n nests n deep in what it builds, and in `_eval` running it
+      if self.depth + len(node.values) - 1 > MAX_EXPR_DEPTH:
+        self.refuse(node, f"an expression nests deeper than {MAX_EXPR_DEPTH}")
+        return _REFUSED
       op = "and" if isinstance(node.op, ast.And) else "or"
       out = self.expr(node.values[0])
       for v in node.values[1:]:
@@ -386,21 +409,13 @@ def _parse(source: str) -> tuple:
     tree = ast.parse(source)
   except SyntaxError as e:
     raise Refused([f"line {e.lineno or 0}: {e.msg}"]) from None
-  # A number past a float's range is refused here, as a syntax error is,
-  # before anything converts it: `float()` raised OverflowError out of the
-  # define, and nothing above it caught that before the served process
-  # ended. Inside a call it names the call, as History names a failed step
-  call_of = {}
-  for s in ast.walk(tree):
-    if isinstance(s, ast.Expr) and isinstance(s.value, ast.Call) \
-        and isinstance(s.value.func, ast.Name):
-      call_of.update((id(n), f", {s.value.func.id}") for n in ast.walk(s))
-  huge = sorted({(n.lineno, call_of.get(id(n), "")) for n in ast.walk(tree)
-                 if isinstance(n, ast.Constant) and isinstance(n.value, int)
-                 and abs(n.value) > sys.float_info.max})
-  if huge:
-    raise Refused([f"line {line}{call}: a number is too large (the largest is "
-                   f"about {sys.float_info.max:.1e})" for line, call in huge])
+  except ValueError:
+    # a lone surrogate (`\ud800` in the answer's JSON): UnicodeEncodeError
+    # went out of the define and ended the served process (#500)
+    raise Refused(["the source holds a character that is not text"]) from None
+  except (MemoryError, RecursionError):
+    # nesting past what Python's own parser holds ("parser stack overflowed")
+    raise Refused(["the source nests too deeply to read"]) from None
   if len(tree.body) != 1 or not isinstance(tree.body[0], ast.FunctionDef):
     raise Refused(["a procedure is exactly one `def name():`"])
   fn = tree.body[0]
@@ -427,8 +442,10 @@ def _parse(source: str) -> tuple:
       lit = kw.value.value if isinstance(kw.value, ast.Constant) else None
       if kw.arg == "steps" and isinstance(lit, int) and not isinstance(lit, bool):
         steps_budget = lit
-      elif kw.arg == "seconds" and isinstance(lit, (int, float)) and not isinstance(lit, bool):
+      elif kw.arg == "seconds" and finite(lit):
         budget_s = float(lit)
+      elif kw.arg == "seconds" and isinstance(lit, (int, float)) and not isinstance(lit, bool):
+        p.refuse(call, "a number is too large to hold")       # as an argument's (#500)
       else:
         p.refuse(call, f"{kw.arg or '**'}=... is not a literal steps or seconds")
     if not 1 <= steps_budget <= MAX_STEPS:

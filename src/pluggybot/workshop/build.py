@@ -349,7 +349,16 @@ def trial(tool: Tool, records: list | None = None) -> list[str]:
   moment it is hung."""
   from pluggybot.legs import rack as rk
   for dy in (0.0, rk.LINEUP_ACROSS, -rk.LINEUP_ACROSS):
-    rec, _ = rig(tool, dy=dy)
+    try:
+      rec, _ = rig(tool, dy=dy)
+    except ValueError as e:
+      # MuJoCo refused the module the spec compiles to -- a size under the
+      # 0.1 mm the XML writes, a range narrower than its decimals -- and
+      # its ValueError went out through `build_tool` and ended the served
+      # process (#500)
+      said = str(e).strip().splitlines()[0].removeprefix("Error: ")
+      return [f"rig: it does not compile ({said}) -- tried on a bench rack "
+              "before anything was bought"]
     if records is not None:
       records.append({"dy": dy, **rec})
     if rec["ok"]:
