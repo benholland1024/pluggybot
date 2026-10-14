@@ -360,12 +360,19 @@ def _parse(source: str) -> tuple:
     raise Refused([f"line {e.lineno or 0}: {e.msg}"]) from None
   # A number past a float's range is refused here, as a syntax error is,
   # before anything converts it: `float()` raised OverflowError out of the
-  # define, and nothing above it caught that before the served process ended
-  huge = sorted({n.lineno for n in ast.walk(tree) if isinstance(n, ast.Constant)
-                 and isinstance(n.value, int) and abs(n.value) > sys.float_info.max})
+  # define, and nothing above it caught that before the served process
+  # ended. Inside a call it names the call, as History names a failed step
+  call_of = {}
+  for s in ast.walk(tree):
+    if isinstance(s, ast.Expr) and isinstance(s.value, ast.Call) \
+        and isinstance(s.value.func, ast.Name):
+      call_of.update((id(n), f", {s.value.func.id}") for n in ast.walk(s))
+  huge = sorted({(n.lineno, call_of.get(id(n), "")) for n in ast.walk(tree)
+                 if isinstance(n, ast.Constant) and isinstance(n.value, int)
+                 and abs(n.value) > sys.float_info.max})
   if huge:
-    raise Refused([f"line {line}: a number is too large (the largest is about "
-                   f"{sys.float_info.max:.1e})" for line in huge])
+    raise Refused([f"line {line}{call}: a number is too large (the largest is "
+                   f"about {sys.float_info.max:.1e})" for line, call in huge])
   if len(tree.body) != 1 or not isinstance(tree.body[0], ast.FunctionDef):
     raise Refused(["a procedure is exactly one `def name():`"])
   fn = tree.body[0]

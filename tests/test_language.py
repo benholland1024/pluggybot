@@ -130,17 +130,18 @@ def test_the_source_cap_is_a_refusal():
   assert any("characters; the cap is" in r for r in refusals(src))
 
 
-@pytest.mark.parametrize("src", [
-  "def x():\n  wait(" + "9" * 309 + ")\n",
-  "def x():\n  t = 0x" + "f" * 260 + "\n  wait(1)\n",
-  "def x():\n  budget(seconds=" + "9" * 309 + ")\n  wait(1)\n",
+@pytest.mark.parametrize("src, said", [
+  ("def x():\n  wait(" + "9" * 309 + ")\n", "line 2, wait: "),
+  ("def x():\n  t = 0x" + "f" * 260 + "\n  wait(1)\n", "line 2: "),
+  ("def x():\n  budget(seconds=" + "9" * 309 + ")\n  wait(1)\n", "line 2, budget: "),
 ], ids=["an argument", "a hex assignment", "a budget"])
-def test_a_number_too_large_for_a_float_is_refused_never_raised(src):
+def test_a_number_too_large_for_a_float_is_refused_never_raised(src, said):
   """`float()` raised OverflowError on an int past a float's range, out
   through the define, and nothing above it caught that: one answer of 330
-  characters ended the served process, both robots with it."""
+  characters ended the served process, both robots with it. Inside a call
+  the refusal names the call (#463)."""
   [why] = refusals(src)
-  assert why.startswith("line 2: a number is too large"), why
+  assert why.startswith(said + "a number is too large"), why
 
 
 def test_a_fetch_in_a_world_with_an_empty_rack_is_refused_by_the_world():
