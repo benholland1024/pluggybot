@@ -2994,8 +2994,9 @@ after 0 s (Rowan in the way, 10.6 m off)"; after, all three arrived, in
 39-55 s. #415's seven scenes, maps true: before, 4 of 7 (the three
 doorways above lost), and the hall's middle at 4 of 6 placements; after,
 7 of 7, and 6 of 6. No touch and no fall in any. Without the camera the
-walker steps over a lying robot instead, with no contact, which is how
-#415's scenes were first flown.
+walker walked into a lying robot, which until the pair collided (#455's
+closing reading, below) it passed through: #415's scenes were first
+flown so.
 
 **...and the goal it lies on** (#439's part 2). The `encounter` rows put
 the other robot within 2 m at 95 of 96 failed presses over three builds
@@ -3068,11 +3069,11 @@ off)": 122 explores, 7 procedures and a drawing). Six charges waited their
 whole 1387 s for the other to leave and failed, and History said "could
 not get clear of the rack" 131 times, once a minute in a jam.
 
-**How two bodies came to one spot.** Every geom of the quadruped is
+**How two bodies came to one spot.** Every geom of the quadruped was
 `contype 1, conaffinity 0`, the walking policy's model, which has no
-self-contact. So the two robots never touch: no `touched` encounter row
-since the rover. Only the planner keeps them apart, and the walks it does
-not plan are blind to the other robot. The charge bay counted as taken
+self-contact. So the two robots never touched (no `touched` encounter row
+since the rover), and only the planner kept them apart; the walks it does
+not plan were blind to the other robot. The charge bay counted as taken
 only with a robot on its STANDOFF, and one lying on the dock is 1.0 m past
 it. Nine times on afb473a (24 of its 5-minute `drift` samples) both robots
 lay on the seat at once: the second had walked in by the board onto the
@@ -3089,49 +3090,65 @@ and two at the rack ran their 90 s on a robot resting at its front,
 
 **The change.**
 
+- THE PAIR COLLIDES (Ben, 2026-10-14). Each robot gets a bit of its own
+  and the other's as its affinity (`legs.world.PAIR_BITS`): every solid
+  geom of one meets every solid geom of the other, none meets its own
+  robot's, and the world meets each robot exactly as it did. A robot alone
+  is unchanged.
+- Avoidance is what keeps them apart. A robot on the dock's seat
+  (`Body.charge_seat`) holds the charge bay as one on its standoff does,
+  waited for out of the lane and looked for again once the walk reaches
+  the standoff. A bay's wait asks a robot lying down to rest ON the bay off
+  the way there, every `OTHER_WAIT_S` (`Body.ask_off`), and never one only
+  near it: one charging on the dock would say no for its whole charge.
 - A robot inside another's disc plans out of it: a plan's start reaches as
   far past the halo as the disc is deep, the nearest way out, and the plan
-  keeps the rest of the disc (`Navigator._escape_cells`). The step aside's
-  own walk starts the same way.
-- A robot on the dock's seat (`Body.charge_seat`) holds the charge bay as
-  one on its standoff does. It is waited for out of the lane, and looked
-  for again once the walk reaches the standoff.
-- A bay's wait asks a robot lying down to rest ON the bay off the way
-  there, every `OTHER_WAIT_S` (`Body.ask_off`). It never asks one only
-  near it: one charging on the dock would say no for its whole charge.
+  keeps the rest of the disc (`Navigator._escape_cells`); its step aside
+  starts the same way. Colliding, two bodies cannot lie that deep in a
+  resting robot's disc, but a fallen robot's (0.90 m) still reaches past
+  the halo from beside it.
+- A world saved before the pair collided can hold the two on one spot,
+  and stepped, the contacts throw them out of each other. A restore puts
+  the later robot at its first clear start before any step
+  (`HubLifecycle.unclip`, deeper than `UNCLIP_M`), and it says so.
 
 **Measured** (`scripts/dock_pair_spike.py`; before is staging's code,
-ef4b9b5, the same scenes). The overlaps are flown on the robots' own maps
-out of the live save, at three jams' true poses; one robot walks to the
-hall:
+ef4b9b5, the same scenes; `--no-contact` the pair passing through each
+other). The overlaps are flown on the robots' own maps out of the live
+save, at three jams' true poses:
 
-| scene | before | after |
-|---|---|---|
-| overlap, 0.21 m apart (t=954017) | arrived, 25.8 s: the escape just reached | arrived, 25.8 s |
-| overlap, 0.10 m apart (t=1051301) | gave up 7.0 m short after 0 s; asked, "no spot" | arrived, 23.4 s |
-| overlap, 0.21 m apart (t=1126640) | gave up 7.1 m short after 0 s; asked, "no spot" | arrived, 21.6 s |
-| one charging on the dock, the other comes to charge | walked in onto it at 25.6 s, 0.007 m apart; both charged for 44 s | waited out of the lane; docked at 102.6 s, the first gone at 76.6 s |
-| one resting on the standoff (the wait bounded at 60 s) | waited 60 s; "never reached the charge bay" | asked at 5.7 s, stepped 0.8 m aside; docked at 32.9 s |
-| one resting 0.42 m from the claw's bay | waited 91 s; "blocked" | asked at once, stepped 0.4 m aside; the claw on the fork at 29.0 s |
+| scene | before | the avoidance alone | and the pair colliding |
+|---|---|---|---|
+| overlap, 0.10 m apart (t=1051301) | gave up 7.0 m short after 0 s; asked, "no spot" | arrived, 23.4 s | put at its start; the walk arrived, 12.6 s |
+| overlap, 0.21 m apart (t=954017) | arrived, 25.8 s: the escape just reached | arrived, 25.8 s | put at its start; 15.5 s |
+| overlap, 0.21 m apart (t=1126640) | gave up 7.1 m short after 0 s; asked, "no spot" | arrived, 21.6 s | put at its start; 13.7 s |
+| one charging on the dock, the other comes to charge | walked in onto it at 25.6 s, 0.007 m apart; both charged for 44 s | waited out of the lane; docked at 102.6 s, the first gone at 76.6 s | the same; never touched |
+| ...the seat held by nobody (`bump`) | as above | as above | met it and held: 8 mm deep at most, no fall; docked at 138.0 s, the first gone at 75.1 s |
+| one resting on the standoff (the wait bounded at 60 s) | waited 60 s; "never reached the charge bay" | asked at 5.7 s, stepped 0.8 m aside; docked at 32.9 s | the same; never touched |
+| one resting 0.42 m from the claw's bay | waited 91 s; "blocked" | asked at once, stepped 0.4 m aside; the claw on the fork at 29.0 s | the same; never touched |
 
-The first and the third overlaps are the same distance apart. Where the
-escape fell short turned on which lattice cells the disc covered. A pair
-day with a fall and a death arranged (`determinism_spike.py --pair`) is
-identical on both codes over 1052 state samples.
+With contact and no `unclip`, the three overlaps threw them apart: 0.11 m
+in, a root at up to 2.5 m/s, and a robot down at each. The first and the
+third overlaps are the same distance apart; where the escape fell short
+turned on which lattice cells the disc covered. A pair day with a fall and
+a death arranged (`determinism_spike.py --pair`) is identical on both codes,
+the pair colliding, over 1052 state samples: the two never touch in it.
 
 **What is true now:**
 
-- the two quadrupeds never touch: the planner keeps them apart, and a walk
-  it does not plan (the dock's and the rack's walk in, their back-outs) is
-  blind to the other;
-- a robot inside another's disc plans out of it by the nearest way, and so
-  does its step aside;
+- the pair collides: a robot meets every solid geom of the other and none
+  of its own; avoidance keeps them apart, and contact stops what it misses;
 - a robot on the dock's seat holds the charge bay, and a waiting robot says
   it is "on the dock";
 - a bay's wait asks a robot resting ON the bay off the way there, and never
-  one only near it.
+  one only near it;
+- a robot inside another's disc plans out of it by the nearest way, and so
+  does its step aside;
+- a robot restored inside the other is put at its first clear start.
 
-`tests/test_make_way.py` and `tests/test_rack_contention.py` pin each rule.
+`tests/test_two_robots.py`, `tests/test_make_way.py`,
+`tests/test_rack_contention.py` and `tests/test_continuation.py` pin each
+rule.
 
 ## Hide and seek on legs (issue #404)
 

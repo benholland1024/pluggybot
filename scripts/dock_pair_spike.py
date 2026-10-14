@@ -6,17 +6,28 @@ explore), the depth camera on as the served world flies it. One process a
 scene:
 
   overlap   both lying on the dock's standoff 0.13 m apart, as afb473a's
-            jams left them (their bodies do not touch); one walks to the hall
+            jams left them before the pair collided -- with contact, put
+            apart as a restore puts them (`HubLifecycle.unclip`); one walks
+            to the hall (with contact, the living room: the other is put in
+            the hall)
   double    one charging on the dock; the other comes to charge
+  bump      the same, the dock's seat held by nobody (`Body.charge_seat` put
+            far off): the walk in meets the robot on the dock
   wait      one lying down to rest on the dock's standoff; the other comes
             to charge (its wait bounded at 60 s)
   swap      one lying down to rest 0.42 m from the claw bay's working pose,
             where afb473a's lay at t=1073381; the other fetches the claw
 
+Every scene says how deep the two robots' geoms went into each other
+(`deepestM`, a contact's distance, negative inside), for how long they
+touched, the fastest either root moved, and their falls.
+
     MUJOCO_GL=egl uv run python scripts/dock_pair_spike.py --scene overlap,wait
     ... --live world.npz    # `overlap` on each robot's OWN saved map, at
                             # afb473a's three jams' true poses
                             # (`--jam 954017,1051301,1126640`)
+    ... --no-contact        # the pair passes through each other, as it did
+                            # before #455's closing change (`PAIR_BITS`)
 
 Before #455's closing change the scenes fly on staging's code (`ef4b9b5`):
 SimNotes, "Two bodies on one dock".
@@ -34,18 +45,26 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-SCENES = ("overlap", "double", "wait", "swap")
+SCENES = ("overlap", "double", "bump", "wait", "swap")
 #: afb473a's jams, true poses off the `drift` rows: (Luca, Rowan), x, y, yaw deg
 JAMS = {"954017": ((3.451, -0.496, 27.0), (3.409, -0.376, -83.4)),
         "1051301": ((3.428, -0.359, -84.0), (3.424, -0.412, -172.6)),
         "1126640": ((3.39, -0.423, -155.6), (3.562, -0.414, 172.6))}
 HALL = (-3.5, 1.0)
+#: ...and with contact, where the second robot is put is the hall: the
+#: living room instead
+LIVING = (0.5, 1.5)
+#: `--no-contact`, for the child that flies a scene
+NO_CONTACT = False
 
 
 def _pair(live: str | None = None):
+  from pluggybot.legs import world as lw
   from pluggybot.lifecycle import QUAD_HOME
   from pluggybot.pair import build_pair
   from unknown_spike import true_floor
+  if NO_CONTACT:
+    lw.PAIR_BITS = ((0, 0), (0, 0))
   me, peer = build_pair(QUAD_HOME, errands=("none", "none"), near_field=True)
   if live is None:
     for life in (me, peer):
@@ -60,6 +79,44 @@ def _pair(live: str | None = None):
     rec = saved[life.root]
     life.body.mission.restore_kept(rec["state"], rec["arrays"])
   return me, peer
+
+
+def _bodies(me, peer):
+  """Watch the two bodies every physics step (`step_hooks`): how deep their
+  geoms went into each other, m, how long they touched, s, and the fastest
+  either root moved, m/s. Returns what reads it out, with their falls."""
+  import numpy as np
+  m = me.model
+
+  def owned(root):
+    out = np.zeros(m.ngeom, dtype=bool)
+    for g in range(m.ngeom):
+      b = int(m.geom_bodyid[g])
+      while int(m.body_parentid[b]) != 0:
+        b = int(m.body_parentid[b])
+      out[g] = m.body(b).name == root
+    return out
+  a, b = owned(me.root), owned(peer.root)
+  dofs = [int(m.jnt_dofadr[m.joint(f"{life.root}_root").id]) for life in (me, peer)]
+  falls0 = (me.body.mission.falls, peer.body.mission.falls)
+  out = {"deepestM": 0.0, "touchingS": 0.0, "peakV": 0.0}
+
+  def watch():
+    d = me.data
+    n = int(d.ncon)
+    if n:
+      g = d.contact.geom[:n]
+      hit = (a[g[:, 0]] & b[g[:, 1]]) | (b[g[:, 0]] & a[g[:, 1]])
+      if hit.any():
+        out["deepestM"] = min(out["deepestM"], float(d.contact.dist[:n][hit].min()))
+        out["touchingS"] += float(m.opt.timestep)
+    out["peakV"] = max(out["peakV"], *(float(np.linalg.norm(d.qvel[k:k + 3])) for k in dofs))
+  me.body.mission.step_hooks.append(watch)
+
+  def read() -> dict:
+    return {**{k: round(v, 4) for k, v in out.items()},
+            "falls": [me.body.mission.falls - falls0[0], peer.body.mission.falls - falls0[1]]}
+  return read
 
 
 def _said(life) -> list[str]:
@@ -78,7 +135,14 @@ def overlap(jam: str = "954017", live: str | None = None) -> dict:
   (lx, ly, lyaw), (rx, ry, ryaw) = JAMS[jam]
   me.body.start_at(lx, ly, math.radians(lyaw))
   peer.body.start_at(rx, ry, math.radians(ryaw))
+  read = _bodies(me, peer)
   out: dict = {}
+  if not NO_CONTACT:                       # only a restore lays them so now,
+    import mujoco                          # and it puts the later one clear
+    from pluggybot.lifecycle import QUAD_HOME, world_config
+    peer.home_pose = tuple(world_config(QUAD_HOME)["start2"])
+    mujoco.mj_forward(peer.model, peer.data)
+    out["unclipped"] = peer.unclip()
 
   def resting():
     yield from peer.body.rest_routine()
@@ -94,21 +158,26 @@ def overlap(jam: str = "954017", live: str | None = None) -> dict:
     keep = me.body.others[0]()
     out["apartM"] = round(math.hypot(keep.x - mx, keep.y - my), 3)
     t0 = float(me.data.time)
-    ok = yield from me.body.go_to_routine(*HALL, timeout=90.0)
-    out["walk"] = {"arrived": bool(ok), "seconds": round(float(me.data.time) - t0, 1),
-                   "said": "" if ok else me.drive_why(*HALL)}
+    goal = HALL if NO_CONTACT else LIVING
+    ok = yield from me.body.go_to_routine(*goal, timeout=90.0)
+    out["walk"] = {"to": list(goal), "arrived": bool(ok),
+                   "seconds": round(float(me.data.time) - t0, 1),
+                   "said": "" if ok else me.drive_why(*goal)}
 
   tick.run_many([(peer.body.stepper, resting()), (me.body.stepper, walking())],
                 name="overlap")
-  return out | _aside(peer) | {"peerSaid": _said(peer)}
+  return out | _aside(peer) | read() | {"peerSaid": _said(peer)}
 
 
-def double() -> dict:
+def double(bump: bool = False) -> dict:
   from pluggybot import tick
   me, peer = _pair()
   sx, sy, syaw = peer.body.charge_standoff()
   peer.body.start_at(sx, sy, syaw)
   me.body.start_at(sx - 1.8, sy + 1.2, 0.0)
+  if bump:                                 # nobody holds the seat: walk in
+    me.body.charge_seat = lambda: (99.0, 99.0)
+  read = _bodies(me, peer)
   me.wait_bound = lambda kind, x, y: (300.0, "charge")
   peer.battery.energy_wh = peer.battery.capacity_wh * 0.5
   me.battery.energy_wh = me.battery.capacity_wh * 0.3
@@ -139,7 +208,7 @@ def double() -> dict:
 
   tick.run_many([(peer.body.stepper, charges_then_leaves()),
                  (me.body.stepper, comes_to_charge())], name="double")
-  return out | {"said": _said(me)}
+  return out | read() | {"said": _said(me)}
 
 
 def wait() -> dict:
@@ -150,6 +219,7 @@ def wait() -> dict:
   me.body.start_at(sx - 1.8, sy + 1.2, 0.0)
   me.wait_bound = lambda kind, x, y: (60.0, "charge")
   me.battery.energy_wh = me.battery.capacity_wh * 0.3
+  read = _bodies(me, peer)
   out: dict = {}
 
   def resting():
@@ -167,7 +237,7 @@ def wait() -> dict:
                      "failure": me.charge_failure}
 
   tick.run_many([(peer.body.stepper, resting()), (me.body.stepper, charging())], name="wait")
-  return out | _aside(peer) | {"said": _said(me) + _said(peer)}
+  return out | _aside(peer) | read() | {"said": _said(me) + _said(peer)}
 
 
 def swap(module: str = "module_claw") -> dict:
@@ -177,6 +247,7 @@ def swap(module: str = "module_claw") -> dict:
   bay = me.rack_inventory[module]
   peer.body.start_at(2.182, -1.21, math.radians(-29.7))
   me.body.start_at(0.5, 0.5, math.radians(-60.0))
+  read = _bodies(me, peer)
   out: dict = {}
 
   def resting():
@@ -194,11 +265,12 @@ def swap(module: str = "module_claw") -> dict:
                     "onFork": me.body.module_state(module)["on_fork"]}
 
   tick.run_many([(peer.body.stepper, resting()), (me.body.stepper, fetching())], name="swap")
-  return out | _aside(peer) | {"said": _said(me) + _said(peer)}
+  return out | _aside(peer) | read() | {"said": _said(me) + _said(peer)}
 
 
 def fly_one(scene: str, jam: str, live: str | None) -> dict:
-  out = overlap(jam, live) if scene == "overlap" else globals()[scene]()
+  out = (overlap(jam, live) if scene == "overlap" else double(bump=True)
+         if scene == "bump" else globals()[scene]())
   return {"scene": scene, **({"jam": jam, "live": bool(live)} if scene == "overlap" else {}),
           **out}
 
@@ -209,10 +281,14 @@ def main(argv=None) -> int:
   ap.add_argument("--live", default=None, metavar="WORLD_NPZ",
                   help="`overlap` on each robot's own map out of a saved world")
   ap.add_argument("--jam", default="954017", help=f"`overlap`'s poses: {', '.join(JAMS)}")
+  ap.add_argument("--no-contact", action="store_true",
+                  help="the pair passes through each other, as before #455's closing change")
   ap.add_argument("--out", default=None)
   ap.add_argument("--one", default=None, help=argparse.SUPPRESS)
   args = ap.parse_args(argv)
   if args.one:
+    global NO_CONTACT
+    NO_CONTACT = args.no_contact
     print(json.dumps(fly_one(args.one, args.jam, args.live), default=str))
     return 0
   rows = []
@@ -220,6 +296,7 @@ def main(argv=None) -> int:
     for jam in (args.jam.split(",") if scene == "overlap" else [args.jam]):
       cmd = [sys.executable, __file__, "--one", scene, "--jam", jam]
       cmd += ["--live", args.live] if args.live else []
+      cmd += ["--no-contact"] if args.no_contact else []
       done = subprocess.run(cmd, capture_output=True, text=True, check=True)
       rows.append(json.loads(done.stdout.strip().splitlines()[-1]))
       print(json.dumps(rows[-1], indent=1, default=str), flush=True)
