@@ -96,7 +96,8 @@ class MakeWay:
     side = g.resolution * optimistic.BLOCK
     lat = self.seen_floor_lattice(mask_others=True)
     rows, cols = lat.shape
-    walk = self.walk_field(lat, self.pose_xy(), limit=self.ASIDE_WALK_M)
+    walk = self.walk_field(lat, self.pose_xy(), limit=self.ASIDE_WALK_M,
+                           escape=self._escape_cells())
     # the route on the lattice, every half cell of it, and each cell's
     # distance from it
     dense = [pts[:1]]

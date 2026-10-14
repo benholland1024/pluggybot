@@ -49,6 +49,7 @@ class _Drive:
   peer_on_the_goal = nav.Navigator.peer_on_the_goal
   _cells = nav.Navigator._cells
   _left = nav.Navigator._left
+  ask_off = nav.Navigator.ask_off
   PROGRESS_ALONG_ROUTE = PROGRESS_MAP_GROWTH = False
   NEW_ROUTE_M = nav.Navigator.NEW_ROUTE_M
   BACKOFF_V, PEER_CLEARANCE_M = QuadMission.BACKOFF_V, QuadMission.PEER_CLEARANCE_M
@@ -396,3 +397,65 @@ def test_the_pair_asks_through_the_other_lifecycle_and_says_what_it_did(tmp_path
   finally:
     for life in (me, peer):
       life.body.close()
+
+
+def test_a_bay_wait_asks_only_a_robot_resting_on_the_bay():
+  """A bay wait walks nowhere, so it asks through `ask_off` (#455): the
+  robot resting ON the bay it waits for, off the way there from where it
+  stands -- never one only near it, which is charging on the dock a metre
+  past the standoff and would say no for as long as it charged."""
+  on = _Drive([_resting(GOAL[0] + 0.2, 0.0)])
+  assert on.ask_off(*GOAL, {}, beyond=((6.0, 0.0),)) is True
+  assert on.asked == [("r2_pluggybot", [(0.0, 0.0), GOAL, (6.0, 0.0)])]
+  near = _Drive([_resting(GOAL[0] + 1.0, 0.0)])
+  assert near.ask_off(*GOAL, {}) is False and near.asked == []
+
+
+# ---- 4. two bodies on one spot (#455's closing reading) -----------------------------
+
+#: How far apart the pair's bodies lay at afb473a's jams, true: 0.05-0.2 m,
+#: on the dock's standoff -- two quadrupeds do not touch.
+ON_TOP_M = 0.1
+HERE = (0.5, 0.75)
+
+
+def test_a_robot_lying_on_another_plans_out_of_its_disc(house):
+  """Inside another robot's disc deeper than the halo escape reaches (0.70
+  m round one resting, against 0.50), a plan found no first cell, and every
+  walk of the pair gave up in 0 s at the dock for up to 25 minutes. It
+  plans out of the disc by the nearest way, and round the rest of it; and
+  a place to clear the rack to is one it can reach."""
+  m = _mission(house, at=HERE)
+  try:
+    m.grid.grid[:] = -5.0
+    other = (HERE[0] + ON_TOP_M, HERE[1])
+    m.others = [lambda: KeepClear(*other, root="r2_pluggybot", resting=True)]
+    plan = m._plan_to(*EAST)
+    assert plan is not None, "no first cell inside the other's disc"
+    reach = m.OTHER_ROBOT_CELLS * m.grid.resolution
+    assert min(math.dist(p, other) for p in plan) > reach, plan
+    assert m.reachable([(-2.0, 0.75)]) == [True]
+  finally:
+    m.close()
+
+
+def test_a_robot_lying_on_the_asker_steps_out_of_its_disc(house):
+  """...and asked, the robot lying under the asker found no floor to walk
+  to from inside the asker's disc, and said no ("no spot"), both ways
+  round, on the pair's own live maps. It walks out of the disc to a spot
+  off the way, and its step starts there too."""
+  m = _mission(house, at=HERE)
+  try:
+    m.grid.grid[:] = -5.0
+    asker = (HERE[0] + ON_TOP_M, HERE[1])
+    m.others = [lambda: KeepClear(*asker, root="pluggybot", resting=True)]
+    way = [asker, (-3.0, 0.75)]
+    spot = m.aside_spot(way)
+    assert spot is not None, "no spot from inside the asker's disc"
+    assert _off(way, *spot) >= m.aside_clear_m - 1e-6
+    assert m.make_way(way, "pluggybot") and m.making_way == "pluggybot"
+    m._move, m.posture = None, qb.STANDING
+    cmd = m._aside_command(qb.STILL, float(m.data.time))
+    assert qb.is_motion(cmd) and m._aside["waypoints"], m.last_aside
+  finally:
+    m.close()

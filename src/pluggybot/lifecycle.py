@@ -66,7 +66,7 @@ from pluggybot.mind.thoughts import (
 )
 from pluggybot.economy import questions, scoring
 from pluggybot.tools import strokes
-from pluggybot.navigator import MAKE_WAY_WAIT_S, wire_pose
+from pluggybot.navigator import MAKE_WAY_WAIT_S, OTHER_WAIT_S, wire_pose
 from pluggybot.perception import depth as nf
 from pluggybot.perception.heightmap import HeightMap
 from pluggybot.perception.lidar import robot_geoms
@@ -1837,13 +1837,16 @@ class HubLifecycle:
               + (f" ({how})" if how else ""))
     return "it was not on its bay, and no robot is carrying it"
 
-  def held_for(self, blocked: tuple[str, float]) -> str:
+  def held_for(self, blocked: tuple[str, float], on_the_dock: bool = False) -> str:
     """Who held a bay this robot gave up on, and for how long it was
-    waited for (issue #346) -- one clause, for a pick, a stow or a charge."""
+    waited for (issue #346) -- one clause, for a pick, a stow or a charge;
+    `on_the_dock`, the charge bay held from the dock's seat (#455)."""
     w = self.last_bay_wait
-    said = (f"{blocked[0]} was {posture(self.peers, blocked[0])} "
-            f"{blocked[1]:.2f} m from the bay, nearer than the planner may "
-            "route")
+    how = posture(self.peers, blocked[0])
+    said = (f"{blocked[0]} was {'' if how == 'lying down to rest' else how + ' '}"
+            "on the dock" if on_the_dock else
+            f"{blocked[0]} was {how} {blocked[1]:.2f} m from the bay, nearer "
+            "than the planner may route")
     # ...only the wait that ended THIS failure, at this sim instant: an
     # older one would claim a wait that never happened for this bay
     if (w is None or w.get("who") != blocked[0] or not w.get("why")
@@ -2030,8 +2033,20 @@ class HubLifecycle:
     return ((WAIT_OCCUPANCIES * CHARGE_OCCUPANCY_S, "charge") if charging
             else (WAIT_OCCUPANCIES * SWAP_OCCUPANCY_S, "swap"))
 
+  def _bay_holder(self, sx: float, sy: float,
+                  seat=None) -> tuple[float, float, float] | None:
+    """Where another robot holds a bay, and how near: (x, y, m) of the
+    standoff (sx, sy) with one on it (`Body.peer_on_the_goal`), else of
+    `seat`, the dock's (#455), with one on that; else None."""
+    for x, y in ((sx, sy),) + (() if seat is None else (tuple(seat),)):
+      near = self.body.peer_on_the_goal(x, y)
+      if near is not None:
+        return x, y, near
+    return None
+
   def _await_bay_routine(self, sx: float, sy: float, kind: str,
-                         since: float, hold: bool = False) -> Routine:
+                         since: float, hold: bool = False,
+                         seat=None) -> Routine:
     """Wait for another robot to leave a standoff this one needs (issue
     #346). True once it is free; False once the robot gave up, with why in
     `self.last_bay_wait` (who held it, for how long, and what ended the wait).
@@ -2055,15 +2070,26 @@ class HubLifecycle:
     `kind` is the swap's verb (`pick`, `return`) or `charge`. `hold` waits
     where the robot stands -- the quadruped's swap, at its approach's start
     a metre behind the bay, out of the holder's way already (#418).
+    `seat`, a charge's (`Body.charge_seat`), holds the bay too: a robot
+    lying on the dock is a metre past its standoff, and the walk in went
+    on and lay on it -- two bodies on one dock (#455).
+
+    ⚠ ONE LYING DOWN TO REST ON THE BAY IS ASKED OFF THE WAY THERE (issue
+    #455; `Body.ask_off`, every `OTHER_WAIT_S`): waited for, it never moved,
+    and on afb473a every wait that named one ran its bound -- 1387 s at the
+    charge bay, 90 s at a bay of the rack. One on the dock is not on the
+    standoff, and is never asked.
     """
-    near = self.body.peer_on_the_goal(sx, sy)
-    if near is None:
+    held = self._bay_holder(sx, sy, seat)
+    if held is None:
       return True
+    hx, hy, near = held
+    on_the_dock = (hx, hy) != (sx, sy)
     # ...keyed on the RULE, never on the name: a peer the planner routes
     # round but the lifecycle has no name for is still waited for, or the
     # swap's loop would go round at no sim time at all
-    held = self.peer_at(sx, sy)
-    who = held[0] if held is not None else "another robot"
+    named = self.peer_at(hx, hy)
+    who = named[0] if named is not None else "another robot"
     bound, of = self.wait_bound(kind, sx, sy)
     what = "the charge bay" if kind == "charge" else "the bay"
     first = self.last_bay_wait is None or self.last_bay_wait.get("since") != since
@@ -2071,8 +2097,10 @@ class HubLifecycle:
     # stops at the edge of the holder's disc, which is its way out.
     spot = None if hold else self._waiting_spot(sx, sy)
     if first:
-      self._say(f"WAIT: {who} is {posture(self.peers, who)} {near:.2f} m from "
-                f"{what} -- waiting up to {bound:.0f} s"
+      how = posture(self.peers, who)
+      where = (f"{'' if how == 'lying down to rest' else how + ' '}on the dock"
+               if on_the_dock else f"{how} {near:.2f} m from {what}")
+      self._say(f"WAIT: {who} is {where} -- waiting up to {bound:.0f} s"
                 + ("" if spot is None else
                    f" at ({spot[0]:.1f}, {spot[1]:.1f})"))
       self._remember(f"{who} was at {what} I needed; I waited for it "
@@ -2083,7 +2111,9 @@ class HubLifecycle:
     if spot is not None:
       yield from self.body.go_to_routine(*spot, timeout=CLEAR_DRIVE_S)
     ended = ""
-    while self.body.peer_on_the_goal(sx, sy) is not None:
+    asked: dict = {}
+    next_ask = float(self.data.time)
+    while self._bay_holder(sx, sy, seat) is not None:
       now = float(self.data.time)
       bound, of = self.wait_bound(kind, sx, sy)
       if now - since >= bound:
@@ -2095,6 +2125,9 @@ class HubLifecycle:
         ended = "pack"
       if ended:
         break
+      if now >= next_ask:
+        next_ask = now + OTHER_WAIT_S
+        self.body.ask_off(sx, sy, asked, () if seat is None else (tuple(seat),))
       yield from self.body.hold_routine(BAY_POLL_S)
     waited = float(self.data.time) - since
     self.last_bay_wait.update({"s": round(waited, 1), "why": ended,
@@ -2473,6 +2506,7 @@ class HubLifecycle:
     self.charge_failure = ""
     self.body.refresh_rack()
     sx, sy, hd = self.body.charge_standoff()
+    seat = self.body.charge_seat()
     # Route-failure retry, same as swap_at_bay's: when nothing is reachable,
     # spin to buy map (and possibly the rack tag) and try again.
     # ⚠ THE CHARGE BAY IS NOT A TOOL BAY, and the difference is the whole
@@ -2483,23 +2517,27 @@ class HubLifecycle:
     # outright -- but a bay given up is a lost errand and a charge given up
     # is a death. So a taken charge bay is WAITED FOR (issue #346), for 3x
     # a charge's typical occupancy, and neither the pack nor an interrupt
-    # ends that wait: charging is what either would ask for.
+    # ends that wait: charging is what either would ask for. ⚠ Taken is the
+    # standoff OR THE SEAT (#455): a robot lying on the dock is a metre past
+    # the standoff, and the walk in, which sees no robot, lay on it.
     spins, since, arrived = 0, None, False
     driven = None                 # the goal the last drive was sent to
     tried = None                  # why a near give-up's approach stopped
     searched = False              # ...and once that was no board, lost (#476)
     while True:
-      if self.peers and self.body.peer_on_the_goal(sx, sy) is not None:
+      if self.peers and self._bay_holder(sx, sy, seat) is not None:
         since = float(self.data.time) if since is None else since
-        if not (yield from self._await_bay_routine(sx, sy, "charge", since)):
+        if not (yield from self._await_bay_routine(sx, sy, "charge", since,
+                                                   seat=seat)):
           driven = None           # the wait is why, not any drive before it
           break
       driven = (sx, sy)
       arrived = yield from self.body.go_to_routine(sx, sy, timeout=90.0)
+      if self.peers and self._bay_holder(sx, sy, seat) is not None:
+        arrived = False                   # taken again, or the dock was all
+        continue                          # along: wait again, above
       if arrived:
         break
-      if self.peers and self.body.peer_on_the_goal(sx, sy) is not None:
-        continue                          # taken again: wait again, above
       if self._near_standoff(sx, sy):
         # ⚠ NOT `GO_CHARGE: `, which the site counts as a failed attempt
         # (rooftop's `chargeOutcome`): this attempt's one outcome comes after
@@ -2519,6 +2557,7 @@ class HubLifecycle:
       yield from self.body.look_around_routine()
       self.body.refresh_rack()
       sx, sy, hd = self.body.charge_standoff()
+      seat = self.body.charge_seat()
       spins += 1
       if spins == 2:
         break
@@ -2529,12 +2568,14 @@ class HubLifecycle:
       # a trip that ended in a wait that gave up is the wait's. Whoever
       # held the bay is IN the reason: History and a stranded death read it
       # (issue #424).
-      blocked = self.peer_at(*(driven or (sx, sy)))
+      at = driven or (sx, sy)
+      holder = self._bay_holder(*at, seat)
+      blocked = None if holder is None else self.peer_at(*holder[:2])
       self.charge_failure = "never reached the charge bay" + (
         "" if driven is None else f": {self.drive_why(*driven)}") + (
         "" if tried is None else "; the board was not in sight from there") + (
         "" if blocked is None else
-        f" -- {self.held_for(blocked).replace('the bay', 'it', 1)}")
+        f" -- {self.held_for(blocked, on_the_dock=holder[:2] != at).replace('the bay', 'it', 1)}")
       self._say(f"GO_CHARGE: {self.charge_failure}")
       return False
     # Line up on the bay's own tag and creep until the electrical criterion

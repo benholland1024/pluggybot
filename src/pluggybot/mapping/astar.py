@@ -9,9 +9,12 @@ what preserves optimality).
 
 import heapq
 
+#: The halo escape's reach, cells (`nearest_traversable`).
+HALO_CELLS = 10
+
 
 def nearest_traversable(traversable, start: tuple[int, int],
-                        radius: int = 10) -> tuple[int, int] | None:
+                        radius: int = HALO_CELLS) -> tuple[int, int] | None:
   """`start` if it is traversable, else the nearest traversable cell within
   `radius` cells -- or None if there is none, which means the robot is not in
   a halo but off its own map.

@@ -152,7 +152,7 @@ class GameWalk:
     from scipy.ndimage import distance_transform_edt
     g = self.grid
     mine = self.walk_field(self.seen_floor_lattice(mask_others=True), self.pose_xy(),
-                           limit=reach_m)
+                           limit=reach_m, escape=self._escape_cells())
     theirs = self.walk_field(self.seen_floor_lattice(), away_from)
     walls = self._sight_walls()
     clear = distance_transform_edt(~walls) * g.resolution

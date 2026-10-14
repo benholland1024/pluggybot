@@ -34,7 +34,7 @@ from pluggybot.behavior.navigation import (
 from pluggybot.body import KeepClear
 from pluggybot.control import square_up_routine, wrap_angle
 from pluggybot.mapping import optimistic
-from pluggybot.mapping.astar import astar, nearest_traversable
+from pluggybot.mapping.astar import HALO_CELLS, astar, nearest_traversable
 from pluggybot.mapping.frontier import FREE_THRESH, OCC_THRESH, traversable_mask
 from pluggybot.mapping.occupancy_grid import OccupancyGrid
 from pluggybot.mapping.scan_match import ScanMatcher
@@ -591,7 +591,8 @@ class Navigator:
     # inline version is where the idea was born, and exploration's planner
     # not having it is what let a sealed-in robot declare the house mapped.
     start = nearest_traversable(
-      trav, self.grid.world_to_cell(self.pose[0], self.pose[1]))
+      trav, self.grid.world_to_cell(self.pose[0], self.pose[1]),
+      radius=HALO_CELLS + self._escape_cells(bodies))
     if start is None:
       return None
     goal = self.grid.world_to_cell(wx, wy)
@@ -644,8 +645,9 @@ class Navigator:
     graph = optimistic.lattice_for(lattice.shape, self.grid.resolution * b)
     sx, sy = self.grid.world_to_cell(self.pose[0], self.pose[1])
     gx, gy = self.grid.world_to_cell(wx, wy)
-    cells, stand_in = optimistic.route(graph, lattice, (sx // b, sy // b),
-                                       (gx // b, gy // b))
+    cells, stand_in = optimistic.route(
+      graph, lattice, (sx // b, sy // b), (gx // b, gy // b),
+      escape=optimistic.ESCAPE_CELLS + -(-self._escape_cells(bodies) // b))
     self._stand_in = None
     if cells is None:
       return None
@@ -676,16 +678,17 @@ class Navigator:
     return optimistic.coarsen(cost, optimistic.BLOCK)
 
   def walk_field(self, lattice: np.ndarray, xy: tuple[float, float],
-                 limit: float = np.inf) -> np.ndarray:
+                 limit: float = np.inf, escape: int = 0) -> np.ndarray:
     """How far a walk from (x, y) is to every cell of `lattice`, m, over its
     costs -- the planner's own Dijkstra, from the cell nearest (x, y) a
-    body could stand on; inf where none reaches within `limit`, and
+    body could stand on, `escape` map cells further than the halo's reach
+    (`_escape_cells`); inf where none reaches within `limit`, and
     everywhere where there is no such cell."""
     g, b = self.grid, optimistic.BLOCK
     rows, cols = lattice.shape
     cx, cy = g.world_to_cell(xy[0], xy[1])
     src = nearest_traversable(np.isfinite(lattice), (cx // b, cy // b),
-                              radius=optimistic.ESCAPE_CELLS)
+                              radius=optimistic.ESCAPE_CELLS + -(-escape // b))
     if src is None:
       return np.full(lattice.shape, np.inf)
     graph = optimistic.lattice_for(lattice.shape, g.resolution * b)
@@ -1025,17 +1028,19 @@ class Navigator:
     return False
 
   def _ask_way(self, wx: float, wy: float, made_way: dict,
-               near: bool = False, beyond=()) -> bool:
+               near: bool = False, beyond=(), on_goal: bool = False) -> bool:
     """Ask every robot lying down to REST across this drive's way to (wx,
     wy) to step off it (issue #415, `MAKE_WAY_WAIT_S`): one whose disc is
     what cuts the way -- a plan without it finds one (`_route_past`), which
     is the way it is asked off, and on past the goal through `beyond` --
     and, `near`, only one within `OTHER_NEAR_M` of this robot or the goal
-    (a stagnated drive's test). `made_way` is this drive's: who said yes,
-    and when first. True while one is making way -- it said yes,
-    `MAKE_WAY_WAIT_S` ago at most -- and the drive waits for it. A robot
-    fallen over is never asked (#365): it gets up by itself or not at all;
-    nor a dead one (#455), until the world stands it up."""
+    (a stagnated drive's test), or, `on_goal`, only one ON the goal by
+    `peer_on_the_goal`'s arithmetic (a bay wait's, `ask_off`). `made_way`
+    is this drive's: who said yes, and when first. True while one is
+    making way -- it said yes, `MAKE_WAY_WAIT_S` ago at most -- and the
+    drive waits for it. A robot fallen over is never asked (#365): it gets
+    up by itself or not at all; nor a dead one (#455), until the world
+    stands it up."""
     if self.ask_way is None:
       return False
     now = float(self.data.time)
@@ -1049,6 +1054,9 @@ class Navigator:
       if near and not (math.hypot(b.x - px, b.y - py) < OTHER_NEAR_M
                        or math.hypot(b.x - wx, b.y - wy) < OTHER_NEAR_M):
         continue
+      if on_goal and not (math.hypot(b.x - wx, b.y - wy)
+                          < self._cells(b) * self.grid.resolution - CLOSE_ENOUGH_M):
+        continue
       route = self._route_past(b.root, wx, wy)
       if route is None:
         continue
@@ -1057,6 +1065,12 @@ class Navigator:
       if self.ask_way(b.root, way):
         made_way.setdefault(b.root, now)
     return any(now - t <= MAKE_WAY_WAIT_S for t in made_way.values())
+
+  def ask_off(self, wx: float, wy: float, asked: dict, beyond=()) -> bool:
+    """`Body.ask_off`: a robot resting ON a bay this robot waits for, asked
+    off the way there (`_ask_way`, `on_goal`) -- never one only near it,
+    which is charging on the dock beside the standoff, or passing."""
+    return self._ask_way(wx, wy, asked, beyond=beyond, on_goal=True)
 
   def clear_way_routine(self, way) -> Routine:
     """Clear a way no plan walks -- a press's walk in (issue #455) -- of
@@ -1195,7 +1209,8 @@ class Navigator:
     trav = traversable_mask(self._planning_grid(), self.INFLATION_CELLS)
     self._mask_others(trav)
     start = nearest_traversable(
-      trav, self.grid.world_to_cell(self.pose[0], self.pose[1]))
+      trav, self.grid.world_to_cell(self.pose[0], self.pose[1]),
+      radius=HALO_CELLS + self._escape_cells())
     if start is None:
       return [False] * len(points)
     labels, _ = ndimage.label(trav)
@@ -1230,3 +1245,24 @@ class Navigator:
         continue
       ys, xs = np.ogrid[y0:y1, x0:x1]
       trav[y0:y1, x0:x1] &= (xs - cx) ** 2 + (ys - cy) ** 2 > r * r
+
+  def _escape_cells(self, bodies: list[KeepClear] | None = None) -> int:
+    """How much further than the halo's reach a plan from where this robot
+    stands looks for its first cell, in map cells: out of the disc of every
+    other robot -- or of `bodies` -- its own centre lies in, else 0.
+
+    ⚠ ANOTHER ROBOT'S DISC IS DEEPER THAN THE HALO ESCAPE REACHES (issue
+    #455): 0.70 m round a robot resting against 0.50 m, and the pair's
+    bodies do not touch, so a blind walk in or back out at the dock laid one
+    on the other. Each lay too deep in the other's disc to plan a step or a
+    step aside: live, both gave up every walk in 0 s for up to 94 minutes,
+    and flown on their own saved maps, word for word. Out by the nearest
+    way, the plan keeps the whole disc after it."""
+    px, py = self.grid.world_to_cell(self.pose[0], self.pose[1])
+    out = 0
+    for b in self._bodies() if bodies is None else bodies:
+      cx, cy = self.grid.world_to_cell(b.x, b.y)
+      r, d = self._cells(b), math.hypot(px - cx, py - cy)
+      if d <= r:
+        out = max(out, math.ceil(r - d) + 1)
+    return out

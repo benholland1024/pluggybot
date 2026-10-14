@@ -471,6 +471,11 @@ class QuadMission(ToolSwap, PlaceWalk, BoardWork, CubeWork, AreaSurvey, MakeWay,
     x, y, yaw = self.dock_prior
     return dk.compose((x, y, yaw), (-dk.STANDOFF_M, 0.0, 0.0))
 
+  def charge_seat(self) -> tuple[float, float]:
+    """`Body.charge_seat`: the commissioned seat, where a docked body lies."""
+    x, y, _ = self.dock_prior
+    return x, y
+
   # ---- what the Navigator asks ---------------------------------------------
 
   @property
@@ -1693,6 +1698,9 @@ class QuadBody(Body):
   def charge_standoff(self):
     return self.mission.charge_standoff()
 
+  def charge_seat(self):
+    return self.mission.charge_seat()
+
   def dock_routine(self) -> Routine:
     return self.mission.dock_routine()
 
@@ -1777,6 +1785,9 @@ class QuadBody(Body):
   way_refused = property(lambda self: self.mission.way_refused)
   asides = property(lambda self: self.mission.asides)
   last_aside = property(lambda self: self.mission.last_aside)
+
+  def ask_off(self, x, y, asked, beyond=()) -> bool:
+    return self.mission.ask_off(x, y, asked, beyond)
 
   def peer_on_the_goal(self, x, y):
     return self.mission.peer_on_the_goal(x, y)
