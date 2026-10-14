@@ -10,6 +10,64 @@ observatory is NOT a result: it reports into the issue it informs.
 
 ## Periods
 
+### Every refusal names its call (#463) — opens when this PR is deployed
+
+**What changed is what the robot is TOLD.** A refusal inside a call now
+names the call, once, in the form History already gave a failed step:
+`line 5, find: tag 20 names no place this world has (places: 35 to 46)`,
+where it read `line 5: tag 20 is no place this world has (have: 35, 36, …,
+46)`. That covers the parser's refusals (`line 2, drive_to: needs y`, where
+it read `drive_to needs y`), the world's (`line 3, wait: seconds=99.0 is
+above 60.0`), `budget(…)`'s, a program's (`robot[0], find: …`) and a run's
+argument it could not compute (`it stopped at line 3, wait: division by
+zero`, where it read `it stopped at an expression: …`). The robot never sees
+a refused define's source again, so a line number alone pointed at nothing it
+could read. On `5ba8a0c` Luca read a refused `find(20, …)` as a refusal of
+its `place(20)`, filed tk_0028, and told Rowan the cube tags register once
+the blocks are seen. Tags are listed by kind, a run of three or more as `lo to
+hi` (`plates: 35 to 37`, `cubes: 20 to 24`), and the refusals beside them
+changed too:
+
+- a tag outside 0..999 is refused once, where `tag=1000.0 is above 999`
+  came first;
+- a computed tag that is no number (`inf`, `nan`) is refused once and fails
+  its step, where the run ended on a fault with its steps and locals lost;
+- an argument the parser refused is not refused again, where `pick(int(t))`
+  also read `tag 0 is no cube this world has` and `fetch(None)` also `tool
+  takes a name in quotes`;
+- each map axis is checked on its own, in one wording (`y=99999.0 is outside
+  the map's [-11.5, 11.5]`), where both written read `(1.0, 99999.0) is
+  outside the map [...] x [...]`, one beside a computed one waited for the
+  run, and one beside a refused one was checked against a stand-in 0. A
+  negative coordinate is still checked only when it runs (`-5` parses as
+  computed);
+- an argument given by position and by keyword is refused (`x is given
+  twice`), where the keyword replaced the written one and a call nobody
+  wrote ran;
+- the sensors are listed once a define, where a misspelt read in three calls
+  listed them three times.
+
+A procedure the robot kept that now fails one of these loads as not runnable,
+saying why. History's locals carry every digit (`t = 1234567`, where `:g`
+said `1.23457e+06`). The prompt did not move. On the wire, a procedure's
+local that is no number (`inf`, `nan`) is left off its `procedure` event:
+JSON has no word for it, and the site dropped the whole event. History still
+says it.
+
+**What the period is for.**
+
+- **Does the misreading stop?** Count tickets and `tell`s after a refusal
+  that blame a call the refusal did not name. On `5ba8a0c` there were 3
+  tag refusals of #463's kind, all Luca's, and one was read into a ticket
+  and a tell.
+- ⚠ **A count by the words splits at this deploy.** Before it, a tag reads
+  `tag N is no place|plate|cube … (have: …)`, after `line N: ` in a refused
+  define, after `line N, verb: ` in a run's History line and after `robot[i]:
+  ` in a program; the parser's own read `verb needs …`, `verb takes no …`.
+  After it, `tag N names no place|plate|cube …`, and every refusal inside a
+  call follows `line N, verb: ` (a define and a run alike) or `robot[i],
+  verb: `.
+
 ### `test` and the form's coined names are placeholders too (#462's closing reading) — opens when this PR is deployed
 
 **What changed is how an answer's paperwork is read.** #462's week

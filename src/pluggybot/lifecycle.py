@@ -76,7 +76,7 @@ from pluggybot.telemetry.protocol import (
   robot_roots,
 )
 from pluggybot.telemetry.recorder import TelemetryRecorder, mode_message
-from pluggybot.procedure.steps import Program, compile_program
+from pluggybot.procedure.steps import Program, compile_program, number_text
 from pluggybot.robot import FIRST, RobotHandle
 from pluggybot.tick import MissionAborted, Routine
 
@@ -524,7 +524,10 @@ def procedure_outcome(name: str, run: dict) -> list[str]:
             + ("" if run.get("error") else f" ({steps_said} had run)"))
   if not run.get("locals"):
     return [line]
-  items = [f"{k} = {v:g}" for k, v in list(run["locals"].items())[:LOCALS_SHOWN]]
+  # every digit, as the refusal on the same line quotes a tag: `:g` said
+  # `t = 23` after `tag 23.0000001`, and `1.23457e+06` for 1234567 (#463)
+  items = [f"{k} = {number_text(v)}"
+           for k, v in list(run["locals"].items())[:LOCALS_SHOWN]]
   # History prefixes the sim clock ("[t=12345s] ") INSIDE its 400, so the
   # room is less than the cap -- measured on the second review: a 397-char
   # line kept "mass = 0" of "mass = 0.207812", a wrong number, not a lost one.
@@ -3577,13 +3580,17 @@ class HubLifecycle:
     # wire at all -- a reader could see a run was cut short, not what cut it.
     failed = next((s for s in run["steps"]
                    if run.get("failedAt") is not None and s.get("i") == run["failedAt"]), {})
+    # A local that is no number (inf, nan) stays off the wire: JSON has no
+    # word for it, and the site's parser dropped the whole event (#463).
+    # History still says it (`procedure_outcome`).
+    shown = {k: v for k, v in (run.get("locals") or {}).items() if math.isfinite(v)}
     self._emit({**base, "t": round(float(self.data.time), 3),
                 "outcome": "ran" if run.get("ok") else "aborted",
                 "completed": run["completed"], "total": run["total"],
                 "failedAt": run.get("failedAt"), "stopped": run.get("stopped"),
                 **({"failedLine": failed["line"]} if failed.get("line") else {}),
                 **({"failedReason": failed["reason"]} if failed.get("reason") else {}),
-                **({"locals": run["locals"]} if run.get("locals") else {})})
+                **({"locals": shown} if shown else {})})
     # ...and the steps that went through their evidence, the log's alone: a
     # failed step's trace rode its own line, and a press's tries are read
     # by the day whether it pressed or not (issue #439)
