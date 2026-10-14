@@ -249,6 +249,8 @@ class ToolSwap:
       tw = rk.walk_in_twist(*self._rack_error(bay), heading=-rk.SETTLE_DRIFT)
       if tw == Twist():
         return "stopped"
+      if self.touches_peer(ahead=True):      # (#455: the pair collides)
+        return "met another robot"
       yield from self._twist_routine(tw.vx, tw.vy, tw.yaw_rate)
       if self.data.time - last >= LOOK_EVERY_S:
         self.look_at_rack()

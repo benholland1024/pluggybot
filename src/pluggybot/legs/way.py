@@ -97,7 +97,7 @@ class MakeWay:
     lat = self.seen_floor_lattice(mask_others=True)
     rows, cols = lat.shape
     walk = self.walk_field(lat, self.pose_xy(), limit=self.ASIDE_WALK_M,
-                           escape=self._escape_cells())
+                           over=self.seen_floor_lattice())
     # the route on the lattice, every half cell of it, and each cell's
     # distance from it
     dense = [pts[:1]]
@@ -150,7 +150,9 @@ class MakeWay:
       return self._end_aside("aside", STILL)
     if t - a["t0"] > self.ASIDE_BUDGET_S:
       return self._end_aside("out of time", STILL)
-    if t < self.backoff_until or self.pressing:
+    if t < self.backoff_until or (self.pressing and not self.pressed_peer):
+      # ...never the robot it makes way for, or the other (#455): the pair
+      # collides, and a robot stepping off a way can start against the asker
       return self._end_aside("met something", STILL)
     if not self.arm_driving():
       return self._end_aside("arm out", STILL)

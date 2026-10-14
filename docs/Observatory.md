@@ -21,17 +21,23 @@ charge bay counted as taken only with a robot on its standoff, a metre
 short of the seat. Both charged at once, then each backed out onto the
 other at the standoff, where every walk of both gave up in 0 s for up to
 94 minutes. Now each robot meets every solid geom of the other and none of
-its own, and avoidance keeps them apart. A robot on the dock holds the
-charge bay as one on its standoff does, and is waited for out of the lane.
-A wait for a bay asks a robot lying down to rest on it to step off, as a
-walk does. A robot inside the other's disc plans out of it. A robot a
+its own, and avoidance keeps them apart. A robot on the dock or its way in
+holds the charge bay as one on its standoff does, and is waited for out of
+the lane. A wait for a bay asks a robot lying down to rest on it to step
+off, as a walk does, again while it steps off and afresh after a no. The
+walks no planner plans -- the dock's and the rack's walk in, every walk
+back out -- stop on the other robot rather than push it. A robot inside
+the other's disc walks out of it on its own side of any wall. A robot a
 restore finds inside the other (a save from before) is put at its first
-clear start, and says so in History. The prompt did not move. What the
-robot reads changes in three places: a charge's wait says "WAIT: Rowan is
-on the dock", where it named a distance; a charge given up for it says
-"never reached the charge bay -- Rowan was on the dock; I waited 1386 s
-for it to leave, 3x how long one charge usually takes"; and that History
-line, once, if the first restore lays one robot on the other.
+clear start, its tool sent home. The prompt did not move. What the robot
+reads changes in four places: a charge's wait says "WAIT: Rowan is on the
+dock" or "on the dock's way in", where it named a distance; a charge given
+up for it says "never reached the charge bay -- Rowan was on the dock; I
+waited 1386 s for it to leave, 3x how long one charge usually takes"; a
+walk in that met the other robot ends "no charge contact (walk met another
+robot)"; and the restart's History line, once, if the first restore lays
+one robot on the other: "...; I came back 0.11 m inside Luca's body there,
+and the world put me at my start (-3.5, 1.0)".
 
 **What the period is for.**
 
@@ -41,7 +47,8 @@ line, once, if the first restore lays one robot on the other.
   named one past 2.9 m, but 130 walks at the dock's standoff gave up in 0
   s and nobody stepped aside.
 - **Touches.** `touched` encounter rows: none since the rover, because
-  the pair could not touch. Each one now is a bump the avoidance missed.
+  the pair could not touch. Each one now is a bump the avoidance missed,
+  and "walk met another robot" in a charge's failure is the dock's.
 - **One body on the dock.** Both robots within 0.3 m of the seat in the
   same `drift` sample: 9 episodes on afb473a (24 samples), and 15 with the
   bodies within 0.3 m of each other anywhere. Runs of "could not get clear

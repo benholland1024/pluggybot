@@ -72,6 +72,15 @@ def gave_up(rec: dict, peer: str = "the other robot") -> str:
           f"{rec['seconds']:.0f} s ({cause})")
 
 
+def on_the_goal(nav, b: KeepClear, wx: float, wy: float) -> float | None:
+  """How far off (wx, wy) the robot `b` is, if its disc in `nav`'s plans
+  puts the goal out of reach (`Navigator.peer_on_the_goal`); else None.
+  One test for the bay a wait holds out for and the robot it asks off it
+  (`Navigator.ask_off`)."""
+  d = math.hypot(b.x - wx, b.y - wy)
+  return d if d < nav._cells(b) * nav.grid.resolution - CLOSE_ENOUGH_M else None
+
+
 #: How far round another robot's believed centre A* keeps this robot's
 #: centre (issue #167): the map's own inflation (traversable_mask, 7 cells =
 #: 0.35 m, the armed robot's swing) plus the other robot's half-diagonal
@@ -590,9 +599,9 @@ class Navigator:
     # The halo escape, shared with `navigation.plan` since issue #92 -- this
     # inline version is where the idea was born, and exploration's planner
     # not having it is what let a sealed-in robot declare the house mapped.
-    start = nearest_traversable(
-      trav, self.grid.world_to_cell(self.pose[0], self.pose[1]),
-      radius=HALO_CELLS + self._escape_cells(bodies))
+    start = self._escape_from(
+      trav, self._floor, self.grid.world_to_cell(self.pose[0], self.pose[1]),
+      self._escape_cells(bodies), HALO_CELLS)
     if start is None:
       return None
     goal = self.grid.world_to_cell(wx, wy)
@@ -645,10 +654,14 @@ class Navigator:
     graph = optimistic.lattice_for(lattice.shape, self.grid.resolution * b)
     sx, sy = self.grid.world_to_cell(self.pose[0], self.pose[1])
     gx, gy = self.grid.world_to_cell(wx, wy)
-    cells, stand_in = optimistic.route(
-      graph, lattice, (sx // b, sy // b), (gx // b, gy // b),
-      escape=optimistic.ESCAPE_CELLS + -(-self._escape_cells(bodies) // b))
     self._stand_in = None
+    start, reach = (sx // b, sy // b), self._escape_cells(bodies)
+    if reach:
+      start = self._escape_from(np.isfinite(lattice), self._lattice_floor(), start,
+                                -(-reach // b), optimistic.ESCAPE_CELLS)
+      if start is None:
+        return None
+    cells, stand_in = optimistic.route(graph, lattice, start, (gx // b, gy // b))
     if cells is None:
       return None
     g, side = self.grid, self.grid.resolution * b
@@ -678,17 +691,20 @@ class Navigator:
     return optimistic.coarsen(cost, optimistic.BLOCK)
 
   def walk_field(self, lattice: np.ndarray, xy: tuple[float, float],
-                 limit: float = np.inf, escape: int = 0) -> np.ndarray:
+                 limit: float = np.inf, over: np.ndarray | None = None) -> np.ndarray:
     """How far a walk from (x, y) is to every cell of `lattice`, m, over its
     costs -- the planner's own Dijkstra, from the cell nearest (x, y) a
-    body could stand on, `escape` map cells further than the halo's reach
-    (`_escape_cells`); inf where none reaches within `limit`, and
-    everywhere where there is no such cell."""
+    body could stand on; inf where none reaches within `limit`, and
+    everywhere where there is no such cell. `over`, the same floor with no
+    robot's disc taken out, starts a walk from where THIS robot stands out
+    of a disc it stands in (`_escape_from`)."""
     g, b = self.grid, optimistic.BLOCK
     rows, cols = lattice.shape
     cx, cy = g.world_to_cell(xy[0], xy[1])
-    src = nearest_traversable(np.isfinite(lattice), (cx // b, cy // b),
-                              radius=optimistic.ESCAPE_CELLS + -(-escape // b))
+    reach = self._escape_cells() if over is not None else 0
+    src = self._escape_from(np.isfinite(lattice),
+                            None if over is None else np.isfinite(over),
+                            (cx // b, cy // b), -(-reach // b), optimistic.ESCAPE_CELLS)
     if src is None:
       return np.full(lattice.shape, np.inf)
     graph = optimistic.lattice_for(lattice.shape, g.resolution * b)
@@ -719,12 +735,11 @@ class Navigator:
     the physics thread, and this is asked of every drive that planned
     nothing beside another robot. `test_failure_words` holds it to a real
     plan."""
-    trav, b, escape = self._floor, 1, 10
+    trav, b, escape = self._floor, 1, HALO_CELLS
     if self.OPTIMISTIC:
       # ...on the planner's own lattice (`_plan_optimistic`), whose
       # components are its 4-connected ones
-      b, escape = optimistic.BLOCK, optimistic.ESCAPE_CELLS
-      trav = np.isfinite(optimistic.coarsen(np.where(trav, 1.0, np.inf), b))
+      b, escape, trav = optimistic.BLOCK, optimistic.ESCAPE_CELLS, self._lattice_floor()
     rows, cols = trav.shape
     sx, sy = self.grid.world_to_cell(self.pose[0], self.pose[1])
     start = nearest_traversable(trav, (sx // b, sy // b), radius=escape)
@@ -1054,8 +1069,7 @@ class Navigator:
       if near and not (math.hypot(b.x - px, b.y - py) < OTHER_NEAR_M
                        or math.hypot(b.x - wx, b.y - wy) < OTHER_NEAR_M):
         continue
-      if on_goal and not (math.hypot(b.x - wx, b.y - wy)
-                          < self._cells(b) * self.grid.resolution - CLOSE_ENOUGH_M):
+      if on_goal and on_the_goal(self, b, wx, wy) is None:
         continue
       route = self._route_past(b.root, wx, wy)
       if route is None:
@@ -1193,24 +1207,20 @@ class Navigator:
     this robot sees it lying still (issues #365, #455), and a fallen one
     with its own wider disc (0.55 m).
     """
-    res = self.grid.resolution
-    near = None
-    for b in self._bodies():
-      d = math.hypot(b.x - wx, b.y - wy)
-      if d < self._cells(b) * res - CLOSE_ENOUGH_M and (near is None or d < near):
-        near = d
-    return near
+    return min((d for d in (on_the_goal(self, b, wx, wy) for b in self._bodies())
+                if d is not None), default=None)
 
   def reachable(self, points) -> list[bool]:
     """Which world points this robot could plan to right now (issue #346):
     traversable after the other robots are masked out, and in the SAME
     4-connected component as its own start cell -- `_plan_to`'s own two
     tests, asked of candidates rather than of one goal."""
-    trav = traversable_mask(self._planning_grid(), self.INFLATION_CELLS)
+    floor = traversable_mask(self._planning_grid(), self.INFLATION_CELLS)
+    trav = floor.copy()
     self._mask_others(trav)
-    start = nearest_traversable(
-      trav, self.grid.world_to_cell(self.pose[0], self.pose[1]),
-      radius=HALO_CELLS + self._escape_cells())
+    start = self._escape_from(
+      trav, floor, self.grid.world_to_cell(self.pose[0], self.pose[1]),
+      self._escape_cells(), HALO_CELLS)
     if start is None:
       return [False] * len(points)
     labels, _ = ndimage.label(trav)
@@ -1247,17 +1257,16 @@ class Navigator:
       trav[y0:y1, x0:x1] &= (xs - cx) ** 2 + (ys - cy) ** 2 > r * r
 
   def _escape_cells(self, bodies: list[KeepClear] | None = None) -> int:
-    """How much further than the halo's reach a plan from where this robot
-    stands looks for its first cell, in map cells: out of the disc of every
-    other robot -- or of `bodies` -- its own centre lies in, else 0.
+    """How deep this robot's own centre lies inside the disc of another
+    robot -- or of one of `bodies` -- in map cells, the deepest; else 0.
+    How far a walk out of it may go (`_escape_from`).
 
     ⚠ ANOTHER ROBOT'S DISC IS DEEPER THAN THE HALO ESCAPE REACHES (issue
     #455): 0.70 m round a robot resting, 0.90 m round one fallen, against
     0.50 m. Before the pair collided, two lay on each other at the dock,
     each too deep in the other's disc to plan a step or a step aside: live,
     both gave up every walk in 0 s for up to 94 minutes, and flown on their
-    own saved maps, word for word. Out by the nearest way, the plan keeps
-    the whole disc after it."""
+    own saved maps, word for word."""
     px, py = self.grid.world_to_cell(self.pose[0], self.pose[1])
     out = 0
     for b in self._bodies() if bodies is None else bodies:
@@ -1266,3 +1275,43 @@ class Navigator:
       if d <= r:
         out = max(out, math.ceil(r - d) + 1)
     return out
+
+  def _escape_from(self, passes: np.ndarray, floor: np.ndarray | None, cell,
+                   reach: int, halo: int):
+    """Where a plan from `cell` -- where this robot stands -- begins:
+    `nearest_traversable`'s halo escape over `passes`, as ever; and where
+    that finds none, `reach` cells deep in another robot's disc
+    (`_escape_cells`, in this grid's cells), the nearest cell that `passes`
+    WALKED to over `floor`, the same floor with no disc taken out, from
+    where the halo puts it (issue #455). ⚠ NEVER BY DISTANCE PAST THE HALO:
+    so, a robot beside a fallen one 0.2 m from the house's 4 cm wall began
+    its plan in the garden (within the halo, a wall's own inflation on its
+    far side keeps it out of reach). Out of the disc by the nearest way,
+    the plan keeps the whole disc after it. None where no cell does."""
+    here = nearest_traversable(passes, cell, radius=halo)
+    if here is not None or reach <= 0 or floor is None:
+      return here
+    start = nearest_traversable(floor, cell, radius=halo)
+    if start is None:
+      return None
+    rows, cols = floor.shape
+    seen, todo = {start}, collections.deque([(start, 0)])
+    while todo:
+      (x, y), k = todo.popleft()
+      if passes[y, x]:
+        return x, y
+      if k >= reach + halo:
+        continue
+      for dx, dy in optimistic.STEPS:
+        nxt = (x + dx, y + dy)
+        if (0 <= nxt[0] < cols and 0 <= nxt[1] < rows and nxt not in seen
+            and floor[nxt[1], nxt[0]]):
+          seen.add(nxt)
+          todo.append((nxt, k + 1))
+    return None
+
+  def _lattice_floor(self) -> np.ndarray:
+    """The floor the last plan planned over (`_floor`), on the lattice
+    (`mapping/optimistic.py`): no robot's disc taken out."""
+    return np.isfinite(optimistic.coarsen(np.where(self._floor, 1.0, np.inf),
+                                          optimistic.BLOCK))

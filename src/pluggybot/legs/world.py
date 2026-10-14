@@ -48,9 +48,10 @@ RESERVE_WH = 3.7
 #: policies were trained), which kept the two robots from ever touching --
 #: on afb473a they lay on each other on the dock and at its standoff. Each
 #: robot gets a bit of its own, and the other's as its affinity: it meets
-#: the other robot's body, never its own, and the world as before (the
-#: world's affinities are 0 and 1, and only the dock's base is contype 2).
-PAIR_BITS = ((2, 4), (4, 2))
+#: the other robot's body, never its own, and the world as before. Bits the
+#: world never sets (its own are 1 and 2: the dock's base and faces are
+#: contype 2), so no geom of the world's can change what it meets.
+PAIR_BITS = ((8, 16), (16, 8))
 
 
 def dock_pose() -> tuple[float, float, float]:

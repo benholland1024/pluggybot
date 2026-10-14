@@ -439,6 +439,28 @@ def test_a_robot_lying_on_another_plans_out_of_its_disc(house):
     m.close()
 
 
+def test_a_robot_walks_out_of_a_disc_on_its_own_side_of_a_wall(house):
+  """...but never through a wall (#455's review): picked by distance alone,
+  the first cell out of a fallen robot's disc (0.90 m) was across the
+  house's 4 cm wall from a robot 0.2 m off it, so a plan began in the
+  garden and walked into the wall. Walked out over the floor, it keeps to
+  its own side, and the far side is no place it can reach."""
+  m = _mission(house, at=(1.8, 0.75))
+  try:
+    g = m.grid
+    g.grid[:] = -5.0
+    wall = g.world_to_cell(2.0, 0.0)[0]
+    g.grid[:, wall] = 5.0                      # one cell, the length of the map
+    m.others = [lambda: KeepClear(1.5, 0.75, root="r2_pluggybot", down=True)]
+    plan = m._plan_to(1.0, 3.0)
+    assert plan is not None and max(x for x, _ in plan) < 2.0, plan
+    m._plan_memo = None
+    assert m._plan_to(3.0, 0.75) is None, "planned across a wall with no door"
+    assert m.reachable([(3.0, 0.75), (1.0, 3.0)]) == [False, True]
+  finally:
+    m.close()
+
+
 def test_a_robot_lying_on_the_asker_steps_out_of_its_disc(house):
   """...and asked, the robot lying under the asker found no floor to walk
   to from inside the asker's disc, and said no ("no spot"), both ways
@@ -457,5 +479,110 @@ def test_a_robot_lying_on_the_asker_steps_out_of_its_disc(house):
     m._move, m.posture = None, qb.STANDING
     cmd = m._aside_command(qb.STILL, float(m.data.time))
     assert qb.is_motion(cmd) and m._aside["waypoints"], m.last_aside
+  finally:
+    m.close()
+
+
+# ---- 5. the pair collides: a blind walk stops on the other robot ---------------------
+
+
+class _Blind:
+  """The quadruped's blind walks with its senses stubbed: every command is
+  0.1 s at the speed commanded, and the other robot touches it `at_m` out
+  from where it began, behind or ahead."""
+  _back_out_by_routine = QuadMission._back_out_by_routine
+  _walk_in_routine = QuadMission._walk_in_routine
+
+  def __init__(self, at_m, behind):
+    self.data = SimpleNamespace(time=0.0)
+    self.odo = SimpleNamespace(x=0.0, y=0.0)
+    self.at_m, self.behind, self.look_at_board = at_m, behind, (lambda: None)
+
+  def pose_xy(self):
+    return self.odo.x, self.odo.y
+
+  def touches_peer(self, ahead):
+    return ahead != self.behind and abs(self.odo.x) >= self.at_m
+
+  def _dock_error(self):
+    return (-1.0, 0.0, 0.0)                 # a metre short of the seat
+
+  def _twist_routine(self, vx, vy, w):
+    self.odo.x += vx * 0.1
+    self.data.time += 0.1
+    yield vx, vy, w
+
+  def _drive_routine(self, seconds, vx, w):
+    self.data.time += seconds
+    yield vx, 0.0, w
+
+
+def test_a_blind_walk_stops_on_the_other_robot_rather_than_push():
+  """The pair collides (#455), and the walks no planner plans -- the dock's
+  and the rack's walk in, and every straight walk back out -- were blind to
+  the other robot: a back out pressed into one resting on the standoff for
+  its whole budget. They stop on it, each the way it is going: a walk back
+  out from a touch ahead still goes."""
+  back = _Blind(0.3, behind=True)
+  tick.run(STEPPER, back._back_out_by_routine(0.9, 8.0, 0.3, 0.8))
+  assert -back.odo.x == pytest.approx(0.3, abs=0.04)
+  ahead = _Blind(0.0, behind=False)
+  tick.run(STEPPER, ahead._back_out_by_routine(0.9, 8.0, 0.3, 0.8))
+  assert -ahead.odo.x >= 0.9, "a touch ahead stopped the walk back"
+  walk = _Blind(0.0, behind=False)
+  assert tick.run(STEPPER, walk._walk_in_routine()) == "met another robot"
+
+
+def test_a_rack_walk_in_stops_on_the_other_robot():
+  """...and the rack's walk in, the same rule (`legs/swap.py`)."""
+  from pluggybot.legs.swap import ToolSwap
+
+  class _Rack(_Blind):
+    _rack_walk_in_routine = ToolSwap._rack_walk_in_routine
+
+    def _rack_error(self, bay):
+      return (-1.0, 0.0, 0.0)
+
+    def look_at_rack(self):
+      return None
+  assert tick.run(STEPPER, _Rack(0.0, behind=False)._rack_walk_in_routine(0)) == "met another robot"
+
+
+def test_the_body_tells_a_touch_ahead_from_one_behind(tmp_path):
+  """`touches_peer` off the contact array: two quadrupeds nose to tail, the
+  one behind is touched ahead, the one in front behind -- each off the
+  other robot's geoms, which the pair hands each (`Body.know_peer`)."""
+  from pluggybot.pair import build_pair
+  me, peer = build_pair(QUAD_HOME, errands=("none", "none"),
+                        thoughts_root=str(tmp_path / "thoughts"))
+  try:
+    me.body.start_at(0.0, 0.0, 0.0)
+    for x in (-0.50, -0.45, -0.40, -0.38):      # closer until they touch
+      peer.body.start_at(x, 0.0, 0.0)
+      mujoco.mj_forward(me.model, me.data)
+      if me.body.mission.touches_peer(ahead=False):
+        break
+    a, b = me.body.mission, peer.body.mission
+    assert a.touches_peer(ahead=False) and not a.touches_peer(ahead=True)
+    assert b.touches_peer(ahead=True) and not b.touches_peer(ahead=False)
+  finally:
+    for life in (me, peer):
+      life.body.close()
+
+
+def test_a_step_aside_goes_on_against_the_robot_it_makes_way_for(house):
+  """Asked off a way, the robot can start against the asker's body -- the
+  pair collides (#455) -- and the bumper read it as meeting something: the
+  step aside ended 0.03 m on. A press of another robot's body is the
+  asker's, and the step goes on; anything else still ends it."""
+  m = _mission(house)
+  try:
+    assert m.make_way(_route(), "pluggybot")
+    m._move, m.posture = None, qb.STANDING
+    m._pressing, m.pressed_peer = True, True
+    assert qb.is_motion(m._aside_command(qb.STILL, float(m.data.time))), m.last_aside
+    m.pressed_peer = False
+    m._aside_command(qb.STILL, float(m.data.time))
+    assert m.last_aside["why"] == "met something"
   finally:
     m.close()

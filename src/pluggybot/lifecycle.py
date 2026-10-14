@@ -369,6 +369,11 @@ WAIT_OCCUPANCIES = 3.0
 RACK_STATES = ("SWAP_PICK", "SWAP_RETURN", "GO_CHARGE", "CHARGE")
 #: How often a waiting robot looks again, sim seconds.
 BAY_POLL_S = 1.0
+#: The dock's way in is held as its standoff is (#455), at points this far
+#: apart from the standoff to the seat, m: the planner's own test of a point
+#: (`Body.peer_on_the_goal`, 0.55 m round a robot) then covers a lane 1.1 m
+#: wide, and a robot lying across it short of the seat was walked into.
+LANE_STEP_M = 0.25
 #: The WAITING SPOT, in the rack's own frame, relative to the standoff
 #: waited for: this far further out from the rack face and this far along
 #: it -- out of the other robot's approach lane (it backs straight out
@@ -1744,11 +1749,13 @@ class HubLifecycle:
 
   def unclip(self) -> bool:
     """Put this robot at its first clear start (`up_pose`) if it lies
-    `UNCLIP_M` or deeper inside another robot's body, and say so (issue
-    #455): only a world restored from before the pair collided holds one,
-    and `continuation.restore` asks every robot but the first. The world's
-    hand, as a stand-up's is: the pack, the map and the jobs are its own.
-    True if it moved."""
+    `UNCLIP_M` or deeper inside another robot's body (issue #455): only a
+    world restored from before the pair collided holds one, and
+    `continuation.restore` asks every robot but the first. The world's
+    hand, as a stand-up's is: the tool on its fork goes home first
+    (`_tool_home`), and the pack, the map and the jobs are its own. The
+    restart's own History line says where it was and why it was moved
+    (`resumed["unclipped"]`). True if it moved."""
     g = contact_pairs(self.data)
     if not self.peers or not len(g):
       return False
@@ -1767,12 +1774,20 @@ class HubLifecycle:
     if pose is None:
       return False
     who = deepest[1].robot_name or deepest[1].root
+    whose = self._whose_start(pose)
+    at = self.body.pose_xy()
+    self._tool_home()
     self.body.start_at(*pose)
     mujoco.mj_forward(self.model, self.data)
-    line = (f"came back from a restart lying {-deepest[0]:.2f} m inside {who}'s body, "
-            f"and was put at my start ({pose[0]:.1f}, {pose[1]:.1f}) instead")
-    self._say(f"RESTART: {line}")
-    self._remember(line)
+    clip = {"who": who, "deepM": round(-deepest[0], 2),
+            "from": (round(at[0], 2), round(at[1], 2)),
+            "to": f"{'my' if whose is None else whose + chr(39) + 's'} start "
+                  f"({pose[0]:.1f}, {pose[1]:.1f})"}
+    self._say(f"RESTART: {clip['deepM']:.2f} m inside {who}'s body -- put at {clip['to']}")
+    if self.resumed is not None:
+      self.resumed["unclipped"] = clip
+    else:
+      self._remember(_unclipped_words(clip))
     return True
 
   def up_pose(self) -> tuple[float, float, float] | None:
@@ -1877,16 +1892,14 @@ class HubLifecycle:
               + (f" ({how})" if how else ""))
     return "it was not on its bay, and no robot is carrying it"
 
-  def held_for(self, blocked: tuple[str, float], on_the_dock: bool = False) -> str:
+  def held_for(self, blocked: tuple[str, float], where: str = "standoff",
+               what: str = "the bay") -> str:
     """Who held a bay this robot gave up on, and for how long it was
-    waited for (issue #346) -- one clause, for a pick, a stow or a charge;
-    `on_the_dock`, the charge bay held from the dock's seat (#455)."""
+    waited for (issue #346) -- one clause, for a pick, a stow or a charge,
+    `where` the holder was (`_bay_holder`)."""
     w = self.last_bay_wait
-    how = posture(self.peers, blocked[0])
-    said = (f"{blocked[0]} was {'' if how == 'lying down to rest' else how + ' '}"
-            "on the dock" if on_the_dock else
-            f"{blocked[0]} was {how} {blocked[1]:.2f} m from the bay, nearer "
-            "than the planner may route")
+    said = holder(self.peers, blocked[0], where, blocked[1], what, "was") + (
+      ", nearer than the planner may route" if where == "standoff" else "")
     # ...only the wait that ended THIS failure, at this sim instant: an
     # older one would claim a wait that never happened for this bay
     if (w is None or w.get("who") != blocked[0] or not w.get("why")
@@ -2073,16 +2086,25 @@ class HubLifecycle:
     return ((WAIT_OCCUPANCIES * CHARGE_OCCUPANCY_S, "charge") if charging
             else (WAIT_OCCUPANCIES * SWAP_OCCUPANCY_S, "swap"))
 
-  def _bay_holder(self, sx: float, sy: float,
-                  seat=None) -> tuple[float, float, float] | None:
-    """Where another robot holds a bay, and how near: (x, y, m) of the
-    standoff (sx, sy) with one on it (`Body.peer_on_the_goal`), else of
-    `seat`, the dock's (#455), with one on that; else None."""
-    for x, y in ((sx, sy),) + (() if seat is None else (tuple(seat),)):
+  def _bay_holder(self, sx: float, sy: float, seat=None) -> tuple | None:
+    """Where another robot holds a bay: (x, y, m, where) at the first of its
+    points with one on it (`Body.peer_on_the_goal`) -- the standoff (sx,
+    sy), and for a charge, every `LANE_STEP_M` of the way in to `seat`,
+    the dock's (#455). `where` is "standoff", "lane" or "dock", the last
+    for one on the seat, charging or not. None where nobody holds it."""
+    pts = [(sx, sy)]
+    if seat is not None:
+      n = max(1, math.ceil(math.dist((sx, sy), seat) / LANE_STEP_M))
+      pts += [(sx + (seat[0] - sx) * k / n, sy + (seat[1] - sy) * k / n)
+              for k in range(1, n + 1)]
+    for k, (x, y) in enumerate(pts):
       near = self.body.peer_on_the_goal(x, y)
       if near is not None:
-        return x, y, near
+        where = ("standoff" if k == 0 else "dock"
+                 if self.body.peer_on_the_goal(*seat) is not None else "lane")
+        return x, y, near, where
     return None
+
 
   def _await_bay_routine(self, sx: float, sy: float, kind: str,
                          since: float, hold: bool = False,
@@ -2110,21 +2132,21 @@ class HubLifecycle:
     `kind` is the swap's verb (`pick`, `return`) or `charge`. `hold` waits
     where the robot stands -- the quadruped's swap, at its approach's start
     a metre behind the bay, out of the holder's way already (#418).
-    `seat`, a charge's (`Body.charge_seat`), holds the bay too: a robot
-    lying on the dock is a metre past its standoff, and the walk in went
-    on and lay on it -- two bodies on one dock (#455).
+    `seat`, a charge's (`Body.charge_seat`): the dock's way in and its
+    seat hold the bay too (`_bay_holder`) -- a robot lying on the dock is a
+    metre past the standoff, and the walk in went on and lay on it (#455).
 
     ⚠ ONE LYING DOWN TO REST ON THE BAY IS ASKED OFF THE WAY THERE (issue
-    #455; `Body.ask_off`, every `OTHER_WAIT_S`): waited for, it never moved,
-    and on afb473a every wait that named one ran its bound -- 1387 s at the
-    charge bay, 90 s at a bay of the rack. One on the dock is not on the
-    standoff, and is never asked.
+    #455; `Body.ask_off`): waited for, it never moved, and on afb473a every
+    wait that named one ran its bound -- 1387 s at the charge bay, 90 s at
+    a bay of the rack. Asked every `OTHER_WAIT_S` while it steps off, and
+    afresh `MAKE_WAY_WAIT_S` after a no or a step that ended short; one on
+    the dock is never asked, which would say no for its whole charge.
     """
     held = self._bay_holder(sx, sy, seat)
     if held is None:
       return True
-    hx, hy, near = held
-    on_the_dock = (hx, hy) != (sx, sy)
+    hx, hy, near, where = held
     # ...keyed on the RULE, never on the name: a peer the planner routes
     # round but the lifecycle has no name for is still waited for, or the
     # swap's loop would go round at no sim time at all
@@ -2137,12 +2159,9 @@ class HubLifecycle:
     # stops at the edge of the holder's disc, which is its way out.
     spot = None if hold else self._waiting_spot(sx, sy)
     if first:
-      how = posture(self.peers, who)
-      where = (f"{'' if how == 'lying down to rest' else how + ' '}on the dock"
-               if on_the_dock else f"{how} {near:.2f} m from {what}")
-      self._say(f"WAIT: {who} is {where} -- waiting up to {bound:.0f} s"
-                + ("" if spot is None else
-                   f" at ({spot[0]:.1f}, {spot[1]:.1f})"))
+      self._say(f"WAIT: {holder(self.peers, who, where, near, what)} -- waiting up to "
+                f"{bound:.0f} s" + ("" if spot is None else
+                                    f" at ({spot[0]:.1f}, {spot[1]:.1f})"))
       self._remember(f"{who} was at {what} I needed; I waited for it "
                      f"(up to {bound:.0f} s)")
       self.bay_waits += 1
@@ -2153,7 +2172,8 @@ class HubLifecycle:
     ended = ""
     asked: dict = {}
     next_ask = float(self.data.time)
-    while self._bay_holder(sx, sy, seat) is not None:
+    beyond = () if seat is None else (tuple(seat),)
+    while (held := self._bay_holder(sx, sy, seat)) is not None:
       now = float(self.data.time)
       bound, of = self.wait_bound(kind, sx, sy)
       if now - since >= bound:
@@ -2165,9 +2185,12 @@ class HubLifecycle:
         ended = "pack"
       if ended:
         break
-      if now >= next_ask:
-        next_ask = now + OTHER_WAIT_S
-        self.body.ask_off(sx, sy, asked, () if seat is None else (tuple(seat),))
+      if now >= next_ask and held[3] != "dock":
+        if self.body.ask_off(held[0], held[1], asked, beyond):
+          next_ask = now + OTHER_WAIT_S
+        else:
+          asked.clear()
+          next_ask = now + MAKE_WAY_WAIT_S
       yield from self.body.hold_routine(BAY_POLL_S)
     waited = float(self.data.time) - since
     self.last_bay_wait.update({"s": round(waited, 1), "why": ended,
@@ -2577,6 +2600,18 @@ class HubLifecycle:
         arrived = False                   # taken again, or the dock was all
         continue                          # along: wait again, above
       if arrived:
+        # Line up on the bay's own tag and creep until the electrical
+        # criterion fires -- position is believed, contact is known.
+        tried = yield from self.body.dock_routine()
+        # ⚠ NO BOARD FROM THE STANDOFF THE WALK ARRIVED AT IS A ROBOT LOST
+        # (issue #476): Rowan walked to the same wrong place 31 times until
+        # it died flat. Put right, it walks back by the loop -- the bay
+        # looked at again, for the other may have docked meanwhile (#455)
+        # -- and near enough the board decides, as below.
+        if tried == "no board" and not searched and not self.body.charging():
+          searched = True
+          if (yield from self.body.lost_routine("dock")):
+            continue
         break
       if self._near_standoff(sx, sy):
         # ⚠ NOT `GO_CHARGE: `, which the site counts as a failed attempt
@@ -2608,30 +2643,14 @@ class HubLifecycle:
       # a trip that ended in a wait that gave up is the wait's. Whoever
       # held the bay is IN the reason: History and a stranded death read it
       # (issue #424).
-      at = driven or (sx, sy)
-      holder = self._bay_holder(*at, seat)
+      holder = self._bay_holder(*(driven or (sx, sy)), seat)
       blocked = None if holder is None else self.peer_at(*holder[:2])
       self.charge_failure = "never reached the charge bay" + (
         "" if driven is None else f": {self.drive_why(*driven)}") + (
         "" if tried is None else "; the board was not in sight from there") + (
-        "" if blocked is None else
-        f" -- {self.held_for(blocked, on_the_dock=holder[:2] != at).replace('the bay', 'it', 1)}")
+        "" if blocked is None else f" -- {self.held_for(blocked, holder[3], 'it')}")
       self._say(f"GO_CHARGE: {self.charge_failure}")
       return False
-    # Line up on the bay's own tag and creep until the electrical criterion
-    # fires -- position is believed, contact is known.
-    if arrived:
-      tried = yield from self.body.dock_routine()
-      # ⚠ NO BOARD FROM THE STANDOFF THE WALK ARRIVED AT IS A ROBOT LOST
-      # (issue #476): Rowan walked to the same wrong place 31 times until it
-      # died flat. Put right, it walks back, and near enough the board
-      # decides, as above.
-      if tried == "no board" and not searched and not self.body.charging():
-        searched = True
-        if (yield from self.body.lost_routine("dock")):
-          back = yield from self.body.go_to_routine(sx, sy, timeout=90.0)
-          if back or self._near_standoff(sx, sy):
-            tried = yield from self.body.dock_routine()
     if not self.body.charging():
       # the approach's trace is EVIDENCE (issue #346), the log's alone
       self.charge_failure = f"no charge contact ({tried})"
@@ -4125,6 +4144,45 @@ class HubLifecycle:
       return
     self.stand_up(who, auto=False)
 
+  def _tool_home(self) -> None:
+    """Before the world's hand moves this robot -- a stand-up, a restore's
+    `unclip` -- the tool on its fork goes back to its bay.
+
+    ⚠ THE TOOL COMES HOME WITH IT (issue #311). Standing the chassis up
+    leaves a seated module where it fell -- and on THIS path there may be
+    nobody to notice: the restart timer has no operator behind it, so a
+    module left on the floor of the hall is a bay that is empty for good
+    and an approach lane with a tool in it. A person walking over to pick
+    the robot up picks the pen up too. ⚠ Seated OR ONLY RESTING on the
+    fork, since the timer lands mid-errand (issue #348): mid-pick is
+    where Rowan was knocked over. No errand disagrees about what it holds,
+    because the day loop closes the one it lands in before it runs again;
+    a module still hung on its own bay stays, and one whose bay another
+    has taken, or another robot's swap is working at, is left to the
+    lost-tool clock: #347's two rules, or it lands in a module or a fork."""
+    from pluggybot.procedure import steps as procedure
+    held = (self.module if self.tool_powered and self.module
+            else procedure._carried(self))
+    if held in self.rack_inventory:
+      st = self.body.module_state(held)
+      bay_y = STATION_YS[self.rack_inventory[held]]
+      worked = any(p.body.swapping_at is not None
+                   and abs(p.body.swapping_at - bay_y) < 1e-6
+                   for p in self.peers)
+      if not (st["hung"] and st["bay"] == self.rack_inventory[held]) \
+          and not self._bay_taken(held) and not worked:
+        self._return_module(held)
+        self.tool_powered = False
+        self._say(f"{held} was still on my fork -- back on its bay")
+
+  def _whose_start(self, pose) -> str | None:
+    """Whose commissioned start `pose` is, where it is another robot's and
+    not this one's own (`up_pose` hands out the others' when its own is
+    taken); else None."""
+    return next((p.robot_name for p in self.peers
+                 if pose != self.home_pose and p.home_pose is not None
+                 and tuple(p.home_pose) == tuple(pose)), None)
+
   def stand_up(self, by: str, auto: bool) -> None:
     """Put the robot back at the start pose with a full pack.
 
@@ -4160,38 +4218,11 @@ class HubLifecycle:
     before_frac = self.battery.fraction
     dead_s = round(t - was["t"], 3) if was else 0.0
     self.body.docked = False
-    # ⚠ THE TOOL COMES HOME WITH IT (issue #311). Standing the chassis up
-    # leaves a seated module where it fell -- and on THIS path there may be
-    # nobody to notice: the restart timer has no operator behind it, so a
-    # module left on the floor of the hall is a bay that is empty for good
-    # and an approach lane with a tool in it. A person walking over to pick
-    # the robot up picks the pen up too. ⚠ Seated OR ONLY RESTING on the
-    # fork, since the timer lands mid-errand (issue #348): mid-pick is
-    # where Rowan was knocked over. No errand disagrees about what it holds,
-    # because the day loop closes the one it lands in before it runs again;
-    # a module still hung on its own bay stays, and one whose bay another
-    # has taken, or another robot's swap is working at, is left to the
-    # lost-tool clock: #347's two rules, or it lands in a module or a fork.
-    from pluggybot.procedure import steps as procedure
-    held = (self.module if self.tool_powered and self.module
-            else procedure._carried(self))
-    if held in self.rack_inventory:
-      st = self.body.module_state(held)
-      bay_y = STATION_YS[self.rack_inventory[held]]
-      worked = any(p.body.swapping_at is not None
-                   and abs(p.body.swapping_at - bay_y) < 1e-6
-                   for p in self.peers)
-      if not (st["hung"] and st["bay"] == self.rack_inventory[held]) \
-          and not self._bay_taken(held) and not worked:
-        self._return_module(held)
-        self.tool_powered = False
-        self._say(f"{held} was still on my fork -- back on its bay")
+    self._tool_home()
     # ...and never onto another robot (issue #387; `up_pose`). An admin's
     # hand with every start taken still puts it home: a person chose.
     pose = self.up_pose() or self.home_pose
-    whose = next((p.robot_name for p in self.peers
-                  if pose != self.home_pose and p.home_pose is not None
-                  and tuple(p.home_pose) == tuple(pose)), None)
+    whose = self._whose_start(pose)
     self.body.start_at(*pose)
     self.battery.energy_wh = self.battery.capacity_wh
     self.dead = None
@@ -6744,10 +6775,14 @@ class HubLifecycle:
                     "wasState": state.get("state", "")}
 
   def _resumed_line(self, r: dict) -> str:
-    """History's first line after a restart (issue #345)."""
+    """History's first line after a restart (issue #345): from where it was
+    saved, and where the restore put it clear of the other robot (#455)."""
+    clip = r.get("unclipped")
     line = continuation.resumed_line(
-      self.body.pose_xy() if r["inPlace"] else None,
+      (clip["from"] if clip else self.body.pose_xy()) if r["inPlace"] else None,
       self.battery.fraction, r["why"])
+    if clip:
+      line += f"; {_unclipped_words(clip)}"
     if self.dead is not None:
       left = self.reset_in_s
       line += (f" -- still down ({self.dead['cause']})"
@@ -7229,8 +7264,9 @@ class HubLifecycle:
     resumed = self.resumed
     if resumed is not None and resumed["inPlace"]:
       # A RESTART IS A CONTINUATION (issue #345): the bodies are where they
-      # were saved and the robot believes what it believed, so nothing
-      # moves before the loop.
+      # were saved -- but one `unclip` put clear of the other (#455) -- and
+      # the robot believes what it believed, so nothing moves before the
+      # loop.
       self.body.start_discovery()
       self.explore_deadline = (resumed["exploreDeadline"]
                                if resumed["exploreDeadline"] is not None
@@ -7240,7 +7276,6 @@ class HubLifecycle:
       self.body.start_discovery()
       yield from self.body.look_around_routine()   # seed the map before deciding anything
       self.explore_deadline = self.data.time + explore_budget
-    self.home_pose = tuple(float(v) for v in start)
     if resumed is None:
       self._say("mission start")
       self.survival_since = float(self.data.time)
@@ -8009,6 +8044,24 @@ def carrying(other) -> str:
   if getattr(other, "body", None) is None:
     return ""                    # a robot that shows no fork shows nothing on it
   return _carried(other) or ""
+
+
+def holder(peers, who: str, where: str, near: float, what: str, verb: str = "is") -> str:
+  """A robot holding a bay another waits for, as one clause (issues #346,
+  #455): on its standoff, on the dock's way in, or on the dock
+  (`HubLifecycle._bay_holder`)."""
+  how = posture(peers, who)
+  if where == "standoff":
+    return f"{who} {verb} {how} {near:.2f} m from {what}"
+  if where == "lane":
+    return f"{who} {verb} {how} on the dock's way in"
+  return f"{who} {verb} {'' if how == 'lying down to rest' else how + ' '}on the dock"
+
+
+def _unclipped_words(clip: dict) -> str:
+  """What `HubLifecycle.unclip` did, as History says it (issue #455)."""
+  return (f"I came back {clip['deepM']:.2f} m inside {clip['who']}'s body there, "
+          f"and the world put me at {clip['to']}")
 
 
 def posture(peers, name: str) -> str:

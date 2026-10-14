@@ -15,6 +15,11 @@ scene:
             far off): the walk in meets the robot on the dock
   wait      one lying down to rest on the dock's standoff; the other comes
             to charge (its wait bounded at 60 s)
+  lane      one lying down to rest across the dock's way in, between the
+            standoff and the seat and 0.2 m off its line; the other comes to
+            charge (its wait bounded at 60 s)
+  backout   one charging on the dock, the other lying down to rest on the
+            standoff; the first backs off the dock
   swap      one lying down to rest 0.42 m from the claw bay's working pose,
             where afb473a's lay at t=1073381; the other fetches the claw
 
@@ -28,6 +33,8 @@ touched, the fastest either root moved, and their falls.
                             # (`--jam 954017,1051301,1126640`)
     ... --no-contact        # the pair passes through each other, as it did
                             # before #455's closing change (`PAIR_BITS`)
+    ... --blind             # the blind walks in and back out do not stop on
+                            # the other robot (`QuadMission.touches_peer`)
 
 Before #455's closing change the scenes fly on staging's code (`ef4b9b5`):
 SimNotes, "Two bodies on one dock".
@@ -45,7 +52,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-SCENES = ("overlap", "double", "bump", "wait", "swap")
+SCENES = ("overlap", "double", "bump", "wait", "lane", "backout", "swap")
 #: afb473a's jams, true poses off the `drift` rows: (Luca, Rowan), x, y, yaw deg
 JAMS = {"954017": ((3.451, -0.496, 27.0), (3.409, -0.376, -83.4)),
         "1051301": ((3.428, -0.359, -84.0), (3.424, -0.412, -172.6)),
@@ -54,8 +61,8 @@ HALL = (-3.5, 1.0)
 #: ...and with contact, where the second robot is put is the hall: the
 #: living room instead
 LIVING = (0.5, 1.5)
-#: `--no-contact`, for the child that flies a scene
-NO_CONTACT = False
+#: `--no-contact` and `--blind`, for the child that flies a scene
+NO_CONTACT = BLIND = False
 
 
 def _pair(live: str | None = None):
@@ -65,6 +72,9 @@ def _pair(live: str | None = None):
   from unknown_spike import true_floor
   if NO_CONTACT:
     lw.PAIR_BITS = ((0, 0), (0, 0))
+  if BLIND:
+    from pluggybot.legs.body import QuadMission
+    QuadMission.touches_peer = lambda self, ahead: False
   me, peer = build_pair(QUAD_HOME, errands=("none", "none"), near_field=True)
   if live is None:
     for life in (me, peer):
@@ -199,6 +209,9 @@ def double(bump: bool = False) -> dict:
   def comes_to_charge():
     while not peer.body.charging():
       yield from me.body.hold_routine(0.5)
+      if me.data.time > 120.0:              # the first never docked
+        out["second"] = {"docked": False, "failure": "the first never docked"}
+        return
     ok = yield from me.go_charge_routine()
     mx, my, _ = me.body.true_pose()
     px, py, _ = peer.body.true_pose()
@@ -211,11 +224,16 @@ def double(bump: bool = False) -> dict:
   return out | read() | {"said": _said(me)}
 
 
-def wait() -> dict:
+def wait(lane: bool = False) -> dict:
   from pluggybot import tick
   me, peer = _pair()
   sx, sy, syaw = me.body.charge_standoff()
-  peer.body.start_at(sx - 0.02, sy + 0.02, syaw)
+  if lane:                                 # half way in, 0.2 m off the line
+    cx, cy = me.body.charge_seat()
+    mx, my, d = (sx + cx) / 2, (sy + cy) / 2, math.dist((sx, sy), (cx, cy))
+    peer.body.start_at(mx - 0.2 * (cy - sy) / d, my + 0.2 * (cx - sx) / d, syaw + math.pi / 2)
+  else:
+    peer.body.start_at(sx - 0.02, sy + 0.02, syaw)
   me.body.start_at(sx - 1.8, sy + 1.2, 0.0)
   me.wait_bound = lambda kind, x, y: (60.0, "charge")
   me.battery.energy_wh = me.battery.capacity_wh * 0.3
@@ -238,6 +256,42 @@ def wait() -> dict:
 
   tick.run_many([(peer.body.stepper, resting()), (me.body.stepper, charging())], name="wait")
   return out | _aside(peer) | read() | {"said": _said(me) + _said(peer)}
+
+
+def backout() -> dict:
+  from pluggybot import tick
+  me, peer = _pair()
+  sx, sy, syaw = me.body.charge_standoff()
+  me.body.start_at(sx, sy, syaw)
+  peer.body.start_at(sx - 2.0, sy + 1.5, 0.0)
+  me.battery.energy_wh = me.battery.capacity_wh * 0.5
+  read = _bodies(me, peer)
+  out: dict = {}
+
+  def docks_then_backs_out():
+    out["docked"] = bool((yield from me.go_charge_routine()))
+    while peer.body.posture != "lying":
+      yield from me.body.dock_hold_routine(0.25)
+    x0, y0 = me.body.pose_xy()
+    t0 = float(me.data.time)
+    yield from me.body.undock_routine()
+    x1, y1 = me.body.pose_xy()
+    out["backedM"] = round(math.hypot(x1 - x0, y1 - y0), 3)
+    out["backedS"] = round(float(me.data.time) - t0, 1)
+
+  def comes_to_lie_on_the_standoff():
+    while not me.body.charging():
+      yield from peer.body.hold_routine(0.5)
+      if peer.data.time > 120.0:
+        return
+    peer.body.start_at(sx, sy, syaw + math.pi / 2)  # across the standoff
+    yield from peer.body.rest_routine()
+    while "backedM" not in out and peer.data.time < 300.0:
+      yield from peer.body.hold_routine(0.5)
+
+  tick.run_many([(me.body.stepper, docks_then_backs_out()),
+                 (peer.body.stepper, comes_to_lie_on_the_standoff())], name="backout")
+  return out | read()
 
 
 def swap(module: str = "module_claw") -> dict:
@@ -270,7 +324,7 @@ def swap(module: str = "module_claw") -> dict:
 
 def fly_one(scene: str, jam: str, live: str | None) -> dict:
   out = (overlap(jam, live) if scene == "overlap" else double(bump=True)
-         if scene == "bump" else globals()[scene]())
+         if scene == "bump" else wait(lane=True) if scene == "lane" else globals()[scene]())
   return {"scene": scene, **({"jam": jam, "live": bool(live)} if scene == "overlap" else {}),
           **out}
 
@@ -283,12 +337,14 @@ def main(argv=None) -> int:
   ap.add_argument("--jam", default="954017", help=f"`overlap`'s poses: {', '.join(JAMS)}")
   ap.add_argument("--no-contact", action="store_true",
                   help="the pair passes through each other, as before #455's closing change")
+  ap.add_argument("--blind", action="store_true",
+                  help="the blind walks do not stop on the other robot")
   ap.add_argument("--out", default=None)
   ap.add_argument("--one", default=None, help=argparse.SUPPRESS)
   args = ap.parse_args(argv)
   if args.one:
-    global NO_CONTACT
-    NO_CONTACT = args.no_contact
+    global NO_CONTACT, BLIND
+    NO_CONTACT, BLIND = args.no_contact, args.blind
     print(json.dumps(fly_one(args.one, args.jam, args.live), default=str))
     return 0
   rows = []
@@ -297,6 +353,7 @@ def main(argv=None) -> int:
       cmd = [sys.executable, __file__, "--one", scene, "--jam", jam]
       cmd += ["--live", args.live] if args.live else []
       cmd += ["--no-contact"] if args.no_contact else []
+      cmd += ["--blind"] if args.blind else []
       done = subprocess.run(cmd, capture_output=True, text=True, check=True)
       rows.append(json.loads(done.stdout.strip().splitlines()[-1]))
       print(json.dumps(rows[-1], indent=1, default=str), flush=True)
