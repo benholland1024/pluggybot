@@ -457,6 +457,14 @@ def test_an_act_whose_route_gave_up_never_reached_the_cage():
   assert HubLifecycle._program_failure(errand, {"procedure": run}) == (
     "never reached the cage: the drive gave up 1.0 m short after 180 s (stalled, no "
     "progress for 10 s), on leg 1 of 5 of the way there")
+  # ...and a FIND, the whole way there on legs, in its words and never its
+  # why alone: "never reached the cage: not found, on leg 1 of 1" (#439)
+  said = "did not find tag 36 round (25.2, -2.4) in 300 s and ran out of time (1 looks round)"
+  found = {"failedAt": 0, "steps": [{"i": 0, "verb": "find", "ok": False,
+                                     "why": "out of time", "reason": said}]}
+  legs = SimpleNamespace(detail={"cage": "lab", "routeLegs": 1})
+  assert HubLifecycle._program_failure(legs, {"procedure": found}) == (
+    f"never reached the cage: {said}")
   # ...and a failure IN the lab -- the pass over the plate -- is not one
   in_lab = {**run, "failedAt": 5, "steps": [{**run["steps"][0], "i": 5}]}
   assert HubLifecycle._program_failure(errand, {"procedure": in_lab}) == ""
@@ -586,6 +594,60 @@ def test_a_press_that_pressed_leaves_its_tries_in_the_log_alone(monkeypatch):
                        "-> pressed]"), line
   assert not any("belief off" in ln for ln in _history(life))
   assert "belief off" not in life.status
+
+
+def _find_gave_up(life):
+  """A find whose walks took it nowhere to look from, as `find_routine`
+  records it -- and a later walk elsewhere, so only the find's own record
+  names the walk (#439: two feeds on afb473a)."""
+  def find(tag, near, patience, stop=None):
+    def walk(to, goal, short):
+      return {"to": to, "why": "peer", "goal": goal, "seconds": 0.0, "shortM": short,
+              "peerAt": "here", "peerM": 0.1, "peerXY": (3.5, -0.4), "peerDown": False,
+              "peerRests": True}
+    life.body.last_drive = {"why": "stalled", "goal": (0.0, 0.0), "seconds": 9.0,
+                            "shortM": 1.0}
+    last = walk("viewpoint", (27.7, -2.4), 24.1)
+    return tick.result({
+      "tag": tag, "found": False, "why": "gave up", "seconds": 22.9, "remembered": False,
+      "arounds": 1, "walk": last, "err": [6.0, -2.0, 0.1],
+      "trail": [walk("address", near, 21.9), {"lookedAt": [3.41, -0.38]},
+                walk("viewpoint", (25.2, -2.4), 21.9), walk("viewpoint", (22.7, -2.4), 19.4),
+                last]})
+  return find
+
+
+def test_a_find_whose_walks_took_it_nowhere_says_the_last_walk(monkeypatch):
+  """#439, the find's turn (afb473a): two feeds failed at the find in 23 s,
+  "having looked from every place near there (1 looks round)", when every
+  walk had given up where it stood, the other robot resting in front of the
+  dock; and Rowan, told so of a board, took its tags for moved. The find
+  says its last walk in #350's words, off its OWN record; the feed's
+  verdict leads with all of it, never the bare "not found" it said;
+  History says it once, and the walks are the log's."""
+  from pluggybot.lifecycle import cage_errand
+  life = _life()
+  feed = cage.PLATE_TAGS["feed"]
+  monkeypatch.setattr(life.body, "find_tag_routine", _find_gave_up(life))
+  out = life.body.run(st.run_verb(life, st.VERBS["find"], {"tag": feed, "x": 25.2, "y": -2.4}))
+  said = ("did not find tag 36 round (25.2, -2.4) in 23 s, and no walk took it anywhere else "
+          "to look from (1 looks round): the drive gave up 24.1 m short after 0 s (the other "
+          "robot lying down to rest in the way, 0.1 m off)")
+  assert out["reason"] == said
+  peer = "peerAt=here peerM=0.1 peerDown=False peerRests=True"
+  assert out["trace"] == (
+    f"find tag 36: to the address (25.20, -2.40) peer 21.90 m short after 0 s {peer}, "
+    "looked round at (3.41, -0.38), 3 viewpoints, each peer after 0 s at most, "
+    "-> gave up after 23 s, belief off +6,-2 mm +0.1 deg")
+  errand = cage_errand(QUAD_HOME, "feed", task="feed")
+  errand.task_id, errand.detail["predicted"] = "t_0001", "eating"
+  result = life.run_errand(errand)
+  reason = result["verdict"]["reason"]
+  assert reason.startswith(f"never reached the cage: {said} -- "), reason
+  assert sum(said in ln for ln in _history(life)) == 1, _history(life)
+  assert any("3 viewpoints, each peer" in ln for ln in life.log), "the walks, in the log"
+  assert not any("viewpoints" in ln for ln in _history(life))
+  assert "viewpoints" not in life.status
 
 
 def test_a_census_that_never_ran_names_its_zone_and_never_none():

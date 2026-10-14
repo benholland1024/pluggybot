@@ -147,6 +147,38 @@ def test_a_procedure_cut_short_tells_the_robot_the_line_and_the_reason():
   assert cut["failedReason"].startswith("could not pick up module_claw")
 
 
+def test_a_call_refused_at_run_time_is_named_once():
+  """A computed tag is checked when it is computed, and History names the
+  failed step's call before its reason -- a reason that named it too read
+  `line 3, pick: pick(tag=99) ...` (#463)."""
+  life = stub_life()
+  L = lib.Library(lc.world_facts(WORLD))
+  L.define("big", "def big():\n  t = 99\n  pick(t)\n")
+  life.run_errand(errand_from(Decision(action="procedure:big"), WORLD, library=L))
+  assert ("it stopped at line 3, pick: tag 99 names no cube this world has "
+          "(cubes: 20 to 24) (0 steps had run)") in life.thoughts.read("History.md")
+
+
+def test_an_argument_the_run_cannot_compute_is_named_by_its_call():
+  """A fault computing a call's argument said `it stopped at an expression:
+  division by zero`, no line, no call -- though the step knew both (#463)."""
+  life = stub_life()
+  L = lib.Library(lc.world_facts(WORLD))
+  L.define("u", "def u():\n  t = 0\n  wait(1 / t)\n")
+  life.run_errand(errand_from(Decision(action="procedure:u"), WORLD, library=L))
+  assert "it stopped at line 3, wait: division by zero" in life.thoughts.read("History.md")
+
+
+def test_a_local_is_said_with_every_digit():
+  """`:g` kept six digits: a readout of 1234567 reached History as
+  `1.23457e+06`, beside a refusal that quoted its tag whole (#463)."""
+  life = stub_life()
+  L = lib.Library(lc.world_facts(WORLD))
+  L.define("big", "def big():\n  t = 1234567\n  u = 2.5\n  wait(0.1)\n")
+  life.run_errand(errand_from(Decision(action="procedure:big"), WORLD, library=L))
+  assert "it ended with t = 1234567, u = 2.5" in life.thoughts.read("History.md")
+
+
 def test_a_procedure_that_finished_says_so():
   """A robot must know its procedure ENDED to say `done` after it: round 2
   of #264's probes set `done` before the run, and the grade found one block."""

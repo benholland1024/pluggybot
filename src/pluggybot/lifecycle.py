@@ -76,7 +76,7 @@ from pluggybot.telemetry.protocol import (
   robot_roots,
 )
 from pluggybot.telemetry.recorder import TelemetryRecorder, mode_message
-from pluggybot.procedure.steps import Program, compile_program
+from pluggybot.procedure.steps import Program, compile_program, number_text
 from pluggybot.robot import FIRST, RobotHandle
 from pluggybot.tick import MissionAborted, Routine
 
@@ -524,7 +524,10 @@ def procedure_outcome(name: str, run: dict) -> list[str]:
             + ("" if run.get("error") else f" ({steps_said} had run)"))
   if not run.get("locals"):
     return [line]
-  items = [f"{k} = {v:g}" for k, v in list(run["locals"].items())[:LOCALS_SHOWN]]
+  # every digit, as the refusal on the same line quotes a tag: `:g` said
+  # `t = 23` after `tag 23.0000001`, and `1.23457e+06` for 1234567 (#463)
+  items = [f"{k} = {number_text(v)}"
+           for k, v in list(run["locals"].items())[:LOCALS_SHOWN]]
   # History prefixes the sim clock ("[t=12345s] ") INSIDE its 400, so the
   # room is less than the cap -- measured on the second review: a 397-char
   # line kept "mass = 0" of "mass = 0.207812", a wrong number, not a lost one.
@@ -3453,6 +3456,10 @@ class HubLifecycle:
       # only "the feed plate was never pressed", Rowan filed the plate's
       # sensor as faulty after 12 straight misses, and not one was the plate.
       return step.get("reason", "") if step.get("verb") == "press" else ""
+    if step.get("verb") == "find" and step.get("reason"):
+      # ...and a FIND, the whole way there on legs, in its own words (#439):
+      # its why alone told the robot "not found, on leg 1 of 1"
+      return f"never reached the cage: {step['reason']}"
     why = step.get("why") or step.get("reason") or "the drive gave up"
     return f"never reached the cage: {why}, on leg {at + 1} of {legs} of the way there"
 
@@ -3573,13 +3580,17 @@ class HubLifecycle:
     # wire at all -- a reader could see a run was cut short, not what cut it.
     failed = next((s for s in run["steps"]
                    if run.get("failedAt") is not None and s.get("i") == run["failedAt"]), {})
+    # A local that is no number (inf, nan) stays off the wire: JSON has no
+    # word for it, and the site's parser dropped the whole event (#463).
+    # History still says it (`procedure_outcome`).
+    shown = {k: v for k, v in (run.get("locals") or {}).items() if math.isfinite(v)}
     self._emit({**base, "t": round(float(self.data.time), 3),
                 "outcome": "ran" if run.get("ok") else "aborted",
                 "completed": run["completed"], "total": run["total"],
                 "failedAt": run.get("failedAt"), "stopped": run.get("stopped"),
                 **({"failedLine": failed["line"]} if failed.get("line") else {}),
                 **({"failedReason": failed["reason"]} if failed.get("reason") else {}),
-                **({"locals": run["locals"]} if run.get("locals") else {})})
+                **({"locals": shown} if shown else {})})
     # ...and the steps that went through their evidence, the log's alone: a
     # failed step's trace rode its own line, and a press's tries are read
     # by the day whether it pressed or not (issue #439)

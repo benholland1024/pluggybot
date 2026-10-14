@@ -408,27 +408,33 @@ save a filmstrip PNG named after the script.
   quirks, `effort` among them: Overseer.md §6.)
 - **A placeholder is empty, and an answer full of them buys and gives
   nothing** (issue #462; Overseer.md §4 "Placeholders"; `overseer.unfill`,
-  `tests/test_placeholders.py`): every field is required, and the model
-  writes `n`, `none`, `:` or the field's own name where `""` was meant.
-  `validate` reads one as `""` where it can stand (`PLACEHOLDER_TEXT`,
-  `PLACEHOLDER_OBJECTS`: an object whose content is one goes whole, a label
-  is blanked); with `FILLED_FIELDS` (3) or more (one word in three fields
-  counts, `keep`, never a topic), `UNSHOWN_PAPERWORK` goes too (the heart,
-  whom for, the gift, the rating, the guess, `done`); a decline of the job
-  the same answer takes is dropped. ⚠ THE ACTION, ITS PARAMETERS, THE EVENT
-  MAP, THE STANDING ORDER AND TEXT THAT IS NO PLACEHOLDER STAND (measured:
-  nearly all of it was meant). ⚠ A number, two letters and a non-ASCII
-  character are never placeholders; `answer`, `cites`, a visitor's `reply`,
-  a unit, a note's topic and title and a procedure's name are never judged.
-  ⚠ A `procedure:new` beside a placeholder define runs nothing and its
+  `tests/test_placeholders.py`): every field is required, and the model writes
+  `n`, `none`, `:`, `test` or a field's name where `""` was meant -- its own,
+  and in a field of its own any the form coined (`COINED`: `drop_goal`,
+  `unpin`), never an everyday one (`done`: "Done!" may be meant); an object
+  is judged by its own names alone (a finding is named for what it measures:
+  `mouse_will`). `validate` reads one as `""` where it can stand
+  (`PLACEHOLDER_TEXT`, `PLACEHOLDER_OBJECTS`: an object whose content is one
+  goes whole, a label is blanked); with `FILLED_FIELDS` (3) or more (one word
+  in three fields counts, `keep`, never a topic), `UNSHOWN_PAPERWORK` goes too
+  (the heart, whom for, the gift, the rating, the guess, `done`); a decline of
+  the job the same answer takes is dropped. ⚠ THE ACTION, ITS PARAMETERS, THE
+  EVENT MAP, THE STANDING ORDER AND TEXT THAT IS NO PLACEHOLDER STAND
+  (measured: nearly all of it was meant). ⚠ A number, two letters and a
+  non-ASCII character are never placeholders; `answer`, `cites`, a visitor's
+  `reply`, a unit, a note's topic and title and a procedure's name are never
+  judged. ⚠ A `procedure:new` beside a placeholder define runs nothing and its
   `undefine` waits (#264's rule), never a garbled answer. ⚠ A QUOTE
-  (`PLACEHOLDER_QUOTES`) stands outside a filled answer, and takes out a line
-  it is only part of only with three letters and no placeholder
-  (`thoughts._loose`: `,` took out Rowan's goal), so an old `n` goal can
-  still go. ONE History line and a `left_out` event (`LEFT_OUT_WHYS`); the
-  decision carries `leftOut`. Every power is judged, unshown or
-  `PLACEHOLDER_KEPT`, and a test fails on one none of them names. The prompt
-  does not change.
+  (`PLACEHOLDER_QUOTES`) takes out a line it is only part of only with three
+  letters and no placeholder (`thoughts._loose`: `,` took out Rowan's goal); a
+  placeholder quote stands outside a filled answer and takes out only a line
+  that is exactly it, so an old `n` goal can still go, and a coined one
+  stands too (`retract` "mouse_will"). ONE History line and a `left_out` event
+  (`LEFT_OUT_WHYS`); the decision carries `leftOut`. Every power is judged,
+  unshown or `PLACEHOLDER_KEPT`, and a test fails on one none of them names.
+  The prompt does not change. ⚠ IT SEES NO CHOICE: outside a filled answer a
+  heart, a gift or a rating is acted on as meant, and on #462's closing
+  reading most were not (Evaluation.md §5).
 - ⚠ **The prefix is ONE list, `system_sections`** (issue #241):
   `system_prompt` joins it and the `prompt` message carries it apart (once per
   open, `Overseer.prompt_message`, with `prompt_sha`), and a test asserts the
@@ -653,7 +659,9 @@ save a filmstrip PNG named after the script.
   executed (a test asserts no `exec`/`eval`/`compile`). The grammar is closed
   (the verbs as statements, `read("sensor")`, locals, arithmetic, `if`, `for
   ... in range(N)` and `while` capped at `MAX_ITER`); anything else is refused
-  with its line, every reason at once, before a step runs. ⚠ THE MOTOR LEVEL
+  with its line, every reason at once, before a step runs. ⚠ A REFUSAL INSIDE
+  A CALL NAMES THE CALL ONCE, as History names a failed step (`line 3, wait:
+  …`; #463): `check_step`'s reasons never name it, their callers do. ⚠ THE MOTOR LEVEL
   IS `move(axis, target)` AND `read(sensor)` over REGISTRIES (`axes.AXES`,
   `axes.SENSORS`): a new tool or body registers its own and the language does
   not change. Budgets (`budget(steps=, seconds=)`) are capped by code
@@ -681,7 +689,10 @@ save a filmstrip PNG named after the script.
   (off this period). ⚠ Billed is billed (metered BEFORE the parse). ⚠ **It
   covers the ROUTINE mind** (#225): a spent purse refuses the next call as
   `fallback:allowance` (policy class). The deployed purse is 9.30 a week (=
-  $40 a month, Ben's cap). ⚠ Points buy ACCESS, never money. Three operator
+  $40 a month, Ben's cap), ⚠ PINNED IN THE WEBSITE'S `compose.yaml`
+  (rooftop-media-2026 #404): unset, the image's own default is $10, and every
+  run from 2026-09-17 until that pin flew at $10 (Observatory.md). ⚠ Points
+  buy ACCESS, never money. Three operator
   modes from `$PLUGGY_MODE_FILE`, never written by the robot: `llm`,
   `scripted`, `paused`. ⚠ Unreadable or unknown means `llm` (failing safe here
   is failing OPEN). ⚠ A paused robot emits no frames, so `mode` is a MESSAGE
@@ -1653,7 +1664,11 @@ save a filmstrip PNG named after the script.
   CHANGED -- a walk in that missed the pad, a standoff a look moved -- NEVER
   THE SAME WALK THERE (`PRESS_TRIES`: a second walk from where the first
   stopped repeated it, 16 of 16 live); its tries are the log's `trace`,
-  pressed or not, and a failure leads a cage job's verdict. ⚠ A DECIDED
+  pressed or not, and a failure leads a cage job's verdict. ⚠ A `find`
+  WHOSE WALKS TOOK IT NOWHERE NEW TO LOOK FROM "gave up", in its last
+  walk's words, never "not found" (#439: "looked from every place near
+  there" in 23 s beside a resting robot), and a cage job's verdict quotes a
+  find's reason, never its why; its walks are the log's `trace`. ⚠ A DECIDED
   `charge` or `explore` says how it ended in History (#424), and a charge
   that never docked is NOT a verdict: its `charge` row is on the wire, and
   a verdict would count it again as a failed task.

@@ -89,7 +89,8 @@ def test_the_served_example_compiles_on_its_world():
   ("def x():\n  print(1)\n", "unknown verb 'print'"),
   ("def x():\n  fly()\n", "unknown verb 'fly'"),
   ("def x():\n  read(\"shoulder\")\n", "read(...) is an expression"),
-  ("def x():\n  wait(stow())\n", "only read(...) may be used inside an expression"),
+  ("def x():\n  wait(stow())\n",
+   "line 2, wait: only read(...) may be used inside an expression"),
   ("def x():\n  a = \"s\"\n", "a str is not a number"),
   ("def x():\n  a = [1]\n", "List is not part"),
   ("def x():\n  a = b.c\n", "Attribute is not part"),
@@ -99,11 +100,11 @@ def test_the_served_example_compiles_on_its_world():
   ("def x():\n  for i in range(1000):\n    stow()\n", "outside 0..100"),
   ("def x():\n  while 1:\n    stow()\n  else:\n    stow()\n", "while takes no else"),
   ("def x():\n  return 1\n", "return takes no value"),
-  ("def x():\n  wait(1, 2)\n", "wait takes 1 argument"),
-  ("def x():\n  wait(seconds=1, z=2)\n", "wait takes no z"),
-  ("def x():\n  fetch()\n", "fetch needs tool"),
-  ("def x():\n  fetch(3)\n", "fetch(tool=...) takes a name in quotes"),
-  ("def x():\n  wait(\"long\")\n", "wait(seconds=...) takes a number"),
+  ("def x():\n  wait(1, 2)\n", "wait: takes 1 argument"),
+  ("def x():\n  wait(seconds=1, z=2)\n", "wait: takes no z"),
+  ("def x():\n  fetch()\n", "fetch: needs tool"),
+  ("def x():\n  fetch(3)\n", "fetch: tool takes a name in quotes"),
+  ("def x():\n  wait(\"long\")\n", "wait: seconds takes a number"),
   ("def x():\n  wait(999)\n", "seconds=999.0 is above 60"),
   ("def x():\n  move(\"shoulder\", 5)\n", "shoulder target 5.0 is outside"),
   ("def x():\n  move(\"warp\", 1)\n", "axis='warp' is not one of"),
@@ -112,7 +113,7 @@ def test_the_served_example_compiles_on_its_world():
   ("def x():\n  drive_to(99, 0)\n", "outside the map"),
   ("def x():\n  budget(steps=999)\n  stow()\n", "steps=999 is outside 1..200"),
   ("def x():\n  budget(seconds=0)\n  stow()\n", "seconds=0.0 is outside"),
-  ("def x():\n  budget(40)\n  stow()\n", "budget takes keywords"),
+  ("def x():\n  budget(40)\n  stow()\n", "line 2, budget: takes keywords"),
   ("def x():\n  budget(steps=\"many\")\n  stow()\n", "not a literal steps or seconds"),
   ("def x():\n  a = 1 +\n", "invalid syntax"),
   ("def x():\n  if 1:\n    if 1:\n      if 1:\n        if 1:\n          stow()\n",
@@ -130,9 +131,145 @@ def test_the_source_cap_is_a_refusal():
   assert any("characters; the cap is" in r for r in refusals(src))
 
 
+@pytest.mark.parametrize("src, said", [
+  ("def x():\n  wait(" + "9" * 309 + ")\n", "line 2, wait: "),
+  ("def x():\n  wait(1e400)\n", "line 2, wait: "),
+  ("def x():\n  t = 0x" + "f" * 260 + "\n  wait(1)\n", "line 2: "),
+  ("def x():\n  budget(seconds=" + "9" * 309 + ")\n  wait(1)\n", "line 2, budget: "),
+], ids=["an argument", "a float", "a hex assignment", "a budget"])
+def test_a_number_too_large_for_a_float_is_refused_never_raised(src, said):
+  """`float()` raised OverflowError on an int past a float's range, out
+  through the define, and nothing above it caught that: one answer of 330
+  characters ended the served process, both robots with it (#500). 1e400,
+  inf, is the same mistake and reads the same."""
+  [why] = refusals(src)
+  assert why == said + "a number is too large to hold", why
+
+
+def test_a_number_too_large_is_one_reason_among_every_other():
+  """Refused before the parse, it was the only reason said: the define's
+  other faults cost the robot another turn each (#500)."""
+  reasons = refusals("def x():\n  wait(" + "9" * 309 + ")\n  import os\n  fly()\n")
+  assert len(reasons) == 3 and reasons[0] == "line 2, wait: a number is too large to hold", reasons
+
+
+@pytest.mark.parametrize("arg", ["-" * 1000 + "1", "+".join(["1"] * 60),
+                                 " and ".join(["1"] * 200)],
+                         ids=["unary minuses", "a long sum", "an and-chain"])
+def test_an_expression_nested_too_deep_is_refused_never_raised(arg):
+  """The parser recursed once a level: ~980 unary minuses, a source of
+  1,000 characters, raised RecursionError out of the define, and the served
+  process ended (#500). A chain of `and`s nests as deep in what it builds,
+  and in `_eval` running it."""
+  [why] = refusals(f"def x():\n  wait({arg})\n")
+  assert why == f"line 2, wait: an expression nests deeper than {lang.MAX_EXPR_DEPTH}", why
+  assert compile_ok("def x():\n  wait(" + "+".join(["1"] * 40) + ")\n")
+
+
+@pytest.mark.parametrize("src, said", [
+  ("def x():\n  wait(1)  # \ud800\n", "the source holds a character that is not text"),
+  ("def x():\n  wait(" + "(" * 199 + "-" * 385 + "1" + ")" * 199 + ")\n",
+   "the source nests too deeply to read"),
+], ids=["a lone surrogate", "the parser's own stack"])
+def test_a_source_python_cannot_read_is_refused_never_raised(src, said):
+  """`ast.parse` raised UnicodeEncodeError on a lone surrogate and
+  MemoryError past its own stack, and only SyntaxError was caught (#500)."""
+  assert refusals(src) == [said]
+
+
 def test_a_fetch_in_a_world_with_an_empty_rack_is_refused_by_the_world():
   reasons = refusals('def x():\n  fetch("module_pen")\n', replace(HOME, tools=()))
   assert any("nothing this world has" in r for r in reasons)
+
+
+def test_a_refused_find_beside_a_place_that_passed_names_the_find():
+  """#463's procedure: `find` asked for a cube and `place` given one. The
+  refusal names the `find` on its line, so it reads as no refusal of `place`."""
+  [why] = refusals("def x():\n  pick(21)\n  find(20, 25.2, -2.4, 300)\n  place(20)\n")
+  assert why.startswith("line 3, find: tag 20 names no place this world has"), why
+
+
+@pytest.mark.parametrize("call, said", [
+  ("find(20, 25.2, -2.4)", "find: tag 20 names no place"),
+  ("survey(20)", "survey: tag 20 names no place"),
+  ("press(20)", "press: tag 20 names no plate"),
+  ("pick(42)", "pick: tag 42 names no cube"),
+  ("place(1000)", "place: tag 1000 names no cube"),
+  ("wait(99)", "wait: seconds=99.0 is above 60"),
+  ("fetch(3)", "fetch: tool takes a name in quotes"),
+  ("move(\"shoulder\", read(\"nope\"))", "move: unknown sensor 'nope'"),
+])
+def test_a_refusal_the_world_gives_names_its_call(call, said):
+  """The robot never sees a refused define's source again -- History keeps
+  the reasons, the library only what it kept -- so `line 2` alone points
+  at nothing it can read: each refusal names its call, as History says a
+  step that failed (`it stopped at line 2, wait: ...`; #463)."""
+  [why] = refusals(f"def x():\n  {call}\n")
+  assert why.startswith(f"line 2, {said}"), why
+
+
+@pytest.mark.parametrize("verb", sorted(st.VERBS))
+def test_every_refusal_inside_a_call_names_it_once(verb):
+  """The parser's (an argument it cannot read, one too many, one it does
+  not take, one it needs), and on a body that has none of the verbs the
+  world's (not on this body), for every verb: each starts with its call,
+  and none names it twice."""
+  for facts in (HOME, replace(HOME, verbs=())):
+    reasons = refusals(f"def x():\n  {verb}(None, zzz=1)\n", facts)
+    assert reasons and all(r.startswith(f"line 2, {verb}: ") for r in reasons), reasons
+    assert not any(f"{verb}: {verb}" in r for r in reasons), reasons
+  assert any("not on this body yet" in r for r in reasons), reasons
+
+
+@pytest.mark.parametrize("arg, said", [
+  ("None", "a NoneType is not a number"),
+  ("read(1)", "read takes one sensor name"),
+  ("int(21)", "only read(...) may be used inside an expression"),
+  ("1 < 2 < 3", "compare two things with one of"),
+  ("+21", "UnaryOp is not part of this language"),
+])
+def test_an_argument_the_parser_refused_is_not_refused_again_as_a_call(arg, said):
+  """The parser stood a refused argument in as 0, and the world's check
+  refused that 0 as well: `pick(int(t))` also read `tag 0 is no cube`, a
+  tag the source never wrote (#463). One case for each place the parser
+  refuses an expression."""
+  [why] = refusals(f"def x():\n  pick({arg})\n")
+  assert why.startswith(f"line 2, pick: {said}"), why
+
+
+@pytest.mark.parametrize("call", ["fetch(None)", "fetch(int(3))",
+                                  "move(read(\"time\"), 1)"])
+def test_a_name_argument_that_is_no_name_is_refused_once(call):
+  """`fetch(None)` read `a NoneType is not a number` and `tool takes a name
+  in quotes`: the parser refused the argument, then `validate` refused what
+  it left (#463)."""
+  [why] = refusals(f"def x():\n  {call}\n")
+  assert why.endswith("takes a name in quotes"), why
+
+
+def test_an_argument_given_by_position_and_by_keyword_is_refused():
+  """Python refuses it; the language let the keyword overwrite the written
+  one, and `find(35, 1, 2, x=5)` searched round x=5, a call never written."""
+  [why] = refusals("def x():\n  find(35, 1, 2, x=5)\n")
+  assert why == "line 2, find: x is given twice", why
+
+
+def test_a_call_written_across_lines_is_named_at_its_own_line():
+  """Each refusal inside a call names the call's line, as History names a
+  step's: a part's own line read as a second call of one verb."""
+  reasons = refusals("def x():\n  drive_to(\n    None,\n    99)\n")
+  assert len(reasons) == 2 and all(r.startswith("line 2, drive_to: ") for r in reasons), reasons
+
+
+def test_the_sensors_are_listed_once_a_define():
+  """A refused define is one History line of 400 characters: a misspelt
+  read in three calls listed every sensor three times, and cut #463's own
+  refusal after it short."""
+  reasons = refusals("def x():\n  move(\"shoulder\", read(\"shoulderr\"))\n"
+                     "  move(\"elbow\", read(\"shoulderr\"))\n"
+                     "  t = read(\"shoulderr\")\n  find(20, 25.2, -2.4)\n")
+  assert sum("(have:" in r for r in reasons) == 1, reasons
+  assert reasons[-1].startswith("line 5, find: tag 20 names no place"), reasons
 
 
 def test_every_reason_is_reported_at_once():

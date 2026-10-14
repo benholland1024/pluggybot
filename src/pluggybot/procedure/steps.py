@@ -197,9 +197,11 @@ class Program:
 
 @dataclass(frozen=True)
 class Arg:
-  """One typed argument. `choices` is a name on `WorldFacts` (the world
-  decides), `lo`/`hi` bound a number, `bounds` says a pair is checked
-  against the world's box. One with a `default` may be left out."""
+  """One typed argument. `choices` is a list on `WorldFacts` (the world
+  decides) a name must be one of -- or, for a number, a tag must be on
+  (`places`, `plates`, `cubes`; #463) -- `lo`/`hi` bound a number, `bounds`
+  says a pair is checked against the world's box. One with a `default` may
+  be left out."""
 
   kind: str                    # "float" | "str"
   lo: float | None = None
@@ -503,13 +505,74 @@ def _find(life, args: dict) -> Routine:
                 + (" where it was last seen, nor" if rec.get("remembered") else "")
                 + f" round ({x:g}, {y:g}) in {float(rec.get('seconds') or 0):.0f} s")
     looks = f" ({int(rec.get('arounds') or 0)} looks round)"
+    walk = rec.get("walk") or {}
+    # ...and one whose walks took it nowhere to look from says the last
+    # walk's words (#439): "having looked from every place near there", in
+    # 23 s beside the other robot, was read as the board's tags moved
+    walk_why = (f": {life.drive_why(*walk['goal'], record=walk)}"
+                if walk.get("why") and walk.get("goal") else "")
     out["reason"] = (
       f"stopped looking for tag {tag} by its own interrupt" if why == "interrupted"
       else f"tag {tag} marks no place in this world" if why == "not a place"
       else f"{searched}, having looked from every place near there{looks}" if why == "not found"
+      else f"{searched}, and no walk took it anywhere else to look from{looks}{walk_why}"
+      if why == "gave up"
       else f"{searched} and ran out of time{looks}" if why == "out of time"
       else f"did not find tag {tag}: {why or 'no reason given'}")
+  if rec.get("trail"):
+    out["trace"] = f"find tag {tag}: {find_trace(rec)}"
   return out
+
+
+def _walk_trace(w: dict) -> str:
+  """A walk's record (`Navigator.last_drive`) as a trace says it: how it
+  ended, how far short and after how long, and the robot it was about."""
+  if "why" not in w:
+    return "?"
+  peer = "".join(f" {k}={w[k]}" for k in ("peerAt", "peerM", "peerDown", "peerRests",
+                                           "peerDead", "askedWay") if k in w)
+  how = "arrived" if not w["why"] else f"{w['why']} {float(w.get('shortM') or 0):.2f} m short"
+  return f"{how} after {float(w.get('seconds') or 0):.0f} s{peer}"
+
+
+#: What a find's trace calls each walk's goal (`PlaceWalk.find_routine`).
+FIND_WALKS = {"guess": "where it should be", "address": "the address", "viewpoint": "viewpoint"}
+
+
+def find_trace(rec: dict) -> str:
+  """A find's trail as one line of evidence (issue #439), the log's alone:
+  each walk -- where to, and how it ended -- and each look round, a run of
+  three or more viewpoints whose walks ended alike as one; then how the
+  find ended and where its belief stood against the truth. A failed find
+  said "ran out of time (1 looks round)", and nothing in the log told a long
+  walk from the house from a robot lost in the lab."""
+  parts: list[str] = []
+  trail = list(rec.get("trail") or ())
+  i = 0
+  while i < len(trail):
+    e = trail[i]
+    if "lookedAt" in e:
+      parts.append(f"looked round at ({e['lookedAt'][0]:.2f}, {e['lookedAt'][1]:.2f})")
+      i += 1
+      continue
+    j = i
+    while (e.get("to") == "viewpoint" and j + 1 < len(trail)
+           and trail[j + 1].get("to") == "viewpoint" and trail[j + 1].get("why") == e.get("why")):
+      j += 1
+    if j - i >= 2:
+      longest = max(float(w.get("seconds") or 0) for w in trail[i:j + 1])
+      parts.append(f"{j - i + 1} viewpoints, each {e.get('why', '?') or 'arrived'} "
+                   f"after {longest:.0f} s at most")
+    else:
+      for w in trail[i:j + 1]:
+        gx, gy = w.get("goal") or (math.nan, math.nan)
+        parts.append(f"to {FIND_WALKS.get(w.get('to'), w.get('to'))} ({gx:.2f}, {gy:.2f}) "
+                     f"{_walk_trace(w)}")
+    i = j + 1
+  dx, dy, dyaw = rec.get("err") or (math.nan,) * 3
+  parts.append(f"-> {rec.get('why', '?')} after {float(rec.get('seconds') or 0):.0f} s, "
+               f"belief off {dx:+.0f},{dy:+.0f} mm {dyaw:+.1f} deg")
+  return ", ".join(parts)
 
 
 #: What a `press` that did not press says, by its body's why (issue #419).
@@ -587,11 +650,7 @@ def press_trace(rec: dict) -> str:
     bits = [f"#{i} standoff ({sx:.2f}, {sy:.2f})"]
     w = a.get("walk")
     if w:
-      peer = "".join(f" {k}={w[k]}" for k in ("peerAt", "peerM", "peerDown", "peerRests",
-                                               "peerDead", "askedWay")
-                     if k in w)
-      bits.append(f"walk {w.get('why')} {float(w.get('shortM') or 0):.2f} m short "
-                  f"after {float(w.get('seconds') or 0):.0f} s{peer}")
+      bits.append(f"walk {_walk_trace(w)}")
     elif a.get("walkS") is not None:
       bits.append(f"walked {float(a['walkS']):.0f} s")
     if "reaim" in a:
@@ -887,7 +946,7 @@ VERBS: dict[str, Verb] = {
   # PLACES (issue #419): a task area found by its tag and remembered, and a
   # plate pressed off its sign -- the robot's own knowledge, never a
   # coordinate handed over
-  "find": Verb("find", {"tag": Arg("float", lo=0, hi=999), "x": Arg("float"),
+  "find": Verb("find", {"tag": Arg("float", choices="places"), "x": Arg("float"),
                         "y": Arg("float"),
                         "patience": Arg("float", lo=0.0, hi=MAX_PATIENCE_S,
                                         default=FIND_PATIENCE_S)},
@@ -896,7 +955,7 @@ VERBS: dict[str, Verb] = {
                "the tag is in view; ok when seen, and you remember where it is. "
                f"It gives up after `patience` seconds (at most {MAX_PATIENCE_S:.0f})",
                drives=True),
-  "press": Verb("press", {"tag": Arg("float", lo=0, hi=999)}, _press,
+  "press": Verb("press", {"tag": Arg("float", choices="plates")}, _press,
                 "walk onto the plate this tag's sign marks, the last step "
                 "measured off the sign, and back off it; ok when a foot was on "
                 "it. `find` it first", drives=True),
@@ -911,13 +970,13 @@ VERBS: dict[str, Verb] = {
                "ok when ink landed", drives=True),
   # THE CLAW (issue #407): a cube by its tag, found and taken, set down on
   # another or on the floor -- the cube's place is the robot's to find
-  "pick": Verb("pick", {"tag": Arg("float", lo=0, hi=999)}, _pick,
+  "pick": Verb("pick", {"tag": Arg("float", choices="cubes")}, _pick,
                "take the cube carrying this tag in the claw: you look for it from "
                "where you stand, where you saw it last, and in front of its "
                "area's tags (`find` one of them first), walk in, lie down and "
                "close the jaws on it; ok when they hold it. An empty fork "
                "fetches the claw first", drives=True),
-  "place": Verb("place", {"tag": Arg("float", lo=0, hi=999)}, _place,
+  "place": Verb("place", {"tag": Arg("float", choices="cubes")}, _place,
                 "set the cube in the claw down on top of the cube carrying this "
                 "tag, found as `pick` finds one, and let go; ok when it rests "
                 "on it", drives=True),
@@ -928,7 +987,7 @@ VERBS: dict[str, Verb] = {
   "release": Verb("release", {}, _release, "open the claw's jaws where it is; ok "
                   "when nothing is in them -- a cube let go high falls"),
   # THE CENSUS (issue #407): what stands in an area found by its tag
-  "survey": Verb("survey", {"tag": Arg("float", lo=0, hi=999)}, _survey,
+  "survey": Verb("survey", {"tag": Arg("float", choices="places")}, _survey,
                  "walk round the area this tag marks -- the floor its walls and "
                  "fence enclose -- and count what stands in it, low, off the depth "
                  "camera; `find` the tag first. ok when surveyed; its count and the "
@@ -1189,6 +1248,8 @@ def check_arg(verb: Verb, name: str, value, facts: WorldFacts) -> list[str]:
       bad.append(f"{name}={value} is below {arg.lo}")
     if arg.hi is not None and float(value) > arg.hi:
       bad.append(f"{name}={value} is above {arg.hi}")
+    if arg.choices and value not in getattr(facts, arg.choices):
+      bad.append(_not_on(name, value, arg.choices, facts))
     return bad
   if not isinstance(value, str):
     return [f"{name} must be a name, not {value!r}"]
@@ -1199,48 +1260,77 @@ def check_arg(verb: Verb, name: str, value, facts: WorldFacts) -> list[str]:
   return []
 
 
+#: What a tag on another list is, said beside its refusal (#407: a first
+#: weighing on legs asked `find` for its cube and was told only what the
+#: places are).
+TAG_GLOSS = {"cubes": "is a cube's, and `pick` finds a cube by its tag",
+             "places": "marks a place, which `find` finds"}
+
+
+def _not_on(name: str, value: float, choices: str, facts: WorldFacts) -> str:
+  """A tag on none of its list: `tag 20 names no place this world has
+  (places: 35 to 46); 20 is a cube's, ...`, and a tag `Arg` carries no bound,
+  which refused it a second time (#463)."""
+  other = "places" if choices == "cubes" else "cubes"
+  gloss = (f"; {number_text(value)} {TAG_GLOSS[other]}"
+           if value in getattr(facts, other) else "")
+  return (f"{name} {number_text(value)} names no {choices[:-1]} this world has "
+          f"({choices}: {_tags(getattr(facts, choices))}){gloss}")
+
+
+def number_text(v: float) -> str:
+  """A number exactly as it is: every digit of 23.0000001, which `:g`
+  quoted as `23` beside a list holding 23, and a whole float without its
+  `.0` -- a tag, and the locals History reads (`procedure_outcome`)."""
+  return str(v) if isinstance(v, int) else repr(float(v)).removesuffix(".0")
+
+
+def _tags(tags: tuple[int, ...]) -> str:
+  """A world's tags, a run of three or more as `lo to hi`: a refused define
+  is one History line, cut at 400 characters, and the twelve places listed
+  in full twice cut #463's own refused rewrite short (401). Never `lo..hi`,
+  which reads as leaving `hi` out."""
+  runs: list[list[int]] = []
+  for t in tags:
+    if runs and t == runs[-1][-1] + 1:
+      runs[-1].append(t)
+    else:
+      runs.append([t])
+  return ", ".join(f"{r[0]} to {r[-1]}" if len(r) >= 3 else ", ".join(map(str, r))
+                   for r in runs) or "none"
+
+
 def check_step(verb: Verb, args: dict, facts: WorldFacts,
                partial: bool = False) -> list[str]:
   """Every argument of one step. `partial` skips the missing-argument rule,
-  for a language checking only the literal half of a call."""
+  for a language checking only the literal half of a call.
+
+  ⚠ A REASON NEVER NAMES ITS CALL: whoever knows where the step is names
+  it, once (`validate`, `lang.validate`, History's `procedure_outcome`:
+  `line 3, wait: seconds=99.0 is above 60.0`). "tag 20 is no place",
+  refusing a `find`, was read as a refusal of `place` (#463), and a reason
+  that named its call too was said `pick: pick(tag=99) ...` at run time."""
   if facts is not None and facts.verbs is not None and verb.name not in facts.verbs:
-    return [f"{verb.name}: not on this body yet "
-            f"(it has: {', '.join(facts.verbs)})"]
+    return [f"not on this body yet (it has: {', '.join(facts.verbs)})"]
   bad = []
   extra = set(args) - set(verb.args)
   missing = {k for k, a in verb.args.items() if a.default is None} - set(args)
   if extra:
-    bad.append(f"{verb.name} takes no {', '.join(sorted(extra))}")
+    bad.append(f"takes no {', '.join(sorted(extra))}")
   if missing and not partial:
-    bad.append(f"{verb.name} needs {', '.join(sorted(missing))}")
+    bad.append(f"needs {', '.join(sorted(missing))}")
   for name in verb.args:
     if name in args:
       bad += check_arg(verb, name, args[name], facts)
-  if verb.name in ("find", "press", "survey") and isinstance(args.get("tag"), (int, float)) \
-      and not isinstance(args.get("tag"), bool):
-    have = facts.places if verb.name in ("find", "survey") else facts.plates
-    if int(args["tag"]) != args["tag"] or int(args["tag"]) not in have:
-      what = "plate" if verb.name == "press" else "place"
-      # ...and what it is, where it is a cube's: a first weighing on legs
-      # asked `find` for its cube and was told only what the places are
-      cube = (f"; {args['tag']:g} is a cube's, and `pick` finds a cube by its tag"
-              if args["tag"] in facts.cubes else "")
-      bad.append(f"tag {args['tag']:g} is no {what} this world has "
-                 f"(have: {', '.join(str(t) for t in have) or 'none'}){cube}")
-  if verb.name in ("pick", "place") and isinstance(args.get("tag"), (int, float)) \
-      and not isinstance(args.get("tag"), bool):
-    if int(args["tag"]) != args["tag"] or int(args["tag"]) not in facts.cubes:
-      place = (f"; {args['tag']:g} marks a place, which `find` finds"
-               if args["tag"] in facts.places else "")
-      bad.append(f"tag {args['tag']:g} is no cube this world has "
-                 f"(have: {', '.join(str(t) for t in facts.cubes) or 'none'}){place}")
-  if verb.name in ("drive_to", "find") and all(
-      isinstance(args.get(k), (int, float)) and not isinstance(args.get(k), bool)
-      for k in ("x", "y")):
+  if verb.name in ("drive_to", "find"):
+    # Each axis on its own, in one wording, whether the other is written,
+    # computed or refused (#463); one `check_arg` refused is not refused again
     x0, y0, x1, y1 = facts.bounds
-    x, y = float(args["x"]), float(args["y"])
-    if not (x0 <= x <= x1 and y0 <= y <= y1):
-      bad.append(f"({x}, {y}) is outside the map [{x0}, {x1}] x [{y0}, {y1}]")
+    for k, lo, hi in (("x", x0, x1), ("y", y0, y1)):
+      v = args.get(k)
+      if isinstance(v, (int, float)) and not isinstance(v, bool) \
+          and math.isfinite(v) and not lo <= v <= hi:
+        bad.append(f"{k}={float(v)} is outside the map's [{lo}, {hi}]")
   if verb.name == "move" and isinstance(args.get("axis"), str) \
       and isinstance(args.get("target"), (int, float)) \
       and not isinstance(args.get("target"), bool):
@@ -1278,7 +1368,7 @@ def validate(program: Program, facts: WorldFacts) -> list[str]:
         bad.append(f"{where}: unknown verb {step.verb!r} "
                    f"(have: {', '.join(VERBS)})")
         continue
-      bad += [f"{where}: {r}" for r in check_step(verb, step.args, facts)]
+      bad += [f"{where}, {step.verb}: {r}" for r in check_step(verb, step.args, facts)]
   return bad
 
 

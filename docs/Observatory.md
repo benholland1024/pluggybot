@@ -10,6 +10,161 @@ observatory is NOT a result: it reports into the issue it informs.
 
 ## Periods
 
+### Every refusal names its call (#463) — opens when this PR is deployed
+
+**What changed is what the robot is TOLD.** A refusal inside a call now
+names the call, once, in the form History already gave a failed step:
+`line 5, find: tag 20 names no place this world has (places: 35 to 46)`,
+where it read `line 5: tag 20 is no place this world has (have: 35, 36, …,
+46)`. That covers the parser's refusals (`line 2, drive_to: needs y`, where
+it read `drive_to needs y`), the world's (`line 3, wait: seconds=99.0 is
+above 60.0`), `budget(…)`'s, a program's (`robot[0], find: …`) and a run's
+argument it could not compute (`it stopped at line 3, wait: division by
+zero`, where it read `it stopped at an expression: …`). The robot never sees
+a refused define's source again, so a line number alone pointed at nothing it
+could read. On `5ba8a0c` Luca read a refused `find(20, …)` as a refusal of
+its `place(20)`, filed tk_0028, and told Rowan the cube tags register once
+the blocks are seen. Tags are listed by kind, a run of three or more as `lo to
+hi` (`plates: 35 to 37`, `cubes: 20 to 24`), and the refusals beside them
+changed too:
+
+- a tag outside 0..999 is refused once, where `tag=1000.0 is above 999`
+  came first;
+- a computed tag that is no number (`inf`, `nan`) is refused once and fails
+  its step, where the run ended on a fault with its steps and locals lost;
+- an argument the parser refused is not refused again, where `pick(int(t))`
+  also read `tag 0 is no cube this world has` and `fetch(None)` also `tool
+  takes a name in quotes`;
+- each map axis is checked on its own, in one wording (`y=99999.0 is outside
+  the map's [-11.5, 11.5]`), where both written read `(1.0, 99999.0) is
+  outside the map [...] x [...]`, one beside a computed one waited for the
+  run, and one beside a refused one was checked against a stand-in 0. A
+  negative coordinate is still checked only when it runs (`-5` parses as
+  computed);
+- an argument given by position and by keyword is refused (`x is given
+  twice`), where the keyword replaced the written one and a call nobody
+  wrote ran;
+- the sensors are listed once a define, where a misspelt read in three calls
+  listed them three times.
+
+A procedure the robot kept that now fails one of these loads as not runnable,
+saying why. History's locals carry every digit (`t = 1234567`, where `:g`
+said `1.23457e+06`). The prompt did not move. On the wire, a procedure's
+local that is no number (`inf`, `nan`) is left off its `procedure` event:
+JSON has no word for it, and the site dropped the whole event. History still
+says it.
+
+**What the period is for.**
+
+- **Does the misreading stop?** Count tickets and `tell`s after a refusal
+  that blame a call the refusal did not name. On `5ba8a0c` there were 3
+  tag refusals of #463's kind, all Luca's, and one was read into a ticket
+  and a tell.
+- ⚠ **A count by the words splits at this deploy.** Before it, a tag reads
+  `tag N is no place|plate|cube … (have: …)`, after `line N: ` in a refused
+  define, after `line N, verb: ` in a run's History line and after `robot[i]:
+  ` in a program; the parser's own read `verb needs …`, `verb takes no …`.
+  After it, `tag N names no place|plate|cube …`, and every refusal inside a
+  call follows `line N, verb: ` (a define and a run alike) or `robot[i],
+  verb: `.
+
+### `test` and the form's coined names are placeholders too (#462's closing reading) — opens when this PR is deployed
+
+**What changed is how an answer's paperwork is read.** #462's week
+(2026-10-05 → 10-13) found no value its rules call a placeholder in any act
+but a quote taking out a line that was exactly it, and two kinds of filler
+outside them. One is `test`: a ticket titled and written `test` held one of
+Rowan's three slots through eight nudges to close it, and a message "test"
+went to Luca. The other is a field's name written where nothing was meant:
+a goal `drop_goal`, a pin `unpin`, lookups for `give_points`, `heart_for`
+and `cites`, and `tell:` said in the chat. Now `test` reads as empty
+wherever a placeholder is judged, and so does a name the form coined (an
+underscore, or `un` before another field: `drop_goal`, `unpin`) in a field
+of its own. A field named by an everyday word (`done`, `tell`, `cites`) is
+judged only as its own field's name, since "Done!" may be meant in the
+chat, so `tell:` and `cites` would still stand. An object is still judged by
+its own names, so a finding named `mouse_will` stands, and so does a quote
+of it. An answer with three or more of these is filled, so a few more
+answers leave out their unshown paperwork. The prompt did not move.
+
+**What the period is for.**
+
+- **No `test` or coined-name act.** Count the write-ins whose whole value
+  is `test` (`message` texts, `refusal` reasons, `read` queries, `ticket`
+  titles, `conversation` rows `said`, `thought` rows writing one), and
+  those that are a coined name where one is judged: `read` queries, `said`
+  rows, and `thought` rows writing a pin or a goal. Each should be zero. An
+  everyday field name, or a coined one in a message, a reason or a title,
+  stands by design.
+- **How often.** `left_out` rows per robot per day under each `why`,
+  against #462's week: 39 filled, 43 placeholder and 16 decline in 2,302
+  answers. `placeholder` and `filled` should rise a little.
+- ⚠ **What it does not change.** A heart, a gift or a rating outside a
+  filled answer is still acted on as meant (Evaluation.md §5).
+
+### The purse is 9.30, as decided (rooftop-media-2026 #404) — opens when that release deploys
+
+**What changed is the money, not the mind.** The weekly purse moves from $10
+to 9.30, the $40 a month decided in #225. The docs said 9.30 from that
+period on, but nothing set it: the website's `compose.yaml` passed an empty
+`PLUGGY_WEEKLY_USD`, the sim's own default held, and every run since the
+purse was first recorded (2026-09-17, 789 runs in `pw_runs`) has
+`weekly_usd` 10. Compose now passes 9.30, so the robots are shown an
+allowance 7 % smaller. The world, the arm, the mind and the prompt are the
+same.
+
+**What to read.** Nothing new is asked of this period. The purse has sat at
+its cap since 2026-09-28 and refused 67–77 % of asks (`fallback:allowance`),
+so expect that share to rise a little. Every run records `weekly_usd`, so a
+reading across the switch splits on it rather than pooling.
+
+### A find whose walks took it nowhere says so, and a feed says what its find said (#439) — opens when this PR is deployed
+
+**What changed is what the robot is TOLD**, and what the log keeps. A find
+walks, looks and searches as it did. On afb473a (2026-10-10 → 10-11) the
+press pressed 42 of 42, and what failed a feed was its find:
+
+- **A find whose walks to its viewpoints took it nowhere new to look from
+  GAVE UP, in its last walk's words.** Twice (t=955594, t=959407) the other
+  robot was resting in front of the dock, 0.1 m off, with nowhere to step
+  to. Every walk of the search gave up where it stood, the lattice ran out
+  in 23 s, and the find said `having looked from every place near there (1
+  looks round)`. Told the same of whiteboard_b just before, Rowan decided
+  the board's tags had been "re-rolled". Now it reads `... in 23 s, and no
+  walk took it anywhere else to look from (1 looks round): the walk gave
+  up ... (Luca lying down to rest in the way, 0.1 m off)`. The same goes
+  for a find that reached the address, looked there, and could walk to no
+  viewpoint beyond it.
+- **A feed whose find failed says the find's words.** History read `never
+  reached the cage: not found, on leg 1 of 1 of the way there`. It now
+  reads `never reached the cage: <the find's reason>`, as the boards' and
+  the census's jobs already did.
+- **A find that walked leaves its walks in the log.** If it failed, they go
+  on the failure line. If it found the place, they go on the program's last
+  line beside the press's tries. Each walk is listed with where it was to
+  and how it ended, then each look round, and where the belief stood
+  against the truth.
+
+The prompt did not move.
+
+**What the period is for.**
+
+- **The feed by step, per robot**: `failedAt` 0 (the find) against 1 (the
+  press). On afb473a the press failed 0 of 42 and the find 3 of 46: the two
+  above, and one by a robot whose scans in the lab were nearly all refused
+  (#476).
+  A fourth feed was interrupted by the robot's own battery row.
+- **Finds that give up, and whom they name.** One beside a resting robot
+  that cannot step aside is #455's case.
+- **The find's time**, read off its walks. On afb473a most finds that
+  started in the house took 50-94 s of `FIND_PATIENCE_S`'s 300, but four
+  took 206-246 s, and nothing in the log said where the time went. A find
+  that runs out with its last walk still on the way is the case for a
+  longer patience. None did on afb473a.
+- **The second walk in** (carried from #459's period): 0 of 45 presses in
+  afb473a's log ran a second try, and each walk there took 0-17 s of its
+  85.2.
+
 ### One chat per robot, and a robot may speak unasked (#485) — opens when this PR is deployed, with rooftop-media-2026's half
 
 **What changed in the mind.** The VISITORS rule, on every arm with a mind.
@@ -2431,7 +2586,9 @@ provider the router prefers), `PLUGGY_ESCALATE_TO` is unset (the
 `escalate` field and its rule leave the schema and the prompt), and
 `PLUGGY_WEEKLY_USD` is 9.30 — $40 a month as a weekly share — and now caps
 the routine mind as well as escalations (`fallback:allowance`, Overseer.md
-§8). `build.model` is in the identity, so nothing before this deploy pools
+§8). ⚠ Corrected 2026-10-12: it was never set, and this period ran at the
+sim's default of $10 a week (`weekly_usd` on every run; the period above
+pins 9.30). `build.model` is in the identity, so nothing before this deploy pools
 with anything after it. The answer budget on `autonomous` is 8192 tokens
 (a reasoning model's, Overseer.md §6). Same world, same arm (`autonomous`,
 origin `unseeded`), same pair, same memory. The choice is the sweep in
@@ -2473,7 +2630,8 @@ commit:
   empty answer is a reasoning budget spent; 8192 should make it rare), and
   the new `fallback:allowance` — any at all means the purse emptied, and
   the `spend` block's `calls` × cost says how fast.
-- The bill: `spend.spentUsd` against 9.30 across the rolling week, and the
+- The bill: `spend.spentUsd` against the run's `weeklyUsd` (10 in this
+  period) across the rolling week, and the
   decision rate itself (calls per wall-hour for the pair, 13.6 on the 4B):
   a mind that idles less makes fewer decisions an hour, not more, and the
   monthly figure follows the rate.

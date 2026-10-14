@@ -62,6 +62,8 @@ import re
 
 import numpy as np
 
+from pluggybot.finite import finite as _finite
+
 SHAPES = ("box", "slab", "cylinder")
 JOINT_TYPES = ("hinge", "slide")
 ID = re.compile(r"^[a-z][a-z0-9_]{0,23}$")
@@ -180,17 +182,6 @@ def euler_of(rot) -> tuple[float, float, float]:
 
 
 # ---- parsing ----------------------------------------------------------------------
-
-def _finite(x) -> bool:
-  """A JSON number that is a float's: an integer of 309 digits is none
-  (`math.isfinite` raises on it)."""
-  if not isinstance(x, (int, float)) or isinstance(x, bool):
-    return False
-  try:
-    return math.isfinite(float(x))
-  except OverflowError:
-    return False
-
 
 def _unknown(v) -> bool:
   """A template's unknown, as written: {"between": [lo, hi]}."""

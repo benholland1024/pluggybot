@@ -75,9 +75,9 @@ LUCA_391503 = _quiet(
   ticket_reply={"ticket": "tk_0024", "text": "n"})
 
 
-def test_a_placeholder_is_punctuation_a_letter_a_null_word_or_the_fields_own_name():
+def test_a_placeholder_is_punctuation_a_letter_a_null_word_or_a_fields_name():
   for value in ("n", "X", ":", "},", "  n  ", 'a"}', "none", "None.", ": null",
-                "n/a", "N/A", "nil", "placeholder"):
+                "n/a", "N/A", "nil", "placeholder", "test", "Test."):
     assert ov.placeholder(value), value
   assert ov.placeholder("intend", ("intend",))
   assert ov.placeholder("drop goal", ("drop_goal",))
@@ -85,9 +85,92 @@ def test_a_placeholder_is_punctuation_a_letter_a_null_word_or_the_fields_own_nam
   # ⚠ a real short value stands: two letters are a word, a number is a
   # number, and one character outside ASCII may be a whole word
   for value in ("", "ok", "hi", "no", "Na", "keep", "8", "5", "👍", "好",
-                "bay C is empty"):
+                "bay C is empty", "testing the dock again"):
     assert not ov.placeholder(value), value
-  assert not ov.placeholder("intend", ("pin",)), "another field's name is a word"
+  assert not ov.placeholder("intend", ("pin",)), "only the names it is handed"
+
+
+def test_test_is_a_placeholder():
+  """Rowan's tk_0037 (t=1047389.606, build afb473a), titled and written
+  `test` in an answer with nothing else left out: it held one of Rowan's
+  three slots through eight nudges to close it. Its `tell` "test" went to
+  Luca (t=618921.494, 8f68f54). In all 24 write-ins that were `test` alone,
+  none was meant."""
+  from pluggybot.mind.thoughts import ThoughtFiles, ThoughtRefused
+  d = _validate(_quiet(ticket={"kind": "question", "title": "test", "text": "test"},
+                       tell={"to": "Rowan", "text": "test"}))
+  assert d.ticket is None, "a ticket of 'test' took a slot on the desk"
+  assert d.tell is None
+  assert d.left_out == {"why": "placeholder", "fields": ["tell", "ticket"],
+                        "words": ["test"]}
+  # ...and a quote of it takes out only a line that is exactly it
+  memory = ThoughtFiles(None)
+  memory.pin("pen_bay_test is running: read its History line first")
+  with pytest.raises(ThoughtRefused, match="nothing on the page matches"):
+    memory.unpin("test")
+
+
+def test_a_word_the_form_coined_is_a_placeholder_in_a_field_of_its_own():
+  """Rowan pinned "unpin" (t=618921.494, build 8f68f54), set the goal
+  "drop_goal" and looked up "give_points" (t=923279.523, 4cd0d88) and
+  "heart_for" (t=1039805.01, afb473a): names the form coined -- an
+  underscore, or `un` before another field -- which no robot writes as its
+  own, and each one was acted on."""
+  d = _validate(_quiet(pin="unpin"))
+  assert d.pin == "", "Rowan pinned the line 'unpin'"
+  assert d.left_out == {"why": "placeholder", "fields": ["pin"], "words": ["unpin"]}
+  d = _validate(_quiet(intend="drop_goal", lookup="give_points", serves="heart_for",
+                       rate={"board": "whiteboard_a", "quality": 0.5}))
+  assert d.intend == d.lookup == d.serves == ""
+  assert d.left_out["why"] == "filled" and d.rate is None
+  # ...whatever keys the answer carries: one on the prose retry
+  # (`constrained` False) may leave its empty fields out (found in review)
+  d = _validate({"think": "", "action": "idle", "reason": "", "lookup": "heart_for"})
+  assert d.lookup == "", "filler stood in an answer missing its keys"
+  # ⚠ ...but an object is judged by its own names alone: a finding is named
+  # for what it measures (Luca, t=1058451.09)
+  finding = {"quantity": "mouse_will", "value": 1, "unit": "state",
+             "method": "mouse last seen resting after a feed", "topic": "lab"}
+  d = _validate(_quiet(record=finding))
+  assert d.record["quantity"] == "mouse_will" and d.left_out is None
+
+
+def test_a_field_named_by_an_everyday_word_is_judged_only_as_its_own():
+  """`done`, `reason`, `tell`: a field named by an everyday word may hold that
+  word meant -- "Done!" said in the chat, a lookup for "Reason" -- and
+  counted as filler, it made this answer full of placeholders and left out
+  the `done`, the heart and the rating it meant (found in review). So
+  Rowan's `say` "tell:" (t=1110967.439) stands."""
+  raw = _quiet(action="idle", reason="the tower is up", done="t_0758",
+               say="Done!", lookup="Reason", tell={"to": "Rowan", "text": "done"},
+               pin=",", intend="n", buy_heart=True, heart_for="Rowan",
+               rate={"board": "whiteboard_a", "quality": 0.8})
+  d = _validate(raw)
+  assert d.done == "t_0758", "an everyday word left out the done it meant"
+  assert d.buy_heart and d.rate == {"board": "whiteboard_a", "quality": 0.8}
+  assert (d.say, d.lookup, d.tell["text"]) == ("Done!", "Reason", "done")
+  assert d.left_out == {"why": "placeholder", "fields": ["pin", "intend"],
+                        "words": [",", "n"]}
+  assert _validate(_quiet(say="tell:")).say == "tell:"
+  assert _validate(_quiet(say="say")).say == "", "its own name is still one"
+
+
+def test_a_quote_of_a_findings_name_takes_the_finding_out():
+  """A finding is named for what it measures, and a quote of its name picks
+  it out: Luca recorded `mouse_will = 1 state` (t=1058451.09) and later
+  retracted it. A gate on every quote that was a field's name blanked this
+  one (found in review): a coined quote is left out only where the answer
+  is full of placeholders."""
+  from pluggybot.mind.thoughts import FINDINGS, ThoughtFiles
+  memory = ThoughtFiles(None)
+  line = memory.record({"quantity": "mouse_will", "value": 1, "unit": "state",
+                        "method": "mouse last seen resting after a feed"})
+  d = _validate(_quiet(retract="mouse_will"))
+  assert d.retract == "mouse_will" and d.left_out is None
+  memory.retract(d.retract)
+  assert line not in memory.read(FINDINGS)
+  d = _validate(_quiet(retract="mouse_will", pin="n", intend="x", lookup="none"))
+  assert d.retract == "" and d.left_out["why"] == "filled"
 
 
 def test_an_answer_full_of_placeholders_acts_on_nothing_and_its_action_stands():
@@ -306,11 +389,13 @@ def test_every_power_is_judged_left_out_or_kept():
   # ...and what a filled answer leaves out goes back to the field's default
   assert set(ov.UNSHOWN_PAPERWORK) <= {f.name for f in dataclasses.fields(ov.Decision)}
   # ...and every sub-field judged is one the schema has
-  props = _menu().schema(standing_orders=True, hearts=True, event_map=True,
-                         procedures=("workshop_hunt",), tools=(),
-                         others=("Rowan",), tickets=("tk_0024",))["properties"]
+  form = _menu().schema(escalation=True, standing_orders=True, hearts=True,
+                        event_map=True, procedures=("workshop_hunt",), tools=(),
+                        others=("Rowan",), tickets=("tk_0024",))
   for name, (content, labels) in ov.PLACEHOLDER_OBJECTS.items():
-    assert set(content + labels) <= set(props[name]["properties"]), name
+    assert set(content + labels) <= set(form["properties"][name]["properties"]), name
+  # ...and a field's name is any field of the form, offered here or not
+  assert set(ov.FORM_FIELDS) == set(form["required"])
 
 
 def test_what_was_left_out_is_one_history_line_an_event_and_the_decisions_row():

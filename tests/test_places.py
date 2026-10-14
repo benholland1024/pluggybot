@@ -27,6 +27,7 @@ import math
 import re
 
 import mujoco
+import numpy as np
 import pytest
 
 from pluggybot import tick
@@ -466,10 +467,76 @@ def test_a_find_goes_where_the_row_says_then_to_the_address_then_round_it(quad_w
     assert went[0] == pytest.approx((fx, fy - lp.STANDOFF_M), abs=1e-3)
     assert went[1] == near and went[2] == near
     assert math.dist(went[3], near) == pytest.approx(lp.SEARCH_STEP_M)
-    assert rec["why"] == "not found" and rec["guesses"] == 1 and not rec["found"]
+    # ...and every walk going nowhere, it gave up (the next test)
+    assert rec["why"] == "gave up" and rec["guesses"] == 1 and not rec["found"]
     went.clear()
     rec = body.run(m.find_routine(FEED, near=near, patience=600.0, stop=lambda: bool(went)))
     assert rec["why"] == "interrupted" and len(went) == 1
+  finally:
+    body.close()
+
+
+def test_a_find_whose_walks_took_it_nowhere_to_look_from_gave_up(quad_world, monkeypatch):
+  """#439, the find's turn: on afb473a two feeds failed at the find in 23 s,
+  the other robot resting in front of the dock with nowhere to step. Every
+  walk gave up where it stood, the lattice ran out, and the find said it
+  had looked from every place near there; told so of a board, Rowan took
+  its tags for moved. A search none of whose viewpoints' walks took it
+  anywhere new to look from GAVE UP, keeping its last walk -- from where it
+  stood, or from the address it did reach -- and one whose walks got
+  somewhere and looked there is still not found. Its trail keeps every
+  walk and look, the looks where they always were."""
+  monkeypatch.setattr(lp, "SEARCH_RADIUS_M", lp.SEARCH_STEP_M)   # nine viewpoints, not 49
+  body = _quad(quad_world, 20.0, 0.0, 0.0)
+  m = body.mission
+  near, at = (25.2, -2.4), [(20.0, 0.0)]
+
+  def stuck(x, y, timeout=90.0, stop=None):
+    m.last_drive = {"why": "peer", "goal": (x, y), "seconds": 0.0,
+                    "shortM": round(math.dist(at[0], (x, y)), 3), "peerAt": "here",
+                    "peerM": 0.1, "peerXY": (20.1, 0.0), "peerDown": False, "peerRests": True}
+    return tick.result(False)
+
+  def arrives(x, y, timeout=90.0, stop=None):
+    at[0] = (x, y)
+    m.last_drive = {"why": "", "goal": (x, y), "seconds": 5.0, "shortM": 0.0}
+    return tick.result(True)
+
+  def looked_at(rec):
+    return [e["lookedAt"] for e in rec["trail"] if "lookedAt" in e]
+
+  try:
+    m.face_routine = lambda h: tick.result(True)
+    m.look_for_places = lambda: []
+    m._look_around_routine = lambda stop: tick.result(False)
+    m.pose_xy = lambda: at[0]
+    m.drive_to_routine = stuck
+    rec = body.run(m.find_routine(FEED, near=near, patience=600.0))
+    assert rec["why"] == "gave up" and rec["arounds"] == 1 and rec["viewpoints"] > 1
+    walks = [w for w in rec["trail"] if "to" in w]
+    assert rec["walk"] == walks[-1] and rec["walk"]["why"] == "peer"
+    assert walks[0]["to"] == "address" and walks[0]["goal"] == near
+    assert {w["to"] for w in walks[1:]} == {"viewpoint"}
+    assert looked_at(rec) == [[20.0, 0.0]]
+    assert len(rec["err"]) == 3, "where the belief stood, for the trace"
+    # ...and from the address it walked to, every viewpoint's walk going nowhere
+    m.drive_to_routine = lambda x, y, **kw: (arrives if (x, y) == near else stuck)(x, y, **kw)
+    rec = body.run(m.find_routine(FEED, near=near, patience=600.0))
+    assert rec["why"] == "gave up" and looked_at(rec) == [list(near)] and rec["viewpoints"] > 1
+    m.drive_to_routine = arrives
+    rec = body.run(m.find_routine(FEED, near=near, patience=600.0))
+    assert rec["why"] == "not found" and rec["arounds"] > 1 and "walk" not in rec
+
+    def sees(x, y, timeout=90.0, stop=None):
+      m.places.see(FEED, *_sign("feed"), float(m.data.time), view=SOUTH, tag_facing=SOUTH)
+      assert stop()
+      m.last_drive = {"why": "interrupted", "goal": (x, y), "seconds": 9.0, "shortM": 3.0}
+      return tick.result(False)
+    m.drive_to_routine = sees
+    rec = body.run(m.find_routine(FEED, near=near, patience=600.0))
+    assert rec["why"] == "found" and rec["trail"] == [
+      {"to": "address", "why": "found", "goal": near, "seconds": 9.0, "shortM": 3.0}], (
+      "a walk the sighting stopped, said as one")
   finally:
     body.close()
 
@@ -600,6 +667,8 @@ def test_a_press_tries_again_only_a_walk_in_that_missed_the_pad(quad_world):
   look, and in again -- and only with `FINAL_S` left."""
   body = _quad(quad_world, 25.0, 2.0, SOUTH)
   m = body.mission
+  # ...its belief in numpy's floats, as the odometry's first step leaves it
+  m.odo.x, m.odo.y = np.float64(m.odo.x), np.float64(m.odo.y)
   went, cleared, walked_in = [], [], []
 
   def walk(arrives):
@@ -650,6 +719,7 @@ def test_a_press_tries_again_only_a_walk_in_that_missed_the_pad(quad_world):
     assert rec["pressed"] and walked_in == [FEED, FEED] and len(went) == 2
     assert went[1] == pytest.approx(m.place_standoff(FEED)[:2], abs=1e-3)
     assert [a["why"] for a in rec["attempts"]] == ["not pressed", "pressed"]
+    assert "np." not in st.press_trace(rec), "a numpy float's repr, in every live trace"
     # ...and only with the time for it: the press says how little was left
     walked_in.clear()
     m._hold_on_routine = hold(False, seconds=20.0)

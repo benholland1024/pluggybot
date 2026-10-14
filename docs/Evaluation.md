@@ -1189,10 +1189,26 @@ from. Until #462 a placeholder written into a required field (`n`, `none`,
 `:`) was acted on, and the answers that did it in three or more fields put
 rows into every quality's shapes: guesses, hearts and gifts, ratings,
 lookups, goals, and declines of jobs the same answer took (Overseer.md §4,
-"Placeholders", has the counts). From #462 those acts do not happen, and a
-`left_out` row says what was left out. ⚠ The rows before it are still in the
-observatory, so a reading across the GLM builds says whether it left them
-in.
+"Placeholders", has the counts). From #462 a placeholder is read as empty
+(a quote of one still takes out a line that is exactly it), an answer full
+of them gives, rates and guesses nothing, and a `left_out` row says what
+was left out. ⚠ The rows before it are still in the observatory, so a
+reading across the GLM builds says whether it left them in.
+
+⚠ **A choice outside a filled answer is still read as meant, and most were
+not.** Every field must be written, and a boolean, a name off a list and a
+number carry no sign either way. On 4cd0d88 and afb473a (2026-10-08 →
+10-13, the builds whose thoughts the site keeps whole), 8 of the 9 hearts
+bought for the other robot (1,600 points), 32 of 35 gifts and 125 of 140
+ratings appear in neither the robot's thinking nor its reason, while all 4
+hearts a robot bought for itself do; 44 % of the ratings are exactly 0.5.
+So on those two builds the robot's own picks in two shapes, its gifts and
+hearts in `help_at_a_cost` and its ratings (`judged`) in
+`judgement_agreement`, were mostly made without a word; #462 changes no
+choice, and no earlier build kept its thoughts whole enough to be read this
+way. The panel's ratings, care and yields are no such pick. The form is
+#487's to change (#467 was closed for it); until it is, a reading of those
+parts says so.
 
 ### A lost robot fails what it would have done (issue #476)
 
