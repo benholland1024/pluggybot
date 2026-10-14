@@ -206,7 +206,10 @@ in range(N)` with a literal N, `while` with a hard iteration cap, `return`.
 Anything else
 — an import, an attribute, a string outside a verb's argument, another call
 — is refused with the line at fault, before a step runs, and every reason at
-once (`tests/test_language.py` has one case per construct).
+once (`tests/test_language.py` has one case per construct). A refusal inside
+a call names the call, once, as History names a step that failed: `line 3,
+wait: seconds=99.0 is above 60.0` (#463: the robot never sees a refused
+define's source again, so a line alone pointed at nothing it could read).
 
 **The motor level** is `move("<axis>", target)` and `read("<sensor>")` over
 two registries (`procedure/axes.py`): an axis is one actuator's setpoint

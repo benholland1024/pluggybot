@@ -40,11 +40,11 @@ verb (`move` is `Body.ramp_routine`), the scoring path not at all -- a
 """
 
 import ast
-import math
 import re
 from dataclasses import dataclass, field
 from typing import Any
 
+from pluggybot.finite import finite
 from pluggybot.procedure import steps as st
 from pluggybot.procedure.steps import Refused, WorldFacts
 from pluggybot.tick import Routine
@@ -57,6 +57,10 @@ MAX_BUDGET_S = st.MAX_BUDGET_S
 DEFAULT_BUDGET_S = st.DEFAULT_BUDGET_S
 MAX_SOURCE_CHARS = 1500
 MAX_NESTING = 4
+#: How deep an expression nests. Each level was one frame of the parser's
+#: recursion, and ~980 unary minuses (a source of 1,000 characters) raised
+#: RecursionError out of the define and ended the served process (#500).
+MAX_EXPR_DEPTH = 50
 NAME_RE = re.compile(r"^[a-z][a-z0-9_]{0,31}$")
 #: The verbs that need the claw (issue #407): what `references` says a
 #: procedure reaches for -- a `pick` fetches it onto an empty fork (#353).
@@ -69,6 +73,11 @@ RESERVED = frozenset({"read", "budget", "range", "def", "and", "or", "not",
 _BIN = {ast.Add: "+", ast.Sub: "-", ast.Mult: "*", ast.Div: "/"}
 _CMP = {ast.Lt: "<", ast.LtE: "<=", ast.Gt: ">", ast.GtE: ">=",
         ast.Eq: "==", ast.NotEq: "!="}
+#: What an expression the parser refused stands in as: no value, so the
+#: world's check never refuses it again (a stand-in 0 read `tag 0 is no
+#: cube`, a tag the source never wrote, #463). It never runs: a parse with
+#: a reason is refused whole.
+_REFUSED = ("refused",)
 
 
 @dataclass(frozen=True)
@@ -192,20 +201,44 @@ class _Parser:
   def __init__(self, source: str) -> None:
     self.source = source
     self.reasons: list[str] = []
+    #: the call being parsed and its line, which every refusal inside it
+    #: names, once: `line 3, wait: ...`, as History says a step that failed
+    #: (#463). The CALL's line, never a part's: a call written across lines
+    #: read as two calls of one verb.
+    self.call: tuple[str, int] | None = None
+    self.depth = 0
 
   def refuse(self, node, what: str) -> None:
-    line = getattr(node, "lineno", 0)
-    self.reasons.append(f"line {line}: {what}")
+    if self.call:
+      verb, line = self.call
+      self.reasons.append(f"line {line}, {verb}: {what}")
+    else:
+      self.reasons.append(f"line {getattr(node, 'lineno', 0)}: {what}")
 
   # -- expressions --
   def expr(self, node) -> Any:
+    self.depth += 1
+    try:
+      if self.depth > MAX_EXPR_DEPTH:
+        self.refuse(node, f"an expression nests deeper than {MAX_EXPR_DEPTH}")
+        return _REFUSED
+      return self._expr(node)
+    finally:
+      self.depth -= 1
+
+  def _expr(self, node) -> Any:
     if isinstance(node, ast.Constant):
       if isinstance(node.value, bool):
         return ("num", 1.0 if node.value else 0.0)
-      if isinstance(node.value, (int, float)) and math.isfinite(node.value):
+      if finite(node.value):
         return ("num", float(node.value))
+      if isinstance(node.value, (int, float)):
+        # past a float's range (309 digits, or 1e400): `float()` raised
+        # OverflowError out of the define, and the served process ended (#500)
+        self.refuse(node, "a number is too large to hold")
+        return _REFUSED
       self.refuse(node, f"a {type(node.value).__name__} is not a number")
-      return ("num", 0.0)
+      return _REFUSED
     if isinstance(node, ast.Name):
       if not NAME_RE.match(node.id) or node.id in RESERVED or node.id in st.VERBS:
         self.refuse(node, f"{node.id!r} is not a name this language allows")
@@ -217,11 +250,11 @@ class _Parser:
             or not isinstance(node.args[0], ast.Constant)
             or not isinstance(node.args[0].value, str)):
           self.refuse(node, "read takes one sensor name in quotes")
-          return ("num", 0.0)
+          return _REFUSED
         return ("read", node.args[0].value)
       self.refuse(node, "only read(...) may be used inside an expression; "
                         "a verb is a statement of its own")
-      return ("num", 0.0)
+      return _REFUSED
     if isinstance(node, ast.BinOp) and type(node.op) in _BIN:
       return ("bin", _BIN[type(node.op)], self.expr(node.left), self.expr(node.right))
     if isinstance(node, ast.UnaryOp) and isinstance(node.op, ast.USub):
@@ -231,22 +264,32 @@ class _Parser:
     if isinstance(node, ast.Compare):
       if len(node.ops) != 1 or type(node.ops[0]) not in _CMP:
         self.refuse(node, "compare two things with one of < <= > >= == !=")
-        return ("num", 0.0)
+        return _REFUSED
       return ("cmp", _CMP[type(node.ops[0])], self.expr(node.left),
               self.expr(node.comparators[0]))
     if isinstance(node, ast.BoolOp):
+      # a chain of n nests n deep in what it builds, and in `_eval` running it
+      if self.depth + len(node.values) - 1 > MAX_EXPR_DEPTH:
+        self.refuse(node, f"an expression nests deeper than {MAX_EXPR_DEPTH}")
+        return _REFUSED
       op = "and" if isinstance(node.op, ast.And) else "or"
       out = self.expr(node.values[0])
       for v in node.values[1:]:
         out = (op, out, self.expr(v))
       return out
     self.refuse(node, f"{type(node).__name__} is not part of this language")
-    return ("num", 0.0)
+    return _REFUSED
 
-  def arg(self, node) -> Any:
-    """A verb argument: a quoted name, or a numeric expression."""
+  def arg(self, node, name: str, kind: str) -> Any:
+    """A verb argument: a quoted name, or a numeric expression. Anything
+    else where the verb takes a name is refused here, once -- `validate`
+    never refuses a `_REFUSED` again (#463: `fetch(None)` read both `a
+    NoneType is not a number` and `tool takes a name in quotes`)."""
     if isinstance(node, ast.Constant) and isinstance(node.value, str):
       return ("str", node.value)
+    if kind == "str":
+      self.refuse(node, f"{name} takes a name in quotes")
+      return _REFUSED
     return self.expr(node)
 
   # -- statements --
@@ -272,18 +315,27 @@ class _Parser:
         return ("pass",)
       names = list(verb.args)
       args: dict = {}
-      if len(call.args) > len(names):
-        self.refuse(node, f"{fn.id} takes {len(names)} argument(s)")
-      for name, value in zip(names, call.args):
-        args[name] = self.arg(value)
-      for kw in call.keywords:
-        if kw.arg is None or kw.arg not in names:
-          self.refuse(node, f"{fn.id} takes no {kw.arg or '**'}")
-          continue
-        args[kw.arg] = self.arg(kw.value)
-      missing = [n for n in names if n not in args and verb.args[n].default is None]
-      if missing:
-        self.refuse(node, f"{fn.id} needs {', '.join(missing)}")
+      self.call = (fn.id, getattr(node, "lineno", 0))
+      try:
+        if len(call.args) > len(names):
+          self.refuse(node, f"takes {len(names)} argument(s)")
+        for name, value in zip(names, call.args):
+          args[name] = self.arg(value, name, verb.args[name].kind)
+        for kw in call.keywords:
+          if kw.arg is None or kw.arg not in names:
+            self.refuse(node, f"takes no {kw.arg or '**'}")
+            continue
+          if kw.arg in args:
+            # by position and by keyword: the keyword overwrote the written
+            # one, and a call the robot never wrote ran
+            self.refuse(node, f"{kw.arg} is given twice")
+            continue
+          args[kw.arg] = self.arg(kw.value, kw.arg, verb.args[kw.arg].kind)
+        missing = [n for n in names if n not in args and verb.args[n].default is None]
+        if missing:
+          self.refuse(node, f"needs {', '.join(missing)}")
+      finally:
+        self.call = None
       return ("verb", fn.id, args, getattr(node, "lineno", 0))
     if isinstance(node, ast.Assign):
       if len(node.targets) != 1 or not isinstance(node.targets[0], ast.Name):
@@ -357,6 +409,13 @@ def _parse(source: str) -> tuple:
     tree = ast.parse(source)
   except SyntaxError as e:
     raise Refused([f"line {e.lineno or 0}: {e.msg}"]) from None
+  except ValueError:
+    # a lone surrogate (`\ud800` in the answer's JSON): UnicodeEncodeError
+    # went out of the define and ended the served process (#500)
+    raise Refused(["the source holds a character that is not text"]) from None
+  except (MemoryError, RecursionError):
+    # nesting past what Python's own parser holds ("parser stack overflowed")
+    raise Refused(["the source nests too deeply to read"]) from None
   if len(tree.body) != 1 or not isinstance(tree.body[0], ast.FunctionDef):
     raise Refused(["a procedure is exactly one `def name():`"])
   fn = tree.body[0]
@@ -376,20 +435,24 @@ def _parse(source: str) -> tuple:
   if body and isinstance(body[0], ast.Expr) and isinstance(body[0].value, ast.Call) \
       and isinstance(body[0].value.func, ast.Name) and body[0].value.func.id == "budget":
     call = body[0].value
+    p.call = ("budget", getattr(call, "lineno", 0))
     if call.args:
-      p.refuse(call, "budget takes keywords: budget(steps=N, seconds=S)")
+      p.refuse(call, "takes keywords: budget(steps=N, seconds=S)")
     for kw in call.keywords:
       lit = kw.value.value if isinstance(kw.value, ast.Constant) else None
       if kw.arg == "steps" and isinstance(lit, int) and not isinstance(lit, bool):
         steps_budget = lit
-      elif kw.arg == "seconds" and isinstance(lit, (int, float)) and not isinstance(lit, bool):
+      elif kw.arg == "seconds" and finite(lit):
         budget_s = float(lit)
+      elif kw.arg == "seconds" and isinstance(lit, (int, float)) and not isinstance(lit, bool):
+        p.refuse(call, "a number is too large to hold")       # as an argument's (#500)
       else:
-        p.refuse(call, f"budget({kw.arg}=...) is not a literal steps or seconds")
+        p.refuse(call, f"{kw.arg or '**'}=... is not a literal steps or seconds")
     if not 1 <= steps_budget <= MAX_STEPS:
       p.refuse(call, f"steps={steps_budget} is outside 1..{MAX_STEPS}")
     if not 0.0 < budget_s <= MAX_BUDGET_S:
       p.refuse(call, f"seconds={budget_s} is outside (0, {MAX_BUDGET_S:.0f}]")
+    p.call = None
     body = body[1:]
   if not body:
     p.refuse(fn, "the procedure has no steps")
@@ -428,23 +491,21 @@ def validate(proc: Procedure, facts: WorldFacts) -> list[str]:
       if s[0] == "verb":
         _, verb, args, line = s
         spec = st.VERBS[verb]
+        at = f"line {line}, {verb}: "          # the call, named once (#463)
         lit = {}
         for name, value in args.items():
-          arg = spec.args[name]
+          if value is _REFUSED:
+            continue                           # the parser said why, once
           if value[0] == "str":
-            if arg.kind != "str":
-              bad.append(f"line {line}: {verb}({name}=...) takes a number, "
-                         "not a name in quotes")
+            if spec.args[name].kind != "str":
+              bad.append(f"{at}{name} takes a number, not a name in quotes")
             else:
               lit[name] = value[1]
-          elif arg.kind == "str":
-            bad.append(f"line {line}: {verb}({name}=...) takes a name in quotes")
           elif value[0] == "num":
             lit[name] = value[1]
           else:
-            _sensors(value, bad)
-        bad.extend(f"line {line}: {r}"
-                   for r in st.check_step(spec, lit, facts, partial=True))
+            _sensors(value, bad, at)
+        bad.extend(at + r for r in st.check_step(spec, lit, facts, partial=True))
       elif s[0] == "if":
         for cond, body in s[1]:
           _sensors(cond, bad)
@@ -458,14 +519,21 @@ def validate(proc: Procedure, facts: WorldFacts) -> list[str]:
       elif s[0] == "set":
         _sensors(s[2], bad)
 
-  def _sensors(expr, out):
+  # The sensors are listed once a define: a refused define is one History
+  # line of 400 characters, and a misspelt read in three calls listed them
+  # three times and cut the reasons after it (#463)
+  listed: list[bool] = []
+
+  def _sensors(expr, out, at=""):
     if not isinstance(expr, tuple):
       return
     if expr[0] == "read" and expr[1] not in facts.sensors:
-      out.append(f"unknown sensor {expr[1]!r} (have: {', '.join(facts.sensors)})")
+      have = "" if listed else f" (have: {', '.join(facts.sensors)})"
+      listed.append(True)
+      out.append(f"{at}unknown sensor {expr[1]!r}{have}")
     for sub in expr[1:]:
       if isinstance(sub, tuple):
-        _sensors(sub, out)
+        _sensors(sub, out, at)
 
   walk(proc.body)
   return list(dict.fromkeys(bad))
@@ -569,11 +637,17 @@ def run_procedure_routine(life, proc: Procedure, facts: WorldFacts) -> Routine:
       raise _Stop("steps")
     spec = st.VERBS[verb]
     values: dict = {}
-    for name, value in args.items():
-      values[name] = value[1] if value[0] == "str" else _eval(value, env, life, facts)
-    # a computed argument is checked here, against the same rules a literal
-    # met at compile time
-    bad = st.check_step(spec, values, facts)
+    try:
+      for name, value in args.items():
+        values[name] = value[1] if value[0] == "str" else _eval(value, env, life, facts)
+      # a computed argument is checked here, against the same rules a literal
+      # met at compile time
+      bad = st.check_step(spec, values, facts)
+    except _Stop as fault:
+      # ...and one it could not compute fails this call's step, named by its
+      # line and verb as every refusal inside a call is (#463), where it was
+      # "it stopped at an expression", no line, no call
+      bad = [fault.why]
     count += 1
     result["total"] = count
     life._say(f"PROCEDURE {proc.name} step {count} (line {line}): "
@@ -593,7 +667,7 @@ def run_procedure_routine(life, proc: Procedure, facts: WorldFacts) -> Routine:
       raise _Stop("interrupted")
     if not verdict.get("ok"):
       result["failedAt"] = count - 1
-      life._say(f"PROCEDURE {proc.name} failed at step {count} (line {line})"
+      life._say(f"PROCEDURE {proc.name} failed at step {count} (line {line}, {verb})"
                 + (f" -- {verdict['reason']}" if verdict.get("reason") else ""),
                 detail=verdict.get("trace", ""))
       raise _Stop("failed")

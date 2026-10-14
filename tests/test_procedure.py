@@ -5,6 +5,7 @@ verdict per step -- and the fence that keeps the vocabulary the only surface.
 
 import ast
 import json
+import math
 import pathlib
 from dataclasses import replace
 from types import SimpleNamespace
@@ -82,9 +83,9 @@ def _refusals(spec, facts=HOME):
   ({"name": "x", "roles": {}}, "at least one role"),
   ({"name": "x", "roles": {"robot": []}}, "has no steps"),
   ({"name": "x", "steps": [{"verb": "fly"}]}, "unknown verb 'fly'"),
-  ({"name": "x", "steps": [{"verb": "wait"}]}, "wait needs seconds"),
+  ({"name": "x", "steps": [{"verb": "wait"}]}, "robot[0], wait: needs seconds"),
   ({"name": "x", "steps": [{"verb": "stow", "args": {"tool": "module_pen"}}]},
-   "stow takes no tool"),
+   "robot[0], stow: takes no tool"),
   ({"name": "x", "steps": [{"verb": "wait", "args": {"seconds": "long"}}]},
    "must be a finite number"),
   ({"name": "x", "steps": [{"verb": "wait", "args": {"seconds": float("nan")}}]},
@@ -110,7 +111,7 @@ def _refusals(spec, facts=HOME):
                                                        "target": 9.0}}]},
    "shoulder target 9.0 is outside"),
   ({"name": "x", "steps": [{"verb": "find", "args": {"tag": 12, "x": 0.0, "y": 0.0}}]},
-   "tag 12 is no place this world has"),
+   "robot[0], find: tag 12 names no place this world has"),
   ({"name": "x", "steps": [{"verb": "stow"}] * (st.MAX_STEPS + 1)},
    f"the cap is {st.MAX_STEPS}"),
   ({"name": "x", "budgetS": st.MAX_BUDGET_S + 1, "steps": [{"verb": "stow"}]},
@@ -120,6 +121,89 @@ def _refusals(spec, facts=HOME):
 def test_each_rule_refuses_with_a_readable_reason(spec, needle):
   reasons = _refusals(spec)
   assert any(needle in r for r in reasons), reasons
+
+
+@pytest.mark.parametrize("verb, extra, other_kind", [
+  ("find", {"x": 25.2, "y": -2.4}, 20), ("survey", {}, 20), ("press", {}, 20),
+  ("pick", {}, 42), ("place", {}, 42)])
+@pytest.mark.parametrize("tag", [None, 1000, float("inf"), float("nan")])
+def test_a_tag_is_refused_once(verb, extra, other_kind, tag):
+  """A bound said `tag=1000.0 is above 999` before the list's refusal, and a
+  tag that is no number was refused twice -- where `int(tag)` had not raised
+  on it first (#463). One reason: what the tag is not on, or that it is no
+  number."""
+  tag = other_kind if tag is None else tag
+  [why] = st.check_step(st.VERBS[verb], {**extra, "tag": tag}, HOME)
+  noun = st.VERBS[verb].args["tag"].choices[:-1]
+  said = ("tag must be a finite number" if not math.isfinite(tag)
+          else f"tag {tag} names no {noun} this world has")
+  assert why.startswith(said), why
+
+
+def test_a_reason_never_names_its_call():
+  """Whoever knows where a step is names its call, once -- `validate`,
+  `lang.validate`, History's `procedure_outcome` -- so a reason that named
+  it too was said twice: `it stopped at line 3, pick: pick(tag=99) ...`."""
+  bare = replace(HOME, verbs=())
+  for name, verb in {**st.VERBS, **st.GAME_VERBS}.items():
+    for facts in (HOME, bare):
+      for why in st.check_step(verb, {"zzz": 1}, facts):
+        assert not why.startswith(name) and f"{name}(" not in why, why
+
+
+def test_every_tag_is_checked_against_its_list():
+  """A tag `Arg` carries no bound, so its list is its only check: a verb
+  that took a tag with no list would take any number."""
+  for name, verb in {**st.VERBS, **st.GAME_VERBS}.items():
+    if "tag" in verb.args:
+      assert verb.args["tag"].choices in ("places", "plates", "cubes"), name
+
+
+def test_a_tag_refusal_quotes_the_tag_exactly():
+  """`:g` kept six digits: 23.0000001 was quoted `pick(tag=23)`, a call that
+  passes, beside a list holding 23, and 1234567 as `1.23457e+06`; and a
+  program's tag is an int, never rounded through a float."""
+  [why] = st.check_step(st.VERBS["pick"], {"tag": 23.0000001}, HOME)
+  assert why.startswith("tag 23.0000001 names no cube"), why
+  [why] = st.check_step(st.VERBS["find"], {"tag": 1234567, "x": 25.2, "y": -2.4}, HOME)
+  assert why.startswith("tag 1234567 names no place"), why
+  [why] = st.check_step(st.VERBS["pick"], {"tag": 2**53 + 1}, HOME)
+  assert why.startswith(f"tag {2**53 + 1} names no cube"), why
+
+
+def test_a_tag_refusal_lists_a_run_of_tags_as_lo_to_hi():
+  """A refused define reaches the robot as ONE History line, cut at 400
+  characters, and #463's own refused rewrite -- two `find`s, each listing
+  the twelve places in full -- reached 401 once the call led them. A run of
+  three or more is `lo to hi`, never `lo..hi`, which reads as leaving `hi` out."""
+  [why] = st.check_step(st.VERBS["find"], {"tag": 20, "x": 25.2, "y": -2.4}, HOME)
+  assert "(places: 35 to 46)" in why, why
+  odd = replace(HOME, cubes=(5, 7, 8, 9, 12, 23, 24))
+  [why] = st.check_step(st.VERBS["pick"], {"tag": 99}, odd)
+  assert why.endswith("(cubes: 5, 7 to 9, 12, 23, 24)"), why
+
+
+def test_a_coordinate_written_as_a_number_is_checked_beside_one_that_is_not():
+  """A coordinate the parser refused stands in as nothing now, never as 0
+  (#463), and one computed is checked when it is computed -- so a written
+  one beside either is checked on its own, or a y off the map was said only
+  after the robot had mended the x and defined again."""
+  [why] = st.check_step(st.VERBS["drive_to"], {"y": 99999.0}, HOME, partial=True)
+  assert why.startswith("y=99999.0 is outside the map's ["), why
+  assert st.check_step(st.VERBS["find"], {"tag": 35, "x": 1.0}, HOME, partial=True) == []
+
+
+def test_each_axis_is_checked_once_in_one_wording():
+  """Both written, one off the map read `(1.0, 99999.0) is outside the map
+  [...] x [...]`, beside one computed `y=99999.0 is outside the map's [...]`
+  -- one fault, two wordings -- and an inf `check_arg` had refused was
+  refused again as off the map (#463)."""
+  [why] = st.check_step(st.VERBS["drive_to"], {"x": 1.0, "y": 99999.0}, HOME)
+  assert why.startswith("y=99999.0 is outside the map's ["), why
+  [why] = st.check_step(st.VERBS["drive_to"], {"x": float("inf")}, HOME, partial=True)
+  assert why == "x must be a finite number, not inf", why
+  [why] = st.check_step(st.VERBS["wait"], {"seconds": 1, "x": 10**400}, HOME)
+  assert why == "takes no x", "a verb with no coordinates converts none"
 
 
 def test_a_world_with_an_empty_rack_refuses_a_fetch_and_says_so():

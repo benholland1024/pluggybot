@@ -45,6 +45,7 @@ from dataclasses import dataclass, field
 
 import numpy as np
 
+from pluggybot.finite import finite
 from pluggybot.rack import catalog
 from pluggybot.rack.tags import MODULE_TAG_IDS
 
@@ -190,14 +191,14 @@ def aabb(centre: np.ndarray, rot: np.ndarray, half) -> tuple[np.ndarray, np.ndar
 # ---- parsing ---------------------------------------------------------------
 
 def _num(v, name: str, reasons: list[str], n: int | None = None):
+  # `finite`, never `math.isfinite`: an int past a float's range raised
+  # OverflowError there, out through `build_tool` (#500)
   if n is None:
-    if not isinstance(v, (int, float)) or isinstance(v, bool) or not math.isfinite(v):
+    if not finite(v):
       reasons.append(f"{name} must be a number")
       return None
     return float(v)
-  if not isinstance(v, list) or len(v) != n or any(
-      not isinstance(x, (int, float)) or isinstance(x, bool) or not math.isfinite(x)
-      for x in v):
+  if not isinstance(v, list) or len(v) != n or not all(finite(x) for x in v):
     reasons.append(f"{name} must be {n} numbers")
     return None
   return tuple(float(x) for x in v)
@@ -298,10 +299,14 @@ def _axis(raw, part: catalog.Part, where: str, reasons: list[str]) -> Axis | Non
   stow = _num(raw["stow"], f"{where}: axis stow", reasons)
   if d is None or rng is None or stow is None:
     return None
-  norm = math.sqrt(sum(x * x for x in d))
-  if norm < 1e-9:
+  # scaled by its largest part first: a part of 1e200 squared overflowed,
+  # the length was inf, and the direction became (0, 0, 0) (#500)
+  big = max(abs(x) for x in d)
+  if big < 1e-9:
     reasons.append(f"{where}: axis dir is zero")
     return None
+  d = tuple(x / big for x in d)
+  norm = math.sqrt(sum(x * x for x in d))
   d = tuple(x / norm for x in d)
   lo, hi = rng
   if not lo < hi:
@@ -325,6 +330,15 @@ def _axis(raw, part: catalog.Part, where: str, reasons: list[str]) -> Axis | Non
   if hi - lo > limit + 1e-9:
     reasons.append(f"{where}: range spans {hi - lo:g}{unit}, more than the "
                    f"part's {limit:g}{unit}")
+    return None
+  # ...and no end farther from the joint's zero than the part travels (a
+  # hinge a turn): a 16 degree span at 1e12 put the joint past MuJoCo's
+  # mjMAXVAL, the rig reset it every step, and its ramp toward the far end
+  # ran for 8e11 steps on the physics thread (#500)
+  reach = 360.0 if kind == "hinge" else limit
+  if max(abs(lo), abs(hi)) > reach + 1e-9:
+    reasons.append(f"{where}: range [{lo:g}, {hi:g}] reaches past "
+                   f"{reach:g}{unit} from the joint's zero")
     return None
   return Axis(verb=verb, kind=kind, direction=d, lo=lo * scale, hi=hi * scale,
               stow=stow * scale, speed=float(speed) * scale, force=float(force))
@@ -380,7 +394,10 @@ def parse(raw) -> Tool:
     for key in pr:
       if key not in PART_FIELDS:
         reasons.append(f"{where}: unknown field {key!r}")
-    part = parts_by_id.get(pr.get("part"))
+    # a list or an object for a part's name raised TypeError (unhashable)
+    # out through `build_tool`, as a number too large did (#500)
+    asked = pr.get("part")
+    part = parts_by_id.get(asked) if isinstance(asked, str) else None
     if part is None:
       reasons.append(f"{where}: no catalog part {pr.get('part')!r}")
       unknown_part = True

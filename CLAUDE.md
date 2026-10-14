@@ -659,7 +659,9 @@ save a filmstrip PNG named after the script.
   executed (a test asserts no `exec`/`eval`/`compile`). The grammar is closed
   (the verbs as statements, `read("sensor")`, locals, arithmetic, `if`, `for
   ... in range(N)` and `while` capped at `MAX_ITER`); anything else is refused
-  with its line, every reason at once, before a step runs. ⚠ THE MOTOR LEVEL
+  with its line, every reason at once, before a step runs. ⚠ A REFUSAL INSIDE
+  A CALL NAMES THE CALL ONCE, as History names a failed step (`line 3, wait:
+  …`; #463): `check_step`'s reasons never name it, their callers do. ⚠ THE MOTOR LEVEL
   IS `move(axis, target)` AND `read(sensor)` over REGISTRIES (`axes.AXES`,
   `axes.SENSORS`): a new tool or body registers its own and the language does
   not change. Budgets (`budget(steps=, seconds=)`) are capped by code

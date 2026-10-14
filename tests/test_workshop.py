@@ -15,7 +15,7 @@ from pluggybot.legs import rack as rk
 from pluggybot.power import MODULE_IDLE_W
 from pluggybot.rack import catalog
 from pluggybot.rack.coupling import PEG_POWER_W
-from pluggybot.workshop import spec, validate
+from pluggybot.workshop import build, spec, validate
 from pluggybot.workshop.spec import Refused, parse, poses
 
 SCOOP = {
@@ -93,6 +93,58 @@ def test_a_spec_cannot_carry_a_solver_option():
   raw = scoop()
   raw["parts"][0]["friction"] = 0.1
   assert any("unknown field 'friction'" in r for r in refused(raw))
+
+
+def test_a_number_too_large_for_a_float_is_refused_never_raised():
+  """JSON keeps every digit of an int, and `math.isfinite` raised
+  OverflowError on one past a float's range -- out through `build_tool` on
+  the physics thread, and the served process ended with it."""
+  raw = scoop()
+  raw["parts"][0]["pos"] = [10**400, 0, -50]
+  assert any("pos must be 3 numbers" in r for r in refused(raw))
+  raw = scoop()
+  raw["parts"][0]["axis"]["stow"] = -10**400
+  assert any("stow must be a number" in r for r in refused(raw))
+
+
+def test_a_part_named_by_no_string_is_refused_never_raised():
+  """A list for a part's name raised TypeError (unhashable) out through
+  `build_tool`, as a number too large did (#500)."""
+  raw = scoop()
+  raw["parts"][0]["part"] = ["servo_fs90"]
+  assert any("no catalog part ['servo_fs90']" in r for r in refused(raw))
+
+
+def test_an_axis_direction_is_scaled_before_it_is_normalised():
+  """A part of 1e200 squared overflowed, the length was inf, and the axis
+  came out (0, 0, 0): admitted, then MuJoCo's compile raised (#500)."""
+  raw = scoop()
+  raw["parts"][0]["axis"]["dir"] = [0, 1e200, 0]
+  [hinge] = validate.check(raw).axes
+  assert hinge.axis.direction == (0.0, 1.0, 0.0)
+
+
+def test_an_axis_reaches_no_farther_than_its_part_travels():
+  """A 16 degree span at 1e12 degrees put the joint past MuJoCo's mjMAXVAL:
+  the rig reset it every step and ramped toward the far end for 8e11 steps,
+  holding the physics thread (#500)."""
+  raw = scoop()
+  raw["parts"][0]["axis"].update(range=[1e12, 1e12 + 16], stow=1e12)
+  assert any("reaches past 360° from the joint's zero" in r for r in refused(raw))
+
+
+@pytest.mark.parametrize("change", [
+  lambda raw: raw["parts"][1].update(size=[0.004, 0.03, 0.07]),
+  lambda raw: raw["parts"][0]["axis"].update(range=[0, 1e-9], stow=0),
+], ids=["a size in metres", "a range narrower than its decimals"])
+def test_a_module_mujoco_will_not_compile_is_refused_at_the_rig(change):
+  """The validator admitted both, and MuJoCo's compile raised ValueError in
+  the rig, out through `build_tool` (#500): the rig refuses it, before a
+  point is spent."""
+  raw = scoop()
+  change(raw)
+  [why] = build.trial(validate.check(raw))
+  assert why.startswith("rig: it does not compile ("), why
 
 
 def test_every_reason_at_once():

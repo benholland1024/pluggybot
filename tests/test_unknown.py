@@ -324,9 +324,9 @@ def test_drive_to_takes_a_patience_the_code_caps():
   assert st.check_step(verb, {"x": 1.0, "y": 2.0, "patience": 601.0}, LEGS) == [
     f"patience=601.0 is above {st.MAX_PATIENCE_S}"]
   assert lang.compile_procedure("def go():\n    drive_to(1, 2, 300)\n", LEGS)
-  with pytest.raises(st.Refused, match="line 2: patience=700.0 is above"):
+  with pytest.raises(st.Refused, match="line 2, drive_to: patience=700.0 is above"):
     lang.compile_procedure("def go():\n    drive_to(1, 2, patience=700)\n", LEGS)
-  with pytest.raises(st.Refused, match="drive_to needs y"):
+  with pytest.raises(st.Refused, match="drive_to: needs y"):
     lang.compile_procedure("def go():\n    drive_to(1)\n", LEGS)
 
 
