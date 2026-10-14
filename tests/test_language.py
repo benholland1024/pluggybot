@@ -131,6 +131,52 @@ def test_the_source_cap_is_a_refusal():
   assert any("characters; the cap is" in r for r in refusals(src))
 
 
+@pytest.mark.parametrize("src, said", [
+  ("def x():\n  wait(" + "9" * 309 + ")\n", "line 2, wait: "),
+  ("def x():\n  wait(1e400)\n", "line 2, wait: "),
+  ("def x():\n  t = 0x" + "f" * 260 + "\n  wait(1)\n", "line 2: "),
+  ("def x():\n  budget(seconds=" + "9" * 309 + ")\n  wait(1)\n", "line 2, budget: "),
+], ids=["an argument", "a float", "a hex assignment", "a budget"])
+def test_a_number_too_large_for_a_float_is_refused_never_raised(src, said):
+  """`float()` raised OverflowError on an int past a float's range, out
+  through the define, and nothing above it caught that: one answer of 330
+  characters ended the served process, both robots with it (#500). 1e400,
+  inf, is the same mistake and reads the same."""
+  [why] = refusals(src)
+  assert why == said + "a number is too large to hold", why
+
+
+def test_a_number_too_large_is_one_reason_among_every_other():
+  """Refused before the parse, it was the only reason said: the define's
+  other faults cost the robot another turn each (#500)."""
+  reasons = refusals("def x():\n  wait(" + "9" * 309 + ")\n  import os\n  fly()\n")
+  assert len(reasons) == 3 and reasons[0] == "line 2, wait: a number is too large to hold", reasons
+
+
+@pytest.mark.parametrize("arg", ["-" * 1000 + "1", "+".join(["1"] * 60),
+                                 " and ".join(["1"] * 200)],
+                         ids=["unary minuses", "a long sum", "an and-chain"])
+def test_an_expression_nested_too_deep_is_refused_never_raised(arg):
+  """The parser recursed once a level: ~980 unary minuses, a source of
+  1,000 characters, raised RecursionError out of the define, and the served
+  process ended (#500). A chain of `and`s nests as deep in what it builds,
+  and in `_eval` running it."""
+  [why] = refusals(f"def x():\n  wait({arg})\n")
+  assert why == f"line 2, wait: an expression nests deeper than {lang.MAX_EXPR_DEPTH}", why
+  assert compile_ok("def x():\n  wait(" + "+".join(["1"] * 40) + ")\n")
+
+
+@pytest.mark.parametrize("src, said", [
+  ("def x():\n  wait(1)  # \ud800\n", "the source holds a character that is not text"),
+  ("def x():\n  wait(" + "(" * 199 + "-" * 385 + "1" + ")" * 199 + ")\n",
+   "the source nests too deeply to read"),
+], ids=["a lone surrogate", "the parser's own stack"])
+def test_a_source_python_cannot_read_is_refused_never_raised(src, said):
+  """`ast.parse` raised UnicodeEncodeError on a lone surrogate and
+  MemoryError past its own stack, and only SyntaxError was caught (#500)."""
+  assert refusals(src) == [said]
+
+
 def test_a_fetch_in_a_world_with_an_empty_rack_is_refused_by_the_world():
   reasons = refusals('def x():\n  fetch("module_pen")\n', replace(HOME, tools=()))
   assert any("nothing this world has" in r for r in reasons)
