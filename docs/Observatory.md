@@ -10,6 +10,39 @@ observatory is NOT a result: it reports into the issue it informs.
 
 ## Periods
 
+### One robot on the dock, a bay's wait asks, and a robot inside the other's disc plans out of it (#455's closing reading) — opens when this PR is deployed
+
+**What changed in the world.** How the pair shares the dock and the
+rack. The two quadrupeds never touch, and on afb473a the second to charge
+walked in onto the first lying on the dock, nine times in the 5-minute
+`drift` samples: the charge bay counted as taken only with a robot on its
+standoff, a metre short of the seat. Both charged at once, then each backed out onto the other at the
+standoff. Lying there 0.05-0.2 m apart, each was too deep in the other's
+planner disc to plan a step or to step aside, and every walk of both gave
+up in 0 s for up to 94 minutes. Now a robot on the dock holds the charge
+bay as one on its standoff does, and is waited for out of the lane. A
+robot inside the other's disc plans out of it. And a wait for a bay asks
+a robot lying down to rest on it to step off, as a walk does. The prompt
+did not move. What the robot reads changes in two places: a charge's wait
+says "WAIT: Rowan is on the dock", where it named a distance, and a charge
+given up for it says "never reached the charge bay -- Rowan was on the
+dock; I waited 1386 s for it to leave, 3x how long one charge usually
+takes".
+
+**What the period is for.**
+
+- **#455's last box, read again**: each give-up naming a robot "lying down
+  to rest" has a `MAKE WAY` line beside it in the log (a yes, or a no with
+  why), and none names a robot more than a few metres off. On afb473a none
+  named one past 2.9 m, but about a hundred walks at the dock's standoff
+  gave up in 0 s and nobody stepped aside.
+- **One body on the dock.** Both robots within 0.3 m of the seat in the
+  same `drift` sample: 9 episodes on afb473a (24 samples), and 15 with the
+  bodies within 0.3 m of each other anywhere. Runs of "could not get clear
+  of the rack" at the standoff in History went with them.
+- **The charge's waits.** `GO_CHARGE: never reached the charge bay` lines
+  that waited their bound: 6 on afb473a, each in a jam.
+
 ### Every refusal names its call (#463) — opens when this PR is deployed
 
 **What changed is what the robot is TOLD.** A refusal inside a call now

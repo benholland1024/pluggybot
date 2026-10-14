@@ -3053,6 +3053,86 @@ another plate, and nothing touched or fell.
 
 `tests/test_resting_in_the_way.py` pins each rule.
 
+## Two bodies on one dock (issue #455's closing reading)
+
+**What happened.** #455's last box was a day on a build carrying the
+change above: each give-up naming a robot lying down to rest with an ask
+beside it, and none naming a robot more than a few metres off. On afb473a
+(3.5 days from 2026-10-10) the second half held: no give-up named a robot
+further off than 2.9 m. The first did not. Nearly every give-up that named
+a resting robot came from one spot, the dock's standoff, where both robots
+lay 0.05-0.2 m apart by their true poses (the `drift` rows). In jams of
+up to 94 minutes, every walk of both robots gave up in 0 s ("the walk
+gave up 7.1 m short after 0 s (Rowan lying down to rest in the way, 0.1 m
+off)": 122 explores, 7 procedures and a drawing). Six charges waited their
+whole 1387 s for the other to leave and failed, and History said "could
+not get clear of the rack" 131 times, once a minute in a jam.
+
+**How two bodies came to one spot.** Every geom of the quadruped is
+`contype 1, conaffinity 0`, the walking policy's model, which has no
+self-contact. So the two robots never touch: no `touched` encounter row
+since the rover. Only the planner keeps them apart, and the walks it does
+not plan are blind to the other robot. The charge bay counted as taken
+only with a robot on its STANDOFF, and one lying on the dock is 1.0 m past
+it. Nine times on afb473a (24 of its 5-minute `drift` samples) both robots
+lay on the seat at once: the second had walked in by the board onto the
+first, both charged, and each later backed out (0.9 m, straight back) onto
+the standoff, onto the other.
+
+**Why nothing moved them.** Each lay inside the other's disc (0.70 m round
+a robot resting) deeper than the planner's halo escape reaches (0.50 m),
+so neither could plan a first step. A walk asked the other off its way,
+and the other, as deep in the asker's disc, found no floor to step to and
+said no ("no spot"). A bay's wait asked nobody: the charge's ran its bound,
+and two at the rack ran their 90 s on a robot resting at its front,
+0.38-0.53 m from the bay's working pose.
+
+**The change.**
+
+- A robot inside another's disc plans out of it: a plan's start reaches as
+  far past the halo as the disc is deep, the nearest way out, and the plan
+  keeps the rest of the disc (`Navigator._escape_cells`). The step aside's
+  own walk starts the same way.
+- A robot on the dock's seat (`Body.charge_seat`) holds the charge bay as
+  one on its standoff does. It is waited for out of the lane, and looked
+  for again once the walk reaches the standoff.
+- A bay's wait asks a robot lying down to rest ON the bay off the way
+  there, every `OTHER_WAIT_S` (`Body.ask_off`). It never asks one only
+  near it: one charging on the dock would say no for its whole charge.
+
+**Measured** (`scripts/dock_pair_spike.py`; before is staging's code,
+ef4b9b5, the same scenes). The overlaps are flown on the robots' own maps
+out of the live save, at three jams' true poses; one robot walks to the
+hall:
+
+| scene | before | after |
+|---|---|---|
+| overlap, 0.21 m apart (t=954017) | arrived, 25.8 s: the escape just reached | arrived, 25.8 s |
+| overlap, 0.10 m apart (t=1051301) | gave up 7.0 m short after 0 s; asked, "no spot" | arrived, 23.4 s |
+| overlap, 0.21 m apart (t=1126640) | gave up 7.1 m short after 0 s; asked, "no spot" | arrived, 21.6 s |
+| one charging on the dock, the other comes to charge | walked in onto it at 25.6 s, 0.007 m apart; both charged for 44 s | waited out of the lane; docked at 102.6 s, the first gone at 76.6 s |
+| one resting on the standoff (the wait bounded at 60 s) | waited 60 s; "never reached the charge bay" | asked at 5.7 s, stepped 0.8 m aside; docked at 32.9 s |
+| one resting 0.42 m from the claw's bay | waited 91 s; "blocked" | asked at once, stepped 0.4 m aside; the claw on the fork at 29.0 s |
+
+The first and the third overlaps are the same distance apart. Where the
+escape fell short turned on which lattice cells the disc covered. A pair
+day with a fall and a death arranged (`determinism_spike.py --pair`) is
+identical on both codes over 1052 state samples.
+
+**What is true now:**
+
+- the two quadrupeds never touch: the planner keeps them apart, and a walk
+  it does not plan (the dock's and the rack's walk in, their back-outs) is
+  blind to the other;
+- a robot inside another's disc plans out of it by the nearest way, and so
+  does its step aside;
+- a robot on the dock's seat holds the charge bay, and a waiting robot says
+  it is "on the dock";
+- a bay's wait asks a robot resting ON the bay off the way there, and never
+  one only near it.
+
+`tests/test_make_way.py` and `tests/test_rack_contention.py` pin each rule.
+
 ## Hide and seek on legs (issue #404)
 
 **What the rover's game was.** The hider drove to a surveyed spot and
