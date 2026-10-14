@@ -1258,8 +1258,8 @@ def check_arg(verb: Verb, name: str, value, facts: WorldFacts) -> list[str]:
 
 #: What a verb's tag names, and so the `WorldFacts` list it must be on
 #: (`places`, `plates`, `cubes`; issues #419, #407). A tag `Arg` has no
-#: bound: the list refuses every other tag by its call, where a bound
-#: refused it a second time without one (#463).
+#: bound: the list refuses every other tag, once, where a bound refused it
+#: a second time (#463).
 TAG_NAMES = {"find": "place", "survey": "place", "press": "plate",
              "pick": "cube", "place": "cube"}
 #: ...and what a tag of the other kind is, said beside its refusal (#407: a
@@ -1293,21 +1293,24 @@ def _tags(tags) -> str:
 def check_step(verb: Verb, args: dict, facts: WorldFacts,
                partial: bool = False) -> list[str]:
   """Every argument of one step. `partial` skips the missing-argument rule,
-  for a language checking only the literal half of a call."""
+  for a language checking only the literal half of a call.
+
+  ⚠ A REASON NEVER NAMES ITS CALL: whoever knows where the step is names
+  it, once (`validate`, `lang.validate`, History's `procedure_outcome`:
+  `line 3, wait: seconds=99.0 is above 60.0`). "tag 20 is no place",
+  refusing a `find`, was read as a refusal of `place` (#463), and a reason
+  that named its call too was said `pick: pick(tag=99) ...` at run time."""
   if facts is not None and facts.verbs is not None and verb.name not in facts.verbs:
-    return [f"{verb.name}: not on this body yet "
-            f"(it has: {', '.join(facts.verbs)})"]
+    return [f"not on this body yet (it has: {', '.join(facts.verbs)})"]
   bad = []
   extra = set(args) - set(verb.args)
   missing = {k for k, a in verb.args.items() if a.default is None} - set(args)
   if extra:
-    bad.append(f"{verb.name} takes no {', '.join(sorted(extra))}")
+    bad.append(f"takes no {', '.join(sorted(extra))}")
   if missing and not partial:
-    bad.append(f"{verb.name} needs {', '.join(sorted(missing))}")
-  # A tag's refusal leads with its call: "tag 20 is no place", refusing a
-  # `find`, was read as a refusal of `place` (#463). A number for a tag is
-  # the list's alone to refuse, so one that is no number (inf, nan) is
-  # refused once, by its call, too.
+    bad.append(f"needs {', '.join(sorted(missing))}")
+  # A number for a tag is the list's alone to refuse, so one that is no
+  # number (inf, nan) is refused once too (#463)
   noun, tag = TAG_NAMES.get(verb.name), args.get("tag")
   tagged = noun is not None and isinstance(tag, (int, float)) and not isinstance(tag, bool)
   for name in verb.args:
@@ -1318,7 +1321,7 @@ def check_step(verb: Verb, args: dict, facts: WorldFacts,
     other = "place" if noun == "cube" else "cube"
     gloss = (f"; {_number(tag)} {TAG_GLOSS[other]}"
              if tag in getattr(facts, other + "s") else "")
-    bad.append(f"{verb.name}(tag={_number(tag)}) names no {noun} this world has "
+    bad.append(f"tag {_number(tag)} names no {noun} this world has "
                f"({noun}s: {_tags(getattr(facts, noun + 's'))}){gloss}")
   at = {k: float(args[k]) for k in ("x", "y")
         if isinstance(args.get(k), (int, float)) and not isinstance(args.get(k), bool)}
@@ -1368,7 +1371,7 @@ def validate(program: Program, facts: WorldFacts) -> list[str]:
         bad.append(f"{where}: unknown verb {step.verb!r} "
                    f"(have: {', '.join(VERBS)})")
         continue
-      bad += [f"{where}: {r}" for r in check_step(verb, step.args, facts)]
+      bad += [f"{where}, {step.verb}: {r}" for r in check_step(verb, step.args, facts)]
   return bad
 
 

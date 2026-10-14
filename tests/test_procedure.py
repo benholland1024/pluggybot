@@ -82,9 +82,9 @@ def _refusals(spec, facts=HOME):
   ({"name": "x", "roles": {}}, "at least one role"),
   ({"name": "x", "roles": {"robot": []}}, "has no steps"),
   ({"name": "x", "steps": [{"verb": "fly"}]}, "unknown verb 'fly'"),
-  ({"name": "x", "steps": [{"verb": "wait"}]}, "wait needs seconds"),
+  ({"name": "x", "steps": [{"verb": "wait"}]}, "robot[0], wait: needs seconds"),
   ({"name": "x", "steps": [{"verb": "stow", "args": {"tool": "module_pen"}}]},
-   "stow takes no tool"),
+   "robot[0], stow: takes no tool"),
   ({"name": "x", "steps": [{"verb": "wait", "args": {"seconds": "long"}}]},
    "must be a finite number"),
   ({"name": "x", "steps": [{"verb": "wait", "args": {"seconds": float("nan")}}]},
@@ -110,7 +110,7 @@ def _refusals(spec, facts=HOME):
                                                        "target": 9.0}}]},
    "shoulder target 9.0 is outside"),
   ({"name": "x", "steps": [{"verb": "find", "args": {"tag": 12, "x": 0.0, "y": 0.0}}]},
-   "find(tag=12) names no place this world has"),
+   "robot[0], find: tag 12 names no place this world has"),
   ({"name": "x", "steps": [{"verb": "stow"}] * (st.MAX_STEPS + 1)},
    f"the cap is {st.MAX_STEPS}"),
   ({"name": "x", "budgetS": st.MAX_BUDGET_S + 1, "steps": [{"verb": "stow"}]},
@@ -126,17 +126,24 @@ def test_each_rule_refuses_with_a_readable_reason(spec, needle):
   ("find", {"x": 25.2, "y": -2.4}, 20), ("survey", {}, 20), ("press", {}, 20),
   ("pick", {}, 42), ("place", {}, 42)])
 @pytest.mark.parametrize("tag", [None, 1000, float("inf"), float("nan")])
-def test_a_tag_refusal_names_the_call_it_refuses_and_is_the_only_one(verb, extra,
-                                                                     other_kind, tag):
-  """"tag 20 is no place this world has", refusing a `find`, was read as a
-  refusal of `place`: the robot ticketed a wrong cause and told it to the
-  other robot (#463). Each verb's tag refusal leads with its call, and is
-  the only one: a bound said `tag=1000.0 is above 999` first, and a tag that
-  is no number `tag must be a finite number`, neither with a call -- where
-  `int(tag)` had not raised on it first."""
+def test_a_tag_is_refused_once(verb, extra, other_kind, tag):
+  """A bound said `tag=1000.0 is above 999` before the list's refusal, and
+  a tag that is no number `tag must be a finite number` -- where `int(tag)`
+  had not raised on it first (#463). One reason, for what the tag names."""
   tag = other_kind if tag is None else tag
   [why] = st.check_step(st.VERBS[verb], {**extra, "tag": tag}, HOME)
-  assert why.startswith(f"{verb}(tag={tag}) names no "), why
+  assert why.startswith(f"tag {tag} names no {st.TAG_NAMES[verb]} this world has"), why
+
+
+def test_a_reason_never_names_its_call():
+  """Whoever knows where a step is names its call, once -- `validate`,
+  `lang.validate`, History's `procedure_outcome` -- so a reason that named
+  it too was said twice: `it stopped at line 3, pick: pick(tag=99) ...`."""
+  bare = replace(HOME, verbs=())
+  for name, verb in {**st.VERBS, **st.GAME_VERBS}.items():
+    for facts in (HOME, bare):
+      for why in st.check_step(verb, {"zzz": 1}, facts):
+        assert not why.startswith(name) and f"{name}(" not in why, why
 
 
 def test_every_verb_that_takes_a_tag_has_its_list():
@@ -151,11 +158,11 @@ def test_a_tag_refusal_quotes_the_tag_exactly():
   passes, beside a list holding 23, and 1234567 as `1.23457e+06`; and a
   program's tag is an int, never rounded through a float."""
   [why] = st.check_step(st.VERBS["pick"], {"tag": 23.0000001}, HOME)
-  assert why.startswith("pick(tag=23.0000001) names no cube"), why
+  assert why.startswith("tag 23.0000001 names no cube"), why
   [why] = st.check_step(st.VERBS["find"], {"tag": 1234567, "x": 25.2, "y": -2.4}, HOME)
-  assert why.startswith("find(tag=1234567) names no place"), why
+  assert why.startswith("tag 1234567 names no place"), why
   [why] = st.check_step(st.VERBS["pick"], {"tag": 2**53 + 1}, HOME)
-  assert why.startswith(f"pick(tag={2**53 + 1}) names no cube"), why
+  assert why.startswith(f"tag {2**53 + 1} names no cube"), why
 
 
 def test_a_tag_refusal_lists_a_run_of_tags_as_lo_to_hi():

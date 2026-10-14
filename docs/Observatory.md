@@ -10,23 +10,27 @@ observatory is NOT a result: it reports into the issue it informs.
 
 ## Periods
 
-### A tag's refusal names the call it refuses (#463) — opens when this PR is deployed
+### Every refusal names its call (#463) — opens when this PR is deployed
 
-**What changed is what the robot is TOLD.** A procedure's refusal of a tag
-now leads with the call it refuses, and lists the world's tags by kind, a
-run of three or more as `lo to hi`: `find(tag=20) names no place this world
-has (places: 35 to 46)`, where it read `tag 20 is no place this world has
-(have: 35, 36, …, 46)`. `survey`, `press` (`plates: 35 to 37`), `pick` and
-`place` (`cubes: 20 to 24`) say theirs the same way. On `5ba8a0c` Luca read
-a refused `find(20, …)` as a refusal of its `place(20)`, filed tk_0028, and
-told Rowan the cube tags register once the blocks are seen. Four refusals
-beside it changed too:
+**What changed is what the robot is TOLD.** A refusal inside a call now
+names the call, once, in the form History already gave a failed step (`it
+stopped at line 5, find: …`): `line 5, find: tag 20 names no place this
+world has (places: 35 to 46)`, where it read `line 5: tag 20 is no place
+this world has (have: 35, 36, …, 46)`. That covers the parser's refusals
+(`line 2, drive_to: needs y`, where it read `drive_to needs y`), the
+world's (`line 3, wait: seconds=99.0 is above 60.0`), a sensor's inside a
+call and `budget(…)`'s; a program's read `robot[0], find: …`. The robot
+never sees a refused define's source again, so a line number alone pointed
+at nothing it could read. On `5ba8a0c` Luca read a refused `find(20, …)` as
+a refusal of its `place(20)`, filed tk_0028, and told Rowan the cube tags
+register once the blocks are seen. Tags are listed by kind, a run of three
+or more as `lo to hi` (`plates: 35 to 37`, `cubes: 20 to 24`), and four
+refusals beside them changed too:
 
-- a tag outside 0..999 is refused once, by its call, where
-  `tag=1000.0 is above 999` came first;
-- a computed tag that is no number (`inf`, `nan`) is refused once, by its
-  call, and fails its step, where the run ended on a fault with its steps
-  and locals lost;
+- a tag outside 0..999 is refused once, where `tag=1000.0 is above 999`
+  came first;
+- a computed tag that is no number (`inf`, `nan`) is refused once and fails
+  its step, where the run ended on a fault with its steps and locals lost;
 - an argument the parser refused is not refused again as a 0, where
   `pick(int(t))` also read `tag 0 is no cube this world has`;
 - a coordinate written as a number beside one computed or refused is checked
@@ -41,12 +45,13 @@ event. History still says it.
 
 **What the period is for.**
 
-- **Does the misreading stop?** Count tickets and `tell`s after a tag
-  refusal that blame a call the refusal did not name. On `5ba8a0c` there were
-  3 refusals of this kind, all Luca's, and one was read into a ticket and a
-  tell.
-- ⚠ **A count by the words splits at this deploy.** Before it, `tag N is no
-  place|plate|cube … (have: …)`; after it, `names no place|plate|cube`.
+- **Does the misreading stop?** Count tickets and `tell`s after a refusal
+  that blame a call the refusal did not name. On `5ba8a0c` there were 3
+  tag refusals of #463's kind, all Luca's, and one was read into a ticket
+  and a tell.
+- ⚠ **A count by the words splits at this deploy.** Before it, `line N: tag N
+  is no place|plate|cube … (have: …)` and `verb needs …`; after it, `line N,
+  verb: tag N names no place|plate|cube …` and `line N, verb: needs …`.
 
 ### `test` and the form's coined names are placeholders too (#462's closing reading) — opens when this PR is deployed
 

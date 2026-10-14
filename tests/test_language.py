@@ -89,7 +89,8 @@ def test_the_served_example_compiles_on_its_world():
   ("def x():\n  print(1)\n", "unknown verb 'print'"),
   ("def x():\n  fly()\n", "unknown verb 'fly'"),
   ("def x():\n  read(\"shoulder\")\n", "read(...) is an expression"),
-  ("def x():\n  wait(stow())\n", "only read(...) may be used inside an expression"),
+  ("def x():\n  wait(stow())\n",
+   "line 2, wait: stow(...) is inside an expression, where only read(...) may be"),
   ("def x():\n  a = \"s\"\n", "a str is not a number"),
   ("def x():\n  a = [1]\n", "List is not part"),
   ("def x():\n  a = b.c\n", "Attribute is not part"),
@@ -99,11 +100,11 @@ def test_the_served_example_compiles_on_its_world():
   ("def x():\n  for i in range(1000):\n    stow()\n", "outside 0..100"),
   ("def x():\n  while 1:\n    stow()\n  else:\n    stow()\n", "while takes no else"),
   ("def x():\n  return 1\n", "return takes no value"),
-  ("def x():\n  wait(1, 2)\n", "wait takes 1 argument"),
-  ("def x():\n  wait(seconds=1, z=2)\n", "wait takes no z"),
-  ("def x():\n  fetch()\n", "fetch needs tool"),
-  ("def x():\n  fetch(3)\n", "fetch(tool=...) takes a name in quotes"),
-  ("def x():\n  wait(\"long\")\n", "wait(seconds=...) takes a number"),
+  ("def x():\n  wait(1, 2)\n", "wait: takes 1 argument"),
+  ("def x():\n  wait(seconds=1, z=2)\n", "wait: takes no z"),
+  ("def x():\n  fetch()\n", "fetch: needs tool"),
+  ("def x():\n  fetch(3)\n", "fetch: tool takes a name in quotes"),
+  ("def x():\n  wait(\"long\")\n", "wait: seconds takes a number"),
   ("def x():\n  wait(999)\n", "seconds=999.0 is above 60"),
   ("def x():\n  move(\"shoulder\", 5)\n", "shoulder target 5.0 is outside"),
   ("def x():\n  move(\"warp\", 1)\n", "axis='warp' is not one of"),
@@ -112,7 +113,7 @@ def test_the_served_example_compiles_on_its_world():
   ("def x():\n  drive_to(99, 0)\n", "outside the map"),
   ("def x():\n  budget(steps=999)\n  stow()\n", "steps=999 is outside 1..200"),
   ("def x():\n  budget(seconds=0)\n  stow()\n", "seconds=0.0 is outside"),
-  ("def x():\n  budget(40)\n  stow()\n", "budget takes keywords"),
+  ("def x():\n  budget(40)\n  stow()\n", "line 2, budget: takes keywords"),
   ("def x():\n  budget(steps=\"many\")\n  stow()\n", "not a literal steps or seconds"),
   ("def x():\n  a = 1 +\n", "invalid syntax"),
   ("def x():\n  if 1:\n    if 1:\n      if 1:\n        if 1:\n          stow()\n",
@@ -139,23 +140,52 @@ def test_a_refused_find_beside_a_place_that_passed_names_the_find():
   """#463's procedure: `find` asked for a cube and `place` given one. The
   refusal names the `find` on its line, so it reads as no refusal of `place`."""
   [why] = refusals("def x():\n  pick(21)\n  find(20, 25.2, -2.4, 300)\n  place(20)\n")
-  assert why.startswith("line 3: find(tag=20) names no place this world has"), why
+  assert why.startswith("line 3, find: tag 20 names no place this world has"), why
+
+
+@pytest.mark.parametrize("call, said", [
+  ("find(20, 25.2, -2.4)", "find: tag 20 names no place"),
+  ("survey(20)", "survey: tag 20 names no place"),
+  ("press(20)", "press: tag 20 names no plate"),
+  ("pick(42)", "pick: tag 42 names no cube"),
+  ("place(1000)", "place: tag 1000 names no cube"),
+  ("wait(99)", "wait: seconds=99.0 is above 60"),
+  ("fetch(3)", "fetch: tool takes a name in quotes"),
+  ("move(\"shoulder\", read(\"nope\"))", "move: unknown sensor 'nope'"),
+])
+def test_a_refusal_the_world_gives_names_its_call(call, said):
+  """The robot never sees a refused define's source again -- History keeps
+  the reasons, the library only what it kept -- so `line 2` alone points
+  at nothing it can read: each refusal names its call, as History says a
+  step that failed (`it stopped at line 2, wait: ...`; #463)."""
+  [why] = refusals(f"def x():\n  {call}\n")
+  assert why.startswith(f"line 2, {said}"), why
+
+
+@pytest.mark.parametrize("verb", sorted(st.VERBS))
+def test_every_refusal_inside_a_call_names_it_once(verb):
+  """The parser's (an argument it cannot read, one too many, one it does
+  not take, one it needs) and the world's (not on this body), for every
+  verb: each starts with its call, and none names it twice."""
+  reasons = refusals(f"def x():\n  {verb}(None, zzz=1)\n")
+  assert reasons and all(r.startswith(f"line 2, {verb}: ") for r in reasons), reasons
+  assert not any(f"{verb}: {verb}" in r for r in reasons), reasons
 
 
 @pytest.mark.parametrize("arg, said", [
   ("None", "a NoneType is not a number"),
   ("read(1)", "read takes one sensor name"),
-  ("int(21)", "only read(...) may be used"),
+  ("int(21)", "int(...) is inside an expression"),
   ("1 < 2 < 3", "compare two things with one of"),
   ("+21", "UnaryOp is not part of this language"),
 ])
 def test_an_argument_the_parser_refused_is_not_refused_again_as_a_call(arg, said):
   """The parser stood a refused argument in as 0, and the world's check
-  refused that 0 as well: `pick(int(t))` also read `tag 0 is no cube`, and
-  with the call named, `pick(tag=0)`, a call the source never wrote (#463).
-  One case for each place the parser refuses an expression."""
+  refused that 0 as well: `pick(int(t))` also read `tag 0 is no cube`, a
+  tag the source never wrote (#463). One case for each place the parser
+  refuses an expression."""
   [why] = refusals(f"def x():\n  pick({arg})\n")
-  assert why.startswith(f"line 2: {said}"), why
+  assert why.startswith(f"line 2, pick: {said}"), why
 
 
 def test_every_reason_is_reported_at_once():

@@ -147,6 +147,18 @@ def test_a_procedure_cut_short_tells_the_robot_the_line_and_the_reason():
   assert cut["failedReason"].startswith("could not pick up module_claw")
 
 
+def test_a_call_refused_at_run_time_is_named_once():
+  """A computed tag is checked when it is computed, and History names the
+  failed step's call before its reason -- a reason that named it too read
+  `line 3, pick: pick(tag=99) ...` (#463)."""
+  life = stub_life()
+  L = lib.Library(lc.world_facts(WORLD))
+  L.define("big", "def big():\n  t = 99\n  pick(t)\n")
+  life.run_errand(errand_from(Decision(action="procedure:big"), WORLD, library=L))
+  assert ("it stopped at line 3, pick: tag 99 names no cube this world has "
+          "(cubes: 20 to 24) (0 steps had run)") in life.thoughts.read("History.md")
+
+
 def test_a_procedure_that_finished_says_so():
   """A robot must know its procedure ENDED to say `done` after it: round 2
   of #264's probes set `done` before the run, and the grade found one block."""

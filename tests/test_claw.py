@@ -385,9 +385,9 @@ def test_a_tag_named_to_the_wrong_verb_is_refused_with_what_it_is():
   from pluggybot.lifecycle import world_facts
   facts = world_facts(QUAD_HOME)
   [why] = st.check_step(st.VERBS["find"], {"tag": 23, "x": 25.2, "y": -2.4}, facts)
-  assert why.startswith("find(tag=23) names no place") and "a cube's, and `pick` finds" in why
+  assert why.startswith("tag 23 names no place") and "a cube's, and `pick` finds" in why
   [why] = st.check_step(st.VERBS["pick"], {"tag": 44}, facts)
-  assert why.startswith("pick(tag=44) names no cube") and "marks a place, which `find`" in why
+  assert why.startswith("tag 44 names no cube") and "marks a place, which `find`" in why
   [why] = st.check_step(st.VERBS["pick"], {"tag": 99}, facts)
   assert why.endswith(")"), "a tag that is nothing gets no gloss"
 
