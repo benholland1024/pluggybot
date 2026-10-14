@@ -727,18 +727,54 @@ def test_a_scan_answers_the_room_and_the_peer_apart():
   assert alone_a.size == 0 and alone_r.size == 0
 
 
+def _owners(model) -> np.ndarray:
+  """Each geom's robot by its root body's name, "" for the world's."""
+  out = []
+  for g in range(model.ngeom):
+    b = int(model.geom_bodyid[g])
+    while int(model.body_parentid[b]) != 0:
+      b = int(model.body_parentid[b])
+    name = model.body(b).name
+    out.append(name if name in (FIRST.root, SECOND.root) else "")
+  return np.array(out)
+
+
+def _collides(model) -> np.ndarray:
+  """MuJoCo's own filter, every geom against every geom."""
+  ct, ca = model.geom_contype.astype(int), model.geom_conaffinity.astype(int)
+  return ((ct[:, None] & ca[None, :]) | (ct[None, :] & ca[:, None])) != 0
+
+
+def test_the_pair_collides_with_each_other_and_never_with_itself(monkeypatch):
+  """Ben, 2026-10-14 (#455): the two robots can collide, and their bodies
+  never clip into each other. A robot's geoms are `contype 1, conaffinity
+  0` (`legs/model.py`: no self-contact, as the policies were trained),
+  which also kept the pair from ever touching -- on afb473a they lay on
+  each other on the dock. `PAIR_BITS`: every solid geom of one meets every
+  solid geom of the other, none meets its own robot's, and the world meets
+  each robot exactly as it did."""
+  model = lw.home_spec(second_at=(2.5, 0.5)).compile()
+  monkeypatch.setattr(lw, "PAIR_BITS", ((0, 0), (0, 0)))
+  apart = lw.home_spec(second_at=(2.5, 0.5)).compile()
+  who, hits, was = _owners(model), _collides(model), _collides(apart)
+  a, b, w = who == FIRST.root, who == SECOND.root, who == ""
+  solid = (model.geom_contype | model.geom_conaffinity) != 0
+  assert not hits[np.ix_(a, a)].any() and not hits[np.ix_(b, b)].any()
+  assert hits[np.ix_(a & solid, b & solid)].all() and (a & solid).sum() > 20
+  assert not was[np.ix_(a, b)].any(), "the premise: before, they never met"
+  assert np.array_equal(hits[np.ix_(a | b, w)], was[np.ix_(a | b, w)])
+  alone = lw.home_spec().compile()            # ...and a robot alone, as it was
+  mine = _owners(alone) == FIRST.root
+  assert set(zip(alone.geom_contype[mine].tolist(),
+                 alone.geom_conaffinity[mine].tolist())) == {(0, 0), (1, 0)}
+
+
 def test_a_robot_that_touches_its_pair_leaves_a_row():
   """Issue #316's fourth question: contact between the pair is a phase of
   the encounter -- sensed off the contact array, latched like the plate's
-  press. ⚠ The served quadrupeds' geoms are `contype 1 conaffinity 0`, so
-  they never collide with each other; the second robot's body is given an
-  affinity here so the rule has a contact to read."""
+  press -- in the world as served (#455: the pair collides)."""
   from pluggybot.activity.encounter import Encounters
-  spec = lw.home_spec(second_at=(0.3, 0.0))
-  for g in spec.geoms:
-    if g.name.startswith(SECOND.prefix) and g.contype:
-      g.conaffinity = 1
-  model = spec.compile()
+  model = lw.home_spec(second_at=(0.3, 0.0)).compile()
   data = mujoco.MjData(model)
   lw.stand(model, data, FIRST.prefix, 0.0, 0.0, 0.0)
   lw.stand(model, data, SECOND.prefix, 3.0, 0.0, 0.0)

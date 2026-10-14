@@ -43,6 +43,14 @@ DEMO_WH = 20.0
 #: another dock leg and the stand-up and lie-down it costs (93 mWh, #377) --
 #: 3.656, carried as 3.7. A property of the floor plan, not of the pack.
 RESERVE_WH = 3.7
+#: THE PAIR COLLIDES (Ben, 2026-10-14, #455): a robot's colliding geoms are
+#: `contype 1, conaffinity 0` (`legs/model.py`: no self-contact, as the
+#: policies were trained), which kept the two robots from ever touching --
+#: on afb473a they lay on each other on the dock and at its standoff. Each
+#: robot gets a bit of its own, and the other's as its affinity: it meets
+#: the other robot's body, never its own, and the world as before (the
+#: world's affinities are 0 and 1, and only the dock's base is contype 2).
+PAIR_BITS = ((2, 4), (4, 2))
 
 
 def dock_pose() -> tuple[float, float, float]:
@@ -161,10 +169,15 @@ def _attach_area_tags(spec: mujoco.MjSpec) -> None:
   spec.attach(child, prefix="", frame=spec.worldbody.add_frame())
 
 
-def _attach_quad(spec: mujoco.MjSpec, pos, prefix: str, rgba) -> None:
+def _attach_quad(spec: mujoco.MjSpec, pos, prefix: str, rgba, bits=None) -> None:
   robot = attachable(CHOSEN)
   if rgba is not None and tuple(rgba) != CHASSIS_RGBA:
     paint(robot, rgba)
+  if bits is not None:                       # `PAIR_BITS`
+    own, other = bits
+    for geom in robot.geoms:
+      if geom.contype or geom.conaffinity:
+        geom.contype, geom.conaffinity = geom.contype | own, geom.conaffinity | other
   frame = spec.worldbody.add_frame()
   frame.pos = [float(pos[0]), float(pos[1]), 0.0]
   spec.attach(robot, prefix=prefix, frame=frame)
@@ -190,13 +203,15 @@ def _attach_dock(spec: mujoco.MjSpec, pose) -> None:
 def home_spec(first_at=(1.5, 0.5), second_at=None, second_prefix: str = "r2_",
               second_rgba=SECOND_CHASSIS_RGBA, path: str = HOME_XML) -> mujoco.MjSpec:
   """The home world's SPEC with the quadruped at `first_at` and, optionally,
-  a second at `second_at` in its own livery, the dock, the rack, the lab's
-  plate signs, the whiteboards' tags and the claw's and the census's areas'
-  (#407). Kept by the lifecycle (`robot.world_spec`)."""
+  a second at `second_at` in its own livery, the two colliding with each
+  other (`PAIR_BITS`), the dock, the rack, the lab's plate signs, the
+  whiteboards' tags and the claw's and the census's areas' (#407). Kept by
+  the lifecycle (`robot.world_spec`)."""
   spec = mujoco.MjSpec.from_file(path)
-  _attach_quad(spec, first_at, "", None)
-  if second_at is not None:
-    _attach_quad(spec, second_at, second_prefix, second_rgba)
+  pair = second_at is not None
+  _attach_quad(spec, first_at, "", None, PAIR_BITS[0] if pair else None)
+  if pair:
+    _attach_quad(spec, second_at, second_prefix, second_rgba, PAIR_BITS[1])
   _attach_dock(spec, dock_pose())
   _attach_rack(spec, rack_pose())
   _attach_signs(spec)

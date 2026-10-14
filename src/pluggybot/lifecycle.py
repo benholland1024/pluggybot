@@ -36,7 +36,7 @@ from pluggybot import continuation
 from pluggybot.behavior.navigation import STRIKES_TO_FINISH
 from pluggybot.rack.coupling import (
   BUILT_RACK_BODY, BUILT_STATION_YS, HUB_STATION_YS, STATION_YS,
-  bay_switches, built_bay_index, is_built_bay,
+  bay_switches, built_bay_index, contact_pairs, is_built_bay,
 )
 from pluggybot.mission.errand import programmed_errand
 from pluggybot.body import (  # noqa: F401 -- the topple's old home
@@ -176,6 +176,13 @@ RESTART_AFTER_S = 300.0
 #: their torsos' centres (0.38 m each, the hind knees; the rover's is less)
 #: and a hand's width between them.
 START_CLEAR_M = 1.0
+#: A robot restored this deep inside another robot's body is put at its
+#: first clear start (`unclip`, issue #455), m. A world saved before the
+#: pair collided can hold the two on one spot, and the contacts throw them
+#: apart: MEASURED at three of afb473a's jams, 0.11 m in, a root at up to
+#: 2.5 m/s and a robot down at each. The pair's own contact goes 8 mm deep
+#: (a walk in pressed against a robot on the dock).
+UNCLIP_M = 0.02
 
 #: How long a finished build will stand and wait for room on the rack
 #: (issue #315), and how often it looks. A DESIGN DECISION, not a
@@ -1734,6 +1741,39 @@ class HubLifecycle:
     if self.up_pose() is None:
       return                             # every start is under a robot: next step
     self.stand_up(AUTO_RESTART_BY, auto=True)
+
+  def unclip(self) -> bool:
+    """Put this robot at its first clear start (`up_pose`) if it lies
+    `UNCLIP_M` or deeper inside another robot's body, and say so (issue
+    #455): only a world restored from before the pair collided holds one,
+    and `continuation.restore` asks every robot but the first. The world's
+    hand, as a stand-up's is: the pack, the map and the jobs are its own.
+    True if it moved."""
+    g = contact_pairs(self.data)
+    if not self.peers or not len(g):
+      return False
+    mine = np.zeros(self.model.ngeom, dtype=bool)
+    mine[self.body.geom_ids] = True
+    theirs = {}
+    for p in self.peers:
+      for gid in p.body.geom_ids:
+        theirs[int(gid)] = p
+    dist = self.data.contact.dist[:len(g)]
+    inside = [(float(dist[k]), theirs.get(int(b) if mine[a] else int(a)))
+              for k, (a, b) in enumerate(g.tolist())
+              if mine[a] != mine[b] and (int(b) if mine[a] else int(a)) in theirs]
+    deepest = min(inside, default=None, key=lambda r: r[0])
+    pose = self.up_pose() if deepest is not None and deepest[0] <= -UNCLIP_M else None
+    if pose is None:
+      return False
+    who = deepest[1].robot_name or deepest[1].root
+    self.body.start_at(*pose)
+    mujoco.mj_forward(self.model, self.data)
+    line = (f"came back from a restart lying {-deepest[0]:.2f} m inside {who}'s body, "
+            f"and was put at my start ({pose[0]:.1f}, {pose[1]:.1f}) instead")
+    self._say(f"RESTART: {line}")
+    self._remember(line)
+    return True
 
   def up_pose(self) -> tuple[float, float, float] | None:
     """Where a stand-up puts this robot (issue #387): its own start pose,
@@ -7045,6 +7085,9 @@ class HubLifecycle:
     """The day's setup, returning the routine that IS the day."""
     self.max_sim_time = max_sim_time
     self.resumed = None                   # `continuation.restore` sets it
+    # ...home from here (#455): a restore puts a robot clear (`unclip`)
+    # before the day routine has run
+    self.home_pose = tuple(float(v) for v in start)
     self.blacklist: set = set()
     self.floor_explored = False
     self.stranded = False

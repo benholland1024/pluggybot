@@ -611,6 +611,41 @@ def test_the_pair_carries_on_both_robots_from_one_saved_world(tmp_path):
   assert back[0].encounters.count == 4
 
 
+def test_a_pair_saved_lying_on_each_other_is_put_apart_on_restore(tmp_path):
+  """A world saved before the pair collided (#455) can hold the two lying on
+  one spot -- afb473a's jams, 0.05-0.2 m apart -- and stepped now, the
+  contacts throw them out of each other: a robot down at each of three. The
+  later robot comes back at its first clear start instead, and says so; a
+  pair saved apart comes back in place
+  (`test_the_pair_carries_on_both_robots_from_one_saved_world`)."""
+  import math
+
+  from pluggybot.lifecycle import UNCLIP_M
+  from pluggybot.pair import build_pair
+  cfg = world_config(QUAD_HOME)
+  starts = (cfg["start"], cfg["start2"])
+  lives = build_pair(QUAD_HOME, thoughts_root=str(tmp_path / "before"))
+  lives[0].body.start_at(3.451, -0.496, math.radians(27.0))
+  lives[1].body.start_at(3.409, -0.376, math.radians(-83.4))
+  path = tmp_path / "world.npz"
+  continuation.write(continuation.capture(lives, lives[0].world_fingerprint), path)
+  snap = continuation.read(path)
+
+  back = build_pair(QUAD_HOME, resume=snap, thoughts_root=str(tmp_path / "after"))
+  for life, start in zip(back, starts):
+    life.begin(start)
+  got = continuation.restore(back, snap)
+  assert got["inPlace"] and got["unclipped"] == [back[1].root]
+  x, y, _ = back[1].body.true_pose()
+  assert math.dist((x, y), starts[1][:2]) < 0.05
+  said = [ln for ln in back[1].thoughts.texts[HISTORY].splitlines() if "inside" in ln]
+  assert said and f"inside {back[0].robot_name}'s body" in said[0], said
+  ax, ay, _ = back[0].body.true_pose()
+  assert math.dist((ax, ay), (3.451, -0.496)) < 0.05, "the first robot moved"
+  mujoco.mj_forward(back[0].model, back[0].data)
+  assert not back[1].unclip() and UNCLIP_M > 0.008
+
+
 def test_a_world_saved_mid_charge_says_the_charge_was_cut_short(tmp_path):
   """A restart ends the charge routine: the robot is told its charge was
   cut short, rather than believe it charged on."""

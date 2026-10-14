@@ -1252,12 +1252,12 @@ class Navigator:
     other robot -- or of `bodies` -- its own centre lies in, else 0.
 
     ⚠ ANOTHER ROBOT'S DISC IS DEEPER THAN THE HALO ESCAPE REACHES (issue
-    #455): 0.70 m round a robot resting against 0.50 m, and the pair's
-    bodies do not touch, so a blind walk in or back out at the dock laid one
-    on the other. Each lay too deep in the other's disc to plan a step or a
-    step aside: live, both gave up every walk in 0 s for up to 94 minutes,
-    and flown on their own saved maps, word for word. Out by the nearest
-    way, the plan keeps the whole disc after it."""
+    #455): 0.70 m round a robot resting, 0.90 m round one fallen, against
+    0.50 m. Before the pair collided, two lay on each other at the dock,
+    each too deep in the other's disc to plan a step or a step aside: live,
+    both gave up every walk in 0 s for up to 94 minutes, and flown on their
+    own saved maps, word for word. Out by the nearest way, the plan keeps
+    the whole disc after it."""
     px, py = self.grid.world_to_cell(self.pose[0], self.pose[1])
     out = 0
     for b in self._bodies() if bodies is None else bodies:
