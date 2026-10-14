@@ -730,7 +730,10 @@ shape.
   procedure's variables as they stood when the run ended, `{name: number}`,
   absent when it had none. A procedure's variables are its readout (the
   same values go into the robot's History), so what a run `read` off a
-  sensor is on the wire beside which steps passed.
+  sensor is on the wire beside which steps passed. ⚠ A variable that is no
+  number (`inf`, `nan`) is left out, and `locals` is absent when it held
+  only such (#463): JSON has no word for one, and a bare `Infinity` made
+  the site's parser drop the whole event. History still says it.
 
 ### 0.21.0, additive: the paid feed (`care` under a task kind; `cause` on a prediction)
 

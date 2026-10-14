@@ -197,9 +197,11 @@ class Program:
 
 @dataclass(frozen=True)
 class Arg:
-  """One typed argument. `choices` is a name on `WorldFacts` (the world
-  decides), `lo`/`hi` bound a number, `bounds` says a pair is checked
-  against the world's box. One with a `default` may be left out."""
+  """One typed argument. `choices` is a list on `WorldFacts` (the world
+  decides) a name must be one of -- or, for a number, a tag must be on
+  (`places`, `plates`, `cubes`; #463) -- `lo`/`hi` bound a number, `bounds`
+  says a pair is checked against the world's box. One with a `default` may
+  be left out."""
 
   kind: str                    # "float" | "str"
   lo: float | None = None
@@ -944,7 +946,7 @@ VERBS: dict[str, Verb] = {
   # PLACES (issue #419): a task area found by its tag and remembered, and a
   # plate pressed off its sign -- the robot's own knowledge, never a
   # coordinate handed over
-  "find": Verb("find", {"tag": Arg("float"), "x": Arg("float"),
+  "find": Verb("find", {"tag": Arg("float", choices="places"), "x": Arg("float"),
                         "y": Arg("float"),
                         "patience": Arg("float", lo=0.0, hi=MAX_PATIENCE_S,
                                         default=FIND_PATIENCE_S)},
@@ -953,7 +955,7 @@ VERBS: dict[str, Verb] = {
                "the tag is in view; ok when seen, and you remember where it is. "
                f"It gives up after `patience` seconds (at most {MAX_PATIENCE_S:.0f})",
                drives=True),
-  "press": Verb("press", {"tag": Arg("float")}, _press,
+  "press": Verb("press", {"tag": Arg("float", choices="plates")}, _press,
                 "walk onto the plate this tag's sign marks, the last step "
                 "measured off the sign, and back off it; ok when a foot was on "
                 "it. `find` it first", drives=True),
@@ -968,13 +970,13 @@ VERBS: dict[str, Verb] = {
                "ok when ink landed", drives=True),
   # THE CLAW (issue #407): a cube by its tag, found and taken, set down on
   # another or on the floor -- the cube's place is the robot's to find
-  "pick": Verb("pick", {"tag": Arg("float")}, _pick,
+  "pick": Verb("pick", {"tag": Arg("float", choices="cubes")}, _pick,
                "take the cube carrying this tag in the claw: you look for it from "
                "where you stand, where you saw it last, and in front of its "
                "area's tags (`find` one of them first), walk in, lie down and "
                "close the jaws on it; ok when they hold it. An empty fork "
                "fetches the claw first", drives=True),
-  "place": Verb("place", {"tag": Arg("float")}, _place,
+  "place": Verb("place", {"tag": Arg("float", choices="cubes")}, _place,
                 "set the cube in the claw down on top of the cube carrying this "
                 "tag, found as `pick` finds one, and let go; ok when it rests "
                 "on it", drives=True),
@@ -985,7 +987,7 @@ VERBS: dict[str, Verb] = {
   "release": Verb("release", {}, _release, "open the claw's jaws where it is; ok "
                   "when nothing is in them -- a cube let go high falls"),
   # THE CENSUS (issue #407): what stands in an area found by its tag
-  "survey": Verb("survey", {"tag": Arg("float")}, _survey,
+  "survey": Verb("survey", {"tag": Arg("float", choices="places")}, _survey,
                  "walk round the area this tag marks -- the floor its walls and "
                  "fence enclose -- and count what stands in it, low, off the depth "
                  "camera; `find` the tag first. ok when surveyed; its count and the "
@@ -1246,6 +1248,8 @@ def check_arg(verb: Verb, name: str, value, facts: WorldFacts) -> list[str]:
       bad.append(f"{name}={value} is below {arg.lo}")
     if arg.hi is not None and float(value) > arg.hi:
       bad.append(f"{name}={value} is above {arg.hi}")
+    if arg.choices and value not in getattr(facts, arg.choices):
+      bad.append(_not_on(name, value, arg.choices, facts))
     return bad
   if not isinstance(value, str):
     return [f"{name} must be a name, not {value!r}"]
@@ -1256,26 +1260,32 @@ def check_arg(verb: Verb, name: str, value, facts: WorldFacts) -> list[str]:
   return []
 
 
-#: What a verb's tag names, and so the `WorldFacts` list it must be on
-#: (`places`, `plates`, `cubes`; issues #419, #407). A tag `Arg` has no
-#: bound: the list refuses every other tag, once, where a bound refused it
-#: a second time (#463).
-TAG_NAMES = {"find": "place", "survey": "place", "press": "plate",
-             "pick": "cube", "place": "cube"}
-#: ...and what a tag of the other kind is, said beside its refusal (#407: a
-#: first weighing on legs asked `find` for its cube and was told only what
-#: the places are).
-TAG_GLOSS = {"cube": "is a cube's, and `pick` finds a cube by its tag",
-             "place": "marks a place, which `find` finds"}
+#: What a tag on another list is, said beside its refusal (#407: a first
+#: weighing on legs asked `find` for its cube and was told only what the
+#: places are).
+TAG_GLOSS = {"cubes": "is a cube's, and `pick` finds a cube by its tag",
+             "places": "marks a place, which `find` finds"}
 
 
-def _number(v) -> str:
-  """A tag exactly as checked: every digit of 23.0000001, which `:g` quoted
-  as `23` beside a list holding 23, and a whole float without its `.0`."""
-  return str(v) if isinstance(v, int) else repr(v).removesuffix(".0")
+def _not_on(name: str, value: float, choices: str, facts: WorldFacts) -> str:
+  """A tag on none of its list: `tag 20 names no place this world has
+  (places: 35 to 46); 20 is a cube's, ...`, and a tag `Arg` carries no bound,
+  which refused it a second time (#463)."""
+  other = "places" if choices == "cubes" else "cubes"
+  gloss = (f"; {number_text(value)} {TAG_GLOSS[other]}"
+           if value in getattr(facts, other) else "")
+  return (f"{name} {number_text(value)} names no {choices[:-1]} this world has "
+          f"({choices}: {_tags(getattr(facts, choices))}){gloss}")
 
 
-def _tags(tags) -> str:
+def number_text(v: float) -> str:
+  """A number exactly as it is: every digit of 23.0000001, which `:g`
+  quoted as `23` beside a list holding 23, and a whole float without its
+  `.0` -- a tag, and the locals History reads (`procedure_outcome`)."""
+  return str(v) if isinstance(v, int) else repr(float(v)).removesuffix(".0")
+
+
+def _tags(tags: tuple[int, ...]) -> str:
   """A world's tags, a run of three or more as `lo to hi`: a refused define
   is one History line, cut at 400 characters, and the twelve places listed
   in full twice cut #463's own refused rewrite short (401). Never `lo..hi`,
@@ -1309,31 +1319,18 @@ def check_step(verb: Verb, args: dict, facts: WorldFacts,
     bad.append(f"takes no {', '.join(sorted(extra))}")
   if missing and not partial:
     bad.append(f"needs {', '.join(sorted(missing))}")
-  # A number for a tag is the list's alone to refuse, so one that is no
-  # number (inf, nan) is refused once too (#463)
-  noun, tag = TAG_NAMES.get(verb.name), args.get("tag")
-  tagged = noun is not None and isinstance(tag, (int, float)) and not isinstance(tag, bool)
   for name in verb.args:
-    if name in args and not (tagged and name == "tag"):
+    if name in args:
       bad += check_arg(verb, name, args[name], facts)
-  # `in`, never `int(tag)`: a computed inf or nan reaches here, and int() raised
-  if tagged and tag not in getattr(facts, noun + "s"):
-    other = "place" if noun == "cube" else "cube"
-    gloss = (f"; {_number(tag)} {TAG_GLOSS[other]}"
-             if tag in getattr(facts, other + "s") else "")
-    bad.append(f"tag {_number(tag)} names no {noun} this world has "
-               f"({noun}s: {_tags(getattr(facts, noun + 's'))}){gloss}")
-  at = {k: float(args[k]) for k in ("x", "y")
-        if isinstance(args.get(k), (int, float)) and not isinstance(args.get(k), bool)}
-  if verb.name in ("drive_to", "find") and at:
+  if verb.name in ("drive_to", "find"):
+    # Each axis on its own, in one wording, whether the other is written,
+    # computed or refused (#463); one `check_arg` refused is not refused again
     x0, y0, x1, y1 = facts.bounds
-    if len(at) == 2 and not (x0 <= at["x"] <= x1 and y0 <= at["y"] <= y1):
-      bad.append(f"({at['x']}, {at['y']}) is outside the map [{x0}, {x1}] x [{y0}, {y1}]")
-    # ...and one written as a number beside one computed or refused is
-    # checked alone, never beside a stand-in (#463: `_REFUSED`)
     for k, lo, hi in (("x", x0, x1), ("y", y0, y1)):
-      if len(at) == 1 and k in at and not lo <= at[k] <= hi:
-        bad.append(f"{k}={at[k]} is outside the map's [{lo}, {hi}]")
+      v = args.get(k)
+      if isinstance(v, (int, float)) and not isinstance(v, bool) \
+          and math.isfinite(v) and not lo <= v <= hi:
+        bad.append(f"{k}={float(v)} is outside the map's [{lo}, {hi}]")
   if verb.name == "move" and isinstance(args.get("axis"), str) \
       and isinstance(args.get("target"), (int, float)) \
       and not isinstance(args.get("target"), bool):

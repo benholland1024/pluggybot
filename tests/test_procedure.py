@@ -5,6 +5,7 @@ verdict per step -- and the fence that keeps the vocabulary the only surface.
 
 import ast
 import json
+import math
 import pathlib
 from dataclasses import replace
 from types import SimpleNamespace
@@ -127,12 +128,16 @@ def test_each_rule_refuses_with_a_readable_reason(spec, needle):
   ("pick", {}, 42), ("place", {}, 42)])
 @pytest.mark.parametrize("tag", [None, 1000, float("inf"), float("nan")])
 def test_a_tag_is_refused_once(verb, extra, other_kind, tag):
-  """A bound said `tag=1000.0 is above 999` before the list's refusal, and
-  a tag that is no number `tag must be a finite number` -- where `int(tag)`
-  had not raised on it first (#463). One reason, for what the tag names."""
+  """A bound said `tag=1000.0 is above 999` before the list's refusal, and a
+  tag that is no number was refused twice -- where `int(tag)` had not raised
+  on it first (#463). One reason: what the tag is not on, or that it is no
+  number."""
   tag = other_kind if tag is None else tag
   [why] = st.check_step(st.VERBS[verb], {**extra, "tag": tag}, HOME)
-  assert why.startswith(f"tag {tag} names no {st.TAG_NAMES[verb]} this world has"), why
+  noun = st.VERBS[verb].args["tag"].choices[:-1]
+  said = ("tag must be a finite number" if not math.isfinite(tag)
+          else f"tag {tag} names no {noun} this world has")
+  assert why.startswith(said), why
 
 
 def test_a_reason_never_names_its_call():
@@ -146,11 +151,12 @@ def test_a_reason_never_names_its_call():
         assert not why.startswith(name) and f"{name}(" not in why, why
 
 
-def test_every_verb_that_takes_a_tag_has_its_list():
-  """A tag `Arg` carries no bound, so `TAG_NAMES` is a tag's only check: a
-  verb that took a tag and was left off it would take any number."""
-  verbs = {**st.VERBS, **st.GAME_VERBS}
-  assert {n for n, v in verbs.items() if "tag" in v.args} == set(st.TAG_NAMES)
+def test_every_tag_is_checked_against_its_list():
+  """A tag `Arg` carries no bound, so its list is its only check: a verb
+  that took a tag with no list would take any number."""
+  for name, verb in {**st.VERBS, **st.GAME_VERBS}.items():
+    if "tag" in verb.args:
+      assert verb.args["tag"].choices in ("places", "plates", "cubes"), name
 
 
 def test_a_tag_refusal_quotes_the_tag_exactly():
@@ -185,6 +191,19 @@ def test_a_coordinate_written_as_a_number_is_checked_beside_one_that_is_not():
   [why] = st.check_step(st.VERBS["drive_to"], {"y": 99999.0}, HOME, partial=True)
   assert why.startswith("y=99999.0 is outside the map's ["), why
   assert st.check_step(st.VERBS["find"], {"tag": 35, "x": 1.0}, HOME, partial=True) == []
+
+
+def test_each_axis_is_checked_once_in_one_wording():
+  """Both written, one off the map read `(1.0, 99999.0) is outside the map
+  [...] x [...]`, beside one computed `y=99999.0 is outside the map's [...]`
+  -- one fault, two wordings -- and an inf `check_arg` had refused was
+  refused again as off the map (#463)."""
+  [why] = st.check_step(st.VERBS["drive_to"], {"x": 1.0, "y": 99999.0}, HOME)
+  assert why.startswith("y=99999.0 is outside the map's ["), why
+  [why] = st.check_step(st.VERBS["drive_to"], {"x": float("inf")}, HOME, partial=True)
+  assert why == "x must be a finite number, not inf", why
+  [why] = st.check_step(st.VERBS["wait"], {"seconds": 1, "x": 10**400}, HOME)
+  assert why == "takes no x", "a verb with no coordinates converts none"
 
 
 def test_a_world_with_an_empty_rack_refuses_a_fetch_and_says_so():

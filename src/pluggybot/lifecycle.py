@@ -76,7 +76,7 @@ from pluggybot.telemetry.protocol import (
   robot_roots,
 )
 from pluggybot.telemetry.recorder import TelemetryRecorder, mode_message
-from pluggybot.procedure.steps import Program, compile_program
+from pluggybot.procedure.steps import Program, compile_program, number_text
 from pluggybot.robot import FIRST, RobotHandle
 from pluggybot.tick import MissionAborted, Routine
 
@@ -524,7 +524,10 @@ def procedure_outcome(name: str, run: dict) -> list[str]:
             + ("" if run.get("error") else f" ({steps_said} had run)"))
   if not run.get("locals"):
     return [line]
-  items = [f"{k} = {v:g}" for k, v in list(run["locals"].items())[:LOCALS_SHOWN]]
+  # every digit, as the refusal on the same line quotes a tag: `:g` said
+  # `t = 23` after `tag 23.0000001`, and `1.23457e+06` for 1234567 (#463)
+  items = [f"{k} = {number_text(v)}"
+           for k, v in list(run["locals"].items())[:LOCALS_SHOWN]]
   # History prefixes the sim clock ("[t=12345s] ") INSIDE its 400, so the
   # room is less than the cap -- measured on the second review: a 397-char
   # line kept "mass = 0" of "mass = 0.207812", a wrong number, not a lost one.
