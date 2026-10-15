@@ -7,8 +7,8 @@ rule:
 
   1. the bank rotates on the board's counter and refuses an entry the job
      could not be honest with;
-  2. the offer sets the world, a restart restores it, the workshop's
-     recompile keeps it, and the truth is absent from every context;
+  2. the offer sets the world, a restart restores it, and the truth is
+     absent from every context;
   3. the grader: the newest finding after the claim, in kilograms, within
      the tolerance -- pass and fail, on a stubbed record, and the reason
      never says the truth;
@@ -158,7 +158,6 @@ class _Mind:
   interrupt_pending = None
   can_escalate = False
   spend = None
-  workshop = None
   wiki = None
   library = _Library()
 
@@ -169,7 +168,7 @@ class _Mind:
                         procedures=True, lab=lab)
 
 
-def _life(home_model, tmp_path, spec=None, model=None):
+def _life(home_model, tmp_path, model=None):
   """The house with its bench, the world's activities on its seam, a board
   and a ledger, on a stub body: an offer sets the WORLD and the grade reads
   a record, neither the robot."""
@@ -180,8 +179,7 @@ def _life(home_model, tmp_path, spec=None, model=None):
   life = stub_life(body=body, battery_wh=cfg["hosting_battery_wh"],
                    ledger=Ledger(path=str(tmp_path / "ledger.json")),
                    tasks=TaskBoard(path=str(tmp_path / "tasks.json")),
-                   boards=board_book(QUAD_HOME), spec=spec,
-                   overseer=_Mind())
+                   boards=board_book(QUAD_HOME), overseer=_Mind())
   acts = lc.home_activities(model, data)
   life.body.step_hooks.append(acts.step_hook(model, data))
   life.activities = acts
@@ -240,28 +238,18 @@ def test_the_offer_sets_the_world_and_the_truth_is_absent_from_every_context(hom
   assert bench.unknown_mass(life.model) == pytest.approx(0.317)
 
 
-def test_a_restart_restores_the_open_offers_mass_and_the_recompile_keeps_it(home_model, tmp_path):
+def test_a_restart_restores_the_open_offers_mass(home_model, tmp_path):
   """The world file carries the placeholder; a board that came back off
   disk with a bench offer on it still names the cube it was made for, and
-  `begin` puts it back (`restore_bench`). The spec is written too, so the
-  workshop's recompile (#168) rebuilds a world that still weighs it."""
+  `begin` puts it back (`restore_bench`)."""
   first = _life(home_model, tmp_path)
   _offer(first, kg=0.25, t=1.0)
   _offer(first, kg=0.18, t=2.0)          # the newest open offer wins
   # a fresh process over the same files: the model is the file's again
-  spec = mujoco.MjSpec.from_file(HOUSE)
-  fresh = _life(home_model, tmp_path, spec=spec, model=spec.compile())
+  fresh = _life(home_model, tmp_path, model=mujoco.MjModel.from_xml_path(HOUSE))
   assert bench.unknown_mass(fresh.model) == bench.UNKNOWN_MASS_KG
   fresh.restore_bench()
   assert bench.unknown_mass(fresh.model) == pytest.approx(0.18)
-  model2, _ = spec.recompile(fresh.model, fresh.data)
-  assert bench.unknown_mass(model2) == pytest.approx(0.18)
-  # ...and without the spec being written, a recompile would revert: the rule
-  bare = mujoco.MjSpec.from_file(HOUSE)
-  m, d = bare.compile(), None
-  d = mujoco.MjData(m)
-  bench.set_unknown_mass(m, d, 0.18, spec=None)
-  assert bench.unknown_mass(bare.recompile(m, d)[0]) == bench.UNKNOWN_MASS_KG
   # a resolved offer restores nothing
   done = _life(home_model, tmp_path / "b")
   t = _offer(done, kg=0.25)

@@ -337,14 +337,6 @@ class Navigator:
     #: (issue #415, `Body.ask_way`): `(root, route) -> bool`, or None.
     self.ask_way = None
 
-  def rebind(self, model, data) -> None:
-    """A recompiled world (issue #168): the map and the belief are state and
-    stay; the LIDAR and this body's geoms are found again by name."""
-    self.model, self.data = model, data
-    self.lidar.rebind(model)
-    self.body_gids = np.array(sorted(robot_geoms(model, self.handle.root)),
-                              dtype=np.int32)
-
   def forget_map(self) -> None:
     """Everything this robot mapped, gone (issue #419: a true death): the
     grid back to unknown and the matcher with nothing to match against."""

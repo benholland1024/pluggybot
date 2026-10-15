@@ -417,33 +417,14 @@ def test_an_interrupt_stops_between_verbs():
   assert r["stopped"] == "interrupted" and r["completed"] == 1
 
 
-@pytest.fixture
-def scoop_facts():
-  """A built tool's axis and sensor registered as the workshop registers
-  them (`workshop.build.register`, issue #168), each needing its module on
-  the fork, and the facts that name them; the registries put back after."""
-  from pluggybot.workshop import build, validate
-  from test_workshop import SCOOP
-  before_a, before_s = set(axes.AXES), set(axes.SENSORS)
-  names = build.register(validate.check(SCOOP))
-  yield replace(HOME, axes=HOME.axes + tuple(names), sensors=HOME.sensors + tuple(names))
-  for k in set(axes.AXES) - before_a:
-    del axes.AXES[k]
-  for k in set(axes.SENSORS) - before_s:
-    del axes.SENSORS[k]
+def test_move_goes_through_the_bodys_ramp():
+  r, life = run('def x():\n  move("shoulder", 1.0)\n')
+  assert r["ok"] and [c[0] for c in life.calls] == ["ramp"]
 
 
-def test_move_goes_through_the_bodys_ramp_and_refuses_a_missing_tool(scoop_facts):
-  r, life = run('def x():\n  move("shoulder", 1.0)\n  move("scoop.tilt", 0.5)\n',
-                facts=scoop_facts)
-  assert r["steps"][0]["ok"] and [c[0] for c in life.calls] == ["ramp"]
-  assert not r["steps"][1]["ok"]
-  assert r["steps"][1]["reason"] == "axis 'scoop.tilt' needs module_scoop on the fork"
-
-
-def test_a_sensor_that_needs_a_tool_fails_without_it(scoop_facts):
-  r, _ = run('def x():\n  a = read("scoop.tilt")\n  wait(1)\n', facts=scoop_facts)
-  assert not r["ok"] and "needs module_scoop on the fork" in r["steps"][-1]["reason"]
+def test_a_sensor_that_needs_a_tool_fails_without_it():
+  r, _ = run('def x():\n  a = read("claw.holding")\n  wait(1)\n')
+  assert not r["ok"] and "needs module_claw on the fork" in r["steps"][-1]["reason"]
 
 
 # ---- the fence, extended to loops ------------------------------------------------
@@ -547,6 +528,28 @@ def test_a_procedure_the_world_moved_under_is_kept_and_marked(tmp_path):
   ctx = moved.as_context()[0]
   assert ctx["runnable"] is False and any("nothing this world has" in r
                                            for r in ctx["reasons"])
+
+
+def test_a_procedure_says_which_tool_it_needs():
+  """A library entry names the modules it needs (issue #324): what a sensor
+  it reads `requires` (`claw.holding`, the claw) and what it `fetch`es,
+  walked into loops, branches and a `read` inside a condition -- and absent,
+  not empty, where there are none: a learnable slot. ⚠ A FETCH COUNTS: a
+  procedure that fetches a tool and reads none of its sensors names no axis
+  or sensor at all, and reported NO needs, which reads as "needs no tool"."""
+  library = lib.Library(HOME)
+  library.define("look", 'def look():\n  wait(1.0)\n')
+  library.define("probe", 'def probe():\n  for i in range(2):\n'
+                          '    if read("claw.holding") > 0:\n'
+                          '      wait(1)\n')
+  library.define("hold", 'def hold():\n  fetch("module_claw")\n  wait(1)\n  stow()')
+  rows = {r["name"]: r for r in library.as_context()}
+  assert "needs" not in rows["look"]
+  assert rows["probe"]["needs"] == ["module_claw"], rows["probe"]
+  assert rows["hold"]["needs"] == ["module_claw"], rows["hold"]
+  # ...and this is WHY it was missed: not one axis, not one sensor
+  assert library.get("hold").references()["axes"] == ()
+  assert library.get("hold").references()["sensors"] == ()
 
 
 def test_there_is_no_replace_verb():

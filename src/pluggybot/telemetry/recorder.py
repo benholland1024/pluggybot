@@ -311,17 +311,6 @@ class FrameBuilder:
                                    for n in body_census(model, r.root)[0]]
                           for r in self.others}
 
-  def rebind(self, model, data) -> None:
-    """A recompiled world (issue #168 slice C): the census again by name,
-    the pose memory dropped -- ids may have shifted and a body may be
-    gone -- and the next frame a keyframe, because a consumer's sparse
-    state was built on bodies that no longer all exist. The `scene_changed`
-    message that precedes it on the wire is the lifecycle's."""
-    self.model, self.data = model, data
-    self._census(model)
-    self._last = {}
-    self._key_due = True
-
   def header(self) -> dict:
     return {
       "type": "header",
@@ -832,10 +821,6 @@ class TelemetryRecorder:
         sample = sampler.due(frame["t"])
         if sample is not None:
           self._queue.put(sample)
-
-  def rebind(self, model, data) -> None:
-    """A recompiled world (issue #168 slice C): the builder's census again."""
-    self._builder.rebind(model, data)
 
   # ---- out-of-band messages ------------------------------------------------
 

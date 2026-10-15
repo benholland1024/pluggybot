@@ -84,9 +84,9 @@ class LegOdometry:
     self.held = 0
 
   def rebind(self, model, data) -> None:
-    """The reckoning on a world (and a recompiled one, issue #407): its
-    sensors, joints and feet by name, and a kinematic copy of the new
-    model; where it believes it is, and its contact history, are state."""
+    """The reckoning on a world: its sensors, joints and feet by name, and
+    a kinematic copy of the model; where it believes it is, and its contact
+    history, are state."""
     prefix = self.prefix
     self.m, self.d = model, data
     self.acc_adr = int(model.sensor(f"{prefix}imu_lin_acc").adr[0])

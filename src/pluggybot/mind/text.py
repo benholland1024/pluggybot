@@ -32,9 +32,9 @@ no message row has a writer, no document row has a sender.
 What is enforced HERE, at `admit`, and not promised by callers: who may
 write a document, and what happens at its cap. Every document write in the
 repo passes through it -- the thought files' `append`, the library's
-`define`, the workshop's `check` -- so the three answers to "what does a
-full document do" are one table cell each, and a fourth document gets its
-answer by filling in a row. Storage is `mind/store.py`'s and nothing else's.
+`define`, the desk's `open` -- so the three answers to "what does a full
+document do" are one table cell each, and another document gets its answer
+by filling in a row. Storage is `mind/store.py`'s and nothing else's.
 
 The prompt-cache split follows the writer (`stable`): a human document
 cannot change during a run and rides the cached prefix; everything a
@@ -170,14 +170,6 @@ DEFAULT_MAIN = _constitution.load(_constitution.DEFAULT_NAME).text + "\n"
 MAX_PROCEDURES = 8
 
 
-def _bays() -> int:
-  # ⚠ ONE TOOL PER BAY: the workshop's cap is the BUILT-TOOL RAIL's, not a
-  # number chosen here (ToolPattern.md §6; issue #277) -- a fourth
-  # needs that rail to grow.
-  from pluggybot.rack.coupling import BUILT_STATION_YS
-  return len(BUILT_STATION_YS)
-
-
 #: How many support tickets a robot may have OPEN at once (issue #284).
 #: Three, because each one is a request for a person's attention and every
 #: open ticket rides the user turn whole: a fourth waits for the operator
@@ -240,9 +232,6 @@ DOCUMENTS: tuple[Surface, ...] = (
   Surface("procedures", DOCUMENT, ROBOT, MAX_PROCEDURES, ENTRIES, REFUSE,
           ("define", "undefine"), "procedure", "procedure",
           store="procedures", suffix=".procedure", offered_with="procedures"),
-  Surface("tools", DOCUMENT, ROBOT, _bays(), ENTRIES, REFUSE,
-          ("build_tool", "retire_tool"), "tool", "tool",
-          store="tools", suffix=".tool.json", offered_with="workshop"),
   # SUPPORT TICKETS (issue #284): what the robot has told the people who
   # run its world -- a bug, an idea, a question, feedback -- one JSON
   # record per ticket, its thread inside it. ONE verb, `ticket`, which

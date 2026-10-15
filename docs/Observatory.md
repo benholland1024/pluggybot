@@ -10,6 +10,28 @@ observatory is NOT a result: it reports into the issue it informs.
 
 ## Periods
 
+### The robot builds no tools (#489) — opens when this PR is deployed
+
+**What changed is what a mind may do and what it is told.** The workshop
+is gone: no `build_tool` or `retire_tool` in the grammar, no "TOOLS YOU MAY
+BUILD" (the catalog and the envelope) in the prompt, and nothing recompiles
+a running world. The deployed prefix goes 54 035 → 47 931 chars, 18
+sections → 17 (`prompt_sha` `081aa0e9…` → `aa07eac5…`). The context's
+`rack` is each tool to where it is, `{module: where}`, where it was
+`{original, built}`, and `tools` is gone. The built-tool rail stays on the
+rack's board with its bays empty, and the house's geometry did not move, so
+the first restart carries on in place; a tool built before the deploy
+(Luca's `probe`, hung in bay B on 2026-10-14) is a body this world lacks,
+so its saved pose is skipped and nothing hangs it again. On the wire, no
+`tool` events and no `scene_changed`.
+
+**What the period is for.**
+
+- **A procedure that named a built tool** loads not runnable, saying why:
+  count those, and whether the robot undefines or rewrites them.
+- ⚠ **`first_solve`'s `tool` source ends here** (Evaluation.md §3): a
+  reading across this deploy has tool rows from before it only.
+
 ### The pair collides, one robot on the dock, and a bay's wait asks (#455's closing reading) — opens when this PR is deployed
 
 **What changed in the world.** The two robots are solid to each other.

@@ -74,7 +74,7 @@ class _Writer:
   """What the lifecycle reads off a mind on a challenge's path: a library,
   the mark of something that can write a procedure, and nothing that
   decides -- the spike prices the hand-written solution, never a model."""
-  event_map = pending = interrupt_pending = spend = workshop = None
+  event_map = pending = interrupt_pending = spend = None
   can_escalate = False
   library = object()
   decisions: list = []

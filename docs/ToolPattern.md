@@ -4,23 +4,23 @@ The recipe for adding a tool to the quadruped's rack (rewritten for the arm
 in #407). A tool hangs on the rack beside the dock (`legs/rack.py`), the
 robot takes it on the fork at the tip of its two-joint arm (`legs/arm.py`,
 `legs/swap.py`), and it carries the tool over its nose while it walks.
-Three hand-built tools hang in the rack's own bays — the LCD (bay A), the
-pen (B) and the claw (C) — and a tool the robot builds hangs on the
-built-tool rail, three more bays along the same board. What carried over
+Three tools hang in the rack's own bays — the LCD (bay A), the pen (B) and
+the claw (C) — and beside them on the same board is the built-tool rail,
+three more bays, empty since the robot stopped building tools (#489). What
+carried over
 from the wheeled rover (`rover-final`)
 is the coupling — a split peg, gravity as the latch, the peg's two conductors
 as the power — and the build discipline; its lift, rack, lean-pad force
 table and seed dispenser are history.
 
-The next builder may not be a person: the workshop's validator
-(`workshop/validate.py`) reads §2's numbers from `legs/arm.py` and
-`legs/rack.py` and refuses a spec outside them, so §2 stays numbers, not
+§2's numbers are constants in `legs/arm.py` and `legs/rack.py`, read by the
+catalog (`module_frame`'s feeds) and the tests, so §2 stays numbers, not
 stories.
 
 Read this alongside, not instead of:
 - `docs/SimNotes.md` — how each number was found: "The quadruped's arm, its
   coupling and the rack", "The rack at the arm's reach, and the swap",
-  "Drawing on legs", "The claw on legs", "The workshop on legs". This doc
+  "Drawing on legs", "The claw on legs". This doc
   says what the constraint is; SimNotes says how we found out.
 - `docs/Parts.md` — the hardware the sim parameters model.
 - `CLAUDE.md` — the house rules in their short form.
@@ -86,7 +86,7 @@ angle.
 The approach delivers this (§6): 41 of 41 starts up to ±0.3 m and ±30° off
 took the tool and hung it back.
 
-### The tool envelope — what a validator reads
+### The tool envelope
 
 | rule | limit | where |
 |---|---|---|
@@ -94,12 +94,12 @@ took the tool and hung it back.
 | centre of mass | **on the peg's line or ahead of it** (away from the robot), at most **60 mm**, at the stow pose and at every axis's two ends | `arm.TOOL_MAX_AHEAD_M` |
 | moment about the peg | **0.35 N·m** | `arm.TOOL_MAX_MOMENT_NM` |
 | hangs plumb | within **2°** at its stow pose: hung, nothing holds it level | `rack.HUNG_TILT_DEG` |
-| hangs centred | its centre of mass within **25 mm** of the peg's middle at its stow pose: the trays hold the peg at ±45 mm (measured: 35 mm did not hang back with the fork 15 mm toward it) | `rack.HUNG_SIDE_M` |
+| hangs centred | its centre of mass within **25 mm** of the peg's middle at its stow pose: the trays hold the peg at ±45 mm (measured: 35 mm did not hang back with the fork 15 mm toward it) | measured (#407) |
 | drop | nothing more than **0.20 m** under the peg at any pose: carried, it clears the LIDAR's plane by 2 cm | `arm.TOOL_MAX_DROP_M` |
-| behind | nothing behind the plate's back face (the fork's prongs, bridge and lean-pad) | `validate` |
-| the peg's ends | nothing where the fork's V's or the trays hold them | `validate.FORK_ZONE`, `TRAY_ZONE` |
-| hung | nothing within 10 mm of the rack's board; nothing in front of its bay's tags, the plate's own slab included (the camera looks past the plate) | `validate.BOARD_CLEAR_M`, `TAG_ZONE` |
-| the rail | nothing in reach of the rail the trays hang from, 0.11–0.13 m over the peg, hung or lifted by a pick's 56 mm | `validate.RAIL_ZONE` |
+| behind | nothing behind the plate's back face (the fork's prongs, bridge and lean-pad) | `arm.fork_xml` |
+| the peg's ends | nothing where the fork's V's or the trays hold them | `arm.fork_xml`, `rack.TRAY_Y` |
+| hung | nothing within 10 mm of the rack's board; nothing in front of its bay's tags, the plate's own slab included (the camera looks past the plate) | `rack.rack_xml`, `rack.tag_layout` |
+| the rail | nothing in reach of the rail the trays hang from, 0.11–0.13 m over the peg, hung or lifted by a pick's 56 mm | `rack.RAIL_DEPTH`, `RAIL_HALF_H` |
 | power | the parts' draw plus the module's ESP32 under **12 W** | `coupling.PEG_POWER_W` |
 
 Measured (`scripts/arm_spike.py --envelope`, `--retention --stairs`): a
@@ -146,13 +146,15 @@ must hold then is the grip's pull.
 
 ### A moving axis needs a stow pose
 
-An axis left wherever the last job ended is not a pose anyone designed. A
-built tool's spec carries `stow` per axis: the validator checks every rule
-at the stow pose and at each axis's two ends, the module compiles AT its
-stow (each joint's `ref`, so `qpos0` is the stow) with its servo holding
-there, and every hang-back first returns each axis of any tool to its rest
-(`steps.carry_configuration_routine`). Built at 0, a flap whose stow is −90°
-hung 14° off plumb and was lost from the moment it hung. A claw hung back
+An axis left wherever the last job ended is not a pose anyone designed. Give
+each axis a stow: §2's rules hold at the stow pose and at each axis's two
+ends, and the module compiles AT its stow (each joint's `ref`, so `qpos0` is
+the stow). Two things keep it there, and both are the tool's own code since
+the workshop's generic ones went (#489): its servo is commanded to the stow
+from the first step (`ctrl` 0 is `qpos` 0, not the stow), and the hang-back
+returns it there first, in `steps.carry_configuration_routine`, which runs
+before every return. Built at 0, a flap whose stow is −90° hung 14° off
+plumb and was lost from the moment it hung. A claw hung back
 holding a cube is a cube hung on the rack, so a stow sets the cube down
 first, or lets it go where it stands.
 
@@ -231,8 +233,8 @@ Rules from the builds, each paid for:
 - **Mount in front of the plate, not inside it.** MuJoCo filters only
   parent-child contacts: a grandchild part collides with the plate.
 - **The structure must not occupy the working space** — and **a hung tool
-  must not hide its bay's tags** (the validator's `tags` rule; the claw's
-  crossbar is SimNotes, "The claw on legs").
+  must not hide its bay's tags** (§2's `hung` rule; the claw's crossbar is
+  SimNotes, "The claw on legs").
 - **A camera is aimed by rendering, not arithmetic** — and may not be the
   tool's: the claw finds a cube through the D435's colour imager on the body
   (SimNotes, "The claw on legs").
@@ -357,8 +359,12 @@ frame — the LCD at A (the east one), the pen at B, the claw at C
 (`TOOL_BAYS`). **These three are permanent** (issue #277): every offered job
 is written against them. The **built-tool rail** (`legs.rack.BUILT`, #407)
 is three more bays on the same board and in the same frame, at 0.65, 0.95
-and 1.25 m, running west away from the dock, for the tools the robot builds
-and nothing else.
+and 1.25 m, running west away from the dock: empty since the robot stopped
+building tools (#489), and kept, because its tags are six of the fixtures a
+lost robot's search finds (#476). A fourth tool needs a bay of its own:
+`STATION_YS` appended, the rack's `bays` and `stations`, two tag ids,
+checked against the house (the walls, a door, the planner's inflation round
+the working pose).
 
 Every bay lives in one index space, `coupling.STATION_YS`: the rack is
 stations 0–2, the rail 5–7 (`RackSpec.stations`, `coupling.built_bay_index`).
@@ -386,31 +392,6 @@ in the nose camera's view from its working pose: between the bays (±150 mm)
 they sat 25° off its axis and 2.7° of yaw took one out of frame. Textures
 must be `type="cube"` (a `2d` texture renders flat grey on a primitive), and
 the PNG upscale nearest-neighbour (a marker is data).
-
-### A built tool's bay
-
-Before a point moves the workshop checks the envelope (`validate`), that
-none of the module's names is the world's already (`seam.names_taken`), and
-the RIG (`build.trial`): the module hung, taken, worked and hung back on a
-bench rack with the fork on the bay's middle and at the line-up gate either
-side, 0.25 s a try. Then `HubLifecycle.hang_tool(tool, bay)` takes a rail
-index (A = 0), retires a built tool already there, attaches the module at
-the bay's peg in the rack's own frame (`seam.rack_pose`, `rack.bay_peg`) and
-recompiles the running world (a few milliseconds of wall time; 6–10 ms on
-the served pair here). Every holder of the old model is rebound and
-re-resolves its ids by name (`QuadMission.rebind`); the module is attached
-LAST, after the robots, so only another built module's ids ever move. The
-hang waits until every body is still (`seam_busy`). Hung, a built tool is
-fetched and stowed as a hand-built one is (`fetch("module_<name>")`);
-`scripts/workshop.py --served` flies the lot.
-
-### Bay count is a real limit
-
-A fourth rail bay is `coupling.BUILT_STATION_YS` (it sets the workshop's
-cap), `BUILT.bays` and `.stations` appended and two tag ids — the board
-follows its bays — and checked against the house: the walls, a door, the
-planner's inflation round the working pose. A fourth hand-built tool needs
-bays of its own the same way.
 
 ### Approach and ranging
 
@@ -459,7 +440,7 @@ Open, and not yours to fix unless your tool makes them worse.
     within 25 mm of its middle
 [ ] a moving axis? its STOW POSE, returned to before it is hung back
 [ ] a tolerance spike only if it adds a mating surface
-[ ] a bay: TOOL_BAYS (hand-built) or the rail (built); STATION_YS appended
+[ ] a bay in TOOL_BAYS, STATION_YS appended for a new one
 [ ] face, masses and actuators in legs/rack.py; tag ids only for new bays
 [ ] routines on QuadMission, verbs in procedure/steps.py, axes and sensors
     in procedure/axes.py

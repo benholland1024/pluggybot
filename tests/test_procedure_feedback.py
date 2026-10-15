@@ -481,22 +481,6 @@ def test_a_cube_no_put_can_set_down_is_let_go_before_the_claw_goes_back():
   assert calls == ["put", "open", "retract_arm"]
 
 
-def test_a_refused_build_says_what_is_in_the_way(monkeypatch):
-  """A deployed robot holding a claw it could not stow was told only "never
-  mid-errand", and specified its tool twice more: the refusal names the
-  module on the fork, and whose."""
-  from pluggybot.procedure import steps
-  me = SimpleNamespace(peers=[], state="DECIDE", robot_name="Luca", root="pluggybot",
-                       MID_ERRAND=HubLifecycle.MID_ERRAND, _standing_up=False,
-                       body=SimpleNamespace(posture="standing", working=False,
-                                            making_way=None))
-  monkeypatch.setattr(steps, "_carried", lambda life: "module_claw")
-  assert HubLifecycle.seam_busy(me).startswith("your fork holds module_claw: stow it first")
-  me.peers = [SimpleNamespace(state="SWAP_PICK", robot_name="Rowan", root="r2_pluggybot")]
-  monkeypatch.setattr(steps, "_carried", lambda life: None)
-  assert HubLifecycle.seam_busy(me).startswith("Rowan is busy (it is mid-errand)")
-
-
 # ---- 8. a failed swap leaves its trace in the log --------------------------
 
 
@@ -557,10 +541,10 @@ def test_undefine_can_name_an_entry_that_cannot_run(tmp_path):
   assert props["action"]["enum"].count("procedure:new") == 1
 
 
-def test_a_retired_tool_on_a_peers_record_is_carried_by_nobody():
-  """`carrying` reads a peer's last module; a built tool since retired is
-  no body in the world, and the lookup raised where `_carried` has always
-  guarded it -- now reached from every failed pick's sentence, too."""
+def test_a_module_the_world_lacks_on_a_peers_record_is_carried_by_nobody():
+  """`carrying` reads a peer's last module; one that is no body in the world
+  (a built tool, before #489) raised where `_carried` has always guarded
+  it -- reached from every failed pick's sentence, too."""
   def gone(name):
     raise KeyError(name)
   peer = SimpleNamespace(module="probe", body=SimpleNamespace(module_state=gone))

@@ -260,9 +260,9 @@ save a filmstrip PNG named after the script.
 - **The robot's imagination is a world of its own, and nothing it is built
   from reads the world's model of a mechanism** (SimNotes, "The
   imagination's first world"; `tests/test_imagination.py`): a document in
-  the scene language (`scene.py`, `workshop/spec.py`'s pattern: JSON, mm and
-  degrees at the door and the sim's units inside, every reason at once, an
-  unknown field refused -- ⚠ NO CONTACT FIELD, a test pins `solref`),
+  the scene language (`scene.py`: JSON, mm and degrees at the door and the
+  sim's units inside, every reason at once, an unknown field refused -- ⚠
+  NO CONTACT FIELD, a test pins `solref`),
   compiled with the robot's own body (`legs.model.attachable`, the CAD a
   real robot has) on a floor at the map's z = 0 (`compile.py`), and a
   record's commands replayed there step for step by the arm's own
@@ -388,13 +388,12 @@ save a filmstrip PNG named after the script.
 ### The mind (`mind/`; `docs/Overseer.md` is the design)
 
 - ⚠ **A mind's powers are flags `build()` sets, narrowed by what the world
-  has** (`Menu.procedures`, `Menu.workshop` / `Overseer.workshop`,
-  `Menu.wiki`, `Menu.tickets`, `Menu.look`, `Menu.lab`, `Overseer._acts()`;
-  #427), never `Menu.for_world`'s, so a parse against a bare menu DROPS
-  their fields. No rule hands the agent an answer: most PRESCRIBE NOTHING
-  about using their power (a test reads each), and a worked example
-  (procedures, the event map, the workshop) may not show charge, a battery
-  threshold or the rack. The procedure rule's example compiles on its world
+  has** (`Menu.procedures`, `Menu.wiki`, `Menu.tickets`, `Menu.look`,
+  `Menu.lab`, `Overseer._acts()`; #427), never `Menu.for_world`'s, so a
+  parse against a bare menu DROPS their fields. No rule hands the agent an
+  answer: most PRESCRIBE NOTHING about using their power (a test reads
+  each), and a worked example (procedures, the event map) may not show
+  charge, a battery threshold or the rack. The procedure rule's example compiles on its world
   as served, and the event map's worked rows parse against the menu (#434).
 - **The overseer is OFF by default** (`--overseer`), and the loop is
   unchanged without it: there **charge priority stays in code** as three
@@ -664,8 +663,8 @@ save a filmstrip PNG named after the script.
   A CALL NAMES THE CALL ONCE, as History names a failed step (`line 3, wait:
   …`; #463): `check_step`'s reasons never name it, their callers do. ⚠ THE MOTOR LEVEL
   IS `move(axis, target)` AND `read(sensor)` over REGISTRIES (`axes.AXES`,
-  `axes.SENSORS`): a new tool or body registers its own and the language does
-  not change. Budgets (`budget(steps=, seconds=)`) are capped by code
+  `axes.SENSORS`): a new tool or body adds its entries there and the language
+  does not change. Budgets (`budget(steps=, seconds=)`) are capped by code
   (`MAX_STEPS` 200, `MAX_BUDGET_S` 1800) and checked at every verb; a computed
   argument by the same `check_arg`. The library (`MAX_PROCEDURES` 8; `define
   {name, source}` / `undefine`) survives a restart and is recompiled against
@@ -881,95 +880,26 @@ save a filmstrip PNG named after the script.
   is a deliberate two-repo event.
 - **The parts list is DATA, and the fixture is read off the sim** (issue #185;
   `rack/catalog.py` → `protocol/parts.json`, vendored to the website's parts
-  page): the `catalog` shelf (what the workshop may build from) and
-  `build`, the quadruped's bill of materials (#379: `LINES` buy the parts,
-  an undesigned one at an ALLOWANCE with its basis, never a price; Parts.md's
-  bill is RENDERED from them, and a test fails if the two differ); the
-  rover's `body` shelf went with it (#376). ⚠ EVERY `feeds` VALUE IS READ OFF
-  the robot's model (`WORLDS`: `quadruped.xml`) or the live constant — never
-  typed
+  page): one shelf, `build`, the quadruped's bill of materials (#379:
+  `LINES` buy the parts, an undesigned one at an ALLOWANCE with its basis,
+  never a price, and a printed one is its filament's line; Parts.md's bill
+  is RENDERED from them, and a test fails if the two differ). The rover's
+  `body` shelf went with it (#376), the workshop's `catalog` with the
+  workshop (#489). ⚠ EVERY `feeds` VALUE IS READ OFF the robot's model
+  (`WORLDS`: `quadruped.xml`) or the live constant — never typed
   (`test_no_feed_is_typed`), so a moved literal is a STALE fixture (`uv run
   python -m pluggybot.rack.catalog`), and an `expect` pins the datasheet's
   number to the sim's. ⚠ A NUMBER THE DOC DOES NOT KNOW IS `null` WITH A
   `why`, NEVER A GUESS (`NULLABLE`, `validate`), and a `why` for a non-null
   field fails; `partNumber` is what you order by, and a class of part stays
-  null. ONE `scaffold` primitive at PLA density with a print bed.
-  `legs.rack.MODULE_MASS` / `PEG_MASS` name a module's plate and 220 mm peg
-  (`quad_tool_peg`, on both shelves), and the catalog's `module_frame` feeds
-  the arm's envelope off `legs/arm.py` (#407), never typed. Each
-  entry's `workshop: {usable, why}` is `workshop.spec.unbuildable`. Nothing in
-  `economy/` imports it; the MIND sees it through `workshop_rule()`.
-- **A tool appears in a RUNNING world through the recompile seam, and every
-  holder of the old world follows it** (issue #168; `workshop/seam.py`,
-  `HubLifecycle.hang_tool`, `tests/test_recompile.py`): the lifecycle keeps
-  its `MjSpec` (`robot.world_spec`, trajectory-identical to `from_xml_path`;
-  `build()` and `serve.py` pass `spec=`), `hang_tool(tool, bay)` takes the
-  rail's own index (`coupling.built_bay_index` maps it into `rack_inventory`),
-  retires a built tool in that bay (`seam.retire`; REFUSES the hand-built
-  tools, `seam.HAND_BUILT`), attaches the new one at the bay's peg in the
-  rack's own frame (`seam.attach`, `seam.rack_pose`; on legs a tool has NO
-  TAG, its bay's pair is the bay's, #407) and `spec.recompile(model, data)`s:
-  **a few ms of wall time, NEW `MjModel`/`MjData` objects**, `time` and
-  `qpos` carried BY NAME, and the model REBUILT FROM THE SPEC: what the
-  running world wrote into the old model is gone (a `GeomToggle`'s rebind
-  applies its state again, #407). ⚠ A built module compiles AT ITS STOW
-  (each joint's `ref`), and the seam sets each NEW servo to its joint's
-  `qpos0` -- `workshop/seam.py`'s one `CTRL_WRITERS` write. ⚠ So
-  `HubLifecycle.rebind(model, data)` re-points everything the
-  lifecycle owns and calls every `on_rebind` callback, and ⚠ EVERY REBIND
-  RE-RESOLVES IDS BY NAME (deleting a module shifts every id after it). Two
-  fences, both shown to fail: the RUNTIME walk (`_holders(life)`) and the
-  STATIC one (every class assigning `self.model`/`self.data` defines `rebind`
-  or is on `TRANSIENT_HOLDERS` with a reason). ⚠ BETWEEN ERRANDS ONLY, fork
-  empty, every body still (`seam_busy`: lying down, standing up, at a bay or
-  making way is a generator holding the old world). ⚠ The module is attached
-  AFTER the robots, so only a built module's ids move, and
-  `QuadMission.rebind` re-resolves the body's by name. `rack_inventory`
-  (module → bay) is the lifecycle's and the seam edits it
-  (`procedure/steps.py` reads it through `_rack(life)`; `world_facts(world,
-  rack=)`). The wire: `scene_changed` carries the whole new `scene_dict` (the
-  site rebuilds its scene; the rail's tags, `tag47..52.png`, are in it from
-  the start).
-- **The workshop is the agent's** (issue #168;
-  Overseer.md §2d; `workshop/library.py`, `workshop/cost.py`,
-  `HubLifecycle._workshop_routine`): `build_tool {name, bay, spec}` /
-  `retire_tool name`. ⚠ THE ORIGINALS ARE PERMANENT AND A BUILT TOOL HANGS
-  ON ITS OWN RAIL (#277; on legs `legs.rack.BUILT`, three bays on the rack's
-  board, stations 5–7, #407: bays `A`–`C`, `BAY_LETTERS`; any other letter is
-  refused, naming no original's bay, and `retire_tool` refuses an original);
-  ⚠ THE ENVELOPE IS THE ARM'S (`validate`, read off `legs/arm.py` and
-  `legs/rack.py`; ToolPattern.md §2), a hung tool plumb within 2° and its
-  centre of mass within 25 mm of the peg's middle (MEASURED); the
-  context shows `built: {A..C: {module, by, where}|null}`, `by` off
-  `HubLifecycle.built_by()` (the rail is the WORLD's; no tag can say who,
-  #324), and a world with no `built_bays` gets NO workshop (`can_reshape`
-  refuses a world compiled without `rack_built`). ⚠ A PAIR HANGS A TOOL
-  (#315): `build_pair` KEEPS the spec and both lifecycles hold it,
-  `_recompile` rebinds EVERY lifecycle in the world; `can_reshape` refuses
-  while EITHER robot is mid-errand or holding a module, naming it; ONE
-  `rack_inventory` for the pair, and a bay the other robot's tool hangs in is
-  refused with whose it is. ⚠ `scene_changed` carries the SIDECAR and the PAIR
-  name. Order, all before a point moves: the envelope (`validate.check`), the
-  seam's preconditions, the names (`seam.names_taken`) and the RIG
-  (`build.trial`: hung, taken, worked and hung back with the fork on the
-  bay's middle and the line-up gate either side; a tool that cannot hang is
-  lost once hung), the PRICE (`cost.price`: `POINTS_PER_EUR` 1,
-  `FILAMENT_EUR_PER_KG` 20, then `PRINT_S_PER_G` 60 + `ASSEMBLE_S_PER_PART`
-  120 of standing still — three DESIGN DECISIONS, said so at the constants)
-  via `Ledger.spend` (no debt), `_fabricate_routine` (its own routine, so a
-  test stubs the wait), then `hang_tool`. Every step is a `tool` event
-  (`TOOL_OUTCOMES`). ⚠ A PRINT IS LONGER THAN AN ERRAND: the finished build
-  WAITS for room (`_await_seam_routine`, `HANG_WAIT_S`), and is RECORDED and
-  hung at the next mission start if the rack never frees — paid once, never
-  lost. ⚠ `spec.unbuildable` is ONE predicate for the validator, the prompt's
-  parts list and the refusal (`spec.buildable()`). ⚠ A `build_tool` naming NO
-  part is dropped at `validate` (`overseer.idle_build`). ⚠ Records under
-  `$PLUGGY_THOUGHTS/tools/` are RE-HUNG by `restore_tools()`, paid once. ⚠ The
-  prompt's example may not mention charge / battery / survival.
+  null. `legs.rack.MODULE_MASS` / `PEG_MASS` name a module's plate and 220
+  mm peg (`quad_tool_peg`), and `module_frame` feeds the arm's envelope off
+  `legs/arm.py` (#407), never typed. Nothing in `economy/` or `mind/`
+  imports it.
 - **The rack view says where each tool IS, off three sources and nothing
   else** (issue #351; Overseer.md §2i; `lifecycle.tool_places`,
-  `tests/test_rack_view.py`): `rack.original` is module → `on bay C` / `on
-  your fork` / `on Rowan's fork` / `not on its bay and on no fork`, off its
+  `tests/test_rack_view.py`): `rack` is module → `on bay C` / `on your
+  fork` / `on Rowan's fork` / `not on its bay and on no fork`, off its
   bay's presence switch (`coupling.bay_switches`, what the rack reports over
   the network), this robot's fork, and the others' `carrying`. ⚠ The switch
   says a bay is TAKEN, never by what, so a named fork outranks it; a lost tool
@@ -1243,7 +1173,7 @@ save a filmstrip PNG named after the script.
   (`HubLifecycle._bench_offered` off the board's own event, `restore_bench`
   after a restart; `bench.set_unknown_mass`: `body_mass`, inertia,
   `mj_setConst` on a SCRATCH MjData, the pinned `stat.extent`/`center` PUT
-  BACK, the SPEC's geom too). The truth lives in `Task.secret`; `truth` and
+  BACK). The truth lives in `Task.secret`; `truth` and
   `error` are `secret` on the row. Graded on `done` by `_grade_mass` (the
   NEWEST finding under `findings/mass_bench`, recorded AFTER the claim, within
   `TOLERANCE`); the verdict is a `finding` act, never carrying the truth, and
@@ -1569,8 +1499,7 @@ save a filmstrip PNG named after the script.
   stays the robot's and a game's its referee's; the map hears `stood_up` and a
   queued `battery_below` row is dropped. ⚠ After a TRUE death the new robot
   hears nothing of the old errand (its one inheritance is `_true_death`'s
-  line). ⚠ A build closed mid-print is recorded on `GeneratorExit`, never lost
-  with the points.
+  line).
 - **A tool on the floor goes home by itself** (issue #347;
   `tests/test_tools_on_the_floor.py`): a module `lost`
   (`HubLifecycle.tool_whereabouts`: on no robot's fork, alive or dead; not at

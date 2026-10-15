@@ -10,8 +10,8 @@ import math
 def finite(x) -> bool:
   """A JSON number a float holds. Never a bool, and never an int past a
   float's range: JSON keeps every digit, and `math.isfinite` and `float()`
-  raise OverflowError on one -- out of a define or a `build_tool` on the
-  physics thread, and the served process ended with it."""
+  raise OverflowError on one -- out of a define on the physics thread, and
+  the served process ended with it."""
   if not isinstance(x, (int, float)) or isinstance(x, bool):
     return False
   try:

@@ -221,8 +221,8 @@ class Verb:
 
 
 def _rack(life) -> dict[str, int]:
-  """Which module hangs where: the lifecycle's inventory, which the
-  workshop edits (issue #168), or the rack's own where there is none."""
+  """Which module hangs where: the lifecycle's inventory, or the rack's own
+  where there is none."""
   return getattr(life, "rack_inventory", None) or TOOL_BAYS
 
 
@@ -303,12 +303,6 @@ def carry_configuration_routine(life, tool: str) -> Routine:
     elif life.body.held_cube() is not None:
       yield from life.body.claw_routine(closed=False)
       dropped = held if life.body.held_cube() is None else None
-  # ...the tool's own axes at rest, the pose it hangs plumb in (#407: a
-  # built tool's stow -- a hinge a procedure left swung was hung back swung,
-  # off plumb, and lost)
-  for act, target, speed in tool_rest(life, tool):
-    if abs(life.body.setpoint(act) - target) > POSE_TOL:
-      yield from life.body.ramp_routine(act, target, speed)
   yield from life.body.retract_arm_routine()
   return {"setDown": set_down, "dropped": dropped}
 
@@ -318,41 +312,21 @@ def carry_configuration_routine(life, tool: str) -> Routine:
 POSE_TOL = 1e-3
 
 
-def tool_rest(life, tool: str | None) -> list[tuple[int, float, float]]:
-  """A tool's own axes at rest, as `(actuator, setpoint, speed)`: each at
-  its joint's compiled value, the pose the tool hung in -- a built tool's
-  stow, which its joint's `ref` makes `qpos0` (`workshop.build.face_xml`)."""
-  from pluggybot.procedure import axes
-  model, own = life.model, []
-  for axis in axes.AXES.values():
-    if tool is None or axis.requires != tool or not axis.actuator:
-      continue
-    try:
-      act = model.actuator(axis.actuator)
-    except KeyError:
-      continue
-    rest = float(model.qpos0[model.jnt_qposadr[act.trnid[0]]])
-    own.append((act.id, min(max(rest, axis.lo), axis.hi), axis.speed))
-  return own
-
-
 def travel_pose(life, tool: str | None) -> list[tuple[int, float, float]]:
   """The CARRYING pose as `(actuator, setpoint, speed)`, in the order to
-  move them (issue #347): a tool's own axes to rest (`tool_rest`), then the
-  arm to its carry pose over the nose (#405), the shoulder first; an empty
-  fork folds the arm to its stow, the shoulder before the elbow, so the
-  forearm comes in over the body rather than under it. It sets nothing
-  down."""
+  move them (issue #347): the arm to its carry pose over the nose (#405),
+  the shoulder first; an empty fork folds the arm to its stow, the shoulder
+  before the elbow, so the forearm comes in over the body rather than under
+  it. It sets nothing down."""
   from pluggybot.legs.arm import CARRY_Q
   from pluggybot.procedure import axes
   body = life.body
   pose = axes._ARM.stow if tool is None else CARRY_Q
   try:
-    arm = [(body.actuator(axes.AXES[j].actuator), target, axes.AXES[j].speed)
-           for j, target in zip(axes.ARM_JOINTS, pose)]
+    return [(body.actuator(axes.AXES[j].actuator), target, axes.AXES[j].speed)
+            for j, target in zip(axes.ARM_JOINTS, pose)]
   except KeyError:
     return []
-  return tool_rest(life, tool) + arm
 
 
 def travel_pose_routine(life) -> Routine:
@@ -909,15 +883,12 @@ def _drive(life, args: dict) -> Routine:
 
 def _move(life, args: dict) -> Routine:
   """One axis to a setpoint, ramped (procedure/axes.py). The axis has to be
-  present -- a tool's axis needs that tool on the fork -- and the target
-  inside its envelope, or the step fails and says which."""
+  present and the target inside its envelope, or the step fails and says
+  which."""
   from pluggybot.procedure import axes
   axis = axes.AXES.get(args["axis"])
   if axis is None:
     return {"ok": False, "reason": f"no axis {args['axis']!r}"}
-  if axis.requires and _carried(life) != axis.requires:
-    return {"ok": False, "reason": f"axis {axis.name!r} needs {axis.requires} "
-                                    "on the fork"}
   target = float(args["target"])
   if not axis.lo <= target <= axis.hi:
     return {"ok": False, "reason": f"{axis.name} target {target} is outside "

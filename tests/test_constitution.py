@@ -302,7 +302,7 @@ def test_the_rules_do_not_name_it_and_the_robot_has_no_verb_for_it():
   from pluggybot.mind.overseer import Menu
   schema = Menu.for_world("home_quad", None).schema()
   assert not any("constitution" in k for k in schema["properties"]), schema["properties"].keys()
-  for field in ("intend", "pin", "note", "define", "build_tool"):
+  for field in ("intend", "pin", "note", "define"):
     assert "constitution" not in ov.__dict__.get(field.upper() + "_RULE", "")
   # ...and no document verb writes Main.md: a human document has none.
   assert text.BY_NAME[MAIN].verbs == () and text.BY_NAME[MAIN].writer == text.HUMAN

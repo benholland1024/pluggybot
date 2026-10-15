@@ -28,26 +28,22 @@ import numpy as np
 #: `PEG_MASS` is the rod's share, split 8 + 8 + 4 g over the two conductors
 #: and the bush by `peg_xml`. The quadruped's tools are these with the
 #: 220 mm peg (`legs.rack.MODULE_MASS`, `PEG_MASS`). The envelope a new tool
-#: must fit is the arm's (`legs/arm.py`; `workshop/validate.py` refuses by
-#: it; ToolPattern.md §2).
+#: must fit is the arm's (`legs/arm.py`; ToolPattern.md §2).
 MODULE_MASS = 0.12
 PEG_MASS = 0.02
 
 #: DESIGN DECISION, NOT MEASURED: what the two-pole peg coupling delivers,
 #: at the 12 V pack. 12 W is 1 A. Was 6 W (0.5 A), sized so one hobby servo
-#: at stall (4.8 W) plus the module's ESP32 fits and nothing else does --
-#: which #199's parts made binding: a servo and an eye together were refused.
+#: at stall (4.8 W) plus the module's ESP32 fits and nothing else does.
 #: Raised 2026-09-15 (Ben) on this argument: a light steel-on-steel point
 #: contact is tens of milliohms to ~0.1 ohm, so 1 A dissipates ~0.1 W at
 #: the contact and heating is not the limit; what limits plain steel is
 #: voltage drop and fretting/oxidation, and 1 A is inside what such a
-#: contact is rated for. The validator sums each part's CEILING (stall,
-#: flash at full) as if simultaneous, so the budget is already pessimistic.
-#: Still a paper number until the built coupling is measured; if the
-#: physical build ever wants more, the upgrade that keeps "the peg IS the
-#: connector" is brass sleeves on the conductor segments and plated
-#: V-plates, or a sprung contact in the V (Parts.md, "Module power
-#: contacts"). The holding capacitor (~200 ms) is the other half.
+#: contact is rated for. Still a paper number until the built coupling is
+#: measured; if the physical build ever wants more, the upgrade that keeps
+#: "the peg IS the connector" is brass sleeves on the conductor segments
+#: and plated V-plates, or a sprung contact in the V (Parts.md, "Module
+#: power contacts"). The holding capacitor (~200 ms) is the other half.
 PEG_POWER_W = 12.0
 PEG_R = 0.003           # peg axle radius (6 mm rod)
 PEG_HALF = 0.075        # peg half-length: 150 mm rod
@@ -299,7 +295,7 @@ _GEOM_IDS: dict[tuple[int, str], tuple[object, int | None]] = {}
 def geom_id(model, name: str) -> int | None:
   """`model.geom(name).id`, or None where no such geom -- cached per
   model OBJECT (the entry holds the model, so a recycled `id()` cannot
-  alias a recompiled world, whose ids differ)."""
+  alias another world, whose ids differ)."""
   key = (id(model), name)
   hit = _GEOM_IDS.get(key)
   if hit is not None and hit[0] is model:
@@ -378,10 +374,9 @@ HUB_STATION_YS = (0.125, -0.125, 0.375, 0.625, 0.875)  # tool bays at 0.25 m
                           # pitch, APPENDED rather than inserted in y order:
                           # a bay is named and kept by its index
 # ---- the BUILT-TOOL rail (issue #277) ---------------------------------------
-# For the tools the robot builds: the hand-built tools are permanent and a
-# built tool never takes one of their bays. Its stations follow the first
-# rack's, so `STATION_YS` is one index space for every bay. On legs the
-# rail is `legs.rack.BUILT` (#407), at its own positions on the rack's
+# Its bays empty since the workshop went (#489). Its stations follow the
+# first rack's, so `STATION_YS` is one index space for every bay. On legs
+# the rail is `legs.rack.BUILT` (#407), at its own positions on the rack's
 # board: these y's are its stations' place in the index space and nothing
 # more.
 BUILT_STATION_YS = (1.175, 1.425, 1.675)  # the rover's three bays
@@ -398,17 +393,12 @@ def bay_prefix(i: int) -> str:
 
 
 def built_bay_index(bay: int) -> int:
-  """A built-rail bay (0..len(BUILT_STATION_YS)-1, the letter the robot
-  names) as its index into STATION_YS -- the space `rack_inventory` and the
-  bays' names use. Refused, not clamped, outside the rail."""
+  """A built-rail bay (0..len(BUILT_STATION_YS)-1) as its index into
+  STATION_YS -- the space `rack_inventory` and the bays' names use.
+  Refused, not clamped, outside the rail."""
   if not 0 <= bay < len(BUILT_STATION_YS):
     raise ValueError(f"no built-rail bay {bay}; it has {len(BUILT_STATION_YS)}")
   return len(HUB_STATION_YS) + bay
-
-
-def is_built_bay(index: int) -> bool:
-  """Whether a STATION_YS index is on the built rail."""
-  return index >= len(HUB_STATION_YS)
 
 
 #: The V a bay's presence switch sits in (issue #351): ONE switch a bay, in
@@ -442,7 +432,7 @@ def bay_switches(model, data) -> tuple[bool | None, ...]:
 
 
 #: The built-tool rail's body name (issue #277): what a world that has one
-#: carries, and what `HubLifecycle` reads to know whether a tool can hang.
+#: carries (`HubLifecycle.has_built_rack`).
 BUILT_RACK_BODY = "rack_built"
 
 

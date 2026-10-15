@@ -49,7 +49,7 @@ stateDiagram-v2
     DECIDE --> DONE : nothing to do,<br/>nothing coming
     DONE --> [*]
 
-    DECIDE --> DECIDE : idle · standing by ·<br/>building a tool ·<br/>no rule fired
+    DECIDE --> DECIDE : idle · standing by ·<br/>no rule fired
 
     DECIDE --> DEAD : flat · stuck ·<br/>unpaid · unminded
     SWAP_PICK --> DEAD : flat · stuck
@@ -74,10 +74,8 @@ the head camera's pose and stands still until it comes; the picture rides
 the next turn as an image, at most two looks in a row. A death
 (`DEATH_CAUSES`) can land in any moving state, and the stand-up that follows
 ends whatever it lands in (issue #348): the loop starts again from the top.
-On `autonomous` the agent also writes code and builds tools: a procedure it
-defined (issue #166) is an action, `procedure:<name>`, and runs as an errand;
-a tool it specified (issue #168) is built where it stands and hung in a bay
-of the built-tool rail along its rack's board (#407).
+A mind also writes code: a procedure it defined (issue #166) is an action,
+`procedure:<name>`, and runs as an errand.
 
 ### What each state reads and writes (the memory, issue #221)
 
@@ -86,7 +84,17 @@ cached and byte-identical for a run; everything a writer can touch rides the
 user turn.
 
 ```mermaid
-flowchart LR
+---
+config:
+  layout: dagre
+  flowchart:
+    wrappingWidth: 200
+    minNodeWidth: 0
+    diagramPadding: 16
+    nodeSpacing: 30
+    rankSpacing: 50
+---
+flowchart TB
     subgraph prefix [cached prefix — human]
         MAIN["Main.md<br/>the constitution"]
     end
@@ -94,39 +102,40 @@ flowchart LR
         GOALS["Goals.md<br/>intend / drop_goal"]
         TOP["Top_of_mind.md<br/>pin / unpin"]
     end
-    subgraph notes [notes — robot, index shown, body by recall]
+    DECIDE([DECIDE])
+    RECALL([RECALL])
+    subgraph notes [notes — robot, index shown]
         NOTES["topics/title<br/>note / unnote"]
         FIND["findings/&lt;task&gt;<br/>record / retract"]
     end
-    subgraph history [history — system and senders, tail shown, rest by recall]
-        HIST["decisions · thinks · verdicts ·<br/>deaths · interventions · messages"]
-    end
-    subgraph procedural [procedural — robot, sources shown, autonomous only]
+    subgraph procedural [procedural — robot, sources shown]
         PROCS["procedures/<br/>define / undefine"]
-        TOOLS["tools/<br/>build_tool / retire_tool"]
     end
-    subgraph desk [tickets — robot opens, a person closes; open ones shown, autonomous only]
+    subgraph desk [tickets — a person closes]
         TICKETS["tickets/<br/>ticket"]
     end
+    DEAD([DEAD])
+    USE["SWAP_PICK / USE_TOOL<br/>/ SWAP_RETURN"]
+    VISITOR(a visitor · the other robot ·<br/>an operator)
+    HIST["history — tail shown:<br/>decisions · thinks ·<br/>verdicts · deaths ·<br/>interventions · messages"]
 
-    DECIDE((DECIDE)) -->|think first, then the action,<br/>then the paperwork verbs| core
-    DECIDE --> notes
-    DECIDE -->|writes code · specifies a tool| procedural
-    DECIDE -->|chose · think · say| HIST
-    RECALL((RECALL)) -->|read / find| notes
+    MAIN --> DECIDE
+    GOALS <-->|think first, then the action,<br/>then the paperwork verbs| DECIDE
+    TOP <--> DECIDE
+    DECIDE <-.->|chose recall ·<br/>recalled, next turn| RECALL
+    RECALL -->|read / find| NOTES
+    RECALL --> FIND
+    DECIDE <-->|index| NOTES
+    DECIDE <--> FIND
+    DECIDE -->|writes code| PROCS
+    DECIDE <-->|opens · replies on ·<br/>open ones, their threads| TICKETS
     RECALL -->|read / find| HIST
-    RECALL -.->|recalled, next turn| DECIDE
-    USE["SWAP_PICK / USE_TOOL / SWAP_RETURN"] -->|verdict| HIST
-    procedural -->|a procedure runs as an errand ·<br/>a built tool hangs in a bay| USE
-    DECIDE -->|opens · replies on| desk
-    VISITOR([a visitor · the other robot · an operator]) -->|message · a ticket's reply or close| HIST
-    VISITOR -->|reply · close · delete| desk
-    desk -->|open tickets, their threads| DECIDE
-    DEAD((DEAD)) -->|died · archived| HIST
-    prefix --> DECIDE
-    core --> DECIDE
-    notes -->|index| DECIDE
-    HIST -->|tail · lastThoughts| DECIDE
+    DECIDE <-->|chose · think · say ·<br/>tail · lastThoughts| HIST
+    DEAD -->|died · archived| HIST
+    PROCS -->|a procedure runs<br/>as an errand| USE
+    USE -->|verdict| HIST
+    TICKETS <-->|an operator reads ·<br/>replies, closes, deletes| VISITOR
+    VISITOR -->|message ·<br/>a ticket's reply or close| HIST
 ```
 
 Retiring is the only forgetting: `unpin`, `unnote`, `retract` and `drop_goal`

@@ -116,8 +116,7 @@ class ImaginedBody:
     self.rebind(model, data)
 
   def rebind(self, model, data) -> None:
-    """Onto a world, by name: an imagined world is built for a rollout and
-    never recompiled, but a holder of one is rebindable all the same."""
+    """Onto a world, by name: an imagined world is built for a rollout."""
     self.model, self.data = model, data
     self.legs = Drivers(model, data)
     self.legs.limp()

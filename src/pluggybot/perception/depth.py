@@ -201,8 +201,8 @@ class DepthCamera:
     self._dirs_robot = self._dirs_cam @ mat.T
 
   def rebind(self, model) -> None:
-    """A recompiled world: the camera and the geom sets by name again
-    (issue #168 slice C). Excluded OTHER robots are re-resolved too."""
+    """The camera and the geom sets, by name: built, and built again when
+    what it carries or which robots it excludes changes."""
     self.model = model
     self.cam_id = model.camera(self.camera_name).id
     self._self_geoms = robot_geoms(model, self.handle.root)

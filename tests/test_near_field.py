@@ -2,8 +2,8 @@
 
 The rules, each pinned cheaply: the seam ticks the sensor at its own rate
 and only where it is on; the map is placed by the BELIEVED pose; the
-camera's draw is a load only while the sensor runs; a recompile rebinds
-the camera; the pair drops the other robot; and the `heightmap` line
+camera's draw is a load only while the sensor runs; the pair drops the
+other robot; and the `heightmap` line
 beside `grid` carries what a renderer needs and decodes back to the
 heights. The loop's rules on a stub body with a camera that sees what the
 test hands it; the sensor's on the quadruped. No mission flown.
@@ -23,6 +23,7 @@ from pluggybot.legs import world as lw
 from pluggybot.lifecycle import QUAD_HOME
 from pluggybot.perception import depth as nf
 from pluggybot.perception.heightmap import HeightMap
+from pluggybot.perception.lidar import robot_geoms
 from pluggybot.robot import FIRST, SECOND
 from pluggybot.telemetry.recorder import (GridSampler, HeightMapSampler,
                                           StreamRobot, TelemetryRecorder,
@@ -52,9 +53,6 @@ class _Eye:
 
   def frame(self, data) -> nf.DepthFrame:
     return nf.DepthFrame(z=np.zeros((1, 1)), points=self.points, self_fraction=0.0)
-
-  def rebind(self, model) -> None:
-    self.model = model
 
 
 class _Body(StubBody):
@@ -128,15 +126,6 @@ def test_the_camera_draws_power_only_while_the_map_is_built():
     f"the sensor cost {gap_wh * 3600:.2f} W, not {_Eye.draw_w}"
 
 
-def test_a_recompile_rebinds_the_camera():
-  """The lifecycle owns the camera, so `rebind` re-points it (issue #168's
-  fence: a holder of the old model keeps casting into a stale world)."""
-  life = _life(near_field=True)
-  model2, data2 = StubBody.world()
-  life.rebind(model2, data2)
-  assert life.depth_camera.model is model2
-
-
 def test_a_pair_drops_the_other_robot_from_each_frame():
   """As the LIDAR does: another robot standing in the frame is no
   information about the floor. On legs the camera is the body's (the one
@@ -149,7 +138,8 @@ def test_a_pair_drops_the_other_robot_from_each_frame():
     for me, other in ((0, 1), (1, 0)):
       mission = lives[me].body.mission
       assert mission.depth._other_roots == [roots[other]]
-      assert mission.lidar._other_roots == [roots[other]]
+      them = robot_geoms(lives[me].model, roots[other])
+      assert mission.lidar._other_geoms == them and len(them) > 0
     assert lives[1].body.mission.depth.camera_name == "r2_depth_eye"
   finally:
     for life in lives:

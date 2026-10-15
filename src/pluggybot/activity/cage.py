@@ -360,9 +360,6 @@ class Cage(Activity):
                  for act in self.press}
     self.mouse = MocapToggle(model, data, f"{self.prefix}_mouse",
                              mouse_poses(self.cage_xy))
-    if self.state:
-      self.mouse.current = None           # a fresh MjData starts at rest
-      self.mouse.select(self.state)
 
   def kept_state(self) -> dict:
     return {**super().kept_state(), "state": self.state, "until": self.until,

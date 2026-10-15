@@ -357,14 +357,12 @@ def test_the_prompt_message_is_the_prefix_the_model_is_shown(menu, tmp_path):
   from pluggybot.lifecycle import world_facts
   from pluggybot.mind.thoughts import ThoughtFiles
   from pluggybot.procedure.library import Library
-  from pluggybot.workshop.library import Workshop
   bare = Overseer(menu, client=FakeClient(), thoughts=ThoughtFiles())
   everything = Overseer(
     menu, client=FakeClient(), thoughts=ThoughtFiles(),
     origin="unseeded", appetite=True, mortal=True,
     escalate_to="Qwen/Qwen3-235B-A22B-Instruct-2507",
     library=Library(world_facts("home_quad"), root=tmp_path / "procedures"),
-    workshop=Workshop(tmp_path / "tools"),
     others=("Rowan",))
   for boss in (bare, everything):
     msg = boss.prompt_message(4.5, robot="r2_pluggybot")
@@ -387,7 +385,7 @@ def test_the_prompt_message_is_the_prefix_the_model_is_shown(menu, tmp_path):
   assert [s["name"] for s in everything.prompt_message(0.0)["sections"]][5:] == [
     "YOU CAN DIE", "POINTS ARE WHAT KEEPS YOU RUNNING", "WHEN YOU ARE ASKED",
     "YOUR LIST STARTS EMPTY", "PROCEDURES YOU MAY WRITE", "CHALLENGES",
-    "WHAT YOU HAVE MEASURED", "TOOLS YOU MAY BUILD", "THE OTHER ROBOT",
+    "WHAT YOU HAVE MEASURED", "THE OTHER ROBOT",
     "WHAT YOU CAN DO ABOUT THE OTHER ROBOT", "THINKING HARDER"]
   # The sha is the regime marker: the same build twice is the same sha, a
   # renamed robot is another.
