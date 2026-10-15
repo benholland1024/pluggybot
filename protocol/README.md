@@ -44,6 +44,16 @@ replayer treats it like any other world -- one scene, one recording, keyed
 by that name (`pluggybot.robot.pair_model_name`). The served world is the
 pair, `home_quad_pair`.
 
+### 0.21.0, nothing new: `tool` and `scene_changed` are no longer sent
+
+pluggybot #489. The robot no longer builds its own tools, and nothing
+recompiles a running world, so neither the `tool` event nor the
+`scene_changed` message is sent. No artifact's shape changes and a consumer
+ignores a type it does not know, so there is no bump: a consumer that still
+handles either never sees one. Recordings from earlier builds still carry
+them. The built-tool rail (`rack_built`, tags 47-52) stays in both quad
+scenes, its bays empty.
+
 ### 0.21.0, additive: one chat per robot (`earlier` as lines, on every message; `chat`, upstream)
 
 pluggybot #485. A robot's chat on the website is one chronological line,

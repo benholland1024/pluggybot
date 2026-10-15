@@ -248,8 +248,8 @@ rest, and `src/pluggybot/continuation.py` keeps it:
   are written on every event and are not rewound, so a job paid in that
   minute stays paid.
 - **Put back.** `continuation.load` finds the save before the task board is
-  built. Each lifecycle's `begin()` re-hangs its built tools, then
-  `continuation.restore` puts the bodies back. The day routine opens without
+  built. Each lifecycle's `begin()` puts back an open bench offer's mass,
+  then `continuation.restore` puts the bodies back. The day routine opens without
   moving: no start pose, no spin. History says "the world restarted; I
   carried on from (x, y) with the pack at N%".
 - **The last step is stepped again** (`continuation.replay`, #420). A running
@@ -284,7 +284,7 @@ rest, and `src/pluggybot/continuation.py` keeps it:
   out in a row at …" true; with the world carried on, a failed attempt would
   otherwise leave them wherever it dropped them, for good.
 - **Three refusals.** A world whose geometry changed (the `fingerprint` over
-  bodies, joints and geoms, taken before any built tool is hung) gets its
+  bodies, joints and geoms) gets its
   clock, packs, deaths and jobs, but not its bodies or maps: the robots
   start from their start poses and are told why. A save of another
   `MAP_EPOCH` is refused the same way: the epoch is bumped by a change that

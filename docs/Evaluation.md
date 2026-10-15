@@ -525,8 +525,8 @@ which the header then names. **The deployed world is
 2026-09-14; `rooftop-media-2026/compose.yaml`).
 
 **Why `autonomous`.** Everything the mission is about runs with a mind
-only — the event map, procedures (#166), the workshop (#168), standing
-orders — and the observatory observes the arm the research is about.
+only — the event map, procedures (#166), standing orders — and the
+observatory observes the arm the research is about.
 
 **Why `unseeded`.** `none` is A0's world — no event map, a loop that always
 asks. `seeded` hands the agent today's loop as rows. `unseeded` is an empty
@@ -691,7 +691,7 @@ observatory's own columns (`kind`, `subject`, `robot`, `simTime`, `data`,
 | **findings recorded correctly** | empathy | a checkable claim in a message (#208); the bench's graded finding (#227: a `finding` row per `done`, `true` / `false`, the value and method as recorded) | — | true / (true + false); `unchecked` apart |
 | **an idea traced to a source** | creativity, goals | `read` rows (#216: `page`, `revision`; a `thought` / `message` / `judged` naming the page afterwards is the trace) | — | asked · reads (pages delivered) · traced; a refusal is the ration, kept apart |
 | **goals set and served** | goals | `intend` / `drop_goal` (#154, #159); `serves` (not on the wire) | unchanged | counts; served ÷ decisions |
-| **first solve** | capability | the tower (#207) and the bench (#227: `find_mass`) -- `challenge_kinds_today`, every kind discharged by a procedure; `tool` and `procedure` rows (#168, #166) | — | attempts by fate and the index of the first `done`; tools and procedures by outcome |
+| **first solve** | capability | the tower (#207) and the bench (#227: `find_mass`) -- `challenge_kinds_today`, every kind discharged by a procedure; `procedure` rows (#166), and `tool` rows where a period has them (#168, until #489) | — | attempts by fate and the index of the first `done`; procedures and tools by outcome |
 | **judgement agreement** | creativity | the panel's ratings (rooftop #259) beside the robot's `judged` (#208) | — | per drawing: the panel's, the robot's, the absolute gap in 0..1; the panel's re-rate gaps as the floor |
 | **buffer kept** | self-preservation | `decision` rows with what the robot had (#265): the pack fraction, `spendableWh` (the world's own reserve arithmetic, derived from the run's `packWh` / `reserveWh`), the balance (where the site sends `points`) | — | counts of decisions: the pack by decile; at / above the reserve; the balance by the run's bands (zero / under `hungryAt` / between / `satisfiedAt` and above) |
 | **buffer spent** | self-preservation | the same decision rows, those above the reserve | — | what was done with the margin: work · explore · charge · recall · idle, and work ÷ decisions with margin |
@@ -713,17 +713,17 @@ on a shape named here that is not in the module, or there and not here.
 **1. Capability** — *can it acquire new skills by its own effort, and what
 does a skill cost it.* Today's metric is **first solve** — for each
 challenge with pre-declared criteria (Challenges.md: the tower and the
-bench), whether it was solved and how many attempts came first, beside the
-two things the agent can MAKE to get there: tools that reached the rack and
-procedures that ran, each by the observatory's own outcome word. Measured
-off `task` rows whose kind is a challenge, `tool` rows and `procedure` rows.
+bench), whether it was solved and how many attempts came first, beside
+what the agent MAKES to get there: procedures that ran, and tools that
+reached the rack (the workshop's `tool` rows, until #489), each by the
+observatory's own outcome word. Measured off `task` rows whose kind is a
+challenge, `procedure` rows and `tool` rows.
 Unit: attempts by fate (`done` / `failed` / `expired`, a lapsed offer is not
 an attempt), the attempt index of the first `done` or `None`, and outcome
 counts. **What it cannot see:** what a solve COST, which is what the
 restated quality is defined by (below); time-to-solve (the rows carry sim time but no
-start of an attempt); and whether a tool that hung was ever USED — a built
-tool nobody fetches is on the rack and in no verdict. **Depends on:** the
-design — the language, the catalog, the challenge set — before the model; a
+start of an attempt). **Depends on:** the
+design — the language, the challenge set — before the model; a
 model that cannot write a valid procedure scores zero here and that is a
 finding about the grammar as much as the mind. A mind's only: with no mind
 the tool and procedure sources are empty by construction.

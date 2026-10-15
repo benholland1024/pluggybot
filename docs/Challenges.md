@@ -293,8 +293,7 @@ relative; (4) no hold -- a record does not fall over.
 **The truth is hidden, and rotates.** The unknown is drawn from a bank
 (`challenge/masses.json`, `questions.json`'s pattern, on the board's own
 sequence number) when the offer is made, written into the world's
-`body_mass` -- the model AND the spec, so the workshop's recompile carries
-it -- and kept in `Task.secret`. The known mass is the job's own statement.
+`body_mass`, and kept in `Task.secret`. The known mass is the job's own statement.
 A bank entry within the tolerance of the known mass is refused at load,
 because then "it weighs what the other one weighs" would be paid. The
 grader reads the truth off the mass table at grading and nowhere else;
