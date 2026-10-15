@@ -47,8 +47,10 @@ class _Drive:
   _ask_way = nav.Navigator._ask_way
   _bodies = nav.Navigator._bodies
   peer_on_the_goal = nav.Navigator.peer_on_the_goal
+  robot_at = nav.Navigator.robot_at
   _cells = nav.Navigator._cells
   _left = nav.Navigator._left
+  ask_off = nav.Navigator.ask_off
   PROGRESS_ALONG_ROUTE = PROGRESS_MAP_GROWTH = False
   NEW_ROUTE_M = nav.Navigator.NEW_ROUTE_M
   BACKOFF_V, PEER_CLEARANCE_M = QuadMission.BACKOFF_V, QuadMission.PEER_CLEARANCE_M
@@ -396,3 +398,247 @@ def test_the_pair_asks_through_the_other_lifecycle_and_says_what_it_did(tmp_path
   finally:
     for life in (me, peer):
       life.body.close()
+
+
+def test_a_bay_wait_asks_only_a_robot_resting_on_the_bay():
+  """A bay wait walks nowhere, so it asks through `ask_off` (#455): the
+  robot resting ON the bay it waits for, off the way there from where it
+  stands -- never one only near it, which is charging on the dock a metre
+  past the standoff and would say no for as long as it charged."""
+  on = _Drive([_resting(GOAL[0] + 0.2, 0.0)])
+  assert on.ask_off(*GOAL, {}, beyond=((6.0, 0.0),)) is True
+  assert on.asked == [("r2_pluggybot", [(0.0, 0.0), GOAL, (6.0, 0.0)])]
+  near = _Drive([_resting(GOAL[0] + 1.0, 0.0)])
+  assert near.ask_off(*GOAL, {}) is False and near.asked == []
+
+
+# ---- 4. two bodies on one spot (#455's closing reading) -----------------------------
+
+#: How far apart the pair's bodies lay at afb473a's jams, true: 0.05-0.2 m,
+#: on the dock's standoff -- two quadrupeds do not touch.
+ON_TOP_M = 0.1
+HERE = (0.5, 0.75)
+
+
+def test_a_robot_lying_on_another_plans_out_of_its_disc(house):
+  """Inside another robot's disc deeper than the halo escape reaches (0.70
+  m round one resting, against 0.50), a plan found no first cell, and every
+  walk of the pair gave up in 0 s at the dock for up to 25 minutes. It
+  plans out of the disc by the nearest way, and round the rest of it; and
+  a place to clear the rack to is one it can reach."""
+  m = _mission(house, at=HERE)
+  try:
+    m.grid.grid[:] = -5.0
+    other = (HERE[0] + ON_TOP_M, HERE[1])
+    m.others = [lambda: KeepClear(*other, root="r2_pluggybot", resting=True)]
+    plan = m._plan_to(*EAST)
+    assert plan is not None, "no first cell inside the other's disc"
+    reach = m.OTHER_ROBOT_CELLS * m.grid.resolution
+    assert min(math.dist(p, other) for p in plan) > reach, plan
+    assert m.reachable([(-2.0, 0.75)]) == [True]
+  finally:
+    m.close()
+
+
+def test_a_robot_walks_out_of_a_disc_on_its_own_side_of_a_wall(house):
+  """...but never through a wall (#455's review): picked by distance alone,
+  the first cell out of a fallen robot's disc (0.90 m) was across the
+  house's 4 cm wall from a robot 0.2 m off it, so a plan began in the
+  garden and walked into the wall. Walked out over the floor, it keeps to
+  its own side, and the far side is no place it can reach."""
+  m = _mission(house, at=(1.8, 0.75))
+  try:
+    g = m.grid
+    g.grid[:] = -5.0
+    wall = g.world_to_cell(2.0, 0.0)[0]
+    g.grid[:, wall] = 5.0                      # one cell, the length of the map
+    m.others = [lambda: KeepClear(1.5, 0.75, root="r2_pluggybot", down=True)]
+    plan = m._plan_to(1.0, 3.0)
+    assert plan is not None and max(x for x, _ in plan) < 2.0, plan
+    m._plan_memo = None
+    assert m._plan_to(3.0, 0.75) is None, "planned across a wall with no door"
+    assert m.reachable([(3.0, 0.75), (1.0, 3.0)]) == [False, True]
+  finally:
+    m.close()
+
+
+def test_a_robot_lying_on_the_asker_steps_out_of_its_disc(house):
+  """...and asked, the robot lying under the asker found no floor to walk
+  to from inside the asker's disc, and said no ("no spot"), both ways
+  round, on the pair's own live maps. It walks out of the disc to a spot
+  off the way, and its step starts there too."""
+  m = _mission(house, at=HERE)
+  try:
+    m.grid.grid[:] = -5.0
+    asker = (HERE[0] + ON_TOP_M, HERE[1])
+    m.others = [lambda: KeepClear(*asker, root="pluggybot", resting=True)]
+    way = [asker, (-3.0, 0.75)]
+    spot = m.aside_spot(way)
+    assert spot is not None, "no spot from inside the asker's disc"
+    assert _off(way, *spot) >= m.aside_clear_m - 1e-6
+    assert m.make_way(way, "pluggybot") and m.making_way == "pluggybot"
+    m._move, m.posture = None, qb.STANDING
+    cmd = m._aside_command(qb.STILL, float(m.data.time))
+    assert qb.is_motion(cmd) and m._aside["waypoints"], m.last_aside
+  finally:
+    m.close()
+
+
+# ---- 5. the pair collides: a blind walk stops when it gets nowhere -------------------
+
+
+class _Blind:
+  """The quadruped's blind walks with its senses stubbed: every command is
+  0.1 s, and the leg odometry reckons the speed commanded until the body
+  has gone `at_m`, where something stops it dead -- after `dead_s` of
+  standing still and a ramp to pace, as the policy gets going. There is no
+  contact list here, nor any other robot's body: a walk that read either
+  would fail on the stub."""
+  _back_out_by_routine = QuadMission._back_out_by_routine
+  _walk_in_routine = QuadMission._walk_in_routine
+  _stopped_by = QuadMission._stopped_by
+  FRONT_M = QuadMission.FRONT_M
+
+  def __init__(self, at_m=math.inf, dead_s=0.0, robot_there=False):
+    self.model = SimpleNamespace(opt=SimpleNamespace(timestep=0.1))
+    self.data = SimpleNamespace(time=0.0)
+    self.odo = SimpleNamespace(x=0.0, y=0.0, v=[0.0, 0.0, 0.0])
+    self.at_m, self.dead_s, self.look_at_board = at_m, dead_s, (lambda: None)
+    self.robot_there, self.asked = robot_there, []
+
+  def robot_at(self, ahead, left):
+    self.asked.append((ahead, left))
+    return self.robot_there
+
+  def pose_xy(self):
+    return self.odo.x, self.odo.y
+
+  def _dock_error(self):
+    return (-1.0, 0.0, 0.0)                 # a metre short of the seat
+
+  def _twist_routine(self, vx, vy, w):
+    going = min(1.0, max(0.0, (self.data.time - self.dead_s) / 0.6))
+    v = 0.0 if abs(self.odo.x) >= self.at_m else vx * going
+    self.odo.v = [v, 0.0, 0.0]
+    self.odo.x += v * 0.1
+    self.data.time += 0.1
+    yield vx, vy, w
+
+  def _drive_routine(self, seconds, vx, w):
+    self.data.time += seconds
+    yield vx, 0.0, w
+
+
+def test_a_blind_walk_stops_when_its_own_legs_say_it_gets_nowhere():
+  """The pair collides (#455), and the walks no planner plans -- the dock's
+  and the rack's walk in, and every straight walk back out -- were blind to
+  the other robot: a back out pressed into one resting on the standoff for
+  its whole budget. Each stops once its leg odometry has made under
+  `HEADWAY_SHARE` of the speed it asked for over `HEADWAY_S` -- the parts'
+  senses, never which bodies touch -- and is given its spin-up first."""
+  back = _Blind(at_m=0.3, dead_s=0.4)
+  tick.run(STEPPER, back._back_out_by_routine(0.9, 8.0, 0.3, 0.8))
+  assert -back.odo.x == pytest.approx(0.3, abs=0.04)
+  assert back.data.time < 4.0, "it marched on against what stopped it"
+  free = _Blind(dead_s=0.4)
+  tick.run(STEPPER, free._back_out_by_routine(0.9, 8.0, 0.3, 0.8))
+  assert -free.odo.x >= 0.9, "a walk getting going stopped as getting nowhere"
+  walk = _Blind(at_m=0.5, dead_s=0.4)
+  assert tick.run(STEPPER, walk._walk_in_routine()) == "blocked"
+
+
+def test_a_walk_in_puts_what_stopped_it_down_to_a_robot_only_by_its_report():
+  """No touch tells whose body a walk met (#455): a walk in that gets
+  nowhere met "another robot" where one's REPORTED pose puts its body at
+  this one's front (`Navigator.robot_at`), and was "blocked" otherwise."""
+  walk = _Blind(at_m=0.5, robot_there=True)
+  assert tick.run(STEPPER, walk._walk_in_routine()) == "met another robot"
+  assert walk.asked == [(QuadMission.FRONT_M, 0.0)]
+
+
+def test_a_rack_walk_in_stops_when_it_gets_nowhere():
+  """...and the rack's walk in, the same rule (`legs/swap.py`)."""
+  from pluggybot.legs.swap import ToolSwap
+
+  class _Rack(_Blind):
+    _rack_walk_in_routine = ToolSwap._rack_walk_in_routine
+
+    def _rack_error(self, bay):
+      return (-1.0, 0.0, 0.0)
+
+    def look_at_rack(self):
+      return None
+  assert tick.run(STEPPER, _Rack(at_m=0.5)._rack_walk_in_routine(0)) == "blocked"
+  assert tick.run(STEPPER, _Rack(at_m=0.5, robot_there=True)._rack_walk_in_routine(0)) \
+    == "met another robot"
+
+
+def test_a_walk_getting_going_again_after_a_turn_is_not_getting_nowhere():
+  """A step that asks for no headway -- a turn on the spot, as a walk in
+  makes to face its way -- starts the count over: the walk after it gets
+  going from standing again (`HEADWAY_GRACE_S`). Stopped dead, either way,
+  it stalls within a window."""
+  def getting_going(h, sign):
+    return [h.stalled(sign * 0.3, sign * 0.3 * min(1.0, max(0.0, (k - 4) / 6)))
+            for k in range(1, 25)]
+  for sign in (1.0, -1.0):
+    h = qb.Headway(0.1)
+    assert not any(getting_going(h, sign))
+    assert not any(h.stalled(0.0, 0.0) for _ in range(10))
+    assert not any(getting_going(h, sign))
+    assert any(h.stalled(sign * 0.3, 0.0) for _ in range(6))
+
+
+def test_the_body_stops_backing_into_what_it_cannot_see(house):
+  """The physics under the rule: a back out off the served body's own
+  reckoning in the house, 0.6 m with nothing behind it, and against a box
+  0.09 m behind its hind knees -- which it stops on in under 2 s of its 6,
+  where it marched against it for the rest before (#455)."""
+  spec = lw.home_spec()
+  box = spec.worldbody.add_body(name="behind", pos=[1.0, 0.5, 0.15])
+  box.add_geom(type=mujoco.mjtGeom.mjGEOM_BOX, size=[0.05, 0.4, 0.15])
+  for model, went in ((house, (0.55, 0.7)), (spec.compile(), (0.0, 0.15))):
+    m = QuadMission(model, mujoco.MjData(model), realtime=False, grid_bounds=BOUNDS)
+    try:
+      m.start_at(1.5, 0.5, 0.0)
+      x0, y0, _ = m.true_pose()
+      tick.run(m.stepper, m._back_out_by_routine(0.6, 6.0, 0.3, 0.0))
+      x1, y1, _ = m.true_pose()
+      assert went[0] <= math.hypot(x1 - x0, y1 - y0) <= went[1], model is house
+      assert m.data.time < (6.0 if model is house else 2.0) and not m.falls
+    finally:
+      m.close()
+
+
+def test_a_step_aside_goes_on_against_the_robot_it_makes_way_for(house):
+  """Asked off a way, the robot can start against the asker's body -- the
+  pair collides (#455) -- and its bumper would end the step aside before it
+  began. A press where another robot's REPORTED pose puts its body
+  (`Navigator.robot_at`) is that robot's, and the step goes on; any other
+  still ends it, for no touch tells a robot from a wall."""
+  m = _mission(house)
+  try:
+    assert m.make_way(_route(), "pluggybot")
+    m._move, m.posture = None, qb.STANDING
+    asked = []
+    m.robot_at = lambda ahead, left: asked.append((ahead, left)) or True
+    m._pressing, m.pressed_at = True, (-0.2, 0.05)
+    assert qb.is_motion(m._aside_command(qb.STILL, float(m.data.time))), m.last_aside
+    assert asked == [(-0.2, 0.05)]
+    m.robot_at = lambda ahead, left: False
+    m._aside_command(qb.STILL, float(m.data.time))
+    assert m.last_aside["why"] == "met something"
+  finally:
+    m.close()
+
+
+def test_a_stall_or_a_press_is_another_robots_where_its_report_puts_its_body():
+  """`Navigator.robot_at`, in this body's own frame: a point of it within the
+  disc `peer_on_the_goal` reads round another robot's reported pose."""
+  d = _Drive([lambda: KeepClear(0.8, 0.6, root="pluggybot", resting=True)])
+  d.pose = (0.5, 0.0, math.pi / 2)           # facing +y
+  assert d.robot_at(0.35, 0.0)               # its front, (0.5, 0.35): 0.39 m off
+  assert not d.robot_at(-0.35, 0.0)          # its back, (0.5, -0.35): 1.0 m off
+  assert d.robot_at(0.3, -0.3)               # front right, (0.8, 0.3): 0.3 m off
+  assert not d.robot_at(0.3, 0.3)            # front left, (0.2, 0.3): 0.67 m off
+  assert not _Drive([]).robot_at(0.35, 0.0)

@@ -239,6 +239,7 @@ save a filmstrip PNG named after the script.
 | `scripts/drift_spike.py` | #386: believed against true pose over lab round trips, the quadruped's (the walking policy steered by the truth, two estimates on one walk, odometry alone and matched), and whether the lab door is open in the robot's own map; `--explore SECONDS --seed K [--rest S]` the loop's own explore, steered by the belief, then home to the dock (#422), `--explore-table` across seeds |
 | `scripts/determinism_spike.py` | is the world the same world twice? N scripted days hashed, first divergence attributed to GPU / decoder / raycast; `--pair`; `--compare DIR`; `--resume-at T` flies a day against one saved and carried on in a new process (#345), `--on-fork MODULE` with a tool on the fork whose returns fail (#420) |
 | `scripts/make_way_spike.py` | #415: the pair in the house on true-floor maps, one robot resting in a doorway and the other walking through it, one process a scene: the walk's end, the step aside (how far, how long, why it stopped), touches and falls; `--before` nobody asks, `--finished` the resting robot's day is over, `--scene A,B` |
+| `scripts/dock_pair_spike.py` | #455's closing reading: the pair at the dock and the rack on true-floor maps, the camera on, one process a scene: `overlap` (both lying on the dock's standoff, one walks off; `--live SAVE --jam T,...` on each robot's own saved map at afb473a's jams), `double` (one charging, the other comes to charge; `bump` with nobody holding the seat), `wait` (one resting on the standoff; `lane` across the way in), `backout` (one backs off the dock onto one resting), `swap` (one resting by the claw's bay, the other fetches; `rack` across it, nobody waiting or asking); every scene says how deep the bodies went into each other and each blind walk's `headway` as its own check saw it; `--no-contact` the pair passing through each other, `--blind` the walks in and back out not stopping when they get nowhere |
 | `scripts/press_spike.py` | #439: the pair in the lab on true-floor maps, the camera on, one robot lying where a scene puts it (by default where its own press backs out, 0.25 m short of the feed plate's standoff) and the other finding and pressing the feed plate, one process a scene: how the press ended and its tries, the walk's and the way in's time, the steps aside, every plate the feet came down on; `--drift-walker`/`--drift` lay one map off as Luca's was |
 | `scripts/solve.py --feature mouse` | ladder A of #264, the paid feed on legs (#403): offered, claimed with a prediction, walked and graded by the job's own evaluator; `--pair`, `--n N`, `--from dock\|lab`; filmstrip `solve.png`. `--feature hide_and_seek` flies the pair's game (#404): offered as the cadence offers it, both roles claimed, each run from the queue the referee fills, the verdict banked; one game a scene (`--scene A,B`, `--swap` both ways round; `--find`, `--seek-s`, `--head-s` sweep the referee). `--feature answer\|draw\|artwork` flies a whiteboard's job (#406): offered on a board (`--board`, or the two in turn), claimed -- an answer with the right one -- drawn lying and graded off the board's ink. `--feature tower\|bench` flies a challenge (#407): offered with its area's terms, claimed, the hand-written solution run as the robot's procedure (`challenge/solutions.py`), graded by its own predicate |
 | `scripts/board_png.py` | a whiteboard's ink as a PNG from the boards state file or a recording. ⚠ +lat is the viewer's LEFT, as in the site's `surfaces/board.ts`; the test pins it because every figure the pen draws is symmetric |
@@ -1129,7 +1130,22 @@ save a filmstrip PNG named after the script.
   APPROACH'S START while the other works within the planner's disc (0.55 m)
   of this bay's working pose (Ben, #418; `ToolSwap._bay_free_routine`, the
   lifecycle's #346 wait with `hold`): at neighbouring bays both flinched
-  17 of 20; the tag-steered walk-in avoids no peer. The world's activities
+  17 of 20; the tag-steered walk-in avoids no peer. ⚠ THE PAIR COLLIDES
+  (Ben, 2026-10-14, #455; `legs.world.PAIR_BITS`): each robot meets every
+  solid geom of the other and none of its own (the policies' model has no
+  self-contact), and AVOIDANCE keeps them apart -- before, they passed
+  through each other, and the walk in lay on the robot on the dock nine
+  times on afb473a. So a charge waits while the other is on the dock's WAY
+  IN or its SEAT (`Body.charge_seat`, `LANE_STEP_M`), not only its standoff;
+  a bay's wait asks one lying down to rest ON the bay off it (`Body.ask_off`;
+  afresh after a no, never one on the seat); the walks no planner plans --
+  every walk in and back out -- stop when the body's OWN reckoning says they
+  get nowhere (`legs.body.Headway`, the leg odometry against the command;
+  ⚠ never the contact list, nor whose geom it was: no part knows either),
+  the other robot named only where its REPORTED pose puts it
+  (`Navigator.robot_at`); and a robot restored inside the other is put
+  at its first clear start, its tool sent home, before a step throws them
+  apart (`HubLifecycle.unclip`). The world's activities
   are on the FIRST robot's hooks only. ⚠ A ROBOT LYING DOWN TO REST ACROSS THE
   OTHER'S WAY IS ASKED TO MAKE WAY, and steps aside beneath whatever it
   holds (Ben, #415; `Navigator._ask_way`, `Body.ask_way`, `legs/way.py`):
@@ -1146,7 +1162,12 @@ save a filmstrip PNG named after the script.
   why; a restart's save waits it out. ⚠ A ROBOT FURTHER OFF THAN `PAST_M`
   (3 m) WHOSE DISC ALONE CUTS A WALK'S WAY IS PLANNED PAST (#455): three
   walks gave up at once 10-25 m from one walking the hall; nearer, it is
-  the wall it was.
+  the wall it was. ⚠ A ROBOT INSIDE THE OTHER'S DISC WALKS OUT OF IT, and
+  steps aside out of it (`Navigator._escape_from`, #455): the halo escape
+  (0.5 m) is shallower than the disc (0.7 m resting, 0.9 m fallen), and
+  two lying on each other at the dock gave up every walk in 0 s, and said
+  "no spot" to every ask, for up to 94 minutes. ⚠ WALKED over the floor,
+  never picked by distance: that started a plan across a 4 cm wall.
 - **Two minds, two memories, one board** (issue #167;
   `pair.build_pair(overseer=True)`, Overseer.md §2c): per robot an overseer,
   event map, standing order, thought root (the first at `thoughts_root`, the
@@ -1453,7 +1474,11 @@ save a filmstrip PNG named after the script.
   gyro must agree, and the offset is learned there); unheld it walked up to
   3° a minute, past the matcher's 6° reach in two.
   The sim's own checks (`true_pose`, deaths, traces) read the truth and
-  never feed a belief. ⚠ The quadruped enters a
+  never feed a belief. ⚠ NOR WHAT A BODY TOUCHES (Ben, 2026-10-15): the
+  contact list and whose geom it was are the sim's, so new code that
+  steers names the PART it reads (#455's walks stop off the leg odometry,
+  `legs.body.Headway`); the rover's bumper, `_press_now`, is the stand-in
+  left (#502). ⚠ The quadruped enters a
   world through `legs.model.attachable()`: the include form has no
   `<compiler>`, MuJoCo read its joint ranges in DEGREES, and the stand
   threw it 0.4 m up.

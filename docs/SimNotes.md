@@ -2994,8 +2994,9 @@ after 0 s (Rowan in the way, 10.6 m off)"; after, all three arrived, in
 39-55 s. #415's seven scenes, maps true: before, 4 of 7 (the three
 doorways above lost), and the hall's middle at 4 of 6 placements; after,
 7 of 7, and 6 of 6. No touch and no fall in any. Without the camera the
-walker steps over a lying robot instead, with no contact, which is how
-#415's scenes were first flown.
+walker walked into a lying robot, which until the pair collided (#455's
+closing reading, below) it passed through: #415's scenes were first
+flown so.
 
 **...and the goal it lies on** (#439's part 2). The `encounter` rows put
 the other robot within 2 m at 95 of 96 failed presses over three builds
@@ -3052,6 +3053,143 @@ another plate, and nothing touched or fell.
 - a robot that cannot make way says why, once every `MAKE_WAY_WAIT_S`.
 
 `tests/test_resting_in_the_way.py` pins each rule.
+
+## Two bodies on one dock (issue #455's closing reading)
+
+**What happened.** #455's last box was a day on a build carrying the
+change above: each give-up naming a robot lying down to rest with an ask
+beside it, and none naming a robot more than a few metres off. On afb473a
+(3.5 days from 2026-10-10) the second half held: no give-up named a robot
+further off than 2.9 m. The first did not. Nearly every give-up that named
+a resting robot came from one spot, the dock's standoff, where both robots
+lay 0.05-0.2 m apart by their true poses (the `drift` rows). In jams of
+up to 94 minutes, every walk of both robots gave up in 0 s ("the walk
+gave up 7.1 m short after 0 s (Rowan lying down to rest in the way, 0.1 m
+off)": 122 explores, 7 procedures and a drawing). Six charges waited their
+whole 1387 s for the other to leave and failed, and History said "could
+not get clear of the rack" 131 times, once a minute in a jam.
+
+**How two bodies came to one spot.** Every geom of the quadruped was
+`contype 1, conaffinity 0`, the walking policy's model, which has no
+self-contact. So the two robots never touched (no `touched` encounter row
+since the rover), and only the planner kept them apart; the walks it does
+not plan were blind to the other robot. The charge bay counted as taken
+only with a robot on its STANDOFF, and one lying on the dock is 1.0 m past
+it. Nine times on afb473a (24 of its 5-minute `drift` samples) both robots
+lay on the seat at once: the second had walked in by the board onto the
+first, both charged, and each later backed out (0.9 m, straight back) onto
+the standoff, onto the other.
+
+**Why nothing moved them.** Each lay inside the other's disc (0.70 m round
+a robot resting) deeper than the planner's halo escape reaches (0.50 m),
+so neither could plan a first step. A walk asked the other off its way,
+and the other, as deep in the asker's disc, found no floor to step to and
+said no ("no spot"). A bay's wait asked nobody: the charge's ran its bound,
+and two at the rack ran their 90 s on a robot resting at its front,
+0.38-0.53 m from the bay's working pose.
+
+**The change.**
+
+- THE PAIR COLLIDES (Ben, 2026-10-14). Each robot gets a bit of its own
+  and the other's as its affinity (`legs.world.PAIR_BITS`, bits the world
+  never sets): every solid geom of one meets every solid geom of the
+  other, none meets its own robot's, and the world meets each robot
+  exactly as it did. A robot alone is unchanged.
+- Avoidance is what keeps them apart. The charge bay is held by a robot
+  on its standoff, on the dock's way in (every `LANE_STEP_M` of it) or on
+  its seat (`Body.charge_seat`): waited for out of the lane, and looked for
+  again once the walk reaches the standoff, and after a lost search too. A
+  bay's wait asks a robot lying down to rest ON the bay off the way there
+  (`Body.ask_off`): every `OTHER_WAIT_S` while it steps off, afresh
+  `MAKE_WAY_WAIT_S` after a no or a step that ended short, and never one on
+  the seat, which would say no for its whole charge.
+- The walks no planner plans -- the dock's and the rack's walk in, every
+  straight walk back out -- stop when the robot's OWN reckoning says they
+  get nowhere (`legs.body.Headway`): the leg odometry's speed over the
+  last 0.5 s under 0.3 of the speed commanded, once the walk has had 1.25
+  s to get going. Never which bodies touch, nor whose geom it was: no part
+  on the robot knows either (Ben, 2026-10-15; this change's first version
+  stopped on contacts with the other robot's geoms, off the contact list).
+  What stopped a walk in is "another robot" only where that robot's
+  REPORTED pose puts its body at the walker's front (`Navigator.robot_at`):
+  it says "met another robot", else "blocked". A step aside goes on
+  against a press where a robot's report puts its body, and ends at any
+  other.
+- A robot inside another's disc plans out of it: from where the halo puts
+  it, WALKED out over the floor with no disc taken out, never across a
+  wall, and the plan keeps the rest of the disc (`Navigator._escape_from`;
+  by distance alone, a robot beside a fallen one 0.2 m from the house's 4
+  cm wall began its plan in the garden). Its step aside starts the same
+  way. Colliding, two bodies cannot lie that deep in a resting robot's
+  disc, but a fallen robot's (0.90 m) still reaches past the halo.
+- A world saved before the pair collided can hold the two on one spot,
+  and stepped, the contacts throw them out of each other. A restore puts
+  the later robot at its first clear start before any step, the tool on
+  its fork sent home first (`HubLifecycle.unclip`, deeper than
+  `UNCLIP_M`), and the restart's History line says where it was and why.
+
+**Measured** (`scripts/dock_pair_spike.py`; before is staging's code,
+ef4b9b5, the same scenes; `--no-contact` the pair passing through each
+other; `--blind` the walks above not stopping). The overlaps are flown on
+the robots' own maps out of the live save, at three jams' true poses:
+
+| scene | before | the avoidance alone | and the pair colliding |
+|---|---|---|---|
+| overlap, 0.10 m apart (t=1051301) | gave up 7.0 m short after 0 s; asked, "no spot" | arrived, 23.4 s | put at its start; the walk arrived, 12.6 s |
+| overlap, 0.21 m apart (t=954017) | arrived, 25.8 s: the escape just reached | arrived, 25.8 s | put at its start; 15.5 s |
+| overlap, 0.21 m apart (t=1126640) | gave up 7.1 m short after 0 s; asked, "no spot" | arrived, 21.6 s | put at its start; 13.7 s |
+| one charging on the dock, the other comes to charge | walked in onto it at 25.6 s, 0.007 m apart; both charged for 44 s | waited out of the lane; docked at 102.6 s, the first gone at 76.6 s | the same; never touched |
+| ...the seat held by nobody (`bump`) | as above | as above | met it three times, each walk in stopping 0.71-0.94 s after the first touch; 8 mm deep, no fall; the charge given up "walk met another robot" (`--blind`: pushed 68.5 s, docked at 138.0 s) |
+| one resting on the standoff (the wait bounded at 60 s) | waited 60 s; "never reached the charge bay" | asked at 5.7 s, stepped 0.8 m aside; docked at 32.9 s | the same; never touched |
+| one resting across the dock's way in, 0.2 m off its line (`lane`) | -- | -- | asked, stepped aside; docked in 27.7 s; never touched |
+| one charging backs off onto one resting on the standoff (`backout`) | -- | -- | stopped 0.56 m out, 0.43 s after the first touch; 1 mm deep (`--blind`: pressed 4.7 s) |
+| one resting 0.42 m from the claw's bay | waited 91 s; "blocked" | asked at once, stepped 0.4 m aside; the claw on the fork at 29.0 s | the same; never touched |
+| one resting across the claw bay's working pose, nobody waiting or asking (`rack`) | -- | -- | three walks in, each stopping 0.88-0.97 s after the first touch, "met another robot"; the fetch gave up; 8 mm deep, no fall (`--blind`: each walk in pushed for its whole 20 s, and the third, the lying robot shoved aside, took the claw at 91.2 s; 11 mm deep) |
+
+THE HEADWAY CHECK, MEASURED (`dock_pair_spike.py`, every blind walk of
+the scenes above, as its own check saw it): after the grace, a walk nothing
+stopped made at least 0.90 of its command walking in (seven walks) and
+0.49 backing out (five), against the bar of 0.3; walks against the other
+robot fell to about 0, and the check fired 0.43-0.97 s after the first
+touch. A 0.75 s grace stopped a back out off the dock nothing was behind
+(from standing the policy reaches its pace in 0.5-0.7 s walking in, and
+backs out at about two thirds of its command). It stops what is not a
+robot too: two of `bump`'s walks back out stopped on the couch behind the
+dock's standoff, which a stop watching only the other robot let them
+push for the rest of their 8 s. And it is slower than the contact list it
+replaced: in one of `bump`'s walks in, the 0.94 s it pushed left its fork
+against the docked robot's hind thighs, its walk back out made no headway
+from the start, and the docked robot's own walk back out then stopped
+against it, neither down.
+
+With contact and no `unclip`, the three overlaps threw them apart: 0.11 m
+in, a root at up to 2.5 m/s, and a robot down at each. The first and the
+third overlaps are the same distance apart; where the escape fell short
+turned on which lattice cells the disc covered. A pair day with a fall and
+a death arranged (`determinism_spike.py --pair`) is identical on both codes,
+the pair colliding, over 1052 state samples: the two never touch in it.
+
+**What is true now:**
+
+- the pair collides: a robot meets every solid geom of the other and none
+  of its own; avoidance keeps them apart, and a walk's own reckoning stops
+  what it misses;
+- a robot on the dock's standoff, its way in or its seat holds the charge
+  bay, and a waiting robot says where;
+- a bay's wait asks a robot resting ON the bay off the way there, again
+  while it steps off and afresh after a no, and never one on the dock;
+- a walk no planner plans stops when its own leg odometry says it gets
+  nowhere, whatever stopped it, and names the other robot only by where
+  that robot says it is;
+- a robot inside another's disc walks out of it on its own side of any
+  wall, and so does its step aside, which goes on against a press where
+  the asker says it is;
+- a robot restored inside the other is put at its first clear start, its
+  tool sent home, and its History says so.
+
+`tests/test_two_robots.py`, `tests/test_make_way.py`,
+`tests/test_rack_contention.py` and `tests/test_continuation.py` pin each
+rule.
 
 ## Hide and seek on legs (issue #404)
 

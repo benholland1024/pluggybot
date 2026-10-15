@@ -611,6 +611,56 @@ def test_the_pair_carries_on_both_robots_from_one_saved_world(tmp_path):
   assert back[0].encounters.count == 4
 
 
+@pytest.mark.parametrize("where", ["the dock", "its own start"])
+def test_a_pair_saved_lying_on_each_other_is_put_apart_on_restore(tmp_path, monkeypatch, where):
+  """A world saved before the pair collided (#455) can hold the two on one
+  spot -- afb473a's jams lay 0.05-0.2 m apart on the dock's standoff -- and
+  stepped now, the contacts throw them out of each other: a robot down at
+  each of three. The later robot is put at its first clear start (another
+  robot's, where its own is the one taken), the tool on its fork sent home
+  first, and the restart's History line says where it was and why it was
+  moved; a pair saved apart comes back in place
+  (`test_the_pair_carries_on_both_robots_from_one_saved_world`)."""
+  import math
+
+  from pluggybot.lifecycle import UNCLIP_M
+  from pluggybot.pair import build_pair
+  cfg = world_config(QUAD_HOME)
+  starts = (cfg["start"], cfg["start2"])
+  if where == "the dock":
+    a, b = (3.451, -0.496, math.radians(27.0)), (3.409, -0.376, math.radians(-83.4))
+  else:
+    b = starts[1]
+    a = (b[0] + 0.05, b[1], b[2])
+  lives = build_pair(QUAD_HOME, thoughts_root=str(tmp_path / "before"))
+  lives[0].body.start_at(*a)
+  lives[1].body.start_at(*b)
+  path = tmp_path / "world.npz"
+  continuation.write(continuation.capture(lives, lives[0].world_fingerprint), path)
+  snap = continuation.read(path)
+
+  back = build_pair(QUAD_HOME, resume=snap, thoughts_root=str(tmp_path / "after"))
+  for life, start in zip(back, starts):
+    life.begin(start)
+  homes = []
+  monkeypatch.setattr(back[1], "_tool_home", lambda: homes.append(back[1].body.pose_xy()))
+  got = continuation.restore(back, snap)
+  assert got["inPlace"] and got["unclipped"] == [back[1].root]
+  assert homes == [pytest.approx(b[:2], abs=0.05)], "the tool was not sent home first"
+  put = starts[1] if where == "the dock" else starts[0]
+  x, y, _ = back[1].body.true_pose()
+  assert math.dist((x, y), put[:2]) < 0.05
+  ax, ay, _ = back[0].body.true_pose()
+  assert math.dist((ax, ay), a[:2]) < 0.05, "the first robot moved"
+  line = back[1]._resumed_line(back[1].resumed)
+  assert line.startswith(f"the world restarted; I carried on from ({b[0]:.1f}, {b[1]:.1f})"), line
+  whose = "my start" if where == "the dock" else f"{back[0].robot_name}'s start"
+  assert (f"inside {back[0].robot_name}'s body there, and the world put me at "
+          f"{whose} ({put[0]:.1f}, {put[1]:.1f})") in line, line
+  mujoco.mj_forward(back[0].model, back[0].data)
+  assert not back[1].unclip() and UNCLIP_M > 0.008
+
+
 def test_a_world_saved_mid_charge_says_the_charge_was_cut_short(tmp_path):
   """A restart ends the charge routine: the robot is told its charge was
   cut short, rather than believe it charged on."""

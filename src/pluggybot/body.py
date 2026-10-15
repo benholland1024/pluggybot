@@ -454,6 +454,12 @@ class Body(abc.ABC):
     believes in."""
 
   @abc.abstractmethod
+  def charge_seat(self) -> tuple[float, float]:
+    """Where it lies to charge, (x, y): the far end of the walk in from
+    `charge_standoff`. Another robot there holds the charge bay as much as
+    one on the standoff (issue #455)."""
+
+  @abc.abstractmethod
   def dock_routine(self) -> Routine:
     """From the charge standoff, onto the charger until its contacts
     conduct; returns the approach's answer. Success is `charging()`."""
@@ -550,6 +556,14 @@ class Body(abc.ABC):
     to -- not docked, not mid-move, no walk of its own under way -- it
     stands and walks aside beneath whatever it is holding, a rule in code
     like the rest reflex, the mind not asked. True while it makes way."""
+
+  @abc.abstractmethod
+  def ask_off(self, x: float, y: float, asked: dict, beyond=()) -> bool:
+    """Ask a robot lying down to rest ON (x, y) -- a bay this body waits
+    for -- to step off the way there from where this body stands, and on
+    past it through `beyond` (issue #455): a drive's ask (`ask_way`), for a
+    wait that walks nowhere. `asked` is the waiter's, kept across its
+    wait: who said yes, and when first. True while one is making way."""
 
   @abc.abstractmethod
   def peer_on_the_goal(self, x: float, y: float) -> float | None:
@@ -804,6 +818,8 @@ class StubBody(Body):
     #: (route, by)
     self.makes_way = False
     self.way_asked: list[tuple[list, str]] = []
+    #: ...and every bay it asked a robot resting on to step off: (x, y)
+    self.asked_off: list[tuple[float, float]] = []
     self.making_way = None
     self.way_refused = ""
     self.asides, self.last_aside = 0, None
@@ -1061,6 +1077,9 @@ class StubBody(Body):
     x, y = self.rack.to_world(0.5, 0.0)
     return x, y, self.rack.heading
 
+  def charge_seat(self):
+    return self.rack.to_world(0.0, 0.0)
+
   def dock_routine(self):
     self.on_charger = True
     return "stopped"
@@ -1117,6 +1136,10 @@ class StubBody(Body):
     self.way_asked.append((list(route), by))
     self.way_refused = "" if self.makes_way else "no spot"
     return self.makes_way
+
+  def ask_off(self, x, y, asked, beyond=()) -> bool:
+    self.asked_off.append((x, y))
+    return False
 
   def actuator(self, name) -> int:
     raise KeyError(f"a stub body has no actuator {name!r}")
