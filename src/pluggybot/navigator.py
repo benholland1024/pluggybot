@@ -1210,6 +1210,15 @@ class Navigator:
     return min((d for d in (on_the_goal(self, b, wx, wy) for b in self._bodies())
                 if d is not None), default=None)
 
+  def robot_at(self, ahead: float, left: float) -> bool:
+    """Is the point `ahead` m ahead of this body's centre and `left` m to
+    its left where another robot's body is, as `peer_on_the_goal` places
+    them? What a walk that stops getting anywhere, or a press, is put down
+    to (issue #455): no part on a robot tells whose body it met by touch."""
+    x, y, th = self.pose
+    c, s = math.cos(th), math.sin(th)
+    return self.peer_on_the_goal(x + c * ahead - s * left, y + s * ahead + c * left) is not None
+
   def reachable(self, points) -> list[bool]:
     """Which world points this robot could plan to right now (issue #346):
     traversable after the other robots are masked out, and in the SAME

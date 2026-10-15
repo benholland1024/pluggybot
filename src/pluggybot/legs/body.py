@@ -46,6 +46,7 @@ depth camera (CLAUDE.md, the near-field bullet).
 
 from __future__ import annotations
 
+import collections
 import math
 
 import mujoco
@@ -75,7 +76,6 @@ from pluggybot.mapping.frontier import OCC_THRESH
 from pluggybot.navigator import Navigator, gave_up
 from pluggybot.perception.depth import PERIOD as DEPTH_PERIOD
 from pluggybot.perception.depth import DepthCamera, DepthFrame
-from pluggybot.perception.lidar import robot_geoms
 from pluggybot.power import Pack
 from pluggybot.body import RackPose
 from pluggybot.robot import FIRST, RobotHandle
@@ -119,6 +119,20 @@ ARM_TOL, ARM_SETTLE_S = 0.01, 2.0
 #: The fold to the stow from anywhere in reach: the ramp's worst (the
 #: shoulder from its low stop, 4.6 rad at `ARM_SLEW`) and the settle.
 STOW_BUDGET_S = 5.0
+#: A BLIND WALK -- one no planner plans: the dock's and the rack's walk in,
+#: every straight walk back out -- STOPS WHEN ITS OWN RECKONING SAYS IT IS
+#: GETTING NOWHERE (`Headway`; issue #455: the pair collides, and which
+#: geoms touch is the simulator's to know, never a sense): the leg
+#: odometry's speed over the last `HEADWAY_S` under `HEADWAY_SHARE` of the
+#: speed commanded, once it has been asked for `HEADWAY_GRACE_S`. MEASURED
+#: (`dock_pair_spike.py`'s `headway`; SimNotes, "Two bodies on one dock"):
+#: from standing, the policy reaches its pace in 0.5-0.7 s walking in and
+#: slower backing out, and after the grace a walk nothing stopped never
+#: fell under 0.90 of its command walking in, nor 0.49 backing out; against
+#: the other robot it fell to about 0, and the check fired 0.43-0.97 s after
+#: the bodies first touched. A 0.75 s grace stopped a back out off the dock
+#: that nothing was in the way of.
+HEADWAY_S, HEADWAY_SHARE, HEADWAY_GRACE_S = 0.5, 0.3, 1.25
 
 #: THE DEPTH CAMERA'S OBSTACLES (the module docstring). A point this high
 #: over the floor, and no higher, is something the body walks into: above
@@ -178,6 +192,38 @@ def retreat_from(at: tuple[float, float], speed: float,
 
 def is_motion(command) -> bool:
   return any(abs(c) >= MOTION_EPS for c in command)
+
+
+class Headway:
+  """Is a blind walk getting where its command sends it (`HEADWAY_S`)? Fed
+  each physics step the speed ahead it asked for and the speed the leg
+  odometry reckons; a step asking for none -- a turn on the spot -- starts
+  it over, for the walk after it starts from standing."""
+
+  def __init__(self, dt: float) -> None:
+    self.n = max(1, round(HEADWAY_S / dt))
+    self.grace = max(self.n, round(HEADWAY_GRACE_S / dt))
+    self.steps = 0
+    self.asked: collections.deque = collections.deque()
+    self.made: collections.deque = collections.deque()
+    self.sums = [0.0, 0.0]
+
+  def stalled(self, asked: float, made: float) -> bool:
+    if abs(asked) < V_MIN:
+      self.steps = 0
+      self.asked.clear()
+      self.made.clear()
+      self.sums = [0.0, 0.0]
+      return False
+    self.steps += 1
+    self.asked.append(asked)
+    self.made.append(made)
+    self.sums[0] += asked
+    self.sums[1] += made
+    if len(self.asked) > self.n:
+      self.sums[0] -= self.asked.popleft()
+      self.sums[1] -= self.made.popleft()
+    return self.steps >= self.grace and self.sums[1] / self.sums[0] < HEADWAY_SHARE
 
 
 _POLICIES: dict = {}
@@ -311,6 +357,9 @@ class QuadMission(ToolSwap, PlaceWalk, BoardWork, CubeWork, AreaSurvey, MakeWay,
   #: divider backed off every second for 135 s. A goal at the clearance
   #: stops 3 cm short, inside `CLOSE_ENOUGH_M`.
   FRONT_STOP_RANGE = 0.53
+  #: ...and that front-most point, the stowed fork: where a walk in meets
+  #: what stops it (`_stopped_by`).
+  FRONT_M = 0.35
   #: ...tested over the CORRIDOR ahead, not the rover's 0.35 rad cone: the
   #: torso is 0.10 m either side of its line, and at 0.45 m the cone reaches
   #: 0.15 m out -- MEASURED, a wall alongside at 0.16 m fired it every scan,
@@ -408,8 +457,6 @@ class QuadMission(ToolSwap, PlaceWalk, BoardWork, CubeWork, AreaSurvey, MakeWay,
     self.last_charge: dict | None = None
     self.press_steps = 0
     self._pressing = False
-    #: The other robots this body knows of (`know_peer`), by root.
-    self._peer_roots: tuple = ()
     self._resolve_geoms(model)
     # THE TOOL RACK (#405, `legs/swap.py`)
     self._init_swap(model)
@@ -449,37 +496,12 @@ class QuadMission(ToolSwap, PlaceWalk, BoardWork, CubeWork, AreaSurvey, MakeWay,
     self._is_ignored = np.zeros(model.ngeom, dtype=bool)
     self._is_ignored[np.concatenate((self._floor_gids, self._dock_gids,
                                      self.body_gids))] = True
-    self._is_mine = np.zeros(model.ngeom, dtype=bool)
-    self._is_mine[self.body_gids] = True
-    self._is_peer = np.zeros(model.ngeom, dtype=bool)
-    for root in self._peer_roots:
-      self._is_peer[sorted(robot_geoms(model, root))] = True
 
-  def know_peer(self, root: str) -> None:
-    """Another robot in the world (`Body.know_peer`): what `touches_peer`
-    and the press read as its body (#455: the pair collides)."""
-    self._peer_roots = (*self._peer_roots, root)
-    self._is_peer[sorted(robot_geoms(self.model, root))] = True
-
-  def touches_peer(self, ahead: bool) -> bool:
-    """Is this body -- or what rides its fork -- touching another robot at
-    its front (`ahead`) or its back: a contact further than `PRESS_END_M`
-    along the torso that way, off the contact array as the last step left
-    it? (#455: the pair collides, and a blind walk in or back out stops on
-    it rather than push the other robot over.)"""
-    d = self.data
-    n = int(d.ncon)
-    if not n or not self._is_peer.any():
-      return False
-    mine = self._is_mine.copy()
-    mine[self._carried_gids] = True
-    g = d.contact.geom[:n]
-    hit = (mine[g[:, 0]] & self._is_peer[g[:, 1]]) | (mine[g[:, 1]] & self._is_peer[g[:, 0]])
-    if not hit.any():
-      return False
-    rot = d.xmat[self.root].reshape(3, 3)
-    x = ((d.contact.pos[:n][hit] - d.xpos[self.root]) @ rot)[:, 0]
-    return bool((x > self.PRESS_END_M).any() if ahead else (x < -self.PRESS_END_M).any())
+  def _stopped_by(self) -> str:
+    """Why a walk in stopped getting anywhere (`Headway`), as far as this
+    body can tell: "met another robot" where one's reported pose puts its
+    body at this one's front (`Navigator.robot_at`), else "blocked"."""
+    return "met another robot" if self.robot_at(self.FRONT_M, 0.0) else "blocked"
 
   # ---- the dock's frame -----------------------------------------------------
 
@@ -911,7 +933,6 @@ class QuadMission(ToolSwap, PlaceWalk, BoardWork, CubeWork, AreaSurvey, MakeWay,
     hit = (mine0 | mine1) & ~self._is_ignored[other]
     if not hit.any():
       return False
-    self.pressed_peer = bool(self._is_peer[other[hit]].all())
     rot = d.xmat[self.root].reshape(3, 3)
     at = (d.contact.pos[:d.ncon][hit] - d.xpos[self.root]) @ rot
     self.pressed_at = (float(at[:, 0].mean()), float(at[:, 1].mean()))
@@ -920,8 +941,6 @@ class QuadMission(ToolSwap, PlaceWalk, BoardWork, CubeWork, AreaSurvey, MakeWay,
   #: Where the body was last touched, (x ahead, y left) of the torso's
   #: centre: the retreat steps away from it.
   pressed_at: tuple[float, float] | None = None
-  #: ...and whether only another robot's body touched it (#455).
-  pressed_peer = False
   #: A touch this far from the centre along the body is at an end; nearer,
   #: a flank (the torso is 0.21 m long either side, 0.10 m wide).
   PRESS_END_M = 0.15
@@ -1158,13 +1177,14 @@ class QuadMission(ToolSwap, PlaceWalk, BoardWork, CubeWork, AreaSurvey, MakeWay,
 
   def _walk_in_routine(self) -> Routine:
     t0 = last = float(self.data.time)
+    gone = Headway(self.model.opt.timestep)
     while self.data.time - t0 < dk.WALK_IN_S:
       tw = dk.walk_in_twist(*self._dock_error())
       if tw == Twist():
         return "stopped"
-      if self.touches_peer(ahead=True):
-        return "met another robot"
       yield from self._twist_routine(tw.vx, tw.vy, tw.yaw_rate)
+      if gone.stalled(tw.vx, float(self.odo.v[0])):
+        return self._stopped_by()
       if self.data.time - last >= dk.LOOK_EVERY_S:
         self.look_at_board()
         last = float(self.data.time)
@@ -1177,12 +1197,16 @@ class QuadMission(ToolSwap, PlaceWalk, BoardWork, CubeWork, AreaSurvey, MakeWay,
   def _back_out_by_routine(self, distance: float, budget: float, speed: float,
                            settle: float) -> Routine:
     """Straight back `distance` of odometry at `speed`, at most `budget` s,
-    and stand `settle` s: the dock's, the rack's and a plate's walk out."""
+    or until it gets nowhere (`Headway`), and stand `settle` s: the dock's,
+    the rack's and a plate's walk out."""
     x0, y0 = self.pose_xy()
     t0 = float(self.data.time)
+    gone = Headway(self.model.opt.timestep)
     while (math.hypot(self.odo.x - x0, self.odo.y - y0) < distance
-           and self.data.time - t0 < budget and not self.touches_peer(ahead=False)):
+           and self.data.time - t0 < budget):
       yield from self._twist_routine(-speed, 0.0, 0.0)
+      if gone.stalled(-speed, float(self.odo.v[0])):
+        break
     yield from self._drive_routine(settle, 0.0, 0.0)
 
   def dock_routine(self) -> Routine:
@@ -1789,7 +1813,6 @@ class QuadBody(Body):
   def know_peer(self, root) -> None:
     self.mission.lidar.exclude_robot(root)
     self.mission.depth.exclude_robot(root)
-    self.mission.know_peer(root)
 
   def detect_tags(self) -> dict:
     return self.mission.detect_board()

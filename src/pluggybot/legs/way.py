@@ -150,9 +150,11 @@ class MakeWay:
       return self._end_aside("aside", STILL)
     if t - a["t0"] > self.ASIDE_BUDGET_S:
       return self._end_aside("out of time", STILL)
-    if t < self.backoff_until or (self.pressing and not self.pressed_peer):
-      # ...never the robot it makes way for, or the other (#455): the pair
-      # collides, and a robot stepping off a way can start against the asker
+    if t < self.backoff_until or (self.pressing and not (
+        self.pressed_at is not None and self.robot_at(*self.pressed_at))):
+      # ...never where another robot's reported pose puts its body (#455):
+      # the pair collides, and a robot stepping off a way can start against
+      # the asker -- which no touch can tell from a wall
       return self._end_aside("met something", STILL)
     if not self.arm_driving():
       return self._end_aside("arm out", STILL)

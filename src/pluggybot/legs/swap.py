@@ -243,15 +243,17 @@ class ToolSwap:
     return False
 
   def _rack_walk_in_routine(self, bay: int) -> Routine:
+    from pluggybot.legs.body import Headway
     from pluggybot.legs.policy import Twist
     t0 = last = float(self.data.time)
+    gone = Headway(self.model.opt.timestep)
     while self.data.time - t0 < WALK_IN_S:
       tw = rk.walk_in_twist(*self._rack_error(bay), heading=-rk.SETTLE_DRIFT)
       if tw == Twist():
         return "stopped"
-      if self.touches_peer(ahead=True):      # (#455: the pair collides)
-        return "met another robot"
       yield from self._twist_routine(tw.vx, tw.vy, tw.yaw_rate)
+      if gone.stalled(tw.vx, float(self.odo.v[0])):
+        return self._stopped_by()
       if self.data.time - last >= LOOK_EVERY_S:
         self.look_at_rack()
         last = float(self.data.time)

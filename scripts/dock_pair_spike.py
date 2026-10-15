@@ -22,10 +22,18 @@ scene:
             standoff; the first backs off the dock
   swap      one lying down to rest 0.42 m from the claw bay's working pose,
             where afb473a's lay at t=1073381; the other fetches the claw
+  rack      one lying down to rest ACROSS the claw bay's working pose, and
+            nobody waits for it or asks it (`_bay_free_routine` and
+            `make_way` put out): the rack's walk in meets it
 
 Every scene says how deep the two robots' geoms went into each other
 (`deepestM`, a contact's distance, negative inside), for how long they
-touched, the fastest either root moved, and their falls.
+touched, the fastest either root moved, and their falls; and every blind
+walk either robot flew -- the dock's and the rack's walk in, every walk
+back out (`headway`) -- as its own check saw it (`legs.body.Headway`): the
+lowest share of its command the leg odometry made once the grace was
+over, when the check fired (or, `--blind`, would have), and when the two
+bodies first touched (the grader's truth, never the robot's).
 
     MUJOCO_GL=egl uv run python scripts/dock_pair_spike.py --scene overlap,wait
     ... --live world.npz    # `overlap` on each robot's OWN saved map, at
@@ -33,8 +41,8 @@ touched, the fastest either root moved, and their falls.
                             # (`--jam 954017,1051301,1126640`)
     ... --no-contact        # the pair passes through each other, as it did
                             # before #455's closing change (`PAIR_BITS`)
-    ... --blind             # the blind walks in and back out do not stop on
-                            # the other robot (`QuadMission.touches_peer`)
+    ... --blind             # the blind walks in and back out do not stop
+                            # when they get nowhere (`legs.body.Headway`)
 
 Before #455's closing change the scenes fly on staging's code (`ef4b9b5`):
 SimNotes, "Two bodies on one dock".
@@ -52,7 +60,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-SCENES = ("overlap", "double", "bump", "wait", "lane", "backout", "swap")
+SCENES = ("overlap", "double", "bump", "wait", "lane", "backout", "swap", "rack")
 #: afb473a's jams, true poses off the `drift` rows: (Luca, Rowan), x, y, yaw deg
 JAMS = {"954017": ((3.451, -0.496, 27.0), (3.409, -0.376, -83.4)),
         "1051301": ((3.428, -0.359, -84.0), (3.424, -0.412, -172.6)),
@@ -63,6 +71,8 @@ HALL = (-3.5, 1.0)
 LIVING = (0.5, 1.5)
 #: `--no-contact` and `--blind`, for the child that flies a scene
 NO_CONTACT = BLIND = False
+#: ...and the check `--blind` put out, which the readout still replays
+STALLED = None
 
 
 def _pair(live: str | None = None):
@@ -73,8 +83,10 @@ def _pair(live: str | None = None):
   if NO_CONTACT:
     lw.PAIR_BITS = ((0, 0), (0, 0))
   if BLIND:
-    from pluggybot.legs.body import QuadMission
-    QuadMission.touches_peer = lambda self, ahead: False
+    global STALLED
+    from pluggybot.legs.body import Headway
+    STALLED = STALLED or Headway.stalled
+    Headway.stalled = lambda self, asked, made: False
   me, peer = build_pair(QUAD_HOME, errands=("none", "none"), near_field=True)
   if live is None:
     for life in (me, peer):
@@ -91,10 +103,9 @@ def _pair(live: str | None = None):
   return me, peer
 
 
-def _bodies(me, peer):
-  """Watch the two bodies every physics step (`step_hooks`): how deep their
-  geoms went into each other, m, how long they touched, s, and the fastest
-  either root moved, m/s. Returns what reads it out, with their falls."""
+def _contacts(me, peer):
+  """The two bodies' contacts, as the grader reads them: a function giving
+  this step's distances between a geom of one and a geom of the other."""
   import numpy as np
   m = me.model
 
@@ -107,25 +118,92 @@ def _bodies(me, peer):
       out[g] = m.body(b).name == root
     return out
   a, b = owned(me.root), owned(peer.root)
+
+  def dists():
+    d = me.data
+    n = int(d.ncon)
+    if not n:
+      return d.contact.dist[:0]
+    g = d.contact.geom[:n]
+    return d.contact.dist[:n][(a[g[:, 0]] & b[g[:, 1]]) | (b[g[:, 0]] & a[g[:, 1]])]
+  return dists
+
+
+def _bodies(me, peer):
+  """Watch the two bodies every physics step (`step_hooks`): how deep their
+  geoms went into each other, m, how long they touched, s, the fastest
+  either root moved, m/s, and every blind walk's headway (`_headway`).
+  Returns what reads it out, with their falls."""
+  import numpy as np
+  m = me.model
+  dists = _contacts(me, peer)
   dofs = [int(m.jnt_dofadr[m.joint(f"{life.root}_root").id]) for life in (me, peer)]
   falls0 = (me.body.mission.falls, peer.body.mission.falls)
   out = {"deepestM": 0.0, "touchingS": 0.0, "peakV": 0.0}
 
   def watch():
     d = me.data
-    n = int(d.ncon)
-    if n:
-      g = d.contact.geom[:n]
-      hit = (a[g[:, 0]] & b[g[:, 1]]) | (b[g[:, 0]] & a[g[:, 1]])
-      if hit.any():
-        out["deepestM"] = min(out["deepestM"], float(d.contact.dist[:n][hit].min()))
-        out["touchingS"] += float(m.opt.timestep)
+    hit = dists()
+    if len(hit):
+      out["deepestM"] = min(out["deepestM"], float(hit.min()))
+      out["touchingS"] += float(m.opt.timestep)
     out["peakV"] = max(out["peakV"], *(float(np.linalg.norm(d.qvel[k:k + 3])) for k in dofs))
   me.body.mission.step_hooks.append(watch)
+  walks = _headway(me, peer, lambda: bool(len(dists())))
 
   def read() -> dict:
     return {**{k: round(v, 4) for k, v in out.items()},
-            "falls": [me.body.mission.falls - falls0[0], peer.body.mission.falls - falls0[1]]}
+            "falls": [me.body.mission.falls - falls0[0], peer.body.mission.falls - falls0[1]],
+            "headway": walks()}
+  return read
+
+
+def _headway(me, peer, touching):
+  """Every blind walk either robot flies, fed step by step to a `Headway` of
+  its own, as the walk feeds its own: (when, asked, made, touching)."""
+  import types
+  from pluggybot.legs import body as qb
+  walks: list = []
+  for life in (me, peer):
+    mis, now = life.body.mission, {"walk": None}
+    for name in ("_walk_in_routine", "_rack_walk_in_routine", "_back_out_by_routine"):
+      def walk(self, *a, _orig=getattr(type(mis), name), _name=name, _now=now, _root=life.root,
+               **kw):
+        rec = {"robot": _root, "walk": _name.strip("_").replace("_routine", "").replace("_", " "),
+               "t0": float(self.data.time), "steps": []}
+        walks.append(rec)
+        _now["walk"] = rec
+        try:
+          got = yield from _orig(self, *a, **kw)
+        finally:
+          _now["walk"] = None
+        rec["answer"] = got
+        return got
+      setattr(mis, name, types.MethodType(walk, mis))
+
+    def twist(self, vx, vy, w, _orig=type(mis)._twist_routine, _now=now):
+      yield from _orig(self, vx, vy, w)
+      if _now["walk"] is not None:
+        _now["walk"]["steps"].append((float(self.data.time), vx, float(self.odo.v[0]), touching()))
+    mis._twist_routine = types.MethodType(twist, mis)
+
+  def read() -> list:
+    rows, stalled = [], STALLED or qb.Headway.stalled
+    for w in walks:
+      h, fired, lowest = qb.Headway(me.model.opt.timestep), None, None
+      for t, asked, made, _ in w["steps"]:
+        if stalled(h, asked, made):
+          fired = round(t - w["t0"], 2)
+          break
+        if h.steps >= h.grace:
+          share = h.sums[1] / h.sums[0]
+          lowest = share if lowest is None else min(lowest, share)
+      touched = next((round(t - w["t0"], 2) for t, *_, hit in w["steps"] if hit), None)
+      rows.append({"robot": w["robot"], "walk": w["walk"], "answer": w.get("answer"),
+                   "s": round(w["steps"][-1][0] - w["t0"], 2) if w["steps"] else 0.0,
+                   "lowest": None if lowest is None else round(lowest, 2),
+                   "firedS": fired, "touchedS": touched})
+    return rows
   return read
 
 
@@ -320,6 +398,42 @@ def swap(module: str = "module_claw") -> dict:
 
   tick.run_many([(peer.body.stepper, resting()), (me.body.stepper, fetching())], name="swap")
   return out | _aside(peer) | read() | {"said": _said(me) + _said(peer)}
+
+
+def rack(module: str = "module_claw") -> dict:
+  from pluggybot import tick
+  me, peer = _pair()
+  mis = me.body.mission
+  bay = me.rack_inventory[module]
+  sx, sy, syaw = mis.rack_standoff(bay)
+  wx, wy, _ = mis.work_pose(bay)
+  me.body.start_at(sx, sy, syaw)
+  peer.body.start_at(wx, wy, syaw + math.pi / 2)    # across the bay's working pose
+
+  def free(*a, **kw):                                # nobody waits for it ...
+    yield from ()
+    return True
+  mis._bay_free_routine = free
+  peer.body.mission.make_way = lambda *a, **kw: False   # ... or asks it
+  read = _bodies(me, peer)
+  out: dict = {}
+
+  def resting():
+    yield from peer.body.rest_routine()
+    while "fetch" not in out and peer.data.time < 200.0:
+      yield from peer.body.hold_routine(0.5)
+
+  def fetching():
+    while peer.body.posture != "lying":
+      yield from me.body.hold_routine(0.1)
+    t0 = float(me.data.time)
+    got = yield from mis.fetch_routine(bay, module)
+    out["fetch"] = {"answer": got, "seconds": round(float(me.data.time) - t0, 1),
+                    "walks": [a.get("walk") for a in mis.last_swap["attempts"]],
+                    "onFork": me.body.module_state(module)["on_fork"]}
+
+  tick.run_many([(peer.body.stepper, resting()), (me.body.stepper, fetching())], name="rack")
+  return out | read()
 
 
 def fly_one(scene: str, jam: str, live: str | None) -> dict:
