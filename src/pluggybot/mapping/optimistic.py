@@ -27,7 +27,7 @@ from scipy.ndimage import distance_transform_cdt
 from scipy.sparse import csr_matrix
 from scipy.sparse.csgraph import dijkstra
 
-from pluggybot.mapping.astar import nearest_traversable
+from pluggybot.mapping.astar import HALO_CELLS, nearest_traversable
 from pluggybot.mapping.frontier import FREE_THRESH, OCC_THRESH
 
 #: What a metre through space the robot has not seen costs, against a metre
@@ -42,8 +42,8 @@ UNKNOWN_COST = 2.0
 #: side, is 6. MEASURED at 5 cm on the home grid, the same search cost ~5x
 #: as much (~260 ms against ~60 ms a plan, busy box).
 BLOCK = 2
-#: The halo escape, in lattice cells: the map's 10 (`nearest_traversable`).
-ESCAPE_CELLS = 5
+#: The halo escape, in lattice cells: the map's (`nearest_traversable`).
+ESCAPE_CELLS = HALO_CELLS // BLOCK
 #: A goal on the floor is searched for first within the straight line to it
 #: at the dearest cost and this much more, m (`route`).
 LIMIT_SLACK_M = 2.0

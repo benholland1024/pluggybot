@@ -462,6 +462,9 @@ def restore(lives, snap: Snapshot) -> dict:
     # hold their gains again: they live in the model, and are its input
     matched["replayed"] = replay(first.model, first.data, snap.meta["physics"],
                                  snap.arrays)
+    # ...and a robot saved lying inside the other, from before the pair
+    # collided (issue #455), put clear before a step throws them apart
+    matched["unclipped"] = [life.root for life in lives[1:] if life.unclip()]
   return {"inPlace": same, "t": snap.t, "robots": restored, **matched}
 
 

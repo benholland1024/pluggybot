@@ -280,6 +280,185 @@ def test_a_taken_charge_bay_is_waited_for_before_the_drive_in():
   assert "I waited 1386 s for it to leave, 3x how long one charge" in said
 
 
+def test_a_robot_on_the_dock_holds_the_charge_bay_and_is_not_walked_in_on():
+  """Two bodies on one dock (#455): the charge bay was taken only by a
+  robot on its STANDOFF, and one lying on the dock -- a metre past it --
+  was walked in on: both charged at once, and backed out onto each other
+  at the standoff, where neither could plan a step. A robot on the seat
+  holds the bay as one on the standoff does: waited for out of the lane,
+  docked once it has gone, and named "on the dock" if it never goes --
+  and one that lay down there while this one walked to the standoff is
+  found there before the walk in."""
+  for leaves, late in ((True, False), (False, False), (True, True), (False, True)):
+    life = _life()
+    sx, sy, _ = life.body.charge_standoff()
+    seat = life.body.charge_seat()
+    peer = _peer(*((seat[0] + 5.0, seat[1]) if late else seat), "CHARGE")
+    life.peers = [peer]
+    _reported(life, peer.body.pose_xy)
+    assert life.body.peer_on_the_goal(sx, sy) is None, "the premise: the standoff is free"
+    _clock(life, (lambda t: peer.pos.__setitem__(0, seat[0] + 5.0) if t >= 30.0 else None)
+           if leaves else None)
+    drives, docks = [], []
+
+    def go_to(x, y, *a, late=late, peer=peer, seat=seat, drives=drives, **kw):
+      if late and not drives:               # ...it docks as this one walks
+        peer.pos[:] = list(seat)
+      drives.append((x, y))
+      return tick.result(True)
+    life.body.go_to_routine = go_to
+
+    def dock():
+      docks.append(float(life.data.time))
+      life.body.on_charger = True
+      return "docked"
+      yield
+    life.body.dock_routine = dock
+    assert life.body.run(life.go_charge_routine()) is leaves
+    assert any("WAIT: Rowan is standing on the dock" in line for line in life.log)
+    assert math.dist(drives[int(late)], (sx, sy)) > 0.6, "waited in the lane"
+    if leaves:
+      assert docks == [pytest.approx(30.0, abs=lc.BAY_POLL_S)], docks
+      continue
+    assert docks == [], "walked in on a robot on the dock"
+    said = next(line for line in life.log if "GO_CHARGE: never reached the charge bay" in line)
+    assert "-- Rowan was standing on the dock; I waited 1386 s for it to leave" in said, said
+
+
+def test_a_robot_on_the_docks_way_in_holds_it_as_on_its_standoff_or_seat():
+  """The way in from the standoff to the seat is the dock's too (#455's
+  review): with the pair colliding, a robot lying across it short of the
+  seat -- out of reach of both the standoff's test and the seat's -- turned
+  every walk in back, where before the PR it was walked through."""
+  life = _life()
+  sx, sy, _ = life.body.charge_standoff()
+  seat = life.body.charge_seat()
+  mx, my = (sx + seat[0]) / 2, (sy + seat[1]) / 2
+  ux, uy = (seat[0] - sx) / math.dist((sx, sy), seat), (seat[1] - sy) / math.dist((sx, sy), seat)
+  peer = _peer(mx - 0.40 * uy, my + 0.40 * ux, "IDLE")   # 0.40 m off the way, half way in
+  life.peers = [peer]
+  _reported(life, peer.body.pose_xy)
+  assert life.body.peer_on_the_goal(sx, sy) is None and life.body.peer_on_the_goal(*seat) is None
+  _clock(life)
+  docks = []
+  life.body.go_to_routine = lambda *a, **kw: tick.result(True)
+
+  def dock():
+    docks.append(float(life.data.time))
+    return "docked"
+    yield
+  life.body.dock_routine = dock
+  assert life.body.run(life.go_charge_routine()) is False
+  assert docks == [], "walked in across the robot on the dock's way in"
+  assert any("WAIT: Rowan is standing on the dock's way in" in line for line in life.log)
+  said = next(line for line in life.log if "GO_CHARGE: never reached the charge bay" in line)
+  assert "-- Rowan was standing on the dock's way in; I waited 1386 s" in said, said
+
+
+def test_a_resting_holder_is_asked_afresh_after_a_no_or_a_yes_that_did_not_move_it():
+  """A yes counts `MAKE_WAY_WAIT_S` from the first (`Navigator._ask_way`),
+  and after that the robot was never asked again: one whose step aside
+  ended short and lay down on the bay again was waited on for the rest of
+  the bound (#455's review). The wait asks it afresh once its yes has run
+  out -- and after a no, only that often: each ask plans a way and an aside
+  (~30 ms on the physics thread), and a no is narrated that often anyway."""
+  from pluggybot.navigator import MAKE_WAY_WAIT_S, OTHER_WAIT_S
+  for says in ("yes", "no"):
+    life = _life()
+    sx, sy = _standoff(life)
+    peer = _peer(sx + 0.2, sy)
+    life.peers = [peer]
+    _reported(life, peer.body.pose_xy)
+    _clock(life)
+    asked_at = []
+
+    def ask_off(x, y, asked, beyond=(), says=says, peer=peer, life=life, asked_at=asked_at):
+      now = float(life.data.time)
+      if now - asked.get(peer.root, now) > MAKE_WAY_WAIT_S:
+        return False                        # the real `_ask_way` passes it over
+      asked_at.append(now)
+      if says == "no":
+        return False
+      asked.setdefault(peer.root, now)      # ...says yes, and never gets off
+      return True
+    life.body.ask_off = ask_off
+    assert life.body.run(life._await_bay_routine(sx, sy, "pick", 0.0, hold=True)) is False
+    if says == "no":
+      assert asked_at == pytest.approx([0.0, MAKE_WAY_WAIT_S, 2 * MAKE_WAY_WAIT_S])
+      continue
+    window = [t for t in asked_at if t <= MAKE_WAY_WAIT_S]
+    assert window == pytest.approx([k * OTHER_WAIT_S for k in range(len(window))])
+    again = [t for t in asked_at if t > MAKE_WAY_WAIT_S]
+    assert again, "never asked again after its first yes ran out"
+    assert again[0] == pytest.approx(window[-1] + OTHER_WAIT_S + MAKE_WAY_WAIT_S)
+
+
+def test_a_dock_found_again_after_a_lost_search_is_looked_at_again():
+  """#476's lost search from the standoff takes up to 300 s, and the other
+  robot can dock meanwhile: the walk back looks at the bay again, as every
+  walk to it does (#455's review), and never walks in on the one there."""
+  life = _life()
+  sx, sy, _ = life.body.charge_standoff()
+  seat = life.body.charge_seat()
+  peer = _peer(seat[0] + 5.0, seat[1], "CHARGE")
+  life.peers = [peer]
+  _reported(life, peer.body.pose_xy)
+  _clock(life, lambda t: peer.pos.__setitem__(0, seat[0] + 5.0) if t >= 40.0 else None)
+  life.body.go_to_routine = lambda *a, **kw: tick.result(True)
+  docks = []
+
+  def dock():
+    docks.append((float(life.data.time), list(peer.pos)))
+    if len(docks) == 1:
+      return "no board"
+    life.body.on_charger = True
+    return "docked"
+    yield
+
+  def lost(fixture, stop=None):
+    peer.pos[:] = list(seat)                 # ...and it docked while this one looked
+    life.data.time += 30.0
+    return True
+    yield
+  life.body.dock_routine, life.body.lost_routine = dock, lost
+  assert life.body.run(life.go_charge_routine()) is True
+  assert len(docks) == 2 and docks[1][0] >= 40.0, docks
+  assert math.dist(docks[1][1], seat) > 1.0, "walked in on the robot on the dock"
+
+
+def test_a_robot_resting_on_a_bay_is_asked_off_it_while_it_is_waited_for():
+  """A wait for a bay held by a robot lying down to rest ran its bound and
+  never asked it to move: 1387 s at the charge bay, 90 s at the rack's, on
+  afb473a every time (#455). The wait asks, every `OTHER_WAIT_S`, for the
+  bay it waits on and on past it to the dock's seat (`Body.ask_off`: the
+  body's rule is who), and goes on once the robot is off it."""
+  from pluggybot.navigator import OTHER_WAIT_S
+  for kind in ("pick", "charge"):
+    life = _life()
+    if kind == "charge":
+      sx, sy, _ = life.body.charge_standoff()
+      seat, beyond = life.body.charge_seat(), (tuple(life.body.charge_seat()),)
+    else:
+      (sx, sy), seat, beyond = _standoff(life), None, ()
+    peer = _peer(sx + 0.2, sy)
+    life.peers = [peer]
+    _reported(life, peer.body.pose_xy)
+    _clock(life)
+    asks = []
+
+    def ask_off(x, y, asked, beyond=(), peer=peer, asks=asks, life=life):
+      asks.append((float(life.data.time), (x, y), tuple(beyond)))
+      if len(asks) == 3:                    # ...and on the third, it is off
+        peer.pos[0] += 5.0
+      return True
+    life.body.ask_off = ask_off
+    assert life.body.run(life._await_bay_routine(sx, sy, kind, 0.0, hold=True,
+                                                 seat=seat)) is True
+    assert [a[1:] for a in asks] == [((sx, sy), beyond)] * 3
+    assert [a[0] for a in asks] == pytest.approx([0.0, OTHER_WAIT_S, 2 * OTHER_WAIT_S])
+    assert life.data.time < 3 * OTHER_WAIT_S + lc.BAY_POLL_S
+
+
 # ---- rule 3: a refused return is retried first ------------------------------
 
 
