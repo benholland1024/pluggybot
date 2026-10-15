@@ -249,13 +249,16 @@ def test_a_restart_carries_only_a_tool_its_world_has(quad_world):
   tool the new world lacks -- a built tool, in a world saved before #489 --
   is no body of it (#407: `model.body` raised, and the served process
   crash-looped until its save was no longer trusted): the fork carries
-  nothing."""
+  nothing, and the arm holds up none of its weight (`armPayload`: the
+  feed-forward lifting a tool that is not there)."""
   body, again = quad(quad_world), quad(quad_world)
   try:
     state, arrays = body.kept_state()
     state["carrying"] = "module_gone"
+    state["armPayload"] = [0.3, [0.05, -0.12]]
     again.restore_kept(state, arrays)
     assert again.mission.carrying is None
+    assert again.mission.arm.payload == (0.0, (0.0, 0.0))
   finally:
     body.close()
     again.close()

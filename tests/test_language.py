@@ -530,6 +530,28 @@ def test_a_procedure_the_world_moved_under_is_kept_and_marked(tmp_path):
                                            for r in ctx["reasons"])
 
 
+def test_a_procedure_says_which_tool_it_needs():
+  """A library entry names the modules it needs (issue #324): what a sensor
+  it reads `requires` (`claw.holding`, the claw) and what it `fetch`es,
+  walked into loops, branches and a `read` inside a condition -- and absent,
+  not empty, where there are none: a learnable slot. ⚠ A FETCH COUNTS: a
+  procedure that fetches a tool and reads none of its sensors names no axis
+  or sensor at all, and reported NO needs, which reads as "needs no tool"."""
+  library = lib.Library(HOME)
+  library.define("look", 'def look():\n  wait(1.0)\n')
+  library.define("probe", 'def probe():\n  for i in range(2):\n'
+                          '    if read("claw.holding") > 0:\n'
+                          '      wait(1)\n')
+  library.define("hold", 'def hold():\n  fetch("module_claw")\n  wait(1)\n  stow()')
+  rows = {r["name"]: r for r in library.as_context()}
+  assert "needs" not in rows["look"]
+  assert rows["probe"]["needs"] == ["module_claw"], rows["probe"]
+  assert rows["hold"]["needs"] == ["module_claw"], rows["hold"]
+  # ...and this is WHY it was missed: not one axis, not one sensor
+  assert library.get("hold").references()["axes"] == ()
+  assert library.get("hold").references()["sensors"] == ()
+
+
 def test_there_is_no_replace_verb():
   assert not [m for m in dir(lib.Library) if "replace" in m or "update" in m]
   assert not hasattr(Decision, "redefine")

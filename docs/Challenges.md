@@ -278,9 +278,9 @@ The second challenge, and the first that is OPEN IN METHOD by design:
 `challenge/bench.py`; proof in `tests/test_bench.py`. Two cubes on the lab's
 floor in front of the workbench -- the tower's 26 mm block, tagged 23 and
 24 -- one weighing a stated 100 g and one weighing something the offer
-does not say. "Find out what, by any means, and record it." A balance
-from catalog parts, a comparison of pushes, an actuator's load are all
-live routes, and the grader knows none of them. Offered on legs since
+does not say. "Find out what, by any means, and record it." A comparison
+of pushes and an actuator's load are both live routes, and the grader
+knows neither of them. Offered on legs since
 #407 (§7).
 
 **The criteria**, written before the physics was run: (1) the finding is

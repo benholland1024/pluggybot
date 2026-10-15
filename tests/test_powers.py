@@ -92,6 +92,21 @@ def fields_of(boss):
   return index_of(boss).get("fields", {})
 
 
+def _bare_objects(node, path=""):
+  """Every `type: object` with neither `properties` nor `anyOf`."""
+  found = []
+  if isinstance(node, dict):
+    if (node.get("type") == "object" and "properties" not in node
+        and "anyOf" not in node):
+      found.append(path)
+    for key, value in node.items():
+      found += _bare_objects(value, f"{path}/{key}")
+  elif isinstance(node, list):
+    for i, value in enumerate(node):
+      found += _bare_objects(value, f"{path}[{i}]")
+  return found
+
+
 # ---- 1. the fence, in both directions ------------------------------------------
 
 
@@ -120,6 +135,17 @@ def test_every_field_the_schema_offers_has_a_door_and_the_index_invents_none(
   # The powers the issue was filed about, named at last.
   assert {"define", "undefine", "event_map", "record", "retract", "lookup",
           "ticket", "done"} <= set(fields)
+
+
+@pytest.mark.parametrize("world_is", [None, NO_LAB], ids=["served", "no-lab"])
+def test_no_object_in_the_grammar_is_bare(world_is):
+  """A `{"type": "object"}` with neither `properties` nor `anyOf` is refused
+  by the stricter providers behind the router before a token is decoded
+  ("Object fields require at least one of: 'properties' or 'anyOf'", issue
+  #225): every candidate on them fell to the prose retry and `constrained`
+  went False. The workshop's tool spec was one; this walks the whole grammar
+  of a maximal build, so the next one fails here."""
+  assert _bare_objects(schema_of(built(world_is))) == []
 
 
 @pytest.mark.parametrize("make", [

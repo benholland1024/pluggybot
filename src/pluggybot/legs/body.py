@@ -1406,15 +1406,16 @@ class QuadMission(ToolSwap, PlaceWalk, BoardWork, CubeWork, AreaSurvey, MakeWay,
     # ...what rode the fork, where this world has it: a world saved before
     # #489 may have carried a built tool, which is no body here
     carried = state.get("carrying")
-    if carried is not None and mujoco.mj_name2id(
-        self.model, mujoco.mjtObj.mjOBJ_BODY, carried) < 0:
-      carried = None
-    self.carry(carried)
+    gone = carried is not None and mujoco.mj_name2id(
+      self.model, mujoco.mjtObj.mjOBJ_BODY, carried) < 0
+    self.carry(None if gone else carried)
     if "armTarget" in arrays:
       self.arm.target = np.array(arrays["armTarget"], dtype=float)
       self.arm.goal = np.array(arrays["armGoal"], dtype=float)
-      kg, (ox, oz) = state.get("armPayload", [0.0, [0.0, 0.0]])
-      self.arm.payload = (float(kg), (float(ox), float(oz)))
+      # ...and its weight on the arm, unless what it weighed is no body here
+      if not gone:
+        kg, (ox, oz) = state.get("armPayload", [0.0, [0.0, 0.0]])
+        self.arm.payload = (float(kg), (float(ox), float(oz)))
     for name, drv in (("walk", self.walker), ("getup", self.getup)):
       kept = state.get("policies", {}).get(name)
       if kept is not None:

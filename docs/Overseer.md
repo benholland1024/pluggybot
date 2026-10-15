@@ -216,8 +216,8 @@ two registries (`procedure/axes.py`): an axis is one actuator's setpoint
 with its range and speed, run through `Body.ramp_routine`; a sensor is one
 scalar measured off the world. The quadruped's own are the arm's
 `shoulder` and `elbow` (#405) and it reads its pack, its wallet, the clock
-and its bumper; a new tool or body registers its own and the language does
-not change. Nothing in `procedure/` writes `data.ctrl` (the fence,
+and its bumper; a new tool or body adds its entries to the registries and
+the language does not change. Nothing in `procedure/` writes `data.ctrl` (the fence,
 `tests/test_procedure.py`).
 
 **Total by construction:** a procedure declares `budget(steps=N,

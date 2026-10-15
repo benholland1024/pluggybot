@@ -64,6 +64,40 @@ def test_the_world_has_its_own_rack_and_every_tool_is_compiled_hanging(quad_worl
   assert bay_switches(m, d)[:3] == (True, True, True)
 
 
+def test_standing_by_clear_of_the_racks_counts_the_rails_own_bays(quad_world):
+  """`rack_distance` is the nearer of the dock (`body.rack_prior`, the frame
+  the charge logic works round on legs) and each built-tool rail bay's
+  approach start, so a robot standing by is sent clear of the rail's bays
+  and their lanes (`RACK_CLEAR_M`), empty as they are since #489: each
+  standoff, off the rack's own compiled pose, reads 0. Computed off the
+  dock's frame, as first written (#407), bays B and C read 2.04 and 2.26 m
+  -- clear -- and a robot waiting there stayed. The rail's bays are the
+  swap's stations past the claw's (`rack.spec_of`)."""
+  from pluggybot.lifecycle import HubLifecycle
+  from pluggybot.rack.coupling import BUILT_STATION_YS, built_bay_index
+  assert rk.BUILT.stations == tuple(built_bay_index(k)
+                                    for k in range(len(BUILT_STATION_YS)))
+  assert [rk.spec_of(s) for s in (0, 2, 5, 7)] == [(rk.DEFAULT, 0), (rk.DEFAULT, 2),
+                                                  (rk.BUILT, 0), (rk.BUILT, 2)]
+  with pytest.raises(ValueError):
+    rk.spec_of(3)
+  assert set(rk.BUILT.tag_ids).isdisjoint(rk.DEFAULT.tag_ids)
+  life = HubLifecycle(quad_world, mujoco.MjData(quad_world), realtime=False,
+                      world=QUAD_HOME)
+  try:
+    assert life.has_built_rack
+    b = quad_world.body(rk.RACK_BODY).id
+    w, _, _, z = (float(v) for v in quad_world.body_quat[b])
+    rack = (float(quad_world.body_pos[b][0]), float(quad_world.body_pos[b][1]),
+            2.0 * math.atan2(z, w))
+    for k in range(len(rk.BUILT.bays)):
+      work = dk.compose(rack, rk.work_pose(rk.BUILT, k))
+      x, y, _ = dk.compose(work, (-sw.APPROACH_STANDOFF_M, 0.0, 0.0))
+      assert life.rack_distance(x, y) < 1e-6, k
+  finally:
+    life.body.close()
+
+
 def test_the_nose_camera_reads_a_bays_tags_from_its_working_pose(quad_world):
   # The house pins its extent for its cameras, and MuJoCo's near plane is a
   # hundredth of it: 0.37 m, and a bay's tags are 0.31 m from the nose. The

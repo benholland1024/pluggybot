@@ -426,8 +426,8 @@ def run_pair(lives: list, starts=None, max_sim_time: float = 600.0,
              stop_when: Callable | None = None,
              record: str | None = None, resume=None) -> list[dict]:
   """Both days from one loop; each robot's summary in order. `resume` is a
-  saved world (issue #345), put back once both robots' `begin` has hung
-  what they built and before either day moves."""
+  saved world (issue #345), put back once both robots' `begin` has run
+  and before either day moves."""
   cfg = world_config(lives[0].world)
   starts = starts or (cfg["start"], cfg["start2"])
   budget = explore_budget if explore_budget is not None else cfg["explore_budget"]

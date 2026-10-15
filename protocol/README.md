@@ -48,11 +48,18 @@ pair, `home_quad_pair`.
 
 pluggybot #489. The robot no longer builds its own tools, and nothing
 recompiles a running world, so neither the `tool` event nor the
-`scene_changed` message is sent. No artifact's shape changes and a consumer
+`scene_changed` message is sent. No message's shape changes and a consumer
 ignores a type it does not know, so there is no bump: a consumer that still
 handles either never sees one. Recordings from earlier builds still carry
 them. The built-tool rail (`rack_built`, tags 47-52) stays in both quad
 scenes, its bays empty.
+
+- **`parts.json`, which is not on the wire, does change shape**: the
+  `catalog` shelf, every part's `workshop` field, the `scaffold` kind and
+  the six parts only the workshop used are gone (84 parts become 78), and
+  `module_frame` is on the `build` shelf. `schema` stays 1, as when the
+  rover's `body` shelf went (#376): the site vendors the file with the page
+  that reads it (rooftop-media-2026 #409).
 
 ### 0.21.0, additive: one chat per robot (`earlier` as lines, on every message; `chat`, upstream)
 
@@ -2682,7 +2689,7 @@ against the body census.
 | `home_world.meta.json` | The generator sidecar the scene JSON was built from | `uv run python -m pluggybot.home.world` |
 | `hints.json` | The visual-hint **conformance fixture** (issue #66): per hint, one body in `scene_dict`'s exact shape plus a machine-readable rule | `uv run python -m pluggybot.telemetry.hints` |
 | `textures/*.png` | The AprilTag textures, decoded from the compiled model | (the scene command) |
-| `parts.json` | The **parts catalog** (issue #185): what Pluggy and its rack are made of and what the agent may build from, each part with its number, source, mass, price, status and the sim constants it FEEDS — every feed value read off the compiled world when the file is built. Not on the wire; vendored for the website's parts page. `schema` versions it, not `protocolVersion` | `uv run python -m pluggybot.rack.catalog` |
+| `parts.json` | The **parts list** (issue #185): what Pluggy and its rack are made of, each part with its number, source, mass, price, status and the sim constants it FEEDS — every feed value read off the compiled world when the file is built. Not on the wire; vendored for the website's parts page. `schema` versions it, not `protocolVersion` | `uv run python -m pluggybot.rack.catalog` |
 | `scene.home_quad_pair.json` | The home world with the QUADRUPED pair and its dock (issue #387): what `serve.py --pair` streams | `uv run python -m pluggybot.telemetry.scene --world home_quad --pair` |
 | `telemetry.home_quad_pair.jsonl.gz` | The quadruped period's shape: no offers, no upkeep, #378's arm stowed on both backs (#405); the first robot, started low, walks to the dock, lies on it and charges while the second explores, then rests by reflex -- both maps and near fields. Started at 0.42 (#387's), the first robot left for the dock only once the second had finished and lay resting across its way home, and died stranded (#405: a finished robot does not yield) | `MUJOCO_GL=egl uv run python scripts/two_robots.py --world home_quad --fast --pack demo --near-field --errands none,none --battery 0.22,1.0 --max-sim-time 600 --record protocol/telemetry.home_quad_pair.jsonl.gz` |
 | `scene.home_quad_chest.json` | The demo's world (pluggybot #466): the house, ONE quadruped where the demo set-out starts it and the drawn chest where it stands (`evaluation.probe.spec_of`, `DEMO`) -- a world of its own, never the served one | `scripts/imagine_chest.py --demo 0 --record ...` (writes it beside the recording) |

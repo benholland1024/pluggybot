@@ -10,7 +10,7 @@ program can honestly reach on real hardware, and it is the grain here:
 reachable from a program -- the fence in tests/test_procedure.py lists who
 writes `data.ctrl`, and this module is not on it.
 
-Both are REGISTRIES, not constants: a new tool or body registers its own
+Both are REGISTRIES, not constants: a new tool or body adds its entries
 and the language does not change. A body's own axes are always present --
 the quadruped's `shoulder` and `elbow` (`BODY_AXES`) -- and its senses; a
 sensor a tool carries is present when that tool is on the fork

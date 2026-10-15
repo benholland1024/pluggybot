@@ -647,7 +647,6 @@ class HubLifecycle:
     #: ...and every grade the loop ran, for the run record: the task, the
     #: verdict, what touched the tower during the hold.
     self.grades: list[dict] = []
-    self.tools_retired = 0
     # The visitor channel (issue #16). None -- the default -- means nobody can
     # talk to this robot, which is every test, every demo and every recording
     # except the served one.

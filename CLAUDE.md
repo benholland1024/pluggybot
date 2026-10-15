@@ -663,8 +663,8 @@ save a filmstrip PNG named after the script.
   A CALL NAMES THE CALL ONCE, as History names a failed step (`line 3, wait:
   …`; #463): `check_step`'s reasons never name it, their callers do. ⚠ THE MOTOR LEVEL
   IS `move(axis, target)` AND `read(sensor)` over REGISTRIES (`axes.AXES`,
-  `axes.SENSORS`): a new tool or body registers its own and the language does
-  not change. Budgets (`budget(steps=, seconds=)`) are capped by code
+  `axes.SENSORS`): a new tool or body adds its entries there and the language
+  does not change. Budgets (`budget(steps=, seconds=)`) are capped by code
   (`MAX_STEPS` 200, `MAX_BUDGET_S` 1800) and checked at every verb; a computed
   argument by the same `check_arg`. The library (`MAX_PROCEDURES` 8; `define
   {name, source}` / `undefine`) survives a restart and is recompiled against
@@ -1173,7 +1173,7 @@ save a filmstrip PNG named after the script.
   (`HubLifecycle._bench_offered` off the board's own event, `restore_bench`
   after a restart; `bench.set_unknown_mass`: `body_mass`, inertia,
   `mj_setConst` on a SCRATCH MjData, the pinned `stat.extent`/`center` PUT
-  BACK, the SPEC's geom too). The truth lives in `Task.secret`; `truth` and
+  BACK). The truth lives in `Task.secret`; `truth` and
   `error` are `secret` on the row. Graded on `done` by `_grade_mass` (the
   NEWEST finding under `findings/mass_bench`, recorded AFTER the claim, within
   `TOLERANCE`); the verdict is a `finding` act, never carrying the truth, and
@@ -1499,8 +1499,7 @@ save a filmstrip PNG named after the script.
   stays the robot's and a game's its referee's; the map hears `stood_up` and a
   queued `battery_below` row is dropped. ⚠ After a TRUE death the new robot
   hears nothing of the old errand (its one inheritance is `_true_death`'s
-  line). ⚠ A build closed mid-print is recorded on `GeneratorExit`, never lost
-  with the points.
+  line).
 - **A tool on the floor goes home by itself** (issue #347;
   `tests/test_tools_on_the_floor.py`): a module `lost`
   (`HubLifecycle.tool_whereabouts`: on no robot's fork, alive or dead; not at

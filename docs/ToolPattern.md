@@ -148,10 +148,13 @@ must hold then is the grip's pull.
 
 An axis left wherever the last job ended is not a pose anyone designed. Give
 each axis a stow: §2's rules hold at the stow pose and at each axis's two
-ends, the module compiles AT its stow (each joint's `ref`, so `qpos0` is the
-stow) with its servo holding there, and the hang-back returns it there first
-(`steps.carry_configuration_routine`). Built at 0, a flap whose stow is −90°
-hung 14° off plumb and was lost from the moment it hung. A claw hung back
+ends, and the module compiles AT its stow (each joint's `ref`, so `qpos0` is
+the stow). Two things keep it there, and both are the tool's own code since
+the workshop's generic ones went (#489): its servo is commanded to the stow
+from the first step (`ctrl` 0 is `qpos` 0, not the stow), and the hang-back
+returns it there first, in `steps.carry_configuration_routine`, which runs
+before every return. Built at 0, a flap whose stow is −90° hung 14° off
+plumb and was lost from the moment it hung. A claw hung back
 holding a cube is a cube hung on the rack, so a stow sets the cube down
 first, or lets it go where it stands.
 
