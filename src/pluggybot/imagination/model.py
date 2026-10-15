@@ -2,7 +2,7 @@
 author's structure (`author.py`), placed where depth put the object, its
 unknowns fitted to the probe's record (`fit.py`), judged, and sent back
 for another structure where the fit left too much. Code runs the rounds;
-the mind decides nothing (when to imagine is demo 4's).
+the mind decides nothing (when to imagine is #465's demo 6, choosing).
 
   rounds  `MAX_ROUNDS` at most: the first answer and four revisions, each
           answer repaired up to `author.MAX_REPAIRS` times where it did not

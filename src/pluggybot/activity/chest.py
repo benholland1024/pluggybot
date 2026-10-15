@@ -157,8 +157,8 @@ def closing_torque(lid: Lid, th, rate: float) -> np.ndarray:
 
 
 def draw(seed: int) -> Lid:
-  """Chest `seed`'s hidden parameters (seeded, so demo 2 can draw held-out
-  ones later): drawn from `RANGES` together until the lid shuts harder than
+  """Chest `seed`'s hidden parameters (seeded, so a demo can draw held-out
+  ones, #493): drawn from `RANGES` together until the lid shuts harder than
   `CLOSING_MARGIN_NM` all the way up -- every other one with no spring --
   and then its catch. The six are the spike's set-out `seed`."""
   if seed < 0:

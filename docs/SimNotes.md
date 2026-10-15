@@ -3803,7 +3803,7 @@ the gravity torque, friction, damping and the catch. What they cannot see is
 the lid's inertia (the arm's own is 5–9 times it) and a joint inside its
 friction band: a load cell in the claw's wrist would buy both, and no hidden
 parameter here needs either. ⚠ That is the SIM's friction, so an upper bound
-on hardware (Evaluation.md, "Practised in MuJoCo, graded in MuJoCo").
+on hardware (Evaluation.md, "Graded in MuJoCo").
 `ARM_FRICTION_NM` is a constant, where a real actuator's grows with its load
 (Katz's 0.09 + 4 % of load, the legs' nominal), and no empty sweep sees that
 part. MuJoCo's soft friction creeps away under a held load, where real
@@ -3844,7 +3844,7 @@ believed pose, its tilt, its encoders) and holds its first command for 1 s
 
 **The imagination's contact is its own, where it applies.** Run in the
 world's engine with the world's contact model, a model transfers better than
-it would to hardware (Evaluation.md, "Practised in MuJoCo"), so a document's
+it would to hardware (Evaluation.md, "Graded in MuJoCo"), so a document's
 parts touch each other on the imagination's own settings
 (`compile.CONTACT`). Against the robot MuJoCo mixes a pair's settings, and
 the robot's priority geoms impose theirs: in the chest's probe the only
@@ -3890,7 +3890,8 @@ margin (`CLOSING_MARGIN_NM`) was derived for Coulomb friction alone, and
 #469's numbers describe a chest without it. The springs drawn are weak
 (0.01–0.05 N·m/rad: the margin ties them), and a non-linearity in them would
 sit under what the torques resolve of the static curve (0.009–0.013 N·m).
-Demo 2's mismatched imagination is where a further construct belongs.
+They are the constructs to add where an imagination of the chest must be
+mismatched further.
 
 **What a rollout costs** (`scripts/imagination_gap.py --cost --parallel
 ...`): 67 ms a sim-second on the dev box (an i5-9600KF), 15 times real
@@ -4307,10 +4308,11 @@ goes back, nearly always, to its author, the one who can move it.
 
 ## The model's rate, with the cheap levers (issue #481, stage 1)
 
-Demo 2 (#481) compares early success with rehearsal against without. If
-rehearsal helps only when the robot's model is right, the share of right
-models caps what it can add: at #480's 5 in 32, even a perfect benefit
-falls short of the demo's +20-point bar. So stage 1 measured how often the
+#481's demo (the old demo 2, postponed when #487 recut the demos) compares
+early success with rehearsal against without. If rehearsal helps only when
+the robot's model is right, the share of right models caps what it can add:
+at #480's 5 in 32, even a perfect benefit falls short of the
+demo's +20-point bar. So stage 1 measured how often the
 robot imagines the chest right, with four changes made together and read
 as a package (`scripts/imagine_chest.py --summary`), over the same 32
 set-outs as #480's batch:
@@ -4340,8 +4342,8 @@ the lid's line, in any answer so far):
 | 4 | -- | 8 | -- | 17 |
 | 5 | -- | 9: 0.28 [0.16, 0.45] | -- | 17 |
 
-- **Below the bar.** 9 in 32 passed by round five, where demo 2 asks 2 in
-  5 (Ben, 2026-10-08). By round three, 8 against #480's 5; the fourth and
+- **Below the bar.** 9 in 32 passed by round five, where #481 asks 2 in 5
+  (Ben, 2026-10-08). By round three, 8 against #480's 5; the fourth and
   fifth rounds added one.
 - **No false pass**: every model that passed had the lid's hinge.
 - **The structure is read in the first answer, nearly always.** 16 first
@@ -4412,8 +4414,8 @@ over the best of three, 2026-10-09):
 
 **What is true now.**
 - One imagining by the deployed author, with the four levers, passes its
-  bars 0.28 of the time; the first pass of three, 0.56: over demo 2's bar
-  of 2 in 5, coarsely, at 2.28 imaginings a set-out. No pass was false.
+  bars 0.28 of the time; the first pass of three, 0.56: over #481's bar of
+  2 in 5, coarsely, at 2.28 imaginings a set-out. No pass was false.
 - The author reads the lid's hinge in its first answer, nearly always (one
   revision in 96 imaginings found one its first answer missed); its
   revisions put a right structure right.
