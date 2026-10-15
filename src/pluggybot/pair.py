@@ -112,14 +112,8 @@ def build_pair(world: str = QUAD_HOME, pack: str = "demo",
   from pluggybot.telemetry.protocol import robot_display_name
   cfg = world_config(world)
   starts = (cfg["start"], cfg["start2"])
-  # THE SPEC IS KEPT, and both lifecycles get it (issue #315): a pair is
-  # compiled from a spec either way -- `world_with_robots` throws it away
-  # after `compile()` -- and without it `can_reshape` refuses every build
-  # with "this world was compiled without its spec", which is what the
-  # deployed pair was hitting before it ever reached the pair rule below.
-  spec = world_spec(cfg["model"], starts[1][:2], prefix=handles[1].prefix,
-                    body=cfg["body"])
-  model = spec.compile()
+  model = world_spec(cfg["model"], starts[1][:2], prefix=handles[1].prefix,
+                     body=cfg["body"]).compile()
   data = mujoco.MjData(model)
   viewer = None
   if view:
@@ -186,7 +180,7 @@ def build_pair(world: str = QUAD_HOME, pack: str = "demo",
                         mode=mode if i == 0 else None,
                         world=world, errands=errands_for(errand, world, book),
                         handle=handle, robot_name=name, ledger=ledger,
-                        overseer=boss, thoughts=memory, spec=spec,
+                        overseer=boss, thoughts=memory,
                         metabolism=hunger, tasks=board,
                         producer=maker if i == 0 else None,
                         mortal=mortal, **life_kw)
@@ -196,11 +190,7 @@ def build_pair(world: str = QUAD_HOME, pack: str = "demo",
     lives.append(life)
   # ONE RACK FOR THE PAIR (issue #315). The rack, its bays and the modules
   # on it are the WORLD's and never prefixed -- tool contention is the
-  # minds' to negotiate -- so the inventory the workshop edits is ONE dict
-  # both lifecycles hold: a tool the second robot builds is a tool the
-  # first can see, fetch and stand clear of. Two copies would diverge the
-  # moment either robot hung anything, and `can_reshape` reads the other
-  # robot's fork off it.
+  # minds' to negotiate -- so both lifecycles hold ONE inventory.
   for life in lives[1:]:
     life.rack_inventory = lives[0].rack_inventory
     # ...and the lost-tool clock is the world's (issue #347): one hand, on
@@ -418,11 +408,6 @@ def record_pair(lives: list, path: str):
                         tickets=o.tickets)
             for o in others])
   first.body.step_hooks.append(recorder.step_hook)
-  # ...and a recompiled world reaches its census (issues #168, #315). On
-  # the FIRST robot alone, as its step hook is: `_recompile` rebinds every
-  # lifecycle in the world, so a tool the second robot builds fires this
-  # through the first robot's own rebind.
-  first.on_rebind.append(recorder.rebind)
   if first.boards is not None:
     first.boards.on_event.append(recorder.emit)
   if first.ledger is not None:

@@ -90,14 +90,8 @@ class Errand:
 
 
 def programmed_errand(program, task: str = "program",
-                      name: str | None = None, role: str = "",
-                      rack: dict | None = None) -> Errand:
+                      name: str | None = None, role: str = "") -> Errand:
   """An errand whose middle AND ends are a program's steps (issue #58).
-
-  `rack` is a lifecycle's inventory (module -> bay index into STATION_YS)
-  once the workshop has hung a tool (issue #168); without it, the world's
-  own rack's three (`steps.TOOL_BAYS`). A built tool's index is past the
-  hand-built five, on the rail (issue #277).
 
   `task` names the evaluator that grades the finished job -- "program" for
   the generic per-step verdict, or an existing kind's evaluator ("draw")
@@ -115,7 +109,7 @@ def programmed_errand(program, task: str = "program",
   if board is not None:
     detail.update({"board": board, "figure": figure})
   return Errand(name=name or f"{task}:{program.name}", module=first_tool,
-                station_y=(STATION_YS[(rack or TOOL_BAYS)[first_tool]]
+                station_y=(STATION_YS[TOOL_BAYS[first_tool]]
                            if first_tool else 0.0),
                 use_at=(0.0, 0.0), use=None, task=task, program=program,
                 role=role, needs_use_pose=False, detail=detail)

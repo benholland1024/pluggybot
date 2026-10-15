@@ -24,8 +24,9 @@ stamp to a fresh zero instead is how one missed stamp becomes a robot that
 lies dead for an hour. `max_sim_time` is a RUN's budget from where it
 starts (`HubLifecycle._day_routine`).
 
-⚠ BODIES ARE MATCHED BY NAME, never by state-vector layout: a built tool
-re-hung in another order, or a new build's world, reorders `qpos`. A joint
+⚠ BODIES ARE MATCHED BY NAME, never by state-vector layout: a new build's
+world reorders `qpos`, and a name the world lacks (a built tool, in a world
+saved before #489) is skipped. A joint
 may be unnamed (the rover's world had 11 of 24), so a joint's key is its
 body's name and its index there. And the solver's WARM START is kept: MEASURED, without
 it the same step diverges by 1e-12 and a parity check means nothing.
@@ -418,7 +419,7 @@ def load(path: str | os.PathLike | None, world: str) -> Loaded:
 
 def restore(lives, snap: Snapshot) -> dict:
   """Put a saved world back into freshly built lifecycles: after every
-  `begin()` (built tools re-hung, the bench's mass set) and before any day
+  `begin()` (the bench's mass set) and before any day
   routine is driven.
 
   The clock always continues. The bodies, the poses and the maps are put

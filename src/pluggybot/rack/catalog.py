@@ -1,18 +1,15 @@
 """The parts catalog as data (issue #185): `protocol/parts.json`.
 
 `docs/Parts.md` names the purchasable part behind each sim constant; this
-module is that list as data, in two shelves:
+module is that list as data, on one shelf:
 
-- **catalog** -- what the agent may build a tool from (issue #168): parts
-  that exist for building, the robot's own where they make sense on a
-  module, and ONE scaffold primitive: a printed PLA box at a density and
-  within a print bed.
 - **build** -- the hardware build's bill of materials (issue #379): the
   quadruped (#377), its arm, rack, dock and tools (#378), and the rigs,
   spares and shop tools that build them. `LINES` buys them: a quantity, a
   lead time, and an allowance where nothing is designed yet; `bom()` totals
   them against the budget, and Parts.md's bill is RENDERED from them
-  (`bom_markdown`), so the doc cannot drift from the data either.
+  (`bom_markdown`), so the doc cannot drift from the data either. The
+  workshop's `catalog` shelf went with it (#489).
 
   ⚠ EVERY `feeds` VALUE IS READ OFF THE SIM AT BUILD TIME, never typed here.
   `build()` opens the robot's model through `MjSpec` and imports the
@@ -54,9 +51,9 @@ from typing import Any, Callable
 SCHEMA = 1
 
 KINDS = ("motor", "actuator", "sensor", "structure", "power", "electronics",
-         "fastener", "scaffold", "equipment")
+         "fastener", "equipment")
 STATUSES = ("chosen", "candidate", "removed")
-SHELVES = ("catalog", "build")
+SHELVES = ("build",)
 
 #: Fields a part may not know. Each null needs its reason in `why`, keyed by
 #: the field, and `why` may name nothing that is not null (a stale excuse).
@@ -255,32 +252,10 @@ PRINTED = "3D-printed, not bought"
 STOCK = "stock material, not a catalog part"
 
 PARTS: tuple[Part, ...] = (
-  # ---- the catalog: what a tool may be built from (#168, #199) -------------
-  # The id is kept though the bumper went with the rover: a built tool's
-  # record names its parts by id (`workshop/library.py`).
-  Part(
-    "bumper_switch", "Omron D2F-01L2 hinge-roller-lever microswitch",
-    "sensor", "chosen", ("catalog",), (), partNumber="D2F-01L2",
-    source="https://www.digikey.de/de/products/detail/omron-electronics-inc-"
-    "emc-div/D2F-01L2/368444",
-    massG=0.5, dimensionsMm={"length": 12.8, "width": 5.8, "height": 16.5},
-    priceEur=2.59,
-    capabilities={"sense": "contact", "operatingForceN": 0.78,
-                  "releasingForceN": 0.05, "overtravelMm": 0.55,
-                  "contactRating": "0.1 A 30 V DC", "powerW": 0},
-    note="On a TOOL it is a `contact` sense: `<tool>.<id>.contact` reads 1 "
-         "while the part touches anything outside the module "
-         "(workshop/build.py). Sourced for issue #199: Omron's D2F datasheet "
-         "(omronfs.omron.com/en_US/ecb/products/pdf/en-d2f.pdf) gives the "
-         "12.8 x 5.8 body, the 16.5 mm free position of the roller lever "
-         "(the height here) and OF 0.78 N; its 'approx. 0.5 g' is stated for "
-         "the pin-plunger body, and the 0.3 mm stainless lever adds an "
-         "unpublished fraction of a gram. A switch draws nothing of its own "
-         "(`powerW` 0). The rack's are `bay_switch`.",
-  ),
+  # ---- the build (#379): the tools' parts and the navigation camera ------
   Part(
     "pi_camera_3", "Raspberry Pi Camera Module 3", "sensor", "chosen",
-    ("catalog", "build"), ("nav_cam_body",), partNumber="Camera Module 3",
+    ("build",), ("nav_cam_body",), partNumber="Camera Module 3",
     source=BERRYBASE_CAM3,
     massG=4, dimensionsMm={"length": 25, "width": 24, "height": 11.5},
     priceEur=28.90, quantity=1,
@@ -296,16 +271,14 @@ PARTS: tuple[Part, ...] = (
     note="The body's navigation camera. It ships with the old 15-pin cable; "
          "a Pi 5 needs `pi5_camera_cable`. Size and mass from "
          "raspberrypi.com's camera documentation; its draw is not published "
-         "there, so a tool cannot budget for it. Looked for again for issue "
-         "#199 (2026-09-14): neither product brief (RP-008151, RP-009789) "
-         "states it, the forum thread on it (t=347469) has one whole-Pi-Zero "
-         "figure and no camera-alone one, and Arducam's and InnoMaker's "
-         "IMX708 CSI sheets omit it too. The tool eye is `esp32_cam`, whose "
-         "maker does publish its draw.",
+         "there. Looked for again for issue #199 (2026-09-14): neither "
+         "product brief (RP-008151, RP-009789) states it, the forum thread "
+         "on it (t=347469) has one whole-Pi-Zero figure and no camera-alone "
+         "one, and Arducam's and InnoMaker's IMX708 CSI sheets omit it too.",
   ),
   Part(
     "module_esp32", "ESP32-class board, one per module", "electronics",
-    "chosen", ("catalog", "build"), (), priceEur=5, quantity=5,
+    "chosen", ("build",), (), priceEur=5, quantity=4,
     feeds=(
       code("power.MODULE_IDLE_W", "W",
            "a coupled module's own electronics, drawn only while the "
@@ -321,7 +294,7 @@ PARTS: tuple[Part, ...] = (
   ),
   Part(
     "lcd_display", "Small SPI/I2C display driven by the module's ESP32",
-    "electronics", "candidate", ("catalog", "build"), (), quantity=1,
+    "electronics", "candidate", ("build",), (), quantity=1,
     feeds=(
       code("legs.rack.SCREEN_HALF", "m",
            "half-extents of the LCD tool's screen geom: a 56 × 76 mm face"),
@@ -334,7 +307,7 @@ PARTS: tuple[Part, ...] = (
   ),
   Part(
     "module_frame", "Module frame: a 3D-printed plate on the common peg "
-    "interface", "structure", "chosen", ("catalog",), (),
+    "interface", "structure", "chosen", ("build",), (), quantity=3,
     dimensionsMm={"x": 20, "y": 40, "z": 60},
     feeds=(
       code("legs.rack.MODULE_MASS", "kg",
@@ -359,49 +332,22 @@ PARTS: tuple[Part, ...] = (
          "budget less the peg. ⚠ A budget, not a print: this plate in PLA "
          "would weigh ~60 g",
          "priceEur": "printed: filament only, unpriced"},
-    note="The arm's envelope shapes a tool (ToolPattern.md §2, "
-         "`workshop/validate.py`): its centre of mass on its peg or ahead of "
-         "it, and hung, plumb.",
-  ),
-  Part(
-    "module_servo", "Small servo for a module axis (unspecified)", "actuator",
-    "candidate", ("catalog",), (),
-    capabilities={"motion": "hinge", "forceN": None, "powerW": None},
-    why={"partNumber": "no part chosen", "source": "no part chosen",
-         "massG": "no part chosen", "dimensionsMm": "no part chosen",
-         "priceEur": "no part chosen"},
-    note="A servo for a tool's own axis with no part behind it. The "
-         "workshop's are `servo_fs90` and `servo_fs90mg`, and the bill buys "
-         "the second for the claw's jaws.",
-  ),
-  Part(
-    "servo_fs90", "FEETECH FS90-FB micro servo (analog, position feedback)",
-    "actuator", "chosen", ("catalog",), (), partNumber="FS90-FB",
-    source="https://botland.store/micro-servos/17177-feetech-fs90-fb-micro-"
-    "servo-with-position-feedback-5904422327088.html",
-    massG=13, dimensionsMm={"length": 23, "width": 13, "height": 22},
-    priceEur=2.90,
-    capabilities={"motion": "hinge", "angleDeg": 120, "torqueNm": 0.147,
-                  "speedDegS": 600, "voltageV": [4.8, 6.0], "stallA": 0.8,
-                  "powerW": 4.8},
-    note="The first catalog actuator with every number a tool needs: "
-         "Botland's page gives mass, size, 1.5 kg·cm at 6 V, 0.10 s/60° "
-         "and the 0-120° range; the stall current (800 mA at 6 V, so 4.8 W) "
-         "is from Feetech's FS90 datasheet (pololu.com/file/0J1435), the "
-         "same servo with a position wire added. 9 g there, 13 g here.",
+    note="One a tool -- the LCD, the pen and the claw -- printed from the "
+         "shop's spools (`petg_1kg`). The arm's envelope shapes a tool "
+         "(ToolPattern.md §2): its centre of mass on its peg or ahead of it, "
+         "and hung, plumb.",
   ),
   Part(
     "servo_fs90mg", "FEETECH FS90MG micro servo (digital, metal gears)",
-    "actuator", "chosen", ("catalog", "build"), (), partNumber="FS90MG",
+    "actuator", "chosen", ("build",), (), partNumber="FS90MG", quantity=1,
     source="https://eckstein-shop.de/Feetech-FS90MG-6V-22kgcm-Digital-Servo",
     massG=12.7, dimensionsMm={"length": 22.5, "width": 12.1, "height": 26.7},
     priceEur=5.95,
     capabilities={"motion": "hinge", "angleDeg": 180, "torqueNm": 0.216,
                   "speedDegS": 857, "voltageV": [4.8, 6.0], "stallA": 0.8,
                   "powerW": 4.8, "gears": "copper"},
-    note="The second servo size (issue #199): 2.2 kg·cm at 6 V is 0.216 "
-         "N·m, half again the FS90-FB's 0.147, at the SAME 800 mA stall -- "
-         "so it fits the peg's budget exactly as the FS90 does. Every "
+    note="The claw's jaws (issue #407), sourced for issue #199: 2.2 kg·cm "
+         "at 6 V is 0.216 N·m, at an 800 mA stall. Every "
          "number is Feetech's own FS90MG product specification (the PDF "
          "Feetech distributes through resellers, e.g. aifitlab.com's "
          "FS90MG-PRODUCT_SPECIFICATION.pdf): 0.07 s/60° no-load at 6 V is "
@@ -412,8 +358,8 @@ PARTS: tuple[Part, ...] = (
   ),
   Part(
     "slide_l12_100", "Actuonix L12-100-50-6-R micro linear servo (100 mm "
-    "stroke, 50:1, 6 V, RC input)", "actuator", "chosen", ("catalog", "build"),
-    (), partNumber="L12-100-50-6-R",
+    "stroke, 50:1, 6 V, RC input)", "actuator", "chosen", ("build",),
+    (), partNumber="L12-100-50-6-R", quantity=2,
     source="https://www.digikey.de/de/products/detail/actuonix-motion-devices-"
     "inc/L12-100-50-6-R/11689540",
     massG=56, dimensionsMm={"length": 152, "width": 15, "height": 14.9},
@@ -422,7 +368,7 @@ PARTS: tuple[Part, ...] = (
                   "speedMmS": 25, "peakPowerPoint": "17 N at 14 mm/s",
                   "backDriveN": 12, "voltageV": 6, "stallA": 0.46,
                   "powerW": 2.76, "dutyCycle": 0.2},
-    note="The first slide the workshop can build from (issue #199). Every "
+    note="Sourced for issue #199. Every "
          "number is the L12 datasheet's (actuonix.com/assets/images/"
          "datasheets/ActuonixL12Datasheet.pdf): 22 N max force lifted and "
          "25 mm/s no-load at 50:1, 460 mA stall on the 6 V winding (2.76 "
@@ -457,57 +403,7 @@ PARTS: tuple[Part, ...] = (
          "chosen, and the sim reads the quill with 0.05 mm of noise "
          "(`tools.drawing.QUILL_NOISE`), an assumption until one is.",
   ),
-  Part(
-    "esp32_cam", "Ai-Thinker ESP32-CAM (ESP32-S, OV2640 2 MP camera, Wi-Fi)",
-    "sensor", "chosen", ("catalog",), (), partNumber="ESP32-CAM",
-    source="https://www.berrybase.de/en/esp32-cam-development-board-incl.-"
-    "ov2640-camera-module",
-    massG=10, dimensionsMm={"length": 40.5, "width": 27, "height": 4.5},
-    priceEur=8.60,
-    capabilities={"sensor": "OV2640", "resolution": "1600 × 1200",
-                  "fovDeg": None, "voltageV": 5, "powerW": 1.55,
-                  "powerFlashOffW": 0.9, "radio": "Wi-Fi 802.11 b/g/n"},
-    note="An eye a tool can carry (issue #199): the camera whose maker "
-         "publishes its draw, and the one that fits the module design -- "
-         "power-only coupling, wireless data -- because it IS the radio. "
-         "Ai-Thinker's ESP32-CAM specification V1.0 gives 180 mA at 5 V "
-         "with the flash off (0.9 W) and 310 mA with it at full brightness "
-         "(1.55 W, the ceiling `powerW` carries, on a servo's stall terms), "
-         "27 × 40.5 × 4.5 mm and 10 g. On a real module it would replace "
-         "the module's own ESP32 rather than sit beside it; the sim sums "
-         "both, the dearer case. The lens's field of view is not on the "
-         "sheet (`fovDeg` null) -- the Pi's cameras keep their measured "
-         "fovy and a built eye renders nothing yet. EU stock is marketplace "
-         "clones of the same design; the price is BerryBase's.",
-  ),
-  Part(
-    "module_camera", "Module camera: wide-angle, wireless through the "
-    "module's ESP32 (unspecified)", "sensor", "candidate", ("catalog",),
-    (), capabilities={"fovDeg": None, "powerW": None},
-    why={"partNumber": "no part chosen", "source": "no part chosen",
-         "massG": "no part chosen", "dimensionsMm": "no part chosen",
-         "priceEur": "no part chosen"},
-    note="Mounted on the MODULE: module data crosses the coupling "
-         "wirelessly, so a tool camera costs no CSI port on the Pi. The "
-         "workshop's eye is `esp32_cam` (issue #199); this waits on a lens "
-         "with a published field of view.",
-  ),
-  Part(
-    "scaffold_pla_box", "Printed PLA box or plate -- the one scaffold "
-    "primitive", "scaffold", "chosen", ("catalog",), (),
-    capabilities={"densityKgM3": 1240,
-                  "printBedMm": {"x": 220, "y": 220, "z": 250}},
-    why={"partNumber": "a primitive, not a part: any PLA filament",
-         "source": "any", "massG": "density × the box the spec asks for",
-         "dimensionsMm": "chosen by the spec, within the print bed",
-         "priceEur": "priced per kg of filament, not per part; #168 sets "
-         "the fabrication cost"},
-    note="Rigid, at PLA's density, and no larger than a 220 × 220 × 250 mm "
-         "bed (an Ender-3 class printer) in any one piece. The rack's trays "
-         "and brackets and every module frame are this primitive; the rack "
-         "itself is not, and could not be.",
-  ),
-  # ---- the build (#379): the quadruped and what builds it ------------------
+  # ---- ...the quadruped and what builds it ----------------------------------
   Part(
     "quad_rplidar_c1", "Slamtec RPLIDAR C1 2D LIDAR", "sensor", "chosen",
     ("build",), ("lidar_mast",), partNumber="RPLIDAR C1", source=FUNDUINO_C1,
@@ -1128,7 +1024,7 @@ PARTS: tuple[Part, ...] = (
   # ---- tools, rack, dock ---------------------------------------------------
   Part(
     "quad_tool_peg", "Tool peg, 220 mm: two 6 mm steel conductors on an "
-    "insulating bush", "structure", "chosen", ("catalog", "build"), (),
+    "insulating bush", "structure", "chosen", ("build",), (),
     quantity=3,
     capabilities={"conductive": True, "poles": 2},
     feeds=(
@@ -1149,7 +1045,7 @@ PARTS: tuple[Part, ...] = (
          "dimensionsMm": "6 x 220 mm", "priceEur": "no design yet"},
     note="The one loaded part AND the electrical connector: the split peg and "
          "the fork's two V pairs are a two-pole coupling, self-wiping on the "
-         "seating slide. Every tool hangs by it, the workshop's too.",
+         "seating slide. Every tool hangs by it.",
   ),
   Part(
     "dold_3030_1m", "Aluminium extrusion 30x30 light, B-type slot 8, cut to "
@@ -1508,8 +1404,7 @@ def validate(entry: dict) -> list[str]:
   """Every reason one emitted entry is not honest, or `[]`.
 
   Used by the tests on every committed entry and shown to fail on a bad
-  one; kept as a function so #168's validator can reuse it on a spec that
-  names a part."""
+  one."""
   out: list[str] = []
   required = ("id", "name", "kind", "status", "shelves", "robot", "usedBy",
               "partNumber", "source", "massG", "dimensionsMm", "priceEur",
@@ -1615,10 +1510,10 @@ class Line:
   note: str = ""
 
 
-#: A lead time this bill did not read: the part's price is the workshop
-#: catalog's (#199, 2026-09-14), not a page read on CHECKED.
-NOT_READ = {"leadTime": "not read for this bill; the price is the workshop "
-                        "catalog's (#199, 2026-09-14)"}
+#: A lead time this bill did not read: the part's price was read for #199
+#: (2026-09-14), not on CHECKED.
+NOT_READ = {"leadTime": "not read for this bill; the price was read for #199 "
+                        "(2026-09-14)"}
 #: ...and a line with no drawing yet: nothing to quote, so no lead.
 UNDRAWN = {"leadTime": "nothing drawn to quote"}
 EASY_COMPOSITES = ("more than 50 in stock, dispatched the same day before "
@@ -1943,17 +1838,8 @@ def bom_markdown(fixture: dict) -> str:
 def build() -> dict:
   """Read every feed off its robot's model and emit the fixture."""
   import mujoco
-  from pluggybot.workshop.spec import unbuildable   # lazy: it imports this module
   specs = {robot: mujoco.MjSpec.from_file(path) for robot, path in WORLDS.items()}
-  parts = []
-  for p in PARTS:
-    entry = p.as_dict(specs[p.robot])
-    # WHETHER THE WORKSHOP MAY BUILD FROM IT (issue #168): the validator's
-    # own predicate, so the page marks exactly the parts a spec may name
-    # -- and says why the rest cannot be, in the validator's words.
-    why = unbuildable(p)
-    entry["workshop"] = {"usable": why is None, **({"why": why} if why else {})}
-    parts.append(entry)
+  parts = [p.as_dict(specs[p.robot]) for p in PARTS]
   ids = [p["id"] for p in parts]
   assert len(ids) == len(set(ids)), "duplicate part id"
   return {

@@ -91,17 +91,16 @@ class RackSpec:
 
 
 #: The rail the trays hang from: how far it stands out from the back board,
-#: and half its height, m (`rack_xml`; the workshop's validator keeps a
-#: built tool off it).
+#: and half its height, m (`rack_xml`).
 RAIL_DEPTH = 0.06
 RAIL_HALF_H = 0.01
 
 DEFAULT = RackSpec()
-#: THE BUILT-TOOL RAIL (issue #407; #277's rule: the hand-built tools are
-#: permanent, and a tool the workshop builds hangs on a rail of its own):
-#: three more bays on the same board, past the claw's, in the rack's own
-#: frame -- one commissioned pose, the same pitch, its own pair of tags a
-#: bay -- the gap before it leaves the claw's tags their 0.35 m.
+#: THE BUILT-TOOL RAIL (issue #407; #277): three more bays on the same
+#: board, past the claw's, in the rack's own frame -- one commissioned pose,
+#: the same pitch, its own pair of tags a bay -- the gap before it leaves
+#: the claw's tags their 0.35 m. Empty since the workshop went (#489), and
+#: kept: its tags are six of the fixtures a lost robot's search finds (#476).
 BUILT = RackSpec(bays=(0.65, 0.95, 1.25), stations=(5, 6, 7), tag_ids=LEGS_BUILT_TAG_IDS)
 #: Both, in the order their bays' stations run.
 SPECS = (DEFAULT, BUILT)
@@ -213,14 +212,13 @@ def _v_notch(prefix: str, x: float, y: float, z: float, half_w: float) -> str:
 
 
 def rack_xml(spec: RackSpec = DEFAULT, pos=(0.0, 0.0), yaw: float = 0.0,
-             name: str = "rack", tags: bool = True) -> str:
+             name: str = "rack") -> str:
   """The rack as one static body: a back board, a rail, and each bay's two
   trays on brackets hung from the rail; its tags on the board. The tags'
   materials are `rack.tags.asset_xml(RACK_TAG_IDS)`'s. A bay's parts are
   named as the rover's are, `bay<letter>_` (`coupling.bay_prefix`): its
   presence switch is `coupling.bay_switches`' reading, the one the rack
-  view is built from (#351, #405). `tags` False leaves them off, for a
-  world with no camera (the workshop's rig)."""
+  view is built from (#351, #405)."""
   from pluggybot.rack.tags import plate_half_extent
   s = spec
   lo = min(s.tag_ys) - s.tag_size - 0.05
@@ -246,7 +244,7 @@ def rack_xml(spec: RackSpec = DEFAULT, pos=(0.0, 0.0), yaw: float = 0.0,
                f'size="{_v(0.012, TRAY_HALF_W, 0.003)}" '
                f'pos="{_v(-0.012, ty, bot)}" rgba="0.45 0.47 0.50 1"/>')
   half = plate_half_extent(s.tag_size)
-  for tag_id, (x, y, z) in (tag_layout(s).items() if tags else ()):
+  for tag_id, (x, y, z) in tag_layout(s).items():
     g.append(f'<geom name="{name}_tag{tag_id}" type="box" size="{_v(0.001, half, half)}" '
              f'pos="{_v(x, y, z)}" contype="0" conaffinity="0" material="tagmat{tag_id}"/>')
   body = "\n      ".join(g)
@@ -566,12 +564,6 @@ def on_bay(model, data, name: str, spec: RackSpec, bay: int) -> bool:
 
 #: A hung tool hangs plumb: within this of it, deg.
 HUNG_TILT_DEG = 2.0
-#: ...and its centre of mass this close to the peg's middle, m, the trays
-#: holding the peg at +-`TRAY_Y`: MEASURED in the workshop's rig (#407), 30 mm
-#: to one side hung, was taken and hung back with the fork 15 mm either way
-#: (the walk-in's gate), 35 mm did not seat with the fork 15 mm toward it,
-#: and 45 mm did not hang.
-HUNG_SIDE_M = 0.025
 
 
 # ---- the rack's pose, off its tags ------------------------------------------------

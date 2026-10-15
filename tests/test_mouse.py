@@ -248,17 +248,11 @@ def test_the_state_is_seen_from_inside_the_lab_and_unknown_from_outside(home_mod
   assert cage.context(data, "r9_pluggybot") == {"inRoom": False, "mouse": None}
 
 
-def test_the_cage_is_in_the_home_worlds_activities_and_rebinds(home_model):
+def test_the_cage_is_in_the_home_worlds_activities(home_model):
   data = mujoco.MjData(home_model)
   acts = lc.home_activities(home_model, data)
   [cage] = [a for a in acts if isinstance(a, Cage)]
   assert cage.room == LAB and "lab_cage" in acts.names
-  cage._enter("eating", 0.0, act="feed")
-  data2 = mujoco.MjData(home_model)
-  cage.rebind(home_model, data2)
-  mujoco.mj_forward(home_model, data2)
-  assert list(data2.mocap_pos[cage.mouse.mocapid][:2]) == pytest.approx(
-    mouse_poses(cage.cage_xy)["eating"]["pos"][:2])
 
 
 # ---- 3. the prompt --------------------------------------------------------------
@@ -514,7 +508,6 @@ class _Mind:
   interrupt_pending = None
   can_escalate = False
   spend = None
-  workshop = None
   wiki = None
   library = _Library()
 

@@ -38,7 +38,6 @@ from pluggybot.mind.overseer import Menu, Overseer
 from pluggybot.mind.thoughts import FINDINGS, GOALS, HISTORY, MAIN, NOTES, TOP_OF_MIND, ThoughtFiles
 from pluggybot.procedure import library as procedures
 from pluggybot.telemetry.protocol import THOUGHT_FILES, THOUGHT_VERBS, THOUGHT_WRITERS
-from pluggybot.workshop import library as workshop
 
 from test_overseer import FakeClient, full
 
@@ -46,8 +45,8 @@ SRC = Path(__file__).resolve().parent.parent / "src" / "pluggybot"
 
 #: The modules that OWN a surface. Every one reads its rules off the
 #: registry and its bytes off the store; none touches the disk itself.
-OWNERS = ("mind/thoughts.py", "procedure/library.py", "workshop/library.py",
-          "mind/inbox.py", "mind/text.py", "mind/tickets.py")
+OWNERS = ("mind/thoughts.py", "procedure/library.py", "mind/inbox.py",
+          "mind/text.py", "mind/tickets.py")
 #: What a disk write looks like in a syntax tree: a method only a Path has
 #: (a string has none of these), a bare `open`, or an `os` / `shutil` call
 #: that moves bytes. `str.replace` is not `os.replace`.
@@ -88,18 +87,16 @@ def _calls(path: Path) -> set[str]:
 
 
 def test_every_text_surface_is_a_registry_row():
-  """Six files, two libraries, the ticket desk, four message channels:
-  thirteen rows, and each owner's numbers are the row's. A cap or a writer
+  """Six files, the library, the ticket desk, four message channels:
+  twelve rows, and each owner's numbers are the row's. A cap or a writer
   typed in an owner would be a second table."""
   names = {s.name for s in text.SURFACES}
-  assert names == {*THOUGHT_FILES, "procedures", "tools", "tickets",
+  assert names == {*THOUGHT_FILES, "procedures", "tickets",
                    "visitor", "peer", "library", "operator"}
   assert thoughts.SPECS == {s.name: s for s in text.FILES}
   assert thoughts.NAMES == THOUGHT_FILES
   assert procedures.Library(None).cap == text.BY_NAME["procedures"].cap == text.MAX_PROCEDURES
-  assert len(workshop.BAYS) == text.BY_NAME["tools"].cap
   assert procedures.SUFFIX == text.BY_NAME["procedures"].suffix
-  assert workshop.SUFFIX == text.BY_NAME["tools"].suffix
   # ⚠ A CONVERSATION WITH A VISITOR IS ONE NUMBER BOTH WAYS (#474): what
   # the door keeps of theirs and what the robot may reply, off one row.
   # The other robot's sentence is its own row's.
@@ -196,8 +193,7 @@ def test_every_owner_passes_the_gate_and_none_touches_the_disk():
   """The grep, as a syntax-tree walk: the three document owners call
   `admit`, and no owner calls anything that writes a file -- only the
   store does. A bespoke write path is exactly a module that fails this."""
-  for rel in ("mind/thoughts.py", "procedure/library.py", "workshop/library.py",
-              "mind/tickets.py"):
+  for rel in ("mind/thoughts.py", "procedure/library.py", "mind/tickets.py"):
     assert "admit" in _calls(SRC / rel), f"{rel} writes without the gate"
   for rel in OWNERS:
     hit = _disk_writes(SRC / rel)
@@ -205,21 +201,14 @@ def test_every_owner_passes_the_gate_and_none_touches_the_disk():
   assert _disk_writes(SRC / "mind/store.py") >= {"tmp.write_text", "os.replace"}
 
 
-def test_a_full_library_and_a_full_workshop_refuse_through_the_gate():
-  """The two entry documents at their caps, in memory: the refusal names
-  the document and the remedy, and the record is untouched."""
+def test_a_full_library_refuses_through_the_gate():
+  """The library at its cap, in memory: the refusal names the document and
+  the remedy, and the record is untouched."""
   lib = procedures.Library(None, cap=1)
   lib.define("one", "def one():\n  wait(1)\n")
   with pytest.raises(procedures.LibraryRefused, match=r"library is full \(it holds 1\) .*`undefine` on the same answer"):
     lib.define("two", "def two():\n  wait(1)\n")
   assert lib.names() == ("one",)
-  shop = workshop.Workshop(None)
-  row = text.BY_NAME["tools"]
-  for i in range(row.cap):
-    shop.entries[f"t{i}"] = workshop.Entry(f"t{i}", {}, i, {}, 0.0, None)
-  with pytest.raises(workshop.WorkshopRefused, match="workshop is full .*retire_tool one first"):
-    shop.check("t9", {"name": "t9"}, "A")
-  assert len(shop.entries) == row.cap
 
 
 # ---- one path to the disk ---------------------------------------------------------
@@ -247,10 +236,10 @@ def test_the_two_stores_behave_alike(tmp_path):
   assert (tmp_path / "v" / "a.2.md").read_text() == "two\n"
 
 
-def test_the_thought_files_and_both_libraries_live_on_the_store(tmp_path):
+def test_the_thought_files_and_the_library_live_on_the_store(tmp_path):
   """Written through the store, read back by a fresh owner off the same
   root -- and the file names on the volume are the ones the operator
-  knows (`<Name>.md`, `<name>.procedure`, `<name>.tool.json`)."""
+  knows (`<Name>.md`, `<name>.procedure`)."""
   root = tmp_path / "thoughts"
   files = ThoughtFiles(root)
   files.pin("bay C sticks", t=1.0)
@@ -261,7 +250,6 @@ def test_the_thought_files_and_both_libraries_live_on_the_store(tmp_path):
   lib.define("pause", "def pause():\n  wait(1)\n")
   assert (root / "procedures" / "pause.procedure").exists()
   assert procedures.Library(None, root=root / "procedures").names() == ("pause",)
-  assert isinstance(workshop.Workshop(root / "tools").store, store.FileStore)
   assert isinstance(ThoughtFiles().store, store.MemoryStore)
 
 

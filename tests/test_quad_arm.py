@@ -183,7 +183,7 @@ def test_a_program_moves_one_arm_joint_and_a_walk_folds_it_back(quad_world, monk
     assert body.setpoint(sh) == pytest.approx(2.2)
     assert body.setpoint(el) == pytest.approx(STOW[1])
     life = SimpleNamespace(body=body, model=body.model, data=body.data)
-    assert axes.setpoints(life, None) == {"shoulder": 2.2, "elbow": round(STOW[1], 4)}
+    assert axes.setpoints(life) == {"shoulder": 2.2, "elbow": round(STOW[1], 4)}
     # a verb that walks folds it first: the shoulder, then the elbow
     pose = st.travel_pose(life, None)
     assert [(a, t) for a, t, _ in pose] == [(sh, STOW[0]), (el, STOW[1])]

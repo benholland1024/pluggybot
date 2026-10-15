@@ -390,7 +390,7 @@ def test_every_power_is_judged_left_out_or_kept():
   assert set(ov.UNSHOWN_PAPERWORK) <= {f.name for f in dataclasses.fields(ov.Decision)}
   # ...and every sub-field judged is one the schema has
   form = _menu().schema(escalation=True, standing_orders=True, hearts=True,
-                        event_map=True, procedures=("workshop_hunt",), tools=(),
+                        event_map=True, procedures=("workshop_hunt",),
                         others=("Rowan",), tickets=("tk_0024",))
   for name, (content, labels) in ov.PLACEHOLDER_OBJECTS.items():
     assert set(content + labels) <= set(form["properties"][name]["properties"]), name

@@ -96,7 +96,7 @@ NEAR_M = 0.10
 def _attach_rack(spec: mujoco.MjSpec, pose) -> None:
   """The tool rack, its tags' textures (the generator's `tags/`) and the
   tools hung on its bays -- and beside them on the same board the built-tool
-  rail (`rack.BUILT`, issue #407), empty until the workshop hangs a tool."""
+  rail (`rack.BUILT`, issue #407), empty (#489)."""
   from pluggybot.rack.coupling import BUILT_RACK_BODY
   for i in (*rk.RACK_TAG_IDS, *rk.BUILT.tag_ids):
     spec.add_texture(name=f"tagtex{i}", type=mujoco.mjtTexture.mjTEXTURE_CUBE,

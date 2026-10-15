@@ -16,11 +16,9 @@ What these hold down:
   4. THE EVIDENCE CASE: a tool on the other robot's fork says whose.
   5. THE CONTEXT KNOWS NOTHING A SENSOR WOULD NOT: the same wherever a lost
      tool lies, and silent on which module fills a bay.
-  6. NO BUILT RAIL, NO RAIL IN THE VIEW: a mind in a house with none is
-     shown the originals, and no `built` block or `tools`.
-  7. ONE SWITCH IS BOUGHT PER BAY THE WORLD HAS, read off the rack's own
+  6. ONE SWITCH IS BOUGHT PER BAY THE WORLD HAS, read off the rack's own
      generator.
-  8. A CLAIM ABOUT THE RACK IS GRADED AGAINST THE WORLD, never the inventory
+  7. A CLAIM ABOUT THE RACK IS GRADED AGAINST THE WORLD, never the inventory
      (`HubLifecycle.racked`).
 
 Cheap: the served world and `mj_forward` where the claim is the switch,
@@ -36,7 +34,7 @@ from pluggybot import lifecycle
 from pluggybot.legs import rack as legs_rack
 from pluggybot.legs.world import home_spec
 from pluggybot.lifecycle import (
-  NO_PLACE, ON_ITS_BAY, ON_YOUR_FORK, overseer_context, tool_places, world_config,
+  NO_PLACE, ON_YOUR_FORK, overseer_context, tool_places, world_config,
 )
 from pluggybot.mind import overseer as ov
 from pluggybot.mind.inbox import Inbox
@@ -49,7 +47,7 @@ WORLD = "home_quad"
 ON_THEIR_BAYS = {"module_lcd": "on bay A", "module_pen": "on bay B",
                  "module_claw": "on bay C"}
 #: Everything the view may say of a tool.
-WORDS = re.compile(r"on bay [A-E]|on its bay|on your fork|on \w+'s fork|"
+WORDS = re.compile(r"on bay [A-E]|on your fork|on \w+'s fork|"
                    r"not on its bay and on no fork")
 #: Two spots on the floor away from both robots and the rack.
 FLOOR = ((-1.5, 3.0, 0.05), (0.0, 3.2, 0.05))
@@ -150,12 +148,6 @@ def test_a_named_fork_outranks_the_anonymous_switch(monkeypatch):
   assert places["module_pen"] == "on Rowan's fork"
   assert places["module_claw"] == ON_YOUR_FORK
   assert places["module_lcd"] == "on bay A"
-  # a built tool is on ITS bay: the rail's letters A-C are the first rack's
-  # letters too, and "on bay A" would name the LCD's
-  me.rack_inventory["module_scoop"] = coupling.built_bay_index(0)
-  assert tool_places(me)["module_scoop"] == ON_ITS_BAY
-  monkeypatch.setattr(lifecycle, "bay_switches", lambda m, d: (True,) * 5 + (False,) * 3)
-  assert tool_places(me)["module_scoop"] == NO_PLACE
 
 
 # ---- 3. the evidence case: the other robot's fork ------------------------------
@@ -166,11 +158,8 @@ def test_a_tool_on_the_other_robots_fork_says_whose(tmp_path):
   a, b = _pair(tmp_path)
   _onto_fork(a, "module_pen", b)
   mine, theirs = overseer_context(a)["rack"], overseer_context(b)["rack"]
-  assert mine["original"] == {**ON_THEIR_BAYS, "module_pen": f"on {b.robot_name}'s fork"}
-  assert theirs["original"] == {**ON_THEIR_BAYS, "module_pen": ON_YOUR_FORK}
-  # ...and the built-tool rail (#407): its bays, empty, and no tool built
-  assert a.overseer.workshop is not None
-  assert mine["built"] == {"A": None, "B": None, "C": None}
+  assert mine == {**ON_THEIR_BAYS, "module_pen": f"on {b.robot_name}'s fork"}
+  assert theirs == {**ON_THEIR_BAYS, "module_pen": ON_YOUR_FORK}
 
 
 # ---- 4. nothing a sensor would not know ----------------------------------------
@@ -184,13 +173,13 @@ def test_the_context_knows_nothing_a_sensor_would_not(tmp_path):
   here = overseer_context(a)
   _put(a.model, a.data, "module_claw", FLOOR[1])
   assert overseer_context(a) == here
-  assert here["rack"]["original"]["module_claw"] == NO_PLACE
+  assert here["rack"]["module_claw"] == NO_PLACE
   # the pen hung in the claw's bay: the claw reads as home, the pen as lost
   _hang_where(a.model, a.data, "module_pen", "module_claw")
   rack = overseer_context(a)["rack"]
-  assert rack["original"]["module_claw"] == "on bay C"
-  assert rack["original"]["module_pen"] == NO_PLACE
-  assert all(WORDS.fullmatch(p) for p in rack["original"].values()), rack
+  assert rack["module_claw"] == "on bay C"
+  assert rack["module_pen"] == NO_PLACE
+  assert all(WORDS.fullmatch(p) for p in rack.values()), rack
 
 
 # ---- 6. the part ---------------------------------------------------------------------

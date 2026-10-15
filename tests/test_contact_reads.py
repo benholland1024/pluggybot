@@ -6,7 +6,7 @@ robot, and a py-spy profile of the served pair put 49 % of the physics
 thread there against 13 % in `mj_step`. Each reader now answers off
 `data.contact.geom`; what is pinned is that the answers are IDENTICAL to
 the struct-by-struct loop on a live world with dozens of contacts, and
-that a geom id cached by model does not survive a recompile.
+that a geom id cached by model is never handed to another.
 """
 
 import math

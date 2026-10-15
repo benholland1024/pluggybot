@@ -175,8 +175,8 @@ CARRY = (0.40, 0.40)
 #: gentler get-up").
 FOLD_ON_FALL_COS = math.cos(math.radians(60.0))
 
-#: THE TOOL ENVELOPE a tool on this coupling must fit (the workshop's
-#: validator reads it, #407). Measured (the spike's `--envelope`: carried
+#: THE TOOL ENVELOPE a tool on this coupling must fit (ToolPattern.md §2,
+#: #407). Measured (the spike's `--envelope`: carried
 #: through a 1.0 m/s trot and a stop; `--retention --stairs`: #388's flight,
 #: both ways, at 0, 30 and 60 mm ahead):
 #:   mass  a tool of 0.60 kg stayed seated with its CoM up to 60 mm off its
@@ -680,8 +680,8 @@ class ArmDriver:
     self.payload = (0.0, (0.0, 0.0))
 
   def rebind(self, model, data) -> None:
-    """The arm on a world (and a recompiled one, issue #407): its joints,
-    motors and links by name; its target, goal and payload are state."""
+    """The arm on a world: its joints, motors and links by name; its
+    target, goal and payload are state."""
     from pluggybot.telemetry.protocol import ROBOT_ROOT
     prefix = self.prefix
     self.m, self.d = model, data

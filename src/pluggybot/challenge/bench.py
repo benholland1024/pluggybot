@@ -28,8 +28,7 @@ about how (Challenges.md §3):
 THE TRUTH IS HIDDEN. The unknown is drawn from a BANK (`masses.json`,
 `questions.json`'s pattern: rotated on the board's own sequence number,
 nothing random) when the offer is made, written into the world's
-`body_mass` -- the model AND the spec, so the workshop's recompile carries
-it -- and kept in `Task.secret`, which reaches no context. `KNOWN_MASS_KG`
+`body_mass`, and kept in `Task.secret`, which reaches no context. `KNOWN_MASS_KG`
 is the job's own statement and is told to the robot in the offer;
 `UNKNOWN_MASS_KG` is only what the cube weighs between offers, and nothing
 may read it as a truth. A bank entry within `TOLERANCE` of the known mass is
@@ -170,13 +169,10 @@ def unknown_mass(model) -> float:
   return float(model.body_mass[model.body(UNKNOWN).id])
 
 
-def set_unknown_mass(model, data, kg: float, spec=None) -> float:
+def set_unknown_mass(model, data, kg: float) -> float:
   """Make the unknown cube weigh `kg`: `body_mass` and the inertia scaled
-  with it, the derived constants recomputed, and the SPEC's geom too where
-  one is held -- the workshop's recompile (#168) rebuilds from the spec,
-  and a mass set on the model alone would revert to the placeholder the
-  moment a tool was hung. ⚠ `mj_setConst` is given a scratch MjData: it
-  writes `qpos0` into whatever data it is handed.
+  with it, the derived constants recomputed. ⚠ `mj_setConst` is given a
+  scratch MjData: it writes `qpos0` into whatever data it is handed.
 
   ⚠ THE WORLD'S PINNED STATISTIC SURVIVES IT. `mj_setConst` re-derives
   `stat.extent` and `stat.center` from the geometry's bounding box, and
@@ -194,8 +190,6 @@ def set_unknown_mass(model, data, kg: float, spec=None) -> float:
   mujoco.mj_setConst(model, mujoco.MjData(model))
   model.stat.extent = extent
   model.stat.center[:] = center
-  if spec is not None:
-    spec.body(UNKNOWN).geoms[0].mass = kg
   return kg
 
 

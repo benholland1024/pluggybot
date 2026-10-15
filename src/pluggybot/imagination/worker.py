@@ -1,8 +1,7 @@
 """The imagination in a process of its own (issue #466): the codebase's first
 worker process, a program of its own (`python -m
 pluggybot.imagination.worker`). The robot lies still while it thinks, and
-the served physics thread never steps an imagined world (the workshop's rig,
-which does, cost a build 0.76 s there).
+the served physics thread never steps an imagined world.
 
 ⚠ THE PROCESS BOUNDARY IS THE FENCE'S FIRST HALF: a request is a scene
 document and a record, and nothing else crosses -- every message is a JSON

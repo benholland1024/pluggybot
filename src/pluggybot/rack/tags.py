@@ -36,14 +36,11 @@ QUIET_CELLS = 1          # white margin around the tag, in tag cells -- the
 PIXELS_PER_CELL = 24     # render scale of the generated PNGs
 
 # Tag identities. The whole point of real tags: these are decoded, not
-# inferred from where a blob happened to sit in the frame. 0-9 were the
-# rover's rack, charge bay and bays (#376 deleted them; not reused).
-#: The five hand-built modules, by the ids they carried on the rover's rack
-#: -- the workshop's permanent originals (`workshop.seam.HAND_BUILT`).
-MODULE_TAG_IDS = {"module_lcd": 10, "module_plug": 11, "module_pen": 12,
-                  "module_claw": 13, "module_seed": 14}
-#: The tower's three blocks (issue #207; challenge/stack.py), after the
-#: rover's built-tool ids 15-19 (a tool on legs carries no tag). A
+# inferred from where a blob happened to sit in the frame. 0-19 were the
+# rover's: its rack, charge bay and bays, its modules (a tool on legs
+# carries no tag) and its built tools (#376 and #489 deleted them; not
+# reused).
+#: The tower's three blocks (issue #207; challenge/stack.py). A
 #: block is a 26 mm cube with the tag on every face (cube mapping), so its
 #: black edge is 8/10 of the cube: the "20 mm tag" whose decode range is a
 #: measurement to make against the first attempt, not before it.
@@ -65,8 +62,8 @@ DOCK_TAG_SIZE = 0.060
 #: their baseline.
 LEGS_RACK_TAG_IDS = (29, 30, 31, 32, 33, 34)
 LEGS_RACK_TAG_SIZE = 0.060
-#: ...and its built-tool rail beside it on the same board (issue #407; the
-#: workshop's tools hang there): the same pair a bay, its own ids.
+#: ...and its built-tool rail beside it on the same board (issue #407; its
+#: bays empty since #489): the same pair a bay, its own ids.
 LEGS_BUILT_TAG_IDS = (47, 48, 49, 50, 51, 52)
 #: The lab's three pressure plates (issue #419): one tag a plate, on a sign
 #: at its far edge facing the room (`activity/cage.py`), what a robot finds
@@ -102,8 +99,7 @@ SMALL_TAG_SIZE = 0.030
 # Which physical size each id is, so one detection pass can serve markers of
 # different sizes: PnP translation scales linearly with the assumed tag
 # size, so a single decode can be rescaled per id exactly.
-TAG_SIZES = {**{i: SMALL_TAG_SIZE for i in MODULE_TAG_IDS.values()},
-             **{i: BLOCK_TAG_SIZE for i in BLOCK_TAG_IDS},
+TAG_SIZES = {**{i: BLOCK_TAG_SIZE for i in BLOCK_TAG_IDS},
              **{i: BLOCK_TAG_SIZE for i in MASS_TAG_IDS},
              **{i: BLOCK_TAG_SIZE for i in CHEST_TAG_IDS},
              **{i: DOCK_TAG_SIZE for i in DOCK_TAG_IDS},
@@ -139,7 +135,7 @@ def write_tag_pngs(directory: Path = TAG_DIR, ids=None) -> list[int]:
   masses -- or just `ids`. Returns the ids: the home world declares
   exactly these as its textures (a scene test holds every declared texture
   referenced), and what is put in at load (the dock, the rack, the plates'
-  signs, a built module) asks for its own by name.
+  signs) asks for its own by name.
 
   ⚠ A PNG ALREADY HOLDING THESE BYTES IS LEFT ALONE, AND ANY OTHER IS
   REPLACED WHOLE (issue #440): the suite runs the house's generator while

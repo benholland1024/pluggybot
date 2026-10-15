@@ -117,14 +117,6 @@ class ToolSwap:
     #: How far off the robot was that made the last swap give its bay up.
     self.peer_at_bay_m: float | None = None
 
-  def _rebind_swap(self, model) -> None:
-    """The fork's geoms by name, the per-module caches emptied (a recompiled
-    world, `QuadMission.rebind`); the rack's commissioning is the world's."""
-    plate = self._plate_bid = model.body(self.handle.el("arm_plate")).id
-    self._fork_gids = np.array([g for g in range(model.ngeom)
-                                if int(model.geom_bodyid[g]) == plate], dtype=np.int32)
-    self._tool_gids, self._poles = {}, {}
-
   # ---- where things are -------------------------------------------------------
 
   def work_pose(self, bay: int) -> tuple[float, float, float]:
@@ -505,10 +497,9 @@ class ToolSwap:
     rec = self.last_swap
     if not rec:
       return "no swap recorded"
-    # ...the bay in its own row's letters, as the robot is told them (#407)
-    spec, local = rk.spec_of(rec["bay"])
-    where = ("rail bay " if spec is rk.BUILT else "bay ") + chr(ord("A") + local)
-    parts = [f"{rec['op']} {rec['module']} at {where}"]
+    # ...the bay in its rack's letters, as the robot is told them (#407)
+    _, local = rk.spec_of(rec["bay"])
+    parts = [f"{rec['op']} {rec['module']} at bay {chr(ord('A') + local)}"]
     if rec.get("why"):
       parts.append(str(rec["why"]))
     for i, a in enumerate(rec["attempts"], 1):

@@ -1403,8 +1403,8 @@ class QuadMission(ToolSwap, PlaceWalk, BoardWork, CubeWork, AreaSurvey, MakeWay,
     if "gains" in arrays:
       self.model.actuator_gainprm[np.ix_(self.drivers.act, [3, 4, 5, 6, 7])] = arrays["gains"]
     self.drivers.torqued = bool(state.get("torqued", False))
-    # ...what rode the fork, where this world has it: a built tool the
-    # workshop could not hang again is no body here (#407)
+    # ...what rode the fork, where this world has it: a world saved before
+    # #489 may have carried a built tool, which is no body here
     carried = state.get("carrying")
     if carried is not None and mujoco.mj_name2id(
         self.model, mujoco.mjtObj.mjOBJ_BODY, carried) < 0:
@@ -1480,39 +1480,6 @@ class QuadMission(ToolSwap, PlaceWalk, BoardWork, CubeWork, AreaSurvey, MakeWay,
     self._board_z.clear()
     self.forget_cubes()
 
-  def rebind(self, model, data) -> None:
-    """A recompiled world (issue #407: a tool the workshop built, hung on
-    the rail). Every holder of the old world follows it and every id is
-    found again by NAME; what the body believes and remembers -- the map,
-    the places, the cubes, the reckoning, the posture, the arm's goal -- is
-    state and stays. The tag renderers are made again at their next look
-    (the new world's textures) and the gait's virtual model at its next use,
-    keeping its inertia. ⚠ Never mid-move: a posture move is a generator
-    holding the old data (`HubLifecycle.seam_busy` waits it out)."""
-    super().rebind(model, data)                # the LIDAR, this body's geoms
-    prefix = self.handle.prefix
-    self.root = model.body(self.handle.root).id
-    for driver in (self.walker, self.getup):   # one set of leg drivers
-      driver.rebind(model, data)
-    self.joints = pz.Joints.of(model, prefix)
-    self.arm.rebind(model, data)
-    self.arm_acts = tuple(self.arm.act)
-    self.feet = [model.site(self.handle.el(f"{leg}_foot")).id for leg in LEGS]
-    if self._vm is not None:
-      self._vm_inertia, self._vm = np.array(self._vm.inertia, dtype=float), None
-    self.odo.rebind(model, data)
-    self.depth.rebind(model)
-    for name in ("_board", "_color"):
-      if getattr(self, name, None) is not None:
-        getattr(self, name).close()
-        setattr(self, name, None)
-    self._resolve_geoms(model)
-    self._rebind_swap(model)
-    self._rebind_places(model)
-    self._rebind_claw(model)
-    self._carried_gids = np.zeros(0, dtype=np.int32)
-    self.carry(self.carrying)
-
   def start_at(self, x: float, y: float, yaw: float) -> None:
     """Stand the body at a pose, on its feet, and tell its reckoning so --
     a mission's start, and a stand-up after a death. ⚠ STEPS NOTHING
@@ -1578,9 +1545,6 @@ class QuadBody(Body):
 
   def run(self, routine: Routine, name: str = ""):
     return self.mission.run(routine, name)
-
-  def rebind(self, model, data) -> None:
-    self.mission.rebind(model, data)
 
   def kept_state(self):
     return self.mission.kept_state()
@@ -1967,9 +1931,6 @@ class _SharedDepth:
 
   def frame(self, data) -> DepthFrame:
     return self.mission.latest_depth()
-
-  def rebind(self, model) -> None:
-    pass
 
   def exclude_robot(self, root_name: str) -> None:
     pass

@@ -1,6 +1,6 @@
 """The scene language (issue #466): what the robot writes to describe what is
-in front of it, and what `compile.py` builds a world of its own from. On
-`workshop/spec.py`'s pattern -- JSON, closed, every reason at once:
+in front of it, and what `compile.py` builds a world of its own from: JSON,
+closed, and refused with every reason at once:
 
   {"parts": [
      {"id": "base", "shape": "box", "size": [220, 300, 140],

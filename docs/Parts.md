@@ -10,10 +10,8 @@ constant with no part behind it is a guess and is marked as one.
 > source, mass, price and the sim constant it feeds, the constant's value
 > READ OFF THE MODEL when the file is built, so the fixture cannot describe a
 > number the sim does not use. A number this doc does not know is `null`
-> there with a reason, never a guess. Two shelves: `build`, the bill of
-> materials below, and `catalog`, what the robot's workshop may build a tool
-> from ("What the workshop may build from"). The website's parts page
-> renders it. This doc keeps the reasoning; the spec→parameter tables live
+> there with a reason, never a guess. One shelf, `build`: the bill of
+> materials below. The website's parts page renders it. This doc keeps the reasoning; the spec→parameter tables live
 > there.
 
 ---
@@ -87,13 +85,13 @@ Prices and lead times read 2026-09-28; € incl. 19% VAT; $1 = €0.8770 (ECB, 2
 | [PTFE glass-fabric adhesive tape, 0.13 mm, 25 mm x 30 m](https://shop.hightechflon.com/PTFE-Teflon-Klebeband-0-13%20mm-ptfe-glasgewebe/Page-16-1-96-183.aspx) `PTFE Klebeband 0.13 SW` | 1 | 29.67 | 29.67 | 2-4 working days (High-tech-flon) | `legs.arm.RAMP_MU` |
 | **tools** | | | **230.05** | | |
 | Tool peg, 220 mm: two 6 mm steel conductors on an insulating bush | 3 | allowance | 30.00 | unknown: nothing drawn to quote | `legs.rack.PEG_HALF`, `rack.coupling.PEG_R`, `rack.coupling.PEG_INSUL_HALF`, +2 |
-| [FEETECH FS90MG micro servo (digital, metal gears)](https://eckstein-shop.de/Feetech-FS90MG-6V-22kgcm-Digital-Servo) `FS90MG` | 1 | 5.95 | 5.95 | unknown: not read for this bill; the price is the workshop catalog's (#199, 2026-09-14) | — |
-| [Actuonix L12-100-50-6-R micro linear servo (100 mm stroke, 50:1, 6 V, RC input)](https://www.digikey.de/de/products/detail/actuonix-motion-devices-inc/L12-100-50-6-R/11689540) `L12-100-50-6-R` | 2 | 77.05 | 154.10 | unknown: not read for this bill; the price is the workshop catalog's (#199, 2026-09-14) | `legs.rack.PEN_TRAVEL`, `legs.rack.PEN_FORCE_N`, `legs.rack.PEN_SPEED` |
+| [FEETECH FS90MG micro servo (digital, metal gears)](https://eckstein-shop.de/Feetech-FS90MG-6V-22kgcm-Digital-Servo) `FS90MG` | 1 | 5.95 | 5.95 | unknown: not read for this bill; the price was read for #199 (2026-09-14) | — |
+| [Actuonix L12-100-50-6-R micro linear servo (100 mm stroke, 50:1, 6 V, RC input)](https://www.digikey.de/de/products/detail/actuonix-motion-devices-inc/L12-100-50-6-R/11689540) `L12-100-50-6-R` | 2 | 77.05 | 154.10 | unknown: not read for this bill; the price was read for #199 (2026-09-14) | `legs.rack.PEN_TRAVEL`, `legs.rack.PEN_FORCE_N`, `legs.rack.PEN_SPEED` |
 | Linear Hall-effect sensor and a small magnet on the pen's sprung quill, reading its travel | 1 | allowance | 5.00 | unknown: no sensor chosen | `tools.drawing.QUILL_TOUCH` |
 | ESP32-class board, one per module | 3 | 5.00 | 15.00 | unknown: no board chosen | `power.MODULE_IDLE_W` |
 | Small SPI/I2C display driven by the module's ESP32 | 1 | allowance | 20.00 | unknown: no display chosen | `legs.rack.SCREEN_HALF` |
 | **rack** | | | **146.86** | | |
-| [Bay presence switch: one Omron D2F-01L2 hinge-roller-lever microswitch in each tool bay's V-tray](https://www.digikey.de/de/products/detail/omron-electronics-inc-emc-div/D2F-01L2/368444) `D2F-01L2` | 6 | 2.59 | 15.54 | unknown: not read for this bill; the price is the workshop catalog's (#199, 2026-09-14) | `bay*_tray_l_*` |
+| [Bay presence switch: one Omron D2F-01L2 hinge-roller-lever microswitch in each tool bay's V-tray](https://www.digikey.de/de/products/detail/omron-electronics-inc-emc-div/D2F-01L2/368444) `D2F-01L2` | 6 | 2.59 | 15.54 | unknown: not read for this bill; the price was read for #199 (2026-09-14) | `bay*_tray_l_*` |
 | ESP32-class board, one per module | 1 | 5.00 | 5.00 | unknown: no board chosen | `power.MODULE_IDLE_W` |
 | [Aluminium extrusion 30x30 light, B-type slot 8, cut to length (1 m)](https://www.dold-mechatronik.de/Aluminum-Profile-30x30L-B-Type-Groove-8-084kg-m-Customized-Cutting-50-to-6000mm) `67700-Z` | 5 | 10.40 | 52.00 | in stock, 4-5 working days (Dold) | `legs.rack.RackSpec.peg_z`, `legs.rack.RackSpec.rail_z` |
 | [Angle bracket 30, B-type slot 8, with its screws and hammer nuts](https://www.dold-mechatronik.de/Angle-30-B-type-groove-8-with-mounting-kit-and-cap) `66918-BSA` | 8 | 1.79 | 14.32 | in stock, 3-4 working days (Dold) | — |
@@ -409,8 +407,7 @@ Every tool hangs by a split PEG that a fork of V-notches takes
 (`rack/coupling.py`; ToolPattern.md §2 is the envelope): the rack's V-trays
 catch the peg near its ends and the fork grabs it outboard of them, so
 gravity is the latch and the V's depth the retention. The served rack's peg
-is 220 mm (`quad_tool_peg`, "The arm and its coupling", above), and the
-workshop's built tools hang by it too (#407).
+is 220 mm (`quad_tool_peg`, "The arm and its coupling", above).
 
 | Part | Route | Notes → sim |
 |---|---|---|
@@ -441,27 +438,6 @@ upgrades that keep the peg as the connector come first: brass sleeves on
 the conductor segments and plated V-plates, then a sprung contact in the V;
 a separate pogo pair on the plate would give up the tolerance this design
 was chosen for.
-
-### What the workshop may build from (issue #199)
-
-The agent's tools (`workshop/`, Overseer.md §2d) are built from the
-catalog shelf of `protocol/parts.json`, and a part is buildable-from only
-when the catalog knows every number the validator reads — mass, size, the
-motion's numbers, the draw. Sourced one at a time, each off the maker's
-datasheet, never a seller's summary:
-
-| Part | Chosen | The numbers that made it usable |
-|---|---|---|
-| micro servo | FEETECH FS90-FB (#168) | 0.147 N·m, 800 mA stall at 6 V = 4.8 W |
-| second servo, metal gear | FEETECH FS90MG | 0.216 N·m at 6 V at the SAME 800 mA stall, 12.7 g. Passed over: Tower Pro MG90S (no published current), Power HD HD-1810MG (1.4 A stall = 8.4 W, over the peg alone) |
-| slide | Actuonix L12-100-50-6-R | 100 mm stroke, 22 N lifted, 25 mm/s, 460 mA on the 6 V winding = 2.76 W, 56 g, €77. The pen's carriage on legs is this slide's whole stroke (#406: the rover's sim gave its pen 110 mm, and a two-digit answer, 81 mm wide, fits in 100). Passed over: the L16-140, whose stall current is published at 12 V only |
-| microswitch | Omron D2F-01L2 | 0.78 N OF, 12.8 × 5.8 body, 16.5 mm free position, ≈0.5 g (the datasheet's pin-plunger figure; the lever's fraction of a gram is unpublished). On a tool it is a `contact` sense |
-| eye | Ai-Thinker ESP32-CAM | the camera whose maker publishes a draw — 0.9 W flash off, 1.55 W flash on — and the one that fits "power-only coupling, wireless data", because it is the radio. Raspberry Pi still publishes none for Camera Module 3 (both product briefs, the forum, Arducam's and InnoMaker's IMX708 sheets checked, 2026-09-14), so `pi_camera_3` stays unbuildable-from |
-
-⚠ **The peg's 12 W is the budget that binds a tool.** The validator sums
-every part's ceiling (a servo's stall, the eye's flash) as if simultaneous,
-plus the module's 0.6 W: a servo and an eye fit, two servos and an eye fit
-(11.75 W), three servos at stall (15 W) do not.
 
 ---
 

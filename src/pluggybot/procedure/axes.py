@@ -1,5 +1,5 @@
 """The motor-and-sensor level: named AXES a program may move and named
-SENSORS it may read (issue #166; the floor issue #168's tools stand on).
+SENSORS it may read (issue #166).
 
 A real servo takes a setpoint, a lead screw takes a target at a bounded
 speed, a motor controller takes (v, w). That is the finest grain an agent's
@@ -10,11 +10,11 @@ program can honestly reach on real hardware, and it is the grain here:
 reachable from a program -- the fence in tests/test_procedure.py lists who
 writes `data.ctrl`, and this module is not on it.
 
-Both are REGISTRIES, not constants: an axis or a sensor is present when the
-tool that carries it is on the fork (`requires`), and a tool built from a
-spec (#168) registers its own by the same call. A body's own axes are
-always present -- the quadruped's `shoulder` and `elbow` (`BODY_AXES`) --
-and its senses.
+Both are REGISTRIES, not constants: a new tool or body registers its own
+and the language does not change. A body's own axes are always present --
+the quadruped's `shoulder` and `elbow` (`BODY_AXES`) -- and its senses; a
+sensor a tool carries is present when that tool is on the fork
+(`requires`).
 """
 
 import zlib
@@ -37,8 +37,6 @@ class Axis:
   speed: float                  # units per second, the setpoint's ceiling
   unit: str
   doc: str
-  #: the module that must be on the fork for this axis to exist ("" = body)
-  requires: str = ""
   #: how to run it: (life, target) -> Routine. Default: one actuator by name.
   actuator: str = ""
   run: Callable[..., Routine] | None = None
@@ -68,10 +66,8 @@ _ARM = ArmSpec()
 def _ramp(actuator: str, settle: float = 0.5):
   def run(life, target: float) -> Routine:
     axis = next(a for a in AXES.values() if a.actuator == actuator)
-    # a body axis is THIS robot's; a tool's axis is the module's and shared
-    # (issue #167) -- the handle says which
-    name = actuator if axis.requires else life.body.handle.el(actuator)
-    act = life.model.actuator(name).id
+    # THIS robot's (issue #167): the handle says which
+    act = life.model.actuator(life.body.handle.el(actuator)).id
     return (yield from life.body.ramp_routine(act, float(target), axis.speed,
                                               settle=settle))
   return run
@@ -105,26 +101,6 @@ def _joint(life, name: str, body: bool = True) -> float:
   if body:
     name = life.body.handle.el(name)
   return float(life.data.qpos[life.model.joint(name).qposadr[0]])
-
-
-def geom_contact(life, geom: str) -> float:
-  """Is this geom touching anything outside its own root body -- a bumper's
-  criterion, read off the contact list: what a microswitch a built tool
-  carries reads (workshop/build.py, issue #199). A geom the world does not
-  have reads 0: the tool is not on the rack yet, or was retired."""
-  model, data = life.model, life.data
-  try:
-    gid = model.geom(geom).id
-  except KeyError:
-    return 0.0
-  own = int(model.body_rootid[model.geom_bodyid[gid]])
-  for i in range(data.ncon):
-    c = data.contact[i]
-    if gid in (c.geom1, c.geom2):
-      other = c.geom2 if c.geom1 == gid else c.geom1
-      if int(model.body_rootid[model.geom_bodyid[other]]) != own:
-        return 1.0
-  return 0.0
 
 
 def noise(life, key: str, sigma: float) -> float:
@@ -181,37 +157,16 @@ BODY_AXES = {"quadruped": ARM_JOINTS}
 CLAW_SENSORS = ("claw.holding",)
 
 
-#: The ramp as the public name a built tool registers its axes with
-#: (workshop/build.py): one actuator, the axis's own speed, settled.
-ramped = _ramp
-
-
-def register_axis(axis: Axis) -> None:
-  """A tool's axis, added by the thing that built the tool (#168)."""
-  AXES[axis.name] = axis
-
-
-def register_sensor(sensor: Sensor) -> None:
-  SENSORS[sensor.name] = sensor
-
-
-def setpoints(life, module: str | None) -> dict[str, float]:
-  """What every axis present is COMMANDED to: the body's, and those of the
-  tool on the fork (`module`; None is an empty fork). What a death reads
+def setpoints(life) -> dict[str, float]:
+  """What every axis is COMMANDED to, the body's own. What a death reads
   (issue #362). A setpoint, not a position: a joint stalled against
   something reads what it was asked for, and the gap is the finding. An
-  axis whose actuator the world no longer has (a retired tool) is left out."""
+  axis the body has no actuator for (the stub's) is left out."""
   out: dict[str, float] = {}
   for axis in AXES.values():
-    if axis.requires and axis.requires != module:
-      continue
     try:
-      if axis.setpoint is not None:
-        value = axis.setpoint(life)
-      elif axis.requires:
-        value = float(life.data.ctrl[life.model.actuator(axis.actuator).id])
-      else:
-        value = life.body.setpoint(life.body.actuator(axis.actuator))
+      value = (axis.setpoint(life) if axis.setpoint is not None
+               else life.body.setpoint(life.body.actuator(axis.actuator)))
     except KeyError:
       continue
     out[axis.name] = round(value, 4)
@@ -221,7 +176,7 @@ def setpoints(life, module: str | None) -> dict[str, float]:
 def describe() -> dict:
   """The registries as data, for a prompt and for a validator's message."""
   return {"axes": [{"name": a.name, "lo": a.lo, "hi": a.hi, "speed": a.speed,
-                    "unit": a.unit, "doc": a.doc, "requires": a.requires}
+                    "unit": a.unit, "doc": a.doc}
                    for a in AXES.values()],
           "sensors": [{"name": s.name, "doc": s.doc, "requires": s.requires}
                       for s in SENSORS.values()]}

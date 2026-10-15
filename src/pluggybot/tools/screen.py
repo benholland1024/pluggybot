@@ -80,11 +80,6 @@ class Screen:
 
   # ---- what to show --------------------------------------------------------
 
-
-  def rebind(self, model, data) -> None:
-    """A recompiled world (issue #168 slice C): no ids cached, only the
-    handles the next `sense` reads through."""
-    self.model, self.data = model, data
   def face(self, face: str, hint: str = "blink", hold: bool = False) -> None:
     """Show an expressive face. `hold` claims the screen for an errand."""
     if face not in FACE_STATES:
@@ -192,10 +187,6 @@ class ScreenSet:
 
   def __getitem__(self, name: str) -> Screen:
     return self.screens[name]
-
-  def rebind(self, model, data) -> None:
-    for screen in self.screens.values():
-      screen.rebind(model, data)
 
   def add(self, screen: Screen) -> Screen:
     self.screens[screen.name] = screen

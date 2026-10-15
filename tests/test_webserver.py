@@ -715,11 +715,7 @@ class _FakeLife:
 
   def __init__(self, model, data, **kw):
     self.init_kwargs = kw
-    # The world it was built on, as the real lifecycle holds it -- and
-    # `rebind` REPLACES both (issue #168), which is why anything reading
-    # the world after setup has to read it through here. `say_crash` does
-    # (issue #315): a crash message off a `data` captured at setup would
-    # report a sim time a recompiled run had left behind.
+    # The world it was built on, as the real lifecycle holds it.
     self.model, self.data = model, data
     self.body = types.SimpleNamespace(step_hooks=[], grid=None, posture="standing",
                                       working=False, making_way=None)
@@ -740,7 +736,6 @@ class _FakeLife:
     # real object always has turns a wiring bug into a test failure about
     # the double.
     self.on_event: list = []
-    self.on_rebind: list = []      # the recompile seam's hook (issue #168)
     # A served world is mortal because it has an inbox and an admin behind
     # it; serve.py ASSERTS that rather than setting it, so the rule lives
     # in the lifecycle alone.
@@ -793,10 +788,6 @@ class _FakePublisher:
 
   def step_hook(self) -> None:
     pass
-
-  def rebind(self, model, data) -> None:
-    """The recompile seam's hook (issue #168): serve.py registers it."""
-    self.rebound = (model, data)
 
   def event(self, t, msg, robot="pluggybot") -> None:
     # A narration line names its robot since 0.20.0 (issue #181).

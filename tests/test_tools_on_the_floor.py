@@ -136,11 +136,10 @@ def _life(**kw):
 def _quad(**kw):
   """A world with the tools on their rack: the quadruped's house."""
   cfg = world_config(QUAD_HOME)
-  spec = world_spec(cfg["model"])
-  model = spec.compile()
+  model = world_spec(cfg["model"]).compile()
   data = mujoco.MjData(model)
   mujoco.mj_forward(model, data)
-  return HubLifecycle(model, data, realtime=False, world=QUAD_HOME, spec=spec,
+  return HubLifecycle(model, data, realtime=False, world=QUAD_HOME,
                       battery_wh=cfg["battery_wh"], rack=cfg["rack"],
                       grid_bounds=cfg["grid_bounds"],
                       low_battery_wh=cfg["low_battery_wh"], **kw)

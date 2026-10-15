@@ -143,11 +143,6 @@ class HideAndSeek(Activity):
     self._hider_set = set(self.hider_gids.tolist())
     self._seeker_gids = robot_geoms(m, self.seeker.root)
 
-  def rebind(self, model, data) -> None:
-    self.model = model
-    if self.assigned:
-      self._resolve()
-
   def restore_kept(self, state: dict) -> None:
     """A game does not outlive its process: whatever the last referee was
     doing, this one is idle (the module docstring)."""

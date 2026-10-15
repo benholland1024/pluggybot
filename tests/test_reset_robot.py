@@ -50,10 +50,9 @@ def _life(inbox=None, mortal=True, **kw) -> HubLifecycle:
 def _quad(inbox=None, mortal=True, **kw) -> HubLifecycle:
   """...and on the served quadruped, in its house."""
   cfg = world_config(QUAD_HOME)
-  spec = world_spec(cfg["model"])
-  model = spec.compile()
+  model = world_spec(cfg["model"]).compile()
   return _born(HubLifecycle(model, mujoco.MjData(model), realtime=False,
-                            world=QUAD_HOME, spec=spec,
+                            world=QUAD_HOME,
                             battery_wh=cfg["battery_wh"], rack=cfg["rack"],
                             grid_bounds=cfg["grid_bounds"],
                             low_battery_wh=cfg["low_battery_wh"],

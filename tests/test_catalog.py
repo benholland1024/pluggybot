@@ -144,15 +144,6 @@ def test_parts_md_chosen_list_is_in_the_catalog_and_the_doc_points_here(parts):
   assert "protocol/parts.json" in doc and "pluggybot.rack.catalog" in doc
 
 
-def test_the_scaffold_primitive_has_a_density_and_a_print_bed(parts):
-  scaffolds = [p for p in parts.values() if p["kind"] == "scaffold"]
-  assert len(scaffolds) == 1, "ONE scaffold primitive"
-  cap = scaffolds[0]["capabilities"]
-  assert cap["densityKgM3"] > 0
-  assert set(cap["printBedMm"]) == {"x", "y", "z"}
-  assert scaffolds[0]["shelves"] == ["catalog"]
-
-
 def test_every_used_by_names_a_body_in_its_robots_world(fixture):
   """`usedBy` is checked against the compiled world of the robot the part
   is for, so a module that is retired takes its parts' claims with it."""
@@ -202,8 +193,9 @@ def test_the_line_validator_rejects_what_the_rules_forbid(fixture):
   assert "a lead time is the seller's words, or null with a why" in \
       v({**priced, "leadTime": None}, parts)
   assert any("group" in r for r in v({**priced, "group": "misc"}, parts))
-  assert "servo_fs90 is not on the build shelf" in \
-      v({**priced, "part": "servo_fs90"}, parts)
+  off_shelf = {**parts[priced["part"]], "id": "off_shelf", "shelves": []}
+  assert "off_shelf is not on the build shelf" in \
+      v({**priced, "part": "off_shelf"}, {**parts, "off_shelf": off_shelf})
 
 
 def test_the_bill_fits_its_budget_and_is_summed_from_its_lines(fixture):
@@ -221,14 +213,14 @@ def test_the_bill_fits_its_budget_and_is_summed_from_its_lines(fixture):
 def test_the_bill_buys_what_the_design_uses(fixture):
   """A build part's `quantity` is what the design uses (on the robot, the
   rack, the dock, the rigs); the bill's lines must buy at least that, or a
-  design count raised without a purchase goes unnoticed. The workshop
-  catalog's parts keep their own meaning of `quantity`."""
+  design count raised without a purchase goes unnoticed. A part printed in
+  the shop is not bought: its material is the filament's line."""
   bought = defaultdict(int)
   for ln in fixture["build"]["lines"]:
     bought[ln["part"]] += ln["quantity"]
   for p in fixture["parts"]:
-    if p["shelves"] == ["build"]:
-      assert p["quantity"] > 0, p["id"]
+    assert p["quantity"] > 0, p["id"]
+    if p["why"].get("partNumber") != catalog.PRINTED:
       assert bought[p["id"]] >= p["quantity"], (p["id"], bought[p["id"]])
 
 
@@ -260,8 +252,7 @@ def test_the_generator_reads_its_module_mass_off_the_named_constants(parts):
   """The refactor half of the issue's constraint: a module is emitted at
   `MODULE_MASS`, whose peg share is `PEG_MASS`, and the fixture reads both
   -- one number, named, rather than a default and a subtraction in two
-  f-strings. On legs (#407) the module and its peg are `legs.rack`'s, the
-  workshop's built ones too."""
+  f-strings. On legs (#407) the module and its peg are `legs.rack`'s."""
   from pluggybot.legs import rack as rk
   import inspect
   assert inspect.signature(rk.tool_xml).parameters["mass"].default == rk.MODULE_MASS
@@ -277,9 +268,9 @@ def test_the_generator_reads_its_module_mass_off_the_named_constants(parts):
 
 
 def test_the_frame_carries_the_arms_envelope_not_the_rovers(parts):
-  """The catalog's module frame states the envelope the workshop's
-  validator refuses by (#407): the arm's, read off `legs/arm.py`, never the
-  rover's 250 g and 0.45 N·m typed into it."""
+  """The module frame states the envelope a tool must fit (#407;
+  ToolPattern.md §2): the arm's, read off `legs/arm.py`, never the rover's
+  250 g and 0.45 N·m typed into it."""
   from pluggybot.legs import arm as am
   frame = parts["module_frame"]
   feeds = {f["constant"]: f["value"] for f in frame["feeds"]}
@@ -289,14 +280,14 @@ def test_the_frame_carries_the_arms_envelope_not_the_rovers(parts):
   assert "peg_rod_6mm" not in parts
 
 
-def test_nothing_in_the_economy_reads_the_catalog():
+def test_nothing_in_the_economy_or_the_mind_reads_the_catalog():
   """The scoring path never reads the catalog (issue #185): a tool's
   usefulness is graded by predicates on the world, never by what it is
-  made of, and nothing awards itself points for a part list. (#168 slice D
-  decided how a MIND sees it -- through `overseer.workshop_rule()`, on the
-  `autonomous` arm alone -- so `mind/` left this fence then.) A grep would
-  pass on a comment; the syntax tree does not."""
-  for path in (ROOT / "src/pluggybot/economy").glob("*.py"):
+  made of, and nothing awards itself points for a part list. The mind read
+  it for the workshop's parts list (#168) until the workshop went (#489).
+  A grep would pass on a comment; the syntax tree does not."""
+  for path in [*(ROOT / "src/pluggybot/economy").glob("*.py"),
+               *(ROOT / "src/pluggybot/mind").glob("*.py")]:
     tree = ast.parse(path.read_text())
     for node in ast.walk(tree):
       names = []
@@ -305,20 +296,3 @@ def test_nothing_in_the_economy_reads_the_catalog():
       elif isinstance(node, ast.Import):
         names = [a.name for a in node.names]
       assert not any("catalog" in n for n in names), path
-
-
-def test_the_fixture_says_what_the_workshop_may_build_from(fixture):
-  """`workshop.usable` per part is the validator's own predicate (issue
-  #168), so the parts page marks exactly what a spec may name. Today: the
-  micro servo and the scaffold, and every other part says why not."""
-  from pluggybot.workshop.spec import unbuildable
-  by_id = catalog.by_id()
-  usable = sorted(p["id"] for p in fixture["parts"] if p["workshop"]["usable"])
-  assert usable == sorted(p.id for p in catalog.PARTS if unbuildable(p) is None)
-  # Widened on purpose by issue #199: a slide, a switch, an eye, a second
-  # servo -- each sourced with a datasheet, none by guessing a number.
-  assert usable == ["bumper_switch", "esp32_cam", "scaffold_pla_box",
-                    "servo_fs90", "servo_fs90mg", "slide_l12_100"]
-  for p in fixture["parts"]:
-    if not p["workshop"]["usable"]:
-      assert p["workshop"]["why"] == unbuildable(by_id[p["id"]])

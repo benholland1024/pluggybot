@@ -417,33 +417,14 @@ def test_an_interrupt_stops_between_verbs():
   assert r["stopped"] == "interrupted" and r["completed"] == 1
 
 
-@pytest.fixture
-def scoop_facts():
-  """A built tool's axis and sensor registered as the workshop registers
-  them (`workshop.build.register`, issue #168), each needing its module on
-  the fork, and the facts that name them; the registries put back after."""
-  from pluggybot.workshop import build, validate
-  from test_workshop import SCOOP
-  before_a, before_s = set(axes.AXES), set(axes.SENSORS)
-  names = build.register(validate.check(SCOOP))
-  yield replace(HOME, axes=HOME.axes + tuple(names), sensors=HOME.sensors + tuple(names))
-  for k in set(axes.AXES) - before_a:
-    del axes.AXES[k]
-  for k in set(axes.SENSORS) - before_s:
-    del axes.SENSORS[k]
+def test_move_goes_through_the_bodys_ramp():
+  r, life = run('def x():\n  move("shoulder", 1.0)\n')
+  assert r["ok"] and [c[0] for c in life.calls] == ["ramp"]
 
 
-def test_move_goes_through_the_bodys_ramp_and_refuses_a_missing_tool(scoop_facts):
-  r, life = run('def x():\n  move("shoulder", 1.0)\n  move("scoop.tilt", 0.5)\n',
-                facts=scoop_facts)
-  assert r["steps"][0]["ok"] and [c[0] for c in life.calls] == ["ramp"]
-  assert not r["steps"][1]["ok"]
-  assert r["steps"][1]["reason"] == "axis 'scoop.tilt' needs module_scoop on the fork"
-
-
-def test_a_sensor_that_needs_a_tool_fails_without_it(scoop_facts):
-  r, _ = run('def x():\n  a = read("scoop.tilt")\n  wait(1)\n', facts=scoop_facts)
-  assert not r["ok"] and "needs module_scoop on the fork" in r["steps"][-1]["reason"]
+def test_a_sensor_that_needs_a_tool_fails_without_it():
+  r, _ = run('def x():\n  a = read("claw.holding")\n  wait(1)\n')
+  assert not r["ok"] and "needs module_claw on the fork" in r["steps"][-1]["reason"]
 
 
 # ---- the fence, extended to loops ------------------------------------------------
