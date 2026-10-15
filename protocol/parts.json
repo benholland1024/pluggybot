@@ -11,7 +11,6 @@
   "power",
   "electronics",
   "fastener",
-  "scaffold",
   "equipment"
  ],
  "statuses": [
@@ -20,7 +19,6 @@
   "removed"
  ],
  "shelves": [
-  "catalog",
   "build"
  ],
  "nullable": [
@@ -32,48 +30,11 @@
  ],
  "parts": [
   {
-   "id": "bumper_switch",
-   "name": "Omron D2F-01L2 hinge-roller-lever microswitch",
-   "kind": "sensor",
-   "status": "chosen",
-   "shelves": [
-    "catalog"
-   ],
-   "robot": "quadruped",
-   "usedBy": [],
-   "partNumber": "D2F-01L2",
-   "source": "https://www.digikey.de/de/products/detail/omron-electronics-inc-emc-div/D2F-01L2/368444",
-   "massG": 0.5,
-   "dimensionsMm": {
-    "length": 12.8,
-    "width": 5.8,
-    "height": 16.5
-   },
-   "priceEur": 2.59,
-   "priceFor": "each",
-   "quantity": 0,
-   "capabilities": {
-    "sense": "contact",
-    "operatingForceN": 0.78,
-    "releasingForceN": 0.05,
-    "overtravelMm": 0.55,
-    "contactRating": "0.1 A 30 V DC",
-    "powerW": 0
-   },
-   "feeds": [],
-   "why": {},
-   "note": "On a TOOL it is a `contact` sense: `<tool>.<id>.contact` reads 1 while the part touches anything outside the module (workshop/build.py). Sourced for issue #199: Omron's D2F datasheet (omronfs.omron.com/en_US/ecb/products/pdf/en-d2f.pdf) gives the 12.8 x 5.8 body, the 16.5 mm free position of the roller lever (the height here) and OF 0.78 N; its 'approx. 0.5 g' is stated for the pin-plunger body, and the 0.3 mm stainless lever adds an unpublished fraction of a gram. A switch draws nothing of its own (`powerW` 0). The rack's are `bay_switch`.",
-   "workshop": {
-    "usable": true
-   }
-  },
-  {
    "id": "pi_camera_3",
    "name": "Raspberry Pi Camera Module 3",
    "kind": "sensor",
    "status": "chosen",
    "shelves": [
-    "catalog",
     "build"
    ],
    "robot": "quadruped",
@@ -116,11 +77,7 @@
     }
    ],
    "why": {},
-   "note": "The body's navigation camera. It ships with the old 15-pin cable; a Pi 5 needs `pi5_camera_cable`. Size and mass from raspberrypi.com's camera documentation; its draw is not published there, so a tool cannot budget for it. Looked for again for issue #199 (2026-09-14): neither product brief (RP-008151, RP-009789) states it, the forum thread on it (t=347469) has one whole-Pi-Zero figure and no camera-alone one, and Arducam's and InnoMaker's IMX708 CSI sheets omit it too. The tool eye is `esp32_cam`, whose maker does publish its draw.",
-   "workshop": {
-    "usable": false,
-    "why": "draw unknown, so the peg's power budget cannot be checked"
-   }
+   "note": "The body's navigation camera. It ships with the old 15-pin cable; a Pi 5 needs `pi5_camera_cable`. Size and mass from raspberrypi.com's camera documentation; its draw is not published there. Looked for again for issue #199 (2026-09-14): neither product brief (RP-008151, RP-009789) states it, the forum thread on it (t=347469) has one whole-Pi-Zero figure and no camera-alone one, and Arducam's and InnoMaker's IMX708 CSI sheets omit it too."
   },
   {
    "id": "module_esp32",
@@ -128,7 +85,6 @@
    "kind": "electronics",
    "status": "chosen",
    "shelves": [
-    "catalog",
     "build"
    ],
    "robot": "quadruped",
@@ -139,7 +95,7 @@
    "dimensionsMm": null,
    "priceEur": 5,
    "priceFor": "each",
-   "quantity": 5,
+   "quantity": 4,
    "capabilities": {},
    "feeds": [
     {
@@ -156,11 +112,7 @@
     "massG": "not recorded",
     "dimensionsMm": "not recorded"
    },
-   "note": "Power-only coupling, wireless data: keeps the mating interface dumb and tolerant. One a tool -- the LCD, the pen and the claw -- and one on the rack, which reports its bay switches over the network.",
-   "workshop": {
-    "usable": false,
-    "why": "mass unknown (not recorded)"
-   }
+   "note": "Power-only coupling, wireless data: keeps the mating interface dumb and tolerant. One a tool -- the LCD, the pen and the claw -- and one on the rack, which reports its bay switches over the network."
   },
   {
    "id": "lcd_display",
@@ -168,7 +120,6 @@
    "kind": "electronics",
    "status": "candidate",
    "shelves": [
-    "catalog",
     "build"
    ],
    "robot": "quadruped",
@@ -201,11 +152,7 @@
     "dimensionsMm": "not recorded",
     "priceEur": "no display chosen"
    },
-   "note": "Display-only; the face is drawn in the browser off a streamed enum.",
-   "workshop": {
-    "usable": false,
-    "why": "no display chosen"
-   }
+   "note": "Display-only; the face is drawn in the browser off a streamed enum."
   },
   {
    "id": "module_frame",
@@ -213,7 +160,7 @@
    "kind": "structure",
    "status": "chosen",
    "shelves": [
-    "catalog"
+    "build"
    ],
    "robot": "quadruped",
    "usedBy": [],
@@ -227,7 +174,7 @@
    },
    "priceEur": null,
    "priceFor": "each",
-   "quantity": 0,
+   "quantity": 3,
    "capabilities": {},
    "feeds": [
     {
@@ -300,87 +247,7 @@
     "massG": "not weighed; the sim budgets 100 g for the plate, the budget less the peg. ⚠ A budget, not a print: this plate in PLA would weigh ~60 g",
     "priceEur": "printed: filament only, unpriced"
    },
-   "note": "The arm's envelope shapes a tool (ToolPattern.md §2, `workshop/validate.py`): its centre of mass on its peg or ahead of it, and hung, plumb.",
-   "workshop": {
-    "usable": false,
-    "why": "mass unknown (not weighed; the sim budgets 100 g for the plate, the budget less the peg. ⚠ A budget, not a print: this plate in PLA would weigh ~60 g)"
-   }
-  },
-  {
-   "id": "module_servo",
-   "name": "Small servo for a module axis (unspecified)",
-   "kind": "actuator",
-   "status": "candidate",
-   "shelves": [
-    "catalog"
-   ],
-   "robot": "quadruped",
-   "usedBy": [],
-   "partNumber": null,
-   "source": null,
-   "massG": null,
-   "dimensionsMm": null,
-   "priceEur": null,
-   "priceFor": "each",
-   "quantity": 0,
-   "capabilities": {
-    "motion": "hinge",
-    "forceN": null,
-    "powerW": null
-   },
-   "feeds": [],
-   "why": {
-    "partNumber": "no part chosen",
-    "source": "no part chosen",
-    "massG": "no part chosen",
-    "dimensionsMm": "no part chosen",
-    "priceEur": "no part chosen"
-   },
-   "note": "A servo for a tool's own axis with no part behind it. The workshop's are `servo_fs90` and `servo_fs90mg`, and the bill buys the second for the claw's jaws.",
-   "workshop": {
-    "usable": false,
-    "why": "no part chosen"
-   }
-  },
-  {
-   "id": "servo_fs90",
-   "name": "FEETECH FS90-FB micro servo (analog, position feedback)",
-   "kind": "actuator",
-   "status": "chosen",
-   "shelves": [
-    "catalog"
-   ],
-   "robot": "quadruped",
-   "usedBy": [],
-   "partNumber": "FS90-FB",
-   "source": "https://botland.store/micro-servos/17177-feetech-fs90-fb-micro-servo-with-position-feedback-5904422327088.html",
-   "massG": 13,
-   "dimensionsMm": {
-    "length": 23,
-    "width": 13,
-    "height": 22
-   },
-   "priceEur": 2.9,
-   "priceFor": "each",
-   "quantity": 0,
-   "capabilities": {
-    "motion": "hinge",
-    "angleDeg": 120,
-    "torqueNm": 0.147,
-    "speedDegS": 600,
-    "voltageV": [
-     4.8,
-     6.0
-    ],
-    "stallA": 0.8,
-    "powerW": 4.8
-   },
-   "feeds": [],
-   "why": {},
-   "note": "The first catalog actuator with every number a tool needs: Botland's page gives mass, size, 1.5 kg·cm at 6 V, 0.10 s/60° and the 0-120° range; the stall current (800 mA at 6 V, so 4.8 W) is from Feetech's FS90 datasheet (pololu.com/file/0J1435), the same servo with a position wire added. 9 g there, 13 g here.",
-   "workshop": {
-    "usable": true
-   }
+   "note": "One a tool -- the LCD, the pen and the claw -- printed from the shop's spools (`petg_1kg`). The arm's envelope shapes a tool (ToolPattern.md §2): its centre of mass on its peg or ahead of it, and hung, plumb."
   },
   {
    "id": "servo_fs90mg",
@@ -388,7 +255,6 @@
    "kind": "actuator",
    "status": "chosen",
    "shelves": [
-    "catalog",
     "build"
    ],
    "robot": "quadruped",
@@ -403,7 +269,7 @@
    },
    "priceEur": 5.95,
    "priceFor": "each",
-   "quantity": 0,
+   "quantity": 1,
    "capabilities": {
     "motion": "hinge",
     "angleDeg": 180,
@@ -419,10 +285,7 @@
    },
    "feeds": [],
    "why": {},
-   "note": "The second servo size (issue #199): 2.2 kg·cm at 6 V is 0.216 N·m, half again the FS90-FB's 0.147, at the SAME 800 mA stall -- so it fits the peg's budget exactly as the FS90 does. Every number is Feetech's own FS90MG product specification (the PDF Feetech distributes through resellers, e.g. aifitlab.com's FS90MG-PRODUCT_SPECIFICATION.pdf): 0.07 s/60° no-load at 6 V is 857°/s, 12.7 ± 1 g, 22.5 × 12.1 × 26.7 mm, 180° limit angle. Passed over: Tower Pro's MG90S (2.2 kg·cm, 13.4 g), whose maker publishes no current, and Power HD's HD-1810MG (3.9 kg·cm), whose 1.4 A stall at 6 V is 8.4 W -- over the peg on its own.",
-   "workshop": {
-    "usable": true
-   }
+   "note": "The claw's jaws (issue #407), sourced for issue #199: 2.2 kg·cm at 6 V is 0.216 N·m, at an 800 mA stall. Every number is Feetech's own FS90MG product specification (the PDF Feetech distributes through resellers, e.g. aifitlab.com's FS90MG-PRODUCT_SPECIFICATION.pdf): 0.07 s/60° no-load at 6 V is 857°/s, 12.7 ± 1 g, 22.5 × 12.1 × 26.7 mm, 180° limit angle. Passed over: Tower Pro's MG90S (2.2 kg·cm, 13.4 g), whose maker publishes no current, and Power HD's HD-1810MG (3.9 kg·cm), whose 1.4 A stall at 6 V is 8.4 W -- over the peg on its own."
   },
   {
    "id": "slide_l12_100",
@@ -430,7 +293,6 @@
    "kind": "actuator",
    "status": "chosen",
    "shelves": [
-    "catalog",
     "build"
    ],
    "robot": "quadruped",
@@ -445,7 +307,7 @@
    },
    "priceEur": 77.05,
    "priceFor": "each",
-   "quantity": 0,
+   "quantity": 2,
    "capabilities": {
     "motion": "slide",
     "strokeMm": 100,
@@ -485,10 +347,7 @@
     }
    ],
    "why": {},
-   "note": "The first slide the workshop can build from (issue #199). Every number is the L12 datasheet's (actuonix.com/assets/images/datasheets/ActuonixL12Datasheet.pdf): 22 N max force lifted and 25 mm/s no-load at 50:1, 460 mA stall on the 6 V winding (2.76 W), 56 g and 152 mm hole-to-hole closed for the 100 mm stroke, a 15 × 14.9 mm body. 20 % duty cycle, which the sim does not model. `forceN` is the lifted maximum; at speed it is the 17 N peak-power point. The pen's sideways carriage on legs is this slide at its whole stroke (#406; the rover's sim gave its pen 110 mm). Passed over: the L16-140-35-6-R, whose datasheet gives stall current at 12 V only (650 mA) -- its 6 V draw would be a guess.",
-   "workshop": {
-    "usable": true
-   }
+   "note": "Sourced for issue #199. Every number is the L12 datasheet's (actuonix.com/assets/images/datasheets/ActuonixL12Datasheet.pdf): 22 N max force lifted and 25 mm/s no-load at 50:1, 460 mA stall on the 6 V winding (2.76 W), 56 g and 152 mm hole-to-hole closed for the 100 mm stroke, a 15 × 14.9 mm body. 20 % duty cycle, which the sim does not model. `forceN` is the lifted maximum; at speed it is the 17 N peak-power point. The pen's sideways carriage on legs is this slide at its whole stroke (#406; the rover's sim gave its pen 110 mm). Passed over: the L16-140-35-6-R, whose datasheet gives stall current at 12 V only (650 mA) -- its 6 V draw would be a guess."
   },
   {
    "id": "pen_quill_hall",
@@ -524,121 +383,7 @@
     "dimensionsMm": "no sensor chosen",
     "priceEur": "no sensor chosen"
    },
-   "note": "What the pen finds a board's face by (#406): the quill's travel, read as a touch at 0.5 mm. A ratiometric linear Hall sensor (TI's DRV5055 class) facing a magnet on the quill is the route; none is chosen, and the sim reads the quill with 0.05 mm of noise (`tools.drawing.QUILL_NOISE`), an assumption until one is.",
-   "workshop": {
-    "usable": false,
-    "why": "on the build shelf, not the catalog"
-   }
-  },
-  {
-   "id": "esp32_cam",
-   "name": "Ai-Thinker ESP32-CAM (ESP32-S, OV2640 2 MP camera, Wi-Fi)",
-   "kind": "sensor",
-   "status": "chosen",
-   "shelves": [
-    "catalog"
-   ],
-   "robot": "quadruped",
-   "usedBy": [],
-   "partNumber": "ESP32-CAM",
-   "source": "https://www.berrybase.de/en/esp32-cam-development-board-incl.-ov2640-camera-module",
-   "massG": 10,
-   "dimensionsMm": {
-    "length": 40.5,
-    "width": 27,
-    "height": 4.5
-   },
-   "priceEur": 8.6,
-   "priceFor": "each",
-   "quantity": 0,
-   "capabilities": {
-    "sensor": "OV2640",
-    "resolution": "1600 × 1200",
-    "fovDeg": null,
-    "voltageV": 5,
-    "powerW": 1.55,
-    "powerFlashOffW": 0.9,
-    "radio": "Wi-Fi 802.11 b/g/n"
-   },
-   "feeds": [],
-   "why": {},
-   "note": "An eye a tool can carry (issue #199): the camera whose maker publishes its draw, and the one that fits the module design -- power-only coupling, wireless data -- because it IS the radio. Ai-Thinker's ESP32-CAM specification V1.0 gives 180 mA at 5 V with the flash off (0.9 W) and 310 mA with it at full brightness (1.55 W, the ceiling `powerW` carries, on a servo's stall terms), 27 × 40.5 × 4.5 mm and 10 g. On a real module it would replace the module's own ESP32 rather than sit beside it; the sim sums both, the dearer case. The lens's field of view is not on the sheet (`fovDeg` null) -- the Pi's cameras keep their measured fovy and a built eye renders nothing yet. EU stock is marketplace clones of the same design; the price is BerryBase's.",
-   "workshop": {
-    "usable": true
-   }
-  },
-  {
-   "id": "module_camera",
-   "name": "Module camera: wide-angle, wireless through the module's ESP32 (unspecified)",
-   "kind": "sensor",
-   "status": "candidate",
-   "shelves": [
-    "catalog"
-   ],
-   "robot": "quadruped",
-   "usedBy": [],
-   "partNumber": null,
-   "source": null,
-   "massG": null,
-   "dimensionsMm": null,
-   "priceEur": null,
-   "priceFor": "each",
-   "quantity": 0,
-   "capabilities": {
-    "fovDeg": null,
-    "powerW": null
-   },
-   "feeds": [],
-   "why": {
-    "partNumber": "no part chosen",
-    "source": "no part chosen",
-    "massG": "no part chosen",
-    "dimensionsMm": "no part chosen",
-    "priceEur": "no part chosen"
-   },
-   "note": "Mounted on the MODULE: module data crosses the coupling wirelessly, so a tool camera costs no CSI port on the Pi. The workshop's eye is `esp32_cam` (issue #199); this waits on a lens with a published field of view.",
-   "workshop": {
-    "usable": false,
-    "why": "no part chosen"
-   }
-  },
-  {
-   "id": "scaffold_pla_box",
-   "name": "Printed PLA box or plate -- the one scaffold primitive",
-   "kind": "scaffold",
-   "status": "chosen",
-   "shelves": [
-    "catalog"
-   ],
-   "robot": "quadruped",
-   "usedBy": [],
-   "partNumber": null,
-   "source": null,
-   "massG": null,
-   "dimensionsMm": null,
-   "priceEur": null,
-   "priceFor": "each",
-   "quantity": 0,
-   "capabilities": {
-    "densityKgM3": 1240,
-    "printBedMm": {
-     "x": 220,
-     "y": 220,
-     "z": 250
-    }
-   },
-   "feeds": [],
-   "why": {
-    "partNumber": "a primitive, not a part: any PLA filament",
-    "source": "any",
-    "massG": "density × the box the spec asks for",
-    "dimensionsMm": "chosen by the spec, within the print bed",
-    "priceEur": "priced per kg of filament, not per part; #168 sets the fabrication cost"
-   },
-   "note": "Rigid, at PLA's density, and no larger than a 220 × 220 × 250 mm bed (an Ender-3 class printer) in any one piece. The rack's trays and brackets and every module frame are this primitive; the rack itself is not, and could not be.",
-   "workshop": {
-    "usable": true
-   }
+   "note": "What the pen finds a board's face by (#406): the quill's travel, read as a touch at 0.5 mm. A ratiometric linear Hall sensor (TI's DRV5055 class) facing a magnet on the quill is the route; none is chosen, and the sim reads the quill with 0.05 mm of noise (`tools.drawing.QUILL_NOISE`), an assumption until one is."
   },
   {
    "id": "quad_rplidar_c1",
@@ -710,11 +455,7 @@
    "why": {
     "dimensionsMm": "not recorded"
    },
-   "note": "Funduino (DE) has it in stock; OpenELAB lists it at €79.95 with 4 left from a warehouse it does not name (it ships from China in 10-20 days otherwise). It draws 800 mA for a moment at start-up.",
-   "workshop": {
-    "usable": false,
-    "why": "on the build shelf, not the catalog"
-   }
+   "note": "Funduino (DE) has it in stock; OpenELAB lists it at €79.95 with 4 left from a warehouse it does not name (it ships from China in 10-20 days otherwise). It draws 800 mA for a moment at start-up."
   },
   {
    "id": "quad_realsense_d435",
@@ -808,11 +549,7 @@
     }
    ],
    "why": {},
-   "note": "DigiKey DE's kit (961448, with cable and tripod), none in stock; MyBotShop (DE) €419.99 in 21 days; RealSense's own store $314, backordered 6-8 weeks, import duty on top. Cognex agreed to buy RealSense on 2026-09-22 (closing in Q4 2026): the bill's longest lead, and the one to watch.",
-   "workshop": {
-    "usable": false,
-    "why": "on the build shelf, not the catalog"
-   }
+   "note": "DigiKey DE's kit (961448, with cable and tripod), none in stock; MyBotShop (DE) €419.99 in 21 days; RealSense's own store $314, backordered 6-8 weeks, import duty on top. Cognex agreed to buy RealSense on 2026-09-22 (closing in Q4 2026): the bill's longest lead, and the one to watch."
   },
   {
    "id": "pi5_camera_cable",
@@ -842,11 +579,7 @@
     "massG": "only a shipping weight is given",
     "dimensionsMm": "a 200 mm flat cable"
    },
-   "note": "",
-   "workshop": {
-    "usable": false,
-    "why": "on the build shelf, not the catalog"
-   }
+   "note": ""
   },
   {
    "id": "tdk_ev_icm42688p",
@@ -909,11 +642,7 @@
     "massG": "not published for the board",
     "dimensionsMm": "not published for the board"
    },
-   "note": "TDK's own board, a 2×10 header, used with jump wires or soldered (TDK AN-000488): the one ICM-42688-P board in stock at an EU storefront; the supply of the chip is short (a Tindie maker raised its price for it).",
-   "workshop": {
-    "usable": false,
-    "why": "on the build shelf, not the catalog"
-   }
+   "note": "TDK's own board, a 2×10 header, used with jump wires or soldered (TDK AN-000488): the one ICM-42688-P board in stock at an EU storefront; the supply of the chip is short (a Tindie maker raised its price for it)."
   },
   {
    "id": "gim8108_8",
@@ -1002,11 +731,7 @@
     }
    ],
    "why": {},
-   "note": "Twelve on the legs and two on the arm (#378): one part, one driver, one set of gains. €124.95 is a sale on €134.95, and on pre-order: none in OpenELAB's Munich or US warehouse, \"restock in 10-20 days\", no count, so sixteen go through its quote form. Steadywin's own store is $129.20 plus $185 of express to Germany for fourteen, 12-26 days, VAT and duty unstated. No cable comes with it; power and CAN share one XT30(2+2) (manual rev 1.4).",
-   "workshop": {
-    "usable": false,
-    "why": "on the build shelf, not the catalog"
-   }
+   "note": "Twelve on the legs and two on the arm (#378): one part, one driver, one set of gains. €124.95 is a sale on €134.95, and on pre-order: none in OpenELAB's Munich or US warehouse, \"restock in 10-20 days\", no count, so sixteen go through its quote form. Steadywin's own store is $129.20 plus $185 of express to Germany for fourteen, 12-26 days, VAT and duty unstated. No cable comes with it; power and CAN share one XT30(2+2) (manual rev 1.4)."
   },
   {
    "id": "amass_xt30_22_pair",
@@ -1036,11 +761,7 @@
     "massG": "not stated",
     "dimensionsMm": "not recorded"
    },
-   "note": "The female mates each GDS68's power-and-CAN socket. No German shop stocks it: 3DPTronics (Italy) sells pairs only, its cart says VAT in; LCSC has the female alone (C19268028) at $0.38. Amass lists 16-20 AWG for its cups, not 14.",
-   "workshop": {
-    "usable": false,
-    "why": "on the build shelf, not the catalog"
-   }
+   "note": "The female mates each GDS68's power-and-CAN socket. No German shop stocks it: 3DPTronics (Italy) sells pairs only, its cart says VAT in; LCSC has the female alone (C19268028) at $0.38. Amass lists 16-20 AWG for its cups, not 14."
   },
   {
    "id": "lapp_unitronic_can",
@@ -1070,11 +791,7 @@
     "massG": "not stated",
     "dimensionsMm": "5.7 mm across, by the metre"
    },
-   "note": "The four buses. Rated for fixed installation, and a leg flexes it; LAPP's flexible CAN FD P is sold at Conrad only by the 100 m to businesses.",
-   "workshop": {
-    "usable": false,
-    "why": "on the build shelf, not the catalog"
-   }
+   "note": "The four buses. Rated for fixed installation, and a leg flexes it; LAPP's flexible CAN FD P is sold at Conrad only by the 100 m to businesses."
   },
   {
    "id": "silicone_wire_14awg",
@@ -1101,11 +818,7 @@
     "massG": "not stated per metre",
     "dimensionsMm": "a metre of 2.08 mm²"
    },
-   "note": "Each driver's drop from the 10 AWG bus, red and black. Amass lists 16-20 AWG for the XT30(2+2)'s cups: step down to 16 at the plug.",
-   "workshop": {
-    "usable": false,
-    "why": "on the build shelf, not the catalog"
-   }
+   "note": "Each driver's drop from the 10 AWG bus, red and black. Amass lists 16-20 AWG for the XT30(2+2)'s cups: step down to 16 at the plug."
   },
   {
    "id": "raspberry_pi_5_quad",
@@ -1145,11 +858,7 @@
    "why": {
     "massG": "Raspberry Pi publishes none; BerryBase's 65 g is packed"
    },
-   "note": "The 16 GB (SC1113) is €319.20 in stock, if #379's budget for the computer asks for it.",
-   "workshop": {
-    "usable": false,
-    "why": "on the build shelf, not the catalog"
-   }
+   "note": "The 16 GB (SC1113) is €319.20 in stock, if #379's budget for the computer asks for it."
   },
   {
    "id": "pi5_active_cooler",
@@ -1176,11 +885,7 @@
     "massG": "only a packed weight (29 g) is given",
     "dimensionsMm": "the Pi 5's footprint"
    },
-   "note": "",
-   "workshop": {
-    "usable": false,
-    "why": "on the build shelf, not the catalog"
-   }
+   "note": ""
   },
   {
    "id": "pi_ssd_kit_256",
@@ -1210,11 +915,7 @@
     "massG": "only a packed weight (35 g) is given",
     "dimensionsMm": "a HAT on the Pi 5's footprint"
    },
-   "note": "Out of stock at every EU seller read; the 512 GB kit (SC1676) is €166.10 in stock at Reichelt, and the M.2 HAT+ alone (SC1166) €12.50 at BerryBase.",
-   "workshop": {
-    "usable": false,
-    "why": "on the build shelf, not the catalog"
-   }
+   "note": "Out of stock at every EU seller read; the 512 GB kit (SC1676) is €166.10 in stock at Reichelt, and the M.2 HAT+ alone (SC1166) €12.50 at BerryBase."
   },
   {
    "id": "waveshare_can_hat_plus",
@@ -1245,11 +946,7 @@
    "why": {
     "dimensionsMm": "a HAT on the Pi's footprint"
    },
-   "note": "Two of the four buses, one a pair of legs. Its wiki lists the Pi 5 and documents the stack with the CAN FD HAT: four channels.",
-   "workshop": {
-    "usable": false,
-    "why": "on the build shelf, not the catalog"
-   }
+   "note": "Two of the four buses, one a pair of legs. Its wiki lists the Pi 5 and documents the stack with the CAN FD HAT: four channels."
   },
   {
    "id": "waveshare_can_fd_hat",
@@ -1279,11 +976,7 @@
    "why": {
     "dimensionsMm": "a HAT on the Pi's footprint"
    },
-   "note": "The other two buses: the arm's and a spare. Its own wiki lists Pis up to the 4B; the Pi 5 stack is the HAT+'s wiki's. Four USB adapters (`ucan_v1`, €8.99) are the fallback.",
-   "workshop": {
-    "usable": false,
-    "why": "on the build shelf, not the catalog"
-   }
+   "note": "The other two buses: the arm's and a spare. Its own wiki lists Pis up to the 4B; the Pi 5 stack is the HAT+'s wiki's. Four USB adapters (`ucan_v1`, €8.99) are the fallback."
   },
   {
    "id": "ucan_v1",
@@ -1310,11 +1003,7 @@
     "massG": "not on the page",
     "dimensionsMm": "not on the page"
    },
-   "note": "The bench leg's bus from a PC. The page gives no bitrate; candleLight runs a bus at 1 Mbit/s. PEAK's PCAN-USB is €199 ex VAT and sold to businesses only.",
-   "workshop": {
-    "usable": false,
-    "why": "on the build shelf, not the catalog"
-   }
+   "note": "The bench leg's bus from a PC. The page gives no bitrate; candleLight runs a bus at 1 Mbit/s. PEAK's PCAN-USB is €199 ex VAT and sold to businesses only."
   },
   {
    "id": "pi5_psu_27w",
@@ -1341,11 +1030,7 @@
     "massG": "only a packed weight (60 g) is given",
     "dimensionsMm": "not recorded"
    },
-   "note": "The Pi on the bench, before the robot's 5 V rail exists.",
-   "workshop": {
-    "usable": false,
-    "why": "on the build shelf, not the catalog"
-   }
+   "note": "The Pi on the bench, before the robot's 5 V rail exists."
   },
   {
    "id": "molicel_p45b",
@@ -1410,11 +1095,7 @@
    "why": {
     "dimensionsMm": "the 21700 format; the sheet's figures not read"
    },
-   "note": "€7.00 each for eight or more (€7.90 for one to three) at akkuteile.de, the same SKU at LiPo24. No German seller publishes a 12S1P built to order: Enerprof's smallest 12S Molicel pack is a 12S3P at €860 in 14-28 days, the rest quote on request, so the pack is built here (`spot_welder`).",
-   "workshop": {
-    "usable": false,
-    "why": "on the build shelf, not the catalog"
-   }
+   "note": "€7.00 each for eight or more (€7.90 for one to three) at akkuteile.de, the same SKU at LiPo24. No German seller publishes a 12S1P built to order: Enerprof's smallest 12S Molicel pack is a 12S3P at €860 in 14-28 days, the rest quote on request, so the pack is built here (`spot_welder`)."
   },
   {
    "id": "jbd_bms_12s_120a",
@@ -1446,11 +1127,7 @@
    },
    "feeds": [],
    "why": {},
-   "note": "The seller's 60 A and 80 A versions are sold out; the JK JK-BD6A20S6P (60 A, 0.6 A active balancing) is €60.82 ex VAT from JK's own store in China with no delivery time stated. Mass is the seller's article weight.",
-   "workshop": {
-    "usable": false,
-    "why": "on the build shelf, not the catalog"
-   }
+   "note": "The seller's 60 A and 80 A versions are sold out; the JK JK-BD6A20S6P (60 A, 0.6 A active balancing) is €60.82 ex VAT from JK's own store in China with no delivery time stated. Mass is the seller's article weight."
   },
   {
    "id": "noeifevo_charger_12s",
@@ -1495,11 +1172,7 @@
     "massG": "not published",
     "dimensionsMm": "not published"
    },
-   "note": "The dock's charger. The page states no VAT and no warehouse: its policy is 3-7 working days to Germany from Poland, 7-15 from China, and a sold-out label sits beside the add-to-cart. BOUNDMOTOR's (Parts.md's first pick) is $99 plus import duty, 12-20 days by air, with a barrel plug needing an adapter.",
-   "workshop": {
-    "usable": false,
-    "why": "on the build shelf, not the catalog"
-   }
+   "note": "The dock's charger. The page states no VAT and no warehouse: its policy is 3-7 working days to Germany from Poland, 7-15 from China, and a sold-out label sits beside the add-to-cart. BOUNDMOTOR's (Parts.md's first pick) is $99 plus import duty, 12-20 days by air, with a barrel plug needing an adapter."
   },
   {
    "id": "meanwell_ddr_60l_5",
@@ -1538,11 +1211,7 @@
    "why": {
     "dimensionsMm": "not recorded"
    },
-   "note": "Set to 5.1 V for the Pi 5. The DDR-60G is 9-36 V in and would not take the pack.",
-   "workshop": {
-    "usable": false,
-    "why": "on the build shelf, not the catalog"
-   }
+   "note": "Set to 5.1 V for the Pi 5. The DDR-60G is 9-36 V in and would not take the pack."
   },
   {
    "id": "amass_xt90s",
@@ -1567,11 +1236,7 @@
     "massG": "not on the page",
     "dimensionsMm": "not on the page"
    },
-   "note": "The pack's lead, the charger's and the bench supply's: the anti-spark half takes the drivers' inrush as it mates.",
-   "workshop": {
-    "usable": false,
-    "why": "on the build shelf, not the catalog"
-   }
+   "note": "The pack's lead, the charger's and the bench supply's: the anti-spark half takes the drivers' inrush as it mates."
   },
   {
    "id": "victron_midi_60a",
@@ -1600,11 +1265,7 @@
     "massG": "only a shipping weight is given",
     "dimensionsMm": "not recorded"
    },
-   "note": "The pack's main fuse. Victron's sheet does not state its breaking capacity.",
-   "workshop": {
-    "usable": false,
-    "why": "on the build shelf, not the catalog"
-   }
+   "note": "The pack's main fuse. Victron's sheet does not state its breaking capacity."
   },
   {
    "id": "victron_midi_holder",
@@ -1632,11 +1293,7 @@
     "massG": "the page gives 0.2 with no unit",
     "dimensionsMm": "not recorded"
    },
-   "note": "",
-   "workshop": {
-    "usable": false,
-    "why": "on the build shelf, not the catalog"
-   }
+   "note": ""
   },
   {
    "id": "silicone_wire_10awg",
@@ -1661,11 +1318,7 @@
     "massG": "not stated per metre",
     "dimensionsMm": "a metre of 6 mm²"
    },
-   "note": "The bus from the pack through the fuse and the contactor to the legs' drivers.",
-   "workshop": {
-    "usable": false,
-    "why": "on the build shelf, not the catalog"
-   }
+   "note": "The bus from the pack through the fuse and the contactor to the legs' drivers."
   },
   {
    "id": "albright_sw80b549",
@@ -1694,11 +1347,7 @@
    "why": {
     "dimensionsMm": "not recorded"
    },
-   "note": "The e-stop's switch: the motor bus opens when the button on the robot or the wireless relay breaks its coil circuit. The B version, with blowouts: the plain SW80 is rated to break load only to 48 V, and the pack charges to 50.4. ⚠ Confirm the coil is CONTINUOUS-rated before ordering: Albright's sheet rates SW80 coils by class (continuous 7-13 W down to 25 % duty at 20-30 W) and neither it nor the seller says which the 549 is; ARC Components lists the SW80B-5 and -35 as 12 V continuous, at £51.05 ex VAT and 7-9 weeks. €68.00 plus 21 % Dutch VAT as the page shows it; about 350 g and 50 g of blowouts (Albright's sheet). TE's Kilovac LEV100 (190 g) sells to businesses only, at €127.44 ex VAT.",
-   "workshop": {
-    "usable": false,
-    "why": "on the build shelf, not the catalog"
-   }
+   "note": "The e-stop's switch: the motor bus opens when the button on the robot or the wireless relay breaks its coil circuit. The B version, with blowouts: the plain SW80 is rated to break load only to 48 V, and the pack charges to 50.4. ⚠ Confirm the coil is CONTINUOUS-rated before ordering: Albright's sheet rates SW80 coils by class (continuous 7-13 W down to 25 % duty at 20-30 W) and neither it nor the seller says which the 549 is; ARC Components lists the SW80B-5 and -35 as 12 V continuous, at £51.05 ex VAT and 7-9 weeks. €68.00 plus 21 % Dutch VAT as the page shows it; about 350 g and 50 g of blowouts (Albright's sheet). TE's Kilovac LEV100 (190 g) sells to businesses only, at €127.44 ex VAT."
   },
   {
    "id": "schneider_xb5as8442",
@@ -1726,11 +1375,7 @@
    "why": {
     "dimensionsMm": "a 40 mm head on a 22 mm hole"
    },
-   "note": "One on the robot, one on the bench rig. Eaton's M22 in three parts (head, adapter, NC contact) is €34.42 and in stock.",
-   "workshop": {
-    "usable": false,
-    "why": "on the build shelf, not the catalog"
-   }
+   "note": "One on the robot, one on the bench rig. Eaton's M22 in three parts (head, adapter, NC contact) is €34.42 and in stock."
   },
   {
    "id": "radiomaster_pocket",
@@ -1754,11 +1399,7 @@
    "why": {
     "dimensionsMm": "not published"
    },
-   "note": "The wireless e-stop's hand unit: a switch on it holds the receiver's relay closed. It runs on two 18650 cells, not included. A commercial wireless e-stop (Tyro Indus 1S) is €725 ex VAT, the receiver not stated.",
-   "workshop": {
-    "usable": false,
-    "why": "on the build shelf, not the catalog"
-   }
+   "note": "The wireless e-stop's hand unit: a switch on it holds the receiver's relay closed. It runs on two 18650 cells, not included. A commercial wireless e-stop (Tyro Indus 1S) is €725 ex VAT, the receiver not stated."
   },
   {
    "id": "radiomaster_er6",
@@ -1786,11 +1427,7 @@
    "why": {
     "dimensionsMm": "not recorded"
    },
-   "note": "",
-   "workshop": {
-    "usable": false,
-    "why": "on the build shelf, not the catalog"
-   }
+   "note": ""
   },
   {
    "id": "pololu_rc_relay",
@@ -1819,11 +1456,7 @@
    "why": {
     "dimensionsMm": "not recorded"
    },
-   "note": "In the contactor's coil circuit, in series with the e-stop button: the receiver's failsafe at 988 µs opens it, and Pololu's safe-start needs off-then-on to close it again.",
-   "workshop": {
-    "usable": false,
-    "why": "on the build shelf, not the catalog"
-   }
+   "note": "In the contactor's coil circuit, in series with the e-stop button: the receiver's failsafe at 988 µs opens it, and Pololu's safe-start needs off-then-on to close it again."
   },
   {
    "id": "meanwell_ddr_30l_12",
@@ -1853,11 +1486,7 @@
    "why": {
     "dimensionsMm": "not recorded"
    },
-   "note": "The contactor's coil. 30 W covers every class of SW80 coil; the 15 W DDR-15L-12 (€23.30) holds only a continuous one.",
-   "workshop": {
-    "usable": false,
-    "why": "on the build shelf, not the catalog"
-   }
+   "note": "The contactor's coil. 30 W covers every class of SW80 coil; the 15 W DDR-15L-12 (€23.30) holds only a continuous one."
   },
   {
    "id": "molicel_p28a",
@@ -1882,11 +1511,7 @@
    "capabilities": {},
    "feeds": [],
    "why": {},
-   "note": "The wireless e-stop's transmitter runs on two.",
-   "workshop": {
-    "usable": false,
-    "why": "on the build shelf, not the catalog"
-   }
+   "note": "The wireless e-stop's transmitter runs on two."
   },
   {
    "id": "arcol_hs25_47r",
@@ -1915,11 +1540,7 @@
    "why": {
     "dimensionsMm": "not recorded"
    },
-   "note": "Pre-charge: the drivers' capacitors fill through it, about 1 A at 50.4 V, before the contactor closes; the sheet gives no pulse rating, only continuous power.",
-   "workshop": {
-    "usable": false,
-    "why": "on the build shelf, not the catalog"
-   }
+   "note": "Pre-charge: the drivers' capacitors fill through it, about 1 A at 50.4 V, before the contactor closes; the sheet gives no pulse rating, only continuous power."
   },
   {
    "id": "hongfa_hf115f_012",
@@ -1948,11 +1569,7 @@
    "why": {
     "dimensionsMm": "not recorded"
    },
-   "note": "Switches the pre-charge resistor in, then out once the contactor has taken the bus; what it breaks at 60 V DC is a curve on the sheet, not a number.",
-   "workshop": {
-    "usable": false,
-    "why": "on the build shelf, not the catalog"
-   }
+   "note": "Switches the pre-charge resistor in, then out once the contactor has taken the bus; what it breaks at 60 V DC is a curve on the sheet, not a number."
   },
   {
    "id": "quad_frame_plates",
@@ -2001,11 +1618,7 @@
     "dimensionsMm": "side plates 400 x 110 mm; the rest undrawn",
     "priceEur": "no design yet: priced from its drawing"
    },
-   "note": "",
-   "workshop": {
-    "usable": false,
-    "why": "on the build shelf, not the catalog"
-   }
+   "note": ""
   },
   {
    "id": "cf_tube_25_22",
@@ -2066,11 +1679,7 @@
     }
    ],
    "why": {},
-   "note": "The 1.5 mm wall, for a leg; the 1 mm 25/23 (€37.72, 113 g a metre) is the arm's class. The page's variant list sits under the 25/23's address.",
-   "workshop": {
-    "usable": false,
-    "why": "on the build shelf, not the catalog"
-   }
+   "note": "The 1.5 mm wall, for a leg; the 1 mm 25/23 (€37.72, 113 g a metre) is the arm's class. The page's variant list sits under the 25/23's address."
   },
   {
    "id": "quad_leg_brackets",
@@ -2109,11 +1718,7 @@
     "dimensionsMm": "no design yet",
     "priceEur": "no design yet: priced from its drawings"
    },
-   "note": "",
-   "workshop": {
-    "usable": false,
-    "why": "on the build shelf, not the catalog"
-   }
+   "note": ""
   },
   {
    "id": "squash_balls_12",
@@ -2147,11 +1752,7 @@
     }
    ],
    "why": {},
-   "note": "The feet, four and eight spares. What hobby builders use; whether one holds up under a 10 kg trot is on no page, and the box is the cheap way to find out. A sale price (was €51.00).",
-   "workshop": {
-    "usable": false,
-    "why": "on the build shelf, not the catalog"
-   }
+   "note": "The feet, four and eight spares. What hobby builders use; whether one holds up under a 10 kg trot is on no page, and the box is the cheap way to find out. A sale price (was €51.00)."
   },
   {
    "id": "cf_tube_20_18",
@@ -2202,11 +1803,7 @@
     }
    ],
    "why": {},
-   "note": "€23.45 a metre ex VAT, as Parts.md had it (#378).",
-   "workshop": {
-    "usable": false,
-    "why": "on the build shelf, not the catalog"
-   }
+   "note": "€23.45 a metre ex VAT, as Parts.md had it (#378)."
   },
   {
    "id": "skf_61800_2rs1",
@@ -2235,11 +1832,7 @@
    },
    "feeds": [],
    "why": {},
-   "note": "The elbow's and the wrist's pivots, two each. €6.84 from ten; the mass is another seller's page (SKF's did not load).",
-   "workshop": {
-    "usable": false,
-    "why": "on the build shelf, not the catalog"
-   }
+   "note": "The elbow's and the wrist's pivots, two each. €6.84 from ten; the mass is another seller's page (SKF's did not load)."
   },
   {
    "id": "igus_kcrm_05",
@@ -2275,11 +1868,7 @@
    "why": {
     "dimensionsMm": "not recorded"
    },
-   "note": "The parallelogram's rods' ends. igus shows €4.56 ex VAT; €4.37 at ten. A steel PHSA5 is €2.87 at Dold, and 20 g.",
-   "workshop": {
-    "usable": false,
-    "why": "on the build shelf, not the catalog"
-   }
+   "note": "The parallelogram's rods' ends. igus shows €4.56 ex VAT; €4.37 at ten. A steel PHSA5 is €2.87 at Dold, and 20 g."
   },
   {
    "id": "quad_arm_fork",
@@ -2336,11 +1925,7 @@
     "dimensionsMm": "no design yet",
     "priceEur": "no design yet: priced from its drawing"
    },
-   "note": "",
-   "workshop": {
-    "usable": false,
-    "why": "on the build shelf, not the catalog"
-   }
+   "note": ""
   },
   {
    "id": "ptfe_tape_glass",
@@ -2373,11 +1958,7 @@
     "massG": "255 g/m² on the page; the roll is not weighed",
     "dimensionsMm": "25 mm x 30 m, 0.13 mm thick"
    },
-   "note": "The ramps' face. The smoother pure-PTFE film is €76.42 for the same roll; acetal inserts machined into the fork are the other way.",
-   "workshop": {
-    "usable": false,
-    "why": "on the build shelf, not the catalog"
-   }
+   "note": "The ramps' face. The smoother pure-PTFE film is €76.42 for the same roll; acetal inserts machined into the fork are the other way."
   },
   {
    "id": "quad_tool_peg",
@@ -2385,7 +1966,6 @@
    "kind": "structure",
    "status": "chosen",
    "shelves": [
-    "catalog",
     "build"
    ],
    "robot": "quadruped",
@@ -2447,11 +2027,7 @@
     "dimensionsMm": "6 x 220 mm",
     "priceEur": "no design yet"
    },
-   "note": "The one loaded part AND the electrical connector: the split peg and the fork's two V pairs are a two-pole coupling, self-wiping on the seating slide. Every tool hangs by it, the workshop's too.",
-   "workshop": {
-    "usable": false,
-    "why": "mass unknown (not weighed: 29 g at the rover's 150 mm rod's 20 g, the same grams a millimetre (`PEG_MASS`))"
-   }
+   "note": "The one loaded part AND the electrical connector: the split peg and the fork's two V pairs are a two-pole coupling, self-wiping on the seating slide. Every tool hangs by it."
   },
   {
    "id": "dold_3030_1m",
@@ -2492,11 +2068,7 @@
     }
    ],
    "why": {},
-   "note": "€9.90 a metre and €0.50 a cut, so a metre in one piece is €10.40.",
-   "workshop": {
-    "usable": false,
-    "why": "on the build shelf, not the catalog"
-   }
+   "note": "€9.90 a metre and €0.50 a cut, so a metre in one piece is €10.40."
   },
   {
    "id": "dold_angle_30",
@@ -2520,11 +2092,7 @@
    "why": {
     "dimensionsMm": "not recorded"
    },
-   "note": "€1.79 from ten, €2.20 singly: the bill buys fourteen.",
-   "workshop": {
-    "usable": false,
-    "why": "on the build shelf, not the catalog"
-   }
+   "note": "€1.79 from ten, €2.20 singly: the bill buys fourteen."
   },
   {
    "id": "quad_rack_board",
@@ -2595,11 +2163,7 @@
     "dimensionsMm": "about 1.9 x 0.6 m: the rack's bays and the rail's",
     "priceEur": "no design yet"
    },
-   "note": "",
-   "workshop": {
-    "usable": false,
-    "why": "on the build shelf, not the catalog"
-   }
+   "note": ""
   },
   {
    "id": "bay_switch",
@@ -2641,11 +2205,7 @@
     }
    ],
    "why": {},
-   "note": "Feeds `coupling.bay_switches`, all the rack reports over the network: which bays are occupied, never by which tool (issue #351). The robot's `rack` context is built off these, its own fork and what the other robot says it carries, and nothing else. In the sim the switch is its V's two plates read off the contact list. ⚠ Force is not modelled, and a bare switch under one tray would not close for every tool: the LCD (151 g, `legs.rack.TOOL_KG`) puts about 0.74 N on each tray against the 0.78 N operating force. The physical design needs the lever to carry the tray, or a lighter switch; open, not guessed.",
-   "workshop": {
-    "usable": false,
-    "why": "on the build shelf, not the catalog"
-   }
+   "note": "Feeds `coupling.bay_switches`, all the rack reports over the network: which bays are occupied, never by which tool (issue #351). The robot's `rack` context is built off these, its own fork and what the other robot says it carries, and nothing else. In the sim the switch is its V's two plates read off the contact list. ⚠ Force is not modelled, and a bare switch under one tray would not close for every tool: the LCD (151 g, `legs.rack.TOOL_KG`) puts about 0.74 N on each tray against the 0.78 N operating force. The physical design needs the lever to carry the tray, or a lighter switch; open, not guessed."
   },
   {
    "id": "millmax_0858",
@@ -2713,11 +2273,7 @@
     "massG": "not on DigiKey; the datasheet not read",
     "dimensionsMm": "7.32-9.60 mm working height"
    },
-   "note": "€1.781 ex VAT each at ten (€2.499 singly, VAT in). Parts.md's $2.45 was DigiKey US's.",
-   "workshop": {
-    "usable": false,
-    "why": "on the build shelf, not the catalog"
-   }
+   "note": "€1.781 ex VAT each at ten (€2.499 singly, VAT in). Parts.md's $2.45 was DigiKey US's."
   },
   {
    "id": "aisler_belly_pads",
@@ -2765,11 +2321,7 @@
     "partNumber": "a board of our own, ordered by its gerbers",
     "massG": "not given"
    },
-   "note": "Made and shipped in Germany; asking for five prices six. JLCPCB's five are €19.90 with no VAT shown, plus shipping.",
-   "workshop": {
-    "usable": false,
-    "why": "on the build shelf, not the catalog"
-   }
+   "note": "Made and shipped in Germany; asking for five prices six. JLCPCB's five are €19.90 with no VAT shown, plus shipping."
   },
   {
    "id": "uhmwpe_300_10",
@@ -2805,11 +2357,7 @@
    "why": {
     "massG": "not given; about 840 g at the material's 0.93 g/cm³"
    },
-   "note": "The cradle's bed and funnel faces. ADS cuts one for €32.17 (€25 of it the saw) and states no lead time.",
-   "workshop": {
-    "usable": false,
-    "why": "on the build shelf, not the catalog"
-   }
+   "note": "The cradle's bed and funnel faces. ADS cuts one for €32.17 (€25 of it the saw) and states no lead time."
   },
   {
    "id": "quad_cradle_work",
@@ -2852,11 +2400,7 @@
     "dimensionsMm": "a 0.30 m cradle",
     "priceEur": "no design yet"
    },
-   "note": "",
-   "workshop": {
-    "usable": false,
-    "why": "on the build shelf, not the catalog"
-   }
+   "note": ""
   },
   {
    "id": "quad_pack_materials",
@@ -2894,11 +2438,7 @@
     "dimensionsMm": "no design yet",
     "priceEur": "small parts, not priced"
    },
-   "note": "",
-   "workshop": {
-    "usable": false,
-    "why": "on the build shelf, not the catalog"
-   }
+   "note": ""
   },
   {
    "id": "dold_mgn12_rail_1000",
@@ -2922,11 +2462,7 @@
    "why": {
     "dimensionsMm": "a 1000 mm MGN12 rail"
    },
-   "note": "The bench leg hangs on it and hops. The MGN15's are sold out to late November.",
-   "workshop": {
-    "usable": false,
-    "why": "on the build shelf, not the catalog"
-   }
+   "note": "The bench leg hangs on it and hops. The MGN15's are sold out to late November."
   },
   {
    "id": "dold_mgn12h",
@@ -2953,11 +2489,7 @@
    "why": {
     "dimensionsMm": "not recorded"
    },
-   "note": "",
-   "workshop": {
-    "usable": false,
-    "why": "on the build shelf, not the catalog"
-   }
+   "note": ""
   },
   {
    "id": "quad_bench_mount",
@@ -2993,11 +2525,7 @@
     "dimensionsMm": "no design yet",
     "priceEur": "no design yet"
    },
-   "note": "",
-   "workshop": {
-    "usable": false,
-    "why": "on the build shelf, not the catalog"
-   }
+   "note": ""
   },
   {
    "id": "quad_gantry_fittings",
@@ -3025,11 +2553,7 @@
     "dimensionsMm": "slot 8",
     "priceEur": "not read for 40x40"
    },
-   "note": "",
-   "workshop": {
-    "usable": false,
-    "why": "on the build shelf, not the catalog"
-   }
+   "note": ""
   },
   {
    "id": "korad_ka6005p",
@@ -3058,11 +2582,7 @@
    "why": {
     "dimensionsMm": "not recorded"
    },
-   "note": "The bench leg's first power-ups, current-limited. A lab supply cannot take back what the motors return on landing, so the leg hops on the pack (and a clamp), never on this. Joy-IT's RD6012 with its 65 V supply and case gives 12 A for €239.28, on an open-frame supply.",
-   "workshop": {
-    "usable": false,
-    "why": "on the build shelf, not the catalog"
-   }
+   "note": "The bench leg's first power-ups, current-limited. A lab supply cannot take back what the motors return on landing, so the leg hops on the pack (and a clamp), never on this. Joy-IT's RD6012 with its 65 V supply and case gives 12 A for €239.28, on an open-frame supply."
   },
   {
    "id": "hilumin_strip_10m",
@@ -3089,11 +2609,7 @@
    "why": {
     "dimensionsMm": "10 m of 10 x 0.15 mm"
    },
-   "note": "Nickel-plated steel, not nickel: more resistance, so the links that carry the whole pack current are doubled. Pure nickel was in stock at no EU seller a page could be read from.",
-   "workshop": {
-    "usable": false,
-    "why": "on the build shelf, not the catalog"
-   }
+   "note": "Nickel-plated steel, not nickel: more resistance, so the links that carry the whole pack current are doubled. Pure nickel was in stock at no EU seller a page could be read from."
   },
   {
    "id": "kweld_kit",
@@ -3120,11 +2636,7 @@
    "why": {
     "dimensionsMm": "not recorded"
    },
-   "note": "€177.00 ex VAT as the page shows it. It needs a source of 800 A: `kweld_kcap`. Malectrics' V4 bundle is €148.75 without its LiPo; FNIRSI's SWM-10 is €42.90 and welds 0.1-0.25 mm.",
-   "workshop": {
-    "usable": false,
-    "why": "on the build shelf, not the catalog"
-   }
+   "note": "€177.00 ex VAT as the page shows it. It needs a source of 800 A: `kweld_kcap`. Malectrics' V4 bundle is €148.75 without its LiPo; FNIRSI's SWM-10 is €42.90 and welds 0.1-0.25 mm."
   },
   {
    "id": "kweld_kcap",
@@ -3151,11 +2663,7 @@
    "why": {
     "dimensionsMm": "not recorded"
    },
-   "note": "€129.00 ex VAT as the page shows it; the bench supply charges it.",
-   "workshop": {
-    "usable": false,
-    "why": "on the build shelf, not the catalog"
-   }
+   "note": "€129.00 ex VAT as the page shows it; the bench supply charges it."
   },
   {
    "id": "engineer_pa09",
@@ -3179,11 +2687,7 @@
    "why": {
     "dimensionsMm": "not recorded"
    },
-   "note": "€39.99 ex VAT; ships from the Netherlands. The drivers' CAN and power leads.",
-   "workshop": {
-    "usable": false,
-    "why": "on the build shelf, not the catalog"
-   }
+   "note": "€39.99 ex VAT; ships from the Netherlands. The drivers' CAN and power leads."
   },
   {
    "id": "knipex_9762145a",
@@ -3207,11 +2711,7 @@
    "why": {
     "dimensionsMm": "not recorded"
    },
-   "note": "",
-   "workshop": {
-    "usable": false,
-    "why": "on the build shelf, not the catalog"
-   }
+   "note": ""
   },
   {
    "id": "pinecil_v2",
@@ -3238,11 +2738,7 @@
    "why": {
     "dimensionsMm": "not recorded"
    },
-   "note": "No supply included; the bench supply runs it off its barrel jack.",
-   "workshop": {
-    "usable": false,
-    "why": "on the build shelf, not the catalog"
-   }
+   "note": "No supply included; the bench supply runs it off its barrel jack."
   },
   {
    "id": "unit_ut161e",
@@ -3269,11 +2765,7 @@
    "why": {
     "dimensionsMm": "not recorded"
    },
-   "note": "The EU name of the UT61E+; Reichelt has it at €109.00.",
-   "workshop": {
-    "usable": false,
-    "why": "on the build shelf, not the catalog"
-   }
+   "note": "The EU name of the UT61E+; Reichelt has it at €109.00."
   },
   {
    "id": "proxxon_mc5",
@@ -3300,11 +2792,7 @@
    "why": {
     "dimensionsMm": "not recorded"
    },
-   "note": "The actuators' and frame's screws to their torques.",
-   "workshop": {
-    "usable": false,
-    "why": "on the build shelf, not the catalog"
-   }
+   "note": "The actuators' and frame's screws to their torques."
   },
   {
    "id": "wera_950pks9",
@@ -3328,11 +2816,7 @@
    "why": {
     "dimensionsMm": "not recorded"
    },
-   "note": "",
-   "workshop": {
-    "usable": false,
-    "why": "on the build shelf, not the catalog"
-   }
+   "note": ""
   },
   {
    "id": "bambu_p1s",
@@ -3363,11 +2847,7 @@
    "why": {
     "dimensionsMm": "not recorded"
    },
-   "note": "Enclosed, for PETG: the rack's trays, the tools' frames, the cable guides, the pack's case. The page says the VAT may change at checkout. The A1 (open) is €259.",
-   "workshop": {
-    "usable": false,
-    "why": "on the build shelf, not the catalog"
-   }
+   "note": "Enclosed, for PETG: the rack's trays, the tools' frames, the cable guides, the pack's case. The page says the VAT may change at checkout. The A1 (open) is €259."
   },
   {
    "id": "petg_1kg",
@@ -3391,11 +2871,7 @@
    "why": {
     "dimensionsMm": "a 1 kg spool"
    },
-   "note": "",
-   "workshop": {
-    "usable": false,
-    "why": "on the build shelf, not the catalog"
-   }
+   "note": ""
   },
   {
    "id": "dold_4040_1m",
@@ -3421,11 +2897,7 @@
    "capabilities": {},
    "feeds": [],
    "why": {},
-   "note": "€17.90 a metre and €1.00 a cut, so a metre in one piece is €18.90.",
-   "workshop": {
-    "usable": false,
-    "why": "on the build shelf, not the catalog"
-   }
+   "note": "€17.90 a metre and €1.00 a cut, so a metre in one piece is €18.90."
   },
   {
    "id": "donges_rope_ratchet_113",
@@ -3453,11 +2925,7 @@
     "massG": "given for the 68 kg one only",
     "dimensionsMm": "not recorded"
    },
-   "note": "The body's hanger, raised and lowered by hand. The 68 kg one is €14.99; the 113 kg one leaves the catch load its margin (the page's variant).",
-   "workshop": {
-    "usable": false,
-    "why": "on the build shelf, not the catalog"
-   }
+   "note": "The body's hanger, raised and lowered by hand. The 68 kg one is €14.99; the 113 kg one leaves the catch load its margin (the page's variant)."
   },
   {
    "id": "mammut_magic_sling_120",
@@ -3485,11 +2953,7 @@
     "massG": "not on the page",
     "dimensionsMm": "a 120 cm sling"
    },
-   "note": "No harness is sold for a robot: two slings round the torso, fore and aft, meet at the ratchet.",
-   "workshop": {
-    "usable": false,
-    "why": "on the build shelf, not the catalog"
-   }
+   "note": "No harness is sold for a robot: two slings round the torso, fore and aft, meet at the ratchet."
   },
   {
    "id": "hummelt_bungee_10m",
@@ -3516,11 +2980,7 @@
    "why": {
     "dimensionsMm": "10 m of 8 mm cord"
    },
-   "note": "Between the ratchet and the slings, doubled or tripled, so a fall is caught softly.",
-   "workshop": {
-    "usable": false,
-    "why": "on the build shelf, not the catalog"
-   }
+   "note": "Between the ratchet and the slings, doubled or tripled, so a fall is caught softly."
   }
  ],
  "build": {
@@ -3834,7 +3294,7 @@
     "basis": "",
     "leadTime": null,
     "why": {
-     "leadTime": "not read for this bill; the price is the workshop catalog's (#199, 2026-09-14)"
+     "leadTime": "not read for this bill; the price was read for #199 (2026-09-14)"
     },
     "note": "the claw's jaws, through a rack and pinion (#407); the rover's seed dispenser is retired -- no job ever used it"
    },
@@ -3850,7 +3310,7 @@
     "basis": "",
     "leadTime": null,
     "why": {
-     "leadTime": "not read for this bill; the price is the workshop catalog's (#199, 2026-09-14)"
+     "leadTime": "not read for this bill; the price was read for #199 (2026-09-14)"
     },
     "note": "the pen's sideways carriage (#406) and the claw's (#407), each its whole 100 mm stroke"
    },
@@ -3914,7 +3374,7 @@
     "basis": "",
     "leadTime": null,
     "why": {
-     "leadTime": "not read for this bill; the price is the workshop catalog's (#199, 2026-09-14)"
+     "leadTime": "not read for this bill; the price was read for #199 (2026-09-14)"
     },
     "note": "one a bay, the built-tool rail's three too (#407): what the rack reports (#351)"
    },

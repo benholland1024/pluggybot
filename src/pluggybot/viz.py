@@ -180,16 +180,9 @@ class Recorder:
 
 
   def rebind(self, model, data) -> None:
-    """A renderer is bound to its model (issue #168 slice C): a recompiled
-    world means a new one, the old closed first."""
-    old = getattr(self, "renderer", None)
-    if old is not None:
-      old.close()
+    """A renderer is bound to its model."""
     self.model = model
     self.renderer = mujoco.Renderer(model, self.height, self.width)
-    if getattr(self, "inset", None) is not None:
-      self.inset.close()
-      self._make_inset(model)
 
   def _make_inset(self, model) -> None:
     iw = self.width // 4

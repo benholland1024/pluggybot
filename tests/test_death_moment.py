@@ -45,10 +45,9 @@ def _life(**kw) -> HubLifecycle:
 
 def _quad() -> HubLifecycle:
   cfg = world_config(QUAD_HOME)
-  spec = world_spec(cfg["model"])
-  model = spec.compile()
+  model = world_spec(cfg["model"]).compile()
   return _born(HubLifecycle(model, mujoco.MjData(model), realtime=False,
-                            world=QUAD_HOME, spec=spec,
+                            world=QUAD_HOME,
                             battery_wh=cfg["battery_wh"], rack=cfg["rack"],
                             grid_bounds=cfg["grid_bounds"],
                             low_battery_wh=cfg["low_battery_wh"], mortal=True))
@@ -194,21 +193,17 @@ def test_a_death_on_a_pair_names_the_nearest_peer_and_how_far_off():
   assert peer._moment()["peer"]["dead"] == "flat"
 
 
-def test_setpoints_are_the_bodys_and_skip_what_is_gone(monkeypatch):
-  """An axis whose actuator the world no longer has (a retired built tool)
-  is left out rather than failing the death that reads it; the body's own
-  are there."""
+def test_setpoints_are_the_bodys_and_a_body_without_the_joint_reads_none():
+  """What a death reads: the body's own axes, and from a body with no
+  actuator for one (the stub's), nothing -- never a failed death."""
   from types import SimpleNamespace
   life = _quad()
   try:
     view = SimpleNamespace(body=life.body, model=life.model, data=life.data)
-    assert set(axes.setpoints(view, None)) == {"shoulder", "elbow"}
-    monkeypatch.setitem(axes.AXES, "gone.hinge", axes.Axis(
-      "gone.hinge", 0.0, 1.0, 1.0, "rad", "retired", requires="tool_gone",
-      actuator="tool_gone_hinge"))
-    assert set(axes.setpoints(view, "tool_gone")) == {"shoulder", "elbow"}
+    assert set(axes.setpoints(view)) == {"shoulder", "elbow"}
   finally:
     life.body.close()
+  assert axes.setpoints(stub_life()) == {}
 
 
 def test_a_moment_that_cannot_be_read_never_costs_the_death(monkeypatch):

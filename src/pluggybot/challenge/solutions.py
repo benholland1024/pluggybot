@@ -107,7 +107,7 @@ def job_routine(life, kind: str, world: str):
   task = life.tasks.offer(kind, TARGETS[kind], params=params, secret=secret, ttl=3000.0,
                           t=float(life.data.time))
   assert task is not None and life._claim_task(task.id), "the claim was refused"
-  library = lib.Library(world_facts(world, rack=life.rack_inventory))
+  library = lib.Library(world_facts(world))
   name = lang.parse(PROCEDURES[kind]).name
   library.define(name, PROCEDURES[kind])
   errand = errand_from(ov.Decision(action=f"procedure:{name}"), world, library=library)

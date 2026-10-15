@@ -38,9 +38,8 @@ class _Stop(Exception):
 
 def _world():
   cfg = world_config(QUAD_HOME)
-  spec = world_spec(cfg["model"])
-  model = spec.compile()
-  return cfg, spec, model, mujoco.MjData(model)
+  model = world_spec(cfg["model"]).compile()
+  return cfg, model, mujoco.MjData(model)
 
 
 def _board(tmp_path, tasks: bool, rebase: bool):
@@ -50,8 +49,8 @@ def _board(tmp_path, tasks: bool, rebase: bool):
 
 def _quad(tmp_path, tasks: bool = False, rebase: bool = True, **kw) -> HubLifecycle:
   """The served body in its house: for a claim about bodies, maps or senses."""
-  cfg, spec, model, data = _world()
-  return HubLifecycle(model, data, realtime=False, world=QUAD_HOME, spec=spec,
+  cfg, model, data = _world()
+  return HubLifecycle(model, data, realtime=False, world=QUAD_HOME,
                       battery_wh=cfg["battery_wh"], rack=cfg["rack"],
                       grid_bounds=cfg["grid_bounds"],
                       low_battery_wh=cfg["low_battery_wh"],
@@ -114,7 +113,7 @@ def test_the_physics_comes_back_exactly_and_the_warm_start_is_why():
   steps on bit for bit -- and without the solver's warm start the same
   step parts by 1e-12, which a parity check would read as a changed world.
   The premise half fails if a save stops carrying `qacc_warmstart`."""
-  _, _, model, data = _world()
+  _, model, data = _world()
   data.ctrl[:] = np.random.default_rng(0).uniform(-0.5, 0.5, model.nu)
   for _ in range(400):
     mujoco.mj_step(model, data)
@@ -144,7 +143,7 @@ def test_a_restore_steps_again_the_step_it_was_saved_after():
   step began and the restore steps it again: what a reader sees comes back
   bit for bit. The premise half: forwarded at the instant, none of it
   does; and a step whose input changed after it is not replayed."""
-  _, _, model, data = _world()
+  _, model, data = _world()
   rng = np.random.default_rng(0)
   last = continuation.LastStep(SimpleNamespace(model=model, data=data))
   for _ in range(400):
@@ -173,9 +172,9 @@ def test_a_restore_steps_again_the_step_it_was_saved_after():
 
 
 def test_a_body_is_put_back_by_name_not_by_where_it_sits_in_the_state():
-  """A built tool re-hung in another order, or a new build's world,
-  reorders `qpos`: the save names every joint (an unnamed one by its body)
-  and a world that lists them the other way round still gets each back."""
+  """A new build's world reorders `qpos`: the save names every joint (an
+  unnamed one by its body) and a world that lists them the other way round
+  still gets each back."""
   xml = """<mujoco><worldbody>
     <body name="{a}" pos="0 0 1"><freejoint/><geom size=".1"/></body>
     <body name="{b}" pos="1 0 1"><freejoint/><geom size=".1"/></body>
@@ -785,9 +784,9 @@ def test_a_map_that_does_not_fit_this_build_is_explored_again(tmp_path):
 
 
 def test_a_module_the_world_no_longer_has_is_not_restored_as_the_one_watched(tmp_path):
-  """`module` names what the power model watches; a retired built tool's
-  name restored there fails the next `module_state` read (found in
-  review)."""
+  """`module` names what the power model watches; a name the world lacks
+  restored there -- a built tool, in a world saved before #489 -- fails the
+  next `module_state` read (found in review)."""
   life = _stub(tmp_path)
   snap = _saved(life, tmp_path)
   snap.meta["robots"]["pluggybot"]["module"] = "module_retired_long_ago"

@@ -71,7 +71,6 @@ from pluggybot.mind import wiki as reading
 from pluggybot.mind.inbox import MAX_EARLIER, MAX_ID, clean
 from pluggybot.activity.cage import MOUSE_STATES
 from pluggybot.economy.questions import MAX_ANSWER, clean_answer
-from pluggybot.rack.coupling import BUILT_STATION_YS
 from pluggybot.mind import spend as spend_mod
 from pluggybot.mind.spend import SpendBook
 from pluggybot.economy.scoring import RewardTable, default_table
@@ -284,10 +283,6 @@ ACTIONS = ("take_task", "draw", "artwork", "census", "dance", "carry",
 #: product is a picture for the next MODEL turn (issue #275) -- an order
 #: fires exactly when there is no model to show it to.
 UNORDERABLE = ("recall", "look")
-#: The bays a built tool may take (issue #168), by letter: the grammar of
-#: `build_tool.bay`. One per station of the BUILT-TOOL RAIL (issue #277):
-#: the rail's count, not a choice here, and never the first rack's five.
-BAY_LETTERS = tuple(chr(ord("A") + i) for i in range(len(BUILT_STATION_YS)))
 #: `procedure` is a FAMILY, not a single action (issue #166): the concrete
 #: token is `procedure:<name>` for a procedure in the robot's library, and
 #: the name is enumerated per call like a task id. Only a menu built with
@@ -658,14 +653,6 @@ class Decision:
   #: told to stand clear of, a second snapshot, one verdict. Checked
   #: against the board where the board is, in the lifecycle, like `task`.
   done: str = ""
-  #: THE WORKSHOP'S TWO VERBS (issue #168), on `define`'s terms: `build_tool`
-  #: is `{"name", "bay", "spec"}` -- a tool to specify, price, print and
-  #: hang, validated and refused out loud by the workshop -- and
-  #: `retire_tool` names a built tool to take off the rack. Paperwork
-  #: fields, and no verb replaces: a bay is named, and whatever hangs
-  #: there goes.
-  build_tool: dict | None = None
-  retire_tool: str = ""
   #: ACTS TOWARD THE OTHER ROBOT (issue #208), paperwork on `pin`'s terms
   #: and offered only where there IS another robot (`Overseer._acts`). Each
   #: is measurable by code: `other_needs` is a guess
@@ -792,8 +779,6 @@ class Decision:
             **({"record": dict(self.record)} if self.record else {}),
             **({"retract": self.retract} if self.retract else {}),
             **({"done": self.done} if self.done else {}),
-            **({"buildTool": dict(self.build_tool)} if self.build_tool else {}),
-            **({"retireTool": self.retire_tool} if self.retire_tool else {}),
             **({"otherNeeds": self.other_needs} if self.other_needs else {}),
             **({"tell": dict(self.tell)} if self.tell else {}),
             **({"givePoints": dict(self.give_points)} if self.give_points else {}),
@@ -836,64 +821,6 @@ class Decision:
 # ---- the choices the world actually offers ----------------------------------
 
 
-#: The tool spec's shape, as `workshop/spec.py` documents it -- the fields
-#: are `spec.PART_FIELDS` / `AXIS_FIELDS`, and the optional ones stay
-#: optional (`required` names only what every part carries), so an idle
-#: `build_tool` is still `{"name": "", "bay": "", "spec": {"name": "",
-#: "parts": []}}` and the workshop's `parse` remains the judge of content.
-_NUMBERS = {"type": "array", "items": {"type": "number"}}
-
-
-def idle_build(shop: dict) -> bool:
-  """The `build_tool` a constrained decoder emits when the model is NOT
-  building. It is "not this time", on `pin: ""`'s terms, and is DROPPED
-  rather than sent to the workshop -- MEASURED (issue #264, ladder B):
-  sent, it was refused on 13 of 24 answers in one day, each a `tool` row
-  saying the robot had tried to build a tool it never described.
-
-  ⚠ THE PART LIST IS THE WHOLE TEST, AND A NAME COUNTS FOR NOTHING (issue
-  #315). The deployed pair specified 433 tools in seven days and every one
-  of them was this row:
-
-      {"name": "", "bay": "A", "spec": {"name": "scoop", "parts": []}}
-
-  -- `"scoop"` is the prompt's own worked example, and `spec.name` is a
-  required string the decoder has to fill with SOMETHING, so it fills it
-  with the nearest string the prefix offers. `parts` is the one required
-  field whose zero value the prompt cannot supply: an empty array is what
-  a decoder emits when the model meant nothing by the field. So a spec
-  naming no part describes nothing to build, whatever it is called, and
-  the outer name and the bay are read the same way -- the decoder fills an
-  enum with its first member (`"bay": "A"` beside an empty name and no
-  parts, measured on the second round). A build that names a part but gets
-  it wrong is a real attempt and reaches the workshop, which refuses it
-  out loud and says what the catalog holds (`workshop/spec.py`)."""
-  spec = shop.get("spec") if isinstance(shop.get("spec"), dict) else {}
-  parts = spec.get("parts") if isinstance(spec.get("parts"), list) else []
-  return not any(isinstance(p, dict) and (str(p.get("part") or "").strip()
-                                          or str(p.get("id") or "").strip())
-                 for p in parts)
-
-
-SPEC_SCHEMA = {
-  "type": "object", "additionalProperties": False,
-  "required": ["name", "parts"],
-  "properties": {
-    "name": {"type": "string"},
-    "parts": {"type": "array", "items": {
-      "type": "object", "additionalProperties": False,
-      "required": ["id", "part", "pos"],
-      "properties": {
-        "id": {"type": "string"}, "part": {"type": "string"},
-        "pos": _NUMBERS, "euler": _NUMBERS, "on": {"type": "string"},
-        "size": _NUMBERS,
-        "axis": {"type": "object", "additionalProperties": False,
-                 "required": ["verb", "dir", "range", "stow"],
-                 "properties": {"verb": {"type": "string"}, "dir": _NUMBERS,
-                                "range": _NUMBERS, "stow": {"type": "number"}}},
-      }}}}}
-
-
 #: WHAT THE ROBOT MAY WRITE, as an INDEX (issue #314): field -> (gate,
 #: section, one line). Every entry is a paperwork field on the decision
 #: schema -- a power the robot has that is not an action -- the line says
@@ -902,8 +829,8 @@ SPEC_SCHEMA = {
 #:
 #: ⚠ WHY IT EXISTS. The `WHAT YOU CAN DO, AND WHERE` block is a dump of
 #: `world`, whose `actions` key carried the MENU alone: twelve errands, and
-#: nothing saying the robot may write a procedure, build a tool, set its
-#: event map, record a finding, look something up or open a ticket. Those
+#: nothing saying the robot may write a procedure, set its event map,
+#: record a finding, look something up or open a ticket. Those
 #: were explained in prose sections further down and named NOWHERE ELSE, so
 #: a model reading the one block that claims to enumerate what it can do
 #: read twelve errands and stopped. Measured on the wire, 2026-09-22: the
@@ -993,11 +920,6 @@ FIELD_INDEX: tuple[tuple[str, str, object, str], ...] = (
    "topic}`. Code reads the number back."),
   ("retract", "procedures", "WHAT YOU HAVE MEASURED",
    "withdraw a finding of yours you have decided was wrong."),
-  ("build_tool", "workshop", "TOOLS YOU MAY BUILD",
-   "design a tool of your own from real parts and hang it in one of your "
-   "own bays: `{name, bay, spec}`."),
-  ("retire_tool", "workshop", "TOOLS YOU MAY BUILD",
-   "retire a tool you built, for good."),
   ("other_needs", "acts", "WHAT YOU CAN DO ABOUT THE OTHER ROBOT",
    "what you think the other robot needs right now."),
   ("tell", "acts", "WHAT YOU CAN DO ABOUT THE OTHER ROBOT",
@@ -1139,16 +1061,15 @@ UNSHOWN_PAPERWORK = ("buy_heart", "heart_for", "give_points", "rate",
 #: field is put in one of the three (`tests/test_placeholders.py`): what it
 #: leaves in force (`standing_order`, `event_map` -- a filled answer carried
 #: the heartbeat rule its robot lived by -- and `escalate`, about the
-#: decision itself); edits naming what they remove (`undefine` came with a
-#: `define` in every filled answer; `retire_tool`; `build_tool` is
-#: `idle_build`'s) -- but an `undefine` beside a define left out waits, as
-#: beside one the library refuses (#264); ids only an id matches
+#: decision itself); an edit naming what it removes (`undefine` came with a
+#: `define` in every filled answer) -- but an `undefine` beside a define
+#: left out waits, as beside one the library refuses (#264); ids only an id matches
 #: (`respond_to`, `cites`); a visitor's `reply` and its `outcome`, which
 #: ride an id only a waiting message has (and "5" answers a sum); the lab's
 #: two, beside the action.
 PLACEHOLDER_KEPT = ("standing_order", "event_map", "escalate", "undefine",
-                    "retire_tool", "build_tool", "respond_to", "cites",
-                    "reply", "outcome", "real", "mouse_will")
+                    "respond_to", "cites", "reply", "outcome", "real",
+                    "mouse_will")
 #: How many of the placeholders, as written, the record quotes back.
 WORDS_SHOWN = 3
 #: What a left-out field goes back to: its default on `Decision`.
@@ -1243,15 +1164,13 @@ class Menu:
   #: THE POWERS A MIND HAS (issue #427: every one of them was the
   #: `autonomous` arm's, keyed on a flag `build()` set on that arm alone, and
   #: there is one mind now). Each is set by `build()` and never by
-  #: `for_world`, NARROWED BY WHAT THE WORLD HAS -- a workshop where there are
-  #: built bays to hang on, a lab where there is a lab, the eye unless
-  #: `$PLUGGY_LOOK` turns it off -- and a bare menu has none of them.
+  #: `for_world`, NARROWED BY WHAT THE WORLD HAS -- a lab where there is a
+  #: lab, the eye unless `$PLUGGY_LOOK` turns it off -- and a bare menu has
+  #: none of them.
   #:
   #: Does this robot keep a library it may run from (issue #166)? See
   #: PROCEDURE_PREFIX.
   procedures: bool = False
-  #: ...and a workshop it may build tools in (issue #168)?
-  workshop: bool = False
   #: ...and a library it may read from (issue #216)? The `lookup` field,
   #: the `reading` block and the rule all key off it.
   wiki: bool = False
@@ -1349,8 +1268,8 @@ class Menu:
     order, and nothing for a power this world does not offer.
 
     ⚠ EVERY GATE IS THE ONE `schema` KEYS THE SAME FIELD OFF, read off the
-    same object where the flag lives on the menu (`procedures`, `workshop`,
-    `wiki`, `lab`, `tickets`) and handed in where it is the build's
+    same object where the flag lives on the menu (`procedures`, `wiki`,
+    `lab`, `tickets`) and handed in where it is the build's
     (`escalation`, `standing_orders`, `hearts`, `event_map`, `others`).
     The two cannot be kept in step by inspection, so they are not:
     `tests/test_powers.py` builds both off one `Overseer` and compares the
@@ -1377,7 +1296,6 @@ class Menu:
       "hearts": hearts,
       "event_map": event_map,
       "procedures": self.procedures,
-      "workshop": self.workshop,
       "acts": bool(others),
       # `decline` rides two slots, as it does on the schema (issues #228,
       # #226): an offer to press the shock plate is declinable by a robot
@@ -1459,7 +1377,6 @@ class Menu:
              task_ids: tuple | None = None,
              procedures: tuple | None = None,
              keeps: tuple | None = None,
-             tools: tuple | None = None,
              others: tuple | None = None,
              recall: bool = True,
              tickets: tuple | None = None,
@@ -1477,10 +1394,6 @@ class Menu:
     #221): the robot has run `MAX_RECALL_RUN` in a row, and the menu
     saying so is the `take_task`-with-an-empty-board pattern -- the world
     says what it allows, and the model cannot choose otherwise.
-
-    `tools` is the workshop's built tool names (issue #168), or None where
-    there is no workshop: `retire_tool` enumerates them and `build_tool`
-    appears at all only where the field can do something.
 
     `procedures` is the library's runnable names (issue #166), enumerated
     per call exactly as `task_ids` are: the family `procedure` becomes one
@@ -1535,7 +1448,6 @@ class Menu:
       + (["event_map"] if event_map else [])
       + (["define", "undefine", "done", "record", "retract"]
          if procedures is not None else [])
-      + (["build_tool", "retire_tool"] if tools is not None else [])
       + (["other_needs", "tell", "give_points", "heart_for", "rate"]
          if others is not None else [])
       # `decline` rides the acts' slot AND the lab's (issues #228, #226):
@@ -1662,21 +1574,6 @@ class Menu:
                                       # `findings/general`.
                                       "topic": {"type": "string"}}},
             "retract": {"type": "string"}} if procedures is not None else {}),
-        # THE WORKSHOP'S TWO VERBS (issue #168), on the library's terms: a
-        # tool to build (its name, the bay it takes, and its spec) and a
-        # built tool to retire. Absent where there is no workshop. The spec
-        # is DESCRIBED (`SPEC_SCHEMA`): the workshop still validates and
-        # refuses out loud, but a bare `{"type": "object"}` is refused by
-        # the stricter providers behind the router before any token is
-        # decoded (issue #225: "Object fields require at least one of:
-        # 'properties' or 'anyOf'"), which took every candidate on them
-        # to the prose retry and `constrained: false`.
-        **({"build_tool": {"type": "object", "additionalProperties": False,
-                           "required": ["name", "bay", "spec"],
-                           "properties": {"name": {"type": "string"},
-                                          "bay": enum(BAY_LETTERS),
-                                          "spec": SPEC_SCHEMA}},
-            "retire_tool": enum(tools)} if tools is not None else {}),
         # BUY A LIFE BACK (issue #136). A plain boolean and ABSENT where
         # there are no hearts to buy, on ESCALATION_RULE's terms: a lever
         # that does nothing must not be offered, because a field the world
@@ -1789,7 +1686,6 @@ class Menu:
                standing_orders: bool = False,
                event_map: bool = False,
                procedures: tuple | None = None,
-               tools: tuple | None = None,
                others: tuple | None = None,
                recall: bool = True,
                tickets: tuple | None = None,
@@ -1983,17 +1879,6 @@ class Menu:
                   "method": clean(finding.get("method"), MAX_LINE_CHARS),
                   "topic": clean(finding.get("topic"), MAX_ID)}
       retract = clean(raw.get("retract"), MAX_LINE_CHARS)
-    build_tool, retire_tool = None, ""
-    if tools is not None:
-      shop = raw.get("build_tool")
-      if (isinstance(shop, dict) and isinstance(shop.get("spec"), dict)
-          and not idle_build(shop)):
-        # NOT validated here: the workshop refuses out loud with every
-        # reason, narrated and on the wire, which is the interesting path.
-        build_tool = {"name": clean(shop.get("name"), MAX_ID),
-                      "bay": clean(shop.get("bay"), 1).upper(),
-                      "spec": dict(shop.get("spec"))}
-      retire_tool = clean(raw.get("retire_tool"), MAX_ID)
     # The acts (issue #208): DROPPED where no other robot was offered, on
     # the standing order's terms; where one was, a name not on the list
     # or a shape that is not one is dropped too -- the decision stands,
@@ -2129,7 +2014,6 @@ class Menu:
                     event_map=emap.rows if emap is not None else (),
                     define=define, undefine=undefine, done=done,
                     record=record, retract=retract,
-                    build_tool=build_tool, retire_tool=retire_tool,
                     other_needs=other_needs, tell=tell, give_points=give,
                     heart_for=heart_for, rate=rate, decline=decline,
                     lookup=lookup,
@@ -2948,9 +2832,8 @@ def other_robot_rule(names) -> str:
 
 #: What the robot is told about the procedures it may write (issue #166).
 #: Built by a function because the verb, axis and sensor lists come off the
-#: registries (procedure/axes.py), which a tool built from a spec (#168)
-#: will grow; the text is byte-stable for a given set of registrations,
-#: which is what the cached prefix needs.
+#: registries (procedure/axes.py) and what the world has; the text is
+#: byte-stable for a given world, which is what the cached prefix needs.
 #:
 #: ⚠ NO WORKED EXAMPLE HERE MAY MENTION CHARGING, A BATTERY THRESHOLD OR THE
 #: RACK -- `EVENT_MAP_RULE`'s rule, for the same reason: a procedure that
@@ -3098,80 +2981,6 @@ def procedure_rule(swaps: bool = False, places: bool = False,
                  for n in axes.LEGS_SENSORS + (axes.CLAW_SENSORS if cubes else ()))
   return (head % {"cap": MAX_PROCEDURES, "drivers": drivers} + verbs
           + PROCEDURE_TAIL + ax + PROCEDURE_SENSORS + se)
-
-
-#: What the robot is told about the tools it may build (issue #168), where
-#: the world has built bays, beside the procedure rule. Built by a function
-#: because the parts list comes off the catalog (`rack/catalog.py`) and the
-#: envelope off `rack/coupling.py`'s constants -- the same numbers the
-#: validator refuses against, so the robot is never told a rule the code
-#: does not keep. Byte-stable for a given catalog, which the cached prefix
-#: needs.
-#:
-#: ⚠ NO WORKED EXAMPLE HERE MAY MENTION CHARGING, A BATTERY THRESHOLD OR
-#: THE ROBOT'S SURVIVAL -- `EVENT_MAP_RULE`'s rule (a test reads the
-#: example block). The scoop below is a capability, not a policy.
-WORKSHOP_HEAD = """\
-TOOLS YOU MAY BUILD
-
-You may design a tool from real, purchasable parts and hang it on your own
-rail: `build_tool: {"name": "<name>", "bay": "<%(bays)s>", "spec": {...}}` on
-any answer. It costs no turn to say, but it costs POINTS and TIME: the parts
-at the catalog's price (one point per euro; printed plastic by the gram),
-then the print and assembly time standing still. Unaffordable is refused
-before anything is bought; a spec outside your arm's envelope is refused
-with every reason at once and nothing is spent. The original tools hang in
-the rack's own bays and are permanent -- no bay of theirs can be named and
-none of them can be retired -- and the rail that carries on along the same
-board, with %(count)s bays, %(bays)s, is yours. The bay you name is taken: a tool
-of yours already hanging there is retired for good. `retire_tool: "<name>"`
-takes a tool of yours off your rail and leaves its bay empty. There is no
-replace. `rack` in your context says where each tool is -- `original` the
-originals, `built` your bays -- and `tools` lists what you built, with its
-spec.
-
-A built tool's axes appear in the procedure language as `<name>.<verb>`,
-so `move("scoop.tilt", 1.2)` moves a servo you specified, and
-`read("scoop.tilt")` reads it. A part whose catalog line says `sense contact`
-(a microswitch) appears as `<name>.<id>.contact`: `read()` gives 1 while that
-part touches something outside the tool. Fetch a tool like any module:
-`fetch("module_<name>")`.
-
-THE SPEC. Parts by catalog id, positioned in the module's frame in
-millimetres: +x is toward you when you carry it (-x toward the rack's board
-when it hangs), z up, the peg's axis along y at z = %(peg_z).0f. The plate
-(%(plate)s mm) and the %(peg_mm).0f mm peg are made for you and are not in
-the spec. Each part: `id`, `part`, `pos` [x, y, z] mm, optional `euler` [deg],
-optional `on` (another part's id; default the plate). A scaffold part carries
-`size` [mm]. An actuator carries `axis`: {"verb", "dir" [unit vector], "range"
-[lo, hi] (degrees for a servo, mm for a screw), "stow"}. A part `on` an
-actuator rides its axis. Nothing else -- there is no field for a mass, a
-friction, a solver option, and an unknown field is refused.
-
-  {"name": "scoop", "parts": [
-    {"id": "hinge", "part": "servo_fs90", "pos": [0, 0, -50],
-     "axis": {"verb": "tilt", "dir": [0, 1, 0], "range": [0, 90], "stow": 0}},
-    {"id": "blade", "part": "scaffold_pla_box", "size": [4, 30, 70],
-     "pos": [0, 0, -45], "on": "hinge"}]}
-
-THE ENVELOPE, refused, never warned about: total mass with the plate and peg
-under %(mass_g).0f g; at its stow pose its centre of mass under the peg's axis,
-within %(tilt)g degrees of plumb (nothing holds a hung tool level); at every
-pose its centre of mass on the peg's line or ahead of it, at most %(ahead_mm).0f
-mm, and its moment about the peg under %(moment).2f N·m; nothing more than
-%(drop_mm).0f mm under the peg at any pose (carried, it would cross your scan
-plane); nothing behind the plate's back face, where the fork is; nothing where
-the fork's V's or the rack's trays hold the peg's ends; hung, nothing nearer
-the rack's board than %(board_mm).0f mm, which stands %(board_off).0f mm ahead
-of the peg, and nothing in front of the plate beside its middle at the height
-of its bay's tags, which you find the bay by; the parts' draw plus the
-module's own %(idle_w).1f W under %(peg_w).1f W; every printed box within a
-%(bed)s mm bed. The scoop above passes.
-
-THE CATALOG -- what a tool may be built from. A part the catalog does not
-fully know (a candidate, an unknown mass or draw) cannot be built from, and
-the refusal says why.
-"""
 
 
 CHALLENGE_RULE = """\
@@ -3325,56 +3134,6 @@ told go in your notes, not here. It has a size limit and refuses when full.
 """ % {"name": FINDINGS}
 
 
-def workshop_rule() -> str:
-  from pluggybot.legs import arm as am
-  from pluggybot.legs import rack as rk
-  from pluggybot.power import MODULE_IDLE_W
-  from pluggybot.rack import catalog, coupling
-  from pluggybot.workshop import cost, validate
-  from pluggybot.workshop.spec import unbuildable
-  lines = []
-  for part in catalog.PARTS:
-    if "catalog" not in part.shelves:
-      continue
-    cap = part.capabilities
-    bits = [part.kind, part.status]
-    if part.massG is not None:
-      bits.append(f"{part.massG:g} g")
-    if part.priceEur is not None:
-      bits.append(f"€{part.priceEur:.2f} {part.priceFor}")
-    if part.dimensionsMm:
-      bits.append("size " + " × ".join(f"{v:g}" if isinstance(v, (int, float)) else str(v)
-                                        for v in part.dimensionsMm.values()) + " mm")
-    for key in ("motion", "angleDeg", "strokeMm", "torqueNm", "forceN",
-                "speedDegS", "speedMmS", "powerW", "sense", "fovVDeg",
-                "densityKgM3"):
-      if key in cap and cap[key] is not None:
-        bits.append(f"{key} {cap[key]}")
-    if part.kind == "scaffold":
-      bits.append(f"€{cost.FILAMENT_EUR_PER_KG:g}/kg, "
-                  f"bed {' × '.join(str(v) for v in cap['printBedMm'].values())} mm")
-    why = unbuildable(part)
-    if why:
-      bits.append("CANNOT BE BUILT FROM: " + why)
-    lines.append(f"  {part.id}: {part.name} -- " + ", ".join(bits))
-  scaffold = catalog.by_id()["scaffold_pla_box"].capabilities["printBedMm"]
-  head = WORKSHOP_HEAD % {
-    "bays": "-".join((BAY_LETTERS[0], BAY_LETTERS[-1])),
-    "count": len(BAY_LETTERS),
-    "peg_z": coupling.PEG_ABOVE_BODY * 1000, "peg_mm": 2 * rk.PEG_HALF * 1000,
-    "plate": " x ".join(f"{2 * h * 1000:.0f}" for h in (coupling.TOOL_HALF_X,
-                                                        coupling.TOOL_HALF_Y,
-                                                        coupling.TOOL_HALF_Z)),
-    "mass_g": am.TOOL_MAX_KG * 1000, "tilt": rk.HUNG_TILT_DEG,
-    "ahead_mm": am.TOOL_MAX_AHEAD_M * 1000, "moment": am.TOOL_MAX_MOMENT_NM,
-    "drop_mm": am.TOOL_MAX_DROP_M * 1000,
-    "board_mm": validate.BOARD_CLEAR_M * 1000, "board_off": -validate.BOARD_X * 1000,
-    "idle_w": MODULE_IDLE_W, "peg_w": coupling.PEG_POWER_W,
-    "bed": " × ".join(str(v) for v in scaffold.values()),
-  }
-  return head + "\n".join(lines) + "\n"
-
-
 #: THE LIBRARY (issue #216), a mind's. Says what the
 #: field does and what comes back, and PRESCRIBES NOTHING about what to
 #: read or what to make of it: the metric is whether an idea can be traced
@@ -3510,7 +3269,6 @@ def system_sections(thoughts: ThoughtFiles, menu: Menu,
                     event_map: bool = False,
                     seeded: bool = True,
                     procedures: bool = False,
-                    workshop: bool = False,
                     others: tuple = (),
                     acts: bool = False,
                     wiki: bool = False,
@@ -3642,8 +3400,6 @@ def system_sections(thoughts: ThoughtFiles, menu: Menu,
                                                          menu.cubes, menu.surveys)),
                ("CHALLENGES", CHALLENGE_RULE),
                ("WHAT YOU HAVE MEASURED", FINDINGS_RULE)]
-  if workshop:
-    tail.append(("TOOLS YOU MAY BUILD", workshop_rule()))
   if others:
     tail.append(("THE OTHER ROBOT", other_robot_rule(others)))
   if others and acts:
@@ -4020,7 +3776,6 @@ class Overseer:
                calls_per_hour: int = CALLS_PER_HOUR,
                timeout_s: float | None = None,
                library=None,
-               workshop=None,
                others: tuple = (),
                wiki: "reading.Wiki | None" = None,
                clock: Callable[[], float] = time.monotonic) -> None:
@@ -4168,8 +3923,6 @@ class Overseer:
     #: puts `procedure:<name>` on the menu, the two fields in the schema and
     #: the rule in the prompt.
     self.library = library
-    #: THE WORKSHOP (issue #168), or None, on the library's terms exactly.
-    self.workshop = workshop
     #: THE LIBRARY'S DESK (issue #216), or None. `menu.wiki` is what offers
     #: the field; this is what performs the read, and `_call` reads through
     #: it on the worker thread once an answer stands.
@@ -4244,7 +3997,6 @@ class Overseer:
                      event_map=self.event_map is not None,
                      seeded=origin != "unseeded",
                      procedures=self.library is not None,
-                     workshop=self.workshop is not None,
                      others=self.others,
                      acts=self._acts() is not None,
                      wiki=self.menu.wiki,
@@ -4487,7 +4239,6 @@ class Overseer:
                                     task_ids=self._task_ids(offered),
                                     procedures=self._procedures(),
                                     keeps=self._keeps(),
-                                    tools=self._tools(),
                                     others=self._acts(),
                                     recall=recall,
                                     tickets=self._ticket_ids(state),
@@ -4502,7 +4253,7 @@ class Overseer:
                                   standing_orders=True,
                                   event_map=self.event_map is not None,
                                   procedures=self._procedures(),
-                                  tools=self._tools(), others=self._acts(),
+                                  others=self._acts(),
                                   recall=recall,
                                   tickets=self._ticket_ids(state),
                                   look=look)
@@ -5129,11 +4880,6 @@ class Overseer:
         hook(event)
     return decision
 
-  def _tools(self) -> tuple | None:
-    """The workshop's built tool names for `retire_tool`'s grammar, or
-    None where there is no workshop -- `_procedures`' shape."""
-    return self.workshop.names() if self.workshop is not None else None
-
   def _acts(self) -> tuple | None:
     """The other robots' names, for the acts' grammar (issue #208) -- or
     None where there is no other robot to act toward."""
@@ -5199,7 +4945,6 @@ class Overseer:
                                     task_ids=self._task_ids(offered),
                                     procedures=self._procedures(),
                                     keeps=self._keeps(),
-                                    tools=self._tools(),
                                     others=self._acts(),
                                     recall=recall,
                                     tickets=self._ticket_ids(state),
@@ -5220,10 +4965,10 @@ class Overseer:
                                     standing_orders=True,
                                     event_map=self.event_map is not None,
                                     procedures=self._procedures(),
-                                  tools=self._tools(), others=self._acts(),
-                                  recall=recall,
-                                  tickets=self._ticket_ids(state),
-                                  look=look)
+                                    others=self._acts(),
+                                    recall=recall,
+                                    tickets=self._ticket_ids(state),
+                                    look=look)
       self._note_unconstrained()
       # ...and, if the robot asked for a bigger mind and code agrees it can
       # afford one, the answer this returns is the expensive one's (issue
@@ -5344,8 +5089,6 @@ class Overseer:
   def stats(self) -> dict:
     lib = ({"library": self.library.stats()} if self.library is not None
            else {})
-    if self.workshop is not None:
-      lib["workshop"] = self.workshop.stats()
     if self.wiki is not None:
       # WHAT IT READ (issue #216), and what the ration refused, by reason:
       # a robot that keeps asking and keeps being refused is a share set
@@ -5726,16 +5469,7 @@ def build(world: str, book=None, enabled: bool | None = None,
           else None)
   library = Library(world_facts(world), root=root)
   menu = replace(menu, procedures=True)
-  # THE WORKSHOP (issue #168), beside the library -- where the world has a
-  # built-tool rail to hang on (issue #277): a world without one has no
-  # `build_tool` in its grammar, the tower's shape.
-  workshop = None
-  if world_config(world).get("built_bays"):
-    from pluggybot.workshop.library import Workshop
-    workshop = Workshop(root=(thoughts.root / "tools" if thoughts.root is not None
-                              else None))
-    menu = replace(menu, workshop=True)
-  # THE LIBRARY (issue #216), beside the other two. The ledger is what pays
+  # THE LIBRARY (issue #216), beside the procedure library. The ledger is what pays
   # the throttle off; the fetch is the real one.
   desk = reading.Wiki(ledger=ledger)
   menu = replace(menu, wiki=True)
@@ -5796,7 +5530,7 @@ def build(world: str, book=None, enabled: bool | None = None,
                       # configuring anything.
                       origin=origin,
                       show_survival=show_survival,
-                      calls_per_hour=calls_per_hour, library=library, workshop=workshop,
+                      calls_per_hour=calls_per_hour, library=library,
                       others=others, wiki=desk,
                       # None is the backend's own deadline, as every served
                       # world runs; the probe hands in its own cap (issue

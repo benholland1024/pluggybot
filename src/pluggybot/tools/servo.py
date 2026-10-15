@@ -1,6 +1,5 @@
-"""A tool's own servos, walked (issue #407): the claw's slide and jaws, and
-any axis a built tool registers (`workshop/build.py`, `procedure/axes.py`)
--- the one path a module's position servo is commanded through on legs.
+"""A tool's own servos, walked (issue #407): the claw's slide and jaws --
+the one path a module's position servo is commanded through on legs.
 
 Every setpoint is RAMPED, never written across a gap (CLAUDE.md): a stiff
 servo handed a step delivers an impulse, and on the rover that threw a

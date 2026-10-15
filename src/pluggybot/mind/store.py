@@ -2,8 +2,8 @@
 the files on the volume as its only implementation.
 
 Every document in `mind/text.py`'s registry -- the thought files, the
-procedure library, the tool records -- is persisted through a `Store`, and
-NOTHING ELSE in `mind/`, `procedure/` or `workshop/` touches the disk
+procedure library, the tickets -- is persisted through a `Store`, and
+NOTHING ELSE in `mind/` or `procedure/` touches the disk
 (`tests/test_text.py` walks their syntax trees for a write). That is the
 whole point of the seam: the memory mechanism is to be rethought once
 (#221), and a rethink is one new `Store` rather than a change per
@@ -14,13 +14,12 @@ rendered from have their own seam, `mind/memory.py`.
 Two implementations, and their behaviour is asserted identical:
 
   `FileStore(root)`   the volume. A key is a relative path under `root`
-                      (`Main.md`, `procedures/sun.procedure`,
-                      `tools/scoop.tool.json`); a write is ATOMIC (a temp
-                      file and `os.replace`, so a crash mid-write keeps
-                      the old document); `archive` renames a document to
-                      `<stem>.<n><suffix>` beside a fresh one (a true
-                      death, issue #136: the evidence stays on the volume
-                      where the operator looks).
+                      (`Main.md`, `procedures/sun.procedure`); a write is
+                      ATOMIC (a temp file and `os.replace`, so a crash
+                      mid-write keeps the old document); `archive` renames
+                      a document to `<stem>.<n><suffix>` beside a fresh one
+                      (a true death, issue #136: the evidence stays on the
+                      volume where the operator looks).
   `MemoryStore()`     a dict, for a unit test and a demo with no state
                       directory. Reads back what was written and nothing
                       else; `archive` keeps the old text under the same

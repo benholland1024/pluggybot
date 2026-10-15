@@ -164,16 +164,6 @@ class PolicyDriver:
     self.gyro_adr = model.sensor_adr[self.gyro]
     self.every = max(1, round(self.policy.period / model.opt.timestep))
 
-  def rebind(self, model, data) -> None:
-    """A recompiled world (issue #407): its drivers and its ids, by name;
-    what it is in the middle of -- its last action, its target, its step
-    count -- is state and stays. A carried tool's scan exclusion is the
-    body's to set again (`QuadMission.carry`)."""
-    self.drivers.rebind(model, data)
-    self._resolve(model, data)
-    if self.arm is not None:
-      self.arm.rebind(model, data)
-
   def observation(self, twist: Twist) -> np.ndarray:
     """The policy's input, term by term in the order its file names them
     (`observation_names`): a walking, a posture and a get-up policy share the

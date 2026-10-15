@@ -144,11 +144,6 @@ class Body(abc.ABC):
     it returned: the blocking twin of `yield from`."""
 
   @abc.abstractmethod
-  def rebind(self, model, data) -> None:
-    """Point everything at a recompiled world (issue #168): state stays,
-    ids are re-resolved by name."""
-
-  @abc.abstractmethod
   def kept_state(self) -> tuple[dict, dict]:
     """What this body believes, for a restart (issue #345): JSON and
     arrays."""
@@ -833,9 +828,6 @@ class StubBody(Body):
 
   def run(self, routine, name=""):
     return tick.run(self._stepper, routine, name)
-
-  def rebind(self, model, data) -> None:
-    self._model, self._data = model, data
 
   def kept_state(self):
     return {"pose": [self.x, self.y, self.theta], "holding": self.holding,

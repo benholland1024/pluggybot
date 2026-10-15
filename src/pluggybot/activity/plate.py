@@ -166,7 +166,6 @@ class PlateLight(Activity):
   def __init__(self, model, data, prefix: str = "garden",
                name: str | None = None) -> None:
     super().__init__(name or f"{prefix}_light")
-    self.prefix = prefix
     self.sensor_adr = int(model.sensor(f"{prefix}_plate_pos").adr[0])
     self.press = Threshold(on=PLATE_ON, off=PLATE_OFF)
     self.latch = Threshold(on=0.5, latch=True)
@@ -176,10 +175,6 @@ class PlateLight(Activity):
     })
     self.lamp.select("off")
     self.set(state="off", pressed=False, depressMm=0.0)
-
-  def rebind(self, model, data) -> None:
-    self.sensor_adr = int(model.sensor(f"{self.prefix}_plate_pos").adr[0])
-    self.lamp.rebind(model)
 
   def kept_state(self) -> dict:
     return {**super().kept_state(), "pressed": self.press.value,

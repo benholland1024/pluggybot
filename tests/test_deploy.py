@@ -129,8 +129,7 @@ from pluggybot.robot import world_spec
 from pluggybot.telemetry.publisher import WsPublisher
 
 cfg = world_config(QUAD_HOME)
-spec = world_spec(cfg["model"], body=cfg["body"])
-model = spec.compile()
+model = world_spec(cfg["model"], body=cfg["body"]).compile()
 data = mujoco.MjData(model)
 book = board_book(QUAD_HOME, state=None)
 # The overseer is built and its client is resolved (issue #15): `anthropic`
@@ -143,7 +142,7 @@ assert boss.client is not None, boss.usage.errors
 # The lab's job, compiled as the loop builds it from an offer; the served
 # world starts with no errand queue of its own.
 assert errands_for("feed", QUAD_HOME, book)[0].program is not None
-life = HubLifecycle(model, data, spec=spec, battery_wh=cfg["battery_wh"],
+life = HubLifecycle(model, data, battery_wh=cfg["battery_wh"],
                     rack=cfg["rack"], grid_bounds=cfg["grid_bounds"],
                     low_battery_wh=cfg["low_battery_wh"], world=QUAD_HOME,
                     overseer=boss, near_field=True,

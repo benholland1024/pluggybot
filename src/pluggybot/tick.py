@@ -125,12 +125,6 @@ def run_many(pairs, name: str = "", step=None) -> list:
     import mujoco
 
     def step():
-      # ⚠ READ OFF THE STEPPER EVERY STEP, never captured once (issue
-      # #315). A tool built mid-run recompiles the world, and
-      # `spec.recompile` returns NEW MjModel / MjData objects: a closure
-      # that bound them at loop start would go on stepping the world the
-      # robots left, while every rebound holder read the new one. The
-      # stepper is rebound, so it always knows which world this is.
       mujoco.mj_step(steppers[0].model, steppers[0].data)
   cmds = [st.tick() for st in steps]
   while any(c is not None for c in cmds):

@@ -380,11 +380,7 @@ def serve(watchdog: "vitals.Watchdog") -> str | None:
   # clock goes on decides what an offer's deadline means.
   opened = open_world(args.world_state, args.world)
   snap = opened.snapshot
-  # Compiled FROM ITS SPEC and the spec kept (issue #168 slice C), so a
-  # tool the agent builds can be hung mid-run; measured identical to
-  # `from_xml_path` (tests/test_recompile.py).
-  spec = world_spec(cfg["model"], body=cfg["body"])
-  model = spec.compile()
+  model = world_spec(cfg["model"], body=cfg["body"]).compile()
   data = mujoco.MjData(model)
   # Board state is the world's, not the run's: loaded before the mission and
   # written back on every stroke, so a restart walks into the house it left.
@@ -495,7 +491,7 @@ def serve(watchdog: "vitals.Watchdog") -> str | None:
   # what economy/energy.py enforces and what stops a mid-errand death.
   pack_wh = (cfg["battery_wh"] if args.pack == "demo"
              else cfg["hosting_battery_wh"])
-  life = HubLifecycle(model, data, inbox=inbox, spec=spec,
+  life = HubLifecycle(model, data, inbox=inbox,
                       battery_wh=args.battery_wh or pack_wh,
                       rack=cfg["rack"], grid_bounds=cfg["grid_bounds"],
                       low_battery_wh=(args.reserve_wh
@@ -575,12 +571,10 @@ def serve(watchdog: "vitals.Watchdog") -> str | None:
   activities = cfg["activities"](model, data) if cfg["activities"] else None
   if activities is not None:
     life.body.step_hooks.append(activities.step_hook(model, data))
-    # ...and the lifecycle holds them, as `run_demo` and a pair's does: a
-    # recompile rebinds them through it, the mouse's context reads them,
-    # and a restart keeps them (issue #345).
+    # ...and the lifecycle holds them, as `run_demo` and a pair's does: the
+    # mouse's context reads them, and a restart keeps them (issue #345).
     life.activities = activities
   life.restart_note = opened.why
-  # Read through `life`: a recompile replaces its MjData (issue #315).
   watchdog.sim_time = lambda: life.data.time
   publisher = WsPublisher(model, data, args.endpoint,
                           model_name=cfg["model_name"],
@@ -619,9 +613,6 @@ def serve(watchdog: "vitals.Watchdog") -> str | None:
                           robot_name=args.robot_name,
                           build=identity)
   life.body.step_hooks.append(publisher.step_hook)
-  # A recompiled world (issue #168): the publisher's census and the pacer's
-  # clock follow it, or they would describe a world that no longer exists.
-  life.on_rebind.append(publisher.rebind)
   life.say_hooks.append(publisher.event)
   # ...and dying / being reset are typed events too (issue #107).
   life.on_event.append(publisher.message)
@@ -658,7 +649,6 @@ def serve(watchdog: "vitals.Watchdog") -> str | None:
   if not args.free_run:
     pacer = RealTimePacer(data, rate=args.rate)
     life.body.step_hooks.append(pacer.step_hook)
-    life.on_rebind.append(pacer.rebind)
   recorder = None
   if args.record is not None:
     recorder = TelemetryRecorder(model, data, args.record,
@@ -678,7 +668,6 @@ def serve(watchdog: "vitals.Watchdog") -> str | None:
                                  grid=life.body.grid,
                                  heightmap=life.near_field)
     life.body.step_hooks.append(recorder.step_hook)
-    life.on_rebind.append(recorder.rebind)
     if book is not None:
       book.on_event.append(recorder.emit)
     ledger.on_event.append(recorder.emit)
@@ -715,9 +704,6 @@ def serve(watchdog: "vitals.Watchdog") -> str | None:
     if keeper is not None:
       keeper.save()
   except Exception as e:
-    # ⚠ `life.data`, never the local bound at setup: a recompiled world is
-    # NEW MjData (issue #315) and a crash message off the old one reports a
-    # sim time the run left behind.
     say_crash(e, life.data, publisher, recorder)
     raise
   finally:
@@ -848,14 +834,8 @@ def serve_pair(args, flags: dict, rung, origin, watchdog) -> str | None:
               if args.record is not None else None)
   sinks = [publisher.message] + ([recorder.emit] if recorder else [])
   first.body.step_hooks.append(publisher.step_hook)
-  # A recompiled world (issues #168, #315): the publisher's census follows
-  # it, or it describes a world that no longer exists. Registered on the
-  # FIRST robot, where its step hook is -- `_recompile` rebinds every
-  # lifecycle, so a tool the SECOND robot builds arrives here too.
-  first.on_rebind.append(publisher.rebind)
   if recorder is not None:
     first.body.step_hooks.append(recorder.step_hook)
-    first.on_rebind.append(recorder.rebind)
   for life in lives:
     root = life.body.handle.root
     # A narration line says WHOSE it is, so the observatory files it under
@@ -902,7 +882,6 @@ def serve_pair(args, flags: dict, rung, origin, watchdog) -> str | None:
   if not args.free_run:
     pacer = RealTimePacer(data, rate=args.rate)
     first.body.step_hooks.append(pacer.step_hook)
-    first.on_rebind.append(pacer.rebind)
   attach_mode_stream(first, sinks, pacer=pacer)
   keeper = keep_world(lives, args.world_state)
   maker = first.producer

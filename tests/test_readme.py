@@ -84,13 +84,13 @@ def test_every_loop_label_line_fits_the_renderers_width_cap():
 def test_the_memory_diagram_names_exactly_the_robots_verbs_and_real_states():
   loop, memory = _mermaid_blocks()
   # EVERY document's verbs, not the `.md` files' alone: the procedural tier
-  # (the library and the workshop) is memory too, and comparing against
-  # `text.FILES` is how it went missing from the first draft.
+  # (the library) is memory too, and comparing against `text.FILES` is how
+  # it went missing from the first draft.
   verbs = {v for s in text.DOCUMENTS for v in s.verbs}
   assert _diagram_verbs(memory) == verbs
   # The states drawn beside the tiers are the loop's, not invented for the
   # picture; a node like `USE_TOOL / SWAP_RETURN` names two.
   drawn = set(re.findall(r"\b([A-Z][A-Z_]{3,})\b", memory))
   drawn -= {"LR", "TB", "MAIN", "GOALS", "TOP", "NOTES", "FIND", "HIST", "USE",
-            "VISITOR", "PROCS", "TOOLS", "TICKETS"}
+            "VISITOR", "PROCS", "TICKETS"}
   assert drawn <= _state_names(loop), drawn - _state_names(loop)

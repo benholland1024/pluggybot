@@ -31,8 +31,8 @@ public, how far such an agent gets and where it stops.
 1. **Capability.** Can it acquire arbitrary new skills by its own effort?
    Measured as learning efficiency: how much experience it takes to reach a
    threshold on a task new to it, with real attempts, imagination compute,
-   LLM tokens and human help kept apart (#465). The tools it builds and the
-   procedures it writes are routes to a skill, not the definition of one.
+   LLM tokens and human help kept apart (#465). The procedures it writes
+   are routes to a skill, not the definition of one.
 2. **Empathy.** Can it tell when the beings around it have minds — other
    PluggyBots and people — and make reasonable predictions about their
    behaviour, mood and opinions?
@@ -66,8 +66,8 @@ asked to maximise on our behalf.
 - **Hardware honesty.** Every part is a real part (Parts.md), every sensor is
   modelled with its blind spots, and nothing reaches the robot over the wire
   that a sensor would have to discover (TaskPattern.md §2). It began as a
-  build plan; it is now also what keeps the research honest — an agent-built
-  tool is only a result if the parts exist.
+  build plan; it is now also what keeps the research honest — a result
+  counts only if the parts behind it exist.
 - **An LLM in the loop, and the agent's own ML later.** Today the mind picks
   what to do; the direction is an agent that practises a skill in its own
   simulation and trains it there (#465, #281).

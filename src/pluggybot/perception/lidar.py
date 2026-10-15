@@ -83,7 +83,6 @@ class Lidar:
                sigma_frac: float = 0.01, dropout: float = 0.02,
                robot_body: str = "pluggybot", seed: int = 0) -> None:
     self.model = model
-    self.site_name, self.robot_body = site_name, robot_body
     self.site_id = model.site(site_name).id
     self.n_rays = n_rays
     self.max_range = max_range
@@ -122,10 +121,8 @@ class Lidar:
     #: all. Dropping them outright left the one moving obstacle in the
     #: world invisible to every sensor on board.
     self._other_geoms: set = set()
-    self._other_roots: list[str] = []
     #: A tool riding this robot's fork (issue #405): its own for the scan,
     #: as its body is -- the fork carries it through the plane at the rack.
-    self._carried: str | None = None
     self._carried_geoms: set = set()
     self._dist = np.zeros(n_rays)
     self._hit = np.zeros(n_rays, dtype=np.int32)
@@ -136,28 +133,13 @@ class Lidar:
     self._self_ids = np.fromiter(self._self_geoms | self._carried_geoms, dtype=np.int32)
     self._other_ids = np.fromiter(self._other_geoms, dtype=np.int32)
 
-  def rebind(self, model) -> None:
-    """A recompiled world: the site and the geom sets by name again
-    (issue #168 slice C). The excluded OTHER robots are re-resolved too."""
-    self.model = model
-    self.site_id = model.site(self.site_name).id
-    self._self_geoms = self._robot_geoms(model, self.robot_body)
-    self._other_geoms = set()
-    for root in list(self._other_roots):
-      self._other_geoms |= self._robot_geoms(model, root)
-    self._carried_geoms = (set() if self._carried is None
-                           else self._robot_geoms(model, self._carried))
-    self._index_geoms()
-
   def carry(self, body: str | None) -> None:
     """A body riding this robot's fork is its own to the scan, or None."""
-    self._carried = body
     self._carried_geoms = set() if body is None else self._robot_geoms(self.model, body)
     self._index_geoms()
 
   def exclude_robot(self, root_name: str) -> None:
     """Drop another robot's body from every scan (see `_other_geoms`)."""
-    self._other_roots.append(root_name)
     self._other_geoms |= self._robot_geoms(self.model, root_name)
     self._index_geoms()
 

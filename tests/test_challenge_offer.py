@@ -44,7 +44,6 @@ class _Mind:
   interrupt_pending = None
   can_escalate = False
   spend = None
-  workshop = None
 
   def __init__(self, library=object()):
     self.library = library

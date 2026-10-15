@@ -84,7 +84,6 @@ class _Mind:
   interrupt_pending = None
   can_escalate = False
   spend = None
-  workshop = None
   library = object()
   decisions: list = []
   menu = ov.Menu.for_world(QUAD_HOME)
@@ -94,15 +93,14 @@ def build_life(view: bool, state_dir: str):
   """One quadruped in the house, as a served robot is built: the hosting
   pack, near-field on, the world's activities on its seam."""
   cfg = world_config(QUAD_HOME)
-  spec = world_spec(cfg["model"], body=cfg["body"])
-  model = spec.compile()
+  model = world_spec(cfg["model"], body=cfg["body"]).compile()
   data = mujoco.MjData(model)
   viewer = None
   if view:
     from mujoco import viewer as mj_viewer
     viewer = mj_viewer.launch_passive(model, data)
   life = HubLifecycle(model, data, viewer=viewer, realtime=view, world=QUAD_HOME,
-                      rack=cfg["rack"], grid_bounds=cfg["grid_bounds"], spec=spec,
+                      rack=cfg["rack"], grid_bounds=cfg["grid_bounds"],
                       battery_wh=cfg["hosting_battery_wh"],
                       low_battery_wh=cfg["low_battery_wh"],
                       ledger=Ledger(path=str(Path(state_dir) / "ledger.json")),

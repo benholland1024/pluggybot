@@ -3,8 +3,8 @@
 
 `WHAT YOU CAN DO, AND WHERE` is a dump of `world`, and its `actions` key
 carried the MENU alone: twelve errands, and nothing saying the robot may
-write a procedure, build a tool, set its event map, record a finding, look
-something up or open a ticket. Those are paperwork FIELDS on the decision
+write a procedure, set its event map, record a finding, look something up
+or open a ticket. Those are paperwork FIELDS on the decision
 schema, explained in prose sections further down and named nowhere else --
 so a model reading the one block that enumerates what it can do read
 twelve errands and stopped. On the wire, 2026-09-22: it reached for
@@ -37,9 +37,7 @@ from pluggybot.lifecycle import board_book
 from test_overseer import FakeClient
 
 #: What `world_config` says of the one world, overridden for a gate it does
-#: not open: a built-tool rail (none since the rover's rack left, #376), a
-#: body that takes a tool (#406, #407), and a world with no lab.
-NO_RAIL = {"built_bays": 0}
+#: not open: a body that takes a tool (#406, #407), and a world with no lab.
 TOOLS = {"tools": True}
 NO_LAB = {"lab": None}
 
@@ -74,7 +72,6 @@ def schema_of(boss):
                           event_map=boss.event_map is not None,
                           task_ids=("t_0001",),
                           procedures=boss._procedures(),
-                          tools=boss._tools(),
                           others=boss._acts(),
                           tickets=boss._ticket_ids({}))
 
@@ -95,10 +92,25 @@ def fields_of(boss):
   return index_of(boss).get("fields", {})
 
 
+def _bare_objects(node, path=""):
+  """Every `type: object` with neither `properties` nor `anyOf`."""
+  found = []
+  if isinstance(node, dict):
+    if (node.get("type") == "object" and "properties" not in node
+        and "anyOf" not in node):
+      found.append(path)
+    for key, value in node.items():
+      found += _bare_objects(value, f"{path}/{key}")
+  elif isinstance(node, list):
+    for i, value in enumerate(node):
+      found += _bare_objects(value, f"{path}[{i}]")
+  return found
+
+
 # ---- 1. the fence, in both directions ------------------------------------------
 
 
-@pytest.mark.parametrize("world_is", [None, NO_RAIL], ids=["served", "no-rail"])
+@pytest.mark.parametrize("world_is", [None, NO_LAB], ids=["served", "no-lab"])
 def test_every_field_the_schema_offers_has_a_door_and_the_index_invents_none(
     world_is):
   """THE POINT OF THE ISSUE, as an assertion: a field the model is required
@@ -123,25 +135,34 @@ def test_every_field_the_schema_offers_has_a_door_and_the_index_invents_none(
   # The powers the issue was filed about, named at last.
   assert {"define", "undefine", "event_map", "record", "retract", "lookup",
           "ticket", "done"} <= set(fields)
-  assert ({"build_tool", "retire_tool"} <= set(fields)) == (world_is is None)
+
+
+@pytest.mark.parametrize("world_is", [None, NO_LAB], ids=["served", "no-lab"])
+def test_no_object_in_the_grammar_is_bare(world_is):
+  """A `{"type": "object"}` with neither `properties` nor `anyOf` is refused
+  by the stricter providers behind the router before a token is decoded
+  ("Object fields require at least one of: 'properties' or 'anyOf'", issue
+  #225): every candidate on them fell to the prose retry and `constrained`
+  went False. The workshop's tool spec was one; this walks the whole grammar
+  of a maximal build, so the next one fails here."""
+  assert _bare_objects(schema_of(built(world_is))) == []
 
 
 @pytest.mark.parametrize("make", [
   lambda: built(),
-  lambda: built(NO_RAIL),
   lambda: built(NO_LAB),
   lambda: build(),
   # ⚠ THE ONE THAT BROKE IT. With the pointer written into the line,
   # `hearts` without `mortal` -- a build `build()` accepts -- indexed
   # `buy_heart` with "See YOU CAN DIE." and there was no such section.
   lambda: build(hearts=True, mortal=False, origin="unseeded"),
-], ids=["everything", "no-rail", "no-lab", "no-map", "hearts-without-mortal"])
+], ids=["everything", "no-lab", "no-map", "hearts-without-mortal"])
 def test_every_entry_ends_at_a_section_this_prefix_carries(make):
   """An index entry is only worth its line if the manual is where it says,
   and a pointer dangles exactly where a gate and its rule section disagree.
   So the pointer is COMPOSED against the headings this prefix carries
   rather than written into the line, and what is walked here is that the
-  composition holds on five shapes -- including the two where a section is
+  composition holds on four shapes -- including the two where a section is
   deliberately absent."""
   boss = make()
   headings = {name for name, _ in boss.sections}
@@ -195,13 +216,9 @@ def test_every_mind_carries_the_index_and_its_preamble():
 
 def test_a_power_this_world_does_not_offer_is_not_in_the_index():
   """⚠ THE GATES ARE THE SCHEMA'S OWN, so the index shrinks with the world.
-  A world with no lab has no `real` and no `mouse_will`, and one with no
-  built-tool rail no `build_tool` -- in the grammar OR in the index, which is
-  the same statement made twice and checked against itself."""
-  railless = built(NO_RAIL)
-  fields, required = fields_of(railless), set(schema_of(railless)["required"])
-  for gone in ("build_tool", "retire_tool"):
-    assert gone not in fields and gone not in required, gone
+  A world with no lab has no `real` and no `mouse_will` -- in the grammar OR
+  in the index, which is the same statement made twice and checked against
+  itself."""
   small = built(NO_LAB)
   fields, required = fields_of(small), set(schema_of(small)["required"])
   for gone in ("real", "mouse_will"):
@@ -219,7 +236,6 @@ def test_a_power_this_world_does_not_offer_is_not_in_the_index():
 
 @pytest.mark.parametrize("flag,names", [
   ("procedures", {"define", "undefine", "done", "record", "retract"}),
-  ("workshop", {"build_tool", "retire_tool"}),
   ("wiki", {"lookup"}),
   ("tickets", {"ticket", "ticket_reply"}),
 ])
@@ -254,25 +270,22 @@ def test_a_world_with_no_escalation_and_no_hearts_is_offered_neither():
 
 
 def test_the_menu_flags_and_the_per_call_tuples_say_the_same_thing():
-  """⚠ THE INDEX READS BOOLEANS OFF THE MENU (`procedures`, `workshop`,
-  `tickets`) WHERE THE SCHEMA READS A NONE-ABLE TUPLE PER CALL
-  (`_procedures()`, `_tools()`, `_ticket_ids()`), because the index rides
+  """⚠ THE INDEX READS BOOLEANS OFF THE MENU (`procedures`, `tickets`)
+  WHERE THE SCHEMA READS A NONE-ABLE TUPLE PER CALL (`_procedures()`,
+  `_ticket_ids()`), because the index rides
   the CACHED prefix and must not move with a library's contents. That is
   only safe while the two agree about EXISTENCE, which `build()` decides in
   one place -- so it is pinned here rather than assumed. A menu flag set
   without its object, or an object built without its flag, breaks the
   fence above silently; it breaks this loudly."""
-  for world_is in (None, NO_RAIL):
-    boss = build(world_is, others=("Rowan",))
-    assert (boss._procedures() is not None) == boss.menu.procedures
-    assert (boss._tools() is not None) == boss.menu.workshop == (world_is is None)
-    assert (boss._ticket_ids({}) is not None) == boss.menu.tickets
-    assert (boss._acts() is not None) == bool(boss.others)
+  boss = build(others=("Rowan",))
+  assert (boss._procedures() is not None) == boss.menu.procedures
+  assert (boss._ticket_ids({}) is not None) == boss.menu.tickets
+  assert (boss._acts() is not None) == bool(boss.others)
   # ...and a mind built by hand, with none of the objects, has none of the
   # flags: the same agreement from the other side.
   bare = ov.Overseer(Menu.for_world("home_quad"), client=FakeClient())
   assert bare._procedures() is None and not bare.menu.procedures
-  assert bare._tools() is None and not bare.menu.workshop
   assert bare._ticket_ids({}) is None and not bare.menu.tickets
   assert bare._acts() is None
 
@@ -289,7 +302,7 @@ def test_no_entry_hands_the_agent_the_answer():
   The index is an INDEX -- it says what a field is for and where its manual
   is -- so the check is blunt on purpose: no entry names charging, the
   battery or the rack at all, and none shows a worked rule."""
-  fields = {**fields_of(built()), **fields_of(built(NO_RAIL))}
+  fields = fields_of(built())
   for name, line in fields.items():
     # What a heading is CALLED is the prompt's word, not this table's ("YOU
     # CAN DIE"), so the pointer is checked in the fence above and the
@@ -309,7 +322,7 @@ def test_the_index_says_what_a_field_is_and_never_what_to_put_in_it():
   list's (issue #475): what it holds is what `events.score` reads."""
   fields = fields_of(built())
   for name in ("real", "mouse_will", "decline", "ticket", "give_points",
-               "heart_for", "build_tool", "event_map"):
+               "heart_for", "event_map"):
     low = fields[name].lower()
     for nudge in ("you should", "remember to", "make sure", "it is worth",
                   "prefer ", "always ", "never forget"):

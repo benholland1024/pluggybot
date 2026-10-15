@@ -437,14 +437,14 @@ def challenge_kinds_today() -> tuple[str, ...]:
 def first_solve(rows: Iterable[Row],
                 challenge_kinds: tuple[str, ...] | None = None) -> dict:
   """A challenge with pre-declared criteria (Challenges.md): was it solved,
-  and how many attempts came first -- plus the two things the agent can MAKE
-  that let it solve what it could not yesterday: tools built and procedures
-  run.
+  and how many attempts came first -- plus what the agent MAKES that lets it
+  solve what it could not yesterday: procedures run, and tools built.
 
   Sources: the tower (#207, kind `stack_tower`), the bench (#227, kind
-  `find_mass`) -- `challenge_kinds_today` unless told otherwise; `tool`
-  and `procedure` rows (#168, #166; the `autonomous` arm only). A row's
-  `kind` is the TASK KIND, the word the observatory files.
+  `find_mass`) -- `challenge_kinds_today` unless told otherwise; `procedure`
+  rows (#166), and `tool` rows where a period has them (the workshop's,
+  #168, until #489). A row's `kind` is the TASK KIND, the word the
+  observatory files.
 
   unit: per challenge kind, attempts by fate and the attempt index of the
   first `done` (None if never); tools and procedures as counts by outcome,

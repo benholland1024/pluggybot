@@ -19,9 +19,8 @@ with the controller's damping set to cancel the motor's back-EMF (kd = -K):
 the actuator then damps nothing, `implicitfast` has nothing to integrate
 implicitly, and a torque step is the plain torque motor's to 1e-14 N*m.
 
-⚠ The gains live in the MODEL, not the data: a recompile (a tool hung,
-#168) or a restart builds them fresh from the XML's defaults until the
-next command writes its own.
+⚠ The gains live in the MODEL, not the data: a restart builds them fresh
+from the XML's defaults until the next command writes its own.
 """
 
 import mujoco
@@ -48,9 +47,7 @@ class Drivers:
     self.torqued = False
 
   def rebind(self, model, data) -> None:
-    """The drivers on a world (and a recompiled one, #407), by name. ⚠ A
-    recompile builds the model from its spec, so the gains a command wrote
-    into it are the defaults again until the next command writes them."""
+    """The drivers on a world, by name."""
     prefix = self.prefix
     self.m, self.d = model, data
     self.act = np.array([model.actuator(f"{prefix}{n}").id for n in JOINT_NAMES])

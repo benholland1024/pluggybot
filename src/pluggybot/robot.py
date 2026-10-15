@@ -95,9 +95,8 @@ def world_spec(path: str, second_at=None, prefix: str = SECOND_PREFIX,
                chassis_rgba=SECOND_CHASSIS_RGBA,
                body: str = "quadruped") -> mujoco.MjSpec:
   """A world's SPEC with the quadruped and its dock put in, and optionally a
-  second robot at `second_at` in its own livery (`legs.world.home_spec`).
-  Kept by the lifecycle (issue #168 slice C) so a tool can be hung mid-run
-  by editing it and recompiling."""
+  second robot at `second_at` in its own livery (`legs.world.home_spec`):
+  the world builder, compiled by its callers."""
   if body not in BODIES:
     raise ValueError(f"unknown body {body!r} ({' or '.join(BODIES)})")
   from pluggybot.legs.world import home_spec

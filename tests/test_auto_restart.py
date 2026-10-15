@@ -266,10 +266,9 @@ def test_the_timer_does_not_wait_behind_a_seated_module_and_takes_it_home(
   the seated module is faked where the fork is read, rather than by setting
   the attribute, which the next step would overwrite."""
   cfg = world_config(QUAD_HOME)
-  spec = world_spec(cfg["model"])
-  model = spec.compile()
+  model = world_spec(cfg["model"]).compile()
   life = _born(HubLifecycle(model, mujoco.MjData(model), realtime=False,
-                            world=QUAD_HOME, spec=spec,
+                            world=QUAD_HOME,
                             battery_wh=cfg["battery_wh"], rack=cfg["rack"],
                             grid_bounds=cfg["grid_bounds"],
                             low_battery_wh=cfg["low_battery_wh"],

@@ -507,11 +507,6 @@ def test_the_example_programs_validate_against_home():
 #: The modules that may write the control register. Adding one is a design
 #: decision made here, in the test, on purpose.
 CTRL_WRITERS = {
-  # issue #168 slice B: the workshop's RIG, a spike harness driving the
-  # rig's carrier and a built tool's servos to answer hang / pick / conduct
-  # / work / stow. Not a runtime path: a built tool's verbs run through
-  # `axes.ramped` (`Body.ramp_routine`).
-  "workshop/build.py",
   # issue #345: a restart PUTS BACK the controls the saved world held, by
   # actuator name -- the state the controllers below wrote, never a choice.
   "continuation.py",
@@ -530,13 +525,9 @@ CTRL_WRITERS = {
   # (`QuadMission.arm_ramp_routine`).
   "legs/arm.py",
   # issue #407: a hung tool's own servos on legs -- the claw's jaws and
-  # slide, a built tool's axes -- RAMPED from the setpoint, the one path a
-  # tool's actuators are commanded through (`Body.ramp_routine`).
+  # slide -- RAMPED from the setpoint, the one path a tool's actuators are
+  # commanded through (`Body.ramp_routine`).
   "tools/servo.py",
-  # issue #407: the recompile seam -- a built tool's NEW servos set once to
-  # their joints' compiled rest (the stow), where a recompile starts them
-  # at 0; never a running servo's setpoint.
-  "workshop/seam.py",
   # issue #466: the imagined body (`legs.imagined`) -- a record's commands,
   # ramped by the robot that sent them, replayed into a world of the
   # robot's own imagining, never the world.

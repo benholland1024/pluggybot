@@ -135,9 +135,9 @@ class Procedure:
     which tool it is about, and it is right there in the source -- and so
     is a `pick`, which fetches the claw onto an empty fork (issue #353).
 
-    PURE: the tree only, no world. Which MODULE an axis needs is
-    `axes.AXES[...].requires`, and resolving that is the caller's job
-    (`Library.as_context`) because it depends on what is registered now.
+    PURE: the tree only, no world. Which MODULE a sensor needs is
+    `axes.SENSORS[...].requires`, and resolving that is the caller's job
+    (`Library.as_context`).
 
     Every ROLE is walked, not just `body`: they are the same tuple for
     anything `define` produces (single-role), and this cannot silently

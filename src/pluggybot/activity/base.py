@@ -91,12 +91,6 @@ class GeomToggle:
   def rebind(self, model) -> None:
     self.model = model
     self.gid = model.geom(self.geom).id
-    # ⚠ a recompiled model carries the geom as COMPILED, never as selected
-    # (#407: the workshop's seam): the state goes on again, or a lit lamp
-    # stays dark while `select` skips the state it believes it is in
-    current, self.current = self.current, None
-    if current is not None:
-      self.select(current)
 
   def select(self, state: str) -> None:
     if state == self.current:
@@ -182,10 +176,6 @@ class Activity:
     self.on_change: list[Callable[[str, dict], None]] = []
 
   # ---- subclass surface ----------------------------------------------------
-
-  def rebind(self, model, data) -> None:
-    """A recompiled world (issue #168 slice C): re-resolve every cached id
-    by name. The default caches none; a subclass that does overrides."""
 
   def sense(self, model, data) -> None:
     """Read the physics and update `self.flags`. Called every step."""
@@ -280,20 +270,13 @@ class ActivitySet:
     return len(self.activities)
 
   def step_hook(self, model, data) -> Callable[[], None]:
-    """A zero-argument callback for `Body.step_hooks`. Reads the
-    set's CURRENT model and data, not the ones it was made with, so a
-    rebind reaches a hook already registered."""
+    """A zero-argument callback for `Body.step_hooks`."""
     self.model, self.data = model, data
 
     def hook() -> None:
       for act in self.activities:
         act.sense(self.model, self.data)
     return hook
-
-  def rebind(self, model, data) -> None:
-    self.model, self.data = model, data
-    for act in self.activities:
-      act.rebind(model, data)
 
   def snapshot(self) -> dict:
     """{name: flags} for every activity: the whole world state at once.
