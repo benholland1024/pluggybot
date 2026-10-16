@@ -50,3 +50,31 @@ one task share a checkout: #389 flew three at once on one rented 4090.
 ⚠ **The GPU is shared** with the test suite, whose EGL renderers hold 3–4 GB
 of a 6 GB card: stay at ≤ 2048 environments while it runs, or take
 `flock -x ~/pluggybot-worktrees/.box.lock` for a full run.
+
+## Renting a pod (`pod.sh`, #510)
+
+`pod.sh` rents on Vast.ai, or on Runpod with `PROVIDER=runpod`. Its header
+has the commands, and its `TERMS` the offers Vast is asked for. A card is
+picked by what a million steps cost, never by its hourly rate, and the first
+run on a card records its steps a second:
+
+| card | where | $/h | steps/s | $ a million steps | flown |
+|---|---|---|---|---|---|
+| RTX 4090 | Runpod, secure cloud | 0.89 | 120,242 | 0.0021 | rough3, its iterations 3009–3308 |
+| RTX 4090 | Vast, a Ryzen 9 3900X host | 0.414 | 103,472 | 0.0011 | rough3 again: its code, flags and checkpoint |
+| RTX 4090 | Vast, the same host | 0.414 | 77,749 | 0.0015 | today's task, fresh, iterations 10–309 |
+
+A host moves the rate as much as its card does: the Vast 4090 ran at its full
+450 W on 16 lanes, and was 14 % slower behind a 3.8 GHz Zen 2. A first run far
+below the table is a slow host, so try another before trusting its price.
+
+- **Both bill a stopped pod's disk until it is deleted,** and Vast bills
+  traffic by the byte (a `setup` downloaded 3.4 GB, a cent).
+- **At a zero balance** Runpod stops every pod and deletes one with no network
+  volume (ours) with its checkpoints. Vast stops every instance, bills its
+  disk on, and destroys it after a grace period when no card is saved. Keep
+  the balance above what is running, and pull a long run's checkpoints as it
+  goes.
+- **The spend is read off the provider:** on Vast `vastai show user` (the
+  credit) and `vastai show invoices-v1 --charges -s DAY -e DAY` (both dates:
+  1.8.3 crashes on one); on Runpod its billing page.
