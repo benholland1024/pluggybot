@@ -243,6 +243,7 @@ save a filmstrip PNG named after the script.
 | `scripts/press_spike.py` | #439: the pair in the lab on true-floor maps, the camera on, one robot lying where a scene puts it (by default where its own press backs out, 0.25 m short of the feed plate's standoff) and the other finding and pressing the feed plate, one process a scene: how the press ended and its tries, the walk's and the way in's time, the steps aside, every plate the feet came down on; `--drift-walker`/`--drift` lay one map off as Luca's was |
 | `scripts/solve.py --feature mouse` | ladder A of #264, the paid feed on legs (#403): offered, claimed with a prediction, walked and graded by the job's own evaluator; `--pair`, `--n N`, `--from dock\|lab`; filmstrip `solve.png`. `--feature hide_and_seek` flies the pair's game (#404): offered as the cadence offers it, both roles claimed, each run from the queue the referee fills, the verdict banked; one game a scene (`--scene A,B`, `--swap` both ways round; `--find`, `--seek-s`, `--head-s` sweep the referee). `--feature answer\|draw\|artwork` flies a whiteboard's job (#406): offered on a board (`--board`, or the two in turn), claimed -- an answer with the right one -- drawn lying and graded off the board's ink. `--feature tower\|bench` flies a challenge (#407): offered with its area's terms, claimed, the hand-written solution run as the robot's procedure (`challenge/solutions.py`), graded by its own predicate |
 | `scripts/board_png.py` | a whiteboard's ink as a PNG from the boards state file or a recording. ⚠ +lat is the viewer's LEFT, as in the site's `surfaces/board.ts`; the test pins it because every figure the pen draws is symmetric |
+| `scripts/humanoid_spike.py` | the humanoid (#507; SimNotes "The humanoid body", Parts.md "The humanoid body"): `--view body` the body held up on a gantry in the house, each joint through its range, then the grippers; `--mass` beside the T2's published model, `--torque` held in our physics and then the walking and stairs ESTIMATES, `--thermal`, `--energy`, `--sensors`; each stage adds its scene; filmstrip `humanoid_spike.png` |
 | `scripts/quad_spike.py` | the quadruped body (#377; SimNotes "The quadruped body"): `--view` watches it, `--torque`/`--thermal`/`--energy`/`--sweep`/`--pupper` are the sizing tables (on `model.SIZING`, #377's placeholder arm, #405), `--policy`/`--climb`/`--getup`/`--posture`/`--odometry`/`--determinism` fly a trained policy in OUR physics (`--climb --scan map` on the D435's map, `legs/scan.py`, #388), `--shove` the served body knocked over in the house (what `stuck_after_s` is read off, #389), `--served`/`--rays` time the pair and the sensors |
 | `scripts/dock_spike.py` | the quadruped's dock (#378; SimNotes "The quadruped's dock"): `--capture` the funnel's envelope (premises `--sticky`, `--flat`), `--approach [--n N]` the success rate walking in by the board (premise `--blind`), `--hold` lying there: contact, preload, the anchor, standing off; `--view` dockings in the viewer, one after another; `--mouth`/`--bed` fly another width; filmstrip `dock_spike.png` |
 | `scripts/draw_spike.py` | drawing on a whiteboard with the arm (#406; SimNotes "Drawing on legs"): the served body, the pen on its fork, walks to the board, lies down, finds its face by touch and draws; `--figure square\|house\|answer:NN ...`, `--board`, `--stance stand` (the premise), `--n N`; `--sway [--stance lie,stand]` the stance table; filmstrip `draw_spike.png` |
@@ -254,6 +255,20 @@ save a filmstrip PNG named after the script.
 
 - **The quadruped's training stack lives in `training/`, a uv project of its own** (#377): mjlab 1.5.x (it pins `mujoco ~=3.10.0`, the served sim's), reading the body from `models/quadruped.{xml,json}` (`python -m pluggybot.legs.model` writes both; mjlab caps numpy below pluggybot's, so the two never share an environment), the arm FIXED at its stow (`quad_train.robot.freeze_arm`, #405: a policy's joints are the legs' twelve, and the arm's geometry is there to fall on). ⚠ Importing `legs.policy` or `legs.model` loads none of torch, jax, warp, onnx or mjlab (`tests/test_legs.py`); a policy reaches the served sim as an `.npz` that `quad_train.export` checks against its ONNX before writing, run by `legs/policy.py` in numpy. ⚠ The leg DRIVERS are MuJoCo's position-mode `dcmotor` (#385; `body_xml(drive="position")`), the PD and the envelope in C, commanded as a GDS68 is (`legs/drivers.py`): every command carries its gains — a policy's are its own, a routine's torque rides a target with the damping cancelled (the torque motor's step to 1e-14), `limp()` holds nothing — so a policy and the scripted routines share one body. The default gains are ONE definition, `actuator.driver_gains`, which `training/` reads from `quadruped.json`. `drive="torque"` (plain motors) is the sizing tables' instrument. `training/pod.sh` rents a Runpod GPU to train on, or CPUs to fly a batch (`create-cpu`), over the REST API (`runpodctl pod create` needs a GraphQL-writable key) — ⚠ a POST to `/v1/pods` with an EMPTY body CREATES a pod: every field has a default.
 - ⚠ **A batch of flights runs on a rented pod's CPUs or under a memory cap, never bare on the dev box** (#469: six house worlds at once took it into swap and its desktop down overnight, 2026-10-06): `training/pod.sh create-cpu` → `setup-sim` (the commit, never the working tree) → `batch` → `pull-batch`, then `delete`; locally, `systemd-run --user --scope -p MemoryMax=12G -p MemorySwapMax=0 ...`. A pool of flights gives each its own process (`maxtasksperchild=1`: a world dropped in a reused worker is held until the cycle collector runs), and results go under `~`, never `/tmp`, which a reboot wipes.
+- **The humanoid is our own body from real parts, in simulation first** (#507;
+  `humanoid/`, SimNotes and Parts.md "The humanoid body"): `models/humanoid.{xml,json}`
+  are GENERATED (`uv run python -m pluggybot.humanoid.model`) and Parts.md's
+  humanoid bill RENDERED (`uv run python -m pluggybot.humanoid.bill`), by the
+  catalog's rules; a test fails on either stale. Every part's number sits at
+  its constant in `humanoid/parts.py` with its sheet -- the weaker torque and
+  the heavier mass where a maker's documents disagree, a number nobody
+  publishes stated with its basis -- and a fabricated part's mass is its
+  drawing's volume (`model.structure`). ⚠ A POSE HELD IS A STALLED MOTOR:
+  judged against `Motor.stall_torque`, never the turning rating. ⚠ Its
+  proportions and the legs' ranges are Booster T2's published model's,
+  credited (BSD-3-Clause, `models/booster_assets.LICENSE`); never its meshes.
+  ⚠ Not served, not in `protocol/parts.json`, nothing in the served world:
+  stage 3 puts it behind `Body`.
 
 ### The imagination (`imagination/`; #466; one process of five, #487)
 
@@ -958,7 +973,8 @@ save a filmstrip PNG named after the script.
 
 - 2-space Python indent; type hints in `src/`, loose in tests/scripts.
 - **`src/` is divided by DOMAIN, not by era** (issue #50): `legs/` (the
-  quadruped) · `rack/` (the coupling, tags, the parts catalog) · `tools/` ·
+  quadruped) · `humanoid/` (the next body, #507) · `rack/` (the coupling,
+  tags, the parts catalog) · `tools/` ·
   `mind/` · `economy/` (and the five `.json` data files) · `mission/`
   (errands) · `challenge/` (one module per challenge) · `evaluation/` ·
   `lifecycle.py` at top level, because arbitration ties them together. A module goes where its CONCERN lives; a module that fits none is

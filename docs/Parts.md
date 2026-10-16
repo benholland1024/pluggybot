@@ -401,6 +401,180 @@ the GIM8108-8 is one spare, one driver and one set of gains with the legs.
 
 ---
 
+## The humanoid body (#507)
+
+The next body, in simulation first: our own design from real parts, drawn
+from Booster Robotics' T2 as its maker publishes it (`BoosterRobotics/
+booster_assets`, BSD-3-Clause, `models/booster_assets.LICENSE`): its
+proportions, its legs' joint order and ranges, and its masses as a check
+on ours. The geometry is our own, never its meshes. The body is
+`pluggybot.humanoid.model.CHOSEN` (`models/humanoid.xml`), every part's
+number sits at its constant in `humanoid/parts.py` with its source, and
+the tables that size it are SimNotes, "The humanoid body". **Nothing is
+ordered**: #379's gate stands.
+
+**The joints, 24, and a gripper on each arm.** Each is there for a reason,
+because a joint costs money, training and serving speed (#507, rule 4):
+
+| joints | part | why that part |
+|---|---|---|
+| hip pitch, hip roll, knee, ankle pitch | RobStride **RS04** (120 N·m peak, 35 continuous turning, 28.5 held still; 1.51 kg) | where the body's weight passes: walking's push-off is ~70 N·m at the ankle and the stairs ~92 at the knee and hip roll (the estimates) |
+| hip yaw, ankle roll, shoulder pitch and roll | RobStride **RS03** (60 / 20 / 13 N·m; 0.93 kg) | the hip's turn on the stairs (~51 N·m), the ankle's roll with a margin the foot's width does not need, an arm held out with a load |
+| upper-arm twist, elbow | RobStride **RS02** (17 / 6 / 6 N·m; 0.42 kg) | down the arm, where mass costs the shoulder |
+| wrist pitch | RobStride **RS00** (14 / 5 / 3.6 N·m; 0.31 kg) | the gripper and what it holds, ahead of it |
+| wrist roll | RobStride **RS05** (5.5 / 1.6 / 1.35 N·m; 0.24 kg) | turns only the gripper, to the handle |
+| grippers | Unitree **Dex1-1** (90 mm, 5–120 N, 550 g) | a parallel gripper on sale, built for a humanoid this size, that takes a stiffness in each command and reports its angle and a torque estimate |
+
+**Not here, and why:** the T2's waist (three joints: the hips bend the body
+to a low reach and the legs' yaws turn it, and no demo asks the shoulders to
+turn on the hips), its head's two (the depth camera is fixed, pitched at the
+counter and the floor ahead; a shelf above the head is out of its view), and
+its seventh arm joint (redundancy, not reach). Each is the first joint to add
+if a stage's measurement comes up short.
+
+**One maker for every joint.** RobStride's RS line shares one MIT-mode CAN
+frame, one 48 V bus and one driver's algebra, and each part's sheet gives
+its torque constant, resistance, output-side inertia, torque-speed table and
+overload durations turning and held still. K-Scale's K-Bot, its design
+open since K-Scale stopped selling it in November 2025, uses the same parts
+at the same joints (RS04 at hip pitch and knee, RS03 at hip roll and yaw,
+RS02 at shoulder yaw and elbow), and Hugging Face's LeRobot humanoid buys
+RS00/02/03/05.
+
+**What the datasheets leave open, and what the sim does about it:**
+- **RobStride's documents disagree with themselves** (the manual against the
+  spec sheet): the RS04 is 1.42 or 1.51 kg and holds 120 N·m for 3 s or 10;
+  the RS03 weighs 880, 900 or 928 g and turns at 200 or 195 rpm. The sim
+  takes the weaker torque, the slower speed and the heavier mass.
+- **The continuous rating depends on a heat sink** (the RS04's 40 N·m on a
+  345 mm square of aluminium, 35 on 220 × 200 mm): the smaller, nearer a
+  leg's brackets. **Held still** a phase carries the current, 1.414× its
+  heat turning (RobStride's words), so each part has a stalled rating too
+  (`Motor.stall_torque`), and a pose held is judged against it.
+- **Unpublished for every RS part:** the rotor's own inertia (the sheet's
+  output-side inertia is the joint's armature), backlash (the quadruped's
+  15 arcmin stands in), thermal resistance (derived from the continuous
+  rating: the torque that holds the winding at its limit at 25 °C), and
+  friction (0.5 % of peak, Katz's measured ratio on the Mini Cheetah
+  actuator; the sheets' no-load currents bound it from above).
+- **The MIT speed field clips under the motor:** the RS04 reports ±15 rad/s
+  against a 20.9 rad/s no-load speed, the RS03 ±20 against 20.4. A joint
+  turning faster reads the field's last count (`humanoid.senses`).
+- **The drivers' standby draw** is published only for the RS03 (≤ 40 mA);
+  carried for all 24, an upper bound: 41 W of the body's 69 W always on.
+
+**The gripper.** Unitree's Dex1-1 publishes its stroke, force, speed, mass,
+size and what it reports; not its flange, its rotor or its torque estimate's
+resolution. Its grip is judged by what it reports (the jaws stalled short of
+closed, the squeeze off its torque estimate), never by what the jaws touch
+(`humanoid.senses.GripperSense`). Passed over: the ROBOTIS RH-P12-RN(A),
+every register published but €3,912.36 a gripper, and Inspire's EG2-5C, the
+T2's own, 0–20 N with its registers unpublished.
+
+**The pack:** 12S like the quadruped's, four in parallel: 48 Molicel P45B,
+778 Wh, 3.76 kg with its BMS, strip and printed case, built here as the
+quadruped's is. The T2 carries 480 Wh for "2 hours of continuous walking";
+this pack is sized by SimNotes' energy table.
+
+**The sensors:** the quadruped's parts, placed for a body 1.4 m tall. The
+D435 is fixed in the head, 1.26 m up and pitched 40° down: it sees the
+counter's height from 0.12 to 1.64 m ahead and the floor from 0.48 m. The
+Camera Module 3 above it, pitched 20°, reads the tags. The RPLIDAR C1 sits
+on the head, its plane 1.41 m up, over the tables, the couch and the bed,
+which the depth camera has to see. The IMU rides the pelvis.
+
+**The bill.** Built as the quadruped's is (`humanoid/bill.py`, rendered by
+`uv run python -m pluggybot.humanoid.bill`): a part the quadruped's bill
+already buys keeps its facts there, and the shop's tools, the gantry and the
+bench rig are that bill's and are not bought twice. Not in
+`protocol/parts.json` until the humanoid is served.
+
+<!-- humanoid bom: rendered by `uv run python -m pluggybot.humanoid.bill` from humanoid/bill.py's LINES; edit those, not this -->
+Prices and lead times read 2026-10-16 (the parts shared with the quadruped's bill: 2026-09-28); € incl. 19% VAT; $1 = €0.8770 (ECB, 2026-09-25).
+
+| part | qty | € each | € line | lead time | feeds |
+|---|---|---|---|---|---|
+| **actuation** | | | **5,086.40** | | |
+| [RobStride RS04 joint actuator (9:1 planetary, FOC driver, CAN, MIT mode), 48 V](https://openelab.io/products/robstride04-qdd-120n-m-integrated-joint-motor-module) `RS04` | 8 | 254.75 | 2,038.00 | pre-order where none is in local stock; ships from Shenzhen (OpenELAB's terms) | `left_hip_pitch.forcerange`, `left_hip_pitch.armature`, `humanoid.parts.RS04.rated_torque`, +2 |
+| [RobStride RS03 joint actuator (9:1 planetary, FOC driver, CAN, MIT mode), 48 V](https://openelab.io/products/robstride03-qdd-60n-m-integrated-joint-motor-module) `RS03` | 8 | 215.95 | 1,727.60 | pre-order where none is in local stock; ships from Shenzhen (OpenELAB's terms) | `left_hip_yaw.forcerange`, `left_hip_yaw.armature`, `humanoid.parts.RS03.rated_torque`, +2 |
+| [RobStride RS02 joint actuator (7.75:1 planetary, FOC driver, CAN, MIT mode), 48 V](https://openelab.io/products/robstride02-qdd-17n-m-joint-motor-module-dual-encoders) `RS02` | 4 | 149.95 | 599.80 | pre-order where none is in local stock; ships from Shenzhen (OpenELAB's terms) | `left_shoulder_yaw.forcerange`, `left_shoulder_yaw.armature`, `humanoid.parts.RS02.rated_torque`, +2 |
+| [RobStride RS00 joint actuator (10:1 planetary, FOC driver, CAN, MIT mode), 48 V](https://openelab.io/products/robstride00-qdd-14n-m-integrated-joint-motor-module) `RS00` | 2 | 129.95 | 259.90 | pre-order where none is in local stock; ships from Shenzhen (OpenELAB's terms) | `left_wrist_pitch.forcerange`, `left_wrist_pitch.armature`, `humanoid.parts.RS00.rated_torque`, +2 |
+| [RobStride RS05 joint actuator (7.75:1 planetary, FOC driver, CAN, MIT mode), 48 V](https://openelab.io/products/robstride05-qdd-joint-motor-module) `RS05` | 2 | 106.95 | 213.90 | pre-order where none is in local stock; ships from Shenzhen (OpenELAB's terms) | `left_wrist_roll.forcerange`, `left_wrist_roll.armature`, `humanoid.parts.RS05.rated_torque`, +2 |
+| [Amass XT30(2+2) connector pair: power and signal in one (male, female and pins)](https://www.3dptronics.com/electronics/xt3022-connectors-pair) `XT30(2+2)` | 30 | 5.00 /pair | 150.00 | dispatched within 2-3 days, UPS or DHL (3DPTronics, Italy) | — |
+| [LAPP UNITRONIC BUS CAN 1 x 2 x 0.22 mm², shielded, by the metre](https://www.conrad.de/de/p/lapp-2170260-1-busleitung-unitronic-bus-1-x-2-x-0-22-mm-violett-meterware-603992.html) `2170260/1` | 15 | 1.98 | 29.70 | 176 m in stock, delivered on 2026-09-30 (Conrad) | — |
+| [Silicone wire, 14 AWG (2.08 mm²), 1 m](https://www.mylipo.de/Silikonkabel-14AWG-208mm-schwarz_1) `SK14S / SK14R` | 30 | 2.25 | 67.50 | available now, 1-3 working days (MyLipo) | — |
+| **grippers** | | | **1,436.90** | | |
+| [Unitree Dex1-1 parallel gripper (Standard)](https://openelab.io/de/products/unitree-dex1-1-robotic-gripper) `Dex1-1` | 2 | 703.45 | 1,406.90 | pre-order: estimated dispatch 10-20 days after ordering; Standard marked sold out (OpenELAB) | `left_gripper.forcerange`, `left_jaw_a.range`, `humanoid.parts.DEX1_1.grip_force_n`, +1 |
+| A USB to RS-485 adapter that runs at the grippers' 6 Mbps | 1 | allowance | 30.00 | unknown: none chosen | — |
+| **power** | | | **635.90** | | |
+| [Molicel INR21700-P45B Li-ion cell (21700, 4.5 Ah)](https://www.akkuteile.de/en/lithium-ionen-battery/size-21700/molicel/molicel-inr21700-p45b-4500mah-li-ion-battery-3-6v-3-7v_100852_3119) `INR21700-P45B` | 48 | 7.00 | 336.00 | ready to ship in 1-2 days (akkuteile.de) | `humanoid.parts.PACK.wh`, `humanoid.parts.PACK.kg` |
+| [JBD smart BMS, 10S-17S, 120 A, Bluetooth](https://bikebattery.de/JBD-10S-17S-120A-360A-Intelligentes-Smart-Bluetooth-BMS-RS485-Android-iOS-APP-11S-12S-13S-14S-15S-16S) `10S-17S-120A-BT-UART` | 1 | 112.99 | 112.99 | short stock, 1-5 working days (bikebattery.de) | — |
+| [Hilumin (nickel-plated steel) cell strip, 10 x 0.15 mm, 10 m](https://www.akkuman.de/shop/Schweissband-aus-Hilumin-10-mm-015-dick-10-m-lang) `2645314` | 1 | 19.95 | 19.95 | in stock, 1-3 working days (AKKUman) | — |
+| [Mean Well DDR-60L-5 DC-DC converter, 18-75 V in, 5 V 12 A, isolated (DIN rail)](https://www.reichelt.com/de/en/dc-dc-converter-60w-5v-12a-ddr-60l-5-p256746.html) `DDR-60L-5` | 1 | 43.80 | 43.80 | in stock, 1-2 business days (Reichelt) | `humanoid.parts.ELECTRONICS_W['compute + cameras']` |
+| [Amass XT90-S anti-spark connector pair](https://www.mhm-modellbau.de/part-AM-XT90S.php) `XT90S` | 3 | 4.05 /pair | 12.15 | in stock, 1-2 working days (MHM) | — |
+| [Victron MIDI fuse 60 A / 58 V](https://www.klimaworld.com/products/victron-midi-fuse-sicherungen-58v-48v-60a) `CIP133060010` | 1 | 14.29 | 14.29 | in stock, 1-3 working days (Klimaworld) | — |
+| [Victron MIDI fuse holder](https://www.offgridtec.com/victron-midi-fuse-sicherung-halter.html) `CIP000050001` | 1 | 10.12 | 10.12 | ships in 1-3 working days (Offgridtec) | — |
+| [Silicone wire, 10 AWG (6 mm²), 1 m](https://www.modellbau-skeries.de/p/silikonkabel-10awg-6mm-x-1000mm-rot) `2392 (red), 2393 (black)` | 4 | 4.40 | 17.60 | in stock, 1-3 days (Skeries) | — |
+| [NOEIFEVO 50.4 V 5 A Li-ion charger (12S, CC/CV)](https://www.noeifevo.de/products/noeifevo-50-4v-5a-lithium-ladegerat-fur-12s-44-4v-li-ionen-lipo-akku-e-bike-roller-ladegerat-led-anzeige-aluminiumgehause) `HRH-300L-50405-XT60` | 1 | 69.00 | 69.00 | 3-7 working days from its Polish warehouse, 7-15 from China; the page does not say which | — |
+| **compute** | | | **327.55** | | |
+| [Raspberry Pi 5, 8 GB](https://www.berrybase.de/raspberry-pi-5-8gb-ram) `SC1112` | 1 | 184.90 | 184.90 | in stock, 1-3 days (BerryBase) | `humanoid.parts.ELECTRONICS['pi5 (packed)']` |
+| [Raspberry Pi Active Cooler for the Pi 5](https://www.berrybase.de/raspberry-pi-active-cooler-luefter-fuer-raspberry-pi-5) `SC1148` | 1 | 5.90 | 5.90 | in stock, 1-3 days (BerryBase) | — |
+| [Raspberry Pi SSD Kit, 256 GB (M.2 HAT+ and NVMe)](https://www.berrybase.de/raspberry-pi-ssd-kit-fuer-raspberry-pi-5-256gb) `SC1675` | 1 | 54.90 | 54.90 | not deliverable now (BerryBase); the 512 GB kit is in stock at Reichelt for €166.10 | — |
+| [Waveshare 2-CH CAN HAT+ (MCP2515, isolated) for the Raspberry Pi](https://eckstein-shop.de/WaveShare-2CH-Isolated-CAN-Bus-Expansion-HAT-for-Raspberry-Pi) `27338` | 1 | 29.95 | 29.95 | in stock, 1-3 days (Eckstein) | `humanoid.parts.ELECTRONICS['waveshare_can_hat_plus']` |
+| [Waveshare 2-CH CAN FD HAT (MCP2518FD, isolated) for the Raspberry Pi](https://www.welectron.com/Waveshare-17075-2-CH-CAN-FD-HAT_1) `17075` | 1 | 51.90 | 51.90 | in stock (short supply), 1-3 business days (Welectron) | `humanoid.parts.ELECTRONICS['waveshare_can_fd_hat']` |
+| **sensors** | | | **491.80** | | |
+| [RealSense D435 depth camera (active IR stereo)](https://www.digikey.de/de/products/detail/realsense/82635AWGDVKPRQ/9926002) `D435` | 1 | 340.01 | 340.01 | none in stock, the maker's standard lead 14 weeks (DigiKey DE); 21 days at MyBotShop for €419.99 | `depth_eye.fovy`, `humanoid.parts.D435_KG`, `humanoid.model.CHOSEN.depth_pitch_deg` |
+| [Slamtec RPLIDAR C1 2D LIDAR](https://funduinoshop.com/en/electronic-modules/sensors/movement-distance/rplidar-c1-dtof-lidar-3600-laser-range-scanner-12m-ip54-slamtec) `RPLIDAR C1` | 1 | 84.90 | 84.90 | 1-3 business days (Funduino) | `humanoid.parts.LIDAR.kg`, `humanoid.parts.ELECTRONICS_W['lidar']` |
+| [Raspberry Pi Camera Module 3](https://www.berrybase.de/raspberry-pi-camera-module-3-12mp) `Camera Module 3` | 1 | 28.90 | 28.90 | in stock, 1-3 days (BerryBase) | `nav_eye.fovy` |
+| [Raspberry Pi camera cable, standard to mini, 200 mm](https://www.berrybase.de/raspberry-pi-camera-cable-standard-mini-200mm) `SC1128` | 1 | 1.20 | 1.20 | in stock, 1-3 days (BerryBase) | — |
+| [TDK InvenSense ICM-42688-P evaluation board (IMU)](https://www.digikey.de/de/products/detail/tdk-invensense/EV-ICM-42688-P/18634550) `EV_ICM-42688-P` | 1 | 36.79 | 36.79 | 138 in stock, the maker's standard lead 16 weeks (DigiKey DE) | `perception.imu.GYRO_NOISE` |
+| **frame** | | | **2,443.73** | | |
+| The motors' brackets: two 5 mm 6082 plates a joint, each its motor's diameter square, machined, with their fasteners | 1 | allowance | 1,600.00 | unknown: nothing drawn to quote | `humanoid.model._bracket` |
+| The pelvis's and the torso's frame: 3 mm 6082 plates | 1 | allowance | 300.00 | unknown: nothing drawn to quote | `humanoid.model.structure[pelvis_side, pelvis_deck, torso_side, torso_back, torso_top]` |
+| The thighs' and shanks' side plates, 5 and 4 mm 6082 | 1 | allowance | 266.67 | unknown: nothing drawn to quote | `humanoid.model.structure[thigh_plate, shank_plate]` |
+| The soles: a 6 mm 6082 plate and its 5 mm rubber | 1 | allowance | 86.67 | unknown: nothing drawn to quote | `humanoid.model.structure[sole_plate, sole_rubber]` |
+| The upper arms and forearms: 40 x 2 and 35 x 2 mm 6082 round tube, cut to length | 1 | allowance | 40.00 | unknown: nothing drawn to quote | `humanoid.model.structure[upper_arm_tube, forearm_tube]` |
+| The ankles' parallelogram rods: 8 x 1.5 mm tube, an M5 rod end at each end | 1 | allowance | 20.00 | unknown: nothing drawn to quote | `humanoid.model.structure[ankle_rod]` |
+| The plates the grippers bolt to on the wrists' roll, 6 mm 6082 | 1 | allowance | 66.67 | unknown: nothing drawn to quote | `humanoid.model.structure[gripper_adapter]` |
+| [igus igubal KCRM-05 rod end, M5 female, right-hand](https://www.igus.de/product/igubal_KCRM_KCLM?artNr=KCRM-05) `KCRM-05` | 4 | 5.43 | 21.72 | ready to ship in 24 hours (igus) | — |
+| [PETG filament, 1.75 mm, 1 kg (DAS FILAMENT)](https://dasfilament.de/produkt/petg-filament-175-mm-schwarz-1-kg/) `F10765` | 2 | 21.00 | 42.00 | unknown: in stock; the page and its terms give no delivery time | — |
+| **safety** | | | **291.58** | | |
+| [Albright SW80B contactor, 12 V coil, with blowouts (100 A, 96 V DC)](https://www.rijregeling.nl/en/product/albright-contactors-and-accessories/sw80-series/sw80b549-albright-contactor-12v-contactor/) `SW80B549` | 1 | 82.28 | 82.28 | unknown: the page states none (it can be put in the cart) | `humanoid.parts.ELECTRONICS_W['contactor']` |
+| [Schneider Harmony XB5AS8442 emergency stop, 40 mm twist-release head, 1 NC](https://www.reichelt.com/de/en/shop/product/emergency_stop_switch_harmony_xb5_twist_unlock_22_mm_1_nc-382385) `XB5AS8442` | 1 | 30.95 | 30.95 | available on 2026-10-01 (Reichelt) | — |
+| [RadioMaster Pocket ELRS transmitter (EU LBT)](https://n-factory.de/RadioMaster-Pocket-ELRS-Remote-Control-EU-LBT) `Pocket ELRS EU-LBT` | 1 | 79.95 | 79.95 | ships the same day (n-Factory) | — |
+| [RadioMaster ER6 ELRS PWM receiver (LBT)](https://n-factory.de/RadioMaster-ER6-ELRS-LBT-24-GHz-PWM-Receiver) `ER6 ELRS LBT` | 1 | 31.95 | 31.95 | ships the same day (n-Factory) | — |
+| [Pololu RC Switch with Relay (assembled)](https://eckstein-shop.de/Pololu-RC-Switch-with-Relay-Assembled-EN) `2804` | 1 | 21.36 | 21.36 | about 8-10 days (Eckstein) | — |
+| [Molicel INR18650-P28A Li-ion cell (18650, flat top)](https://www.lipo24.de/products/molicel-inr18650-p28a-2800mah-35a-lithium-ionen-akku-3-6v-3-7v) `INR18650-P28A` | 2 | 5.95 | 11.90 | available, 1-3 days (LiPo24) | — |
+| [Mean Well DDR-30L-12 DC-DC converter, 18-75 V in, 12 V 2.5 A, isolated (DIN rail)](https://www.reichelt.com/de/en/shop/product/dc_dc_converter_30w_12v_2_5a-256735) `DDR-30L-12` | 1 | 27.10 | 27.10 | in stock, 1-2 business days (Reichelt) | — |
+| [Arcol HS25 wirewound resistor, 47 Ω, 25 W, aluminium housing](https://www.reichelt.com/de/en/shop/product/wirewound_resistor_axial_25_w_47_ohm_1_-233471) `HS25 47R F` | 1 | 2.99 | 2.99 | in stock, 1-2 business days (Reichelt) | — |
+| [Hongfa HF115F relay, 12 V coil, 16 A changeover](https://www.reichelt.com/de/en/shop/product/miniature_power_relay_12_v_dc_16_a_1_changeover_contact-260113) `HF115F-012-1ZS3A` | 1 | 3.10 | 3.10 | in stock, 1-2 business days (Reichelt) | — |
+| **spares** | | | **931.98** | | |
+| [RobStride RS04 joint actuator (9:1 planetary, FOC driver, CAN, MIT mode), 48 V](https://openelab.io/products/robstride04-qdd-120n-m-integrated-joint-motor-module) `RS04` | 2 | 254.75 | 509.50 | pre-order where none is in local stock; ships from Shenzhen (OpenELAB's terms) | `left_hip_pitch.forcerange`, `left_hip_pitch.armature`, `humanoid.parts.RS04.rated_torque`, +2 |
+| [RobStride RS03 joint actuator (9:1 planetary, FOC driver, CAN, MIT mode), 48 V](https://openelab.io/products/robstride03-qdd-60n-m-integrated-joint-motor-module) `RS03` | 1 | 215.95 | 215.95 | pre-order where none is in local stock; ships from Shenzhen (OpenELAB's terms) | `left_hip_yaw.forcerange`, `left_hip_yaw.armature`, `humanoid.parts.RS03.rated_torque`, +2 |
+| [RobStride RS02 joint actuator (7.75:1 planetary, FOC driver, CAN, MIT mode), 48 V](https://openelab.io/products/robstride02-qdd-17n-m-joint-motor-module-dual-encoders) `RS02` | 1 | 149.95 | 149.95 | pre-order where none is in local stock; ships from Shenzhen (OpenELAB's terms) | `left_shoulder_yaw.forcerange`, `left_shoulder_yaw.armature`, `humanoid.parts.RS02.rated_torque`, +2 |
+| [Molicel INR21700-P45B Li-ion cell (21700, 4.5 Ah)](https://www.akkuteile.de/en/lithium-ionen-battery/size-21700/molicel/molicel-inr21700-p45b-4500mah-li-ion-battery-3-6v-3-7v_100852_3119) `INR21700-P45B` | 4 | 7.00 | 28.00 | ready to ship in 1-2 days (akkuteile.de) | `humanoid.parts.PACK.wh`, `humanoid.parts.PACK.kg` |
+| [Victron MIDI fuse 60 A / 58 V](https://www.klimaworld.com/products/victron-midi-fuse-sicherungen-58v-48v-60a) `CIP133060010` | 2 | 14.29 | 28.58 | in stock, 1-3 working days (Klimaworld) | — |
+
+| | € | $ |
+|---|---|---|
+| priced lines | 9,235.83 | |
+| allowances (nothing designed yet) | 2,410.01 | |
+| contingency, 15% | 1,746.88 | |
+| **total** | **13,392.72** | **15,271.72** |
+
+**The allowances**, each a sum set aside, never a price:
+- **A USB to RS-485 adapter that runs at the grippers' 6 Mbps** (grippers), €30.00: an FTDI-class USB to RS-485 adapter good for 6 Mbps; none chosen
+- **The motors' brackets: two 5 mm 6082 plates a joint, each its motor's diameter square, machined, with their fasteners** (frame), €1,600.00: forty-eight machined 6082 plates with their fasteners, at the quadruped's bill's rate for its legs' (€800 for twenty-four parts)
+- **The pelvis's and the torso's frame: 3 mm 6082 plates** (frame), €300.00: eight 3 mm 6082 plates, as the quadruped's frame (€300 for six to eight): AluFritze's configurator prices a plain 300 x 150 mm one at €20.02; a plate with holes is priced from its drawing
+- **The thighs' and shanks' side plates, 5 and 4 mm 6082** (frame), €266.67: eight machined side plates at the quadruped's bill's rate a part
+- **The soles: a 6 mm 6082 plate and its 5 mm rubber** (frame), €86.67: two machined sole plates at the quadruped's bill's rate a part, and €20 of 5 mm rubber sheet
+- **The upper arms and forearms: 40 x 2 and 35 x 2 mm 6082 round tube, cut to length** (frame), €40.00: 0.8 m of 6082 round tube in two sizes, cut to length; not priced for this bill
+- **The ankles' parallelogram rods: 8 x 1.5 mm tube, an M5 rod end at each end** (frame), €20.00: two 0.34 m rods cut from 8 mm tube and threaded M5 at each end
+- **The plates the grippers bolt to on the wrists' roll, 6 mm 6082** (frame), €66.67: two machined plates at the quadruped's bill's rate a part, drawn when the gripper's flange is known (Unitree does not publish it)
+<!-- /humanoid bom -->
+
+---
+
 ## The tool coupling (milestone 8)
 
 Every tool hangs by a split PEG that a fork of V-notches takes

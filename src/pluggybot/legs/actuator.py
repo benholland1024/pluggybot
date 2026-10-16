@@ -63,6 +63,10 @@ class Motor:
   thermal_c: float | None = None
   price_eur: float | None = None
   source: str = ""
+  #: The continuous torque held STILL, N*m, where the maker publishes one:
+  #: stalled, one phase carries the current (RobStride: 1.414x a turning
+  #: phase's heat), so a pose held is rated below a joint that turns.
+  stall_torque: float | None = None
 
   @property
   def armature(self) -> float:
@@ -203,11 +207,27 @@ class JointLimits:
                noload=motor.noload_speed / g, kt=motor.kt * g,
                r_phase=np.full(12, motor.r_phase), bus_v=motor.bus_v)
 
+  @classmethod
+  def of_motors(cls, motors, bus_v: float | None = BUS_V_NOMINAL) -> "JointLimits":
+    """One motor a joint, each driving its joint directly, in the order
+    given: any body's joints (the humanoid's, #507), each its own part."""
+    if bus_v is not None:
+      motors = [m.at_voltage(bus_v) for m in motors]
+    volts = {m.bus_v for m in motors}
+    if len(volts) != 1:
+      raise ValueError(f"one bus a body, not {sorted(volts)}")
+
+    def col(attr):
+      return np.array([getattr(m, attr) for m in motors], dtype=float)
+    return cls(peak=col("peak_torque"), rated=col("rated_torque"),
+               saturation=col("saturation_torque"), noload=col("noload_speed"),
+               kt=col("kt"), r_phase=col("r_phase"), bus_v=volts.pop())
+
   def clip(self, tau: np.ndarray, qd: np.ndarray) -> np.ndarray:
     lo, hi = envelope(qd, self.saturation, self.peak, self.noload)
     return np.clip(tau, lo, hi)
 
-  def dcmotor(self, stiffness: float, damping: float) -> list[dict]:
+  def dcmotor(self, stiffness, damping) -> list[dict]:
     """Each joint's driver as MuJoCo's own `dcmotor` in position mode
     (issue #385), so the PD and the envelope run in C on every physics step.
 
@@ -221,15 +241,17 @@ class JointLimits:
     damping. Inside the no-load speed the force equals `clip` of the PD to
     1e-14 N*m; `implicitfast` then integrates its damping implicitly,
     which is what makes a flight differ (SimNotes, "The served sim's
-    speed")."""
+    speed"). One gain pair for every joint, or a pair a joint."""
+    n = len(self.peak)
+    kp, kd = np.broadcast_to(stiffness, n), np.broadcast_to(damping, n)
     rows = []
-    for j in range(len(self.peak)):
+    for j in range(n):
       k = self.bus_v / self.noload[j]
       r = k * self.bus_v / self.saturation[j]
       rows.append({"motorconst": (k, 0.0), "resistance": r,
                    "saturation": (self.peak[j], 0.0, 0.0),
-                   "controller": (stiffness * r / k, 0.0, damping * r / k - k,
-                                  0.0, 0.0, self.bus_v)})
+                   "controller": (float(kp[j]) * r / k, 0.0,
+                                  float(kd[j]) * r / k - k, 0.0, 0.0, self.bus_v)})
     return rows
 
   def copper_w(self, tau: np.ndarray) -> np.ndarray:

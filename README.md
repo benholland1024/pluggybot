@@ -177,9 +177,21 @@ uv run python scripts/two_robots.py --world home_quad --view --errands none,none
 `--approach`, `--retention --stairs`, ...); SimNotes, "The quadruped's arm,
 its coupling and the rack", has what they measured.
 
-View the body alone:
+The humanoid (#507), the next body, in simulation first; each stage adds its
+scene to the same script:
+```bash
+uv run python scripts/humanoid_spike.py --view body   # held up on a gantry in
+                                      # the house, each joint through its
+                                      # range in turn, then the grippers
+```
+`humanoid_spike.py --help` lists its tables (`--mass`, `--torque`,
+`--thermal`, `--energy`, `--sensors`); SimNotes, "The humanoid body", has
+what they measured, and Parts.md the parts and the bill.
+
+View a body alone:
 ```bash
 uv run python -m mujoco.viewer --mjcf=models/quadruped.xml
+uv run python -m mujoco.viewer --mjcf=models/humanoid.xml
 ```
 (`models/home_world.xml` is the house with no robot in it; the quadruped
 and its dock are put in at load, `legs/world.py`.)
