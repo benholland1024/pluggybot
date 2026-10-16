@@ -4422,6 +4422,113 @@ over the best of three, 2026-10-09):
   asks for a brief think.
 
 
+## The humanoid body (issue #507)
+
+The next body, sized before anything is trained: our own design from real
+parts, drawn from Booster T2's published model (its proportions, its legs'
+joint order and ranges, its masses as a check). Parts.md, "The humanoid
+body", has the parts, why each joint is there and the bill;
+`scripts/humanoid_spike.py` flies every table below, and `--view body` is
+the stage's scene. Every number is MuJoCo's, an upper bound on hardware.
+
+![The `body` scene: the humanoid held up on a gantry in the house, each
+joint group through its range](figures/humanoid_body.png)
+
+(`MUJOCO_GL=egl uv run python scripts/humanoid_spike.py --out
+docs/figures/humanoid_body.png` draws it again.)
+
+**The mass** (`--mass`, the T2's segments; ours off the compiled model):
+
+| segment | ours kg | T2 kg |
+|---|---|---|
+| a leg, from its hip pitch link | 9.67 | 8.27 |
+| an arm, from its shoulder pitch link, with its gripper | 4.04 | 4.51 |
+| the head | 0.56 | 1.56 |
+| the rest: trunk, pack, electronics, the hips' and shoulders' pitch motors | 14.63 | 14.93 |
+| **whole** | **42.6** | **42.0** |
+
+The legs are heavier because both ankle motors are the leg's own (the T2
+drives its ankle through a parallel pair); the arms lighter by a joint; the
+head by two.
+
+**Held in our physics** (`--torque`): the robot set down on its soles in a
+pose, its centre of mass over them, every joint held by a PD stiff enough
+that it sags under 0.05 rad at its part's peak, the mean |torque| over the
+last second of a 3 s hold, the worse side, against the part's rating HELD
+STILL (below):
+
+| joint (part) | stand | deep crouch | on one leg | an arm out level, 1 kg | both arms out, 2 kg each |
+|---|---|---|---|---|---|
+| hip pitch (RS04) | 1.0 | 0.9 | 8.7 | 8.0 | 20.5 (72 %) |
+| hip roll (RS04) | 0.0 | 0.0 | **41.7 (146 %)** | 0.1 | 0.0 |
+| knee (RS04) | 8.6 (30 %) | **32.0 (112 %)** | 10.9 | 3.0 | 4.0 |
+| ankle pitch (RS04) | 3.7 | 10.2 | 18.3 (64 %) | 8.9 | 10.1 |
+| shoulder pitch (RS03) | 1.0 | 1.1 | 0.1 | **14.2 (110 %)** | **20.0 (154 %)** |
+| wrist pitch (RS00) | 0.2 | 0.2 | 0.0 | 2.2 | **3.7 (102 %)** |
+
+Standing takes every joint under a third of its rating. The rows past it
+are poses the body holds for a time, not for good, and the sheets' own
+overload tables say how long (`--thermal`, `parts.held_for`): the deep
+crouch over 130 s, one leg 118 s, an arm out with a load over 190 s.
+
+**Estimates for walking and the stairs** (`--torque`, `ESTIMATES`): ⚠ NOT
+OUR PHYSICS until stages 4 and 5 fly them (#507, rule 7). Published peak
+loads per kg of body, the upper end of each range and a robot's own where
+one was measured, scaled by mass alone (the gait lab's rule: children of
+1.47 m sit inside the adult per-kg range at one speed):
+
+| joint | walking ~1.25 m/s | stairs up, 0.16-0.22 m | stairs down |
+|---|---|---|---|
+| hip pitch | 55 (46 % of peak; human) | 39 (32 %; human) | 26 (21 %) |
+| hip roll | 45 (37 %; G1) | 92 (76 %; Adam Lite) | no data |
+| hip yaw | 32 (53 %; G1) | **51 (85 %; Adam Lite)** | no data |
+| knee | 49 (41 %; G1) | 92 (77 %; Adam Lite) | 68 (57 %; human) |
+| ankle pitch | 70 (59 %; G1) | 72 (60 %; human) | 64 (53 %; human) |
+| ankle roll | 12 (20 %; G1) | no data | no data |
+
+The G1's are read off Feng 2026's plots of the robot walking on hardware;
+Adam Lite's off its own figure of 15 cm stairs climbed on hardware (60 kg;
+arXiv 2509.12858). Adam's RMS over the stairs, scaled, holds the hip roll's
+winding at 127 °C of 145 at 25 °C ambient (92 % of its turning rating) and
+the knee's at 88: **the hip roll is where rule 7's re-read looks first.**
+The ankle pitch is why it is an RS04: walking's push-off, 70 N·m, is 117 %
+of an RS03's peak.
+
+**Energy** (`--energy`): 69 W is drawn whatever the joints do, 41 W of it
+the drivers' standby -- the RS03's "<= 40 mA", the only RS part that
+publishes one, carried for all 24 -- and 15 the e-stop contactor's coil.
+Standing draws 80 W: 9.7 h on the 778 Wh pack. Walking, ESTIMATED off the
+T2's and the G1's published runtimes per kg, is 244-256 W: 3.0-3.2 h.
+
+**The sensors** (`--sensors`, the stand): the D435, fixed 1.26 m up and
+pitched 40°, sees the counter's height (0.94 m) from 0.12 to 1.64 m ahead
+and the floor from 0.48 m; the floor at the feet is out of its view, so a
+flight is seen on the way to it. The LIDAR's plane is 1.41 m up, over the
+tables, the couch and the bed.
+
+**What the build turned up, each pinned in `tests/test_humanoid.py` or at
+its constant:**
+- *A pose held still is a stalled motor.* RobStride rates a held torque
+  below a turning one (one phase carries the current, "1.414 times" its
+  heat): the RS04 is 35 N·m turning and 28.5 held, the RS03 20 and 13. An
+  arm held out with 1 kg is 71 % of the RS03's turning rating and 110 % of
+  its held one (`Motor.stall_torque`).
+- *A statue cannot climb the house's stair.* All the weight on a knee bent
+  for a 0.18 m riser, the body upright over its ankle, asks the ankle past
+  the T2's 48° of dorsiflexion (-0.84 rad); leaned 0.35 rad forward, past
+  its 18° of roll. A climb shares that instant with the trailing leg, which
+  is a policy's to do (stage 5): the stairs rows stay estimates.
+- *A weld added through `MjSpec` writes its own data.* Left at the default,
+  the gantry's weld held a point a metre off the pelvis (the data's first
+  three numbers read 0 1 0): the body sagged 42 mm swinging its legs and,
+  turned 90°, fell to the floor. Written -- no offset, to a hook whose frame
+  is the pelvis's own -- it holds at MuJoCo's own time constant
+  (`humanoid_spike.held_world`).
+- *A gripper's jaws are geared together; MuJoCo's equality is soft.* At its
+  default the second jaw lagged the first 2.8 mm under a full squeeze, and
+  the gap the gripper reports off its one encoder read 37 mm on a 40 mm
+  block; at 0.004 s, 0.7 mm (`model.JAWS_SOLREF`).
+
 ## Debugging workflow that worked
 
 1. Reproduce headlessly with printed telemetry (pose, joint rates, contact
