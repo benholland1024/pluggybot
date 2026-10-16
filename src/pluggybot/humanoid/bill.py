@@ -133,18 +133,18 @@ PARTS: tuple[Part, ...] = (
   _actuator("rs04", hp.RS04, "robstride04-qdd-120n-m-integrated-joint-motor-module",
             {"diameter": 120, "length": 52}, 0.04,
             "The hips' pitch and roll, the knees and the ankles' pitch: wherever the "
-            "body's weight passes. K-Scale's K-Bot flies it at hip pitch and knee. "
+            "body's weight passes. K-Scale's open K-Bot uses it at hip pitch and knee. "
             "The sheet's mass is 1420 g in its manual and 1510 on its page (the "
             "heavier here), and its 120 N·m is held 3 s turning in one and 10 s in "
             "the other."),
   _actuator("rs03", hp.RS03, "robstride03-qdd-60n-m-integrated-joint-motor-module",
             {"diameter": 98, "length": 54.1}, 0.02,
             "The hips' yaw, the ankles' roll and the shoulders' pitch and roll. "
-            "K-Bot flies it at hip roll and yaw. 880 g in its manual, 928 on the "
+            "K-Bot uses it at hip roll and yaw. 880 g in its manual, 928 on the "
             "sheet's page."),
   _actuator("rs02", hp.RS02, "robstride02-qdd-17n-m-joint-motor-module-dual-encoders",
             {"diameter": 78.5, "length": 41.5}, 4.2e-3,
-            "The upper arms' twist and the elbows. K-Bot flies it at shoulder yaw "
+            "The upper arms' twist and the elbows. K-Bot uses it at shoulder yaw "
             "and elbow. 380 g in its manual, 418 on the sheet's page."),
   _actuator("rs00", hp.RS00, "robstride00-qdd-14n-m-integrated-joint-motor-module",
             {"diameter": 57, "length": 51}, 1e-3,

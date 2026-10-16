@@ -47,8 +47,8 @@ class Fields:
 # one spare a size (the quadruped's arm took the legs' motor for that). Read
 # 2026-10-16 off RobStride's own manuals and spec sheet (`RS_DOCS`); where
 # two of its documents disagree, the weaker torque and the heavier mass.
-# K-Scale's open K-Bot flies the same line (RS04 at hip pitch and knee,
-# RS03 at hip roll and yaw). Every rating is at 48 V; the pack's 43.2 V
+# K-Scale's K-Bot, open since K-Scale stopped selling it (November 2025),
+# uses the same line (RS04 at hip pitch and knee, RS03 at hip roll and yaw). Every rating is at 48 V; the pack's 43.2 V
 # nominal scales the speeds (`Motor.at_voltage`).
 
 #: RobStride's documents, by tag: the spec sheet (2026-10-09, the RS line's

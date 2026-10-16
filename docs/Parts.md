@@ -435,10 +435,11 @@ if a stage's measurement comes up short.
 **One maker for every joint.** RobStride's RS line shares one MIT-mode CAN
 frame, one 48 V bus and one driver's algebra, and each part's sheet gives
 its torque constant, resistance, output-side inertia, torque-speed table and
-overload durations turning and held still. K-Scale's open K-Bot flies the
-same parts at the same joints (RS04 at hip pitch and knee, RS03 at hip roll
-and yaw, RS02 at shoulder yaw and elbow), and Hugging Face's LeRobot humanoid
-buys RS00/02/03/05.
+overload durations turning and held still. K-Scale's K-Bot, its design
+open since K-Scale stopped selling it in November 2025, uses the same parts
+at the same joints (RS04 at hip pitch and knee, RS03 at hip roll and yaw,
+RS02 at shoulder yaw and elbow), and Hugging Face's LeRobot humanoid buys
+RS00/02/03/05.
 
 **What the datasheets leave open, and what the sim does about it:**
 - **RobStride's documents disagree with themselves** (the manual against the
