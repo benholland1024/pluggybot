@@ -296,6 +296,7 @@ case $cmd in
     "${ssh_[@]}" "mkdir -p $remote/models $remote/training /workspace/runs"
     tar -C "$repo" -czf - --exclude=.venv --exclude=runs --exclude=MUJOCO_LOG.TXT \
       --exclude=__pycache__ training models/quadruped.xml models/quadruped.json \
+      models/humanoid.xml models/humanoid.json \
       | "${ssh_[@]}" "tar -C $remote -xzf -"
     "${ssh_[@]}" bash -s <<'EOF'
 set -e

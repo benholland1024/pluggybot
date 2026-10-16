@@ -297,3 +297,190 @@ def test_the_gantry_holds_the_body_where_it_hangs_while_its_legs_swing():
     scene.step()
     worst = max(worst, float(np.linalg.norm(data.xpos[root] - start)))
   assert worst < 0.005, worst
+
+
+# ---- stage 2: standing, reaching, grasping ---------------------------------------------
+
+def _standing(scenery=None):
+  """The robot on a bare floor at the stand, its standing policy and its
+  reach, and the world's model and data."""
+  from pluggybot.humanoid.policy import StandDriver
+  from pluggybot.humanoid.reach import Reach
+  spec = mujoco.MjSpec.from_string(hm.body_xml())
+  if scenery is not None:
+    scenery(spec)
+  model = spec.compile()
+  data = mujoco.MjData(model)
+  mujoco.mj_resetDataKeyframe(model, data, 0)
+  mujoco.mj_forward(model, data)
+  stand = StandDriver(model, data)
+  return model, data, stand, Reach(model, data, stand)
+
+
+def _fly(model, data, stand, reach, seconds):
+  for _ in range(int(round(seconds / model.opt.timestep))):
+    stand.step()
+    reach.step()
+    mujoco.mj_step(model, data)
+
+
+def test_the_standing_policy_drives_the_legs_off_what_the_robot_senses():
+  """The exported file says what the policy reads and drives; the driver
+  builds exactly those terms, from the robot's senses, and drives the legs
+  alone (the arms are the reach's)."""
+  from pluggybot.humanoid.policy import StandPolicy
+  p = StandPolicy()
+  assert p.observation_names == ("base_ang_vel", "projected_gravity", "joint_pos",
+                                 "joint_vel", "actions", "posture")
+  assert p.action_joints == tuple(j for j in hm.JOINT_NAMES if kind_is_leg(j))
+  assert p.mean.shape == (3 + 3 + 24 + 24 + 12 + 2,)
+  model, data, stand, _ = _standing()
+  assert stand.observation().shape == p.mean.shape
+
+
+def kind_is_leg(joint: str) -> bool:
+  return hm.kind(joint) in hm.LEG
+
+
+def test_the_standing_policy_stands_in_our_physics():
+  """Flown in the served sim's physics (2 ms, its drivers in C), from its
+  own senses: the pelvis held at the stand and the feet where they were."""
+  model, data, stand, reach = _standing()
+  root = model.body(hm.ROBOT_ROOT).id
+  soles = [model.geom(f"{s}_sole").id for s in hm.SIDES]
+  feet = data.geom_xpos[soles].copy()
+  _fly(model, data, stand, reach, 3.0)
+  assert abs(data.xpos[root][2] - hm.stand_height()) < 0.03, data.xpos[root][2]
+  assert np.abs(data.geom_xpos[soles] - feet).max() < 0.01
+
+
+class _Spy:
+  """MjData as the robot's code meets it, every attribute it reads noted."""
+
+  def __init__(self, data):
+    object.__setattr__(self, "_data", data)
+    object.__setattr__(self, "read", set())
+
+  def __getattr__(self, name):
+    self.read.add(name)
+    return getattr(self._data, name)
+
+  def __setattr__(self, name, value):
+    setattr(self._data, name, value)
+
+
+#: What the simulator knows and a robot does not: where its bodies truly are
+#: and what touches what (Ben, 2026-10-15: never steer off them).
+TRUTH = {"contact", "ncon", "xpos", "xquat", "geom_xpos", "geom_xmat", "site_xpos",
+         "site_xmat", "xipos", "subtree_com", "cfrc_ext", "cfrc_int", "xfrc_applied",
+         "efc_force", "qacc", "cvel", "xmat"}
+
+
+def test_the_robot_steers_off_its_senses_never_the_simulators_truth():
+  """Standing and reaching to a counter's height, the policy, the reach and
+  the grippers read the drivers' replies, the IMU's sensors and their own
+  commands -- nothing of where the world says the bodies are or what they
+  touch. The boot's orientation is the one exception, read once at
+  construction (the robot is started knowing it, as the quadruped is)."""
+  from pluggybot.humanoid.arms import FORWARD, HandGoal
+  from pluggybot.humanoid.policy import StandDriver
+  from pluggybot.humanoid.reach import Reach
+  model = mujoco.MjModel.from_xml_string(hm.body_xml())
+  data = mujoco.MjData(model)
+  mujoco.mj_resetDataKeyframe(model, data, 0)
+  mujoco.mj_forward(model, data)
+  spy = _Spy(data)
+  stand = StandDriver(model, spy)
+  reach = Reach(model, spy, stand)
+  spy.read.clear()
+  assert reach.reach("left", HandGoal(np.array([0.45, 0.2, 0.94]), FORWARD))
+  reach.grippers["left"].open()
+  for _ in range(int(1.5 / model.opt.timestep)):
+    stand.step()
+    reach.step()
+    mujoco.mj_step(model, data)
+  reach.grippers["left"].shut()
+  reach.grippers["left"].held()
+  assert spy.read, "nothing was read"
+  assert not spy.read & TRUTH, spy.read & TRUTH
+
+
+def test_a_reach_solved_in_one_jump_from_a_hanging_arm_misses_and_the_plan_finds_it():
+  """⚠ From the arm hanging, the counter's height 0.45 m ahead solved in
+  one jump lands in the wrong basin (the shoulder thrown back): the premise.
+  The plan's solve starts from several arms and reaches it standing."""
+  from pluggybot.humanoid.arms import FORWARD, HandGoal, SelfModel
+  from pluggybot.humanoid.reach import plan
+  sm = SelfModel()
+  sm.pose(np.array([hm.stand_qpos().get(n, 0.0) for n in hm.JOINT_NAMES]),
+          np.array([0.0, 0.0, -1.0]))
+  goal = HandGoal(np.array([0.45, 0.2, 0.94]), FORWARD)
+  _, miss, _ = sm.solve("left", goal.pos, goal.rot)
+  assert miss > 0.05, miss
+  found = plan("left", goal)
+  assert found is not None and found[0] == (0.0, 0.0)
+
+
+def test_the_floor_is_reached_only_close_in_from_the_deepest_bow():
+  """The envelope's low edge, on the robot's model of itself: 0.09 m up,
+  fingers down, 0.18 m ahead is reached from the deepest posture the
+  standing policy holds, and 0.45 m ahead from none."""
+  from pluggybot.humanoid.arms import DOWN, HandGoal
+  from pluggybot.humanoid.reach import POSTURES, plan
+  near = plan("left", HandGoal(np.array([0.18, 0.2, 0.09]), DOWN))
+  assert near is not None and near[0] == POSTURES[-1]
+  assert plan("left", HandGoal(np.array([0.45, 0.2, 0.09]), DOWN)) is None
+
+
+def test_a_grip_is_judged_by_the_grippers_own_reading():
+  """`Gripper.held`: shut on a block it stalls short of closed, pressing --
+  held; shut on nothing it closes -- not held. Off its encoder and its
+  current, never the contacts."""
+  from pluggybot.humanoid.arms import Gripper
+  model, data = _gripper_rig(0.04)
+  g = Gripper(model, data, "left")
+  jaws = [model.jnt_qposadr[model.joint(f"left_{j}").id] for j in hm.JAWS]
+  data.qpos[jaws] = hp.GRIPPER.stroke / 2
+  g.shut()
+  for _ in range(int(1.0 / model.opt.timestep)):
+    mujoco.mj_step(model, data)
+  assert g.held()
+  model, data = _gripper_rig(0.04)
+  model.geom_contype[model.geom("held").id] = 0
+  model.geom_conaffinity[model.geom("held").id] = 0
+  g = Gripper(model, data, "left")
+  data.qpos[jaws] = hp.GRIPPER.stroke / 2
+  g.shut()
+  for _ in range(int(1.0 / model.opt.timestep)):
+    mujoco.mj_step(model, data)
+  assert not g.held()
+
+
+def test_the_force_at_the_hand_is_read_off_the_arms_motor_currents():
+  """The hand held out at a counter's height, its arm on the reach's
+  commands (gains and its weight fed forward), a known push put on the
+  grip: what the robot reads off its six drivers' torques
+  (`SelfModel.hand_force`) is that push, to within the drivers' counts,
+  their noise and the joints' friction."""
+  from pluggybot.humanoid.arms import FORWARD, HandGoal
+  model, data, stand, reach = _standing()
+  assert reach.reach("left", HandGoal(np.array([0.42, 0.2, 0.9]), FORWARD))
+  _fly(model, data, stand, reach, 3.0)
+  assert reach.done("left")
+  hand = model.body("left_hand").id
+  site = model.site("left_grip").id
+  push = np.array([-20.0, 0.0, 0.0])            # the hand pulled back, 20 N
+  felt = []
+  for k in range(int(1.5 / model.opt.timestep)):
+    data.xfrc_applied[hand] = 0.0
+    mujoco.mj_applyFT(model, data, -push, np.zeros(3), data.site_xpos[site], hand,
+                      data.qfrc_applied)
+    stand.step()
+    reach.step()
+    mujoco.mj_step(model, data)
+    data.qfrc_applied[:] = 0.0
+    if k > int(1.0 / model.opt.timestep):
+      felt.append(reach.force["left"].copy())
+  felt = np.mean(felt, axis=0)
+  # The world pushes the hand with -push; the hand pushes back with +push.
+  assert np.abs(felt - push).max() < 1.5, felt

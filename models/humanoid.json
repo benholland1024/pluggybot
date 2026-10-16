@@ -410,5 +410,9 @@
   "name": "Unitree Dex1-1",
   "stroke": 0.09,
   "grip_force_n": 120.0
- }
+ },
+ "arm_gain_scale": [
+  4.0,
+  2.0
+ ]
 }
