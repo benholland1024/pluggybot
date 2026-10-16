@@ -2,8 +2,10 @@
 
 A simulated, hardware-honest robot and the autonomous agent that lives in it:
 a ~10 kg quadruped with a two-joint arm, in a house it shares with a second
-one. The work now is self-taught generality: the robot practising new skills
-in a simulation it builds itself (#465). What the project is for, and the six
+one. The work now is self-taught generality: the robot acquiring new skills
+by its own effort through five processes (reuse what it has, try and react,
+follow instructions, copy, and imagine first). It chooses among them, and
+that choice is measured (#487, #465). What the project is for, and the six
 qualities the agent is meant to maximise, are in
 [`docs/PluggyPlan.md`](docs/PluggyPlan.md); how the mind sits in the loop is
 [`docs/Overseer.md`](docs/Overseer.md).
