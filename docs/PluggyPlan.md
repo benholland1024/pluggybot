@@ -151,7 +151,7 @@ the quadruped pivot before it, closed on 2026-10-04 with its final status.
 | Tools | three modules on the rack beside the dock (`legs/rack.py`), taken and hung back by the arm's fork (`legs/swap.py`, #405), powered through the peg. The pen draws on the whiteboards lying in front of them, each found by its tags and its face by touch (`legs/draw.py`, `tools/drawing.py`, #406); the claw takes the cubes it finds by the D435's colour imager, lying (`legs/claw.py`, `tools/claw.py`, #407), and the LCD shows the census's count (`legs/survey.py`) |
 | Behaviour arbitration | `HubLifecycle.run()`: with no mind, charge > queued errand > a claimed job > explore; with one the rails are off, the mind decides after the queue, and its event map decides when it is asked at all (Overseer.md, Evaluation.md §2) |
 | Economy | task offers, code-side scoring, a points ledger with upkeep and hearts (TaskPattern.md, Overseer.md §8b) |
-| Imagination | the robot's own world (#466), kept as a tool for imagining first, one process of five (#487): a scene document in a closed language compiled with its own body (`imagination/`), its probe's record replayed there in a worker process, never the world's source; demo 1's mechanism is the drop-handle chest (`activity/chest.py`), probed from the robot's own senses (`legs/probe.py`) and graded against the truth by `evaluation/imagined.py` and `evaluation/probe.py` |
+| Imagination | the robot's own world (#466), kept as a tool for imagining first, one process of five (#487): a scene document in a closed language compiled with its own body (`imagination/`), its probe's record replayed there in a worker process, never the world's source; #466's mechanism is the drop-handle chest (`activity/chest.py`), probed from the robot's own senses (`legs/probe.py`) and graded against the truth by `evaluation/imagined.py` and `evaluation/probe.py` |
 | Measurement | two arms, `scripted` and the one mind, and the six qualities read as shapes off the deployed world's rows; capability's per-task record is defined ahead of its rows (Evaluation.md) |
 
 ## Milestones
@@ -168,9 +168,9 @@ record; CLAUDE.md carries the constraints that still bind.
 
 ## Hardware
 
-Nothing is ordered. The next body leans humanoid: a simulation spike once
-#465's demos show the approach works, drawn from real, purchasable parts from
-its first draft (#487). #379's gate before any order stands.
+Nothing is ordered. The next body leans humanoid, and starts as a simulation
+spike once #465's demos show the approach works, drawn from real, purchasable
+parts from its first draft (#487). #379's gate before any order stands.
 Parts.md holds the quadruped's bill of materials.
 
 ## Tooling

@@ -3683,7 +3683,7 @@ is stiffer than #466 guessed: at Kp 60, 600–1,100 N/m vertically and
 Jacobian), so a centimetre into something rigid is 6–18 N, not 2; at Kp 8,
 80–150 and 140–250 N/m. The GIM8108-8's MIT mode takes a stiffness and a
 damping with every command, and the gravity feed-forward holds the arm up
-at any gain. **Demo 1 sweeps at Kp 8**, where a hinge guessed within 4 cm
+at any gain. **#466's probe sweeps at Kp 8**, where a hinge guessed within 4 cm
 keeps the claw seated and adds no force (Kp 15 holds one 2 cm short or 4 cm
 long); the torques read the force there as well as at Kp 60, and the fit
 nearly as well. The cost is lag: the lid ends 4° short, and a catch lets go
@@ -3818,13 +3818,13 @@ grip after an empty sweep failed.
 **What is true now:** the force at the tool is `legs.arm.tool_force`, off
 the readings less the driver's gravity and, wherever a joint turns, the
 friction an empty sweep found (`legs.arm.arm_friction`, `less_friction`).
-Demo 1's mechanism is the drop-handle chest, promoted from the spike to
-`activity/chest.py` (#466; the next section), its hidden parameters drawn
-shut-biased (`chest.draw`), swept at Kp 8.
+The spike's box is now the drop-handle chest, `activity/chest.py` (#466;
+the next section), its hidden parameters drawn shut-biased (`chest.draw`),
+and #466's probe sweeps it at Kp 8.
 
 ## The imagination's first world (issue #466, stage 1)
 
-Demo 1 has the robot model the chest from its own senses. Stage 1 built the
+In #466 the robot models the chest from its own senses. Stage 1 built the
 machinery, with no robot flying: the chest as an activity
 (`activity/chest.py`), a scene language (`imagination/scene.py`) compiled
 with the robot's own body into a world of its own (`compile.py`), a rollout
@@ -3890,8 +3890,6 @@ margin (`CLOSING_MARGIN_NM`) was derived for Coulomb friction alone, and
 #469's numbers describe a chest without it. The springs drawn are weak
 (0.01–0.05 N·m/rad: the margin ties them), and a non-linearity in them would
 sit under what the torques resolve of the static curve (0.009–0.013 N·m).
-They are the constructs to add where an imagination of the chest must be
-mismatched further.
 
 **What a rollout costs** (`scripts/imagination_gap.py --cost --parallel
 ...`): 67 ms a sim-second on the dev box (an i5-9600KF), 15 times real
@@ -4308,14 +4306,14 @@ goes back, nearly always, to its author, the one who can move it.
 
 ## The model's rate, with the cheap levers (issue #481, stage 1)
 
-#481's demo (the old demo 2, postponed when #487 recut the demos) compares
-early success with rehearsal against without. If rehearsal helps only when
-the robot's model is right, the share of right models caps what it can add:
-at #480's 5 in 32, even a perfect benefit falls short of the
-demo's +20-point bar. So stage 1 measured how often the
-robot imagines the chest right, with four changes made together and read
-as a package (`scripts/imagine_chest.py --summary`), over the same 32
-set-outs as #480's batch:
+The old demo 2 (#481, closed when #487's design superseded it) was to
+compare early success with rehearsal against without. If rehearsal helps
+only when the robot's model is right, the share of right models caps what
+it can add: at #480's 5 in 32, even a perfect benefit falls short of the
+demo's +20-point bar. So stage 1 measured how often the robot imagines the
+chest right, with four changes made together and read as a package
+(`scripts/imagine_chest.py --summary`), over the same 32 set-outs as #480's
+batch:
 
 - **Five rounds for three** (`model.MAX_ROUNDS`). The author is never told
   the cap (a test reads every text it is sent), so passes by round three
@@ -4342,7 +4340,7 @@ the lid's line, in any answer so far):
 | 4 | -- | 8 | -- | 17 |
 | 5 | -- | 9: 0.28 [0.16, 0.45] | -- | 17 |
 
-- **Below the bar.** 9 in 32 passed by round five, where #481 asks 2 in 5
+- **Below the bar.** 9 in 32 passed by round five, where #481 asked 2 in 5
   (Ben, 2026-10-08). By round three, 8 against #480's 5; the fourth and
   fifth rounds added one.
 - **No false pass**: every model that passed had the lid's hinge.

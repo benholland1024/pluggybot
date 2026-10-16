@@ -444,10 +444,11 @@ here.
   made is a death — so what your row pays is part of whether the robot can
   meet the rent.
 - **A payout is calibrated against MEASURED throughput, on the served
-  pack.** Upkeep is off on legs (#387) until stakes are measured, which
-  waits for a working prototype (#465); it comes back at a rate read off
-  what the pair earns (#456 keeps the gate), and `metabolism.json`'s note
-  carries the rover's calibration until then. ⚠ A
+  pack.** Upkeep is off on legs (#387). It would come back as the stakes,
+  which wait for a working prototype of skill acquisition (#465), and only
+  once the pair reliably completes its jobs, the gate kept on the closed
+  issue #456; its rate is then read off what the pair earns, and
+  `metabolism.json`'s note carries the rover's calibration until then. ⚠ A
   new kind's row must pay more per watt-hour than `carry` and `dance`, the
   menu-only work: `tests/test_rewards.py` computes it off the table and
   `energy.json`. ⚠ Never tune on a demo cell. It is sized to flatten fast so
