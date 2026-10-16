@@ -168,10 +168,12 @@ record; CLAUDE.md carries the constraints that still bind.
 
 ## Hardware
 
-Nothing is ordered. The next body leans humanoid, and starts as a simulation
-spike once #465's demos show the approach works, drawn from real, purchasable
-parts from its first draft (#487). #379's gate before any order stands.
-Parts.md holds the quadruped's bill of materials.
+Nothing is ordered. The next body is a humanoid, built first in simulation
+so that each demo's body-specific parts are built once, for the body that
+will use them (#507; Ben, 2026-10-13). It is drawn from real, purchasable
+parts from its first draft (#487). #379's gate before any order stands, and
+is read once the demos have results. Parts.md holds the quadruped's bill of
+materials.
 
 ## Tooling
 
