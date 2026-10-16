@@ -17,13 +17,14 @@ from pluggybot.lifecycle import HubLifecycle, world_config
 SRC = Path(__file__).resolve().parents[1] / "src" / "pluggybot"
 
 #: The machine's own modules -- the quadruped's (`legs/`: its model,
-#: controller, reckoning and the scan its policy reads, #388), the navigation
+#: controller, reckoning and the scan its policy reads, #388), the
+#: humanoid's (`humanoid/`, #507: its parts, model and senses), the navigation
 #: it is built on (`navigator.py`, #387: a body's map, LIDAR and drive), the
 #: coupling and the tools it works, and the one place a body is chosen
 #: (`body.body_for`). EVERY OTHER MODULE in `src/` is on the loop's side of
 #: the seam, a new one included: it reaches a robot's body only as
 #: `<life>.body.<member>`, a member being a name `Body` declares.
-BODY_SIDE = ("rack/", "tools/", "body.py", "legs/", "navigator.py")
+BODY_SIDE = ("rack/", "tools/", "body.py", "legs/", "humanoid/", "navigator.py")
 
 
 def loop_side() -> list[str]:

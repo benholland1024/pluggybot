@@ -19,12 +19,14 @@ SRC = pathlib.Path(__file__).resolve().parents[1] / "src" / "pluggybot"
 
 def _worlds():
   """Every world the repo builds: the house, the served world alone and as
-  a pair, the quadruped alone, its dock's rig and the coupling's."""
+  a pair, the quadruped and the humanoid (#507) alone, the dock's rig and
+  the coupling's."""
   from pluggybot.legs import dock as dk
   from pluggybot.legs import world as lw
   from pluggybot.rack import coupling
   yield "models/home_world.xml", mujoco.MjModel.from_xml_path("models/home_world.xml")
   yield "models/quadruped.xml", mujoco.MjModel.from_xml_path("models/quadruped.xml")
+  yield "models/humanoid.xml", mujoco.MjModel.from_xml_path("models/humanoid.xml")
   yield "home_quad", lw.home_spec().compile()
   yield "home_quad_pair", lw.home_spec(second_at=(0.0, 1.0)).compile()
   xml, assets = dk.world_xml()

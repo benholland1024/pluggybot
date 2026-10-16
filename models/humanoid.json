@@ -1,0 +1,414 @@
+{
+ "root": "pluggybot",
+ "joints": {
+  "left_hip_pitch": {
+   "motor": "RobStride RS04",
+   "peak_torque": 120.0,
+   "rated_torque": 35.0,
+   "saturation_torque": 205.714286,
+   "noload_speed": 18.849556,
+   "armature": 0.04,
+   "frictionloss": 0.6,
+   "stiffness": 157.91367,
+   "damping": 10.053096,
+   "range": [
+    -2.932153,
+    2.234021
+   ]
+  },
+  "left_hip_roll": {
+   "motor": "RobStride RS04",
+   "peak_torque": 120.0,
+   "rated_torque": 35.0,
+   "saturation_torque": 205.714286,
+   "noload_speed": 18.849556,
+   "armature": 0.04,
+   "frictionloss": 0.6,
+   "stiffness": 157.91367,
+   "damping": 10.053096,
+   "range": [
+    -0.575959,
+    1.53589
+   ]
+  },
+  "left_hip_yaw": {
+   "motor": "RobStride RS03",
+   "peak_torque": 60.0,
+   "rated_torque": 20.0,
+   "saturation_torque": 140.4,
+   "noload_speed": 18.378317,
+   "armature": 0.02,
+   "frictionloss": 0.3,
+   "stiffness": 78.956835,
+   "damping": 5.026548,
+   "range": [
+    -2.75762,
+    2.75762
+   ]
+  },
+  "left_knee": {
+   "motor": "RobStride RS04",
+   "peak_torque": 120.0,
+   "rated_torque": 35.0,
+   "saturation_torque": 205.714286,
+   "noload_speed": 18.849556,
+   "armature": 0.04,
+   "frictionloss": 0.6,
+   "stiffness": 157.91367,
+   "damping": 10.053096,
+   "range": [
+    0.0,
+    2.583087
+   ]
+  },
+  "left_ankle_pitch": {
+   "motor": "RobStride RS04",
+   "peak_torque": 120.0,
+   "rated_torque": 35.0,
+   "saturation_torque": 205.714286,
+   "noload_speed": 18.849556,
+   "armature": 0.04,
+   "frictionloss": 0.6,
+   "stiffness": 157.91367,
+   "damping": 10.053096,
+   "range": [
+    -0.837758,
+    0.575959
+   ]
+  },
+  "left_ankle_roll": {
+   "motor": "RobStride RS03",
+   "peak_torque": 60.0,
+   "rated_torque": 20.0,
+   "saturation_torque": 140.4,
+   "noload_speed": 18.378317,
+   "armature": 0.02,
+   "frictionloss": 0.3,
+   "stiffness": 78.956835,
+   "damping": 5.026548,
+   "range": [
+    -0.314159,
+    0.314159
+   ]
+  },
+  "right_hip_pitch": {
+   "motor": "RobStride RS04",
+   "peak_torque": 120.0,
+   "rated_torque": 35.0,
+   "saturation_torque": 205.714286,
+   "noload_speed": 18.849556,
+   "armature": 0.04,
+   "frictionloss": 0.6,
+   "stiffness": 157.91367,
+   "damping": 10.053096,
+   "range": [
+    -2.932153,
+    2.234021
+   ]
+  },
+  "right_hip_roll": {
+   "motor": "RobStride RS04",
+   "peak_torque": 120.0,
+   "rated_torque": 35.0,
+   "saturation_torque": 205.714286,
+   "noload_speed": 18.849556,
+   "armature": 0.04,
+   "frictionloss": 0.6,
+   "stiffness": 157.91367,
+   "damping": 10.053096,
+   "range": [
+    -1.53589,
+    0.575959
+   ]
+  },
+  "right_hip_yaw": {
+   "motor": "RobStride RS03",
+   "peak_torque": 60.0,
+   "rated_torque": 20.0,
+   "saturation_torque": 140.4,
+   "noload_speed": 18.378317,
+   "armature": 0.02,
+   "frictionloss": 0.3,
+   "stiffness": 78.956835,
+   "damping": 5.026548,
+   "range": [
+    -2.75762,
+    2.75762
+   ]
+  },
+  "right_knee": {
+   "motor": "RobStride RS04",
+   "peak_torque": 120.0,
+   "rated_torque": 35.0,
+   "saturation_torque": 205.714286,
+   "noload_speed": 18.849556,
+   "armature": 0.04,
+   "frictionloss": 0.6,
+   "stiffness": 157.91367,
+   "damping": 10.053096,
+   "range": [
+    0.0,
+    2.583087
+   ]
+  },
+  "right_ankle_pitch": {
+   "motor": "RobStride RS04",
+   "peak_torque": 120.0,
+   "rated_torque": 35.0,
+   "saturation_torque": 205.714286,
+   "noload_speed": 18.849556,
+   "armature": 0.04,
+   "frictionloss": 0.6,
+   "stiffness": 157.91367,
+   "damping": 10.053096,
+   "range": [
+    -0.837758,
+    0.575959
+   ]
+  },
+  "right_ankle_roll": {
+   "motor": "RobStride RS03",
+   "peak_torque": 60.0,
+   "rated_torque": 20.0,
+   "saturation_torque": 140.4,
+   "noload_speed": 18.378317,
+   "armature": 0.02,
+   "frictionloss": 0.3,
+   "stiffness": 78.956835,
+   "damping": 5.026548,
+   "range": [
+    -0.314159,
+    0.314159
+   ]
+  },
+  "left_shoulder_pitch": {
+   "motor": "RobStride RS03",
+   "peak_torque": 60.0,
+   "rated_torque": 20.0,
+   "saturation_torque": 140.4,
+   "noload_speed": 18.378317,
+   "armature": 0.02,
+   "frictionloss": 0.3,
+   "stiffness": 78.956835,
+   "damping": 5.026548,
+   "range": [
+    -3.01942,
+    1.710423
+   ]
+  },
+  "left_shoulder_roll": {
+   "motor": "RobStride RS03",
+   "peak_torque": 60.0,
+   "rated_torque": 20.0,
+   "saturation_torque": 140.4,
+   "noload_speed": 18.378317,
+   "armature": 0.02,
+   "frictionloss": 0.3,
+   "stiffness": 78.956835,
+   "damping": 5.026548,
+   "range": [
+    0.0,
+    3.036873
+   ]
+  },
+  "left_shoulder_yaw": {
+   "motor": "RobStride RS02",
+   "peak_torque": 17.0,
+   "rated_torque": 6.0,
+   "saturation_torque": 32.842932,
+   "noload_speed": 38.64159,
+   "armature": 0.0042,
+   "frictionloss": 0.085,
+   "stiffness": 16.580935,
+   "damping": 1.055575,
+   "range": [
+    -2.059489,
+    2.059489
+   ]
+  },
+  "left_elbow": {
+   "motor": "RobStride RS02",
+   "peak_torque": 17.0,
+   "rated_torque": 6.0,
+   "saturation_torque": 32.842932,
+   "noload_speed": 38.64159,
+   "armature": 0.0042,
+   "frictionloss": 0.085,
+   "stiffness": 16.580935,
+   "damping": 1.055575,
+   "range": [
+    0.0,
+    2.103122
+   ]
+  },
+  "left_wrist_pitch": {
+   "motor": "RobStride RS00",
+   "peak_torque": 14.0,
+   "rated_torque": 5.0,
+   "saturation_torque": 18.460465,
+   "noload_speed": 29.688051,
+   "armature": 0.001,
+   "frictionloss": 0.07,
+   "stiffness": 3.947842,
+   "damping": 0.251327,
+   "range": [
+    -1.6,
+    1.6
+   ]
+  },
+  "left_wrist_roll": {
+   "motor": "RobStride RS05",
+   "peak_torque": 5.5,
+   "rated_torque": 1.6,
+   "saturation_torque": 5.795122,
+   "noload_speed": 45.238934,
+   "armature": 0.0007,
+   "frictionloss": 0.0275,
+   "stiffness": 2.763489,
+   "damping": 0.175929,
+   "range": [
+    -2.059489,
+    2.059489
+   ]
+  },
+  "right_shoulder_pitch": {
+   "motor": "RobStride RS03",
+   "peak_torque": 60.0,
+   "rated_torque": 20.0,
+   "saturation_torque": 140.4,
+   "noload_speed": 18.378317,
+   "armature": 0.02,
+   "frictionloss": 0.3,
+   "stiffness": 78.956835,
+   "damping": 5.026548,
+   "range": [
+    -3.01942,
+    1.710423
+   ]
+  },
+  "right_shoulder_roll": {
+   "motor": "RobStride RS03",
+   "peak_torque": 60.0,
+   "rated_torque": 20.0,
+   "saturation_torque": 140.4,
+   "noload_speed": 18.378317,
+   "armature": 0.02,
+   "frictionloss": 0.3,
+   "stiffness": 78.956835,
+   "damping": 5.026548,
+   "range": [
+    -3.036873,
+    -0.0
+   ]
+  },
+  "right_shoulder_yaw": {
+   "motor": "RobStride RS02",
+   "peak_torque": 17.0,
+   "rated_torque": 6.0,
+   "saturation_torque": 32.842932,
+   "noload_speed": 38.64159,
+   "armature": 0.0042,
+   "frictionloss": 0.085,
+   "stiffness": 16.580935,
+   "damping": 1.055575,
+   "range": [
+    -2.059489,
+    2.059489
+   ]
+  },
+  "right_elbow": {
+   "motor": "RobStride RS02",
+   "peak_torque": 17.0,
+   "rated_torque": 6.0,
+   "saturation_torque": 32.842932,
+   "noload_speed": 38.64159,
+   "armature": 0.0042,
+   "frictionloss": 0.085,
+   "stiffness": 16.580935,
+   "damping": 1.055575,
+   "range": [
+    0.0,
+    2.103122
+   ]
+  },
+  "right_wrist_pitch": {
+   "motor": "RobStride RS00",
+   "peak_torque": 14.0,
+   "rated_torque": 5.0,
+   "saturation_torque": 18.460465,
+   "noload_speed": 29.688051,
+   "armature": 0.001,
+   "frictionloss": 0.07,
+   "stiffness": 3.947842,
+   "damping": 0.251327,
+   "range": [
+    -1.6,
+    1.6
+   ]
+  },
+  "right_wrist_roll": {
+   "motor": "RobStride RS05",
+   "peak_torque": 5.5,
+   "rated_torque": 1.6,
+   "saturation_torque": 5.795122,
+   "noload_speed": 45.238934,
+   "armature": 0.0007,
+   "frictionloss": 0.0275,
+   "stiffness": 2.763489,
+   "damping": 0.175929,
+   "range": [
+    -2.059489,
+    2.059489
+   ]
+  }
+ },
+ "order": [
+  "left_hip_pitch",
+  "left_hip_roll",
+  "left_hip_yaw",
+  "left_knee",
+  "left_ankle_pitch",
+  "left_ankle_roll",
+  "right_hip_pitch",
+  "right_hip_roll",
+  "right_hip_yaw",
+  "right_knee",
+  "right_ankle_pitch",
+  "right_ankle_roll",
+  "left_shoulder_pitch",
+  "left_shoulder_roll",
+  "left_shoulder_yaw",
+  "left_elbow",
+  "left_wrist_pitch",
+  "left_wrist_roll",
+  "right_shoulder_pitch",
+  "right_shoulder_roll",
+  "right_shoulder_yaw",
+  "right_elbow",
+  "right_wrist_pitch",
+  "right_wrist_roll"
+ ],
+ "feet": [
+  "left_foot",
+  "right_foot"
+ ],
+ "stand_height": 0.732425,
+ "stand_qpos": {
+  "left_hip_pitch": -0.2,
+  "left_knee": 0.4,
+  "left_ankle_pitch": -0.2,
+  "left_shoulder_roll": 0.1,
+  "left_elbow": 0.3,
+  "right_hip_pitch": -0.2,
+  "right_knee": 0.4,
+  "right_ankle_pitch": -0.2,
+  "right_shoulder_roll": -0.1,
+  "right_elbow": 0.3
+ },
+ "bus_v": 43.2,
+ "gripper": {
+  "name": "Unitree Dex1-1",
+  "stroke": 0.09,
+  "grip_force_n": 120.0
+ }
+}
