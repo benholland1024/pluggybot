@@ -173,7 +173,7 @@ answers leave out their unshown paperwork. The prompt did not move.
 - ⚠ **What it does not change.** A heart, a gift or a rating outside a
   filled answer is still acted on as meant (Evaluation.md §5).
 
-### The purse is 9.30, as decided (rooftop-media-2026 #404) — opens when that release deploys
+### The purse is 9.30, as decided (rooftop-media-2026 #404) — opened 2026-10-16 at run 2414, not with that release
 
 **What changed is the money, not the mind.** The weekly purse moves from $10
 to 9.30, the $40 a month decided in #225. The docs said 9.30 from that
@@ -183,6 +183,11 @@ purse was first recorded (2026-09-17, 789 runs in `pw_runs`) has
 `weekly_usd` 10. Compose now passes 9.30, so the robots are shown an
 allowance 7 % smaller. The world, the arm, the mind and the prompt are the
 same.
+
+⚠ **The release did not open it.** The box's runs still read `weekly_usd`
+10 until Ben corrected the server's `.env` and reloaded the container on
+2026-10-16: run 2414 (18:15 UTC, `d18bbf3`) is the first at 9.30, and every
+run before it reads 10 (`pw_runs`).
 
 **What to read.** Nothing new is asked of this period. The purse has sat at
 its cap since 2026-09-28 and refused 67–77 % of asks (`fallback:allowance`),
