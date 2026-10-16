@@ -37,10 +37,12 @@ TORQUE_KP_V = 10.0
 
 
 class Drivers:
-  """One body's twelve leg drivers, in `model.JOINT_NAMES` order."""
+  """One body's drivers: the quadruped's twelve, in `model.JOINT_NAMES`
+  order, or any body's `joints` (the humanoid's, #507), each a `dcmotor`."""
 
-  def __init__(self, model, data, prefix: str = ""):
+  def __init__(self, model, data, prefix: str = "", joints=JOINT_NAMES):
     self.prefix = prefix
+    self.joints = tuple(joints)
     self.rebind(model, data)
     #: Whether the last command was a torque or limp, whose gains a held
     #: target must not inherit.
@@ -50,9 +52,9 @@ class Drivers:
     """The drivers on a world, by name."""
     prefix = self.prefix
     self.m, self.d = model, data
-    self.act = np.array([model.actuator(f"{prefix}{n}").id for n in JOINT_NAMES])
+    self.act = np.array([model.actuator(f"{prefix}{n}").id for n in self.joints])
     self.qadr = np.array([model.jnt_qposadr[model.joint(f"{prefix}{n}").id]
-                          for n in JOINT_NAMES])
+                          for n in self.joints])
     if not (model.actuator_dyntype[self.act] == mujoco.mjtDyn.mjDYN_DCMOTOR).all():
       raise ValueError("these legs have no drivers to command (torque motors): "
                        "build the body with body_xml(drive='position')")
