@@ -51,7 +51,7 @@ import numpy as np
 from scipy import ndimage
 
 from pluggybot.humanoid import model as hm
-from pluggybot.perception.depth import PERIOD, DepthCamera
+from pluggybot.perception.depth import PERIOD, UNCULLED, DepthCamera
 from pluggybot.perception.heightmap import CELL_M, HeightMap
 from pluggybot.robot import FIRST, RobotHandle
 
@@ -134,7 +134,7 @@ class HeadScan:
     #: Moves the believed height by how far a frame says it drifted, m:
     #: `correct(dz)`; None leaves the belief alone.
     self.correct = correct
-    self.cam = DepthCamera(model, handle, mount="body", seed=seed)
+    self.cam = DepthCamera(model, handle, mount="body", seed=seed, reach=UNCULLED)
     self.map = HeightMap(WINDOW_M, CELL_M, z_band=(-math.inf, math.inf), spans=True)
     self.root = model.body(handle.root).id
     self.every = max(1, round(period / model.opt.timestep))
@@ -143,6 +143,8 @@ class HeadScan:
     #: Per map cell, the (iy, ix) of the nearest cell the camera has seen;
     #: None until it has seen one.
     self.nearest: np.ndarray | None = None
+    #: Which cells were ground at the last redraw (`ground`).
+    self.ground_mask: np.ndarray | None = None
     self.stale = False
     #: The camera's last frame, raw (the trunk's own axes).
     self.frame = None
@@ -245,9 +247,11 @@ class HeadScan:
     return seen & (labels == np.bincount(near).argmax())
 
   def _redraw(self) -> None:
-    """The nearest-ground table, for the map as it stands."""
+    """The ground (`ground_mask`) and the nearest-ground table, for the map
+    as it stands."""
     self.stale = False
-    other = ~self.ground()
+    self.ground_mask = self.ground()
+    other = ~self.ground_mask
     if not other.all():
       self.nearest = ndimage.distance_transform_edt(
         other, return_distances=False, return_indices=True)
@@ -261,7 +265,7 @@ class HeadScan:
     """The map gone (a fall: what the legs reckoned of the height is gone
     with it); the next frame lays a new one."""
     self.map = HeightMap(WINDOW_M, CELL_M, z_band=(-math.inf, math.inf), spans=True)
-    self.nearest, self.stale = None, False
+    self.nearest, self.ground_mask, self.stale = None, None, False
 
   def feel(self, x: float, y: float, z: float, yaw: float) -> None:
     """A planted sole's footprint into the map: its middle at (x, y), its
@@ -306,18 +310,37 @@ class HeadScan:
       return np.full(len(self.xy), z)
     return z - h
 
+  def ground_at(self, x: float, y: float) -> float | None:
+    """The mapped ground at a point, m, or None where it is not ground the
+    robot has seen or stood on (`ground`)."""
+    m = self.map
+    if m.origin is None:
+      return None
+    if self.stale:
+      self._redraw()
+    ix = int(math.floor(x / m.cell_m)) - m.origin[0]
+    iy = int(math.floor(y / m.cell_m)) - m.origin[1]
+    if not (0 <= ix < m.n and 0 <= iy < m.n) or self.ground_mask is None:
+      return None
+    h = m.height[iy, ix]
+    return None if np.isnan(h) or not self.ground_mask[iy, ix] else float(h)
+
   def under(self, x: float, y: float, yaw: float) -> float | None:
     """The ground under a sole whose middle is at (x, y), facing `yaw`, m:
     the height that carries `SOLE_CARRIES` of its footprint the robot has
     seen or stood on (a sole overhanging a tread's edge rests on the edge);
-    None where it has done neither. ⚠ NOT ITS HIGHEST POINT: a toe reaching
-    the next riser's edge read the tread above, and the height laid off it
-    jumped a riser at the first step. ⚠ NEVER THE NEAREST CELL's, as the
-    scan's fill is: at boot the nearest was a wall's, and the height it
-    anchored was 0.67 m up."""
+    None where it has done neither. Ground as the scan's is (`ground`). ⚠
+    NOT ITS HIGHEST POINT: a toe reaching the next riser's edge read the
+    tread above, and the height laid off it jumped a riser at the first
+    step. ⚠ NOT A WALL'S TOP: from the landing the half wall beside the
+    flight shows its top alone, and a sole by it read 1.4-1.6 m. ⚠ NEVER
+    THE NEAREST CELL's, as the scan's fill is: at boot the nearest was a
+    wall's, and the height it anchored was 0.67 m up."""
     m = self.map
     if m.origin is None:
       return None
+    if self.stale:
+      self._redraw()
     c, s = math.cos(yaw), math.sin(yaw)
     ix = np.floor((x + c * self.sole[:, 0] - s * self.sole[:, 1]) / m.cell_m).astype(np.int64)
     iy = np.floor((y + s * self.sole[:, 0] + c * self.sole[:, 1]) / m.cell_m).astype(np.int64)
@@ -325,5 +348,8 @@ class HeadScan:
     inside = (ix >= 0) & (ix < m.n) & (iy >= 0) & (iy < m.n)
     iy, ix = iy[inside], ix[inside]
     h = m.height[iy, ix]
-    h = h[~np.isnan(h) & ~(m.span[iy, ix] > WALL_SPAN_M)]
+    ok = ~np.isnan(h) & ~(m.span[iy, ix] > WALL_SPAN_M)
+    if self.ground_mask is not None:
+      ok &= self.ground_mask[iy, ix]
+    h = h[ok]
     return float(np.quantile(h, 1.0 - SOLE_CARRIES)) if len(h) else None

@@ -81,12 +81,30 @@ into a map (`pluggybot.humanoid.scan`). ⚠ Carried on from walk2 (its
 checkpoint widened to the new inputs, their weights zero), it kept walk2's
 2.5 cm shuffle and stopped at the first riser for 800 iterations whatever
 the swing's charges; it is trained from scratch, every robot starting on
-the easiest row. It does not track walk2's flat commands (no sidestep, no
-slow back-off: SimNotes, "The humanoid climbs, falls and gets up"), so
-nothing of it is committed. `Pluggy-Humanoid-Stairs` is the same walker on
-flights alone (risers 0.02-0.22 m) and a little flat floor, nine commands in
-ten walking straight out along a flight: the stairs' walker
-(`models/humanoid_walk_stairs.npz`, stairs1). `Pluggy-Humanoid-Getup`
+the easiest row (seeing7, 8000 iterations); on mjlab's wide tracking terms
+it stood still asked to sidestep or back off slowly. `-Walk-Seeing-Fine`
+carries it on (`--agent.resume True --agent.load-run '.*_seeing7$'`) with
+the tracking paid NARROWLY too, beside the wide terms: the planar velocity
+within 0.15 m/s and the turn within 0.10 rad/s (`FINE_*`, the last round's;
+widths and weights are flags, `--env.rewards.track-planar-fine.weight`,
+`--env.rewards.track-yaw-fine.params.std` and the like), its command's
+curriculum gone and the terrain from row five. Each round 1500-2000
+iterations on the last, two ways at once (planar weight, turn weight, turn
+width): fine1 (1.0, 0.5, 0.25) and fine2 (2.0, 1.0, 0.25) from seeing7;
+fine3 (2.0, 3.0, 0.25) from fine2; fine4a (3.0, 3.0, 0.25) and fine4b (2.0,
+4.5, 0.25) from fine3; fine5a (2.0, 3.0, 0.10) and fine5b (2.0, 3.0, 0.07)
+from fine3; fine6a (3.0, 3.0, 0.10) from fine5a and fine6b (the same) from
+fine4a. The walker that sees the ground is fine5a's
+iteration 12500 (`models/humanoid_walk_seeing.npz`): of six checkpoints
+100 iterations apart it alone passed Ben's flat-floor rule on the rule's
+walks (SimNotes, "One walker that sees the ground"); it is not served.
+mjlab writes the ONNX file of the LAST save alone: an earlier checkpoint's
+is the trainer resumed from it with `learn` swapped for the save's export
+(bit-identical on the last checkpoint). `Pluggy-Humanoid-Stairs` is the
+same walker on flights alone (risers 0.02-0.22 m) and a little flat floor,
+nine commands in ten walking straight out along a flight (stairs1, the
+stairs' walker until the fine-tuned seeing walker climbed better; git has
+it). `Pluggy-Humanoid-Getup`
 gets up off the floor and falls on purpose: all twenty-four joints the
 policy's, episodes starting on its back, its front, dropped any way up or
 TIPPING from its stand at a shove's speed; a lift at the pelvis holds part
@@ -138,6 +156,8 @@ run on a card records its steps a second:
 | RTX 5090 | Vast, a Ryzen 5 9600X host | 0.689 | 181,000 | 0.0011 | `Pluggy-Humanoid-Stairs` (stairs1: 30 tiles of flights), 8000 iterations in 72 min alone (#507) |
 | RTX 5090 | Vast, the same host | 0.689 | 249,000 | 0.00077 | `Pluggy-Humanoid-Getup-Head` (getup3, a plane), 1000 iterations in 6.6 min alone (#507) |
 | RTX 5090 | Vast, a Ryzen 9 9950X host | 0.647 | 96,000 | 0.0019 | `Pluggy-Humanoid-Getup` (getup1) beside a seeing walker's run on the same card (#507) |
+| RTX 5090 | Vast, an EPYC 9B14 host | 0.633 | 95,000-98,000 | 0.0018 | `Pluggy-Humanoid-Walk-Seeing-Fine` (fine2, fine3, fine4a, fine5a, fine6a), 1500 iterations in 25 min alone (#507) |
+| RTX 5090 | Vast, a Ryzen 7 7800X3D host | 0.516 | 108,000 | 0.0013 | the same (fine4b, fine5b, fine6b), 1500 iterations in 23 min alone (#507) |
 
 Two runs on one card share it rather than add to it: two humanoid runs on
 one 5090 each took 1.0 s an iteration against 0.46 s alone.

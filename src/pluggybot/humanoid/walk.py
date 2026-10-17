@@ -4,10 +4,9 @@ checked against its ONNX file, reading only the robot's senses -- the IMU
 part's rate and its filter's gravity, every joint off its driver -- and
 driving the legs' twelve drivers with the gains it trained on. Its command
 is the TWIST: forward and sideways speed in the trunk's heading frame, m/s,
-and the turn, rad/s (`training/humanoid_train/walk.py`). A walker that sees
-the ground -- the stairs' (stage 5, `STAIRS_NPZ`) -- is shown a height scan
-too, the D435's map read at its grid (`humanoid.scan.HeadScan`), handed in
-as `scan`.
+and the turn, rad/s (`training/humanoid_train/walk.py`). The walker that
+sees the ground (`SEEING_NPZ`) is shown a height scan too, the D435's map
+read at its grid (`humanoid.scan.HeadScan`), handed in as `scan`.
 """
 
 from pathlib import Path
@@ -20,8 +19,11 @@ from pluggybot.humanoid.senses import JointSense
 from pluggybot.legs.drivers import Drivers
 
 WALK_NPZ = Path(__file__).resolve().parents[3] / "models" / "humanoid_walk.npz"
-#: The stairs' walker (`-Stairs`): it sees the ground; it is not served.
-STAIRS_NPZ = WALK_NPZ.parent / "humanoid_walk_stairs.npz"
+#: The walker that sees the ground (`-Walk-Seeing-Fine`): stairs and rough
+#: ground; not served (walk2 is: on its own map this one fell on a flat
+#: floor about once in 27 trials, walk2 never; SimNotes, "One walker that
+#: sees the ground").
+SEEING_NPZ = WALK_NPZ.parent / "humanoid_walk_seeing.npz"
 #: The twist it trained on, at its widest (`walk.LIN_X`, `LIN_Y`, `ANG_Z`):
 #: a command is held inside it.
 LIN_X, LIN_Y, ANG_Z = (-0.8, 1.4), (-0.4, 0.4), (-1.0, 1.0)

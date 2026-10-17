@@ -63,7 +63,7 @@ class StanceOdometry:
   planted foot (module docstring)."""
 
   def __init__(self, self_model: SelfModel, attitude, x: float = 0.0, y: float = 0.0,
-               z: float | None = None, terrain=None, felt=None):
+               z: float | None = None, terrain=None, felt=None, ground_at=None):
     self.sm = self_model
     self.att = attitude
     self.x, self.y = float(x), float(y)
@@ -75,6 +75,10 @@ class StanceOdometry:
     #: where the planted sole is each tick, told to the map that keeps it
     #: (`felt(x, y, z, yaw)`, `scan.HeadScan.feel`).
     self.terrain, self.felt = terrain, felt
+    #: The mapped ground at a point, m, or None (`ground_at(x, y)`,
+    #: `scan.HeadScan.ground_at`): which of a planted sole's corners is on
+    #: it (`_contact`).
+    self.ground_at = ground_at
     #: Its heading's offset from the IMU's own: the IMU starts where the
     #: body boots, and a correction moves this, never the filter's tilt.
     self.offset = 0.0
@@ -154,7 +158,7 @@ class StanceOdometry:
     else:
       # The planted foot's corner on the ground moved back relative to the
       # pelvis: the pelvis moved on.
-      k = int(np.argmin(self.last[:, 2]))
+      k = self._contact(self.last)
       moved = self.corners[self.foot, k] - self.last[k]
       self.last = self.corners[self.foot].copy()
       self.x -= c * moved[0] - s * moved[1]
@@ -164,6 +168,25 @@ class StanceOdometry:
       sole = soles[self.foot]
       self.felt(self.x + c * sole[0] - s * sole[1], self.y + s * sole[0] + c * sole[1],
                 self.z + self.low[self.foot], self.yaw)
+
+  def _contact(self, corners: np.ndarray) -> int:
+    """Which of a planted sole's corners is on the ground: its lowest --
+    unless the ground mapped under them differs by a riser, a sole tipped
+    over a tread's edge, and then the one nearest the ground under it. ⚠
+    Stepping down off the landing, the planted sole tipped over its edge,
+    its toe 10 cm below the landing its heel was on, and followed by the
+    lowest corner, the height rose 9 cm as the body stepped down 10."""
+    k = int(np.argmin(corners[:, 2]))
+    if self.ground_at is None or self.z is None:
+      return k
+    c, s = math.cos(self.yaw), math.sin(self.yaw)
+    g = np.array([np.nan if (h := self.ground_at(self.x + c * p[0] - s * p[1],
+                                                 self.y + s * p[0] + c * p[1])) is None else h
+                  for p in corners])
+    known = ~np.isnan(g)
+    if known.sum() < 2 or np.ptp(g[known]) <= STEP_M:
+      return k
+    return int(np.argmin(np.where(known, np.abs(self.z + corners[:, 2] - g), np.inf)))
 
   def kept_state(self) -> dict:
     return {"x": self.x, "y": self.y, "z": self.z, "offset": self.offset}

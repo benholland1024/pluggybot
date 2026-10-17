@@ -84,6 +84,12 @@ MIN_Z = 0.28              # m, the datasheet's min-Z at 1280 x 720 (lower at low
                           # 8 m).
 MAX_Z = 3.0               # m: the part ranges to 10 m, but σ is 32 mm here and the
                           # map is near-field. Also the ray cutoff, so the cost.
+#: A cast that culls nothing (`reach`): MuJoCo's ray cast skips a geom whose
+#: bounding sphere lies past its cutoff, and a PLANE's sphere is its anchor
+#: point, so cast to `MAX_Z` a camera 2.75 m from where the floor plane is
+#: anchored sees no floor (the bare floor's: a seeing walker walked on a
+#: frozen map from there, #507). Unculled, a frame cost the same.
+UNCULLED = mujoco.mjMAXVAL
 BASELINE = 0.050          # m, the D435's imager baseline; sets the shadow width
                           # and, with the sub-pixel error, the noise
 NOISE_K = 0.0036          # 1/m: σ_z = NOISE_K · z². (0.08 px sub-pixel error on
@@ -156,11 +162,14 @@ class DepthCamera:
                height: int = HEIGHT, min_z: float = MIN_Z,
                max_z: float = MAX_Z, noise_k: float = NOISE_K,
                dropout: float = DROPOUT, baseline: float = BASELINE,
-               seed: int = 0, mount: str = "body") -> None:
+               seed: int = 0, mount: str = "body", reach: float | None = None) -> None:
     self.handle = handle
     self.camera_name = handle.el(camera_name)
     self.width, self.height = width, height
     self.min_z, self.max_z = min_z, max_z
+    #: How far the rays are cast, m: `max_z` unless told (`UNCULLED`); the
+    #: range gate is `max_z` either way.
+    self.reach = max_z if reach is None else reach
     self.noise_k, self.dropout, self.baseline = noise_k, dropout, baseline
     self.rng = np.random.default_rng(seed)
     #: ...and the stream the PEER channel draws on (issue #328, the lesson
@@ -238,7 +247,7 @@ class DepthCamera:
     mat = np.array(data.cam_xmat[self.cam_id], dtype=np.float64).reshape(3, 3)
     world_dirs = np.ascontiguousarray((self._dirs_cam @ mat.T).reshape(-1))
     mujoco.mj_multiRay(self.model, data, pos, world_dirs, None, 1, -1,
-                       self._geomid, self._dist, None, n, self.max_z)
+                       self._geomid, self._dist, None, n, self.reach)
     hit = self._dist >= 0.0
     z = np.where(hit, self._dist * self._axial, np.nan)
     robot = hit & np.isin(self._geomid, self._filtered)
