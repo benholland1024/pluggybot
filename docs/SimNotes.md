@@ -4677,7 +4677,7 @@ its constant:**
 
 **Compute** (#507's stage 2 line: ~$8 likely, $14 the stop): the G1 check
 and six standing runs on two rented RTX 5090s (Vast.ai, $0.49/h), 2.83
-GPU-hours, **$1.50** off Vast's own charges.
+GPU-hours, **$1.53** off Vast's own charges.
 
 ## Debugging workflow that worked
 
