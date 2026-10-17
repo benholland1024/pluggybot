@@ -649,6 +649,10 @@ def body_xml(spec: HumanoidSpec = CHOSEN, *, root: str = ROBOT_ROOT,
 {_jaw_equalities()}
   </equality>
 
+  <contact>
+{_leg_pairs()}
+  </contact>
+
   <actuator>
 {_actuators(spec)}
   </actuator>
@@ -703,6 +707,19 @@ def _jaw_equalities() -> str:
   return "\n".join(f'    <joint name="{s}_jaws" joint1="{s}_{JAWS[1]}" '
                    f'joint2="{s}_{JAWS[0]}" polycoef="0 1 0 0 0" solref="{JAWS_SOLREF}"/>'
                    for s in SIDES)
+
+
+#: The legs' parts that meet each other in a stride, a crossing or a stumble:
+#: the robot's own geoms touch nothing of the robot's (its policies' model
+#: has no self-contact), so without these a gait could pass one leg through
+#: the other. At the stand they are 10-12 cm apart.
+LEG_GEOMS = ("thigh", "shank", "sole")
+
+
+def _leg_pairs() -> str:
+  """The left leg's parts against the right's, each pair explicit."""
+  return "\n".join(f'    <pair geom1="left_{a}" geom2="right_{b}"/>'
+                   for a in LEG_GEOMS for b in LEG_GEOMS)
 
 
 def _foot_sensors() -> str:

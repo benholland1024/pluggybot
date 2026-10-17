@@ -169,6 +169,11 @@ ARM_REST_SHARE = 0.25
 @dataclass(kw_only=True)
 class ScriptedArmsCfg(ActionTermCfg):
   entity_name: str = "robot"
+  #: Share of goals that are the arms hanging, and how far toward each
+  #: joint's `ARM_GOALS` range a goal may go from the hanging pose (1: all
+  #: of it) -- walking carries its arms more quietly than a reach does.
+  rest_share: float = ARM_REST_SHARE
+  reach: float = 1.0
 
   def build(self, env) -> "ScriptedArms":
     return ScriptedArms(self, env)
@@ -192,9 +197,10 @@ class ScriptedArms(ActionTerm):
         a, b = -b, -a
       lo.append(a)
       hi.append(b)
-    self.lo = torch.tensor(lo, device=self.device)
-    self.hi = torch.tensor(hi, device=self.device)
     self.rest = self._entity.data.default_joint_pos[:, self.ids].clone()
+    mid = self.rest[0]
+    self.lo = mid + cfg.reach * (torch.tensor(lo, device=self.device) - mid)
+    self.hi = mid + cfg.reach * (torch.tensor(hi, device=self.device) - mid)
     self.target = self.rest.clone()
     self.goal = self.rest.clone()
     self.timer = torch.zeros(self.num_envs, device=self.device)
@@ -212,7 +218,7 @@ class ScriptedArms(ActionTerm):
     n = len(env_ids)
     u = torch.rand(n, len(self.ids), device=self.device)
     goal = self.lo + u * (self.hi - self.lo)
-    rest = torch.rand(n, 2, device=self.device) < ARM_REST_SHARE
+    rest = torch.rand(n, 2, device=self.device) < self.cfg.rest_share
     half = len(self.ids) // 2
     goal[:, :half] = torch.where(rest[:, :1], self.rest[env_ids, :half], goal[:, :half])
     goal[:, half:] = torch.where(rest[:, 1:], self.rest[env_ids, half:], goal[:, half:])

@@ -242,6 +242,18 @@
     <joint name="right_jaws" joint1="right_jaw_b" joint2="right_jaw_a" polycoef="0 1 0 0 0" solref="0.004 1"/>
   </equality>
 
+  <contact>
+    <pair geom1="left_thigh" geom2="right_thigh"/>
+    <pair geom1="left_thigh" geom2="right_shank"/>
+    <pair geom1="left_thigh" geom2="right_sole"/>
+    <pair geom1="left_shank" geom2="right_thigh"/>
+    <pair geom1="left_shank" geom2="right_shank"/>
+    <pair geom1="left_shank" geom2="right_sole"/>
+    <pair geom1="left_sole" geom2="right_thigh"/>
+    <pair geom1="left_sole" geom2="right_shank"/>
+    <pair geom1="left_sole" geom2="right_sole"/>
+  </contact>
+
   <actuator>
     <dcmotor name="left_hip_pitch" joint="left_hip_pitch" input="position" motorconst="2.291831180523293 0.0" resistance="0.4812845479098915" saturation="120.0 0.0 0.0" controller="33.16187078766024 0.0 -0.18068091731095182 0.0 0.0 43.2"/>
     <dcmotor name="left_hip_roll" joint="left_hip_roll" input="position" motorconst="2.291831180523293 0.0" resistance="0.4812845479098915" saturation="120.0 0.0 0.0" controller="33.16187078766024 0.0 -0.18068091731095182 0.0 0.0 43.2"/>

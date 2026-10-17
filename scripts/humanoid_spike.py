@@ -1428,8 +1428,157 @@ def _until(h: Humanoid, done, budget_s: float):
     yield None
 
 
+# ---- stage 3: the scene `demo`, through `Body` ----------------------------------------
+#
+# #466's chest on a counter in the storeroom (`evaluation.counter`, set-out
+# `DEMO`), and the humanoid behind `Body` (`humanoid.body.HumanoidBody`):
+# it finds the knob by its tag in its own colour imager, reaches it, shuts
+# its gripper and judges the grip by the gripper's own reading -- every act
+# a Body member. What the terminal says of the truth (where the knob truly
+# is, whether the pads truly hold it) is OUR grading.
+
+def drive(body, routine):
+  """A body's routine stepped one physics step at a time (its stepper,
+  as `tick.run` steps it), yielding between: what it returned."""
+  try:
+    command = next(routine)
+    while True:
+      body.stepper.step(command)
+      yield None
+      command = routine.send(None)
+  except StopIteration as done:
+    return done.value
+
+
+def demo_scene(body, model, data, records: list | None = None):
+  """The `demo` scene, once: yields a line when a part begins or ends."""
+  from pluggybot.evaluation import counter as ct
+  from pluggybot.humanoid.body import _rz
+  from pluggybot.tools.claw import CUBE_HALF
+  rec = {}
+  yield "looking for the chest's knob by its tag"
+  yield from drive(body, body.hold_routine(1.0))
+  seen = body.spot(ch_tag())
+  truly = ct.knob_world(model, data)
+  if seen is None:
+    yield "  its tag does not decode from here"
+    return
+  # The knob is a cube: its middle is half a cube in from the face read.
+  knob = np.array([seen["x"], seen["y"], seen["z"]]) + CUBE_HALF * np.array(seen["normal"])
+  rec["seen_off_m"] = float(np.linalg.norm(knob - truly))
+  yield (f"  the knob, by its tag, {seen['range']:.2f} m off: {100 * rec['seen_off_m']:.1f} cm "
+         "from where it truly is")
+  side = "left" if body.to_stance(knob)[1] > 0 else "right"
+  yield f"reaching it with the {side} hand, the gripper open"
+  yield from drive(body, body.grip_routine(side, False))
+  rot = _rz(body.stance[2]) @ KNOB_GRIP
+  rec["reached"] = yield from drive(body, body.reach_routine(side, knob, rot, patience=20.0))
+  if not rec["reached"]:
+    yield "  out of its reach"
+    return
+  yield "shutting the gripper on the knob"
+  rec["held"] = yield from drive(body, body.grip_routine(side, True))
+  rec["pads"] = ct.pads_hold(model, data, side)
+  yield (f"  {'HELD' if rec['held'] else 'NOT HELD'} by its own reading; the pads truly "
+         f"{'on' if rec['pads'] else 'off'} the knob")
+  yield "holding it"
+  yield from drive(body, body.hold_routine(2.0))
+  rec["still_pads"] = ct.pads_hold(model, data, side)
+  yield "letting go"
+  yield from drive(body, body.grip_routine(side, False))
+  yield from drive(body, body.release_routine(side))
+  yield from drive(body, body.grip_routine(side, True))
+  rec["fell"] = bool(data.xpos[body.root][2] < FALLEN_M)
+  if records is not None:
+    records.append(rec)
+
+
+#: The knob's grip: fingers forward, the jaws closing ACROSS it. ⚠ A drop
+#: handle's knob hangs nearly under its pin, its drop bar and stem behind
+#: and above it: jaws closing up and down brought a pad down onto them,
+#: swung the handle 13 deg and stalled 79 mm open with one pad on the knob
+#: -- HELD by the gripper's reading, the pads truly off the knob.
+KNOB_GRIP = frame((1.0, 0.0, 0.0), (0.0, 1.0, 0.0))
+
+
+def ch_tag() -> int:
+  from pluggybot.rack.tags import CHEST_TAG_IDS
+  return CHEST_TAG_IDS[0]
+
+
+def demo_world(k: int | None = None):
+  from pluggybot.evaluation import counter as ct
+  so = ct.set_out(ct.DEMO if k is None else k)
+  model, data, body = ct.world(so, _POLICY)
+  model.vis.headlight.ambient[:] = 0.35
+  model.vis.headlight.diffuse[:] = 0.55
+  return model, data, body
+
+
+def view_demo() -> None:
+  from mujoco import viewer as mj_viewer
+  model, data, body = demo_world()
+  print("the `demo` scene: #466's chest on a counter; the humanoid finds its knob by its "
+        "tag, reaches it and grips it, through Body. Close the window to quit.")
+  with mj_viewer.launch_passive(model, data) as viewer:
+    viewer.cam.type = mujoco.mjtCamera.mjCAMERA_TRACKING
+    viewer.cam.trackbodyid = body.root
+    viewer.cam.distance, viewer.cam.azimuth = CAM_DISTANCE, CAM_AZIMUTH
+    viewer.cam.elevation = CAM_ELEVATION
+    while viewer.is_running():
+      body.start_at(*body.true_pose()[:2], 0.0)
+      wall = time.time() - data.time
+      for line in demo_scene(body, model, data):
+        if line:
+          print(f"  -> {line}")
+        if not viewer.is_running():
+          return
+        if int(round(data.time / model.opt.timestep)) % 10 == 0:
+          viewer.sync()
+          ahead = data.time - (time.time() - wall)
+          if ahead > 0:
+            time.sleep(ahead)
+
+
+def filmstrip_demo(out: str) -> None:
+  from PIL import Image, ImageDraw
+  model, data, body = demo_world()
+  r = mujoco.Renderer(model, 300, 400)
+  tiles, pending, at = [], None, 0.0
+
+  def shoot(label):
+    cam = mujoco.MjvCamera()
+    cam.lookat[:] = data.xpos[body.root] + [0.25, 0.0, 0.1]
+    cam.distance, cam.azimuth, cam.elevation = 2.0, CAM_AZIMUTH, CAM_ELEVATION
+    r.update_scene(data, cam)
+    img = Image.fromarray(r.render())
+    ImageDraw.Draw(img).text((8, 8), label[:60], fill=(255, 255, 255))
+    tiles.append(img)
+  for line in demo_scene(body, model, data):
+    if line and not line.startswith("  "):
+      if pending is not None:
+        shoot(pending)
+      pending, at = line, data.time + 0.9
+    elif line:
+      print(line)
+    if pending is not None and data.time >= at:
+      shoot(pending)
+      pending = None
+  if pending is not None:
+    shoot(pending)
+  r.close()
+  body.close()
+  strip = Image.new("RGB", (400 * min(4, len(tiles)), 300 * ((len(tiles) + 3) // 4)),
+                    (255, 255, 255))
+  for k, tile in enumerate(tiles):
+    strip.paste(tile, (400 * (k % 4), 300 * (k // 4)))
+  strip.save(out)
+  print(f"wrote {out}")
+
+
 SCENES = {"body": view_body, "stand": lambda: view_stage2("stand"),
-          "reach": lambda: view_stage2("reach"), "grasp": lambda: view_stage2("grasp")}
+          "reach": lambda: view_stage2("reach"), "grasp": lambda: view_stage2("grasp"),
+          "demo": view_demo}
 
 
 def main(argv=None) -> None:
@@ -1460,6 +1609,8 @@ def main(argv=None) -> None:
     _POLICY = policy
   if args.view:
     SCENES[args.view]()
+  elif args.strip == "demo":
+    filmstrip_demo(args.out)
   elif args.strip and args.strip != "body":
     filmstrip_stage2(args.strip, args.out)
   elif args.shove:
