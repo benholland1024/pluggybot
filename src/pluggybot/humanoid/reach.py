@@ -45,12 +45,29 @@ APPROACH_M = 0.08
 #: from its shoulder -- a goal planned at full stretch was 2.8 cm out of
 #: reach of the posture the policy held, 2 cm under the one asked.
 REACH_MARGIN_M = 0.015
+#: A hand on its way in STOPS where it is (`blocked`) once its own solve
+#: misses its command by this, m -- the goal out of reach from the posture
+#: the policy truly holds -- or once the force its arm's currents read at
+#: the hand passes this, N, pushing on something it was not sent to. ⚠
+#: Unstopped, a crouch that sat further back than the plan's statue left a
+#: chest's knob 10.7 cm out of reach, and the arm drove the gripper into
+#: the counter's edge until it pushed the robot over backwards.
+BLOCKED_M, BLOCKED_N = 0.03, 30.0
+#: ...for this long, s: the force read off the currents assumes the arm is
+#: still, and a deep bow's folding read 81.5 N at the hand for an instant
+#: as its approach began. A push lasts; a transient does not.
+BLOCKED_S = 0.15
 #: The posture's own loop: the pelvis's height and the trunk's pitch as the
 #: robot's model of itself has them (its legs' encoders, its IMU) held to
 #: the plan's by trimming what the policy is asked -- this much of the
 #: miss a second, at most this far, m and rad. Unheld, the policy stood 2
 #: cm under the height it was asked.
 TRIM_RATE, TRIM_MAX = 1.0, (0.05, 0.15)
+#: A hand's approach starts once the posture the robot measures is this
+#: near the plan's, m and rad, or this long after its command arrived, s:
+#: the body takes a second or two to fold into a deep bow after the
+#: command has, and a full-stretch reach begun before it stopped short.
+POSTURE_TOL, POSTURE_WAIT_S = (0.025, 0.06), 4.0
 
 #: The postures a reach may take, in the order they are tried -- the least
 #: bent first: the pelvis's height off the stand's, m, and the trunk's
@@ -194,7 +211,9 @@ class Reach:
   """The arms and grippers of one body beside its standing policy (module
   docstring). A hand's PHASE: `rest` (hanging), `move` (joint space to the
   pre-grasp, the posture walking to its plan), `approach` (a straight line
-  in), `hold`, `retreat` (a straight line out, then joint space home)."""
+  in), `hold`, `pull` (the goal moved while holding), `blocked` (stopped on
+  its way, `BLOCKED_M`), `retreat` (a straight line out, then joint space
+  home)."""
 
   def __init__(self, model, data, stand: StandDriver, prefix: str = "",
                key: str = "humanoid"):
@@ -216,6 +235,8 @@ class Reach:
     #: whether the reach's plan had slack (`plan`).
     self.miss = {s: 0.0 for s in hm.SIDES}
     self.slack = {s: True for s in hm.SIDES}
+    #: How long each hand has been out of reach or pushing (`BLOCKED_S`).
+    self._off = {s: 0.0 for s in hm.SIDES}
     self.every = max(1, round(EVERY_S / model.opt.timestep))
     self.steps = 0
     #: The posture the plan wants, and the trim on what the policy is
@@ -237,6 +258,7 @@ class Reach:
       return False
     posture, q_pre, _, self.slack[side] = plan_
     self.hold_posture(*posture)
+    self._off[side] = 0.0
     self.goal[side] = goal
     self.q_to[side] = q_pre
     self.phase[side] = "move"
@@ -263,9 +285,10 @@ class Reach:
 
   def move_goal(self, side: str, pos) -> None:
     """While holding: the hand's goal moved (a pull is the goal drawn back
-    with a low stiffness), its command walking there on its line."""
+    with a low stiffness), its command walking there on its line -- a
+    `pull`, which pushes on what it holds and so never stops for it."""
     self.goal[side].pos = np.asarray(pos, dtype=float)
-    self.phase[side] = "approach"
+    self.phase[side] = "pull"
 
   def retreat(self, side: str, approach: float = APPROACH_M) -> None:
     """Out along the line it came in on, then home in joint space; the
@@ -276,11 +299,11 @@ class Reach:
     self.phase[side] = "retreat"
 
   def done(self, side: str) -> bool:
-    """Whether a hand has arrived where it was sent (or hangs), or an arm
-    sent in joint space is there."""
+    """Whether a hand has arrived where it was sent (or hangs), or stopped
+    on its way (`blocked`), or an arm sent in joint space is there."""
     if self.phase[side] == "joints":
       return bool(np.allclose(self.q_cmd[side], self.q_to[side]))
-    return self.phase[side] in ("hold", "rest")
+    return self.phase[side] in ("hold", "rest", "blocked")
 
   # ---- the loop ----
 
@@ -297,6 +320,18 @@ class Reach:
     from its senses."""
     self._pose()
     return self.self_model.grip_pose(side)
+
+  def _posture_there(self, dt: float) -> bool:
+    """Whether the body has reached its plan's posture (`POSTURE_TOL`), or
+    has been given `POSTURE_WAIT_S` to."""
+    self._posture_wait += dt
+    near = (np.abs(self.posture_now() - self.posture) <= POSTURE_TOL).all()
+    if near or self._posture_wait >= POSTURE_WAIT_S:
+      self._posture_wait = 0.0
+      return True
+    return False
+
+  _posture_wait = 0.0
 
   def _line(self, side: str, dt: float) -> bool:
     """The command one step along its line to the goal; True once there."""
@@ -333,13 +368,19 @@ class Reach:
       self._update(self.every * self.m.opt.timestep)
     self.steps += 1
 
+  def posture_now(self) -> np.ndarray:
+    """The posture as the robot's model of itself has it: the pelvis's
+    height off the stand's (its legs' encoders) and the trunk's pitch (its
+    IMU)."""
+    sm = self.self_model
+    return np.array([sm.d.qpos[2] - hm.stand_height(),
+                     math.asin(max(-1.0, min(1.0, float(self.stand.trunk.gravity()[0]))))])
+
   def _trim(self, dt: float) -> None:
     """The posture as the robot's model has it against the plan's; the
     policy asked that much more, once the posture it was shown has arrived
     (a ramp's lag is not a miss), never past what it trained on."""
-    sm = self.self_model
-    have = np.array([sm.d.qpos[2] - hm.stand_height(),
-                     math.asin(max(-1.0, min(1.0, float(self.stand.trunk.gravity()[0]))))])
+    have = self.posture_now()
     if self.stand.settled:
       trim = np.clip(self.trim + TRIM_RATE * (self.posture - have) * dt,
                      -np.array(TRIM_MAX), TRIM_MAX)
@@ -361,16 +402,32 @@ class Reach:
         there = self._joints(s, dt)
         sm._set_arm(s, self.q_cmd[s])
         self.miss[s] = 0.0
-        if phase == "move" and there and self.stand.settled:
+        if phase == "move" and there and self.stand.settled and self._posture_there(dt):
           pos, rot = sm.grip_pose(s)
           self.cmd[s] = HandGoal(pos, rot, self.goal[s].stiffness)
           self.phase[s] = "approach"
+      elif phase == "blocked":
+        sm._set_arm(s, self.q_cmd[s])
+        stiffness = self.cmd[s].stiffness
       else:
+        # approach, pull, hold or retreat: a line (`_line`), solved again.
+        held = HandGoal(self.cmd[s].pos.copy(), self.cmd[s].rot, self.cmd[s].stiffness)
         there = self._line(s, dt)
         c = self.cmd[s]
         q, ep, _ = sm.solve(s, c.pos, c.rot)
+        # Out of reach on its way or while it holds; pushing only on its
+        # way in (a hold may carry a weight, and a pull pushes on purpose).
+        off = phase != "retreat" and (
+          ep > BLOCKED_M or (phase == "approach" and np.linalg.norm(self.force[s]) > BLOCKED_N))
+        self._off[s] = self._off[s] + dt if off else 0.0
+        if self._off[s] >= BLOCKED_S:
+          # Stopped where it was last commanded: the goal is out of its reach,
+          # or the hand pushes on something.
+          self.cmd[s] = held
+          q, ep, _ = sm.solve(s, held.pos, held.rot)
+          self.phase[s], there = "blocked", False
         self.q_cmd[s], self.miss[s], stiffness = q, ep, c.stiffness
-        if there and phase == "approach":
+        if there and phase in ("approach", "pull"):
           self.phase[s] = "hold"
         elif there and phase == "retreat":
           self.goal[s] = self.cmd[s] = None

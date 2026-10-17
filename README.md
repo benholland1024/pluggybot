@@ -183,10 +183,17 @@ scene to the same script:
 uv run python scripts/humanoid_spike.py --view body   # held up on a gantry in
                                       # the house, each joint through its
                                       # range in turn, then the grippers
+uv run python scripts/humanoid_spike.py --view stand  # on its own feet:
+                                      # shoved, crouching and bowing
+uv run python scripts/humanoid_spike.py --view reach  # a hand to a counter,
+                                      # a high shelf, a low one and the floor
+uv run python scripts/humanoid_spike.py --view grasp  # a drawer's handle
+                                      # gripped and pulled
 ```
 `humanoid_spike.py --help` lists its tables (`--mass`, `--torque`,
-`--thermal`, `--energy`, `--sensors`); SimNotes, "The humanoid body", has
-what they measured, and Parts.md the parts and the bill.
+`--thermal`, `--energy`, `--sensors`, `--shove`, `--envelope`, `--hold`);
+SimNotes, "The humanoid body" and "The humanoid stands, reaches and
+grasps", has what they measured, and Parts.md the parts and the bill.
 
 View a body alone:
 ```bash

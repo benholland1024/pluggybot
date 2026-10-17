@@ -518,6 +518,10 @@ CTRL_WRITERS = {
   # issue #406: the pen's carriage, a lead screw walked by the plotter
   # (`PenPlotter`), the one path the tool's own axis is commanded through.
   "tools/drawing.py",
+  # issue #507: the humanoid's grippers -- a Dex1-1's jaws opened to a width
+  # or shut (`humanoid.arms.Gripper`), the one path its jaws are commanded
+  # through; its joints are `legs/drivers.py`'s.
+  "humanoid/arms.py",
   # issue #378: the quadruped's arm driver -- its two motors' torques, a PD
   # toward a target RAMPED at ARM_SLEW plus the arm's own gravity, the one
   # path the arm's joints are commanded through: the served body's since
