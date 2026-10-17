@@ -1872,6 +1872,29 @@ class QuadBody(Body):
       return self.mission.stow_arm_routine()
     return self.mission.carry_routine()
 
+  # ---- hands: the humanoid's (#507); the quadruped's arm has none ----------
+
+  _NO_HAND = ("the quadruped's arm is two joints in a plane on its back: no hand "
+              "reaches a pose, and its grip is a tool's (`claw_routine`)")
+
+  def reach_routine(self, side, pos, rot=None, stiffness=1.0, patience=20.0) -> Routine:
+    raise NotImplementedError(self._NO_HAND)
+    yield
+
+  def release_routine(self, side) -> Routine:
+    raise NotImplementedError(self._NO_HAND)
+    yield
+
+  def grip_routine(self, side, closed) -> Routine:
+    raise NotImplementedError(self._NO_HAND)
+    yield
+
+  def gripped(self, side) -> bool:
+    raise NotImplementedError(self._NO_HAND)
+
+  def hand_force(self, side):
+    raise NotImplementedError(self._NO_HAND)
+
   # ---- posture and rest ----------------------------------------------------
 
   @property

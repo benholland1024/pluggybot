@@ -262,9 +262,10 @@ def chest_xml(lid: Lid, name: str = "chest", tags: bool = True) -> str:
 
 
 def attach_chest(spec, lid: Lid, pos, yaw: float = 0.0, name: str = "chest",
-                 tags: bool = True) -> None:
-  """The chest into a world's `spec`, its frame at `pos` (x, y on the floor)
-  turned `yaw` (rad) about z; with `tags`, the knob's tag texture too, off
+                 tags: bool = True, z: float = 0.0) -> None:
+  """The chest into a world's `spec`, its frame at `pos` (x, y on the floor,
+  or `z` up: on a counter, #507) turned `yaw` (rad) about z; with `tags`,
+  the knob's tag texture too, off
   the generator's `tags/` beside the world's file (`legs.world`'s), once a
   world. ⚠ Every chest's knob wears the one tag: two in one world are two
   knobs a decode cannot tell apart."""
@@ -276,7 +277,7 @@ def attach_chest(spec, lid: Lid, pos, yaw: float = 0.0, name: str = "chest",
                             reflectance=0.0)
     mat.textures[mujoco.mjtTextureRole.mjTEXROLE_RGB] = f"tagtex{KNOB_TAG_ID}"
   frame = spec.worldbody.add_frame()
-  frame.pos = [float(pos[0]), float(pos[1]), 0.0]
+  frame.pos = [float(pos[0]), float(pos[1]), float(z)]
   frame.quat = [math.cos(yaw / 2), 0.0, 0.0, math.sin(yaw / 2)]
   spec.attach(mujoco.MjSpec.from_string(chest_xml(lid, name, tags)), prefix="", frame=frame)
 

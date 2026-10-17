@@ -624,6 +624,40 @@ class Body(abc.ABC):
     """Its reach into the driving configuration (the quadruped's arm folded
     to its stow)."""
 
+  # ---- hands (issue #507: the humanoid's) ----------------------------------
+
+  @abc.abstractmethod
+  def reach_routine(self, side: str, pos, rot=None, stiffness: float = 1.0,
+                    patience: float = 20.0) -> Routine:
+    """A hand (`side`, "left" or "right") to a grip pose in the believed
+    world frame -- `pos`, m, and `rot`, world from grip (its fingers along
+    its -z, its jaws closing along its x), or None for any -- its arm's
+    commands carrying `stiffness`, a share of its own gains: a compliant
+    pull is a low one. The posture is the body's to choose. True once it
+    holds there; False if no posture it holds puts the pose in reach or
+    `patience` ran out. The humanoid's (#507); a body with no such hand
+    refuses it (`NotImplementedError`)."""
+
+  @abc.abstractmethod
+  def release_routine(self, side: str) -> Routine:
+    """A hand back out along its way in, and its arm home."""
+
+  @abc.abstractmethod
+  def grip_routine(self, side: str, closed: bool) -> Routine:
+    """A hand's gripper shut or opened, standing while it moves; shut, it
+    returns whether it holds something (`gripped`)."""
+
+  @abc.abstractmethod
+  def gripped(self, side: str) -> bool:
+    """Whether a hand holds something, by its gripper's own reading -- its
+    jaws stopped short of closed, squeezing -- never by what the world
+    says it touches (#493: the quadruped's `held()` read the world)."""
+
+  @abc.abstractmethod
+  def hand_force(self, side: str) -> tuple[float, float, float]:
+    """The force a hand pushes with, N, in the believed world frame, read
+    off its arm's motor currents."""
+
   # ---- posture and rest ----------------------------------------------------
 
   #: Lying down to rest.
@@ -658,21 +692,32 @@ def members() -> frozenset[str]:
 
 def body_for(model, data, handle: RobotHandle = FIRST, **kw) -> Body:
   """The body this robot IS, in this world: the one choice a lifecycle
-  built without one makes (`HubLifecycle(body=None)`) -- legs
-  (`legs/body.py`, issue #387), found by this robot's names; a world with
-  no robot of ours under them is refused. `kw` is its navigation: the
-  viewer, pacing, rack prior and map bounds."""
-  if not is_quadruped(model, handle):
-    raise ValueError(f"no body under {handle.root!r} in this world: the "
-                     "quadruped is the one body (the rover left in #376)")
-  from pluggybot.legs.body import QuadBody
-  return QuadBody(model, data, handle=handle, **kw)
+  built without one makes (`HubLifecycle(body=None)`) -- the quadruped
+  (`legs/body.py`, issue #387) or the humanoid (`humanoid/body.py`, #507),
+  found by this robot's names; a world with no robot of ours under them is
+  refused. `kw` is its navigation: the viewer, pacing, rack prior and map
+  bounds (the humanoid takes the bounds, and its policies)."""
+  if is_quadruped(model, handle):
+    from pluggybot.legs.body import QuadBody
+    return QuadBody(model, data, handle=handle, **kw)
+  if is_humanoid(model, handle):
+    from pluggybot.humanoid.body import HumanoidBody
+    return HumanoidBody(model, data, handle=handle,
+                        **{k: v for k, v in kw.items() if k in ("grid_bounds", "policy", "walk")})
+  raise ValueError(f"no body under {handle.root!r} in this world: the quadruped "
+                   "and the humanoid are the bodies (the rover left in #376)")
 
 
 def is_quadruped(model, handle: RobotHandle = FIRST) -> bool:
-  """Does this robot walk? Its first leg's hip, by name."""
+  """Does this robot walk on four legs? Its first leg's hip, by name."""
   return mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_JOINT,
                            handle.el("FL_hip_abd")) >= 0
+
+
+def is_humanoid(model, handle: RobotHandle = FIRST) -> bool:
+  """...or on two (#507)? Its left hip's pitch, by name."""
+  return mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_JOINT,
+                           handle.el("left_hip_pitch")) >= 0
 
 
 # ---- the stub: a body with no physics ---------------------------------------
@@ -788,6 +833,10 @@ class StubBody(Body):
     self.placed: list[int] = []
     self.held: int | None = None
     self.stacked: list[tuple[int, int]] = []
+    #: ...where it sent each hand, and which grips hold (#507): a hand
+    #: shut where a test sent it holds, as the stub's every walk arrives.
+    self.hands: dict[str, tuple] = {}
+    self.grips: dict[str, bool] = {}
     #: ...and each survey it was asked for, and what it counts, by tag
     self.surveyed: list[int] = []
     self.counts: dict[int, int] = {}
@@ -1158,6 +1207,28 @@ class StubBody(Body):
   def retract_arm_routine(self):
     return
     yield
+
+  def reach_routine(self, side, pos, rot=None, stiffness=1.0, patience=20.0):
+    self.hands[side] = tuple(pos)
+    return True
+    yield
+
+  def release_routine(self, side):
+    self.hands.pop(side, None)
+    self.grips.pop(side, None)
+    return
+    yield
+
+  def grip_routine(self, side, closed):
+    self.grips[side] = bool(closed) and side in self.hands
+    return self.grips[side] if closed else True
+    yield
+
+  def gripped(self, side) -> bool:
+    return self.grips.get(side, False)
+
+  def hand_force(self, side):
+    return (0.0, 0.0, 0.0)
 
   def rest_routine(self):
     self.resting = True

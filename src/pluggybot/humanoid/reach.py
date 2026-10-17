@@ -269,6 +269,14 @@ class Reach:
     self.posture = np.array([height, pitch], dtype=float)
     self.stand.ask(*(self.posture + self.trim))
 
+  def set_joints(self, side: str, q) -> None:
+    """The arm to joint angles `q` (its six, `hm.ARM` order) in joint space
+    and held there: the motor level's (`Body.ramp_routine`), its hand's
+    goal let go."""
+    self.goal[side] = self.cmd[side] = None
+    self.q_to[side] = np.asarray(q, dtype=float).copy()
+    self.phase[side] = "joints"
+
   def stiffen(self, side: str, stiffness: float) -> None:
     """The stiffness the hand's commands carry from now (a share of
     `model.ARM_GAIN_SCALE`'s gains)."""
@@ -292,7 +300,9 @@ class Reach:
 
   def done(self, side: str) -> bool:
     """Whether a hand has arrived where it was sent (or hangs), or stopped
-    on its way (`blocked`)."""
+    on its way (`blocked`), or an arm sent in joint space is there."""
+    if self.phase[side] == "joints":
+      return bool(np.allclose(self.q_cmd[side], self.q_to[side]))
     return self.phase[side] in ("hold", "rest", "blocked")
 
   # ---- the loop ----
@@ -388,7 +398,7 @@ class Reach:
     self._pose(self.q_cmd)
     for s in hm.SIDES:
       phase, stiffness = self.phase[s], 1.0
-      if phase in ("rest", "move"):
+      if phase in ("rest", "move", "joints"):
         there = self._joints(s, dt)
         sm._set_arm(s, self.q_cmd[s])
         self.miss[s] = 0.0
