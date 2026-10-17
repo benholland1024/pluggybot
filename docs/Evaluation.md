@@ -988,9 +988,12 @@ internals. Its rules:
 - **between attempts the world resets the scene**, and every reset is help
   the world gave, counted on its row: MuJoCo's resets are free and exact,
   and a real world's are neither (§5);
-- **the call is wherever the skill ended, or its budget did** (`cut`; 300
-  sim-s, the probe's own patience), then the hold with the body held still,
-  and one verdict through `scoring.evaluate`, graded and paid nothing;
+- **the call is wherever the skill ended, or its budget did** (`cut`): the
+  budget is the job's own time limit (300 sim-s, `lid.TIME_LIMIT_S`), and
+  a cut attempt that failed says "out of time" first. Then the hold with
+  the body held still, and one verdict through `scoring.evaluate`, graded
+  and paid nothing. A fall is lost time and nothing more: the body's falls
+  and its tool are on the row, judged by nothing (Ben, 2026-10-17);
 - **what the skill says of itself is its own test**, recorded beside the
   verdict and never read by it; ⚠ a skill is handed the BODY, never the
   world: the chest's truth stays the harness's;
