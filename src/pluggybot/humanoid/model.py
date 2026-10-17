@@ -714,12 +714,25 @@ def _jaw_equalities() -> str:
 #: has no self-contact), so without these a gait could pass one leg through
 #: the other. At the stand they are 10-12 cm apart.
 LEG_GEOMS = ("thigh", "shank", "sole")
+#: ...and an arm's against the trunk, the legs' thighs and shanks and the
+#: other arm: a robot getting up off the floor leans on its arms, and an arm
+#: that passed through its own trunk or thigh would push off nothing a real
+#: one could (#507, stage 5). At the stand they are 3.3 cm apart or more.
+ARM_GEOMS = ("upper_arm", "forearm", "gripper")
+TRUNK_GEOMS = ("pelvis", "torso", "head")
 
 
 def _leg_pairs() -> str:
-  """The left leg's parts against the right's, each pair explicit."""
-  return "\n".join(f'    <pair geom1="left_{a}" geom2="right_{b}"/>'
-                   for a in LEG_GEOMS for b in LEG_GEOMS)
+  """The left leg's parts against the right's, each pair explicit; then
+  each arm's against the trunk, both legs and the other arm."""
+  legs = [f'    <pair geom1="left_{a}" geom2="right_{b}"/>'
+          for a in LEG_GEOMS for b in LEG_GEOMS]
+  limbs = TRUNK_GEOMS + tuple(f"{t}_{g}" for t in SIDES for g in LEG_GEOMS[:2])
+  arms = [f'    <pair geom1="{s}_{a}" geom2="{b}"/>'
+          for s in SIDES for a in ARM_GEOMS for b in limbs]
+  arms += [f'    <pair geom1="left_{a}" geom2="right_{b}"/>'
+           for a in ARM_GEOMS for b in ARM_GEOMS]
+  return "\n".join(legs + arms)
 
 
 def _foot_sensors() -> str:

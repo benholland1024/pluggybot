@@ -26,6 +26,10 @@ FEET = tuple(BODY["feet"])
 SOLES = tuple(f"{s}_sole" for s in ("left", "right"))
 HANDS = ("left_hand", "right_hand")
 
+#: The whole robot, kg, off its compiled drawing (a get-up's lift is a share
+#: of its weight).
+MASS_KG = float(mujoco.MjModel.from_xml_path(str(XML)).body_subtreemass[1])
+
 #: The physics step training runs at, s, and the policy's every
 #: `DECIMATION` of them (mjlab's velocity task: 50 Hz); the served sim runs
 #: 0.002 and flies the policy there.

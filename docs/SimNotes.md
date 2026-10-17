@@ -4749,12 +4749,9 @@ with its belief 17 cm off the truth; and back in 33 s, 2 cm from the goal
 and its belief 2 cm off -- the scan matcher pulled the odometry's drift
 back on the way. No falls.
 
-**The walls are the served house's 1.2 m, the rover's; its LIDAR spins at
-1.41 m.** It saw over every wall in the house: a map of its plane alone was
-empty. The scene's house raises its walls to a real 2.4 m, a world of its
-own (`tall_house_world`) -- **a served humanoid needs the house's walls at
-a room's height**, a world change for stage 5 (its stairs change the
-world too).
+**The house's walls were the rover's 1.2 m; its LIDAR spins at 1.41 m.**
+It saw over every wall, and a map of its plane alone was empty: stage 5
+raised the house's walls to a room's 2.4 m.
 
 **The walking policy** (`Pluggy-Humanoid-Walk`, walk2, the served walker:
 mjlab's G1 recipe on our body, its arms scripted more quietly than a reach,
@@ -4855,6 +4852,244 @@ trained nothing): one rented RTX 5090 (Vast, $0.49 an hour) for 3.4 hours
 (diverged, 12), rough3 (33), rough4 (27) and rough5 (stopped at 13), three
 starts out of memory and the blow-up diagnostic -- **$1.65** off Vast's
 own charges.
+
+## The humanoid climbs, falls and gets up (issue #507, stage 5)
+
+The served house changed for it, its senses learnt to see the ground ahead
+and keep their height on a flight, and its loop was timed against the
+quadruped pair's. Every number is MuJoCo's, an upper bound on hardware.
+
+**The house is a room's height, and its stairs are steps** (`home/world.py`;
+Observatory.md has the period). Every wall is 2.4 m, where the rover's were
+1.2: the humanoid's LIDAR spins at 1.41 m and saw over every one (stage 4's
+walk scene raised them in a world of its own; that world is gone). The
+staircase, one solid 0.9 m box since #68 -- the rover's LIDAR rode at
+0.223 m and could not have seen a riser -- is the flight the website drew
+inside it: five 0.18 m risers on 0.30 m treads against the hall's west
+wall, a landing 0.9 m up filling the rest of the block, and a half wall
+0.9 m tall on its open edges (`stairs_geoms`). On the humanoid's head the
+LIDAR is 2.31 m up on the landing, still under the walls. The quadrupeds
+plan round it as before: their LIDAR's plane (0.51 m) meets the third
+riser, the depth camera's low layer the first two; sent onto the first
+tread one stopped 0.5 m short of it, sent up the flight it walked away
+when the walk ran out, and none fell.
+
+**What it sees of the ground ahead** (`humanoid/scan.py`): the D435 on its
+head laid into a map through its belief, read at the seeing walker's grid
+(the terrain under 1.6 x 1.0 m at 0.1 m, from 0.5 m behind the pelvis to
+1.1 m ahead), a point unseen reading the nearest cell seen (#388). Walked
+to the flight's foot, the map's scan was the world's to a median 1.6 cm
+(90th percentile 2.9 cm). What it took:
+- ⚠ *The ground under a sole is only what it saw or stood on.* At boot the
+  nearest seen cell to the feet was a wall's, 0.67 m up, and the height the
+  odometry anchored there was too: `under` reads seen cells alone, and a
+  planted sole writes its footprint into the map (`feel`) -- the ground it
+  stands on is known before it has looked.
+- ⚠ *A frame's height is registered against the map, cell against cell.*
+  The legs alone ran the belief's height away a metre in a few seconds of
+  flat walking, and the map with it. Each frame now overlaps ground already
+  mapped, and the median height between it and the cells it lands on moves
+  the belief (`_drift`). Point by point against the cells' maxima (the map
+  keeps a cell's highest point) it read ~7 mm low every frame and ratcheted
+  the belief up 9 cm in 7 s; each cell's highest new point against the
+  stored one reads nothing.
+- *Our ideal scan casts against the world's geoms alone*, as training did:
+  cast at everything it hit the robot's own head.
+- ⚠ *What it is shown is ground it could step on* (`HeadScan.ground`).
+  Training's ground is floors, blocks and flights, all of a piece; the
+  house's flight runs between the hall's wall and the deck's face, and
+  shown them as they stand the walker fell over backwards a metre short of
+  the first riser (between the same walls with them taken away, it walked
+  on). Ground is what joins the ground under the walker through rises no
+  taller than a riser (0.25 m), across what it has not seen at the nearest
+  height it has, and is no wall's -- a cell where one frame's points ran
+  taller than 0.3 m, a wall's face filling it from the floor up; a point
+  that is not reads as the nearest that is. NOT BY HOW HIGH A POINT IS:
+  half a metre to the side, a wall seen only at its foot read 0.64-0.75 m,
+  as high as the treads a slope rule had to keep, and a counter's top
+  1.1 m ahead is a flight's fifth tread. The wall rule is the one the
+  odometry needs too: a sole set against a wall read the wall's top as the
+  ground under it.
+
+**Which foot is planted on a flight** (`humanoid/odometry.py`): on a stair
+the lower foot is the TRAILING one, lifting off its tread while the leading
+one carries the body; stage 4's rule (the lower foot) kept it planted until
+it rose a riser past the other -- the height sinking a riser a step, the
+pelvis moved back as the foot swung forward. Where the mapped ground under
+the soles differs by more than 5 cm, the planted foot is the one nearer the
+ground under it -- the height that carries 30 % of its footprint, never its
+highest point (a toe at the next riser's edge read the tread above) -- and
+on one floor the lower-foot rule stands (swapping on the map's centimetre
+of noise read a walk 10 % short where the rule read it 2.5 %); the planted
+sole is followed by its LOWEST corner, the one on the ground (its middle
+travels 2-3 cm a step as it rolls heel to toe). ⚠ The height moves only as
+the planted sole does, NEVER LAID OFF THE MAP: laid off the ground under a
+landing sole, a footprint believed 6 cm up the flight read the next tread,
+the height jumped a riser, the map was laid a riser high from there, and
+the walker stumbled on the third tread; continuous, it stayed within 3 cm
+to the landing. Three other signals failed:
+a load off the legs' torques (standing it read 215 N against a true 215;
+walking, a swinging leg's own torques read up to 400 N), the soles' motion
+against each other (a sole rising and the other sinking read the same: the
+descent's case), and the IMU's velocity against each foot's (the height
+drifted a metre in 8 s).
+
+**Up the house's flight on its own map** (`models/humanoid_walk_stairs.npz`,
+`Pluggy-Humanoid-Stairs`; `humanoid_spike.py --climb`, `--view stairs`).
+Two walkers that see the ground were trained (`training/README.md`): the
+seeing walker over floors, blocks, plates and flights, and a stairs
+specialist over flights alone at the house's tread. Carried on from walk2,
+the seeing walker kept walk2's 2.5 cm shuffle and never left the easiest
+row of risers; fresh with the easiest at 0.05 m, nor did it; from 0.02 m
+both climbed, and both stopped climbing rows by iteration 4000 (up near
+0.13 m on average, down near 0.14). The specialist climbs better (the
+seeing walker at 5650, on its map: 1 in 5 up the house's riser, none down
+from 0.15 m), so it is the stairs' walker. In the house, the `stairs`
+scene from ten starts drawn askew, through the mission with its scan
+matcher, its map laid at 5 Hz: **up the flight 8 in 10** (one fall its
+get-up took; 13 s, its belief 3 cm off and its height 1 cm, medians), and
+**down it 2 in 10** (five falls) -- at 10 Hz no better, 7 and 3. Coming down
+it drops both soles a tread at a time, which no leg odometry follows: its
+height ended 0.6 m high and its belief 1.3 m back along the hall, whose
+long corridor gives the scan matcher nothing to hold it by. On a bare
+flight, five times each riser (no scan matcher there):
+
+| riser, m | up, its own map | down, its own map | up, the ideal scan | down, the ideal scan |
+|---|---|---|---|---|
+| 0.10 | 5/5 | 5/5 | 5/5 | 5/5 |
+| 0.15 | 4/5 | 1/5 (4 falls) | 5/5 | 3/5 |
+| 0.18, the house's | 2/5 (1 fall) | 3/5 (1 fall) | 5/5 | 1/5 |
+| 0.20 | 2/5 | 2/5 (2 falls) | 5/5 | 1/5 |
+| 0.22 | 2/5 | 3/5 | 5/5 | 0/5 |
+
+On the ideal scan it climbs every riser it trained on and balks at the
+edge going down, past what it learnt; its map fills what it has not seen
+at the nearest height it has, which hides the drop until the edge, and it
+goes on down. Coming down a flight is the open half. Each fix above is
+pinned in `tests/test_humanoid_stairs.py`.
+
+**The seeing walker does not replace walk2** (Ben's rule: only if it tracks
+as walk2 does on a flat floor, and beats it on rough ground and the stairs;
+`humanoid_spike.py --track`, `--rough`, each walker on what it would be
+served with -- the seeing one on its own map). On rough ground it never
+fell (0 of 8 on every course, 7.6-8.0 m of the 7.2 asked) where walk2 fell
+8 of 8 on the doorsteps and 7 of 8 on the blocks and stopped at the slope;
+on the stairs walk2, blind, trips on a 5 cm doorstep. On a flat floor:
+
+| asked (forward, sideways m/s, turn rad/s) | walk2 | the seeing walker |
+|---|---|---|
+| 0.5, 1.0, 1.3 forward | 0.51, 0.99, 1.27 | 0.47, 1.15, 1.38 |
+| 0.3, 0.5 backward | 0.20, 0.46 | 0.00, 0.66 (0.20 sideways) |
+| 0.3 sideways | 0.31 | 0.00 |
+| turns 0.5, -0.5, 1.0 | 0.35, -0.28, 1.01 | 0.27, -0.31, 0.81 |
+
+It will not sidestep or back off slowly -- the Navigator's back-off is 0.3
+m/s -- so walk2 stays the served walker and the seeing walker is not
+committed (its recipe is the stairs walker's). A variant paying walk2's
+pose off the flights and air time at a walking pace tracked worse still (1
+m/s asked walked 0.53).
+
+**Falling, and getting up** (`humanoid/getup.py`, `Pluggy-Humanoid-Getup`
+and `-Getup-Head`; `humanoid_spike.py --fall`, `--view fall`, `--view
+getup`). Without a get-up a fall is today's `stuck` death: a heart, and on
+a served world a stand-up 300 s later. The get-up policy takes every joint,
+arms too, once the IMU reads 35 deg of tilt or the pelvis has sunk under
+0.40 m over the sole it stands on (shoved hard from the front, the standing
+policy folded into a squat 32 deg off upright, and the tilt alone never
+fired), and hands back once it has stood still 0.5 s. Shoved 45 N*s each of
+six ways on a bare floor, by our grading off the world:
+
+| falling as | stood | the head struck at, m/s (the floor's push back, kN) | gears past their part's peak | the hardest into a hard stop |
+|---|---|---|---|---|
+| the standing policy | never | 3.8-5.0 (5.5-10.0) in four falls of six | 0-10 joints, to 3.9x (an elbow) | 530 N*m |
+| limp | never | 1.2-5.3 (to 9.7) in five | 0-4 joints, to 4.0x | 232 N*m |
+| the get-up policy | all six, 2.7-4.2 s | 0.3-3.3 (at most 0.3) in three; in three not at all | 1-8 joints, to 1.2x | 592 N*m |
+
+From lying it stood in 3.0 s off its back, 2.1 off its front and 2.7 off
+its side. The kilonewtons are MuJoCo's soft contact -- the shape of a
+blow, not a number to bank -- and the torque through each gear counts what
+its rotor's inertia takes as the joint is stopped short, the shock that
+strips a gearbox. What it took:
+- *A lift that fades*: the pelvis held up by half the body's weight, to
+  nothing by iteration 2400 (HoST's way; ⚠ the event's body must be in its
+  params, or the lift went on every body and the robots flew).
+- ⚠ *The head charged on its own*: on the shared charge for any part's hit
+  past two body weights, falling forward or sideways it let the head strike
+  at 5.5-6.9 m/s, harder than the standing policy's own falls. Charged 20 a
+  body weight past half a body weight (the rewards are scaled by the step,
+  so a 5 kN hit costs a tenth of an episode's pay) and four episodes in ten
+  a fall, 2000 more iterations brought the hardest head strike to 0.3 kN.
+- ⚠ *Every start it must get up from*: with no side-lying start (dropped
+  any way up was 0.2), it lost getting up off one side, which the policy
+  before it had; 1000 iterations with sides among the starts brought it
+  back.
+
+In the house, shoved the same four ways at five places, it stood 17 times
+in 20 within 15 s, the slowest 11.9 s, on the flight four in four. Down at
+15 s: shoved sideways in the 3 m hall, against the wall it fell into; and
+twice at the landing's edge, once to the foot of the flight, where it stood
+at 30 s. So a fall into a wall or off the landing is a `stuck` death still,
+and getting up among walls and flights is the training that would close it
+(the get-up trained on open floor alone). The stuck budget stays the
+quadruped's 20 s (`HumanoidBody.GETUP_BUDGET_S`). The mission waits out a
+get-up before handing the legs to a walk (⚠ a fall mid-walk with the arms
+home found them at rest and took the legs off the floor), and on standing
+again forgets its map of the ground and starts its height again over the
+ground it stands on, as at boot (⚠ kept through a fall down the flight, the
+height was 0.41 m off at the foot for good).
+
+**The sizing tables, re-read with the stairs and the get-up** (rule 7;
+`humanoid_spike.py --torque`, each joint's peak against its part's peak
+and its RMS against the part's continuous rating). Up the house's flight
+the knee peaks at 108 N*m (90 % of the RS04's) with its RMS at 89 % of its
+rating over the 11 s -- a burst; held at that for minutes the winding would
+settle at 135 C on a 40 C day, under its 145 -- and coming down the ankle
+pitch reaches its 120 N*m peak and the ankle's roll 52 (86 % of the
+RS03's). The estimates the parts were chosen on put the knee and the hip's
+roll at ~92 and the hip's turn at ~51: flown, the hip's roll is 51-61 and
+its turn 21-27. Getting up keeps every leg part inside its ratings (peaks
+to 73 %, RMS to 72 % over 2-3 s) and spends the arms whole: the upper
+arm's twist and the elbow (RS02) at their 17 N*m peaks from every start,
+and the shoulder's pitch and roll (RS03) at their 60 off its front and its
+side. Nothing past a rating; the arms have no margin for a body heavier
+than this one.
+
+**Whether it can be served** (`humanoid_spike.py --speed`): the same walks
+in the same house, each body through the Navigator with its own senses,
+timed one process at a time; measured on the deploy box itself, pinned to a
+core the live pair was not on (CPU 3; the live sim on CPU 1 kept its 77 %),
+in the serving image:
+
+| | real time, the walks | served |
+|---|---|---|
+| the quadruped pair | 1.67x | 1.40x (`serve.py --free-run`, `--pair --tasks --near-field`) |
+| one humanoid | 3.70x | ~3.1x, estimated |
+| the humanoid pair | 2.14x | ~1.75x, estimated |
+
+The served column for the humanoid adds the lifecycle's own cost, read off
+the quadruped pair (0.10 wall s a sim second for a pair, the near-field,
+the jobs and the stream). **A humanoid pair costs less than the quadruped
+pair**, twice the joints notwithstanding: its physics step is 15 % dearer
+(0.31 ms against 0.27), but the quadruped runs its leg odometry every
+physics step (500 Hz, the biggest of its Python costs) and casts more rays,
+where the humanoid reckons at 100 Hz. One lever left: the humanoid's reach
+reads both hands' forces at 100 Hz while it only walks. Seeing the ground
+costs a fifth more: on the dev box one humanoid walking the same routes ran
+at 2.7x real time blind and 2.3x with the stairs' walker and its map,
+interleaved twice (⚠ the map laid at the depth camera's 10 Hz, 1.8x: its
+ray-cast frames are most of it, and at 5 Hz the frames still overlap at
+1 m/s).
+
+**What it cost**: RTX 5090s on Vast, $5.27 by Vast's charges -- $0.77 on
+two hosts let go (one ran our tasks ten times slow, `pod.sh`'s DLPerf
+filter since; one downloaded slowly), $2.37 on a Ryzen 9 9950X host (the
+seeing walker beside the get-ups) and $2.12 on a Ryzen 5 9600X host (the
+stairs walker, the last get-up, the gait variant) -- against the stage's
+$16 likely. #507 to here: $8.45.
+
+(`humanoid_spike.py --strip stairs`, `--strip fall` and `--strip getup`
+draw `docs/figures/humanoid_stairs.png`, `humanoid_fall.png` and
+`humanoid_getup.png`.)
 
 ## Debugging workflow that worked
 

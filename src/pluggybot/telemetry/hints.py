@@ -96,13 +96,24 @@ class Marker:
     return "\n".join(out)
 
 
+def _stairs_geoms() -> list[tuple[str, str, str]]:
+  """The house's own staircase (`home.world.stairs_geoms`), body-local about
+  the floor under its block's middle, as the world places its body."""
+  from pluggybot.home import world as hw
+  cx = (hw.STAIRS_X[0] + hw.STAIRS_X[1]) / 2
+  cy = (hw.STAIRS_Y[0] + hw.STAIRS_Y[1]) / 2
+  return [("box", f"{h[0]:.4g} {h[1]:.4g} {h[2]:.4g}",
+           f"{c[0] - cx:.4g} {c[1] - cy:.4g} {c[2]:.4g}")
+          for _, c, h in hw.stairs_geoms()]
+
+
 #: ⚠ SIZES HERE ARE MuJoCo HALF-EXTENTS; the fixture carries FULL extents,
 #: because `scene_dict` converts and this file goes through it like any world.
 #: The v1 five are copied from the home world's real geometry rather than
 #: invented, so a builder tested against the fixture is tested against the
 #: house.
 MARKERS = [
-  Marker("wall", [("box", "0.02 4.0 0.6", "0 0 0.6")], collides=True,
+  Marker("wall", [("box", "0.02 4.0 1.2", "0 0 1.2")], collides=True,
          axes={"thickness": "size0", "length": "size1", "height": "size2"},
          build="replace",
          note="A slab standing on the floor. The two horizontal extents are "
@@ -194,16 +205,18 @@ MARKERS = [
               "subtree carries `robot: \"pluggybot\"` -- so the hint names "
               "where to ANCHOR, and `robot` names what to dress."),
   # ---- v3 (issue #66, against #68's authored floor plan) --------------------
-  Marker("stairs", [("box", "1.5 1.5 0.45", "0 0 0.45")], collides=True,
-         axes={"extentX": "size0", "extentY": "size1", "height": "size2"},
-         build="replace",
-         note="ONE SOLID BOX, and the browser draws the flight inside it -- "
-              "issue #68 decides this outright and it is not a simplification "
-              "to undo. The box is 0.9 m tall because the LIDAR rides at "
-              "0.223 m: real steps at ~0.18 m would be solid geometry the "
-              "robot cannot see, which is a wall it maps as open floor. The "
-              "art may show risers and treads; the marker is what the robot "
-              "believes, and it believes a block."),
+  Marker("stairs", _stairs_geoms(), collides=True,
+         axes={}, build="reskin",
+         note="MANY boxes, and the robot climbs them (pluggybot #507): five "
+              "steps, each a slab from the floor to its tread (0.18 m risers "
+              "on 0.30 m treads), the flight one doorway wide; the landing "
+              "and the deck beside the flight solid to the floor at the top "
+              "step's height (0.9 m); and a half wall 0.9 m tall on the "
+              "landing's open edges, over the hall and over the flight. A "
+              "RESKIN, as `rack` and `robot` are: a visitor watching a robot "
+              "climb is watching these treads, so dress them where they are. "
+              "Until #507 the staircase was ONE SOLID BOX the browser drew a "
+              "flight inside (the rover's LIDAR could not see a riser)."),
   Marker("street", [("box", "1.5 6.0 0.001", "0 0 -0.001")], collides=False,
          axes={"extentX": "size0", "extentY": "size1", "thickness": "size2"},
          build="replace",
@@ -282,12 +295,9 @@ MARKERS = [
 #: the wrong one. If the expanded house wants furniture that cannot be one
 #: box, that is a bug to report on issue #66, not to work around in a builder.
 #:
-#: `stairs` is here for a different and stronger reason: issue #68 decides the
-#: staircase IS one box ("do not model steps"), because the LIDAR rides at
-#: 0.223 m and real risers at ~0.18 m would be solid geometry the robot cannot
-#: see. A builder that replaced the block with modelled steps would be drawing
-#: a shape the robot does not believe in.
-ONE_BOX_HINTS = ("couch", "bed", "table", "counter", "stairs")
+#: `stairs` WAS here (issue #68: one box, because the rover's LIDAR could not
+#: see a riser); since #507 the robots climb modelled steps, so it is MANY.
+ONE_BOX_HINTS = ("couch", "bed", "table", "counter")
 
 _XML = """<mujoco model="hints">
   <worldbody>

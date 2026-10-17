@@ -25,11 +25,20 @@ stands still where asked to walk backward or sideways, on flat ground too
 (SimNotes, "The humanoid walks"), so it is not the served walker. Every
 difficulty at once (rough3) narrowed it further; sharper tracking widths
 (0.2 m/s and 0.3 rad/s, rough5) paid nothing for a walk it could not track
-precisely, and it stood still at 1 m/s too. The stairs are stage 5's.
+precisely, and it stood still at 1 m/s too.
+
+`-Seeing` (stage 5) is a walker that SEES the ground: the actor is shown a
+height scan, the terrain's height under a grid round its feet and ahead
+(`SCAN`), and the terrain adds flights up and down at the house's tread
+(`SEEING_TERRAINS`), with #388's stairs recipe (`quad_train.stairs`): on a
+stair tile most commands walk straight out along a flight, and a swinging
+foot must clear the nose ahead of it. On the robot the scan is the D435's
+map, read at the same grid (`pluggybot.humanoid.scan`). A new policy, not a
+fine-tune: its inputs are new.
 """
 
 import math
-from dataclasses import replace
+from dataclasses import dataclass, fields, replace
 
 import torch
 from mjlab.envs import ManagerBasedRlEnvCfg
@@ -49,6 +58,8 @@ from mjlab.terrains.terrain_generator import TerrainGeneratorCfg
 
 from humanoid_train import robot
 from humanoid_train.stand import HAND_KG, ScriptedArmsCfg, torque_over_rating
+from quad_train.stairs import StairsCommandCfg, foot_nose_clearance
+from quad_train.task import RaisedGridPatternCfg
 
 #: Top commanded speeds: forward and back, sideways (m/s), turning (rad/s),
 #: and where the curriculum starts them. A person walks 1.2-1.4 m/s; the
@@ -254,4 +265,177 @@ def rough_env_cfg(play: bool = False) -> ManagerBasedRlEnvCfg:
     cfg.terminations.pop("out_of_terrain_bounds", None)
     gen = cfg.scene.terrain.terrain_generator
     gen.curriculum, gen.num_rows, gen.num_cols = False, 5, 5
+  return cfg
+
+
+# ---- seeing the ground (stage 5) ---------------------------------------------------
+
+#: The house's flight (`pluggybot.home.world`): 0.18 m risers on 0.30 m
+#: treads. The stair columns span risers from 0.02 to 0.23 m across their
+#: ten rows (the house's near row 7; the UK allows a home 0.22), in flights
+#: of eight on 2 m platforms with 0.5 m borders. ⚠ From 0.05 m, a walker
+#: learning to walk shuffled its feet 1.5-2 cm high and never climbed out of
+#: the easiest pit while every other column moved up.
+TREAD_M = 0.30
+RISERS_M = (0.02, 0.23)
+FLIGHT = dict(step_height_range=RISERS_M, step_width=TREAD_M, platform_width=2.0,
+              border_width=0.5)
+#: The rough task's boxes and the flights: one column a terrain (mjlab's
+#: curriculum), the share of robots each spawns. ⚠ BOXES ONLY, as the
+#: rough task's (`TERRAINS`): the box soles blow up on a height field.
+SEEING_TERRAINS = TerrainGeneratorCfg(
+  size=(8.0, 8.0), border_width=20.0, num_rows=10, num_cols=5, curriculum=True,
+  sub_terrains={
+    "flat": terrain_cfg.flat(proportion=0.15),
+    "stairs_up": terrain_cfg.pyramid_stairs_inv(proportion=0.3, **FLIGHT),
+    "stairs_down": terrain_cfg.pyramid_stairs(proportion=0.25, **FLIGHT),
+    "blocks": terrain_cfg.box_random_grid(proportion=0.15, grid_height_range=(0.0, 0.08),
+                                          grid_width=0.45),
+    "tilted": terrain_cfg.tilted_grid(proportion=0.15, tilt_range_deg=10.0, height_range=0.05),
+  },
+  add_lights=True,
+)
+#: ⚠ mjlab's `pyramid_stairs_inv` spawns the robot in a pit, so walking out
+#: CLIMBS; `pyramid_stairs` on top, so it descends (#388).
+STAIRS = ("stairs_up", "stairs_down")
+
+
+@dataclass
+class AheadGridPatternCfg(RaisedGridPatternCfg):
+  """The quadruped's raised height-scan grid (#388) with its middle `ahead`
+  of the pelvis: a walker needs the treads in front more than the floor
+  behind."""
+
+  ahead: float = 0.3
+
+  def generate_rays(self, mj_model, device):
+    offsets, directions = super().generate_rays(mj_model, device)
+    offsets[:, 0] += self.ahead
+    return offsets, directions
+
+
+#: What the seeing walker is shown: the terrain under a grid 1.6 m long and
+#: 1.0 m wide at 0.1 m (187 points), from 0.5 m behind the pelvis to 1.1 m
+#: ahead, cast from 1 m over it (a flight a metre ahead rises 0.6 m). On the
+#: robot the D435 sees the floor from 0.48 m ahead and its map keeps what it
+#: saw, the ground under and behind the feet included.
+SCAN = AheadGridPatternCfg(size=(1.6, 1.0), resolution=0.1, height=1.0, ahead=0.3)
+#: A swinging sole's middle must pass this far over the highest terrain
+#: within half a tread of it, m (`stairs.foot_nose_clearance`): the box
+#: sole's toe is 0.11 m ahead of it.
+NOSE_CLEARANCE_M = 0.07
+NOSE_RING = RingPatternCfg(rings=(RingPatternCfg.Ring(TREAD_M / 4, 8),
+                                  RingPatternCfg.Ring(TREAD_M / 2, 8)))
+#: The robot's geoms that must not touch a step: a thigh or shank costs a
+#: quarter of what the trunk does.
+LIMBS = tuple(f"{s}_{g}" for s in ("left", "right") for g in ("thigh", "shank"))
+TRUNK = ("pelvis", "torso", "head")
+#: On a flight the hip, the knee and the ankle bend further than a walk:
+#: the joint-pose reward's sagittal tolerances widen (a 0.18 m riser takes
+#: the knee a radian past the stand's), the lateral do not, and the reward
+#: weighs less (`POSE_WEIGHT`). ⚠ At the walk's weight and half these
+#: widths, with the action rate charged as the flat walker's, the transplant
+#: kept walk2's 2.5 cm shuffle and stopped at the first riser, every column
+#: of risers held at the curriculum's floor for 800 iterations (seeing3 and
+#: seeing4), the swing's charges four times as heavy as the stock's or not.
+STD_STAIRS = {**STD_WALKING, r".*_hip_pitch": 0.8, r".*_knee": 1.0, r".*_ankle_pitch": 0.5}
+POSE_WEIGHT, ACTION_RATE_WEIGHT, AIR_TIME_WEIGHT = 0.4, -0.05, 0.5
+#: The swing's charges, heavier than the stock's: a foot swung under
+#: `NOSE_CLEARANCE_M` over the nose ahead, and its peak under `SWING_M`.
+NOSE_WEIGHT, SWING_WEIGHT, SWING_M = -8.0, -1.0, 0.12
+
+
+def seeing_env_cfg(play: bool = False) -> ManagerBasedRlEnvCfg:
+  """The ground-seeing walker on flights, blocks and tilted plates."""
+  cfg = _common(make_velocity_env_cfg())
+  cfg.sim.mujoco.ccd_iterations = 500
+  cfg.sim.contact_sensor_maxmatch = 64
+  cfg.terminations["nan"] = TerminationTermCfg(func=nan_detection)
+  cfg.terminations["blown_up"] = TerminationTermCfg(func=blown_up)
+  cfg.terminations["fell_over"] = TerminationTermCfg(
+    func=mdp.bad_orientation, params={"limit_angle": math.radians(70.0)})
+  cfg.scene.terrain.terrain_generator = replace(SEEING_TERRAINS)
+  cfg.scene.terrain.max_init_terrain_level = 0
+  for sensor in cfg.scene.sensors:
+    if sensor.name == "terrain_scan":
+      sensor.pattern = SCAN
+
+  twist = cfg.commands["twist"]
+  cfg.commands["twist"] = StairsCommandCfg(
+    **{f.name: getattr(twist, f.name) for f in fields(twist)}, stairs=STAIRS,
+    speed=(0.3, 0.6))
+
+  feet = tuple(ObjRef(type="site", name=f, entity="robot") for f in robot.FEET)
+  terrain = ContactMatch(mode="body", pattern="terrain")
+  cfg.scene.sensors = cfg.scene.sensors + (
+    TerrainHeightSensorCfg(
+      name="foot_nose_scan", frame=feet, pattern=NOSE_RING, ray_alignment="yaw",
+      max_distance=1.0, exclude_parent_body=True, include_geom_groups=(0,)),
+    ContactSensorCfg(
+      name="limb_terrain",
+      primary=ContactMatch(mode="geom", pattern=LIMBS, entity="robot"),
+      secondary=terrain, fields=("found",), reduce="none", num_slots=1),
+    ContactSensorCfg(
+      name="trunk_terrain",
+      primary=ContactMatch(mode="geom", pattern=TRUNK, entity="robot"),
+      secondary=terrain, fields=("found",), reduce="none", num_slots=1),
+  )
+  rewards = cfg.rewards
+  del rewards["foot_clearance"]
+  rewards["nose_clearance"] = RewardTermCfg(
+    func=foot_nose_clearance, weight=NOSE_WEIGHT,
+    params={"target_height": NOSE_CLEARANCE_M, "height_sensor_name": "foot_nose_scan",
+            "command_name": "twist",
+            "asset_cfg": SceneEntityCfg("robot", site_names=robot.FEET)})
+  # The swing's peak, read over the same ring: a lift over a riser peaks
+  # over the tread above, not the one it left.
+  rewards["foot_swing_height"].params["height_sensor_name"] = "foot_nose_scan"
+  rewards["foot_swing_height"].params["target_height"] = SWING_M
+  rewards["foot_swing_height"].weight = SWING_WEIGHT
+  rewards["pose"].weight = POSE_WEIGHT
+  rewards["action_rate_l2"].weight = ACTION_RATE_WEIGHT
+  rewards["air_time"].weight = AIR_TIME_WEIGHT
+  rewards["limb_contact"] = RewardTermCfg(
+    func=mdp.self_collision_cost, weight=-0.25, params={"sensor_name": "limb_terrain"})
+  rewards["trunk_contact"] = RewardTermCfg(
+    func=mdp.self_collision_cost, weight=-1.0, params={"sensor_name": "trunk_terrain"})
+  rewards["pose"].params["std_walking"] = dict(STD_STAIRS)
+  rewards["pose"].params["std_running"] = {k: 1.7 * v for k, v in STD_STAIRS.items()}
+  if play:
+    cfg = _play(cfg)
+    cfg.terminations.pop("out_of_terrain_bounds", None)
+    gen = cfg.scene.terrain.terrain_generator
+    gen.curriculum, gen.num_rows, gen.num_cols = False, 5, 5
+  return cfg
+
+
+#: The stairs alone (`-Stairs`): a specialist for the house's flight beside
+#: the seeing walker, the same scan and rewards over flights up and down
+#: (risers 0.02-0.22 m, the house's 0.30 m tread) and a little flat floor,
+#: nine commands in ten on a flight walking straight out along it.
+STAIRS_TERRAINS = TerrainGeneratorCfg(
+  size=(8.0, 8.0), border_width=20.0, num_rows=10, num_cols=3, curriculum=True,
+  sub_terrains={
+    "flat": terrain_cfg.flat(proportion=0.1),
+    "stairs_up": terrain_cfg.pyramid_stairs_inv(
+      proportion=0.5, step_height_range=(0.02, 0.22), step_width=TREAD_M,
+      platform_width=2.0, border_width=0.5),
+    "stairs_down": terrain_cfg.pyramid_stairs(
+      proportion=0.4, step_height_range=(0.02, 0.22), step_width=TREAD_M,
+      platform_width=2.0, border_width=0.5),
+  },
+  add_lights=True,
+)
+
+
+def stairs_env_cfg(play: bool = False) -> ManagerBasedRlEnvCfg:
+  """The seeing walker's task on flights alone."""
+  cfg = seeing_env_cfg(play=False)
+  cfg.scene.terrain.terrain_generator = replace(STAIRS_TERRAINS)
+  cfg.commands["twist"].forward = 0.9
+  if play:
+    cfg = _play(cfg)
+    cfg.terminations.pop("out_of_terrain_bounds", None)
+    gen = cfg.scene.terrain.terrain_generator
+    gen.curriculum, gen.num_rows, gen.num_cols = False, 5, 3
   return cfg

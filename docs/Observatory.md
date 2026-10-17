@@ -10,6 +10,39 @@ observatory is NOT a result: it reports into the issue it informs.
 
 ## Periods
 
+### The house's walls are a room's height, and its stairs are steps (#507) — opens when this PR is deployed
+
+**What changed in the world.** Every wall of both houses is 2.4 m, where
+it was the rover's 1.2 (the humanoid's LIDAR spins 1.41 m up and saw over
+all of them); the garden fences stay 0.9. The staircase in the hall's south
+end, one solid 0.9 m box since #68, is the flight the website drew inside
+it: five 0.18 m risers on 0.30 m treads against the hall's west wall, a
+landing 0.9 m up filling the rest of the block, and a half wall 0.9 m tall
+on its open edges. The house's geometry moved, so the first restart after
+the deploy keeps the clock, the packs, the deaths and the jobs but not the
+bodies or the maps (`fingerprint`, Webserver.md "A restart is a
+continuation"): both robots start from their commissioned poses and lay
+their maps again from the dock. The prompt did not move; the rooms, the
+doors and every job's place are where they were.
+
+**What the quadrupeds see of it.** Their LIDAR's plane (0.51 m) meets the
+same walls as before and the flight's third riser; the first two treads
+are under it, a low layer of the depth camera's the planner plans round
+(`QuadMission._fold_low`). Flown before the deploy, sent onto the first
+tread one stopped 0.5 m short of it, sent up the flight it walked away
+when the walk ran out, and none fell. No job is in the hall's south end.
+
+**What the period is for.**
+
+- **Walks into the flight's lane and falls near the stairs**: `stuck`
+  deaths and get-ups whose `death.at` is in the hall south of y = −2.5,
+  against the periods before (the block stood there and no robot walked
+  under it).
+- **The explore's map of the hall's south end**: the flight's lane is a
+  dead end 1.1 m wide; a frontier there is looked into once.
+- ⚠ **Not a period to pool across**: a map and every trajectory through
+  the hall moved with the walls and the steps.
+
 ### The robot builds no tools (#489) — opens when this PR is deployed
 
 **What changed is what a mind may do and what it is told.** The workshop

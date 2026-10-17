@@ -149,6 +149,7 @@ def rent(offers, disk, name, what):
 # cheapest other $0.47); a direct SSH port; and a day's rental at least, since
 # an instance past its host's end date stops and is deleted 48 h later.
 TERMS = "num_gpus=1 verified=true rentable=true reliability>=0.99 direct_port_count>=1 duration>=1"
+DLPERF_SHARE = 0.7
 
 cmd, args = sys.argv[1], sys.argv[2:]
 if cmd == "create":
@@ -160,6 +161,14 @@ if cmd == "create":
   # a driver for CUDA 12.8 or later, as `setup`'s torch builds need
   offers = search("gpu_name in [%s] %s cuda_vers>=12.8 disk_space>=%s cpu_ram>=16"
                   % (",".join(cards), TERMS, DISK), DISK)
+  # A card scoring under DLPERF_SHARE of its kind's median DLPerf is not that
+  # card at work: one machine's 5090s scored 86 against the others' ~195, and
+  # ran the humanoid's training at a tenth of another 5090's speed (#507).
+  by_card = {}
+  for o in offers:
+    by_card.setdefault(o["gpu_name"], []).append(o.get("dlperf") or 0.0)
+  median = {c: sorted(v)[len(v) // 2] for c, v in by_card.items()}
+  offers = [o for o in offers if (o.get("dlperf") or 0.0) >= DLPERF_SHARE * median[o["gpu_name"]]]
   rent(sorted(offers, key=lambda o: o["dph_total"]), DISK, name, lambda o: o["gpu_name"])
 elif cmd == "create-cpu":
   name, vcpus, pub = args

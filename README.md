@@ -197,13 +197,23 @@ uv run python scripts/humanoid_spike.py --view walk   # living room to the
 uv run python scripts/humanoid_spike.py --view rough  # the rough task's
                                       # walker across doorsteps, paving,
                                       # a slope and blocks
+uv run python scripts/humanoid_spike.py --view stairs # up the house's
+                                      # flight seeing the steps, round on
+                                      # the landing and down
+uv run python scripts/humanoid_spike.py --view fall   # shoved over three
+                                      # ways, its get-up policy taking each
+                                      # fall and standing it again
+uv run python scripts/humanoid_spike.py --view getup  # up from lying on
+                                      # its back, its front and its side
 ```
 `humanoid_spike.py --help` lists its tables (`--mass`, `--torque`,
 `--thermal`, `--energy`, `--sensors`, `--shove`, `--envelope`, `--hold`,
-`--demo-table`, `--track`, `--rough`, `--odometry`);
+`--demo-table`, `--track`, `--rough`, `--odometry`, `--climb`, `--fall`,
+`--speed`);
 SimNotes, "The humanoid body", "The humanoid stands, reaches and grasps",
-"The humanoid behind Body" and "The humanoid walks", has what they
-measured, and Parts.md the parts and the bill.
+"The humanoid behind Body", "The humanoid walks" and "The humanoid climbs,
+falls and gets up", has what they measured, and Parts.md the parts and the
+bill.
 
 View a body alone:
 ```bash
