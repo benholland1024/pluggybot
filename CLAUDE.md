@@ -194,8 +194,9 @@ doing anything, read the doc that owns what you are about to touch:
   library sees every other challenge row, and this one would change the
   deployed prompt. ⚠ The grader names no body part and judges no fall by
   a line of its own: a fall is the body's watch (`Body.falls`; the
-  humanoid's takes its own bow past 35 deg), beside the topple death's
-  60 deg off `Body.orientation`; the tool is the set-out's, asked
+  humanoid's is its trunk 35 deg past the posture its legs hold, so a bow
+  is none, #520), beside the topple death's 60 deg off
+  `Body.orientation`; the tool is the set-out's, asked
   `Body.tool_powered` (the quadruped's claw is STAGED,
   `Body.place_tool_routine`). It imports nothing of the chest's:
   everything loads `scoring`, the probe included, and the probe's fence
@@ -266,7 +267,7 @@ save a filmstrip PNG named after the script.
 | `scripts/press_spike.py` | #439: the pair in the lab on true-floor maps, the camera on, one robot lying where a scene puts it (by default where its own press backs out, 0.25 m short of the feed plate's standoff) and the other finding and pressing the feed plate, one process a scene: how the press ended and its tries, the walk's and the way in's time, the steps aside, every plate the feet came down on; `--drift-walker`/`--drift` lay one map off as Luca's was |
 | `scripts/solve.py --feature mouse` | ladder A of #264, the paid feed on legs (#403): offered, claimed with a prediction, walked and graded by the job's own evaluator; `--pair`, `--n N`, `--from dock\|lab`; filmstrip `solve.png`. `--feature hide_and_seek` flies the pair's game (#404): offered as the cadence offers it, both roles claimed, each run from the queue the referee fills, the verdict banked; one game a scene (`--scene A,B`, `--swap` both ways round; `--find`, `--seek-s`, `--head-s` sweep the referee). `--feature answer\|draw\|artwork` flies a whiteboard's job (#406): offered on a board (`--board`, or the two in turn), claimed -- an answer with the right one -- drawn lying and graded off the board's ink. `--feature tower\|bench` flies a challenge (#407): offered with its area's terms, claimed, the hand-written solution run as the robot's procedure (`challenge/solutions.py`), graded by its own predicate |
 | `scripts/board_png.py` | a whiteboard's ink as a PNG from the boards state file or a recording. ⚠ +lat is the viewer's LEFT, as in the site's `surfaces/board.ts`; the test pins it because every figure the pen draws is symmetric |
-| `scripts/humanoid_spike.py` | the humanoid (#507; SimNotes "The humanoid body", "The humanoid stands, reaches and grasps", "The humanoid behind Body", "The humanoid walks", "The humanoid climbs, falls and gets up" and "One walker that sees the ground", Parts.md "The humanoid body"): `--view body` the body held up on a gantry in the house, each joint through its range, then the grippers; `--view stand` its standing policy shoved, crouching and bowing, `--view reach` a hand to a counter, a high shelf, a low shelf and the floor, `--view grasp` a drawer's handle gripped and pulled, `--view demo` the chest's knob on a counter found by its tag, reached and gripped through `Body`, `--view walk` living room to kitchen and back on its own map, `--view rough` the walker that sees the ground (not served) across doorsteps, paving, a slope and blocks, `--view stairs` it up the house's flight on its own map, round on the landing and down, `--view fall` shoved over three ways, its get-up taking each fall, `--view getup` up off its back, its front and its side (`--strip SCENE` the filmstrip, `--policy NPZ` another standing policy, `--getup-policy NPZ`); `--mass` beside the T2's published model, `--torque` held in our physics and the walking, the stairs and the get-up FLOWN, `--thermal`, `--energy`, `--sensors`; `--shove` the shoves it stands through, `--envelope` the reach flown floor to over the head, `--hold` a locked handle pulled harder, `--demo-table [N]` the demo's set-outs flown through `Body`, `--track` / `--rough [NPZ,...]` the served and any walker asked each command on a bare floor / over a doorstep, paving, a slope and blocks (one that sees the ground on its own map), `--odometry` the leg odometry against the truth, `--climb [NPZ]` flights of five at each riser up and down on the ideal scan and its own map, `--fall [NPZ]` shoved over six ways standing, limp or getting up, and in five places in the house, `--speed [SIM_S]` the real-time multiple of one humanoid and a pair against the quadruped pair (`--profile`); filmstrip `humanoid_spike.png` |
+| `scripts/humanoid_spike.py` | the humanoid (#507; SimNotes "The humanoid body", "The humanoid stands, reaches and grasps", "The humanoid behind Body", "The humanoid walks", "The humanoid climbs, falls and gets up" and "One walker that sees the ground", Parts.md "The humanoid body"): `--view body` the body held up on a gantry in the house, each joint through its range, then the grippers; `--view stand` its standing policy shoved, crouching and bowing, `--view reach` a hand to a counter, a high shelf, a low shelf and the floor through `Body`, its get-up loaded, `--view grasp` a drawer's handle gripped and pulled, `--view demo` the chest's knob on a counter found by its tag, reached and gripped through `Body`, `--view walk` living room to kitchen and back on its own map, `--view rough` the walker that sees the ground (not served) across doorsteps, paving, a slope and blocks, `--view stairs` it up the house's flight on its own map, round on the landing and down, `--view fall` shoved over three ways, its get-up taking each fall, `--view getup` up off its back, its front and its side (`--strip SCENE` the filmstrip, `--policy NPZ` another standing policy, `--getup-policy NPZ`); `--mass` beside the T2's published model, `--torque` held in our physics and the walking, the stairs and the get-up FLOWN, `--thermal`, `--energy`, `--sensors`; `--shove` the shoves it stands through, `--envelope` the reach flown floor to over the head, `--hold` a locked handle pulled harder, `--demo-table [N]` the demo's set-outs flown through `Body`, `--track` / `--rough [NPZ,...]` the served and any walker asked each command on a bare floor / over a doorstep, paving, a slope and blocks (one that sees the ground on its own map), `--odometry` the leg odometry against the truth, `--climb [NPZ]` flights of five at each riser up and down on the ideal scan and its own map, `--fall [NPZ]` shoved over six ways standing, limp or getting up, in five places in the house, and from each bow a reach takes (#520), `--speed [SIM_S]` the real-time multiple of one humanoid and a pair against the quadruped pair (`--profile`); filmstrip `humanoid_spike.png` |
 | `scripts/quad_spike.py` | the quadruped body (#377; SimNotes "The quadruped body"): `--view` watches it, `--torque`/`--thermal`/`--energy`/`--sweep`/`--pupper` are the sizing tables (on `model.SIZING`, #377's placeholder arm, #405), `--policy`/`--climb`/`--getup`/`--posture`/`--odometry`/`--determinism` fly a trained policy in OUR physics (`--climb --scan map` on the D435's map, `legs/scan.py`, #388), `--shove` the served body knocked over in the house (what `stuck_after_s` is read off, #389), `--served`/`--rays` time the pair and the sensors |
 | `scripts/dock_spike.py` | the quadruped's dock (#378; SimNotes "The quadruped's dock"): `--capture` the funnel's envelope (premises `--sticky`, `--flat`), `--approach [--n N]` the success rate walking in by the board (premise `--blind`), `--hold` lying there: contact, preload, the anchor, standing off; `--view` dockings in the viewer, one after another; `--mouth`/`--bed` fly another width; filmstrip `dock_spike.png` |
 | `scripts/draw_spike.py` | drawing on a whiteboard with the arm (#406; SimNotes "Drawing on legs"): the served body, the pen on its fork, walks to the board, lies down, finds its face by touch and draws; `--figure square\|house\|answer:NN ...`, `--board`, `--stance stand` (the premise), `--n N`; `--sway [--stance lie,stand]` the stance table; filmstrip `draw_spike.png` |
@@ -309,7 +310,10 @@ save a filmstrip PNG named after the script.
   anchor renewed at touchdown made a step free). ⚠ A HAND THAT CANNOT GET
   THERE STOPS (`reach.BLOCKED_M`/`BLOCKED_N`, held `BLOCKED_S`): its own
   solve out of reach, or its currents reading a push on its way in --
-  unstopped, an arm pushed the robot over. Training's arms are SCRIPTED,
+  unstopped, an arm pushed the robot over. ⚠ IT GOES IN ONLY ONCE THE
+  TRUNK IS STILL (`reach.STILL_RATE`): the currents' force assumes the arm
+  still, and begun as the deepest bow stopped turning, the floor's reach
+  read 492 N and stopped 6 cm short (#520). Training's arms are SCRIPTED,
   their gains the served arms' (`model.ARM_GAIN_SCALE`, through
   `humanoid.json`). `training/humanoid_train/g1_check.py` is rule 6's
   check: mjlab's stock G1 flown outside mjlab.
@@ -318,9 +322,11 @@ save a filmstrip PNG named after the script.
   `odometry.py`; SimNotes, "The humanoid behind Body" and "The humanoid
   walks"): `body_for` chooses it by its joints. A hand's members are
   `Body`'s (`reach_routine`, `release_routine`, `grip_routine`, `gripped`,
-  `hand_force`), and the quadruped refuses them out loud; what only the
-  quadruped's world has (its dock, rack and tools) the humanoid refuses
-  (`NOT_HERE`). Its legs are the WALKING policy's while it moves
+  `hand_force`), and the quadruped refuses them out loud (⚠ `reach_routine`
+  is True only of a hand HOLDING at its goal, never on `Reach.done`, which
+  a hand stopped short is, and every hand after a fall's stand-up: #520);
+  what only the quadruped's world has (its dock, rack and tools) the
+  humanoid refuses (`NOT_HERE`). Its legs are the WALKING policy's while it moves
   (`models/humanoid_walk.npz`, `Pluggy-Humanoid-Walk`) and the standing
   policy's while it reaches, handed over at a standstill with its arms
   home. ⚠ A BLIND WALKER GIVES UP WHAT RISKS A FALL (rough4, gone): it
@@ -366,11 +372,17 @@ save a filmstrip PNG named after the script.
   is the open half: the belief lags 0.7-1.9 m at the foot (it runs down
   faster than asked; its odometry follows a sole in the air, skids and
   flights; the hall gives the matcher nothing along it). A FALL is the get-up policy's (`models/humanoid_getup.npz`,
-  `-Getup-Head`, every joint): tilt past `FALL_TILT_RAD` or the pelvis under
-  `COLLAPSED_M` over the LOWER sole, handed back once stood still; ⚠ the
-  head is charged on its own in training, or it struck at 5.5-6.9 m/s; the
-  mission waits out a get-up before a walk takes the legs, and on standing
-  forgets its ground map and starts its height again. `stuck_after_s` is
+  `-Getup-Head`, every joint): tilt `FALL_TILT_RAD` past the posture the
+  legs hold or the pelvis under `COLLAPSED_M` over the LOWER sole, handed
+  back once stood still; ⚠ A TIP IS READ OFF THE POSTURE, NEVER OFF
+  UPRIGHT (#520; `getup.tipped`, `Reach.held_pitch`, exactly upright at the
+  stand): the IMU is on a pelvis with no waist, and off upright the reach's
+  deepest bows were falls; a forward fall from a bow is the collapse's to
+  take (lying on its face is 27 deg past the deepest bow). ⚠ The head is
+  charged on its own in training, or it struck at 5.5-6.9 m/s; the
+  mission waits out a get-up before a walk takes the legs or the standing
+  policy takes them back, and on standing forgets its ground map and
+  starts its height again. `stuck_after_s` is
   `GETUP_BUDGET_S` (20); falls into a wall or off the landing still end
   stuck.
 

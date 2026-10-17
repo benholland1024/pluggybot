@@ -353,14 +353,13 @@ and after the hold the tool its set-out gave it still seated. ⚠ (5) names
 no part, and WHAT A FALL IS IS THE BODY'S TO SAY (`Body.falls`; the tilt
 `Body.orientation`, the tool `Body.tool_powered`), so the grader reads the
 humanoid's counter world unchanged: the quadruped's watch is its torso past
-60 deg, the humanoid's its trunk past 35 deg by its IMU or its pelvis sunk.
-⚠ The humanoid's watch takes its OWN BOW past 35 deg for a fall (asked 46
-or 63 deg at the counter, it counted one and its get-up took the joints):
-#507's deepest reach postures cannot be held with its get-up loaded, and
-this grader fails an attempt that bows that deep. The numbers are judged as
-measured and only shown rounded; the call is wherever the attempt ended
-(Evaluation.md §4); the reason never carries the catch, whose number is
-secret on the row.
+60 deg, the humanoid's its trunk 35 deg past the posture its legs hold, by
+its IMU, or its pelvis sunk -- so a bow its reach asks is no fall (#520:
+read off upright, its watch took its own bows past 35 deg for falls, and
+this grader would have failed an attempt that bowed that deep). The
+numbers are judged as measured and only shown rounded; the call is
+wherever the attempt ended (Evaluation.md §4); the reason never carries
+the catch, whose number is secret on the row.
 
 **What the lines were read off** (`scripts/attempts.py --drops`, the 128
 drawn lids on a bare floor): let go from rest 1 deg over the shut line,
