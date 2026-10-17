@@ -39,6 +39,12 @@ it had, its own test, and the verdict -- its secret metrics apart, under
 (`qualities.per_task_record`). ⚠ Absent is None, never 0: a code skill's
 tokens are a measured 0, a procedure's steps it never counted are None.
 
+A skill is any `skill(world) -> routine` that drives `world.body` through
+its `Body` members and returns its own word (`{"ok": ..., "why": ...}`):
+
+    row = attempt(Task(chest=k, body="humanoid", mount="counter"), skill, n,
+                  info={"process": "try", "skill": "mine", "tokens": 1234})
+
 What it flatters is said with every result (#493, Evaluation.md §5 "Graded
 in MuJoCo"): the knob's tag is a fiducial; the chests are drawn to suit the
 probe; one geometry; the quadruped's claw is put on by the set-out and the
@@ -238,11 +244,14 @@ def attempt_in(world: World, skill, n: int = 1, *, budget_s: float = BUDGET_S,
   body.step_hooks.append(watch)
   t0, wall = float(data.time), time.time()
   cut: list = []
-  said = body.run(_within(data, skill(world), t0 + budget_s, cut))
-  t_call = float(data.time)
-  watch.hold()
-  at_call = lid.measure(world.model, data)
-  body.run(body.hold_routine(hold_s))
+  try:
+    said = body.run(_within(data, skill(world), t0 + budget_s, cut))
+    t_call = float(data.time)
+    watch.hold()
+    at_call = lid.measure(world.model, data)
+    body.run(body.hold_routine(hold_s))
+  finally:
+    body.step_hooks.remove(watch)
   measured = scoring.SAMPLERS[task.grader](
     world, None, said, {"at_call": at_call, "watch": watch, "tool": task.tool,
                         "catchN": world.chest.lid.catch_n})

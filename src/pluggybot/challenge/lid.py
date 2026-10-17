@@ -62,9 +62,11 @@ SHUT_RAD = math.radians(5.0)
 #: at 1.45-1.85, from the activity's 57 deg at 2.9-8.3; the probe lowers
 #: each at 0.49-0.57 at its fastest while open (its 128 records).
 LOWER_RAD_S = 1.0
-#: 3 and 4: the hold, s. MEASURED: every drawn lid let go at the shut line
-#: is in the catch's reach inside 0.07 s, and from the top of its sweep
-#: (`chest.SWEPT_TO`) inside 0.67.
+#: 3 and 4: the hold, s. MEASURED, the handle hanging: every drawn lid let
+#: go at the shut line is caught inside 0.07 s, and let go from 57 deg
+#: inside 2.0 -- but from the top of the sweep (`chest.SWEPT_TO`) 57 of
+#: 128 never shut, propped 8.5 deg open on their own handle (its knob
+#: wedged against the front wall): a drop can leave the chest open.
 HOLD_S = 5.0
 
 

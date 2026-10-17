@@ -26,7 +26,7 @@ after the call one verdict goes through `scoring.evaluate`. A row a try.
   --view [K]           an attempt at chest K (0) in the MuJoCo viewer, at
                        real time, the verdict printed; MUJOCO_GL left off
   --strip [K]          its filmstrip: set out, opened, the call, the hold's
-                       end -- attempts.png
+                       end -- attempts.png, or `--out`
 
 Usage:
   MUJOCO_GL=egl uv run python scripts/attempts.py --chests 0-3 --jobs 2
@@ -135,8 +135,10 @@ def read(into: str) -> None:
     print(f"  experience: {rec['experience']}")
     print(f"  help: {rec['help']}")
     print(f"  its own test against the verdict: {rec['ownTest']}")
-    held = sorted({r.data['heldOut'] for r in mine})
-    print(f"  held out: {held}")
+    if any(r.data["heldOut"] for r in mine):
+      seeds = sorted({str((r.data.get("run") or {}).get("seed")) for r in mine})
+      print(f"  held out, by seed {', '.join(seeds)}: weaker than a sealed pool -- whoever "
+            "built the generator knows its family")
     for r in mine:
       if r.subject != "passed":
         print(show(r.data))
@@ -207,8 +209,11 @@ def drops(n: int = 128) -> None:
     shut = [g["caught"] for g in got if g["caught"] is not None]
     caught = (f"caught {min(shut):.3f}-{max(shut):.3f} s after ({len(shut)} of {n})"
               if shut else "none caught")
+    propped = sum(g["shut"] is None for g in got)
     print(f"  from {deg:5.1f} deg: fastest while open {f.min():.2f}-{f.max():.2f} rad/s "
-          f"(median {np.median(f):.2f}); {caught}")
+          f"(median {np.median(f):.2f}); {caught}"
+          + (f"; {propped} never under {math.degrees(lid.SHUT_RAD):.0f} deg, propped on "
+             "their handles" if propped else ""))
 
 
 # ---- --view and --strip ------------------------------------------------------------
@@ -269,11 +274,19 @@ def strip(k: int, out: str = "attempts.png") -> None:
   hinge = int(m.jnt_qposadr[m.joint("chest_hinge").id])
 
   def shoot(label):
+    # From the chest's side, where the lid's angle reads, between the chest
+    # and the robot; the headlight brighter for this tile alone -- the
+    # robot's own cameras render in the house's light.
+    sx, sy, _ = world.start
+    cx, cy = x + math.cos(yaw) * ch.BOX_D / 2, y + math.sin(yaw) * ch.BOX_D / 2
     cam = mujoco.MjvCamera()
-    cam.lookat[:] = [x, y, 0.15]
-    cam.distance, cam.azimuth, cam.elevation = 1.5, math.degrees(yaw) + 210.0, -22.0
+    cam.lookat[:] = [0.55 * cx + 0.45 * sx, 0.55 * cy + 0.45 * sy, 0.2]
+    cam.distance, cam.azimuth, cam.elevation = 1.8, math.degrees(yaw) + 90.0, -22.0
+    light = (m.vis.headlight.ambient.copy(), m.vis.headlight.diffuse.copy())
+    m.vis.headlight.ambient[:], m.vis.headlight.diffuse[:] = 0.35, 0.55
     r.update_scene(d, cam)
     img = Image.fromarray(r.render())
+    m.vis.headlight.ambient[:], m.vis.headlight.diffuse[:] = light
     ImageDraw.Draw(img).text((8, 8), label, fill=(255, 255, 255))
     tiles.append(img)
 
@@ -322,6 +335,7 @@ def main(argv=None) -> None:
   ap.add_argument("--drops", action="store_true")
   ap.add_argument("--view", nargs="?", type=int, const=0, default=None, metavar="K")
   ap.add_argument("--strip", nargs="?", type=int, const=0, default=None, metavar="K")
+  ap.add_argument("--out", default="attempts.png", help="--strip's file")
   args = ap.parse_args(argv)
   if args.read:
     read(args.read)
@@ -333,7 +347,7 @@ def main(argv=None) -> None:
     view(args.view)
     return
   if args.strip is not None:
-    strip(args.strip)
+    strip(args.strip, args.out)
     return
   info = PROBE_INFO | {"commit": repo_commit()}
   if args.held_out is not None:
