@@ -4853,7 +4853,7 @@ peak; flown 71.6). The stairs' rows stay estimates until stage 5.
 trained nothing): one rented RTX 5090 (Vast, $0.49 an hour) for 3.4 hours
 -- walk1 and walk2 (23 min each), rough1 (a NaN at 19 min), rough2
 (diverged, 12), rough3 (33), rough4 (27) and rough5 (stopped at 13), three
-starts out of memory and the blow-up diagnostic -- **$1.63** off Vast's
+starts out of memory and the blow-up diagnostic -- **$1.65** off Vast's
 own charges.
 
 ## Debugging workflow that worked
