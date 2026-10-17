@@ -114,6 +114,8 @@ class HumanoidBody(Body):
     self.collision_steps = self.press_steps = 0
     self.resting = False
 
+  falls = property(lambda self: self.mission.falls)
+
   @property
   def rights_itself(self) -> bool:
     """Whether it gets itself up: with its get-up policy, it does."""
@@ -556,6 +558,10 @@ class HumanoidBody(Body):
     yield
 
   def stow_tool_routine(self, station_y, module):
+    raise NotImplementedError(NOT_HERE)
+    yield
+
+  def place_tool_routine(self, module):
     raise NotImplementedError(NOT_HERE)
     yield
 

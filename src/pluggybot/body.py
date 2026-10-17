@@ -410,6 +410,14 @@ class Body(abc.ABC):
     Whether it hangs is `module_state`."""
 
   @abc.abstractmethod
+  def place_tool_routine(self, module: str) -> Routine:
+    """STAGED, never a swap: `module` put straight onto its coupling off
+    the world, seated, its arm at the carrying pose -- a demo's set-out
+    (#493: the quadruped's claw, which a real run fetches,
+    `fetch_tool_routine`), and a subsidy its result names. Whether it took
+    is `tool_powered`."""
+
+  @abc.abstractmethod
   def module_state(self, module: str) -> dict:
     """Where a module is, off the world: `on_fork` (riding THIS body's
     coupling), `hung` (in some bay), `bay` (the nearest bay's index)."""
@@ -669,6 +677,12 @@ class Body(abc.ABC):
   #: Whether it gets itself up from a fall (issue #387): the quadruped's
   #: get-up policy does; a body that cannot waits for somebody.
   rights_itself: bool
+  #: The falls its own fall watch has taken, counted up: what a fall IS is
+  #: the body's to say (#493's grader asks) -- the quadruped's torso past
+  #: `TOPPLE_TILT_RAD` or slumped standing, the humanoid's trunk past 35
+  #: deg by its IMU or its pelvis sunk (`humanoid.getup`), each the moment
+  #: its get-up takes over.
+  falls: int
   #: How long a fall may last before it is the `stuck` death, s: a body that
   #: rights itself, its get-up's MEASURED budget; one that cannot,
   #: `TOPPLE_HOLD_S`.
@@ -773,6 +787,7 @@ class StubBody(Body):
   level_tilt_rad = math.radians(1.5)
   posture = "standing"
   rights_itself = False
+  falls = 0
   stuck_after_s = 2.0
   head_camera = None
 
@@ -1099,6 +1114,11 @@ class StubBody(Body):
     if self.holding == module:
       self.holding = None
     return "arrived"
+    yield
+
+  def place_tool_routine(self, module):
+    self.holding = module
+    return None
     yield
 
   def module_state(self, module) -> dict:

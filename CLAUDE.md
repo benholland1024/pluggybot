@@ -162,17 +162,16 @@ doing anything, read the doc that owns what you are about to touch:
 - **The six qualities are SHAPES over ROWS** (issue #155, the sixth #265;
   Evaluation.md §3; `evaluation/qualities.py`, `scripts/qualities.py
   --observe`): one pure function per metric over the observatory's own
-  columns, one adapter per source (`from_observe`, the one source since the
-  harness went with the rover, #376); a later source ADDS rows to a shape,
-  never a second version of it. Four rules, each pinned in
+  columns, one adapter per source (`from_observe`; and `from_attempts`, a
+  demo's record, feeding the per-task record alone, #493); a later source
+  ADDS rows to a shape, never a second version of it. Four rules, each pinned in
   `tests/test_qualities.py`: nothing that must stay apart is summed; no mean;
   **absent is `None`, never 0**; never pooled across a build identity. ⚠ A
   reading of the observatory is NOT a result; it reports into the issue it
   informs. ⚠ `serves` IS NOT ON THE
   WIRE: the KEY is the test, and quality five's ratio off the observatory is
   `None`. ⚠ A test reads §3's shape table against `SHAPES` both ways: a row
-  with no function fails, so capability's per-task record stays prose until
-  a demo gives it rows. ⚠ Nothing in `economy/` imports `evaluation`. ⚠
+  with no function fails. ⚠ Nothing in `economy/` imports `evaluation`. ⚠
   **The sixth quality is NOT time alive** — five shapes read together
   (Evaluation.md §3's table), `idling` BESIDE deaths in `QUALITIES` because
   high idling with low deaths is the failure mode; hearts bought for oneself
@@ -181,6 +180,30 @@ doing anything, read the doc that owns what you are about to touch:
   PROMPT DOES NOT CHANGE FOR IT (a test reads every rule for the word): a
   quality is what we measure, never what the robot is asked to maximise for
   us.
+- **A demo's attempt is one try from a FRESH set-out, graded by the world**
+  (#493 stage 1; `evaluation/attempts.py`, the kit; `challenge/lid.py`;
+  Evaluation.md §4, Challenges.md §9): a task is data (`Task`: chest, body,
+  mount, grader), every attempt builds its set-out anew and a reset is the
+  world's help, counted on the row; the call is where the skill ended or
+  its budget did; one verdict through `scoring.evaluate`, a row of the
+  record an attempt, the skill's own word beside it and never read; an
+  attempt that raises or whose world MuJoCo reset (`Unstable`) has no
+  verdict, its task kept and unflown from there. ⚠ A SKILL IS HANDED THE
+  BODY, never the world (the chest's truth is the harness's). ⚠ THE LID'S
+  ROW IS `shown: false` and pays 0 (`TaskReward.shown`): a mind with a
+  library sees every other challenge row, and this one would change the
+  deployed prompt. ⚠ The grader names no body part and judges no fall by
+  a line of its own: a fall is the body's watch (`Body.falls`; the
+  humanoid's takes its own bow past 35 deg), beside the topple death's
+  60 deg off `Body.orientation`; the tool is the set-out's, asked
+  `Body.tool_powered` (the quadruped's claw is STAGED,
+  `Body.place_tool_routine`). It imports nothing of the chest's:
+  everything loads `scoring`, the probe included, and the probe's fence
+  holds (`tests/test_probe.py`: no chest in its closure, no grader in its
+  imports). ⚠ Held-out chests start at `HELD_OUT_FROM` (1,000,000), drawn
+  by the frozen commit's first seven hex digits (`seed_of`; a pod's
+  `COMMIT` file, a dirty tree refused), and a reading says what it
+  flatters (`FLATTERS`) and that it is weaker than a sealed pool.
 - **`CALL_TIMEOUT_S` is 90 s and is a patience budget, not a tail** (issue
   #117; Overseer.md §6 "The deadline"): a decision lost to a clock is the one
   failure that is purely ours. `ESCALATE_TIMEOUT_S` (120) is an ordering above
@@ -252,6 +275,7 @@ save a filmstrip PNG named after the script.
 | `scripts/imagination_gap.py` | the scene language's own gap (#466's stage 1; SimNotes "The imagination's first world"), no robot flying: over drawn chests (`--n`), the oracle's probe through the world's chest and through its best-expressible reference, with its catch and without, the force at the tool apart phase by phase; `--cost` what a rollout costs, ms a sim-second, in this process and in the worker, `--parallel 1,8,16` that many workers at once |
 | `scripts/probe_chest.py` | the probe from the robot's own senses (#466's stage 2, `legs/probe.py`; SimNotes "The probe from the robot's own senses"), flown over seeded set-outs (`evaluation.probe.set_out`: drawn chest k in the storeroom, the robot in front of it) and graded by us: through or why not, the geometry it measured in its own frame, the lid's angle as its arm reads it, the friction it calibrated, its record replayed through the world's chest and the best-expressible reference set in its map, and how far the held handle turned on its pin in each (`twisted` past 28 deg); `--n`, `--from`, `--jobs`, `--into DIR` (each probe in the worker's wire form, our truth beside it), `--no-replay`, `--regrade` (the kept records in `--into` graded again, not flown) |
 | `scripts/imagine_chest.py` | the robot's model of the chest, graded (#466's stage 3; SimNotes "The robot's model, graded"), over the probes `probe_chest.py --into` kept: `--conditions` `model` (the author's structure -- the deployed model, `$HF_TOKEN` -- placed, fitted, judged and revised), `reference` (the fitter alone, on the reference's own structure), `leak` (its hinge moved), each graded by us against the world and the reference, a model's row carrying its settings; `--remote H:P,...` puts the workers on pods over ssh (`--workers`, `--slots`), `--summary` the tables with intervals, each settings apart -- the parameters, the structures and the rate (#481: passes and the lid's hinge by round, false passes, the answer budget, tokens, dollars, wall time and who answered) -- `--demo K --record PATH` set-out K flown, imagined and recorded with the `imagined` event, the demo world's scene beside it |
+| `scripts/attempts.py` | #493's harness: a skill tried at chests through the attempt protocol (`evaluation.attempts`) and graded by the lid's grader (`challenge/lid.py`), the probe as the quadruped's reference (`legs.probe`): `--chests A-B` (0-31), `--held-out N [--seed S]`, `--attempts N`, `--jobs`, `--into DIR` (`rows.jsonl`, a row an attempt), `--read DIR` the per-task record, `--drops` the drawn lids let fall (what the grader's lines were read off), `--view [K]` an attempt in the viewer, `--strip [K]` its filmstrip `attempts.png` |
 
 - **The bodies' training stack lives in `training/`, a uv project of its own** (#377; the humanoid's `humanoid_train/` beside `quad_train/`, #507 -- `Pluggy-Humanoid-Stand`, `-Walk`, `-Walk-Rough`, `-Walk-Seeing`, `-Walk-Seeing-Fine`, `-Stairs`, `-Getup`, `-Getup-Head` -- one entry point `python -m quad_train.train`, its export `--body humanoid`): mjlab 1.5.x (it pins `mujoco ~=3.10.0`, the served sim's), reading the body from `models/quadruped.{xml,json}` (`python -m pluggybot.legs.model` writes both; the humanoid's `models/humanoid.{xml,json}`; mjlab caps numpy below pluggybot's, so the two never share an environment), the arm FIXED at its stow (`quad_train.robot.freeze_arm`, #405: a policy's joints are the legs' twelve, and the arm's geometry is there to fall on). ⚠ Importing `legs.policy` or `legs.model` loads none of torch, jax, warp, onnx or mjlab (`tests/test_legs.py`); a policy reaches the served sim as an `.npz` that `quad_train.export` checks against its ONNX before writing, run by `legs/policy.py` in numpy. ⚠ The leg DRIVERS are MuJoCo's position-mode `dcmotor` (#385; `body_xml(drive="position")`), the PD and the envelope in C, commanded as a GDS68 is (`legs/drivers.py`): every command carries its gains — a policy's are its own, a routine's torque rides a target with the damping cancelled (the torque motor's step to 1e-14), `limp()` holds nothing — so a policy and the scripted routines share one body. The default gains are ONE definition, `actuator.driver_gains`, which `training/` reads from `quadruped.json`. `drive="torque"` (plain motors) is the sizing tables' instrument. `training/pod.sh` rents a GPU to train on, or CPUs to fly a batch (`create-cpu`), on Vast.ai through its CLI, or on Runpod over the REST API with `PROVIDER=runpod` (#510; `runpodctl pod create` needs a GraphQL-writable key); a pod's id says whose it is, and a card is picked by what a million steps cost (`training/README.md`). ⚠ The `vastai` CLI exits 0 when it is refused, and `destroy` says nothing under `--raw`: read the JSON and the instance, never the exit code. ⚠ On Runpod a POST to `/v1/pods` with an EMPTY body CREATES a pod: every field has a default.
 - ⚠ **A batch of flights runs on a rented pod's CPUs or under a memory cap, never bare on the dev box** (#469: six house worlds at once took it into swap and its desktop down overnight, 2026-10-06): `training/pod.sh create-cpu` → `setup-sim` (the commit, never the working tree) → `batch` with `--jobs` one under the share `setup-sim` reports (a Vast share is a hard quota) → `pull-batch`, then `delete`; locally, `systemd-run --user --scope -p MemoryMax=12G -p MemorySwapMax=0 ...`. A pool of flights gives each its own process (`maxtasksperchild=1`: a world dropped in a reused worker is held until the cycle collector runs), and results go under `~`, never `/tmp`, which a reboot wipes.

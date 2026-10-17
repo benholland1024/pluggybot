@@ -41,6 +41,7 @@ import numpy as np
 
 from pluggybot.activity import chest as ch
 from pluggybot.evaluation import imagined as im
+from pluggybot.evaluation.qualities import share_interval  # noqa: F401 -- its home
 from pluggybot.imagination.compile import Imagined, PREFIX, compile_scene
 from pluggybot.imagination.scene import Template, parse, parse_template
 
@@ -358,19 +359,3 @@ def median_interval(values, level: float = 0.95) -> dict | None:
   lo, hi = np.percentile(boots, [100 * (1 - level) / 2, 100 * (1 + level) / 2])
   return {"n": int(len(v)), "median": float(np.median(v)), "lo": float(lo), "hi": float(hi),
           "p90": float(np.percentile(v, 90))}
-
-
-def share_interval(flags, level: float = 0.95) -> dict | None:
-  """A share of True with its Wilson interval; None for none."""
-  f = [bool(x) for x in flags if x is not None]
-  n = len(f)
-  if not n:
-    return None
-  k = sum(f)
-  z = 1.959963984540054 if level == 0.95 else float(
-    __import__("scipy.stats", fromlist=["norm"]).norm.ppf((1 + level) / 2))
-  p = k / n
-  den = 1 + z * z / n
-  mid = (p + z * z / (2 * n)) / den
-  half = z * math.sqrt(p * (1 - p) / n + z * z / (4 * n * n)) / den
-  return {"n": n, "k": k, "share": p, "lo": max(0.0, mid - half), "hi": min(1.0, mid + half)}
