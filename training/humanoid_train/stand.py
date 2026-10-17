@@ -253,12 +253,14 @@ def feet_still(env, asset_cfg: SceneEntityCfg) -> torch.Tensor:
 
 
 class feet_anchor:
-  """Each sole's distance across the floor from where it last came down,
-  m, summed: a slide or a creep is charged for as long as it lasts, and a
-  step sets the sole down somewhere new and its anchor with it. ⚠ A charge
-  on the soles' SPEED alone (`feet_still`) let a policy creep its feet 11
-  cm in 8 s -- 0.5 cm/s squared is nothing -- and a reach's stance frame
-  creeps with them."""
+  """Each sole's distance across the floor from where the episode's stance
+  put it, m, summed, whether it is down or lifted: a robot reaching from
+  where it stands keeps its feet there, and a step a shove forces is
+  charged until it steps back. ⚠ A charge on the soles' SPEED alone
+  (`feet_still`) let a policy creep its feet 10 cm in 8 s -- 0.5 cm/s
+  squared is nothing -- and an anchor RENEWED at each touchdown made a step
+  free: bowing, a policy stepped its feet 40 cm. A reach's stance frame
+  moves with them."""
 
   def __init__(self, cfg: RewardTermCfg, env):
     self.entity = env.scene["robot"]
@@ -273,11 +275,11 @@ class feet_anchor:
   def __call__(self, env, sensor_name: str) -> torch.Tensor:
     pos = self.entity.data.site_pos_w[:, self.ids, :2]
     down = env.scene[sensor_name].data.found > 0
-    # A sole in the air (or not yet anchored) carries its anchor with it.
-    renew = ~down | ~self.valid
-    self.anchor = torch.where(renew[..., None], pos, self.anchor)
+    # The stance is where each sole first comes down in an episode.
+    first = down & ~self.valid
+    self.anchor = torch.where(first[..., None], pos, self.anchor)
     self.valid = self.valid | down
-    return (torch.norm(pos - self.anchor, dim=-1) * down).sum(dim=1)
+    return (torch.norm(pos - self.anchor, dim=-1) * self.valid).sum(dim=1)
 
 
 def feet_down(env, sensor_name: str) -> torch.Tensor:

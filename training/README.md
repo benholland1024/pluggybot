@@ -1,8 +1,10 @@
-# Training the quadruped's walking policy (#377)
+# Training the bodies' policies (#377, #507)
 
 A uv project of its own. Nothing here is imported by `pluggybot`, and none
-of it enters the serving image: the served sim runs the exported policy in
-plain numpy (`pluggybot.legs.policy`).
+of it enters the serving image: the served sim runs the exported policies in
+plain numpy (`pluggybot.legs.policy`, `pluggybot.humanoid.policy`).
+`quad_train` trains the quadruped and `humanoid_train` the humanoid; one
+entry point registers both (`python -m quad_train.train <task>`).
 
 - **mjlab 1.5.x** (MuJoCo Warp + PyTorch + rsl_rl), because it is the line
   that pins `mujoco ~=3.10.0`, the served sim's own version, and because the
@@ -42,6 +44,21 @@ stand pays from 2 s after the release, and charges on torque, joint speed
 and the rise ramp up over training) and `Pluggy-Quad-Posture` tracks a
 commanded height and tilt; SimNotes has both.
 
+**The humanoid's tasks** (#507; `humanoid_train/`, its body read off
+`models/humanoid.{xml,json}`, each joint its own RobStride part):
+`Pluggy-Humanoid-Stand` balances on planted feet at a commanded posture
+(the pelvis's height and the trunk's pitch, a crouch and a bow) while its
+arms are SCRIPTED -- sent somewhere new every few seconds with their weight
+fed forward, as the served reach drives them -- and its hands carry and
+pull; shoves and pulls ramp up over the first 1200 iterations
+(`DISTURBANCE_STAGES`, `--env.curriculum.disturbances.params.scale`), and
+each sole is charged for its distance from where the episode's stance put
+it (`feet_anchor`; SimNotes, "The humanoid stands, reaches and grasps").
+Export it with `--body humanoid`, which records the leg joints it drives and
+each one's gains. `humanoid_train/g1_check.py` flies mjlab's stock G1
+velocity policy outside mjlab -- numpy, MuJoCo's C engine, at 5 ms and the
+served 2 ms -- the pipeline's check on a body its maker walks (#507, rule 6).
+
 Every reward's weight and parameter and every curriculum stage is a flag
 (`--env.rewards.belly-down.params.budget-s 0`,
 `--env.curriculum.gentle-rise-speed.params.stages.3.step 0`), so variants of
@@ -63,6 +80,11 @@ run on a card records its steps a second:
 | RTX 4090 | Runpod, secure cloud | 0.89 | 120,242 | 0.0021 | rough3, its iterations 3009–3308 |
 | RTX 4090 | Vast, a Ryzen 9 3900X host | 0.414 | 103,472 | 0.0011 | rough3 again: its code, flags and checkpoint |
 | RTX 4090 | Vast, the same host | 0.414 | 77,749 | 0.0015 | today's task, fresh, iterations 10–309 |
+| RTX 5090 | Vast, a Ryzen 7 7800X3D host | 0.516 | 218,000 | 0.00066 | mjlab's stock G1 flat task, 3000 iterations in 22.5 min (#507) |
+| RTX 5090 | Vast, the same host | 0.516 | 209,000 | 0.00069 | `Pluggy-Humanoid-Stand`, 4000 iterations in 31 min (#507) |
+
+Two runs on one card share it rather than add to it: two humanoid runs on
+one 5090 each took 1.0 s an iteration against 0.46 s alone.
 
 A host moves the rate as much as its card does: the Vast 4090 ran at its full
 450 W on 16 lanes, and was 14 % slower behind a 3.8 GHz Zen 2. A first run far

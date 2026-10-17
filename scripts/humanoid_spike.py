@@ -9,7 +9,15 @@ below and Parts.md, "The humanoid body", the parts and the bill.
                 until the window closes (MUJOCO_GL unset); the terminal says
                 what is moving. Scenes: `body` -- the humanoid in the house's
                 living room, held up on a gantry, moving each joint through
-                its range in turn, then its grippers.
+                its range in turn, then its grippers; `stand` -- on its own
+                feet, its standing policy, shoved, crouching and bowing;
+                `reach` -- a hand to a counter, a high shelf, a low shelf
+                and the floor, each held; `grasp` -- a drawer's handle
+                gripped (judged by the gripper's own reading) and the drawer
+                drawn out with a compliant arm, what the hand felt said
+                beside the truth
+  --strip SCENE the scene's filmstrip, headless (`--out` names it)
+  --policy NPZ  fly another standing policy (default models/humanoid_stand.npz)
   --mass        the mass budget by segment, beside the T2's published model
   --torque      the torque table: each joint's load against its actuator's
                 peak and continuous ratings, standing, crouched, on one
@@ -18,11 +26,14 @@ below and Parts.md, "The humanoid body", the parts and the bill.
   --thermal     the hottest winding, each activity sustained
   --energy      watts by activity, and what the pack buys
   --sensors     what the head's cameras and the LIDAR see from the stand
+  --shove       the shoves it stands through each way, standing and crouched
+  --envelope    where a hand reaches, floor to over the head, flown balancing
+  --hold        a locked handle gripped and pulled harder until something gives
   (default)     the `body` scene's filmstrip, humanoid_spike.png
 
 Usage:
-  uv run python scripts/humanoid_spike.py --view body
-  MUJOCO_GL=egl uv run python scripts/humanoid_spike.py [--torque|--mass|...]
+  uv run python scripts/humanoid_spike.py --view body|stand|reach|grasp
+  MUJOCO_GL=egl uv run python scripts/humanoid_spike.py [--torque|--shove|...]
 """
 
 import os
@@ -887,7 +898,8 @@ def posture(h: Humanoid, height: float, pitch: float):
 
 
 def reach_and_hold(h: Humanoid, side: str, goal: HandGoal, hold_s: float = 2.0,
-                   record: dict | None = None, budget_s: float = 20.0):
+                   record: dict | None = None, budget_s: float = 20.0,
+                   say: str | None = None):
   """A hand to `goal` (stance frame), held `hold_s`, then home. Into
   `record`: whether it planned, how long it took, where the grip truly was
   through the hold against where the goal truly is (our grading), and
@@ -903,9 +915,12 @@ def reach_and_hold(h: Humanoid, side: str, goal: HandGoal, hold_s: float = 2.0,
     h.step()
     yield None
   rec["seconds"] = h.d.time - t0
-  rec["arrived"] = h.reach.done(side)
+  rec["blocked"] = h.reach.phase[side] == "blocked"
+  rec["arrived"] = h.reach.done(side) and not rec["blocked"]
   site = h.m.site(f"{side}_grip").id
   misses = []
+  if say:
+    yield say
   for _ in wait(h, hold_s):
     misses.append(float(np.linalg.norm(h.d.site_xpos[site] - want)))
     yield None
@@ -924,8 +939,10 @@ def reach_and_hold(h: Humanoid, side: str, goal: HandGoal, hold_s: float = 2.0,
 # ---- the scene: `stand` ------------------------------------------------------------
 
 #: The `stand` scene's script: (what the terminal says, what happens). A
-#: shove's direction is where it pushes, in the robot's frame (x ahead).
-STAND_SHOVE_NS = 15.0
+#: shove's direction is where it pushes, in the robot's frame (x ahead);
+#: its size is inside every direction's measured margin (`--shove`: from
+#: the front it stands through 10 N*s and falls at 15).
+STAND_SHOVE_NS = 10.0
 STAND_SCRIPT = (
   ("standing", ("wait", 2.0)),
   ("shoved from the front", ("shove", (-1.0, 0.0), STAND_SHOVE_NS)),
@@ -1001,11 +1018,15 @@ def reach_scene(h: Humanoid, records: list | None = None):
   for label, goal in REACH_TARGETS:
     yield f"reaching {label}"
     rec = {"target": label}
-    yield from reach_and_hold(h, "left", HandGoal(goal.pos.copy(), goal.rot), record=rec)
+    yield from reach_and_hold(h, "left", HandGoal(goal.pos.copy(), goal.rot), record=rec,
+                              say=f"holding at {label}")
     if records is not None:
       records.append(rec)
     if not rec.get("planned"):
       yield "  no posture puts it in reach"
+    elif rec.get("blocked"):
+      yield (f"  stopped short: its own solve put the goal out of reach, or its hand "
+             f"pushed on something; held {100 * rec['miss_mean']:.1f} cm off it")
     else:
       yield (f"  posture {rec['posture'][0]:+.2f} m, {rec['posture'][1]:.2f} rad"
              f"{'' if rec['slack'] else ', the arm at full stretch'}; there in "
@@ -1193,8 +1214,8 @@ def view_stage2(scene: str) -> None:
   with mj_viewer.launch_passive(model, data) as viewer:
     viewer.cam.type = mujoco.mjtCamera.mjCAMERA_TRACKING
     viewer.cam.trackbodyid = model.body(ROBOT_ROOT).id
-    viewer.cam.distance, viewer.cam.azimuth = CAM_DISTANCE, CAM_AZIMUTH
-    viewer.cam.elevation = CAM_ELEVATION
+    az, el, dist, _ = SCENE_CAMS.get(scene, (CAM_AZIMUTH, CAM_ELEVATION, CAM_DISTANCE, None))
+    viewer.cam.distance, viewer.cam.azimuth, viewer.cam.elevation = dist, az, el
     while viewer.is_running():
       # Again and again: each time from a fresh world, the robot standing.
       mujoco.mj_resetData(model, data)
@@ -1213,6 +1234,12 @@ def view_stage2(scene: str) -> None:
             time.sleep(ahead)
 
 
+#: Each scene's camera, where it is not the body scene's: (azimuth,
+#: elevation, distance, look-at offset from the pelvis). The grasp is seen
+#: from the robot's right, or the counter hides the hand.
+SCENE_CAMS = {"grasp": (90.0, -15.0, 2.0, (0.3, 0.0, 0.15))}
+
+
 def filmstrip_stage2(scene: str, out: str, every_s: float | None = None) -> None:
   """A scene's filmstrip: a tile when each part of it begins, and its
   last moment, each labelled."""
@@ -1223,10 +1250,13 @@ def filmstrip_stage2(scene: str, out: str, every_s: float | None = None) -> None
   tiles = []
   pending = None
 
+  az, el, dist, off = SCENE_CAMS.get(scene, (CAM_AZIMUTH, CAM_ELEVATION, CAM_DISTANCE,
+                                             (0.0, 0.0, -0.1)))
+
   def shoot(label):
     cam = mujoco.MjvCamera()
-    cam.lookat[:] = data.xpos[root] + [0.0, 0.0, -0.1]
-    cam.distance, cam.azimuth, cam.elevation = CAM_DISTANCE, CAM_AZIMUTH, CAM_ELEVATION
+    cam.lookat[:] = data.xpos[root] + off
+    cam.distance, cam.azimuth, cam.elevation = dist, az, el
     r.update_scene(data, cam)
     img = Image.fromarray(r.render())
     ImageDraw.Draw(img).text((8, 8), label[:60], fill=(255, 255, 255))
@@ -1340,27 +1370,31 @@ def envelope_table(policy=None, fly: bool = True) -> dict:
   held 2 s balancing, the grip's true miss through the hold."""
   out = {}
   print("the left hand's reach, stance frame: a cell is the grip's mean miss held, "
-        "cm (F fingers forward, D down), '--' planned but missed or fell, '.' "
-        "no posture the policy holds puts it in reach")
+        "cm (F fingers forward, U tilted 45 deg up, D down), '--' planned but stopped "
+        "short, missed or fell, '.' no posture the policy holds puts it in reach")
   print(f"{'z \\ x':>6s}" + "".join(f"{x:>8.2f}" for x in ENVELOPE_X))
   for z in reversed(ENVELOPE_Z):
     cells = []
     for x in ENVELOPE_X:
       cell = "."
-      for tag, rot in (("F", FORWARD), ("D", DOWN)):
+      # The grips that plan, those with slack first (`reach.plan`).
+      planned = []
+      for tag, rot in (("F", FORWARD), ("U", UP45), ("D", DOWN)):
         goal = HandGoal(np.array([x, 0.2, z]), rot)
-        if plan("left", goal) is None:
-          continue
+        found = plan("left", goal)
+        if found is not None:
+          planned.append((not found[3], tag, goal))
+      if planned:
+        _, tag, goal = min(planned, key=lambda p: p[0])
         if not fly:
           cell = tag
-          break
-        h = floor_humanoid(policy=policy)
-        rec = {}
-        _drain(reach_and_hold(h, "left", goal, record=rec))
-        out[(z, x)] = (tag, rec)
-        ok = rec.get("arrived") and not rec.get("fell") and rec.get("miss_mean", 1) < 0.03
-        cell = f"{100 * rec['miss_mean']:.1f}{tag}" if ok else "--"
-        break
+        else:
+          h = floor_humanoid(policy=policy)
+          rec = {}
+          _drain(reach_and_hold(h, "left", goal, record=rec))
+          out[(z, x)] = (tag, rec)
+          ok = rec.get("arrived") and not rec.get("fell") and rec.get("miss_mean", 1) < 0.03
+          cell = f"{100 * rec['miss_mean']:.1f}{tag}" if ok else "--"
       cells.append(f"{cell:>8s}")
     print(f"{z:6.2f}" + "".join(cells), flush=True)
   return out

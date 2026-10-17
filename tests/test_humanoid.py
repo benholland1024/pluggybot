@@ -1,5 +1,6 @@
-"""The humanoid (issue #507, stage 1): our own body from real parts, its
-model, drivers and sensors. Each rule pinned as cheaply as it fails for the
+"""The humanoid (issue #507, stages 1 and 2): our own body from real parts,
+its model, drivers and sensors; and standing, reaching and gripping off its
+own senses. Each rule pinned as cheaply as it fails for the
 right reason: the generator against its committed files, a joint's driver
 against its part's datasheet, a motor's mass against its sheet, the soles
 and the pads against MuJoCo's friction MAX, the gripper's squeeze against
@@ -484,3 +485,21 @@ def test_the_force_at_the_hand_is_read_off_the_arms_motor_currents():
   felt = np.mean(felt, axis=0)
   # The world pushes the hand with -push; the hand pushes back with +push.
   assert np.abs(felt - push).max() < 1.5, felt
+
+
+def test_a_hand_that_meets_something_on_its_way_stops_short():
+  """⚠ A box between the hand and its goal: the reach stops where its arm's
+  currents read the push (`reach.BLOCKED_N`, held `BLOCKED_S`) -- unstopped,
+  a gripper driven into a counter's edge pushed the robot over backwards."""
+  from pluggybot.humanoid.arms import FORWARD, HandGoal
+
+  def box(spec):
+    spec.worldbody.add_geom(name="in_the_way", type=mujoco.mjtGeom.mjGEOM_BOX,
+                            size=[0.05, 0.3, 0.3], pos=[0.42, 0.2, 0.9])
+  model, data, stand, reach = _standing(box)
+  root = model.body(hm.ROBOT_ROOT).id
+  assert reach.reach("left", HandGoal(np.array([0.55, 0.2, 0.94]), FORWARD))
+  _fly(model, data, stand, reach, 4.0)
+  assert reach.phase["left"] == "blocked"
+  # Standing in the posture its plan asked (a crouch), upright: not fallen.
+  assert data.xpos[root][2] > 0.45 and data.xmat[root][8] > 0.9
