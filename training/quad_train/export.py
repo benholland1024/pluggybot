@@ -68,6 +68,21 @@ def check(path: str, arrays: dict, samples: int = 256) -> float:
   return worst
 
 
+def body_facts(body: str) -> dict:
+  """What the served sim must drive a policy with, by body: the quadruped's
+  one gain pair for its twelve joints; the humanoid's action joints (its
+  legs), each one's own pair, and the gains its scripted arms held (#507)."""
+  if body == "quadruped":
+    return {"train_dt": robot.TRAIN_DT, "decimation": 4,
+            "stiffness": robot.STIFFNESS, "damping": robot.DAMPING}
+  from humanoid_train import robot as hr
+  return {"train_dt": hr.TRAIN_DT, "decimation": hr.DECIMATION,
+          "action_joints": list(hr.LEGS),
+          "stiffness": [hr.JOINTS[j]["stiffness"] for j in hr.LEGS],
+          "damping": [hr.JOINTS[j]["damping"] for j in hr.LEGS],
+          "arm_gain_scale": list(hr.ARM_GAIN_SCALE)}
+
+
 def main(argv=None) -> None:
   ap = argparse.ArgumentParser()
   ap.add_argument("onnx")
@@ -77,6 +92,7 @@ def main(argv=None) -> None:
   ap.add_argument("--envs", type=int, required=True)
   ap.add_argument("--iterations", type=int, required=True)
   ap.add_argument("--task", default="Pluggy-Quad-Flat")
+  ap.add_argument("--body", choices=("quadruped", "humanoid"), default="quadruped")
   args = ap.parse_args(argv)
   arrays = load(args.onnx)
   err = check(args.onnx, arrays)
@@ -88,8 +104,7 @@ def main(argv=None) -> None:
     "task": args.task, "gpu": args.gpu, "wall": args.wall,
     "envs": args.envs, "iterations": args.iterations,
     "env_steps": args.envs * args.iterations * 24, "onnx_sha256": onnx_sha,
-    "train_dt": robot.TRAIN_DT, "decimation": 4,
-    "stiffness": robot.STIFFNESS, "damping": robot.DAMPING,
+    **body_facts(args.body),
   }))
   np.savez(args.out, **arrays)
   print(f"wrote {args.out}: {int(arrays['layers'])} layers, "

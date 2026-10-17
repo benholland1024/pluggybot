@@ -236,6 +236,13 @@ class HumanoidSpec:
 
 CHOSEN = HumanoidSpec()
 MODEL_XML = "models/humanoid.xml"
+#: The arms' commands carry their joints' policy gains (`driver_gains`, a
+#: 10 Hz loop at damping ratio 2) times these, stiffness and damping: at the
+#: policies' own, an arm held out sagged 12 cm at the hand. Inside every
+#: part's MIT range (the RS00's Kp to 500). The arms' weight rides each
+#: command too (`humanoid.arms`), and training's scripted arms hold the same
+#: (`training/humanoid_train`).
+ARM_GAIN_SCALE = (4.0, 2.0)
 #: The body's constants for `training/`, which cannot import this package.
 CONSTANTS_JSON = "models/humanoid.json"
 
@@ -767,6 +774,7 @@ def training_constants(spec: HumanoidSpec = CHOSEN) -> dict:
     "bus_v": act.BUS_V_NOMINAL,
     "gripper": {"name": hp.GRIPPER.name, "stroke": hp.GRIPPER.stroke,
                 "grip_force_n": hp.GRIPPER.grip_force_n},
+    "arm_gain_scale": list(ARM_GAIN_SCALE),
   }
 
 

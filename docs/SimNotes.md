@@ -4529,6 +4529,156 @@ its constant:**
   the gap the gripper reports off its one encoder read 37 mm on a 40 mm
   block; at 0.004 s, 0.7 mm (`model.JAWS_SOLREF`).
 
+## The humanoid stands, reaches and grasps (issue #507, stage 2)
+
+The humanoid on its own feet: its legs a standing policy trained in mjlab
+(`training/humanoid_train/stand.py`, `Pluggy-Humanoid-Stand`) and run in
+numpy (`humanoid/policy.py`), its arms an inverse-kinematics reach
+(`humanoid/arms.py`, `humanoid/reach.py`), its grippers judged by their own
+reading. Everything that steers reads the robot's senses: the IMU part
+through its attitude filter and every joint through its driver's reply
+fields; a test spies on what the code reads off `MjData` and fails on any
+of the simulator's truth (`test_the_robot_steers_off_its_senses_...`).
+Every number is MuJoCo's, an upper bound on hardware.
+
+![The `reach` scene: the left hand held at a counter's height, a high
+shelf, a low shelf and the floor](figures/humanoid_reach.png)
+
+(`MUJOCO_GL=egl uv run python scripts/humanoid_spike.py --strip reach --out
+docs/figures/humanoid_reach.png`; `stand` and `grasp` beside it.)
+
+**The pipeline, first, on a body its maker walks (#507, rule 6).** mjlab's
+stock G1 flat task, 3000 iterations on a rented RTX 5090 (22.5 min, about
+218,000 steps a second), flown OUTSIDE mjlab by `humanoid_train/g1_check.py`
+-- its ONNX read into arrays and run in numpy, MuJoCo's C engine at the 5 ms
+it trained at and the served 2 ms -- walks: 0.5 and 1.0 m/s forward within
+8 %, backward, sideways and turning within 15 %, and never falls. A failure
+from here is our design's or our training's.
+
+**How it stands.** The policy drives the legs' twelve joints and sees all
+twenty-four encoders, so it knows where its arms' mass is. In training the
+arms are SCRIPTED (`ScriptedArms`): sent somewhere new every 1-4 s, ramped
+at 1.5 rad/s, their weight fed forward off the bias force, as the reach's
+commands carry it. It is asked a POSTURE -- the pelvis's height off the
+stand's (to -0.25 m) and the trunk's pitch (to 1.1 rad) -- ramped at
+0.15 m/s and 0.6 rad/s, and disturbed by shoves to the trunk, pulls at the
+hands and up to 2 kg in each. Six runs taught the charges:
+
+| run | what changed | what it did in our physics |
+|---|---|---|
+| stand1 | full-size shoves (0.4 m/s) | episodes fell from 950 to 338 steps: shoves past the capture point need a step, and nothing paid for one |
+| stand2 | shoves at 0.6 of that | stood, but its feet CREPT: 10 cm in an 8 s bow -- the charge on the soles' speed squared (`feet_still`) sees nothing in 0.5 cm/s |
+| stand3 | + each sole's distance from its touchdown | a step renewed the anchor, so a step was free: bowing, it stepped its feet 40 cm |
+| stand4 | the anchor is the EPISODE's stance (`feet_anchor`, -10/m) | feet 1.1 cm in 20 s of reaching; committed |
+| stand5 | the anchor at -25/m | fell rather than step (its tilt lost 9 times a window to stand4's 3) |
+| stand6 | stand4 with shoves at 0.4 | no steadier: from the front it fell at 20 N*s, where stand4 stepped |
+
+**How it reaches.** A target is a grip pose in the STANCE frame -- on the
+floor between the soles, x along their heading -- fixed in the world while
+the feet stay put; the robot poses its MODEL OF ITSELF (its own drawing,
+`hm.body_xml()` compiled alone) from its encoders and its IMU's tilt in that
+frame, and solves the arm's six joints there by damped least squares. A
+reach is PLANNED (the least-bent posture, on a statue's legs, from which the
+target and its pre-grasp 8 cm short are in reach with 1.5 cm to spare, else
+at full stretch), MOVED in joint space to the pre-grasp while the posture
+comes, then APPROACHED along a straight line at 0.2 m/s and HELD, solved
+again every 10 ms as the trunk sways; a command carries the arm's weight
+off its model and the stiffness its caller asks. The posture is held by its
+own loop: the policy is asked the plan's posture plus the integral of what
+the robot's model says it misses by (it stood 2 cm under the height asked).
+
+**Measured** (`humanoid_spike.py --shove`, `--envelope`, `--hold`, on a bare
+floor, a fresh robot a trial):
+
+| shoved | standing: feet held to / stood to, N*s | crouched 0.2 m |
+|---|---|---|
+| from the front | 10 / 10 (fell at 15) | 15 / 15 (fell at 20) |
+| from behind | 15 / 15 | 20 / 20 |
+| from its left | 15 / 15 | 20 / 20 |
+| from its right | 15 / 15 | 15 / 20 |
+| front-left, front-right | 15 / 15 | 20, 15 / 20 |
+| back-left, back-right | 20, 15 / 20 | 20 / 25 |
+
+The shove is a force at the trunk's centre of mass for 0.1 s; 10 N*s
+changes the whole body's velocity by 0.23 m/s. Crouched it stands more
+(its centre of mass lower). Training shoved at up to 0.24 m/s a direction,
+about 10 N*s: a policy that steps to recover is #507's stage 5 (falls).
+
+The left hand's reach, in the stance frame (m), flown and held 2 s
+balancing: each cell the grip's true miss held, cm, with its grip (F
+fingers forward, U tilted 45 deg up, D down); `--` planned but the robot's
+own solve stopped it short (`reach.BLOCKED_M`); `.` no posture the policy
+holds puts it in reach:
+
+| z \\ x | 0.15 | 0.25 | 0.35 | 0.45 | 0.55 | 0.65 |
+|---|---|---|---|---|---|---|
+| 1.55 | . | . | 0.4 U | . | . | . |
+| 1.43 | . | . | 0.4 U | 3.0 U | . | . |
+| 1.25 | . | . | 0.3 U | 0.5 U | -- | . |
+| 1.10 | . | 0.6 U | 0.5 U | 0.7 F | -- | . |
+| 0.94 | 0.3 U | 0.2 U | 0.8 F | 0.8 F | 0.3 F | -- |
+| 0.80 | 0.4 F | 0.5 F | 0.6 F | -- | -- | -- |
+| 0.65 | 0.3 F | 0.4 F | 0.4 F | 0.3 F | 1.7 F | 1.4 F |
+| 0.49 | . | 0.4 F | 0.8 F | 0.3 F | 1.1 F | 1.1 F |
+| 0.35 | -- | 0.3 F | 0.2 F | 0.3 F | 0.6 F | . |
+| 0.20 | 0.2 D | . | . | . | . | . |
+| 0.09 | 0.3 D | . | . | . | . | . |
+
+The `--` cells at the edge are the reach's own word: planned with slack on
+a statue's legs, the line in tracked one arm's branch until the wrist's
+range ended it, and the hand stopped where its solve missed by 3.7-8 cm
+(the feet moved 6 mm: the stance did not move).
+
+The heights #507 names, 0.09, 0.49, 0.94 and 1.43 m, are all reached, the
+`reach` scene's four held 0.1-0.8 cm off: the floor only near the toes and
+at full stretch from the deepest bow the policy holds (the hip folds to
+-2.34 rad there, its thigh a centimetre off the torso); 1.43 m with the
+fingers tilted up 45 deg. **A waist pitch joint, or 3 cm more arm, would
+give the floor slack** -- the design question for rule 7's re-read.
+
+**The holding force** (`--hold`): the drawer locked, its handle gripped --
+held by the gripper's own reading, its jaws 22 mm apart on the 24 mm bar,
+squeezing 111 N -- and the hand's goal drawn back a centimetre each half
+second at the reach's full stiffness. The pull truly on the handle rose to
+33.8 N at 2 cm and 37.4 N at 5 cm, the hand's reading 31.4 and 36.9 N;
+between them it fell back twice as the grip slid 29 mm along the bar and
+the feet up to 27 mm toward the counter. **About 35 N is what it pulls
+standing**, the grip and the stance giving together; how near the elbow's
+RS02 (17 N*m peak) a hard pull takes it is rule 7's re-read to make.
+
+**The force at the hand** is read off the arm's six drivers' torques (their
+current, counted and noisy) less what holding the arm still takes, through
+the grip's Jacobian (`SelfModel.hand_force`): a 20 N push on a still hand
+reads 20.2 N, 0.4 N across it; the `grasp` scene's drawer, drawn 14.5 cm
+against its spring with a compliant arm, read 4.1 N against a true 3.8 N.
+While the body works under a hard pull the reading scatters 7-15 N about
+the truth: the estimate assumes the arm is still.
+
+**What the build turned up, each pinned in `tests/test_humanoid.py` or at
+its constant:**
+- *A reach solved in one jump from a hanging arm falls into the wrong
+  basin* (the shoulder thrown back, the elbow over): a hanging arm is
+  nearly singular for a hand moving up. The plan solves from seven seed
+  arms; the motion tracks from wherever the arm last was (`reach.SEEDS`).
+- *A level grip over the shoulder runs out of wrist.* At 1.43 m the wrist's
+  pitch (+-1.6 rad) held the gripper level only at full stretch; tilted 45
+  deg up, it reaches with slack.
+- *The posture shown is not the posture held.* A deep bow's body takes a
+  second or two after its command; an approach begun on the command's
+  arrival stopped short. It begins on the robot's own measure
+  (`reach.POSTURE_TOL`).
+- *A hand that cannot get there stops* (`reach.BLOCKED_M`, `BLOCKED_N`,
+  held `BLOCKED_S`): its own solve 3 cm out of reach, or its arm's currents
+  reading a 30 N push on its way in. Unstopped, a crouch left a chest's knob
+  10.7 cm out of reach and the arm drove the gripper into the counter's
+  edge until it pushed the robot over backwards. The force read off the
+  currents assumes the arm still, and a deep bow's folding read 81 N for an
+  instant: the push must last 0.15 s.
+
+**Compute** (#507's stage 2 line: ~$8 likely, $14 the stop): the G1 check
+and six standing runs on two rented RTX 5090s (Vast.ai, $0.49/h), 2.83
+GPU-hours, **$1.53** off Vast's own charges.
+
 ## Debugging workflow that worked
 
 1. Reproduce headlessly with printed telemetry (pose, joint rates, contact

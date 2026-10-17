@@ -9,7 +9,15 @@ below and Parts.md, "The humanoid body", the parts and the bill.
                 until the window closes (MUJOCO_GL unset); the terminal says
                 what is moving. Scenes: `body` -- the humanoid in the house's
                 living room, held up on a gantry, moving each joint through
-                its range in turn, then its grippers.
+                its range in turn, then its grippers; `stand` -- on its own
+                feet, its standing policy, shoved, crouching and bowing;
+                `reach` -- a hand to a counter, a high shelf, a low shelf
+                and the floor, each held; `grasp` -- a drawer's handle
+                gripped (judged by the gripper's own reading) and the drawer
+                drawn out with a compliant arm, what the hand felt said
+                beside the truth
+  --strip SCENE the scene's filmstrip, headless (`--out` names it)
+  --policy NPZ  fly another standing policy (default models/humanoid_stand.npz)
   --mass        the mass budget by segment, beside the T2's published model
   --torque      the torque table: each joint's load against its actuator's
                 peak and continuous ratings, standing, crouched, on one
@@ -18,11 +26,14 @@ below and Parts.md, "The humanoid body", the parts and the bill.
   --thermal     the hottest winding, each activity sustained
   --energy      watts by activity, and what the pack buys
   --sensors     what the head's cameras and the LIDAR see from the stand
+  --shove       the shoves it stands through each way, standing and crouched
+  --envelope    where a hand reaches, floor to over the head, flown balancing
+  --hold        a locked handle gripped and pulled harder until something gives
   (default)     the `body` scene's filmstrip, humanoid_spike.png
 
 Usage:
-  uv run python scripts/humanoid_spike.py --view body
-  MUJOCO_GL=egl uv run python scripts/humanoid_spike.py [--torque|--mass|...]
+  uv run python scripts/humanoid_spike.py --view body|stand|reach|grasp
+  MUJOCO_GL=egl uv run python scripts/humanoid_spike.py [--torque|--shove|...]
 """
 
 import os
@@ -183,11 +194,10 @@ def _pose(model, data, q: dict) -> None:
 
 #: The gains the scenes' commands carry: each joint's loop tuned on its own
 #: rotor as the policies' are (`legs.actuator.driver_gains`, 10 Hz at
-#: damping ratio 2) but at twice the frequency -- the stiffness four times,
-#: the damping twice. At the policies' own an arm held out sagged 12 cm at
-#: the hand; a scene has no policy offsetting its targets. Inside every
-#: part's MIT range (the RS00's Kp to 500, the RS04's to 5000).
-GAINS = np.array([driver_gains(hm.CHOSEN.motor(j)) for j in hm.JOINT_NAMES]) * [4.0, 2.0]
+#: damping ratio 2) times the arms' scale (`hm.ARM_GAIN_SCALE`): a scene
+#: has no policy offsetting its targets. Inside every part's MIT range (the
+#: RS00's Kp to 500, the RS04's to 5000).
+GAINS = np.array([driver_gains(hm.CHOSEN.motor(j)) for j in hm.JOINT_NAMES]) * hm.ARM_GAIN_SCALE
 
 
 class BodyScene:
@@ -756,13 +766,720 @@ def sensors_table() -> None:
         "the couch and the bed are under it (the depth camera's)")
 
 
-SCENES = {"body": view_body}
+# ---- stage 2: standing, reaching, grasping (the standing policy flying) -------------
+#
+# The humanoid on its own feet in the living room, its legs the standing
+# policy's (`humanoid.policy`) and its arms the reach's (`humanoid.reach`),
+# reading only its own senses. A scene STAGES with the truth and says so:
+# where a target or a handle is put (told to the robot in its stance frame,
+# as if it had seen it there), and a shove's push. What a scene reports of
+# how well it went -- where the grip truly is, the force truly on a handle,
+# whether it fell -- is OUR grading off the simulator, never the robot's.
+
+from pluggybot.humanoid.arms import DOWN, FORWARD, HandGoal, frame  # noqa: E402
+from pluggybot.humanoid.policy import StandDriver, StandPolicy  # noqa: E402
+from pluggybot.humanoid.reach import Reach, plan  # noqa: E402
+
+#: Where the robot stands: the body scene's spot, facing east down the room.
+STAND_XY, STAND_YAW = GANTRY_XY, GANTRY_YAW
+#: A fall, by our grading: the pelvis this low, m (a crouch puts it at 0.48).
+FALLEN_M = 0.40
+#: A shove: a force on the trunk for this long, s -- a hand's push, its
+#: impulse the force times this.
+SHOVE_S = 0.1
+
+
+def _yaw_quat(yaw: float) -> list:
+  return [math.cos(yaw / 2), 0.0, 0.0, math.sin(yaw / 2)]
+
+
+def stance_offset() -> np.ndarray:
+  """Where the stance frame's origin is from the pelvis, at the stand, m,
+  off the robot's own drawing: what places scenery in front of it."""
+  from pluggybot.humanoid.arms import SelfModel
+  sm = SelfModel()
+  sm.pose(np.array([hm.stand_qpos().get(n, 0.0) for n in hm.JOINT_NAMES]),
+          np.array([0.0, 0.0, -1.0]))
+  return -sm.d.qpos[0:3].copy()
+
+
+def to_world(p_stance, at=STAND_XY, yaw: float = STAND_YAW) -> np.ndarray:
+  """A point in the stance frame of a robot standing at `at`, in the world:
+  for building scenery round it before it stands there."""
+  off = stance_offset()
+  c, s = math.cos(yaw), math.sin(yaw)
+  x, y, z = p_stance
+  ox, oy = off[0] + x, off[1] + y
+  return np.array([at[0] + c * ox - s * oy, at[1] + s * ox + c * oy, z])
+
+
+def standing_world(scenery=None, at=STAND_XY, yaw: float = STAND_YAW):
+  """The house with the humanoid standing on its soles in the living room,
+  and whatever `scenery(spec)` adds: the model and its data at the stand."""
+  spec = mujoco.MjSpec.from_file(HOME_XML)
+  frame = spec.worldbody.add_frame()
+  frame.pos = [at[0], at[1], 0.0]
+  frame.quat = _yaw_quat(yaw)
+  spec.attach(hm.attachable(), prefix="", frame=frame)
+  if scenery is not None:
+    scenery(spec)
+  model = spec.compile()
+  model.vis.headlight.ambient[:] = 0.35
+  model.vis.headlight.diffuse[:] = 0.55
+  data = mujoco.MjData(model)
+  _pose(model, data, hm.stand_qpos())
+  return model, data
+
+
+def true_stance(model, data) -> tuple[np.ndarray, np.ndarray]:
+  """The stance frame as the simulator has it (our staging and grading):
+  its rotation (world from stance) and its origin."""
+  soles = [model.geom(f"{s}_sole").id for s in hm.SIDES]
+  heads = [math.atan2(data.geom_xmat[g][3], data.geom_xmat[g][0]) for g in soles]
+  yaw = math.atan2(sum(math.sin(h) for h in heads), sum(math.cos(h) for h in heads))
+  bottoms = [data.geom_xpos[g] - data.geom_xmat[g].reshape(3, 3)[:, 2] * model.geom_size[g][2]
+             for g in soles]
+  c, s = math.cos(yaw), math.sin(yaw)
+  return np.array([[c, -s, 0.0], [s, c, 0.0], [0.0, 0.0, 1.0]]), np.mean(bottoms, axis=0)
+
+
+class Humanoid:
+  """The humanoid in a world: its standing policy and its reach, stepped
+  together, one physics step at a time."""
+
+  def __init__(self, model, data, policy: StandPolicy | None = None):
+    self.m, self.d = model, data
+    self.stand = StandDriver(model, data, policy)
+    self.reach = Reach(model, data, self.stand)
+    self.root = model.body(ROBOT_ROOT).id
+
+  def step(self) -> None:
+    self.stand.step()
+    self.reach.step()
+    mujoco.mj_step(self.m, self.d)
+
+  def fallen(self) -> bool:
+    return bool(self.d.xpos[self.root][2] < FALLEN_M)
+
+  def heading(self) -> float:
+    rot = self.d.xmat[self.root].reshape(3, 3)
+    return math.atan2(rot[1, 0], rot[0, 0])
+
+
+def wait(h: Humanoid, seconds: float):
+  """`seconds` of the robot standing as it is."""
+  for _ in range(int(round(seconds / h.m.opt.timestep))):
+    h.step()
+    yield None
+
+
+def shove(h: Humanoid, toward, impulse: float):
+  """Push the trunk `impulse` N*s toward `toward` (in the robot's frame,
+  x ahead): a force at its centre of mass for `SHOVE_S` -- staged with the
+  truth, as a scene's push is."""
+  c, s = math.cos(h.heading()), math.sin(h.heading())
+  u = np.array([toward[0], toward[1]], dtype=float)
+  u /= np.linalg.norm(u)
+  f = impulse / SHOVE_S
+  for _ in range(int(round(SHOVE_S / h.m.opt.timestep))):
+    h.d.xfrc_applied[h.root, :3] = [f * (c * u[0] - s * u[1]), f * (s * u[0] + c * u[1]), 0.0]
+    h.step()
+    yield None
+  h.d.xfrc_applied[h.root, :3] = 0.0
+
+
+def posture(h: Humanoid, height: float, pitch: float):
+  """The standing policy asked a posture (through the reach, which holds
+  it by its own loop), and stood until it has it."""
+  h.reach.hold_posture(height, pitch)
+  while not h.stand.settled:
+    h.step()
+    yield None
+
+
+def reach_and_hold(h: Humanoid, side: str, goal: HandGoal, hold_s: float = 2.0,
+                   record: dict | None = None, budget_s: float = 20.0,
+                   say: str | None = None):
+  """A hand to `goal` (stance frame), held `hold_s`, then home. Into
+  `record`: whether it planned, how long it took, where the grip truly was
+  through the hold against where the goal truly is (our grading), and
+  whether the robot fell."""
+  rec = record if record is not None else {}
+  rot_w, origin = true_stance(h.m, h.d)
+  want = origin + rot_w @ goal.pos
+  t0 = h.d.time
+  rec["planned"] = h.reach.reach(side, goal)
+  if not rec["planned"]:
+    return
+  while not h.reach.done(side) and h.d.time - t0 < budget_s and not h.fallen():
+    h.step()
+    yield None
+  rec["seconds"] = h.d.time - t0
+  rec["blocked"] = h.reach.phase[side] == "blocked"
+  rec["arrived"] = h.reach.done(side) and not rec["blocked"]
+  site = h.m.site(f"{side}_grip").id
+  misses = []
+  if say:
+    yield say
+  for _ in wait(h, hold_s):
+    misses.append(float(np.linalg.norm(h.d.site_xpos[site] - want)))
+    yield None
+  rec["miss_mean"], rec["miss_max"] = float(np.mean(misses)), float(np.max(misses))
+  rec["posture"] = tuple(float(v) for v in h.reach.posture)
+  rec["slack"] = h.reach.slack[side]
+  h.reach.retreat(side)
+  t0 = h.d.time
+  while h.reach.phase[side] != "rest" and h.d.time - t0 < budget_s and not h.fallen():
+    h.step()
+    yield None
+  yield from posture(h, 0.0, 0.0)
+  rec["fell"] = h.fallen()
+
+
+# ---- the scene: `stand` ------------------------------------------------------------
+
+#: The `stand` scene's script: (what the terminal says, what happens). A
+#: shove's direction is where it pushes, in the robot's frame (x ahead);
+#: its size is inside every direction's measured margin (`--shove`: from
+#: the front it stands through 10 N*s and falls at 15).
+STAND_SHOVE_NS = 10.0
+STAND_SCRIPT = (
+  ("standing", ("wait", 2.0)),
+  ("shoved from the front", ("shove", (-1.0, 0.0), STAND_SHOVE_NS)),
+  ("recovering", ("wait", 2.5)),
+  ("shoved from its left", ("shove", (0.0, -1.0), STAND_SHOVE_NS)),
+  ("recovering", ("wait", 2.5)),
+  ("shoved from behind", ("shove", (1.0, 0.0), STAND_SHOVE_NS)),
+  ("recovering", ("wait", 2.5)),
+  ("shoved from its right", ("shove", (0.0, 1.0), STAND_SHOVE_NS)),
+  ("recovering", ("wait", 2.5)),
+  ("crouching 0.2 m", ("posture", -0.2, 0.0)),
+  ("crouched", ("wait", 1.5)),
+  ("shoved from behind, crouched", ("shove", (1.0, 0.0), STAND_SHOVE_NS)),
+  ("recovering", ("wait", 2.5)),
+  ("bowing 0.8 rad", ("posture", -0.2, 0.8)),
+  ("bowed", ("wait", 1.5)),
+  ("standing again", ("posture", 0.0, 0.0)),
+  ("standing", ("wait", 1.5)),
+)
+
+
+def stand_scene(h: Humanoid):
+  """The `stand` scene, once: yields a line to print when a new part
+  begins, else None, one physics step at a time."""
+  for label, (what, *args) in STAND_SCRIPT:
+    yield label
+    if what == "wait":
+      yield from wait(h, *args)
+    elif what == "shove":
+      yield from shove(h, *args)
+    else:
+      yield from posture(h, *args)
+    if h.fallen():
+      yield "FELL"
+      return
+
+
+# ---- the scene: `reach` ------------------------------------------------------------
+
+#: The heights household objects cluster at (#507: 0.09, 0.49, 0.94 and
+#: 1.43 m), each a target in the stance frame for the left hand: a counter
+#: and a low shelf with the fingers forward; a high shelf with them tilted
+#: 45 deg up (level, the wrist's pitch runs out of range over the
+#: shoulder); the floor fingers down -- reachable only near the toes, at
+#: full stretch from the deepest bow the policy holds (`reach.plan`;
+#: SimNotes has the envelope).
+UP45 = frame((math.cos(math.pi / 4), 0.0, math.sin(math.pi / 4)),
+             (-math.sin(math.pi / 4), 0.0, math.cos(math.pi / 4)))
+REACH_TARGETS = (
+  ("a counter's height, 0.94 m", HandGoal(np.array([0.45, 0.2, 0.94]), FORWARD)),
+  ("a high shelf, 1.43 m", HandGoal(np.array([0.35, 0.2, 1.43]), UP45)),
+  ("a low shelf, 0.49 m", HandGoal(np.array([0.45, 0.2, 0.49]), FORWARD)),
+  ("the floor, 0.09 m", HandGoal(np.array([0.17, 0.2, 0.09]), DOWN)),
+)
+
+
+def _marker(spec: mujoco.MjSpec, name: str, pos, rgba=(0.95, 0.3, 0.2, 0.9)) -> None:
+  b = spec.worldbody.add_body(name=name, pos=list(pos))
+  b.add_geom(name=name, type=mujoco.mjtGeom.mjGEOM_SPHERE, size=[0.025, 0, 0],
+             rgba=list(rgba), contype=0, conaffinity=0)
+
+
+def reach_world():
+  """The standing world with a marker at each of the reach scene's
+  targets: drawn only (nothing collides with it)."""
+  def scenery(spec):
+    for k, (_, goal) in enumerate(REACH_TARGETS):
+      _marker(spec, f"target_{k}", to_world(goal.pos))
+  return standing_world(scenery)
+
+
+def reach_scene(h: Humanoid, records: list | None = None):
+  for label, goal in REACH_TARGETS:
+    yield f"reaching {label}"
+    rec = {"target": label}
+    yield from reach_and_hold(h, "left", HandGoal(goal.pos.copy(), goal.rot), record=rec,
+                              say=f"holding at {label}")
+    if records is not None:
+      records.append(rec)
+    if not rec.get("planned"):
+      yield "  no posture puts it in reach"
+    elif rec.get("blocked"):
+      yield (f"  stopped short: its own solve put the goal out of reach, or its hand "
+             f"pushed on something; held {100 * rec['miss_mean']:.1f} cm off it")
+    else:
+      yield (f"  posture {rec['posture'][0]:+.2f} m, {rec['posture'][1]:.2f} rad"
+             f"{'' if rec['slack'] else ', the arm at full stretch'}; there in "
+             f"{rec['seconds']:.1f} s; the grip {100 * rec['miss_mean']:.1f} cm off it "
+             f"held (worst {100 * rec['miss_max']:.1f})")
+    if h.fallen():
+      yield "FELL"
+      return
+
+
+# ---- the scene: `grasp` ------------------------------------------------------------
+
+#: The counter: its top at a counter's 0.94 m, its front this far ahead of
+#: the stance frame's origin, m; a drawer under its top whose bar handle
+#: stands `HANDLE_OFF` proud of its front, at `HANDLE_Z`, in front of the
+#: left shoulder. The drawer slides out against a spring and its runners'
+#: friction, the feel of a drawer that closes itself.
+COUNTER_TOP, COUNTER_FRONT, COUNTER_DEPTH = 0.94, 0.51, 0.6
+HANDLE_OFF, HANDLE_Z, HANDLE_Y = 0.06, 0.84, 0.2
+HANDLE_R, HANDLE_HALF = 0.012, 0.07
+DRAWER_KG, DRAWER_SPRING, DRAWER_FRICTION, DRAWER_DAMPING = 3.0, 30.0, 4.0, 5.0
+DRAWER_TRAVEL = 0.3
+#: How far the grasp scene draws the drawer out, m, and the stiffness its
+#: hand pulls with (a share of the reach's): compliant, so the hand gives.
+PULL_M, PULL_STIFFNESS = 0.15, 0.5
+
+
+def counter_scenery(spec: mujoco.MjSpec, locked: bool = False, at=STAND_XY,
+                    yaw: float = STAND_YAW) -> None:
+  """The counter, its drawer and the drawer's handle, in front of the
+  robot standing at `at`. `locked`: the drawer welded shut, a handle to
+  pull on."""
+  front = to_world((COUNTER_FRONT, HANDLE_Y, 0.0), at, yaw)
+  wood = [0.62, 0.48, 0.34, 1.0]
+  c, sn = math.cos(yaw), math.sin(yaw)
+  counter = spec.worldbody.add_body(
+    name="counter", pos=[front[0] + c * COUNTER_DEPTH / 2, front[1] + sn * COUNTER_DEPTH / 2, 0.0],
+    quat=_yaw_quat(yaw))
+  counter.add_geom(name="counter_base", type=mujoco.mjtGeom.mjGEOM_BOX,
+                   size=[COUNTER_DEPTH / 2, 0.5, (COUNTER_TOP - 0.16) / 2],
+                   pos=[0, 0, (COUNTER_TOP - 0.16) / 2], rgba=wood)
+  counter.add_geom(name="counter_top", type=mujoco.mjtGeom.mjGEOM_BOX,
+                   size=[COUNTER_DEPTH / 2 + 0.02, 0.52, 0.015],
+                   pos=[-0.02, 0, COUNTER_TOP - 0.015], rgba=[0.85, 0.85, 0.82, 1])
+  drawer = counter.add_body(name="drawer", pos=[-COUNTER_DEPTH / 2, 0.0, HANDLE_Z])
+  if not locked:
+    drawer.add_joint(name="drawer", type=mujoco.mjtJoint.mjJNT_SLIDE, axis=[-1, 0, 0],
+                     range=[0, DRAWER_TRAVEL], stiffness=DRAWER_SPRING,
+                     frictionloss=DRAWER_FRICTION, damping=DRAWER_DAMPING)
+  drawer.add_geom(name="drawer_box", type=mujoco.mjtGeom.mjGEOM_BOX,
+                  size=[0.25, 0.22, 0.06], pos=[0.25, 0, 0], mass=DRAWER_KG,
+                  rgba=[0.7, 0.55, 0.4, 1], contype=0, conaffinity=0)
+  drawer.add_geom(name="drawer_front", type=mujoco.mjtGeom.mjGEOM_BOX,
+                  size=[0.01, 0.24, 0.07], pos=[-0.01, 0, 0], mass=0.3,
+                  rgba=[0.55, 0.42, 0.3, 1], contype=0, conaffinity=0)
+  for k, y in enumerate((-HANDLE_HALF + 0.01, HANDLE_HALF - 0.01)):
+    drawer.add_geom(name=f"handle_post_{k}", type=mujoco.mjtGeom.mjGEOM_CYLINDER,
+                    size=[0.006, HANDLE_OFF / 2, 0], pos=[-0.02 - HANDLE_OFF / 2, y, 0],
+                    quat=[math.cos(math.pi / 4), 0, math.sin(math.pi / 4), 0],
+                    rgba=[0.75, 0.75, 0.78, 1], contype=0, conaffinity=0, mass=0.02)
+  drawer.add_geom(name="handle", type=mujoco.mjtGeom.mjGEOM_CAPSULE,
+                  size=[HANDLE_R, HANDLE_HALF, 0], pos=[-0.02 - HANDLE_OFF, 0, 0],
+                  quat=[math.cos(math.pi / 4), math.sin(math.pi / 4), 0, 0],
+                  rgba=[0.8, 0.8, 0.84, 1], mass=0.1, condim=4, priority=1,
+                  friction=[1.0, 0.01, 0.0002])
+
+
+def handle_goal(rot=FORWARD) -> HandGoal:
+  """Where the handle is, told to the robot in its stance frame (staged):
+  the grip's middle on the bar's."""
+  return HandGoal(np.array([COUNTER_FRONT - 0.02 - HANDLE_OFF, HANDLE_Y, HANDLE_Z]), rot)
+
+
+def handle_force(h: Humanoid, side: str = "left") -> np.ndarray:
+  """The force the pads truly put on the handle, N, in the stance frame:
+  OUR grading, off the contacts, never the robot's."""
+  m, d = h.m, h.d
+  handle = m.geom("handle").id
+  pads = {m.geom(f"{side}_{j}_pad").id for j in hm.JAWS}
+  total = np.zeros(3)
+  f6 = np.zeros(6)
+  for i in range(d.ncon):
+    c = d.contact[i]
+    pair = {int(c.geom1), int(c.geom2)}
+    if handle in pair and pair & pads:
+      mujoco.mj_contactForce(m, d, i, f6)
+      fw = c.frame.reshape(3, 3).T @ f6[:3]
+      # The contact's force acts on geom2 from geom1: on the handle when it
+      # is geom2.
+      total += fw if int(c.geom2) == handle else -fw
+  rot_w, _ = true_stance(m, d)
+  return rot_w.T @ total
+
+
+def grasp_scene(h: Humanoid, records: list | None = None):
+  """The `grasp` scene, once: the hand to the drawer's handle, open; shut
+  and judged by the gripper's own reading; the drawer drawn out with a
+  compliant arm, what the hand felt said beside the truth; let go."""
+  side = "left"
+  g = h.reach.grippers[side]
+  rec = {}
+  g.open()
+  yield "reaching the drawer's handle, the gripper open"
+  goal = handle_goal()
+  rec["planned"] = h.reach.reach(side, goal)
+  if not rec["planned"]:
+    yield "  no posture puts the handle in reach"
+    return
+  t0 = h.d.time
+  while not h.reach.done(side) and h.d.time - t0 < 20.0:
+    h.step()
+    yield None
+  yield "shutting the gripper"
+  g.shut()
+  yield from wait(h, 0.6)
+  gap, squeeze = g.read()
+  rec["held"] = g.held()
+  yield (f"  {'HELD' if rec['held'] else 'NOT HELD'} by its own reading: the jaws "
+         f"{1000 * gap:.0f} mm apart, squeezing {squeeze:.0f} N")
+  if rec["held"]:
+    yield f"pulling the drawer {100 * PULL_M:.0f} cm out, the arm compliant"
+    h.reach.stiffen(side, PULL_STIFFNESS)
+    h.reach.move_goal(side, goal.pos - np.array([PULL_M, 0.0, 0.0]))
+    felt, truth = [], []
+    t0 = h.d.time
+    while not h.reach.done(side) and h.d.time - t0 < 10.0:
+      h.step()
+      if h.reach.steps % 25 == 0:
+        felt.append(h.reach.force[side].copy())
+        truth.append(handle_force(h, side))
+      yield None
+    for _ in wait(h, 1.0):
+      if h.reach.steps % 25 == 0:
+        felt.append(h.reach.force[side].copy())
+        truth.append(handle_force(h, side))
+      yield None
+    out = h.d.qpos[h.m.jnt_qposadr[h.m.joint("drawer").id]]
+    rec["drawer_m"] = float(out)
+    felt, truth = np.array(felt), np.array(truth)
+    rec["felt"], rec["truth"] = felt, truth
+    yield (f"  the drawer {100 * out:.1f} cm out; the hand felt a pull of "
+           f"{-felt[-25:, 0].mean():.1f} N along it, truly {-truth[-25:, 0].mean():.1f} N")
+  yield "letting go"
+  g.open()
+  yield from wait(h, 0.5)
+  h.reach.stiffen(side, 1.0)
+  h.reach.retreat(side)
+  t0 = h.d.time
+  while h.reach.phase[side] != "rest" and h.d.time - t0 < 20.0:
+    h.step()
+    yield None
+  g.shut()
+  yield from posture(h, 0.0, 0.0)
+  rec["fell"] = h.fallen()
+  if records is not None:
+    records.append(rec)
+
+
+# ---- the viewer and the filmstrips --------------------------------------------------
+
+#: The standing policy a scene flies (`--policy`), or None: the committed one.
+_POLICY = None
+
+
+def _world_for(scene: str, policy=None):
+  policy = policy or _POLICY
+  if scene == "stand":
+    model, data = standing_world()
+  elif scene == "reach":
+    model, data = reach_world()
+  else:
+    model, data = standing_world(counter_scenery)
+  return model, data, Humanoid(model, data, policy)
+
+
+def _scene_gen(scene: str, h: Humanoid):
+  return {"stand": stand_scene, "reach": reach_scene, "grasp": grasp_scene}[scene](h)
+
+
+def view_stage2(scene: str) -> None:
+  from mujoco import viewer as mj_viewer
+  model, data, h = _world_for(scene)
+  print(f"the `{scene}` scene: the humanoid's legs on its standing policy, its "
+        "arms on the reach, reading only its own senses. Close the window to quit.")
+  with mj_viewer.launch_passive(model, data) as viewer:
+    viewer.cam.type = mujoco.mjtCamera.mjCAMERA_TRACKING
+    viewer.cam.trackbodyid = model.body(ROBOT_ROOT).id
+    az, el, dist, _ = SCENE_CAMS.get(scene, (CAM_AZIMUTH, CAM_ELEVATION, CAM_DISTANCE, None))
+    viewer.cam.distance, viewer.cam.azimuth, viewer.cam.elevation = dist, az, el
+    while viewer.is_running():
+      # Again and again: each time from a fresh world, the robot standing.
+      mujoco.mj_resetData(model, data)
+      _pose(model, data, hm.stand_qpos())
+      h = Humanoid(model, data, _POLICY)
+      wall = time.time() - data.time
+      for line in _scene_gen(scene, h):
+        if line:
+          print(f"  -> {line}")
+        if not viewer.is_running():
+          return
+        if int(round(data.time / model.opt.timestep)) % 10 == 0:
+          viewer.sync()
+          ahead = data.time - (time.time() - wall)
+          if ahead > 0:
+            time.sleep(ahead)
+
+
+#: Each scene's camera, where it is not the body scene's: (azimuth,
+#: elevation, distance, look-at offset from the pelvis). The grasp is seen
+#: from the robot's right, or the counter hides the hand.
+SCENE_CAMS = {"grasp": (90.0, -15.0, 2.0, (0.3, 0.0, 0.15))}
+
+
+def filmstrip_stage2(scene: str, out: str, every_s: float | None = None) -> None:
+  """A scene's filmstrip: a tile when each part of it begins, and its
+  last moment, each labelled."""
+  from PIL import Image, ImageDraw
+  model, data, h = _world_for(scene)
+  r = mujoco.Renderer(model, 300, 400)
+  root = model.body(ROBOT_ROOT).id
+  tiles = []
+  pending = None
+
+  az, el, dist, off = SCENE_CAMS.get(scene, (CAM_AZIMUTH, CAM_ELEVATION, CAM_DISTANCE,
+                                             (0.0, 0.0, -0.1)))
+
+  def shoot(label):
+    cam = mujoco.MjvCamera()
+    cam.lookat[:] = data.xpos[root] + off
+    cam.distance, cam.azimuth, cam.elevation = dist, az, el
+    r.update_scene(data, cam)
+    img = Image.fromarray(r.render())
+    ImageDraw.Draw(img).text((8, 8), label[:60], fill=(255, 255, 255))
+    tiles.append(img)
+  # A part is shot a moment in, once its motion has begun.
+  delay = 0.0
+  for line in _scene_gen(scene, h):
+    if line and not line.startswith("  "):
+      if pending is not None:
+        shoot(pending)
+      pending, delay = line, data.time + 0.9
+    elif line:
+      print(line)
+    if pending is not None and data.time >= delay:
+      shoot(pending)
+      pending = None
+  if pending is not None:
+    shoot(pending)
+  r.close()
+  cols = 4
+  rows = (len(tiles) + cols - 1) // cols
+  strip = Image.new("RGB", (400 * cols, 300 * rows), (255, 255, 255))
+  for k, tile in enumerate(tiles):
+    strip.paste(tile, (400 * (k % cols), 300 * (k // cols)))
+  strip.save(out)
+  print(f"wrote {out}")
+
+
+# ---- stage 2's measurements: on a bare floor, a fresh robot a trial ----------------
+
+def floor_humanoid(scenery=None, policy=None) -> Humanoid:
+  """The robot standing on a bare floor at the world's origin, facing +x,
+  with `scenery(spec)` round it: a measurement's world (no house to
+  compile)."""
+  spec = mujoco.MjSpec.from_string(hm.body_xml())
+  if scenery is not None:
+    scenery(spec)
+  model = spec.compile()
+  data = mujoco.MjData(model)
+  mujoco.mj_resetDataKeyframe(model, data, 0)
+  mujoco.mj_forward(model, data)
+  return Humanoid(model, data, policy)
+
+
+def _drain(gen) -> None:
+  for _ in gen:
+    pass
+
+
+#: The shoves `--shove` tries, N*s at the trunk over `SHOVE_S` (a 42.6 kg
+#: body's velocity changed by impulse / 42.6), in eight directions.
+SHOVE_LEVELS = (5, 10, 15, 20, 25, 30, 40, 50, 60)
+#: A sole that moved this far was a step, m.
+STEPPED_M = 0.03
+
+
+def shove_trial(toward, impulse: float, policy=None, posture_=(0.0, 0.0)) -> str:
+  """One shove on a fresh robot standing (at `posture_`): `held` (feet
+  where they were), `stepped` (a sole moved, standing after), or `fell`."""
+  h = floor_humanoid(policy=policy)
+  _drain(posture(h, *posture_))
+  _drain(wait(h, 1.0))
+  soles = [h.m.geom(f"{s}_sole").id for s in hm.SIDES]
+  before = h.d.geom_xpos[soles].copy()
+  _drain(shove(h, toward, impulse))
+  for _ in wait(h, 4.0):
+    if h.fallen():
+      return "fell"
+  moved = float(np.linalg.norm(h.d.geom_xpos[soles][:, :2] - before[:, :2], axis=1).max())
+  return "stepped" if moved > STEPPED_M else "held"
+
+
+def shove_table(policy=None, postures=((0.0, 0.0), (-0.2, 0.0))) -> dict:
+  """--shove: the largest shove each way the robot stands through with its
+  feet where they were, and the largest it survives at all, by posture."""
+  dirs = {"from the front": (-1, 0), "from behind": (1, 0), "from its left": (0, -1),
+          "from its right": (0, 1), "front-left": (-1, -1), "front-right": (-1, 1),
+          "back-left": (1, -1), "back-right": (1, 1)}
+  out = {}
+  for p in postures:
+    print(f"posture {p[0]:+.2f} m, {p[1]:.2f} rad: shoves of {SHOVE_LEVELS} N*s, "
+          f"{SHOVE_S:.1f} s each")
+    print(f"  {'direction':16s} {'feet held to':>13s} {'survived to':>12s}  (N*s; 'fell at')")
+    for name, toward in dirs.items():
+      held = survived = 0
+      fell_at, holding = None, True
+      for level in SHOVE_LEVELS:
+        result = shove_trial(toward, level, policy, p)
+        if result == "fell":
+          fell_at = level
+          break
+        survived = level
+        holding = holding and result == "held"
+        if holding:
+          held = level
+      out[(p, name)] = (held, survived, fell_at)
+      print(f"  {name:16s} {held:13d} {survived:12d}  {'fell at %d' % fell_at if fell_at else 'never fell'}")
+  return out
+
+
+#: The reach envelope's grid: heights, m, from the floor to over the head,
+#: and distances ahead of the stance frame's origin, m, the left hand in
+#: front of its shoulder (0.2 m out).
+ENVELOPE_Z = (0.09, 0.2, 0.35, 0.49, 0.65, 0.8, 0.94, 1.1, 1.25, 1.43, 1.55)
+ENVELOPE_X = (0.15, 0.25, 0.35, 0.45, 0.55, 0.65)
+
+
+def envelope_table(policy=None, fly: bool = True) -> dict:
+  """--envelope: each grid point planned on the robot's model of itself
+  (fingers forward, else down), and every planned one FLOWN: reached and
+  held 2 s balancing, the grip's true miss through the hold."""
+  out = {}
+  print("the left hand's reach, stance frame: a cell is the grip's mean miss held, "
+        "cm (F fingers forward, U tilted 45 deg up, D down), '--' planned but stopped "
+        "short, missed or fell, '.' no posture the policy holds puts it in reach")
+  print(f"{'z \\ x':>6s}" + "".join(f"{x:>8.2f}" for x in ENVELOPE_X))
+  for z in reversed(ENVELOPE_Z):
+    cells = []
+    for x in ENVELOPE_X:
+      cell = "."
+      # The grips that plan, those with slack first (`reach.plan`).
+      planned = []
+      for tag, rot in (("F", FORWARD), ("U", UP45), ("D", DOWN)):
+        goal = HandGoal(np.array([x, 0.2, z]), rot)
+        found = plan("left", goal)
+        if found is not None:
+          planned.append((not found[3], tag, goal))
+      if planned:
+        _, tag, goal = min(planned, key=lambda p: p[0])
+        if not fly:
+          cell = tag
+        else:
+          h = floor_humanoid(policy=policy)
+          rec = {}
+          _drain(reach_and_hold(h, "left", goal, record=rec))
+          out[(z, x)] = (tag, rec)
+          ok = rec.get("arrived") and not rec.get("fell") and rec.get("miss_mean", 1) < 0.03
+          cell = f"{100 * rec['miss_mean']:.1f}{tag}" if ok else "--"
+      cells.append(f"{cell:>8s}")
+    print(f"{z:6.2f}" + "".join(cells), flush=True)
+  return out
+
+
+def hold_table(policy=None, step_m: float = 0.01, step_s: float = 0.5,
+               most_m: float = 0.25) -> dict:
+  """--hold: the drawer locked, its handle gripped and pulled harder and
+  harder -- the hand's goal drawn back `step_m` every `step_s` at the full
+  stiffness -- until the grip slips, the body steps or falls, or the goal
+  is `most_m` behind. The pull truly on the handle (our grading) beside
+  what the hand felt off its motor currents, step by step."""
+  h = floor_humanoid(lambda spec: counter_scenery(spec, locked=True, at=(0.0, 0.0), yaw=0.0),
+                     policy)
+  side = "left"
+  g = h.reach.grippers[side]
+  g.open()
+  goal = handle_goal()
+  if not h.reach.reach(side, goal):
+    print("the handle is out of reach")
+    return {}
+  _drain(_until(h, lambda: h.reach.done(side), 20.0))
+  g.shut()
+  _drain(wait(h, 0.6))
+  print(f"held by its own reading: {g.held()} (gap {1000 * g.read()[0]:.0f} mm, "
+        f"squeeze {g.read()[1]:.0f} N)")
+  site, handle = h.m.site(f"{side}_grip").id, h.m.geom("handle").id
+  soles = [h.m.geom(f"{s}_sole").id for s in hm.SIDES]
+  feet0 = h.d.geom_xpos[soles].copy()
+  rows, why = [], f"the goal {100 * most_m:.0f} cm behind the handle"
+  back = 0.0
+  while back < most_m:
+    back += step_m
+    h.reach.move_goal(side, goal.pos - np.array([back, 0.0, 0.0]))
+    felt, truth = [], []
+    for _ in wait(h, step_s):
+      felt.append(-h.reach.force[side][0])
+      truth.append(-handle_force(h, side)[0])
+    slip = float(np.linalg.norm(h.d.site_xpos[site] - h.d.geom_xpos[handle]))
+    moved = float(np.linalg.norm(h.d.geom_xpos[soles][:, :2] - feet0[:, :2], axis=1).max())
+    half = len(truth) // 2
+    rows.append((back, float(np.mean(truth[half:])), float(np.mean(felt[half:])),
+                 float(np.std(np.array(felt[half:]) - np.array(truth[half:]))), slip, moved))
+    if h.fallen():
+      why = "it fell"
+      break
+    if slip > 0.02:
+      why = "the grip slipped"
+      break
+    if moved > STEPPED_M:
+      why = "it stepped"
+      break
+  print(f"{'goal back cm':>12s} {'pull N, truly':>14s} {'felt N':>8s} {'felt sd':>8s} "
+        f"{'grip off handle mm':>19s} {'feet moved mm':>14s}")
+  for back, t, f, sd, slip, moved in rows:
+    print(f"{100 * back:12.0f} {t:14.1f} {f:8.1f} {sd:8.1f} {1000 * slip:19.1f} {1000 * moved:14.1f}")
+  print(f"stopped: {why}; the hardest steady pull, truly {max(r[1] for r in rows):.1f} N")
+  return {"rows": rows, "why": why}
+
+
+def _until(h: Humanoid, done, budget_s: float):
+  t0 = h.d.time
+  while not done() and h.d.time - t0 < budget_s and not h.fallen():
+    h.step()
+    yield None
+
+
+SCENES = {"body": view_body, "stand": lambda: view_stage2("stand"),
+          "reach": lambda: view_stage2("reach"), "grasp": lambda: view_stage2("grasp")}
 
 
 def main(argv=None) -> None:
   ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
   ap.add_argument("--view", choices=sorted(SCENES), default=None, metavar="SCENE",
                   help=f"a scene in the viewer: {', '.join(sorted(SCENES))}")
+  ap.add_argument("--strip", choices=sorted(SCENES), default=None, metavar="SCENE",
+                  help="a scene's filmstrip, headless (--out names it)")
+  ap.add_argument("--policy", default=None,
+                  help="fly another standing policy's .npz (default models/humanoid_stand.npz)")
+  ap.add_argument("--shove", action="store_true",
+                  help="the shoves it stands through, each way, standing and crouched")
+  ap.add_argument("--envelope", action="store_true",
+                  help="where the hand reaches, floor to over the head, flown balancing")
+  ap.add_argument("--hold", action="store_true",
+                  help="a locked drawer's handle pulled harder until something gives")
   ap.add_argument("--mass", action="store_true", help="the mass budget beside the T2's")
   ap.add_argument("--torque", action="store_true",
                   help="each joint's load: held in our physics, then the estimates")
@@ -771,8 +1488,20 @@ def main(argv=None) -> None:
   ap.add_argument("--sensors", action="store_true", help="what the head sees from the stand")
   ap.add_argument("--out", default="humanoid_spike.png")
   args = ap.parse_args(argv)
+  policy = StandPolicy(args.policy) if args.policy else None
+  if policy is not None:
+    global _POLICY
+    _POLICY = policy
   if args.view:
     SCENES[args.view]()
+  elif args.strip and args.strip != "body":
+    filmstrip_stage2(args.strip, args.out)
+  elif args.shove:
+    shove_table(policy)
+  elif args.envelope:
+    envelope_table(policy)
+  elif args.hold:
+    hold_table(policy)
   elif args.mass:
     mass_table()
   elif args.torque:
