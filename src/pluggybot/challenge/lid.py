@@ -18,13 +18,16 @@ THE CRITERIA, written first. An attempt passes when:
      the catch holds it again (`caught`) is said beside, and gates nothing;
   4. LET GO: nothing but the chest itself touches the lid, its bracket, its
      handle or its knob at any moment of the hold;
-  5. THE ROBOT AS IT STARTED: upright throughout -- its root never tilted
-     past `body.TOPPLE_TILT_RAD`, the topple death's own line -- and, after
-     the hold, the tool its set-out gave it still seated, where it gave one.
-     ⚠ A criterion that names a body's part is THAT BODY'S TO ANSWER
-     (`Body.orientation`, `Body.tool_powered`): the quadruped's set-out
-     gives it the claw, the humanoid's hands are its own, and nothing here
-     names either.
+  5. THE ROBOT AS IT STARTED: no fall throughout -- none taken by its own
+     fall watch (`Body.falls`) and its root never past
+     `body.TOPPLE_TILT_RAD`, the line every body's topple death is read on
+     -- and, after the hold, the tool its set-out gave it still seated,
+     where it gave one. ⚠ WHAT A FALL IS, AND WHICH PART, IS THAT BODY'S
+     TO ANSWER (`Body.falls`, `Body.orientation`, `Body.tool_powered`): the
+     quadruped's watch is its torso past the topple line, the humanoid's
+     its trunk past 35 deg or its pelvis sunk (`humanoid.getup`); the
+     quadruped's set-out gives it the claw, the humanoid's hands are its
+     own; and nothing here names either.
 
 Everything else is the robot's business: how it finds the knob, which way
 it pulls, how long it takes, whether it lies down. `sample_lid` reads
@@ -103,9 +106,10 @@ def tilt(quat) -> float:
 class Watch:
   """OUR reading of an attempt, every physics step (a step hook): the
   lid's highest, the fastest it closed while open, the robot's worst tilt
-  and -- once `hold` -- what else touched the moving parts. Off the true
-  state: the hinge's `qpos` and `qvel`, the contact list, the body's
-  attitude. The robot never sees it."""
+  and the falls its own watch took, and -- once `hold` -- what else touched
+  the moving parts. Off the true state: the hinge's `qpos` and `qvel`, the
+  contact list, the body's attitude and its fall count. The robot never
+  sees it."""
 
   def __init__(self, model, data, body=None, name: str = "chest") -> None:
     self.model, self.data, self.body, self.name = model, data, body, name
@@ -116,12 +120,17 @@ class Watch:
     self.top = -math.inf
     self.fastest = 0.0
     self.worst_tilt = None if body is None else 0.0
+    self.falls0 = None if body is None else int(body.falls)
     self.holding = False
     self.touched: set[str] = set()
 
   def hold(self) -> None:
     """The call: from here every step reads what touches the lid's parts."""
     self.holding = True
+
+  def falls(self) -> int | None:
+    """The falls the body's own watch has taken since this began."""
+    return None if self.body is None else int(self.body.falls) - self.falls0
 
   def __call__(self) -> None:
     a, w = float(self.data.qpos[self.qadr]), float(self.data.qvel[self.dof])
@@ -148,56 +157,66 @@ def measure(model, data, name: str = "chest") -> dict:
   its reach (`chest.catch_torque`)."""
   hinge = model.joint(f"{name}_hinge").id
   a = float(data.qpos[model.jnt_qposadr[hinge]])
-  return {"t": float(data.time), "angleDeg": round(math.degrees(a), 2),
+  return {"t": float(data.time), "angleDeg": math.degrees(a),
           "caught": bool(data.qfrc_applied[model.jnt_dofadr[hinge]] < 0.0)}
 
 
 def measurements(at_call: dict | None, settled: dict | None, watch: Watch | None,
                  tool: str | None = None, seated: bool | None = None,
                  catch_n: float | None = None) -> dict:
-  """The evaluator's input: the snapshot at the call, the one after the
+  """The evaluator's input, UNROUNDED (`eval_lid` judges the numbers and
+  rounds only what it shows): the snapshot at the call, the one after the
   hold, the attempt's per-step reading, and the tool the set-out gave with
   the body's word on whether it is still seated. `catch_n` is the chest's
   true catch (`chest.Lid`), OURS: secret on the row. Absences stay absent --
   `eval_lid` turns them into a failure."""
   call, end = at_call or {}, settled or {}
-  hold = (end["t"] - call["t"]) if "t" in call and "t" in end else None
   w = watch
   return {
-    "topDeg": (round(math.degrees(w.top), 2) if w is not None and w.top > -math.inf
-               else None),
-    "downRadS": round(w.fastest, 3) if w is not None else None,
-    "tiltDeg": (round(math.degrees(w.worst_tilt), 1)
+    "topDeg": math.degrees(w.top) if w is not None and w.top > -math.inf else None,
+    "downRadS": w.fastest if w is not None else None,
+    "tiltDeg": (math.degrees(w.worst_tilt)
                 if w is not None and w.worst_tilt is not None else None),
+    "falls": w.falls() if w is not None else None,
     "touchedDuringHold": sorted(w.touched) if w is not None else [],
     "angleAtCallDeg": call.get("angleDeg"),
     "angleDeg": end.get("angleDeg"),
     "caught": end.get("caught"),
-    "holdS": round(hold, 2) if hold is not None else None,
+    "holdS": (end["t"] - call["t"]) if "t" in call and "t" in end else None,
     "tool": tool,
     "toolSeated": seated,
-    "catchN": None if catch_n is None else round(float(catch_n), 3),
+    "catchN": None if catch_n is None else float(catch_n),
   }
+
+
+#: What a verdict shows of each number, decimal places: judged unrounded.
+SHOWN = {"topDeg": 2, "downRadS": 3, "tiltDeg": 1, "angleAtCallDeg": 2, "angleDeg": 2,
+         "holdS": 2, "catchN": 3}
 
 
 def eval_lid(m: dict) -> tuple[bool, dict, str]:
   """The pre-declared predicate. Pure -- a dict of measurements in, a
-  verdict out. The reason says what the world shows and never the catch."""
-  metrics = {k: m.get(k) for k in ("topDeg", "downRadS", "tiltDeg", "angleAtCallDeg",
-                                   "angleDeg", "caught", "holdS", "tool", "toolSeated",
-                                   "catchN")}
+  verdict out, judged on the numbers as measured and shown rounded. The
+  reason says what the world shows and never the catch."""
+  raw = {k: m.get(k) for k in ("topDeg", "downRadS", "tiltDeg", "falls", "angleAtCallDeg",
+                               "angleDeg", "caught", "holdS", "tool", "toolSeated", "catchN")}
+  metrics = {k: (round(float(v), SHOWN[k]) if k in SHOWN and v is not None else v)
+             for k, v in raw.items()}
   metrics["touchedDuringHold"] = list(m.get("touchedDuringHold") or ())
   # A missing measurement is not a passing one (scoring.py's rule).
   for key in ("topDeg", "downRadS", "angleDeg", "holdS"):
-    if metrics[key] is None:
+    if raw[key] is None:
       return False, metrics, "the lid was never measured"
-  top, down, end = (float(metrics[k]) for k in ("topDeg", "downRadS", "angleDeg"))
+  top, down, end = (float(raw[k]) for k in ("topDeg", "downRadS", "angleDeg"))
   # A short hold is the HARNESS's fault, and it still fails.
-  if float(metrics["holdS"]) + 1e-6 < HOLD_S:
-    return False, metrics, (f"measured {float(metrics['holdS']):.1f} s after the call, "
+  if float(raw["holdS"]) + 1e-6 < HOLD_S:
+    return False, metrics, (f"measured {float(raw['holdS']):.1f} s after the call, "
                             f"not the {HOLD_S:.0f} s the job asks for")
-  if metrics["tiltDeg"] is not None and float(metrics["tiltDeg"]) >= math.degrees(TOPPLE_TILT_RAD):
-    return False, metrics, f"the robot fell over ({float(metrics['tiltDeg']):.0f} deg off upright)"
+  if raw["falls"]:
+    return False, metrics, (f"the robot fell ({int(raw['falls'])} "
+                            f"{'fall' if raw['falls'] == 1 else 'falls'} by its own watch)")
+  if raw["tiltDeg"] is not None and float(raw["tiltDeg"]) >= math.degrees(TOPPLE_TILT_RAD):
+    return False, metrics, f"the robot fell over ({float(raw['tiltDeg']):.0f} deg off upright)"
   if top < math.degrees(OPEN_RAD):
     if top < math.degrees(SHUT_RAD):
       return False, metrics, (f"the lid never opened: it must open past "
@@ -215,12 +234,12 @@ def eval_lid(m: dict) -> tuple[bool, dict, str]:
   if end >= math.degrees(SHUT_RAD):
     return False, metrics, (f"opened to {top:.0f} deg and lowered, but the lid was "
                             f"{end:.0f} deg open {HOLD_S:.0f} s after the call")
-  if metrics["tool"] and not metrics["toolSeated"]:
-    return False, metrics, (f"opened and set down, but {metrics['tool']} is off the "
+  if raw["tool"] and not raw["toolSeated"]:
+    return False, metrics, (f"opened and set down, but {raw['tool']} is off the "
                             "robot's coupling")
   return True, metrics, (f"opened to {top:.0f} deg and set down: lowered at most "
                          f"{down:.2f} rad/s while open, shut "
-                         f"{'and caught ' if metrics['caught'] else ''}"
+                         f"{'and caught ' if raw['caught'] else ''}"
                          f"{HOLD_S:.0f} s after the call, let go")
 
 

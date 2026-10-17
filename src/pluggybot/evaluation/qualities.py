@@ -187,15 +187,17 @@ def from_observe(payload: dict) -> list[Row]:
 def from_attempts(record: Iterable[dict]) -> list[Row]:
   """Rows off a demo's record (#493: `evaluation.attempts`, one dict an
   attempt): an `attempt` row per try, its subject the verdict (`passed` /
-  `failed`), its data the row whole, its run the build and skill it was
-  flown with -- the regime a reader groups by."""
+  `failed`) or `error` where the attempt had none (it raised), its data the
+  row whole, its run the build and skill it was flown with -- the regime a
+  reader groups by."""
   rows = []
   for a in record:
     run = a.get("run") or {}
     regime = f"{run.get('commit', 'unknown')} {a.get('process')}:{a.get('skill')}"
+    subject = ("error" if "error" in a
+               else "passed" if (a.get("verdict") or {}).get("ok") else "failed")
     rows.append(Row(kind="attempt", robot=str((a.get("task") or {}).get("body", "")),
-                    subject="passed" if (a.get("verdict") or {}).get("ok") else "failed",
-                    t=_float(a.get("attempt")), data=dict(a), run=regime))
+                    subject=subject, t=_float(a.get("attempt")), data=dict(a), run=regime))
   return rows
 
 
@@ -528,11 +530,18 @@ def per_task_record(rows: Iterable[Row], upto: int = 5) -> dict:
   summed over every attempt -- None where a row did not say; help by kind
   (the world's resets, demonstrations, interventions); and the robot's own
   test against the world's verdict: agreed, thought it passed and had not,
-  missed a pass, said nothing."""
+  missed a pass, said nothing. An attempt with no verdict (`error`) is no
+  try: counted apart, its task kept, its series ended there."""
+  rows = _kind(rows, "attempt")
   tries: dict = defaultdict(list)
-  for r in _kind(rows, "attempt"):
+  errors = 0
+  for r in rows:
     t = r.data.get("task") or {}
-    tries[(t.get("grader"), t.get("body"), t.get("mount"), t.get("chest"))].append(r)
+    mine = tries[(t.get("grader"), t.get("body"), t.get("mount"), t.get("chest"))]
+    if r.subject == "error":
+      errors += 1
+    else:
+      mine.append(r)
   firsts = {}
   for key, mine in tries.items():
     mine.sort(key=lambda r: r.data.get("attempt", 0))
@@ -543,7 +552,7 @@ def per_task_record(rows: Iterable[Row], upto: int = 5) -> dict:
              for key, first in firsts.items()]
     within[n] = share_interval(flags) or {"n": 0}
     within[n]["unflown"] = sum(f is None for f in flags)
-  every = [r.data for r in _kind(rows, "attempt")]
+  every = [r.data for r in rows if r.subject != "error"]
   experience: dict = {"attempts": len(every)}
   for kind in EXPERIENCE:
     vals = [a.get(kind) for a in every]
@@ -563,7 +572,7 @@ def per_task_record(rows: Iterable[Row], upto: int = 5) -> dict:
                    "demonstrations": sum(int(h.get("demonstrations", 0)) for h in helped),
                    "interventions": sum(int(h.get("interventions", 0)) for h in helped)},
           "ownTest": {k: own[k] for k in ("agreed", "falsePass", "missedPass", "unsaid")},
-          "n": len(every)}
+          "errors": errors, "n": len(every)}
 
 
 def judgement_agreement(rows: Iterable[Row]) -> dict:

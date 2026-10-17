@@ -44,13 +44,14 @@ import os
 os.environ.setdefault("OPENBLAS_NUM_THREADS", "1")
 
 import argparse  # noqa: E402
-from functools import partial  # noqa: E402
 import json  # noqa: E402
 import math  # noqa: E402
 from multiprocessing import Pool  # noqa: E402
 from pathlib import Path  # noqa: E402
 import time  # noqa: E402
 import traceback  # noqa: E402
+
+import subprocess  # noqa: E402
 
 import mujoco  # noqa: E402
 import numpy as np  # noqa: E402
@@ -59,7 +60,7 @@ from pluggybot.activity import chest as ch  # noqa: E402
 from pluggybot.challenge import lid  # noqa: E402
 from pluggybot.evaluation import attempts as at  # noqa: E402
 from pluggybot.evaluation import qualities as q  # noqa: E402
-from pluggybot.evaluation.identity import repo_commit  # noqa: E402
+from pluggybot.evaluation.identity import COMMIT_ENV, REPO  # noqa: E402
 
 #: The reference's own word on itself: code, no LLM, no imagination, no
 #: procedure to count steps of.
@@ -67,12 +68,31 @@ PROBE_INFO = {"process": "code", "skill": "probe", "tokens": 0, "imaginationCpuS
               "steps": None}
 
 
-def probe_skill(world):
+def probe_skill(body):
   """The probe (`legs.probe.Probe`) on the set-out's quadruped: what it
   returns (`Probed`) is its own word -- `ok` once its torques say it held
   the lid through its sweeps."""
   from pluggybot.legs import probe as pr
-  return pr.Probe(world.body.mission).routine()
+  return pr.Probe(body.mission).routine()
+
+
+def build() -> dict:
+  """Which build flies, for the record and the held-out seed: `$PLUGGY_COMMIT`,
+  else the `COMMIT` file a pod's tree carries (`training/pod.sh setup-sim`:
+  a `git archive`, no `.git`), else git's HEAD -- and whether the tree has
+  changes HEAD does not (MuJoCo's own log aside)."""
+  baked = os.environ.get(COMMIT_ENV, "").strip()
+  if baked:
+    return {"commit": at.commit_of(baked), "dirty": False}
+  kept = REPO / "COMMIT"
+  if kept.exists():
+    return {"commit": at.commit_of(kept.read_text()), "dirty": False}
+  head = subprocess.run(["git", "rev-parse", "HEAD"], capture_output=True, text=True,
+                        check=True, cwd=REPO).stdout
+  changed = subprocess.run(["git", "status", "--porcelain", "--untracked-files=no"],
+                           capture_output=True, text=True, check=True, cwd=REPO).stdout
+  dirty = [line for line in changed.splitlines() if not line.endswith("MUJOCO_LOG.TXT")]
+  return {"commit": at.commit_of(head), "dirty": bool(dirty)}
 
 
 def chests(spec: str) -> list[int]:
@@ -84,21 +104,24 @@ def chests(spec: str) -> list[int]:
 
 
 def fly(job) -> list[dict]:
-  """One chest's attempts, each from a fresh set-out."""
+  """One chest's attempts, each from a fresh set-out. An attempt that
+  raises is a row saying what (`error`), its chest's earlier rows kept and
+  its series ended there: `Pool.map` raises the first error a worker meets,
+  and the batch's rows would go with it."""
   k, n, info = job
   task = at.Task(chest=k)
-  return [at.attempt(task, probe_skill, i, info=info) for i in range(1, n + 1)]
-
-
-def guarded(fn, job) -> list[dict]:
-  """`fn(job)`, or a row saying what it raised: `Pool.map` raises the first
-  error a worker meets, and the batch's rows go with it."""
-  try:
-    return fn(job)
-  except Exception as e:
-    traceback.print_exc()
-    return [{"task": at.Task(chest=job[0]).as_dict(), "attempt": 1,
-             "error": f"{type(e).__name__}: {e}"}]
+  rows = []
+  for i in range(1, n + 1):
+    try:
+      rows.append(at.attempt(task, probe_skill, i, info=dict(info)))
+    except Exception as e:
+      traceback.print_exc()
+      rows.append({"task": task.as_dict(), "attempt": i, "heldOut": task.held_out,
+                   "process": info.get("process"), "skill": info.get("skill"),
+                   "run": {k_: info[k_] for k_ in ("commit", "dirty", "seed") if k_ in info},
+                   "error": f"{type(e).__name__}: {e}"})
+      break
+  return rows
 
 
 def run_pool(fn, jobs, n_jobs: int) -> list:
@@ -110,7 +133,7 @@ def run_pool(fn, jobs, n_jobs: int) -> list:
 
 def show(row: dict) -> str:
   if "error" in row:
-    return f"  chest {row['task']['chest']}: ERROR {row['error']}"
+    return f"  chest {row['task']['chest']} try {row['attempt']}: ERROR {row['error']}"
   v, own = row["verdict"], row["own"]
   word = "--" if own["ok"] is None else ("ok" if own["ok"] else "NO")
   return (f"  chest {row['task']['chest']:>3} try {row['attempt']}: "
@@ -121,8 +144,7 @@ def show(row: dict) -> str:
 def read(into: str) -> None:
   """A kept record, as the per-task record, one regime at a time."""
   rows = [json.loads(line) for line in open(Path(into) / "rows.jsonl")]
-  errors = [r for r in rows if "error" in r]
-  kept = q.from_attempts(r for r in rows if "error" not in r)
+  kept = q.from_attempts(rows)
   regimes = sorted({r.run for r in kept})
   for regime in regimes:
     mine = [r for r in kept if r.run == regime]
@@ -135,6 +157,11 @@ def read(into: str) -> None:
     print(f"  experience: {rec['experience']}")
     print(f"  help: {rec['help']}")
     print(f"  its own test against the verdict: {rec['ownTest']}")
+    if rec["errors"]:
+      print(f"  {rec['errors']} attempts with no verdict (they raised): no try, their "
+            "tasks unflown from there")
+    if any(r.data.get("run", {}).get("dirty") for r in mine):
+      print("  ⚠ flown from a tree with changes its commit does not have")
     if any(r.data["heldOut"] for r in mine):
       seeds = sorted({str((r.data.get("run") or {}).get("seed")) for r in mine})
       print(f"  held out, by seed {', '.join(seeds)}: weaker than a sealed pool -- whoever "
@@ -142,13 +169,14 @@ def read(into: str) -> None:
     for r in mine:
       if r.subject != "passed":
         print(show(r.data))
+    print("  what it flatters (#493):")
+    for line in at.FLATTERS:
+      print(f"    - {line}")
     tops = [r.data["verdict"]["metrics"].get("topDeg") for r in mine]
     downs = [r.data["verdict"]["metrics"].get("downRadS") for r in mine]
     if all(v is not None for v in tops + downs):
       print(f"  the lid's top {min(tops):.1f}-{max(tops):.1f} deg; fastest down while "
             f"open {min(downs):.3f}-{max(downs):.3f} rad/s")
-  for r in errors:
-    print(show(r))
 
 
 # ---- --drops: what the constants were read off ----------------------------------
@@ -254,7 +282,7 @@ def view(k: int) -> None:
     viewer.cam.distance, viewer.cam.azimuth, viewer.cam.elevation = 1.6, 120.0, -20.0
     world.body.step_hooks.append(_pace(viewer, world.data, world.model))
     try:
-      row = at.attempt_in(world, probe_skill, info=PROBE_INFO | {"commit": repo_commit()})
+      row = at.attempt_in(world, probe_skill, info=PROBE_INFO | build())
       print(show(row))
       while viewer.is_running():
         viewer.sync()
@@ -299,9 +327,9 @@ def strip(k: int, out: str = "attempts.png") -> None:
       shoot(f"opened past {math.degrees(lid.OPEN_RAD):.0f} deg")
   world.body.step_hooks.append(watch_open)
 
-  def skill(w):
+  def skill(body):
     def routine():
-      got = yield from probe_skill(w)
+      got = yield from probe_skill(body)
       shoot("the call: the skill has ended")
       return got
     return routine()
@@ -349,8 +377,10 @@ def main(argv=None) -> None:
   if args.strip is not None:
     strip(args.strip, args.out)
     return
-  info = PROBE_INFO | {"commit": repo_commit()}
+  info = PROBE_INFO | build()
   if args.held_out is not None:
+    if info["dirty"] and args.seed is None:
+      ap.error("a held-out draw is a frozen build's: commit the tree first (or name --seed)")
     seed = args.seed if args.seed is not None else at.seed_of(info["commit"])
     ks = at.held_out(seed, args.held_out)
     info["seed"] = seed
@@ -359,7 +389,7 @@ def main(argv=None) -> None:
     ks = chests(args.chests)
   if args.into:
     Path(args.into).mkdir(parents=True, exist_ok=True)
-  done = run_pool(partial(guarded, fly), [(k, args.attempts, info) for k in ks], args.jobs)
+  done = run_pool(fly, [(k, args.attempts, info) for k in ks], args.jobs)
   rows = [r for got in done for r in got]
   for r in rows:
     print(show(r))

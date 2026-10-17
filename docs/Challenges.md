@@ -347,13 +347,20 @@ above 5 deg, it never closed faster than 1.0 rad/s, through the attempt and
 the hold: lowered, never let fall; (3) 5 s after the call it is under 5 deg,
 whether the catch holds it again (`caught`) said beside and gating nothing;
 (4) nothing but the chest touches the lid, its bracket, its handle or its
-knob during the hold: let go; (5) the robot upright throughout, its root
-never past the topple death's 60 deg, and after the hold the tool its
-set-out gave it still seated. ⚠ (5) names no part: the tilt is
-`Body.orientation` and the tool `Body.tool_powered`, asked of whichever body
-it is, so the grader reads the humanoid's counter world unchanged. The call
-is wherever the attempt ended (Evaluation.md §4); the reason never carries
-the catch, whose number is secret on the row.
+knob during the hold: let go; (5) no fall throughout, none taken by the
+body's own fall watch and its root never past the topple death's 60 deg,
+and after the hold the tool its set-out gave it still seated. ⚠ (5) names
+no part, and WHAT A FALL IS IS THE BODY'S TO SAY (`Body.falls`; the tilt
+`Body.orientation`, the tool `Body.tool_powered`), so the grader reads the
+humanoid's counter world unchanged: the quadruped's watch is its torso past
+60 deg, the humanoid's its trunk past 35 deg by its IMU or its pelvis sunk.
+⚠ The humanoid's watch takes its OWN BOW past 35 deg for a fall (asked 46
+or 63 deg at the counter, it counted one and its get-up took the joints):
+#507's deepest reach postures cannot be held with its get-up loaded, and
+this grader fails an attempt that bows that deep. The numbers are judged as
+measured and only shown rounded; the call is wherever the attempt ended
+(Evaluation.md §4); the reason never carries the catch, whose number is
+secret on the row.
 
 **What the lines were read off** (`scripts/attempts.py --drops`, the 128
 drawn lids on a bare floor): let go from rest 1 deg over the shut line,

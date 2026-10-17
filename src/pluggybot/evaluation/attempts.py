@@ -26,7 +26,10 @@ THE PROTOCOL:
   - the call is wherever the skill's routine ended, or its budget did
     (`cut`); the hold follows, the body held still;
   - what the skill says of itself is its own test (`own`), beside the
-    verdict and never read by it.
+    verdict and never read by it;
+  - an attempt that RAISES, or whose world MuJoCo found unstable and reset,
+    is no attempt: it raises, and the record says what (`error`), never a
+    verdict.
   ⚠ AN ATTEMPT IS ITS SET-OUT EXACTLY, sensor noise and all: code that
   learns nothing between attempts gets the same verdict at every one, so a
   reference flies one.
@@ -39,16 +42,16 @@ it had, its own test, and the verdict -- its secret metrics apart, under
 (`qualities.per_task_record`). ⚠ Absent is None, never 0: a code skill's
 tokens are a measured 0, a procedure's steps it never counted are None.
 
-A skill is any `skill(world) -> routine` that drives `world.body` through
-its `Body` members and returns its own word (`{"ok": ..., "why": ...}`):
+A skill is any `skill(body) -> routine` that drives the body through its
+`Body` members and returns its own word (`{"ok": ..., "why": ...}`). It is
+handed the BODY, never the world: the chest's truth stays the harness's.
+`info` is read after the attempt, so what the caller counts during it (a
+procedure's steps, the tokens its mind spent) reaches the row:
 
     row = attempt(Task(chest=k, body="humanoid", mount="counter"), skill, n,
                   info={"process": "try", "skill": "mine", "tokens": 1234})
 
-What it flatters is said with every result (#493, Evaluation.md §5 "Graded
-in MuJoCo"): the knob's tag is a fiducial; the chests are drawn to suit the
-probe; one geometry; the quadruped's claw is put on by the set-out and the
-humanoid is stood at its counter; MuJoCo against MuJoCo.
+What it flatters is said with every reading (`FLATTERS`).
 """
 
 from __future__ import annotations
@@ -64,6 +67,7 @@ from pluggybot.activity import chest as ch
 from pluggybot.body import body_for
 from pluggybot.challenge import lid
 from pluggybot.economy import scoring
+from pluggybot.imagination.rollout import UNSTABLE
 
 #: The set-outs: which body before which mount, each the world its
 #: placements were measured for -- the quadruped before a chest on the floor
@@ -84,6 +88,18 @@ SETTLE_S = 0.5
 #: An attempt's sim-time budget, s: the probe's own patience
 #: (`legs.probe.PATIENCE_S`), which its 128 set-outs flew inside at 85-90 s.
 BUDGET_S = 300.0
+#: What every result here relies on that a real world would not give it
+#: (#493; Evaluation.md §5, "Graded in MuJoCo"): said with every reading.
+FLATTERS = (
+  "the knob carries a tag: finding it is reading a fiducial",
+  "the chests are drawn to suit the probe: each shuts harder than its spring, friction "
+  "and damping hold it over the probe's sweeps, and its catch stops at 4 N",
+  "one geometry: the chests differ only in their hidden dynamics",
+  "the quadruped's claw is put on by the set-out, not fetched from the rack",
+  "the humanoid is stood at its counter: walking to the chest is not the task",
+  "resets are free and exact, and nothing breaks",
+  "MuJoCo against MuJoCo: an upper bound on hardware",
+)
 
 #: The chests flown in public before any held-out draw: #466's batches flew
 #: set-outs 0-127 on the floor (#479, #480) and #507's demo table 0-11 at
@@ -95,14 +111,26 @@ HELD_OUT_FROM = 1_000_000
 HELD_OUT_SPAN = 1_000_000_000
 
 
+#: A commit is named by this many hex digits, whatever `git` abbreviates to.
+COMMIT_DIGITS = 7
+
+
+def commit_of(sha: str) -> str:
+  """A commit's name for the record and the seed: its first
+  `COMMIT_DIGITS` hex digits, however long the sha it was handed."""
+  name = (sha or "").strip().lower()
+  if len(name) < COMMIT_DIGITS or any(c not in "0123456789abcdef" for c in name):
+    raise ValueError(f"no commit in {sha!r}: a frozen build is named by its sha")
+  return name[:COMMIT_DIGITS]
+
+
 def seed_of(commit: str) -> int:
-  """The held-out seed of a FROZEN build: off its commit, so it cannot be
-  known before the build exists, and nobody chooses it. ⚠ A builder could
-  still commit until a seed looked kind; the record names the commit, and
-  the result says it is weaker than a sealed pool."""
-  if not commit or commit == "unknown":
-    raise ValueError("a held-out seed is a frozen build's: no commit, no seed")
-  return int(hashlib.sha256(f"pluggybot held-out {commit}".encode()).hexdigest()[:8], 16)
+  """The held-out seed of a FROZEN build: off its commit (`commit_of`), so
+  it cannot be known before the build exists, and nobody chooses it. ⚠ A
+  builder could still commit until a seed looked kind; the record names
+  the commit, and the result says it is weaker than a sealed pool."""
+  name = commit_of(commit)
+  return int(hashlib.sha256(f"pluggybot held-out {name}".encode()).hexdigest()[:8], 16)
 
 
 def held_out(seed: int, n: int) -> list[int]:
@@ -232,26 +260,36 @@ def _within(data, routine, until: float, cut: list):
     return done.value
 
 
+class Unstable(RuntimeError):
+  """An attempt whose world MuJoCo found unstable and reset: its readings
+  are not the attempt's, and it has no verdict."""
+
+
 def attempt_in(world: World, skill, n: int = 1, *, budget_s: float = BUDGET_S,
                hold_s: float = lid.HOLD_S, info: dict | None = None) -> dict:
   """One attempt in a world already set out (`attempt` builds it): the
-  skill (`skill(world)` -> a routine, returning its own word) run inside
+  skill (`skill(body)` -> a routine, returning its own word) run inside
   `budget_s` while the grader watches every step, the call, the hold, and
-  the verdict -- the record's row."""
-  info = dict(info or {})
+  the verdict -- the record's row. `info` is read once the hold is over.
+  Raises what the skill raised, or `Unstable`."""
+  info = info if info is not None else {}
   task, body, data = world.task, world.body, world.data
+  warned = {w: int(data.warning[w].number) for w in UNSTABLE}
   watch = lid.Watch(world.model, data, body)
   body.step_hooks.append(watch)
   t0, wall = float(data.time), time.time()
   cut: list = []
   try:
-    said = body.run(_within(data, skill(world), t0 + budget_s, cut))
+    said = body.run(_within(data, skill(body), t0 + budget_s, cut))
     t_call = float(data.time)
     watch.hold()
     at_call = lid.measure(world.model, data)
     body.run(body.hold_routine(hold_s))
   finally:
     body.step_hooks.remove(watch)
+  reset = [w.name for w in UNSTABLE if data.warning[w].number > warned[w]]
+  if reset:
+    raise Unstable(f"MuJoCo found the world unstable and reset it ({', '.join(reset)})")
   measured = scoring.SAMPLERS[task.grader](
     world, None, said, {"at_call": at_call, "watch": watch, "tool": task.tool,
                         "catchN": world.chest.lid.catch_n})
@@ -270,7 +308,7 @@ def attempt_in(world: World, skill, n: int = 1, *, budget_s: float = BUDGET_S,
                 "metrics": verdict.public_metrics()},
     "secret": {k: verdict.metrics.get(k) for k in verdict.secret},
     "wallS": round(time.time() - wall, 1),
-    "run": {k: info[k] for k in ("commit", "seed") if k in info} | {
+    "run": {k: info[k] for k in ("commit", "dirty", "seed") if k in info} | {
       "budgetS": budget_s, "holdS": hold_s},
   }
 

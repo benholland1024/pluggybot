@@ -439,6 +439,13 @@ def test_the_probe_reads_nothing_of_the_worlds_model_of_the_box():
     words = {n.value for n in ast.walk(tree) if isinstance(n, ast.Constant)
              and isinstance(n.value, str)}
     assert not [w for w in words if "chest_" in w or "mechanism_spike" in w], name
+    # ...and no grader: one that reads the lid's truth (#493's
+    # `challenge.lid`) is in the closure through `scoring`, which
+    # everything loads, so the probe's own modules may import none
+    imports = ({n.module for n in ast.walk(tree) if isinstance(n, ast.ImportFrom) and n.module}
+               | {a.name for n in ast.walk(tree) if isinstance(n, ast.Import) for a in n.names})
+    assert not [m for m in imports if m.startswith(("pluggybot.challenge",
+                                                    "pluggybot.economy"))], name
     calls = {n.func.attr for n in ast.walk(tree) if isinstance(n, ast.Call)
              and isinstance(n.func, ast.Attribute)}
     assert not calls & {"held", "held_tag", "true_pose", "gravity", "floor_below",

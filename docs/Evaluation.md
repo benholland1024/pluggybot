@@ -747,6 +747,7 @@ different results:
   None where a row did not say;
 - **help:** the world's scene resets (one before every attempt but a
   task's first), demonstrations and interventions;
+- **errors:** attempts with no verdict, counted apart (§4);
 - **the robot's own test against the world's verdict:** agreed, thought it
   had passed and had not, missed a real pass, said nothing. Its test is
   scored against our grading, computed by code from the true state and
@@ -991,15 +992,25 @@ internals. Its rules:
   sim-s, the probe's own patience), then the hold with the body held still,
   and one verdict through `scoring.evaluate`, graded and paid nothing;
 - **what the skill says of itself is its own test**, recorded beside the
-  verdict and never read by it;
+  verdict and never read by it; ⚠ a skill is handed the BODY, never the
+  world: the chest's truth stays the harness's;
+- **an attempt that raises, or whose world MuJoCo found unstable and reset,
+  is no attempt** (`attempts.Unstable`): a row saying what, no verdict, its
+  task kept in the record and unflown from there, never dropped from the
+  denominator;
 - ⚠ **an attempt is its set-out EXACTLY**, sensor noise included: code that
   learns nothing between attempts earns the same verdict at every one, so a
   reference flies one attempt a task;
 - **held-out tasks** are chests nobody has flown, from 1,000,000 up, past
   every public set-out (0–127), drawn by a seed FIXED AFTER THE BUILD IS
-  FROZEN: its commit's (`attempts.seed_of`). ⚠ Whoever built the generator
-  knows its family, and could commit until a seed looked kind, so a result
-  on them is weaker than a sealed pool's, and says so.
+  FROZEN: its commit's first seven hex digits, whatever `git` abbreviates to
+  (`attempts.seed_of`), read off a pod's `COMMIT` file where there is no
+  `.git`; a tree with changes its commit does not have draws none. ⚠
+  Whoever built the generator knows its family, and could commit until a
+  seed looked kind, so a result on them is weaker than a sealed pool's, and
+  says so;
+- **every reading says what it flatters** (`attempts.FLATTERS`; §5,
+  "Graded in MuJoCo").
 
 `scripts/attempts.py` flies a skill through it and reads a record back as
 the per-task record (§3).

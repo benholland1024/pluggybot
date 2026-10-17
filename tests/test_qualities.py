@@ -233,6 +233,20 @@ def test_the_per_task_record_reads_when_each_task_first_passed_and_keeps_experie
   assert out["ownTest"] == {"agreed": 3, "falsePass": 1, "missedPass": 1, "unsaid": 1}
 
 
+def test_an_attempt_with_no_verdict_keeps_its_task_in_the_record():
+  #  #493's review: an attempt that raised is no try -- counted apart, its
+  #  task kept and unflown from there, never dropped from the denominator
+  record = [_attempt(1, 1, True),
+            _attempt(2, 1, False), {**_attempt(2, 2, False), "error": "RuntimeError: x"},
+            {**_attempt(3, 1, False), "error": "Unstable: BADQACC"}]
+  out = q.per_task_record(iter(q.from_attempts(record)))    # read once, as it comes
+  assert out["tasks"] == 3 and out["errors"] == 2 and out["n"] == 2
+  w = out["within"]
+  assert (w[1]["k"], w[1]["n"], w[1]["unflown"]) == (1, 2, 1)
+  assert (w[2]["k"], w[2]["n"], w[2]["unflown"]) == (1, 1, 2)
+  assert out["experience"]["attempts"] == 2 and out["experience"]["simS"] == 20.0
+
+
 def test_attempt_rows_carry_their_regime_and_nothing_is_read_off_the_observatory():
   rows = q.from_attempts([_attempt(1, 1, True), _attempt(1, 1, False, commit="def")])
   assert {r.run for r in rows} == {"abc try:mine", "def try:mine"}

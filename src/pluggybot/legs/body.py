@@ -1551,6 +1551,7 @@ class QuadBody(Body):
   stuck_after_s = 20.0
   #: ...and this body rights itself.
   rights_itself = True
+  falls = property(lambda self: self.mission.falls)
   rack_discovered = False
 
   def __init__(self, model, data, viewer=None, realtime: bool = True,

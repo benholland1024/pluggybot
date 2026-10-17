@@ -677,6 +677,12 @@ class Body(abc.ABC):
   #: Whether it gets itself up from a fall (issue #387): the quadruped's
   #: get-up policy does; a body that cannot waits for somebody.
   rights_itself: bool
+  #: The falls its own fall watch has taken, counted up: what a fall IS is
+  #: the body's to say (#493's grader asks) -- the quadruped's torso past
+  #: `TOPPLE_TILT_RAD` or slumped standing, the humanoid's trunk past 35
+  #: deg by its IMU or its pelvis sunk (`humanoid.getup`), each the moment
+  #: its get-up takes over.
+  falls: int
   #: How long a fall may last before it is the `stuck` death, s: a body that
   #: rights itself, its get-up's MEASURED budget; one that cannot,
   #: `TOPPLE_HOLD_S`.
@@ -781,6 +787,7 @@ class StubBody(Body):
   level_tilt_rad = math.radians(1.5)
   posture = "standing"
   rights_itself = False
+  falls = 0
   stuck_after_s = 2.0
   head_camera = None
 

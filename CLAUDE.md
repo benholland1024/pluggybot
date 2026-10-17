@@ -186,16 +186,24 @@ doing anything, read the doc that owns what you are about to touch:
   mount, grader), every attempt builds its set-out anew and a reset is the
   world's help, counted on the row; the call is where the skill ended or
   its budget did; one verdict through `scoring.evaluate`, a row of the
-  record an attempt, the skill's own word beside it and never read. ⚠ THE
-  LID'S ROW IS `shown: false` and pays 0 (`TaskReward.shown`): a mind with a
+  record an attempt, the skill's own word beside it and never read; an
+  attempt that raises or whose world MuJoCo reset (`Unstable`) has no
+  verdict, its task kept and unflown from there. ⚠ A SKILL IS HANDED THE
+  BODY, never the world (the chest's truth is the harness's). ⚠ THE LID'S
+  ROW IS `shown: false` and pays 0 (`TaskReward.shown`): a mind with a
   library sees every other challenge row, and this one would change the
-  deployed prompt. ⚠ The grader names no body part (upright is
-  `Body.orientation`; the tool is the set-out's, asked `Body.tool_powered`;
-  the quadruped's claw is STAGED, `Body.place_tool_routine`) and imports
-  nothing of the chest's: everything loads `scoring`, the probe included,
-  and its fence holds (`tests/test_probe.py`). ⚠ Held-out chests start at
-  `HELD_OUT_FROM` (1,000,000), drawn by the frozen commit's seed
-  (`seed_of`), and a result on them says it is weaker than a sealed pool.
+  deployed prompt. ⚠ The grader names no body part and judges no fall by
+  a line of its own: a fall is the body's watch (`Body.falls`; the
+  humanoid's takes its own bow past 35 deg), beside the topple death's
+  60 deg off `Body.orientation`; the tool is the set-out's, asked
+  `Body.tool_powered` (the quadruped's claw is STAGED,
+  `Body.place_tool_routine`). It imports nothing of the chest's:
+  everything loads `scoring`, the probe included, and the probe's fence
+  holds (`tests/test_probe.py`: no chest in its closure, no grader in its
+  imports). ⚠ Held-out chests start at `HELD_OUT_FROM` (1,000,000), drawn
+  by the frozen commit's first seven hex digits (`seed_of`; a pod's
+  `COMMIT` file, a dirty tree refused), and a reading says what it
+  flatters (`FLATTERS`) and that it is weaker than a sealed pool.
 - **`CALL_TIMEOUT_S` is 90 s and is a patience budget, not a tail** (issue
   #117; Overseer.md §6 "The deadline"): a decision lost to a clock is the one
   failure that is purely ours. `ESCALATE_TIMEOUT_S` (120) is an ordering above

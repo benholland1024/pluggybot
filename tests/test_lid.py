@@ -53,10 +53,10 @@ def stub_world(task: at.Task, hand: bool = False) -> at.World:
                   start=(0.0, 0.0, 0.0))
 
 
-def place_hand(world: at.World) -> None:
+def place_hand(body) -> None:
   """The mocap box onto the shut lid's top, 0.5 mm into it."""
   top = ch.BOX_H + ch.LID_T
-  world.data.mocap_pos[world.model.body("hand").mocapid[0]] = [ch.BOX_D / 2, 0.0, top + 0.0095]
+  body.data.mocap_pos[body.model.body("hand").mocapid[0]] = [ch.BOX_D / 2, 0.0, top + 0.0095]
 
 
 def lift(up_to=1.10, down_to=math.radians(2.0), rate=0.5, down_rate=None, then=None):
@@ -66,8 +66,8 @@ def lift(up_to=1.10, down_to=math.radians(2.0), rate=0.5, down_rate=None, then=N
   the job. Not a solution: the grader cannot tell, which is the point."""
   down_rate = rate if down_rate is None else down_rate
 
-  def skill(world):
-    m, d = world.model, world.data
+  def skill(body):
+    m, d = body.model, body.data
     q = int(m.jnt_qposadr[m.joint("chest_hinge").id])
     v = int(m.jnt_dofadr[m.joint("chest_hinge").id])
 
@@ -77,17 +77,17 @@ def lift(up_to=1.10, down_to=math.radians(2.0), rate=0.5, down_rate=None, then=N
       while abs(target - a) > 1e-9:
         a = target if abs(target - a) <= step else a + math.copysign(step, target - a)
         d.qpos[q], d.qvel[v] = a, math.copysign(speed, target - a) if a != target else 0.0
-        yield world.body.STILL
+        yield body.STILL
 
     def routine():
       yield from to(up_to, rate)
       for _ in range(round(0.4 / m.opt.timestep)):
         d.qpos[q], d.qvel[v] = up_to, 0.0
-        yield world.body.STILL
+        yield body.STILL
       if down_to is not None:
         yield from to(down_to, down_rate)
       if then is not None:
-        then(world)
+        then(body)
       return {"ok": True, "why": "set it down"}
     return routine()
   return skill
@@ -146,6 +146,15 @@ def test_each_criterion_fails_for_its_own_reason(change, why):
   ok, metrics, reason = lid.eval_lid(PASSED | change)
   assert not ok and why in reason, reason
   assert "3.89" not in reason and "catch" not in reason
+
+
+def test_a_number_is_judged_as_measured_and_only_shown_rounded():
+  """A lid a hair short of the line or a hair over the speed fails, though
+  either rounds to a pass (#493's review)."""
+  short = lid.eval_lid(PASSED | {"topDeg": math.degrees(0.99999)})
+  assert not short[0] and short[1]["topDeg"] == 57.3
+  fast = lid.eval_lid(PASSED | {"downRadS": 1.0004})
+  assert not fast[0] and fast[1]["downRadS"] == 1.0
 
 
 def test_a_pass_says_how_and_pays_nothing_and_its_catch_stays_secret():
@@ -210,10 +219,10 @@ def test_a_lid_still_touched_after_the_call_was_not_let_go():
 def test_never_opened_and_merely_reported_fails_on_the_untouched_world():
   """The skill says it did the job and the world says it did not: the
   sampler reads nothing off the skill's word."""
-  def says_so(world):
+  def says_so(body):
     return iter(())  # a routine that returns at once, having done nothing
 
-  def word(world):
+  def word(body):
     def routine():
       return {"ok": True, "why": "opened and set down", "topDeg": 64.0}
       yield
@@ -230,14 +239,29 @@ def test_never_opened_and_merely_reported_fails_on_the_untouched_world():
 def test_the_robot_upright_and_its_tool_seated_are_the_bodys_answers():
   """Criterion 5 names no part: the tilt is the body's attitude, the tool
   the one its set-out gave, asked of the body (`Body.tool_powered`)."""
-  def tipped(world):
-    world.body.attitude = (math.cos(math.radians(35)), math.sin(math.radians(35)), 0.0, 0.0)
-    return lift()(world)
+  def tipped(body):
+    body.attitude = (math.cos(math.radians(35)), math.sin(math.radians(35)), 0.0, 0.0)
+    return lift()(body)
   assert "fell over (70 deg" in run(tipped)["verdict"]["reason"]
 
-  def dropped_tool(world):
-    return lift(then=lambda w: setattr(w.body, "holding", None))(world)
+  def dropped_tool(body):
+    return lift(then=lambda b: setattr(b, "holding", None))(body)
   assert "module_claw is off" in run(dropped_tool)["verdict"]["reason"]
+
+
+def test_what_a_fall_is_is_the_bodys_own_watch():
+  """A fall its own watch took fails the attempt at whatever tilt it took
+  it -- the humanoid's watch takes 35 deg, its own line (`humanoid.getup`)
+  -- and one it got up from too."""
+  def fell_and_got_up(body):
+    def routine():
+      body.falls += 1
+      got = yield from lift()(body)
+      return got
+    return routine()
+  row = run(fell_and_got_up)
+  assert "the robot fell (1 fall by its own watch)" in row["verdict"]["reason"]
+  assert row["verdict"]["metrics"]["falls"] == 1 and row["verdict"]["metrics"]["tiltDeg"] == 0.0
 
 
 # ---- the protocol ----------------------------------------------------------------------
@@ -260,11 +284,11 @@ def test_an_attempt_is_a_row_of_the_record_and_a_second_is_a_reset_the_world_mad
 def test_the_budget_ends_a_skill_closing_it_and_the_attempt_is_graded_as_it_stands():
   closed = []
 
-  def forever(world):
+  def forever(body):
     def routine():
       try:
-        while world.data.time < 5.0:      # a budget that never came still ends
-          yield world.body.STILL
+        while body.data.time < 5.0:       # a budget that never came still ends
+          yield body.STILL
         return {"ok": False, "why": "the budget never came"}
       finally:
         closed.append(True)
@@ -273,6 +297,29 @@ def test_the_budget_ends_a_skill_closing_it_and_the_attempt_is_graded_as_it_stan
   assert row["cut"] and closed and row["simS"] == pytest.approx(1.0, abs=0.01)
   assert row["own"] == {"ok": None, "why": ""}
   assert "never opened" in row["verdict"]["reason"]
+
+
+def test_an_attempt_that_raises_or_whose_world_was_reset_has_no_verdict():
+  """No row, so no verdict: the caller records what it raised (`scripts/
+  attempts.py`), and MuJoCo resetting an unstable world mid-attempt is
+  caught by its warnings -- its readings are not the attempt's."""
+  def broken(body):
+    def routine():
+      yield body.STILL
+      raise ZeroDivisionError("a skill's own bug")
+    return routine()
+  with pytest.raises(ZeroDivisionError):
+    run(broken)
+
+  def blew_up(body):
+    def routine():
+      dof = body.model.jnt_dofadr[body.model.joint("chest_hinge").id]
+      body.data.qvel[dof] = float("nan")
+      yield body.STILL
+      return {"ok": True, "why": "fine, it says"}
+    return routine()
+  with pytest.raises(at.Unstable, match="BADQVEL"):
+    run(blew_up)
 
 
 def test_a_task_is_data_and_a_set_out_is_measured_for_its_body():
@@ -295,6 +342,11 @@ def test_held_out_chests_are_none_ever_flown_and_their_seed_is_a_frozen_builds()
   assert at.Task(chest=ks[0]).held_out and not at.Task(chest=0).held_out
   with pytest.raises(ValueError, match="frozen build"):
     at.seed_of("unknown")
+  # however long the sha it is handed: git's abbreviation is a setting
+  assert at.seed_of("95FCBFC") == at.seed_of("95fcbfc8a1b2") == at.seed_of("95fcbfc")
+  assert at.commit_of("95fcbfc8a1b2") == "95fcbfc"
+  with pytest.raises(ValueError):
+    at.commit_of("95fcb")
 
 
 # ---- the bodies' own set-outs ----------------------------------------------------------
