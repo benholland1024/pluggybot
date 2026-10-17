@@ -1019,18 +1019,19 @@ internals. Its rules:
 the per-task record (§3).
 
 **The reference** (#493): the probe, our reactive opener as code on the
-quadruped (`legs.probe`, #466), over its 32 public chests at `7f87817`.
+quadruped (`legs.probe`, #466), over its 32 public chests at `49a305b`.
 **32 of 32 passed at the first attempt** (95 % interval 0.89–1.00), its own
-word agreeing every time, no fall: 83.6–99.6 sim-s an attempt, 2,884 in
-all, no token, no imagination, no help. Every lid went to 62.2–64.4 deg and
-came down at 0.50–0.55 rad/s at its fastest while open. It is code's
-foresight (the knob's tag, the hinge guessed along the top's back edge, the
-arc planned, the arm softened to Kp 8): what a skill on this chest can do,
-never a robot acquiring one. Chest 0 flown twice from fresh set-outs gave
-the batch's row to the last digit; of the 64 flights of two batches, one
-ended its attempt 6 ms apart, every reading of its lid the same, and
-flown twice again on its own it gave the other batch's row: a run-to-run
-difference this box gives now and then, not chased.
+word agreeing every time, no fall recorded: 83.6–99.6 sim-s an attempt
+against the 300 s limit, 2,884 in all, no token, no imagination, no help.
+Every lid went to 62.2–64.4 deg and came down at 0.50–0.55 rad/s at its
+fastest while open. It is code's foresight (the knob's tag, the hinge
+guessed along the top's back edge, the arc planned, the arm softened to Kp
+8): what a skill on this chest can do, never a robot acquiring one. Chest 0
+flown twice from fresh set-outs gave the batch's row to the last digit; of
+the 96 flights of three batches, one ended its attempt 6 ms apart, every
+reading of its lid the same, and flown twice again on its own its chest
+gave the other batches' row: a run-to-run difference this box gives now
+and then, not chased.
 
 ## 5. What silently invalidates a number
 
