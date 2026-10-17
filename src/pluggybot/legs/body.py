@@ -832,6 +832,29 @@ class QuadMission(ToolSwap, PlaceWalk, BoardWork, CubeWork, AreaSurvey, MakeWay,
                           else np.zeros(0, dtype=np.int32))
     self._is_ignored[self._carried_gids] = True
 
+  def place_routine(self, module: str) -> Routine:
+    """`Body.place_tool_routine`: the arm to its carry pose, then `module`
+    put on the fork's seat as a swap leaves it -- its peg on the seat, the
+    tool hanging back off it -- and carried (#466's probe batches' mount,
+    `scripts/probe_chest.py`). Off the world: a STAGING, never a swap."""
+    from pluggybot.rack.coupling import PEG_ABOVE_BODY
+    m, d = self.model, self.data
+    self.arm.aim(*am.CARRY_Q)
+    yield from self._drive_routine(2.0, 0.0, 0.0)
+    seat = m.site(self.handle.el("arm_seat")).id
+    joint = m.joint(f"{module}_free").id
+    adr, dof = int(m.jnt_qposadr[joint]), int(m.jnt_dofadr[joint])
+    rot = d.xmat[self.root].reshape(3, 3)
+    yaw = self.true_pose()[2]
+    peg = d.site_xpos[seat] + rot @ np.array([0.0, 0.0, self.arm_spec.fork.seat_rise() + 0.0003])
+    d.qpos[adr:adr + 3] = peg - [0.0, 0.0, PEG_ABOVE_BODY]
+    d.qpos[adr + 3:adr + 7] = [math.cos((yaw + math.pi) / 2), 0.0, 0.0,
+                               math.sin((yaw + math.pi) / 2)]
+    d.qvel[dof:dof + 6] = 0.0
+    mujoco.mj_forward(m, d)
+    self.carry(module)
+    yield from self._drive_routine(1.0, 0.0, 0.0)
+
   _carried_gids = np.zeros(0, dtype=np.int32)
 
   def arm_setpoint(self, act: int) -> float:
@@ -1528,6 +1551,7 @@ class QuadBody(Body):
   stuck_after_s = 20.0
   #: ...and this body rights itself.
   rights_itself = True
+  falls = property(lambda self: self.mission.falls)
   rack_discovered = False
 
   def __init__(self, model, data, viewer=None, realtime: bool = True,
@@ -1710,6 +1734,9 @@ class QuadBody(Body):
 
   def stow_tool_routine(self, station_y, module) -> Routine:
     return self.mission.stow_routine(bay_of(station_y), module)
+
+  def place_tool_routine(self, module) -> Routine:
+    return self.mission.place_routine(module)
 
   def module_state(self, module) -> dict:
     return self.mission.tool_state(module)

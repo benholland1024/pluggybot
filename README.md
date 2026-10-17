@@ -215,6 +215,17 @@ SimNotes, "The humanoid body", "The humanoid stands, reaches and grasps",
 falls and gets up", has what they measured, and Parts.md the parts and the
 bill.
 
+Demo 1's harness (#493): an attempt at #466's chest from its set-out, graded
+by the world, the probe as the skill; the verdict is printed:
+```bash
+uv run python scripts/attempts.py --view 0     # the probe opens chest 0's
+                                      # lid and sets it down; 5 s on, the
+                                      # grader reads the hinge and the robot
+```
+`attempts.py --help` lists the rest (`--chests`, `--held-out`, `--into`,
+`--read`, `--drops`); Evaluation.md §4 is the protocol and Challenges.md §9
+the grader.
+
 View a body alone:
 ```bash
 uv run python -m mujoco.viewer --mjcf=models/quadruped.xml
