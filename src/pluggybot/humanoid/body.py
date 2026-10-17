@@ -340,16 +340,22 @@ class HumanoidBody(Body):
   # ---- hands ---------------------------------------------------------------
 
   def reach_routine(self, side, pos, rot=None, stiffness=1.0, patience=20.0):
+    """⚠ True only once the hand HOLDS at the goal, never on `Reach.done`
+    (#520): that is also a hand stopped short (`blocked`) and a hand
+    hanging, as every hand is once a fall has let go of the reach and the
+    stand-up has built a fresh one. A fall ends it at once; the next
+    routine waits out the get-up."""
     yield from self.mission.to_stand_routine()
     p = self.to_stance(pos)
     r = None if rot is None else _rz(self.stance[2]).T @ np.asarray(rot, dtype=float)
     if not self.reach.reach(side, HandGoal(p, r, stiffness)):
       return False
+    falls = self.mission.falls
     for _ in range(int(round(patience / self._m.opt.timestep))):
-      if self.reach.done(side):
-        return True
+      if self.mission.falls != falls or self.reach.done(side):
+        break
       yield STILL
-    return self.reach.done(side)
+    return self.mission.falls == falls and self.reach.phase[side] == "hold"
 
   def release_routine(self, side):
     self.reach.retreat(side)

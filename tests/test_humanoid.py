@@ -503,3 +503,17 @@ def test_a_hand_that_meets_something_on_its_way_stops_short():
   assert reach.phase["left"] == "blocked"
   # Standing in the posture its plan asked (a crouch), upright: not fallen.
   assert data.xpos[root][2] > 0.45 and data.xmat[root][8] > 0.9
+
+
+def test_a_hand_goes_in_only_once_the_trunk_is_still():
+  """⚠ The force read off the arm's currents assumes the arm still: begun
+  as the deepest bow stopped turning, the floor's approach read 492 N at the
+  hand and stopped 6 cm short of it (#520). The posture there, the approach
+  waits for the trunk's gyro to read it still (`reach.STILL_RATE`)."""
+  model, data, stand, reach = _standing()
+  reach._pose()
+  reach.posture = reach.posture_now()                       # the plan's posture: there
+  stand.trunk.rate = np.array([0.0, 0.5, 0.0])              # ...and still turning into it
+  assert not reach._posture_there(0.01)
+  stand.trunk.rate = np.zeros(3)
+  assert reach._posture_there(0.01)

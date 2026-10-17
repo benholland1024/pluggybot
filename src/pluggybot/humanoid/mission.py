@@ -17,9 +17,11 @@ reach`). The legs change hands only at a standstill, the arms home
 (`to_walk_routine`, `to_stand_routine`).
 
 A FALL is its get-up policy's (stage 5, `humanoid.getup`): once its senses
-say it is falling -- tipped past 35 deg, or folded down under 0.40 m over
-its soles -- every joint, arms too, goes to that policy until it stands,
-and the legs come back to the standing policy (`legs` is "getup" between).
+say it is falling -- tipped 35 deg past the posture its legs hold (a bow
+the standing policy was asked is no fall, #520), or folded down under 0.40
+m over its soles -- every joint, arms too, goes to that policy until it
+stands, and the legs come back to the standing policy (`legs` is "getup"
+between).
 
 A walker that SEES THE GROUND (`walk.SEEING_NPZ`) is shown the
 D435's map at its grid (`humanoid.scan.HeadScan`): the scan then owns the
@@ -240,8 +242,13 @@ class HumanoidMission(Navigator):
       self.stand.step()
     self.reach.step()
     if (self.getup is not None and self._steps % self._fall_every == 0
-        and self.fall.falling(self.data)):
+        and self.fall.falling(self.data, self._held_pitch())):
       self._fell()
+
+  def _held_pitch(self) -> float:
+    """The trunk's pitch its legs' policy holds, rad: the standing policy's
+    posture (`Reach.held_pitch`), the walker's upright."""
+    return self.reach.held_pitch() if self.legs == "stand" else 0.0
 
   def _fell(self) -> None:
     """The get-up policy takes every joint: the arms' reach is let go."""
@@ -291,7 +298,9 @@ class HumanoidMission(Navigator):
 
   def to_walk_routine(self):
     """The legs to the walking policy: the arms home and the posture back to
-    the stand first (a walk carries nothing yet), then handed over."""
+    the stand first (a walk carries nothing yet), then handed over. ⚠ A
+    fall as they came home went to the walker if its step was the one that
+    settled them (#520): the get-up stands it first."""
     yield from self._getup_routine()
     if self.legs == "walk":
       return
@@ -303,18 +312,26 @@ class HumanoidMission(Navigator):
            or not self.stand.settled):
       yield STILL
       self._after_step()
+    yield from self._getup_routine()
     self.walker.last_action[:] = 0.0
     self.legs = "walk"
 
   def to_stand_routine(self):
     """The legs to the standing policy: the walking one held still
-    `SETTLE_S` first, its stride settled, then handed over."""
+    `SETTLE_S` first, its stride settled, then handed over. ⚠ A fall while
+    it settles is the get-up's until it stands (#520): at the settle's end
+    the legs went to the standing policy whatever had happened in it."""
     yield from self._getup_routine()
     if self.legs == "stand":
       return
     for _ in range(int(round(SETTLE_S / self.model.opt.timestep))):
+      if self.legs != "walk":
+        break
       yield STILL
       self._after_step()
+    if self.legs != "walk":
+      yield from self._getup_routine()
+      return
     self.stand.last_action[:] = 0.0
     self.stand.posture[:] = 0.0
     self.legs = "stand"

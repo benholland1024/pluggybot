@@ -10,6 +10,7 @@ import sys
 from pathlib import Path
 
 import mujoco
+import numpy as np
 import pytest
 
 from pluggybot.body import Body, body_for
@@ -85,14 +86,103 @@ def test_the_humanoid_finds_reaches_and_grips_the_chests_knob_through_body():
   assert not rec["fell"]
 
 
-# ---- stage 4: walking ----------------------------------------------------------------
-
 def _floor():
   model = mujoco.MjModel.from_xml_string(hm.body_xml())
   data = mujoco.MjData(model)
   mujoco.mj_resetDataKeyframe(model, data, 0)
   mujoco.mj_forward(model, data)
   return model, data
+
+
+class _Sent:
+  """A reach that only says where its hand is: sent, the hand goes to
+  `end` and stays there. `done` is `Reach.done`'s."""
+
+  def __init__(self, end: str):
+    self.end = end
+    self.phase = {s: "rest" for s in hm.SIDES}
+
+  def reach(self, side, goal, approach=None) -> bool:
+    self.phase[side] = self.end
+    return True
+
+  def done(self, side) -> bool:
+    return self.phase[side] in ("hold", "rest", "blocked")
+
+  def step(self) -> None:
+    pass
+
+  def held_pitch(self) -> float:
+    return 0.0
+
+
+class _Rising:
+  """A get-up that stands the body after `n` steps, whatever it does."""
+
+  def __init__(self, n: int):
+    self.n, self.steps = n, 0
+
+  def begin(self) -> None:
+    pass
+
+  def step(self) -> None:
+    self.steps += 1
+
+  @property
+  def stood(self) -> bool:
+    return self.steps >= self.n
+
+
+def test_a_reach_says_true_only_of_a_hand_holding_there():
+  """`Reach.done` is not arrival (#520): it is also a hand stopped on its
+  way (`blocked`: out of reach of the posture truly held, or pushing on
+  something) -- the floor's reach stopped 6 cm short of it and said True."""
+  for end, said in (("hold", True), ("blocked", False)):
+    body = body_for(*_floor())
+    body.mission.reach = _Sent(end)
+    assert body.run(body.reach_routine("left", (0.4, 0.2, 0.9))) is said, end
+
+
+def test_a_reach_a_fall_let_go_of_never_arrived():
+  """A fall's get-up lets go of the reach, and its stand-up builds a fresh
+  one whose hands hang -- which `Reach.done` counts: the reach said True
+  (#520). It ends at the fall, False; the next routine waits out the
+  get-up."""
+  body = body_for(*_floor())
+  m = body.mission
+  m.reach, m.getup = _Sent("move"), _Rising(50)
+  falls = iter([True])
+  m.fall.falling = lambda data, pitch=0.0: next(falls, False)
+  assert body.run(body.reach_routine("left", (0.4, 0.2, 0.9))) is False
+  assert m.falls == 1 and m.legs == "getup"
+
+
+def test_through_body_the_hand_reaches_the_floor_and_the_bow_is_no_fall():
+  """The humanoid's deepest reach, flown through `Body` with its get-up
+  loaded, as served: the floor by its toes, fingers down, from the deepest
+  bow its standing policy holds (1.1 rad). It holds there, the grip truly
+  within 1.5 cm of the goal (our grading), and its own watch takes no fall.
+  ⚠ Its watch read off upright took the bow for a fall and the get-up took
+  the joints; its approach begun as the bow stopped turning was stopped
+  6 cm short by the force its currents read (#520)."""
+  import math
+  from pluggybot.humanoid.arms import DOWN
+  from pluggybot.humanoid.body import _rz
+  model, data = _floor()
+  body = body_for(model, data)
+  assert body.rights_itself
+  goal = np.array([0.17, 0.2, 0.09])                        # the `reach` scene's floor
+  x, y, yaw = body._true_stance()
+  truly = _rz(yaw) @ goal + [x, y, 0.0]
+  got = body.run(body.reach_routine("left", body.to_world(goal), _rz(body.stance[2]) @ DOWN,
+                                    patience=10.0))
+  assert got is True and body.falls == 0
+  assert body.reach.posture[1] == pytest.approx(1.1)
+  assert np.linalg.norm(data.site_xpos[model.site("left_grip").id] - truly) < 0.015
+  assert math.degrees(math.acos(data.xmat[body.root][8])) > 55.0     # bowed past the old 35
+
+
+# ---- stage 4: walking ----------------------------------------------------------------
 
 
 def test_the_walking_policy_walks_and_turns_in_our_physics():
