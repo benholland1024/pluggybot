@@ -87,7 +87,7 @@
       "base": 0,
       "bonus": 0,
       "shown": false,
-      "detail": "Open the chest's lid past 57 degrees and set it down shut: lower it -- no faster than 1 radian a second while it is open -- let go of it, and stay on your feet with your tool where it was. Graded on the lid's hinge and on what touches it 5 s after you finish; how you open it is up to you.",
+      "detail": "Open the chest's lid past 57 degrees and set it down shut: lower it -- no faster than 1 radian a second while it is open -- and let go of it, without falling over or losing your tool. Graded on the lid's hinge and on what touches it 5 s after you finish; how you open it is up to you.",
       "secret": [
         "catchN"
       ]
