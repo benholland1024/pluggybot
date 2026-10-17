@@ -15,6 +15,17 @@ Its legs are one of two policies': the WALKING one's while it moves, the
 STANDING one's while it stands to reach (`humanoid.policy`, `humanoid.
 reach`). The legs change hands only at a standstill, the arms home
 (`to_walk_routine`, `to_stand_routine`).
+
+A FALL is its get-up policy's (stage 5, `humanoid.getup`): once its senses
+say it is falling -- tipped past 35 deg, or folded down under 0.40 m over
+its soles -- every joint, arms too, goes to that policy until it stands,
+and the legs come back to the standing policy (`legs` is "getup" between).
+
+A walker that SEES THE GROUND (stage 5, `walk.STAIRS_NPZ`) is shown the
+D435's map at its grid (`humanoid.scan.HeadScan`): the scan then owns the
+camera's frames, the low layer folds the scan's (one render, not two), and
+the odometry keeps its height and finds its planted foot on the map
+(`humanoid.odometry`).
 """
 
 import math
@@ -25,10 +36,12 @@ import numpy as np
 from pluggybot import tick
 from pluggybot.humanoid import model as hm
 from pluggybot.humanoid.arms import SelfModel
+from pluggybot.humanoid.getup import GETUP_NPZ, FallWatch, GetupDriver
 from pluggybot.humanoid.odometry import StanceOdometry
 from pluggybot.humanoid.policy import StandDriver, StandPolicy
 from pluggybot.humanoid.reach import Reach
-from pluggybot.humanoid.walk import WalkDriver
+from pluggybot.humanoid.scan import HeadScan
+from pluggybot.humanoid.walk import WALK_NPZ, WalkDriver
 from pluggybot.mapping.frontier import OCC_THRESH
 from pluggybot.navigator import Navigator
 from pluggybot.perception.depth import DepthCamera, DepthFrame
@@ -57,7 +70,9 @@ LOW_MIN_Z, LOW_MAX_Z, FLOOR_Z = 0.08, 1.35, 0.03
 LOW_RANGE_M, LOW_WALL_CELLS = 1.8, 3
 LOW_HIT, LOW_MISS, LOW_CLAMP, LOW_OCC = 0.9, 0.4, 4.0, 2.5
 LOW_BURN = OCC_THRESH + 2.0
-#: A depth frame this often, s.
+#: A depth frame this often, s -- the ground's map's too (`humanoid.scan`):
+#: at the part's 10 Hz, its ray-cast frames slowed one robot's real time
+#: from 2.7x to 1.8x, and at 1 m/s two frames 0.2 m apart still overlap.
 DEPTH_PERIOD = 0.2
 
 
@@ -152,7 +167,10 @@ class HumanoidMission(Navigator):
 
   def __init__(self, model, data, handle: RobotHandle = FIRST,
                stand: StandPolicy | None = None, walk: StandPolicy | None = None,
-               grid_bounds=(-3, -3, 7, 7), viewer=None, realtime: bool = False) -> None:
+               grid_bounds=(-3, -3, 7, 7), viewer=None, realtime: bool = False,
+               getup: StandPolicy | None = None) -> None:
+    self._getup_policy = getup if getup is not None else (
+      StandPolicy(GETUP_NPZ) if GETUP_NPZ.exists() else None)
     self.stepper = HumanoidStepper(self)
     root = model.body(handle.root).id
     lidar = _site_in_root(model, model.site(handle.el("lidar")).id, root)
@@ -161,17 +179,14 @@ class HumanoidMission(Navigator):
     super().__init__(model, data, handle=handle, grid_bounds=grid_bounds,
                      viewer=viewer, realtime=realtime, match=True)
     self.root = root
-    key = f"humanoid:{handle.prefix}"
-    self.stand = StandDriver(model, data, stand, prefix=handle.prefix, key=key)
-    self.walker = WalkDriver(model, data, walk, prefix=handle.prefix, key=key,
-                             trunk=self.stand.trunk, joints=self.stand.joints)
-    self.reach = Reach(model, data, self.stand, prefix=handle.prefix, key=key)
-    x, y, _ = self.true_pose()
-    self.odo = StanceOdometry(SelfModel(), self.stand.trunk.attitude, x, y)
+    self._build_drivers(stand, walk)
     self._odo_every = max(1, round(self.ODO_S / model.opt.timestep))
     self._steps = 0
-    #: Whose the legs are: "stand" (the standing policy's) or "walk".
+    #: Whose the legs are: "stand" (the standing policy's), "walk", or
+    #: "getup" (the get-up policy's, and the arms with them).
     self.legs = "stand"
+    #: Falls the get-up policy has taken over.
+    self.falls = 0
     self.depth = DepthCamera(model, handle, mount="body")
     self._frame: DepthFrame | None = None
     self._frame_t = -math.inf
@@ -208,6 +223,13 @@ class HumanoidMission(Navigator):
   # ---- the physics seam ------------------------------------------------------
 
   def _before_step(self, command) -> None:
+    if self.legs == "getup":
+      # Getting up: every joint the get-up policy's, a walk asked meanwhile
+      # walks nowhere.
+      self.getup.step()
+      if self.getup.stood:
+        self._stood_up()
+      return
     if self.legs == "walk":
       self.walker.ask(*command)
       self.walker.step()
@@ -217,19 +239,60 @@ class HumanoidMission(Navigator):
                            "`to_walk_routine` hands them over")
       self.stand.step()
     self.reach.step()
+    if (self.getup is not None and self._steps % self._fall_every == 0
+        and self.fall.falling(self.data)):
+      self._fell()
+
+  def _fell(self) -> None:
+    """The get-up policy takes every joint: the arms' reach is let go."""
+    self.falls += 1
+    self.legs = "getup"
+    self.getup.begin()
+
+  def _stood_up(self) -> None:
+    """Stood again: the legs back to the standing policy at the stand, the
+    arms to a fresh reach from where they hang -- and, as at boot, its
+    height the stand's over the ground it stands on, the ground's map laid
+    anew. ⚠ Kept through a fall down the flight, the height was 0.41 m off
+    at the foot, past what a frame registers, for good."""
+    key = f"humanoid:{self.handle.prefix}"
+    self.stand.last_action[:] = 0.0
+    self.stand.posture[:] = 0.0
+    self.stand.ask(0.0, 0.0)
+    self.reach = Reach(self.model, self.data, self.stand, prefix=self.handle.prefix, key=key)
+    self.legs = "stand"
+    if self.head is not None:
+      self.head.forget()
+      self.odo.z, self.odo.foot = hm.stand_height(), None
 
   def _after_physics(self) -> None:
+    # The reckoning first: the scan lays its frame through it.
     if self._steps % self._odo_every == 0:
       q, _, _ = self.stand.joints.read(self.data)
       self.odo.step(q, self.stand.trunk.gravity())
+    if self.head is not None:
+      self.head.step()
     self._steps += 1
     self._on_step()
 
   # ---- whose legs ------------------------------------------------------------
 
+  def _getup_routine(self):
+    """Held still while a fall's get-up has the legs, until it stands. ⚠
+    Unheld, a walk asked of a body that fell with its arms home found them
+    at rest and the posture settled, and took the legs off the floor. ⚠ No
+    budget of its own, as the quadruped's get-up has none: a body that
+    cannot stand is the lifecycle's `stuck` death after `stuck_after_s`,
+    whose stand-up closes the routine; a script with no lifecycle bounds
+    its own run."""
+    while self.legs == "getup":
+      yield STILL
+      self._after_step()
+
   def to_walk_routine(self):
     """The legs to the walking policy: the arms home and the posture back to
     the stand first (a walk carries nothing yet), then handed over."""
+    yield from self._getup_routine()
     if self.legs == "walk":
       return
     for s in hm.SIDES:
@@ -246,6 +309,7 @@ class HumanoidMission(Navigator):
   def to_stand_routine(self):
     """The legs to the standing policy: the walking one held still
     `SETTLE_S` first, its stride settled, then handed over."""
+    yield from self._getup_routine()
     if self.legs == "stand":
       return
     for _ in range(int(round(SETTLE_S / self.model.opt.timestep))):
@@ -282,20 +346,45 @@ class HumanoidMission(Navigator):
       yield from self._twist_routine(math.copysign(speed, distance), 0.0, 0.0)
     return "arrived"
 
-  def fresh_drivers(self) -> None:
-    """Its drivers and senses built again where the body stands now (a
-    start, a stand-up): the IMU's filter from the boot's orientation, the
-    odometry at the pelvis. Its map stays."""
-    key = f"humanoid:{self.handle.prefix}"
-    stand, walk = self.stand.policy, self.walker.policy
-    self.stand = StandDriver(self.model, self.data, stand, prefix=self.handle.prefix, key=key)
-    self.walker = WalkDriver(self.model, self.data, walk, prefix=self.handle.prefix, key=key,
-                             trunk=self.stand.trunk, joints=self.stand.joints)
-    self.reach = Reach(self.model, self.data, self.stand, prefix=self.handle.prefix, key=key)
+  def _build_drivers(self, stand: StandPolicy | None, walk: StandPolicy | None) -> None:
+    """Its policies' drivers, its senses and its reckoning, where the body
+    stands now: the IMU's filter from the boot's orientation, the odometry
+    at the pelvis, and -- for a walker that sees the ground -- the scan."""
+    model, data, handle = self.model, self.data, self.handle
+    key = f"humanoid:{handle.prefix}"
+    self.stand = StandDriver(model, data, stand, prefix=handle.prefix, key=key)
+    walk = walk or StandPolicy(WALK_NPZ)
+    att = self.stand.trunk.attitude
+    self.head = None
+    if "height_scan" in walk.observation_names:
+      self.head = HeadScan(model, data, handle,
+                           belief=lambda: (self.odo.x, self.odo.y, self.odo.z, self.odo.yaw),
+                           level=att.level, correct=self._height_drifted, period=DEPTH_PERIOD)
+    self.walker = WalkDriver(model, data, walk, prefix=handle.prefix, key=key,
+                             trunk=self.stand.trunk, joints=self.stand.joints,
+                             scan=None if self.head is None else self.head.scan)
+    self.reach = Reach(model, data, self.stand, prefix=handle.prefix, key=key)
+    self.getup = None if self._getup_policy is None else GetupDriver(
+      model, data, self._getup_policy, prefix=handle.prefix, key=key, trunk=self.stand.trunk,
+      joints=self.stand.joints)
+    self.fall = FallWatch(self.stand.trunk, self.stand.joints)
+    self._fall_every = max(1, round(self.stand.policy.period / model.opt.timestep))
     x, y, yaw = self.true_pose()
-    self.odo = StanceOdometry(SelfModel(), self.stand.trunk.attitude, x, y)
+    # It boots standing on the floor it maps from: its pelvis at the stand's
+    # height (the walker's scan reads it before the odometry's first tick).
+    self.odo = StanceOdometry(SelfModel(), att, x, y, z=hm.stand_height(),
+                              terrain=None if self.head is None else self.head.under,
+                              felt=None if self.head is None else self.head.feel)
     self.odo.correct(x, y, yaw)
     self.legs = "stand"
+
+  def _height_drifted(self, dz: float) -> None:
+    self.odo.z += dz
+
+  def fresh_drivers(self) -> None:
+    """Its drivers and senses built again where the body stands now (a
+    start, a stand-up). Its map stays."""
+    self._build_drivers(self.stand.policy, self.walker.policy)
 
   def _front_blocked(self, angles, ranges) -> bool:
     ahead = np.cos(angles) * ranges
@@ -340,7 +429,9 @@ class HumanoidMission(Navigator):
     self._frame_t = t
     if not self.level():
       return
-    raw = self.depth.frame(self.data)
+    raw = self.depth.frame(self.data) if self.head is None else self.head.frame
+    if raw is None:
+      return
     self._frame = self._levelled(raw)
     self._fold_low(self._frame.points)
 

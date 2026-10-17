@@ -19,8 +19,7 @@ the parts and the bill.
                 beside the truth; `demo` -- #466's chest on a counter, its
                 knob found by its tag, reached and gripped, every act a
                 `Body` member; `walk` -- from the living room into the
-                kitchen and back, steered by its own map (the house's walls
-                raised to a room's height); `rough` -- the rough task's
+                kitchen and back, steered by its own map; `rough` -- the rough task's
                 walker (not served) across doorsteps, paving, a slope and
                 blocks
   --strip SCENE the scene's filmstrip, headless (`--out` names it)
@@ -670,6 +669,94 @@ def walking_table() -> None:
     print(f"{kind:15s}" + "".join(f"{c:>37s}" for c in cells))
 
 
+def stairs_rows(npz: str | None = None) -> list[tuple[str, dict]]:
+  """The house's flight (0.18 m risers) walked up and down by the seeing
+  walker on its own map's scan: every joint's |torque| peak and RMS from the
+  foot of the flight to its top (`climb_trial`'s course), and whether it got
+  there."""
+  rows = []
+  for down in (False, True):
+    model, data, foot, end = flight_world(hw.STAIRS_RISE, down=down)
+    w = Seeing(model, data, scan="map", npz=npz)
+    act = [model.actuator(j).id for j in hm.JOINT_NAMES]
+    heading = math.pi if down else 0.0
+    goal = foot - CLIMB_PAST_M if down else end + CLIMB_PAST_M
+    taus, there, steer = [], False, max(1, round(0.1 / model.opt.timestep))
+    for k in range(int(CLIMB_S / model.opt.timestep)):
+      if k % steer == 0:
+        w.steer(heading, 0.0)
+      w.step()
+      x = float(data.xpos[w.root][0])
+      if foot - 0.3 < x < end + 0.3:
+        taus.append(np.abs(data.actuator_force[act]))
+      if data.xmat[w.root][8] < 0.5:
+        break
+      if (x < goal) if down else (x > goal):
+        there = True
+        break
+    t = np.array(taus) if taus else np.full((1, len(act)), np.nan)
+    rows.append((f"stairs {'down' if down else 'up'}", {
+      "mean": np.sqrt((t ** 2).mean(axis=0)), "max": t.max(axis=0), "stood": there,
+      "outside": []}))
+  return rows
+
+
+def getup_rows(npz: str | None = None) -> list[tuple[str, dict]]:
+  """The get-up policy from lying on its back, its front and its side on a
+  bare floor: every joint's |torque| peak and RMS until it stood, and
+  whether it did (in 10 s)."""
+  rows = []
+  for name, (roll, pitch) in LYING.items():
+    f = Falling(floor_humanoid(), npz)
+    h = f.h
+    q = np.zeros(4)
+    mujoco.mju_euler2Quat(q, np.array([roll, pitch, 0.0]), "XYZ")
+    h.d.qpos[2], h.d.qpos[3:7] = 0.15, q
+    mujoco.mj_forward(h.m, h.d)
+    h.stand = StandDriver(h.m, h.d)
+    h.reach = Reach(h.m, h.d, h.stand)
+    f.rebuild()
+    f.take()
+    act = [h.m.actuator(j).id for j in hm.JOINT_NAMES]
+    taus = []
+    while f.up and h.d.time < 10.0:
+      f.step()
+      taus.append(np.abs(h.d.actuator_force[act]))
+    t = np.array(taus)
+    rows.append((f"up {name}", {"mean": np.sqrt((t ** 2).mean(axis=0)), "max": t.max(axis=0),
+                                "stood": not f.up, "outside": [], "seconds": float(h.d.time)}))
+  return rows
+
+
+def flown_table(title: str, rows: list[tuple[str, dict]], kinds=hm.LEG) -> None:
+  """Rule 7's re-read of FLOWN rows: each joint kind's peak against its
+  part's peak, its RMS against the part's continuous rating, and the winding
+  that RMS holds steady at, 40 C ambient (`walking_table`'s columns) -- or,
+  for a burst of a few seconds (a row carrying `seconds`), the burst's
+  length: a winding's time constant is minutes, so no steady state."""
+  print(title)
+  print(f"{'joint':15s}" + "".join(f"{n:>37s}" for n, _ in rows))
+  print(f"{'':15s}" + "".join(f"{'peak N*m (% peak)  RMS (% rated) C':>37s}" for _ in rows))
+  bursts = [r.get("seconds") for _, r in rows]
+  if any(b is not None for b in bursts):
+    print(f"{'(a burst, s)':15s}" + "".join(f"{'' if b is None else f'{b:.1f} s':>37s}"
+                                            for b in bursts))
+  for kind in kinds:
+    m = hm.CHOSEN.drives[kind]
+    cells = []
+    for _, rec in rows:
+      ks = [k for k, j in enumerate(hm.JOINT_NAMES) if hm.kind(j) == kind]
+      peak = float(rec["max"][ks].max())
+      rms = float(rec["mean"][ks].max())
+      winding = AMBIENT_C[1] + (m.max_winding_c - hp.RS_RATED_AMBIENT_C) * (rms / m.rated_torque) ** 2
+      mark = "" if rec["stood"] else "!"
+      heat = "   -" if rec.get("seconds") is not None else f"{winding:4.0f}"
+      cells.append(f"{mark}{peak:6.1f} ({100 * peak / m.peak_torque:3.0f} %) {rms:5.1f} "
+                   f"({100 * rms / m.rated_torque:3.0f} %) {heat}")
+    print(f"{kind:15s}" + "".join(f"{c:>37s}" for c in cells))
+  print("  (! did not get there: its numbers are up to where it stopped)")
+
+
 #: Ambient air for the thermal table, C: a warm room and a hot day.
 AMBIENT_C = (30.0, 40.0)
 
@@ -894,12 +981,13 @@ def to_world(p_stance, at=STAND_XY, yaw: float = STAND_YAW) -> np.ndarray:
   return np.array([at[0] + c * ox - s * oy, at[1] + s * ox + c * oy, z])
 
 
-def standing_world(scenery=None, at=STAND_XY, yaw: float = STAND_YAW):
-  """The house with the humanoid standing on its soles in the living room,
-  and whatever `scenery(spec)` adds: the model and its data at the stand."""
+def standing_world(scenery=None, at=STAND_XY, yaw: float = STAND_YAW, z: float = 0.0):
+  """The house with the humanoid standing on its soles in the living room
+  (or on ground `z` up at `at`), and whatever `scenery(spec)` adds: the
+  model and its data at the stand."""
   spec = mujoco.MjSpec.from_file(HOME_XML)
   frame = spec.worldbody.add_frame()
-  frame.pos = [at[0], at[1], 0.0]
+  frame.pos = [at[0], at[1], z]
   frame.quat = _yaw_quat(yaw)
   spec.attach(hm.attachable(), prefix="", frame=frame)
   if scenery is not None:
@@ -1745,31 +1833,22 @@ def filmstrip_demo(out: str) -> None:
 #
 # The humanoid walks across the house and back, steered by the Navigator
 # (`humanoid.mission`): its map off its head's LIDAR and the D435's points
-# under it, its pose off its legs' odometry and IMU, matched to the map.
-# ⚠ The served house's walls are 1.2 m, the rover's; the humanoid's LIDAR
-# spins at 1.41 m and saw over every one. The scene's house is a world of
-# its own with its walls raised to a real 2.4 m (`WALL_M`) -- the served
-# house is untouched (a served humanoid's walls are stage 5's world change).
+# under it, its pose off its legs' odometry and IMU, matched to the map. The
+# house's walls are a room's 2.4 m since stage 5 (the rover's 1.2 m were
+# under the humanoid's LIDAR, which saw over every one).
 
-#: The walls' height in the walk's house, m: a room's, floor to ceiling.
-WALL_M = 2.4
 #: The walk: from the living room, through the hall, into the kitchen and
 #: back (`home.world`'s rooms; the doors are the planner's to find).
 WALK_FROM, WALK_TO = (0.5, 0.5), (-8.5, 4.0)
 
 
-def tall_house_world(at=WALK_FROM, yaw: float = math.pi):
-  """The house with its walls raised to `WALL_M` and the humanoid standing
-  at `at`: the model, its data and its body (`body.body_for`), its map's
-  bounds the house's."""
+def house_world(at=WALK_FROM, yaw: float = math.pi, walk: StandPolicy | None = None):
+  """The house with the humanoid standing at `at`: the model, its data and
+  its body (`body.body_for`, its walker `walk` -- the served one by
+  default), its map's bounds the house's."""
   import json
   from pluggybot.body import body_for
   spec = mujoco.MjSpec.from_file(HOME_XML)
-  for geom in spec.geoms:
-    if geom.name.startswith("wall_"):
-      old = float(geom.size[2])
-      geom.size = [geom.size[0], geom.size[1], WALL_M / 2]
-      geom.pos = [geom.pos[0], geom.pos[1], geom.pos[2] + WALL_M / 2 - old]
   frame = spec.worldbody.add_frame()
   frame.pos = [at[0], at[1], 0.0]
   frame.quat = _yaw_quat(yaw)
@@ -1780,7 +1859,7 @@ def tall_house_world(at=WALK_FROM, yaw: float = math.pi):
   meta = json.load(open(HOME_XML.replace(".xml", ".meta.json")))
   b = meta["gridBounds"]
   bounds = (b[0], b[1], b[2], b[3]) if isinstance(b, list) else (b["xMin"], b["yMin"], b["xMax"], b["yMax"])
-  body = body_for(model, data, grid_bounds=bounds)
+  body = body_for(model, data, grid_bounds=bounds, walk=walk)
   return model, data, body
 
 
@@ -1810,7 +1889,7 @@ def walk_scene(body, model, data, records: list | None = None):
 
 def view_walk() -> None:
   from mujoco import viewer as mj_viewer
-  model, data, body = tall_house_world()
+  model, data, body = house_world()
   print("the `walk` scene: the humanoid walks from the living room to the kitchen and "
         "back, steered by its map. Close the window to quit.")
   with mj_viewer.launch_passive(model, data) as viewer:
@@ -1834,7 +1913,7 @@ def view_walk() -> None:
 def filmstrip_walk(out: str, every_s: float = 6.0) -> None:
   """The walk's filmstrip: a tile every `every_s`, from above and behind."""
   from PIL import Image, ImageDraw
-  model, data, body = tall_house_world()
+  model, data, body = house_world()
   r = mujoco.Renderer(model, 300, 400)
   tiles, next_t, label = [], 0.0, ""
   for line in walk_scene(body, model, data):
@@ -1944,13 +2023,44 @@ def course_world(kind: str, seed: int = 0):
   return model, data
 
 
-def _walker(m, d, npz: str | None):
-  from pluggybot.humanoid.walk import WalkDriver
-  stand = StandDriver(m, d)
-  reach = Reach(m, d, stand)
-  walk = WalkDriver(m, d, policy=StandPolicy(npz) if npz else None,
-                    trunk=stand.trunk, joints=stand.joints)
-  return reach, walk
+class Blind:
+  """A walker shown no ground on a bare body, and (`odometry`) its legs'
+  odometry fed as the mission feeds it, every 10 ms: `step()` once a
+  physics step, in place of the walker's and the arms'."""
+
+  def __init__(self, m, d, policy: StandPolicy | None = None, odometry: bool = False):
+    from pluggybot.humanoid.arms import SelfModel
+    from pluggybot.humanoid.odometry import StanceOdometry
+    from pluggybot.humanoid.walk import WalkDriver
+    self.m, self.d = m, d
+    self.root = m.body(ROBOT_ROOT).id
+    self.stand = StandDriver(m, d)
+    self.reach = Reach(m, d, self.stand)
+    self.walk = WalkDriver(m, d, policy=policy, trunk=self.stand.trunk, joints=self.stand.joints)
+    self.odo = (StanceOdometry(SelfModel(), self.stand.trunk.attitude,
+                               float(d.xpos[self.root][0]), float(d.xpos[self.root][1]))
+                if odometry else None)
+    self.every = max(1, round(0.01 / m.opt.timestep))
+    self.n = 0
+
+  def step(self) -> None:
+    self.walk.step()
+    self.reach.step()
+    mujoco.mj_step(self.m, self.d)
+    if self.odo is not None and self.n % self.every == 0:
+      q, _, _ = self.stand.joints.read(self.d)
+      self.odo.step(q, self.stand.trunk.gravity())
+    self.n += 1
+
+
+def _walker(m, d, npz: str | None, odometry: bool = False):
+  """The walking policy at `npz` (the served one by default) on a bare body:
+  one that sees the ground shown its own map, as it would be served
+  (`Seeing`, its odometry always beside it); a blind one alone (`Blind`)."""
+  policy = StandPolicy(npz) if npz else None
+  if policy is not None and "height_scan" in policy.observation_names:
+    return Seeing(m, d, scan="map", npz=npz)
+  return Blind(m, d, policy, odometry=odometry)
 
 
 def course_flight(kind: str, seed: int, npz: str | None = None) -> dict:
@@ -1962,14 +2072,12 @@ def course_flight(kind: str, seed: int, npz: str | None = None) -> dict:
   d.qpos[0] -= rng.uniform(0.0, 0.3)
   d.qpos[3:7] = _yaw_quat(rng.uniform(-0.15, 0.15))
   mujoco.mj_forward(m, d)
-  reach, walk = _walker(m, d, npz)
-  walk.ask(ROUGH_V, 0.0, 0.0)
+  w = _walker(m, d, npz)
+  w.walk.ask(ROUGH_V, 0.0, 0.0)
   root = m.body(ROBOT_ROOT).id
   x0, fell = float(d.xpos[root][0]), False
   for _ in range(int(ROUGH_S / m.opt.timestep)):
-    walk.step()
-    reach.step()
-    mujoco.mj_step(m, d)
+    w.step()
     # Our grading off the truth: the trunk more than 60 deg off upright.
     if d.xmat[root][8] < 0.5:
       fell = True
@@ -2025,15 +2133,13 @@ def track_row(npz: str | None, cmd) -> tuple[float, float, float]:
   m, d = floor_world()
   mujoco.mj_resetDataKeyframe(m, d, 0)
   mujoco.mj_forward(m, d)
-  reach, walk = _walker(m, d, npz)
-  walk.ask(*cmd)
+  w = _walker(m, d, npz)
+  w.walk.ask(*cmd)
   root = m.body(ROBOT_ROOT).id
 
   def fly(s):
     for _ in range(int(round(s / m.opt.timestep))):
-      walk.step()
-      reach.step()
-      mujoco.mj_step(m, d)
+      w.step()
 
   def heading():
     r = d.xmat[root].reshape(3, 3)
@@ -2080,26 +2186,16 @@ def odometry_row(cmd) -> tuple[float, float, float]:
   """The served walker asked `cmd`, its leg odometry fed as the mission
   feeds it (`humanoid.mission`, every 10 ms): the distance truly walked,
   the odometry's, and how far apart they ended, m."""
-  from pluggybot.humanoid.arms import SelfModel
-  from pluggybot.humanoid.odometry import StanceOdometry
   m, d = floor_world()
   mujoco.mj_resetDataKeyframe(m, d, 0)
   mujoco.mj_forward(m, d)
-  reach, walk = _walker(m, d, None)
-  root = m.body(ROBOT_ROOT).id
-  p0 = d.xpos[root][:2].copy()
-  odo = StanceOdometry(SelfModel(), walk.trunk.attitude, float(p0[0]), float(p0[1]))
-  every = max(1, round(0.01 / m.opt.timestep))
-  walk.ask(*cmd)
-  for k in range(int(ODO_S / m.opt.timestep)):
-    walk.step()
-    reach.step()
-    mujoco.mj_step(m, d)
-    if k % every == 0:
-      q, _, _ = walk.joints.read(d)
-      odo.step(q, walk.trunk.gravity())
-  true = d.xpos[root][:2] - p0
-  believed = np.array([odo.x, odo.y]) - p0
+  w = _walker(m, d, None, odometry=True)
+  p0 = d.xpos[w.root][:2].copy()
+  w.walk.ask(*cmd)
+  for _ in range(int(ODO_S / m.opt.timestep)):
+    w.step()
+  true = d.xpos[w.root][:2] - p0
+  believed = np.array([w.odo.x, w.odo.y]) - p0
   return float(np.linalg.norm(true)), float(np.linalg.norm(believed)), float(np.linalg.norm(believed - true))
 
 
@@ -2124,31 +2220,23 @@ def rough_scene(model, data, npz: str | None = ROUGH_NPZ):
   """The `rough` scene, once: the rough task's walker across every course
   end to end, steered back to their middle line off its own senses, saying
   where it is."""
-  from pluggybot.humanoid.arms import SelfModel
-  from pluggybot.humanoid.odometry import StanceOdometry
-  reach, walk = _walker(model, data, npz)
-  root = model.body(ROBOT_ROOT).id
-  odo = StanceOdometry(SelfModel(), walk.trunk.attitude, float(data.xpos[root][0]),
-                       float(data.xpos[root][1]))
-  every, steer = max(1, round(0.01 / model.opt.timestep)), max(1, round(0.1 / model.opt.timestep))
+  w = _walker(model, data, npz, odometry=True)
+  root, odo = w.root, w.odo
+  steer = max(1, round(0.1 / model.opt.timestep))
   marks, x, k = [], ROUGH_AT, 0
   for kind in COURSES[1:]:
     marks.append((x, kind))
     x += {"doorstep": 3.1, "slope": 3.0}.get(kind, 3.0) + 1.5
   end = x
-  yield f"walking at {ROUGH_V} m/s, blind, onto the courses, steered by its own odometry"
+  sees = "seeing the ground" if isinstance(w, Seeing) else "blind"
+  yield f"walking at {ROUGH_V} m/s, {sees}, onto the courses, steered by its own odometry"
   n = 0
   while data.time < 90.0:
     if n % steer == 0:
       aim = math.atan2(-odo.y, STEER_AHEAD_M)
-      w = STEER_GAIN * math.remainder(aim - odo.yaw, 2 * math.pi)
-      walk.ask(ROUGH_V, 0.0, max(-STEER_W, min(STEER_W, w)))
-    walk.step()
-    reach.step()
-    mujoco.mj_step(model, data)
-    if n % every == 0:
-      q, _, _ = walk.joints.read(data)
-      odo.step(q, walk.trunk.gravity())
+      turn = STEER_GAIN * math.remainder(aim - odo.yaw, 2 * math.pi)
+      w.walk.ask(ROUGH_V, 0.0, max(-STEER_W, min(STEER_W, turn)))
+    w.step()
     n += 1
     if k < len(marks) and data.xpos[root][0] > marks[k][0]:
       yield f"  {data.time:4.1f} s: onto the {marks[k][1]}"
@@ -2222,9 +2310,950 @@ def filmstrip_rough(out: str, every_s: float = 3.0) -> None:
   print(f"wrote {out}")
 
 
+# ---- stage 5: stairs -------------------------------------------------------------------
+# The house's flight is five 0.18 m risers on 0.30 m treads, one doorway wide
+# between the hall's wall and the landing's face (`home.world`). The stairs'
+# walker (`walk.STAIRS_NPZ`, `training/humanoid_train/walk.py` `-Stairs`),
+# which sees the ground, is shown a height scan: on the IDEAL scan, the terrain itself as
+# training cast it (OUR instrument); on the MAP's, its own -- the head's D435
+# laid into a map through its belief (`humanoid.scan.HeadScan`), the belief
+# its legs' odometry with the map's ground under its soles
+# (`humanoid.odometry`). A trial is graded by us off the truth.
+
+from pluggybot.home import world as hw  # noqa: E402
+from pluggybot.humanoid.arms import SelfModel  # noqa: E402
+from pluggybot.humanoid.odometry import StanceOdometry  # noqa: E402
+from pluggybot.humanoid.scan import HeadScan, ideal_scan  # noqa: E402
+from pluggybot.humanoid.mission import DEPTH_PERIOD  # noqa: E402
+from pluggybot.humanoid.walk import STAIRS_NPZ  # noqa: E402
+
+#: The flight's foot ahead of the robot's start, m; a trial walks at
+#: `CLIMB_V` for at most `CLIMB_S`, and reaches the landing (or the floor)
+#: once its pelvis is `CLIMB_PAST_M` past the flight's end.
+FLIGHT_AT, CLIMB_V, CLIMB_S, CLIMB_PAST_M = 1.0, 0.4, 25.0, 0.5
+CLIMB_RISERS = (0.10, 0.15, 0.18, 0.20, 0.22)
+#: The landing's depth at the top of a course, m (the house's is 1.5).
+LANDING_M = 1.5
+
+
+def flight_world(rise: float, steps: int = hw.STAIRS_STEPS, down: bool = False):
+  """A flight of `steps` risers of `rise` on the house's tread, one flight
+  wide between two walls a room tall, a landing at its top; the robot at
+  its stand `FLIGHT_AT` short of the foot facing up it, or (`down`) on the
+  landing facing down it. The model, its data, and the flight's foot and
+  end (x, m)."""
+  spec = mujoco.MjSpec.from_string(hm.body_xml())
+  wb = spec.worldbody
+  grey, wall = [0.58, 0.54, 0.50, 1.0], [0.8, 0.78, 0.74, 1.0]
+  tread, width = hw.STAIRS_TREAD, hw.STAIRS_WIDTH
+  x0, run, top = FLIGHT_AT, hw.STAIRS_TREAD * steps, rise * steps
+
+  def box(x_from, x_to, h, y=0.0, w=width, z0=0.0, rgba=grey):
+    wb.add_geom(type=mujoco.mjtGeom.mjGEOM_BOX, rgba=rgba,
+                size=[(x_to - x_from) / 2, w / 2, h / 2], pos=[(x_from + x_to) / 2, y, z0 + h / 2])
+
+  for i in range(steps):
+    box(x0 + i * tread, x0 + run, rise * (i + 1))
+  box(x0 + run, x0 + run + LANDING_M, top)
+  for side in (1, -1):
+    box(-1.5, x0 + run + LANDING_M, hw.WALL_HALF_H * 2 + top, y=side * (width / 2 + 0.02),
+        w=0.04, rgba=wall)
+  model = spec.compile()
+  data = mujoco.MjData(model)
+  mujoco.mj_resetDataKeyframe(model, data, 0)
+  if down:
+    data.qpos[0] = x0 + run + 0.6
+    data.qpos[2] += top
+    data.qpos[3:7] = _yaw_quat(math.pi)
+  mujoco.mj_forward(model, data)
+  return model, data, x0, x0 + run
+
+
+class Seeing:
+  """A walker that sees the ground on a bare body, its scan ideal or its own map's
+  (`scan` "ideal" or "map"), and the odometry the map is laid through:
+  `step()` once a physics step, in place of the walker's and the arms'."""
+
+  def __init__(self, model, data, scan: str = "map", npz: str | None = None):
+    from pluggybot.humanoid.walk import WalkDriver
+    self.m, self.d = model, data
+    self.root = model.body(ROBOT_ROOT).id
+    self.stand = StandDriver(model, data)
+    self.reach = Reach(model, data, self.stand)
+    x, y = float(data.xpos[self.root][0]), float(data.xpos[self.root][1])
+    rot = data.xmat[self.root].reshape(3, 3)
+    att = self.stand.trunk.attitude
+    self.head = HeadScan(model, data, belief=lambda: (self.odo.x, self.odo.y, self.odo.z, self.odo.yaw),
+                         level=att.level, correct=self._correct, period=DEPTH_PERIOD)
+    self.odo = StanceOdometry(SelfModel(), att, x, y, terrain=self.head.under,
+                              felt=self.head.feel)
+    self.odo.correct(x, y, math.atan2(rot[1, 0], rot[0, 0]))
+    q, _, _ = self.stand.joints.read(data)
+    self.odo.step(q, self.stand.trunk.gravity())
+    see = (lambda: ideal_scan(model, data, self.root)) if scan == "ideal" else self.head.scan
+    self.walk = WalkDriver(model, data, policy=StandPolicy(npz or str(STAIRS_NPZ)),
+                           trunk=self.stand.trunk, joints=self.stand.joints, scan=see)
+    self.every = max(1, round(0.01 / model.opt.timestep))
+    self.n = 0
+
+  def _correct(self, dz: float) -> None:
+    self.odo.z += dz
+
+  def step(self) -> None:
+    self.walk.step()
+    self.reach.step()
+    mujoco.mj_step(self.m, self.d)
+    self.head.step()
+    if self.n % self.every == 0:
+      q, _, _ = self.stand.joints.read(self.d)
+      self.odo.step(q, self.stand.trunk.gravity())
+    self.n += 1
+
+  def steer(self, heading: float, line_y: float, v: float = CLIMB_V) -> None:
+    """Walk at `v` along `heading`, held to the line y = `line_y` off its own
+    belief (the rough scene's steering, `STEER_*`)."""
+    # Off the line to its left, along a heading of 0 or pi: turn back to it.
+    off = (self.odo.y - line_y) * math.cos(heading)
+    aim = heading - math.atan2(off, STEER_AHEAD_M)
+    w = STEER_GAIN * math.remainder(aim - self.odo.yaw, 2 * math.pi)
+    self.walk.ask(v, 0.0, max(-STEER_W, min(STEER_W, w)))
+
+
+def climb_trial(rise: float, down: bool, scan: str = "map", npz: str | None = None,
+                seed: int = 0, steps: int = hw.STAIRS_STEPS) -> dict:
+  """The house's flight at `rise` (`steps` risers), walked up (or down) once
+  at `CLIMB_V` from a start drawn from `seed` -- up to 0.2 m back, 5 cm off
+  its middle, 0.08 rad askew -- graded by us: whether it got there, how
+  long it took, whether it fell, and its legs' hardest torques."""
+  model, data, foot, end = flight_world(rise, steps=steps, down=down)
+  rng = np.random.default_rng(seed)
+  heading = math.pi if down else 0.0
+  data.qpos[0] += (1 if down else -1) * rng.uniform(0.0, 0.2)
+  data.qpos[1] += rng.uniform(-0.05, 0.05)
+  data.qpos[3:7] = _yaw_quat(heading + rng.uniform(-0.08, 0.08))
+  mujoco.mj_forward(model, data)
+  w = Seeing(model, data, scan=scan, npz=npz)
+  goal = foot - CLIMB_PAST_M if down else end + CLIMB_PAST_M
+  peak = np.zeros(len(hm.JOINT_NAMES))
+  act = np.array([model.actuator(j).id for j in hm.JOINT_NAMES])
+  fell, there, steer = False, False, max(1, round(0.1 / model.opt.timestep))
+  for k in range(int(CLIMB_S / model.opt.timestep)):
+    if k % steer == 0:
+      w.steer(heading, 0.0)
+    w.step()
+    peak = np.maximum(peak, np.abs(data.actuator_force[act]))
+    x = float(data.xpos[w.root][0])
+    if data.xmat[w.root][8] < 0.5:
+      fell = True
+      break
+    if (x < goal) if down else (x > goal):
+      there = True
+      break
+  return {"rise": rise, "down": down, "scan": scan, "seed": seed, "there": there,
+          "fell": fell, "s": float(data.time), "peak": peak.tolist(),
+          "belief_z_m": float(w.odo.z), "true_z_m": float(data.xpos[w.root][2])}
+
+
+def _climb_trial(job):
+  return climb_trial(*job)
+
+
+def climb_table(npz: str | None = None, trials: int = 5, jobs: int = 4,
+                scans=("ideal", "map")) -> list[dict]:
+  """--climb: flights of five at each riser, up and down, `trials` times on
+  each scan. One process a flight."""
+  import multiprocessing as mp
+  work = [(r, down, sc, npz, s) for r in CLIMB_RISERS for down in (False, True)
+          for sc in scans for s in range(trials)]
+  with mp.get_context("spawn").Pool(jobs, maxtasksperchild=1) as pool:
+    rows = pool.map(_climb_trial, work)
+  print(f"STAIRS, flights of {hw.STAIRS_STEPS} risers on the house's {100 * hw.STAIRS_TREAD:.0f} cm "
+        f"tread, walked at {CLIMB_V} m/s ({_name(npz or str(STAIRS_NPZ))}): got there of "
+        f"{trials}, falls, and the mean time, s")
+  print(f"{'riser':>8s}" + "".join(f"{f'{sc} up':>18s}{f'{sc} down':>18s}" for sc in scans))
+  for r in CLIMB_RISERS:
+    cells = []
+    for sc in scans:
+      for down in (False, True):
+        rs = [x for x in rows if x["rise"] == r and x["down"] == down and x["scan"] == sc]
+        ok = [x for x in rs if x["there"]]
+        t = f"{np.mean([x['s'] for x in ok]):.1f}" if ok else "-"
+        cells.append(f"{len(ok)}/{trials} {sum(x['fell'] for x in rs)}f {t}s")
+    print(f"{r:8.2f}" + "".join(f"{c:>18s}" for c in cells))
+  return rows
+
+
+# ---- stage 5: the scene `stairs`, in the house -------------------------------------------
+# The humanoid in the hall, facing the flight's foot: up the flight on the
+# stairs' walker, steered along its lane's middle by its own belief (its
+# legs' odometry, the map's ground under its soles, its IMU's heading),
+# round on the landing, and back down. Staged with the truth: where it
+# starts. Graded by us: whether it got up and down, how long each took,
+# whether it fell, and how far its belief was off the truth.
+
+#: The flight's lane: its middle line (x, m), its foot and its top (y, m;
+#: `home.world`), and where the scene starts the robot, facing up it.
+LANE_X = hw.STAIRS_X[0] + hw.STAIRS_WIDTH / 2
+FLIGHT_FOOT_Y = hw.STAIRS_Y[1]
+FLIGHT_TOP_Y = hw.STAIRS_Y[1] - hw.STAIRS_TREAD * hw.STAIRS_STEPS
+STAIRS_FROM = (LANE_X, FLIGHT_FOOT_Y + 1.4)
+#: On the landing once its belief is this far past the top step, m; back
+#: down once it is this far out into the hall.
+LANDING_IN_M, HALL_OUT_M = 0.5, 1.0
+#: The scene's camera: from the hall north of the flight, looking up it
+#: (distance m, azimuth and elevation deg): the lane runs between a wall
+#: a room tall and the deck's half wall, and seen from the side either hid
+#: the robot.
+STAIRS_CAM = (3.2, -90.0, -22.0)
+
+
+def stairs_world(npz: str | None = None):
+  """The house, the humanoid in the hall facing up the flight, its walker
+  the stairs' (`npz`, `walk.STAIRS_NPZ` by default)."""
+  return house_world(at=STAIRS_FROM, yaw=-math.pi / 2,
+                     walk=StandPolicy(npz or str(STAIRS_NPZ)))
+
+
+def _lane_routine(mission, heading: float, done, budget_s: float = 30.0, v: float = CLIMB_V):
+  """Walk along the lane's middle line along `heading` (+-pi/2) until
+  `done(belief)`, off the robot's own belief: True, or False when the
+  budget ran out."""
+  t0 = float(mission.data.time)
+  while not done(mission.pose):
+    if float(mission.data.time) - t0 > budget_s:
+      return False
+    x, y, yaw = mission.pose
+    off = (x - LANE_X) * -math.sin(heading)          # left of the line, facing along it
+    aim = heading - math.atan2(off, STEER_AHEAD_M)
+    w = STEER_GAIN * math.remainder(aim - yaw, 2 * math.pi)
+    for _ in range(max(1, round(0.1 / mission.model.opt.timestep))):
+      yield from mission._twist_routine(v, 0.0, max(-STEER_W, min(STEER_W, w)))
+  return True
+
+
+def _within(gen, data, until: float):
+  """`gen` driven until sim time `until`: what it returned, or None when the
+  time ran out (a get-up that never stood holds the legs for good: the
+  lifecycle's `stuck` death, which a scene has not got)."""
+  try:
+    x = next(gen)
+    while True:
+      if data.time > until:
+        gen.close()
+        return None
+      yield x
+      x = gen.send(None)
+  except StopIteration as e:
+    return e.value
+
+
+#: A leg of the `stairs` scene ends by this, sim s: its walk's own budget
+#: (30 s) and a get-up's (`HumanoidBody.GETUP_BUDGET_S`) with room over.
+LEG_S = 90.0
+
+
+def stairs_scene(body, model, data, records: list | None = None):
+  """The `stairs` scene, once: up the flight, round, down, saying how each
+  part ended."""
+  m = body.mission
+  legs = (("up the flight", -math.pi / 2, lambda p: p[1] < FLIGHT_TOP_Y - LANDING_IN_M),
+          ("down the flight", math.pi / 2, lambda p: p[1] > FLIGHT_FOOT_Y + HALL_OUT_M))
+  for k, (name, heading, done) in enumerate(legs):
+    if k:
+      yield "turning round on the landing"
+      if (yield from _within(drive(body, m.face_routine(heading)), data,
+                             data.time + LEG_S)) is None:
+        yield "  still down after a fall"
+        return
+    yield f"walking {name}"
+    t0, falls = data.time, m.falls
+    there = yield from _within(drive(body, _lane_routine(m, heading, done)), data, t0 + LEG_S)
+    bx, by, _ = m.pose
+    tx, ty, _ = m.true_pose()
+    if there is None:
+      if records is not None:
+        records.append({"leg": name, "there": False, "seconds": data.time - t0,
+                        "falls": m.falls - falls, "down": True, "belief_error_m": math.nan,
+                        "height_m": float(data.xpos[body.root][2]), "belief_z_m": m.odo.z})
+      yield "  still down after a fall"
+      return
+    rec = {"leg": name, "there": bool(there), "seconds": data.time - t0,
+           "belief_error_m": math.hypot(bx - tx, by - ty),
+           "height_m": float(data.xpos[body.root][2]), "belief_z_m": m.odo.z,
+           "falls": m.falls - falls, "down": bool(data.xmat[body.root][8] < 0.5)}
+    if records is not None:
+      records.append(rec)
+    fell = f", {rec['falls']} fall(s) taken by its get-up" if rec["falls"] else ""
+    yield (f"  {'there' if there else 'not there'} in {rec['seconds']:.0f} s{fell}; its belief "
+           f"{100 * rec['belief_error_m']:.0f} cm off the truth, its height believed "
+           f"{rec['belief_z_m']:.2f} m against {rec['height_m']:.2f}")
+    if rec["down"]:
+      yield "DOWN"
+      return
+    if not there:
+      return
+
+
+#: The house's climbs (`--climb`'s second table): this many, each from the
+#: scene's start drawn askew -- up to 0.3 m back, 5 cm off the lane's
+#: middle, 0.08 rad -- up the flight and down it as the scene walks them.
+HOUSE_CLIMBS = 10
+
+
+def house_climb_trial(seed: int, npz: str | None = None) -> dict:
+  """The `stairs` scene's legs from a start drawn from `seed`: how each
+  ended, graded by us off the truth."""
+  rng = np.random.default_rng(seed)
+  at = (STAIRS_FROM[0] + rng.uniform(-0.05, 0.05), STAIRS_FROM[1] + rng.uniform(0.0, 0.3))
+  model, data, body = house_world(at=at, yaw=-math.pi / 2 + rng.uniform(-0.08, 0.08),
+                                  walk=StandPolicy(npz or str(STAIRS_NPZ)))
+  records = []
+  try:
+    for _ in stairs_scene(body, model, data, records):
+      pass
+  finally:
+    body.close()
+  return {"seed": seed, "legs": records}
+
+
+def _house_climb_trial(job):
+  return house_climb_trial(*job)
+
+
+def house_climb_table(npz: str | None = None, jobs: int = 4) -> list[dict]:
+  """--climb, in the house: the scene's legs from `HOUSE_CLIMBS` starts."""
+  import multiprocessing as mp
+  with mp.get_context("spawn").Pool(jobs, maxtasksperchild=1) as pool:
+    rows = pool.map(_house_climb_trial, [(k, npz) for k in range(HOUSE_CLIMBS)])
+  print(f"THE HOUSE'S FLIGHT, the `stairs` scene from {HOUSE_CLIMBS} starts drawn askew "
+        f"({_name(npz or str(STAIRS_NPZ))}, its map laid every {DEPTH_PERIOD:g} s): up it, then "
+        f"round and down it, each leg's end, time, falls its get-up took, and its belief "
+        f"against the truth at the end, m")
+  for leg in ("up the flight", "down the flight"):
+    rs = [x for r in rows for x in r["legs"] if x["leg"] == leg]
+    ok = [x for x in rs if x["there"] and not x["down"]]
+    print(f"  {leg:16s} there {len(ok)}/{HOUSE_CLIMBS} (tried {len(rs)}), "
+          f"{sum(x['falls'] for x in rs)} falls, "
+          + (f"{np.median([x['seconds'] for x in ok]):.0f} s, belief off {np.median([x['belief_error_m'] for x in ok]):.2f} m "
+             f"and its height {np.median([abs(x['belief_z_m'] - x['height_m']) for x in ok]):.2f} m (medians)"
+             if ok else "-"))
+  return rows
+
+
+def view_stairs() -> None:
+  from mujoco import viewer as mj_viewer
+  print("the `stairs` scene: the humanoid up the house's flight on the walker that sees "
+        "the ground, round on the landing and down. Close the window to quit.")
+  while True:
+    model, data, body = stairs_world()
+    with mj_viewer.launch_passive(model, data) as viewer:
+      viewer.cam.type = mujoco.mjtCamera.mjCAMERA_TRACKING
+      viewer.cam.trackbodyid = body.root
+      viewer.cam.distance, viewer.cam.azimuth, viewer.cam.elevation = STAIRS_CAM
+      wall = time.time() - data.time
+      for line in stairs_scene(body, model, data):
+        if line:
+          print(f"  -> {line}")
+        if not viewer.is_running():
+          return
+        if int(round(data.time / model.opt.timestep)) % 10 == 0:
+          viewer.sync()
+          ahead = data.time - (time.time() - wall)
+          if ahead > 0:
+            time.sleep(ahead)
+      time.sleep(2.0)
+      if not viewer.is_running():
+        return
+    body.close()
+
+
+def filmstrip_stairs(out: str, every_s: float = 2.0) -> None:
+  """The stairs scene's filmstrip: a tile every `every_s`, from the hall
+  behind the flight's foot (`STAIRS_CAM`)."""
+  from PIL import Image, ImageDraw
+  model, data, body = stairs_world()
+  r = mujoco.Renderer(model, 300, 400)
+  tiles, next_t, label = [], 0.0, ""
+  for line in stairs_scene(body, model, data):
+    if line and not line.startswith("  "):
+      label = line
+    elif line:
+      print(line)
+    if data.time >= next_t:
+      next_t += every_s
+      cam = mujoco.MjvCamera()
+      cam.lookat[:] = data.xpos[body.root]
+      cam.distance, cam.azimuth, cam.elevation = STAIRS_CAM
+      light = (model.vis.headlight.ambient.copy(), model.vis.headlight.diffuse.copy())
+      model.vis.headlight.ambient[:], model.vis.headlight.diffuse[:] = 0.4, 0.6
+      r.update_scene(data, cam)
+      img = Image.fromarray(r.render())
+      model.vis.headlight.ambient[:], model.vis.headlight.diffuse[:] = light
+      ImageDraw.Draw(img).text((8, 8), f"{data.time:.0f} s: {label}"[:60], fill=(255, 255, 255))
+      tiles.append(img)
+  r.close()
+  body.close()
+  strip = Image.new("RGB", (400 * min(4, len(tiles)), 300 * ((len(tiles) + 3) // 4)), (255, 255, 255))
+  for k, tile in enumerate(tiles):
+    strip.paste(tile, (400 * (k % 4), 300 * (k // 4)))
+  strip.save(out)
+  print(f"wrote {out}")
+
+
+# ---- stage 5: falling, and getting up ------------------------------------------------------
+# On hardware a fall can break an actuator (#507): what one costs is read
+# here, for when it is costed. The robot standing on a bare floor is shoved
+# over -- staged with the truth, a push at its trunk's centre of mass -- and
+# what follows is graded by us off the world: which part hit the floor
+# first, how fast and how hard each part was struck, the hardest torque
+# through each joint's gears -- its motor's, less what its rotor's inertia
+# takes as the joint is stopped short (`dof_armature` times the joint's
+# deceleration: the shock that strips a gearbox) -- against its part's
+# peak, how hard each was driven into its hard stop, and how fast each was
+# driven back against its part's no-load speed (back-driven past it, a
+# motor pumps the bus). Three ways to
+# fall: the standing policy keeps the legs; the drivers go limp once the
+# trunk has tipped past `getup.FALL_TILT_RAD`; or the get-up policy takes
+# the legs and arms there (`humanoid.getup`), and gets up.
+
+from pluggybot.humanoid.getup import (FALL_TILT_RAD, GETUP_NPZ, FallWatch,  # noqa: E402
+                                      GetupDriver)
+
+#: The shoves, the robot's frame (x ahead), and how hard, N*s: past what it
+#: stands through every way (`--shove`: 10-20 N*s), it goes over.
+FALL_WAYS = {"front": (1, 0), "back": (-1, 0), "left": (0, 1), "right": (0, -1),
+             "front-left": (1, 1), "back-right": (-1, -1)}
+FALL_NS = 45.0
+FALL_S = 8.0
+#: The robot's parts, by the geoms that strike the floor.
+FALL_PARTS = {
+  "head": ("head",), "trunk": ("torso", "pelvis"),
+  "arms": tuple(f"{s}_{g}" for s in hm.SIDES for g in ("upper_arm", "forearm")),
+  "hands": tuple(f"{s}_{g}" for s in hm.SIDES for g in ("gripper", "jaw_a_pad", "jaw_b_pad")),
+  "legs": tuple(f"{s}_{g}" for s in hm.SIDES for g in ("thigh", "shank")),
+}
+
+
+def fall_trial(way: str, mode: str, npz: str | None = None, ns: float = FALL_NS) -> dict:
+  """The robot shoved `way` at `ns` N*s, falling as `mode` has it ("stand",
+  "limp" or "getup"): what hit first, the parts' peak forces (N), each
+  joint's peak torque (N*m, its motor's and its hard stop's) and speed
+  (rad/s), and -- the get-up's -- when it stood again."""
+  h = floor_humanoid()
+  m, d = h.m, h.d
+  ids = {part: [m.geom(g).id for g in gs] for part, gs in FALL_PARTS.items()}
+  floor = m.geom("floor").id
+  act = np.array([m.actuator(j).id for j in hm.JOINT_NAMES])
+  dof = np.array([m.jnt_dofadr[m.joint(j).id] for j in hm.JOINT_NAMES])
+  getup = GetupDriver(m, d, policy=StandPolicy(npz or str(GETUP_NPZ)), trunk=h.stand.trunk,
+                      joints=h.stand.joints) if mode == "getup" else None
+  legs = Drivers(m, d, "", joints=hm.JOINT_NAMES)
+  for _ in range(int(1.0 / m.opt.timestep)):
+    h.step()
+  watch = FallWatch(h.stand.trunk, h.stand.joints)
+  first, peaks = None, {p: 0.0 for p in FALL_PARTS}
+  hit = {p: None for p in FALL_PARTS}
+  vel = np.zeros(6)
+  tau = np.zeros(len(hm.JOINT_NAMES))
+  stop = np.zeros(len(hm.JOINT_NAMES))
+  speed = np.zeros(len(hm.JOINT_NAMES))
+  arm = m.dof_armature[dof]
+  jid = {int(m.joint(j).id): k for k, j in enumerate(hm.JOINT_NAMES)}
+  took_over, stood_at, gen = None, None, shove(h, FALL_WAYS[way], ns)
+  force = np.zeros(6)
+  t0 = d.time
+  while d.time - t0 < FALL_S:
+    if gen is not None:
+      if next(gen, "done") == "done":
+        gen = None
+      continue
+    if took_over is None and watch.falling(d):
+      took_over = d.time - t0
+      if mode == "getup":
+        getup.begin()
+    if took_over is not None and mode == "getup":
+      getup.step(trunk_stepped=False)
+      mujoco.mj_step(m, d)
+      if getup.stood and stood_at is None:
+        stood_at = d.time - t0
+    elif took_over is not None and mode == "limp":
+      h.stand.trunk.step()
+      legs.limp()
+      mujoco.mj_step(m, d)
+    else:
+      h.step()
+    for i in range(d.ncon):
+      c = d.contact[i]
+      other = c.geom2 if c.geom1 == floor else c.geom1 if c.geom2 == floor else None
+      if other is None:
+        continue
+      mujoco.mj_contactForce(m, d, i, force)
+      for part, gs in ids.items():
+        if other in gs:
+          peaks[part] = max(peaks[part], float(np.linalg.norm(force[:3])))
+          if hit[part] is None:
+            # The part's speed as it first touched: what a fall is, less
+            # the solver's say in how hard the floor pushed back.
+            mujoco.mj_objectVelocity(m, d, mujoco.mjtObj.mjOBJ_GEOM, other, vel, 0)
+            hit[part] = float(np.linalg.norm(vel[3:]))
+          if first is None:
+            first = part
+    tau = np.maximum(tau, np.abs(d.actuator_force[act] - arm * d.qacc[dof]))
+    for r in np.flatnonzero(d.efc_type[:d.nefc] == mujoco.mjtConstraint.mjCNSTR_LIMIT_JOINT):
+      k = jid.get(int(d.efc_id[r]))
+      if k is not None:
+        stop[k] = max(stop[k], abs(float(d.efc_force[r])))
+    speed = np.maximum(speed, np.abs(d.qvel[dof]))
+  return {"way": way, "mode": mode, "first": first, "peaks": peaks, "hit": hit, "tau": tau.tolist(),
+          "stop": stop.tolist(),
+          "speed": speed.tolist(), "took_over_s": took_over, "stood_s": stood_at,
+          "up_at_end": bool(d.xmat[h.root][8] > 0.95 and d.xpos[h.root][2] > 0.6)}
+
+
+def _fall_trial(job):
+  return fall_trial(*job)
+
+
+def fall_table(npz: str | None = None, jobs: int = 4) -> list[dict]:
+  """--fall: each way shoved over, falling each of three ways."""
+  import multiprocessing as mp
+  modes = ("stand", "limp", "getup")
+  work = [(w, md, npz) for w in FALL_WAYS for md in modes]
+  with mp.get_context("spawn").Pool(jobs, maxtasksperchild=1) as pool:
+    rows = pool.map(_fall_trial, work)
+  peak_tau = np.array([hm.CHOSEN.motor(j).peak_torque for j in hm.JOINT_NAMES])
+  noload = np.array([hm.CHOSEN.motor(j).noload_speed for j in hm.JOINT_NAMES])
+  print(f"FALLS, shoved {FALL_NS:g} N*s at the trunk each way, standing on a bare floor; the "
+        f"get-up policy or the limp drivers take over past {math.degrees(FALL_TILT_RAD):.0f} deg")
+  print("  each part: the speed it first touched the floor at, m/s, and the hardest the floor "
+        "pushed back, kN (MuJoCo's soft contact: an upper bound's shape, not a number to bank)")
+  print("  gears past peak: joints whose torque through the gears passed their part's peak "
+        "(the worst, x peak, and which); stops: the hardest a joint was driven into its "
+        "hard stop, N*m; past no-load: joints back-driven past their part's no-load speed")
+  print(f"{'way':11s}{'falling as':>11s}{'first hit':>10s}" + "".join(f"{p:>13s}" for p in FALL_PARTS)
+        + f"{'gears past peak':>34s}{'stops':>8s}{'past no-load':>14s}{'stood':>8s}")
+  for r in rows:
+    share = np.array(r["tau"]) / peak_tau
+    over = np.flatnonzero(share > 1.0)
+    worst = hm.JOINT_NAMES[int(np.argmax(share))]
+    fast = int((np.array(r["speed"]) > noload).sum())
+    stood = f"{r['stood_s']:.1f}s" if r["stood_s"] else ("up" if r["up_at_end"] else "-")
+    gears = f"{len(over)} ({share.max():.1f}x, {worst})" if len(over) else "0"
+    print(f"{r['way']:11s}{r['mode']:>11s}{str(r['first']):>10s}"
+          + "".join(f"{'-':>13s}" if r["hit"][p] is None
+                    else f"{r['hit'][p]:6.1f} {r['peaks'][p] / 1000:5.1f}" for p in FALL_PARTS)
+          + f"{gears:>34s}{max(r['stop']):8.0f}{fast:>14d}{stood:>8s}")
+  return rows
+
+
+#: Where the house's falls are taken (x, y, the ground's height, facing):
+#: the hall's middle, a wall at its side, the couch ahead, the flight's
+#: third tread facing up it, and the landing's edge facing down it.
+HOUSE_FALLS = {
+  "the hall": ((-3.5, 1.5), 0.0, math.pi / 2),
+  "by a wall": ((-4.55, 0.5), 0.0, math.pi / 2),
+  "by the couch": ((3.2, -0.05), 0.0, math.pi / 2),
+  "on the flight": ((hw.STAIRS_X[0] + hw.STAIRS_WIDTH / 2, -3.75), 3 * hw.STAIRS_RISE, -math.pi / 2),
+  "the landing's edge": ((hw.STAIRS_X[0] + hw.STAIRS_WIDTH / 2, -4.75),
+                         hw.STAIRS_RISE * hw.STAIRS_STEPS, math.pi / 2),
+}
+HOUSE_WAYS = ("front", "back", "left", "right")
+#: A house fall is watched this long from the shove, s.
+HOUSE_FALL_S = 15.0
+
+
+def house_fall_trial(place: str, way: str, npz: str | None = None, ns: float = FALL_NS) -> dict:
+  """The robot standing at `place` in the house, shoved `way`, its get-up
+  policy taking the fall as the mission hands it: what it struck first and
+  how fast its head went into anything, whether and when it stood, and
+  where its pelvis ended (graded by us off the truth)."""
+  at, z, yaw = HOUSE_FALLS[place]
+  m, d = standing_world(at=at, yaw=yaw, z=z)
+  h = Humanoid(m, d)
+  getup = GetupDriver(m, d, policy=StandPolicy(npz or str(GETUP_NPZ)), trunk=h.stand.trunk,
+                      joints=h.stand.joints)
+  watch = FallWatch(h.stand.trunk, h.stand.joints)
+  ours = {g for g in range(m.ngeom) if _in_robot(m, int(m.geom_bodyid[g]), h.root)}
+  head = m.geom("head").id
+  for _ in range(int(1.0 / m.opt.timestep)):
+    h.step()
+  gen, took, stood, first, head_v = shove(h, FALL_WAYS[way], ns), None, None, None, None
+  vel = np.zeros(6)
+  t0 = d.time
+  while d.time - t0 < HOUSE_FALL_S:
+    if gen is not None:
+      if next(gen, "done") == "done":
+        gen = None
+      continue
+    if took is None and watch.falling(d):
+      took = d.time - t0
+      getup.begin()
+    if took is not None and stood is None:
+      getup.step()
+      mujoco.mj_step(m, d)
+      if getup.stood:
+        stood = d.time - t0
+        h = Humanoid(m, d)
+    else:
+      h.step()
+    for i in range(d.ncon):
+      c = d.contact[i]
+      if (c.geom1 in ours) == (c.geom2 in ours):
+        continue
+      mine = c.geom1 if c.geom1 in ours else c.geom2
+      if m.geom(mine).name.endswith("_sole"):
+        continue
+      if first is None:
+        first = next((part for part, gs in FALL_PARTS.items() if m.geom(mine).name in gs),
+                     m.geom(mine).name)
+      if mine == head and head_v is None:
+        mujoco.mj_objectVelocity(m, d, mujoco.mjtObj.mjOBJ_GEOM, head, vel, 0)
+        head_v = float(np.linalg.norm(vel[3:]))
+  return {"place": place, "way": way, "first": first, "head_v": head_v, "took_s": took,
+          "stood_s": stood, "end_z": float(d.xpos[h.root][2]) - z}
+
+
+def _in_robot(m, body: int, root: int) -> bool:
+  while body > 0:
+    if body == root:
+      return True
+    body = int(m.body_parentid[body])
+  return False
+
+
+def _house_fall_trial(job):
+  return house_fall_trial(*job)
+
+
+def house_fall_table(npz: str | None = None, jobs: int = 4) -> list[dict]:
+  """--fall, in the house: each place shoved each way, the get-up taking it."""
+  import multiprocessing as mp
+  work = [(p, w, npz) for p in HOUSE_FALLS for w in HOUSE_WAYS]
+  with mp.get_context("spawn").Pool(jobs, maxtasksperchild=1) as pool:
+    rows = pool.map(_house_fall_trial, work)
+  print(f"FALLS IN THE HOUSE, shoved {FALL_NS:g} N*s each way, the get-up policy taking each "
+        f"fall: what struck first (a sole aside), the head's speed into anything, m/s, and when "
+        f"it stood from the shove -- or where its pelvis lay over the ground it had stood on "
+        f"after {HOUSE_FALL_S:g} s")
+  print(f"{'place':20s}" + "".join(f"{w:>27s}" for w in HOUSE_WAYS))
+  for place in HOUSE_FALLS:
+    cells = []
+    for w in HOUSE_WAYS:
+      r = next(x for x in rows if x["place"] == place and x["way"] == w)
+      head = "-" if r["head_v"] is None else f"{r['head_v']:.1f}"
+      end = f"stood {r['stood_s']:.1f}s" if r["stood_s"] else (
+        "held" if r["took_s"] is None else f"down {r['end_z']:+.2f}")
+      cells.append(f"{(r['first'] or '-')[:6]} {head:>4s} {end:>12s}")
+    print(f"{place:20s}" + "".join(f"{c:>27s}" for c in cells))
+  print("  (down: still on the ground after the watch, its pelvis that high over the ground it "
+        "had stood on, m)")
+  return rows
+
+
+# The scenes `fall` and `getup`: on a bare floor, the get-up policy taking
+# over as the humanoid's mission hands it a falling body (`humanoid.mission`:
+# its senses say it is falling, every joint goes to the get-up policy, and
+# the standing policy has the legs again once it stands). Staged with the
+# truth: the shove's push, and where a lying start puts the body.
+
+#: The get-up policy the scenes fly (`--getup-policy`; the committed one by
+#: default).
+_GETUP = None
+#: The `getup` scene's starts: lying on its back, its front, its side.
+LYING = {"on its back": (0.0, -math.pi / 2), "on its front": (0.0, math.pi / 2),
+         "on its side": (math.pi / 2, 0.0)}
+
+
+class Falling:
+  """The bare humanoid with its get-up policy beside its standing one, the
+  fall handed over as the mission hands it (`humanoid.mission`)."""
+
+  def __init__(self, h: Humanoid, npz: str | None = None):
+    self.h = h
+    self.policy = StandPolicy(npz or str(GETUP_NPZ))
+    self.every = max(1, round(h.stand.policy.period / h.m.opt.timestep))
+    self.rebuild()
+
+  def rebuild(self) -> None:
+    """Its watch and get-up driver over the body's senses as they stand
+    (a fresh standing driver's)."""
+    h = self.h
+    self.watch = FallWatch(h.stand.trunk, h.stand.joints)
+    self.getup = GetupDriver(h.m, h.d, policy=self.policy, trunk=h.stand.trunk,
+                             joints=h.stand.joints)
+    self.up = False
+    self.n = 0
+
+  def take(self) -> None:
+    self.up = True
+    self.getup.begin()
+
+  def step(self) -> None:
+    h = self.h
+    if self.up:
+      self.getup.step()
+      mujoco.mj_step(h.m, h.d)
+      if self.getup.stood:
+        self.up = False
+        h.stand.last_action[:] = 0.0
+        h.stand.posture[:] = 0.0
+        h.reach = Reach(h.m, h.d, h.stand)
+    else:
+      h.step()
+      if self.n % self.every == 0 and self.watch.falling(h.d):
+        self.take()
+    self.n += 1
+
+
+def fall_scene(f: Falling, ways=("front", "back-right", "left")):
+  """The `fall` scene, once: shoved over each of `ways` in turn, the get-up
+  policy taking the fall and standing the body again."""
+  h = f.h
+  for way in ways:
+    yield "standing"
+    for _ in range(int(1.5 / h.m.opt.timestep)):
+      f.step()
+      yield None
+    yield f"shoved {FALL_NS:g} N*s from the {way}"
+    for _ in shove(h, FALL_WAYS[way], FALL_NS):
+      yield None
+    t0, took = h.d.time, False
+    while h.d.time - t0 < FALL_S:
+      f.step()
+      if f.up and not took:
+        took = True
+        yield f"  falling, {h.d.time - t0:.1f} s on: the get-up policy has every joint"
+      if took and not f.up:
+        yield f"  stood again {h.d.time - t0:.1f} s after the shove"
+        break
+      yield None
+    else:
+      yield "  still down after the shove" if took else "  stood through it"
+
+
+def getup_scene(f: Falling):
+  """The `getup` scene, once: from lying on its back, its front and its
+  side, each time stood again by the get-up policy."""
+  h = f.h
+  for name, (roll, pitch) in LYING.items():
+    yield f"lying {name}"
+    q = np.zeros(4)
+    mujoco.mju_euler2Quat(q, np.array([roll, pitch, 0.0]), "XYZ")
+    mujoco.mj_resetDataKeyframe(h.m, h.d, 0)
+    h.d.qpos[2], h.d.qpos[3:7] = 0.15, q
+    mujoco.mj_forward(h.m, h.d)
+    h.stand = StandDriver(h.m, h.d)
+    h.reach = Reach(h.m, h.d, h.stand)
+    f.rebuild()
+    f.take()
+    t0 = h.d.time
+    while h.d.time - t0 < 10.0:
+      f.step()
+      if not f.up:
+        yield f"  stood in {h.d.time - t0:.1f} s"
+        break
+      yield None
+    else:
+      yield "  still down after 10 s"
+    for _ in range(int(1.0 / h.m.opt.timestep)):
+      f.step()
+      yield None
+
+
+def _run_view(make, scene, what: str) -> None:
+  from mujoco import viewer as mj_viewer
+  print(what + " Close the window to quit.")
+  while True:
+    f = make()
+    h = f.h
+    with mj_viewer.launch_passive(h.m, h.d) as viewer:
+      viewer.cam.type = mujoco.mjtCamera.mjCAMERA_TRACKING
+      viewer.cam.trackbodyid = h.root
+      viewer.cam.distance, viewer.cam.azimuth, viewer.cam.elevation = 3.5, 120.0, -15.0
+      wall = time.time() - h.d.time
+      for line in scene(f):
+        if line:
+          print(f"  -> {line}")
+        if not viewer.is_running():
+          return
+        if int(round(h.d.time / h.m.opt.timestep)) % 10 == 0:
+          viewer.sync()
+          ahead = h.d.time - (time.time() - wall)
+          if ahead > 0:
+            time.sleep(ahead)
+      if not viewer.is_running():
+        return
+
+
+def view_fall() -> None:
+  _run_view(lambda: Falling(floor_humanoid(), _GETUP), fall_scene,
+            "the `fall` scene: the humanoid shoved over three ways, its get-up policy taking "
+            "each fall and standing it again.")
+
+
+def view_getup() -> None:
+  _run_view(lambda: Falling(floor_humanoid(), _GETUP), getup_scene,
+            "the `getup` scene: the humanoid stood up from lying on its back, its front and "
+            "its side.")
+
+
+def filmstrip_falls(scene: str, out: str, every_s: float = 0.3) -> None:
+  """The `fall` or `getup` scene's filmstrip: a tile every `every_s`."""
+  from PIL import Image, ImageDraw
+  f = Falling(floor_humanoid(), _GETUP)
+  h = f.h
+  h.m.vis.headlight.ambient[:], h.m.vis.headlight.diffuse[:] = 0.4, 0.6
+  r = mujoco.Renderer(h.m, 300, 400)
+  tiles, next_t, label = [], 0.0, ""
+  for line in (fall_scene(f) if scene == "fall" else getup_scene(f)):
+    if line:
+      print(line)
+      label = line.strip()
+      continue
+    if h.d.time < next_t - every_s:             # a start's reset set the clock back
+      next_t = h.d.time
+    if h.d.time >= next_t and len(tiles) < 36:
+      next_t = h.d.time + every_s
+      cam = mujoco.MjvCamera()
+      cam.lookat[:] = h.d.xpos[h.root]
+      cam.lookat[2] = max(0.4, cam.lookat[2])
+      cam.distance, cam.azimuth, cam.elevation = 3.0, 120.0, -15.0
+      r.update_scene(h.d, cam)
+      img = Image.fromarray(r.render())
+      ImageDraw.Draw(img).text((8, 8), f"{h.d.time:.1f} s: {label}"[:60], fill=(255, 255, 255))
+      tiles.append(img)
+  r.close()
+  strip = Image.new("RGB", (400 * min(4, len(tiles)), 300 * ((len(tiles) + 3) // 4)), (255, 255, 255))
+  for k, tile in enumerate(tiles):
+    strip.paste(tile, (400 * (k % 4), 300 * (k // 4)))
+  strip.save(out)
+  print(f"wrote {out}")
+
+
+# ---- stage 5: whether it can be served --------------------------------------------------
+# The served quadruped pair runs ~1.1x real time on the deploy box, on ONE
+# physics thread (#385). The humanoid has twice the joints. What decides
+# whether it can be served is its loop's cost against the quadruped's in
+# the same house, the same walks, the same senses -- each body through the
+# Navigator, its LIDAR matched to its map, its depth camera's low layer --
+# so the ratio scales the pair's measured served speed. Graded by the clock.
+
+#: The walks each robot paces back and forth, (from, to): the first
+#: through the hall into the kitchen, the second from the living room into
+#: the bedroom.
+SPEED_ROUTES = (((0.5, 0.5), (-8.5, 4.0)), ((3.0, -1.0), (1.5, 4.5)))
+SPEED_WARM_S = 5.0
+
+
+def speed_world(kind: str, n: int, seeing: bool = False):
+  """The house with `n` robots of `kind` ("humanoid" or "quadruped") at the
+  starts of `SPEED_ROUTES`: the model, its data and the bodies."""
+  import json
+  from pluggybot.body import body_for
+  from pluggybot.robot import RobotHandle
+  meta = json.load(open(HOME_XML.replace(".xml", ".meta.json")))
+  b = meta["gridBounds"]
+  bounds = (b[0], b[1], b[2], b[3]) if isinstance(b, list) else (b["xMin"], b["yMin"], b["xMax"], b["yMax"])
+  handles = [RobotHandle(p) for p in ("", "r2_")[:n]]
+  starts = [r[0] for r in SPEED_ROUTES[:n]]
+  if kind == "quadruped":
+    from pluggybot.legs import world as lw
+    spec = lw.home_spec(first_at=starts[0], second_at=starts[1] if n > 1 else None)
+    model = spec.compile()
+    data = mujoco.MjData(model)
+    for h, (x, y) in zip(handles, starts):
+      lw.stand(model, data, h.prefix, x, y)
+    mujoco.mj_forward(model, data)
+    return model, data, [body_for(model, data, h, grid_bounds=bounds) for h in handles]
+  # The quadruped's world's fixtures too -- its dock, rack, the lab's signs
+  # and the boards' and areas' tags -- which every ray of both robots'
+  # LIDARs and depth cameras is cast against.
+  from pluggybot.legs import world as lw
+  spec = mujoco.MjSpec.from_file(HOME_XML)
+  for h, (x, y) in zip(handles, starts):
+    frame = spec.worldbody.add_frame()
+    frame.pos = [x, y, 0.0]
+    spec.attach(hm.attachable(), prefix=h.prefix, frame=frame)
+  lw._attach_dock(spec, lw.dock_pose())
+  lw._attach_rack(spec, lw.rack_pose())
+  lw._attach_signs(spec)
+  lw._attach_board_tags(spec)
+  lw._attach_area_tags(spec)
+  model = spec.compile()
+  data = mujoco.MjData(model)
+  for h in handles:
+    _pose(model, data, {f"{h.prefix}{j}": v for j, v in hm.stand_qpos().items()})
+  walk = StandPolicy(str(STAIRS_NPZ)) if seeing else None
+  return model, data, [body_for(model, data, h, grid_bounds=bounds, walk=walk) for h in handles]
+
+
+def _paces(body, route, until: float, data):
+  """Back and forth along `route` until sim time `until`."""
+  k = 1
+  while data.time < until:
+    x, y = route[k]
+    yield from body.go_to_routine(x, y, timeout=60.0)
+    k = 1 - k
+
+
+def speed_row(kind: str, n: int, sim_s: float = 60.0, seeing: bool = False,
+              profile: bool = False) -> dict:
+  """`n` robots of `kind` pacing their routes for `sim_s` after a warm-up:
+  the wall seconds a sim second took, and (`profile`) where they went."""
+  from pluggybot import tick
+  model, data, bodies = speed_world(kind, n, seeing)
+  warm = list(zip([b.stepper for b in bodies],
+                  [_paces(b, r, SPEED_WARM_S, data) for b, r in zip(bodies, SPEED_ROUTES)]))
+  tick.run_many(warm)
+  t_sim0 = data.time
+  pairs = list(zip([b.stepper for b in bodies],
+                   [_paces(b, r, t_sim0 + sim_s, data) for b, r in zip(bodies, SPEED_ROUTES)]))
+  prof = None
+  if profile:
+    import cProfile
+    prof = cProfile.Profile()
+    prof.enable()
+  t0 = time.perf_counter()
+  tick.run_many(pairs)
+  wall = time.perf_counter() - t0
+  if prof is not None:
+    import io
+    import pstats
+    prof.disable()
+    out = io.StringIO()
+    pstats.Stats(prof, stream=out).sort_stats("tottime").print_stats(18)
+    print(out.getvalue())
+  for b in bodies:
+    b.close()
+  return {"kind": kind, "n": n, "seeing": seeing, "sim_s": data.time - t_sim0,
+          "wall_s": wall, "rtf": (data.time - t_sim0) / wall}
+
+
+def speed_table(sim_s: float = 60.0, profile: bool = False) -> None:
+  """--speed: the quadruped pair, one humanoid and a humanoid pair, the
+  same walks in the same house, one process each in turn (never two at
+  once: they would share the machine)."""
+  rows = []
+  for kind, n, seeing in (("quadruped", 2, False), ("humanoid", 1, False), ("humanoid", 2, False),
+                          ("humanoid", 1, True), ("humanoid", 2, True)):
+    if seeing and not STAIRS_NPZ.exists():
+      continue
+    rows.append(speed_row(kind, n, sim_s, seeing, profile))
+    r = rows[-1]
+    print(f"  {r['kind']} x{r['n']}{' (the stairs walker)' if seeing else ''}: {r['sim_s']:.0f} sim s in "
+          f"{r['wall_s']:.0f} wall s, {r['rtf']:.2f}x real time", flush=True)
+  quad = rows[0]["rtf"]
+  print(f"SERVING SPEED, the same walks ({sim_s:g} sim s after {SPEED_WARM_S:g} s), "
+        "against the quadruped pair:")
+  for r in rows:
+    print(f"  {r['kind']} x{r['n']}{' seeing' if r['seeing'] else ''}: {r['rtf']:.2f}x real time "
+          f"here, {r['rtf'] / quad:.2f} of the quadruped pair's")
+
+
 SCENES = {"body": view_body, "stand": lambda: view_stage2("stand"),
           "reach": lambda: view_stage2("reach"), "grasp": lambda: view_stage2("grasp"),
-          "demo": view_demo, "walk": view_walk, "rough": view_rough}
+          "demo": view_demo, "walk": view_walk, "rough": view_rough, "stairs": view_stairs,
+          "fall": view_fall, "getup": view_getup}
 
 
 def main(argv=None) -> None:
@@ -2235,6 +3264,8 @@ def main(argv=None) -> None:
                   help="a scene's filmstrip, headless (--out names it)")
   ap.add_argument("--policy", default=None,
                   help="fly another standing policy's .npz (default models/humanoid_stand.npz)")
+  ap.add_argument("--getup-policy", default=None,
+                  help="the scenes' get-up policy .npz (default models/humanoid_getup.npz)")
   ap.add_argument("--shove", action="store_true",
                   help="the shoves it stands through, each way, standing and crouched")
   ap.add_argument("--envelope", action="store_true",
@@ -2257,12 +3288,26 @@ def main(argv=None) -> None:
   ap.add_argument("--thermal", action="store_true", help="the hottest winding, held")
   ap.add_argument("--energy", action="store_true", help="watts by activity, the pack's hours")
   ap.add_argument("--sensors", action="store_true", help="what the head sees from the stand")
+  ap.add_argument("--climb", nargs="?", const="", default=None, metavar="NPZ",
+                  help="the stairs' walker (or this one) up and down flights of five at each "
+                       "riser, on the ideal scan and on its own map's")
+  ap.add_argument("--fall", nargs="?", const="", default=None, metavar="NPZ",
+                  help="shoved over each way: what hits first, how hard, each joint's torque "
+                       "and speed, falling on the standing policy, limp, or the get-up's")
+  ap.add_argument("--speed", nargs="?", type=float, const=60.0, default=None, metavar="SIM_S",
+                  help="the loop's cost: the quadruped pair, one humanoid and a pair, the same "
+                       "walks in the house, timed (--profile: where it goes)")
+  ap.add_argument("--profile", action="store_true", help="with --speed")
+  ap.add_argument("--jobs", type=int, default=4, help="processes for a table's flights")
   ap.add_argument("--out", default="humanoid_spike.png")
   args = ap.parse_args(argv)
   policy = StandPolicy(args.policy) if args.policy else None
   if policy is not None:
     global _POLICY
     _POLICY = policy
+  if args.getup_policy:
+    global _GETUP
+    _GETUP = args.getup_policy
   if args.view:
     SCENES[args.view]()
   elif args.strip == "demo":
@@ -2271,6 +3316,10 @@ def main(argv=None) -> None:
     filmstrip_walk(args.out)
   elif args.strip == "rough":
     filmstrip_rough(args.out)
+  elif args.strip == "stairs":
+    filmstrip_stairs(args.out)
+  elif args.strip in ("fall", "getup"):
+    filmstrip_falls(args.strip, args.out)
   elif args.strip and args.strip != "body":
     filmstrip_stage2(args.strip, args.out)
   elif args.shove:
@@ -2287,6 +3336,14 @@ def main(argv=None) -> None:
     odometry_table()
   elif args.track is not None:
     track_table([p or None for p in args.track.split(",")] if args.track else [None, ROUGH_NPZ])
+  elif args.climb is not None:
+    climb_table(args.climb or None, jobs=args.jobs)
+    house_climb_table(args.climb or None, jobs=args.jobs)
+  elif args.speed is not None:
+    speed_table(args.speed, args.profile)
+  elif args.fall is not None:
+    fall_table(args.fall or None, jobs=args.jobs)
+    house_fall_table(args.fall or None, jobs=args.jobs)
   elif args.mass:
     mass_table()
   elif args.torque:
@@ -2295,6 +3352,15 @@ def main(argv=None) -> None:
     estimate_table()
     print()
     walking_table()
+    if STAIRS_NPZ.exists():
+      print()
+      flown_table("STAIRS, FLOWN by the stairs' walker up and down the house's flight on its own "
+                  "map (rule 7's re-read; the stairs' estimates above are superseded):",
+                  stairs_rows())
+    if GETUP_NPZ.exists() or _GETUP:
+      print()
+      flown_table("GETTING UP, FLOWN by the get-up policy from lying (rule 7's re-read):",
+                  getup_rows(_GETUP), kinds=hm.LEG + hm.ARM)
   elif args.thermal:
     thermal_table()
   elif args.energy:

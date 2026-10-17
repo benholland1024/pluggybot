@@ -548,3 +548,42 @@ def test_the_camera_extent_is_written_down_not_derived(home_model):
   quad = lw.home_spec().compile()
   assert quad.stat.extent == pytest.approx(home.CAMERA_EXTENT_M)
   assert quad.vis.map.znear * quad.stat.extent == pytest.approx(lw.NEAR_M)
+
+
+def test_the_walls_are_a_rooms_height(home_model):
+  # #507: the humanoid's LIDAR spins 1.41 m up and saw over the rover's
+  # 1.2 m walls, every one of them: a map of its plane alone was empty.
+  walls = [i for i in range(home_model.ngeom)
+           if (home_model.geom(i).name or "").startswith("wall_")]
+  assert walls
+  for g in walls:
+    top = home_model.geom_pos[g][2] + home_model.geom_size[g][2]
+    body = home_model.geom_bodyid[g]
+    top += home_model.body_pos[body][2]
+    assert top == pytest.approx(2.4), home_model.geom(g).name
+
+
+def test_the_staircase_is_steps_a_body_climbs(home_model):
+  # #507: the rover's one solid 0.9 m box became the flight the website drew
+  # inside it -- five 0.18 m risers on 0.30 m treads up to a landing 0.9 m
+  # up, its open edges behind a half wall -- and the humanoid climbs it.
+  body = home_model.body("stairs").id
+  steps = sorted((home_model.geom(f"stairs_step_{i}").id for i in range(home.STAIRS_STEPS)),
+                 key=lambda g: home_model.geom_size[g][2])
+
+  def top(g):
+    return home_model.body_pos[body][2] + home_model.geom_pos[g][2] + home_model.geom_size[g][2]
+
+  def north(g):
+    return home_model.body_pos[body][1] + home_model.geom_pos[g][1] + home_model.geom_size[g][1]
+
+  assert [round(top(g), 3) for g in steps] == [0.18, 0.36, 0.54, 0.72, 0.9]
+  # Each tread 0.30 m deep, the foot toward the hall (north).
+  assert np.diff([north(g) for g in steps]) == pytest.approx([-0.3] * 4)
+  assert north(steps[0]) == pytest.approx(home.STAIRS_Y[1])
+  landing = home_model.geom("stairs_landing").id
+  assert top(landing) == pytest.approx(0.9)
+  for name in ("stairs_guard_north", "stairs_guard_west"):
+    g = home_model.geom(name).id
+    bottom = top(g) - 2 * home_model.geom_size[g][2]
+    assert bottom == pytest.approx(0.9) and top(g) == pytest.approx(1.8)

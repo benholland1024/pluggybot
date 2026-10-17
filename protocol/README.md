@@ -44,6 +44,25 @@ replayer treats it like any other world -- one scene, one recording, keyed
 by that name (`pluggybot.robot.pair_model_name`). The served world is the
 pair, `home_quad_pair`.
 
+### 0.21.0, nothing new on the wire: the walls are a room's height and the stairs are steps (the world change)
+
+pluggybot #507, stage 5. No message's shape moves; both quad scenes, the
+pair's recording and `hints.json` are new.
+
+- **Every wall is 2.4 m** (both houses; the fences stay 0.9): a wall body's
+  one box is twice as tall, its centre twice as high.
+- **The `stairs` body is MANY boxes**: five steps, each a slab from the
+  floor to its tread (0.18 m risers on 0.30 m treads, `stairs_step_0` the
+  foot, toward the hall), `stairs_landing` and `stairs_deck` solid to the
+  floor at 0.9 m, and `stairs_guard_north` / `stairs_guard_west`, half walls
+  0.9 m tall and 4 cm thick standing on the landing's open edges. The body
+  sits on the floor under the block's middle. It is laid where the site
+  drew its flight inside the old block (rooftop #180), and robots climb it.
+- **`hints.json`'s `stairs` is a `reskin` of many boxes**, the house's own,
+  and `stairs` is gone from `oneBoxHints`: dress each box where it stands.
+  A world built before this (the rover's, frozen) still ships the one
+  solid block, and a builder may keep drawing a flight inside that.
+
 ### 0.21.0, nothing new: `tool` and `scene_changed` are no longer sent
 
 pluggybot #489. The robot no longer builds its own tools, and nothing

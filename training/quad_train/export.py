@@ -68,18 +68,22 @@ def check(path: str, arrays: dict, samples: int = 256) -> float:
   return worst
 
 
-def body_facts(body: str) -> dict:
+def body_facts(body: str, joints: str = "legs") -> dict:
   """What the served sim must drive a policy with, by body: the quadruped's
-  one gain pair for its twelve joints; the humanoid's action joints (its
-  legs), each one's own pair, and the gains its scripted arms held (#507)."""
+  one gain pair for its twelve joints; the humanoid's action joints -- its
+  legs, or all its joints for a policy that drives its arms too (#507's
+  get-up) -- each one's own pair as training drove it (an arm's scaled by
+  `ARM_GAIN_SCALE`), and the gains its scripted arms held (#507)."""
   if body == "quadruped":
     return {"train_dt": robot.TRAIN_DT, "decimation": 4,
             "stiffness": robot.STIFFNESS, "damping": robot.DAMPING}
   from humanoid_train import robot as hr
+  driven = hr.LEGS + (hr.ARMS if joints == "all" else ())
+  scale = {j: (hr.ARM_GAIN_SCALE if j in hr.ARMS else (1.0, 1.0)) for j in driven}
   return {"train_dt": hr.TRAIN_DT, "decimation": hr.DECIMATION,
-          "action_joints": list(hr.LEGS),
-          "stiffness": [hr.JOINTS[j]["stiffness"] for j in hr.LEGS],
-          "damping": [hr.JOINTS[j]["damping"] for j in hr.LEGS],
+          "action_joints": list(driven),
+          "stiffness": [hr.JOINTS[j]["stiffness"] * scale[j][0] for j in driven],
+          "damping": [hr.JOINTS[j]["damping"] * scale[j][1] for j in driven],
           "arm_gain_scale": list(hr.ARM_GAIN_SCALE)}
 
 
@@ -93,6 +97,8 @@ def main(argv=None) -> None:
   ap.add_argument("--iterations", type=int, required=True)
   ap.add_argument("--task", default="Pluggy-Quad-Flat")
   ap.add_argument("--body", choices=("quadruped", "humanoid"), default="quadruped")
+  ap.add_argument("--joints", choices=("legs", "all"), default="legs",
+                  help="the humanoid's joints the policy drives")
   args = ap.parse_args(argv)
   arrays = load(args.onnx)
   err = check(args.onnx, arrays)
@@ -104,7 +110,7 @@ def main(argv=None) -> None:
     "task": args.task, "gpu": args.gpu, "wall": args.wall,
     "envs": args.envs, "iterations": args.iterations,
     "env_steps": args.envs * args.iterations * 24, "onnx_sha256": onnx_sha,
-    **body_facts(args.body),
+    **body_facts(args.body, args.joints),
   }))
   np.savez(args.out, **arrays)
   print(f"wrote {args.out}: {int(arrays['layers'])} layers, "

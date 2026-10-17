@@ -64,6 +64,10 @@ class StandPolicy:
     self.action_joints = tuple(self.training["action_joints"])
     self.action_scale = np.array([float(v) for v in self.meta["action_scale"].split(",")])
     self.observation_names = tuple(self.meta["observation_names"].split(","))
+    #: Each term's scale as training applied it (the height scan's 1/5).
+    self.observation_scales = tuple(
+      float(v) for v in self.meta.get("observation_terms_scale", "").split(",") if v
+    ) or (1.0,) * len(self.observation_names)
     self.stiffness = np.array(self.training["stiffness"], dtype=float)
     self.damping = np.array(self.training["damping"], dtype=float)
     #: Seconds between two policy steps.

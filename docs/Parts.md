@@ -418,9 +418,9 @@ because a joint costs money, training and serving speed (#507, rule 4):
 
 | joints | part | why that part |
 |---|---|---|
-| hip pitch, hip roll, knee, ankle pitch | RobStride **RS04** (120 N·m peak, 35 continuous turning, 28.5 held still; 1.51 kg) | where the body's weight passes: walking's push-off is ~70 N·m at the ankle and the stairs ~92 at the knee and hip roll (the estimates) |
-| hip yaw, ankle roll, shoulder pitch and roll | RobStride **RS03** (60 / 20 / 13 N·m; 0.93 kg) | the hip's turn on the stairs (~51 N·m), the ankle's roll with a margin the foot's width does not need, an arm held out with a load |
-| upper-arm twist, elbow | RobStride **RS02** (17 / 6 / 6 N·m; 0.42 kg) | down the arm, where mass costs the shoulder |
+| hip pitch, hip roll, knee, ankle pitch | RobStride **RS04** (120 N·m peak, 35 continuous turning, 28.5 held still; 1.51 kg) | where the body's weight passes: walking's push-off is ~70 N·m at the ankle, and up the house's flight, flown, the knee 108 (its RMS 89 % of its rating over the 11 s) and coming down the ankle pitch at its 120 peak |
+| hip yaw, ankle roll, shoulder pitch and roll | RobStride **RS03** (60 / 20 / 13 N·m; 0.93 kg) | the hip's turn (27 N·m up the flight, flown, where it was estimated at ~51), the ankle's roll (52 coming down a flight, 86 % of its peak), an arm held out with a load -- and pushing the body up off the floor at its whole 60 (the get-up) |
+| upper-arm twist, elbow | RobStride **RS02** (17 / 6 / 6 N·m; 0.42 kg) | down the arm, where mass costs the shoulder; ⚠ the get-up pushes both to their 17 N·m peak, every time |
 | wrist pitch | RobStride **RS00** (14 / 5 / 3.6 N·m; 0.31 kg) | the gripper and what it holds, ahead of it |
 | wrist roll | RobStride **RS05** (5.5 / 1.6 / 1.35 N·m; 0.24 kg) | turns only the gripper, to the handle |
 | grippers | Unitree **Dex1-1** (90 mm, 5–120 N, 550 g) | a parallel gripper on sale, built for a humanoid this size, that takes a stiffness in each command and reports its angle and a torque estimate |

@@ -76,10 +76,14 @@ class HumanoidBody(Body):
 
   STILL = STILL
   level_tilt_rad = LEVEL_TILT_RAD
-  #: It does not get itself up yet (its get-up is stage 5's), so a fall is
-  #: the topple's hold.
-  rights_itself = False
-  stuck_after_s = TOPPLE_HOLD_S
+  #: How long a fall may last before it is the `stuck` death, s; without
+  #: its get-up policy, the topple's hold. MEASURED (`humanoid_spike.py
+  #: --fall`): it stood from six shoves on a bare floor in 2.7-4.2 s, and
+  #: from 17 of 20 in the house within 15 s, the slowest 11.9 s; of the
+  #: three still down, one stood at 30 s, at the foot of the flight it had
+  #: fallen down. The quadruped's 20 (its slowest 4.6), the margin for
+  #: falls those places do not make.
+  GETUP_BUDGET_S = 20.0
 
   def __init__(self, model, data, handle: RobotHandle = FIRST,
                policy: StandPolicy | None = None, walk: StandPolicy | None = None,
@@ -109,7 +113,21 @@ class HumanoidBody(Body):
     self.last_aside = None
     self.collision_steps = self.press_steps = 0
     self.resting = False
-    self.posture = "standing"
+
+  @property
+  def rights_itself(self) -> bool:
+    """Whether it gets itself up: with its get-up policy, it does."""
+    return self.mission.getup is not None
+
+  @property
+  def stuck_after_s(self) -> float:
+    return self.GETUP_BUDGET_S if self.rights_itself else TOPPLE_HOLD_S
+
+  @property
+  def posture(self) -> str:
+    """`getting_up` while its get-up policy has the joints, else `standing`
+    (it rests standing)."""
+    return "getting_up" if self.mission.legs == "getup" else "standing"
 
   # Its drivers are the mission's: the standing policy's, the walking
   # policy's and the arms'.
