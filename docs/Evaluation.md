@@ -14,8 +14,8 @@ stopped?**
 What the project is *for* is stated in `PluggyPlan.md` ("What this project is
 for"): six qualities the agent is meant to maximise. Each has a metric and a
 measurement (§3, "The six qualities"), read off the deployed world's rows;
-capability's per-task record is defined ahead of the demos that will
-produce it (#465).
+capability's per-task record is read off the demos' attempts (#465, #493;
+§4).
 
 The gap a measurement closes: `Top_of_mind.md` is read on every decision
 (`ThoughtFiles.volatile`), so an opinion the robot wrote at hour two is in
@@ -712,7 +712,7 @@ sees them — two arms in one number are §5's unusable mixture).
 on a shape named here that is not in the module, or there and not here.
 
 **1. Capability** — *can it acquire new skills by its own effort, and what
-does a skill cost it.* Today's metric is **first solve** — for each
+does a skill cost it.* Off the observatory its metric is **first solve** — for each
 challenge with pre-declared criteria (Challenges.md: the tower and the
 bench), whether it was solved and how many attempts came first, beside
 what the agent MAKES to get there: procedures that ran, and tools that
@@ -731,27 +731,29 @@ the tool and procedure sources are empty by construction.
 
 **The per-task record** is how the restated quality is measured (#465):
 learning efficiency, the experience it takes to reach a threshold on a task
-new to the robot (Chollet, "On the Measure of Intelligence", 2019). Per
-task, each part kept apart and never summed, because a skill bought with a
-demonstration and one bought with a thousand imagined attempts are
+new to the robot (Chollet, "On the Measure of Intelligence", 2019). Its
+rows are a demo's attempts, written by the harness (§4) and read by
+`qualities.per_task_record`, the shape table's row, off no observatory.
+Per task, each part kept apart and never summed, because a skill bought
+with a demonstration and one bought with a thousand imagined attempts are
 different results:
 
-- **the outcome:** whether it reached the threshold, and its success rate
-  with a 95 % interval;
-- **experience:** real attempts, real sim-seconds, imagination compute
-  (CPU-seconds) and LLM tokens;
-- **human help:** demonstrations, interventions and scene resets;
-- **later, with the robot's own test of success (#493):** self-evaluation
-  accuracy, meaning how often the robot thought it had succeeded and hadn't,
-  and how often it missed a real success. Its test is scored against the
-  world's verdict: our grading, computed by code from the true state and
+- **the outcome:** the attempt that first passed, and the tasks passed
+  within n attempts for n = 1 to 5, each a share with its 95 % Wilson
+  interval over the tasks that passed by n or were tried n times; a task
+  tried fewer times and never passed is `unflown` beside it, not a failure;
+- **experience:** real attempts, real sim-seconds, a procedure's steps,
+  imagination compute (CPU-seconds) and LLM tokens, summed by kind, and
+  None where a row did not say;
+- **help:** the world's scene resets (one before every attempt but a
+  task's first), demonstrations and interventions;
+- **the robot's own test against the world's verdict:** agreed, thought it
+  had passed and had not, missed a real pass, said nothing. Its test is
+  scored against our grading, computed by code from the true state and
   never shown to the robot (#465's three layers).
 
-⚠ **IT IS NOT A ROW IN THE SHAPE TABLE YET.** Nothing produces its rows. It
-enters the table with its function when a demo does (§7: measurement waits
-for the design), and `tests/test_qualities.py` fails on a row of the table
-with no function behind it. Until then first solve is the quality's metric,
-unchanged.
+The first rows are the reference's (§4). ⚠ Off the observatory first solve
+is still the quality's metric: no served world offers a demo's task.
 
 **2. Empathy** — *can it tell that the beings around it have minds, and
 predict them.* Metric: **prediction accuracy** — the one pure probe, a
@@ -970,10 +972,48 @@ informs a decision:
 
 ## 4. The harness
 
-There is none now. `scripts/experiment.py` flew N days of a configuration
-into committed `results/` and went with the rover (#376; `rover-final` has
-it). #465's demos need a new one, and #493's stage 1 starts it: the world's
-verdict, the attempt protocol, a held-out seed and a row per attempt.
+`evaluation/attempts.py` (#493's stage 1) is what #465's demos fly their
+baselines and flights through; `scripts/experiment.py`, which flew days of
+a configuration, went with the rover (#376). It is a KIT another builder
+could run: body-agnostic through `Body`, a task as data (`Task`: the chest,
+its mount, the body, the grader) beside the code that grades it
+(`challenge/lid.py`, Challenges.md §9), and nothing that reads a body's
+internals. Its rules:
+
+- **an attempt is one try from a declared start**: the task's set-out built
+  afresh, the chest shut and caught where it stands, the body where it
+  starts with the tool its set-out gives it, settled. A skill's own retries
+  inside it (the probe's walk-ins) are not attempts;
+- **between attempts the world resets the scene**, and every reset is help
+  the world gave, counted on its row: MuJoCo's resets are free and exact,
+  and a real world's are neither (§5);
+- **the call is wherever the skill ended, or its budget did** (`cut`; 300
+  sim-s, the probe's own patience), then the hold with the body held still,
+  and one verdict through `scoring.evaluate`, graded and paid nothing;
+- **what the skill says of itself is its own test**, recorded beside the
+  verdict and never read by it;
+- ⚠ **an attempt is its set-out EXACTLY**, sensor noise included: code that
+  learns nothing between attempts earns the same verdict at every one, so a
+  reference flies one attempt a task;
+- **held-out tasks** are chests nobody has flown, from 1,000,000 up, past
+  every public set-out (0–127), drawn by a seed FIXED AFTER THE BUILD IS
+  FROZEN: its commit's (`attempts.seed_of`). ⚠ Whoever built the generator
+  knows its family, and could commit until a seed looked kind, so a result
+  on them is weaker than a sealed pool's, and says so.
+
+`scripts/attempts.py` flies a skill through it and reads a record back as
+the per-task record (§3).
+
+**The reference** (#493): the probe, our reactive opener as code on the
+quadruped (`legs.probe`, #466), over its 32 public chests at `8379e63`.
+**32 of 32 passed at the first attempt** (95 % interval 0.89–1.00), its own
+word agreeing every time: 83.6–99.6 sim-s an attempt, 2,884 in all, no
+token, no imagination, no help. Every lid went to 62.2–64.4 deg and came
+down at 0.50–0.55 rad/s at its fastest while open. It is code's foresight
+(the knob's tag, the hinge guessed along the top's back edge, the arc
+planned, the arm softened to Kp 8): what a skill on this chest can do,
+never a robot acquiring one. Chest 0 flown twice from fresh set-outs, and
+in the batch, gave one row to the last digit.
 
 ## 5. What silently invalidates a number
 
@@ -1423,8 +1463,8 @@ closed with the capacity sweep unflown, #118) outlive it:
 death conditions and points semantics settle, and one measured after, do not
 describe a gradient — they describe two different experiments sharing a name.
 The six qualities' metrics are defined (§3, "The six qualities") and are read
-off the observatory, never off a rung; capability's per-task record waits
-for the demo that produces its rows.
+off the observatory, never off a rung; capability's per-task record is
+read off a demo's attempts (§4), never off the observatory.
 
 ⚠ **A GATE IS NOT A SERIES.** What still runs in the meantime is capability
 gates: cheap, version-local, pass/fail questions that decide the next milestone
