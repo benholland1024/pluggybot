@@ -54,8 +54,21 @@ pull; shoves and pulls ramp up over the first 1200 iterations
 (`DISTURBANCE_STAGES`, `--env.curriculum.disturbances.params.scale`), and
 each sole is charged for its distance from where the episode's stance put
 it (`feet_anchor`; SimNotes, "The humanoid stands, reaches and grasps").
-Export it with `--body humanoid`, which records the leg joints it drives and
-each one's gains. `humanoid_train/g1_check.py` flies mjlab's stock G1
+`Pluggy-Humanoid-Walk` is mjlab's G1 velocity recipe on our body, on flat
+ground: the actor blind to its base velocity as the quadruped's is, the arms
+scripted more quietly than a reach moves them, the legs charged for meeting
+each other, and the hips' yaw given twice the G1's tolerance -- with no
+waist a turn is the hips' yaw alone, and at the G1's a policy asked 0.5
+rad/s turned 0.08 (SimNotes, "The humanoid walks").
+`Pluggy-Humanoid-Walk-Rough` carries the flat walker on over rough patches,
+slopes and low blocks, every difficulty at once (`--agent.resume True
+--agent.load-run '.*_walk2$' --agent.load-checkpoint model_2999.pt`): its
+observations are the flat task's, so the checkpoint carries over, and
+mjlab's terrain curriculum is off because it promotes a robot for ending an
+episode 4 m from its tile's centre, which a turning command seldom does
+(rough1's levels sat at 0.03 of 9). Export any of them with
+`--body humanoid`, which records the leg joints it drives and each one's
+gains. `humanoid_train/g1_check.py` flies mjlab's stock G1
 velocity policy outside mjlab -- numpy, MuJoCo's C engine, at 5 ms and the
 served 2 ms -- the pipeline's check on a body its maker walks (#507, rule 6).
 

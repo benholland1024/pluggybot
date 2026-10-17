@@ -692,21 +692,32 @@ def members() -> frozenset[str]:
 
 def body_for(model, data, handle: RobotHandle = FIRST, **kw) -> Body:
   """The body this robot IS, in this world: the one choice a lifecycle
-  built without one makes (`HubLifecycle(body=None)`) -- legs
-  (`legs/body.py`, issue #387), found by this robot's names; a world with
-  no robot of ours under them is refused. `kw` is its navigation: the
-  viewer, pacing, rack prior and map bounds."""
-  if not is_quadruped(model, handle):
-    raise ValueError(f"no body under {handle.root!r} in this world: the "
-                     "quadruped is the one body (the rover left in #376)")
-  from pluggybot.legs.body import QuadBody
-  return QuadBody(model, data, handle=handle, **kw)
+  built without one makes (`HubLifecycle(body=None)`) -- the quadruped
+  (`legs/body.py`, issue #387) or the humanoid (`humanoid/body.py`, #507),
+  found by this robot's names; a world with no robot of ours under them is
+  refused. `kw` is its navigation: the viewer, pacing, rack prior and map
+  bounds (the humanoid takes the bounds, and its policies)."""
+  if is_quadruped(model, handle):
+    from pluggybot.legs.body import QuadBody
+    return QuadBody(model, data, handle=handle, **kw)
+  if is_humanoid(model, handle):
+    from pluggybot.humanoid.body import HumanoidBody
+    return HumanoidBody(model, data, handle=handle,
+                        **{k: v for k, v in kw.items() if k in ("grid_bounds", "policy", "walk")})
+  raise ValueError(f"no body under {handle.root!r} in this world: the quadruped "
+                   "and the humanoid are the bodies (the rover left in #376)")
 
 
 def is_quadruped(model, handle: RobotHandle = FIRST) -> bool:
-  """Does this robot walk? Its first leg's hip, by name."""
+  """Does this robot walk on four legs? Its first leg's hip, by name."""
   return mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_JOINT,
                            handle.el("FL_hip_abd")) >= 0
+
+
+def is_humanoid(model, handle: RobotHandle = FIRST) -> bool:
+  """...or on two (#507)? Its left hip's pitch, by name."""
+  return mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_JOINT,
+                           handle.el("left_hip_pitch")) >= 0
 
 
 # ---- the stub: a body with no physics ---------------------------------------

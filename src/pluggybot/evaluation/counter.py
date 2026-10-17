@@ -37,7 +37,11 @@ COUNTER_H, COUNTER_D, COUNTER_W = 0.90, 0.60, 1.20
 #: A set-out draws: the knob's plumb place this far ahead of the soles'
 #: middle and this far to its left (in front of the left shoulder, which
 #: hangs 0.18 m out), and the chest turned this far off square (m, rad).
-KNOB_AHEAD = (0.42, 0.50)
+#: ⚠ The knob then swings back under its bracket (0.57 rad on its pin), 2-3
+#: cm further. Drawn 0.42-0.50 m it hung where a crouch's arm met the
+#: counter; hanging under 0.37 m, at 0.99 m up, no grip its arm holds folds
+#: the hand back that near (two set-outs of ten drawn from 0.34).
+KNOB_AHEAD = (0.37, 0.43)
 KNOB_LEFT = (0.12, 0.24)
 TURNED = math.radians(12.0)
 #: The chest's front this far back from the counter's edge, at least, m:
@@ -102,8 +106,8 @@ def world(so: SetOut, policy=None):
   the counter and the chest on it. Returns the model, its data and the
   humanoid's body (`HumanoidBody`), its stance commissioned where it
   stands."""
+  from pluggybot.body import body_for
   from pluggybot.humanoid import model as hm
-  from pluggybot.humanoid.body import HumanoidBody
   spec = mujoco.MjSpec.from_file(HOME_XML)
   frame = spec.worldbody.add_frame()
   frame.pos = [so.start[0], so.start[1], 0.0]
@@ -120,7 +124,7 @@ def world(so: SetOut, policy=None):
   model = spec.compile()
   data = mujoco.MjData(model)
   mujoco.mj_forward(model, data)
-  humanoid = HumanoidBody(model, data, policy=policy)
+  humanoid = body_for(model, data, policy=policy)
   humanoid.start_at(*so.start)
   return model, data, humanoid
 

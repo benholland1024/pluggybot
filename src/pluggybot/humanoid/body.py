@@ -276,10 +276,13 @@ class HumanoidBody(Body):
     dt = self._m.opt.timestep
     joint = self._arm_joint(act)
     if joint is None:
-      ctrl = self._d.ctrl
-      want = min(max(target, 0.0), hp.GRIPPER.stroke) / 2
-      while abs(ctrl[act] - want) > 1e-9:
-        ctrl[act] += max(-speed * dt / 2, min(speed * dt / 2, want - ctrl[act]))
+      yield from self.mission.to_stand_routine()
+      g = next(g for g in self.reach.grippers.values() if g.act == act)
+      width = self.setpoint(act)
+      want = min(max(target, 0.0), hp.GRIPPER.stroke)
+      while abs(width - want) > 1e-9:
+        width += max(-speed * dt, min(speed * dt, want - width))
+        g.open(width)
         yield STILL
     else:
       yield from self.mission.to_stand_routine()

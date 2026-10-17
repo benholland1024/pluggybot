@@ -2,8 +2,9 @@
 before anything is trained, and a scene for each part to watch.
 
 The body is `pluggybot.humanoid.model.HumanoidSpec`, its parts
-`pluggybot.humanoid.parts`; SimNotes, "The humanoid body", has every table
-below and Parts.md, "The humanoid body", the parts and the bill.
+`pluggybot.humanoid.parts`; SimNotes, "The humanoid body" and the three
+sections after it, has every table below and Parts.md, "The humanoid body",
+the parts and the bill.
 
   --view SCENE  a scene in MuJoCo's viewer, at real time, over and over
                 until the window closes (MUJOCO_GL unset); the terminal says
@@ -15,24 +16,30 @@ below and Parts.md, "The humanoid body", the parts and the bill.
                 and the floor, each held; `grasp` -- a drawer's handle
                 gripped (judged by the gripper's own reading) and the drawer
                 drawn out with a compliant arm, what the hand felt said
-                beside the truth
+                beside the truth; `demo` -- #466's chest on a counter, its
+                knob found by its tag, reached and gripped, every act a
+                `Body` member; `walk` -- from the living room into the
+                kitchen and back, steered by its own map (the house's walls
+                raised to a room's height)
   --strip SCENE the scene's filmstrip, headless (`--out` names it)
   --policy NPZ  fly another standing policy (default models/humanoid_stand.npz)
   --mass        the mass budget by segment, beside the T2's published model
   --torque      the torque table: each joint's load against its actuator's
                 peak and continuous ratings, standing, crouched, on one
-                leg, reaching, and -- ESTIMATES until stages 4 and 5 have
-                policies -- walking and on the house's stairs
+                leg, reaching; walking and on the house's stairs as
+                ESTIMATES; then walking FLOWN by the walking policy (rule 7)
   --thermal     the hottest winding, each activity sustained
   --energy      watts by activity, and what the pack buys
   --sensors     what the head's cameras and the LIDAR see from the stand
   --shove       the shoves it stands through each way, standing and crouched
   --envelope    where a hand reaches, floor to over the head, flown balancing
   --hold        a locked handle gripped and pulled harder until something gives
+  --rough [NPZ,...]  the walking policy (or these, compared) over a doorstep,
+                rough ground, a slope up and down and a grid of blocks
   (default)     the `body` scene's filmstrip, humanoid_spike.png
 
 Usage:
-  uv run python scripts/humanoid_spike.py --view body|stand|reach|grasp
+  uv run python scripts/humanoid_spike.py --view body|stand|reach|grasp|demo|walk
   MUJOCO_GL=egl uv run python scripts/humanoid_spike.py [--torque|--shove|...]
 """
 
@@ -587,6 +594,74 @@ def estimate_table(mass: float | None = None) -> None:
           f"{m.rated_torque:g}): {t:4.0f} C of {m.max_winding_c:.0f}")
   for tag, text in ESTIMATE_SOURCES.items():
     print(f"  [{tag}] {text}")
+
+
+# ---- rule 7's re-read: walking, off the walking policy -----------------------------
+
+#: The speeds the walking rows are flown at, m/s: a stroll, a walk, its top.
+WALK_SPEEDS = (0.5, 1.0, 1.3)
+#: Each is flown this long, s, its first `WALK_SETTLE_S` (the start) left
+#: out of the record.
+WALK_S, WALK_SETTLE_S = 10.0, 3.0
+
+
+def walking_rows() -> list[tuple[str, dict]]:
+  """Each speed walked on a bare floor by the walking policy (`models/
+  humanoid_walk.npz`), its senses the robot's, its arms held hanging by the
+  reach: every leg joint's |torque| peak and RMS after the start, and
+  whether it kept its feet (`hold`'s record's shape)."""
+  from pluggybot.humanoid.walk import WalkDriver
+  rows = []
+  for v in WALK_SPEEDS:
+    m, d = floor_world()
+    mujoco.mj_resetDataKeyframe(m, d, 0)
+    mujoco.mj_forward(m, d)
+    stand = StandDriver(m, d)
+    reach = Reach(m, d, stand)
+    walk = WalkDriver(m, d, trunk=stand.trunk, joints=stand.joints)
+    walk.ask(v, 0.0, 0.0)
+    act = [m.actuator(j).id for j in hm.JOINT_NAMES]
+    root = m.body(ROBOT_ROOT).id
+    taus, stood = [], True
+    for _ in range(int(WALK_S / m.opt.timestep)):
+      walk.step()
+      reach.step()
+      mujoco.mj_step(m, d)
+      if d.time >= WALK_SETTLE_S:
+        taus.append(np.abs(d.actuator_force[act]))
+      if d.xpos[root][2] < FALLEN_M:
+        stood = False
+        break
+    t = np.array(taus) if taus else np.full((1, len(act)), np.nan)
+    rows.append((f"walking {v:g} m/s", {"mean": np.sqrt((t ** 2).mean(axis=0)),
+                                        "max": t.max(axis=0), "stood": stood, "outside": []}))
+  return rows
+
+
+def walking_table() -> None:
+  """Rule 7: each leg joint walking, FLOWN -- its peak against its part's
+  peak, its RMS against the part's continuous rating turning, and the
+  winding that RMS holds steady at, 40 C ambient (`thermal_table`'s rule).
+  A joint past either rating sends the design back (#507)."""
+  rows = walking_rows()
+  print("WALKING, FLOWN by the walking policy in our physics (rule 7's re-read; "
+        "the estimates above are superseded for walking, the stairs' stand until stage 5):")
+  print(f"{'joint':15s}" + "".join(f"{n:>37s}" for n, _ in rows))
+  print(f"{'':15s}" + "".join(f"{'peak N*m (% peak)  RMS (% rated) C':>37s}" for _ in rows))
+  for kind in hm.LEG:
+    m = hm.CHOSEN.drives[kind]
+    cells = []
+    for _, rec in rows:
+      if not rec["stood"]:
+        cells.append(f"{'FELL':>37s}")
+        continue
+      ks = [k for k, j in enumerate(hm.JOINT_NAMES) if hm.kind(j) == kind]
+      peak = float(rec["max"][ks].max())
+      rms = float(rec["mean"][ks].max())
+      winding = AMBIENT_C[1] + (m.max_winding_c - hp.RS_RATED_AMBIENT_C) * (rms / m.rated_torque) ** 2
+      cells.append(f"{peak:6.1f} ({100 * peak / m.peak_torque:3.0f} %) {rms:5.1f} "
+                   f"({100 * rms / m.rated_torque:3.0f} %) {winding:4.0f}")
+    print(f"{kind:15s}" + "".join(f"{c:>37s}" for c in cells))
 
 
 #: Ambient air for the thermal table, C: a warm room and a hot day.
@@ -1505,11 +1580,16 @@ def demo_scene(body, model, data, records: list | None = None):
   side = "left" if body.to_stance(knob)[1] > 0 else "right"
   yield f"reaching it with the {side} hand, the gripper open"
   yield from drive(body, body.grip_routine(side, False))
-  rot = _rz(body.stance[2]) @ KNOB_GRIP
-  rec["reached"] = yield from drive(body, body.reach_routine(side, knob, rot, patience=20.0))
+  # The first tilt from which a posture it holds puts the knob in reach.
+  for tilt in KNOB_TILTS:
+    rot = _rz(body.stance[2]) @ knob_grip(tilt)
+    rec["reached"] = yield from drive(body, body.reach_routine(side, knob, rot, patience=20.0))
+    if rec["reached"] or body.reach.phase[side] != "rest":
+      break
   if not rec["reached"]:
     yield "  out of its reach"
     return
+  yield f"  there, its fingers tilted {math.degrees(tilt):.0f} deg down"
   yield "shutting the gripper on the knob"
   rec["held"] = yield from drive(body, body.grip_routine(side, True))
   rec["pads"] = ct.pads_hold(model, data, side)
@@ -1527,12 +1607,18 @@ def demo_scene(body, model, data, records: list | None = None):
     records.append(rec)
 
 
-#: The knob's grip: fingers forward, the jaws closing ACROSS it. ⚠ A drop
-#: handle's knob hangs nearly under its pin, its drop bar and stem behind
-#: and above it: jaws closing up and down brought a pad down onto them,
-#: swung the handle 13 deg and stalled 79 mm open with one pad on the knob
-#: -- HELD by the gripper's reading, the pads truly off the knob.
-KNOB_GRIP = frame((1.0, 0.0, 0.0), (0.0, 1.0, 0.0))
+#: The knob's grip: fingers forward and tilted 25 deg down onto it, the jaws
+#: closing ACROSS it. ⚠ A drop handle's knob hangs nearly under its pin,
+#: its drop bar and stem behind and above it: jaws closing up and down
+#: brought a pad down onto them, swung the handle 13 deg and stalled 79 mm
+#: open with one pad on the knob -- HELD by the gripper's reading, the pads
+#: truly off the knob. Level, the plan crouched and the elbow met the
+#: counter; tilted down, it reaches from the stand.
+KNOB_TILTS = tuple(math.radians(d) for d in (25.0, 15.0, 35.0, 45.0))
+
+
+def knob_grip(tilt: float) -> np.ndarray:
+  return frame((math.cos(tilt), 0.0, -math.sin(tilt)), (0.0, 1.0, 0.0))
 
 
 def ch_tag() -> int:
@@ -1541,12 +1627,12 @@ def ch_tag() -> int:
 
 
 def demo_world(k: int | None = None):
+  """Set-out k's world (`evaluation.counter`). ⚠ In the house's own light:
+  a headlight lights the robot's cameras too, and drawn brighter, as the
+  other scenes are, it moved where the knob's tag decoded by 3 cm."""
   from pluggybot.evaluation import counter as ct
   so = ct.set_out(ct.DEMO if k is None else k)
-  model, data, body = ct.world(so, _POLICY)
-  model.vis.headlight.ambient[:] = 0.35
-  model.vis.headlight.diffuse[:] = 0.55
-  return model, data, body
+  return ct.world(so, _POLICY)
 
 
 def view_demo() -> None:
@@ -1581,11 +1667,17 @@ def filmstrip_demo(out: str) -> None:
   tiles, pending, at = [], None, 0.0
 
   def shoot(label):
+    # From the robot's right (the counter hides the hand from the front),
+    # the headlight brighter for this tile alone: the robot's own camera
+    # renders in the house's light (`demo_world`).
     cam = mujoco.MjvCamera()
-    cam.lookat[:] = data.xpos[body.root] + [0.25, 0.0, 0.1]
-    cam.distance, cam.azimuth, cam.elevation = 2.0, CAM_AZIMUTH, CAM_ELEVATION
+    cam.lookat[:] = data.xpos[body.root] + [0.25, 0.0, 0.2]
+    cam.distance, cam.azimuth, cam.elevation = 2.0, 90.0, -15.0
+    light = (model.vis.headlight.ambient.copy(), model.vis.headlight.diffuse.copy())
+    model.vis.headlight.ambient[:], model.vis.headlight.diffuse[:] = 0.35, 0.55
     r.update_scene(data, cam)
     img = Image.fromarray(r.render())
+    model.vis.headlight.ambient[:], model.vis.headlight.diffuse[:] = light
     ImageDraw.Draw(img).text((8, 8), label[:60], fill=(255, 255, 255))
     tiles.append(img)
   for line in demo_scene(body, model, data):
@@ -1610,9 +1702,254 @@ def filmstrip_demo(out: str) -> None:
   print(f"wrote {out}")
 
 
+# ---- stage 4: the scene `walk`, through `Body` ----------------------------------------
+#
+# The humanoid walks across the house and back, steered by the Navigator
+# (`humanoid.mission`): its map off its head's LIDAR and the D435's points
+# under it, its pose off its legs' odometry and IMU, matched to the map.
+# ⚠ The served house's walls are 1.2 m, the rover's; the humanoid's LIDAR
+# spins at 1.41 m and saw over every one. The scene's house is a world of
+# its own with its walls raised to a real 2.4 m (`WALL_M`) -- the served
+# house is untouched (a served humanoid's walls are stage 5's world change).
+
+#: The walls' height in the walk's house, m: a room's, floor to ceiling.
+WALL_M = 2.4
+#: The walk: from the living room, through the hall, into the kitchen and
+#: back (`home.world`'s rooms; the doors are the planner's to find).
+WALK_FROM, WALK_TO = (0.5, 0.5), (-8.5, 4.0)
+
+
+def tall_house_world(at=WALK_FROM, yaw: float = math.pi):
+  """The house with its walls raised to `WALL_M` and the humanoid standing
+  at `at`: the model, its data and its body (`body.body_for`), its map's
+  bounds the house's."""
+  import json
+  from pluggybot.body import body_for
+  spec = mujoco.MjSpec.from_file(HOME_XML)
+  for geom in spec.geoms:
+    if geom.name.startswith("wall_"):
+      old = float(geom.size[2])
+      geom.size = [geom.size[0], geom.size[1], WALL_M / 2]
+      geom.pos = [geom.pos[0], geom.pos[1], geom.pos[2] + WALL_M / 2 - old]
+  frame = spec.worldbody.add_frame()
+  frame.pos = [at[0], at[1], 0.0]
+  frame.quat = _yaw_quat(yaw)
+  spec.attach(hm.attachable(), prefix="", frame=frame)
+  model = spec.compile()
+  data = mujoco.MjData(model)
+  _pose(model, data, hm.stand_qpos())
+  meta = json.load(open(HOME_XML.replace(".xml", ".meta.json")))
+  b = meta["gridBounds"]
+  bounds = (b[0], b[1], b[2], b[3]) if isinstance(b, list) else (b["xMin"], b["yMin"], b["xMax"], b["yMax"])
+  body = body_for(model, data, grid_bounds=bounds)
+  return model, data, body
+
+
+def walk_scene(body, model, data, records: list | None = None):
+  """The `walk` scene, once: there and back, saying how each leg ended."""
+  for name, (x, y) in (("into the kitchen", WALK_TO), ("back to the living room", WALK_FROM)):
+    yield f"walking {name}"
+    t0 = data.time
+    arrived = yield from drive(body, body.go_to_routine(x, y, timeout=120.0))
+    bx, by, _ = body.pose
+    tx, ty, _ = body.true_pose()
+    rec = {"leg": name, "arrived": arrived, "seconds": data.time - t0,
+           "believed_off_m": math.hypot(bx - x, by - y),
+           "truly_off_m": math.hypot(tx - x, ty - y),
+           "belief_error_m": math.hypot(bx - tx, by - ty),
+           "fell": bool(data.xpos[body.root][2] < FALLEN_M)}
+    if records is not None:
+      records.append(rec)
+    why = "" if arrived else f" ({body.gave_up(body.last_drive or {})})"
+    yield (f"  {'there' if arrived else 'did not arrive'} in {rec['seconds']:.0f} s{why}; "
+           f"{100 * rec['truly_off_m']:.0f} cm from the goal truly, its belief "
+           f"{100 * rec['belief_error_m']:.0f} cm off the truth")
+    if rec["fell"]:
+      yield "FELL"
+      return
+
+
+def view_walk() -> None:
+  from mujoco import viewer as mj_viewer
+  model, data, body = tall_house_world()
+  print("the `walk` scene: the humanoid walks from the living room to the kitchen and "
+        "back, steered by its map. Close the window to quit.")
+  with mj_viewer.launch_passive(model, data) as viewer:
+    viewer.cam.type = mujoco.mjtCamera.mjCAMERA_TRACKING
+    viewer.cam.trackbodyid = body.root
+    viewer.cam.distance, viewer.cam.azimuth, viewer.cam.elevation = 4.0, CAM_AZIMUTH, -25.0
+    while viewer.is_running():
+      wall = time.time() - data.time
+      for line in walk_scene(body, model, data):
+        if line:
+          print(f"  -> {line}")
+        if not viewer.is_running():
+          return
+        if int(round(data.time / model.opt.timestep)) % 10 == 0:
+          viewer.sync()
+          ahead = data.time - (time.time() - wall)
+          if ahead > 0:
+            time.sleep(ahead)
+
+
+def filmstrip_walk(out: str, every_s: float = 6.0) -> None:
+  """The walk's filmstrip: a tile every `every_s`, from above and behind."""
+  from PIL import Image, ImageDraw
+  model, data, body = tall_house_world()
+  r = mujoco.Renderer(model, 300, 400)
+  tiles, next_t, label = [], 0.0, ""
+  for line in walk_scene(body, model, data):
+    if line and not line.startswith("  "):
+      label = line
+    elif line:
+      print(line)
+    if data.time >= next_t:
+      next_t += every_s
+      cam = mujoco.MjvCamera()
+      cam.lookat[:] = data.xpos[body.root]
+      cam.distance, cam.azimuth, cam.elevation = 4.5, math.degrees(body.true_pose()[2]) + 180, -50
+      # Brighter for this tile alone: the robot's cameras render in the
+      # house's light.
+      light = (model.vis.headlight.ambient.copy(), model.vis.headlight.diffuse.copy())
+      model.vis.headlight.ambient[:], model.vis.headlight.diffuse[:] = 0.4, 0.6
+      r.update_scene(data, cam)
+      img = Image.fromarray(r.render())
+      model.vis.headlight.ambient[:], model.vis.headlight.diffuse[:] = light
+      ImageDraw.Draw(img).text((8, 8), f"{data.time:.0f} s: {label}"[:60], fill=(255, 255, 255))
+      tiles.append(img)
+  r.close()
+  body.close()
+  strip = Image.new("RGB", (400 * min(4, len(tiles)), 300 * ((len(tiles) + 3) // 4)), (255, 255, 255))
+  for k, tile in enumerate(tiles):
+    strip.paste(tile, (400 * (k % 4), 300 * (k // 4)))
+  strip.save(out)
+  print(f"wrote {out}")
+
+
+# ---- stage 4: rough ground -----------------------------------------------------------
+# A walking policy over what the rough task's terrains are at their hardest
+# (`training/humanoid_train/walk.py`, `TERRAINS`), each course a world of its
+# own, walked straight ahead off the robot's own senses: a doorstep twice,
+# rough ground, a slope up and down, a grid of blocks. Graded by us: whether
+# it fell, and how far it got.
+
+#: Each course is walked at this speed, m/s, for this long, s.
+ROUGH_V, ROUGH_S = 0.6, 12.0
+#: Where each course begins ahead of the robot, m.
+ROUGH_AT = 1.0
+COURSES = ("flat", "doorstep", "rough", "slope", "blocks")
+#: The courses: a doorstep's rise, the rough ground's spread (the task's
+#: 1-6 cm), the slope's rise over run (the task's steepest) and the blocks'
+#: tallest (the task's hardest grid is +-8 cm about its platform) and their
+#: side, m.
+DOORSTEP_M, ROUGH_M, SLOPE, BLOCK_M, BLOCK_W = 0.05, 0.06, 0.3, 0.08, 0.45
+
+
+def course_world(kind: str, seed: int = 0):
+  """The bare robot at its stand on a floor with course `kind` ahead of it,
+  its random parts drawn from `seed`: the model and its data."""
+  rng = np.random.default_rng(seed)
+  spec = mujoco.MjSpec.from_string(hm.body_xml())
+  wb = spec.worldbody
+  grey = [0.55, 0.5, 0.45, 1.0]
+
+  def box(name, x0, x1, top, y=1.5, quat=(1.0, 0.0, 0.0, 0.0), z=None):
+    wb.add_geom(name=name, type=mujoco.mjtGeom.mjGEOM_BOX, rgba=grey, quat=list(quat),
+                size=[(x1 - x0) / 2, y, top / 2], pos=[(x0 + x1) / 2, 0.0, top / 2 if z is None else z])
+
+  if kind == "doorstep":
+    for k, x in enumerate((ROUGH_AT, ROUGH_AT + 2.5)):
+      box(f"step{k}", x, x + 0.6, DOORSTEP_M)
+  elif kind == "blocks":
+    for i in range(16):
+      for j in range(7):
+        top = rng.uniform(0.0, BLOCK_M)
+        x0, y0 = ROUGH_AT + i * BLOCK_W, (j - 3.5) * BLOCK_W
+        wb.add_geom(name=f"block{i}_{j}", type=mujoco.mjtGeom.mjGEOM_BOX, rgba=grey,
+                    size=[BLOCK_W / 2, BLOCK_W / 2, top / 2 + 0.001],
+                    pos=[x0 + BLOCK_W / 2, y0 + BLOCK_W / 2, top / 2])
+  elif kind == "rough":
+    nrow, ncol, cell = 40, 80, 0.1
+    h = rng.uniform(0.0, 1.0, size=(nrow, ncol))
+    spec.add_hfield(name="rough", size=[ncol * cell / 2, nrow * cell / 2, ROUGH_M, 0.02],
+                    nrow=nrow, ncol=ncol, userdata=h.ravel().tolist())
+    wb.add_geom(name="rough", type=mujoco.mjtGeom.mjGEOM_HFIELD, hfieldname="rough",
+                pos=[ROUGH_AT + ncol * cell / 2, 0.0, 0.0], rgba=grey)
+  elif kind == "slope":
+    th = math.atan(SLOPE)
+    half = 0.05
+    for name, x0, sign in (("up", ROUGH_AT, 1), ("down", ROUGH_AT + 2.0, -1)):
+      ramp = 1.0 / math.cos(th)
+      quat = (math.cos(th / 2), 0.0, -sign * math.sin(th / 2), 0.0)
+      mid_x = x0 + 0.5 + sign * half * math.sin(th)
+      wb.add_geom(name=name, type=mujoco.mjtGeom.mjGEOM_BOX, rgba=grey, quat=list(quat),
+                  size=[ramp / 2, 1.5, half], pos=[mid_x, 0.0, SLOPE / 2 - half * math.cos(th)])
+    box("top", ROUGH_AT + 1.0, ROUGH_AT + 2.0, SLOPE)
+  model = spec.compile()
+  data = mujoco.MjData(model)
+  mujoco.mj_resetDataKeyframe(model, data, 0)
+  return model, data
+
+
+def course_flight(kind: str, seed: int, npz: str | None = None) -> dict:
+  """Course `kind` walked once by the walking policy at `npz` (the served
+  one by default), from a start drawn from `seed` -- up to 0.3 m back and
+  0.15 rad askew -- so the feet meet each edge somewhere new."""
+  from pluggybot.humanoid.walk import WalkDriver
+  m, d = course_world(kind, seed)
+  rng = np.random.default_rng(1000 + seed)
+  d.qpos[0] -= rng.uniform(0.0, 0.3)
+  d.qpos[3:7] = _yaw_quat(rng.uniform(-0.15, 0.15))
+  mujoco.mj_forward(m, d)
+  stand = StandDriver(m, d)
+  reach = Reach(m, d, stand)
+  walk = WalkDriver(m, d, policy=StandPolicy(npz) if npz else None,
+                    trunk=stand.trunk, joints=stand.joints)
+  walk.ask(ROUGH_V, 0.0, 0.0)
+  root = m.body(ROBOT_ROOT).id
+  x0, fell = float(d.xpos[root][0]), False
+  for _ in range(int(ROUGH_S / m.opt.timestep)):
+    walk.step()
+    reach.step()
+    mujoco.mj_step(m, d)
+    # Our grading off the truth: the trunk more than 60 deg off upright.
+    if d.xmat[root][8] < 0.5:
+      fell = True
+      break
+  return {"course": kind, "seed": seed, "npz": npz or "served", "fell": fell,
+          "made_m": float(d.xpos[root][0]) - x0, "s": float(d.time)}
+
+
+def _course_flight(job):
+  return course_flight(*job)
+
+
+def rough_table(npzs: list[str | None], seeds: int = 4, jobs: int = 4) -> None:
+  """Each course walked `seeds` times by each policy: falls, and the mean
+  distance made of the `ROUGH_V` * `ROUGH_S` asked. One process a flight."""
+  import multiprocessing as mp
+  work = [(kind, s, npz) for npz in npzs for kind in COURSES for s in range(seeds)]
+  with mp.get_context("spawn").Pool(jobs, maxtasksperchild=1) as pool:
+    rows = pool.map(_course_flight, work)
+  print(f"ROUGH GROUND, each course walked {seeds} times at {ROUGH_V} m/s for {ROUGH_S:g} s "
+        f"({ROUGH_V * ROUGH_S:.1f} m asked) from a start up to 0.3 m back and 0.15 rad askew; "
+        f"falls of {seeds}, the mean distance made, m:")
+  print(f"{'policy':28s}" + "".join(f"{k:>14s}" for k in COURSES))
+  for npz in npzs:
+    cells = []
+    for kind in COURSES:
+      rs = [r for r in rows if r["npz"] == (npz or "served") and r["course"] == kind]
+      cells.append(f"{sum(r['fell'] for r in rs)} fell {np.mean([r['made_m'] for r in rs]):4.1f}")
+    print(f"{os.path.basename(npz or 'served (humanoid_walk.npz)')[:28]:28s}"
+          + "".join(f"{c:>14s}" for c in cells))
+  print(f"  doorsteps {100 * DOORSTEP_M:.0f} cm; rough ground to {100 * ROUGH_M:.0f} cm; "
+        f"a slope of {SLOPE} up 1 m, level 1 m, down 1 m; blocks {100 * BLOCK_W:.0f} cm square "
+        f"to {100 * BLOCK_M:.0f} cm tall")
+
+
 SCENES = {"body": view_body, "stand": lambda: view_stage2("stand"),
           "reach": lambda: view_stage2("reach"), "grasp": lambda: view_stage2("grasp"),
-          "demo": view_demo}
+          "demo": view_demo, "walk": view_walk}
 
 
 def main(argv=None) -> None:
@@ -1629,6 +1966,8 @@ def main(argv=None) -> None:
                   help="where the hand reaches, floor to over the head, flown balancing")
   ap.add_argument("--hold", action="store_true",
                   help="a locked drawer's handle pulled harder until something gives")
+  ap.add_argument("--rough", nargs="?", const="", default=None, metavar="NPZ,...",
+                  help="the walking policy over rough courses (or these policies, compared)")
   ap.add_argument("--mass", action="store_true", help="the mass budget beside the T2's")
   ap.add_argument("--torque", action="store_true",
                   help="each joint's load: held in our physics, then the estimates")
@@ -1645,6 +1984,8 @@ def main(argv=None) -> None:
     SCENES[args.view]()
   elif args.strip == "demo":
     filmstrip_demo(args.out)
+  elif args.strip == "walk":
+    filmstrip_walk(args.out)
   elif args.strip and args.strip != "body":
     filmstrip_stage2(args.strip, args.out)
   elif args.shove:
@@ -1653,12 +1994,16 @@ def main(argv=None) -> None:
     envelope_table(policy)
   elif args.hold:
     hold_table(policy)
+  elif args.rough is not None:
+    rough_table([p or None for p in args.rough.split(",")])
   elif args.mass:
     mass_table()
   elif args.torque:
     torque_table()
     print()
     estimate_table()
+    print()
+    walking_table()
   elif args.thermal:
     thermal_table()
   elif args.energy:

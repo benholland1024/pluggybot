@@ -13,9 +13,14 @@ made honest where the stock recipe is not -- the quadruped's changes
   - the legs meet each other (`models/humanoid.xml`'s contact pairs), so a
     stride is charged for a knock as the G1's self-collision is.
 
-`Pluggy-Humanoid-Walk` is flat ground; `-Rough` adds the house's floors'
-cousins -- rough patches, slopes and low blocks -- under the curriculum
-mjlab's velocity task climbs. The stairs are stage 5's.
+`Pluggy-Humanoid-Walk` is flat ground. `-Rough` is the flat walker trained
+on (`--agent.resume`) over the house's floors' cousins -- rough patches,
+slopes and low blocks -- every difficulty at once: mjlab's terrain curriculum
+promotes a robot for ending an episode 4 m from its tile's centre, which a
+turning, sidestepping command seldom does (`quad_train/stairs.py`), and
+rough1's levels sat at 0.03 of 9 after a thousand iterations. Its
+observations are the flat task's, so the one checkpoint carries over: the
+critic is blind too. The stairs are stage 5's.
 """
 
 import math
@@ -25,6 +30,7 @@ import torch
 from mjlab.envs import ManagerBasedRlEnvCfg
 from mjlab.envs.mdp import dr
 from mjlab.envs.mdp.actions import JointPositionActionCfg
+from mjlab.envs.mdp.terminations import nan_detection
 from mjlab.managers import TerminationTermCfg
 from mjlab.managers.event_manager import EventTermCfg
 from mjlab.managers.reward_manager import RewardTermCfg
@@ -182,11 +188,11 @@ def walk_env_cfg(play: bool = False) -> ManagerBasedRlEnvCfg:
   return _play(cfg) if play else cfg
 
 
-#: Rough ground, BLIND (the critic sees the terrain, the actor does not):
-#: what a garden path, a doorstep and a rug give a walker -- rough patches
-#: to 6 cm, slopes to 0.3, a grid of blocks to 8 cm.
+#: Rough ground, both networks blind: what a garden path, a doorstep and a
+#: rug give a walker -- rough patches to 6 cm, slopes to 0.3, a grid of
+#: blocks to 8 cm.
 TERRAINS = TerrainGeneratorCfg(
-  size=(8.0, 8.0), border_width=20.0, num_rows=10, num_cols=20, curriculum=True,
+  size=(8.0, 8.0), border_width=20.0, num_rows=10, num_cols=20, curriculum=False,
   sub_terrains={
     "flat": terrain_cfg.flat(proportion=0.25),
     "rough": terrain_cfg.random_rough(proportion=0.3, noise_range=(0.01, 0.06)),
@@ -200,10 +206,21 @@ TERRAINS = TerrainGeneratorCfg(
 
 def rough_env_cfg(play: bool = False) -> ManagerBasedRlEnvCfg:
   cfg = _common(make_velocity_env_cfg())
-  cfg.sim.mujoco.ccd_iterations = 50
+  # A world that goes NaN is reset, never the run ended (rough1 went NaN at
+  # its iteration 1273). ⚠ The stock G1 rough's 70 contacts a world ran a
+  # 5090 out of memory at 4096 worlds; the default 35 fit.
+  cfg.sim.mujoco.ccd_iterations = 500
   cfg.sim.contact_sensor_maxmatch = 64
+  cfg.terminations["nan"] = TerminationTermCfg(func=nan_detection)
   cfg.scene.terrain.terrain_generator = replace(TERRAINS)
-  del cfg.observations["actor"].terms["height_scan"]
+  cfg.scene.sensors = tuple(s for s in cfg.scene.sensors if s.name != "terrain_scan")
+  for group in ("actor", "critic"):
+    del cfg.observations[group].terms["height_scan"]
+  cfg.curriculum.pop("terrain_levels", None)
+  # Carried on from the flat walker, the commands start at their full range.
+  cfg.curriculum.pop("command_vel", None)
+  twist = cfg.commands["twist"]
+  twist.ranges.lin_vel_x, twist.ranges.ang_vel_z = LIN_X, ANG_Z
   cfg.terminations["fell_over"] = TerminationTermCfg(
     func=mdp.bad_orientation, params={"limit_angle": math.radians(70.0)})
   if play:

@@ -4679,6 +4679,121 @@ its constant:**
 and six standing runs on two rented RTX 5090s (Vast.ai, $0.49/h), 2.83
 GPU-hours, **$1.50** off Vast's own charges.
 
+## The humanoid behind Body (issue #507, stage 3)
+
+`HumanoidBody` (`humanoid/body.py`) answers every `Body` member, and
+`body.body_for` chooses it by the robot's own joint names, as it chooses
+the quadruped. Its posture, senses and arms are stage 2's; a member it
+cannot serve says why (`NotImplementedError`: the quadruped's dock, rack
+and tools). `Body` gains a hand's members -- `reach_routine` (a grip pose
+in the believed world frame, the posture the body's to choose),
+`release_routine`, `grip_routine`, `gripped` (the gripper's own reading)
+and `hand_force` (off the arm's currents) -- which the quadruped refuses
+(its arm is planar, on its back) and the stub answers.
+
+![The `demo` scene: #466's chest on a counter; the humanoid finds its knob
+by its tag, reaches it and grips it, through Body](figures/humanoid_demo.png)
+
+**The demo world** (`evaluation/counter.py`, a world of its own, as
+`home_quad_chest` is): #466's drop-handle chest on a 0.90 m counter in the
+storeroom, seeded (`set_out(k)`), the humanoid standing in front of it.
+Every act is a `Body` member: the knob found by its tag in the D435's
+colour imager (`spot`: the face seen most square-on, its middle half a cube
+in), a reach with the fingers tilted down onto it, the gripper shut and the
+grip judged by its own reading. Over twelve set-outs, **ten held the knob**
+-- held by the gripper's reading and the pads truly on it (our grading),
+still holding after 2 s -- and in the other two the robot said NOT HELD,
+truly so: its reading agreed with the truth twelve times in twelve. The tag
+put the knob 0.5 cm from where it truly hung, 0.44-0.52 m off.
+
+**What the chest taught:**
+- *A drop handle's knob hangs nearly under its pin*, its drop bar and stem
+  behind and above it (the world compiles it 0.57 rad from where it rests,
+  and it swings there in the first second): jaws closing up and down
+  brought a pad down onto them, swung the handle 13 deg and stalled 79 mm
+  open with one pad on the knob -- HELD by the gripper's reading, the pads
+  truly off the knob. The jaws close ACROSS it, fingers tilted 25 deg down
+  (the scene tries 15, 35 and 45 after).
+- *Level, the plan crouched, and the elbow met the counter*: the arm drove
+  the gripper into the counter's edge until the robot fell backwards. Two
+  answers: the reach stops a hand that cannot get there (stage 2's
+  `BLOCKED_*`), and the fingers tilt down so the plan reaches from the
+  stand, the elbow over the counter.
+- *The near edge*: drawn 0.34 m ahead, the knob hung under 0.37 m in two of
+  ten set-outs, and at 0.99 m up no grip the arm holds folds the hand back
+  that near. The set-out draws 0.37-0.43 m.
+- *A headlight lights the robot's cameras too.* Drawn brighter, as the
+  other scenes are, it moved where the knob's tag decoded by 3 cm: a scene
+  that renders for the robot keeps the house's own light, and a filmstrip
+  brightens its own tiles alone.
+
+## The humanoid walks (issue #507, stage 4)
+
+The humanoid walks the house through the `Navigator`, as the quadruped
+does (`humanoid/mission.py`): its map off its head's LIDAR, the D435's
+points under the LIDAR's plane a layer the planner plans round, its pose
+off its legs and IMU (`humanoid/odometry.py`) matched to its map. Its legs
+are the WALKING policy's (`models/humanoid_walk.npz`, `humanoid/walk.py`)
+while it moves and the standing policy's while it reaches; they change
+hands only at a standstill, its arms home (`to_walk_routine`,
+`to_stand_routine`).
+
+![The `walk` scene: from the living room through the hall into the kitchen
+and back, steered by its own map](figures/humanoid_walk.png)
+
+**The walk** (`humanoid_spike.py --view walk`): from the living room
+through the hall into the kitchen, about 13 m, in 37 s, 9 cm from the goal
+with its belief 17 cm off the truth; and back in 33 s, 2 cm from the goal
+and its belief 2 cm off -- the scan matcher pulled the odometry's drift
+back on the way. No falls.
+
+**The walls are the served house's 1.2 m, the rover's; its LIDAR spins at
+1.41 m.** It saw over every wall in the house: a map of its plane alone was
+empty. The scene's house raises its walls to a real 2.4 m, a world of its
+own (`tall_house_world`) -- **a served humanoid needs the house's walls at
+a room's height**, a world change for stage 5 (its stairs change the
+world too).
+
+**The walking policy** (`Pluggy-Humanoid-Walk`, mjlab's G1 recipe on our
+body, its arms scripted more quietly than a reach, its legs meeting each
+other): in our physics it walks 0.5, 1.0 and 1.3 m/s within 3 %, backward
+and sideways, and never fell in a 38 s sequence of every command.
+- *A turn is the hips' yaw alone* -- there is no waist. With the hips'
+  yaw held as tightly as the G1's (0.15 rad) and the turn's reward paying
+  61 % for not turning at all, `walk1` asked 0.5 rad/s turned 0.08. Twice
+  the yaw's tolerance and a sharper reward (`STD_WALKING`, `TURN_STD`):
+  `walk2`, 0.47. **Turning on the spot is still its weakest command**:
+  moment to moment 0.07-0.64 rad/s, and out of a walk it can stall a few
+  seconds before it turns.
+- *The legs meet each other* (`model.LEG_GEOMS`'s contact pairs): the
+  robot's own geoms touch nothing of the robot's, and a gait could pass one
+  leg through the other.
+
+**Its odometry**: the heading the IMU's (within a degree over a walk), the
+position moving as the planted foot does not -- the lower sole, levelled,
+off the legs' encoders through its model of itself. About 4 % of the
+distance walked forward and back; sideways it undercounts (a shuffle lifts
+the swing foot too little to tell which is planted), and the Navigator
+never walks it sideways.
+
+**Rule 7, read again for walking** (`humanoid_spike.py --torque`, its
+walking rows FLOWN by the policy, 10 s at each speed, the start left out):
+
+| joint (part) | 0.5 m/s: peak (% peak), RMS (% rated), winding C | 1.0 m/s | 1.3 m/s |
+|---|---|---|---|
+| hip pitch (RS04) | 23.1 (19 %), 11.0 (31 %), 52 | 35.2 (29 %), 16.6 (47 %), 67 | 47.6 (40 %), 21.8 (62 %), 86 |
+| hip roll (RS04) | 33.7 (28 %), 17.8 (51 %), 71 | 35.9 (30 %), 18.1 (52 %), 72 | 38.8 (32 %), 21.3 (61 %), 84 |
+| hip yaw (RS03) | 13.5 (22 %), 5.4 (27 %), 49 | 14.2 (24 %), 6.2 (31 %), 52 | 16.7 (28 %), 7.0 (35 %), 55 |
+| knee (RS04) | 37.2 (31 %), 13.2 (38 %), 57 | 57.7 (48 %), 17.8 (51 %), 71 | 52.0 (43 %), 19.3 (55 %), 77 |
+| ankle pitch (RS04) | 44.6 (37 %), 15.6 (45 %), 64 | 64.4 (54 %), 24.2 (69 %), 98 | 71.6 (60 %), 27.2 (78 %), 113 |
+| ankle roll (RS03) | 11.8 (20 %), 5.5 (27 %), 49 | 15.6 (26 %), 6.4 (32 %), 52 | 20.9 (35 %), 7.3 (37 %), 56 |
+
+The winding is held steady by that RMS on a 40 C day, of the RS line's
+145 C. **No joint passes its peak or its continuous rating walking: flat
+walking sends nothing back to the design.** The ankle pitch is nearest
+both, at the top speed, and the estimate had it (70 N*m, 59 % of the
+peak; flown 71.6). The stairs' rows stay estimates until stage 5.
+
 ## Debugging workflow that worked
 
 1. Reproduce headlessly with printed telemetry (pose, joint rates, contact
