@@ -86,8 +86,8 @@ document says of `autonomous` it says of every mind.
 `guarded`, the same world flown with code's rails on, retired in #427 (Ben,
 2026-09-30): every series it flew was the rover's, nothing planned flew it,
 and every change to the mind had to keep its prompt byte-identical.
-Controlled comparisons come back with #465's demo 2, on a flight harness
-built with it (§4).
+Controlled comparisons come back with #465's demos: each flies two baselines
+before its new piece is built (#487, §4).
 
 **What is measured on the deployed world is the observatory's rows** (§5,
 "How the observatory is read"): one continuous, uncontrolled run of the deployed pair, read
@@ -740,11 +740,11 @@ different results:
 - **experience:** real attempts, real sim-seconds, imagination compute
   (CPU-seconds) and LLM tokens;
 - **human help:** demonstrations, interventions and scene resets;
-- **later, with #281's success test:** self-evaluation accuracy, meaning how
-  often the robot thought it had succeeded and hadn't, and how often it
-  missed a real success. Its test is scored against the world's verdict:
-  our grading, computed by code from the true state and never shown to the
-  robot (#465's three layers).
+- **later, with the robot's own test of success (#493):** self-evaluation
+  accuracy, meaning how often the robot thought it had succeeded and hadn't,
+  and how often it missed a real success. Its test is scored against the
+  world's verdict: our grading, computed by code from the true state and
+  never shown to the robot (#465's three layers).
 
 ⚠ **IT IS NOT A ROW IN THE SHAPE TABLE YET.** Nothing produces its rows. It
 enters the table with its function when a demo does (§7: measurement waits
@@ -898,8 +898,8 @@ solve needs offers, a re-rate needs a week. None of these needs N ≥ 5
 independent days to be read; all of them need the deployed pair to have been
 running on the arm that produces the rows. What still needs a series is a
 COMPARISON, and the deployed world flies none: two minds on it are two
-regimes, read side by side and never pooled. #465's demo 2 will fly its
-comparison on a harness built with it (§4).
+regimes, read side by side and never pooled. #465's demos will fly theirs,
+each against its two baselines (§4).
 
 **Reading them.** `scripts/qualities.py --observe` pulls one call per kind
 (the route caps a kind at 1000 rows and the reading says when one was
@@ -971,8 +971,8 @@ informs a decision:
 
 There is none now. `scripts/experiment.py` flew N days of a configuration
 into committed `results/` and went with the rover (#376; `rover-final` has
-it). Demo 2's controlled comparisons need a new one, built with it (#465,
-Track C).
+it). #465's demos need a new one, and #493's stage 1 starts it: the world's
+verdict, the attempt protocol, a held-out seed and a row per attempt.
 
 ## 5. What silently invalidates a number
 
@@ -1233,20 +1233,33 @@ time is a thing we want the agent to care about, it goes on the wire and into
 the context. Measuring it and not showing it, then reporting that the robot
 does not prioritise it, is measuring our own omission.
 
-### Practised in MuJoCo, graded in MuJoCo (#465)
+### Graded in MuJoCo (#465, #487)
 
-Track A's robot practises in a simulation it builds and is graded in a world
-that is MuJoCo too. The two share an engine, its contact model and its
-integrator, which no real robot shares with its world, so a skill transfers
-more easily here than it would on hardware.
+Every result here is graded in a world that is MuJoCo, and that world helps
+a skill in ways no real world does. Each way it helps is a SUBSIDY (#487):
 
-- ⚠ **A result practised in MuJoCo and graded in MuJoCo says it is an UPPER
-  BOUND on hardware**, in the result itself.
-- ⚠ **It says whether the imagination was MATCHED or MISMATCHED to the
-  world, and the two are never pooled.** Matched is the method's ceiling.
-  Mismatched — hidden parameters, and mechanisms built from constructs the
-  robot's scene language cannot express — is the number that bears on a
-  real robot, and demo 2's bar is read on it.
+- resets are free and exact, and nothing breaks, so a failed try leaves
+  nothing to repair;
+- every cube the robot handles is tagged on every face, and so is the
+  chest's knob, so finding one is reading a fiducial;
+- the grip is read off the world's geometry (`held` in `tools/claw.py`: the
+  pads' distance to a body that can move), where a real hand has only its
+  sensors;
+- the robot's imagination shares the world's engine, its contact model and
+  its integrator, which no real robot shares with its world, so what it
+  imagines transfers more easily here than it would on hardware.
+
+The rules:
+
+- ⚠ **A result graded in MuJoCo says it is an UPPER BOUND on hardware**, in
+  the result itself.
+- ⚠ **It names the subsidies it relied on**, as #493 names the chest's.
+- ⚠ **A result that imagined says whether its imagination was MATCHED or
+  MISMATCHED to the world, and the two are never pooled.** Matched is the
+  method's ceiling. Mismatched — hidden parameters, and mechanisms built
+  from constructs the robot's scene language cannot express — is the number
+  that bears on a real robot, and demo 5's bar is read on it (#487 §7: the
+  tower, made dear to try).
 - **A document's parts touch each other on the imagination's own contact**
   (`imagination.compile.CONTACT`), never the world's, and a modelled
   mechanism's error splits against a BEST-EXPRESSIBLE REFERENCE, the

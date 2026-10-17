@@ -50,7 +50,7 @@ class HeightMap:
   `[iy, ix]` with `(ix, iy)` at the API, like the occupancy grid."""
 
   def __init__(self, size_m: float = SIZE_M, cell_m: float = CELL_M,
-               z_band: tuple[float, float] = (Z_MIN, Z_MAX)) -> None:
+               z_band: tuple[float, float] = (Z_MIN, Z_MAX), spans: bool = False) -> None:
     self.cell_m = cell_m
     #: The heights a point may have to be kept. The rover's are above its
     #: floor; a legged body's map holds WORLD heights, stairs included, and
@@ -59,6 +59,11 @@ class HeightMap:
     self.n = int(round(size_m / cell_m))
     self.height = np.full((self.n, self.n), np.nan)
     self.count = np.zeros((self.n, self.n), dtype=np.int32)
+    #: With `spans`, how tall a run of points the last frame to see each
+    #: cell put in it, m (NaN where never seen): a wall's face fills its
+    #: cell from the floor up, a riser's no taller than the riser
+    #: (`humanoid.scan`).
+    self.span = np.full((self.n, self.n), np.nan) if spans else None
     self.origin: tuple[int, int] | None = None   # cell (0, 0)'s world index
 
   @property
@@ -79,7 +84,10 @@ class HeightMap:
     dx, dy = new[0] - self.origin[0], new[1] - self.origin[1]
     if dx == 0 and dy == 0:
       return
-    for arr, blank in ((self.height, np.nan), (self.count, 0)):
+    arrays = [(self.height, np.nan), (self.count, 0)]
+    if self.span is not None:
+      arrays.append((self.span, np.nan))
+    for arr, blank in arrays:
       shifted = np.full_like(arr, blank)
       sy = slice(max(dy, 0), self.n + min(dy, 0))
       sx = slice(max(dx, 0), self.n + min(dx, 0))
@@ -116,6 +124,8 @@ class HeightMap:
     cells = flat[starts]
     self.height.reshape(-1)[cells] = top
     self.count.reshape(-1)[cells] += 1
+    if self.span is not None:
+      self.span.reshape(-1)[cells] = top - np.minimum.reduceat(z, starts)
     return int(len(cells))
 
   def cell_world(self, ix: int, iy: int) -> tuple[float, float]:

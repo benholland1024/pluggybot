@@ -1,11 +1,14 @@
 #!/bin/bash
-# Rent a Runpod pod -- a GPU to train on (#377), or CPUs to fly a batch of
-# sim flights on (#469) -- and bring the results home.
+# Rent a pod -- a GPU to train on (#377), or CPUs to fly a batch of sim
+# flights on (#469) -- and bring the results home: on Vast.ai, or on Runpod
+# with PROVIDER=runpod (#510; training/README.md has what each costs). A pod's
+# id says whose it is (a Vast instance's is a number, a Runpod pod's letters
+# and digits), so only the two creates read PROVIDER, and the SSH half is one.
 #
-#   training/pod.sh create NAME "GPU A,GPU B,..."   rent one (Runpod REST API), print its id
+#   training/pod.sh create NAME "GPU A,GPU B,..."   rent one, print its id: on Vast the cheapest offer that passes and starts
 #   training/pod.sh create-cpu NAME [VCPUS]          rent CPUs: VCPUS (32) on a cheap GPU's machine
 #   training/pod.sh address POD                      its public "HOST PORT" for SSH, once up
-#   training/pod.sh stop POD | delete POD            stop (the volume stays, and bills) / delete
+#   training/pod.sh stop POD | delete POD            stop (the disk stays, and bills) / delete
 #   training/pod.sh setup  HOST PORT     copy training/ + the body's files, install, check the GPU
 #   training/pod.sh train  HOST PORT TASK ENVS ITERS RUN [extra mjlab flags...]
 #   training/pod.sh status HOST PORT RUN
@@ -22,13 +25,20 @@
 # batch lives on the container disk: pull it, then delete.
 #
 # HOST and PORT are the pod's public SSH address (`pod.sh address POD`).
-# The key is the one `runpodctl doctor` made; the pod gets its public half as
-# PUBLIC_KEY at creation, which Runpod's images copy into authorized_keys.
-# The code and its environment go on the pod's local disk (/root: fast, gone
-# on a stop); the runs go on /workspace, the volume a stop keeps (a network
-# filesystem on Runpod's secure cloud, slow for a venv's many small files).
+# The key is the one `runpodctl doctor` made, on both providers: a Runpod pod
+# gets its public half as PUBLIC_KEY at creation, which Runpod's images copy
+# into authorized_keys; the Vast account holds it (its Keys page) and puts it
+# in every instance created after it was added, never in one before.
+# The code and its environment go on the pod's local disk (/root); the runs go
+# on /workspace. On Runpod /root is fast and gone on a stop, and /workspace is
+# the volume a stop keeps (a network filesystem on the secure cloud, slow for
+# a venv's many small files). On Vast both are the instance's one disk, which
+# a stop keeps but whose GPU it lets go: a stopped instance runs again only
+# once that GPU is free, so pull before a stop. Delete once the runs are home.
 set -euo pipefail
 cmd=$1
+provider=${PROVIDER:-vast}
+[[ $provider == vast || $provider == runpod ]] || { echo "PROVIDER is vast or runpod, not $provider" >&2; exit 2; }
 
 # The pod lifecycle goes through Runpod's REST API: `runpodctl pod create`
 # uses the GraphQL API, which a key scoped to pods (REST read/write, GraphQL
@@ -40,10 +50,164 @@ api() {
   curl -sS -X "$method" "https://rest.runpod.io/v1$path" -H "Authorization: Bearer $key" \
     -H "Content-Type: application/json" ${body:+-d "$body"}
 }
+# Vast.ai's go through its CLI (`uv tool install vastai==1.8.3`), which reads
+# its API key from its own config (~/.config/vastai/vast_api_key).
+vast_call() {
+  python3 - "$@" <<'PY'
+import json, subprocess, sys, time
+
+# Vast's own image, so its SSH launch mode works, without CUDA: the venv
+# brings its own (1.3 GB against the Runpod image's 10.6).
+IMAGE = "vastai/base-image:stock-ubuntu24.04-py312-2026-09-07"
+DISK, CPU_DISK = "50", "20"
+#: How long a rented instance may take to start, s: its image pulled at the
+#: host's speed, and the container made.
+START_S = 600
+
+def vast(*args):
+  """The CLI's answer as JSON (None if it gave none) and everything it said.
+  ⚠ It exits 0 when it is refused, so its exit code says nothing."""
+  try:
+    r = subprocess.run(["vastai", *args, "--raw"], capture_output=True, text=True)
+  except FileNotFoundError:
+    sys.exit("no vastai on the PATH: uv tool install vastai==1.8.3")
+  said = (r.stdout + r.stderr).strip()
+  try:
+    return json.loads(r.stdout), said
+  except ValueError:
+    return None, said
+
+def started(i):
+  """None once instance i runs with its SSH port mapped, else why it never
+  will. ⚠ A host can fail to make the container at all (2026-10-16: a 4090's
+  "unresolvable CDI devices"), and Vast then stops what we never asked it to."""
+  t0 = time.time()
+  while time.time() - t0 < START_S:
+    d, _ = vast("show", "instance", i)
+    if isinstance(d, dict):
+      if d.get("actual_status") == "running" and (d.get("ports") or {}).get("22/tcp"):
+        return None
+      if d.get("actual_status") in ("exited", "unknown", "offline") or d.get("intended_status") == "stopped":
+        return (d.get("status_msg") or str(d.get("actual_status"))).strip()[:200]
+    time.sleep(10)
+  return "not running after %d s" % START_S
+
+def destroyed(i):
+  """Whether instance i is gone. `destroy instance` says nothing under --raw,
+  so the answer is its absence."""
+  vast("destroy", "instance", i, "-y")
+  for _ in range(10):
+    d, _ = vast("show", "instance", i)
+    if isinstance(d, dict) and "instances" in d and d["instances"] is None:
+      return True
+    time.sleep(3)
+  return False
+
+def key_on_account(pub):
+  """An instance gets the account's keys as it is created, never after."""
+  keys, said = vast("show", "ssh-keys")
+  if keys is None:
+    sys.exit("the account's SSH keys unread: " + said[:200])
+  if pub.split()[1] not in json.dumps(keys):
+    sys.exit("the key is not on the Vast account: add the .pub on https://cloud.vast.ai/manage-keys/")
+
+def search(query, disk):
+  offers, said = vast("search", "offers", query, "--storage", disk, "-o", "dph+")
+  if not isinstance(offers, list):
+    sys.exit("no offers read: " + said[:400])
+  if not offers:
+    sys.exit("no offer passes: " + query)
+  return offers
+
+def rent(offers, disk, name, what):
+  """The first of the offers, in their order, that rents and starts, printed
+  with what(offer). An offer can go between the search and the rental, and
+  --cancel-unavail refuses rather than creating a stopped instance that bills
+  its disk; one that never starts is destroyed, and the next tried."""
+  for o in offers[:5]:
+    made, said = vast("create", "instance", str(o["id"]), "--image", IMAGE, "--disk", disk,
+                      "--ssh", "--direct", "--cancel-unavail", "--label", name)
+    if not (isinstance(made, dict) and made.get("new_contract")):
+      print("offer %s not rented: %s" % (o["id"], said[:200]), file=sys.stderr)
+      continue
+    i = str(made["new_contract"])
+    print("rented %s (offer %s), waiting for it to start" % (i, o["id"]), file=sys.stderr)
+    why = started(i)
+    if why is None:
+      # the price is the machine's and its disk's; traffic is billed apart, by the byte
+      print(i, "|", what(o), "|", "%.3f $/h with %s GB" % (o["dph_total"], disk),
+            "| traffic $%.0f in, $%.0f out a TB |" % (1000 * o["inet_down_cost"], 1000 * o["inet_up_cost"]),
+            o.get("geolocation"), "| reliability %.3f" % o["reliability"])
+      return
+    print("%s never ran (%s): %s" % (i, why, "destroyed" if destroyed(i) else "NOT destroyed, delete it"),
+          file=sys.stderr)
+  sys.exit("refused: none of the five cheapest offers ran")
+
+# Every offer taken is on-demand, never interruptible: a reclaimed host loses
+# the run. A verified host at a reliability of 0.99 or more, in a data centre
+# or not (Ben, 2026-10-16: that day the one data-centre 4090 was $1.35/h, the
+# cheapest other $0.47); a direct SSH port; and a day's rental at least, since
+# an instance past its host's end date stops and is deleted 48 h later.
+TERMS = "num_gpus=1 verified=true rentable=true reliability>=0.99 direct_port_count>=1 duration>=1"
+DLPERF_SHARE = 0.7
+
+cmd, args = sys.argv[1], sys.argv[2:]
+if cmd == "create":
+  name, gpus, pub = args
+  key_on_account(pub)
+  # Vast names a card without its maker: Runpod's "NVIDIA GeForce RTX 4090" is its "RTX 4090".
+  cards = [g.strip().removeprefix("NVIDIA ").removeprefix("GeForce ").replace(" ", "_")
+           for g in gpus.split(",")]
+  # a driver for CUDA 12.8 or later, as `setup`'s torch builds need
+  offers = search("gpu_name in [%s] %s cuda_vers>=12.8 disk_space>=%s cpu_ram>=16"
+                  % (",".join(cards), TERMS, DISK), DISK)
+  # A card scoring under DLPERF_SHARE of its kind's median DLPerf is not that
+  # card at work: one machine's 5090s scored 86 against the others' ~195, and
+  # ran the humanoid's training at a tenth of another 5090's speed (#507).
+  by_card = {}
+  for o in offers:
+    by_card.setdefault(o["gpu_name"], []).append(o.get("dlperf") or 0.0)
+  median = {c: sorted(v)[len(v) // 2] for c, v in by_card.items()}
+  offers = [o for o in offers if (o.get("dlperf") or 0.0) >= DLPERF_SHARE * median[o["gpu_name"]]]
+  rent(sorted(offers, key=lambda o: o["dph_total"]), DISK, name, lambda o: o["gpu_name"])
+elif cmd == "create-cpu":
+  name, vcpus, pub = args
+  key_on_account(pub)
+  # Any card's machine with the vCPUs asked for and 2 GB a vCPU, as Runpod's is
+  # asked; the cheapest machine first, never the cheapest vCPU-hour, which
+  # rented a whole 256-vCPU EPYC with 1 GB a vCPU for a batch of 32 at $1.06/h.
+  offers = search("%s cpu_cores_effective>=%s cpu_ram>=%d disk_space>=%s"
+                  % (TERMS, vcpus, 2 * int(vcpus), CPU_DISK), CPU_DISK)
+  rent(sorted(offers, key=lambda o: o["dph_total"]), CPU_DISK, name,
+       lambda o: "%.0f vCPUs, %.0f GB, %s" % (o["cpu_cores_effective"], o["cpu_ram"] / 1000,
+                                              (o.get("cpu_name") or "?").strip()))
+elif cmd == "address":
+  d, said = vast("show", "instance", args[0])
+  if not isinstance(d, dict) or not d.get("id"):
+    sys.exit("no instance %s: %s" % (args[0], said[:200]))
+  ip = (d.get("public_ipaddr") or "").strip()
+  port = ((d.get("ports") or {}).get("22/tcp") or [{}])[0].get("HostPort")
+  if d.get("actual_status") != "running" or not ip or not port:
+    sys.exit("not up yet: %s %s" % (d.get("actual_status"), (d.get("status_msg") or "").strip()[:200]))
+  print(ip, port)
+elif cmd == "stop":
+  # `stop instance` answers in words, --raw or not
+  _, said = vast("stop", "instance", args[0])
+  if "stopping instance" not in said:
+    sys.exit("refused: " + said[:400])
+  print("stopped", args[0])
+elif cmd == "delete":
+  if not destroyed(args[0]):
+    sys.exit("refused: %s is still there" % args[0])
+  print("deleted", args[0])
+PY
+}
+on_vast() { [[ $1 =~ ^[0-9]+$ ]]; }
 case $cmd in
   create)
     name=$2 gpus=$3
     pub=$(cat "${RUNPOD_SSH_KEY:-$HOME/.runpod/ssh/runpodctl-ssh-key}.pub")
+    if [ "$provider" = vast ]; then vast_call create "$name" "$gpus" "$pub"; exit 0; fi
     # CLOUD=SECURE for Runpod's own data centres; CUDA lists the host drivers
     # accepted (a 12.x host gets torch's cu128 build at `setup`).
     body=$(python3 - "$name" "$gpus" "$pub" "${CLOUD:-COMMUNITY}" "${CUDA:-12.8,12.9,13.0}" <<'PY'
@@ -66,6 +230,7 @@ if 'id' not in d: sys.exit('refused: ' + json.dumps(d)[:400])
 print(d['id'], '|', d.get('gpu',{}).get('displayName') or d.get('gpu'), '|', d.get('costPerHr'), '\$/h')"
     exit 0 ;;
   address)
+    if on_vast "$2"; then vast_call address "$2"; exit 0; fi
     api GET "/pods/$2" | python3 -c "
 import json,sys; d=json.load(sys.stdin)
 ip, port = d.get('publicIp'), (d.get('portMappings') or {}).get('22')
@@ -79,6 +244,7 @@ print(ip, port)"
     # 32-vCPU CPU pod's price. The cheapest GPU first.
     name=$2 vcpus=${3:-32}
     pub=$(cat "${RUNPOD_SSH_KEY:-$HOME/.runpod/ssh/runpodctl-ssh-key}.pub")
+    if [ "$provider" = vast ]; then vast_call create-cpu "$name" "$vcpus" "$pub"; exit 0; fi
     body=$(python3 - "$name" "$vcpus" "$pub" <<'PY'
 import json, sys
 name, vcpus, pub = sys.argv[1], int(sys.argv[2]), sys.argv[3]
@@ -98,8 +264,12 @@ import json,sys; d=json.load(sys.stdin)
 if 'id' not in d: sys.exit('refused: ' + json.dumps(d)[:400])
 print(d['id'], '|', d.get('vcpuCount'), 'vCPUs', d.get('memoryInGb'), 'GB |', d.get('costPerHr'), '\$/h')"
     exit 0 ;;
-  stop) api POST "/pods/$2/stop" >/dev/null && echo "stopped $2"; exit 0 ;;
-  delete) api DELETE "/pods/$2" >/dev/null && echo "deleted $2"; exit 0 ;;
+  stop)
+    if on_vast "$2"; then vast_call stop "$2"; exit 0; fi
+    api POST "/pods/$2/stop" >/dev/null && echo "stopped $2"; exit 0 ;;
+  delete)
+    if on_vast "$2"; then vast_call delete "$2"; exit 0; fi
+    api DELETE "/pods/$2" >/dev/null && echo "deleted $2"; exit 0 ;;
 esac
 
 host=$2 port=$3
@@ -109,7 +279,9 @@ repo=$(cd "$(dirname "$0")/.." && pwd)
 ssh_=(ssh -i "$key" -p "$port" -o StrictHostKeyChecking=accept-new -o ConnectTimeout=20 "root@$host")
 remote=/root/pluggybot
 # What a pod may use is its cgroup's: `nproc`, `free` and the load are the
-# HOST's (a 32-vCPU share read 256 CPUs and 1007 GB).
+# HOST's (a 32-vCPU share read 256 CPUs and 1007 GB). Vast's is a hard quota,
+# so a batch takes one job fewer: 30 workers on a 30.7-CPU share ran each 12 %
+# slower than 16 did.
 share_py='
 def read(*paths):
   for p in paths:
@@ -133,6 +305,7 @@ case $cmd in
     "${ssh_[@]}" "mkdir -p $remote/models $remote/training /workspace/runs"
     tar -C "$repo" -czf - --exclude=.venv --exclude=runs --exclude=MUJOCO_LOG.TXT \
       --exclude=__pycache__ training models/quadruped.xml models/quadruped.json \
+      models/humanoid.xml models/humanoid.json \
       | "${ssh_[@]}" "tar -C $remote -xzf -"
     "${ssh_[@]}" bash -s <<'EOF'
 set -e

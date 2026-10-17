@@ -1,5 +1,5 @@
-"""The robot's imagination (issue #466, Track A of #465): a world of its own,
-built from what it sensed, never from the world's source.
+"""The robot's imagination (issue #466; one process of five, #487): a world of
+its own, built from what it sensed, never from the world's source.
 
   scene.py    the scene language: a document of parts, joints and catches
   compile.py  a document compiled with the robot's own body into a world

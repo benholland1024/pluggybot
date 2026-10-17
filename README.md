@@ -2,8 +2,10 @@
 
 A simulated, hardware-honest robot and the autonomous agent that lives in it:
 a ~10 kg quadruped with a two-joint arm, in a house it shares with a second
-one. The work now is self-taught generality: the robot practising new skills
-in a simulation it builds itself (#465). What the project is for, and the six
+one. The work now is self-taught generality: the robot acquiring new skills
+by its own effort through five processes (reuse what it has, try and react,
+follow instructions, copy, and imagine first). It chooses among them, and
+that choice is measured (#487, #465). What the project is for, and the six
 qualities the agent is meant to maximise, are in
 [`docs/PluggyPlan.md`](docs/PluggyPlan.md); how the mind sits in the loop is
 [`docs/Overseer.md`](docs/Overseer.md).
@@ -175,9 +177,48 @@ uv run python scripts/two_robots.py --world home_quad --view --errands none,none
 `--approach`, `--retention --stairs`, ...); SimNotes, "The quadruped's arm,
 its coupling and the rack", has what they measured.
 
-View the body alone:
+The humanoid (#507), the next body, in simulation first; each stage adds its
+scene to the same script:
+```bash
+uv run python scripts/humanoid_spike.py --view body   # held up on a gantry in
+                                      # the house, each joint through its
+                                      # range in turn, then the grippers
+uv run python scripts/humanoid_spike.py --view stand  # on its own feet:
+                                      # shoved, crouching and bowing
+uv run python scripts/humanoid_spike.py --view reach  # a hand to a counter,
+                                      # a high shelf, a low one and the floor
+uv run python scripts/humanoid_spike.py --view grasp  # a drawer's handle
+                                      # gripped and pulled
+uv run python scripts/humanoid_spike.py --view demo   # a chest's knob on a
+                                      # counter found by its tag, reached
+                                      # and gripped, through Body
+uv run python scripts/humanoid_spike.py --view walk   # living room to the
+                                      # kitchen and back on its own map
+uv run python scripts/humanoid_spike.py --view rough  # the rough task's
+                                      # walker across doorsteps, paving,
+                                      # a slope and blocks
+uv run python scripts/humanoid_spike.py --view stairs # up the house's
+                                      # flight seeing the steps, round on
+                                      # the landing and down
+uv run python scripts/humanoid_spike.py --view fall   # shoved over three
+                                      # ways, its get-up policy taking each
+                                      # fall and standing it again
+uv run python scripts/humanoid_spike.py --view getup  # up from lying on
+                                      # its back, its front and its side
+```
+`humanoid_spike.py --help` lists its tables (`--mass`, `--torque`,
+`--thermal`, `--energy`, `--sensors`, `--shove`, `--envelope`, `--hold`,
+`--demo-table`, `--track`, `--rough`, `--odometry`, `--climb`, `--fall`,
+`--speed`);
+SimNotes, "The humanoid body", "The humanoid stands, reaches and grasps",
+"The humanoid behind Body", "The humanoid walks" and "The humanoid climbs,
+falls and gets up", has what they measured, and Parts.md the parts and the
+bill.
+
+View a body alone:
 ```bash
 uv run python -m mujoco.viewer --mjcf=models/quadruped.xml
+uv run python -m mujoco.viewer --mjcf=models/humanoid.xml
 ```
 (`models/home_world.xml` is the house with no robot in it; the quadruped
 and its dock are put in at load, `legs/world.py`.)

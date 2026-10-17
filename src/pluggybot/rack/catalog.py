@@ -1400,11 +1400,15 @@ def by_id() -> dict[str, Part]:
   return {p.id: p for p in PARTS}
 
 
-def validate(entry: dict) -> list[str]:
+def validate(entry: dict, worlds: dict | None = None,
+             shelves: tuple | None = None) -> list[str]:
   """Every reason one emitted entry is not honest, or `[]`.
 
   Used by the tests on every committed entry and shown to fail on a bad
-  one."""
+  one. `worlds` and `shelves` are another catalog's (the humanoid's,
+  `humanoid.bill`), the quadruped's by default."""
+  worlds = WORLDS if worlds is None else worlds
+  shelves = SHELVES if shelves is None else shelves
   out: list[str] = []
   required = ("id", "name", "kind", "status", "shelves", "robot", "usedBy",
               "partNumber", "source", "massG", "dimensionsMm", "priceEur",
@@ -1418,10 +1422,10 @@ def validate(entry: dict) -> list[str]:
     out.append(f"kind {entry['kind']!r} not in {KINDS}")
   if entry["status"] not in STATUSES:
     out.append(f"status {entry['status']!r} not in {STATUSES}")
-  if not entry["shelves"] or any(s not in SHELVES for s in entry["shelves"]):
-    out.append(f"shelves {entry['shelves']!r} not a non-empty subset of {SHELVES}")
-  if entry["robot"] not in WORLDS:
-    out.append(f"robot {entry['robot']!r} not in {tuple(WORLDS)}")
+  if not entry["shelves"] or any(s not in shelves for s in entry["shelves"]):
+    out.append(f"shelves {entry['shelves']!r} not a non-empty subset of {shelves}")
+  if entry["robot"] not in worlds:
+    out.append(f"robot {entry['robot']!r} not in {tuple(worlds)}")
   for key in NULLABLE:
     if entry[key] is None and not entry["why"].get(key):
       out.append(f"{key} is null with no why")
@@ -1710,8 +1714,11 @@ LINES: tuple[Line, ...] = (
 )
 
 
-def validate_line(line: dict, parts: dict[str, dict]) -> list[str]:
-  """Every reason one emitted line of the bill is not honest, or `[]`."""
+def validate_line(line: dict, parts: dict[str, dict],
+                  groups: tuple | None = None) -> list[str]:
+  """Every reason one emitted line of the bill is not honest, or `[]`;
+  `groups` another bill's sections (the quadruped's by default)."""
+  groups = GROUPS if groups is None else groups
   out: list[str] = []
   p = parts.get(line["part"])
   if p is None:
@@ -1720,8 +1727,8 @@ def validate_line(line: dict, parts: dict[str, dict]) -> list[str]:
     out.append(f"{line['part']} is not on the build shelf")
   if not (isinstance(line["quantity"], int) and line["quantity"] > 0):
     out.append("quantity must be a positive whole number")
-  if line["group"] not in GROUPS:
-    out.append(f"group {line['group']!r} not in {GROUPS}")
+  if line["group"] not in groups:
+    out.append(f"group {line['group']!r} not in {groups}")
   if p["priceEur"] is None:
     a = line["lineEur"]
     if not (isinstance(a, (int, float)) and a > 0) or not line["basis"]:
@@ -1735,11 +1742,25 @@ def validate_line(line: dict, parts: dict[str, dict]) -> list[str]:
   return out
 
 
-def bom(parts: dict[str, dict]) -> dict:
+#: `bom`'s budget when a bill names none of its own: #379's, the quadruped's.
+QUADRUPED_BUDGET = object()
+
+
+def bom(parts: dict[str, dict], lines: tuple | None = None,
+        groups: tuple | None = None, checked: str | None = None,
+        budget_usd=QUADRUPED_BUDGET) -> dict:
   """The bill as data: every line priced off its part (or its allowance),
-  and the totals against the budget -- summed here, never typed."""
+  and the totals against the budget -- summed here, never typed. The
+  quadruped's `LINES` by default; another body's lines, sections and
+  reading date (the humanoid's, `humanoid.bill`) where given, and its
+  budget, or None where it has none -- the rate, the VAT and the
+  contingency are one for every bill."""
+  src = LINES if lines is None else lines
+  groups = GROUPS if groups is None else groups
+  checked = CHECKED if checked is None else checked
+  budget_usd = BUDGET_USD if budget_usd is QUADRUPED_BUDGET else budget_usd
   lines = []
-  for ln in LINES:
+  for ln in src:
     p = parts.get(ln.part, {})
     each = p.get("priceEur")
     if each is not None and ln.allowanceEur is not None:
@@ -1761,15 +1782,16 @@ def bom(parts: dict[str, dict]) -> dict:
   contingency = round((sourced + allowed) * CONTINGENCY, 2)
   eur = round(sourced + allowed + contingency, 2)
   return {
-    "budgetUsd": BUDGET_USD, "usdPerEur": USD_PER_EUR, "rateDate": RATE_DATE,
-    "rateSource": RATE_SOURCE, "vat": VAT, "checked": CHECKED,
-    "contingency": CONTINGENCY, "groups": list(GROUPS), "lines": lines,
+    "budgetUsd": budget_usd, "usdPerEur": USD_PER_EUR, "rateDate": RATE_DATE,
+    "rateSource": RATE_SOURCE, "vat": VAT, "checked": checked,
+    "contingency": CONTINGENCY, "groups": list(groups), "lines": lines,
     "totals": {
       "sourcedEur": sourced, "allowanceEur": allowed,
       "contingencyEur": contingency, "totalEur": eur,
       "totalUsd": round(eur * USD_PER_EUR, 2),
-      "budgetEur": round(BUDGET_USD / USD_PER_EUR, 2),
-      "byGroup": {g: total(lambda ln, g=g: ln["group"] == g) for g in GROUPS},
+      "budgetEur": (None if budget_usd is None
+                    else round(budget_usd / USD_PER_EUR, 2)),
+      "byGroup": {g: total(lambda ln, g=g: ln["group"] == g) for g in groups},
     },
   }
 
@@ -1791,10 +1813,11 @@ BOM_END = "<!-- /bom -->"
 FEEDS_SHOWN = 3
 
 
-def bom_markdown(fixture: dict) -> str:
+def bom_markdown(fixture: dict, key: str = "build") -> str:
   """The bill as Parts.md shows it: one row a line under its group's
-  subtotal, the allowances' bases as notes, and the totals."""
-  b, parts = fixture["build"], {p["id"]: p for p in fixture["parts"]}
+  subtotal, the allowances' bases as notes, and the totals. `key` names
+  the fixture's bill (the humanoid's catalog keeps its own)."""
+  b, parts = fixture[key], {p["id"]: p for p in fixture["parts"]}
   t = b["totals"]
   rows = [f"Prices and lead times read {b['checked']}; € incl. {b['vat']:.0%} "
           f"VAT; $1 = €{1 / b['usdPerEur']:.4f} (ECB, {b['rateDate']}).", "",
@@ -1828,8 +1851,9 @@ def bom_markdown(fixture: dict) -> str:
            f"| priced lines | {_eur(t['sourcedEur'])} | |",
            f"| allowances (nothing designed yet) | {_eur(t['allowanceEur'])} | |",
            f"| contingency, {b['contingency']:.0%} | {_eur(t['contingencyEur'])} | |",
-           f"| **total** | **{_eur(t['totalEur'])}** | **{_eur(t['totalUsd'])}** |",
-           f"| budget | {_eur(t['budgetEur'])} | {_eur(b['budgetUsd'])} |"]
+           f"| **total** | **{_eur(t['totalEur'])}** | **{_eur(t['totalUsd'])}** |"]
+  if b["budgetUsd"] is not None:
+    rows.append(f"| budget | {_eur(t['budgetEur'])} | {_eur(b['budgetUsd'])} |")
   if notes:
     rows += ["", "**The allowances**, each a sum set aside, never a price:", *notes]
   return "\n".join(rows)
@@ -1854,13 +1878,16 @@ def build() -> dict:
   }
 
 
-def with_bill(doc: str, fixture: dict) -> str:
-  """Parts.md with its bill re-rendered between the markers."""
-  head, start, rest = doc.partition(BOM_START)
-  _, end, tail = rest.partition(BOM_END)
+def with_bill(doc: str, fixture: dict, key: str = "build",
+              markers: tuple[str, str] = (BOM_START, BOM_END)) -> str:
+  """Parts.md with a bill re-rendered between its markers: the
+  quadruped's by default, the humanoid's under its own (`humanoid.bill`)."""
+  first, last = markers
+  head, start, rest = doc.partition(first)
+  _, end, tail = rest.partition(last)
   if not start or not end:
-    raise SystemExit(f"Parts.md has no bill markers ({BOM_START!r} ... {BOM_END!r})")
-  return f"{head}{BOM_START}\n{bom_markdown(fixture)}\n{BOM_END}{tail}"
+    raise SystemExit(f"Parts.md has no bill markers ({first!r} ... {last!r})")
+  return f"{head}{first}\n{bom_markdown(fixture, key)}\n{last}{tail}"
 
 
 def main() -> None:

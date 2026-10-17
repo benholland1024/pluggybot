@@ -64,7 +64,8 @@ The first house in detail, as #68 authored it:
   y=-6   └────────────┴───┴───────fence─────────┘  ┃     ┃
 
    d = doorway   ╪ = the OPEN street doorway (issue #93: the gate is
-   gone; the plate turns on a light)   ▓ = staircase (3 x 3, solid box)
+   gone; the plate turns on a light)   ▓ = staircase (3 x 3: a flight
+   of five against the west wall, a landing 0.9 m up beside it)
 
 ⚠ The kitchen/workshop divider is at y=2.0 (the ZONES table's number), not
 the y=2.5 the diagram's left edge sits near -- 2.5 is the living/bedroom
@@ -79,10 +80,17 @@ alternative -- swapping hall and workshop in the wing's southern half so the
 fence meets the workshop -- as a question rather than a decision, so this
 builds what was drawn.
 
-The staircase is ONE SOLID BOX, 0.9 m tall, and that is a sensing decision
-rather than a modelling shortcut: the LIDAR rides at 0.223 m, so real risers
-at ~0.18 m would be solid geometry the robot cannot see -- a wall it maps as
-open floor. The browser draws the flight (hint `stairs`, frozen in #66).
+The staircase is a FLIGHT a body climbs (#507, stage 5): five 0.18 m risers
+on 0.30 m treads against the hall's west wall, rising south to a landing
+0.9 m up that fills the rest of the hall's south end, its open edges behind
+a half wall -- where the website drew the flight inside the solid 0.9 m box
+it replaced (rooftop #180). That box was the rover's: its LIDAR rode at
+0.223 m and could not have seen a riser. Neither robot steers by its LIDAR
+alone now -- each plans round what its depth camera sees under the LIDAR's
+plane -- and the humanoid climbs it.
+
+The walls are a room's 2.4 m (#507, stage 5): the humanoid's LIDAR spins at
+1.41 m and saw over the rover's 1.2 m walls, every one of them.
 
 Visual hints ride in the SIDECAR, never in geom colors: the robot's cameras
 render rgba, so color-as-encoding would leak into the tag detector's frames
@@ -145,15 +153,21 @@ DOOR_HALL_Y = (-1.0, 0.0)     # living <-> hall, in the house's west wall
 DOOR_KITCHEN_Y = (3.5, 4.5)   # hall <-> kitchen, in the wing's east wall
 DOOR_WORKSHOP_Y = (0.5, 1.5)  # hall <-> workshop, same wall
 
-# The staircase: ONE SOLID BOX filling the hall's south end. See the module
-# docstring -- 0.9 m so the LIDAR sees it, and not modelled as steps because
-# real risers are below the beam and would map as open floor.
+# The staircase, in the hall's south end (module docstring): the flight's
+# foot faces the hall (north), the flight hugs the west wall and rises south.
 STAIRS_X = (-5.0, -2.0)
 STAIRS_Y = (-6.0, -3.0)
-STAIRS_HALF_H = 0.45
+#: Five risers to the landing, each 0.18 m on a 0.30 m tread (the UK's
+#: rule of thumb, two risers and a going 0.55-0.70 m: 0.66), the flight one
+#: doorway wide: the website's own drawing of a flight in this block
+#: (rooftop `scenery/stairs.ts`: `RISE`, `TREAD`, `FLIGHT_WIDTH`).
+STAIRS_RISE, STAIRS_STEPS, STAIRS_TREAD, STAIRS_WIDTH = 0.18, 5, 0.30, 1.1
+#: The half wall on the landing's open edges -- over the hall, and over
+#: the flight -- m: as tall as a stair's guarding (0.9 m), as thick as a wall.
+STAIRS_GUARD_H = 0.9
 
 WALL_HALF_T = 0.02
-WALL_HALF_H = 0.60            # 1.2 m walls, like room_1
+WALL_HALF_H = 1.20            # 2.4 m walls, a room's (#507, stage 5)
 FENCE_HALF_H = 0.45           # 0.9 m garden fence: lidar (0.223 m) sees it
 #: How far the drawn ground reaches past the property on every side. A metre,
 #: so the fence line is not the literal edge of the visible world.
@@ -472,6 +486,47 @@ def _wall_run(prefix: str, x0: float, x1: float, y0: float, y1: float,
   return bodies
 
 
+def stairs_geoms() -> list[tuple[str, tuple[float, float, float], tuple[float, float, float]]]:
+  """The staircase's boxes, (name, centre, half-extents) in the world, m:
+  each step a slab from the floor to its tread (the website's
+  `stairsShape`, the flight's foot at the block's north face), the landing
+  and the deck beside the flight solid to the floor at the top step's
+  height, and the half walls on the landing's open edges -- along its
+  north edge over the hall and its west edge over the flight."""
+  x0, x1 = STAIRS_X
+  y0, y1 = STAIRS_Y
+  top = STAIRS_RISE * STAIRS_STEPS
+  run = STAIRS_TREAD * STAIRS_STEPS
+  lane = (x0, x0 + STAIRS_WIDTH)
+  foot = y1                                  # the flight rises toward -y
+  out = []
+  for i in range(STAIRS_STEPS):
+    a, b = foot - run, foot - i * STAIRS_TREAD
+    h = STAIRS_RISE * (i + 1)
+    out.append((f"stairs_step_{i}", ((lane[0] + lane[1]) / 2, (a + b) / 2, h / 2),
+                ((lane[1] - lane[0]) / 2, (b - a) / 2, h / 2)))
+  out.append(("stairs_landing", ((lane[0] + lane[1]) / 2, (y0 + foot - run) / 2, top / 2),
+              ((lane[1] - lane[0]) / 2, (foot - run - y0) / 2, top / 2)))
+  out.append(("stairs_deck", ((lane[1] + x1) / 2, (y0 + y1) / 2, top / 2),
+              ((x1 - lane[1]) / 2, (y1 - y0) / 2, top / 2)))
+  g, t = STAIRS_GUARD_H / 2, WALL_HALF_T
+  out.append(("stairs_guard_north", ((lane[1] + x1) / 2, y1 - t, top + g),
+              ((x1 - lane[1]) / 2, t, g)))
+  out.append(("stairs_guard_west", (lane[1] + t, foot - run / 2, top + g),
+              (t, run / 2 - t, g)))
+  return out
+
+
+def stairs_xml() -> str:
+  """The staircase as one body at the floor under the block's middle."""
+  cx, cy = (STAIRS_X[0] + STAIRS_X[1]) / 2, (STAIRS_Y[0] + STAIRS_Y[1]) / 2
+  geoms = "\n".join(
+    f'      <geom name="{n}" type="box" pos="{c[0] - cx:.4f} {c[1] - cy:.4f} {c[2]:.4f}" '
+    f'size="{h[0]:.4f} {h[1]:.4f} {h[2]:.4f}" rgba="0.58 0.54 0.50 1"/>'
+    for n, c, h in stairs_geoms())
+  return f'    <body name="stairs" pos="{cx:.4f} {cy:.4f} 0">\n{geoms}\n    </body>'
+
+
 def _board_xml(name: str, spec: dict) -> str:
   """A wall-mounted whiteboard. friction+priority on the drawing face is the
   board CONTRACT: pair friction combines as the elementwise MAX, so without
@@ -729,15 +784,10 @@ def build_home_world() -> tuple[str, dict]:
   add(_box_body("furniture_table", -8.5, -2.0, 0.37, 0.60, 0.40, 0.37,
                 "0.50 0.42 0.34 1"), "furniture_table", "table")
 
-  # The staircase. ONE SOLID BOX filling the hall's south end, 0.9 m tall so
-  # the LIDAR (0.223 m) sees it -- see the module docstring. It is the only
-  # piece of the new plan that BLOCKS a route rather than decorating one, and
-  # it blocks a dead end: the hall runs y -6..6 and nothing lies south of it.
-  add(_box_body("stairs", (STAIRS_X[0] + STAIRS_X[1]) / 2,
-                (STAIRS_Y[0] + STAIRS_Y[1]) / 2, STAIRS_HALF_H,
-                (STAIRS_X[1] - STAIRS_X[0]) / 2,
-                (STAIRS_Y[1] - STAIRS_Y[0]) / 2, STAIRS_HALF_H,
-                "0.58 0.54 0.50 1"), "stairs", "stairs")
+  # The staircase (module docstring): one body, its boxes the steps, the
+  # landing and its half walls. It fills a dead end -- the hall runs y -6..6
+  # and nothing lies south of it.
+  add(stairs_xml(), "stairs", "stairs")
 
   # ---- the ground the website draws (issue #68) -----------------------------
   # GENERATED from the layout rather than written down, which is the point:

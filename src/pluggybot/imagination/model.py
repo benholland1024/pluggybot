@@ -1,8 +1,8 @@
 """The robot's model of what is in front of it (issue #466, stage 3): an
 author's structure (`author.py`), placed where depth put the object, its
 unknowns fitted to the probe's record (`fit.py`), judged, and sent back
-for another structure where the fit left too much. Code runs the rounds;
-the mind decides nothing (when to imagine is demo 4's).
+for another structure where the fit left too much. Code runs the rounds,
+and the mind decides nothing here: choosing when to imagine is #465's demo 6.
 
   rounds  `MAX_ROUNDS` at most: the first answer and four revisions, each
           answer repaired up to `author.MAX_REPAIRS` times where it did not
