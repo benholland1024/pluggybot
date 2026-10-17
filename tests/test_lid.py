@@ -123,24 +123,27 @@ def test_the_criteria_are_the_issues_and_their_measurements():
   assert lid.OPEN_RAD == 1.0 and math.degrees(lid.SHUT_RAD) == pytest.approx(5.0)
   assert lid.SHUT_RAD == pytest.approx(ch.OPEN_OFF)
   assert lid.LOWER_RAD_S == 1.0 and lid.HOLD_S == 5.0
+  # the job's time is Ben's (2026-10-17), and the harness calls it there
+  assert lid.TIME_LIMIT_S == 300.0 and at.BUDGET_S == lid.TIME_LIMIT_S
 
 
 # ---- the evaluator is pure, and absences fail -------------------------------------
 
-PASSED = {"topDeg": 63.8, "downRadS": 0.51, "tiltDeg": 2.8, "touchedDuringHold": [],
-          "angleAtCallDeg": -0.2, "angleDeg": -0.2, "caught": True, "holdS": 5.0,
-          "tool": "module_claw", "toolSeated": True, "catchN": 3.89}
+PASSED = {"topDeg": 63.8, "downRadS": 0.51, "tiltDeg": 2.8, "falls": 0,
+          "touchedDuringHold": [], "angleAtCallDeg": -0.2, "angleDeg": -0.2, "caught": True,
+          "holdS": 5.0, "elapsedS": 84.0, "tool": "module_claw", "toolSeated": True,
+          "catchN": 3.89}
 
 
 @pytest.mark.parametrize("change, why", [
   ({"topDeg": None}, "never measured"),
+  ({"elapsedS": None}, "never measured"),
   ({"holdS": 4.0}, "not the 5 s"),
-  ({"tiltDeg": 61.0}, "fell over"),
+  ({"elapsedS": 301.0}, "301 s after the start, past the 300 s the job allows"),
   ({"topDeg": 50.0}, "rose to 50 deg, short of the 57"),
   ({"downRadS": 1.4}, "let fall, not lowered"),
   ({"touchedDuringHold": ["pad_l"]}, "pad_l still touched"),
   ({"angleDeg": 8.0}, "8 deg open"),
-  ({"toolSeated": False}, "module_claw is off"),
 ])
 def test_each_criterion_fails_for_its_own_reason(change, why):
   ok, metrics, reason = lid.eval_lid(PASSED | change)
@@ -162,7 +165,15 @@ def test_a_pass_says_how_and_pays_nothing_and_its_catch_stays_secret():
   assert verdict.ok and verdict.points == 0, verdict.reason
   assert "set down" in verdict.reason and "caught" in verdict.reason
   assert "catchN" not in verdict.public_metrics() and verdict.metrics["catchN"] == 3.89
-  # a body its set-out gave no tool is not asked for one (the humanoid)
+  assert "set down in 84 s" in verdict.reason
+
+
+def test_a_fall_a_tilt_and_a_lost_tool_are_said_and_never_judged():
+  """Ben, 2026-10-17: the job is the lid, and a fall is lost time -- what a
+  fall is is the body's to say, and the humanoid's watch takes its own bow
+  for one (#520)."""
+  ok, metrics, _ = lid.eval_lid(PASSED | {"falls": 2, "tiltDeg": 80.0, "toolSeated": False})
+  assert ok and (metrics["falls"], metrics["tiltDeg"], metrics["toolSeated"]) == (2, 80.0, False)
   assert lid.eval_lid(PASSED | {"tool": None, "toolSeated": None})[0]
 
 
@@ -236,32 +247,21 @@ def test_never_opened_and_merely_reported_fails_on_the_untouched_world():
   assert not lid.eval_lid(m)[0] and lid.eval_lid(m)[2] == "the lid was never measured"
 
 
-def test_the_robot_upright_and_its_tool_seated_are_the_bodys_answers():
-  """Criterion 5 names no part: the tilt is the body's attitude, the tool
-  the one its set-out gave, asked of the body (`Body.tool_powered`)."""
-  def tipped(body):
-    body.attitude = (math.cos(math.radians(35)), math.sin(math.radians(35)), 0.0, 0.0)
-    return lift()(body)
-  assert "fell over (70 deg" in run(tipped)["verdict"]["reason"]
-
-  def dropped_tool(body):
-    return lift(then=lambda b: setattr(b, "holding", None))(body)
-  assert "module_claw is off" in run(dropped_tool)["verdict"]["reason"]
-
-
-def test_what_a_fall_is_is_the_bodys_own_watch():
-  """A fall its own watch took fails the attempt at whatever tilt it took
-  it -- the humanoid's watch takes 35 deg, its own line (`humanoid.getup`)
-  -- and one it got up from too."""
-  def fell_and_got_up(body):
+def test_the_body_says_its_falls_tilt_and_tool_and_the_lid_is_judged():
+  """Each asked of the body and none of them named here: the falls its own
+  watch counted, its attitude, the tool its set-out gave
+  (`Body.tool_powered`) -- recorded on the row, and a lid set down passes."""
+  def tipped_fell_and_lost_its_tool(body):
     def routine():
       body.falls += 1
-      got = yield from lift()(body)
+      body.attitude = (math.cos(math.radians(35)), math.sin(math.radians(35)), 0.0, 0.0)
+      got = yield from lift(then=lambda b: setattr(b, "holding", None))(body)
       return got
     return routine()
-  row = run(fell_and_got_up)
-  assert "the robot fell (1 fall by its own watch)" in row["verdict"]["reason"]
-  assert row["verdict"]["metrics"]["falls"] == 1 and row["verdict"]["metrics"]["tiltDeg"] == 0.0
+  row = run(tipped_fell_and_lost_its_tool)
+  m = row["verdict"]["metrics"]
+  assert row["verdict"]["ok"], row["verdict"]["reason"]
+  assert (m["falls"], m["tiltDeg"], m["toolSeated"]) == (1, 70.0, False)
 
 
 # ---- the protocol ----------------------------------------------------------------------
@@ -296,7 +296,8 @@ def test_the_budget_ends_a_skill_closing_it_and_the_attempt_is_graded_as_it_stan
   row = run(forever, budget_s=1.0)
   assert row["cut"] and closed and row["simS"] == pytest.approx(1.0, abs=0.01)
   assert row["own"] == {"ok": None, "why": ""}
-  assert "never opened" in row["verdict"]["reason"]
+  #  ...and a cut attempt that failed says so first, what it left after
+  assert row["verdict"]["reason"].startswith("out of time (1 s) -- the lid never opened")
 
 
 def test_an_attempt_that_raises_or_whose_world_was_reset_has_no_verdict():

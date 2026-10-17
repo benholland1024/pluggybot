@@ -192,12 +192,13 @@ doing anything, read the doc that owns what you are about to touch:
   BODY, never the world (the chest's truth is the harness's). ⚠ THE LID'S
   ROW IS `shown: false` and pays 0 (`TaskReward.shown`): a mind with a
   library sees every other challenge row, and this one would change the
-  deployed prompt. ⚠ The grader names no body part and judges no fall by
-  a line of its own: a fall is the body's watch (`Body.falls`; the
-  humanoid's takes its own bow past 35 deg), beside the topple death's
-  60 deg off `Body.orientation`; the tool is the set-out's, asked
-  `Body.tool_powered` (the quadruped's claw is STAGED,
-  `Body.place_tool_routine`). It imports nothing of the chest's:
+  deployed prompt. ⚠ A FALL IS LOST TIME, NEVER A VERDICT (Ben,
+  2026-10-17): the job is the lid inside `TIME_LIMIT_S` (300 s, the
+  budget; read again before the flight as 3x the humanoid's reference),
+  and the falls the body's own watch counted (`Body.falls`), its tilt and
+  its tool (`Body.tool_powered`; the quadruped's claw is STAGED,
+  `Body.place_tool_routine`) are recorded, each the body's to say -- the
+  grader names no part. It imports nothing of the chest's:
   everything loads `scoring`, the probe included, and the probe's fence
   holds (`tests/test_probe.py`: no chest in its closure, no grader in its
   imports). ⚠ Held-out chests start at `HELD_OUT_FROM` (1,000,000), drawn
