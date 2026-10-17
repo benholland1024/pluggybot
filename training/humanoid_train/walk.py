@@ -13,14 +13,19 @@ made honest where the stock recipe is not -- the quadruped's changes
   - the legs meet each other (`models/humanoid.xml`'s contact pairs), so a
     stride is charged for a knock as the G1's self-collision is.
 
-`Pluggy-Humanoid-Walk` is flat ground. `-Rough` is the flat walker trained
-on (`--agent.resume`) over the house's floors' cousins -- rough patches,
-slopes and low blocks -- every difficulty at once: mjlab's terrain curriculum
-promotes a robot for ending an episode 4 m from its tile's centre, which a
-turning, sidestepping command seldom does (`quad_train/stairs.py`), and
-rough1's levels sat at 0.03 of 9 after a thousand iterations. Its
-observations are the flat task's, so the one checkpoint carries over: the
-critic is blind too. The stairs are stage 5's.
+`Pluggy-Humanoid-Walk` is flat ground: the served walker. `-Rough` is the
+flat walker trained on (`--agent.resume`) over the house's floors' cousins
+-- blocks, low steps and tilted plates, built of boxes (`TERRAINS`) --
+under mjlab's terrain curriculum: a robot goes up a row for ending its
+episode 4 m from its tile's centre, and down one for walking under half its
+command's distance. Its observations are the flat task's, so the one
+checkpoint carries over: the critic is blind too. ⚠ BLIND, IT GIVES UP
+WHAT RISKS A FALL: rough4 (this recipe) never falls on the courses, but it
+stands still where asked to walk backward or sideways, on flat ground too
+(SimNotes, "The humanoid walks"), so it is not the served walker. Every
+difficulty at once (rough3) narrowed it further; sharper tracking widths
+(0.2 m/s and 0.3 rad/s, rough5) paid nothing for a walk it could not track
+precisely, and it stood still at 1 m/s too. The stairs are stage 5's.
 """
 
 import math
@@ -188,35 +193,56 @@ def walk_env_cfg(play: bool = False) -> ManagerBasedRlEnvCfg:
   return _play(cfg) if play else cfg
 
 
-#: Rough ground, both networks blind: what a garden path, a doorstep and a
-#: rug give a walker -- rough patches to 6 cm, slopes to 0.3, a grid of
-#: blocks to 8 cm.
+#: Rough ground, both networks blind: what a doorstep, a garden path and a
+#: rug give a walker -- a grid of blocks to +-8 cm, low stairs up and down
+#: (risers to 8 cm) and a grid of tilted plates (to 10 deg). ⚠ BOXES ONLY:
+#: the box soles on a height field blew up -- flown by the flat walker, about
+#: one world in seven on `random_rough` within 20 s (root speeds to 1e5
+#: m/s), 2-4 % on the slopes', none of 978 on the blocks -- and rough1 and
+#: rough2 ended in it (a NaN; the value loss at 4e6).
 TERRAINS = TerrainGeneratorCfg(
-  size=(8.0, 8.0), border_width=20.0, num_rows=10, num_cols=20, curriculum=False,
+  # A column a terrain, a row a difficulty: 50 tiles. ⚠ 200 tiles of boxes
+  # ran a 5090 out of memory at 4096 worlds.
+  size=(8.0, 8.0), border_width=20.0, num_rows=10, num_cols=5, curriculum=True,
   sub_terrains={
-    "flat": terrain_cfg.flat(proportion=0.25),
-    "rough": terrain_cfg.random_rough(proportion=0.3, noise_range=(0.01, 0.06)),
-    "slope": terrain_cfg.hf_pyramid_slope(proportion=0.2, slope_range=(0.0, 0.3)),
-    "blocks": terrain_cfg.box_random_grid(proportion=0.25, grid_height_range=(0.0, 0.08),
+    "flat": terrain_cfg.flat(proportion=0.2),
+    "blocks": terrain_cfg.box_random_grid(proportion=0.3, grid_height_range=(0.0, 0.08),
                                           grid_width=0.45),
+    "steps": terrain_cfg.pyramid_stairs(proportion=0.15, step_height_range=(0.0, 0.08),
+                                        step_width=0.5),
+    "steps_down": terrain_cfg.pyramid_stairs_inv(proportion=0.15,
+                                                 step_height_range=(0.0, 0.08), step_width=0.5),
+    "tilted": terrain_cfg.tilted_grid(proportion=0.2, tilt_range_deg=10.0, height_range=0.05),
   },
   add_lights=True,
 )
+#: A world whose body moves faster than this is reset as a NaN's is, m/s
+#: and rad/s: on the boxes, 4096 worlds of the flat walker for 20 s reached
+#: 4.8 m/s and 100 rad/s at worst, falls included; a blow-up, 1e5 and 6e7.
+BLOWN_V, BLOWN_QD = 10.0, 200.0
+
+
+def blown_up(env, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> torch.Tensor:
+  robot = env.scene[asset_cfg.name]
+  v = torch.linalg.norm(robot.data.root_link_lin_vel_w, dim=1)
+  qd = robot.data.joint_vel.abs().max(dim=1).values
+  return ~torch.isfinite(v) | ~torch.isfinite(qd) | (v > BLOWN_V) | (qd > BLOWN_QD)
 
 
 def rough_env_cfg(play: bool = False) -> ManagerBasedRlEnvCfg:
   cfg = _common(make_velocity_env_cfg())
-  # A world that goes NaN is reset, never the run ended (rough1 went NaN at
-  # its iteration 1273). ⚠ The stock G1 rough's 70 contacts a world ran a
-  # 5090 out of memory at 4096 worlds; the default 35 fit.
+  # A world that blows up or goes NaN is reset, never the run ended. ⚠ At
+  # 200 tiles, the stock G1 rough's 70 contacts a world ran a 5090 out of
+  # memory at 4096 worlds; the default 35 fit.
   cfg.sim.mujoco.ccd_iterations = 500
   cfg.sim.contact_sensor_maxmatch = 64
   cfg.terminations["nan"] = TerminationTermCfg(func=nan_detection)
+  cfg.terminations["blown_up"] = TerminationTermCfg(func=blown_up)
   cfg.scene.terrain.terrain_generator = replace(TERRAINS)
   cfg.scene.sensors = tuple(s for s in cfg.scene.sensors if s.name != "terrain_scan")
   for group in ("actor", "critic"):
     del cfg.observations[group].terms["height_scan"]
-  cfg.curriculum.pop("terrain_levels", None)
+  cfg.scene.terrain.max_init_terrain_level = 2
   # Carried on from the flat walker, the commands start at their full range.
   cfg.curriculum.pop("command_vel", None)
   twist = cfg.commands["twist"]

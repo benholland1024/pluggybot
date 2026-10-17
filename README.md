@@ -194,10 +194,13 @@ uv run python scripts/humanoid_spike.py --view demo   # a chest's knob on a
                                       # and gripped, through Body
 uv run python scripts/humanoid_spike.py --view walk   # living room to the
                                       # kitchen and back on its own map
+uv run python scripts/humanoid_spike.py --view rough  # the rough task's
+                                      # walker across doorsteps, paving,
+                                      # a slope and blocks
 ```
 `humanoid_spike.py --help` lists its tables (`--mass`, `--torque`,
 `--thermal`, `--energy`, `--sensors`, `--shove`, `--envelope`, `--hold`,
-`--rough`);
+`--demo-table`, `--track`, `--rough`, `--odometry`);
 SimNotes, "The humanoid body", "The humanoid stands, reaches and grasps",
 "The humanoid behind Body" and "The humanoid walks", has what they
 measured, and Parts.md the parts and the bill.

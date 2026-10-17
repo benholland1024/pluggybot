@@ -4700,19 +4700,21 @@ storeroom, seeded (`set_out(k)`), the humanoid standing in front of it.
 Every act is a `Body` member: the knob found by its tag in the D435's
 colour imager (`spot`: the face seen most square-on, its middle half a cube
 in), a reach with the fingers tilted down onto it, the gripper shut and the
-grip judged by its own reading. Over twelve set-outs, **ten held the knob**
--- held by the gripper's reading and the pads truly on it (our grading),
-still holding after 2 s -- and in the other two the robot said NOT HELD,
-truly so: its reading agreed with the truth twelve times in twelve. The tag
-put the knob 0.5 cm from where it truly hung, 0.44-0.52 m off.
+grip judged by its own reading. Over twelve set-outs
+(`humanoid_spike.py --demo-table`), **ten held the knob** -- held by the
+gripper's reading and the pads truly on it (our grading), still holding
+after 2 s -- and in the other two the robot said NOT HELD, truly so: its
+reading agreed with the truth twelve times in twelve (in one, the knob
+swung into the shut jaws in the 2 s after). The tag put the knob 0.5 cm
+from where it truly hung, 0.44-0.52 m off.
 
 **What the chest taught:**
 - *A drop handle's knob hangs nearly under its pin*, its drop bar and stem
   behind and above it (the world compiles it 0.57 rad from where it rests,
   and it swings there in the first second): jaws closing up and down
   brought a pad down onto them, swung the handle 13 deg and stalled 79 mm
-  open with one pad on the knob -- HELD by the gripper's reading, the pads
-  truly off the knob. The jaws close ACROSS it, fingers tilted 25 deg down
+  open on them -- HELD by the gripper's reading, the pads truly off the
+  knob. The jaws close ACROSS it, fingers tilted 25 deg down
   (the scene tries 15, 35 and 45 after).
 - *Level, the plan crouched, and the elbow met the counter*: the arm drove
   the gripper into the counter's edge until the robot fell backwards. Two
@@ -4754,27 +4756,80 @@ own (`tall_house_world`) -- **a served humanoid needs the house's walls at
 a room's height**, a world change for stage 5 (its stairs change the
 world too).
 
-**The walking policy** (`Pluggy-Humanoid-Walk`, mjlab's G1 recipe on our
-body, its arms scripted more quietly than a reach, its legs meeting each
-other): in our physics it walks 0.5, 1.0 and 1.3 m/s within 3 %, backward
-and sideways, and never fell in a 38 s sequence of every command.
+**The walking policy** (`Pluggy-Humanoid-Walk`, walk2, the served walker:
+mjlab's G1 recipe on our body, its arms scripted more quietly than a reach,
+its legs meeting each other). In our physics (`humanoid_spike.py --track`:
+each command from standing, measured over 6 s after 3 s) it walks 0.51,
+0.99 and 1.27 m/s asked 0.5, 1.0 and 1.3; backward 0.46 asked 0.5 (0.20
+asked the Navigator's back-off, 0.3); sideways 0.31 asked 0.3; and turns
+on the spot 1.01 rad/s asked 1.0.
 - *A turn is the hips' yaw alone* -- there is no waist. With the hips'
   yaw held as tightly as the G1's (0.15 rad) and the turn's reward paying
   61 % for not turning at all, `walk1` asked 0.5 rad/s turned 0.08. Twice
   the yaw's tolerance and a sharper reward (`STD_WALKING`, `TURN_STD`):
-  `walk2`, 0.47. **Turning on the spot is still its weakest command**:
-  moment to moment 0.07-0.64 rad/s, and out of a walk it can stall a few
-  seconds before it turns.
+  `walk2`. **A slow turn on the spot is still its weakest command**: 0.35
+  and 0.28 rad/s asked 0.5 either way, and out of a walk it can stall a
+  few seconds before it turns.
 - *The legs meet each other* (`model.LEG_GEOMS`'s contact pairs): the
   robot's own geoms touch nothing of the robot's, and a gait could pass one
   leg through the other.
 
+**Rough ground** (`Pluggy-Humanoid-Walk-Rough`; `humanoid_spike.py --rough`
+flies the served and the rough walker over courses of what that task
+trains on, each eight times at 0.6 m/s from a start drawn askew, graded by
+us):
+
+| walker | flat | 5 cm doorsteps | paving to 4 cm | 10 deg slope | blocks to 8 cm |
+|---|---|---|---|---|---|
+| walk2, served | 0 fell, 7.1 m | **8 fell**, 1.9 | 1 fell, 5.2 | 0 fell, **1.1** | **7 fell**, 3.2 |
+| rough4, not served | 0 fell, 7.2 | 0 fell, 7.2 | 0 fell, 7.0 | 0 fell, 5.9 | 0 fell, 5.9 |
+
+(falls of eight, and the mean distance made of 7.2 m asked.)
+
+![The `rough` scene: the rough task's walker across two doorsteps, paving,
+a 10 deg slope and blocks, steered off its own odometry](figures/humanoid_rough.png)
+- ⚠ *Box soles blow up on a height field.* mjlab's rough terrains are
+  mostly height fields, and on them the box soles blew up in MuJoCo Warp:
+  flown by the flat walker, about one world in seven on the rough patches
+  within 20 s (root speeds to 1e5 m/s), 2-4 % on the slopes, none of 978
+  on the boxes. The humanoid's rough1 ended in a NaN at its iteration 1273;
+  rough2's critic was wrecked by them (an iteration's mean return of
+  -3,244, the value loss from 0.13 to 9e6 and on to 9e16, the action noise
+  from 0.36 to 2.6 in 450 iterations). The task's terrain is BOXES alone
+  -- blocks, low stairs up and down, tilted plates -- and a world that
+  blows up anyway is reset (`walk.blown_up`); flown on the boxes, none did.
+- ⚠ *Blind, it gives up what risks a fall.* Under mjlab's terrain
+  curriculum (rough4, 2000 iterations on from walk2;
+  `models/humanoid_walk_rough.npz`) it never falls on a course, and it
+  walks up and over the slope the served walker stalls at -- but asked to
+  walk backward or sideways it stands still, on flat ground too; it turns
+  on the spot 0.07 and 0.23 rad/s asked 0.5 either way, and walking
+  forward it drifts sideways at 0.15-0.25 m/s (`--track`). It cannot tell
+  rough ground from flat, so it stood still wherever a command had risked
+  a fall. The Navigator backs off and turns on the spot, so **it is not
+  the served walker**. Every difficulty at once (rough3) narrowed it
+  further: it stood still at 1.3 m/s too, and turned 0.08 asked 0.5.
+  Sharper tracking rewards (0.2 m/s and 0.3 rad/s wide, rough5) paid
+  nothing for a walk it could not track precisely, and at 3,850 iterations
+  it stood still at 1.0 m/s too; it was stopped there.
+- *The `rough` scene* (`humanoid_spike.py --view rough`): the rough walker
+  across a doorstep twice, paving, the slope and blocks end to end, 19 m
+  in 43 s. ⚠ Walked open-loop it turned off the courses within 20 s; the
+  scene steers it back to their middle line off its own leg odometry and
+  IMU.
+- *The served walker does not walk up a 10 deg ramp*: it climbs a few
+  tens of centimetres, stops stepping and slides back to its foot (so did
+  rough3). The house has none; its stairs are stage 5's, and a walker that
+  sees the ground ahead -- the D435's points, as the planner reads them --
+  may be what both need.
+
 **Its odometry**: the heading the IMU's (within a degree over a walk), the
 position moving as the planted foot does not -- the lower sole, levelled,
-off the legs' encoders through its model of itself. About 4 % of the
-distance walked forward and back; sideways it undercounts (a shuffle lifts
-the swing foot too little to tell which is planted), and the Navigator
-never walks it sideways.
+off the legs' encoders through its model of itself. On a bare floor, with
+nothing for a scan to match (`humanoid_spike.py --odometry`, 8 s a
+command), it reads 4-6 % short walking forward or back, 3 % on a walk with
+a turn, and 25 % SIDEWAYS (a shuffle lifts the swing foot too little to
+tell which is planted); the Navigator never walks it sideways.
 
 **Rule 7, read again for walking** (`humanoid_spike.py --torque`, its
 walking rows FLOWN by the policy, 10 s at each speed, the start left out):
@@ -4793,6 +4848,13 @@ The winding is held steady by that RMS on a 40 C day, of the RS line's
 walking sends nothing back to the design.** The ankle pitch is nearest
 both, at the top speed, and the estimate had it (70 N*m, 59 % of the
 peak; flown 71.6). The stairs' rows stay estimates until stage 5.
+
+**Compute** (#507's stage 4 line: ~$11 likely, $16 the stop; stage 3
+trained nothing): one rented RTX 5090 (Vast, $0.49 an hour) for 3.4 hours
+-- walk1 and walk2 (23 min each), rough1 (a NaN at 19 min), rough2
+(diverged, 12), rough3 (33), rough4 (27) and rough5 (stopped at 13), three
+starts out of memory and the blow-up diagnostic -- **$1.63** off Vast's
+own charges.
 
 ## Debugging workflow that worked
 

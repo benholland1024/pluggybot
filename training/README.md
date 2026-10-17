@@ -60,13 +60,16 @@ scripted more quietly than a reach moves them, the legs charged for meeting
 each other, and the hips' yaw given twice the G1's tolerance -- with no
 waist a turn is the hips' yaw alone, and at the G1's a policy asked 0.5
 rad/s turned 0.08 (SimNotes, "The humanoid walks").
-`Pluggy-Humanoid-Walk-Rough` carries the flat walker on over rough patches,
-slopes and low blocks, every difficulty at once (`--agent.resume True
---agent.load-run '.*_walk2$' --agent.load-checkpoint model_2999.pt`): its
-observations are the flat task's, so the checkpoint carries over, and
-mjlab's terrain curriculum is off because it promotes a robot for ending an
-episode 4 m from its tile's centre, which a turning command seldom does
-(rough1's levels sat at 0.03 of 9). Export any of them with
+`Pluggy-Humanoid-Walk-Rough` carries the flat walker on over blocks, low
+steps up and down and tilted plates (`--agent.resume True --agent.load-run
+'.*_walk2$' --agent.load-checkpoint model_2999.pt`; its observations are
+the flat task's, so the checkpoint carries over) under mjlab's terrain
+curriculum, its tracking rewards sharper than the flat task's. ⚠ Its
+terrain is BOXES ALONE: on a height field the box soles blew up (a world
+in seven on the rough patches within 20 s), and two runs ended in it. ⚠
+Blind, it stood still for any command that risked a fall, on flat ground
+too -- backward, sideways -- while the stock widths paid 37 % for it
+(SimNotes, "The humanoid walks"). Export any of them with
 `--body humanoid`, which records the leg joints it drives and each one's
 gains. `humanoid_train/g1_check.py` flies mjlab's stock G1
 velocity policy outside mjlab -- numpy, MuJoCo's C engine, at 5 ms and the
@@ -95,6 +98,8 @@ run on a card records its steps a second:
 | RTX 4090 | Vast, the same host | 0.414 | 77,749 | 0.0015 | today's task, fresh, iterations 10–309 |
 | RTX 5090 | Vast, a Ryzen 7 7800X3D host | 0.516 | 218,000 | 0.00066 | mjlab's stock G1 flat task, 3000 iterations in 22.5 min (#507) |
 | RTX 5090 | Vast, the same host | 0.516 | 209,000 | 0.00069 | `Pluggy-Humanoid-Stand`, 4000 iterations in 31 min (#507) |
+| RTX 5090 | Vast, another 7800X3D host | 0.490 | 215,000 | 0.00063 | `Pluggy-Humanoid-Walk`, 3000 iterations in 23 min (#507) |
+| RTX 5090 | Vast, the same host | 0.490 | 122,000 | 0.0011 | `Pluggy-Humanoid-Walk-Rough` (rough4: 50 tiles of boxes), 2000 iterations in 27 min (#507) |
 
 Two runs on one card share it rather than add to it: two humanoid runs on
 one 5090 each took 1.0 s an iteration against 0.46 s alone.

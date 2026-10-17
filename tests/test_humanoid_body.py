@@ -144,6 +144,17 @@ def test_the_walking_policy_walks_and_turns_in_our_physics():
   assert data.xpos[model.body(hm.ROBOT_ROOT).id][2] > 0.6
 
 
+def test_the_rough_walker_steps_onto_a_doorstep_and_off_it():
+  """Rough ground in our physics (`humanoid_spike.course_flight`): a 5 cm
+  doorstep, twice, walked straight ahead at 0.6 m/s from a start drawn
+  askew, by the rough task's walker. ⚠ The flat walker -- the served one --
+  fell on it eight times in eight (SimNotes, "The humanoid walks")."""
+  sys.path.insert(0, str(ROOT / "scripts"))
+  import humanoid_spike as sp
+  rec = sp.course_flight("doorstep", 0, sp.ROUGH_NPZ)
+  assert not rec["fell"] and rec["made_m"] > 5.0, rec
+
+
 def test_the_humanoid_walks_to_a_point_through_the_navigator():
   """`Body.go_to_routine` over the Navigator (`humanoid.mission`): it plans,
   hands its legs to the walking policy and walks there; its belief -- its
