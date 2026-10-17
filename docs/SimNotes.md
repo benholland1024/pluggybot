@@ -4783,8 +4783,9 @@ us):
 
 (falls of eight, and the mean distance made of 7.2 m asked.)
 
-![The `rough` scene: the rough task's walker across two doorsteps, paving,
-a 10 deg slope and blocks, steered off its own odometry](figures/humanoid_rough.png)
+![The `rough` scene: the walker that sees the ground across two doorsteps,
+paving, a 10 deg slope and blocks on its own map, steered off its own
+odometry](figures/humanoid_rough.png)
 - ⚠ *Box soles blow up on a height field.* mjlab's rough terrains are
   mostly height fields, and on them the box soles blew up in MuJoCo Warp:
   flown by the flat walker, about one world in seven on the rough patches
@@ -4796,8 +4797,8 @@ a 10 deg slope and blocks, steered off its own odometry](figures/humanoid_rough.
   -- blocks, low stairs up and down, tilted plates -- and a world that
   blows up anyway is reset (`walk.blown_up`); flown on the boxes, none did.
 - ⚠ *Blind, it gives up what risks a fall.* Under mjlab's terrain
-  curriculum (rough4, 2000 iterations on from walk2;
-  `models/humanoid_walk_rough.npz`) it never falls on a course, and it
+  curriculum (rough4, 2000 iterations on from walk2; replaced since by the
+  walker that sees the ground) it never falls on a course, and it
   walks up and over the slope the served walker stalls at -- but asked to
   walk backward or sideways it stands still, on flat ground too; it turns
   on the spot 0.07 and 0.23 rad/s asked 0.5 either way, and walking
@@ -4809,16 +4810,15 @@ a 10 deg slope and blocks, steered off its own odometry](figures/humanoid_rough.
   Sharper tracking rewards (0.2 m/s and 0.3 rad/s wide, rough5) paid
   nothing for a walk it could not track precisely, and at 3,850 iterations
   it stood still at 1.0 m/s too; it was stopped there.
-- *The `rough` scene* (`humanoid_spike.py --view rough`): the rough walker
-  across a doorstep twice, paving, the slope and blocks end to end, 19 m
-  in 43 s. ⚠ Walked open-loop it turned off the courses within 20 s; the
-  scene steers it back to their middle line off its own leg odometry and
-  IMU.
+- *The `rough` scene* (`humanoid_spike.py --view rough`): the walker that
+  sees the ground across a doorstep twice, paving, the slope and blocks end
+  to end, 19 m in 32 s (rough4 took 43). ⚠ Walked open-loop rough4 turned
+  off the courses within 20 s; the scene steers back to their middle line
+  off the robot's own leg odometry and IMU.
 - *The served walker does not walk up a 10 deg ramp*: it climbs a few
   tens of centimetres, stops stepping and slides back to its foot (so did
-  rough3). The house has none; its stairs are stage 5's, and a walker that
-  sees the ground ahead -- the D435's points, as the planner reads them --
-  may be what both need.
+  rough3). The house has none; its stairs are stage 5's. The walker that
+  sees the ground walks up both ("One walker that sees the ground").
 
 **Its odometry**: the heading the IMU's (within a degree over a walk), the
 position moving as the planted foot does not -- the lower sole, levelled,
@@ -4895,6 +4895,20 @@ to the flight's foot, the map's scan was the world's to a median 1.6 cm
   stored one reads nothing.
 - *Our ideal scan casts against the world's geoms alone*, as training did:
   cast at everything it hit the robot's own head.
+- ⚠ *The camera's rays are cast unculled* (`depth.UNCULLED`, both the
+  humanoid's cameras). MuJoCo's batched cast skips a geom whose bounding
+  sphere lies past its cutoff, and a plane's sphere is its anchor point:
+  cast to the camera's 3 m range, 2.75 m from where the bare floor is
+  anchored the camera saw no floor at all, its map froze, its height went
+  unregistered, and a seeing walker fell at 1.0-1.3 m/s on a flat floor
+  (shown the true ground, never). Unculled a frame costs the same (3.9 ms
+  against 4.2 on the bare floor; 10-14 ms either way in the house). Every
+  bare-floor table of a seeing walker before it -- tracking, the rough
+  courses, the bare flight coming down from a landing 3.1 m out -- was
+  flown half blind, and the tables below are flown again. The served
+  quadrupeds' camera still casts to its range: the house's rooms are
+  floored with boxes, and at five places its frames differed by at most
+  two points of ~7,700.
 - ⚠ *What it is shown is ground it could step on* (`HeadScan.ground`).
   Training's ground is floors, blocks and flights, all of a piece; the
   house's flight runs between the hall's wall and the deck's face, and
@@ -4927,67 +4941,32 @@ the planted sole does, NEVER LAID OFF THE MAP: laid off the ground under a
 landing sole, a footprint believed 6 cm up the flight read the next tread,
 the height jumped a riser, the map was laid a riser high from there, and
 the walker stumbled on the third tread; continuous, it stayed within 3 cm
-to the landing. Three other signals failed:
+to the landing. Coming down, two more: the ground under a sole is ground it
+could step on, as the scan's is (from the landing the half wall beside the
+flight shows its top alone, no face for the span rule to see, and a sole
+beside it read the ground under it 1.4-1.6 m up); and a planted sole tipped
+over a tread's edge is followed by the corner nearest the mapped ground
+under it, where the ground under its corners differs by a riser (stepping
+off the landing its toe hung 10 cm below the heel's tread, and followed by
+its lowest corner the height rose 9 cm as the body stepped down 10). Three
+other signals failed:
 a load off the legs' torques (standing it read 215 N against a true 215;
 walking, a swinging leg's own torques read up to 400 N), the soles' motion
 against each other (a sole rising and the other sinking read the same: the
 descent's case), and the IMU's velocity against each foot's (the height
 drifted a metre in 8 s).
 
-**Up the house's flight on its own map** (`models/humanoid_walk_stairs.npz`,
-`Pluggy-Humanoid-Stairs`; `humanoid_spike.py --climb`, `--view stairs`).
-Two walkers that see the ground were trained (`training/README.md`): the
-seeing walker over floors, blocks, plates and flights, and a stairs
+**Two walkers that see the ground were trained** (`training/README.md`):
+the seeing walker over floors, blocks, plates and flights, and a stairs
 specialist over flights alone at the house's tread. Carried on from walk2,
 the seeing walker kept walk2's 2.5 cm shuffle and never left the easiest
 row of risers; fresh with the easiest at 0.05 m, nor did it; from 0.02 m
 both climbed, and both stopped climbing rows by iteration 4000 (up near
-0.13 m on average, down near 0.14). The specialist climbs better (the
-seeing walker at 5650, on its map: 1 in 5 up the house's riser, none down
-from 0.15 m), so it is the stairs' walker. In the house, the `stairs`
-scene from ten starts drawn askew, through the mission with its scan
-matcher, its map laid at 5 Hz: **up the flight 8 in 10** (one fall its
-get-up took; 13 s, its belief 3 cm off and its height 1 cm, medians), and
-**down it 2 in 10** (five falls) -- at 10 Hz no better, 7 and 3. Coming down
-it drops both soles a tread at a time, which no leg odometry follows: its
-height ended 0.6 m high and its belief 1.3 m back along the hall, whose
-long corridor gives the scan matcher nothing to hold it by. On a bare
-flight, five times each riser (no scan matcher there):
-
-| riser, m | up, its own map | down, its own map | up, the ideal scan | down, the ideal scan |
-|---|---|---|---|---|
-| 0.10 | 5/5 | 5/5 | 5/5 | 5/5 |
-| 0.15 | 4/5 | 1/5 (4 falls) | 5/5 | 3/5 |
-| 0.18, the house's | 2/5 (1 fall) | 3/5 (1 fall) | 5/5 | 1/5 |
-| 0.20 | 2/5 | 2/5 (2 falls) | 5/5 | 1/5 |
-| 0.22 | 2/5 | 3/5 | 5/5 | 0/5 |
-
-On the ideal scan it climbs every riser it trained on and balks at the
-edge going down, past what it learnt; its map fills what it has not seen
-at the nearest height it has, which hides the drop until the edge, and it
-goes on down. Coming down a flight is the open half. Each fix above is
-pinned in `tests/test_humanoid_stairs.py`.
-
-**The seeing walker does not replace walk2** (Ben's rule: only if it tracks
-as walk2 does on a flat floor, and beats it on rough ground and the stairs;
-`humanoid_spike.py --track`, `--rough`, each walker on what it would be
-served with -- the seeing one on its own map). On rough ground it never
-fell (0 of 8 on every course, 7.6-8.0 m of the 7.2 asked) where walk2 fell
-8 of 8 on the doorsteps and 7 of 8 on the blocks and stopped at the slope;
-on the stairs walk2, blind, trips on a 5 cm doorstep. On a flat floor:
-
-| asked (forward, sideways m/s, turn rad/s) | walk2 | the seeing walker |
-|---|---|---|
-| 0.5, 1.0, 1.3 forward | 0.51, 0.99, 1.27 | 0.47, 1.15, 1.38 |
-| 0.3, 0.5 backward | 0.20, 0.46 | 0.00, 0.66 (0.20 sideways) |
-| 0.3 sideways | 0.31 | 0.00 |
-| turns 0.5, -0.5, 1.0 | 0.35, -0.28, 1.01 | 0.27, -0.31, 0.81 |
-
-It will not sidestep or back off slowly -- the Navigator's back-off is 0.3
-m/s -- so walk2 stays the served walker and the seeing walker is not
-committed (its recipe is the stairs walker's). A variant paying walk2's
-pose off the flights and air time at a walking pace tracked worse still (1
-m/s asked walked 0.53).
+0.13 m on average, down near 0.14). The specialist climbed better then;
+the seeing walker carried on with narrow tracking climbs better than
+either and is the one walker that sees the ground now (the next section,
+which has its tables and the descent's state). Each fix above is pinned in
+`tests/test_humanoid_stairs.py`.
 
 **Falling, and getting up** (`humanoid/getup.py`, `Pluggy-Humanoid-Getup`
 and `-Getup-Head`; `humanoid_spike.py --fall`, `--view fall`, `--view
@@ -5040,14 +5019,16 @@ height was 0.41 m off at the foot for good).
 
 **The sizing tables, re-read with the stairs and the get-up** (rule 7;
 `humanoid_spike.py --torque`, each joint's peak against its part's peak
-and its RMS against the part's continuous rating). Up the house's flight
-the knee peaks at 108 N*m (90 % of the RS04's) with its RMS at 89 % of its
-rating over the 11 s -- a burst; held at that for minutes the winding would
-settle at 135 C on a 40 C day, under its 145 -- and coming down the ankle
-pitch reaches its 120 N*m peak and the ankle's roll 52 (86 % of the
+and its RMS against the part's continuous rating), flown by the walker
+that sees the ground (the next section). Up the house's flight, 5.9 s on
+it, the knee peaks at 118 N*m (98 % of the RS04's) with its RMS 110 % of
+its rating -- a burst, which the part's overload table lets it hold for at
+least 290 s (a winding's time constant is minutes; the stairs specialist,
+climbing in 11 s, peaked at 108 and 89 %) -- and coming down, in 3.3 s, the
+knee peaks at 116, the ankle's pitch at 92 and its roll at 53 (88 % of the
 RS03's). The estimates the parts were chosen on put the knee and the hip's
-roll at ~92 and the hip's turn at ~51: flown, the hip's roll is 51-61 and
-its turn 21-27. Getting up keeps every leg part inside its ratings (peaks
+roll at ~92 and the hip's turn at ~51: flown, the hip's roll is 52-63 and
+its turn 24-37. Getting up keeps every leg part inside its ratings (peaks
 to 73 %, RMS to 72 % over 2-3 s) and spends the arms whole: the upper
 arm's twist and the elbow (RS02) at their 17 N*m peaks from every start,
 and the shoulder's pitch and roll (RS03) at their 60 off its front and its
@@ -5075,7 +5056,7 @@ physics step (500 Hz, the biggest of its Python costs) and casts more rays,
 where the humanoid reckons at 100 Hz. One lever left: the humanoid's reach
 reads both hands' forces at 100 Hz while it only walks. Seeing the ground
 costs a fifth more: on the dev box one humanoid walking the same routes ran
-at 2.7x real time blind and 2.3x with the stairs' walker and its map,
+at 2.7x real time blind and 2.3x with a walker that sees the ground,
 interleaved twice (⚠ the map laid at the depth camera's 10 Hz, 1.8x: its
 ray-cast frames are most of it, and at 5 Hz the frames still overlap at
 1 m/s).
@@ -5090,6 +5071,112 @@ $16 likely. #507 to here: $8.45.
 (`humanoid_spike.py --strip stairs`, `--strip fall` and `--strip getup`
 draw `docs/figures/humanoid_stairs.png`, `humanoid_fall.png` and
 `humanoid_getup.png`.)
+
+## One walker that sees the ground (issue #507)
+
+Ben's rule for serving the walker that sees the ground in walk2's place: it
+tracks walk2's flat-floor commands as walk2 does, and beats it on rough
+ground and the stairs. Before any run the rule was set as numbers
+(`humanoid_spike.py --track`: each command walked three times from
+standing, each started at another moment of the stance): on every command
+the error in the asked direction at most walk2's plus 0.10, and what was
+not asked -- sideways, forward or turning -- within 0.10.
+
+**Narrow tracking, carried on from seeing7** (`Pluggy-Humanoid-Walk-Seeing-Fine`;
+`training/README.md` has each round's flags). mjlab's tracking terms are
+wide (0.5 m/s and rad/s): they pay 70 % for standing still asked to step
+sideways at 0.3 m/s, and seeing7 stood still there. Narrow terms beside
+them -- the planar velocity within 0.15 m/s, the turn within 0.25 rad/s,
+then 0.10 -- and its command's curriculum gone: six rounds of 1500-2000
+iterations, each fixing a row and costing another. Narrowing the turn's
+width from 0.25 to 0.10 brought a turn asked 1.0 rad/s from 0.82 to 0.92;
+raising the planar weight from 2 to 3 cured a 0.11 m/s curve at 1.3 m/s
+(0.03) and, with the narrow turn, took that turn back to 0.65-0.68. Along
+fine5a's run, of six checkpoints 100 iterations apart one passed every row,
+one passed with two values on the bar, four missed one to three; the one
+that passed (iteration 12500) is the walker, `models/humanoid_walk_seeing.npz`.
+Chosen on the rule's walks, it was checked on three more a command, started
+where none of the first three were:
+
+| asked (forward, sideways m/s; turn rad/s) | walk2 | the bar, the asked part's error | the walker, the rule's walks | three more |
+|---|---|---|---|---|
+| 0.5, 1.0, 1.3 forward | 0.51, 0.99, 1.28 | 0.11, 0.11, 0.12 | 0.49, 1.02, 1.30 | 0.49, 1.02, 1.29 |
+| 0.3, 0.5 back | 0.19, 0.46 | 0.21, 0.14 | 0.30, 0.62 | 0.29, 0.63 |
+| 0.3 sideways | 0.31 | 0.11 | 0.27 | 0.31 |
+| turns 0.5, -0.5, 1.0 | 0.21, -0.30, 1.01 | 0.39, 0.30, 0.11 | 0.40, -0.26, 0.92 | 0.40, -0.28, 0.78 |
+
+What was not asked stayed within 0.09. The rule's table passes; the three
+more fell once in 27, turning on the spot at 1 rad/s for six seconds.
+
+**Every fall on a flat floor is its map's.** On the true ground
+(`ideal_scan`) nothing fell in 54 walks, six a command -- and it backed off
+at -0.67 m/s asked -0.5, past the bar's -0.64, where its own map's walks
+were inside it (-0.62, -0.63): on that row the walker sits on the bar. On
+its own map each of fine5a's checkpoints fell once or twice in 27 more
+walks, at 1 m/s or in a long turn. Two mechanisms, both its soles' footprints (`HeadScan.feel`: a
+planted sole's footprint goes into the map at the legs' reckoned height,
+over the camera's cells):
+- *A footprint a few centimetres off the camera's floor is a step there.* At
+  1 m/s the planted-foot rules read it as a riser on a flat floor -- 105
+  ticks of the stair rule, the tipped-sole rule moving its corner 155 times
+  -- the height ran on, the map's scan came 0.23 m off the truth, and it
+  fell; without the tipped-sole rule it walked on (but that rule keeps the
+  height down a flight: 0.10 m off at its foot with it, 0.34 without).
+- *A few centimetres it never saw in training.* Turning on the spot the
+  map stayed within 2-4 cm of the truth for seven seconds and the walker
+  fell at the eighth. Training's scan is noisy (0.1 m a cell, drawn afresh
+  each step), never wrong the same way for seconds.
+
+Without footprints it never fell on a flat floor -- and climbed none of 25
+flights on the bare flight, up or down, every one a fall. Kept off the
+camera's cells (the camera's floor winning), it climbed 6 of 25 up where it
+had 25: up a flight a sole knows its tread better than a camera seeing it
+end-on. So the footprints stay, and with them the falls, and **walk2 stays
+the served walker**; this one replaces the rough task's walker and the
+stairs' (git has rough4 and stairs1). Serving it is Ben's call on these
+tables. What would close the falls is the map's, not the gait's: training
+against a map wrong the ways this one is -- an offset, a plateau, a slope
+that lasts -- or footprints that cannot disagree with the camera on one
+floor. The back-off at 0.5 m/s, on the bar, is the gait's.
+
+On rough ground (`--rough`, eight walks a course; falls, and the metres
+made of 7.2 asked) it falls where walk2 cannot cross, as rough4 did, and
+makes more ground than rough4 on the slope and the blocks:
+
+| | flat | doorstep | paving | slope | blocks |
+|---|---|---|---|---|---|
+| walk2 | 0, 7.1 | 8, 1.9 | 1, 5.2 | 0, 1.1 | 7, 3.2 |
+| rough4 | 0, 7.2 | 0, 7.2 | 0, 7.0 | 0, 5.9 | 0, 5.9 |
+| the walker | 0, 7.2 | 0, 7.1 | 0, 7.1 | 1, 6.9 | 0, 7.0 |
+
+On stairs (`--climb`): on the bare flight, five flights at each riser from
+0.10 to 0.22 m, **25 of 25 up and 25 of 25 down on its own map** (and on
+the ideal scan); in the house, the `stairs` scene from ten starts drawn
+askew, **up 10 of 10** (no fall; 10 s, its belief 5 cm off) and **down 6
+of 10**, with 7 falls its get-up took. The stairs specialist, flown again
+with its camera seeing the floor: 14 and 22 of 25 on the bare flight, 7 and
+7 of 10 in the house.
+
+**Coming down is still the open half.** Every fall coming down the house's
+flight but one came with the belief 0.7-1.9 m behind the body along the
+hall: near the foot the walker runs at 0.8-1.3 m/s asked 0.4, and its
+odometry counted 35-90 % of the way. By the simulator's contacts (our
+diagnosis, never its senses): it follows a sole in the air 6-11 % of the
+time, losing 0.4-0.6 m a descent and walking the belief back; no sole is
+down 0-4 % of the time (0.1-0.3 m); a planted sole slides 0.1-0.3 m; and
+once the scan matcher pulled the belief 1.1 m back -- the hall is a
+corridor it cannot fix along. Its map, laid through that belief, shows
+treads on the hall's floor, and it trips. Registering the depth frames
+along the flight, not only in height, is the lever left.
+
+**What it cost**: RTX 5090s on Vast, $3.70 by Vast's charges -- $0.58 on a
+first host (fine1), $2.18 on an EPYC 9B14 host (the fine-tunes, the
+checkpoints' export, every tracking table off the dev box) and $0.95 on a
+Ryzen 7 7800X3D host (the other half of each round). #507 to here: $12.15.
+
+(`humanoid_spike.py --view rough` and `--view stairs` fly it;
+`--strip rough` and `--strip stairs` draw `docs/figures/humanoid_rough.png`
+and `humanoid_stairs.png`.)
 
 ## Debugging workflow that worked
 

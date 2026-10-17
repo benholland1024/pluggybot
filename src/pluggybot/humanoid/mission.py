@@ -21,7 +21,7 @@ say it is falling -- tipped past 35 deg, or folded down under 0.40 m over
 its soles -- every joint, arms too, goes to that policy until it stands,
 and the legs come back to the standing policy (`legs` is "getup" between).
 
-A walker that SEES THE GROUND (stage 5, `walk.STAIRS_NPZ`) is shown the
+A walker that SEES THE GROUND (`walk.SEEING_NPZ`) is shown the
 D435's map at its grid (`humanoid.scan.HeadScan`): the scan then owns the
 camera's frames, the low layer folds the scan's (one render, not two), and
 the odometry keeps its height and finds its planted foot on the map
@@ -44,7 +44,7 @@ from pluggybot.humanoid.scan import HeadScan
 from pluggybot.humanoid.walk import WALK_NPZ, WalkDriver
 from pluggybot.mapping.frontier import OCC_THRESH
 from pluggybot.navigator import Navigator
-from pluggybot.perception.depth import DepthCamera, DepthFrame
+from pluggybot.perception.depth import UNCULLED, DepthCamera, DepthFrame
 from pluggybot.robot import FIRST, RobotHandle
 
 STILL = (0.0, 0.0, 0.0)
@@ -187,7 +187,7 @@ class HumanoidMission(Navigator):
     self.legs = "stand"
     #: Falls the get-up policy has taken over.
     self.falls = 0
-    self.depth = DepthCamera(model, handle, mount="body")
+    self.depth = DepthCamera(model, handle, mount="body", reach=UNCULLED)
     self._frame: DepthFrame | None = None
     self._frame_t = -math.inf
     self._frame_used_t = -math.inf
@@ -374,7 +374,8 @@ class HumanoidMission(Navigator):
     # height (the walker's scan reads it before the odometry's first tick).
     self.odo = StanceOdometry(SelfModel(), att, x, y, z=hm.stand_height(),
                               terrain=None if self.head is None else self.head.under,
-                              felt=None if self.head is None else self.head.feel)
+                              felt=None if self.head is None else self.head.feel,
+                              ground_at=None if self.head is None else self.head.ground_at)
     self.odo.correct(x, y, yaw)
     self.legs = "stand"
 

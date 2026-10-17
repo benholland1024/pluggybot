@@ -16,6 +16,7 @@ from pluggybot.humanoid import model as hm
 from pluggybot.humanoid.arms import SelfModel
 from pluggybot.humanoid.odometry import StanceOdometry
 from pluggybot.humanoid.scan import HeadScan
+from pluggybot.perception.depth import DepthCamera
 
 #: The get-up's allowance in the test, s: it stood from its back in 3.0 s
 #: (`humanoid_spike.py --view getup`).
@@ -96,6 +97,30 @@ def test_the_height_is_never_laid_off_the_map():
   odo.step(None, None)
   assert odo.foot == 0
   assert odo.z == pytest.approx(0.73), "the height was laid off the map's tread"
+
+
+def test_a_sole_tipped_over_an_edge_is_followed_by_its_heel():
+  # Stepping down off the landing (0.9 m), the planted sole tips over its
+  # edge: its heel stays on the landing and its toe hangs over the tread
+  # below (0.72). Followed by its lowest corner -- the hanging toe -- the
+  # height rose 9 cm as the body stepped down 10; the heel did not move.
+  edge = 0.25
+  ground_at = lambda x, y: 0.9 if x < edge else 0.72  # noqa: E731
+
+  def tipped(toe_drop):
+    mid = [0.2, -0.1, -0.73 - toe_drop / 2]
+    heel = [[0.2 - 0.11, -0.1 + b * 0.045, -0.73] for b in (-1, 1)]
+    toe = [[0.2 + 0.11, -0.1 + b * 0.045, -0.73 - toe_drop] for b in (-1, 1)]
+    return mid, [heel[0], heel[1], toe[0], toe[1]]
+
+  (m0, c0), (m1, c1) = tipped(0.02), tipped(0.10)
+  left_mid, left_corners = _sole(0.0, 0.1, -0.60)        # the other foot, swinging high
+  ticks = [([left_mid, m0], [left_corners, c0]), ([left_mid, m1], [left_corners, c1])]
+  odo = _Stance(ticks, z=1.63, ground_at=ground_at)
+  odo.step(None, None)
+  odo.step(None, None)
+  assert odo.foot == 1
+  assert odo.z == pytest.approx(1.63), "followed by its hanging toe"
 
 
 def test_on_one_floor_the_lower_foot_rule_stands():
@@ -192,6 +217,34 @@ def test_ground_too_high_to_step_onto_from_here_is_not_shown(head):
   s.map.update((0.0, 0.0, 0.0), np.vstack([floor, top]))
   s._redraw()
   assert np.allclose(s.scan(), 0.73, atol=0.005), "the counter's top was shown as ground"
+
+
+def test_a_sole_beside_a_half_wall_stands_on_the_ground_not_on_the_walls_top(head):
+  # From the landing the half wall beside the flight shows its top alone:
+  # its cells hold no face, so the span rule cannot tell it, and a sole set
+  # beside it, two thirds of its footprint over the top, read the ground
+  # under it 1.4-1.6 m up. The top is not joined to the ground it stands on.
+  s = _scan(head)
+  rng = np.random.default_rng(3)
+  floor = _frame(rng, (-0.6, 1.2), (-0.6, 0.12), (0.0, 0.0), 40000)
+  top = _frame(rng, (-0.6, 1.2), (0.12, 0.22), (0.9, 0.9), 20000)
+  s.map.update((0.0, 0.0, 0.0), np.vstack([floor, top]))
+  s._redraw()
+  assert s.under(0.0, 0.12, 0.0) < 0.01, "a sole beside the half wall stood on its top"
+
+
+def test_the_camera_sees_the_floor_far_from_where_its_plane_is_anchored(head):
+  # MuJoCo's cast skips a geom whose bounding sphere lies past its cutoff,
+  # and a plane's is its anchor point: 4 m from the bare floor's, a camera
+  # cast to its range saw no floor, and the seeing walker walked on a frozen
+  # map from 2.75 m out and fell.
+  model, _ = head
+  data = mujoco.MjData(model)
+  mujoco.mj_resetDataKeyframe(model, data, 0)
+  data.qpos[0] = 4.0
+  mujoco.mj_forward(model, data)
+  assert len(DepthCamera(model, mount="body").frame(data).points) == 0
+  assert len(HeadScan(model, data).cam.frame(data).points) > 1000
 
 
 def test_a_body_folded_into_a_squat_is_falling_though_it_is_upright(head):
