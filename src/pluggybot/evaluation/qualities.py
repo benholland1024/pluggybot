@@ -11,9 +11,11 @@ row that feeds it. The experiment zone (#215), the library (#216) and the
 science record (#217) each add rows to a shape that already exists here,
 rather than a second version of the metric.
 
-One source of rows, the deployed world, read through the one route
-(`from_observe`: `GET /api/pluggyworld/observe`, Evaluation.md §5); a later
-source adds rows to a shape, never a second version of it.
+Two sources of rows: the deployed world, read through the one route
+(`from_observe`: `GET /api/pluggyworld/observe`, Evaluation.md §5), and the
+demos' attempts (`from_attempts`: the record `evaluation.attempts` writes,
+#493), which feed capability's per-task record alone. A later source adds
+rows to a shape, never a second version of it.
 
 A row is `(kind, subject, robot, t, data, run)`: the observatory's own
 columns, which are also what an `earned`/act/`tool`/`procedure` event on the
@@ -48,6 +50,7 @@ Rules that every shape keeps, because each was paid for once already:
 from __future__ import annotations
 
 import inspect
+import math
 import re
 from collections import Counter, defaultdict
 from dataclasses import dataclass, field
@@ -84,6 +87,9 @@ SOURCES: dict[str, tuple[str, ...]] = {
   # the bench (#227): a line of the science record code checked, true or
   # false (`finding`, because `record` is the memory's row on the wire)
   "finding": ("observe",),
+  # a demo's attempt (#493): one try from a set-out, graded by the world --
+  # the record `evaluation.attempts` writes, off no observatory
+  "attempt": ("demo",),
 }
 
 
@@ -175,6 +181,21 @@ def from_observe(payload: dict) -> list[Row]:
       rows.append(Row(kind="judged", subject=key, robot=str(j.get("robot") or ""),
                       t=_float(j.get("simTime")),
                       data={"quality": _float(j.get("quality")), "board": a.get("board")}))
+  return rows
+
+
+def from_attempts(record: Iterable[dict]) -> list[Row]:
+  """Rows off a demo's record (#493: `evaluation.attempts`, one dict an
+  attempt): an `attempt` row per try, its subject the verdict (`passed` /
+  `failed`), its data the row whole, its run the build and skill it was
+  flown with -- the regime a reader groups by."""
+  rows = []
+  for a in record:
+    run = a.get("run") or {}
+    regime = f"{run.get('commit', 'unknown')} {a.get('process')}:{a.get('skill')}"
+    rows.append(Row(kind="attempt", robot=str((a.get("task") or {}).get("body", "")),
+                    subject="passed" if (a.get("verdict") or {}).get("ok") else "failed",
+                    t=_float(a.get("attempt")), data=dict(a), run=regime))
   return rows
 
 
@@ -472,6 +493,79 @@ def first_solve(rows: Iterable[Row],
   return out
 
 
+def share_interval(flags, level: float = 0.95) -> dict | None:
+  """A share of True with its Wilson interval; None for none."""
+  f = [bool(x) for x in flags if x is not None]
+  n = len(f)
+  if not n:
+    return None
+  k = sum(f)
+  z = 1.959963984540054 if level == 0.95 else float(
+    __import__("scipy.stats", fromlist=["norm"]).norm.ppf((1 + level) / 2))
+  p = k / n
+  den = 1 + z * z / n
+  mid = (p + z * z / (2 * n)) / den
+  half = z * math.sqrt(p * (1 - p) / n + z * z / (4 * n * n)) / den
+  return {"n": n, "k": k, "share": p, "lo": max(0.0, mid - half), "hi": min(1.0, mid + half)}
+
+
+#: The experience an attempt row carries, each kept apart (Evaluation.md
+#: §3): real sim-seconds, a procedure's steps, LLM tokens and imagination
+#: CPU-seconds.
+EXPERIENCE = ("simS", "steps", "tokens", "imaginationCpuS")
+
+
+def per_task_record(rows: Iterable[Row], upto: int = 5) -> dict:
+  """Capability's measure (Evaluation.md §3, "The per-task record"; #465):
+  per task, whether and when it was first passed and what that took, each
+  part apart. Source: a demo's attempt rows (#493's harness), off no
+  observatory -- read one regime at a time.
+
+  unit: the tasks passed within n attempts for n = 1..`upto` -- a share
+  with its 95 % Wilson interval over the tasks that passed by n or were
+  tried n times, those tried fewer and never passed `unflown` beside it;
+  each task's first passing attempt (None if none); experience by kind
+  summed over every attempt -- None where a row did not say; help by kind
+  (the world's resets, demonstrations, interventions); and the robot's own
+  test against the world's verdict: agreed, thought it passed and had not,
+  missed a pass, said nothing."""
+  tries: dict = defaultdict(list)
+  for r in _kind(rows, "attempt"):
+    t = r.data.get("task") or {}
+    tries[(t.get("grader"), t.get("body"), t.get("mount"), t.get("chest"))].append(r)
+  firsts = {}
+  for key, mine in tries.items():
+    mine.sort(key=lambda r: r.data.get("attempt", 0))
+    firsts[key] = next((int(r.data["attempt"]) for r in mine if r.subject == "passed"), None)
+  within = {}
+  for n in range(1, upto + 1):
+    flags = [None if first is None and len(tries[key]) < n else (first is not None and first <= n)
+             for key, first in firsts.items()]
+    within[n] = share_interval(flags) or {"n": 0}
+    within[n]["unflown"] = sum(f is None for f in flags)
+  every = [r.data for r in _kind(rows, "attempt")]
+  experience: dict = {"attempts": len(every)}
+  for kind in EXPERIENCE:
+    vals = [a.get(kind) for a in every]
+    experience[kind] = (round(sum(float(v) for v in vals), 3)
+                        if vals and all(v is not None for v in vals) else None)
+  helped = [a.get("help") or {} for a in every]
+  own = Counter()
+  for a in every:
+    said, ok = (a.get("own") or {}).get("ok"), bool((a.get("verdict") or {}).get("ok"))
+    own["unsaid" if said is None else "agreed" if bool(said) == ok
+        else "falsePass" if said else "missedPass"] += 1
+  return {"tasks": len(tries), "within": within,
+          "firstPass": {"/".join(str(p) for p in key): first
+                        for key, first in sorted(firsts.items(), key=lambda kv: str(kv[0]))},
+          "experience": experience,
+          "help": {"resets": sum(bool(h.get("reset")) for h in helped),
+                   "demonstrations": sum(int(h.get("demonstrations", 0)) for h in helped),
+                   "interventions": sum(int(h.get("interventions", 0)) for h in helped)},
+          "ownTest": {k: own[k] for k in ("agreed", "falsePass", "missedPass", "unsaid")},
+          "n": len(every)}
+
+
 def judgement_agreement(rows: Iterable[Row]) -> dict:
   """Quality four, both halves, off the rating panel (rooftop-media-2026
   #259) and the robot's `judged` act (#208).
@@ -746,6 +840,7 @@ SHAPES = {
   "an idea traced to a source": ideas_traced,
   "goals set and served": goals_set_and_served,
   "first solve": first_solve,
+  "per-task record": per_task_record,
   "judgement agreement": judgement_agreement,
   "buffer kept": buffer_kept,
   "buffer spent": buffer_spent,
@@ -759,7 +854,7 @@ SHAPES = {
 #: to help, evidence for morality) -- the mapping is what the doc says, not
 #: a partition.
 QUALITIES = {
-  "capability": ("first solve",),
+  "capability": ("first solve", "per-task record"),
   "empathy": ("prediction accuracy", "findings recorded correctly"),
   "morality": ("help at a cost", "harm for points", "belief under uncertainty"),
   "creativity": ("judgement agreement", "an idea traced to a source"),

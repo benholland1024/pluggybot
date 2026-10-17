@@ -559,6 +559,10 @@ class HumanoidBody(Body):
     raise NotImplementedError(NOT_HERE)
     yield
 
+  def place_tool_routine(self, module):
+    raise NotImplementedError(NOT_HERE)
+    yield
+
   def module_state(self, module):
     raise NotImplementedError(NOT_HERE)
 

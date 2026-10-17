@@ -200,6 +200,47 @@ def test_first_solve_reports_no_tools_as_absent_and_no_solve_as_none():
   assert out["tools"] is None and out["procedures"] is None
 
 
+def _attempt(chest, n, ok, own=None, sim_s=10.0, tokens=0, steps=None, commit="abc"):
+  """A row of #493's record (`evaluation.attempts`), as the harness writes it."""
+  return {"task": {"chest": chest, "body": "quadruped", "mount": "floor", "grader": "lid"},
+          "attempt": n, "process": "try", "skill": "mine", "simS": sim_s, "steps": steps,
+          "tokens": tokens, "imaginationCpuS": 0.0,
+          "help": {"reset": n > 1, "demonstrations": 0, "interventions": 0},
+          "own": {"ok": own, "why": ""}, "verdict": {"ok": ok, "reason": "", "metrics": {}},
+          "run": {"commit": commit}}
+
+
+def test_the_per_task_record_reads_when_each_task_first_passed_and_keeps_experience_apart():
+  #  chest 1 passed at once; 2 at its second try; 3 never, in three tries
+  record = [_attempt(1, 1, True, own=True),
+            _attempt(2, 1, False, own=True), _attempt(2, 2, True, own=False),
+            _attempt(3, 1, False, own=False), _attempt(3, 2, False),
+            _attempt(3, 3, False, own=False, tokens=500)]
+  out = q.per_task_record(q.from_attempts(record))
+  assert out["tasks"] == 3 and out["n"] == 6
+  assert out["firstPass"] == {"lid/quadruped/floor/1": 1, "lid/quadruped/floor/2": 2,
+                              "lid/quadruped/floor/3": None}
+  w = out["within"]
+  assert (w[1]["k"], w[1]["n"]) == (1, 3) and (w[2]["k"], w[2]["n"]) == (2, 3)
+  assert (w[3]["k"], w[3]["n"]) == (2, 3) and 0.0 < w[3]["lo"] < 2 / 3 < w[3]["hi"] < 1.0
+  #  ...a task never passed and tried fewer times than n is NOT a failure at n
+  assert (w[4]["k"], w[4]["n"], w[4]["unflown"]) == (2, 2, 1)
+  #  experience by kind, never one total; absent where a row did not say
+  assert out["experience"] == {"attempts": 6, "simS": 60.0, "steps": None, "tokens": 500.0,
+                               "imaginationCpuS": 0.0}
+  assert out["help"] == {"resets": 3, "demonstrations": 0, "interventions": 0}
+  #  its own test against the world's: a false pass and a missed one are apart
+  assert out["ownTest"] == {"agreed": 3, "falsePass": 1, "missedPass": 1, "unsaid": 1}
+
+
+def test_attempt_rows_carry_their_regime_and_nothing_is_read_off_the_observatory():
+  rows = q.from_attempts([_attempt(1, 1, True), _attempt(1, 1, False, commit="def")])
+  assert {r.run for r in rows} == {"abc try:mine", "def try:mine"}
+  assert [r.subject for r in rows] == ["passed", "failed"]
+  assert q.per_task_record([Row("task", "done", data={"kind": "stack_tower"})])["tasks"] == 0
+  assert q.SOURCES["attempt"] == ("demo",)
+
+
 def _rating(key, quality, rater, at, delivered=False):
   return Row("rating", key, robot=rater,
              data={"quality": quality, "rater": rater, "at": at, "delivered": delivered})
@@ -445,7 +486,7 @@ def test_every_shape_the_doc_names_exists_and_every_shape_here_is_in_the_doc():
   doc = (ROOT / "docs" / "Evaluation.md").read_text()
   start = doc.index("### The six qualities")
   end = doc.index("\n## ", start)
-  named = set(re.findall(r"^\| \*\*([a-z][a-z ]+)\*\* \|", doc[start:end], re.M))
+  named = set(re.findall(r"^\| \*\*([a-z][a-z -]+)\*\* \|", doc[start:end], re.M))
   assert named == set(q.SHAPES), (sorted(named - set(q.SHAPES)),
                                   sorted(set(q.SHAPES) - named))
 

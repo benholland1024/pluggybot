@@ -410,6 +410,14 @@ class Body(abc.ABC):
     Whether it hangs is `module_state`."""
 
   @abc.abstractmethod
+  def place_tool_routine(self, module: str) -> Routine:
+    """STAGED, never a swap: `module` put straight onto its coupling off
+    the world, seated, its arm at the carrying pose -- a demo's set-out
+    (#493: the quadruped's claw, which a real run fetches,
+    `fetch_tool_routine`), and a subsidy its result names. Whether it took
+    is `tool_powered`."""
+
+  @abc.abstractmethod
   def module_state(self, module: str) -> dict:
     """Where a module is, off the world: `on_fork` (riding THIS body's
     coupling), `hung` (in some bay), `bay` (the nearest bay's index)."""
@@ -1099,6 +1107,11 @@ class StubBody(Body):
     if self.holding == module:
       self.holding = None
     return "arrived"
+    yield
+
+  def place_tool_routine(self, module):
+    self.holding = module
+    return None
     yield
 
   def module_state(self, module) -> dict:
