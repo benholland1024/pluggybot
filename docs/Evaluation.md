@@ -989,7 +989,9 @@ internals. Its rules:
   the world gave, counted on its row: MuJoCo's resets are free and exact,
   and a real world's are neither (§5);
 - **the call is wherever the skill ended, or its budget did** (`cut`): the
-  budget is the job's own time limit (300 sim-s, `lid.TIME_LIMIT_S`), and
+  budget is the job's own time limit, the task's (`attempts.LIMIT_S`: the
+  quadruped's 300 sim-s, the humanoid's 67, three times its reference's
+  slowest pass), and
   a cut attempt that failed says "out of time" first. Then the hold with
   the body held still, and one verdict through `scoring.evaluate`, graded
   and paid nothing. A fall is lost time and nothing more: the body's falls

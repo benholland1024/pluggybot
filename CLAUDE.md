@@ -193,8 +193,9 @@ doing anything, read the doc that owns what you are about to touch:
   ROW IS `shown: false` and pays 0 (`TaskReward.shown`): a mind with a
   library sees every other challenge row, and this one would change the
   deployed prompt. ⚠ A FALL IS LOST TIME, NEVER A VERDICT (Ben,
-  2026-10-17): the job is the lid inside `TIME_LIMIT_S` (300 s, the
-  budget; read again before the flight as 3x the humanoid's reference),
+  2026-10-17): the job is the lid inside the TASK's time limit, the
+  budget (`attempts.LIMIT_S`, the grader's `limitS`: the quadruped's 300
+  s, the humanoid's 3x its reference's slowest pass, 67 s),
   and the falls the body's own watch counted (`Body.falls`; the
   humanoid's is its trunk 35 deg past the posture its legs hold, so a bow
   is none, #520), its tilt and its tool (`Body.tool_powered`; the
