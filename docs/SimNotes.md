@@ -4700,18 +4700,18 @@ and `hand_force` (off the arm's currents) -- which the quadruped refuses
 by its tag, reaches it and grips it, through Body](figures/humanoid_demo.png)
 
 **The demo world** (`evaluation/counter.py`, a world of its own, as
-`home_quad_chest` is): #466's drop-handle chest on a 0.90 m counter in the
-storeroom, seeded (`set_out(k)`), the humanoid standing in front of it.
+`home_quad_chest` is): #466's drop-handle chest on a counter in the
+storeroom -- 0.72 m since #493, 0.90 before -- seeded (`set_out(k)`), the
+humanoid standing in front of it.
 Every act is a `Body` member: the knob found by its tag in the D435's
 colour imager (`spot`: the face seen most square-on, its middle half a cube
 in), a reach with the fingers tilted down onto it, the gripper shut and the
 grip judged by its own reading. Over twelve set-outs
-(`humanoid_spike.py --demo-table`), **ten held the knob** -- held by the
-gripper's reading and the pads truly on it (our grading), still holding
-after 2 s -- and in the other two the robot said NOT HELD, truly so: its
-reading agreed with the truth twelve times in twelve (in one, the knob
-swung into the shut jaws in the 2 s after). The tag put the knob 0.5 cm
-from where it truly hung, 0.44-0.52 m off.
+(`humanoid_spike.py --demo-table`) at 0.72 m **all twelve held the knob**
+-- held by the gripper's reading and the pads truly on it (our grading),
+still holding after 2 s -- its reading agreeing with the truth every time;
+at 0.90, ten, and the robot said NOT HELD of the other two, truly so. The
+tag put the knob 0.5-0.6 cm from where it truly hung.
 
 **What the chest taught:**
 - *A drop handle's knob hangs nearly under its pin*, its drop bar and stem
@@ -4726,9 +4726,11 @@ from where it truly hung, 0.44-0.52 m off.
   answers: the reach stops a hand that cannot get there (stage 2's
   `BLOCKED_*`), and the fingers tilt down so the plan reaches from the
   stand, the elbow over the counter.
-- *The near edge*: drawn 0.34 m ahead, the knob hung under 0.37 m in two of
-  ten set-outs, and at 0.99 m up no grip the arm holds folds the hand back
-  that near. The set-out draws 0.37-0.43 m.
+- *The near edge*: at 0.90 m, drawn 0.34 m ahead, the knob hung under 0.37
+  m in two of ten set-outs, and at 0.99 m up no grip the arm holds folded
+  the hand back that near; that set-out drew 0.37-0.43 m. At 0.72 m it
+  draws 0.33-0.37 ahead, the lid's arc in reach (SimNotes, "The humanoid
+  opens the chest"), and nearer the knob leaves the colour camera's view.
 - *A headlight lights the robot's cameras too.* Drawn brighter, as the
   other scenes are, it moved where the knob's tag decoded by 3 cm: a scene
   that renders for the robot keeps the house's own light, and a filmstrip
