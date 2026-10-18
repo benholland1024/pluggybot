@@ -128,6 +128,11 @@ MOTION_S = 0.4
 #: than its statue: 1.5-2 cm all the way up a lid's arc, 2 cm more at its
 #: top, where a path planned with none stopped at 57 deg (#493).
 PATH_MARGIN_M = 0.035
+#: ...and each is followed within this, m: a solve trades position for the
+#: turn it holds (`arms.IK_ROT_WEIGHT`), and down a lid's arc, the wrist near
+#: its stop, left points 1.1-1.2 cm off that the live hand passed -- which
+#: stops only past `BLOCKED_M`.
+PATH_POS_TOL = 0.02
 #: A carried or pulled hand whose solve misses its command by this, m,
 #: takes a posture that reaches it, planned at most once this often, s
 #: (`posture_for` is a fraction of a second of the processor's).
@@ -471,7 +476,7 @@ class Reach:
           q, ep, er = sm.solve(side, poses[0], rot, iters=80)
         else:
           q, ep, er = solve_seeded(sm, side, poses[0], rot)
-      if ep >= REACH_POS_TOL or er >= HOLD_ROT_TOL:
+      if ep >= PATH_POS_TOL or er >= HOLD_ROT_TOL:
         continue
       for p in poses[1:]:
         if live:
@@ -483,7 +488,7 @@ class Reach:
           target = p + ahead
         sm._set_arm(side, q)
         q, ep, er = sm.solve(side, target, rot, iters=80)
-        if ep >= REACH_POS_TOL or er >= HOLD_ROT_TOL:
+        if ep >= PATH_POS_TOL or er >= HOLD_ROT_TOL:
           break
       else:
         return (height, pitch)
