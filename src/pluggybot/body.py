@@ -668,6 +668,27 @@ class Body(abc.ABC):
     off its arm's motor currents."""
 
   @abc.abstractmethod
+  def hand_reaches(self, side: str, pos, rot=None) -> bool:
+    """Whether a hand's grip could hold the pose `pos` (`rot`, or any turn),
+    the believed world frame, from some posture it holds -- asked of its
+    model of itself, nothing moved (#493)."""
+
+  @abc.abstractmethod
+  def hand_follows(self, side: str, poses, rot=None) -> bool:
+    """Whether a hand's grip could FOLLOW `poses` (the believed world frame)
+    in turn at the turn `rot`, from one posture it holds, its arm moving on
+    from each to the next -- asked of its model of itself (#493)."""
+
+  @abc.abstractmethod
+  def depth_cloud(self, width: int, height: int, min_z: float, frames: int = 1,
+                  apart: float = 0.1) -> Routine:
+    """Standing still, `frames` frames of its depth camera at `width` x
+    `height` pixels and `min_z` (m, the part's nearest at that stream),
+    `apart` s apart: the points it saw, (k, 3), the believed world frame,
+    through its camera's pose in its model of itself (#493: the humanoid's
+    D435, the quadruped probe's measure). Its own body never in them."""
+
+  @abc.abstractmethod
   def hand_at(self, side: str) -> tuple[float, float, float]:
     """Where a hand's grip is, m, in the believed world frame: its arm's
     encoders and its IMU through its model of itself (#493)."""
@@ -1294,6 +1315,19 @@ class StubBody(Body):
 
   def hand_force(self, side):
     return (0.0, 0.0, 0.0)
+
+  def hand_reaches(self, side, pos, rot=None) -> bool:
+    """Anywhere: it has no body to be out of reach of."""
+    return True
+
+  def hand_follows(self, side, poses, rot=None) -> bool:
+    """Anywhere, as `hand_reaches`."""
+    return True
+
+  def depth_cloud(self, width, height, min_z, frames=1, apart=0.1):
+    """No camera: nothing seen, after the time looking takes."""
+    yield from self._wait(frames * apart)
+    return np.zeros((0, 3))
 
   def hand_at(self, side):
     """Where it sent the hand; hanging at its side, where it sent none."""

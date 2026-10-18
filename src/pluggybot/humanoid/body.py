@@ -52,6 +52,9 @@ GRIP_SETTLE_S, GRIP_READ_S = 1.5, 0.1
 #: it 0.3 m to the counter, its standing policy stepping under the arm
 #: (#493).
 FEET_MOVED_M = 0.05
+#: Its measured depth's own noise stream (`depth_cloud`) and how far its
+#: rays reach, m: the probe's seed, and a counter's chest within arm's reach.
+DEPTH_SEED, DEPTH_REACH_M = 466, 3.0
 #: What the humanoid does not do yet answers.
 NOT_HERE = "not on the humanoid yet: the quadruped's world (its dock, rack and tools)"
 
@@ -409,6 +412,39 @@ class HumanoidBody(Body):
     p = self.to_world(self.reach.grip_now(side)[0])
     return float(p[0]), float(p[1]), float(p[2])
 
+  def hand_reaches(self, side, pos, rot=None) -> bool:
+    p = self.to_stance(pos)
+    r = None if rot is None else _rz(self.stance[2]).T @ np.asarray(rot, dtype=float)
+    return self.reach.posture_for(side, p, rot=r) is not None
+
+  def hand_follows(self, side, poses, rot=None) -> bool:
+    r = None if rot is None else _rz(self.stance[2]).T @ np.asarray(rot, dtype=float)
+    return self.reach.path_for(side, [self.to_stance(p) for p in poses], rot=r) is not None
+
+  def depth_cloud(self, width, height, min_z, frames=1, apart=0.1):
+    """Its D435's points, each frame placed through its pelvis in its model
+    of itself (posed off its encoders and IMU) and its stance: the camera
+    sits on its trunk, which no waist turns."""
+    from pluggybot.perception.depth import DepthCamera
+    key = (int(width), int(height), float(min_z))
+    if getattr(self, "_depth", (None,))[0] != key:
+      self._depth = (key, DepthCamera(self._m, self.handle, width=key[0], height=key[1],
+                                      min_z=key[2], mount="body", seed=DEPTH_SEED,
+                                      reach=DEPTH_REACH_M))
+    cam = self._depth[1]
+    out = []
+    for _ in range(int(frames)):
+      yield from self.hold_routine(apart)
+      pts = cam.frame(self._d).points
+      self.reach._pose()
+      sm = self.reach.self_model
+      rot = np.zeros(9)
+      mujoco.mju_quat2Mat(rot, sm.d.qpos[3:7])
+      inside = pts @ rot.reshape(3, 3).T + sm.d.qpos[0:3]
+      x, y, yaw = self.stance
+      out.append(inside @ _rz(yaw).T + [x, y, 0.0])
+    return np.concatenate(out) if out else np.zeros((0, 3))
+
   def _report(self, rep: dict) -> dict:
     """A carry's or a pull's report (`Reach.report`), its stance frame's
     ways turned into the believed world frame."""
@@ -439,9 +475,13 @@ class HumanoidBody(Body):
     self.reach.stop(side, "out of time")
     return self._report(self.reach.report[side])
 
-  def move_hand_routine(self, side, pos, stiffness=1.0, speed=HOLD_SPEED, patience=20.0):
+  def move_hand_routine(self, side, pos, stiffness=1.0, speed=HOLD_SPEED, patience=20.0,
+                        path=None):
+    """...`path`, points it goes through on its way, in turn (#493: a lid's
+    arc carried as one motion, from one posture that follows it all)."""
     yield from self.mission.to_stand_routine()
-    if not self.reach.carry(side, self.to_stance(pos), stiffness, speed):
+    ways = None if path is None else [self.to_stance(p) for p in path]
+    if not self.reach.carry(side, self.to_stance(pos), stiffness, speed, path=ways):
       rep = self.reach.report[side] if self.reach.out(side) else None
       return self._report(rep or {"why": "not out", "seconds": 0.0, "moved": 0.0,
                                   "dx": 0.0, "dy": 0.0, "dz": 0.0})

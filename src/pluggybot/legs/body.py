@@ -1925,6 +1925,17 @@ class QuadBody(Body):
   def hand_at(self, side):
     raise NotImplementedError(self._NO_HAND)
 
+  def hand_reaches(self, side, pos, rot=None) -> bool:
+    raise NotImplementedError(self._NO_HAND)
+
+  def hand_follows(self, side, poses, rot=None) -> bool:
+    raise NotImplementedError(self._NO_HAND)
+
+  def depth_cloud(self, width, height, min_z, frames=1, apart=0.1) -> Routine:
+    raise NotImplementedError("the quadruped's measured depth is its probe's own "
+                              "(`legs.probe.Probe.cloud`)")
+    yield
+
   def move_hand_routine(self, side, pos, stiffness=1.0, speed=0.06, patience=20.0) -> Routine:
     raise NotImplementedError(self._NO_HAND)
     yield

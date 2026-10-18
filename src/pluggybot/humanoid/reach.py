@@ -40,6 +40,13 @@ from pluggybot.humanoid.arms import (REACH_POS_TOL, REACH_ROT_TOL, Arm, Gripper,
                                      HandGoal, SelfModel, _rot_error)
 from pluggybot.humanoid.policy import HEIGHT_RANGE, PITCH_RANGE, StandDriver
 
+
+def rot_about(axis, angle: float) -> np.ndarray:
+  """The rotation by `angle` (rad) about the unit `axis` (Rodrigues)."""
+  a = np.asarray(axis, dtype=float) / np.linalg.norm(axis)
+  k = np.array([[0.0, -a[2], a[1]], [a[2], 0.0, -a[0]], [-a[1], a[0], 0.0]])
+  return np.eye(3) + math.sin(angle) * k + (1.0 - math.cos(angle)) * (k @ k)
+
 #: The arms' commands are refreshed this often, s: 100 Hz, inside the RS
 #: MIT mode's 1 kHz, and a trunk's sway between two is under a millimetre
 #: at the hand.
@@ -120,6 +127,16 @@ MOTION_S = 0.4
 #: takes a posture that reaches it, planned at most once this often, s
 #: (`posture_for` is a fraction of a second of the processor's).
 REPLAN_M, REPLAN_S = 0.015, 1.0
+#: A carried hand's grip may turn this far off its plan, rad: a held drop
+#: handle swings on its own pin, so 10 deg of it moves the knob under a
+#: centimetre, which the arm's give takes up -- held to a reach's 0.1, a
+#: lid's arc reached within a millimetre failed on the wrist's last 7-14
+#: deg (#493).
+HOLD_ROT_TOL = 0.2
+#: A carried hand has arrived once within this of its goal, m; one whose
+#: command arrived and which is still short of it this long after, s, is
+#: held back by something (`carry`'s report says how far short).
+ARRIVE_M, HELD_BACK_S = 0.01, 1.0
 #: A carried or pulled hand's solve that misses its command by this, m, has
 #: diverged and is never commanded; and a move is given this long, s, to
 #: begin before a miss can end it.
@@ -144,6 +161,14 @@ SEEDS = ((0.0, 0.1, 0.0, 0.3, 0.0, 0.0), (-1.4, 0.1, 0.0, 0.3, 0.0, 0.0),
          (-0.5, 0.1, 0.0, 0.2, -0.3, 0.0), (0.8, 0.1, 0.0, 0.3, 0.3, 0.0),
          (1.1, 0.1, 0.0, 0.1, 0.0, 0.0))
 _MIRRORED = (1, 2, 5)
+#: ...and the postures a hand that is out may take while it is carried or
+#: pulled (`carry`, `pull`, `path_for`): a reach's, with a bow at full
+#: height beside the stand (#493). Bowed 0.15-0.3 rad its shoulder comes
+#: ~6 cm forward, and a lid's arc out of reach from the stand -- the knob
+#: 0.5 m ahead and over the shoulder's height by 60 deg -- was in it.
+HOLD_POSTURES = ((0.0, 0.0), (0.0, 0.15), (0.0, 0.3), (-0.08, 0.0), (-0.08, 0.15),
+                 (-0.16, 0.0), (-0.16, 0.3), (-0.2, 0.55), (-0.22, 0.8), (-0.25, 0.95),
+                 (-0.25, 1.1))
 
 
 def seed(side: str, s) -> np.ndarray:
@@ -153,11 +178,17 @@ def seed(side: str, s) -> np.ndarray:
   return q
 
 
-def static_legs(height: float, pitch: float, model: SelfModel | None = None) -> dict:
+def static_legs(height: float, pitch: float, model: SelfModel | None = None,
+                arms: dict | None = None) -> dict:
   """The legs' sagittal joints holding the pelvis `height` off the stand's
   and the trunk pitched `pitch`, both soles flat and the centre of mass
   over their middle: a statue's answer, which the policy's own stance is
-  near. Joint name -> angle."""
+  near -- with the arms where `arms` puts them (joint name -> angle), else
+  hanging. ⚠ An arm held out moves the centre of mass, and the policy
+  moves its pelvis back for it: balanced with its arms hanging, the statue
+  stood 3 cm in front of the robot reaching a lid's knob and 7 cm in front
+  of it at the lid's top, where the plan's reach was out of the robot's
+  (#493). Joint name -> angle."""
   sm = model or SelfModel()
   m, d = sm.m, sm.d
   root, sole = sm.root, sm.soles[0]
@@ -165,7 +196,7 @@ def static_legs(height: float, pitch: float, model: SelfModel | None = None) -> 
   h = hm.stand_height() + height
   quat = np.zeros(4)
   mujoco.mju_euler2Quat(quat, np.array([0.0, pitch, 0.0]), "XYZ")
-  stand = hm.stand_qpos()
+  stand = {**hm.stand_qpos(), **(arms or {})}
 
   def put(v):
     x, hip, knee, ankle = v
@@ -197,11 +228,19 @@ def static_legs(height: float, pitch: float, model: SelfModel | None = None) -> 
           for k, v in (("hip_pitch", hip), ("knee", knee), ("ankle_pitch", ankle))}
 
 
-def _posed(sm: SelfModel, height: float, pitch: float, q0: np.ndarray) -> None:
+def _posed(sm: SelfModel, height: float, pitch: float, q0: np.ndarray,
+           arms: dict | None = None) -> None:
   q = q0.copy()
-  for n, v in static_legs(height, pitch, sm).items():
+  for n, v in (arms or {}).items():
+    q[hm.JOINT_NAMES.index(n)] = v
+  for n, v in static_legs(height, pitch, sm, arms).items():
     q[hm.JOINT_NAMES.index(n)] = v
   sm.pose(q, np.array([math.sin(pitch), 0.0, -math.cos(pitch)]))
+
+
+def _arm(side: str, q_arm) -> dict:
+  """One arm's joints by name, for a statue to balance."""
+  return {f"{side}_{j}": float(v) for j, v in zip(hm.ARM, q_arm)}
 
 
 def solve_seeded(sm: SelfModel, side: str, pos, rot, start: np.ndarray | None = None
@@ -361,7 +400,7 @@ class Reach:
     return self._planner
 
   def posture_for(self, side: str, pos, jaws=None, rot=None) -> tuple | None:
-    """The least-bent posture (`POSTURES`) from which `side`'s grip reaches
+    """The least-bent posture (`HOLD_POSTURES`) from which `side`'s grip reaches
     `pos` -- its jaws along the line `jaws` (a pinch, its turn free), or
     turned to `rot`, or at any turn -- on the robot's model of itself, a
     statue's legs at each, the arm starting where it is and from `SEEDS`;
@@ -369,7 +408,11 @@ class Reach:
     sm = self._planner_model()
     q0 = np.array([hm.stand_qpos().get(n, 0.0) for n in hm.JOINT_NAMES])
     starts = [self.q_cmd[side]] + [seed(side, s_) for s_ in SEEDS]
-    for height, pitch in POSTURES:
+    # the posture it holds first, where it still reaches: a change of
+    # posture mid-move is a change of the arm's whole branch
+    here = tuple(float(v) for v in self.posture)
+    order = [here] + [p_ for p_ in HOLD_POSTURES if tuple(p_) != here]
+    for height, pitch in order:
       _posed(sm, height, pitch, q0)
       for start in starts:
         sm._set_arm(side, start)
@@ -381,8 +424,43 @@ class Reach:
           return (height, pitch)
     return None
 
+  def path_for(self, side: str, poses, rot=None) -> tuple | None:
+    """A posture (`HOLD_POSTURES`, the least bent first) from which `side`'s grip
+    FOLLOWS `poses` (stance frame) in turn at the turn `rot` -- the first
+    solved from the seeds, each next ON from the last, as a moving arm must
+    -- or None. ⚠ A point reached from a fresh seed is not a path: the arm
+    went up a lid's arc in one branch, and where only another reached on, it
+    swung between them and jerked the lid shut at 3.3 rad/s (#493)."""
+    sm = self._planner_model()
+    q0 = np.array([hm.stand_qpos().get(n, 0.0) for n in hm.JOINT_NAMES])
+    # a hand that is out goes on from the arm as it IS, its posture first:
+    # the branch its grip left it in is the branch its path must follow
+    out = self.out(side)
+    here = tuple(float(v) for v in self.posture)
+    order = ([here] + [p_ for p_ in HOLD_POSTURES if tuple(p_) != here]) if out \
+      else HOLD_POSTURES
+    for height, pitch in order:
+      _posed(sm, height, pitch, q0)
+      if out:
+        sm._set_arm(side, self.q_cmd[side])
+        q, ep, er = sm.solve(side, poses[0], rot, iters=80)
+      else:
+        q, ep, er = solve_seeded(sm, side, poses[0], rot)
+      if ep >= REACH_POS_TOL or er >= HOLD_ROT_TOL:
+        continue
+      for p in poses[1:]:
+        # the statue balanced with its arm out where it is going (`static_legs`)
+        _posed(sm, height, pitch, q0, _arm(side, q))
+        sm._set_arm(side, q)
+        q, ep, er = sm.solve(side, p, rot, iters=80)
+        if ep >= REACH_POS_TOL or er >= HOLD_ROT_TOL:
+          break
+      else:
+        return (height, pitch)
+    return None
+
   def carry(self, side: str, pos, stiffness: float | None = None,
-            speed: float = HOLD_SPEED) -> bool:
+            speed: float = HOLD_SPEED, path=None) -> bool:
     """A hand that is out (`out`) carried from where it IS along a straight
     line to `pos`, stance frame, at `speed`, its turn kept -- pivoting round
     its jaws' line where its gripper holds something -- at `stiffness` (or
@@ -392,10 +470,15 @@ class Reach:
     if not self.out(side):
       return False
     h, r = self.grip_now(side)
-    pinch = self.grippers[side].held()
+    pinch = False
     end = np.asarray(pos, dtype=float)
-    posture = self.posture_for(side, end, jaws=r[:, 0]) if pinch else \
-      self.posture_for(side, end, rot=r)
+    ways = [np.asarray(p, dtype=float) for p in (path or ())]
+    if ways:
+      # a PATH: one posture that follows it all, its points walked in turn
+      posture = self.path_for(side, [h] + ways + [end], rot=r)
+    else:
+      posture = self.posture_for(side, end, jaws=r[:, 0]) if pinch else \
+        self.posture_for(side, end, rot=r)
     if posture is None:
       self.report[side] = {"why": "out of reach", "shortM": float(np.linalg.norm(end - h)),
                            "moved": 0.0, "seconds": 0.0}
@@ -403,9 +486,10 @@ class Reach:
     k = self.goal[side].stiffness if stiffness is None else float(stiffness)
     self.hold_posture(*posture)
     self.cmd[side] = HandGoal(h.copy(), r.copy(), k)
-    self.goal[side] = HandGoal(end, r.copy(), k)
+    self.goal[side] = HandGoal(ways[0] if ways else end, r.copy(), k)
     self.pinch[side], self.speed[side], self._off[side] = pinch, float(speed), 0.0
-    self.pulls[side] = {"start": h.copy(), "t": 0.0, "jaws": r[:, 0].copy()}
+    self.pulls[side] = {"start": h.copy(), "t": 0.0, "jaws": r[:, 0].copy(),
+                        "ways": ways[1:] + [end] if ways else [], "fixed": bool(ways)}
     self.report[side] = None
     self.phase[side] = "carry"
     return True
@@ -609,6 +693,7 @@ class Reach:
       self.cmd[side] = HandGoal(h.copy(), r.copy(), k)
     disp = h - st["start"]
     rep = {"why": why, "seconds": round(st["t"], 3), "moved": round(float(np.linalg.norm(disp)), 4),
+           "shortM": round(float(np.linalg.norm(self.goal[side].pos - h)), 4),
            "dx": round(float(disp[0]), 4), "dy": round(float(disp[1]), 4),
            "dz": round(float(disp[2]), 4)}
     if "d" in st:
@@ -641,11 +726,22 @@ class Reach:
     # compounded and the hand rolled 85 deg round a chest's knob in a lift,
     # turning it to its diagonal in the jaws and out of them (#493)
     jaws = st["jaws"] if self.pinch[side] else None
-    if jaws is not None:
+    import os
+    if jaws is not None and os.environ.get("PINCH_MODE", "arm") == "free":
+      # the turn about the jaws' line is the knob's: the hand's actual turn,
+      # its jaws held on the line the move began with
+      x = r[:, 0] if r[:, 0] @ jaws >= 0.0 else -r[:, 0]
+      ax = np.cross(x, jaws)
+      sn = float(np.linalg.norm(ax))
+      fixed = r if sn < 1e-9 else (rot_about(ax / sn, math.asin(min(1.0, sn))) @ r)
+      c.rot = fixed
+      (q, ep, er), turned = sm.solve(side, c.pos, c.rot), None
+    elif jaws is not None:
       q, ep, er, turned = sm.solve_pinch(side, c.pos, jaws)
     else:
       (q, ep, er), turned = sm.solve(side, c.pos, c.rot), None
-    if ep > REPLAN_M and st["t"] - st.get("planned", -REPLAN_S) >= REPLAN_S:
+    if (ep > REPLAN_M and not st.get("fixed")
+        and st["t"] - st.get("planned", -REPLAN_S) >= REPLAN_S):
       # The arm runs out of reach from this posture: the least bent that
       # reaches the command now, while there is one (`posture_for`).
       st["planned"] = st["t"]
@@ -657,7 +753,7 @@ class Reach:
       if turned is not None:
         c.rot, self.goal[side].rot = turned.copy(), turned.copy()
       self.q_cmd[side], self.miss[side] = q, ep
-    if ep > BLOCKED_M or er > REACH_ROT_TOL:
+    if ep > BLOCKED_M or er > HOLD_ROT_TOL:
       # ...given a posture it took the time to come before it is out of reach
       coming = (st["t"] < SETTLE_S
                 or st["t"] - st.get("postured", -POSTURE_WAIT_S) < POSTURE_WAIT_S)
@@ -666,8 +762,18 @@ class Reach:
         self._end(side, "out of reach", h, r)
       return c.stiffness
     self._off[side] = 0.0
+    if there and self.phase[side] == "carry" and st.get("ways"):
+      self.goal[side].pos = st["ways"].pop(0)
+      return c.stiffness
     if there and self.phase[side] == "carry":
-      self._end(side, "arrived", h, r, at_goal=True)
+      # arrived once the HAND is there, never its command alone: on a soft
+      # arm a lid held the hand 5 cm back while every command arrived (#493)
+      short = float(np.linalg.norm(self.goal[side].pos - h))
+      st["there"] = st.get("there", 0.0) + dt
+      if short <= ARRIVE_M:
+        self._end(side, "arrived", h, r, at_goal=True)
+      elif st["there"] >= HELD_BACK_S:
+        self._end(side, "held back", h, r, at_goal=True)
     return c.stiffness
 
   def _yield(self, side: str, dt: float, h: np.ndarray, r: np.ndarray) -> bool:
