@@ -11,10 +11,16 @@ attempts 1 to `ATTEMPTS`, each graded and unpaid, a fresh set-out each.
   practice_on      one chest: the conversation and its attempts, until one
                    passes or the attempts run out; a pass ADMITS the
                    procedure to the robot's library (`Library.admit`)
+  keep             the procedures a robot carries to its next chest
+  out_of_reach     whether the bar can still be met (the flight's early stop)
   JOB              the job as its grader measures it, never how
 
-⚠ A FRESH ROBOT A CHEST: nothing carries from one chest to the next -- no
-library, no conversation -- so a chest's curve is its own robot's.
+Two protocols (Evaluation.md §4). FRESH: nothing carries from one chest to
+the next -- no library, no conversation -- so a chest's curve is its own
+robot's. KEPT (#493, Ben, 2026-10-18): one robot ACQUIRES on the public
+chests in turn, carrying only what passed (`keep`); then each held-out chest
+gets a copy of it, frozen, and the bar is read there. ⚠ A conversation
+never carries: a chest starts from the job, the picture and what was kept.
 """
 
 from __future__ import annotations
@@ -26,6 +32,7 @@ from pluggybot.activity import chest as ch
 from pluggybot.challenge import lid
 from pluggybot.evaluation import attempts as at
 from pluggybot.procedure import lang
+from pluggybot.procedure.library import MAX_PROCEDURES
 from pluggybot.procedure.steps import WorldFacts
 from pluggybot.rack.tags import CHEST_TAG_IDS
 
@@ -39,6 +46,13 @@ KNOB_TAG = CHEST_TAG_IDS[0]
 KNOB_MM = 2000 * ch.KNOB
 #: The head camera's picture the mind is shown, pixels.
 PICTURE_W, PICTURE_H = 640, 480
+#: The bar (call 3, Ben, 2026-10-18): this share of the held-out chests
+#: opened and set down within this many tries.
+BAR, BAR_TRIES = 0.8, 3
+#: KEPT's practice ends once this many chests running pass at their first
+#: try, or this many are practiced; and nothing more is flown where nothing
+#: is kept after this many (Ben, 2026-10-18: stop once it is plain).
+UNTIL, MAX_CHESTS, GIVE_UP_AFTER = 3, 16, 8
 
 #: The job, as its grader measures it (`challenge/lid.py`), and nothing of
 #: how: what is in front of the robot, the stated subsidy, and the criteria.
@@ -124,14 +138,15 @@ def head_picture(task: at.Task) -> bytes:
 
 
 def practice_on(chest: int, practice, attempts: int = ATTEMPTS, *, library=None,
-                picture: bool = True, budget_s: float | None = None,
+                kept=(), picture: bool = True, budget_s: float | None = None,
                 info: dict | None = None, build=at.set_out) -> list[dict]:
-  """One chest, a fresh robot: the mind's procedure tried from the set-out,
-  graded, and shown back (`mind.practice.report_text`), up to `attempts`
-  times, ending at the first pass -- which `library` ADMITS on its sealed
-  verdict (`Library.admit`). Every attempt's row (`attempts.attempt`'s)
-  carries the procedure it ran, the answers it took and what they cost.
-  `build` makes a set-out (`attempts.attempt`'s: a test's own world)."""
+  """One chest: the mind's procedure tried from the set-out, graded, and
+  shown back (`mind.practice.report_text`), up to `attempts` times, ending
+  at the first pass -- which `library` ADMITS on its sealed verdict
+  (`Library.admit`). `kept`, the procedures the robot carries (`keep`), are
+  shown with the job. Every attempt's row (`attempts.attempt`'s) carries
+  the procedure it ran, the answers it took and what they cost. `build`
+  makes a set-out (`attempts.attempt`'s: a test's own world)."""
   from pluggybot.mind.practice import report_text
   task = at.Task(chest=chest, body="humanoid", mount="counter")
   limit = task.limit_s if budget_s is None else float(budget_s)
@@ -142,7 +157,7 @@ def practice_on(chest: int, practice, attempts: int = ATTEMPTS, *, library=None,
   rows: list[dict] = []
   shown = head_picture(task) if picture else None
   since = 0
-  turn = practice.first(shown)
+  turn = practice.first(shown, kept=kept)
   for n in range(1, attempts + 1):
     spent = practice.spent(since)
     since = len(practice.turns)
@@ -151,10 +166,12 @@ def practice_on(chest: int, practice, attempts: int = ATTEMPTS, *, library=None,
     t0 = time.time()
     row = at.attempt(task, procedure_skill(turn.procedure, practice.facts, out), n,
                      budget_s=budget_s, sealed=sealed, build=build,
-                     info={"skill": practice.model_id, **(info or {}), "process": "practice",
+                     info={"process": "practice", "skill": practice.model_id, **(info or {}),
                            "tokens": spent["tokensIn"] + spent["tokensOut"]})
     row["steps"] = out.get("steps")
+    row["kept"] = [k["name"] for k in kept]
     row["practice"] = {**spent, "procedure": turn.procedure.name if turn.procedure else None,
+                       "source": turn.procedure.source if turn.procedure else None,
                        "turns": [t.as_dict() for t in practice.turns[-spent["calls"]:]]
                        if spent["calls"] else [], "ran": _trimmed(out.get("ran")),
                        "flightWallS": round(time.time() - t0, 1)}
@@ -170,6 +187,82 @@ def practice_on(chest: int, practice, attempts: int = ATTEMPTS, *, library=None,
     turn = practice.after(report_text(n, out.get("ran"), row["verdict"], row["simS"], row["cut"],
                                       attempts - n))
   return rows
+
+
+def first_pass(rows: list[dict]) -> int | None:
+  """The try a chest's rows first passed at, or None."""
+  return next((r["attempt"] for r in rows if (r.get("verdict") or {}).get("ok")), None)
+
+
+def keep(kept: list[dict], name: str, source: str, chest: int, attempt: int,
+         cap: int = MAX_PROCEDURES) -> tuple[list[dict], str | None]:
+  """`kept` with a procedure the world passed (`name`, its `source`, the
+  chest and try), the newest -- replacing one of its name, else the OLDEST
+  going where the library is full. Returns the new list and the name that
+  went to make room, or None."""
+  out = [k for k in kept if k["name"] != name]
+  dropped = None
+  if len(out) == len(kept) and len(out) >= cap:
+    dropped = out.pop(0)["name"]
+  return out + [{"name": name, "source": source, "chest": chest, "attempt": attempt}], dropped
+
+
+def out_of_reach(firsts: list[int | None], n: int, bar: float = BAR,
+                 within: int = BAR_TRIES) -> bool:
+  """Whether the bar can no longer be met: more of the `n` chests have failed
+  within `within` tries (`firsts`, each chest's first pass, or None) than
+  `bar` leaves room for -- the flight's early stop (Ben, 2026-10-18)."""
+  failed = sum(1 for f in firsts if f is None or f > within)
+  return failed > n - math.ceil(bar * n - 1e-9)
+
+
+def chest_first(rows: list[dict]) -> int | None:
+  """A chest's first pass; None where it passed none or its practice raised
+  (an `error` row: no try, never dropped from the denominator)."""
+  return None if any("error" in r for r in rows) else first_pass(rows)
+
+
+def acquire(run_chest, chests, until: int = UNTIL, max_chests: int = MAX_CHESTS,
+            give_up_after: int = GIVE_UP_AFTER, write=lambda rows: None) -> tuple[list, dict]:
+  """KEPT's practice: `chests` in turn, ONE robot carrying what passed
+  (`keep`) -- `run_chest(k, kept)` flies chest k and returns its rows --
+  until `until` running pass at their first try or `max_chests` are
+  practiced, or nothing is kept after `give_up_after`. Returns what it kept
+  and how the practice went."""
+  kept: list[dict] = []
+  firsts: list = []
+  streak, ended = 0, "the chests ran out"
+  for k in list(chests)[:max_chests]:
+    rows = run_chest(k, kept)
+    for r in rows:
+      if r.get("admitted"):
+        kept, r["dropped"] = keep(kept, r["admitted"], r["practice"]["source"], k, r["attempt"])
+    write(rows)
+    firsts.append([k, chest_first(rows)])
+    streak = streak + 1 if firsts[-1][1] == 1 else 0
+    if streak >= until:
+      ended = f"{until} chests running passed at their first try"
+      break
+    if not kept and len(firsts) >= give_up_after:
+      ended = f"nothing kept after {give_up_after} chests: given up"
+      break
+    if len(firsts) == max_chests:
+      ended = f"{max_chests} chests practiced"
+  return kept, {"firsts": firsts, "ended": ended, "until": until, "maxChests": max_chests}
+
+
+def flown(results, n: int, early_stop: bool, write=lambda rows: None) -> dict | None:
+  """`results`, the `n` chests' rows as each chest ends, written as they
+  come; with `early_stop`, ended once the bar is out of reach
+  (`out_of_reach`). Returns where it stopped, or None."""
+  firsts: list = []
+  for rows in results:
+    write(rows)
+    firsts.append(chest_first(rows))
+    if early_stop and out_of_reach(firsts, n):
+      return {"after": len(firsts), "of": n, "bar": BAR, "within": BAR_TRIES,
+              "failedWithin": sum(1 for f in firsts if f is None or f > BAR_TRIES)}
+  return None
 
 
 def _trimmed(ran: dict | None) -> dict | None:

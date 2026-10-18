@@ -450,6 +450,10 @@ class HumanoidBody(Body):
     return self.reach.path_for(side, [self.to_stance(p) for p in poses],
                                rot=self._turns(rot)) is not None
 
+  def hand_reaches(self, side, pos, rot=None) -> bool:
+    r = None if rot is None else _rz(self.stance[2]).T @ np.asarray(rot, dtype=float)
+    return self.reach.plans(side, HandGoal(self.to_stance(pos), r, 1.0))
+
   def _turns(self, rot):
     """A turn, or a list of them, the believed world frame's, in the stance
     frame's."""

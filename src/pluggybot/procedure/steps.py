@@ -999,14 +999,22 @@ def _reach(life, args: dict) -> Routine:
   rot, bad = _grip_turn(life, args)
   if bad:
     return {"ok": False, "reason": bad}
-  ok = yield from life.body.reach_routine(hand, _hand_place(life, args), rot,
+  place = _hand_place(life, args)
+  ok = yield from life.body.reach_routine(hand, place, rot,
                                           stiffness=float(args.get("stiffness", _STIFF.default)),
                                           patience=REACH_PATIENCE_S)
   if ok:
     return {"ok": True, "hand": hand}
   why = life.body.hand_why(hand)
-  return {"ok": False, "hand": hand, "why": why,
-          "reason": REACH_WHY.get(why, "your {hand} hand did not get there").format(hand=hand)}
+  reason = REACH_WHY.get(why, "your {hand} hand did not get there").format(hand=hand)
+  other = {"left": "right", "right": "left"}.get(hand)
+  if why == "out of reach" and other is not None:
+    # what its body's own model says of the other hand (#493: 18 of 27
+    # first tries took the right hand to a knob on the robot's left)
+    reason += (f"; your {other} hand could reach it as asked"
+               if life.body.hand_reaches(other, place, rot)
+               else f"; nor could your {other} hand, as asked")
+  return {"ok": False, "hand": hand, "why": why, "reason": reason}
 
 
 #: What a `move_hand` that did not arrive says, by its report's why.
@@ -1200,12 +1208,15 @@ HANDS_VERBS: dict[str, Verb] = {
                                   "stiffness": _STIFF},
                     _move_hand, "carry a hand that is out (reached) along a straight line "
                     "to (x, y, z) at `speed` m/s, its turn kept; ok when it arrives"),
-  "pull": Verb("pull", {"hand": _HAND, "dx": Arg("float", lo=-1.0, hi=1.0),
-                        "dy": Arg("float", lo=-1.0, hi=1.0), "dz": Arg("float", lo=-1.0, hi=1.0),
+  # ⚠ A WAY OF ANY LENGTH (`_pull` scales it to one): bounded to 1 a
+  # component, two of #493's tries ended at a computed 1.03 and 1.001
+  "pull": Verb("pull", {"hand": _HAND, "dx": Arg("float"), "dy": Arg("float"),
+                        "dz": Arg("float"),
                         "force": Arg("float", lo=1.0, hi=60.0),
                         "distance": Arg("float", lo=0.01, hi=0.6),
                         "speed": _SPEED, "stiffness": _SOFT},
-               _pull, "pull a hand that is out straight along (dx, dy, dz) on a soft arm -- "
+               _pull, "pull a hand that is out straight along the way (dx, dy, dz), of any "
+               "length, on a soft arm -- "
                "the hand bending toward whatever gives, its turn kept -- until it has gone "
                "`distance` m, the force at the hand along its way "
                "reaches `force` N while something holds it back, it is held fast, or it can "

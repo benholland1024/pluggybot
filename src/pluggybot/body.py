@@ -679,6 +679,13 @@ class Body(abc.ABC):
     of its model of itself (#493)."""
 
   @abc.abstractmethod
+  def hand_reaches(self, side: str, pos, rot=None) -> bool:
+    """Whether `reach_routine` would plan a hand's grip to `pos` (the
+    believed world frame) at the turn `rot`, or any -- asked of its model of
+    itself, nothing moved: what a reach out of reach says of the other hand
+    (#493)."""
+
+  @abc.abstractmethod
   def gaze_routine(self, down: float) -> Routine:
     """Its head's cameras turned `down` rad below their gaze standing --
     0 back to it -- as the body can: the humanoid, its head fixed on its
@@ -935,6 +942,10 @@ class StubBody(Body):
     #: shut where a test sent it holds, as the stub's every walk arrives.
     self.hands: dict[str, tuple] = {}
     self.grips: dict[str, bool] = {}
+    #: ...and the hands a test says reach nothing (#493): a reach with one
+    #: is out of reach
+    self.out_of_reach: set[str] = set()
+    self._why: dict[str, str] = {}
     #: ...and each survey it was asked for, and what it counts, by tag
     self.surveyed: list[int] = []
     self.counts: dict[int, int] = {}
@@ -1313,6 +1324,10 @@ class StubBody(Body):
 
   def reach_routine(self, side, pos, rot=None, stiffness=1.0, patience=20.0, path=None,
                     turns=None):
+    if side in self.out_of_reach:
+      self._why[side] = "out of reach"
+      return False
+    self._why[side] = ""
     self.hands[side] = tuple(pos)
     return True
     yield
@@ -1337,6 +1352,10 @@ class StubBody(Body):
   def hand_follows(self, side, poses, rot=None) -> bool:
     """Anywhere: it has no body to be out of reach of."""
     return True
+
+  def hand_reaches(self, side, pos, rot=None) -> bool:
+    """Anywhere, but with a hand a test put `out_of_reach`."""
+    return side not in self.out_of_reach
 
   def gaze_routine(self, down):
     """No head to turn: at once."""
@@ -1369,8 +1388,9 @@ class StubBody(Body):
     yield
 
   def hand_why(self, side) -> str:
-    """Never short: every reach holds at once."""
-    return ""
+    """Never short -- every reach holds at once -- but with a hand a test
+    put `out_of_reach`."""
+    return self._why.get(side, "")
 
   def pull_routine(self, side, direction, limit_n, distance_m, stiffness=1.0,
                    speed=0.06, patience=30.0):

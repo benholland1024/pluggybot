@@ -574,3 +574,170 @@ def test_a_solve_that_diverged_is_never_commanded():
   r._held("left", 0.01, h, rot)
   assert np.allclose(r.q_cmd["left"], before)
   assert rc.WILD_M < 1.0
+
+
+# ---- feedback a procedure can debug by, and what a robot keeps --------------------
+
+
+def test_a_reach_out_of_reach_says_whether_the_other_hand_could():
+  """18 of 27 first tries of #493's flight took the right hand to a knob on
+  the robot's left: the refusal says what the body's own model says of the
+  other hand, asked the same pose -- either way."""
+  body = _stub()
+  body.out_of_reach = {"right"}
+  step = _fly('def a():\n    reach("right", 0.3, 0.2, 0.9)\n', body)["steps"][-1]
+  assert step["reason"] == (st.REACH_WHY["out of reach"].format(hand="right")
+                            + "; your left hand could reach it as asked")
+  body.out_of_reach = {"right", "left"}
+  step = _fly('def a():\n    reach("right", 0.3, 0.2, 0.9)\n', body)["steps"][-1]
+  assert step["reason"].endswith("; nor could your left hand, as asked")
+  # ...and a hand that stopped short is not out of reach: nothing is said of the other
+  class Short(StubBody):
+    def reach_routine(self, side, pos, rot=None, stiffness=1.0, patience=20.0):
+      return False
+      yield
+
+    def hand_why(self, side):
+      return "stopped short"
+  step = _fly('def a():\n    reach("right", 0.3, 0.2, 0.9)\n', Short(*_bare()))["steps"][-1]
+  assert "other" not in step["reason"] and "left" not in step["reason"]
+
+
+def test_a_pull_takes_a_way_of_any_length():
+  """Bounded to 1 a component, two tries ended at a computed 1.03 and 1.001:
+  the way is any length, scaled to one, and only no way at all is refused."""
+  facts = st.hand_facts(pull=True)
+  assert st.check_arg(st.HANDS_VERBS["pull"], "dz", 1.03, facts) == []
+  ran = _fly('def a():\n    reach("left", 0.3, 0.2, 0.9)\n    pull("left", 0, 0, 2.5, 10, 0.1)\n'
+             '    z = read("pull.dz")\n    m = read("pull.moved")\n')
+  assert ran["ok"] and ran["locals"]["z"] == pytest.approx(1.0)
+  assert ran["locals"]["m"] == pytest.approx(0.1)
+  ran = _fly('def a():\n    reach("left", 0.3, 0.2, 0.9)\n    pull("left", 0, 0, 0, 10, 0.1)\n')
+  assert "give the pull a way" in ran["steps"][-1]["reason"]
+
+
+class CutMind(Mind):
+  """A mind whose first answer runs out of its tokens still thinking."""
+
+  def __init__(self, *sources, cut=1):
+    super().__init__(*sources)
+    self.cut = cut
+
+  def create(self, **kw):
+    if self.cut:
+      self.cut -= 1
+      self.asked.append(kw)
+      return NS(content=[NS(type="text", text="")], stop_reason="max_tokens",
+                usage=NS(input_tokens=100, output_tokens=kw["max_tokens"]))
+    return super().create(**kw)
+
+
+def test_an_answer_cut_off_is_asked_again_saying_so():
+  """37 of #493's answers ran out of their 64,000 tokens still thinking, and
+  were asked again as if nothing had happened: the cap is 128,000 now, the
+  mind is told its budget, and an answer cut off is asked again saying so --
+  once, however often it is cut."""
+  mind = CutMind('def a():\n    wait(1)\n', cut=2)
+  pr = mp.Practice(mind, "a-mind", st.hand_facts(), ep.JOB.format(limit=30), retry_wait_s=0.0)
+  turn = pr.first()
+  assert [t.kind for t in pr.turns] == ["first", "retry", "retry"]
+  assert pr.turns[0].cut and "cut off" in pr.turns[0].error
+  assert turn.procedure is not None and not turn.cut
+  assert all(kw["max_tokens"] == mp.MAX_TOKENS == 128000 for kw in mind.asked)
+  for kw in mind.asked[1:]:
+    asked = kw["messages"][-1]["content"]
+    assert asked.startswith(mp.CUT_NOTE.format(tokens=mp.MAX_TOKENS))
+    assert asked.count("ran out of its") == 1
+  prompt = mp.system_prompt(st.hand_facts())
+  assert "128,000 tokens" in prompt and "64,000" in prompt
+
+
+def test_what_passed_is_kept_the_newest_last_and_the_oldest_goes_when_full():
+  kept, dropped = ep.keep([], "a", "A", 3, 2)
+  assert kept == [{"name": "a", "source": "A", "chest": 3, "attempt": 2}] and dropped is None
+  kept, _ = ep.keep(kept, "b", "B", 4, 1)
+  kept, dropped = ep.keep(kept, "a", "A2", 5, 1)
+  assert [k["name"] for k in kept] == ["b", "a"] and kept[-1]["source"] == "A2"
+  assert dropped is None
+  kept, dropped = ep.keep(kept, "c", "C", 6, 1, cap=2)
+  assert [k["name"] for k in kept] == ["a", "c"] and dropped == "b"
+
+
+def test_the_bar_is_out_of_reach_once_more_chests_failed_within_its_tries_than_it_allows():
+  """Ben, 2026-10-18: stop once it is plain the bar cannot be met. 80 % of
+  32 is 26 within 3: a seventh chest failed puts it out of reach, and a pass
+  at the fourth try is a failure within 3."""
+  assert not ep.out_of_reach([None] * 6, 32)
+  assert ep.out_of_reach([None] * 6 + [4], 32)
+  assert not ep.out_of_reach([1, 2, 3] * 8 + [None] * 6, 32)
+  assert ep.out_of_reach([None] * 3, 10) and not ep.out_of_reach([None] * 2, 10)
+
+
+def _chest(first, name="opener", error=False):
+  """A chest's rows that first passed at `first` (None: never), admitting
+  `name`."""
+  if error:
+    return [{"error": "it raised"}]
+  rows = [{"attempt": n, "verdict": {"ok": n == first}, "practice": {"source": f"def {name}(): ..."}}
+          for n in range(1, (first or 5) + 1)]
+  if first:
+    rows[-1]["admitted"] = name
+  return rows
+
+
+def test_the_practice_first_carries_only_what_passed_and_stops_once_it_holds():
+  outcomes = {0: 4, 1: 1, 2: None, 3: 1, 4: 1, 5: 1, 6: 1}
+  seen = []
+
+  def run_chest(k, kept):
+    seen.append((k, [c["name"] for c in kept]))
+    return _chest(outcomes[k], name=f"p{k}")
+  kept, how = ep.acquire(run_chest, range(7), until=3)
+  # it carried chest 0's pass to chest 1, and stopped at three running passes
+  assert seen[:2] == [(0, []), (1, ["p0"])] and len(seen) == 6
+  assert how["firsts"][2] == [2, None] and "3 chests running" in how["ended"]
+  assert [c["name"] for c in kept] == ["p0", "p1", "p3", "p4", "p5"]
+  # ...and gives up with nothing kept, flying no more
+  kept, how = ep.acquire(lambda k, kept: _chest(None), range(20), give_up_after=4)
+  assert kept == [] and len(how["firsts"]) == 4 and "given up" in how["ended"]
+  # ...and a chest whose practice raised is no pass
+  kept, how = ep.acquire(lambda k, kept: _chest(1, error=k == 1), range(4), until=3)
+  assert how["firsts"][1] == [1, None] and len(how["firsts"]) == 4
+
+
+def test_the_flight_stops_early_once_the_bar_is_out_of_reach_and_not_without_asking():
+  results = [_chest(None)] * 10
+  written = []
+  stopped = ep.flown(iter(results), 10, True, written.append)
+  assert stopped["after"] == 3 and stopped["failedWithin"] == 3 and len(written) == 3
+  assert ep.flown(iter(results), 10, False) is None
+
+
+def test_a_chest_is_shown_what_the_robot_kept():
+  kept = [{"name": "opener", "source": "def opener():\n    wait(1)\n", "chest": 7, "attempt": 2}]
+  mind = Mind('def b():\n    wait(2)\n')
+  pr = mp.Practice(mind, "a-mind", st.hand_facts(), ep.JOB.format(limit=30))
+  rows = ep.practice_on(0, pr, 1, kept=kept, picture=False, budget_s=30.0,
+                        build=lambda t: stub_world(t))
+  first = mind.asked[0]["messages"][0]["content"]
+  assert first.startswith("YOUR LIBRARY") and "opener -- passed box 7 on its try 2" in first
+  assert "def opener():\n    wait(1)" in first and "THE JOB" in first
+  assert rows[0]["kept"] == ["opener"] and rows[0]["practice"]["source"].startswith("def b")
+
+
+def test_a_hand_reaches_its_own_side_as_the_body_plans_it_nothing_moved():
+  """What a reach out of reach says of the other hand is the reach's own
+  plan, in the believed world frame (`Body.hand_reaches`, `Reach.plans`):
+  the humanoid at its counter, each hand asked a point 0.2 m to its own
+  side and to the other's -- and nothing moved by asking."""
+  from pluggybot.evaluation import attempts as at
+  world = at.set_out(at.Task(chest=0, body="humanoid", mount="counter"))
+  try:
+    body = world.body
+    left = body.to_world(np.array([0.35, 0.20, 0.85]))
+    before = body.reach.phase["left"], tuple(body.reach.posture)
+    assert body.hand_reaches("left", left)
+    assert not body.hand_reaches("right", left)
+    assert (body.reach.phase["left"], tuple(body.reach.posture)) == before
+  finally:
+    world.close()

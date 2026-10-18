@@ -1099,6 +1099,32 @@ tokens, never a try (two repairs a try).
   runs calling at once) were waited for and asked again, none costing a
   try.
 
+**Practice first, then the held-out chests** (Ben, 2026-10-18, after the
+flight above): the chests differ only in their hidden dynamics, so nearly
+all a robot learns of them is shared, and a fresh robot a chest learned it
+again 32 times and never used its library. The KEPT protocol
+(`scripts/practice.py --acquire`; `evaluation.practice.acquire`, `keep`,
+`flown`) measures the two things apart:
+- **acquiring**: ONE robot practices on the public chests in turn,
+  carrying only what passed -- the procedures the grader passed, shown at
+  each chest's start (`mind.practice.library_text`), the newest kept and
+  the oldest going where the library is full -- never a conversation or a
+  note of its own. It ends once 3 chests running pass at their first try
+  (`UNTIL`), or 16 are practiced (`MAX_CHESTS`); with nothing kept after 8
+  (`GIVE_UP_AFTER`), nothing more is flown. Its tries, tokens and sim-s are
+  the experience the skill took;
+- **the flight**: each held-out chest a copy of that robot, frozen, up to 5
+  tries; the bar is read there, 80 % within 3 of the chest's own tries.
+  ⚠ It STOPS EARLY once the bar is out of reach (`out_of_reach`: a seventh
+  of 32 chests failed within 3), the curve read off the chests flown.
+Alongside it, feedback a procedure is debugged by, none of it the chest's:
+a sensor written as Python is refused naming its `read`, an operator the
+language lacks naming the four it has; a reach out of reach says whether
+the other hand could reach it as asked (its body's own plan,
+`Body.hand_reaches`); a pull's way is any length; an answer may take
+128,000 tokens, told to finish inside 64,000, and one cut off is asked
+again, saying so.
+
 ## 5. What silently invalidates a number
 
 The list this document mostly exists for.

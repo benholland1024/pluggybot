@@ -354,11 +354,7 @@ class Reach:
     places it did with them closing to its left, its wrist's roll at the
     end of its range. `postures` are the ones it may take, `flip` whether
     it may take the other grip."""
-    plan_ = plan(side, goal, approach=approach, postures=postures)
-    if plan_ is None and goal.rot is not None and flip:
-      flipped = np.asarray(goal.rot, dtype=float) @ np.diag([-1.0, -1.0, 1.0])
-      goal = HandGoal(np.asarray(goal.pos, dtype=float), flipped, goal.stiffness)
-      plan_ = plan(side, goal, approach=approach, postures=postures)
+    plan_, goal = self._planned(side, goal, approach, postures, flip)
     if plan_ is None:
       return False
     posture, q_pre, _, self.slack[side] = plan_
@@ -369,6 +365,19 @@ class Reach:
     self.q_to[side] = q_pre
     self.phase[side] = "move"
     return True
+
+  def plans(self, side: str, goal: HandGoal, approach: float = APPROACH_M,
+            postures=POSTURES, flip: bool = True) -> bool:
+    """Whether `reach` would plan `goal` for `side` -- nothing moved."""
+    return self._planned(side, goal, approach, postures, flip)[0] is not None
+
+  def _planned(self, side, goal, approach, postures, flip):
+    plan_ = plan(side, goal, approach=approach, postures=postures)
+    if plan_ is None and goal.rot is not None and flip:
+      flipped = np.asarray(goal.rot, dtype=float) @ np.diag([-1.0, -1.0, 1.0])
+      goal = HandGoal(np.asarray(goal.pos, dtype=float), flipped, goal.stiffness)
+      plan_ = plan(side, goal, approach=approach, postures=postures)
+    return plan_, goal
 
   def stop(self, side: str, why: str) -> None:
     """A carry ended from outside (its caller's patience), held where the

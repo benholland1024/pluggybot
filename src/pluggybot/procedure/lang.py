@@ -71,8 +71,25 @@ RESERVED = frozenset({"read", "budget", "range", "def", "and", "or", "not",
                       "pass", "True", "False", "None"})
 
 _BIN = {ast.Add: "+", ast.Sub: "-", ast.Mult: "*", ast.Div: "/"}
+#: ...and how one it lacks is named in its refusal.
+_OP_TEXT = {ast.Mod: "%", ast.Pow: "**", ast.FloorDiv: "//", ast.MatMult: "@",
+            ast.BitAnd: "&", ast.BitOr: "|", ast.BitXor: "^", ast.LShift: "<<",
+            ast.RShift: ">>"}
 _CMP = {ast.Lt: "<", ast.LtE: "<=", ast.Gt: ">", ast.GtE: ">=",
         ast.Eq: "==", ast.NotEq: "!="}
+
+
+def _dotted_refusal(node: ast.Attribute) -> str:
+  """A name with a dot, refused with what it most likely meant: a sensor
+  written as Python, `spot.nx` for `read("spot.nx")` -- the commonest
+  refusal of #493's flight, 37 times, while it said only that an
+  Attribute is not part of this language."""
+  from pluggybot.procedure.axes import SENSORS
+  text = ast.unparse(node)
+  if text in SENSORS:
+    return f'{text} is a sensor: read it with read("{text}")'
+  return (f'{text}: a name with a dot is not part of this language (a sensor '
+          'is read with read("<sensor>"))')
 #: What an expression the parser refused stands in as: no value, so the
 #: world's check never refuses it again (a stand-in 0 read `tag 0 is no
 #: cube`, a tag the source never wrote, #463). It never runs: a parse with
@@ -260,6 +277,13 @@ class _Parser:
       return _REFUSED
     if isinstance(node, ast.BinOp) and type(node.op) in _BIN:
       return ("bin", _BIN[type(node.op)], self.expr(node.left), self.expr(node.right))
+    if isinstance(node, ast.BinOp):
+      self.refuse(node, f"{_OP_TEXT.get(type(node.op), type(node.op).__name__)} is not "
+                        "part of this language: numbers combine with + - * / alone")
+      return _REFUSED
+    if isinstance(node, ast.Attribute):
+      self.refuse(node, _dotted_refusal(node))
+      return _REFUSED
     if isinstance(node, ast.UnaryOp) and isinstance(node.op, ast.USub):
       return ("neg", self.expr(node.operand))
     if isinstance(node, ast.UnaryOp) and isinstance(node.op, ast.Not):

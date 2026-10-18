@@ -28,9 +28,11 @@ import time
 from pluggybot.procedure import lang
 from pluggybot.procedure.steps import Refused, WorldFacts, describe_vocabulary, signature
 
-#: The tokens an answer may take: the deployed model reasons first (#480:
-#: 32,000 left 70 answers in 180 unwritten; every provider took 64,000).
-MAX_TOKENS = 64000
+#: The tokens an answer may take, its reasoning first: at 64,000, 37 of
+#: #493's 537 answers ran out still thinking, and answered ones went to
+#: 63,064 (the providers take 200,000). The mind is told to finish well
+#: inside `AIM_TOKENS`, and an answer cut off is asked again, saying so.
+MAX_TOKENS, AIM_TOKENS = 128000, 64000
 #: A refused source goes back with its reasons this many times a try, and
 #: an answer that never came is asked again this many times, this long
 #: apart (s); an ask the router refused for its rate waits this long times
@@ -101,8 +103,14 @@ it at %(slew)g rad/s
 
 ANSWER = """YOUR ANSWER
 
-One JSON object: "think" first -- your reasoning, as long as you need --
-then "source": the whole procedure, as text."""
+One JSON object: "think" first -- your reasoning -- then "source": the
+whole procedure, as text. Your reply, your thinking included, is cut off
+at %(cap)s tokens, and a reply cut off is lost: take what thinking you
+need, and finish well inside %(aim)s."""
+#: What an answer asked again after it was cut off is told first.
+CUT_NOTE = ("(Your last reply ran out of its {tokens:,} tokens, your thinking "
+            "included, before you wrote your answer, and it was lost. Think less "
+            "this time, and answer.)")
 
 
 def system_sections(facts: WorldFacts) -> list[tuple[str, str]]:
@@ -118,7 +126,7 @@ def system_sections(facts: WorldFacts) -> list[tuple[str, str]]:
   return [("what you do", WHAT_YOU_DO), ("the language", LANGUAGE),
           ("your body", YOUR_BODY % {"verbs": verbs, "sensors": sensors, "axes": ax,
                                      "slew": axes.HUMANOID_SLEW}),
-          ("your answer", ANSWER)]
+          ("your answer", ANSWER % {"cap": f"{MAX_TOKENS:,}", "aim": f"{AIM_TOKENS:,}"})]
 
 
 def system_prompt(facts: WorldFacts) -> str:
@@ -150,6 +158,28 @@ def extract(response) -> dict:
   return raw
 
 
+def library_text(kept) -> str:
+  """What the robot is shown of the procedures it KEPT (#493): each, the
+  box and the try whose pass admitted it, and its source -- a pass the
+  world graded, never a word of how it did."""
+  lines = ["YOUR LIBRARY", "",
+           "Procedures you kept, each because the world graded a try of it a pass on "
+           "a box like this one:"]
+  for k in kept:
+    lines += ["", f"{k['name']} -- passed box {k['chest']} on its try {k['attempt']}:",
+              k["source"].rstrip()]
+  return "\n".join(lines)
+
+
+def _noted(content, note: str):
+  """`content` -- a user turn's text, or its parts -- with `note` first."""
+  if not note:
+    return content
+  if isinstance(content, str):
+    return f"{note}\n\n{content}"
+  return [{"type": "text", "text": note}, *content]
+
+
 @dataclass
 class Turn:
   """One answer: what was asked (`kind`: first, after, repair, retry), the
@@ -163,12 +193,14 @@ class Turn:
   tokens: tuple[int, int] = (0, 0)
   wall_s: float = 0.0
   provider: str | None = None
+  #: its tokens ran out before it was written
+  cut: bool = False
 
   def as_dict(self) -> dict:
     return {"kind": self.kind, "think": (self.answer or {}).get("think"),
             "source": (self.answer or {}).get("source"), "refused": list(self.refused),
             "error": self.error, "tokensIn": self.tokens[0], "tokensOut": self.tokens[1],
-            "wallS": round(self.wall_s, 1), "provider": self.provider}
+            "wallS": round(self.wall_s, 1), "provider": self.provider, "cut": self.cut}
 
 
 class Practice:
@@ -185,9 +217,11 @@ class Practice:
     self.turns: list[Turn] = []
     self._last = None
 
-  def _ask(self, kind: str, content) -> Turn:
+  def _ask(self, kind: str, content, note: str = "") -> Turn:
+    """One answer to `content`, sent with `note` first where there is one
+    (the content is what a retry asks again)."""
     self._last = content
-    self.messages.append({"role": "user", "content": content})
+    self.messages.append({"role": "user", "content": _noted(content, note)})
     turn = Turn(kind=kind)
     t0 = time.monotonic()
     try:
@@ -201,9 +235,11 @@ class Practice:
                      int(getattr(usage, "output_tokens", 0) or 0))
       turn.provider = getattr(response, "provider", None)
       turn.wall_s = time.monotonic() - t0
+      turn.cut = getattr(response, "stop_reason", None) == "max_tokens"
       turn.answer = extract(response)
     except Exception as e:                                # noqa: BLE001 -- said why
-      turn.error = f"{type(e).__name__}: {e}"
+      turn.error = (f"cut off: its {self.max_tokens:,} tokens ran out before the answer "
+                    "was written" if turn.cut else f"{type(e).__name__}: {e}")
       turn.wall_s = time.monotonic() - t0
       self.messages.pop()
       self.turns.append(turn)
@@ -226,6 +262,9 @@ class Practice:
         turn = self._ask("repair", "Your procedure was refused:\n"
                          + "\n".join(f"- {r}" for r in turn.refused)
                          + "\n\nWrite it again, the whole procedure, every reason answered.")
+      elif turn.cut and turn.error and retries < MAX_RETRIES and self._last is not None:
+        retries += 1
+        turn = self._ask("retry", self._last, note=CUT_NOTE.format(tokens=self.max_tokens))
       elif " 429" in turn.error and waits < RATE_WAITS and self._last is not None:
         waits += 1
         time.sleep(self.rate_wait_s * waits)
@@ -237,11 +276,14 @@ class Practice:
       else:
         return turn
 
-  def first(self, picture: bytes | None = None) -> Turn:
-    """The first procedure: the job, and the head camera's picture."""
+  def first(self, picture: bytes | None = None, kept=()) -> Turn:
+    """The first procedure: the job, the head camera's picture, and the
+    procedures the robot KEPT (`library_text`), where it has any."""
     text = (f"THE JOB\n\n{self.job}\n\nThe picture is your head camera's, as you stand "
             "now. Write the procedure for your first try.") if picture is not None else \
       f"THE JOB\n\n{self.job}\n\nWrite the procedure for your first try."
+    if kept:
+      text = f"{library_text(kept)}\n\n{text}"
     if picture is None:
       content = text
     else:
