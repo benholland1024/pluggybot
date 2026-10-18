@@ -50,24 +50,25 @@ TAG, KNOB_M = CHEST_TAG_IDS[0], 0.026
 #: Standing still before it looks, s, and its looks, `APART_S` apart.
 STILL_S, LOOKS, APART_S = 1.0, 3, 0.1
 #: The fingers' tilt down onto the knob, tried in this order, deg.
-TILTS_DEG = (25.0, 15.0, 35.0, 45.0)
+TILTS_DEG = tuple(float(t) for t in __import__("os").environ.get("TILTS", "25,15,35,45").split(","))
 #: Grips tried before it gives up.
 GRIPS = 2
 #: The pulls, in turn while the lid holds fast or the pull stops short: the
 #: force limit, N. Straight up, the hand to go `LIFT_M` from where it
 #: gripped, m, at most.
 PULLS = (20.0, 35.0, 35.0)
-LIFT_M = 0.28
+LIFT_M = 0.25
 #: The lift is done once the knob has risen this far, m; it opened the lid
 #: (its own word) once it rose `RISE_M`: the knob's drop handle hangs 0.27
 #: m from the lid's hinge, and a rise of 0.21 m lifted a lid 54-57 deg, 0.23
 #: m 60 deg (the reference's flights at the lowered counter).
-RISE_TARGET, RISE_M = 0.25, 0.23
+RISE_TARGET, RISE_M = LIFT_M, 0.23
 #: The lowering: its force limit, N, at most this many pulls, and back
 #: where it gripped once the hand is within this of its height, m.
 DOWN_N, DOWNS, HOME_M = 15.0, 3, 0.03
-#: The pull's speed, m/s.
+#: The pull's speed, m/s, and its stiffness (a share of the arm's own).
 UP_M_S = 0.06
+PULL_STIFFNESS = float(__import__("os").environ.get("PULLK", "1.0"))
 
 
 def _frame(approach, closing) -> np.ndarray:
@@ -139,9 +140,10 @@ def opener(body) -> Routine:
   start = np.asarray(body.hand_at(side), dtype=float)
   rise = 0.0
   for limit in PULLS:
-    gone = float(np.linalg.norm(np.asarray(body.hand_at(side)) - start))
+    risen = float(np.asarray(body.hand_at(side))[2] - start[2])
     got = yield from body.pull_routine(side, (0.0, 0.0, 1.0), limit,
-                                       max(0.02, LIFT_M - gone), stiffness=1.0, speed=UP_M_S)
+                                       max(0.02, LIFT_M - risen), stiffness=PULL_STIFFNESS,
+                                       speed=UP_M_S)
     log.setdefault("pulls", []).append(got)
     rise = float(np.asarray(body.hand_at(side))[2] - start[2])
     if rise >= RISE_TARGET or got["why"] in ("distance", "let go", "fell", "feet moved"):
@@ -151,7 +153,7 @@ def opener(body) -> Routine:
     if above <= HOME_M:
       break
     got = yield from body.pull_routine(side, (0.0, 0.0, -1.0), DOWN_N, above + HOME_M,
-                                       stiffness=1.0, speed=UP_M_S)
+                                       stiffness=PULL_STIFFNESS, speed=UP_M_S)
     log.setdefault("downs", []).append(got)
     above = float(np.asarray(body.hand_at(side))[2] - start[2])
     if got["why"] in ("let go", "fell"):

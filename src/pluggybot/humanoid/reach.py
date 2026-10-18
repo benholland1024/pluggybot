@@ -100,6 +100,12 @@ LEAD_M, LEAD_RATE, LEAD_MAX = 0.02, 0.02, 0.08
 #: by the lid's angle, and a pull up that followed a drop handle's swing
 #: toward the robot turned 96 deg and pulled the robot to the counter.
 FOLLOW_RATE, FOLLOW_V, FOLLOW_CONE_DEG = 2.0, 0.01, 80.0
+#: ...and only once the hand has gone this far the way asked, m: the first
+#: centimetres are slack -- a handle's play, the hand's own give -- and a
+#: drop handle pulled up from where it hangs, in compression, buckled
+#: toward the robot; followed from the first tick, the pull turned
+#: horizontal and dragged the robot's feet 35 mm toward the chest (#493).
+FOLLOW_AFTER_M = 0.04
 #: Nothing gives while the hand goes slower than this, m/s; held there this
 #: long, s, at the lead's most, what it pulls is held fast.
 STALL_V, STALL_S = 0.005, 1.0
@@ -412,7 +418,9 @@ class Reach:
     the direction turning toward wherever the hand gives (`FOLLOW_RATE`),
     the lead growing while nothing gives (`LEAD_RATE`) -- at no more than
     `speed`, pivoting round its jaws' line where its gripper holds
-    something. It stops once the hand has gone `distance_m`, the force it
+    something. It stops once the hand has gone `distance_m` THE WAY IT WAS
+    ASKED (up, its rise; a lid's arc turns its way, and a pull up 0.28 m in
+    all stopped a lid at 53-57 deg), the force it
     reads at the hand reaches `limit_n` (N), nothing has given for
     `STALL_S` at its hardest, its gripper has let go, the arm cannot reach
     on, or `patience_s` runs out -- and holds where the hand is. False
@@ -423,7 +431,8 @@ class Reach:
     h, r = self.grip_now(side)
     d = np.asarray(direction, dtype=float)
     d = d / max(float(np.linalg.norm(d)), 1e-9)
-    pinch = self.grippers[side].held()
+    import os
+    pinch = self.grippers[side].held() and os.environ.get("PINCH", "1") == "1"
     posture = self.posture_for(side, h + LEAD_M * d, jaws=r[:, 0]) if pinch else \
       self.posture_for(side, h + LEAD_M * d, rot=r)
     if posture is not None:
@@ -603,7 +612,8 @@ class Reach:
            "dx": round(float(disp[0]), 4), "dy": round(float(disp[1]), 4),
            "dz": round(float(disp[2]), 4)}
     if "d" in st:
-      rep.update(force=round(st["peak"], 2), direction=[round(float(v), 3) for v in st["d"]])
+      rep.update(along=round(float((h - st["start"]) @ st["asked"]), 4),
+                 force=round(st["peak"], 2), direction=[round(float(v), 3) for v in st["d"]])
     self.report[side] = rep
     self.pulls[side] = None
     self.phase[side] = "hold"
@@ -673,7 +683,8 @@ class Reach:
     v = (trail[-1] - trail[0]) / (dt * max(1, len(trail) - 1))
     speed = float(np.linalg.norm(v))
     d = st["d"]
-    if speed > FOLLOW_V and st["t"] >= SETTLE_S:
+    along = float((h - st["start"]) @ st["asked"])
+    if speed > FOLLOW_V and st["t"] >= SETTLE_S and along >= FOLLOW_AFTER_M:
       # what the hand does while its arm settles into the pull is the arm's,
       # never the way the thing gives: followed, it turned a pull down off
       # a stretched arm 23 deg sideways in 0.4 s
@@ -699,7 +710,9 @@ class Reach:
     st["over"] = st.get("over", 0.0) + dt if pull >= st["limit"] and st["stall"] > 0.0 else 0.0
     held = self.grippers[side].held()
     st["slip"] = 0.0 if held or not self.pinch[side] else st["slip"] + dt
-    why = ("distance" if st["moved"] >= st["distance"]
+    # how far it went the way it was asked: up, the rise; down, the drop
+    st["along"] = float((h - st["start"]) @ st["asked"])
+    why = ("distance" if st["along"] >= st["distance"]
            else "force" if st["over"] >= OVER_S
            else "held fast" if st["stall"] >= STALL_S and st["lead"] >= LEAD_MAX
            else "let go" if st["slip"] >= SLIP_S

@@ -692,14 +692,15 @@ class Body(abc.ABC):
     """THE COMPLIANT PULL (#493): a hand that is out pulled along
     `direction` (the believed world frame), its way turning toward wherever
     the hand gives, pulling harder while nothing gives -- pivoting round its
-    jaws' line where it holds something -- until it has gone `distance_m`,
-    the force it reads at the hand reaches `limit_n`, N, nothing gives at
+    jaws' line where it holds something -- until it has gone `distance_m`
+    the way asked, the force it reads at the hand reaches `limit_n`, N, nothing gives at
     its hardest, its grip lets go, or `patience` runs out; then it holds
     where the hand is. Returns how it ended (`why`: "distance", "force",
     "held fast", "let go", "out of reach", "not out", "fell", "out of
-    time"), in how long, how far the hand went, where it ended up from
-    where it began (believed world frame, m), the way it was going at the
-    end (`direction`) and the hardest it pulled (`force`, N). A pull or a
+    time"), in how long, how far the hand went (`moved`) and how far the
+    way asked (`along`), where it ended up from where it began (believed
+    world frame, m), the way it was going at the end (`direction`) and the
+    hardest it pulled (`force`, N). A pull or a
     carry that drags the body's own feet stops ("feet moved")."""
 
   @property
