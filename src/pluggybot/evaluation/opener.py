@@ -58,7 +58,7 @@ STILL_S, LOOKS, APART_S, FRAMES, LOOK_TRIES = 1.0, 3, 0.1, 3, 2
 #: first that reaches the whole arc: at the 0.72 m counter the arc to 62 deg
 #: is in reach with the fingers 10 deg down in most set-outs, a shut knob
 #: with them 25 (`humanoid_spike.py --opening`).
-TILTS_DEG = (10.0, 25.0, 0.0, 40.0)
+TILTS_DEG = (10.0, 25.0, 0.0, 40.0, 18.0, 33.0)
 #: Grips tried before it gives up.
 GRIPS = 2
 #: The arc: up to this, rad of lid (the probe's 1.2 a little short of the
@@ -67,7 +67,7 @@ GRIPS = 2
 TOP, BOTTOM, STEP = 1.15, -0.03, math.radians(4.0)
 #: The tops tried, the highest first, rad: the arm's give leaves the lid a
 #: few degrees under the plan's top (a plan to 66 deg opened lids 56-66).
-TOPS = (1.30, 1.22, TOP, 1.08)
+TOPS = (TOP, 1.08)
 SPEED, STIFFNESS = 0.05, float(__import__('os').environ.get('ARCK', '1.0'))
 #: How long one step of the arc may take, s; how many times the hand is
 #: carried back down the arc while still up, and up by less than this, m,

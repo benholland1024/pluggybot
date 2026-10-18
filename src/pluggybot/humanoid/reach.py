@@ -123,6 +123,11 @@ SLIP_S = 0.3
 #: drivers' counts and their backlash scatters a millimetre or two a read,
 #: tens of centimetres a second between two reads 10 ms apart.
 MOTION_S = 0.4
+#: A path's slack (`path_for`): each of its points must also be reached
+#: this much further AHEAD, m. Lifting, the live robot stands further back
+#: than its statue: 1.5-2 cm all the way up a lid's arc, 2 cm more at its
+#: top, where a path planned with none stopped at 57 deg (#493).
+PATH_MARGIN_M = 0.035
 #: A carried or pulled hand whose solve misses its command by this, m,
 #: takes a posture that reaches it, planned at most once this often, s
 #: (`posture_for` is a fraction of a second of the processor's).
@@ -428,11 +433,13 @@ class Reach:
     """A posture (`HOLD_POSTURES`, the least bent first) from which `side`'s grip
     FOLLOWS `poses` (stance frame) in turn at the turn `rot` -- the first
     solved from the seeds, each next ON from the last, as a moving arm must
-    -- or None. ⚠ A point reached from a fresh seed is not a path: the arm
-    went up a lid's arc in one branch, and where only another reached on, it
-    swung between them and jerked the lid shut at 3.3 rad/s (#493)."""
+    -- or None, each point reached `PATH_MARGIN_M` further ahead too. ⚠ A
+    point reached from a fresh seed is not a path: the arm went up a lid's
+    arc in one branch, and where only another reached on, it swung between
+    them and jerked the lid shut at 3.3 rad/s (#493)."""
     sm = self._planner_model()
     q0 = np.array([hm.stand_qpos().get(n, 0.0) for n in hm.JOINT_NAMES])
+    poses = [np.asarray(p, dtype=float) + (PATH_MARGIN_M, 0.0, 0.0) for p in poses]
     # a hand that is out goes on from the arm as it IS, its posture first:
     # the branch its grip left it in is the branch its path must follow
     out = self.out(side)

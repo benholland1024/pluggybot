@@ -1443,9 +1443,9 @@ SURVEY_VERBS = ("survey",)
 
 def describe_vocabulary(verbs: tuple | None = None) -> list[dict]:
   """The verbs as data -- what a prompt or a validator's error names --
-  every one, or those a body can run (`verbs`). An argument
-  that may be left out rides `defaults` with what it is when it is."""
-  keep = VERBS if verbs is None else {n: VERBS[n] for n in verbs}
+  every one, or those a body can run (`verbs`, the hands' among them). An
+  argument that may be left out rides `defaults` with what it is when it is."""
+  keep = VERBS if verbs is None else {n: {**VERBS, **HANDS_VERBS}[n] for n in verbs}
   out = []
   for v in keep.values():
     entry = {"verb": v.name, "args": {k: a.kind for k, a in v.args.items()},
