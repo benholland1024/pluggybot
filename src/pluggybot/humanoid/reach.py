@@ -393,19 +393,21 @@ class Reach:
 
   # ---- what a caller asks ----
 
-  def reach(self, side: str, goal: HandGoal, approach: float = APPROACH_M) -> bool:
+  def reach(self, side: str, goal: HandGoal, approach: float = APPROACH_M,
+            postures=POSTURES, flip: bool = True) -> bool:
     """A hand to `goal`: planned, then moved, approached and held. False
     (nothing moves) if no posture the policy holds puts it in reach. ⚠ A
     TWO-JAW GRIP IS THE SAME GRIP HALF A TURN ROUND ITS FINGERS (#493): where
     the one asked plans no reach, the other is planned -- the left hand
     reached a chest's knob with its jaws closing to its right in twice the
     places it did with them closing to its left, its wrist's roll at the
-    end of its range."""
-    plan_ = plan(side, goal, approach=approach)
-    if plan_ is None and goal.rot is not None:
+    end of its range. `postures` are the ones it may take, `flip` whether
+    it may take the other grip."""
+    plan_ = plan(side, goal, approach=approach, postures=postures)
+    if plan_ is None and goal.rot is not None and flip:
       flipped = np.asarray(goal.rot, dtype=float) @ np.diag([-1.0, -1.0, 1.0])
       goal = HandGoal(np.asarray(goal.pos, dtype=float), flipped, goal.stiffness)
-      plan_ = plan(side, goal, approach=approach)
+      plan_ = plan(side, goal, approach=approach, postures=postures)
     if plan_ is None:
       return False
     posture, q_pre, _, self.slack[side] = plan_

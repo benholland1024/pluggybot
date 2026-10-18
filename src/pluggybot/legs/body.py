@@ -1904,7 +1904,8 @@ class QuadBody(Body):
   _NO_HAND = ("the quadruped's arm is two joints in a plane on its back: no hand "
               "reaches a pose, and its grip is a tool's (`claw_routine`)")
 
-  def reach_routine(self, side, pos, rot=None, stiffness=1.0, patience=20.0) -> Routine:
+  def reach_routine(self, side, pos, rot=None, stiffness=1.0, patience=20.0, path=None,
+                    turns=None) -> Routine:
     raise NotImplementedError(self._NO_HAND)
     yield
 

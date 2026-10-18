@@ -440,12 +440,17 @@ def test_the_language_modules_write_no_control_register():
 
 def test_the_arms_axes_ramp_at_its_slew_and_the_world_names_them_all():
   from pluggybot.legs.arm import ARM_SLEW
-  assert {n: a.speed for n, a in axes.AXES.items()} == {"shoulder": ARM_SLEW,
-                                                        "elbow": ARM_SLEW}
+  assert {n: axes.AXES[n].speed for n in axes.ARM_JOINTS} == {"shoulder": ARM_SLEW,
+                                                               "elbow": ARM_SLEW}
   assert all(a.lo < a.hi and a.speed > 0 for a in axes.AXES.values())
-  # the quadruped's world names every axis and every sensor there is
-  assert set(HOME.axes) == set(axes.AXES) == set(axes.ARM_JOINTS)
-  assert set(HOME.sensors) == set(axes.SENSORS)
+  # the quadruped's world names every axis and every sensor its body has, and
+  # every one registered is some body's -- the humanoid registers its own
+  # (#493), which the quadruped's world never names
+  assert set(HOME.axes) == set(axes.BODY_AXES["quadruped"]) == set(axes.ARM_JOINTS)
+  assert set(axes.AXES) == set().union(*map(set, axes.BODY_AXES.values()))
+  hands = set(axes.HAND_SENSORS + axes.PULL_SENSORS) - {"time"}
+  assert set(HOME.sensors) | hands == set(axes.SENSORS)
+  assert not set(HOME.sensors) & hands
 
 
 # ---- determinism: the same procedure on the same world is one trajectory -------
@@ -649,10 +654,15 @@ def test_the_rules_worked_example_hands_over_no_survival_policy():
   # it keeps places and the plates' where they are (#419)
   for v in st.VERBS:
     assert f"  {v}(" in text, v
-  for a in axes.AXES:
+  for a in axes.BODY_AXES["quadruped"]:
     assert f"  {a}:" in text and f"  {a} --" in text, a
-  for s in axes.SENSORS:
+  for s in HOME.sensors:
     assert f"  {s} --" in text, s
+  # ...and none of the humanoid's, another body's (#493)
+  for a in axes.BODY_AXES["humanoid"]:
+    assert f"  {a}:" not in text, a
+  for s in set(axes.HAND_SENSORS + axes.PULL_SENSORS) - {"time"}:
+    assert f"  {s} --" not in text, s
   swaps, places = st.SWAP_VERBS, st.PLACE_VERBS + st.PLATE_VERBS
   bare = ov.procedure_rule()
   assert not any(f"  {v}(" in bare for v in swaps + places)

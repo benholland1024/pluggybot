@@ -168,12 +168,17 @@ def plans(body, side: str, g: Guess, start: np.ndarray) -> list:
   return out
 
 
-def grip_routine(body, knob: np.ndarray, side: str, rot: np.ndarray, log: dict) -> Routine:
-  """The knob gripped at the turn `rot`: True once the gripper says it
-  holds it, a grip that did not hold opened, withdrawn and tried again."""
+def grip_routine(body, knob: np.ndarray, side: str, rot: np.ndarray, log: dict,
+                 ups: list) -> Routine:
+  """The knob gripped at the turn `rot`, in a posture from which the hand
+  then follows `ups` (`Body.reach_routine`'s path): True once the gripper
+  says it holds it, a grip that did not hold opened, withdrawn and tried
+  again."""
   for _ in range(GRIPS):
     yield from body.grip_routine(side, False)
-    reached = yield from body.reach_routine(side, knob, rot, stiffness=1.0, patience=20.0)
+    reached = yield from body.reach_routine(side, knob, rot, stiffness=1.0, patience=20.0,
+                                            path=[p for p, _ in ups],
+                                            turns=[r for _, r in ups])
     log.setdefault("reaches", []).append({"reached": bool(reached)})
     if not reached:
       continue
@@ -228,7 +233,9 @@ def opener(body) -> Routine:
     return {"ok": False, "why": "no tilt puts the lid's arc in reach", **log}
   ups = None
   for tilt, top in options[:GRIPS + 1]:
-    if not (yield from grip_routine(body, knob, side, grip_turn(g, tilt), log)):
+    rot = grip_turn(g, tilt)
+    if not (yield from grip_routine(body, knob, side, rot, log,
+                                    arc(g, knob, rot, top=top)[0])):
       continue
     start = np.asarray(body.hand_at(side), dtype=float)
     ups, downs = arc(g, start, grip_turn(g, tilt), top=top)

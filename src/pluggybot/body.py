@@ -636,7 +636,7 @@ class Body(abc.ABC):
 
   @abc.abstractmethod
   def reach_routine(self, side: str, pos, rot=None, stiffness: float = 1.0,
-                    patience: float = 20.0) -> Routine:
+                    patience: float = 20.0, path=None, turns=None) -> Routine:
     """A hand (`side`, "left" or "right") to a grip pose in the believed
     world frame -- `pos`, m, and `rot`, world from grip (its fingers along
     its -z, its jaws closing along its x), or None for any -- its arm's
@@ -644,8 +644,11 @@ class Body(abc.ABC):
     pull is a low one. The posture is the body's to choose. True once it
     holds there; False if no posture it holds puts the pose in reach, the
     hand stopped short on its way, a fall let go of it (#520), or
-    `patience` ran out. The humanoid's (#507); a body with no such hand
-    refuses it (`NotImplementedError`)."""
+    `patience` ran out. With `path` (and `turns`, as `move_hand_routine`
+    takes them) it reaches in a posture from which the hand then FOLLOWS
+    that path (`hand_follows`), or not at all (#493: a knob gripped in a
+    crouch whose lid's arc only a bow followed). The humanoid's (#507); a
+    body with no such hand refuses it (`NotImplementedError`)."""
 
   @abc.abstractmethod
   def release_routine(self, side: str) -> Routine:
@@ -1313,7 +1316,8 @@ class StubBody(Body):
     return
     yield
 
-  def reach_routine(self, side, pos, rot=None, stiffness=1.0, patience=20.0):
+  def reach_routine(self, side, pos, rot=None, stiffness=1.0, patience=20.0, path=None,
+                    turns=None):
     self.hands[side] = tuple(pos)
     return True
     yield

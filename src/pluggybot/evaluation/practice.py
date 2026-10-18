@@ -112,12 +112,13 @@ def head_picture(task: at.Task) -> bytes:
 
 def practise(chest: int, practice, attempts: int = ATTEMPTS, *, library=None,
              picture: bool = True, budget_s: float = at.BUDGET_S,
-             info: dict | None = None) -> list[dict]:
+             info: dict | None = None, build=at.set_out) -> list[dict]:
   """One chest, a fresh robot: the mind's procedure tried from the set-out,
   graded, and shown back (`mind.practice.report_text`), up to `attempts`
   times, ending at the first pass -- which `library` ADMITS on its sealed
   verdict (`Library.admit`). Every attempt's row (`attempts.attempt`'s)
-  carries the procedure it ran, the answers it took and what they cost."""
+  carries the procedure it ran, the answers it took and what they cost.
+  `build` makes a set-out (`attempts.attempt`'s: a test's own world)."""
   from pluggybot.mind.practice import report_text
   task = at.Task(chest=chest, body="humanoid", mount="counter")
   rows: list[dict] = []
@@ -131,7 +132,7 @@ def practise(chest: int, practice, attempts: int = ATTEMPTS, *, library=None,
     sealed: list = []
     t0 = time.time()
     row = at.attempt(task, procedure_skill(turn.procedure, practice.facts, out), n,
-                     budget_s=budget_s, sealed=sealed,
+                     budget_s=budget_s, sealed=sealed, build=build,
                      info={**(info or {}), "process": "practice",
                            "skill": turn.procedure.name if turn.procedure else None,
                            "tokens": spent["tokensIn"] + spent["tokensOut"], **out})

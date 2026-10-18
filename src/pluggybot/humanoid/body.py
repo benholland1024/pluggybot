@@ -25,6 +25,7 @@ from pluggybot.humanoid import parts as hp
 from pluggybot.humanoid.arms import HELD_GAP_M, HandGoal
 from pluggybot.humanoid.policy import PITCH_RANGE, StandPolicy
 from pluggybot.humanoid.mission import HumanoidMission
+from pluggybot.humanoid import reach as reach_
 from pluggybot.humanoid.reach import HOLD_SPEED
 from pluggybot.power import Pack
 from pluggybot.robot import FIRST, RobotHandle
@@ -365,7 +366,8 @@ class HumanoidBody(Body):
 
   # ---- hands ---------------------------------------------------------------
 
-  def reach_routine(self, side, pos, rot=None, stiffness=1.0, patience=20.0):
+  def reach_routine(self, side, pos, rot=None, stiffness=1.0, patience=20.0, path=None,
+                    turns=None):
     """⚠ True only once the hand HOLDS at the goal, never on `Reach.done`
     (#520): that is also a hand stopped short (`blocked`) and a hand
     hanging, as every hand is once a fall has let go of the reach and the
@@ -375,7 +377,17 @@ class HumanoidBody(Body):
     p = self.to_stance(pos)
     r = None if rot is None else _rz(self.stance[2]).T @ np.asarray(rot, dtype=float)
     self._why[side] = "out of reach"
-    if not self.reach.reach(side, HandGoal(p, r, stiffness)):
+    postures = reach_.POSTURES
+    if path is not None:
+      # the posture the hand then follows its path in, and that one alone
+      ways = [self.to_stance(q) for q in path]
+      follow = self.reach.path_for(side, [p] + ways,
+                                   rot=[r] + self._turns(list(turns)) if turns is not None else r)
+      if follow is None:
+        return False
+      postures = (follow,)
+    if not self.reach.reach(side, HandGoal(p, r, stiffness), postures=postures,
+                            flip=path is None):
       return False
     falls = self.mission.falls
     for _ in range(int(round(patience / self._m.opt.timestep))):
