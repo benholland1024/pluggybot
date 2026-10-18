@@ -802,6 +802,29 @@ def thermal_table(rows=None) -> None:
           f"{AMBIENT_C[1] + rise:9.0f} {m.max_winding_c:7.0f} {lasts:>13s}")
 
 
+def friction_table(write: bool = False) -> None:
+  """--friction: the arm joints' friction calibrated as the robot does it
+  (`humanoid.friction.calibrate_routine`), standing in the living room,
+  each joint's fit beside the friction its motor's sheet gives the
+  model (`parts.friction_nm`, the sim's truth: ours, never the robot's)."""
+  from pluggybot.body import body_for
+  from pluggybot.humanoid import friction
+  model, data = standing_world()
+  body = body_for(model, data, policy=_POLICY)
+  try:
+    body.run(body.hold_routine(1.0))
+    table = body.run(friction.calibrate_routine(body))
+  finally:
+    body.close()
+  print(f"{'joint':22s} {'dry N*m':>8s} {'viscous':>8s} {'sheet':>7s}  samples")
+  for name, row in table.items():
+    sheet = hp.friction_nm(hm.CHOSEN.motor(name))
+    print(f"{name:22s} {row['coulomb']:8.3f} {row['viscous']:8.3f} {sheet:7.3f}  {row['samples']}")
+  if write:
+    friction.save({n: {"coulomb": r["coulomb"], "viscous": r["viscous"]} for n, r in table.items()})
+    print(f"kept in {friction.FILE}")
+
+
 def energy_table(rows=None) -> None:
   """Watts by held pose: the windings' heat (holding still does no work),
   and the electronics always on; what the pack buys of each."""
@@ -3523,6 +3546,10 @@ def main(argv=None) -> None:
   ap.add_argument("--rough", nargs="?", const="", default=None, metavar="NPZ,...",
                   help="the served walker and the one that sees the ground (or these policies) "
                        "over a doorstep, paving, a slope and blocks")
+  ap.add_argument("--friction", action="store_true",
+                  help="its arm joints' friction calibrated in free air, beside the sheets' "
+                       "(--write keeps it in models/humanoid_friction.json)")
+  ap.add_argument("--write", action="store_true", help="--friction: keep the table")
   ap.add_argument("--mass", action="store_true", help="the mass budget beside the T2's")
   ap.add_argument("--torque", action="store_true",
                   help="each joint's load: held in our physics, then the estimates")
@@ -3589,6 +3616,8 @@ def main(argv=None) -> None:
     fall_table(args.fall or None, jobs=args.jobs)
     house_fall_table(args.fall or None, jobs=args.jobs)
     bow_fall_table(args.fall or None, jobs=args.jobs)
+  elif args.friction:
+    friction_table(write=args.write)
   elif args.mass:
     mass_table()
   elif args.torque:

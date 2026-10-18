@@ -23,7 +23,7 @@ from pluggybot.body import TOPPLE_HOLD_S, Body
 from pluggybot.humanoid import model as hm
 from pluggybot.humanoid import parts as hp
 from pluggybot.humanoid.arms import HELD_GAP_M, HandGoal
-from pluggybot.humanoid.policy import StandPolicy
+from pluggybot.humanoid.policy import PITCH_RANGE, StandPolicy
 from pluggybot.humanoid.mission import HumanoidMission
 from pluggybot.humanoid.reach import HOLD_SPEED
 from pluggybot.power import Pack

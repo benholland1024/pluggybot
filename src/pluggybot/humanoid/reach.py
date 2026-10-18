@@ -34,6 +34,7 @@ import mujoco
 import numpy as np
 from scipy.optimize import least_squares
 
+from pluggybot.humanoid import friction
 from pluggybot.humanoid import model as hm
 from pluggybot.humanoid.arms import (REACH_POS_TOL, REACH_ROT_TOL, Arm, Gripper,
                                      HandGoal, SelfModel, _rot_error)
@@ -376,6 +377,10 @@ class Reach:
     self.posture = np.zeros(2)
     self.trim = np.zeros(2)
     self.tau = np.zeros(len(hm.JOINT_NAMES))
+    self.qd = np.zeros(len(hm.JOINT_NAMES))
+    #: The arm joints' friction as calibrated and stored (`friction.FILE`),
+    #: taken off the drivers' torques where a joint turns.
+    self.friction = friction.load()
     #: The force each hand pushes with, N, stance frame: its arm's
     #: currents through its model (`SelfModel.hand_force`).
     self.force = {s: np.zeros(3) for s in hm.SIDES}
@@ -657,8 +662,8 @@ class Reach:
   # ---- the loop ----
 
   def _pose(self, arms: dict | None = None) -> None:
-    q, _, tau = self.stand.joints.read(self.d)
-    self.tau = tau
+    q, qd, tau = self.stand.joints.read(self.d)
+    self.tau, self.qd = tau, qd
     if arms is not None:
       for s in hm.SIDES:
         q[self.self_model.arm[s]] = arms[s]
@@ -894,7 +899,9 @@ class Reach:
     sm = self.self_model
     self._pose()
     for s in hm.SIDES:
-      self.force[s] = sm.hand_force(s, self.tau[sm.arm[s]])
+      arm = sm.arm[s]
+      self.force[s] = sm.hand_force(
+        s, self.tau[arm] - friction.taken(self.friction, s, self.qd[arm]))
     # Where a carried or pulled hand IS, by its senses (#493).
     have = {s: sm.grip_pose(s) for s in hm.SIDES if self.phase[s] in ("carry", "yield")}
     self._trim(dt)

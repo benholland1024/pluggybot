@@ -213,7 +213,8 @@ class SelfModel:
     what the arm's motors push with, `tau` (their drivers' torque readings)
     less what holding the arm still takes (`gravity`, or `still`), through
     the grip's Jacobian -- along the directions the arm can tell apart
-    (`FORCE_SIGMA`). A joint's friction is in it, unknown."""
+    (`FORCE_SIGMA`). A joint's friction is the caller's to take off `tau`
+    (`humanoid.friction.taken`)."""
     hold = self.gravity(side) if still is None else still
     # tau = hold - J^T f_on_hand: the world's push on the hand is what the
     # motors do not hold; the hand pushes back with its negative.
