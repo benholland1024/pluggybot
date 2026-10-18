@@ -1922,6 +1922,23 @@ class QuadBody(Body):
   def hand_force(self, side):
     raise NotImplementedError(self._NO_HAND)
 
+  def hand_at(self, side):
+    raise NotImplementedError(self._NO_HAND)
+
+  def move_hand_routine(self, side, pos, stiffness=1.0, speed=0.06, patience=20.0) -> Routine:
+    raise NotImplementedError(self._NO_HAND)
+    yield
+
+  def pull_routine(self, side, direction, limit_n, distance_m, stiffness=1.0, speed=0.06,
+                   patience=30.0) -> Routine:
+    raise NotImplementedError(self._NO_HAND)
+    yield
+
+  @property
+  def stance(self):
+    """Its own pose: it has no hand to put work in front of (#493)."""
+    return self.pose
+
   # ---- posture and rest ----------------------------------------------------
 
   @property

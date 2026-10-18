@@ -22,9 +22,10 @@ from pluggybot import tick
 from pluggybot.body import TOPPLE_HOLD_S, Body
 from pluggybot.humanoid import model as hm
 from pluggybot.humanoid import parts as hp
-from pluggybot.humanoid.arms import HandGoal
+from pluggybot.humanoid.arms import HELD_GAP_M, HandGoal
 from pluggybot.humanoid.policy import StandPolicy
 from pluggybot.humanoid.mission import HumanoidMission
+from pluggybot.humanoid.reach import HOLD_SPEED
 from pluggybot.power import Pack
 from pluggybot.robot import FIRST, RobotHandle
 
@@ -40,6 +41,12 @@ TAG_CAMERA, HEAD_CAMERA = "color_eye", "nav_eye"
 #: How long a gripper is given to close or open, s: the Dex1-1 shuts its
 #: stroke in 0.24 s at its fastest, and a squeeze settles after.
 GRIP_S = 0.6
+#: ...and how much longer, s, while its jaws stand open on something and
+#: squeeze it too little to hold, read every `GRIP_READ_S`: a chest's knob
+#: on its drop handle swung off a pad and back between the jaws, and read
+#: at `GRIP_S` alone the grip said NOT HELD in 7 of 24 set-outs where the
+#: pads held the knob 2 s later (#493).
+GRIP_SETTLE_S, GRIP_READ_S = 1.5, 0.1
 #: What the humanoid does not do yet answers.
 NOT_HERE = "not on the humanoid yet: the quadruped's world (its dock, rack and tools)"
 
@@ -372,6 +379,9 @@ class HumanoidBody(Body):
       yield STILL
 
   def grip_routine(self, side, closed):
+    """Shut, its word is read once its jaws have closed or held (#493:
+    `GRIP_SETTLE_S`), never while they stand open on something they do not
+    yet squeeze."""
     yield from self.mission.to_stand_routine()
     g = self.reach.grippers[side]
     if closed:
@@ -379,10 +389,61 @@ class HumanoidBody(Body):
     else:
       g.open()
     yield from self.hold_routine(GRIP_S)
-    return g.held() if closed else True
+    if not closed:
+      return True
+    waited = 0.0
+    while not g.held() and g.read()[0] > HELD_GAP_M and waited < GRIP_SETTLE_S:
+      yield from self.hold_routine(GRIP_READ_S)
+      waited += GRIP_READ_S
+    return g.held()
 
   def gripped(self, side) -> bool:
     return self.reach.grippers[side].held()
+
+  def hand_at(self, side):
+    p = self.to_world(self.reach.grip_now(side)[0])
+    return float(p[0]), float(p[1]), float(p[2])
+
+  def _report(self, rep: dict) -> dict:
+    """A carry's or a pull's report (`Reach.report`), its stance frame's
+    ways turned into the believed world frame."""
+    out = dict(rep)
+    yaw = _rz(self.stance[2])
+    if "dx" in out:
+      out["dx"], out["dy"], out["dz"] = (float(v) for v in yaw @ [rep["dx"], rep["dy"], rep["dz"]])
+    if "direction" in out:
+      out["direction"] = [float(v) for v in yaw @ np.asarray(rep["direction"], dtype=float)]
+    return out
+
+  def _held_routine(self, side, patience):
+    """Wait out a hand's carry or pull: what it reported, or why it was cut
+    short -- a fall (which lets go of the arms), or `patience`."""
+    falls = self.mission.falls
+    for _ in range(int(round(patience / self._m.opt.timestep))):
+      if self.mission.falls != falls:
+        return {"why": "fell", "seconds": 0.0, "moved": 0.0, "dx": 0.0, "dy": 0.0, "dz": 0.0}
+      if self.reach.phase[side] not in ("carry", "yield"):
+        return self._report(self.reach.report[side])
+      yield STILL
+    self.reach.stop(side, "out of time")
+    return self._report(self.reach.report[side])
+
+  def move_hand_routine(self, side, pos, stiffness=1.0, speed=HOLD_SPEED, patience=20.0):
+    yield from self.mission.to_stand_routine()
+    if not self.reach.carry(side, self.to_stance(pos), stiffness, speed):
+      rep = self.reach.report[side] if self.reach.out(side) else None
+      return self._report(rep or {"why": "not out", "seconds": 0.0, "moved": 0.0,
+                                  "dx": 0.0, "dy": 0.0, "dz": 0.0})
+    return (yield from self._held_routine(side, patience))
+
+  def pull_routine(self, side, direction, limit_n, distance_m, stiffness=1.0,
+                   speed=HOLD_SPEED, patience=30.0):
+    yield from self.mission.to_stand_routine()
+    d = _rz(self.stance[2]).T @ np.asarray(direction, dtype=float)
+    if not self.reach.pull(side, d, limit_n, distance_m, stiffness, speed, patience):
+      return self._report({"why": "not out", "seconds": 0.0, "moved": 0.0, "dx": 0.0,
+                           "dy": 0.0, "dz": 0.0, "direction": list(d), "force": 0.0})
+    return (yield from self._held_routine(side, patience + 1.0))
 
   def hand_force(self, side):
     f = _rz(self.stance[2]) @ self.reach.force[side]

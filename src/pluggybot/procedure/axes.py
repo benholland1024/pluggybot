@@ -17,6 +17,7 @@ sensor a tool carries is present when that tool is on the fork
 (`requires`).
 """
 
+import math
 import zlib
 from dataclasses import dataclass
 from typing import Callable
@@ -151,10 +152,135 @@ BODY_SENSORS = ("battery.frac", "battery.wh", "points", "time", "bumper")
 #: torques (#407).
 ARM_TORQUES = ("shoulder.torque", "elbow.torque")
 LEGS_SENSORS = BODY_SENSORS + ARM_JOINTS + ARM_TORQUES
-#: Each body's own axes, present whatever is on its fork.
-BODY_AXES = {"quadruped": ARM_JOINTS}
 #: ...and what the claw's verbs feel (issue #407), where the world has it.
 CLAW_SENSORS = ("claw.holding",)
+
+
+# ---- the humanoid's hands (issue #493) -------------------------------------------
+#
+# A hand's place and force are said in the body's STANCE frame (`Body.
+# stance`): from the floor between its feet, x ahead, y to its left, z up, m
+# -- what a procedure reaches in, so it needs no trigonometry to say "in
+# front of me". A verb's report is read as sensors too (`life.reports`, the
+# last of each verb's): the language returns numbers only through `read`.
+
+#: The humanoid's two hands, by the names a verb takes them by.
+HANDS = ("left", "right")
+
+
+def in_stance(life, p, point: bool = True) -> tuple[float, float, float]:
+  """A believed world point (or, `point` False, a direction) in the body's
+  stance frame."""
+  x, y, yaw = life.body.stance
+  c, s = math.cos(yaw), math.sin(yaw)
+  dx, dy = (p[0] - x, p[1] - y) if point else (p[0], p[1])
+  return c * dx + s * dy, -s * dx + c * dy, float(p[2])
+
+
+def from_stance(life, p, point: bool = True) -> tuple[float, float, float]:
+  """A stance-frame point (or direction) in the believed world frame."""
+  x, y, yaw = life.body.stance
+  c, s = math.cos(yaw), math.sin(yaw)
+  wx, wy = c * p[0] - s * p[1], s * p[0] + c * p[1]
+  return (wx + x, wy + y, float(p[2])) if point else (wx, wy, float(p[2]))
+
+
+class NoReading(LookupError):
+  """A sensor read before anything gave it a value: a verb's report read
+  before the verb ran. The language stops the run, saying which."""
+
+
+def reported(verb: str, key: str, life) -> float:
+  """One number of a verb's last report (`life.reports`)."""
+  rep = (getattr(life, "reports", None) or {}).get(verb)
+  if rep is None or key not in rep:
+    raise NoReading(f"{verb}.{key} has no reading: `{verb}` has not run")
+  return float(rep[key])
+
+
+def _hand_at(side: str, k: int):
+  return lambda life: in_stance(life, life.body.hand_at(side))[k]
+
+
+def _hand_force(side: str, k: int):
+  return lambda life: in_stance(life, life.body.hand_force(side), point=False)[k]
+
+
+for _s in HANDS:
+  for _k, _a in enumerate("xyz"):
+    SENSORS[f"{_s}.{_a}"] = Sensor(
+      f"{_s}.{_a}", _hand_at(_s, _k),
+      f"where your {_s} hand's grip is, m, your stance frame ({_a})")
+    SENSORS[f"{_s}.f{_a}"] = Sensor(
+      f"{_s}.f{_a}", _hand_force(_s, _k),
+      f"the force your {_s} hand pushes with, N, your stance frame ({_a}), off its "
+      "arm's motor currents less the arm's own weight and its joints' friction; it "
+      "reads truest held still")
+  SENSORS[f"{_s}.held"] = Sensor(
+    f"{_s}.held", (lambda side: lambda life: 1.0 if life.body.gripped(side) else 0.0)(_s),
+    f"1 while your {_s} gripper says it holds something: its jaws stopped short of "
+    "closed, squeezing")
+for _k, _a in enumerate("xyz"):
+  SENSORS[f"spot.{_a}"] = Sensor(
+    f"spot.{_a}", (lambda key: lambda life: reported("spot", key, life))(_a),
+    f"where the tag the last `spot` saw is, m, your stance frame ({_a}): the middle "
+    "of the face it read")
+  SENSORS[f"spot.n{_a}"] = Sensor(
+    f"spot.n{_a}", (lambda key: lambda life: reported("spot", key, life))(f"n{_a}"),
+    f"which way that face looks ({_a}): a unit vector from it into the thing it is "
+    "printed on")
+SENSORS["spot.range"] = Sensor(
+  "spot.range", lambda life: reported("spot", "range", life),
+  "how far that tag was from the camera, m")
+SENSORS["spot.seen"] = Sensor(
+  "spot.seen", lambda life: reported("spot", "seen", life),
+  "1 if the last `spot` saw its tag, else 0")
+#: What the humanoid's procedures read (#493): the clock, each hand's place,
+#: its force and its gripper's word, and the last `spot`'s tag.
+HAND_SENSORS = (("time",) + tuple(f"{s}.{k}" for s in HANDS
+                                  for k in ("x", "y", "z", "fx", "fy", "fz", "held"))
+                + tuple(f"spot.{k}" for k in ("x", "y", "z", "nx", "ny", "nz", "range", "seen")))
+
+# The humanoid's arm joints: each an axis (the motor level a hand's verbs
+# are built from), walked by `Body.ramp_routine`. ⚠ No sensor reads one:
+# the quadruped's `shoulder` and `elbow` read the simulator's `qpos`, a
+# stand-in no new sense extends -- a hand's place is read off its encoders
+# through the robot's model of itself (`left.x`, `Body.hand_at`).
+#: How fast a humanoid's arm joint is walked, rad/s (`humanoid.reach.JOINT_RATE`).
+HUMANOID_SLEW = 1.0
+
+
+def _humanoid_axes() -> tuple[str, ...]:
+  from pluggybot.humanoid import model as hm
+  names = []
+  for s in HANDS:
+    for j in hm.ARM:
+      name = f"{s}_{j}"
+      lo, hi = hm.joint_range(name)
+      AXES[name] = Axis(name, float(lo), float(hi), HUMANOID_SLEW, "rad",
+                        f"your {s} arm's {j.replace('_', ' ')} joint", actuator=name,
+                        run=_ramp(name), setpoint=_held(name))
+      names.append(name)
+  return tuple(names)
+
+
+HUMANOID_JOINTS = _humanoid_axes()
+#: Each body's own axes, present whatever is on its fork.
+BODY_AXES = {"quadruped": ARM_JOINTS, "humanoid": HUMANOID_JOINTS}
+#: ...and the reports of stage 3's compliant pull (#493): how far it went,
+#: the hardest it pulled and the way it was going at the end.
+PULL_SENSORS = ("pull.moved", "pull.force", "pull.dx", "pull.dy", "pull.dz")
+SENSORS["pull.moved"] = Sensor(
+  "pull.moved", lambda life: reported("pull", "moved", life),
+  "how far the last `pull` took the hand from where it began, m")
+SENSORS["pull.force"] = Sensor(
+  "pull.force", lambda life: reported("pull", "force", life),
+  "the hardest the last `pull` pulled, N")
+for _k, _a in enumerate("xyz"):
+  SENSORS[f"pull.d{_a}"] = Sensor(
+    f"pull.d{_a}", (lambda key: lambda life: reported("pull", key, life))(f"d{_a}"),
+    f"the way the last `pull` was going when it stopped ({_a}), your stance frame: a "
+    "unit vector")
 
 
 def setpoints(life) -> dict[str, float]:

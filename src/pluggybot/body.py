@@ -667,6 +667,48 @@ class Body(abc.ABC):
     """The force a hand pushes with, N, in the believed world frame, read
     off its arm's motor currents."""
 
+  @abc.abstractmethod
+  def hand_at(self, side: str) -> tuple[float, float, float]:
+    """Where a hand's grip is, m, in the believed world frame: its arm's
+    encoders and its IMU through its model of itself (#493)."""
+
+  @abc.abstractmethod
+  def move_hand_routine(self, side: str, pos, stiffness: float = 1.0,
+                        speed: float = 0.06, patience: float = 20.0) -> Routine:
+    """A hand that is out -- reached, and holding there or moved on --
+    carried along a straight line to `pos`, the believed world frame, m, at
+    `speed`, m/s, its turn kept, at `stiffness`; one that holds something
+    PIVOTS round its jaws' line as a pinch does, so a handle that swings on
+    its own pin takes the hand round with it. The posture is the body's to
+    choose (#493). Returns how it ended (`why`: "arrived", "out of reach",
+    "not out", "fell", "out of time"), in how long, how far the hand went
+    (`moved`, m) and where it ended up from where it began (`dx`, `dy`,
+    `dz`, believed world frame, m)."""
+
+  @abc.abstractmethod
+  def pull_routine(self, side: str, direction, limit_n: float, distance_m: float,
+                   stiffness: float = 1.0, speed: float = 0.06,
+                   patience: float = 30.0) -> Routine:
+    """THE COMPLIANT PULL (#493): a hand that is out pulled along
+    `direction` (the believed world frame), its way turning toward wherever
+    the hand gives, pulling harder while nothing gives -- pivoting round its
+    jaws' line where it holds something -- until it has gone `distance_m`,
+    the force it reads at the hand reaches `limit_n`, N, nothing gives at
+    its hardest, its grip lets go, or `patience` runs out; then it holds
+    where the hand is. Returns how it ended (`why`: "distance", "force",
+    "held fast", "let go", "out of reach", "not out", "fell", "out of
+    time"), in how long, how far the hand went, where it ended up from
+    where it began (believed world frame, m), the way it was going at the
+    end (`direction`) and the hardest it pulled (`force`, N)."""
+
+  @property
+  @abc.abstractmethod
+  def stance(self) -> tuple[float, float, float]:
+    """Where it believes its STANCE is, (x, y, heading): the frame its
+    hands' work is put in -- the humanoid's between its soles (#507), a
+    body with no hand its own pose -- what a procedure's hand verbs say
+    their places in (#493)."""
+
   # ---- posture and rest ----------------------------------------------------
 
   #: Lying down to rest.
@@ -1250,6 +1292,42 @@ class StubBody(Body):
 
   def hand_force(self, side):
     return (0.0, 0.0, 0.0)
+
+  def hand_at(self, side):
+    """Where it sent the hand; hanging at its side, where it sent none."""
+    x, y, _ = self.pose
+    return tuple(self.hands.get(side, (x, y, 0.8)))
+
+  def _carried(self, side, to) -> dict:
+    a = np.asarray(self.hand_at(side), dtype=float)
+    self.hands[side] = tuple(float(v) for v in to)
+    dx, dy, dz = (float(v) for v in np.asarray(to, dtype=float) - a)
+    return {"seconds": 0.0, "moved": float(np.linalg.norm([dx, dy, dz])),
+            "dx": dx, "dy": dy, "dz": dz}
+
+  def move_hand_routine(self, side, pos, stiffness=1.0, speed=0.06, patience=20.0):
+    """The hand there at once, as asked (a hand that is out)."""
+    if side not in self.hands:
+      return {"why": "not out", "seconds": 0.0, "moved": 0.0, "dx": 0.0, "dy": 0.0, "dz": 0.0}
+    return {"why": "arrived", **self._carried(side, pos)}
+    yield
+
+  def pull_routine(self, side, direction, limit_n, distance_m, stiffness=1.0,
+                   speed=0.06, patience=30.0):
+    """The hand `distance_m` along `direction` at once: nothing holds it."""
+    if side not in self.hands:
+      return {"why": "not out", "seconds": 0.0, "moved": 0.0, "dx": 0.0, "dy": 0.0,
+              "dz": 0.0, "direction": list(direction), "force": 0.0}
+    d = np.asarray(direction, dtype=float)
+    d = d / max(float(np.linalg.norm(d)), 1e-9)
+    to = np.asarray(self.hand_at(side), dtype=float) + float(distance_m) * d
+    return {"why": "distance", **self._carried(side, to),
+            "direction": [float(v) for v in d], "force": 0.0}
+    yield
+
+  @property
+  def stance(self):
+    return self.pose
 
   def rest_routine(self):
     self.resting = True
