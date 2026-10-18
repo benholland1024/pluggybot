@@ -27,6 +27,7 @@ from pluggybot.challenge import lid
 from pluggybot.evaluation import attempts as at
 from pluggybot.procedure import lang
 from pluggybot.procedure.steps import WorldFacts
+from pluggybot.rack.tags import CHEST_TAG_IDS
 
 #: Attempts a chest, the most: stage 1's curve, S@1 to S@5.
 ATTEMPTS = 5
@@ -34,7 +35,7 @@ ATTEMPTS = 5
 #: and the knob's size, mm (`activity.chest.KNOB`, a half side), what anyone
 #: looking at it would see -- untold, a mind gripped the tag's face and
 #: shut its jaws on nothing.
-KNOB_TAG = 53
+KNOB_TAG = CHEST_TAG_IDS[0]
 KNOB_MM = 2000 * ch.KNOB
 #: The head camera's picture the mind is shown, pixels.
 PICTURE_W, PICTURE_H = 640, 480

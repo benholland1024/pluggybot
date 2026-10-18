@@ -516,3 +516,16 @@ def test_the_mind_is_told_the_time_limit_its_try_is_cut_at():
   told_300 = mp.Practice(Mind('def a():\n    wait(1)\n'), "a-mind", facts, ep.JOB.format(limit=300))
   with pytest.raises(ValueError, match="another time limit"):
     ep.practise(0, told_300, 1, picture=False, budget_s=30.0, build=lambda t: stub_world(t))
+
+
+def test_the_verbs_speeds_and_slew_are_the_reachs_own():
+  """The procedure's verbs state the reach's speeds and its joints' rate,
+  copied where the loop's side may not import the body's routines: a
+  number moved on one side is moved on both."""
+  import inspect
+  from pluggybot.body import Body
+  from pluggybot.humanoid import reach as rc
+  assert st.HAND_V[1] == rc.HOLD_SPEED and st.HAND_V[2] == rc.HAND_SPEED
+  assert axes.HUMANOID_SLEW == rc.JOINT_RATE
+  for name in ("move_hand_routine", "pull_routine"):
+    assert inspect.signature(getattr(Body, name)).parameters["speed"].default == rc.HOLD_SPEED

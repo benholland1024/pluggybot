@@ -104,6 +104,7 @@ FLATTERS = (
   "one geometry: the chests differ only in their hidden dynamics",
   "the quadruped's claw is put on by the set-out, not fetched from the rack",
   "the humanoid is stood at its counter: walking to the chest is not the task",
+  "the humanoid's mind is told the knob's size and its tag: what it would see",
   "resets are free and exact, and nothing breaks",
   "MuJoCo against MuJoCo: an upper bound on hardware",
 )
