@@ -303,3 +303,59 @@ def test_a_pulls_way_is_the_circle_its_hand_went_round_else_a_line():
   drawer = [np.array([0.45 - 0.005 * i, 0.1, 0.8]) + rng.normal(0.0, 0.001, 3) for i in range(20)]
   way = rc.fit_way(drawer)
   assert way["kind"] == "line" and float(way["way"] @ [-1.0, 0.0, 0.0]) > 0.99
+
+
+# ---- the reference: the hand turns with the lid past the handle's stop -----------
+
+
+def test_the_reference_turns_the_hand_with_the_lid_only_past_the_handles_stop():
+  """A drop handle hangs free on its pin until its arm lies on the lid's
+  front edge, 57 deg up: the arc keeps the hand's turn to `FREE_RAD`, the
+  knob moving as the pin does, and turns it as the lid turns past it."""
+  from pluggybot.evaluation import opener as op
+  from pluggybot.legs.probe import Guess, rot_about
+  g = Guess(knob=(0.35, 0.2, 0.81), yaw=0.0, top=0.97, hinge=(0.63, 0.2, 0.97),
+            pin=(0.36, 0.2, 0.87))
+  start, rot = np.array(g.knob), op.grip_turn(g, 0.0)
+  ups, downs = op.arc(g, start, rot, top=1.15)
+  for (p, r), s in zip(ups, np.arange(op.STEP, 1.15 + 1e-9, op.STEP)):
+    turned = max(0.0, s - op.FREE_RAD)
+    assert r == pytest.approx(rot_about(g.axis, turned) @ rot, abs=1e-9)
+    pin = np.array(g.hinge) + rot_about(g.axis, s) @ (np.array(g.pin) - g.hinge)
+    assert p == pytest.approx(pin + rot_about(g.axis, turned) @ (start - g.pin), abs=1e-9)
+  # ...and back down the same way, to under the grader's shut line
+  assert downs[-1][0] == pytest.approx(ups[0][0] + (ups[0][0] - ups[1][0]), abs=0.02)
+  assert downs[-1][1] == pytest.approx(rot, abs=1e-9)
+
+
+def test_the_body_members_the_reference_leans_on_are_the_stubs_too():
+  """`gaze_routine`, `hand_why` and a reach or a carry along a path: every
+  body answers them (the stub at once), and the quadruped refuses a hand
+  and a gaze out loud."""
+  body = _stub()
+  body.run(body.gaze_routine(0.25))
+  assert body.hand_why("left") == ""
+  assert body.run(body.reach_routine("left", (0.3, 0.2, 0.9), path=[(0.3, 0.2, 1.0)],
+                                     turns=[np.eye(3)]))
+  got = body.run(body.move_hand_routine("left", (0.3, 0.2, 1.1), path=[(0.3, 0.2, 1.0)],
+                                        turns=[np.eye(3), np.eye(3)]))
+  assert got["why"] == "arrived"
+  from pluggybot.legs.body import QuadBody
+  for name in ("gaze_routine", "hand_why"):
+    assert name in QuadBody.__dict__, name
+
+
+def test_the_jobs_time_limit_is_its_tasks_and_the_grader_reads_it():
+  """Each set-out's own (`attempts.LIMIT_S`: the quadruped's probe takes
+  84-100 s of its 300), handed to the grader as `limitS`."""
+  from pluggybot.challenge import lid
+  from pluggybot.evaluation import attempts as at
+  task = at.Task(chest=0)
+  assert task.limit_s == at.LIMIT_S[("quadruped", "floor")]
+  sealed = []
+  row = run(lift(), sealed=sealed)
+  assert sealed[0].ok and sealed[0].metrics["limitS"] == task.limit_s
+  assert row["run"]["budgetS"] == task.limit_s
+  m = dict(sealed[0].metrics, limitS=1.0)
+  ok, _, why = lid.eval_lid(m)
+  assert not ok and "past the 1 s the job allows" in why

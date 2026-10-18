@@ -86,8 +86,12 @@ GRADERS = ("lid",)
 #: set-out steps nothing before it.
 SETTLE_S = 0.5
 #: An attempt's sim-time budget, s: the job's own time limit, where the
-#: harness makes the call at the latest (`lid.TIME_LIMIT_S`).
+#: harness makes the call at the latest (`lid.TIME_LIMIT_S`)...
 BUDGET_S = lid.TIME_LIMIT_S
+#: ...each set-out's own (`Task.limit_s`): the task's data beside the code
+#: that grades it, handed to the grader as `limitS`. The quadruped's probe
+#: takes 84-100 s of its 300.
+LIMIT_S = {("quadruped", "floor"): BUDGET_S, ("humanoid", "counter"): BUDGET_S}
 #: What every result here relies on that a real world would not give it
 #: (#493; Evaluation.md §5, "Graded in MuJoCo"): said with every reading.
 FLATTERS = (
@@ -164,6 +168,11 @@ class Task:
                        f"there are {', '.join(f'{b} at the {m}' for b, m in SET_OUTS)}")
     if self.grader not in GRADERS:
       raise ValueError(f"no grader {self.grader!r} for an attempt: {', '.join(GRADERS)}")
+
+  @property
+  def limit_s(self) -> float:
+    """The job's time limit at this set-out, s (`LIMIT_S`)."""
+    return LIMIT_S[(self.body, self.mount)]
 
   @property
   def tool(self) -> str | None:
@@ -265,7 +274,7 @@ class Unstable(RuntimeError):
   are not the attempt's, and it has no verdict."""
 
 
-def attempt_in(world: World, skill, n: int = 1, *, budget_s: float = BUDGET_S,
+def attempt_in(world: World, skill, n: int = 1, *, budget_s: float | None = None,
                hold_s: float = lid.HOLD_S, info: dict | None = None,
                sealed: list | None = None) -> dict:
   """One attempt in a world already set out (`attempt` builds it): the
@@ -277,6 +286,7 @@ def attempt_in(world: World, skill, n: int = 1, *, budget_s: float = BUDGET_S,
   skill raised, or `Unstable`."""
   info = info if info is not None else {}
   task, body, data = world.task, world.body, world.data
+  budget_s = task.limit_s if budget_s is None else float(budget_s)
   warned = {w: int(data.warning[w].number) for w in UNSTABLE}
   watch = lid.Watch(world.model, data, body)
   body.step_hooks.append(watch)
@@ -295,7 +305,8 @@ def attempt_in(world: World, skill, n: int = 1, *, budget_s: float = BUDGET_S,
     raise Unstable(f"MuJoCo found the world unstable and reset it ({', '.join(reset)})")
   measured = scoring.SAMPLERS[task.grader](
     world, None, said, {"at_call": at_call, "watch": watch, "started": t0,
-                        "tool": task.tool, "catchN": world.chest.lid.catch_n})
+                        "tool": task.tool, "catchN": world.chest.lid.catch_n,
+                        "limitS": budget_s})
   # A cut attempt that failed says so first (`evaluate(failed=)`): what it
   # left half done follows.
   verdict = scoring.evaluate(task.grader, measured,
@@ -321,7 +332,7 @@ def attempt_in(world: World, skill, n: int = 1, *, budget_s: float = BUDGET_S,
   }
 
 
-def attempt(task: Task, skill, n: int = 1, *, budget_s: float = BUDGET_S,
+def attempt(task: Task, skill, n: int = 1, *, budget_s: float | None = None,
             hold_s: float = lid.HOLD_S, info: dict | None = None, build=set_out,
             sealed: list | None = None) -> dict:
   """One attempt (the protocol): the task's set-out built afresh -- the

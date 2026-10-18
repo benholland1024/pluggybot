@@ -111,7 +111,7 @@ def head_picture(task: at.Task) -> bytes:
 
 
 def practise(chest: int, practice, attempts: int = ATTEMPTS, *, library=None,
-             picture: bool = True, budget_s: float = at.BUDGET_S,
+             picture: bool = True, budget_s: float | None = None,
              info: dict | None = None, build=at.set_out) -> list[dict]:
   """One chest, a fresh robot: the mind's procedure tried from the set-out,
   graded, and shown back (`mind.practice.report_text`), up to `attempts`
