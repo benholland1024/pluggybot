@@ -276,6 +276,7 @@ def test_the_practice_prompt_prescribes_nothing():
   assert "both grippers start shut" in mp.system_prompt(st.hand_facts()).lower()
   job = ep.JOB.format(limit=300)
   assert "57 degrees" in job and "1.0 rad/s" in job and "tag 53" in job and "300 s" in job
+  assert "26 mm" in job
 
 
 # ---- the reference: the hand turns with the lid past the handle's stop -----------

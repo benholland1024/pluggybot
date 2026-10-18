@@ -22,6 +22,7 @@ from __future__ import annotations
 import math
 import time
 
+from pluggybot.activity import chest as ch
 from pluggybot.challenge import lid
 from pluggybot.evaluation import attempts as at
 from pluggybot.procedure import lang
@@ -29,15 +30,20 @@ from pluggybot.procedure.steps import WorldFacts
 
 #: Attempts a chest, the most: stage 1's curve, S@1 to S@5.
 ATTEMPTS = 5
-#: The tag the knob carries (`rack.tags.CHEST_TAG_IDS`): the stated subsidy.
+#: The tag the knob carries (`rack.tags.CHEST_TAG_IDS`): the stated subsidy;
+#: and the knob's size, mm (`activity.chest.KNOB`, a half side), what anyone
+#: looking at it would see -- untold, a mind gripped the tag's face and
+#: shut its jaws on nothing.
 KNOB_TAG = 53
+KNOB_MM = 2000 * ch.KNOB
 #: The head camera's picture the mind is shown, pixels.
 PICTURE_W, PICTURE_H = 640, 480
 
 #: The job, as its grader measures it (`challenge/lid.py`), and nothing of
 #: how: what is in front of the robot, the stated subsidy, and the criteria.
-JOB = f"""In front of you, on a counter, is a box with a lid, shut. A knob hangs
-from its front, and the knob carries tag {KNOB_TAG} on every face.
+JOB = f"""In front of you, on a counter, is a box with a lid, shut. A knob -- a cube
+{KNOB_MM:.0f} mm on a side -- hangs from its front, and it carries tag {KNOB_TAG} on
+every face.
 
 Open the lid -- past {math.degrees(lid.OPEN_RAD):.0f} degrees from shut -- then set
 it back down shut, and let go of it. While it is open more than
