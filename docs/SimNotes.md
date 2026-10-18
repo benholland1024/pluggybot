@@ -5278,7 +5278,7 @@ where it stands; a 0.80 m counter, 17.
   every posture's reach. Its points are followed within 2 cm
   (`PATH_POS_TOL`): a solve trades position for the turn it holds.
 
-**The reference opens 23 of 32** (95 % interval 0.55-0.85), every pass in
+**The reference opens 23 of 32** (95 % interval 0.55-0.84), every pass in
 17.5-22.3 sim-s, the lid to 57.7-63.4 deg and down at 0.37-0.58 rad/s at
 its fastest while open, no fall. The nine it does not are reach: in five
 no grip's tilt follows the arc to 62 deg (`no tilt puts the lid's arc in
