@@ -92,9 +92,12 @@ HOLD_SPEED = 0.06
 #: A pull holds its goal this far ahead of the hand along its direction, m
 #: -- at the reach's full stiffness 3 cm pulled a chest's knob with 10-20 N
 #: -- and while nothing gives it pulls harder, the lead growing at this
-#: rate, m/s, to this at most: at 8 cm a stuck pull dragged the robot's
-#: feet (#493).
-LEAD_M, LEAD_RATE, LEAD_MAX = 0.02, 0.02, 0.05
+#: rate, m/s, to this at most; and while the force at the hand reads over
+#: the pull's limit it eases off as fast, to this at least. ⚠ A PULL NEVER
+#: PULLS PAST ITS LIMIT: at 25-40 N the robot tipped toward what it pulled,
+#: its feet slid 3.6 cm, the hand seemed to come back toward it, and the
+#: pull followed that way and dragged the robot on (#493).
+LEAD_M, LEAD_RATE, LEAD_MAX, LEAD_MIN = 0.02, 0.02, 0.05, 0.003
 #: Its way is the CHORD of the hand's own last `CHORD_M` of travel, its
 #: place kept every `TRAIL_M` of it, m -- never the hand's speed between two
 #: reads, which the arm's settling and the drivers' scatter turned 23 deg
@@ -156,10 +159,10 @@ ARRIVE_M, HELD_BACK_S = 0.01, 1.0
 #: diverged and is never commanded; and a move is given this long, s, to
 #: begin before a miss can end it.
 WILD_M, SETTLE_S = 0.06, 0.3
-#: A pull's force limit is read off the hand's force filtered this much a
-#: command (the reading scatters 8 N about the truth while the arm moves),
-#: and over it this long, s, nothing giving.
-FORCE_SMOOTH, OVER_S = 0.2, 0.2
+#: A pull's force limit is read off the hand's force filtered over this
+#: long, s (the reading scatters 8 N about the truth while the arm moves),
+#: and over it this long, s, nothing giving, it stops.
+FORCE_SMOOTH_S, OVER_S = 0.3, 0.3
 
 #: The postures a reach may take, in the order they are tried -- the least
 #: bent first: the pelvis's height off the stand's, m, and the trunk's
@@ -845,11 +848,14 @@ class Reach:
       mujoco.mju_quat2Mat(turn, q)
       c.rot = turn.reshape(3, 3) @ c.rot
       self.goal[side].rot = c.rot.copy()
-    f = st["f"] = (1.0 - FORCE_SMOOTH) * st.get("f", self.force[side]) + FORCE_SMOOTH * self.force[side]
+    k = min(1.0, dt / FORCE_SMOOTH_S)
+    f = st["f"] = (1.0 - k) * st.get("f", self.force[side]) + k * self.force[side]
     pull = float(np.linalg.norm(f))
     st["peak"] = max(st["peak"], pull)
     st["stall"] = st["stall"] + dt if speed < STALL_V and len(trail) > n else 0.0
-    if st["stall"] > 0.0:
+    if pull > st["limit"]:
+      st["lead"] = max(LEAD_MIN, st["lead"] - LEAD_RATE * dt)
+    elif st["stall"] > 0.0:
       st["lead"] = min(LEAD_MAX, st["lead"] + LEAD_RATE * dt)
     # a force past the limit stops the pull only while nothing gives: read
     # off an arm stretched and moving it scattered 20-30 N about a lid's few
