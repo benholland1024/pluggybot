@@ -460,7 +460,10 @@ class Reach:
         sm._set_arm(side, self.q_cmd[side])
         shoulder = sm.d.xpos[sm.m.body(f"{side}_shoulder_roll_link").id].copy()
         reach0 = float(np.linalg.norm(poses[0] - shoulder))
-        q, ep, er = sm.solve(side, poses[0], rot, iters=80)
+        # ...from its arm as commanded, never solved again where the hand
+        # IS: a lid's weight held the hand 3.5 cm off its command at the
+        # arc's top, which no solve within a centimetre then reached
+        q, ep, er = self.q_cmd[side].copy(), 0.0, 0.0
       else:
         _posed(sm, height, pitch, q0)
         if out:
