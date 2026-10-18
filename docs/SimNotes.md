@@ -5304,8 +5304,9 @@ buckle and the handle's stop turn the hand the same way.
 (`humanoid/friction.py`, `models/humanoid_friction.json`;
 `humanoid_spike.py --friction --write`): each arm joint swept in free air
 at two speeds, the drivers' torque beyond the arm's weight fitted as dry
-friction and viscous, and taken off where a joint turns. The fit reads the
-sheets' 0.300 N*m at the shoulder as 0.281-0.289 and the viscous terms
+friction and viscous, the arm's weight where its encoders put it, and taken
+off where a joint turns. The fit reads the sheets' 0.300 N*m at the
+shoulder as 0.289-0.292, every joint within 4 %, and the viscous terms
 within 0.09 of none; ⚠ swept at one speed, the two terms are one column,
 and it read 1.78 dry and -4.97 viscous, right at 0.3 rad/s and nowhere
 else.
