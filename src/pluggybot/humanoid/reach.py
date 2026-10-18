@@ -106,11 +106,12 @@ LEAD_M, LEAD_RATE, LEAD_MAX, LEAD_MIN = 0.02, 0.02, 0.05, 0.003
 #: followed a drop handle's swing toward the robot turned 96 deg and pulled
 #: the robot to the counter.
 TRAIL_M, CHORD_M, FOLLOW_CONE_DEG = 0.005, 0.03, 80.0
-#: Its turn follows the hand's own where what it holds turns the hand more
-#: than this, rad, at this rate at most, rad/s: a drop handle hangs free
-#: until its arm lies on its lid's front edge, 57 deg up, and a hand held
-#: at its turn past that fought the lid, its wrist giving 7-11 deg (#493).
-TURN_GIVE, TURN_RATE = math.radians(4.0), 0.5
+#: Its command advances along its way from where the COMMAND is, never
+#: from where the hand reads -- anchored on the hand, nothing held it
+#: across its way, and the hand wandered 13 cm toward the robot on a pull
+#: up (#493) -- and yields across its way toward the hand only to a push
+#: that lasts: this share of the gap a second.
+ACROSS_RATE = 1.0
 #: ...and only once the hand has gone this far the way asked, m: the first
 #: centimetres are slack -- a handle's play, the hand's own give -- and a
 #: drop handle pulled up from where it hangs, in compression, buckled
@@ -583,14 +584,15 @@ class Reach:
            stiffness: float | None = None, speed: float = HOLD_SPEED,
            patience_s: float = 30.0) -> bool:
     """The COMPLIANT PULL (#493): a hand that is out pulled from where it IS
-    along `direction` (stance frame), its goal held `LEAD_M` ahead of it --
-    its way the chord of where the hand has gone (`CHORD_M`), its turn
-    following the hand's where what it holds turns it (`TURN_GIVE`), the
-    lead growing while nothing gives (`LEAD_RATE`) -- at no more than
-    `speed`. It stops once the hand has gone `distance_m` THE WAY IT WAS
+    along `direction` (stance frame), its command an equilibrium point held
+    `LEAD_M` ahead of it -- its way the chord of where the hand has gone
+    (`CHORD_M`), yielding across it as a push lasts (`ACROSS_RATE`), the
+    lead growing while nothing gives (`LEAD_RATE`) and easing off over its
+    force -- at no more than `speed`, its turn held. It stops once the
+    hand has gone `distance_m` THE WAY IT WAS
     ASKED (up, its rise; a lid's arc turns its way, and a pull up 0.28 m in
-    all stopped a lid at 53-57 deg), the force it
-    reads at the hand reaches `limit_n` (N), nothing has given for
+    all stopped a lid at 53-57 deg), the force it reads at the hand along
+    its way reaches `limit_n` (N) while nothing gives, nothing has given for
     `STALL_S` at its hardest, its gripper has let go, the arm cannot reach
     on, or `patience_s` runs out -- and holds where the hand is. False
     (nothing moves) for a hand that is not out. How it ended, how far it
@@ -848,11 +850,13 @@ class Reach:
       st["postured"] = st["t"]
 
   def _yield(self, side: str, dt: float, h: np.ndarray, r: np.ndarray) -> bool:
-    """A pull's command (`pull`): its way the chord of the hand's own last
-    `CHORD_M` once it has gone `FOLLOW_AFTER_M` the way asked, its turn the
-    hand's own where what it holds turns it past `TURN_GIVE`, its lead
-    grown while nothing gives, its goal that far ahead of the hand -- or,
-    past one of its stops, over (True)."""
+    """A pull's command (`pull`), an equilibrium point the arm's stiffness
+    draws the hand to: advanced along its way -- the chord of the hand's
+    own last `CHORD_M` once it has gone `FOLLOW_AFTER_M` the way asked --
+    to at most its lead ahead of the hand, and across its way toward the
+    hand only as a push lasts (`ACROSS_RATE`); its lead grown while nothing
+    gives and eased off over its force -- or, past one of its stops, over
+    (True). Its turn is held."""
     st = self.pulls[side]
     trail = st.setdefault("trail", [])
     trail.append(h.copy())
@@ -872,18 +876,17 @@ class Reach:
       d = _within_cone(chord / float(np.linalg.norm(chord)), st["asked"], FOLLOW_CONE_DEG)
       st["d"] = d
     c = self.cmd[side]
-    e = _rot_error(r, c.rot)
-    a = float(np.linalg.norm(e))
-    if a > TURN_GIVE:
-      q = np.zeros(4)
-      mujoco.mju_axisAngle2Quat(q, e / a, min(a - TURN_GIVE, TURN_RATE * dt))
-      turn = np.zeros(9)
-      mujoco.mju_quat2Mat(turn, q)
-      c.rot = turn.reshape(3, 3) @ c.rot
-      self.goal[side].rot = c.rot.copy()
+    gap = c.pos - h
+    ahead = float(gap @ d)
+    across = gap - ahead * d
+    c.pos = c.pos - min(1.0, ACROSS_RATE * dt) * across
+    c.pos = c.pos + max(0.0, min(self.speed[side] * dt, st["lead"] - ahead)) * d
+    self.goal[side].pos = c.pos.copy()
     k = min(1.0, dt / FORCE_SMOOTH_S)
     f = st["f"] = (1.0 - k) * st.get("f", self.force[side]) + k * self.force[side]
-    pull = float(np.linalg.norm(f))
+    # ...the force along its way: across it, the reading's own bias at an
+    # arm's pose (10-15 N, held still) starved a pull capped at 10
+    pull = float(f @ d)
     st["peak"] = max(st["peak"], pull)
     st["stall"] = st["stall"] + dt if speed < STALL_V and len(trail) > n else 0.0
     if pull > st["limit"]:
@@ -905,7 +908,6 @@ class Reach:
     if why is not None:
       self._end(side, why, h, r)
       return True
-    self.goal[side].pos = h + st["lead"] * d
     return False
 
   def _update(self, dt: float) -> None:
