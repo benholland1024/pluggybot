@@ -568,12 +568,12 @@ class Reach:
         reach0 = float(np.linalg.norm(poses[0] - shoulder))
         q, ep, er = sm.q[sm.arm[side]].copy(), 0.0, 0.0
       else:
+        # another posture than the one it holds: where it is held there,
+        # from the arm as it is or any other way (the live solve carries the
+        # arm there as the body moves)
         _posed(sm, height, pitch, q0)
-        if out:
-          sm._set_arm(side, self.q_cmd[side])
-          q, ep, er = sm.solve(side, poses[0], rots[0], iters=80)
-        else:
-          q, ep, er = solve_seeded(sm, side, poses[0], rots[0])
+        q, ep, er = solve_seeded(sm, side, poses[0], rots[0],
+                                 self.q_cmd[side] if out else None)
       if ep >= PATH_POS_TOL or er >= HOLD_ROT_TOL:
         continue
       for p, r_ in zip(poses[1:], rots[1:]):

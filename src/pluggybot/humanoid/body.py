@@ -389,7 +389,10 @@ class HumanoidBody(Body):
       postures = (follow,)
     if not self.reach.reach(side, HandGoal(p, r, stiffness), postures=postures,
                             flip=path is None):
-      return False
+      # ...or where its approach is out of reach in that posture, in any: the
+      # hand takes the path's posture once out (`Reach.carry`)
+      if path is None or not self.reach.reach(side, HandGoal(p, r, stiffness)):
+        return False
     falls = self.mission.falls
     for _ in range(int(round(patience / self._m.opt.timestep))):
       if self.mission.falls != falls or self.reach.done(side):
