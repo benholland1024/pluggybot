@@ -1148,6 +1148,39 @@ shut its jaws on nothing three tries running. So:
   could plan the lid's arc as the reference does and pass without learning
   anything by feel: never pooled with the arms without it.
 
+**What the practice-first arms did** (2026-10-18, the public chests 0-7 in
+turn, 5 tries a chest, the picture shown; `dee4739` without notes or feel,
+`b0417a1` with both): **no arm passed a chest, so none kept a skill and none
+reached its held-out flight** -- each stopped where it was told to, nothing
+kept after 8 chests. The bar is unread for them. Each chest's best lid, and
+where a try opened it past 57 deg its slowest fall while open (rad/s, the
+limit 1.0):
+
+| arm | chests 0-7 | tries past 57 deg | cost |
+|---|---|---|---|
+| deployed, carrying what passed | 51 45 70/1.5 0 57 110/1.0† 0 0 | 6 of 40 | $0.48 |
+| DeepSeek-V4.1-Flash, likewise | 0 72/1.7 0 22 0 0 0 0 | 3 | $0.63 |
+| deployed, by feel (felt, notes) | 63/6.9 64/7.0 33 30 11 24 17 19 | 2 | $0.80 |
+| DeepSeek, by feel | 0 0 67/1.8 61/1.4 46 65/7.0 75/1.6 68/0.9 | 11 | $0.54 |
+| DeepSeek, by feel and `measure` | 47 41 49 26 75/5.0 64/7.2 60/6.5 45 | 6 | $1.18 |
+
+† thrown past upright at its slowest (0.97 rad/s), the lid stayed open; its other tries fell at 1.01 and 1.07.
+
+- **DeepSeek by feel converged and was stopped converging**: its notes
+  carried the left hand to every first try from its second chest on and
+  the gripper opened first from its third (the baselines' first tries
+  started over at every chest), five of its last six chests opened the
+  lid, and its last
+  lowered one at 0.87 rad/s -- and ended with the lid at 61 deg, a
+  `move_hand` held back ending the procedure with the jaws on the knob (a
+  `pull` held back is ok; a position move held back fails). Its lids fall
+  because a procedure lets go while the lid is up: the felt traces show
+  the grip held through every pull, the pulls down ending out of reach.
+- **The deployed model did worse with notes than without** (2 tries past
+  57 deg against 6).
+- **`measure` was hardly used**: 4 calls in 40 tries, so the arm says
+  little of sight.
+
 ## 5. What silently invalidates a number
 
 The list this document mostly exists for.
