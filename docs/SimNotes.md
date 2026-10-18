@@ -5311,6 +5311,10 @@ within 0.09 of none; ⚠ swept at one speed, the two terms are one column,
 and it read 1.78 dry and -4.97 viscous, right at 0.3 rad/s and nowhere
 else.
 
+What the robot's own mind made of these hands -- graded practice,
+baseline (a′) and the flight over held-out chests -- is Evaluation.md
+§4's.
+
 ## Debugging workflow that worked
 
 1. Reproduce headlessly with printed telemetry (pose, joint rates, contact
