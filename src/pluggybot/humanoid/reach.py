@@ -116,8 +116,11 @@ TRAIL_M, CHORD_M, FOLLOW_CONE_DEG = 0.005, 0.03, 80.0
 #: dragged them within its first 10 cm (#493).
 EXPLORE_M, EXPLORE_K, FOLLOW_M = 0.05, 0.4, 0.06
 #: An explore whose hand went less than this the way asked, m, goes again
-#: at the pull's own stiffness, and then it is held fast.
-EXPLORED_M = 0.03
+#: at the pull's own stiffness, and then it is held fast; a follow's carry
+#: held back short of its end goes on, fitted again, while its hand went
+#: this far in it, m: a short path's fit is a line, and a lid's arc held the
+#: hand back off it within 20 deg (#493).
+EXPLORED_M, ONWARD_M = 0.03, 0.015
 #: A way is a circle while one of radius between these, m, fits the hand's
 #: path better than a line by this share -- else a line; its points this
 #: far apart, m.

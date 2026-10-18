@@ -593,7 +593,9 @@ class HumanoidBody(Body):
       trail += list((self.reach.report[side] or {}).get("path") or [])[1:]
       peak = max(peak, float(rep.get("force") or 0.0))
       way = points[-1] - h
-      why = {"arrived": "distance", "held back": "held fast"}.get(rep["why"], rep["why"])
+      onward = float(np.linalg.norm(self.reach.grip_now(side)[0] - h)) >= reach_.ONWARD_M
+      why = ("distance" if rep["why"] == "arrived" or (rep["why"] == "held back" and onward)
+             else "held fast" if rep["why"] == "held back" else rep["why"])
     h = self.reach.grip_now(side)[0]
     disp = h - start
     n = float(np.linalg.norm(way))
