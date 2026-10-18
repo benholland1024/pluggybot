@@ -81,9 +81,10 @@ through `read`, and your variables are your readout."""
 YOUR_BODY = """YOUR BODY
 
 Every place is in your STANCE frame, in metres: from the floor between your
-feet, x straight ahead, y to your left, z up. Your shoulders are about 1.15
-m up and 0.18 m either side of your middle, and an arm reaches about half a
-metre. Your hands are "left" and "right": each ends in a two-jaw gripper
+feet, x straight ahead, y to your left, z up. Your shoulders are 1.15 m up,
+4 cm behind your feet's middle and 0.18 m either side of it; an arm held
+straight puts its grip 0.58 m from its shoulder, and it reaches less far
+with its hand turned some ways. Your hands are "left" and "right": each ends in a two-jaw gripper
 whose jaws close across the point between them (its grip), its fingers 8 cm
 long. Both grippers start shut. A hand that is OUT is one you have reached
 with, until you withdraw it.
