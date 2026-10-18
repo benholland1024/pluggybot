@@ -91,9 +91,9 @@ BUDGET_S = lid.TIME_LIMIT_S
 #: ...each set-out's own (`Task.limit_s`): the task's data beside the code
 #: that grades it, handed to the grader as `limitS`. The quadruped's probe
 #: takes 84-100 s of its 300; the humanoid's is three times its reference's
-#: slowest pass (Ben, 2026-10-17: `evaluation.opener`, 17.5-22.3 s over its
-#: 32 public chests at 1dcc8dd), set before #493's stage 3 flew.
-REFERENCE_S = 22.3
+#: slowest pass (Ben, 2026-10-17: `evaluation.opener`, 17.7-22.5 s over its
+#: 32 public chests at 0f98e24), set before #493's stage 3 flew.
+REFERENCE_S = 22.54
 LIMIT_S = {("quadruped", "floor"): BUDGET_S, ("humanoid", "counter"): 3 * REFERENCE_S}
 #: What every result here relies on that a real world would not give it
 #: (#493; Evaluation.md §5, "Graded in MuJoCo"): said with every reading.

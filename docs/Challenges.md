@@ -351,7 +351,7 @@ knob during the hold: let go; (5) the call came within the task's time
 limit of the attempt's start, where the harness makes it at the latest --
 the TASK's data (`attempts.LIMIT_S`, handed to the grader as `limitS`;
 `TIME_LIMIT_S`, 300 s, where none is): the quadruped's 300 s, the
-humanoid's three times its reference's slowest pass, 67 s (#493).
+humanoid's three times its reference's slowest pass, 68 s (#493).
 Said beside, and judged by nothing (Ben, 2026-10-17: the job is the lid,
 and a fall is lost time against the limit): the falls the body's own watch
 counted (`Body.falls`), its worst tilt (`Body.orientation`) and whether the

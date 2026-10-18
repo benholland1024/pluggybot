@@ -195,7 +195,7 @@ doing anything, read the doc that owns what you are about to touch:
   deployed prompt. ⚠ A FALL IS LOST TIME, NEVER A VERDICT (Ben,
   2026-10-17): the job is the lid inside the TASK's time limit, the
   budget (`attempts.LIMIT_S`, the grader's `limitS`: the quadruped's 300
-  s, the humanoid's 3x its reference's slowest pass, 67 s),
+  s, the humanoid's 3x its reference's slowest pass, 68 s),
   and the falls the body's own watch counted (`Body.falls`; the
   humanoid's is its trunk 35 deg past the posture its legs hold, so a bow
   is none, #520), its tilt and its tool (`Body.tool_powered`; the
@@ -405,7 +405,7 @@ save a filmstrip PNG named after the script.
   robot as it stands (its measured arm, `LIVE_MARGIN_M`); a carry keeps the
   turn it was ASKED. ⚠ ONE POSTURE A PATH: switching partway jerked lids to
   81 deg and dropped them at 2.3 rad/s. It opens 23 of 32, its slowest
-  pass (22.3 s) sets the humanoid task's limit at three times it
+  pass (22.5 s) sets the humanoid task's limit at three times it
   (`attempts.LIMIT_S`). The humanoid looks lower by bowing
   (`Body.gaze_routine`).
 - **The hands in a procedure, and graded practice** (#493;

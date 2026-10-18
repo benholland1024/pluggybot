@@ -990,7 +990,7 @@ internals. Its rules:
   and a real world's are neither (§5);
 - **the call is wherever the skill ended, or its budget did** (`cut`): the
   budget is the job's own time limit, the task's (`attempts.LIMIT_S`: the
-  quadruped's 300 sim-s, the humanoid's 67, three times its reference's
+  quadruped's 300 sim-s, the humanoid's 68, three times its reference's
   slowest pass), and
   a cut attempt that failed says "out of time" first. Then the hold with
   the body held still, and one verdict through `scoring.evaluate`, graded
@@ -1040,18 +1040,18 @@ SimNotes "The humanoid opens the chest"): the probe's plan on the
 humanoid's hands at a 0.72 m counter -- the knob off its tag, the box off
 its depth camera, the lid's arc carried as one path in one posture, the
 hand turning with the lid past the drop handle's stop. **23 of 32 at the
-first attempt** (95 % interval 0.55-0.84), its own word agreeing every
-time, no fall: 17.5-22.3 sim-s an attempt, the lid to 57.7-63.4 deg and
-down at 0.37-0.58 rad/s at its fastest while open. The nine it misses are
+first attempt** (95 % interval 0.55-0.84, at `0f98e24`), its own word
+agreeing every time, no fall: 17.7-22.5 sim-s a pass, the lid to 57.5-63.5
+deg and down at 0.34-0.68 rad/s at its fastest while open. The nine it misses are
 the body's reach, none its judgement: in five no grip's tilt follows the
 arc to 60 deg, in three no arc follows from the grip the reach could make,
 in one the hand ran out of reach a step up. Its slowest pass sets the
-humanoid task's time limit at three times it, 67 s (`attempts.LIMIT_S`;
+humanoid task's time limit at three times it, 68 s (`attempts.LIMIT_S`;
 the quadruped's stays 300). ⚠ The generator's filter
 (`activity.chest.draw`: lids that shut by themselves from the probe's 1.2
 rad at 0.45 rad/s, because the quadruped's claw only pulls) is read again
 against it: the humanoid's grip is rigid and carries the lid down, and its
-arc tops out at 1.08-1.15 rad, so the filter is stricter than this body
+arc tops out at 60-64 deg, so the filter is stricter than this body
 needs and stays as drawn -- one of the subsidies `FLATTERS` names.
 
 ## 5. What silently invalidates a number
