@@ -1936,7 +1936,11 @@ class QuadBody(Body):
                               "(`legs.probe.Probe.cloud`)")
     yield
 
-  def move_hand_routine(self, side, pos, stiffness=1.0, speed=0.06, patience=20.0) -> Routine:
+  def move_hand_routine(self, side, pos, stiffness=1.0, speed=0.06, patience=20.0,
+                        path=None) -> Routine:
+    raise NotImplementedError(self._NO_HAND)
+
+  def hand_why(self, side) -> str:
     raise NotImplementedError(self._NO_HAND)
     yield
 

@@ -1000,11 +1000,11 @@ def _reach(life, args: dict) -> Routine:
   if bad:
     return {"ok": False, "reason": bad}
   ok = yield from life.body.reach_routine(hand, _hand_place(life, args), rot,
-                                          stiffness=float(args["stiffness"]),
+                                          stiffness=float(args.get("stiffness", _STIFF.default)),
                                           patience=REACH_PATIENCE_S)
   if ok:
     return {"ok": True, "hand": hand}
-  why = (getattr(life.body, "last_reach", None) or {}).get("why", "")
+  why = life.body.hand_why(hand)
   return {"ok": False, "hand": hand, "why": why,
           "reason": REACH_WHY.get(why, "your {hand} hand did not get there").format(hand=hand)}
 
@@ -1012,6 +1012,9 @@ def _reach(life, args: dict) -> Routine:
 #: What a `move_hand` that did not arrive says, by its report's why.
 MOVE_WHY = {"out of reach": "your {hand} hand could reach no further that way from any "
                             "posture you hold",
+            "held back": "your {hand} hand was held back short of it: what it holds or "
+                         "pushes on stopped it",
+            "feet moved": "your feet moved under the force, so it stopped there",
             "not out": "your {hand} hand is not out: `reach` with it first",
             "fell": "you fell on the way, and let go",
             "out of time": "your {hand} hand did not get there in time"}
@@ -1028,12 +1031,11 @@ def _hand_report(life, hand: str, rep: dict) -> dict:
 
 def _move_hand(life, args: dict) -> Routine:
   """A hand that is out carried along a straight line to (x, y, z) at
-  `speed`, m/s, its turn kept -- one that holds something pivots round its
-  jaws' line, as a pinch does -- at `stiffness`. ok when it arrives."""
+  `speed`, m/s, its turn kept, at `stiffness`. ok when it arrives."""
   hand = args["hand"]
   rep = yield from life.body.move_hand_routine(hand, _hand_place(life, args),
-                                               stiffness=float(args["stiffness"]),
-                                               speed=float(args["speed"]),
+                                               stiffness=float(args.get("stiffness", _STIFF.default)),
+                                               speed=float(args.get("speed", _SPEED.default)),
                                                patience=HAND_PATIENCE_S)
   out = {"hand": hand, **_hand_report(life, hand, rep)}
   if rep.get("why") == "arrived":
@@ -1057,8 +1059,8 @@ def _pull(life, args: dict) -> Routine:
     return {"ok": False, "reason": "give the pull a way: (dx, dy, dz) are all 0"}
   rep = yield from life.body.pull_routine(hand, axes.from_stance(life, d, point=False),
                                           float(args["force"]), float(args["distance"]),
-                                          stiffness=float(args["stiffness"]),
-                                          speed=float(args["speed"]), patience=HAND_PATIENCE_S)
+                                          stiffness=float(args.get("stiffness", _STIFF.default)),
+                                          speed=float(args.get("speed", _SPEED.default)), patience=HAND_PATIENCE_S)
   out = {"hand": hand, **_hand_report(life, hand, rep), "force": rep.get("force")}
   if rep.get("why") in ("not out", "fell"):
     return {"ok": False, **out,
@@ -1193,9 +1195,7 @@ HANDS_VERBS: dict[str, Verb] = {
   "move_hand": Verb("move_hand", {"hand": _HAND, **_HAND_AT, "speed": _SPEED,
                                   "stiffness": _STIFF},
                     _move_hand, "carry a hand that is out (reached) along a straight line "
-                    "to (x, y, z) at `speed` m/s, its turn kept -- holding something, it "
-                    "pivots round the line its jaws close along, as a pinch does; ok when "
-                    "it arrives"),
+                    "to (x, y, z) at `speed` m/s, its turn kept; ok when it arrives"),
   "pull": Verb("pull", {"hand": _HAND, "dx": Arg("float", lo=-1.0, hi=1.0),
                         "dy": Arg("float", lo=-1.0, hi=1.0), "dz": Arg("float", lo=-1.0, hi=1.0),
                         "force": Arg("float", lo=1.0, hi=60.0),

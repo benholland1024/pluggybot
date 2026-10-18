@@ -455,15 +455,15 @@ class Reach:
       # statue of that posture, which could not reach where its hand WAS
       live = out and (height, pitch) == here
       if live:
+        # ...its arm as its encoders read it, the branch its grip is in,
+        # never as commanded: a lid's weight held the hand 3.5 cm off its
+        # command at the arc's top, from which the path down solved short
         sm.q = self.self_model.q.copy()
         sm.d.qpos[:] = self.self_model.d.qpos
-        sm._set_arm(side, self.q_cmd[side])
+        mujoco.mj_kinematics(sm.m, sm.d)
         shoulder = sm.d.xpos[sm.m.body(f"{side}_shoulder_roll_link").id].copy()
         reach0 = float(np.linalg.norm(poses[0] - shoulder))
-        # ...from its arm as commanded, never solved again where the hand
-        # IS: a lid's weight held the hand 3.5 cm off its command at the
-        # arc's top, which no solve within a centimetre then reached
-        q, ep, er = self.q_cmd[side].copy(), 0.0, 0.0
+        q, ep, er = sm.q[sm.arm[side]].copy(), 0.0, 0.0
       else:
         _posed(sm, height, pitch, q0)
         if out:

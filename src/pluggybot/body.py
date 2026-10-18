@@ -695,27 +695,36 @@ class Body(abc.ABC):
 
   @abc.abstractmethod
   def move_hand_routine(self, side: str, pos, stiffness: float = 1.0,
-                        speed: float = 0.06, patience: float = 20.0) -> Routine:
+                        speed: float = 0.06, patience: float = 20.0,
+                        path=None) -> Routine:
     """A hand that is out -- reached, and holding there or moved on --
     carried along a straight line to `pos`, the believed world frame, m, at
-    `speed`, m/s, its turn kept, at `stiffness`; one that holds something
-    PIVOTS round its jaws' line as a pinch does, so a handle that swings on
-    its own pin takes the hand round with it. The posture is the body's to
-    choose (#493). Returns how it ended (`why`: "arrived", "out of reach",
-    "not out", "fell", "out of time"), in how long, how far the hand went
-    (`moved`, m) and where it ended up from where it began (`dx`, `dy`,
-    `dz`, believed world frame, m)."""
+    `speed`, m/s, the turn it was asked to hold kept, at `stiffness` --
+    through `path` first, where given: points walked in turn as one
+    motion, from one posture that follows them all (`hand_follows`). The
+    posture is the body's to choose (#493). Returns how it ended (`why`:
+    "arrived", "held back" -- its command there, the hand held short of it
+    -- "out of reach", "not out", "fell", "feet moved", "out of time"), in
+    how long, how far the hand went (`moved`, m) and where it ended up from
+    where it began (`dx`, `dy`, `dz`, believed world frame, m)."""
+
+  @abc.abstractmethod
+  def hand_why(self, side: str) -> str:
+    """Why a hand's last `reach_routine` ended short of holding there: "out
+    of reach" (no posture it holds puts the pose in reach), "stopped short"
+    (it stopped on its way: pushing on something, or out of reach as the
+    body truly stood), "fell", "out of time" -- or "" where it held (#493)."""
 
   @abc.abstractmethod
   def pull_routine(self, side: str, direction, limit_n: float, distance_m: float,
                    stiffness: float = 1.0, speed: float = 0.06,
                    patience: float = 30.0) -> Routine:
     """THE COMPLIANT PULL (#493): a hand that is out pulled along
-    `direction` (the believed world frame), its way turning toward wherever
-    the hand gives, pulling harder while nothing gives -- pivoting round its
-    jaws' line where it holds something -- until it has gone `distance_m`
-    the way asked, the force it reads at the hand reaches `limit_n`, N, nothing gives at
-    its hardest, its grip lets go, or `patience` runs out; then it holds
+    `direction` (the believed world frame), its turn kept, its way turning
+    toward wherever the hand gives, pulling harder while nothing gives --
+    until it has gone `distance_m` the way asked, the force it reads at the
+    hand reaches `limit_n`, N, nothing gives at its hardest, its grip lets
+    go, or `patience` runs out; then it holds
     where the hand is. Returns how it ended (`why`: "distance", "force",
     "held fast", "let go", "out of reach", "not out", "fell", "out of
     time"), in how long, how far the hand went (`moved`) and how far the
@@ -1341,12 +1350,17 @@ class StubBody(Body):
     return {"seconds": 0.0, "moved": float(np.linalg.norm([dx, dy, dz])),
             "dx": dx, "dy": dy, "dz": dz}
 
-  def move_hand_routine(self, side, pos, stiffness=1.0, speed=0.06, patience=20.0):
+  def move_hand_routine(self, side, pos, stiffness=1.0, speed=0.06, patience=20.0,
+                        path=None):
     """The hand there at once, as asked (a hand that is out)."""
     if side not in self.hands:
       return {"why": "not out", "seconds": 0.0, "moved": 0.0, "dx": 0.0, "dy": 0.0, "dz": 0.0}
     return {"why": "arrived", **self._carried(side, pos)}
     yield
+
+  def hand_why(self, side) -> str:
+    """Never short: every reach holds at once."""
+    return ""
 
   def pull_routine(self, side, direction, limit_n, distance_m, stiffness=1.0,
                    speed=0.06, patience=30.0):

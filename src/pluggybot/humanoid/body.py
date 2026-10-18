@@ -119,6 +119,8 @@ class HumanoidBody(Body):
     self.swapping_at = None
     self.working = False
     self.peer_at_bay_m = None
+    #: Why each hand's last reach ended short of holding (`hand_why`).
+    self._why: dict[str, str] = {}
     self.bay_wait = None
     self.docked = False
     self.head_camera = handle.el(HEAD_CAMERA)
@@ -370,6 +372,7 @@ class HumanoidBody(Body):
     yield from self.mission.to_stand_routine()
     p = self.to_stance(pos)
     r = None if rot is None else _rz(self.stance[2]).T @ np.asarray(rot, dtype=float)
+    self._why[side] = "out of reach"
     if not self.reach.reach(side, HandGoal(p, r, stiffness)):
       return False
     falls = self.mission.falls
@@ -377,7 +380,13 @@ class HumanoidBody(Body):
       if self.mission.falls != falls or self.reach.done(side):
         break
       yield STILL
-    return self.mission.falls == falls and self.reach.phase[side] == "hold"
+    held = self.mission.falls == falls and self.reach.phase[side] == "hold"
+    self._why[side] = ("" if held else "fell" if self.mission.falls != falls
+                       else "stopped short" if self.reach.done(side) else "out of time")
+    return held
+
+  def hand_why(self, side) -> str:
+    return self._why.get(side, "")
 
   def release_routine(self, side):
     self.reach.retreat(side)
