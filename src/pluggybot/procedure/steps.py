@@ -1220,11 +1220,14 @@ PULL_VERBS = ("pull",)
 
 
 def language(facts: "WorldFacts | None") -> dict[str, Verb]:
-  """The verbs a procedure in this world may call: `VERBS`, and the hands'
-  where its facts name them (`HANDS_VERBS`)."""
+  """The verbs a procedure in this world may call: `VERBS` -- or, where its
+  facts name the hands' (`HANDS_VERBS`), exactly the verbs they name, so
+  an unknown verb's refusal lists what the body has."""
   named = () if facts is None or facts.verbs is None else facts.verbs
-  extra = {n: HANDS_VERBS[n] for n in named if n in HANDS_VERBS}
-  return {**VERBS, **extra} if extra else VERBS
+  if not any(n in HANDS_VERBS for n in named):
+    return VERBS
+  table = {**VERBS, **HANDS_VERBS}
+  return {n: table[n] for n in named}
 
 
 def hand_facts(pull: bool = False) -> "WorldFacts":

@@ -266,12 +266,15 @@ class Unstable(RuntimeError):
 
 
 def attempt_in(world: World, skill, n: int = 1, *, budget_s: float = BUDGET_S,
-               hold_s: float = lid.HOLD_S, info: dict | None = None) -> dict:
+               hold_s: float = lid.HOLD_S, info: dict | None = None,
+               sealed: list | None = None) -> dict:
   """One attempt in a world already set out (`attempt` builds it): the
   skill (`skill(body)` -> a routine, returning its own word) run inside
   `budget_s` while the grader watches every step, the call, the hold, and
-  the verdict -- the record's row. `info` is read once the hold is over.
-  Raises what the skill raised, or `Unstable`."""
+  the verdict -- the record's row. `info` is read once the hold is over;
+  the sealed verdict itself (`scoring.Verdict`) is appended to `sealed`,
+  what a library admits a procedure on (`Library.admit`). Raises what the
+  skill raised, or `Unstable`."""
   info = info if info is not None else {}
   task, body, data = world.task, world.body, world.data
   warned = {w: int(data.warning[w].number) for w in UNSTABLE}
@@ -297,6 +300,8 @@ def attempt_in(world: World, skill, n: int = 1, *, budget_s: float = BUDGET_S,
   # left half done follows.
   verdict = scoring.evaluate(task.grader, measured,
                              failed=f"out of time ({budget_s:.0f} s)" if cut else "")
+  if sealed is not None:
+    sealed.append(verdict)
   return {
     "task": task.as_dict(), "attempt": int(n), "heldOut": task.held_out,
     "process": info.get("process"), "skill": info.get("skill"),
@@ -317,13 +322,15 @@ def attempt_in(world: World, skill, n: int = 1, *, budget_s: float = BUDGET_S,
 
 
 def attempt(task: Task, skill, n: int = 1, *, budget_s: float = BUDGET_S,
-            hold_s: float = lid.HOLD_S, info: dict | None = None, build=set_out) -> dict:
+            hold_s: float = lid.HOLD_S, info: dict | None = None, build=set_out,
+            sealed: list | None = None) -> dict:
   """One attempt (the protocol): the task's set-out built afresh -- the
   world's reset, counted before every attempt but the first -- the skill
   tried from it, graded, and the world closed: the record's row. `build`
   is how a set-out is made (a test's own world)."""
   world = build(task)
   try:
-    return attempt_in(world, skill, n, budget_s=budget_s, hold_s=hold_s, info=info)
+    return attempt_in(world, skill, n, budget_s=budget_s, hold_s=hold_s, info=info,
+                      sealed=sealed)
   finally:
     world.close()
