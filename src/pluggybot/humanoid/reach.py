@@ -110,7 +110,7 @@ TRAIL_M, CHORD_M, FOLLOW_CONE_DEG = 0.005, 0.03, 80.0
 #: than this, rad, at this rate at most, rad/s: a drop handle hangs free
 #: until its arm lies on its lid's front edge, 57 deg up, and a hand held
 #: at its turn past that fought the lid, its wrist giving 7-11 deg (#493).
-TURN_GIVE, TURN_RATE = math.radians(4.0), 0.5
+TURN_GIVE, TURN_RATE = math.radians(400.0), 0.5
 #: ...and only once the hand has gone this far the way asked, m: the first
 #: centimetres are slack -- a handle's play, the hand's own give -- and a
 #: drop handle pulled up from where it hangs, in compression, buckled
