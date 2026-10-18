@@ -110,7 +110,7 @@ TRAIL_M, CHORD_M, FOLLOW_CONE_DEG = 0.005, 0.03, 80.0
 #: than this, rad, at this rate at most, rad/s: a drop handle hangs free
 #: until its arm lies on its lid's front edge, 57 deg up, and a hand held
 #: at its turn past that fought the lid, its wrist giving 7-11 deg (#493).
-TURN_GIVE, TURN_RATE = math.radians(400.0), 0.5
+TURN_GIVE, TURN_RATE = math.radians(4.0), 0.5
 #: ...and only once the hand has gone this far the way asked, m: the first
 #: centimetres are slack -- a handle's play, the hand's own give -- and a
 #: drop handle pulled up from where it hangs, in compression, buckled
@@ -446,18 +446,20 @@ class Reach:
           return (height, pitch)
     return None
 
-  def path_for(self, side: str, poses, rot=None) -> tuple | None:
-    """A posture (`HOLD_POSTURES`, the least bent first) from which `side`'s grip
-    FOLLOWS `poses` (stance frame) in turn at the turn `rot` -- or at each
-    pose its own, where `rot` is a list -- the first
-    solved from the seeds, each next ON from the last, as a moving arm must
-    -- or None. Each point after the first is reached further ahead too: on
-    a statue, all of them by `PATH_MARGIN_M`; on the robot as it stands
-    (below), those further from its shoulder than the first, by
-    `LIVE_MARGIN_M`. ⚠ A point
-    reached from a fresh seed is not a path: the arm went up a lid's arc in
-    one branch, and where only another reached on, it swung between them
-    and jerked the lid shut at 3.3 rad/s (#493)."""
+  def path_for(self, side: str, poses, rot=None) -> list | None:
+    """The postures (`HOLD_POSTURES`) in which `side`'s grip FOLLOWS `poses`
+    (stance frame) in turn at the turn `rot` -- or at each pose its own,
+    where `rot` is a list -- one a pose, or None: the first solved from the
+    seeds in the least bent that reaches it, each next ON from the last, as
+    a moving arm must, in the posture it holds while that reaches -- else
+    in the least bent that reaches it on from there (#493: a lid's knob
+    gripped low in a crouch is followed up its arc standing). Each point
+    after the first is reached further ahead too: on a statue, all of them
+    by `PATH_MARGIN_M`; on the robot as it stands (below), those further
+    from its shoulder than the first, by `LIVE_MARGIN_M`. ⚠ A point reached
+    from a fresh seed is not a path: the arm went up a lid's arc in one
+    branch, and where only another reached on, it swung between them and
+    jerked the lid shut at 3.3 rad/s."""
     sm = self._planner_model()
     q0 = np.array([hm.stand_qpos().get(n, 0.0) for n in hm.JOINT_NAMES])
     poses = [np.asarray(p, dtype=float) for p in poses]
@@ -468,12 +470,19 @@ class Reach:
     out = self.out(side)
     here = tuple(float(v) for v in self.posture)
     order = ([here] + [p_ for p_ in HOLD_POSTURES if tuple(p_) != here]) if out \
-      else HOLD_POSTURES
-    for height, pitch in order:
+      else [tuple(p_) for p_ in HOLD_POSTURES]
+
+    def on_statue(posture, q, p, r_):
+      # the statue balanced with its arm out where it is going (`static_legs`)
+      _posed(sm, posture[0], posture[1], q0, _arm(side, q))
+      sm._set_arm(side, q)
+      return sm.solve(side, p + ahead, r_, iters=80)
+
+    for first in order:
       # ⚠ ...AND THE ROBOT AS IT STANDS, its model posed off its senses, in
       # the posture it holds: up a lid's arc it stood 4 cm behind the
       # statue of that posture, which could not reach where its hand WAS
-      live = out and (height, pitch) == here
+      live = out and first == here
       if live:
         # ...its arm as its encoders read it, the branch its grip is in,
         # never as commanded: a lid's weight held the hand 3.5 cm off its
@@ -483,30 +492,41 @@ class Reach:
         mujoco.mj_kinematics(sm.m, sm.d)
         shoulder = sm.d.xpos[sm.m.body(f"{side}_shoulder_roll_link").id].copy()
         reach0 = float(np.linalg.norm(poses[0] - shoulder))
-        q, ep, er = sm.q[sm.arm[side]].copy(), 0.0, 0.0
+        stood = sm.d.qpos.copy()
+        q = sm.q[sm.arm[side]].copy()
       else:
-        _posed(sm, height, pitch, q0)
+        _posed(sm, first[0], first[1], q0)
         if out:
           sm._set_arm(side, self.q_cmd[side])
           q, ep, er = sm.solve(side, poses[0], rots[0], iters=80)
         else:
           q, ep, er = solve_seeded(sm, side, poses[0], rots[0])
-      if ep >= PATH_POS_TOL or er >= HOLD_ROT_TOL:
-        continue
-      for p, r_ in zip(poses[1:], rots[1:]):
-        if live:
-          further = float(np.linalg.norm(p - shoulder)) > reach0
-          target = p + (LIVE_MARGIN_M, 0.0, 0.0) if further else p
-        else:
-          # the statue balanced with its arm out where it is going (`static_legs`)
-          _posed(sm, height, pitch, q0, _arm(side, q))
-          target = p + ahead
-        sm._set_arm(side, q)
-        q, ep, er = sm.solve(side, target, r_, iters=80)
         if ep >= PATH_POS_TOL or er >= HOLD_ROT_TOL:
-          break
+          continue
+      postures, now = [first], first
+      for p, r_ in zip(poses[1:], rots[1:]):
+        if live and now == first:
+          sm.d.qpos[:] = stood
+          sm._set_arm(side, q)
+          further = float(np.linalg.norm(p - shoulder)) > reach0
+          q_, ep, er = sm.solve(side, p + (LIVE_MARGIN_M, 0.0, 0.0) if further else p, r_,
+                                iters=80)
+        else:
+          q_, ep, er = on_statue(now, q, p, r_)
+        if ep >= PATH_POS_TOL or er >= HOLD_ROT_TOL:
+          for other in HOLD_POSTURES:
+            if tuple(other) == now:
+              continue
+            q_, ep, er = on_statue(tuple(other), q, p, r_)
+            if ep < PATH_POS_TOL and er < HOLD_ROT_TOL:
+              now = tuple(other)
+              break
+          else:
+            break
+        q = q_
+        postures.append(now)
       else:
-        return (height, pitch)
+        return postures
     return None
 
   def carry(self, side: str, pos, stiffness: float | None = None,
@@ -533,9 +553,11 @@ class Reach:
     if len(rots) != len(ways) + 1:
       raise ValueError(f"a turn for each of the path's {len(ways)} points and its end, "
                        f"not {len(rots)}")
+    schedule = None
     if ways or turns is not None:
-      # a PATH: one posture that follows it all, its points walked in turn
-      posture = self.path_for(side, [h] + ways + [end], rot=[r] + rots)
+      # a PATH: the postures that follow it, its points walked in turn
+      schedule = self.path_for(side, [h] + ways + [end], rot=[r] + rots)
+      posture = None if schedule is None else schedule[0]
     else:
       posture = self.posture_for(side, end, rot=r)
     if posture is None:
@@ -548,8 +570,11 @@ class Reach:
     self.goal[side] = HandGoal(ways[0] if ways else end, rots[0].copy(), k)
     self.speed[side], self._off[side] = float(speed), 0.0
     self.pulls[side] = {"start": h.copy(), "t": 0.0,
-                        "ways": list(zip(ways[1:] + [end], rots[1:])) if ways else [],
+                        "ways": list(zip(ways[1:] + [end], rots[1:], schedule[2:]))
+                        if schedule is not None and ways else [],
                         "fixed": bool(ways)}
+    if schedule is not None:
+      self._posture_on(self.pulls[side], schedule[1])
     self.report[side] = None
     self.phase[side] = "carry"
     return True
@@ -801,7 +826,8 @@ class Reach:
       return c.stiffness
     self._off[side] = 0.0
     if there and self.phase[side] == "carry" and st.get("ways"):
-      self.goal[side].pos, self.goal[side].rot = st["ways"].pop(0)
+      self.goal[side].pos, self.goal[side].rot, posture = st["ways"].pop(0)
+      self._posture_on(st, posture)
       return c.stiffness
     if there and self.phase[side] == "carry":
       # arrived once the HAND is there, never its command alone: on a soft
@@ -813,6 +839,13 @@ class Reach:
       elif st["there"] >= HELD_BACK_S:
         self._end(side, "held back", h, r, at_goal=True)
     return c.stiffness
+
+  def _posture_on(self, st: dict, posture) -> None:
+    """A path's next posture (`path_for`'s), taken as its leg begins, the
+    move given the time it takes to come before a miss can end it."""
+    if posture is not None and tuple(posture) != tuple(float(v) for v in self.posture):
+      self.hold_posture(*posture)
+      st["postured"] = st["t"]
 
   def _yield(self, side: str, dt: float, h: np.ndarray, r: np.ndarray) -> bool:
     """A pull's command (`pull`): its way the chord of the hand's own last
