@@ -8,7 +8,7 @@ attempts 1 to `ATTEMPTS`, each graded and unpaid, a fresh set-out each.
                    its model and data, the reports its verbs leave, no
                    interrupt, and what it said
   procedure_skill  a compiled procedure as an attempt's skill
-  practise         one chest: the conversation and its attempts, until one
+  practice_on      one chest: the conversation and its attempts, until one
                    passes or the attempts run out; a pass ADMITS the
                    procedure to the robot's library (`Library.admit`)
   JOB              the job as its grader measures it, never how
@@ -123,9 +123,9 @@ def head_picture(task: at.Task) -> bytes:
   return buf.getvalue()
 
 
-def practise(chest: int, practice, attempts: int = ATTEMPTS, *, library=None,
-             picture: bool = True, budget_s: float | None = None,
-             info: dict | None = None, build=at.set_out) -> list[dict]:
+def practice_on(chest: int, practice, attempts: int = ATTEMPTS, *, library=None,
+                picture: bool = True, budget_s: float | None = None,
+                info: dict | None = None, build=at.set_out) -> list[dict]:
   """One chest, a fresh robot: the mind's procedure tried from the set-out,
   graded, and shown back (`mind.practice.report_text`), up to `attempts`
   times, ending at the first pass -- which `library` ADMITS on its sealed

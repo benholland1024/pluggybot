@@ -66,8 +66,8 @@ def fly(job) -> list[dict]:
                   ep.job_for(at.Task(chest=k, body="humanoid", mount="counter")))
   skill = f"{model} {'with' if pull else 'without'} the pull"
   try:
-    rows = ep.practise(k, mind, attempts, library=Library(facts), picture=picture,
-                       info={**info, "skill": skill})
+    rows = ep.practice_on(k, mind, attempts, library=Library(facts), picture=picture,
+                          info={**info, "skill": skill})
   except Exception as e:
     traceback.print_exc()
     task = at.Task(chest=k, body="humanoid", mount="counter")

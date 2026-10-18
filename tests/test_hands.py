@@ -231,8 +231,8 @@ def _practice(*sources, attempts=2):
   facts = st.hand_facts()
   mind = Mind(*sources)
   pr = mp.Practice(mind, "a-mind", facts, ep.JOB.format(limit=30))
-  rows = ep.practise(0, pr, attempts, picture=False, budget_s=30.0,
-                     build=lambda t: stub_world(t))
+  rows = ep.practice_on(0, pr, attempts, picture=False, budget_s=30.0,
+                        build=lambda t: stub_world(t))
   return mind, pr, rows
 
 
@@ -515,7 +515,7 @@ def test_the_mind_is_told_the_time_limit_its_try_is_cut_at():
   facts = st.hand_facts()
   told_300 = mp.Practice(Mind('def a():\n    wait(1)\n'), "a-mind", facts, ep.JOB.format(limit=300))
   with pytest.raises(ValueError, match="another time limit"):
-    ep.practise(0, told_300, 1, picture=False, budget_s=30.0, build=lambda t: stub_world(t))
+    ep.practice_on(0, told_300, 1, picture=False, budget_s=30.0, build=lambda t: stub_world(t))
 
 
 def test_the_verbs_speeds_and_slew_are_the_reachs_own():

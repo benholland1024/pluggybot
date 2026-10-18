@@ -1047,11 +1047,12 @@ def _move_hand(life, args: dict) -> Routine:
 def _pull(life, args: dict) -> Routine:
   """THE COMPLIANT PULL (issue #493, stage 3): a hand that is out carried
   straight along (dx, dy, dz) on an arm at `stiffness` -- soft by default,
-  so it bends toward whatever gives -- its turn held, until it has gone `distance`, m, the force at the hand along its way
-  reaches `force`, N, while it is held back, it is held fast, its grip lets
-  go, or it can reach no further -- then it holds there. How far it went,
-  the hardest it pulled and the way it went ride `pull.*`. ok when it
-  pulled: why it stopped is in the record."""
+  so it bends toward whatever gives -- its turn held, until it has gone
+  `distance`, m, the force at the hand along its way reaches `force`, N,
+  while it is held back, it is held fast, its grip lets go, or it can
+  reach no further -- then it holds there. How far it went, the hardest it
+  pulled and the way it went ride `pull.*`. ok when it pulled: why it
+  stopped is in the record."""
   from pluggybot.procedure import axes
   hand = args["hand"]
   d = (float(args["dx"]), float(args["dy"]), float(args["dz"]))
