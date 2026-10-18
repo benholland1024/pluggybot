@@ -529,3 +529,48 @@ def test_the_verbs_speeds_and_slew_are_the_reachs_own():
   assert axes.HUMANOID_SLEW == rc.JOINT_RATE
   for name in ("move_hand_routine", "pull_routine"):
     assert inspect.signature(getattr(Body, name)).parameters["speed"].default == rc.HOLD_SPEED
+
+
+def _out_hand(r, h, rot):
+  """`r`'s left hand out at `h` (stance frame), carried toward 5 cm up, its
+  model posed at the stand."""
+  from pluggybot.humanoid.arms import HandGoal
+  q = np.array([hm.stand_qpos().get(n, 0.0) for n in hm.JOINT_NAMES])
+  r.self_model.pose(q, np.array([0.0, 0.0, -1.0]))
+  r.cmd["left"] = HandGoal(h.copy(), rot.copy(), 1.0)
+  r.goal["left"] = HandGoal(h + [0.0, 0.0, 0.05], rot.copy(), 1.0)
+  r.phase["left"] = "carry"
+  r.pulls["left"] = {"start": h.copy(), "t": 0.0, "ways": [], "fixed": True, "limit": None,
+                     "peak": 0.0}
+
+
+def test_a_carried_hand_holds_still_while_its_body_takes_a_new_posture():
+  """Carried on while the trunk moved, a lid was jerked down at 1.7-2.3
+  rad/s and up to 81 deg: the command waits for the posture."""
+  r = _bare_reach()
+  h, rot = np.array([0.30, 0.20, 0.95]), np.eye(3)
+  _out_hand(r, h, rot)
+  r.pulls["left"]["postured"] = 0.0
+  r._posture_held = lambda: False
+  for _ in range(20):
+    r._held("left", 0.01, h, rot)
+  assert np.allclose(r.cmd["left"].pos, h)
+  r._posture_held = lambda: True
+  for _ in range(20):
+    r._held("left", 0.01, h, rot)
+  assert r.cmd["left"].pos[2] > h[2] + 0.005
+
+
+def test_a_solve_that_diverged_is_never_commanded():
+  """A miss of 10-15 cm commanded swung an arm round a chest's knob and out
+  of it (`reach.WILD_M`): the arm keeps its last command."""
+  from pluggybot.humanoid import reach as rc
+  r = _bare_reach()
+  h, rot = np.array([0.30, 0.20, 0.95]), np.eye(3)
+  _out_hand(r, h, rot)
+  r.cmd["left"].pos = np.array([1.5, 0.2, 0.95])        # out of any reach
+  r.goal["left"].pos = r.cmd["left"].pos.copy()
+  before = r.q_cmd["left"].copy()
+  r._held("left", 0.01, h, rot)
+  assert np.allclose(r.q_cmd["left"], before)
+  assert rc.WILD_M < 1.0
