@@ -699,7 +699,8 @@ class Body(abc.ABC):
     "held fast", "let go", "out of reach", "not out", "fell", "out of
     time"), in how long, how far the hand went, where it ended up from
     where it began (believed world frame, m), the way it was going at the
-    end (`direction`) and the hardest it pulled (`force`, N)."""
+    end (`direction`) and the hardest it pulled (`force`, N). A pull or a
+    carry that drags the body's own feet stops ("feet moved")."""
 
   @property
   @abc.abstractmethod

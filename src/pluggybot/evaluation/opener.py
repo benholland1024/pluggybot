@@ -13,7 +13,8 @@ find for itself:
     fingers tilted down onto it (`TILTS_DEG`) and the jaws closing across
     it: the turn #507's demo found (`humanoid_spike.demo_scene`);
   - a lid lifts UP, and comes down the way it went up;
-  - how hard and how far to pull (`PULLS`), and how fast to lower (`DOWN_M_S`).
+  - how hard and how far to pull (`PULLS`, `LIFT_M`), and when the lid is
+    open enough (`RISE_TARGET`).
 
 THE STEPS (`opener`), from the robot's senses alone:
   look    standing still, the knob's tag read `LOOKS` times
@@ -21,11 +22,13 @@ THE STEPS (`opener`), from the robot's senses alone:
           to it, shut, and the grip judged by the gripper's own word -- a
           grip that did not hold opened, withdrawn and tried at the next tilt
   pull    the compliant pull (`Body.pull_routine`), straight up, its way
-          turning to whatever the lid gives -- and again, harder, where the
-          lid held fast before it rose `RISE_M`
-  lower   the hand carried straight back down to where it gripped
-          (`Body.move_hand_routine`) at `DOWN_M_S`, pivoting round its
-          jaws as the handle swings
+          turning to whatever the lid gives -- and again, harder, where it
+          stopped short of `LIFT_M` before the knob rose `RISE_TARGET`
+  lower   the compliant pull again, straight down, its way turning back
+          along the lid's arc, until the hand is back near where it gripped
+          (`HOME_M`) or the lid sits on its stop and nothing gives -- and
+          again, while the hand is still above that: a straight carry back
+          ran out of the arm's reach across the arc's chord
   let go  the gripper opened and the hand withdrawn along its way in
 
 Its own word (what an attempt records as `own`): ok once the pull rose
@@ -50,15 +53,19 @@ STILL_S, LOOKS, APART_S = 1.0, 3, 0.1
 TILTS_DEG = (25.0, 15.0, 35.0, 45.0)
 #: Grips tried before it gives up.
 GRIPS = 2
-#: The pulls, in turn while the lid holds fast: the force limit, N, and the
-#: distance, m. Straight up.
-PULLS = ((20.0, 0.30), (35.0, 0.30))
-#: A pull that raised the hand this far, m, opened the lid: the knob's
-#: drop handle hangs 0.27 m from the lid's hinge, a pull that rose less
-#: lifted it less than 50 deg.
-RISE_M = 0.20
-#: The lowering's speed, m/s, and patience, s.
-DOWN_M_S, DOWN_PATIENCE_S = 0.06, 30.0
+#: The pulls, in turn while the lid holds fast or the pull stops short: the
+#: force limit, N. Straight up, the hand to go `LIFT_M` from where it
+#: gripped, m, at most.
+PULLS = (20.0, 35.0, 35.0)
+LIFT_M = 0.28
+#: The lift is done once the knob has risen this far, m; it opened the lid
+#: (its own word) once it rose `RISE_M`: the knob's drop handle hangs 0.27
+#: m from the lid's hinge, and a rise of 0.21 m lifted a lid 54-57 deg, 0.23
+#: m 60 deg (the reference's flights at the lowered counter).
+RISE_TARGET, RISE_M = 0.25, 0.23
+#: The lowering: its force limit, N, at most this many pulls, and back
+#: where it gripped once the hand is within this of its height, m.
+DOWN_N, DOWNS, HOME_M = 15.0, 3, 0.03
 #: The pull's speed, m/s.
 UP_M_S = 0.06
 
@@ -131,22 +138,30 @@ def opener(body) -> Routine:
     return {"ok": False, "why": "never held the knob", **log}
   start = np.asarray(body.hand_at(side), dtype=float)
   rise = 0.0
-  for limit, distance in PULLS:
-    got = yield from body.pull_routine(side, (0.0, 0.0, 1.0), limit, distance,
-                                       stiffness=1.0, speed=UP_M_S)
+  for limit in PULLS:
+    gone = float(np.linalg.norm(np.asarray(body.hand_at(side)) - start))
+    got = yield from body.pull_routine(side, (0.0, 0.0, 1.0), limit,
+                                       max(0.02, LIFT_M - gone), stiffness=1.0, speed=UP_M_S)
     log.setdefault("pulls", []).append(got)
     rise = float(np.asarray(body.hand_at(side))[2] - start[2])
-    if rise >= RISE_M or got["why"] in ("let go", "fell"):
+    if rise >= RISE_TARGET or got["why"] in ("distance", "let go", "fell", "feet moved"):
       break
-  down = yield from body.move_hand_routine(side, start, stiffness=1.0, speed=DOWN_M_S,
-                                           patience=DOWN_PATIENCE_S)
-  log["down"] = down
+  above = rise
+  for _ in range(DOWNS):
+    if above <= HOME_M:
+      break
+    got = yield from body.pull_routine(side, (0.0, 0.0, -1.0), DOWN_N, above + HOME_M,
+                                       stiffness=1.0, speed=UP_M_S)
+    log.setdefault("downs", []).append(got)
+    above = float(np.asarray(body.hand_at(side))[2] - start[2])
+    if got["why"] in ("let go", "fell"):
+      break
   still_held = body.gripped(side)
   yield from body.grip_routine(side, False)
   yield from body.release_routine(side)
-  ok = rise >= RISE_M and down["why"] == "arrived" and still_held
+  ok = rise >= RISE_M and above <= HOME_M and still_held
   why = (f"lifted the knob {rise:.2f} m and lowered it back" if ok
          else f"the pull rose {rise:.2f} m ({log['pulls'][-1]['why']})" if rise < RISE_M
-         else f"lowering ended {down['why']}" if down["why"] != "arrived"
+         else f"lowering ended {above:.2f} m above where it gripped" if above > HOME_M
          else "the knob left the jaws on the way down")
   return {"ok": ok, "why": why, "rise": round(rise, 4), **log}

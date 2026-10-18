@@ -95,8 +95,11 @@ HOLD_SPEED = 0.06
 #: rate, m/s, to this at most.
 LEAD_M, LEAD_RATE, LEAD_MAX = 0.02, 0.02, 0.08
 #: Its direction turns toward the way the hand goes at this rate, 1/s,
-#: while the hand goes faster than this, m/s (over `MOTION_S`).
-FOLLOW_RATE, FOLLOW_V = 2.0, 0.01
+#: while the hand goes faster than this, m/s (over `MOTION_S`), and never
+#: more than this from the way it was asked, deg: a lid's arc turns its way
+#: by the lid's angle, and a pull up that followed a drop handle's swing
+#: toward the robot turned 96 deg and pulled the robot to the counter.
+FOLLOW_RATE, FOLLOW_V, FOLLOW_CONE_DEG = 2.0, 0.01, 80.0
 #: Nothing gives while the hand goes slower than this, m/s; held there this
 #: long, s, at the lead's most, what it pulls is held fast.
 STALL_V, STALL_S = 0.005, 1.0
@@ -111,9 +114,13 @@ MOTION_S = 0.4
 #: takes a posture that reaches it, planned at most once this often, s
 #: (`posture_for` is a fraction of a second of the processor's).
 REPLAN_M, REPLAN_S = 0.015, 1.0
+#: A carried or pulled hand's solve that misses its command by this, m, has
+#: diverged and is never commanded; and a move is given this long, s, to
+#: begin before a miss can end it.
+WILD_M, SETTLE_S = 0.06, 0.3
 #: A pull's force limit is read off the hand's force filtered this much a
 #: command (the reading scatters 8 N about the truth while the arm moves),
-#: and over it this long, s.
+#: and over it this long, s, nothing giving.
 FORCE_SMOOTH, OVER_S = 0.2, 0.2
 
 #: The postures a reach may take, in the order they are tried -- the least
@@ -392,7 +399,7 @@ class Reach:
     self.cmd[side] = HandGoal(h.copy(), r.copy(), k)
     self.goal[side] = HandGoal(end, r.copy(), k)
     self.pinch[side], self.speed[side], self._off[side] = pinch, float(speed), 0.0
-    self.pulls[side] = {"start": h.copy(), "t": 0.0}
+    self.pulls[side] = {"start": h.copy(), "t": 0.0, "jaws": r[:, 0].copy()}
     self.report[side] = None
     self.phase[side] = "carry"
     return True
@@ -426,7 +433,7 @@ class Reach:
     self.goal[side] = HandGoal(h + LEAD_M * d, r.copy(), k)
     self.pinch[side], self.speed[side], self._off[side] = pinch, float(speed), 0.0
     self.pulls[side] = {
-      "start": h.copy(), "d": d.copy(), "asked": d.copy(), "lead": LEAD_M,
+      "start": h.copy(), "jaws": r[:, 0].copy(), "d": d.copy(), "asked": d.copy(), "lead": LEAD_M,
       "last": h.copy(), "h": h.copy(), "v": np.zeros(3), "moved": 0.0, "peak": 0.0,
       "stall": 0.0, "slip": 0.0, "t": 0.0, "limit": float(limit_n),
       "distance": float(distance_m), "patience": float(patience_s)}
@@ -603,10 +610,13 @@ class Reach:
 
   def _held(self, side: str, dt: float, h: np.ndarray, r: np.ndarray) -> float:
     """One command of a hand carried or pulled (`carry`, `pull`), `h` and
-    `r` where its grip IS by its senses; its stiffness. ⚠ A SOLVE THAT
-    MISSES IS NEVER COMMANDED: the arm keeps its last, and held past
-    `BLOCKED_S` the move ends where the hand is (`out of reach`) -- a miss
-    of 10-15 cm commanded swung an arm round a chest's knob and out of it."""
+    `r` where its grip IS by its senses; its stiffness. Its solve is
+    commanded as the reach's always is, near as the arm comes -- ⚠ BUT NEVER
+    ONE THAT DIVERGED (`WILD_M`: a miss of 10-15 cm commanded swung an arm
+    round a chest's knob and out of it) -- and a miss past `BLOCKED_M` held
+    `BLOCKED_S` ends the move where the hand is (`out of reach`), once the
+    move has had `SETTLE_S` to begin: a pull stopped at the arm's stretch
+    starts the next where its solve cannot quite put it."""
     st = self.pulls[side]
     st["t"] += dt
     # how far it went: from where it began -- a path summed off the drivers'
@@ -616,7 +626,11 @@ class Reach:
       return self.cmd[side].stiffness
     there = self._line(side, dt)
     c, sm = self.cmd[side], self.self_model
-    jaws = c.rot[:, 0] if self.pinch[side] else None
+    # ⚠ THE JAWS' LINE IS THE ONE THE MOVE BEGAN WITH, never the last
+    # command's: held off each command's solve, the solves' small misses
+    # compounded and the hand rolled 85 deg round a chest's knob in a lift,
+    # turning it to its diagonal in the jaws and out of them (#493)
+    jaws = st["jaws"] if self.pinch[side] else None
     if jaws is not None:
       q, ep, er, turned = sm.solve_pinch(side, c.pos, jaws)
     else:
@@ -629,17 +643,19 @@ class Reach:
       if posture is not None and tuple(posture) != tuple(self.posture):
         self.hold_posture(*posture)
         st["postured"] = st["t"]
+    if ep < WILD_M:
+      if turned is not None:
+        c.rot, self.goal[side].rot = turned.copy(), turned.copy()
+      self.q_cmd[side], self.miss[side] = q, ep
     if ep > BLOCKED_M or er > REACH_ROT_TOL:
       # ...given a posture it took the time to come before it is out of reach
-      coming = st["t"] - st.get("postured", -POSTURE_WAIT_S) < POSTURE_WAIT_S
+      coming = (st["t"] < SETTLE_S
+                or st["t"] - st.get("postured", -POSTURE_WAIT_S) < POSTURE_WAIT_S)
       self._off[side] = 0.0 if coming else self._off[side] + dt
       if self._off[side] >= BLOCKED_S:
         self._end(side, "out of reach", h, r)
       return c.stiffness
     self._off[side] = 0.0
-    if turned is not None:
-      c.rot, self.goal[side].rot = turned.copy(), turned.copy()
-    self.q_cmd[side], self.miss[side] = q, ep
     if there and self.phase[side] == "carry":
       self._end(side, "arrived", h, r, at_goal=True)
     return c.stiffness
@@ -657,16 +673,30 @@ class Reach:
     v = (trail[-1] - trail[0]) / (dt * max(1, len(trail) - 1))
     speed = float(np.linalg.norm(v))
     d = st["d"]
-    if speed > FOLLOW_V:
+    if speed > FOLLOW_V and st["t"] >= SETTLE_S:
+      # what the hand does while its arm settles into the pull is the arm's,
+      # never the way the thing gives: followed, it turned a pull down off
+      # a stretched arm 23 deg sideways in 0.4 s
       d = d + FOLLOW_RATE * dt * (v / speed - d)
-      d = st["d"] = d / float(np.linalg.norm(d))
+      d = d / float(np.linalg.norm(d))
+      # ...and the way never turns past `FOLLOW_CONE_DEG` from the way asked
+      a = st["asked"]
+      cos = float(d @ a)
+      if cos < math.cos(math.radians(FOLLOW_CONE_DEG)):
+        side_ = d - cos * a
+        side_ = side_ / max(float(np.linalg.norm(side_)), 1e-9)
+        c_, s_ = math.cos(math.radians(FOLLOW_CONE_DEG)), math.sin(math.radians(FOLLOW_CONE_DEG))
+        d = c_ * a + s_ * side_
+      st["d"] = d
     f = st["f"] = (1.0 - FORCE_SMOOTH) * st.get("f", self.force[side]) + FORCE_SMOOTH * self.force[side]
     pull = float(np.linalg.norm(f))
     st["peak"] = max(st["peak"], pull)
     st["stall"] = st["stall"] + dt if speed < STALL_V and len(trail) > n else 0.0
     if st["stall"] > 0.0:
       st["lead"] = min(LEAD_MAX, st["lead"] + LEAD_RATE * dt)
-    st["over"] = st.get("over", 0.0) + dt if pull >= st["limit"] else 0.0
+    # a force past the limit stops the pull only while nothing gives: read
+    # off an arm stretched and moving it scattered 20-30 N about a lid's few
+    st["over"] = st.get("over", 0.0) + dt if pull >= st["limit"] and st["stall"] > 0.0 else 0.0
     held = self.grippers[side].held()
     st["slip"] = 0.0 if held or not self.pinch[side] else st["slip"] + dt
     why = ("distance" if st["moved"] >= st["distance"]

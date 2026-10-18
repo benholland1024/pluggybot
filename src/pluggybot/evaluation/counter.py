@@ -30,19 +30,23 @@ HOME_XML = "models/home_world.xml"
 #: Where the humanoid starts: the storeroom, empty (`home.world`'s x 22-28,
 #: y -6-0), facing +x, as #466's probe did.
 START = (24.0, -3.0)
-#: The counter: its top a counter's height, m (#507's demos are at a
-#: counter's height, 0.94 m; a kitchen's is 0.90-0.94), its depth and its
-#: width, and how far its front edge stands ahead of the robot's soles.
-COUNTER_H, COUNTER_D, COUNTER_W = 0.90, 0.60, 1.20
+#: The counter: its top's height, m, its depth and its width. A table's
+#: height for a 1.4 m body (#493, Ben): at a kitchen's 0.90 the chest's lid
+#: carried its knob 0.52 m ahead and 1.21 m up by the grader's 57 deg -- the
+#: arm's full stretch, however the hand and the handle turned together --
+#: and 62 deg was out of every set-out's reach (`humanoid_spike.py
+#: --opening`).
+COUNTER_H, COUNTER_D, COUNTER_W = 0.72, 0.60, 1.20
 #: A set-out draws: the knob's plumb place this far ahead of the soles'
 #: middle and this far to its left (in front of the left shoulder, which
 #: hangs 0.18 m out), and the chest turned this far off square (m, rad).
 #: ⚠ The knob then swings back under its bracket (0.57 rad on its pin), 2-3
-#: cm further. Drawn 0.42-0.50 m it hung where a crouch's arm met the
-#: counter; hanging under 0.37 m, at 0.99 m up, no grip its arm holds folds
-#: the hand back that near (two set-outs of ten drawn from 0.34).
-KNOB_AHEAD = (0.37, 0.43)
-KNOB_LEFT = (0.12, 0.24)
+#: cm further. Its reach's bounds (#493): further, the lid's arc leaves the
+#: arm; nearer, no grip folds the hand back onto the shut knob; and 0.12 m
+#: left, the left shoulder's roll at its stop, the arm could not move its
+#: hand 3 cm toward the body's middle.
+KNOB_AHEAD = (0.33, 0.37)
+KNOB_LEFT = (0.16, 0.24)
 TURNED = math.radians(12.0)
 #: The chest's front this far back from the counter's edge, at least, m:
 #: its knob hangs 0.10 m in front of its front, over the counter's top.

@@ -47,6 +47,11 @@ GRIP_S = 0.6
 #: at `GRIP_S` alone the grip said NOT HELD in 7 of 24 set-outs where the
 #: pads held the knob 2 s later (#493).
 GRIP_SETTLE_S, GRIP_READ_S = 1.5, 0.1
+#: A hand's carry or pull stops once the body's own odometry puts its
+#: stance this far from where it began, m: a pull toward the robot dragged
+#: it 0.3 m to the counter, its standing policy stepping under the arm
+#: (#493).
+FEET_MOVED_M = 0.05
 #: What the humanoid does not do yet answers.
 NOT_HERE = "not on the humanoid yet: the quadruped's world (its dock, rack and tools)"
 
@@ -417,12 +422,18 @@ class HumanoidBody(Body):
 
   def _held_routine(self, side, patience):
     """Wait out a hand's carry or pull: what it reported, or why it was cut
-    short -- a fall (which lets go of the arms), or `patience`."""
+    short -- a fall (which lets go of the arms), its own feet moved
+    (`FEET_MOVED_M`), or `patience`."""
     falls = self.mission.falls
+    x0, y0, _ = self.stance
     for _ in range(int(round(patience / self._m.opt.timestep))):
       if self.mission.falls != falls:
         return {"why": "fell", "seconds": 0.0, "moved": 0.0, "dx": 0.0, "dy": 0.0, "dz": 0.0}
       if self.reach.phase[side] not in ("carry", "yield"):
+        return self._report(self.reach.report[side])
+      x, y, _ = self.stance
+      if math.hypot(x - x0, y - y0) > FEET_MOVED_M:
+        self.reach.stop(side, "feet moved")
         return self._report(self.reach.report[side])
       yield STILL
     self.reach.stop(side, "out of time")
