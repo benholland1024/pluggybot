@@ -13,6 +13,7 @@ point it senses or is sent to goes between the world's frame and its own:
 a tag its colour imager decodes, a hand's goal.
 """
 
+import itertools
 import math
 
 import mujoco
@@ -584,8 +585,10 @@ class HumanoidBody(Body):
       fitted = reach_.fit_way(trail)
       ahead = reach_.continue_way(fitted, h, reach_.FOLLOW_M if fitted["kind"] == "line"
                                   else max(left_m, 0.0) * 2.0 + reach_.FOLLOW_M)
-      # ...no further the way asked than it was asked
-      points = [q for q in ahead if float((q - start) @ d) <= distance_m] or ahead[:1]
+      # ...no further the way asked than it was asked, and none past the
+      # first that went further (a circle comes back down past its top)
+      points = list(itertools.takewhile(lambda q: float((q - start) @ d) <= distance_m,
+                                        ahead)) or ahead[:1]
       if not self.reach.carry(side, points[-1], stiffness, speed, path=points[:-1], give=True,
                               limit_n=limit_n):
         why = "out of reach"
