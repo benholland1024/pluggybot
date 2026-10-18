@@ -23,6 +23,11 @@ Two protocols (Evaluation.md §4):
                        after G chests (8)
   --kept FILE          KEPT: the held-out chests flown with what a record
                        kept (its kept.json), no practice first
+  --notes              KEPT: the robot also carries notes and a draft of its
+                       own from chest to chest (`Practice.carry`), written as
+                       each practice chest ends, pass or fail
+  --measure            the depth camera's `measure` beside the hands' verbs:
+                       sight beside feel, an arm of its own
   --early-stop         the chests stop once the bar is out of reach
                        (`evaluation.practice.out_of_reach`; Ben, 2026-10-18)
   --attempts N         tries a chest (default 5: the curve's S@1..S@5)
@@ -81,13 +86,15 @@ def fly(job: dict) -> list[dict]:
   from pluggybot.procedure.library import Library
   from pluggybot.procedure.steps import hand_facts
   k, pull, model, info, price = (job[n] for n in ("chest", "pull", "model", "info", "price"))
-  facts = hand_facts(pull=pull)
+  facts = hand_facts(pull=pull, measure=job["measure"])
   task = at.Task(chest=k, body="humanoid", mount="counter")
   mind = Practice(HFClient(timeout=READ_S, fetch=stream_fetch), model, facts, ep.job_for(task))
-  skill = f"{model} {'with' if pull else 'without'} the pull"
+  skill = (f"{model} {'with' if pull else 'without'} the pull"
+           + (", notes" if job["notes"] else "") + (", measure" if job["measure"] else ""))
   info = {**info, "skill": skill, "process": job["process"]}
   try:
     rows = ep.practice_on(k, mind, job["attempts"], library=Library(facts), kept=job["kept"],
+                          carried=job["carried"], write_notes=job["write_notes"],
                           picture=job["picture"], info=info)
   except Exception as e:
     traceback.print_exc()
@@ -95,7 +102,8 @@ def fly(job: dict) -> list[dict]:
              "process": job["process"], "skill": skill, "error": f"{type(e).__name__}: {e}",
              "run": {k_: info[k_] for k_ in ("commit", "dirty", "seed") if k_ in info}}]
   for r in rows:
-    r["run"] |= {"model": model, "pull": pull, "picture": job["picture"]}
+    r["run"] |= {"model": model, "pull": pull, "picture": job["picture"],
+                 "notes": job["notes"], "measure": job["measure"]}
     p = r["practice"]
     r["usd"] = (None if price is None
                 else round((p["tokensIn"] * price[0] + p["tokensOut"] * price[1]) / 1e6, 5))
@@ -139,6 +147,11 @@ def read(into: str) -> None:
           + ", ".join(f"{c}: {f}" for c, f in k["practice"]["firsts"]))
     for e in k["kept"]:
       print(f"  kept {e['name']}, passed chest {e['chest']} at its try {e['attempt']}")
+    carried = k["practice"].get("carried") or {}
+    if carried.get("notes") or carried.get("draft"):
+      print(f"  its notes at the end ({len(carried.get('notes', ''))} characters): "
+            + carried.get("notes", "").replace("\n", " ")[:400])
+      print(f"  its draft: {len(carried.get('draft', ''))} characters")
   stopped = Path(into) / "stopped.json"
   if stopped.exists():
     s = json.loads(stopped.read_text())
@@ -158,6 +171,8 @@ def main(argv=None) -> None:
   ap.add_argument("--give-up-after", type=int, default=ep.GIVE_UP_AFTER)
   ap.add_argument("--kept", default=None, metavar="FILE")
   ap.add_argument("--early-stop", action="store_true")
+  ap.add_argument("--notes", action="store_true")
+  ap.add_argument("--measure", action="store_true")
   ap.add_argument("--attempts", type=int, default=5)
   ap.add_argument("--pull", action="store_true")
   ap.add_argument("--model", default=os.environ.get("PLUGGY_MODEL", MODEL))
@@ -195,24 +210,29 @@ def main(argv=None) -> None:
         with open(out, "a") as f:
           f.write(json.dumps(r, default=str) + "\n")
 
-  def job(k, kept, process, extra=None):
+  def job(k, kept, process, carried=None, write_notes=False):
     return {"chest": k, "attempts": args.attempts, "pull": args.pull, "model": args.model,
-            "picture": not args.no_picture, "info": {**info, **(extra or {})}, "price": price,
-            "kept": kept, "process": process}
+            "picture": not args.no_picture, "info": dict(info), "price": price,
+            "kept": kept, "process": process, "carried": carried,
+            "write_notes": write_notes, "notes": args.notes, "measure": args.measure}
 
-  kept, process = [], "practice"
+  kept, process, carried = [], "practice", None
   with get_context("spawn").Pool(max(1, args.jobs), maxtasksperchild=1) as pool:
     if args.acquire or args.kept:
       process = "apply"
       if args.kept:
-        kept = json.loads(Path(args.kept).read_text())["kept"]
+        was = json.loads(Path(args.kept).read_text())
+        kept = was["kept"]
+        carried = (was.get("practice") or {}).get("carried") if args.notes else None
       else:
         public = {k: v for k, v in info.items() if k != "seed"}
 
-        def run_chest(k, kept_):
-          return pool.apply(fly, (job(k, kept_, "acquire") | {"info": public},))
+        def run_chest(k, kept_, carried_):
+          return pool.apply(fly, (job(k, kept_, "acquire", carried_ if args.notes else None,
+                                      write_notes=args.notes) | {"info": public},))
         kept, how = ep.acquire(run_chest, att.chests(args.acquire), args.until,
                                args.max_chests, args.give_up_after, write)
+        carried = how["carried"] if args.notes else None
         if args.into:
           (Path(args.into) / "kept.json").write_text(
             json.dumps({"kept": kept, "practice": how}, indent=1))
@@ -222,8 +242,8 @@ def main(argv=None) -> None:
           if args.into:
             read(args.into)
           return
-    stopped = ep.flown(pool.imap_unordered(fly, [job(k, kept, process) for k in ks]), len(ks),
-                       args.early_stop, write)
+    stopped = ep.flown(pool.imap_unordered(fly, [job(k, kept, process, carried) for k in ks]),
+                       len(ks), args.early_stop, write)
     if stopped is not None:
       print(f"STOPPED EARLY: {stopped}", flush=True)
       pool.terminate()

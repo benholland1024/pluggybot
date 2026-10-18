@@ -47,8 +47,10 @@ put. You do a job by writing a PROCEDURE -- a small program in the language
 below -- which your body then runs. Each try starts from the same place:
 you standing as you stand now, everything in front of you as it is now.
 When a try ends, the world grades the job, and you are shown how your
-procedure ran -- every verb it called and what that verb said, where it
-stopped, and its variables at the end -- and the grade. Then you write the
+procedure ran -- every verb it called and what that verb said, what your
+hand felt while each of its verbs ran (where its grip was, the force it
+pushed with, whether it held), where it stopped, and its variables at the
+end -- and the grade. Then you write the
 procedure again for the next try: the same, changed, or new. You have a
 few tries. The grade is the only judge of the job; what your procedure
 says of itself is not graded."""
@@ -133,14 +135,53 @@ def system_prompt(facts: WorldFacts) -> str:
   return "\n\n".join(text for _, text in system_sections(facts))
 
 
+#: What the robot carries to its next chest (#493, Ben, 2026-10-18: what a
+#: person takes from a failed attempt): its notes, at most this long --
+#: asked again once past it, then cut and said so -- and a draft procedure.
+NOTES_CHARS = 1500
+NOTES_ASK = """THIS BOX IS DONE: {how}. Your next box is another like it, and
+you will start it as you started this one, with nothing of this
+conversation but what you carry. Write what you will carry: "notes" -- what
+worked, what did not, what you would try next, at most {cap} characters,
+keeping what still holds from any notes you were given -- and "draft": the
+procedure you would start the next box from, the whole of it, or "" for
+none. A procedure that passed is in your library already."""
+
+
+NOTES_LONG = """Your notes are {n} characters, past the {cap} you may carry.
+Write them again, at most {cap}, the most useful first; the draft as
+before."""
+
+
+def notes_schema() -> dict:
+  return {"type": "object",
+          "properties": {"think": {"type": "string"}, "notes": {"type": "string"},
+                         "draft": {"type": "string"}},
+          "required": ["think", "notes", "draft"], "additionalProperties": False}
+
+
+def carried_text(carried: dict) -> str:
+  """What the robot is shown of what it carried from its last chest: its
+  own notes and its draft, both its own words."""
+  out = []
+  if carried.get("notes"):
+    out += ["YOUR NOTES, written after your last box:", "", carried["notes"].rstrip()]
+  if carried.get("draft"):
+    out += (["", ""] if out else []) + [
+      "YOUR DRAFT, the procedure you meant to start this box from (it never passed):",
+      "", carried["draft"].rstrip()]
+  return "\n".join(out)
+
+
 def answer_schema() -> dict:
   return {"type": "object",
           "properties": {"think": {"type": "string"}, "source": {"type": "string"}},
           "required": ["think", "source"], "additionalProperties": False}
 
 
-def extract(response) -> dict:
-  """A response's first text block as a JSON object; ValueError otherwise."""
+def extract(response, key: str = "source") -> dict:
+  """A response's first text block as a JSON object with `key` a string;
+  ValueError otherwise."""
   text = ""
   for block in getattr(response, "content", ()) or ():
     if getattr(block, "type", None) == "text":
@@ -153,8 +194,8 @@ def extract(response) -> dict:
     raw = json.loads(text)
   except json.JSONDecodeError as e:
     raise ValueError(f"the answer was not JSON: {text[:120]!r}") from e
-  if not isinstance(raw, dict) or not isinstance(raw.get("source"), str):
-    raise ValueError("the answer had no source")
+  if not isinstance(raw, dict) or not isinstance(raw.get(key), str):
+    raise ValueError(f"the answer had no {key}")
   return raw
 
 
@@ -215,12 +256,13 @@ class Practice:
     self.retry_wait_s, self.rate_wait_s = retry_wait_s, rate_wait_s
     self.messages: list[dict] = []
     self.turns: list[Turn] = []
-    self._last = None
+    self._last, self._notes = None, False
 
-  def _ask(self, kind: str, content, note: str = "") -> Turn:
+  def _ask(self, kind: str, content, note: str = "", notes: bool = False) -> Turn:
     """One answer to `content`, sent with `note` first where there is one
-    (the content is what a retry asks again)."""
-    self._last = content
+    (the content is what a retry asks again): a procedure, or with `notes`
+    what the robot carries to its next chest (`notes_schema`)."""
+    self._last, self._notes = content, notes
     self.messages.append({"role": "user", "content": _noted(content, note)})
     turn = Turn(kind=kind)
     t0 = time.monotonic()
@@ -228,7 +270,8 @@ class Practice:
       response = self.client.messages.create(
         model=self.model_id, max_tokens=self.max_tokens,
         system=[{"type": "text", "text": system_prompt(self.facts)}],
-        output_config={"format": {"type": "json_schema", "schema": answer_schema()}},
+        output_config={"format": {"type": "json_schema",
+                                  "schema": notes_schema() if notes else answer_schema()}},
         messages=list(self.messages))
       usage = getattr(response, "usage", None)
       turn.tokens = (int(getattr(usage, "input_tokens", 0) or 0),
@@ -236,7 +279,7 @@ class Practice:
       turn.provider = getattr(response, "provider", None)
       turn.wall_s = time.monotonic() - t0
       turn.cut = getattr(response, "stop_reason", None) == "max_tokens"
-      turn.answer = extract(response)
+      turn.answer = extract(response, "notes" if notes else "source")
     except Exception as e:                                # noqa: BLE001 -- said why
       turn.error = (f"cut off: its {self.max_tokens:,} tokens ran out before the answer "
                     "was written" if turn.cut else f"{type(e).__name__}: {e}")
@@ -245,10 +288,11 @@ class Practice:
       self.turns.append(turn)
       return turn
     self.messages.append({"role": "assistant", "content": json.dumps(turn.answer)})
-    try:
-      turn.procedure = lang.compile_procedure(turn.answer["source"], self.facts)
-    except Refused as e:
-      turn.refused = list(e.reasons)
+    if not notes:
+      try:
+        turn.procedure = lang.compile_procedure(turn.answer["source"], self.facts)
+      except Refused as e:
+        turn.refused = list(e.reasons)
     self.turns.append(turn)
     return turn
 
@@ -264,24 +308,28 @@ class Practice:
                          + "\n\nWrite it again, the whole procedure, every reason answered.")
       elif turn.cut and turn.error and retries < MAX_RETRIES and self._last is not None:
         retries += 1
-        turn = self._ask("retry", self._last, note=CUT_NOTE.format(tokens=self.max_tokens))
+        turn = self._ask("retry", self._last, note=CUT_NOTE.format(tokens=self.max_tokens),
+                         notes=self._notes)
       elif " 429" in turn.error and waits < RATE_WAITS and self._last is not None:
         waits += 1
         time.sleep(self.rate_wait_s * waits)
-        turn = self._ask("retry", self._last)
+        turn = self._ask("retry", self._last, notes=self._notes)
       elif turn.error and retries < MAX_RETRIES and self._last is not None:
         retries += 1
         time.sleep(self.retry_wait_s)
-        turn = self._ask("retry", self._last)
+        turn = self._ask("retry", self._last, notes=self._notes)
       else:
         return turn
 
-  def first(self, picture: bytes | None = None, kept=()) -> Turn:
-    """The first procedure: the job, the head camera's picture, and the
-    procedures the robot KEPT (`library_text`), where it has any."""
+  def first(self, picture: bytes | None = None, kept=(), carried: dict | None = None) -> Turn:
+    """The first procedure: the job, the head camera's picture, the
+    procedures the robot KEPT (`library_text`), and the notes and draft it
+    CARRIED from its last chest (`carried_text`), where it has any."""
     text = (f"THE JOB\n\n{self.job}\n\nThe picture is your head camera's, as you stand "
             "now. Write the procedure for your first try.") if picture is not None else \
       f"THE JOB\n\n{self.job}\n\nWrite the procedure for your first try."
+    if carried and (carried.get("notes") or carried.get("draft")):
+      text = f"{carried_text(carried)}\n\n{text}"
     if kept:
       text = f"{library_text(kept)}\n\n{text}"
     if picture is None:
@@ -291,6 +339,27 @@ class Practice:
       content = [image_part(self.backend, base64.b64encode(picture).decode("ascii")),
                  {"type": "text", "text": text}]
     return self._settled(self._ask("first", content))
+
+  def carry(self, passed_at: int | None) -> tuple[dict, Turn]:
+    """What the robot carries to its next chest, written as this one ends
+    (`NOTES_ASK`): {"notes", "draft"} -- the notes cut at `NOTES_CHARS`, and
+    said so -- and the answer's turn. Nothing where no answer came."""
+    how = (f"it passed on your try {passed_at}" if passed_at
+           else "none of your tries passed")
+    turn = self._settled(self._ask("notes", NOTES_ASK.format(how=how, cap=NOTES_CHARS),
+                                   notes=True))
+    if turn.answer is not None and len(str(turn.answer.get("notes") or "").strip()) > NOTES_CHARS:
+      # asked again once, as a refused source is: cut, a smoke run's notes
+      # lost their end -- what it meant to try next
+      again = self._settled(self._ask("notes", NOTES_LONG.format(
+        n=len(str(turn.answer["notes"]).strip()), cap=NOTES_CHARS), notes=True))
+      turn = again if again.answer is not None else turn
+    if turn.answer is None:
+      return {"notes": "", "draft": ""}, turn
+    notes = str(turn.answer.get("notes") or "").strip()
+    if len(notes) > NOTES_CHARS:
+      notes = notes[:NOTES_CHARS] + f" [cut at {NOTES_CHARS} characters]"
+    return {"notes": notes, "draft": str(turn.answer.get("draft") or "").strip()}, turn
 
   def after(self, report: str) -> Turn:
     """The next procedure, off how the last try went (`report_text`)."""
@@ -328,10 +397,15 @@ def report_text(n: int, ran: dict | None, verdict: dict, sim_s: float, cut: bool
     for step in ran.get("steps", [])[-40:]:
       word = "ok" if step.get("ok") else "FAILED"
       said = {k: v for k, v in step.items()
-              if k not in ("i", "verb", "line", "ok", "reason", "trace")}
+              if k not in ("i", "verb", "line", "ok", "reason", "trace", "felt")}
       lines.append(f"  line {step.get('line', '?')} {step.get('verb')}: {word}"
                    + (f" -- {step['reason']}" if step.get("reason") else "")
                    + (f" {json.dumps(said, default=str)}" if said else ""))
+      if step.get("felt"):
+        lines.append("    felt -- s: grip x y z, m | force it pushed with x y z, N | holding")
+        lines += [f"      {f['t']:.2f}: {f['at'][0]:.3f} {f['at'][1]:.3f} {f['at'][2]:.3f} | "
+                  f"{f['force'][0]:+.1f} {f['force'][1]:+.1f} {f['force'][2]:+.1f} | "
+                  f"{'yes' if f['held'] else 'no'}" for f in step["felt"]]
     if ran.get("locals"):
       lines.append("Its variables at the end: " + ", ".join(
         f"{k} = {v:g}" for k, v in ran["locals"].items()))

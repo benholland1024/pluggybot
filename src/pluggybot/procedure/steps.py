@@ -982,6 +982,98 @@ def _spot(life, args: dict) -> Routine:
   return {"ok": True, "tag": int(tag), "at": [round(v, 4) for v in (x, y, z)]}
 
 
+#: `measure` (issue #493, an arm of its own -- sight beside feel): how far
+#: round the point named its flat top is looked for, m. Under 0.35 m the
+#: far edge of a 0.26 m deep top was clipped; at 0.35 and 0.45 the four
+#: set-outs read their tops whole.
+MEASURE_NEAR_M = 0.45
+
+
+def _measure(life, args: dict) -> Routine:
+  """The flat top of what stands at (x, y), off the head's depth camera at
+  the part's own 848 x 480 (`Body.depth_cloud`): its height and where it
+  ends -- nearest and farthest ahead, leftmost and rightmost -- in the
+  stance frame, in `object.*`. ok when a flat top is seen. ⚠ OUR CODE'S
+  PERCEPTION, a stated prior (`perception.box`): the highest flat face
+  among the points round (x, y), and its edges."""
+  import numpy as np
+  from pluggybot.legs import probe as lp
+  from pluggybot.perception import box
+  x, y = float(args["x"]), float(args["y"])
+  cloud = yield from life.body.depth_cloud(lp.DEPTH_W, lp.DEPTH_H, lp.DEPTH_MIN_Z,
+                                           frames=lp.FRAMES, apart=lp.APART_S)
+  bx, by, yaw = life.body.stance
+  c, s_ = math.cos(yaw), math.sin(yaw)
+  pts = np.asarray(cloud, dtype=float).reshape(-1, 3)
+  dx, dy = pts[:, 0] - bx, pts[:, 1] - by
+  st = np.column_stack([c * dx + s_ * dy, -s_ * dx + c * dy, pts[:, 2]])
+  near = st[np.hypot(st[:, 0] - x, st[:, 1] - y) < MEASURE_NEAR_M]
+  top = box.top_height(near) if len(near) else None
+  on = near[box.on_top(near, top)] if top is not None else near[:0]
+  ends = ([box.edge(on[:, 0], far=False), box.edge(on[:, 0], far=True),
+           box.edge(on[:, 1], far=True), box.edge(on[:, 1], far=False)]
+          if len(on) else [None] * 4)
+  if top is None or None in ends:
+    _reports(life).pop("measure", None)
+    return {"ok": False, "reason": f"no flat top seen round ({x:g}, {y:g}) from where you stand"}
+  got = dict(zip(("near", "far", "left", "right"), ends), top=top)
+  _reports(life)["measure"] = got
+  return {"ok": True, **{k: round(v, 3) for k, v in got.items()}}
+
+
+#: What a hand's verb FELT (issue #493, opening by feel): the robot's own
+#: senses of that hand -- where its grip is, the force at it, whether it
+#: holds -- read this often while the verb runs, sim s, and at its end; at
+#: most `FELT_MAX` of them kept a verb, evenly. Shown to the practice's
+#: mind under each verb: told only how a verb ended, a mind shut its jaws
+#: on nothing three tries running, and never learned which pull dropped a
+#: lid.
+FELT_EVERY_S, FELT_MAX = 0.25, 8
+
+
+def _sensed(life, hand: str, t0: float) -> dict:
+  from pluggybot.procedure import axes
+  at = axes.in_stance(life, life.body.hand_at(hand))
+  force = axes.in_stance(life, life.body.hand_force(hand), point=False)
+  return {"t": round(float(life.data.time) - t0, 2), "at": [round(float(v), 3) for v in at],
+          "force": [round(float(v), 1) for v in force], "held": bool(life.body.gripped(hand))}
+
+
+def _thinned(felt: list, n: int = FELT_MAX) -> list:
+  """At most `n` of `felt`, evenly, its first and last kept."""
+  if len(felt) <= n:
+    return felt
+  keep = sorted({round(i * (len(felt) - 1) / (n - 1)) for i in range(n)})
+  return [felt[i] for i in keep]
+
+
+def _felt_routine(life, hand: str, routine: Routine) -> Routine:
+  """`routine` driven as `yield from` would, `hand`'s own senses read as it
+  begins, every `FELT_EVERY_S` and as it ends: returns (what it returned,
+  what was felt, `_thinned`)."""
+  t0 = float(life.data.time)
+  felt = [_sensed(life, hand, t0)]
+  due = t0 + FELT_EVERY_S
+  sent, exc = None, None
+  while True:
+    try:
+      cmd = routine.throw(exc) if exc is not None else routine.send(sent)
+    except StopIteration as stop:
+      felt.append(_sensed(life, hand, t0))
+      return stop.value, _thinned(felt)
+    exc = None
+    if float(life.data.time) >= due:
+      felt.append(_sensed(life, hand, t0))
+      due = float(life.data.time) + FELT_EVERY_S
+    try:
+      sent = yield cmd
+    except GeneratorExit:
+      routine.close()
+      raise
+    except BaseException as e:  # noqa: BLE001 -- thrown into the routine, as `yield from` would
+      exc, sent = e, None
+
+
 #: What a `reach` that did not get there says, by the body's why.
 REACH_WHY = {"out of reach": "no posture you hold puts your {hand} hand there",
              "stopped short": "your {hand} hand stopped short on its way: out of reach from "
@@ -1000,11 +1092,11 @@ def _reach(life, args: dict) -> Routine:
   if bad:
     return {"ok": False, "reason": bad}
   place = _hand_place(life, args)
-  ok = yield from life.body.reach_routine(hand, place, rot,
-                                          stiffness=float(args.get("stiffness", _STIFF.default)),
-                                          patience=REACH_PATIENCE_S)
+  ok, felt = yield from _felt_routine(life, hand, life.body.reach_routine(
+    hand, place, rot, stiffness=float(args.get("stiffness", _STIFF.default)),
+    patience=REACH_PATIENCE_S))
   if ok:
-    return {"ok": True, "hand": hand}
+    return {"ok": True, "hand": hand, "felt": felt}
   why = life.body.hand_why(hand)
   reason = REACH_WHY.get(why, "your {hand} hand did not get there").format(hand=hand)
   other = {"left": "right", "right": "left"}.get(hand)
@@ -1014,7 +1106,7 @@ def _reach(life, args: dict) -> Routine:
     reason += (f"; your {other} hand could reach it as asked"
                if life.body.hand_reaches(other, place, rot)
                else f"; nor could your {other} hand, as asked")
-  return {"ok": False, "hand": hand, "why": why, "reason": reason}
+  return {"ok": False, "hand": hand, "why": why, "reason": reason, "felt": felt}
 
 
 #: What a `move_hand` that did not arrive says, by its report's why.
@@ -1041,11 +1133,10 @@ def _move_hand(life, args: dict) -> Routine:
   """A hand that is out carried along a straight line to (x, y, z) at
   `speed`, m/s, its turn kept, at `stiffness`. ok when it arrives."""
   hand = args["hand"]
-  rep = yield from life.body.move_hand_routine(hand, _hand_place(life, args),
-                                               stiffness=float(args.get("stiffness", _STIFF.default)),
-                                               speed=float(args.get("speed", _SPEED.default)),
-                                               patience=HAND_PATIENCE_S)
-  out = {"hand": hand, **_hand_report(life, hand, rep)}
+  rep, felt = yield from _felt_routine(life, hand, life.body.move_hand_routine(
+    hand, _hand_place(life, args), stiffness=float(args.get("stiffness", _STIFF.default)),
+    speed=float(args.get("speed", _SPEED.default)), patience=HAND_PATIENCE_S))
+  out = {"hand": hand, **_hand_report(life, hand, rep), "felt": felt}
   if rep.get("why") == "arrived":
     return {"ok": True, **out}
   return {"ok": False, **out,
@@ -1066,12 +1157,12 @@ def _pull(life, args: dict) -> Routine:
   d = (float(args["dx"]), float(args["dy"]), float(args["dz"]))
   if math.sqrt(sum(v * v for v in d)) == 0.0:
     return {"ok": False, "reason": "give the pull a way: (dx, dy, dz) are all 0"}
-  rep = yield from life.body.pull_routine(hand, axes.from_stance(life, d, point=False),
-                                          float(args["force"]), float(args["distance"]),
-                                          stiffness=float(args.get("stiffness", _SOFT.default)),
-                                          speed=float(args.get("speed", _SPEED.default)),
-                                          patience=HAND_PATIENCE_S)
-  out = {"hand": hand, **_hand_report(life, hand, rep), "force": rep.get("force")}
+  rep, felt = yield from _felt_routine(life, hand, life.body.pull_routine(
+    hand, axes.from_stance(life, d, point=False), float(args["force"]),
+    float(args["distance"]), stiffness=float(args.get("stiffness", _SOFT.default)),
+    speed=float(args.get("speed", _SPEED.default)), patience=HAND_PATIENCE_S))
+  out = {"hand": hand, **_hand_report(life, hand, rep), "force": rep.get("force"),
+         "felt": felt}
   if rep.get("why") in ("not out", "fell"):
     return {"ok": False, **out,
             "reason": MOVE_WHY.get(rep["why"], "the pull did not begin").format(hand=hand)}
@@ -1084,21 +1175,21 @@ def _pull(life, args: dict) -> Routine:
 
 def _close_hand(life, args: dict) -> Routine:
   hand = args["hand"]
-  held = yield from life.body.grip_routine(hand, True)
-  return {"ok": bool(held), "hand": hand,
+  held, felt = yield from _felt_routine(life, hand, life.body.grip_routine(hand, True))
+  return {"ok": bool(held), "hand": hand, "felt": felt,
           **({} if held else {"reason": f"your {hand} gripper closed on nothing it holds"})}
 
 
 def _open_hand(life, args: dict) -> Routine:
   hand = args["hand"]
-  yield from life.body.grip_routine(hand, False)
-  return {"ok": True, "hand": hand}
+  _, felt = yield from _felt_routine(life, hand, life.body.grip_routine(hand, False))
+  return {"ok": True, "hand": hand, "felt": felt}
 
 
 def _withdraw(life, args: dict) -> Routine:
   hand = args["hand"]
-  yield from life.body.release_routine(hand)
-  return {"ok": True, "hand": hand}
+  _, felt = yield from _felt_routine(life, hand, life.body.release_routine(hand))
+  return {"ok": True, "hand": hand, "felt": felt}
 
 
 _HAND = Arg("str", choices="hands")
@@ -1191,6 +1282,10 @@ VERBS: dict[str, Verb] = {
 #: `VERBS` these would have refused a served robot's kept procedure that
 #: names a local `reach` or `pull`.
 HANDS_VERBS: dict[str, Verb] = {
+  "measure": Verb("measure", {"x": Arg("float", lo=0.0, hi=3.0), "y": Arg("float", lo=-2.0, hi=2.0)},
+                  _measure, "look with your depth camera at what stands at (x, y): the height of "
+                  "its flat top and where that top ends -- nearest and farthest ahead, leftmost "
+                  "and rightmost -- ride `object.*`; ok when a flat top is seen"),
   "spot": Verb("spot", {"tag": Arg("float", lo=0.0, hi=586.0)}, _spot,
                "stand still and look for this tag in your head camera; ok when you see it. "
                "Where its face is and which way it looks ride `spot.*`"),
@@ -1232,6 +1327,8 @@ HANDS_VERBS: dict[str, Verb] = {
 #: position-only moves -- and stage 3's compliant pull beside it.
 HAND_VERBS = ("spot", "reach", "move_hand", "close_hand", "open_hand", "withdraw")
 PULL_VERBS = ("pull",)
+#: ...and `measure`, the arm with sight beside feel.
+MEASURE_VERBS = ("measure",)
 
 
 def language(facts: "WorldFacts | None") -> dict[str, Verb]:
@@ -1245,15 +1342,18 @@ def language(facts: "WorldFacts | None") -> dict[str, Verb]:
   return {n: table[n] for n in named}
 
 
-def hand_facts(pull: bool = False) -> "WorldFacts":
+def hand_facts(pull: bool = False, measure: bool = False) -> "WorldFacts":
   """What a procedure on the humanoid's hands is validated against (issue
   #493): standing still and its arms' joints, its hands' verbs -- the
-  compliant `pull` with `pull` -- their sensors, and the clock."""
+  compliant `pull` with `pull`, the depth camera's `measure` with
+  `measure` -- their sensors, and the clock."""
   from pluggybot.procedure import axes
   return WorldFacts(boards=(), tools=(), bounds=(-1e3, -1e3, 1e3, 1e3), figures=(),
                     axes=axes.BODY_AXES["humanoid"],
-                    sensors=axes.HAND_SENSORS + (axes.PULL_SENSORS if pull else ()),
-                    verbs=("wait", "move") + HAND_VERBS + (PULL_VERBS if pull else ()),
+                    sensors=(axes.HAND_SENSORS + (axes.PULL_SENSORS if pull else ())
+                             + (axes.MEASURE_SENSORS if measure else ())),
+                    verbs=("wait", "move") + HAND_VERBS + (PULL_VERBS if pull else ())
+                    + (MEASURE_VERBS if measure else ()),
                     hands=axes.HANDS)
 
 

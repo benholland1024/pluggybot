@@ -1125,6 +1125,29 @@ the other hand could reach it as asked (its body's own plan,
 128,000 tokens, told to finish inside 64,000, and one cut off is asked
 again, saying so.
 
+**By feel, and by sight beside it** (Ben, 2026-10-18: the demo is the
+robot learning to open the chest BY FEEL; and what a person takes from an
+attempt that failed). Carrying only what passed, a robot learned nothing
+from chest to chest until its first pass, and each chest's first try
+repeated the last one's mistake; told only how each verb ended, a mind
+shut its jaws on nothing three tries running. So:
+- **what a hand felt**: every hand verb reads the robot's own senses of
+  that hand -- its grip's place, the force it pushes with, whether it
+  holds -- as it begins, every 0.25 s and as it ends (`steps._felt_routine`, at
+  most 8 kept a verb), and the mind is shown them under each verb;
+- **notes across chests** (`--notes`): as each practice chest ends, pass or
+  fail, the mind writes what it carries on -- its notes, at most 1,500
+  characters (asked again once past that, then cut and said so), and a
+  draft procedure
+  (`Practice.carry`) -- shown at the next chest's start beside what passed;
+  a held-out copy is frozen with them;
+- **sight beside feel** (`--measure`, an arm of its own): `measure(x, y)`,
+  the flat top of what stands there off the depth camera -- its height and
+  four edges (`steps._measure`, `perception.box`) -- our code's perception,
+  one of the subsidies `FLATTERS` names. ⚠ Given the top's edges, a mind
+  could plan the lid's arc as the reference does and pass without learning
+  anything by feel: never pooled with the arms without it.
+
 ## 5. What silently invalidates a number
 
 The list this document mostly exists for.

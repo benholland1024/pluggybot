@@ -145,9 +145,9 @@ def _bare():
   return m, d
 
 
-def _fly(source: str, body=None, pull: bool = True) -> dict:
+def _fly(source: str, body=None, pull: bool = True, measure: bool = False) -> dict:
   body = body or _stub()
-  facts = st.hand_facts(pull=pull)
+  facts = st.hand_facts(pull=pull, measure=measure)
   proc = lang.compile_procedure(source, facts)
   return body.run(lang.run_procedure_routine(_Life(body), proc, facts))
 
@@ -689,7 +689,7 @@ def test_the_practice_first_carries_only_what_passed_and_stops_once_it_holds():
   outcomes = {0: 4, 1: 1, 2: None, 3: 1, 4: 1, 5: 1, 6: 1}
   seen = []
 
-  def run_chest(k, kept):
+  def run_chest(k, kept, carried):
     seen.append((k, [c["name"] for c in kept]))
     return _chest(outcomes[k], name=f"p{k}")
   kept, how = ep.acquire(run_chest, range(7), until=3)
@@ -698,10 +698,10 @@ def test_the_practice_first_carries_only_what_passed_and_stops_once_it_holds():
   assert how["firsts"][2] == [2, None] and "3 chests running" in how["ended"]
   assert [c["name"] for c in kept] == ["p0", "p1", "p3", "p4", "p5"]
   # ...and gives up with nothing kept, flying no more
-  kept, how = ep.acquire(lambda k, kept: _chest(None), range(20), give_up_after=4)
+  kept, how = ep.acquire(lambda k, kept, carried: _chest(None), range(20), give_up_after=4)
   assert kept == [] and len(how["firsts"]) == 4 and "given up" in how["ended"]
   # ...and a chest whose practice raised is no pass
-  kept, how = ep.acquire(lambda k, kept: _chest(1, error=k == 1), range(4), until=3)
+  kept, how = ep.acquire(lambda k, kept, carried: _chest(1, error=k == 1), range(4), until=3)
   assert how["firsts"][1] == [1, None] and len(how["firsts"]) == 4
 
 
@@ -741,3 +741,172 @@ def test_a_hand_reaches_its_own_side_as_the_body_plans_it_nothing_moved():
     assert (body.reach.phase["left"], tuple(body.reach.posture)) == before
   finally:
     world.close()
+
+
+# ---- by feel and by sight: what a hand felt, and the depth camera's flat top -----
+
+
+def test_a_hand_verb_says_what_it_felt_and_the_report_shows_it():
+  """The robot's own senses of the hand while each of its verbs ran -- its
+  grip's place, the force, whether it holds -- first and last kept: told
+  only how a verb ended, a mind shut its jaws on nothing three tries
+  running (#493)."""
+  ran = _fly('def a():\n    reach("left", 0.3, 0.2, 0.9)\n    close_hand("left")\n')
+  reach, close = ran["steps"]
+  for step in (reach, close):
+    assert step["felt"][0]["t"] == 0.0 and len(step["felt"]) >= 2
+    assert set(step["felt"][0]) == {"t", "at", "force", "held"}
+  assert reach["felt"][-1]["at"] == pytest.approx([0.3, 0.2, 0.9])
+  assert not close["felt"][0]["held"] and close["felt"][-1]["held"]
+  text = mp.report_text(1, ran, {"ok": False, "reason": "no"}, 1.0, False, 1)
+  assert "felt -- s: grip x y z, m | force it pushed with x y z, N | holding" in text
+  assert "0.300 0.200 0.900 | +0.0 +0.0 +0.0 | yes" in text
+  assert '"felt"' not in text
+
+
+def test_felt_is_thinned_evenly_keeping_its_ends():
+  felt = [{"t": i} for i in range(20)]
+  kept = st._thinned(felt)
+  assert len(kept) == st.FELT_MAX and kept[0]["t"] == 0 and kept[-1]["t"] == 19
+  assert st._thinned(felt[:5]) == felt[:5]
+
+
+def test_what_is_felt_drives_its_routine_as_yield_from_would():
+  """A routine run under `_felt_routine` is sent, thrown into and closed as `yield
+  from` would: what the driver throws (a hook's `MissionAborted`) reaches
+  it, and its `finally` runs."""
+  ended = []
+
+  def routine():
+    try:
+      yield "a"
+      try:
+        yield "b"
+      except KeyError:
+        yield "caught"
+      return "done"
+    finally:
+      ended.append(True)
+  body = _stub()
+  life = _Life(body)
+  gen = st._felt_routine(life, "left", routine())
+  assert next(gen) == "a" and gen.send(None) == "b"
+  assert gen.throw(KeyError("x")) == "caught"
+  with pytest.raises(StopIteration) as stop:
+    gen.send(None)
+  assert stop.value.value[0] == "done" and ended == [True]
+  # ...closed, it closes the routine: held here, nothing else would
+  inner = routine()
+  gen = st._felt_routine(life, "left", inner)
+  next(gen)
+  gen.close()
+  assert ended == [True, True]
+
+
+class Seeing(StubBody):
+  """A stub whose depth camera sees a counter's top and, on it, a box's
+  flat top 0.25 m deep and 0.30 m wide (the believed world frame)."""
+
+  def depth_cloud(self, width, height, min_z, frames=1, apart=0.1):
+    yield from self._wait(frames * apart)
+    rng = np.random.default_rng(0)
+    counter = np.column_stack([rng.uniform(0.2, 1.2, 4000), rng.uniform(-0.6, 0.6, 4000),
+                               np.full(4000, 0.72)])
+    top = np.column_stack([rng.uniform(0.40, 0.65, 3000), rng.uniform(0.02, 0.32, 3000),
+                           np.full(3000, 0.87)])
+    cloud = np.vstack([counter, top])
+    x, y, yaw = self.pose
+    c, s = math.cos(yaw), math.sin(yaw)
+    return np.column_stack([x + c * cloud[:, 0] - s * cloud[:, 1],
+                            y + s * cloud[:, 0] + c * cloud[:, 1], cloud[:, 2]])
+
+
+def test_measure_reads_the_flat_top_at_a_point_and_its_edges_in_the_stance_frame():
+  """Sight beside feel (#493, its own arm): the highest flat face round the
+  point named -- never the wider counter under it -- and its four edges,
+  wherever the body stands and faces."""
+  for pose in ((0.0, 0.0, 0.0), (2.0, 1.0, math.pi / 2)):
+    body = Seeing(*_bare())
+    body.start_at(*pose)
+    ran = _fly('def a():\n    measure(0.36, 0.2)\n    t = read("object.top")\n'
+               '    n = read("object.near")\n    f = read("object.far")\n'
+               '    l = read("object.left")\n    r = read("object.right")\n', body, measure=True)
+    got = ran["locals"]
+    assert got["t"] == pytest.approx(0.87, abs=0.005)
+    assert (got["n"], got["f"]) == pytest.approx((0.40, 0.65), abs=0.01)
+    assert (got["l"], got["r"]) == pytest.approx((0.32, 0.02), abs=0.01)
+  ran = _fly('def a():\n    measure(2.5, 1.5)\n', Seeing(*_bare()), measure=True)
+  assert ran["steps"][-1]["reason"] == "no flat top seen round (2.5, 1.5) from where you stand"
+  assert "measure" not in st.hand_facts(pull=True).verbs
+  assert "object.top" not in st.hand_facts(pull=True).sensors
+
+
+class NotesMind(Mind):
+  """A mind that answers what it is asked for: a procedure, or what it
+  carries on (`notes_schema`)."""
+
+  def __init__(self, *sources, notes="use the left hand", draft="def d():\n    wait(1)\n"):
+    super().__init__(*sources)
+    self.notes = list(notes) if isinstance(notes, list) else [notes]
+    self.draft = draft
+
+  def create(self, **kw):
+    if "notes" in kw["output_config"]["format"]["schema"]["properties"]:
+      self.asked.append(kw)
+      notes = self.notes.pop(0) if len(self.notes) > 1 else self.notes[0]
+      text = json.dumps({"think": "done", "notes": notes, "draft": self.draft})
+      return NS(content=[NS(type="text", text=text)], usage=NS(input_tokens=50, output_tokens=20))
+    return super().create(**kw)
+
+
+def test_what_a_chest_ends_with_is_carried_and_shown_at_the_next():
+  """Ben, 2026-10-18: what a person takes from a failed attempt. The mind
+  writes its notes and a draft as a chest ends -- pass or fail -- its
+  answer's cost counted on the chest's last row; the next chest opens
+  with them."""
+  mind = NotesMind('def a():\n    wait(1)\n')
+  pr = mp.Practice(mind, "a-mind", st.hand_facts(), ep.JOB.format(limit=30))
+  rows = ep.practice_on(0, pr, 1, write_notes=True, picture=False, budget_s=30.0,
+                        build=lambda t: stub_world(t))
+  assert rows[-1]["carried"] == {"notes": "use the left hand", "draft": "def d():\n    wait(1)"}
+  asked = mind.asked[-1]["messages"][-1]["content"]
+  assert asked.startswith("THIS BOX IS DONE: none of your tries passed")
+  assert rows[-1]["practice"]["calls"] == 2 and rows[-1]["tokens"] == 140 + 70
+  # ...shown at the next chest's start, its own words
+  mind2 = NotesMind('def b():\n    wait(1)\n')
+  pr2 = mp.Practice(mind2, "a-mind", st.hand_facts(), ep.JOB.format(limit=30))
+  rows2 = ep.practice_on(1, pr2, 1, carried=rows[-1]["carried"], picture=False, budget_s=30.0,
+                         build=lambda t: stub_world(t))
+  first = mind2.asked[0]["messages"][0]["content"]
+  assert first.startswith("YOUR NOTES, written after your last box:\n\nuse the left hand")
+  assert "YOUR DRAFT" in first and "def d():" in first and rows2[0]["carriedIn"]
+  assert "carried" not in rows2[-1]
+  # ...notes past the cap are asked for again, shorter, once -- cut, a smoke
+  # run's lost what it meant to try next
+  over = "x" * (mp.NOTES_CHARS + 50)
+  again = NotesMind('def a():\n    wait(1)\n', notes=[over, "shorter"])
+  pr3 = mp.Practice(again, "a-mind", st.hand_facts(), ep.JOB.format(limit=30))
+  rows3 = ep.practice_on(0, pr3, 1, write_notes=True, picture=False, budget_s=30.0,
+                         build=lambda t: stub_world(t))
+  assert rows3[-1]["carried"]["notes"] == "shorter"
+  assert again.asked[-1]["messages"][-1]["content"].startswith(
+    f"Your notes are {len(over)} characters, past the {mp.NOTES_CHARS}")
+  # ...and still past it, cut, and said so
+  long = NotesMind('def a():\n    wait(1)\n', notes=over)
+  pr4 = mp.Practice(long, "a-mind", st.hand_facts(), ep.JOB.format(limit=30))
+  rows4 = ep.practice_on(0, pr4, 1, write_notes=True, picture=False, budget_s=30.0,
+                         build=lambda t: stub_world(t))
+  assert rows4[-1]["carried"]["notes"].endswith(f"[cut at {mp.NOTES_CHARS} characters]")
+
+
+def test_the_practice_first_carries_the_notes_from_chest_to_chest():
+  got = []
+
+  def run_chest(k, kept, carried):
+    got.append(dict(carried))
+    rows = _chest(None)
+    rows[-1]["carried"] = {"notes": f"after {k}", "draft": ""}
+    return rows
+  _, how = ep.acquire(run_chest, range(3), give_up_after=3)
+  assert [g["notes"] for g in got] == ["", "after 0", "after 1"]
+  assert how["carried"]["notes"] == "after 2"

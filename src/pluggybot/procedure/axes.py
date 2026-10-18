@@ -273,6 +273,16 @@ SENSORS["pull.moved"] = Sensor(
 SENSORS["pull.force"] = Sensor(
   "pull.force", lambda life: reported("pull", "force", life),
   "the hardest the last `pull` pulled, N")
+#: ...and what `measure` saw (#493, the arm with sight): a flat top's height
+#: and where it ends, the stance frame.
+MEASURE_SENSORS = tuple(f"object.{k}" for k in ("top", "near", "far", "left", "right"))
+for _k, _doc in (("top", "the height of the flat top `measure` last saw, m"),
+                 ("near", "how far ahead that top begins, m"),
+                 ("far", "how far ahead that top ends, m"),
+                 ("left", "how far to your left that top reaches, m"),
+                 ("right", "how far to your left its right edge is (negative: to your right), m")):
+  SENSORS[f"object.{_k}"] = Sensor(
+    f"object.{_k}", (lambda key: lambda life: reported("measure", key, life))(_k), _doc)
 for _k, _a in enumerate("xyz"):
   SENSORS[f"pull.d{_a}"] = Sensor(
     f"pull.d{_a}", (lambda key: lambda life: reported("pull", key, life))(f"d{_a}"),

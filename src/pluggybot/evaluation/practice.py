@@ -20,7 +20,8 @@ the next -- no library, no conversation -- so a chest's curve is its own
 robot's. KEPT (#493, Ben, 2026-10-18): one robot ACQUIRES on the public
 chests in turn, carrying only what passed (`keep`); then each held-out chest
 gets a copy of it, frozen, and the bar is read there. ⚠ A conversation
-never carries: a chest starts from the job, the picture and what was kept.
+never carries: a chest starts from the job, the picture, what was kept
+and, with notes, what the robot wrote to carry (`Practice.carry`).
 """
 
 from __future__ import annotations
@@ -138,15 +139,19 @@ def head_picture(task: at.Task) -> bytes:
 
 
 def practice_on(chest: int, practice, attempts: int = ATTEMPTS, *, library=None,
-                kept=(), picture: bool = True, budget_s: float | None = None,
+                kept=(), carried: dict | None = None, write_notes: bool = False,
+                picture: bool = True, budget_s: float | None = None,
                 info: dict | None = None, build=at.set_out) -> list[dict]:
   """One chest: the mind's procedure tried from the set-out, graded, and
   shown back (`mind.practice.report_text`), up to `attempts` times, ending
   at the first pass -- which `library` ADMITS on its sealed verdict
-  (`Library.admit`). `kept`, the procedures the robot carries (`keep`), are
-  shown with the job. Every attempt's row (`attempts.attempt`'s) carries
-  the procedure it ran, the answers it took and what they cost. `build`
-  makes a set-out (`attempts.attempt`'s: a test's own world)."""
+  (`Library.admit`). `kept`, the procedures the robot carries (`keep`), and
+  `carried`, its notes and draft, are shown with the job; with
+  `write_notes` the mind writes what it carries on as the chest ends
+  (`Practice.carry`), on the last row as `carried`, its answer's cost
+  counted there. Every attempt's row (`attempts.attempt`'s) carries the
+  procedure it ran, the answers it took and what they cost. `build` makes a
+  set-out (`attempts.attempt`'s: a test's own world)."""
   from pluggybot.mind.practice import report_text
   task = at.Task(chest=chest, body="humanoid", mount="counter")
   limit = task.limit_s if budget_s is None else float(budget_s)
@@ -157,7 +162,7 @@ def practice_on(chest: int, practice, attempts: int = ATTEMPTS, *, library=None,
   rows: list[dict] = []
   shown = head_picture(task) if picture else None
   since = 0
-  turn = practice.first(shown, kept=kept)
+  turn = practice.first(shown, kept=kept, carried=carried)
   for n in range(1, attempts + 1):
     spent = practice.spent(since)
     since = len(practice.turns)
@@ -170,6 +175,7 @@ def practice_on(chest: int, practice, attempts: int = ATTEMPTS, *, library=None,
                            "tokens": spent["tokensIn"] + spent["tokensOut"]})
     row["steps"] = out.get("steps")
     row["kept"] = [k["name"] for k in kept]
+    row["carriedIn"] = bool(carried and (carried.get("notes") or carried.get("draft")))
     row["practice"] = {**spent, "procedure": turn.procedure.name if turn.procedure else None,
                        "source": turn.procedure.source if turn.procedure else None,
                        "turns": [t.as_dict() for t in practice.turns[-spent["calls"]:]]
@@ -186,6 +192,15 @@ def practice_on(chest: int, practice, attempts: int = ATTEMPTS, *, library=None,
       break
     turn = practice.after(report_text(n, out.get("ran"), row["verdict"], row["simS"], row["cut"],
                                       attempts - n))
+  if write_notes and rows:
+    since = len(practice.turns)
+    rows[-1]["carried"], _ = practice.carry(first_pass(rows))
+    spent = practice.spent(since)
+    p = rows[-1]["practice"]
+    for k in ("tokensIn", "tokensOut", "calls", "llmWallS"):
+      p[k] = round(p[k] + spent[k], 1) if k == "llmWallS" else p[k] + spent[k]
+    p["turns"] += [t.as_dict() for t in practice.turns[since:]]
+    rows[-1]["tokens"] = (rows[-1].get("tokens") or 0) + spent["tokensIn"] + spent["tokensOut"]
   return rows
 
 
@@ -225,18 +240,23 @@ def chest_first(rows: list[dict]) -> int | None:
 def acquire(run_chest, chests, until: int = UNTIL, max_chests: int = MAX_CHESTS,
             give_up_after: int = GIVE_UP_AFTER, write=lambda rows: None) -> tuple[list, dict]:
   """KEPT's practice: `chests` in turn, ONE robot carrying what passed
-  (`keep`) -- `run_chest(k, kept)` flies chest k and returns its rows --
-  until `until` running pass at their first try or `max_chests` are
-  practiced, or nothing is kept after `give_up_after`. Returns what it kept
-  and how the practice went."""
+  (`keep`) and what it wrote to carry (its notes and draft, where it
+  writes any) -- `run_chest(k, kept, carried)` flies chest k and returns
+  its rows, the last with `carried` -- until `until` running pass at their
+  first try or `max_chests` are practiced, or nothing is kept after
+  `give_up_after`. Returns what it kept and how the practice went, with
+  what it carried at the end."""
   kept: list[dict] = []
+  carried: dict = {"notes": "", "draft": ""}
   firsts: list = []
   streak, ended = 0, "the chests ran out"
   for k in list(chests)[:max_chests]:
-    rows = run_chest(k, kept)
+    rows = run_chest(k, kept, carried)
     for r in rows:
       if r.get("admitted"):
         kept, r["dropped"] = keep(kept, r["admitted"], r["practice"]["source"], k, r["attempt"])
+    if rows and rows[-1].get("carried") is not None:
+      carried = rows[-1]["carried"]
     write(rows)
     firsts.append([k, chest_first(rows)])
     streak = streak + 1 if firsts[-1][1] == 1 else 0
@@ -248,7 +268,8 @@ def acquire(run_chest, chests, until: int = UNTIL, max_chests: int = MAX_CHESTS,
       break
     if len(firsts) == max_chests:
       ended = f"{max_chests} chests practiced"
-  return kept, {"firsts": firsts, "ended": ended, "until": until, "maxChests": max_chests}
+  return kept, {"firsts": firsts, "ended": ended, "until": until, "maxChests": max_chests,
+                "carried": carried}
 
 
 def flown(results, n: int, early_stop: bool, write=lambda rows: None) -> dict | None:
