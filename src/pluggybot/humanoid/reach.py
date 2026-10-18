@@ -19,11 +19,10 @@ wherever the hand gives, harder while nothing gives, until a force, a
 distance, or what holds it fast stops it (`pull`, the compliant pull).
 Either starts from where the hand IS, goes no faster than `HOLD_SPEED`,
 takes the least-bent posture that reaches (`posture_for`), and stops where
-the arm's own solve misses rather than command the miss. A hand whose
-gripper holds something PIVOTS: its jaws' line held, its turn about that
-line the arm's (`SelfModel.solve_pinch`) -- a handle that swings on its own
-pin, a drop handle's, takes the hand round with it, and a grip held stiff
-fought the lid it lifted out of the arm's reach.
+the arm's own solve misses rather than command the miss. Its turn is the
+one it is asked to keep -- a carry's path may turn it point by point --
+and never left free: a drop handle in a hand that pivoted swung round its
+pin under a push and buckled, and a lid lifted by it never rose.
 
 `Reach.step()` runs once a physics step, after the standing policy's and
 before `mj_step`; the arms take new commands every `EVERY_S`.
@@ -40,12 +39,6 @@ from pluggybot.humanoid.arms import (REACH_POS_TOL, REACH_ROT_TOL, Arm, Gripper,
                                      HandGoal, SelfModel, _rot_error)
 from pluggybot.humanoid.policy import HEIGHT_RANGE, PITCH_RANGE, StandDriver
 
-
-def rot_about(axis, angle: float) -> np.ndarray:
-  """The rotation by `angle` (rad) about the unit `axis` (Rodrigues)."""
-  a = np.asarray(axis, dtype=float) / np.linalg.norm(axis)
-  k = np.array([[0.0, -a[2], a[1]], [a[2], 0.0, -a[0]], [-a[1], a[0], 0.0]])
-  return np.eye(3) + math.sin(angle) * k + (1.0 - math.cos(angle)) * (k @ k)
 
 #: The arms' commands are refreshed this often, s: 100 Hz, inside the RS
 #: MIT mode's 1 kHz, and a trunk's sway between two is under a millimetre
@@ -356,11 +349,9 @@ class Reach:
     #: The force each hand pushes with, N, stance frame: its arm's
     #: currents through its model (`SelfModel.hand_force`).
     self.force = {s: np.zeros(3) for s in hm.SIDES}
-    #: How fast each hand's command goes along its line, m/s; whether it
-    #: pivots round its jaws' line (a held grip, `carry`/`pull`); a pull's
-    #: state; and how its last carry or pull ended (`report`).
+    #: How fast each hand's command goes along its line, m/s; a carry's or
+    #: a pull's state; and how its last carry or pull ended (`report`).
     self.speed = {s: HAND_SPEED for s in hm.SIDES}
-    self.pinch = {s: False for s in hm.SIDES}
     self.pulls: dict[str, dict | None] = {s: None for s in hm.SIDES}
     self.report: dict[str, dict | None] = {s: None for s in hm.SIDES}
     self._planner: SelfModel | None = None
@@ -386,7 +377,6 @@ class Reach:
     self.hold_posture(*posture)
     self._off[side] = 0.0
     self.speed[side] = HAND_SPEED
-    self.pinch[side] = False
     self.goal[side] = goal
     self.q_to[side] = q_pre
     self.phase[side] = "move"
@@ -409,12 +399,11 @@ class Reach:
       self._planner = SelfModel()
     return self._planner
 
-  def posture_for(self, side: str, pos, jaws=None, rot=None) -> tuple | None:
+  def posture_for(self, side: str, pos, rot=None) -> tuple | None:
     """The least-bent posture (`HOLD_POSTURES`) from which `side`'s grip reaches
-    `pos` -- its jaws along the line `jaws` (a pinch, its turn free), or
-    turned to `rot`, or at any turn -- on the robot's model of itself, a
-    statue's legs at each, the arm starting where it is and from `SEEDS`;
-    or None if none reaches it."""
+    `pos` -- turned to `rot`, or at any turn -- on the robot's model of
+    itself, a statue's legs at each, the arm starting where it is and from
+    `SEEDS`; or None if none reaches it."""
     sm = self._planner_model()
     q0 = np.array([hm.stand_qpos().get(n, 0.0) for n in hm.JOINT_NAMES])
     starts = [self.q_cmd[side]] + [seed(side, s_) for s_ in SEEDS]
@@ -426,17 +415,15 @@ class Reach:
       _posed(sm, height, pitch, q0)
       for start in starts:
         sm._set_arm(side, start)
-        if jaws is not None:
-          _, ep, er, _ = sm.solve_pinch(side, pos, jaws, iters=80)
-        else:
-          _, ep, er = sm.solve(side, pos, rot, iters=80)
+        _, ep, er = sm.solve(side, pos, rot, iters=80)
         if ep < REACH_POS_TOL and er < REACH_ROT_TOL:
           return (height, pitch)
     return None
 
   def path_for(self, side: str, poses, rot=None) -> tuple | None:
     """A posture (`HOLD_POSTURES`, the least bent first) from which `side`'s grip
-    FOLLOWS `poses` (stance frame) in turn at the turn `rot` -- the first
+    FOLLOWS `poses` (stance frame) in turn at the turn `rot` -- or at each
+    pose its own, where `rot` is a list -- the first
     solved from the seeds, each next ON from the last, as a moving arm must
     -- or None. Each point after the first is reached `PATH_MARGIN_M`
     further ahead too: on a statue, all of them; on the robot as it stands
@@ -447,6 +434,7 @@ class Reach:
     sm = self._planner_model()
     q0 = np.array([hm.stand_qpos().get(n, 0.0) for n in hm.JOINT_NAMES])
     poses = [np.asarray(p, dtype=float) for p in poses]
+    rots = list(rot) if isinstance(rot, (list, tuple)) else [rot] * len(poses)
     ahead = np.array([PATH_MARGIN_M, 0.0, 0.0])
     # a hand that is out goes on from the arm as it IS, its posture first:
     # the branch its grip left it in is the branch its path must follow
@@ -473,12 +461,12 @@ class Reach:
         _posed(sm, height, pitch, q0)
         if out:
           sm._set_arm(side, self.q_cmd[side])
-          q, ep, er = sm.solve(side, poses[0], rot, iters=80)
+          q, ep, er = sm.solve(side, poses[0], rots[0], iters=80)
         else:
-          q, ep, er = solve_seeded(sm, side, poses[0], rot)
+          q, ep, er = solve_seeded(sm, side, poses[0], rots[0])
       if ep >= PATH_POS_TOL or er >= HOLD_ROT_TOL:
         continue
-      for p in poses[1:]:
+      for p, r_ in zip(poses[1:], rots[1:]):
         if live:
           further = float(np.linalg.norm(p - shoulder)) > reach0
           target = p + ahead if further else p
@@ -487,7 +475,7 @@ class Reach:
           _posed(sm, height, pitch, q0, _arm(side, q))
           target = p + ahead
         sm._set_arm(side, q)
-        q, ep, er = sm.solve(side, target, rot, iters=80)
+        q, ep, er = sm.solve(side, target, r_, iters=80)
         if ep >= PATH_POS_TOL or er >= HOLD_ROT_TOL:
           break
       else:
@@ -495,13 +483,14 @@ class Reach:
     return None
 
   def carry(self, side: str, pos, stiffness: float | None = None,
-            speed: float = HOLD_SPEED, path=None) -> bool:
+            speed: float = HOLD_SPEED, path=None, turns=None) -> bool:
     """A hand that is out (`out`) carried from where it IS along a straight
-    line to `pos`, stance frame, at `speed`, its turn kept -- pivoting round
-    its jaws' line where its gripper holds something -- at `stiffness` (or
-    its goal's), the posture the least bent that reaches the end. False
-    (nothing moves) for a hand that is not out, or an end no posture
-    reaches. How it ends is its `report`."""
+    line to `pos`, stance frame, at `speed`, its turn kept, at `stiffness`
+    (or its goal's), the posture the least bent that reaches the end --
+    through `path`'s points first, from one posture that follows them all
+    (`path_for`), turning to `turns`' at each (one a point of `path` and
+    one at `pos`), where given. False (nothing moves) for a hand that is
+    not out, or an end no posture reaches. How it ends is its `report`."""
     if not self.out(side):
       return False
     h, r = self.grip_now(side)
@@ -510,15 +499,18 @@ class Reach:
     # put the path back down out of every posture's reach (#493)
     if self.cmd[side] is not None and self.cmd[side].rot is not None:
       r = np.asarray(self.cmd[side].rot, dtype=float)
-    pinch = False
     end = np.asarray(pos, dtype=float)
     ways = [np.asarray(p, dtype=float) for p in (path or ())]
-    if ways:
+    rots = ([np.asarray(t, dtype=float) for t in turns] if turns is not None
+            else [r] * (len(ways) + 1))
+    if len(rots) != len(ways) + 1:
+      raise ValueError(f"a turn for each of the path's {len(ways)} points and its end, "
+                       f"not {len(rots)}")
+    if ways or turns is not None:
       # a PATH: one posture that follows it all, its points walked in turn
-      posture = self.path_for(side, [h] + ways + [end], rot=r)
+      posture = self.path_for(side, [h] + ways + [end], rot=[r] + rots)
     else:
-      posture = self.posture_for(side, end, jaws=r[:, 0]) if pinch else \
-        self.posture_for(side, end, rot=r)
+      posture = self.posture_for(side, end, rot=r)
     if posture is None:
       self.report[side] = {"why": "out of reach", "shortM": float(np.linalg.norm(end - h)),
                            "moved": 0.0, "seconds": 0.0}
@@ -526,10 +518,11 @@ class Reach:
     k = self.goal[side].stiffness if stiffness is None else float(stiffness)
     self.hold_posture(*posture)
     self.cmd[side] = HandGoal(h.copy(), r.copy(), k)
-    self.goal[side] = HandGoal(ways[0] if ways else end, r.copy(), k)
-    self.pinch[side], self.speed[side], self._off[side] = pinch, float(speed), 0.0
-    self.pulls[side] = {"start": h.copy(), "t": 0.0, "jaws": r[:, 0].copy(),
-                        "ways": ways[1:] + [end] if ways else [], "fixed": bool(ways)}
+    self.goal[side] = HandGoal(ways[0] if ways else end, rots[0].copy(), k)
+    self.speed[side], self._off[side] = float(speed), 0.0
+    self.pulls[side] = {"start": h.copy(), "t": 0.0,
+                        "ways": list(zip(ways[1:] + [end], rots[1:])) if ways else [],
+                        "fixed": bool(ways)}
     self.report[side] = None
     self.phase[side] = "carry"
     return True
@@ -555,18 +548,16 @@ class Reach:
     h, r = self.grip_now(side)
     d = np.asarray(direction, dtype=float)
     d = d / max(float(np.linalg.norm(d)), 1e-9)
-    import os
-    pinch = self.grippers[side].held() and os.environ.get("PINCH", "1") == "1"
-    posture = self.posture_for(side, h + LEAD_M * d, jaws=r[:, 0]) if pinch else \
-      self.posture_for(side, h + LEAD_M * d, rot=r)
+    posture = self.posture_for(side, h + LEAD_M * d, rot=r)
     if posture is not None:
       self.hold_posture(*posture)
     k = self.goal[side].stiffness if stiffness is None else float(stiffness)
     self.cmd[side] = HandGoal(h.copy(), r.copy(), k)
     self.goal[side] = HandGoal(h + LEAD_M * d, r.copy(), k)
-    self.pinch[side], self.speed[side], self._off[side] = pinch, float(speed), 0.0
+    self.speed[side], self._off[side] = float(speed), 0.0
     self.pulls[side] = {
-      "start": h.copy(), "jaws": r[:, 0].copy(), "d": d.copy(), "asked": d.copy(), "lead": LEAD_M,
+      "start": h.copy(), "gripped": self.grippers[side].held(), "d": d.copy(),
+      "asked": d.copy(), "lead": LEAD_M,
       "last": h.copy(), "h": h.copy(), "v": np.zeros(3), "moved": 0.0, "peak": 0.0,
       "stall": 0.0, "slip": 0.0, "t": 0.0, "limit": float(limit_n),
       "distance": float(distance_m), "patience": float(patience_s)}
@@ -612,7 +603,7 @@ class Reach:
     with a low stiffness), its command walking there on its line -- a
     `pull`, which pushes on what it holds and so never stops for it."""
     self.goal[side].pos = np.asarray(pos, dtype=float)
-    self.speed[side], self.pinch[side] = HAND_SPEED, False
+    self.speed[side] = HAND_SPEED
     self.phase[side] = "pull"
 
   def retreat(self, side: str, approach: float = APPROACH_M) -> None:
@@ -621,7 +612,7 @@ class Reach:
     if self.goal[side] is None:
       return
     self.goal[side] = pregrasp(self.goal[side], approach)
-    self.speed[side], self.pinch[side] = HAND_SPEED, False
+    self.speed[side] = HAND_SPEED
     self.phase[side] = "retreat"
 
   def done(self, side: str) -> bool:
@@ -761,37 +752,17 @@ class Reach:
       return self.cmd[side].stiffness
     there = self._line(side, dt)
     c, sm = self.cmd[side], self.self_model
-    # ⚠ THE JAWS' LINE IS THE ONE THE MOVE BEGAN WITH, never the last
-    # command's: held off each command's solve, the solves' small misses
-    # compounded and the hand rolled 85 deg round a chest's knob in a lift,
-    # turning it to its diagonal in the jaws and out of them (#493)
-    jaws = st["jaws"] if self.pinch[side] else None
-    import os
-    if jaws is not None and os.environ.get("PINCH_MODE", "arm") == "free":
-      # the turn about the jaws' line is the knob's: the hand's actual turn,
-      # its jaws held on the line the move began with
-      x = r[:, 0] if r[:, 0] @ jaws >= 0.0 else -r[:, 0]
-      ax = np.cross(x, jaws)
-      sn = float(np.linalg.norm(ax))
-      fixed = r if sn < 1e-9 else (rot_about(ax / sn, math.asin(min(1.0, sn))) @ r)
-      c.rot = fixed
-      (q, ep, er), turned = sm.solve(side, c.pos, c.rot), None
-    elif jaws is not None:
-      q, ep, er, turned = sm.solve_pinch(side, c.pos, jaws)
-    else:
-      (q, ep, er), turned = sm.solve(side, c.pos, c.rot), None
+    q, ep, er = sm.solve(side, c.pos, c.rot)
     if (ep > REPLAN_M and not st.get("fixed")
         and st["t"] - st.get("planned", -REPLAN_S) >= REPLAN_S):
       # The arm runs out of reach from this posture: the least bent that
       # reaches the command now, while there is one (`posture_for`).
       st["planned"] = st["t"]
-      posture = self.posture_for(side, c.pos, jaws=jaws, rot=None if jaws is not None else c.rot)
+      posture = self.posture_for(side, c.pos, rot=c.rot)
       if posture is not None and tuple(posture) != tuple(self.posture):
         self.hold_posture(*posture)
         st["postured"] = st["t"]
     if ep < WILD_M:
-      if turned is not None:
-        c.rot, self.goal[side].rot = turned.copy(), turned.copy()
       self.q_cmd[side], self.miss[side] = q, ep
     if ep > BLOCKED_M or er > HOLD_ROT_TOL:
       # ...given a posture it took the time to come before it is out of reach
@@ -803,7 +774,7 @@ class Reach:
       return c.stiffness
     self._off[side] = 0.0
     if there and self.phase[side] == "carry" and st.get("ways"):
-      self.goal[side].pos = st["ways"].pop(0)
+      self.goal[side].pos, self.goal[side].rot = st["ways"].pop(0)
       return c.stiffness
     if there and self.phase[side] == "carry":
       # arrived once the HAND is there, never its command alone: on a soft
@@ -855,7 +826,7 @@ class Reach:
     # off an arm stretched and moving it scattered 20-30 N about a lid's few
     st["over"] = st.get("over", 0.0) + dt if pull >= st["limit"] and st["stall"] > 0.0 else 0.0
     held = self.grippers[side].held()
-    st["slip"] = 0.0 if held or not self.pinch[side] else st["slip"] + dt
+    st["slip"] = 0.0 if held or not st["gripped"] else st["slip"] + dt
     # how far it went the way it was asked: up, the rise; down, the drop
     st["along"] = float((h - st["start"]) @ st["asked"])
     why = ("distance" if st["along"] >= st["distance"]

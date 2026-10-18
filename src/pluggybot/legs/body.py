@@ -1937,7 +1937,7 @@ class QuadBody(Body):
     yield
 
   def move_hand_routine(self, side, pos, stiffness=1.0, speed=0.06, patience=20.0,
-                        path=None) -> Routine:
+                        path=None, turns=None) -> Routine:
     raise NotImplementedError(self._NO_HAND)
 
   def hand_why(self, side) -> str:

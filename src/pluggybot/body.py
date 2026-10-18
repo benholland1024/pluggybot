@@ -676,8 +676,9 @@ class Body(abc.ABC):
   @abc.abstractmethod
   def hand_follows(self, side: str, poses, rot=None) -> bool:
     """Whether a hand's grip could FOLLOW `poses` (the believed world frame)
-    in turn at the turn `rot`, from one posture it holds, its arm moving on
-    from each to the next -- asked of its model of itself (#493)."""
+    in turn at the turn `rot` -- one turn, or a list of one a pose -- from
+    one posture it holds, its arm moving on from each to the next -- asked
+    of its model of itself (#493)."""
 
   @abc.abstractmethod
   def depth_cloud(self, width: int, height: int, min_z: float, frames: int = 1,
@@ -696,12 +697,14 @@ class Body(abc.ABC):
   @abc.abstractmethod
   def move_hand_routine(self, side: str, pos, stiffness: float = 1.0,
                         speed: float = 0.06, patience: float = 20.0,
-                        path=None) -> Routine:
+                        path=None, turns=None) -> Routine:
     """A hand that is out -- reached, and holding there or moved on --
     carried along a straight line to `pos`, the believed world frame, m, at
     `speed`, m/s, the turn it was asked to hold kept, at `stiffness` --
     through `path` first, where given: points walked in turn as one
-    motion, from one posture that follows them all (`hand_follows`). The
+    motion, from one posture that follows them all (`hand_follows`),
+    turning to `turns`' at each (one a point of `path` and one at `pos`,
+    world from grip) where they are given. The
     posture is the body's to choose (#493). Returns how it ended (`why`:
     "arrived", "held back" -- its command there, the hand held short of it
     -- "out of reach", "not out", "fell", "feet moved", "out of time"), in
@@ -1351,7 +1354,7 @@ class StubBody(Body):
             "dx": dx, "dy": dy, "dz": dz}
 
   def move_hand_routine(self, side, pos, stiffness=1.0, speed=0.06, patience=20.0,
-                        path=None):
+                        path=None, turns=None):
     """The hand there at once, as asked (a hand that is out)."""
     if side not in self.hands:
       return {"why": "not out", "seconds": 0.0, "moved": 0.0, "dx": 0.0, "dy": 0.0, "dz": 0.0}

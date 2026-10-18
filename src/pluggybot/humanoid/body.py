@@ -427,8 +427,18 @@ class HumanoidBody(Body):
     return self.reach.posture_for(side, p, rot=r) is not None
 
   def hand_follows(self, side, poses, rot=None) -> bool:
-    r = None if rot is None else _rz(self.stance[2]).T @ np.asarray(rot, dtype=float)
-    return self.reach.path_for(side, [self.to_stance(p) for p in poses], rot=r) is not None
+    return self.reach.path_for(side, [self.to_stance(p) for p in poses],
+                               rot=self._turns(rot)) is not None
+
+  def _turns(self, rot):
+    """A turn, or a list of them, the believed world frame's, in the stance
+    frame's."""
+    yaw = _rz(self.stance[2]).T
+    if rot is None:
+      return None
+    if isinstance(rot, (list, tuple)):
+      return [yaw @ np.asarray(r, dtype=float) for r in rot]
+    return yaw @ np.asarray(rot, dtype=float)
 
   def depth_cloud(self, width, height, min_z, frames=1, apart=0.1):
     """Its D435's points, each frame placed through its pelvis in its model
@@ -485,12 +495,14 @@ class HumanoidBody(Body):
     return self._report(self.reach.report[side])
 
   def move_hand_routine(self, side, pos, stiffness=1.0, speed=HOLD_SPEED, patience=20.0,
-                        path=None):
+                        path=None, turns=None):
     """...`path`, points it goes through on its way, in turn (#493: a lid's
-    arc carried as one motion, from one posture that follows it all)."""
+    arc carried as one motion, from one posture that follows it all), and
+    `turns`, the grip's turn at each."""
     yield from self.mission.to_stand_routine()
     ways = None if path is None else [self.to_stance(p) for p in path]
-    if not self.reach.carry(side, self.to_stance(pos), stiffness, speed, path=ways):
+    if not self.reach.carry(side, self.to_stance(pos), stiffness, speed, path=ways,
+                            turns=None if turns is None else self._turns(list(turns))):
       rep = self.reach.report[side] if self.reach.out(side) else None
       return self._report(rep or {"why": "not out", "seconds": 0.0, "moved": 0.0,
                                   "dx": 0.0, "dy": 0.0, "dz": 0.0})

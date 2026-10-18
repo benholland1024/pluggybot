@@ -196,40 +196,6 @@ class SelfModel:
     er = 0.0 if rot is None else float(np.linalg.norm(_rot_error(np.asarray(rot), have_r)))
     return q, ep, er
 
-  def solve_pinch(self, side: str, pos, jaws, iters: int = 40
-                  ) -> tuple[np.ndarray, float, float, np.ndarray]:
-    """`solve` for a PINCH (#493): the grip at `pos` with its jaws closing
-    along the line `jaws` (either way: a two-jaw grip closes along both),
-    the turn about that line the arm's to take -- from where the arm is
-    now, so it turns no more than it must. What a held handle that swings
-    on its own pin takes: the jaws' line held, the hand pivoting round it.
-    Returns the joints, the misses (m, rad) and the grip's turn reached."""
-    idx = self.arm[side]
-    lo, hi = self.ranges[idx, 0] + RANGE_MARGIN, self.ranges[idx, 1] - RANGE_MARGIN
-    q = np.clip(self.q[idx], lo, hi)
-    self._set_arm(side, q)
-    want = np.asarray(jaws, dtype=float) / np.linalg.norm(jaws)
-
-    def miss():
-      have_p, have_r = self.grip_pose(side)
-      x = have_r[:, 0]
-      w = want if x @ want >= 0.0 else -want
-      return np.asarray(pos, dtype=float) - have_p, np.cross(x, w), x
-    for _ in range(iters):
-      e_p, e_r, x = miss()
-      if np.linalg.norm(e_p) < IK_POS_TOL and np.linalg.norm(e_r) < IK_ROT_TOL:
-        break
-      # the turn about the jaws' own line is free: out of the rotation's rows
-      free = np.eye(3) - np.outer(x, x)
-      j = self.jacobian(side)
-      j = np.vstack([j[:3], IK_ROT_WEIGHT * (free @ j[3:])])
-      e = np.concatenate([e_p, IK_ROT_WEIGHT * (free @ e_r)])
-      dq = j.T @ np.linalg.solve(j @ j.T + IK_DAMPING ** 2 * np.eye(6), e)
-      q = np.clip(q + np.clip(dq, -IK_STEP, IK_STEP), lo, hi)
-      self._set_arm(side, q)
-    e_p, e_r, _ = miss()
-    return q, float(np.linalg.norm(e_p)), float(np.linalg.norm(e_r)), self.grip_pose(side)[1]
-
   def gravity(self, side: str) -> np.ndarray:
     """The torque each of the arm's joints holds its weight with, still, as
     the model is posed: the generalized gravity force (`mj_rne`, no

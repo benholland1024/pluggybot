@@ -14,13 +14,15 @@ find for itself, as the probe's docstring states its own:
     does about the hinge (`legs.probe.pin_path`). The top, its back edge and
     the bracket's tip are MEASURED off the D435's depth at the part's 848 x
     480 (`legs.probe.guess`; the hinge a board's thickness high, as there);
-  - it is gripped from the front, the fingers tilted down and the jaws
-    closing along the hinge's line -- at the first tilt (`TILTS_DEG`) from
-    which the robot's model of itself puts the whole arc in its reach
-    (`Body.hand_reaches`);
-  - up to `TOP` and back down to `BOTTOM`, at `SPEED`, on a soft arm
-    (`STIFFNESS`): a hinge guessed a centimetre or two off is taken up by
-    the arm's give, as the probe's Kp 8 takes it.
+  - it is gripped from the front, the fingers tilted and the jaws closing
+    along the hinge's line -- at the first tilt (`TILTS_DEG`) from which
+    the robot's model of itself FOLLOWS the whole arc (`Body.hand_follows`);
+  - held at its turn, the hand keeps the handle as it hung while the lid
+    turns under it, until the handle's arm meets the lid's front edge: so
+    past `FREE_RAD` the hand turns as the lid does;
+  - up to `TOP` and back down to `BOTTOM`, at `SPEED`: a hinge guessed a
+    centimetre or two off is taken up by the arm's give, as the probe's Kp
+    8 takes it.
 
 THE STEPS (`opener`), from the robot's senses alone:
   look    standing still, the knob's tag read `LOOKS` times, and the box off
@@ -45,7 +47,7 @@ import math
 
 import numpy as np
 
-from pluggybot.legs.probe import DEPTH_H, DEPTH_MIN_Z, DEPTH_W, Guess, guess, pin_path
+from pluggybot.legs.probe import DEPTH_H, DEPTH_MIN_Z, DEPTH_W, Guess, guess, rot_about
 from pluggybot.rack.tags import CHEST_TAG_IDS
 from pluggybot.tick import Routine
 
@@ -54,11 +56,17 @@ TAG, KNOB_M = CHEST_TAG_IDS[0], 0.026
 #: Standing still before it looks, s, its looks, `APART_S` apart, its depth
 #: frames, and how many times it looks for the box.
 STILL_S, LOOKS, APART_S, FRAMES, LOOK_TRIES = 1.0, 3, 0.1, 3, 2
-#: The fingers' tilt down onto the knob, deg, tried in this order for the
-#: first that reaches the whole arc: at the 0.72 m counter the arc to 62 deg
-#: is in reach with the fingers 10 deg down in most set-outs, a shut knob
-#: with them 25 (`humanoid_spike.py --opening`).
-TILTS_DEG = (10.0, 25.0, 0.0, 40.0, 18.0, 33.0)
+#: The fingers' tilt down onto the knob, deg (up, -), tried in this order
+#: for the first that follows the whole arc: the hand turns down with the
+#: lid past `FREE_RAD`, and the arm reaches the arc's top with the fingers
+#: about level (#493).
+TILTS_DEG = (0.0, -10.0, 10.0, -20.0, 20.0, 30.0)
+#: The lid's angle past which the hand turns with it, rad: held at its turn,
+#: the hand keeps the handle as it hung -- its pin 33 deg round from the
+#: lid's own frame, shut -- and at 57 deg of lid the handle's arm lies on
+#: the lid's front edge (`activity.chest.PIN_AHEAD`); pulled on past it, the
+#: wrist gave 7-11 deg and the lid went on to 74 (#493).
+FREE_RAD = math.radians(50.0)
 #: Grips tried before it gives up.
 GRIPS = 2
 #: The arc: up to this, rad of lid (the probe's 1.2 a little short of the
@@ -68,7 +76,7 @@ TOP, BOTTOM, STEP = 1.15, -0.03, math.radians(4.0)
 #: The tops tried, the highest first, rad: the arm's give leaves the lid a
 #: few degrees under the plan's top (a plan to 66 deg opened lids 56-66).
 TOPS = (TOP, 1.08)
-SPEED, STIFFNESS = 0.05, float(__import__('os').environ.get('ARCK', '1.0'))
+SPEED, STIFFNESS = 0.05, 1.0
 #: How long one step of the arc may take, s; how many times the hand is
 #: carried back down the arc while still up, and up by less than this, m,
 #: it is down.
@@ -120,26 +128,40 @@ def grip_turn(g: Guess, tilt_deg: float) -> np.ndarray:
   return _frame(math.cos(t) * face + np.array([0.0, 0.0, -math.sin(t)]), g.axis)
 
 
-def arc(g: Guess, start: np.ndarray, top: float = TOP, bottom: float = BOTTOM,
-        step: float = STEP) -> tuple[list, list]:
+def arc(g: Guess, start: np.ndarray, rot: np.ndarray, top: float = TOP,
+        bottom: float = BOTTOM, step: float = STEP) -> tuple[list, list]:
   """The hand's waypoints up the lid's arc from `start` (the knob as it was
-  gripped) to `top`, and back down it to `bottom` (rad of lid): the knob
-  moves as the pin does (`legs.probe.pin_path`)."""
-  path = pin_path(start, g.pin, g.hinge, g.axis)
-  ups = [path(s) for s in np.arange(step, top + 1e-9, step)]
-  downs = [path(s) for s in np.arange(top - step, bottom - 1e-9, -step)]
+  gripped, at the turn `rot`) to `top`, and back down it to `bottom` (rad
+  of lid), each (point, turn): the knob moves as the pin does, and past
+  `FREE_RAD` turns round it as the lid does."""
+  pin0, hinge = np.asarray(g.pin, dtype=float), np.asarray(g.hinge, dtype=float)
+
+  def at(s: float) -> tuple:
+    pin = hinge + rot_about(g.axis, s) @ (pin0 - hinge)
+    turn = rot_about(g.axis, max(0.0, s - FREE_RAD))
+    return pin + turn @ (np.asarray(start, dtype=float) - pin0), turn @ rot
+  ups = [at(s) for s in np.arange(step, top + 1e-9, step)]
+  downs = [at(s) for s in np.arange(top - step, bottom - 1e-9, -step)]
   return ups, downs
+
+
+def follows(body, side: str, start: np.ndarray, rot: np.ndarray, points: list) -> bool:
+  """Whether the robot's model of itself follows `points` ((point, turn)
+  each) from `start` at `rot` (`Body.hand_follows`)."""
+  return body.hand_follows(side, [start] + [p for p, _ in points],
+                           [rot] + [r for _, r in points])
 
 
 def plans(body, side: str, g: Guess, start: np.ndarray) -> list:
   """Every (tilt, top) -- the highest top first (`TOPS`), at each the tilts
   in turn (`TILTS_DEG`) -- at which the robot's model of itself FOLLOWS the
-  arc from the knob up (`Body.hand_follows`)."""
+  arc from the knob up."""
   out = []
   for top in TOPS:
-    ups, _ = arc(g, start, top=top)
-    out += [(tilt, top) for tilt in TILTS_DEG
-            if body.hand_follows(side, [start] + ups, grip_turn(g, tilt))]
+    for tilt in TILTS_DEG:
+      rot = grip_turn(g, tilt)
+      if follows(body, side, start, rot, arc(g, start, rot, top=top)[0]):
+        out.append((tilt, top))
   return out
 
 
@@ -162,12 +184,13 @@ def grip_routine(body, knob: np.ndarray, side: str, rot: np.ndarray, log: dict) 
 
 
 def carry_routine(body, side: str, points: list, log: list) -> Routine:
-  """The hand carried through `points` as one motion (`Body.move_hand_
-  routine`'s path): True once it arrived at the last, its end said in
-  `log`."""
-  got = yield from body.move_hand_routine(side, points[-1], stiffness=STIFFNESS,
+  """The hand carried through `points` ((point, turn) each) as one motion
+  (`Body.move_hand_routine`'s path and turns): True once it arrived at the
+  last, its end said in `log`."""
+  got = yield from body.move_hand_routine(side, points[-1][0], stiffness=STIFFNESS,
                                           speed=SPEED, patience=STEP_PATIENCE_S * len(points),
-                                          path=points[:-1])
+                                          path=[p for p, _ in points[:-1]],
+                                          turns=[r for _, r in points])
   log.append(got)
   return got["why"] in ("arrived", "held back")
 
@@ -199,9 +222,9 @@ def opener(body) -> Routine:
     if not (yield from grip_routine(body, knob, side, grip_turn(g, tilt), log)):
       continue
     start = np.asarray(body.hand_at(side), dtype=float)
-    ups, downs = arc(g, start, top=top)
+    ups, downs = arc(g, start, grip_turn(g, tilt), top=top)
     # ...and from the arm as its grip left it: another branch is no path
-    if body.hand_follows(side, [start] + ups, grip_turn(g, tilt)):
+    if follows(body, side, start, grip_turn(g, tilt), ups):
       log["tiltDeg"], log["top"] = tilt, top
       break
     log.setdefault("regrips", []).append([tilt, top])
@@ -219,7 +242,7 @@ def opener(body) -> Routine:
   came = False
   for _ in range(DOWNS):
     here = np.asarray(body.hand_at(side), dtype=float)
-    i = int(np.argmin([np.linalg.norm(here - p) for p in downs]))
+    i = int(np.argmin([np.linalg.norm(here - p) for p, _ in downs]))
     came = yield from carry_routine(body, side, downs[min(i + 1, len(downs) - 1):],
                                     log["down"])
     if came or here[2] - start[2] < HOME_M:
