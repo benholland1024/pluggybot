@@ -142,10 +142,13 @@ LIVE_MARGIN_M = 0.02
 #: its stop, left points 1.1-1.2 cm off that the live hand passed -- which
 #: stops only past `BLOCKED_M`.
 PATH_POS_TOL = 0.02
-#: A carried or pulled hand whose solve misses its command by this, m,
-#: takes a posture that reaches it, planned at most once this often, s
-#: (`posture_for` is a fraction of a second of the processor's).
-REPLAN_M, REPLAN_S = 0.015, 1.0
+#: A carried or pulled hand whose solve misses its command by this, m, or
+#: its turn by this, rad, takes a posture that reaches it, planned at most
+#: once this often, s (`posture_for` is a fraction of a second of the
+#: processor's). ⚠ THE TURN TOO: a pull up a lid's arc standing held its
+#: place to a millimetre and missed its turn by 0.19-0.2 rad, its wrist at
+#: its stop pushing the hand 2 cm sideways, until it stopped (#493).
+REPLAN_M, REPLAN_ROT, REPLAN_S = 0.015, 0.12, 1.0
 #: A carried hand's grip may turn this far off its plan, rad: a held drop
 #: handle swings on its own pin, so 10 deg of it moves the knob under a
 #: centimetre, which the arm's give takes up -- held to a reach's 0.1, a
@@ -807,7 +810,7 @@ class Reach:
     there = self._line(side, dt)
     c, sm = self.cmd[side], self.self_model
     q, ep, er = sm.solve(side, c.pos, c.rot)
-    if (ep > REPLAN_M and not st.get("fixed")
+    if ((ep > REPLAN_M or er > REPLAN_ROT) and not st.get("fixed")
         and st["t"] - st.get("planned", -REPLAN_S) >= REPLAN_S):
       # The arm runs out of reach from this posture: the least bent that
       # reaches the command now, while there is one (`posture_for`).
