@@ -439,7 +439,9 @@ class Reach:
     them and jerked the lid shut at 3.3 rad/s (#493)."""
     sm = self._planner_model()
     q0 = np.array([hm.stand_qpos().get(n, 0.0) for n in hm.JOINT_NAMES])
-    poses = [np.asarray(p, dtype=float) + (PATH_MARGIN_M, 0.0, 0.0) for p in poses]
+    # ...but where it is: a path begun at the arm's stretch starts there
+    poses = [np.asarray(poses[0], dtype=float)] + [
+      np.asarray(p, dtype=float) + (PATH_MARGIN_M, 0.0, 0.0) for p in poses[1:]]
     # a hand that is out goes on from the arm as it IS, its posture first:
     # the branch its grip left it in is the branch its path must follow
     out = self.out(side)
@@ -477,6 +479,11 @@ class Reach:
     if not self.out(side):
       return False
     h, r = self.grip_now(side)
+    # ⚠ THE TURN IT WAS ASKED TO KEEP, never the one it sagged to: planned
+    # from a hand stretched up a lid's arc, the wrist's 0.1-0.15 rad of give
+    # put the path back down out of every posture's reach (#493)
+    if self.cmd[side] is not None and self.cmd[side].rot is not None:
+      r = np.asarray(self.cmd[side].rot, dtype=float)
     pinch = False
     end = np.asarray(pos, dtype=float)
     ways = [np.asarray(p, dtype=float) for p in (path or ())]
