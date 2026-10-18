@@ -1931,6 +1931,10 @@ class QuadBody(Body):
   def hand_follows(self, side, poses, rot=None) -> bool:
     raise NotImplementedError(self._NO_HAND)
 
+  def gaze_routine(self, down) -> Routine:
+    raise NotImplementedError("the quadruped's cameras look where its body does: it "
+                              "turns, or lies down")
+
   def depth_cloud(self, width, height, min_z, frames=1, apart=0.1) -> Routine:
     raise NotImplementedError("the quadruped's measured depth is its probe's own "
                               "(`legs.probe.Probe.cloud`)")

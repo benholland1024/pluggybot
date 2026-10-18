@@ -85,8 +85,8 @@ feet, x straight ahead, y to your left, z up. Your shoulders are about 1.15
 m up and 0.18 m either side of your middle, and an arm reaches about half a
 metre. Your hands are "left" and "right": each ends in a two-jaw gripper
 whose jaws close across the point between them (its grip), its fingers 8 cm
-long. A hand that is OUT is one you have reached with, until you withdraw
-it.
+long. Both grippers start shut. A hand that is OUT is one you have reached
+with, until you withdraw it.
 
 VERBS (a statement each; arguments in this order, or by keyword)
 %(verbs)s

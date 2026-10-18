@@ -47,6 +47,8 @@ GRIP_S = 0.6
 #: at `GRIP_S` alone the grip said NOT HELD in 7 of 24 set-outs where the
 #: pads held the knob 2 s later (#493).
 GRIP_SETTLE_S, GRIP_READ_S = 1.5, 0.1
+#: A gaze's bow is waited for this long at most, s (`gaze_routine`).
+GAZE_WAIT_S = 4.0
 #: A hand's carry or pull stops once the body's own odometry puts its
 #: stance this far from where it began, m: a pull toward the robot dragged
 #: it 0.3 m to the counter, its standing policy stepping under the arm
@@ -439,6 +441,17 @@ class HumanoidBody(Body):
     if isinstance(rot, (list, tuple)):
       return [yaw @ np.asarray(r, dtype=float) for r in rot]
     return yaw @ np.asarray(rot, dtype=float)
+
+  def gaze_routine(self, down):
+    """A bow of `down` rad at the height it stands at, inside what the
+    standing policy trained on, until its trunk is still there."""
+    yield from self.mission.to_stand_routine()
+    lo, hi = PITCH_RANGE
+    self.reach.hold_posture(float(self.reach.posture[0]), min(max(float(down), lo), hi))
+    waited = 0.0
+    while not self.reach._posture_held() and waited < GAZE_WAIT_S:
+      yield from self.hold_routine(GRIP_READ_S)
+      waited += GRIP_READ_S
 
   def depth_cloud(self, width, height, min_z, frames=1, apart=0.1):
     """Its D435's points, each frame placed through its pelvis in its model

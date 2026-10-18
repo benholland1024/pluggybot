@@ -56,6 +56,9 @@ TAG, KNOB_M = CHEST_TAG_IDS[0], 0.026
 #: Standing still before it looks, s, its looks, `APART_S` apart, its depth
 #: frames, and how many times it looks for the box.
 STILL_S, LOOKS, APART_S, FRAMES, LOOK_TRIES = 1.0, 3, 0.1, 3, 2
+#: Where the knob is not in its colour camera's view standing -- the bottom
+#: of its view from a step nearer -- it bows this far to look, rad.
+GAZE_DOWN = 0.25
 #: The fingers' tilt down onto the knob, deg (up, -), tried in this order
 #: for the first that follows the whole arc: the hand turns down with the
 #: lid past `FREE_RAD`, and the arm reaches the arc's top with the fingers
@@ -200,13 +203,19 @@ def opener(body) -> Routine:
   log: dict = {"looks": []}
   yield from body.hold_routine(STILL_S)
   g, knob = "the knob's tag not seen", None
-  for _ in range(LOOK_TRIES):
+  for i in range(LOOK_TRIES):
     knob = yield from knob_seen(body)
+    if knob is None and i == 0:
+      yield from body.gaze_routine(GAZE_DOWN)
+      log["gazed"] = GAZE_DOWN
+      knob = yield from knob_seen(body)
     if knob is not None:
       g = yield from measure(body, knob)
     log["looks"].append(g.as_dict() if isinstance(g, Guess) else g)
     if isinstance(g, Guess):
       break
+  if log.get("gazed"):
+    yield from body.gaze_routine(0.0)
   if not isinstance(g, Guess):
     return {"ok": False, "why": f"the box not made out: {g}", **log}
   sx, sy, yaw = body.stance

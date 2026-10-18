@@ -681,6 +681,13 @@ class Body(abc.ABC):
     of its model of itself (#493)."""
 
   @abc.abstractmethod
+  def gaze_routine(self, down: float) -> Routine:
+    """Its head's cameras turned `down` rad below their gaze standing --
+    0 back to it -- as the body can: the humanoid, its head fixed on its
+    trunk, bows (#493: a knob at the bottom of its colour camera's view
+    from a step nearer). Returns once still there."""
+
+  @abc.abstractmethod
   def depth_cloud(self, width: int, height: int, min_z: float, frames: int = 1,
                   apart: float = 0.1) -> Routine:
     """Standing still, `frames` frames of its depth camera at `width` x
@@ -1335,6 +1342,11 @@ class StubBody(Body):
   def hand_follows(self, side, poses, rot=None) -> bool:
     """Anywhere, as `hand_reaches`."""
     return True
+
+  def gaze_routine(self, down):
+    """No head to turn: at once."""
+    return
+    yield
 
   def depth_cloud(self, width, height, min_z, frames=1, apart=0.1):
     """No camera: nothing seen, after the time looking takes."""
