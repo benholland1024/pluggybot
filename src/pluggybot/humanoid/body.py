@@ -535,12 +535,60 @@ class HumanoidBody(Body):
 
   def pull_routine(self, side, direction, limit_n, distance_m, stiffness=1.0,
                    speed=HOLD_SPEED, patience=30.0):
+    """It EXPLORES its first `reach.EXPLORE_M` as an equilibrium point
+    draws the hand (`Reach.pull`), then FOLLOWS the way the hand went --
+    fitted to the hand's own path (`reach.fit_way`), planned and carried
+    `reach.FOLLOW_M` at a time, its turn yielding to what turns it
+    (`Reach.carry(give=)`) -- fitting again as it goes, until it has gone
+    `distance_m` the way asked or a stop: a carry held back is "held
+    fast", a grip lost "let go"."""
     yield from self.mission.to_stand_routine()
     d = _rz(self.stance[2]).T @ np.asarray(direction, dtype=float)
-    if not self.reach.pull(side, d, limit_n, distance_m, stiffness, speed, patience):
+    d = d / max(float(np.linalg.norm(d)), 1e-9)
+    t0 = float(self._d.time)
+    start = self.reach.grip_now(side)[0].copy()
+    gripped = self.gripped(side)
+    if not self.reach.pull(side, d, limit_n, min(distance_m, reach_.EXPLORE_M), stiffness,
+                           speed, patience):
       return self._report({"why": "not out", "seconds": 0.0, "moved": 0.0, "dx": 0.0,
                            "dy": 0.0, "dz": 0.0, "direction": list(d), "force": 0.0})
-    return (yield from self._held_routine(side, patience + 1.0))
+    rep = yield from self._held_routine(side, patience + 1.0)
+    trail = list((self.reach.report[side] or {}).get("path") or [])
+    peak, way, why = float(rep.get("force") or 0.0), d, rep["why"]
+    while why == "distance":
+      h = self.reach.grip_now(side)[0]
+      left_m = distance_m - float((h - start) @ d)
+      spent = float(self._d.time) - t0
+      if left_m <= reach_.ARRIVE_M:
+        break
+      if spent >= patience:
+        why = "out of time"
+        break
+      if gripped and not self.gripped(side):
+        why = "let go"
+        break
+      fitted = reach_.fit_way(trail)
+      ahead = reach_.continue_way(fitted, h, reach_.FOLLOW_M)
+      # ...no further the way asked than it was asked
+      points = [q for q in ahead if float((q - start) @ d) <= distance_m] or ahead[:1]
+      if not self.reach.carry(side, points[-1], stiffness, speed, path=points[:-1], give=True,
+                              limit_n=limit_n):
+        why = "out of reach"
+        break
+      rep = yield from self._held_routine(side, patience - spent + 1.0)
+      trail += list((self.reach.report[side] or {}).get("path") or [])[1:]
+      peak = max(peak, float(rep.get("force") or 0.0))
+      way = points[-1] - h
+      why = {"arrived": "distance", "held back": "held fast"}.get(rep["why"], rep["why"])
+    h = self.reach.grip_now(side)[0]
+    disp = h - start
+    n = float(np.linalg.norm(way))
+    return self._report({"why": why, "seconds": round(float(self._d.time) - t0, 3),
+                         "moved": round(float(np.linalg.norm(disp)), 4),
+                         "along": round(float(disp @ d), 4),
+                         "dx": float(disp[0]), "dy": float(disp[1]), "dz": float(disp[2]),
+                         "direction": [float(v) for v in (way / n if n > 1e-9 else d)],
+                         "force": round(peak, 2)})
 
   def hand_force(self, side):
     f = _rz(self.stance[2]) @ self.reach.force[side]

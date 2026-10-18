@@ -133,11 +133,11 @@ def practise(chest: int, practice, attempts: int = ATTEMPTS, *, library=None,
     t0 = time.time()
     row = at.attempt(task, procedure_skill(turn.procedure, practice.facts, out), n,
                      budget_s=budget_s, sealed=sealed, build=build,
-                     info={**(info or {}), "process": "practice",
-                           "skill": turn.procedure.name if turn.procedure else None,
-                           "tokens": spent["tokensIn"] + spent["tokensOut"], **out})
+                     info={"skill": practice.model_id, **(info or {}), "process": "practice",
+                           "tokens": spent["tokensIn"] + spent["tokensOut"]})
     row["steps"] = out.get("steps")
-    row["practice"] = {**spent, "turns": [t.as_dict() for t in practice.turns[-spent["calls"]:]]
+    row["practice"] = {**spent, "procedure": turn.procedure.name if turn.procedure else None,
+                       "turns": [t.as_dict() for t in practice.turns[-spent["calls"]:]]
                        if spent["calls"] else [], "ran": _trimmed(out.get("ran")),
                        "flightWallS": round(time.time() - t0, 1)}
     if row["verdict"]["ok"] and library is not None and turn.procedure is not None:

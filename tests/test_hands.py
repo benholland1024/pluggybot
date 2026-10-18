@@ -18,7 +18,6 @@ import numpy as np
 import pytest
 
 from pluggybot.body import StubBody
-from pluggybot.evaluation import attempts as at
 from pluggybot.evaluation import practice as ep
 from pluggybot.humanoid import friction
 from pluggybot.humanoid import model as hm
@@ -245,7 +244,8 @@ def test_a_try_is_flown_graded_and_shown_back_and_a_refusal_goes_back_first():
   assert "nonsense" in mind.asked[1]["messages"][-1]["content"]
   assert [r["attempt"] for r in rows] == [1, 2]
   first = rows[0]
-  assert first["process"] == "practice" and first["skill"] == "a"
+  assert first["process"] == "practice" and first["skill"] == "a-mind"
+  assert first["practice"]["procedure"] == "a"
   assert first["tokens"] == 2 * 140 and first["steps"] == 1
   assert [s["verb"] for s in first["practice"]["ran"]["steps"]] == ["wait"]
   assert not first["verdict"]["ok"]

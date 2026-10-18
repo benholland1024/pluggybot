@@ -107,6 +107,21 @@ LEAD_M, LEAD_RATE, LEAD_MAX, LEAD_MIN = 0.02, 0.02, 0.05, 0.003
 #: followed a drop handle's swing toward the robot turned 96 deg and pulled
 #: the robot to the counter.
 TRAIL_M, CHORD_M, FOLLOW_CONE_DEG = 0.005, 0.03, 80.0
+#: A pull EXPLORES its first this far, m, the equilibrium point drawing the
+#: hand -- then FOLLOWS the way its hand went, fitted (`fit_way`), planned
+#: and carried this far at a time before it fits again: an equilibrium
+#: point alone, turned by the hand's own drift, wandered off a lid's arc,
+#: dragged the robot's feet and fell (#493).
+EXPLORE_M, FOLLOW_M = 0.10, 0.06
+#: A way is a circle while one of radius between these, m, fits the hand's
+#: path better than a line by this share -- else a line; its points this
+#: far apart, m.
+CIRCLE_R, CIRCLE_BETTER, WAY_STEP_M = (0.05, 1.5), 0.5, 0.02
+#: A carried hand's turn yields where what it holds turns it past this,
+#: rad, at this rate at most, rad/s (a pull's follow: a drop handle hangs
+#: free until its arm lies on its lid's front edge, 57 deg up, and held at
+#: its turn past that, a wrist gave 7-11 deg and the lid went no further).
+TURN_GIVE, TURN_RATE = math.radians(4.0), 0.5
 #: Its command advances along its way from where the COMMAND is, never
 #: from where the hand reads -- anchored on the hand, nothing held it
 #: across its way, and the hand wandered 13 cm toward the robot on a pull
@@ -329,6 +344,52 @@ def pregrasp(goal: HandGoal, approach: float = APPROACH_M) -> HandGoal:
   return HandGoal(np.asarray(goal.pos) + approach * back, goal.rot, goal.stiffness)
 
 
+def fit_way(points) -> dict:
+  """The way a hand went, off its path's points (stance frame, in order): a
+  circle -- its middle, its axis (the turn that carried the hand along it
+  is +) and its radius -- where one of radius in `CIRCLE_R` fits better
+  than a line by `CIRCLE_BETTER`, else a line along the way it went."""
+  p = np.asarray(points, dtype=float)
+  c = p.mean(axis=0)
+  _, sv, vt = np.linalg.svd(p - c)
+  along = vt[0] if (p[-1] - p[0]) @ vt[0] >= 0.0 else -vt[0]
+  line = {"kind": "line", "way": along, "rms": float(np.hypot(sv[1], sv[2]) / np.sqrt(len(p)))}
+  if len(p) < 5:
+    return line
+  u, v = vt[0], vt[1]
+  x, y = (p - c) @ u, (p - c) @ v
+  a = np.column_stack([2 * x, 2 * y, np.ones(len(p))])
+  (cx, cy, k), *_ = np.linalg.lstsq(a, x ** 2 + y ** 2, rcond=None)
+  r = float(np.sqrt(max(k + cx ** 2 + cy ** 2, 0.0)))
+  mid = c + cx * u + cy * v
+  off = p - mid
+  inplane = off - np.outer(off @ vt[2], vt[2])
+  rms = float(np.sqrt(np.mean((np.linalg.norm(inplane, axis=1) - r) ** 2)))
+  if not (CIRCLE_R[0] <= r <= CIRCLE_R[1]) or rms > CIRCLE_BETTER * line["rms"]:
+    return line
+  axis = np.cross(p[0] - mid, p[-1] - mid)
+  axis = axis / max(float(np.linalg.norm(axis)), 1e-12)
+  return {"kind": "circle", "middle": mid, "axis": axis, "radius": r, "rms": rms}
+
+
+def continue_way(way: dict, at, ahead: float, step: float = WAY_STEP_M) -> list:
+  """Points on `way` (`fit_way`) on from `at`, `step` apart, `ahead` m of
+  it in all."""
+  at = np.asarray(at, dtype=float)
+  n = max(1, int(np.ceil(ahead / step)))
+  if way["kind"] == "line":
+    return [at + way["way"] * min(ahead, step * (i + 1)) for i in range(n)]
+  mid, axis = way["middle"], way["axis"]
+  r0 = at - mid
+  out = []
+  for i in range(n):
+    a = min(ahead, step * (i + 1)) / way["radius"]
+    k = np.array([[0.0, -axis[2], axis[1]], [axis[2], 0.0, -axis[0]], [-axis[1], axis[0], 0.0]])
+    turn = np.eye(3) + math.sin(a) * k + (1.0 - math.cos(a)) * (k @ k)
+    out.append(mid + turn @ r0)
+  return out
+
+
 def _within_cone(d: np.ndarray, a: np.ndarray, deg: float) -> np.ndarray:
   """The unit way `d`, turned back to `deg` off the unit way `a` where it
   is further."""
@@ -521,14 +582,19 @@ class Reach:
     return None
 
   def carry(self, side: str, pos, stiffness: float | None = None,
-            speed: float = HOLD_SPEED, path=None, turns=None) -> bool:
+            speed: float = HOLD_SPEED, path=None, turns=None, give: bool = False,
+            limit_n: float | None = None) -> bool:
     """A hand that is out (`out`) carried from where it IS along a straight
     line to `pos`, stance frame, at `speed`, its turn kept, at `stiffness`
     (or its goal's), the posture the least bent that reaches the end --
     through `path`'s points first, from one posture that follows them all
     (`path_for`), turning to `turns`' at each (one a point of `path` and
-    one at `pos`), where given. False (nothing moves) for a hand that is
-    not out, or an end no posture reaches. How it ends is its `report`."""
+    one at `pos`), where given -- or, with `give`, its turn following the
+    hand's where what it holds turns it past `TURN_GIVE`; stopped
+    ("force") where the force it reads along its way stays over `limit_n`,
+    N, while its hand is held back. False (nothing moves) for a hand that
+    is not out, or an end no posture reaches. How it ends is its
+    `report`."""
     if not self.out(side):
       return False
     h, r = self.grip_now(side)
@@ -560,7 +626,8 @@ class Reach:
     self.speed[side], self._off[side] = float(speed), 0.0
     self.pulls[side] = {"start": h.copy(), "t": 0.0,
                         "ways": list(zip(ways[1:] + [end], rots[1:])) if ways else [],
-                        "fixed": bool(ways)}
+                        "fixed": bool(ways), "give": bool(give), "limit": limit_n,
+                        "path": [(0.0, h.copy())], "peak": 0.0}
     self.report[side] = None
     self.phase[side] = "carry"
     return True
@@ -775,6 +842,9 @@ class Reach:
     if "d" in st:
       rep.update(along=round(float((h - st["start"]) @ st["asked"]), 4),
                  force=round(st["peak"], 2), direction=[round(float(v), 3) for v in st["d"]])
+    rep["path"] = [q.tolist() for _, q in st.get("path", [])] + [h.tolist()]
+    if "peak" in st:
+      rep["force"] = round(st["peak"], 2)
     self.report[side] = rep
     self.pulls[side] = None
     self.phase[side] = "hold"
@@ -793,6 +863,16 @@ class Reach:
     # how far it went: from where it began -- a path summed off the drivers'
     # counts read the jitter of every 10 ms as travel, 0.30 m of it for 0.11
     st["moved"] = float(np.linalg.norm(h - st["start"]))
+    # ...and where it went, a point every `TRAIL_M` of travel (a pull's way)
+    path = st.setdefault("path", [(0.0, st["start"].copy())])
+    gone = float(np.linalg.norm(h - path[-1][1]))
+    if gone >= TRAIL_M:
+      path.append((path[-1][0] + gone, h.copy()))
+    if st.get("give"):
+      self._give(side, dt, r)
+    if self.phase[side] == "carry" and st.get("limit") is not None and self._over(side, dt, h):
+      self._end(side, "force", h, r)
+      return self.cmd[side].stiffness
     # ⚠ A HAND HOLDS STILL WHILE ITS BODY TAKES A NEW POSTURE: carried on
     # meanwhile, a lid was jerked down at 1.7-2.3 rad/s and up to 81 deg
     settling = (st.get("postured") is not None and not self._posture_held()
@@ -823,7 +903,10 @@ class Reach:
       return c.stiffness
     self._off[side] = 0.0
     if there and self.phase[side] == "carry" and st.get("ways"):
-      self.goal[side].pos, self.goal[side].rot = st["ways"].pop(0)
+      pos, rot = st["ways"].pop(0)
+      self.goal[side].pos = pos
+      if not st.get("give"):
+        self.goal[side].rot = rot
       return c.stiffness
     if there and self.phase[side] == "carry":
       # arrived once the HAND is there, never its command alone: on a soft
@@ -835,6 +918,36 @@ class Reach:
       elif st["there"] >= HELD_BACK_S:
         self._end(side, "held back", h, r, at_goal=True)
     return c.stiffness
+
+  def _give(self, side: str, dt: float, r: np.ndarray) -> None:
+    """A carried hand's turn yielding (`carry(give=)`): its command turned
+    toward the hand's own where what it holds turns it past `TURN_GIVE`."""
+    c = self.cmd[side]
+    e = _rot_error(r, c.rot)
+    a = float(np.linalg.norm(e))
+    if a > TURN_GIVE:
+      q = np.zeros(4)
+      mujoco.mju_axisAngle2Quat(q, e / a, min(a - TURN_GIVE, TURN_RATE * dt))
+      turn = np.zeros(9)
+      mujoco.mju_quat2Mat(turn, q)
+      c.rot = turn.reshape(3, 3) @ c.rot
+      self.goal[side].rot = c.rot.copy()
+
+  def _over(self, side: str, dt: float, h: np.ndarray) -> bool:
+    """Whether a carried hand's force along its way (toward its goal) has
+    read over its limit (`carry(limit_n=)`) for `OVER_S`, filtered over
+    `FORCE_SMOOTH_S`, while its hand is held back -- its command `ARRIVE_M`
+    or more ahead of it."""
+    st = self.pulls[side]
+    k = min(1.0, dt / FORCE_SMOOTH_S)
+    f = st["f"] = (1.0 - k) * st.get("f", self.force[side]) + k * self.force[side]
+    way = self.goal[side].pos - h
+    n = float(np.linalg.norm(way))
+    pull = float(f @ way) / n if n > 1e-9 else 0.0
+    st["peak"] = max(st["peak"], pull)
+    held = float(np.linalg.norm(self.cmd[side].pos - h)) >= ARRIVE_M
+    st["over"] = st.get("over", 0.0) + dt if pull >= st["limit"] and held else 0.0
+    return st["over"] >= OVER_S
 
   def _yield(self, side: str, dt: float, h: np.ndarray, r: np.ndarray) -> bool:
     """A pull's command (`pull`), an equilibrium point the arm's stiffness
@@ -851,10 +964,7 @@ class Reach:
     if len(trail) > n + 1:
       trail.pop(0)
     speed = float(np.linalg.norm(trail[-1] - trail[0])) / (dt * max(1, len(trail) - 1))
-    path = st.setdefault("path", [(0.0, st["start"].copy())])
-    gone = float(np.linalg.norm(h - path[-1][1]))
-    if gone >= TRAIL_M:
-      path.append((path[-1][0] + gone, h.copy()))
+    path = st["path"]
     d = st["d"]
     along = float((h - st["start"]) @ st["asked"])
     if along >= FOLLOW_AFTER_M and path[-1][0] >= CHORD_M:
