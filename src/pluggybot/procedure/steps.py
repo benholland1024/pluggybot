@@ -1100,6 +1100,12 @@ def _reach(life, args: dict) -> Routine:
   why = life.body.hand_why(hand)
   reason = REACH_WHY.get(why, "your {hand} hand did not get there").format(hand=hand)
   other = {"left": "right", "right": "left"}.get(hand)
+  if why == "out of reach" and rot is not None and life.body.hand_reaches(hand, place):
+    # ...turned as asked; and whether the TURN is what is out of reach,
+    # off the same plan (#493: a mind asked both hands for a turn neither
+    # makes there, five tries running, told only that neither could)
+    reason += (" turned as asked; turned another way it can (leave fx..jz at 0 and your "
+               "arm finds a turn)")
   if why == "out of reach" and other is not None:
     # what its body's own model says of the other hand (#493: 18 of 27
     # first tries took the right hand to a knob on the robot's left)

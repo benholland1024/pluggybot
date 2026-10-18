@@ -943,8 +943,9 @@ class StubBody(Body):
     self.hands: dict[str, tuple] = {}
     self.grips: dict[str, bool] = {}
     #: ...and the hands a test says reach nothing (#493): a reach with one
-    #: is out of reach
+    #: is out of reach -- or, `unturned`, nothing turned as asked
     self.out_of_reach: set[str] = set()
+    self.unturned: set[str] = set()
     self._why: dict[str, str] = {}
     #: ...and each survey it was asked for, and what it counts, by tag
     self.surveyed: list[int] = []
@@ -1324,7 +1325,7 @@ class StubBody(Body):
 
   def reach_routine(self, side, pos, rot=None, stiffness=1.0, patience=20.0, path=None,
                     turns=None):
-    if side in self.out_of_reach:
+    if side in self.out_of_reach or (rot is not None and side in self.unturned):
       self._why[side] = "out of reach"
       return False
     self._why[side] = ""
@@ -1354,8 +1355,9 @@ class StubBody(Body):
     return True
 
   def hand_reaches(self, side, pos, rot=None) -> bool:
-    """Anywhere, but with a hand a test put `out_of_reach`."""
-    return side not in self.out_of_reach
+    """Anywhere, but with a hand a test put `out_of_reach` -- or, turned,
+    `unturned`."""
+    return side not in self.out_of_reach and (rot is None or side not in self.unturned)
 
   def gaze_routine(self, down):
     """No head to turn: at once."""
