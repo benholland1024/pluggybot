@@ -509,7 +509,7 @@ def test_a_hand_goes_in_only_once_the_trunk_is_still():
   """⚠ The force read off the arm's currents assumes the arm still: begun
   as the deepest bow stopped turning, the floor's approach read 492 N at the
   hand and stopped 6 cm short of it (#520). The posture there, the approach
-  waits for the trunk's gyro to read it still (`reach.STILL_RATE`)."""
+  waits for the trunk's gyro to read it still (`reach.TRUNK_STILL_RATE`)."""
   model, data, stand, reach = _standing()
   reach._pose()
   reach.posture = reach.posture_now()                       # the plan's posture: there

@@ -101,6 +101,7 @@ class _Sent:
   def __init__(self, end: str):
     self.end = end
     self.phase = {s: "rest" for s in hm.SIDES}
+    self.grippers = {}
 
   def reach(self, side, goal, approach=None) -> bool:
     self.phase[side] = self.end
@@ -155,6 +156,21 @@ def test_a_reach_a_fall_let_go_of_never_arrived():
   m.fall.falling = lambda data, pitch=0.0: next(falls, False)
   assert body.run(body.reach_routine("left", (0.4, 0.2, 0.9))) is False
   assert m.falls == 1 and m.legs == "getup"
+
+
+def test_a_ramp_a_fall_let_go_of_ends_there():
+  """A fall lets go of the arm: ramped on through the get-up, `move` wrote
+  its target into the stand-up's fresh reach, driving an arm whose phase
+  says it hangs -- which a walk's hand-over reads as home (#520)."""
+  body = body_for(*_floor())
+  m = body.mission
+  m.getup = _Rising(50)
+  falls = iter([True])
+  m.fall.falling = lambda data, pitch=0.0: next(falls, False)
+  body.run(body.ramp_routine(body.actuator("left_elbow"), 1.5, 1.0))
+  assert m.legs == "getup", "the ramp ran on past the fall"
+  body.run(m._getup_routine())
+  assert np.allclose(m.reach.q_to["left"], m.reach.rest["left"])
 
 
 def test_through_body_the_hand_reaches_the_floor_and_the_bow_is_no_fall():

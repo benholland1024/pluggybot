@@ -292,7 +292,9 @@ class HumanoidBody(Body):
   def ramp_routine(self, act: int, target: float, speed: float, settle: float = 0.0):
     """An arm joint walked to `target` at `speed` (its arm's other joints
     held where they are, the arm's weight fed forward), or a gripper's
-    jaws to `target` m apart; then settled."""
+    jaws to `target` m apart; then settled. ⚠ A fall lets go of the arm and
+    ends the ramp (#520): ramped on, it drove the stand-up's fresh reach,
+    whose hanging arms a walk's hand-over reads as home."""
     dt = self._m.opt.timestep
     joint = self._arm_joint(act)
     if joint is None:
@@ -307,13 +309,18 @@ class HumanoidBody(Body):
     else:
       yield from self.mission.to_stand_routine()
       side, k = joint
+      falls = self.mission.falls
       q = self.reach.q_cmd[side].copy()
       self.reach.set_joints(side, q)
       while abs(q[k] - target) > 1e-9:
+        if self.mission.falls != falls:
+          return
         q[k] += max(-speed * dt, min(speed * dt, target - q[k]))
         self.reach.q_to[side] = q.copy()
         yield STILL
       while not self.reach.done(side):
+        if self.mission.falls != falls:
+          return
         yield STILL
     yield from self.settle_routine(settle)
 

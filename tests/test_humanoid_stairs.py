@@ -334,8 +334,9 @@ def test_a_bow_its_legs_hold_is_no_fall_however_deep(head):
 
 def test_the_mission_reads_a_tip_off_the_posture_its_legs_hold():
   # The watch's posture is the standing policy's while it has the legs --
-  # the trim taken out, so upright at the stand to the bit -- and upright
-  # under the walker.
+  # the trim its ask carries taken out, so upright at the stand to the bit,
+  # and none at the deepest bow, where the ask is held at the policy's
+  # range -- and upright under the walker.
   from pluggybot.body import body_for
   model = mujoco.MjModel.from_xml_string(hm.body_xml())
   data = mujoco.MjData(model)
@@ -349,8 +350,10 @@ def test_the_mission_reads_a_tip_off_the_posture_its_legs_hold():
   data.qpos[:], data.qvel[:] = bowed.qpos, 0.0
   mujoco.mj_forward(model, data)
   m.fresh_drivers()
+  m.reach.trim[1] = 0.05                                    # an ask past 1.1 rad is held at it
   m.reach.hold_posture(-0.25, 1.1)
   m.stand.posture[:] = m.stand.goal                         # shown the bow it holds
+  assert m.reach.held_pitch() == pytest.approx(1.1)         # ...so the trim is carried by none
   m._steps = 0                                              # the watch looks next step
   body.run(body.settle_routine(model.opt.timestep))
   assert m.falls == 0 and m.legs == "stand"
@@ -463,12 +466,34 @@ def test_a_fall_as_the_arms_come_home_is_the_getups_until_it_stands(head):
   body = body_for(model, data)
   m = body.mission
   m.getup = _Rising(50)
-  m.stand.posture[:] = (0.0, 0.03)                          # settles at its next step
-  falls = iter([True])
-  m.fall.falling = lambda data, pitch=0.0: next(falls, False)
+  m.stand.posture[:] = (0.0, 0.03)                          # not settled yet
+  falls = iter([True])                                      # the fall: on the settling step
+  m.fall.falling = lambda data, pitch=0.0: m.stand.settled and next(falls, False)
   body.run(m.to_walk_routine())
   assert m.getup.steps == 50, "the walker took the legs before the body stood"
   assert m.legs == "walk" and m.falls == 1
+
+
+def test_a_stand_up_keeps_what_the_grippers_were_asked(head):
+  # No policy drives the grippers, so a fall leaves them as they were asked;
+  # the stand-up's fresh reach built its own, and a gripper shut on a knob
+  # read as never shut (`Gripper.held` asks `shut_asked`, #520).
+  from pluggybot.body import body_for
+  model = mujoco.MjModel.from_xml_string(hm.body_xml())
+  data = mujoco.MjData(model)
+  mujoco.mj_resetDataKeyframe(model, data, 0)
+  mujoco.mj_forward(model, data)
+  body = body_for(model, data)
+  m = body.mission
+  m.reach.grippers["left"].shut()
+  m.getup = _Rising(5)
+  falls = iter([True])
+  m.fall.falling = lambda data, pitch=0.0: next(falls, False)
+  body.run(body.settle_routine(model.opt.timestep))         # the watch takes a fall
+  assert m.legs == "getup"
+  body.run(m._getup_routine())                              # ...and it stands
+  assert m.legs == "stand" and m.reach.phase["left"] == "rest"
+  assert m.reach.grippers["left"].shut_asked
 
 
 def test_the_getup_policy_stands_it_up_off_its_back(head):

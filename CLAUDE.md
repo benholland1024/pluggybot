@@ -310,10 +310,11 @@ save a filmstrip PNG named after the script.
   anchor renewed at touchdown made a step free). ⚠ A HAND THAT CANNOT GET
   THERE STOPS (`reach.BLOCKED_M`/`BLOCKED_N`, held `BLOCKED_S`): its own
   solve out of reach, or its currents reading a push on its way in --
-  unstopped, an arm pushed the robot over. ⚠ IT GOES IN ONLY ONCE THE
-  TRUNK IS STILL (`reach.STILL_RATE`): the currents' force assumes the arm
-  still, and begun as the deepest bow stopped turning, the floor's reach
-  read 492 N and stopped 6 cm short (#520). Training's arms are SCRIPTED,
+  unstopped, an arm pushed the robot over. ⚠ IT GOES IN ONCE THE TRUNK IS
+  STILL (`reach.TRUNK_STILL_RATE`; or after `POSTURE_WAIT_S`): the
+  currents' force assumes the arm still, and begun as the deepest bow
+  stopped turning, the floor's reach read 492 N and stopped 6 cm short
+  (#520). Training's arms are SCRIPTED,
   their gains the served arms' (`model.ARM_GAIN_SCALE`, through
   `humanoid.json`). `training/humanoid_train/g1_check.py` is rule 6's
   check: mjlab's stock G1 flown outside mjlab.
@@ -324,7 +325,8 @@ save a filmstrip PNG named after the script.
   `Body`'s (`reach_routine`, `release_routine`, `grip_routine`, `gripped`,
   `hand_force`), and the quadruped refuses them out loud (⚠ `reach_routine`
   is True only of a hand HOLDING at its goal, never on `Reach.done`, which
-  a hand stopped short is, and every hand after a fall's stand-up: #520);
+  a hand stopped short is, and every hand after a fall's stand-up; a fall
+  ends a ramp too, and the stand-up keeps the grippers: #520);
   what only the quadruped's world has (its dock, rack and tools) the
   humanoid refuses (`NOT_HERE`). Its legs are the WALKING policy's while it moves
   (`models/humanoid_walk.npz`, `Pluggy-Humanoid-Walk`) and the standing

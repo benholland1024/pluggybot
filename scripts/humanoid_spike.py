@@ -3080,7 +3080,8 @@ def bow_fall_trial(held, way: str, ns: float, served: bool, npz: str | None = No
   the floor first, a hand aside, and when, and the head's speed into it;
   whether it fell, by our grading (a part struck, or its pelvis 0.15 m under
   where it held); and `served`, the checks handing the fall to the get-up
-  policy, when it stood."""
+  policy, when they did and when it stood. Times from the shove's start,
+  as `fall_trial`'s."""
   h = floor_humanoid()
   m, d = h.m, h.d
   floor, head = m.geom("floor").id, m.geom("head").id
@@ -3095,10 +3096,11 @@ def bow_fall_trial(held, way: str, ns: float, served: bool, npz: str | None = No
   z0 = float(d.xpos[h.root][2])
   rec = {"posture": tuple(held), "way": way, "ns": ns, "served": served, "tilt_s": None,
          "upright_s": None, "collapse_s": None, "first": None, "hit_s": None, "head_v": None,
-         "stood_s": None, "max_tip": 0.0}
+         "took_s": None, "stood_s": None, "max_tip": 0.0}
+  t0 = d.time
   _drain(shove(h, FALL_WAYS[way], ns))
   vel = np.zeros(6)
-  t0, n, up = d.time, 0, False
+  n, up = 0, False
   while d.time - t0 < BOW_WATCH_S:
     if not up and n % every == 0:
       t, g = d.time - t0, h.stand.trunk.gravity()
@@ -3110,7 +3112,7 @@ def bow_fall_trial(held, way: str, ns: float, served: bool, npz: str | None = No
         if fired and rec[key] is None:
           rec[key] = t
       if served and (tip > FALL_TILT_RAD or sunk):
-        up = True
+        up, rec["took_s"] = True, t
         getup.begin()
     if up:
       getup.step()
@@ -3168,12 +3170,12 @@ def bow_fall_table(npz: str | None = None, jobs: int = 4) -> list[dict]:
     stood_through = [r for r in alone if r["posture"] == p and not r["fell"]]
     by_tilt = sum((r["tilt_s"] is not None)
                   and (r["collapse_s"] is None or r["tilt_s"] <= r["collapse_s"]) for r in fell)
-    caught = [min(t for t in (r["tilt_s"], r["collapse_s"]) if t is not None) for r in fell
-              if r["tilt_s"] is not None or r["collapse_s"] is not None]
-    ahead = [r["hit_s"] - c for r, c in zip(fell, caught) if r["hit_s"] is not None]
+    caught = [r for r in fell if r["tilt_s"] is not None or r["collapse_s"] is not None]
+    ahead = [r["hit_s"] - min(t for t in (r["tilt_s"], r["collapse_s"]) if t is not None)
+             for r in caught if r["hit_s"] is not None]
     false_now = sum(r["tilt_s"] is not None or r["collapse_s"] is not None for r in stood_through)
     false_was = sum(r["upright_s"] is not None or r["collapse_s"] is not None for r in stood_through)
-    up = [r for r in served if r["posture"] == p and (r["stood_s"] is not None or r["fell"])]
+    up = [r for r in served if r["posture"] == p and r["took_s"] is not None]
     stood = [r["stood_s"] for r in up if r["stood_s"] is not None]
     heads = [r["head_v"] for r in fell if r["head_v"]]
     heads_s = [r["head_v"] for r in up if r["head_v"]]
@@ -3183,7 +3185,7 @@ def bow_fall_table(npz: str | None = None, jobs: int = 4) -> list[dict]:
           f"{f'{len(stood)}/{len(up)}, {_span(stood)}':>18s}"
           f"{f'{len(heads)}, {_span(heads)}':>17s}{f'{len(heads_s)}, {_span(heads_s)}':>17s}")
   missed = [r for r in alone if r["fell"] and r["tilt_s"] is None and r["collapse_s"] is None]
-  most = max(r["max_tip"] for r in alone if not r["fell"])
+  most = max((r["max_tip"] for r in alone if not r["fell"]), default=0.0)
   print(f"  falls neither check took: {len(missed)}; the most a shove it stood through tipped it "
         f"past its posture: {math.degrees(most):.1f} deg, against the watch's "
         f"{math.degrees(FALL_TILT_RAD):.0f}")
@@ -3503,7 +3505,8 @@ def main(argv=None) -> None:
   ap.add_argument("--policy", default=None,
                   help="fly another standing policy's .npz (default models/humanoid_stand.npz)")
   ap.add_argument("--getup-policy", default=None,
-                  help="the scenes' get-up policy .npz (default models/humanoid_getup.npz)")
+                  help="the `fall` and `getup` scenes' get-up policy .npz (default "
+                       "models/humanoid_getup.npz; `reach` flies the served one)")
   ap.add_argument("--shove", action="store_true",
                   help="the shoves it stands through, each way, standing and crouched")
   ap.add_argument("--envelope", action="store_true",

@@ -258,15 +258,19 @@ class HumanoidMission(Navigator):
 
   def _stood_up(self) -> None:
     """Stood again: the legs back to the standing policy at the stand, the
-    arms to a fresh reach from where they hang -- and, as at boot, its
-    height the stand's over the ground it stands on, the ground's map laid
-    anew. ⚠ Kept through a fall down the flight, the height was 0.41 m off
-    at the foot, past what a frame registers, for good."""
+    arms to a fresh reach from where they hang, the grippers as they were
+    asked (no policy drives them; built afresh, a shut gripper read as
+    never shut, #520) -- and, as at boot, its height the stand's over the
+    ground it stands on, the ground's map laid anew. ⚠ Kept through a fall
+    down the flight, the height was 0.41 m off at the foot, past what a
+    frame registers, for good."""
     key = f"humanoid:{self.handle.prefix}"
     self.stand.last_action[:] = 0.0
     self.stand.posture[:] = 0.0
     self.stand.ask(0.0, 0.0)
+    grippers = self.reach.grippers
     self.reach = Reach(self.model, self.data, self.stand, prefix=self.handle.prefix, key=key)
+    self.reach.grippers.update(grippers)
     self.legs = "stand"
     if self.head is not None:
       self.head.forget()
