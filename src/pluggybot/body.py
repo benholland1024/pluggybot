@@ -734,7 +734,7 @@ class Body(abc.ABC):
                    patience: float = 30.0) -> Routine:
     """THE COMPLIANT PULL (#493): a hand that is out carried straight along
     `direction` (the believed world frame) on an arm at `stiffness`, so it
-    bends toward whatever gives, its turn yielding to what turns it --
+    bends toward whatever gives, its turn held --
     until it has gone `distance_m`, the force it reads at the hand along
     its way reaches `limit_n`, N, while it is held back, it is held fast,
     its grip lets go, or `patience` runs out; then it holds

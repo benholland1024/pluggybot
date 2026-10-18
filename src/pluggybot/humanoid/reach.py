@@ -18,11 +18,10 @@ point, or through a path's points in turn (`carry`), from where the hand
 IS, no faster than `HOLD_SPEED`, in the least-bent posture that reaches
 (`posture_for`) or follows the path (`path_for`), stopping where the
 arm's own solve misses rather than command the miss. Its turn is the one
-it is asked to keep -- a path may turn it point by point -- or, with
-`give`, the hand's own where what it holds turns it (the compliant pull,
-`Body.pull_routine`); never left free: a drop handle in a hand that
-pivoted swung round its pin under a push and buckled, and a lid lifted by
-it never rose.
+it is asked to keep -- a path may turn it point by point -- and never
+yields to what twists it: a drop handle in a hand that pivoted, or whose
+turn followed a twist past 4 or 10 deg, swung round its pin under the
+first push and buckled (SimNotes, "The humanoid opens the chest").
 
 `Reach.step()` runs once a physics step, after the standing policy's and
 before `mj_step`; the arms take new commands every `EVERY_S`.
@@ -90,13 +89,6 @@ POSTURE_TOL, TRUNK_STILL_RATE, POSTURE_WAIT_S = (0.025, 0.06), 0.05, 4.0
 #: comes a second or two behind its command, and the arm's solve missed
 #: its command by 2-5 cm all the way up (#493).
 HOLD_SPEED = 0.06
-#: A carry with `give` -- a pull (`Body.pull_routine`) -- has its turn follow
-#: the hand's own where what it holds turns it past this, rad, at this rate
-#: at most, rad/s: a drop handle hangs free until its arm lies on its lid's
-#: front edge, 57 deg up, and a hand held at its turn past that fought the
-#: lid, its wrist giving 7-11 deg (#493; SimNotes, "The humanoid opens the
-#: chest", has the pulls that steered themselves, and how each failed).
-TURN_GIVE, TURN_RATE = math.radians(4.0), 0.5
 #: A path's slack (`path_for`): each of its points must also be reached
 #: this much further AHEAD, m. Lifting, the live robot stands further back
 #: than its statue: 1.5-2 cm all the way up a lid's arc, 2 cm more at its
@@ -479,17 +471,15 @@ class Reach:
     return None
 
   def carry(self, side: str, pos, stiffness: float | None = None,
-            speed: float = HOLD_SPEED, path=None, turns=None, give: bool = False,
+            speed: float = HOLD_SPEED, path=None, turns=None,
             limit_n: float | None = None) -> bool:
     """A hand that is out (`out`) carried from where it IS along a straight
     line to `pos`, stance frame, at `speed`, its turn kept, at `stiffness`
     (or its goal's), the posture the least bent that reaches the end --
     through `path`'s points first, from one posture that follows them all
     (`path_for`), turning to `turns`' at each (one a point of `path` and
-    one at `pos`), where given -- or, with `give`, its turn following the
-    hand's where what it holds turns it past `TURN_GIVE`; stopped
-    ("force") where the force it reads along its way stays over `limit_n`,
-    N, while its hand is held back. False (nothing moves) for a hand that
+    one at `pos`), where given; stopped ("force") where the force it reads
+    along its way stays over `limit_n`, N, while its hand is held back. False (nothing moves) for a hand that
     is not out, or an end no posture reaches. How it ends is its
     `report`."""
     if not self.out(side):
@@ -524,7 +514,7 @@ class Reach:
     self.speed[side], self._off[side] = float(speed), 0.0
     self.pulls[side] = {"start": h.copy(), "t": 0.0,
                         "ways": list(zip(ways[1:] + [end], rots[1:])) if ways else [],
-                        "fixed": bool(ways), "give": bool(give), "limit": limit_n,
+                        "fixed": bool(ways), "limit": limit_n,
                         "peak": 0.0}
     if moved_posture:
       # the hand holds still while the body takes the posture (`_held`)
@@ -721,8 +711,6 @@ class Reach:
     # how far it went: from where it began -- a path summed off the drivers'
     # counts read the jitter of every 10 ms as travel, 0.30 m of it for 0.11
     st["moved"] = float(np.linalg.norm(h - st["start"]))
-    if st.get("give"):
-      self._give(side, dt, r)
     if st.get("limit") is not None and self._over(side, dt, h):
       self._end(side, "force", h, r)
       return self.cmd[side].stiffness
@@ -754,10 +742,7 @@ class Reach:
       return c.stiffness
     self._off[side] = 0.0
     if there and self.phase[side] == "carry" and st.get("ways"):
-      pos, rot = st["ways"].pop(0)
-      self.goal[side].pos = pos
-      if not st.get("give"):
-        self.goal[side].rot = rot
+      self.goal[side].pos, self.goal[side].rot = st["ways"].pop(0)
       return c.stiffness
     if there and self.phase[side] == "carry":
       # arrived once the HAND is there, never its command alone: on a soft
@@ -769,20 +754,6 @@ class Reach:
       elif st["there"] >= HELD_BACK_S:
         self._end(side, "held back", h, r, at_goal=True)
     return c.stiffness
-
-  def _give(self, side: str, dt: float, r: np.ndarray) -> None:
-    """A carried hand's turn yielding (`carry(give=)`): its command turned
-    toward the hand's own where what it holds turns it past `TURN_GIVE`."""
-    c = self.cmd[side]
-    e = _rot_error(r, c.rot)
-    a = float(np.linalg.norm(e))
-    if a > TURN_GIVE:
-      q = np.zeros(4)
-      mujoco.mju_axisAngle2Quat(q, e / a, min(a - TURN_GIVE, TURN_RATE * dt))
-      turn = np.zeros(9)
-      mujoco.mju_quat2Mat(turn, q)
-      c.rot = turn.reshape(3, 3) @ c.rot
-      self.goal[side].rot = c.rot.copy()
 
   def _over(self, side: str, dt: float, h: np.ndarray) -> bool:
     """Whether a carried hand's force along its way (toward its goal) has

@@ -540,9 +540,9 @@ class HumanoidBody(Body):
                    speed=HOLD_SPEED, patience=30.0):
     """A compliant move (#493): the hand carried straight along `direction`
     on an arm at `stiffness`, so it bends toward whatever gives, its turn
-    yielding to what turns it (`Reach.carry(give=)`), stopped at `limit_n`
-    along its way while held back ("force"), held back with no force over
-    it ("held fast"), its grip lost ("let go"), or `distance_m` gone."""
+    held (`Reach.carry`), stopped at `limit_n` along its way while held back
+    ("force"), held back with no force over it ("held fast"), its grip lost
+    ("let go"), or `distance_m` gone."""
     yield from self.mission.to_stand_routine()
     d = _rz(self.stance[2]).T @ np.asarray(direction, dtype=float)
     d = d / max(float(np.linalg.norm(d)), 1e-9)
@@ -552,7 +552,7 @@ class HumanoidBody(Body):
                            "dy": 0.0, "dz": 0.0, "direction": list(d), "force": 0.0})
     start = self.reach.grip_now(side)[0].copy()
     gripped = self.gripped(side)
-    if not self.reach.carry(side, start + float(distance_m) * d, stiffness, speed, give=True,
+    if not self.reach.carry(side, start + float(distance_m) * d, stiffness, speed,
                             limit_n=limit_n):
       rep = {**(self.reach.report[side] or {}), "why": "out of reach"}
     else:

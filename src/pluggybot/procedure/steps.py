@@ -1047,8 +1047,7 @@ def _move_hand(life, args: dict) -> Routine:
 def _pull(life, args: dict) -> Routine:
   """THE COMPLIANT PULL (issue #493, stage 3): a hand that is out carried
   straight along (dx, dy, dz) on an arm at `stiffness` -- soft by default,
-  so it bends toward whatever gives -- its turn yielding to what turns it,
-  until it has gone `distance`, m, the force at the hand along its way
+  so it bends toward whatever gives -- its turn held, until it has gone `distance`, m, the force at the hand along its way
   reaches `force`, N, while it is held back, it is held fast, its grip lets
   go, or it can reach no further -- then it holds there. How far it went,
   the hardest it pulled and the way it went ride `pull.*`. ok when it
@@ -1206,8 +1205,8 @@ HANDS_VERBS: dict[str, Verb] = {
                         "distance": Arg("float", lo=0.01, hi=0.6),
                         "speed": _SPEED, "stiffness": _SOFT},
                _pull, "pull a hand that is out straight along (dx, dy, dz) on a soft arm -- "
-               "the hand bending toward whatever gives, its turn yielding to whatever turns "
-               "it -- until it has gone `distance` m, the force at the hand along its way "
+               "the hand bending toward whatever gives, its turn kept -- until it has gone "
+               "`distance` m, the force at the hand along its way "
                "reaches `force` N while something holds it back, it is held fast, or it can "
                "reach no further; then it holds there. How far it went, the hardest it "
                "pulled and the way it went ride `pull.*`; ok when it pulled"),

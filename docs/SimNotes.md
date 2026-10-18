@@ -5223,6 +5223,91 @@ Ryzen 7 7800X3D host (the other half of each round). #507 to here: $12.15.
 `--strip rough` and `--strip stairs` draw `docs/figures/humanoid_rough.png`
 and `humanoid_stairs.png`.)
 
+## The humanoid opens the chest (issue #493, stages 2 and 3)
+
+The humanoid's reference (`evaluation/opener.py`) is the quadruped probe's
+plan on the humanoid's hands, built on `Body`'s members alone: the knob off
+its tag, the box off the D435's depth at the part's 848 x 480
+(`Body.depth_cloud`, `legs.probe.guess`), the lid's arc planned about the
+hinge it measured, the knob gripped and carried up the arc and back down
+it, and let go. Every number is MuJoCo's, an upper bound on hardware.
+
+![The reference on chest 0: set out, the lid past 57 deg, the call, and 5 s
+on](figures/humanoid_opener.png)
+
+(`MUJOCO_GL=egl uv run python scripts/attempts.py --body humanoid --strip 0
+--out docs/figures/humanoid_opener.png`; `--view 0` watches it, `--chests
+0-31 --jobs 4 --into DIR` flies the 32.)
+
+**The counter is 0.72 m** (Ben, 2026-10-18; `evaluation.counter.COUNTER_H`).
+At a kitchen's 0.90 the lid's 57 deg put the knob 0.52 m ahead and 1.21 m
+up -- the arm's full stretch, however the hand and the handle turned
+together -- and 62 deg was out of every set-out's reach. Nearer did not
+help: 3 or 5 cm nearer the knob sat at the bottom of the colour camera's
+view (19-61 deg below level), and with the robot bowing to look
+(`Body.gaze_routine`) the reference opened 19 and 18 of 32 against 19
+where it stands; a 0.80 m counter, 17.
+
+**What made it work, each measured:**
+- ⚠ *The drop handle's arm lies on the lid's front edge 57 deg up.* The
+  handle rests 33 deg round its pin from the lid's own frame; held at its
+  turn, the hand keeps the handle as it hangs while the lid turns under
+  it, and at 57 deg of lid -- the grader's own line -- the arm meets the
+  edge. Pulled on past it, the wrist gave 7-11 deg and the lid went on to
+  74, or stopped short. So past 50 deg the hand turns as the lid does
+  (`opener.FREE_RAD`): 8-12 of 32 became 19.
+- *The robot leans back as it lifts.* The live pelvis stood 1.5-2 cm
+  behind the statue the planner posed, and 2 cm more at the arc's top,
+  where a path planned with no slack stopped at 57 deg. A path's points are
+  reached 3.5 cm further ahead on a statue (`reach.PATH_MARGIN_M`), and
+  planned for a hand that is out on the robot AS IT STANDS -- its model
+  posed off its senses, its arm as its encoders read it -- with 2 cm on
+  the points further from the shoulder (`LIVE_MARGIN_M`): from the statue,
+  the path back down from the top solved 6 cm short of where the hand WAS.
+- *One posture a path.* Changing posture partway (a crouch for the grip, a
+  bow for the top) jerked the lid down at 1.7-2.3 rad/s and up to 81 deg:
+  16 of 32 against 19. A reach given the path to come grips in the posture
+  that follows it (`Body.reach_routine(path=)`), or, where that posture
+  makes no approach, in any, and the hand holds still while the body takes
+  the path's (`Reach._posture_held`): gripped level, a crouch had shuffled
+  the feet 12 cm and no arc was followable from there.
+- *A carry keeps the turn it was asked*, never the one it sagged to: the
+  wrist's 0.1-0.15 rad of give at the top put the path back down out of
+  every posture's reach. Its points are followed within 2 cm
+  (`PATH_POS_TOL`): a solve trades position for the turn it holds.
+
+**The reference opens 23 of 32** (95 % interval 0.55-0.85), every pass in
+17.5-22.3 sim-s, the lid to 57.7-63.4 deg and down at 0.37-0.58 rad/s at
+its fastest while open, no fall. The nine it does not are reach: in five
+no grip's tilt follows the arc to 62 deg (`no tilt puts the lid's arc in
+reach`), in three no arc follows from the grip the reach could make, in one
+the hand ran out of reach a step up.
+
+**The compliant pull** (`Body.pull_routine`, the `pull` verb) is a hand
+carried straight on a soft arm (0.5 of its gains unless asked), its turn
+held, stopped at its distance, at its force while held back, held fast, or
+its grip lost; how far it went and the way the hand truly went are its
+report. A procedure steers it, a pull at a time. ⚠ Every pull that steered
+itself failed, and why is the lesson: an equilibrium point drawn along the
+hand's own motion followed the robot's lean and its feet's slide (pulling
+25-40 N, the standing policy shuffled; measured from the feet that moved,
+the hand seemed to come back, and the pull followed it); a circle fitted to
+the hand's path saw none -- on a stiff arm the hand goes where it is told
+and a lid's arc shows as force, 3 mm off a line after 10 cm; and a turn
+that yields to what twists it let the drop handle buckle under the first
+push (its pin from -33 to +78 deg), at 4 deg or 10 of give, because the
+buckle and the handle's stop turn the hand the same way.
+
+**The arms' friction is calibrated once and kept**
+(`humanoid/friction.py`, `models/humanoid_friction.json`;
+`humanoid_spike.py --friction --write`): each arm joint swept in free air
+at two speeds, the drivers' torque beyond the arm's weight fitted as dry
+friction and viscous, and taken off where a joint turns. The fit reads the
+sheets' 0.300 N*m at the shoulder as 0.281-0.289 and the viscous terms
+within 0.09 of none; ⚠ swept at one speed, the two terms are one column,
+and it read 1.78 dry and -4.97 viscous, right at 0.3 rad/s and nowhere
+else.
+
 ## Debugging workflow that worked
 
 1. Reproduce headlessly with printed telemetry (pose, joint rates, contact
