@@ -25,9 +25,9 @@ THE CRITERIA, written first. An attempt passes when:
      where it gave one. ⚠ WHAT A FALL IS, AND WHICH PART, IS THAT BODY'S
      TO ANSWER (`Body.falls`, `Body.orientation`, `Body.tool_powered`): the
      quadruped's watch is its torso past the topple line, the humanoid's
-     its trunk past 35 deg or its pelvis sunk (`humanoid.getup`); the
-     quadruped's set-out gives it the claw, the humanoid's hands are its
-     own; and nothing here names either.
+     its trunk 35 deg past the posture its legs hold or its pelvis sunk
+     (`humanoid.getup`); the quadruped's set-out gives it the claw, the
+     humanoid's hands are its own; and nothing here names either.
 
 Everything else is the robot's business: how it finds the knob, which way
 it pulls, how long it takes, whether it lies down. `sample_lid` reads

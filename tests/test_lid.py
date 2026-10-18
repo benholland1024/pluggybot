@@ -251,8 +251,8 @@ def test_the_robot_upright_and_its_tool_seated_are_the_bodys_answers():
 
 def test_what_a_fall_is_is_the_bodys_own_watch():
   """A fall its own watch took fails the attempt at whatever tilt it took
-  it -- the humanoid's watch takes 35 deg, its own line (`humanoid.getup`)
-  -- and one it got up from too."""
+  it -- the humanoid's watch takes 35 deg past its posture, its own line
+  (`humanoid.getup`) -- and one it got up from too."""
   def fell_and_got_up(body):
     def routine():
       body.falls += 1

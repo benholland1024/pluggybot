@@ -292,7 +292,9 @@ class HumanoidBody(Body):
   def ramp_routine(self, act: int, target: float, speed: float, settle: float = 0.0):
     """An arm joint walked to `target` at `speed` (its arm's other joints
     held where they are, the arm's weight fed forward), or a gripper's
-    jaws to `target` m apart; then settled."""
+    jaws to `target` m apart; then settled. ⚠ A fall lets go of the arm and
+    ends the ramp (#520): ramped on, it drove the stand-up's fresh reach,
+    whose hanging arms a walk's hand-over reads as home."""
     dt = self._m.opt.timestep
     joint = self._arm_joint(act)
     if joint is None:
@@ -307,13 +309,18 @@ class HumanoidBody(Body):
     else:
       yield from self.mission.to_stand_routine()
       side, k = joint
+      falls = self.mission.falls
       q = self.reach.q_cmd[side].copy()
       self.reach.set_joints(side, q)
       while abs(q[k] - target) > 1e-9:
+        if self.mission.falls != falls:
+          return
         q[k] += max(-speed * dt, min(speed * dt, target - q[k]))
         self.reach.q_to[side] = q.copy()
         yield STILL
       while not self.reach.done(side):
+        if self.mission.falls != falls:
+          return
         yield STILL
     yield from self.settle_routine(settle)
 
@@ -340,16 +347,22 @@ class HumanoidBody(Body):
   # ---- hands ---------------------------------------------------------------
 
   def reach_routine(self, side, pos, rot=None, stiffness=1.0, patience=20.0):
+    """⚠ True only once the hand HOLDS at the goal, never on `Reach.done`
+    (#520): that is also a hand stopped short (`blocked`) and a hand
+    hanging, as every hand is once a fall has let go of the reach and the
+    stand-up has built a fresh one. A fall ends it at once; the next
+    routine waits out the get-up."""
     yield from self.mission.to_stand_routine()
     p = self.to_stance(pos)
     r = None if rot is None else _rz(self.stance[2]).T @ np.asarray(rot, dtype=float)
     if not self.reach.reach(side, HandGoal(p, r, stiffness)):
       return False
+    falls = self.mission.falls
     for _ in range(int(round(patience / self._m.opt.timestep))):
-      if self.reach.done(side):
-        return True
+      if self.mission.falls != falls or self.reach.done(side):
+        break
       yield STILL
-    return self.reach.done(side)
+    return self.mission.falls == falls and self.reach.phase[side] == "hold"
 
   def release_routine(self, side):
     self.reach.retreat(side)

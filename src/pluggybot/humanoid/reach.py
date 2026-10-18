@@ -64,10 +64,14 @@ BLOCKED_S = 0.15
 #: cm under the height it was asked.
 TRIM_RATE, TRIM_MAX = 1.0, (0.05, 0.15)
 #: A hand's approach starts once the posture the robot measures is this
-#: near the plan's, m and rad, or this long after its command arrived, s:
-#: the body takes a second or two to fold into a deep bow after the
-#: command has, and a full-stretch reach begun before it stopped short.
-POSTURE_TOL, POSTURE_WAIT_S = (0.025, 0.06), 4.0
+#: near the plan's, m and rad, and its trunk is still -- its gyro under
+#: `TRUNK_STILL_RATE`, rad/s -- or this long after its command arrived, s: a
+#: full-stretch reach begun before the body had folded into a deep bow
+#: stopped short. ⚠ The force read off the currents assumes the arm still
+#: (`BLOCKED_N`): the floor's approach begun as its bow stopped turning
+#: (0.59 rad/s) read 492 N at the hand for 0.2 s and stopped 6 cm short of
+#: it; begun under 0.05, 62 N for an instant, and it held there (#520).
+POSTURE_TOL, TRUNK_STILL_RATE, POSTURE_WAIT_S = (0.025, 0.06), 0.05, 4.0
 
 #: The postures a reach may take, in the order they are tried -- the least
 #: bent first: the pelvis's height off the stand's, m, and the trunk's
@@ -269,6 +273,20 @@ class Reach:
     self.posture = np.array([height, pitch], dtype=float)
     self.stand.ask(*(self.posture + self.trim))
 
+  def held_pitch(self) -> float:
+    """The trunk's pitch the posture is held at, rad, by the robot's own
+    reckoning: what the standing policy is asked once it is shown it (what
+    it is shown on its way there), less the trim that ask carries, which
+    only takes up what the policy misses by -- none where the ask is held
+    at the deepest bow the policy trained on (`PITCH_RANGE`): taken off
+    there too, an 8 s stand's trim (1.3 deg) read the floor's held bow
+    2.3 deg tipped, not 1.5. Exactly 0 at the stand. The fall watch reads
+    a tip off it (`getup.FallWatch`, #520)."""
+    shown = self.stand.goal if self.stand.settled else self.stand.posture
+    plan = float(self.posture[1])
+    carried = min(max(plan + float(self.trim[1]), PITCH_RANGE[0]), PITCH_RANGE[1]) - plan
+    return float(shown[1]) - carried
+
   def set_joints(self, side: str, q) -> None:
     """The arm to joint angles `q` (its six, `hm.ARM` order) in joint space
     and held there: the motor level's (`Body.ramp_routine`), its hand's
@@ -322,11 +340,12 @@ class Reach:
     return self.self_model.grip_pose(side)
 
   def _posture_there(self, dt: float) -> bool:
-    """Whether the body has reached its plan's posture (`POSTURE_TOL`), or
-    has been given `POSTURE_WAIT_S` to."""
+    """Whether the body has reached its plan's posture (`POSTURE_TOL`) and
+    stopped there (`TRUNK_STILL_RATE`), or has been given `POSTURE_WAIT_S` to."""
     self._posture_wait += dt
     near = (np.abs(self.posture_now() - self.posture) <= POSTURE_TOL).all()
-    if near or self._posture_wait >= POSTURE_WAIT_S:
+    still = float(np.linalg.norm(self.stand.trunk.rate)) < TRUNK_STILL_RATE
+    if (near and still) or self._posture_wait >= POSTURE_WAIT_S:
       self._posture_wait = 0.0
       return True
     return False

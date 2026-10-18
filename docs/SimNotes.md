@@ -4542,7 +4542,8 @@ of the simulator's truth (`test_the_robot_steers_off_its_senses_...`).
 Every number is MuJoCo's, an upper bound on hardware.
 
 ![The `reach` scene: the left hand held at a counter's height, a high
-shelf, a low shelf and the floor](figures/humanoid_reach.png)
+shelf, a low shelf and the floor, through Body with its get-up
+loaded](figures/humanoid_reach.png)
 
 (`MUJOCO_GL=egl uv run python scripts/humanoid_spike.py --strip reach --out
 docs/figures/humanoid_reach.png`; `stand` and `grasp` beside it.)
@@ -4630,9 +4631,10 @@ range ended it, and the hand stopped where its solve missed by 3.7-8 cm
 (the feet moved 6 mm: the stance did not move).
 
 The heights #507 names, 0.09, 0.49, 0.94 and 1.43 m, are all reached, the
-`reach` scene's four held 0.1-0.8 cm off: the floor only near the toes and
-at full stretch from the deepest bow the policy holds (the hip folds to
--2.34 rad there, its thigh a centimetre off the torso); 1.43 m with the
+`reach` scene's four held 0.1-0.9 cm off through `Body`, its get-up loaded
+as served (#520): the floor only near the toes and at full stretch from
+the deepest bow the policy holds (the hip folds to -2.34 rad there, its
+thigh a centimetre off the torso); 1.43 m with the
 fingers tilted up 45 deg. **A waist pitch joint, or 3 cm more arm, would
 give the floor slack** -- the design question for rule 7's re-read.
 
@@ -4666,7 +4668,10 @@ its constant:**
 - *The posture shown is not the posture held.* A deep bow's body takes a
   second or two after its command; an approach begun on the command's
   arrival stopped short. It begins on the robot's own measure
-  (`reach.POSTURE_TOL`).
+  (`reach.POSTURE_TOL`), and once its trunk is still (`reach.TRUNK_STILL_RATE`,
+  #520): the force read off the currents assumes the arm still, and the
+  floor's approach begun as the bow stopped turning (0.59 rad/s) read
+  492 N at the hand and stopped 6 cm short of it.
 - *A hand that cannot get there stops* (`reach.BLOCKED_M`, `BLOCKED_N`,
   held `BLOCKED_S`): its own solve 3 cm out of reach, or its arm's currents
   reading a 30 N push on its way in. Unstopped, a crouch left a chest's knob
@@ -4972,8 +4977,9 @@ which has its tables and the descent's state). Each fix above is pinned in
 and `-Getup-Head`; `humanoid_spike.py --fall`, `--view fall`, `--view
 getup`). Without a get-up a fall is today's `stuck` death: a heart, and on
 a served world a stand-up 300 s later. The get-up policy takes every joint,
-arms too, once the IMU reads 35 deg of tilt or the pelvis has sunk under
-0.40 m over the sole it stands on (shoved hard from the front, the standing
+arms too, once the IMU reads the trunk tipped 35 deg past the posture its
+legs hold (below: a bow is no fall) or the pelvis has sunk under 0.40 m
+over the sole it stands on (shoved hard from the front, the standing
 policy folded into a squat 32 deg off upright, and the tilt alone never
 fired), and hands back once it has stood still 0.5 s. Shoved 45 N*s each of
 six ways on a bare floor, by our grading off the world:
@@ -5012,10 +5018,49 @@ and getting up among walls and flights is the training that would close it
 (the get-up trained on open floor alone). The stuck budget stays the
 quadruped's 20 s (`HumanoidBody.GETUP_BUDGET_S`). The mission waits out a
 get-up before handing the legs to a walk (⚠ a fall mid-walk with the arms
-home found them at rest and took the legs off the floor), and on standing
-again forgets its map of the ground and starts its height again over the
-ground it stands on, as at boot (⚠ kept through a fall down the flight, the
-height was 0.41 m off at the foot for good).
+home found them at rest and took the legs off the floor; one on the step
+that brought them home went to the walker, #520) or back from one (⚠ a
+fall while the walker settled went to the standing policy at the settle's
+end, #520), and on standing again forgets its map of the ground and starts
+its height again over the ground it stands on, as at boot (⚠ kept through
+a fall down the flight, the height was 0.41 m off at the foot for good).
+
+**A bow is no fall** (#520). The IMU is on the pelvis and the body has no
+waist, so a bow the standing policy is asked tilts it by the whole bow, and
+read off upright the watch took the reach's deepest postures for falls:
+through `Body`, a low shelf (0.8 rad) and the floor (1.1 rad) each counted
+one and the get-up took the joints -- and the reach said it had arrived,
+because the stand-up's fresh reach hangs and `Reach.done` counts a hanging
+hand (and a hand stopped short) as done. The tip is read off the posture
+the legs hold now (`getup.tipped`, `Reach.held_pitch`: what the standing
+policy is asked less the trim that ask carries, so exactly upright at the
+stand -- and no trim where the deepest bow's ask is held at the policy's
+range, or a stand's trim read the floor's held bow 2.3 deg tipped, not
+1.5; the walker's, upright): a bow's trunk follows its posture within
+2.5 deg going down and 1.5 coming up, and stage 5's 38 shoves from the
+stand come out row for row as before. From each posture a reach takes,
+shoved four ways at 10-45 N*s (`--fall`'s third table; on the standing
+policy alone, graded by us, then as served; times from the shove):
+
+| posture | falls | taken first by the tilt, the collapse | ahead of the strike, s | shoves it stood through called falls: now, off upright | stood, served |
+|---|---|---|---|---|---|
+| the stand | 11 of 16 | 8, 3 | 0.22-0.60 | 0 of 5, 0 | 11, 2.7-4.1 s |
+| -0.20 m, 0.55 rad | 10 of 16 | 7, 3 | 0.05-0.40 | 0 of 6, 0 | 10, 2.7-4.0 s |
+| -0.22 m, 0.80 rad | 10 of 16 | 7, 3 | 0.04-0.46 | 0 of 6, 6 | 10, 2.6-4.7 s |
+| -0.25 m, 0.95 rad | 9 of 16 | 6, 3 | 0.04-0.45 | 0 of 7, 7 | 9, 2.6-3.9 s |
+| -0.25 m, 1.10 rad | 9 of 16 | 6, 3 | 0.03-0.48 | 0 of 7, 7 | 9, 2.6-3.9 s |
+
+The most a shove it stood through tipped it past its posture was 8.4 deg.
+⚠ A forward fall from a bow folds at the knees, and THE COLLAPSE TAKES IT,
+0.03-0.08 s before they strike: lying on its face is only 27 deg past the
+deepest bow, so the tilt alone would never fire there. As served the head
+struck in 22 of the 49 falls at 1.0-5.3 m/s (on the standing policy alone,
+in 36 at 0.2-5.0): the get-up's training tips its falling starts over from
+the stand, never from a bow. `reach_routine` says True only of a hand
+holding at its goal now, never on a stop or a fall, which ends it at once;
+a fall ends a ramp of the arm (`move`) too -- ramped on, it drove the
+stand-up's fresh reach -- and the stand-up keeps the grippers as they were
+asked, where a fresh set read a shut gripper as never shut.
 
 **The sizing tables, re-read with the stairs and the get-up** (rule 7;
 `humanoid_spike.py --torque`, each joint's peak against its part's peak

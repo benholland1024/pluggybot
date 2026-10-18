@@ -13,7 +13,8 @@ the parts and the bill.
                 its range in turn, then its grippers; `stand` -- on its own
                 feet, its standing policy, shoved, crouching and bowing;
                 `reach` -- a hand to a counter, a high shelf, a low shelf
-                and the floor, each held; `grasp` -- a drawer's handle
+                and the floor, each held, through `Body` with its get-up
+                loaded as served; `grasp` -- a drawer's handle
                 gripped (judged by the gripper's own reading) and the drawer
                 drawn out with a compliant arm, what the hand felt said
                 beside the truth; `demo` -- #466's chest on a counter, its
@@ -1182,27 +1183,127 @@ def reach_world():
   return standing_world(scenery)
 
 
-def reach_scene(h: Humanoid, records: list | None = None):
+def reach_body_world():
+  """The `reach` scene's world and the humanoid behind `Body` in it, its
+  get-up loaded as served -- its own fall watch at work, as wherever it
+  stands (#520: flown on the standing rig alone, the scene never showed
+  that the watch took the deepest bows for falls)."""
+  from pluggybot.body import body_for
+  model, data = reach_world()
+  body = body_for(model, data, policy=_POLICY)
+  return model, data, body
+
+
+def reach_scene(body, model, data, records: list | None = None):
+  """The `reach` scene, once, through `Body`: the left hand to each of
+  `REACH_TARGETS` -- told to the robot in its stance frame -- held, and
+  home. Yields a line when a part begins or ends. Where the grip truly is
+  is OUR grading; its falls are its own watch's."""
+  from pluggybot.humanoid.body import _rz
+  site = model.site("left_grip").id
+  body.start_at(*STAND_XY, STAND_YAW)
+  # Its stance is its odometry's, posed by its first ticks.
+  yield from drive(body, body.settle_routine(0.5))
   for label, goal in REACH_TARGETS:
     yield f"reaching {label}"
     rec = {"target": label}
-    yield from reach_and_hold(h, "left", HandGoal(goal.pos.copy(), goal.rot), record=rec,
-                              say=f"holding at {label}")
     if records is not None:
       records.append(rec)
-    if not rec.get("planned"):
-      yield "  no posture puts it in reach"
-    elif rec.get("blocked"):
-      yield (f"  stopped short: its own solve put the goal out of reach, or its hand "
-             f"pushed on something; held {100 * rec['miss_mean']:.1f} cm off it")
-    else:
+    falls, t0 = body.falls, data.time
+    x, y, yaw = body._true_stance()
+    truly = _rz(yaw) @ goal.pos + [x, y, 0.0]
+    rot = None if goal.rot is None else _rz(body.stance[2]) @ goal.rot
+    rec["reached"] = yield from drive(body, body.reach_routine(
+      "left", body.to_world(goal.pos), rot, patience=15.0))
+    rec["seconds"], rec["phase"] = data.time - t0, body.reach.phase["left"]
+    rec["posture"] = tuple(float(v) for v in body.reach.posture)
+    rec["slack"] = body.reach.slack["left"]
+    if rec["reached"]:
+      yield f"holding at {label}"
+      misses = []
+      for _ in drive(body, body.settle_routine(2.0)):
+        misses.append(float(np.linalg.norm(data.site_xpos[site] - truly)))
+        yield None
+      rec["miss_mean"], rec["miss_max"] = float(np.mean(misses)), float(np.max(misses))
+    yield from drive(body, body.release_routine("left"))
+    rec["falls"] = body.falls - falls
+    if rec["falls"]:
+      yield (f"  FELL by its own watch ({rec['falls']}): the get-up took every joint; "
+             f"the reach said {rec['reached']}")
+    elif rec["reached"]:
       yield (f"  posture {rec['posture'][0]:+.2f} m, {rec['posture'][1]:.2f} rad"
              f"{'' if rec['slack'] else ', the arm at full stretch'}; there in "
              f"{rec['seconds']:.1f} s; the grip {100 * rec['miss_mean']:.1f} cm off it "
-             f"held (worst {100 * rec['miss_max']:.1f})")
-    if h.fallen():
-      yield "FELL"
-      return
+             f"held (worst {100 * rec['miss_max']:.1f}); no fall by its own watch")
+    elif rec["phase"] == "blocked":
+      yield ("  stopped short: its own solve put the goal out of reach, or its hand "
+             "pushed on something")
+    elif rec["phase"] == "rest":
+      yield "  no posture puts it in reach"
+    else:
+      yield f"  not there in 15 s ({rec['phase']})"
+
+
+def view_reach() -> None:
+  from mujoco import viewer as mj_viewer
+  model, data, body = reach_body_world()
+  print("the `reach` scene: the left hand to a counter, a high shelf, a low shelf and the "
+        "floor, each held, through Body with its get-up loaded. Close the window to quit.")
+  with mj_viewer.launch_passive(model, data) as viewer:
+    viewer.cam.type = mujoco.mjtCamera.mjCAMERA_TRACKING
+    viewer.cam.trackbodyid = body.root
+    viewer.cam.distance, viewer.cam.azimuth = CAM_DISTANCE, CAM_AZIMUTH
+    viewer.cam.elevation = CAM_ELEVATION
+    while viewer.is_running():
+      wall = time.time() - data.time
+      for line in reach_scene(body, model, data):
+        if line:
+          print(f"  -> {line}")
+        if not viewer.is_running():
+          return
+        if int(round(data.time / model.opt.timestep)) % 10 == 0:
+          viewer.sync()
+          ahead = data.time - (time.time() - wall)
+          if ahead > 0:
+            time.sleep(ahead)
+
+
+def filmstrip_reach(out: str) -> None:
+  """The `reach` scene's filmstrip: a tile as it reaches each target and
+  as it holds there, labelled."""
+  from PIL import Image, ImageDraw
+  model, data, body = reach_body_world()
+  r = mujoco.Renderer(model, 300, 400)
+  tiles, pending, at = [], None, 0.0
+
+  def shoot(label):
+    cam = mujoco.MjvCamera()
+    cam.lookat[:] = data.xpos[body.root] + [0.0, 0.0, -0.1]
+    cam.distance, cam.azimuth, cam.elevation = CAM_DISTANCE, CAM_AZIMUTH, CAM_ELEVATION
+    r.update_scene(data, cam)
+    img = Image.fromarray(r.render())
+    ImageDraw.Draw(img).text((8, 8), label[:60], fill=(255, 255, 255))
+    tiles.append(img)
+  for line in reach_scene(body, model, data):
+    if line and not line.startswith("  "):
+      if pending is not None:
+        shoot(pending)
+      pending, at = line, data.time + 0.9
+    elif line:
+      print(line)
+    if pending is not None and data.time >= at:
+      shoot(pending)
+      pending = None
+  if pending is not None:
+    shoot(pending)
+  r.close()
+  body.close()
+  strip = Image.new("RGB", (400 * min(4, len(tiles)), 300 * ((len(tiles) + 3) // 4)),
+                    (255, 255, 255))
+  for k, tile in enumerate(tiles):
+    strip.paste(tile, (400 * (k % 4), 300 * (k // 4)))
+  strip.save(out)
+  print(f"wrote {out}")
 
 
 # ---- the scene: `grasp` ------------------------------------------------------------
@@ -1363,15 +1464,13 @@ def _world_for(scene: str, policy=None):
   policy = policy or _POLICY
   if scene == "stand":
     model, data = standing_world()
-  elif scene == "reach":
-    model, data = reach_world()
   else:
     model, data = standing_world(counter_scenery)
   return model, data, Humanoid(model, data, policy)
 
 
 def _scene_gen(scene: str, h: Humanoid):
-  return {"stand": stand_scene, "reach": reach_scene, "grasp": grasp_scene}[scene](h)
+  return {"stand": stand_scene, "grasp": grasp_scene}[scene](h)
 
 
 def view_stage2(scene: str) -> None:
@@ -2721,11 +2820,11 @@ def filmstrip_stairs(out: str, every_s: float = 2.0) -> None:
 # driven back against its part's no-load speed (back-driven past it, a
 # motor pumps the bus). Three ways to
 # fall: the standing policy keeps the legs; the drivers go limp once the
-# trunk has tipped past `getup.FALL_TILT_RAD`; or the get-up policy takes
+# trunk has tipped `getup.FALL_TILT_RAD` past its posture; or the get-up policy takes
 # the legs and arms there (`humanoid.getup`), and gets up.
 
-from pluggybot.humanoid.getup import (FALL_TILT_RAD, GETUP_NPZ, FallWatch,  # noqa: E402
-                                      GetupDriver)
+from pluggybot.humanoid.getup import (COLLAPSED_M, FALL_TILT_RAD, GETUP_NPZ,  # noqa: E402
+                                      FallWatch, GetupDriver, over_lower_sole, tipped)
 
 #: The shoves, the robot's frame (x ahead), and how hard, N*s: past what it
 #: stands through every way (`--shove`: 10-20 N*s), it goes over.
@@ -2775,7 +2874,7 @@ def fall_trial(way: str, mode: str, npz: str | None = None, ns: float = FALL_NS)
       if next(gen, "done") == "done":
         gen = None
       continue
-    if took_over is None and watch.falling(d):
+    if took_over is None and watch.falling(d, h.reach.held_pitch()):
       took_over = d.time - t0
       if mode == "getup":
         getup.begin()
@@ -2832,7 +2931,8 @@ def fall_table(npz: str | None = None, jobs: int = 4) -> list[dict]:
   peak_tau = np.array([hm.CHOSEN.motor(j).peak_torque for j in hm.JOINT_NAMES])
   noload = np.array([hm.CHOSEN.motor(j).noload_speed for j in hm.JOINT_NAMES])
   print(f"FALLS, shoved {FALL_NS:g} N*s at the trunk each way, standing on a bare floor; the "
-        f"get-up policy or the limp drivers take over past {math.degrees(FALL_TILT_RAD):.0f} deg")
+        f"get-up policy or the limp drivers take over {math.degrees(FALL_TILT_RAD):.0f} deg past its "
+        "posture")
   print("  each part: the speed it first touched the floor at, m/s, and the hardest the floor "
         "pushed back, kN (MuJoCo's soft contact: an upper bound's shape, not a number to bank)")
   print("  gears past peak: joints whose torque through the gears passed their part's peak "
@@ -2893,7 +2993,7 @@ def house_fall_trial(place: str, way: str, npz: str | None = None, ns: float = F
       if next(gen, "done") == "done":
         gen = None
       continue
-    if took is None and watch.falling(d):
+    if took is None and watch.falling(d, h.reach.held_pitch()):
       took = d.time - t0
       getup.begin()
     if took is not None and stood is None:
@@ -2958,6 +3058,140 @@ def house_fall_table(npz: str | None = None, jobs: int = 4) -> list[dict]:
   return rows
 
 
+# Falls from a bow (#520): the watch reads a tip off the posture the legs
+# hold, so a bow a reach asks is no fall, and a shove from one still is.
+# Each posture a reach takes, shoved each way at four strengths: once on the
+# standing policy alone, graded by us off the world -- did it fall -- with
+# the moment each check WOULD have taken it; once as served, the checks
+# handing the fall to the get-up policy.
+
+#: The postures (height off the stand's, m; pitch, rad): the stand and
+#: `reach.POSTURES`' bows. The shoves' ways and strengths, N*s, and how long
+#: each is watched, s.
+BOW_POSTURES = ((0.0, 0.0), (-0.2, 0.55), (-0.22, 0.8), (-0.25, 0.95), (-0.25, 1.1))
+BOW_WAYS, BOW_NS, BOW_WATCH_S = ("front", "back", "left", "right"), (10.0, 20.0, 30.0, 45.0), 6.0
+
+
+def bow_fall_trial(held, way: str, ns: float, served: bool, npz: str | None = None) -> dict:
+  """The robot on a bare floor settled in posture `held` (its reach holding
+  it, as a plan's posture is), shoved `way` at `ns` N*s and watched
+  `BOW_WATCH_S`: when each check fires -- the tilt past the posture (the
+  watch's), off upright (the watch's as it was), the collapse -- what struck
+  the floor first, a hand aside, and when, and the head's speed into it;
+  whether it fell, by our grading (a part struck, or its pelvis 0.15 m under
+  where it held); and `served`, the checks handing the fall to the get-up
+  policy, when they did and when it stood. Times from the shove's start,
+  as `fall_trial`'s."""
+  h = floor_humanoid()
+  m, d = h.m, h.d
+  floor, head = m.geom("floor").id, m.geom("head").id
+  part_of = {m.geom(g).id: p for p, gs in FALL_PARTS.items() for g in gs}
+  watch = FallWatch(h.stand.trunk, h.stand.joints)
+  getup = GetupDriver(m, d, policy=StandPolicy(npz or str(GETUP_NPZ)), trunk=h.stand.trunk,
+                      joints=h.stand.joints) if served else None
+  every = max(1, round(h.stand.policy.period / m.opt.timestep))
+  _drain(wait(h, 1.0))
+  _drain(posture(h, *held))
+  _drain(wait(h, 1.5))
+  z0 = float(d.xpos[h.root][2])
+  rec = {"posture": tuple(held), "way": way, "ns": ns, "served": served, "tilt_s": None,
+         "upright_s": None, "collapse_s": None, "first": None, "hit_s": None, "head_v": None,
+         "took_s": None, "stood_s": None, "max_tip": 0.0}
+  t0 = d.time
+  _drain(shove(h, FALL_WAYS[way], ns))
+  vel = np.zeros(6)
+  n, up = 0, False
+  while d.time - t0 < BOW_WATCH_S:
+    if not up and n % every == 0:
+      t, g = d.time - t0, h.stand.trunk.gravity()
+      tip = tipped(g, h.reach.held_pitch())
+      rec["max_tip"] = max(rec["max_tip"], tip)
+      sunk = over_lower_sole(watch.sm, h.stand.joints.read(d)[0], g) < COLLAPSED_M
+      for key, fired in (("tilt_s", tip > FALL_TILT_RAD), ("collapse_s", sunk),
+                         ("upright_s", h.stand.trunk.attitude.tilt() > FALL_TILT_RAD)):
+        if fired and rec[key] is None:
+          rec[key] = t
+      if served and (tip > FALL_TILT_RAD or sunk):
+        up, rec["took_s"] = True, t
+        getup.begin()
+    if up:
+      getup.step()
+      mujoco.mj_step(m, d)
+      if getup.stood:
+        rec["stood_s"] = d.time - t0
+        break
+    else:
+      h.step()
+    n += 1
+    for i in range(d.ncon):
+      c = d.contact[i]
+      other = c.geom2 if c.geom1 == floor else c.geom1 if c.geom2 == floor else None
+      if other not in part_of or part_of[other] == "hands":
+        continue
+      if rec["first"] is None:
+        rec["first"], rec["hit_s"] = part_of[other], d.time - t0
+      if other == head and rec["head_v"] is None:
+        mujoco.mj_objectVelocity(m, d, mujoco.mjtObj.mjOBJ_GEOM, head, vel, 0)
+        rec["head_v"] = float(np.linalg.norm(vel[3:]))
+  rec["fell"] = rec["hit_s"] is not None or float(d.xpos[h.root][2]) < z0 - 0.15
+  return rec
+
+
+def _bow_fall_trial(job):
+  return bow_fall_trial(*job)
+
+
+def _span(values, fmt: str = "{:.1f}") -> str:
+  return "-" if not values else fmt.format(min(values)) + "-" + fmt.format(max(values))
+
+
+def bow_fall_table(npz: str | None = None, jobs: int = 4) -> list[dict]:
+  """--fall, from a bow: each posture a reach takes, shoved each way at each
+  strength, on the standing policy alone and as served."""
+  import multiprocessing as mp
+  work = [(p, w, ns, s, npz) for s in (False, True) for p in BOW_POSTURES for w in BOW_WAYS
+          for ns in BOW_NS]
+  with mp.get_context("spawn").Pool(jobs, maxtasksperchild=1) as pool:
+    rows = pool.map(_bow_fall_trial, work)
+  alone = [r for r in rows if not r["served"]]
+  served = [r for r in rows if r["served"]]
+  print(f"FALLS FROM A BOW, on a bare floor: each posture a reach takes, shoved {', '.join(BOW_WAYS)} "
+        f"at {', '.join(f'{ns:g}' for ns in BOW_NS)} N*s. On the standing policy alone, graded by "
+        "us: the falls, which check would have taken each first, how long before a part but a "
+        "hand struck the floor, and the shoves it stood through that a check took for a fall -- "
+        "the tilt past the posture (the watch) and off upright (the watch as it was). As served, "
+        "the checks handing each fall to the get-up policy: stood, s from the shove; and the "
+        "head into the floor, m/s, alone and served")
+  print(f"{'posture':>14s}{'falls':>7s}{'first: tilt, collapse':>23s}{'ahead, s':>11s}"
+        f"{'false: posture, upright':>25s}{'stood, served':>18s}{'head alone':>17s}"
+        f"{'head served':>17s}")
+  for p in BOW_POSTURES:
+    fell = [r for r in alone if r["posture"] == p and r["fell"]]
+    stood_through = [r for r in alone if r["posture"] == p and not r["fell"]]
+    by_tilt = sum((r["tilt_s"] is not None)
+                  and (r["collapse_s"] is None or r["tilt_s"] <= r["collapse_s"]) for r in fell)
+    caught = [r for r in fell if r["tilt_s"] is not None or r["collapse_s"] is not None]
+    ahead = [r["hit_s"] - min(t for t in (r["tilt_s"], r["collapse_s"]) if t is not None)
+             for r in caught if r["hit_s"] is not None]
+    false_now = sum(r["tilt_s"] is not None or r["collapse_s"] is not None for r in stood_through)
+    false_was = sum(r["upright_s"] is not None or r["collapse_s"] is not None for r in stood_through)
+    up = [r for r in served if r["posture"] == p and r["took_s"] is not None]
+    stood = [r["stood_s"] for r in up if r["stood_s"] is not None]
+    heads = [r["head_v"] for r in fell if r["head_v"]]
+    heads_s = [r["head_v"] for r in up if r["head_v"]]
+    print(f"{p[0]:+6.2f} m {p[1]:4.2f}{len(fell):>4d}/{len(fell) + len(stood_through)}"
+          f"{f'{by_tilt}, {len(caught) - by_tilt}':>23s}{_span(ahead, '{:.2f}'):>11s}"
+          f"{f'{false_now} of {len(stood_through)}, {false_was}':>25s}"
+          f"{f'{len(stood)}/{len(up)}, {_span(stood)}':>18s}"
+          f"{f'{len(heads)}, {_span(heads)}':>17s}{f'{len(heads_s)}, {_span(heads_s)}':>17s}")
+  missed = [r for r in alone if r["fell"] and r["tilt_s"] is None and r["collapse_s"] is None]
+  most = max((r["max_tip"] for r in alone if not r["fell"]), default=0.0)
+  print(f"  falls neither check took: {len(missed)}; the most a shove it stood through tipped it "
+        f"past its posture: {math.degrees(most):.1f} deg, against the watch's "
+        f"{math.degrees(FALL_TILT_RAD):.0f}")
+  return rows
+
+
 # The scenes `fall` and `getup`: on a bare floor, the get-up policy taking
 # over as the humanoid's mission hands it a falling body (`humanoid.mission`:
 # its senses say it is falling, every joint goes to the get-up policy, and
@@ -3008,7 +3242,7 @@ class Falling:
         h.reach = Reach(h.m, h.d, h.stand)
     else:
       h.step()
-      if self.n % self.every == 0 and self.watch.falling(h.d):
+      if self.n % self.every == 0 and self.watch.falling(h.d, h.reach.held_pitch()):
         self.take()
     self.n += 1
 
@@ -3257,7 +3491,7 @@ def speed_table(sim_s: float = 60.0, profile: bool = False) -> None:
 
 
 SCENES = {"body": view_body, "stand": lambda: view_stage2("stand"),
-          "reach": lambda: view_stage2("reach"), "grasp": lambda: view_stage2("grasp"),
+          "reach": view_reach, "grasp": lambda: view_stage2("grasp"),
           "demo": view_demo, "walk": view_walk, "rough": view_rough, "stairs": view_stairs,
           "fall": view_fall, "getup": view_getup}
 
@@ -3271,7 +3505,8 @@ def main(argv=None) -> None:
   ap.add_argument("--policy", default=None,
                   help="fly another standing policy's .npz (default models/humanoid_stand.npz)")
   ap.add_argument("--getup-policy", default=None,
-                  help="the scenes' get-up policy .npz (default models/humanoid_getup.npz)")
+                  help="the `fall` and `getup` scenes' get-up policy .npz (default "
+                       "models/humanoid_getup.npz; `reach` flies the served one)")
   ap.add_argument("--shove", action="store_true",
                   help="the shoves it stands through, each way, standing and crouched")
   ap.add_argument("--envelope", action="store_true",
@@ -3299,7 +3534,8 @@ def main(argv=None) -> None:
                        "riser, on the ideal scan and on its own map's")
   ap.add_argument("--fall", nargs="?", const="", default=None, metavar="NPZ",
                   help="shoved over each way: what hits first, how hard, each joint's torque "
-                       "and speed, falling on the standing policy, limp, or the get-up's")
+                       "and speed, falling on the standing policy, limp, or the get-up's; in "
+                       "the house; and from each bow a reach takes, what the watch says")
   ap.add_argument("--speed", nargs="?", type=float, const=60.0, default=None, metavar="SIM_S",
                   help="the loop's cost: the quadruped pair, one humanoid and a pair, the same "
                        "walks in the house, timed (--profile: where it goes)")
@@ -3316,6 +3552,8 @@ def main(argv=None) -> None:
     _GETUP = args.getup_policy
   if args.view:
     SCENES[args.view]()
+  elif args.strip == "reach":
+    filmstrip_reach(args.out)
   elif args.strip == "demo":
     filmstrip_demo(args.out)
   elif args.strip == "walk":
@@ -3350,6 +3588,7 @@ def main(argv=None) -> None:
   elif args.fall is not None:
     fall_table(args.fall or None, jobs=args.jobs)
     house_fall_table(args.fall or None, jobs=args.jobs)
+    bow_fall_table(args.fall or None, jobs=args.jobs)
   elif args.mass:
     mass_table()
   elif args.torque:

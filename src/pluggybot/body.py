@@ -642,7 +642,8 @@ class Body(abc.ABC):
     its -z, its jaws closing along its x), or None for any -- its arm's
     commands carrying `stiffness`, a share of its own gains: a compliant
     pull is a low one. The posture is the body's to choose. True once it
-    holds there; False if no posture it holds puts the pose in reach or
+    holds there; False if no posture it holds puts the pose in reach, the
+    hand stopped short on its way, a fall let go of it (#520), or
     `patience` ran out. The humanoid's (#507); a body with no such hand
     refuses it (`NotImplementedError`)."""
 
@@ -679,9 +680,9 @@ class Body(abc.ABC):
   rights_itself: bool
   #: The falls its own fall watch has taken, counted up: what a fall IS is
   #: the body's to say (#493's grader asks) -- the quadruped's torso past
-  #: `TOPPLE_TILT_RAD` or slumped standing, the humanoid's trunk past 35
-  #: deg by its IMU or its pelvis sunk (`humanoid.getup`), each the moment
-  #: its get-up takes over.
+  #: `TOPPLE_TILT_RAD` or slumped standing, the humanoid's trunk 35 deg past
+  #: the posture its legs hold, by its IMU, or its pelvis sunk
+  #: (`humanoid.getup`), each the moment its get-up takes over.
   falls: int
   #: How long a fall may last before it is the `stuck` death, s: a body that
   #: rights itself, its get-up's MEASURED budget; one that cannot,

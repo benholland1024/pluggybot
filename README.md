@@ -186,7 +186,8 @@ uv run python scripts/humanoid_spike.py --view body   # held up on a gantry in
 uv run python scripts/humanoid_spike.py --view stand  # on its own feet:
                                       # shoved, crouching and bowing
 uv run python scripts/humanoid_spike.py --view reach  # a hand to a counter,
-                                      # a high shelf, a low one and the floor
+                                      # a high shelf, a low one and the floor,
+                                      # through Body, its get-up loaded
 uv run python scripts/humanoid_spike.py --view grasp  # a drawer's handle
                                       # gripped and pulled
 uv run python scripts/humanoid_spike.py --view demo   # a chest's knob on a
