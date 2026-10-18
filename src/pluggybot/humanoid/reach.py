@@ -107,16 +107,18 @@ LEAD_M, LEAD_RATE, LEAD_MAX, LEAD_MIN = 0.02, 0.02, 0.05, 0.003
 #: followed a drop handle's swing toward the robot turned 96 deg and pulled
 #: the robot to the counter.
 TRAIL_M, CHORD_M, FOLLOW_CONE_DEG = 0.005, 0.03, 80.0
-#: A pull EXPLORES its first this far, m, the equilibrium point drawing the
-#: hand -- then FOLLOWS the way its hand went, fitted (`fit_way`), planned
-#: and carried this far at a time before it fits again: an equilibrium
-#: point alone, turned by the hand's own drift, wandered off a lid's arc,
-#: dragged the robot's feet and fell (#493).
-EXPLORE_M, FOLLOW_M = 0.10, 0.06
+#: A pull EXPLORES its first this far, m, carried straight the way asked on
+#: an arm this soft, so the hand bends toward whatever gives -- then
+#: FOLLOWS the way its hand went, fitted (`fit_way`), planned and carried
+#: this far at a time before it fits again. ⚠ An equilibrium point alone,
+#: turned by the hand's own drift, wandered off a lid's arc, dragged the
+#: robot's feet and fell; exploring with one, a pull went out of reach or
+#: dragged them within its first 10 cm (#493).
+EXPLORE_M, EXPLORE_K, FOLLOW_M = 0.05, 0.4, 0.06
 #: A way is a circle while one of radius between these, m, fits the hand's
 #: path better than a line by this share -- else a line; its points this
 #: far apart, m.
-CIRCLE_R, CIRCLE_BETTER, WAY_STEP_M = (0.05, 1.5), 0.5, 0.02
+CIRCLE_R, CIRCLE_BETTER, WAY_STEP_M = (0.05, 1.5), 0.7, 0.02
 #: A carried hand's turn yields where what it holds turns it past this,
 #: rad, at this rate at most, rad/s (a pull's follow: a drop handle hangs
 #: free until its arm lies on its lid's front edge, 57 deg up, and held at
@@ -353,7 +355,9 @@ def fit_way(points) -> dict:
   c = p.mean(axis=0)
   _, sv, vt = np.linalg.svd(p - c)
   along = vt[0] if (p[-1] - p[0]) @ vt[0] >= 0.0 else -vt[0]
-  line = {"kind": "line", "way": along, "rms": float(np.hypot(sv[1], sv[2]) / np.sqrt(len(p)))}
+  # ...each judged in the plane the path lies in: its scatter out of it is
+  # neither's
+  line = {"kind": "line", "way": along, "rms": float(sv[1] / np.sqrt(len(p)))}
   if len(p) < 5:
     return line
   u, v = vt[0], vt[1]

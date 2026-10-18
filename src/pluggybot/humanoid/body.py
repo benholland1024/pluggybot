@@ -535,8 +535,9 @@ class HumanoidBody(Body):
 
   def pull_routine(self, side, direction, limit_n, distance_m, stiffness=1.0,
                    speed=HOLD_SPEED, patience=30.0):
-    """It EXPLORES its first `reach.EXPLORE_M` as an equilibrium point
-    draws the hand (`Reach.pull`), then FOLLOWS the way the hand went --
+    """It EXPLORES its first `reach.EXPLORE_M`, carried straight the way
+    asked on a soft arm (`reach.EXPLORE_K`), then FOLLOWS the way the hand
+    went --
     fitted to the hand's own path (`reach.fit_way`), planned and carried
     `reach.FOLLOW_M` at a time, its turn yielding to what turns it
     (`Reach.carry(give=)`) -- fitting again as it goes, until it has gone
@@ -548,13 +549,18 @@ class HumanoidBody(Body):
     t0 = float(self._d.time)
     start = self.reach.grip_now(side)[0].copy()
     gripped = self.gripped(side)
-    if not self.reach.pull(side, d, limit_n, min(distance_m, reach_.EXPLORE_M), stiffness,
-                           speed, patience):
+    if not self.reach.out(side):
       return self._report({"why": "not out", "seconds": 0.0, "moved": 0.0, "dx": 0.0,
                            "dy": 0.0, "dz": 0.0, "direction": list(d), "force": 0.0})
+    first = start + min(distance_m, reach_.EXPLORE_M) * d
+    if not self.reach.carry(side, first, min(stiffness, reach_.EXPLORE_K), speed, give=True,
+                            limit_n=limit_n):
+      return self._report({**(self.reach.report[side] or {}), "why": "out of reach",
+                           "direction": list(d), "force": 0.0})
     rep = yield from self._held_routine(side, patience + 1.0)
     trail = list((self.reach.report[side] or {}).get("path") or [])
-    peak, way, why = float(rep.get("force") or 0.0), d, rep["why"]
+    peak, way = float(rep.get("force") or 0.0), d
+    why = {"arrived": "distance", "held back": "held fast"}.get(rep["why"], rep["why"])
     while why == "distance":
       h = self.reach.grip_now(side)[0]
       left_m = distance_m - float((h - start) @ d)

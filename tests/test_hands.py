@@ -276,3 +276,30 @@ def test_the_practice_prompt_prescribes_nothing():
   assert "both grippers start shut" in mp.system_prompt(st.hand_facts()).lower()
   job = ep.JOB.format(limit=300)
   assert "57 degrees" in job and "1.0 rad/s" in job and "tag 53" in job and "300 s" in job
+
+
+# ---- the compliant pull: the way its hand went, fitted and followed --------------
+
+
+def test_a_pulls_way_is_the_circle_its_hand_went_round_else_a_line():
+  """`reach.fit_way` off the hand's own path -- a lid's knob 25 deg up its
+  arc, points 5 mm apart and a millimetre of the drivers' scatter -- and
+  `continue_way` on round it; a drawer's straight run is a line."""
+  from pluggybot.humanoid import reach as rc
+  rng = np.random.default_rng(0)
+  mid, r = np.array([0.6, 0.2, 0.85]), 0.27
+
+  def at(a):
+    return mid + r * np.array([-math.cos(a), 0.0, math.sin(a)])
+  angles = np.linspace(0.0, math.radians(25.0), 24)
+  pts = [at(a) + rng.normal(0.0, 0.001, 3) for a in angles]
+  way = rc.fit_way(pts)
+  # (a short arc's fit reads its radius short -- here by a fifth -- and goes
+  # on round it within a centimetre of the truth all the same)
+  assert way["kind"] == "circle" and way["radius"] == pytest.approx(r, rel=0.25)
+  ahead = rc.continue_way(way, at(angles[-1]), 0.06)
+  assert len(ahead) == 3
+  assert np.linalg.norm(ahead[-1] - at(angles[-1] + 0.06 / r)) < 0.01
+  drawer = [np.array([0.45 - 0.005 * i, 0.1, 0.8]) + rng.normal(0.0, 0.001, 3) for i in range(20)]
+  way = rc.fit_way(drawer)
+  assert way["kind"] == "line" and float(way["way"] @ [-1.0, 0.0, 0.0]) > 0.99
