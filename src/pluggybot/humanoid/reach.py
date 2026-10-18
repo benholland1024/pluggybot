@@ -92,14 +92,22 @@ HOLD_SPEED = 0.06
 #: A pull holds its goal this far ahead of the hand along its direction, m
 #: -- at the reach's full stiffness 3 cm pulled a chest's knob with 10-20 N
 #: -- and while nothing gives it pulls harder, the lead growing at this
-#: rate, m/s, to this at most.
-LEAD_M, LEAD_RATE, LEAD_MAX = 0.02, 0.02, 0.08
-#: Its direction turns toward the way the hand goes at this rate, 1/s,
-#: while the hand goes faster than this, m/s (over `MOTION_S`), and never
-#: more than this from the way it was asked, deg: a lid's arc turns its way
-#: by the lid's angle, and a pull up that followed a drop handle's swing
-#: toward the robot turned 96 deg and pulled the robot to the counter.
-FOLLOW_RATE, FOLLOW_V, FOLLOW_CONE_DEG = 2.0, 0.01, 80.0
+#: rate, m/s, to this at most: at 8 cm a stuck pull dragged the robot's
+#: feet (#493).
+LEAD_M, LEAD_RATE, LEAD_MAX = 0.02, 0.02, 0.05
+#: Its way is the CHORD of the hand's own last `CHORD_M` of travel, its
+#: place kept every `TRAIL_M` of it, m -- never the hand's speed between two
+#: reads, which the arm's settling and the drivers' scatter turned 23 deg
+#: sideways in 0.4 s -- and never more than this from the way it was asked,
+#: deg: a lid's arc turns its way by the lid's angle, and a pull up that
+#: followed a drop handle's swing toward the robot turned 96 deg and pulled
+#: the robot to the counter.
+TRAIL_M, CHORD_M, FOLLOW_CONE_DEG = 0.005, 0.03, 80.0
+#: Its turn follows the hand's own where what it holds turns the hand more
+#: than this, rad, at this rate at most, rad/s: a drop handle hangs free
+#: until its arm lies on its lid's front edge, 57 deg up, and a hand held
+#: at its turn past that fought the lid, its wrist giving 7-11 deg (#493).
+TURN_GIVE, TURN_RATE = math.radians(4.0), 0.5
 #: ...and only once the hand has gone this far the way asked, m: the first
 #: centimetres are slack -- a handle's play, the hand's own give -- and a
 #: drop handle pulled up from where it hangs, in compression, buckled
@@ -121,6 +129,10 @@ MOTION_S = 0.4
 #: than its statue: 1.5-2 cm all the way up a lid's arc, 2 cm more at its
 #: top, where a path planned with none stopped at 57 deg (#493).
 PATH_MARGIN_M = 0.035
+#: ...planned on the robot as it stands, the lean it already has is in its
+#: pose, and only its last 2 cm is to come: with the statue's whole margin
+#: on top, a path planned on a statue was refused once the knob was held.
+LIVE_MARGIN_M = 0.02
 #: ...and each is followed within this, m: a solve trades position for the
 #: turn it holds (`arms.IK_ROT_WEIGHT`), and down a lid's arc, the wrist near
 #: its stop, left points 1.1-1.2 cm off that the live hand passed -- which
@@ -309,6 +321,17 @@ def pregrasp(goal: HandGoal, approach: float = APPROACH_M) -> HandGoal:
   return HandGoal(np.asarray(goal.pos) + approach * back, goal.rot, goal.stiffness)
 
 
+def _within_cone(d: np.ndarray, a: np.ndarray, deg: float) -> np.ndarray:
+  """The unit way `d`, turned back to `deg` off the unit way `a` where it
+  is further."""
+  cos = float(d @ a)
+  if cos >= math.cos(math.radians(deg)):
+    return d
+  off = d - cos * a
+  off = off / max(float(np.linalg.norm(off)), 1e-9)
+  return math.cos(math.radians(deg)) * a + math.sin(math.radians(deg)) * off
+
+
 class Reach:
   """The arms and grippers of one body beside its standing policy (module
   docstring). A hand's PHASE: `rest` (hanging), `move` (joint space to the
@@ -425,9 +448,10 @@ class Reach:
     FOLLOWS `poses` (stance frame) in turn at the turn `rot` -- or at each
     pose its own, where `rot` is a list -- the first
     solved from the seeds, each next ON from the last, as a moving arm must
-    -- or None. Each point after the first is reached `PATH_MARGIN_M`
-    further ahead too: on a statue, all of them; on the robot as it stands
-    (below), those further from its shoulder than the first. ⚠ A point
+    -- or None. Each point after the first is reached further ahead too: on
+    a statue, all of them by `PATH_MARGIN_M`; on the robot as it stands
+    (below), those further from its shoulder than the first, by
+    `LIVE_MARGIN_M`. ⚠ A point
     reached from a fresh seed is not a path: the arm went up a lid's arc in
     one branch, and where only another reached on, it swung between them
     and jerked the lid shut at 3.3 rad/s (#493)."""
@@ -469,7 +493,7 @@ class Reach:
       for p, r_ in zip(poses[1:], rots[1:]):
         if live:
           further = float(np.linalg.norm(p - shoulder)) > reach0
-          target = p + ahead if further else p
+          target = p + (LIVE_MARGIN_M, 0.0, 0.0) if further else p
         else:
           # the statue balanced with its arm out where it is going (`static_legs`)
           _posed(sm, height, pitch, q0, _arm(side, q))
@@ -532,10 +556,10 @@ class Reach:
            patience_s: float = 30.0) -> bool:
     """The COMPLIANT PULL (#493): a hand that is out pulled from where it IS
     along `direction` (stance frame), its goal held `LEAD_M` ahead of it --
-    the direction turning toward wherever the hand gives (`FOLLOW_RATE`),
-    the lead growing while nothing gives (`LEAD_RATE`) -- at no more than
-    `speed`, pivoting round its jaws' line where its gripper holds
-    something. It stops once the hand has gone `distance_m` THE WAY IT WAS
+    its way the chord of where the hand has gone (`CHORD_M`), its turn
+    following the hand's where what it holds turns it (`TURN_GIVE`), the
+    lead growing while nothing gives (`LEAD_RATE`) -- at no more than
+    `speed`. It stops once the hand has gone `distance_m` THE WAY IT WAS
     ASKED (up, its rise; a lid's arc turns its way, and a pull up 0.28 m in
     all stopped a lid at 53-57 deg), the force it
     reads at the hand reaches `limit_n` (N), nothing has given for
@@ -788,34 +812,39 @@ class Reach:
     return c.stiffness
 
   def _yield(self, side: str, dt: float, h: np.ndarray, r: np.ndarray) -> bool:
-    """A pull's command (`pull`): its direction turned toward the way the
-    hand goes, its lead grown while nothing gives, its goal that far ahead
-    of the hand -- or, past one of its stops, over (True)."""
+    """A pull's command (`pull`): its way the chord of the hand's own last
+    `CHORD_M` once it has gone `FOLLOW_AFTER_M` the way asked, its turn the
+    hand's own where what it holds turns it past `TURN_GIVE`, its lead
+    grown while nothing gives, its goal that far ahead of the hand -- or,
+    past one of its stops, over (True)."""
     st = self.pulls[side]
     trail = st.setdefault("trail", [])
     trail.append(h.copy())
     n = max(1, round(MOTION_S / dt))
     if len(trail) > n + 1:
       trail.pop(0)
-    v = (trail[-1] - trail[0]) / (dt * max(1, len(trail) - 1))
-    speed = float(np.linalg.norm(v))
+    speed = float(np.linalg.norm(trail[-1] - trail[0])) / (dt * max(1, len(trail) - 1))
+    path = st.setdefault("path", [(0.0, st["start"].copy())])
+    gone = float(np.linalg.norm(h - path[-1][1]))
+    if gone >= TRAIL_M:
+      path.append((path[-1][0] + gone, h.copy()))
     d = st["d"]
     along = float((h - st["start"]) @ st["asked"])
-    if speed > FOLLOW_V and st["t"] >= SETTLE_S and along >= FOLLOW_AFTER_M:
-      # what the hand does while its arm settles into the pull is the arm's,
-      # never the way the thing gives: followed, it turned a pull down off
-      # a stretched arm 23 deg sideways in 0.4 s
-      d = d + FOLLOW_RATE * dt * (v / speed - d)
-      d = d / float(np.linalg.norm(d))
-      # ...and the way never turns past `FOLLOW_CONE_DEG` from the way asked
-      a = st["asked"]
-      cos = float(d @ a)
-      if cos < math.cos(math.radians(FOLLOW_CONE_DEG)):
-        side_ = d - cos * a
-        side_ = side_ / max(float(np.linalg.norm(side_)), 1e-9)
-        c_, s_ = math.cos(math.radians(FOLLOW_CONE_DEG)), math.sin(math.radians(FOLLOW_CONE_DEG))
-        d = c_ * a + s_ * side_
+    if along >= FOLLOW_AFTER_M and path[-1][0] >= CHORD_M:
+      back = next(p_ for s_, p_ in reversed(path) if path[-1][0] - s_ >= CHORD_M)
+      chord = path[-1][1] - back
+      d = _within_cone(chord / float(np.linalg.norm(chord)), st["asked"], FOLLOW_CONE_DEG)
       st["d"] = d
+    c = self.cmd[side]
+    e = _rot_error(r, c.rot)
+    a = float(np.linalg.norm(e))
+    if a > TURN_GIVE:
+      q = np.zeros(4)
+      mujoco.mju_axisAngle2Quat(q, e / a, min(a - TURN_GIVE, TURN_RATE * dt))
+      turn = np.zeros(9)
+      mujoco.mju_quat2Mat(turn, q)
+      c.rot = turn.reshape(3, 3) @ c.rot
+      self.goal[side].rot = c.rot.copy()
     f = st["f"] = (1.0 - FORCE_SMOOTH) * st.get("f", self.force[side]) + FORCE_SMOOTH * self.force[side]
     pull = float(np.linalg.norm(f))
     st["peak"] = max(st["peak"], pull)
