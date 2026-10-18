@@ -582,7 +582,8 @@ class HumanoidBody(Body):
         why = "let go"
         break
       fitted = reach_.fit_way(trail)
-      ahead = reach_.continue_way(fitted, h, reach_.FOLLOW_M)
+      ahead = reach_.continue_way(fitted, h, reach_.FOLLOW_M if fitted["kind"] == "line"
+                                  else max(left_m, 0.0) * 2.0 + reach_.FOLLOW_M)
       # ...no further the way asked than it was asked
       points = [q for q in ahead if float((q - start) @ d) <= distance_m] or ahead[:1]
       if not self.reach.carry(side, points[-1], stiffness, speed, path=points[:-1], give=True,

@@ -109,8 +109,9 @@ LEAD_M, LEAD_RATE, LEAD_MAX, LEAD_MIN = 0.02, 0.02, 0.05, 0.003
 TRAIL_M, CHORD_M, FOLLOW_CONE_DEG = 0.005, 0.03, 80.0
 #: A pull EXPLORES its first this far, m, carried straight the way asked on
 #: an arm this soft, so the hand bends toward whatever gives -- then
-#: FOLLOWS the way its hand went, fitted (`fit_way`), planned and carried
-#: this far at a time before it fits again. ⚠ An equilibrium point alone,
+#: FOLLOWS the way its hand went, fitted (`fit_way`) and planned: a line this
+#: far at a time, a circle all the way it has left, in the one posture that
+#: follows it, before it fits again. ⚠ An equilibrium point alone,
 #: turned by the hand's own drift, wandered off a lid's arc, dragged the
 #: robot's feet and fell; exploring with one, a pull went out of reach or
 #: dragged them within its first 10 cm (#493).
@@ -630,6 +631,7 @@ class Reach:
                            "moved": 0.0, "seconds": 0.0}
       return False
     k = self.goal[side].stiffness if stiffness is None else float(stiffness)
+    moved_posture = tuple(posture) != tuple(float(v) for v in self.posture)
     self.hold_posture(*posture)
     self.cmd[side] = HandGoal(h.copy(), r.copy(), k)
     self.goal[side] = HandGoal(ways[0] if ways else end, rots[0].copy(), k)
@@ -638,6 +640,9 @@ class Reach:
                         "ways": list(zip(ways[1:] + [end], rots[1:])) if ways else [],
                         "fixed": bool(ways), "give": bool(give), "limit": limit_n,
                         "path": [(0.0, h.copy())], "peak": 0.0}
+    if moved_posture:
+      # the hand holds still while the body takes the posture (`_held`)
+      self.pulls[side]["postured"] = 0.0
     self.report[side] = None
     self.phase[side] = "carry"
     return True
