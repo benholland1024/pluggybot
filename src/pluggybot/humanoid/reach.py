@@ -115,6 +115,9 @@ TRAIL_M, CHORD_M, FOLLOW_CONE_DEG = 0.005, 0.03, 80.0
 #: robot's feet and fell; exploring with one, a pull went out of reach or
 #: dragged them within its first 10 cm (#493).
 EXPLORE_M, EXPLORE_K, FOLLOW_M = 0.05, 0.4, 0.06
+#: An explore whose hand went less than this the way asked, m, goes again
+#: at the pull's own stiffness, and then it is held fast.
+EXPLORED_M = 0.03
 #: A way is a circle while one of radius between these, m, fits the hand's
 #: path better than a line by this share -- else a line; its points this
 #: far apart, m.

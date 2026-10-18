@@ -552,15 +552,23 @@ class HumanoidBody(Body):
     if not self.reach.out(side):
       return self._report({"why": "not out", "seconds": 0.0, "moved": 0.0, "dx": 0.0,
                            "dy": 0.0, "dz": 0.0, "direction": list(d), "force": 0.0})
-    first = start + min(distance_m, reach_.EXPLORE_M) * d
-    if not self.reach.carry(side, first, min(stiffness, reach_.EXPLORE_K), speed, give=True,
-                            limit_n=limit_n):
-      return self._report({**(self.reach.report[side] or {}), "why": "out of reach",
-                           "direction": list(d), "force": 0.0})
-    rep = yield from self._held_routine(side, patience + 1.0)
-    trail = list((self.reach.report[side] or {}).get("path") or [])
-    peak, way = float(rep.get("force") or 0.0), d
-    why = {"arrived": "distance", "held back": "held fast"}.get(rep["why"], rep["why"])
+    trail, peak, way, why = [], 0.0, d, "held fast"
+    for k in (min(stiffness, reach_.EXPLORE_K), stiffness):
+      h = self.reach.grip_now(side)[0]
+      if not self.reach.carry(side, h + min(distance_m, reach_.EXPLORE_M) * d, k, speed,
+                              give=True, limit_n=limit_n):
+        why = "out of reach"
+        break
+      rep = yield from self._held_routine(side, patience + 1.0)
+      trail += list((self.reach.report[side] or {}).get("path") or [])
+      peak = max(peak, float(rep.get("force") or 0.0))
+      gone = float((self.reach.grip_now(side)[0] - start) @ d)
+      if rep["why"] not in ("arrived", "held back"):
+        why = rep["why"]
+        break
+      if gone >= reach_.EXPLORED_M:
+        why = "distance"
+        break
     while why == "distance":
       h = self.reach.grip_now(side)[0]
       left_m = distance_m - float((h - start) @ d)
