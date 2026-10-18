@@ -75,9 +75,10 @@ LOWER_RAD_S = 1.0
 #: wedged against the front wall): a drop can leave the chest open.
 HOLD_S = 5.0
 #: 5: the job's time, s, from the attempt's start to the call (Ben,
-#: 2026-10-17): a fall costs time, and is judged by nothing else. The probe
-#: takes 84-100 s (its 32 public chests); read again before #493's stage
-#: 3 flies, as three times the humanoid's reference.
+#: 2026-10-17): a fall costs time, and is judged by nothing else. Each task
+#: hands its own (`limitS`, `attempts.LIMIT_S`: the humanoid's is three
+#: times its reference's slowest pass); this, where none is, is the
+#: quadruped's, whose probe takes 84-100 s.
 TIME_LIMIT_S = 300.0
 
 

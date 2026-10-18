@@ -972,12 +972,12 @@ def _spot(life, args: dict) -> Routine:
   yield from life.body.hold_routine(SPOT_STILL_S)
   got = life.body.spot(int(tag))
   if got is None:
-    _reports(life)["spot"] = {"seen": 0.0}
+    _reports(life).pop("spot", None)
     return {"ok": False, "tag": int(tag),
             "reason": f"tag {int(tag)} is not in view of the head camera from where you stand"}
   x, y, z = axes.in_stance(life, (got["x"], got["y"], got["z"]))
   nx, ny, nz = axes.in_stance(life, got["normal"], point=False)
-  _reports(life)["spot"] = {"seen": 1.0, "x": x, "y": y, "z": z, "nx": nx, "ny": ny, "nz": nz,
+  _reports(life)["spot"] = {"x": x, "y": y, "z": z, "nx": nx, "ny": ny, "nz": nz,
                             "range": float(got["range"])}
   return {"ok": True, "tag": int(tag), "at": [round(v, 4) for v in (x, y, z)]}
 

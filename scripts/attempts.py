@@ -295,8 +295,8 @@ def view(k: int, who: str = "quadruped") -> None:
   from mujoco import viewer as mj_viewer
   skill, info, where = SKILLS[who]
   world = at.set_out(at.Task(chest=k, **where))
-  print(f"an attempt at chest {k} (its set-out, the claw put on its fork): the probe "
-        "opens the lid and sets it down; the grader's verdict is printed. Close the window "
+  print(f"an attempt at chest {k} ({'the claw put on its fork: the probe' if who == 'quadruped' else 'at its counter: the reference'} "
+        "opens the lid and sets it down); the grader's verdict is printed. Close the window "
         "to quit.")
   with mj_viewer.launch_passive(world.model, world.data) as viewer:
     viewer.cam.type = mujoco.mjtCamera.mjCAMERA_TRACKING

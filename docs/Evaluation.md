@@ -1044,7 +1044,7 @@ first attempt** (95 % interval 0.55-0.84), its own word agreeing every
 time, no fall: 17.5-22.3 sim-s an attempt, the lid to 57.7-63.4 deg and
 down at 0.37-0.58 rad/s at its fastest while open. The nine it misses are
 the body's reach, none its judgement: in five no grip's tilt follows the
-arc to 62 deg, in three no arc follows from the grip the reach could make,
+arc to 60 deg, in three no arc follows from the grip the reach could make,
 in one the hand ran out of reach a step up. Its slowest pass sets the
 humanoid task's time limit at three times it, 67 s (`attempts.LIMIT_S`;
 the quadruped's stays 300). ⚠ The generator's filter

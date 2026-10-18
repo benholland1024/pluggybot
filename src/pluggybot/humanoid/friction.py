@@ -88,6 +88,9 @@ def calibrate_routine(body):
 
       for speed in SWEEP_SPEEDS:
         def record(side=side, k=k, samples=samples, speed=speed):
+          # ...its weight where its encoders put it: between its commands,
+          # the model is posed at them, and the lag read as friction
+          reach._pose()
           _, qd, tau = reach.stand.joints.read(data)
           arm = reach.self_model.arm[side]
           samples.append((float(qd[arm][k]),

@@ -2,52 +2,52 @@
  "about": "the humanoid's arm joints' friction, calibrated (humanoid/friction.py; scripts/humanoid_spike.py --friction --write)",
  "joints": {
   "left_shoulder_pitch": {
-   "coulomb": 0.2853,
-   "viscous": -0.0199
+   "coulomb": 0.2909,
+   "viscous": 0.0813
   },
   "left_shoulder_roll": {
-   "coulomb": 0.2895,
-   "viscous": -0.0868
+   "coulomb": 0.292,
+   "viscous": 0.0786
   },
   "left_shoulder_yaw": {
-   "coulomb": 0.087,
-   "viscous": 0.0593
+   "coulomb": 0.0852,
+   "viscous": 0.0126
   },
   "left_elbow": {
-   "coulomb": 0.0851,
-   "viscous": 0.0157
+   "coulomb": 0.0835,
+   "viscous": 0.0186
   },
   "left_wrist_pitch": {
-   "coulomb": 0.0693,
-   "viscous": 0.0036
+   "coulomb": 0.0689,
+   "viscous": 0.004
   },
   "left_wrist_roll": {
-   "coulomb": 0.0267,
-   "viscous": 0.0039
+   "coulomb": 0.026,
+   "viscous": 0.0054
   },
   "right_shoulder_pitch": {
-   "coulomb": 0.2807,
-   "viscous": -0.003
+   "coulomb": 0.2893,
+   "viscous": 0.0884
   },
   "right_shoulder_roll": {
-   "coulomb": 0.2859,
-   "viscous": -0.0666
+   "coulomb": 0.2919,
+   "viscous": 0.0773
   },
   "right_shoulder_yaw": {
-   "coulomb": 0.0861,
-   "viscous": 0.0638
+   "coulomb": 0.0839,
+   "viscous": 0.0153
   },
   "right_elbow": {
-   "coulomb": 0.0853,
-   "viscous": 0.0158
+   "coulomb": 0.085,
+   "viscous": 0.0155
   },
   "right_wrist_pitch": {
    "coulomb": 0.0693,
-   "viscous": 0.0064
+   "viscous": 0.0029
   },
   "right_wrist_roll": {
-   "coulomb": 0.0259,
-   "viscous": 0.0056
+   "coulomb": 0.0268,
+   "viscous": 0.0031
   }
  }
 }

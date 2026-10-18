@@ -5281,7 +5281,7 @@ where it stands; a 0.80 m counter, 17.
 **The reference opens 23 of 32** (95 % interval 0.55-0.84), every pass in
 17.5-22.3 sim-s, the lid to 57.7-63.4 deg and down at 0.37-0.58 rad/s at
 its fastest while open, no fall. The nine it does not are reach: in five
-no grip's tilt follows the arc to 62 deg (`no tilt puts the lid's arc in
+no grip's tilt follows the arc to 60 deg (`no tilt puts the lid's arc in
 reach`), in three no arc follows from the grip the reach could make, in one
 the hand ran out of reach a step up.
 

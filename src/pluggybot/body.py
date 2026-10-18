@@ -644,9 +644,10 @@ class Body(abc.ABC):
     pull is a low one. The posture is the body's to choose. True once it
     holds there; False if no posture it holds puts the pose in reach, the
     hand stopped short on its way, a fall let go of it (#520), or
-    `patience` ran out. With `path` (and `turns`, as `move_hand_routine`
-    takes them) it reaches in a posture from which the hand then FOLLOWS
-    that path (`hand_follows`), or not at all (#493: a knob gripped in a
+    `patience` ran out. With `path` (and `turns`, the grip's turn at each of
+    its points, world from grip) it reaches in a posture from which the
+    hand then FOLLOWS that path (`hand_follows`) -- or, where that posture
+    makes no approach, in any, the grip as asked (#493: a knob gripped in a
     crouch whose lid's arc only a bow followed). The humanoid's (#507); a
     body with no such hand refuses it (`NotImplementedError`)."""
 
@@ -669,12 +670,6 @@ class Body(abc.ABC):
   def hand_force(self, side: str) -> tuple[float, float, float]:
     """The force a hand pushes with, N, in the believed world frame, read
     off its arm's motor currents."""
-
-  @abc.abstractmethod
-  def hand_reaches(self, side: str, pos, rot=None) -> bool:
-    """Whether a hand's grip could hold the pose `pos` (`rot`, or any turn),
-    the believed world frame, from some posture it holds -- asked of its
-    model of itself, nothing moved (#493)."""
 
   @abc.abstractmethod
   def hand_follows(self, side: str, poses, rot=None) -> bool:
@@ -1339,12 +1334,8 @@ class StubBody(Body):
   def hand_force(self, side):
     return (0.0, 0.0, 0.0)
 
-  def hand_reaches(self, side, pos, rot=None) -> bool:
-    """Anywhere: it has no body to be out of reach of."""
-    return True
-
   def hand_follows(self, side, poses, rot=None) -> bool:
-    """Anywhere, as `hand_reaches`."""
+    """Anywhere: it has no body to be out of reach of."""
     return True
 
   def gaze_routine(self, down):

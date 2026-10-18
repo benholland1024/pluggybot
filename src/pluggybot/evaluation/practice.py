@@ -55,6 +55,12 @@ handle. A try may take {{limit:.0f}} s at most; a fall loses you the time it
 takes to get up."""
 
 
+def job_for(task: at.Task) -> str:
+  """The job as the mind is told it at `task`'s set-out: its time limit the
+  task's own (`Task.limit_s`)."""
+  return JOB.format(limit=task.limit_s)
+
+
 class ProcedureLife:
   """What a procedure's verbs reach in an attempt (`procedure.lang`'s
   `life`): the body, its model and data, the reports its verbs leave for
@@ -127,6 +133,11 @@ def practise(chest: int, practice, attempts: int = ATTEMPTS, *, library=None,
   `build` makes a set-out (`attempts.attempt`'s: a test's own world)."""
   from pluggybot.mind.practice import report_text
   task = at.Task(chest=chest, body="humanoid", mount="counter")
+  limit = task.limit_s if budget_s is None else float(budget_s)
+  # ⚠ THE MIND IS TOLD THE LIMIT IT IS CUT AT: told 300 s and cut at 67,
+  # a flight was flown and thrown away
+  if f"{limit:.0f} s at most" not in practice.job:
+    raise ValueError(f"the job tells another time limit than the try's {limit:.0f} s")
   rows: list[dict] = []
   shown = head_picture(task) if picture else None
   since = 0

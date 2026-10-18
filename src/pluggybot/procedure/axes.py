@@ -232,14 +232,11 @@ for _k, _a in enumerate("xyz"):
 SENSORS["spot.range"] = Sensor(
   "spot.range", lambda life: reported("spot", "range", life),
   "how far that tag was from the camera, m")
-SENSORS["spot.seen"] = Sensor(
-  "spot.seen", lambda life: reported("spot", "seen", life),
-  "1 if the last `spot` saw its tag, else 0")
 #: What the humanoid's procedures read (#493): the clock, each hand's place,
 #: its force and its gripper's word, and the last `spot`'s tag.
 HAND_SENSORS = (("time",) + tuple(f"{s}.{k}" for s in HANDS
                                   for k in ("x", "y", "z", "fx", "fy", "fz", "held"))
-                + tuple(f"spot.{k}" for k in ("x", "y", "z", "nx", "ny", "nz", "range", "seen")))
+                + tuple(f"spot.{k}" for k in ("x", "y", "z", "nx", "ny", "nz", "range")))
 
 # The humanoid's arm joints: each an axis (the motor level a hand's verbs
 # are built from), walked by `Body.ramp_routine`. ⚠ No sensor reads one:

@@ -1,8 +1,8 @@
 """The humanoid's reference opener (issue #493, stage 2): our opener as code
 on the humanoid's hands -- the cheapest other way to open the chest, and the
 quadruped's probe's (`legs/probe.py`) plan on another body: the box
-measured, the lid's arc planned, the hand carried along it softly and back.
-Built on `Body`'s members alone (`tests/test_body.py` holds it to them).
+measured, the lid's arc planned, the hand carried along it and back. Built
+on `Body`'s members alone: the body is all a skill is handed.
 
 CODE'S FORESIGHT, stated -- what a robot learning the job would have to
 find for itself, as the probe's docstring states its own:
@@ -75,10 +75,11 @@ GRIPS = 2
 #: The arc: up to this, rad of lid (the probe's 1.2 a little short of the
 #: arm's stretch), back down to this, rad -- under the grader's 5 deg -- in
 #: steps of this, rad, at this speed, m/s, on an arm this soft.
-TOP, BOTTOM, STEP = 1.15, -0.03, math.radians(4.0)
+TOP, BOTTOM, STEP = math.radians(64.0), -0.03, math.radians(4.0)
 #: The tops tried, the highest first, rad: the arm's give leaves the lid a
-#: few degrees under the plan's top (a plan to 66 deg opened lids 56-66).
-TOPS = (TOP, 1.08)
+#: few degrees under the plan's top (a plan to 64 deg opened lids 61-63, to
+#: 60 deg 58).
+TOPS = (TOP, math.radians(60.0))
 SPEED, STIFFNESS = 0.05, 1.0
 #: How long one step of the arc may take, s; how many times the hand is
 #: carried back down the arc while still up, and up by less than this, m,
@@ -143,7 +144,10 @@ def arc(g: Guess, start: np.ndarray, rot: np.ndarray, top: float = TOP,
     pin = hinge + rot_about(g.axis, s) @ (pin0 - hinge)
     turn = rot_about(g.axis, max(0.0, s - FREE_RAD))
     return pin + turn @ (np.asarray(start, dtype=float) - pin0), turn @ rot
-  ups = [at(s) for s in np.arange(step, top + 1e-9, step)]
+  # ...ending AT `top`: stepped alone, an arc stopped on the last step under
+  # it, and a plan said 66 deg that went to 64
+  rises = list(np.arange(step, top - 1e-9, step)) + [top]
+  ups = [at(s) for s in rises]
   downs = [at(s) for s in np.arange(top - step, bottom - 1e-9, -step)]
   return ups, downs
 

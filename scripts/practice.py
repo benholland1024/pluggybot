@@ -63,7 +63,7 @@ def fly(job) -> list[dict]:
   from pluggybot.procedure.steps import hand_facts
   facts = hand_facts(pull=pull)
   mind = Practice(HFClient(timeout=READ_S, fetch=stream_fetch), model, facts,
-                  ep.JOB.format(limit=at.BUDGET_S))
+                  ep.job_for(at.Task(chest=k, body="humanoid", mount="counter")))
   skill = f"{model} {'with' if pull else 'without'} the pull"
   try:
     rows = ep.practise(k, mind, attempts, library=Library(facts), picture=picture,

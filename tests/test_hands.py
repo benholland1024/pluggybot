@@ -291,8 +291,10 @@ def test_the_reference_turns_the_hand_with_the_lid_only_past_the_handles_stop():
   g = Guess(knob=(0.35, 0.2, 0.81), yaw=0.0, top=0.97, hinge=(0.63, 0.2, 0.97),
             pin=(0.36, 0.2, 0.87))
   start, rot = np.array(g.knob), op.grip_turn(g, 0.0)
-  ups, downs = op.arc(g, start, rot, top=1.15)
-  for (p, r), s in zip(ups, np.arange(op.STEP, 1.15 + 1e-9, op.STEP)):
+  ups, downs = op.arc(g, start, rot, top=op.TOP)
+  rises = list(np.arange(op.STEP, op.TOP - 1e-9, op.STEP)) + [op.TOP]
+  assert len(ups) == len(rises)
+  for (p, r), s in zip(ups, rises):
     turned = max(0.0, s - op.FREE_RAD)
     assert r == pytest.approx(rot_about(g.axis, turned) @ rot, abs=1e-9)
     pin = np.array(g.hinge) + rot_about(g.axis, s) @ (np.array(g.pin) - g.hinge)
@@ -314,9 +316,27 @@ def test_the_body_members_the_reference_leans_on_are_the_stubs_too():
   got = body.run(body.move_hand_routine("left", (0.3, 0.2, 1.1), path=[(0.3, 0.2, 1.0)],
                                         turns=[np.eye(3), np.eye(3)]))
   assert got["why"] == "arrived"
+
+
+def test_the_quadruped_refuses_a_hand_and_a_gaze_out_loud():
+  """Each hand member and the gaze refuse with `NotImplementedError`: a
+  routine when it is driven, never on being made, and the rest when
+  called (a refusal written as a routine by mistake refused nothing)."""
   from pluggybot.legs.body import QuadBody
-  for name in ("gaze_routine", "hand_why"):
-    assert name in QuadBody.__dict__, name
+  q = object.__new__(QuadBody)
+  routines = {"reach_routine": ("left", (0.3, 0.2, 0.9)), "release_routine": ("left",),
+              "grip_routine": ("left", True), "move_hand_routine": ("left", (0.3, 0.2, 0.9)),
+              "pull_routine": ("left", (0, 0, 1), 10.0, 0.1), "gaze_routine": (0.2,),
+              "depth_cloud": (848, 480, 0.17)}
+  for name, args in routines.items():
+    made = getattr(q, name)(*args)
+    with pytest.raises(NotImplementedError):
+      next(made)
+  calls = {"gripped": ("left",), "hand_force": ("left",), "hand_at": ("left",),
+           "hand_follows": ("left", [(0.3, 0.2, 0.9)]), "hand_why": ("left",)}
+  for name, args in calls.items():
+    with pytest.raises(NotImplementedError):
+      getattr(q, name)(*args)
 
 
 def test_the_jobs_time_limit_is_its_tasks_and_the_grader_reads_it():
@@ -333,3 +353,166 @@ def test_the_jobs_time_limit_is_its_tasks_and_the_grader_reads_it():
   m = dict(sealed[0].metrics, limitS=1.0)
   ok, _, why = lid.eval_lid(m)
   assert not ok and "past the 1 s the job allows" in why
+
+
+# ---- a hand that is out: the rules its carries were debugged into --------------
+
+
+def _bare_reach():
+  """A `Reach` with no world: its own methods over state a test sets, its
+  postures recorded rather than asked of a policy."""
+  from pluggybot.humanoid import arms as ha
+  from pluggybot.humanoid import reach as rc
+  r = object.__new__(rc.Reach)
+  r.self_model = ha.SelfModel()
+  r.rest = {s: np.zeros(len(hm.ARM)) for s in hm.SIDES}
+  r.phase = {s: "rest" for s in hm.SIDES}
+  r.goal = {s: None for s in hm.SIDES}
+  r.cmd = {s: None for s in hm.SIDES}
+  r.q_to = {s: np.zeros(len(hm.ARM)) for s in hm.SIDES}
+  r.q_cmd = {s: np.zeros(len(hm.ARM)) for s in hm.SIDES}
+  r.miss, r._off = {s: 0.0 for s in hm.SIDES}, {s: 0.0 for s in hm.SIDES}
+  r.speed = {s: rc.HAND_SPEED for s in hm.SIDES}
+  r.pulls = {s: None for s in hm.SIDES}
+  r.report = {s: None for s in hm.SIDES}
+  r.posture = np.zeros(2)
+  r.postures = []
+  r.hold_posture = lambda height, pitch: r.postures.append((height, pitch))
+  return r
+
+
+def _turned(deg):
+  from pluggybot.legs.probe import rot_about
+  return rot_about(np.array([0.0, 1.0, 0.0]), math.radians(deg))
+
+
+def test_an_arm_walked_joint_by_joint_withdraws_home_in_joint_space():
+  """`move` on an arm's joint, then `withdraw`: there is no line to come
+  out along, and unhandled the withdraw waited out the attempt."""
+  r = _bare_reach()
+  r.set_joints("left", r.rest["left"] + 0.3)
+  r.retreat("left")
+  assert r.phase["left"] == "rest" and np.allclose(r.q_to["left"], r.rest["left"])
+
+
+def test_a_carry_that_stops_says_how_short_it_fell_and_holds_the_turn_it_was_asked():
+  from pluggybot.humanoid.arms import HandGoal
+  r = _bare_reach()
+  asked, sagged = np.eye(3), _turned(9.0)
+  r.cmd["left"] = HandGoal(np.zeros(3), asked.copy(), 1.0)
+  r.goal["left"] = HandGoal(np.array([0.10, 0.0, 0.0]), asked.copy(), 1.0)
+  r.pulls["left"] = {"start": np.zeros(3), "t": 1.0, "peak": 0.0}
+  r.phase["left"] = "carry"
+  h = np.array([0.03, 0.0, 0.0])
+  r._end("left", "out of reach", h, sagged)
+  assert r.report["left"]["shortM"] == pytest.approx(0.07)
+  assert np.allclose(r.goal["left"].pos, h) and np.allclose(r.cmd["left"].pos, h)
+  assert np.allclose(r.cmd["left"].rot, asked) and np.allclose(r.goal["left"].rot, asked)
+
+
+def test_a_carry_keeps_the_turn_it_was_asked_and_a_path_of_turns_keeps_its_posture():
+  from pluggybot.humanoid.arms import HandGoal
+  r = _bare_reach()
+  asked, sagged, h = np.eye(3), _turned(9.0), np.array([0.35, 0.2, 0.9])
+  r.cmd["left"] = HandGoal(h.copy(), asked.copy(), 1.0)
+  r.goal["left"] = HandGoal(h.copy(), asked.copy(), 1.0)
+  r.phase["left"] = "hold"
+  r.grip_now = lambda side: (h.copy(), sagged)
+  planned = []
+  r.posture_for = lambda side, pos, rot=None: planned.append(rot) or (0.0, 0.0)
+  r.path_for = lambda side, poses, rot=None: planned.append(rot) or (0.0, 0.0)
+  assert r.carry("left", h + [0.0, 0.0, 0.05])
+  assert np.allclose(planned[-1], asked) and np.allclose(r.cmd["left"].rot, asked)
+  assert not r.pulls["left"]["fixed"]
+  # ...and one given its turns alone is a path: its posture held to its end
+  assert r.carry("left", h + [0.0, 0.0, 0.05], path=[], turns=[asked])
+  assert r.pulls["left"]["fixed"]
+
+
+def test_a_two_jaw_grip_is_planned_half_a_turn_round_where_asked_and_never_when_told_not(
+    monkeypatch):
+  from pluggybot.humanoid import reach as rc
+  from pluggybot.humanoid.arms import HandGoal
+  asked = _turned(10.0)
+
+  def plan(side, goal, model=None, postures=rc.POSTURES, approach=rc.APPROACH_M):
+    return None if np.allclose(goal.rot, asked) else ((0.0, 0.0), np.zeros(6), np.zeros(6), True)
+  monkeypatch.setattr(rc, "plan", plan)
+  r = _bare_reach()
+  r.slack = {s: True for s in hm.SIDES}
+  assert r.reach("left", HandGoal(np.array([0.35, 0.2, 0.9]), asked, 1.0))
+  assert np.allclose(r.goal["left"].rot, asked @ np.diag([-1.0, -1.0, 1.0]))
+  assert not _bare_reach().reach("left", HandGoal(np.array([0.35, 0.2, 0.9]), asked, 1.0),
+                                 flip=False)
+
+
+def test_the_statue_stands_back_with_its_arm_held_out():
+  """The planner's statue balanced with the arm where it is going: held out
+  forward, its pelvis stands back of the one with arms hanging, as the
+  standing policy's does (3-7 cm in front of the robot, balanced hanging)."""
+  from pluggybot.humanoid import arms as ha
+  from pluggybot.humanoid import reach as rc
+  sm = ha.SelfModel()
+  q0 = np.array([hm.stand_qpos().get(n, 0.0) for n in hm.JOINT_NAMES])
+  rc._posed(sm, 0.0, 0.0, q0)
+  hanging = float(sm.d.qpos[0])
+  rc._posed(sm, 0.0, 0.0, q0, rc._arm("left", np.array([-1.4, 0.1, 0.0, 0.3, 0.0, 0.0])))
+  assert float(sm.d.qpos[0]) < hanging - 0.005
+
+
+def test_the_hands_force_stays_bounded_where_the_arm_is_straight():
+  """Read off the motors through the grip's Jacobian, a straight arm's
+  force blew up on a few hundredths of a N*m: the directions the arm
+  cannot tell apart are left out (`arms.FORCE_SIGMA`)."""
+  from pluggybot.humanoid import arms as ha
+  sm = ha.SelfModel()
+  q = np.array([hm.stand_qpos().get(n, 0.0) for n in hm.JOINT_NAMES])
+  sm.pose(q, np.array([0.0, 0.0, -1.0]))
+  sm._set_arm("left", np.zeros(len(hm.ARM)))
+  noise = np.array([0.03, -0.02, 0.02, -0.03, 0.02, -0.01])
+  assert float(np.linalg.norm(sm.hand_force("left", sm.gravity("left") + noise))) < 5.0
+
+
+def test_a_shut_grippers_word_waits_until_its_jaws_have_closed_or_held():
+  """A knob swings off a pad and back as the jaws close: read at once, the
+  gripper said it held nothing (`body.GRIP_SETTLE_S`)."""
+  from pluggybot.humanoid import body as hb
+  from pluggybot.humanoid.arms import HELD_GAP_M
+  clock = {"t": 0.0}
+
+  class Jaws:
+    shut_asked = False
+
+    def shut(self):
+      self.shut_asked = True
+
+    def open(self, width=None):
+      self.shut_asked = False
+
+    def held(self):
+      return self.shut_asked and clock["t"] >= 1.0
+
+    def read(self):
+      return (2 * HELD_GAP_M, 0.0)
+  b = object.__new__(hb.HumanoidBody)
+  b.mission = NS(to_stand_routine=lambda: iter(()), reach=NS(grippers={"left": Jaws()}))
+
+  def hold(seconds):
+    clock["t"] += seconds
+    return
+    yield
+  b.hold_routine = hold
+  routine = b.grip_routine("left", True)
+  with pytest.raises(StopIteration) as done:
+    next(routine)
+  assert done.value.value is True
+
+
+def test_the_mind_is_told_the_time_limit_its_try_is_cut_at():
+  from pluggybot.evaluation import attempts as at
+  task = at.Task(chest=0, body="humanoid", mount="counter")
+  assert f"{task.limit_s:.0f} s at most" in ep.job_for(task)
+  facts = st.hand_facts()
+  told_300 = mp.Practice(Mind('def a():\n    wait(1)\n'), "a-mind", facts, ep.JOB.format(limit=300))
+  with pytest.raises(ValueError, match="another time limit"):
+    ep.practise(0, told_300, 1, picture=False, budget_s=30.0, build=lambda t: stub_world(t))

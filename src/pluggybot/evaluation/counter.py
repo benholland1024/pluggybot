@@ -34,8 +34,8 @@ START = (24.0, -3.0)
 #: height for a 1.4 m body (#493, Ben): at a kitchen's 0.90 the chest's lid
 #: carried its knob 0.52 m ahead and 1.21 m up by the grader's 57 deg -- the
 #: arm's full stretch, however the hand and the handle turned together --
-#: and 62 deg was out of every set-out's reach (`humanoid_spike.py
-#: --opening`).
+#: and 62 deg was out of every set-out's reach (SimNotes, "The humanoid
+#: opens the chest").
 COUNTER_H, COUNTER_D, COUNTER_W = 0.72, 0.60, 1.20
 #: A set-out draws: the knob's plumb place this far ahead of the soles'
 #: middle and this far to its left (in front of the left shoulder, which

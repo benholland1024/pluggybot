@@ -48,8 +48,9 @@ GRIP_S = 0.6
 #: at `GRIP_S` alone the grip said NOT HELD in 7 of 24 set-outs where the
 #: pads held the knob 2 s later (#493).
 GRIP_SETTLE_S, GRIP_READ_S = 1.5, 0.1
-#: A gaze's bow is waited for this long at most, s (`gaze_routine`).
-GAZE_WAIT_S = 4.0
+#: A gaze's bow is waited for this long at most, s (`gaze_routine`), and a
+#: hand's way out and home this long (`release_routine`).
+GAZE_WAIT_S, RELEASE_S = 4.0, 15.0
 #: A hand's carry or pull stops once the body's own odometry puts its
 #: stance this far from where it began, m: a pull toward the robot dragged
 #: it 0.3 m to the counter, its standing policy stepping under the arm
@@ -381,6 +382,8 @@ class HumanoidBody(Body):
     if path is not None:
       # the posture the hand then follows its path in, and that one alone
       ways = [self.to_stance(q) for q in path]
+      if turns is not None and len(turns) != len(ways):
+        raise ValueError(f"a turn for each of the path's {len(ways)} points, not {len(turns)}")
       follow = self.reach.path_for(side, [p] + ways,
                                    rot=[r] + self._turns(list(turns)) if turns is not None else r)
       if follow is None:
@@ -390,7 +393,8 @@ class HumanoidBody(Body):
                             flip=path is None):
       # ...or where its approach is out of reach in that posture, in any: the
       # hand takes the path's posture once out (`Reach.carry`)
-      if path is None or not self.reach.reach(side, HandGoal(p, r, stiffness)):
+      # -- the grip asked, never half a turn round: the path's turns are its
+      if path is None or not self.reach.reach(side, HandGoal(p, r, stiffness), flip=False):
         return False
     falls = self.mission.falls
     for _ in range(int(round(patience / self._m.opt.timestep))):
@@ -406,8 +410,12 @@ class HumanoidBody(Body):
     return self._why.get(side, "")
 
   def release_routine(self, side):
+    """Out and home, waited for at most `RELEASE_S`: a hand that cannot come
+    home ends the routine there, never the attempt it is in."""
     self.reach.retreat(side)
-    while self.reach.phase[side] != "rest":
+    for _ in range(int(round(RELEASE_S / self._m.opt.timestep))):
+      if self.reach.phase[side] == "rest":
+        break
       yield STILL
     while not self.stand.settled:
       yield STILL
@@ -437,11 +445,6 @@ class HumanoidBody(Body):
   def hand_at(self, side):
     p = self.to_world(self.reach.grip_now(side)[0])
     return float(p[0]), float(p[1]), float(p[2])
-
-  def hand_reaches(self, side, pos, rot=None) -> bool:
-    p = self.to_stance(pos)
-    r = None if rot is None else _rz(self.stance[2]).T @ np.asarray(rot, dtype=float)
-    return self.reach.posture_for(side, p, rot=r) is not None
 
   def hand_follows(self, side, poses, rot=None) -> bool:
     return self.reach.path_for(side, [self.to_stance(p) for p in poses],

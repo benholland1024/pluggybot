@@ -295,8 +295,9 @@ class Reach:
   docstring). A hand's PHASE: `rest` (hanging), `move` (joint space to the
   pre-grasp, the posture walking to its plan), `approach` (a straight line
   in), `hold`, `pull` (the goal moved while holding), `blocked` (stopped on
-  its way, `BLOCKED_M`), `retreat` (a straight line out, then joint space
-  home)."""
+  its way, `BLOCKED_M`), `carry` (a hand that is out carried on, `carry`),
+  `joints` (an arm walked joint by joint, `set_joints`), `retreat` (a
+  straight line out, then joint space home)."""
 
   def __init__(self, model, data, stand: StandDriver, prefix: str = "",
                key: str = "humanoid"):
@@ -425,8 +426,11 @@ class Reach:
     rots = list(rot) if isinstance(rot, (list, tuple)) else [rot] * len(poses)
     ahead = np.array([PATH_MARGIN_M, 0.0, 0.0])
     # a hand that is out goes on from the arm as it IS, its posture first:
-    # the branch its grip left it in is the branch its path must follow
-    out = self.out(side)
+    # the branch its grip left it in is the branch its path must follow --
+    # where the path starts at the hand (a reach planned while a hand is
+    # out, stopped short, starts elsewhere)
+    out = (self.out(side)
+           and float(np.linalg.norm(poses[0] - self.grip_now(side)[0])) < PATH_POS_TOL)
     here = tuple(float(v) for v in self.posture)
     order = ([here] + [p_ for p_ in HOLD_POSTURES if tuple(p_) != here]) if out \
       else HOLD_POSTURES
@@ -514,7 +518,7 @@ class Reach:
     self.speed[side], self._off[side] = float(speed), 0.0
     self.pulls[side] = {"start": h.copy(), "t": 0.0,
                         "ways": list(zip(ways[1:] + [end], rots[1:])) if ways else [],
-                        "fixed": bool(ways), "limit": limit_n,
+                        "fixed": bool(ways) or turns is not None, "limit": limit_n,
                         "peak": 0.0}
     if moved_posture:
       # the hand holds still while the body takes the posture (`_held`)
@@ -568,6 +572,13 @@ class Reach:
     """Out along the line it came in on, then home in joint space; the
     posture back to the stand."""
     if self.goal[side] is None:
+      # an arm moved joint by joint (`set_joints`) has no line to come out
+      # along: home in joint space (unhandled, a withdraw waited forever)
+      if self.phase[side] == "joints":
+        self.q_to[side] = self.rest[side].copy()
+        self.phase[side] = "rest"
+        if all(p == "rest" for p in self.phase.values()):
+          self.hold_posture(0.0, 0.0)
       return
     self.goal[side] = pregrasp(self.goal[side], approach)
     self.speed[side] = HAND_SPEED
@@ -682,15 +693,18 @@ class Reach:
     from where it began (stance frame, m), and the hardest it read along
     its way where it watched its force (N)."""
     st = self.pulls[side]
-    k = self.cmd[side].stiffness
+    c = self.cmd[side]
+    short = float(np.linalg.norm(self.goal[side].pos - h))
     if not at_goal:
-      self.goal[side] = HandGoal(h.copy(), r.copy(), k)
-      self.cmd[side] = HandGoal(h.copy(), r.copy(), k)
+      # where the hand IS, at the turn it was ASKED (`carry`): held at the
+      # turn it sagged to, a pull at a time crept the drop handle round
+      turn = (np.asarray(c.rot, dtype=float) if c.rot is not None else r).copy()
+      self.goal[side] = HandGoal(h.copy(), turn.copy(), c.stiffness)
+      self.cmd[side] = HandGoal(h.copy(), turn, c.stiffness)
     disp = h - st["start"]
     rep = {"why": why, "seconds": round(st["t"], 3), "moved": round(float(np.linalg.norm(disp)), 4),
-           "shortM": round(float(np.linalg.norm(self.goal[side].pos - h)), 4),
-           "dx": round(float(disp[0]), 4), "dy": round(float(disp[1]), 4),
-           "dz": round(float(disp[2]), 4)}
+           "shortM": round(short, 4), "dx": round(float(disp[0]), 4),
+           "dy": round(float(disp[1]), 4), "dz": round(float(disp[2]), 4)}
     if st.get("limit") is not None:
       rep["force"] = round(st["peak"], 2)
     self.report[side] = rep
@@ -708,9 +722,6 @@ class Reach:
     starts the next where its solve cannot quite put it."""
     st = self.pulls[side]
     st["t"] += dt
-    # how far it went: from where it began -- a path summed off the drivers'
-    # counts read the jitter of every 10 ms as travel, 0.30 m of it for 0.11
-    st["moved"] = float(np.linalg.norm(h - st["start"]))
     if st.get("limit") is not None and self._over(side, dt, h):
       self._end(side, "force", h, r)
       return self.cmd[side].stiffness
