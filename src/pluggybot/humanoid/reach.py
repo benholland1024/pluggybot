@@ -433,15 +433,16 @@ class Reach:
     """A posture (`HOLD_POSTURES`, the least bent first) from which `side`'s grip
     FOLLOWS `poses` (stance frame) in turn at the turn `rot` -- the first
     solved from the seeds, each next ON from the last, as a moving arm must
-    -- or None, each point reached `PATH_MARGIN_M` further ahead too. ⚠ A
-    point reached from a fresh seed is not a path: the arm went up a lid's
-    arc in one branch, and where only another reached on, it swung between
-    them and jerked the lid shut at 3.3 rad/s (#493)."""
+    -- or None. Each point after the first is reached `PATH_MARGIN_M`
+    further ahead too: on a statue, all of them; on the robot as it stands
+    (below), those further from its shoulder than the first. ⚠ A point
+    reached from a fresh seed is not a path: the arm went up a lid's arc in
+    one branch, and where only another reached on, it swung between them
+    and jerked the lid shut at 3.3 rad/s (#493)."""
     sm = self._planner_model()
     q0 = np.array([hm.stand_qpos().get(n, 0.0) for n in hm.JOINT_NAMES])
-    # ...but where it is: a path begun at the arm's stretch starts there
-    poses = [np.asarray(poses[0], dtype=float)] + [
-      np.asarray(p, dtype=float) + (PATH_MARGIN_M, 0.0, 0.0) for p in poses[1:]]
+    poses = [np.asarray(p, dtype=float) for p in poses]
+    ahead = np.array([PATH_MARGIN_M, 0.0, 0.0])
     # a hand that is out goes on from the arm as it IS, its posture first:
     # the branch its grip left it in is the branch its path must follow
     out = self.out(side)
@@ -449,19 +450,36 @@ class Reach:
     order = ([here] + [p_ for p_ in HOLD_POSTURES if tuple(p_) != here]) if out \
       else HOLD_POSTURES
     for height, pitch in order:
-      _posed(sm, height, pitch, q0)
-      if out:
+      # ⚠ ...AND THE ROBOT AS IT STANDS, its model posed off its senses, in
+      # the posture it holds: up a lid's arc it stood 4 cm behind the
+      # statue of that posture, which could not reach where its hand WAS
+      live = out and (height, pitch) == here
+      if live:
+        sm.q = self.self_model.q.copy()
+        sm.d.qpos[:] = self.self_model.d.qpos
         sm._set_arm(side, self.q_cmd[side])
+        shoulder = sm.d.xpos[sm.m.body(f"{side}_shoulder_roll_link").id].copy()
+        reach0 = float(np.linalg.norm(poses[0] - shoulder))
         q, ep, er = sm.solve(side, poses[0], rot, iters=80)
       else:
-        q, ep, er = solve_seeded(sm, side, poses[0], rot)
+        _posed(sm, height, pitch, q0)
+        if out:
+          sm._set_arm(side, self.q_cmd[side])
+          q, ep, er = sm.solve(side, poses[0], rot, iters=80)
+        else:
+          q, ep, er = solve_seeded(sm, side, poses[0], rot)
       if ep >= REACH_POS_TOL or er >= HOLD_ROT_TOL:
         continue
       for p in poses[1:]:
-        # the statue balanced with its arm out where it is going (`static_legs`)
-        _posed(sm, height, pitch, q0, _arm(side, q))
+        if live:
+          further = float(np.linalg.norm(p - shoulder)) > reach0
+          target = p + ahead if further else p
+        else:
+          # the statue balanced with its arm out where it is going (`static_legs`)
+          _posed(sm, height, pitch, q0, _arm(side, q))
+          target = p + ahead
         sm._set_arm(side, q)
-        q, ep, er = sm.solve(side, p, rot, iters=80)
+        q, ep, er = sm.solve(side, target, rot, iters=80)
         if ep >= REACH_POS_TOL or er >= HOLD_ROT_TOL:
           break
       else:
