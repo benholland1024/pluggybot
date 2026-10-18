@@ -1045,13 +1045,14 @@ def _move_hand(life, args: dict) -> Routine:
 
 
 def _pull(life, args: dict) -> Routine:
-  """THE COMPLIANT PULL (issue #493, stage 3): a hand that is out pulled
-  along (dx, dy, dz), its way turning toward wherever the hand gives,
-  pulling harder while nothing does, until it has gone `distance`, m, the
-  force at the hand reaches `force`, N, nothing gives at its hardest, its
-  grip lets go, or it can reach no further -- then it holds there. How far
-  it went, the hardest it pulled and the way it was going ride `pull.*`.
-  ok when it pulled: why it stopped is in the record."""
+  """THE COMPLIANT PULL (issue #493, stage 3): a hand that is out carried
+  straight along (dx, dy, dz) on an arm at `stiffness` -- soft by default,
+  so it bends toward whatever gives -- its turn yielding to what turns it,
+  until it has gone `distance`, m, the force at the hand along its way
+  reaches `force`, N, while it is held back, it is held fast, its grip lets
+  go, or it can reach no further -- then it holds there. How far it went,
+  the hardest it pulled and the way it went ride `pull.*`. ok when it
+  pulled: why it stopped is in the record."""
   from pluggybot.procedure import axes
   hand = args["hand"]
   d = (float(args["dx"]), float(args["dy"]), float(args["dz"]))
@@ -1059,8 +1060,9 @@ def _pull(life, args: dict) -> Routine:
     return {"ok": False, "reason": "give the pull a way: (dx, dy, dz) are all 0"}
   rep = yield from life.body.pull_routine(hand, axes.from_stance(life, d, point=False),
                                           float(args["force"]), float(args["distance"]),
-                                          stiffness=float(args.get("stiffness", _STIFF.default)),
-                                          speed=float(args.get("speed", _SPEED.default)), patience=HAND_PATIENCE_S)
+                                          stiffness=float(args.get("stiffness", _SOFT.default)),
+                                          speed=float(args.get("speed", _SPEED.default)),
+                                          patience=HAND_PATIENCE_S)
   out = {"hand": hand, **_hand_report(life, hand, rep), "force": rep.get("force")}
   if rep.get("why") in ("not out", "fell"):
     return {"ok": False, **out,
@@ -1095,6 +1097,8 @@ _HAND = Arg("str", choices="hands")
 _HAND_AT = {"x": Arg("float", *HAND_BOX[0]), "y": Arg("float", *HAND_BOX[1]),
             "z": Arg("float", *HAND_BOX[2])}
 _STIFF = Arg("float", lo=0.05, hi=1.0, default=1.0)
+#: ...and a pull's, soft unless asked: the compliant move (#493).
+_SOFT = Arg("float", lo=0.05, hi=1.0, default=0.5)
 _SPEED = Arg("float", lo=HAND_V[0], hi=HAND_V[2], default=HAND_V[1])
 VERBS: dict[str, Verb] = {
   "fetch": Verb("fetch", {"tool": Arg("str", choices="tools")}, _fetch,
@@ -1200,13 +1204,13 @@ HANDS_VERBS: dict[str, Verb] = {
                         "dy": Arg("float", lo=-1.0, hi=1.0), "dz": Arg("float", lo=-1.0, hi=1.0),
                         "force": Arg("float", lo=1.0, hi=60.0),
                         "distance": Arg("float", lo=0.01, hi=0.6),
-                        "speed": _SPEED, "stiffness": _STIFF},
-               _pull, "pull a hand that is out along (dx, dy, dz) -- its way turning toward "
-               "wherever the hand gives, pulling harder while nothing does -- until it has "
-               "gone `distance` m from where it began, the force at the hand reaches "
-               "`force` N, nothing gives at its hardest, or it can reach no further; then "
-               "it holds there. How far it went, the hardest it pulled and the way it was "
-               "going ride `pull.*`; ok when it pulled"),
+                        "speed": _SPEED, "stiffness": _SOFT},
+               _pull, "pull a hand that is out straight along (dx, dy, dz) on a soft arm -- "
+               "the hand bending toward whatever gives, its turn yielding to whatever turns "
+               "it -- until it has gone `distance` m, the force at the hand along its way "
+               "reaches `force` N while something holds it back, it is held fast, or it can "
+               "reach no further; then it holds there. How far it went, the hardest it "
+               "pulled and the way it went ride `pull.*`; ok when it pulled"),
   "close_hand": Verb("close_hand", {"hand": _HAND}, _close_hand,
                      "shut a hand's gripper where it is; ok when it says it holds something"),
   "open_hand": Verb("open_hand", {"hand": _HAND}, _open_hand, "open a hand's gripper"),

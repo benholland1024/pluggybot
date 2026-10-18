@@ -732,19 +732,19 @@ class Body(abc.ABC):
   def pull_routine(self, side: str, direction, limit_n: float, distance_m: float,
                    stiffness: float = 1.0, speed: float = 0.06,
                    patience: float = 30.0) -> Routine:
-    """THE COMPLIANT PULL (#493): a hand that is out pulled along
-    `direction` (the believed world frame), its turn kept, its way turning
-    toward wherever the hand gives, pulling harder while nothing gives --
-    until it has gone `distance_m` the way asked, the force it reads at the
-    hand reaches `limit_n`, N, nothing gives at its hardest, its grip lets
-    go, or `patience` runs out; then it holds
+    """THE COMPLIANT PULL (#493): a hand that is out carried straight along
+    `direction` (the believed world frame) on an arm at `stiffness`, so it
+    bends toward whatever gives, its turn yielding to what turns it --
+    until it has gone `distance_m`, the force it reads at the hand along
+    its way reaches `limit_n`, N, while it is held back, it is held fast,
+    its grip lets go, or `patience` runs out; then it holds
     where the hand is. Returns how it ended (`why`: "distance", "force",
     "held fast", "let go", "out of reach", "not out", "fell", "out of
     time"), in how long, how far the hand went (`moved`) and how far the
     way asked (`along`), where it ended up from where it began (believed
-    world frame, m), the way it was going at the end (`direction`) and the
-    hardest it pulled (`force`, N). A pull or a
-    carry that drags the body's own feet stops ("feet moved")."""
+    world frame, m), the way the hand went (`direction`, a unit vector) and
+    the hardest it pulled (`force`, N). A pull or a carry that drags the
+    body's own feet stops ("feet moved")."""
 
   @property
   @abc.abstractmethod

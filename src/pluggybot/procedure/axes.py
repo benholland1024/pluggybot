@@ -279,8 +279,7 @@ SENSORS["pull.force"] = Sensor(
 for _k, _a in enumerate("xyz"):
   SENSORS[f"pull.d{_a}"] = Sensor(
     f"pull.d{_a}", (lambda key: lambda life: reported("pull", key, life))(f"d{_a}"),
-    f"the way the last `pull` was going when it stopped ({_a}), your stance frame: a "
-    "unit vector")
+    f"the way the last `pull` took the hand ({_a}), your stance frame: a unit vector")
 
 
 def setpoints(life) -> dict[str, float]:
