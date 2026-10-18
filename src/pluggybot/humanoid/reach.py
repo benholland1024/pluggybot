@@ -683,6 +683,12 @@ class Reach:
 
   _posture_wait = 0.0
 
+  def _posture_held(self) -> bool:
+    """Whether the body stands still in the posture it holds (`POSTURE_TOL`,
+    `TRUNK_STILL_RATE`)."""
+    near = (np.abs(self.posture_now() - self.posture) <= POSTURE_TOL).all()
+    return bool(near and float(np.linalg.norm(self.stand.trunk.rate)) < TRUNK_STILL_RATE)
+
   def _line(self, side: str, dt: float) -> bool:
     """The command one step along its line to the goal; True once there."""
     g, c = self.goal[side], self.cmd[side]
@@ -780,9 +786,13 @@ class Reach:
     # how far it went: from where it began -- a path summed off the drivers'
     # counts read the jitter of every 10 ms as travel, 0.30 m of it for 0.11
     st["moved"] = float(np.linalg.norm(h - st["start"]))
-    if self.phase[side] == "yield" and self._yield(side, dt, h, r):
+    # ⚠ A HAND HOLDS STILL WHILE ITS BODY TAKES A NEW POSTURE: carried on
+    # meanwhile, a lid was jerked down at 1.7-2.3 rad/s and up to 81 deg
+    settling = (st.get("postured") is not None and not self._posture_held()
+                and st["t"] - st["postured"] < POSTURE_WAIT_S)
+    if not settling and self.phase[side] == "yield" and self._yield(side, dt, h, r):
       return self.cmd[side].stiffness
-    there = self._line(side, dt)
+    there = False if settling else self._line(side, dt)
     c, sm = self.cmd[side], self.self_model
     q, ep, er = sm.solve(side, c.pos, c.rot)
     if ((ep > REPLAN_M or er > REPLAN_ROT) and not st.get("fixed")
