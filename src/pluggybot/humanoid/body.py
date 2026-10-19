@@ -544,10 +544,11 @@ class HumanoidBody(Body):
     return (yield from self._held_routine(side, patience))
 
   def pull_routine(self, side, direction, limit_n, distance_m, stiffness=1.0,
-                   speed=HOLD_SPEED, patience=30.0):
+                   speed=HOLD_SPEED, patience=30.0, turn=None):
     """A compliant move (#493): the hand carried straight along `direction`
     on an arm at `stiffness`, so it bends toward whatever gives, its turn
-    held (`Reach.carry`), stopped at `limit_n` along its way while held back
+    held (`Reach.carry`) -- or turned to `turn` as it goes, one posture's
+    path -- stopped at `limit_n` along its way while held back
     ("force"), held back with no force over it ("held fast"), its grip lost
     ("let go"), or `distance_m` gone."""
     yield from self.mission.to_stand_routine()
@@ -560,6 +561,7 @@ class HumanoidBody(Body):
     start = self.reach.grip_now(side)[0].copy()
     gripped = self.gripped(side)
     if not self.reach.carry(side, start + float(distance_m) * d, stiffness, speed,
+                            turns=None if turn is None else self._turns([turn]),
                             limit_n=limit_n):
       rep = {**(self.reach.report[side] or {}), "why": "out of reach"}
     else:

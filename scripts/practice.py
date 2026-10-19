@@ -20,7 +20,7 @@ Two protocols (Evaluation.md §4):
   --until N            ...until N chests running pass at their first try (3)
   --max-chests M       ...or M are practiced (16)
   --give-up-after G    ...and nothing more is flown where nothing is kept
-                       after G chests (8)
+                       after G chests (6)
   --kept FILE          KEPT: the held-out chests flown with what a record
                        kept (its kept.json), no practice first
   --notes              KEPT: the robot also carries notes and a draft of its

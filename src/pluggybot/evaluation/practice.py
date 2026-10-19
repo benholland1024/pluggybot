@@ -52,8 +52,9 @@ PICTURE_W, PICTURE_H = 640, 480
 BAR, BAR_TRIES = 0.8, 3
 #: KEPT's practice ends once this many chests running pass at their first
 #: try, or this many are practiced; and nothing more is flown where nothing
-#: is kept after this many (Ben, 2026-10-18: stop once it is plain).
-UNTIL, MAX_CHESTS, GIVE_UP_AFTER = 3, 16, 8
+#: is kept after this many (Ben: stop once it is plain, 2026-10-18; 6, to
+#: reassess sooner, 2026-10-19 -- every arm of 8 stopped by it).
+UNTIL, MAX_CHESTS, GIVE_UP_AFTER = 3, 16, 6
 
 #: The job, as its grader measures it (`challenge/lid.py`), and nothing of
 #: how: what is in front of the robot, the stated subsidy, and the criteria.

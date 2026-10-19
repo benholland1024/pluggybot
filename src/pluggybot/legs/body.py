@@ -1951,7 +1951,7 @@ class QuadBody(Body):
     raise NotImplementedError(self._NO_HAND)
 
   def pull_routine(self, side, direction, limit_n, distance_m, stiffness=1.0, speed=0.06,
-                   patience=30.0) -> Routine:
+                   patience=30.0, turn=None) -> Routine:
     raise NotImplementedError(self._NO_HAND)
     yield
 

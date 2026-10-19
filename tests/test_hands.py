@@ -946,3 +946,51 @@ def test_a_verb_an_if_tests_is_read_and_the_procedure_goes_on():
   # ...and the mind is told of it only where it may write one
   assert "A verb may also stand alone as the test" in mp.system_prompt(facts)
   assert "A verb may also stand alone" not in mp.system_prompt(st.hand_facts())
+
+
+def test_a_carried_hand_may_turn_as_it_goes_written_as_a_reach_turns_it():
+  """The reference's first lesson -- past 50 deg the hand turns as the lid
+  does -- had no verb: `move_hand` and `pull` kept the turn they began
+  with. Given fingers and jaws as `reach` takes them, each turns the hand
+  to them as it goes; left 0, the turn is kept; half a turn is refused."""
+  body = _stub()
+  body.start_at(2.0, 1.0, math.pi / 2)
+  ran = _fly('def a():\n    reach("left", 0.3, 0.2, 0.9)\n'
+             '    move_hand("left", 0.3, 0.2, 1.0)\n'
+             '    move_hand("left", 0.3, 0.2, 1.1, fx=1, jy=1)\n'
+             '    pull("left", 0, 0, 1, 10, 0.05, fz=-1, jy=1)\n', body)
+  assert ran["ok"]
+  (s1, v1, t1), (s2, v2, t2) = body.turned
+  assert (s1, v1, s2, v2) == ("left", "move_hand", "left", "pull")
+  # the fingers ahead of the stance -- the world's +y, facing up the y axis
+  # -- and then straight down: each the turn's third column, reversed
+  assert np.allclose(-np.asarray(t1)[:, 2], [0.0, 1.0, 0.0], atol=1e-9)
+  assert np.allclose(-np.asarray(t2)[:, 2], [0.0, 0.0, -1.0], atol=1e-9)
+  ran = _fly('def a():\n    reach("left", 0.3, 0.2, 0.9)\n'
+             '    move_hand("left", 0.3, 0.2, 1.0, fx=1)\n', _stub())
+  assert ran["steps"][-1]["reason"].startswith("give both ways")
+
+
+def test_the_humanoids_pull_hands_its_turn_to_the_planner_in_the_stance_frame():
+  from pluggybot.evaluation import attempts as at
+  world = at.set_out(at.Task(chest=0, body="humanoid", mount="counter"))
+  try:
+    body = world.body
+    got = {}
+    body.reach.out = lambda side: True
+    body.reach.grip_now = lambda side: (np.array([0.35, 0.2, 0.9]), np.eye(3))
+
+    def carry(side, pos, stiffness=None, speed=None, path=None, turns=None, limit_n=None):
+      got.update(turns=turns)
+      return False
+    body.reach.carry = carry
+    turn = _turned(30.0)
+    body.run(body.pull_routine("left", (0.0, 0.0, 1.0), 10.0, 0.1, turn=turn))
+    yaw = body.stance[2]
+    c, s = math.cos(yaw), math.sin(yaw)
+    rz = np.array([[c, -s, 0.0], [s, c, 0.0], [0.0, 0.0, 1.0]])
+    assert len(got["turns"]) == 1 and np.allclose(got["turns"][0], rz.T @ turn)
+    body.run(body.pull_routine("left", (0.0, 0.0, 1.0), 10.0, 0.1))
+    assert got["turns"] is None
+  finally:
+    world.close()

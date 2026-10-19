@@ -445,7 +445,9 @@ save a filmstrip PNG named after the script.
   again saying so. Practice chests may take more tries than held-out ones
   (`--practice-attempts`; Ben, 2026-10-19: within a chest the whole
   conversation is the lesson), and a verb may be an `if`'s test there
-  (`--verb-tests`, below).
+  (`--verb-tests`, below). ⚠ A CARRIED HAND MAY TURN: `move_hand` and
+  `pull` take `fx..jz` as `reach` does (the reference's first lesson, the
+  hand turning with the lid, had no verb).
 
 ### The imagination (`imagination/`; #466; one process of five, #487)
 

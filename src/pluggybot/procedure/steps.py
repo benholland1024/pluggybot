@@ -1145,9 +1145,13 @@ def _move_hand(life, args: dict) -> Routine:
   """A hand that is out carried along a straight line to (x, y, z) at
   `speed`, m/s, its turn kept, at `stiffness`. ok when it arrives."""
   hand = args["hand"]
+  rot, bad = _grip_turn(life, args)
+  if bad:
+    return {"ok": False, "hand": hand, "reason": bad}
   rep, felt = yield from _felt_routine(life, hand, life.body.move_hand_routine(
     hand, _hand_place(life, args), stiffness=float(args.get("stiffness", _STIFF.default)),
-    speed=float(args.get("speed", _SPEED.default)), patience=HAND_PATIENCE_S))
+    speed=float(args.get("speed", _SPEED.default)), patience=HAND_PATIENCE_S,
+    turns=None if rot is None else [rot]))
   out = {"hand": hand, **_hand_report(life, hand, rep), "felt": felt}
   if rep.get("why") == "arrived":
     return {"ok": True, **out}
@@ -1169,10 +1173,13 @@ def _pull(life, args: dict) -> Routine:
   d = (float(args["dx"]), float(args["dy"]), float(args["dz"]))
   if math.sqrt(sum(v * v for v in d)) == 0.0:
     return {"ok": False, "reason": "give the pull a way: (dx, dy, dz) are all 0"}
+  rot, bad = _grip_turn(life, args)
+  if bad:
+    return {"ok": False, "hand": hand, "reason": bad}
   rep, felt = yield from _felt_routine(life, hand, life.body.pull_routine(
     hand, axes.from_stance(life, d, point=False), float(args["force"]),
     float(args["distance"]), stiffness=float(args.get("stiffness", _SOFT.default)),
-    speed=float(args.get("speed", _SPEED.default)), patience=HAND_PATIENCE_S))
+    speed=float(args.get("speed", _SPEED.default)), patience=HAND_PATIENCE_S, turn=rot))
   out = {"hand": hand, **_hand_report(life, hand, rep), "force": rep.get("force"),
          "felt": felt}
   if rep.get("why") in ("not out", "fell"):
@@ -1210,6 +1217,10 @@ _HAND_AT = {"x": Arg("float", *HAND_BOX[0]), "y": Arg("float", *HAND_BOX[1]),
 _STIFF = Arg("float", lo=0.05, hi=1.0, default=1.0)
 #: ...and a pull's, soft unless asked: the compliant move (#493).
 _SOFT = Arg("float", lo=0.05, hi=1.0, default=0.5)
+#: A grip's turn, as `reach` takes it and a carried hand's may change to:
+#: the fingers' way and the jaws', any length (`_grip_turn` scales them),
+#: all left 0 for the turn the arm finds or keeps.
+_TURN = {k: Arg("float", default=0.0) for k in ("fx", "fy", "fz", "jx", "jy", "jz")}
 _SPEED = Arg("float", lo=HAND_V[0], hi=HAND_V[2], default=HAND_V[1])
 VERBS: dict[str, Verb] = {
   "fetch": Verb("fetch", {"tool": Arg("str", choices="tools")}, _fetch,
@@ -1301,10 +1312,7 @@ HANDS_VERBS: dict[str, Verb] = {
   "spot": Verb("spot", {"tag": Arg("float", lo=0.0, hi=586.0)}, _spot,
                "stand still and look for this tag in your head camera; ok when you see it. "
                "Where its face is and which way it looks ride `spot.*`"),
-  "reach": Verb("reach", {"hand": _HAND, **_HAND_AT,
-                          **{k: Arg("float", lo=-1.0, hi=1.0, default=0.0)
-                             for k in ("fx", "fy", "fz", "jx", "jy", "jz")},
-                          "stiffness": _STIFF},
+  "reach": Verb("reach", {"hand": _HAND, **_HAND_AT, **_TURN, "stiffness": _STIFF},
                 _reach, "send a hand's grip -- the point between its jaws -- to (x, y, z), its "
                 "fingers pointing along (fx, fy, fz) and its jaws closing along (jx, jy, jz) -- "
                 "either way, a two-jaw grip -- or at whatever turn your arm finds where those "
@@ -1312,19 +1320,22 @@ HANDS_VERBS: dict[str, Verb] = {
                 "fingers; you take whatever posture reaches. stiffness 1 is your arm's full "
                 "stiffness, less is softer. ok once it holds there"),
   "move_hand": Verb("move_hand", {"hand": _HAND, **_HAND_AT, "speed": _SPEED,
-                                  "stiffness": _STIFF},
+                                  "stiffness": _STIFF, **_TURN},
                     _move_hand, "carry a hand that is out (reached) along a straight line "
-                    "to (x, y, z) at `speed` m/s, its turn kept; ok when it arrives"),
+                    "to (x, y, z) at `speed` m/s, its turn kept -- or, (fx, fy, fz) and "
+                    "(jx, jy, jz) given as for `reach`, turned to them as it goes; ok when "
+                    "it arrives"),
   # ⚠ A WAY OF ANY LENGTH (`_pull` scales it to one): bounded to 1 a
   # component, two of #493's tries ended at a computed 1.03 and 1.001
   "pull": Verb("pull", {"hand": _HAND, "dx": Arg("float"), "dy": Arg("float"),
                         "dz": Arg("float"),
                         "force": Arg("float", lo=1.0, hi=60.0),
                         "distance": Arg("float", lo=0.01, hi=0.6),
-                        "speed": _SPEED, "stiffness": _SOFT},
+                        "speed": _SPEED, "stiffness": _SOFT, **_TURN},
                _pull, "pull a hand that is out straight along the way (dx, dy, dz), of any "
                "length, on a soft arm -- "
-               "the hand bending toward whatever gives, its turn kept -- until it has gone "
+               "the hand bending toward whatever gives, its turn kept, or turned as it goes "
+               "to (fx, fy, fz) and (jx, jy, jz) given as for `reach` -- until it has gone "
                "`distance` m, the force at the hand along its way "
                "reaches `force` N while something holds it back, it is held fast, or it can "
                "reach no further; then it holds there. How far it went, the hardest it "

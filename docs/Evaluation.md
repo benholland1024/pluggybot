@@ -1110,8 +1110,9 @@ again 32 times and never used its library. The KEPT protocol
   each chest's start (`mind.practice.library_text`), the newest kept and
   the oldest going where the library is full -- never a conversation or a
   note of its own. It ends once 3 chests running pass at their first try
-  (`UNTIL`), or 16 are practiced (`MAX_CHESTS`); with nothing kept after 8
-  (`GIVE_UP_AFTER`), nothing more is flown. Its tries, tokens and sim-s are
+  (`UNTIL`), or 16 are practiced (`MAX_CHESTS`); with nothing kept after 6
+  (`GIVE_UP_AFTER`; 8 for the arms below), nothing more is flown. Its
+  tries, tokens and sim-s are
   the experience the skill took;
 - **the flight**: each held-out chest a copy of that robot, frozen, up to 5
   tries; the bar is read there, 80 % within 3 of the chest's own tries.
@@ -1214,6 +1215,13 @@ same but for the `if`.
   `move_hand` keep the turn they started with. A `pull` that goes as far as
   the arm reaches instead of refusing its line did no better, replayed
   over three recorded procedures (the lids rose less, and still fell).
+
+**A carried hand may turn** (Ben, 2026-10-19): `move_hand` and `pull` take
+fingers and jaws (`fx..jz`) as `reach` does, and turn the hand to them as
+it goes -- from one posture, eased at the reach's own rate
+(`Body.pull_routine(turn=)`, `move_hand_routine(turns=)`); left 0, the
+turn is kept. On the humanoid in free air a move asked 30 deg up came to
+27 deg, a pull asked 60 to 59.
 
 ## 5. What silently invalidates a number
 
