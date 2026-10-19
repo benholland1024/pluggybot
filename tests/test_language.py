@@ -4,6 +4,7 @@ library, and a mind's vocabulary for it.
 """
 
 import ast
+import math
 import inspect
 import pathlib
 from dataclasses import replace
@@ -857,3 +858,26 @@ def test_a_verb_is_an_ifs_test_only_where_the_world_allows_it():
   assert proc.references()["axes"] == ("shoulder",)
   assert proc.references()["sensors"] == ("elbow",)
   assert proc.first("move", "axis") == "shoulder"
+
+
+def test_sin_cos_atan2_and_sqrt_only_where_the_world_gives_the_maths():
+  """#493: an arc round a hinge, a pivot's angle and a distance need them;
+  the served world's language is unchanged."""
+  src = ("def a():\n  x = sin(0.5) + cos(0.5) * 2\n  y = atan2(1, 1)\n  z = sqrt(16)\n"
+         "  wait(1)\n")
+  with pytest.raises(Refused, match="only read\\(\\.\\.\\.\\) may be used inside an expression"):
+    compile_ok(src)
+  facts = replace(HOME, math=True)
+  proc = compile_ok(src, facts)
+  life = SimpleNamespace(data=SimpleNamespace(time=0.0), interrupted=lambda: False,
+                         _say=lambda *a, **k: None, reports={})
+  env = {}
+  assert lang._eval(proc.body[0][2], env, life, facts) == pytest.approx(
+    math.sin(0.5) + 2 * math.cos(0.5))
+  assert lang._eval(proc.body[1][2], env, life, facts) == pytest.approx(math.pi / 4)
+  assert lang._eval(proc.body[2][2], env, life, facts) == pytest.approx(4.0)
+  with pytest.raises(Refused, match="atan2 takes 2 number"):
+    compile_ok("def a():\n  x = atan2(1)\n  wait(1)\n", facts)
+  with pytest.raises(lang._Stop, match="sqrt of a negative number"):
+    lang._eval(compile_ok("def a():\n  x = sqrt(0 - 4)\n  wait(1)\n", facts).body[0][2],
+               env, life, facts)

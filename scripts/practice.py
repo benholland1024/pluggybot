@@ -30,6 +30,8 @@ Two protocols (Evaluation.md §4):
                        sight beside feel, an arm of its own
   --verb-tests         a verb may be an `if`'s test, its failing read rather
                        than ending the procedure (`WorldFacts.verb_tests`)
+  --path               a hand's path (`via`, `follow`: one motion from one
+                       posture) and sin, cos, atan2, sqrt (`WorldFacts.math`)
   --practice-attempts N  KEPT: tries a PRACTICE chest (default --attempts);
                        the held-out chests keep --attempts
   --early-stop         the chests stop once the bar is out of reach
@@ -90,12 +92,13 @@ def fly(job: dict) -> list[dict]:
   from pluggybot.procedure.library import Library
   from pluggybot.procedure.steps import hand_facts
   k, pull, model, info, price = (job[n] for n in ("chest", "pull", "model", "info", "price"))
-  facts = hand_facts(pull=pull, measure=job["measure"], verb_tests=job["verb_tests"])
+  facts = hand_facts(pull=pull, measure=job["measure"], verb_tests=job["verb_tests"],
+                     path=job["path"])
   task = at.Task(chest=k, body="humanoid", mount="counter")
   mind = Practice(HFClient(timeout=READ_S, fetch=stream_fetch), model, facts, ep.job_for(task))
   skill = (f"{model} {'with' if pull else 'without'} the pull"
            + (", notes" if job["notes"] else "") + (", measure" if job["measure"] else "")
-           + (", verb tests" if job["verb_tests"] else ""))
+           + (", verb tests" if job["verb_tests"] else "") + (", path" if job["path"] else ""))
   info = {**info, "skill": skill, "process": job["process"]}
   try:
     rows = ep.practice_on(k, mind, job["attempts"], library=Library(facts), kept=job["kept"],
@@ -109,7 +112,8 @@ def fly(job: dict) -> list[dict]:
   for r in rows:
     r["run"] |= {"model": model, "pull": pull, "picture": job["picture"],
                  "notes": job["notes"], "measure": job["measure"],
-                 "verbTests": job["verb_tests"], "attempts": job["attempts"]}
+                 "verbTests": job["verb_tests"], "path": job["path"],
+                 "attempts": job["attempts"]}
     p = r["practice"]
     r["usd"] = (None if price is None
                 else round((p["tokensIn"] * price[0] + p["tokensOut"] * price[1]) / 1e6, 5))
@@ -180,6 +184,7 @@ def main(argv=None) -> None:
   ap.add_argument("--notes", action="store_true")
   ap.add_argument("--measure", action="store_true")
   ap.add_argument("--verb-tests", action="store_true")
+  ap.add_argument("--path", action="store_true")
   ap.add_argument("--practice-attempts", type=int, default=None, metavar="N")
   ap.add_argument("--attempts", type=int, default=5)
   ap.add_argument("--pull", action="store_true")
@@ -223,7 +228,7 @@ def main(argv=None) -> None:
             "model": args.model, "picture": not args.no_picture, "info": dict(info),
             "price": price, "kept": kept, "process": process, "carried": carried,
             "write_notes": write_notes, "notes": args.notes, "measure": args.measure,
-            "verb_tests": args.verb_tests}
+            "verb_tests": args.verb_tests, "path": args.path}
 
   kept, process, carried = [], "practice", None
   with get_context("spawn").Pool(max(1, args.jobs), maxtasksperchild=1) as pool:

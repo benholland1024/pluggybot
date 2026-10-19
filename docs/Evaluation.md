@@ -1238,6 +1238,25 @@ turn is kept. On the humanoid in free air a move asked 30 deg up came to
   trigonometry to compute an arc, stand between practice and a pass
   before any mind's judgement does.
 
+**A path, and the maths for one** (Ben, 2026-10-19: general, for any task,
+over a `swing` for this one; the vocabulary's design is #525). `via(hand,
+x, y, z, turn)` adds a point to a hand's path and moves nothing;
+`follow(hand, speed, stiffness)` carries the hand through them all as one
+motion, from one posture that follows them all (the body's path, aimed
+ahead for its lean, as the reference's), a point with no turn keeping the
+one before. An expression may call `sin`, `cos`, `atan2` and `sqrt`.
+Both behind `WorldFacts` switches (`math`, the practice's `--path`): the
+served world's language is unchanged. ⚠ THE GATE, before any mind flies
+them: the reference's own perception, plan and grip, then its arc up and
+back as two paths through `via`/`follow` (`pullfar/gate_path.py`), over
+the 8 chests the reference passes, at least 6 to pass. **It passed, 7 of
+8** (chest 3 held back on its way down), once the procedure did what the
+reference does: came down from the hand's nearest point, again where held
+back (`if not follow(...)`), and planned from the stance as it stood after
+its grip. ⚠ THE STANCE FRAME MOVES WITH THE FEET, and a reach's posture
+moves them: planned from the stance before its grip, 5 of 8 passed, held
+back off the arc. The practice's mind is told so (`YOUR_BODY`).
+
 ## 5. What silently invalidates a number
 
 The list this document mostly exists for.

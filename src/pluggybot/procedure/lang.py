@@ -40,6 +40,7 @@ verb (`move` is `Body.ramp_routine`), the scoring path not at all -- a
 """
 
 import ast
+import math
 import re
 from dataclasses import dataclass, field
 from typing import Any
@@ -71,6 +72,10 @@ RESERVED = frozenset({"read", "budget", "range", "def", "and", "or", "not",
                       "pass", "True", "False", "None"})
 
 _BIN = {ast.Add: "+", ast.Sub: "-", ast.Mult: "*", ast.Div: "/"}
+#: The functions an expression may call where the world's facts allow it
+#: (`WorldFacts.math`, #493: an arc, a pivot's angle and a distance need
+#: them), and how many numbers each takes. Angles in radians.
+MATH = {"sin": 1, "cos": 1, "atan2": 2, "sqrt": 1}
 #: ...and how one it lacks is named in its refusal.
 _OP_TEXT = {ast.Mod: "%", ast.Pow: "**", ast.FloorDiv: "//", ast.MatMult: "@",
             ast.BitAnd: "&", ast.BitOr: "|", ast.BitXor: "^", ast.LShift: "<<",
@@ -219,10 +224,12 @@ class Procedure:
 
 class _Parser:
   def __init__(self, source: str, verbs: dict | None = None,
-               verb_tests: bool = False) -> None:
+               verb_tests: bool = False, math: bool = False) -> None:
     self.source = source
     #: whether a verb may stand alone as an `if`'s test (`WorldFacts.verb_tests`)
     self.verb_tests = verb_tests
+    #: whether an expression may call `MATH`'s functions (`WorldFacts.math`)
+    self.math = math
     #: The verbs it may call: `steps.VERBS`, and a world's own where it
     #: names them (`steps.language`, issue #493's hands).
     self.verbs = st.VERBS if verbs is None else verbs
@@ -278,8 +285,13 @@ class _Parser:
           self.refuse(node, "read takes one sensor name in quotes")
           return _REFUSED
         return ("read", node.args[0].value)
-      self.refuse(node, "only read(...) may be used inside an expression; "
-                        "a verb is a statement of its own"
+      if self.math and isinstance(fn, ast.Name) and fn.id in MATH:
+        if node.keywords or len(node.args) != MATH[fn.id]:
+          self.refuse(node, f"{fn.id} takes {MATH[fn.id]} number(s)")
+          return _REFUSED
+        return ("fn", fn.id, *[self.expr(a) for a in node.args])
+      self.refuse(node, "only read(...)" + (", sin, cos, atan2 and sqrt" if self.math else "")
+                  + " may be used inside an expression; a verb is a statement of its own"
                   + (", or alone as an `if`'s test: `if verb(...):` or `if not verb(...):`"
                      if self.verb_tests and isinstance(fn, ast.Name) and fn.id in self.verbs
                      else ""))
@@ -446,19 +458,21 @@ class _Parser:
     return ("pass",)
 
 
-def parse(source: str, verbs: dict | None = None, verb_tests: bool = False) -> Procedure:
+def parse(source: str, verbs: dict | None = None, verb_tests: bool = False,
+          math: bool = False) -> Procedure:
   """Surface syntax -> Procedure, or Refused with every reason."""
-  proc, reasons = _parse(source, verbs, verb_tests)
+  proc, reasons = _parse(source, verbs, verb_tests, math)
   if reasons:
     raise Refused(reasons)
   return proc
 
 
-def _parse(source: str, verbs: dict | None = None, verb_tests: bool = False) -> tuple:
+def _parse(source: str, verbs: dict | None = None, verb_tests: bool = False,
+           math: bool = False) -> tuple:
   """The parse with its reasons, so `compile_procedure` can add the
   world's on top and refuse everything at once. `verbs`: what it may call
   (`steps.language`), `steps.VERBS` unsaid; `verb_tests`, whether a verb
-  may be an `if`'s test."""
+  may be an `if`'s test; `math`, whether an expression may call `MATH`."""
   if len(source) > MAX_SOURCE_CHARS:
     raise Refused([f"the source is {len(source)} characters; the cap is "
                    f"{MAX_SOURCE_CHARS}"])
@@ -476,7 +490,7 @@ def _parse(source: str, verbs: dict | None = None, verb_tests: bool = False) -> 
   if len(tree.body) != 1 or not isinstance(tree.body[0], ast.FunctionDef):
     raise Refused(["a procedure is exactly one `def name():`"])
   fn = tree.body[0]
-  p = _Parser(source, verbs, verb_tests)
+  p = _Parser(source, verbs, verb_tests, math)
   if not NAME_RE.match(fn.name):
     p.refuse(fn, f"{fn.name!r} is not a name this language allows "
                  "(lowercase, digits, underscores, 32 characters)")
@@ -602,7 +616,8 @@ def validate(proc: Procedure, facts: WorldFacts) -> list[str]:
 
 def compile_procedure(source: str, facts: WorldFacts) -> Procedure:
   """Parse and validate, and refuse with EVERY reason from both."""
-  proc, reasons = _parse(source, st.language(facts), bool(getattr(facts, "verb_tests", False)))
+  proc, reasons = _parse(source, st.language(facts), bool(getattr(facts, "verb_tests", False)),
+                         bool(getattr(facts, "math", False)))
   reasons = reasons + validate(proc, facts)
   if reasons:
     raise Refused(list(dict.fromkeys(reasons)))
@@ -659,6 +674,12 @@ def _eval(expr, env: dict, life, facts: WorldFacts) -> float:
     if b == 0.0:
       raise _Stop("division by zero")
     return a / b
+  if kind == "fn":
+    args = [_eval(a, env, life, facts) for a in expr[2:]]
+    if expr[1] == "sqrt" and args[0] < 0.0:
+      raise _Stop(f"sqrt of a negative number ({args[0]:g})")
+    return float({"sin": math.sin, "cos": math.cos, "atan2": math.atan2,
+                  "sqrt": math.sqrt}[expr[1]](*args))
   if kind == "neg":
     return -_eval(expr[1], env, life, facts)
   if kind == "not":

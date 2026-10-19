@@ -945,10 +945,12 @@ class StubBody(Body):
     self.grips: dict[str, bool] = {}
     #: ...and the hands a test says reach nothing (#493): a reach with one
     #: is out of reach -- or, `unturned`, nothing turned as asked -- and the
-    #: turns a carried hand was asked to take, (side, verb, turn) in turn
+    #: turns a carried hand was asked to take, (side, verb, turn) in turn,
+    #: and each carry's path, (side, path, pos, turns)
     self.out_of_reach: set[str] = set()
     self.unturned: set[str] = set()
     self.turned: list[tuple] = []
+    self.carried_paths: list[tuple] = []
     self._why: dict[str, str] = {}
     #: ...and each survey it was asked for, and what it counts, by tag
     self.surveyed: list[int] = []
@@ -1387,6 +1389,8 @@ class StubBody(Body):
   def move_hand_routine(self, side, pos, stiffness=1.0, speed=0.06, patience=20.0,
                         path=None, turns=None):
     """The hand there at once, as asked (a hand that is out)."""
+    self.carried_paths.append((side, list(path or []), tuple(pos),
+                               None if turns is None else list(turns)))
     if turns is not None:
       self.turned.append((side, "move_hand", list(turns)[-1]))
     if side not in self.hands:

@@ -132,6 +132,9 @@ class WorldFacts:
   #: jaws still on its knob). Off for the served world until it is turned
   #: on with its rule's words.
   verb_tests: bool = False
+  #: whether an expression may call sin, cos, atan2 and sqrt (`lang.MATH`;
+  #: #493's practice: an arc needs them), off for the served world as above
+  math: bool = False
 
 
 @dataclass(frozen=True)
@@ -1211,6 +1214,67 @@ def _withdraw(life, args: dict) -> Routine:
   return {"ok": True, "hand": hand, "felt": felt}
 
 
+#: A hand's path, the most points (`via`): a 64-degree arc in 4-degree
+#: steps up and back is 32.
+MAX_VIA = 40
+
+
+def _paths(life) -> dict:
+  """The points each hand's path holds, `via`'s, until `follow` carries it."""
+  if getattr(life, "paths", None) is None:
+    life.paths = {}
+  return life.paths
+
+
+def _via(life, args: dict) -> Routine:
+  """A point (x, y, z) a hand's path goes through, and the grip's turn
+  there where given (as `reach` takes it): nothing moves until `follow`
+  (issue #493, Ben, 2026-10-19: separate moves each took a posture of their
+  own, and carried the reference's own arc on 2 chests of 8)."""
+  hand = args["hand"]
+  rot, bad = _grip_turn(life, args)
+  if bad:
+    return {"ok": False, "hand": hand, "reason": bad}
+  points = _paths(life).setdefault(hand, [])
+  if len(points) >= MAX_VIA:
+    return {"ok": False, "hand": hand,
+            "reason": f"a path holds {MAX_VIA} points at most: `follow` it first"}
+  points.append((_hand_place(life, args), rot))
+  return {"ok": True, "hand": hand, "points": len(points)}
+  yield
+
+
+def _follow(life, args: dict) -> Routine:
+  """A hand that is out carried through its path's points in turn (`via`'s)
+  as ONE motion, from one posture that follows them all, turning as each
+  point asks -- a point with no turn keeps the one before it -- at `speed`
+  and `stiffness`; the path is then empty. ok when it arrives at the last."""
+  hand = args["hand"]
+  points = _paths(life).pop(hand, [])
+  if not points:
+    return {"ok": False, "hand": hand,
+            "reason": f"your {hand} hand has no path: `via` its points first"}
+  places = [p for p, _ in points]
+  turns = None
+  if any(r is not None for _, r in points):
+    last = next(r for _, r in points if r is not None)
+    turns = []
+    for _, r in points:
+      last = r if r is not None else last
+      turns.append(last)
+  speed = float(args.get("speed", _SPEED.default))
+  length = sum(math.dist(a, b) for a, b in zip(places, places[1:]))
+  rep, felt = yield from _felt_routine(life, hand, life.body.move_hand_routine(
+    hand, places[-1], stiffness=float(args.get("stiffness", _STIFF.default)), speed=speed,
+    patience=HAND_PATIENCE_S + 2.0 * length / speed,
+    path=places[:-1] or None, turns=turns))
+  out = {"hand": hand, **_hand_report(life, hand, rep), "points": len(points), "felt": felt}
+  if rep.get("why") == "arrived":
+    return {"ok": True, **out}
+  return {"ok": False, **out,
+          "reason": MOVE_WHY.get(rep.get("why"), "your {hand} hand did not get there").format(hand=hand)}
+
+
 _HAND = Arg("str", choices="hands")
 _HAND_AT = {"x": Arg("float", *HAND_BOX[0]), "y": Arg("float", *HAND_BOX[1]),
             "z": Arg("float", *HAND_BOX[2])}
@@ -1340,6 +1404,15 @@ HANDS_VERBS: dict[str, Verb] = {
                "reaches `force` N while something holds it back, it is held fast, or it can "
                "reach no further; then it holds there. How far it went, the hardest it "
                "pulled and the way it went ride `pull.*`; ok when it pulled"),
+  "via": Verb("via", {"hand": _HAND, **_HAND_AT, **_TURN}, _via,
+              "add the point (x, y, z) to your hand's path, the grip turned there to "
+              "(fx, fy, fz) and (jx, jy, jz) where given as for `reach`; nothing moves "
+              "until `follow`"),
+  "follow": Verb("follow", {"hand": _HAND, "speed": _SPEED, "stiffness": _STIFF}, _follow,
+                 "carry a hand that is out through its path's points in turn as one "
+                 "motion, from one posture that follows them all, turning as each point "
+                 "asks (a point with no turn keeps the one before); the path is then "
+                 "empty. ok when it arrives at the last"),
   "close_hand": Verb("close_hand", {"hand": _HAND}, _close_hand,
                      "shut a hand's gripper where it is; ok when it says it holds something"),
   "open_hand": Verb("open_hand", {"hand": _HAND}, _open_hand, "open a hand's gripper"),
@@ -1352,6 +1425,9 @@ HAND_VERBS = ("spot", "reach", "move_hand", "close_hand", "open_hand", "withdraw
 PULL_VERBS = ("pull",)
 #: ...and `measure`, the arm with sight beside feel.
 MEASURE_VERBS = ("measure",)
+#: ...and a path a hand follows from one posture, with the maths to compute
+#: one (`WorldFacts.math`).
+PATH_VERBS = ("via", "follow")
 
 
 def language(facts: "WorldFacts | None") -> dict[str, Verb]:
@@ -1366,20 +1442,21 @@ def language(facts: "WorldFacts | None") -> dict[str, Verb]:
 
 
 def hand_facts(pull: bool = False, measure: bool = False,
-               verb_tests: bool = False) -> "WorldFacts":
+               verb_tests: bool = False, path: bool = False) -> "WorldFacts":
   """What a procedure on the humanoid's hands is validated against (issue
   #493): standing still and its arms' joints, its hands' verbs -- the
   compliant `pull` with `pull`, the depth camera's `measure` with
   `measure` -- their sensors, and the clock; with `verb_tests`, a verb may
-  be an `if`'s test."""
+  be an `if`'s test; with `path`, `via` and `follow`, and the maths
+  (`lang.MATH`) to compute a path."""
   from pluggybot.procedure import axes
   return WorldFacts(boards=(), tools=(), bounds=(-1e3, -1e3, 1e3, 1e3), figures=(),
                     axes=axes.BODY_AXES["humanoid"],
                     sensors=(axes.HAND_SENSORS + (axes.PULL_SENSORS if pull else ())
                              + (axes.MEASURE_SENSORS if measure else ())),
                     verbs=("wait", "move") + HAND_VERBS + (PULL_VERBS if pull else ())
-                    + (MEASURE_VERBS if measure else ()),
-                    hands=axes.HANDS, verb_tests=verb_tests)
+                    + (MEASURE_VERBS if measure else ()) + (PATH_VERBS if path else ()),
+                    hands=axes.HANDS, verb_tests=verb_tests, math=path)
 
 
 # ---- the game's verbs (issue #404) ------------------------------------------------

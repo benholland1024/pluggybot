@@ -447,7 +447,11 @@ save a filmstrip PNG named after the script.
   conversation is the lesson), and a verb may be an `if`'s test there
   (`--verb-tests`, below). ⚠ A CARRIED HAND MAY TURN: `move_hand` and
   `pull` take `fx..jz` as `reach` does (the reference's first lesson, the
-  hand turning with the lid, had no verb).
+  hand turning with the lid, had no verb). ⚠ A HAND'S PATH IS ONE MOTION
+  (`via`/`follow`, `--path`): separate moves each took a posture of their
+  own and carried the reference's own arc on 2 chests of 8; with it, an
+  expression may call `sin`/`cos`/`atan2`/`sqrt` (`WorldFacts.math`). The
+  vocabulary's design is #525.
 
 ### The imagination (`imagination/`; #466; one process of five, #487)
 
@@ -859,8 +863,9 @@ save a filmstrip PNG named after the script.
   MAY BE AN `if`'S TEST ONLY WHERE THE WORLD'S FACTS SAY SO
   (`WorldFacts.verb_tests`, #493's practice: `if not move_hand(...)`, its
   failing read, never the procedure's end; everywhere else a failed verb
-  still ends it): the served world's facts leave it off until its rule
-  says so. ⚠ THE MOTOR LEVEL
+  still ends it), and `sin`/`cos`/`atan2`/`sqrt` likewise
+  (`WorldFacts.math`): the served world's facts leave both off until its
+  rule says so. ⚠ THE MOTOR LEVEL
   IS `move(axis, target)` AND `read(sensor)` over REGISTRIES (`axes.AXES`,
   `axes.SENSORS`): a new tool or body adds its entries there and the language
   does not change. Budgets (`budget(steps=, seconds=)`) are capped by code

@@ -994,3 +994,44 @@ def test_the_humanoids_pull_hands_its_turn_to_the_planner_in_the_stance_frame():
     assert got["turns"] is None
   finally:
     world.close()
+
+
+def test_a_path_is_its_points_carried_as_one_motion_each_point_turned_as_it_asks():
+  """`via` adds a point and moves nothing; `follow` carries the hand through
+  them all in one move (the body's path, one posture: separate moves set
+  the reference's own arc down on 2 chests of 8), a point with no turn
+  keeping the one before, and empties the path."""
+  body = _stub()
+  facts = st.hand_facts(path=True)
+  src = ('def a():\n    reach("left", 0.3, 0.2, 0.9)\n'
+         '    via("left", 0.3, 0.2, 0.95)\n'
+         '    via("left", 0.35, 0.2, 1.0, fx=1, jy=1)\n'
+         '    via("left", 0.4, 0.2, 1.05)\n'
+         '    follow("left")\n    x = read("left.x")\n')
+  life = _Life(body)
+  ran = body.run(lang.run_procedure_routine(life, lang.compile_procedure(src, facts), facts))
+  assert ran["ok"] and ran["locals"]["x"] == pytest.approx(0.4)
+  assert not life.paths.get("left")
+  side, path, pos, turns = body.carried_paths[-1]
+  assert side == "left" and len(path) == 2 and pos == pytest.approx((0.4, 0.2, 1.05))
+  # the first point took the first turn given, the last kept the one before
+  assert len(turns) == 3 and np.allclose(turns[0], turns[1]) and np.allclose(turns[1], turns[2])
+  # ...a path with no turns keeps the hand's
+  body.run(lang.run_procedure_routine(_Life(body), lang.compile_procedure(
+    'def a():\n    via("left", 0.3, 0.2, 0.9)\n    via("left", 0.3, 0.2, 1.0)\n'
+    '    follow("left")\n', facts), facts))
+  assert body.carried_paths[-1][3] is None
+  # ...and with no points, or past the cap, it says so
+  ran = body.run(lang.run_procedure_routine(_Life(body), lang.compile_procedure(
+    'def a():\n    follow("left")\n', facts), facts))
+  assert ran["steps"][-1]["reason"] == "your left hand has no path: `via` its points first"
+  life = _Life(body)
+  life.paths = {"left": [((0.0, 0.0, 0.0), None)] * st.MAX_VIA}
+  ran = body.run(lang.run_procedure_routine(life, lang.compile_procedure(
+    'def a():\n    via("left", 0.3, 0.2, 0.9)\n', facts), facts))
+  assert f"a path holds {st.MAX_VIA} points at most" in ran["steps"][-1]["reason"]
+  # ...and the mind is told of the maths, and the path's verbs, only where they are
+  assert "`sin(a)`, `cos(a)` (a in radians)" in mp.system_prompt(facts)
+  assert "follow(" in mp.system_prompt(facts)
+  plain = mp.system_prompt(st.hand_facts())
+  assert "trigonometry." in plain and "follow(" not in plain

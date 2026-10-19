@@ -81,6 +81,13 @@ trigonometry. A procedure runs until it ends, a verb fails, or its budget
 runs out; a verb fails when the world says it did not do what it said --
 and then the procedure stops there. A verb's numbers come back only
 through `read`, and your variables are your readout."""
+#: ...where the world gives the maths (`WorldFacts.math`), what replaces
+#: its "no trigonometry".
+NO_TRIG = """no imports, no
+trigonometry."""
+MATH_TEXT = """no imports -- but
+`sin(a)`, `cos(a)` (a in radians), `atan2(y, x)` and `sqrt(v)` may be used
+in an expression."""
 #: ...and where a verb may be an `if`'s test (`WorldFacts.verb_tests`).
 VERB_TESTS = """
 A verb may also stand alone as the test of an `if` or an `elif` -- `if
@@ -91,7 +98,9 @@ and its failing does not stop the procedure."""
 YOUR_BODY = """YOUR BODY
 
 Every place is in your STANCE frame, in metres: from the floor between your
-feet, x straight ahead, y to your left, z up. Your shoulders are 1.15 m up,
+feet, x straight ahead, y to your left, z up. The frame moves with your
+feet, and taking a posture to reach can move them a little: a place you
+read before a reach may lie elsewhere in the frame after it. Your shoulders are 1.15 m up,
 4 cm behind your feet's middle and 0.18 m either side of it; an arm held
 straight puts its grip 0.58 m from its shoulder, and it reaches less far
 with its hand turned some ways. Your hands are "left" and "right": each ends in a two-jaw gripper
@@ -132,7 +141,8 @@ def system_sections(facts: WorldFacts) -> list[tuple[str, str]]:
   ax = "\n".join(f"  {a.name}: {a.lo:g}..{a.hi:g} {a.unit} -- {a.doc}"
                  for a in (axes.AXES[n] for n in facts.axes))
   return [("what you do", WHAT_YOU_DO),
-          ("the language", LANGUAGE + (VERB_TESTS if facts.verb_tests else "")),
+          ("the language", (LANGUAGE.replace(NO_TRIG, MATH_TEXT) if facts.math else LANGUAGE)
+           + (VERB_TESTS if facts.verb_tests else "")),
           ("your body", YOUR_BODY % {"verbs": verbs, "sensors": sensors, "axes": ax,
                                      "slew": axes.HUMANOID_SLEW}),
           ("your answer", ANSWER % {"cap": f"{MAX_TOKENS:,}", "aim": f"{AIM_TOKENS:,}"})]
