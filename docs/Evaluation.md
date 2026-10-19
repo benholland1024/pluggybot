@@ -989,7 +989,9 @@ internals. Its rules:
   the world gave, counted on its row: MuJoCo's resets are free and exact,
   and a real world's are neither (§5);
 - **the call is wherever the skill ended, or its budget did** (`cut`): the
-  budget is the job's own time limit (300 sim-s, `lid.TIME_LIMIT_S`), and
+  budget is the job's own time limit, the task's (`attempts.LIMIT_S`: the
+  quadruped's 300 sim-s, the humanoid's 68, three times its reference's
+  slowest pass), and
   a cut attempt that failed says "out of time" first. Then the hold with
   the body held still, and one verdict through `scoring.evaluate`, graded
   and paid nothing. A fall is lost time and nothing more: the body's falls
@@ -1032,6 +1034,70 @@ the 96 flights of three batches, one ended its attempt 6 ms apart, every
 reading of its lid the same, and flown twice again on its own its chest
 gave the other batches' row: a run-to-run difference this box gives now
 and then, not chased.
+
+**The humanoid's reference** (#493 stage 2; `evaluation/opener.py`,
+SimNotes "The humanoid opens the chest"): the probe's plan on the
+humanoid's hands at a 0.72 m counter -- the knob off its tag, the box off
+its depth camera, the lid's arc carried as one path in one posture, the
+hand turning with the lid past the drop handle's stop. **23 of 32 at the
+first attempt** (95 % interval 0.55-0.84, at `0f98e24`), its own word
+agreeing every time, no fall: 17.7-22.5 sim-s a pass, the lid to 57.5-63.5
+deg and down at 0.34-0.68 rad/s at its fastest while open. The nine it misses are
+the body's reach, none its judgement: in five no grip's tilt follows the
+arc to 60 deg, in three no arc follows from the grip the reach could make,
+in one the hand ran out of reach a step up. Its slowest pass sets the
+humanoid task's time limit at three times it, 68 s (`attempts.LIMIT_S`;
+the quadruped's stays 300). ⚠ The generator's filter
+(`activity.chest.draw`: lids that shut by themselves from the probe's 1.2
+rad at 0.45 rad/s, because the quadruped's claw only pulls) is read again
+against it: the humanoid's grip is rigid and carries the lid down, and its
+arc tops out at 60-64 deg, so the filter is stricter than this body
+needs and stays as drawn -- one of the subsidies `FLATTERS` names.
+
+**Graded practice, and the flight** (#493 stages 2-3;
+`scripts/practice.py`, `evaluation/practice.py`, `mind/practice.py`): the
+deployed mind (`zai-org/GLM-5.3-Flash:cheapest`, call 4) writes the
+humanoid's procedure off the job and its head camera's picture, the
+humanoid tries it from a fresh set-out, the world grades the try through
+stage 1's door, and the mind is shown every verb's report, its variables
+and the grade's reason, and writes again: up to 5 tries a chest, 68 s a
+try, a fresh robot a chest, both at `19622bd`. A refused procedure costs
+tokens, never a try (two repairs a try).
+- **The flight, with the compliant pull, over 32 held-out chests** (seed
+  328855057): **0 of 32 within 3 tries** (95 % interval 0.00-0.11), so
+  **the bar is not met** (80 % within 3, call 3); the cold first try 0 of
+  32, and 1 of 32 within 5 (0.01-0.16). 160 tries, 1,893 sim-s, 4.9 M
+  tokens (1.6 M in, 3.3 M out) in 257 answers, $1.91, and 1 h 40 min of
+  wall time at six chests at once; 128 resets, no demonstration, no
+  intervention.
+- **It learns, slower than the bar asks**: each chest's best lid by try
+  1-5 had a median of 0, 0, 0, 23 and 40 deg, and 11 chests' lids went
+  past 57 deg at some try. The first tries go on the body: 18 of the 27
+  first reaches took the right hand to a knob 16-24 cm to the robot's
+  left, out of its reach. Once open, a lid was dropped: 19 of the 20 tries
+  past 57 deg let it fall at 1.1-9.1 rad/s, the grip lost or the pulls
+  run out of reach; the one pass lowered it on a stiff arm at 1.5 cm/s.
+  Its own word -- the procedure ran to its end -- said ok where the grade
+  failed 54 times in 160.
+- **Baseline (a′), position-only, over the 32 public chests**: **0 of 32
+  within 5** (0.00-0.11). 160 tries, 777 sim-s, 6.7 M tokens (1.7 M in,
+  5.1 M out) in 280 answers, $2.78, and 2 h 50 min. Its chests' best lids
+  by try 1-5 had a median of 0, 0, 1, 6 and 13 deg, and 4 lids went past
+  57 deg. A straight move fights the lid's arc: 47 of the hand's moves
+  were held back short, and a failed verb ends a procedure, so five tries
+  that opened a lid and lowered it ended with the jaws still on the knob.
+  Its first reach took the right hand 22 times in 25.
+- **What its words cost it** (the flight's numbers, (a′)'s alike): 74
+  repairs, the commonest a sensor written as Python (`spot.nx` for
+  `read("spot.nx")`), the 1,500-character cap and the tag's number in
+  quotes (`spot("53")`); two tries ended at a pull's direction a hair over
+  1 (1.03 and 1.001: each of `dx, dy, dz` is bounded to 1, though the verb
+  scales them to a unit). ⚠ 10 answers (28 in (a′)) spent the whole 64,000
+  tokens reasoning and came back empty, billed: 19 % of the flight's
+  output tokens and 35 % of (a′)'s; once in each run, three in a row left
+  a try with no procedure. 14 calls the router refused (429, 17 in (a′), the two
+  runs calling at once) were waited for and asked again, none costing a
+  try.
 
 ## 5. What silently invalidates a number
 

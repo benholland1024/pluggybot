@@ -86,8 +86,15 @@ GRADERS = ("lid",)
 #: set-out steps nothing before it.
 SETTLE_S = 0.5
 #: An attempt's sim-time budget, s: the job's own time limit, where the
-#: harness makes the call at the latest (`lid.TIME_LIMIT_S`).
+#: harness makes the call at the latest (`lid.TIME_LIMIT_S`)...
 BUDGET_S = lid.TIME_LIMIT_S
+#: ...each set-out's own (`Task.limit_s`): the task's data beside the code
+#: that grades it, handed to the grader as `limitS`. The quadruped's probe
+#: takes 84-100 s of its 300; the humanoid's is three times its reference's
+#: slowest pass (Ben, 2026-10-17: `evaluation.opener`, 17.7-22.5 s over its
+#: 32 public chests at 0f98e24), set before #493's stage 3 flew.
+REFERENCE_S = 22.54
+LIMIT_S = {("quadruped", "floor"): BUDGET_S, ("humanoid", "counter"): 3 * REFERENCE_S}
 #: What every result here relies on that a real world would not give it
 #: (#493; Evaluation.md §5, "Graded in MuJoCo"): said with every reading.
 FLATTERS = (
@@ -97,6 +104,7 @@ FLATTERS = (
   "one geometry: the chests differ only in their hidden dynamics",
   "the quadruped's claw is put on by the set-out, not fetched from the rack",
   "the humanoid is stood at its counter: walking to the chest is not the task",
+  "the humanoid's mind is told the knob's size and its tag: what it would see",
   "resets are free and exact, and nothing breaks",
   "MuJoCo against MuJoCo: an upper bound on hardware",
 )
@@ -164,6 +172,11 @@ class Task:
                        f"there are {', '.join(f'{b} at the {m}' for b, m in SET_OUTS)}")
     if self.grader not in GRADERS:
       raise ValueError(f"no grader {self.grader!r} for an attempt: {', '.join(GRADERS)}")
+
+  @property
+  def limit_s(self) -> float:
+    """The job's time limit at this set-out, s (`LIMIT_S`)."""
+    return LIMIT_S[(self.body, self.mount)]
 
   @property
   def tool(self) -> str | None:
@@ -265,15 +278,19 @@ class Unstable(RuntimeError):
   are not the attempt's, and it has no verdict."""
 
 
-def attempt_in(world: World, skill, n: int = 1, *, budget_s: float = BUDGET_S,
-               hold_s: float = lid.HOLD_S, info: dict | None = None) -> dict:
+def attempt_in(world: World, skill, n: int = 1, *, budget_s: float | None = None,
+               hold_s: float = lid.HOLD_S, info: dict | None = None,
+               sealed: list | None = None) -> dict:
   """One attempt in a world already set out (`attempt` builds it): the
   skill (`skill(body)` -> a routine, returning its own word) run inside
   `budget_s` while the grader watches every step, the call, the hold, and
-  the verdict -- the record's row. `info` is read once the hold is over.
-  Raises what the skill raised, or `Unstable`."""
+  the verdict -- the record's row. `info` is read once the hold is over;
+  the sealed verdict itself (`scoring.Verdict`) is appended to `sealed`,
+  what a library admits a procedure on (`Library.admit`). Raises what the
+  skill raised, or `Unstable`."""
   info = info if info is not None else {}
   task, body, data = world.task, world.body, world.data
+  budget_s = task.limit_s if budget_s is None else float(budget_s)
   warned = {w: int(data.warning[w].number) for w in UNSTABLE}
   watch = lid.Watch(world.model, data, body)
   body.step_hooks.append(watch)
@@ -292,11 +309,14 @@ def attempt_in(world: World, skill, n: int = 1, *, budget_s: float = BUDGET_S,
     raise Unstable(f"MuJoCo found the world unstable and reset it ({', '.join(reset)})")
   measured = scoring.SAMPLERS[task.grader](
     world, None, said, {"at_call": at_call, "watch": watch, "started": t0,
-                        "tool": task.tool, "catchN": world.chest.lid.catch_n})
+                        "tool": task.tool, "catchN": world.chest.lid.catch_n,
+                        "limitS": budget_s})
   # A cut attempt that failed says so first (`evaluate(failed=)`): what it
   # left half done follows.
   verdict = scoring.evaluate(task.grader, measured,
                              failed=f"out of time ({budget_s:.0f} s)" if cut else "")
+  if sealed is not None:
+    sealed.append(verdict)
   return {
     "task": task.as_dict(), "attempt": int(n), "heldOut": task.held_out,
     "process": info.get("process"), "skill": info.get("skill"),
@@ -316,14 +336,16 @@ def attempt_in(world: World, skill, n: int = 1, *, budget_s: float = BUDGET_S,
   }
 
 
-def attempt(task: Task, skill, n: int = 1, *, budget_s: float = BUDGET_S,
-            hold_s: float = lid.HOLD_S, info: dict | None = None, build=set_out) -> dict:
+def attempt(task: Task, skill, n: int = 1, *, budget_s: float | None = None,
+            hold_s: float = lid.HOLD_S, info: dict | None = None, build=set_out,
+            sealed: list | None = None) -> dict:
   """One attempt (the protocol): the task's set-out built afresh -- the
   world's reset, counted before every attempt but the first -- the skill
   tried from it, graded, and the world closed: the record's row. `build`
   is how a set-out is made (a test's own world)."""
   world = build(task)
   try:
-    return attempt_in(world, skill, n, budget_s=budget_s, hold_s=hold_s, info=info)
+    return attempt_in(world, skill, n, budget_s=budget_s, hold_s=hold_s, info=info,
+                      sealed=sealed)
   finally:
     world.close()

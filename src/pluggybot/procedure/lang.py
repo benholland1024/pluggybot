@@ -198,8 +198,11 @@ class Procedure:
 
 
 class _Parser:
-  def __init__(self, source: str) -> None:
+  def __init__(self, source: str, verbs: dict | None = None) -> None:
     self.source = source
+    #: The verbs it may call: `steps.VERBS`, and a world's own where it
+    #: names them (`steps.language`, issue #493's hands).
+    self.verbs = st.VERBS if verbs is None else verbs
     self.reasons: list[str] = []
     #: the call being parsed and its line, which every refusal inside it
     #: names, once: `line 3, wait: ...`, as History says a step that failed
@@ -240,7 +243,7 @@ class _Parser:
       self.refuse(node, f"a {type(node.value).__name__} is not a number")
       return _REFUSED
     if isinstance(node, ast.Name):
-      if not NAME_RE.match(node.id) or node.id in RESERVED or node.id in st.VERBS:
+      if not NAME_RE.match(node.id) or node.id in RESERVED or node.id in self.verbs:
         self.refuse(node, f"{node.id!r} is not a name this language allows")
       return ("var", node.id)
     if isinstance(node, ast.Call):
@@ -309,9 +312,9 @@ class _Parser:
       if fn.id == "read":
         self.refuse(node, "read(...) is an expression; assign or compare it")
         return ("pass",)
-      verb = st.VERBS.get(fn.id)
+      verb = self.verbs.get(fn.id)
       if verb is None:
-        self.refuse(node, f"unknown verb {fn.id!r} (have: {', '.join(st.VERBS)})")
+        self.refuse(node, f"unknown verb {fn.id!r} (have: {', '.join(self.verbs)})")
         return ("pass",)
       names = list(verb.args)
       args: dict = {}
@@ -342,7 +345,7 @@ class _Parser:
         self.refuse(node, "assign to one plain name")
         return ("pass",)
       name = node.targets[0].id
-      if not NAME_RE.match(name) or name in RESERVED or name in st.VERBS:
+      if not NAME_RE.match(name) or name in RESERVED or name in self.verbs:
         self.refuse(node, f"{name!r} is not a name this language allows "
                           "(it is reserved)")
       return ("set", name, self.expr(node.value))
@@ -391,17 +394,18 @@ class _Parser:
     return ("pass",)
 
 
-def parse(source: str) -> Procedure:
+def parse(source: str, verbs: dict | None = None) -> Procedure:
   """Surface syntax -> Procedure, or Refused with every reason."""
-  proc, reasons = _parse(source)
+  proc, reasons = _parse(source, verbs)
   if reasons:
     raise Refused(reasons)
   return proc
 
 
-def _parse(source: str) -> tuple:
+def _parse(source: str, verbs: dict | None = None) -> tuple:
   """The parse with its reasons, so `compile_procedure` can add the
-  world's on top and refuse everything at once."""
+  world's on top and refuse everything at once. `verbs`: what it may call
+  (`steps.language`), `steps.VERBS` unsaid."""
   if len(source) > MAX_SOURCE_CHARS:
     raise Refused([f"the source is {len(source)} characters; the cap is "
                    f"{MAX_SOURCE_CHARS}"])
@@ -419,7 +423,7 @@ def _parse(source: str) -> tuple:
   if len(tree.body) != 1 or not isinstance(tree.body[0], ast.FunctionDef):
     raise Refused(["a procedure is exactly one `def name():`"])
   fn = tree.body[0]
-  p = _Parser(source)
+  p = _Parser(source, verbs)
   if not NAME_RE.match(fn.name):
     p.refuse(fn, f"{fn.name!r} is not a name this language allows "
                  "(lowercase, digits, underscores, 32 characters)")
@@ -490,7 +494,7 @@ def validate(proc: Procedure, facts: WorldFacts) -> list[str]:
     for s in block:
       if s[0] == "verb":
         _, verb, args, line = s
-        spec = st.VERBS[verb]
+        spec = st.language(facts)[verb]
         at = f"line {line}, {verb}: "          # the call, named once (#463)
         lit = {}
         for name, value in args.items():
@@ -541,7 +545,7 @@ def validate(proc: Procedure, facts: WorldFacts) -> list[str]:
 
 def compile_procedure(source: str, facts: WorldFacts) -> Procedure:
   """Parse and validate, and refuse with EVERY reason from both."""
-  proc, reasons = _parse(source)
+  proc, reasons = _parse(source, st.language(facts))
   reasons = reasons + validate(proc, facts)
   if reasons:
     raise Refused(list(dict.fromkeys(reasons)))
@@ -580,7 +584,12 @@ def _eval(expr, env: dict, life, facts: WorldFacts) -> float:
       raise _Stop(f"unknown sensor {expr[1]!r}")
     if sensor.requires and st._carried(life) != sensor.requires:
       raise _Stop(f"sensor {expr[1]!r} needs {sensor.requires} on the fork")
-    return float(sensor.read(life))
+    try:
+      return float(sensor.read(life))
+    except axes.NoReading as no:
+      # a verb's report read before the verb ran (issue #493): said, never
+      # a number made up
+      raise _Stop(str(no)) from None
   if kind == "bin":
     a, b = _eval(expr[2], env, life, facts), _eval(expr[3], env, life, facts)
     op = expr[1]
@@ -635,7 +644,7 @@ def run_procedure_routine(life, proc: Procedure, facts: WorldFacts) -> Routine:
       raise _Stop("budget")
     if count >= proc.steps_budget:
       raise _Stop("steps")
-    spec = st.VERBS[verb]
+    spec = st.language(facts)[verb]
     values: dict = {}
     try:
       for name, value in args.items():

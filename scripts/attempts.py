@@ -1,7 +1,8 @@
-"""Attempts at a task, graded by the world (issue #493, stage 1): the attempt
-protocol (`evaluation.attempts`), the lid's grader (`challenge/lid.py`) and
-the experience record, with the probe -- our reactive opener as code, the
-quadruped's (`legs.probe`) -- as the skill.
+"""Attempts at a task, graded by the world (issue #493, stages 1 and 2): the
+attempt protocol (`evaluation.attempts`), the lid's grader
+(`challenge/lid.py`) and the experience record, with our opener as code as
+the skill -- the quadruped's probe (`legs.probe`), or, `--body humanoid`,
+the humanoid's reference at its counter (`evaluation.opener`).
 
 Each attempt is one try from its task's set-out, built afresh (the world's
 reset, counted): drawn chest k on the floor of the house's empty storeroom
@@ -9,6 +10,8 @@ and the quadruped in front of it, the claw put on its fork by the set-out.
 The skill runs inside its budget, the grader watches every step, and 5 s
 after the call one verdict goes through `scoring.evaluate`. A row a try.
 
+  --body B             quadruped (the probe, a chest on the floor) or
+                       humanoid (the reference, a chest on a counter)
   --chests A-B|A,B,..  the chests (default 0-31: the probe's own, public)
   --held-out N         N chests nobody has flown instead, drawn by the
                        frozen build's seed (`attempts.seed_of`), or `--seed`
@@ -30,6 +33,9 @@ after the call one verdict goes through `scoring.evaluate`. A row a try.
 
 Usage:
   MUJOCO_GL=egl uv run python scripts/attempts.py --chests 0-3 --jobs 2
+  MUJOCO_GL=egl uv run python scripts/attempts.py --body humanoid --chests 0-31 \
+    --jobs 4 --into DIR
+  uv run python scripts/attempts.py --body humanoid --view 0
   systemd-run --user --scope -p MemoryMax=12G -p MemorySwapMax=0 \\
     uv run python scripts/attempts.py --chests 0-31 --jobs 3 --into DIR
   uv run python scripts/attempts.py --read DIR
@@ -76,6 +82,20 @@ def probe_skill(body):
   return pr.Probe(body.mission).routine()
 
 
+def opener_skill(body):
+  """The humanoid's reference (`evaluation.opener`), through `Body`: its own
+  word is `ok` once its hand went up the arc and back down it."""
+  from pluggybot.evaluation.opener import opener
+  return opener(body)
+
+
+#: Each body's reference: its skill, what it says of itself on the row, and
+#: its task's set-out.
+SKILLS = {"quadruped": (probe_skill, PROBE_INFO, {}),
+          "humanoid": (opener_skill, PROBE_INFO | {"skill": "opener"},
+                       {"body": "humanoid", "mount": "counter"})}
+
+
 def build() -> dict:
   """Which build flies, for the record and the held-out seed: `$PLUGGY_COMMIT`,
   else the `COMMIT` file a pod's tree carries (`training/pod.sh setup-sim`:
@@ -108,12 +128,13 @@ def fly(job) -> list[dict]:
   raises is a row saying what (`error`), its chest's earlier rows kept and
   its series ended there: `Pool.map` raises the first error a worker meets,
   and the batch's rows would go with it."""
-  k, n, info = job
-  task = at.Task(chest=k)
+  k, n, info, who = job
+  skill, _, where = SKILLS[who]
+  task = at.Task(chest=k, **where)
   rows = []
   for i in range(1, n + 1):
     try:
-      rows.append(at.attempt(task, probe_skill, i, info=dict(info)))
+      rows.append(at.attempt(task, skill, i, info=dict(info)))
     except Exception as e:
       traceback.print_exc()
       rows.append({"task": task.as_dict(), "attempt": i, "heldOut": task.held_out,
@@ -270,11 +291,12 @@ def _pace(viewer, data, model):
   return hook
 
 
-def view(k: int) -> None:
+def view(k: int, who: str = "quadruped") -> None:
   from mujoco import viewer as mj_viewer
-  world = at.set_out(at.Task(chest=k))
-  print(f"an attempt at chest {k} (its set-out, the claw put on its fork): the probe "
-        "opens the lid and sets it down; the grader's verdict is printed. Close the window "
+  skill, info, where = SKILLS[who]
+  world = at.set_out(at.Task(chest=k, **where))
+  print(f"an attempt at chest {k} ({'the claw put on its fork: the probe' if who == 'quadruped' else 'at its counter: the reference'} "
+        "opens the lid and sets it down); the grader's verdict is printed. Close the window "
         "to quit.")
   with mj_viewer.launch_passive(world.model, world.data) as viewer:
     viewer.cam.type = mujoco.mjtCamera.mjCAMERA_TRACKING
@@ -282,7 +304,7 @@ def view(k: int) -> None:
     viewer.cam.distance, viewer.cam.azimuth, viewer.cam.elevation = 1.6, 120.0, -20.0
     world.body.step_hooks.append(_pace(viewer, world.data, world.model))
     try:
-      row = at.attempt_in(world, probe_skill, info=PROBE_INFO | build())
+      row = at.attempt_in(world, skill, info=info | build())
       print(show(row))
       while viewer.is_running():
         viewer.sync()
@@ -292,14 +314,17 @@ def view(k: int) -> None:
   world.close()
 
 
-def strip(k: int, out: str = "attempts.png") -> None:
+def strip(k: int, out: str = "attempts.png", who: str = "quadruped") -> None:
   from PIL import Image, ImageDraw
-  world = at.set_out(at.Task(chest=k))
+  skill_, info, where = SKILLS[who]
+  world = at.set_out(at.Task(chest=k, **where))
   m, d = world.model, world.data
   r = mujoco.Renderer(m, 300, 400)
   tiles = []
-  x, y, yaw = (float(v) for v in at_chest(k))
+  x, y, yaw = (float(v) for v in at_chest(k, who))
   hinge = int(m.jnt_qposadr[m.joint("chest_hinge").id])
+  # the humanoid's chest stands on its counter, and the robot tall beside it
+  low, far = (0.2, 1.8) if who == "quadruped" else (0.95, 2.4)
 
   def shoot(label):
     # From the chest's side, where the lid's angle reads, between the chest
@@ -308,8 +333,8 @@ def strip(k: int, out: str = "attempts.png") -> None:
     sx, sy, _ = world.start
     cx, cy = x + math.cos(yaw) * ch.BOX_D / 2, y + math.sin(yaw) * ch.BOX_D / 2
     cam = mujoco.MjvCamera()
-    cam.lookat[:] = [0.55 * cx + 0.45 * sx, 0.55 * cy + 0.45 * sy, 0.2]
-    cam.distance, cam.azimuth, cam.elevation = 1.8, math.degrees(yaw) + 90.0, -22.0
+    cam.lookat[:] = [0.55 * cx + 0.45 * sx, 0.55 * cy + 0.45 * sy, low]
+    cam.distance, cam.azimuth, cam.elevation = far, math.degrees(yaw) + 90.0, -22.0
     light = (m.vis.headlight.ambient.copy(), m.vis.headlight.diffuse.copy())
     m.vis.headlight.ambient[:], m.vis.headlight.diffuse[:] = 0.35, 0.55
     r.update_scene(d, cam)
@@ -318,7 +343,7 @@ def strip(k: int, out: str = "attempts.png") -> None:
     ImageDraw.Draw(img).text((8, 8), label, fill=(255, 255, 255))
     tiles.append(img)
 
-  shoot("set out: the lid shut, the claw on the fork")
+  shoot("set out: the lid shut" + (", the claw on the fork" if who == "quadruped" else ""))
   opened = []
 
   def watch_open():
@@ -329,11 +354,11 @@ def strip(k: int, out: str = "attempts.png") -> None:
 
   def skill(body):
     def routine():
-      got = yield from probe_skill(body)
+      got = yield from skill_(body)
       shoot("the call: the skill has ended")
       return got
     return routine()
-  row = at.attempt_in(world, skill, info=PROBE_INFO)
+  row = at.attempt_in(world, skill, info=info)
   shoot(f"{lid.HOLD_S:.0f} s on: {'PASSED' if row['verdict']['ok'] else 'failed'}")
   print(show(row))
   r.close()
@@ -345,7 +370,10 @@ def strip(k: int, out: str = "attempts.png") -> None:
   print(f"wrote {out}")
 
 
-def at_chest(k: int):
+def at_chest(k: int, who: str = "quadruped"):
+  if who == "humanoid":
+    from pluggybot.evaluation import counter as ct
+    return ct.set_out(k).chest
   from pluggybot.evaluation import probe as ep
   return ep.set_out(k).chest
 
@@ -353,6 +381,7 @@ def at_chest(k: int):
 def main(argv=None) -> None:
   ap = argparse.ArgumentParser(description=__doc__,
                                formatter_class=argparse.RawDescriptionHelpFormatter)
+  ap.add_argument("--body", choices=sorted(SKILLS), default="quadruped")
   ap.add_argument("--chests", default="0-31")
   ap.add_argument("--held-out", type=int, default=None, metavar="N")
   ap.add_argument("--seed", type=int, default=None)
@@ -372,12 +401,12 @@ def main(argv=None) -> None:
     drops()
     return
   if args.view is not None:
-    view(args.view)
+    view(args.view, args.body)
     return
   if args.strip is not None:
-    strip(args.strip, args.out)
+    strip(args.strip, args.out, args.body)
     return
-  info = PROBE_INFO | build()
+  info = SKILLS[args.body][1] | build()
   if args.held_out is not None:
     if info["dirty"] and args.seed is None:
       ap.error("a held-out draw is a frozen build's: commit the tree first (or name --seed)")
@@ -389,7 +418,7 @@ def main(argv=None) -> None:
     ks = chests(args.chests)
   if args.into:
     Path(args.into).mkdir(parents=True, exist_ok=True)
-  done = run_pool(fly, [(k, args.attempts, info) for k in ks], args.jobs)
+  done = run_pool(fly, [(k, args.attempts, info, args.body) for k in ks], args.jobs)
   rows = [r for got in done for r in got]
   for r in rows:
     print(show(r))

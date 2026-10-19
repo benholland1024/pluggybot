@@ -636,7 +636,7 @@ class Body(abc.ABC):
 
   @abc.abstractmethod
   def reach_routine(self, side: str, pos, rot=None, stiffness: float = 1.0,
-                    patience: float = 20.0) -> Routine:
+                    patience: float = 20.0, path=None, turns=None) -> Routine:
     """A hand (`side`, "left" or "right") to a grip pose in the believed
     world frame -- `pos`, m, and `rot`, world from grip (its fingers along
     its -z, its jaws closing along its x), or None for any -- its arm's
@@ -644,8 +644,12 @@ class Body(abc.ABC):
     pull is a low one. The posture is the body's to choose. True once it
     holds there; False if no posture it holds puts the pose in reach, the
     hand stopped short on its way, a fall let go of it (#520), or
-    `patience` ran out. The humanoid's (#507); a body with no such hand
-    refuses it (`NotImplementedError`)."""
+    `patience` ran out. With `path` (and `turns`, the grip's turn at each of
+    its points, world from grip) it reaches in a posture from which the
+    hand then FOLLOWS that path (`hand_follows`) -- or, where that posture
+    makes no approach, in any, the grip as asked (#493: a knob gripped in a
+    crouch whose lid's arc only a bow followed). The humanoid's (#507); a
+    body with no such hand refuses it (`NotImplementedError`)."""
 
   @abc.abstractmethod
   def release_routine(self, side: str) -> Routine:
@@ -666,6 +670,84 @@ class Body(abc.ABC):
   def hand_force(self, side: str) -> tuple[float, float, float]:
     """The force a hand pushes with, N, in the believed world frame, read
     off its arm's motor currents."""
+
+  @abc.abstractmethod
+  def hand_follows(self, side: str, poses, rot=None) -> bool:
+    """Whether a hand's grip could FOLLOW `poses` (the believed world frame)
+    in turn at the turn `rot` -- one turn, or a list of one a pose -- from
+    one posture it holds, its arm moving on from each to the next -- asked
+    of its model of itself (#493)."""
+
+  @abc.abstractmethod
+  def gaze_routine(self, down: float) -> Routine:
+    """Its head's cameras turned `down` rad below their gaze standing --
+    0 back to it -- as the body can: the humanoid, its head fixed on its
+    trunk, bows (#493: a knob at the bottom of its colour camera's view
+    from a step nearer). Returns once still there."""
+
+  @abc.abstractmethod
+  def depth_cloud(self, width: int, height: int, min_z: float, frames: int = 1,
+                  apart: float = 0.1) -> Routine:
+    """Standing still, `frames` frames of its depth camera at `width` x
+    `height` pixels and `min_z` (m, the part's nearest at that stream),
+    `apart` s apart: the points it saw, (k, 3), the believed world frame,
+    through its camera's pose in its model of itself (#493: the humanoid's
+    D435, the quadruped probe's measure). Its own body never in them."""
+
+  @abc.abstractmethod
+  def hand_at(self, side: str) -> tuple[float, float, float]:
+    """Where a hand's grip is, m, in the believed world frame: its arm's
+    encoders and its IMU through its model of itself (#493)."""
+
+  @abc.abstractmethod
+  def move_hand_routine(self, side: str, pos, stiffness: float = 1.0,
+                        speed: float = 0.06, patience: float = 20.0,
+                        path=None, turns=None) -> Routine:
+    """A hand that is out -- reached, and holding there or moved on --
+    carried along a straight line to `pos`, the believed world frame, m, at
+    `speed`, m/s, the turn it was asked to hold kept, at `stiffness` --
+    through `path` first, where given: points walked in turn as one
+    motion, from one posture that follows them all (`hand_follows`),
+    turning to `turns`' at each (one a point of `path` and one at `pos`,
+    world from grip) where they are given. The
+    posture is the body's to choose (#493). Returns how it ended (`why`:
+    "arrived", "held back" -- its command there, the hand held short of it
+    -- "out of reach", "not out", "fell", "feet moved", "out of time"), in
+    how long, how far the hand went (`moved`, m) and where it ended up from
+    where it began (`dx`, `dy`, `dz`, believed world frame, m)."""
+
+  @abc.abstractmethod
+  def hand_why(self, side: str) -> str:
+    """Why a hand's last `reach_routine` ended short of holding there: "out
+    of reach" (no posture it holds puts the pose in reach), "stopped short"
+    (it stopped on its way: pushing on something, or out of reach as the
+    body truly stood), "fell", "out of time" -- or "" where it held (#493)."""
+
+  @abc.abstractmethod
+  def pull_routine(self, side: str, direction, limit_n: float, distance_m: float,
+                   stiffness: float = 1.0, speed: float = 0.06,
+                   patience: float = 30.0) -> Routine:
+    """THE COMPLIANT PULL (#493): a hand that is out carried straight along
+    `direction` (the believed world frame) on an arm at `stiffness`, so it
+    bends toward whatever gives, its turn held --
+    until it has gone `distance_m`, the force it reads at the hand along
+    its way reaches `limit_n`, N, while it is held back, it is held fast,
+    its grip lets go, or `patience` runs out; then it holds
+    where the hand is. Returns how it ended (`why`: "distance", "force",
+    "held fast", "let go", "out of reach", "not out", "fell", "out of
+    time"), in how long, how far the hand went (`moved`) and how far the
+    way asked (`along`), where it ended up from where it began (believed
+    world frame, m), the way the hand went (`direction`, a unit vector) and
+    the hardest it pulled (`force`, N). A pull or a carry that drags the
+    body's own feet stops ("feet moved")."""
+
+  @property
+  @abc.abstractmethod
+  def stance(self) -> tuple[float, float, float]:
+    """Where it believes its STANCE is, (x, y, heading): the frame its
+    hands' work is put in -- the humanoid's between its soles (#507), a
+    body with no hand its own pose -- what a procedure's hand verbs say
+    their places in (#493)."""
 
   # ---- posture and rest ----------------------------------------------------
 
@@ -1229,7 +1311,8 @@ class StubBody(Body):
     return
     yield
 
-  def reach_routine(self, side, pos, rot=None, stiffness=1.0, patience=20.0):
+  def reach_routine(self, side, pos, rot=None, stiffness=1.0, patience=20.0, path=None,
+                    turns=None):
     self.hands[side] = tuple(pos)
     return True
     yield
@@ -1250,6 +1333,61 @@ class StubBody(Body):
 
   def hand_force(self, side):
     return (0.0, 0.0, 0.0)
+
+  def hand_follows(self, side, poses, rot=None) -> bool:
+    """Anywhere: it has no body to be out of reach of."""
+    return True
+
+  def gaze_routine(self, down):
+    """No head to turn: at once."""
+    return
+    yield
+
+  def depth_cloud(self, width, height, min_z, frames=1, apart=0.1):
+    """No camera: nothing seen, after the time looking takes."""
+    yield from self._wait(frames * apart)
+    return np.zeros((0, 3))
+
+  def hand_at(self, side):
+    """Where it sent the hand; hanging at its side, where it sent none."""
+    x, y, _ = self.pose
+    return tuple(self.hands.get(side, (x, y, 0.8)))
+
+  def _carried(self, side, to) -> dict:
+    a = np.asarray(self.hand_at(side), dtype=float)
+    self.hands[side] = tuple(float(v) for v in to)
+    dx, dy, dz = (float(v) for v in np.asarray(to, dtype=float) - a)
+    return {"seconds": 0.0, "moved": float(np.linalg.norm([dx, dy, dz])),
+            "dx": dx, "dy": dy, "dz": dz}
+
+  def move_hand_routine(self, side, pos, stiffness=1.0, speed=0.06, patience=20.0,
+                        path=None, turns=None):
+    """The hand there at once, as asked (a hand that is out)."""
+    if side not in self.hands:
+      return {"why": "not out", "seconds": 0.0, "moved": 0.0, "dx": 0.0, "dy": 0.0, "dz": 0.0}
+    return {"why": "arrived", **self._carried(side, pos)}
+    yield
+
+  def hand_why(self, side) -> str:
+    """Never short: every reach holds at once."""
+    return ""
+
+  def pull_routine(self, side, direction, limit_n, distance_m, stiffness=1.0,
+                   speed=0.06, patience=30.0):
+    """The hand `distance_m` along `direction` at once: nothing holds it."""
+    if side not in self.hands:
+      return {"why": "not out", "seconds": 0.0, "moved": 0.0, "dx": 0.0, "dy": 0.0,
+              "dz": 0.0, "direction": list(direction), "force": 0.0}
+    d = np.asarray(direction, dtype=float)
+    d = d / max(float(np.linalg.norm(d)), 1e-9)
+    to = np.asarray(self.hand_at(side), dtype=float) + float(distance_m) * d
+    return {"why": "distance", **self._carried(side, to),
+            "direction": [float(v) for v in d], "force": 0.0}
+    yield
+
+  @property
+  def stance(self):
+    return self.pose
 
   def rest_routine(self):
     self.resting = True

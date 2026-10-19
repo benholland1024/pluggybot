@@ -18,7 +18,8 @@ THE CRITERIA, written first. An attempt passes when:
      the catch holds it again (`caught`) is said beside, and gates nothing;
   4. LET GO: nothing but the chest itself touches the lid, its bracket, its
      handle or its knob at any moment of the hold;
-  5. IN TIME: the call came within `TIME_LIMIT_S` of the attempt's start
+  5. IN TIME: the call came within the task's time limit of the attempt's
+     start (`limitS`, the harness's; `TIME_LIMIT_S` where none is given)
      -- the harness calls it there at the latest, and reads the world as
      it stands.
 
@@ -74,9 +75,10 @@ LOWER_RAD_S = 1.0
 #: wedged against the front wall): a drop can leave the chest open.
 HOLD_S = 5.0
 #: 5: the job's time, s, from the attempt's start to the call (Ben,
-#: 2026-10-17): a fall costs time, and is judged by nothing else. The probe
-#: takes 84-100 s (its 32 public chests); read again before #493's stage
-#: 3 flies, as three times the humanoid's reference.
+#: 2026-10-17): a fall costs time, and is judged by nothing else. Each task
+#: hands its own (`limitS`, `attempts.LIMIT_S`: the humanoid's is three
+#: times its reference's slowest pass); this, where none is, is the
+#: quadruped's, whose probe takes 84-100 s.
 TIME_LIMIT_S = 300.0
 
 
@@ -170,7 +172,8 @@ def measure(model, data, name: str = "chest") -> dict:
 
 def measurements(at_call: dict | None, settled: dict | None, watch: Watch | None,
                  tool: str | None = None, seated: bool | None = None,
-                 catch_n: float | None = None, started: float | None = None) -> dict:
+                 catch_n: float | None = None, started: float | None = None,
+                 limit_s: float | None = None) -> dict:
   """The evaluator's input, UNROUNDED (`eval_lid` judges the numbers and
   rounds only what it shows): the snapshot at the call, the one after the
   hold, the attempt's per-step reading, and the tool the set-out gave with
@@ -195,12 +198,13 @@ def measurements(at_call: dict | None, settled: dict | None, watch: Watch | None
     "tool": tool,
     "toolSeated": seated,
     "catchN": None if catch_n is None else float(catch_n),
+    "limitS": None if limit_s is None else float(limit_s),
   }
 
 
 #: What a verdict shows of each number, decimal places: judged unrounded.
 SHOWN = {"topDeg": 2, "downRadS": 3, "tiltDeg": 1, "angleAtCallDeg": 2, "angleDeg": 2,
-         "holdS": 2, "elapsedS": 2, "catchN": 3}
+         "holdS": 2, "elapsedS": 2, "catchN": 3, "limitS": 1}
 
 
 def eval_lid(m: dict) -> tuple[bool, dict, str]:
@@ -209,7 +213,7 @@ def eval_lid(m: dict) -> tuple[bool, dict, str]:
   reason says what the world shows and never the catch."""
   raw = {k: m.get(k) for k in ("topDeg", "downRadS", "tiltDeg", "falls", "angleAtCallDeg",
                                "angleDeg", "caught", "holdS", "elapsedS", "tool", "toolSeated",
-                               "catchN")}
+                               "catchN", "limitS")}
   metrics = {k: (round(float(v), SHOWN[k]) if k in SHOWN and v is not None else v)
              for k, v in raw.items()}
   metrics["touchedDuringHold"] = list(m.get("touchedDuringHold") or ())
@@ -222,9 +226,10 @@ def eval_lid(m: dict) -> tuple[bool, dict, str]:
   if float(raw["holdS"]) + 1e-6 < HOLD_S:
     return False, metrics, (f"measured {float(raw['holdS']):.1f} s after the call, "
                             f"not the {HOLD_S:.0f} s the job asks for")
-  if float(raw["elapsedS"]) > TIME_LIMIT_S + 1e-6:
+  limit = TIME_LIMIT_S if raw["limitS"] is None else float(raw["limitS"])
+  if float(raw["elapsedS"]) > limit + 1e-6:
     return False, metrics, (f"called {float(raw['elapsedS']):.0f} s after the start, past "
-                            f"the {TIME_LIMIT_S:.0f} s the job allows")
+                            f"the {limit:.0f} s the job allows")
   if top < math.degrees(OPEN_RAD):
     if top < math.degrees(SHUT_RAD):
       return False, metrics, (f"the lid never opened: it must open past "
@@ -262,4 +267,4 @@ def sample_lid(life, errand, result: dict | None, before: dict) -> dict:
   name = watch.name if watch is not None else "chest"
   return measurements(before.get("at_call"), measure(life.model, life.data, name), watch,
                       tool=tool, seated=seated, catch_n=before.get("catchN"),
-                      started=before.get("started"))
+                      started=before.get("started"), limit_s=before.get("limitS"))

@@ -46,6 +46,15 @@ IK_POS_TOL, IK_ROT_TOL = 0.002, 0.02
 REACH_POS_TOL, REACH_ROT_TOL = 0.01, 0.1
 #: A joint's solution stays this far inside its range, rad.
 RANGE_MARGIN = 0.05
+#: The force at the hand is read only along the arm's directions whose
+#: singular value is past this (`hand_force`, a truncated pseudo-inverse):
+#: near a singular arm a few tenths of a newton-metre of friction and
+#: counts in the torques read as a push of hundreds of newtons -- MEASURED
+#: along a lid's pull (#493), 68 readings in 179 past 100 N and one of
+#: 3,000 N; truncated here, 2 and 141 N at most. Damping instead biased a
+#: still arm's reading: at 1e-3 a 20 N push read 17.8, where this reads it
+#: as undamped (19.3; that arm's least is 0.085).
+FORCE_SIGMA = 0.05
 
 
 def frame(approach, closing) -> np.ndarray:
@@ -203,12 +212,15 @@ class SelfModel:
     """The force the hand pushes on what it holds, N, in the stance frame:
     what the arm's motors push with, `tau` (their drivers' torque readings)
     less what holding the arm still takes (`gravity`, or `still`), through
-    the grip's Jacobian. A joint's friction is in it, unknown."""
+    the grip's Jacobian -- along the directions the arm can tell apart
+    (`FORCE_SIGMA`). A joint's friction is the caller's to take off `tau`
+    (`humanoid.friction.taken`)."""
     hold = self.gravity(side) if still is None else still
-    j = self.jacobian(side)
     # tau = hold - J^T f_on_hand: the world's push on the hand is what the
     # motors do not hold; the hand pushes back with its negative.
-    f_on_hand = np.linalg.solve(j @ j.T + 1e-6 * np.eye(6), j @ (hold - np.asarray(tau)))
+    u, s, vt = np.linalg.svd(self.jacobian(side))
+    inv = np.where(s > FORCE_SIGMA, 1.0 / np.maximum(s, 1e-12), 0.0)
+    f_on_hand = u @ (inv * (vt @ (hold - np.asarray(tau))))
     return -f_on_hand[:3]
 
 

@@ -195,6 +195,21 @@ class Library:
     self.store.write(f"{name}{SUFFIX}", source)
     return proc
 
+  def admit(self, name: str, source: str, verdict, t: float = 0.0) -> lang.Procedure:
+    """VERIFIED ADMISSION (issue #493, #487's library): `define`, but only
+    on a verdict its grader passed -- a `scoring.Verdict`, which only
+    `scoring.evaluate` can build, `ok` -- the attempt that ran `source`
+    (`attempts.attempt(sealed=)`). Else LibraryRefused, said and kept as
+    `define`'s refusals are."""
+    from pluggybot.economy.scoring import Verdict
+    if not isinstance(verdict, Verdict) or not verdict.ok:
+      why = ("its grader did not pass it" if isinstance(verdict, Verdict)
+             else "no grader's verdict came with it")
+      reasons = [f"{name!r} is admitted only once its grader has passed it: {why}"]
+      self.refusals.append({"t": t, "verb": "admit", "name": name, "reasons": reasons})
+      raise LibraryRefused(reasons)
+    return self.define(name, source, t)
+
   def undefine(self, name: str, t: float = 0.0) -> None:
     name = str(name or "").strip()
     if name not in self.entries:

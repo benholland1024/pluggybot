@@ -1904,7 +1904,8 @@ class QuadBody(Body):
   _NO_HAND = ("the quadruped's arm is two joints in a plane on its back: no hand "
               "reaches a pose, and its grip is a tool's (`claw_routine`)")
 
-  def reach_routine(self, side, pos, rot=None, stiffness=1.0, patience=20.0) -> Routine:
+  def reach_routine(self, side, pos, rot=None, stiffness=1.0, patience=20.0, path=None,
+                    turns=None) -> Routine:
     raise NotImplementedError(self._NO_HAND)
     yield
 
@@ -1921,6 +1922,40 @@ class QuadBody(Body):
 
   def hand_force(self, side):
     raise NotImplementedError(self._NO_HAND)
+
+  def hand_at(self, side):
+    raise NotImplementedError(self._NO_HAND)
+
+  def hand_follows(self, side, poses, rot=None) -> bool:
+    raise NotImplementedError(self._NO_HAND)
+
+  def gaze_routine(self, down) -> Routine:
+    raise NotImplementedError("the quadruped's cameras look where its body does: it "
+                              "turns, or lies down")
+    yield
+
+  def depth_cloud(self, width, height, min_z, frames=1, apart=0.1) -> Routine:
+    raise NotImplementedError("the quadruped's measured depth is its probe's own "
+                              "(`legs.probe.Probe.cloud`)")
+    yield
+
+  def move_hand_routine(self, side, pos, stiffness=1.0, speed=0.06, patience=20.0,
+                        path=None, turns=None) -> Routine:
+    raise NotImplementedError(self._NO_HAND)
+    yield
+
+  def hand_why(self, side) -> str:
+    raise NotImplementedError(self._NO_HAND)
+
+  def pull_routine(self, side, direction, limit_n, distance_m, stiffness=1.0, speed=0.06,
+                   patience=30.0) -> Routine:
+    raise NotImplementedError(self._NO_HAND)
+    yield
+
+  @property
+  def stance(self):
+    """Its own pose: it has no hand to put work in front of (#493)."""
+    return self.pose
 
   # ---- posture and rest ----------------------------------------------------
 
