@@ -828,3 +828,32 @@ def test_a_procedure_the_agent_wrote_is_invoked_from_its_own_row(tmp_path):
                                         "defined": 1, "undefined": 0, "refused": 0}
   assert (tmp_path / "t" / "procedures" / "pace.procedure").read_text() == src
   assert not [d for d in out["decisions"] if ov.fallback_class(d["source"]) == "failure"]
+
+
+def test_a_verb_is_an_ifs_test_only_where_the_world_allows_it():
+  """Ben, 2026-10-19: a move held back ended a lid's lowering half way with
+  the jaws on its knob. Where `verb_tests` is on, a verb may stand alone as
+  an `if`'s or an `elif`'s test, `not` or not -- and nowhere else in an
+  expression; the served world's language is unchanged."""
+  src = ("def a():\n  if not wait(1):\n    wait(2)\n  elif wait(3):\n    wait(4)\n"
+         "  else:\n    wait(5)\n")
+  with pytest.raises(Refused, match="only read\\(\\.\\.\\.\\) may be used inside an "
+                                    "expression; a verb is a statement of its own$"):
+    compile_ok(src)
+  facts = replace(HOME, verb_tests=True)
+  proc = compile_ok(src, facts)
+  assert proc.verbs == 5
+  arm = proc.body[0][1][0][0]
+  assert arm[0] == "try" and arm[1] is True and arm[2][1] == "wait"
+  for bad in ("def a():\n  if wait(1) and wait(2):\n    pass\n",
+              "def a():\n  x = wait(1)\n",
+              "def a():\n  while wait(1):\n    pass\n"):
+    with pytest.raises(Refused, match="or alone as an `if`'s test"):
+      compile_ok(bad, facts)
+  # ...a tested verb is checked as any call is, and what it reads is named
+  with pytest.raises(Refused, match="line 2, wait: seconds=999.0 is above 60"):
+    compile_ok("def a():\n  if wait(999):\n    pass\n", facts)
+  proc = compile_ok('def a():\n  if move("shoulder", read("elbow")):\n    pass\n', facts)
+  assert proc.references()["axes"] == ("shoulder",)
+  assert proc.references()["sensors"] == ("elbow",)
+  assert proc.first("move", "axis") == "shoulder"

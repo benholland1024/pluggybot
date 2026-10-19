@@ -1181,6 +1181,17 @@ limit 1.0):
 - **`measure` was hardly used**: 4 calls in 40 tries, so the arm says
   little of sight.
 
+**Ten tries a practice chest, and a verb as an `if`'s test** (Ben,
+2026-10-19). Of the 28 tries past 57 deg above, 26 let the lid fall: the
+robots open it, and have yet to learn to set it down. Within a chest the
+whole conversation is the lesson -- every report and what was felt -- so a
+practice chest now takes up to 10 tries (`--practice-attempts`; a held-out
+chest keeps 5, and the bar its 3). And a verb may stand alone as an
+`if`'s test (`--verb-tests`, `WorldFacts.verb_tests`): `if not
+move_hand(...):` reads the move held back instead of ending the procedure
+with the jaws on the knob. Two DeepSeek arms by feel, with notes, are the
+same but for the `if`.
+
 ## 5. What silently invalidates a number
 
 The list this document mostly exists for.

@@ -81,6 +81,12 @@ trigonometry. A procedure runs until it ends, a verb fails, or its budget
 runs out; a verb fails when the world says it did not do what it said --
 and then the procedure stops there. A verb's numbers come back only
 through `read`, and your variables are your readout."""
+#: ...and where a verb may be an `if`'s test (`WorldFacts.verb_tests`).
+VERB_TESTS = """
+A verb may also stand alone as the test of an `if` or an `elif` -- `if
+move_hand("left", 0.3, 0.2, 0.9):` or `if not reach(...):` -- and then it
+runs as the test: true when it did what it said, false when it did not,
+and its failing does not stop the procedure."""
 
 YOUR_BODY = """YOUR BODY
 
@@ -125,7 +131,8 @@ def system_sections(facts: WorldFacts) -> list[tuple[str, str]]:
   sensors = "\n".join(f"  {n} -- {docs[n]}" for n in facts.sensors)
   ax = "\n".join(f"  {a.name}: {a.lo:g}..{a.hi:g} {a.unit} -- {a.doc}"
                  for a in (axes.AXES[n] for n in facts.axes))
-  return [("what you do", WHAT_YOU_DO), ("the language", LANGUAGE),
+  return [("what you do", WHAT_YOU_DO),
+          ("the language", LANGUAGE + (VERB_TESTS if facts.verb_tests else "")),
           ("your body", YOUR_BODY % {"verbs": verbs, "sensors": sensors, "axes": ax,
                                      "slew": axes.HUMANOID_SLEW}),
           ("your answer", ANSWER % {"cap": f"{MAX_TOKENS:,}", "aim": f"{AIM_TOKENS:,}"})]
@@ -395,9 +402,11 @@ def report_text(n: int, ran: dict | None, verdict: dict, sim_s: float, cut: bool
       head += " and ended"
     lines.append(head + ".")
     for step in ran.get("steps", [])[-40:]:
-      word = "ok" if step.get("ok") else "FAILED"
+      word = ("ok" if step.get("ok") else
+              "FAILED, read by its `if`, and the procedure went on" if step.get("tested")
+              else "FAILED")
       said = {k: v for k, v in step.items()
-              if k not in ("i", "verb", "line", "ok", "reason", "trace", "felt")}
+              if k not in ("i", "verb", "line", "ok", "reason", "trace", "felt", "tested")}
       lines.append(f"  line {step.get('line', '?')} {step.get('verb')}: {word}"
                    + (f" -- {step['reason']}" if step.get("reason") else "")
                    + (f" {json.dumps(said, default=str)}" if said else ""))

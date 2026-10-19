@@ -124,8 +124,8 @@ class Procedure:
           if s[1] == verb and arg in s[2] and s[2][arg][0] == "str":
             return s[2][arg][1]
         elif s[0] == "if":
-          for _, body in s[1]:
-            found = walk(body)
+          for cond, body in s[1]:
+            found = walk(((cond[2],) if cond[0] == "try" else ()) + tuple(body))
             if found is not None:
               return found
           found = walk(s[2])
@@ -188,7 +188,10 @@ class Procedure:
           expr(st_[2])
         elif st_[0] == "if":
           for cond, body in st_[1]:
-            expr(cond)
+            if cond[0] == "try":
+              walk((cond[2],))
+            else:
+              expr(cond)
             walk(body)
           walk(st_[2])
         elif st_[0] == "repeat":
@@ -215,8 +218,11 @@ class Procedure:
 
 
 class _Parser:
-  def __init__(self, source: str, verbs: dict | None = None) -> None:
+  def __init__(self, source: str, verbs: dict | None = None,
+               verb_tests: bool = False) -> None:
     self.source = source
+    #: whether a verb may stand alone as an `if`'s test (`WorldFacts.verb_tests`)
+    self.verb_tests = verb_tests
     #: The verbs it may call: `steps.VERBS`, and a world's own where it
     #: names them (`steps.language`, issue #493's hands).
     self.verbs = st.VERBS if verbs is None else verbs
@@ -273,7 +279,10 @@ class _Parser:
           return _REFUSED
         return ("read", node.args[0].value)
       self.refuse(node, "only read(...) may be used inside an expression; "
-                        "a verb is a statement of its own")
+                        "a verb is a statement of its own"
+                  + (", or alone as an `if`'s test: `if verb(...):` or `if not verb(...):`"
+                     if self.verb_tests and isinstance(fn, ast.Name) and fn.id in self.verbs
+                     else ""))
       return _REFUSED
     if isinstance(node, ast.BinOp) and type(node.op) in _BIN:
       return ("bin", _BIN[type(node.op)], self.expr(node.left), self.expr(node.right))
@@ -328,42 +337,61 @@ class _Parser:
       self.refuse(node, f"nested deeper than {MAX_NESTING}")
       return ("pass",)
     if isinstance(node, ast.Expr) and isinstance(node.value, ast.Call):
-      call = node.value
-      fn = call.func
-      if not isinstance(fn, ast.Name):
-        self.refuse(node, "a statement is a verb call by its bare name")
-        return ("pass",)
-      if fn.id == "read":
-        self.refuse(node, "read(...) is an expression; assign or compare it")
-        return ("pass",)
-      verb = self.verbs.get(fn.id)
-      if verb is None:
-        self.refuse(node, f"unknown verb {fn.id!r} (have: {', '.join(self.verbs)})")
-        return ("pass",)
-      names = list(verb.args)
-      args: dict = {}
-      self.call = (fn.id, getattr(node, "lineno", 0))
-      try:
-        if len(call.args) > len(names):
-          self.refuse(node, f"takes {len(names)} argument(s)")
-        for name, value in zip(names, call.args):
-          args[name] = self.arg(value, name, verb.args[name].kind)
-        for kw in call.keywords:
-          if kw.arg is None or kw.arg not in names:
-            self.refuse(node, f"takes no {kw.arg or '**'}")
-            continue
-          if kw.arg in args:
-            # by position and by keyword: the keyword overwrote the written
-            # one, and a call the robot never wrote ran
-            self.refuse(node, f"{kw.arg} is given twice")
-            continue
-          args[kw.arg] = self.arg(kw.value, kw.arg, verb.args[kw.arg].kind)
-        missing = [n for n in names if n not in args and verb.args[n].default is None]
-        if missing:
-          self.refuse(node, f"needs {', '.join(missing)}")
-      finally:
-        self.call = None
-      return ("verb", fn.id, args, getattr(node, "lineno", 0))
+      return self._verb(node, node.value)
+    return self._stmt(node, depth)
+
+  def cond(self, test) -> Any:
+    """An `if`'s test: an expression -- or, where the world allows it
+    (`WorldFacts.verb_tests`), a verb alone, `not` before it or not, run AS
+    the test: its failing is read, never the end of the procedure."""
+    neg, call = False, test
+    if isinstance(call, ast.UnaryOp) and isinstance(call.op, ast.Not):
+      neg, call = True, call.operand
+    if (self.verb_tests and isinstance(call, ast.Call) and isinstance(call.func, ast.Name)
+        and call.func.id in self.verbs):
+      verb = self._verb(test, call)
+      return ("try", neg, verb) if verb[0] == "verb" else _REFUSED
+    return self.expr(test)
+
+  def _verb(self, node, call) -> tuple:
+    """A verb call: ("verb", name, args, line), or ("pass",) refused."""
+    fn = call.func
+    if not isinstance(fn, ast.Name):
+      self.refuse(node, "a statement is a verb call by its bare name")
+      return ("pass",)
+    if fn.id == "read":
+      self.refuse(node, "read(...) is an expression; assign or compare it")
+      return ("pass",)
+    verb = self.verbs.get(fn.id)
+    if verb is None:
+      self.refuse(node, f"unknown verb {fn.id!r} (have: {', '.join(self.verbs)})")
+      return ("pass",)
+    names = list(verb.args)
+    args: dict = {}
+    self.call = (fn.id, getattr(node, "lineno", 0))
+    try:
+      if len(call.args) > len(names):
+        self.refuse(node, f"takes {len(names)} argument(s)")
+      for name, value in zip(names, call.args):
+        args[name] = self.arg(value, name, verb.args[name].kind)
+      for kw in call.keywords:
+        if kw.arg is None or kw.arg not in names:
+          self.refuse(node, f"takes no {kw.arg or '**'}")
+          continue
+        if kw.arg in args:
+          # by position and by keyword: the keyword overwrote the written
+          # one, and a call the robot never wrote ran
+          self.refuse(node, f"{kw.arg} is given twice")
+          continue
+        args[kw.arg] = self.arg(kw.value, kw.arg, verb.args[kw.arg].kind)
+      missing = [n for n in names if n not in args and verb.args[n].default is None]
+      if missing:
+        self.refuse(node, f"needs {', '.join(missing)}")
+    finally:
+      self.call = None
+    return ("verb", fn.id, args, getattr(node, "lineno", 0))
+
+  def _stmt(self, node, depth: int) -> Any:
     if isinstance(node, ast.Assign):
       if len(node.targets) != 1 or not isinstance(node.targets[0], ast.Name):
         self.refuse(node, "assign to one plain name")
@@ -381,10 +409,10 @@ class _Parser:
               ("bin", _BIN[type(node.op)], ("var", node.target.id),
                self.expr(node.value)))
     if isinstance(node, ast.If):
-      arms = [(self.expr(node.test), self.block(node.body, depth + 1))]
+      arms = [(self.cond(node.test), self.block(node.body, depth + 1))]
       orelse = node.orelse
       while len(orelse) == 1 and isinstance(orelse[0], ast.If):
-        arms.append((self.expr(orelse[0].test),
+        arms.append((self.cond(orelse[0].test),
                      self.block(orelse[0].body, depth + 1)))
         orelse = orelse[0].orelse
       return ("if", tuple(arms), self.block(orelse, depth + 1))
@@ -418,18 +446,19 @@ class _Parser:
     return ("pass",)
 
 
-def parse(source: str, verbs: dict | None = None) -> Procedure:
+def parse(source: str, verbs: dict | None = None, verb_tests: bool = False) -> Procedure:
   """Surface syntax -> Procedure, or Refused with every reason."""
-  proc, reasons = _parse(source, verbs)
+  proc, reasons = _parse(source, verbs, verb_tests)
   if reasons:
     raise Refused(reasons)
   return proc
 
 
-def _parse(source: str, verbs: dict | None = None) -> tuple:
+def _parse(source: str, verbs: dict | None = None, verb_tests: bool = False) -> tuple:
   """The parse with its reasons, so `compile_procedure` can add the
   world's on top and refuse everything at once. `verbs`: what it may call
-  (`steps.language`), `steps.VERBS` unsaid."""
+  (`steps.language`), `steps.VERBS` unsaid; `verb_tests`, whether a verb
+  may be an `if`'s test."""
   if len(source) > MAX_SOURCE_CHARS:
     raise Refused([f"the source is {len(source)} characters; the cap is "
                    f"{MAX_SOURCE_CHARS}"])
@@ -447,7 +476,7 @@ def _parse(source: str, verbs: dict | None = None) -> tuple:
   if len(tree.body) != 1 or not isinstance(tree.body[0], ast.FunctionDef):
     raise Refused(["a procedure is exactly one `def name():`"])
   fn = tree.body[0]
-  p = _Parser(source, verbs)
+  p = _Parser(source, verbs, verb_tests)
   if not NAME_RE.match(fn.name):
     p.refuse(fn, f"{fn.name!r} is not a name this language allows "
                  "(lowercase, digits, underscores, 32 characters)")
@@ -499,7 +528,8 @@ def _count_verbs(block) -> int:
     if s[0] == "verb":
       n += 1
     elif s[0] == "if":
-      n += sum(_count_verbs(b) for _, b in s[1]) + _count_verbs(s[2])
+      n += (sum(_count_verbs(b) for _, b in s[1]) + _count_verbs(s[2])
+            + sum(1 for c, _ in s[1] if c[0] == "try"))
     elif s[0] in ("repeat", "while"):
       n += _count_verbs(s[3 if s[0] == "repeat" else 2])
   return n
@@ -536,7 +566,10 @@ def validate(proc: Procedure, facts: WorldFacts) -> list[str]:
         bad.extend(at + r for r in st.check_step(spec, lit, facts, partial=True))
       elif s[0] == "if":
         for cond, body in s[1]:
-          _sensors(cond, bad)
+          if cond[0] == "try":
+            walk((cond[2],))
+          else:
+            _sensors(cond, bad)
           walk(body)
         walk(s[2])
       elif s[0] == "repeat":
@@ -569,7 +602,7 @@ def validate(proc: Procedure, facts: WorldFacts) -> list[str]:
 
 def compile_procedure(source: str, facts: WorldFacts) -> Procedure:
   """Parse and validate, and refuse with EVERY reason from both."""
-  proc, reasons = _parse(source, st.language(facts))
+  proc, reasons = _parse(source, st.language(facts), bool(getattr(facts, "verb_tests", False)))
   reasons = reasons + validate(proc, facts)
   if reasons:
     raise Refused(list(dict.fromkeys(reasons)))
@@ -660,7 +693,10 @@ def run_procedure_routine(life, proc: Procedure, facts: WorldFacts) -> Routine:
   t0 = float(life.data.time)
   count = 0
 
-  def verb_step(verb: str, args: dict, line: int) -> Routine:
+  def verb_step(verb: str, args: dict, line: int, tested: bool = False) -> Routine:
+    """One verb run: True when it did what it said. A failure ends the
+    procedure -- unless the verb is an `if`'s test (`tested`), when it is
+    recorded and read."""
     nonlocal count
     if count and life.interrupted():
       raise _Stop("interrupted")
@@ -692,12 +728,18 @@ def run_procedure_routine(life, proc: Procedure, facts: WorldFacts) -> Routine:
                                        {"procedure": proc.name, "n": count,
                                         "line": line},
                                        until=t0 + proc.budget_s)
-    entry = {"i": count - 1, "verb": verb, "line": line, **verdict}
+    entry = {"i": count - 1, "verb": verb, "line": line, **verdict,
+             **({"tested": True} if tested else {})}
     result["steps"].append(entry)
     if verdict.get("stopped") == "interrupted":
       # the robot's own interrupt ended a walk inside it (issue #381,
       # `run_verb`): an abort, as between two verbs, never a failed step
       raise _Stop("interrupted")
+    if not verdict.get("ok") and tested:
+      life._say(f"PROCEDURE {proc.name} step {count} (line {line}, {verb}) did not do "
+                "what it said, as its test read"
+                + (f" -- {verdict['reason']}" if verdict.get("reason") else ""))
+      return False
     if not verdict.get("ok"):
       result["failedAt"] = count - 1
       life._say(f"PROCEDURE {proc.name} failed at step {count} (line {line}, {verb})"
@@ -705,6 +747,7 @@ def run_procedure_routine(life, proc: Procedure, facts: WorldFacts) -> Routine:
                 detail=verdict.get("trace", ""))
       raise _Stop("failed")
     result["completed"] = count
+    return True
 
   def block(stmts) -> Routine:
     for s in stmts:
@@ -715,7 +758,12 @@ def run_procedure_routine(life, proc: Procedure, facts: WorldFacts) -> Routine:
         env[s[1]] = _eval(s[2], env, life, facts)
       elif kind == "if":
         for cond, body in s[1]:
-          if _truth(_eval(cond, env, life, facts)):
+          if cond[0] == "try":
+            _, neg, (_, verb, args, line) = cond
+            held = (yield from verb_step(verb, args, line, tested=True)) != neg
+          else:
+            held = _truth(_eval(cond, env, life, facts))
+          if held:
             yield from block(body)
             break
         else:

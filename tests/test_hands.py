@@ -919,3 +919,30 @@ def test_the_practice_first_carries_the_notes_from_chest_to_chest():
   _, how = ep.acquire(run_chest, range(3), give_up_after=3)
   assert [g["notes"] for g in got] == ["", "after 0", "after 1"]
   assert how["carried"]["notes"] == "after 2"
+
+
+def test_a_verb_an_if_tests_is_read_and_the_procedure_goes_on():
+  """Its failing is the test's answer, recorded and shown -- and a failed
+  verb that no `if` tests still ends the procedure there."""
+  body = _stub()
+  body.out_of_reach = {"left"}
+  facts = st.hand_facts(verb_tests=True)
+  src = ('def a():\n    if not reach("left", 0.3, 0.2, 0.9):\n'
+         '        reach("right", 0.3, -0.2, 0.9)\n    x = read("right.x")\n')
+  ran = body.run(lang.run_procedure_routine(_Life(body), lang.compile_procedure(src, facts),
+                                            facts))
+  assert ran["ok"] and "failedAt" not in ran and ran["locals"]["x"] == pytest.approx(0.3)
+  left, right = ran["steps"]
+  assert not left["ok"] and left["tested"] and right["ok"] and "tested" not in right
+  text = mp.report_text(1, ran, {"ok": False, "reason": "no"}, 1.0, False, 1)
+  assert "line 2 reach: FAILED, read by its `if`, and the procedure went on" in text
+  assert "and ended." in text
+  # ...a test that holds runs its body; and an untested failure still stops
+  ran = body.run(lang.run_procedure_routine(_Life(body), lang.compile_procedure(
+    'def a():\n    if reach("right", 0.3, -0.2, 0.9):\n        wait(1)\n'
+    '    reach("left", 0.3, 0.2, 0.9)\n    wait(2)\n', facts), facts))
+  assert [s["verb"] for s in ran["steps"]] == ["reach", "wait", "reach"]
+  assert ran["failedAt"] == 2 and not ran["ok"]
+  # ...and the mind is told of it only where it may write one
+  assert "A verb may also stand alone as the test" in mp.system_prompt(facts)
+  assert "A verb may also stand alone" not in mp.system_prompt(st.hand_facts())

@@ -126,6 +126,12 @@ class WorldFacts:
   cubes: tuple[int, ...] = ()
   #: the hands a hand's verb may name (issue #493: the humanoid's)
   hands: tuple[str, ...] = ()
+  #: whether a verb may stand alone as an `if`'s test, its failing then
+  #: read rather than ending the procedure (`lang`; Ben, 2026-10-19, for
+  #: the practice: a move held back ended a lid's lowering half way, the
+  #: jaws still on its knob). Off for the served world until it is turned
+  #: on with its rule's words.
+  verb_tests: bool = False
 
 
 @dataclass(frozen=True)
@@ -1348,11 +1354,13 @@ def language(facts: "WorldFacts | None") -> dict[str, Verb]:
   return {n: table[n] for n in named}
 
 
-def hand_facts(pull: bool = False, measure: bool = False) -> "WorldFacts":
+def hand_facts(pull: bool = False, measure: bool = False,
+               verb_tests: bool = False) -> "WorldFacts":
   """What a procedure on the humanoid's hands is validated against (issue
   #493): standing still and its arms' joints, its hands' verbs -- the
   compliant `pull` with `pull`, the depth camera's `measure` with
-  `measure` -- their sensors, and the clock."""
+  `measure` -- their sensors, and the clock; with `verb_tests`, a verb may
+  be an `if`'s test."""
   from pluggybot.procedure import axes
   return WorldFacts(boards=(), tools=(), bounds=(-1e3, -1e3, 1e3, 1e3), figures=(),
                     axes=axes.BODY_AXES["humanoid"],
@@ -1360,7 +1368,7 @@ def hand_facts(pull: bool = False, measure: bool = False) -> "WorldFacts":
                              + (axes.MEASURE_SENSORS if measure else ())),
                     verbs=("wait", "move") + HAND_VERBS + (PULL_VERBS if pull else ())
                     + (MEASURE_VERBS if measure else ()),
-                    hands=axes.HANDS)
+                    hands=axes.HANDS, verb_tests=verb_tests)
 
 
 # ---- the game's verbs (issue #404) ------------------------------------------------

@@ -442,7 +442,10 @@ save a filmstrip PNG named after the script.
   never pooled, named in `FLATTERS`. ⚠ An answer may take `MAX_TOKENS` 128,000, told
   `AIM_TOKENS`: at 64,000, 37 of 537 ran out still thinking; one cut off
   (`stop_reason` "max_tokens", `stream_fetch`'s `finish_reason`) is asked
-  again saying so.
+  again saying so. Practice chests may take more tries than held-out ones
+  (`--practice-attempts`; Ben, 2026-10-19: within a chest the whole
+  conversation is the lesson), and a verb may be an `if`'s test there
+  (`--verb-tests`, below).
 
 ### The imagination (`imagination/`; #466; one process of five, #487)
 
@@ -850,7 +853,12 @@ save a filmstrip PNG named after the script.
   ... in range(N)` and `while` capped at `MAX_ITER`); anything else is refused
   with its line, every reason at once, before a step runs. ⚠ A REFUSAL INSIDE
   A CALL NAMES THE CALL ONCE, as History names a failed step (`line 3, wait:
-  …`; #463): `check_step`'s reasons never name it, their callers do. ⚠ THE MOTOR LEVEL
+  …`; #463): `check_step`'s reasons never name it, their callers do. ⚠ A VERB
+  MAY BE AN `if`'S TEST ONLY WHERE THE WORLD'S FACTS SAY SO
+  (`WorldFacts.verb_tests`, #493's practice: `if not move_hand(...)`, its
+  failing read, never the procedure's end; everywhere else a failed verb
+  still ends it): the served world's facts leave it off until its rule
+  says so. ⚠ THE MOTOR LEVEL
   IS `move(axis, target)` AND `read(sensor)` over REGISTRIES (`axes.AXES`,
   `axes.SENSORS`): a new tool or body adds its entries there and the language
   does not change. Budgets (`budget(steps=, seconds=)`) are capped by code

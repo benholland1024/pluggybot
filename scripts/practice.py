@@ -28,6 +28,10 @@ Two protocols (Evaluation.md §4):
                        each practice chest ends, pass or fail
   --measure            the depth camera's `measure` beside the hands' verbs:
                        sight beside feel, an arm of its own
+  --verb-tests         a verb may be an `if`'s test, its failing read rather
+                       than ending the procedure (`WorldFacts.verb_tests`)
+  --practice-attempts N  KEPT: tries a PRACTICE chest (default --attempts);
+                       the held-out chests keep --attempts
   --early-stop         the chests stop once the bar is out of reach
                        (`evaluation.practice.out_of_reach`; Ben, 2026-10-18)
   --attempts N         tries a chest (default 5: the curve's S@1..S@5)
@@ -86,11 +90,12 @@ def fly(job: dict) -> list[dict]:
   from pluggybot.procedure.library import Library
   from pluggybot.procedure.steps import hand_facts
   k, pull, model, info, price = (job[n] for n in ("chest", "pull", "model", "info", "price"))
-  facts = hand_facts(pull=pull, measure=job["measure"])
+  facts = hand_facts(pull=pull, measure=job["measure"], verb_tests=job["verb_tests"])
   task = at.Task(chest=k, body="humanoid", mount="counter")
   mind = Practice(HFClient(timeout=READ_S, fetch=stream_fetch), model, facts, ep.job_for(task))
   skill = (f"{model} {'with' if pull else 'without'} the pull"
-           + (", notes" if job["notes"] else "") + (", measure" if job["measure"] else ""))
+           + (", notes" if job["notes"] else "") + (", measure" if job["measure"] else "")
+           + (", verb tests" if job["verb_tests"] else ""))
   info = {**info, "skill": skill, "process": job["process"]}
   try:
     rows = ep.practice_on(k, mind, job["attempts"], library=Library(facts), kept=job["kept"],
@@ -103,7 +108,8 @@ def fly(job: dict) -> list[dict]:
              "run": {k_: info[k_] for k_ in ("commit", "dirty", "seed") if k_ in info}}]
   for r in rows:
     r["run"] |= {"model": model, "pull": pull, "picture": job["picture"],
-                 "notes": job["notes"], "measure": job["measure"]}
+                 "notes": job["notes"], "measure": job["measure"],
+                 "verbTests": job["verb_tests"], "attempts": job["attempts"]}
     p = r["practice"]
     r["usd"] = (None if price is None
                 else round((p["tokensIn"] * price[0] + p["tokensOut"] * price[1]) / 1e6, 5))
@@ -173,6 +179,8 @@ def main(argv=None) -> None:
   ap.add_argument("--early-stop", action="store_true")
   ap.add_argument("--notes", action="store_true")
   ap.add_argument("--measure", action="store_true")
+  ap.add_argument("--verb-tests", action="store_true")
+  ap.add_argument("--practice-attempts", type=int, default=None, metavar="N")
   ap.add_argument("--attempts", type=int, default=5)
   ap.add_argument("--pull", action="store_true")
   ap.add_argument("--model", default=os.environ.get("PLUGGY_MODEL", MODEL))
@@ -210,11 +218,12 @@ def main(argv=None) -> None:
         with open(out, "a") as f:
           f.write(json.dumps(r, default=str) + "\n")
 
-  def job(k, kept, process, carried=None, write_notes=False):
-    return {"chest": k, "attempts": args.attempts, "pull": args.pull, "model": args.model,
-            "picture": not args.no_picture, "info": dict(info), "price": price,
-            "kept": kept, "process": process, "carried": carried,
-            "write_notes": write_notes, "notes": args.notes, "measure": args.measure}
+  def job(k, kept, process, carried=None, write_notes=False, attempts=None):
+    return {"chest": k, "attempts": attempts or args.attempts, "pull": args.pull,
+            "model": args.model, "picture": not args.no_picture, "info": dict(info),
+            "price": price, "kept": kept, "process": process, "carried": carried,
+            "write_notes": write_notes, "notes": args.notes, "measure": args.measure,
+            "verb_tests": args.verb_tests}
 
   kept, process, carried = [], "practice", None
   with get_context("spawn").Pool(max(1, args.jobs), maxtasksperchild=1) as pool:
@@ -229,7 +238,8 @@ def main(argv=None) -> None:
 
         def run_chest(k, kept_, carried_):
           return pool.apply(fly, (job(k, kept_, "acquire", carried_ if args.notes else None,
-                                      write_notes=args.notes) | {"info": public},))
+                                      write_notes=args.notes,
+                                      attempts=args.practice_attempts) | {"info": public},))
         kept, how = ep.acquire(run_chest, att.chests(args.acquire), args.until,
                                args.max_chests, args.give_up_after, write)
         carried = how["carried"] if args.notes else None
