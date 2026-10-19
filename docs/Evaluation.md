@@ -1222,6 +1222,21 @@ it goes -- from one posture, eased at the reach's own rate
 (`Body.pull_routine(turn=)`, `move_hand_routine(turns=)`); left 0, the
 turn is kept. On the humanoid in free air a move asked 30 deg up came to
 27 deg, a pull asked 60 to 59.
+- **DeepSeek by feel with it** (`a5ae607`, chests 0-5, 10 tries, the verb
+  test on, giving up after 6): no chest passed; 28 of its 60 tries opened
+  the lid past 57 deg, and **all 28 let it fall** (the slowest at 1.3
+  rad/s, from 110 deg). It turned a carried hand in 3 tries of 60. $1.26.
+- ⚠ **THE VERBS CARRY THE REFERENCE'S OWN PLAN ON 2 CHESTS OF 8**: the
+  reference's perception, plan and grip, then its arc as separate
+  `move_hand`s with its turns (`pullfar/diag_arc.py`, outside the repo),
+  over chests the reference passes: chests 0 and 8 passed; with the turn
+  kept, chest 0 alone; the rest were held back 6-11 deg up or ran out of
+  reach (5 and 7 not gripped, the diagnostic trying one grip of the
+  reference's three). What the reference's path does that separate verbs
+  cannot -- one posture the whole arc, each point aimed ahead for the
+  body's lean, the hand turning past 50 deg -- and that the language has no
+  trigonometry to compute an arc, stand between practice and a pass
+  before any mind's judgement does.
 
 ## 5. What silently invalidates a number
 
