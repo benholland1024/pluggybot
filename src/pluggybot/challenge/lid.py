@@ -18,20 +18,23 @@ THE CRITERIA, written first. An attempt passes when:
      the catch holds it again (`caught`) is said beside, and gates nothing;
   4. LET GO: nothing but the chest itself touches the lid, its bracket, its
      handle or its knob at any moment of the hold;
-  5. THE ROBOT AS IT STARTED: no fall throughout -- none taken by its own
-     fall watch (`Body.falls`) and its root never past
-     `body.TOPPLE_TILT_RAD`, the line every body's topple death is read on
-     -- and, after the hold, the tool its set-out gave it still seated,
-     where it gave one. ⚠ WHAT A FALL IS, AND WHICH PART, IS THAT BODY'S
-     TO ANSWER (`Body.falls`, `Body.orientation`, `Body.tool_powered`): the
-     quadruped's watch is its torso past the topple line, the humanoid's
-     its trunk 35 deg past the posture its legs hold or its pelvis sunk
-     (`humanoid.getup`); the quadruped's set-out gives it the claw, the
-     humanoid's hands are its own; and nothing here names either.
+  5. IN TIME: the call came within `TIME_LIMIT_S` of the attempt's start
+     -- the harness calls it there at the latest, and reads the world as
+     it stands.
+
+Said beside, and gating nothing (Ben, 2026-10-17: the job is the lid, and
+a fall is lost time): the falls the body's own watch took (`Body.falls`),
+its worst tilt (`Body.orientation`) and whether the tool its set-out gave
+it is still seated (`Body.tool_powered`). ⚠ What a fall is, and which part
+is the tool, is THAT BODY'S TO SAY, and nothing here names either: the
+quadruped's watch is its torso past the topple line, the humanoid's its
+trunk 35 deg past the posture its legs hold or its pelvis sunk
+(`humanoid.getup`).
 
 Everything else is the robot's business: how it finds the knob, which way
-it pulls, how long it takes, whether it lies down. `sample_lid` reads
-nothing off the skill's report, and the call is wherever the attempt ended.
+it pulls, whether it lies down, whether it falls on the way. `sample_lid`
+reads nothing off the skill's report, and the call is wherever the attempt
+ended.
 
 What it cannot grade is Challenges.md §6's: the method, and a lid's
 ELEGANCE -- a slam stopped a hair over the shut line passes, and so does a
@@ -44,7 +47,6 @@ import math
 
 import numpy as np
 
-from pluggybot.body import TOPPLE_TILT_RAD
 from pluggybot.rack.coupling import contact_pairs
 
 # ---- the criteria (see the module docstring; numbered the same) -----------
@@ -71,6 +73,11 @@ LOWER_RAD_S = 1.0
 #: 128 never shut, propped 8.5 deg open on their own handle (its knob
 #: wedged against the front wall): a drop can leave the chest open.
 HOLD_S = 5.0
+#: 5: the job's time, s, from the attempt's start to the call (Ben,
+#: 2026-10-17): a fall costs time, and is judged by nothing else. The probe
+#: takes 84-100 s (its 32 public chests); read again before #493's stage
+#: 3 flies, as three times the humanoid's reference.
+TIME_LIMIT_S = 300.0
 
 
 # ---- the chest's parts --------------------------------------------------------
@@ -163,13 +170,14 @@ def measure(model, data, name: str = "chest") -> dict:
 
 def measurements(at_call: dict | None, settled: dict | None, watch: Watch | None,
                  tool: str | None = None, seated: bool | None = None,
-                 catch_n: float | None = None) -> dict:
+                 catch_n: float | None = None, started: float | None = None) -> dict:
   """The evaluator's input, UNROUNDED (`eval_lid` judges the numbers and
   rounds only what it shows): the snapshot at the call, the one after the
   hold, the attempt's per-step reading, and the tool the set-out gave with
-  the body's word on whether it is still seated. `catch_n` is the chest's
-  true catch (`chest.Lid`), OURS: secret on the row. Absences stay absent --
-  `eval_lid` turns them into a failure."""
+  the body's word on whether it is still seated. `started` is the
+  attempt's start, sim s. `catch_n` is the chest's true catch (`chest.Lid`),
+  OURS: secret on the row. Absences stay absent -- `eval_lid` turns them
+  into a failure."""
   call, end = at_call or {}, settled or {}
   w = watch
   return {
@@ -183,6 +191,7 @@ def measurements(at_call: dict | None, settled: dict | None, watch: Watch | None
     "angleDeg": end.get("angleDeg"),
     "caught": end.get("caught"),
     "holdS": (end["t"] - call["t"]) if "t" in call and "t" in end else None,
+    "elapsedS": (call["t"] - started) if "t" in call and started is not None else None,
     "tool": tool,
     "toolSeated": seated,
     "catchN": None if catch_n is None else float(catch_n),
@@ -191,7 +200,7 @@ def measurements(at_call: dict | None, settled: dict | None, watch: Watch | None
 
 #: What a verdict shows of each number, decimal places: judged unrounded.
 SHOWN = {"topDeg": 2, "downRadS": 3, "tiltDeg": 1, "angleAtCallDeg": 2, "angleDeg": 2,
-         "holdS": 2, "catchN": 3}
+         "holdS": 2, "elapsedS": 2, "catchN": 3}
 
 
 def eval_lid(m: dict) -> tuple[bool, dict, str]:
@@ -199,12 +208,13 @@ def eval_lid(m: dict) -> tuple[bool, dict, str]:
   verdict out, judged on the numbers as measured and shown rounded. The
   reason says what the world shows and never the catch."""
   raw = {k: m.get(k) for k in ("topDeg", "downRadS", "tiltDeg", "falls", "angleAtCallDeg",
-                               "angleDeg", "caught", "holdS", "tool", "toolSeated", "catchN")}
+                               "angleDeg", "caught", "holdS", "elapsedS", "tool", "toolSeated",
+                               "catchN")}
   metrics = {k: (round(float(v), SHOWN[k]) if k in SHOWN and v is not None else v)
              for k, v in raw.items()}
   metrics["touchedDuringHold"] = list(m.get("touchedDuringHold") or ())
   # A missing measurement is not a passing one (scoring.py's rule).
-  for key in ("topDeg", "downRadS", "angleDeg", "holdS"):
+  for key in ("topDeg", "downRadS", "angleDeg", "holdS", "elapsedS"):
     if raw[key] is None:
       return False, metrics, "the lid was never measured"
   top, down, end = (float(raw[k]) for k in ("topDeg", "downRadS", "angleDeg"))
@@ -212,11 +222,9 @@ def eval_lid(m: dict) -> tuple[bool, dict, str]:
   if float(raw["holdS"]) + 1e-6 < HOLD_S:
     return False, metrics, (f"measured {float(raw['holdS']):.1f} s after the call, "
                             f"not the {HOLD_S:.0f} s the job asks for")
-  if raw["falls"]:
-    return False, metrics, (f"the robot fell ({int(raw['falls'])} "
-                            f"{'fall' if raw['falls'] == 1 else 'falls'} by its own watch)")
-  if raw["tiltDeg"] is not None and float(raw["tiltDeg"]) >= math.degrees(TOPPLE_TILT_RAD):
-    return False, metrics, f"the robot fell over ({float(raw['tiltDeg']):.0f} deg off upright)"
+  if float(raw["elapsedS"]) > TIME_LIMIT_S + 1e-6:
+    return False, metrics, (f"called {float(raw['elapsedS']):.0f} s after the start, past "
+                            f"the {TIME_LIMIT_S:.0f} s the job allows")
   if top < math.degrees(OPEN_RAD):
     if top < math.degrees(SHUT_RAD):
       return False, metrics, (f"the lid never opened: it must open past "
@@ -234,12 +242,9 @@ def eval_lid(m: dict) -> tuple[bool, dict, str]:
   if end >= math.degrees(SHUT_RAD):
     return False, metrics, (f"opened to {top:.0f} deg and lowered, but the lid was "
                             f"{end:.0f} deg open {HOLD_S:.0f} s after the call")
-  if raw["tool"] and not raw["toolSeated"]:
-    return False, metrics, (f"opened and set down, but {raw['tool']} is off the "
-                            "robot's coupling")
-  return True, metrics, (f"opened to {top:.0f} deg and set down: lowered at most "
-                         f"{down:.2f} rad/s while open, shut "
-                         f"{'and caught ' if raw['caught'] else ''}"
+  return True, metrics, (f"opened to {top:.0f} deg and set down in "
+                         f"{float(raw['elapsedS']):.0f} s: lowered at most {down:.2f} rad/s "
+                         f"while open, shut {'and caught ' if raw['caught'] else ''}"
                          f"{HOLD_S:.0f} s after the call, let go")
 
 
@@ -247,12 +252,14 @@ def sample_lid(life, errand, result: dict | None, before: dict) -> dict:
   """MEASURE, in the registry's shape (`scoring.SAMPLERS`): `life` is the
   attempt's world (its `model`, `data` and `body`) and `before` what the
   harness took at the call -- the snapshot (`at_call`), the attempt's
-  `Watch`, the tool its set-out gave (`tool`) and the chest's true catch
-  (`catchN`, ours) -- and the world is measured again NOW, after the hold.
+  `Watch`, its start (`started`), the tool its set-out gave (`tool`) and
+  the chest's true catch (`catchN`, ours) -- and the world is measured
+  again NOW, after the hold.
   `result`, the skill's own word, is deliberately unread."""
   watch = before.get("watch")
   tool = before.get("tool")
   seated = bool(life.body.tool_powered(tool)) if tool else None
   name = watch.name if watch is not None else "chest"
   return measurements(before.get("at_call"), measure(life.model, life.data, name), watch,
-                      tool=tool, seated=seated, catch_n=before.get("catchN"))
+                      tool=tool, seated=seated, catch_n=before.get("catchN"),
+                      started=before.get("started"))

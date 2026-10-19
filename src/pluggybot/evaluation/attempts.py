@@ -85,9 +85,9 @@ GRADERS = ("lid",)
 #: once a step has run (`activity.chest.Chest.sense`), and the humanoid's
 #: set-out steps nothing before it.
 SETTLE_S = 0.5
-#: An attempt's sim-time budget, s: the probe's own patience
-#: (`legs.probe.PATIENCE_S`), which its 128 set-outs flew inside at 85-90 s.
-BUDGET_S = 300.0
+#: An attempt's sim-time budget, s: the job's own time limit, where the
+#: harness makes the call at the latest (`lid.TIME_LIMIT_S`).
+BUDGET_S = lid.TIME_LIMIT_S
 #: What every result here relies on that a real world would not give it
 #: (#493; Evaluation.md §5, "Graded in MuJoCo"): said with every reading.
 FLATTERS = (
@@ -291,9 +291,12 @@ def attempt_in(world: World, skill, n: int = 1, *, budget_s: float = BUDGET_S,
   if reset:
     raise Unstable(f"MuJoCo found the world unstable and reset it ({', '.join(reset)})")
   measured = scoring.SAMPLERS[task.grader](
-    world, None, said, {"at_call": at_call, "watch": watch, "tool": task.tool,
-                        "catchN": world.chest.lid.catch_n})
-  verdict = scoring.evaluate(task.grader, measured)
+    world, None, said, {"at_call": at_call, "watch": watch, "started": t0,
+                        "tool": task.tool, "catchN": world.chest.lid.catch_n})
+  # A cut attempt that failed says so first (`evaluate(failed=)`): what it
+  # left half done follows.
+  verdict = scoring.evaluate(task.grader, measured,
+                             failed=f"out of time ({budget_s:.0f} s)" if cut else "")
   return {
     "task": task.as_dict(), "attempt": int(n), "heldOut": task.held_out,
     "process": info.get("process"), "skill": info.get("skill"),

@@ -347,19 +347,19 @@ above 5 deg, it never closed faster than 1.0 rad/s, through the attempt and
 the hold: lowered, never let fall; (3) 5 s after the call it is under 5 deg,
 whether the catch holds it again (`caught`) said beside and gating nothing;
 (4) nothing but the chest touches the lid, its bracket, its handle or its
-knob during the hold: let go; (5) no fall throughout, none taken by the
-body's own fall watch and its root never past the topple death's 60 deg,
-and after the hold the tool its set-out gave it still seated. ⚠ (5) names
-no part, and WHAT A FALL IS IS THE BODY'S TO SAY (`Body.falls`; the tilt
-`Body.orientation`, the tool `Body.tool_powered`), so the grader reads the
-humanoid's counter world unchanged: the quadruped's watch is its torso past
-60 deg, the humanoid's its trunk 35 deg past the posture its legs hold, by
-its IMU, or its pelvis sunk -- so a bow its reach asks is no fall (#520:
-read off upright, its watch took its own bows past 35 deg for falls, and
-this grader would have failed an attempt that bowed that deep). The
-numbers are judged as measured and only shown rounded; the call is
-wherever the attempt ended (Evaluation.md §4); the reason never carries
-the catch, whose number is secret on the row.
+knob during the hold: let go; (5) the call came within 300 s of the
+attempt's start (`TIME_LIMIT_S`), where the harness makes it at the latest.
+Said beside, and judged by nothing (Ben, 2026-10-17: the job is the lid,
+and a fall is lost time against the limit): the falls the body's own watch
+counted (`Body.falls`), its worst tilt (`Body.orientation`) and whether the
+tool its set-out gave it is still seated (`Body.tool_powered`). What a fall
+is, and which part is the tool, is the body's to say, so the grader names
+neither and reads the humanoid's counter world unchanged: the quadruped's
+watch is its torso past 60 deg, the humanoid's its trunk 35 deg past the
+posture its legs hold, by its IMU, or its pelvis sunk -- so a bow its reach
+asks is no fall (#520). The numbers are judged as measured and only shown
+rounded; the call is wherever the attempt ended (Evaluation.md §4); the
+reason never carries the catch, whose number is secret on the row.
 
 **What the lines were read off** (`scripts/attempts.py --drops`, the 128
 drawn lids on a bare floor): let go from rest 1 deg over the shut line,
