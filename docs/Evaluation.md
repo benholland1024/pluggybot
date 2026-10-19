@@ -1192,6 +1192,29 @@ move_hand(...):` reads the move held back instead of ending the procedure
 with the jaws on the knob. Two DeepSeek arms by feel, with notes, are the
 same but for the `if`.
 
+| arm (`58eb9e8`, chests 0-7, 10 tries each) | each chest's best lid / slowest fall | tries past 57 deg | cost |
+|---|---|---|---|
+| DeepSeek by feel | 36 110/3.0 74/2.7 110/5.6 60/9.2 112/4.2 62/5.1 78/2.2 | 23 of 80 | $1.43 |
+| ...and a verb as an `if`'s test | 48 51 64/3.7 68/1.1 55 66/6.2 66/7.6 38 | 22 of 80 | $1.54 |
+
+- **Neither passed a chest**, so neither kept a skill or reached its
+  held-out flight (the give-up rule, 8 chests; 13 h of wall time for the
+  pair, a practice chest at a time).
+- **Ten tries opened the lid twice as often, not more often a try**: 28 %
+  of tries at 10 a chest as at 5 (11 of 40). **Every one of the 45 lids
+  opened was let fall.**
+- **The `if` was used, and changed how the lid was lost, not whether**: 154
+  tested `move_hand`s, 86 of them failing and read; its 22 lids were all
+  pushed open without a grip, and fell as the hand left. Without it the
+  grip slipped during a pull (21 of 23); at 5 tries a procedure opened its
+  hand with the lid up (5) or never held it (5).
+- **The gap they share: nothing brings a held lid down its arc.** The
+  reference's first lesson -- past 50 deg the hand turns as the lid does,
+  or the drop handle's arm meets the lid's edge -- has no verb: `pull` and
+  `move_hand` keep the turn they started with. A `pull` that goes as far as
+  the arm reaches instead of refusing its line did no better, replayed
+  over three recorded procedures (the lids rose less, and still fell).
+
 ## 5. What silently invalidates a number
 
 The list this document mostly exists for.
