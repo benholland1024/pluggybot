@@ -1268,7 +1268,7 @@ the bar still out of reach.**
 |---|---|---|---|
 | without `measure` | 0 of 6, given up | -- | $1.41 |
 | with `measure` | 13 of 16: 7 5 1 2 8 3 9 x 8 1 7 3 4 1 x x | 4 of 11 within 3, none at the first; stopped early | $2.63 |
-| without `measure`, flown again | 3 of 8 so far: x x x 4 x 5 4 x | still practicing | -- |
+| without `measure`, flown again | 3 of 16: x x x 4 x 5 4 x x x x x x x x x | 0 of 7 within 3, none within 5; stopped early | $3.77 |
 
 - **Practice passed within 3 tries on 6 chests of 16, the held-out copies
   on 4 of 11** [0.15, 0.65] before the 7th failure within 3 stopped them:
@@ -1283,15 +1283,18 @@ the bar still out of reach.**
   2,527 (1 %). `via`/`follow` with `cos`/`sin`/`atan2` laid the way down
   in three versions (chests 4-6), dropped after; every pass used `sqrt`,
   mostly to scale a direction the verbs scale anyway.
-- **`measure` did not decide it**: the arm with it measured on one chest
-  and carried one number (the box's depth as the hinge's distance, 4 cm
-  short, taken up by the soft arm); flown again, the arm without it passed
-  on what its pulls reported alone. Two arms alike in everything passed 0
-  chests of 6 and 3 of 8: which approach a conversation finds early decides
-  an arm. Against the three arms before it with 10 tries, notes and the
-  verb test (0 chests of 22), the round's prompt -- the path, the maths,
-  the stance that moves -- or chance turned it; three arms cannot say
-  which.
+- **`measure` was not needed to pass, and the arm with it learned the
+  better skill**: it measured on one chest and carried one number, the
+  box's depth as the hinge's distance (4 cm short, taken up by the soft
+  arm), and aimed each pull along the arc about that hinge. Flown again,
+  the arm without it laid its pulls' ways by hand: 3 practice chests passed
+  at tries 4-5, none after chest 6, and no held-out chest within 5. Two
+  arms alike in everything passed 0 chests of 6 and 3 of 16, so which
+  approach a conversation finds early weighs as much: one arm with
+  `measure` cannot say whether the depth or the draw made it. Against the
+  three arms before them with 10 tries, notes and the verb test (0 chests
+  of 22), the round's prompt -- the path, the maths, the stance that moves
+  -- or chance turned it; three arms cannot say which.
 - **Two things at once** (Ben, 2026-10-19): a passing procedure is mostly
   a control loop built out of pulls -- step, read where the hand went,
   re-aim -- around a short plan (up, slowly down, let go at the bottom).
