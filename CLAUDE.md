@@ -438,8 +438,9 @@ save a filmstrip PNG named after the script.
   driven as `yield from` would), a dotted sensor is refused naming its
   `read`, a reach out of reach says whether the other hand could
   (`Body.hand_reaches`, its own plan, nothing moved). ⚠ `measure` (the
-  depth camera's flat top, `--measure`) is SIGHT BESIDE FEEL: its own arm,
-  never pooled, named in `FLATTERS`. ⚠ An answer may take `MAX_TOKENS` 128,000, told
+  depth camera's flat top, `--measure`) is feedback as a person's eyes
+  give it, never a shortcut past the strategy (Ben, 2026-10-19: demo 1 is
+  TRY AND REACT): its own arm, never pooled, named in `FLATTERS`. ⚠ An answer may take `MAX_TOKENS` 128,000, told
   `AIM_TOKENS`: at 64,000, 37 of 537 ran out still thinking; one cut off
   (`stop_reason` "max_tokens", `stream_fetch`'s `finish_reason`) is asked
   again saying so. Practice chests may take more tries than held-out ones

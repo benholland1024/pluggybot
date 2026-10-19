@@ -27,7 +27,7 @@ Two protocols (Evaluation.md §4):
                        own from chest to chest (`Practice.carry`), written as
                        each practice chest ends, pass or fail
   --measure            the depth camera's `measure` beside the hands' verbs:
-                       sight beside feel, an arm of its own
+                       depth beside what the hands feel, an arm of its own
   --verb-tests         a verb may be an `if`'s test, its failing read rather
                        than ending the procedure (`WorldFacts.verb_tests`)
   --path               a hand's path (`via`, `follow`: one motion from one
