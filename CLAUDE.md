@@ -280,7 +280,7 @@ save a filmstrip PNG named after the script.
 | `scripts/probe_chest.py` | the probe from the robot's own senses (#466's stage 2, `legs/probe.py`; SimNotes "The probe from the robot's own senses"), flown over seeded set-outs (`evaluation.probe.set_out`: drawn chest k in the storeroom, the robot in front of it) and graded by us: through or why not, the geometry it measured in its own frame, the lid's angle as its arm reads it, the friction it calibrated, its record replayed through the world's chest and the best-expressible reference set in its map, and how far the held handle turned on its pin in each (`twisted` past 28 deg); `--n`, `--from`, `--jobs`, `--into DIR` (each probe in the worker's wire form, our truth beside it), `--no-replay`, `--regrade` (the kept records in `--into` graded again, not flown) |
 | `scripts/imagine_chest.py` | the robot's model of the chest, graded (#466's stage 3; SimNotes "The robot's model, graded"), over the probes `probe_chest.py --into` kept: `--conditions` `model` (the author's structure -- the deployed model, `$HF_TOKEN` -- placed, fitted, judged and revised), `reference` (the fitter alone, on the reference's own structure), `leak` (its hinge moved), each graded by us against the world and the reference, a model's row carrying its settings; `--remote H:P,...` puts the workers on pods over ssh (`--workers`, `--slots`), `--summary` the tables with intervals, each settings apart -- the parameters, the structures and the rate (#481: passes and the lid's hinge by round, false passes, the answer budget, tokens, dollars, wall time and who answered) -- `--demo K --record PATH` set-out K flown, imagined and recorded with the `imagined` event, the demo world's scene beside it |
 | `scripts/attempts.py` | #493's harness: a skill tried at chests through the attempt protocol (`evaluation.attempts`) and graded by the lid's grader (`challenge/lid.py`), the probe as the quadruped's reference (`legs.probe`), `--body humanoid` the humanoid's at its counter (`evaluation.opener`): `--chests A-B` (0-31), `--held-out N [--seed S]`, `--attempts N`, `--jobs`, `--into DIR` (`rows.jsonl`, a row an attempt), `--read DIR` the per-task record, `--drops` the drawn lids let fall (what the grader's lines were read off), `--view [K]` an attempt in the viewer, `--strip [K]` its filmstrip `attempts.png` |
-| `scripts/practice.py` | #493's graded practice: the mind (`--model`, the deployed by default; `$HF_TOKEN`) writes the humanoid's procedure for the lid, tries it from a fresh set-out, is shown how it ran and the world's grade, and writes again, up to `--attempts` (5) a chest, a fresh robot a chest; `--pull` stage 3's vocabulary, without it baseline (a′); `--chests`, `--held-out N` (the frozen commit's seed), `--jobs`, `--into DIR`, `--no-picture`, `--read DIR` the per-task record and what the mind cost |
+| `scripts/practice.py` | #493's graded practice: the mind (`--model`, the deployed by default; `$HF_TOKEN`) writes the humanoid's procedure for the lid, tries it from a fresh set-out, is shown how it ran and the world's grade, and writes again, up to `--attempts` (5) a chest, a fresh robot a chest; `--pull` stage 3's vocabulary, without it baseline (a′); `--chests`, `--held-out N` (the frozen commit's seed), `--acquire A-B` the KEPT protocol (practice first, `--until`, `--max-chests`, `--give-up-after`; `--kept FILE` a record's library), `--early-stop` once the bar is out of reach, `--notes` notes and a draft carried, `--measure` the depth camera's `measure` (its own arm), `--jobs`, `--into DIR`, `--no-picture`, `--read DIR` the per-task record and what the mind cost |
 
 - **The bodies' training stack lives in `training/`, a uv project of its own** (#377; the humanoid's `humanoid_train/` beside `quad_train/`, #507 -- `Pluggy-Humanoid-Stand`, `-Walk`, `-Walk-Rough`, `-Walk-Seeing`, `-Walk-Seeing-Fine`, `-Stairs`, `-Getup`, `-Getup-Head` -- one entry point `python -m quad_train.train`, its export `--body humanoid`): mjlab 1.5.x (it pins `mujoco ~=3.10.0`, the served sim's), reading the body from `models/quadruped.{xml,json}` (`python -m pluggybot.legs.model` writes both; the humanoid's `models/humanoid.{xml,json}`; mjlab caps numpy below pluggybot's, so the two never share an environment), the arm FIXED at its stow (`quad_train.robot.freeze_arm`, #405: a policy's joints are the legs' twelve, and the arm's geometry is there to fall on). ⚠ Importing `legs.policy` or `legs.model` loads none of torch, jax, warp, onnx or mjlab (`tests/test_legs.py`); a policy reaches the served sim as an `.npz` that `quad_train.export` checks against its ONNX before writing, run by `legs/policy.py` in numpy. ⚠ The leg DRIVERS are MuJoCo's position-mode `dcmotor` (#385; `body_xml(drive="position")`), the PD and the envelope in C, commanded as a GDS68 is (`legs/drivers.py`): every command carries its gains — a policy's are its own, a routine's torque rides a target with the damping cancelled (the torque motor's step to 1e-14), `limp()` holds nothing — so a policy and the scripted routines share one body. The default gains are ONE definition, `actuator.driver_gains`, which `training/` reads from `quadruped.json`. `drive="torque"` (plain motors) is the sizing tables' instrument. `training/pod.sh` rents a GPU to train on, or CPUs to fly a batch (`create-cpu`), on Vast.ai through its CLI, or on Runpod over the REST API with `PROVIDER=runpod` (#510; `runpodctl pod create` needs a GraphQL-writable key); a pod's id says whose it is, and a card is picked by what a million steps cost (`training/README.md`). ⚠ The `vastai` CLI exits 0 when it is refused, and `destroy` says nothing under `--raw`: read the JSON and the instance, never the exit code. ⚠ On Runpod a POST to `/v1/pods` with an EMPTY body CREATES a pod: every field has a default.
 - ⚠ **A batch of flights runs on a rented pod's CPUs or under a memory cap, never bare on the dev box** (#469: six house worlds at once took it into swap and its desktop down overnight, 2026-10-06): `training/pod.sh create-cpu` → `setup-sim` (the commit, never the working tree) → `batch` with `--jobs` one under the share `setup-sim` reports (a Vast share is a hard quota) → `pull-batch`, then `delete`; locally, `systemd-run --user --scope -p MemoryMax=12G -p MemorySwapMax=0 ...`. A pool of flights gives each its own process (`maxtasksperchild=1`: a world dropped in a reused worker is held until the cycle collector runs), and results go under `~`, never `/tmp`, which a reboot wipes.
@@ -425,8 +425,34 @@ save a filmstrip PNG named after the script.
   mind writes a procedure, the humanoid tries it from a fresh set-out, the
   world grades it, and the mind is shown how it ran and the grade -- ⚠
   never the grade's secrets, and its prompt prescribes nothing (a test
-  reads it); a fresh robot a chest; the library admits a procedure only on
-  a sealed passing verdict (`Library.admit`, `attempts.attempt(sealed=)`).
+  reads it); the library admits a procedure only on a sealed passing
+  verdict (`Library.admit`, `attempts.attempt(sealed=)`). Two protocols
+  (Evaluation.md §4): FRESH, a fresh robot a chest; KEPT (`--acquire`,
+  Ben), one robot practicing the public chests in turn carrying only what
+  passed (`evaluation.practice.keep`, never a conversation), then a frozen
+  copy a held-out chest, ⚠ stopped once the bar is out of reach
+  (`out_of_reach`); `--notes` carries the robot's own notes and a draft
+  too (`Practice.carry`, pass or fail). ⚠ FEEDBACK IS THE BODY'S AND THE
+  LANGUAGE'S, NEVER THE CHEST'S: every hand verb says what the hand FELT
+  (`steps._felt_routine`: its grip's place, force and hold off `Body` members,
+  driven as `yield from` would), a dotted sensor is refused naming its
+  `read`, a reach out of reach says whether the other hand could
+  (`Body.hand_reaches`, its own plan, nothing moved). ⚠ `measure` (the
+  depth camera's flat top, `--measure`) is feedback as a person's eyes
+  give it, never a shortcut past the strategy (Ben, 2026-10-19: demo 1 is
+  TRY AND REACT): its own arm, never pooled, named in `FLATTERS`. ⚠ An answer may take `MAX_TOKENS` 128,000, told
+  `AIM_TOKENS`: at 64,000, 37 of 537 ran out still thinking; one cut off
+  (`stop_reason` "max_tokens", `stream_fetch`'s `finish_reason`) is asked
+  again saying so. Practice chests may take more tries than held-out ones
+  (`--practice-attempts`; Ben, 2026-10-19: within a chest the whole
+  conversation is the lesson), and a verb may be an `if`'s test there
+  (`--verb-tests`, below). ⚠ A CARRIED HAND MAY TURN: `move_hand` and
+  `pull` take `fx..jz` as `reach` does (the reference's first lesson, the
+  hand turning with the lid, had no verb). ⚠ A HAND'S PATH IS ONE MOTION
+  (`via`/`follow`, `--path`): separate moves each took a posture of their
+  own and carried the reference's own arc on 2 chests of 8; with it, an
+  expression may call `sin`/`cos`/`atan2`/`sqrt` (`WorldFacts.math`). The
+  vocabulary's design is #525.
 
 ### The imagination (`imagination/`; #466; one process of five, #487)
 
@@ -834,7 +860,13 @@ save a filmstrip PNG named after the script.
   ... in range(N)` and `while` capped at `MAX_ITER`); anything else is refused
   with its line, every reason at once, before a step runs. ⚠ A REFUSAL INSIDE
   A CALL NAMES THE CALL ONCE, as History names a failed step (`line 3, wait:
-  …`; #463): `check_step`'s reasons never name it, their callers do. ⚠ THE MOTOR LEVEL
+  …`; #463): `check_step`'s reasons never name it, their callers do. ⚠ A VERB
+  MAY BE AN `if`'S TEST ONLY WHERE THE WORLD'S FACTS SAY SO
+  (`WorldFacts.verb_tests`, #493's practice: `if not move_hand(...)`, its
+  failing read, never the procedure's end; everywhere else a failed verb
+  still ends it), and `sin`/`cos`/`atan2`/`sqrt` likewise
+  (`WorldFacts.math`): the served world's facts leave both off until its
+  rule says so. ⚠ THE MOTOR LEVEL
   IS `move(axis, target)` AND `read(sensor)` over REGISTRIES (`axes.AXES`,
   `axes.SENSORS`): a new tool or body adds its entries there and the language
   does not change. Budgets (`budget(steps=, seconds=)`) are capped by code

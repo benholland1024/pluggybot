@@ -1929,6 +1929,9 @@ class QuadBody(Body):
   def hand_follows(self, side, poses, rot=None) -> bool:
     raise NotImplementedError(self._NO_HAND)
 
+  def hand_reaches(self, side, pos, rot=None) -> bool:
+    raise NotImplementedError(self._NO_HAND)
+
   def gaze_routine(self, down) -> Routine:
     raise NotImplementedError("the quadruped's cameras look where its body does: it "
                               "turns, or lies down")
@@ -1948,7 +1951,7 @@ class QuadBody(Body):
     raise NotImplementedError(self._NO_HAND)
 
   def pull_routine(self, side, direction, limit_n, distance_m, stiffness=1.0, speed=0.06,
-                   patience=30.0) -> Routine:
+                   patience=30.0, turn=None) -> Routine:
     raise NotImplementedError(self._NO_HAND)
     yield
 

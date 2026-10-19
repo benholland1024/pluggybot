@@ -679,6 +679,13 @@ class Body(abc.ABC):
     of its model of itself (#493)."""
 
   @abc.abstractmethod
+  def hand_reaches(self, side: str, pos, rot=None) -> bool:
+    """Whether `reach_routine` would plan a hand's grip to `pos` (the
+    believed world frame) at the turn `rot`, or any -- asked of its model of
+    itself, nothing moved: what a reach out of reach says of the other hand
+    (#493)."""
+
+  @abc.abstractmethod
   def gaze_routine(self, down: float) -> Routine:
     """Its head's cameras turned `down` rad below their gaze standing --
     0 back to it -- as the body can: the humanoid, its head fixed on its
@@ -726,10 +733,11 @@ class Body(abc.ABC):
   @abc.abstractmethod
   def pull_routine(self, side: str, direction, limit_n: float, distance_m: float,
                    stiffness: float = 1.0, speed: float = 0.06,
-                   patience: float = 30.0) -> Routine:
+                   patience: float = 30.0, turn=None) -> Routine:
     """THE COMPLIANT PULL (#493): a hand that is out carried straight along
     `direction` (the believed world frame) on an arm at `stiffness`, so it
-    bends toward whatever gives, its turn held --
+    bends toward whatever gives, its turn held -- or, `turn` given (world
+    from grip), turned to it as it goes, from one posture --
     until it has gone `distance_m`, the force it reads at the hand along
     its way reaches `limit_n`, N, while it is held back, it is held fast,
     its grip lets go, or `patience` runs out; then it holds
@@ -935,6 +943,15 @@ class StubBody(Body):
     #: shut where a test sent it holds, as the stub's every walk arrives.
     self.hands: dict[str, tuple] = {}
     self.grips: dict[str, bool] = {}
+    #: ...and the hands a test says reach nothing (#493): a reach with one
+    #: is out of reach -- or, `unturned`, nothing turned as asked -- and the
+    #: turns a carried hand was asked to take, (side, verb, turn) in turn,
+    #: and each carry's path, (side, path, pos, turns)
+    self.out_of_reach: set[str] = set()
+    self.unturned: set[str] = set()
+    self.turned: list[tuple] = []
+    self.carried_paths: list[tuple] = []
+    self._why: dict[str, str] = {}
     #: ...and each survey it was asked for, and what it counts, by tag
     self.surveyed: list[int] = []
     self.counts: dict[int, int] = {}
@@ -1313,6 +1330,10 @@ class StubBody(Body):
 
   def reach_routine(self, side, pos, rot=None, stiffness=1.0, patience=20.0, path=None,
                     turns=None):
+    if side in self.out_of_reach or (rot is not None and side in self.unturned):
+      self._why[side] = "out of reach"
+      return False
+    self._why[side] = ""
     self.hands[side] = tuple(pos)
     return True
     yield
@@ -1337,6 +1358,11 @@ class StubBody(Body):
   def hand_follows(self, side, poses, rot=None) -> bool:
     """Anywhere: it has no body to be out of reach of."""
     return True
+
+  def hand_reaches(self, side, pos, rot=None) -> bool:
+    """Anywhere, but with a hand a test put `out_of_reach` -- or, turned,
+    `unturned`."""
+    return side not in self.out_of_reach and (rot is None or side not in self.unturned)
 
   def gaze_routine(self, down):
     """No head to turn: at once."""
@@ -1363,18 +1389,25 @@ class StubBody(Body):
   def move_hand_routine(self, side, pos, stiffness=1.0, speed=0.06, patience=20.0,
                         path=None, turns=None):
     """The hand there at once, as asked (a hand that is out)."""
+    self.carried_paths.append((side, list(path or []), tuple(pos),
+                               None if turns is None else list(turns)))
+    if turns is not None:
+      self.turned.append((side, "move_hand", list(turns)[-1]))
     if side not in self.hands:
       return {"why": "not out", "seconds": 0.0, "moved": 0.0, "dx": 0.0, "dy": 0.0, "dz": 0.0}
     return {"why": "arrived", **self._carried(side, pos)}
     yield
 
   def hand_why(self, side) -> str:
-    """Never short: every reach holds at once."""
-    return ""
+    """Never short -- every reach holds at once -- but with a hand a test
+    put `out_of_reach`."""
+    return self._why.get(side, "")
 
   def pull_routine(self, side, direction, limit_n, distance_m, stiffness=1.0,
-                   speed=0.06, patience=30.0):
+                   speed=0.06, patience=30.0, turn=None):
     """The hand `distance_m` along `direction` at once: nothing holds it."""
+    if turn is not None:
+      self.turned.append((side, "pull", turn))
     if side not in self.hands:
       return {"why": "not out", "seconds": 0.0, "moved": 0.0, "dx": 0.0, "dy": 0.0,
               "dz": 0.0, "direction": list(direction), "force": 0.0}

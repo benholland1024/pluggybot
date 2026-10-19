@@ -164,6 +164,32 @@ def test_a_streamed_answer_says_who_answered(monkeypatch):
   assert create(fake_fetch([ok_payload('{"action": "idle"}')])).provider is None
 
 
+def test_a_streamed_answer_its_tokens_ran_out_on_says_so(monkeypatch):
+  """37 of #493's answers ran out of their tokens still thinking, and read
+  as an answer that was not JSON: the stream's finish is kept, and the
+  answer says it ran out in the SDK's word."""
+  def stream(finish):
+    class Answered:
+      headers = {}
+
+      def __enter__(self):
+        return self
+
+      def __exit__(self, *a):
+        return False
+
+      def __iter__(self):
+        yield b'data: {"choices": [{"delta": {"reasoning_content": "hm, and hm"}}]}\n'
+        yield ('data: {"choices": [{"delta": {}, "finish_reason": "%s"}]}\n' % finish).encode()
+        yield b"data: [DONE]\n"
+    return Answered()
+  for finish, stop in (("length", "max_tokens"), ("stop", "end_turn")):
+    monkeypatch.setattr(llm.urllib.request, "urlopen", lambda req, timeout: stream(finish))
+    status, payload = llm.stream_fetch(llm.ROUTER + "/chat/completions", {"model": "m"}, {}, 5.0)
+    assert payload["choices"][0]["finish_reason"] == finish
+    assert create(fake_fetch([(status, payload)])).stop_reason == stop
+
+
 def test_a_missing_token_fails_at_construction(monkeypatch):
   """The opposite of `anthropic.Anthropic()`, whose late failure is why the
   cool-off exists: with no token there is nothing to back off FROM, so the

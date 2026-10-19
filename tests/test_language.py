@@ -4,6 +4,7 @@ library, and a mind's vocabulary for it.
 """
 
 import ast
+import math
 import inspect
 import pathlib
 from dataclasses import replace
@@ -93,7 +94,13 @@ def test_the_served_example_compiles_on_its_world():
    "line 2, wait: only read(...) may be used inside an expression"),
   ("def x():\n  a = \"s\"\n", "a str is not a number"),
   ("def x():\n  a = [1]\n", "List is not part"),
-  ("def x():\n  a = b.c\n", "Attribute is not part"),
+  ("def x():\n  a = b.c\n", "b.c: a name with a dot is not part of this language"),
+  # a sensor written as Python is told its read (#493)
+  ("def x():\n  a = shoulder.torque\n",
+   'shoulder.torque is a sensor: read it with read("shoulder.torque")'),
+  ("def x():\n  wait(battery.frac)\n",
+   'line 2, wait: battery.frac is a sensor: read it with read("battery.frac")'),
+  ("def x():\n  a = 5 % 2\n", "% is not part of this language: numbers combine with"),
   ("def x():\n  a = 1 < 2 < 3\n", "compare two things with one of"),
   ("def x():\n  for i in [1, 2]:\n    stow()\n", "`for name in range(N)`"),
   ("def x():\n  for i in range(n):\n    stow()\n", "literal N"),
@@ -448,7 +455,7 @@ def test_the_arms_axes_ramp_at_its_slew_and_the_world_names_them_all():
   # (#493), which the quadruped's world never names
   assert set(HOME.axes) == set(axes.BODY_AXES["quadruped"]) == set(axes.ARM_JOINTS)
   assert set(axes.AXES) == set().union(*map(set, axes.BODY_AXES.values()))
-  hands = set(axes.HAND_SENSORS + axes.PULL_SENSORS) - {"time"}
+  hands = set(axes.HAND_SENSORS + axes.PULL_SENSORS + axes.MEASURE_SENSORS) - {"time"}
   assert set(HOME.sensors) | hands == set(axes.SENSORS)
   assert not set(HOME.sensors) & hands
 
@@ -822,3 +829,55 @@ def test_a_procedure_the_agent_wrote_is_invoked_from_its_own_row(tmp_path):
                                         "defined": 1, "undefined": 0, "refused": 0}
   assert (tmp_path / "t" / "procedures" / "pace.procedure").read_text() == src
   assert not [d for d in out["decisions"] if ov.fallback_class(d["source"]) == "failure"]
+
+
+def test_a_verb_is_an_ifs_test_only_where_the_world_allows_it():
+  """Ben, 2026-10-19: a move held back ended a lid's lowering half way with
+  the jaws on its knob. Where `verb_tests` is on, a verb may stand alone as
+  an `if`'s or an `elif`'s test, `not` or not -- and nowhere else in an
+  expression; the served world's language is unchanged."""
+  src = ("def a():\n  if not wait(1):\n    wait(2)\n  elif wait(3):\n    wait(4)\n"
+         "  else:\n    wait(5)\n")
+  with pytest.raises(Refused, match="only read\\(\\.\\.\\.\\) may be used inside an "
+                                    "expression; a verb is a statement of its own$"):
+    compile_ok(src)
+  facts = replace(HOME, verb_tests=True)
+  proc = compile_ok(src, facts)
+  assert proc.verbs == 5
+  arm = proc.body[0][1][0][0]
+  assert arm[0] == "try" and arm[1] is True and arm[2][1] == "wait"
+  for bad in ("def a():\n  if wait(1) and wait(2):\n    pass\n",
+              "def a():\n  x = wait(1)\n",
+              "def a():\n  while wait(1):\n    pass\n"):
+    with pytest.raises(Refused, match="or alone as an `if`'s test"):
+      compile_ok(bad, facts)
+  # ...a tested verb is checked as any call is, and what it reads is named
+  with pytest.raises(Refused, match="line 2, wait: seconds=999.0 is above 60"):
+    compile_ok("def a():\n  if wait(999):\n    pass\n", facts)
+  proc = compile_ok('def a():\n  if move("shoulder", read("elbow")):\n    pass\n', facts)
+  assert proc.references()["axes"] == ("shoulder",)
+  assert proc.references()["sensors"] == ("elbow",)
+  assert proc.first("move", "axis") == "shoulder"
+
+
+def test_sin_cos_atan2_and_sqrt_only_where_the_world_gives_the_maths():
+  """#493: an arc round a hinge, a pivot's angle and a distance need them;
+  the served world's language is unchanged."""
+  src = ("def a():\n  x = sin(0.5) + cos(0.5) * 2\n  y = atan2(1, 1)\n  z = sqrt(16)\n"
+         "  wait(1)\n")
+  with pytest.raises(Refused, match="only read\\(\\.\\.\\.\\) may be used inside an expression"):
+    compile_ok(src)
+  facts = replace(HOME, math=True)
+  proc = compile_ok(src, facts)
+  life = SimpleNamespace(data=SimpleNamespace(time=0.0), interrupted=lambda: False,
+                         _say=lambda *a, **k: None, reports={})
+  env = {}
+  assert lang._eval(proc.body[0][2], env, life, facts) == pytest.approx(
+    math.sin(0.5) + 2 * math.cos(0.5))
+  assert lang._eval(proc.body[1][2], env, life, facts) == pytest.approx(math.pi / 4)
+  assert lang._eval(proc.body[2][2], env, life, facts) == pytest.approx(4.0)
+  with pytest.raises(Refused, match="atan2 takes 2 number"):
+    compile_ok("def a():\n  x = atan2(1)\n  wait(1)\n", facts)
+  with pytest.raises(lang._Stop, match="sqrt of a negative number"):
+    lang._eval(compile_ok("def a():\n  x = sqrt(0 - 4)\n  wait(1)\n", facts).body[0][2],
+               env, life, facts)

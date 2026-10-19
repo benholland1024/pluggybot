@@ -1099,6 +1099,205 @@ tokens, never a try (two repairs a try).
   runs calling at once) were waited for and asked again, none costing a
   try.
 
+**Practice first, then the held-out chests** (Ben, 2026-10-18, after the
+flight above): the chests differ only in their hidden dynamics, so nearly
+all a robot learns of them is shared, and a fresh robot a chest learned it
+again 32 times and never used its library. The KEPT protocol
+(`scripts/practice.py --acquire`; `evaluation.practice.acquire`, `keep`,
+`flown`) measures the two things apart:
+- **acquiring**: ONE robot practices on the public chests in turn,
+  carrying only what passed -- the procedures the grader passed, shown at
+  each chest's start (`mind.practice.library_text`), the newest kept and
+  the oldest going where the library is full -- never a conversation or a
+  note of its own. It ends once 3 chests running pass at their first try
+  (`UNTIL`), or 16 are practiced (`MAX_CHESTS`); with nothing kept after 6
+  (`GIVE_UP_AFTER`; 8 for the arms below), nothing more is flown. Its
+  tries, tokens and sim-s are
+  the experience the skill took;
+- **the flight**: each held-out chest a copy of that robot, frozen, up to 5
+  tries; the bar is read there, 80 % within 3 of the chest's own tries.
+  ⚠ It STOPS EARLY once the bar is out of reach (`out_of_reach`: a seventh
+  of 32 chests failed within 3), the curve read off the chests flown.
+Alongside it, feedback a procedure is debugged by, none of it the chest's:
+a sensor written as Python is refused naming its `read`, an operator the
+language lacks naming the four it has; a reach out of reach says whether
+the other hand could reach it as asked (its body's own plan,
+`Body.hand_reaches`); a pull's way is any length; an answer may take
+128,000 tokens, told to finish inside 64,000, and one cut off is asked
+again, saying so.
+
+**What each try felt, notes, and depth beside them** (Ben, 2026-10-18
+and 19: the demo is TRY AND REACT, #487's trial and error with feedback --
+a strategy adjusted after each thing the robot feels or sees, as a
+person's is; and what a person takes from an attempt that failed). Carrying only what passed, a robot learned nothing
+from chest to chest until its first pass, and each chest's first try
+repeated the last one's mistake; told only how each verb ended, a mind
+shut its jaws on nothing three tries running. So:
+- **what a hand felt**: every hand verb reads the robot's own senses of
+  that hand -- its grip's place, the force it pushes with, whether it
+  holds -- as it begins, every 0.25 s and as it ends (`steps._felt_routine`, at
+  most 8 kept a verb), and the mind is shown them under each verb;
+- **notes across chests** (`--notes`): as each practice chest ends, pass or
+  fail, the mind writes what it carries on -- its notes, at most 1,500
+  characters (asked again once past that, then cut and said so), and a
+  draft procedure
+  (`Practice.carry`) -- shown at the next chest's start beside what passed;
+  a held-out copy is frozen with them;
+- **depth** (`--measure`, an arm of its own): `measure(x, y)`, the flat
+  top of what stands there off the depth camera -- its height and four
+  edges (`steps._measure`, `perception.box`) -- our code's perception, one
+  of the subsidies `FLATTERS` names. Depth is feedback a person uses too,
+  never a shortcut past the strategy (Ben, 2026-10-19); an arm with it is
+  still never pooled with the arms without it.
+
+**What the practice-first arms did** (2026-10-18, the public chests 0-7 in
+turn, 5 tries a chest, the picture shown; `dee4739` without notes or feel,
+`b0417a1` with both): **no arm passed a chest, so none kept a skill and none
+reached its held-out flight** -- each stopped where it was told to, nothing
+kept after 8 chests. The bar is unread for them. Each chest's best lid, and
+where a try opened it past 57 deg its slowest fall while open (rad/s, the
+limit 1.0):
+
+| arm | chests 0-7 | tries past 57 deg | cost |
+|---|---|---|---|
+| deployed, carrying what passed | 51 45 70/1.5 0 57 110/1.0† 0 0 | 6 of 40 | $0.48 |
+| DeepSeek-V4.1-Flash, likewise | 0 72/1.7 0 22 0 0 0 0 | 3 | $0.63 |
+| deployed, what it felt and notes | 63/6.9 64/7.0 33 30 11 24 17 19 | 2 | $0.80 |
+| DeepSeek, what it felt and notes | 0 0 67/1.8 61/1.4 46 65/7.0 75/1.6 68/0.9 | 11 | $0.54 |
+| ...and `measure` | 47 41 49 26 75/5.0 64/7.2 60/6.5 45 | 6 | $1.18 |
+
+† thrown past upright at its slowest (0.97 rad/s), the lid stayed open; its other tries fell at 1.01 and 1.07.
+
+- **DeepSeek with what it felt and notes converged, and was stopped
+  converging**: its notes
+  carried the left hand to every first try from its second chest on and
+  the gripper opened first from its third (the baselines' first tries
+  started over at every chest), five of its last six chests opened the
+  lid, and its last
+  lowered one at 0.87 rad/s -- and ended with the lid at 61 deg, a
+  `move_hand` held back ending the procedure with the jaws on the knob (a
+  `pull` held back is ok; a position move held back fails). Its lids fall
+  because a procedure lets go while the lid is up: the felt traces show
+  the grip held through every pull, the pulls down ending out of reach.
+- **The deployed model did worse with notes than without** (2 tries past
+  57 deg against 6).
+- **`measure` was hardly used**: 4 calls in 40 tries, so the arm says
+  little of depth.
+
+**Ten tries a practice chest, and a verb as an `if`'s test** (Ben,
+2026-10-19). Of the 28 tries past 57 deg above, 26 let the lid fall: the
+robots open it, and have yet to learn to set it down. Within a chest the
+whole conversation is the lesson -- every report and what was felt -- so a
+practice chest now takes up to 10 tries (`--practice-attempts`; a held-out
+chest keeps 5, and the bar its 3). And a verb may stand alone as an
+`if`'s test (`--verb-tests`, `WorldFacts.verb_tests`): `if not
+move_hand(...):` reads the move held back instead of ending the procedure
+with the jaws on the knob. Two DeepSeek arms with what they felt and
+notes are the same but for the `if`.
+
+| arm (`58eb9e8`, chests 0-7, 10 tries each) | each chest's best lid / slowest fall | tries past 57 deg | cost |
+|---|---|---|---|
+| DeepSeek, felt and notes | 36 110/3.0 74/2.7 110/5.6 60/9.2 112/4.2 62/5.1 78/2.2 | 23 of 80 | $1.43 |
+| ...and a verb as an `if`'s test | 48 51 64/3.7 68/1.1 55 66/6.2 66/7.6 38 | 22 of 80 | $1.54 |
+
+- **Neither passed a chest**, so neither kept a skill or reached its
+  held-out flight (the give-up rule, 8 chests; 13 h of wall time for the
+  pair, a practice chest at a time).
+- **Ten tries opened the lid twice as often, not more often a try**: 28 %
+  of tries at 10 a chest as at 5 (11 of 40). **Every one of the 45 lids
+  opened was let fall.**
+- **The `if` was used, and changed how the lid was lost, not whether**: 154
+  tested `move_hand`s, 86 of them failing and read; its 22 lids were all
+  pushed open without a grip, and fell as the hand left. Without it the
+  grip slipped during a pull (21 of 23); at 5 tries a procedure opened its
+  hand with the lid up (5) or never held it (5).
+- **The gap they share: nothing brings a held lid down its arc.** The
+  reference's first lesson -- past 50 deg the hand turns as the lid does,
+  or the drop handle's arm meets the lid's edge -- has no verb: `pull` and
+  `move_hand` keep the turn they started with. A `pull` that goes as far as
+  the arm reaches instead of refusing its line did no better, replayed
+  over three recorded procedures (the lids rose less, and still fell).
+
+**A carried hand may turn** (Ben, 2026-10-19): `move_hand` and `pull` take
+fingers and jaws (`fx..jz`) as `reach` does, and turn the hand to them as
+it goes -- from one posture, eased at the reach's own rate
+(`Body.pull_routine(turn=)`, `move_hand_routine(turns=)`); left 0, the
+turn is kept. On the humanoid in free air a move asked 30 deg up came to
+27 deg, a pull asked 60 to 59.
+- **DeepSeek with it** (`a5ae607`, chests 0-5, 10 tries, the verb
+  test on, giving up after 6): no chest passed; 28 of its 60 tries opened
+  the lid past 57 deg, and **all 28 let it fall** (the slowest at 1.3
+  rad/s, from 110 deg). It turned a carried hand in 3 tries of 60. $1.26.
+- ⚠ **THE VERBS CARRY THE REFERENCE'S OWN PLAN ON 2 CHESTS OF 8**: the
+  reference's perception, plan and grip, then its arc as separate
+  `move_hand`s with its turns (`pullfar/diag_arc.py`, outside the repo),
+  over chests the reference passes: chests 0 and 8 passed; with the turn
+  kept, chest 0 alone; the rest were held back 6-11 deg up or ran out of
+  reach (5 and 7 not gripped, the diagnostic trying one grip of the
+  reference's three). What the reference's path does that separate verbs
+  cannot -- one posture the whole arc, each point aimed ahead for the
+  body's lean, the hand turning past 50 deg -- and that the language has no
+  trigonometry to compute an arc, stand between practice and a pass
+  before any mind's judgement does.
+
+**A path, and the maths for one** (Ben, 2026-10-19: general, for any task,
+over a `swing` for this one; the vocabulary's design is #525). `via(hand,
+x, y, z, turn)` adds a point to a hand's path and moves nothing;
+`follow(hand, speed, stiffness)` carries the hand through them all as one
+motion, from one posture that follows them all (the body's path, aimed
+ahead for its lean, as the reference's), a point with no turn keeping the
+one before. An expression may call `sin`, `cos`, `atan2` and `sqrt`.
+Both behind `WorldFacts` switches (`math`, the practice's `--path`): the
+served world's language is unchanged. ⚠ THE GATE, before any mind flies
+them: the reference's own perception, plan and grip, then its arc up and
+back as two paths through `via`/`follow` (`pullfar/gate_path.py`), over
+the 8 chests the reference passes, at least 6 to pass. **It passed, 7 of
+8** (chest 3 held back on its way down), once the procedure did what the
+reference does: came down from the hand's nearest point, again where held
+back (`if not follow(...)`), and planned from the stance as it stood after
+its grip. ⚠ THE STANCE FRAME MOVES WITH THE FEET, and a reach's posture
+moves them: planned from the stance before its grip, 5 of 8 passed, held
+back off the arc. The practice's mind is told so (`YOUR_BODY`).
+
+**What the path round did** (`d728e0e`, DeepSeek, what it felt and notes,
+the verb test, 10 tries a practice chest, giving up after 6 with nothing
+kept; the held-out seed 1536874211): **the first passes in ten arms, and
+the bar still out of reach.**
+
+| arm | practice: chests passed, the try each passed at | held out | cost |
+|---|---|---|---|
+| without `measure` | 0 of 6, given up | -- | $1.41 |
+| with `measure` | 13 of 16: 7 5 1 2 8 3 9 x 8 1 7 3 4 1 x x | 4 of 11 within 3, none at the first; stopped early | $2.63 |
+| without `measure`, flown again | 3 of 8 so far: x x x 4 x 5 4 x | still practicing | -- |
+
+- **Practice passed within 3 tries on 6 chests of 16, the held-out copies
+  on 4 of 11** [0.15, 0.65] before the 7th failure within 3 stopped them:
+  a skill learned and refined over 16 chests, not yet one that carries to
+  a new chest in 3 tries. Of the 7 held-out chests failed, 5 let the lid
+  fall (1.4-4.2 rad/s).
+- **What passed is a technique, not a verb**: every passing procedure
+  walks the lid's arc in short soft `pull`s (3-5 cm), re-aimed between
+  them from where the hand is, the hinge steering the hand the rest, and
+  comes down pulling toward where its grip began. Long straight pulls lost
+  a held knob in 46 pulls of 385 (12 %, two arms), short steps in 22 of
+  2,527 (1 %). `via`/`follow` with `cos`/`sin`/`atan2` laid the way down
+  in three versions (chests 4-6), dropped after; every pass used `sqrt`,
+  mostly to scale a direction the verbs scale anyway.
+- **`measure` did not decide it**: the arm with it measured on one chest
+  and carried one number (the box's depth as the hinge's distance, 4 cm
+  short, taken up by the soft arm); flown again, the arm without it passed
+  on what its pulls reported alone. Two arms alike in everything passed 0
+  chests of 6 and 3 of 8: which approach a conversation finds early decides
+  an arm. Against the three arms before it with 10 tries, notes and the
+  verb test (0 chests of 22), the round's prompt -- the path, the maths,
+  the stance that moves -- or chance turned it; three arms cannot say
+  which.
+- **Two things at once** (Ben, 2026-10-19): a passing procedure is mostly
+  a control loop built out of pulls -- step, read where the hand went,
+  re-aim -- around a short plan (up, slowly down, let go at the bottom).
+  The vocabulary's design comes first (#525), and stage 3 flies again on
+  it.
+
 ## 5. What silently invalidates a number
 
 The list this document mostly exists for.

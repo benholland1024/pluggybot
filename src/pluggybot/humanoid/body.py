@@ -450,6 +450,10 @@ class HumanoidBody(Body):
     return self.reach.path_for(side, [self.to_stance(p) for p in poses],
                                rot=self._turns(rot)) is not None
 
+  def hand_reaches(self, side, pos, rot=None) -> bool:
+    r = None if rot is None else _rz(self.stance[2]).T @ np.asarray(rot, dtype=float)
+    return self.reach.plans(side, HandGoal(self.to_stance(pos), r, 1.0))
+
   def _turns(self, rot):
     """A turn, or a list of them, the believed world frame's, in the stance
     frame's."""
@@ -540,10 +544,11 @@ class HumanoidBody(Body):
     return (yield from self._held_routine(side, patience))
 
   def pull_routine(self, side, direction, limit_n, distance_m, stiffness=1.0,
-                   speed=HOLD_SPEED, patience=30.0):
+                   speed=HOLD_SPEED, patience=30.0, turn=None):
     """A compliant move (#493): the hand carried straight along `direction`
     on an arm at `stiffness`, so it bends toward whatever gives, its turn
-    held (`Reach.carry`), stopped at `limit_n` along its way while held back
+    held (`Reach.carry`) -- or turned to `turn` as it goes, one posture's
+    path -- stopped at `limit_n` along its way while held back
     ("force"), held back with no force over it ("held fast"), its grip lost
     ("let go"), or `distance_m` gone."""
     yield from self.mission.to_stand_routine()
@@ -556,6 +561,7 @@ class HumanoidBody(Body):
     start = self.reach.grip_now(side)[0].copy()
     gripped = self.gripped(side)
     if not self.reach.carry(side, start + float(distance_m) * d, stiffness, speed,
+                            turns=None if turn is None else self._turns([turn]),
                             limit_n=limit_n):
       rep = {**(self.reach.report[side] or {}), "why": "out of reach"}
     else:
