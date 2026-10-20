@@ -1940,6 +1940,11 @@ class QuadBody(Body):
                               "turns, or lies down")
     yield
 
+  def step_routine(self, ahead, left=0.0, turn=0.0, patience=15.0) -> Routine:
+    raise NotImplementedError("the quadruped walks by its drives (`drive`, `drive_to`): a "
+                              "step is the hands' vocabulary's, the humanoid's")
+    yield
+
   def depth_cloud(self, width, height, min_z, frames=1, apart=0.1) -> Routine:
     raise NotImplementedError("the quadruped's measured depth is its probe's own "
                               "(`legs.probe.Probe.cloud`)")

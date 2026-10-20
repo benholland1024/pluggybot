@@ -40,8 +40,12 @@ import numpy as np
 from pluggybot.humanoid.arms import SelfModel
 
 #: The planted foot changes once the other sole is this much lower, m: a
-#: swing foot lifts 5-10 cm, and both down differ by millimetres.
-SWAP_M = 0.01
+#: swing foot lifts 5-10 cm walking, and both down differ by millimetres --
+#: but a SHUFFLE lifts it under a centimetre: at 1 cm the first stride of a
+#: short step was read as the planted foot moving, 4.3 cm of 13.6 lost, and
+#: a sideways walk 21 % short (7 % at 3 mm, forward and turning unchanged;
+#: #525). Swapped between two feet both down, nothing is lost.
+SWAP_M = 0.003
 #: ...or, where the ground under the soles differs by more than `STEP_M`
 #: (a stair's riser, not a floor's unevenness), once the other is this much
 #: nearer the ground under it, m. ⚠ NOT ON ONE FLOOR: there both soles

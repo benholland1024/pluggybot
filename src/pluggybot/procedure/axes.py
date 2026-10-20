@@ -281,6 +281,19 @@ SENSORS["pull.moved"] = Sensor(
 SENSORS["pull.force"] = Sensor(
   "pull.force", lambda life: reported("pull", "force", life),
   "the hardest the last `pull` pushed along its way, N, as your hand felt it")
+#: ...and where the last step took the stance (#525), in the stance frame
+#: it stood in before: what a place read before it is turned into.
+STEP_SENSORS = ("step.dx", "step.dy", "step.turn")
+SENSORS["step.dx"] = Sensor(
+  "step.dx", lambda life: reported("step", "dx", life),
+  "how far ahead your feet went in the last `step`, m, in the stance frame you stood in "
+  "before it")
+SENSORS["step.dy"] = Sensor(
+  "step.dy", lambda life: reported("step", "dy", life),
+  "how far to your left your feet went in the last `step`, m, in that frame")
+SENSORS["step.turn"] = Sensor(
+  "step.turn", lambda life: reported("step", "turn", life),
+  "how far you turned in the last `step`, rad (left, +)")
 #: ...and what `measure` saw (#493, the arm with sight): a flat top's height
 #: and where it ends, the stance frame.
 MEASURE_SENSORS = tuple(f"object.{k}" for k in ("top", "near", "far", "left", "right"))

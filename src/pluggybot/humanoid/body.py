@@ -56,6 +56,22 @@ GAZE_WAIT_S, RELEASE_S = 4.0, 15.0
 #: it 0.3 m to the counter, its standing policy stepping under the arm
 #: (#493).
 FEET_MOVED_M = 0.05
+#: A STEP (`step_routine`, #525; SimNotes, "Stepping toward the work"): its
+#: pace forward and back, m/s -- at the walker's slowest, 0.2, its feet slid
+#: rather than lifted and its odometry counted the first stride backward:
+#: asked 5 cm it went 16 and believed 5; backing up at 0.3 it went 4 cm and
+#: believed it had gone FORWARD 1 -- and its turn, rad/s: at 0.6 the heading
+#: sprang back 6-8 deg as the legs changed hands, at 1.0 it lands within
+#: half a degree.
+STEP_V, BACK_V, TURN_W = 0.3, 0.4, 1.0
+#: ...stopped once what it believes it has walked, and its speed times this,
+#: s, reach the step asked -- its stride carries on that far, about 0.2-0.27
+#: s of its pace -- and a turn this much short, rad.
+STEP_STOP_S, TURN_STOP_RAD = 0.22, math.radians(0.5)
+#: ...BLOCKED when it walks less than this, m, in this long, s, and given
+#: this long, s; and stood still this long after, s, the standing policy's
+#: own settle.
+STEP_STUCK_M, STEP_STUCK_S, STEP_PATIENCE_S, STEP_SETTLE_S = 0.01, 1.0, 15.0, 0.5
 #: Its measured depth's own noise stream (`depth_cloud`) and how far its
 #: rays reach, m: the probe's seed, and a counter's chest within arm's reach.
 DEPTH_SEED, DEPTH_REACH_M = 466, 3.0
@@ -586,6 +602,75 @@ class HumanoidBody(Body):
   def hand_force(self, side):
     f = _rz(self.stance[2]) @ self.reach.force[side]
     return float(f[0]), float(f[1]), float(f[2])
+
+  def step_routine(self, ahead, left=0.0, turn=0.0, patience=STEP_PATIENCE_S):
+    """THE STEP (#525): its hands home and empty, it turns `turn` on the
+    spot, walks `ahead` and `left` in the frame it then stands in -- one
+    motion, at `STEP_V` (`BACK_V` backing up) -- and stands: stopped once
+    what it believes it has walked, and its speed times `STEP_STOP_S`,
+    reach the step's length, so a stride, about 12 cm, is the least a walk
+    goes. Its legs are the walking policy's meanwhile. Returns how it ended
+    (`why`: "stepped", "holding" -- a hand holds something, and it does not
+    move -- "blocked", "fell", "out of time"), in how long, and where its
+    stance went, by its own reckoning, in the stance frame it stood in
+    before (`dx`, `dy`, m; `turn`, rad)."""
+    mi = self.mission
+    yield from mi._getup_routine()
+    t0, s0, falls = float(self._d.time), self.stance, mi.falls
+    if any(self.gripped(s) for s in hm.SIDES):
+      return {"why": "holding", "seconds": 0.0, "dx": 0.0, "dy": 0.0, "turn": 0.0}
+    why = "stepped"
+
+    def over() -> str | None:
+      if mi.falls != falls:
+        return "fell"
+      return "out of time" if float(self._d.time) - t0 > patience else None
+    h0 = mi.pose[2]
+    while abs(turn) > TURN_STOP_RAD and why == "stepped":
+      if abs(math.remainder(mi.pose[2] - h0, 2 * math.pi)) >= abs(turn) - TURN_STOP_RAD:
+        break
+      why = over() or why
+      yield from mi._twist_routine(0.0, 0.0, math.copysign(TURN_W, turn))
+    # ⚠ A TURN IS TAKEN AS ON THE SPOT: its feet shuffle round, the odometry
+    # reads up to 5 cm of walk that is not there, and the stance truly moves
+    # 1-4 cm -- so the step's move is the walk's alone, measured from where
+    # the turn left the belief
+    s_mid = self.stance
+    length = math.hypot(ahead, left)
+    if length and why == "stepped":
+      x0, y0, yaw = mi.pose
+      # the walk's way in the world, and its twist in the trunk's frame
+      ux, uy = ahead / length, left / length
+      wx, wy = math.cos(yaw) * ux - math.sin(yaw) * uy, math.sin(yaw) * ux + math.cos(yaw) * uy
+      pace = BACK_V if ahead < -abs(left) else STEP_V
+      vx, vy = pace * ux, pace * uy
+      speed, went, mark = 0.0, 0.0, (float(self._d.time), 0.0)
+      while why == "stepped":
+        x, y, _ = mi.pose
+        now = wx * (x - x0) + wy * (y - y0)
+        speed += min(1.0, self._m.opt.timestep / 0.2) * ((now - went) / self._m.opt.timestep
+                                                          - speed)
+        went = now
+        if went + max(speed, 0.0) * STEP_STOP_S >= length:
+          break
+        if float(self._d.time) - mark[0] >= STEP_STUCK_S:
+          if went - mark[1] < STEP_STUCK_M:
+            why = "blocked"
+            break
+          mark = (float(self._d.time), went)
+        why = over() or why
+        yield from mi._twist_routine(vx, vy, 0.0)
+    yield from mi.to_stand_routine()
+    if mi.falls != falls:
+      why = "fell"
+    for _ in range(int(round(STEP_SETTLE_S / self._m.opt.timestep))):
+      yield STILL
+    x1, y1, yaw1 = self.stance
+    if not length:
+      x1, y1 = s_mid[0], s_mid[1]
+    d = _rz(s0[2]).T @ np.array([x1 - s_mid[0], y1 - s_mid[1], 0.0])
+    return {"why": why, "seconds": round(float(self._d.time) - t0, 3), "dx": float(d[0]),
+            "dy": float(d[1]), "turn": math.remainder(yaw1 - s0[2], 2 * math.pi)}
 
   # ---- senses --------------------------------------------------------------
 

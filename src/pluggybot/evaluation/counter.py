@@ -232,14 +232,13 @@ BOARD_H, BOARD_MARGIN = 0.06, 0.08
 #: `cube_set_out(k)`'s seed is this plus k; where the cube rests -- this
 #: far ahead of the soles' middle and this far to its left, m -- and how far
 #: it is turned at most, rad; where the mat lies from it: this far to its
-#: left and this far further ahead, m. Gripped tilted 60 deg there, 6 cm
-#: up, the robot's model of itself reached the cube and followed a carry 6
-#: cm ahead or back from 0.26, 0.30 and 0.34 m ahead -- where 0.34-0.38
-#: ahead and 0.19-0.23 left, 12 cm up, 6 cubes of 8 were refused their
-#: carry ahead; 0.27-0.31 ahead, 5 cubes of 8 were out of the head camera's
-#: sight, and so was a mat out to the left or nearer the body (#525) -- and
-#: how far behind the counter's edge the nearer of the two lies, m.
-CUBE_SEED, CUBE_AHEAD, CUBE_LEFT, CUBE_TURNED = 5254, (0.29, 0.33), (0.13, 0.17), math.radians(30.0)
+#: left and this far further ahead, m -- and how far behind the counter's
+#: edge the nearer of the two lies, m. IN SIGHT AND OUT OF REACH WHERE THE
+#: ROBOT STANDS, so it STEPS to its work (`step`): standing put, its sight
+#: and its reach boxed a cube into 4 cm -- nearer than 0.29 m the head
+#: camera did not see it (5 of 8), past 0.34 the carry 6-10 cm ahead left
+#: every posture (6 of 8) (#525).
+CUBE_SEED, CUBE_AHEAD, CUBE_LEFT, CUBE_TURNED = 5254, (0.40, 0.46), (0.13, 0.17), math.radians(30.0)
 MAT_LEFT, MAT_AHEAD, CUBE_EDGE = (-0.01, 0.01), (0.06, 0.08), 0.04
 
 

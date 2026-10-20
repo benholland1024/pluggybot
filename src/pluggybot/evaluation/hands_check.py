@@ -177,57 +177,67 @@ DOOR = '''def open_door():
       t = 0.0
 '''
 
-#: THE CUBE: the mat's middle and the cube's off their tags, the cube's
-#: turn off its edges; gripped from above-front, the jaws on two of its
+#: THE CUBE, out of reach where the robot stands: the mat's middle and the
+#: cube's off their tags, the cube's turn off its edges; a STEP in, until
+#: the cube is 0.32 m ahead -- nearer, the head camera no longer sees it, so
+#: what it read is turned into the frame it stands in after the step
+#: (`step.*`); gripped steeply from above-front, the jaws on two of its
 #: faces, at the first tilt that reaches and holds; lifted straight up and
 #: set down by force moves that hold their line (`give` 0: a cube set down
 #: giving slid along what it touched), carried over the mat by where the
-#: grip left it in the hand; a carry refused is set back down, let go, the
-#: cube looked at again and gripped at the next tilt; and let go only once
-#: its set-down has pressed on the mat.
+#: grip left it in the hand; and let go only once its set-down has pressed
+#: on the mat.
 PLACE = '''def place_cube():
   budget(steps=60, seconds=66)
   spot(57)
   mx = read("spot.x")
   my = read("spot.y")
-  g = 5
+  spot(56)
+  x = read("spot.x") + 0.013 * read("spot.nx")
+  y = read("spot.y") + 0.013 * read("spot.ny")
+  z = read("spot.z") + 0.013 * read("spot.nz")
+  a = atan2(read("spot.ey"), read("spot.ex"))
+  step(x - 0.32)
+  c = cos(read("step.turn"))
+  s = sin(read("step.turn"))
+  u = x - read("step.dx")
+  v = y - read("step.dy")
+  x = c * u + s * v
+  y = c * v - s * u
+  u = mx - read("step.dx")
+  v = my - read("step.dy")
+  mx = c * u + s * v
+  my = c * v - s * u
+  a = a - read("step.turn")
+  while a > 0.79:
+    a = a - 1.571
+  while a < -0.79:
+    a = a + 1.571
+  g = 0
   t = 1.05
-  for i in range(5):
-    if g == 5:
-      spot(56)
-      x = read("spot.x") + 0.013 * read("spot.nx")
-      y = read("spot.y") + 0.013 * read("spot.ny")
-      z = read("spot.z") + 0.013 * read("spot.nz")
-      a = atan2(read("spot.ey"), read("spot.ex"))
-      while a > 0.79:
-        a = a - 1.571
-      while a < -0.79:
-        a = a + 1.571
-      g = 0
+  for i in range(4):
     if g == 0:
       open_hand("left")
       if reach("left", x, y, z + 0.003, cos(a) * cos(t), sin(a) * cos(t), -sin(t), -sin(a), cos(a), 0):
         g = 2
+      else:
+        withdraw("left")
     if g == 2:
       g = 0
       if close_hand("left"):
-        g = 3
-    if g == 3:
-      ox = x - read("left.x")
-      oy = y - read("left.y")
-      pull("left", 0, 0, 1, 20, 0.03, give=0)
-      g = 4
-      if not move_hand("left", mx - ox, my - oy, read("left.z")):
-        g = 5
-        pull("left", 0, 0, -1, 4, 0.05, give=0)
-    if g < 4 or g == 5:
-      open_hand("left")
-      withdraw("left")
-      t = t + 0.26 - 0.77 * (i == 1)
-  for j in range(2):
-    if g == 4:
-      pull("left", 0, 0, -1, 4, 0.1, give=0)
-      g = 4 + (read("pull.force") > 3)
+        g = 1
+      else:
+        withdraw("left")
+    t = t + 0.26 - 0.77 * (i == 1)
+  if g == 1:
+    ox = x - read("left.x")
+    oy = y - read("left.y")
+    pull("left", 0, 0, 1, 20, 0.03, give=0)
+    move_hand("left", mx - ox, my - oy, read("left.z"))
+    for j in range(2):
+      if g == 1:
+        pull("left", 0, 0, -1, 4, 0.1, give=0)
+        g = 1 + (read("pull.force") > 3)
   open_hand("left")
   withdraw("left")
 '''

@@ -692,6 +692,19 @@ class Body(abc.ABC):
     (#493)."""
 
   @abc.abstractmethod
+  def step_routine(self, ahead: float, left: float = 0.0, turn: float = 0.0,
+                   patience: float = 15.0) -> Routine:
+    """THE STEP (#525): its hands home and empty, the body turns `turn`
+    rad on the spot (left, +) and walks `ahead` m and `left` m in the frame
+    it then stands in (negative backs up, or goes right), and stands still
+    -- as the body walks: the humanoid's least step is a stride. Returns how it ended (`why`:
+    "stepped", "holding" -- a hand holds something, and nothing moves --
+    "blocked", "fell", "out of time"), in how long, and where its stance
+    went by its own reckoning, in the stance frame it stood in before
+    (`dx`, `dy`, m; `turn`, rad): what a place read before the step is
+    turned into."""
+
+  @abc.abstractmethod
   def gaze_routine(self, down: float) -> Routine:
     """Its head's cameras turned `down` rad below their gaze standing --
     0 back to it -- as the body can: the humanoid, its head fixed on its
@@ -964,6 +977,8 @@ class StubBody(Body):
     self.turned: list[tuple] = []
     self.carried_paths: list[tuple] = []
     self.pulled: list[tuple] = []
+    #: ...and each step asked (#525), (ahead, left, turn)
+    self.stepped: list[tuple] = []
     self._why: dict[str, str] = {}
     #: ...and each survey it was asked for, and what it counts, by tag
     self.surveyed: list[int] = []
@@ -1385,6 +1400,21 @@ class StubBody(Body):
   def gaze_routine(self, down):
     """No head to turn: at once."""
     return
+    yield
+
+  def step_routine(self, ahead, left=0.0, turn=0.0, patience=15.0):
+    """The step at once, as asked -- turned, then walked -- unless a hand
+    holds something; its asks kept in `stepped`."""
+    self.stepped.append((float(ahead), float(left), float(turn)))
+    if any(self.grips.get(s) for s in self.hands):
+      return {"why": "holding", "seconds": 0.0, "dx": 0.0, "dy": 0.0, "turn": 0.0}
+    c, s_ = math.cos(turn), math.sin(turn)
+    dx, dy = c * ahead - s_ * left, s_ * ahead + c * left
+    cw, sw = math.cos(self.theta), math.sin(self.theta)
+    self.x += cw * dx - sw * dy
+    self.y += sw * dx + cw * dy
+    self.theta += float(turn)
+    return {"why": "stepped", "seconds": 0.0, "dx": dx, "dy": dy, "turn": float(turn)}
     yield
 
   def depth_cloud(self, width, height, min_z, frames=1, apart=0.1):

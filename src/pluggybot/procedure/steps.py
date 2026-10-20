@@ -1231,6 +1231,29 @@ def _pull(life, args: dict) -> Routine:
   return {"ok": True, **out}
 
 
+#: Why a step stopped short, as its record says it (`Body.step_routine`).
+STEP_WHY = {"holding": "a step carries nothing: open your hands first",
+            "blocked": "your step got nowhere: something stands in your way",
+            "fell": "you fell, and got up again",
+            "out of time": "your step ran out of time"}
+
+
+def _step(life, args: dict) -> Routine:
+  """THE STEP (issue #525; docs/Hands.md): its hands home and empty, the
+  body turns `turn` rad on the spot and walks `ahead` m and `left` m in the
+  frame it then stands in, and stands -- its feet where the hands' work is. Where its stance
+  went, in the stance frame it stood in before, rides `step.*` whatever
+  stopped it. ok when it stepped."""
+  rep = yield from life.body.step_routine(float(args["ahead"]), float(args.get("left", 0.0)),
+                                          float(args.get("turn", 0.0)))
+  _reports(life)["step"] = {k: float(rep.get(k, 0.0)) for k in ("dx", "dy", "turn")}
+  out = {"why": rep["why"], "seconds": rep.get("seconds"),
+         **{k: round(float(rep.get(k, 0.0)), 4) for k in ("dx", "dy", "turn")}}
+  if rep["why"] != "stepped":
+    return {"ok": False, **out, "reason": STEP_WHY.get(rep["why"], "your step stopped short")}
+  return {"ok": True, **out}
+
+
 def _close_hand(life, args: dict) -> Routine:
   hand = args["hand"]
   held, felt = yield from _felt_routine(life, hand, life.body.grip_routine(
@@ -1426,6 +1449,17 @@ HANDS_VERBS: dict[str, Verb] = {
                "(pushing with its whole force and not moving), its grip lets go, or it can "
                "reach no further; then it holds there. How far it went, the hardest it "
                "pushed and the way it was going at its end ride `pull.*`; ok when it pulled"),
+  "step": Verb("step", {"ahead": Arg("float", lo=-0.5, hi=0.5),
+                        "left": Arg("float", lo=-0.5, hi=0.5, default=0.0),
+                        "turn": Arg("float", lo=-3.2, hi=3.2, default=0.0)}, _step,
+               "turn `turn` rad on the spot (left, +), then walk `ahead` m and `left` m in "
+               "the frame you then stand in (negative: back, right), and stand still -- your "
+               "hands home first; a step carries nothing. A walk goes at least a stride, "
+               "about 12 cm, and may stop a few cm off what you asked. Your stance frame "
+               "goes with your feet: where they went in the frame you stood in before rides "
+               "`step.*` (`step.dx` ahead, `step.dy` left, m, and `step.turn`, rad), so a "
+               "place (x, y) you read before is now (c (x - dx) + s (y - dy), c (y - dy) - "
+               "s (x - dx)), c and s the cosine and sine of its turn; ok when it stepped"),
   "close_hand": Verb("close_hand", {"hand": _HAND, "force": _GRIP}, _close_hand,
                      "shut a hand's gripper where it is, squeezing with at most `force` N a "
                      "jaw -- firm holds fast; light lets what it holds turn between the jaws; "
@@ -1437,7 +1471,7 @@ HANDS_VERBS: dict[str, Verb] = {
 #: The hands' vocabulary (#525; docs/Hands.md): what the humanoid's
 #: procedures call, the checks' and the practice's alike...
 HAND_VERBS = ("spot", "reach", "via", "move_hand", "pull", "close_hand", "open_hand",
-              "withdraw")
+              "withdraw", "step")
 #: ...and `measure`, the depth camera's, but where an arm is about its
 #: absence (#493: depth is feedback, never a shortcut).
 MEASURE_VERBS = ("measure",)
@@ -1463,7 +1497,7 @@ def hand_facts(measure: bool = True) -> "WorldFacts":
   from pluggybot.procedure import axes
   return WorldFacts(boards=(), tools=(), bounds=(-1e3, -1e3, 1e3, 1e3), figures=(),
                     axes=axes.BODY_AXES["humanoid"],
-                    sensors=(axes.HAND_SENSORS + axes.PULL_SENSORS
+                    sensors=(axes.HAND_SENSORS + axes.PULL_SENSORS + axes.STEP_SENSORS
                              + (axes.MEASURE_SENSORS if measure else ())),
                     verbs=("wait", "move") + HAND_VERBS + (MEASURE_VERBS if measure else ()),
                     hands=axes.HANDS, verb_tests=True, math=True)

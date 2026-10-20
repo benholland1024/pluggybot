@@ -455,7 +455,8 @@ def test_the_arms_axes_ramp_at_its_slew_and_the_world_names_them_all():
   # (#493), which the quadruped's world never names
   assert set(HOME.axes) == set(axes.BODY_AXES["quadruped"]) == set(axes.ARM_JOINTS)
   assert set(axes.AXES) == set().union(*map(set, axes.BODY_AXES.values()))
-  hands = set(axes.HAND_SENSORS + axes.PULL_SENSORS + axes.MEASURE_SENSORS) - {"time"}
+  hands = set(axes.HAND_SENSORS + axes.PULL_SENSORS + axes.STEP_SENSORS
+              + axes.MEASURE_SENSORS) - {"time"}
   assert set(HOME.sensors) | hands == set(axes.SENSORS)
   assert not set(HOME.sensors) & hands
 
