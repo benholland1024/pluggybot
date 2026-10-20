@@ -630,9 +630,19 @@ def test_a_reach_out_of_reach_says_whether_the_other_hand_could():
   step = _fly('def a():\n    reach("left", 0.3, 0.2, 0.9, fx=1, jz=1)\n', body)["steps"][-1]
   assert step["reason"] == (st.REACH_WHY["out of reach"].format(hand="left")
                             + " turned as asked; turned another way it can (leave fx..jz at 0"
-                            " and your arm finds a turn); nor could your right hand, as asked")
+                            " and your arm finds a turn); nor could your right hand as asked,"
+                            " though turned another way it can")
   step = _fly('def a():\n    reach("left", 0.3, 0.2, 0.9)\n', body)["steps"][-1]
   assert step["ok"]
+  # ...and so of the OTHER hand: "nor could your left hand, as asked", of a
+  # right hand turned toward a knob on the left, was read as out of reach
+  # standing, and the robot stepped beside the box 59 tries of 60
+  body = _stub()
+  body.out_of_reach, body.unturned = {"right"}, {"left"}
+  step = _fly('def a():\n    reach("right", 0.3, 0.2, 0.9, fx=1, jz=1)\n', body)["steps"][-1]
+  assert step["reason"] == (st.REACH_WHY["out of reach"].format(hand="right")
+                            + "; nor could your left hand as asked, though turned another way"
+                            " it can (leave fx..jz at 0 and your arm finds a turn)")
   # ...and a hand that stopped short is not out of reach: nothing is said of the other
   class Short(StubBody):
     def reach_routine(self, side, pos, rot=None, stiffness=1.0, patience=20.0):

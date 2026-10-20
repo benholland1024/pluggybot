@@ -1137,10 +1137,17 @@ def _reach(life, args: dict) -> Routine:
                "arm finds a turn)")
   if why == "out of reach" and other is not None:
     # what its body's own model says of the other hand (#493: 18 of 27
-    # first tries took the right hand to a knob on the robot's left)
-    reason += (f"; your {other} hand could reach it as asked"
-               if life.body.hand_reaches(other, place, rot)
-               else f"; nor could your {other} hand, as asked")
+    # first tries took the right hand to a knob on the robot's left) --
+    # turned another way too: "nor could your left hand, as asked" was read
+    # as out of reach standing, and an arm stepped beside the box 59 tries
+    if life.body.hand_reaches(other, place, rot):
+      reason += f"; your {other} hand could reach it as asked"
+    elif rot is not None and life.body.hand_reaches(other, place):
+      reason += (f"; nor could your {other} hand as asked, though turned another way it can"
+                 + ("" if "your arm finds a turn" in reason
+                    else " (leave fx..jz at 0 and your arm finds a turn)"))
+    else:
+      reason += f"; nor could your {other} hand, as asked"
   return {"ok": False, "hand": hand, "why": why, "reason": reason, "felt": felt}
 
 
