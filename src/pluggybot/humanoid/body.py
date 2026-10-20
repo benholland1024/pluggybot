@@ -24,7 +24,7 @@ from pluggybot.humanoid import model as hm
 from pluggybot.humanoid import parts as hp
 from pluggybot.humanoid.arms import HELD_GAP_M, HandGoal
 from pluggybot.humanoid.policy import PITCH_RANGE, StandPolicy
-from pluggybot.humanoid.mission import HumanoidMission
+from pluggybot.humanoid.mission import MOTION_EPS, V_MIN, HumanoidMission
 from pluggybot.humanoid import reach as reach_
 from pluggybot.humanoid.reach import HOLD_SPEED
 from pluggybot.power import Pack
@@ -61,8 +61,8 @@ FEET_MOVED_M = 0.05
 #: rather than lifted and its odometry counted the first stride backward:
 #: asked 5 cm it went 16 and believed 5; backing up at 0.3 it went 4 cm and
 #: believed it had gone FORWARD 1 -- and its turn, rad/s: at 0.6 the heading
-#: sprang back 6-8 deg as the legs changed hands, at 1.0 it lands within
-#: half a degree.
+#: sprang back 6-8 deg as the legs changed hands, at 1.0 it lands within 2
+#: deg of the turn asked.
 STEP_V, BACK_V, TURN_W = 0.3, 0.4, 1.0
 #: ...stopped once what it believes it has walked, and its speed times this,
 #: s, reach the step asked -- its stride carries on that far, about 0.2-0.27
@@ -81,6 +81,20 @@ NOT_HERE = "not on the humanoid yet: the quadruped's world (its dock, rack and t
 
 def _yaw(rot: np.ndarray) -> float:
   return math.atan2(rot[1, 0], rot[0, 0])
+
+
+def _step_walks(ahead: float, left: float) -> list[tuple[float, float]]:
+  """A step's walks: `ahead` and `left` as one motion -- or, where its
+  forward speed would fall in the walker's dead band (`mission.command_for`
+  raises one under `V_MIN` to it, and an oblique step walked 12 cm further
+  ahead than asked, #525), the one and then the other."""
+  length = math.hypot(ahead, left)
+  if not length:
+    return []
+  vx = (BACK_V if ahead < -abs(left) else STEP_V) * ahead / length
+  if abs(vx) < MOTION_EPS or abs(vx) >= V_MIN:
+    return [(ahead, left)]
+  return [w for w in ((ahead, 0.0), (0.0, left)) if any(w)]
 
 
 def _rz(yaw: float) -> np.ndarray:
@@ -480,13 +494,18 @@ class HumanoidBody(Body):
     if rot is None:
       return None
     if isinstance(rot, (list, tuple)):
-      return [yaw @ np.asarray(r, dtype=float) for r in rot]
+      return [None if r is None else yaw @ np.asarray(r, dtype=float) for r in rot]
     return yaw @ np.asarray(rot, dtype=float)
 
   def gaze_routine(self, down):
     """A bow of `down` rad at the height it stands at, inside what the
-    standing policy trained on, until its trunk is still there."""
+    standing policy trained on, until its trunk is still there -- ⚠ NEVER
+    WITH A HAND OUT, which keeps the posture it has: the bow carries the
+    hand with it, and a look from a low reach's bow lifted the hand 43 cm
+    (#525)."""
     yield from self.mission.to_stand_routine()
+    if any(p != "rest" for p in self.reach.phase.values()):
+      return
     lo, hi = PITCH_RANGE
     self.reach.hold_posture(float(self.reach.posture[0]), min(max(float(down), lo), hi))
     waited = 0.0
@@ -606,71 +625,87 @@ class HumanoidBody(Body):
   def step_routine(self, ahead, left=0.0, turn=0.0, patience=STEP_PATIENCE_S):
     """THE STEP (#525): its hands home and empty, it turns `turn` on the
     spot, walks `ahead` and `left` in the frame it then stands in -- one
-    motion, at `STEP_V` (`BACK_V` backing up) -- and stands: stopped once
-    what it believes it has walked, and its speed times `STEP_STOP_S`,
-    reach the step's length, so a stride, about 12 cm, is the least a walk
-    goes. Its legs are the walking policy's meanwhile. Returns how it ended
-    (`why`: "stepped", "holding" -- a hand holds something, and it does not
-    move -- "blocked", "fell", "out of time"), in how long, and where its
-    stance went, by its own reckoning, in the stance frame it stood in
-    before (`dx`, `dy`, m; `turn`, rad)."""
+    motion at `STEP_V` (`BACK_V` backing up), or the one and then the other
+    where the walker would not walk that way (`_step_walks`) -- and stands:
+    a walk stops once what it believes it has walked, and its speed times
+    `STEP_STOP_S`, reach its length, so a stride, about 10 cm, is the least
+    it goes. Its legs are the walking policy's meanwhile. Returns how it
+    ended (`why`: "stepped", "holding" -- a hand holds something, and it
+    does not move -- "blocked", "fell", "out of time"), in how long, and
+    where its stance went, by its own reckoning, in the stance frame it
+    stood in before (`dx`, `dy`, m; `turn`, rad)."""
     mi = self.mission
     yield from mi._getup_routine()
     t0, s0, falls = float(self._d.time), self.stance, mi.falls
     if any(self.gripped(s) for s in hm.SIDES):
       return {"why": "holding", "seconds": 0.0, "dx": 0.0, "dy": 0.0, "turn": 0.0}
-    why = "stepped"
 
     def over() -> str | None:
       if mi.falls != falls:
         return "fell"
       return "out of time" if float(self._d.time) - t0 > patience else None
-    h0 = mi.pose[2]
-    while abs(turn) > TURN_STOP_RAD and why == "stepped":
-      if abs(math.remainder(mi.pose[2] - h0, 2 * math.pi)) >= abs(turn) - TURN_STOP_RAD:
-        break
+    length, why = math.hypot(ahead, left), "stepped"
+    if abs(turn) > TURN_STOP_RAD or length:
+      # the legs to the walker, its arms home, before anything is measured:
+      # out of a deep bow the pelvis came 16 cm forward on its own, and the
+      # hand-over outlasted `STEP_STUCK_S` (#525)
+      yield from mi.to_walk_routine()
       why = over() or why
+    # the turn, its heading counted unwrapped: wrapped, one past pi never ended
+    heading, turned = mi.pose[2], 0.0
+    while (why == "stepped" and abs(turn) > TURN_STOP_RAD
+           and turned * math.copysign(1.0, turn) < abs(turn) - TURN_STOP_RAD):
       yield from mi._twist_routine(0.0, 0.0, math.copysign(TURN_W, turn))
-    # ⚠ A TURN IS TAKEN AS ON THE SPOT: its feet shuffle round, the odometry
-    # reads up to 5 cm of walk that is not there, and the stance truly moves
-    # 1-4 cm -- so the step's move is the walk's alone, measured from where
-    # the turn left the belief
+      turned += math.remainder(mi.pose[2] - heading, 2 * math.pi)
+      heading = mi.pose[2]
+      why = over() or why
+    # ⚠ A TURN IS TAKEN AS ON THE SPOT: its feet shuffle round, the stance
+    # truly moves 2-6 cm and the odometry is 3-7 cm off over it (turns of
+    # 17-86 deg) -- so the step's move is the walks' alone, measured from
+    # where the turn left the belief
     s_mid = self.stance
-    length = math.hypot(ahead, left)
-    if length and why == "stepped":
-      x0, y0, yaw = mi.pose
-      # the walk's way in the world, and its twist in the trunk's frame
-      ux, uy = ahead / length, left / length
-      wx, wy = math.cos(yaw) * ux - math.sin(yaw) * uy, math.sin(yaw) * ux + math.cos(yaw) * uy
-      pace = BACK_V if ahead < -abs(left) else STEP_V
-      vx, vy = pace * ux, pace * uy
-      speed, went, mark = 0.0, 0.0, (float(self._d.time), 0.0)
-      while why == "stepped":
-        x, y, _ = mi.pose
-        now = wx * (x - x0) + wy * (y - y0)
-        speed += min(1.0, self._m.opt.timestep / 0.2) * ((now - went) / self._m.opt.timestep
-                                                          - speed)
-        went = now
-        if went + max(speed, 0.0) * STEP_STOP_S >= length:
-          break
-        if float(self._d.time) - mark[0] >= STEP_STUCK_S:
-          if went - mark[1] < STEP_STUCK_M:
-            why = "blocked"
-            break
-          mark = (float(self._d.time), went)
-        why = over() or why
-        yield from mi._twist_routine(vx, vy, 0.0)
+    for a_, l_ in _step_walks(ahead, left):
+      if why == "stepped":
+        why = yield from self._walk_routine(a_, l_, over)
     yield from mi.to_stand_routine()
-    if mi.falls != falls:
-      why = "fell"
     for _ in range(int(round(STEP_SETTLE_S / self._m.opt.timestep))):
       yield STILL
+    if mi.falls != falls:
+      why = "fell"
     x1, y1, yaw1 = self.stance
     if not length:
       x1, y1 = s_mid[0], s_mid[1]
     d = _rz(s0[2]).T @ np.array([x1 - s_mid[0], y1 - s_mid[1], 0.0])
     return {"why": why, "seconds": round(float(self._d.time) - t0, 3), "dx": float(d[0]),
             "dy": float(d[1]), "turn": math.remainder(yaw1 - s0[2], 2 * math.pi)}
+
+  def _walk_routine(self, ahead, left, over):
+    """One straight walk of a step, its legs the walker's: "stepped" once
+    what it believes it has walked, and its speed times `STEP_STOP_S`, reach
+    its length; "blocked" where it gets nowhere; else what `over` says."""
+    mi, dt = self.mission, self._m.opt.timestep
+    length = math.hypot(ahead, left)
+    x0, y0, yaw = mi.pose
+    # the walk's way in the world, and its twist in the trunk's frame
+    ux, uy = ahead / length, left / length
+    wx, wy = math.cos(yaw) * ux - math.sin(yaw) * uy, math.sin(yaw) * ux + math.cos(yaw) * uy
+    pace = BACK_V if ahead < -abs(left) else STEP_V
+    speed, went, mark = 0.0, 0.0, (float(self._d.time), 0.0)
+    while True:
+      x, y, _ = mi.pose
+      now = wx * (x - x0) + wy * (y - y0)
+      speed += min(1.0, dt / 0.2) * ((now - went) / dt - speed)
+      went = now
+      if went + max(speed, 0.0) * STEP_STOP_S >= length:
+        return "stepped"
+      if float(self._d.time) - mark[0] >= STEP_STUCK_S:
+        if went - mark[1] < STEP_STUCK_M:
+          return "blocked"
+        mark = (float(self._d.time), went)
+      why = over()
+      if why is not None:
+        return why
+      yield from mi._twist_routine(pace * ux, pace * uy, 0.0)
 
   # ---- senses --------------------------------------------------------------
 

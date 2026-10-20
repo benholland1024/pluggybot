@@ -280,13 +280,18 @@ def fly(job: str, k: int, info: dict | None = None) -> dict:
 
 
 def tally(rows: list[dict]) -> dict:
-  """Per job: the set-outs flown, those passed, and whether it met `BAR`
-  (over `SET_OUTS`; a job flown at fewer is `None`, never a fail)."""
+  """Per job: the check's set-outs flown, those passed -- each once, a
+  set-out flown twice passing only where both did -- and whether it met
+  `BAR` (over `SET_OUTS` alone; a job flown at fewer is `None`, never a
+  fail)."""
   out: dict = {}
   for job in JOBS:
-    mine = [r for r in rows if r.get("task", {}).get("grader") == job and "verdict" in r]
-    passed = sorted(r["task"]["chest"] for r in mine if r["verdict"]["ok"])
-    flown = sorted(r["task"]["chest"] for r in mine)
+    ok: dict[int, bool] = {}
+    for r in rows:
+      k = r.get("task", {}).get("chest")
+      if r.get("task", {}).get("grader") == job and "verdict" in r and k in SET_OUTS:
+        ok[k] = ok.get(k, True) and bool(r["verdict"]["ok"])
+    flown, passed = sorted(ok), sorted(k for k, v in ok.items() if v)
     met = (len(passed) >= BAR) if set(SET_OUTS) <= set(flown) else None
     out[job] = {"flown": flown, "passed": passed, "met": met}
   return out

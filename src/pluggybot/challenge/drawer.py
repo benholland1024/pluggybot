@@ -33,8 +33,8 @@ import numpy as np
 from pluggybot.challenge import lid
 from pluggybot.rack.coupling import contact_pairs
 
-#: 1: out this far, m: a drawer a hand can reach into (its tray 0.27 m
-#: deep), and 0.06 short of its runners' end.
+#: 1: out this far, m: a drawer a hand can reach into (its tray 0.26 m
+#: deep), and 0.09 short of its runners' end.
 OPEN_M = 0.15
 #: The hold and the default time, the lid's.
 HOLD_S, TIME_LIMIT_S = lid.HOLD_S, lid.TIME_LIMIT_S

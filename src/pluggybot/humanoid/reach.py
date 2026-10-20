@@ -414,13 +414,14 @@ class Reach:
       self._planner = SelfModel()
     return self._planner
 
-  def posture_for(self, side: str, pos, rot=None, onward: bool = False) -> tuple | None:
+  def posture_for(self, side: str, pos, rot=None, onward: bool = False,
+                  past=()) -> tuple | None:
     """The least-bent posture (`HOLD_POSTURES`) from which `side`'s grip reaches
     `pos` -- turned to `rot`, or at any turn -- on the robot's model of
     itself, a statue's legs at each, the arm starting where it is and from
     `SEEDS`; or None if none reaches it. `onward`: a held hand going on,
     whose arm missed `pos` in the posture it holds -- another posture, from
-    the arm as it is alone."""
+    the arm as it is alone, and none of `past`."""
     sm = self._planner_model()
     q0 = np.array([hm.stand_qpos().get(n, 0.0) for n in hm.JOINT_NAMES])
     starts = [self.q_cmd[side]] + ([] if onward else [seed(side, s_) for s_ in SEEDS])
@@ -430,7 +431,8 @@ class Reach:
     # arm stood at its elbow's stop 2 cm short of its way for 9 s, while
     # another branch of the same posture "reached" (#525)
     here = tuple(float(v) for v in self.posture)
-    order = ([p_ for p_ in HOLD_POSTURES if tuple(p_) != here] if onward
+    gone = {here} | {tuple(float(v) for v in p_) for p_ in past}
+    order = ([p_ for p_ in HOLD_POSTURES if tuple(p_) not in gone] if onward
              else [here] + [p_ for p_ in HOLD_POSTURES if tuple(p_) != here])
     for height, pitch in order:
       _posed(sm, height, pitch, q0)
@@ -514,7 +516,7 @@ class Reach:
     (or its goal's), the posture the least bent that reaches the end --
     through `path`'s points first, from one posture that follows them all
     (`path_for`), turning to `turns`' at each (one a point of `path` and
-    one at `pos`), where given. False (nothing moves) for a hand that is
+    one at `pos`, None keeping the one before), where given. False (nothing moves) for a hand that is
     not out, or an end no posture reaches. How it ends is its `report`."""
     if not self.out(side):
       return False
@@ -526,8 +528,11 @@ class Reach:
       r = np.asarray(self.cmd[side].rot, dtype=float)
     end = np.asarray(pos, dtype=float)
     ways = [np.asarray(p, dtype=float) for p in (path or ())]
-    rots = ([np.asarray(t, dtype=float) for t in turns] if turns is not None
-            else [r] * (len(ways) + 1))
+    rots, last = [], r
+    for t in (turns if turns is not None else [None] * (len(ways) + 1)):
+      # a point with no turn keeps the one before: the hand's own, first
+      last = last if t is None else np.asarray(t, dtype=float)
+      rots.append(last)
     if len(rots) != len(ways) + 1:
       raise ValueError(f"a turn for each of the path's {len(ways)} points and its end, "
                        f"not {len(rots)}")
@@ -565,9 +570,12 @@ class Reach:
     turn gives to what it holds (`GIVE_RATE`) but about the jaws' own line;
     not giving, it holds its line and its turn -- hybrid force and
     position, the robot arm's old division. Until it has gone `distance_m` along its way ("distance"), it
-    is held fast, or it can reach no further. The posture is the one from
+    is held fast, a grip it began with is lost ("let go"), or it can reach
+    no further. The posture is the one from
     which the hand reaches its way's end, taken first. False (nothing
     moves) for a hand that is not out. How it ends is its `report`."""
+    if force <= 0.0:
+      raise ValueError(f"a pull pushes with some force, not {force} N")
     if not self.out(side):
       return False
     h, r = self.grip_now(side)
@@ -587,7 +595,7 @@ class Reach:
     self.pulls[side] = {"start": h.copy(), "t": 0.0, "ways": [], "fixed": True, "peak": 0.0,
                         **({"postured": 0.0} if moved else {}),
                         "pull": {"way": w, "force": float(force), "distance": float(distance_m),
-                                 "give": bool(give),
+                                 "give": bool(give), "gripped": self.grippers[side].held(),
                                  "last": h.copy(), "went": 0.0, "trail": [h.copy()],
                                  "still": 0.0, "anchor": h.copy()}}
     self.report[side] = None
@@ -725,6 +733,8 @@ class Reach:
     return False
 
   def step(self) -> None:
+    for g in self.grippers.values():
+      g.sample()
     if self.steps % self.every == 0:
       self._update(self.every * self.m.opt.timestep)
     self.steps += 1
@@ -846,6 +856,11 @@ class Reach:
     c, sm = self.cmd[side], self.self_model
     st["t"] += dt
     w, limit = pv["way"], pv["force"]
+    if pv["gripped"] and not self.grippers[side].held():
+      # A GRIP LOST ENDS THE PULL where the hand is: else it pulls on through
+      # the air to its distance, and its report is that free motion's
+      self._end(side, "let go", h, r)
+      return c.stiffness
     dh = h - pv["last"]
     if float(np.linalg.norm(dh)) >= STEP_M:
       pv["went"] += float(dh @ w)
@@ -907,8 +922,12 @@ class Reach:
     if ((ep > REPLAN_M or er > REPLAN_ROT)
         and st["t"] - st.get("planned", -REPLAN_S) >= REPLAN_S):
       st["planned"] = st["t"]
-      posture = self.posture_for(side, c.pos, rot=c.rot, onward=True)
+      # ...never one it has left this move: free to, two postures could take
+      # turns, each switch a fresh wait, and the move never end out of reach
+      left_ = st.setdefault("left", [])
+      posture = self.posture_for(side, c.pos, rot=c.rot, onward=True, past=left_)
       if posture is not None and tuple(posture) != tuple(self.posture):
+        left_.append(tuple(float(v) for v in self.posture))
         self.hold_posture(*posture)
         st["postured"] = st["t"]
     if ep < WILD_M:

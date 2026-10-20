@@ -25,6 +25,7 @@ import numpy as np
 import pytest
 
 from pluggybot.activity import door as dr
+from pluggybot.activity import drawer as dw
 from pluggybot.challenge import door, drawer, lid, place
 from pluggybot.economy import scoring
 from pluggybot.evaluation import counter as ct
@@ -132,6 +133,48 @@ def test_the_cube_passes_set_down_on_the_mat_upright_let_go_and_on_nothing_less(
   assert not ok and "past the 60 s" in why
 
 
+def test_a_check_is_held_its_whole_hold_and_gated_on_neither_falls_nor_tilt():
+  """A fall is lost time, never a verdict (Ben, 2026-10-17): the lid's
+  rule, the checks' too."""
+  for grade, row in ((drawer.eval_drawer, _drawer), (door.eval_door, _door),
+                     (place.eval_place, _cube)):
+    ok, _, why = grade(row(holdS=1.0))
+    assert not ok and "measured 1.0 s after the call" in why, grade
+    tilt = "robotTiltDeg" if grade is place.eval_place else "tiltDeg"
+    assert grade(row(falls=3, **{tilt: 80.0}))[0], grade
+    assert grade(row(limitS=None, elapsedS=lid.TIME_LIMIT_S + 1.0))[0] is False, grade
+
+
+def test_a_check_is_judged_as_measured_and_shown_rounded():
+  """Shown rounded, a number is judged as measured: a drawer 14.96 cm out
+  is short of 15, though it shows as 0.150 (#525) -- and a cube under the
+  mat's top is as far off it as one over it."""
+  assert not drawer.eval_drawer(_drawer(mostM=0.1496, outAtCallM=0.1496, outM=0.1496))[0]
+  assert not door.eval_door(_door(mostDeg=49.996, angleAtCallDeg=49.996, angleDeg=49.996))[0]
+  assert not place.eval_place(_cube(offM=0.0254))[0]
+  assert not place.eval_place(_cube(aboveM=-0.01))[0]
+
+
+def test_a_cube_lies_flat_on_any_face():
+  """It is a cube: every face is a bottom -- read off one, a cube set down
+  flat on another rested "tipped 180 deg" (#525)."""
+  from pluggybot.legs.probe import rot_about
+  q = np.zeros(4)
+  for axis, deg, want in (((1, 0, 0), 0, 0), ((1, 0, 0), 90, 0), ((1, 0, 0), 180, 0),
+                          ((0, 1, 0), 270, 0), ((0, 0, 1), 30, 0), ((1, 0, 0), 45, 45),
+                          ((0, 1, 0), 20, 20), ((0, 1, 0), 110, 20)):
+    mujoco.mju_mat2Quat(q, rot_about(np.array(axis, dtype=float), math.radians(deg)).ravel())
+    assert math.degrees(place.resting_tilt(q)) == pytest.approx(want, abs=1e-6), (axis, deg)
+  # ...as the grader's snapshot reads it: a cube upside down on the mat
+  m = mujoco.MjModel.from_xml_string(
+    '<mujoco><worldbody><body name="cube_mat"><geom name="cube_mat" type="box" size=".04 .04 .002"/>'
+    '</body><body name="cube" pos="0 0 .015" quat="0 1 0 0"><geom name="cube" type="box" '
+    'size=".013 .013 .013"/></body></worldbody></mujoco>')
+  d = mujoco.MjData(m)
+  mujoco.mj_forward(m, d)
+  assert place.measure(m, d)["tiltDeg"] == pytest.approx(0.0, abs=1e-6)
+
+
 def test_a_check_pays_nothing_and_is_shown_to_no_mind():
   rows = json.loads((SRC / "economy" / "challenges.json").read_text())["tasks"]
   for job in ("drawer", "door", "place"):
@@ -214,6 +257,30 @@ def test_the_set_outs_are_seeded_and_inside_their_ranges():
     assert ct.MAT_AHEAD[0] - 1e-9 <= ahead <= ct.MAT_AHEAD[1] + 1e-9
     assert ct.MAT_LEFT[0] - 1e-9 <= left <= ct.MAT_LEFT[1] + 1e-9
     assert ct.CUBE_AHEAD[0] - 1e-9 <= cube.cube[0] - start <= ct.CUBE_AHEAD[1] + 1e-9
+    so = ct.drawer_set_out(k)
+    assert so == ct.drawer_set_out(k)
+    c, s = math.cos(so.cabinet[2]), math.sin(so.cabinet[2])
+    knob = np.array(dw.KNOB_AT)
+    x = so.cabinet[0] + c * knob[0] - s * knob[1] - start
+    y = so.cabinet[1] + s * knob[0] + c * knob[1] - ct.START[1]
+    assert ct.KNOB_AHEAD[0] - 1e-9 <= x <= ct.KNOB_AHEAD[1] + 1e-9
+    assert ct.KNOB_LEFT[0] - 1e-9 <= y <= ct.KNOB_LEFT[1] + 1e-9
+
+
+def test_a_set_outs_place_is_not_its_props_hidden_draw():
+  """Off one seed, the furthest cube was always the heaviest, its weight
+  read off where it stood (#525); every set-out draws off a stream of its
+  own, never its prop's, nor its neighbour's."""
+  from pluggybot.activity import cube as cb
+  ks = range(16)
+
+  def ahead(seed, *ranges):
+    return [ct._drawn(k, seed, *ranges)[0][0] for k in ks]
+  pairs = ((ahead(ct.CUBE_SEED, ct.CUBE_AHEAD, ct.CUBE_LEFT), [cb.draw(k).cube_kg for k in ks]),
+           (ahead(ct.DRAWER_SEED), [dw.draw(k + 1).friction for k in ks]),
+           (ahead(ct.DOOR_SEED, ct.DOOR_AHEAD, ct.DOOR_LEFT), [dr.draw(k + 1).friction for k in ks]))
+  for placed, hidden in pairs:
+    assert abs(np.corrcoef(placed, hidden)[0, 1]) < 0.9
 
 
 # ---- the tally ------------------------------------------------------------------------
@@ -230,6 +297,58 @@ def test_a_jobs_bar_is_read_only_where_every_set_out_flew():
   assert got["lid"]["met"] is False
   assert got["drawer"]["met"] is None and got["place"] == {"flown": [], "passed": [],
                                                            "met": None}
+  # ...met at the bar itself, and read nowhere a set-out did not fly
+  rows = [row("door", k, k < hc.BAR) for k in hc.SET_OUTS]
+  rows += [row("lid", k, True) for k in hc.SET_OUTS[:-1]]
+  got = hc.tally(rows)
+  assert got["door"]["met"] is True and got["lid"]["met"] is None
+  # ...over the check's own set-outs alone, each once: one flown twice
+  # passes only where both did
+  rows = [row("drawer", k, k in (2, 5)) for k in hc.SET_OUTS]
+  rows += [row("drawer", k, True) for k in range(8, 16)]
+  rows += [row("drawer", 2, True), row("drawer", 0, True)]
+  got = hc.tally(rows)
+  assert got["drawer"] == {"flown": list(hc.SET_OUTS), "passed": [2, 5], "met": False}
+
+
+def test_a_checks_activity_senses_and_its_grader_watches_its_attempt():
+  """The door's latch is its activity's, sensed every step -- unsensed it
+  stays bolted for good -- and the attempt is graded by the door's grader."""
+  from pluggybot.evaluation import attempts as at
+  world = at.set_out(at.Task(chest=0, body="humanoid", mount="counter", grader="door"))
+  try:
+    sensed, sense = [], world.activity.sense
+    world.activity.sense = lambda m, d: sensed.append(1) or sense(m, d)
+    row = at.attempt_in(world, lambda body: body.hold_routine(0.01), budget_s=1.0, hold_s=0.01)
+    assert sensed and row["verdict"]["ok"] is False and "angleDeg" in row["verdict"]["metrics"]
+  finally:
+    world.close()
+
+
+def test_spots_edges_read_a_turned_cubes_turn():
+  """Every check's grip takes its turn off the tag's edges: read mirrored,
+  a cube turned 28 deg read -30 (#525)."""
+  from pluggybot.evaluation import attempts as at
+
+  def fold(a):
+    return (a + math.pi / 4) % (math.pi / 2) - math.pi / 4
+  world = at.set_out(at.Task(chest=3, body="humanoid", mount="counter", grader="place"))
+  try:
+    body, got = world.body, None
+    for down in st.SPOT_GAZES:
+      if down:
+        body.run(body.gaze_routine(down))
+      body.run(body.hold_routine(st.SPOT_STILL_S))
+      got = body.spot(56)
+      if got:
+        break
+    q = world.data.xquat[world.model.body("cube").id]
+    true = math.atan2(2 * (q[0] * q[3] + q[1] * q[2]), 1 - 2 * (q[2] ** 2 + q[3] ** 2))
+    assert abs(fold(true)) > math.radians(10)          # the premise: a turned cube
+    read = math.atan2(got["edge"][1], got["edge"][0])
+    assert abs(fold(read - true)) < math.radians(3.0)
+  finally:
+    world.close()
 
 
 @pytest.mark.parametrize("job", ["drawer", "door", "place"])

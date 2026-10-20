@@ -250,6 +250,11 @@ HELD_GAP_M, HELD_SHARE = 0.005, 0.5
 #: The least a grip may be shut with, N a pad: the sheet's adjustable
 #: range is 5-120 (`parts.GRIPPER`).
 GRIP_MIN_N = 5.0
+#: The squeeze a grip is judged by is its reading's running mean over this,
+#: s, sampled every physics step (`Gripper.sample`): one reading's noise,
+#: the current sense's 5.1 N, read a 15 N grip as nothing held 7 % of the
+#: time and a 5 N one 31 % (#525).
+SQUEEZE_S = 0.1
 
 
 class Gripper:
@@ -264,6 +269,7 @@ class Gripper:
     self.sense = GripperSense(model, side, prefix, key)
     self.shut_asked = False
     self.force = hp.GRIPPER.grip_force_n
+    self.gap, self.squeeze = self.sense.read(data)
 
   def _limit(self, force: float) -> None:
     """Each pad squeezes at most `force`, N: the motor's limit, twice it
@@ -286,8 +292,16 @@ class Gripper:
     self.d.ctrl[self.act] = 0.0
     self.shut_asked = True
 
+  def sample(self) -> None:
+    """One physics step's reading: the gap as it reads, the squeeze into
+    its running mean (`SQUEEZE_S`)."""
+    gap, squeeze = self.sense.read(self.d)
+    self.gap = gap
+    self.squeeze += min(1.0, self.m.opt.timestep / SQUEEZE_S) * (squeeze - self.squeeze)
+
   def read(self) -> tuple[float, float]:
-    return self.sense.read(self.d)
+    """(gap m, squeeze N) as last sampled, the squeeze its running mean."""
+    return self.gap, self.squeeze
 
   def held(self) -> bool:
     gap, squeeze = self.read()

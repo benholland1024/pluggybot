@@ -12,7 +12,8 @@ THE CRITERIA, written first. An attempt passes when:
 
   1. PLACED: `HOLD_S` after the call the cube rests on the mat: its middle
      within `PLACE_M` of the mat's across the counter, its bottom within
-     `RESTING_M` of the mat's top, and tilted no more than `UPRIGHT_RAD`;
+     `RESTING_M` of the mat's top, and flat on a face -- any: it is a
+     cube -- within `UPRIGHT_RAD` (`resting_tilt`);
   2. SET DOWN, NEVER DROPPED: at no moment, through the attempt and the
      hold, did the cube come down faster than `DROP_M_S`;
   3. LET GO: nothing of the robot touches the cube at any moment of the
@@ -37,7 +38,7 @@ from pluggybot.rack.coupling import contact_pairs
 
 #: 1: within this of the mat's middle, m (the mat's half side is 0.04: the
 #: cube's whole bottom on it), resting within this of its top, m, and
-#: upright within this, rad.
+#: flat on a face within this, rad.
 PLACE_M, RESTING_M, UPRIGHT_RAD = 0.025, 0.004, math.radians(10.0)
 #: 2: coming down no faster than this, m/s: let go 1.3 cm over the mat, a
 #: cube lands at 0.5.
@@ -94,6 +95,16 @@ class Watch:
           self.touched.add(self.model.geom(other).name or f"geom {other}")
 
 
+def resting_tilt(quat) -> float:
+  """Radians a cube is off lying flat on a face: between the world's up and
+  the nearest of its own three axes, either way -- every face of it is a
+  bottom (#525: read off one face, a cube set down flat on another rested
+  "tipped 180 deg")."""
+  w, x, y, z = (float(v) for v in quat)
+  up = (2.0 * (x * z - w * y), 2.0 * (y * z + w * x), 1.0 - 2.0 * (x * x + y * y))
+  return math.acos(min(1.0, max(abs(v) for v in up)))
+
+
 def measure(model, data, name: str = "cube") -> dict:
   """One snapshot of the cube against the mat, as the grader sees it: how
   far its middle is from the mat's across the counter, m, how high its
@@ -103,7 +114,7 @@ def measure(model, data, name: str = "cube") -> dict:
   top = float(data.xpos[mat][2]) + float(model.geom_size[model.geom(f"{name}_mat").id][2])
   p, m = data.xpos[cube], data.xpos[mat]
   return {"t": float(data.time), "offM": float(math.hypot(p[0] - m[0], p[1] - m[1])),
-          "aboveM": float(p[2]) - half - top, "tiltDeg": math.degrees(lid.tilt(data.xquat[cube]))}
+          "aboveM": float(p[2]) - half - top, "tiltDeg": math.degrees(resting_tilt(data.xquat[cube]))}
 
 
 def measurements(at_call: dict | None, settled: dict | None, watch: Watch | None,

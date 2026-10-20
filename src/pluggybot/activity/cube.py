@@ -40,9 +40,9 @@ class Load:
   friction: float = 0.8
 
 
-#: The ranges `draw` draws from: a die's weight to a steel cube's.
+#: The ranges `draw` draws from: a die's weight to twice a steel cube's.
 RANGES = {"cube_kg": (0.03, 0.30), "friction": (0.5, 1.0)}
-#: `draw(k)`'s seed is this plus k.
+#: `draw(k)`'s stream is this and k (`counter._drawn`).
 DRAW_SEED = 5254
 
 
@@ -50,7 +50,7 @@ def draw(seed: int) -> Load:
   """Cube `seed`'s hidden parameters (seeded): drawn from `RANGES`."""
   if seed < 0:
     raise ValueError(f"a cube's seed is a whole number from 0, not {seed}")
-  rng = np.random.default_rng(DRAW_SEED + seed)
+  rng = np.random.default_rng((DRAW_SEED, seed))
   return Load(**{n: float(rng.uniform(*r)) for n, r in RANGES.items()})
 
 
@@ -94,9 +94,9 @@ def attach_props(spec, load: Load, cube_at, mat_at, yaw: float = 0.0, z: float =
 # ---- the activity ---------------------------------------------------------------
 
 #: The cube reads LIFTED with its bottom this far over the counter, m, and
-#: down again under half of it; ON THE MAT with its middle within the mat's
-#: square and its bottom within `RESTING_M` of the mat's top.
-LIFT_ON, RESTING_M = 0.010, 0.005
+#: down again under half of it. On the mat or not is the grader's
+#: (`challenge/place.py`).
+LIFT_ON = 0.010
 
 
 class Cube(Activity):
@@ -104,7 +104,6 @@ class Cube(Activity):
   camera over the counter, never the robot's senses):
 
     lifted  LIVE: its bottom more than `LIFT_ON` over the surface it was on
-    on_mat  LIVE: resting on the mat
 
   ⚠ `load` is the truth (`draw`): nothing of it is a flag."""
 
@@ -112,14 +111,10 @@ class Cube(Activity):
     super().__init__(name)
     self.load = load
     self.body = int(model.body(name).id)
-    self.mat = int(model.body(f"{name}_mat").id)
     self.surface_z = float(surface_z)
     self.lifted = Threshold(on=LIFT_ON, off=LIFT_ON / 2)
-    self.set(lifted=False, on_mat=False)
+    self.set(lifted=False)
 
   def sense(self, model, data) -> None:
-    p, m = data.xpos[self.body], data.xpos[self.mat]
-    bottom = float(p[2]) - CUBE
-    on = (max(abs(float(p[0] - m[0])), abs(float(p[1] - m[1]))) <= MAT
-          and abs(bottom - (float(m[2]) + MAT_T)) <= RESTING_M)
-    self.set(lifted=self.lifted.update(bottom - self.surface_z), on_mat=bool(on))
+    bottom = float(data.xpos[self.body][2]) - CUBE
+    self.set(lifted=self.lifted.update(bottom - self.surface_z))

@@ -94,10 +94,11 @@ class Hinge:
   lever_spring: float = 0.8
 
 
-#: The ranges `draw` draws from: a lever a tip-press of 2-5 N holds down.
+#: The ranges `draw` draws from: a lever whose spring alone asks 2.5-7.4 N
+#: at its tip to trip the latch and 3.5-10.5 N at its stop.
 RANGES = {"friction": (0.02, 0.15), "damping": (0.02, 0.20), "door_kg": (0.4, 1.0),
           "lever_spring": (0.4, 1.2)}
-#: `draw(k)`'s seed is this plus k.
+#: `draw(k)`'s stream is this and k (`counter._drawn`).
 DRAW_SEED = 5252
 
 
@@ -105,7 +106,7 @@ def draw(seed: int) -> Hinge:
   """Door `seed`'s hidden parameters (seeded): drawn from `RANGES`."""
   if seed < 0:
     raise ValueError(f"a door's seed is a whole number from 0, not {seed}")
-  rng = np.random.default_rng(DRAW_SEED + seed)
+  rng = np.random.default_rng((DRAW_SEED, seed))
   return Hinge(**{n: float(rng.uniform(*r)) for n, r in RANGES.items()})
 
 

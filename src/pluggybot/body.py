@@ -735,7 +735,7 @@ class Body(abc.ABC):
     through `path` first, where given: points walked in turn as one
     motion, from one posture that follows them all (`hand_follows`),
     turning to `turns`' at each (one a point of `path` and one at `pos`,
-    world from grip) where they are given. The
+    world from grip, None keeping the one before) where they are given. The
     posture is the body's to choose (#493). Returns how it ended (`why`:
     "arrived", "held back" -- its command there, the hand held short of it
     -- "out of reach", "not out", "fell", "feet moved", "out of time"), in
@@ -963,10 +963,11 @@ class StubBody(Body):
     #: shut where a test sent it holds, as the stub's every walk arrives.
     self.hands: dict[str, tuple] = {}
     self.grips: dict[str, bool] = {}
-    #: ...the force each was last shut with (#525), and how wide what a shut
-    #: hand holds is, m
+    #: ...the force each was last shut with (#525), how wide what a shut
+    #: hand holds is, m, and which grippers are shut (each starts so)
     self.squeezes: dict[str, float | None] = {}
     self.held_gap = 0.026
+    self.shut: dict[str, bool] = {}
     #: ...and the hands a test says reach nothing (#493): a reach with one
     #: is out of reach -- or, `unturned`, nothing turned as asked -- and the
     #: turns a carried hand was asked to take, (side, verb, turn) in turn,
@@ -1374,6 +1375,7 @@ class StubBody(Body):
 
   def grip_routine(self, side, closed, force=None):
     self.grips[side] = bool(closed) and side in self.hands
+    self.shut[side] = bool(closed)
     self.squeezes[side] = force
     return self.grips[side] if closed else True
     yield
@@ -1382,8 +1384,11 @@ class StubBody(Body):
     return self.grips.get(side, False)
 
   def grip_gap(self, side) -> float:
-    """Shut on what a test put in it (`held_gap`), or open."""
-    return self.held_gap if self.grips.get(side) else 0.09
+    """Shut on what a test put in it (`held_gap`), shut on nothing -- as
+    each gripper starts -- or open, the Dex1-1's stroke."""
+    if self.grips.get(side):
+      return self.held_gap
+    return 0.0 if self.shut.get(side, True) else 0.09
 
   def hand_force(self, side):
     return (0.0, 0.0, 0.0)
@@ -1403,11 +1408,13 @@ class StubBody(Body):
     yield
 
   def step_routine(self, ahead, left=0.0, turn=0.0, patience=15.0):
-    """The step at once, as asked -- turned, then walked -- unless a hand
-    holds something; its asks kept in `stepped`."""
+    """The step at once, as asked -- its hands home, turned, then walked --
+    unless a hand holds something; its asks kept in `stepped`."""
     self.stepped.append((float(ahead), float(left), float(turn)))
     if any(self.grips.get(s) for s in self.hands):
       return {"why": "holding", "seconds": 0.0, "dx": 0.0, "dy": 0.0, "turn": 0.0}
+    # ...its hands home first, as a walk's are
+    self.hands.clear()
     c, s_ = math.cos(turn), math.sin(turn)
     dx, dy = c * ahead - s_ * left, s_ * ahead + c * left
     cw, sw = math.cos(self.theta), math.sin(self.theta)

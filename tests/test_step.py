@@ -6,10 +6,13 @@ are SimNotes' "Stepping toward the work".
   1. `step` reports where the stance went in the frame it stood in before,
      read as sensors, and a place read before is turned by them;
   2. a step carries nothing: holding something, nothing moves;
-  3. the humanoid's step turns first, stops its walk where what it believes
-     it has walked and its stride's carry reach the step, reports a turn as
-     on the spot, says `blocked` where its walk gets nowhere, and does not
-     move holding something;
+  3. the humanoid's step hands its legs to the walker before it measures
+     anything, turns first -- its heading counted unwrapped -- stops its
+     walk where what it believes it has walked and its stride's carry reach
+     the step, walks an oblique step the walker would skew as two, reports a
+     turn as on the spot, says `blocked` where its walk gets nowhere and
+     `fell` for a fall up to its last settle, commands nothing once fallen,
+     and does not move holding something;
   4. its odometry takes a shuffle's swing foot off the floor.
 """
 
@@ -51,6 +54,20 @@ def test_a_step_reports_where_the_feet_went_and_a_place_read_before_turns_by_it(
   assert "failedAt" in ran and "step" in ran["steps"][-1]["reason"]
 
 
+def test_the_stubs_step_and_grip_read_as_the_humanoids():
+  """A step brings the hands home, as the walker takes its legs; a gripper
+  starts shut, and shut on nothing reads closed (#525)."""
+  body = StubBody(*_bare())
+  assert body.grip_gap("left") == 0.0
+  ran = _fly('def a():\n    reach("left", 0.3, 0.2, 0.9)\n    open_hand("left")\n'
+             '    g = read("left.gap")\n    step(0.2)\n    if not pull("left", 0, 0, 1, 10, 0.05):\n'
+             '        wait(0.1)\n', body)
+  pull = [s_ for s_ in ran["steps"] if s_["verb"] == "pull"][0]
+  assert ran["locals"]["g"] == pytest.approx(0.09) and "is not out" in pull["reason"]
+  ran = _fly('def a():\n    if not close_hand("left"):\n        g = read("left.gap")\n', body)
+  assert ran["locals"]["g"] == 0.0
+
+
 def test_a_step_carries_nothing():
   body = StubBody(*_bare())
   ran = _fly('def a():\n    reach("left", 0.3, 0.2, 0.9)\n    close_hand("left")\n'
@@ -65,22 +82,58 @@ def test_a_step_carries_nothing():
 
 class Walk:
   """The walking policy as the step drives it: each command a physics step
-  at the twist asked, its believed pose moving so; a stride's carry after
-  the last command (`coast`); `wall`, where its walk gets nowhere."""
+  at the twist asked, its believed pose (the pelvis's) moving so; a stride's
+  carry after the last command (`coast`); `wall`, where its walk gets
+  nowhere; the legs handed to it in `handover_s`, the pelvis coming
+  `handover_m` forward over the feet meanwhile (out of a bow); and a fall
+  at its command `fall_at`."""
 
-  def __init__(self, coast_s=0.22, wall=None, turn_drift=0.0):
+  def __init__(self, coast_s=0.22, wall=None, turn_drift=0.0, handover_s=0.0, handover_m=0.0,
+               fall_at=None, settle_m=0.0):
     self.pose, self.falls, self.legs, self.t = (0.0, 0.0, 0.0), 0, "stand", 0.0
     self.coast_s, self.wall, self.v, self.asked = coast_s, wall, (0.0, 0.0), []
     #: how far a turn's shuffle walks the BELIEF a command, m
     self.turn_drift = turn_drift
+    self.handover_s, self.handover_m, self.fall_at = handover_s, handover_m, fall_at
+    #: how far a turn's feet settle as the legs are handed back, m
+    self.settle_m = settle_m
+    #: where the pelvis stands ahead of the feet's middle, m
+    self.lean = -handover_m
+
+  @property
+  def stance(self):
+    x, y, yaw = self.pose
+    return (x - math.cos(yaw) * self.lean, y - math.sin(yaw) * self.lean, yaw)
 
   def _getup_routine(self):
     return
     yield
 
-  def _twist_routine(self, vx, vy, w):
+  def to_walk_routine(self):
+    if self.legs == "walk":
+      return
+    for k in range(int(round(self.handover_s / DT))):
+      x, y, yaw = self.pose
+      came = self.handover_m / max(1, int(round(self.handover_s / DT)))
+      self.pose, self.lean = (x + math.cos(yaw) * came, y + math.sin(yaw) * came, yaw), self.lean + came
+      self.t += DT
+      yield hb.STILL
     self.legs = "walk"
+
+  def _carry(self):
+    """A walk's stride carries on after its last command."""
+    if self.asked and any(self.asked[-1][:2]):
+      x, y, yaw = self.pose
+      self.pose = (x + self.v[0] * self.coast_s, y + self.v[1] * self.coast_s, yaw)
+    self.v = (0.0, 0.0)
+
+  def _twist_routine(self, vx, vy, w):
+    yield from self.to_walk_routine()
+    if self.asked and self.asked[-1] != (vx, vy, w):
+      self._carry()
     self.asked.append((vx, vy, w))
+    if self.fall_at is not None and len(self.asked) == self.fall_at:
+      self.falls += 1
     x, y, yaw = self.pose
     c, s = math.cos(yaw), math.sin(yaw)
     nx, ny = x + (c * vx - s * vy) * DT, y + (s * vx + c * vy) * DT
@@ -94,9 +147,11 @@ class Walk:
     yield hb.STILL
 
   def to_stand_routine(self):
-    x, y, yaw = self.pose
-    self.pose = (x + self.v[0] * self.coast_s, y + self.v[1] * self.coast_s, yaw)
-    self.v, self.legs = (0.0, 0.0), "stand"
+    if self.asked and not any(self.asked[-1][:2]):
+      x, y, yaw = self.pose
+      self.pose = (x + self.settle_m, y, yaw)
+    self._carry()
+    self.legs = "stand"
     return
     yield
 
@@ -120,18 +175,22 @@ class Stepper(hb.HumanoidBody):
 
   @property
   def stance(self):
-    return self.mission.pose
+    return self.mission.stance
 
   def gripped(self, side):
     return self.held
 
 
-def _step(body, *args):
+def _step(body, *args, fall_in_settle=False):
+  """The step driven to its end, its clock the walk's -- a fall, where
+  asked, once its legs are handed back to the standing policy."""
   routine = body.step_routine(*args)
   try:
     while True:
       next(routine)
       body._d.time = body.mission.t
+      if fall_in_settle and body.mission.legs == "stand" and body.mission.asked:
+        body.mission.falls, fall_in_settle = body.mission.falls + 1, False
   except StopIteration as e:
     return e.value
 
@@ -166,7 +225,7 @@ def test_the_humanoids_step_turns_first_and_takes_the_turn_as_on_the_spot():
                                                   0.3 * math.sin(rep["turn"])), abs=0.004)
   # ...and its turn's shuffle walks the belief, which the step leaves out:
   # turned alone, the feet went nowhere; turned and walked, the walk alone
-  walk = Walk(turn_drift=0.0001)
+  walk = Walk(turn_drift=0.0001, settle_m=0.01)
   rep = _step(_walker(walk), 0.0, 0.0, -0.4)
   assert walk.pose[0] > 0.01 and (rep["dx"], rep["dy"]) == (0.0, 0.0) and rep["turn"] < -0.35
   walk = Walk(coast_s=hb.STEP_STOP_S, turn_drift=0.0001)
@@ -177,11 +236,57 @@ def test_the_humanoids_step_turns_first_and_takes_the_turn_as_on_the_spot():
 TURN_STEP = hb.TURN_W * DT
 
 
+def test_the_humanoids_step_measures_nothing_until_its_legs_are_the_walkers():
+  """Out of a deep bow the pelvis came 16 cm forward over the feet as the
+  arms came home, which a walk measured from before it counted as walked
+  (ok, without a step); and the hand-over outlasted `STEP_STUCK_S`, which
+  read as `blocked` on a bare floor (#525)."""
+  walk = Walk(coast_s=hb.STEP_STOP_S, handover_s=1.5, handover_m=0.16)
+  rep = _step(_walker(walk), 0.3)
+  assert rep["why"] == "stepped" and rep["dx"] == pytest.approx(0.3, abs=0.01)
+  walk = Walk(coast_s=hb.STEP_STOP_S, handover_s=1.5)
+  rep = _step(_walker(walk), -0.3)
+  assert rep["why"] == "stepped" and rep["dx"] == pytest.approx(-0.3, abs=0.01)
+
+
+def test_an_oblique_step_the_walker_would_skew_is_walked_as_two():
+  """The walker raises a forward speed under `V_MIN` to it and leaves the
+  sideways one: a step at `STEP_V` more than 48 deg off its way walked 12 cm
+  further ahead than asked (#525)."""
+  assert hb._step_walks(0.2, 0.1) == [(0.2, 0.1)]
+  assert hb._step_walks(0.0, 0.2) == [(0.0, 0.2)] and hb._step_walks(-0.3, 0.0) == [(-0.3, 0.0)]
+  assert hb._step_walks(0.03, 0.15) == [(0.03, 0.0), (0.0, 0.15)]
+  assert hb._step_walks(-0.05, 0.2) == [(-0.05, 0.0), (0.0, 0.2)]
+  assert hb._step_walks(0.0, 0.0) == []
+  walk = Walk(coast_s=hb.STEP_STOP_S)
+  rep = _step(_walker(walk), 0.3, 0.45)
+  assert all(abs(vx) < 1e-9 or abs(vx) >= hb.V_MIN for vx, _, _ in walk.asked)
+  assert (rep["dx"], rep["dy"]) == pytest.approx((0.3, 0.45), abs=0.006)
+
+
+def test_a_turn_past_pi_ends_and_a_fall_up_to_the_last_settle_is_a_fall():
+  walk = Walk()
+  rep = _step(_walker(walk), 0.0, 0.0, 3.2)
+  assert rep["why"] == "stepped" and walk.t < 4.0
+  assert rep["turn"] == pytest.approx(math.remainder(3.2, 2 * math.pi), abs=hb.TURN_STOP_RAD + TURN_STEP)
+  # ...a fall as it settles is a fall, and its report no step
+  walk = Walk(coast_s=hb.STEP_STOP_S)
+  assert _step(_walker(walk), 0.3, fall_in_settle=True)["why"] == "fell"
+  # ...and fallen, it commands nothing more
+  walk = Walk(fall_at=10)
+  assert _step(_walker(walk), 0.3)["why"] == "fell" and len(walk.asked) == 10
+  walk = Walk(fall_at=10)
+  assert _step(_walker(walk), 0.0, 0.0, 1.0)["why"] == "fell" and len(walk.asked) == 10
+
+
 def test_a_step_that_gets_nowhere_says_it_is_blocked_and_one_holding_does_not_move():
   walk = Walk(wall=0.05)
   rep = _step(_walker(walk), 0.3)
   assert rep["why"] == "blocked" and rep["dx"] == pytest.approx(0.05, abs=0.002)
   assert walk.t <= 2 * hb.STEP_STUCK_S + 0.01
+  # ...and a walk given less time than it takes runs out of it
+  walk = Walk()
+  assert _step(_walker(walk), 0.3, 0.0, 0.0, 0.1)["why"] == "out of time"
   # ...and with something in its hand it neither turns nor walks
   walk = Walk()
   body = _walker(walk)

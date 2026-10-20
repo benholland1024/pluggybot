@@ -115,10 +115,12 @@ def _placed(knob, off, yaw: float) -> tuple[float, float, float]:
 def _drawn(k: int, seed: int, ahead=KNOB_AHEAD, left=KNOB_LEFT, turned: float = TURNED):
   """A check's set-out k (#525): where its handle stands -- `ahead` of the
   soles' middle and `left` of it -- and how far its prop is turned, drawn
-  as a chest's are, off `seed` plus k."""
+  off the stream (`seed`, k). ⚠ A STREAM OF ITS OWN, never its prop's
+  hidden draw's: off one seed with it, the furthest cube was always the
+  heaviest, and its weight could be read off where it stood (#525)."""
   if k < 0:
     raise ValueError(f"a set-out is a whole number from 0, not {k}")
-  rng = np.random.default_rng(seed + k)
+  rng = np.random.default_rng((seed, k))
   sx = START[0] + _stance_ahead()
   fore, side = float(rng.uniform(*ahead)), float(rng.uniform(*left))
   return (sx + fore, START[1] + side), float(rng.uniform(-turned, turned)), rng
@@ -140,7 +142,7 @@ class DrawerSetOut:
     dr.attach_cabinet(spec, self.runners, self.cabinet[:2], self.cabinet[2], z=COUNTER_H)
 
 
-#: `drawer_set_out(k)`'s seed is this plus k.
+#: `drawer_set_out(k)`'s stream is this and k (`_drawn`).
 DRAWER_SEED = 5251
 
 
@@ -173,7 +175,7 @@ class DoorSetOut:
     dr.attach_cupboard(spec, self.hinge, self.cupboard[:2], self.cupboard[2], z=COUNTER_H)
 
 
-#: `door_set_out(k)`'s seed is this plus k; how far its cupboard is turned
+#: `door_set_out(k)`'s stream is this and k (`_drawn`); how far its cupboard is turned
 #: at most, rad -- its door swings toward the robot -- and where its lever's
 #: tip stands, this far ahead of the soles' middle and this far to its
 #: left, m: the tip comes 7 cm nearer and 9 cm to the left as the door
@@ -229,7 +231,7 @@ class CubeSetOut:
 #: left hand tilted 45 deg the cube (#525; SimNotes, "The humanoid stands,
 #: reaches and grasps": its envelope reaches 0.35-0.55 m ahead at 0.80-0.94).
 BOARD_H, BOARD_MARGIN = 0.06, 0.08
-#: `cube_set_out(k)`'s seed is this plus k; where the cube rests -- this
+#: `cube_set_out(k)`'s stream is this and k (`_drawn`); where the cube rests -- this
 #: far ahead of the soles' middle and this far to its left, m -- and how far
 #: it is turned at most, rad; where the mat lies from it: this far to its
 #: left and this far further ahead, m -- and how far behind the counter's
@@ -238,7 +240,7 @@ BOARD_H, BOARD_MARGIN = 0.06, 0.08
 #: and its reach boxed a cube into 4 cm -- nearer than 0.29 m the head
 #: camera did not see it (5 of 8), past 0.34 the carry 6-10 cm ahead left
 #: every posture (6 of 8) (#525).
-CUBE_SEED, CUBE_AHEAD, CUBE_LEFT, CUBE_TURNED = 5254, (0.40, 0.46), (0.13, 0.17), math.radians(30.0)
+CUBE_SEED, CUBE_AHEAD, CUBE_LEFT, CUBE_TURNED = 5255, (0.40, 0.46), (0.13, 0.17), math.radians(30.0)
 MAT_LEFT, MAT_AHEAD, CUBE_EDGE = (-0.01, 0.01), (0.06, 0.08), 0.04
 
 

@@ -984,6 +984,7 @@ def _spot(life, args: dict) -> Routine:
   from pluggybot.procedure import axes
   tag = args["tag"]
   if float(tag) != int(tag):
+    _reports(life).pop("spot", None)
     return {"ok": False, "reason": f"a tag is a whole number, not {tag}"}
   got, bowed, seen = None, False, None
   for down in SPOT_GAZES:
@@ -1177,13 +1178,10 @@ def _move_hand(life, args: dict) -> Routine:
   points = _paths(life).pop(hand, [])
   end = _hand_place(life, args)
   places = [p for p, _ in points]
+  # a point with no turn keeps the one before -- the hand's own, first
   turns = None
   if rot is not None or any(r is not None for _, r in points):
-    last = next((r for _, r in points if r is not None), rot)
-    turns = []
-    for _, r in points + [(end, rot)]:
-      last = r if r is not None else last
-      turns.append(last)
+    turns = [r for _, r in points] + [rot]
   speed = float(args.get("speed", _SPEED.default))
   length = sum(math.dist(a, b) for a, b in zip(places + [end], (places + [end])[1:]))
   rep, felt = yield from _felt_routine(life, hand, life.body.move_hand_routine(
@@ -1214,6 +1212,7 @@ def _pull(life, args: dict) -> Routine:
   hand = args["hand"]
   d = (float(args["dx"]), float(args["dy"]), float(args["dz"]))
   if math.sqrt(sum(v * v for v in d)) == 0.0:
+    _reports(life).pop("pull", None)
     return {"ok": False, "reason": "give the pull a way: (dx, dy, dz) are all 0"}
   rep, felt = yield from _felt_routine(life, hand, life.body.pull_routine(
     hand, axes.from_stance(life, d, point=False), float(args["force"]),
@@ -1222,6 +1221,8 @@ def _pull(life, args: dict) -> Routine:
   out = {"hand": hand, **_hand_report(life, hand, rep), "force": rep.get("force"),
          "felt": felt}
   if rep.get("why") in ("not out", "fell"):
+    # ...and no reading: the last pull's would read as this one's
+    _reports(life).pop("pull", None)
     return {"ok": False, **out,
             "reason": MOVE_WHY.get(rep["why"], "the pull did not begin").format(hand=hand)}
   way = axes.in_stance(life, rep.get("direction") or (0.0, 0.0, 0.0), point=False)
@@ -1419,7 +1420,9 @@ HANDS_VERBS: dict[str, Verb] = {
                 "either way, a two-jaw grip -- or at whatever turn your arm finds where those "
                 "are all left 0. It goes out to a point short of it, then in along the "
                 "fingers; you take whatever posture reaches. stiffness 1 is your arm's full "
-                "stiffness, less is softer. ok once it holds there"),
+                "stiffness, less is softer. ok once it holds there -- or as near as it came: "
+                "what it touches on its way in can hold it a few cm short, and your hand's "
+                "place (`left.x` and the rest) says where it is"),
   "via": Verb("via", {"hand": _HAND, **_HAND_AT, **_TURN}, _via,
               "add the point (x, y, z) to your hand's path, the grip turned there to "
               "(fx, fy, fz) and (jx, jy, jz) where given as for `reach`; nothing moves "
@@ -1455,7 +1458,8 @@ HANDS_VERBS: dict[str, Verb] = {
                "turn `turn` rad on the spot (left, +), then walk `ahead` m and `left` m in "
                "the frame you then stand in (negative: back, right), and stand still -- your "
                "hands home first; a step carries nothing. A walk goes at least a stride, "
-               "about 12 cm, and may stop a few cm off what you asked. Your stance frame "
+               "about 10 cm, and may stop a few cm off what you asked; a turn shuffles your "
+               "feet a few cm that `step.*` does not count. Your stance frame "
                "goes with your feet: where they went in the frame you stood in before rides "
                "`step.*` (`step.dx` ahead, `step.dy` left, m, and `step.turn`, rad), so a "
                "place (x, y) you read before is now (c (x - dx) + s (y - dy), c (y - dy) - "
@@ -1490,7 +1494,7 @@ def language(facts: "WorldFacts | None") -> dict[str, Verb]:
 
 def hand_facts(measure: bool = True) -> "WorldFacts":
   """What a procedure on the humanoid's hands is validated against (issues
-  #493, #525): standing still and its arms' joints, the hands' vocabulary
+  #493, #525): standing, a `step` at a time, and its arms' joints, the hands' vocabulary
   (`HAND_VERBS`) -- with the depth camera's `measure` unless an arm is about
   its absence -- their sensors and the clock; a verb may be an `if`'s test,
   and an expression may call the maths (`lang.MATH`)."""

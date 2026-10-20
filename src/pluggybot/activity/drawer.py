@@ -60,7 +60,7 @@ class Runners:
 #: The ranges `draw` draws from: a light drawer's to a heavy one's that
 #: still slides on a soft pull.
 RANGES = {"friction": (1.5, 6.0), "damping": (1.0, 6.0), "drawer_kg": (0.4, 1.6)}
-#: `draw(k)`'s seed is this plus k.
+#: `draw(k)`'s stream is this and k (`counter._drawn`).
 DRAW_SEED = 5250
 
 
@@ -68,7 +68,7 @@ def draw(seed: int) -> Runners:
   """Drawer `seed`'s hidden parameters (seeded): drawn from `RANGES`."""
   if seed < 0:
     raise ValueError(f"a drawer's seed is a whole number from 0, not {seed}")
-  rng = np.random.default_rng(DRAW_SEED + seed)
+  rng = np.random.default_rng((DRAW_SEED, seed))
   return Runners(**{n: float(rng.uniform(*r)) for n, r in RANGES.items()})
 
 

@@ -102,7 +102,8 @@ def test_no_hand_verb_knows_the_chest():
   grip (half a cube in, the fingers 25 deg down, the jaws across)."""
   for v in st.HANDS_VERBS.values():
     text = v.doc.lower()
-    for word in ("lid", "chest", "knob", "hinge", "53", "drop handle"):
+    for word in ("lid", "chest", "knob", "hinge", "53", "drop handle", "drawer", "door",
+                 "lever", "cupboard", "cabinet", "cube", "mat", "54", "55", "56", "57"):
       assert not re.search(rf"\b{word}\b", text), (v.name, word)
     for name, arg in v.args.items():
       if name in ("fx", "fy", "fz", "jx", "jy", "jz"):
@@ -381,7 +382,20 @@ def _bare_reach():
   r.posture = np.zeros(2)
   r.postures = []
   r.hold_posture = lambda height, pitch: r.postures.append((height, pitch))
+  r.grippers = {s: _Grip() for s in hm.SIDES}
   return r
+
+
+class _Grip:
+  """A gripper as a bare reach reads it: holding what a test says."""
+
+  holding = False
+
+  def held(self):
+    return self.holding
+
+  def sample(self):
+    pass
 
 
 def _turned(deg):
@@ -626,6 +640,20 @@ def test_a_pull_takes_a_way_of_any_length():
   assert ran["locals"]["m"] == pytest.approx(0.1)
   ran = _fly('def a():\n    reach("left", 0.3, 0.2, 0.9)\n    pull("left", 0, 0, 0, 10, 0.1)\n')
   assert "give the pull a way" in ran["steps"][-1]["reason"]
+
+
+def test_a_pull_hands_the_body_its_force_and_give_and_one_that_never_ran_reads_nothing():
+  """What a pull asks reaches the body as asked; and with a verb an `if`'s
+  test, the last pull's readings would read as a failed one's (#525)."""
+  body = _stub()
+  ran = _fly('def a():\n    reach("left", 0.3, 0.2, 0.9)\n'
+             '    pull("left", 0, 0, -1, 4, 0.1, give=0)\n    pull("left", 0, 0, 1, 12, 0.05)\n',
+             body)
+  assert ran["ok"] and [p[2:] for p in body.pulled] == [(4.0, 0.1, False), (12.0, 0.05, True)]
+  ran = _fly('def a():\n    reach("left", 0.3, 0.2, 0.9)\n    pull("left", 0, 0, 1, 10, 0.05)\n'
+             '    withdraw("left")\n    if not pull("left", 0, 0, 1, 10, 0.05):\n'
+             '        m = read("pull.moved")\n', _stub())
+  assert "failedAt" in ran and "pull" in ran["steps"][-1]["reason"]
 
 
 class CutMind(Mind):
@@ -1023,8 +1051,9 @@ def test_a_path_is_its_points_carried_as_one_motion_each_point_turned_as_it_asks
   assert not life.paths.get("left") and ran["steps"][-1]["points"] == 2
   side, path, pos, turns = body.carried_paths[-1]
   assert side == "left" and len(path) == 2 and pos == pytest.approx((0.4, 0.2, 1.05))
-  # the first point took the first turn given, the last kept the one before
-  assert len(turns) == 3 and np.allclose(turns[0], turns[1]) and np.allclose(turns[1], turns[2])
+  # the first point keeps the hand's own turn, the second takes the one
+  # given, and the end the one before -- None, as `Reach.carry` reads it
+  assert len(turns) == 3 and turns[0] is None and turns[1] is not None and turns[2] is None
   # ...a path with no turns keeps the hand's, and a move with no path is a line
   body.run(lang.run_procedure_routine(_Life(body), lang.compile_procedure(
     'def a():\n    reach("left", 0.3, 0.2, 0.9)\n    via("left", 0.3, 0.2, 1.0)\n'
