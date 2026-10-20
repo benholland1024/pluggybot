@@ -190,10 +190,10 @@ doing anything, read the doc that owns what you are about to touch:
   record an attempt, the skill's own word beside it and never read; an
   attempt that raises or whose world MuJoCo reset (`Unstable`) has no
   verdict, its task kept and unflown from there. ⚠ A SKILL IS HANDED THE
-  BODY, never the world (the chest's truth is the harness's). ⚠ THE LID'S
-  ROW IS `shown: false` and pays 0 (`TaskReward.shown`): a mind with a
-  library sees every other challenge row, and this one would change the
-  deployed prompt. ⚠ A FALL IS LOST TIME, NEVER A VERDICT (Ben,
+  BODY, never the world (the chest's truth is the harness's). ⚠ THE DEMOS'
+  ROWS ARE `shown: false` and pay 0 (`TaskReward.shown`: the lid's, and
+  #525's drawer, door and place): a mind with a library sees every other
+  challenge row, and these would change the deployed prompt. ⚠ A FALL IS LOST TIME, NEVER A VERDICT (Ben,
   2026-10-17): the job is the lid inside the TASK's time limit, the
   budget (`attempts.LIMIT_S`, the grader's `limitS`: the quadruped's 300
   s, the humanoid's 3x its reference's slowest pass, 68 s),
@@ -345,8 +345,10 @@ save a filmstrip PNG named after the script.
   tag decoded 3 cm elsewhere): a scene the robot sees by keeps the house's
   light, and a filmstrip brightens its own tiles alone. ⚠ ITS LIMBS MEET
   EACH OTHER AND ITS TRUNK (`model.LEG_GEOMS`' and `ARM_GEOMS`' pairs): the
-  robot's geoms touch nothing of its own but the pairs the model names. ⚠ Its odometry undercounts SIDEWAYS (a shuffle lifts too little
-  to tell the planted foot), and the Navigator never walks it sideways.
+  robot's geoms touch nothing of its own but the pairs the model names. ⚠ Its odometry tells the planted foot at 3 mm (`odometry.SWAP_M`:
+  a shuffle lifts under a centimetre, and at 1 cm a short step's first
+  stride counted backward); sideways it still reads up to a fifth short,
+  and the Navigator never walks it sideways.
   The demo's world is `evaluation/counter.py`: #466's chest on a counter,
   seeded (`set_out(k)`), never served.
 
@@ -412,10 +414,11 @@ save a filmstrip PNG named after the script.
   (`Body.gaze_routine`).
 - **The hands in a procedure, and graded practice** (#493;
   `procedure/steps.py` `HANDS_VERBS` and `language(facts)`,
-  `axes.HAND_SENSORS` / `PULL_SENSORS` / `BODY_AXES["humanoid"]`;
-  `mind/practice.py`, `evaluation/practice.py`, `scripts/practice.py`):
-  the vocabulary as stated priors -- `spot`, `reach`, `move_hand`,
-  `close_hand`, `open_hand`, `withdraw`, `pull`, `via` -- ⚠ NO VERB
+  `axes.HAND_SENSORS` / `PULL_SENSORS` / `STEP_SENSORS` /
+  `BODY_AXES["humanoid"]`; `mind/practice.py`, `evaluation/practice.py`,
+  `scripts/practice.py`): the vocabulary as stated priors -- `spot`,
+  `measure`, `reach`, `via`, `move_hand`, `pull`, `close_hand`,
+  `open_hand`, `withdraw`, `step` -- ⚠ NO VERB
   KNOWS THE CHEST (Ben's call 2; a test reads every doc and default). A
   hands world calls exactly the verbs its facts name, so a served robot's
   language is unchanged; ⚠ no sensor reads a humanoid joint off `qpos`. ⚠
@@ -455,25 +458,38 @@ save a filmstrip PNG named after the script.
 - **The hands' vocabulary is ONE, designed from how hands move** (#525;
   docs/Hands.md; `procedure/steps.py` `HANDS_VERBS`, `hand_facts`;
   `humanoid/reach.py` `Reach.pull`; `tests/test_force_move.py`): two kinds
-  of move, POSITION (`reach`; `move_hand`, through its `via` points as ONE
-  motion from one posture; `withdraw`) and FORCE (`pull`), whose loop
+  of HAND move, POSITION (`reach`; `move_hand`, through its `via` points as
+  ONE motion from one posture; `withdraw`) and FORCE (`pull`), whose loop
   closes on what the hand FEELS inside the verb -- admittance along its
   way, `speed * clip(2 (force - along) / force, -1, 1)` -- ⚠ never on the
   arm's spring (its model put 15 N on a 5 N limit); the hand giving across
   its way (`give` 1) or holding its line and turn (`give` 0: hybrid); its
   turn giving to what it holds ⚠ BUT NEVER ABOUT THE JAWS' LINE (a lid's
   weight turned a freely giving wrist 70 deg down and out of reach on 4
-  chests of 8); going on where the arm misses, ANOTHER posture from the
-  arm as it is (`posture_for(onward=)`). `close_hand(force)` takes the
-  Dex1-1's 5-120 N, `held` against half of it: ⚠ at 120 N a lever could
-  not turn in the jaws. A verb test and the maths are in every hands
+  chests of 8); a grip it began with lost ending it where the hand is;
+  going on where the arm misses, ANOTHER posture from the arm as it is,
+  never one it has left (`posture_for(onward=, past=)`). `close_hand(force)`
+  takes the Dex1-1's 5-120 N, `held` against half of it ⚠ ON THE
+  SQUEEZE'S RUNNING MEAN (`arms.SQUEEZE_S`, sampled every physics step:
+  one reading's 5.1 N of noise misread a 15 N grip 7 % of the time): ⚠ at
+  120 N a lever could not turn in the jaws. The FEET's move is `step`
+  (`HumanoidBody.step_routine`, `tests/test_step.py`): hands home and
+  empty, a turn on the spot and a walk on the walking policy, its report
+  where the stance went in the frame before (`step.*`) -- ⚠ measured only
+  once the walker has the legs (out of a bow the pelvis came 16 cm forward
+  on its own), an oblique step the walker would skew walked as two, a
+  turn's 2-6 cm of shuffle uncounted (the odometry is worse over it); ⚠ a
+  humanoid with a hand out keeps its posture to look (a bow carried the
+  hand 43 cm up). A verb test and the maths are in every hands
   world (`hand_facts`); the served world's `VERBS` and its switches are
   unchanged, turning them on its own period. ⚠ THE CAPABILITY CHECK
   (`evaluation/hands_check.py`, `scripts/hands_check.py`,
   `tests/test_hands_check.py`): our procedure for the lid, a drawer, a
   door's lever and a cube placed (`challenge/drawer.py`, `door.py`,
   `place.py`, `shown: false`, paying 0), 8 set-outs each
-  (`evaluation/counter.py`), the bar 6 written first; ⚠ a procedure there
+  (`evaluation/counter.py`), the bar 6 written first; ⚠ a set-out draws
+  off a stream of its own, never its prop's hidden draw's (`_drawn`: off
+  one seed, the furthest cube was always the heaviest); ⚠ a procedure there
   is a solution, and nothing under `mind/` may reach one (a test).
 
 ### The imagination (`imagination/`; #466; one process of five, #487)

@@ -381,9 +381,9 @@ its first attempt: the reference row (Evaluation.md §4).
 
 **The departure: `shown: false`.** Its row in `challenges.json` pays 0,
 because a demo's attempt is practice graded by the world (Ben, 2026-10-10),
-and it is the one row no mind is shown: the table a mind with a library
-reads carries every other challenge row, and one for a chest no served
-world has would change the deployed prompt (`TaskReward.shown`). ⚠ The
+and it is a row no mind is shown (with §10's three): the table a mind with
+a library reads carries every other challenge row, and one for a chest no
+served world has would change the deployed prompt (`TaskReward.shown`). ⚠ The
 grader imports nothing of the chest's: everything loads `scoring`, the
 probe included, and the chest's module holds its truth (`tests/
 test_probe.py`'s fence). Its parts are read by their names, and `caught` is
@@ -417,10 +417,11 @@ judged unrounded and shown rounded, the time limit the task's. Proof in
   travel (`activity.door`): the grader reads none of it.
 - *place*: (1) 5 s after the call the cube rests on the mat -- its middle
   within 2.5 cm of the mat's, its bottom within 4 mm of the mat's top,
-  upright within 10 deg; (2) it never came down faster than 0.5 m/s, in the
-  attempt or the hold -- set down, not dropped; (3) nothing of the robot's
-  touches it during the hold; (4) in time. Slid there, it passes as well as
-  carried.
+  flat on a face within 10 deg, any face (`place.resting_tilt`: read off
+  one, a cube set down upside down "tipped 180 deg"); (2) it never came
+  down faster than 0.5 m/s, in the attempt or the hold -- set down, not
+  dropped; (3) nothing of the robot's touches it during the hold; (4) in
+  time. Slid there, it passes as well as carried.
 
 Said beside and judging nothing: the most the drawer came out and the door
 opened, how far the lever was pressed, the fastest each moved, the cube's

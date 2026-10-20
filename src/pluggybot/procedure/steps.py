@@ -1400,10 +1400,10 @@ VERBS: dict[str, Verb] = {
 #: table of their OWN, which the language reads only where a world's facts
 #: name them (`language`) -- ⚠ a verb's name is a name no local may take,
 #: and in `VERBS` these would have refused a served robot's kept procedure
-#: that names a local `reach` or `pull`. Two kinds of move: a POSITION move
-#: puts the hand where it is told (`reach`, `move_hand`, `withdraw`); a
+#: that names a local `reach` or `pull`. Two kinds of hand move: a POSITION
+#: move puts the hand where it is told (`reach`, `move_hand`, `withdraw`); a
 #: FORCE move pushes with a force and lets what the hand holds take it
-#: (`pull`).
+#: (`pull`). The feet's own move is `step`, its hands home and empty.
 HANDS_VERBS: dict[str, Verb] = {
   "measure": Verb("measure", {"x": Arg("float", lo=0.0, hi=3.0), "y": Arg("float", lo=-2.0, hi=2.0)},
                   _measure, "look with your depth camera at what stands at (x, y): the height of "

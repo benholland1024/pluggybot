@@ -978,7 +978,8 @@ baselines and flights through; `scripts/experiment.py`, which flew days of
 a configuration, went with the rover (#376). It is a KIT another builder
 could run: body-agnostic through `Body`, a task as data (`Task`: the chest,
 its mount, the body, the grader) beside the code that grades it
-(`challenge/lid.py`, Challenges.md §9), and nothing that reads a body's
+(`challenge/lid.py`, Challenges.md §9; the hands' checks' `drawer`, `door`
+and `place`, §10; `attempts.GRADERS`), and nothing that reads a body's
 internals. Its rules:
 
 - **an attempt is one try from a declared start**: the task's set-out built
@@ -1091,8 +1092,8 @@ tokens, never a try (two repairs a try).
   repairs, the commonest a sensor written as Python (`spot.nx` for
   `read("spot.nx")`), the 1,500-character cap and the tag's number in
   quotes (`spot("53")`); two tries ended at a pull's direction a hair over
-  1 (1.03 and 1.001: each of `dx, dy, dz` is bounded to 1, though the verb
-  scales them to a unit). ⚠ 10 answers (28 in (a′)) spent the whole 64,000
+  1 (1.03 and 1.001: each of `dx, dy, dz` was bounded to 1 then, though the
+  verb scales them to a unit; any length since). ⚠ 10 answers (28 in (a′)) spent the whole 64,000
   tokens reasoning and came back empty, billed: 19 % of the flight's
   output tokens and 35 % of (a′)'s; once in each run, three in a row left
   a try with no procedure. 14 calls the router refused (429, 17 in (a′), the two
@@ -1143,7 +1144,8 @@ shut its jaws on nothing three tries running. So:
   draft procedure
   (`Practice.carry`) -- shown at the next chest's start beside what passed;
   a held-out copy is frozen with them;
-- **depth** (`--measure`, an arm of its own): `measure(x, y)`, the flat
+- **depth** (`--measure` then, an arm of its own; since #525 every arm has
+  it, and `--no-measure` is the arm without it): `measure(x, y)`, the flat
   top of what stands there off the depth camera -- its height and four
   edges (`steps._measure`, `perception.box`) -- our code's perception, one
   of the subsidies `FLATTERS` names. Depth is feedback a person uses too,
@@ -1190,7 +1192,8 @@ robots open it, and have yet to learn to set it down. Within a chest the
 whole conversation is the lesson -- every report and what was felt -- so a
 practice chest now takes up to 10 tries (`--practice-attempts`; a held-out
 chest keeps 5, and the bar its 3). And a verb may stand alone as an
-`if`'s test (`--verb-tests`, `WorldFacts.verb_tests`): `if not
+`if`'s test (`--verb-tests` then, `WorldFacts.verb_tests`; every hands
+world's since #525): `if not
 move_hand(...):` reads the move held back instead of ending the procedure
 with the jaws on the knob. Two DeepSeek arms with what they felt and
 notes are the same but for the `if`.
@@ -1218,11 +1221,12 @@ notes are the same but for the `if`.
   the arm reaches instead of refusing its line did no better, replayed
   over three recorded procedures (the lids rose less, and still fell).
 
-**A carried hand may turn** (Ben, 2026-10-19): `move_hand` and `pull` take
-fingers and jaws (`fx..jz`) as `reach` does, and turn the hand to them as
-it goes -- from one posture, eased at the reach's own rate
-(`Body.pull_routine(turn=)`, `move_hand_routine(turns=)`); left 0, the
-turn is kept. On the humanoid in free air a move asked 30 deg up came to
+**A carried hand may turn** (Ben, 2026-10-19): `move_hand` and `pull` took
+fingers and jaws (`fx..jz`) as `reach` does, and turned the hand to them as
+it went -- from one posture, eased at the reach's own rate
+(`move_hand_routine(turns=)`, and `Body.pull_routine(turn=)` then: #525's
+pull gives its turn to what it holds instead, Hands.md §4); left 0, the
+turn was kept. On the humanoid in free air a move asked 30 deg up came to
 27 deg, a pull asked 60 to 59.
 - **DeepSeek with it** (`a5ae607`, chests 0-5, 10 tries, the verb
   test on, giving up after 6): no chest passed; 28 of its 60 tries opened
@@ -1243,12 +1247,13 @@ turn is kept. On the humanoid in free air a move asked 30 deg up came to
 **A path, and the maths for one** (Ben, 2026-10-19: general, for any task,
 over a `swing` for this one; the vocabulary's design is #525). `via(hand,
 x, y, z, turn)` adds a point to a hand's path and moves nothing;
-`follow(hand, speed, stiffness)` carries the hand through them all as one
+`follow(hand, speed, stiffness)` carried the hand through them all as one
 motion, from one posture that follows them all (the body's path, aimed
 ahead for its lean, as the reference's), a point with no turn keeping the
-one before. An expression may call `sin`, `cos`, `atan2` and `sqrt`.
-Both behind `WorldFacts` switches (`math`, the practice's `--path`): the
-served world's language is unchanged. ⚠ THE GATE, before any mind flies
+one before -- #525 merged it into `move_hand`. An expression may call
+`sin`, `cos`, `atan2` and `sqrt`. Both were behind switches then (`math`,
+the practice's `--path`), every hands world's since #525: the served
+world's language is unchanged. ⚠ THE GATE, before any mind flies
 them: the reference's own perception, plan and grip, then its arc up and
 back as two paths through `via`/`follow` (`pullfar/gate_path.py`), over
 the 8 chests the reference passes, at least 6 to pass. **It passed, 7 of
@@ -1298,14 +1303,12 @@ the bar still out of reach.**
   The vocabulary's design comes first (#525), and stage 3 flies again on
   it.
 
-**The vocabulary these rounds flew is retired** (#525, docs/Hands.md):
-one vocabulary now, in every arm -- `follow` merged into `move_hand`,
-`pull` rebuilt as a force move whose loop closes on what the hand feels,
-`close_hand` given a force, a verb test and the maths always there -- and
-the practice's `--pull`, `--verb-tests` and `--path` gone. The rows above
-are #493's flags' (`run.pull`, `verbTests`, `path`); a row on #525's says
-`run.vocabulary`, and the two are never pooled. Before any mind flies it,
-its gate is docs/Hands.md §5's capability check.
+**The vocabulary these rounds flew is retired** (#525): one vocabulary
+now, in every arm, `measure` with it (docs/Hands.md §6 says what became of
+each verb), and the practice's `--pull`, `--verb-tests` and `--path` gone.
+The rows above are #493's flags' (`run.pull`, `verbTests`, `path`); a row
+on #525's says `run.vocabulary`, and the two are NEVER POOLED. Before any
+mind flies it, its gate is docs/Hands.md §5's capability check.
 
 ## 5. What silently invalidates a number
 
