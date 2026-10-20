@@ -65,7 +65,7 @@ import numpy as np
 
 from pluggybot.activity import chest as ch
 from pluggybot.body import body_for
-from pluggybot.challenge import lid
+from pluggybot.challenge import door, drawer, lid, place
 from pluggybot.economy import scoring
 from pluggybot.imagination.rollout import UNSTABLE
 
@@ -79,8 +79,14 @@ SET_OUTS = (("quadruped", "floor"), ("humanoid", "counter"))
 #: the set-out (`Body.place_tool_routine`) where a real run fetches it from
 #: the rack; the humanoid's hands are its own.
 TOOLS = {"quadruped": "module_claw", "humanoid": None}
-#: The graders a task may name: each has its own way of being watched.
-GRADERS = ("lid",)
+#: The graders a task may name: the lid's, and the hands' capability
+#: checks' (#525; docs/Hands.md), each watched every step and measured at
+#: the call in its own way (`WATCHED`). A check is the humanoid's at its
+#: counter; its set-out k is `chest` (the lid's name for it).
+GRADERS = ("lid", "drawer", "door", "place")
+WATCHED = {"lid": (lid.Watch, lid.measure), "drawer": (drawer.Watch, drawer.measure),
+           "door": (door.Watch, door.measure), "place": (place.Watch, place.measure)}
+CHECKS = tuple(g for g in GRADERS if g != "lid")
 #: Every set-out ends standing still this long, s: the catch pulls only
 #: once a step has run (`activity.chest.Chest.sense`), and the humanoid's
 #: set-out steps nothing before it.
@@ -173,6 +179,9 @@ class Task:
                        f"there are {', '.join(f'{b} at the {m}' for b, m in SET_OUTS)}")
     if self.grader not in GRADERS:
       raise ValueError(f"no grader {self.grader!r} for an attempt: {', '.join(GRADERS)}")
+    if self.grader in CHECKS and (self.body, self.mount) != ("humanoid", "counter"):
+      raise ValueError(f"the {self.grader} is the humanoid's at its counter, not the "
+                       f"{self.body}'s at the {self.mount}")
 
   @property
   def limit_s(self) -> float:
@@ -206,8 +215,10 @@ class World:
   model: object
   data: object
   body: object
-  chest: ch.Chest
+  chest: ch.Chest | None
   start: tuple
+  #: a check's own activity (#525: the drawer's), where the job has one
+  activity: object = None
 
   def close(self) -> None:
     self.body.close()
@@ -217,6 +228,8 @@ def set_out(task: Task, policy=None) -> World:
   """The task's declared start, built afresh: the chest shut where its
   set-out stands it, the body where it starts and with its set-out's tool.
   `policy` is the humanoid's standing policy, where a caller has one."""
+  if task.grader in CHECKS:
+    return _check_set_out(task, policy)
   if task.body == "quadruped":
     from pluggybot.evaluation import probe as ep
     from pluggybot.home import world as home
@@ -240,6 +253,32 @@ def set_out(task: Task, policy=None) -> World:
   body.run(body.hold_routine(SETTLE_S))
   return World(task=task, model=model, data=data, body=body, chest=chest,
                start=tuple(so.start))
+
+
+def _check_set_out(task: Task, policy=None) -> World:
+  """A capability check's set-out (#525): its prop on the counter
+  (`evaluation.counter`), the humanoid at its start, its activity sensing
+  every step, standing still `SETTLE_S`."""
+  from pluggybot.evaluation import counter as ct
+  if task.grader == "drawer":
+    from pluggybot.activity import drawer as dr
+    so = ct.drawer_set_out(task.chest)
+    model, data, body = ct.world(so, policy)
+    act = dr.Drawer(model, data, so.runners)
+  elif task.grader == "door":
+    from pluggybot.activity import door as dd
+    so = ct.door_set_out(task.chest)
+    model, data, body = ct.world(so, policy)
+    act = dd.Door(model, data, so.hinge)
+  elif task.grader == "place":
+    from pluggybot.activity import cube as cb
+    so = ct.cube_set_out(task.chest)
+    model, data, body = ct.world(so, policy)
+    act = cb.Cube(model, data, so.load, ct.COUNTER_H + ct.BOARD_H)
+  body.step_hooks.append(lambda: act.sense(model, data))
+  body.run(body.hold_routine(SETTLE_S))
+  return World(task=task, model=model, data=data, body=body, chest=None,
+               start=tuple(so.start), activity=act)
 
 
 def own_word(said) -> dict:
@@ -293,7 +332,8 @@ def attempt_in(world: World, skill, n: int = 1, *, budget_s: float | None = None
   task, body, data = world.task, world.body, world.data
   budget_s = task.limit_s if budget_s is None else float(budget_s)
   warned = {w: int(data.warning[w].number) for w in UNSTABLE}
-  watch = lid.Watch(world.model, data, body)
+  watching, snapshot = WATCHED[task.grader]
+  watch = watching(world.model, data, body)
   body.step_hooks.append(watch)
   t0, wall = float(data.time), time.time()
   cut: list = []
@@ -301,7 +341,7 @@ def attempt_in(world: World, skill, n: int = 1, *, budget_s: float | None = None
     said = body.run(_within(data, skill(body), t0 + budget_s, cut))
     t_call = float(data.time)
     watch.hold()
-    at_call = lid.measure(world.model, data)
+    at_call = snapshot(world.model, data)
     body.run(body.hold_routine(hold_s))
   finally:
     body.step_hooks.remove(watch)
@@ -310,7 +350,8 @@ def attempt_in(world: World, skill, n: int = 1, *, budget_s: float | None = None
     raise Unstable(f"MuJoCo found the world unstable and reset it ({', '.join(reset)})")
   measured = scoring.SAMPLERS[task.grader](
     world, None, said, {"at_call": at_call, "watch": watch, "started": t0,
-                        "tool": task.tool, "catchN": world.chest.lid.catch_n,
+                        "tool": task.tool,
+                        "catchN": world.chest.lid.catch_n if world.chest is not None else None,
                         "limitS": budget_s})
   # A cut attempt that failed says so first (`evaluate(failed=)`): what it
   # left half done follows.

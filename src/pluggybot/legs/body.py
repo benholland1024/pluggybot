@@ -1913,11 +1913,14 @@ class QuadBody(Body):
     raise NotImplementedError(self._NO_HAND)
     yield
 
-  def grip_routine(self, side, closed) -> Routine:
+  def grip_routine(self, side, closed, force=None) -> Routine:
     raise NotImplementedError(self._NO_HAND)
     yield
 
   def gripped(self, side) -> bool:
+    raise NotImplementedError(self._NO_HAND)
+
+  def grip_gap(self, side) -> float:
     raise NotImplementedError(self._NO_HAND)
 
   def hand_force(self, side):
@@ -1950,8 +1953,8 @@ class QuadBody(Body):
   def hand_why(self, side) -> str:
     raise NotImplementedError(self._NO_HAND)
 
-  def pull_routine(self, side, direction, limit_n, distance_m, stiffness=1.0, speed=0.06,
-                   patience=30.0, turn=None) -> Routine:
+  def pull_routine(self, side, direction, limit_n, distance_m, speed=0.06,
+                   patience=30.0, give=True) -> Routine:
     raise NotImplementedError(self._NO_HAND)
     yield
 

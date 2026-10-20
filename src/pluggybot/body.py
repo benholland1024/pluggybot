@@ -656,15 +656,21 @@ class Body(abc.ABC):
     """A hand back out along its way in, and its arm home."""
 
   @abc.abstractmethod
-  def grip_routine(self, side: str, closed: bool) -> Routine:
-    """A hand's gripper shut or opened, standing while it moves; shut, it
-    returns whether it holds something (`gripped`)."""
+  def grip_routine(self, side: str, closed: bool, force: float | None = None) -> Routine:
+    """A hand's gripper shut -- squeezing with `force`, N a pad, or its
+    sheet's most where none is given (#525) -- or opened, standing while it
+    moves; shut, it returns whether it holds something (`gripped`)."""
 
   @abc.abstractmethod
   def gripped(self, side: str) -> bool:
     """Whether a hand holds something, by its gripper's own reading -- its
     jaws stopped short of closed, squeezing -- never by what the world
     says it touches (#493: the quadruped's `held()` read the world)."""
+
+  @abc.abstractmethod
+  def grip_gap(self, side: str) -> float:
+    """How far apart a hand's jaws are, m, off its gripper's own encoder
+    (#525): what it holds, how wide."""
 
   @abc.abstractmethod
   def hand_force(self, side: str) -> tuple[float, float, float]:
@@ -732,22 +738,23 @@ class Body(abc.ABC):
 
   @abc.abstractmethod
   def pull_routine(self, side: str, direction, limit_n: float, distance_m: float,
-                   stiffness: float = 1.0, speed: float = 0.06,
-                   patience: float = 30.0, turn=None) -> Routine:
-    """THE COMPLIANT PULL (#493): a hand that is out carried straight along
-    `direction` (the believed world frame) on an arm at `stiffness`, so it
-    bends toward whatever gives, its turn held -- or, `turn` given (world
-    from grip), turned to it as it goes, from one posture --
-    until it has gone `distance_m`, the force it reads at the hand along
-    its way reaches `limit_n`, N, while it is held back, it is held fast,
-    its grip lets go, or `patience` runs out; then it holds
-    where the hand is. Returns how it ended (`why`: "distance", "force",
-    "held fast", "let go", "out of reach", "not out", "fell", "out of
-    time"), in how long, how far the hand went (`moved`) and how far the
-    way asked (`along`), where it ended up from where it began (believed
-    world frame, m), the way the hand went (`direction`, a unit vector) and
-    the hardest it pulled (`force`, N). A pull or a carry that drags the
-    body's own feet stops ("feet moved")."""
+                   speed: float = 0.06, patience: float = 30.0, give: bool = True) -> Routine:
+    """THE PULL, a FORCE MOVE (#525): a hand that is out pulled -- or
+    pushed -- along `direction` (the believed world frame) with at most
+    `limit_n`, N, as the hand reads it, and at most `speed`, m/s; across
+    that way, `give`, the hand yields to what pushes it (no faster than its
+    speed allows) and its turn gives to what it holds, but about the jaws'
+    own line -- or, not `give`, it holds its line and its turn: hybrid force
+    and position. Until it has gone
+    `distance_m` along its way, it is held fast (pushing with its whole
+    force and not moving), its grip lets go, it can reach no further, its
+    feet move, or `patience` runs out; then it holds where the hand is.
+    Returns how it ended (`why`: "distance", "held fast", "let go", "out of
+    reach", "not out", "fell", "feet moved", "out of time"), in how long,
+    how far the hand went (`moved`) and along its way (`along`), where it
+    ended up from where it began (believed world frame, m), the way the hand
+    was going at its end (`direction`, a unit vector: what it held allowed)
+    and the hardest it pushed along its way (`force`, N)."""
 
   @property
   @abc.abstractmethod
@@ -943,14 +950,20 @@ class StubBody(Body):
     #: shut where a test sent it holds, as the stub's every walk arrives.
     self.hands: dict[str, tuple] = {}
     self.grips: dict[str, bool] = {}
+    #: ...the force each was last shut with (#525), and how wide what a shut
+    #: hand holds is, m
+    self.squeezes: dict[str, float | None] = {}
+    self.held_gap = 0.026
     #: ...and the hands a test says reach nothing (#493): a reach with one
     #: is out of reach -- or, `unturned`, nothing turned as asked -- and the
     #: turns a carried hand was asked to take, (side, verb, turn) in turn,
-    #: and each carry's path, (side, path, pos, turns)
+    #: each carry's path, (side, path, pos, turns), and each pull asked
+    #: (#525), (side, direction, force, distance, give)
     self.out_of_reach: set[str] = set()
     self.unturned: set[str] = set()
     self.turned: list[tuple] = []
     self.carried_paths: list[tuple] = []
+    self.pulled: list[tuple] = []
     self._why: dict[str, str] = {}
     #: ...and each survey it was asked for, and what it counts, by tag
     self.surveyed: list[int] = []
@@ -1344,13 +1357,18 @@ class StubBody(Body):
     return
     yield
 
-  def grip_routine(self, side, closed):
+  def grip_routine(self, side, closed, force=None):
     self.grips[side] = bool(closed) and side in self.hands
+    self.squeezes[side] = force
     return self.grips[side] if closed else True
     yield
 
   def gripped(self, side) -> bool:
     return self.grips.get(side, False)
+
+  def grip_gap(self, side) -> float:
+    """Shut on what a test put in it (`held_gap`), or open."""
+    return self.held_gap if self.grips.get(side) else 0.09
 
   def hand_force(self, side):
     return (0.0, 0.0, 0.0)
@@ -1403,18 +1421,17 @@ class StubBody(Body):
     put `out_of_reach`."""
     return self._why.get(side, "")
 
-  def pull_routine(self, side, direction, limit_n, distance_m, stiffness=1.0,
-                   speed=0.06, patience=30.0, turn=None):
+  def pull_routine(self, side, direction, limit_n, distance_m, speed=0.06, patience=30.0,
+                   give=True):
     """The hand `distance_m` along `direction` at once: nothing holds it."""
-    if turn is not None:
-      self.turned.append((side, "pull", turn))
+    self.pulled.append((side, tuple(direction), float(limit_n), float(distance_m), bool(give)))
     if side not in self.hands:
-      return {"why": "not out", "seconds": 0.0, "moved": 0.0, "dx": 0.0, "dy": 0.0,
-              "dz": 0.0, "direction": list(direction), "force": 0.0}
+      return {"why": "not out", "seconds": 0.0, "moved": 0.0, "along": 0.0, "dx": 0.0,
+              "dy": 0.0, "dz": 0.0, "direction": list(direction), "force": 0.0}
     d = np.asarray(direction, dtype=float)
     d = d / max(float(np.linalg.norm(d)), 1e-9)
     to = np.asarray(self.hand_at(side), dtype=float) + float(distance_m) * d
-    return {"why": "distance", **self._carried(side, to),
+    return {"why": "distance", **self._carried(side, to), "along": float(distance_m),
             "direction": [float(v) for v in d], "force": 0.0}
     yield
 

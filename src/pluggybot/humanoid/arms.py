@@ -243,9 +243,13 @@ class Arm:
 
 
 #: A grip is HELD, by the gripper's own reading, when shut it stopped this
-#: far short of closed, m, with the squeeze up, N: a hand shut on nothing
-#: closes; one shut on something stalls against it, pressing.
-HELD_GAP_M, HELD_SQUEEZE_N = 0.005, 0.5 * hp.GRIPPER.grip_force_n
+#: far short of closed, m, with the squeeze up to this share of the force it
+#: was shut with: a hand shut on nothing closes; one shut on something
+#: stalls against it, pressing.
+HELD_GAP_M, HELD_SHARE = 0.005, 0.5
+#: The least a grip may be shut with, N a pad: the sheet's adjustable
+#: range is 5-120 (`parts.GRIPPER`).
+GRIP_MIN_N = 5.0
 
 
 class Gripper:
@@ -255,16 +259,30 @@ class Gripper:
   (`senses.GripperSense`) -- never by what the world says it touches."""
 
   def __init__(self, model, data, side: str, prefix: str = "", key: str = "humanoid"):
-    self.d = data
+    self.m, self.d = model, data
     self.act = model.actuator(f"{prefix}{side}_gripper").id
     self.sense = GripperSense(model, side, prefix, key)
     self.shut_asked = False
+    self.force = hp.GRIPPER.grip_force_n
+
+  def _limit(self, force: float) -> None:
+    """Each pad squeezes at most `force`, N: the motor's limit, twice it
+    (`parts.Gripper.dcmotor`) -- the torque limit the Dex1-1 takes with
+    every command."""
+    self.force = float(force)
+    self.m.actuator_forcerange[self.act] = (-2.0 * self.force, 2.0 * self.force)
 
   def open(self, width: float = hp.GRIPPER.stroke) -> None:
+    self._limit(hp.GRIPPER.grip_force_n)
     self.d.ctrl[self.act] = min(max(width, 0.0), hp.GRIPPER.stroke) / 2
     self.shut_asked = False
 
-  def shut(self) -> None:
+  def shut(self, force: float | None = None) -> None:
+    """Shut, squeezing with `force`, N a pad -- the sheet's grip force where
+    none is given (#525: pinched at 120 N, a door's lever could not turn in
+    the jaws, their pads' torsional friction 2.4 N*m against its hinge)."""
+    g = hp.GRIPPER.grip_force_n
+    self._limit(g if force is None else min(max(float(force), GRIP_MIN_N), g))
     self.d.ctrl[self.act] = 0.0
     self.shut_asked = True
 
@@ -273,7 +291,7 @@ class Gripper:
 
   def held(self) -> bool:
     gap, squeeze = self.read()
-    return self.shut_asked and gap > HELD_GAP_M and squeeze > HELD_SQUEEZE_N
+    return self.shut_asked and gap > HELD_GAP_M and squeeze > HELD_SHARE * self.force
 
 
 @dataclass

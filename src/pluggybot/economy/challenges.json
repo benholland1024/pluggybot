@@ -91,6 +91,27 @@
       "secret": [
         "catchN"
       ]
+    },
+    "drawer": {
+      "tier": "auto",
+      "base": 0,
+      "bonus": 0,
+      "shown": false,
+      "detail": "Pull the drawer at least 15 cm out of its cabinet within the time your set-out allows, and let go of it. Graded on the drawer's runners and on what touches it 5 s after you finish; how you open it is up to you."
+    },
+    "door": {
+      "tier": "auto",
+      "base": 0,
+      "bonus": 0,
+      "shown": false,
+      "detail": "Open the cupboard's door at least 50 degrees within the time your set-out allows, and let go of it: its latch holds it shut until its lever is pressed down. Graded on the door's hinge and on what touches it 5 s after you finish; how you open it is up to you."
+    },
+    "place": {
+      "tier": "auto",
+      "base": 0,
+      "bonus": 0,
+      "shown": false,
+      "detail": "Put the cube on the mat within the time your set-out allows -- resting on it, upright, within 2.5 cm of its middle -- set down, never dropped, and let go of it. Graded on the cube's place 5 s after you finish; how you move it is up to you."
     }
   }
 }

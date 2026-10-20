@@ -5285,20 +5285,8 @@ no grip's tilt follows the arc to 60 deg (`no tilt puts the lid's arc in
 reach`), in three no arc follows from the grip the reach could make, in one
 the hand ran out of reach a step up.
 
-**The compliant pull** (`Body.pull_routine`, the `pull` verb) is a hand
-carried straight on a soft arm (0.5 of its gains unless asked), its turn
-held, stopped at its distance, at its force while held back, held fast, or
-its grip lost; how far it went and the way the hand truly went are its
-report. A procedure steers it, a pull at a time. ⚠ Every pull that steered
-itself failed, and why is the lesson: an equilibrium point drawn along the
-hand's own motion followed the robot's lean and its feet's slide (pulling
-25-40 N, the standing policy shuffled; measured from the feet that moved,
-the hand seemed to come back, and the pull followed it); a circle fitted to
-the hand's path saw none -- on a stiff arm the hand goes where it is told
-and a lid's arc shows as force, 3 mm off a line after 10 cm; and a turn
-that yields to what twists it let the drop handle buckle under the first
-push (its pin from -33 to +78 deg), at 4 deg or 10 of give, because the
-buckle and the handle's stop turn the hand the same way.
+**The pull** that #493's practice flew -- a compliant straight move, its
+turn held -- is rebuilt as the force move: "The force move (issue #525)".
 
 **The arms' friction is calibrated once and kept**
 (`humanoid/friction.py`, `models/humanoid_friction.json`;
@@ -5314,6 +5302,62 @@ else.
 What the robot's own mind made of these hands -- graded practice,
 baseline (a′) and the flight over held-out chests -- is Evaluation.md
 §4's.
+
+## The force move (issue #525)
+
+`pull` became a force move (docs/Hands.md §4): the command walks along the
+way as the hand's FELT force allows, follows the hand across it, and its
+turn gives to what it holds. Each rule was measured; every number is
+MuJoCo's, an upper bound on hardware.
+
+- *The force is closed on the reading, never on the arm's spring.* The
+  compliant pull capped its force by how far the arm's model said it bent:
+  on a drawer's stop it put 15 N for a 5 N limit and 27 for 10, where the
+  hand's reading was within 0.5 N of the contact's true force. Closed on
+  the reading (admittance), the stop came to 3.7, 8.9 and 18.3 N for 5, 10
+  and 20.
+- *Across the way the hand follows what it holds, no faster than twice the
+  pull's speed* (`ACROSS_SPEED`). Unbounded, a lid let go of its weight
+  followed it down; yielding only past a dead band of force, the hand
+  lagged a drop handle's flip and ran out of reach on every lid (0 of 8).
+  Holding its line (`give` 0) is for a set-down: giving, a cube set down
+  slid 13 cm along the mat.
+- *Its turn gives, but never about the jaws' line.* Held whole, the pads
+  dragged a drop handle's knob sideways through its pin and the robot
+  turned 22 deg on its feet; giving 10 % of the gap a command, it did not.
+  Giving about every axis, a lid's weight bent the wrist about the jaws'
+  line and the give followed: 70 deg down at 46 deg of lid, the elbow
+  straight at its stop, the wrist pitched 80 deg, and the lid held there
+  (4 chests of 8). Held about that line -- what a two-jaw grip holds turns
+  about it between the pads -- the same single 27 cm pull took 7 of 8 past
+  57 deg, and one pull toward the body set each down.
+- *Going on, another posture from the arm as it is.* A replan that asked
+  the posture it held from fresh seeds found another branch "reaching",
+  and the live arm stood at its elbow's stop 2 cm short for 9 s.
+- *The grip's force is a verb's.* At the Dex1-1's 120 N a pad, the pads'
+  torsional friction (condim 4, 0.01 m: up to 2.4 N*m) locked a door's
+  lever in the jaws, and the hand gripping it held the door shut; at 15 N
+  the tip turns between the jaws as the door swings.
+
+**The checks' props** (`activity/drawer.py`, `door.py`, `cube.py`; their
+set-outs `evaluation/counter.py`, each placement's reason at its constant):
+- *The cupboard's door is hung on its LEFT and its lever points away from
+  the hinge.* Hung on its right, the door swung into the left arm that held
+  its lever and stopped there, 36-45 deg open; its lever pointing toward
+  the hinge, pressing it down rolled the left wrist toward its stop, and 6
+  presses of 8 went 1-3 cm.
+- *A trip latch and a kick.* One grip could not both hold the lever down
+  and leave the door free (the jaws locked the tip), so the latch trips
+  once the lever is pressed past 32 deg and stays tripped until the door
+  has stood ajar and shut again, lever up; tripped, a spring kicks it 6 deg
+  ajar, damped (undamped, 0.25 N*m swung a low-friction door 33-48 deg out
+  of reach). ⚠ A door kicked free coasts: the hinge's friction is 0.02-0.15
+  N*m, and on 3 set-outs of 8 it swung past 50 deg with the hand only
+  following -- so a procedure looks before it grips again.
+- *The cube is gripped tilted 60 deg, 0.27-0.31 m ahead on a 6 cm board.*
+  From 0.34-0.38 ahead, 12 cm up, the robot's model of itself refused the
+  carry 6-10 cm ahead on 6 cubes of 8; a mat out to the left or nearer the
+  body was out of the head camera's sight even bowed 0.45 rad.
 
 ## Debugging workflow that worked
 

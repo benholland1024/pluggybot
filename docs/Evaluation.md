@@ -1298,6 +1298,15 @@ the bar still out of reach.**
   The vocabulary's design comes first (#525), and stage 3 flies again on
   it.
 
+**The vocabulary these rounds flew is retired** (#525, docs/Hands.md):
+one vocabulary now, in every arm -- `follow` merged into `move_hand`,
+`pull` rebuilt as a force move whose loop closes on what the hand feels,
+`close_hand` given a force, a verb test and the maths always there -- and
+the practice's `--pull`, `--verb-tests` and `--path` gone. The rows above
+are #493's flags' (`run.pull`, `verbTests`, `path`); a row on #525's says
+`run.vocabulary`, and the two are never pooled. Before any mind flies it,
+its gate is docs/Hands.md §5's capability check.
+
 ## 5. What silently invalidates a number
 
 The list this document mostly exists for.

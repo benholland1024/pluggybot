@@ -393,3 +393,44 @@ the catch's pull on the hinge.
 hair over the shut line passes, and so does a lowering at 0.9 rad/s); and
 whether the robot KNEW it had done it, which is its own test, beside the
 verdict in the record and never read by it.
+
+## 10. The hands' capability checks: a drawer, a door, a cube (issue #525)
+
+Three graders beside the lid's, for the hands' vocabulary's gate
+(docs/Hands.md §5): `challenge/drawer.py`, `door.py` and `place.py`, each
+over an activity of its own (`activity/drawer.py`, `door.py`, `cube.py`)
+whose dynamics are hidden and drawn, set out on the humanoid's counter
+(`evaluation/counter.py`) and attempted through #493's protocol
+(`evaluation/attempts.py`, `GRADERS`). Each is the lid's shape: a `Watch`
+every physics step, a snapshot at the call and after a `HOLD_S` hold,
+judged unrounded and shown rounded, the time limit the task's. Proof in
+`tests/test_hands_check.py`.
+
+**The criteria**, written before any procedure flew them:
+- *drawer*: (1) out at least 15 cm at the call and still so 5 s later --
+  its runners hold it where it is left; (2) nothing but the cabinet touches
+  the drawer, its front or its knob during the hold; (3) in time.
+- *door*: (1) open at least 50 deg at the call and still so 5 s later --
+  an arm reaches in past its edge; (2) nothing but the cupboard touches the
+  door, its lever or the lever's tip during the hold; (3) in time. Its
+  latch frees the door only once the lever is pressed past most of its
+  travel (`activity.door`): the grader reads none of it.
+- *place*: (1) 5 s after the call the cube rests on the mat -- its middle
+  within 2.5 cm of the mat's, its bottom within 4 mm of the mat's top,
+  upright within 10 deg; (2) it never came down faster than 0.5 m/s, in the
+  attempt or the hold -- set down, not dropped; (3) nothing of the robot's
+  touches it during the hold; (4) in time. Slid there, it passes as well as
+  carried.
+
+Said beside and judging nothing: the most the drawer came out and the door
+opened, how far the lever was pressed, the fastest each moved, the cube's
+lift, the falls the body's own watch counted and its worst tilt.
+
+**The departure is the lid's: `shown: false`, paying 0** -- a check is our
+instrument, in no served world, and a row a mind with a library reads
+would change the deployed prompt.
+
+**What they cannot grade**, beyond §6: a door pushed open by the open hand
+rather than pulled by its lever passes -- the door is the job -- and so
+does a drawer pulled by its front.
+

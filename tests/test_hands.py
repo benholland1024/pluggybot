@@ -77,7 +77,7 @@ def test_a_single_speed_cannot_tell_dry_friction_from_viscous_and_two_can():
 
 
 def test_a_hands_world_calls_its_own_verbs_and_a_served_world_is_unchanged():
-  facts = st.hand_facts(pull=True)
+  facts = st.hand_facts()
   table = st.language(facts)
   assert set(table) == set(facts.verbs)
   assert st.language(None) is st.VERBS
@@ -86,10 +86,13 @@ def test_a_hands_world_calls_its_own_verbs_and_a_served_world_is_unchanged():
   with pytest.raises(st.Refused) as e:
     lang.compile_procedure("def a():\n    fetch(\"module_claw\")\n", st.hand_facts())
   assert "have: wait, move, spot, reach" in str(e.value) and "drive_to" not in str(e.value)
-  # ...and the compliant pull is stage 3's: stage 2's vocabulary has none
-  with pytest.raises(st.Refused):
-    lang.compile_procedure("def a():\n    pull(\"left\", 0, 0, 1, 10, 0.1)\n", st.hand_facts())
-  assert "pull" not in st.hand_facts().verbs and "pull.moved" not in st.hand_facts().sensors
+  # ...and the hands' vocabulary is ONE (#525): every hand verb, a verb as
+  # an if's test and the maths wherever there are hands, `measure` alone an
+  # arm's to take away
+  assert set(st.HAND_VERBS) <= set(facts.verbs) and "measure" in facts.verbs
+  assert "pull.moved" in facts.sensors and facts.verb_tests and facts.math
+  bare = st.hand_facts(measure=False)
+  assert "measure" not in bare.verbs and set(st.HAND_VERBS) <= set(bare.verbs)
 
 
 def test_no_hand_verb_knows_the_chest():
@@ -111,7 +114,7 @@ def test_the_hands_axes_and_sensors_are_registered_as_a_body_registers_its_own()
   for n in axes.BODY_AXES["humanoid"]:
     lo, hi = hm.joint_range(n)
     assert (axes.AXES[n].lo, axes.AXES[n].hi) == (float(lo), float(hi))
-  facts = st.hand_facts(pull=True)
+  facts = st.hand_facts()
   assert set(facts.sensors) <= set(axes.SENSORS)
   assert set(facts.axes) == set(axes.BODY_AXES["humanoid"])
 
@@ -145,9 +148,9 @@ def _bare():
   return m, d
 
 
-def _fly(source: str, body=None, pull: bool = True, measure: bool = False) -> dict:
+def _fly(source: str, body=None, measure: bool = True) -> dict:
   body = body or _stub()
-  facts = st.hand_facts(pull=pull, measure=measure)
+  facts = st.hand_facts(measure=measure)
   proc = lang.compile_procedure(source, facts)
   return body.run(lang.run_procedure_routine(_Life(body), proc, facts))
 
@@ -269,8 +272,8 @@ def test_a_try_is_shown_its_grade_never_its_secrets():
 def test_the_practice_prompt_prescribes_nothing():
   """Its rules say what the body and the language are, never how to open
   anything; the job is told as its grader measures it."""
-  for pull in (False, True):
-    text = mp.system_prompt(st.hand_facts(pull=pull)).lower()
+  for measure in (False, True):
+    text = mp.system_prompt(st.hand_facts(measure=measure)).lower()
     for word in ("lid", "chest", "knob", "hinge", "arc", "handle", "box", "drawer", "door"):
       assert not re.search(rf"\b{word}\b", text), word
   assert "both grippers start shut" in mp.system_prompt(st.hand_facts()).lower()
@@ -483,7 +486,7 @@ def test_a_shut_grippers_word_waits_until_its_jaws_have_closed_or_held():
   class Jaws:
     shut_asked = False
 
-    def shut(self):
+    def shut(self, force=None):
       self.shut_asked = True
 
     def open(self, width=None):
@@ -615,7 +618,7 @@ def test_a_reach_out_of_reach_says_whether_the_other_hand_could():
 def test_a_pull_takes_a_way_of_any_length():
   """Bounded to 1 a component, two tries ended at a computed 1.03 and 1.001:
   the way is any length, scaled to one, and only no way at all is refused."""
-  facts = st.hand_facts(pull=True)
+  facts = st.hand_facts()
   assert st.check_arg(st.HANDS_VERBS["pull"], "dz", 1.03, facts) == []
   ran = _fly('def a():\n    reach("left", 0.3, 0.2, 0.9)\n    pull("left", 0, 0, 2.5, 10, 0.1)\n'
              '    z = read("pull.dz")\n    m = read("pull.moved")\n')
@@ -846,8 +849,8 @@ def test_measure_reads_the_flat_top_at_a_point_and_its_edges_in_the_stance_frame
     assert (got["l"], got["r"]) == pytest.approx((0.32, 0.02), abs=0.01)
   ran = _fly('def a():\n    measure(2.5, 1.5)\n', Seeing(*_bare()), measure=True)
   assert ran["steps"][-1]["reason"] == "no flat top seen round (2.5, 1.5) from where you stand"
-  assert "measure" not in st.hand_facts(pull=True).verbs
-  assert "object.top" not in st.hand_facts(pull=True).sensors
+  assert "measure" not in st.hand_facts(measure=False).verbs
+  assert "object.top" not in st.hand_facts(measure=False).sensors
 
 
 class NotesMind(Mind):
@@ -926,7 +929,7 @@ def test_a_verb_an_if_tests_is_read_and_the_procedure_goes_on():
   verb that no `if` tests still ends the procedure there."""
   body = _stub()
   body.out_of_reach = {"left"}
-  facts = st.hand_facts(verb_tests=True)
+  facts = st.hand_facts()
   src = ('def a():\n    if not reach("left", 0.3, 0.2, 0.9):\n'
          '        reach("right", 0.3, -0.2, 0.9)\n    x = read("right.x")\n')
   ran = body.run(lang.run_procedure_routine(_Life(body), lang.compile_procedure(src, facts),
@@ -943,25 +946,26 @@ def test_a_verb_an_if_tests_is_read_and_the_procedure_goes_on():
     '    reach("left", 0.3, 0.2, 0.9)\n    wait(2)\n', facts), facts))
   assert [s["verb"] for s in ran["steps"]] == ["reach", "wait", "reach"]
   assert ran["failedAt"] == 2 and not ran["ok"]
-  # ...and the mind is told of it only where it may write one
+  # ...and the mind is told of it wherever it may write one: everywhere the
+  # hands' vocabulary is (#525)
   assert "A verb may also stand alone as the test" in mp.system_prompt(facts)
-  assert "A verb may also stand alone" not in mp.system_prompt(st.hand_facts())
 
 
 def test_a_carried_hand_may_turn_as_it_goes_written_as_a_reach_turns_it():
   """The reference's first lesson -- past 50 deg the hand turns as the lid
-  does -- had no verb: `move_hand` and `pull` kept the turn they began
-  with. Given fingers and jaws as `reach` takes them, each turns the hand
-  to them as it goes; left 0, the turn is kept; half a turn is refused."""
+  does -- had no verb: `move_hand` kept the turn it began with. Given
+  fingers and jaws as `reach` takes them, it turns the hand to them as it
+  goes; left 0, the turn is kept; half a turn is refused. A pull takes no
+  turn (#525): its turn is what what it holds gives it."""
   body = _stub()
   body.start_at(2.0, 1.0, math.pi / 2)
   ran = _fly('def a():\n    reach("left", 0.3, 0.2, 0.9)\n'
              '    move_hand("left", 0.3, 0.2, 1.0)\n'
              '    move_hand("left", 0.3, 0.2, 1.1, fx=1, jy=1)\n'
-             '    pull("left", 0, 0, 1, 10, 0.05, fz=-1, jy=1)\n', body)
+             '    move_hand("left", 0.3, 0.2, 1.15, fz=-1, jy=1)\n', body)
   assert ran["ok"]
   (s1, v1, t1), (s2, v2, t2) = body.turned
-  assert (s1, v1, s2, v2) == ("left", "move_hand", "left", "pull")
+  assert (s1, v1, s2, v2) == ("left", "move_hand", "left", "move_hand")
   # the fingers ahead of the stance -- the world's +y, facing up the y axis
   # -- and then straight down: each the turn's third column, reversed
   assert np.allclose(-np.asarray(t1)[:, 2], [0.0, 1.0, 0.0], atol=1e-9)
@@ -969,69 +973,74 @@ def test_a_carried_hand_may_turn_as_it_goes_written_as_a_reach_turns_it():
   ran = _fly('def a():\n    reach("left", 0.3, 0.2, 0.9)\n'
              '    move_hand("left", 0.3, 0.2, 1.0, fx=1)\n', _stub())
   assert ran["steps"][-1]["reason"].startswith("give both ways")
+  with pytest.raises(st.Refused):
+    lang.compile_procedure('def a():\n    pull("left", 0, 0, 1, 10, 0.05, fz=-1, jy=1)\n',
+                           st.hand_facts())
 
 
-def test_the_humanoids_pull_hands_its_turn_to_the_planner_in_the_stance_frame():
+def test_the_humanoids_pull_hands_its_way_to_the_reach_in_the_stance_frame():
+  """`Body.pull_routine` takes its way in the believed world frame; the
+  reach's force move (`Reach.pull`) works in the stance frame, with the
+  force, the distance, the speed and whether it gives as they were asked."""
   from pluggybot.evaluation import attempts as at
   world = at.set_out(at.Task(chest=0, body="humanoid", mount="counter"))
   try:
     body = world.body
     got = {}
-    body.reach.out = lambda side: True
-    body.reach.grip_now = lambda side: (np.array([0.35, 0.2, 0.9]), np.eye(3))
 
-    def carry(side, pos, stiffness=None, speed=None, path=None, turns=None, limit_n=None):
-      got.update(turns=turns)
+    def pull(side, way, force, distance_m, speed=0.06, give=True):
+      got.update(side=side, way=np.asarray(way, dtype=float), force=force,
+                 distance=distance_m, speed=speed, give=give)
       return False
-    body.reach.carry = carry
-    turn = _turned(30.0)
-    body.run(body.pull_routine("left", (0.0, 0.0, 1.0), 10.0, 0.1, turn=turn))
+    body.reach.out = lambda side: True
+    body.reach.pull = pull
     yaw = body.stance[2]
-    c, s = math.cos(yaw), math.sin(yaw)
-    rz = np.array([[c, -s, 0.0], [s, c, 0.0], [0.0, 0.0, 1.0]])
-    assert len(got["turns"]) == 1 and np.allclose(got["turns"][0], rz.T @ turn)
-    body.run(body.pull_routine("left", (0.0, 0.0, 1.0), 10.0, 0.1))
-    assert got["turns"] is None
+    body.run(body.pull_routine("left", (math.cos(yaw), math.sin(yaw), 0.0), 12.0, 0.1,
+                               speed=0.05, give=False))
+    assert got["side"] == "left" and np.allclose(got["way"], [1.0, 0.0, 0.0], atol=1e-9)
+    assert (got["force"], got["distance"], got["speed"], got["give"]) == (12.0, 0.1, 0.05, False)
+    body.run(body.pull_routine("left", (0.0, 0.0, 2.0), 5.0, 0.2))
+    assert np.allclose(got["way"], [0.0, 0.0, 1.0]) and got["give"] is True
   finally:
     world.close()
 
 
 def test_a_path_is_its_points_carried_as_one_motion_each_point_turned_as_it_asks():
-  """`via` adds a point and moves nothing; `follow` carries the hand through
-  them all in one move (the body's path, one posture: separate moves set
-  the reference's own arc down on 2 chests of 8), a point with no turn
-  keeping the one before, and empties the path."""
+  """`via` adds a point and moves nothing; the next `move_hand` carries the
+  hand through them all on its way to its own end in one move (the body's
+  path, one posture: separate moves set the reference's own arc down on 2
+  chests of 8), a point with no turn keeping the one before, and empties
+  the path (#525 merged #493's `follow` into it)."""
   body = _stub()
-  facts = st.hand_facts(path=True)
+  facts = st.hand_facts()
   src = ('def a():\n    reach("left", 0.3, 0.2, 0.9)\n'
          '    via("left", 0.3, 0.2, 0.95)\n'
          '    via("left", 0.35, 0.2, 1.0, fx=1, jy=1)\n'
-         '    via("left", 0.4, 0.2, 1.05)\n'
-         '    follow("left")\n    x = read("left.x")\n')
+         '    move_hand("left", 0.4, 0.2, 1.05)\n    x = read("left.x")\n')
   life = _Life(body)
   ran = body.run(lang.run_procedure_routine(life, lang.compile_procedure(src, facts), facts))
   assert ran["ok"] and ran["locals"]["x"] == pytest.approx(0.4)
-  assert not life.paths.get("left")
+  assert not life.paths.get("left") and ran["steps"][-1]["points"] == 2
   side, path, pos, turns = body.carried_paths[-1]
   assert side == "left" and len(path) == 2 and pos == pytest.approx((0.4, 0.2, 1.05))
   # the first point took the first turn given, the last kept the one before
   assert len(turns) == 3 and np.allclose(turns[0], turns[1]) and np.allclose(turns[1], turns[2])
-  # ...a path with no turns keeps the hand's
+  # ...a path with no turns keeps the hand's, and a move with no path is a line
   body.run(lang.run_procedure_routine(_Life(body), lang.compile_procedure(
-    'def a():\n    via("left", 0.3, 0.2, 0.9)\n    via("left", 0.3, 0.2, 1.0)\n'
-    '    follow("left")\n', facts), facts))
-  assert body.carried_paths[-1][3] is None
-  # ...and with no points, or past the cap, it says so
-  ran = body.run(lang.run_procedure_routine(_Life(body), lang.compile_procedure(
-    'def a():\n    follow("left")\n', facts), facts))
-  assert ran["steps"][-1]["reason"] == "your left hand has no path: `via` its points first"
+    'def a():\n    reach("left", 0.3, 0.2, 0.9)\n    via("left", 0.3, 0.2, 1.0)\n'
+    '    move_hand("left", 0.3, 0.2, 1.1)\n', facts), facts))
+  assert body.carried_paths[-1][3] is None and len(body.carried_paths[-1][1]) == 1
+  body.run(lang.run_procedure_routine(_Life(body), lang.compile_procedure(
+    'def a():\n    reach("left", 0.3, 0.2, 0.9)\n    move_hand("left", 0.3, 0.2, 1.0)\n',
+    facts), facts))
+  assert body.carried_paths[-1][1] == []
+  # ...and past the cap, it says so
   life = _Life(body)
   life.paths = {"left": [((0.0, 0.0, 0.0), None)] * st.MAX_VIA}
   ran = body.run(lang.run_procedure_routine(life, lang.compile_procedure(
     'def a():\n    via("left", 0.3, 0.2, 0.9)\n', facts), facts))
   assert f"a path holds {st.MAX_VIA} points at most" in ran["steps"][-1]["reason"]
-  # ...and the mind is told of the maths, and the path's verbs, only where they are
-  assert "`sin(a)`, `cos(a)` (a in radians)" in mp.system_prompt(facts)
-  assert "follow(" in mp.system_prompt(facts)
-  plain = mp.system_prompt(st.hand_facts())
-  assert "trigonometry." in plain and "follow(" not in plain
+  # ...and the mind is told of the maths and the path wherever there are hands
+  prompt = mp.system_prompt(facts)
+  assert "`sin(a)`, `cos(a)` (a in radians)" in prompt and "via(" in prompt
+  assert "trigonometry." not in prompt and "follow(" not in prompt

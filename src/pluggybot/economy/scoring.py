@@ -54,7 +54,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable
 
-from pluggybot.challenge import bench, lid, stack
+from pluggybot.challenge import bench, door, drawer, lid, place, stack
 
 #: The evaluation tiers, in the design doc's own order.
 TIERS = ("auto", "hidden", "visitor", "narrative")
@@ -779,6 +779,12 @@ EVALUATORS: dict[str, Callable[[dict], tuple[bool, dict, str]]] = {
   # off its hinge's true state. Criteria and evaluator live with the
   # challenge (challenge/lid.py); its row pays 0 and is shown to no mind.
   "lid": lid.eval_lid,
+  # The hands' capability checks (issue #525; docs/Hands.md), graded as
+  # the lid is and shown to no mind: a drawer pulled out and let go, a
+  # cupboard's door opened by its lever, a cube placed on a mat.
+  "drawer": drawer.eval_drawer,
+  "door": door.eval_door,
+  "place": place.eval_place,
 }
 
 
@@ -1114,6 +1120,11 @@ SAMPLERS: dict[str, Callable[..., dict]] = {
   # after the hold -- called by the attempt's harness (`evaluation.
   # attempts`), which hands it the world and what it watched.
   "lid": lid.sample_lid,
+  # ...and the hands' capability checks' (issue #525), off their props'
+  # joints and the contact list, the same harness.
+  "drawer": drawer.sample_drawer,
+  "door": door.sample_door,
+  "place": place.sample_place,
 }
 
 

@@ -420,14 +420,14 @@ class HumanoidBody(Body):
     while not self.stand.settled:
       yield STILL
 
-  def grip_routine(self, side, closed):
-    """Shut, its word is read once its jaws have closed or held (#493:
-    `GRIP_SETTLE_S`), never while they stand open on something they do not
-    yet squeeze."""
+  def grip_routine(self, side, closed, force=None):
+    """Shut -- squeezing with `force`, N a pad, or its sheet's (#525) -- its
+    word is read once its jaws have closed or held (#493: `GRIP_SETTLE_S`),
+    never while they stand open on something they do not yet squeeze."""
     yield from self.mission.to_stand_routine()
     g = self.reach.grippers[side]
     if closed:
-      g.shut()
+      g.shut(force)
     else:
       g.open()
     yield from self.hold_routine(GRIP_S)
@@ -441,6 +441,9 @@ class HumanoidBody(Body):
 
   def gripped(self, side) -> bool:
     return self.reach.grippers[side].held()
+
+  def grip_gap(self, side) -> float:
+    return self.reach.grippers[side].read()[0]
 
   def hand_at(self, side):
     p = self.to_world(self.reach.grip_now(side)[0])
@@ -543,41 +546,41 @@ class HumanoidBody(Body):
                                   "dx": 0.0, "dy": 0.0, "dz": 0.0})
     return (yield from self._held_routine(side, patience))
 
-  def pull_routine(self, side, direction, limit_n, distance_m, stiffness=1.0,
-                   speed=HOLD_SPEED, patience=30.0, turn=None):
-    """A compliant move (#493): the hand carried straight along `direction`
-    on an arm at `stiffness`, so it bends toward whatever gives, its turn
-    held (`Reach.carry`) -- or turned to `turn` as it goes, one posture's
-    path -- stopped at `limit_n` along its way while held back
-    ("force"), held back with no force over it ("held fast"), its grip lost
-    ("let go"), or `distance_m` gone."""
+  def pull_routine(self, side, direction, limit_n, distance_m, speed=HOLD_SPEED,
+                   patience=30.0, give=True):
+    """THE PULL, a force move (#525): the hand that is out pulled -- or
+    pushed -- along `direction` with at most `limit_n`, N, as the hand reads
+    it, at most `speed`, m/s, going where what it holds takes it across that
+    way, its turn giving -- or, not `give`, holding its line and its turn
+    (`Reach.pull`); stopped at `distance_m` along its
+    way, held fast, its grip lost ("let go"), out of reach, its feet moved,
+    or `patience` run out."""
     yield from self.mission.to_stand_routine()
     d = _rz(self.stance[2]).T @ np.asarray(direction, dtype=float)
     d = d / max(float(np.linalg.norm(d)), 1e-9)
     t0 = float(self._d.time)
     if not self.reach.out(side):
-      return self._report({"why": "not out", "seconds": 0.0, "moved": 0.0, "dx": 0.0,
-                           "dy": 0.0, "dz": 0.0, "direction": list(d), "force": 0.0})
+      return self._report({"why": "not out", "seconds": 0.0, "moved": 0.0, "along": 0.0,
+                           "dx": 0.0, "dy": 0.0, "dz": 0.0, "direction": list(d), "force": 0.0})
     start = self.reach.grip_now(side)[0].copy()
     gripped = self.gripped(side)
-    if not self.reach.carry(side, start + float(distance_m) * d, stiffness, speed,
-                            turns=None if turn is None else self._turns([turn]),
-                            limit_n=limit_n):
+    if not self.reach.pull(side, d, limit_n, distance_m, speed, give):
       rep = {**(self.reach.report[side] or {}), "why": "out of reach"}
     else:
       rep = yield from self._held_routine(side, patience)
       rep = dict(self.reach.report[side] or rep) if rep["why"] not in ("fell", "feet moved",
                                                                      "out of time") else rep
-    why = {"arrived": "distance", "held back": "held fast"}.get(rep["why"], rep["why"])
-    if gripped and not self.gripped(side) and why not in ("fell",):
+    why = rep["why"]
+    if gripped and not self.gripped(side) and why != "fell":
       why = "let go"
     h = self.reach.grip_now(side)[0]
     disp = h - start
     n = float(np.linalg.norm(disp))
+    way = rep.get("way") or list(disp / n if n > 1e-9 else d)
     return self._report({"why": why, "seconds": round(float(self._d.time) - t0, 3),
-                         "moved": round(n, 4), "along": round(float(disp @ d), 4),
+                         "moved": round(n, 4), "along": round(float(rep.get("went", disp @ d)), 4),
                          "dx": float(disp[0]), "dy": float(disp[1]), "dz": float(disp[2]),
-                         "direction": [float(v) for v in (disp / n if n > 1e-9 else d)],
+                         "direction": [float(v) for v in way],
                          "force": round(float(rep.get("force") or 0.0), 2)})
 
   def hand_force(self, side):
@@ -638,10 +641,12 @@ class HumanoidBody(Body):
       cut = (at_height - origin[2]) / ray[2] if abs(ray[2]) > 1e-9 else 1.0
       p = origin + ray * cut
     n = rot @ np.array([seen["normal"][0], -seen["normal"][1], -seen["normal"][2]])
+    e = rot @ np.array([seen["edge"][0], -seen["edge"][1], -seen["edge"][2]])
     w = self.to_world(p)
-    nw = _rz(self.stance[2]) @ n
+    nw, ew = _rz(self.stance[2]) @ n, _rz(self.stance[2]) @ e
     return {"x": float(w[0]), "y": float(w[1]), "z": float(w[2]),
-            "range": float(np.linalg.norm(p - origin)), "normal": tuple(float(v) for v in nw)}
+            "range": float(np.linalg.norm(p - origin)), "normal": tuple(float(v) for v in nw),
+            "edge": tuple(float(v) for v in ew)}
 
   # ---- posture and rest ----------------------------------------------------
 
