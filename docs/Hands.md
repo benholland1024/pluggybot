@@ -169,14 +169,43 @@ its 8 set-outs** (`evaluation/hands_check.py`, `BAR`, `SET_OUTS`).
 The procedures and what each knows that a mind would have to find out are
 in `hands_check.py`; `scripts/hands_check.py --source JOB` prints one.
 
-**The result** (`scripts/hands_check.py --jobs 3 --into DIR`, the commit
-in the PR): RESULTS
+![The lid at set-out 0: lifted by one force move, the hinge steering the
+hand, and set down by another](figures/hands_lid.png)
+![The drawer at set-out 0: one pull straight out](figures/hands_drawer.png)
+![The door at set-out 0: the lever pressed, let go, gripped lightly and
+pulled, the door swinging on its hinge](figures/hands_door.png)
+![The cube at set-out 0: gripped from above-front, lifted, carried and set
+down on the mat holding its line](figures/hands_place.png)
 
-**The set-outs were moved for the body, never for the procedure**: each
-move is at its constant with the measurement behind it. The door hung on
-its right swung into the left arm holding its lever; its lever's tip 0.33
-ahead was out of reach once the door stood ajar; the cube's carry 6-10 cm
-ahead was out of every posture from 0.34-0.38 ahead and 12 cm up.
+(`MUJOCO_GL=egl uv run python scripts/hands_check.py --strip JOB 0 --out
+docs/figures/hands_JOB.png`; `--view JOB K` watches one in the viewer.)
+
+**The result**, flown from `8dd32ea` (`scripts/hands_check.py --jobs 3
+--into DIR`): three jobs of four meet the bar.
+
+| job | passed | the set-outs that failed, and why |
+|---|---|---|
+| lid | **7 of 8** | 2: no tilt's grip held the knob (its reach stopped short, its jaws closed on nothing) |
+| drawer | **7 of 8** | 5: no tilt reached the knob |
+| door | **7 of 8** | 4: the press held fast with the lever 27 deg down, short of the latch's 32, and the door stayed latched; the light grip after it let go |
+| place | 3 of 8 | 2: no tilt reached the cube; 1, 3: the carry refused at once, out of every posture's reach; 5: the carry held back, and 7: the robot fell partway through it; the cube let fall after both |
+
+**The cube is below the bar, and its failures are the body's**: every one
+is a reach, a carry or a fall at the edge of the standing envelope, and
+the three it passes set the cube down 0.4-1.7 cm from the mat's middle.
+Its set-out is boxed in: nearer than 0.29 m the head camera does not see
+the cube (5 of 8), further than 0.34 the robot's model of itself refuses
+the carry (6 of 8) -- a robot that stands where it is put has a band about
+4 cm deep to work in. What would move it is the body's, not the
+vocabulary's: a step toward the work, which this check leaves out.
+
+**The props and their set-outs were fitted to the body's reach and
+sight**, each move at its constant with the measurement behind it
+(SimNotes, "The force move"): the door hung on its right swung into the
+left arm holding its lever; its lever's tip 0.33 ahead was out of reach
+once the door stood ajar; the cube's carry 6-10 cm ahead was out of every
+posture from 0.34-0.38 ahead and 12 cm up, and a cube or mat nearer the
+body was out of the head camera's sight.
 
 **What it cannot show.** The check proves the vocabulary EXPRESSES each
 job, not that a mind finds the expression; it is one body, one hand at a

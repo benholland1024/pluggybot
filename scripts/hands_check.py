@@ -109,9 +109,11 @@ def source(job: str) -> None:
 # ---- --view and --strip ------------------------------------------------------------
 
 #: Where each job's prop stands at set-out k (x, y, its turn): what a
-#: camera looks at.
+#: camera looks at -- and how far a filmstrip's camera stands back, m (the
+#: cube is 26 mm).
 PROPS = {"lid": lambda k: ct.set_out(k).chest, "drawer": lambda k: ct.drawer_set_out(k).cabinet,
          "door": lambda k: ct.door_set_out(k).cupboard, "place": lambda k: ct.cube_set_out(k).cube}
+BACK = {"lid": 1.5, "drawer": 1.5, "door": 1.5, "place": 0.9}
 
 
 def _task(job: str, k: int) -> at.Task:
@@ -162,7 +164,7 @@ def strip(job: str, k: int, out: str = "hands_check.png") -> None:
     # for this tile alone -- the robot's own cameras render in the house's light.
     cam = mujoco.MjvCamera()
     cam.lookat[:] = [0.6 * x + 0.4 * sx, 0.6 * y + 0.4 * sy, ct.COUNTER_H + 0.15]
-    cam.distance, cam.azimuth, cam.elevation = 1.5, math.degrees(yaw) + 115.0, -25.0
+    cam.distance, cam.azimuth, cam.elevation = BACK[job], math.degrees(yaw) + 115.0, -25.0
     light = (m.vis.headlight.ambient.copy(), m.vis.headlight.diffuse.copy())
     m.vis.headlight.ambient[:], m.vis.headlight.diffuse[:] = 0.35, 0.55
     r.update_scene(d, cam)
