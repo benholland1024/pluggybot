@@ -4832,8 +4832,9 @@ position moving as the planted foot does not -- the lower sole, levelled,
 off the legs' encoders through its model of itself. On a bare floor, with
 nothing for a scan to match (`humanoid_spike.py --odometry`, 8 s a
 command), it reads 4-6 % short walking forward or back, 3 % on a walk with
-a turn, and 25 % SIDEWAYS (a shuffle lifts the swing foot too little to
-tell which is planted); the Navigator never walks it sideways.
+a turn, and 7 % sideways once the planted foot is told at 3 mm (at 1 cm a
+shuffle's swing foot read planted, and sideways 21 % short: "Stepping
+toward the work"); the Navigator never walks it sideways.
 
 **Rule 7, read again for walking** (`humanoid_spike.py --torque`, its
 walking rows FLOWN by the policy, 10 s at each speed, the start left out):
@@ -5285,20 +5286,8 @@ no grip's tilt follows the arc to 60 deg (`no tilt puts the lid's arc in
 reach`), in three no arc follows from the grip the reach could make, in one
 the hand ran out of reach a step up.
 
-**The compliant pull** (`Body.pull_routine`, the `pull` verb) is a hand
-carried straight on a soft arm (0.5 of its gains unless asked), its turn
-held, stopped at its distance, at its force while held back, held fast, or
-its grip lost; how far it went and the way the hand truly went are its
-report. A procedure steers it, a pull at a time. ⚠ Every pull that steered
-itself failed, and why is the lesson: an equilibrium point drawn along the
-hand's own motion followed the robot's lean and its feet's slide (pulling
-25-40 N, the standing policy shuffled; measured from the feet that moved,
-the hand seemed to come back, and the pull followed it); a circle fitted to
-the hand's path saw none -- on a stiff arm the hand goes where it is told
-and a lid's arc shows as force, 3 mm off a line after 10 cm; and a turn
-that yields to what twists it let the drop handle buckle under the first
-push (its pin from -33 to +78 deg), at 4 deg or 10 of give, because the
-buckle and the handle's stop turn the hand the same way.
+**The pull** that #493's practice flew -- a compliant straight move, its
+turn held -- is rebuilt as the force move: "The force move (issue #525)".
 
 **The arms' friction is calibrated once and kept**
 (`humanoid/friction.py`, `models/humanoid_friction.json`;
@@ -5314,6 +5303,149 @@ else.
 What the robot's own mind made of these hands -- graded practice,
 baseline (a′) and the flight over held-out chests -- is Evaluation.md
 §4's.
+
+## The force move (issue #525)
+
+`pull` became a force move (docs/Hands.md §4): the command walks along the
+way as the hand's FELT force allows, follows the hand across it, and its
+turn gives to what it holds. Each rule was measured; every number is
+MuJoCo's, an upper bound on hardware.
+
+- *The force is closed on the reading, never on the arm's spring.* The
+  compliant pull capped its force by how far the arm's model said it bent:
+  on a drawer's stop it put 15 N for a 5 N limit and 27 for 10, where the
+  hand's reading was within 0.5 N of the contact's true force. Closed on
+  the reading (admittance), the stop came to 3.7, 8.9 and 18.3 N for 5, 10
+  and 20.
+- *Across the way the hand follows what it holds, no faster than twice the
+  pull's speed* (`ACROSS_SPEED`). Unbounded, a lid let go of its weight
+  followed it down; yielding only past a dead band of force, the hand
+  lagged a drop handle's flip and ran out of reach on every lid (0 of 8).
+  Holding its line (`give` 0) is for a set-down: giving, a cube set down
+  slid 13 cm along the mat.
+- *Its turn gives, but never about the jaws' line.* Held whole, the pads
+  dragged a drop handle's knob sideways through its pin and the robot
+  turned 22 deg on its feet; giving 10 % of the gap a command, it did not.
+  Giving about every axis, a lid's weight bent the wrist about the jaws'
+  line and the give followed: 70 deg down at 46-54 deg of lid, the elbow
+  straight at its stop, the wrist pitched 80 deg, and the lid held there
+  (4 chests of 8). Held about that line -- what a two-jaw grip holds turns
+  about it between the pads -- the same single 27 cm pull took 7 of 8 past
+  57 deg, and one pull toward the body set each down.
+- *Going on, another posture from the arm as it is.* A replan that asked
+  the posture it held from fresh seeds found another branch "reaching",
+  and the live arm stood at its elbow's stop 2 cm short for 9 s.
+- *The grip's force is a verb's.* At the Dex1-1's 120 N a pad, the pads'
+  torsional friction (condim 4, 0.01 m: up to 2.4 N*m) locked a door's
+  lever in the jaws, and the hand gripping it held the door shut; at 15 N
+  the tip turns between the jaws as the door swings.
+- *A grip is judged on its squeeze's running mean* (`arms.SQUEEZE_S`, 0.1
+  s, sampled every physics step). One reading carries the current sense's
+  5.1 N of noise, and against half the force asked it read a 15 N grip as
+  nothing held 7 % of the time and a 5 N one 31 %.
+- *A grip lost ends the pull where the hand is* ("let go"). Ended at its
+  distance alone, a knob slipped from the jaws would leave the hand
+  pulling on through the air, its report that free motion's.
+
+**The checks' props** (`activity/drawer.py`, `door.py`, `cube.py`; their
+set-outs `evaluation/counter.py`, each placement's reason at its constant):
+- *The cupboard's door is hung on its LEFT and its lever points away from
+  the hinge.* Hung on its right, the door swung into the left arm that held
+  its lever and stopped there, 36-45 deg open; its lever pointing toward
+  the hinge, pressing it down rolled the left wrist toward its stop, and 6
+  presses of 8 went 1-3 cm.
+- *A trip latch and a kick.* One grip could not both hold the lever down
+  and leave the door free (the jaws locked the tip), so the latch trips
+  once the lever is pressed past 32 deg and stays tripped until the door
+  has stood ajar and shut again, lever up; tripped, a spring kicks it 6 deg
+  ajar, damped (undamped, 0.25 N*m swung a low-friction door 33-48 deg out
+  of reach). ⚠ A door kicked free coasts: the hinge's friction is 0.02-0.15
+  N*m, and in the check 2 doors of 8 stood past 50 deg after the press
+  alone -- so a procedure looks before it grips again.
+- *The cube is set out in sight and out of reach, 0.40-0.46 m ahead on a 6
+  cm board, and the robot steps to it* ("Stepping toward the work").
+  Standing put, its sight and its reach boxed a cube into 4 cm: nearer
+  than 0.29 m the head camera did not see it (5 of 8), and from 0.34-0.38
+  ahead, 12 cm up, the robot's model of itself refused the carry 6-10 cm
+  ahead (6 of 8); a mat out to the left or nearer the body was out of
+  sight even bowed 0.45 rad.
+- ⚠ *Every set-out draws off a stream of its own* (`counter._drawn`, the
+  stream (seed, k)). Off one seed with the cube's hidden draw, the
+  furthest cube was always the heaviest and the leftmost the most
+  slippery, so its weight could be read off where it stood.
+- ⚠ *Our procedures were fitted to their own set-outs.* Redrawn off those
+  streams, the drawer passed 3 of 8 where it had 7 and the cube 3 where it
+  had 4 (the same code passes the old draws as before). On a drawer's way
+  in to a knob 15 cm over the counter on a 2 cm stem, the jaws' pads met
+  the cabinet's top or the counter, the reach blocked at 50-65 N; letting
+  the arm find the grip's turn as a last try passed no more (4 of 8 on
+  set-outs 8-15 either way).
+
+## Stepping toward the work (issue #525)
+
+`step(ahead, left, turn)` (docs/Hands.md §3) moves the feet: a turn on the
+spot, one walk, both the walking policy's, then the standing policy's
+settle (`HumanoidBody.step_routine`). Flown at the counter's set-out 0 and
+read against the truth (`_true_stance`):
+
+| asked | went | its report off by |
+|---|---|---|
+| 5 cm ahead | 9.6 cm | 0.4 cm |
+| 12, 20, 30 cm ahead | 12.7, 23.5, 31.0 cm | 0.2, 0.8, 0.4 cm |
+| 15 cm back | 11.6 cm | 0.1 cm |
+| 15 cm left, 15 cm right | 14.4, 17.9 cm | 2.7, 0.8 cm |
+| 20 ahead and 10 left | 20.8 and 7.1 cm | 1.1 cm |
+| a turn of 17, 29, 57, 86 deg | 16.8, 27.0, 58.5, 85.1 deg | 0.2-0.3 deg; 2-6 cm (below) |
+
+- *At the walker's slowest a short walk is a slide.* At 0.2 m/s
+  (`mission.V_MIN`) the feet slid rather than lifted, and the odometry counted
+  the first stride backward: asked 5 cm it went 16 and believed 5. Backing
+  up at 0.3 it went 4 cm and believed it had gone FORWARD 1. A step walks
+  at `STEP_V` 0.3 and backs up at `BACK_V` 0.4.
+- *The stride carries on after the last command*, 0.2-0.27 s of its pace,
+  so a walk stops once what it believes it has walked, plus its speed times
+  `STEP_STOP_S` (0.22 s), reaches the step; the least a walk goes is a
+  stride, about 10 cm.
+- *A turn at 0.6 rad/s sprang back 6-8 deg* as the legs changed hands; at
+  `TURN_W` 1.0 it lands within 2 deg of the turn asked, and its heading is
+  read within 0.3.
+- *Nothing is measured until the walker has the legs.* Out of a deep bow
+  the pelvis came 16 cm forward over the feet as the arms came home, which
+  a walk measured from before it counted as walked (ok, without a step),
+  and the hand-over outlasted the 1 s a walk is given to get anywhere,
+  which read as `blocked` on a bare floor.
+- *The walker skews an oblique walk*: it raises a forward speed under
+  `V_MIN` to it and leaves the sideways one, so a step at `STEP_V` more than
+  48 deg off straight ahead walked 12 cm further ahead than asked. Such a
+  step is walked as two, ahead then left (`body._step_walks`).
+- ⚠ *A turn moves the feet a few centimetres nothing measures.* Its
+  shuffle walks the stance 2-6 cm (turns of 17-86 deg), and the odometry is
+  3-7 cm off over it: so the step takes a turn as on the spot (`turn` alone
+  reports no travel), the nearer of the two.
+- *Its odometry's swap.* A shuffle lifts its swing foot under a
+  centimetre, so at a 1 cm threshold the odometry kept the sliding foot
+  planted and read the pelvis going BACK as it slid forward: a short step
+  lost 4.3 of its 13.6 cm. At 3 mm (`odometry.SWAP_M`) a forward step reads
+  within a centimetre; `humanoid_spike.py --odometry` reads forward, back
+  and turning as before, and sideways 7 % short where it read 21 %. ⚠ A
+  short step to the LEFT still reads up to a fifth short (above).
+- *Nearer than 0.29-0.31 m the head camera does not see a cube* on the
+  counter's 6 cm board, even bowed 0.75 rad; from 0.3-0.5 m its spot is
+  good to 0.4-0.8 cm. So a robot that steps in to a cube turns what it read
+  before the step into the frame after it (`step.*`), as the check's
+  procedure does, rather than look again.
+
+**The cube in the hand.** The Dex1-1's fingers are 8 cm long and its grip
+point is their middle (`humanoid/model.py`, `jaw_z`), so at the 60 deg tilt
+that reaches a 26 mm cube on a board, the fingertips are 3.5 cm below the
+grip point and meet the board while the grip is still 2-3 cm above the
+cube's middle (1.8-2.8 cm, every set-out): the jaws pinch its top few
+millimetres, and it tipped over or dropped as it was let go. The reach
+still holds there -- its command arrived, and the fingertips press under
+`BLOCKED_N` -- as do a lid's at set-out 1 (1.8 cm) and the door's press at
+set-out 0 (2.3 cm), both of which open, so no tolerance on the hand's place
+tells the cube's grip from theirs. Gripped shallower, 15-30 deg, so the
+tips clear the board, the reach stops short on it (2 of 15).
 
 ## Debugging workflow that worked
 

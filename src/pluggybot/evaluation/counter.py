@@ -105,11 +105,164 @@ def set_out(k: int) -> SetOut:
                 start=(START[0], START[1], 0.0))
 
 
-def world(so: SetOut, policy=None):
+def _placed(knob, off, yaw: float) -> tuple[float, float, float]:
+  """A prop's frame (x, y, yaw) that puts its point `off` (its own frame)
+  at `knob` (x, y), turned `yaw`."""
+  c, s = math.cos(yaw), math.sin(yaw)
+  return knob[0] - (c * off[0] - s * off[1]), knob[1] - (s * off[0] + c * off[1]), yaw
+
+
+def _drawn(k: int, seed: int, ahead=KNOB_AHEAD, left=KNOB_LEFT, turned: float = TURNED):
+  """A check's set-out k (#525): where its handle stands -- `ahead` of the
+  soles' middle and `left` of it -- and how far its prop is turned, drawn
+  off the stream (`seed`, k). ⚠ A STREAM OF ITS OWN, never its prop's
+  hidden draw's: off one seed with it, the furthest cube was always the
+  heaviest, and its weight could be read off where it stood (#525)."""
+  if k < 0:
+    raise ValueError(f"a set-out is a whole number from 0, not {k}")
+  rng = np.random.default_rng((seed, k))
+  sx = START[0] + _stance_ahead()
+  fore, side = float(rng.uniform(*ahead)), float(rng.uniform(*left))
+  return (sx + fore, START[1] + side), float(rng.uniform(-turned, turned)), rng
+
+
+@dataclass(frozen=True)
+class DrawerSetOut:
+  """Drawer k in its cabinet on the counter (#525): its hidden parameters
+  (`drawer.draw(k)`), the cabinet's frame, the counter's front edge's middle
+  and heading, and the humanoid's start."""
+  k: int
+  runners: object
+  cabinet: tuple[float, float, float]
+  counter: tuple[float, float, float]
+  start: tuple[float, float, float]
+
+  def attach(self, spec) -> None:
+    from pluggybot.activity import drawer as dr
+    dr.attach_cabinet(spec, self.runners, self.cabinet[:2], self.cabinet[2], z=COUNTER_H)
+
+
+#: `drawer_set_out(k)`'s stream is this and k (`_drawn`).
+DRAWER_SEED = 5251
+
+
+def drawer_set_out(k: int) -> DrawerSetOut:
+  """Drawer `k` (seeded): its knob where a chest's knob stands
+  (`KNOB_AHEAD`, `KNOB_LEFT`), the cabinet turned up to `TURNED`, the
+  counter's edge `EDGE_BACK` ahead of the cabinet's front."""
+  from pluggybot.activity import drawer as dr
+  knob, yaw, _ = _drawn(k, DRAWER_SEED)
+  cab = _placed(knob, dr.KNOB_AT, yaw)
+  s = math.sin(yaw)
+  front = min(cab[0] - s * dy for dy in (-dr.BOX_W / 2, dr.BOX_W / 2))
+  return DrawerSetOut(k=k, runners=dr.draw(k), cabinet=cab,
+                      counter=(front - EDGE_BACK, knob[1], 0.0), start=(START[0], START[1], 0.0))
+
+
+@dataclass(frozen=True)
+class DoorSetOut:
+  """Door k on its cupboard on the counter (#525): its hidden parameters
+  (`door.draw(k)`), the cupboard's frame, the counter's front edge's middle
+  and heading, and the humanoid's start."""
+  k: int
+  hinge: object
+  cupboard: tuple[float, float, float]
+  counter: tuple[float, float, float]
+  start: tuple[float, float, float]
+
+  def attach(self, spec) -> None:
+    from pluggybot.activity import door as dr
+    dr.attach_cupboard(spec, self.hinge, self.cupboard[:2], self.cupboard[2], z=COUNTER_H)
+
+
+#: `door_set_out(k)`'s stream is this and k (`_drawn`); how far its cupboard is turned
+#: at most, rad -- its door swings toward the robot -- and where its lever's
+#: tip stands, this far ahead of the soles' middle and this far to its
+#: left, m: the tip comes 7 cm nearer and 9 cm to the left as the door
+#: opens 50 deg, and from a chest knob's 0.33-0.37 ahead, ajar 5 deg, no
+#: posture put the grip on it again (6 doors of 8); 0.12-0.13 left, the
+#: press ran out of reach 1-3 cm down (#525).
+DOOR_SEED, DOOR_TURNED = 5253, math.radians(8.0)
+DOOR_AHEAD, DOOR_LEFT = (0.40, 0.44), (0.15, 0.20)
+
+
+def door_set_out(k: int) -> DoorSetOut:
+  """Door `k` (seeded): its lever's tip `DOOR_AHEAD` and `DOOR_LEFT`, the
+  cupboard turned up to `DOOR_TURNED`, the counter's edge `EDGE_BACK` ahead
+  of the cupboard's front."""
+  from pluggybot.activity import door as dr
+  tip, yaw, _ = _drawn(k, DOOR_SEED, DOOR_AHEAD, DOOR_LEFT, DOOR_TURNED)
+  box = _placed(tip, dr.KNOB_AT, yaw)
+  s = math.sin(yaw)
+  front = min(box[0] - s * dy for dy in (-dr.BOX_W / 2, dr.BOX_W / 2))
+  return DoorSetOut(k=k, hinge=dr.draw(k), cupboard=box,
+                    counter=(front - EDGE_BACK, tip[1], 0.0), start=(START[0], START[1], 0.0))
+
+
+@dataclass(frozen=True)
+class CubeSetOut:
+  """Cube k on the counter and the mat beside it (#525): its hidden
+  parameters (`cube.draw(k)`), where the cube rests (x, y, its turn) and
+  where the mat lies (x, y), the counter's front edge's middle and heading,
+  and the humanoid's start."""
+  k: int
+  load: object
+  cube: tuple[float, float, float]
+  mat: tuple[float, float]
+  counter: tuple[float, float, float]
+  start: tuple[float, float, float]
+
+  def attach(self, spec) -> None:
+    from pluggybot.activity import cube as cb
+    x0 = min(self.cube[0], self.mat[0]) - BOARD_MARGIN
+    x1 = max(self.cube[0], self.mat[0]) + BOARD_MARGIN
+    y0 = min(self.cube[1], self.mat[1]) - BOARD_MARGIN
+    y1 = max(self.cube[1], self.mat[1]) + BOARD_MARGIN
+    board = spec.worldbody.add_body(name="cube_board", pos=[(x0 + x1) / 2, (y0 + y1) / 2, COUNTER_H])
+    board.add_geom(name="cube_board", type=mujoco.mjtGeom.mjGEOM_BOX,
+                   size=[(x1 - x0) / 2, (y1 - y0) / 2, BOARD_H / 2], pos=[0, 0, BOARD_H / 2],
+                   rgba=[0.55, 0.45, 0.36, 1])
+    cb.attach_props(spec, self.load, self.cube[:2], self.mat, self.cube[2], z=COUNTER_H + BOARD_H)
+
+
+#: The cube and the mat lie on a board on the counter, this high, m, and
+#: this much wider than them all round: on the counter's own top, 8 cm under
+#: a chest's knob, nothing reached the mat 0.34-0.40 m ahead and only the
+#: left hand tilted 45 deg the cube (#525; SimNotes, "The humanoid stands,
+#: reaches and grasps": its envelope reaches 0.35-0.55 m ahead at 0.80-0.94).
+BOARD_H, BOARD_MARGIN = 0.06, 0.08
+#: `cube_set_out(k)`'s stream is this and k (`_drawn`); where the cube rests -- this
+#: far ahead of the soles' middle and this far to its left, m -- and how far
+#: it is turned at most, rad; where the mat lies from it: this far to its
+#: left and this far further ahead, m -- and how far behind the counter's
+#: edge the nearer of the two lies, m. IN SIGHT AND OUT OF REACH WHERE THE
+#: ROBOT STANDS, so it STEPS to its work (`step`): standing put, its sight
+#: and its reach boxed a cube into 4 cm -- nearer than 0.29 m the head
+#: camera did not see it (5 of 8), past 0.34 the carry 6-10 cm ahead left
+#: every posture (6 of 8) (#525).
+CUBE_SEED, CUBE_AHEAD, CUBE_LEFT, CUBE_TURNED = 5255, (0.40, 0.46), (0.13, 0.17), math.radians(30.0)
+MAT_LEFT, MAT_AHEAD, CUBE_EDGE = (-0.01, 0.01), (0.06, 0.08), 0.04
+
+
+def cube_set_out(k: int) -> CubeSetOut:
+  """Cube `k` (seeded): resting `CUBE_AHEAD` and `CUBE_LEFT`, turned up to
+  `CUBE_TURNED`, the mat `MAT_LEFT` to its left and `MAT_AHEAD` further
+  ahead, the counter's edge `CUBE_EDGE` in front of the nearer of the two."""
+  from pluggybot.activity import cube as cb
+  at, yaw, rng = _drawn(k, CUBE_SEED, CUBE_AHEAD, CUBE_LEFT, CUBE_TURNED)
+  mat = (at[0] + float(rng.uniform(*MAT_AHEAD)), at[1] + float(rng.uniform(*MAT_LEFT)))
+  front = min(at[0], mat[0]) - BOARD_MARGIN
+  return CubeSetOut(k=k, load=cb.draw(k), cube=(at[0], at[1], yaw), mat=mat,
+                    counter=(front - CUBE_EDGE, (at[1] + mat[1]) / 2, 0.0),
+                    start=(START[0], START[1], 0.0))
+
+
+def world(so, policy=None):
   """A set-out's world: the house with the humanoid standing at its start,
-  the counter and the chest on it. Returns the model, its data and the
-  humanoid's body (`HumanoidBody`), its stance commissioned where it
-  stands."""
+  the counter and the prop on it -- the chest (`SetOut`), or a check's
+  (`DrawerSetOut`'s and the others', #525: its own `attach`). Returns the
+  model, its data and the humanoid's body (`HumanoidBody`), its stance
+  commissioned where it stands."""
   from pluggybot.body import body_for
   from pluggybot.humanoid import model as hm
   spec = mujoco.MjSpec.from_file(HOME_XML)
@@ -123,7 +276,10 @@ def world(so: SetOut, policy=None):
   body.add_geom(name="counter", type=mujoco.mjtGeom.mjGEOM_BOX,
                 size=[COUNTER_D / 2, COUNTER_W / 2, COUNTER_H / 2], pos=[0, 0, COUNTER_H / 2],
                 rgba=[0.86, 0.85, 0.82, 1])
-  ch.attach_chest(spec, so.lid, so.chest[:2], so.chest[2], z=COUNTER_H)
+  if isinstance(so, SetOut):
+    ch.attach_chest(spec, so.lid, so.chest[:2], so.chest[2], z=COUNTER_H)
+  else:
+    so.attach(spec)
   spec.visual.map.znear = NEAR_M / spec.stat.extent
   model = spec.compile()
   data = mujoco.MjData(model)

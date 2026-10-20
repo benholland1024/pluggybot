@@ -436,7 +436,8 @@ def test_the_floor_is_reached_only_close_in_from_the_deepest_bow():
 def test_a_grip_is_judged_by_the_grippers_own_reading():
   """`Gripper.held`: shut on a block it stalls short of closed, pressing --
   held; shut on nothing it closes -- not held. Off its encoder and its
-  current, never the contacts."""
+  current, never the contacts, sampled every physics step as the reach
+  samples it (`Gripper.sample`)."""
   from pluggybot.humanoid.arms import Gripper
   model, data = _gripper_rig(0.04)
   g = Gripper(model, data, "left")
@@ -445,6 +446,7 @@ def test_a_grip_is_judged_by_the_grippers_own_reading():
   g.shut()
   for _ in range(int(1.0 / model.opt.timestep)):
     mujoco.mj_step(model, data)
+    g.sample()
   assert g.held()
   model, data = _gripper_rig(0.04)
   model.geom_contype[model.geom("held").id] = 0
@@ -454,6 +456,7 @@ def test_a_grip_is_judged_by_the_grippers_own_reading():
   g.shut()
   for _ in range(int(1.0 / model.opt.timestep)):
     mujoco.mj_step(model, data)
+    g.sample()
   assert not g.held()
 
 

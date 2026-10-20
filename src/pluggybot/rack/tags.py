@@ -90,6 +90,15 @@ AREA_TAG_SIZE = BOARD_TAG_SIZE
 #: never the served world's: the claw's 26 mm cube with its tag on every
 #: face, as the blocks' are, so the claw's walk-in can steer by it.
 CHEST_TAG_IDS = (53,)
+#: The hands' capability checks (issue #525; docs/Hands.md), a check's and
+#: never the served world's: the drawer's knob and the door's lever wear the
+#: chest's 26 mm cube with its tag on every face, as the cube to be placed
+#: does; the mat it is placed on wears its own across its top, 80 mm wide.
+DRAWER_TAG_IDS = (54,)
+DOOR_TAG_IDS = (55,)
+CUBE_TAG_IDS = (56,)
+MAT_TAG_IDS = (57,)
+MAT_TAG_SIZE = 0.080 * 8 / 10
 
 # Physical marker sizes (m), edge of the BLACK tag -- what the detector is
 # told, and what PnP scales its translation by. The plate carrying it is
@@ -102,6 +111,8 @@ SMALL_TAG_SIZE = 0.030
 TAG_SIZES = {**{i: BLOCK_TAG_SIZE for i in BLOCK_TAG_IDS},
              **{i: BLOCK_TAG_SIZE for i in MASS_TAG_IDS},
              **{i: BLOCK_TAG_SIZE for i in CHEST_TAG_IDS},
+             **{i: BLOCK_TAG_SIZE for i in (*DRAWER_TAG_IDS, *DOOR_TAG_IDS, *CUBE_TAG_IDS)},
+             **{i: MAT_TAG_SIZE for i in MAT_TAG_IDS},
              **{i: DOCK_TAG_SIZE for i in DOCK_TAG_IDS},
              **{i: LEGS_RACK_TAG_SIZE for i in (*LEGS_RACK_TAG_IDS, *LEGS_BUILT_TAG_IDS)},
              **{i: PLATE_TAG_SIZE for i in PLATE_TAG_IDS},
@@ -271,7 +282,9 @@ class TagDetector:
     ⚠ A CUBE SHOWS ITS TAG ON EVERY FACE (`challenge.stack.block_xml`), and
     keyed by id the last face decoded wins -- lying in front of one, that
     was its top seen edge-on, 16 mm over the face the robot faced (#407).
-    Which face a decode is, is its `normal`."""
+    Which face a decode is, is its `normal`; which way its edges run, its
+    `edge` -- the tag's own x, along its face (#525: a knob's top seen from
+    above says which way the knob is turned only by it)."""
     rgb = self.frame(data)
     gray = np.ascontiguousarray(
       (0.299 * rgb[:, :, 0] + 0.587 * rgb[:, :, 1]
@@ -290,6 +303,7 @@ class TagDetector:
         "center": (float(det.center[0]), float(det.center[1])),
         "yaw": float(np.arctan2(normal[0], normal[2])),
         "normal": tuple(float(v) for v in normal),
+        "edge": tuple(float(v) for v in np.asarray(det.pose_R) @ (1.0, 0.0, 0.0)),
       })
     return out
 

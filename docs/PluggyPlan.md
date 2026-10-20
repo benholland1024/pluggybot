@@ -196,6 +196,8 @@ materials.
   — the build recipes: a tool module, a mechanism that owns world state, a
   job offer, a job nobody scripted.
 - `Overseer.md` — the mind: vocabulary, event map, memory, money, visitors.
+- `Hands.md` — the humanoid's hands' vocabulary: its verbs, the force move,
+  the step, the capability check.
 - `Evaluation.md` — measurement: arms, metrics, the observatory.
 - `Observatory.md` — the deployed world's periods: what was running when.
 - `Testing.md` — pinning a rule without paying for a mission.

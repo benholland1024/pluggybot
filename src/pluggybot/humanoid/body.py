@@ -24,7 +24,7 @@ from pluggybot.humanoid import model as hm
 from pluggybot.humanoid import parts as hp
 from pluggybot.humanoid.arms import HELD_GAP_M, HandGoal
 from pluggybot.humanoid.policy import PITCH_RANGE, StandPolicy
-from pluggybot.humanoid.mission import HumanoidMission
+from pluggybot.humanoid.mission import MOTION_EPS, V_MIN, HumanoidMission
 from pluggybot.humanoid import reach as reach_
 from pluggybot.humanoid.reach import HOLD_SPEED
 from pluggybot.power import Pack
@@ -56,6 +56,22 @@ GAZE_WAIT_S, RELEASE_S = 4.0, 15.0
 #: it 0.3 m to the counter, its standing policy stepping under the arm
 #: (#493).
 FEET_MOVED_M = 0.05
+#: A STEP (`step_routine`, #525; SimNotes, "Stepping toward the work"): its
+#: pace forward and back, m/s -- at the walker's slowest, 0.2, its feet slid
+#: rather than lifted and its odometry counted the first stride backward:
+#: asked 5 cm it went 16 and believed 5; backing up at 0.3 it went 4 cm and
+#: believed it had gone FORWARD 1 -- and its turn, rad/s: at 0.6 the heading
+#: sprang back 6-8 deg as the legs changed hands, at 1.0 it lands within 2
+#: deg of the turn asked.
+STEP_V, BACK_V, TURN_W = 0.3, 0.4, 1.0
+#: ...stopped once what it believes it has walked, and its speed times this,
+#: s, reach the step asked -- its stride carries on that far, about 0.2-0.27
+#: s of its pace -- and a turn this much short, rad.
+STEP_STOP_S, TURN_STOP_RAD = 0.22, math.radians(0.5)
+#: ...BLOCKED when it walks less than this, m, in this long, s, and given
+#: this long, s; and stood still this long after, s, the standing policy's
+#: own settle.
+STEP_STUCK_M, STEP_STUCK_S, STEP_PATIENCE_S, STEP_SETTLE_S = 0.01, 1.0, 15.0, 0.5
 #: Its measured depth's own noise stream (`depth_cloud`) and how far its
 #: rays reach, m: the probe's seed, and a counter's chest within arm's reach.
 DEPTH_SEED, DEPTH_REACH_M = 466, 3.0
@@ -65,6 +81,20 @@ NOT_HERE = "not on the humanoid yet: the quadruped's world (its dock, rack and t
 
 def _yaw(rot: np.ndarray) -> float:
   return math.atan2(rot[1, 0], rot[0, 0])
+
+
+def _step_walks(ahead: float, left: float) -> list[tuple[float, float]]:
+  """A step's walks: `ahead` and `left` as one motion -- or, where its
+  forward speed would fall in the walker's dead band (`mission.command_for`
+  raises one under `V_MIN` to it, and an oblique step walked 12 cm further
+  ahead than asked, #525), the one and then the other."""
+  length = math.hypot(ahead, left)
+  if not length:
+    return []
+  vx = (BACK_V if ahead < -abs(left) else STEP_V) * ahead / length
+  if abs(vx) < MOTION_EPS or abs(vx) >= V_MIN:
+    return [(ahead, left)]
+  return [w for w in ((ahead, 0.0), (0.0, left)) if any(w)]
 
 
 def _rz(yaw: float) -> np.ndarray:
@@ -420,14 +450,14 @@ class HumanoidBody(Body):
     while not self.stand.settled:
       yield STILL
 
-  def grip_routine(self, side, closed):
-    """Shut, its word is read once its jaws have closed or held (#493:
-    `GRIP_SETTLE_S`), never while they stand open on something they do not
-    yet squeeze."""
+  def grip_routine(self, side, closed, force=None):
+    """Shut -- squeezing with `force`, N a pad, or its sheet's (#525) -- its
+    word is read once its jaws have closed or held (#493: `GRIP_SETTLE_S`),
+    never while they stand open on something they do not yet squeeze."""
     yield from self.mission.to_stand_routine()
     g = self.reach.grippers[side]
     if closed:
-      g.shut()
+      g.shut(force)
     else:
       g.open()
     yield from self.hold_routine(GRIP_S)
@@ -441,6 +471,9 @@ class HumanoidBody(Body):
 
   def gripped(self, side) -> bool:
     return self.reach.grippers[side].held()
+
+  def grip_gap(self, side) -> float:
+    return self.reach.grippers[side].read()[0]
 
   def hand_at(self, side):
     p = self.to_world(self.reach.grip_now(side)[0])
@@ -461,13 +494,18 @@ class HumanoidBody(Body):
     if rot is None:
       return None
     if isinstance(rot, (list, tuple)):
-      return [yaw @ np.asarray(r, dtype=float) for r in rot]
+      return [None if r is None else yaw @ np.asarray(r, dtype=float) for r in rot]
     return yaw @ np.asarray(rot, dtype=float)
 
   def gaze_routine(self, down):
     """A bow of `down` rad at the height it stands at, inside what the
-    standing policy trained on, until its trunk is still there."""
+    standing policy trained on, until its trunk is still there -- ⚠ NEVER
+    WITH A HAND OUT, which keeps the posture it has: the bow carries the
+    hand with it, and a look from a low reach's bow lifted the hand 43 cm
+    (#525)."""
     yield from self.mission.to_stand_routine()
+    if any(p != "rest" for p in self.reach.phase.values()):
+      return
     lo, hi = PITCH_RANGE
     self.reach.hold_posture(float(self.reach.posture[0]), min(max(float(down), lo), hi))
     waited = 0.0
@@ -543,46 +581,131 @@ class HumanoidBody(Body):
                                   "dx": 0.0, "dy": 0.0, "dz": 0.0})
     return (yield from self._held_routine(side, patience))
 
-  def pull_routine(self, side, direction, limit_n, distance_m, stiffness=1.0,
-                   speed=HOLD_SPEED, patience=30.0, turn=None):
-    """A compliant move (#493): the hand carried straight along `direction`
-    on an arm at `stiffness`, so it bends toward whatever gives, its turn
-    held (`Reach.carry`) -- or turned to `turn` as it goes, one posture's
-    path -- stopped at `limit_n` along its way while held back
-    ("force"), held back with no force over it ("held fast"), its grip lost
-    ("let go"), or `distance_m` gone."""
+  def pull_routine(self, side, direction, limit_n, distance_m, speed=HOLD_SPEED,
+                   patience=30.0, give=True):
+    """THE PULL, a force move (#525): the hand that is out pulled -- or
+    pushed -- along `direction` with at most `limit_n`, N, as the hand reads
+    it, at most `speed`, m/s, going where what it holds takes it across that
+    way, its turn giving -- or, not `give`, holding its line and its turn
+    (`Reach.pull`); stopped at `distance_m` along its
+    way, held fast, its grip lost ("let go"), out of reach, its feet moved,
+    or `patience` run out."""
     yield from self.mission.to_stand_routine()
     d = _rz(self.stance[2]).T @ np.asarray(direction, dtype=float)
     d = d / max(float(np.linalg.norm(d)), 1e-9)
     t0 = float(self._d.time)
     if not self.reach.out(side):
-      return self._report({"why": "not out", "seconds": 0.0, "moved": 0.0, "dx": 0.0,
-                           "dy": 0.0, "dz": 0.0, "direction": list(d), "force": 0.0})
+      return self._report({"why": "not out", "seconds": 0.0, "moved": 0.0, "along": 0.0,
+                           "dx": 0.0, "dy": 0.0, "dz": 0.0, "direction": list(d), "force": 0.0})
     start = self.reach.grip_now(side)[0].copy()
     gripped = self.gripped(side)
-    if not self.reach.carry(side, start + float(distance_m) * d, stiffness, speed,
-                            turns=None if turn is None else self._turns([turn]),
-                            limit_n=limit_n):
+    if not self.reach.pull(side, d, limit_n, distance_m, speed, give):
       rep = {**(self.reach.report[side] or {}), "why": "out of reach"}
     else:
       rep = yield from self._held_routine(side, patience)
       rep = dict(self.reach.report[side] or rep) if rep["why"] not in ("fell", "feet moved",
                                                                      "out of time") else rep
-    why = {"arrived": "distance", "held back": "held fast"}.get(rep["why"], rep["why"])
-    if gripped and not self.gripped(side) and why not in ("fell",):
+    why = rep["why"]
+    if gripped and not self.gripped(side) and why != "fell":
       why = "let go"
     h = self.reach.grip_now(side)[0]
     disp = h - start
     n = float(np.linalg.norm(disp))
+    way = rep.get("way") or list(disp / n if n > 1e-9 else d)
     return self._report({"why": why, "seconds": round(float(self._d.time) - t0, 3),
-                         "moved": round(n, 4), "along": round(float(disp @ d), 4),
+                         "moved": round(n, 4), "along": round(float(rep.get("went", disp @ d)), 4),
                          "dx": float(disp[0]), "dy": float(disp[1]), "dz": float(disp[2]),
-                         "direction": [float(v) for v in (disp / n if n > 1e-9 else d)],
+                         "direction": [float(v) for v in way],
                          "force": round(float(rep.get("force") or 0.0), 2)})
 
   def hand_force(self, side):
     f = _rz(self.stance[2]) @ self.reach.force[side]
     return float(f[0]), float(f[1]), float(f[2])
+
+  def step_routine(self, ahead, left=0.0, turn=0.0, patience=STEP_PATIENCE_S):
+    """THE STEP (#525): its hands home and empty, it turns `turn` on the
+    spot, walks `ahead` and `left` in the frame it then stands in -- one
+    motion at `STEP_V` (`BACK_V` backing up), or the one and then the other
+    where the walker would not walk that way (`_step_walks`) -- and stands:
+    a walk stops once what it believes it has walked, and its speed times
+    `STEP_STOP_S`, reach its length, so a stride, about 10 cm, is the least
+    it goes. Its legs are the walking policy's meanwhile. Returns how it
+    ended (`why`: "stepped", "holding" -- a hand holds something, and it
+    does not move -- "blocked", "fell", "out of time"), in how long, and
+    where its stance went, by its own reckoning, in the stance frame it
+    stood in before (`dx`, `dy`, m; `turn`, rad)."""
+    mi = self.mission
+    yield from mi._getup_routine()
+    t0, s0, falls = float(self._d.time), self.stance, mi.falls
+    if any(self.gripped(s) for s in hm.SIDES):
+      return {"why": "holding", "seconds": 0.0, "dx": 0.0, "dy": 0.0, "turn": 0.0}
+
+    def over() -> str | None:
+      if mi.falls != falls:
+        return "fell"
+      return "out of time" if float(self._d.time) - t0 > patience else None
+    length, why = math.hypot(ahead, left), "stepped"
+    if abs(turn) > TURN_STOP_RAD or length:
+      # the legs to the walker, its arms home, before anything is measured:
+      # out of a deep bow the pelvis came 16 cm forward on its own, and the
+      # hand-over outlasted `STEP_STUCK_S` (#525)
+      yield from mi.to_walk_routine()
+      why = over() or why
+    # the turn, its heading counted unwrapped: wrapped, one past pi never ended
+    heading, turned = mi.pose[2], 0.0
+    while (why == "stepped" and abs(turn) > TURN_STOP_RAD
+           and turned * math.copysign(1.0, turn) < abs(turn) - TURN_STOP_RAD):
+      yield from mi._twist_routine(0.0, 0.0, math.copysign(TURN_W, turn))
+      turned += math.remainder(mi.pose[2] - heading, 2 * math.pi)
+      heading = mi.pose[2]
+      why = over() or why
+    # ⚠ A TURN IS TAKEN AS ON THE SPOT: its feet shuffle round, the stance
+    # truly moves 2-6 cm and the odometry is 3-7 cm off over it (turns of
+    # 17-86 deg) -- so the step's move is the walks' alone, measured from
+    # where the turn left the belief
+    s_mid = self.stance
+    for a_, l_ in _step_walks(ahead, left):
+      if why == "stepped":
+        why = yield from self._walk_routine(a_, l_, over)
+    yield from mi.to_stand_routine()
+    for _ in range(int(round(STEP_SETTLE_S / self._m.opt.timestep))):
+      yield STILL
+    if mi.falls != falls:
+      why = "fell"
+    x1, y1, yaw1 = self.stance
+    if not length:
+      x1, y1 = s_mid[0], s_mid[1]
+    d = _rz(s0[2]).T @ np.array([x1 - s_mid[0], y1 - s_mid[1], 0.0])
+    return {"why": why, "seconds": round(float(self._d.time) - t0, 3), "dx": float(d[0]),
+            "dy": float(d[1]), "turn": math.remainder(yaw1 - s0[2], 2 * math.pi)}
+
+  def _walk_routine(self, ahead, left, over):
+    """One straight walk of a step, its legs the walker's: "stepped" once
+    what it believes it has walked, and its speed times `STEP_STOP_S`, reach
+    its length; "blocked" where it gets nowhere; else what `over` says."""
+    mi, dt = self.mission, self._m.opt.timestep
+    length = math.hypot(ahead, left)
+    x0, y0, yaw = mi.pose
+    # the walk's way in the world, and its twist in the trunk's frame
+    ux, uy = ahead / length, left / length
+    wx, wy = math.cos(yaw) * ux - math.sin(yaw) * uy, math.sin(yaw) * ux + math.cos(yaw) * uy
+    pace = BACK_V if ahead < -abs(left) else STEP_V
+    speed, went, mark = 0.0, 0.0, (float(self._d.time), 0.0)
+    while True:
+      x, y, _ = mi.pose
+      now = wx * (x - x0) + wy * (y - y0)
+      speed += min(1.0, dt / 0.2) * ((now - went) / dt - speed)
+      went = now
+      if went + max(speed, 0.0) * STEP_STOP_S >= length:
+        return "stepped"
+      if float(self._d.time) - mark[0] >= STEP_STUCK_S:
+        if went - mark[1] < STEP_STUCK_M:
+          return "blocked"
+        mark = (float(self._d.time), went)
+      why = over()
+      if why is not None:
+        return why
+      yield from mi._twist_routine(pace * ux, pace * uy, 0.0)
 
   # ---- senses --------------------------------------------------------------
 
@@ -638,10 +761,12 @@ class HumanoidBody(Body):
       cut = (at_height - origin[2]) / ray[2] if abs(ray[2]) > 1e-9 else 1.0
       p = origin + ray * cut
     n = rot @ np.array([seen["normal"][0], -seen["normal"][1], -seen["normal"][2]])
+    e = rot @ np.array([seen["edge"][0], -seen["edge"][1], -seen["edge"][2]])
     w = self.to_world(p)
-    nw = _rz(self.stance[2]) @ n
+    nw, ew = _rz(self.stance[2]) @ n, _rz(self.stance[2]) @ e
     return {"x": float(w[0]), "y": float(w[1]), "z": float(w[2]),
-            "range": float(np.linalg.norm(p - origin)), "normal": tuple(float(v) for v in nw)}
+            "range": float(np.linalg.norm(p - origin)), "normal": tuple(float(v) for v in nw),
+            "edge": tuple(float(v) for v in ew)}
 
   # ---- posture and rest ----------------------------------------------------
 

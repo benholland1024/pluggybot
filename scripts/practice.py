@@ -26,19 +26,13 @@ Two protocols (Evaluation.md §4):
   --notes              KEPT: the robot also carries notes and a draft of its
                        own from chest to chest (`Practice.carry`), written as
                        each practice chest ends, pass or fail
-  --measure            the depth camera's `measure` beside the hands' verbs:
-                       depth beside what the hands feel, an arm of its own
-  --verb-tests         a verb may be an `if`'s test, its failing read rather
-                       than ending the procedure (`WorldFacts.verb_tests`)
-  --path               a hand's path (`via`, `follow`: one motion from one
-                       posture) and sin, cos, atan2, sqrt (`WorldFacts.math`)
+  --no-measure         the hands' vocabulary without the depth camera's
+                       `measure`: an arm about its absence (#493)
   --practice-attempts N  KEPT: tries a PRACTICE chest (default --attempts);
                        the held-out chests keep --attempts
   --early-stop         the chests stop once the bar is out of reach
                        (`evaluation.practice.out_of_reach`; Ben, 2026-10-18)
   --attempts N         tries a chest (default 5: the curve's S@1..S@5)
-  --pull               stage 3's vocabulary, the compliant pull beside
-                       stage 2's; without it, baseline (a'): position only
   --model ID           the mind (default the deployed routine model,
                        `$PLUGGY_MODEL`'s); its key is $HF_TOKEN
   --jobs J             chests at once, each in a process of its own: a
@@ -51,11 +45,16 @@ Two protocols (Evaluation.md §4):
   --read DIR           a kept record, read as the per-task record (its
                        curve, each regime apart) with what it cost
 
+The vocabulary is the hands' (#525; docs/Hands.md, `steps.hand_facts`): the
+force move, a path, grip force, a verb as an `if`'s test and the maths, in
+every arm; #493's arms (`--pull`, `--verb-tests`, `--path`) were its
+stages, and a row says which it flew (`run.vocabulary`).
+
 Usage:
   systemd-run --user --scope -p MemoryMax=16G -p MemorySwapMax=0 \\
     uv run python scripts/practice.py --chests 0-31 --jobs 6 --into DIR
-  uv run python scripts/practice.py --held-out 32 --pull --jobs 6 --into DIR
-  uv run python scripts/practice.py --acquire 0-31 --held-out 32 --pull \\
+  uv run python scripts/practice.py --held-out 32 --jobs 6 --into DIR
+  uv run python scripts/practice.py --acquire 0-31 --held-out 32 \\
     --early-stop --model zai-org/GLM-5.2:cheapest --jobs 6 --into DIR
   uv run python scripts/practice.py --read DIR
 """
@@ -81,6 +80,8 @@ from pluggybot.evaluation import practice as ep  # noqa: E402
 MODEL = "zai-org/GLM-5.3-Flash:cheapest"
 #: The mind's answers stream (`mind.llm.stream_fetch`), read this long, s.
 READ_S = 180.0
+#: The vocabulary a row flew (#525): #493's rows carry their arm's flags.
+VOCABULARY = "hands-525"
 
 
 def fly(job: dict) -> list[dict]:
@@ -91,14 +92,12 @@ def fly(job: dict) -> list[dict]:
   from pluggybot.mind.practice import Practice
   from pluggybot.procedure.library import Library
   from pluggybot.procedure.steps import hand_facts
-  k, pull, model, info, price = (job[n] for n in ("chest", "pull", "model", "info", "price"))
-  facts = hand_facts(pull=pull, measure=job["measure"], verb_tests=job["verb_tests"],
-                     path=job["path"])
+  k, model, info, price = (job[n] for n in ("chest", "model", "info", "price"))
+  facts = hand_facts(measure=job["measure"])
   task = at.Task(chest=k, body="humanoid", mount="counter")
   mind = Practice(HFClient(timeout=READ_S, fetch=stream_fetch), model, facts, ep.job_for(task))
-  skill = (f"{model} {'with' if pull else 'without'} the pull"
-           + (", notes" if job["notes"] else "") + (", measure" if job["measure"] else "")
-           + (", verb tests" if job["verb_tests"] else "") + (", path" if job["path"] else ""))
+  skill = (f"{model}, the hands' vocabulary"
+           + (", notes" if job["notes"] else "") + ("" if job["measure"] else ", no measure"))
   info = {**info, "skill": skill, "process": job["process"]}
   try:
     rows = ep.practice_on(k, mind, job["attempts"], library=Library(facts), kept=job["kept"],
@@ -110,9 +109,8 @@ def fly(job: dict) -> list[dict]:
              "process": job["process"], "skill": skill, "error": f"{type(e).__name__}: {e}",
              "run": {k_: info[k_] for k_ in ("commit", "dirty", "seed") if k_ in info}}]
   for r in rows:
-    r["run"] |= {"model": model, "pull": pull, "picture": job["picture"],
+    r["run"] |= {"model": model, "vocabulary": VOCABULARY, "picture": job["picture"],
                  "notes": job["notes"], "measure": job["measure"],
-                 "verbTests": job["verb_tests"], "path": job["path"],
                  "attempts": job["attempts"]}
     p = r["practice"]
     r["usd"] = (None if price is None
@@ -139,14 +137,16 @@ def read(into: str) -> None:
   for r in rows:
     if "practice" not in r:
       continue
-    key = (r["run"].get("model"), r["run"].get("pull"), r.get("process"))
+    # #493's rows name their arm by its flags, #525's by their vocabulary
+    words = r["run"].get("vocabulary") or ("the pull" if r["run"].get("pull") else "position")
+    key = (r["run"].get("model"), words, r.get("process"))
     regimes.setdefault(key, []).append(r)
-  for (model, pull, process), mine in regimes.items():
+  for (model, words, process), mine in regimes.items():
     tin = sum(r["practice"]["tokensIn"] for r in mine)
     tout = sum(r["practice"]["tokensOut"] for r in mine)
     usd = [r.get("usd") for r in mine]
     calls = sum(r["practice"]["calls"] for r in mine)
-    print(f"THE MIND, {process}, {model}, {'with' if pull else 'without'} the pull: "
+    print(f"THE MIND, {process}, {model}, {words}: "
           f"{len(mine)} attempts, {calls} answers, {tin} tokens in and {tout} out"
           + (f", ${sum(usd):.2f}" if None not in usd else ", cost unknown")
           + f", {sum(r['practice']['llmWallS'] for r in mine) / 3600:.1f} h waiting on it")
@@ -182,12 +182,9 @@ def main(argv=None) -> None:
   ap.add_argument("--kept", default=None, metavar="FILE")
   ap.add_argument("--early-stop", action="store_true")
   ap.add_argument("--notes", action="store_true")
-  ap.add_argument("--measure", action="store_true")
-  ap.add_argument("--verb-tests", action="store_true")
-  ap.add_argument("--path", action="store_true")
+  ap.add_argument("--no-measure", action="store_true")
   ap.add_argument("--practice-attempts", type=int, default=None, metavar="N")
   ap.add_argument("--attempts", type=int, default=5)
-  ap.add_argument("--pull", action="store_true")
   ap.add_argument("--model", default=os.environ.get("PLUGGY_MODEL", MODEL))
   ap.add_argument("--jobs", type=int, default=1)
   ap.add_argument("--into", default=None)
@@ -224,11 +221,10 @@ def main(argv=None) -> None:
           f.write(json.dumps(r, default=str) + "\n")
 
   def job(k, kept, process, carried=None, write_notes=False, attempts=None):
-    return {"chest": k, "attempts": attempts or args.attempts, "pull": args.pull,
+    return {"chest": k, "attempts": attempts or args.attempts,
             "model": args.model, "picture": not args.no_picture, "info": dict(info),
             "price": price, "kept": kept, "process": process, "carried": carried,
-            "write_notes": write_notes, "notes": args.notes, "measure": args.measure,
-            "verb_tests": args.verb_tests, "path": args.path}
+            "write_notes": write_notes, "notes": args.notes, "measure": not args.no_measure}
 
   kept, process, carried = [], "practice", None
   with get_context("spawn").Pool(max(1, args.jobs), maxtasksperchild=1) as pool:
