@@ -1499,18 +1499,21 @@ def language(facts: "WorldFacts | None") -> dict[str, Verb]:
   return {n: table[n] for n in named}
 
 
-def hand_facts(measure: bool = True) -> "WorldFacts":
+def hand_facts(measure: bool = True, step: bool = True) -> "WorldFacts":
   """What a procedure on the humanoid's hands is validated against (issues
   #493, #525): standing, a `step` at a time, and its arms' joints, the hands' vocabulary
-  (`HAND_VERBS`) -- with the depth camera's `measure` unless an arm is about
-  its absence -- their sensors and the clock; a verb may be an `if`'s test,
-  and an expression may call the maths (`lang.MATH`)."""
+  (`HAND_VERBS`) -- with the depth camera's `measure` and the feet's `step`
+  unless an arm is about the absence of either -- their sensors and the
+  clock; a verb may be an `if`'s test, and an expression may call the maths
+  (`lang.MATH`)."""
   from pluggybot.procedure import axes
   return WorldFacts(boards=(), tools=(), bounds=(-1e3, -1e3, 1e3, 1e3), figures=(),
                     axes=axes.BODY_AXES["humanoid"],
-                    sensors=(axes.HAND_SENSORS + axes.PULL_SENSORS + axes.STEP_SENSORS
+                    sensors=(axes.HAND_SENSORS + axes.PULL_SENSORS
+                             + (axes.STEP_SENSORS if step else ())
                              + (axes.MEASURE_SENSORS if measure else ())),
-                    verbs=("wait", "move") + HAND_VERBS + (MEASURE_VERBS if measure else ()),
+                    verbs=(("wait", "move") + tuple(v for v in HAND_VERBS if step or v != "step")
+                           + (MEASURE_VERBS if measure else ())),
                     hands=axes.HANDS, verb_tests=True, math=True)
 
 
