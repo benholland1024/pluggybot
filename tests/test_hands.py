@@ -270,6 +270,21 @@ def test_a_try_is_shown_its_grade_never_its_secrets():
   assert "That was your last try." in text
 
 
+def test_a_try_its_time_cut_is_shown_what_it_ran_never_no_procedure():
+  """A procedure its try's limit cuts mid-verb ran, and the mind is shown
+  what it ran and where the time ran out -- never "You had no procedure
+  that compiled" (#530's review: the record was kept only when the run
+  returned, and a cut run never does)."""
+  _, _, rows = _practice('def a():\n    wait(1)\n    wait(60)\n', attempts=1)
+  row = rows[0]
+  assert row["cut"] and row["steps"] == 2
+  assert [s["verb"] for s in row["practice"]["ran"]["steps"]] == ["wait"]
+  text = mp.report_text(1, row["practice"]["ran"], row["verdict"], row["simS"], row["cut"], 0)
+  assert "no procedure that compiled" not in text and "line 2 wait: ok" in text
+  assert "was at line 3, wait, when the time ran out" in text
+  assert "The try's time ran out after 30 s." in text
+
+
 def test_the_practice_prompt_prescribes_nothing():
   """Its rules say what the body and the language are, never how to open
   anything; the job is told as its grader measures it."""
@@ -337,7 +352,8 @@ def test_the_quadruped_refuses_a_hand_and_a_gaze_out_loud():
     with pytest.raises(NotImplementedError):
       next(made)
   calls = {"gripped": ("left",), "hand_force": ("left",), "hand_at": ("left",),
-           "hand_follows": ("left", [(0.3, 0.2, 0.9)]), "hand_why": ("left",)}
+           "hand_follows": ("left", [(0.3, 0.2, 0.9)]), "hand_why": ("left",),
+           "hand_watched": ("left",), "depth_watched": (120, 70)}
   for name, args in calls.items():
     with pytest.raises(NotImplementedError):
       getattr(q, name)(*args)

@@ -184,6 +184,40 @@ def test_serve_path_runs_without_the_packages_the_image_omits():
   assert "ok" in proc.stdout
 
 
+#: The session host's path (#530), on the same terms: the image runs it too
+#: (`python -m pluggybot.session.host`, the site's compose), so its hello
+#: and one person's attempt -- a tag spotted and the depth camera's
+#: `measure` -- run with the same packages blocked, into a recording.
+_BLOCKED_SESSION = _BLOCKED_MISSION.split("import mujoco")[0] + """
+import tempfile
+from pathlib import Path
+from pluggybot.procedure import lang
+from pluggybot.session import attempt as sa
+from pluggybot.session import host
+from pluggybot.telemetry.recorder import TelemetryRecorder
+
+assert host.hello({"commit": "x"})["vocabulary"]
+proc = lang.compile_procedure(
+  'def a():\\n    spot(53)\\n    measure(read("spot.x"), read("spot.y"))\\n', sa.facts())
+out = Path(tempfile.mkdtemp()) / "s.jsonl.gz"
+flight = sa.fly(sa.task_of(0), lambda m, d, **s: TelemetryRecorder(m, d, str(out), **s),
+                proc=proc, hold_s=0.1)
+assert [s["verb"] for s in flight.ran["steps"]] == ["spot", "measure"], flight.ran
+print("ok")
+"""
+
+
+def test_the_session_path_runs_without_the_packages_the_image_omits():
+  forbidden = _forbidden_modules()
+  proc = subprocess.run(
+    [sys.executable, "-c", _BLOCKED_SESSION, ",".join(sorted(forbidden))],
+    cwd=ROOT, capture_output=True, text=True)
+  assert proc.returncode == 0, (
+    "the session path needs a package the deploy image does not install"
+    " (deploy/requirements-serve.txt):\n" + proc.stderr[-2000:])
+  assert "ok" in proc.stdout
+
+
 @pytest.mark.parametrize("path", ["Dockerfile", "deploy/entrypoint.sh",
                                   "deploy/requirements-serve.txt"])
 def test_deploy_files_present(path):

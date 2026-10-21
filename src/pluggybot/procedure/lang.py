@@ -699,17 +699,20 @@ def _eval(expr, env: dict, life, facts: WorldFacts) -> float:
   raise _Stop(f"cannot evaluate {kind}")
 
 
-def run_procedure_routine(life, proc: Procedure, facts: WorldFacts) -> Routine:
+def run_procedure_routine(life, proc: Procedure, facts: WorldFacts,
+                          into: dict | None = None) -> Routine:
   """Interpret a validated procedure as a routine. The result has the shape a
   program's run has (steps.run_program_routine), so the errand around it and
   the evaluator read both alike: one verdict per verb executed, honest about
-  how far it got and why it stopped."""
+  how far it got and why it stopped. `into` is filled as the run goes, so a
+  caller that closes the routine still has its record (#530: a try its time
+  limit cut), the verb in flight under `inFlight`."""
   reasons = validate(proc, facts)
   if reasons:
     raise Refused(reasons)
-  result: dict[str, Any] = {"program": proc.name, "role": st.DEFAULT_ROLE,
-                            "total": 0, "completed": 0, "steps": [],
-                            "ok": False, "source": proc.source}
+  result: dict[str, Any] = into if into is not None else {}
+  result.update({"program": proc.name, "role": st.DEFAULT_ROLE, "total": 0,
+                 "completed": 0, "steps": [], "ok": False, "source": proc.source})
   env: dict[str, float] = {}
   t0 = float(life.data.time)
   count = 0
@@ -740,6 +743,12 @@ def run_procedure_routine(life, proc: Procedure, facts: WorldFacts) -> Routine:
       bad = [fault.why]
     count += 1
     result["total"] = count
+    result["inFlight"] = {"line": line, "verb": verb}
+    # a watcher's word that a verb began (#530: the line a person's page
+    # lights); a life with none says nothing more
+    began = getattr(life, "verb_began", None)
+    if began is not None:
+      began(count, line, verb, values)
     life._say(f"PROCEDURE {proc.name} step {count} (line {line}): "
               f"{st.Step(verb, values).describe()}")
     if bad:
@@ -752,6 +761,7 @@ def run_procedure_routine(life, proc: Procedure, facts: WorldFacts) -> Routine:
     entry = {"i": count - 1, "verb": verb, "line": line, **verdict,
              **({"tested": True} if tested else {})}
     result["steps"].append(entry)
+    del result["inFlight"]
     if verdict.get("stopped") == "interrupted":
       # the robot's own interrupt ended a walk inside it (issue #381,
       # `run_verb`): an abort, as between two verbs, never a failed step
@@ -805,24 +815,27 @@ def run_procedure_routine(life, proc: Procedure, facts: WorldFacts) -> Routine:
       # "pass": nothing
 
   try:
-    yield from block(proc.body)
-    result["ok"] = True
-  except _Return:
-    result["ok"] = True
-  except _Stop as stop:
-    if stop.why != "failed":
-      result["stopped"] = stop.why
-      if stop.why not in ("interrupted", "budget", "steps"):
-        # an evaluation fault is a failed step of its own, so the record
-        # says where the arithmetic went wrong
-        result["total"] = count + 1
-        result["failedAt"] = count
-        result["steps"].append({"i": count, "verb": "expr", "ok": False,
-                                "reason": stop.why})
-        life._say(f"PROCEDURE {proc.name} stopped: {stop.why}")
-  result["seconds"] = round(float(life.data.time) - t0, 2)
-  # The locals as they stood when the run ended, whatever ended it: a
-  # procedure's variables are its readout (issue #227) -- what it read and
-  # computed reaches the mind through these, and through nothing else.
-  result["locals"] = {k: round(float(v), 6) for k, v in env.items()}
+    try:
+      yield from block(proc.body)
+      result["ok"] = True
+    except _Return:
+      result["ok"] = True
+    except _Stop as stop:
+      if stop.why != "failed":
+        result["stopped"] = stop.why
+        if stop.why not in ("interrupted", "budget", "steps"):
+          # an evaluation fault is a failed step of its own, so the record
+          # says where the arithmetic went wrong
+          result["total"] = count + 1
+          result["failedAt"] = count
+          result["steps"].append({"i": count, "verb": "expr", "ok": False,
+                                  "reason": stop.why})
+          life._say(f"PROCEDURE {proc.name} stopped: {stop.why}")
+  finally:
+    # ...whatever ended it, a close from outside included (no yield here)
+    result["seconds"] = round(float(life.data.time) - t0, 2)
+    # The locals as they stood when the run ended: a procedure's variables
+    # are its readout (issue #227) -- what it read and computed reaches the
+    # mind through these, and through nothing else.
+    result["locals"] = {k: round(float(v), 6) for k, v in env.items()}
   return result

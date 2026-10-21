@@ -152,7 +152,7 @@ class FrameBuilder:
                robot_name: str | None = None,
                build: dict | None = None,
                others: list | None = None, overseer=None,
-               tickets=None) -> None:
+               tickets=None, opening: list | None = None) -> None:
     if keyframe_s < 0:
       # A negative interval keys EVERY frame and advertises a negative
       # cache depth (keyframeS x hz) to the hub. Fail at construction.
@@ -254,6 +254,11 @@ class FrameBuilder:
     # attribute of the same name silently replaces it -- the frames stop and
     # nothing says why, on the one path that passes an identity at all.
     self.identity = dict(build) if build else None
+    # Typed messages that open every stream right after its header (#530: a
+    # world of one's own sends its `scene`, which no fixture can know): the
+    # `goals` slot's reason, with nothing to read on the physics thread, so
+    # the sinks send them as they send the header.
+    self.opening = [dict(m) for m in opening or ()]
     self.hz = hz
     self.model_name = model_name
     self.keyframe_s = keyframe_s
@@ -741,7 +746,8 @@ class TelemetryRecorder:
                robot_name: str | None = None, build: dict | None = None,
                grid=None, grid_hz: float = RECORD_GRID_HZ,
                others: list | None = None, heightmap=None,
-               overseer=None, tickets=None) -> None:
+               overseer=None, tickets=None, opening: list | None = None,
+               samplers=()) -> None:
     self._builder = FrameBuilder(model, data, hz=hz, status_fn=status_fn,
                                  model_name=model_name, keyframe_s=keyframe_s,
                                  activities=activities, boards=boards,
@@ -751,13 +757,17 @@ class TelemetryRecorder:
                                  mode=mode, metabolism=metabolism,
                                  steering=steering, robot_name=robot_name,
                                  build=build, others=others, overseer=overseer,
-                                 tickets=tickets)
+                                 tickets=tickets, opening=opening)
+    # ...and any sampler of the grid's shape a producer brings (#530: the
+    # depth camera's picture), on the same clock and the same PNG path.
     self._grids = grid_samplers(grid, others, grid_hz, dedupe=True,
                                 heightmap=heightmap,
-                                heightmap_hz=RECORD_HEIGHTMAP_HZ)
+                                heightmap_hz=RECORD_HEIGHTMAP_HZ) + list(samplers)
     self._queue: queue.SimpleQueue = queue.SimpleQueue()
     self._closed = False
     self._queue.put(self._builder.header())
+    for opened in self._builder.opening:
+      self._queue.put(dict(opened))
     # What each robot is for, before the first frame (0.8.0; one per robot
     # since 0.20.0). Same slot the board snapshots below use, and the same
     # argument: no keyframe re-ships it, so a reader that missed this line

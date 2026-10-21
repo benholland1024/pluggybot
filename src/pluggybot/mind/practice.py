@@ -394,20 +394,30 @@ def report_text(n: int, ran: dict | None, verdict: dict, sim_s: float, cut: bool
                 remaining: int) -> str:
   """What the mind is shown of try `n`: how its procedure ran (`ran`, the
   language's result, or None where it had none to run) and the world's
-  grade -- its reason, never its secret metrics."""
+  grade -- its reason, never its secret metrics -- and what it does next."""
+  return run_report(n, ran, verdict, sim_s, cut) + "\n\n" + (
+    f"Write the procedure for try {n + 1} ({remaining} left)." if remaining
+    else "That was your last try.")
+
+
+def run_report(n: int, ran: dict | None, verdict: dict, sim_s: float, cut: bool) -> str:
+  """`report_text` without its last line: how try `n` ran and its grade,
+  the same words for a person who wrote the procedure (#530)."""
   lines = [f"TRY {n}", ""]
   if ran is None:
     lines.append("You had no procedure that compiled, so your body stood still.")
   else:
     head = (f"Your procedure `{ran.get('program')}` called {ran.get('total', 0)} verbs "
             f"in {ran.get('seconds', sim_s):.1f} s")
-    stopped = ran.get("stopped")
+    stopped, cut_in = ran.get("stopped"), ran.get("inFlight")
     if "failedAt" in ran and ran["steps"]:
       bad = ran["steps"][-1]
       head += (f" and stopped at line {bad.get('line', '?')}, {bad.get('verb')}: "
                f"{bad.get('reason', 'it failed')}")
     elif stopped:
       head += f" and stopped: {stopped}"
+    elif cut and cut_in:
+      head += f" and was at line {cut_in['line']}, {cut_in['verb']}, when the time ran out"
     else:
       head += " and ended"
     lines.append(head + ".")
@@ -430,7 +440,5 @@ def report_text(n: int, ran: dict | None, verdict: dict, sim_s: float, cut: bool
         f"{k} = {v:g}" for k, v in ran["locals"].items()))
   if cut:
     lines.append(f"The try's time ran out after {sim_s:.0f} s.")
-  lines += ["", f"THE GRADE: {'PASSED' if verdict['ok'] else 'failed'} -- {verdict['reason']}", ""]
-  lines.append(f"Write the procedure for try {n + 1} ({remaining} left)." if remaining
-               else "That was your last try.")
+  lines += ["", f"THE GRADE: {'PASSED' if verdict['ok'] else 'failed'} -- {verdict['reason']}"]
   return "\n".join(lines)

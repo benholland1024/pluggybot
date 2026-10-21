@@ -756,6 +756,14 @@ different results:
 The first rows are the reference's (§4). ⚠ Off the observatory first solve
 is still the quality's metric: no served world offers a demo's task.
 
+A PERSON's rows (#530, user control) are the same rows with `process:
+person` and `tokens` a measured 0, written by the session host
+(Webserver.md, "A world of one's own") to its own record. ⚠ Not yet a
+baseline: today only admins run them, on public chests, with a free camera
+beside the robot's senses; #530's stage 4 makes one -- the robot's senses
+only, fresh draws of the public family, consent first -- and reads it
+beside the agent's rows on the same draws.
+
 **2. Empathy** — *can it tell that the beings around it have minds, and
 predict them.* Metric: **prediction accuracy** — the one pure probe, a
 guess at what the other robot needs scored by code against the other's
