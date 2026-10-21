@@ -172,7 +172,25 @@ def screen_map(model) -> dict:
   return screens
 
 
-def scene_dict(model, model_name: str, meta: dict | None = None) -> dict:
+def camera_map(model, cameras: dict) -> dict:
+  """{role: where that camera is on its body} for each `role: name` asked
+  (issue #530: the robot's own view, drawn by the site as the eye draws a
+  `look`). Body-local, MuJoCo's conventions: a client composes it with the
+  body's streamed pose, and the camera looks along its own -z with +y up
+  (`mind.look.camera_pose`). Only a FIXED camera has a body-local pose."""
+  out: dict = {}
+  for role, name in cameras.items():
+    cid = model.camera(name).id
+    if int(model.cam_mode[cid]) != int(mujoco.mjtCamLight.mjCAMLIGHT_FIXED):
+      raise ValueError(f"camera {name!r} moves on its own: a scene carries fixed cameras")
+    out[role] = {"name": name, "body": model.body(int(model.cam_bodyid[cid])).name,
+                 "pos": _round(model.cam_pos[cid]), "quat": _round(model.cam_quat[cid]),
+                 "fovy": round(float(model.cam_fovy[cid]), 2)}
+  return out
+
+
+def scene_dict(model, model_name: str, meta: dict | None = None,
+               cameras: dict | None = None) -> dict:
   """The full scene description for one compiled model.
 
   Body poses are WORLD-frame rest poses (mj_forward at qpos0), so a client
@@ -288,6 +306,10 @@ def scene_dict(model, model_name: str, meta: dict | None = None) -> dict:
     # Read off the COMPILED model rather than a sidecar: the display modules
     # are generated into every world, and only home_world has a sidecar.
     scene["screens"] = screens
+  if cameras:
+    # Additive, and only where a producer asks (`camera_map`): the served
+    # worlds' scenes carry none, so their fixtures are unchanged.
+    scene["cameras"] = camera_map(model, cameras)
   return scene
 
 

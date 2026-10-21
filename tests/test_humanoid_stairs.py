@@ -16,6 +16,7 @@ from pluggybot.humanoid import model as hm
 from pluggybot.humanoid.arms import SelfModel
 from pluggybot.humanoid.odometry import StanceOdometry
 from pluggybot.humanoid.scan import HeadScan
+from pluggybot.perception.depth import DepthCamera
 
 #: The get-up's allowance in the test, s: it stood from its back in 3.0 s
 #: (`humanoid_spike.py --view getup`).
@@ -96,6 +97,30 @@ def test_the_height_is_never_laid_off_the_map():
   odo.step(None, None)
   assert odo.foot == 0
   assert odo.z == pytest.approx(0.73), "the height was laid off the map's tread"
+
+
+def test_a_sole_tipped_over_an_edge_is_followed_by_its_heel():
+  # Stepping down off the landing (0.9 m), the planted sole tips over its
+  # edge: its heel stays on the landing and its toe hangs over the tread
+  # below (0.72). Followed by its lowest corner -- the hanging toe -- the
+  # height rose 9 cm as the body stepped down 10; the heel did not move.
+  edge = 0.25
+  ground_at = lambda x, y: 0.9 if x < edge else 0.72  # noqa: E731
+
+  def tipped(toe_drop):
+    mid = [0.2, -0.1, -0.73 - toe_drop / 2]
+    heel = [[0.2 - 0.11, -0.1 + b * 0.045, -0.73] for b in (-1, 1)]
+    toe = [[0.2 + 0.11, -0.1 + b * 0.045, -0.73 - toe_drop] for b in (-1, 1)]
+    return mid, [heel[0], heel[1], toe[0], toe[1]]
+
+  (m0, c0), (m1, c1) = tipped(0.02), tipped(0.10)
+  left_mid, left_corners = _sole(0.0, 0.1, -0.60)        # the other foot, swinging high
+  ticks = [([left_mid, m0], [left_corners, c0]), ([left_mid, m1], [left_corners, c1])]
+  odo = _Stance(ticks, z=1.63, ground_at=ground_at)
+  odo.step(None, None)
+  odo.step(None, None)
+  assert odo.foot == 1
+  assert odo.z == pytest.approx(1.63), "followed by its hanging toe"
 
 
 def test_on_one_floor_the_lower_foot_rule_stands():
@@ -194,6 +219,34 @@ def test_ground_too_high_to_step_onto_from_here_is_not_shown(head):
   assert np.allclose(s.scan(), 0.73, atol=0.005), "the counter's top was shown as ground"
 
 
+def test_a_sole_beside_a_half_wall_stands_on_the_ground_not_on_the_walls_top(head):
+  # From the landing the half wall beside the flight shows its top alone:
+  # its cells hold no face, so the span rule cannot tell it, and a sole set
+  # beside it, two thirds of its footprint over the top, read the ground
+  # under it 1.4-1.6 m up. The top is not joined to the ground it stands on.
+  s = _scan(head)
+  rng = np.random.default_rng(3)
+  floor = _frame(rng, (-0.6, 1.2), (-0.6, 0.12), (0.0, 0.0), 40000)
+  top = _frame(rng, (-0.6, 1.2), (0.12, 0.22), (0.9, 0.9), 20000)
+  s.map.update((0.0, 0.0, 0.0), np.vstack([floor, top]))
+  s._redraw()
+  assert s.under(0.0, 0.12, 0.0) < 0.01, "a sole beside the half wall stood on its top"
+
+
+def test_the_camera_sees_the_floor_far_from_where_its_plane_is_anchored(head):
+  # MuJoCo's cast skips a geom whose bounding sphere lies past its cutoff,
+  # and a plane's is its anchor point: 4 m from the bare floor's, a camera
+  # cast to its range saw no floor, and the seeing walker walked on a frozen
+  # map from 2.75 m out and fell.
+  model, _ = head
+  data = mujoco.MjData(model)
+  mujoco.mj_resetDataKeyframe(model, data, 0)
+  data.qpos[0] = 4.0
+  mujoco.mj_forward(model, data)
+  assert len(DepthCamera(model, mount="body").frame(data).points) == 0
+  assert len(HeadScan(model, data).cam.frame(data).points) > 1000
+
+
 def test_a_body_folded_into_a_squat_is_falling_though_it_is_upright(head):
   # Shoved hard from the front, the standing policy folded straight down,
   # its trunk tilted 32 deg -- under the 35 the IMU alone waits for -- and
@@ -213,6 +266,100 @@ def test_a_body_folded_into_a_squat_is_falling_though_it_is_upright(head):
   mujoco.mj_forward(model, d)
   assert watch.trunk.attitude.tilt() < math.radians(5.0)
   assert watch.falling(d)
+
+
+def _turn(axis, angle: float) -> np.ndarray:
+  """A rotation about `axis` by `angle`, rad (Rodrigues)."""
+  a = np.asarray(axis, dtype=float) / np.linalg.norm(axis)
+  k = np.array([[0.0, -a[2], a[1]], [a[2], 0.0, -a[0]], [-a[1], a[0], 0.0]])
+  return np.eye(3) + math.sin(angle) * k + (1 - math.cos(angle)) * k @ k
+
+
+def test_a_tip_is_read_off_the_posture_its_legs_hold_whichever_way():
+  # #520: the IMU is on the pelvis and the body has no waist, so a bow
+  # tilts the IMU by the whole bow. A tip is read off the posture the legs
+  # hold: about any level axis, sideways as much as forward, by the angle
+  # the body turned. At the stand it IS the IMU's tilt, to the bit, so a
+  # fall shoved from the stand is taken at the step it always was.
+  from pluggybot.humanoid.getup import tipped
+  from pluggybot.perception.imu import Attitude
+  down = np.array([0.0, 0.0, -1.0])
+  for pitch in (0.0, 0.55, 1.1):
+    bowed = _turn((0.0, 1.0, 0.0), pitch)
+    assert tipped(bowed.T @ down, pitch) == pytest.approx(0.0, abs=1e-9)
+    for azimuth in np.linspace(0.0, 2 * math.pi, 8, endpoint=False):
+      tip = _turn((math.cos(azimuth), math.sin(azimuth), 0.0), 0.6) @ bowed
+      assert tipped(tip.T @ down, pitch) == pytest.approx(0.6, abs=1e-9), (pitch, azimuth)
+  rng = np.random.default_rng(520)
+  for _ in range(100):
+    q = rng.normal(size=4)
+    att = Attitude(q / np.linalg.norm(q))
+    assert tipped(att.matrix().T @ down, 0.0) == att.tilt()
+
+
+def _posed(model, height: float, pitch: float):
+  """The body standing as the standing policy holds a posture: the
+  statue's legs for it (`reach.static_legs`) and the trunk pitched."""
+  from pluggybot.humanoid.reach import static_legs
+  d = mujoco.MjData(model)
+  mujoco.mj_resetDataKeyframe(model, d, 0)
+  for name, v in static_legs(height, pitch).items():
+    d.qpos[model.jnt_qposadr[model.joint(name).id]] = v
+  quat = np.zeros(4)
+  mujoco.mju_euler2Quat(quat, np.array([0.0, pitch, 0.0]), "XYZ")
+  d.qpos[3:7] = quat
+  mujoco.mj_forward(model, d)
+  return d
+
+
+def test_a_bow_its_legs_hold_is_no_fall_however_deep(head):
+  # #520: read off upright, every posture a reach takes past 35 deg -- a
+  # low shelf's 0.8 rad, the floor's 1.1 -- was a fall, and the get-up
+  # took the joints. Read off the posture the legs hold, none is.
+  from pluggybot.humanoid.getup import FALL_TILT_RAD, FallWatch
+  from pluggybot.humanoid.policy import TrunkSense
+  from pluggybot.humanoid.reach import POSTURES
+  from pluggybot.humanoid.senses import JointSense
+  model, _ = head
+  deep = []
+  for height, pitch in POSTURES:
+    d = _posed(model, height, pitch)
+    watch = FallWatch(TrunkSense(model, d), JointSense(model))
+    assert not watch.falling(d, pitch), (height, pitch)
+    if pitch > FALL_TILT_RAD:
+      deep.append(pitch)
+      assert watch.falling(d, 0.0), (height, pitch)         # off upright: the premise
+  assert deep
+
+
+def test_the_mission_reads_a_tip_off_the_posture_its_legs_hold():
+  # The watch's posture is the standing policy's while it has the legs --
+  # the trim its ask carries taken out, so upright at the stand to the bit,
+  # and none at the deepest bow, where the ask is held at the policy's
+  # range -- and upright under the walker.
+  from pluggybot.body import body_for
+  model = mujoco.MjModel.from_xml_string(hm.body_xml())
+  data = mujoco.MjData(model)
+  mujoco.mj_resetDataKeyframe(model, data, 0)
+  mujoco.mj_forward(model, data)
+  body = body_for(model, data)
+  m = body.mission
+  body.run(body.settle_routine(0.5))
+  assert m.reach.trim[1] != 0.0 and m.reach.held_pitch() == 0.0
+  bowed = _posed(model, -0.25, 1.1)
+  data.qpos[:], data.qvel[:] = bowed.qpos, 0.0
+  mujoco.mj_forward(model, data)
+  m.fresh_drivers()
+  m.reach.trim[1] = 0.05                                    # an ask past 1.1 rad is held at it
+  m.reach.hold_posture(-0.25, 1.1)
+  m.stand.posture[:] = m.stand.goal                         # shown the bow it holds
+  assert m.reach.held_pitch() == pytest.approx(1.1)         # ...so the trim is carried by none
+  m._steps = 0                                              # the watch looks next step
+  body.run(body.settle_routine(model.opt.timestep))
+  assert m.falls == 0 and m.legs == "stand"
+  m.legs, m._steps = "walk", 0
+  body.run(body.settle_routine(model.opt.timestep))
+  assert m.falls == 1 and m.legs == "getup"
 
 
 def test_standing_across_two_treads_is_standing(head):
@@ -287,6 +434,66 @@ def test_a_walk_asked_while_it_gets_up_waits_until_it_stands(head):
   body.run(m.to_walk_routine())
   assert m.getup.steps == 50, "the walker took the legs before the body stood"
   assert m.legs == "walk"
+
+
+def test_a_fall_while_the_walker_settles_is_the_getups_until_it_stands(head):
+  # The legs come back from the walker after it has stood still SETTLE_S. A
+  # fall in that wait went to the get-up -- and at the wait's end to the
+  # standing policy anyway, mid-fall (#520).
+  from pluggybot.body import body_for
+  model = mujoco.MjModel.from_xml_string(hm.body_xml())
+  data = mujoco.MjData(model)
+  mujoco.mj_resetDataKeyframe(model, data, 0)
+  mujoco.mj_forward(model, data)
+  body = body_for(model, data)
+  m = body.mission
+  m.legs, m.getup = "walk", _Rising(600)                    # longer than the settle's 400
+  falls = iter([True])
+  m.fall.falling = lambda data, pitch=0.0: next(falls, False)
+  body.run(m.to_stand_routine())
+  assert m.getup.steps == 600, "the standing policy took the legs before the body stood"
+  assert m.legs == "stand" and m.falls == 1
+
+
+def test_a_fall_as_the_arms_come_home_is_the_getups_until_it_stands(head):
+  # The legs go to the walker once the arms are home and the posture has
+  # settled. A fall on the step that settled it went to the walker (#520).
+  from pluggybot.body import body_for
+  model = mujoco.MjModel.from_xml_string(hm.body_xml())
+  data = mujoco.MjData(model)
+  mujoco.mj_resetDataKeyframe(model, data, 0)
+  mujoco.mj_forward(model, data)
+  body = body_for(model, data)
+  m = body.mission
+  m.getup = _Rising(50)
+  m.stand.posture[:] = (0.0, 0.03)                          # not settled yet
+  falls = iter([True])                                      # the fall: on the settling step
+  m.fall.falling = lambda data, pitch=0.0: m.stand.settled and next(falls, False)
+  body.run(m.to_walk_routine())
+  assert m.getup.steps == 50, "the walker took the legs before the body stood"
+  assert m.legs == "walk" and m.falls == 1
+
+
+def test_a_stand_up_keeps_what_the_grippers_were_asked(head):
+  # No policy drives the grippers, so a fall leaves them as they were asked;
+  # the stand-up's fresh reach built its own, and a gripper shut on a knob
+  # read as never shut (`Gripper.held` asks `shut_asked`, #520).
+  from pluggybot.body import body_for
+  model = mujoco.MjModel.from_xml_string(hm.body_xml())
+  data = mujoco.MjData(model)
+  mujoco.mj_resetDataKeyframe(model, data, 0)
+  mujoco.mj_forward(model, data)
+  body = body_for(model, data)
+  m = body.mission
+  m.reach.grippers["left"].shut()
+  m.getup = _Rising(5)
+  falls = iter([True])
+  m.fall.falling = lambda data, pitch=0.0: next(falls, False)
+  body.run(body.settle_routine(model.opt.timestep))         # the watch takes a fall
+  assert m.legs == "getup"
+  body.run(m._getup_routine())                              # ...and it stands
+  assert m.legs == "stand" and m.reach.phase["left"] == "rest"
+  assert m.reach.grippers["left"].shut_asked
 
 
 def test_the_getup_policy_stands_it_up_off_its_back(head):

@@ -110,7 +110,8 @@ class WsPublisher:
                robot_name: str | None = None,
                build: dict | None = None,
                others: list | None = None, heightmap=None,
-               overseer=None, tickets=None) -> None:
+               overseer=None, tickets=None, opening: list | None = None,
+               samplers=()) -> None:
     if token is not None and not token.strip():
       # An empty PLUGGYWORLD_TOKEN is the classic systemd/.env mis-deploy.
       # Falsy would silently mean "send no header at all", so the sim would
@@ -120,9 +121,10 @@ class WsPublisher:
     # dedupe=False: the hub caches the most recent grid per robot for late
     # joiners, so the last message sent is what a new browser is handed --
     # and a live stream that fell silent because the map stopped changing
-    # would look exactly like one whose grid path had broken.
+    # would look exactly like one whose grid path had broken. `samplers` are
+    # a producer's own of the grid's shape (#530: the depth camera's picture).
     self._grids = grid_samplers(grid, others, grid_hz, dedupe=False,
-                                heightmap=heightmap)
+                                heightmap=heightmap) + list(samplers)
     self._headers = {"Authorization": f"Bearer {token}"} if token else None
     self._builder = FrameBuilder(model, data, hz=hz, status_fn=status_fn,
                                  model_name=model_name, keyframe_s=keyframe_s,
@@ -133,7 +135,7 @@ class WsPublisher:
                                  mode=mode, metabolism=metabolism,
                                  steering=steering, robot_name=robot_name,
                                  build=build, others=others, overseer=overseer,
-                                 tickets=tickets)
+                                 tickets=tickets, opening=opening)
     self.data = data
     self._queue: queue.Queue = queue.Queue(maxsize=QUEUE_MAX)
     # Set by the sender (on connect) or the hook (on drop); cleared by the
@@ -223,7 +225,7 @@ class WsPublisher:
     its own, so the observatory files the line under the right history."""
     self.message({"type": "event", "t": round(t, 3), "robot": robot, "line": line})
 
-  def message(self, msg: dict) -> None:
+  def message(self, msg: dict, wait: float = 0.0) -> bool:
     """Queue any typed low-frequency message (wire into BoardBook.on_event
     for `draw` / `board_cleared`, and Ledger.on_event for `earned`).
 
@@ -233,12 +235,21 @@ class WsPublisher:
     board is next erased. That is the accepted cost of never blocking the
     physics on a socket, and it is why recordings, not the live stream, are
     the lossless artifact. `events_dropped` counts it.
+
+    `wait` > 0 waits that long for room instead: only for a producer's last
+    word, sent once the physics is done (#530: an attempt's verdict). False
+    when it was dropped.
     """
     try:
-      self._queue.put_nowait(("event", dict(msg)))
+      if wait > 0:
+        self._queue.put(("event", dict(msg)), timeout=wait)
+      else:
+        self._queue.put_nowait(("event", dict(msg)))
       self.events_queued += 1
+      return True
     except queue.Full:
       self.events_dropped += 1
+      return False
 
   def flush(self, timeout: float = FLUSH_S) -> bool:
     """Wait, bounded, until every message queued so far has left the socket.
@@ -263,13 +274,16 @@ class WsPublisher:
       try:
         with connect(self.endpoint, open_timeout=CONNECT_TIMEOUT,
                      additional_headers=self._headers) as ws, self._link():
-          self.connections += 1
           self.last_error = None       # "error since the last good connect"
           # A fresh consumer starts from nothing: drain whatever went stale
           # while disconnected, open with the header, and have the hook cut
           # a keyframe so sparse frames have a base to build on.
           self._drain()
           ws.send(json.dumps(self._builder.header(), separators=(",", ":")))
+          # ...then what opens every stream of this producer (#530: its
+          # scene), fixed for the run, so it goes from here like the header.
+          for opened in self._builder.opening:
+            ws.send(json.dumps(opened, separators=(",", ":")))
           self._need_keyframe.set()
           # ...and on what the robot is for (0.8.0), which is likewise in no
           # keyframe: a viewer who joins an hour in still has to be told.
@@ -282,6 +296,10 @@ class WsPublisher:
           # happened once, so without this a viewer who joined late watches
           # a robot admire a blank board.
           self._need_boards.set()
+          # Counted once the stream is open and the drain is behind it: a
+          # producer that waits on this to start (#530's child) queues
+          # nothing the drain could take.
+          self.connections += 1
           while not self._stop.is_set():
             self._poll_inbound(ws)
             try:

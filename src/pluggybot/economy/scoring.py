@@ -54,7 +54,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable
 
-from pluggybot.challenge import bench, stack
+from pluggybot.challenge import bench, door, drawer, lid, place, stack
 
 #: The evaluation tiers, in the design doc's own order.
 TIERS = ("auto", "hidden", "visitor", "narrative")
@@ -153,9 +153,13 @@ class TaskReward:
   secret: tuple[str, ...] = ()
   detail: str = ""
   #: False for a CHALLENGE row (challenges.json, issue #120): scoreable by
-  #: the ledger, shown to nobody, hashed into no result -- a job the robot
-  #: has no way to take yet. Moving it into rewards.json is the offer.
+  #: the ledger, hashed into no result, shown only to a mind (#207) -- a job
+  #: no world offers the loop. Moving it into rewards.json is the offer.
   offered: bool = True
+  #: False for a DEMO's row (#493: `"shown": false`): graded through this
+  #: door like any other, and shown to no mind, because no served world
+  #: has the job -- a row in the prompt is the prompt changed.
+  shown: bool = True
 
   @classmethod
   def from_json(cls, task: str, spec: dict,
@@ -171,7 +175,8 @@ class TaskReward:
     return cls(task=task, tier=tier, base=int(spec["base"]),
                bonus=int(spec.get("bonus", 0)), curves=curves,
                secret=tuple(spec.get("secret", ())),
-               detail=str(spec.get("detail", "")), offered=offered)
+               detail=str(spec.get("detail", "")), offered=offered,
+               shown=bool(spec.get("shown", True)))
 
   def quality(self, metrics: dict) -> float | None:
     """The weighted mean of whatever curves this task's metrics resolve, or
@@ -273,9 +278,9 @@ class RewardTable:
     tasks only -- a row with no evaluator cannot be earned and offering it
     would be a lie about what the robot can do -- and a challenge row only
     where one can be attempted (`challenges`: a mind, whose library is what
-    discharges one; issue #207)."""
+    discharges one; issue #207). A demo's row (`shown` False) never."""
     return [r.as_context() for name, r in self.tasks.items()
-            if name in EVALUATORS and (r.offered or challenges)]
+            if name in EVALUATORS and r.shown and (r.offered or challenges)]
 
 
 _default: RewardTable | None = None
@@ -770,6 +775,16 @@ EVALUATORS: dict[str, Callable[[dict], tuple[bool, dict, str]]] = {
   # arm's alone -- and nothing on the board offers it: the robot files
   # one when it has something to say.
   "ticket": eval_ticket,
+  # Demo 1's verdict (issue #493): the chest's lid opened and set down,
+  # off its hinge's true state. Criteria and evaluator live with the
+  # challenge (challenge/lid.py); its row pays 0 and is shown to no mind.
+  "lid": lid.eval_lid,
+  # The hands' capability checks (issue #525; docs/Hands.md), graded as
+  # the lid is and shown to no mind: a drawer pulled out and let go, a
+  # cupboard's door opened by its lever, a cube placed on a mat.
+  "drawer": drawer.eval_drawer,
+  "door": door.eval_door,
+  "place": place.eval_place,
 }
 
 
@@ -1101,6 +1116,15 @@ SAMPLERS: dict[str, Callable[..., dict]] = {
   # close was applied -- called by `HubLifecycle._ticket_close`, there
   # being no errand.
   "ticket": sample_ticket,
+  # Demo 1's lid (issue #493): off the chest's hinge and the contact list,
+  # after the hold -- called by the attempt's harness (`evaluation.
+  # attempts`), which hands it the world and what it watched.
+  "lid": lid.sample_lid,
+  # ...and the hands' capability checks' (issue #525), off their props'
+  # joints and the contact list, the same harness.
+  "drawer": drawer.sample_drawer,
+  "door": door.sample_door,
+  "place": place.sample_place,
 }
 
 

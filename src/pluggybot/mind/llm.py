@@ -231,7 +231,8 @@ def stream_fetch(url: str, body: dict | None, headers: dict,
   waits: the request asks for `stream`, and the deltas are put back
   together as the one JSON a request not streamed is answered with (its
   reasoning before its answer, in `<think>`, as `_answer_text` reads it),
-  and who answered (`provider`, the router's `x-inference-provider`).
+  why it ended (`finish_reason`: "length" where the tokens ran out) and
+  who answered (`provider`, the router's `x-inference-provider`).
   `timeout` is each read's. MEASURED (#466): the router's gateway answers
   504 to a request silent for 120 s, and the deployed model, shown a
   picture, reasoned past it."""
@@ -241,7 +242,7 @@ def stream_fetch(url: str, body: dict | None, headers: dict,
                      "stream_options": {"include_usage": True}}).encode()
   req = urllib.request.Request(url, data=data, headers=headers, method="POST")
   content, reasoning, usage = [], [], {}
-  provider = None
+  provider = finish = None
   try:
     with urllib.request.urlopen(req, timeout=timeout) as resp:
       provider = resp.headers.get("x-inference-provider")
@@ -260,6 +261,7 @@ def stream_fetch(url: str, body: dict | None, headers: dict,
           delta = choice.get("delta") or {}
           reasoning.append(str(delta.get("reasoning_content") or delta.get("reasoning") or ""))
           content.append(str(delta.get("content") or ""))
+          finish = choice.get("finish_reason") or finish
   except urllib.error.HTTPError as e:
     try:
       payload = json.loads(e.read().decode())
@@ -268,8 +270,8 @@ def stream_fetch(url: str, body: dict | None, headers: dict,
     return e.code, payload
   thought = "".join(reasoning)
   text = (f"<think>{thought}</think>" if thought else "") + "".join(content)
-  return 200, {"choices": [{"message": {"content": text}}], "usage": usage,
-               "provider": provider}
+  return 200, {"choices": [{"message": {"content": text}, "finish_reason": finish}],
+               "usage": usage, "provider": provider}
 
 
 class ChatClient:
@@ -346,6 +348,7 @@ class ChatClient:
       raise RuntimeError(_error_line(self.label, status, payload))
     text = _answer_text(payload)
     usage = payload.get("usage") or {}
+    finish = ((payload.get("choices") or [{}])[0] or {}).get("finish_reason")
     return SimpleNamespace(
       content=[SimpleNamespace(type="text", text=text)],
       usage=SimpleNamespace(
@@ -354,6 +357,8 @@ class ChatClient:
         cache_read_input_tokens=0,
         cache_creation_input_tokens=0,
       ),
+      # the SDK's word for an answer its tokens ran out on (#493)
+      stop_reason="max_tokens" if finish == "length" else "end_turn",
       provider=payload.get("provider"))
 
 

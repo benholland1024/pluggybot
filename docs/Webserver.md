@@ -161,8 +161,9 @@ docker run --rm -e PLUGGY_ENDPOINT=ws://host.docker.internal:8765 \
   pluggyworld-sim                          # against a local ws_sink.py
 ```
 
-The image (`Dockerfile`, `deploy/`) runs `serve.py` and nothing else. Five
-things about it are decisions rather than boilerplate:
+The image (`Dockerfile`, `deploy/`) runs `serve.py` -- and, as the site's
+`session` service, the session host ("A world of one's own", below) -- and
+nothing else. Five things about it are decisions rather than boilerplate:
 
 - **It is not the dev environment.** The serve path imports mujoco, numpy,
   scipy, pillow, websockets, the apriltag detector and the overseer's client
@@ -389,6 +390,84 @@ the stacks still say what every thread was doing.
 
 The hourly ceiling (`PLUGGY_MAX_SIM_TIME`, #345) is decided afterwards,
 off these lines, once the fix for what they find is deployed.
+
+## A world of one's own (user control, issue #530)
+
+A person writes a procedure in the robot's own language on the site
+(`/experiments/pluggyworld/attempts`), and the humanoid flies it as ONE attempt
+of the attempt kit's task -- chest k's lid at the counter
+(`evaluation.attempts`, `evaluation.counter`) -- graded by the same door as
+the robot's attempts, and watched live. Never Luca or Rowan: every action
+of a mind comes from its LLM, and the served world's stream (and so the
+observatory) carries none of it. Shapes are protocol/README.md's ("a world
+of one's own").
+
+- **`session/host.py`** -- the SESSION HOST, a second process of the
+  serving image (`python -m pluggybot.session.host`; the site's compose
+  runs it as `session`). It dials OUT to `/api/pluggyworld/sessions/host`
+  with the sim's secret, as the sim and the eye do, and says `hello` on
+  every connect: its build, the task, the job as the robot is told it, and
+  `mind.practice`'s language and body sections byte for byte -- the site's
+  reference is generated from them, so a person and the robot read one
+  text. A `run` is checked against the language first: refused, every
+  reason at once, and nothing built; else handed to a child. ONE RUN AT A
+  TIME: a second is `busy`; a `cancel` stops a run only when it names its
+  session AND attempt (a late one for the run before stops nothing); a
+  child past `CHILD_S` (600 wall s) is stopped, and a child that would not
+  start is the run's `failed`, never a dropped connection. A run is
+  `graded` when its child wrote its verdict to the file the host named,
+  whatever ended the process after; `ended` carries that verdict too, the
+  backstop for a stream that lost its last message. A dropped connection
+  drops nothing in flight, and a refused handshake (the site answering 503
+  while it restarts, or 401) is only "no connection now": the child streams
+  on its own path and is watched meanwhile (`CHILD_S` too), the next
+  `hello` says what is running, and an ending not yet said follows it.
+- **`session/attempt.py`** -- a run's CHILD PROCESS (`python -m
+  pluggybot.session.attempt`, a fresh one a run: a world dropped in a
+  reused process is held until the cycle collector runs, #469). The job
+  comes on stdin and the seat's OWN token in its environment
+  (`PLUGGY_SESSION_TOKEN`) -- ⚠ never the shared secret, nor any variable
+  named like a credential, which the host leaves out of a child's
+  environment. It builds the set-out, opens the stream to the seat's own
+  path (`/api/pluggyworld/sessions/<id>/ingest`) and waits for it to open
+  -- its drain behind it, so nothing the run says is drained -- before it
+  flies, flies the procedure at real time and grades it. Then, BEFORE the
+  stream's last word: its word to the host (the verdict, in the file the
+  host named; never stdout, which the container's log shares with MuJoCo's
+  warnings) and the row to `$PLUGGY_SESSION_RECORD/rows.jsonl` (`process:
+  person`, `tokens` a measured 0, the source and the seat beside it), so a
+  cancel or a kill as its stream closes keeps both. The verdict waits for
+  room in the stream's queue, and one dropped all the same is said on
+  stderr. A try its limit cut keeps its run as it stood
+  (`lang.run_procedure_routine(into=)`). The same `fly` writes the fixture
+  recording (`scripts/attempts.py --record`).
+- **`session/wire.py`** -- every message the stream and the host say,
+  pure, and the depth picture's sampler.
+
+What a page shows of the robot's senses is read on STREAMS OF THE
+WATCHER'S OWN: a hand's place off a joint sense and a model of itself that
+are the watcher's (`Body.hand_watched`), the depth off a camera of its own
+(`Body.depth_watched`); everything else a procedure can `read` is what the
+body has already measured -- a force, a gripper's word, a verb's report.
+⚠ The flight's own `hand_at` draws on its joints' noise stream, and a
+watched flight read through it ended 1.9 mm from the unwatched one;
+through the watcher's own, bit for bit the same, its own depth camera
+having drawn the same noise (`tests/test_session.py`).
+
+**Where it runs (Ben, 2026-10-21): on the deploy box, admins only, one
+seat.** The site's session hub holds one seat; a seat with nothing run for
+fifteen minutes frees itself. The compose service CAPS the host and its
+child at one CPU's worth (`cpus: "1.0"`) -- a cap, never a pinned or a
+reserved core: a run competes with the served pair for the box's cores and
+can still eat into the pair's thin margin over real time (~1.1x, below).
+MEASURED on the dev box, one pinned core, osmesa, a watched attempt of 15
+verbs (5 tag sightings) flew 13.6 sim s in 11.2 wall s, **1.22x real
+time**, so a run
+paced at 1x keeps up there with a little margin; a slower core, or a
+procedure heavy in `measure` (an 848 x 480 cloud a frame), plays slower
+than real time rather than breaking -- the grade is on sim time.
+Re-measure on the box with the pair running before more than one person
+may hold a seat.
 
 ## Measured
 

@@ -186,7 +186,8 @@ uv run python scripts/humanoid_spike.py --view body   # held up on a gantry in
 uv run python scripts/humanoid_spike.py --view stand  # on its own feet:
                                       # shoved, crouching and bowing
 uv run python scripts/humanoid_spike.py --view reach  # a hand to a counter,
-                                      # a high shelf, a low one and the floor
+                                      # a high shelf, a low one and the floor,
+                                      # through Body, its get-up loaded
 uv run python scripts/humanoid_spike.py --view grasp  # a drawer's handle
                                       # gripped and pulled
 uv run python scripts/humanoid_spike.py --view demo   # a chest's knob on a
@@ -214,6 +215,26 @@ SimNotes, "The humanoid body", "The humanoid stands, reaches and grasps",
 "The humanoid behind Body", "The humanoid walks" and "The humanoid climbs,
 falls and gets up", has what they measured, and Parts.md the parts and the
 bill.
+
+Demo 1's harness (#493): an attempt at #466's chest from its set-out, graded
+by the world, the probe as the skill; the verdict is printed:
+```bash
+uv run python scripts/attempts.py --view 0     # the probe opens chest 0's
+                                      # lid and sets it down; 5 s on, the
+                                      # grader reads the hinge and the robot
+```
+`attempts.py --help` lists the rest (`--chests`, `--held-out`, `--into`,
+`--read`, `--drops`); Evaluation.md §4 is the protocol and Challenges.md §9
+the grader.
+
+User control (#530): a person's procedure flown by the humanoid as one such
+attempt, in a world of its own, watched live on the site. The session host
+runs beside the served sim on the server, one run at a time
+(docs/Webserver.md, "A world of one's own"):
+```bash
+PLUGGYWORLD_TOKEN=... uv run python -m pluggybot.session.host \
+  --endpoint ws://localhost:3000/api/pluggyworld/sessions/host --record runs/sessions
+```
 
 View a body alone:
 ```bash

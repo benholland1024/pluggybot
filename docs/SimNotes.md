@@ -4542,7 +4542,8 @@ of the simulator's truth (`test_the_robot_steers_off_its_senses_...`).
 Every number is MuJoCo's, an upper bound on hardware.
 
 ![The `reach` scene: the left hand held at a counter's height, a high
-shelf, a low shelf and the floor](figures/humanoid_reach.png)
+shelf, a low shelf and the floor, through Body with its get-up
+loaded](figures/humanoid_reach.png)
 
 (`MUJOCO_GL=egl uv run python scripts/humanoid_spike.py --strip reach --out
 docs/figures/humanoid_reach.png`; `stand` and `grasp` beside it.)
@@ -4630,9 +4631,10 @@ range ended it, and the hand stopped where its solve missed by 3.7-8 cm
 (the feet moved 6 mm: the stance did not move).
 
 The heights #507 names, 0.09, 0.49, 0.94 and 1.43 m, are all reached, the
-`reach` scene's four held 0.1-0.8 cm off: the floor only near the toes and
-at full stretch from the deepest bow the policy holds (the hip folds to
--2.34 rad there, its thigh a centimetre off the torso); 1.43 m with the
+`reach` scene's four held 0.1-0.9 cm off through `Body`, its get-up loaded
+as served (#520): the floor only near the toes and at full stretch from
+the deepest bow the policy holds (the hip folds to -2.34 rad there, its
+thigh a centimetre off the torso); 1.43 m with the
 fingers tilted up 45 deg. **A waist pitch joint, or 3 cm more arm, would
 give the floor slack** -- the design question for rule 7's re-read.
 
@@ -4666,7 +4668,10 @@ its constant:**
 - *The posture shown is not the posture held.* A deep bow's body takes a
   second or two after its command; an approach begun on the command's
   arrival stopped short. It begins on the robot's own measure
-  (`reach.POSTURE_TOL`).
+  (`reach.POSTURE_TOL`), and once its trunk is still (`reach.TRUNK_STILL_RATE`,
+  #520): the force read off the currents assumes the arm still, and the
+  floor's approach begun as the bow stopped turning (0.59 rad/s) read
+  492 N at the hand and stopped 6 cm short of it.
 - *A hand that cannot get there stops* (`reach.BLOCKED_M`, `BLOCKED_N`,
   held `BLOCKED_S`): its own solve 3 cm out of reach, or its arm's currents
   reading a 30 N push on its way in. Unstopped, a crouch left a chest's knob
@@ -4695,18 +4700,18 @@ and `hand_force` (off the arm's currents) -- which the quadruped refuses
 by its tag, reaches it and grips it, through Body](figures/humanoid_demo.png)
 
 **The demo world** (`evaluation/counter.py`, a world of its own, as
-`home_quad_chest` is): #466's drop-handle chest on a 0.90 m counter in the
-storeroom, seeded (`set_out(k)`), the humanoid standing in front of it.
+`home_quad_chest` is): #466's drop-handle chest on a counter in the
+storeroom -- 0.72 m since #493, 0.90 before -- seeded (`set_out(k)`), the
+humanoid standing in front of it.
 Every act is a `Body` member: the knob found by its tag in the D435's
 colour imager (`spot`: the face seen most square-on, its middle half a cube
 in), a reach with the fingers tilted down onto it, the gripper shut and the
 grip judged by its own reading. Over twelve set-outs
-(`humanoid_spike.py --demo-table`), **ten held the knob** -- held by the
-gripper's reading and the pads truly on it (our grading), still holding
-after 2 s -- and in the other two the robot said NOT HELD, truly so: its
-reading agreed with the truth twelve times in twelve (in one, the knob
-swung into the shut jaws in the 2 s after). The tag put the knob 0.5 cm
-from where it truly hung, 0.44-0.52 m off.
+(`humanoid_spike.py --demo-table`) at 0.72 m **all twelve held the knob**
+-- held by the gripper's reading and the pads truly on it (our grading),
+still holding after 2 s -- its reading agreeing with the truth every time;
+at 0.90, ten, and the robot said NOT HELD of the other two, truly so. The
+tag put the knob 0.5-0.6 cm from where it truly hung.
 
 **What the chest taught:**
 - *A drop handle's knob hangs nearly under its pin*, its drop bar and stem
@@ -4721,9 +4726,11 @@ from where it truly hung, 0.44-0.52 m off.
   answers: the reach stops a hand that cannot get there (stage 2's
   `BLOCKED_*`), and the fingers tilt down so the plan reaches from the
   stand, the elbow over the counter.
-- *The near edge*: drawn 0.34 m ahead, the knob hung under 0.37 m in two of
-  ten set-outs, and at 0.99 m up no grip the arm holds folds the hand back
-  that near. The set-out draws 0.37-0.43 m.
+- *The near edge*: at 0.90 m, drawn 0.34 m ahead, the knob hung under 0.37
+  m in two of ten set-outs, and at 0.99 m up no grip the arm holds folded
+  the hand back that near; that set-out drew 0.37-0.43 m. At 0.72 m it
+  draws 0.33-0.37 ahead, the lid's arc in reach (SimNotes, "The humanoid
+  opens the chest"), and nearer the knob leaves the colour camera's view.
 - *A headlight lights the robot's cameras too.* Drawn brighter, as the
   other scenes are, it moved where the knob's tag decoded by 3 cm: a scene
   that renders for the robot keeps the house's own light, and a filmstrip
@@ -4783,8 +4790,9 @@ us):
 
 (falls of eight, and the mean distance made of 7.2 m asked.)
 
-![The `rough` scene: the rough task's walker across two doorsteps, paving,
-a 10 deg slope and blocks, steered off its own odometry](figures/humanoid_rough.png)
+![The `rough` scene: the walker that sees the ground across two doorsteps,
+paving, a 10 deg slope and blocks on its own map, steered off its own
+odometry](figures/humanoid_rough.png)
 - ⚠ *Box soles blow up on a height field.* mjlab's rough terrains are
   mostly height fields, and on them the box soles blew up in MuJoCo Warp:
   flown by the flat walker, about one world in seven on the rough patches
@@ -4796,8 +4804,8 @@ a 10 deg slope and blocks, steered off its own odometry](figures/humanoid_rough.
   -- blocks, low stairs up and down, tilted plates -- and a world that
   blows up anyway is reset (`walk.blown_up`); flown on the boxes, none did.
 - ⚠ *Blind, it gives up what risks a fall.* Under mjlab's terrain
-  curriculum (rough4, 2000 iterations on from walk2;
-  `models/humanoid_walk_rough.npz`) it never falls on a course, and it
+  curriculum (rough4, 2000 iterations on from walk2; replaced since by the
+  walker that sees the ground) it never falls on a course, and it
   walks up and over the slope the served walker stalls at -- but asked to
   walk backward or sideways it stands still, on flat ground too; it turns
   on the spot 0.07 and 0.23 rad/s asked 0.5 either way, and walking
@@ -4809,24 +4817,24 @@ a 10 deg slope and blocks, steered off its own odometry](figures/humanoid_rough.
   Sharper tracking rewards (0.2 m/s and 0.3 rad/s wide, rough5) paid
   nothing for a walk it could not track precisely, and at 3,850 iterations
   it stood still at 1.0 m/s too; it was stopped there.
-- *The `rough` scene* (`humanoid_spike.py --view rough`): the rough walker
-  across a doorstep twice, paving, the slope and blocks end to end, 19 m
-  in 43 s. ⚠ Walked open-loop it turned off the courses within 20 s; the
-  scene steers it back to their middle line off its own leg odometry and
-  IMU.
+- *The `rough` scene* (`humanoid_spike.py --view rough`): the walker that
+  sees the ground across a doorstep twice, paving, the slope and blocks end
+  to end, 19 m in 32 s (rough4 took 43). ⚠ Walked open-loop rough4 turned
+  off the courses within 20 s; the scene steers back to their middle line
+  off the robot's own leg odometry and IMU.
 - *The served walker does not walk up a 10 deg ramp*: it climbs a few
   tens of centimetres, stops stepping and slides back to its foot (so did
-  rough3). The house has none; its stairs are stage 5's, and a walker that
-  sees the ground ahead -- the D435's points, as the planner reads them --
-  may be what both need.
+  rough3). The house has none; its stairs are stage 5's. The walker that
+  sees the ground walks up both ("One walker that sees the ground").
 
 **Its odometry**: the heading the IMU's (within a degree over a walk), the
 position moving as the planted foot does not -- the lower sole, levelled,
 off the legs' encoders through its model of itself. On a bare floor, with
 nothing for a scan to match (`humanoid_spike.py --odometry`, 8 s a
 command), it reads 4-6 % short walking forward or back, 3 % on a walk with
-a turn, and 25 % SIDEWAYS (a shuffle lifts the swing foot too little to
-tell which is planted); the Navigator never walks it sideways.
+a turn, and 7 % sideways once the planted foot is told at 3 mm (at 1 cm a
+shuffle's swing foot read planted, and sideways 21 % short: "Stepping
+toward the work"); the Navigator never walks it sideways.
 
 **Rule 7, read again for walking** (`humanoid_spike.py --torque`, its
 walking rows FLOWN by the policy, 10 s at each speed, the start left out):
@@ -4895,6 +4903,20 @@ to the flight's foot, the map's scan was the world's to a median 1.6 cm
   stored one reads nothing.
 - *Our ideal scan casts against the world's geoms alone*, as training did:
   cast at everything it hit the robot's own head.
+- ⚠ *The camera's rays are cast unculled* (`depth.UNCULLED`, both the
+  humanoid's cameras). MuJoCo's batched cast skips a geom whose bounding
+  sphere lies past its cutoff, and a plane's sphere is its anchor point:
+  cast to the camera's 3 m range, 2.75 m from where the bare floor is
+  anchored the camera saw no floor at all, its map froze, its height went
+  unregistered, and a seeing walker fell at 1.0-1.3 m/s on a flat floor
+  (shown the true ground, never). Unculled a frame costs the same (3.9 ms
+  against 4.2 on the bare floor; 10-14 ms either way in the house). Every
+  bare-floor table of a seeing walker before it -- tracking, the rough
+  courses, the bare flight coming down from a landing 3.1 m out -- was
+  flown half blind, and the tables below are flown again. The served
+  quadrupeds' camera still casts to its range: the house's rooms are
+  floored with boxes, and at five places its frames differed by at most
+  two points of ~7,700.
 - ⚠ *What it is shown is ground it could step on* (`HeadScan.ground`).
   Training's ground is floors, blocks and flights, all of a piece; the
   house's flight runs between the hall's wall and the deck's face, and
@@ -4927,74 +4949,40 @@ the planted sole does, NEVER LAID OFF THE MAP: laid off the ground under a
 landing sole, a footprint believed 6 cm up the flight read the next tread,
 the height jumped a riser, the map was laid a riser high from there, and
 the walker stumbled on the third tread; continuous, it stayed within 3 cm
-to the landing. Three other signals failed:
+to the landing. Coming down, two more: the ground under a sole is ground it
+could step on, as the scan's is (from the landing the half wall beside the
+flight shows its top alone, no face for the span rule to see, and a sole
+beside it read the ground under it 1.4-1.6 m up); and a planted sole tipped
+over a tread's edge is followed by the corner nearest the mapped ground
+under it, where the ground under its corners differs by a riser (stepping
+off the landing its toe hung 10 cm below the heel's tread, and followed by
+its lowest corner the height rose 9 cm as the body stepped down 10). Three
+other signals failed:
 a load off the legs' torques (standing it read 215 N against a true 215;
 walking, a swinging leg's own torques read up to 400 N), the soles' motion
 against each other (a sole rising and the other sinking read the same: the
 descent's case), and the IMU's velocity against each foot's (the height
 drifted a metre in 8 s).
 
-**Up the house's flight on its own map** (`models/humanoid_walk_stairs.npz`,
-`Pluggy-Humanoid-Stairs`; `humanoid_spike.py --climb`, `--view stairs`).
-Two walkers that see the ground were trained (`training/README.md`): the
-seeing walker over floors, blocks, plates and flights, and a stairs
+**Two walkers that see the ground were trained** (`training/README.md`):
+the seeing walker over floors, blocks, plates and flights, and a stairs
 specialist over flights alone at the house's tread. Carried on from walk2,
 the seeing walker kept walk2's 2.5 cm shuffle and never left the easiest
 row of risers; fresh with the easiest at 0.05 m, nor did it; from 0.02 m
 both climbed, and both stopped climbing rows by iteration 4000 (up near
-0.13 m on average, down near 0.14). The specialist climbs better (the
-seeing walker at 5650, on its map: 1 in 5 up the house's riser, none down
-from 0.15 m), so it is the stairs' walker. In the house, the `stairs`
-scene from ten starts drawn askew, through the mission with its scan
-matcher, its map laid at 5 Hz: **up the flight 8 in 10** (one fall its
-get-up took; 13 s, its belief 3 cm off and its height 1 cm, medians), and
-**down it 2 in 10** (five falls) -- at 10 Hz no better, 7 and 3. Coming down
-it drops both soles a tread at a time, which no leg odometry follows: its
-height ended 0.6 m high and its belief 1.3 m back along the hall, whose
-long corridor gives the scan matcher nothing to hold it by. On a bare
-flight, five times each riser (no scan matcher there):
-
-| riser, m | up, its own map | down, its own map | up, the ideal scan | down, the ideal scan |
-|---|---|---|---|---|
-| 0.10 | 5/5 | 5/5 | 5/5 | 5/5 |
-| 0.15 | 4/5 | 1/5 (4 falls) | 5/5 | 3/5 |
-| 0.18, the house's | 2/5 (1 fall) | 3/5 (1 fall) | 5/5 | 1/5 |
-| 0.20 | 2/5 | 2/5 (2 falls) | 5/5 | 1/5 |
-| 0.22 | 2/5 | 3/5 | 5/5 | 0/5 |
-
-On the ideal scan it climbs every riser it trained on and balks at the
-edge going down, past what it learnt; its map fills what it has not seen
-at the nearest height it has, which hides the drop until the edge, and it
-goes on down. Coming down a flight is the open half. Each fix above is
-pinned in `tests/test_humanoid_stairs.py`.
-
-**The seeing walker does not replace walk2** (Ben's rule: only if it tracks
-as walk2 does on a flat floor, and beats it on rough ground and the stairs;
-`humanoid_spike.py --track`, `--rough`, each walker on what it would be
-served with -- the seeing one on its own map). On rough ground it never
-fell (0 of 8 on every course, 7.6-8.0 m of the 7.2 asked) where walk2 fell
-8 of 8 on the doorsteps and 7 of 8 on the blocks and stopped at the slope;
-on the stairs walk2, blind, trips on a 5 cm doorstep. On a flat floor:
-
-| asked (forward, sideways m/s, turn rad/s) | walk2 | the seeing walker |
-|---|---|---|
-| 0.5, 1.0, 1.3 forward | 0.51, 0.99, 1.27 | 0.47, 1.15, 1.38 |
-| 0.3, 0.5 backward | 0.20, 0.46 | 0.00, 0.66 (0.20 sideways) |
-| 0.3 sideways | 0.31 | 0.00 |
-| turns 0.5, -0.5, 1.0 | 0.35, -0.28, 1.01 | 0.27, -0.31, 0.81 |
-
-It will not sidestep or back off slowly -- the Navigator's back-off is 0.3
-m/s -- so walk2 stays the served walker and the seeing walker is not
-committed (its recipe is the stairs walker's). A variant paying walk2's
-pose off the flights and air time at a walking pace tracked worse still (1
-m/s asked walked 0.53).
+0.13 m on average, down near 0.14). The specialist climbed better then;
+the seeing walker carried on with narrow tracking climbs better than
+either and is the one walker that sees the ground now (the next section,
+which has its tables and the descent's state). Each fix above is pinned in
+`tests/test_humanoid_stairs.py`.
 
 **Falling, and getting up** (`humanoid/getup.py`, `Pluggy-Humanoid-Getup`
 and `-Getup-Head`; `humanoid_spike.py --fall`, `--view fall`, `--view
 getup`). Without a get-up a fall is today's `stuck` death: a heart, and on
 a served world a stand-up 300 s later. The get-up policy takes every joint,
-arms too, once the IMU reads 35 deg of tilt or the pelvis has sunk under
-0.40 m over the sole it stands on (shoved hard from the front, the standing
+arms too, once the IMU reads the trunk tipped 35 deg past the posture its
+legs hold (below: a bow is no fall) or the pelvis has sunk under 0.40 m
+over the sole it stands on (shoved hard from the front, the standing
 policy folded into a squat 32 deg off upright, and the tilt alone never
 fired), and hands back once it has stood still 0.5 s. Shoved 45 N*s each of
 six ways on a bare floor, by our grading off the world:
@@ -5033,21 +5021,62 @@ and getting up among walls and flights is the training that would close it
 (the get-up trained on open floor alone). The stuck budget stays the
 quadruped's 20 s (`HumanoidBody.GETUP_BUDGET_S`). The mission waits out a
 get-up before handing the legs to a walk (⚠ a fall mid-walk with the arms
-home found them at rest and took the legs off the floor), and on standing
-again forgets its map of the ground and starts its height again over the
-ground it stands on, as at boot (⚠ kept through a fall down the flight, the
-height was 0.41 m off at the foot for good).
+home found them at rest and took the legs off the floor; one on the step
+that brought them home went to the walker, #520) or back from one (⚠ a
+fall while the walker settled went to the standing policy at the settle's
+end, #520), and on standing again forgets its map of the ground and starts
+its height again over the ground it stands on, as at boot (⚠ kept through
+a fall down the flight, the height was 0.41 m off at the foot for good).
+
+**A bow is no fall** (#520). The IMU is on the pelvis and the body has no
+waist, so a bow the standing policy is asked tilts it by the whole bow, and
+read off upright the watch took the reach's deepest postures for falls:
+through `Body`, a low shelf (0.8 rad) and the floor (1.1 rad) each counted
+one and the get-up took the joints -- and the reach said it had arrived,
+because the stand-up's fresh reach hangs and `Reach.done` counts a hanging
+hand (and a hand stopped short) as done. The tip is read off the posture
+the legs hold now (`getup.tipped`, `Reach.held_pitch`: what the standing
+policy is asked less the trim that ask carries, so exactly upright at the
+stand -- and no trim where the deepest bow's ask is held at the policy's
+range, or a stand's trim read the floor's held bow 2.3 deg tipped, not
+1.5; the walker's, upright): a bow's trunk follows its posture within
+2.5 deg going down and 1.5 coming up, and stage 5's 38 shoves from the
+stand come out row for row as before. From each posture a reach takes,
+shoved four ways at 10-45 N*s (`--fall`'s third table; on the standing
+policy alone, graded by us, then as served; times from the shove):
+
+| posture | falls | taken first by the tilt, the collapse | ahead of the strike, s | shoves it stood through called falls: now, off upright | stood, served |
+|---|---|---|---|---|---|
+| the stand | 11 of 16 | 8, 3 | 0.22-0.60 | 0 of 5, 0 | 11, 2.7-4.1 s |
+| -0.20 m, 0.55 rad | 10 of 16 | 7, 3 | 0.05-0.40 | 0 of 6, 0 | 10, 2.7-4.0 s |
+| -0.22 m, 0.80 rad | 10 of 16 | 7, 3 | 0.04-0.46 | 0 of 6, 6 | 10, 2.6-4.7 s |
+| -0.25 m, 0.95 rad | 9 of 16 | 6, 3 | 0.04-0.45 | 0 of 7, 7 | 9, 2.6-3.9 s |
+| -0.25 m, 1.10 rad | 9 of 16 | 6, 3 | 0.03-0.48 | 0 of 7, 7 | 9, 2.6-3.9 s |
+
+The most a shove it stood through tipped it past its posture was 8.4 deg.
+⚠ A forward fall from a bow folds at the knees, and THE COLLAPSE TAKES IT,
+0.03-0.08 s before they strike: lying on its face is only 27 deg past the
+deepest bow, so the tilt alone would never fire there. As served the head
+struck in 22 of the 49 falls at 1.0-5.3 m/s (on the standing policy alone,
+in 36 at 0.2-5.0): the get-up's training tips its falling starts over from
+the stand, never from a bow. `reach_routine` says True only of a hand
+holding at its goal now, never on a stop or a fall, which ends it at once;
+a fall ends a ramp of the arm (`move`) too -- ramped on, it drove the
+stand-up's fresh reach -- and the stand-up keeps the grippers as they were
+asked, where a fresh set read a shut gripper as never shut.
 
 **The sizing tables, re-read with the stairs and the get-up** (rule 7;
 `humanoid_spike.py --torque`, each joint's peak against its part's peak
-and its RMS against the part's continuous rating). Up the house's flight
-the knee peaks at 108 N*m (90 % of the RS04's) with its RMS at 89 % of its
-rating over the 11 s -- a burst; held at that for minutes the winding would
-settle at 135 C on a 40 C day, under its 145 -- and coming down the ankle
-pitch reaches its 120 N*m peak and the ankle's roll 52 (86 % of the
+and its RMS against the part's continuous rating), flown by the walker
+that sees the ground (the next section). Up the house's flight, 5.9 s on
+it, the knee peaks at 118 N*m (98 % of the RS04's) with its RMS 110 % of
+its rating -- a burst, which the part's overload table lets it hold for at
+least 290 s (a winding's time constant is minutes; the stairs specialist,
+climbing in 11 s, peaked at 108 and 89 %) -- and coming down, in 3.3 s, the
+knee peaks at 116, the ankle's pitch at 92 and its roll at 53 (88 % of the
 RS03's). The estimates the parts were chosen on put the knee and the hip's
-roll at ~92 and the hip's turn at ~51: flown, the hip's roll is 51-61 and
-its turn 21-27. Getting up keeps every leg part inside its ratings (peaks
+roll at ~92 and the hip's turn at ~51: flown, the hip's roll is 52-63 and
+its turn 24-37. Getting up keeps every leg part inside its ratings (peaks
 to 73 %, RMS to 72 % over 2-3 s) and spends the arms whole: the upper
 arm's twist and the elbow (RS02) at their 17 N*m peaks from every start,
 and the shoulder's pitch and roll (RS03) at their 60 off its front and its
@@ -5075,7 +5104,7 @@ physics step (500 Hz, the biggest of its Python costs) and casts more rays,
 where the humanoid reckons at 100 Hz. One lever left: the humanoid's reach
 reads both hands' forces at 100 Hz while it only walks. Seeing the ground
 costs a fifth more: on the dev box one humanoid walking the same routes ran
-at 2.7x real time blind and 2.3x with the stairs' walker and its map,
+at 2.7x real time blind and 2.3x with a walker that sees the ground,
 interleaved twice (⚠ the map laid at the depth camera's 10 Hz, 1.8x: its
 ray-cast frames are most of it, and at 5 Hz the frames still overlap at
 1 m/s).
@@ -5090,6 +5119,333 @@ $16 likely. #507 to here: $8.45.
 (`humanoid_spike.py --strip stairs`, `--strip fall` and `--strip getup`
 draw `docs/figures/humanoid_stairs.png`, `humanoid_fall.png` and
 `humanoid_getup.png`.)
+
+## One walker that sees the ground (issue #507)
+
+Ben's rule for serving the walker that sees the ground in walk2's place: it
+tracks walk2's flat-floor commands as walk2 does, and beats it on rough
+ground and the stairs. Before any run the rule was set as numbers
+(`humanoid_spike.py --track`: each command walked three times from
+standing, each started at another moment of the stance): on every command
+the error in the asked direction at most walk2's plus 0.10, and what was
+not asked -- sideways, forward or turning -- within 0.10.
+
+**Narrow tracking, carried on from seeing7** (`Pluggy-Humanoid-Walk-Seeing-Fine`;
+`training/README.md` has each round's flags). mjlab's tracking terms are
+wide (0.5 m/s and rad/s): they pay 70 % for standing still asked to step
+sideways at 0.3 m/s, and seeing7 stood still there. Narrow terms beside
+them -- the planar velocity within 0.15 m/s, the turn within 0.25 rad/s,
+then 0.10 -- and its command's curriculum gone: six rounds of 1500-2000
+iterations, each fixing a row and costing another. Narrowing the turn's
+width from 0.25 to 0.10 brought a turn asked 1.0 rad/s from 0.82 to 0.92;
+raising the planar weight from 2 to 3 cured a 0.11 m/s curve at 1.3 m/s
+(0.03) and, with the narrow turn, took that turn back to 0.65-0.68. Along
+fine5a's run, of six checkpoints 100 iterations apart one passed every row,
+one passed with two values on the bar, four missed one to three; the one
+that passed (iteration 12500) is the walker, `models/humanoid_walk_seeing.npz`.
+Chosen on the rule's walks, it was checked on three more a command, started
+where none of the first three were:
+
+| asked (forward, sideways m/s; turn rad/s) | walk2 | the bar, the asked part's error | the walker, the rule's walks | three more |
+|---|---|---|---|---|
+| 0.5, 1.0, 1.3 forward | 0.51, 0.99, 1.28 | 0.11, 0.11, 0.12 | 0.49, 1.02, 1.30 | 0.49, 1.02, 1.29 |
+| 0.3, 0.5 back | 0.19, 0.46 | 0.21, 0.14 | 0.30, 0.62 | 0.29, 0.63 |
+| 0.3 sideways | 0.31 | 0.11 | 0.27 | 0.31 |
+| turns 0.5, -0.5, 1.0 | 0.21, -0.30, 1.01 | 0.39, 0.30, 0.11 | 0.40, -0.26, 0.92 | 0.40, -0.28, 0.78 |
+
+What was not asked stayed within 0.09. The rule's table passes; the three
+more fell once in 27, turning on the spot at 1 rad/s for six seconds.
+
+**Every fall on a flat floor is its map's.** On the true ground
+(`ideal_scan`) nothing fell in 54 walks, six a command -- and it backed off
+at -0.67 m/s asked -0.5, past the bar's -0.64, where its own map's walks
+were inside it (-0.62, -0.63): on that row the walker sits on the bar. On
+its own map each of fine5a's checkpoints fell once or twice in 27 more
+walks, at 1 m/s or in a long turn. Two mechanisms, both its soles' footprints (`HeadScan.feel`: a
+planted sole's footprint goes into the map at the legs' reckoned height,
+over the camera's cells):
+- *A footprint a few centimetres off the camera's floor is a step there.* At
+  1 m/s the planted-foot rules read it as a riser on a flat floor -- 105
+  ticks of the stair rule, the tipped-sole rule moving its corner 155 times
+  -- the height ran on, the map's scan came 0.23 m off the truth, and it
+  fell; without the tipped-sole rule it walked on (but that rule keeps the
+  height down a flight: 0.10 m off at its foot with it, 0.34 without).
+- *A few centimetres it never saw in training.* Turning on the spot the
+  map stayed within 2-4 cm of the truth for seven seconds and the walker
+  fell at the eighth. Training's scan is noisy (0.1 m a cell, drawn afresh
+  each step), never wrong the same way for seconds.
+
+Without footprints it never fell on a flat floor -- and climbed none of 25
+flights on the bare flight, up or down, every one a fall. Kept off the
+camera's cells (the camera's floor winning), it climbed 6 of 25 up where it
+had 25: up a flight a sole knows its tread better than a camera seeing it
+end-on. So the footprints stay, and with them the falls, and **walk2 stays
+the served walker**; this one replaces the rough task's walker and the
+stairs' (git has rough4 and stairs1). Serving it is Ben's call on these
+tables. What would close the falls is the map's, not the gait's: training
+against a map wrong the ways this one is -- an offset, a plateau, a slope
+that lasts -- or footprints that cannot disagree with the camera on one
+floor. The back-off at 0.5 m/s, on the bar, is the gait's.
+
+On rough ground (`--rough`, eight walks a course; falls, and the metres
+made of 7.2 asked) it falls where walk2 cannot cross, as rough4 did, and
+makes more ground than rough4 on the slope and the blocks:
+
+| | flat | doorstep | paving | slope | blocks |
+|---|---|---|---|---|---|
+| walk2 | 0, 7.1 | 8, 1.9 | 1, 5.2 | 0, 1.1 | 7, 3.2 |
+| rough4 | 0, 7.2 | 0, 7.2 | 0, 7.0 | 0, 5.9 | 0, 5.9 |
+| the walker | 0, 7.2 | 0, 7.1 | 0, 7.1 | 1, 6.9 | 0, 7.0 |
+
+On stairs (`--climb`): on the bare flight, five flights at each riser from
+0.10 to 0.22 m, **25 of 25 up and 25 of 25 down on its own map** (and on
+the ideal scan); in the house, the `stairs` scene from ten starts drawn
+askew, **up 10 of 10** (no fall; 10 s, its belief 5 cm off) and **down 6
+of 10**, with 7 falls its get-up took. The stairs specialist, flown again
+with its camera seeing the floor: 14 and 22 of 25 on the bare flight, 7 and
+7 of 10 in the house.
+
+**Coming down is still the open half.** Every fall coming down the house's
+flight but one came with the belief 0.7-1.9 m behind the body along the
+hall: near the foot the walker runs at 0.8-1.3 m/s asked 0.4, and its
+odometry counted 35-90 % of the way. By the simulator's contacts (our
+diagnosis, never its senses): it follows a sole in the air 6-11 % of the
+time, losing 0.4-0.6 m a descent and walking the belief back; no sole is
+down 0-4 % of the time (0.1-0.3 m); a planted sole slides 0.1-0.3 m; and
+once the scan matcher pulled the belief 1.1 m back -- the hall is a
+corridor it cannot fix along. Its map, laid through that belief, shows
+treads on the hall's floor, and it trips. Registering the depth frames
+along the flight, not only in height, is the lever left.
+
+**What it cost**: RTX 5090s on Vast, $3.70 by Vast's charges -- $0.58 on a
+first host (fine1), $2.18 on an EPYC 9B14 host (the fine-tunes, the
+checkpoints' export, every tracking table off the dev box) and $0.95 on a
+Ryzen 7 7800X3D host (the other half of each round). #507 to here: $12.15.
+
+(`humanoid_spike.py --view rough` and `--view stairs` fly it;
+`--strip rough` and `--strip stairs` draw `docs/figures/humanoid_rough.png`
+and `humanoid_stairs.png`.)
+
+## The humanoid opens the chest (issue #493, stages 2 and 3)
+
+The humanoid's reference (`evaluation/opener.py`) is the quadruped probe's
+plan on the humanoid's hands, built on `Body`'s members alone: the knob off
+its tag, the box off the D435's depth at the part's 848 x 480
+(`Body.depth_cloud`, `legs.probe.guess`), the lid's arc planned about the
+hinge it measured, the knob gripped and carried up the arc and back down
+it, and let go. Every number is MuJoCo's, an upper bound on hardware.
+
+![The reference on chest 0: set out, the lid past 57 deg, the call, and 5 s
+on](figures/humanoid_opener.png)
+
+(`MUJOCO_GL=egl uv run python scripts/attempts.py --body humanoid --strip 0
+--out docs/figures/humanoid_opener.png`; `--view 0` watches it, `--chests
+0-31 --jobs 4 --into DIR` flies the 32.)
+
+**The counter is 0.72 m** (Ben, 2026-10-18; `evaluation.counter.COUNTER_H`).
+At a kitchen's 0.90 the lid's 57 deg put the knob 0.52 m ahead and 1.21 m
+up -- the arm's full stretch, however the hand and the handle turned
+together -- and 62 deg was out of every set-out's reach. Nearer did not
+help: 3 or 5 cm nearer the knob sat at the bottom of the colour camera's
+view (19-61 deg below level), and with the robot bowing to look
+(`Body.gaze_routine`) the reference opened 19 and 18 of 32 against 19
+where it stands; a 0.80 m counter, 17.
+
+**What made it work, each measured:**
+- ⚠ *The drop handle's arm lies on the lid's front edge 57 deg up.* The
+  handle rests 33 deg round its pin from the lid's own frame; held at its
+  turn, the hand keeps the handle as it hangs while the lid turns under
+  it, and at 57 deg of lid -- the grader's own line -- the arm meets the
+  edge. Pulled on past it, the wrist gave 7-11 deg and the lid went on to
+  74, or stopped short. So past 50 deg the hand turns as the lid does
+  (`opener.FREE_RAD`): 8-12 of 32 became 19.
+- *The robot leans back as it lifts.* The live pelvis stood 1.5-2 cm
+  behind the statue the planner posed, and 2 cm more at the arc's top,
+  where a path planned with no slack stopped at 57 deg. A path's points are
+  reached 3.5 cm further ahead on a statue (`reach.PATH_MARGIN_M`), and
+  planned for a hand that is out on the robot AS IT STANDS -- its model
+  posed off its senses, its arm as its encoders read it -- with 2 cm on
+  the points further from the shoulder (`LIVE_MARGIN_M`): from the statue,
+  the path back down from the top solved 6 cm short of where the hand WAS.
+- *One posture a path.* Changing posture partway (a crouch for the grip, a
+  bow for the top) jerked the lid down at 1.7-2.3 rad/s and up to 81 deg:
+  16 of 32 against 19. A reach given the path to come grips in the posture
+  that follows it (`Body.reach_routine(path=)`), or, where that posture
+  makes no approach, in any, and the hand holds still while the body takes
+  the path's (`Reach._posture_held`): gripped level, a crouch had shuffled
+  the feet 12 cm and no arc was followable from there.
+- *A carry keeps the turn it was asked*, never the one it sagged to: the
+  wrist's 0.1-0.15 rad of give at the top put the path back down out of
+  every posture's reach. Its points are followed within 2 cm
+  (`PATH_POS_TOL`): a solve trades position for the turn it holds.
+
+**The reference opens 23 of 32** (95 % interval 0.55-0.84), every pass in
+17.7-22.5 sim-s, the lid to 57.5-63.5 deg and down at 0.34-0.68 rad/s at
+its fastest while open, no fall. The nine it does not are reach: in five
+no grip's tilt follows the arc to 60 deg (`no tilt puts the lid's arc in
+reach`), in three no arc follows from the grip the reach could make, in one
+the hand ran out of reach a step up.
+
+**The pull** that #493's practice flew -- a compliant straight move, its
+turn held -- is rebuilt as the force move: "The force move (issue #525)".
+
+**The arms' friction is calibrated once and kept**
+(`humanoid/friction.py`, `models/humanoid_friction.json`;
+`humanoid_spike.py --friction --write`): each arm joint swept in free air
+at two speeds, the drivers' torque beyond the arm's weight fitted as dry
+friction and viscous, the arm's weight where its encoders put it, and taken
+off where a joint turns. The fit reads the sheets' 0.300 N*m at the
+shoulder as 0.289-0.292, every joint within 4 %, and the viscous terms
+within 0.09 of none; ⚠ swept at one speed, the two terms are one column,
+and it read 1.78 dry and -4.97 viscous, right at 0.3 rad/s and nowhere
+else.
+
+What the robot's own mind made of these hands -- graded practice,
+baseline (a′) and the flight over held-out chests -- is Evaluation.md
+§4's.
+
+## The force move (issue #525)
+
+`pull` became a force move (docs/Hands.md §4): the command walks along the
+way as the hand's FELT force allows, follows the hand across it, and its
+turn gives to what it holds. Each rule was measured; every number is
+MuJoCo's, an upper bound on hardware.
+
+- *The force is closed on the reading, never on the arm's spring.* The
+  compliant pull capped its force by how far the arm's model said it bent:
+  on a drawer's stop it put 15 N for a 5 N limit and 27 for 10, where the
+  hand's reading was within 0.5 N of the contact's true force. Closed on
+  the reading (admittance), the stop came to 3.7, 8.9 and 18.3 N for 5, 10
+  and 20.
+- *Across the way the hand follows what it holds, no faster than twice the
+  pull's speed* (`ACROSS_SPEED`). Unbounded, a lid let go of its weight
+  followed it down; yielding only past a dead band of force, the hand
+  lagged a drop handle's flip and ran out of reach on every lid (0 of 8).
+  Holding its line (`give` 0) is for a set-down: giving, a cube set down
+  slid 13 cm along the mat.
+- *Its turn gives, but never about the jaws' line.* Held whole, the pads
+  dragged a drop handle's knob sideways through its pin and the robot
+  turned 22 deg on its feet; giving 10 % of the gap a command, it did not.
+  Giving about every axis, a lid's weight bent the wrist about the jaws'
+  line and the give followed: 70 deg down at 46-54 deg of lid, the elbow
+  straight at its stop, the wrist pitched 80 deg, and the lid held there
+  (4 chests of 8). Held about that line -- what a two-jaw grip holds turns
+  about it between the pads -- the same single 27 cm pull took 7 of 8 past
+  57 deg, and one pull toward the body set each down.
+- *Going on, another posture from the arm as it is.* A replan that asked
+  the posture it held from fresh seeds found another branch "reaching",
+  and the live arm stood at its elbow's stop 2 cm short for 9 s.
+- *The grip's force is a verb's.* At the Dex1-1's 120 N a pad, the pads'
+  torsional friction (condim 4, 0.01 m: up to 2.4 N*m) locked a door's
+  lever in the jaws, and the hand gripping it held the door shut; at 15 N
+  the tip turns between the jaws as the door swings.
+- *A grip is judged on its squeeze's running mean* (`arms.SQUEEZE_S`, 0.1
+  s, sampled every physics step). One reading carries the current sense's
+  5.1 N of noise, and against half the force asked it read a 15 N grip as
+  nothing held 7 % of the time and a 5 N one 31 %.
+- *A grip lost ends the pull where the hand is* ("let go"). Ended at its
+  distance alone, a knob slipped from the jaws would leave the hand
+  pulling on through the air, its report that free motion's.
+
+**The checks' props** (`activity/drawer.py`, `door.py`, `cube.py`; their
+set-outs `evaluation/counter.py`, each placement's reason at its constant):
+- *The cupboard's door is hung on its LEFT and its lever points away from
+  the hinge.* Hung on its right, the door swung into the left arm that held
+  its lever and stopped there, 36-45 deg open; its lever pointing toward
+  the hinge, pressing it down rolled the left wrist toward its stop, and 6
+  presses of 8 went 1-3 cm.
+- *A trip latch and a kick.* One grip could not both hold the lever down
+  and leave the door free (the jaws locked the tip), so the latch trips
+  once the lever is pressed past 32 deg and stays tripped until the door
+  has stood ajar and shut again, lever up; tripped, a spring kicks it 6 deg
+  ajar, damped (undamped, 0.25 N*m swung a low-friction door 33-48 deg out
+  of reach). ⚠ A door kicked free coasts: the hinge's friction is 0.02-0.15
+  N*m, and in the check 2 doors of 8 stood past 50 deg after the press
+  alone -- so a procedure looks before it grips again.
+- *The cube is set out in sight and out of reach, 0.40-0.46 m ahead on a 6
+  cm board, and the robot steps to it* ("Stepping toward the work").
+  Standing put, its sight and its reach boxed a cube into 4 cm: nearer
+  than 0.29 m the head camera did not see it (5 of 8), and from 0.34-0.38
+  ahead, 12 cm up, the robot's model of itself refused the carry 6-10 cm
+  ahead (6 of 8); a mat out to the left or nearer the body was out of
+  sight even bowed 0.45 rad.
+- ⚠ *Every set-out draws off a stream of its own* (`counter._drawn`, the
+  stream (seed, k)). Off one seed with the cube's hidden draw, the
+  furthest cube was always the heaviest and the leftmost the most
+  slippery, so its weight could be read off where it stood.
+- ⚠ *Our procedures were fitted to their own set-outs.* Redrawn off those
+  streams, the drawer passed 3 of 8 where it had 7 and the cube 3 where it
+  had 4 (the same code passes the old draws as before). On a drawer's way
+  in to a knob 15 cm over the counter on a 2 cm stem, the jaws' pads met
+  the cabinet's top or the counter, the reach blocked at 50-65 N; letting
+  the arm find the grip's turn as a last try passed no more (4 of 8 on
+  set-outs 8-15 either way).
+
+## Stepping toward the work (issue #525)
+
+`step(ahead, left, turn)` (docs/Hands.md §3) moves the feet: a turn on the
+spot, one walk, both the walking policy's, then the standing policy's
+settle (`HumanoidBody.step_routine`). Flown at the counter's set-out 0 and
+read against the truth (`_true_stance`):
+
+| asked | went | its report off by |
+|---|---|---|
+| 5 cm ahead | 9.6 cm | 0.4 cm |
+| 12, 20, 30 cm ahead | 12.7, 23.5, 31.0 cm | 0.2, 0.8, 0.4 cm |
+| 15 cm back | 11.6 cm | 0.1 cm |
+| 15 cm left, 15 cm right | 14.4, 17.9 cm | 2.7, 0.8 cm |
+| 20 ahead and 10 left | 20.8 and 7.1 cm | 1.1 cm |
+| a turn of 17, 29, 57, 86 deg | 16.8, 27.0, 58.5, 85.1 deg | 0.2-0.3 deg; 2-6 cm (below) |
+
+- *At the walker's slowest a short walk is a slide.* At 0.2 m/s
+  (`mission.V_MIN`) the feet slid rather than lifted, and the odometry counted
+  the first stride backward: asked 5 cm it went 16 and believed 5. Backing
+  up at 0.3 it went 4 cm and believed it had gone FORWARD 1. A step walks
+  at `STEP_V` 0.3 and backs up at `BACK_V` 0.4.
+- *The stride carries on after the last command*, 0.2-0.27 s of its pace,
+  so a walk stops once what it believes it has walked, plus its speed times
+  `STEP_STOP_S` (0.22 s), reaches the step; the least a walk goes is a
+  stride, about 10 cm.
+- *A turn at 0.6 rad/s sprang back 6-8 deg* as the legs changed hands; at
+  `TURN_W` 1.0 it lands within 2 deg of the turn asked, and its heading is
+  read within 0.3.
+- *Nothing is measured until the walker has the legs.* Out of a deep bow
+  the pelvis came 16 cm forward over the feet as the arms came home, which
+  a walk measured from before it counted as walked (ok, without a step),
+  and the hand-over outlasted the 1 s a walk is given to get anywhere,
+  which read as `blocked` on a bare floor.
+- *The walker skews an oblique walk*: it raises a forward speed under
+  `V_MIN` to it and leaves the sideways one, so a step at `STEP_V` more than
+  48 deg off straight ahead walked 12 cm further ahead than asked. Such a
+  step is walked as two, ahead then left (`body._step_walks`).
+- ⚠ *A turn moves the feet a few centimetres nothing measures.* Its
+  shuffle walks the stance 2-6 cm (turns of 17-86 deg), and the odometry is
+  3-7 cm off over it: so the step takes a turn as on the spot (`turn` alone
+  reports no travel), the nearer of the two.
+- *Its odometry's swap.* A shuffle lifts its swing foot under a
+  centimetre, so at a 1 cm threshold the odometry kept the sliding foot
+  planted and read the pelvis going BACK as it slid forward: a short step
+  lost 4.3 of its 13.6 cm. At 3 mm (`odometry.SWAP_M`) a forward step reads
+  within a centimetre; `humanoid_spike.py --odometry` reads forward, back
+  and turning as before, and sideways 7 % short where it read 21 %. ⚠ A
+  short step to the LEFT still reads up to a fifth short (above).
+- *Nearer than 0.29-0.31 m the head camera does not see a cube* on the
+  counter's 6 cm board, even bowed 0.75 rad; from 0.3-0.5 m its spot is
+  good to 0.4-0.8 cm. So a robot that steps in to a cube turns what it read
+  before the step into the frame after it (`step.*`), as the check's
+  procedure does, rather than look again.
+
+**The cube in the hand.** The Dex1-1's fingers are 8 cm long and its grip
+point is their middle (`humanoid/model.py`, `jaw_z`), so at the 60 deg tilt
+that reaches a 26 mm cube on a board, the fingertips are 3.5 cm below the
+grip point and meet the board while the grip is still 2-3 cm above the
+cube's middle (1.8-2.8 cm, every set-out): the jaws pinch its top few
+millimetres, and it tipped over or dropped as it was let go. The reach
+still holds there -- its command arrived, and the fingertips press under
+`BLOCKED_N` -- as do a lid's at set-out 1 (1.8 cm) and the door's press at
+set-out 0 (2.3 cm), both of which open, so no tolerance on the hand's place
+tells the cube's grip from theirs. Gripped shallower, 15-30 deg, so the
+tips clear the board, the reach stops short on it (2 of 15).
 
 ## Debugging workflow that worked
 

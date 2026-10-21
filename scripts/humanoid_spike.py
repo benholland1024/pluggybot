@@ -13,15 +13,19 @@ the parts and the bill.
                 its range in turn, then its grippers; `stand` -- on its own
                 feet, its standing policy, shoved, crouching and bowing;
                 `reach` -- a hand to a counter, a high shelf, a low shelf
-                and the floor, each held; `grasp` -- a drawer's handle
+                and the floor, each held, through `Body` with its get-up
+                loaded as served; `grasp` -- a drawer's handle
                 gripped (judged by the gripper's own reading) and the drawer
                 drawn out with a compliant arm, what the hand felt said
                 beside the truth; `demo` -- #466's chest on a counter, its
                 knob found by its tag, reached and gripped, every act a
                 `Body` member; `walk` -- from the living room into the
-                kitchen and back, steered by its own map; `rough` -- the rough task's
-                walker (not served) across doorsteps, paving, a slope and
-                blocks
+                kitchen and back, steered by its own map; `rough` -- the walker
+                that sees the ground (not served) across doorsteps, paving, a
+                slope and blocks; `stairs` -- it up the house's flight on its
+                own map, round on the landing and down; `fall` -- shoved over
+                three ways, the get-up taking each fall; `getup` -- up off its
+                back, its front and its side
   --strip SCENE the scene's filmstrip, headless (`--out` names it)
   --policy NPZ  fly another standing policy (default models/humanoid_stand.npz)
   --mass        the mass budget by segment, beside the T2's published model
@@ -36,15 +40,16 @@ the parts and the bill.
   --envelope    where a hand reaches, floor to over the head, flown balancing
   --hold        a locked handle gripped and pulled harder until something gives
   --demo-table [N]  the demo's first N set-outs (12), each flown through Body
-  --track [NPZ,...]  the served and the rough walker asked each command on a
-                bare floor: what they walk
+  --track [NPZ,...]  the served walker and the one that sees the ground (or
+                these) asked each command on a bare floor: what they walk
   --odometry    the served walker's leg odometry against the truth
-  --rough [NPZ,...]  the served and the rough walker (or these) over a
-                doorstep, paving, a slope up and down and a grid of blocks
+  --rough [NPZ,...]  the served walker and the one that sees the ground (or
+                these) over a doorstep, paving, a slope up and down and a
+                grid of blocks
   (default)     the `body` scene's filmstrip, humanoid_spike.png
 
 Usage:
-  uv run python scripts/humanoid_spike.py --view body|stand|reach|grasp|demo|walk|rough
+  uv run python scripts/humanoid_spike.py --view body|stand|reach|grasp|demo|walk|rough|stairs|fall|getup
   MUJOCO_GL=egl uv run python scripts/humanoid_spike.py [--torque|--shove|...]
 """
 
@@ -615,23 +620,18 @@ def walking_rows() -> list[tuple[str, dict]]:
   humanoid_walk.npz`), its senses the robot's, its arms held hanging by the
   reach: every leg joint's |torque| peak and RMS after the start, and
   whether it kept its feet (`hold`'s record's shape)."""
-  from pluggybot.humanoid.walk import WalkDriver
   rows = []
   for v in WALK_SPEEDS:
     m, d = floor_world()
     mujoco.mj_resetDataKeyframe(m, d, 0)
     mujoco.mj_forward(m, d)
-    stand = StandDriver(m, d)
-    reach = Reach(m, d, stand)
-    walk = WalkDriver(m, d, trunk=stand.trunk, joints=stand.joints)
-    walk.ask(v, 0.0, 0.0)
+    w = _walker(m, d, None)
+    w.walk.ask(v, 0.0, 0.0)
     act = [m.actuator(j).id for j in hm.JOINT_NAMES]
     root = m.body(ROBOT_ROOT).id
     taus, stood = [], True
     for _ in range(int(WALK_S / m.opt.timestep)):
-      walk.step()
-      reach.step()
-      mujoco.mj_step(m, d)
+      w.step()
       if d.time >= WALK_SETTLE_S:
         taus.append(np.abs(d.actuator_force[act]))
       if d.xpos[root][2] < FALLEN_M:
@@ -672,8 +672,8 @@ def walking_table() -> None:
 def stairs_rows(npz: str | None = None) -> list[tuple[str, dict]]:
   """The house's flight (0.18 m risers) walked up and down by the seeing
   walker on its own map's scan: every joint's |torque| peak and RMS from the
-  foot of the flight to its top (`climb_trial`'s course), and whether it got
-  there."""
+  foot of the flight to its top (`climb_trial`'s course), whether it got
+  there, and how long it was on the flight (a burst, `flown_table`)."""
   rows = []
   for down in (False, True):
     model, data, foot, end = flight_world(hw.STAIRS_RISE, down=down)
@@ -697,7 +697,7 @@ def stairs_rows(npz: str | None = None) -> list[tuple[str, dict]]:
     t = np.array(taus) if taus else np.full((1, len(act)), np.nan)
     rows.append((f"stairs {'down' if down else 'up'}", {
       "mean": np.sqrt((t ** 2).mean(axis=0)), "max": t.max(axis=0), "stood": there,
-      "outside": []}))
+      "outside": [], "seconds": len(taus) * model.opt.timestep}))
   return rows
 
 
@@ -800,6 +800,29 @@ def thermal_table(rows=None) -> None:
       lasts = f"{'over ' if hp.lasts_at_least(m, tau, still=True) else ''}{held:.0f} s"
     print(f"{name:38s} {j:>16s} {tau:6.1f} {AMBIENT_C[0] + rise:11.0f} "
           f"{AMBIENT_C[1] + rise:9.0f} {m.max_winding_c:7.0f} {lasts:>13s}")
+
+
+def friction_table(write: bool = False) -> None:
+  """--friction: the arm joints' friction calibrated as the robot does it
+  (`humanoid.friction.calibrate_routine`), standing in the living room,
+  each joint's fit beside the friction its motor's sheet gives the
+  model (`parts.friction_nm`, the sim's truth: ours, never the robot's)."""
+  from pluggybot.body import body_for
+  from pluggybot.humanoid import friction
+  model, data = standing_world()
+  body = body_for(model, data, policy=_POLICY)
+  try:
+    body.run(body.hold_routine(1.0))
+    table = body.run(friction.calibrate_routine(body))
+  finally:
+    body.close()
+  print(f"{'joint':22s} {'dry N*m':>8s} {'viscous':>8s} {'sheet':>7s}  samples")
+  for name, row in table.items():
+    sheet = hp.friction_nm(hm.CHOSEN.motor(name))
+    print(f"{name:22s} {row['coulomb']:8.3f} {row['viscous']:8.3f} {sheet:7.3f}  {row['samples']}")
+  if write:
+    friction.save({n: {"coulomb": r["coulomb"], "viscous": r["viscous"]} for n, r in table.items()})
+    print(f"kept in {friction.FILE}")
 
 
 def energy_table(rows=None) -> None:
@@ -1183,27 +1206,127 @@ def reach_world():
   return standing_world(scenery)
 
 
-def reach_scene(h: Humanoid, records: list | None = None):
+def reach_body_world():
+  """The `reach` scene's world and the humanoid behind `Body` in it, its
+  get-up loaded as served -- its own fall watch at work, as wherever it
+  stands (#520: flown on the standing rig alone, the scene never showed
+  that the watch took the deepest bows for falls)."""
+  from pluggybot.body import body_for
+  model, data = reach_world()
+  body = body_for(model, data, policy=_POLICY)
+  return model, data, body
+
+
+def reach_scene(body, model, data, records: list | None = None):
+  """The `reach` scene, once, through `Body`: the left hand to each of
+  `REACH_TARGETS` -- told to the robot in its stance frame -- held, and
+  home. Yields a line when a part begins or ends. Where the grip truly is
+  is OUR grading; its falls are its own watch's."""
+  from pluggybot.humanoid.body import _rz
+  site = model.site("left_grip").id
+  body.start_at(*STAND_XY, STAND_YAW)
+  # Its stance is its odometry's, posed by its first ticks.
+  yield from drive(body, body.settle_routine(0.5))
   for label, goal in REACH_TARGETS:
     yield f"reaching {label}"
     rec = {"target": label}
-    yield from reach_and_hold(h, "left", HandGoal(goal.pos.copy(), goal.rot), record=rec,
-                              say=f"holding at {label}")
     if records is not None:
       records.append(rec)
-    if not rec.get("planned"):
-      yield "  no posture puts it in reach"
-    elif rec.get("blocked"):
-      yield (f"  stopped short: its own solve put the goal out of reach, or its hand "
-             f"pushed on something; held {100 * rec['miss_mean']:.1f} cm off it")
-    else:
+    falls, t0 = body.falls, data.time
+    x, y, yaw = body._true_stance()
+    truly = _rz(yaw) @ goal.pos + [x, y, 0.0]
+    rot = None if goal.rot is None else _rz(body.stance[2]) @ goal.rot
+    rec["reached"] = yield from drive(body, body.reach_routine(
+      "left", body.to_world(goal.pos), rot, patience=15.0))
+    rec["seconds"], rec["phase"] = data.time - t0, body.reach.phase["left"]
+    rec["posture"] = tuple(float(v) for v in body.reach.posture)
+    rec["slack"] = body.reach.slack["left"]
+    if rec["reached"]:
+      yield f"holding at {label}"
+      misses = []
+      for _ in drive(body, body.settle_routine(2.0)):
+        misses.append(float(np.linalg.norm(data.site_xpos[site] - truly)))
+        yield None
+      rec["miss_mean"], rec["miss_max"] = float(np.mean(misses)), float(np.max(misses))
+    yield from drive(body, body.release_routine("left"))
+    rec["falls"] = body.falls - falls
+    if rec["falls"]:
+      yield (f"  FELL by its own watch ({rec['falls']}): the get-up took every joint; "
+             f"the reach said {rec['reached']}")
+    elif rec["reached"]:
       yield (f"  posture {rec['posture'][0]:+.2f} m, {rec['posture'][1]:.2f} rad"
              f"{'' if rec['slack'] else ', the arm at full stretch'}; there in "
              f"{rec['seconds']:.1f} s; the grip {100 * rec['miss_mean']:.1f} cm off it "
-             f"held (worst {100 * rec['miss_max']:.1f})")
-    if h.fallen():
-      yield "FELL"
-      return
+             f"held (worst {100 * rec['miss_max']:.1f}); no fall by its own watch")
+    elif rec["phase"] == "blocked":
+      yield ("  stopped short: its own solve put the goal out of reach, or its hand "
+             "pushed on something")
+    elif rec["phase"] == "rest":
+      yield "  no posture puts it in reach"
+    else:
+      yield f"  not there in 15 s ({rec['phase']})"
+
+
+def view_reach() -> None:
+  from mujoco import viewer as mj_viewer
+  model, data, body = reach_body_world()
+  print("the `reach` scene: the left hand to a counter, a high shelf, a low shelf and the "
+        "floor, each held, through Body with its get-up loaded. Close the window to quit.")
+  with mj_viewer.launch_passive(model, data) as viewer:
+    viewer.cam.type = mujoco.mjtCamera.mjCAMERA_TRACKING
+    viewer.cam.trackbodyid = body.root
+    viewer.cam.distance, viewer.cam.azimuth = CAM_DISTANCE, CAM_AZIMUTH
+    viewer.cam.elevation = CAM_ELEVATION
+    while viewer.is_running():
+      wall = time.time() - data.time
+      for line in reach_scene(body, model, data):
+        if line:
+          print(f"  -> {line}")
+        if not viewer.is_running():
+          return
+        if int(round(data.time / model.opt.timestep)) % 10 == 0:
+          viewer.sync()
+          ahead = data.time - (time.time() - wall)
+          if ahead > 0:
+            time.sleep(ahead)
+
+
+def filmstrip_reach(out: str) -> None:
+  """The `reach` scene's filmstrip: a tile as it reaches each target and
+  as it holds there, labelled."""
+  from PIL import Image, ImageDraw
+  model, data, body = reach_body_world()
+  r = mujoco.Renderer(model, 300, 400)
+  tiles, pending, at = [], None, 0.0
+
+  def shoot(label):
+    cam = mujoco.MjvCamera()
+    cam.lookat[:] = data.xpos[body.root] + [0.0, 0.0, -0.1]
+    cam.distance, cam.azimuth, cam.elevation = CAM_DISTANCE, CAM_AZIMUTH, CAM_ELEVATION
+    r.update_scene(data, cam)
+    img = Image.fromarray(r.render())
+    ImageDraw.Draw(img).text((8, 8), label[:60], fill=(255, 255, 255))
+    tiles.append(img)
+  for line in reach_scene(body, model, data):
+    if line and not line.startswith("  "):
+      if pending is not None:
+        shoot(pending)
+      pending, at = line, data.time + 0.9
+    elif line:
+      print(line)
+    if pending is not None and data.time >= at:
+      shoot(pending)
+      pending = None
+  if pending is not None:
+    shoot(pending)
+  r.close()
+  body.close()
+  strip = Image.new("RGB", (400 * min(4, len(tiles)), 300 * ((len(tiles) + 3) // 4)),
+                    (255, 255, 255))
+  for k, tile in enumerate(tiles):
+    strip.paste(tile, (400 * (k % 4), 300 * (k // 4)))
+  strip.save(out)
+  print(f"wrote {out}")
 
 
 # ---- the scene: `grasp` ------------------------------------------------------------
@@ -1364,15 +1487,13 @@ def _world_for(scene: str, policy=None):
   policy = policy or _POLICY
   if scene == "stand":
     model, data = standing_world()
-  elif scene == "reach":
-    model, data = reach_world()
   else:
     model, data = standing_world(counter_scenery)
   return model, data, Humanoid(model, data, policy)
 
 
 def _scene_gen(scene: str, h: Humanoid):
-  return {"stand": stand_scene, "reach": reach_scene, "grasp": grasp_scene}[scene](h)
+  return {"stand": stand_scene, "grasp": grasp_scene}[scene](h)
 
 
 def view_stage2(scene: str) -> None:
@@ -1949,14 +2070,10 @@ def filmstrip_walk(out: str, every_s: float = 6.0) -> None:
 # (`training/humanoid_train/walk.py`, `TERRAINS`), each course a world of its
 # own, walked straight ahead off the robot's own senses: a doorstep twice,
 # paving, a slope up and down, a grid of blocks. Graded by us: whether it
-# fell, and how far it got. The served walker is the flat task's; the rough
-# task's (`ROUGH_NPZ`) is not served: blind, it stands still where asked to
-# walk backward or sideways (`--track`; SimNotes, "The humanoid walks").
+# fell, and how far it got. The served walker is the flat task's, blind; the
+# walker that sees the ground (`SEEING_NPZ`) walks each on its own map.
 
-from pluggybot.humanoid.walk import WALK_NPZ  # noqa: E402
-
-#: The rough task's walker (rough4), measured here and served nowhere.
-ROUGH_NPZ = str(WALK_NPZ.parent / "humanoid_walk_rough.npz")
+from pluggybot.humanoid.walk import SEEING_NPZ, WALK_NPZ  # noqa: E402
 #: Each course is walked at this speed, m/s, for this long, s.
 ROUGH_V, ROUGH_S = 0.6, 12.0
 #: Where each course begins ahead of the robot, m.
@@ -2057,9 +2174,9 @@ def _walker(m, d, npz: str | None, odometry: bool = False):
   """The walking policy at `npz` (the served one by default) on a bare body:
   one that sees the ground shown its own map, as it would be served
   (`Seeing`, its odometry always beside it); a blind one alone (`Blind`)."""
-  policy = StandPolicy(npz) if npz else None
-  if policy is not None and "height_scan" in policy.observation_names:
-    return Seeing(m, d, scan="map", npz=npz)
+  policy = StandPolicy(npz or str(WALK_NPZ))
+  if "height_scan" in policy.observation_names:
+    return Seeing(m, d, scan="map", npz=npz or str(WALK_NPZ))
   return Blind(m, d, policy, odometry=odometry)
 
 
@@ -2123,18 +2240,21 @@ TRACK_COMMANDS = ((0.5, 0.0, 0.0), (1.0, 0.0, 0.0), (1.3, 0.0, 0.0), (-0.3, 0.0,
                   (-0.5, 0.0, 0.0), (0.0, 0.3, 0.0), (0.0, 0.0, 0.5), (0.0, 0.0, -0.5),
                   (0.0, 0.0, 1.0))
 #: Each is flown from standing on a bare floor, measured over `TRACK_S`
-#: after `TRACK_SETTLE_S`, s.
-TRACK_SETTLE_S, TRACK_S = 3.0, 6.0
+#: after `TRACK_SETTLE_S`, s, `TRACK_TRIALS` times, each asked after
+#: standing a different while (up to `TRACK_WAIT_S`): the walk starts from
+#: another moment of its stance. ⚠ One trial a command read a turn of
+#: -0.18 and -0.08 rad/s from one policy at two checkpoints 700 iterations
+#: apart.
+TRACK_SETTLE_S, TRACK_S, TRACK_TRIALS, TRACK_WAIT_S = 3.0, 6.0, 3, 1.0
 
 
-def track_row(npz: str | None, cmd) -> tuple[float, float, float]:
+def track_row(npz: str | None, cmd, trial: int = 0) -> tuple[float, float, float]:
   """The velocity walked asked `cmd`: forward and sideways in the heading it
   had when measuring began, m/s, and its turn, rad/s (the truth: ours)."""
   m, d = floor_world()
   mujoco.mj_resetDataKeyframe(m, d, 0)
   mujoco.mj_forward(m, d)
   w = _walker(m, d, npz)
-  w.walk.ask(*cmd)
   root = m.body(ROBOT_ROOT).id
 
   def fly(s):
@@ -2145,6 +2265,9 @@ def track_row(npz: str | None, cmd) -> tuple[float, float, float]:
     r = d.xmat[root].reshape(3, 3)
     return math.atan2(r[1, 0], r[0, 0])
 
+  w.walk.ask(0.0, 0.0, 0.0)
+  fly(TRACK_WAIT_S * trial / TRACK_TRIALS)
+  w.walk.ask(*cmd)
   fly(TRACK_SETTLE_S)
   p0, h0, t0, turned, last = d.xpos[root][:2].copy(), heading(), d.time, 0.0, heading()
   for _ in range(int(TRACK_S / 0.1)):
@@ -2162,17 +2285,24 @@ def _track_row(job):
 
 
 def track_table(npzs: list[str | None], jobs: int = 4) -> None:
-  """--track: each command flown by each policy on a bare floor."""
+  """--track: each command flown by each policy on a bare floor, the mean
+  of `TRACK_TRIALS`, and the asked part's spread."""
   import multiprocessing as mp
-  work = [(npz, cmd) for npz in npzs for cmd in TRACK_COMMANDS]
+  work = [(npz, cmd, k) for npz in npzs for cmd in TRACK_COMMANDS for k in range(TRACK_TRIALS)]
   with mp.get_context("spawn").Pool(jobs, maxtasksperchild=1) as pool:
-    rows = dict(zip(work, pool.map(_track_row, work)))
-  print(f"TRACKING on a bare floor, each command flown from standing, measured over "
-        f"{TRACK_S:g} s after {TRACK_SETTLE_S:g} s: forward and sideways m/s, turn rad/s")
-  print(f"{'asked':18s}" + "".join(f"{_name(n):>30s}" for n in npzs))
+    got = dict(zip(work, pool.map(_track_row, work)))
+  print(f"TRACKING on a bare floor, each command flown from standing {TRACK_TRIALS} times, "
+        f"measured over {TRACK_S:g} s after {TRACK_SETTLE_S:g} s: forward and sideways m/s, "
+        f"turn rad/s, the mean, and the asked part's lowest and highest")
+  print(f"{'asked':18s}" + "".join(f"{_name(n):>40s}" for n in npzs))
   for cmd in TRACK_COMMANDS:
-    print(f"{'%+.1f %+.1f %+.1f' % cmd:18s}" + "".join(
-      f"{'%+.2f %+.2f %+.2f' % rows[(n, cmd)]:>30s}" for n in npzs))
+    axis = int(np.argmax(np.abs(cmd)))
+    cells = []
+    for n in npzs:
+      rs = np.array([got[(n, cmd, k)] for k in range(TRACK_TRIALS)])
+      mean = rs.mean(axis=0)
+      cells.append("%+.2f %+.2f %+.2f (%+.2f..%+.2f)" % (*mean, rs[:, axis].min(), rs[:, axis].max()))
+    print(f"{'%+.1f %+.1f %+.1f' % cmd:18s}" + "".join(f"{c:>40s}" for c in cells))
 
 
 #: The odometry table's commands, (forward m/s, sideways m/s, turn rad/s),
@@ -2212,12 +2342,12 @@ def odometry_table() -> None:
 #: The rough scene's steering, off the robot's own leg odometry and IMU
 #: (`humanoid.odometry`): aim at the courses' middle line this far ahead,
 #: m, turning at this gain, 1/s, and no faster than `STEER_W`, rad/s. Walked
-#: open-loop, the rough walker turned and drifted off the courses.
+#: open-loop, a walker turned and drifted off the courses.
 STEER_AHEAD_M, STEER_GAIN, STEER_W = 2.0, 1.5, 0.8
 
 
-def rough_scene(model, data, npz: str | None = ROUGH_NPZ):
-  """The `rough` scene, once: the rough task's walker across every course
+def rough_scene(model, data, npz: str | None = str(SEEING_NPZ)):
+  """The `rough` scene, once: the walker that sees the ground across every course
   end to end, steered back to their middle line off its own senses, saying
   where it is."""
   w = _walker(model, data, npz, odometry=True)
@@ -2253,8 +2383,9 @@ def rough_scene(model, data, npz: str | None = ROUGH_NPZ):
 
 def view_rough() -> None:
   from mujoco import viewer as mj_viewer
-  print("the `rough` scene: the rough task's walker (models/humanoid_walk_rough.npz, not "
-        "the served one) across doorsteps, paving, a slope and blocks. Close the window to quit.")
+  print("the `rough` scene: the walker that sees the ground (models/humanoid_walk_seeing.npz, "
+        "not the served one) across doorsteps, paving, a slope and blocks, on its own map. "
+        "Close the window to quit.")
   while True:
     model, data = course_world("all")
     mujoco.mj_forward(model, data)
@@ -2312,9 +2443,9 @@ def filmstrip_rough(out: str, every_s: float = 3.0) -> None:
 
 # ---- stage 5: stairs -------------------------------------------------------------------
 # The house's flight is five 0.18 m risers on 0.30 m treads, one doorway wide
-# between the hall's wall and the landing's face (`home.world`). The stairs'
-# walker (`walk.STAIRS_NPZ`, `training/humanoid_train/walk.py` `-Stairs`),
-# which sees the ground, is shown a height scan: on the IDEAL scan, the terrain itself as
+# between the hall's wall and the landing's face (`home.world`). The walker
+# that sees the ground (`walk.SEEING_NPZ`, `training/humanoid_train/walk.py`
+# `-Walk-Seeing-Fine`) is shown a height scan: on the IDEAL scan, the terrain itself as
 # training cast it (OUR instrument); on the MAP's, its own -- the head's D435
 # laid into a map through its belief (`humanoid.scan.HeadScan`), the belief
 # its legs' odometry with the map's ground under its soles
@@ -2325,7 +2456,6 @@ from pluggybot.humanoid.arms import SelfModel  # noqa: E402
 from pluggybot.humanoid.odometry import StanceOdometry  # noqa: E402
 from pluggybot.humanoid.scan import HeadScan, ideal_scan  # noqa: E402
 from pluggybot.humanoid.mission import DEPTH_PERIOD  # noqa: E402
-from pluggybot.humanoid.walk import STAIRS_NPZ  # noqa: E402
 
 #: The flight's foot ahead of the robot's start, m; a trial walks at
 #: `CLIMB_V` for at most `CLIMB_S`, and reaches the landing (or the floor)
@@ -2386,12 +2516,12 @@ class Seeing:
     self.head = HeadScan(model, data, belief=lambda: (self.odo.x, self.odo.y, self.odo.z, self.odo.yaw),
                          level=att.level, correct=self._correct, period=DEPTH_PERIOD)
     self.odo = StanceOdometry(SelfModel(), att, x, y, terrain=self.head.under,
-                              felt=self.head.feel)
+                              felt=self.head.feel, ground_at=self.head.ground_at)
     self.odo.correct(x, y, math.atan2(rot[1, 0], rot[0, 0]))
     q, _, _ = self.stand.joints.read(data)
     self.odo.step(q, self.stand.trunk.gravity())
     see = (lambda: ideal_scan(model, data, self.root)) if scan == "ideal" else self.head.scan
-    self.walk = WalkDriver(model, data, policy=StandPolicy(npz or str(STAIRS_NPZ)),
+    self.walk = WalkDriver(model, data, policy=StandPolicy(npz or str(SEEING_NPZ)),
                            trunk=self.stand.trunk, joints=self.stand.joints, scan=see)
     self.every = max(1, round(0.01 / model.opt.timestep))
     self.n = 0
@@ -2468,7 +2598,7 @@ def climb_table(npz: str | None = None, trials: int = 5, jobs: int = 4,
   with mp.get_context("spawn").Pool(jobs, maxtasksperchild=1) as pool:
     rows = pool.map(_climb_trial, work)
   print(f"STAIRS, flights of {hw.STAIRS_STEPS} risers on the house's {100 * hw.STAIRS_TREAD:.0f} cm "
-        f"tread, walked at {CLIMB_V} m/s ({_name(npz or str(STAIRS_NPZ))}): got there of "
+        f"tread, walked at {CLIMB_V} m/s ({_name(npz or str(SEEING_NPZ))}): got there of "
         f"{trials}, falls, and the mean time, s")
   print(f"{'riser':>8s}" + "".join(f"{f'{sc} up':>18s}{f'{sc} down':>18s}" for sc in scans))
   for r in CLIMB_RISERS:
@@ -2485,7 +2615,7 @@ def climb_table(npz: str | None = None, trials: int = 5, jobs: int = 4,
 
 # ---- stage 5: the scene `stairs`, in the house -------------------------------------------
 # The humanoid in the hall, facing the flight's foot: up the flight on the
-# stairs' walker, steered along its lane's middle by its own belief (its
+# walker that sees the ground, steered along its lane's middle by its own belief (its
 # legs' odometry, the map's ground under its soles, its IMU's heading),
 # round on the landing, and back down. Staged with the truth: where it
 # starts. Graded by us: whether it got up and down, how long each took,
@@ -2509,9 +2639,9 @@ STAIRS_CAM = (3.2, -90.0, -22.0)
 
 def stairs_world(npz: str | None = None):
   """The house, the humanoid in the hall facing up the flight, its walker
-  the stairs' (`npz`, `walk.STAIRS_NPZ` by default)."""
+  the one that sees the ground (`npz`, `walk.SEEING_NPZ` by default)."""
   return house_world(at=STAIRS_FROM, yaw=-math.pi / 2,
-                     walk=StandPolicy(npz or str(STAIRS_NPZ)))
+                     walk=StandPolicy(npz or str(SEEING_NPZ)))
 
 
 def _lane_routine(mission, heading: float, done, budget_s: float = 30.0, v: float = CLIMB_V):
@@ -2606,7 +2736,7 @@ def house_climb_trial(seed: int, npz: str | None = None) -> dict:
   rng = np.random.default_rng(seed)
   at = (STAIRS_FROM[0] + rng.uniform(-0.05, 0.05), STAIRS_FROM[1] + rng.uniform(0.0, 0.3))
   model, data, body = house_world(at=at, yaw=-math.pi / 2 + rng.uniform(-0.08, 0.08),
-                                  walk=StandPolicy(npz or str(STAIRS_NPZ)))
+                                  walk=StandPolicy(npz or str(SEEING_NPZ)))
   records = []
   try:
     for _ in stairs_scene(body, model, data, records):
@@ -2626,7 +2756,7 @@ def house_climb_table(npz: str | None = None, jobs: int = 4) -> list[dict]:
   with mp.get_context("spawn").Pool(jobs, maxtasksperchild=1) as pool:
     rows = pool.map(_house_climb_trial, [(k, npz) for k in range(HOUSE_CLIMBS)])
   print(f"THE HOUSE'S FLIGHT, the `stairs` scene from {HOUSE_CLIMBS} starts drawn askew "
-        f"({_name(npz or str(STAIRS_NPZ))}, its map laid every {DEPTH_PERIOD:g} s): up it, then "
+        f"({_name(npz or str(SEEING_NPZ))}, its map laid every {DEPTH_PERIOD:g} s): up it, then "
         f"round and down it, each leg's end, time, falls its get-up took, and its belief "
         f"against the truth at the end, m")
   for leg in ("up the flight", "down the flight"):
@@ -2713,11 +2843,11 @@ def filmstrip_stairs(out: str, every_s: float = 2.0) -> None:
 # driven back against its part's no-load speed (back-driven past it, a
 # motor pumps the bus). Three ways to
 # fall: the standing policy keeps the legs; the drivers go limp once the
-# trunk has tipped past `getup.FALL_TILT_RAD`; or the get-up policy takes
+# trunk has tipped `getup.FALL_TILT_RAD` past its posture; or the get-up policy takes
 # the legs and arms there (`humanoid.getup`), and gets up.
 
-from pluggybot.humanoid.getup import (FALL_TILT_RAD, GETUP_NPZ, FallWatch,  # noqa: E402
-                                      GetupDriver)
+from pluggybot.humanoid.getup import (COLLAPSED_M, FALL_TILT_RAD, GETUP_NPZ,  # noqa: E402
+                                      FallWatch, GetupDriver, over_lower_sole, tipped)
 
 #: The shoves, the robot's frame (x ahead), and how hard, N*s: past what it
 #: stands through every way (`--shove`: 10-20 N*s), it goes over.
@@ -2767,7 +2897,7 @@ def fall_trial(way: str, mode: str, npz: str | None = None, ns: float = FALL_NS)
       if next(gen, "done") == "done":
         gen = None
       continue
-    if took_over is None and watch.falling(d):
+    if took_over is None and watch.falling(d, h.reach.held_pitch()):
       took_over = d.time - t0
       if mode == "getup":
         getup.begin()
@@ -2824,7 +2954,8 @@ def fall_table(npz: str | None = None, jobs: int = 4) -> list[dict]:
   peak_tau = np.array([hm.CHOSEN.motor(j).peak_torque for j in hm.JOINT_NAMES])
   noload = np.array([hm.CHOSEN.motor(j).noload_speed for j in hm.JOINT_NAMES])
   print(f"FALLS, shoved {FALL_NS:g} N*s at the trunk each way, standing on a bare floor; the "
-        f"get-up policy or the limp drivers take over past {math.degrees(FALL_TILT_RAD):.0f} deg")
+        f"get-up policy or the limp drivers take over {math.degrees(FALL_TILT_RAD):.0f} deg past its "
+        "posture")
   print("  each part: the speed it first touched the floor at, m/s, and the hardest the floor "
         "pushed back, kN (MuJoCo's soft contact: an upper bound's shape, not a number to bank)")
   print("  gears past peak: joints whose torque through the gears passed their part's peak "
@@ -2885,7 +3016,7 @@ def house_fall_trial(place: str, way: str, npz: str | None = None, ns: float = F
       if next(gen, "done") == "done":
         gen = None
       continue
-    if took is None and watch.falling(d):
+    if took is None and watch.falling(d, h.reach.held_pitch()):
       took = d.time - t0
       getup.begin()
     if took is not None and stood is None:
@@ -2950,6 +3081,140 @@ def house_fall_table(npz: str | None = None, jobs: int = 4) -> list[dict]:
   return rows
 
 
+# Falls from a bow (#520): the watch reads a tip off the posture the legs
+# hold, so a bow a reach asks is no fall, and a shove from one still is.
+# Each posture a reach takes, shoved each way at four strengths: once on the
+# standing policy alone, graded by us off the world -- did it fall -- with
+# the moment each check WOULD have taken it; once as served, the checks
+# handing the fall to the get-up policy.
+
+#: The postures (height off the stand's, m; pitch, rad): the stand and
+#: `reach.POSTURES`' bows. The shoves' ways and strengths, N*s, and how long
+#: each is watched, s.
+BOW_POSTURES = ((0.0, 0.0), (-0.2, 0.55), (-0.22, 0.8), (-0.25, 0.95), (-0.25, 1.1))
+BOW_WAYS, BOW_NS, BOW_WATCH_S = ("front", "back", "left", "right"), (10.0, 20.0, 30.0, 45.0), 6.0
+
+
+def bow_fall_trial(held, way: str, ns: float, served: bool, npz: str | None = None) -> dict:
+  """The robot on a bare floor settled in posture `held` (its reach holding
+  it, as a plan's posture is), shoved `way` at `ns` N*s and watched
+  `BOW_WATCH_S`: when each check fires -- the tilt past the posture (the
+  watch's), off upright (the watch's as it was), the collapse -- what struck
+  the floor first, a hand aside, and when, and the head's speed into it;
+  whether it fell, by our grading (a part struck, or its pelvis 0.15 m under
+  where it held); and `served`, the checks handing the fall to the get-up
+  policy, when they did and when it stood. Times from the shove's start,
+  as `fall_trial`'s."""
+  h = floor_humanoid()
+  m, d = h.m, h.d
+  floor, head = m.geom("floor").id, m.geom("head").id
+  part_of = {m.geom(g).id: p for p, gs in FALL_PARTS.items() for g in gs}
+  watch = FallWatch(h.stand.trunk, h.stand.joints)
+  getup = GetupDriver(m, d, policy=StandPolicy(npz or str(GETUP_NPZ)), trunk=h.stand.trunk,
+                      joints=h.stand.joints) if served else None
+  every = max(1, round(h.stand.policy.period / m.opt.timestep))
+  _drain(wait(h, 1.0))
+  _drain(posture(h, *held))
+  _drain(wait(h, 1.5))
+  z0 = float(d.xpos[h.root][2])
+  rec = {"posture": tuple(held), "way": way, "ns": ns, "served": served, "tilt_s": None,
+         "upright_s": None, "collapse_s": None, "first": None, "hit_s": None, "head_v": None,
+         "took_s": None, "stood_s": None, "max_tip": 0.0}
+  t0 = d.time
+  _drain(shove(h, FALL_WAYS[way], ns))
+  vel = np.zeros(6)
+  n, up = 0, False
+  while d.time - t0 < BOW_WATCH_S:
+    if not up and n % every == 0:
+      t, g = d.time - t0, h.stand.trunk.gravity()
+      tip = tipped(g, h.reach.held_pitch())
+      rec["max_tip"] = max(rec["max_tip"], tip)
+      sunk = over_lower_sole(watch.sm, h.stand.joints.read(d)[0], g) < COLLAPSED_M
+      for key, fired in (("tilt_s", tip > FALL_TILT_RAD), ("collapse_s", sunk),
+                         ("upright_s", h.stand.trunk.attitude.tilt() > FALL_TILT_RAD)):
+        if fired and rec[key] is None:
+          rec[key] = t
+      if served and (tip > FALL_TILT_RAD or sunk):
+        up, rec["took_s"] = True, t
+        getup.begin()
+    if up:
+      getup.step()
+      mujoco.mj_step(m, d)
+      if getup.stood:
+        rec["stood_s"] = d.time - t0
+        break
+    else:
+      h.step()
+    n += 1
+    for i in range(d.ncon):
+      c = d.contact[i]
+      other = c.geom2 if c.geom1 == floor else c.geom1 if c.geom2 == floor else None
+      if other not in part_of or part_of[other] == "hands":
+        continue
+      if rec["first"] is None:
+        rec["first"], rec["hit_s"] = part_of[other], d.time - t0
+      if other == head and rec["head_v"] is None:
+        mujoco.mj_objectVelocity(m, d, mujoco.mjtObj.mjOBJ_GEOM, head, vel, 0)
+        rec["head_v"] = float(np.linalg.norm(vel[3:]))
+  rec["fell"] = rec["hit_s"] is not None or float(d.xpos[h.root][2]) < z0 - 0.15
+  return rec
+
+
+def _bow_fall_trial(job):
+  return bow_fall_trial(*job)
+
+
+def _span(values, fmt: str = "{:.1f}") -> str:
+  return "-" if not values else fmt.format(min(values)) + "-" + fmt.format(max(values))
+
+
+def bow_fall_table(npz: str | None = None, jobs: int = 4) -> list[dict]:
+  """--fall, from a bow: each posture a reach takes, shoved each way at each
+  strength, on the standing policy alone and as served."""
+  import multiprocessing as mp
+  work = [(p, w, ns, s, npz) for s in (False, True) for p in BOW_POSTURES for w in BOW_WAYS
+          for ns in BOW_NS]
+  with mp.get_context("spawn").Pool(jobs, maxtasksperchild=1) as pool:
+    rows = pool.map(_bow_fall_trial, work)
+  alone = [r for r in rows if not r["served"]]
+  served = [r for r in rows if r["served"]]
+  print(f"FALLS FROM A BOW, on a bare floor: each posture a reach takes, shoved {', '.join(BOW_WAYS)} "
+        f"at {', '.join(f'{ns:g}' for ns in BOW_NS)} N*s. On the standing policy alone, graded by "
+        "us: the falls, which check would have taken each first, how long before a part but a "
+        "hand struck the floor, and the shoves it stood through that a check took for a fall -- "
+        "the tilt past the posture (the watch) and off upright (the watch as it was). As served, "
+        "the checks handing each fall to the get-up policy: stood, s from the shove; and the "
+        "head into the floor, m/s, alone and served")
+  print(f"{'posture':>14s}{'falls':>7s}{'first: tilt, collapse':>23s}{'ahead, s':>11s}"
+        f"{'false: posture, upright':>25s}{'stood, served':>18s}{'head alone':>17s}"
+        f"{'head served':>17s}")
+  for p in BOW_POSTURES:
+    fell = [r for r in alone if r["posture"] == p and r["fell"]]
+    stood_through = [r for r in alone if r["posture"] == p and not r["fell"]]
+    by_tilt = sum((r["tilt_s"] is not None)
+                  and (r["collapse_s"] is None or r["tilt_s"] <= r["collapse_s"]) for r in fell)
+    caught = [r for r in fell if r["tilt_s"] is not None or r["collapse_s"] is not None]
+    ahead = [r["hit_s"] - min(t for t in (r["tilt_s"], r["collapse_s"]) if t is not None)
+             for r in caught if r["hit_s"] is not None]
+    false_now = sum(r["tilt_s"] is not None or r["collapse_s"] is not None for r in stood_through)
+    false_was = sum(r["upright_s"] is not None or r["collapse_s"] is not None for r in stood_through)
+    up = [r for r in served if r["posture"] == p and r["took_s"] is not None]
+    stood = [r["stood_s"] for r in up if r["stood_s"] is not None]
+    heads = [r["head_v"] for r in fell if r["head_v"]]
+    heads_s = [r["head_v"] for r in up if r["head_v"]]
+    print(f"{p[0]:+6.2f} m {p[1]:4.2f}{len(fell):>4d}/{len(fell) + len(stood_through)}"
+          f"{f'{by_tilt}, {len(caught) - by_tilt}':>23s}{_span(ahead, '{:.2f}'):>11s}"
+          f"{f'{false_now} of {len(stood_through)}, {false_was}':>25s}"
+          f"{f'{len(stood)}/{len(up)}, {_span(stood)}':>18s}"
+          f"{f'{len(heads)}, {_span(heads)}':>17s}{f'{len(heads_s)}, {_span(heads_s)}':>17s}")
+  missed = [r for r in alone if r["fell"] and r["tilt_s"] is None and r["collapse_s"] is None]
+  most = max((r["max_tip"] for r in alone if not r["fell"]), default=0.0)
+  print(f"  falls neither check took: {len(missed)}; the most a shove it stood through tipped it "
+        f"past its posture: {math.degrees(most):.1f} deg, against the watch's "
+        f"{math.degrees(FALL_TILT_RAD):.0f}")
+  return rows
+
+
 # The scenes `fall` and `getup`: on a bare floor, the get-up policy taking
 # over as the humanoid's mission hands it a falling body (`humanoid.mission`:
 # its senses say it is falling, every joint goes to the get-up policy, and
@@ -3000,7 +3265,7 @@ class Falling:
         h.reach = Reach(h.m, h.d, h.stand)
     else:
       h.step()
-      if self.n % self.every == 0 and self.watch.falling(h.d):
+      if self.n % self.every == 0 and self.watch.falling(h.d, h.reach.held_pitch()):
         self.take()
     self.n += 1
 
@@ -3183,7 +3448,7 @@ def speed_world(kind: str, n: int, seeing: bool = False):
   data = mujoco.MjData(model)
   for h in handles:
     _pose(model, data, {f"{h.prefix}{j}": v for j, v in hm.stand_qpos().items()})
-  walk = StandPolicy(str(STAIRS_NPZ)) if seeing else None
+  walk = StandPolicy(str(SEEING_NPZ)) if seeing else None
   return model, data, [body_for(model, data, h, grid_bounds=bounds, walk=walk) for h in handles]
 
 
@@ -3236,11 +3501,9 @@ def speed_table(sim_s: float = 60.0, profile: bool = False) -> None:
   rows = []
   for kind, n, seeing in (("quadruped", 2, False), ("humanoid", 1, False), ("humanoid", 2, False),
                           ("humanoid", 1, True), ("humanoid", 2, True)):
-    if seeing and not STAIRS_NPZ.exists():
-      continue
     rows.append(speed_row(kind, n, sim_s, seeing, profile))
     r = rows[-1]
-    print(f"  {r['kind']} x{r['n']}{' (the stairs walker)' if seeing else ''}: {r['sim_s']:.0f} sim s in "
+    print(f"  {r['kind']} x{r['n']}{' (the walker that sees the ground)' if seeing else ''}: {r['sim_s']:.0f} sim s in "
           f"{r['wall_s']:.0f} wall s, {r['rtf']:.2f}x real time", flush=True)
   quad = rows[0]["rtf"]
   print(f"SERVING SPEED, the same walks ({sim_s:g} sim s after {SPEED_WARM_S:g} s), "
@@ -3251,7 +3514,7 @@ def speed_table(sim_s: float = 60.0, profile: bool = False) -> None:
 
 
 SCENES = {"body": view_body, "stand": lambda: view_stage2("stand"),
-          "reach": lambda: view_stage2("reach"), "grasp": lambda: view_stage2("grasp"),
+          "reach": view_reach, "grasp": lambda: view_stage2("grasp"),
           "demo": view_demo, "walk": view_walk, "rough": view_rough, "stairs": view_stairs,
           "fall": view_fall, "getup": view_getup}
 
@@ -3265,7 +3528,8 @@ def main(argv=None) -> None:
   ap.add_argument("--policy", default=None,
                   help="fly another standing policy's .npz (default models/humanoid_stand.npz)")
   ap.add_argument("--getup-policy", default=None,
-                  help="the scenes' get-up policy .npz (default models/humanoid_getup.npz)")
+                  help="the `fall` and `getup` scenes' get-up policy .npz (default "
+                       "models/humanoid_getup.npz; `reach` flies the served one)")
   ap.add_argument("--shove", action="store_true",
                   help="the shoves it stands through, each way, standing and crouched")
   ap.add_argument("--envelope", action="store_true",
@@ -3277,11 +3541,15 @@ def main(argv=None) -> None:
   ap.add_argument("--odometry", action="store_true",
                   help="the served walker's leg odometry against the truth, on a bare floor")
   ap.add_argument("--track", nargs="?", const="", default=None, metavar="NPZ,...",
-                  help="the served and the rough walker (or these policies) asked each command "
-                       "on a bare floor")
+                  help="the served walker and the one that sees the ground (or these policies) "
+                       "asked each command on a bare floor")
   ap.add_argument("--rough", nargs="?", const="", default=None, metavar="NPZ,...",
-                  help="the served and the rough walker (or these policies) over a doorstep, "
-                       "paving, a slope and blocks")
+                  help="the served walker and the one that sees the ground (or these policies) "
+                       "over a doorstep, paving, a slope and blocks")
+  ap.add_argument("--friction", action="store_true",
+                  help="its arm joints' friction calibrated in free air, beside the sheets' "
+                       "(--write keeps it in models/humanoid_friction.json)")
+  ap.add_argument("--write", action="store_true", help="--friction: keep the table")
   ap.add_argument("--mass", action="store_true", help="the mass budget beside the T2's")
   ap.add_argument("--torque", action="store_true",
                   help="each joint's load: held in our physics, then the estimates")
@@ -3289,11 +3557,12 @@ def main(argv=None) -> None:
   ap.add_argument("--energy", action="store_true", help="watts by activity, the pack's hours")
   ap.add_argument("--sensors", action="store_true", help="what the head sees from the stand")
   ap.add_argument("--climb", nargs="?", const="", default=None, metavar="NPZ",
-                  help="the stairs' walker (or this one) up and down flights of five at each "
+                  help="the walker that sees the ground (or this one) up and down flights of five at each "
                        "riser, on the ideal scan and on its own map's")
   ap.add_argument("--fall", nargs="?", const="", default=None, metavar="NPZ",
                   help="shoved over each way: what hits first, how hard, each joint's torque "
-                       "and speed, falling on the standing policy, limp, or the get-up's")
+                       "and speed, falling on the standing policy, limp, or the get-up's; in "
+                       "the house; and from each bow a reach takes, what the watch says")
   ap.add_argument("--speed", nargs="?", type=float, const=60.0, default=None, metavar="SIM_S",
                   help="the loop's cost: the quadruped pair, one humanoid and a pair, the same "
                        "walks in the house, timed (--profile: where it goes)")
@@ -3310,6 +3579,8 @@ def main(argv=None) -> None:
     _GETUP = args.getup_policy
   if args.view:
     SCENES[args.view]()
+  elif args.strip == "reach":
+    filmstrip_reach(args.out)
   elif args.strip == "demo":
     filmstrip_demo(args.out)
   elif args.strip == "walk":
@@ -3331,11 +3602,11 @@ def main(argv=None) -> None:
   elif args.demo_table is not None:
     demo_table(args.demo_table)
   elif args.rough is not None:
-    rough_table([p or None for p in args.rough.split(",")] if args.rough else [None, ROUGH_NPZ])
+    rough_table([p or None for p in args.rough.split(",")] if args.rough else [None, str(SEEING_NPZ)])
   elif args.odometry:
     odometry_table()
   elif args.track is not None:
-    track_table([p or None for p in args.track.split(",")] if args.track else [None, ROUGH_NPZ])
+    track_table([p or None for p in args.track.split(",")] if args.track else [None, str(SEEING_NPZ)])
   elif args.climb is not None:
     climb_table(args.climb or None, jobs=args.jobs)
     house_climb_table(args.climb or None, jobs=args.jobs)
@@ -3344,6 +3615,9 @@ def main(argv=None) -> None:
   elif args.fall is not None:
     fall_table(args.fall or None, jobs=args.jobs)
     house_fall_table(args.fall or None, jobs=args.jobs)
+    bow_fall_table(args.fall or None, jobs=args.jobs)
+  elif args.friction:
+    friction_table(write=args.write)
   elif args.mass:
     mass_table()
   elif args.torque:
@@ -3352,11 +3626,10 @@ def main(argv=None) -> None:
     estimate_table()
     print()
     walking_table()
-    if STAIRS_NPZ.exists():
-      print()
-      flown_table("STAIRS, FLOWN by the stairs' walker up and down the house's flight on its own "
-                  "map (rule 7's re-read; the stairs' estimates above are superseded):",
-                  stairs_rows())
+    print()
+    flown_table("STAIRS, FLOWN by the walker that sees the ground up and down the house's flight "
+                "on its own map (rule 7's re-read; the stairs' estimates above are superseded):",
+                stairs_rows())
     if GETUP_NPZ.exists() or _GETUP:
       print()
       flown_table("GETTING UP, FLOWN by the get-up policy from lying (rule 7's re-read):",

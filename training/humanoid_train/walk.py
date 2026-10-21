@@ -409,6 +409,66 @@ def seeing_env_cfg(play: bool = False) -> ManagerBasedRlEnvCfg:
   return cfg
 
 
+#: `-Walk-Seeing-Fine`: the seeing walker carried on (`--agent.resume`
+#: from seeing7) with its tracking paid NARROWLY too, on top of the wide
+#: terms: the planar velocity within `FINE_LIN_STD` and the turn within
+#: `FINE_ANG_STD`. ⚠ The wide terms alone (0.5 m/s) paid 70 % for standing
+#: still when asked to sidestep at 0.3 m/s, and seeing7 stood still there
+#: and when asked back at 0.3, on flat ground too; ⚠ a narrow term ALONE
+#: paid nothing for a walk it could not track precisely, and rough5 stood
+#: still at 1 m/s. ⚠ Planar and yaw alone: mjlab's terms count a climb's
+#: rise and a step's roll as error, which a narrow width would charge.
+#: Its last round's (fine5a, from fine3; the walker is its iteration 12500):
+#: at a turn width of 0.25 a turn asked 1 rad/s walked 0.82-0.85, at 0.10
+#: 0.92. Each round's flags are `training/README.md`'s.
+FINE_LIN_STD, FINE_ANG_STD = 0.15, 0.10
+FINE_LIN_WEIGHT, FINE_ANG_WEIGHT = 2.0, 3.0
+
+
+def track_planar_velocity(env, std: float, command_name: str,
+                          asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> torch.Tensor:
+  """The commanded forward and sideways speed tracked, exp(-error^2 / std^2):
+  its rise not counted."""
+  asset = env.scene[asset_cfg.name]
+  command = env.command_manager.get_command(command_name)
+  error = torch.sum(torch.square(command[:, :2] - asset.data.root_link_lin_vel_b[:, :2]), dim=1)
+  return torch.exp(-error / std ** 2)
+
+
+def track_yaw_rate(env, std: float, command_name: str,
+                   asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> torch.Tensor:
+  """The commanded turn tracked, exp(-error^2 / std^2): its roll and pitch
+  rates not counted."""
+  asset = env.scene[asset_cfg.name]
+  command = env.command_manager.get_command(command_name)
+  error = torch.square(command[:, 2] - asset.data.root_link_ang_vel_b[:, 2])
+  return torch.exp(-error / std ** 2)
+
+
+def seeing_fine_env_cfg(play: bool = False) -> ManagerBasedRlEnvCfg:
+  """`-Walk-Seeing-Fine`: the seeing walker's task with its tracking paid
+  narrowly too, carried on from a walker that has it: the commands at their
+  full range from the start and the robots spread over the easier half of
+  the rows."""
+  cfg = seeing_env_cfg(play=False)
+  cfg.rewards["track_planar_fine"] = RewardTermCfg(
+    func=track_planar_velocity, weight=FINE_LIN_WEIGHT,
+    params={"std": FINE_LIN_STD, "command_name": "twist"})
+  cfg.rewards["track_yaw_fine"] = RewardTermCfg(
+    func=track_yaw_rate, weight=FINE_ANG_WEIGHT,
+    params={"std": FINE_ANG_STD, "command_name": "twist"})
+  cfg.curriculum.pop("command_vel", None)
+  twist = cfg.commands["twist"]
+  twist.ranges.lin_vel_x, twist.ranges.ang_vel_z = LIN_X, ANG_Z
+  cfg.scene.terrain.max_init_terrain_level = 5
+  if play:
+    cfg = _play(cfg)
+    cfg.terminations.pop("out_of_terrain_bounds", None)
+    gen = cfg.scene.terrain.terrain_generator
+    gen.curriculum, gen.num_rows, gen.num_cols = False, 5, 5
+  return cfg
+
+
 #: The stairs alone (`-Stairs`): a specialist for the house's flight beside
 #: the seeing walker, the same scan and rewards over flights up and down
 #: (risers 0.02-0.22 m, the house's 0.30 m tread) and a little flat floor,

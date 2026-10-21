@@ -152,7 +152,7 @@ the quadruped pivot before it, closed on 2026-10-04 with its final status.
 | Behaviour arbitration | `HubLifecycle.run()`: with no mind, charge > queued errand > a claimed job > explore; with one the rails are off, the mind decides after the queue, and its event map decides when it is asked at all (Overseer.md, Evaluation.md §2) |
 | Economy | task offers, code-side scoring, a points ledger with upkeep and hearts (TaskPattern.md, Overseer.md §8b) |
 | Imagination | the robot's own world (#466), kept as a tool for imagining first, one process of five (#487): a scene document in a closed language compiled with its own body (`imagination/`), its probe's record replayed there in a worker process, never the world's source; #466's mechanism is the drop-handle chest (`activity/chest.py`), probed from the robot's own senses (`legs/probe.py`) and graded against the truth by `evaluation/imagined.py` and `evaluation/probe.py` |
-| Measurement | two arms, `scripted` and the one mind, and the six qualities read as shapes off the deployed world's rows; capability's per-task record is defined ahead of its rows (Evaluation.md) |
+| Measurement | two arms, `scripted` and the one mind, and the six qualities read as shapes off the deployed world's rows; capability's per-task record off a demo's attempts, each one try from a fresh set-out graded by the world (`evaluation/attempts.py`, `challenge/lid.py`, #493) (Evaluation.md) |
 
 ## Milestones
 
@@ -196,6 +196,8 @@ materials.
   — the build recipes: a tool module, a mechanism that owns world state, a
   job offer, a job nobody scripted.
 - `Overseer.md` — the mind: vocabulary, event map, memory, money, visitors.
+- `Hands.md` — the humanoid's hands' vocabulary: its verbs, the force move,
+  the step, the capability check.
 - `Evaluation.md` — measurement: arms, metrics, the observatory.
 - `Observatory.md` — the deployed world's periods: what was running when.
 - `Testing.md` — pinning a rule without paying for a mission.

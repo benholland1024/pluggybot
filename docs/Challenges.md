@@ -5,7 +5,7 @@ gets a verdict, without the thing being graded touching the grade. Fourth of
 the pattern docs, beside `TaskPattern.md`, and written first as a decision
 with one worked example rather than a framework — the framework comes with
 the challenge set (the 2026-09-11 batch's novel tasks: the tower and the
-bench so far).
+bench; and demo 1's lid, #493, §9).
 
 Read alongside:
 - `docs/TaskPattern.md` §4 — grading measures the world, never the report.
@@ -331,4 +331,107 @@ record; a missing truth (a world with no bench). What it cannot grade is
 §6's item 3, still: it pays the same for a sensor reading and for a balance
 the robot built, and the method is read off the record's own line
 (`-- <method>`) rather than scored.
+
+
+## 9. Open the chest and set its lid down (issue #493)
+
+Demo 1's verdict: #466's drop-handle chest (`activity/chest.py`), its
+dynamics hidden and drawn, opened and its lid set down. `challenge/lid.py`;
+proof in `tests/test_lid.py`. It is the first challenge graded on a
+TRAJECTORY as well as a state (§6's item 1): a sampler with a step hook,
+`lid.Watch`, reads the lid every physics step of the attempt and the hold.
+
+**The criteria**, written before any robot learns the job: (1) the lid's
+true angle reached 57 deg (1.0 rad, #469's "open"); (2) while it was open,
+above 5 deg, it never closed faster than 1.0 rad/s, through the attempt and
+the hold: lowered, never let fall; (3) 5 s after the call it is under 5 deg,
+whether the catch holds it again (`caught`) said beside and gating nothing;
+(4) nothing but the chest touches the lid, its bracket, its handle or its
+knob during the hold: let go; (5) the call came within the task's time
+limit of the attempt's start, where the harness makes it at the latest --
+the TASK's data (`attempts.LIMIT_S`, handed to the grader as `limitS`;
+`TIME_LIMIT_S`, 300 s, where none is): the quadruped's 300 s, the
+humanoid's three times its reference's slowest pass, 68 s (#493).
+Said beside, and judged by nothing (Ben, 2026-10-17: the job is the lid,
+and a fall is lost time against the limit): the falls the body's own watch
+counted (`Body.falls`), its worst tilt (`Body.orientation`) and whether the
+tool its set-out gave it is still seated (`Body.tool_powered`). What a fall
+is, and which part is the tool, is the body's to say, so the grader names
+neither and reads the humanoid's counter world unchanged: the quadruped's
+watch is its torso past 60 deg, the humanoid's its trunk 35 deg past the
+posture its legs hold, by its IMU, or its pelvis sunk -- so a bow its reach
+asks is no fall (#520). The numbers are judged as measured and only shown
+rounded; the call is wherever the attempt ended (Evaluation.md §4); the
+reason never carries the catch, whose number is secret on the row.
+
+**What the lines were read off** (`scripts/attempts.py --drops`, the 128
+drawn lids on a bare floor): let go from rest 1 deg over the shut line,
+every lid crosses it at 1.03-1.31 rad/s; from 2 deg over, 1.45-1.85; from
+57 deg, 2.9-8.3. The probe lowers each at 0.49-0.57 at its fastest while
+open (its 128 records, #479). So the line passes a lowering with a margin
+and fails a lid let go a degree or more over the shut line. Every lid let go
+at the shut line is caught inside 0.07 s and one let go from 57 deg inside
+2.0, so the hold is 5 s. ⚠ A DROP CAN LEAVE THE CHEST OPEN: let go at the
+top of its sweep, 57 of the 128 came to rest 8.5 deg open, propped on their
+own handle, which swung back under the lid and wedged its knob against the
+front wall. Such a lid fails (2) and (3) both.
+
+Re-graded under it, the probe (#466) passed all 32 of its public chests at
+its first attempt: the reference row (Evaluation.md §4).
+
+**The departure: `shown: false`.** Its row in `challenges.json` pays 0,
+because a demo's attempt is practice graded by the world (Ben, 2026-10-10),
+and it is a row no mind is shown (with §10's three): the table a mind with
+a library reads carries every other challenge row, and one for a chest no
+served world has would change the deployed prompt (`TaskReward.shown`). ⚠ The
+grader imports nothing of the chest's: everything loads `scoring`, the
+probe included, and the chest's module holds its truth (`tests/
+test_probe.py`'s fence). Its parts are read by their names, and `caught` is
+the catch's pull on the hinge.
+
+**What it cannot grade**, beyond §6: a lid's ELEGANCE (a slam stopped a
+hair over the shut line passes, and so does a lowering at 0.9 rad/s); and
+whether the robot KNEW it had done it, which is its own test, beside the
+verdict in the record and never read by it.
+
+## 10. The hands' capability checks: a drawer, a door, a cube (issue #525)
+
+Three graders beside the lid's, for the hands' vocabulary's gate
+(docs/Hands.md §5): `challenge/drawer.py`, `door.py` and `place.py`, each
+over an activity of its own (`activity/drawer.py`, `door.py`, `cube.py`)
+whose dynamics are hidden and drawn, set out on the humanoid's counter
+(`evaluation/counter.py`) and attempted through #493's protocol
+(`evaluation/attempts.py`, `GRADERS`). Each is the lid's shape: a `Watch`
+every physics step, a snapshot at the call and after a `HOLD_S` hold,
+judged unrounded and shown rounded, the time limit the task's. Proof in
+`tests/test_hands_check.py`.
+
+**The criteria**, written before any procedure flew them:
+- *drawer*: (1) out at least 15 cm at the call and still so 5 s later --
+  its runners hold it where it is left; (2) nothing but the cabinet touches
+  the drawer, its front or its knob during the hold; (3) in time.
+- *door*: (1) open at least 50 deg at the call and still so 5 s later --
+  an arm reaches in past its edge; (2) nothing but the cupboard touches the
+  door, its lever or the lever's tip during the hold; (3) in time. Its
+  latch frees the door only once the lever is pressed past most of its
+  travel (`activity.door`): the grader reads none of it.
+- *place*: (1) 5 s after the call the cube rests on the mat -- its middle
+  within 2.5 cm of the mat's, its bottom within 4 mm of the mat's top,
+  flat on a face within 10 deg, any face (`place.resting_tilt`: read off
+  one, a cube set down upside down "tipped 180 deg"); (2) it never came
+  down faster than 0.5 m/s, in the attempt or the hold -- set down, not
+  dropped; (3) nothing of the robot's touches it during the hold; (4) in
+  time. Slid there, it passes as well as carried.
+
+Said beside and judging nothing: the most the drawer came out and the door
+opened, how far the lever was pressed, the fastest each moved, the cube's
+lift, the falls the body's own watch counted and its worst tilt.
+
+**The departure is the lid's: `shown: false`, paying 0** -- a check is our
+instrument, in no served world, and a row a mind with a library reads
+would change the deployed prompt.
+
+**What they cannot grade**, beyond §6: a door pushed open by the open hand
+rather than pulled by its lever passes -- the door is the job -- and so
+does a drawer pulled by its front.
 

@@ -46,6 +46,15 @@ IK_POS_TOL, IK_ROT_TOL = 0.002, 0.02
 REACH_POS_TOL, REACH_ROT_TOL = 0.01, 0.1
 #: A joint's solution stays this far inside its range, rad.
 RANGE_MARGIN = 0.05
+#: The force at the hand is read only along the arm's directions whose
+#: singular value is past this (`hand_force`, a truncated pseudo-inverse):
+#: near a singular arm a few tenths of a newton-metre of friction and
+#: counts in the torques read as a push of hundreds of newtons -- MEASURED
+#: along a lid's pull (#493), 68 readings in 179 past 100 N and one of
+#: 3,000 N; truncated here, 2 and 141 N at most. Damping instead biased a
+#: still arm's reading: at 1e-3 a 20 N push read 17.8, where this reads it
+#: as undamped (19.3; that arm's least is 0.085).
+FORCE_SIGMA = 0.05
 
 
 def frame(approach, closing) -> np.ndarray:
@@ -203,12 +212,15 @@ class SelfModel:
     """The force the hand pushes on what it holds, N, in the stance frame:
     what the arm's motors push with, `tau` (their drivers' torque readings)
     less what holding the arm still takes (`gravity`, or `still`), through
-    the grip's Jacobian. A joint's friction is in it, unknown."""
+    the grip's Jacobian -- along the directions the arm can tell apart
+    (`FORCE_SIGMA`). A joint's friction is the caller's to take off `tau`
+    (`humanoid.friction.taken`)."""
     hold = self.gravity(side) if still is None else still
-    j = self.jacobian(side)
     # tau = hold - J^T f_on_hand: the world's push on the hand is what the
     # motors do not hold; the hand pushes back with its negative.
-    f_on_hand = np.linalg.solve(j @ j.T + 1e-6 * np.eye(6), j @ (hold - np.asarray(tau)))
+    u, s, vt = np.linalg.svd(self.jacobian(side))
+    inv = np.where(s > FORCE_SIGMA, 1.0 / np.maximum(s, 1e-12), 0.0)
+    f_on_hand = u @ (inv * (vt @ (hold - np.asarray(tau))))
     return -f_on_hand[:3]
 
 
@@ -231,9 +243,18 @@ class Arm:
 
 
 #: A grip is HELD, by the gripper's own reading, when shut it stopped this
-#: far short of closed, m, with the squeeze up, N: a hand shut on nothing
-#: closes; one shut on something stalls against it, pressing.
-HELD_GAP_M, HELD_SQUEEZE_N = 0.005, 0.5 * hp.GRIPPER.grip_force_n
+#: far short of closed, m, with the squeeze up to this share of the force it
+#: was shut with: a hand shut on nothing closes; one shut on something
+#: stalls against it, pressing.
+HELD_GAP_M, HELD_SHARE = 0.005, 0.5
+#: The least a grip may be shut with, N a pad: the sheet's adjustable
+#: range is 5-120 (`parts.GRIPPER`).
+GRIP_MIN_N = 5.0
+#: The squeeze a grip is judged by is its reading's running mean over this,
+#: s, sampled every physics step (`Gripper.sample`): one reading's noise,
+#: the current sense's 5.1 N, read a 15 N grip as nothing held 7 % of the
+#: time and a 5 N one 31 % (#525).
+SQUEEZE_S = 0.1
 
 
 class Gripper:
@@ -243,25 +264,48 @@ class Gripper:
   (`senses.GripperSense`) -- never by what the world says it touches."""
 
   def __init__(self, model, data, side: str, prefix: str = "", key: str = "humanoid"):
-    self.d = data
+    self.m, self.d = model, data
     self.act = model.actuator(f"{prefix}{side}_gripper").id
     self.sense = GripperSense(model, side, prefix, key)
     self.shut_asked = False
+    self.force = hp.GRIPPER.grip_force_n
+    self.gap, self.squeeze = self.sense.read(data)
+
+  def _limit(self, force: float) -> None:
+    """Each pad squeezes at most `force`, N: the motor's limit, twice it
+    (`parts.Gripper.dcmotor`) -- the torque limit the Dex1-1 takes with
+    every command."""
+    self.force = float(force)
+    self.m.actuator_forcerange[self.act] = (-2.0 * self.force, 2.0 * self.force)
 
   def open(self, width: float = hp.GRIPPER.stroke) -> None:
+    self._limit(hp.GRIPPER.grip_force_n)
     self.d.ctrl[self.act] = min(max(width, 0.0), hp.GRIPPER.stroke) / 2
     self.shut_asked = False
 
-  def shut(self) -> None:
+  def shut(self, force: float | None = None) -> None:
+    """Shut, squeezing with `force`, N a pad -- the sheet's grip force where
+    none is given (#525: pinched at 120 N, a door's lever could not turn in
+    the jaws, their pads' torsional friction 2.4 N*m against its hinge)."""
+    g = hp.GRIPPER.grip_force_n
+    self._limit(g if force is None else min(max(float(force), GRIP_MIN_N), g))
     self.d.ctrl[self.act] = 0.0
     self.shut_asked = True
 
+  def sample(self) -> None:
+    """One physics step's reading: the gap as it reads, the squeeze into
+    its running mean (`SQUEEZE_S`)."""
+    gap, squeeze = self.sense.read(self.d)
+    self.gap = gap
+    self.squeeze += min(1.0, self.m.opt.timestep / SQUEEZE_S) * (squeeze - self.squeeze)
+
   def read(self) -> tuple[float, float]:
-    return self.sense.read(self.d)
+    """(gap m, squeeze N) as last sampled, the squeeze its running mean."""
+    return self.gap, self.squeeze
 
   def held(self) -> bool:
     gap, squeeze = self.read()
-    return self.shut_asked and gap > HELD_GAP_M and squeeze > HELD_SQUEEZE_N
+    return self.shut_asked and gap > HELD_GAP_M and squeeze > HELD_SHARE * self.force
 
 
 @dataclass

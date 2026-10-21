@@ -14,8 +14,8 @@ stopped?**
 What the project is *for* is stated in `PluggyPlan.md` ("What this project is
 for"): six qualities the agent is meant to maximise. Each has a metric and a
 measurement (§3, "The six qualities"), read off the deployed world's rows;
-capability's per-task record is defined ahead of the demos that will
-produce it (#465).
+capability's per-task record is read off the demos' attempts (#465, #493;
+§4).
 
 The gap a measurement closes: `Top_of_mind.md` is read on every decision
 (`ThoughtFiles.volatile`), so an opinion the robot wrote at hour two is in
@@ -692,6 +692,7 @@ observatory's own columns (`kind`, `subject`, `robot`, `simTime`, `data`,
 | **an idea traced to a source** | creativity, goals | `read` rows (#216: `page`, `revision`; a `thought` / `message` / `judged` naming the page afterwards is the trace) | — | asked · reads (pages delivered) · traced; a refusal is the ration, kept apart |
 | **goals set and served** | goals | `intend` / `drop_goal` (#154, #159); `serves` (not on the wire) | unchanged | counts; served ÷ decisions |
 | **first solve** | capability | the tower (#207) and the bench (#227: `find_mass`) -- `challenge_kinds_today`, every kind discharged by a procedure; `procedure` rows (#166), and `tool` rows where a period has them (#168, until #489) | — | attempts by fate and the index of the first `done`; procedures and tools by outcome |
+| **per-task record** | capability | a demo's `attempt` rows (#493: `evaluation.attempts`, off no observatory) -- the probe's reference first | demos 2–6 | per task the first passing attempt; passed within n attempts, n = 1..5, a share with its Wilson interval, the unflown apart; experience and help by kind; the robot's own test against the verdict |
 | **judgement agreement** | creativity | the panel's ratings (rooftop #259) beside the robot's `judged` (#208) | — | per drawing: the panel's, the robot's, the absolute gap in 0..1; the panel's re-rate gaps as the floor |
 | **buffer kept** | self-preservation | `decision` rows with what the robot had (#265): the pack fraction, `spendableWh` (the world's own reserve arithmetic, derived from the run's `packWh` / `reserveWh`), the balance (where the site sends `points`) | — | counts of decisions: the pack by decile; at / above the reserve; the balance by the run's bands (zero / under `hungryAt` / between / `satisfiedAt` and above) |
 | **buffer spent** | self-preservation | the same decision rows, those above the reserve | — | what was done with the margin: work · explore · charge · recall · idle, and work ÷ decisions with margin |
@@ -711,7 +712,7 @@ sees them — two arms in one number are §5's unusable mixture).
 on a shape named here that is not in the module, or there and not here.
 
 **1. Capability** — *can it acquire new skills by its own effort, and what
-does a skill cost it.* Today's metric is **first solve** — for each
+does a skill cost it.* Off the observatory its metric is **first solve** — for each
 challenge with pre-declared criteria (Challenges.md: the tower and the
 bench), whether it was solved and how many attempts came first, beside
 what the agent MAKES to get there: procedures that ran, and tools that
@@ -730,27 +731,38 @@ the tool and procedure sources are empty by construction.
 
 **The per-task record** is how the restated quality is measured (#465):
 learning efficiency, the experience it takes to reach a threshold on a task
-new to the robot (Chollet, "On the Measure of Intelligence", 2019). Per
-task, each part kept apart and never summed, because a skill bought with a
-demonstration and one bought with a thousand imagined attempts are
+new to the robot (Chollet, "On the Measure of Intelligence", 2019). Its
+rows are a demo's attempts, written by the harness (§4) and read by
+`qualities.per_task_record`, the shape table's row, off no observatory.
+Per task, each part kept apart and never summed, because a skill bought
+with a demonstration and one bought with a thousand imagined attempts are
 different results:
 
-- **the outcome:** whether it reached the threshold, and its success rate
-  with a 95 % interval;
-- **experience:** real attempts, real sim-seconds, imagination compute
-  (CPU-seconds) and LLM tokens;
-- **human help:** demonstrations, interventions and scene resets;
-- **later, with the robot's own test of success (#493):** self-evaluation
-  accuracy, meaning how often the robot thought it had succeeded and hadn't,
-  and how often it missed a real success. Its test is scored against the
-  world's verdict: our grading, computed by code from the true state and
+- **the outcome:** the attempt that first passed, and the tasks passed
+  within n attempts for n = 1 to 5, each a share with its 95 % Wilson
+  interval over the tasks that passed by n or were tried n times; a task
+  tried fewer times and never passed is `unflown` beside it, not a failure;
+- **experience:** real attempts, real sim-seconds, a procedure's steps,
+  imagination compute (CPU-seconds) and LLM tokens, summed by kind, and
+  None where a row did not say;
+- **help:** the world's scene resets (one before every attempt but a
+  task's first), demonstrations and interventions;
+- **errors:** attempts with no verdict, counted apart (§4);
+- **the robot's own test against the world's verdict:** agreed, thought it
+  had passed and had not, missed a real pass, said nothing. Its test is
+  scored against our grading, computed by code from the true state and
   never shown to the robot (#465's three layers).
 
-⚠ **IT IS NOT A ROW IN THE SHAPE TABLE YET.** Nothing produces its rows. It
-enters the table with its function when a demo does (§7: measurement waits
-for the design), and `tests/test_qualities.py` fails on a row of the table
-with no function behind it. Until then first solve is the quality's metric,
-unchanged.
+The first rows are the reference's (§4). ⚠ Off the observatory first solve
+is still the quality's metric: no served world offers a demo's task.
+
+A PERSON's rows (#530, user control) are the same rows with `process:
+person` and `tokens` a measured 0, written by the session host
+(Webserver.md, "A world of one's own") to its own record. ⚠ Not yet a
+baseline: today only admins run them, on public chests, with a free camera
+beside the robot's senses; #530's stage 4 makes one -- the robot's senses
+only, fresh draws of the public family, consent first -- and reads it
+beside the agent's rows on the same draws.
 
 **2. Empathy** — *can it tell that the beings around it have minds, and
 predict them.* Metric: **prediction accuracy** — the one pure probe, a
@@ -969,10 +981,345 @@ informs a decision:
 
 ## 4. The harness
 
-There is none now. `scripts/experiment.py` flew N days of a configuration
-into committed `results/` and went with the rover (#376; `rover-final` has
-it). #465's demos need a new one, and #493's stage 1 starts it: the world's
-verdict, the attempt protocol, a held-out seed and a row per attempt.
+`evaluation/attempts.py` (#493's stage 1) is what #465's demos fly their
+baselines and flights through; `scripts/experiment.py`, which flew days of
+a configuration, went with the rover (#376). It is a KIT another builder
+could run: body-agnostic through `Body`, a task as data (`Task`: the chest,
+its mount, the body, the grader) beside the code that grades it
+(`challenge/lid.py`, Challenges.md §9; the hands' checks' `drawer`, `door`
+and `place`, §10; `attempts.GRADERS`), and nothing that reads a body's
+internals. Its rules:
+
+- **an attempt is one try from a declared start**: the task's set-out built
+  afresh, the chest shut and caught where it stands, the body where it
+  starts with the tool its set-out gives it, settled. A skill's own retries
+  inside it (the probe's walk-ins) are not attempts;
+- **between attempts the world resets the scene**, and every reset is help
+  the world gave, counted on its row: MuJoCo's resets are free and exact,
+  and a real world's are neither (§5);
+- **the call is wherever the skill ended, or its budget did** (`cut`): the
+  budget is the job's own time limit, the task's (`attempts.LIMIT_S`: the
+  quadruped's 300 sim-s, the humanoid's 68, three times its reference's
+  slowest pass), and
+  a cut attempt that failed says "out of time" first. Then the hold with
+  the body held still, and one verdict through `scoring.evaluate`, graded
+  and paid nothing. A fall is lost time and nothing more: the body's falls
+  and its tool are on the row, judged by nothing (Ben, 2026-10-17);
+- **what the skill says of itself is its own test**, recorded beside the
+  verdict and never read by it; ⚠ a skill is handed the BODY, never the
+  world: the chest's truth stays the harness's;
+- **an attempt that raises, or whose world MuJoCo found unstable and reset,
+  is no attempt** (`attempts.Unstable`): a row saying what, no verdict, its
+  task kept in the record and unflown from there, never dropped from the
+  denominator;
+- ⚠ **an attempt is its set-out EXACTLY**, sensor noise included: code that
+  learns nothing between attempts earns the same verdict at every one, so a
+  reference flies one attempt a task;
+- **held-out tasks** are chests nobody has flown, from 1,000,000 up, past
+  every public set-out (0–127), drawn by a seed FIXED AFTER THE BUILD IS
+  FROZEN: its commit's first seven hex digits, whatever `git` abbreviates to
+  (`attempts.seed_of`), read off a pod's `COMMIT` file where there is no
+  `.git`; a tree with changes its commit does not have draws none. ⚠
+  Whoever built the generator knows its family, and could commit until a
+  seed looked kind, so a result on them is weaker than a sealed pool's, and
+  says so;
+- **every reading says what it flatters** (`attempts.FLATTERS`; §5,
+  "Graded in MuJoCo").
+
+`scripts/attempts.py` flies a skill through it and reads a record back as
+the per-task record (§3).
+
+**The reference** (#493): the probe, our reactive opener as code on the
+quadruped (`legs.probe`, #466), over its 32 public chests at `49a305b`.
+**32 of 32 passed at the first attempt** (95 % interval 0.89–1.00), its own
+word agreeing every time, no fall recorded: 83.6–99.6 sim-s an attempt
+against the 300 s limit, 2,884 in all, no token, no imagination, no help.
+Every lid went to 62.2–64.4 deg and came down at 0.50–0.55 rad/s at its
+fastest while open. It is code's foresight (the knob's tag, the hinge
+guessed along the top's back edge, the arc planned, the arm softened to Kp
+8): what a skill on this chest can do, never a robot acquiring one. Chest 0
+flown twice from fresh set-outs gave the batch's row to the last digit; of
+the 96 flights of three batches, one ended its attempt 6 ms apart, every
+reading of its lid the same, and flown twice again on its own its chest
+gave the other batches' row: a run-to-run difference this box gives now
+and then, not chased.
+
+**The humanoid's reference** (#493 stage 2; `evaluation/opener.py`,
+SimNotes "The humanoid opens the chest"): the probe's plan on the
+humanoid's hands at a 0.72 m counter -- the knob off its tag, the box off
+its depth camera, the lid's arc carried as one path in one posture, the
+hand turning with the lid past the drop handle's stop. **23 of 32 at the
+first attempt** (95 % interval 0.55-0.84, at `0f98e24`), its own word
+agreeing every time, no fall: 17.7-22.5 sim-s a pass, the lid to 57.5-63.5
+deg and down at 0.34-0.68 rad/s at its fastest while open. The nine it misses are
+the body's reach, none its judgement: in five no grip's tilt follows the
+arc to 60 deg, in three no arc follows from the grip the reach could make,
+in one the hand ran out of reach a step up. Its slowest pass sets the
+humanoid task's time limit at three times it, 68 s (`attempts.LIMIT_S`;
+the quadruped's stays 300). ⚠ The generator's filter
+(`activity.chest.draw`: lids that shut by themselves from the probe's 1.2
+rad at 0.45 rad/s, because the quadruped's claw only pulls) is read again
+against it: the humanoid's grip is rigid and carries the lid down, and its
+arc tops out at 60-64 deg, so the filter is stricter than this body
+needs and stays as drawn -- one of the subsidies `FLATTERS` names.
+
+**Graded practice, and the flight** (#493 stages 2-3;
+`scripts/practice.py`, `evaluation/practice.py`, `mind/practice.py`): the
+deployed mind (`zai-org/GLM-5.3-Flash:cheapest`, call 4) writes the
+humanoid's procedure off the job and its head camera's picture, the
+humanoid tries it from a fresh set-out, the world grades the try through
+stage 1's door, and the mind is shown every verb's report, its variables
+and the grade's reason, and writes again: up to 5 tries a chest, 68 s a
+try, a fresh robot a chest, both at `19622bd`. A refused procedure costs
+tokens, never a try (two repairs a try).
+- **The flight, with the compliant pull, over 32 held-out chests** (seed
+  328855057): **0 of 32 within 3 tries** (95 % interval 0.00-0.11), so
+  **the bar is not met** (80 % within 3, call 3); the cold first try 0 of
+  32, and 1 of 32 within 5 (0.01-0.16). 160 tries, 1,893 sim-s, 4.9 M
+  tokens (1.6 M in, 3.3 M out) in 257 answers, $1.91, and 1 h 40 min of
+  wall time at six chests at once; 128 resets, no demonstration, no
+  intervention.
+- **It learns, slower than the bar asks**: each chest's best lid by try
+  1-5 had a median of 0, 0, 0, 23 and 40 deg, and 11 chests' lids went
+  past 57 deg at some try. The first tries go on the body: 18 of the 27
+  first reaches took the right hand to a knob 16-24 cm to the robot's
+  left, out of its reach. Once open, a lid was dropped: 19 of the 20 tries
+  past 57 deg let it fall at 1.1-9.1 rad/s, the grip lost or the pulls
+  run out of reach; the one pass lowered it on a stiff arm at 1.5 cm/s.
+  Its own word -- the procedure ran to its end -- said ok where the grade
+  failed 54 times in 160.
+- **Baseline (a′), position-only, over the 32 public chests**: **0 of 32
+  within 5** (0.00-0.11). 160 tries, 777 sim-s, 6.7 M tokens (1.7 M in,
+  5.1 M out) in 280 answers, $2.78, and 2 h 50 min. Its chests' best lids
+  by try 1-5 had a median of 0, 0, 1, 6 and 13 deg, and 4 lids went past
+  57 deg. A straight move fights the lid's arc: 47 of the hand's moves
+  were held back short, and a failed verb ends a procedure, so five tries
+  that opened a lid and lowered it ended with the jaws still on the knob.
+  Its first reach took the right hand 22 times in 25.
+- **What its words cost it** (the flight's numbers, (a′)'s alike): 74
+  repairs, the commonest a sensor written as Python (`spot.nx` for
+  `read("spot.nx")`), the 1,500-character cap and the tag's number in
+  quotes (`spot("53")`); two tries ended at a pull's direction a hair over
+  1 (1.03 and 1.001: each of `dx, dy, dz` was bounded to 1 then, though the
+  verb scales them to a unit; any length since). ⚠ 10 answers (28 in (a′)) spent the whole 64,000
+  tokens reasoning and came back empty, billed: 19 % of the flight's
+  output tokens and 35 % of (a′)'s; once in each run, three in a row left
+  a try with no procedure. 14 calls the router refused (429, 17 in (a′), the two
+  runs calling at once) were waited for and asked again, none costing a
+  try.
+
+**Practice first, then the held-out chests** (Ben, 2026-10-18, after the
+flight above): the chests differ only in their hidden dynamics, so nearly
+all a robot learns of them is shared, and a fresh robot a chest learned it
+again 32 times and never used its library. The KEPT protocol
+(`scripts/practice.py --acquire`; `evaluation.practice.acquire`, `keep`,
+`flown`) measures the two things apart:
+- **acquiring**: ONE robot practices on the public chests in turn,
+  carrying only what passed -- the procedures the grader passed, shown at
+  each chest's start (`mind.practice.library_text`), the newest kept and
+  the oldest going where the library is full -- never a conversation or a
+  note of its own. It ends once 3 chests running pass at their first try
+  (`UNTIL`), or 16 are practiced (`MAX_CHESTS`); with nothing kept after 6
+  (`GIVE_UP_AFTER`; 8 for the arms below), nothing more is flown. Its
+  tries, tokens and sim-s are
+  the experience the skill took;
+- **the flight**: each held-out chest a copy of that robot, frozen, up to 5
+  tries; the bar is read there, 80 % within 3 of the chest's own tries.
+  ⚠ It STOPS EARLY once the bar is out of reach (`out_of_reach`: a seventh
+  of 32 chests failed within 3), the curve read off the chests flown.
+Alongside it, feedback a procedure is debugged by, none of it the chest's:
+a sensor written as Python is refused naming its `read`, an operator the
+language lacks naming the four it has; a reach out of reach says whether
+the other hand could reach it as asked (its body's own plan,
+`Body.hand_reaches`); a pull's way is any length; an answer may take
+128,000 tokens, told to finish inside 64,000, and one cut off is asked
+again, saying so.
+
+**What each try felt, notes, and depth beside them** (Ben, 2026-10-18
+and 19: the demo is TRY AND REACT, #487's trial and error with feedback --
+a strategy adjusted after each thing the robot feels or sees, as a
+person's is; and what a person takes from an attempt that failed). Carrying only what passed, a robot learned nothing
+from chest to chest until its first pass, and each chest's first try
+repeated the last one's mistake; told only how each verb ended, a mind
+shut its jaws on nothing three tries running. So:
+- **what a hand felt**: every hand verb reads the robot's own senses of
+  that hand -- its grip's place, the force it pushes with, whether it
+  holds -- as it begins, every 0.25 s and as it ends (`steps._felt_routine`, at
+  most 8 kept a verb), and the mind is shown them under each verb;
+- **notes across chests** (`--notes`): as each practice chest ends, pass or
+  fail, the mind writes what it carries on -- its notes, at most 1,500
+  characters (asked again once past that, then cut and said so), and a
+  draft procedure
+  (`Practice.carry`) -- shown at the next chest's start beside what passed;
+  a held-out copy is frozen with them;
+- **depth** (`--measure` then, an arm of its own; since #525 every arm has
+  it, and `--no-measure` is the arm without it): `measure(x, y)`, the flat
+  top of what stands there off the depth camera -- its height and four
+  edges (`steps._measure`, `perception.box`) -- our code's perception, one
+  of the subsidies `FLATTERS` names. Depth is feedback a person uses too,
+  never a shortcut past the strategy (Ben, 2026-10-19); an arm with it is
+  still never pooled with the arms without it.
+
+**What the practice-first arms did** (2026-10-18, the public chests 0-7 in
+turn, 5 tries a chest, the picture shown; `dee4739` without notes or feel,
+`b0417a1` with both): **no arm passed a chest, so none kept a skill and none
+reached its held-out flight** -- each stopped where it was told to, nothing
+kept after 8 chests. The bar is unread for them. Each chest's best lid, and
+where a try opened it past 57 deg its slowest fall while open (rad/s, the
+limit 1.0):
+
+| arm | chests 0-7 | tries past 57 deg | cost |
+|---|---|---|---|
+| deployed, carrying what passed | 51 45 70/1.5 0 57 110/1.0† 0 0 | 6 of 40 | $0.48 |
+| DeepSeek-V4.1-Flash, likewise | 0 72/1.7 0 22 0 0 0 0 | 3 | $0.63 |
+| deployed, what it felt and notes | 63/6.9 64/7.0 33 30 11 24 17 19 | 2 | $0.80 |
+| DeepSeek, what it felt and notes | 0 0 67/1.8 61/1.4 46 65/7.0 75/1.6 68/0.9 | 11 | $0.54 |
+| ...and `measure` | 47 41 49 26 75/5.0 64/7.2 60/6.5 45 | 6 | $1.18 |
+
+† thrown past upright at its slowest (0.97 rad/s), the lid stayed open; its other tries fell at 1.01 and 1.07.
+
+- **DeepSeek with what it felt and notes converged, and was stopped
+  converging**: its notes
+  carried the left hand to every first try from its second chest on and
+  the gripper opened first from its third (the baselines' first tries
+  started over at every chest), five of its last six chests opened the
+  lid, and its last
+  lowered one at 0.87 rad/s -- and ended with the lid at 61 deg, a
+  `move_hand` held back ending the procedure with the jaws on the knob (a
+  `pull` held back is ok; a position move held back fails). Its lids fall
+  because a procedure lets go while the lid is up: the felt traces show
+  the grip held through every pull, the pulls down ending out of reach.
+- **The deployed model did worse with notes than without** (2 tries past
+  57 deg against 6).
+- **`measure` was hardly used**: 4 calls in 40 tries, so the arm says
+  little of depth.
+
+**Ten tries a practice chest, and a verb as an `if`'s test** (Ben,
+2026-10-19). Of the 28 tries past 57 deg above, 26 let the lid fall: the
+robots open it, and have yet to learn to set it down. Within a chest the
+whole conversation is the lesson -- every report and what was felt -- so a
+practice chest now takes up to 10 tries (`--practice-attempts`; a held-out
+chest keeps 5, and the bar its 3). And a verb may stand alone as an
+`if`'s test (`--verb-tests` then, `WorldFacts.verb_tests`; every hands
+world's since #525): `if not
+move_hand(...):` reads the move held back instead of ending the procedure
+with the jaws on the knob. Two DeepSeek arms with what they felt and
+notes are the same but for the `if`.
+
+| arm (`58eb9e8`, chests 0-7, 10 tries each) | each chest's best lid / slowest fall | tries past 57 deg | cost |
+|---|---|---|---|
+| DeepSeek, felt and notes | 36 110/3.0 74/2.7 110/5.6 60/9.2 112/4.2 62/5.1 78/2.2 | 23 of 80 | $1.43 |
+| ...and a verb as an `if`'s test | 48 51 64/3.7 68/1.1 55 66/6.2 66/7.6 38 | 22 of 80 | $1.54 |
+
+- **Neither passed a chest**, so neither kept a skill or reached its
+  held-out flight (the give-up rule, 8 chests; 13 h of wall time for the
+  pair, a practice chest at a time).
+- **Ten tries opened the lid twice as often, not more often a try**: 28 %
+  of tries at 10 a chest as at 5 (11 of 40). **Every one of the 45 lids
+  opened was let fall.**
+- **The `if` was used, and changed how the lid was lost, not whether**: 154
+  tested `move_hand`s, 86 of them failing and read; its 22 lids were all
+  pushed open without a grip, and fell as the hand left. Without it the
+  grip slipped during a pull (21 of 23); at 5 tries a procedure opened its
+  hand with the lid up (5) or never held it (5).
+- **The gap they share: nothing brings a held lid down its arc.** The
+  reference's first lesson -- past 50 deg the hand turns as the lid does,
+  or the drop handle's arm meets the lid's edge -- has no verb: `pull` and
+  `move_hand` keep the turn they started with. A `pull` that goes as far as
+  the arm reaches instead of refusing its line did no better, replayed
+  over three recorded procedures (the lids rose less, and still fell).
+
+**A carried hand may turn** (Ben, 2026-10-19): `move_hand` and `pull` took
+fingers and jaws (`fx..jz`) as `reach` does, and turned the hand to them as
+it went -- from one posture, eased at the reach's own rate
+(`move_hand_routine(turns=)`, and `Body.pull_routine(turn=)` then: #525's
+pull gives its turn to what it holds instead, Hands.md §4); left 0, the
+turn was kept. On the humanoid in free air a move asked 30 deg up came to
+27 deg, a pull asked 60 to 59.
+- **DeepSeek with it** (`a5ae607`, chests 0-5, 10 tries, the verb
+  test on, giving up after 6): no chest passed; 28 of its 60 tries opened
+  the lid past 57 deg, and **all 28 let it fall** (the slowest at 1.3
+  rad/s, from 110 deg). It turned a carried hand in 3 tries of 60. $1.26.
+- ⚠ **THE VERBS CARRY THE REFERENCE'S OWN PLAN ON 2 CHESTS OF 8**: the
+  reference's perception, plan and grip, then its arc as separate
+  `move_hand`s with its turns (`pullfar/diag_arc.py`, outside the repo),
+  over chests the reference passes: chests 0 and 8 passed; with the turn
+  kept, chest 0 alone; the rest were held back 6-11 deg up or ran out of
+  reach (5 and 7 not gripped, the diagnostic trying one grip of the
+  reference's three). What the reference's path does that separate verbs
+  cannot -- one posture the whole arc, each point aimed ahead for the
+  body's lean, the hand turning past 50 deg -- and that the language has no
+  trigonometry to compute an arc, stand between practice and a pass
+  before any mind's judgement does.
+
+**A path, and the maths for one** (Ben, 2026-10-19: general, for any task,
+over a `swing` for this one; the vocabulary's design is #525). `via(hand,
+x, y, z, turn)` adds a point to a hand's path and moves nothing;
+`follow(hand, speed, stiffness)` carried the hand through them all as one
+motion, from one posture that follows them all (the body's path, aimed
+ahead for its lean, as the reference's), a point with no turn keeping the
+one before -- #525 merged it into `move_hand`. An expression may call
+`sin`, `cos`, `atan2` and `sqrt`. Both were behind switches then (`math`,
+the practice's `--path`), every hands world's since #525: the served
+world's language is unchanged. ⚠ THE GATE, before any mind flies
+them: the reference's own perception, plan and grip, then its arc up and
+back as two paths through `via`/`follow` (`pullfar/gate_path.py`), over
+the 8 chests the reference passes, at least 6 to pass. **It passed, 7 of
+8** (chest 3 held back on its way down), once the procedure did what the
+reference does: came down from the hand's nearest point, again where held
+back (`if not follow(...)`), and planned from the stance as it stood after
+its grip. ⚠ THE STANCE FRAME MOVES WITH THE FEET, and a reach's posture
+moves them: planned from the stance before its grip, 5 of 8 passed, held
+back off the arc. The practice's mind is told so (`YOUR_BODY`).
+
+**What the path round did** (`d728e0e`, DeepSeek, what it felt and notes,
+the verb test, 10 tries a practice chest, giving up after 6 with nothing
+kept; the held-out seed 1536874211): **the first passes in ten arms, and
+the bar still out of reach.**
+
+| arm | practice: chests passed, the try each passed at | held out | cost |
+|---|---|---|---|
+| without `measure` | 0 of 6, given up | -- | $1.41 |
+| with `measure` | 13 of 16: 7 5 1 2 8 3 9 x 8 1 7 3 4 1 x x | 4 of 11 within 3, none at the first; stopped early | $2.63 |
+| without `measure`, flown again | 3 of 16: x x x 4 x 5 4 x x x x x x x x x | 0 of 7 within 3, none within 5; stopped early | $3.77 |
+
+- **Practice passed within 3 tries on 6 chests of 16, the held-out copies
+  on 4 of 11** [0.15, 0.65] before the 7th failure within 3 stopped them:
+  a skill learned and refined over 16 chests, not yet one that carries to
+  a new chest in 3 tries. Of the 7 held-out chests failed, 5 let the lid
+  fall (1.4-4.2 rad/s).
+- **What passed is a technique, not a verb**: every passing procedure
+  walks the lid's arc in short soft `pull`s (3-5 cm), re-aimed between
+  them from where the hand is, the hinge steering the hand the rest, and
+  comes down pulling toward where its grip began. Long straight pulls lost
+  a held knob in 46 pulls of 385 (12 %, two arms), short steps in 22 of
+  2,527 (1 %). `via`/`follow` with `cos`/`sin`/`atan2` laid the way down
+  in three versions (chests 4-6), dropped after; every pass used `sqrt`,
+  mostly to scale a direction the verbs scale anyway.
+- **`measure` was not needed to pass, and the arm with it learned the
+  better skill**: it measured on one chest and carried one number, the
+  box's depth as the hinge's distance (4 cm short, taken up by the soft
+  arm), and aimed each pull along the arc about that hinge. Flown again,
+  the arm without it laid its pulls' ways by hand: 3 practice chests passed
+  at tries 4-5, none after chest 6, and no held-out chest within 5. Two
+  arms alike in everything passed 0 chests of 6 and 3 of 16, so which
+  approach a conversation finds early weighs as much: one arm with
+  `measure` cannot say whether the depth or the draw made it. Against the
+  three arms before them with 10 tries, notes and the verb test (0 chests
+  of 22), the round's prompt -- the path, the maths, the stance that moves
+  -- or chance turned it; three arms cannot say which.
+- **Two things at once** (Ben, 2026-10-19): a passing procedure is mostly
+  a control loop built out of pulls -- step, read where the hand went,
+  re-aim -- around a short plan (up, slowly down, let go at the bottom).
+  The vocabulary's design comes first (#525), and stage 3 flies again on
+  it.
+
+**The vocabulary these rounds flew is retired** (#525): one vocabulary
+now, in every arm, `measure` with it (docs/Hands.md §6 says what became of
+each verb), and the practice's `--pull`, `--verb-tests` and `--path` gone.
+The rows above are #493's flags' (`run.pull`, `verbTests`, `path`); a row
+on #525's says `run.vocabulary`, and the two are NEVER POOLED. Before any
+mind flies it, its gate is docs/Hands.md §5's capability check.
 
 ## 5. What silently invalidates a number
 
@@ -1422,8 +1769,8 @@ closed with the capacity sweep unflown, #118) outlive it:
 death conditions and points semantics settle, and one measured after, do not
 describe a gradient — they describe two different experiments sharing a name.
 The six qualities' metrics are defined (§3, "The six qualities") and are read
-off the observatory, never off a rung; capability's per-task record waits
-for the demo that produces its rows.
+off the observatory, never off a rung; capability's per-task record is
+read off a demo's attempts (§4), never off the observatory.
 
 ⚠ **A GATE IS NOT A SERIES.** What still runs in the meantime is capability
 gates: cheap, version-local, pass/fail questions that decide the next milestone

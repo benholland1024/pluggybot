@@ -832,6 +832,29 @@ class QuadMission(ToolSwap, PlaceWalk, BoardWork, CubeWork, AreaSurvey, MakeWay,
                           else np.zeros(0, dtype=np.int32))
     self._is_ignored[self._carried_gids] = True
 
+  def place_routine(self, module: str) -> Routine:
+    """`Body.place_tool_routine`: the arm to its carry pose, then `module`
+    put on the fork's seat as a swap leaves it -- its peg on the seat, the
+    tool hanging back off it -- and carried (#466's probe batches' mount,
+    `scripts/probe_chest.py`). Off the world: a STAGING, never a swap."""
+    from pluggybot.rack.coupling import PEG_ABOVE_BODY
+    m, d = self.model, self.data
+    self.arm.aim(*am.CARRY_Q)
+    yield from self._drive_routine(2.0, 0.0, 0.0)
+    seat = m.site(self.handle.el("arm_seat")).id
+    joint = m.joint(f"{module}_free").id
+    adr, dof = int(m.jnt_qposadr[joint]), int(m.jnt_dofadr[joint])
+    rot = d.xmat[self.root].reshape(3, 3)
+    yaw = self.true_pose()[2]
+    peg = d.site_xpos[seat] + rot @ np.array([0.0, 0.0, self.arm_spec.fork.seat_rise() + 0.0003])
+    d.qpos[adr:adr + 3] = peg - [0.0, 0.0, PEG_ABOVE_BODY]
+    d.qpos[adr + 3:adr + 7] = [math.cos((yaw + math.pi) / 2), 0.0, 0.0,
+                               math.sin((yaw + math.pi) / 2)]
+    d.qvel[dof:dof + 6] = 0.0
+    mujoco.mj_forward(m, d)
+    self.carry(module)
+    yield from self._drive_routine(1.0, 0.0, 0.0)
+
   _carried_gids = np.zeros(0, dtype=np.int32)
 
   def arm_setpoint(self, act: int) -> float:
@@ -1528,6 +1551,7 @@ class QuadBody(Body):
   stuck_after_s = 20.0
   #: ...and this body rights itself.
   rights_itself = True
+  falls = property(lambda self: self.mission.falls)
   rack_discovered = False
 
   def __init__(self, model, data, viewer=None, realtime: bool = True,
@@ -1711,6 +1735,9 @@ class QuadBody(Body):
   def stow_tool_routine(self, station_y, module) -> Routine:
     return self.mission.stow_routine(bay_of(station_y), module)
 
+  def place_tool_routine(self, module) -> Routine:
+    return self.mission.place_routine(module)
+
   def module_state(self, module) -> dict:
     return self.mission.tool_state(module)
 
@@ -1877,7 +1904,8 @@ class QuadBody(Body):
   _NO_HAND = ("the quadruped's arm is two joints in a plane on its back: no hand "
               "reaches a pose, and its grip is a tool's (`claw_routine`)")
 
-  def reach_routine(self, side, pos, rot=None, stiffness=1.0, patience=20.0) -> Routine:
+  def reach_routine(self, side, pos, rot=None, stiffness=1.0, patience=20.0, path=None,
+                    turns=None) -> Routine:
     raise NotImplementedError(self._NO_HAND)
     yield
 
@@ -1885,15 +1913,67 @@ class QuadBody(Body):
     raise NotImplementedError(self._NO_HAND)
     yield
 
-  def grip_routine(self, side, closed) -> Routine:
+  def grip_routine(self, side, closed, force=None) -> Routine:
     raise NotImplementedError(self._NO_HAND)
     yield
 
   def gripped(self, side) -> bool:
     raise NotImplementedError(self._NO_HAND)
 
+  def grip_gap(self, side) -> float:
+    raise NotImplementedError(self._NO_HAND)
+
   def hand_force(self, side):
     raise NotImplementedError(self._NO_HAND)
+
+  def hand_at(self, side):
+    raise NotImplementedError(self._NO_HAND)
+
+  def hand_watched(self, side):
+    raise NotImplementedError(self._NO_HAND)
+
+  def depth_watched(self, width, height):
+    raise NotImplementedError("a world of one's own is the humanoid's (#530): no session "
+                              "watches the quadruped")
+
+  def hand_follows(self, side, poses, rot=None) -> bool:
+    raise NotImplementedError(self._NO_HAND)
+
+  def hand_reaches(self, side, pos, rot=None) -> bool:
+    raise NotImplementedError(self._NO_HAND)
+
+  def gaze_routine(self, down) -> Routine:
+    raise NotImplementedError("the quadruped's cameras look where its body does: it "
+                              "turns, or lies down")
+    yield
+
+  def step_routine(self, ahead, left=0.0, turn=0.0, patience=15.0) -> Routine:
+    raise NotImplementedError("the quadruped walks by its drives (`drive`, `drive_to`): a "
+                              "step is the hands' vocabulary's, the humanoid's")
+    yield
+
+  def depth_cloud(self, width, height, min_z, frames=1, apart=0.1) -> Routine:
+    raise NotImplementedError("the quadruped's measured depth is its probe's own "
+                              "(`legs.probe.Probe.cloud`)")
+    yield
+
+  def move_hand_routine(self, side, pos, stiffness=1.0, speed=0.06, patience=20.0,
+                        path=None, turns=None) -> Routine:
+    raise NotImplementedError(self._NO_HAND)
+    yield
+
+  def hand_why(self, side) -> str:
+    raise NotImplementedError(self._NO_HAND)
+
+  def pull_routine(self, side, direction, limit_n, distance_m, speed=0.06,
+                   patience=30.0, give=True) -> Routine:
+    raise NotImplementedError(self._NO_HAND)
+    yield
+
+  @property
+  def stance(self):
+    """Its own pose: it has no hand to put work in front of (#493)."""
+    return self.pose
 
   # ---- posture and rest ----------------------------------------------------
 
