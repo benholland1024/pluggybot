@@ -288,8 +288,8 @@ def test_a_try_its_time_cut_is_shown_what_it_ran_never_no_procedure():
 def test_the_practice_prompt_prescribes_nothing():
   """Its rules say what the body and the language are, never how to open
   anything; the job is told as its grader measures it."""
-  for measure in (False, True):
-    text = mp.system_prompt(st.hand_facts(measure=measure)).lower()
+  for facts in (st.hand_facts(measure=False), st.hand_facts(), st.hand_facts(step=False)):
+    text = mp.system_prompt(facts).lower()
     for word in ("lid", "chest", "knob", "hinge", "arc", "handle", "box", "drawer", "door"):
       assert not re.search(rf"\b{word}\b", text), word
   assert "both grippers start shut" in mp.system_prompt(st.hand_facts()).lower()
@@ -905,6 +905,23 @@ def test_measure_reads_the_flat_top_at_a_point_and_its_edges_in_the_stance_frame
   assert ran["steps"][-1]["reason"] == "no flat top seen round (2.5, 1.5) from where you stand"
   assert "measure" not in st.hand_facts(measure=False).verbs
   assert "object.top" not in st.hand_facts(measure=False).sensors
+
+
+def test_an_arm_without_step_has_no_step_to_call_read_or_be_told_of():
+  """#493's stage B flies the hands' vocabulary without `step` (Ben,
+  2026-10-21): told neither hand reached, 5 robots in 7 that had it walked
+  away from a knob their left hand could reach. Gone, it is gone from the
+  language, the readings and every word of the prompt."""
+  facts = st.hand_facts(step=False)
+  assert "step" not in facts.verbs and "reach" in facts.verbs
+  assert not [s for s in facts.sensors if s.startswith("step.")]
+  text = mp.system_prompt(facts)
+  assert "step(" not in text and "step.dx" not in text and "`step`" not in text
+  with pytest.raises(st.Refused):
+    lang.compile_procedure('def a():\n    step(0.1)\n', facts)
+  with pytest.raises(st.Refused):
+    lang.compile_procedure('def a():\n    x = read("step.dx")\n', facts)
+  assert "step" in st.hand_facts().verbs and "step.dx" in st.hand_facts().sensors
 
 
 class NotesMind(Mind):
