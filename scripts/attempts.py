@@ -30,6 +30,11 @@ after the call one verdict goes through `scoring.evaluate`. A row a try.
                        real time, the verdict printed; MUJOCO_GL left off
   --strip [K]          its filmstrip: set out, opened, the call, the hold's
                        end -- attempts.png, or `--out`
+  --record PATH        the humanoid's attempt at chest `--chest` (0) as the
+                       site replays it (#530): a recording in a world of its
+                       own (`session.attempt`'s stream: the set-out's scene,
+                       the robot's senses, the verdict), and the scene and
+                       its textures beside it
 
 Usage:
   MUJOCO_GL=egl uv run python scripts/attempts.py --chests 0-3 --jobs 2
@@ -41,6 +46,8 @@ Usage:
   uv run python scripts/attempts.py --read DIR
   uv run python scripts/attempts.py --drops
   uv run python scripts/attempts.py --view 0
+  MUJOCO_GL=egl uv run python scripts/attempts.py --body humanoid \\
+    --record protocol/telemetry.home_humanoid_counter.jsonl.gz
 """
 
 import os
@@ -370,6 +377,25 @@ def strip(k: int, out: str = "attempts.png", who: str = "quadruped") -> None:
   print(f"wrote {out}")
 
 
+def record(k: int, out: str, who: str = "humanoid") -> None:
+  """The reference's attempt at chest `k` recorded as a session streams one
+  (`session.attempt.fly`), the scene and its textures beside it: a world of
+  its own the site replays (#530)."""
+  from pluggybot.session import attempt as sa
+  from pluggybot.telemetry import scene as ts
+  from pluggybot.telemetry.recorder import TelemetryRecorder
+  if who != "humanoid":
+    raise SystemExit("a world of one's own is the humanoid's at its counter: --body humanoid")
+  skill, info, _ = SKILLS[who]
+  flight = sa.fly(sa.task_of(k), lambda m, d, **kw: TelemetryRecorder(m, d, out, **kw),
+                  skill=skill, info=info | build())
+  print(show(flight.row))
+  where = Path(out).parent
+  (where / f"scene.{sa.WORLD}.json").write_text(json.dumps(flight.scene, indent=1) + "\n")
+  ts.export_textures(flight.model, where / "textures")
+  print(f"wrote {out}, and the scene of {sa.WORLD} and its textures beside it")
+
+
 def at_chest(k: int, who: str = "quadruped"):
   if who == "humanoid":
     from pluggybot.evaluation import counter as ct
@@ -393,7 +419,12 @@ def main(argv=None) -> None:
   ap.add_argument("--view", nargs="?", type=int, const=0, default=None, metavar="K")
   ap.add_argument("--strip", nargs="?", type=int, const=0, default=None, metavar="K")
   ap.add_argument("--out", default="attempts.png", help="--strip's file")
+  ap.add_argument("--record", default=None, metavar="PATH")
+  ap.add_argument("--chest", type=int, default=0, help="--record's chest")
   args = ap.parse_args(argv)
+  if args.record:
+    record(args.chest, args.record, args.body)
+    return
   if args.read:
     read(args.read)
     return

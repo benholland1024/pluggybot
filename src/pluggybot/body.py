@@ -726,6 +726,21 @@ class Body(abc.ABC):
     encoders and its IMU through its model of itself (#493)."""
 
   @abc.abstractmethod
+  def hand_watched(self, side: str) -> tuple[float, float, float]:
+    """`hand_at` for a WATCHER (#530: a person's page shows it): the same
+    encoders and IMU through a model of itself of the watcher's own, its
+    noise a stream of the watcher's own, so watching a flight never moves
+    it -- a probe that read `hand_at` drew on the flight's stream and
+    changed what the flight did (#525)."""
+
+  @abc.abstractmethod
+  def depth_watched(self, width: int, height: int) -> np.ndarray:
+    """What its depth camera sees now, for a WATCHER (#530): a `height` x
+    `width` frame of axial depth, m, NaN where the part returns nothing --
+    on a camera and a noise stream of the watcher's own, as `hand_watched`,
+    so watching never moves the flight. Its own body is never in it."""
+
+  @abc.abstractmethod
   def move_hand_routine(self, side: str, pos, stiffness: float = 1.0,
                         speed: float = 0.06, patience: float = 20.0,
                         path=None, turns=None) -> Routine:
@@ -1433,6 +1448,14 @@ class StubBody(Body):
     """Where it sent the hand; hanging at its side, where it sent none."""
     x, y, _ = self.pose
     return tuple(self.hands.get(side, (x, y, 0.8)))
+
+  def hand_watched(self, side):
+    """`hand_at`: a stub draws no noise to keep apart."""
+    return self.hand_at(side)
+
+  def depth_watched(self, width, height):
+    """No camera: nothing returned anywhere."""
+    return np.full((int(height), int(width)), np.nan)
 
   def _carried(self, side, to) -> dict:
     a = np.asarray(self.hand_at(side), dtype=float)

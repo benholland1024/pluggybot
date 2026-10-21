@@ -280,7 +280,8 @@ save a filmstrip PNG named after the script.
 | `scripts/imagination_gap.py` | the scene language's own gap (#466's stage 1; SimNotes "The imagination's first world"), no robot flying: over drawn chests (`--n`), the oracle's probe through the world's chest and through its best-expressible reference, with its catch and without, the force at the tool apart phase by phase; `--cost` what a rollout costs, ms a sim-second, in this process and in the worker, `--parallel 1,8,16` that many workers at once |
 | `scripts/probe_chest.py` | the probe from the robot's own senses (#466's stage 2, `legs/probe.py`; SimNotes "The probe from the robot's own senses"), flown over seeded set-outs (`evaluation.probe.set_out`: drawn chest k in the storeroom, the robot in front of it) and graded by us: through or why not, the geometry it measured in its own frame, the lid's angle as its arm reads it, the friction it calibrated, its record replayed through the world's chest and the best-expressible reference set in its map, and how far the held handle turned on its pin in each (`twisted` past 28 deg); `--n`, `--from`, `--jobs`, `--into DIR` (each probe in the worker's wire form, our truth beside it), `--no-replay`, `--regrade` (the kept records in `--into` graded again, not flown) |
 | `scripts/imagine_chest.py` | the robot's model of the chest, graded (#466's stage 3; SimNotes "The robot's model, graded"), over the probes `probe_chest.py --into` kept: `--conditions` `model` (the author's structure -- the deployed model, `$HF_TOKEN` -- placed, fitted, judged and revised), `reference` (the fitter alone, on the reference's own structure), `leak` (its hinge moved), each graded by us against the world and the reference, a model's row carrying its settings; `--remote H:P,...` puts the workers on pods over ssh (`--workers`, `--slots`), `--summary` the tables with intervals, each settings apart -- the parameters, the structures and the rate (#481: passes and the lid's hinge by round, false passes, the answer budget, tokens, dollars, wall time and who answered) -- `--demo K --record PATH` set-out K flown, imagined and recorded with the `imagined` event, the demo world's scene beside it |
-| `scripts/attempts.py` | #493's harness: a skill tried at chests through the attempt protocol (`evaluation.attempts`) and graded by the lid's grader (`challenge/lid.py`), the probe as the quadruped's reference (`legs.probe`), `--body humanoid` the humanoid's at its counter (`evaluation.opener`): `--chests A-B` (0-31), `--held-out N [--seed S]`, `--attempts N`, `--jobs`, `--into DIR` (`rows.jsonl`, a row an attempt), `--read DIR` the per-task record, `--drops` the drawn lids let fall (what the grader's lines were read off), `--view [K]` an attempt in the viewer, `--strip [K]` its filmstrip `attempts.png` |
+| `scripts/attempts.py` | #493's harness: a skill tried at chests through the attempt protocol (`evaluation.attempts`) and graded by the lid's grader (`challenge/lid.py`), the probe as the quadruped's reference (`legs.probe`), `--body humanoid` the humanoid's at its counter (`evaluation.opener`): `--chests A-B` (0-31), `--held-out N [--seed S]`, `--attempts N`, `--jobs`, `--into DIR` (`rows.jsonl`, a row an attempt), `--read DIR` the per-task record, `--drops` the drawn lids let fall (what the grader's lines were read off), `--view [K]` an attempt in the viewer, `--strip [K]` its filmstrip `attempts.png`, `--record PATH [--chest K]` the humanoid's attempt as the site replays it, a session's stream (#530: the fixture, its scene beside it) |
+| `python -m pluggybot.session.host` | #530's session host, the process on the server a person's runs go to (`--endpoint ws://.../api/pluggyworld/sessions/host` or `$PLUGGY_SESSION_ENDPOINT`, `--record DIR` or `$PLUGGY_SESSION_RECORD`, the secret in `$PLUGGYWORLD_TOKEN`): one run at a time, each a child process (`python -m pluggybot.session.attempt`, the job on stdin) streaming to its seat's own path |
 | `scripts/hands_check.py` | #525's capability check: our procedure in the hands' vocabulary for the lid, a drawer, a door's lever and a cube placed (`evaluation.hands_check`), flown at each job's set-outs and graded by its own grader, the bar (6 of 8) written first: `--job J,..`, `--set-outs A-B`, `--jobs`, `--into DIR`, `--read DIR`, `--source JOB` the procedure and its length against the cap, `--view JOB [K]` a flight in the viewer, `--strip JOB [K]` its filmstrip `hands_check.png` |
 | `scripts/practice.py` | #493's graded practice: the mind (`--model`, the deployed by default; `$HF_TOKEN`) writes the humanoid's procedure for the lid, tries it from a fresh set-out, is shown how it ran and the world's grade, and writes again, up to `--attempts` (5) a chest, a fresh robot a chest; the hands' vocabulary (#525; #493's `--pull`, `--verb-tests` and `--path` arms retired, `run.vocabulary` saying which a row flew); `--chests`, `--held-out N` (the frozen commit's seed), `--acquire A-B` the KEPT protocol (practice first, `--until`, `--max-chests`, `--give-up-after`; `--kept FILE` a record's library), `--early-stop` once the bar is out of reach, `--notes` notes and a draft carried, `--no-measure` without the depth camera's `measure` (its own arm), `--jobs`, `--into DIR`, `--no-picture`, `--read DIR` the per-task record and what the mind cost |
 
@@ -1074,7 +1075,8 @@ save a filmstrip PNG named after the script.
   `MAX_RAW_BYTES` must admit a message at every cap. The `tell` stays
   280.
 - **The serving image** (`docker build -t pluggyworld-sim .`; `Dockerfile`,
-  `deploy/`; Webserver.md "Deploying it") runs `serve.py` and nothing else:
+  `deploy/`; Webserver.md "Deploying it") runs `serve.py`, and the session
+  host as the site's `session` service (#530), and nothing else:
   the packages in `deploy/requirements-serve.txt` (pinned to `uv.lock`),
   `MUJOCO_GL=osmesa` baked in, one offscreen frame rendered at build.
   Configuration is ENVIRONMENT: `PLUGGY_ENDPOINT`, `PLUGGY_WORLD`,
@@ -1118,9 +1120,40 @@ save a filmstrip PNG named after the script.
   (#406's whiteboard jobs are offered on every arm, the mouse's to a mind
   alone). The demo's `home_quad_chest` scene and recording (#466) are
   `scripts/imagine_chest.py --demo 0 --record ...`'s: its author's answers
-  vary run to run, and a new recording draws a new model. Format
-  and versioning rules are in `protocol/README.md`; a `protocolVersion` bump
-  is a deliberate two-repo event.
+  vary run to run, and a new recording draws a new model. The humanoid's
+  `home_humanoid_counter` scene and recording (#530) are `scripts/attempts.py
+  --body humanoid --record protocol/telemetry.home_humanoid_counter.jsonl.gz`'s:
+  the reference at chest 0 as a session streams it -- rerun after changing
+  the house, the humanoid, the counter's set-out or the session's stream.
+  Format and versioning rules are in `protocol/README.md`; a
+  `protocolVersion` bump is a deliberate two-repo event.
+- **A person's procedure flies in a world of its own: user control** (#530;
+  `session/`; Webserver.md, "A world of one's own"; protocol/README.md):
+  `python -m pluggybot.session.host` dials OUT to the site's
+  `/api/pluggyworld/sessions/host` with the sim's secret and says `hello`
+  -- the task, the job and `mind.practice`'s language and body sections,
+  BYTE FOR BYTE the robot's (the page's reference is generated from them).
+  A `run` is refused with every reason before anything is built, else
+  flown by a CHILD PROCESS a run (`session.attempt`): the attempt kit's
+  lid at the counter, the hands' vocabulary, graded by the same door,
+  streamed to the seat's OWN path with the token the site minted, the row
+  appended to `$PLUGGY_SESSION_RECORD` (`process: person`, `tokens` 0). ⚠
+  NEVER LUCA OR ROWAN, and never the served world's stream. ⚠ ON THE
+  DEPLOY BOX, ONE SEAT, ADMINS ONLY (Ben, 2026-10-21; the site's `session`
+  service CAPS it at one CPU, never a reserved core). ⚠ A CHILD NEVER HOLDS
+  THE SHARED SECRET NOR ANY CREDENTIAL (`host.child_env`). ⚠ GRADED IS THE
+  CHILD'S WORD, written to the host's file with the row BEFORE the
+  stream's last message (`fly(on_row=)`), whatever ended the process
+  after; `ended` carries the verdict, kept until a connection takes it. A
+  `cancel` names its attempt. A try its limit cut keeps its run as it
+  stood (`lang.run_procedure_routine(into=)`; the robot's practice too,
+  which once read "no procedure that compiled"). ⚠ WATCHING NEVER MOVES
+  THE FLIGHT: what a page shows of the robot's senses is read on the
+  watcher's own streams
+  (`Body.hand_watched`, `Body.depth_watched`); read off the flight's own
+  `hand_at`, two flights parted (`tests/test_session.py`). A stream opens
+  with its set-out's `scene` (`FrameBuilder(opening=)`): a person's
+  set-out is drawn afresh, and no vendored scene can know it.
 - **The parts list is DATA, and the fixture is read off the sim** (issue #185;
   `rack/catalog.py` → `protocol/parts.json`, vendored to the website's parts
   page): one shelf, `build`, the quadruped's bill of materials (#379:

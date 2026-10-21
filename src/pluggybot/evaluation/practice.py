@@ -99,19 +99,25 @@ class ProcedureLife:
     self.said.append(text)
 
 
-def procedure_skill(proc: lang.Procedure | None, facts: WorldFacts, out: dict):
+def procedure_skill(proc: lang.Procedure | None, facts: WorldFacts, out: dict, life=None):
   """`proc` as an attempt's skill (`attempts.attempt`): run from the
   set-out, its result -- every verb and what it said, its locals -- left in
-  `out["ran"]` and its verb calls in `out["steps"]`. None stands still: a
-  try with no procedure that compiled."""
+  `out["ran"]` and its verb calls in `out["steps"]`, a try its time limit
+  cut too (the run as it stood). `life` is what its verbs reach, a
+  `ProcedureLife` on the body unless a caller's own (#530's watched one).
+  None stands still: a try with no procedure that compiled."""
   def skill(body):
     if proc is None:
       out["steps"] = 0
       return {"ok": False, "why": "no procedure"}
       yield
-    life = ProcedureLife(body)
-    ran = yield from lang.run_procedure_routine(life, proc, facts)
-    out["ran"], out["steps"] = ran, int(ran.get("total", 0))
+    ran: dict = {}
+    try:
+      yield from lang.run_procedure_routine(life or ProcedureLife(body), proc, facts, into=ran)
+    finally:
+      # read on a close too: a cut try ran, and must never read as "no
+      # procedure" (#530's review)
+      out["ran"], out["steps"] = ran or None, int(ran.get("total", 0))
     return {"ok": bool(ran.get("ok")),
             "why": ran.get("stopped") or ("ran to its end" if ran.get("ok") else "a verb failed")}
   return skill

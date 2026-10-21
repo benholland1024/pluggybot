@@ -1929,6 +1929,13 @@ class QuadBody(Body):
   def hand_at(self, side):
     raise NotImplementedError(self._NO_HAND)
 
+  def hand_watched(self, side):
+    raise NotImplementedError(self._NO_HAND)
+
+  def depth_watched(self, width, height):
+    raise NotImplementedError("a world of one's own is the humanoid's (#530): no session "
+                              "watches the quadruped")
+
   def hand_follows(self, side, poses, rot=None) -> bool:
     raise NotImplementedError(self._NO_HAND)
 

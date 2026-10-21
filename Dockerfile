@@ -4,7 +4,10 @@
 # to real time, publishing protocol frames + grid PNGs + event lines to the
 # website's ingest socket as an outbound WebSocket CLIENT. The container
 # therefore exposes no port and needs no inbound rule -- if the website is
-# down, the robot keeps living and frames drop (docs/Webserver.md).
+# down, the robot keeps living and frames drop (docs/Webserver.md). The
+# website's `session` service runs the session host from it too (`python -m
+# pluggybot.session.host`, #530: a person's procedure in a world of its own),
+# on the same terms: outbound only.
 #
 # Rendering is osmesa, on the CPU. The serving box has no GPU and does not
 # want one: the loop renders ~3 tag views per sim-second, which software

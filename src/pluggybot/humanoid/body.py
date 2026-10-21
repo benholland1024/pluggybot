@@ -75,6 +75,9 @@ STEP_STUCK_M, STEP_STUCK_S, STEP_PATIENCE_S, STEP_SETTLE_S = 0.01, 1.0, 15.0, 0.
 #: Its measured depth's own noise stream (`depth_cloud`) and how far its
 #: rays reach, m: the probe's seed, and a counter's chest within arm's reach.
 DEPTH_SEED, DEPTH_REACH_M = 466, 3.0
+#: A watcher's depth camera's own noise stream (`depth_watched`, #530): never
+#: the measured depth's, so watching draws nothing a flight reads.
+WATCH_SEED = 530
 #: What the humanoid does not do yet answers.
 NOT_HERE = "not on the humanoid yet: the quadruped's world (its dock, rack and tools)"
 
@@ -144,6 +147,9 @@ class HumanoidBody(Body):
     self.mission = HumanoidMission(model, data, handle, stand=policy, walk=walk,
                                    grid_bounds=grid_bounds)
     self._tags = None
+    #: A watcher's own joint sense and model of itself (`hand_watched`), and
+    #: its own depth camera (`depth_watched`).
+    self._watch = self._depth_watch = None
     self.geom_ids = frozenset(g for g in range(model.ngeom)
                               if self._under_root(int(model.geom_bodyid[g])))
     # The members a standing body answers plainly.
@@ -478,6 +484,26 @@ class HumanoidBody(Body):
   def hand_at(self, side):
     p = self.to_world(self.reach.grip_now(side)[0])
     return float(p[0]), float(p[1]), float(p[2])
+
+  def hand_watched(self, side):
+    if self._watch is None:
+      from pluggybot.humanoid.arms import SelfModel
+      from pluggybot.humanoid.senses import JointSense
+      self._watch = (JointSense(self._m, prefix=self.handle.prefix,
+                                key=f"watch:{self.handle.prefix}"), SelfModel())
+    sense, sm = self._watch
+    q, _, _ = sense.read(self._d)
+    sm.pose(q, self.mission.stand.trunk.gravity())
+    p = self.to_world(sm.grip_pose(side)[0])
+    return float(p[0]), float(p[1]), float(p[2])
+
+  def depth_watched(self, width, height):
+    from pluggybot.perception.depth import DepthCamera
+    key = (int(width), int(height))
+    if self._depth_watch is None or self._depth_watch[0] != key:
+      self._depth_watch = (key, DepthCamera(self._m, self.handle, width=key[0], height=key[1],
+                                            mount="body", seed=WATCH_SEED, reach=DEPTH_REACH_M))
+    return self._depth_watch[1].frame(self._d).z
 
   def hand_follows(self, side, poses, rot=None) -> bool:
     return self.reach.path_for(side, [self.to_stance(p) for p in poses],

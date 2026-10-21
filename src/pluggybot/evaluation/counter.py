@@ -27,6 +27,13 @@ import numpy as np
 from pluggybot.activity import chest as ch
 
 HOME_XML = "models/home_world.xml"
+#: ...its generator's sidecar (`home.world`): the house's visual hints, its
+#: zones and its boards, which the site draws the house by.
+HOME_META = "models/home_world.meta.json"
+#: A set-out's world on the wire (#530): the house, the humanoid where the
+#: set-out starts it, the counter and its prop -- a world of its own, as
+#: `home_quad_chest` is, and never the served one.
+WORLD = "home_humanoid_counter"
 #: Where the humanoid starts: the storeroom, empty (`home.world`'s x 22-28,
 #: y -6-0), facing +x, as #466's probe did.
 START = (24.0, -3.0)
@@ -264,6 +271,17 @@ def world(so, policy=None):
   model, its data and the humanoid's body (`HumanoidBody`), its stance
   commissioned where it stands."""
   from pluggybot.body import body_for
+  model = model_of(so)
+  data = mujoco.MjData(model)
+  mujoco.mj_forward(model, data)
+  humanoid = body_for(model, data, policy=policy)
+  humanoid.start_at(*so.start)
+  return model, data, humanoid
+
+
+def model_of(so):
+  """A set-out's world compiled (`world`'s), no body built: what its scene
+  is read off (#530)."""
   from pluggybot.humanoid import model as hm
   spec = mujoco.MjSpec.from_file(HOME_XML)
   frame = spec.worldbody.add_frame()
@@ -281,12 +299,18 @@ def world(so, policy=None):
   else:
     so.attach(spec)
   spec.visual.map.znear = NEAR_M / spec.stat.extent
-  model = spec.compile()
-  data = mujoco.MjData(model)
-  mujoco.mj_forward(model, data)
-  humanoid = body_for(model, data, policy=policy)
-  humanoid.start_at(*so.start)
-  return model, data, humanoid
+  return spec.compile()
+
+
+def scene(model, cameras: dict | None = None) -> dict:
+  """A set-out's world as the site draws it (`telemetry.scene`, named
+  `WORLD`): the house's hints, and `cameras` -- `{role: camera}`, the head
+  camera a person sees the robot's view through (#530)."""
+  import json
+  from pathlib import Path
+  from pluggybot.telemetry.scene import scene_dict
+  meta = json.loads(Path(HOME_META).read_text())
+  return scene_dict(model, WORLD, meta=meta, cameras=cameras)
 
 
 def knob_world(model, data, name: str = "chest") -> np.ndarray:

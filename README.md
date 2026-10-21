@@ -227,6 +227,15 @@ uv run python scripts/attempts.py --view 0     # the probe opens chest 0's
 `--read`, `--drops`); Evaluation.md §4 is the protocol and Challenges.md §9
 the grader.
 
+User control (#530): a person's procedure flown by the humanoid as one such
+attempt, in a world of its own, watched live on the site. The session host
+runs beside the served sim on the server, one run at a time
+(docs/Webserver.md, "A world of one's own"):
+```bash
+PLUGGYWORLD_TOKEN=... uv run python -m pluggybot.session.host \
+  --endpoint ws://localhost:3000/api/pluggyworld/sessions/host --record runs/sessions
+```
+
 View a body alone:
 ```bash
 uv run python -m mujoco.viewer --mjcf=models/quadruped.xml

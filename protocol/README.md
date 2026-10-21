@@ -44,6 +44,95 @@ replayer treats it like any other world -- one scene, one recording, keyed
 by that name (`pluggybot.robot.pair_model_name`). The served world is the
 pair, `home_quad_pair`.
 
+### 0.21.0, additive: a world of one's own (`scene`, `step`, `readouts`, `depth`, `attempt`; a scene's `cameras`; the session host)
+
+pluggybot #530, user control: a person's procedure, in the robot's own
+language, flown by the humanoid as ONE attempt of the attempt kit's task
+(`evaluation.attempts`: chest k's lid at the counter), graded by the same
+door. Never Luca or Rowan, and never the served world's stream: each run is
+a stream of its own, on its seat's own path
+(`/api/pluggyworld/sessions/<id>/ingest`, with the token the site minted
+for that seat), named `home_humanoid_counter` -- the house, the humanoid at
+a counter, the chest on it. Its frames are the served world's shape (the
+humanoid's 32 bodies under `robots.pluggybot`, the chest's moving parts
+under `world`, the chest's flags under `activities.chest`); what rides
+beside them, in order:
+
+```jsonc
+{"type": "scene", "scene": {...}}                  // right after the header, every open
+{"type": "step", "t": 3.2, "robot": "pluggybot",    // a verb of the procedure began
+ "n": 2, "line": 4, "verb": "reach", "args": {"hand": "left", "x": 0.35, "y": 0.19, "z": 0.87}}
+{"type": "event", "t": 3.2, "robot": "pluggybot",   // the run's own words, as narration
+ "line": "PROCEDURE look step 2 (line 4): reach left ..."}
+{"type": "readouts", "t": 3.5, "robot": "pluggybot",  // every 0.5 sim s
+ "values": {"time": 3.5, "left.x": 0.312, "left.fx": -2.1, "spot.x": 0.353, "pull.force": null}}
+{"type": "depth", "t": 4.0, "robot": "pluggybot",   // every 1 sim s
+ "width": 120, "height": 70, "near": 0.28, "far": 3.0, "png": "<base64>"}
+{"type": "attempt", "t": 25.4, "robot": "pluggybot", "n": 1,   // the end
+ "task": {"chest": 7, "body": "humanoid", "mount": "counter", "grader": "lid"},
+ "verdict": {"ok": false, "reason": "the lid rose to 6 deg, short of ...", "metrics": {...}},
+ "own": {"ok": false, "why": "a verb failed"}, "simS": 2.3, "cut": false, "steps": 3,
+ "limitS": 67.62, "holdS": 5.0, "run": {...}, "report": "TRY 1 ..."}
+```
+
+- **The `scene` is the set-out's, whole** (`telemetry.scene.scene_dict`):
+  a person's set-out is drawn afresh (`counter.set_out(k)` moves the
+  counter and the chest), so no vendored scene can know it. Sent right
+  after the header on EVERY open (`FrameBuilder(opening=)`), like the
+  header, so a reconnect is never without its world.
+- **A scene's `cameras`** (additive, and only where a producer asks:
+  `scene_dict(cameras=)`; the served scenes carry none): `{role: {name,
+  body, pos, quat, fovy}}`, body-local on MuJoCo's convention -- the
+  camera looks along its own -z with +y up, which is three.js's own, so a
+  camera hung on the body's group at that pose looks where the robot's
+  does. `head` is the one a person sees the robot's view through.
+- **`readouts` are the names a procedure `read`s** (`steps.hand_facts`'
+  sensors), each as its procedure would read it; `null` is a sense with no
+  reading yet (a verb's report before that verb ran), never 0. ⚠ READ ON
+  THE WATCHER'S OWN STREAMS: a hand's place off a joint sense and a model
+  of itself of the watcher's own (`Body.hand_watched`), the depth off a
+  camera of its own (`Body.depth_watched`), so watching never moves the
+  flight -- a probe that read the flight's own `hand_at` changed it (#525).
+- **`depth`** is a grey PNG on the grid's path (a `GridSampler`): 0 is no
+  return, 1 (near) to 255 (far) run `near` to `far`, m.
+- **`attempt`** is the row's verdict -- ⚠ its PUBLIC metrics, never the
+  row's `secret` (the catch's force) -- the language's record of the run
+  (`run`: every verb, what it said and what the hand felt, where it
+  stopped, its variables; no source, no traces), and `report`, the words
+  the robot's mind is shown of a try (`mind.practice.run_report`: its
+  `report_text` less what to do next). A code skill has no report (`null`).
+  An attempt that raised has `error` and no verdict. A try its time limit
+  cut ran: `run` is its record as it stood, the verb it was in under
+  `inFlight` (`{line, verb}`), and the report says where the time ran out.
+
+The run's SESSION HOST says, on `/api/pluggyworld/sessions/host` (the
+sim's secret; `session.host`): `hello` on every connect -- `build`, `task`
+(`grader`, `body`, `mount`, `limitS`, `holdS`, `chests` [first, last]),
+`job` (as the robot is told it), `vocabulary` (`[{heading, text}]`:
+`mind.practice.system_sections`' language and body, byte for byte),
+`sourceChars`, and `running` (the run in flight -- or ended and not yet
+said -- or null); then per run `refused` (`reasons`: the language's, every
+one, nothing built), `started` (`chest`), `ended` or `busy`, each naming its
+`session` and `attempt`. `ended` has `why` -- `graded`, `cancelled`, `out of
+time`, `failed` -- and `detail`, and a graded run's `verdict` (`{ok,
+reason}`, there if and only if `why` is `graded`): the backstop for the
+stream's `attempt`, which a dropped socket can lose. A run is `graded` when
+its child wrote its verdict -- to a file the host named, before the
+stream's last message -- whatever ended the process after (a cancel that
+raced a clean exit, a kill as its stream closed); else `cancelled` or `out
+of time` when the host stopped it; else `failed`, saying why. An `ended`
+the host could not send waits for the next connection and follows its
+`hello`. The site says `run` (`session`, `attempt`, `chest`, `source`,
+`ingest` -- the seat's own path -- and `token`, `[A-Za-z0-9_-]{16,128}`,
+read whole) and `cancel` (`session` AND `attempt`: a late cancel for the
+run before stops nothing).
+
+The recording is the REFERENCE's attempt at chest 0 (`evaluation.opener`,
+our opener as code), streamed as a session streams one:
+`scripts/attempts.py --body humanoid --record
+protocol/telemetry.home_humanoid_counter.jsonl.gz` writes it and its scene
+beside it.
+
 ### 0.21.0, nothing new on the wire: the walls are a room's height and the stairs are steps (the world change)
 
 pluggybot #507, stage 5. No message's shape moves; both quad scenes, the
@@ -2713,6 +2802,8 @@ against the body census.
 | `telemetry.home_quad_pair.jsonl.gz` | The quadruped period's shape: no offers, no upkeep, #378's arm stowed on both backs (#405); the first robot, started low, walks to the dock, lies on it and charges while the second explores, then rests by reflex -- both maps and near fields. Started at 0.42 (#387's), the first robot left for the dock only once the second had finished and lay resting across its way home, and died stranded (#405: a finished robot does not yield) | `MUJOCO_GL=egl uv run python scripts/two_robots.py --world home_quad --fast --pack demo --near-field --errands none,none --battery 0.22,1.0 --max-sim-time 600 --record protocol/telemetry.home_quad_pair.jsonl.gz` |
 | `scene.home_quad_chest.json` | The demo's world (pluggybot #466): the house, ONE quadruped where the demo set-out starts it and the drawn chest where it stands (`evaluation.probe.spec_of`, `DEMO`) -- a world of its own, never the served one | `scripts/imagine_chest.py --demo 0 --record ...` (writes it beside the recording) |
 | `telemetry.home_quad_chest.jsonl.gz` | The demo's flight: the probe from the robot's own senses, the robot lying still while it imagines, and the ONE `imagined` event the site draws its ghost from; its author's answers vary run to run, so a new recording draws a new model | `MUJOCO_GL=egl uv run python scripts/imagine_chest.py --demo 0 --record protocol/telemetry.home_quad_chest.jsonl.gz --remote HOST:PORT` (`$HF_TOKEN`; the workers on a pod) |
+| `scene.home_humanoid_counter.json` | A world of one's own (pluggybot #530): the house, the HUMANOID where the counter's set-out starts it, the counter and chest 0 on it (`evaluation.counter`), its `head` camera named -- never the served world | `MUJOCO_GL=egl uv run python scripts/attempts.py --body humanoid --record ...` (writes it beside the recording) |
+| `telemetry.home_humanoid_counter.jsonl.gz` | The reference's attempt at chest 0 (`evaluation.opener`), streamed as a person's session streams one: the scene after the header, the robot's senses (`readouts`, `depth`), and ONE `attempt` at the end, which passed | `MUJOCO_GL=egl uv run python scripts/attempts.py --body humanoid --record protocol/telemetry.home_humanoid_counter.jsonl.gz` |
 
 The flags each recording needs, and the two passes a recording with ink
 takes, are at the top of this file.
