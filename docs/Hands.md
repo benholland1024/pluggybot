@@ -87,7 +87,7 @@ and its feet, which the walking policy moves.
 |---|---|---|---|---|
 | `spot(tag)` | stands still and looks for a tag -- as it stands, then bowing lower (`SPOT_GAZES`) until it sees it -- and stands up again | `spot.x/y/z` (the face's middle), `spot.nx..nz` (into the thing it is on), `spot.ex..ez` (along an edge), `spot.range` | not in view from where it stands | the head camera's tag detector (`rack.tags`), `Body.gaze_routine` |
 | `measure(x, y)` | the depth camera's look at what stands at (x, y) | `object.top/near/far/left/right` | no flat top seen | the D435's cloud (`perception/box.py`) |
-| `reach(hand, x, y, z, fingers, jaws, stiffness)` | the grip to a point, turned as asked or as the arm finds; out to a point short of it, then in along the fingers | `hand.x/y/z`, `hand.fx..fz` | out of reach (and whether the other hand could), turned as asked or not; stopped short. ⚠ What it touches on its way in under the blocking force can hold it a few cm short while it holds: the hand's place says where (§5) | the arm's IK on the robot's model of itself, a planned posture |
+| `reach(hand, x, y, z, fingers, jaws, stiffness)` | the grip to a point, turned as asked or as the arm finds; out to a point short of it, then in along the fingers | `hand.x/y/z`, `hand.fx..fz` | out of reach (and whether the other hand could, as asked or turned another way), turned as asked or not; stopped short. ⚠ What it touches on its way in under the blocking force can hold it a few cm short while it holds: the hand's place says where (§5) | the arm's IK on the robot's model of itself, a planned posture |
 | `via(hand, x, y, z, turn)` | adds a point to the hand's next move; nothing moves | -- | a path holds 40 points | -- |
 | `move_hand(hand, x, y, z, speed, stiffness, turn)` | a hand that is out carried along a line, or through its `via` points, as ONE motion from one posture | as `reach` | out of reach (planned or partway), held back | `Reach.carry`, `path_for` |
 | `pull(hand, dx, dy, dz, force, distance, speed, give)` | THE FORCE MOVE (§4) | `pull.moved`, `pull.force` (the hardest along its way, as felt), `pull.dx..dz` (the way the hand was going at its end) | ok whenever it pulled; why it stopped (distance, held fast, let go, out of reach, feet moved) is the record's | `Reach.pull` |
@@ -241,8 +241,8 @@ against; it is one body, one hand at a time, on a counter at 0.72 m.
 | -- | `step`, NEW | the feet to the work (§3) |
 
 The practice's arms (`--pull`, `--verb-tests`, `--path`) were the
-vocabulary's stages; it is one vocabulary now, `measure` with it
-(`--no-measure` the arm without), and Evaluation.md §4 keeps the rule that
+vocabulary's stages; it is one vocabulary now, `measure` and `step` with
+it (`--no-measure`, `--no-step` the arms without), and Evaluation.md §4 keeps the rule that
 #493's rows are never pooled with its.
 
 **The served robots' language is unchanged.** The quadruped's procedures
@@ -262,7 +262,8 @@ because the world has them, and none of its rules prescribes a job (a test
 reads them). Stage 3 of #493 flew on it twice (Evaluation.md §4,
 "Practice first on the hands' vocabulary"): neither arm passed a practice
 chest, and both lost the grip -- the grasps they chose, not the verbs
-under them.
+under them. With the reach's reply fixed, an arm's frozen copies passed
+22 of 29 held-out chests within 3 (§4's "What changed the grasp").
 
 ## 7. What it does not do
 
@@ -276,3 +277,12 @@ under them.
 - **A small thing low down, or a knob on a short stem.** The fingers are 8
   cm and the grip point their middle, so their tips meet the surface before
   a steep grip reaches a small object's middle (§5).
+- **A reading of how far what it holds has turned** (a lid's angle, which
+  every arm of #493 said it lacked). Measured off the hinge's own sensor at
+  chests 0-7, the robot's own readings carry it, each in one phase: its
+  hand's place about the hinge `measure` finds, to a median 1.3 deg as a
+  lid opens but 10-16 deg off above 60 deg coming down; the way its last
+  pull went (`pull.d*`), to 4 deg coming down but not above 60 opening up.
+  A plane fitted to the D435's points is sub-degree where it fits, but the
+  trunk's camera, pitched 40 deg down, saw the lid at 45 stops of 55 opening
+  and 17 of 33 lowering: a raised lid leaves its view.

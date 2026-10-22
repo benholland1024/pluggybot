@@ -1369,6 +1369,56 @@ held-out chests: the bar is unread for them.
   The grip is the steadier signal: held in under a third of the tries on
   the hands' vocabulary, in two thirds or more in every arm on #493's.
 
+**What changed the grasp, and the arms after it** (Ben, 2026-10-20 and
+21). First, 20 conversations a prompt, each its first two tries on chest
+0, one thing changed at a time: #493's vocabulary, the hands', the hands'
+without the tag's edge readings, without `step`, and with the reach's
+reply fixed ($2.93). The first two tries look alike under every prompt:
+77 first reaches of 81 took the right hand, and by the second try a grip
+had held in 0-4 conversations of 20 in each. One reply decided the next
+try: told "your left hand could reach it as asked", 61 of 61 switched
+hands; told "nor could your left hand, as asked", a robot with a `step`
+stepped away 5 times in 7 from a knob its left hand reached turned
+another way -- the first arm's 59 tries. The reply now says so ("nor could
+your left hand as asked, though turned another way it can"); told that, 2
+in 5 stepped. One first prompt, flown twice, built its grip's turn off the
+edge readings in 1 conversation of 16 and in 8 of 18: at 20 a prompt, that
+much is the draw.
+
+Then four arms with the reply fixed, at `8bb72dc` (its held-out seed for
+all four), two of them without `step` (`practice.py --no-step`);
+pathdsm's settings otherwise:
+
+| arm | practice: chests passed, the try each passed at | held out, within 3 | chests 0-5: tries a grip held / opened past 57 deg / falls / `step` written | cost |
+|---|---|---|---|---|
+| the reply fixed | 5 of 16: x 7 x x 6 x x x x 3 1 x x x x 4 | **22 of 29** [0.58, 0.88], 17 at the first; stopped early | 21 / 25 / 5 / 0 of 53 | $2.92 |
+| ...flown again | 7 of 16: x 9 x 2 x 2 x 1 1 x 5 x x x 4 x | 0 of 7; stopped early | 23 / 15 / 5 / 35 of 43 | $2.62 |
+| the reply fixed, no `step` | 0 of 6, given up | -- | 40 / 22 / 7 / -- of 60 | $1.07 |
+| ...flown again | 0 of 6, given up | -- | 46 / 20 / 5 / -- of 60 | $1.25 |
+
+- **With the reply fixed the grip came back**: held in 40-77 % of the
+  tries over chests 0-5, against 13 and 32 % in the first two arms on the
+  hands' vocabulary and 65-84 % on #493's.
+- **And `step` turned from a lure into a tool**: 9 of the 12 passes stepped
+  first -- 9-12 cm toward the box, or 6 cm to the right -- and the two arms
+  without it passed none of 12 chests, though they gripped most often.
+- **The best held-out reading yet, and the bar missed narrowly**: the first
+  arm's frozen copies passed 22 of 29 held-out chests within 3, 17 at
+  their first try, before the 7th failure stopped them (the bar is 26 of
+  32). Its skill is geometry: a 12 cm step, `measure`'s far top edge taken
+  as the hinge, the knob gripped fingers forward, and one `move_hand`
+  through twelve `via` points round the hinge, the hand rolling with the
+  lid, then the same arc back down at 3 cm/s -- the path and the maths,
+  not the force move.
+- **A robot keeps its NEWEST pass, not its best** (`evaluation.practice.keep`:
+  a pass under a name it holds replaces it): the second arm's first six
+  passes stepped 6 cm right and gripped from above; its seventh, on chest
+  14, left the step out and replaced them. Its frozen copies reached from
+  above without the step, and stopped short or found no posture: 0 of 7.
+- **What it cannot show**: two arms a condition, and the two with the reply
+  fixed went 22 of 29 and 0 of 7 on the same held-out chests -- which skill
+  a conversation keeps decides as much as the vocabulary.
+
 ## 5. What silently invalidates a number
 
 The list this document mostly exists for.
