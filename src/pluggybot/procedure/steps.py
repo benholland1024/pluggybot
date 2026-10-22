@@ -1137,10 +1137,17 @@ def _reach(life, args: dict) -> Routine:
                "arm finds a turn)")
   if why == "out of reach" and other is not None:
     # what its body's own model says of the other hand (#493: 18 of 27
-    # first tries took the right hand to a knob on the robot's left)
-    reason += (f"; your {other} hand could reach it as asked"
-               if life.body.hand_reaches(other, place, rot)
-               else f"; nor could your {other} hand, as asked")
+    # first tries took the right hand to a knob on the robot's left) --
+    # turned another way too: "nor could your left hand, as asked" was read
+    # as out of reach standing, and an arm stepped beside the box 59 tries
+    if life.body.hand_reaches(other, place, rot):
+      reason += f"; your {other} hand could reach it as asked"
+    elif rot is not None and life.body.hand_reaches(other, place):
+      reason += (f"; nor could your {other} hand as asked, though turned another way it can"
+                 + ("" if "your arm finds a turn" in reason
+                    else " (leave fx..jz at 0 and your arm finds a turn)"))
+    else:
+      reason += f"; nor could your {other} hand, as asked"
   return {"ok": False, "hand": hand, "why": why, "reason": reason, "felt": felt}
 
 
@@ -1492,18 +1499,21 @@ def language(facts: "WorldFacts | None") -> dict[str, Verb]:
   return {n: table[n] for n in named}
 
 
-def hand_facts(measure: bool = True) -> "WorldFacts":
+def hand_facts(measure: bool = True, step: bool = True) -> "WorldFacts":
   """What a procedure on the humanoid's hands is validated against (issues
   #493, #525): standing, a `step` at a time, and its arms' joints, the hands' vocabulary
-  (`HAND_VERBS`) -- with the depth camera's `measure` unless an arm is about
-  its absence -- their sensors and the clock; a verb may be an `if`'s test,
-  and an expression may call the maths (`lang.MATH`)."""
+  (`HAND_VERBS`) -- with the depth camera's `measure` and the feet's `step`
+  unless an arm is about the absence of either -- their sensors and the
+  clock; a verb may be an `if`'s test, and an expression may call the maths
+  (`lang.MATH`)."""
   from pluggybot.procedure import axes
   return WorldFacts(boards=(), tools=(), bounds=(-1e3, -1e3, 1e3, 1e3), figures=(),
                     axes=axes.BODY_AXES["humanoid"],
-                    sensors=(axes.HAND_SENSORS + axes.PULL_SENSORS + axes.STEP_SENSORS
+                    sensors=(axes.HAND_SENSORS + axes.PULL_SENSORS
+                             + (axes.STEP_SENSORS if step else ())
                              + (axes.MEASURE_SENSORS if measure else ())),
-                    verbs=("wait", "move") + HAND_VERBS + (MEASURE_VERBS if measure else ()),
+                    verbs=(("wait", "move") + tuple(v for v in HAND_VERBS if step or v != "step")
+                           + (MEASURE_VERBS if measure else ())),
                     hands=axes.HANDS, verb_tests=True, math=True)
 
 
