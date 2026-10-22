@@ -259,7 +259,10 @@ compiles.
 **The practice prompt** (`mind/practice.py`) is built off the facts: the
 verbs' text, the sensors, the maths and the verb test are each shown
 because the world has them, and none of its rules prescribes a job (a test
-reads them). Stage 3 of #493 flies again on this vocabulary when Ben says.
+reads them). Stage 3 of #493 flew on it twice (Evaluation.md §4,
+"Practice first on the hands' vocabulary"): neither arm passed a practice
+chest, and both lost the grip -- the grasps they chose, not the verbs
+under them.
 
 ## 7. What it does not do
 

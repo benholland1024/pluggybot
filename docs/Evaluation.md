@@ -1321,6 +1321,54 @@ The rows above are #493's flags' (`run.pull`, `verbTests`, `path`); a row
 on #525's says `run.vocabulary`, and the two are NEVER POOLED. Before any
 mind flies it, its gate is docs/Hands.md §5's capability check.
 
+**Practice first on the hands' vocabulary** (Ben, 2026-10-20): pathdsm's
+settings -- DeepSeek, notes, `measure`, 10 tries a practice chest, giving
+up after 6 with nothing kept -- flown twice at `d38c009`, so one run's
+luck cannot decide; and pathdsm flown again at its own `d728e0e`, on its
+held-out chests, because it too was one run. **Neither arm on the hands'
+vocabulary passed a practice chest**, so neither kept a skill or flew its
+held-out chests: the bar is unread for them.
+
+| arm | practice: chests passed, the try each passed at | held out, within 3 | chests 0-5: tries a grip held / opened past 57 deg / falls | cost |
+|---|---|---|---|---|
+| the hands' vocabulary | 0 of 6, given up | -- | 8 / 8 / 12 of 60 | $1.15 |
+| ...flown again | 0 of 6, given up | -- | 19 / 7 / 6 of 60 | $1.89 |
+| pathdsm (above) | 13 of 16 | 4 of 11 | 19 / 16 / 0 of 26 | $2.63 |
+| pathdsm flown again | 4 of 16: x x x x x 8 x x 2 1 2 x x x x x | 4 of 11, 3 at the first; stopped early | 49 / 14 / 2 of 58 | $3.50 |
+
+- **pathdsm's practice was the lucky draw, its held-out reading was not**:
+  flown again, it passed 4 practice chests of 16 against 13, and its
+  frozen copies the same 4 of 11 held-out chests within 3 [0.15, 0.65],
+  three at the first try where pathdsm had none. Of the 8 held-out chests
+  both flew, they agreed on 5.
+- **On the hands' vocabulary the minds lost the grip**: over chests 0-5 a
+  grip held in 13 % and 32 % of the tries, against 65-84 % in all four
+  arms on #493's (pathdsm, its replicate and the two without `measure`),
+  and the lid opened past 57 deg in 12-13 % against 24-62 %. Nothing under
+  them changed: three grasps flown without a mind at chests 0-7 hold at
+  the same set-outs at both commits, to the millimetre (4, 5 and 1 of 8).
+  What the minds chose did. One wrote on its first chest that the knob was
+  out of reach standing -- 0.63 m, the right shoulder's distance; the
+  left's is 0.51 -- and stepped beside the box to reach with its right
+  hand in 59 tries of 60, the body falling 12 times; nothing it was shown
+  after unseated the note. The other asked its grip for turns: 39 of its
+  53 turned reaches failed, 4 of its 30 unturned.
+- **Held, the force move opened the lid in one pull, and nothing stopped
+  it**: one pull straight up took a lid to 73-110 deg, the hinge steering
+  the hand; with no sense of the lid's angle a pull's `distance` was its
+  only stop, and long pulls ended when the feet moved. Of the 15 lids
+  opened, 14 fell and one was left open at 109 deg: coming down, pulls
+  straight down ran out of reach and position moves were held back, its
+  pulls down written at 15-40 N where the check's comes down at 8.
+- **What the minds said they lacked**, in both arms, again and again: the
+  lid's angle ("we can't measure angle"), and room -- a helper, a list, a
+  verb's result kept (`ok = move_hand(...)` is refused); 32 sources were
+  refused, 14 for the 1,500-character cap.
+- **What it cannot show**: whether the vocabulary or the draw decided the
+  passes -- two arms alike in everything practiced 13 and 4 chests of 16.
+  The grip is the steadier signal: held in under a third of the tries on
+  the hands' vocabulary, in two thirds or more in every arm on #493's.
+
 ## 5. What silently invalidates a number
 
 The list this document mostly exists for.
