@@ -236,14 +236,17 @@ def test_a_release_begun_in_a_get_up_waits_it_out_then_comes_home(monkeypatch):
 
 def test_a_fall_while_the_posture_comes_back_is_a_fall():
   """A release waits for its posture to come back to the stand: a fall then
-  said "held" -- the stand-up's fresh reach read nothing yet -- not "fell"."""
+  said "held" -- the stand-up's fresh reach read nothing yet -- not "fell";
+  and it ends there, never waiting on a posture the get-up has taken."""
   body = body_for(*_floor())
   m = body.mission
   m.reach, m.getup = _Homing(0), _Rising(200)
   m.stand.ask(-0.15, 0.0)
   falls = iter([True])
   m.fall.falling = lambda data, pitch=0.0: next(falls, False)
+  t0 = float(body.data.time)
   assert body.run(body.release_routine("left")) == "fell"
+  assert float(body.data.time) - t0 < 0.1, "a fall ends it at once"
 
 
 def test_through_body_the_hand_reaches_the_floor_and_the_bow_is_no_fall():

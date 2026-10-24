@@ -600,6 +600,19 @@ def test_an_arm_no_lower_on_its_way_home_ahead_of_its_toes_goes_straight_there()
   assert r.homes["right"] == [] and np.allclose(r.q_to["right"], r.rest["right"])
 
 
+@pytest.mark.parametrize("straight,aside,taken", [(0.5, 0.0, 1), (5.0, 8.0, 1), (5.0, 0.0, 3)])
+def test_the_side_way_is_taken_only_past_the_margin_and_where_it_dips_less(
+    monkeypatch, straight, aside, taken):
+  """`way_home`'s rule over the dips its judge gives each way, in
+  `HOME_DIP_M`s: straight home unless that dips more than the margin, and
+  the side way only where it dips less -- a detour that buys nothing is
+  not taken."""
+  from pluggybot.humanoid import reach as rc
+  monkeypatch.setattr(rc, "dip", lambda sm, side, q0, ways, *a:
+                      (straight if len(ways) == 1 else aside) * rc.HOME_DIP_M)
+  assert len(_sent_home(_standing_reach(), "right", RAISED)) == taken
+
+
 def test_an_arm_is_home_once_its_rest_is_commanded_and_its_drivers_read_it_there():
   """`withdraw` is ok on `Reach.home` (#539): the rest commanded -- never an
   arm still on its way, whose command says it hangs -- and every joint read
