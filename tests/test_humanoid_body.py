@@ -173,6 +173,48 @@ def test_a_ramp_a_fall_let_go_of_ends_there():
   assert np.allclose(m.reach.q_to["left"], m.reach.rest["left"])
 
 
+class _Homing:
+  """A reach whose arm its drivers read home `n` steps after it is sent,
+  its phase saying it hangs from the first: as the walk home's did as it
+  began (#539)."""
+
+  def __init__(self, n: int):
+    self.n, self.steps, self.sent = n, 0, False
+    self.phase = {s: "rest" for s in hm.SIDES}
+    self.grippers = {}
+
+  def retreat(self, side, approach=None) -> None:
+    self.sent, self.steps = True, 0
+
+  def home(self, side) -> bool:
+    return self.sent and self.steps >= self.n
+
+  def step(self) -> None:
+    self.steps += 1
+
+  def held_pitch(self) -> float:
+    return 0.0
+
+
+def test_a_release_waits_until_its_drivers_read_the_arm_home(monkeypatch):
+  """#539: it returned the moment the walk home began -- the phase already
+  the rest's -- and the procedure's next verb, or the grader's hold, began
+  with the arm seconds from home. It says "home" once the arm is; "held"
+  where it is not by `RELEASE_S`; "fell" at a fall."""
+  from pluggybot.humanoid import body as hb
+  body = body_for(*_floor())
+  m = body.mission
+  m.reach = _Homing(300)
+  assert body.run(body.release_routine("left")) == "home" and m.reach.steps >= 300
+  monkeypatch.setattr(hb, "RELEASE_S", 0.1)
+  m.reach = _Homing(10 ** 6)
+  assert body.run(body.release_routine("left")) == "held"
+  m.reach, m.getup = _Homing(10 ** 6), _Rising(50)
+  falls = iter([True])
+  m.fall.falling = lambda data, pitch=0.0: next(falls, False)
+  assert body.run(body.release_routine("left")) == "fell"
+
+
 def test_through_body_the_hand_reaches_the_floor_and_the_bow_is_no_fall():
   """The humanoid's deepest reach, flown through `Body` with its get-up
   loaded, as served: the floor by its toes, fingers down, from the deepest
