@@ -1817,7 +1817,8 @@ def demo_scene(body, model, data, records: list | None = None):
   rec["still_pads"] = ct.pads_hold(model, data, side)
   yield "letting go"
   yield from drive(body, body.grip_routine(side, False))
-  yield from drive(body, body.release_routine(side))
+  rec["released"] = yield from drive(body, body.release_routine(side))
+  yield f"  its arm {rec['released']}"
   yield from drive(body, body.grip_routine(side, True))
   rec["fell"] = bool(data.xpos[body.root][2] < FALLEN_M)
 

@@ -356,11 +356,22 @@ def outline(sm: SelfModel, side: str) -> np.ndarray:
   return np.array(out)
 
 
-def dip(sm: SelfModel, side: str, q0, ways, low: float) -> float:
-  """How far under `low` any part of the arm goes ahead of the toes, m, as
-  it walks from `q0` through `ways` in joint space, every joint arriving
-  together (`Reach._joints`)."""
-  ahead, worst, prev = toes(sm), 0.0, np.asarray(q0, dtype=float)
+def front(sm: SelfModel, side: str, rest) -> float:
+  """How far ahead the robot's own front is, m: its toes, or its arm
+  hanging at `rest` where that reaches further -- where every way home
+  ends, so never a dip. ⚠ Posed as a reach's statue, the hanging grip is
+  0.8 cm past the toes: judged from the toes alone, straight home tied the
+  side way there and took it down onto the counter. Leaves the arm at
+  rest."""
+  sm._set_arm(side, rest)
+  return max(toes(sm), float(outline(sm, side)[:, 0].max()))
+
+
+def dip(sm: SelfModel, side: str, q0, ways, low: float, ahead: float) -> float:
+  """How far under `low` any part of the arm goes further ahead than
+  `ahead`, m, as it walks from `q0` through `ways` in joint space, every
+  joint arriving together (`Reach._joints`)."""
+  worst, prev = 0.0, np.asarray(q0, dtype=float)
   for w in ways:
     n = max(1, math.ceil(float(np.abs(w - prev).max()) / HOME_SAMPLE_RAD))
     for k in range(1, n + 1):
@@ -731,21 +742,23 @@ class Reach:
   def way_home(self, side: str) -> list[np.ndarray]:
     """The joint targets an arm walks home through from its command, judged
     on the robot's model of itself as it stands (`HOME_DIP_M`): its rest
-    alone -- or, where that walk takes some part of the arm lower than the
-    lowest of it now while ahead of its toes, the side way: rolled out to
-    its side (`HOME_ROLL`), its other joints home, then its roll. The side
-    way only where it dips less."""
+    alone -- or, where that walk takes some part of the arm further ahead
+    than the robot's front (`front`) and lower than the lowest of it there
+    now, or than its lowest anywhere where none of it is, the side way:
+    rolled out to its side (`HOME_ROLL`), its other joints home, then its
+    roll. The side way only where it dips less."""
     sm = self._planner_model()
     sm.q = self.self_model.q.copy()
     sm.d.qpos[:] = self.self_model.d.qpos
     q0, rest = self.q_cmd[side].copy(), self.rest[side].copy()
+    ahead = front(sm, side, rest)
     sm._set_arm(side, q0)
     p = outline(sm, side)
-    p = p[p[:, 0] > toes(sm)]
-    if not len(p):
-      return [rest]
-    low = float(p[:, 1].min())
-    straight = dip(sm, side, q0, [rest], low)
+    there = p[p[:, 0] > ahead]
+    # ⚠ nothing of it ahead is no licence: from over its head, straight home
+    # swung the arm forward and down through a counter 0.28 m ahead
+    low = float((there if len(there) else p)[:, 1].min())
+    straight = dip(sm, side, q0, [rest], low, ahead)
     if straight <= HOME_DIP_M:
       return [rest]
     k = hm.ARM.index("shoulder_roll")
@@ -753,7 +766,7 @@ class Reach:
     raised, lowered = q0.copy(), rest.copy()
     raised[k] = lowered[k] = q0[k] if abs(q0[k]) > HOME_ROLL else out
     aside = [raised, lowered, rest]
-    return aside if dip(sm, side, q0, aside, low) < straight else [rest]
+    return aside if dip(sm, side, q0, aside, low, ahead) < straight else [rest]
 
   def _go_home(self, side: str) -> None:
     """The arm on its way home (`way_home`), its goal let go; the posture

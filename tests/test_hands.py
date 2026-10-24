@@ -452,22 +452,51 @@ def _turned(deg):
 def test_an_arm_with_no_line_out_withdraws_home_in_joint_space(phase):
   """`move` on an arm's joint, then `withdraw`: there is no line to come
   out along, and unhandled the withdraw waited out the attempt -- nor for an
-  arm still walking out to its pre-grasp, whose command no line holds."""
+  arm still walking out to its pre-grasp, whose command is a past hold's;
+  and the posture goes back to the stand."""
   from pluggybot.humanoid.arms import HandGoal
   r = _bare_reach()
   r.set_joints("left", r.rest["left"] + 0.3)
   if phase == "move":
-    r.goal["left"], r.phase["left"] = HandGoal(np.array([0.3, 0.2, 0.9]), None, 1.0), "move"
+    r.cmd["left"] = HandGoal(np.array([0.3, 0.2, 0.9]), None, 1.0)
+    r.goal["left"], r.phase["left"] = HandGoal(np.array([0.4, 0.2, 0.9]), None, 1.0), "move"
   r.retreat("left")
   assert r.phase["left"] == "home" and r.goal["left"] is None
   assert np.allclose(([r.q_to["left"]] + r.homes["left"])[-1], r.rest["left"])
+  assert r.postures == [(0.0, 0.0)]
 
 
 #: Where the arm's walk home began in #539's flights, raised before its
 #: shoulder: the right's (pitch, roll, yaw, elbow, wrist pitch and roll),
-#: and the left's mirror (`reach.seed`).
+#: and the left's mirror.
 RAISED = np.array([-1.72, -1.44, 0.95, 1.03, 1.27, -0.05])
-MIRRORED = np.array([1.0, -1.0, -1.0, 1.0, 1.0, -1.0])
+
+
+def _of(side, q_right):
+  """The right arm's joints `q_right` for `side`: the left's mirror them
+  (`reach.seed`, its own inverse)."""
+  from pluggybot.humanoid import reach as rc
+  return q_right if side == "right" else rc.seed("right", q_right)
+
+
+def _posed_reach(pose: str):
+  """`_standing_reach`, or posed as a reach's statue at the stand
+  (`reach.plan`): its trunk 2.7 cm further ahead, the hanging hand past the
+  toes."""
+  from pluggybot.humanoid import reach as rc
+  r = _standing_reach()
+  if pose == "statue":
+    rc._posed(r.self_model, 0.0, 0.0, np.array([hm.stand_qpos().get(n, 0.0)
+                                                for n in hm.JOINT_NAMES]))
+  return r
+
+
+def _sent_home(r, side, q0):
+  """The arm commanded at `q0` and sent home: the joint targets it walks."""
+  r.set_joints(side, q0)
+  r.q_cmd[side] = np.asarray(q0, dtype=float).copy()
+  r.retreat(side)
+  return [r.q_to[side]] + r.homes[side]
 
 
 def _clear_of_counter(sm, side, q0, ways, front=0.279, top=0.72) -> float:
@@ -498,42 +527,83 @@ def _clear_of_counter(sm, side, q0, ways, front=0.279, top=0.72) -> float:
   return worst
 
 
+@pytest.mark.parametrize("pose", ["stand", "statue"])
 @pytest.mark.parametrize("side", hm.SIDES)
-def test_an_arm_raised_over_a_counter_goes_home_at_its_side_never_down_onto_it(side):
+def test_an_arm_raised_over_a_counter_goes_home_at_its_side_never_down_onto_it(side, pose):
   """#539: straight home in joint space, a hand raised before its shoulder
   brought a jaw down onto the counter's front edge and rested there 1.3 s;
-  judged on the robot's model of itself (straight home, the arm dips under
-  where it is ahead of its toes), it rolls out to its side first and is
-  lowered there, clear of any counter so far ahead."""
-  r = _standing_reach()
-  q0 = RAISED if side == "right" else RAISED * MIRRORED
-  r.set_joints(side, q0)
-  r.q_cmd[side] = q0.copy()
-  r.retreat(side)
-  ways = [r.q_to[side]] + r.homes[side]
+  judged on the robot's model of itself (straight home, the arm dips ahead
+  of the robot's front), it rolls out to its side first and is lowered
+  there, clear of any counter so far ahead. ⚠ As a reach's statue stands
+  too: its hanging hand past the toes, judged from the toes alone straight
+  home tied the side way and took it."""
+  r = _posed_reach(pose)
+  q0 = _of(side, RAISED)
+  ways = _sent_home(r, side, q0)
   assert np.allclose(ways[-1], r.rest[side])
   sm = r.self_model
   assert _clear_of_counter(sm, side, q0, [r.rest[side]]) < 0, "the premise: straight onto it"
   assert _clear_of_counter(sm, side, q0, ways) > 0.05
 
 
-def test_an_arm_no_lower_on_its_way_home_ahead_of_its_toes_goes_straight_there():
-  """The side way is a detour (its sweep out to the side, 3 s): a hand beside
-  the body, close in, walks straight home."""
+def test_an_arm_over_its_head_comes_home_at_its_side_though_none_of_it_is_ahead():
+  """Nothing of the arm ahead of the robot's front is no licence to walk
+  straight home: from over its head (pitched -2.7 rad), its grip just ahead
+  of its shoulder, straight home swings it forward and down through the
+  counter."""
   from pluggybot.humanoid import reach as rc
   r = _standing_reach()
-  q0, miss, _ = rc.solve_seeded(r.self_model, "right", np.array([0.05, -0.35, 1.0]), None)
-  assert miss < 0.01
-  r.set_joints("right", q0)
-  r.q_cmd["right"] = q0.copy()
-  r.retreat("right")
+  sm = r.self_model
+  ahead = rc.front(sm, "right", r.rest["right"])
+  sm._set_arm("right", rc.seed("right", (-2.74, 0.1, 0.0, 0.3, 0.0, 0.0)))
+  q0, miss, _ = sm.solve("right", np.array([0.05, -0.22, 1.72]), None, iters=200)
+  sm._set_arm("right", q0)
+  assert miss < 0.01 and not (rc.outline(sm, "right")[:, 0] > ahead).any(), "the premise"
+  ways = _sent_home(r, "right", q0)
+  assert _clear_of_counter(sm, "right", q0, [r.rest["right"]]) < 0, "the premise: straight onto it"
+  assert _clear_of_counter(sm, "right", q0, ways) > 0.05
+
+
+@pytest.mark.parametrize("side", hm.SIDES)
+def test_the_side_way_rolls_an_arm_out_to_its_own_side(side):
+  """From a counter's height (the grip 0.30 m ahead, 0.25 out, 0.85 up), its
+  roll inside `HOME_ROLL`: rolled out to it, on its own side, held there as
+  its other joints come home; from #539's raised arm, rolled out further
+  already, its roll kept."""
+  from pluggybot.humanoid import reach as rc
+  k = hm.ARM.index("shoulder_roll")
+  lo, hi = hm.joint_range(f"{side}_shoulder_roll")
+  outward = 1.0 if hi > -lo else -1.0
+  r = _standing_reach()
+  y = 0.25 if side == "left" else -0.25
+  q0, miss, _ = rc.solve_seeded(r.self_model, side, np.array([0.30, y, 0.85]), None)
+  assert miss < 0.01 and abs(q0[k]) < rc.HOME_ROLL
+  ways = _sent_home(r, side, q0)
+  assert len(ways) == 3
+  assert ways[0][k] * outward == pytest.approx(rc.HOME_ROLL) and ways[1][k] == ways[0][k]
+  q0 = _of(side, RAISED)
+  ways = _sent_home(_standing_reach(), side, q0)
+  assert ways[0][k] == pytest.approx(q0[k]) and ways[1][k] == pytest.approx(q0[k])
+
+
+def test_an_arm_no_lower_on_its_way_home_ahead_of_its_toes_goes_straight_there():
+  """The side way is a detour (its sweep out to the side, 3 s): a hand low
+  ahead of the robot's front, whose way home rises, walks straight home."""
+  from pluggybot.humanoid import reach as rc
+  r = _standing_reach()
+  sm = r.self_model
+  ahead = rc.front(sm, "right", r.rest["right"])
+  q0, miss, _ = rc.solve_seeded(sm, "right", np.array([0.12, -0.2, 0.6]), None)
+  sm._set_arm("right", q0)
+  assert miss < 0.01 and (rc.outline(sm, "right")[:, 0] > ahead).any(), "the premise: some ahead"
+  _sent_home(r, "right", q0)
   assert r.homes["right"] == [] and np.allclose(r.q_to["right"], r.rest["right"])
 
 
 def test_an_arm_is_home_once_its_rest_is_commanded_and_its_drivers_read_it_there():
   """`withdraw` is ok on `Reach.home` (#539): the rest commanded -- never an
   arm still on its way, whose command says it hangs -- and every joint read
-  within `HOME_RAD` of it; and a second retreat leaves a way home be."""
+  within `HOME_RAD` of it."""
   from pluggybot.humanoid import reach as rc
   r = _standing_reach()
   arm = r.self_model.arm["left"]
@@ -542,12 +612,77 @@ def test_an_arm_is_home_once_its_rest_is_commanded_and_its_drivers_read_it_there
   r.sensed[arm[3]] += 2 * rc.HOME_RAD
   assert not r.home("left")
   r.sensed[arm[3]] = r.rest["left"][3]
-  r.set_joints("left", r.rest["left"] + 0.3)
-  r.retreat("left")
-  way = [q.copy() for q in [r.q_to["left"]] + r.homes["left"]]
+  _sent_home(r, "left", r.rest["left"] + 0.3)
   assert r.phase["left"] == "home" and not r.home("left")
-  r.retreat("left")
-  assert all(np.allclose(a, b) for a, b in zip(way, [r.q_to["left"]] + r.homes["left"]))
+
+
+def test_a_second_retreat_partway_home_leaves_the_way_be():
+  """`to_walk_routine` sends every arm not at rest home again: one partway
+  along its way goes on, never planned afresh from where it is."""
+  r = _standing_reach()
+  way = [q.copy() for q in _sent_home(r, "right", RAISED)]
+  r.q_cmd["right"] = (RAISED + r.rest["right"]) / 2
+  r.retreat("right")
+  got = [r.q_to["right"]] + r.homes["right"]
+  assert len(got) == len(way) == 3 and all(np.allclose(a, b) for a, b in zip(way, got))
+
+
+def _stepped(r):
+  """A bare reach whose loop (`Reach._update`) runs: its senses, its trim and
+  its drivers stubbed out."""
+  from types import SimpleNamespace
+  n = len(hm.JOINT_NAMES)
+  r.tau, r.qd, r.friction = np.zeros(n), np.zeros(n), {}
+  r.force = {s: np.zeros(3) for s in hm.SIDES}
+  r._pose = lambda arms=None: None
+  r._trim = lambda dt: None
+  r.arms = {s: SimpleNamespace(command=lambda *a: None) for s in hm.SIDES}
+  return r
+
+
+def test_the_walk_home_walks_every_target_in_turn_then_rests():
+  """The loop walks the way home target by target, `home` until the last
+  arrives -- its command at the rest -- and only then `rest`."""
+  r = _stepped(_standing_reach())
+  way = [q.copy() for q in _sent_home(r, "right", RAISED)]
+  seen = [r.q_to["right"].copy()]
+  for _ in range(2000):
+    r._update(0.01)
+    if not np.allclose(r.q_to["right"], seen[-1]):
+      seen.append(r.q_to["right"].copy())
+    if r.phase["right"] != "home":
+      break
+  assert r.phase["right"] == "rest" and np.allclose(r.q_cmd["right"], r.rest["right"])
+  assert len(seen) == len(way) == 3 and all(np.allclose(a, b) for a, b in zip(seen, way))
+
+
+def test_the_joints_an_arm_is_judged_home_by_are_its_drivers_reading():
+  """`Reach.sensed` is what the drivers read -- never the command the model
+  is posed at after (#539: aliased to it, home was the command's arrival
+  again)."""
+  from types import SimpleNamespace
+  r = _standing_reach()
+  read = np.array([hm.stand_qpos().get(n, 0.0) for n in hm.JOINT_NAMES]) + 0.2
+  r.d = None
+  r.stand = SimpleNamespace(
+    joints=SimpleNamespace(read=lambda d: (read.copy(), np.zeros_like(read), np.zeros_like(read))),
+    trunk=SimpleNamespace(gravity=lambda: np.array([0.0, 0.0, -1.0])))
+  r._pose(r.q_cmd)
+  assert np.allclose(r.sensed, read)
+
+
+def test_the_way_home_is_judged_as_the_robot_stands_and_moves_nothing_of_its_model():
+  """Judged on the planner's model posed as the live one stands, whatever the
+  planner was left at, and the live model left as it was."""
+  from pluggybot.humanoid import reach as rc
+  want = [q.copy() for q in _sent_home(_standing_reach(), "right", RAISED)]
+  r = _standing_reach()
+  rc._posed(r._planner_model(), -0.25, 1.1, np.array([hm.stand_qpos().get(n, 0.0)
+                                                      for n in hm.JOINT_NAMES]))
+  live = r.self_model.q.copy(), r.self_model.d.qpos.copy()
+  got = _sent_home(r, "right", RAISED)
+  assert len(got) == len(want) and all(np.allclose(a, b) for a, b in zip(want, got))
+  assert np.array_equal(r.self_model.q, live[0]) and np.array_equal(r.self_model.d.qpos, live[1])
 
 
 def test_a_carry_that_stops_says_how_short_it_fell_and_holds_the_turn_it_was_asked():

@@ -446,21 +446,22 @@ class HumanoidBody(Body):
     return self._why.get(side, "")
 
   def release_routine(self, side):
-    """Out and home, waited for at most `RELEASE_S` until its drivers read
-    the arm there (`Reach.home`, #539: it returned as the walk home began,
-    the arm seconds from home): "home", "fell" -- a fall ends it at once --
-    or "held", a hand that cannot come home ending the routine there, never
-    the attempt it is in."""
+    """Out and home, waited for until its drivers read the arm there
+    (`Reach.home`, #539), the posture back at the stand: "home"; "fell" -- a
+    fall ends it at once, the next routine waiting out the get-up, as a
+    reach's does -- or "held", not home in `RELEASE_S`: a hand that cannot
+    come home ends the routine there, never the attempt it is in."""
+    yield from self.mission.to_stand_routine()
     self.reach.retreat(side)
     falls = self.mission.falls
     for _ in range(int(round(RELEASE_S / self._m.opt.timestep))):
       if self.mission.falls != falls or self.reach.home(side):
         break
       yield STILL
+    while self.mission.falls == falls and not self.stand.settled:
+      yield STILL
     if self.mission.falls != falls:
       return "fell"
-    while not self.stand.settled:
-      yield STILL
     return "home" if self.reach.home(side) else "held"
 
   def grip_routine(self, side, closed, force=None):

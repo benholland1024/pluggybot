@@ -83,6 +83,9 @@ def test_the_humanoid_finds_reaches_and_grips_the_chests_knob_through_body():
   rec = records[0]
   assert rec["seen_off_m"] < 0.01, rec
   assert rec["reached"] and rec["held"] and rec["pads"] and rec["still_pads"], rec
+  # ...and let go, its arm home by its drivers (#539: the walk home stepped
+  # and arrived, never only begun)
+  assert rec["released"] == "home", rec
   assert not rec["fell"]
 
 
@@ -209,7 +212,35 @@ def test_a_release_waits_until_its_drivers_read_the_arm_home(monkeypatch):
   monkeypatch.setattr(hb, "RELEASE_S", 0.1)
   m.reach = _Homing(10 ** 6)
   assert body.run(body.release_routine("left")) == "held"
-  m.reach, m.getup = _Homing(10 ** 6), _Rising(50)
+  m.reach, m.getup = _Homing(10 ** 6), _Rising(10 ** 6)
+  falls = iter([True])
+  m.fall.falling = lambda data, pitch=0.0: next(falls, False)
+  t0 = float(body.data.time)
+  assert body.run(body.release_routine("left")) == "fell"
+  assert float(body.data.time) - t0 < 0.1, "a fall ends it at once"
+
+
+def test_a_release_begun_in_a_get_up_waits_it_out_then_comes_home(monkeypatch):
+  """Every hand routine waits out a get-up under way first: begun in one, a
+  release spent its `RELEASE_S` on the arm the fall had let go of, and said
+  "held" of an arm the stand-up's fresh reach hung at home."""
+  from pluggybot.humanoid import body as hb
+  monkeypatch.setattr(hb, "RELEASE_S", 0.1)
+  body = body_for(*_floor())
+  m = body.mission
+  m.reach, m.getup = _Homing(10 ** 6), _Rising(200)
+  m._fell()
+  assert body.run(body.release_routine("left")) == "home"
+  assert m.legs == "stand"
+
+
+def test_a_fall_while_the_posture_comes_back_is_a_fall():
+  """A release waits for its posture to come back to the stand: a fall then
+  said "held" -- the stand-up's fresh reach read nothing yet -- not "fell"."""
+  body = body_for(*_floor())
+  m = body.mission
+  m.reach, m.getup = _Homing(0), _Rising(200)
+  m.stand.ask(-0.15, 0.0)
   falls = iter([True])
   m.fall.falling = lambda data, pitch=0.0: next(falls, False)
   assert body.run(body.release_routine("left")) == "fell"
