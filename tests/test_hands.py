@@ -546,22 +546,25 @@ def test_an_arm_raised_over_a_counter_goes_home_at_its_side_never_down_onto_it(s
   assert _clear_of_counter(sm, side, q0, ways) > 0.05
 
 
-def test_an_arm_over_its_head_comes_home_at_its_side_though_none_of_it_is_ahead():
-  """Nothing of the arm ahead of the robot's front is no licence to walk
-  straight home: from over its head (pitched -2.7 rad), its grip just ahead
-  of its shoulder, straight home swings it forward and down through the
-  counter."""
+#: Where the left arm's walk home began in the capability check's drawer
+#: (#525, set-out 3), the drawer pulled 17 cm out toward the robot.
+PULLED_CLOSE = np.array([0.75, 0.18, 0.11, 1.14, 1.18, 1.76])
+
+
+def test_an_arm_none_of_it_ahead_of_the_robots_front_goes_straight_home():
+  """What the hand worked over lies under it ahead of the robot's front, so
+  an arm with none of it there worked over nothing there. Judged as if all
+  under it were solid, the check's drawer, pulled close, took the side way:
+  its roll-out swept a jaw into the drawer's face and pushed it 4 cm back
+  in, and the job failed."""
   from pluggybot.humanoid import reach as rc
   r = _standing_reach()
   sm = r.self_model
-  ahead = rc.front(sm, "right", r.rest["right"])
-  sm._set_arm("right", rc.seed("right", (-2.74, 0.1, 0.0, 0.3, 0.0, 0.0)))
-  q0, miss, _ = sm.solve("right", np.array([0.05, -0.22, 1.72]), None, iters=200)
-  sm._set_arm("right", q0)
-  assert miss < 0.01 and not (rc.outline(sm, "right")[:, 0] > ahead).any(), "the premise"
-  ways = _sent_home(r, "right", q0)
-  assert _clear_of_counter(sm, "right", q0, [r.rest["right"]]) < 0, "the premise: straight onto it"
-  assert _clear_of_counter(sm, "right", q0, ways) > 0.05
+  ahead = rc.front(sm, "left", r.rest["left"])
+  sm._set_arm("left", PULLED_CLOSE)
+  assert not (rc.outline(sm, "left")[:, 0] > ahead).any(), "the premise: none of it ahead"
+  _sent_home(r, "left", PULLED_CLOSE)
+  assert r.homes["left"] == [] and np.allclose(r.q_to["left"], r.rest["left"])
 
 
 @pytest.mark.parametrize("side", hm.SIDES)

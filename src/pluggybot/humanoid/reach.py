@@ -150,15 +150,16 @@ TRAIL_M, STEP_M = 0.02, 0.006
 #: the hand's reading, whatever the stiffness.
 PULL_STIFFNESS = 0.6
 #: THE WAY HOME (`way_home`, #539; SimNotes, "The way home"): straight to
-#: the rest in joint space -- unless that takes some part of the arm more
-#: than this much lower, m, than the lowest of it now while ahead of the
-#: toes, where whatever the hand worked over is -- else the SIDE WAY: rolled
-#: out to its side to at least this much, rad, its other joints home with it
-#: held there, then lowered at its side. ⚠ Straight, an arm came down onto
-#: a 0.72 m counter's edge 0.28 m ahead from 25 of 30 places a hand works
-#: over it, and onto a 0.90 m one from 23 of 26; this way onto neither:
-#: held out this far its elbow stays near its shoulder's height, and
-#: lowered at its side the arm reaches 9 cm ahead.
+#: the rest in joint space -- unless that takes some part of the arm ahead
+#: of the robot's front (`front`), where whatever the hand worked over is,
+#: more than this much lower, m, than the lowest of it there now -- else
+#: the SIDE WAY, where that dips less: rolled out to its side to at least
+#: this much, rad, its other joints home with it held there, then lowered
+#: at its side. ⚠ Straight, an arm came down onto a 0.72 m counter's edge
+#: 0.28 m ahead from 25 of 30 places a hand works over it, and onto a 0.90
+#: m one from 23 of 26; this way onto neither: held out this far its elbow
+#: stays near its shoulder's height, and lowered at its side the arm
+#: reaches 9 cm ahead.
 HOME_DIP_M, HOME_ROLL = 0.01, 1.3
 #: ...sampled every this much of its furthest joint's walk, rad.
 HOME_SAMPLE_RAD = 0.05
@@ -744,9 +745,8 @@ class Reach:
     on the robot's model of itself as it stands (`HOME_DIP_M`): its rest
     alone -- or, where that walk takes some part of the arm further ahead
     than the robot's front (`front`) and lower than the lowest of it there
-    now, or than its lowest anywhere where none of it is, the side way:
-    rolled out to its side (`HOME_ROLL`), its other joints home, then its
-    roll. The side way only where it dips less."""
+    now, the side way: rolled out to its side (`HOME_ROLL`), its other
+    joints home, then its roll. The side way only where it dips less."""
     sm = self._planner_model()
     sm.q = self.self_model.q.copy()
     sm.d.qpos[:] = self.self_model.d.qpos
@@ -755,9 +755,12 @@ class Reach:
     sm._set_arm(side, q0)
     p = outline(sm, side)
     there = p[p[:, 0] > ahead]
-    # ⚠ nothing of it ahead is no licence: from over its head, straight home
-    # swung the arm forward and down through a counter 0.28 m ahead
-    low = float((there if len(there) else p)[:, 1].min())
+    # ⚠ none of it ahead worked over nothing there: judged as if all under
+    # it were solid, a drawer pulled close took the side way, which swept a
+    # jaw into its face and pushed it 4 cm back in
+    if not len(there):
+      return [rest]
+    low = float(there[:, 1].min())
     straight = dip(sm, side, q0, [rest], low, ahead)
     if straight <= HOME_DIP_M:
       return [rest]
