@@ -434,7 +434,9 @@ save a filmstrip PNG named after the script.
   verdict (`Library.admit`, `attempts.attempt(sealed=)`). Two protocols
   (Evaluation.md §4): FRESH, a fresh robot a chest; KEPT (`--acquire`,
   Ben), one robot practicing the public chests in turn carrying only what
-  passed (`evaluation.practice.keep`, never a conversation), then a frozen
+  passed (`evaluation.practice.keep`, never a conversation: ⚠ under each
+  name the procedure that passed the MOST chests, sources compared as
+  programs, never the newest pass alone, #535), then a frozen
   copy a held-out chest, ⚠ stopped once the bar is out of reach
   (`out_of_reach`); `--notes` carries the robot's own notes and a draft
   too (`Practice.carry`, pass or fail). ⚠ FEEDBACK IS THE BODY'S AND THE
@@ -455,7 +457,11 @@ save a filmstrip PNG named after the script.
   turning with the lid, had no verb). ⚠ A HAND'S PATH IS ONE MOTION
   (`via` then `move_hand`): separate moves each took a posture of their
   own and carried the reference's own arc on 2 chests of 8. The
-  vocabulary is #525's (below).
+  vocabulary is #525's (below). ⚠ THE DOOR IS PRACTICED WITH NO NEW HELP
+  (#535; `practice.py --job door`): its own job text and time limit
+  (`practice.JOBS`, `attempts.JOB_LIMIT_S`) and the practice's texts naming
+  its cupboard (`Practice.thing`), nothing else -- a test pins the lid's
+  texts byte for byte.
 - **The hands' vocabulary is ONE, designed from how hands move** (#525;
   docs/Hands.md; `procedure/steps.py` `HANDS_VERBS`, `hand_facts`;
   `humanoid/reach.py` `Reach.pull`; `tests/test_force_move.py`): two kinds

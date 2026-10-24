@@ -198,10 +198,11 @@ def read(into: str) -> None:
       if r.subject != "passed":
         print(show(r.data))
     print("  what it flatters (#493):")
-    for line in at.FLATTERS:
+    for line in at.flatters(mine[0].data.get("task", {}).get("grader", "lid")):
       print(f"    - {line}")
-    tops = [r.data["verdict"]["metrics"].get("topDeg") for r in mine]
-    downs = [r.data["verdict"]["metrics"].get("downRadS") for r in mine]
+    metrics = [(r.data.get("verdict") or {}).get("metrics") or {} for r in mine]
+    tops = [m.get("topDeg") for m in metrics]
+    downs = [m.get("downRadS") for m in metrics]
     if all(v is not None for v in tops + downs):
       print(f"  the lid's top {min(tops):.1f}-{max(tops):.1f} deg; fastest down while "
             f"open {min(downs):.3f}-{max(downs):.3f} rad/s")
