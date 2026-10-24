@@ -95,11 +95,11 @@ passing test, or to a branch the lifecycle already had (`overseer.ACTIONS`):
 
 † A tool errand, which no menu on legs offers: `Menu.available()` drops all
 five where the world's config says `tools` is off, which `home_quad` does
-(issue #387). Drawing came back on the arm (#406) as the boards' three
-jobs, taken with `take_task`, and as the procedure verb `draw`; the census
-and the claw (#407) as the jobs `count_plants`, `stack_tower` and
-`find_mass`, and as the verbs `survey`, `pick`, `place`, `put`, `grip` and
-`release` -- never as these errands. The quadruped's menu is
+(issue #387). Drawing came back on the arm (#406) as the boards' jobs (an
+answer and a figure), taken with `take_task`, and as the procedure verb
+`draw`; the census and the claw (#407) as the jobs `count_plants`,
+`stack_tower` and `find_mass`, and as the verbs `survey`, `pick`, `place`,
+`put`, `grip` and `release` -- never as these errands. The quadruped's menu is
 `take_task`, `explore`, `charge`, `idle`, `recall`, `procedure`, `care` and
 `look`.
 
@@ -711,8 +711,8 @@ renderer must not hand the robot a picture of where it used to be.
 **A missing renderer is said, not waited out (issue #357).** Until it,
 nothing could tell a slow renderer from a missing one: the renderer went
 undeployed until #541, and every look on the served pair stood its ten
-seconds for nobody (51 in 30 days, all `none`). The website's hub now says whether
-a renderer is connected — the `renderer` inbound kind, `{connected}`, when
+seconds for nobody (51 in 30 days, all `none`). The website's hub now says
+whether a renderer is connected — the `renderer` inbound kind, `{connected}`, when
 it reads a header that names the kind, whenever one comes or goes, and
 again every heartbeat, so a word lost on the way heals in 30 s — and the
 renderer connects only once its page can draw (`renderer/eye.js`), so

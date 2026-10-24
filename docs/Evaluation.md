@@ -823,8 +823,8 @@ create by that judgement.* Metric: **judgement agreement**, both halves off
 the rating panel. CAN IT CREATE: the panel's first rating of each drawing it
 offered (`rate_artwork`), as a list. ⚠ #541 took `rate_artwork` off
 `home_quad`'s cadence, and the served menu has no `artwork` action, so
-neither half gains a drawing after that deploy: a reading across it has
-this quality from before it only. CAN IT JUDGE: for each drawing the
+neither half gains a drawing after that deploy: its rows come only from
+people rating the drawings made before it. CAN IT JUDGE: for each drawing the
 robot also rated (`rate {board, quality}` → `judged`, matched to the drawing
 by the site), the panel's first rating beside the robot's and the absolute
 gap in 0..1 — and the panel's own re-rate gaps (the same person, the same

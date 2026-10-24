@@ -16,6 +16,7 @@ import importlib.util
 import inspect
 import json
 import math
+import sys
 from pathlib import Path
 
 import mujoco
@@ -460,8 +461,8 @@ def test_with_no_renderer_look_is_off_the_call_and_the_state_says_why():
   no `look` and the state says so in `camera`; the website's word that a
   renderer is there puts it back, and its word that none is takes it off
   again. Nobody having said is no renderer: a demo with no website, a sim
-  before the hub's first word, a link that dropped. On the deployed pair
-  every look stood its ten seconds for a renderer never deployed."""
+  before the hub's first word, a link that dropped. Until the renderer was
+  deployed (#541), every look on the deployed pair stood its ten seconds."""
   inbox = Inbox()
   boss, life = _looker(full(action="idle"), full(action="idle"), inbox=inbox,
                        renderer=None)
@@ -590,23 +591,41 @@ def test_an_escalation_carries_the_picture_in_its_own_backends_shape():
 PROBE = Path(__file__).resolve().parents[1] / "scripts" / "overseer_probe.py"
 
 
-def test_the_probe_attaches_a_picture_as_a_served_call_carries_it():
-  """`overseer_probe.py --image` (issue #541): the served mind's call with
-  the picture a look brought back, an image part ahead of the text -- how a
-  model, on the provider it lands on, is checked for taking a picture before
-  the eye is turned on. A fake client: the real call is the probe's."""
+def test_the_probe_attaches_a_picture_as_a_served_call_carries_it(tmp_path, monkeypatch):
+  """`overseer_probe.py --deployed --image` (issue #541): the deployed
+  mind's call with the picture a look brought back, an image part ahead of
+  the text -- how a model, on the provider it lands on, is checked for
+  taking a picture before the eye is turned on. The probe's own `main`, its
+  client a fake: the real call is the probe's to make."""
   spec = importlib.util.spec_from_file_location("overseer_probe", PROBE)
   probe = importlib.util.module_from_spec(spec)
   spec.loader.exec_module(probe)
-  boss = ov.build(QUAD_HOME, enabled=True, client=FakeClient(full()))
-  state = probe.with_picture(probe.synthetic_state(boss.menu, 0), JPEG, 0)
-  assert not boss.decide(state).scripted
-  content = boss.client.calls[-1]["messages"][0]["content"]
+  fake, build = FakeClient(full()), ov.build
+  monkeypatch.setattr(ov, "build", lambda *a, **kw: build(*a, **{**kw, "client": fake}))
+  good, bad = tmp_path / "look.jpg", tmp_path / "look.png"
+  good.write_bytes(JPEG)
+  bad.write_bytes(b"\x89PNG" + JPEG)
+  argv = ["overseer_probe.py", "--deployed", "--backend", "local", "--calls", "1"]
+
+  def run(*args: str):
+    monkeypatch.setattr(sys, "argv", list(args))
+    probe.main()
+    return fake.calls[-1]["messages"][0]["content"]
+
+  content = run(*argv, "--image", str(good))
   b64 = base64.b64encode(JPEG).decode()
-  assert content[0] == llm.image_part(boss.backend, b64)
+  assert content[0] == llm.image_part("local", b64)
   assert [part["type"] for part in content[1:]] == ["text"]
   assert b64[:32] not in content[1]["text"]
   assert '"image": "attached"' in content[1]["text"]
+  # ...without it, the call the probe always made: the text alone
+  assert isinstance(run(*argv), str)
+  # ...and what the sim's door would refuse, or a bare mind, is refused here
+  for args in ([*argv, "--image", str(bad)], [*argv, "--image", str(tmp_path / "gone.jpg")],
+               [*argv[:1], *argv[2:], "--image", str(good)]):
+    with pytest.raises(SystemExit) as refused:
+      run(*args)
+    assert refused.value.code == 2, args
 
 
 def test_the_picture_never_reaches_any_turn_as_text_including_an_interrupt():

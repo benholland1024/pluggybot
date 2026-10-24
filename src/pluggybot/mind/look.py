@@ -86,9 +86,9 @@ HEIGHT = 480
 #: the door is where every other inbound kind is checked.
 MEDIA_TYPE = "image/jpeg"
 #: A look nothing could answer (issue #357): the website had said no
-#: renderer was there. Said at once rather than waited out -- on the
-#: deployed pair every look stood its ten seconds for a renderer that was
-#: never deployed, and nothing told a slow one from a missing one.
+#: renderer was there. Said at once rather than waited out -- before the
+#: renderer was deployed (#541), every look on the deployed pair stood its
+#: ten seconds, and nothing told a slow renderer from a missing one.
 UNANSWERABLE = "unanswerable"
 #: ...and what the robot is told while that is so: the state's `camera`
 #: (`look` is off the menu) and the `seen` block of a look that raced it.

@@ -226,8 +226,10 @@ def with_picture(state: dict, jpeg: bytes, i: int) -> dict:
   (`look.as_context`, one look of the run spent), so the call attaches it
   as an image part of the user turn exactly as a served call does. Taken
   from the dock, where the robots lie between jobs."""
-  row = {"ref": f"look:{ROBOT_ROOT}:{i + 1}", "outcome": "seen",
-         "at": {"x": 4.1, "y": 0.4, "headingDeg": 180.0}, "_jpeg": jpeg}
+  x, y, yaw = world_config(QUAD_HOME)["dock"]
+  row = {"ref": f"look:{ROBOT_ROOT}:{i + 1}", "outcome": "seen", "_jpeg": jpeg,
+         "at": {"x": round(x, 2), "y": round(y, 2),
+                "headingDeg": round(math.degrees(yaw), 1)}}
   return {**state, "seen": [look.as_context(row)], "looksLeft": MAX_LOOK_RUN - 1}
 
 
@@ -404,11 +406,19 @@ def main() -> None:
   args = parser.parse_args()
   if args.metabolism and not args.deployed:
     parser.error("--metabolism measures a served prompt: with --deployed")
-  picture = Path(args.image).read_bytes() if args.image else None
-  if picture is not None and (not picture.startswith(JPEG_MAGIC)
-                              or len(picture) > MAX_IMAGE_BYTES):
-    parser.error(f"--image takes a JPEG of at most {MAX_IMAGE_BYTES} bytes, "
-                 "as the sim's door does")
+  picture = None
+  if args.image is not None:
+    # A picture rides a SERVED call: only a deployed mind has the eye, its
+    # rule and its `seen` block
+    if not args.deployed:
+      parser.error("--image measures a served call: with --deployed")
+    try:
+      picture = Path(args.image).read_bytes()
+    except OSError as e:
+      parser.error(f"--image: {e}")
+    if not picture.startswith(JPEG_MAGIC) or len(picture) > MAX_IMAGE_BYTES:
+      parser.error(f"--image takes a JPEG of at most {MAX_IMAGE_BYTES} bytes, "
+                   "as the sim's door does")
   args.world = world_for(args.world)
 
   book = board_book(args.world)
