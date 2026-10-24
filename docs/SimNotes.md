@@ -5465,9 +5465,10 @@ cm, withdraw):
   the fall had let go of, and said "held"), and a fall while its posture
   comes back to the stand is "fell".
 - *Straight home, a jaw came down on the counter's front edge* (0.28 m
-  ahead, 0.72 m up) and rested there 1.3 s, at chests 0 and 63; at 36 it
-  brushed it. The arm was raised before its shoulder and out to its side,
-  and one joint-space line home swept the hand down in front.
+  ahead, 0.72 m up) at chests 0, 36 and 63: it rested there 1.3 s at 0 and
+  0.3 s at 63, and brushed it at 36; the left arm's mirror of the reach
+  rested a jaw there 3.5 s. The arm was raised before its shoulder and out
+  to its side, and one joint-space line home swept the hand down in front.
 
 Every way home tried was scored on the robot's own drawing at the stand,
 from the 125 starts the reach could plan of 540 asked: the pre-grasp for a
