@@ -74,10 +74,10 @@ CREDENTIAL = re.compile(r"TOKEN|SECRET|PASSW|CREDENTIAL|KEY", re.IGNORECASE)
 def hello(build: dict, running: dict | None = None) -> dict:
   """The host's opening word: its build, the task, the job and the text a
   procedure is written against (`mind.practice.system_sections`, the
-  language and the body), and the run in flight -- or ended and not yet
-  said -- if any."""
+  language and the body) with its names as data (`vocabulary_index`), and
+  the run in flight -- or ended and not yet said -- if any."""
   from pluggybot.evaluation.practice import job_for
-  from pluggybot.mind.practice import system_sections
+  from pluggybot.mind.practice import system_sections, vocabulary_index
   task = task_of(CHESTS.start)
   sections = dict(system_sections(facts()))
   msg = wire.hello_message(
@@ -85,9 +85,18 @@ def hello(build: dict, running: dict | None = None) -> dict:
             "limitS": round(task.limit_s, 2), "holdS": lid.HOLD_S,
             "chests": [CHESTS.start, CHESTS.stop - 1]},
     job_for(task), [(h, sections[h]) for h in ("the language", "your body")],
-    lang.MAX_SOURCE_CHARS)
+    vocabulary_index(facts()), lang.MAX_SOURCE_CHARS)
   msg["running"] = running
   return msg
+
+
+#: The vendored fixture (`--hello`): what a fresh host says, no build and
+#: nothing running -- the site's guide for people is checked against it.
+HELLO_FIXTURE = "protocol/hello.home_humanoid_counter.json"
+
+
+def hello_fixture() -> str:
+  return json.dumps(hello({}), indent=1, ensure_ascii=False) + "\n"
 
 
 def child_env(token: str) -> dict:
@@ -302,7 +311,18 @@ def main(argv=None) -> None:
                   help=f"where each run's row is appended (rows.jsonl); ${RECORD_ENV}")
   ap.add_argument("--pace", type=float, default=1.0,
                   help="sim seconds a wall second (1.0: what a person watches)")
+  ap.add_argument("--hello", nargs="?", const=HELLO_FIXTURE, metavar="PATH",
+                  help=f"write the hello a fresh host says to PATH (default {HELLO_FIXTURE}, "
+                       "the fixture the site vendors) and exit")
   args = ap.parse_args(argv)
+  if args.hello is not None:
+    # `--hello ""` is no path, and never a way to start the host
+    if not args.hello:
+      ap.error("--hello takes a path, or none for the fixture's")
+    with open(args.hello, "w") as f:
+      f.write(hello_fixture())
+    print(f"{args.hello}: the hello, {os.path.getsize(args.hello):,} bytes")
+    return
   if not args.endpoint:
     ap.error(f"no endpoint: --endpoint or ${ENDPOINT_ENV}")
   if not args.pace > 0:

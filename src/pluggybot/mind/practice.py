@@ -26,7 +26,8 @@ import json
 import time
 
 from pluggybot.procedure import lang
-from pluggybot.procedure.steps import Refused, WorldFacts, describe_vocabulary, signature
+from pluggybot.procedure.steps import (Refused, WorldFacts, describe_vocabulary, language,
+                                       signature)
 
 #: The tokens an answer may take, its reasoning first: at 64,000, 37 of
 #: #493's 537 answers ran out still thinking, and answered ones went to
@@ -150,6 +151,40 @@ def system_sections(facts: WorldFacts) -> list[tuple[str, str]]:
 
 def system_prompt(facts: WorldFacts) -> str:
   return "\n\n".join(text for _, text in system_sections(facts))
+
+
+def vocabulary_index(facts: WorldFacts) -> dict:
+  """What "the language" and "your body" list, as data (rooftop-media-2026
+  #441: a page's guide for people is checked against it): each verb with
+  its arguments in order -- the list a name is one of (`choices`), and the
+  default of one that may be left out -- each sensor, each axis with its
+  range, the hands, the maths an expression may call and whether a verb may
+  be an `if`'s test. Off the registries the sections are rendered from, so
+  it lists what the robot is told and nothing it is not: no argument's
+  bounds, which the robot meets only in a refusal."""
+  from pluggybot.procedure import axes
+  table = language(facts)
+  docs = {s["name"]: s["doc"] for s in axes.describe()["sensors"]}
+
+  def arg(verb: str, name: str, kind: str, defaults: dict) -> dict:
+    out = {"name": name, "kind": kind}
+    if table[verb].args[name].choices:
+      out["choices"] = table[verb].args[name].choices
+    if name in defaults:
+      out["default"] = defaults[name]
+    return out
+  return {"verbs": [{"verb": v["verb"], "doc": v["doc"],
+                     "args": [arg(v["verb"], k, kind, v.get("defaults", {}))
+                              for k, kind in v["args"].items()]}
+                    for v in describe_vocabulary(facts.verbs)],
+          "sensors": [{"name": n, "doc": docs[n]} for n in facts.sensors],
+          # + 0.0: a range's -0 (the right shoulder's roll) is 0 on the wire
+          "axes": [{"name": a.name, "lo": a.lo + 0.0, "hi": a.hi + 0.0, "unit": a.unit,
+                    "speed": a.speed, "doc": a.doc}
+                   for a in (axes.AXES[n] for n in facts.axes)],
+          "hands": list(facts.hands),
+          "math": dict(lang.MATH) if facts.math else {},
+          "verbTests": facts.verb_tests}
 
 
 #: What the robot carries to its next chest (#493, Ben, 2026-10-18: what a

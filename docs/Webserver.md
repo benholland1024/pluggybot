@@ -409,8 +409,10 @@ of one's own").
   every connect: its build, the task, the job as the robot is told it, and
   `mind.practice`'s language and body sections byte for byte -- the site's
   reference is generated from them, so a person and the robot read one
-  text. A `run` is checked against the language first: refused, every
-  reason at once, and nothing built; else handed to a child. ONE RUN AT A
+  text -- with what they list as data (`index`), which the site's guide for
+  people is checked against (rooftop #441). A `run` is checked against the
+  language first: refused, every reason at once, and nothing built; else
+  handed to a child. ONE RUN AT A
   TIME: a second is `busy`; a `cancel` stops a run only when it names its
   session AND attempt (a late one for the run before stops nothing); a
   child past `CHILD_S` (600 wall s) is stopped, and a child that would not

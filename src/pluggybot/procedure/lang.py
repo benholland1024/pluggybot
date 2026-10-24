@@ -284,7 +284,8 @@ class _Parser:
             or not isinstance(node.args[0].value, str)):
           self.refuse(node, "read takes one sensor name in quotes")
           return _REFUSED
-        return ("read", node.args[0].value)
+        # its line: a read outside a call is refused on it (`validate`)
+        return ("read", node.args[0].value, getattr(node, "lineno", 0))
       if self.math and isinstance(fn, ast.Name) and fn.id in MATH:
         if node.keywords or len(node.args) != MATH[fn.id]:
           self.refuse(node, f"{fn.id} takes {MATH[fn.id]} number(s)")
@@ -605,7 +606,9 @@ def validate(proc: Procedure, facts: WorldFacts) -> list[str]:
     if expr[0] == "read" and expr[1] not in facts.sensors:
       have = "" if listed else f" (have: {', '.join(facts.sensors)})"
       listed.append(True)
-      out.append(f"{at}unknown sensor {expr[1]!r}{have}")
+      # outside a call (`x = ...`, `if`, `while`) the read's own line: with
+      # none, a page's editor could mark no line (rooftop-media-2026 #441)
+      out.append(f"{at or f'line {expr[2]}: '}unknown sensor {expr[1]!r}{have}")
     for sub in expr[1:]:
       if isinstance(sub, tuple):
         _sensors(sub, out, at)

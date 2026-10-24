@@ -28,6 +28,8 @@ Two protocols (Evaluation.md §4):
                        each practice chest ends, pass or fail
   --no-measure         the hands' vocabulary without the depth camera's
                        `measure`: an arm about its absence (#493)
+  --no-step            ...and without the feet's `step`: an arm about its
+                       absence (#493's stage B; a lid stood at needs none)
   --practice-attempts N  KEPT: tries a PRACTICE chest (default --attempts);
                        the held-out chests keep --attempts
   --early-stop         the chests stop once the bar is out of reach
@@ -93,11 +95,12 @@ def fly(job: dict) -> list[dict]:
   from pluggybot.procedure.library import Library
   from pluggybot.procedure.steps import hand_facts
   k, model, info, price = (job[n] for n in ("chest", "model", "info", "price"))
-  facts = hand_facts(measure=job["measure"])
+  facts = hand_facts(measure=job["measure"], step=job["step"])
   task = at.Task(chest=k, body="humanoid", mount="counter")
   mind = Practice(HFClient(timeout=READ_S, fetch=stream_fetch), model, facts, ep.job_for(task))
   skill = (f"{model}, the hands' vocabulary"
-           + (", notes" if job["notes"] else "") + ("" if job["measure"] else ", no measure"))
+           + (", notes" if job["notes"] else "") + ("" if job["measure"] else ", no measure")
+           + ("" if job["step"] else ", no step"))
   info = {**info, "skill": skill, "process": job["process"]}
   try:
     rows = ep.practice_on(k, mind, job["attempts"], library=Library(facts), kept=job["kept"],
@@ -110,7 +113,7 @@ def fly(job: dict) -> list[dict]:
              "run": {k_: info[k_] for k_ in ("commit", "dirty", "seed") if k_ in info}}]
   for r in rows:
     r["run"] |= {"model": model, "vocabulary": VOCABULARY, "picture": job["picture"],
-                 "notes": job["notes"], "measure": job["measure"],
+                 "notes": job["notes"], "measure": job["measure"], "step": job["step"],
                  "attempts": job["attempts"]}
     p = r["practice"]
     r["usd"] = (None if price is None
@@ -138,7 +141,9 @@ def read(into: str) -> None:
     if "practice" not in r:
       continue
     # #493's rows name their arm by its flags, #525's by their vocabulary
-    words = r["run"].get("vocabulary") or ("the pull" if r["run"].get("pull") else "position")
+    words = ((r["run"].get("vocabulary") or ("the pull" if r["run"].get("pull") else "position"))
+             + ("" if r["run"].get("measure", True) else ", no measure")
+             + ("" if r["run"].get("step", True) else ", no step"))
     key = (r["run"].get("model"), words, r.get("process"))
     regimes.setdefault(key, []).append(r)
   for (model, words, process), mine in regimes.items():
@@ -183,6 +188,7 @@ def main(argv=None) -> None:
   ap.add_argument("--early-stop", action="store_true")
   ap.add_argument("--notes", action="store_true")
   ap.add_argument("--no-measure", action="store_true")
+  ap.add_argument("--no-step", action="store_true")
   ap.add_argument("--practice-attempts", type=int, default=None, metavar="N")
   ap.add_argument("--attempts", type=int, default=5)
   ap.add_argument("--model", default=os.environ.get("PLUGGY_MODEL", MODEL))
@@ -224,7 +230,8 @@ def main(argv=None) -> None:
     return {"chest": k, "attempts": attempts or args.attempts,
             "model": args.model, "picture": not args.no_picture, "info": dict(info),
             "price": price, "kept": kept, "process": process, "carried": carried,
-            "write_notes": write_notes, "notes": args.notes, "measure": not args.no_measure}
+            "write_notes": write_notes, "notes": args.notes, "measure": not args.no_measure,
+            "step": not args.no_step}
 
   kept, process, carried = [], "practice", None
   with get_context("spawn").Pool(max(1, args.jobs), maxtasksperchild=1) as pool:

@@ -215,6 +215,18 @@ def test_a_refusal_the_world_gives_names_its_call(call, said):
   assert why.startswith(f"line 2, {said}"), why
 
 
+@pytest.mark.parametrize("stmt", [
+  'a = read("nope")', 'a += read("nope")', 'if read("nope") > 1:\n    stow()',
+  'while 1 < read("nope"):\n    stow()'])
+def test_an_unknown_sensor_outside_a_call_names_its_line(stmt):
+  """A read in an assignment or a test is in no call to name, so the
+  refusal names the read's own line, as every other refusal names one: a
+  page's editor marks the line it names (rooftop-media-2026 #441), and
+  marked none."""
+  [why] = refusals(f"def x():\n  stow()\n  {stmt}\n")
+  assert why.startswith("line 3: unknown sensor 'nope' (have: "), why
+
+
 @pytest.mark.parametrize("verb", sorted(st.VERBS))
 def test_every_refusal_inside_a_call_names_it_once(verb):
   """The parser's (an argument it cannot read, one too many, one it does
