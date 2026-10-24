@@ -1460,6 +1460,24 @@ comparison #534 makes is read against the lid's yardstick, so that first.
   first try of 10, and passed with it once of 4. Under the newest rule,
   fixA's copies ran the kept procedure unchanged on 24 first tries of 29,
   and 13 of their 23 passes were it as it was.
+- **Two fresh arms** with fixA's settings and the rule, at `70bf773`
+  (its held-out seed, 3120822873), started two hours apart:
+
+| arm | practice: chests passed, the try each passed at | held out within 3 | within 5 | cost |
+|---|---|---|---|---|
+| mostA | 8 of 16: x x 2 9 x x 3 x x 8 3 2 7 7 x x | 3 of 10 [0.11, 0.60], 1 at the first; stopped early | 5 of 10 | $2.90 |
+| mostB | 0 of 6, given up: 10 tries of 60 opened the lid past 57 deg, and all 10 let it fall (2.4-6.2 rad/s) | -- | -- | $0.75 |
+
+  mostA's eight passes were eight programs, so the rule kept its newest,
+  as the old rule would have: chest 13's. Its copies ran it unchanged on 4
+  first tries of 10 and the draft on 4.
+- **The yardstick as it stands is a range, not a number.** Of the four
+  arms with the reply fixed and `step` (fixA, fixB, mostA, mostB), one
+  kept nothing; the three that kept a skill passed **3 of 10, 3 of 10 and
+  18 of 25** held-out chests within 3 under the rule as it stands (0.30 to
+  0.72; 4, 5 and 21 within 5), and fixA's 18 came mostly through its
+  draft. Which approach a conversation finds decides more than which pass
+  it keeps: the bar, 80 % within 3, is out of reach in every arm.
 
 **The door, with no new help** (#535's stage 2): the vocabulary, the
 practice's prompt, its replies and its protocol as the yardstick's, and
