@@ -821,7 +821,10 @@ other and being unable to avoid it look the same).
 **4. Creativity and aesthetic taste** — *can it judge like a person, and
 create by that judgement.* Metric: **judgement agreement**, both halves off
 the rating panel. CAN IT CREATE: the panel's first rating of each drawing it
-offered (`rate_artwork`), as a list. CAN IT JUDGE: for each drawing the
+offered (`rate_artwork`), as a list. ⚠ #541 took `rate_artwork` off
+`home_quad`'s cadence, and the served menu has no `artwork` action, so
+neither half gains a drawing after that deploy: a reading across it has
+this quality from before it only. CAN IT JUDGE: for each drawing the
 robot also rated (`rate {board, quality}` → `judged`, matched to the drawing
 by the site), the panel's first rating beside the robot's and the absolute
 gap in 0..1 — and the panel's own re-rate gaps (the same person, the same

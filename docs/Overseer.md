@@ -709,9 +709,9 @@ answered, or never made — is dropped and counted (`Eye.dropped`): a late
 renderer must not hand the robot a picture of where it used to be.
 
 **A missing renderer is said, not waited out (issue #357).** Until it,
-nothing could tell a slow renderer from a missing one: the renderer was
-never deployed, and every look on the served pair stood its ten seconds
-for nobody (51 in 30 days, all `none`). The website's hub now says whether
+nothing could tell a slow renderer from a missing one: the renderer went
+undeployed until #541, and every look on the served pair stood its ten
+seconds for nobody (51 in 30 days, all `none`). The website's hub now says whether
 a renderer is connected — the `renderer` inbound kind, `{connected}`, when
 it reads a header that names the kind, whenever one comes or goes, and
 again every heartbeat, so a word lost on the way heals in 30 s — and the

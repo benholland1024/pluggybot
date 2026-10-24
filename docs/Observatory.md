@@ -10,6 +10,49 @@ observatory is NOT a result: it reports into the issue it informs.
 
 ## Periods
 
+### The eye takes its pictures, and the drawing for rating is off the cadence (#541) — opens when both halves are deployed, this PR's and rooftop-media-2026's
+
+**What changed in the world.** What a look brings back, and which jobs are
+offered.
+
+- **The eye runs.** The site's `rooftop-deploy` starts its renderer
+  (compose's `eye`) in production for the first time, so a look returns the
+  world as the site draws it from the head camera. The eye builds its own
+  world (`EYE_BUILDERS`): a plant is its 0.04 m by 0.30 m stub, where a
+  visitor sees a pot and leaves up to 0.58 m that the body walks through,
+  and nothing stands on a table or a counter (props with no physics, within
+  the arm's reach). The tables' legs stay; a visitor's view keeps the
+  shrubs and the props.
+- **`rate_artwork` is off `home_quad`'s cadence.** It paid only when a
+  person rated it: in the week to 2026-10-24 it was offered 967 times and
+  drawn 389 times (Luca 357, Rowan 32), 340 of the pair's 473 declines were
+  it (284 of them over a rating still to come), and 38 ratings had been
+  given ever, the last 13 on 2026-10-17. The kind, its reward row and the
+  rating page stay (about 1,100 drawings wait there).
+- **The prompt did not move** (`prompt_sha` `aa07eac5…`, 47 931 chars):
+  the LOOKING rule has been in it since #275, and what lets a look begin is
+  the hub's word that a renderer is there (#357). `dataHashes.cadence`
+  moves; metabolism is off on this world, so nothing is re-measured.
+- **A picture costs a call about 510 input tokens** (12 715 → 13 229 on the
+  deployed model, `overseer_probe.py --deployed --image`, 2026-10-24), and
+  the model took it beside the schema on the provider `:cheapest` landed on.
+
+**What the period is for.**
+
+- **Looks**: how often each robot looks and at what, and whether the
+  decision after a picture differs from one with none. `none` rows should
+  stop; an `unanswered` one now means a renderer too slow for the ten
+  seconds.
+- **The boards**: `whiteboard_answer` and `draw_figure` take the slots
+  `rate_artwork` held (373 and 15 offers in the week before), and the
+  declines should fall.
+- ⚠ **Quality four goes dark on the served world** (Evaluation.md §3): with
+  `rate_artwork` off the cadence and no `artwork` action on the served
+  menu, no drawing is offered for rating, so neither half gains a row. A
+  reading across this deploy has quality four from before it only.
+- ⚠ **Not a period to pool across** for anything a picture or the boards'
+  jobs could move.
+
 ### The house's walls are a room's height, and its stairs are steps (#507) — opens when this PR is deployed
 
 **What changed in the world.** Every wall of both houses is 2.4 m, where
