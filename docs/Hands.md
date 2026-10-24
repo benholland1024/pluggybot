@@ -92,7 +92,8 @@ and its feet, which the walking policy moves.
 | `move_hand(hand, x, y, z, speed, stiffness, turn)` | a hand that is out carried along a line, or through its `via` points, as ONE motion from one posture | as `reach` | out of reach (planned or partway), held back | `Reach.carry`, `path_for` |
 | `pull(hand, dx, dy, dz, force, distance, speed, give)` | THE FORCE MOVE (§4) | `pull.moved`, `pull.force` (the hardest along its way, as felt), `pull.dx..dz` (the way the hand was going at its end) | ok whenever it pulled; why it stopped (distance, held fast, let go, out of reach, feet moved) is the record's | `Reach.pull` |
 | `close_hand(hand, force)` | shuts the gripper with at most `force` a pad, 5-120 N | `hand.held`, `hand.gap` | closed on nothing it holds | the Dex1-1's torque limit, its encoder and current |
-| `open_hand(hand)`, `withdraw(hand)` | open the gripper; bring the hand back along its way in, and the arm home | -- | -- | -- |
+| `open_hand(hand)` | opens the gripper | -- | -- | -- |
+| `withdraw(hand)` | the hand back along its way in, then the arm home: straight, or out to its side first and lowered there where straight would take it under where it is ahead of the toes (SimNotes, "The way home"); ok once its drivers read it home | -- | not home by `RELEASE_S` (something holds it); a fall | `Reach.way_home` on the robot's model of itself, `Reach.home` |
 | `step(ahead, left, turn)` | the feet to the work, its hands home first: a turn on the spot, then a walk in the frame it then stands in -- one motion, or ahead then left where the walker would skew it -- and a stand; a walk goes at least a stride, about 10 cm | `step.dx/dy` (where the stance went, in the frame it stood in before), `step.turn`; the verb's text turns a place read before into the frame after | holding something (nothing moves), blocked, fell, out of time. ⚠ A turn's shuffle moves the feet 2-6 cm the report does not count | the walking policy, the legs' odometry |
 
 Beside them stay `wait` and `move(axis, target)` -- the motor level, one arm
@@ -274,6 +275,10 @@ under them. With the reach's reply fixed, an arm's frozen copies passed
   way): no slide or pivot verb, nor yet a job needing one.
 - **A walk with something in hand.** A step carries nothing: the walking
   policy walks with its arms home.
+- **A way home that looks.** The way home is judged on the robot's model
+  of itself alone (#539): it takes what the hand worked over to lie under
+  it ahead of the toes, and the space at its side to be clear. Nothing
+  checks either against the depth picture.
 - **A small thing low down, or a knob on a short stem.** The fingers are 8
   cm and the grip point their middle, so their tips meet the surface before
   a steep grip reaches a small object's middle (§5).

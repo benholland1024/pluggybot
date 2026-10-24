@@ -154,11 +154,11 @@ PULL_STIFFNESS = 0.6
 #: than this much lower, m, than the lowest of it now while ahead of the
 #: toes, where whatever the hand worked over is -- else the SIDE WAY: rolled
 #: out to its side to at least this much, rad, its other joints home with it
-#: held there, then lowered at its side. ⚠ Straight, a hand raised in front
-#: of its shoulder came down onto a counter's edge 0.28 m ahead in 24 of 30
-#: places a hand works over it and onto a 0.90 m one in 22 of 26; the side
-#: way onto neither: held out this far the elbow stays near its shoulder's
-#: height, and lowered at its side the arm reaches 9 cm ahead.
+#: held there, then lowered at its side. ⚠ Straight, an arm came down onto
+#: a 0.72 m counter's edge 0.28 m ahead from 25 of 30 places a hand works
+#: over it, and onto a 0.90 m one from 23 of 26; this way onto neither:
+#: held out this far its elbow stays near its shoulder's height, and
+#: lowered at its side the arm reaches 9 cm ahead.
 HOME_DIP_M, HOME_ROLL = 0.01, 1.3
 #: ...sampled every this much of its furthest joint's walk, rad.
 HOME_SAMPLE_RAD = 0.05

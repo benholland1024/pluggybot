@@ -321,7 +321,10 @@ save a filmstrip PNG named after the script.
   STILL (`reach.TRUNK_STILL_RATE`; or after `POSTURE_WAIT_S`): the
   currents' force assumes the arm still, and begun as the deepest bow
   stopped turning, the floor's reach read 492 N and stopped 6 cm short
-  (#520). Training's arms are SCRIPTED,
+  (#520). ⚠ A WITHDRAW IS OK ONCE ITS ARM IS HOME (`Reach.home`: the rest
+  commanded and read by its drivers), by the way `Reach.way_home` judges
+  on the same model: straight in joint space, an arm raised before its
+  shoulder came down on the counter's edge (#539). Training's arms are SCRIPTED,
   their gains the served arms' (`model.ARM_GAIN_SCALE`, through
   `humanoid.json`). `training/humanoid_train/g1_check.py` is rule 6's
   check: mjlab's stock G1 flown outside mjlab.

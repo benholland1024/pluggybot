@@ -5447,6 +5447,67 @@ set-out 0 (2.3 cm), both of which open, so no tolerance on the hand's place
 tells the cube's grip from theirs. Gripped shallower, 15-30 deg, so the
 tips clear the board, the reach stops short on it (2 of 15).
 
+## The way home (issue #539)
+
+`withdraw` brings a hand out along its way in (the reach's 8 cm line),
+then walks the arm home in joint space. Writing the Attempts page's guide
+(rooftop-media-2026 #441) found it wrong twice, flown in the session world
+(reach to (0.25, -0.30, 1.30), lift 10 cm, withdraw):
+
+- *It said home before the arm was.* It returned as the walk home began,
+  at 4.47 s; the arm was home (each joint within 0.02 rad of its rest, by
+  the sim) at 7.24 s, the next verb or the grader's hold under way
+  meanwhile. It waits for `Reach.home` now -- the rest commanded and every
+  joint read within `HOME_RAD` by its driver -- and returns at 7.56 s, the
+  arm home at 7.57; `withdraw` is ok only then, else says why.
+- *Straight home, a jaw came down on the counter's front edge* (0.28 m
+  ahead, 0.72 m up) and rested there 1.3 s, at chests 0 and 63; at 36 it
+  brushed it. The arm was raised before its shoulder and out to its side,
+  and one joint-space line home swept the hand down in front.
+
+Every way home tried was scored on the robot's own drawing at the stand,
+over 125 starts: the reach's pre-grasp for a grip on a grid 0.25-0.55 m
+ahead, 0.45 m right to 0.15 m left and 0.8-1.4 m up, at three turns, the
+right arm. Against a 0.72 m counter whose edge is 0.28 m ahead (from the 30
+starts over it), a 0.90 m one (26), and a shelf 10 cm under the hand with
+its edge 8 cm behind it (30):
+
+| the way home, from the line's end | into the 0.72 m | the 0.90 m | the shelf |
+|---|---|---|---|
+| straight in joint space (before) | 25, 4.7 cm deep | 23, 13.8 cm | 30, 26.7 cm |
+| a line back over the toes at its height, then straight | 12 | 12 | 21 |
+| the elbow folded first, then the shoulder, then the elbow | 30, 1.2 cm | 26 | 30 |
+| lines back, across to its side and down, then straight | 0 | 0 | 12 |
+| the arm rolled out as the rest come home, then lowered | 0 | 5 | 22 |
+| **rolled out first, the rest home, then lowered (the side way)** | **0** | **0** | **9**, 8.5 cm |
+
+- *Lines home through Cartesian space cannot be solved position-only.*
+  From 8 of the 125 starts the solve along them jammed at a joint's limit
+  (25 cm off its line) or jumped half a metre in a command; holding the
+  grip's turn on them, it missed by over 2 cm from 72 of 77 starts on a
+  coarser grid. A joint-space walk has neither failure.
+- *Rolled out first, the arm cannot come down in front.* Held out at 1.3
+  rad (`HOME_ROLL`) its elbow stays within 6 cm of its shoulder's height
+  while its other joints come home, so its hand is no lower than a forearm
+  under it;
+  then only its roll turns, and lowered at its side the arm reaches 9 cm
+  ahead of the soles' middle, behind any counter the robot stands before.
+  Rolled out WHILE the rest came home, the hand dipped before it was out.
+- *It is a detour, so it is taken only where straight would dip*
+  (`Reach.way_home`): judged on the same drawing as the robot stands,
+  straight home unless some part of the arm goes more than `HOME_DIP_M`
+  under the lowest of it now while ahead of its toes -- where whatever the
+  hand worked over is. All of the 125 starts but one, a hand close in,
+  took the side way: 3.2 s home (at most 4.2) where straight took 1.3.
+- Flown again, the issue's procedure and the robot's own wave touch
+  neither the counter nor the chest at chests 0, 36 and 63, and every
+  `withdraw` is ok.
+
+⚠ The side way assumes the space at the robot's side is clear, as
+straight assumed the space under the hand was: its hand goes out to 0.74 m
+from the body's middle, 1.0-1.1 m up. Nothing checks either against the
+depth picture, which does not see beside the robot.
+
 ## Debugging workflow that worked
 
 1. Reproduce headlessly with printed telemetry (pose, joint rates, contact
