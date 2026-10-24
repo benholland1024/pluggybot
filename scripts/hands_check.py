@@ -10,6 +10,10 @@ hold, one verdict.
 
   --job J[,J,..]       lid, drawer, door, place (default: all four)
   --set-outs A-B|A,..  the set-outs (default: the check's, 0-7)
+  --held-out N         N set-outs nobody has flown instead, by the frozen
+                       build's seed (`attempts.seed_of`; a dirty tree is
+                       refused), or `--seed`: a reference over a practice's
+                       held-out set-outs (#535)
   --jobs N             flights in parallel, each in a process of its own
   --into DIR           the record: rows.jsonl, one row a flight
   --read DIR           a kept record: each job's passes against the bar, and
@@ -48,6 +52,7 @@ from pluggybot.evaluation import attempts as at  # noqa: E402
 from pluggybot.evaluation import counter as ct  # noqa: E402
 from pluggybot.evaluation import hands_check as hc  # noqa: E402
 from pluggybot.evaluation import practice as ep  # noqa: E402
+from pluggybot.evaluation import qualities as q  # noqa: E402
 
 from attempts import ViewerClosed, _pace, build, chests, run_pool  # noqa: E402
 
@@ -84,6 +89,18 @@ def report(rows: list[dict]) -> None:
     word = {True: "MET", False: "NOT MET", None: "not every set-out flown"}[t["met"]]
     print(f"  {job:>6}: passed {len(t['passed'])} of {len(t['flown'])} "
           f"({', '.join(map(str, t['passed'])) or 'none'}) -- {word}")
+  for job in hc.JOBS:
+    mine = [r for r in rows if r["task"].get("grader") == job]
+    got = q.share_interval([r["verdict"]["ok"] if "verdict" in r else None for r in mine])
+    if got is None:
+      continue
+    took = sorted(r["simS"] for r in mine if "verdict" in r and r["verdict"]["ok"])
+    seeds = sorted({str((r.get("run") or {}).get("seed")) for r in mine if r["task"]["chest"]
+                    >= at.HELD_OUT_FROM})
+    print(f"  {job:>6}, every set-out flown: passed {got['k']} of {got['n']} "
+          f"[{got['lo']:.2f}, {got['hi']:.2f}]"
+          + (f", held out by seed {', '.join(seeds)}" if seeds else "")
+          + (f"; its passes took {took[0]:.2f}-{took[-1]:.2f} sim s" if took else ""))
   errors = [r for r in rows if "error" in r]
   if errors:
     print(f"  {len(errors)} flights raised: no verdict, no try")
@@ -206,6 +223,8 @@ def main(argv=None) -> None:
                                formatter_class=argparse.RawDescriptionHelpFormatter)
   ap.add_argument("--job", default=",".join(hc.JOBS))
   ap.add_argument("--set-outs", default=f"{hc.SET_OUTS[0]}-{hc.SET_OUTS[-1]}")
+  ap.add_argument("--held-out", type=int, default=None, metavar="N")
+  ap.add_argument("--seed", type=int, default=None)
   ap.add_argument("--jobs", type=int, default=1)
   ap.add_argument("--into", default=None)
   ap.add_argument("--read", default=None, metavar="DIR")
@@ -233,7 +252,14 @@ def main(argv=None) -> None:
   if bad:
     ap.error(f"no job {', '.join(bad)}: {', '.join(hc.JOBS)}")
   info = build()
-  todo = [(j, k, info) for j in names for k in chests(args.set_outs)]
+  ks = chests(args.set_outs)
+  if args.held_out is not None:
+    if info["dirty"] and args.seed is None:
+      ap.error("a held-out draw is a frozen build's: commit the tree first (or name --seed)")
+    info["seed"] = args.seed if args.seed is not None else at.seed_of(info["commit"])
+    ks = at.held_out(info["seed"], args.held_out)
+    print(f"held out: {args.held_out} set-outs by seed {info['seed']}: {ks}")
+  todo = [(j, k, info) for j in names for k in ks]
   if args.into:
     Path(args.into).mkdir(parents=True, exist_ok=True)
   rows = run_pool(fly, todo, args.jobs)

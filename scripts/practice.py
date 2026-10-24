@@ -12,6 +12,9 @@ Two protocols (Evaluation.md §4):
   chests running at their first try or has practiced `--max-chests`; then
   each held-out chest gets a copy of it, frozen, and the bar is read there.
 
+  --job J              lid (the chest's, default) or door (the cupboard's,
+                       #535): its job text, its time limit and its grader,
+                       and nothing else changed (`evaluation.practice.JOBS`)
   --chests A-B|A,B,..  the chests (default 0-31: the public set-outs)
   --held-out N         N chests nobody has flown instead, by the frozen
                        build's seed (`attempts.seed_of`; a dirty tree is
@@ -23,6 +26,10 @@ Two protocols (Evaluation.md §4):
                        after G chests (6)
   --kept FILE          KEPT: the held-out chests flown with what a record
                        kept (its kept.json), no practice first
+  --keep-again DIR     a KEPT record's kept.json made again off its own rows
+                       by today's `keep`, into --into's kept.json, its
+                       practice's record unchanged: what --kept then flies
+                       (#535: kept by the most chests passed)
   --notes              KEPT: the robot also carries notes and a draft of its
                        own from chest to chest (`Practice.carry`), written as
                        each practice chest ends, pass or fail
@@ -96,16 +103,18 @@ def fly(job: dict) -> list[dict]:
   from pluggybot.procedure.steps import hand_facts
   k, model, info, price = (job[n] for n in ("chest", "model", "info", "price"))
   facts = hand_facts(measure=job["measure"], step=job["step"])
-  task = at.Task(chest=k, body="humanoid", mount="counter")
-  mind = Practice(HFClient(timeout=READ_S, fetch=stream_fetch), model, facts, ep.job_for(task))
+  task = at.Task(chest=k, body="humanoid", mount="counter", grader=job["job"])
+  mind = Practice(HFClient(timeout=READ_S, fetch=stream_fetch), model, facts, ep.job_for(task),
+                  thing=ep.THINGS[job["job"]])
   skill = (f"{model}, the hands' vocabulary"
            + (", notes" if job["notes"] else "") + ("" if job["measure"] else ", no measure")
-           + ("" if job["step"] else ", no step"))
+           + ("" if job["step"] else ", no step")
+           + ("" if job["job"] == "lid" else f", the {job['job']}"))
   info = {**info, "skill": skill, "process": job["process"]}
   try:
     rows = ep.practice_on(k, mind, job["attempts"], library=Library(facts), kept=job["kept"],
                           carried=job["carried"], write_notes=job["write_notes"],
-                          picture=job["picture"], info=info)
+                          picture=job["picture"], info=info, job=job["job"])
   except Exception as e:
     traceback.print_exc()
     return [{"task": task.as_dict(), "attempt": len(mind.turns), "heldOut": task.held_out,
@@ -141,9 +150,11 @@ def read(into: str) -> None:
     if "practice" not in r:
       continue
     # #493's rows name their arm by its flags, #525's by their vocabulary
+    grader = r["task"].get("grader", "lid")
     words = ((r["run"].get("vocabulary") or ("the pull" if r["run"].get("pull") else "position"))
              + ("" if r["run"].get("measure", True) else ", no measure")
-             + ("" if r["run"].get("step", True) else ", no step"))
+             + ("" if r["run"].get("step", True) else ", no step")
+             + ("" if grader == "lid" else f", the {grader}"))
     key = (r["run"].get("model"), words, r.get("process"))
     regimes.setdefault(key, []).append(r)
   for (model, words, process), mine in regimes.items():
@@ -161,7 +172,8 @@ def read(into: str) -> None:
     print(f"THE PRACTICE FIRST: {k['practice']['ended']}; each chest's first pass, in turn: "
           + ", ".join(f"{c}: {f}" for c, f in k["practice"]["firsts"]))
     for e in k["kept"]:
-      print(f"  kept {e['name']}, passed chest {e['chest']} at its try {e['attempt']}")
+      print(f"  kept {e['name']}, passed " + ", ".join(
+        f"chest {c} at its try {a}" for c, a in e.get("passed") or [[e["chest"], e["attempt"]]]))
     carried = k["practice"].get("carried") or {}
     if carried.get("notes") or carried.get("draft"):
       print(f"  its notes at the end ({len(carried.get('notes', ''))} characters): "
@@ -174,9 +186,28 @@ def read(into: str) -> None:
           f"within {s['within']}, so {s['bar']:.0%} within {s['within']} is out of reach")
 
 
+def keep_again(record: str, into: str) -> dict:
+  """`record`'s kept.json made again off its own rows by today's `keep`,
+  its practice's record unchanged, written to `into`'s kept.json."""
+  rows = [json.loads(line) for line in open(Path(record) / "rows.jsonl")]
+  was = json.loads((Path(record) / "kept.json").read_text())
+  passes = [ep.pass_of(r, r["task"]["chest"]) for r in rows
+            if r.get("admitted") and r.get("process") == "acquire"]
+  kept, _ = ep.keep(passes)
+  for name, e in (("kept then", was["kept"]), ("kept now", kept)):
+    for k in e:
+      print(f"{name}: {k['name']}, passed " + ", ".join(
+        f"chest {c} at its try {a}" for c, a in k.get("passed") or [[k["chest"], k["attempt"]]]))
+  out = {"kept": kept, "practice": was["practice"], "keptAgainFrom": str(Path(record).resolve())}
+  Path(into).mkdir(parents=True, exist_ok=True)
+  (Path(into) / "kept.json").write_text(json.dumps(out, indent=1))
+  return out
+
+
 def main(argv=None) -> None:
   ap = argparse.ArgumentParser(description=__doc__,
                                formatter_class=argparse.RawDescriptionHelpFormatter)
+  ap.add_argument("--job", choices=sorted(ep.JOBS), default="lid")
   ap.add_argument("--chests", default="0-31")
   ap.add_argument("--held-out", type=int, default=None, metavar="N")
   ap.add_argument("--seed", type=int, default=None)
@@ -185,6 +216,7 @@ def main(argv=None) -> None:
   ap.add_argument("--max-chests", type=int, default=ep.MAX_CHESTS)
   ap.add_argument("--give-up-after", type=int, default=ep.GIVE_UP_AFTER)
   ap.add_argument("--kept", default=None, metavar="FILE")
+  ap.add_argument("--keep-again", default=None, metavar="DIR")
   ap.add_argument("--early-stop", action="store_true")
   ap.add_argument("--notes", action="store_true")
   ap.add_argument("--no-measure", action="store_true")
@@ -199,6 +231,11 @@ def main(argv=None) -> None:
   args = ap.parse_args(argv)
   if args.read:
     read(args.read)
+    return
+  if args.keep_again:
+    if not args.into:
+      ap.error("--keep-again writes its kept.json into --into")
+    keep_again(args.keep_again, args.into)
     return
   info = {"process": "practice"} | att.build()
   if args.held_out is not None:
@@ -227,7 +264,7 @@ def main(argv=None) -> None:
           f.write(json.dumps(r, default=str) + "\n")
 
   def job(k, kept, process, carried=None, write_notes=False, attempts=None):
-    return {"chest": k, "attempts": attempts or args.attempts,
+    return {"chest": k, "job": args.job, "attempts": attempts or args.attempts,
             "model": args.model, "picture": not args.no_picture, "info": dict(info),
             "price": price, "kept": kept, "process": process, "carried": carried,
             "write_notes": write_notes, "notes": args.notes, "measure": not args.no_measure,
