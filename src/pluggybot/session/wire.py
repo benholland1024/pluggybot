@@ -163,8 +163,9 @@ def attempt_message(row: dict, ran: dict | None, report: str, t: float,
 
 def hello_message(build: dict, task: dict, job: str, sections: list[tuple[str, str]],
                   index: dict, source_chars: int) -> dict:
-  """`index` is what `sections` list, as data (`mind.practice.vocabulary_
-  index`): what a page's guide for people is checked against."""
+  """`index` is what `sections` list, as data
+  (`mind.practice.vocabulary_index`): what a page's guide for people is
+  checked against."""
   return {"type": HELLO, "protocolVersion": PROTOCOL_VERSION, "build": build, "task": task,
           "job": job, "vocabulary": [{"heading": h, "text": t} for h, t in sections],
           "index": index, "sourceChars": source_chars}

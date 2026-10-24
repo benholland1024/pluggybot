@@ -315,7 +315,10 @@ def main(argv=None) -> None:
                   help=f"write the hello a fresh host says to PATH (default {HELLO_FIXTURE}, "
                        "the fixture the site vendors) and exit")
   args = ap.parse_args(argv)
-  if args.hello:
+  if args.hello is not None:
+    # `--hello ""` is no path, and never a way to start the host
+    if not args.hello:
+      ap.error("--hello takes a path, or none for the fixture's")
     with open(args.hello, "w") as f:
       f.write(hello_fixture())
     print(f"{args.hello}: the hello, {os.path.getsize(args.hello):,} bytes")
