@@ -12,6 +12,8 @@ second twice.
 
 import gzip
 import json
+import math
+import re
 import threading
 import time
 from pathlib import Path
@@ -24,8 +26,9 @@ from pluggybot.evaluation import attempts as at
 from pluggybot.evaluation import counter as ct
 from pluggybot.evaluation.practice import job_for
 from pluggybot.humanoid.body import HEAD_CAMERA
-from pluggybot.mind.practice import system_sections
+from pluggybot.mind.practice import MATH_TEXT, system_sections
 from pluggybot.procedure import lang
+from pluggybot.procedure.steps import language as verb_table
 from pluggybot.session import attempt as sa
 from pluggybot.session import host as sh
 from pluggybot.session import wire
@@ -636,6 +639,94 @@ def test_hello_says_what_the_robot_is_told():
   assert said["task"]["limitS"] == pytest.approx(sa.task_of(0).limit_s, abs=0.01)
   assert said["task"]["chests"] == [0, at.PUBLIC.stop - 1]
   assert said["protocolVersion"] == PROTOCOL_VERSION and said["running"] is None
+
+
+def _listed(text: str, head: str, upto: str | None) -> list[str]:
+  """The indented lines of the body's list under `head`, up to `upto`."""
+  block = text.split(f"\n{head}", 1)[1]
+  block = block.split(f"\n{upto}", 1)[0] if upto else block
+  return [ln[2:] for ln in block.splitlines()[1:] if ln.startswith("  ")]
+
+
+def test_the_hellos_index_lists_what_the_robots_text_lists():
+  """The index (rooftop-media-2026 #441: the page's guide for people is
+  checked against it) is the text's lists as data, read both ways: each
+  verb in the text's order, its arguments in order with their defaults and
+  its words; each sensor; each axis with its range and its pace; the hands,
+  the maths and the `if` a verb may test -- and nothing the text does not
+  list."""
+  said = sh.hello({"commit": "abc1234"}, None)
+  index, sections = said["index"], {v["heading"]: v["text"] for v in said["vocabulary"]}
+  body, grammar = sections["your body"], sections["the language"]
+  verbs = []
+  for line in _listed(body, "VERBS", "SENSORS"):
+    call, doc = line.split("  -- ", 1)
+    name, args = call[:-1].split("(", 1)
+    verbs.append({"verb": name, "doc": doc, "args": [
+      a.split("=")[0] for a in args.split(", ") if a]})
+  assert [{"verb": v["verb"], "doc": v["doc"], "args": [a["name"] for a in v["args"]]}
+          for v in index["verbs"]] == verbs
+  for v in index["verbs"]:
+    shown = {a.split("=")[0]: float(a.split("=")[1]) for a in
+             body.split(f"\n  {v['verb']}(", 1)[1].split(")", 1)[0].split(", ") if "=" in a}
+    assert {a["name"]: a["default"] for a in v["args"] if "default" in a} == shown, v["verb"]
+  assert [f"{s['name']} -- {s['doc']}" for s in index["sensors"]] == _listed(
+    body, "SENSORS", "AXES")
+  axes = [re.fullmatch(r"(\w+): (\S+)\.\.(\S+) (\w+) -- (.*)", ln).groups()
+          for ln in _listed(body, "AXES", None)]
+  assert [a["name"] for a in index["axes"]] == [a[0] for a in axes]
+  for a, (_, lo, hi, unit, doc) in zip(index["axes"], axes):
+    # the text prints six figures (`:g`)
+    assert (a["lo"], a["hi"], a["unit"], a["doc"]) == (
+      pytest.approx(float(lo), rel=1e-5), pytest.approx(float(hi), rel=1e-5), unit, doc)
+  # a range's -0 (the right shoulder's roll) is 0: a page writes -0 as "-0"
+  assert not [a["name"] for a in index["axes"] for v in (a["lo"], a["hi"])
+              if v == 0 and math.copysign(1.0, v) < 0]
+  slew = re.search(r"walked to\s+it at (\S+) rad/s", body)[1]
+  assert {a["speed"] for a in index["axes"]} == {float(slew)}
+  assert re.findall(r'"(\w+)"', re.search(r"Your hands are (.*?):", body)[1]) == index["hands"]
+  # the maths as the robot is told them, with how many numbers each takes
+  assert " ".join(MATH_TEXT.split()) in " ".join(grammar.split())
+  told = dict(re.findall(r"`(\w+)\(([^)]*)\)`", MATH_TEXT))
+  assert {f: len(a.split(", ")) for f, a in told.items()} == index["math"]
+  assert index["verbTests"] and "stand alone as the test of an `if`" in grammar
+  # what each argument is and the list it names are its verb's, and the
+  # index carries nothing more: no argument's bounds, which the robot meets
+  # only in a refusal
+  table = verb_table(sa.facts())
+  for v in index["verbs"]:
+    for arg in v["args"]:
+      spec = table[v["verb"]].args[arg["name"]]
+      assert (arg["kind"], arg.get("choices")) == (spec.kind, spec.choices), (v["verb"], arg)
+  assert set(index) == {"verbs", "sensors", "axes", "hands", "math", "verbTests"}
+  assert all(set(v) == {"verb", "doc", "args"} for v in index["verbs"])
+  assert all(set(a) <= {"name", "kind", "choices", "default"}
+             for v in index["verbs"] for a in v["args"])
+  assert all(set(s) == {"name", "doc"} for s in index["sensors"])
+  assert all(set(a) == {"name", "lo", "hi", "unit", "speed", "doc"} for a in index["axes"])
+
+
+def test_the_vendored_hello_is_what_a_fresh_host_says():
+  """The site vendors it (`fixtures/VENDORED.md`) and holds its guide for
+  people to it: stale the moment the job, the language or the body's
+  vocabulary moves."""
+  assert (PROTOCOL.parent / sh.HELLO_FIXTURE).read_text() == sh.hello_fixture(), \
+    "stale fixture: uv run python -m pluggybot.session.host --hello"
+
+
+def test_hello_writes_the_fixture_and_never_starts_the_host(tmp_path, monkeypatch):
+  """`--hello PATH` writes what a fresh host says and exits; `--hello ""`
+  is refused -- with an endpoint and the secret in its environment, as the
+  serving image has them, it fell through and served."""
+  def served(*a, **kw):
+    raise AssertionError("the host was started")
+  monkeypatch.setattr(sh, "serve", served)
+  monkeypatch.setenv(sh.ENDPOINT_ENV, "ws://localhost:1/api/pluggyworld/sessions/host")
+  monkeypatch.setenv(sh.SECRET_ENV, "s" * 32)
+  sh.main(["--hello", str(tmp_path / "hello.json")])
+  assert (tmp_path / "hello.json").read_text() == sh.hello_fixture()
+  with pytest.raises(SystemExit):
+    sh.main(["--hello", ""])
 
 
 def test_a_refused_job_builds_no_world(monkeypatch):

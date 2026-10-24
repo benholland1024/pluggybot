@@ -24,6 +24,7 @@ site's two words back (`run`, `cancel`):
   hello     on every connect: the build, the task, the job as the robot is
             told it, and the language and the body a procedure is written
             in -- the same text the robot's mind is given (`mind.practice`)
+            -- and its `index`, the names that text lists, as data
   refused   a run's procedure did not compile: every reason at once, and
             nothing built
   started   a run's world is being built, its stream about to open
@@ -161,10 +162,13 @@ def attempt_message(row: dict, ran: dict | None, report: str, t: float,
 
 
 def hello_message(build: dict, task: dict, job: str, sections: list[tuple[str, str]],
-                  source_chars: int) -> dict:
+                  index: dict, source_chars: int) -> dict:
+  """`index` is what `sections` list, as data
+  (`mind.practice.vocabulary_index`): what a page's guide for people is
+  checked against."""
   return {"type": HELLO, "protocolVersion": PROTOCOL_VERSION, "build": build, "task": task,
           "job": job, "vocabulary": [{"heading": h, "text": t} for h, t in sections],
-          "sourceChars": source_chars}
+          "index": index, "sourceChars": source_chars}
 
 
 def refused_message(session: str, attempt: int, reasons: list[str]) -> dict:
