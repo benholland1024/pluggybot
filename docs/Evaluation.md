@@ -1000,8 +1000,10 @@ internals. Its rules:
 - **the call is wherever the skill ended, or its budget did** (`cut`): the
   budget is the job's own time limit, the task's (`attempts.LIMIT_S`: the
   quadruped's 300 sim-s, the humanoid's 68, three times its reference's
-  slowest pass; a job's own where it has one, `JOB_LIMIT_S`: the door's
-  107, #535), and
+  slowest pass at `0f98e24`; a job's own where it has one, `JOB_LIMIT_S`:
+  the door's 107, three times our door procedure's at `70bf773`, #535). ⚠
+  Both stay as set though #539's `withdraw` waits for the arm home: on its
+  code those passes take up to 31.6 s and 55.7 s. And
   a cut attempt that failed says "out of time" first. Then the hold with
   the body held still, and one verdict through `scoring.evaluate`, graded
   and paid nothing. A fall is lost time and nothing more: the body's falls
@@ -1055,7 +1057,7 @@ agreeing every time, no fall: 17.7-22.5 sim-s a pass, the lid to 57.5-63.5
 deg and down at 0.34-0.68 rad/s at its fastest while open. The nine it misses are
 the body's reach, none its judgement: in five no grip's tilt follows the
 arc to 60 deg, in three no arc follows from the grip the reach could make,
-in one the hand ran out of reach a step up. Its slowest pass sets the
+in one the hand ran out of reach a step up. Its slowest pass set the
 humanoid task's time limit at three times it, 68 s (`attempts.LIMIT_S`;
 the quadruped's stays 300). ⚠ The generator's filter
 (`activity.chest.draw`: lids that shut by themselves from the probe's 1.2
@@ -1573,6 +1575,13 @@ chests:
   down by 25 s, the robot on the floor at the call and up again 5 s
   later. No verb said it fell in any of the 46 falling passes, so the
   rows cannot place each fall.
+- Most of fixA's falls were the old way home. Flown again from their kept
+  procedures on #539's, its 59 held-out tries (the most passes kept) pass
+  at the same 21 and fall 15 times, not 36; all 24 that no longer fall had
+  fallen after their last `withdraw` began. Within 3 and without a fall it
+  passes 16 of its 25 chests. The door arms gain nothing: at least 14 of
+  22 and 21 of 29 within 3, 8 and 0 without a fall (SimNotes, "The way
+  home").
 - So no fall, as a real robot would need, puts the door's best arm at
   0.41 and the lid's at 0.20-0.30 within 3. Whether a fall should fail a
   try is a rule for #534 to weigh; nothing here changes it.

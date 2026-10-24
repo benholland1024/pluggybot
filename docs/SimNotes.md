@@ -5450,27 +5450,32 @@ tips clear the board, the reach stops short on it (2 of 15).
 ## The way home (issue #539)
 
 `withdraw` brings a hand out along its way in (the reach's 8 cm line),
-then walks the arm home in joint space. Writing the Attempts page's guide
-(rooftop-media-2026 #441) found it wrong twice, flown in the session world
-(reach to (0.25, -0.30, 1.30), lift 10 cm, withdraw):
+then walks the arm home in joint space, and is ok once the arm is home.
+Writing the Attempts page's guide (rooftop-media-2026 #441) found it wrong
+twice, flown in the session world (reach to (0.25, -0.30, 1.30), lift 10
+cm, withdraw):
 
 - *It said home before the arm was.* It returned as the walk home began,
   at 4.47 s; the arm was home (each joint within 0.02 rad of its rest, by
   the sim) at 7.24 s, the next verb or the grader's hold under way
   meanwhile. It waits for `Reach.home` now -- the rest commanded and every
   joint read within `HOME_RAD` by its driver -- and returns at 7.56 s, the
-  arm home at 7.57; `withdraw` is ok only then, else says why.
+  arm home at 7.57; `withdraw` is ok only then, else says why. Begun in a
+  get-up, a release waits it out first (it spent its `RELEASE_S` on the arm
+  the fall had let go of, and said "held"), and a fall while its posture
+  comes back to the stand is "fell".
 - *Straight home, a jaw came down on the counter's front edge* (0.28 m
   ahead, 0.72 m up) and rested there 1.3 s, at chests 0 and 63; at 36 it
   brushed it. The arm was raised before its shoulder and out to its side,
   and one joint-space line home swept the hand down in front.
 
 Every way home tried was scored on the robot's own drawing at the stand,
-over 125 starts: the reach's pre-grasp for a grip on a grid 0.25-0.55 m
-ahead, 0.45 m right to 0.15 m left and 0.8-1.4 m up, at three turns, the
-right arm. Against a 0.72 m counter whose edge is 0.28 m ahead (from the 30
-starts over it), a 0.90 m one (26), and a shelf 10 cm under the hand with
-its edge 8 cm behind it (30):
+from the 125 starts the reach could plan of 540 asked: the pre-grasp for a
+grip on a grid 0.25-0.55 m ahead, 0.45 m right to 0.30 m left and 0.8-1.4
+m up, at three turns, the right arm, the stand's own posture (a bowed
+reach's are not measured). Against a 0.72 m counter whose edge is 0.28 m
+ahead (from the 30 starts over it), a 0.90 m one (26), and a shelf 10 cm
+under the hand with its edge 8 cm behind it (30):
 
 | the way home, from the line's end | into the 0.72 m | the 0.90 m | the shelf |
 |---|---|---|---|
@@ -5496,28 +5501,57 @@ its edge 8 cm behind it (30):
 - *It is a detour, so it is taken only where straight would dip*
   (`Reach.way_home`): judged on the same drawing as the robot stands,
   straight home unless some part of the arm goes more than `HOME_DIP_M`
-  under the lowest of it now while ahead of its toes -- where whatever the
-  hand worked over is. All of the 125 starts but one, a hand close in,
-  took the side way: 3.2 s home (at most 4.2) where straight took 1.3.
+  under the lowest of it now ahead of the robot's front -- where whatever
+  the hand worked over is -- and the side way only where it dips less. 124
+  of the 125 starts take it, a hand close in does not: 3.2 s home at
+  `JOINT_RATE` (at most 4.2) where straight took 1.3.
+- *The front is the toes, or the arm hanging at rest where that reaches
+  further* (`front`): every way home ends there. Posed as a reach's statue
+  the hanging grip is 0.8 cm past the toes, and judged from the toes alone
+  straight home tied the side way there and took it down onto the counter.
+- *An arm with none of it ahead of the front comes home straight*: it
+  worked over nothing there. Judged as though all under it were solid, the
+  capability check's drawer at set-out 3, pulled 17 cm out toward the
+  robot, took the side way, whose roll-out swept a jaw into the drawer's
+  face and pushed it 4 cm back in; straight, the hand drops 8 mm past the
+  front, under the open drawer. ⚠ So from over its head the arm swings
+  forward and down through whatever stands ahead: on the drawing, through a
+  0.72 m counter 0.28 m ahead.
 
-**Flown again:**
+**Flown again** on the rule as it stands, against `9357d53`:
 
-- The issue's procedure and the robot's own wave touch neither the
-  counter nor the chest at chests 0, 36 and 63, and every `withdraw` is
+- The issue's procedure and four more, and the guide's examples at its
+  chests, touch neither the counter nor the chest, and every `withdraw` is
   ok. The reference opener's verdicts are unchanged, 23 of the 32 public
-  chests, each pass 3.6-3.9 s longer: its release waits for the arm.
+  chests, each pass 3.0-4.1 s longer and chest 20's 9.1: its release waits
+  for the arm. Its slowest pass is 31.6 s, where 22.5 s set the humanoid's
+  limit (Evaluation.md §4).
 - *The practice's failed holds came from it* (#493's and #535's records,
   1,181 tries). Of the 30 a touch during the hold failed, 21 never
   withdrew -- the jaws still on the lid at the call -- and 9 had. Flown
   again from their kept procedures, all 9 fail as recorded on the old way
   home, a jaw back on the lid's handle in the hold, and 5 pass on this one.
+- *So did most of fixA's falls after its job* (#535's held-out tries,
+  flown again from their kept procedures). Its 59 tries pass at the same
+  21 and fall 15 times, not 36: all 24 that no longer fall had fallen after
+  their last `withdraw` began, and the 3 new are its caught knob (below).
+  Within 3 tries and without a fall it passes 16 of its 25 chests, not 6
+  (Evaluation.md §4, "A fall is lost time, never a verdict").
+- *The door arms lost a pass each* (their 117 held-out tries). doorB falls
+  in every try, its pull swinging the body; once it fell on its way home,
+  `withdraw` says so now, and the procedure stopped there. doorA's steps
+  back after its `withdraw`: begun while the arm was still on its way, the
+  step had dragged the hand off the open door, and now the arm comes home
+  first -- straight, as before -- and its jaw pushes the door from 63 to
+  43 deg.
 - The capability check (#525) is unchanged: the lid at 7 set-outs of 8,
-  the drawer 3, the door 6 (set-outs 3 and 4 trading a pass), the cube 3.
-  Its cube's last `withdraw` now says "held" at 3 set-outs: the procedure
-  steps in until the counter is 2-6 cm ahead of the soles' middle, where
-  the arm's own rest runs into it, and the jaw comes down on its edge. The
-  old walk home ended on the counter there too, or on the cube's mat, and
-  said ok.
+  the drawer 3, the door 6 (set-outs 3 and 4 trading a pass: its
+  procedure withdraws mid-job, and the reaches after begin from the arm
+  home), the cube 3, no falls. Its cube's last `withdraw` now says "held"
+  at 3 set-outs: the procedure steps in until the counter is 2-6 cm ahead
+  of the soles' middle, where the arm's own rest runs into it, and the jaw
+  comes down on its edge. The old walk home ended on the counter there
+  too, or on the cube's mat, and said ok.
 
 ⚠ The side way assumes the space at the robot's side is clear, as
 straight assumed the space under the hand was: its hand goes out to 0.74 m
