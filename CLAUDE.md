@@ -457,7 +457,11 @@ save a filmstrip PNG named after the script.
   turning with the lid, had no verb). ⚠ A HAND'S PATH IS ONE MOTION
   (`via` then `move_hand`): separate moves each took a posture of their
   own and carried the reference's own arc on 2 chests of 8. The
-  vocabulary is #525's (below).
+  vocabulary is #525's (below). ⚠ THE DOOR IS PRACTICED WITH NO NEW HELP
+  (#535; `practice.py --job door`): its own job text and time limit
+  (`practice.JOBS`, `attempts.JOB_LIMIT_S`) and the practice's texts naming
+  its cupboard (`Practice.thing`), nothing else -- a test pins the lid's
+  texts byte for byte.
 - **The hands' vocabulary is ONE, designed from how hands move** (#525;
   docs/Hands.md; `procedure/steps.py` `HANDS_VERBS`, `hand_facts`;
   `humanoid/reach.py` `Reach.pull`; `tests/test_force_move.py`): two kinds

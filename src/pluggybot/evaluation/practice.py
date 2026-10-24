@@ -1,8 +1,9 @@
 """Graded practice (issue #493, stages 2 and 3): a mind writes a procedure
-for the lid (`mind.practice`), the humanoid runs it from the set-out
-(`ProcedureLife`), the world grades the try through stage 1's door
-(`evaluation.attempts`), the mind is shown how it went and writes again --
-attempts 1 to `ATTEMPTS`, each graded and unpaid, a fresh set-out each.
+for a job (`mind.practice`) -- the lid, or the cupboard's door (#535) --
+the humanoid runs it from the set-out (`ProcedureLife`), the world grades
+the try through stage 1's door (`evaluation.attempts`), the mind is shown
+how it went and writes again -- attempts 1 to `ATTEMPTS`, each graded and
+unpaid, a fresh set-out each.
 
   ProcedureLife    what a procedure runs in inside an attempt: the body,
                    its model and data, the reports its verbs leave, no
@@ -14,7 +15,7 @@ attempts 1 to `ATTEMPTS`, each graded and unpaid, a fresh set-out each.
   keep             the procedures a robot carries to its next chest: under
                    each name, the one that passed the most chests
   out_of_reach     whether the bar can still be met (the flight's early stop)
-  JOB              the job as its grader measures it, never how
+  JOBS             each job as its grader measures it, never how
 
 Two protocols (Evaluation.md §4). FRESH: nothing carries from one chest to
 the next -- no library, no conversation -- so a chest's curve is its own
@@ -32,12 +33,13 @@ import math
 import time
 
 from pluggybot.activity import chest as ch
-from pluggybot.challenge import lid
+from pluggybot.activity import door as dr
+from pluggybot.challenge import door, lid
 from pluggybot.evaluation import attempts as at
 from pluggybot.procedure import lang
 from pluggybot.procedure.library import MAX_PROCEDURES
 from pluggybot.procedure.steps import WorldFacts
-from pluggybot.rack.tags import CHEST_TAG_IDS
+from pluggybot.rack.tags import CHEST_TAG_IDS, DOOR_TAG_IDS
 
 #: Attempts a chest, the most: stage 1's curve, S@1 to S@5.
 ATTEMPTS = 5
@@ -73,11 +75,34 @@ must be shut by then, and nothing of yours may touch the lid, its knob or its
 handle. A try may take {{limit:.0f}} s at most; a fall loses you the time it
 takes to get up."""
 
+#: The door's (#535), written before any mind flew it, as the lid's was:
+#: what stands in front of the robot -- its lever's tip the chest's knob,
+#: its own tag (`rack.tags.DOOR_TAG_IDS`) -- and its grader's criteria
+#: (`challenge/door.py`), and nothing of how.
+TIP_TAG = DOOR_TAG_IDS[0]
+TIP_MM = 2000 * dr.KNOB
+DOOR_JOB = f"""In front of you, on a counter, is a cupboard, its door shut. On the
+door's face is a lever, its tip a cube {TIP_MM:.0f} mm on a side, and the tip
+carries tag {TIP_TAG} on every face.
+
+Open the door -- at least {math.degrees(door.OPEN_RAD):.0f} degrees from shut -- and let go of
+it. The world grades the job when your procedure ends and again
+{door.HOLD_S:.0f} s later: the door must be open at least {math.degrees(door.OPEN_RAD):.0f} degrees both
+times, and between them nothing of yours may touch the door, its lever or
+the lever's tip. A try may take {{limit:.0f}} s at most; a fall loses you
+the time it takes to get up."""
+
+#: The jobs a practice flies, by their graders' names (`attempts.GRADERS`),
+#: and what its texts call the thing a robot stands at (`Practice.thing`):
+#: the job's own word for it.
+JOBS = {"lid": JOB, "door": DOOR_JOB}
+THINGS = {"lid": "box", "door": "cupboard"}
+
 
 def job_for(task: at.Task) -> str:
-  """The job as the mind is told it at `task`'s set-out: its time limit the
-  task's own (`Task.limit_s`)."""
-  return JOB.format(limit=task.limit_s)
+  """The job as the mind is told it at `task`'s set-out (`JOBS`, its
+  grader's): its time limit the task's own (`Task.limit_s`)."""
+  return JOBS[task.grader].format(limit=task.limit_s)
 
 
 class ProcedureLife:
@@ -150,10 +175,11 @@ def head_picture(task: at.Task) -> bytes:
 def practice_on(chest: int, practice, attempts: int = ATTEMPTS, *, library=None,
                 kept=(), carried: dict | None = None, write_notes: bool = False,
                 picture: bool = True, budget_s: float | None = None,
-                info: dict | None = None, build=at.set_out) -> list[dict]:
-  """One chest: the mind's procedure tried from the set-out, graded, and
-  shown back (`mind.practice.report_text`), up to `attempts` times, ending
-  at the first pass -- which `library` ADMITS on its sealed verdict
+                info: dict | None = None, build=at.set_out, job: str = "lid") -> list[dict]:
+  """One chest -- set-out `chest` of `job` (`JOBS`): the mind's procedure
+  tried from the set-out, graded, and shown back
+  (`mind.practice.report_text`), up to `attempts` times, ending at the
+  first pass -- which `library` ADMITS on its sealed verdict
   (`Library.admit`). `kept`, the procedures the robot carries (`keep`), and
   `carried`, its notes and draft, are shown with the job; with
   `write_notes` the mind writes what it carries on as the chest ends
@@ -162,7 +188,7 @@ def practice_on(chest: int, practice, attempts: int = ATTEMPTS, *, library=None,
   procedure it ran, the answers it took and what they cost. `build` makes a
   set-out (`attempts.attempt`'s: a test's own world)."""
   from pluggybot.mind.practice import report_text
-  task = at.Task(chest=chest, body="humanoid", mount="counter")
+  task = at.Task(chest=chest, body="humanoid", mount="counter", grader=job)
   limit = task.limit_s if budget_s is None else float(budget_s)
   # ⚠ THE MIND IS TOLD THE LIMIT IT IS CUT AT: told 300 s and cut at 67,
   # a flight was flown and thrown away

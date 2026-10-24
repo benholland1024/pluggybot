@@ -12,6 +12,9 @@ Two protocols (Evaluation.md §4):
   chests running at their first try or has practiced `--max-chests`; then
   each held-out chest gets a copy of it, frozen, and the bar is read there.
 
+  --job J              lid (the chest's, default) or door (the cupboard's,
+                       #535): its job text, its time limit and its grader,
+                       and nothing else changed (`evaluation.practice.JOBS`)
   --chests A-B|A,B,..  the chests (default 0-31: the public set-outs)
   --held-out N         N chests nobody has flown instead, by the frozen
                        build's seed (`attempts.seed_of`; a dirty tree is
@@ -100,16 +103,18 @@ def fly(job: dict) -> list[dict]:
   from pluggybot.procedure.steps import hand_facts
   k, model, info, price = (job[n] for n in ("chest", "model", "info", "price"))
   facts = hand_facts(measure=job["measure"], step=job["step"])
-  task = at.Task(chest=k, body="humanoid", mount="counter")
-  mind = Practice(HFClient(timeout=READ_S, fetch=stream_fetch), model, facts, ep.job_for(task))
+  task = at.Task(chest=k, body="humanoid", mount="counter", grader=job["job"])
+  mind = Practice(HFClient(timeout=READ_S, fetch=stream_fetch), model, facts, ep.job_for(task),
+                  thing=ep.THINGS[job["job"]])
   skill = (f"{model}, the hands' vocabulary"
            + (", notes" if job["notes"] else "") + ("" if job["measure"] else ", no measure")
-           + ("" if job["step"] else ", no step"))
+           + ("" if job["step"] else ", no step")
+           + ("" if job["job"] == "lid" else f", the {job['job']}"))
   info = {**info, "skill": skill, "process": job["process"]}
   try:
     rows = ep.practice_on(k, mind, job["attempts"], library=Library(facts), kept=job["kept"],
                           carried=job["carried"], write_notes=job["write_notes"],
-                          picture=job["picture"], info=info)
+                          picture=job["picture"], info=info, job=job["job"])
   except Exception as e:
     traceback.print_exc()
     return [{"task": task.as_dict(), "attempt": len(mind.turns), "heldOut": task.held_out,
@@ -145,9 +150,11 @@ def read(into: str) -> None:
     if "practice" not in r:
       continue
     # #493's rows name their arm by its flags, #525's by their vocabulary
+    grader = r["task"].get("grader", "lid")
     words = ((r["run"].get("vocabulary") or ("the pull" if r["run"].get("pull") else "position"))
              + ("" if r["run"].get("measure", True) else ", no measure")
-             + ("" if r["run"].get("step", True) else ", no step"))
+             + ("" if r["run"].get("step", True) else ", no step")
+             + ("" if grader == "lid" else f", the {grader}"))
     key = (r["run"].get("model"), words, r.get("process"))
     regimes.setdefault(key, []).append(r)
   for (model, words, process), mine in regimes.items():
@@ -200,6 +207,7 @@ def keep_again(record: str, into: str) -> dict:
 def main(argv=None) -> None:
   ap = argparse.ArgumentParser(description=__doc__,
                                formatter_class=argparse.RawDescriptionHelpFormatter)
+  ap.add_argument("--job", choices=sorted(ep.JOBS), default="lid")
   ap.add_argument("--chests", default="0-31")
   ap.add_argument("--held-out", type=int, default=None, metavar="N")
   ap.add_argument("--seed", type=int, default=None)
@@ -256,7 +264,7 @@ def main(argv=None) -> None:
           f.write(json.dumps(r, default=str) + "\n")
 
   def job(k, kept, process, carried=None, write_notes=False, attempts=None):
-    return {"chest": k, "attempts": attempts or args.attempts,
+    return {"chest": k, "job": args.job, "attempts": attempts or args.attempts,
             "model": args.model, "picture": not args.no_picture, "info": dict(info),
             "price": price, "kept": kept, "process": process, "carried": carried,
             "write_notes": write_notes, "notes": args.notes, "measure": not args.no_measure,

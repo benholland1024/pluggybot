@@ -14,6 +14,7 @@ import math
 import re
 from types import SimpleNamespace as NS
 
+import mujoco
 import numpy as np
 import pytest
 
@@ -1048,6 +1049,102 @@ def test_the_practice_first_carries_the_notes_from_chest_to_chest():
   _, how = ep.acquire(run_chest, range(3), give_up_after=3)
   assert [g["notes"] for g in got] == ["", "after 0", "after 1"]
   assert how["carried"]["notes"] == "after 2"
+
+
+# ---- the door, learned with no new help (#535) -------------------------------------
+
+
+def stub_door_world(task):
+  """A door's set-out on the stub body (`attempts.set_out`'s shape): the
+  cupboard on a bare floor, its latch sensing every step."""
+  from pluggybot.activity import door as dr
+  from pluggybot.evaluation import attempts as at
+  from test_lid import BARE
+  spec = mujoco.MjSpec.from_string(BARE)
+  dr.attach_cupboard(spec, dr.draw(task.chest), (0.0, 0.0), tags=False)
+  model = spec.compile()
+  data = mujoco.MjData(model)
+  mujoco.mj_forward(model, data)
+  body = StubBody(model, data)
+  door = dr.Door(model, data, dr.draw(task.chest))
+  body.step_hooks.append(lambda: door.sense(model, data))
+  return at.World(task=task, model=model, data=data, body=body, chest=None,
+                  start=(0.0, 0.0, 0.0), activity=door)
+
+
+#: The lid's practice texts as #493 flew them: the door's practice may change
+#: the job and the thing's name, and nothing of the lid's (#535).
+LID_NOTES_ASK = """THIS BOX IS DONE: {how}. Your next box is another like it, and
+you will start it as you started this one, with nothing of this
+conversation but what you carry. Write what you will carry: "notes" -- what
+worked, what did not, what you would try next, at most {cap} characters,
+keeping what still holds from any notes you were given -- and "draft": the
+procedure you would start the next box from, the whole of it, or "" for
+none. A procedure that passed is in your library already."""
+LID_SHOWN = ("YOUR LIBRARY\n\nProcedures you kept, each because the world graded a try of it a "
+             "pass on a box like this one:\n\nopener -- passed box 7 on its try 2:\n"
+             "def opener():\n    wait(1)\n\nYOUR NOTES, written after your last box:\n\nn\n\n\n"
+             "YOUR DRAFT, the procedure you meant to start this box from (it never passed):\n\n"
+             "def d():\n    wait(1)\n\nTHE JOB\n\n")
+
+
+def _asked(mind) -> str:
+  return "\n".join(m["content"] for kw in mind.asked for m in kw["messages"]
+                   if m["role"] == "user" and isinstance(m["content"], str))
+
+
+def test_the_door_is_practiced_on_its_own_job_and_nothing_else_changes():
+  """#535's stage 2, the door learned with no new help: its practice is the
+  lid's but for the job -- the door's text, its time limit and its grader
+  -- and what the texts call the thing the robot stands at; the lid's
+  texts are as #493 flew them, byte for byte."""
+  from pluggybot.evaluation import attempts as at
+  kept = [{"name": "opener", "source": "def opener():\n    wait(1)\n", "chest": 7, "attempt": 2}]
+  carried = {"notes": "n", "draft": "def d():\n    wait(1)\n"}
+  task = at.Task(chest=0, body="humanoid", mount="counter", grader="door")
+  job = ep.job_for(task)
+  mind = NotesMind('def a():\n    wait(1)\n')
+  pr = mp.Practice(mind, "a-mind", st.hand_facts(), job, thing=ep.THINGS["door"])
+  rows = ep.practice_on(0, pr, 1, kept=kept, carried=carried, write_notes=True, picture=False,
+                        build=stub_door_world, job="door")
+  # graded as a door, in its own time
+  assert rows[0]["task"]["grader"] == "door" and rows[0]["run"]["budgetS"] == task.limit_s
+  assert rows[0]["verdict"]["reason"].startswith("the door never opened")
+  # every word the mind was sent names the cupboard, never the lid's box
+  said = _asked(mind)
+  assert "a cupboard like this one" in said and "passed cupboard 7 on its try 2" in said
+  assert "your last cupboard" in said and "start this cupboard from" in said
+  assert "THIS CUPBOARD IS DONE: none of your tries passed" in said
+  assert not re.search(r"\b(box|lid|chest|knob)\b", said.lower())
+  # the lid's, as they were
+  lid = NotesMind('def a():\n    wait(1)\n')
+  pr = mp.Practice(lid, "a-mind", st.hand_facts(), ep.JOB.format(limit=30))
+  ep.practice_on(0, pr, 1, kept=kept, carried=carried, write_notes=True, picture=False,
+                 budget_s=30.0, build=lambda t: stub_world(t))
+  assert lid.asked[0]["messages"][0]["content"].startswith(LID_SHOWN)
+  assert lid.asked[-1]["messages"][-1]["content"] == LID_NOTES_ASK.format(
+    how="none of your tries passed", cap=mp.NOTES_CHARS)
+
+
+def test_the_doors_job_is_its_graders_and_names_no_way_to_do_it():
+  """Written before any mind flew it, as the lid's was: what stands there
+  and the criteria as `challenge/door.py` judges them -- 50 deg at the call
+  and the hold's end, nothing of the robot's on the door through the hold,
+  in its own time -- and no word of how."""
+  from pluggybot.challenge import door
+  from pluggybot.evaluation import attempts as at
+  task = at.Task(chest=0, body="humanoid", mount="counter", grader="door")
+  job = ep.job_for(task)
+  assert "cupboard" in job and "lever" in job and "26 mm" in job and "tag 55" in job
+  assert f"at least {math.degrees(door.OPEN_RAD):.0f} degrees" in job and "both\ntimes" in job
+  assert f"again\n{door.HOLD_S:.0f} s later" in job and f"{task.limit_s:.0f} s at most" in job
+  for word in ("press", "latch", "pull", "push", "hinge", "grip", "swing", "turn"):
+    assert not re.search(rf"\b{word}", job.lower()), word
+  # its time limit is its own; the lid's, the drawer's and the cube's stay
+  assert task.limit_s == at.JOB_LIMIT_S["door"] == 3 * at.DOOR_REFERENCE_S
+  for grader in ("lid", "drawer", "place"):
+    assert at.Task(chest=0, body="humanoid", mount="counter", grader=grader).limit_s == \
+      3 * at.REFERENCE_S
 
 
 def test_a_verb_an_if_tests_is_read_and_the_procedure_goes_on():

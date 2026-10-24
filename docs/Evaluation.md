@@ -1000,7 +1000,8 @@ internals. Its rules:
 - **the call is wherever the skill ended, or its budget did** (`cut`): the
   budget is the job's own time limit, the task's (`attempts.LIMIT_S`: the
   quadruped's 300 sim-s, the humanoid's 68, three times its reference's
-  slowest pass), and
+  slowest pass; a job's own where it has one, `JOB_LIMIT_S`: the door's
+  107, #535), and
   a cut attempt that failed says "out of time" first. Then the hold with
   the body held still, and one verdict through `scoring.evaluate`, graded
   and paid nothing. A fall is lost time and nothing more: the body's falls
@@ -1422,6 +1423,38 @@ pathdsm's settings otherwise:
 - **What it cannot show**: two arms a condition, and the two with the reply
   fixed went 22 of 29 and 0 of 7 on the same held-out chests -- which skill
   a conversation keeps decides as much as the vocabulary.
+
+**The yardstick made firm, then a task the path was not built on** (#535,
+for #534): does the procedure path learn a task it was not built on? Every
+comparison #534 makes is read against the lid's yardstick, so that first.
+- **A robot keeps the procedure that passed the most chests** under each
+  name, the newest of them among ties (`evaluation.practice.keep`), two
+  sources one procedure where the language reads them alike (`program`: by
+  their bytes, fixB's passes on chests 7 and 8 were two procedures, a last
+  newline apart, and the rule would have kept chest 14's again). Kept again
+  off their own rows (`practice.py --keep-again`), fixB keeps its chests
+  7-8 procedure, its step with it; and fixA its chests 9-10 procedure -- a
+  path laid by hand that lifts the lid from under its knob, the jaws never
+  closed -- over chest 15's, the gripped arc about `measure`'s hinge its
+  frozen copies flew 22 of 29 with.
+
+**The door, with no new help** (#535's stage 2): the vocabulary, the
+practice's prompt, its replies and its protocol as the yardstick's, and
+two things new. The door's job (`practice.DOOR_JOB`), written before any
+mind flew it, as the lid's was: what stands there -- a cupboard on the
+counter, its door, a lever whose tip is a 26 mm cube with tag 55 on every
+face -- and `challenge/door.py`'s criteria, and no word of how. And where
+the practice's texts named the box they name the cupboard
+(`Practice.thing`); the lid's are unchanged, byte for byte (a test pins
+them). `practice.py --job door` flies it.
+- **Its time limit, set before any mind flew it**: three times our door
+  procedure's slowest pass over its 32 public set-outs, as the lid's was off
+  the opener's -- 20 of 32 passed (`hands_check.py --job door --set-outs
+  0-31`, at `70bf773`), in 10.8-35.8 sim-s -- so 107 s
+  (`attempts.JOB_LIMIT_S`; the drawer's and the cube's keep the lid's 68).
+- **The head camera's first picture shows little of either**: the lid's
+  arms were shown a strip of the box's top at the frame's foot, the door's
+  are shown the cupboard's top corner; `spot` bows until it sees a tag.
 
 ## 5. What silently invalidates a number
 
