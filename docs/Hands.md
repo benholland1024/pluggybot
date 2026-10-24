@@ -215,6 +215,10 @@ gripper's 8 cm fingers, not a missing verb:
   (SimNotes, "Stepping toward the work"). Standing put it passed 3 of 8;
   stepping in, 4 of the draws written against and 3 fresh.
 
+The door's procedure flown over its 32 public set-outs passed 20, its
+slowest in 35.8 sim-s, which set the door's own time limit when a mind
+practiced it (#535; Evaluation.md §4, "The door, with no new help").
+
 **The props and their set-outs**, each placement's reason at its constant,
 are SimNotes' ("The force move", the checks' props).
 

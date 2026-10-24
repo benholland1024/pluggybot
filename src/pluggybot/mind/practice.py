@@ -155,13 +155,15 @@ def system_prompt(facts: WorldFacts) -> str:
 #: What the robot carries to its next chest (#493, Ben, 2026-10-18: what a
 #: person takes from a failed attempt): its notes, at most this long --
 #: asked again once past it, then cut and said so -- and a draft procedure.
+#: The thing it stands at is the job's word for it (`Practice.thing`: the
+#: lid's "box", #535).
 NOTES_CHARS = 1500
-NOTES_ASK = """THIS BOX IS DONE: {how}. Your next box is another like it, and
+NOTES_ASK = """THIS {THING} IS DONE: {how}. Your next {thing} is another like it, and
 you will start it as you started this one, with nothing of this
 conversation but what you carry. Write what you will carry: "notes" -- what
 worked, what did not, what you would try next, at most {cap} characters,
 keeping what still holds from any notes you were given -- and "draft": the
-procedure you would start the next box from, the whole of it, or "" for
+procedure you would start the next {thing} from, the whole of it, or "" for
 none. A procedure that passed is in your library already."""
 
 
@@ -177,15 +179,15 @@ def notes_schema() -> dict:
           "required": ["think", "notes", "draft"], "additionalProperties": False}
 
 
-def carried_text(carried: dict) -> str:
-  """What the robot is shown of what it carried from its last chest: its
-  own notes and its draft, both its own words."""
+def carried_text(carried: dict, thing: str = "box") -> str:
+  """What the robot is shown of what it carried from its last chest -- its
+  last `thing` -- its own notes and its draft, both its own words."""
   out = []
   if carried.get("notes"):
-    out += ["YOUR NOTES, written after your last box:", "", carried["notes"].rstrip()]
+    out += [f"YOUR NOTES, written after your last {thing}:", "", carried["notes"].rstrip()]
   if carried.get("draft"):
     out += (["", ""] if out else []) + [
-      "YOUR DRAFT, the procedure you meant to start this box from (it never passed):",
+      f"YOUR DRAFT, the procedure you meant to start this {thing} from (it never passed):",
       "", carried["draft"].rstrip()]
   return "\n".join(out)
 
@@ -216,15 +218,15 @@ def extract(response, key: str = "source") -> dict:
   return raw
 
 
-def library_text(kept) -> str:
+def library_text(kept, thing: str = "box") -> str:
   """What the robot is shown of the procedures it KEPT (#493): each, the
-  box and the try whose pass admitted it, and its source -- a pass the
+  `thing` and the try whose pass admitted it, and its source -- a pass the
   world graded, never a word of how it did."""
   lines = ["YOUR LIBRARY", "",
            "Procedures you kept, each because the world graded a try of it a pass on "
-           "a box like this one:"]
+           f"a {thing} like this one:"]
   for k in kept:
-    lines += ["", f"{k['name']} -- passed box {k['chest']} on its try {k['attempt']}:",
+    lines += ["", f"{k['name']} -- passed {thing} {k['chest']} on its try {k['attempt']}:",
               k["source"].rstrip()]
   return "\n".join(lines)
 
@@ -263,12 +265,16 @@ class Turn:
 
 class Practice:
   """The conversation (the module docstring). `client` is the overseer's
-  seam: anything with `.messages.create(**kwargs)` (`mind.llm`)."""
+  seam: anything with `.messages.create(**kwargs)` (`mind.llm`); `thing`
+  is what its texts call the thing the robot stands at, the job's own word
+  (#535: the lid's "box", the door's "cupboard")."""
 
   def __init__(self, client, model: str, facts: WorldFacts, job: str,
                backend: str = "huggingface", max_tokens: int = MAX_TOKENS,
-               retry_wait_s: float = RETRY_WAIT_S, rate_wait_s: float = RATE_WAIT_S) -> None:
+               retry_wait_s: float = RETRY_WAIT_S, rate_wait_s: float = RATE_WAIT_S,
+               thing: str = "box") -> None:
     self.client, self.model_id, self.facts, self.job = client, model, facts, job
+    self.thing = thing
     self.backend, self.max_tokens = backend, max_tokens
     self.retry_wait_s, self.rate_wait_s = retry_wait_s, rate_wait_s
     self.messages: list[dict] = []
@@ -346,9 +352,9 @@ class Practice:
             "now. Write the procedure for your first try.") if picture is not None else \
       f"THE JOB\n\n{self.job}\n\nWrite the procedure for your first try."
     if carried and (carried.get("notes") or carried.get("draft")):
-      text = f"{carried_text(carried)}\n\n{text}"
+      text = f"{carried_text(carried, self.thing)}\n\n{text}"
     if kept:
-      text = f"{library_text(kept)}\n\n{text}"
+      text = f"{library_text(kept, self.thing)}\n\n{text}"
     if picture is None:
       content = text
     else:
@@ -363,8 +369,8 @@ class Practice:
     said so -- and the answer's turn. Nothing where no answer came."""
     how = (f"it passed on your try {passed_at}" if passed_at
            else "none of your tries passed")
-    turn = self._settled(self._ask("notes", NOTES_ASK.format(how=how, cap=NOTES_CHARS),
-                                   notes=True))
+    turn = self._settled(self._ask("notes", NOTES_ASK.format(
+      how=how, cap=NOTES_CHARS, thing=self.thing, THING=self.thing.upper()), notes=True))
     if turn.answer is not None and len(str(turn.answer.get("notes") or "").strip()) > NOTES_CHARS:
       # asked again once, as a refused source is: cut, a smoke run's notes
       # lost their end -- what it meant to try next

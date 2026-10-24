@@ -14,6 +14,7 @@ import math
 import re
 from types import SimpleNamespace as NS
 
+import mujoco
 import numpy as np
 import pytest
 
@@ -718,15 +719,70 @@ def test_an_answer_cut_off_is_asked_again_saying_so():
   assert "128,000 tokens" in prompt and "64,000" in prompt
 
 
-def test_what_passed_is_kept_the_newest_last_and_the_oldest_goes_when_full():
-  kept, dropped = ep.keep([], "a", "A", 3, 2)
-  assert kept == [{"name": "a", "source": "A", "chest": 3, "attempt": 2}] and dropped is None
-  kept, _ = ep.keep(kept, "b", "B", 4, 1)
-  kept, dropped = ep.keep(kept, "a", "A2", 5, 1)
-  assert [k["name"] for k in kept] == ["b", "a"] and kept[-1]["source"] == "A2"
+def _pass(name, source, chest, attempt):
+  return {"name": name, "source": source, "chest": chest, "attempt": attempt}
+
+
+def _box(*lines, end="\n"):
+  return "def open_box():\n" + "\n".join(f"    {line}" for line in lines) + end
+
+
+def test_a_robot_keeps_what_passed_the_most_chests_not_its_newest_pass():
+  """#535, fixB's practice (#493's stage B): seven passes under one name,
+  the first six stepping 6 cm right before the reach, the seventh, on
+  chest 14, without the step -- kept as the newest, it was what every
+  held-out copy started from, and 0 of 7 passed. Its passes on chests 7 and
+  8 were ONE program, the second without the first's last newline: kept by
+  the chests passed, that one stays, its step with it."""
+  up = 'pull("left", 0, 0, 1, 60, {}, speed=0.05)'
+  stepped = ["spot(53)", "step(0, -0.06)", 'reach("left", 0.36, 0.17, 0.82)']
+  passes = [_pass("open_box", _box(*stepped, up.format(d)), c, a)
+            for d, c, a in ((0.28, 1, 9), (0.03, 3, 2), (0.04, 5, 2))]
+  twice = _box(*stepped, up.format(0.05), 'pull("left", -0.5, 0, -0.866, 12, 0.02)')
+  passes += [_pass("open_box", twice, 7, 1), _pass("open_box", twice.rstrip("\n"), 8, 1),
+             _pass("open_box", _box(*stepped, up.format(0.06)), 10, 5),
+             _pass("open_box", _box("spot(53)", 'reach("left", 0.37, 0.16, 0.81)', up.format(0.025)),
+                   14, 4)]
+  kept, dropped = ep.keep(passes)
+  assert kept == [{"name": "open_box", "source": twice.rstrip("\n"), "chest": 8, "attempt": 1,
+                   "passed": [[7, 1], [8, 1]]}] and dropped is None
+  assert "step(0, -0.06)" in kept[0]["source"]
+
+
+def test_the_most_passes_wins_under_a_name_the_newest_among_ties_and_the_oldest_name_goes():
+  a, b = "def a():\n    wait(1)\n", "def a():\n    wait(2)\n"
+  a_again = "def a():\n\n    wait(1)    # once more\n"
+  kept, dropped = ep.keep([_pass("a", a, 3, 2)])
+  assert kept == [{"name": "a", "source": a, "chest": 3, "attempt": 2, "passed": [[3, 2]]}]
   assert dropped is None
-  kept, dropped = ep.keep(kept, "c", "C", 6, 1, cap=2)
+  # a pass each: the newest
+  passes = [_pass("a", a, 3, 2), _pass("a", b, 4, 1)]
+  assert ep.keep(passes)[0][0]["source"] == b
+  # its first program again, laid out and commented otherwise, is one
+  # program twice -- counted from before the second took its place -- and
+  # carried as its newest text
+  passes.append(_pass("a", a_again, 5, 1))
+  kept, _ = ep.keep(passes)
+  assert kept[0]["source"] == a_again and kept[0]["passed"] == [[3, 2], [5, 1]]
+  # ...kept over a newer program passing once
+  passes.append(_pass("a", "def a():\n    wait(5)\n", 6, 1))
+  assert ep.keep(passes)[0][0]["source"] == a_again
+  # ...and a tie of two again goes to the newest
+  passes.append(_pass("a", b, 7, 1))
+  assert ep.keep(passes)[0][0]["passed"] == [[4, 1], [7, 1]]
+  # names in the order they last passed; past the cap the oldest goes
+  passes.append(_pass("b", "def b():\n    wait(3)\n", 8, 1))
+  kept, dropped = ep.keep(passes)
+  assert [k["name"] for k in kept] == ["a", "b"] and dropped is None
+  assert [k["name"] for k in ep.keep(passes, cap=3)[0]] == ["a", "b"]
+  passes.append(_pass("a", b, 9, 2))
+  kept, dropped = ep.keep(passes, cap=2)
+  assert [k["name"] for k in kept] == ["b", "a"] and dropped is None
+  passes.append(_pass("c", "def c():\n    wait(4)\n", 10, 1))
+  kept, dropped = ep.keep(passes, cap=2)
   assert [k["name"] for k in kept] == ["a", "c"] and dropped == "b"
+  # one the language cannot read is its own text
+  assert ep.program("def (") == "def (" and ep.program(a) == ep.program(a_again)
 
 
 def test_the_bar_is_out_of_reach_once_more_chests_failed_within_its_tries_than_it_allows():
@@ -993,6 +1049,102 @@ def test_the_practice_first_carries_the_notes_from_chest_to_chest():
   _, how = ep.acquire(run_chest, range(3), give_up_after=3)
   assert [g["notes"] for g in got] == ["", "after 0", "after 1"]
   assert how["carried"]["notes"] == "after 2"
+
+
+# ---- the door, learned with no new help (#535) -------------------------------------
+
+
+def stub_door_world(task):
+  """A door's set-out on the stub body (`attempts.set_out`'s shape): the
+  cupboard on a bare floor, its latch sensing every step."""
+  from pluggybot.activity import door as dr
+  from pluggybot.evaluation import attempts as at
+  from test_lid import BARE
+  spec = mujoco.MjSpec.from_string(BARE)
+  dr.attach_cupboard(spec, dr.draw(task.chest), (0.0, 0.0), tags=False)
+  model = spec.compile()
+  data = mujoco.MjData(model)
+  mujoco.mj_forward(model, data)
+  body = StubBody(model, data)
+  door = dr.Door(model, data, dr.draw(task.chest))
+  body.step_hooks.append(lambda: door.sense(model, data))
+  return at.World(task=task, model=model, data=data, body=body, chest=None,
+                  start=(0.0, 0.0, 0.0), activity=door)
+
+
+#: The lid's practice texts as #493 flew them: the door's practice may change
+#: the job and the thing's name, and nothing of the lid's (#535).
+LID_NOTES_ASK = """THIS BOX IS DONE: {how}. Your next box is another like it, and
+you will start it as you started this one, with nothing of this
+conversation but what you carry. Write what you will carry: "notes" -- what
+worked, what did not, what you would try next, at most {cap} characters,
+keeping what still holds from any notes you were given -- and "draft": the
+procedure you would start the next box from, the whole of it, or "" for
+none. A procedure that passed is in your library already."""
+LID_SHOWN = ("YOUR LIBRARY\n\nProcedures you kept, each because the world graded a try of it a "
+             "pass on a box like this one:\n\nopener -- passed box 7 on its try 2:\n"
+             "def opener():\n    wait(1)\n\nYOUR NOTES, written after your last box:\n\nn\n\n\n"
+             "YOUR DRAFT, the procedure you meant to start this box from (it never passed):\n\n"
+             "def d():\n    wait(1)\n\nTHE JOB\n\n")
+
+
+def _asked(mind) -> str:
+  return "\n".join(m["content"] for kw in mind.asked for m in kw["messages"]
+                   if m["role"] == "user" and isinstance(m["content"], str))
+
+
+def test_the_door_is_practiced_on_its_own_job_and_nothing_else_changes():
+  """#535's stage 2, the door learned with no new help: its practice is the
+  lid's but for the job -- the door's text, its time limit and its grader
+  -- and what the texts call the thing the robot stands at; the lid's
+  texts are as #493 flew them, byte for byte."""
+  from pluggybot.evaluation import attempts as at
+  kept = [{"name": "opener", "source": "def opener():\n    wait(1)\n", "chest": 7, "attempt": 2}]
+  carried = {"notes": "n", "draft": "def d():\n    wait(1)\n"}
+  task = at.Task(chest=0, body="humanoid", mount="counter", grader="door")
+  job = ep.job_for(task)
+  mind = NotesMind('def a():\n    wait(1)\n')
+  pr = mp.Practice(mind, "a-mind", st.hand_facts(), job, thing=ep.THINGS["door"])
+  rows = ep.practice_on(0, pr, 1, kept=kept, carried=carried, write_notes=True, picture=False,
+                        build=stub_door_world, job="door")
+  # graded as a door, in its own time
+  assert rows[0]["task"]["grader"] == "door" and rows[0]["run"]["budgetS"] == task.limit_s
+  assert rows[0]["verdict"]["reason"].startswith("the door never opened")
+  # every word the mind was sent names the cupboard, never the lid's box
+  said = _asked(mind)
+  assert "a cupboard like this one" in said and "passed cupboard 7 on its try 2" in said
+  assert "your last cupboard" in said and "start this cupboard from" in said
+  assert "THIS CUPBOARD IS DONE: none of your tries passed" in said
+  assert not re.search(r"\b(box|lid|chest|knob)\b", said.lower())
+  # the lid's, as they were
+  lid = NotesMind('def a():\n    wait(1)\n')
+  pr = mp.Practice(lid, "a-mind", st.hand_facts(), ep.JOB.format(limit=30))
+  ep.practice_on(0, pr, 1, kept=kept, carried=carried, write_notes=True, picture=False,
+                 budget_s=30.0, build=lambda t: stub_world(t))
+  assert lid.asked[0]["messages"][0]["content"].startswith(LID_SHOWN)
+  assert lid.asked[-1]["messages"][-1]["content"] == LID_NOTES_ASK.format(
+    how="none of your tries passed", cap=mp.NOTES_CHARS)
+
+
+def test_the_doors_job_is_its_graders_and_names_no_way_to_do_it():
+  """Written before any mind flew it, as the lid's was: what stands there
+  and the criteria as `challenge/door.py` judges them -- 50 deg at the call
+  and the hold's end, nothing of the robot's on the door through the hold,
+  in its own time -- and no word of how."""
+  from pluggybot.challenge import door
+  from pluggybot.evaluation import attempts as at
+  task = at.Task(chest=0, body="humanoid", mount="counter", grader="door")
+  job = ep.job_for(task)
+  assert "cupboard" in job and "lever" in job and "26 mm" in job and "tag 55" in job
+  assert f"at least {math.degrees(door.OPEN_RAD):.0f} degrees" in job and "both\ntimes" in job
+  assert f"again\n{door.HOLD_S:.0f} s later" in job and f"{task.limit_s:.0f} s at most" in job
+  for word in ("press", "latch", "pull", "push", "hinge", "grip", "swing", "turn"):
+    assert not re.search(rf"\b{word}", job.lower()), word
+  # its time limit is its own; the lid's, the drawer's and the cube's stay
+  assert task.limit_s == at.JOB_LIMIT_S["door"] == 3 * at.DOOR_REFERENCE_S
+  for grader in ("lid", "drawer", "place"):
+    assert at.Task(chest=0, body="humanoid", mount="counter", grader=grader).limit_s == \
+      3 * at.REFERENCE_S
 
 
 def test_a_verb_an_if_tests_is_read_and_the_procedure_goes_on():

@@ -1000,7 +1000,8 @@ internals. Its rules:
 - **the call is wherever the skill ended, or its budget did** (`cut`): the
   budget is the job's own time limit, the task's (`attempts.LIMIT_S`: the
   quadruped's 300 sim-s, the humanoid's 68, three times its reference's
-  slowest pass), and
+  slowest pass; a job's own where it has one, `JOB_LIMIT_S`: the door's
+  107, #535), and
   a cut attempt that failed says "out of time" first. Then the hold with
   the body held still, and one verdict through `scoring.evaluate`, graded
   and paid nothing. A fall is lost time and nothing more: the body's falls
@@ -1116,8 +1117,11 @@ again 32 times and never used its library. The KEPT protocol
 `flown`) measures the two things apart:
 - **acquiring**: ONE robot practices on the public chests in turn,
   carrying only what passed -- the procedures the grader passed, shown at
-  each chest's start (`mind.practice.library_text`), the newest kept and
-  the oldest going where the library is full -- never a conversation or a
+  each chest's start (`mind.practice.library_text`): under each name the
+  one that passed the most chests, the newest of them among ties, two
+  sources one program where the language reads them alike (#535; the
+  newest pass alone until then), and the oldest name going where the
+  library is full -- never a conversation or a
   note of its own. It ends once 3 chests running pass at their first try
   (`UNTIL`), or 16 are practiced (`MAX_CHESTS`); with nothing kept after 6
   (`GIVE_UP_AFTER`; 8 for the arms below), nothing more is flown. Its
@@ -1410,14 +1414,82 @@ pathdsm's settings otherwise:
   through twelve `via` points round the hinge, the hand rolling with the
   lid, then the same arc back down at 3 cm/s -- the path and the maths,
   not the force move.
-- **A robot keeps its NEWEST pass, not its best** (`evaluation.practice.keep`:
-  a pass under a name it holds replaces it): the second arm's first six
+- **A robot kept its NEWEST pass, not its best** (`evaluation.practice.keep`
+  then: a pass under a name it held replaced it; since #535 the one that
+  passed the most chests stays): the second arm's first six
   passes stepped 6 cm right and gripped from above; its seventh, on chest
   14, left the step out and replaced them. Its frozen copies reached from
   above without the step, and stopped short or found no posture: 0 of 7.
 - **What it cannot show**: two arms a condition, and the two with the reply
   fixed went 22 of 29 and 0 of 7 on the same held-out chests -- which skill
   a conversation keeps decides as much as the vocabulary.
+
+**The yardstick made firm, then a task the path was not built on** (#535,
+for #534): does the procedure path learn a task it was not built on? Every
+comparison #534 makes is read against the lid's yardstick, so that first.
+- **A robot keeps the procedure that passed the most chests** under each
+  name, the newest of them among ties (`evaluation.practice.keep`), two
+  sources one procedure where the language reads them alike (`program`: by
+  their bytes, fixB's passes on chests 7 and 8 were two procedures, a last
+  newline apart, and the rule would have kept chest 14's again). Kept again
+  off their own rows (`practice.py --keep-again`), fixB keeps its chests
+  7-8 procedure, its step with it; and fixA its chests 9-10 procedure -- a
+  path laid by hand that lifts the lid from under its knob, the jaws never
+  closed -- over chest 15's, the gripped arc about `measure`'s hinge its
+  frozen copies flew 22 of 29 with.
+- **Both arms' held-out chests flown again** at `8bb72dc`, their own seed,
+  from the kept procedure the rule picks (`--kept`), their notes and draft
+  as they were; each stopped early at its 7th failure within 3, and the
+  cost is the held-out flight's alone:
+
+| arm | kept | held out within 3 | within 5 | cost |
+|---|---|---|---|---|
+| fixA | chest 15's, the newest | 22 of 29 [0.58, 0.88], 17 at the first | 23 of 29 | $0.52 |
+| ...the most chests | chests 9-10's | 18 of 25 [0.52, 0.86], 12 at the first | 21 of 25 | $0.55 |
+| fixB | chest 14's, the newest | 0 of 7 [0.00, 0.35] | 0 of 7 | $0.24 |
+| ...the most chests | chests 7-8's | 3 of 10 [0.11, 0.60], none at the first | 4 of 10 | $0.34 |
+
+- ⚠ **A FROZEN COPY CARRIES ITS DRAFT AS WELL AS ITS LIBRARY, and the draft
+  is the newest approach**: fixA's was chest 15's procedure line for line.
+  Flown again, its copies ran the draft unchanged on 10 first tries of 25
+  and the kept procedure on 1; 22 of 25 called `measure`, which the kept
+  one never does, and none of their 21 passes ran it as it was. So fixA's
+  18 of 25 is chest 15's approach again more than the rule's pick, and
+  "only the kept procedure differs" changed the library, not what the
+  robot carried. fixB's copies ran their kept procedure unchanged on 1
+  first try of 10, and passed with it once of 4. Under the newest rule,
+  fixA's copies ran the kept procedure unchanged on 24 first tries of 29,
+  and 13 of their 23 passes were it as it was.
+
+**The door, with no new help** (#535's stage 2): the vocabulary, the
+practice's prompt, its replies and its protocol as the yardstick's, and
+two things new. The door's job (`practice.DOOR_JOB`), written before any
+mind flew it, as the lid's was: what stands there -- a cupboard on the
+counter, its door, a lever whose tip is a 26 mm cube with tag 55 on every
+face -- and `challenge/door.py`'s criteria, and no word of how. And where
+the practice's texts named the box they name the cupboard
+(`Practice.thing`); the lid's are unchanged, byte for byte (a test pins
+them). `practice.py --job door` flies it.
+- **Its time limit, set before any mind flew it**: three times our door
+  procedure's slowest pass over its 32 public set-outs, as the lid's was off
+  the opener's -- 20 of 32 passed (`hands_check.py --job door --set-outs
+  0-31`, at `70bf773`), in 10.8-35.8 sim-s -- so 107 s
+  (`attempts.JOB_LIMIT_S`; the drawer's and the cube's keep the lid's 68).
+- **The head camera's first picture shows little of either**: the lid's
+  arms were shown a strip of the box's top at the frame's foot, the door's
+  are shown the cupboard's top corner; `spot` bows until it sees a tag.
+- **The reference**, our door procedure over the arms' 32 held-out set-outs
+  (`hands_check.py --job door --held-out 32`, at `ad4a4f6`, seed
+  3510776006): **21 of 32** [0.48, 0.80], its passes in 11.0-46.7 sim-s.
+  Of the 11 it missed, 7 opened the door 4-49 deg and no further, a reach
+  or a move out of reach or stopped short (in 4 the tip then out of the
+  head camera's sight); 2 never opened it, the jaws closing on nothing;
+  and 2 opened it past 50 deg and were under it at the call (84 to 0, 51
+  to 48).
+- **The bar** (Ben, 2026-10-24): demo 1's, 80 % within 3 of the 32
+  held-out set-outs, the flight stopped early as the yardstick's are,
+  read beside the yardstick and the reference -- above what our own
+  procedure does here (66 %), as the lid's was above the opener's 72 %.
 
 ## 5. What silently invalidates a number
 
