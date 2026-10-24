@@ -39,6 +39,12 @@ says plainly whether caching engaged.
                         # the answer is valid, which is what the schema is
                         # for. Cost prints as "no API cost" rather than as
                         # $0.00000, because those are different claims.
+  ... --deployed --image look.jpg --calls 1
+                        # the picture a look brought back, attached to the
+                        # call as a served one carries it (issue #541): does
+                        # this model, on the provider it lands on, take an
+                        # image beside the schema? Asked BEFORE the eye is
+                        # turned on, and again whenever the model moves.
 
 ⚠ THE LATENCY DISTRIBUTION IS THE POINT OF THE `--calls` NUMBER (issue #117).
 A fallback rate is a deterministic function of (latency distribution,
@@ -73,6 +79,7 @@ import math
 import statistics
 import time
 from dataclasses import replace
+from pathlib import Path
 
 
 from pluggybot.economy import energy
@@ -80,12 +87,13 @@ from pluggybot.economy.tasks import TaskBoard
 from pluggybot.legs.model import PACK_WH
 from pluggybot.legs.world import RESERVE_WH
 from pluggybot.lifecycle import QUAD_HOME, board_book, points_ledger, world_config, world_for
-from pluggybot.mind import llm
+from pluggybot.mind import llm, look
 from pluggybot.mind import overseer as ov
+from pluggybot.mind.inbox import JPEG_MAGIC, MAX_IMAGE_BYTES
 from pluggybot.mind.thoughts import ThoughtFiles
 from pluggybot.robot import SECOND
 from pluggybot.telemetry.protocol import ROBOT_ROOT
-from pluggybot.mind.overseer import CALL_TIMEOUT_S, MODEL, Menu, Overseer
+from pluggybot.mind.overseer import CALL_TIMEOUT_S, MAX_LOOK_RUN, MODEL, Menu, Overseer
 
 #: Where a call-latency distribution is read (issue #117). The deadline is
 #: a CAP on this distribution, so the share of calls it cuts off is a
@@ -210,6 +218,17 @@ def synthetic_state(menu: Menu, i: int) -> dict:
     "offeredTasks": [synthetic_offer()],
     "decisions": i,
   }
+
+
+def with_picture(state: dict, jpeg: bytes, i: int) -> dict:
+  """The state with the picture the robot took last turn riding it (issue
+  #541): the `seen` block the lifecycle builds when a look comes back
+  (`look.as_context`, one look of the run spent), so the call attaches it
+  as an image part of the user turn exactly as a served call does. Taken
+  from the dock, where the robots lie between jobs."""
+  row = {"ref": f"look:{ROBOT_ROOT}:{i + 1}", "outcome": "seen",
+         "at": {"x": 4.1, "y": 0.4, "headingDeg": 180.0}, "_jpeg": jpeg}
+  return {**state, "seen": [look.as_context(row)], "looksLeft": MAX_LOOK_RUN - 1}
 
 
 def report_orders(orders: list[tuple]) -> None:
@@ -375,9 +394,21 @@ def main() -> None:
                            "sha -- and stop. How a person reads a "
                            "deployment's prompt without ssh: same arm, same "
                            "thoughts directory, same text.")
+  parser.add_argument("--image", default=None, metavar="JPEG",
+                      help="attach this picture to every call as the one the "
+                           "robot's last look brought back (issue #541): how "
+                           "a model, on the provider it lands on, is checked "
+                           "for taking an image beside the schema before the "
+                           "eye is turned on. A JPEG of at most "
+                           f"{MAX_IMAGE_BYTES} bytes, as the sim's door takes")
   args = parser.parse_args()
   if args.metabolism and not args.deployed:
     parser.error("--metabolism measures a served prompt: with --deployed")
+  picture = Path(args.image).read_bytes() if args.image else None
+  if picture is not None and (not picture.startswith(JPEG_MAGIC)
+                              or len(picture) > MAX_IMAGE_BYTES):
+    parser.error(f"--image takes a JPEG of at most {MAX_IMAGE_BYTES} bytes, "
+                 "as the sim's door does")
   args.world = world_for(args.world)
 
   book = board_book(args.world)
@@ -438,6 +469,9 @@ def main() -> None:
           + ("  (forced on every decision -- measurement only)"
              if args.force_escalate else ""))
   print(f"actions      : {', '.join(menu.available())}")
+  if picture is not None:
+    print(f"picture      : {args.image} ({len(picture)} bytes), attached to "
+          "every call")
   print(f"prefix chars : {len(prefix)}")
   print(f"memory       : {', '.join(memory.stable())} cached; "
         f"{', '.join(memory.volatile())} per call")
@@ -517,6 +551,8 @@ def main() -> None:
     before = dict(boss.usage.as_dict())
     t0 = time.monotonic()
     state = synthetic_state(menu, i)
+    if picture is not None:
+      state = with_picture(state, picture, i)
     decision = boss.decide(state)
     if args.force_escalate and not decision.escalated:
       # Straight past the gates, on purpose and only here: the interval is

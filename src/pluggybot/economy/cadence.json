@@ -98,12 +98,6 @@
           ]
         },
         "stack_tower": {},
-        "rate_artwork": {
-          "programs": [
-            "robot",
-            "sun"
-          ]
-        },
         "find_mass": {},
         "hide_and_seek": {}
       }

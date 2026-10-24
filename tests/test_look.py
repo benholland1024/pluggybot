@@ -12,9 +12,11 @@ the rule's text. The whole mission is never flown.
 """
 
 import base64
+import importlib.util
 import inspect
 import json
 import math
+from pathlib import Path
 
 import mujoco
 import pytest
@@ -583,6 +585,28 @@ def test_an_escalation_carries_the_picture_in_its_own_backends_shape():
   src = inspect.getsource(Overseer._maybe_escalate)
   assert "_user_content(" in src and "self.escalate_backend" in src
   assert "_user_turn(" not in src
+
+
+PROBE = Path(__file__).resolve().parents[1] / "scripts" / "overseer_probe.py"
+
+
+def test_the_probe_attaches_a_picture_as_a_served_call_carries_it():
+  """`overseer_probe.py --image` (issue #541): the served mind's call with
+  the picture a look brought back, an image part ahead of the text -- how a
+  model, on the provider it lands on, is checked for taking a picture before
+  the eye is turned on. A fake client: the real call is the probe's."""
+  spec = importlib.util.spec_from_file_location("overseer_probe", PROBE)
+  probe = importlib.util.module_from_spec(spec)
+  spec.loader.exec_module(probe)
+  boss = ov.build(QUAD_HOME, enabled=True, client=FakeClient(full()))
+  state = probe.with_picture(probe.synthetic_state(boss.menu, 0), JPEG, 0)
+  assert not boss.decide(state).scripted
+  content = boss.client.calls[-1]["messages"][0]["content"]
+  b64 = base64.b64encode(JPEG).decode()
+  assert content[0] == llm.image_part(boss.backend, b64)
+  assert [part["type"] for part in content[1:]] == ["text"]
+  assert b64[:32] not in content[1]["text"]
+  assert '"image": "attached"' in content[1]["text"]
 
 
 def test_the_picture_never_reaches_any_turn_as_text_including_an_interrupt():
