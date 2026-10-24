@@ -1437,6 +1437,29 @@ comparison #534 makes is read against the lid's yardstick, so that first.
   path laid by hand that lifts the lid from under its knob, the jaws never
   closed -- over chest 15's, the gripped arc about `measure`'s hinge its
   frozen copies flew 22 of 29 with.
+- **Both arms' held-out chests flown again** at `8bb72dc`, their own seed,
+  from the kept procedure the rule picks (`--kept`), their notes and draft
+  as they were; each stopped early at its 7th failure within 3, and the
+  cost is the held-out flight's alone:
+
+| arm | kept | held out within 3 | within 5 | cost |
+|---|---|---|---|---|
+| fixA | chest 15's, the newest | 22 of 29 [0.58, 0.88], 17 at the first | 23 of 29 | $0.52 |
+| ...the most chests | chests 9-10's | 18 of 25 [0.52, 0.86], 12 at the first | 21 of 25 | $0.55 |
+| fixB | chest 14's, the newest | 0 of 7 [0.00, 0.35] | 0 of 7 | $0.24 |
+| ...the most chests | chests 7-8's | 3 of 10 [0.11, 0.60], none at the first | 4 of 10 | $0.34 |
+
+- ⚠ **A FROZEN COPY CARRIES ITS DRAFT AS WELL AS ITS LIBRARY, and the draft
+  is the newest approach**: fixA's was chest 15's procedure line for line.
+  Flown again, its copies ran the draft unchanged on 10 first tries of 25
+  and the kept procedure on 1; 22 of 25 called `measure`, which the kept
+  one never does, and none of their 21 passes ran it as it was. So fixA's
+  18 of 25 is chest 15's approach again more than the rule's pick, and
+  "only the kept procedure differs" changed the library, not what the
+  robot carried. fixB's copies ran their kept procedure unchanged on 1
+  first try of 10, and passed with it once of 4. Under the newest rule,
+  fixA's copies ran the kept procedure unchanged on 24 first tries of 29,
+  and 13 of their 23 passes were it as it was.
 
 **The door, with no new help** (#535's stage 2): the vocabulary, the
 practice's prompt, its replies and its protocol as the yardstick's, and
@@ -1455,6 +1478,18 @@ them). `practice.py --job door` flies it.
 - **The head camera's first picture shows little of either**: the lid's
   arms were shown a strip of the box's top at the frame's foot, the door's
   are shown the cupboard's top corner; `spot` bows until it sees a tag.
+- **The reference**, our door procedure over the arms' 32 held-out set-outs
+  (`hands_check.py --job door --held-out 32`, at `ad4a4f6`, seed
+  3510776006): **21 of 32** [0.48, 0.80], its passes in 11.0-46.7 sim-s.
+  Of the 11 it missed, 7 opened the door 4-49 deg and no further, a reach
+  or a move out of reach or stopped short (in 4 the tip then out of the
+  head camera's sight); 2 never opened it, the jaws closing on nothing;
+  and 2 opened it past 50 deg and were under it at the call (84 to 0, 51
+  to 48).
+- **The bar** (Ben, 2026-10-24): demo 1's, 80 % within 3 of the 32
+  held-out set-outs, the flight stopped early as the yardstick's are,
+  read beside the yardstick and the reference -- above what our own
+  procedure does here (66 %), as the lid's was above the opener's 72 %.
 
 ## 5. What silently invalidates a number
 
