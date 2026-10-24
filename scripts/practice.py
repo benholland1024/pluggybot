@@ -23,6 +23,10 @@ Two protocols (Evaluation.md §4):
                        after G chests (6)
   --kept FILE          KEPT: the held-out chests flown with what a record
                        kept (its kept.json), no practice first
+  --keep-again DIR     a KEPT record's kept.json made again off its own rows
+                       by today's `keep`, into --into's kept.json, its
+                       practice's record unchanged: what --kept then flies
+                       (#535: kept by the most chests passed)
   --notes              KEPT: the robot also carries notes and a draft of its
                        own from chest to chest (`Practice.carry`), written as
                        each practice chest ends, pass or fail
@@ -161,7 +165,8 @@ def read(into: str) -> None:
     print(f"THE PRACTICE FIRST: {k['practice']['ended']}; each chest's first pass, in turn: "
           + ", ".join(f"{c}: {f}" for c, f in k["practice"]["firsts"]))
     for e in k["kept"]:
-      print(f"  kept {e['name']}, passed chest {e['chest']} at its try {e['attempt']}")
+      print(f"  kept {e['name']}, passed " + ", ".join(
+        f"chest {c} at its try {a}" for c, a in e.get("passed") or [[e["chest"], e["attempt"]]]))
     carried = k["practice"].get("carried") or {}
     if carried.get("notes") or carried.get("draft"):
       print(f"  its notes at the end ({len(carried.get('notes', ''))} characters): "
@@ -172,6 +177,24 @@ def read(into: str) -> None:
     s = json.loads(stopped.read_text())
     print(f"STOPPED EARLY after {s['after']} of {s['of']} chests: {s['failedWithin']} failed "
           f"within {s['within']}, so {s['bar']:.0%} within {s['within']} is out of reach")
+
+
+def keep_again(record: str, into: str) -> dict:
+  """`record`'s kept.json made again off its own rows by today's `keep`,
+  its practice's record unchanged, written to `into`'s kept.json."""
+  rows = [json.loads(line) for line in open(Path(record) / "rows.jsonl")]
+  was = json.loads((Path(record) / "kept.json").read_text())
+  passes = [ep.pass_of(r, r["task"]["chest"]) for r in rows
+            if r.get("admitted") and r.get("process") == "acquire"]
+  kept, _ = ep.keep(passes)
+  for name, e in (("kept then", was["kept"]), ("kept now", kept)):
+    for k in e:
+      print(f"{name}: {k['name']}, passed " + ", ".join(
+        f"chest {c} at its try {a}" for c, a in k.get("passed") or [[k["chest"], k["attempt"]]]))
+  out = {"kept": kept, "practice": was["practice"], "keptAgainFrom": str(Path(record).resolve())}
+  Path(into).mkdir(parents=True, exist_ok=True)
+  (Path(into) / "kept.json").write_text(json.dumps(out, indent=1))
+  return out
 
 
 def main(argv=None) -> None:
@@ -185,6 +208,7 @@ def main(argv=None) -> None:
   ap.add_argument("--max-chests", type=int, default=ep.MAX_CHESTS)
   ap.add_argument("--give-up-after", type=int, default=ep.GIVE_UP_AFTER)
   ap.add_argument("--kept", default=None, metavar="FILE")
+  ap.add_argument("--keep-again", default=None, metavar="DIR")
   ap.add_argument("--early-stop", action="store_true")
   ap.add_argument("--notes", action="store_true")
   ap.add_argument("--no-measure", action="store_true")
@@ -199,6 +223,11 @@ def main(argv=None) -> None:
   args = ap.parse_args(argv)
   if args.read:
     read(args.read)
+    return
+  if args.keep_again:
+    if not args.into:
+      ap.error("--keep-again writes its kept.json into --into")
+    keep_again(args.keep_again, args.into)
     return
   info = {"process": "practice"} | att.build()
   if args.held_out is not None:

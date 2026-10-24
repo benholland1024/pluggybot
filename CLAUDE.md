@@ -434,7 +434,9 @@ save a filmstrip PNG named after the script.
   verdict (`Library.admit`, `attempts.attempt(sealed=)`). Two protocols
   (Evaluation.md §4): FRESH, a fresh robot a chest; KEPT (`--acquire`,
   Ben), one robot practicing the public chests in turn carrying only what
-  passed (`evaluation.practice.keep`, never a conversation), then a frozen
+  passed (`evaluation.practice.keep`, never a conversation: ⚠ under each
+  name the procedure that passed the MOST chests, sources compared as
+  programs, never the newest pass alone, #535), then a frozen
   copy a held-out chest, ⚠ stopped once the bar is out of reach
   (`out_of_reach`); `--notes` carries the robot's own notes and a draft
   too (`Practice.carry`, pass or fail). ⚠ FEEDBACK IS THE BODY'S AND THE

@@ -11,7 +11,8 @@ attempts 1 to `ATTEMPTS`, each graded and unpaid, a fresh set-out each.
   practice_on      one chest: the conversation and its attempts, until one
                    passes or the attempts run out; a pass ADMITS the
                    procedure to the robot's library (`Library.admit`)
-  keep             the procedures a robot carries to its next chest
+  keep             the procedures a robot carries to its next chest: under
+                   each name, the one that passed the most chests
   out_of_reach     whether the bar can still be met (the flight's early stop)
   JOB              the job as its grader measures it, never how
 
@@ -26,6 +27,7 @@ and, with notes, what the robot wrote to carry (`Practice.carry`).
 
 from __future__ import annotations
 
+import ast
 import math
 import time
 
@@ -216,17 +218,54 @@ def first_pass(rows: list[dict]) -> int | None:
   return next((r["attempt"] for r in rows if (r.get("verdict") or {}).get("ok")), None)
 
 
-def keep(kept: list[dict], name: str, source: str, chest: int, attempt: int,
-         cap: int = MAX_PROCEDURES) -> tuple[list[dict], str | None]:
-  """`kept` with a procedure the world passed (`name`, its `source`, the
-  chest and try), the newest -- replacing one of its name, else the OLDEST
-  going where the library is full. Returns the new list and the name that
-  went to make room, or None."""
-  out = [k for k in kept if k["name"] != name]
-  dropped = None
-  if len(out) == len(kept) and len(out) >= cap:
-    dropped = out.pop(0)["name"]
-  return out + [{"name": name, "source": source, "chest": chest, "attempt": attempt}], dropped
+def program(source: str) -> str:
+  """A procedure's program as the language reads it, its layout and its
+  comments aside (`ast.dump`): two sources of one program are one procedure
+  to `keep` -- fixB's passes on chests 7 and 8 were one, the second without
+  the first's last newline (#535)."""
+  try:
+    return ast.dump(ast.parse(source))
+  except (SyntaxError, ValueError, MemoryError, RecursionError):
+    return source.strip()
+
+
+def pass_of(row: dict, chest: int) -> dict:
+  """A row's pass as `keep` reads it: the name it was admitted under, its
+  source, the chest and the try."""
+  return {"name": row["admitted"], "source": row["practice"]["source"], "chest": chest,
+          "attempt": row["attempt"]}
+
+
+def _held(passes: list[dict], cap: int) -> list[str]:
+  """The names `passes` leave a library of `cap`: in the order each last
+  passed, the oldest gone past the cap."""
+  last = {p["name"]: i for i, p in enumerate(passes)}
+  names = sorted(last, key=last.get)
+  return names[max(0, len(names) - cap):]
+
+
+def keep(passes: list[dict], cap: int = MAX_PROCEDURES) -> tuple[list[dict], str | None]:
+  """What a robot carries off `passes`, every pass the world gave its
+  procedures in turn (`pass_of`): under each name, the procedure that
+  PASSED THE MOST CHESTS, the newest of them among ties, as its newest
+  pass's text, chest and try, with every chest it passed (its `passed`);
+  the names in the order they last passed, the OLDEST going where more than
+  `cap` have. Returns the list and the name the newest pass put out, or
+  None. ⚠ NEVER THE NEWEST PASS ALONE (#535): fixB's seventh pass, on chest
+  14, left out the step the six before it took and replaced them, and its
+  frozen copies stopped short, 0 of 7."""
+  runs: dict[str, dict[str, list[int]]] = {}
+  for i, p in enumerate(passes):
+    runs.setdefault(p["name"], {}).setdefault(program(p["source"]), []).append(i)
+  held = _held(passes, cap)
+  out = []
+  for name in held:
+    best = max(runs[name].values(), key=lambda ix: (len(ix), ix[-1]))
+    p = passes[best[-1]]
+    out.append({"name": name, "source": p["source"], "chest": p["chest"], "attempt": p["attempt"],
+                "passed": [[passes[i]["chest"], passes[i]["attempt"]] for i in best]})
+  gone = [n for n in _held(passes[:-1], cap) if n not in held]
+  return out, gone[0] if gone else None
 
 
 def out_of_reach(firsts: list[int | None], n: int, bar: float = BAR,
@@ -254,6 +293,7 @@ def acquire(run_chest, chests, until: int = UNTIL, max_chests: int = MAX_CHESTS,
   `give_up_after`. Returns what it kept and how the practice went, with
   what it carried at the end."""
   kept: list[dict] = []
+  passes: list[dict] = []
   carried: dict = {"notes": "", "draft": ""}
   firsts: list = []
   streak, ended = 0, "the chests ran out"
@@ -261,7 +301,8 @@ def acquire(run_chest, chests, until: int = UNTIL, max_chests: int = MAX_CHESTS,
     rows = run_chest(k, kept, carried)
     for r in rows:
       if r.get("admitted"):
-        kept, r["dropped"] = keep(kept, r["admitted"], r["practice"]["source"], k, r["attempt"])
+        passes.append(pass_of(r, k))
+        kept, r["dropped"] = keep(passes)
     if rows and rows[-1].get("carried") is not None:
       carried = rows[-1]["carried"]
     write(rows)

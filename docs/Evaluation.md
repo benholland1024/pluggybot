@@ -1116,8 +1116,11 @@ again 32 times and never used its library. The KEPT protocol
 `flown`) measures the two things apart:
 - **acquiring**: ONE robot practices on the public chests in turn,
   carrying only what passed -- the procedures the grader passed, shown at
-  each chest's start (`mind.practice.library_text`), the newest kept and
-  the oldest going where the library is full -- never a conversation or a
+  each chest's start (`mind.practice.library_text`): under each name the
+  one that passed the most chests, the newest of them among ties, two
+  sources one program where the language reads them alike (#535; the
+  newest pass alone until then), and the oldest name going where the
+  library is full -- never a conversation or a
   note of its own. It ends once 3 chests running pass at their first try
   (`UNTIL`), or 16 are practiced (`MAX_CHESTS`); with nothing kept after 6
   (`GIVE_UP_AFTER`; 8 for the arms below), nothing more is flown. Its
@@ -1410,8 +1413,9 @@ pathdsm's settings otherwise:
   through twelve `via` points round the hinge, the hand rolling with the
   lid, then the same arc back down at 3 cm/s -- the path and the maths,
   not the force move.
-- **A robot keeps its NEWEST pass, not its best** (`evaluation.practice.keep`:
-  a pass under a name it holds replaces it): the second arm's first six
+- **A robot kept its NEWEST pass, not its best** (`evaluation.practice.keep`
+  then: a pass under a name it held replaced it; since #535 the one that
+  passed the most chests stays): the second arm's first six
   passes stepped 6 cm right and gripped from above; its seventh, on chest
   14, left the step out and replaced them. Its frozen copies reached from
   above without the step, and stopped short or found no posture: 0 of 7.

@@ -718,15 +718,70 @@ def test_an_answer_cut_off_is_asked_again_saying_so():
   assert "128,000 tokens" in prompt and "64,000" in prompt
 
 
-def test_what_passed_is_kept_the_newest_last_and_the_oldest_goes_when_full():
-  kept, dropped = ep.keep([], "a", "A", 3, 2)
-  assert kept == [{"name": "a", "source": "A", "chest": 3, "attempt": 2}] and dropped is None
-  kept, _ = ep.keep(kept, "b", "B", 4, 1)
-  kept, dropped = ep.keep(kept, "a", "A2", 5, 1)
-  assert [k["name"] for k in kept] == ["b", "a"] and kept[-1]["source"] == "A2"
+def _pass(name, source, chest, attempt):
+  return {"name": name, "source": source, "chest": chest, "attempt": attempt}
+
+
+def _box(*lines, end="\n"):
+  return "def open_box():\n" + "\n".join(f"    {line}" for line in lines) + end
+
+
+def test_a_robot_keeps_what_passed_the_most_chests_not_its_newest_pass():
+  """#535, fixB's practice (#493's stage B): seven passes under one name,
+  the first six stepping 6 cm right before the reach, the seventh, on
+  chest 14, without the step -- kept as the newest, it was what every
+  held-out copy started from, and 0 of 7 passed. Its passes on chests 7 and
+  8 were ONE program, the second without the first's last newline: kept by
+  the chests passed, that one stays, its step with it."""
+  up = 'pull("left", 0, 0, 1, 60, {}, speed=0.05)'
+  stepped = ["spot(53)", "step(0, -0.06)", 'reach("left", 0.36, 0.17, 0.82)']
+  passes = [_pass("open_box", _box(*stepped, up.format(d)), c, a)
+            for d, c, a in ((0.28, 1, 9), (0.03, 3, 2), (0.04, 5, 2))]
+  twice = _box(*stepped, up.format(0.05), 'pull("left", -0.5, 0, -0.866, 12, 0.02)')
+  passes += [_pass("open_box", twice, 7, 1), _pass("open_box", twice.rstrip("\n"), 8, 1),
+             _pass("open_box", _box(*stepped, up.format(0.06)), 10, 5),
+             _pass("open_box", _box("spot(53)", 'reach("left", 0.37, 0.16, 0.81)', up.format(0.025)),
+                   14, 4)]
+  kept, dropped = ep.keep(passes)
+  assert kept == [{"name": "open_box", "source": twice.rstrip("\n"), "chest": 8, "attempt": 1,
+                   "passed": [[7, 1], [8, 1]]}] and dropped is None
+  assert "step(0, -0.06)" in kept[0]["source"]
+
+
+def test_the_most_passes_wins_under_a_name_the_newest_among_ties_and_the_oldest_name_goes():
+  a, b = "def a():\n    wait(1)\n", "def a():\n    wait(2)\n"
+  a_again = "def a():\n\n    wait(1)    # once more\n"
+  kept, dropped = ep.keep([_pass("a", a, 3, 2)])
+  assert kept == [{"name": "a", "source": a, "chest": 3, "attempt": 2, "passed": [[3, 2]]}]
   assert dropped is None
-  kept, dropped = ep.keep(kept, "c", "C", 6, 1, cap=2)
+  # a pass each: the newest
+  passes = [_pass("a", a, 3, 2), _pass("a", b, 4, 1)]
+  assert ep.keep(passes)[0][0]["source"] == b
+  # its first program again, laid out and commented otherwise, is one
+  # program twice -- counted from before the second took its place -- and
+  # carried as its newest text
+  passes.append(_pass("a", a_again, 5, 1))
+  kept, _ = ep.keep(passes)
+  assert kept[0]["source"] == a_again and kept[0]["passed"] == [[3, 2], [5, 1]]
+  # ...kept over a newer program passing once
+  passes.append(_pass("a", "def a():\n    wait(5)\n", 6, 1))
+  assert ep.keep(passes)[0][0]["source"] == a_again
+  # ...and a tie of two again goes to the newest
+  passes.append(_pass("a", b, 7, 1))
+  assert ep.keep(passes)[0][0]["passed"] == [[4, 1], [7, 1]]
+  # names in the order they last passed; past the cap the oldest goes
+  passes.append(_pass("b", "def b():\n    wait(3)\n", 8, 1))
+  kept, dropped = ep.keep(passes)
+  assert [k["name"] for k in kept] == ["a", "b"] and dropped is None
+  assert [k["name"] for k in ep.keep(passes, cap=3)[0]] == ["a", "b"]
+  passes.append(_pass("a", b, 9, 2))
+  kept, dropped = ep.keep(passes, cap=2)
+  assert [k["name"] for k in kept] == ["b", "a"] and dropped is None
+  passes.append(_pass("c", "def c():\n    wait(4)\n", 10, 1))
+  kept, dropped = ep.keep(passes, cap=2)
   assert [k["name"] for k in kept] == ["a", "c"] and dropped == "b"
+  # one the language cannot read is its own text
+  assert ep.program("def (") == "def (" and ep.program(a) == ep.program(a_again)
 
 
 def test_the_bar_is_out_of_reach_once_more_chests_failed_within_its_tries_than_it_allows():
