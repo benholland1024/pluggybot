@@ -275,10 +275,13 @@ under them. With the reach's reply fixed, an arm's frozen copies passed
   way): no slide or pivot verb, nor yet a job needing one.
 - **A walk with something in hand.** A step carries nothing: the walking
   policy walks with its arms home.
-- **A way home that looks.** The way home is judged on the robot's model
-  of itself alone (#539): it takes what the hand worked over to lie under
-  it ahead of the toes, and the space at its side to be clear. Nothing
-  checks either against the depth picture.
+- **A way home that looks, or feels.** The way home is judged on the
+  robot's model of itself alone (#539): it takes what the hand worked over
+  to lie under it ahead of the toes, and the space at its side to be
+  clear. Nothing checks either against the depth picture, and a hand still
+  caught on something after the line out takes it along: a jaw left under
+  a knob lifted a shut lid. A guard on the hand's force could not yet tell
+  that from a blocked reach's press (SimNotes, "The way home").
 - **A small thing low down, or a knob on a short stem.** The fingers are 8
   cm and the grip point their middle, so their tips meet the surface before
   a steep grip reaches a small object's middle (§5).

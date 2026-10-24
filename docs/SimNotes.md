@@ -5489,24 +5489,54 @@ its edge 8 cm behind it (30):
 - *Rolled out first, the arm cannot come down in front.* Held out at 1.3
   rad (`HOME_ROLL`) its elbow stays within 6 cm of its shoulder's height
   while its other joints come home, so its hand is no lower than a forearm
-  under it;
-  then only its roll turns, and lowered at its side the arm reaches 9 cm
-  ahead of the soles' middle, behind any counter the robot stands before.
-  Rolled out WHILE the rest came home, the hand dipped before it was out.
+  under it; then only its roll turns, and lowered at its side the arm
+  reaches 9 cm ahead of the soles' middle, behind a counter whose edge is
+  further ahead. Rolled out WHILE the rest came home, the hand dipped
+  before it was out.
 - *It is a detour, so it is taken only where straight would dip*
   (`Reach.way_home`): judged on the same drawing as the robot stands,
   straight home unless some part of the arm goes more than `HOME_DIP_M`
   under the lowest of it now while ahead of its toes -- where whatever the
   hand worked over is. All of the 125 starts but one, a hand close in,
   took the side way: 3.2 s home (at most 4.2) where straight took 1.3.
-- Flown again, the issue's procedure and the robot's own wave touch
-  neither the counter nor the chest at chests 0, 36 and 63, and every
-  `withdraw` is ok.
+
+**Flown again:**
+
+- The issue's procedure and the robot's own wave touch neither the
+  counter nor the chest at chests 0, 36 and 63, and every `withdraw` is
+  ok. The reference opener's verdicts are unchanged, 23 of the 32 public
+  chests, each pass 3.6-3.9 s longer: its release waits for the arm.
+- *The practice's failed holds came from it* (#493's and #535's records,
+  1,181 tries). Of the 30 a touch during the hold failed, 21 never
+  withdrew -- the jaws still on the lid at the call -- and 9 had. Flown
+  again from their kept procedures, all 9 fail as recorded on the old way
+  home, a jaw back on the lid's handle in the hold, and 5 pass on this one.
+- The capability check (#525) is unchanged: the lid at 7 set-outs of 8,
+  the drawer 3, the door 6 (set-outs 3 and 4 trading a pass), the cube 3.
+  Its cube's last `withdraw` now says "held" at 3 set-outs: the procedure
+  steps in until the counter is 2-6 cm ahead of the soles' middle, where
+  the arm's own rest runs into it, and the jaw comes down on its edge. The
+  old walk home ended on the counter there too, or on the cube's mat, and
+  said ok.
 
 ⚠ The side way assumes the space at the robot's side is clear, as
 straight assumed the space under the hand was: its hand goes out to 0.74 m
 from the body's middle, 1.0-1.1 m up. Nothing checks either against the
 depth picture, which does not see beside the robot.
+
+⚠ *A hand still caught after the line out is lifted by the side way.* In
+3 of those 9 tries a jaw was left under a drop handle's knob, its grip
+turned for the lid's arc: rolling out, the arm lifted the shut lid 36 deg
+by it and let it fall, and the robot fell. Straight home it had pressed
+the knob down (they fail either way). The force the arm's currents read
+at the hand, held 0.15 s, tells a caught hand (60-105 N) from a free way
+home (4-6 N), but not from a reach blocked on the counter whose press is
+still on (31 N). Stopped there by the way in's own guard (`BLOCKED_N`),
+on the line out and the walk home, 8 of the 9 passed, and a reach pressed
+into the counter's top was held on it through the hold; on the walk home
+alone, a short line out left the press on, and the capability check's lid
+fell to 5 of 8. A guard that tells a press the motion relieves from a pull
+it works against is not built.
 
 ## Debugging workflow that worked
 
