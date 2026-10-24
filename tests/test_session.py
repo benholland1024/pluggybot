@@ -12,6 +12,7 @@ second twice.
 
 import gzip
 import json
+import re
 import threading
 import time
 from pathlib import Path
@@ -636,6 +637,62 @@ def test_hello_says_what_the_robot_is_told():
   assert said["task"]["limitS"] == pytest.approx(sa.task_of(0).limit_s, abs=0.01)
   assert said["task"]["chests"] == [0, at.PUBLIC.stop - 1]
   assert said["protocolVersion"] == PROTOCOL_VERSION and said["running"] is None
+
+
+def _listed(text: str, head: str, upto: str | None) -> list[str]:
+  """The indented lines of the body's list under `head`, up to `upto`."""
+  block = text.split(f"\n{head}", 1)[1]
+  block = block.split(f"\n{upto}", 1)[0] if upto else block
+  return [ln[2:] for ln in block.splitlines()[1:] if ln.startswith("  ")]
+
+
+def test_the_hellos_index_lists_what_the_robots_text_lists():
+  """The index (rooftop-media-2026 #441: the page's guide for people is
+  checked against it) is the text's lists as data, read both ways: each
+  verb in the text's order, its arguments in order with their defaults and
+  its words; each sensor; each axis with its range and its pace; the hands,
+  the maths and the `if` a verb may test -- and nothing the text does not
+  list."""
+  said = sh.hello({"commit": "abc1234"}, None)
+  index, sections = said["index"], {v["heading"]: v["text"] for v in said["vocabulary"]}
+  body, language = sections["your body"], sections["the language"]
+  verbs = []
+  for line in _listed(body, "VERBS", "SENSORS"):
+    call, doc = line.split("  -- ", 1)
+    name, args = call[:-1].split("(", 1)
+    verbs.append({"verb": name, "doc": doc, "args": [
+      a.split("=")[0] for a in args.split(", ") if a]})
+  assert [{"verb": v["verb"], "doc": v["doc"], "args": [a["name"] for a in v["args"]]}
+          for v in index["verbs"]] == verbs
+  for v in index["verbs"]:
+    shown = {a.split("=")[0]: float(a.split("=")[1]) for a in
+             body.split(f"\n  {v['verb']}(", 1)[1].split(")", 1)[0].split(", ") if "=" in a}
+    assert {a["name"]: a["default"] for a in v["args"] if "default" in a} == shown, v["verb"]
+  assert [f"{s['name']} -- {s['doc']}" for s in index["sensors"]] == _listed(
+    body, "SENSORS", "AXES")
+  axes = [re.fullmatch(r"(\w+): (\S+)\.\.(\S+) (\w+) -- (.*)", ln).groups()
+          for ln in _listed(body, "AXES", None)]
+  assert [a["name"] for a in index["axes"]] == [a[0] for a in axes]
+  for a, (_, lo, hi, unit, doc) in zip(index["axes"], axes):
+    assert (a["lo"], a["hi"], a["unit"], a["doc"]) == (
+      pytest.approx(float(lo), abs=1e-5), pytest.approx(float(hi), abs=1e-5), unit, doc)
+  assert {a["speed"] for a in index["axes"]} == {1.0} and "walked to\nit at 1 rad/s" in body
+  assert all(f'"{h}"' in body for h in index["hands"]) and index["hands"] == ["left", "right"]
+  arity = {"sin": "a", "cos": "a", "atan2": "y, x", "sqrt": "v"}
+  assert index["math"] and all(f"`{f}({arity[f]})`" in language for f in index["math"])
+  assert index["verbTests"] and "stand alone as the test of an `if`" in language
+  assert {a["choices"] for v in index["verbs"] for a in v["args"] if "choices" in a} == {
+    "hands", "axes"}
+
+
+def test_the_vendored_hello_is_what_a_fresh_host_says():
+  """The site vendors it (`fixtures/VENDORED.md`) and holds its guide for
+  people to it: stale the moment the job, the language or the body's
+  vocabulary moves."""
+  assert (PROTOCOL.parent / sh.HELLO_FIXTURE).read_text() == sh.hello_fixture(), \
+    "stale fixture: uv run python -m pluggybot.session.host --hello"
+  fresh = json.loads(sh.hello_fixture())
+  assert fresh["build"] == {} and fresh["running"] is None and fresh["index"]["verbs"]
 
 
 def test_a_refused_job_builds_no_world(monkeypatch):

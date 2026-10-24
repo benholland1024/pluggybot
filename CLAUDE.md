@@ -1132,7 +1132,10 @@ save a filmstrip PNG named after the script.
   `python -m pluggybot.session.host` dials OUT to the site's
   `/api/pluggyworld/sessions/host` with the sim's secret and says `hello`
   -- the task, the job and `mind.practice`'s language and body sections,
-  BYTE FOR BYTE the robot's (the page's reference is generated from them).
+  BYTE FOR BYTE the robot's, and what they list as data (`index`,
+  `practice.vocabulary_index`; vendored as
+  `protocol/hello.home_humanoid_counter.json`, `--hello`): the site's guide
+  for people is held to it (rooftop #441).
   A `run` is refused with every reason before anything is built, else
   flown by a CHILD PROCESS a run (`session.attempt`): the attempt kit's
   lid at the counter, the hands' vocabulary, graded by the same door,

@@ -44,6 +44,40 @@ replayer treats it like any other world -- one scene, one recording, keyed
 by that name (`pluggybot.robot.pair_model_name`). The served world is the
 pair, `home_quad_pair`.
 
+### 0.21.0, additive: the session host's lists as data (`hello.index`)
+
+rooftop-media-2026 #441: the Attempts page's guide for people is checked
+against what the robot is told, so `hello` carries the names its
+`vocabulary` lists beside the text (`mind.practice.vocabulary_index`, off
+the registries the text is rendered from; the text does not change):
+
+```jsonc
+"index": {
+  "verbs": [{"verb": "reach", "doc": "send a hand's grip ...",
+             "args": [{"name": "hand", "kind": "str", "choices": "hands"},
+                      {"name": "x", "kind": "float"}, ...,
+                      {"name": "stiffness", "kind": "float", "default": 1.0}]}, ...],
+  "sensors": [{"name": "left.x", "doc": "where your left hand's grip is, ..."}, ...],
+  "axes": [{"name": "left_elbow", "lo": 0.0, "hi": 2.103122, "unit": "rad",
+            "speed": 1.0, "doc": "your left arm's elbow joint"}, ...],
+  "hands": ["left", "right"],
+  "math": {"sin": 1, "cos": 1, "atan2": 2, "sqrt": 1},   // how many numbers each takes
+  "verbTests": true                                        // a verb may be an `if`'s test
+}
+```
+
+- **What the text lists, and nothing it does not**: the verbs in its
+  order, each argument in order with the list a name is one of (`choices`,
+  a key of this block) and the default of one that may be left out --
+  never an argument's bounds, which the robot meets only in a refusal --
+  each sensor, and each axis with its range, exact (the text prints six
+  figures). `math` is empty where an expression may call none.
+  `tests/test_session.py` reads the text's lists both ways against it.
+- **The fixture** is what a fresh host says, no build and nothing running:
+  `hello.home_humanoid_counter.json`, `uv run python -m
+  pluggybot.session.host --hello`. The site vendors it and holds its guide
+  to it.
+
 ### 0.21.0, additive: a world of one's own (`scene`, `step`, `readouts`, `depth`, `attempt`; a scene's `cameras`; the session host)
 
 pluggybot #530, user control: a person's procedure, in the robot's own
@@ -110,6 +144,7 @@ sim's secret; `session.host`): `hello` on every connect -- `build`, `task`
 (`grader`, `body`, `mount`, `limitS`, `holdS`, `chests` [first, last]),
 `job` (as the robot is told it), `vocabulary` (`[{heading, text}]`:
 `mind.practice.system_sections`' language and body, byte for byte),
+`index` (what that text lists, as data: the section above),
 `sourceChars`, and `running` (the run in flight -- or ended and not yet
 said -- or null); then per run `refused` (`reasons`: the language's, every
 one, nothing built), `started` (`chest`), `ended` or `busy`, each naming its
@@ -2804,6 +2839,7 @@ against the body census.
 | `telemetry.home_quad_chest.jsonl.gz` | The demo's flight: the probe from the robot's own senses, the robot lying still while it imagines, and the ONE `imagined` event the site draws its ghost from; its author's answers vary run to run, so a new recording draws a new model | `MUJOCO_GL=egl uv run python scripts/imagine_chest.py --demo 0 --record protocol/telemetry.home_quad_chest.jsonl.gz --remote HOST:PORT` (`$HF_TOKEN`; the workers on a pod) |
 | `scene.home_humanoid_counter.json` | A world of one's own (pluggybot #530): the house, the HUMANOID where the counter's set-out starts it, the counter and chest 0 on it (`evaluation.counter`), its `head` camera named -- never the served world | `MUJOCO_GL=egl uv run python scripts/attempts.py --body humanoid --record ...` (writes it beside the recording) |
 | `telemetry.home_humanoid_counter.jsonl.gz` | The reference's attempt at chest 0 (`evaluation.opener`), streamed as a person's session streams one: the scene after the header, the robot's senses (`readouts`, `depth`), and ONE `attempt` at the end, which passed | `MUJOCO_GL=egl uv run python scripts/attempts.py --body humanoid --record protocol/telemetry.home_humanoid_counter.jsonl.gz` |
+| `hello.home_humanoid_counter.json` | The session host's `hello` as a fresh host says it (rooftop-media-2026 #441): no build, nothing running; the task, the job, the robot's text and its `index`, which the site's guide for people is checked against | `uv run python -m pluggybot.session.host --hello` |
 
 The flags each recording needs, and the two passes a recording with ink
 takes, are at the top of this file.
