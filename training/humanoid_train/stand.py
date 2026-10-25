@@ -347,7 +347,9 @@ class hand_pull(envs_mdp.apply_body_impulse):
   own, uniform per component, loads both hands at once. With a finite
   `moment_nm`, a pull whose tipping moment about the middle of the feet,
   on the ground, is past it is scaled down to it as it begins: 60 N across
-  a hand 1.5 m up tips any body whose feet stay put."""
+  a hand 1.5 m up tips any body whose feet stay put. A positive
+  `longest_s` holds a pull up to that long (`HAND_PULL_S`'s upper end; a
+  flag, where tyro reads the tuple as one number)."""
 
   def __init__(self, cfg, env):
     super().__init__(cfg, env)
@@ -355,8 +357,10 @@ class hand_pull(envs_mdp.apply_body_impulse):
     self._feet = torch.tensor(feet, device=self._device, dtype=torch.long)
 
   def __call__(self, env, env_ids, force_n: float, duration_s, cooldown_s, asset_cfg,
-               moment_nm: float = math.inf) -> None:
+               moment_nm: float = math.inf, longest_s: float = 0.0) -> None:
     was = self._active.clone()
+    if longest_s > 0.0:
+      duration_s = (duration_s[0], longest_s)
     super().__call__(env, env_ids, (0.0, 0.0), (0.0, 0.0), duration_s, cooldown_s, asset_cfg)
     began = (self._active & ~was).nonzero(as_tuple=False).squeeze(-1)
     n = len(began)
@@ -479,7 +483,7 @@ def stand_env_cfg(play: bool = False) -> ManagerBasedRlEnvCfg:
   cfg.events["hand_pull"] = EventTermCfg(
     mode="step", func=hand_pull,
     params={"asset_cfg": SceneEntityCfg("robot", body_names=robot.HANDS),
-            "force_n": HAND_N, "moment_nm": math.inf, "duration_s": HAND_PULL_S,
+            "force_n": HAND_N, "moment_nm": math.inf, "longest_s": 0.0, "duration_s": HAND_PULL_S,
             "cooldown_s": HAND_REST_S})
   cfg.curriculum = {"disturbances": CurriculumTermCfg(func=disturbance_scale,
                                                       params={"scale": 1.0})}
