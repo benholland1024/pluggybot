@@ -240,6 +240,8 @@ class HumanoidMission(Navigator):
         raise RuntimeError("a walk was asked of the standing policy's legs: "
                            "`to_walk_routine` hands them over")
       self.stand.step()
+    # ...a hand's force off the whole body only on both soles (`Reach.standing`)
+    self.reach.standing = self.legs == "stand"
     self.reach.step()
     if (self.getup is not None and self._steps % self._fall_every == 0
         and self.fall.falling(self.data, self._held_pitch())):

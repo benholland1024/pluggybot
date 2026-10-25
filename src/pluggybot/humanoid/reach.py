@@ -59,15 +59,24 @@ APPROACH_M = 0.08
 #: from its shoulder -- a goal planned at full stretch was 2.8 cm out of
 #: reach of the posture the policy held, 2 cm under the one asked.
 REACH_MARGIN_M = 0.015
+#: A hand's force (`force`) is the WHOLE BODY's reading while the hand is at
+#: work in one of these phases and the standing policy has the legs
+#: (`standing`; `arms.SelfModel.felt`, #547), else its arm's alone
+#: (`SelfModel.hand_force`). ⚠ ALONG A STRAIGHT ARM THE ARM IS BLIND: 20 N
+#: at the grip read 5 pushing away and 2 away and down, where the whole
+#: body read 19.7-20.2 every way of 14. ⚠ WALKING, A SOLE IS IN THE AIR,
+#: which the balance has planted: a swinging leg's own torques read up to
+#: 400 N (`humanoid.odometry`).
+FELT_PHASES = ("approach", "hold", "pull", "blocked", "carry", "retreat")
 #: A hand on its way in STOPS where it is (`blocked`) once its own solve
 #: misses its command by this, m -- the goal out of reach from the posture
-#: the policy truly holds -- or once the force its arm's currents read at
-#: the hand passes this, N, pushing on something it was not sent to. ⚠
+#: the policy truly holds -- or once the force it reads at the hand
+#: (`force`) passes this, N, pushing on something it was not sent to. ⚠
 #: Unstopped, a crouch that sat further back than the plan's statue left a
 #: chest's knob 10.7 cm out of reach, and the arm drove the gripper into
 #: the counter's edge until it pushed the robot over backwards.
 BLOCKED_M, BLOCKED_N = 0.03, 30.0
-#: ...for this long, s: the force read off the currents assumes the arm is
+#: ...for this long, s: the force read off the drivers assumes the body is
 #: still, and a deep bow's folding read 81.5 N at the hand for an instant
 #: as its approach began. A push lasts; a transient does not.
 BLOCKED_S = 0.15
@@ -81,7 +90,7 @@ TRIM_RATE, TRIM_MAX = 1.0, (0.05, 0.15)
 #: near the plan's, m and rad, and its trunk is still -- its gyro under
 #: `TRUNK_STILL_RATE`, rad/s -- or this long after its command arrived, s: a
 #: full-stretch reach begun before the body had folded into a deep bow
-#: stopped short. ⚠ The force read off the currents assumes the arm still
+#: stopped short. ⚠ The force read off the drivers assumes the body still
 #: (`BLOCKED_N`): the floor's approach begun as its bow stopped turning
 #: (0.59 rad/s) read 492 N at the hand for 0.2 s and stopped 6 cm short of
 #: it; begun under 0.05, 62 N for an instant, and it held there (#520).
@@ -448,11 +457,20 @@ class Reach:
     self.tau = np.zeros(len(hm.JOINT_NAMES))
     self.qd = np.zeros(len(hm.JOINT_NAMES))
     #: The arm joints' friction as calibrated and stored (`friction.FILE`),
-    #: taken off the drivers' torques where a joint turns.
+    #: taken off the drivers' torques where a joint turns; and what every
+    #: joint's may hold still (`friction.still`), which the whole body's
+    #: reading weighs it by.
     self.friction = friction.load()
-    #: The force each hand pushes with, N, stance frame: its arm's
-    #: currents through its model (`SelfModel.hand_force`).
+    sm = self.self_model
+    self.still = friction.still(self.friction, sm.m.dof_frictionloss[sm.vadr])
+    #: Whether the standing policy has the legs, both soles down: the body's
+    #: owner says (`HumanoidMission`); the whole body's reading assumes it.
+    self.standing = True
+    #: The force each hand pushes with, N, stance frame: the whole body's
+    #: reading for a hand at work, standing, else its arm's (`FELT_PHASES`)
+    #: -- and its arm's alone, whichever is read.
     self.force = {s: np.zeros(3) for s in hm.SIDES}
+    self.arm_force = {s: np.zeros(3) for s in hm.SIDES}
     #: How fast each hand's command goes along its line, m/s; a carry's
     #: state; and how its last carry ended (`report`).
     self.speed = {s: HAND_SPEED for s in hm.SIDES}
@@ -1122,13 +1140,25 @@ class Reach:
       self._end(side, "held fast", h, r)
     return c.stiffness
 
+  def _feel(self) -> None:
+    """Each hand's force off the drivers' torques as just read, the model
+    posed off the senses (`_pose`): every hand's arm alone, then the whole
+    body's for those at work, standing (`FELT_PHASES`)."""
+    sm = self.self_model
+    tau = self.tau.copy()
+    for s in hm.SIDES:
+      arm = sm.arm[s]
+      tau[arm] -= friction.taken(self.friction, s, self.qd[arm])
+      self.arm_force[s] = sm.hand_force(s, tau[arm])
+    self.force = dict(self.arm_force)
+    working = [s for s in hm.SIDES if self.phase[s] in FELT_PHASES]
+    if self.standing and working:
+      self.force.update(sm.felt(working, tau, self.still))
+
   def _update(self, dt: float) -> None:
     sm = self.self_model
     self._pose()
-    for s in hm.SIDES:
-      arm = sm.arm[s]
-      self.force[s] = sm.hand_force(
-        s, self.tau[arm] - friction.taken(self.friction, s, self.qd[arm]))
+    self._feel()
     # Where a carried hand IS, by its senses (#493).
     have = {s: sm.grip_pose(s) for s in hm.SIDES if self.phase[s] == "carry"}
     self._trim(dt)
