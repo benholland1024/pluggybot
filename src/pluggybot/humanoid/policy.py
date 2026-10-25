@@ -133,10 +133,6 @@ class StandDriver:
     self.posture = np.zeros(2)
     self.target = self.leg_default.copy()
     self.steps = 0
-    #: What each hand is pulled or pushed with, in the trunk's frame, N,
-    #: left then right -- a callable the reach sets (`Reach.felt`) -- for a
-    #: policy that is shown it (`hand_force`, #544); none feels nothing.
-    self.felt = None
 
   def ask(self, height: float = 0.0, pitch: float = 0.0) -> None:
     """The posture to walk toward: the pelvis `height` m off the stand's and
@@ -159,7 +155,6 @@ class StandDriver:
       "joint_vel": lambda: qd[self.seen],
       "actions": lambda: self.last_action,
       "posture": lambda: self.posture,
-      "hand_force": lambda: self.felt() if self.felt is not None else np.zeros(6),
     }
     return np.concatenate([np.asarray(terms[name](), dtype=float)
                            for name in self.policy.observation_names])

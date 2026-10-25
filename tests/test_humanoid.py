@@ -343,35 +343,6 @@ def kind_is_leg(joint: str) -> bool:
   return hm.kind(joint) in hm.LEG
 
 
-def test_a_standing_policy_shown_its_hands_force_feels_what_the_arms_currents_read():
-  """#544: a policy whose file names `hand_force` is shown each hand's force
-  at the end of its observation -- the reach's reading off the arm's
-  currents, onto the hand, in the trunk's frame by the robot's model of
-  itself -- only while the hand holds, carries or pulls (a fast move reads
-  spikes), and never harder than its training's pulls."""
-  import copy
-  from pluggybot.humanoid import reach as rc
-  model, data, stand, reach = _standing()
-  assert stand.felt == reach.felt
-  _fly(model, data, stand, reach, 0.05)            # the model of itself posed
-  rot = reach.self_model.d.xmat[reach.self_model.root].reshape(3, 3)
-  assert np.allclose(rot @ rot.T, np.eye(3), atol=1e-9)
-  # the hand pushes back 30 N on what it holds: the world pulls it forward
-  reach.force["left"][:] = (-30.0, 0.0, 0.0)
-  assert reach.phase["left"] == "rest" and not reach.felt().any()
-  reach.phase["left"] = "hold"
-  assert np.allclose(reach.felt(), np.r_[rot.T @ (30.0, 0.0, 0.0), 0.0, 0.0, 0.0])
-  assert reach.felt()[0] == pytest.approx(30.0, abs=1.0)    # the trunk upright
-  reach.force["left"][:] = (0.0, -4.0 * rc.FELT_MOST_N, 0.0)
-  assert np.linalg.norm(reach.felt()[:3]) == pytest.approx(rc.FELT_MOST_N)
-  stand.policy = copy.copy(stand.policy)
-  stand.policy.observation_names += ("hand_force",)
-  assert np.array_equal(stand.observation()[-6:], reach.felt())
-  # ...and a driver no reach feeds feels nothing
-  stand.felt = None
-  assert not stand.observation()[-6:].any()
-
-
 def test_the_standing_policy_stands_in_our_physics():
   """Flown in the served sim's physics (2 ms, its drivers in C), from its
   own senses: the pelvis held at the stand and the feet where they were."""
