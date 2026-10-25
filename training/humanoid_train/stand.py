@@ -349,37 +349,49 @@ class hand_pull(envs_mdp.apply_body_impulse):
   on the ground, is past it is scaled down to it as it begins: 60 N across
   a hand 1.5 m up tips any body whose feet stay put. A positive
   `longest_s` holds a pull up to that long (`HAND_PULL_S`'s upper end; a
-  flag, where tyro reads the tuple as one number)."""
+  flag, where tyro reads the tuple as one number), and a positive `ramp_s`
+  brings it in over that long, as the verb's force builds, where mjlab's
+  steps to it whole."""
 
   def __init__(self, cfg, env):
     super().__init__(cfg, env)
     feet, _ = self._asset.find_sites(robot.FEET, preserve_order=True)
     self._feet = torch.tensor(feet, device=self._device, dtype=torch.long)
+    self._target = torch.zeros(self._num_envs, self._num_bodies, 3, device=self._device)
+    self._age = torch.zeros(self._num_envs, device=self._device)
 
   def __call__(self, env, env_ids, force_n: float, duration_s, cooldown_s, asset_cfg,
-               moment_nm: float = math.inf, longest_s: float = 0.0) -> None:
+               moment_nm: float = math.inf, longest_s: float = 0.0, ramp_s: float = 0.0) -> None:
     was = self._active.clone()
     if longest_s > 0.0:
       duration_s = (duration_s[0], longest_s)
     super().__call__(env, env_ids, (0.0, 0.0), (0.0, 0.0), duration_s, cooldown_s, asset_cfg)
     began = (self._active & ~was).nonzero(as_tuple=False).squeeze(-1)
+    self._age += self._step_dt
     n = len(began)
-    if not n:
-      return
-    way = torch.randn(n, 3, device=self._device)
-    way = way / way.norm(dim=-1, keepdim=True).clamp_min(1e-9)
-    size = force_n * torch.rand(n, 1, device=self._device) ** (1.0 / 3.0)
-    forces = torch.zeros(n, self._num_bodies, 3, device=self._device)
-    hand = torch.randint(self._num_bodies, (n,), device=self._device)
-    forces[torch.arange(n, device=self._device), hand] = way * size
-    if math.isfinite(moment_nm):
-      mid = self._asset.data.site_pos_w[began][:, self._feet].mean(dim=1)
-      mid[:, 2] = 0.0
-      arm = self._asset.data.body_link_pos_w[began][:, self._body_ids] - mid[:, None, :]
-      tip = torch.linalg.cross(arm, forces, dim=-1)[..., :2].norm(dim=-1)
-      forces = forces * torch.clamp(moment_nm / tip.clamp_min(1e-9), max=1.0)[..., None]
-    self._asset.write_external_wrench_to_sim(forces, torch.zeros_like(forces),
-                                             env_ids=began, body_ids=self._body_ids)
+    if n:
+      way = torch.randn(n, 3, device=self._device)
+      way = way / way.norm(dim=-1, keepdim=True).clamp_min(1e-9)
+      size = force_n * torch.rand(n, 1, device=self._device) ** (1.0 / 3.0)
+      forces = torch.zeros(n, self._num_bodies, 3, device=self._device)
+      hand = torch.randint(self._num_bodies, (n,), device=self._device)
+      forces[torch.arange(n, device=self._device), hand] = way * size
+      if math.isfinite(moment_nm):
+        mid = self._asset.data.site_pos_w[began][:, self._feet].mean(dim=1)
+        mid[:, 2] = 0.0
+        arm = self._asset.data.body_link_pos_w[began][:, self._body_ids] - mid[:, None, :]
+        tip = torch.linalg.cross(arm, forces, dim=-1)[..., :2].norm(dim=-1)
+        forces = forces * torch.clamp(moment_nm / tip.clamp_min(1e-9), max=1.0)[..., None]
+      self._target[began], self._age[began] = forces, 0.0
+    # the pull as it stands: whole as it begins, or brought in over `ramp_s`
+    ramping = (self._active & (self._age < ramp_s + self._step_dt)).nonzero(as_tuple=False)
+    ramping = ramping.squeeze(-1)
+    if len(ramping):
+      share = (torch.clamp(self._age[ramping] / ramp_s, max=1.0) if ramp_s > 0.0
+               else torch.ones(len(ramping), device=self._device))
+      forces = self._target[ramping] * share[:, None, None]
+      self._asset.write_external_wrench_to_sim(forces, torch.zeros_like(forces),
+                                               env_ids=ramping, body_ids=self._body_ids)
 
 
 def disturbance_scale(env, env_ids, stages=DISTURBANCE_STAGES, scale: float = 1.0):
@@ -483,7 +495,8 @@ def stand_env_cfg(play: bool = False) -> ManagerBasedRlEnvCfg:
   cfg.events["hand_pull"] = EventTermCfg(
     mode="step", func=hand_pull,
     params={"asset_cfg": SceneEntityCfg("robot", body_names=robot.HANDS),
-            "force_n": HAND_N, "moment_nm": math.inf, "longest_s": 0.0, "duration_s": HAND_PULL_S,
+            "force_n": HAND_N, "moment_nm": math.inf, "longest_s": 0.0, "ramp_s": 0.0,
+            "duration_s": HAND_PULL_S,
             "cooldown_s": HAND_REST_S})
   cfg.curriculum = {"disturbances": CurriculumTermCfg(func=disturbance_scale,
                                                       params={"scale": 1.0})}
