@@ -1276,10 +1276,19 @@ def _open_hand(life, args: dict) -> Routine:
   return {"ok": True, "hand": hand, "felt": felt}
 
 
+#: What a `withdraw` whose arm did not get home says, by the body's why.
+WITHDRAW_WHY = {"fell": "you fell on the way home",
+                "held": "your {hand} arm did not get home: something holds it there"}
+
+
 def _withdraw(life, args: dict) -> Routine:
+  """ok once the arm is home, by its drivers (`Body.release_routine`)."""
   hand = args["hand"]
-  _, felt = yield from _felt_routine(life, hand, life.body.release_routine(hand))
-  return {"ok": True, "hand": hand, "felt": felt}
+  why, felt = yield from _felt_routine(life, hand, life.body.release_routine(hand))
+  if why == "home":
+    return {"ok": True, "hand": hand, "felt": felt}
+  return {"ok": False, "hand": hand, "why": why, "felt": felt,
+          "reason": WITHDRAW_WHY.get(why, "your {hand} arm did not get home").format(hand=hand)}
 
 
 #: A hand's path, the most points (`via`): a 64-degree arc in 4-degree
@@ -1477,7 +1486,10 @@ HANDS_VERBS: dict[str, Verb] = {
                      "ok when it says it holds something"),
   "open_hand": Verb("open_hand", {"hand": _HAND}, _open_hand, "open a hand's gripper"),
   "withdraw": Verb("withdraw", {"hand": _HAND}, _withdraw,
-                   "bring a hand back out along the way it went in, and its arm home"),
+                   "bring a hand back out along the way it went in, and its arm home -- "
+                   "straight there, or out to your side first and down at your side where "
+                   "that keeps the arm higher in front of you than straight would; ok once "
+                   "your arm is home"),
 }
 #: The hands' vocabulary (#525; docs/Hands.md): what the humanoid's
 #: procedures call, the checks' and the practice's alike...

@@ -101,6 +101,12 @@ BUDGET_S = lid.TIME_LIMIT_S
 #: 32 public chests at 0f98e24), set before #493's stage 3 flew.
 REFERENCE_S = 22.54
 LIMIT_S = {("quadruped", "floor"): BUDGET_S, ("humanoid", "counter"): 3 * REFERENCE_S}
+#: ...and a job's own where it has one: the door's three times OUR door
+#: procedure's slowest pass (#535: `evaluation.hands_check.DOOR`, 10.8-35.8
+#: s over its 32 public set-outs at 70bf773, 20 passing), set before any
+#: mind flew it, as the lid's was.
+DOOR_REFERENCE_S = 35.81
+JOB_LIMIT_S = {"door": 3 * DOOR_REFERENCE_S}
 #: What every result here relies on that a real world would not give it
 #: (#493; Evaluation.md §5, "Graded in MuJoCo"): said with every reading.
 FLATTERS = (
@@ -115,6 +121,24 @@ FLATTERS = (
   "resets are free and exact, and nothing breaks",
   "MuJoCo against MuJoCo: an upper bound on hardware",
 )
+#: ...and what a reading of the cupboard's door flatters (#535).
+DOOR_FLATTERS = (
+  "the lever's tip carries a tag: finding it is reading a fiducial",
+  "one cupboard: the doors differ only in where they stand and their hidden dynamics",
+  "a freed door is kicked a few degrees ajar by its latch's spring (`activity.door.KICK_RAD`)",
+  "the humanoid is stood at its counter: walking to the cupboard is not the task",
+  "the humanoid's mind is told the tip's size and its tag: what it would see",
+  "with `measure`, a flat top's height and edges are our code's reading of its depth camera",
+  "resets are free and exact, and nothing breaks",
+  "MuJoCo against MuJoCo: an upper bound on hardware",
+)
+
+
+def flatters(grader: str = "lid") -> tuple[str, ...]:
+  """What a reading of `grader`'s job flatters: the door's own, else the
+  lid's (`FLATTERS`)."""
+  return DOOR_FLATTERS if grader == "door" else FLATTERS
+
 
 #: The chests flown in public before any held-out draw: #466's batches flew
 #: set-outs 0-127 on the floor (#479, #480) and #507's demo table 0-11 at
@@ -185,8 +209,9 @@ class Task:
 
   @property
   def limit_s(self) -> float:
-    """The job's time limit at this set-out, s (`LIMIT_S`)."""
-    return LIMIT_S[(self.body, self.mount)]
+    """The job's time limit at this set-out, s: its own where it has one
+    (`JOB_LIMIT_S`), else its set-out's (`LIMIT_S`)."""
+    return JOB_LIMIT_S.get(self.grader, LIMIT_S[(self.body, self.mount)])
 
   @property
   def tool(self) -> str | None:

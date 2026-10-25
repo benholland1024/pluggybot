@@ -821,7 +821,10 @@ other and being unable to avoid it look the same).
 **4. Creativity and aesthetic taste** — *can it judge like a person, and
 create by that judgement.* Metric: **judgement agreement**, both halves off
 the rating panel. CAN IT CREATE: the panel's first rating of each drawing it
-offered (`rate_artwork`), as a list. CAN IT JUDGE: for each drawing the
+offered (`rate_artwork`), as a list. ⚠ #541 took `rate_artwork` off
+`home_quad`'s cadence, and the served menu has no `artwork` action, so
+neither half gains a drawing after that deploy: its rows come only from
+people rating the drawings made before it. CAN IT JUDGE: for each drawing the
 robot also rated (`rate {board, quality}` → `judged`, matched to the drawing
 by the site), the panel's first rating beside the robot's and the absolute
 gap in 0..1 — and the panel's own re-rate gaps (the same person, the same
@@ -1000,7 +1003,10 @@ internals. Its rules:
 - **the call is wherever the skill ended, or its budget did** (`cut`): the
   budget is the job's own time limit, the task's (`attempts.LIMIT_S`: the
   quadruped's 300 sim-s, the humanoid's 68, three times its reference's
-  slowest pass), and
+  slowest pass at `0f98e24`; a job's own where it has one, `JOB_LIMIT_S`:
+  the door's 107, three times our door procedure's at `70bf773`, #535). ⚠
+  Both stay as set though #539's `withdraw` waits for the arm home: on its
+  code those passes take up to 31.6 s and 55.7 s. And
   a cut attempt that failed says "out of time" first. Then the hold with
   the body held still, and one verdict through `scoring.evaluate`, graded
   and paid nothing. A fall is lost time and nothing more: the body's falls
@@ -1054,7 +1060,7 @@ agreeing every time, no fall: 17.7-22.5 sim-s a pass, the lid to 57.5-63.5
 deg and down at 0.34-0.68 rad/s at its fastest while open. The nine it misses are
 the body's reach, none its judgement: in five no grip's tilt follows the
 arc to 60 deg, in three no arc follows from the grip the reach could make,
-in one the hand ran out of reach a step up. Its slowest pass sets the
+in one the hand ran out of reach a step up. Its slowest pass set the
 humanoid task's time limit at three times it, 68 s (`attempts.LIMIT_S`;
 the quadruped's stays 300). ⚠ The generator's filter
 (`activity.chest.draw`: lids that shut by themselves from the probe's 1.2
@@ -1116,8 +1122,11 @@ again 32 times and never used its library. The KEPT protocol
 `flown`) measures the two things apart:
 - **acquiring**: ONE robot practices on the public chests in turn,
   carrying only what passed -- the procedures the grader passed, shown at
-  each chest's start (`mind.practice.library_text`), the newest kept and
-  the oldest going where the library is full -- never a conversation or a
+  each chest's start (`mind.practice.library_text`): under each name the
+  one that passed the most chests, the newest of them among ties, two
+  sources one program where the language reads them alike (#535; the
+  newest pass alone until then), and the oldest name going where the
+  library is full -- never a conversation or a
   note of its own. It ends once 3 chests running pass at their first try
   (`UNTIL`), or 16 are practiced (`MAX_CHESTS`); with nothing kept after 6
   (`GIVE_UP_AFTER`; 8 for the arms below), nothing more is flown. Its
@@ -1410,14 +1419,179 @@ pathdsm's settings otherwise:
   through twelve `via` points round the hinge, the hand rolling with the
   lid, then the same arc back down at 3 cm/s -- the path and the maths,
   not the force move.
-- **A robot keeps its NEWEST pass, not its best** (`evaluation.practice.keep`:
-  a pass under a name it holds replaces it): the second arm's first six
+- **A robot kept its NEWEST pass, not its best** (`evaluation.practice.keep`
+  then: a pass under a name it held replaced it; since #535 the one that
+  passed the most chests stays): the second arm's first six
   passes stepped 6 cm right and gripped from above; its seventh, on chest
   14, left the step out and replaced them. Its frozen copies reached from
   above without the step, and stopped short or found no posture: 0 of 7.
 - **What it cannot show**: two arms a condition, and the two with the reply
   fixed went 22 of 29 and 0 of 7 on the same held-out chests -- which skill
   a conversation keeps decides as much as the vocabulary.
+
+**The yardstick made firm, then a task the path was not built on** (#535,
+for #534): does the procedure path learn a task it was not built on? Every
+comparison #534 makes is read against the lid's yardstick, so that first.
+- **A robot keeps the procedure that passed the most chests** under each
+  name, the newest of them among ties (`evaluation.practice.keep`), two
+  sources one procedure where the language reads them alike (`program`: by
+  their bytes, fixB's passes on chests 7 and 8 were two procedures, a last
+  newline apart, and the rule would have kept chest 14's again). Kept again
+  off their own rows (`practice.py --keep-again`), fixB keeps its chests
+  7-8 procedure, its step with it; and fixA its chests 9-10 procedure -- a
+  path laid by hand that lifts the lid from under its knob, the jaws never
+  closed -- over chest 15's, the gripped arc about `measure`'s hinge its
+  frozen copies flew 22 of 29 with.
+- **Both arms' held-out chests flown again** at `8bb72dc`, their own seed,
+  from the kept procedure the rule picks (`--kept`), their notes and draft
+  as they were; each stopped early at its 7th failure within 3, and the
+  cost is the held-out flight's alone:
+
+| arm | kept | held out within 3 | within 5 | cost |
+|---|---|---|---|---|
+| fixA | chest 15's, the newest | 22 of 29 [0.58, 0.88], 17 at the first | 23 of 29 | $0.52 |
+| ...the most chests | chests 9-10's | 18 of 25 [0.52, 0.86], 12 at the first | 21 of 25 | $0.55 |
+| fixB | chest 14's, the newest | 0 of 7 [0.00, 0.35] | 0 of 7 | $0.24 |
+| ...the most chests | chests 7-8's | 3 of 10 [0.11, 0.60], none at the first | 4 of 10 | $0.34 |
+
+- ⚠ **A FROZEN COPY CARRIES ITS DRAFT AS WELL AS ITS LIBRARY, and the draft
+  is the newest approach**: fixA's was chest 15's procedure line for line.
+  Flown again, its copies ran the draft unchanged on 10 first tries of 25
+  and the kept procedure on 1; 22 of 25 called `measure`, which the kept
+  one never does, and none of their 21 passes ran it as it was. So fixA's
+  18 of 25 is chest 15's approach again more than the rule's pick, and
+  "only the kept procedure differs" changed the library, not what the
+  robot carried. fixB's copies ran their kept procedure unchanged on 1
+  first try of 10, and passed with it once of 4. Under the newest rule,
+  fixA's copies ran the kept procedure unchanged on 24 first tries of 29,
+  and 13 of their 23 passes were it as it was.
+- **Two fresh arms** with fixA's settings and the rule, at `70bf773`
+  (its held-out seed, 3120822873), started two hours apart:
+
+| arm | practice: chests passed, the try each passed at | held out within 3 | within 5 | cost |
+|---|---|---|---|---|
+| mostA | 8 of 16: x x 2 9 x x 3 x x 8 3 2 7 7 x x | 3 of 10 [0.11, 0.60], 1 at the first; stopped early | 5 of 10 | $2.90 |
+| mostB | 0 of 6, given up: 10 tries of 60 opened the lid past 57 deg, and all 10 let it fall (2.4-6.2 rad/s) | -- | -- | $0.75 |
+
+  mostA's eight passes were eight programs, so the rule kept its newest,
+  as the old rule would have: chest 13's. Its copies ran it unchanged on 4
+  first tries of 10 and the draft on 4.
+- **The yardstick as it stands is a range, not a number.** Of the four
+  arms with the reply fixed and `step` (fixA, fixB, mostA, mostB), one
+  kept nothing; the three that kept a skill passed **3 of 10, 3 of 10 and
+  18 of 25** held-out chests within 3 under the rule as it stands (0.30 to
+  0.72; 4, 5 and 21 within 5), and fixA's 18 came mostly through its
+  draft. Which approach a conversation finds decides more than which pass
+  it keeps: the bar, 80 % within 3, is out of reach in every arm.
+
+**The door, with no new help** (#535's stage 2): the vocabulary, the
+practice's prompt, its replies and its protocol as the yardstick's, and
+two things new. The door's job (`practice.DOOR_JOB`), written before any
+mind flew it, as the lid's was: what stands there -- a cupboard on the
+counter, its door, a lever whose tip is a 26 mm cube with tag 55 on every
+face -- and `challenge/door.py`'s criteria, and no word of how. And where
+the practice's texts named the box they name the cupboard
+(`Practice.thing`); the lid's are unchanged, byte for byte (a test pins
+them). `practice.py --job door` flies it.
+- **Its time limit, set before any mind flew it**: three times our door
+  procedure's slowest pass over its 32 public set-outs, as the lid's was off
+  the opener's -- 20 of 32 passed (`hands_check.py --job door --set-outs
+  0-31`, at `70bf773`), in 10.8-35.8 sim-s -- so 107 s
+  (`attempts.JOB_LIMIT_S`; the drawer's and the cube's keep the lid's 68).
+- **The head camera's first picture shows little of either**: the lid's
+  arms were shown a strip of the box's top at the frame's foot, the door's
+  are shown the cupboard's top corner; `spot` bows until it sees a tag.
+- **The reference**, our door procedure over the arms' 32 held-out set-outs
+  (`hands_check.py --job door --held-out 32`, at `ad4a4f6`, seed
+  3510776006): **21 of 32** [0.48, 0.80], its passes in 11.0-46.7 sim-s.
+  Of the 11 it missed, 7 opened the door 4-49 deg and no further, a reach
+  or a move out of reach or stopped short (in 4 the tip then out of the
+  head camera's sight); 2 never opened it, the jaws closing on nothing;
+  and 2 opened it past 50 deg and were under it at the call (84 to 0, 51
+  to 48).
+- **The bar** (Ben, 2026-10-24): demo 1's, 80 % within 3 of the 32
+  held-out set-outs, the flight stopped early as the yardstick's are,
+  read beside the yardstick and the reference -- above what our own
+  procedure does here (66 %), as the lid's was above the opener's 72 %.
+- **The two arms**, the yardstick's settings, at `ad4a4f6`:
+
+| arm | practice: set-outs passed, the try each passed at | kept | held out within 3 | within 5 | cost |
+|---|---|---|---|---|---|
+| doorA | 12 of 16: 9 7 2 4 1 x 7 x x 1 3 x 5 1 3 3 | set-outs 12-13's | 15 of 22 [0.47, 0.84], 8 at the first; stopped early | 16 of 22 | $1.46 |
+| doorB | 9 of 11: x 1 2 5 2 x 4 6 1 1 1, three running at the first try | set-outs 7-10's | 22 of 29 [0.58, 0.88], 20 at the first; stopped early | 25 of 29 | $0.92 |
+
+- **The door was learned with no new help, twice, and the bar missed
+  narrowly both times**: practice passed 12 set-outs of 16 and 9 of 11,
+  where the lid's arms passed 0-8 of 16; held out, 0.68 and 0.76 within 3
+  -- the lid's best arm's level (fixA, 0.76, and 0.72 flown again), above
+  its other two (0.30) -- and at
+  the first try doorB's copies (20 of 29) about matched our own procedure
+  (21 of 32), each arm at a third to a half of a lid arm's cost. Each
+  held-out set-out in the seed's draw order (`-` unflown, `x` failed
+  within 5): doorA `1 1 x 2 2 x 3 2 x 3 x x 1 x 2 5 - 1 - 1 1 1 - - 2 1 -
+  - - - - -`; doorB `1 - 1 x 4 1 1 x 3 1 x 1 1 5 1 1 1 1 x 1 1 5 1 1 1 1 1
+  3 1 1 - -`; the reference `1 1 1 x x 1 1 1 1 1 1 1 x 1 x 1 x 1 x 1 x 1 1
+  1 1 x x 1 x 1 1 x`. doorB and our procedure mostly miss different
+  set-outs: they agree on 18 of the 29 both flew.
+- **doorB's skill is a grip and a hard pull** (below): the tip gripped
+  from the side, then pulled toward the body at 50 N, three times. Its
+  notes never name the latch; the pull presses the lever 45-63 deg (its
+  stop is 45, which MuJoCo's limit lets the 120 N grip pass; the latch
+  frees at 32), and the swinging door drags the arm and the body round.
+  Its copies ran it unchanged on 28 first tries of 29; its draft was the
+  same program.
+- **doorA's copies ran their draft, not their library**: its draft was
+  set-out 15's passing procedure, the one the old rule would have kept,
+  and its copies ran it unchanged on 12 first tries of 22 and the kept
+  procedure on 1 -- as fixA's flown again did.
+- **What they said they lacked** (their thinking and notes): a sense of
+  the door's angle, in 46 and 23 turns -- every lid arm's lack too; and
+  room: 27 sources refused for nesting deeper than 4, 11 over the
+  1,500-character cap, 15 asking more force than a verb gives (`pull` 60
+  N, `close_hand` 120 N), 6 using a verb's result in an expression, 2
+  writing `break` or `continue`. Their notes are technique: where the
+  default grip lands against the tag, the pull that topples the body, a
+  wait so the door does not swing back.
+
+![doorB's kept skill at held-out set-out 553330827, its first try: the
+tip gripped, a pull, the door swinging the body round (12-16 s), standing
+again at the call](figures/door_learned.png)
+
+**A fall is lost time, never a verdict (Ben, 2026-10-17), and some skills
+lean on it.** The readings above are the protocol's. Counting only the
+passes with no fall on the body's own watch, within 3 of the held-out
+chests:
+
+| arm | within 3 | without a fall |
+|---|---|---|
+| fixA (lid), the newest kept | 22 of 29 | 8 of 29 [0.15, 0.46] |
+| fixA (lid), the most passes kept | 18 of 25 | 6 of 25 |
+| fixB (lid), the most passes kept | 3 of 10 | 2 of 10 |
+| mostA (lid) | 3 of 10 | 3 of 10 |
+| doorA | 15 of 22 | 9 of 22 [0.23, 0.61] |
+| doorB | 22 of 29 | **0 of 29** |
+| our door procedure | 21 of 32 | 21 of 32 |
+
+- doorB fell in every one of its 60 held-out tries: its pull swings the
+  door and the body with it, and it stood again before the call. fixA's
+  falls, filmed at one held-out chest, came after its job: the lid set
+  down by 25 s, the robot on the floor at the call and up again 5 s
+  later. No verb said it fell in any of the 46 falling passes, so the
+  rows cannot place each fall.
+- Most of fixA's falls were the old way home. Flown again from their kept
+  procedures on #539's, its 59 held-out tries (the most passes kept) pass
+  at the same 21 and fall 15 times, not 36; all 24 that no longer fall had
+  fallen after their last `withdraw` began. Within 3 and without a fall it
+  passes 16 of its 25 chests. The door arms gain nothing: at least 14 of
+  22 and 21 of 29 within 3, 8 and 0 without a fall (SimNotes, "The way
+  home").
+- So no fall, as a real robot would need, puts the door's best arm at
+  0.41 and the lid's at 0.20-0.30 within 3. Whether a fall should fail a
+  try is a rule for #534 to weigh; nothing here changes it.
+
+![fixA's kept skill at held-out chest 859119791, its first try: the lid
+opened along its arc and set down, the robot fallen at the call and
+standing 5 s later](figures/lid_fall_after.png)
 
 ## 5. What silently invalidates a number
 

@@ -14,6 +14,7 @@ import math
 import re
 from types import SimpleNamespace as NS
 
+import mujoco
 import numpy as np
 import pytest
 
@@ -168,6 +169,21 @@ def test_a_reach_that_does_not_hold_says_the_bodys_own_why():
   step = ran["steps"][-1]
   assert not step["ok"] and step["why"] == "stopped short"
   assert step["reason"] == st.REACH_WHY["stopped short"].format(hand="left")
+
+
+@pytest.mark.parametrize("why", ["held", "fell"])
+def test_a_withdraw_is_ok_only_once_its_arm_is_home(why):
+  """#539: `withdraw` said ok as the arm's walk home began, the arm still
+  seconds from home; it is ok once the body says home, else says why not."""
+  class Away(StubBody):
+    def release_routine(self, side):
+      return why
+      yield
+  source = 'def a():\n    reach("left", 0.3, 0.2, 0.9)\n    withdraw("left")\n'
+  step = _fly(source, Away(*_bare()))["steps"][-1]
+  assert step["verb"] == "withdraw" and not step["ok"] and step["why"] == why
+  assert step["reason"] == st.WITHDRAW_WHY[why].format(hand="left")
+  assert _fly(source)["ok"]
 
 
 def test_a_verbs_report_is_read_as_sensors_and_none_before_it_runs():
@@ -399,6 +415,19 @@ def _bare_reach():
   r.postures = []
   r.hold_posture = lambda height, pitch: r.postures.append((height, pitch))
   r.grippers = {s: _Grip() for s in hm.SIDES}
+  r.homes, r._planner = {s: [] for s in hm.SIDES}, None
+  r.sensed = np.full(len(hm.JOINT_NAMES), np.nan)
+  return r
+
+
+def _standing_reach():
+  """A bare reach on the robot's model of itself at the stand, its arms'
+  rest the stand's and commanded there."""
+  r = _bare_reach()
+  q = np.array([hm.stand_qpos().get(n, 0.0) for n in hm.JOINT_NAMES])
+  r.self_model.pose(q, np.array([0.0, 0.0, -1.0]))
+  r.rest = {s: q[r.self_model.arm[s]].copy() for s in hm.SIDES}
+  r.q_cmd = {s: r.rest[s].copy() for s in hm.SIDES}
   return r
 
 
@@ -419,13 +448,257 @@ def _turned(deg):
   return rot_about(np.array([0.0, 1.0, 0.0]), math.radians(deg))
 
 
-def test_an_arm_walked_joint_by_joint_withdraws_home_in_joint_space():
+@pytest.mark.parametrize("phase", ["joints", "move"])
+def test_an_arm_with_no_line_out_withdraws_home_in_joint_space(phase):
   """`move` on an arm's joint, then `withdraw`: there is no line to come
-  out along, and unhandled the withdraw waited out the attempt."""
+  out along, and unhandled the withdraw waited out the attempt -- nor for an
+  arm still walking out to its pre-grasp, whose command is a past hold's;
+  and the posture goes back to the stand."""
+  from pluggybot.humanoid.arms import HandGoal
   r = _bare_reach()
   r.set_joints("left", r.rest["left"] + 0.3)
+  if phase == "move":
+    r.cmd["left"] = HandGoal(np.array([0.3, 0.2, 0.9]), None, 1.0)
+    r.goal["left"], r.phase["left"] = HandGoal(np.array([0.4, 0.2, 0.9]), None, 1.0), "move"
   r.retreat("left")
-  assert r.phase["left"] == "rest" and np.allclose(r.q_to["left"], r.rest["left"])
+  assert r.phase["left"] == "home" and r.goal["left"] is None
+  assert np.allclose(([r.q_to["left"]] + r.homes["left"])[-1], r.rest["left"])
+  assert r.postures == [(0.0, 0.0)]
+
+
+#: Where the arm's walk home began in #539's flights, raised before its
+#: shoulder: the right's (pitch, roll, yaw, elbow, wrist pitch and roll),
+#: and the left's mirror.
+RAISED = np.array([-1.72, -1.44, 0.95, 1.03, 1.27, -0.05])
+
+
+def _of(side, q_right):
+  """The right arm's joints `q_right` for `side`: the left's mirror them
+  (`reach.seed`, its own inverse)."""
+  from pluggybot.humanoid import reach as rc
+  return q_right if side == "right" else rc.seed("right", q_right)
+
+
+def _posed_reach(pose: str):
+  """`_standing_reach`, or posed as a reach's statue at the stand
+  (`reach.plan`): its trunk 2.7 cm further ahead, the hanging hand past the
+  toes."""
+  from pluggybot.humanoid import reach as rc
+  r = _standing_reach()
+  if pose == "statue":
+    rc._posed(r.self_model, 0.0, 0.0, np.array([hm.stand_qpos().get(n, 0.0)
+                                                for n in hm.JOINT_NAMES]))
+  return r
+
+
+def _sent_home(r, side, q0):
+  """The arm commanded at `q0` and sent home: the joint targets it walks."""
+  r.set_joints(side, q0)
+  r.q_cmd[side] = np.asarray(q0, dtype=float).copy()
+  r.retreat(side)
+  return [r.q_to[side]] + r.homes[side]
+
+
+def _clear_of_counter(sm, side, q0, ways, front=0.279, top=0.72) -> float:
+  """The least distance from a counter as wide as the world -- its front
+  edge `front` ahead of the soles' middle, its top `top` up (chest 0's) --
+  to the arm's solid parts, m (negative: into it), as the arm walks in
+  joint space from `q0` through `ways`: each capsule's axis less its
+  radius, each box's corners."""
+  import itertools
+  import mujoco
+  worst, prev = math.inf, np.asarray(q0, dtype=float)
+  for w in ways:
+    for t in np.linspace(0.0, 1.0, 41)[1:]:
+      sm._set_arm(side, prev + (w - prev) * t)
+      for part in ("upper_arm", "forearm", "gripper", "jaw_a_pad", "jaw_b_pad"):
+        g = sm.m.geom(f"{side}_{part}").id
+        pos, rot, size = sm.d.geom_xpos[g], sm.d.geom_xmat[g].reshape(3, 3), sm.m.geom_size[g]
+        if sm.m.geom_type[g] == mujoco.mjtGeom.mjGEOM_CAPSULE:
+          pts, r = [pos + a * size[1] * rot[:, 2] for a in np.linspace(-1, 1, 5)], size[0]
+        else:
+          pts, r = [pos + rot @ (np.array(c) * size)
+                    for c in itertools.product((-1, 1), repeat=3)], 0.0
+        for p in pts:
+          off = (front - p[0], p[2] - top)          # outside by either
+          d = math.hypot(max(off[0], 0), max(off[1], 0)) if max(off) > 0 else max(off)
+          worst = min(worst, d - r)
+    prev = w
+  return worst
+
+
+@pytest.mark.parametrize("pose", ["stand", "statue"])
+@pytest.mark.parametrize("side", hm.SIDES)
+def test_an_arm_raised_over_a_counter_goes_home_at_its_side_never_down_onto_it(side, pose):
+  """#539: straight home in joint space, a hand raised before its shoulder
+  brought a jaw down onto the counter's front edge and rested there 1.3 s;
+  judged on the robot's model of itself (straight home, the arm dips ahead
+  of the robot's front), it rolls out to its side first and is lowered
+  there, clear of any counter so far ahead. ⚠ As a reach's statue stands
+  too: its hanging hand past the toes, judged from the toes alone straight
+  home tied the side way and took it."""
+  r = _posed_reach(pose)
+  q0 = _of(side, RAISED)
+  ways = _sent_home(r, side, q0)
+  assert np.allclose(ways[-1], r.rest[side])
+  sm = r.self_model
+  assert _clear_of_counter(sm, side, q0, [r.rest[side]]) < 0, "the premise: straight onto it"
+  assert _clear_of_counter(sm, side, q0, ways) > 0.05
+
+
+#: Where the left arm's walk home began in the capability check's drawer
+#: (#525, set-out 3), the drawer pulled 17 cm out toward the robot.
+PULLED_CLOSE = np.array([0.75, 0.18, 0.11, 1.14, 1.18, 1.76])
+
+
+def test_an_arm_none_of_it_ahead_of_the_robots_front_goes_straight_home():
+  """What the hand worked over lies under it ahead of the robot's front, so
+  an arm with none of it there worked over nothing there. Judged as if all
+  under it were solid, the check's drawer, pulled close, took the side way:
+  its roll-out swept a jaw into the drawer's face and pushed it 4 cm back
+  in, and the job failed."""
+  from pluggybot.humanoid import reach as rc
+  r = _standing_reach()
+  sm = r.self_model
+  ahead = rc.front(sm, "left", r.rest["left"])
+  sm._set_arm("left", PULLED_CLOSE)
+  assert not (rc.outline(sm, "left")[:, 0] > ahead).any(), "the premise: none of it ahead"
+  _sent_home(r, "left", PULLED_CLOSE)
+  assert r.homes["left"] == [] and np.allclose(r.q_to["left"], r.rest["left"])
+
+
+@pytest.mark.parametrize("side", hm.SIDES)
+def test_the_side_way_rolls_an_arm_out_to_its_own_side(side):
+  """From a counter's height (the grip 0.30 m ahead, 0.25 out, 0.85 up), its
+  roll inside `HOME_ROLL`: rolled out to it, on its own side, held there as
+  its other joints come home; from #539's raised arm, rolled out further
+  already, its roll kept."""
+  from pluggybot.humanoid import reach as rc
+  k = hm.ARM.index("shoulder_roll")
+  lo, hi = hm.joint_range(f"{side}_shoulder_roll")
+  outward = 1.0 if hi > -lo else -1.0
+  r = _standing_reach()
+  y = 0.25 if side == "left" else -0.25
+  q0, miss, _ = rc.solve_seeded(r.self_model, side, np.array([0.30, y, 0.85]), None)
+  assert miss < 0.01 and abs(q0[k]) < rc.HOME_ROLL
+  ways = _sent_home(r, side, q0)
+  assert len(ways) == 3
+  assert ways[0][k] * outward == pytest.approx(rc.HOME_ROLL) and ways[1][k] == ways[0][k]
+  q0 = _of(side, RAISED)
+  ways = _sent_home(_standing_reach(), side, q0)
+  assert ways[0][k] == pytest.approx(q0[k]) and ways[1][k] == pytest.approx(q0[k])
+
+
+def test_an_arm_no_lower_on_its_way_home_ahead_of_its_toes_goes_straight_there():
+  """The side way is a detour (its sweep out to the side, 3 s): a hand low
+  ahead of the robot's front, whose way home rises, walks straight home."""
+  from pluggybot.humanoid import reach as rc
+  r = _standing_reach()
+  sm = r.self_model
+  ahead = rc.front(sm, "right", r.rest["right"])
+  q0, miss, _ = rc.solve_seeded(sm, "right", np.array([0.12, -0.2, 0.6]), None)
+  sm._set_arm("right", q0)
+  assert miss < 0.01 and (rc.outline(sm, "right")[:, 0] > ahead).any(), "the premise: some ahead"
+  _sent_home(r, "right", q0)
+  assert r.homes["right"] == [] and np.allclose(r.q_to["right"], r.rest["right"])
+
+
+@pytest.mark.parametrize("straight,aside,taken", [(0.5, 0.0, 1), (5.0, 8.0, 1), (5.0, 0.0, 3)])
+def test_the_side_way_is_taken_only_past_the_margin_and_where_it_dips_less(
+    monkeypatch, straight, aside, taken):
+  """`way_home`'s rule over the dips its judge gives each way, in
+  `HOME_DIP_M`s: straight home unless that dips more than the margin, and
+  the side way only where it dips less -- a detour that buys nothing is
+  not taken."""
+  from pluggybot.humanoid import reach as rc
+  monkeypatch.setattr(rc, "dip", lambda sm, side, q0, ways, *a:
+                      (straight if len(ways) == 1 else aside) * rc.HOME_DIP_M)
+  assert len(_sent_home(_standing_reach(), "right", RAISED)) == taken
+
+
+def test_an_arm_is_home_once_its_rest_is_commanded_and_its_drivers_read_it_there():
+  """`withdraw` is ok on `Reach.home` (#539): the rest commanded -- never an
+  arm still on its way, whose command says it hangs -- and every joint read
+  within `HOME_RAD` of it."""
+  from pluggybot.humanoid import reach as rc
+  r = _standing_reach()
+  arm = r.self_model.arm["left"]
+  r.sensed[arm] = r.rest["left"]
+  assert r.home("left")
+  r.sensed[arm[3]] += 2 * rc.HOME_RAD
+  assert not r.home("left")
+  r.sensed[arm[3]] = r.rest["left"][3]
+  _sent_home(r, "left", r.rest["left"] + 0.3)
+  assert r.phase["left"] == "home" and not r.home("left")
+
+
+def test_a_second_retreat_partway_home_leaves_the_way_be():
+  """`to_walk_routine` sends every arm not at rest home again: one partway
+  along its way goes on, never planned afresh from where it is."""
+  r = _standing_reach()
+  way = [q.copy() for q in _sent_home(r, "right", RAISED)]
+  r.q_cmd["right"] = (RAISED + r.rest["right"]) / 2
+  r.retreat("right")
+  got = [r.q_to["right"]] + r.homes["right"]
+  assert len(got) == len(way) == 3 and all(np.allclose(a, b) for a, b in zip(way, got))
+
+
+def _stepped(r):
+  """A bare reach whose loop (`Reach._update`) runs: its senses, its trim and
+  its drivers stubbed out."""
+  from types import SimpleNamespace
+  n = len(hm.JOINT_NAMES)
+  r.tau, r.qd, r.friction = np.zeros(n), np.zeros(n), {}
+  r.force = {s: np.zeros(3) for s in hm.SIDES}
+  r._pose = lambda arms=None: None
+  r._trim = lambda dt: None
+  r.arms = {s: SimpleNamespace(command=lambda *a: None) for s in hm.SIDES}
+  return r
+
+
+def test_the_walk_home_walks_every_target_in_turn_then_rests():
+  """The loop walks the way home target by target, `home` until the last
+  arrives -- its command at the rest -- and only then `rest`."""
+  r = _stepped(_standing_reach())
+  way = [q.copy() for q in _sent_home(r, "right", RAISED)]
+  seen = [r.q_to["right"].copy()]
+  for _ in range(2000):
+    r._update(0.01)
+    if not np.allclose(r.q_to["right"], seen[-1]):
+      seen.append(r.q_to["right"].copy())
+    if r.phase["right"] != "home":
+      break
+  assert r.phase["right"] == "rest" and np.allclose(r.q_cmd["right"], r.rest["right"])
+  assert len(seen) == len(way) == 3 and all(np.allclose(a, b) for a, b in zip(seen, way))
+
+
+def test_the_joints_an_arm_is_judged_home_by_are_its_drivers_reading():
+  """`Reach.sensed` is what the drivers read -- never the command the model
+  is posed at after (#539: aliased to it, home was the command's arrival
+  again)."""
+  from types import SimpleNamespace
+  r = _standing_reach()
+  read = np.array([hm.stand_qpos().get(n, 0.0) for n in hm.JOINT_NAMES]) + 0.2
+  r.d = None
+  r.stand = SimpleNamespace(
+    joints=SimpleNamespace(read=lambda d: (read.copy(), np.zeros_like(read), np.zeros_like(read))),
+    trunk=SimpleNamespace(gravity=lambda: np.array([0.0, 0.0, -1.0])))
+  r._pose(r.q_cmd)
+  assert np.allclose(r.sensed, read)
+
+
+def test_the_way_home_is_judged_as_the_robot_stands_and_moves_nothing_of_its_model():
+  """Judged on the planner's model posed as the live one stands, whatever the
+  planner was left at, and the live model left as it was."""
+  from pluggybot.humanoid import reach as rc
+  want = [q.copy() for q in _sent_home(_standing_reach(), "right", RAISED)]
+  r = _standing_reach()
+  rc._posed(r._planner_model(), -0.25, 1.1, np.array([hm.stand_qpos().get(n, 0.0)
+                                                      for n in hm.JOINT_NAMES]))
+  live = r.self_model.q.copy(), r.self_model.d.qpos.copy()
+  got = _sent_home(r, "right", RAISED)
+  assert len(got) == len(want) and all(np.allclose(a, b) for a, b in zip(want, got))
+  assert np.array_equal(r.self_model.q, live[0]) and np.array_equal(r.self_model.d.qpos, live[1])
 
 
 def test_a_carry_that_stops_says_how_short_it_fell_and_holds_the_turn_it_was_asked():
@@ -718,15 +991,70 @@ def test_an_answer_cut_off_is_asked_again_saying_so():
   assert "128,000 tokens" in prompt and "64,000" in prompt
 
 
-def test_what_passed_is_kept_the_newest_last_and_the_oldest_goes_when_full():
-  kept, dropped = ep.keep([], "a", "A", 3, 2)
-  assert kept == [{"name": "a", "source": "A", "chest": 3, "attempt": 2}] and dropped is None
-  kept, _ = ep.keep(kept, "b", "B", 4, 1)
-  kept, dropped = ep.keep(kept, "a", "A2", 5, 1)
-  assert [k["name"] for k in kept] == ["b", "a"] and kept[-1]["source"] == "A2"
+def _pass(name, source, chest, attempt):
+  return {"name": name, "source": source, "chest": chest, "attempt": attempt}
+
+
+def _box(*lines, end="\n"):
+  return "def open_box():\n" + "\n".join(f"    {line}" for line in lines) + end
+
+
+def test_a_robot_keeps_what_passed_the_most_chests_not_its_newest_pass():
+  """#535, fixB's practice (#493's stage B): seven passes under one name,
+  the first six stepping 6 cm right before the reach, the seventh, on
+  chest 14, without the step -- kept as the newest, it was what every
+  held-out copy started from, and 0 of 7 passed. Its passes on chests 7 and
+  8 were ONE program, the second without the first's last newline: kept by
+  the chests passed, that one stays, its step with it."""
+  up = 'pull("left", 0, 0, 1, 60, {}, speed=0.05)'
+  stepped = ["spot(53)", "step(0, -0.06)", 'reach("left", 0.36, 0.17, 0.82)']
+  passes = [_pass("open_box", _box(*stepped, up.format(d)), c, a)
+            for d, c, a in ((0.28, 1, 9), (0.03, 3, 2), (0.04, 5, 2))]
+  twice = _box(*stepped, up.format(0.05), 'pull("left", -0.5, 0, -0.866, 12, 0.02)')
+  passes += [_pass("open_box", twice, 7, 1), _pass("open_box", twice.rstrip("\n"), 8, 1),
+             _pass("open_box", _box(*stepped, up.format(0.06)), 10, 5),
+             _pass("open_box", _box("spot(53)", 'reach("left", 0.37, 0.16, 0.81)', up.format(0.025)),
+                   14, 4)]
+  kept, dropped = ep.keep(passes)
+  assert kept == [{"name": "open_box", "source": twice.rstrip("\n"), "chest": 8, "attempt": 1,
+                   "passed": [[7, 1], [8, 1]]}] and dropped is None
+  assert "step(0, -0.06)" in kept[0]["source"]
+
+
+def test_the_most_passes_wins_under_a_name_the_newest_among_ties_and_the_oldest_name_goes():
+  a, b = "def a():\n    wait(1)\n", "def a():\n    wait(2)\n"
+  a_again = "def a():\n\n    wait(1)    # once more\n"
+  kept, dropped = ep.keep([_pass("a", a, 3, 2)])
+  assert kept == [{"name": "a", "source": a, "chest": 3, "attempt": 2, "passed": [[3, 2]]}]
   assert dropped is None
-  kept, dropped = ep.keep(kept, "c", "C", 6, 1, cap=2)
+  # a pass each: the newest
+  passes = [_pass("a", a, 3, 2), _pass("a", b, 4, 1)]
+  assert ep.keep(passes)[0][0]["source"] == b
+  # its first program again, laid out and commented otherwise, is one
+  # program twice -- counted from before the second took its place -- and
+  # carried as its newest text
+  passes.append(_pass("a", a_again, 5, 1))
+  kept, _ = ep.keep(passes)
+  assert kept[0]["source"] == a_again and kept[0]["passed"] == [[3, 2], [5, 1]]
+  # ...kept over a newer program passing once
+  passes.append(_pass("a", "def a():\n    wait(5)\n", 6, 1))
+  assert ep.keep(passes)[0][0]["source"] == a_again
+  # ...and a tie of two again goes to the newest
+  passes.append(_pass("a", b, 7, 1))
+  assert ep.keep(passes)[0][0]["passed"] == [[4, 1], [7, 1]]
+  # names in the order they last passed; past the cap the oldest goes
+  passes.append(_pass("b", "def b():\n    wait(3)\n", 8, 1))
+  kept, dropped = ep.keep(passes)
+  assert [k["name"] for k in kept] == ["a", "b"] and dropped is None
+  assert [k["name"] for k in ep.keep(passes, cap=3)[0]] == ["a", "b"]
+  passes.append(_pass("a", b, 9, 2))
+  kept, dropped = ep.keep(passes, cap=2)
+  assert [k["name"] for k in kept] == ["b", "a"] and dropped is None
+  passes.append(_pass("c", "def c():\n    wait(4)\n", 10, 1))
+  kept, dropped = ep.keep(passes, cap=2)
   assert [k["name"] for k in kept] == ["a", "c"] and dropped == "b"
+  # one the language cannot read is its own text
+  assert ep.program("def (") == "def (" and ep.program(a) == ep.program(a_again)
 
 
 def test_the_bar_is_out_of_reach_once_more_chests_failed_within_its_tries_than_it_allows():
@@ -993,6 +1321,102 @@ def test_the_practice_first_carries_the_notes_from_chest_to_chest():
   _, how = ep.acquire(run_chest, range(3), give_up_after=3)
   assert [g["notes"] for g in got] == ["", "after 0", "after 1"]
   assert how["carried"]["notes"] == "after 2"
+
+
+# ---- the door, learned with no new help (#535) -------------------------------------
+
+
+def stub_door_world(task):
+  """A door's set-out on the stub body (`attempts.set_out`'s shape): the
+  cupboard on a bare floor, its latch sensing every step."""
+  from pluggybot.activity import door as dr
+  from pluggybot.evaluation import attempts as at
+  from test_lid import BARE
+  spec = mujoco.MjSpec.from_string(BARE)
+  dr.attach_cupboard(spec, dr.draw(task.chest), (0.0, 0.0), tags=False)
+  model = spec.compile()
+  data = mujoco.MjData(model)
+  mujoco.mj_forward(model, data)
+  body = StubBody(model, data)
+  door = dr.Door(model, data, dr.draw(task.chest))
+  body.step_hooks.append(lambda: door.sense(model, data))
+  return at.World(task=task, model=model, data=data, body=body, chest=None,
+                  start=(0.0, 0.0, 0.0), activity=door)
+
+
+#: The lid's practice texts as #493 flew them: the door's practice may change
+#: the job and the thing's name, and nothing of the lid's (#535).
+LID_NOTES_ASK = """THIS BOX IS DONE: {how}. Your next box is another like it, and
+you will start it as you started this one, with nothing of this
+conversation but what you carry. Write what you will carry: "notes" -- what
+worked, what did not, what you would try next, at most {cap} characters,
+keeping what still holds from any notes you were given -- and "draft": the
+procedure you would start the next box from, the whole of it, or "" for
+none. A procedure that passed is in your library already."""
+LID_SHOWN = ("YOUR LIBRARY\n\nProcedures you kept, each because the world graded a try of it a "
+             "pass on a box like this one:\n\nopener -- passed box 7 on its try 2:\n"
+             "def opener():\n    wait(1)\n\nYOUR NOTES, written after your last box:\n\nn\n\n\n"
+             "YOUR DRAFT, the procedure you meant to start this box from (it never passed):\n\n"
+             "def d():\n    wait(1)\n\nTHE JOB\n\n")
+
+
+def _asked(mind) -> str:
+  return "\n".join(m["content"] for kw in mind.asked for m in kw["messages"]
+                   if m["role"] == "user" and isinstance(m["content"], str))
+
+
+def test_the_door_is_practiced_on_its_own_job_and_nothing_else_changes():
+  """#535's stage 2, the door learned with no new help: its practice is the
+  lid's but for the job -- the door's text, its time limit and its grader
+  -- and what the texts call the thing the robot stands at; the lid's
+  texts are as #493 flew them, byte for byte."""
+  from pluggybot.evaluation import attempts as at
+  kept = [{"name": "opener", "source": "def opener():\n    wait(1)\n", "chest": 7, "attempt": 2}]
+  carried = {"notes": "n", "draft": "def d():\n    wait(1)\n"}
+  task = at.Task(chest=0, body="humanoid", mount="counter", grader="door")
+  job = ep.job_for(task)
+  mind = NotesMind('def a():\n    wait(1)\n')
+  pr = mp.Practice(mind, "a-mind", st.hand_facts(), job, thing=ep.THINGS["door"])
+  rows = ep.practice_on(0, pr, 1, kept=kept, carried=carried, write_notes=True, picture=False,
+                        build=stub_door_world, job="door")
+  # graded as a door, in its own time
+  assert rows[0]["task"]["grader"] == "door" and rows[0]["run"]["budgetS"] == task.limit_s
+  assert rows[0]["verdict"]["reason"].startswith("the door never opened")
+  # every word the mind was sent names the cupboard, never the lid's box
+  said = _asked(mind)
+  assert "a cupboard like this one" in said and "passed cupboard 7 on its try 2" in said
+  assert "your last cupboard" in said and "start this cupboard from" in said
+  assert "THIS CUPBOARD IS DONE: none of your tries passed" in said
+  assert not re.search(r"\b(box|lid|chest|knob)\b", said.lower())
+  # the lid's, as they were
+  lid = NotesMind('def a():\n    wait(1)\n')
+  pr = mp.Practice(lid, "a-mind", st.hand_facts(), ep.JOB.format(limit=30))
+  ep.practice_on(0, pr, 1, kept=kept, carried=carried, write_notes=True, picture=False,
+                 budget_s=30.0, build=lambda t: stub_world(t))
+  assert lid.asked[0]["messages"][0]["content"].startswith(LID_SHOWN)
+  assert lid.asked[-1]["messages"][-1]["content"] == LID_NOTES_ASK.format(
+    how="none of your tries passed", cap=mp.NOTES_CHARS)
+
+
+def test_the_doors_job_is_its_graders_and_names_no_way_to_do_it():
+  """Written before any mind flew it, as the lid's was: what stands there
+  and the criteria as `challenge/door.py` judges them -- 50 deg at the call
+  and the hold's end, nothing of the robot's on the door through the hold,
+  in its own time -- and no word of how."""
+  from pluggybot.challenge import door
+  from pluggybot.evaluation import attempts as at
+  task = at.Task(chest=0, body="humanoid", mount="counter", grader="door")
+  job = ep.job_for(task)
+  assert "cupboard" in job and "lever" in job and "26 mm" in job and "tag 55" in job
+  assert f"at least {math.degrees(door.OPEN_RAD):.0f} degrees" in job and "both\ntimes" in job
+  assert f"again\n{door.HOLD_S:.0f} s later" in job and f"{task.limit_s:.0f} s at most" in job
+  for word in ("press", "latch", "pull", "push", "hinge", "grip", "swing", "turn"):
+    assert not re.search(rf"\b{word}", job.lower()), word
+  # its time limit is its own; the lid's, the drawer's and the cube's stay
+  assert task.limit_s == at.JOB_LIMIT_S["door"] == 3 * at.DOOR_REFERENCE_S
+  for grader in ("lid", "drawer", "place"):
+    assert at.Task(chest=0, body="humanoid", mount="counter", grader=grader).limit_s == \
+      3 * at.REFERENCE_S
 
 
 def test_a_verb_an_if_tests_is_read_and_the_procedure_goes_on():

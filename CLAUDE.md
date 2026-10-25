@@ -196,7 +196,7 @@ doing anything, read the doc that owns what you are about to touch:
   challenge row, and these would change the deployed prompt. ⚠ A FALL IS LOST TIME, NEVER A VERDICT (Ben,
   2026-10-17): the job is the lid inside the TASK's time limit, the
   budget (`attempts.LIMIT_S`, the grader's `limitS`: the quadruped's 300
-  s, the humanoid's 3x its reference's slowest pass, 68 s),
+  s, the humanoid's 3x its reference's slowest pass at 0f98e24, 68 s),
   and the falls the body's own watch counted (`Body.falls`; the
   humanoid's is its trunk 35 deg past the posture its legs hold, so a bow
   is none, #520), its tilt and its tool (`Body.tool_powered`; the
@@ -261,7 +261,7 @@ save a filmstrip PNG named after the script.
 | `scripts/hub_lifecycle.py` | the mission, one quadruped in `home_quad`: explore, charge, an errand queue (`--errand` off `lifecycle.errands_for`: none, or an act on the mouse), battery-driven. `--boards PATH`, `--tasks`, `--metabolism`, `--near-field`, `--overseer`, `--pack hosting`, `--record out.jsonl.gz` |
 | `scripts/serve.py --endpoint ws://host:port` | the mission headless, paced to real time, streaming the protocol over an outbound WebSocket; the sim never blocks on the socket. `--free-run` measures the real-time multiple; `--pair` serves both robots; the world is `home` with legs, `home_quad` (#387; `--body`/`$PLUGGY_BODY` names the one body, the quadruped); `--world-state PATH` keeps the world and carries on from it (#345); `$PLUGGYWORLD_TOKEN` is the ingest secret (never a flag — `ps` is public). docs/Webserver.md |
 | `scripts/ws_sink.py` | dummy sink for serve.py: counts, frame-gap stats, keyframe spacing; `--token` makes it refuse an unauthenticated publisher |
-| `scripts/overseer_probe.py` | REAL LLM calls against a synthetic state: tokens, cost per sim-hour, cache hit rate, the latency distribution (`--calls N`). `--model org/name[:provider\|:cheapest]` measures a HuggingFace candidate (`$HF_TOKEN`, in the gitignored `.env`); `--deployed` measures the prompt the served pair sends and reports the ENERGY GATE (`report_energy` counts who took the unaffordable offer); `--prompt` prints it section by section with its sha; `--max-tokens N`, `--escalate-to X --force-escalate`, `--tokens-only` (the Anthropic path's limits: Overseer.md §6) |
+| `scripts/overseer_probe.py` | REAL LLM calls against a synthetic state: tokens, cost per sim-hour, cache hit rate, the latency distribution (`--calls N`). `--model org/name[:provider\|:cheapest]` measures a HuggingFace candidate (`$HF_TOKEN`, in the gitignored `.env`); `--deployed` measures the prompt the served pair sends and reports the ENERGY GATE (`report_energy` counts who took the unaffordable offer); `--prompt` prints it section by section with its sha; `--deployed --image JPEG` attaches a look's picture to every call (does the model, on its provider, take an image beside the schema? #541); `--max-tokens N`, `--escalate-to X --force-escalate`, `--tokens-only` (the Anthropic path's limits: Overseer.md §6) |
 | `scripts/energy_spike.py` | what each errand COSTS, per world, on an oversized pack; `--write` folds it into `economy/energy.json`, `--reserve` measures the return-trip margin, `--actions` prices named acts; `--world home_quad` prices the quadruped's explore, dock, the lab's acts, the boards' jobs (`draw|artwork|answer:<board>`, from the dock, the board remembered) and #407's (`census`, `stack`, `mass`: from the dock, the area remembered; a challenge is its hand-written solution). Re-run after anything that changes what an errand does |
 | `scripts/unknown_spike.py` | #381's walking stage: a fresh quadruped (an empty map, its start pose) sent once to each zone, one process a walk: arrived or why not, the time, the walk against the true route, what planning cost; `--before` the planner before (mapped floor only, stand-ins), `--again` back and there again on the map it laid, `--unknown-cost X`, `--maps DIR` |
 | `scripts/drift_spike.py` | #386: believed against true pose over lab round trips, the quadruped's (the walking policy steered by the truth, two estimates on one walk, odometry alone and matched), and whether the lab door is open in the robot's own map; `--explore SECONDS --seed K [--rest S]` the loop's own explore, steered by the belief, then home to the dock (#422), `--explore-table` across seeds |
@@ -321,7 +321,13 @@ save a filmstrip PNG named after the script.
   STILL (`reach.TRUNK_STILL_RATE`; or after `POSTURE_WAIT_S`): the
   currents' force assumes the arm still, and begun as the deepest bow
   stopped turning, the floor's reach read 492 N and stopped 6 cm short
-  (#520). Training's arms are SCRIPTED,
+  (#520). ⚠ A WITHDRAW IS OK ONCE ITS ARM IS HOME (`Reach.home`: the rest
+  commanded and read by its drivers), by the way `Reach.way_home` judges
+  on the same model: straight in joint space, an arm raised before its
+  shoulder came down on the counter's edge (#539). ⚠ No force guard on
+  it: at `BLOCKED_N` one stopped a blocked reach's press as well as a
+  caught jaw, and cost the lid check 2 of its 7 (SimNotes, "The way
+  home"). Training's arms are SCRIPTED,
   their gains the served arms' (`model.ARM_GAIN_SCALE`, through
   `humanoid.json`). `training/humanoid_train/g1_check.py` is rule 6's
   check: mjlab's stock G1 flown outside mjlab.
@@ -409,9 +415,9 @@ save a filmstrip PNG named after the script.
   statue `PATH_MARGIN_M` (3.5 cm) ahead, and for a hand that is out on the
   robot as it stands (its measured arm, `LIVE_MARGIN_M`); a carry keeps the
   turn it was ASKED. ⚠ ONE POSTURE A PATH: switching partway jerked lids to
-  81 deg and dropped them at 2.3 rad/s. It opens 23 of 32, its slowest
-  pass (22.5 s) sets the humanoid task's limit at three times it
-  (`attempts.LIMIT_S`). The humanoid looks lower by bowing
+  81 deg and dropped them at 2.3 rad/s. It opens 23 of 32; its slowest
+  pass at 0f98e24 (22.5 s) set the humanoid task's limit at three times
+  it (`attempts.LIMIT_S`). The humanoid looks lower by bowing
   (`Body.gaze_routine`).
 - **The hands in a procedure, and graded practice** (#493;
   `procedure/steps.py` `HANDS_VERBS` and `language(facts)`,
@@ -434,7 +440,9 @@ save a filmstrip PNG named after the script.
   verdict (`Library.admit`, `attempts.attempt(sealed=)`). Two protocols
   (Evaluation.md §4): FRESH, a fresh robot a chest; KEPT (`--acquire`,
   Ben), one robot practicing the public chests in turn carrying only what
-  passed (`evaluation.practice.keep`, never a conversation), then a frozen
+  passed (`evaluation.practice.keep`, never a conversation: ⚠ under each
+  name the procedure that passed the MOST chests, sources compared as
+  programs, never the newest pass alone, #535), then a frozen
   copy a held-out chest, ⚠ stopped once the bar is out of reach
   (`out_of_reach`); `--notes` carries the robot's own notes and a draft
   too (`Practice.carry`, pass or fail). ⚠ FEEDBACK IS THE BODY'S AND THE
@@ -455,7 +463,11 @@ save a filmstrip PNG named after the script.
   turning with the lid, had no verb). ⚠ A HAND'S PATH IS ONE MOTION
   (`via` then `move_hand`): separate moves each took a posture of their
   own and carried the reference's own arc on 2 chests of 8. The
-  vocabulary is #525's (below).
+  vocabulary is #525's (below). ⚠ THE DOOR IS PRACTICED WITH NO NEW HELP
+  (#535; `practice.py --job door`): its own job text and time limit
+  (`practice.JOBS`, `attempts.JOB_LIMIT_S`) and the practice's texts naming
+  its cupboard (`Practice.thing`), nothing else -- a test pins the lid's
+  texts byte for byte.
 - **The hands' vocabulary is ONE, designed from how hands move** (#525;
   docs/Hands.md; `procedure/steps.py` `HANDS_VERBS`, `hand_facts`;
   `humanoid/reach.py` `Reach.pull`; `tests/test_force_move.py`): two kinds
