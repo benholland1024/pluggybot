@@ -1971,10 +1971,10 @@ def pull_scene(h: Humanoid, records: list | None = None):
 #: `--handover` (#544): the walk's hand-over at a standstill, through the
 #: body's own `step` (`HumanoidBody.step_routine`: its legs to the walking
 #: policy, a walk, back to the standing policy) at counter set-outs: back
-#: and ahead, a turn and back, and the same out of a bow.
-HANDOVER_STEPS = (("back 15 cm", (-0.15, 0.0, 0.0)), ("ahead 15 cm", (0.15, 0.0, 0.0)),
-                  ("turn 0.5 rad", (0.0, 0.0, 0.5)), ("turn back", (0.0, 0.0, -0.5)),
-                  ("bowed 0.45, back 10 cm", (-0.10, 0.0, 0.0)))
+#: and ahead, a turn and back, and back out of a bow -- each trial's sizes
+#: drawn off its own seed (m, rad; the set-outs stand the robot alike).
+HANDOVER_STEPS = ("back", "ahead", "turn", "turn back", "out of a bow")
+HANDOVER_M, HANDOVER_RAD, HANDOVER_BOW = (0.10, 0.30), (0.3, 1.0), (0.25, 0.6)
 #: Each hand-over to the standing policy is watched this long, s.
 HANDOVER_S = 2.0
 
@@ -1990,6 +1990,12 @@ def handover_trial(k: int, npz: str | None = None) -> dict:
   model, data, body = ct.world(ct.set_out(k), StandPolicy(npz) if npz else _POLICY)
   mi = body.mission
   root, soles = model.body(ROBOT_ROOT).id, [model.geom(f"{s}_sole").id for s in hm.SIDES]
+  # the robot is put in after the house: its own joint, by name
+  dof = int(model.jnt_dofadr[model.body_jntadr[root]])
+  rng = np.random.default_rng(k)
+  far, turn, bow = (float(rng.uniform(*r)) for r in (HANDOVER_M, HANDOVER_RAD, HANDOVER_BOW))
+  sizes = {"back": (-far, 0.0, 0.0), "ahead": (far, 0.0, 0.0), "turn": (0.0, 0.0, turn),
+           "turn back": (0.0, 0.0, -turn), "out of a bow": (-far, 0.0, 0.0)}
   state = {"legs": mi.legs, "t": None, "feet": None, "tilt": 0.0, "moved": 0.0, "speed": 0.0}
   rows: list[dict] = []
 
@@ -2004,19 +2010,19 @@ def handover_trial(k: int, npz: str | None = None) -> dict:
     state["tilt"] = max(state["tilt"], tilt)
     state["moved"] = max(state["moved"], float(np.linalg.norm(
       data.geom_xpos[soles][:, :2] - state["feet"], axis=1).max()))
-    state["speed"] = max(state["speed"], float(np.linalg.norm(data.qvel[0:2])))
+    state["speed"] = max(state["speed"], float(np.linalg.norm(data.qvel[dof:dof + 2])))
     if float(data.time) - state["t"] >= HANDOVER_S:
       rows[-1].update(tilt_deg=state["tilt"], moved_m=state["moved"], speed_ms=state["speed"])
       state["t"] = None
   body.step_hooks.append(watch)
   try:
     body.run(body.hold_routine(1.0))
-    for label, (ahead, left, turn) in HANDOVER_STEPS:
-      if label.startswith("bowed"):
-        body.run(body.gaze_routine(0.45))
+    for label in HANDOVER_STEPS:
+      if label == "out of a bow":
+        body.run(body.gaze_routine(bow))
       falls = mi.falls
-      rows.append({"step": label})
-      rep = body.run(body.step_routine(ahead, left, turn))
+      rows.append({"step": label, "size": sizes[label]})
+      rep = body.run(body.step_routine(*sizes[label]))
       body.run(body.hold_routine(HANDOVER_S))
       rows[-1].update(why=rep["why"], fell=mi.falls != falls)
   finally:
@@ -2034,11 +2040,13 @@ def handover_table(npz: str | None = None, n: int = 8, jobs: int = 4) -> list[di
   with mp.get_context("spawn").Pool(jobs, maxtasksperchild=1) as pool:
     got = pool.map(_handover_trial, [(k, npz) for k in range(n)])
   print(f"THE WALK'S HAND-OVER AT A STANDSTILL, through the body's own `step` at counter "
-        f"set-outs 0-{n - 1}; policy {_name_stand(npz)}: each hand-over back to the standing "
-        f"policy watched {HANDOVER_S:g} s (our grading, off the truth)")
+        f"set-outs 0-{n - 1} (steps {HANDOVER_M[0]:g}-{HANDOVER_M[1]:g} m, turns "
+        f"{HANDOVER_RAD[0]:g}-{HANDOVER_RAD[1]:g} rad, bows {HANDOVER_BOW[0]:g}-{HANDOVER_BOW[1]:g} "
+        f"rad, drawn); policy {_name_stand(npz)}: each hand-over back to the standing policy "
+        f"watched {HANDOVER_S:g} s (our grading, off the truth)")
   print(f"  {'step':24s} {'ok':>5s} {'falls':>6s} {'worst tilt deg':>15s} {'soles moved mm':>15s} "
         f"{'trunk m/s':>10s}")
-  for i, (label, _) in enumerate(HANDOVER_STEPS):
+  for i, label in enumerate(HANDOVER_STEPS):
     rs = [g["rows"][i] for g in got if len(g["rows"]) > i]
     ok = sum(r.get("why") == "stepped" for r in rs)
     falls = sum(bool(r.get("fell")) for r in rs)
