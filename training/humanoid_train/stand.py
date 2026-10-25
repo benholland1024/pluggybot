@@ -11,8 +11,8 @@ carry it. The policy sees their encoders and so where their mass is; it is
 paid for the posture it was asked, for its feet staying where they are, and
 charged for torque past a part's continuous rating. What disturbs it:
 shoves to the trunk, a load in each hand (`HAND_KG`), and pulls and pushes
-at the hands (`HAND_N`) -- a handle gripped and drawn back -- each ramped up
-over the first iterations (`DISTURBANCE_STAGES`).
+at a hand (`HAND_N`, `hand_pull`) -- a handle gripped and drawn back -- each
+ramped up over the first iterations (`DISTURBANCE_STAGES`).
 
 What differs from mjlab's velocity task, and why:
   - no walking: the twist command is held at zero (it stays, because the
@@ -326,14 +326,41 @@ PUSH_EVERY_S = (2.0, 5.0)
 #: What a hand carries, kg: from nothing to a full kettle (the shelves'
 #: objects), each hand its own, held at the hand.
 HAND_KG = (0.0, 2.0)
-#: A pull or a push at a hand, N per axis, held a while: a handle gripped
-#: and drawn back, a door leaned on.
-HAND_N = 30.0
+#: A pull or a push at a hand, N, held a while: a handle gripped and drawn
+#: back, a door leaned on -- up to the `pull` verb's own most (its `force`,
+#: `procedure.steps`), along any way, as the verb's is, at one hand at a
+#: time (`hand_pull`, #544). ⚠ At 30 N a component, both hands at once, a
+#: robot's 55 N pull toppled it, and it noted to keep under 50.
+HAND_N = 60.0
 HAND_PULL_S, HAND_REST_S = (0.5, 3.0), (1.0, 4.0)
 #: The shoves' and the pulls' share of their full size, from each iteration
 #: on: a policy shoved at full size from the first iteration learns to fall.
 DISTURBANCE_STAGES = ((0, 0.25), (400, 0.5), (800, 0.75), (1200, 1.0))
 STEPS_PER_ITERATION = 24
+
+
+class hand_pull(envs_mdp.apply_body_impulse):
+  """A pull or a push at ONE hand, drawn uniformly from the ball of radius
+  `force_n`: any way, any size up to it, as the `pull` verb pulls one hand
+  along any (dx, dy, dz) with at most its `force`. mjlab's impulse keeps
+  its clocks -- the hold, then the rest -- and only the draw is ours: its
+  own, uniform per component, loads both hands at once."""
+
+  def __call__(self, env, env_ids, force_n: float, duration_s, cooldown_s, asset_cfg) -> None:
+    was = self._active.clone()
+    super().__call__(env, env_ids, (0.0, 0.0), (0.0, 0.0), duration_s, cooldown_s, asset_cfg)
+    began = (self._active & ~was).nonzero(as_tuple=False).squeeze(-1)
+    n = len(began)
+    if not n:
+      return
+    way = torch.randn(n, 3, device=self._device)
+    way = way / way.norm(dim=-1, keepdim=True).clamp_min(1e-9)
+    size = force_n * torch.rand(n, 1, device=self._device) ** (1.0 / 3.0)
+    forces = torch.zeros(n, self._num_bodies, 3, device=self._device)
+    hand = torch.randint(self._num_bodies, (n,), device=self._device)
+    forces[torch.arange(n, device=self._device), hand] = way * size
+    self._asset.write_external_wrench_to_sim(forces, torch.zeros_like(forces),
+                                             env_ids=began, body_ids=self._body_ids)
 
 
 def disturbance_scale(env, env_ids, stages=DISTURBANCE_STAGES, scale: float = 1.0):
@@ -345,7 +372,7 @@ def disturbance_scale(env, env_ids, stages=DISTURBANCE_STAGES, scale: float = 1.
   push = env.event_manager.get_term_cfg("push_robot")
   push.params["velocity_range"] = {k: (lo * share, hi * share) for k, (lo, hi) in PUSH.items()}
   pull = env.event_manager.get_term_cfg("hand_pull")
-  pull.params["force_range"] = (-HAND_N * share, HAND_N * share)
+  pull.params["force_n"] = HAND_N * share
   return torch.tensor(share)
 
 
@@ -435,10 +462,9 @@ def stand_env_cfg(play: bool = False) -> ManagerBasedRlEnvCfg:
   cfg.events["push_robot"].interval_range_s = PUSH_EVERY_S
   cfg.events["push_robot"].params["velocity_range"] = dict(PUSH)
   cfg.events["hand_pull"] = EventTermCfg(
-    mode="step", func=envs_mdp.apply_body_impulse,
+    mode="step", func=hand_pull,
     params={"asset_cfg": SceneEntityCfg("robot", body_names=robot.HANDS),
-            "force_range": (-HAND_N, HAND_N), "torque_range": (0.0, 0.0),
-            "duration_s": HAND_PULL_S, "cooldown_s": HAND_REST_S})
+            "force_n": HAND_N, "duration_s": HAND_PULL_S, "cooldown_s": HAND_REST_S})
   cfg.curriculum = {"disturbances": CurriculumTermCfg(func=disturbance_scale,
                                                       params={"scale": 1.0})}
 
