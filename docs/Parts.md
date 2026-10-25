@@ -430,7 +430,11 @@ to a low reach and the legs' yaws turn it, and no demo asks the shoulders to
 turn on the hips), its head's two (the depth camera is fixed, pitched at the
 counter and the floor ahead; a shelf above the head is out of its view), and
 its seventh arm joint (redundancy, not reach). Each is the first joint to add
-if a stage's measurement comes up short.
+if a stage's measurement comes up short. Nor a force sensor at either wrist
+(#544): `pull` asks at most what the standing body holds, 20 N, and shown a
+hand's true force in training's physics the standing policy held 60 N, where
+the arm's currents read too rough to show it -- the part to add if a job
+needs more, its mass at the wrist re-measured against every policy.
 
 **One maker for every joint.** RobStride's RS line shares one MIT-mode CAN
 frame, one 48 V bus and one driver's algebra, and each part's sheet gives

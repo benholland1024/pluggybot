@@ -937,6 +937,12 @@ HAND_BOX = ((-0.5, 1.0), (-0.8, 0.8), (0.0, 2.0))
 #: A hand's speed when carried or pulled, m/s: the reach's own
 #: (`humanoid.reach.HOLD_SPEED` is the default; `HAND_SPEED` the most).
 HAND_V = (0.01, 0.06, 0.2)
+#: The most a `pull` asks, N: what the standing body holds at a hand (Ben,
+#: 2026-10-25, #544). Held 3 s at a counter's height it stood to 30 N
+#: pulling back and 20 pushing away, falling at 40 and 30; it feels no pull
+#: until the body moves (SimNotes, "Holding the pull verb's 60 N at a
+#: hand"). Its text tells the robot pushing holds about two thirds of it.
+PULL_MOST_N = 20.0
 
 
 def _reports(life) -> dict:
@@ -1455,7 +1461,7 @@ HANDS_VERBS: dict[str, Verb] = {
   # component, two of #493's tries ended at a computed 1.03 and 1.001
   "pull": Verb("pull", {"hand": _HAND, "dx": Arg("float"), "dy": Arg("float"),
                         "dz": Arg("float"),
-                        "force": Arg("float", lo=1.0, hi=60.0),
+                        "force": Arg("float", lo=1.0, hi=PULL_MOST_N),
                         "distance": Arg("float", lo=0.01, hi=0.6), "speed": _SPEED,
                         "give": _GIVE},
                _pull, "pull a hand that is out -- or push it -- along the way (dx, dy, dz), of "
@@ -1466,7 +1472,9 @@ HANDS_VERBS: dict[str, Verb] = {
                "turn. It stops once it has "
                "gone `distance` m along the way, it is held fast "
                "(pushing with its whole force and not moving), its grip lets go, or it can "
-               "reach no further; then it holds there. How far it went, the hardest it "
+               "reach no further; then it holds there. Standing, your body holds a pull of "
+               f"{PULL_MOST_N:.0f} N at a hand, and pushing away from you around two thirds of "
+               "that. How far it went, the hardest it "
                "pushed and the way it was going at its end ride `pull.*`; ok when it pulled"),
   "step": Verb("step", {"ahead": Arg("float", lo=-0.5, hi=0.5),
                         "left": Arg("float", lo=-0.5, hi=0.5, default=0.0),

@@ -17,7 +17,12 @@ the parts and the bill.
                 loaded as served; `grasp` -- a drawer's handle
                 gripped (judged by the gripper's own reading) and the drawer
                 drawn out with a compliant arm, what the hand felt said
-                beside the truth; `demo` -- #466's chest on a counter, its
+                beside the truth; `pull` -- a hand held out where a
+                handle would be, pulling at the `pull` verb's most, 20 N,
+                each way in turn and pushing away, the force staged on the
+                hand (#544); `bar` -- the `pull` verb on a locked handle at
+                its most, back, up, forward and down, how each ended and the
+                most the bar took said (#547); `demo` -- #466's chest on a counter, its
                 knob found by its tag, reached and gripped, every act a
                 `Body` member; `walk` -- from the living room into the
                 kitchen and back, steered by its own map; `rough` -- the walker
@@ -39,6 +44,15 @@ the parts and the bill.
   --shove       the shoves it stands through each way, standing and crouched
   --envelope    where a hand reaches, floor to over the head, flown balancing
   --hold        a locked handle gripped and pulled harder until something gives
+  --pulls       a hand held where a locked handle's bar is, a force staged on
+                it each way, harder until the body falls (#544)
+  --bar         the `pull` verb's force move on the locked handle, each way at
+                10 and 20 N: the force on the bar against what the hand read,
+                the postures taken, how it ended (#547)
+  --feel        what the arm's reading makes of 20 N staged at the grip, each
+                way (#547)
+  --handover [N]  the walk's hand-over at a standstill, through the body's own
+                `step`, at N counter set-outs (8)
   --demo-table [N]  the demo's first N set-outs (12), each flown through Body
   --track [NPZ,...]  the served walker and the one that sees the ground (or
                 these) asked each command on a bare floor: what they walk
@@ -49,7 +63,7 @@ the parts and the bill.
   (default)     the `body` scene's filmstrip, humanoid_spike.png
 
 Usage:
-  uv run python scripts/humanoid_spike.py --view body|stand|reach|grasp|demo|walk|rough|stairs|fall|getup
+  uv run python scripts/humanoid_spike.py --view body|stand|reach|grasp|pull|bar|demo|walk|rough|stairs|fall|getup
   MUJOCO_GL=egl uv run python scripts/humanoid_spike.py [--torque|--shove|...]
 """
 
@@ -970,6 +984,7 @@ def sensors_table() -> None:
 from pluggybot.humanoid.arms import DOWN, FORWARD, HandGoal, frame  # noqa: E402
 from pluggybot.humanoid.policy import StandDriver, StandPolicy  # noqa: E402
 from pluggybot.humanoid.reach import Reach, plan  # noqa: E402
+from pluggybot.procedure.steps import PULL_MOST_N  # noqa: E402
 
 #: Where the robot stands: the body scene's spot, facing east down the room.
 STAND_XY, STAND_YAW = GANTRY_XY, GANTRY_YAW
@@ -1488,12 +1503,15 @@ def _world_for(scene: str, policy=None):
   if scene == "stand":
     model, data = standing_world()
   else:
-    model, data = standing_world(counter_scenery)
+    model, data = standing_world(None if scene == "pull" else
+                                 (lambda spec: counter_scenery(spec, locked=True)) if scene == "bar"
+                                 else counter_scenery)
   return model, data, Humanoid(model, data, policy)
 
 
 def _scene_gen(scene: str, h: Humanoid):
-  return {"stand": stand_scene, "grasp": grasp_scene}[scene](h)
+  return {"stand": stand_scene, "grasp": grasp_scene, "pull": pull_scene,
+          "bar": bar_scene}[scene](h)
 
 
 def view_stage2(scene: str) -> None:
@@ -1527,7 +1545,9 @@ def view_stage2(scene: str) -> None:
 #: Each scene's camera, where it is not the body scene's: (azimuth,
 #: elevation, distance, look-at offset from the pelvis). The grasp is seen
 #: from the robot's right, or the counter hides the hand.
-SCENE_CAMS = {"grasp": (90.0, -15.0, 2.0, (0.3, 0.0, 0.15))}
+SCENE_CAMS = {"grasp": (90.0, -15.0, 2.0, (0.3, 0.0, 0.15)),
+              "pull": (120.0, -12.0, 2.3, (0.25, 0.0, 0.0)),
+              "bar": (120.0, -12.0, 2.3, (0.25, 0.0, 0.0))}
 
 
 def filmstrip_stage2(scene: str, out: str, every_s: float | None = None) -> None:
@@ -1619,30 +1639,46 @@ def shove_trial(toward, impulse: float, policy=None, posture_=(0.0, 0.0)) -> str
   return "stepped" if moved > STEPPED_M else "held"
 
 
-def shove_table(policy=None, postures=((0.0, 0.0), (-0.2, 0.0))) -> dict:
+SHOVE_DIRS = {"from the front": (-1, 0), "from behind": (1, 0), "from its left": (0, -1),
+              "from its right": (0, 1), "front-left": (-1, -1), "front-right": (-1, 1),
+              "back-left": (1, -1), "back-right": (1, 1)}
+
+
+def _shove_row(job) -> tuple:
+  """One way's shoves at one posture, rising until it falls: the largest
+  with its feet held, the largest it stood, and the one it fell at."""
+  p, toward, npz = job
+  policy = StandPolicy(npz) if npz else None
+  held = survived = 0
+  fell_at, holding = None, True
+  for level in SHOVE_LEVELS:
+    result = shove_trial(toward, level, policy, p)
+    if result == "fell":
+      fell_at = level
+      break
+    survived = level
+    holding = holding and result == "held"
+    if holding:
+      held = level
+  return held, survived, fell_at
+
+
+def shove_table(npz: str | None = None, postures=((0.0, 0.0), (-0.2, 0.0)),
+                jobs: int = 4) -> dict:
   """--shove: the largest shove each way the robot stands through with its
   feet where they were, and the largest it survives at all, by posture."""
-  dirs = {"from the front": (-1, 0), "from behind": (1, 0), "from its left": (0, -1),
-          "from its right": (0, 1), "front-left": (-1, -1), "front-right": (-1, 1),
-          "back-left": (1, -1), "back-right": (1, 1)}
+  import multiprocessing as mp
+  work = [(p, toward, npz) for p in postures for toward in SHOVE_DIRS.values()]
+  with mp.get_context("spawn").Pool(jobs, maxtasksperchild=1) as pool:
+    got = iter(pool.map(_shove_row, work))
   out = {}
+  print(f"policy {_name_stand(npz)}")
   for p in postures:
     print(f"posture {p[0]:+.2f} m, {p[1]:.2f} rad: shoves of {SHOVE_LEVELS} N*s, "
           f"{SHOVE_S:.1f} s each")
     print(f"  {'direction':16s} {'feet held to':>13s} {'survived to':>12s}  (N*s; 'fell at')")
-    for name, toward in dirs.items():
-      held = survived = 0
-      fell_at, holding = None, True
-      for level in SHOVE_LEVELS:
-        result = shove_trial(toward, level, policy, p)
-        if result == "fell":
-          fell_at = level
-          break
-        survived = level
-        holding = holding and result == "held"
-        if holding:
-          held = level
-      out[(p, name)] = (held, survived, fell_at)
+    for name in SHOVE_DIRS:
+      held, survived, fell_at = out[(p, name)] = next(got)
       print(f"  {name:16s} {held:13d} {survived:12d}  {'fell at %d' % fell_at if fell_at else 'never fell'}")
   return out
 
@@ -1654,19 +1690,23 @@ ENVELOPE_Z = (0.09, 0.2, 0.35, 0.49, 0.65, 0.8, 0.94, 1.1, 1.25, 1.43, 1.55)
 ENVELOPE_X = (0.15, 0.25, 0.35, 0.45, 0.55, 0.65)
 
 
-def envelope_table(policy=None, fly: bool = True) -> dict:
+def _envelope_cell(job) -> dict:
+  """One cell flown: the hand reached to `goal` and held 2 s balancing."""
+  goal, npz = job
+  h = floor_humanoid(policy=StandPolicy(npz) if npz else None)
+  rec = {}
+  _drain(reach_and_hold(h, "left", goal, record=rec))
+  return rec
+
+
+def envelope_table(npz: str | None = None, fly: bool = True, jobs: int = 4) -> dict:
   """--envelope: each grid point planned on the robot's model of itself
   (fingers forward, else down), and every planned one FLOWN: reached and
   held 2 s balancing, the grip's true miss through the hold."""
-  out = {}
-  print("the left hand's reach, stance frame: a cell is the grip's mean miss held, "
-        "cm (F fingers forward, U tilted 45 deg up, D down), '--' planned but stopped "
-        "short, missed or fell, '.' no posture the policy holds puts it in reach")
-  print(f"{'z \\ x':>6s}" + "".join(f"{x:>8.2f}" for x in ENVELOPE_X))
-  for z in reversed(ENVELOPE_Z):
-    cells = []
+  import multiprocessing as mp
+  chosen = {}
+  for z in ENVELOPE_Z:
     for x in ENVELOPE_X:
-      cell = "."
       # The grips that plan, those with slack first (`reach.plan`).
       planned = []
       for tag, rot in (("F", FORWARD), ("U", UP45), ("D", DOWN)):
@@ -1676,12 +1716,27 @@ def envelope_table(policy=None, fly: bool = True) -> dict:
           planned.append((not found[3], tag, goal))
       if planned:
         _, tag, goal = min(planned, key=lambda p: p[0])
+        chosen[(z, x)] = (tag, goal)
+  recs = {}
+  if fly:
+    with mp.get_context("spawn").Pool(jobs, maxtasksperchild=1) as pool:
+      recs = dict(zip(chosen, pool.map(_envelope_cell, [(g, npz) for _, g in chosen.values()])))
+  out = {}
+  print(f"policy {_name_stand(npz)}")
+  print("the left hand's reach, stance frame: a cell is the grip's mean miss held, "
+        "cm (F fingers forward, U tilted 45 deg up, D down), '--' planned but stopped "
+        "short, missed or fell, '.' no posture the policy holds puts it in reach")
+  print(f"{'z \\ x':>6s}" + "".join(f"{x:>8.2f}" for x in ENVELOPE_X))
+  for z in reversed(ENVELOPE_Z):
+    cells = []
+    for x in ENVELOPE_X:
+      cell = "."
+      if (z, x) in chosen:
+        tag = chosen[(z, x)][0]
         if not fly:
           cell = tag
         else:
-          h = floor_humanoid(policy=policy)
-          rec = {}
-          _drain(reach_and_hold(h, "left", goal, record=rec))
+          rec = recs[(z, x)]
           out[(z, x)] = (tag, rec)
           ok = rec.get("arrived") and not rec.get("fell") and rec.get("miss_mean", 1) < 0.03
           cell = f"{100 * rec['miss_mean']:.1f}{tag}" if ok else "--"
@@ -1743,6 +1798,465 @@ def hold_table(policy=None, step_m: float = 0.01, step_s: float = 0.5,
     print(f"{100 * back:12.0f} {t:14.1f} {f:8.1f} {sd:8.1f} {1000 * slip:19.1f} {1000 * moved:14.1f}")
   print(f"stopped: {why}; the hardest steady pull, truly {max(r[1] for r in rows):.1f} N")
   return {"rows": rows, "why": why}
+
+
+#: `--pulls` (#544): the standing policy's own measure, a force at a hand. The
+#: left hand held by the reach where the locked handle's bar is (0.84 m up,
+#: 0.43 m ahead: a counter's height), pulling or pushing there along each
+#: way, stance frame (x ahead, y left, z up), as the verb's way is -- "back"
+#: draws the hand toward the robot, the force ON it forward -- `PULL_TIMES`
+#: times, each built at `PULL_RATE_N_S` and held `PULL_HOLD_S`, at each force
+#: in turn until the body falls: the verb's own force built on the locked bar
+#: at up to 87 N/s (pulling up; back and left were slower), and a force
+#: stepped on whole topples a body a lean would have held. Staged with the
+#: truth. ⚠ NOT THE VERB
+#: ON THE BAR: a `pull` takes the posture that reaches its way's end first,
+#: and pulled 0.3 m down on a fixed bar the body bowed 48 deg, its grip
+#: rolled off and it fell at 20 N -- the hand's stack, not the legs' (`--hold`
+#: and the `pull` scene fly the verb on the bar).
+PULL_WAYS = {"back": (-1, 0, 0), "forward": (1, 0, 0), "left": (0, 1, 0), "right": (0, -1, 0),
+             "up": (0, 0, 1), "down": (0, 0, -1), "back-left": (-1, 1, 0),
+             "back-right": (-1, -1, 0), "forward-left": (1, 1, 0), "forward-right": (1, -1, 0),
+             "back-up": (-1, 0, 1), "back-down": (-1, 0, -1), "forward-up": (1, 0, 1),
+             "forward-down": (1, 0, -1)}
+PULL_FORCES = (20.0, 30.0, 40.0, 50.0, 60.0, 70.0, 80.0)
+PULL_TIMES, PULL_RATE_N_S, PULL_HOLD_S, PULL_REST_S, PULL_AFTER_S = 2, 90.0, 3.0, 1.0, 3.0
+
+
+def pull_trial(way: str, force: float, npz: str | None = None) -> dict:
+  """A fresh robot, its left hand held where the bar is, pulling `force` N
+  along `PULL_WAYS[way]` -- the force on it the other way -- `PULL_TIMES`
+  times, then stood `PULL_AFTER_S`:
+  whether it fell (its trunk `getup.FALL_TILT_RAD` off upright, the body's
+  own line at the stand, or its pelvis under `FALLEN_M`), stepped (a sole
+  moved `STEPPED_M`), the trunk's worst tilt and how far the hand gave."""
+  h = floor_humanoid(policy=StandPolicy(npz) if npz else _POLICY)
+  side = "left"
+  out = {"way": way, "force": force, "fell": False, "stepped": False, "tilt_deg": 0.0,
+         "gave_m": 0.0}
+  if not h.reach.reach(side, handle_goal()):
+    return {**out, "why": "the bar's place is out of reach"}
+  _drain(_until(h, lambda: h.reach.done(side), 20.0))
+  _drain(wait(h, 0.5))
+  rot_w, _ = true_stance(h.m, h.d)
+  f = -rot_w @ (np.array(PULL_WAYS[way], dtype=float) / np.linalg.norm(PULL_WAYS[way])) * force
+  hand, site = h.m.body(f"{side}_hand").id, h.m.site(f"{side}_grip").id
+  soles = [h.m.geom(f"{s}_sole").id for s in hm.SIDES]
+  feet0, at0 = h.d.geom_xpos[soles][:, :2].copy(), h.d.site_xpos[site].copy()
+
+  def phase(seconds: float, share) -> bool:
+    for k in range(int(round(seconds / h.m.opt.timestep))):
+      h.d.xfrc_applied[hand, :3] = f * share(k * h.m.opt.timestep / seconds)
+      h.step()
+      tilt = math.acos(min(1.0, max(-1.0, float(h.d.xmat[h.root][8]))))
+      out["tilt_deg"] = max(out["tilt_deg"], math.degrees(tilt))
+      out["fell"] |= h.fallen() or tilt > FALL_TILT_RAD
+      out["stepped"] |= float(np.linalg.norm(h.d.geom_xpos[soles][:, :2] - feet0,
+                                             axis=1).max()) > STEPPED_M
+      out["gave_m"] = max(out["gave_m"], float(np.linalg.norm(h.d.site_xpos[site] - at0)))
+      if out["fell"]:
+        return False
+    return True
+
+  for _ in range(PULL_TIMES):
+    if not (phase(force / PULL_RATE_N_S, lambda s: s) and phase(PULL_HOLD_S, lambda s: 1.0)
+            and phase(PULL_REST_S, lambda s: 0.0)):
+      break
+  h.d.xfrc_applied[hand] = 0.0
+  if not out["fell"]:
+    phase(PULL_AFTER_S, lambda s: 0.0)
+  return out
+
+
+def _pull_way(job) -> list[dict]:
+  """One way's trials, the force rising until the body falls."""
+  way, npz = job
+  rows = []
+  for force in PULL_FORCES:
+    rows.append(pull_trial(way, force, npz))
+    if rows[-1]["fell"] or rows[-1].get("why"):
+      break
+  return rows
+
+
+def pull_table(npz: str | None = None, jobs: int = 4) -> dict:
+  """--pulls: each way, the hardest pull the body holds without a fall and
+  with its feet where they were, `PULL_TIMES` pulls a trial."""
+  import multiprocessing as mp
+  with mp.get_context("spawn").Pool(jobs, maxtasksperchild=1) as pool:
+    ways = pool.map(_pull_way, [(w, npz) for w in PULL_WAYS])
+  print(f"THE PULL A HAND HOLDS, the left hand held where the locked handle's bar is "
+        f"({HANDLE_Z:.2f} m up, {COUNTER_FRONT - 0.02 - HANDLE_OFF:.2f} m ahead) pulling each way "
+        f"(back: toward the robot, the force on the hand forward) "
+        f"{PULL_TIMES} times at each force ({', '.join(f'{f:g}' for f in PULL_FORCES)} N), each "
+        f"built at {PULL_RATE_N_S:g} N/s and held {PULL_HOLD_S:g} s, until it falls; policy "
+        f"{_name_stand(npz)}")
+  print("  'stood to': the hardest with no fall; 'feet held to': no step either; 'fell at': "
+        "the first that toppled it; the hand's give and the trunk's tilt at 'stood to'")
+  print(f"  {'way':14s} {'stood to N':>10s} {'feet held to':>13s} {'fell at':>8s} "
+        f"{'hand gave cm':>13s} {'tilt deg':>9s}")
+  out = {}
+  for way, rows in zip(PULL_WAYS, ways):
+    stood = [r for r in rows if not r["fell"] and not r.get("why")]
+    stepped = next((i for i, r in enumerate(stood) if r["stepped"]), len(stood))
+    held = stood[:stepped]
+    fell = next((r["force"] for r in rows if r["fell"]), None)
+    out[way] = {"rows": rows, "stood": stood[-1]["force"] if stood else 0.0,
+                "held": held[-1]["force"] if held else 0.0, "fell": fell}
+    best = stood[-1] if stood else None
+    print(f"  {way:14s} {out[way]['stood']:10.0f} {out[way]['held']:13.0f} "
+          f"{fell if fell else '-':>8} {100 * best['gave_m'] if best else 0:13.1f} "
+          f"{best['tilt_deg'] if best else 0:9.1f}"
+          + (f"  {rows[-1]['why']}" if rows[-1].get("why") else ""), flush=True)
+  return out
+
+
+def _name_stand(npz: str | None) -> str:
+  return os.path.basename(npz) if npz else "served (humanoid_stand.npz)"
+
+
+#: The `pull` scene (#544): the left hand held where a handle would be,
+#: pulling each way at the verb's most (`steps.PULL_MOST_N`), as `--pulls`
+#: stages it: a force on the hand, built at `PULL_RATE_N_S`, held
+#: `PULL_HOLD_S` -- what the body holds; the verb on a locked bar, and what
+#: it puts on it, is the `bar` scene's.
+PULL_SCENE_N = PULL_MOST_N
+PULL_SCENE = ("back", "forward", "left", "right", "up", "down")
+
+
+def pull_scene(h: Humanoid, records: list | None = None):
+  """The `pull` scene, once: the left hand to where a counter's handle
+  would be, then pulling `PULL_SCENE_N` along each of `PULL_SCENE`'s ways
+  (forward is a push) -- staged with the truth, a force on the hand the
+  other way -- each built at the verb's rate and held, then let go; home."""
+  side = "left"
+  yield "a hand out where a handle would be"
+  if not h.reach.reach(side, handle_goal()):
+    yield "  no posture puts it in reach"
+    return
+  t0 = h.d.time
+  while not h.reach.done(side) and h.d.time - t0 < 20.0:
+    h.step()
+    yield None
+  rot_w, _ = true_stance(h.m, h.d)
+  hand = h.m.body(f"{side}_hand").id
+  rec = {"ways": []}
+  for way in PULL_SCENE:
+    w = np.array(PULL_WAYS[way], dtype=float)
+    f = -rot_w @ (w / np.linalg.norm(w)) * PULL_SCENE_N
+    yield f"{'pushing away' if way == 'forward' else f'pulling {way}'} at {PULL_SCENE_N:.0f} N"
+    build = PULL_SCENE_N / PULL_RATE_N_S
+    for k in range(int(round((build + PULL_HOLD_S) / h.m.opt.timestep))):
+      h.d.xfrc_applied[hand, :3] = f * min(1.0, k * h.m.opt.timestep / build)
+      h.step()
+      if h.fallen():
+        h.d.xfrc_applied[hand] = 0.0
+        yield "FELL"
+        return
+      yield None
+    h.d.xfrc_applied[hand] = 0.0
+    rec["ways"].append(way)
+    yield from wait(h, 1.0)
+  yield "home"
+  h.reach.retreat(side)
+  t0 = h.d.time
+  while h.reach.phase[side] != "rest" and h.d.time - t0 < 20.0:
+    h.step()
+    yield None
+  yield from posture(h, 0.0, 0.0)
+  rec["fell"] = h.fallen()
+  yield "standing, never fallen" if not rec["fell"] else "FELL"
+  if records is not None:
+    records.append(rec)
+
+
+#: `--handover` (#544): the walk's hand-over at a standstill, through the
+#: body's own `step` (`HumanoidBody.step_routine`: its legs to the walking
+#: policy, a walk, back to the standing policy) at counter set-outs: back
+#: and ahead, a turn and back, and back out of a bow -- each trial's sizes
+#: drawn off its own seed (m, rad; the set-outs stand the robot alike).
+HANDOVER_STEPS = ("back", "ahead", "turn", "turn back", "out of a bow")
+HANDOVER_M, HANDOVER_RAD, HANDOVER_BOW = (0.10, 0.30), (0.3, 1.0), (0.25, 0.6)
+#: Each hand-over to the standing policy is watched this long, s.
+HANDOVER_S = 2.0
+
+
+def handover_trial(k: int, npz: str | None = None) -> dict:
+  """At counter set-out k (`evaluation.counter`), each of `HANDOVER_STEPS`
+  in turn through the body's own `step`, the last from a bow (`gaze_
+  routine`); each hand-over from the walker to the standing policy watched
+  `HANDOVER_S`: the trunk's worst tilt off upright (its asked posture is the
+  stand), how far the soles moved and the trunk's fastest across the floor
+  -- off the truth, our grading -- and the falls its own watch took."""
+  from pluggybot.evaluation import counter as ct
+  model, data, body = ct.world(ct.set_out(k), StandPolicy(npz) if npz else _POLICY)
+  mi = body.mission
+  root, soles = model.body(ROBOT_ROOT).id, [model.geom(f"{s}_sole").id for s in hm.SIDES]
+  # the robot is put in after the house: its own joint, by name
+  dof = int(model.jnt_dofadr[model.body_jntadr[root]])
+  rng = np.random.default_rng(k)
+  far, turn, bow = (float(rng.uniform(*r)) for r in (HANDOVER_M, HANDOVER_RAD, HANDOVER_BOW))
+  sizes = {"back": (-far, 0.0, 0.0), "ahead": (far, 0.0, 0.0), "turn": (0.0, 0.0, turn),
+           "turn back": (0.0, 0.0, -turn), "out of a bow": (-far, 0.0, 0.0)}
+  state = {"legs": mi.legs, "t": None, "feet": None, "tilt": 0.0, "moved": 0.0, "speed": 0.0}
+  rows: list[dict] = []
+
+  def watch():
+    if mi.legs == "stand" and state["legs"] != "stand":
+      state.update(t=float(data.time), feet=data.geom_xpos[soles][:, :2].copy(), tilt=0.0,
+                   moved=0.0, speed=0.0)
+    state["legs"] = mi.legs
+    if state["t"] is None:
+      return
+    tilt = math.degrees(math.acos(min(1.0, max(-1.0, float(data.xmat[root][8])))))
+    state["tilt"] = max(state["tilt"], tilt)
+    state["moved"] = max(state["moved"], float(np.linalg.norm(
+      data.geom_xpos[soles][:, :2] - state["feet"], axis=1).max()))
+    state["speed"] = max(state["speed"], float(np.linalg.norm(data.qvel[dof:dof + 2])))
+    if float(data.time) - state["t"] >= HANDOVER_S:
+      rows[-1].update(tilt_deg=state["tilt"], moved_m=state["moved"], speed_ms=state["speed"])
+      state["t"] = None
+  body.step_hooks.append(watch)
+  try:
+    body.run(body.hold_routine(1.0))
+    for label in HANDOVER_STEPS:
+      if label == "out of a bow":
+        body.run(body.gaze_routine(bow))
+      falls = mi.falls
+      rows.append({"step": label, "size": sizes[label]})
+      rep = body.run(body.step_routine(*sizes[label]))
+      body.run(body.hold_routine(HANDOVER_S))
+      rows[-1].update(why=rep["why"], fell=mi.falls != falls)
+  finally:
+    body.close()
+  return {"k": k, "rows": rows}
+
+
+def _handover_trial(job):
+  return handover_trial(*job)
+
+
+def handover_table(npz: str | None = None, n: int = 8, jobs: int = 4) -> list[dict]:
+  """--handover: `HANDOVER_STEPS` at counter set-outs 0..n-1."""
+  import multiprocessing as mp
+  with mp.get_context("spawn").Pool(jobs, maxtasksperchild=1) as pool:
+    got = pool.map(_handover_trial, [(k, npz) for k in range(n)])
+  print(f"THE WALK'S HAND-OVER AT A STANDSTILL, through the body's own `step` at counter "
+        f"set-outs 0-{n - 1} (steps {HANDOVER_M[0]:g}-{HANDOVER_M[1]:g} m, turns "
+        f"{HANDOVER_RAD[0]:g}-{HANDOVER_RAD[1]:g} rad, bows {HANDOVER_BOW[0]:g}-{HANDOVER_BOW[1]:g} "
+        f"rad, drawn); policy {_name_stand(npz)}: each hand-over back to the standing policy "
+        f"watched {HANDOVER_S:g} s (our grading, off the truth)")
+  print(f"  {'step':24s} {'ok':>5s} {'falls':>6s} {'worst tilt deg':>15s} {'soles moved mm':>15s} "
+        f"{'trunk m/s':>10s}")
+  for i, label in enumerate(HANDOVER_STEPS):
+    rs = [g["rows"][i] for g in got if len(g["rows"]) > i]
+    ok = sum(r.get("why") == "stepped" for r in rs)
+    falls = sum(bool(r.get("fell")) for r in rs)
+    tilt = [r["tilt_deg"] for r in rs if "tilt_deg" in r]
+    moved = [1000 * r["moved_m"] for r in rs if "moved_m" in r]
+    speed = [r["speed_ms"] for r in rs if "speed_ms" in r]
+    print(f"  {label:24s} {ok:>2d}/{len(rs):<2d} {falls:6d} {_span(tilt):>15s} {_span(moved, '{:.0f}'):>15s} "
+          f"{_span(speed, '{:.2f}'):>10s}")
+  return got
+
+
+#: `--bar` (#547): the force move against something that holds the hand --
+#: the left hand shut on the locked drawer's handle and `pull`ed each of
+#: `PULL_WAYS` at `BAR_FORCES` for `BAR_DISTANCE_M` at its own speed, a
+#: fresh robot a trial. Nothing moves, so every newton on the bar is the
+#: move's to keep: its peak, at an instant and over `BAR_MEAN_S`, is ours
+#: (`handle_force`, off the contacts), beside the hardest the hand read; the
+#: postures the body took with the hand on the bar; how and when the pull
+#: ended -- or not, in `BAR_BUDGET_S`; a fall; how far the grip slid.
+BAR_FORCES, BAR_DISTANCE_M, BAR_MEAN_S, BAR_BUDGET_S = (10.0, 20.0), 0.05, 0.1, 6.0
+
+
+def _bar_world(spec: mujoco.MjSpec) -> None:
+  counter_scenery(spec, locked=True, at=(0.0, 0.0), yaw=0.0)
+
+
+def _grip_bar(h: Humanoid, side: str = "left"):
+  """The hand to the locked handle's bar, open, then shut on it; the
+  gripper's own word on whether it holds."""
+  g = h.reach.grippers[side]
+  g.open()
+  if not h.reach.reach(side, handle_goal()):
+    return False
+  yield from _until(h, lambda: h.reach.done(side), 20.0)
+  g.shut()
+  yield from wait(h, 0.6)
+  return g.held()
+
+
+def _pull_bar(h: Humanoid, way: str, force: float, side: str = "left"):
+  """One `pull` on the bar along `PULL_WAYS[way]`, watched to its end (at
+  most `BAR_BUDGET_S`): what `bar_trial` reports."""
+  w = np.array(PULL_WAYS[way], dtype=float)
+  w /= np.linalg.norm(w)
+  pads = [h.m.geom(f"{side}_{j}_pad").id for j in hm.JAWS]
+  at0 = np.mean(h.d.geom_xpos[pads], axis=0)
+  postures = [tuple(float(v) for v in h.reach.posture)]
+  n = max(1, int(round(BAR_MEAN_S / h.m.opt.timestep)))
+  hist, read, t0 = [], 0.0, h.d.time
+  h.reach.pull(side, w, force, BAR_DISTANCE_M)
+  while h.reach.report[side] is None and h.d.time - t0 < BAR_BUDGET_S and not h.fallen():
+    h.step()
+    hist.append(float(handle_force(h, side) @ w))
+    st = h.reach.pulls[side]
+    read = max(read, st["peak"]) if st else read
+    p = tuple(float(v) for v in h.reach.posture)
+    if p != postures[-1]:
+      postures.append(p)
+    yield None
+  rep = h.reach.report[side] or {}
+  means = np.convolve(hist, np.ones(n) / n, mode="valid") if len(hist) >= n else [0.0]
+  return {"way": way, "force": force, "peak": max(hist, default=0.0),
+          "peakMean": float(np.max(means)), "read": float(rep.get("force", read)),
+          "postures": postures[1:], "why": rep.get("why", "no end"),
+          "seconds": round(h.d.time - t0, 2), "fell": bool(h.fallen()),
+          "slidMm": 1000 * float(np.linalg.norm(np.mean(h.d.geom_xpos[pads], axis=0) - at0))}
+
+
+def _run(gen):
+  """A scene's generator driven to its end, for its return value."""
+  try:
+    while True:
+      next(gen)
+  except StopIteration as stop:
+    return stop.value
+
+
+def bar_trial(way: str, force: float, npz: str | None = None) -> dict:
+  """A fresh robot's left hand on the locked bar, `pull`ed along
+  `PULL_WAYS[way]` at `force` N (`--bar`)."""
+  h = floor_humanoid(_bar_world, policy=StandPolicy(npz) if npz else _POLICY)
+  if not _run(_grip_bar(h)):
+    return {"way": way, "force": force, "why": "no grip on the bar"}
+  return _run(_pull_bar(h, way, force))
+
+
+def _bar_trial(job):
+  return bar_trial(*job)
+
+
+def bar_table(npz: str | None = None, jobs: int = 4) -> list[dict]:
+  """--bar: each way at each of `BAR_FORCES`, a process a trial."""
+  import multiprocessing as mp
+  trials = [(w, f, npz) for f in BAR_FORCES for w in PULL_WAYS]
+  with mp.get_context("spawn").Pool(jobs, maxtasksperchild=1) as pool:
+    rows = pool.map(_bar_trial, trials)
+  print(f"THE FORCE MOVE ON THE LOCKED BAR: the left hand shut on the welded drawer's handle "
+        f"({HANDLE_Z:.2f} m up, {COUNTER_FRONT - 0.02 - HANDLE_OFF:.2f} m ahead), `pull`ed "
+        f"{100 * BAR_DISTANCE_M:.0f} cm each way at {', '.join(f'{f:g}' for f in BAR_FORCES)} N, "
+        f"watched {BAR_BUDGET_S:g} s at most; policy {_name_stand(npz)}")
+  print(f"  the force on the bar is the pads' (ours): its peak at an instant and over "
+        f"{BAR_MEAN_S:g} s; 'read' the hardest the hand read; 'postures' those taken with the "
+        f"hand on the bar")
+  print(f"  {'way':14s} {'ask N':>5s} {'peak N':>7s} {'peak .1s':>8s} {'read N':>6s} "
+        f"{'postures':>8s} {'ended':12s} {'s':>5s} {'slid mm':>7s}")
+  for r in rows:
+    if r.get("peak") is None:
+      print(f"  {r['way']:14s} {r['force']:5.0f}  {r['why']}")
+      continue
+    print(f"  {r['way']:14s} {r['force']:5.0f} {r['peak']:7.1f} {r['peakMean']:8.1f} "
+          f"{r['read']:6.1f} {len(r['postures']):8d} {r['why']:12s} {r['seconds']:5.1f} "
+          f"{r['slidMm']:7.1f}" + ("  FELL" if r["fell"] else ""), flush=True)
+  return rows
+
+
+#: `--feel` (#547): what the arm's reading makes of a force it is sure of
+#: -- the left hand held by the reach where the bar would be, no bar, and
+#: `FEEL_N` staged at the grip (no moment there) so the hand pulls along
+#: each of `PULL_WAYS`, built over `FEEL_BUILD_S` and held `FEEL_HOLD_S`;
+#: the reach's own reading (`Reach.force`, computed as it steers) over the
+#: hold's last `FEEL_READ_S`, along the way and across it.
+FEEL_N, FEEL_BUILD_S, FEEL_HOLD_S, FEEL_READ_S = 20.0, 0.25, 1.5, 1.0
+
+
+def feel_trial(way: str, npz: str | None = None) -> dict:
+  h = floor_humanoid(policy=StandPolicy(npz) if npz else _POLICY)
+  side = "left"
+  out = {"way": way}
+  if not h.reach.reach(side, handle_goal()):
+    return {**out, "why": "the bar's place is out of reach"}
+  _drain(_until(h, lambda: h.reach.done(side), 20.0))
+  _drain(wait(h, 0.5))
+  w = np.array(PULL_WAYS[way], dtype=float)
+  w /= np.linalg.norm(w)
+  rot_w, _ = true_stance(h.m, h.d)
+  hand, site = h.m.body(f"{side}_hand").id, h.m.site(f"{side}_grip").id
+  dt = h.m.opt.timestep
+  build, hold = int(round(FEEL_BUILD_S / dt)), int(round(FEEL_HOLD_S / dt))
+  reads, across = [], []
+  for k in range(build + hold):
+    f = -rot_w @ w * FEEL_N * min(1.0, k / build)
+    h.d.xfrc_applied[hand, :3] = f
+    h.d.xfrc_applied[hand, 3:] = np.cross(h.d.site_xpos[site] - h.d.xipos[hand], f)
+    h.step()
+    if h.fallen():
+      return {**out, "why": "fell"}
+    if k >= build + hold - int(round(FEEL_READ_S / dt)):
+      reads.append(float(h.reach.force[side] @ w))
+      across.append(h.reach.force[side] - reads[-1] * w)
+  return {**out, "read": float(np.mean(reads)), "sd": float(np.std(reads)),
+          "across": float(np.linalg.norm(np.mean(across, axis=0)))}
+
+
+def _feel_trial(job):
+  return feel_trial(*job)
+
+
+def feel_table(npz: str | None = None, jobs: int = 4) -> list[dict]:
+  """--feel: each way, a process a trial."""
+  import multiprocessing as mp
+  with mp.get_context("spawn").Pool(jobs, maxtasksperchild=1) as pool:
+    rows = pool.map(_feel_trial, [(w, npz) for w in PULL_WAYS])
+  print(f"WHAT THE ARM READS of {FEEL_N:g} N staged at the grip, the left hand held by the reach "
+        f"where the locked handle's bar is, no bar; read over the last {FEEL_READ_S:g} s of "
+        f"{FEEL_HOLD_S:g}; policy {_name_stand(npz)}")
+  print(f"  {'way':14s} {'read along N':>12s} {'sd':>5s} {'across N':>8s}")
+  for r in rows:
+    if r.get("read") is None:
+      print(f"  {r['way']:14s} {r['why']}")
+      continue
+    print(f"  {r['way']:14s} {r['read']:12.1f} {r['sd']:5.1f} {r['across']:8.1f}", flush=True)
+  return rows
+
+
+#: The `bar` scene (#547): the force move on the locked bar at `pull`'s
+#: most, each of `BAR_SCENE`'s ways from a fresh grip.
+BAR_SCENE = ("back", "up", "forward", "down")
+
+
+def bar_scene(h: Humanoid, records: list | None = None):
+  """The `bar` scene, once: for each of `BAR_SCENE`'s ways, the left hand
+  shut on the locked handle's bar and `pull`ed `PULL_MOST_N` along it, how
+  it ended and the most the bar took said; let go and home."""
+  side = "left"
+  rec = {"ways": []}
+  for way in BAR_SCENE:
+    yield "gripping the locked bar"
+    held = yield from _grip_bar(h, side)
+    if not held:
+      yield "  NOT HELD"
+      break
+    yield f"{'pushing' if way in ('forward', 'down') else 'pulling'} {way} at {PULL_MOST_N:.0f} N"
+    row = yield from _pull_bar(h, way, PULL_MOST_N, side)
+    rec["ways"].append(row)
+    yield (f"  {row['why']} in {row['seconds']:.1f} s: the bar took {row['peakMean']:.0f} N at "
+           f"most, the hand read {row['read']:.0f}; {len(row['postures'])} postures taken")
+    if row["fell"]:
+      yield "FELL"
+      break
+    h.reach.grippers[side].open()
+    yield from wait(h, 0.4)
+    h.reach.retreat(side)
+    yield from _until(h, lambda: h.reach.phase[side] == "rest", 20.0)
+    yield from posture(h, 0.0, 0.0)
+  rec["fell"] = h.fallen()
+  yield "standing, never fallen" if not rec["fell"] else "FELL"
+  if records is not None:
+    records.append(rec)
 
 
 def _until(h: Humanoid, done, budget_s: float):
@@ -3516,6 +4030,7 @@ def speed_table(sim_s: float = 60.0, profile: bool = False) -> None:
 
 SCENES = {"body": view_body, "stand": lambda: view_stage2("stand"),
           "reach": view_reach, "grasp": lambda: view_stage2("grasp"),
+          "pull": lambda: view_stage2("pull"), "bar": lambda: view_stage2("bar"),
           "demo": view_demo, "walk": view_walk, "rough": view_rough, "stairs": view_stairs,
           "fall": view_fall, "getup": view_getup}
 
@@ -3537,6 +4052,16 @@ def main(argv=None) -> None:
                   help="where the hand reaches, floor to over the head, flown balancing")
   ap.add_argument("--hold", action="store_true",
                   help="a locked drawer's handle pulled harder until something gives")
+  ap.add_argument("--pulls", action="store_true",
+                  help="a force staged at a hand held where the locked handle is, each way, harder "
+                       "until the body falls (#544)")
+  ap.add_argument("--bar", action="store_true",
+                  help="the force move on the locked handle, each way at 10 and 20 N: the force on "
+                       "the bar against what the hand read, the postures, how it ended (#547)")
+  ap.add_argument("--feel", action="store_true",
+                  help="what the arm's reading makes of 20 N staged at the grip, each way (#547)")
+  ap.add_argument("--handover", nargs="?", type=int, const=8, default=None, metavar="N",
+                  help="the walk's hand-over at a standstill, through `step`, at N set-outs (8)")
   ap.add_argument("--demo-table", nargs="?", type=int, const=12, default=None, metavar="N",
                   help="the demo's first N set-outs (12), each flown through Body")
   ap.add_argument("--odometry", action="store_true",
@@ -3595,11 +4120,19 @@ def main(argv=None) -> None:
   elif args.strip and args.strip != "body":
     filmstrip_stage2(args.strip, args.out)
   elif args.shove:
-    shove_table(policy)
+    shove_table(args.policy, jobs=args.jobs)
   elif args.envelope:
-    envelope_table(policy)
+    envelope_table(args.policy, jobs=args.jobs)
   elif args.hold:
     hold_table(policy)
+  elif args.pulls:
+    pull_table(args.policy, jobs=args.jobs)
+  elif args.bar:
+    bar_table(args.policy, jobs=args.jobs)
+  elif args.feel:
+    feel_table(args.policy, jobs=args.jobs)
+  elif args.handover is not None:
+    handover_table(args.policy, args.handover, jobs=args.jobs)
   elif args.demo_table is not None:
     demo_table(args.demo_table)
   elif args.rough is not None:

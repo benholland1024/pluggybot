@@ -19,12 +19,14 @@ THE CRITERIA, written first. An attempt passes when:
   3. LET GO: nothing of the robot touches the cube at any moment of the
      hold;
   4. IN TIME: the call came within the task's time limit of the attempt's
-     start (`limitS`; `lid.TIME_LIMIT_S` where none is given).
+     start (`limitS`; `lid.TIME_LIMIT_S` where none is given);
+  5. NEVER FELL: the body's own watch took no fall from the attempt's start
+     to the end of the hold, the lid's criterion 6 (`lid.judged`).
 
 Said beside, and gating nothing: whether it was ever lifted, the furthest
-it was from the mat at the call, the falls the body's own watch took and
-its worst tilt. How it picks the cube up and carries it is the robot's
-business -- sliding it there passes as well as carrying it.
+it was from the mat at the call and the body's worst tilt. How it picks
+the cube up and carries it is the robot's business -- sliding it there
+passes as well as carrying it.
 """
 
 from __future__ import annotations
@@ -145,7 +147,7 @@ SHOWN = {"liftedM": 3, "fastestDownMS": 3, "robotTiltDeg": 1, "offAtCallM": 3, "
 
 def eval_place(m: dict) -> tuple[bool, dict, str]:
   """The pre-declared predicate: pure, judged on the numbers as measured
-  and shown rounded."""
+  and shown rounded, a fall first."""
   raw = {k: m.get(k) for k in ("liftedM", "fastestDownMS", "robotTiltDeg", "falls", "offAtCallM",
                                "offM", "aboveM", "tiltDeg", "holdS", "elapsedS", "limitS")}
   metrics = {k: (round(float(v), SHOWN[k]) if k in SHOWN and v is not None else v)
@@ -154,27 +156,34 @@ def eval_place(m: dict) -> tuple[bool, dict, str]:
   for key in ("fastestDownMS", "offM", "aboveM", "tiltDeg", "holdS", "elapsedS"):
     if raw[key] is None:
       return False, metrics, "the cube was never measured"
+  ok, reason = lid.judged(raw["falls"], *_place(raw, metrics))
+  return ok, metrics, reason
+
+
+def _place(raw: dict, metrics: dict) -> tuple[bool, str]:
+  """Criteria 1 to 4 on measurements all there: the verdict and its
+  reason."""
   if float(raw["holdS"]) + 1e-6 < HOLD_S:
-    return False, metrics, (f"measured {float(raw['holdS']):.1f} s after the call, "
-                            f"not the {HOLD_S:.0f} s the job asks for")
+    return False, (f"measured {float(raw['holdS']):.1f} s after the call, "
+                   f"not the {HOLD_S:.0f} s the job asks for")
   limit = TIME_LIMIT_S if raw["limitS"] is None else float(raw["limitS"])
   if float(raw["elapsedS"]) > limit + 1e-6:
-    return False, metrics, (f"called {float(raw['elapsedS']):.0f} s after the start, past "
-                            f"the {limit:.0f} s the job allows")
+    return False, (f"called {float(raw['elapsedS']):.0f} s after the start, past "
+                   f"the {limit:.0f} s the job allows")
   off, above, tilt = 100 * float(raw["offM"]), 100 * float(raw["aboveM"]), float(raw["tiltDeg"])
   if float(raw["fastestDownMS"]) > DROP_M_S:
-    return False, metrics, (f"the cube came down at {float(raw['fastestDownMS']):.1f} m/s -- "
-                            f"dropped, not set down (no faster than {DROP_M_S:.1f})")
+    return False, (f"the cube came down at {float(raw['fastestDownMS']):.1f} m/s -- "
+                   f"dropped, not set down (no faster than {DROP_M_S:.1f})")
   if off > 100 * PLACE_M or abs(above) > 100 * RESTING_M:
     where = f"{off:.0f} cm from the mat's middle" + (f", {above:.0f} cm over it" if above > 1 else "")
-    return False, metrics, f"the cube ended {where}: it must rest on the mat, within {100 * PLACE_M:.1f} cm of its middle"
+    return False, f"the cube ended {where}: it must rest on the mat, within {100 * PLACE_M:.1f} cm of its middle"
   if tilt > math.degrees(UPRIGHT_RAD):
-    return False, metrics, f"the cube rests on the mat tipped {tilt:.0f} deg"
+    return False, f"the cube rests on the mat tipped {tilt:.0f} deg"
   if metrics["touchedDuringHold"]:
     touched = ", ".join(metrics["touchedDuringHold"])
-    return False, metrics, f"the cube on the mat, but {touched} still touched it after the call -- let go"
-  return True, metrics, (f"the cube set down on the mat {off:.1f} cm from its middle in "
-                         f"{float(raw['elapsedS']):.0f} s, and let go")
+    return False, f"the cube on the mat, but {touched} still touched it after the call -- let go"
+  return True, (f"the cube set down on the mat {off:.1f} cm from its middle in "
+                f"{float(raw['elapsedS']):.0f} s, and let go")
 
 
 def sample_place(life, errand, result: dict | None, before: dict) -> dict:

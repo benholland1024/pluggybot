@@ -1009,8 +1009,13 @@ internals. Its rules:
   code those passes take up to 31.6 s and 55.7 s. And
   a cut attempt that failed says "out of time" first. Then the hold with
   the body held still, and one verdict through `scoring.evaluate`, graded
-  and paid nothing. A fall is lost time and nothing more: the body's falls
-  and its tool are on the row, judged by nothing (Ben, 2026-10-17);
+  and paid nothing;
+- **a fall fails the try** (Ben, 2026-10-25, #544): one the body's own
+  watch counted (`Body.falls`) from the attempt's start to the end of the
+  hold, used or by accident -- every grader's criterion, said first in its
+  verdict, and stated in the job the robot is told. From 2026-10-17 it was
+  lost time and nothing more, and learned skills leaned on it (§4, "A fall
+  was lost time"). The body's tool is on the row, judged by nothing;
 - **what the skill says of itself is its own test**, recorded beside the
   verdict and never read by it; ⚠ a skill is handed the BODY, never the
   world: the chest's truth stays the harness's;
@@ -1547,8 +1552,9 @@ them). `practice.py --job door` flies it.
 - **What they said they lacked** (their thinking and notes): a sense of
   the door's angle, in 46 and 23 turns -- every lid arm's lack too; and
   room: 27 sources refused for nesting deeper than 4, 11 over the
-  1,500-character cap, 15 asking more force than a verb gives (`pull` 60
-  N, `close_hand` 120 N), 6 using a verb's result in an expression, 2
+  1,500-character cap, 15 asking more force than a verb gave (`pull` 60
+  N then, 20 since #544; `close_hand` 120 N), 6 using a verb's result in
+  an expression, 2
   writing `break` or `continue`. Their notes are technique: where the
   default grip lands against the tag, the pull that topples the body, a
   wait so the door does not swing back.
@@ -1557,10 +1563,10 @@ them). `practice.py --job door` flies it.
 tip gripped, a pull, the door swinging the body round (12-16 s), standing
 again at the call](figures/door_learned.png)
 
-**A fall is lost time, never a verdict (Ben, 2026-10-17), and some skills
-lean on it.** The readings above are the protocol's. Counting only the
-passes with no fall on the body's own watch, within 3 of the held-out
-chests:
+**A fall was lost time, never a verdict (Ben, 2026-10-17, until #544), and
+some skills leaned on it.** The readings above are the protocol's as it
+then stood. Counting only the passes with no fall on the body's own watch,
+within 3 of the held-out chests:
 
 | arm | within 3 | without a fall |
 |---|---|---|
@@ -1586,8 +1592,10 @@ chests:
   22 and 21 of 29 within 3, 8 and 0 without a fall (SimNotes, "The way
   home").
 - So no fall, as a real robot would need, puts the door's best arm at
-  0.41 and the lid's at 0.20-0.30 within 3. Whether a fall should fail a
-  try is a rule for #534 to weigh; nothing here changes it.
+  0.41 and the lid's at 0.20-0.30 within 3. Since #544 a fall fails the
+  try (Ben, 2026-10-25), and the robot is told so: these records stay as
+  flown, and their "without a fall" column is the new rule's reading of
+  them, off arms that were never told it.
 
 ![fixA's kept skill at held-out chest 859119791, its first try: the lid
 opened along its arc and set down, the robot fallen at the call and

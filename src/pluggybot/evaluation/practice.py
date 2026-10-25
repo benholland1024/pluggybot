@@ -61,7 +61,8 @@ BAR, BAR_TRIES = 0.8, 3
 UNTIL, MAX_CHESTS, GIVE_UP_AFTER = 3, 16, 6
 
 #: The job, as its grader measures it (`challenge/lid.py`), and nothing of
-#: how: what is in front of the robot, the stated subsidy, and the criteria.
+#: how: what is in front of the robot, the stated subsidy, and the criteria
+#: -- a fall among them since #544 (Ben, 2026-10-25: the robot is told).
 JOB = f"""In front of you, on a counter, is a box with a lid, shut. A knob -- a cube
 {KNOB_MM:.0f} mm on a side -- hangs from its front, and it carries tag {KNOB_TAG} on
 every face.
@@ -72,8 +73,8 @@ it back down shut, and let go of it. While it is open more than
 {lid.LOWER_RAD_S:.1f} rad/s: let fall, it is not set down. The world grades
 the job when your procedure ends and again {lid.HOLD_S:.0f} s later: the lid
 must be shut by then, and nothing of yours may touch the lid, its knob or its
-handle. A try may take {{limit:.0f}} s at most; a fall loses you the time it
-takes to get up."""
+handle. A try may take {{limit:.0f}} s at most. If you fall during a try or
+in the {lid.HOLD_S:.0f} s after it, the try fails, however the lid ends."""
 
 #: The door's (#535), written before any mind flew it, as the lid's was:
 #: what stands in front of the robot -- its lever's tip the chest's knob,
@@ -89,8 +90,8 @@ Open the door -- at least {math.degrees(door.OPEN_RAD):.0f} degrees from shut --
 it. The world grades the job when your procedure ends and again
 {door.HOLD_S:.0f} s later: the door must be open at least {math.degrees(door.OPEN_RAD):.0f} degrees both
 times, and between them nothing of yours may touch the door, its lever or
-the lever's tip. A try may take {{limit:.0f}} s at most; a fall loses you
-the time it takes to get up."""
+the lever's tip. A try may take {{limit:.0f}} s at most. If you fall during a
+try or in the {door.HOLD_S:.0f} s after it, the try fails, however the door ends."""
 
 #: The jobs a practice flies, by their graders' names (`attempts.GRADERS`),
 #: and what its texts call the thing a robot stands at (`Practice.thing`):

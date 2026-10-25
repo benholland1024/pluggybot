@@ -16,12 +16,15 @@ THE CRITERIA, written first. An attempt passes when:
   2. LET GO: nothing but the cupboard itself touches the door, its lever or
      the lever's tip at any moment of the hold;
   3. IN TIME: the call came within the task's time limit of the attempt's
-     start (`limitS`; `lid.TIME_LIMIT_S` where none is given).
+     start (`limitS`; `lid.TIME_LIMIT_S` where none is given);
+  4. NEVER FELL: the body's own watch took no fall from the attempt's start
+     to the end of the hold, the lid's criterion 6 (`lid.judged`): a hard
+     pull that swung the door swung the body over with it, every try of
+     one learned skill (#535).
 
 Said beside, and gating nothing: the most it opened, how far the lever was
-ever pressed, the fastest the door swung, the falls the body's own watch
-took and its worst tilt. How it presses the lever and which way it pulls
-are the robot's business.
+ever pressed, the fastest the door swung and the body's worst tilt. How it
+presses the lever and which way it pulls are the robot's business.
 """
 
 from __future__ import annotations
@@ -124,7 +127,7 @@ SHOWN = {"mostDeg": 2, "pressedDeg": 1, "fastestRadS": 3, "tiltDeg": 1, "angleAt
 
 def eval_door(m: dict) -> tuple[bool, dict, str]:
   """The pre-declared predicate: pure, judged on the numbers as measured
-  and shown rounded."""
+  and shown rounded, a fall first."""
   raw = {k: m.get(k) for k in ("mostDeg", "pressedDeg", "fastestRadS", "tiltDeg", "falls",
                                "angleAtCallDeg", "angleDeg", "holdS", "elapsedS", "limitS")}
   metrics = {k: (round(float(v), SHOWN[k]) if k in SHOWN and v is not None else v)
@@ -133,32 +136,37 @@ def eval_door(m: dict) -> tuple[bool, dict, str]:
   for key in ("mostDeg", "angleAtCallDeg", "angleDeg", "holdS", "elapsedS"):
     if raw[key] is None:
       return False, metrics, "the door was never measured"
+  ok, reason = lid.judged(raw["falls"], *_door(raw, metrics))
+  return ok, metrics, reason
+
+
+def _door(raw: dict, metrics: dict) -> tuple[bool, str]:
+  """Criteria 1 to 3 on measurements all there: the verdict and its
+  reason."""
   if float(raw["holdS"]) + 1e-6 < HOLD_S:
-    return False, metrics, (f"measured {float(raw['holdS']):.1f} s after the call, "
-                            f"not the {HOLD_S:.0f} s the job asks for")
+    return False, (f"measured {float(raw['holdS']):.1f} s after the call, "
+                   f"not the {HOLD_S:.0f} s the job asks for")
   limit = TIME_LIMIT_S if raw["limitS"] is None else float(raw["limitS"])
   if float(raw["elapsedS"]) > limit + 1e-6:
-    return False, metrics, (f"called {float(raw['elapsedS']):.0f} s after the start, past "
-                            f"the {limit:.0f} s the job allows")
+    return False, (f"called {float(raw['elapsedS']):.0f} s after the start, past "
+                   f"the {limit:.0f} s the job allows")
   most, at_call, end = (float(raw[k]) for k in ("mostDeg", "angleAtCallDeg", "angleDeg"))
   want = math.degrees(OPEN_RAD)
   if at_call < want:
     if most < 1.0:
-      return False, metrics, f"the door never opened: it must open past {want:.0f} deg"
+      return False, f"the door never opened: it must open past {want:.0f} deg"
     if most < want:
-      return False, metrics, (f"the door opened {most:.0f} deg, short of the {want:.0f} "
-                              "it must")
-    return False, metrics, (f"the door opened {most:.0f} deg but was {at_call:.0f} deg open "
-                            f"when you finished, short of the {want:.0f} it must")
+      return False, f"the door opened {most:.0f} deg, short of the {want:.0f} it must"
+    return False, (f"the door opened {most:.0f} deg but was {at_call:.0f} deg open "
+                   f"when you finished, short of the {want:.0f} it must")
   if metrics["touchedDuringHold"]:
     touched = ", ".join(metrics["touchedDuringHold"])
-    return False, metrics, (f"the door {at_call:.0f} deg open, but {touched} still touched it "
-                            "after the call -- let go")
+    return False, (f"the door {at_call:.0f} deg open, but {touched} still touched it "
+                   "after the call -- let go")
   if end < want:
-    return False, metrics, (f"the door {at_call:.0f} deg open at the call, but {end:.0f} deg "
-                            f"{HOLD_S:.0f} s later")
-  return True, metrics, (f"the door {end:.0f} deg open in {float(raw['elapsedS']):.0f} s, "
-                         "and let go")
+    return False, (f"the door {at_call:.0f} deg open at the call, but {end:.0f} deg "
+                   f"{HOLD_S:.0f} s later")
+  return True, f"the door {end:.0f} deg open in {float(raw['elapsedS']):.0f} s, and let go"
 
 
 def sample_door(life, errand, result: dict | None, before: dict) -> dict:

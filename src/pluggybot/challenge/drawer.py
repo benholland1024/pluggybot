@@ -16,12 +16,14 @@ THE CRITERIA, written first. An attempt passes when:
   2. LET GO: nothing but the cabinet itself touches the drawer, its front
      or its knob at any moment of the hold;
   3. IN TIME: the call came within the task's time limit of the attempt's
-     start (`limitS`; `lid.TIME_LIMIT_S` where none is given).
+     start (`limitS`; `lid.TIME_LIMIT_S` where none is given);
+  4. NEVER FELL: the body's own watch took no fall from the attempt's start
+     to the end of the hold, the lid's criterion 6 (`lid.judged`).
 
-Said beside, and gating nothing (a fall is lost time, as the lid's): the
-most it was out, the fastest it moved, the falls the body's own watch took
-and its worst tilt. Everything else is the robot's business: how it finds
-the knob, which way it pulls, whether it pushes the drawer past its end.
+Said beside, and gating nothing: the most it was out, the fastest it moved
+and the body's worst tilt. Everything else is the robot's business: how it
+finds the knob, which way it pulls, whether it pushes the drawer past its
+end.
 """
 
 from __future__ import annotations
@@ -124,7 +126,7 @@ SHOWN = {"mostM": 3, "fastestMS": 3, "tiltDeg": 1, "outAtCallM": 3, "outM": 3, "
 
 def eval_drawer(m: dict) -> tuple[bool, dict, str]:
   """The pre-declared predicate: pure, judged on the numbers as measured
-  and shown rounded."""
+  and shown rounded, a fall first."""
   raw = {k: m.get(k) for k in ("mostM", "fastestMS", "tiltDeg", "falls", "outAtCallM", "outM",
                                "holdS", "elapsedS", "limitS")}
   metrics = {k: (round(float(v), SHOWN[k]) if k in SHOWN and v is not None else v)
@@ -133,30 +135,35 @@ def eval_drawer(m: dict) -> tuple[bool, dict, str]:
   for key in ("mostM", "outAtCallM", "outM", "holdS", "elapsedS"):
     if raw[key] is None:
       return False, metrics, "the drawer was never measured"
+  ok, reason = lid.judged(raw["falls"], *_drawer(raw, metrics))
+  return ok, metrics, reason
+
+
+def _drawer(raw: dict, metrics: dict) -> tuple[bool, str]:
+  """Criteria 1 to 3 on measurements all there: the verdict and its
+  reason."""
   if float(raw["holdS"]) + 1e-6 < HOLD_S:
-    return False, metrics, (f"measured {float(raw['holdS']):.1f} s after the call, "
-                            f"not the {HOLD_S:.0f} s the job asks for")
+    return False, (f"measured {float(raw['holdS']):.1f} s after the call, "
+                   f"not the {HOLD_S:.0f} s the job asks for")
   limit = TIME_LIMIT_S if raw["limitS"] is None else float(raw["limitS"])
   if float(raw["elapsedS"]) > limit + 1e-6:
-    return False, metrics, (f"called {float(raw['elapsedS']):.0f} s after the start, past "
-                            f"the {limit:.0f} s the job allows")
+    return False, (f"called {float(raw['elapsedS']):.0f} s after the start, past "
+                   f"the {limit:.0f} s the job allows")
   most, at_call, end = (100 * float(raw[k]) for k in ("mostM", "outAtCallM", "outM"))
   want = 100 * OPEN_M
   if at_call < want:
     if most < want:
-      return False, metrics, (f"the drawer came out {most:.0f} cm, short of the "
-                              f"{want:.0f} it must")
-    return False, metrics, (f"the drawer came out {most:.0f} cm but was {at_call:.0f} cm out "
-                            f"when you finished, short of the {want:.0f} it must")
+      return False, f"the drawer came out {most:.0f} cm, short of the {want:.0f} it must"
+    return False, (f"the drawer came out {most:.0f} cm but was {at_call:.0f} cm out "
+                   f"when you finished, short of the {want:.0f} it must")
   if metrics["touchedDuringHold"]:
     touched = ", ".join(metrics["touchedDuringHold"])
-    return False, metrics, (f"the drawer {at_call:.0f} cm out, but {touched} still touched it "
-                            "after the call -- let go")
+    return False, (f"the drawer {at_call:.0f} cm out, but {touched} still touched it "
+                   "after the call -- let go")
   if end < want:
-    return False, metrics, (f"the drawer {at_call:.0f} cm out at the call, but {end:.0f} cm "
-                            f"{HOLD_S:.0f} s later")
-  return True, metrics, (f"the drawer {end:.0f} cm out in {float(raw['elapsedS']):.0f} s, "
-                         "and let go")
+    return False, (f"the drawer {at_call:.0f} cm out at the call, but {end:.0f} cm "
+                   f"{HOLD_S:.0f} s later")
+  return True, f"the drawer {end:.0f} cm out in {float(raw['elapsedS']):.0f} s, and let go"
 
 
 def sample_drawer(life, errand, result: dict | None, before: dict) -> dict:

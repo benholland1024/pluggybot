@@ -5,10 +5,10 @@ protocol that tries a skill from a set-out and writes a row of the record
 
 The criteria were written into the grader first; here a run that meets them
 passes and each run that does not -- never opened, let fall, still held,
-left open, fallen over, the tool lost, merely reported -- fails for the
-reason they give. Every grade but the last two is a bare chest moved by a
-test's hand, or the stub body: there is no robot in it, and the grader
-cannot tell, which is the point.
+left open, the body fallen (#544), merely reported -- fails for the reason
+they give, and a body tipped or its tool lost passes. Every grade is a
+bare chest moved by a test's hand, or the stub body: there is no robot in
+it, and the grader cannot tell, which is the point.
 """
 
 import math
@@ -168,12 +168,22 @@ def test_a_pass_says_how_and_pays_nothing_and_its_catch_stays_secret():
   assert "set down in 84 s" in verdict.reason
 
 
-def test_a_fall_a_tilt_and_a_lost_tool_are_said_and_never_judged():
-  """Ben, 2026-10-17: the job is the lid, and a fall is lost time -- what a
-  fall is is the body's to say, and the humanoid's watch takes its own bow
-  for one (#520)."""
-  ok, metrics, _ = lid.eval_lid(PASSED | {"falls": 2, "tiltDeg": 80.0, "toolSeated": False})
-  assert ok and (metrics["falls"], metrics["tiltDeg"], metrics["toolSeated"]) == (2, 80.0, False)
+def test_a_fall_fails_the_try_said_first_and_a_tilt_and_a_lost_tool_never():
+  """Ben, 2026-10-25 (#544): a fall fails the try, used or by accident --
+  said first, then what the world shows, so a robot that fell on its way to
+  a lid set down is told it was set down. Its tilt and its tool are said
+  and judged by nothing; what a fall is is the body's to say (#520)."""
+  ok, metrics, why = lid.eval_lid(PASSED | {"falls": 1})
+  assert not ok and metrics["falls"] == 1
+  assert why == f"you fell, and a fall fails the try -- {lid.eval_lid(PASSED)[2]}"
+  assert lid.eval_lid(PASSED | {"falls": 2, "topDeg": 50.0})[2] == (
+    "you fell twice, and a fall fails the try -- the lid rose to 50 deg, short of the 57 it "
+    "must open past")
+  assert lid.eval_lid(PASSED | {"falls": 3})[2].startswith("you fell 3 times, and a fall")
+  # uncounted is unmeasured, and a missing measurement is not a passing one
+  assert lid.eval_lid(PASSED | {"falls": None})[::2] == (False, "your falls were never counted")
+  ok, metrics, _ = lid.eval_lid(PASSED | {"tiltDeg": 80.0, "toolSeated": False})
+  assert ok and (metrics["tiltDeg"], metrics["toolSeated"]) == (80.0, False)
   assert lid.eval_lid(PASSED | {"tool": None, "toolSeated": None})[0]
 
 
@@ -247,21 +257,51 @@ def test_never_opened_and_merely_reported_fails_on_the_untouched_world():
   assert not lid.eval_lid(m)[0] and lid.eval_lid(m)[2] == "the lid was never measured"
 
 
-def test_the_body_says_its_falls_tilt_and_tool_and_the_lid_is_judged():
+def test_the_body_says_its_falls_tilt_and_tool_and_only_a_fall_fails_a_lid_set_down():
   """Each asked of the body and none of them named here: the falls its own
   watch counted, its attitude, the tool its set-out gave
-  (`Body.tool_powered`) -- recorded on the row, and a lid set down passes."""
-  def tipped_fell_and_lost_its_tool(body):
-    def routine():
-      body.falls += 1
-      body.attitude = (math.cos(math.radians(35)), math.sin(math.radians(35)), 0.0, 0.0)
-      got = yield from lift(then=lambda b: setattr(b, "holding", None))(body)
-      return got
-    return routine()
-  row = run(tipped_fell_and_lost_its_tool)
+  (`Body.tool_powered`) -- recorded on the row. A lid set down by a body
+  that tipped and lost its tool passes; one that fell too fails, the fall
+  said first (#544)."""
+  def tipped_and_lost_its_tool(fall: bool):
+    def skill(body):
+      def routine():
+        body.falls += int(fall)
+        body.attitude = (math.cos(math.radians(35)), math.sin(math.radians(35)), 0.0, 0.0)
+        got = yield from lift(then=lambda b: setattr(b, "holding", None))(body)
+        return got
+      return routine()
+    return skill
+  row = run(tipped_and_lost_its_tool(fall=False))
   m = row["verdict"]["metrics"]
   assert row["verdict"]["ok"], row["verdict"]["reason"]
-  assert (m["falls"], m["tiltDeg"], m["toolSeated"]) == (1, 70.0, False)
+  assert (m["falls"], m["tiltDeg"], m["toolSeated"]) == (0, 70.0, False)
+  v = run(tipped_and_lost_its_tool(fall=True))["verdict"]
+  assert not v["ok"] and v["metrics"]["falls"] == 1
+  assert v["reason"].startswith("you fell, and a fall fails the try -- opened to 63 deg and set "
+                                "down"), v["reason"]
+
+
+def test_a_fall_counts_from_the_attempts_start_to_the_end_of_its_hold():
+  """#544's window: a fall the body's watch counts in the hold fails the
+  try as one before the call does; one counted before the attempt began
+  is not its."""
+  def falls_in_the_hold(body):
+    t = float(body.data.time)
+
+    def fall():
+      if body.data.time > t + 1.0 and body.falls == 0:
+        body.falls += 1
+    body.step_hooks.append(fall)
+  v = run(lift(then=falls_in_the_hold))["verdict"]
+  assert not v["ok"] and v["reason"].startswith("you fell, and a fall fails"), v["reason"]
+
+  def fell_before(task):
+    world = stub_world(task)
+    world.body.falls = 2
+    return world
+  v = at.attempt(at.Task(chest=PLAIN), lift(), build=fell_before)["verdict"]
+  assert v["ok"] and v["metrics"]["falls"] == 0, v["reason"]
 
 
 # ---- the protocol ----------------------------------------------------------------------
