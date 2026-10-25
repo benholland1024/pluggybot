@@ -3031,8 +3031,8 @@ comes back to you.
 - `heart_for`: with `buy_heart` true, the heart bought goes to the named \
 robot, at the same price and under the same refusals.
 - `rate`: `{"board": "<board>", "quality": 0..1}` -- your judgement of the \
-drawing on that board, whoever drew it. Recorded, and later set beside what \
-people said of the same drawing.
+drawing on that board, whoever drew it. Recorded; where people rated the same \
+drawing, set beside what they said.
 - `decline`: `{"task": "<id>", "reason": "<why>"}` -- an offer on the board \
 you will not take, and why, in your own words. Your reason is recorded as \
 you wrote it, the offer is not shown to you again, and it lapses on its own.

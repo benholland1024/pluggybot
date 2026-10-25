@@ -105,13 +105,14 @@ def test_the_jobs_bullet_says_what_is_offered_and_nothing_else():
 
 
 def test_home_quad_offers_the_feed_and_the_game_and_the_shock_is_one_line_back(tmp_path):
-  """A test reads the entry: `feed_mouse`, the whiteboards' three (#406),
-  the census and the two challenges (#407) and the pair's game (#404), and
-  nothing else; putting the shock job back is one line in `kinds`, and the
-  prompt it builds then names both of the lab's jobs."""
+  """A test reads the entry: `feed_mouse`, two of the whiteboards' three
+  (#406; the drawing for rating came off in #541, paid only when a person
+  rated it), the census and the two challenges (#407) and the pair's game
+  (#404), and nothing else; putting the shock job back is one line in
+  `kinds`, and the prompt it builds then names both of the lab's jobs."""
   shipped = cad.Cadence.load(QUAD_HOME, cad.CADENCE_PATH)
-  rest = ["whiteboard_answer", "count_plants", "draw_figure", "stack_tower", "rate_artwork",
-          "find_mass"]
+  assert "rate_artwork" not in shipped.kinds
+  rest = ["whiteboard_answer", "count_plants", "draw_figure", "stack_tower", "find_mass"]
   assert list(shipped.kinds) == ["feed_mouse", *rest, "hide_and_seek"]
   doc = json.loads(cad.CADENCE_PATH.read_text())
   block = doc["worlds"][QUAD_HOME]

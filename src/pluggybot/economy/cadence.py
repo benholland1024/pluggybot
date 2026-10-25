@@ -241,9 +241,9 @@ class TaskProducer:
     """Put up the starting board, once, at mission start.
 
     Up to `initial` offers -- fewer if the world runs out of unbooked
-    targets, which is the ordinary case: home has two whiteboards and three
-    board-shaped kinds, so one of them waits for a board to come free. That
-    is the per-target rule doing its job at t=0 rather than an accident.
+    targets, which is the ordinary case: kinds that share a target (the
+    boards' jobs, the lab's) wait for it to come free. That is the
+    per-target rule doing its job at t=0 rather than an accident.
 
     ⚠ Call this AFTER every hook is attached. `TaskBoard.offer` emits a
     `task_offered` the moment it is called, so seeding at construction time

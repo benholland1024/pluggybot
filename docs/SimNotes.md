@@ -3454,9 +3454,9 @@ lying down. The kinds' own figures (`TaskKind.estimate_wh`) carry the
 bedroom's, the dearer.
 
 **What is true now:** the served quadruped draws on both whiteboards from
-a job: `draw_figure`, `rate_artwork` and `whiteboard_answer` are offered on
-`home_quad`, each a program over the step vocabulary (find, fetch, draw,
-stow; `lifecycle.draw_program`), and `draw` is a legs verb a procedure may
+a job: `draw_figure` and `whiteboard_answer` are offered on `home_quad`,
+each a program over the step vocabulary (find, fetch, draw, stow;
+`lifecycle.draw_program`), and `draw` is a legs verb a procedure may
 call where the world has boards, a rack and places. `tests/test_drawing.py`
 pins each rule above; the flown tables are `draw_spike.py`'s.
 
