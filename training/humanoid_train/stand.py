@@ -11,8 +11,8 @@ carry it. The policy sees their encoders and so where their mass is; it is
 paid for the posture it was asked, for its feet staying where they are, and
 charged for torque past a part's continuous rating. What disturbs it:
 shoves to the trunk, a load in each hand (`HAND_KG`), and pulls and pushes
-at a hand (`HAND_N`, `hand_pull`) -- a handle gripped and drawn back -- each
-ramped up over the first iterations (`DISTURBANCE_STAGES`).
+at the hands (`HAND_N`) -- a handle gripped and drawn back -- each ramped up
+over the first iterations (`DISTURBANCE_STAGES`).
 
 What differs from mjlab's velocity task, and why:
   - no walking: the twist command is held at zero (it stays, because the
@@ -27,7 +27,7 @@ What differs from mjlab's velocity task, and why:
 """
 
 from dataclasses import dataclass
-import math
+
 
 import torch
 from mjlab.envs import ManagerBasedRlEnvCfg
@@ -46,8 +46,6 @@ from mjlab.sensor import ContactMatch, ContactSensorCfg, ObjRef, RingPatternCfg,
 from mjlab.tasks.velocity import mdp
 from mjlab.tasks.velocity.mdp import UniformVelocityCommandCfg
 from mjlab.tasks.velocity.velocity_env_cfg import make_velocity_env_cfg
-from mjlab.utils.lab_api.math import quat_apply_inverse
-from mjlab.utils.noise import UniformNoiseCfg as Unoise
 
 from humanoid_train import robot
 
@@ -328,72 +326,14 @@ PUSH_EVERY_S = (2.0, 5.0)
 #: What a hand carries, kg: from nothing to a full kettle (the shelves'
 #: objects), each hand its own, held at the hand.
 HAND_KG = (0.0, 2.0)
-#: A pull or a push at a hand, N, held a while: a handle gripped and drawn
-#: back, a door leaned on -- up to the `pull` verb's own most (its `force`,
-#: `procedure.steps`), along any way, as the verb's is, at one hand at a
-#: time (`hand_pull`, #544). ⚠ At 30 N a component, both hands at once, a
-#: robot's 55 N pull toppled it, and it noted to keep under 50.
-HAND_N = 60.0
+#: A pull or a push at a hand, N per axis, held a while: a handle gripped
+#: and drawn back, a door leaned on.
+HAND_N = 30.0
 HAND_PULL_S, HAND_REST_S = (0.5, 3.0), (1.0, 4.0)
 #: The shoves' and the pulls' share of their full size, from each iteration
 #: on: a policy shoved at full size from the first iteration learns to fall.
 DISTURBANCE_STAGES = ((0, 0.25), (400, 0.5), (800, 0.75), (1200, 1.0))
 STEPS_PER_ITERATION = 24
-
-
-class hand_pull(envs_mdp.apply_body_impulse):
-  """A pull or a push at ONE hand, drawn uniformly from the ball of radius
-  `force_n`: any way, any size up to it, as the `pull` verb pulls one hand
-  along any (dx, dy, dz) with at most its `force`. mjlab's impulse keeps
-  its clocks -- the hold, then the rest -- and only the draw is ours: its
-  own, uniform per component, loads both hands at once. With a finite
-  `moment_nm`, a pull whose tipping moment about the middle of the feet,
-  on the ground, is past it is scaled down to it as it begins: 60 N across
-  a hand 1.5 m up tips any body whose feet stay put. A positive
-  `longest_s` holds a pull up to that long (`HAND_PULL_S`'s upper end; a
-  flag, where tyro reads the tuple as one number), and a positive `ramp_s`
-  brings it in over that long, as the verb's force builds, where mjlab's
-  steps to it whole."""
-
-  def __init__(self, cfg, env):
-    super().__init__(cfg, env)
-    feet, _ = self._asset.find_sites(robot.FEET, preserve_order=True)
-    self._feet = torch.tensor(feet, device=self._device, dtype=torch.long)
-    self._target = torch.zeros(self._num_envs, self._num_bodies, 3, device=self._device)
-    self._age = torch.zeros(self._num_envs, device=self._device)
-
-  def __call__(self, env, env_ids, force_n: float, duration_s, cooldown_s, asset_cfg,
-               moment_nm: float = math.inf, longest_s: float = 0.0, ramp_s: float = 0.0) -> None:
-    was = self._active.clone()
-    if longest_s > 0.0:
-      duration_s = (duration_s[0], longest_s)
-    super().__call__(env, env_ids, (0.0, 0.0), (0.0, 0.0), duration_s, cooldown_s, asset_cfg)
-    began = (self._active & ~was).nonzero(as_tuple=False).squeeze(-1)
-    self._age += self._step_dt
-    n = len(began)
-    if n:
-      way = torch.randn(n, 3, device=self._device)
-      way = way / way.norm(dim=-1, keepdim=True).clamp_min(1e-9)
-      size = force_n * torch.rand(n, 1, device=self._device) ** (1.0 / 3.0)
-      forces = torch.zeros(n, self._num_bodies, 3, device=self._device)
-      hand = torch.randint(self._num_bodies, (n,), device=self._device)
-      forces[torch.arange(n, device=self._device), hand] = way * size
-      if math.isfinite(moment_nm):
-        mid = self._asset.data.site_pos_w[began][:, self._feet].mean(dim=1)
-        mid[:, 2] = 0.0
-        arm = self._asset.data.body_link_pos_w[began][:, self._body_ids] - mid[:, None, :]
-        tip = torch.linalg.cross(arm, forces, dim=-1)[..., :2].norm(dim=-1)
-        forces = forces * torch.clamp(moment_nm / tip.clamp_min(1e-9), max=1.0)[..., None]
-      self._target[began], self._age[began] = forces, 0.0
-    # the pull as it stands: whole as it begins, or brought in over `ramp_s`
-    ramping = (self._active & (self._age < ramp_s + self._step_dt)).nonzero(as_tuple=False)
-    ramping = ramping.squeeze(-1)
-    if len(ramping):
-      share = (torch.clamp(self._age[ramping] / ramp_s, max=1.0) if ramp_s > 0.0
-               else torch.ones(len(ramping), device=self._device))
-      forces = self._target[ramping] * share[:, None, None]
-      self._asset.write_external_wrench_to_sim(forces, torch.zeros_like(forces),
-                                               env_ids=ramping, body_ids=self._body_ids)
 
 
 def disturbance_scale(env, env_ids, stages=DISTURBANCE_STAGES, scale: float = 1.0):
@@ -405,41 +345,13 @@ def disturbance_scale(env, env_ids, stages=DISTURBANCE_STAGES, scale: float = 1.
   push = env.event_manager.get_term_cfg("push_robot")
   push.params["velocity_range"] = {k: (lo * share, hi * share) for k, (lo, hi) in PUSH.items()}
   pull = env.event_manager.get_term_cfg("hand_pull")
-  pull.params["force_n"] = HAND_N * share
+  pull.params["force_range"] = (-HAND_N * share, HAND_N * share)
   return torch.tensor(share)
-
-
-# ---- what a hand feels ------------------------------------------------------------------
-
-#: The force at a hand as the robot reads it scatters this much, N a
-#: component: off its arm's six motors' currents (`humanoid.arms.SelfModel.
-#: hand_force`, the reach's `force`), a few newtons on a still hand and 7-15
-#: about the truth under a hard pull (SimNotes, "The humanoid stands,
-#: reaches and grasps").
-HAND_FORCE_NOISE_N = 8.0
-
-
-class hand_force:
-  """What each hand is pulled or pushed with, in the trunk's frame, N (left
-  then right): the pull the robot's own arm reads at its hand. A load a
-  hand carries is its mass, never read here."""
-
-  def __init__(self, cfg, env):
-    self.entity = env.scene["robot"]
-    ids, _ = self.entity.find_bodies(robot.HANDS, preserve_order=True)
-    self.ids = torch.tensor(ids, device=env.device, dtype=torch.long)
-
-  def __call__(self, env) -> torch.Tensor:
-    f = self.entity.data.body_external_wrench[:, self.ids, :3]
-    q = self.entity.data.root_link_quat_w[:, None, :].expand(-1, len(self.ids), -1)
-    return quat_apply_inverse(q.reshape(-1, 4), f.reshape(-1, 3)).reshape(f.shape[0], -1)
 
 
 # ---- the task -------------------------------------------------------------------------
 
-def stand_env_cfg(play: bool = False, felt: bool = False) -> ManagerBasedRlEnvCfg:
-  """The standing task; `felt` shows the actor and the critic each hand's
-  force (`hand_force`), as the robot reads it off its arm's currents."""
+def stand_env_cfg(play: bool = False) -> ManagerBasedRlEnvCfg:
   cfg = make_velocity_env_cfg()
   cfg.scene.entities = {"robot": robot.get_robot_cfg()}
 
@@ -496,10 +408,6 @@ def stand_env_cfg(play: bool = False, felt: bool = False) -> ManagerBasedRlEnvCf
   critic["posture"] = ObservationTermCfg(
     func=mdp.generated_commands, params={"command_name": "posture"})
   critic["root_height"] = ObservationTermCfg(func=_root_height)
-  if felt:
-    actor["hand_force"] = ObservationTermCfg(
-      func=hand_force, noise=Unoise(n_min=-HAND_FORCE_NOISE_N, n_max=HAND_FORCE_NOISE_N))
-    critic["hand_force"] = ObservationTermCfg(func=hand_force)
 
   # Randomisation: every number no datasheet gives, and what a hand carries.
   legs_and_arms = SceneEntityCfg("robot", joint_names=(".*",))
@@ -527,11 +435,10 @@ def stand_env_cfg(play: bool = False, felt: bool = False) -> ManagerBasedRlEnvCf
   cfg.events["push_robot"].interval_range_s = PUSH_EVERY_S
   cfg.events["push_robot"].params["velocity_range"] = dict(PUSH)
   cfg.events["hand_pull"] = EventTermCfg(
-    mode="step", func=hand_pull,
+    mode="step", func=envs_mdp.apply_body_impulse,
     params={"asset_cfg": SceneEntityCfg("robot", body_names=robot.HANDS),
-            "force_n": HAND_N, "moment_nm": math.inf, "longest_s": 0.0, "ramp_s": 0.0,
-            "duration_s": HAND_PULL_S,
-            "cooldown_s": HAND_REST_S})
+            "force_range": (-HAND_N, HAND_N), "torque_range": (0.0, 0.0),
+            "duration_s": HAND_PULL_S, "cooldown_s": HAND_REST_S})
   cfg.curriculum = {"disturbances": CurriculumTermCfg(func=disturbance_scale,
                                                       params={"scale": 1.0})}
 
@@ -566,10 +473,6 @@ def stand_env_cfg(play: bool = False, felt: bool = False) -> ManagerBasedRlEnvCf
   rewards["torque_over_rating"] = RewardTermCfg(
     func=torque_over_rating, weight=-0.5,
     params={"asset_cfg": legs, "rated": torch.tensor(rated)})
-  # A fall's own charge, off unless a variant's flag sets it
-  # (`--env.rewards.fell.weight -1000`): with no charge a fall costs only
-  # the pay a 0.99 discount sees past it, about 2 s.
-  rewards["fell"] = RewardTermCfg(func=envs_mdp.is_terminated, weight=0.0)
 
   # Falls.
   cfg.terminations.pop("out_of_terrain_bounds", None)

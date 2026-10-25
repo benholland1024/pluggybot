@@ -49,19 +49,16 @@ commanded height and tilt; SimNotes has both.
 `Pluggy-Humanoid-Stand` balances on planted feet at a commanded posture
 (the pelvis's height and the trunk's pitch, a crouch and a bow) while its
 arms are SCRIPTED -- sent somewhere new every few seconds with their weight
-fed forward, as the served reach drives them -- its hands carry, and a hand
-is pulled or pushed up to the `pull` verb's 60 N, any way, one at a time
-(`hand_pull`, #544; the served policy, stand4, trained on 30 N a component
-at both hands); shoves and pulls ramp up over the first 1200 iterations
+fed forward, as the served reach drives them -- and its hands carry and
+pull; shoves and pulls ramp up over the first 1200 iterations
 (`DISTURBANCE_STAGES`, `--env.curriculum.disturbances.params.scale`), and
 each sole is charged for its distance from where the episode's stance put
 it (`feet_anchor`; SimNotes, "The humanoid stands, reaches and grasps").
-A pull's tipping moment may be capped (`--env.events.hand-pull.params.
-moment-nm`), held longer (`longest-s`) or brought in (`ramp-s`), and a fall
-charged (`--env.rewards.fell.weight`); `Pluggy-Humanoid-Stand-Felt` shows
-the policy each hand's force. None is served: retrained to 60 N it holds
-no more, and the felt task holds 60 N only on a force the robot cannot
-read (SimNotes, "Holding the pull verb's 60 N at a hand").
+#544's retrains against the `pull` verb's 60 N (a one-hand draw, a capped
+moment, long holds, a ramp, a fall charge, and `-Stand-Felt` shown each
+hand's force) are in git, bee276e to 34f0ed3: none held more on the
+robot's own senses, so `pull` asks at most 20 N instead (SimNotes,
+"Holding the pull verb's 60 N at a hand").
 `Pluggy-Humanoid-Walk` is mjlab's G1 velocity recipe on our body, on flat
 ground: the actor blind to its base velocity as the quadruped's is, the arms
 scripted more quietly than a reach moves them, the legs charged for meeting
