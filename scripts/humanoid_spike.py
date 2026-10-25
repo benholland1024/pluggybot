@@ -1793,8 +1793,11 @@ def hold_table(policy=None, step_m: float = 0.01, step_s: float = 0.5,
 #: 0.43 m ahead: a counter's height), pulling or pushing there along each
 #: way, stance frame (x ahead, y left, z up), as the verb's way is -- "back"
 #: draws the hand toward the robot, the force ON it forward -- `PULL_TIMES`
-#: times, each ramped over `PULL_RAMP_S` and held `PULL_HOLD_S`, at each
-#: force in turn until the body falls. Staged with the truth. ⚠ NOT THE VERB
+#: times, each built at `PULL_RATE_N_S` and held `PULL_HOLD_S`, at each force
+#: in turn until the body falls: the verb's own force built on the locked bar
+#: at up to 87 N/s (pulling up; back and left were slower), and a force
+#: stepped on whole topples a body a lean would have held. Staged with the
+#: truth. ⚠ NOT THE VERB
 #: ON THE BAR: a `pull` takes the posture that reaches its way's end first,
 #: and pulled 0.3 m down on a fixed bar the body bowed 48 deg, its grip
 #: rolled off and it fell at 20 N -- the hand's stack, not the legs' (`--hold`
@@ -1805,7 +1808,7 @@ PULL_WAYS = {"back": (-1, 0, 0), "forward": (1, 0, 0), "left": (0, 1, 0), "right
              "back-up": (-1, 0, 1), "back-down": (-1, 0, -1), "forward-up": (1, 0, 1),
              "forward-down": (1, 0, -1)}
 PULL_FORCES = (20.0, 30.0, 40.0, 50.0, 60.0, 70.0, 80.0)
-PULL_TIMES, PULL_RAMP_S, PULL_HOLD_S, PULL_REST_S, PULL_AFTER_S = 2, 0.3, 3.0, 1.0, 3.0
+PULL_TIMES, PULL_RATE_N_S, PULL_HOLD_S, PULL_REST_S, PULL_AFTER_S = 2, 90.0, 3.0, 1.0, 3.0
 
 
 def pull_trial(way: str, force: float, npz: str | None = None) -> dict:
@@ -1844,7 +1847,7 @@ def pull_trial(way: str, force: float, npz: str | None = None) -> dict:
     return True
 
   for _ in range(PULL_TIMES):
-    if not (phase(PULL_RAMP_S, lambda s: s) and phase(PULL_HOLD_S, lambda s: 1.0)
+    if not (phase(force / PULL_RATE_N_S, lambda s: s) and phase(PULL_HOLD_S, lambda s: 1.0)
             and phase(PULL_REST_S, lambda s: 0.0)):
       break
   h.d.xfrc_applied[hand] = 0.0
@@ -1874,7 +1877,7 @@ def pull_table(npz: str | None = None, jobs: int = 4) -> dict:
         f"({HANDLE_Z:.2f} m up, {COUNTER_FRONT - 0.02 - HANDLE_OFF:.2f} m ahead) pulling each way "
         f"(back: toward the robot, the force on the hand forward) "
         f"{PULL_TIMES} times at each force ({', '.join(f'{f:g}' for f in PULL_FORCES)} N), each "
-        f"ramped {PULL_RAMP_S:g} s and held {PULL_HOLD_S:g} s, until it falls; policy "
+        f"built at {PULL_RATE_N_S:g} N/s and held {PULL_HOLD_S:g} s, until it falls; policy "
         f"{_name_stand(npz)}")
   print("  'stood to': the hardest with no fall; 'feet held to': no step either; 'fell at': "
         "the first that toppled it; the hand's give and the trunk's tilt at 'stood to'")
