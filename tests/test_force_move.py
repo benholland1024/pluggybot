@@ -5,18 +5,20 @@ them are `scripts/hands_check.py`'s.
 
   1. along its way a pull's command walks at its speed while the hand
      pushes under half its force, slows as it nears it, stands at its
-     force, and backs off past it: the force is CLOSED on what the hand
-     feels (admittance);
+     force, and backs off past it -- while its body takes a posture too:
+     the force is CLOSED on what the hand feels (admittance);
   2. across its way, giving, the command follows the hand, no faster than
      its cap; holding, it keeps its line (hybrid force and position);
   3. its turn gives toward what it holds, but never about the jaws' own
      line;
   4. it takes its posture first and stands meanwhile; it ends at its
-     distance, held fast where the hand stays put pushing its whole force,
-     out of reach, or -- a grip it began with lost -- where the hand is, and
+     distance, held fast where the hand stays put pushing its whole force
+     or goes nowhere with its command as far ahead as it may go, out of
+     reach, or -- a grip it began with lost -- where the hand is, and
      reports the way the hand was last going;
-  5. a held hand going on takes another posture from its arm as it is,
-     never from a seed, never one it has left;
+  5. a hand going on takes another posture from its arm as it is, never
+     from a seed, never one it has left -- and a hand HELD, its arm reaching
+     it, takes none: its command stays where the arm last reached;
   6. a grip is shut with the force asked, inside the gripper's sheet, and
      judged against it, on its squeeze's running mean;
   7. `spot` bows until it sees and stands up again, and says which way the
@@ -69,9 +71,13 @@ def test_a_pull_walks_while_it_pushes_light_stands_at_its_force_and_backs_off_pa
   r = _pulling(way)
   r._pulled("left", DT, H, np.eye(3))
   assert _along(r, way) == pytest.approx(rc.HOLD_SPEED * DT)
+  most = 0.0
   for _ in range(40):
+    if r.pulls["left"] is None:
+      break
     r._pulled("left", DT, H, np.eye(3))
-  assert _along(r, way) == pytest.approx(rc.LEAD_MAX_M)
+    most = max(most, _along(r, way)) if r.pulls["left"] is not None else most
+  assert most == pytest.approx(rc.LEAD_MAX_M)
   r = _pulling(way)
   r.force["left"] = 10.0 * way
   r._pulled("left", DT, H, np.eye(3))
@@ -211,6 +217,78 @@ def test_a_pull_takes_its_posture_first_and_stands_still_meanwhile():
   for _ in range(int(rc.FAST_S / DT) + 2):
     r._pulled("left", DT, H, np.eye(3))
   assert np.allclose(r.cmd["left"].pos, H) and r.pulls["left"] is not None
+
+
+def _reaching_only(hand):
+  """A solve that reaches `hand` (a list holding where the hand is) and
+  misses every command a millimetre or more off it by 2 cm."""
+  def solve(side, pos, rot=None, iters=None):
+    off = float(np.linalg.norm(np.asarray(pos) - hand[0]))
+    return np.zeros(len(hm.ARM)), (0.02 if off >= 1e-3 else 0.0), 0.0
+  return solve
+
+
+def test_a_held_hand_whose_arm_reaches_it_takes_no_posture_and_ends_held_fast():
+  """Against a hand held, the command's lead is the solve's miss: postures
+  taken for it bowed, crouched and stood the body up with the hand on a
+  locked bar, 30-100 N on it for a pull asked 10-20, and 7 ways in 14 never
+  ended (#547)."""
+  way = np.array([0.0, 0.0, 1.0])
+  r = _pulling(way)
+  hand = [H.copy()]
+  r.posture_for = lambda side, pos, rot=None, onward=False, past=(): (0.0, 0.3)
+  r._pulled("left", DT, H, np.eye(3))
+  reached = r.cmd["left"].pos.copy()
+  r.self_model.solve = _reaching_only(hand)
+  for _ in range(int((rc.REPLAN_S + rc.FAST_S) / DT) + 2):
+    if r.pulls["left"] is None:
+      break
+    r._pulled("left", DT, H, np.eye(3))
+    if r.pulls["left"] is not None:
+      assert np.allclose(r.cmd["left"].pos, reached)
+  assert r.postures == [] and r.report["left"]["why"] == "held fast"
+  assert r.report["left"]["force"] == 0.0
+  # ...but a hand going takes one, as one its arm cannot hold where it is
+  for going, reaches in ((True, True), (False, False)):
+    r = _pulling(way, distance=1.0)
+    r.posture_for = lambda side, pos, rot=None, onward=False, past=(): (0.0, 0.3)
+    r._posture_held = lambda: True
+    for k in range(1, int(rc.REPLAN_S / DT) + 2):
+      at = H + (1.1 * rc.GO_ON_M * k * way if going else 0.0)
+      hand[0] = at if reaches else at + 1.0
+      r.self_model.solve = _reaching_only(hand)
+      r._pulled("left", DT, at, np.eye(3))
+      if r.postures:
+        break
+    assert r.postures == [(0.0, 0.3)], (going, reaches)
+
+
+def test_a_pull_backs_off_past_its_force_while_its_body_takes_a_posture():
+  """Stood still, it held on reading 15 times its force as a posture stood
+  the body up with the hand on a locked bar (#547)."""
+  way = np.array([0.0, 0.0, 1.0])
+  for force, pace in ((20.0, -1.0), (5.0, 0.0)):
+    r = _pulling(way)
+    r.pulls["left"]["postured"] = 0.0
+    r._posture_held = lambda: False
+    r.force["left"] = force * way
+    r._pulled("left", DT, H, np.eye(3))
+    assert _along(r, way) == pytest.approx(pace * rc.HOLD_SPEED * DT), force
+
+
+def test_a_pinned_pull_is_held_fast_by_how_far_it_goes_along_its_way():
+  """Pinned on a locked bar, the hand's sensed place moved 4 mm in a tenth
+  of a second and its grip slid 3-7 mm a second: held fast by its place
+  alone, such a pull never ended (#547)."""
+  way = np.array([0.0, 0.0, 1.0])
+  r = _pulling(way)
+  for k in range(int(rc.LEAD_MAX_M / (rc.HOLD_SPEED * DT)) + int(rc.FAST_S / DT) + 3):
+    if r.pulls["left"] is None:
+      break
+    # sliding across its way, and along it slower than a hand goes
+    r._pulled("left", DT, H + 0.006 * k * np.array([0.0, 1.0, 0.0])
+              + 0.3 * rc.GO_ON_M * DT * k * way, np.eye(3))
+  assert r.report["left"]["why"] == "held fast"
 
 
 def test_a_pull_that_loses_its_grip_ends_where_the_hand_is():
