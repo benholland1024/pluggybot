@@ -196,7 +196,7 @@ doing anything, read the doc that owns what you are about to touch:
   challenge row, and these would change the deployed prompt. ⚠ A FALL IS LOST TIME, NEVER A VERDICT (Ben,
   2026-10-17): the job is the lid inside the TASK's time limit, the
   budget (`attempts.LIMIT_S`, the grader's `limitS`: the quadruped's 300
-  s, the humanoid's 3x its reference's slowest pass, 68 s),
+  s, the humanoid's 3x its reference's slowest pass at 0f98e24, 68 s),
   and the falls the body's own watch counted (`Body.falls`; the
   humanoid's is its trunk 35 deg past the posture its legs hold, so a bow
   is none, #520), its tilt and its tool (`Body.tool_powered`; the
@@ -321,7 +321,13 @@ save a filmstrip PNG named after the script.
   STILL (`reach.TRUNK_STILL_RATE`; or after `POSTURE_WAIT_S`): the
   currents' force assumes the arm still, and begun as the deepest bow
   stopped turning, the floor's reach read 492 N and stopped 6 cm short
-  (#520). Training's arms are SCRIPTED,
+  (#520). ⚠ A WITHDRAW IS OK ONCE ITS ARM IS HOME (`Reach.home`: the rest
+  commanded and read by its drivers), by the way `Reach.way_home` judges
+  on the same model: straight in joint space, an arm raised before its
+  shoulder came down on the counter's edge (#539). ⚠ No force guard on
+  it: at `BLOCKED_N` one stopped a blocked reach's press as well as a
+  caught jaw, and cost the lid check 2 of its 7 (SimNotes, "The way
+  home"). Training's arms are SCRIPTED,
   their gains the served arms' (`model.ARM_GAIN_SCALE`, through
   `humanoid.json`). `training/humanoid_train/g1_check.py` is rule 6's
   check: mjlab's stock G1 flown outside mjlab.
@@ -409,9 +415,9 @@ save a filmstrip PNG named after the script.
   statue `PATH_MARGIN_M` (3.5 cm) ahead, and for a hand that is out on the
   robot as it stands (its measured arm, `LIVE_MARGIN_M`); a carry keeps the
   turn it was ASKED. ⚠ ONE POSTURE A PATH: switching partway jerked lids to
-  81 deg and dropped them at 2.3 rad/s. It opens 23 of 32, its slowest
-  pass (22.5 s) sets the humanoid task's limit at three times it
-  (`attempts.LIMIT_S`). The humanoid looks lower by bowing
+  81 deg and dropped them at 2.3 rad/s. It opens 23 of 32; its slowest
+  pass at 0f98e24 (22.5 s) set the humanoid task's limit at three times
+  it (`attempts.LIMIT_S`). The humanoid looks lower by bowing
   (`Body.gaze_routine`).
 - **The hands in a procedure, and graded practice** (#493;
   `procedure/steps.py` `HANDS_VERBS` and `language(facts)`,
