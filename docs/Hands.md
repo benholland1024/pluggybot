@@ -275,6 +275,11 @@ no new help") -- tries a fall now fails (#544).
 
 ## 7. What it does not do
 
+- **Hold all the force a pull may ask.** `pull` takes up to 60 N, and a
+  hand at a counter's height holds 20-40 N across the floor before the body
+  goes over (#544; SimNotes, "Holding the pull verb's 60 N at a hand"): the
+  standing policy does not feel a pull until the body moves, and the force
+  the arm's currents read is too rough to show it one.
 - **Two hands at once.** Every verb is one hand's; a bimanual frame-and-work
   split waits for a job that needs it.
 - **Motion within the hand** beyond a light grip's turn between the pads.

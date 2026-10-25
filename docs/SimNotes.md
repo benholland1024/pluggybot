@@ -5574,6 +5574,88 @@ alone, a short line out left the press on, and the capability check's lid
 fell to 5 of 8. A guard that tells a press the motion relieves from a pull
 it works against is not built.
 
+## Holding the pull verb's 60 N at a hand (issue #544)
+
+Ben decided (2026-10-25) that the standing policy be retrained to hold
+what `pull` allows, 60 N at a hand, where it trained against 30 N a
+component. Retrained as decided it holds no more, and four ways round it
+did not either: what it would need is the force at its hand, and the
+robot cannot read that.
+
+**What a hand holds** (`humanoid_spike.py --pulls`): the left hand held by
+the reach where the locked handle's bar is, 0.84 m up and 0.43 m ahead,
+pulling each of 14 ways (named as the verb's way: "back" draws the hand
+toward the robot) at 20-80 N, the force built at 90 N/s -- the verb's own
+fastest build on that bar -- and held 3 s, twice. Staged with the truth: a
+force at the hand, the policy's own measure. ⚠ The verb on the bar is not
+the instrument: a `pull` takes the posture its way's END needs first, and
+0.3 m down the body bowed 48 deg on a fixed bar and its grip rolled off;
+on a short way it ends at its distance before the force builds, the body
+giving. stand4, the served policy, stands to:
+
+| pulling | back | forward | left | right | up | down | back-down | forward-down |
+|---|---|---|---|---|---|---|---|---|
+| stood to, N | 30 | 20 | 40 | 40 | 80 | 60 | 60 | 20 |
+| fell at, N | 40 | 30 | 50 | 50 | -- | 70 | 70 | 30 |
+
+(600 N summed over the 14 ways.) Its shoves, its envelope and `--hold`
+(37.4 N, the grip slipping) are as stage 2 of #507 measured them.
+
+**Retrained, four ways** (`Pluggy-Humanoid-Stand`, 4096 envs, 4000
+iterations, 32-33 min on a rented 5090 each):
+
+| run | what changed | steps an episode, its last 200 iterations | --pulls, summed |
+|---|---|---|---|
+| stand4 | (served: 30 N a component at both hands, pulls of 0.5-3 s) | 646 | 600 N |
+| stand7 | a pull drawn from the ball of radius 60 N at one hand (`hand_pull`) | 235, the tilt lost | 590 N |
+| stand8 | + its tipping moment capped at 60 N*m (`moment-nm`) | 246 | 580 N |
+| stand9 | + held up to 10 s (`longest-s`) | 235 | 590 N: back 40, forward 0 |
+| stand10 | + brought in over 0.5 s (`ramp-s`) | 256 | 540 N |
+| stand11 | + a fall charged, about 4.4 s of pay (`fell`) | 280 | 600 N |
+
+**Why none holds more.** In mjlab's own physics too, stand4 and stand7 fall
+every time to 40 N held at the trunk and to 60 N at a hand hanging at rest:
+no gap between the two physics. That hanging hand's 60 N needs the centre
+of pressure 9 cm ahead of the centre of mass, inside the sole; traced, it
+goes to the toes as the force builds and stays, the centre of mass drifts
+forward with the pull and the body tips -- neither the hips nor a step are
+used. A policy shown its trunk and its joints feels a pull only once the
+body has moved, and by then the toes are spent; trained against frequent
+pulls, it learns to stand back instead: 1.5-2 cm further back over its
+feet (its centre of mass 1.4 cm), which pulls 40 N back and falls to 20
+pushing, and puts a handle planned with 1.5 cm of slack out of the reach
+-- stand7's grip came off the locked handle at the first centimetre,
+stand8's never closed on it.
+
+**Shown its hand's force, it holds -- where the force is true.** stand12
+(`Pluggy-Humanoid-Stand-Felt`: each hand's force in the trunk's frame
+through 8 N of noise, beside stand10's flags; 413 steps an episode) fell
+to none of 40 or 60 N at a hand, any way, in mjlab's physics, where stand7
+fell every time at 60; stand13, the fall charged too (862 steps), 0-14 %
+at 60. But the robot's reading of
+that force -- its arm's six drivers' torques through the arm's Jacobian
+(`SelfModel.hand_force`) -- is about 20 N off with nothing applied at a
+0.35 m reach (the still joints' friction, taken off only where a joint
+turns), and along a stretched arm it sees little: pushed 40 N forward at
+the bar, it read 8.5 N forward and 17 N up. Shown that, stand12 held no
+more than the blind ones (550 N summed; up 30, where stand4 holds 80).
+The served wiring was built, tested and reverted (git: 34101aa).
+
+![The `pull` scene on stand4: the locked handle pulled at the verb's 60 N
+back, left, right and up, then back three times running -- each pull ends
+at its way's distance with 24-40 N on the bar, and the grip lets go at 45
+N pulling up, the robot standing throughout](figures/humanoid_pull.png)
+
+(`MUJOCO_GL=egl uv run python scripts/humanoid_spike.py --strip pull --out
+docs/figures/humanoid_pull.png`; `--view pull` in the viewer.)
+
+**What is true now:** the served standing policy is still stand4, and a
+hand at a counter's height holds 20-40 N across the floor against it for
+3 s, whatever `pull` allows. Holding 60 N wants a hand force the robot can
+read (a sensor at the wrist, or a reading of the arm's currents that knows
+its friction), less asked of a hand (`pull`'s cap), or the reach leaning
+the body into a pull before it builds: #544's call.
+
 ## Debugging workflow that worked
 
 1. Reproduce headlessly with printed telemetry (pose, joint rates, contact

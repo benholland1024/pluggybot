@@ -49,11 +49,19 @@ commanded height and tilt; SimNotes has both.
 `Pluggy-Humanoid-Stand` balances on planted feet at a commanded posture
 (the pelvis's height and the trunk's pitch, a crouch and a bow) while its
 arms are SCRIPTED -- sent somewhere new every few seconds with their weight
-fed forward, as the served reach drives them -- and its hands carry and
-pull; shoves and pulls ramp up over the first 1200 iterations
+fed forward, as the served reach drives them -- its hands carry, and a hand
+is pulled or pushed up to the `pull` verb's 60 N, any way, one at a time
+(`hand_pull`, #544; the served policy, stand4, trained on 30 N a component
+at both hands); shoves and pulls ramp up over the first 1200 iterations
 (`DISTURBANCE_STAGES`, `--env.curriculum.disturbances.params.scale`), and
 each sole is charged for its distance from where the episode's stance put
 it (`feet_anchor`; SimNotes, "The humanoid stands, reaches and grasps").
+A pull's tipping moment may be capped (`--env.events.hand-pull.params.
+moment-nm`), held longer (`longest-s`) or brought in (`ramp-s`), and a fall
+charged (`--env.rewards.fell.weight`); `Pluggy-Humanoid-Stand-Felt` shows
+the policy each hand's force. None is served: retrained to 60 N it holds
+no more, and the felt task holds 60 N only on a force the robot cannot
+read (SimNotes, "Holding the pull verb's 60 N at a hand").
 `Pluggy-Humanoid-Walk` is mjlab's G1 velocity recipe on our body, on flat
 ground: the actor blind to its base velocity as the quadruped's is, the arms
 scripted more quietly than a reach moves them, the legs charged for meeting
@@ -149,6 +157,7 @@ run on a card records its steps a second:
 | RTX 4090 | Vast, the same host | 0.414 | 77,749 | 0.0015 | today's task, fresh, iterations 10–309 |
 | RTX 5090 | Vast, a Ryzen 7 7800X3D host | 0.516 | 218,000 | 0.00066 | mjlab's stock G1 flat task, 3000 iterations in 22.5 min (#507) |
 | RTX 5090 | Vast, the same host | 0.516 | 209,000 | 0.00069 | `Pluggy-Humanoid-Stand`, 4000 iterations in 31 min (#507) |
+| RTX 5090 | Vast, three hosts in South Korea | 0.490-0.516 | 198,000-205,000 | 0.0007 | `Pluggy-Humanoid-Stand` and `-Stand-Felt` (stand7-stand13), 4000 iterations in 32-33 min each (#544) |
 | RTX 5090 | Vast, another 7800X3D host | 0.490 | 215,000 | 0.00063 | `Pluggy-Humanoid-Walk`, 3000 iterations in 23 min (#507) |
 | RTX 5090 | Vast, the same host | 0.490 | 122,000 | 0.0011 | `Pluggy-Humanoid-Walk-Rough` (rough4: 50 tiles of boxes), 2000 iterations in 27 min (#507) |
 | RTX 5090 | Vast, a Ryzen 9 9950X host | 0.641 | 114,000 | 0.0016 | `Pluggy-Humanoid-Walk-Seeing` from walk2 (50 tiles of boxes and flights, the 187-ray scan) alone (#507) |
