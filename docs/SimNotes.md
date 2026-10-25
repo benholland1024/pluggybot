@@ -5841,8 +5841,8 @@ touched the world, the whole body read 5.9 N rms off, the arm 4.1.
 
 **On the locked bar** (`--bar`, the hardest 0.1 s mean on the bar), the
 force move closed on it: at 10 N asked 23.7 → 21.8 N, at 20 N 36.1 →
-35.2. What the hand read now is what the bar took (pulling up at 20 N:
-35.6 read, 35.2 on the bar, where the arm read 21.6 of 36.1). ⚠ THE REST
+33.5. What the hand read now is what the bar took (pulling up at 20 N:
+32.1 read, 33.5 on the bar, where the arm read 21.6 of 36.1). ⚠ THE REST
 IS THE LOOP'S: closed on the bar's TRUE force (an oracle, ours), the move
 put 17.0 N on it for 10 asked and 34.8 for 20 -- and with that force
 smoothed over 0.02 s instead of `ADMIT_SMOOTH_S`'s 0.1, 14.2 and 30.8.
