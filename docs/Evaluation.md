@@ -1552,8 +1552,9 @@ them). `practice.py --job door` flies it.
 - **What they said they lacked** (their thinking and notes): a sense of
   the door's angle, in 46 and 23 turns -- every lid arm's lack too; and
   room: 27 sources refused for nesting deeper than 4, 11 over the
-  1,500-character cap, 15 asking more force than a verb gives (`pull` 60
-  N, `close_hand` 120 N), 6 using a verb's result in an expression, 2
+  1,500-character cap, 15 asking more force than a verb gave (`pull` 60
+  N then, 20 since #544; `close_hand` 120 N), 6 using a verb's result in
+  an expression, 2
   writing `break` or `continue`. Their notes are technique: where the
   default grip lands against the tag, the pull that topples the body, a
   wait so the door does not swing back.

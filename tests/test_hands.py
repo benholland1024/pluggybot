@@ -96,6 +96,21 @@ def test_a_hands_world_calls_its_own_verbs_and_a_served_world_is_unchanged():
   assert "measure" not in bare.verbs and set(st.HAND_VERBS) <= set(bare.verbs)
 
 
+def test_a_pull_asks_no_more_than_the_standing_body_holds_and_says_so():
+  """#544 (Ben, 2026-10-25): `pull` asks at most what the standing body
+  holds at a hand, 20 N -- held 3 s at a counter's height it stood to 30 N
+  pulling back and 20 pushing away -- and its text says so, and that
+  pushing away holds around two thirds of it. More is refused before a
+  step runs, as any bound is."""
+  pull = st.language(st.hand_facts())["pull"]
+  assert pull.args["force"].hi == st.PULL_MOST_N == 20.0
+  assert "your body holds a pull of 20 N at a hand, and pushing away from you around " \
+         "two thirds of that" in " ".join(pull.doc.split())
+  lang.compile_procedure('def a():\n    pull("left", -1, 0, 0, 20, 0.1)\n', st.hand_facts())
+  with pytest.raises(st.Refused, match="force=21.0 is above 20.0"):
+    lang.compile_procedure('def a():\n    pull("left", -1, 0, 0, 21, 0.1)\n', st.hand_facts())
+
+
 def test_no_hand_verb_knows_the_chest():
   """Ben's condition on call 2: every verb generic, for any handle and any
   drawer -- a grip only shuts and says whether it holds, a hand is moved by

@@ -17,10 +17,10 @@ the parts and the bill.
                 loaded as served; `grasp` -- a drawer's handle
                 gripped (judged by the gripper's own reading) and the drawer
                 drawn out with a compliant arm, what the hand felt said
-                beside the truth; `pull` -- a locked handle gripped and
-                pulled at the `pull` verb's most, 60 N, each way in turn
-                and three times running, what the hand felt said beside the
-                pull truly on the bar (#544); `demo` -- #466's chest on a counter, its
+                beside the truth; `pull` -- a hand held out where a
+                handle would be, pulling at the `pull` verb's most, 20 N,
+                each way in turn and pushing away, the force staged on the
+                hand (#544); `demo` -- #466's chest on a counter, its
                 knob found by its tag, reached and gripped, every act a
                 `Body` member; `walk` -- from the living room into the
                 kitchen and back, steered by its own map; `rough` -- the walker
@@ -977,6 +977,7 @@ def sensors_table() -> None:
 from pluggybot.humanoid.arms import DOWN, FORWARD, HandGoal, frame  # noqa: E402
 from pluggybot.humanoid.policy import StandDriver, StandPolicy  # noqa: E402
 from pluggybot.humanoid.reach import Reach, plan  # noqa: E402
+from pluggybot.procedure.steps import PULL_MOST_N  # noqa: E402
 
 #: Where the robot stands: the body scene's spot, facing east down the room.
 STAND_XY, STAND_YAW = GANTRY_XY, GANTRY_YAW
@@ -1495,7 +1496,7 @@ def _world_for(scene: str, policy=None):
   if scene == "stand":
     model, data = standing_world()
   else:
-    model, data = standing_world(lambda spec: counter_scenery(spec, locked=scene == "pull"))
+    model, data = standing_world(None if scene == "pull" else counter_scenery)
   return model, data, Humanoid(model, data, policy)
 
 
@@ -1903,67 +1904,55 @@ def _name_stand(npz: str | None) -> str:
   return os.path.basename(npz) if npz else "served (humanoid_stand.npz)"
 
 
-#: The `pull` scene (#544): the locked handle gripped and pulled at the
-#: verb's most each way in turn, then three times running straight back --
-#: each a short way, as a fixed bar wants: a long one takes the posture its
-#: end needs first (`--pulls`).
-PULL_SCENE_N, PULL_SCENE_M = 60.0, 0.05
-PULL_SCENE = (("back", 1), ("left", 1), ("right", 1), ("up", 1), ("back", 3))
+#: The `pull` scene (#544): the left hand held where a handle would be,
+#: pulling each way at the verb's most (`steps.PULL_MOST_N`), as `--pulls`
+#: stages it: a force on the hand, built at `PULL_RATE_N_S`, held
+#: `PULL_HOLD_S`. ⚠ NOT THE VERB ON A LOCKED BAR: there the force move
+#: overshoots its ask (30 N on the bar for 20 pulling back, a 104 N spike
+#: pulling up) and the grip let go by the second pull.
+PULL_SCENE_N = PULL_MOST_N
+PULL_SCENE = ("back", "forward", "left", "right", "up", "down")
 
 
 def pull_scene(h: Humanoid, records: list | None = None):
-  """The `pull` scene, once: the left hand to the locked handle, shut on
-  it, pulled at `PULL_SCENE_N` along each of `PULL_SCENE`'s ways by the
-  verb's own force move, what the hand felt said beside the pull truly on
-  the bar (our grading); let go, and home."""
+  """The `pull` scene, once: the left hand to where a counter's handle
+  would be, then pulling `PULL_SCENE_N` along each of `PULL_SCENE`'s ways
+  (forward is a push) -- staged with the truth, a force on the hand the
+  other way -- each built at the verb's rate and held, then let go; home."""
   side = "left"
-  g = h.reach.grippers[side]
-  g.open()
-  yield "reaching the locked handle, the gripper open"
-  goal = handle_goal()
-  if not h.reach.reach(side, goal):
-    yield "  no posture puts the handle in reach"
+  yield "a hand out where a handle would be"
+  if not h.reach.reach(side, handle_goal()):
+    yield "  no posture puts it in reach"
     return
   t0 = h.d.time
   while not h.reach.done(side) and h.d.time - t0 < 20.0:
     h.step()
     yield None
-  yield "shutting the gripper"
-  g.shut()
-  yield from wait(h, 0.6)
-  rec = {"held": g.held(), "pulls": []}
-  if not rec["held"]:
-    yield "  NOT HELD by its own reading"
-  for way, times in PULL_SCENE if rec["held"] else ():
+  rot_w, _ = true_stance(h.m, h.d)
+  hand = h.m.body(f"{side}_hand").id
+  rec = {"ways": []}
+  for way in PULL_SCENE:
     w = np.array(PULL_WAYS[way], dtype=float)
-    yield (f"pulling {way} at {PULL_SCENE_N:.0f} N" + (f", {times} times running" if times > 1
-                                                     else ""))
-    for _ in range(times):
-      h.reach.pull(side, w, PULL_SCENE_N, PULL_SCENE_M)
-      truly, t0 = [], h.d.time
-      while h.reach.report[side] is None and h.d.time - t0 < 30.0 and not h.fallen():
-        h.step()
-        truly.append(float(handle_force(h, side) @ (w / np.linalg.norm(w))))
-        yield None
-      rep = h.reach.report[side] or {}
-      n = int(round(0.1 / h.m.opt.timestep))
-      hardest = float(np.convolve(truly, np.ones(n) / n, mode="valid").max()) if len(truly) >= n else 0.0
-      rec["pulls"].append((way, rep.get("why"), rep.get("force"), hardest))
-      yield (f"  {rep.get('why', 'fell')}: the hand read {rep.get('force') or 0:.0f} N at its "
-             f"hardest, truly {hardest:.0f} N on the bar")
+    f = -rot_w @ (w / np.linalg.norm(w)) * PULL_SCENE_N
+    yield f"{'pushing away' if way == 'forward' else f'pulling {way}'} at {PULL_SCENE_N:.0f} N"
+    build = PULL_SCENE_N / PULL_RATE_N_S
+    for k in range(int(round((build + PULL_HOLD_S) / h.m.opt.timestep))):
+      h.d.xfrc_applied[hand, :3] = f * min(1.0, k * h.m.opt.timestep / build)
+      h.step()
       if h.fallen():
+        h.d.xfrc_applied[hand] = 0.0
         yield "FELL"
         return
+      yield None
+    h.d.xfrc_applied[hand] = 0.0
+    rec["ways"].append(way)
     yield from wait(h, 1.0)
-  yield "letting go"
-  g.open()
-  yield from wait(h, 0.5)
+  yield "home"
   h.reach.retreat(side)
   t0 = h.d.time
   while h.reach.phase[side] != "rest" and h.d.time - t0 < 20.0:
     h.step()
     yield None
-  g.shut()
   yield from posture(h, 0.0, 0.0)
   rec["fell"] = h.fallen()
   yield "standing, never fallen" if not rec["fell"] else "FELL"

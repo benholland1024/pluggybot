@@ -5577,7 +5577,7 @@ it works against is not built.
 ## Holding the pull verb's 60 N at a hand (issue #544)
 
 Ben decided (2026-10-25) that the standing policy be retrained to hold
-what `pull` allows, 60 N at a hand, where it trained against 30 N a
+what `pull` then allowed, 60 N at a hand, where it trained against 30 N a
 component. Retrained as decided it holds no more, and four ways round it
 did not either: what it would need is the force at its hand, and the
 robot cannot read that.
@@ -5591,7 +5591,11 @@ force at the hand, the policy's own measure. ⚠ The verb on the bar is not
 the instrument: a `pull` takes the posture its way's END needs first, and
 0.3 m down the body bowed 48 deg on a fixed bar and its grip rolled off;
 on a short way it ends at its distance before the force builds, the body
-giving. stand4, the served policy, stands to:
+giving. ⚠ And on a fixed bar the force move overshoots its ask: asked 20 N
+it put 30 N on the bar pulling back, and pulling up a spike of 104 N for a
+tenth of a second as the grip let go -- the grip holding one pull, about
+25-37 N (`--hold` slips at 37). That is the hand's stack, not the legs'.
+stand4, the served policy, stands to:
 
 | pulling | back | forward | left | right | up | down | back-down | forward-down |
 |---|---|---|---|---|---|---|---|---|
@@ -5602,7 +5606,8 @@ giving. stand4, the served policy, stands to:
 (37.4 N, the grip slipping) are as stage 2 of #507 measured them.
 
 **Retrained, four ways** (`Pluggy-Humanoid-Stand`, 4096 envs, 4000
-iterations, 32-33 min on a rented 5090 each):
+iterations, 32-33 min on a rented 5090 each; the draw and its flags are in
+git, bee276e to a8738f1, and the task trains stand4's again):
 
 | run | what changed | steps an episode, its last 200 iterations | --pulls, summed |
 |---|---|---|---|
@@ -5628,8 +5633,9 @@ pushing, and puts a handle planned with 1.5 cm of slack out of the reach
 stand8's never closed on it.
 
 **Shown its hand's force, it holds -- where the force is true.** stand12
-(`Pluggy-Humanoid-Stand-Felt`: each hand's force in the trunk's frame
-through 8 N of noise, beside stand10's flags; 413 steps an episode) fell
+(`Pluggy-Humanoid-Stand-Felt`, git 34f0ed3: each hand's force in the
+trunk's frame through 8 N of noise, beside stand10's flags; 413 steps an
+episode) fell
 to none of 40 or 60 N at a hand, any way, in mjlab's physics, where stand7
 fell every time at 60; stand13, the fall charged too (862 steps), 0-14 %
 at 60. But the robot's reading of
@@ -5641,20 +5647,22 @@ the bar, it read 8.5 N forward and 17 N up. Shown that, stand12 held no
 more than the blind ones (550 N summed; up 30, where stand4 holds 80).
 The served wiring was built, tested and reverted (git: 34101aa).
 
-![The `pull` scene on stand4: the locked handle pulled at the verb's 60 N
-back, left, right and up, then back three times running -- each pull ends
-at its way's distance with 24-40 N on the bar, and the grip lets go at 45
-N pulling up, the robot standing throughout](figures/humanoid_pull.png)
+![The `pull` scene on stand4: the left hand held where a handle would be,
+pulling at the verb's most, 20 N -- back, pushing away, left, right, up
+and down, the force staged on the hand -- the body standing
+throughout](figures/humanoid_pull.png)
 
 (`MUJOCO_GL=egl uv run python scripts/humanoid_spike.py --strip pull --out
 docs/figures/humanoid_pull.png`; `--view pull` in the viewer.)
 
-**What is true now:** the served standing policy is still stand4, and a
-hand at a counter's height holds 20-40 N across the floor against it for
-3 s, whatever `pull` allows. Holding 60 N wants a hand force the robot can
-read (a sensor at the wrist, or a reading of the arm's currents that knows
-its friction), less asked of a hand (`pull`'s cap), or the reach leaning
-the body into a pull before it builds: #544's call.
+**What is true now:** the served standing policy is still stand4, a hand
+at a counter's height holds 20-40 N across the floor against it for 3 s,
+and `pull` asks at most 20 N (`steps.PULL_MOST_N`, Ben, 2026-10-25), its
+text telling the robot that pushing away holds around two thirds of that
+-- a margin under the 20 N pushing held. Our own procedures do every hands
+job with 4-20 N. Holding more wants a hand force the robot can read: a
+sensor at the wrist (Parts.md, "The humanoid body"), or a reading of the
+arm's currents that knows its friction.
 
 ## Debugging workflow that worked
 
