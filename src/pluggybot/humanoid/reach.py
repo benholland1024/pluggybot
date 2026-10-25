@@ -149,6 +149,11 @@ TRAIL_M, STEP_M = 0.02, 0.006
 #: ...and its arm holds at this share of its gains: the force is closed on
 #: the hand's reading, whatever the stiffness.
 PULL_STIFFNESS = 0.6
+#: What the standing policy feels of a hand (`felt`, #544): its force only
+#: while it holds, carries or pulls, and no harder than its training's pulls,
+#: N -- the currents' estimate assumes the arm still, and a fast move or a
+#: bow's folding read up to 81 N for an instant.
+FELT_PHASES, FELT_MOST_N = ("hold", "carry", "pull", "blocked"), 60.0
 #: THE WAY HOME (`way_home`, #539; SimNotes, "The way home"): straight to
 #: the rest in joint space -- unless that takes some part of the arm ahead
 #: of the robot's front (`front`), where whatever the hand worked over is,
@@ -398,6 +403,7 @@ class Reach:
                key: str = "humanoid"):
     self.m, self.d, self.stand = model, data, stand
     self.self_model = SelfModel()
+    stand.felt = self.felt
     self.arms = {s: Arm(model, data, s, prefix) for s in hm.SIDES}
     self.grippers = {s: Gripper(model, data, s, prefix, key) for s in hm.SIDES}
     stand_q = hm.stand_qpos()
@@ -682,6 +688,20 @@ class Reach:
     self.report[side] = None
     self.phase[side] = "carry"
     return True
+
+  def felt(self) -> np.ndarray:
+    """What each hand is pulled or pushed with, in the trunk's frame, N,
+    left then right: the force its arm's currents read (`force`, the hand's
+    push on what it holds, stance frame), turned onto the hand and into the
+    trunk's frame by the robot's model of itself -- what a standing policy
+    shown it feels (`StandDriver.felt`). Nothing outside `FELT_PHASES`."""
+    rot = self.self_model.d.xmat[self.self_model.root].reshape(3, 3)
+    out = []
+    for s in hm.SIDES:
+      f = -self.force[s] if self.phase[s] in FELT_PHASES else np.zeros(3)
+      n = float(np.linalg.norm(f))
+      out.append(rot.T @ (f * min(1.0, FELT_MOST_N / n) if n > 0.0 else f))
+    return np.concatenate(out)
 
   def hold_posture(self, height: float, pitch: float) -> None:
     """The posture to stand in, held by its own loop (`TRIM_RATE`)."""
