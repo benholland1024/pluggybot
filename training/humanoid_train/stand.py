@@ -532,6 +532,10 @@ def stand_env_cfg(play: bool = False) -> ManagerBasedRlEnvCfg:
   rewards["torque_over_rating"] = RewardTermCfg(
     func=torque_over_rating, weight=-0.5,
     params={"asset_cfg": legs, "rated": torch.tensor(rated)})
+  # A fall's own charge, off unless a variant's flag sets it
+  # (`--env.rewards.fell.weight -1000`): with no charge a fall costs only
+  # the pay a 0.99 discount sees past it, about 2 s.
+  rewards["fell"] = RewardTermCfg(func=envs_mdp.is_terminated, weight=0.0)
 
   # Falls.
   cfg.terminations.pop("out_of_terrain_bounds", None)
