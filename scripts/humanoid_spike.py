@@ -1918,9 +1918,8 @@ def _name_stand(npz: str | None) -> str:
 #: The `pull` scene (#544): the left hand held where a handle would be,
 #: pulling each way at the verb's most (`steps.PULL_MOST_N`), as `--pulls`
 #: stages it: a force on the hand, built at `PULL_RATE_N_S`, held
-#: `PULL_HOLD_S`. ⚠ NOT THE VERB ON A LOCKED BAR: there the force move
-#: overshoots its ask (30 N on the bar for 20 pulling back, a 104 N spike
-#: pulling up) and the grip let go by the second pull.
+#: `PULL_HOLD_S` -- what the body holds; the verb on a locked bar, and what
+#: it puts on it, is the `bar` scene's.
 PULL_SCENE_N = PULL_MOST_N
 PULL_SCENE = ("back", "forward", "left", "right", "up", "down")
 

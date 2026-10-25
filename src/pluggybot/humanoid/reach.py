@@ -1021,9 +1021,8 @@ class Reach:
       pv["went"] += float(dh @ w)
       pv["last"] = h.copy()
       pv["trail"] = (pv["trail"] + [h.copy()])[-1 - int(round(TRAIL_M / STEP_M)):]
-    # held, or GOING along its way (`GO_ON_M` in `GO_S`; at that pace over
-    # `FAST_S`, or pinned it is not held fast); off its place, it is not held
-    # fast at its force
+    # held, or GOING along its way (`GO_ON_M` in `GO_S`, or at that pace over
+    # `FAST_S`); off its place (`FAST_M`), not held fast at its force
     gone = float((h - st["start"]) @ w)
     pv["past"] = [p for p in pv["past"] if st["t"] - p[0] <= GO_S] + [(st["t"], gone)]
     going = gone - min(p[1] for p in pv["past"]) >= GO_ON_M
@@ -1032,8 +1031,6 @@ class Reach:
     moved = float(np.linalg.norm(h - pv["anchor"])) > FAST_M
     if moved:
       pv["anchor"], pv["still"] = h.copy(), 0.0
-    if pace:
-      pv["pinned"] = 0.0
     settling = (st.get("postured") is not None and not self._posture_held()
                 and st["t"] - st["postured"] < POSTURE_WAIT_S)
     # THE FORCE, CLOSED ON WHAT THE HAND FEELS (admittance): along its way the
