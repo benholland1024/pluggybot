@@ -27,7 +27,7 @@ What differs from mjlab's velocity task, and why:
 """
 
 from dataclasses import dataclass
-
+import math
 
 import torch
 from mjlab.envs import ManagerBasedRlEnvCfg
@@ -344,9 +344,18 @@ class hand_pull(envs_mdp.apply_body_impulse):
   `force_n`: any way, any size up to it, as the `pull` verb pulls one hand
   along any (dx, dy, dz) with at most its `force`. mjlab's impulse keeps
   its clocks -- the hold, then the rest -- and only the draw is ours: its
-  own, uniform per component, loads both hands at once."""
+  own, uniform per component, loads both hands at once. With a finite
+  `moment_nm`, a pull whose tipping moment about the middle of the feet,
+  on the ground, is past it is scaled down to it as it begins: 60 N across
+  a hand 1.5 m up tips any body whose feet stay put."""
 
-  def __call__(self, env, env_ids, force_n: float, duration_s, cooldown_s, asset_cfg) -> None:
+  def __init__(self, cfg, env):
+    super().__init__(cfg, env)
+    feet, _ = self._asset.find_sites(robot.FEET, preserve_order=True)
+    self._feet = torch.tensor(feet, device=self._device, dtype=torch.long)
+
+  def __call__(self, env, env_ids, force_n: float, duration_s, cooldown_s, asset_cfg,
+               moment_nm: float = math.inf) -> None:
     was = self._active.clone()
     super().__call__(env, env_ids, (0.0, 0.0), (0.0, 0.0), duration_s, cooldown_s, asset_cfg)
     began = (self._active & ~was).nonzero(as_tuple=False).squeeze(-1)
@@ -359,6 +368,12 @@ class hand_pull(envs_mdp.apply_body_impulse):
     forces = torch.zeros(n, self._num_bodies, 3, device=self._device)
     hand = torch.randint(self._num_bodies, (n,), device=self._device)
     forces[torch.arange(n, device=self._device), hand] = way * size
+    if math.isfinite(moment_nm):
+      mid = self._asset.data.site_pos_w[began][:, self._feet].mean(dim=1)
+      mid[:, 2] = 0.0
+      arm = self._asset.data.body_link_pos_w[began][:, self._body_ids] - mid[:, None, :]
+      tip = torch.linalg.cross(arm, forces, dim=-1)[..., :2].norm(dim=-1)
+      forces = forces * torch.clamp(moment_nm / tip.clamp_min(1e-9), max=1.0)[..., None]
     self._asset.write_external_wrench_to_sim(forces, torch.zeros_like(forces),
                                              env_ids=began, body_ids=self._body_ids)
 
@@ -464,7 +479,8 @@ def stand_env_cfg(play: bool = False) -> ManagerBasedRlEnvCfg:
   cfg.events["hand_pull"] = EventTermCfg(
     mode="step", func=hand_pull,
     params={"asset_cfg": SceneEntityCfg("robot", body_names=robot.HANDS),
-            "force_n": HAND_N, "duration_s": HAND_PULL_S, "cooldown_s": HAND_REST_S})
+            "force_n": HAND_N, "moment_nm": math.inf, "duration_s": HAND_PULL_S,
+            "cooldown_s": HAND_REST_S})
   cfg.curriculum = {"disturbances": CurriculumTermCfg(func=disturbance_scale,
                                                       params={"scale": 1.0})}
 
