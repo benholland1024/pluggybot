@@ -119,8 +119,10 @@ switches on wherever there are hands (`steps.hand_facts`): a verb may be an
   half `force` along the way, slows to a stand as it reaches it, and backs
   off past it -- `speed * clip(2 (force - along) / force, -1, 1)`, the
   reading smoothed over `ADMIT_SMOOTH_S` -- and leads the hand by
-  `LEAD_MAX_M` at most. ⚠ Never the arm's spring as a force cap: its model
-  put three times the limit on a drawer's stop.
+  `LEAD_MAX_M` at most, backing off past its force while its body takes a
+  posture too (#547: stood still, it held on reading 15 times its force).
+  ⚠ Never the arm's spring as a force cap: its model put three times the
+  limit on a drawer's stop.
 - **Across it, GIVING (`give` 1), the hand goes where what it holds pushes
   it**: the command follows the hand across the way, no faster than
   `ACROSS_SPEED` times its speed -- hybrid force and position, the hinge
@@ -137,11 +139,19 @@ switches on wherever there are hands (`steps.hand_facts`): a verb may be an
   taken before it moves; going on where the arm misses its command, it
   takes ANOTHER posture from the arm as it is, never one it has left this
   move (`posture_for(onward=, past=)`): ⚠ an arm stood at its elbow's stop
-  short of its way while a fresh seed of the same posture "reached".
+  short of its way while a fresh seed of the same posture "reached". ⚠ A
+  HAND HELD TAKES NONE: one not going (`GO_ON_M` along its way in `GO_S`)
+  whose command is out of reach where the hand itself is not keeps its
+  command where the arm last reached -- against a hand held, the
+  command's lead is the miss, and postures taken for it put 30-100 N on a
+  locked bar for an ask of 10-20 (#547). One the arm cannot hold where it
+  is takes one as before.
 - **It stops** at `distance` along its way ("distance"); held fast -- the
   hand moved under `FAST_M` in `FAST_S` pushing at least `FAST_SHARE` of
-  its force; a grip it began with lost ("let go"); out of reach; its feet
-  moved; out of time. Then it holds where the hand is.
+  its force, or went nowhere along its way that long with its command as
+  far ahead as it may go, whatever it read; a grip it began with lost
+  ("let go"); out of reach; its feet moved; out of time. Then it holds
+  where the hand is.
 - **Its report** is how far it went, the hardest it pushed along its way
   as the hand felt it, and the way the hand was going over its last
   `TRAIL_M` -- what the mechanism allowed, which a procedure re-aims by.
@@ -281,6 +291,13 @@ no new help") -- tries a fall now fails (#544).
   holds around two thirds of it (#544; SimNotes, "Holding the pull verb's
   60 N at a hand"): the standing policy does not feel a pull until the body
   moves, and the force the arm's currents read is too rough to show it one.
+- **Feel along a straight arm.** A load along a nearly straight arm goes
+  through its structure, not its motors: at a counter's height, 20 N on
+  the grip reads as 20 pulling back, left or right but 12 up, 5 pushing
+  away and 2 away and down (`humanoid_spike.py --feel`). Against something
+  that holds the hand, a pull on those ways puts 1.5-2.4 times a 10 N ask
+  on it before it reads it (#547; SimNotes, "The force move against a held
+  hand").
 - **Two hands at once.** Every verb is one hand's; a bimanual frame-and-work
   split waits for a job that needs it.
 - **Motion within the hand** beyond a light grip's turn between the pads.
