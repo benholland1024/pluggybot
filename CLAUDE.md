@@ -193,16 +193,19 @@ doing anything, read the doc that owns what you are about to touch:
   BODY, never the world (the chest's truth is the harness's). ⚠ THE DEMOS'
   ROWS ARE `shown: false` and pay 0 (`TaskReward.shown`: the lid's, and
   #525's drawer, door and place): a mind with a library sees every other
-  challenge row, and these would change the deployed prompt. ⚠ A FALL IS LOST TIME, NEVER A VERDICT (Ben,
-  2026-10-17): the job is the lid inside the TASK's time limit, the
-  budget (`attempts.LIMIT_S`, the grader's `limitS`: the quadruped's 300
-  s, the humanoid's 3x its reference's slowest pass at 0f98e24, 68 s),
-  and the falls the body's own watch counted (`Body.falls`; the
-  humanoid's is its trunk 35 deg past the posture its legs hold, so a bow
-  is none, #520), its tilt and its tool (`Body.tool_powered`; the
-  quadruped's claw is STAGED, `Body.place_tool_routine`) are recorded,
-  each the body's to say -- the grader names no part. It imports nothing
-  of the chest's:
+  challenge row, and these would change the deployed prompt. ⚠ A FALL
+  FAILS THE TRY (Ben, 2026-10-25, #544; it was lost time from 10-17, and
+  learned skills fell to open a door): every grader's criterion, a fall
+  the body's own watch counted (`Body.falls`; the humanoid's is its trunk
+  35 deg past the posture its legs hold, so a bow is none, #520) from the
+  attempt's start to the hold's end, said FIRST in the verdict
+  (`lid.judged`) and stated in the job the robot is told (`practice.JOBS`).
+  The job is the lid inside the TASK's time limit, the budget
+  (`attempts.LIMIT_S`, the grader's `limitS`: the quadruped's 300 s, the
+  humanoid's 3x its reference's slowest pass at 0f98e24, 68 s); its tilt
+  and its tool (`Body.tool_powered`; the quadruped's claw is STAGED,
+  `Body.place_tool_routine`) are recorded, each the body's to say -- the
+  grader names no part. It imports nothing of the chest's:
   everything loads `scoring`, the probe included, and the probe's fence
   holds (`tests/test_probe.py`: no chest in its closure, no grader in its
   imports). ⚠ Held-out chests start at `HELD_OUT_FROM` (1,000,000), drawn

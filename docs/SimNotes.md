@@ -5537,7 +5537,8 @@ under the hand with its edge 8 cm behind it (30):
   21 and fall 15 times, not 36: all 24 that no longer fall had fallen after
   their last `withdraw` began, and the 3 new are its caught knob (below).
   Within 3 tries and without a fall it passes 16 of its 25 chests, not 6
-  (Evaluation.md §4, "A fall is lost time, never a verdict").
+  (Evaluation.md §4, "A fall was lost time"; since #544 a fall fails the
+  try).
 - *The door arms lost a pass each* (their 117 held-out tries). doorB falls
   in every try, its pull swinging the body; once it fell on its way home,
   `withdraw` says so now, and the procedure stopped there. doorA's steps

@@ -21,21 +21,23 @@ THE CRITERIA, written first. An attempt passes when:
   5. IN TIME: the call came within the task's time limit of the attempt's
      start (`limitS`, the harness's; `TIME_LIMIT_S` where none is given)
      -- the harness calls it there at the latest, and reads the world as
-     it stands.
+     it stands;
+  6. NEVER FELL: the body's own watch took no fall (`Body.falls`) from the
+     attempt's start to the end of the hold, used or by accident (Ben,
+     2026-10-25: some learned skills fell to open a lid or a door, and a
+     fall that cost only time paid them for it). A failed verdict says the
+     fall first (`fell`), then what the world shows.
 
-Said beside, and gating nothing (Ben, 2026-10-17: the job is the lid, and
-a fall is lost time): the falls the body's own watch took (`Body.falls`),
-its worst tilt (`Body.orientation`) and whether the tool its set-out gave
-it is still seated (`Body.tool_powered`). ⚠ What a fall is, and which part
-is the tool, is THAT BODY'S TO SAY, and nothing here names either: the
-quadruped's watch is its torso past the topple line, the humanoid's its
-trunk 35 deg past the posture its legs hold or its pelvis sunk
-(`humanoid.getup`).
+Said beside, and gating nothing: its worst tilt (`Body.orientation`) and
+whether the tool its set-out gave it is still seated (`Body.tool_powered`).
+⚠ What a fall is, and which part is the tool, is THAT BODY'S TO SAY, and
+nothing here names either: the quadruped's watch is its torso past the
+topple line, the humanoid's its trunk 35 deg past the posture its legs hold
+or its pelvis sunk (`humanoid.getup`).
 
 Everything else is the robot's business: how it finds the knob, which way
-it pulls, whether it lies down, whether it falls on the way. `sample_lid`
-reads nothing off the skill's report, and the call is wherever the attempt
-ended.
+it pulls, whether it lies down. `sample_lid` reads nothing off the skill's
+report, and the call is wherever the attempt ended.
 
 What it cannot grade is Challenges.md §6's: the method, and a lid's
 ELEGANCE -- a slam stopped a hair over the shut line passes, and so does a
@@ -75,11 +77,30 @@ LOWER_RAD_S = 1.0
 #: wedged against the front wall): a drop can leave the chest open.
 HOLD_S = 5.0
 #: 5: the job's time, s, from the attempt's start to the call (Ben,
-#: 2026-10-17): a fall costs time, and is judged by nothing else. Each task
-#: hands its own (`limitS`, `attempts.LIMIT_S`: the humanoid's is three
-#: times its reference's slowest pass); this, where none is, is the
-#: quadruped's, whose probe takes 84-100 s.
+#: 2026-10-17). Each task hands its own (`limitS`, `attempts.LIMIT_S`: the
+#: humanoid's is three times its reference's slowest pass); this, where
+#: none is, is the quadruped's, whose probe takes 84-100 s.
 TIME_LIMIT_S = 300.0
+
+
+def fell(falls: int, reason: str) -> str:
+  """Criterion 6's verdict: the falls first, then what the world shows --
+  the rest of the job as it went, so a robot that fell on its way to a lid
+  set down is told it was set down."""
+  times = "" if falls == 1 else " twice" if falls == 2 else f" {falls} times"
+  return f"you fell{times}, and a fall fails the try -- {reason}"
+
+
+def judged(falls, ok: bool, reason: str) -> tuple[bool, str]:
+  """Criterion 6 over the verdict of a job's other criteria (`ok`,
+  `reason`), the lid's and every hands check's: a fall fails the try, said
+  first (`fell`), and falls never counted fail it too -- a missing
+  measurement is not a passing one."""
+  if falls is None:
+    return False, "your falls were never counted"
+  if int(falls) > 0:
+    return False, fell(int(falls), reason)
+  return ok, reason
 
 
 # ---- the chest's parts --------------------------------------------------------
@@ -210,7 +231,7 @@ SHOWN = {"topDeg": 2, "downRadS": 3, "tiltDeg": 1, "angleAtCallDeg": 2, "angleDe
 def eval_lid(m: dict) -> tuple[bool, dict, str]:
   """The pre-declared predicate. Pure -- a dict of measurements in, a
   verdict out, judged on the numbers as measured and shown rounded. The
-  reason says what the world shows and never the catch."""
+  reason says what the world shows and never the catch, a fall first."""
   raw = {k: m.get(k) for k in ("topDeg", "downRadS", "tiltDeg", "falls", "angleAtCallDeg",
                                "angleDeg", "caught", "holdS", "elapsedS", "tool", "toolSeated",
                                "catchN", "limitS")}
@@ -221,36 +242,42 @@ def eval_lid(m: dict) -> tuple[bool, dict, str]:
   for key in ("topDeg", "downRadS", "angleDeg", "holdS", "elapsedS"):
     if raw[key] is None:
       return False, metrics, "the lid was never measured"
+  ok, reason = judged(raw["falls"], *_lid(raw, metrics))
+  return ok, metrics, reason
+
+
+def _lid(raw: dict, metrics: dict) -> tuple[bool, str]:
+  """Criteria 1 to 5 on measurements all there: the verdict and its
+  reason."""
   top, down, end = (float(raw[k]) for k in ("topDeg", "downRadS", "angleDeg"))
   # A short hold is the HARNESS's fault, and it still fails.
   if float(raw["holdS"]) + 1e-6 < HOLD_S:
-    return False, metrics, (f"measured {float(raw['holdS']):.1f} s after the call, "
-                            f"not the {HOLD_S:.0f} s the job asks for")
+    return False, (f"measured {float(raw['holdS']):.1f} s after the call, "
+                   f"not the {HOLD_S:.0f} s the job asks for")
   limit = TIME_LIMIT_S if raw["limitS"] is None else float(raw["limitS"])
   if float(raw["elapsedS"]) > limit + 1e-6:
-    return False, metrics, (f"called {float(raw['elapsedS']):.0f} s after the start, past "
-                            f"the {limit:.0f} s the job allows")
+    return False, (f"called {float(raw['elapsedS']):.0f} s after the start, past "
+                   f"the {limit:.0f} s the job allows")
   if top < math.degrees(OPEN_RAD):
     if top < math.degrees(SHUT_RAD):
-      return False, metrics, (f"the lid never opened: it must open past "
-                              f"{math.degrees(OPEN_RAD):.0f} deg")
-    return False, metrics, (f"the lid rose to {top:.0f} deg, short of the "
-                            f"{math.degrees(OPEN_RAD):.0f} it must open past")
+      return False, f"the lid never opened: it must open past {math.degrees(OPEN_RAD):.0f} deg"
+    return False, (f"the lid rose to {top:.0f} deg, short of the "
+                   f"{math.degrees(OPEN_RAD):.0f} it must open past")
   if down > LOWER_RAD_S:
-    return False, metrics, (f"opened to {top:.0f} deg, but it came down at {down:.1f} "
-                            f"rad/s while open -- let fall, not lowered (no faster than "
-                            f"{LOWER_RAD_S:.1f})")
+    return False, (f"opened to {top:.0f} deg, but it came down at {down:.1f} "
+                   f"rad/s while open -- let fall, not lowered (no faster than "
+                   f"{LOWER_RAD_S:.1f})")
   if metrics["touchedDuringHold"]:
     touched = ", ".join(metrics["touchedDuringHold"])
-    return False, metrics, (f"opened to {top:.0f} deg and lowered, but {touched} still "
-                            "touched the lid or its handle after the call -- let go")
+    return False, (f"opened to {top:.0f} deg and lowered, but {touched} still "
+                   "touched the lid or its handle after the call -- let go")
   if end >= math.degrees(SHUT_RAD):
-    return False, metrics, (f"opened to {top:.0f} deg and lowered, but the lid was "
-                            f"{end:.0f} deg open {HOLD_S:.0f} s after the call")
-  return True, metrics, (f"opened to {top:.0f} deg and set down in "
-                         f"{float(raw['elapsedS']):.0f} s: lowered at most {down:.2f} rad/s "
-                         f"while open, shut {'and caught ' if raw['caught'] else ''}"
-                         f"{HOLD_S:.0f} s after the call, let go")
+    return False, (f"opened to {top:.0f} deg and lowered, but the lid was "
+                   f"{end:.0f} deg open {HOLD_S:.0f} s after the call")
+  return True, (f"opened to {top:.0f} deg and set down in "
+                f"{float(raw['elapsedS']):.0f} s: lowered at most {down:.2f} rad/s "
+                f"while open, shut {'and caught ' if raw['caught'] else ''}"
+                f"{HOLD_S:.0f} s after the call, let go")
 
 
 def sample_lid(life, errand, result: dict | None, before: dict) -> dict:

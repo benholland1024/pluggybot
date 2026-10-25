@@ -133,16 +133,73 @@ def test_the_cube_passes_set_down_on_the_mat_upright_let_go_and_on_nothing_less(
   assert not ok and "past the 60 s" in why
 
 
-def test_a_check_is_held_its_whole_hold_and_gated_on_neither_falls_nor_tilt():
-  """A fall is lost time, never a verdict (Ben, 2026-10-17): the lid's
-  rule, the checks' too."""
+def test_a_check_is_held_its_whole_hold_and_failed_by_a_fall_never_by_a_tilt():
+  """A fall fails the try (Ben, 2026-10-25, #544): the lid's rule, the
+  checks' too -- said first, then what the world shows; falls never counted
+  fail as any missing measurement does, and a tilt is judged by nothing."""
   for grade, row in ((drawer.eval_drawer, _drawer), (door.eval_door, _door),
                      (place.eval_place, _cube)):
     ok, _, why = grade(row(holdS=1.0))
     assert not ok and "measured 1.0 s after the call" in why, grade
     tilt = "robotTiltDeg" if grade is place.eval_place else "tiltDeg"
-    assert grade(row(falls=3, **{tilt: 80.0}))[0], grade
+    assert grade(row(**{tilt: 80.0}))[0], grade
+    ok, metrics, why = grade(row(falls=1))
+    assert not ok and metrics["falls"] == 1, grade
+    assert why == f"you fell, and a fall fails the try -- {grade(row())[2]}", grade
+    assert grade(row(falls=None))[::2] == (False, "your falls were never counted"), grade
     assert grade(row(limitS=None, elapsedS=lid.TIME_LIMIT_S + 1.0))[0] is False, grade
+
+
+def _stub_set_out(task):
+  """A check's set-out on the stub body (`attempts.set_out`'s shape): its
+  prop on a bare floor, its activity sensing every step."""
+  from pluggybot.activity import cube as cb
+  from pluggybot.body import StubBody
+  from pluggybot.evaluation import attempts as at
+  from test_lid import BARE
+  spec = mujoco.MjSpec.from_string(BARE)
+  k = task.chest
+  if task.grader == "drawer":
+    dw.attach_cabinet(spec, dw.draw(k), (0.5, 0.0), tags=False)
+  elif task.grader == "door":
+    dr.attach_cupboard(spec, dr.draw(k), (0.5, 0.0), tags=False)
+  else:
+    cb.attach_props(spec, cb.draw(k), (0.4, 0.0), (0.4, 0.2), tags=False)
+  model = spec.compile()
+  data = mujoco.MjData(model)
+  mujoco.mj_forward(model, data)
+  body = StubBody(model, data)
+  act = {"drawer": lambda: dw.Drawer(model, data, dw.draw(k)),
+         "door": lambda: dr.Door(model, data, dr.draw(k)),
+         "place": lambda: cb.Cube(model, data, cb.draw(k), 0.0)}[task.grader]()
+  body.step_hooks.append(lambda: act.sense(model, data))
+  return at.World(task=task, model=model, data=data, body=body, chest=None,
+                  start=(0.0, 0.0, 0.0), activity=act)
+
+
+@pytest.mark.parametrize("grader", ["lid", "drawer", "door", "place"])
+def test_a_stub_bodys_fall_fails_every_grader_through_its_attempt(grader):
+  """Ben, 2026-10-25 (#544): every grader fails an attempt in which the
+  body's own watch counted a fall (`Body.falls`, the stub's counter: what
+  a fall is stays the body's to say) -- read through the attempt's own
+  watch and sampler, said first -- and a body standing does not."""
+  from pluggybot.evaluation import attempts as at
+  from test_lid import stub_world
+  task = (at.Task(chest=0) if grader == "lid" else
+          at.Task(chest=0, body="humanoid", mount="counter", grader=grader))
+
+  def skill(fall: bool):
+    def routine(body):
+      body.falls += int(fall)
+      yield body.STILL
+      return {"ok": True, "why": "it says it is done"}
+    return routine
+  build = stub_world if grader == "lid" else _stub_set_out
+  fell = at.attempt(task, skill(True), build=build, budget_s=0.5)["verdict"]
+  stood = at.attempt(task, skill(False), build=build, budget_s=0.5)["verdict"]
+  assert not fell["ok"] and fell["metrics"]["falls"] == 1
+  assert fell["reason"] == f"you fell, and a fall fails the try -- {stood['reason']}"
+  assert stood["metrics"]["falls"] == 0 and not stood["reason"].startswith("you fell")
 
 
 def test_a_check_is_judged_as_measured_and_shown_rounded():

@@ -271,7 +271,7 @@ under them. With the reach's reply fixed, an arm's frozen copies passed
 22 of 29 held-out chests within 3 (§4's "What changed the grasp"). With
 no new help, two arms learned the cupboard's door on it: 15 of 22 and 22
 of 29 within 3, one of them falling in every try (§4's "The door, with
-no new help").
+no new help") -- tries a fall now fails (#544).
 
 ## 7. What it does not do
 

@@ -13,7 +13,7 @@
    127
   ]
  },
- "job": "In front of you, on a counter, is a box with a lid, shut. A knob -- a cube\n26 mm on a side -- hangs from its front, and it carries tag 53 on\nevery face.\n\nOpen the lid -- past 57 degrees from shut -- then set\nit back down shut, and let go of it. While it is open more than\n5 degrees the lid must never come down faster than\n1.0 rad/s: let fall, it is not set down. The world grades\nthe job when your procedure ends and again 5 s later: the lid\nmust be shut by then, and nothing of yours may touch the lid, its knob or its\nhandle. A try may take 68 s at most; a fall loses you the time it\ntakes to get up.",
+ "job": "In front of you, on a counter, is a box with a lid, shut. A knob -- a cube\n26 mm on a side -- hangs from its front, and it carries tag 53 on\nevery face.\n\nOpen the lid -- past 57 degrees from shut -- then set\nit back down shut, and let go of it. While it is open more than\n5 degrees the lid must never come down faster than\n1.0 rad/s: let fall, it is not set down. The world grades\nthe job when your procedure ends and again 5 s later: the lid\nmust be shut by then, and nothing of yours may touch the lid, its knob or its\nhandle. A try may take 68 s at most. If you fall during a try or\nin the 5 s after it, the try fails, however the lid ends.",
  "vocabulary": [
   {
    "heading": "the language",

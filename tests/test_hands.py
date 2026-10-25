@@ -1419,6 +1419,31 @@ def test_the_doors_job_is_its_graders_and_names_no_way_to_do_it():
       3 * at.REFERENCE_S
 
 
+#: The jobs as the robots are told them since #544, their templates' sha256:
+#: every flight's prompt starts from one, so it changes only on purpose,
+#: pinned again here.
+JOB_SHA = {"lid": "ab4facadbd286f2e50d36f1fd47c6842b80953d40e5992dc7cc51a7886988b7d",
+           "door": "e9e6e4821a092d14137683c9502cfcb0f8ce1b7b407d511f077074793dd49c67"}
+
+
+def test_every_job_tells_the_robot_a_fall_fails_the_try():
+  """Ben, 2026-10-25 (#544): a fall fails the try, used or by accident, and
+  the robot is told -- in every job a practice flies, over the try and the
+  hold its grader reads (`lid.judged`), and never the old rule's lost time.
+  The texts are pinned again, deliberately."""
+  import hashlib
+  from pluggybot.challenge import lid
+  from pluggybot.evaluation import attempts as at
+  assert set(JOB_SHA) == set(ep.JOBS)
+  for grader, template in ep.JOBS.items():
+    job = " ".join(ep.job_for(at.Task(chest=0, body="humanoid", mount="counter",
+                                      grader=grader)).split())
+    assert (f"If you fall during a try or in the {lid.HOLD_S:.0f} s after it, the try fails, "
+            f"however the {'lid' if grader == 'lid' else 'door'} ends.") in job, grader
+    assert "loses you the time" not in job, grader
+    assert hashlib.sha256(template.encode()).hexdigest() == JOB_SHA[grader], grader
+
+
 def test_a_verb_an_if_tests_is_read_and_the_procedure_goes_on():
   """Its failing is the test's answer, recorded and shown -- and a failed
   verb that no `if` tests still ends the procedure there."""
