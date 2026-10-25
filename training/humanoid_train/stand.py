@@ -46,6 +46,8 @@ from mjlab.sensor import ContactMatch, ContactSensorCfg, ObjRef, RingPatternCfg,
 from mjlab.tasks.velocity import mdp
 from mjlab.tasks.velocity.mdp import UniformVelocityCommandCfg
 from mjlab.tasks.velocity.velocity_env_cfg import make_velocity_env_cfg
+from mjlab.utils.lab_api.math import quat_apply_inverse
+from mjlab.utils.noise import UniformNoiseCfg as Unoise
 
 from humanoid_train import robot
 
@@ -407,9 +409,37 @@ def disturbance_scale(env, env_ids, stages=DISTURBANCE_STAGES, scale: float = 1.
   return torch.tensor(share)
 
 
+# ---- what a hand feels ------------------------------------------------------------------
+
+#: The force at a hand as the robot reads it scatters this much, N a
+#: component: off its arm's six motors' currents (`humanoid.arms.SelfModel.
+#: hand_force`, the reach's `force`), a few newtons on a still hand and 7-15
+#: about the truth under a hard pull (SimNotes, "The humanoid stands,
+#: reaches and grasps").
+HAND_FORCE_NOISE_N = 8.0
+
+
+class hand_force:
+  """What each hand is pulled or pushed with, in the trunk's frame, N (left
+  then right): the pull the robot's own arm reads at its hand. A load a
+  hand carries is its mass, never read here."""
+
+  def __init__(self, cfg, env):
+    self.entity = env.scene["robot"]
+    ids, _ = self.entity.find_bodies(robot.HANDS, preserve_order=True)
+    self.ids = torch.tensor(ids, device=env.device, dtype=torch.long)
+
+  def __call__(self, env) -> torch.Tensor:
+    f = self.entity.data.body_external_wrench[:, self.ids, :3]
+    q = self.entity.data.root_link_quat_w[:, None, :].expand(-1, len(self.ids), -1)
+    return quat_apply_inverse(q.reshape(-1, 4), f.reshape(-1, 3)).reshape(f.shape[0], -1)
+
+
 # ---- the task -------------------------------------------------------------------------
 
-def stand_env_cfg(play: bool = False) -> ManagerBasedRlEnvCfg:
+def stand_env_cfg(play: bool = False, felt: bool = False) -> ManagerBasedRlEnvCfg:
+  """The standing task; `felt` shows the actor and the critic each hand's
+  force (`hand_force`), as the robot reads it off its arm's currents."""
   cfg = make_velocity_env_cfg()
   cfg.scene.entities = {"robot": robot.get_robot_cfg()}
 
@@ -466,6 +496,10 @@ def stand_env_cfg(play: bool = False) -> ManagerBasedRlEnvCfg:
   critic["posture"] = ObservationTermCfg(
     func=mdp.generated_commands, params={"command_name": "posture"})
   critic["root_height"] = ObservationTermCfg(func=_root_height)
+  if felt:
+    actor["hand_force"] = ObservationTermCfg(
+      func=hand_force, noise=Unoise(n_min=-HAND_FORCE_NOISE_N, n_max=HAND_FORCE_NOISE_N))
+    critic["hand_force"] = ObservationTermCfg(func=hand_force)
 
   # Randomisation: every number no datasheet gives, and what a hand carries.
   legs_and_arms = SceneEntityCfg("robot", joint_names=(".*",))

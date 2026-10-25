@@ -19,6 +19,14 @@ register_mjlab_task(
 )
 
 register_mjlab_task(
+  task_id="Pluggy-Humanoid-Stand-Felt",
+  env_cfg=stand_env_cfg(felt=True),
+  play_env_cfg=stand_env_cfg(play=True, felt=True),
+  rl_cfg=ppo_runner_cfg(),
+  runner_cls=VelocityOnPolicyRunner,
+)
+
+register_mjlab_task(
   task_id="Pluggy-Humanoid-Walk",
   env_cfg=walk_env_cfg(),
   play_env_cfg=walk_env_cfg(play=True),
