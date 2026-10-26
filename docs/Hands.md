@@ -51,9 +51,10 @@ and a hand that works in it.
 **This body.** Two Unitree Dex1-1 two-jaw grippers (90 mm stroke, 5-120 N a
 pad, adjustable: `humanoid/parts.py`), each on a six-joint arm whose grip
 reaches 0.58 m from a shoulder 1.15 m up; the hand's force read off the
-whole body's motor currents through the robot's model of itself, standing
--- the legs feel what a straight arm carries through its structure (#547:
-within a newton every way on a bench, SimNotes) -- else off its arm's; the
+whole body's motor currents through the robot's model of itself while the
+hand is out and the body stands -- the legs feel what a straight arm
+carries through its structure (#547: within a newton every way on a bench,
+SimNotes) -- else off its arm's; the
 grip's own word -- its jaws' gap and
 squeeze; the head camera's tags (a face's middle, which way it looks, which
 way its edges run); the D435's depth (`measure`); a posture -- the

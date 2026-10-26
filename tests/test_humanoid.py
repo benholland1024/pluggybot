@@ -393,6 +393,8 @@ def test_the_robot_steers_off_its_senses_never_the_simulators_truth():
   spy = _Spy(data)
   stand = StandDriver(model, spy)
   reach = Reach(model, spy, stand)
+  # ...the hand's force read off the whole body as it goes in (`felt`)
+  reach.standing = True
   spy.read.clear()
   assert reach.reach("left", HandGoal(np.array([0.45, 0.2, 0.94]), FORWARD))
   reach.grippers["left"].open()

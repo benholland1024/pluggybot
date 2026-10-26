@@ -23,9 +23,10 @@ the parts and the bill.
                 hand (#544); `bar` -- the `pull` verb on a locked handle at
                 its most, back, up, forward and down, how each ended and the
                 most the bar took said (#547); `feel` -- a hand held out where the
-                bar would be, 20 N staged at its grip pushing away, away and
-                down, up and back, what its arm read and what the whole body
-                read said (#547); `demo` -- #466's chest on a counter, its
+                bar would be, 20 N staged at its grip pulling back, then
+                pushing away, away and down, and up, what its arm read and
+                what the whole body read said (#547); `demo` -- #466's chest
+                on a counter, its
                 knob found by its tag, reached and gripped, every act a
                 `Body` member; `walk` -- from the living room into the
                 kitchen and back, steered by its own map; `rough` -- the walker
@@ -1066,6 +1067,8 @@ class Humanoid:
 
   def step(self) -> None:
     self.stand.step()
+    # the standing policy has the legs: a hand's force off the whole body
+    self.reach.standing = True
     self.reach.step()
     mujoco.mj_step(self.m, self.d)
 
@@ -2260,11 +2263,12 @@ def feel_table(npz: str | None = None, jobs: int = 4) -> list[dict]:
 
 #: The `feel` scene (#547): the left hand held out where the locked bar
 #: is, no bar, `FEEL_N` staged at its grip along each of `FEEL_SCENE`'s
-#: ways -- the three a straight arm is blindest to, and one it reads -- each
+#: ways -- one its arm reads, then the three a straight arm is blindest to
+#: (after them, the arm straightened, back read 5 N of 20) -- each
 #: built over `FEEL_BUILD_S` and held `FEEL_HOLD_S`: what its arm read of it
 #: and what the whole body read, over the hold's second half, said once it
 #: is let go. Staged with the truth.
-FEEL_SCENE = ("forward", "forward-down", "up", "back")
+FEEL_SCENE = ("back", "forward", "forward-down", "up")
 
 
 def feel_scene(h: Humanoid, records: list | None = None):

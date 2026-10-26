@@ -358,9 +358,9 @@ save a filmstrip PNG named after the script.
   elbow's stop read 11 of 20), ⚠ the hand's TWIST an unknown about 1 N*m
   (`TWIST_SD`; as none, the jobs read 1.3-3x worse), ⚠ a balance whose rows
   will not agree reads nothing (`CLOSES`: dragged onto a sole's edge it read
-  60 N the wrong way), ⚠ walking, the arm's alone (`mission` sets
-  `standing`). It reads all the world pushes on but the soles as the
-  hands'. ⚠ Never fed to a standing policy: it is the
+  60 N the wrong way), ⚠ the arm's alone for a hand not out and while
+  walking (`Reach.standing` is off until the mission says so, every step).
+  It reads all the world pushes on but the soles as the hands'. ⚠ Never fed to a standing policy: it is the
   legs' torques, the policy's own commands (stand12 fell at 20 N). ⚠ The
   move still puts 1.7-2.2x its ask on a locked bar: its LOOP's -- closed on
   the bar's true force it put 1.7x.

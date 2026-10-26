@@ -214,8 +214,9 @@ for _s in HANDS:
     SENSORS[f"{_s}.f{_a}"] = Sensor(
       f"{_s}.f{_a}", _hand_force(_s, _k),
       f"the force your {_s} hand pushes with, N, your stance frame ({_a}), off your "
-      "whole body's motor currents less your own weight and your joints' friction; it "
-      "reads truest held still")
+      "motor currents less your own weight and your joints' friction -- your whole "
+      "body's while that hand is out and you stand, else its arm's alone; it reads "
+      "truest held still")
   SENSORS[f"{_s}.held"] = Sensor(
     f"{_s}.held", (lambda side: lambda life: 1.0 if life.body.gripped(side) else 0.0)(_s),
     f"1 while your {_s} gripper says it holds something: its jaws stopped short of "

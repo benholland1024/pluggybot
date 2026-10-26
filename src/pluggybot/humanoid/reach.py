@@ -464,8 +464,9 @@ class Reach:
     sm = self.self_model
     self.still = friction.still(self.friction, sm.m.dof_frictionloss[sm.vadr])
     #: Whether the standing policy has the legs, both soles down: the body's
-    #: owner says (`HumanoidMission`); the whole body's reading assumes it.
-    self.standing = True
+    #: owner says, every step (`HumanoidMission`); the whole body's reading
+    #: assumes it, so until it is said the arm's alone is read.
+    self.standing = False
     #: The force each hand pushes with, N, stance frame: the whole body's
     #: reading for a hand at work, standing, else its arm's (`FELT_PHASES`)
     #: -- and its arm's alone, whichever is read.
