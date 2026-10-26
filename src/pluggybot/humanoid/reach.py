@@ -135,17 +135,33 @@ ARRIVE_M, HELD_BACK_S = 0.01, 1.0
 #: diverged and is never commanded; and a move is given this long, s, to
 #: begin before a miss can end it.
 WILD_M, SETTLE_S = 0.06, 0.3
-#: A PULL (`pull`, #525): a force move. The force it is closed on -- the
-#: hand's own reading along its way -- is read over this long, s; a hand
-#: that has gone no further than this, m, in this long, s, while it pushes
-#: with this share of its force -- or that is not going (below) with its
-#: command as far ahead as it may go -- is held fast...
-ADMIT_SMOOTH_S, FAST_M, FAST_S, FAST_SHARE = 0.1, 0.004, 0.6, 0.8
+#: A PULL (`pull`, #525): a force move. The hardest it pushed and whether it
+#: is held fast are read off the hand's reading along its way over this
+#: long, s; a hand that has gone no further than this, m, in this long, s,
+#: while it pushes with this share of its force -- or that is not going
+#: (below) with its command as far ahead as it may go -- is held fast...
+MEAN_S, FAST_M, FAST_S, FAST_SHARE = 0.1, 0.004, 0.6, 0.8
+#: ...the force it is CLOSED on is that reading over this long, s, carried
+#: this far ahead, s, at the rate it rises, read over this long, s: the move
+#: slows before the force reaches its ask, not once it has. ⚠ Closed on
+#: `MEAN_S`'s reading as it stood, it built over 100 N/s on a locked bar and
+#: put 1.7 times its ask on it before it read the ask -- closed even on the
+#: bar's true force (#547)...
+ADMIT_SMOOTH_S, AHEAD_S, RISE_SMOOTH_S = 0.03, 0.1, 0.08
+#: ...and it backs off past its force up to this many times its speed: no
+#: faster than it walked in, the bar took 1.3 times a 10 N ask while a body
+#: leaning on the held hand kept the force up, and 1.2 at twice (#547).
+BACK_SPEED = 2.0
 #: ...a hand GOES while it gets this far along its way, m, in this long, s
 #: (and at that pace over `FAST_S`, or it is not held fast pinned). One that
 #: does not -- HELD -- whose command is out of the arm's reach takes no other
 #: posture where the arm reaches the hand itself: its command stays where
-#: the arm last reached. ⚠ AGAINST A HAND HELD, THE COMMAND'S LEAD IS THE
+#: the arm last reached -- but backs off toward the hand past its force, its
+#: arm's joints toward those that reach it (held still, a pull on a locked
+#: bar stood at 21-24 N for 20 while its body leaned on it), and pinned
+#: there pushing under `FAST_SHARE` of its force, it is out of reach, not
+#: held fast (in free air, a pull past the arm's reach was "held fast" after
+#: 1.1 cm, #547). ⚠ AGAINST A HAND HELD, THE COMMAND'S LEAD IS THE
 #: SOLVE'S MISS: postures taken for it bowed, crouched and stood the body up
 #: with the hand on a locked bar, 30-100 N on the bar for a pull asked
 #: 10-20, and 7 ways in 14 never ended (#547). ⚠ BUT A HAND ITS ARM CANNOT
@@ -723,11 +739,11 @@ class Reach:
     self.phase[side] = "carry"
     return True
 
-  def _reaches(self, side: str, pos: np.ndarray, rot) -> bool:
-    """Whether the arm, in the posture held, puts the grip at `pos` and
-    `rot` -- on the robot's model of itself."""
-    _, ep, er = self.self_model.solve(side, pos, rot)
-    return ep <= REPLAN_M and er <= REPLAN_ROT
+  def _reaching(self, side: str, pos: np.ndarray, rot) -> np.ndarray | None:
+    """The arm's joints that put the grip at `pos` and `rot` in the posture
+    held -- on the robot's model of itself -- or None where none does."""
+    q, ep, er = self.self_model.solve(side, pos, rot)
+    return q if ep <= REPLAN_M and er <= REPLAN_ROT else None
 
   def hold_posture(self, height: float, pitch: float) -> None:
     """The posture to stand in, held by its own loop (`TRIM_RATE`)."""
@@ -1054,15 +1070,29 @@ class Reach:
                 and st["t"] - st["postured"] < POSTURE_WAIT_S)
     # THE FORCE, CLOSED ON WHAT THE HAND FEELS (admittance): along its way the
     # command walks at its speed while the force the hand pushes with along
-    # it is under half its limit, slows to a stand as it reaches it, and
-    # backs off past it -- through the arm's own springs, its model put 15 N
-    # on a drawer's stop for a 5 N limit and 27 for 10, where the hand's
-    # reading was within 0.5 N of the truth
-    k = min(1.0, dt / ADMIT_SMOOTH_S)
-    f = st["f"] = (1.0 - k) * st.get("f", self.force[side]) + k * self.force[side]
-    along = float(f @ w)
+    # it, a moment ahead (`AHEAD_S`), is under half its limit, slows to a
+    # stand as it reaches it, and backs off past it (`BACK_SPEED`) -- through
+    # the arm's own springs, its model put 15 N on a drawer's stop for a 5 N
+    # limit and 27 for 10, where the hand's reading was within 0.5 N of the
+    # truth
+    k, km, kr = (min(1.0, dt / s_) for s_ in (ADMIT_SMOOTH_S, MEAN_S, RISE_SMOOTH_S))
+    before = st.get("f", self.force[side])
+    f = st["f"] = (1.0 - k) * before + k * self.force[side]
+    fm = st["fm"] = (1.0 - km) * st.get("fm", self.force[side]) + km * self.force[side]
+    rise = st["rise"] = (1.0 - kr) * st.get("rise", 0.0) + kr * float((f - before) @ w) / dt
+    along = float(fm @ w)
     st["peak"] = max(st["peak"], along)
-    rate = self.speed[side] * min(1.0, max(-1.0, 2.0 * (limit - along) / limit))
+    x = 2.0 * (limit - float(f @ w) - AHEAD_S * rise) / limit
+    if going and x < 0.0:
+      # ...but a hand GOING along its way is held by nothing: where its force
+      # is going only slows it, and it backs off past its force as read, at
+      # its speed -- the whole body's reading rides 4-5 N on a hand moving in
+      # free air, and backed off on where that went, a 4 N pull up 0.3 m
+      # stopped after 1.1 cm (#547). ⚠ One that meets a stop goes on reading
+      # as going for up to `GO_S`.
+      rate = self.speed[side] * min(0.0, max(-1.0, 2.0 * (limit - float(f @ w)) / limit))
+    else:
+      rate = self.speed[side] * (min(1.0, x) if x >= 0.0 else BACK_SPEED * max(-1.0, x))
     if settling:
       # ...standing while its body takes a posture, but backing off: stood
       # still, it held on reading 15 times its force as a posture stood the
@@ -1103,11 +1133,22 @@ class Reach:
         mujoco.mju_quat2Mat(m9, quat)
         c.rot = m9.reshape(3, 3) @ c.rot
     q, ep, er = sm.solve(side, c.pos, c.rot)
+    pv["beyond"] = False
     if ep > REPLAN_M or er > REPLAN_ROT:
-      if not going and self._reaches(side, h, c.rot):
-        # HELD (`GO_ON_M`): the command stays where the arm last reached
-        c.pos, c.rot, pinned = prev, prev_rot, True
-        q, ep, er = self.q_cmd[side], self.miss[side], 0.0
+      there = None if going else self._reaching(side, h, c.rot)
+      if there is not None:
+        # HELD (`GO_ON_M`): the command stays where the arm last reached --
+        # backing off, a share of the way to the hand, its arm's joints as
+        # far toward those that reach it, none faster than `JOINT_RATE` (a
+        # setpoint is ramped, never written across a gap: the solve that
+        # reaches the hand begins where one that missed left the arm)
+        lead = float((prev - h) @ w)
+        back = min(1.0, -rate * dt / lead) if rate < 0.0 and lead > 0.0 else 0.0
+        gap = float(np.abs(there - self.q_cmd[side]).max())
+        back = min(back, JOINT_RATE * dt / gap) if gap > 0.0 else back
+        c.pos, c.rot, pinned = prev + back * (h - prev), prev_rot, True
+        q, ep, er = self.q_cmd[side] + back * (there - self.q_cmd[side]), self.miss[side], 0.0
+        pv["beyond"] = True
       elif st["t"] - st.get("planned", -REPLAN_S) >= REPLAN_S:
         st["planned"] = st["t"]
         # ...never one it has left this move: free to, two postures could take
@@ -1120,8 +1161,9 @@ class Reach:
           st["postured"] = st["t"]
     self.goal[side].pos, self.goal[side].rot = c.pos.copy(), c.rot
     # held fast: the hand stays put while it pushes with its whole force, or
-    # goes nowhere with its command as far ahead as it may go, whatever it
-    # reads
+    # goes nowhere with its command as far ahead as it may go -- as far as its
+    # arm reaches, only where it pushes its whole force: else it can reach no
+    # further
     if not moved and along >= FAST_SHARE * limit and not settling:
       pv["still"] += dt
     pv["pinned"] = pv["pinned"] + dt if pinned and not pace and not settling else 0.0
@@ -1137,8 +1179,11 @@ class Reach:
     self._off[side] = 0.0
     if pv["went"] >= pv["distance"]:
       self._end(side, "distance", h, r)
-    elif pv["still"] >= FAST_S or pv["pinned"] >= FAST_S:
+    elif pv["still"] >= FAST_S:
       self._end(side, "held fast", h, r)
+    elif pv["pinned"] >= FAST_S:
+      short = pv["beyond"] and along < FAST_SHARE * limit
+      self._end(side, "out of reach" if short else "held fast", h, r)
     return c.stiffness
 
   def _feel(self) -> None:

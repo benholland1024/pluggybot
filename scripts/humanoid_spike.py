@@ -52,7 +52,8 @@ the parts and the bill.
                 it each way, harder until the body falls (#544)
   --bar         the `pull` verb's force move on the locked handle, each way at
                 10 and 20 N: the force on the bar against what the hand read,
-                the postures taken, how it ended (#547)
+                the postures taken, how it ended (#547); `--oracle` closes
+                the move on the bar's true force instead: the loop's floor
   --feel        what the hand's readings -- its arm's own and the whole
                 body's -- make of 20 N staged at the grip, each way, standing
                 still and swaying (#547)
@@ -2134,29 +2135,47 @@ def _run(gen):
     return stop.value
 
 
-def bar_trial(way: str, force: float, npz: str | None = None) -> dict:
+def bar_trial(way: str, force: float, npz: str | None = None, oracle: bool = False) -> dict:
   """A fresh robot's left hand on the locked bar, `pull`ed along
-  `PULL_WAYS[way]` at `force` N (`--bar`)."""
+  `PULL_WAYS[way]` at `force` N (`--bar`); `oracle`, the move closed on
+  the bar's true force (`closed_on_the_bar`)."""
   h = floor_humanoid(_bar_world, policy=StandPolicy(npz) if npz else _POLICY)
+  if oracle:
+    closed_on_the_bar(h)
   if not _run(_grip_bar(h)):
     return {"way": way, "force": force, "why": "no grip on the bar"}
   return _run(_pull_bar(h, way, force))
+
+
+def closed_on_the_bar(h: Humanoid, side: str = "left") -> None:
+  """The hand's reading replaced, every command, by the force the pads
+  truly put on the bar (`handle_force`, ours): the force loop's own floor,
+  what it does with a perfect reading (`--bar --oracle`, #547) -- never the
+  robot's."""
+  feel = h.reach._feel
+
+  def oracle() -> None:
+    feel()
+    h.reach.force[side] = handle_force(h, side)
+  h.reach._feel = oracle
 
 
 def _bar_trial(job):
   return bar_trial(*job)
 
 
-def bar_table(npz: str | None = None, jobs: int = 4) -> list[dict]:
+def bar_table(npz: str | None = None, jobs: int = 4, oracle: bool = False) -> list[dict]:
   """--bar: each way at each of `BAR_FORCES`, a process a trial."""
   import multiprocessing as mp
-  trials = [(w, f, npz) for f in BAR_FORCES for w in PULL_WAYS]
+  trials = [(w, f, npz, oracle) for f in BAR_FORCES for w in PULL_WAYS]
   with mp.get_context("spawn").Pool(jobs, maxtasksperchild=1) as pool:
     rows = pool.map(_bar_trial, trials)
   print(f"THE FORCE MOVE ON THE LOCKED BAR: the left hand shut on the welded drawer's handle "
         f"({HANDLE_Z:.2f} m up, {COUNTER_FRONT - 0.02 - HANDLE_OFF:.2f} m ahead), `pull`ed "
         f"{100 * BAR_DISTANCE_M:.0f} cm each way at {', '.join(f'{f:g}' for f in BAR_FORCES)} N, "
-        f"watched {BAR_BUDGET_S:g} s at most; policy {_name_stand(npz)}")
+        f"watched {BAR_BUDGET_S:g} s at most; policy {_name_stand(npz)}; the move closed on "
+        + ("the bar's TRUE force (an oracle, ours: the loop's own floor)" if oracle
+           else "the hand's reading"))
   print(f"  the force on the bar is the pads' (ours): its peak at an instant and over "
         f"{BAR_MEAN_S:g} s; 'read' the hardest the hand read; 'postures' those taken with the "
         f"hand on the bar")
@@ -2169,6 +2188,13 @@ def bar_table(npz: str | None = None, jobs: int = 4) -> list[dict]:
     print(f"  {r['way']:14s} {r['force']:5.0f} {r['peak']:7.1f} {r['peakMean']:8.1f} "
           f"{r['read']:6.1f} {len(r['postures']):8d} {r['why']:12s} {r['seconds']:5.1f} "
           f"{r['slidMm']:7.1f}" + ("  FELL" if r["fell"] else ""), flush=True)
+  for f in BAR_FORCES:
+    flown = [r for r in rows if r["force"] == f and r.get("peak") is not None]
+    if flown:
+      worst = max(flown, key=lambda r: r["peakMean"])
+      print(f"  asked {f:g} N: the hardest {BAR_MEAN_S:g} s on the bar {worst['peakMean']:.1f} N "
+            f"({worst['peakMean'] / f:.2f} times, {worst['way']}); over a quarter more on "
+            f"{sum(r['peakMean'] > 1.25 * f for r in flown)} ways of {len(flown)}")
   return rows
 
 
@@ -4156,6 +4182,9 @@ def main(argv=None) -> None:
   ap.add_argument("--bar", action="store_true",
                   help="the force move on the locked handle, each way at 10 and 20 N: the force on "
                        "the bar against what the hand read, the postures, how it ended (#547)")
+  ap.add_argument("--oracle", action="store_true",
+                  help="--bar: the move closed on the bar's true force, not the hand's reading "
+                       "(ours: the loop's own floor)")
   ap.add_argument("--feel", action="store_true",
                   help="what the hand's readings, its arm's and the whole body's, make of 20 N "
                        "staged at the grip, each way, still and swaying (#547)")
@@ -4227,7 +4256,7 @@ def main(argv=None) -> None:
   elif args.pulls:
     pull_table(args.policy, jobs=args.jobs)
   elif args.bar:
-    bar_table(args.policy, jobs=args.jobs)
+    bar_table(args.policy, jobs=args.jobs, oracle=args.oracle)
   elif args.feel:
     feel_table(args.policy, jobs=args.jobs)
   elif args.handover is not None:
