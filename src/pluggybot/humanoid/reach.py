@@ -147,7 +147,7 @@ MEAN_S, FAST_M, FAST_S, FAST_SHARE = 0.1, 0.004, 0.6, 0.8
 #: `MEAN_S`'s reading as it stood, it built 100-200 N/s on a locked bar and
 #: put 1.7 times its ask on it before it read the ask -- closed even on the
 #: bar's true force (#547)...
-ADMIT_SMOOTH_S, AHEAD_S, RISE_SMOOTH_S = 0.03, 0.1, 0.03
+ADMIT_SMOOTH_S, AHEAD_S, RISE_SMOOTH_S = 0.03, 0.1, 0.08
 #: ...and it backs off past its force up to this many times its speed: no
 #: faster than it walked in, the bar took 1.3 times a 10 N ask while a body
 #: leaning on the held hand kept the force up, and 1.2 at twice (#547).
