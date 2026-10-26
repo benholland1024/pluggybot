@@ -22,7 +22,11 @@ the parts and the bill.
                 each way in turn and pushing away, the force staged on the
                 hand (#544); `bar` -- the `pull` verb on a locked handle at
                 its most, back, up, forward and down, how each ended and the
-                most the bar took said (#547); `demo` -- #466's chest on a counter, its
+                most the bar took said (#547); `feel` -- a hand held out where the
+                bar would be, 20 N staged at its grip pulling back, then
+                pushing away, away and down, and up, what its arm read and
+                what the whole body read said (#547); `demo` -- #466's chest
+                on a counter, its
                 knob found by its tag, reached and gripped, every act a
                 `Body` member; `walk` -- from the living room into the
                 kitchen and back, steered by its own map; `rough` -- the walker
@@ -49,8 +53,9 @@ the parts and the bill.
   --bar         the `pull` verb's force move on the locked handle, each way at
                 10 and 20 N: the force on the bar against what the hand read,
                 the postures taken, how it ended (#547)
-  --feel        what the arm's reading makes of 20 N staged at the grip, each
-                way (#547)
+  --feel        what the hand's readings -- its arm's own and the whole
+                body's -- make of 20 N staged at the grip, each way, standing
+                still and swaying (#547)
   --handover [N]  the walk's hand-over at a standstill, through the body's own
                 `step`, at N counter set-outs (8)
   --demo-table [N]  the demo's first N set-outs (12), each flown through Body
@@ -63,7 +68,7 @@ the parts and the bill.
   (default)     the `body` scene's filmstrip, humanoid_spike.png
 
 Usage:
-  uv run python scripts/humanoid_spike.py --view body|stand|reach|grasp|pull|bar|demo|walk|rough|stairs|fall|getup
+  uv run python scripts/humanoid_spike.py --view body|stand|reach|grasp|pull|bar|feel|demo|walk|rough|stairs|fall|getup
   MUJOCO_GL=egl uv run python scripts/humanoid_spike.py [--torque|--shove|...]
 """
 
@@ -1062,6 +1067,8 @@ class Humanoid:
 
   def step(self) -> None:
     self.stand.step()
+    # the standing policy has the legs: a hand's force off the whole body
+    self.reach.standing = True
     self.reach.step()
     mujoco.mj_step(self.m, self.d)
 
@@ -1503,7 +1510,7 @@ def _world_for(scene: str, policy=None):
   if scene == "stand":
     model, data = standing_world()
   else:
-    model, data = standing_world(None if scene == "pull" else
+    model, data = standing_world(None if scene in ("pull", "feel") else
                                  (lambda spec: counter_scenery(spec, locked=True)) if scene == "bar"
                                  else counter_scenery)
   return model, data, Humanoid(model, data, policy)
@@ -1511,7 +1518,7 @@ def _world_for(scene: str, policy=None):
 
 def _scene_gen(scene: str, h: Humanoid):
   return {"stand": stand_scene, "grasp": grasp_scene, "pull": pull_scene,
-          "bar": bar_scene}[scene](h)
+          "bar": bar_scene, "feel": feel_scene}[scene](h)
 
 
 def view_stage2(scene: str) -> None:
@@ -1547,7 +1554,8 @@ def view_stage2(scene: str) -> None:
 #: from the robot's right, or the counter hides the hand.
 SCENE_CAMS = {"grasp": (90.0, -15.0, 2.0, (0.3, 0.0, 0.15)),
               "pull": (120.0, -12.0, 2.3, (0.25, 0.0, 0.0)),
-              "bar": (120.0, -12.0, 2.3, (0.25, 0.0, 0.0))}
+              "bar": (120.0, -12.0, 2.3, (0.25, 0.0, 0.0)),
+              "feel": (120.0, -12.0, 2.3, (0.25, 0.0, 0.0))}
 
 
 def filmstrip_stage2(scene: str, out: str, every_s: float | None = None) -> None:
@@ -2164,19 +2172,26 @@ def bar_table(npz: str | None = None, jobs: int = 4) -> list[dict]:
   return rows
 
 
-#: `--feel` (#547): what the arm's reading makes of a force it is sure of
+#: `--feel` (#547): what the hand's readings make of a force we are sure of
 #: -- the left hand held by the reach where the bar would be, no bar, and
 #: `FEEL_N` staged at the grip (no moment there) so the hand pulls along
-#: each of `PULL_WAYS`, built over `FEEL_BUILD_S` and held `FEEL_HOLD_S`;
-#: the reach's own reading (`Reach.force`, computed as it steers) over the
-#: hold's last `FEEL_READ_S`, along the way and across it.
+#: each of `PULL_WAYS`, built over `FEEL_BUILD_S` and held `FEEL_HOLD_S`:
+#: its arm's own reading (`Reach.arm_force`) and the whole body's
+#: (`Reach.force`, `SelfModel.felt`), each as the reach computed it as it
+#: steered, over the hold's last `FEEL_READ_S` -- along the way and across
+#: it -- and the worst either was along the way from the build's start;
+#: standing still, and SWAYING: the posture asked rocking, the trunk's
+#: pitch `SWAY_PITCH` rad either way at `SWAY_PITCH_HZ` and the pelvis down
+#: `SWAY_DROP` m and up again at `SWAY_DROP_HZ`, the hand held where it is.
 FEEL_N, FEEL_BUILD_S, FEEL_HOLD_S, FEEL_READ_S = 20.0, 0.25, 1.5, 1.0
+SWAY_PITCH, SWAY_PITCH_HZ, SWAY_DROP, SWAY_DROP_HZ = 0.1, 0.4, 0.04, 0.25
+FEELS = ("arm", "body")
 
 
-def feel_trial(way: str, npz: str | None = None) -> dict:
+def feel_trial(way: str, npz: str | None = None, sway: bool = False) -> dict:
   h = floor_humanoid(policy=StandPolicy(npz) if npz else _POLICY)
   side = "left"
-  out = {"way": way}
+  out = {"way": way, "sway": sway}
   if not h.reach.reach(side, handle_goal()):
     return {**out, "why": "the bar's place is out of reach"}
   _drain(_until(h, lambda: h.reach.done(side), 20.0))
@@ -2187,19 +2202,32 @@ def feel_trial(way: str, npz: str | None = None) -> dict:
   hand, site = h.m.body(f"{side}_hand").id, h.m.site(f"{side}_grip").id
   dt = h.m.opt.timestep
   build, hold = int(round(FEEL_BUILD_S / dt)), int(round(FEEL_HOLD_S / dt))
-  reads, across = [], []
+  late = build + hold - int(round(FEEL_READ_S / dt))
+  reads, worst = {k: [] for k in FEELS}, {k: 0.0 for k in FEELS}
   for k in range(build + hold):
-    f = -rot_w @ w * FEEL_N * min(1.0, k / build)
+    share = min(1.0, k / build)
+    f = -rot_w @ w * FEEL_N * share
     h.d.xfrc_applied[hand, :3] = f
     h.d.xfrc_applied[hand, 3:] = np.cross(h.d.site_xpos[site] - h.d.xipos[hand], f)
+    if sway:
+      t = k * dt
+      h.reach.hold_posture(-SWAY_DROP / 2 * (1.0 - math.cos(2 * math.pi * SWAY_DROP_HZ * t)),
+                           SWAY_PITCH * math.sin(2 * math.pi * SWAY_PITCH_HZ * t))
     h.step()
     if h.fallen():
       return {**out, "why": "fell"}
-    if k >= build + hold - int(round(FEEL_READ_S / dt)):
-      reads.append(float(h.reach.force[side] @ w))
-      across.append(h.reach.force[side] - reads[-1] * w)
-  return {**out, "read": float(np.mean(reads)), "sd": float(np.std(reads)),
-          "across": float(np.linalg.norm(np.mean(across, axis=0)))}
+    if (h.reach.steps - 1) % h.reach.every:
+      continue
+    for key, felt in zip(FEELS, (h.reach.arm_force[side], h.reach.force[side])):
+      worst[key] = max(worst[key], abs(float(felt @ w) - FEEL_N * share))
+      if k >= late:
+        reads[key].append(np.array(felt))
+  for key in FEELS:
+    along = np.array(reads[key]) @ w
+    out[key] = {"read": float(np.mean(along)), "sd": float(np.std(along)),
+                "across": float(np.linalg.norm(np.mean(reads[key], axis=0) - np.mean(along) * w)),
+                "worst": worst[key]}
+  return out
 
 
 def _feel_trial(job):
@@ -2207,20 +2235,89 @@ def _feel_trial(job):
 
 
 def feel_table(npz: str | None = None, jobs: int = 4) -> list[dict]:
-  """--feel: each way, a process a trial."""
+  """--feel: each way, still and swaying, a process a trial."""
   import multiprocessing as mp
   with mp.get_context("spawn").Pool(jobs, maxtasksperchild=1) as pool:
-    rows = pool.map(_feel_trial, [(w, npz) for w in PULL_WAYS])
-  print(f"WHAT THE ARM READS of {FEEL_N:g} N staged at the grip, the left hand held by the reach "
-        f"where the locked handle's bar is, no bar; read over the last {FEEL_READ_S:g} s of "
-        f"{FEEL_HOLD_S:g}; policy {_name_stand(npz)}")
-  print(f"  {'way':14s} {'read along N':>12s} {'sd':>5s} {'across N':>8s}")
-  for r in rows:
-    if r.get("read") is None:
-      print(f"  {r['way']:14s} {r['why']}")
-      continue
-    print(f"  {r['way']:14s} {r['read']:12.1f} {r['sd']:5.1f} {r['across']:8.1f}", flush=True)
+    rows = pool.map(_feel_trial, [(w, npz, s) for s in (False, True) for w in PULL_WAYS])
+  print(f"WHAT THE HAND READS of {FEEL_N:g} N staged at the grip, the left hand held by the reach "
+        f"where the locked handle's bar is, no bar: its arm's own reading and the whole body's, "
+        f"along the way and across it over the last {FEEL_READ_S:g} s of {FEEL_HOLD_S:g}, and "
+        f"the worst along it from the build's start ({FEEL_BUILD_S:g} s); swaying, the trunk's "
+        f"pitch +-{SWAY_PITCH:g} rad at {SWAY_PITCH_HZ:g} Hz and the pelvis {100 * SWAY_DROP:g} cm "
+        f"down and up at {SWAY_DROP_HZ:g} Hz; policy {_name_stand(npz)}")
+  cell = f" {'along':>5s} {'sd':>4s} {'acr':>4s} {'worst':>5s}"
+  print(f"  {'':14s}" + "".join(f" | {s + ', ' + k:<22s}" for s in ("still", "swaying")
+                                for k in FEELS))
+  print(f"  {'way':14s}" + f" |{cell}" * 4)
+  for way in PULL_WAYS:
+    cells = []
+    for sway in (False, True):
+      r = next(r_ for r_ in rows if r_["way"] == way and r_["sway"] == sway)
+      for key in FEELS:
+        c = r.get(key)
+        cells.append(f" | {r['why']:22s}" if c is None else
+                     f" | {c['read']:5.1f} {c['sd']:4.1f} {c['across']:4.1f} {c['worst']:5.1f}")
+    print(f"  {way:14s}" + "".join(cells), flush=True)
   return rows
+
+
+#: The `feel` scene (#547): the left hand held out where the locked bar
+#: is, no bar, `FEEL_N` staged at its grip along each of `FEEL_SCENE`'s
+#: ways -- one its arm reads, then the three a straight arm is blindest to
+#: (after them, the arm straightened, back read 5 N of 20) -- each
+#: built over `FEEL_BUILD_S` and held `FEEL_HOLD_S`: what its arm read of it
+#: and what the whole body read, over the hold's second half, said once it
+#: is let go. Staged with the truth.
+FEEL_SCENE = ("back", "forward", "forward-down", "up")
+
+
+def feel_scene(h: Humanoid, records: list | None = None):
+  """The `feel` scene, once: the hand out, then each of `FEEL_SCENE`'s ways
+  staged and read (above); home."""
+  side = "left"
+  yield "a hand out where the bar would be"
+  if not h.reach.reach(side, handle_goal()):
+    yield "  no posture puts it in reach"
+    return
+  yield from _until(h, lambda: h.reach.done(side), 20.0)
+  yield from wait(h, 0.5)
+  rot_w, _ = true_stance(h.m, h.d)
+  hand, site = h.m.body(f"{side}_hand").id, h.m.site(f"{side}_grip").id
+  dt = h.m.opt.timestep
+  build, hold = int(round(FEEL_BUILD_S / dt)), int(round(FEEL_HOLD_S / dt))
+  rec = {"ways": []}
+  for way in FEEL_SCENE:
+    w = np.array(PULL_WAYS[way], dtype=float)
+    w /= np.linalg.norm(w)
+    yield f"  {FEEL_N:.0f} N {way} at the grip"
+    reads = {k: [] for k in FEELS}
+    for k in range(build + hold):
+      f = -rot_w @ w * FEEL_N * min(1.0, k / build)
+      h.d.xfrc_applied[hand, :3] = f
+      h.d.xfrc_applied[hand, 3:] = np.cross(h.d.site_xpos[site] - h.d.xipos[hand], f)
+      h.step()
+      if h.fallen():
+        h.d.xfrc_applied[hand] = 0.0
+        yield "FELL"
+        return
+      if k >= build + hold // 2:
+        for key, felt in zip(FEELS, (h.reach.arm_force[side], h.reach.force[side])):
+          reads[key].append(float(felt @ w))
+      yield None
+    h.d.xfrc_applied[hand] = 0.0
+    row = {"way": way, **{k: float(np.mean(v)) for k, v in reads.items()}}
+    rec["ways"].append(row)
+    yield (f"{FEEL_N:.0f} N {way}: the arm read {row['arm']:.0f}, the whole body "
+           f"{row['body']:.0f}")
+    yield from wait(h, 1.0)
+  yield "home"
+  h.reach.retreat(side)
+  yield from _until(h, lambda: h.reach.phase[side] == "rest", 20.0)
+  yield from posture(h, 0.0, 0.0)
+  rec["fell"] = h.fallen()
+  yield "standing, never fallen" if not rec["fell"] else "FELL"
+  if records is not None:
+    records.append(rec)
 
 
 #: The `bar` scene (#547): the force move on the locked bar at `pull`'s
@@ -4031,6 +4128,7 @@ def speed_table(sim_s: float = 60.0, profile: bool = False) -> None:
 SCENES = {"body": view_body, "stand": lambda: view_stage2("stand"),
           "reach": view_reach, "grasp": lambda: view_stage2("grasp"),
           "pull": lambda: view_stage2("pull"), "bar": lambda: view_stage2("bar"),
+          "feel": lambda: view_stage2("feel"),
           "demo": view_demo, "walk": view_walk, "rough": view_rough, "stairs": view_stairs,
           "fall": view_fall, "getup": view_getup}
 
@@ -4059,7 +4157,8 @@ def main(argv=None) -> None:
                   help="the force move on the locked handle, each way at 10 and 20 N: the force on "
                        "the bar against what the hand read, the postures, how it ended (#547)")
   ap.add_argument("--feel", action="store_true",
-                  help="what the arm's reading makes of 20 N staged at the grip, each way (#547)")
+                  help="what the hand's readings, its arm's and the whole body's, make of 20 N "
+                       "staged at the grip, each way, still and swaying (#547)")
   ap.add_argument("--handover", nargs="?", type=int, const=8, default=None, metavar="N",
                   help="the walk's hand-over at a standstill, through `step`, at N set-outs (8)")
   ap.add_argument("--demo-table", nargs="?", type=int, const=12, default=None, metavar="N",

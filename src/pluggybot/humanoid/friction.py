@@ -10,7 +10,8 @@ probe flies the calibration again.
 
 ⚠ HELD STILL a joint's friction is anything up to its dry friction either
 way, which nothing reads: none is taken off a joint turning slower than
-`MOVING_RAD_S`, and a hand's force held still keeps that much in it.
+`MOVING_RAD_S`, and a hand's force held still keeps that much in it -- the
+whole body's reading weighs each joint by it (`still`, `SelfModel.felt`).
 """
 
 from __future__ import annotations
@@ -125,6 +126,19 @@ def save(table: dict, path: Path | str = FILE) -> None:
     {"about": "the humanoid's arm joints' friction, calibrated (humanoid/friction.py; "
               "scripts/humanoid_spike.py --friction --write)",
      "joints": table}, indent=1) + "\n")
+
+
+def still(table: dict, drawn: np.ndarray) -> np.ndarray:
+  """What each joint's friction may hold while it is still, N*m, in
+  `hm.JOINT_NAMES` order: an arm joint's dry friction as calibrated, where
+  the table has it -- else `drawn`, the robot's drawing's (the legs': none
+  is calibrated)."""
+  out = np.array(drawn, dtype=float)
+  for k, name in enumerate(hm.JOINT_NAMES):
+    row = table.get(name)
+    if row is not None:
+      out[k] = row["coulomb"]
+  return out
 
 
 def taken(table: dict, side: str, qd: np.ndarray) -> np.ndarray:

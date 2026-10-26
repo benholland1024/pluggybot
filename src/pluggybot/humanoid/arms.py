@@ -1,8 +1,9 @@
 """The humanoid's arms and grippers (issue #507, stage 2): a hand sent to a
 pose by inverse kinematics on the robot's model of itself, every command
 carrying the stiffness its caller asks and the arm's own weight; the force
-at a hand read off its arm's motor currents; and a grip judged by what the
-gripper reports.
+at a hand read off its arm's motor currents -- or, standing, off the whole
+body's (`SelfModel.felt`, #547); and a grip judged by what the gripper
+reports.
 
 THE ROBOT'S MODEL OF ITSELF is its own drawing -- `model.body_xml()`
 compiled alone (`SelfModel`), never the world's: what a real robot is built
@@ -55,6 +56,29 @@ RANGE_MARGIN = 0.05
 #: still arm's reading: at 1e-3 a 20 N push read 17.8, where this reads it
 #: as undamped (19.3; that arm's least is 0.085).
 FORCE_SIGMA = 0.05
+#: THE WHOLE BODY'S READING (`SelfModel.felt`, #547): each row of the
+#: balance weighed by what it cannot know -- the trunk's six, N and N*m, the
+#: motion a balance taken as still leaves out (the body's sway, a moving
+#: arm); a joint's, the friction it may hold still (`friction.still`), at
+#: least this, N*m (a driver's torque reading's counts and noise, 0.02-0.04)
+#: -- and a hand's twist on what it holds taken as about this, N*m: on the
+#: hands check's grips it was 0.7-1.7 on average and under 4 in 19 readings
+#: of 20; left free, a pull on a locked bar read 180 N for an instant, and
+#: taken as none, a grip on a drawer's knob read 15 N off in 1 reading of 20.
+TRUNK_SD, TORQUE_SD, TWIST_SD = (2.0, 1.0), 0.05, 1.0
+#: A joint its encoder reads this near an end of its range, rad, is on its
+#: STOP, and its row is left out: the stop carries what its motor does not
+#: -- pushed along, an arm straightened onto its elbow's stop, which held 3.1
+#: N*m its motor never saw, and the hand read 9 N short.
+STOP_RAD = 0.02
+#: The balance CLOSES while what its rows miss by, weighed and shared over
+#: its spare rows, is under this; past it the body is not standing still on
+#: its soles, and the whole body reads nothing. Over the hands check, the
+#: bench and the bar it was 0.6 at the median and 28 at the 99th percentile;
+#: past 50 (0.7 % of readings) the arm read truer (10.6 N rms against 14.4),
+#: and dragged onto a sole's edge by `--hold`'s hardest pull, it was 225-727
+#: while the balance read 60 N the wrong way and the arm the truth.
+CLOSES = 50.0
 
 
 def frame(approach, closing) -> np.ndarray:
@@ -104,8 +128,10 @@ class SelfModel:
     self.grip = {s: m.site(f"{s}_grip").id for s in hm.SIDES}
     self.soles = [m.geom(f"{s}_sole").id for s in hm.SIDES]
     self.root = m.body(ROBOT_ROOT).id
-    #: Each arm's six joints' places in `hm.JOINT_NAMES`.
+    #: Each arm's six joints' places in `hm.JOINT_NAMES`, and each leg's.
     self.arm = {s: np.array([hm.JOINT_NAMES.index(f"{s}_{j}") for j in hm.ARM])
+                for s in hm.SIDES}
+    self.leg = {s: np.array([hm.JOINT_NAMES.index(f"{s}_{j}") for j in hm.LEG])
                 for s in hm.SIDES}
     self.q = np.zeros(len(hm.JOINT_NAMES))
 
@@ -222,6 +248,55 @@ class SelfModel:
     inv = np.where(s > FORCE_SIGMA, 1.0 / np.maximum(s, 1e-12), 0.0)
     f_on_hand = u @ (inv * (vt @ (hold - np.asarray(tau))))
     return -f_on_hand[:3]
+
+  def felt(self, hands, tau: np.ndarray, still: np.ndarray) -> dict[str, np.ndarray]:
+    """The force each of `hands` pushes with on what it holds, N, in the
+    stance frame, off the WHOLE body's drivers as the model is posed
+    (`pose`), standing: the balance of the robot, its weight against what
+    its motors push with (`tau`, every joint, a turning arm's friction
+    taken off), G = S^T tau + sum J^T w over each sole's wrench and each
+    hand's -- its force, and its twist about its grip -- solved in least
+    squares: the trunk's six rows (`TRUNK_SD`), each leg's joints and each
+    of `hands`' arm's, a joint weighed by the friction it may hold still
+    (`still`, `TORQUE_SD`) and left out on its stop (`STOP_RAD`), and each
+    twist about none (`TWIST_SD`) -- or nothing, `{}`, where the balance
+    does not close (`CLOSES`). The legs feel what a straight arm carries
+    through its structure (`hand_force` does not, #547); and everything the
+    world pushes on but the soles is read as the hands'."""
+    m, d = self.m, self.d
+    d.qvel[:] = 0.0
+    mujoco.mj_comVel(m, d)
+    bias = np.zeros(m.nv)
+    mujoco.mj_rne(m, d, 0, bias)
+    pushed = np.zeros(m.nv)
+    pushed[self.vadr] = tau
+    jac = []
+    for g in self.soles:
+      jp, jr = np.zeros((3, m.nv)), np.zeros((3, m.nv))
+      mujoco.mj_jac(m, d, jp, jr, d.geom_xpos[g], m.geom_bodyid[g])
+      jac += [jp, jr]
+    for s in hands:
+      jp, jr = np.zeros((3, m.nv)), np.zeros((3, m.nv))
+      mujoco.mj_jacSite(m, d, jp, jr, self.grip[s])
+      jac += [jp, jr]
+    joints = np.concatenate([self.leg[s] for s in hm.SIDES] + [self.arm[s] for s in hands])
+    q, lo, hi = self.q[joints], self.ranges[joints, 0], self.ranges[joints, 1]
+    joints = joints[(q - lo >= STOP_RAD) & (hi - q >= STOP_RAD)]
+    # the free joint's six dofs are the trunk's: no motor pushes there
+    rows = np.concatenate([np.arange(6), self.vadr[joints]])
+    w = 1.0 / np.concatenate([np.repeat(TRUNK_SD, 3), np.maximum(still[joints], TORQUE_SD)])
+    a = np.vstack(jac).T[rows] * w[:, None]
+    b = (bias - pushed)[rows] * w
+    twist = np.zeros((3 * len(hands), a.shape[1]))
+    for k in range(len(hands)):
+      twist[3 * k:3 * k + 3, 15 + 6 * k:18 + 6 * k] = np.eye(3) / TWIST_SD
+    a, b = np.vstack([a, twist]), np.concatenate([b, np.zeros(len(twist))])
+    x, *_ = np.linalg.lstsq(a, b, rcond=None)
+    miss = a @ x - b
+    if float(miss @ miss) / max(1, len(b) - a.shape[1]) > CLOSES:
+      return {}
+    # ...each hand's force ON it: it pushes back with the negative
+    return {s: -x[12 + 6 * k:15 + 6 * k] for k, s in enumerate(hands)}
 
 
 class Arm:

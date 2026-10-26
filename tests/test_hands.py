@@ -432,6 +432,10 @@ def _bare_reach():
   r.grippers = {s: _Grip() for s in hm.SIDES}
   r.homes, r._planner = {s: [] for s in hm.SIDES}, None
   r.sensed = np.full(len(hm.JOINT_NAMES), np.nan)
+  # the whole body's reading off: the senses here are a test's stubs, not a
+  # body's (`_feel`'s own tests turn it on)
+  r.standing = False
+  r.arm_force = {s: np.zeros(3) for s in hm.SIDES}
   return r
 
 

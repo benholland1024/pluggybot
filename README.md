@@ -190,6 +190,13 @@ uv run python scripts/humanoid_spike.py --view reach  # a hand to a counter,
                                       # through Body, its get-up loaded
 uv run python scripts/humanoid_spike.py --view grasp  # a drawer's handle
                                       # gripped and pulled
+uv run python scripts/humanoid_spike.py --view pull   # a hand held out,
+                                      # pulled at 20 N each way (#544)
+uv run python scripts/humanoid_spike.py --view bar    # the force move on
+                                      # a locked handle (#547)
+uv run python scripts/humanoid_spike.py --view feel   # 20 N at a held-out
+                                      # hand: what its arm reads, and the
+                                      # whole body (#547)
 uv run python scripts/humanoid_spike.py --view demo   # a chest's knob on a
                                       # counter found by its tag, reached
                                       # and gripped, through Body
@@ -209,8 +216,8 @@ uv run python scripts/humanoid_spike.py --view getup  # up from lying on
 ```
 `humanoid_spike.py --help` lists its tables (`--mass`, `--torque`,
 `--thermal`, `--energy`, `--sensors`, `--shove`, `--envelope`, `--hold`,
-`--demo-table`, `--track`, `--rough`, `--odometry`, `--climb`, `--fall`,
-`--speed`);
+`--pulls`, `--bar`, `--feel`, `--demo-table`, `--track`, `--rough`,
+`--odometry`, `--climb`, `--fall`, `--speed`);
 SimNotes, "The humanoid body", "The humanoid stands, reaches and grasps",
 "The humanoid behind Body", "The humanoid walks" and "The humanoid climbs,
 falls and gets up", has what they measured, and Parts.md the parts and the

@@ -50,9 +50,12 @@ and a hand that works in it.
 
 **This body.** Two Unitree Dex1-1 two-jaw grippers (90 mm stroke, 5-120 N a
 pad, adjustable: `humanoid/parts.py`), each on a six-joint arm whose grip
-reaches 0.58 m from a shoulder 1.15 m up; the hand's force read off its
-arm's motor currents through the robot's model of itself (within 0.5 N of
-the truth held still: SimNotes); the grip's own word -- its jaws' gap and
+reaches 0.58 m from a shoulder 1.15 m up; the hand's force read off the
+whole body's motor currents through the robot's model of itself while the
+hand is out and the body stands -- the legs feel what a straight arm
+carries through its structure (#547: within a newton every way on a bench,
+SimNotes) -- else off its arm's; the
+grip's own word -- its jaws' gap and
 squeeze; the head camera's tags (a face's middle, which way it looks, which
 way its edges run); the D435's depth (`measure`); a posture -- the
 pelvis's height and the trunk's pitch -- that the standing policy holds;
@@ -115,7 +118,8 @@ switches on wherever there are hands (`steps.hand_facts`): a verb may be an
 `Reach._pulled` every command:
 
 - **Along its way, the force is CLOSED on what the hand feels**
-  (admittance): the command walks at `speed` while the hand pushes under
+  (admittance) -- off the whole body, standing (`SelfModel.felt`, #547):
+  the command walks at `speed` while the hand pushes under
   half `force` along the way, slows to a stand as it reaches it, and backs
   off past it -- `speed * clip(2 (force - along) / force, -1, 1)`, the
   reading smoothed over `ADMIT_SMOOTH_S` -- and leads the hand by
@@ -290,14 +294,19 @@ no new help") -- tries a fall now fails (#544).
   most 20 N (`steps.PULL_MOST_N`; Ben, 2026-10-25) and says pushing away
   holds around two thirds of it (#544; SimNotes, "Holding the pull verb's
   60 N at a hand"): the standing policy does not feel a pull until the body
-  moves, and the force the arm's currents read is too rough to show it one.
-- **Feel along a straight arm.** A load along a nearly straight arm goes
-  through its structure, not its motors: at a counter's height, 20 N on
-  the grip reads as 20 pulling back, left or right but 12 up, 5 pushing
-  away and 2 away and down (`humanoid_spike.py --feel`). Against something
-  that holds the hand, a pull on those ways puts 1.5-2.4 times a 10 N ask
-  on it before it reads it (#547; SimNotes, "The force move against a held
-  hand").
+  moves. Shown the hand's force, a policy trained on the true one held 60
+  N, but the robot's readings will not do: its arm's is too rough, and
+  shown the whole body's -- the legs' torques, the policy's own commands --
+  it fell at 20 N every way (#547).
+- **Hold a pull at its force against what holds the hand.** The hand
+  reads it (`humanoid_spike.py --feel`: 19.7-20.2 N for 20 every way, the
+  ways along a straight arm included), but a pull on a locked bar still
+  puts 1.7-2.2 times its ask on it -- its loop's, not its reading's:
+  closed on the bar's true force it put 1.7 (#547; SimNotes, "A hand's
+  force off the whole body").
+- **Tell its hand from the rest of it.** The whole body's reading is
+  everything the world pushes on the robot but at its soles: a forearm on
+  a counter's edge reads as the hand's push.
 - **Two hands at once.** Every verb is one hand's; a bimanual frame-and-work
   split waits for a job that needs it.
 - **Motion within the hand** beyond a light grip's turn between the pads.

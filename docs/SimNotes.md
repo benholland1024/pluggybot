@@ -4669,16 +4669,17 @@ its constant:**
   second or two after its command; an approach begun on the command's
   arrival stopped short. It begins on the robot's own measure
   (`reach.POSTURE_TOL`), and once its trunk is still (`reach.TRUNK_STILL_RATE`,
-  #520): the force read off the currents assumes the arm still, and the
+  #520): the force read off the drivers assumes the body still, and the
   floor's approach begun as the bow stopped turning (0.59 rad/s) read
   492 N at the hand and stopped 6 cm short of it.
 - *A hand that cannot get there stops* (`reach.BLOCKED_M`, `BLOCKED_N`,
-  held `BLOCKED_S`): its own solve 3 cm out of reach, or its arm's currents
-  reading a 30 N push on its way in. Unstopped, a crouch left a chest's knob
-  10.7 cm out of reach and the arm drove the gripper into the counter's
-  edge until it pushed the robot over backwards. The force read off the
-  currents assumes the arm still, and a deep bow's folding read 81 N for an
-  instant: the push must last 0.15 s.
+  held `BLOCKED_S`): its own solve 3 cm out of reach, or the force it reads
+  (its arm's currents then, the whole body's since #547) a 30 N push on its
+  way in. Unstopped, a crouch left a chest's knob 10.7 cm out of reach and
+  the arm drove the gripper into the counter's edge until it pushed the
+  robot over backwards. The force read off the drivers assumes the body
+  still, and a deep bow's folding read 81 N for an instant: the push must
+  last 0.15 s.
 
 **Compute** (#507's stage 2 line: ~$8 likely, $14 the stop): the G1 check
 and six standing runs on two rented RTX 5090s (Vast.ai, $0.49/h), 2.83
@@ -4693,7 +4694,8 @@ cannot serve says why (`NotImplementedError`: the quadruped's dock, rack
 and tools). `Body` gains a hand's members -- `reach_routine` (a grip pose
 in the believed world frame, the posture the body's to choose),
 `release_routine`, `grip_routine`, `gripped` (the gripper's own reading)
-and `hand_force` (off the arm's currents) -- which the quadruped refuses
+and `hand_force` (off the arm's currents; a hand at work, standing, off the
+whole body's since #547) -- which the quadruped refuses
 (its arm is planar, on its back) and the stub answers.
 
 ![The `demo` scene: #466's chest on a counter; the humanoid finds its knob
@@ -5660,9 +5662,11 @@ at a counter's height holds 20-40 N across the floor against it for 3 s,
 and `pull` asks at most 20 N (`steps.PULL_MOST_N`, Ben, 2026-10-25), its
 text telling the robot that pushing away holds around two thirds of that
 -- a margin under the 20 N pushing held. Our own procedures do every hands
-job with 4-20 N. Holding more wants a hand force the robot can read: a
-sensor at the wrist (Parts.md, "The humanoid body"), or a reading of the
-arm's currents that knows its friction.
+job with 4-20 N. Holding more wants a hand force the robot can read and a
+policy can be shown: the whole body's reading (#547) reads it, but it is
+the legs' torques, the policy's own commands, and stand12 shown it fell at
+20 N ("A hand's force off the whole body", below); a sensor at the wrist
+(Parts.md, "The humanoid body") stays the part to add.
 
 ## The force move against a held hand (issue #547)
 
@@ -5720,18 +5724,11 @@ push on the bar six with it under 15.
   at its force stays off the hand's place (`FAST_M`); only a pinned pull
   is read along its way.
 
-**What is left: the hand cannot feel along a straight arm.** `--feel` puts
-20 N on the grip, the hand held by the reach where the bar is (no bar):
-the arm's torques read it as 20.6 N pulling back, 19.7 left and 20.1
-right, but 12.3 up, 5.4 pushing away and 2.4 away and down. The arm gives
-under the load and swings into line with it (pushed away, its elbow
-straightened from 0.25 to 0.02 rad), and a load along a nearly straight
-arm goes through its structure, not its motors. On the bar the arm starts
-nearly straight: pulling back, the first 0.6 s of the force -- up to 11 N
--- reached the arm's joints as 0.2-6 N, the rest running down the arm. So
-the back and up ways still peak at 1.5-2.4 times a 10 N ask (1.2-1.8
-times 20) before the hand reads it; #547's stage 2 measures a reading off
-the legs' drivers, which feel what the arm cannot. ⚠ And a grip that rolls
+**What was left: the arm cannot feel along itself.** A load along a nearly
+straight arm goes through its structure, not its motors, and the arm's
+reading missed most of it (the next section has the bench); the hand now
+reads its force off the whole body, and what is left of the overshoot is
+the loop's own (the next section). ⚠ And a grip that rolls
 on the bar as the pull builds still takes a posture: in the `bar` scene's
 pull up, from a second grip, the hand rolled 6.6 cm round the handle, its
 turn left the command's, the arm read as unable to hold it where it was,
@@ -5755,17 +5752,149 @@ past its force while a posture comes, its grip slipped off the lever 6 cm
 lower than the old move's did, and the way home from there fell.
 
 ![The `bar` scene: the left hand shut on the locked handle and pulled at
-`pull`'s most, 20 N, back, up, forward and down, each from a fresh
-grip](figures/humanoid_bar.png)
+`pull`'s most, 20 N, back, up and forward, each from a fresh grip; the
+fourth grip, for down, stopped 4-5 cm short of the bar on its way in and
+its jaws shut on nothing](figures/humanoid_bar.png)
 
 (`MUJOCO_GL=egl uv run python scripts/humanoid_spike.py --strip bar --out
 docs/figures/humanoid_bar.png`; `--view bar` in the viewer.)
 
 **What is true now:** against something that holds the hand, a pull takes
 no posture but the first -- unless its grip rolls off the turn it was
-given -- and ends held fast; it can still put 1.5-2.4 times its ask on what
-it holds along the ways a straight arm cannot feel, and the grip slides on
-a bar at 20 N.
+given -- and ends held fast; it can still put 1.7-2.2 times its ask on what
+it holds, which is its loop's (the next section), and the grip slides on a
+bar at 20 N.
+
+## A hand's force off the whole body (issue #547, stage 2)
+
+A load along a nearly straight arm goes through its structure, not its
+motors, so the arm's torques cannot read it; but whatever the world pushes
+on the robot other than at its soles comes off the ground under them, and
+standing, the legs' drivers read that. `SelfModel.felt` reads a hand's
+force off the WHOLE body's: the robot's balance standing still -- its
+weight against what every motor pushes with, G = Sᵀτ + ΣJᵀw -- solved in
+least squares for each sole's wrench and the hand's force and twist about
+its grip, over the trunk's six rows (no motor pushes there), each leg's
+joints and the working arm's. Each row is weighed by what it cannot know:
+a still joint's friction (the arms' as calibrated, the legs' their
+drawing's 0.3-0.6 N·m), and on the trunk's rows the motion a balance taken as
+still leaves out (2 N, 1 N·m). A joint whose encoder reads it on its stop
+is left out, the hand's twist is taken as about 1 N·m, and a balance whose
+rows will not agree reads nothing (`CLOSES`). The reach reads
+it for a hand at work -- on its way in, holding, carried, pulling, stopped
+or on its way out -- while the standing policy has the legs, which the
+mission says every step (`Reach.standing`, off until it is said: the
+spike's walkers step a reach too); otherwise, a hand moved joint by joint
+or at rest included, and walking (a sole in the air), the arm's own
+(`Reach.arm_force`). A read costs 0.16 ms, the arm's 0.07.
+
+**The bench** (`humanoid_spike.py --feel`): 20 N staged at the grip, the
+left hand held by the reach where #544's locked bar is (0.84 m up, 0.43 m
+ahead), along each of the 14 ways; along the way and across it over the
+hold's last second, and the worst along it from the build's start (0.25
+s); still, and swaying -- the trunk's pitch ±0.1 rad at 0.4 Hz, the pelvis
+4 cm down and up at 0.25 Hz:
+
+| the hand's reading | still: along, N | across | worst | swaying: along | across | worst |
+|---|---|---|---|---|---|---|
+| its arm's own | 2.4-20.5 (forward 5.4, forward-down 2.4, back-up 9.1, up 12.3) | to 9.8 | to 19.8 | 1.5-20.1 | to 9.9 | to 25.0 |
+| the whole body's | 19.7-20.2, every way | to 1.0 | 3.6-16.2 | 18.6-20.9 | to 2.1 | 3.7-15.8 |
+
+What each piece is for, each measured on the same bench:
+- *The legs alone* -- the soles' reaction less the weight -- read 7.7 N
+  down with nothing at the hand: the still knees' and hips' friction holds
+  part of the weight, and a vertical force has a poor lever on a nearly
+  straight leg. The balance's moment rows and the arm's rows take it to
+  0.3.
+- *A joint on its stop*: pushed away and up, the arm straightened onto its
+  elbow's stop, which held 3.1 N·m its motor never saw, and read in the
+  hand read 11 N for 20.
+- *The twist*: taken as a force alone, the hand read best on the bench
+  (rms 2.0 N) and on the bar, but grips twist what they hold -- 0.7-1.7
+  N·m on average on the hands check's, under 4 in 19 readings of 20 -- and
+  read the jobs 1.3-3 times worse (below); left free, it read 180 N for an
+  instant on the bar.
+- *A balance that does not close*: dragged onto a sole's edge by
+  `--hold`'s hardest pull (a sole 28 deg off flat, the grip slipping), the
+  balance read the hand's pull 60 N the wrong way while the arm read the
+  truth. What its rows miss by, weighed and shared over its spare rows, was
+  0.6 at the median and 28 at the 99th percentile over the bench, the bar
+  and the jobs, and 225-727 there; past 50 it reads nothing and the arm's
+  stands (0.7 % of the jobs' readings, where the arm read truer).
+- *The body's motion*: the worst from the build's start is it -- the
+  body's centre of mass sped up by the push before the feet push back, up
+  to 9 N pulling back. With nothing at the hand, a posture change's first
+  second reads 6-8 N (the arm 1.5-2.4), 0.8-1.1 two seconds on. A
+  dynamics estimate off the robot's own senses (the joints' speeds, the
+  gyro, the planted soles) halved that, to 3-4.5 N, adding noise standing
+  still (1.1-1.4), and is left out: while a posture comes, a pull's
+  command only backs off and an approach has not begun.
+
+**On the jobs** (`hands_check.py` flown as it stands, 32 flights, the
+readings computed in shadow beside the truth -- every contact on the hand
+from outside the robot; rms error in 3-D against the hand's true 0.1 s
+mean force while it held something):
+
+| the hand's reading | lid | drawer | door | cube | the bar, 10 / 20 N |
+|---|---|---|---|---|---|
+| its arm's own | 7.4 | 7.7 | 5.0 | 27.7 | 6.1 / 7.7 |
+| the whole body's | 4.1 | 5.2 | 2.6 | 4.7 | 3.0 / 4.0 |
+| ...a force alone, no twist | 6.0 | 6.9 | 4.4 | 14.1 | 2.3 / 2.9 |
+
+⚠ Everything the world pushes on but the soles reads as the hands'. Staged
+on the robot's model of itself, 20 N sideways on the resting forearm read
+as 6.8 N at the working hand and 20 N on a thigh as 5.0 (the working arm's
+own rows outvote most of it: 1 kg in the resting hand read 0.8); on the
+cube's job, in the 4 % of its readings where some other part of the robot
+touched the world, the whole body read 5.9 N rms off, the arm 4.1. ⚠ And
+in free air a long pull's hardest reading rides higher: pulling up 0.3 m
+at 4 N with nothing held, `pull.force` read 3.6 N off the whole body
+where the arm's read 2.1 -- near a procedure's "it pressed" of 3 N (the
+cube's set-down, 0.1 m, read 2.4 either way).
+
+**On the locked bar** (`--bar`, the hardest 0.1 s mean on the bar), the
+force move closed on it: at 10 N asked 23.7 → 21.8 N, at 20 N 36.1 →
+33.5. What the hand read now is what the bar took (pulling up at 20 N:
+32.1 read, 33.5 on the bar, where the arm read 21.6 of 36.1). ⚠ THE REST
+IS THE LOOP'S: closed on the bar's TRUE force (an oracle, ours), the move
+put 17.0 N on it for 10 asked and 34.8 for 20 -- and with that force
+smoothed over 0.02 s instead of `ADMIT_SMOOTH_S`'s 0.1, 14.2 and 30.8.
+
+**A standing policy shown it falls.** stand12 (#544's
+`Pluggy-Humanoid-Stand-Felt`, trained shown its hand's true force) shown
+the arm's reading held 550 N summed over the 14 ways of `--pulls`; shown
+the whole body's, it fell at 20 N on every way. That reading is the legs'
+torques, which are the policy's own commands: what it is shown moves as it
+moves. A felt policy would have to be trained with that reading in its
+loop.
+
+**Against the procedures** -- the old reading and the new, flown on one
+machine (#535's references beside the hands check):
+
+| flown on one machine | the arm's reading | the whole body's |
+|---|---|---|
+| the hands check: lid, drawer, door, cube, 8 set-outs each | 7, 3, 7, 3 | 7, 3, 7, 4 (the cube's set-out 6) |
+| the opener (#535's reference, 32 chests) | 23 of 32 | 23 of 32, the same chests |
+| the door on its 32 held-out set-outs | 19 of 32, 2 falls | 21 of 32, none lost, 3 falls |
+
+The third fall is at a set-out both fail: the hand's way in pushed the
+lever 30-66 N, which both readings read (22-62 N); the old stopped that
+reach short, the new one's dipped under `BLOCKED_N` before `BLOCKED_S`
+was out, so the hand went on, its jaws shut on nothing six times, and the
+last way home fell.
+
+![The `feel` scene: the left hand held out where the bar would be, 20 N
+staged at its grip pulling back, then pushing away, away and down, and up,
+what its arm read of each and what the whole body read](figures/humanoid_feel.png)
+
+(`MUJOCO_GL=egl uv run python scripts/humanoid_spike.py --strip feel --out
+docs/figures/humanoid_feel.png`; `--view feel` in the viewer.)
+
+**What is true now:** a hand at work, standing, reads its force off the
+whole body -- within a newton every way on the bench, the ways a straight
+arm cannot feel included, and 2.6-5.2 N rms on the jobs -- and the force
+move closes on it; against something that holds the hand, the move still
+puts 1.7-2.2 times its ask on it, which is its loop's, not its reading's.
 
 ## Debugging workflow that worked
 
