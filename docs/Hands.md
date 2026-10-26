@@ -7,9 +7,10 @@ around it, the capability check that gates it, and the migration from
 library stand on this vocabulary.
 
 Read alongside:
-- `docs/SimNotes.md`, "The force move (issue #525)" and "Stepping toward
-  the work" -- how each number here was measured. This doc says what the
-  constraint is.
+- `docs/SimNotes.md`, "The force move (issue #525)", "Stepping toward
+  the work" and the force move's three #547 sections, to "The force loop"
+  -- how each number here was measured. This doc says what the constraint
+  is.
 - `docs/Challenges.md` §10 -- the three new checks' graders.
 - `docs/Evaluation.md` §4 -- practice first, and the arms the vocabulary
   replaces.
@@ -119,14 +120,19 @@ switches on wherever there are hands (`steps.hand_facts`): a verb may be an
 
 - **Along its way, the force is CLOSED on what the hand feels**
   (admittance) -- off the whole body, standing (`SelfModel.felt`, #547):
-  the command walks at `speed` while the hand pushes under
-  half `force` along the way, slows to a stand as it reaches it, and backs
-  off past it -- `speed * clip(2 (force - along) / force, -1, 1)`, the
-  reading smoothed over `ADMIT_SMOOTH_S` -- and leads the hand by
-  `LEAD_MAX_M` at most, backing off past its force while its body takes a
-  posture too (#547: stood still, it held on reading 15 times its force).
-  ⚠ Never the arm's spring as a force cap: its model put three times the
-  limit on a drawer's stop.
+  the command walks at `speed` while the force a moment ahead -- the
+  hand's reading over `ADMIT_SMOOTH_S`, carried `AHEAD_S` on at the rate it
+  rises -- is under half `force` along the way, slows to a stand as it
+  reaches it, and backs off past it twice as fast (`BACK_SPEED`) --
+  `speed * clip(2 (force - ahead) / force, -1, 1)`, doubled backing off --
+  and leads the hand by `LEAD_MAX_M` at most, backing off past its force
+  while its body takes a posture too (#547: stood still, it held on reading
+  15 times its force). A hand GOING along its way is only slowed by where
+  its force is going, and backs off past it as read, at its speed. ⚠ Closed
+  on its force as it stood, it built over 100 N/s against a locked bar and
+  put 1.7 times its ask on it, even closed on the bar's true force (#547;
+  SimNotes, "The force loop"). ⚠ Never the arm's spring as a force cap:
+  its model put three times the limit on a drawer's stop.
 - **Across it, GIVING (`give` 1), the hand goes where what it holds pushes
   it**: the command follows the hand across the way, no faster than
   `ACROSS_SPEED` times its speed -- hybrid force and position, the hinge
@@ -146,14 +152,17 @@ switches on wherever there are hands (`steps.hand_facts`): a verb may be an
   short of its way while a fresh seed of the same posture "reached". ⚠ A
   HAND HELD TAKES NONE: one not going (`GO_ON_M` along its way in `GO_S`)
   whose command is out of reach where the hand itself is not keeps its
-  command where the arm last reached -- against a hand held, the
-  command's lead is the miss, and postures taken for it put 30-100 N on a
-  locked bar for an ask of 10-20 (#547). One the arm cannot hold where it
-  is takes one as before.
+  command where the arm last reached, backing off toward the hand past its
+  force -- against a hand held, the command's lead is the miss, and
+  postures taken for it put 30-100 N on a locked bar for an ask of 10-20;
+  frozen there, 21-24 N stood on it for 20 (#547). One the arm cannot hold
+  where it is takes one as before.
 - **It stops** at `distance` along its way ("distance"); held fast -- the
   hand moved under `FAST_M` in `FAST_S` pushing at least `FAST_SHARE` of
-  its force, or went nowhere along its way that long with its command as
-  far ahead as it may go, whatever it read; a grip it began with lost
+  its force over `MEAN_S`, or went nowhere along its way that long with its
+  command as far ahead as it may go: at its lead's end whatever it read, at
+  its arm's reach only pushing that share, else out of reach (in free air,
+  past the arm's reach, it said held fast: #547); a grip it began with lost
   ("let go"); out of reach; its feet moved; out of time. Then it holds
   where the hand is.
 - **Its report** is how far it went, the hardest it pushed along its way
@@ -298,12 +307,13 @@ no new help") -- tries a fall now fails (#544).
   N, but the robot's readings will not do: its arm's is too rough, and
   shown the whole body's -- the legs' torques, the policy's own commands --
   it fell at 20 N every way (#547).
-- **Hold a pull at its force against what holds the hand.** The hand
-  reads it (`humanoid_spike.py --feel`: 19.7-20.2 N for 20 every way, the
-  ways along a straight arm included), but a pull on a locked bar still
-  puts 1.7-2.2 times its ask on it -- its loop's, not its reading's:
-  closed on the bar's true force it put 1.7 (#547; SimNotes, "A hand's
-  force off the whole body").
+- **Hold a pull up at its force against what holds the hand.** Closed on
+  a locked bar's true force the move keeps within a quarter of its ask
+  every way (`humanoid_spike.py --bar --oracle`: at most 1.2 times), and on
+  the robot's own reading every way but up: pulled up, the grip turns on
+  the bar, the arm's joints swing, and the whole body's reading runs 2-10 N
+  under the truth while they do -- 13.9 N for 10, 32.7 for 20 (#547;
+  SimNotes, "The force loop"). Once built, it holds 0.8-0.9 of its ask.
 - **Tell its hand from the rest of it.** The whole body's reading is
   everything the world pushes on the robot but at its soles: a forearm on
   a counter's edge reads as the hand's push.
