@@ -1138,9 +1138,13 @@ class Reach:
       if there is not None:
         # HELD (`GO_ON_M`): the command stays where the arm last reached --
         # backing off, a share of the way to the hand, its arm's joints as
-        # far toward those that reach it
+        # far toward those that reach it, none faster than `JOINT_RATE` (a
+        # setpoint is ramped, never written across a gap: the solve that
+        # reaches the hand begins where one that missed left the arm)
         lead = float((prev - h) @ w)
         back = min(1.0, -rate * dt / lead) if rate < 0.0 and lead > 0.0 else 0.0
+        gap = float(np.abs(there - self.q_cmd[side]).max())
+        back = min(back, JOINT_RATE * dt / gap) if gap > 0.0 else back
         c.pos, c.rot, pinned = prev + back * (h - prev), prev_rot, True
         q, ep, er = self.q_cmd[side] + back * (there - self.q_cmd[side]), self.miss[side], 0.0
         pv["beyond"] = True

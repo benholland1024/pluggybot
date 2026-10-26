@@ -341,22 +341,26 @@ def test_a_held_hand_backs_off_past_its_force_toward_where_it_is():
   command goes back a share of the way to the hand, and its arm's joints as
   far toward those that reach it."""
   way = np.array([0.0, 0.0, 1.0])
-  r = _pulling(way)
-  r._pulled("left", DT, H, np.eye(3))
-  lead = _along(r, way)
-  reached = r.cmd["left"].pos.copy()
-  r.self_model.solve = _reaching_only([H.copy()])
-  r.q_cmd["left"] = np.ones(len(hm.ARM))
-  # 11 N on an ask of 10, its readings as they stand: back off at
-  # `BACK_SPEED` times its speed, a fifth of the way past its ask
-  r.force["left"] = 11.0 * way
-  r.pulls["left"]["f"] = r.pulls["left"]["fm"] = r.force["left"].copy()
-  r._pulled("left", DT, H, np.eye(3))
-  share = rc.BACK_SPEED * 0.2 * rc.HOLD_SPEED * DT / lead
-  assert 0.0 < share < 1.0
-  assert np.allclose(r.cmd["left"].pos, reached + share * (H - reached))
-  # (the solve that reaches the hand answers zeros)
-  assert np.allclose(r.q_cmd["left"], 1.0 - share)
+  # (the solve that reaches the hand answers zeros: its arm a joint gap off)
+  for gap in (0.01, 1.0):
+    r = _pulling(way)
+    r._pulled("left", DT, H, np.eye(3))
+    lead = _along(r, way)
+    reached = r.cmd["left"].pos.copy()
+    r.self_model.solve = _reaching_only([H.copy()])
+    r.q_cmd["left"] = np.full(len(hm.ARM), gap)
+    # 11 N on an ask of 10, its readings as they stand: back off at
+    # `BACK_SPEED` times its speed, a fifth of the way past its ask -- no
+    # joint faster than `JOINT_RATE` (a setpoint is never written across a
+    # gap)
+    r.force["left"] = 11.0 * way
+    r.pulls["left"]["f"] = r.pulls["left"]["fm"] = r.force["left"].copy()
+    r._pulled("left", DT, H, np.eye(3))
+    share = min(rc.BACK_SPEED * 0.2 * rc.HOLD_SPEED * DT / lead, rc.JOINT_RATE * DT / gap)
+    assert 0.0 < share < 1.0
+    assert np.allclose(r.cmd["left"].pos, reached + share * (H - reached)), gap
+    assert np.allclose(r.q_cmd["left"], gap * (1.0 - share)), gap
+  assert share == pytest.approx(rc.JOINT_RATE * DT)
   # ...and under its ask it stays where the arm last reached
   r.force["left"] = 5.0 * way
   r.pulls["left"]["f"] = r.pulls["left"]["fm"] = r.force["left"].copy()
