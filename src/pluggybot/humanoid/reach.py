@@ -1083,7 +1083,15 @@ class Reach:
     along = float(fm @ w)
     st["peak"] = max(st["peak"], along)
     x = 2.0 * (limit - float(f @ w) - AHEAD_S * rise) / limit
-    rate = self.speed[side] * (min(1.0, x) if x >= 0.0 else BACK_SPEED * max(-1.0, x))
+    if going and x < 0.0:
+      # ...but a hand GOING along its way builds no force against what holds
+      # it: where its force is going only slows it, and it backs off past its
+      # force as read, at its speed -- the whole body's reading rides 4-5 N
+      # on a hand moving in free air, and backed off on where that went, a 4
+      # N pull up 0.3 m stopped after 1.1 cm (#547)
+      rate = self.speed[side] * min(0.0, max(-1.0, 2.0 * (limit - float(f @ w)) / limit))
+    else:
+      rate = self.speed[side] * (min(1.0, x) if x >= 0.0 else BACK_SPEED * max(-1.0, x))
     if settling:
       # ...standing while its body takes a posture, but backing off: stood
       # still, it held on reading 15 times its force as a posture stood the

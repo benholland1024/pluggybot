@@ -124,6 +124,26 @@ def test_a_pull_is_closed_on_its_force_a_moment_ahead_at_the_rate_it_rises():
     assert _along(r, way) - went == pytest.approx(pace * rc.HOLD_SPEED * DT), (before, now)
 
 
+def test_a_hand_going_along_its_way_is_only_slowed_by_where_its_force_is_going():
+  """A hand going along its way builds no force against what holds it: the
+  whole body's reading rides 4-5 N on a hand moving in free air, and backed
+  off on where that went, a 4 N pull up 0.3 m stopped after 1.1 cm (#547).
+  So going, the force a moment ahead stands it at most, and it backs off
+  past its force as read, at its speed."""
+  way = np.array([0.0, 0.0, 1.0])
+  for now, pace in ((8.0, 0.0), (12.0, -0.4)):
+    r = _pulling(way, distance=1.0)
+    r.force["left"] = 2.0 * way
+    step = 1.1 * rc.GO_ON_M / 3.0
+    for k in range(1, 4):
+      r._pulled("left", DT, H + step * k * way, np.eye(3))
+    went = _along(r, way)
+    # rising from 2 N to `now` in one command: well past its ask, a moment on
+    r.force["left"] = now * way
+    r._pulled("left", DT, H + step * 4 * way, np.eye(3))
+    assert _along(r, way) - went == pytest.approx(pace * rc.HOLD_SPEED * DT), now
+
+
 def test_a_pull_reports_a_slower_reading_than_it_is_closed_on():
   """The loop reads the hand over `ADMIT_SMOOTH_S`; the hardest it pushed --
   `pull.force`, a procedure's "it pressed" -- and held fast over `MEAN_S`
