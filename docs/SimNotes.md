@@ -5932,7 +5932,10 @@ along its way is only slowed by where its force is going, and backs off past
 its force as read, at its speed: the whole body's reading rides 4-5 N on a
 hand moving in free air, and backed off on where that went, a 4 N pull up
 0.3 m stopped after 1.1 cm (the old loop went the 30 cm; going, it does in
-8.1 s, and the bar's numbers are unmoved: no held hand goes). A held hand
+8.1 s, and the bar's numbers are unmoved: no held hand goes). ⚠ A hand that
+meets a stop reads as going for up to `GO_S` (1.5 cm in a second), and backs
+off there only on the force as read: no measure here meets a stop at speed.
+A held hand
 pinned where its arm last reached backs off a share of the way toward the
 hand, its arm's joints as far toward those that reach it, none faster than
 `JOINT_RATE` (that solve begins where a missed one left the arm, so at a

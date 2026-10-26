@@ -144,7 +144,7 @@ MEAN_S, FAST_M, FAST_S, FAST_SHARE = 0.1, 0.004, 0.6, 0.8
 #: ...the force it is CLOSED on is that reading over this long, s, carried
 #: this far ahead, s, at the rate it rises, read over this long, s: the move
 #: slows before the force reaches its ask, not once it has. ⚠ Closed on
-#: `MEAN_S`'s reading as it stood, it built 100-200 N/s on a locked bar and
+#: `MEAN_S`'s reading as it stood, it built over 100 N/s on a locked bar and
 #: put 1.7 times its ask on it before it read the ask -- closed even on the
 #: bar's true force (#547)...
 ADMIT_SMOOTH_S, AHEAD_S, RISE_SMOOTH_S = 0.03, 0.1, 0.08
@@ -161,7 +161,7 @@ BACK_SPEED = 2.0
 #: bar stood at 21-24 N for 20 while its body leaned on it), and pinned
 #: there pushing under `FAST_SHARE` of its force, it is out of reach, not
 #: held fast (in free air, a pull past the arm's reach was "held fast" after
-#: 1.2 cm, #547). ⚠ AGAINST A HAND HELD, THE COMMAND'S LEAD IS THE
+#: 1.1 cm, #547). ⚠ AGAINST A HAND HELD, THE COMMAND'S LEAD IS THE
 #: SOLVE'S MISS: postures taken for it bowed, crouched and stood the body up
 #: with the hand on a locked bar, 30-100 N on the bar for a pull asked
 #: 10-20, and 7 ways in 14 never ended (#547). ⚠ BUT A HAND ITS ARM CANNOT
@@ -1084,11 +1084,12 @@ class Reach:
     st["peak"] = max(st["peak"], along)
     x = 2.0 * (limit - float(f @ w) - AHEAD_S * rise) / limit
     if going and x < 0.0:
-      # ...but a hand GOING along its way builds no force against what holds
-      # it: where its force is going only slows it, and it backs off past its
-      # force as read, at its speed -- the whole body's reading rides 4-5 N
-      # on a hand moving in free air, and backed off on where that went, a 4
-      # N pull up 0.3 m stopped after 1.1 cm (#547)
+      # ...but a hand GOING along its way is held by nothing: where its force
+      # is going only slows it, and it backs off past its force as read, at
+      # its speed -- the whole body's reading rides 4-5 N on a hand moving in
+      # free air, and backed off on where that went, a 4 N pull up 0.3 m
+      # stopped after 1.1 cm (#547). ⚠ One that meets a stop goes on reading
+      # as going for up to `GO_S`.
       rate = self.speed[side] * min(0.0, max(-1.0, 2.0 * (limit - float(f @ w)) / limit))
     else:
       rate = self.speed[side] * (min(1.0, x) if x >= 0.0 else BACK_SPEED * max(-1.0, x))
