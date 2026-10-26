@@ -5,8 +5,10 @@ them are `scripts/hands_check.py`'s.
 
   1. along its way a pull's command walks at its speed while the hand
      pushes under half its force, slows as it nears it, stands at its
-     force, and backs off past it -- while its body takes a posture too:
-     the force is CLOSED on what the hand feels (admittance);
+     force, and backs off past it, faster than it walked in -- while its
+     body takes a posture too: the force is CLOSED on what the hand feels
+     (admittance), a moment ahead at the rate it rises, and what it reports
+     is a slower reading's;
   2. across its way, giving, the command follows the hand, no faster than
      its cap; holding, it keeps its line (hybrid force and position);
   3. its turn gives toward what it holds, but never about the jaws' own
@@ -18,7 +20,9 @@ them are `scripts/hands_check.py`'s.
      reports the way the hand was last going;
   5. a hand going on takes another posture from its arm as it is, never
      from a seed, never one it has left -- and a hand HELD, its arm reaching
-     it, takes none: its command stays where the arm last reached;
+     it, takes none: its command stays where the arm last reached, or backs
+     off toward the hand, and pinned there it is held fast only pushing its
+     force, else out of reach;
   6. a grip is shut with the force asked, inside the gripper's sheet, and
      judged against it, on its squeeze's running mean;
   7. `spot` bows until it sees and stands up again, and says which way the
@@ -40,7 +44,8 @@ from pluggybot.procedure import steps as st
 from test_hands import _bare, _bare_reach, _fly, _out_hand
 
 H = np.array([0.30, 0.20, 0.95])
-DT = rc.ADMIT_SMOOTH_S
+# a command as long as the slowest reading: every reading is the force as set
+DT = max(rc.ADMIT_SMOOTH_S, rc.MEAN_S, rc.RISE_SMOOTH_S)
 
 
 def _pulling(way, force=10.0, distance=0.2, give=True, rot=None, held=False):
@@ -82,16 +87,56 @@ def test_a_pull_walks_while_it_pushes_light_stands_at_its_force_and_backs_off_pa
   r.force["left"] = 10.0 * way
   r._pulled("left", DT, H, np.eye(3))
   assert _along(r, way) == pytest.approx(0.0)
-  r = _pulling(way)
-  r.force["left"] = 20.0 * way
-  r._pulled("left", DT, H, np.eye(3))
-  assert _along(r, way) == pytest.approx(-rc.HOLD_SPEED * DT)
+  # ...past it faster than it walks in (#547: no faster, a body leaning on
+  # a held hand kept the force over its ask)
+  for force, pace in ((12.0, -0.4 * rc.BACK_SPEED), (20.0, -rc.BACK_SPEED), (40.0, -rc.BACK_SPEED)):
+    r = _pulling(way)
+    r.force["left"] = force * way
+    r._pulled("left", DT, H, np.eye(3))
+    assert _along(r, way) == pytest.approx(pace * rc.HOLD_SPEED * DT), force
+  assert rc.BACK_SPEED > 1.0
   # ...at its speed to half its force, and slowing past it
   for share, pace in ((0.5, 1.0), (0.75, 0.5)):
     r = _pulling(way)
     r.force["left"] = share * 10.0 * way
     r._pulled("left", DT, H, np.eye(3))
     assert _along(r, way) == pytest.approx(pace * rc.HOLD_SPEED * DT), share
+
+
+def test_a_pull_is_closed_on_its_force_a_moment_ahead_at_the_rate_it_rises():
+  """Closed on its force as it stood, the move built 100-200 N/s on a
+  locked bar and put 1.7 times its ask on it before it read the ask, even
+  closed on the bar's true force (#547)."""
+  way = np.array([0.0, 0.0, 1.0])
+  assert rc.AHEAD_S > 0.0
+  # 5 N rising from 3 slows it where 5 stood would not, 8 rising from 2 backs
+  # it off under its ask of 10, and 4 falling from 6 walks it on at its speed
+  for before, now in ((3.0, 5.0), (2.0, 8.0), (6.0, 4.0)):
+    r = _pulling(way)
+    r.force["left"] = before * way
+    r._pulled("left", DT, H, np.eye(3))
+    went = _along(r, way)
+    r.force["left"] = now * way
+    r._pulled("left", DT, H, np.eye(3))
+    ahead = now + rc.AHEAD_S * (now - before) / DT
+    x = 2.0 * (10.0 - ahead) / 10.0
+    pace = min(1.0, x) if x >= 0.0 else rc.BACK_SPEED * max(-1.0, x)
+    assert _along(r, way) - went == pytest.approx(pace * rc.HOLD_SPEED * DT), (before, now)
+
+
+def test_a_pull_reports_a_slower_reading_than_it_is_closed_on():
+  """The loop reads the hand over `ADMIT_SMOOTH_S`; the hardest it pushed --
+  `pull.force`, a procedure's "it pressed" -- and held fast over `MEAN_S`
+  (in free air the whole body's reading rides 3.6 N on a 4 N pull, #547)."""
+  assert rc.ADMIT_SMOOTH_S < rc.MEAN_S
+  way = np.array([0.0, 0.0, 1.0])
+  r = _pulling(way)
+  r._pulled("left", rc.ADMIT_SMOOTH_S, H, np.eye(3))
+  r.force["left"] = 10.0 * way
+  r._pulled("left", rc.ADMIT_SMOOTH_S, H, np.eye(3))
+  st = r.pulls["left"]
+  assert float(st["f"] @ way) == pytest.approx(10.0)
+  assert st["peak"] == pytest.approx(10.0 * rc.ADMIT_SMOOTH_S / rc.MEAN_S)
 
 
 def test_a_giving_pull_follows_the_hand_across_its_way_and_a_holding_one_keeps_its_line():
@@ -232,22 +277,29 @@ def test_a_held_hand_whose_arm_reaches_it_takes_no_posture_and_ends_held_fast():
   """Against a hand held, the command's lead is the solve's miss: postures
   taken for it bowed, crouched and stood the body up with the hand on a
   locked bar, 30-100 N on it for a pull asked 10-20, and 7 ways in 14 never
-  ended (#547)."""
+  ended (#547). Pinned there pushing its force it is held fast; pushing
+  nothing -- in free air, past the arm's reach -- it can reach no further
+  (it was "held fast" after 1.2 cm, #547)."""
   way = np.array([0.0, 0.0, 1.0])
-  r = _pulling(way)
-  hand = [H.copy()]
-  r.posture_for = lambda side, pos, rot=None, onward=False, past=(): (0.0, 0.3)
-  r._pulled("left", DT, H, np.eye(3))
-  reached = r.cmd["left"].pos.copy()
-  r.self_model.solve = _reaching_only(hand)
-  for _ in range(int((rc.REPLAN_S + rc.FAST_S) / DT) + 2):
-    if r.pulls["left"] is None:
-      break
+  for force, why in ((9.0, "held fast"), (0.0, "out of reach")):
+    r = _pulling(way)
+    hand = [H.copy()]
+    r.posture_for = lambda side, pos, rot=None, onward=False, past=(): (0.0, 0.3)
     r._pulled("left", DT, H, np.eye(3))
-    if r.pulls["left"] is not None:
-      assert np.allclose(r.cmd["left"].pos, reached)
-  assert r.postures == [] and r.report["left"]["why"] == "held fast"
-  assert r.report["left"]["force"] == 0.0
+    reached = r.cmd["left"].pos.copy()
+    r.self_model.solve = _reaching_only(hand)
+    # pushing a force under its ask that does not move the command (its
+    # reading as it stands)
+    r.force["left"] = force * way
+    r.pulls["left"]["f"] = r.pulls["left"]["fm"] = r.force["left"].copy()
+    for _ in range(int((rc.REPLAN_S + rc.FAST_S) / DT) + 2):
+      if r.pulls["left"] is None:
+        break
+      r._pulled("left", DT, H, np.eye(3))
+      if r.pulls["left"] is not None:
+        assert np.allclose(r.cmd["left"].pos, reached)
+    assert r.postures == [] and r.report["left"]["why"] == why, force
+    assert r.report["left"]["force"] == force
   # ...but a hand going takes one, as one its arm cannot hold where it is
   for going, reaches in ((True, True), (False, False)):
     r = _pulling(way, distance=1.0)
@@ -263,11 +315,42 @@ def test_a_held_hand_whose_arm_reaches_it_takes_no_posture_and_ends_held_fast():
     assert r.postures == [(0.0, 0.3)], (going, reaches)
 
 
+def test_a_held_hand_backs_off_past_its_force_toward_where_it_is():
+  """Held where the arm last reached, a pull on a locked bar stood at 21-24
+  N for 20 while its body leaned on the hand (#547): backing off, its
+  command goes back a share of the way to the hand, and its arm's joints as
+  far toward those that reach it."""
+  way = np.array([0.0, 0.0, 1.0])
+  r = _pulling(way)
+  r._pulled("left", DT, H, np.eye(3))
+  lead = _along(r, way)
+  reached = r.cmd["left"].pos.copy()
+  r.self_model.solve = _reaching_only([H.copy()])
+  r.q_cmd["left"] = np.ones(len(hm.ARM))
+  # 11 N on an ask of 10, its readings as they stand: back off at
+  # `BACK_SPEED` times its speed, a fifth of the way past its ask
+  r.force["left"] = 11.0 * way
+  r.pulls["left"]["f"] = r.pulls["left"]["fm"] = r.force["left"].copy()
+  r._pulled("left", DT, H, np.eye(3))
+  share = rc.BACK_SPEED * 0.2 * rc.HOLD_SPEED * DT / lead
+  assert 0.0 < share < 1.0
+  assert np.allclose(r.cmd["left"].pos, reached + share * (H - reached))
+  # (the solve that reaches the hand answers zeros)
+  assert np.allclose(r.q_cmd["left"], 1.0 - share)
+  # ...and under its ask it stays where the arm last reached
+  r.force["left"] = 5.0 * way
+  r.pulls["left"]["f"] = r.pulls["left"]["fm"] = r.force["left"].copy()
+  r.pulls["left"]["rise"] = 0.0
+  at, q = r.cmd["left"].pos.copy(), r.q_cmd["left"].copy()
+  r._pulled("left", DT, H, np.eye(3))
+  assert np.allclose(r.cmd["left"].pos, at) and np.allclose(r.q_cmd["left"], q)
+
+
 def test_a_pull_backs_off_past_its_force_while_its_body_takes_a_posture():
   """Stood still, it held on reading 15 times its force as a posture stood
   the body up with the hand on a locked bar (#547)."""
   way = np.array([0.0, 0.0, 1.0])
-  for force, pace in ((20.0, -1.0), (5.0, 0.0)):
+  for force, pace in ((20.0, -rc.BACK_SPEED), (5.0, 0.0)):
     r = _pulling(way)
     r.pulls["left"]["postured"] = 0.0
     r._posture_held = lambda: False
