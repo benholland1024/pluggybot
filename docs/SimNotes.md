@@ -6027,6 +6027,58 @@ and on the robot's own reading every way but up, where the reading lags a
 turning grip (1.4-1.6 times); once built it holds 0.8-0.9 of its ask, and
 pinned past its arm's reach pushing light, it says out of reach.
 
+## A move that stops on a reading (issue #554, stage 1)
+
+A procedure reacts between verbs, about twice a second, and a verb runs to
+its own ends; #544's lid arms lost the lid inside one pull, past the drop
+handle's stop. `reach`, `move_hand` and `pull` may now each stop on one
+reading (docs/Hands.md §3's end): `steps._guarded_routine` drives the
+body's routine as `yield from` would, reads the sensor once the routine has
+begun its move and then once each `Sensor.every_s` -- a hand's place, force
+and grip, and the clock, once a command of its arm's -- and on the first
+reading past its number asks `Body.stop_hand`, which stops the move where
+it is (`Reach.halt`): a carry or a pull through the stop its patience
+already used (`Reach.stop`: held where the hand IS), a reach on its line in
+as one stopped on its way (`blocked`), a reach walking out in joint space
+at its joints' command, out at the grip they put it at. Until a move is
+under way, the stop answers no and the guard reads again at its rate: a
+reach's first steps wait out a get-up. A reading's rate is rounded UP to
+physics steps, so a part is never read oftener than it reads (33 ms is 17
+steps of 2 ms, not 16).
+
+**Flown, the humanoid on a bare floor** (`tests/test_guard.py`'s flight):
+a carry up at 6 cm/s told to stop past 1.15 m read 1.151 and stopped there,
+the grip truly at 1.150 and 1.150 a second on; a pull up at 10 N told to
+stop past 1.2 read 1.201, truly 1.1998, and 1.2006 a second on. A
+reading's lag is one command (10 ms, 0.6 mm at 6 cm/s) and the stop's
+another.
+
+**What a moving hand's force reads.** Carried 30 cm across in free air,
+the right hand's whole-body force read 11-17 N AHEAD in its first half
+second -- the balance takes the body as still, and the start of a move is
+not -- then under 6 N ahead, 4.4 N across and 2.7 N up for the rest; a
+carry up read 17 N ahead at its start. A stop condition on a force from a
+move's start reads that start: the prompt's example stops at 10 N across,
+over the 4.4 its own carry read that way.
+
+**The scene** (`scripts/hands_check.py --view until K`): our lid procedure
+with its lift stopped on the hand's height 10 cm up, held two seconds,
+then lifted the rest of the way (`0.27 - read("pull.moved")`) and set down:
+set-outs 0, 1 and 3 passed, the lid set down from 61-63 deg. Lifted the
+whole 0.27 m again after the stop, it opened to 94 deg and stayed open.
+
+![The `until` scene at set-out 1: the lid's lift stopped on its hand's
+height, the lid held part open, then lifted on and set
+down](figures/hands_until.png)
+
+(`MUJOCO_GL=egl uv run python scripts/hands_check.py --strip until 1 --out
+docs/figures/hands_until.png`; `--view until 1` in the viewer.)
+
+**What is true now:** a hand's move stops within a command of its reading
+crossing, and holds there; a reading a move changes is read at its part's
+rate and no oftener, from the move's first command; a hand's force read
+from a move's start reads that start.
+
 ## Debugging workflow that worked
 
 1. Reproduce headlessly with printed telemetry (pose, joint rates, contact

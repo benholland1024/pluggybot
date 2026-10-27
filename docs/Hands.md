@@ -70,8 +70,10 @@ and its feet, which the walking policy moves.
    the one thing no composition of position moves can do, because its loop
    closes on what the hand feels every command (100 a second), inside the
    verb. A procedure's loop runs between verbs (100 rounds, 200 verb calls
-   at most); a hinge's steer needs every command. The feet have a move of
-   their own, `step`, with the hands home and empty.
+   at most); a hinge's steer needs every command. Either kind may stop on a
+   reading (#554, §3's end): the one reaction a procedure gets inside a
+   move. The feet have a move of their own, `step`, with the hands home and
+   empty.
 2. **Every report is a sensor, every failure readable.** What a verb did
    rides `read(...)`, and `if verb(...)` reads its failure without ending
    the procedure.
@@ -105,6 +107,28 @@ joint walked to a setpoint -- and the sensors `time` and each hand's place,
 force, `held` and `gap`. A verb that never ran leaves no reading behind,
 and a humanoid with a hand out keeps its posture to look (a bow would carry
 the hand with it).
+
+**A move that stops on a reading** (#554; `steps.GUARDED_VERBS`, behind
+`WorldFacts.guarded`, the practice's flag): `reach`, `move_hand` and `pull`
+each take one stop condition after their own arguments, `until="<sensor>"`
+and `above=N` or `below=N`, N computed as the procedure likes -- §1's
+GUARDED move, its condition any reading a move changes and not only a
+force. The sensor is read as often as its part reads it, and no oftener
+(`Sensor.every_s`): a hand's place, its force (the whole body's reading is
+solved once a command too, #547), its grip and the clock once a command, 100
+a second. It is read from the move's first command, and the first reading
+past N (strictly) stops the move where it is, as its own stops do
+(`Body.stop_hand`, `Reach.halt`): a carry or a pull where the hand IS, a
+reach where its arm is commanded -- out, either way. The verb is ok, its
+verdict says what it read (`until`), and `<verb>.stopped` reads 1. A
+condition already met stops a move before it moves; one never met ends the
+move as it would have ended. What a verb last reported (`spot.*`, `pull.*`)
+no move changes, so it is refused as a stop condition. ⚠ A force read from
+a move's start reads the start itself: carried in free air, a hand's force
+ran 11-17 N ahead for half a second, and then under 6 (SimNotes, "A move
+that stops on a reading", with its scene, `scripts/hands_check.py --view
+until`). No condition knows a job: the robot turns what it wants -- a lid's
+angle, say -- into a reading and a number itself.
 
 **The language** is the served robots' (`procedure/lang.py`), with two
 switches on wherever there are hands (`steps.hand_facts`): a verb may be an
@@ -347,4 +371,8 @@ of 12 (§4's "The readings again, under the new rule").
   pull went (`pull.d*`), to 4 deg coming down but not above 60 opening up.
   A plane fitted to the D435's points is sub-degree where it fits, but the
   trunk's camera, pitched 40 deg down, saw the lid at 45 stops of 55 opening
-  and 17 of 33 lowering: a raised lid leaves its view.
+  and 17 of 33 lowering: a raised lid leaves its view. A move may stop on
+  the hand's place (#554, §3), which is how a procedure acts on an angle
+  inside a move; the angle itself is the procedure's to work out.
+- **Stop on more than one reading, or on what a camera sees as it moves.**
+  One condition a move; a tag watched while moving is #554's stage 2.
