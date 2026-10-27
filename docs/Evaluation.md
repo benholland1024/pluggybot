@@ -1702,6 +1702,73 @@ door procedure fell there): the tip gripped and the lever driven down, the
 door pulled open in twelve 20 N pulls, the hand opened and left still, the
 door 98 deg open through the hold](figures/door_new_rule.png)
 
+**A move that stops on a reading, flown where the lid is lost** (#554's
+stage 1, for #534 and #536). A procedure reacts only between verbs; #544's
+lid arms lost the lid inside one pull, past the drop handle's stop. Now
+`reach`, `move_hand` and `pull` may each stop on one reading
+(docs/Hands.md §3's end): the hand's place, force or grip, or the clock,
+read at its part's rate. Two fresh lid arms and one fresh door arm flew
+with the yardstick's settings at `b56ad3b`. Each was held out over #544's
+set-outs (seed 279510364, its arms' own). The lid arms' kept records then
+flew again, frozen, over a fresh seed that build fixes (2519742295), with
+our opener over it as their reference. A first launch at `0f8ffdc` was
+stopped two hours in when its review found the move's own bugs (SimNotes,
+"A move that stops on a reading"); its door arm read 32 of 32 there, and
+it is no row below.
+
+| arm | practice: set-outs passed, the try each passed at | kept | held out (#544's set-outs) within 3 | within 5 | fresh set-outs within 3 | held-out tries that fell | cost |
+|---|---|---|---|---|---|---|---|
+| lidA | 11 of 16: x x x 8 x 5 6 9 x 4 2 1 5 5 1 7 | chests 10, 11 and 14's | 3 of 10 [0.11, 0.60], all at the first; stopped early | 3 of 10 | 6 of 13 [0.23, 0.71], 4 at the first; stopped early | 5 of 38; 1 of 42 | $2.11 |
+| lidB | 8 of 16: x x 10 x 4 6 x x 8 2 2 x x 4 2 x | chest 14's | 3 of 10 [0.11, 0.60], none at the first; stopped early | 5 of 10 | 1 of 8 [0.02, 0.47]; stopped early | 1 of 43; 2 of 35 | $3.75 |
+| doorA | 9 of 10: 4 1 x 7 4 2 2 1 1 1 | set-outs 6-9's | **29 of 32** [0.76, 0.97], 27 at the first | 29 of 32 | -- | 2 of 46 | $0.87 |
+
+- **The references**, one try each: the opener 15 of 32 over #544's
+  set-outs at `b56ad3b`, the same chests as at `a5bfdba`, and 20 of 32
+  [0.45, 0.77] over the fresh ones, every miss the arm's reach.
+- **The door took nothing from it**: 29 of 32 within 3, 27 at the first
+  try, beside #544's 30 and 32 of 32 over the same set-outs. The arm never
+  wrote a stop condition.
+- **The lid arms used it as the issue guessed they would**: lidA wrote one
+  in 77 of its 103 practice tries, 10 of its 11 passes among them, and its
+  kept skill lifts the knob by a 20 N pull `until="left.z", above=1.05` --
+  "~57+ deg", its notes say -- and lowers it by another `until="left.z",
+  below=0.818`, the jaws closing up and down so the lid cannot turn in them.
+  lidB wrote one in 23 of its 118 practice tries, 2 of its 8 passes among
+  them, and kept a skill with none: 5 cm pulls in a loop, each re-aimed
+  along the arc about a hinge it put 29 cm beyond the knob and 6 cm over it,
+  up until the hand is 26 cm over the knob and back down -- reacting between
+  verbs, as #544's arms did.
+- **...and practice came easier, but held out it did not**: lidA passed
+  11 of 16 practice chests where #544's lid arms passed 7 and 6, and its
+  frozen copies 3 of 10 and 6 of 13 before the early stop, lidB's 3 of 10
+  and 1 of 8 -- beside #544's 1 of 8 and 5 of 12, and fixA's 22 of 29: no
+  gain over the yardstick held out.
+- **...but where the stop was the skill, the lid stopped falling**: lidA's
+  copies let the lid fall in 4 of 38 held-out tries and 9 of 42, lidB's in
+  19 of 43 and 12 of 35 (#544's: 9 of 37 and 21 of 46). lidA's tries were
+  lost at the knob instead: of its 35 failures over #544's set-outs, 17
+  never pulled (its reach out of reach with the jaws turned up and down, or
+  its gripper shut on nothing), 7 lost the grip as the lift began, 5 fell,
+  4 let the lid fall and 2 stopped their lift on its height short of 57 deg
+  -- one height, learned on the practice chests, for every chest; over the
+  fresh set-outs, 16 of 35 never pulled. lidB's were lost at the top as
+  #544's were: 19 of 38 let the lid fall past its stop, and 7 set it down
+  still touching it.
+- **A force read from a move's start reads the start**: lidA's first ten
+  contact stops, `until="left.fx"` past 4-10 N on a carry, all came 0.00 to
+  0.45 s in -- the whole body's reading runs 11-17 N ahead for a moved hand's
+  first half second -- before it moved its stops onto the hand's height.
+- **What they said they lacked** (`lacks.py`): the angle still -- lidA in 37
+  sentences ("I can't measure the lid angle directly"), lidB in 24, the
+  door arm in 10; room, the 1,500-character cap refusing 2, 23 and 5
+  sources.
+- **What it cannot show**: two fresh lid arms, read over two seeds' set-outs
+  each, and which approach a conversation finds deciding as much as the
+  tool: where both fresh arms of #544 lost the lid at its stop, these lost
+  it earlier, at the knob. Stage 2 (a tag watched while the robot moves) is
+  not flown yet. Spend: $7.41 -- the arms $6.73, the stopped launch and the
+  smokes $0.68; the references cost no tokens.
+
 ## 5. What silently invalidates a number
 
 The list this document mostly exists for.

@@ -324,7 +324,12 @@ of 29 within 3, one of them falling in every try (§4's "The door, with
 no new help") -- tries a fall now fails (#544). Told so, with `pull` at
 20 N, two door arms passed 30 and 32 of 32 held-out set-outs within 3 and
 none of their held-out tries fell, while the lid's two passed 1 of 8 and 5
-of 12 (§4's "The readings again, under the new rule").
+of 12 (§4's "The readings again, under the new rule"). Given a move that
+stops on a reading (#554, §3's end), two more lid arms passed 3 of 10 each
+there: the one whose skill stopped its lift on its hand's height let the
+lid fall in 4 of 38 held-out tries where the other let it fall in 19 of 43,
+and lost the knob instead (§4's "A move that stops on a reading, flown
+where the lid is lost").
 
 ## 7. What it does not do
 
