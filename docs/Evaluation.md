@@ -1645,7 +1645,7 @@ four), two on the router at a time:
   frozen over #535's door set-outs too (seed 3510776006, where #535's
   doorB passed 22 of 29 falling every try, and our procedure 18 of 32),
   doorA's skill passes 25 of 32 within 3 and doorB's 31 of 32: 55 and 63
-  of 64 over the two seeds.
+  of 64 over the two seeds, and one try of each fell there.
 - **The lid did not**: lidA's copies passed 1 of 8 within 3 and lidB's 5
   of 12 before the 7th failure stopped them -- beside #535's lid arms read
   without a fall (the table above), 8 of 29, 6 of 25, 2 and 3 of 10, and
@@ -1671,12 +1671,13 @@ four), two on the router at a time:
   new rule and code nor this stage's chests took the lid from that skill,
   though the opener finds these chests harder: the two fresh lid arms
   found worse skills.
-- **Told that a fall fails the try, the robots learned not to fall**: no
-  door copy fell in 78 held-out tries, against #535's doorB's 60 of 60;
+- **Told that a fall fails the try, the robots learned not to fall**:
   doorB fell in 33 of its 90 practice tries, each one failing it, and its
-  notes worked round it until the skill it kept never did. The lid arms
-  fell in 10 of 157 tries and 8 of 167, against fixA's 36 of 59 held out
-  under the old rule.
+  notes worked round it until the skill it kept fell in none of its 32
+  held-out tries and 1 of 38 over #535's door set-outs, where #535's
+  doorB fell in all 60; doorA's fell in none of 46 and 1 of 66. The lid
+  arms fell in 10 of 157 tries and 8 of 167, against fixA's 36 of 59 held
+  out under the old rule.
 - **What they said they lacked** (their thinking and notes, `lacks.py`):
   the thing's angle again -- lidA in 26 sentences, lidB in 44 ("I can't
   read the lid angle directly"), the door arms in 3 each; room again --
