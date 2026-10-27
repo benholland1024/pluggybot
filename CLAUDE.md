@@ -546,9 +546,13 @@ save a filmstrip PNG named after the script.
   `reach`, `move_hand` and `pull` take `until="<sensor>"` and `above` or
   `below`, the sensor read from the move's first command and no oftener
   than its part reads it (`Sensor.every_s`, rounded UP to physics steps; a
-  verb's report has none and is refused), the first reading past stopping
-  the hand where it is (`Body.stop_hand`, `Reach.halt`: a carry or a pull
-  where the hand IS, a reach where its arm is commanded, out), the verb ok
+  verb's report has none and is refused; a hand's place as its loop last
+  read it, `Body.hand_sensed`, so a condition never met moves the flight not
+  at all), the first reading past stopping the hand where it is
+  (`Body.stop_hand`, `Reach.halt`: a carry or a pull where the hand IS, a
+  reach where its arm is commanded -- ⚠ and its body where it had got to:
+  held at its joints alone, the hand rode its plan's crouch and the next
+  verb stepped a joint 1.4 rad -- out; none during a get-up), the verb ok
   and `<verb>.stopped` 1; ⚠ nothing it reads is the simulator's truth (a
   test spies on `MjData`), and no condition knows a job. ⚠ THE CAPABILITY CHECK
   (`evaluation/hands_check.py`, `scripts/hands_check.py`,

@@ -6040,11 +6040,29 @@ reading past its number asks `Body.stop_hand`, which stops the move where
 it is (`Reach.halt`): a carry or a pull through the stop its patience
 already used (`Reach.stop`: held where the hand IS), a reach on its line in
 as one stopped on its way (`blocked`), a reach walking out in joint space
-at its joints' command, out at the grip they put it at. Until a move is
-under way, the stop answers no and the guard reads again at its rate: a
-reach's first steps wait out a get-up. A reading's rate is rounded UP to
-physics steps, so a part is never read oftener than it reads (33 ms is 17
-steps of 2 ms, not 16).
+at its joints' command and the body in the posture it had got to, out at
+the grip they put it at. Until a move is under way, the stop answers no
+and the guard reads again at its rate: a reach's first steps wait out a
+get-up, and while the get-up policy has the legs nothing is stopped. A
+reading's rate is rounded UP to physics steps, so a part is never read
+oftener than it reads (33 ms is 17 steps of 2 ms, not 16). A hand's place
+is read as its arm's loop last read it (`Body.hand_sensed`,
+`Reach.sensed_grip`), never afresh: each fresh reading drew on the drivers' noise,
+and a move whose condition never came true ended 2.4 mrad from the same
+move with none; read so, the two are one flight, bit for bit.
+
+**What its review found** (four of five from the humanoid flown): a reach
+stopped as its arm swung out held its joints while the body went on into
+the crouch its plan had asked, the hand riding 17 cm down 2 s on, and the
+withdraw after, its line starting at the command the body had left,
+stepped a joint 1.43 rad in one command (unstopped, a reach and its
+withdraw step at most 0.078); holding the posture the body had got to, the
+hand stays within 3 cm and the withdraw steps at most 0.034. During a
+get-up the reach a fall let go of still said its hand moved, so a stop
+there used up a condition the stand-up's fresh reach then ran without. A
+pull stopped on its grip's word (`left.held`) was relabelled "let go". And
+four figures said `time read 1.15 (above 1.15)` of a reading past 1.15; it
+is said to as many as tell them apart.
 
 **Flown, the humanoid on a bare floor** (`tests/test_guard.py`'s flight):
 a carry up at 6 cm/s told to stop past 1.15 m read 1.151 and stopped there,
@@ -6057,9 +6075,10 @@ another.
 the right hand's whole-body force read 11-17 N AHEAD in its first half
 second -- the balance takes the body as still, and the start of a move is
 not -- then under 6 N ahead, 4.4 N across and 2.7 N up for the rest; a
-carry up read 17 N ahead at its start. A stop condition on a force from a
-move's start reads that start: the prompt's example stops at 10 N across,
-over the 4.4 its own carry read that way.
+carry up read 17 N ahead at its start, and a reach's approach in free air
+10.2 N up as it began. A stop condition on a force from a move's start
+reads that start: the prompt's example stops at 10 N across, over the 4.4
+its own carry read that way.
 
 **The scene** (`scripts/hands_check.py --view until K`): our lid procedure
 with its lift stopped on the hand's height 10 cm up, held two seconds,

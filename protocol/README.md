@@ -44,6 +44,18 @@ replayer treats it like any other world -- one scene, one recording, keyed
 by that name (`pluggybot.robot.pair_model_name`). The served world is the
 pair, `home_quad_pair`.
 
+### 0.21.0, additive: an argument a verb does without (`hello.index`'s `optional`)
+
+pluggybot #554: `reach`, `move_hand` and `pull` take one stop condition
+after their own arguments -- `until`, a sensor's name, and `above` or
+`below`, a number -- which the verb does without. The index marks each
+`"optional": true`, with no `default`, and the robot's text writes them in
+brackets at the end of the call (`pull(hand, ..., give=1[, until, above,
+below])`). Three sensors join the list, `reach.stopped`, `move_hand.stopped`
+and `pull.stopped`, and a session's `readouts` carry them, null until their
+verb has run. No bump: a page that does not know `optional` draws the three
+as arguments with no default.
+
 ### 0.21.0, additive: the session host's lists as data (`hello.index`)
 
 rooftop-media-2026 #441: the Attempts page's guide for people is checked

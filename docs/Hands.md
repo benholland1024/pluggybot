@@ -116,18 +116,21 @@ GUARDED move, its condition any reading a move changes and not only a
 force. The sensor is read as often as its part reads it, and no oftener
 (`Sensor.every_s`): a hand's place, its force (the whole body's reading is
 solved once a command too, #547), its grip and the clock once a command, 100
-a second. It is read from the move's first command, and the first reading
-past N (strictly) stops the move where it is, as its own stops do
-(`Body.stop_hand`, `Reach.halt`): a carry or a pull where the hand IS, a
-reach where its arm is commanded -- out, either way. The verb is ok, its
-verdict says what it read (`until`), and `<verb>.stopped` reads 1. A
-condition already met stops a move before it moves; one never met ends the
-move as it would have ended. What a verb last reported (`spot.*`, `pull.*`)
-no move changes, so it is refused as a stop condition. ⚠ A force read from
-a move's start reads the start itself: carried in free air, a hand's force
-ran 11-17 N ahead for half a second, and then under 6 (SimNotes, "A move
-that stops on a reading", with its scene, `scripts/hands_check.py --view
-until`). No condition knows a job: the robot turns what it wants -- a lid's
+a second -- the place as the arm's own loop last read it (`Body.hand_sensed`),
+so a condition never met moves the flight not at all. It is read from the
+move's first command, and the first reading past N (strictly) stops the
+move where it is, as its own stops do (`Body.stop_hand`, `Reach.halt`): a
+carry or a pull where the hand IS, a reach on its line in where its command
+is, and one still swinging out where its arm is commanded and its body in
+the posture it had got to -- out, every way. The verb is ok, its verdict
+says what it read (`until`), and `<verb>.stopped` reads 1. A condition
+already met stops a move before it moves; one never met ends the move as it
+would have ended. Waiting out a get-up, no hand is stopped. What a verb
+last reported (`spot.*`, `pull.*`) no move changes, so it is refused as a
+stop condition. ⚠ A force read from a move's start reads the start itself:
+carried in free air, a hand's force ran 11-17 N ahead for half a second, and
+then under 6 (SimNotes, "A move that stops on a reading", with its scene,
+`scripts/hands_check.py --view until`). No condition knows a job: the robot turns what it wants -- a lid's
 angle, say -- into a reading and a number itself.
 
 **The language** is the served robots' (`procedure/lang.py`), with two
