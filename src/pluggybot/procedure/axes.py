@@ -58,6 +58,10 @@ class Sensor:
   #: hand's move may stop on, read no oftener (#554) -- or None for what a
   #: verb last reported, which no move changes
   every_s: float | None = None
+  #: how a stop condition reads it where `read` reads its part afresh: as
+  #: the body's own loop last read it (`Body.hand_sensed`), so a condition
+  #: that never comes true moves the flight not at all (#554)
+  live: Callable[..., float] | None = None
 
 
 #: How often a hand's readings are fresh while it moves, s: once a command
@@ -215,6 +219,10 @@ def _hand_at(side: str, k: int):
   return lambda life: in_stance(life, life.body.hand_at(side))[k]
 
 
+def _hand_sensed(side: str, k: int):
+  return lambda life: in_stance(life, life.body.hand_sensed(side))[k]
+
+
 def _hand_force(side: str, k: int):
   return lambda life: in_stance(life, life.body.hand_force(side), point=False)[k]
 
@@ -223,7 +231,8 @@ for _s in HANDS:
   for _k, _a in enumerate("xyz"):
     SENSORS[f"{_s}.{_a}"] = Sensor(
       f"{_s}.{_a}", _hand_at(_s, _k),
-      f"where your {_s} hand's grip is, m, your stance frame ({_a})", every_s=HAND_EVERY_S)
+      f"where your {_s} hand's grip is, m, your stance frame ({_a})", every_s=HAND_EVERY_S,
+      live=_hand_sensed(_s, _k))
     SENSORS[f"{_s}.f{_a}"] = Sensor(
       f"{_s}.f{_a}", _hand_force(_s, _k),
       f"the force your {_s} hand pushes with, N, your stance frame ({_a}), off your "

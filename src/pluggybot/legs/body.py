@@ -1968,6 +1968,9 @@ class QuadBody(Body):
   def stop_hand(self, side) -> bool:
     raise NotImplementedError(self._NO_HAND)
 
+  def hand_sensed(self, side):
+    raise NotImplementedError(self._NO_HAND)
+
   def pull_routine(self, side, direction, limit_n, distance_m, speed=0.06,
                    patience=30.0, give=True) -> Routine:
     raise NotImplementedError(self._NO_HAND)

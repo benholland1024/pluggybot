@@ -1108,6 +1108,7 @@ def _guarded_routine(life, hand: str, guard, routine: Routine) -> Routine:
   from pluggybot.procedure import axes
   name, side, number = guard
   sensor = axes.SENSORS[name]
+  reading = sensor.live or sensor.read
   # physics steps a reading, rounded UP: never oftener than its part reads
   every = max(1, math.ceil(sensor.every_s / float(life.model.opt.timestep) - 1e-6))
   t0, n, stopped = float(life.data.time), 0, None
@@ -1119,7 +1120,7 @@ def _guarded_routine(life, hand: str, guard, routine: Routine) -> Routine:
       return stop.value, stopped
     exc = None
     if stopped is None and n % every == 0:
-      read = float(sensor.read(life))
+      read = float(reading(life))
       if (read > number if side == "above" else read < number) and life.body.stop_hand(hand):
         stopped = {"read": read, "s": float(life.data.time) - t0}
     n += 1
@@ -1134,11 +1135,14 @@ def _guarded_routine(life, hand: str, guard, routine: Routine) -> Routine:
 
 def _until_said(guard, stopped) -> str:
   """What a move that stopped on its reading says of it: `left.z read
-  1.052 (above 1.05) 1.73 s in`."""
+  1.052 (above 1.05) 1.73 s in` -- the reading to as many figures as tell
+  it from the number (to four, `time read 1.15 (above 1.15)` was said)."""
   name, side, number = guard
   if stopped is None:
     return f"{name} {side} {number:.4g}"
-  return f"{name} read {stopped['read']:.4g} ({side} {number:.4g}) {stopped['s']:.2f} s in"
+  read = stopped["read"]
+  digits = next((n for n in range(4, 17) if f"{read:.{n}g}" != f"{number:.{n}g}"), 17)
+  return f"{name} read {read:.{digits}g} ({side} {number:.4g}) {stopped['s']:.2f} s in"
 
 
 def _stopped_reading(life, verb: str, stopped: bool) -> None:

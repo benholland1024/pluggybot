@@ -450,7 +450,10 @@ class HumanoidBody(Body):
     return self._why.get(side, "")
 
   def stop_hand(self, side) -> bool:
-    if not self.reach.halt(side, "until"):
+    # ⚠ only a hand of the standing body's: waiting out a get-up, the reach a
+    # fall let go of still says its hand moves, and stopping that used up a
+    # condition the stand-up's fresh reach then ran without
+    if self.mission.legs != "stand" or not self.reach.halt(side, "until"):
       return False
     self._halted.add(side)
     return True
@@ -501,6 +504,11 @@ class HumanoidBody(Body):
 
   def hand_at(self, side):
     p = self.to_world(self.reach.grip_now(side)[0])
+    return float(p[0]), float(p[1]), float(p[2])
+
+  def hand_sensed(self, side):
+    got = self.reach.sensed_grip.get(side)
+    p = self.to_world(self.reach.grip_now(side)[0] if got is None else got)
     return float(p[0]), float(p[1]), float(p[2])
 
   def hand_watched(self, side):
@@ -650,7 +658,9 @@ class HumanoidBody(Body):
       rep = dict(self.reach.report[side] or rep) if rep["why"] not in ("fell", "feet moved",
                                                                      "out of time") else rep
     why = rep["why"]
-    if gripped and not self.gripped(side) and why != "fell":
+    # ...a grip lost ends it "let go", but where its stop condition ended it
+    # first, that is how it ended (the condition may be the grip's own word)
+    if gripped and not self.gripped(side) and why not in ("fell", "until"):
       why = "let go"
     h = self.reach.grip_now(side)[0]
     disp = h - start

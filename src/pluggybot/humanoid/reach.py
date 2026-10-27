@@ -488,6 +488,10 @@ class Reach:
     #: -- and its arm's alone, whichever is read.
     self.force = {s: np.zeros(3) for s in hm.SIDES}
     self.arm_force = {s: np.zeros(3) for s in hm.SIDES}
+    #: Where each grip was by its senses at the last command, stance frame
+    #: (`_update`): what a stop condition reads (#554), so that reading it
+    #: draws nothing more on the drivers' noise; None before the first.
+    self.sensed_grip: dict[str, np.ndarray | None] = {s: None for s in hm.SIDES}
     #: How fast each hand's command goes along its line, m/s; a carry's
     #: state; and how its last carry ended (`report`).
     self.speed = {s: HAND_SPEED for s in hm.SIDES}
@@ -544,9 +548,13 @@ class Reach:
     it (`stop`, its report saying `why`); a hand on its way in, or holding
     with its goal moved (`move_goal`), where its command is, as one stopped
     on its way is (`blocked`); an arm on its way out to its pre-grasp where
-    its joints are commanded -- out there, its goal and its command the grip
-    they put it at, so it may be carried on or withdrawn as any hand that
-    is out. True where a move was under way; False, nothing changed, where
+    its joints are commanded, and the body in the posture it has got to --
+    out there, its goal and its command the grip they put it at, so it may
+    be carried on or withdrawn as any hand that is out. ⚠ THE POSTURE TOO:
+    held at its joints alone, an arm stopped 0.15 s into a reach rode the
+    crouch its plan was still taking 17 cm down, and the next verb, starting
+    from a command the body had left, stepped a joint 1.4 rad in one
+    command. True where a move was under way; False, nothing changed, where
     none was."""
     phase = self.phase[side]
     if phase == "carry":
@@ -557,6 +565,7 @@ class Reach:
       return True
     if phase != "move":
       return False
+    self.hold_posture(*self.posture_now())
     # the grip its commanded joints put it at, the body as last posed
     sm = self._planner_model()
     sm.q = self.self_model.q.copy()
@@ -1236,8 +1245,11 @@ class Reach:
     sm = self.self_model
     self._pose()
     self._feel()
-    # Where a carried hand IS, by its senses (#493).
-    have = {s: sm.grip_pose(s) for s in hm.SIDES if self.phase[s] == "carry"}
+    # Where each hand IS, by its senses (#493): a carried hand's to steer by,
+    # and every hand's for a stop condition to read (#554)
+    seen = {s: sm.grip_pose(s) for s in hm.SIDES}
+    self.sensed_grip = {s: seen[s][0].copy() for s in hm.SIDES}
+    have = {s: seen[s] for s in hm.SIDES if self.phase[s] == "carry"}
     self._trim(dt)
     self._pose(self.q_cmd)
     for s in hm.SIDES:

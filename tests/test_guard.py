@@ -410,23 +410,37 @@ def test_a_halted_reach_on_its_way_in_holds_at_its_command():
   assert np.allclose(r.cmd["left"].pos, H) and np.allclose(r.goal["left"].pos, H + [0.08, 0, 0])
 
 
-def test_a_halted_reach_on_its_way_out_holds_its_arm_where_it_is_commanded():
+def test_a_halted_reach_on_its_way_out_holds_its_arm_and_its_body_where_they_are():
   """Walking out to its pre-grasp in joint space, there is no line: the arm
-  held at its joints' command -- no setpoint written across a gap -- and the
-  hand out at the grip they put it at, so it may be carried on or withdrawn
-  as any hand that is out."""
-  from pluggybot.humanoid.arms import HandGoal
+  held at its joints' command -- no setpoint written across a gap -- the
+  body in the posture it has got to, and the hand out at the grip they put
+  it at, so it may be carried on or withdrawn as any hand that is out. ⚠
+  Held at its joints alone, an arm stopped 0.15 s into a reach rode its
+  plan's crouch 17 cm down, and the next verb, starting from a command the
+  body had left, stepped a joint 1.4 rad in one command (#554's review)."""
+  from pluggybot.humanoid.arms import HandGoal, SelfModel
   r = _standing_reach()
+  # the body part way into a bow and a crouch, by its senses
+  q = np.array([hm.stand_qpos().get(n, 0.0) for n in hm.JOINT_NAMES])
+  for n in ("left_hip_pitch", "right_hip_pitch"):
+    q[hm.JOINT_NAMES.index(n)] -= 0.3
+  gravity = np.array([math.sin(0.2), 0.0, -math.cos(0.2)])
+  r.self_model.pose(q, gravity)
+  r.posture_now = lambda: np.array([-0.07, 0.2])
   r.goal["left"] = HandGoal(H.copy(), np.eye(3), 0.7)
   r.q_to["left"] = r.rest["left"] + 0.6
   r.q_cmd["left"] = r.rest["left"] + 0.25
-  q = r.q_cmd["left"].copy()
+  arm = r.q_cmd["left"].copy()
   r.phase["left"] = "move"
   assert r.halt("left", "until")
+  assert r.postures[-1] == (-0.07, 0.2), "the body held in the posture it has got to"
   assert r.phase["left"] == "blocked" and r.out("left") and r.done("left")
-  assert np.allclose(r.q_to["left"], q) and np.allclose(r.q_cmd["left"], q)
-  sm = r._planner_model()
-  sm._set_arm("left", q)
+  assert np.allclose(r.q_to["left"], arm) and np.allclose(r.q_cmd["left"], arm)
+  # the grip those joints put it at on the body as it is, asked of a model
+  # of the robot's own posed afresh
+  sm = SelfModel()
+  sm.pose(q, gravity)
+  sm._set_arm("left", arm)
   pos, rot = sm.grip_pose("left")
   assert np.allclose(r.cmd["left"].pos, pos) and np.allclose(r.goal["left"].pos, pos)
   assert np.allclose(r.cmd["left"].rot, rot) and r.cmd["left"].stiffness == 0.7
@@ -603,3 +617,149 @@ def test_a_stop_condition_reads_the_robots_senses_never_the_simulators_truth(mon
   assert [s.get("why") for s in ran["steps"][1:]] == ["until", "distance", "arrived", "until"]
   assert spy.read, "nothing was read through the spy"
   assert not spy.read & TRUTH, spy.read & TRUTH
+
+
+# ---- what #554's review found ----------------------------------------------------------
+
+
+def _floor_body():
+  import mujoco
+  from pluggybot.body import body_for
+  model = mujoco.MjModel.from_xml_string(hm.body_xml())
+  data = mujoco.MjData(model)
+  mujoco.mj_resetDataKeyframe(model, data, 0)
+  mujoco.mj_forward(model, data)
+  return body_for(model, data)
+
+
+def _flown(source: str):
+  """`source` flown on the humanoid on a bare floor: its run, the body, and
+  the right arm's joint command at every physics step."""
+  from pluggybot.evaluation.practice import ProcedureLife
+  body = _floor_body()
+  facts = st.hand_facts()
+  arm = []
+  body.step_hooks.append(lambda: arm.append(body.reach.q_cmd["right"].copy()))
+  ran = body.run(lang.run_procedure_routine(ProcedureLife(body), lang.compile_procedure(
+    source, facts), facts))
+  return ran, body, np.array(arm)
+
+
+def test_a_reach_stopped_on_its_way_out_stays_there_and_the_next_verb_ramps_from_it():
+  """Flown: a reach to a low shelf takes a crouch and a bow as its arm
+  swings out; stopped 0.15 s in, the hand stays where it stopped while the
+  body holds the posture it had got to -- held at its joints alone, it rode
+  the crouch 17 cm down -- and the withdraw after starts from where the arm
+  is: no joint stepped more than a tenth of a radian in one command (the
+  same reach unstopped and withdrawn stepped at most 0.078; stopped, 1.43
+  before this was fixed, 0.034 after)."""
+  ran, body, arm = _flown(
+    'def a():\n    t = read("time")\n'
+    '    reach("right", 0.35, -0.22, 0.55, until="time", above=t + 0.15)\n'
+    '    z0 = read("right.z")\n    x0 = read("right.x")\n    wait(2)\n'
+    '    z1 = read("right.z")\n    x1 = read("right.x")\n    withdraw("right")\n')
+  reach = ran["steps"][0]
+  assert reach["ok"] and reach["why"] == "until", reach
+  got = ran["locals"]
+  assert abs(got["z1"] - got["z0"]) < 0.03 and abs(got["x1"] - got["x0"]) < 0.03, got
+  assert ran["steps"][-1]["verb"] == "withdraw" and ran["steps"][-1]["ok"]
+  step = np.abs(np.diff(arm, axis=0)).max()
+  assert step < 0.1, step
+
+
+def test_a_condition_on_the_hands_place_that_never_comes_moves_the_flight_not_at_all():
+  """Read as the arm's own loop last read it (`Body.hand_sensed`), never
+  afresh: read afresh, each reading drew on the drivers' noise, and a move
+  whose condition never came true ended 2.4 mrad apart from the same move
+  with none (#554's review) -- so what never fires takes nothing from a
+  flight, bit for bit."""
+  move = 'move_hand("right", 0.30, -0.25, 1.15{})'
+  outs = []
+  for guard in ("", ', until="right.z", above=5'):
+    ran, body, _ = _flown('def a():\n    reach("right", 0.30, -0.25, 1.00)\n    '
+                          + move.format(guard) + '\n    wait(0.5)\n')
+    assert ran["ok"] and ran["steps"][1]["why"] == "arrived"
+    outs.append(body.data.qpos.copy())
+  assert np.array_equal(outs[0], outs[1])
+
+
+def test_a_stop_waits_out_a_get_up_and_stops_the_move_after_it():
+  """Waiting out a get-up, the reach a fall let go of still says its hand
+  moves: stopped then, it used up a condition the stand-up's fresh reach
+  ran without (#554's review). Only the standing body's hand is stopped."""
+  from test_humanoid_body import _Sent
+
+  class Halting(_Sent):
+    halted = 0
+
+    def halt(self, side, why):
+      self.halted += 1
+      return True
+  body = _floor_body()
+  body.mission.reach = Halting("approach")
+  body.mission.reach.phase["right"] = "approach"
+  body.mission.legs = "getup"
+  assert not body.stop_hand("right") and body.mission.reach.halted == 0
+  body.mission.legs = "stand"
+  assert body.stop_hand("right") and body.mission.reach.halted == 1
+
+
+def test_a_pull_its_condition_stopped_is_stopped_so_though_its_grip_went():
+  """A pull's grip lost says "let go" -- but where its stop condition ended
+  it first, that is how it ended: the condition may be the grip's own word
+  (`until="left.held", below=0.5`)."""
+  body = _floor_body()
+
+  class Grip:
+    holding = True
+
+    def held(self):
+      return self.holding
+
+  class Pulling:
+    def __init__(self):
+      self.phase = {s: "hold" for s in hm.SIDES}
+      self.report = {s: None for s in hm.SIDES}
+      self.grippers = {s: Grip() for s in hm.SIDES}
+
+    def out(self, side):
+      return True
+
+    def grip_now(self, side):
+      return np.array([0.3, 0.2, 1.0]), np.eye(3)
+
+    def pull(self, side, way, force, distance, speed, give):
+      self.phase[side] = "carry"
+      return True
+
+    def halt(self, side, why):
+      self.phase[side] = "hold"
+      self.grippers[side].holding = False
+      self.report[side] = {"why": why, "seconds": 0.1, "moved": 0.0, "dx": 0.0, "dy": 0.0,
+                           "dz": 0.0, "went": 0.0, "force": 3.0, "way": [0.0, 0.0, 1.0]}
+      return True
+
+    def step(self):
+      pass
+
+    def held_pitch(self):
+      return 0.0
+  body.mission.reach = Pulling()
+  gen = body.pull_routine("left", (0.0, 0.0, 1.0), 10.0, 0.2)
+  next(gen)
+  assert body.stop_hand("left")
+  with pytest.raises(StopIteration) as stop:
+    while True:
+      gen.send(None)
+  assert stop.value.value["why"] == "until"
+
+
+def test_a_stop_says_its_reading_past_its_number_never_level_with_it():
+  """To four figures, `time read 1.15 (above 1.15)` was said of a reading
+  that had passed 1.15 (#554's review): it is said to as many as tell
+  them apart."""
+  said = st._until_said(("time", "above", 1.15), {"read": 1.15000003, "s": 0.2})
+  read = said.split(" read ")[1].split(" (")[0]
+  assert float(read) > 1.15 and said.endswith("(above 1.15) 0.20 s in"), said
+  assert st._until_said(("left.z", "below", 0.9), {"read": 0.8612, "s": 1.0}) == \
+    "left.z read 0.8612 (below 0.9) 1.00 s in"

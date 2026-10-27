@@ -730,6 +730,13 @@ class Body(abc.ABC):
     encoders and its IMU through its model of itself (#493)."""
 
   @abc.abstractmethod
+  def hand_sensed(self, side: str) -> tuple[float, float, float]:
+    """`hand_at` as the hand's control loop last read it, at its last
+    command (#554): what a move's stop condition reads, at the encoders'
+    own rate, drawing nothing more on their noise -- read afresh between
+    commands, a condition that never came true changed the flight."""
+
+  @abc.abstractmethod
   def hand_watched(self, side: str) -> tuple[float, float, float]:
     """`hand_at` for a WATCHER (#530: a person's page shows it): the same
     encoders and IMU through a model of itself of the watcher's own, its
@@ -1464,6 +1471,10 @@ class StubBody(Body):
     """Where it sent the hand; hanging at its side, where it sent none."""
     x, y, _ = self.pose
     return tuple(self.hands.get(side, (x, y, 0.8)))
+
+  def hand_sensed(self, side):
+    """`hand_at`: a stub's hand is where it is, every command."""
+    return self.hand_at(side)
 
   def hand_watched(self, side):
     """`hand_at`: a stub draws no noise to keep apart."""
