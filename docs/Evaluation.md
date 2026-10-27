@@ -1009,8 +1009,13 @@ internals. Its rules:
   code those passes take up to 31.6 s and 55.7 s. And
   a cut attempt that failed says "out of time" first. Then the hold with
   the body held still, and one verdict through `scoring.evaluate`, graded
-  and paid nothing. A fall is lost time and nothing more: the body's falls
-  and its tool are on the row, judged by nothing (Ben, 2026-10-17);
+  and paid nothing;
+- **a fall fails the try** (Ben, 2026-10-25, #544): one the body's own
+  watch counted (`Body.falls`) from the attempt's start to the end of the
+  hold, used or by accident -- every grader's criterion, said first in its
+  verdict, and stated in the job the robot is told. From 2026-10-17 it was
+  lost time and nothing more, and learned skills leaned on it (§4, "A fall
+  was lost time"). The body's tool is on the row, judged by nothing;
 - **what the skill says of itself is its own test**, recorded beside the
   verdict and never read by it; ⚠ a skill is handed the BODY, never the
   world: the chest's truth stays the harness's;
@@ -1547,8 +1552,9 @@ them). `practice.py --job door` flies it.
 - **What they said they lacked** (their thinking and notes): a sense of
   the door's angle, in 46 and 23 turns -- every lid arm's lack too; and
   room: 27 sources refused for nesting deeper than 4, 11 over the
-  1,500-character cap, 15 asking more force than a verb gives (`pull` 60
-  N, `close_hand` 120 N), 6 using a verb's result in an expression, 2
+  1,500-character cap, 15 asking more force than a verb gave (`pull` 60
+  N then, 20 since #544; `close_hand` 120 N), 6 using a verb's result in
+  an expression, 2
   writing `break` or `continue`. Their notes are technique: where the
   default grip lands against the tag, the pull that topples the body, a
   wait so the door does not swing back.
@@ -1557,10 +1563,10 @@ them). `practice.py --job door` flies it.
 tip gripped, a pull, the door swinging the body round (12-16 s), standing
 again at the call](figures/door_learned.png)
 
-**A fall is lost time, never a verdict (Ben, 2026-10-17), and some skills
-lean on it.** The readings above are the protocol's. Counting only the
-passes with no fall on the body's own watch, within 3 of the held-out
-chests:
+**A fall was lost time, never a verdict (Ben, 2026-10-17, until #544), and
+some skills leaned on it.** The readings above are the protocol's as it
+then stood. Counting only the passes with no fall on the body's own watch,
+within 3 of the held-out chests:
 
 | arm | within 3 | without a fall |
 |---|---|---|
@@ -1586,12 +1592,115 @@ chests:
   22 and 21 of 29 within 3, 8 and 0 without a fall (SimNotes, "The way
   home").
 - So no fall, as a real robot would need, puts the door's best arm at
-  0.41 and the lid's at 0.20-0.30 within 3. Whether a fall should fail a
-  try is a rule for #534 to weigh; nothing here changes it.
+  0.41 and the lid's at 0.20-0.30 within 3. Since #544 a fall fails the
+  try (Ben, 2026-10-25), and the robot is told so: these records stay as
+  flown, and their "without a fall" column is the new rule's reading of
+  them, off arms that were never told it. Flown again under it, below.
 
 ![fixA's kept skill at held-out chest 859119791, its first try: the lid
 opened along its arc and set down, the robot fallen at the call and
 standing 5 s later](figures/lid_fall_after.png)
+
+**The readings again, under the new rule** (#544's stage 3, for #534 and
+#536). Three things changed since #535's rows, all at once: a fall fails
+the try and the job says so; `pull` asks at most 20 N, what the standing
+body holds (it was 60); and the force move closes on the whole body's
+reading while standing, its loop slowing before its ask (#547). So nothing
+below is read off one of them. Two lid arms and two door arms with the
+yardstick's settings, at `a5bfdba` (its held-out seed, 279510364, for all
+four), two on the router at a time:
+
+| arm | practice: set-outs passed, the try each passed at | kept | held out within 3 | within 5 | tries with a fall | cost |
+|---|---|---|---|---|---|---|
+| lidA | 7 of 16: 6 x x x x x x 5 x 9 2 4 3 1 x x | chest 13's | 1 of 8 [0.02, 0.47], none at the first; stopped early | 2 of 8 | 10 of 157 | $3.24 |
+| lidB | 6 of 16: x x 3 2 x 4 6 x 5 1 x x x x x x | chests 8-9's | 5 of 12 [0.19, 0.68], 1 at the first; stopped early | 5 of 12 | 8 of 167 | $2.82 |
+| doorA | 6 of 6: 9 1 4 1 1 1, three running at the first try | set-outs 2-5's | **30 of 32** [0.80, 0.98], 26 at the first | 30 of 32 | 0 of 63 | $0.33 |
+| doorB | 7 of 13: x x x 6 7 x x x 8 6 1 1 1, three running at the first try | set-outs 9-12's | **32 of 32** [0.89, 1.00], all at the first | 32 of 32 | 33 of 122 | $1.72 |
+
+- **Our references over the same held-out set-outs**, one try each: the
+  opener 15 of 32 [0.31, 0.64], none falling -- all 17 misses the body's
+  reach, 12 with no tilt that puts the lid's arc in reach of where it
+  stands -- and our door procedure 16 of 32 [0.34, 0.66], 6 of its misses
+  falls (18 of 32 and 5 over #535's set-outs, #547).
+- ⚠ **HELD-OUT CHESTS ARE NOT ONE DIFFICULTY.** Over the lid arms'
+  held-out chests of #535, the opener passes 20 of 32 (fixA's and fixB's,
+  seed 2582462844) and 18 of 32 (mostA's and mostB's, 3120822873), against
+  15 over this stage's and 23 over the public 32: one family, drawn alike
+  (`counter.set_out`), and 15 to 23 of 32 for code that learns nothing. A
+  held-out reading is read beside a reference flown over ITS set-outs.
+- **The door met the bar, twice, and no held-out try fell**: the copies
+  passed 30 of 32 and 32 of 32 held-out set-outs within 3 (26 and 32 at
+  the first try), at a tenth to a half of a lid arm's cost -- against our
+  door procedure's 16 of 32 over the same set-outs, and #535's door arms'
+  9 of 22 and 0 of 29 without a fall. Both skills keep inside what the
+  body holds. doorA's: a 20 cm step in and a turn to the tag, the tip
+  gripped at 120 N, a push and the lever pressed 20 cm down and let up,
+  three 35 cm pulls back and to the left at 20 N, let go, and a 25 cm step
+  back so nothing of it touches the door through the hold. doorB's: no
+  step, the tip gripped as the arm finds it, three pushes in to free the
+  latch, three pulls driving the lever down ("ESSENTIAL", its notes say),
+  twelve 20 cm pulls straight back at 20 N, and the hand opened and left
+  still. Each frozen copy ran its kept skill, unchanged or barely edited,
+  at every first try; doorB's passes take 75-101 s of the 107. Flown
+  frozen over #535's door set-outs too (seed 3510776006, where #535's
+  doorB passed 22 of 29 falling every try, and our procedure 18 of 32),
+  doorA's skill passes 25 of 32 within 3 and doorB's 31 of 32: 55 and 63
+  of 64 over the two seeds, and one try of each fell there.
+- **The lid did not**: lidA's copies passed 1 of 8 within 3 and lidB's 5
+  of 12 before the 7th failure stopped them -- beside #535's lid arms read
+  without a fall (the table above), 8 of 29, 6 of 25, 2 and 3 of 10, and
+  16 of 25 once #539 changed the way home. Where fixA's skill was a path
+  both ways, lidA's is a path up its arc about `measure`'s hinge and 20 N
+  pulls down it, each re-aimed from where the hand is, and lidB's the
+  force move alone: a 6 cm step, a grip from above, five 20 N pulls fanned
+  up the arc and six down, holding their line. Both lost the lid near the
+  top: of the held-out tries, 13 of lidA's 37 and 28 of lidB's 46 opened
+  it past 57 deg, and 9 and 21 let it fall. lidB's notes name it: "At 58+
+  the lid falls free (2-4 rad/s) and drags hand/body ... every direction
+  (down, tangential -x, fan) failed". The drop handle's arm meets the
+  lid's edge 57 deg up, past which a hand must turn as the lid does
+  (SimNotes, "The humanoid opens the chest").
+- **...and not for the rule, the code or the chests**: fixA's kept record
+  -- the most passes kept, its notes and its draft, as #535 flew it again
+  -- flown frozen at `a5bfdba` passes 22 of 29 of its own held-out chests
+  within 3 [0.58, 0.88], 16 at the first try (18 of 25 under the old rule,
+  16 of 25 without a fall on #539's way home), and 21 of 28 of this
+  stage's [0.57, 0.87], 15 at the first; 17 and 13 of its tries fell,
+  each failing it. Its copies ran its draft, chest 15's arc about
+  `measure`'s hinge, unchanged on 18 first tries and 15. So neither the
+  new rule and code nor this stage's chests took the lid from that skill,
+  though the opener finds these chests harder: the two fresh lid arms
+  found worse skills.
+- **Told that a fall fails the try, the robots learned not to fall**:
+  doorB fell in 33 of its 90 practice tries, each one failing it, and its
+  notes worked round it until the skill it kept fell in none of its 32
+  held-out tries and 1 of 38 over #535's door set-outs, where #535's
+  doorB fell in all 60; doorA's fell in none of 46 and 1 of 66. The lid
+  arms fell in 10 of 157 tries and 8 of 167, against fixA's 36 of 59 held
+  out under the old rule.
+- **What they said they lacked** (their thinking and notes, `lacks.py`):
+  the thing's angle again -- lidA in 26 sentences, lidB in 44 ("I can't
+  read the lid angle directly"), the door arms in 3 each; room again --
+  the 1,500-character cap refused 43 sources, nesting past 4 deep 17, and
+  `break` 2; and force, now said of the cap: 10 sources asked a pull past
+  20 N and 19 a grip past 120 N, and one lid arm reasoned "The lid needed
+  ~19-23 N to continue past ~35 deg". doorA took the cap as it found it:
+  "force per pull capped at 20 N (standing); over-force is refused".
+- **The force move kept near the cap**: of the four arms' 3,481 pulls, 72
+  read past 25 N, a quarter over the most any may ask, 39 of them ending
+  held fast against what held the hand; the highest read 71 N. doorB's
+  notes met one: "pulls give huge forces (40-90N), feet slide, falls".
+- **What it cannot show**: two fresh arms a task, three changes at once,
+  and which approach a conversation finds deciding as much as any of them
+  -- the two fresh lid arms read 0.12 and 0.42 where fixA's skill reads
+  0.75; each skill is read over one or two seeds' set-outs. Spend: $9.94
+  -- the arms $8.11, the re-flights $1.79, the smokes $0.03; the
+  references cost no tokens.
+
+![doorB's kept skill at held-out set-out 533696083, its first try (our
+door procedure fell there): the tip gripped and the lever driven down, the
+door pulled open in twelve 20 N pulls, the hand opened and left still, the
+door 98 deg open through the hold](figures/door_new_rule.png)
 
 ## 5. What silently invalidates a number
 

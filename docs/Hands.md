@@ -7,9 +7,10 @@ around it, the capability check that gates it, and the migration from
 library stand on this vocabulary.
 
 Read alongside:
-- `docs/SimNotes.md`, "The force move (issue #525)" and "Stepping toward
-  the work" -- how each number here was measured. This doc says what the
-  constraint is.
+- `docs/SimNotes.md`, "The force move (issue #525)", "Stepping toward
+  the work" and the force move's three #547 sections, to "The force loop"
+  -- how each number here was measured. This doc says what the constraint
+  is.
 - `docs/Challenges.md` §10 -- the three new checks' graders.
 - `docs/Evaluation.md` §4 -- practice first, and the arms the vocabulary
   replaces.
@@ -50,9 +51,12 @@ and a hand that works in it.
 
 **This body.** Two Unitree Dex1-1 two-jaw grippers (90 mm stroke, 5-120 N a
 pad, adjustable: `humanoid/parts.py`), each on a six-joint arm whose grip
-reaches 0.58 m from a shoulder 1.15 m up; the hand's force read off its
-arm's motor currents through the robot's model of itself (within 0.5 N of
-the truth held still: SimNotes); the grip's own word -- its jaws' gap and
+reaches 0.58 m from a shoulder 1.15 m up; the hand's force read off the
+whole body's motor currents through the robot's model of itself while the
+hand is out and the body stands -- the legs feel what a straight arm
+carries through its structure (#547: within a newton every way on a bench,
+SimNotes) -- else off its arm's; the
+grip's own word -- its jaws' gap and
 squeeze; the head camera's tags (a face's middle, which way it looks, which
 way its edges run); the D435's depth (`measure`); a posture -- the
 pelvis's height and the trunk's pitch -- that the standing policy holds;
@@ -90,7 +94,7 @@ and its feet, which the walking policy moves.
 | `reach(hand, x, y, z, fingers, jaws, stiffness)` | the grip to a point, turned as asked or as the arm finds; out to a point short of it, then in along the fingers | `hand.x/y/z`, `hand.fx..fz` | out of reach (and whether the other hand could, as asked or turned another way), turned as asked or not; stopped short. ⚠ What it touches on its way in under the blocking force can hold it a few cm short while it holds: the hand's place says where (§5) | the arm's IK on the robot's model of itself, a planned posture |
 | `via(hand, x, y, z, turn)` | adds a point to the hand's next move; nothing moves | -- | a path holds 40 points | -- |
 | `move_hand(hand, x, y, z, speed, stiffness, turn)` | a hand that is out carried along a line, or through its `via` points, as ONE motion from one posture | as `reach` | out of reach (planned or partway), held back | `Reach.carry`, `path_for` |
-| `pull(hand, dx, dy, dz, force, distance, speed, give)` | THE FORCE MOVE (§4) | `pull.moved`, `pull.force` (the hardest along its way, as felt), `pull.dx..dz` (the way the hand was going at its end) | ok whenever it pulled; why it stopped (distance, held fast, let go, out of reach, feet moved) is the record's | `Reach.pull` |
+| `pull(hand, dx, dy, dz, force, distance, speed, give)` | THE FORCE MOVE (§4), at most 20 N: what the standing body holds, pushing away around two thirds of it (#544) | `pull.moved`, `pull.force` (the hardest along its way, as felt), `pull.dx..dz` (the way the hand was going at its end) | ok whenever it pulled; why it stopped (distance, held fast, let go, out of reach, feet moved) is the record's | `Reach.pull` |
 | `close_hand(hand, force)` | shuts the gripper with at most `force` a pad, 5-120 N | `hand.held`, `hand.gap` | closed on nothing it holds | the Dex1-1's torque limit, its encoder and current |
 | `open_hand(hand)` | opens the gripper | -- | -- | -- |
 | `withdraw(hand)` | the hand back along its way in, then the arm home: straight, or out to its side first and lowered there where that keeps the arm higher in front of the robot than straight would (SimNotes, "The way home"); ok once its drivers read it home | -- | not home by `RELEASE_S` (something holds it); a fall | `Reach.way_home` on the robot's model of itself, `Reach.home` |
@@ -115,12 +119,20 @@ switches on wherever there are hands (`steps.hand_facts`): a verb may be an
 `Reach._pulled` every command:
 
 - **Along its way, the force is CLOSED on what the hand feels**
-  (admittance): the command walks at `speed` while the hand pushes under
-  half `force` along the way, slows to a stand as it reaches it, and backs
-  off past it -- `speed * clip(2 (force - along) / force, -1, 1)`, the
-  reading smoothed over `ADMIT_SMOOTH_S` -- and leads the hand by
-  `LEAD_MAX_M` at most. ⚠ Never the arm's spring as a force cap: its model
-  put three times the limit on a drawer's stop.
+  (admittance) -- off the whole body, standing (`SelfModel.felt`, #547):
+  the command walks at `speed` while the force a moment ahead -- the
+  hand's reading over `ADMIT_SMOOTH_S`, carried `AHEAD_S` on at the rate it
+  rises -- is under half `force` along the way, slows to a stand as it
+  reaches it, and backs off past it twice as fast (`BACK_SPEED`) --
+  `speed * clip(2 (force - ahead) / force, -1, 1)`, doubled backing off --
+  and leads the hand by `LEAD_MAX_M` at most, backing off past its force
+  while its body takes a posture too (#547: stood still, it held on reading
+  15 times its force). A hand GOING along its way is only slowed by where
+  its force is going, and backs off past it as read, at its speed. ⚠ Closed
+  on its force as it stood, it built over 100 N/s against a locked bar and
+  put 1.7 times its ask on it, even closed on the bar's true force (#547;
+  SimNotes, "The force loop"). ⚠ Never the arm's spring as a force cap:
+  its model put three times the limit on a drawer's stop.
 - **Across it, GIVING (`give` 1), the hand goes where what it holds pushes
   it**: the command follows the hand across the way, no faster than
   `ACROSS_SPEED` times its speed -- hybrid force and position, the hinge
@@ -137,11 +149,22 @@ switches on wherever there are hands (`steps.hand_facts`): a verb may be an
   taken before it moves; going on where the arm misses its command, it
   takes ANOTHER posture from the arm as it is, never one it has left this
   move (`posture_for(onward=, past=)`): ⚠ an arm stood at its elbow's stop
-  short of its way while a fresh seed of the same posture "reached".
+  short of its way while a fresh seed of the same posture "reached". ⚠ A
+  HAND HELD TAKES NONE: one not going (`GO_ON_M` along its way in `GO_S`)
+  whose command is out of reach where the hand itself is not keeps its
+  command where the arm last reached, backing off toward the hand past its
+  force -- against a hand held, the command's lead is the miss, and
+  postures taken for it put 30-100 N on a locked bar for an ask of 10-20;
+  frozen there, 21-24 N stood on it for 20 (#547). One the arm cannot hold
+  where it is takes one as before.
 - **It stops** at `distance` along its way ("distance"); held fast -- the
   hand moved under `FAST_M` in `FAST_S` pushing at least `FAST_SHARE` of
-  its force; a grip it began with lost ("let go"); out of reach; its feet
-  moved; out of time. Then it holds where the hand is.
+  its force over `MEAN_S`, or went nowhere along its way that long with its
+  command as far ahead as it may go: at its lead's end whatever it read, at
+  its arm's reach only pushing that share, else out of reach (in free air,
+  past the arm's reach, it said held fast: #547); a grip it began with lost
+  ("let go"); out of reach; its feet moved; out of time. Then it holds
+  where the hand is.
 - **Its report** is how far it went, the hardest it pushed along its way
   as the hand felt it, and the way the hand was going over its last
   `TRAIL_M` -- what the mechanism allowed, which a procedure re-aims by.
@@ -271,10 +294,32 @@ under them. With the reach's reply fixed, an arm's frozen copies passed
 22 of 29 held-out chests within 3 (§4's "What changed the grasp"). With
 no new help, two arms learned the cupboard's door on it: 15 of 22 and 22
 of 29 within 3, one of them falling in every try (§4's "The door, with
-no new help").
+no new help") -- tries a fall now fails (#544). Told so, with `pull` at
+20 N, two door arms passed 30 and 32 of 32 held-out set-outs within 3 and
+none of their held-out tries fell, while the lid's two passed 1 of 8 and 5
+of 12 (§4's "The readings again, under the new rule").
 
 ## 7. What it does not do
 
+- **Pull harder than the body holds.** A hand at a counter's height holds
+  20-40 N across the floor before the body goes over, so `pull` asks at
+  most 20 N (`steps.PULL_MOST_N`; Ben, 2026-10-25) and says pushing away
+  holds around two thirds of it (#544; SimNotes, "Holding the pull verb's
+  60 N at a hand"): the standing policy does not feel a pull until the body
+  moves. Shown the hand's force, a policy trained on the true one held 60
+  N, but the robot's readings will not do: its arm's is too rough, and
+  shown the whole body's -- the legs' torques, the policy's own commands --
+  it fell at 20 N every way (#547).
+- **Hold a pull up at its force against what holds the hand.** Closed on
+  a locked bar's true force the move keeps within a quarter of its ask
+  every way (`humanoid_spike.py --bar --oracle`: at most 1.2 times), and on
+  the robot's own reading every way but up: pulled up, the grip turns on
+  the bar, the arm's joints swing, and the whole body's reading runs 2-10 N
+  under the truth while they do -- 13.9 N for 10, 32.7 for 20 (#547;
+  SimNotes, "The force loop"). Once built, it holds 0.8-0.9 of its ask.
+- **Tell its hand from the rest of it.** The whole body's reading is
+  everything the world pushes on the robot but at its soles: a forearm on
+  a counter's edge reads as the hand's push.
 - **Two hands at once.** Every verb is one hand's; a bimanual frame-and-work
   split waits for a job that needs it.
 - **Motion within the hand** beyond a light grip's turn between the pads.

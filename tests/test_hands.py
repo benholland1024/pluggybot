@@ -96,6 +96,21 @@ def test_a_hands_world_calls_its_own_verbs_and_a_served_world_is_unchanged():
   assert "measure" not in bare.verbs and set(st.HAND_VERBS) <= set(bare.verbs)
 
 
+def test_a_pull_asks_no_more_than_the_standing_body_holds_and_says_so():
+  """#544 (Ben, 2026-10-25): `pull` asks at most what the standing body
+  holds at a hand, 20 N -- held 3 s at a counter's height it stood to 30 N
+  pulling back and 20 pushing away -- and its text says so, and that
+  pushing away holds around two thirds of it. More is refused before a
+  step runs, as any bound is."""
+  pull = st.language(st.hand_facts())["pull"]
+  assert pull.args["force"].hi == st.PULL_MOST_N == 20.0
+  assert "your body holds a pull of 20 N at a hand, and pushing away from you around " \
+         "two thirds of that" in " ".join(pull.doc.split())
+  lang.compile_procedure('def a():\n    pull("left", -1, 0, 0, 20, 0.1)\n', st.hand_facts())
+  with pytest.raises(st.Refused, match="force=21.0 is above 20.0"):
+    lang.compile_procedure('def a():\n    pull("left", -1, 0, 0, 21, 0.1)\n', st.hand_facts())
+
+
 def test_no_hand_verb_knows_the_chest():
   """Ben's condition on call 2: every verb generic, for any handle and any
   drawer -- a grip only shuts and says whether it holds, a hand is moved by
@@ -417,6 +432,10 @@ def _bare_reach():
   r.grippers = {s: _Grip() for s in hm.SIDES}
   r.homes, r._planner = {s: [] for s in hm.SIDES}, None
   r.sensed = np.full(len(hm.JOINT_NAMES), np.nan)
+  # the whole body's reading off: the senses here are a test's stubs, not a
+  # body's (`_feel`'s own tests turn it on)
+  r.standing = False
+  r.arm_force = {s: np.zeros(3) for s in hm.SIDES}
   return r
 
 
@@ -1417,6 +1436,31 @@ def test_the_doors_job_is_its_graders_and_names_no_way_to_do_it():
   for grader in ("lid", "drawer", "place"):
     assert at.Task(chest=0, body="humanoid", mount="counter", grader=grader).limit_s == \
       3 * at.REFERENCE_S
+
+
+#: The jobs as the robots are told them since #544, their templates' sha256:
+#: every flight's prompt starts from one, so it changes only on purpose,
+#: pinned again here.
+JOB_SHA = {"lid": "ab4facadbd286f2e50d36f1fd47c6842b80953d40e5992dc7cc51a7886988b7d",
+           "door": "e9e6e4821a092d14137683c9502cfcb0f8ce1b7b407d511f077074793dd49c67"}
+
+
+def test_every_job_tells_the_robot_a_fall_fails_the_try():
+  """Ben, 2026-10-25 (#544): a fall fails the try, used or by accident, and
+  the robot is told -- in every job a practice flies, over the try and the
+  hold its grader reads (`lid.judged`), and never the old rule's lost time.
+  The texts are pinned again, deliberately."""
+  import hashlib
+  from pluggybot.challenge import lid
+  from pluggybot.evaluation import attempts as at
+  assert set(JOB_SHA) == set(ep.JOBS)
+  for grader, template in ep.JOBS.items():
+    job = " ".join(ep.job_for(at.Task(chest=0, body="humanoid", mount="counter",
+                                      grader=grader)).split())
+    assert (f"If you fall during a try or in the {lid.HOLD_S:.0f} s after it, the try fails, "
+            f"however the {'lid' if grader == 'lid' else 'door'} ends.") in job, grader
+    assert "loses you the time" not in job, grader
+    assert hashlib.sha256(template.encode()).hexdigest() == JOB_SHA[grader], grader
 
 
 def test_a_verb_an_if_tests_is_read_and_the_procedure_goes_on():

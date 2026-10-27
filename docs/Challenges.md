@@ -351,10 +351,15 @@ knob during the hold: let go; (5) the call came within the task's time
 limit of the attempt's start, where the harness makes it at the latest --
 the TASK's data (`attempts.LIMIT_S`, handed to the grader as `limitS`;
 `TIME_LIMIT_S`, 300 s, where none is): the quadruped's 300 s, the
-humanoid's three times its reference's slowest pass, 68 s (#493).
-Said beside, and judged by nothing (Ben, 2026-10-17: the job is the lid,
-and a fall is lost time against the limit): the falls the body's own watch
-counted (`Body.falls`), its worst tilt (`Body.orientation`) and whether the
+humanoid's three times its reference's slowest pass, 68 s (#493); (6) the
+body's own watch counted no fall (`Body.falls`) from the attempt's start
+to the end of the hold, whether the fall was used or an accident (Ben,
+2026-10-25, #544). From 2026-10-17 a fall was lost time against the limit
+and judged by nothing, and learned skills leaned on it: a hard pull swung a
+door open and the body over with it, every held-out try of one door arm
+(#535). A failed verdict says the fall first, then what the world shows
+(`lid.fell`), and the job tells the robot the rule. Said beside, and
+judged by nothing: its worst tilt (`Body.orientation`) and whether the
 tool its set-out gave it is still seated (`Body.tool_powered`). What a fall
 is, and which part is the tool, is the body's to say, so the grader names
 neither and reads the humanoid's counter world unchanged: the quadruped's
@@ -423,9 +428,12 @@ judged unrounded and shown rounded, the time limit the task's. Proof in
   dropped; (3) nothing of the robot's touches it during the hold; (4) in
   time. Slid there, it passes as well as carried.
 
+And each, the lid's (6): the body's own watch counted no fall from the
+attempt's start to the end of the hold (`lid.judged`, #544).
+
 Said beside and judging nothing: the most the drawer came out and the door
 opened, how far the lever was pressed, the fastest each moved, the cube's
-lift, the falls the body's own watch counted and its worst tilt.
+lift and the body's worst tilt.
 
 **The departure is the lid's: `shown: false`, paying 0** -- a check is our
 instrument, in no served world, and a row a mind with a library reads

@@ -54,6 +54,11 @@ pull; shoves and pulls ramp up over the first 1200 iterations
 (`DISTURBANCE_STAGES`, `--env.curriculum.disturbances.params.scale`), and
 each sole is charged for its distance from where the episode's stance put
 it (`feet_anchor`; SimNotes, "The humanoid stands, reaches and grasps").
+#544's retrains against the `pull` verb's 60 N (a one-hand draw, a capped
+moment, long holds, a ramp, a fall charge, and `-Stand-Felt` shown each
+hand's force) are in git, bee276e to 34f0ed3: none held more on the
+robot's own senses, so `pull` asks at most 20 N instead (SimNotes,
+"Holding the pull verb's 60 N at a hand").
 `Pluggy-Humanoid-Walk` is mjlab's G1 velocity recipe on our body, on flat
 ground: the actor blind to its base velocity as the quadruped's is, the arms
 scripted more quietly than a reach moves them, the legs charged for meeting
@@ -149,6 +154,7 @@ run on a card records its steps a second:
 | RTX 4090 | Vast, the same host | 0.414 | 77,749 | 0.0015 | today's task, fresh, iterations 10–309 |
 | RTX 5090 | Vast, a Ryzen 7 7800X3D host | 0.516 | 218,000 | 0.00066 | mjlab's stock G1 flat task, 3000 iterations in 22.5 min (#507) |
 | RTX 5090 | Vast, the same host | 0.516 | 209,000 | 0.00069 | `Pluggy-Humanoid-Stand`, 4000 iterations in 31 min (#507) |
+| RTX 5090 | Vast, three hosts in South Korea | 0.490-0.516 | 198,000-205,000 | 0.0007 | `Pluggy-Humanoid-Stand` and `-Stand-Felt` (stand7-stand13), 4000 iterations in 32-33 min each (#544) |
 | RTX 5090 | Vast, another 7800X3D host | 0.490 | 215,000 | 0.00063 | `Pluggy-Humanoid-Walk`, 3000 iterations in 23 min (#507) |
 | RTX 5090 | Vast, the same host | 0.490 | 122,000 | 0.0011 | `Pluggy-Humanoid-Walk-Rough` (rough4: 50 tiles of boxes), 2000 iterations in 27 min (#507) |
 | RTX 5090 | Vast, a Ryzen 9 9950X host | 0.641 | 114,000 | 0.0016 | `Pluggy-Humanoid-Walk-Seeing` from walk2 (50 tiles of boxes and flights, the 187-ray scan) alone (#507) |
