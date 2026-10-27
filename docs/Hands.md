@@ -294,7 +294,10 @@ under them. With the reach's reply fixed, an arm's frozen copies passed
 22 of 29 held-out chests within 3 (§4's "What changed the grasp"). With
 no new help, two arms learned the cupboard's door on it: 15 of 22 and 22
 of 29 within 3, one of them falling in every try (§4's "The door, with
-no new help") -- tries a fall now fails (#544).
+no new help") -- tries a fall now fails (#544). Told so, with `pull` at
+20 N, two door arms passed 30 and 32 of 32 held-out set-outs within 3 and
+none of their held-out tries fell, while the lid's two passed 1 of 8 and 5
+of 12 (§4's "The readings again, under the new rule").
 
 ## 7. What it does not do
 
