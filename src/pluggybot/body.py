@@ -757,7 +757,8 @@ class Body(abc.ABC):
     world from grip, None keeping the one before) where they are given. The
     posture is the body's to choose (#493). Returns how it ended (`why`:
     "arrived", "held back" -- its command there, the hand held short of it
-    -- "out of reach", "not out", "fell", "feet moved", "out of time"), in
+    -- "out of reach", "not out", "until" -- `stop_hand` stopped it --
+    "fell", "feet moved", "out of time"), in
     how long, how far the hand went (`moved`, m) and where it ended up from
     where it began (`dx`, `dy`, `dz`, believed world frame, m)."""
 
@@ -766,7 +767,17 @@ class Body(abc.ABC):
     """Why a hand's last `reach_routine` ended short of holding there: "out
     of reach" (no posture it holds puts the pose in reach), "stopped short"
     (it stopped on its way: pushing on something, or out of reach as the
-    body truly stood), "fell", "out of time" -- or "" where it held (#493)."""
+    body truly stood), "until" (`stop_hand` stopped it), "fell", "out of
+    time" -- or "" where it held (#493)."""
+
+  @abc.abstractmethod
+  def stop_hand(self, side: str) -> bool:
+    """A hand's move stopped now and held where it is, as its own stops
+    hold it (#554: a procedure's stop condition, `steps._guarded_routine`):
+    a reach's arm where it is commanded, on its way out or in; a carry's or
+    a pull's hand where it is -- each move then ending as "until"
+    (`hand_why`, the routine's own `why`). True where a move was under way;
+    False, nothing changed, where none was."""
 
   @abc.abstractmethod
   def pull_routine(self, side: str, direction, limit_n: float, distance_m: float,
@@ -782,7 +793,8 @@ class Body(abc.ABC):
     force and not moving), its grip lets go, it can reach no further, its
     feet move, or `patience` runs out; then it holds where the hand is.
     Returns how it ended (`why`: "distance", "held fast", "let go", "out of
-    reach", "not out", "fell", "feet moved", "out of time"), in how long,
+    reach", "not out", "until" -- `stop_hand` stopped it -- "fell", "feet
+    moved", "out of time"), in how long,
     how far the hand went (`moved`) and along its way (`along`), where it
     ended up from where it began (believed world frame, m), the way the hand
     was going at its end (`direction`, a unit vector: what it held allowed)
@@ -1484,6 +1496,10 @@ class StubBody(Body):
     """Never short -- every reach holds at once -- but with a hand a test
     put `out_of_reach`."""
     return self._why.get(side, "")
+
+  def stop_hand(self, side) -> bool:
+    """Its moves are done at once: none is under way to stop."""
+    return False
 
   def pull_routine(self, side, direction, limit_n, distance_m, speed=0.06, patience=30.0,
                    give=True):

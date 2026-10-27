@@ -244,6 +244,16 @@ PLACE = '''def place_cube():
 
 #: The jobs, each its grader (`attempts.GRADERS`) and its procedure.
 JOBS = {"lid": LID, "drawer": DRAWER, "door": DOOR, "place": PLACE}
+#: A SCENE to watch, never a job the check grades (#554): the lid's
+#: procedure with its lift STOPPED ON ITS HAND'S HEIGHT 10 cm up -- the lid
+#: held part open for two seconds -- then lifted the rest of the way and set
+#: down as the lid's is (`scripts/hands_check.py --view until`): its job's
+#: set-out and grader, and its procedure.
+SCENES = {"until": ("lid", LID.replace(
+  '    pull("left", 0.35 * fx, 0.35 * fy, 1, 20, 0.27)\n',
+  '    pull("left", 0.35 * fx, 0.35 * fy, 1, 20, 0.27, until="left.z", above=z0 + 0.1)\n'
+  '    wait(2)\n'
+  '    pull("left", 0.35 * fx, 0.35 * fy, 1, 20, 0.27 - read("pull.moved"))\n'))}
 #: The set-outs each job is flown at, and the bar, written before the check
 #: flew: a job passes when its procedure passes at least `BAR` of them
 #: (#493's gate: 6 of 8).
@@ -257,9 +267,9 @@ def facts() -> st.WorldFacts:
 
 
 def compiled(job: str) -> lang.Procedure:
-  """`job`'s procedure, compiled against `facts()` (raises `Refused` with
-  every reason)."""
-  return lang.compile_procedure(JOBS[job], facts())
+  """`job`'s procedure -- or a scene's (`SCENES`) -- compiled against
+  `facts()` (raises `Refused` with every reason)."""
+  return lang.compile_procedure(SCENES[job][1] if job in SCENES else JOBS[job], facts())
 
 
 def fly(job: str, k: int, info: dict | None = None) -> dict:

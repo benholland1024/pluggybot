@@ -538,6 +538,37 @@ class Reach:
     if self.phase[side] == "carry":
       self._end(side, why, *self.grip_now(side))
 
+  def halt(self, side: str, why: str) -> bool:
+    """A hand's move stopped now, held where it is (#554: a procedure's stop
+    condition): a carry or a pull where the hand IS, as its own stops hold
+    it (`stop`, its report saying `why`); a hand on its way in, or holding
+    with its goal moved (`move_goal`), where its command is, as one stopped
+    on its way is (`blocked`); an arm on its way out to its pre-grasp where
+    its joints are commanded -- out there, its goal and its command the grip
+    they put it at, so it may be carried on or withdrawn as any hand that
+    is out. True where a move was under way; False, nothing changed, where
+    none was."""
+    phase = self.phase[side]
+    if phase == "carry":
+      self.stop(side, why)
+      return True
+    if phase in ("approach", "pull"):
+      self.phase[side] = "blocked"
+      return True
+    if phase != "move":
+      return False
+    # the grip its commanded joints put it at, the body as last posed
+    sm = self._planner_model()
+    sm.q = self.self_model.q.copy()
+    sm.d.qpos[:] = self.self_model.d.qpos
+    sm._set_arm(side, self.q_cmd[side])
+    pos, rot = sm.grip_pose(side)
+    k = self.goal[side].stiffness
+    self.goal[side], self.cmd[side] = HandGoal(pos.copy(), rot.copy(), k), HandGoal(pos, rot, k)
+    self.q_to[side] = self.q_cmd[side].copy()
+    self.phase[side] = "blocked"
+    return True
+
   def out(self, side: str) -> bool:
     """Whether a hand is out at a pose of its own: holding it, moving on
     from it or stopped on its way (what `carry` moves on)."""

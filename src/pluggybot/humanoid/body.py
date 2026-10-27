@@ -159,8 +159,10 @@ class HumanoidBody(Body):
     self.swapping_at = None
     self.working = False
     self.peer_at_bay_m = None
-    #: Why each hand's last reach ended short of holding (`hand_why`).
+    #: Why each hand's last reach ended short of holding (`hand_why`), and
+    #: the hands whose reach `stop_hand` stopped (#554).
     self._why: dict[str, str] = {}
+    self._halted: set[str] = set()
     self.bay_wait = None
     self.docked = False
     self.head_camera = handle.el(HEAD_CAMERA)
@@ -414,6 +416,7 @@ class HumanoidBody(Body):
     p = self.to_stance(pos)
     r = None if rot is None else _rz(self.stance[2]).T @ np.asarray(rot, dtype=float)
     self._why[side] = "out of reach"
+    self._halted.discard(side)
     postures = reach_.POSTURES
     if path is not None:
       # the posture the hand then follows its path in, and that one alone
@@ -439,11 +442,18 @@ class HumanoidBody(Body):
       yield STILL
     held = self.mission.falls == falls and self.reach.phase[side] == "hold"
     self._why[side] = ("" if held else "fell" if self.mission.falls != falls
+                       else "until" if side in self._halted
                        else "stopped short" if self.reach.done(side) else "out of time")
     return held
 
   def hand_why(self, side) -> str:
     return self._why.get(side, "")
+
+  def stop_hand(self, side) -> bool:
+    if not self.reach.halt(side, "until"):
+      return False
+    self._halted.add(side)
+    return True
 
   def release_routine(self, side):
     """Out and home, waited for until its drivers read the arm there

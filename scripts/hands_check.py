@@ -21,7 +21,9 @@ hold, one verdict.
   --source JOB         the job's procedure, compiled: its source, its
                        length against the cap and its verb calls
   --view JOB [K]       a flight at set-out K (0) in the MuJoCo viewer, at
-                       real time, the verdict printed; MUJOCO_GL left off
+                       real time, the verdict printed; MUJOCO_GL left off.
+                       JOB may be a scene (`hands_check.SCENES`): `until`,
+                       the lid's lift stopped on its hand's height (#554)
   --strip JOB [K]      its filmstrip, a tile every few seconds, the call and
                        the hold's end: hands_check.png, or `--out`
 
@@ -30,6 +32,7 @@ Usage:
     env MUJOCO_GL=egl uv run python scripts/hands_check.py --jobs 3 --into DIR
   uv run python scripts/hands_check.py --read DIR
   uv run python scripts/hands_check.py --view door 3
+  uv run python scripts/hands_check.py --view until
   MUJOCO_GL=egl uv run python scripts/hands_check.py --strip lid 0
 """
 
@@ -134,7 +137,13 @@ BACK = {"lid": 1.5, "drawer": 1.5, "door": 1.5, "place": 0.9}
 
 
 def _task(job: str, k: int) -> at.Task:
-  return at.Task(chest=k, body="humanoid", mount="counter", grader=job)
+  """`job`'s task at set-out `k` -- a scene's, its job's (`hc.SCENES`)."""
+  return at.Task(chest=k, body="humanoid", mount="counter",
+                 grader=hc.SCENES[job][0] if job in hc.SCENES else job)
+
+
+def _prop(job: str) -> str:
+  return hc.SCENES[job][0] if job in hc.SCENES else job
 
 
 def _skill(job: str, out: dict):
@@ -144,7 +153,7 @@ def _skill(job: str, out: dict):
 def view(job: str, k: int) -> None:
   from mujoco import viewer as mj_viewer
   world = at.set_out(_task(job, k))
-  x, y, _ = PROPS[job](k)
+  x, y, _ = PROPS[_prop(job)](k)
   print(f"the {job} at set-out {k}, our procedure in the hands' vocabulary; the grader's "
         "verdict is printed. Close the window to quit.")
   with mj_viewer.launch_passive(world.model, world.data) as viewer:
@@ -152,8 +161,12 @@ def view(job: str, k: int) -> None:
     viewer.cam.distance, viewer.cam.azimuth, viewer.cam.elevation = 1.4, 135.0, -20.0
     world.body.step_hooks.append(_pace(viewer, world.data, world.model))
     try:
-      row = at.attempt_in(world, _skill(job, {}))
+      out: dict = {}
+      row = at.attempt_in(world, _skill(job, out))
       print(show(row | {"ran": {}}))
+      for s_ in (out.get("ran") or {}).get("steps", []):
+        if s_.get("until"):
+          print(f"  line {s_['line']} {s_['verb']} stopped on its reading: {s_['until']}")
       while viewer.is_running():
         viewer.sync()
         time.sleep(0.05)
@@ -173,7 +186,7 @@ def strip(job: str, k: int, out: str = "hands_check.png") -> None:
   m, d = world.model, world.data
   r = mujoco.Renderer(m, 300, 400)
   tiles = []
-  x, y, yaw = (float(v) for v in PROPS[job](k))
+  x, y, yaw = (float(v) for v in PROPS[_prop(job)](k))
   sx, sy, _ = world.start
 
   def shoot(label):
@@ -181,7 +194,7 @@ def strip(job: str, k: int, out: str = "hands_check.png") -> None:
     # for this tile alone -- the robot's own cameras render in the house's light.
     cam = mujoco.MjvCamera()
     cam.lookat[:] = [0.6 * x + 0.4 * sx, 0.6 * y + 0.4 * sy, ct.COUNTER_H + 0.15]
-    cam.distance, cam.azimuth, cam.elevation = BACK[job], math.degrees(yaw) + 115.0, -25.0
+    cam.distance, cam.azimuth, cam.elevation = BACK[_prop(job)], math.degrees(yaw) + 115.0, -25.0
     light = (m.vis.headlight.ambient.copy(), m.vis.headlight.diffuse.copy())
     m.vis.headlight.ambient[:], m.vis.headlight.diffuse[:] = 0.35, 0.55
     r.update_scene(d, cam)
@@ -192,9 +205,19 @@ def strip(job: str, k: int, out: str = "hands_check.png") -> None:
 
   shoot(f"the {job}, set-out {k}")
   t0 = float(d.time)
+  # a hand's move stopped on its reading (#554) is a tile of its own, and so
+  # is the end of its hold: a scene's point
+  stops: list[float] = []
 
   def every():
-    if len(tiles) < TILES - 2 and d.time - t0 >= EVERY_S * len(tiles):
+    rep = world.body.reach.report.get("left") or {}
+    if rep.get("why") == "until" and not stops:
+      stops.append(float(d.time))
+      shoot(f"stopped on its reading, {d.time - t0:.1f} s")
+    elif len(stops) == 1 and d.time - stops[0] >= 1.9:
+      stops.append(float(d.time))
+      shoot(f"held there, {d.time - t0:.1f} s")
+    elif len(tiles) < TILES - 2 and d.time - t0 >= EVERY_S * (len(tiles) - len(stops)):
       shoot(f"{d.time - t0:.0f} s")
   world.body.step_hooks.append(every)
 
@@ -242,8 +265,8 @@ def main(argv=None) -> None:
   for flag in ("view", "strip"):
     got = getattr(args, flag)
     if got is not None:
-      if got[0] not in hc.JOBS or len(got) > 2:
-        ap.error(f"--{flag} JOB [K]: JOB one of {', '.join(hc.JOBS)}")
+      if got[0] not in (*hc.JOBS, *hc.SCENES) or len(got) > 2:
+        ap.error(f"--{flag} JOB [K]: JOB one of {', '.join((*hc.JOBS, *hc.SCENES))}")
       k = int(got[1]) if len(got) > 1 else 0
       view(got[0], k) if flag == "view" else strip(got[0], k, args.out)
       return

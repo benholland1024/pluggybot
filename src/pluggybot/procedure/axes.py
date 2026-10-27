@@ -54,6 +54,18 @@ class Sensor:
   read: Callable[..., float]    # (life) -> float
   doc: str
   requires: str = ""
+  #: how often its part reads it afresh while the body moves, s -- what a
+  #: hand's move may stop on, read no oftener (#554) -- or None for what a
+  #: verb last reported, which no move changes
+  every_s: float | None = None
+
+
+#: How often a hand's readings are fresh while it moves, s: once a command
+#: of its arm's (`humanoid.reach.EVERY_S`, which a test holds this to) --
+#: its place off its encoders through its model of itself, its force off
+#: the whole body's balance (#547), its gripper's word -- and the clock
+#: they are read by.
+HAND_EVERY_S = 0.01
 
 
 #: The quadruped's arm (issue #405): each joint is an axis and a sensor,
@@ -124,7 +136,8 @@ SENSORS: dict[str, Sensor] = {
                        "pack energy, Wh"),
   "points": Sensor("points", lambda life: float(life.ledger.balance())
                    if life.ledger is not None else 0.0, "the balance"),
-  "time": Sensor("time", lambda life: float(life.data.time), "sim seconds"),
+  "time": Sensor("time", lambda life: float(life.data.time), "sim seconds",
+                 every_s=HAND_EVERY_S),
   "bumper": Sensor("bumper", lambda life: 1.0 if life.body.pressing else 0.0,
                    "1 while its body presses against something"),
   "shoulder": Sensor("shoulder", lambda life: _joint(life, "arm_shoulder"),
@@ -210,20 +223,21 @@ for _s in HANDS:
   for _k, _a in enumerate("xyz"):
     SENSORS[f"{_s}.{_a}"] = Sensor(
       f"{_s}.{_a}", _hand_at(_s, _k),
-      f"where your {_s} hand's grip is, m, your stance frame ({_a})")
+      f"where your {_s} hand's grip is, m, your stance frame ({_a})", every_s=HAND_EVERY_S)
     SENSORS[f"{_s}.f{_a}"] = Sensor(
       f"{_s}.f{_a}", _hand_force(_s, _k),
       f"the force your {_s} hand pushes with, N, your stance frame ({_a}), off your "
       "motor currents less your own weight and your joints' friction -- your whole "
       "body's while that hand is out and you stand, else its arm's alone; it reads "
-      "truest held still")
+      "truest held still", every_s=HAND_EVERY_S)
   SENSORS[f"{_s}.held"] = Sensor(
     f"{_s}.held", (lambda side: lambda life: 1.0 if life.body.gripped(side) else 0.0)(_s),
     f"1 while your {_s} gripper says it holds something: its jaws stopped short of "
-    "closed, squeezing")
+    "closed, squeezing", every_s=HAND_EVERY_S)
   SENSORS[f"{_s}.gap"] = Sensor(
     f"{_s}.gap", (lambda side: lambda life: life.body.grip_gap(side))(_s),
-    f"how far apart your {_s} gripper's jaws are, m: what it holds, how wide")
+    f"how far apart your {_s} gripper's jaws are, m: what it holds, how wide",
+    every_s=HAND_EVERY_S)
 for _k, _a in enumerate("xyz"):
   SENSORS[f"spot.{_a}"] = Sensor(
     f"spot.{_a}", (lambda key: lambda life: reported("spot", key, life))(_a),
@@ -310,6 +324,26 @@ for _k, _a in enumerate("xyz"):
     f"pull.d{_a}", (lambda key: lambda life: reported("pull", key, life))(f"d{_a}"),
     f"the way your hand was going at the end of the last `pull` ({_a}), your stance "
     "frame: a unit vector, where what it held let it go")
+
+
+#: ...and whether the last of each hand's move stopped on its reading
+#: (#554, `until`): 1 where it did, 0 where it ended otherwise.
+STOPPED_SENSORS = ("reach.stopped", "move_hand.stopped", "pull.stopped")
+
+
+def _stopped(verb: str):
+  def read(life) -> float:
+    got = ((getattr(life, "reports", None) or {}).get("stopped") or {}).get(verb)
+    if got is None:
+      raise NoReading(f"{verb}.stopped has no reading: `{verb}` has not run")
+    return float(got)
+  return read
+
+
+for _v in ("reach", "move_hand", "pull"):
+  SENSORS[f"{_v}.stopped"] = Sensor(
+    f"{_v}.stopped", _stopped(_v),
+    f"1 if your last `{_v}` stopped on its `until`, 0 if it ended otherwise")
 
 
 def setpoints(life) -> dict[str, float]:
