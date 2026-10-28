@@ -1812,6 +1812,15 @@ class QuadBody(Body):
   def spot(self, tag, at_height=None):
     return None
 
+  _NO_WATCH = ("the quadruped reads tags as its walks need them (`find`, the dock's and the "
+               "rack's looks): a tag watched while a procedure moves is the humanoid's (#554)")
+
+  def watch(self, tag):
+    raise NotImplementedError(self._NO_WATCH)
+
+  def sighting(self):
+    raise NotImplementedError(self._NO_WATCH)
+
   pressing = property(lambda self: self.mission.pressing)
   head_camera = property(lambda self: self.handle.el(NAV_EYE))
 

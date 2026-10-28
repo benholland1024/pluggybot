@@ -105,12 +105,16 @@ def test_the_number_may_be_computed_and_is_checked_when_it_is():
 def test_a_sensors_rate_is_its_parts_and_a_hands_is_once_its_arms_command():
   """A reading a move may stop on carries how often its part reads it; a
   verb's report carries none. A hand's place, force and grip are fresh once
-  a command of its arm's, the reach's own period."""
+  a command of its arm's, the reach's own period -- and a watched tag's
+  once a picture of its camera's (#554's stage 2)."""
+  from pluggybot.perception import watch
   assert axes.HAND_EVERY_S == rc.EVERY_S
   live = [s for s in st.hand_facts().sensors if axes.SENSORS[s].every_s is not None]
-  assert live == ["time"] + [f"{h}.{k}" for h in hm.SIDES
-                             for k in ("x", "y", "z", "fx", "fy", "fz", "held", "gap")]
-  assert {axes.SENSORS[s].every_s for s in live} == {rc.EVERY_S}
+  hands = ["time"] + [f"{h}.{k}" for h in hm.SIDES
+                      for k in ("x", "y", "z", "fx", "fy", "fz", "held", "gap")]
+  assert live == hands + list(axes.WATCH_SENSORS)
+  assert {axes.SENSORS[s].every_s for s in hands} == {rc.EVERY_S}
+  assert {axes.SENSORS[s].every_s for s in axes.WATCH_SENSORS} == {1.0 / watch.WATCH_HZ}
   for s in st.hand_facts().sensors:
     if s.split(".")[0] in ("spot", "pull", "step", "object", "reach", "move_hand"):
       assert axes.SENSORS[s].every_s is None, s
@@ -497,8 +501,12 @@ def test_the_robot_is_told_the_stop_condition_behind_its_flag_and_nothing_of_a_j
   bare = mp.system_prompt(st.hand_facts(guarded=False))
   assert "until=" not in bare and "`until`" not in bare and ".stopped" not in bare
   assert "[," not in bare
-  rule = " ".join((mp.GUARD % {"rate": 100, "n": mp.GUARD_EXAMPLE_N}).split())
+  rule = " ".join((mp.GUARD % {"rate": 100, "n": mp.GUARD_EXAMPLE_N,
+                               "watched": mp.WATCHED % {"hz": 15}}).split())
   assert rule in " ".join(told.split())
+  # ...and with no watch (#554's stage 2), the rule stage 1 flew, word for word
+  assert mp.GUARD % {"rate": 100, "n": mp.GUARD_EXAMPLE_N, "watched": ""} in mp.system_prompt(
+    st.hand_facts(watching=False))
   assert f"{round(1 / axes.HAND_EVERY_S)} times a second" in rule
   for word in ("lid", "chest", "knob", "hinge", "arc", "handle", "box", "drawer", "door",
                "lever", "angle"):

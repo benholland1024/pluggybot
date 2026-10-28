@@ -521,6 +521,24 @@ class Body(abc.ABC):
     """One tag's centre in the believed world frame off one decode, or None
     where it does not decode from here (issue #264)."""
 
+  @abc.abstractmethod
+  def watch(self, tag: int | None) -> None:
+    """Its head's colour camera kept reading `tag` while it goes on -- its
+    hands moving, its feet stepping, standing still -- through the camera
+    `spot` reads (#554's stage 2, `perception.watch.TagWatch`): a picture
+    each `WATCH_HZ`th of a second, each the robot's `LATENCY_S` after it
+    was taken (`sighting`). Another tag takes its place, what was read of
+    the last forgotten; None stops it."""
+
+  @abc.abstractmethod
+  def sighting(self) -> dict | None:
+    """The watched tag as the newest reading the robot has of it (#554):
+    {tag, seen -- whether its picture shows the tag --, at -- when that
+    picture was taken, sim s --, last -- where the newest picture that
+    showed it put it: x, y, z, the believed world frame, range, normal,
+    edge (as `spot`'s) and at -- or None}; None before a watch's first
+    reading."""
+
   #: Pressed against something it is moving into (its bumper).
   pressing: bool
   #: The camera its eye looks through (issue #275), by its name in the
@@ -1018,6 +1036,10 @@ class StubBody(Body):
     self.pulled: list[tuple] = []
     #: ...and each step asked (#525), (ahead, left, turn)
     self.stepped: list[tuple] = []
+    #: ...and each tag it was asked to watch (#554), None a stop, and what
+    #: a test says its newest reading is (`sighting`'s shape)
+    self.watched: list = []
+    self.sight: dict | None = None
     self._why: dict[str, str] = {}
     #: ...and each survey it was asked for, and what it counts, by tag
     self.surveyed: list[int] = []
@@ -1353,6 +1375,15 @@ class StubBody(Body):
 
   def spot(self, tag, at_height=None):
     return None
+
+  def watch(self, tag):
+    """Noted (`watched`); what it reads is what a test put in `sight`."""
+    self.watched.append(None if tag is None else int(tag))
+    if tag is None:
+      self.sight = None
+
+  def sighting(self):
+    return self.sight
 
   def peer_on_the_goal(self, x, y):
     return None

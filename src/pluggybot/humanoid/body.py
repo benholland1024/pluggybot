@@ -27,6 +27,7 @@ from pluggybot.humanoid.policy import PITCH_RANGE, StandPolicy
 from pluggybot.humanoid.mission import MOTION_EPS, V_MIN, HumanoidMission
 from pluggybot.humanoid import reach as reach_
 from pluggybot.humanoid.reach import HOLD_SPEED
+from pluggybot.perception.watch import TagWatch
 from pluggybot.power import Pack
 from pluggybot.robot import FIRST, RobotHandle
 
@@ -147,6 +148,8 @@ class HumanoidBody(Body):
     self.mission = HumanoidMission(model, data, handle, stand=policy, walk=walk,
                                    grid_bounds=grid_bounds)
     self._tags = None
+    #: The tag its colour imager keeps reading while it moves (`watch`).
+    self.mission.sight = TagWatch(model.opt.timestep, self._sighted)
     #: A watcher's own joint sense and model of itself (`hand_watched`), and
     #: its own depth camera (`depth_watched`).
     self._watch = self._depth_watch = None
@@ -792,6 +795,28 @@ class HumanoidBody(Body):
     ITS TAG ON EVERY FACE (`rack.tags.TagDetector.detect_all`): the face
     seen most square-on is the one read -- looking down on the chest's
     knob, the last decoded was its top, seen edge-on."""
+    return self._decoded(tag, at_height)
+
+  def watch(self, tag):
+    if tag is None:
+      self.mission.sight.stop()
+    else:
+      self.mission.sight.start(int(tag))
+
+  def sighting(self):
+    return self.mission.sight.newest
+
+  def _sighted(self, tag: int) -> dict | None:
+    """A watch's picture (`perception.watch.TagWatch`): `spot`'s decode,
+    the camera placed through its model of itself as its arm's loop last
+    posed it (#554) -- read afresh, every picture drew on its encoders'
+    noise, and a watch nothing read changed the flight."""
+    return self._decoded(tag, fresh=False)
+
+  def _decoded(self, tag: int, at_height: float | None = None,
+               fresh: bool = True) -> dict | None:
+    """`spot`'s reading, its model of itself posed afresh off its senses
+    (`fresh`) or as its arm's loop last posed it."""
     faces = [d for d in self._detector().detect_all(self._d) if d["id"] == tag]
     if not faces:
       return None
@@ -800,7 +825,8 @@ class HumanoidBody(Body):
       t = np.asarray(d["t"])
       return float(np.asarray(d["normal"]) @ (t / np.linalg.norm(t)))
     seen = max(faces, key=square_on)
-    self.reach._pose()
+    if fresh:
+      self.reach._pose()
     sm = self.reach.self_model
     # Kinematics places bodies; a camera is placed by `mj_camlight`.
     mujoco.mj_camlight(sm.m, sm.d)
