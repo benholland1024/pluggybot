@@ -1765,9 +1765,61 @@ it is no row below.
 - **What it cannot show**: two fresh lid arms, read over two seeds' set-outs
   each, and which approach a conversation finds deciding as much as the
   tool: where both fresh arms of #544 lost the lid at its stop, these lost
-  it earlier, at the knob. Stage 2 (a tag watched while the robot moves) is
-  not flown yet. Spend: $7.41 -- the arms $6.73, the stopped launch and the
-  smokes $0.68; the references cost no tokens.
+  it earlier, at the knob. Spend: $7.41 -- the arms $6.73, the stopped
+  launch and the smokes $0.68; the references cost no tokens.
+
+**A tag watched while the robot moves, flown where the lid is lost**
+(#554's stage 2). `watch(tag)` keeps the head camera reading one tag while
+a procedure goes on, a picture 15 times a second, each the robot's 0.1 s
+after it was taken (docs/Hands.md §3), and a move may stop on what it
+reads. Two fresh lid arms flew with the yardstick's settings at `92af38e`.
+Each was held out over #544's set-outs, then its kept record flew frozen
+over the fresh seed that build fixes (1621752834), our opener over it as
+the reference: 19 of 32 [0.42, 0.74] at one try.
+
+| arm | practice: set-outs passed, the try each passed at | kept | held out (#544's set-outs) within 3 | within 5 | fresh set-outs within 3 | within 5 | held-out tries that fell | cost |
+|---|---|---|---|---|---|---|---|---|
+| lidA | 6 of 6: 3 6 6 1 1 1, the last three at the first | chests 2-5's | **19 of 26** [0.54, 0.86], 12 at the first; stopped early | 19 of 26 | 15 of 22 [0.47, 0.84], 12 at the first; stopped early | 20 of 22 | 13 of 63; 7 of 51 | $0.94 |
+| lidB | 4 of 16: 7 x x x x x x x x x x 5 x 6 1 x | chest 14's | 2 of 9 [0.06, 0.55], 1 at the first; stopped early | 2 of 9 | 2 of 9 [0.06, 0.55], none at the first; stopped early | 2 of 9 | 1 of 38; 1 of 39 | $2.87 |
+
+- **Neither arm wrote a `watch`** in any of the 402 sources they wrote,
+  practicing or held out, though the prompt offered it with its rate, its
+  latency and its readings, and they read it right ("So moves DO read watch
+  sensors"). They named it in 20 turns of their thinking and set it aside
+  for what SimNotes measured of it on this lid (the knob's tag never seen
+  past 50 deg, the jaws hiding it through a lift): it does not read the
+  angle ("Actually could check lid angle via watch on the tag? Probably
+  can't"), the knob carries its tag on every face ("watch may show
+  whichever face. Ambiguous"), the hand hides it ("while the hand is on the
+  knob, the tag may be occluded by the hand") and a rising lid takes it out
+  of view ("as the lid rises, the knob may leave the camera's view"). While
+  the hand holds the knob, the hand's height is the knob's, read at 100 Hz
+  and never hidden. Where they saw a use -- the knob found again after a
+  step, or after a lost grip -- they wrote the simpler procedure
+  ("Honestly, spot-after-step is simpler").
+- **The best fresh lid skill yet used neither tool**: lidA kept a 5 cm
+  step, the knob placed again through the step's own report, a grip with
+  its jaws closing left to right, two 18 N pulls up and away and two
+  gentle ones down -- no `until`, no `watch`; its copies
+  wrote an `until` in 4 of 114 held-out tries. It passes 19 of 26 of
+  #544's set-outs within 3, beside fixA's 21 of 28 there [0.57, 0.87] and
+  stage 1's arms' 3 of 10, and 20 of 22 of the fresh set-outs within 5;
+  20 of its copies' tries fell, each failing it.
+- **lidB stopped on its hand's height and still lost the lid at its
+  stop**: it wrote an `until` in 132 of its 139 practice tries and 73 of 77
+  held out, and kept eight 20 N pulls that each stop on the hand's height,
+  0.90 m up to 1.11, then two down to under 0.80; 18 of its 38 held-out
+  tries and 18 of 39 let the lid fall past its stop (#544's lid arms: 9 of
+  37 and 21 of 46).
+- **What they said they lacked** (`lacks.py`): the lid's angle still --
+  lidA in 28 sentences, lidB in 52 ("But I can't measure the angle, only
+  hand z"); room, the 1,500-character cap refusing 4 and 10 sources.
+- **What it cannot show**: whether a watch helps a procedure, since none
+  used one -- this reads the arms' choice on a lid whose knob is in the
+  hand, not the tool; and one fresh arm in two finding a skill as good as
+  the yardstick says how much a conversation's approach decides, as #544
+  and stage 1 found. Spend: $3.91 -- the arms $3.81, the smokes $0.10; the
+  reference cost no tokens.
 
 ## 5. What silently invalidates a number
 

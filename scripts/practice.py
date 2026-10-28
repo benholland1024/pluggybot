@@ -40,6 +40,9 @@ Two protocols (Evaluation.md §4):
   --unguarded          ...and without a hand's move's stop condition
                        (`until`, `above`, `below`; #554): an arm about its
                        absence
+  --unwatched          ...and without `watch`, a tag kept in sight while
+                       the robot moves (#554's stage 2): an arm about its
+                       absence
   --practice-attempts N  KEPT: tries a PRACTICE chest (default --attempts);
                        the held-out chests keep --attempts
   --early-stop         the chests stop once the bar is out of reach
@@ -60,8 +63,9 @@ Two protocols (Evaluation.md §4):
 The vocabulary is the hands' (#525; docs/Hands.md, `steps.hand_facts`): the
 force move, a path, grip force, a verb as an `if`'s test and the maths, in
 every arm; #493's arms (`--pull`, `--verb-tests`, `--path`) were its
-stages, and a row says which it flew (`run.vocabulary`), and whether a
-move could stop on a reading (`run.guarded`, #554).
+stages, and a row says which it flew (`run.vocabulary`), whether a move
+could stop on a reading (`run.guarded`, #554) and whether it could watch a
+tag (`run.watching`, #554's stage 2).
 
 Usage:
   systemd-run --user --scope -p MemoryMax=16G -p MemorySwapMax=0 \\
@@ -106,13 +110,15 @@ def fly(job: dict) -> list[dict]:
   from pluggybot.procedure.library import Library
   from pluggybot.procedure.steps import hand_facts
   k, model, info, price = (job[n] for n in ("chest", "model", "info", "price"))
-  facts = hand_facts(measure=job["measure"], step=job["step"], guarded=job["guarded"])
+  facts = hand_facts(measure=job["measure"], step=job["step"], guarded=job["guarded"],
+                     watching=job["watching"])
   task = at.Task(chest=k, body="humanoid", mount="counter", grader=job["job"])
   mind = Practice(HFClient(timeout=READ_S, fetch=stream_fetch), model, facts, ep.job_for(task),
                   thing=ep.THINGS[job["job"]])
   skill = (f"{model}, the hands' vocabulary"
            + (", notes" if job["notes"] else "") + ("" if job["measure"] else ", no measure")
            + ("" if job["step"] else ", no step") + ("" if job["guarded"] else ", unguarded")
+           + ("" if job["watching"] else ", unwatched")
            + ("" if job["job"] == "lid" else f", the {job['job']}"))
   info = {**info, "skill": skill, "process": job["process"]}
   try:
@@ -127,7 +133,8 @@ def fly(job: dict) -> list[dict]:
   for r in rows:
     r["run"] |= {"model": model, "vocabulary": VOCABULARY, "picture": job["picture"],
                  "notes": job["notes"], "measure": job["measure"], "step": job["step"],
-                 "guarded": job["guarded"], "attempts": job["attempts"]}
+                 "guarded": job["guarded"], "watching": job["watching"],
+                 "attempts": job["attempts"]}
     p = r["practice"]
     r["usd"] = (None if price is None
                 else round((p["tokensIn"] * price[0] + p["tokensOut"] * price[1]) / 1e6, 5))
@@ -158,8 +165,10 @@ def read(into: str) -> None:
     words = ((r["run"].get("vocabulary") or ("the pull" if r["run"].get("pull") else "position"))
              + ("" if r["run"].get("measure", True) else ", no measure")
              + ("" if r["run"].get("step", True) else ", no step")
-             # rows from before #554 had no stop condition to take away
+             # rows from before #554 had no stop condition to take away, nor
+             # rows before its stage 2 a watch
              + (", guarded" if r["run"].get("guarded") else "")
+             + (", watching" if r["run"].get("watching") else "")
              + ("" if grader == "lid" else f", the {grader}"))
     key = (r["run"].get("model"), words, r.get("process"))
     regimes.setdefault(key, []).append(r)
@@ -228,6 +237,7 @@ def main(argv=None) -> None:
   ap.add_argument("--no-measure", action="store_true")
   ap.add_argument("--no-step", action="store_true")
   ap.add_argument("--unguarded", action="store_true")
+  ap.add_argument("--unwatched", action="store_true")
   ap.add_argument("--practice-attempts", type=int, default=None, metavar="N")
   ap.add_argument("--attempts", type=int, default=5)
   ap.add_argument("--model", default=os.environ.get("PLUGGY_MODEL", MODEL))
@@ -275,7 +285,8 @@ def main(argv=None) -> None:
             "model": args.model, "picture": not args.no_picture, "info": dict(info),
             "price": price, "kept": kept, "process": process, "carried": carried,
             "write_notes": write_notes, "notes": args.notes, "measure": not args.no_measure,
-            "step": not args.no_step, "guarded": not args.unguarded}
+            "step": not args.no_step, "guarded": not args.unguarded,
+            "watching": not args.unwatched}
 
   kept, process, carried = [], "practice", None
   with get_context("spawn").Pool(max(1, args.jobs), maxtasksperchild=1) as pool:

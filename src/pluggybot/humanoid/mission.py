@@ -189,6 +189,9 @@ class HumanoidMission(Navigator):
     self.legs = "stand"
     #: Falls the get-up policy has taken over.
     self.falls = 0
+    #: A tag watched while it moves (`perception.watch.TagWatch`, the
+    #: body's `watch`), stepped after every physics step; None for none.
+    self.sight = None
     self.depth = DepthCamera(model, handle, mount="body", reach=UNCULLED)
     self._frame: DepthFrame | None = None
     self._frame_t = -math.inf
@@ -285,6 +288,10 @@ class HumanoidMission(Navigator):
       self.odo.step(q, self.stand.trunk.gravity())
     if self.head is not None:
       self.head.step()
+    if self.sight is not None:
+      # ...nothing seen while the get-up policy has every joint: no arm's
+      # loop poses its model of itself, so no picture can be placed
+      self.sight.step(float(self.data.time), sees=self.legs != "getup")
     self._steps += 1
     self._on_step()
 

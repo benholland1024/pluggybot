@@ -25,6 +25,7 @@ from typing import Callable
 import numpy as np
 
 from pluggybot.legs.arm import ARM_SLEW, ArmSpec
+from pluggybot.perception.watch import WATCH_HZ
 from pluggybot.tick import Routine
 
 
@@ -269,6 +270,67 @@ HAND_SENSORS = (("time",) + tuple(f"{s}.{k}" for s in HANDS
                                   for k in ("x", "y", "z", "fx", "fy", "fz", "held", "gap"))
                 + tuple(f"spot.{k}" for k in ("x", "y", "z", "nx", "ny", "nz", "ex", "ey", "ez",
                                               "range")))
+
+#: A tag WATCHED while the body moves (#554's stage 2, `Body.watch`): the
+#: newest reading the robot has -- whether its picture shows the tag -- and
+#: where the newest picture that showed it put the tag, how its face looked
+#: and how long ago; fresh at the camera's rate (`perception.watch`).
+WATCH_EVERY_S = 1.0 / WATCH_HZ
+
+
+def _sighting(name: str, life) -> dict:
+  got = life.body.sighting()
+  if got is None:
+    raise NoReading(f"{name} has no reading: `watch` has not run")
+  return got
+
+
+def _last_seen(name: str, life) -> dict:
+  got = _sighting(name, life)
+  if got["last"] is None:
+    raise NoReading(f"{name} has no reading: tag {got['tag']} has not been seen since "
+                    "`watch` began")
+  return got["last"]
+
+
+def _watched(name: str, k: int, key: str | None):
+  """`watch.<a>` off the newest picture that showed the tag: its place
+  (`key` None), or its `normal` or `edge`, in the stance frame now."""
+  def read(life) -> float:
+    last = _last_seen(name, life)
+    if key is None:
+      return in_stance(life, (last["x"], last["y"], last["z"]))[k]
+    return in_stance(life, last[key], point=False)[k]
+  return read
+
+
+for _k, _a in enumerate("xyz"):
+  SENSORS[f"watch.{_a}"] = Sensor(
+    f"watch.{_a}", _watched(f"watch.{_a}", _k, None),
+    f"where the tag you watch was in the newest picture that showed it, m, your stance "
+    f"frame ({_a}): the middle of the face it read", every_s=WATCH_EVERY_S)
+  SENSORS[f"watch.n{_a}"] = Sensor(
+    f"watch.n{_a}", _watched(f"watch.n{_a}", _k, "normal"),
+    f"which way that face looked ({_a}): a unit vector from it into the thing it is "
+    "printed on", every_s=WATCH_EVERY_S)
+  SENSORS[f"watch.e{_a}"] = Sensor(
+    f"watch.e{_a}", _watched(f"watch.e{_a}", _k, "edge"),
+    f"which way that face's edges ran ({_a}): a unit vector along one of them",
+    every_s=WATCH_EVERY_S)
+SENSORS["watch.range"] = Sensor(
+  "watch.range", lambda life: float(_last_seen("watch.range", life)["range"]),
+  "how far that tag was from the camera then, m", every_s=WATCH_EVERY_S)
+SENSORS["watch.seen"] = Sensor(
+  "watch.seen", lambda life: 1.0 if _sighting("watch.seen", life)["seen"] else 0.0,
+  "1 while your newest picture shows the tag you watch, 0 while it does not: out of "
+  "view, or hidden -- by your own hand too", every_s=WATCH_EVERY_S)
+SENSORS["watch.age"] = Sensor(
+  "watch.age", lambda life: float(life.data.time) - _last_seen("watch.age", life)["at"],
+  "how long ago the newest picture that showed it was taken, s: how old `watch.x` and "
+  "the rest are", every_s=WATCH_EVERY_S)
+#: ...what a procedure with a watch reads.
+WATCH_SENSORS = tuple(f"watch.{k}" for k in ("x", "y", "z", "nx", "ny", "nz", "ex", "ey", "ez",
+                                             "range", "seen", "age"))
 
 # The humanoid's arm joints: each an axis (the motor level a hand's verbs
 # are built from), walked by `Body.ramp_routine`. ⚠ No sensor reads one:

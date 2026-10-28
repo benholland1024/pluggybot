@@ -842,4 +842,7 @@ def run_procedure_routine(life, proc: Procedure, facts: WorldFacts,
     # are its readout (issue #227) -- what it read and computed reaches the
     # mind through these, and through nothing else.
     result["locals"] = {k: round(float(v), 6) for k, v in env.items()}
+    # ...and a watch it began ends with it (#554): no picture for nobody
+    if "watch" in (facts.verbs or ()):
+      life.body.watch(None)
   return result

@@ -92,6 +92,7 @@ and its feet, which the walking policy moves.
 | verb | what it does | its report | how it fails | built from |
 |---|---|---|---|---|
 | `spot(tag)` | stands still and looks for a tag -- as it stands, then bowing lower (`SPOT_GAZES`) until it sees it -- and stands up again | `spot.x/y/z` (the face's middle), `spot.nx..nz` (into the thing it is on), `spot.ex..ez` (along an edge), `spot.range` | not in view from where it stands | the head camera's tag detector (`rack.tags`), `Body.gaze_routine` |
+| `watch(tag)` | keeps the head camera reading a tag while the procedure goes on, 15 pictures a second, each read 0.1 s after it was taken; ends with the procedure or the next `watch` | as `spot`'s, where the newest picture that showed it put it (`watch.*`), and `watch.seen` (whether the newest picture shows it), `watch.age` | not in view as it begins: it watches on | `spot`'s decode, placed through the robot's model of itself as its arm's loop last posed it (`perception.watch`) |
 | `measure(x, y)` | the depth camera's look at what stands at (x, y) | `object.top/near/far/left/right` | no flat top seen | the D435's cloud (`perception/box.py`) |
 | `reach(hand, x, y, z, fingers, jaws, stiffness)` | the grip to a point, turned as asked or as the arm finds; out to a point short of it, then in along the fingers | `hand.x/y/z`, `hand.fx..fz` | out of reach (and whether the other hand could, as asked or turned another way), turned as asked or not; stopped short. ⚠ What it touches on its way in under the blocking force can hold it a few cm short while it holds: the hand's place says where (§5) | the arm's IK on the robot's model of itself, a planned posture |
 | `via(hand, x, y, z, turn)` | adds a point to the hand's next move; nothing moves | -- | a path holds 40 points | -- |
@@ -132,6 +133,27 @@ carried in free air, a hand's force ran 11-17 N ahead for half a second, and
 then under 6 (SimNotes, "A move that stops on a reading", with its scene,
 `scripts/hands_check.py --view until`). No condition knows a job: the robot turns what it wants -- a lid's
 angle, say -- into a reading and a number itself.
+
+**A tag watched while moving** (#554's stage 2; `steps.HANDS_VERBS`'
+`watch`, `perception.watch.TagWatch`, behind `hand_facts(watching=)`):
+`watch(tag)` keeps the head's colour camera reading one tag while the
+procedure goes on -- a hand moving, the feet stepping, a wait -- through
+`spot`'s own decode, a picture each 34 physics steps (15 a second, the
+D435's 15 fps mode, rounded up) and each picture the robot's 0.1 s after
+it was taken (its capture and its decode on a Pi 5). Each is placed
+through the robot's model of itself as its arm's loop last posed it, so
+watching draws nothing on its encoders' noise; nothing is seen while the
+get-up policy has the body. `watch.x..range` are where the newest picture
+that showed the tag put it, `watch.seen` whether the newest picture shows
+it -- out of view or hidden, the robot's own hand too, it is 0 and the
+last place is kept -- and `watch.age` how long ago that was. It neither
+bows nor turns to look: ⚠ THE HEAD CAMERA IS FIXED ON THE TRUNK, and in
+our lid procedure the knob's tag was in view through the reach and the
+grip but never past 50 deg of lid, and its own jaws hid it the whole lift
+at one set-out (SimNotes, "A tag watched while moving"). A stop condition
+may read it, at a picture's rate; one whose sensor never had a reading
+says so. The procedure's end, or the next `watch`, ends it. Its scene is
+`scripts/hands_check.py --view watch`.
 
 **The language** is the served robots' (`procedure/lang.py`), with two
 switches on wherever there are hands (`steps.hand_facts`): a verb may be an
@@ -329,7 +351,11 @@ stops on a reading (#554, §3's end), two more lid arms passed 3 of 10 each
 there: the one whose skill stopped its lift on its hand's height let the
 lid fall in 4 of 38 held-out tries where the other let it fall in 19 of 43,
 and lost the knob instead (§4's "A move that stops on a reading, flown
-where the lid is lost").
+where the lid is lost"). Given a tag watched while moving too (#554's
+stage 2, §3), two more wrote no `watch` in 402 sources -- the knob in the
+hand is the hand's own height, and its tag is hidden or out of view as the
+lid rises -- and one kept a skill using neither tool that passed 19 of 26
+there (§4's "A tag watched while the robot moves").
 
 ## 7. What it does not do
 
@@ -382,5 +408,7 @@ where the lid is lost").
   and 17 of 33 lowering: a raised lid leaves its view. A move may stop on
   the hand's place (#554, §3), which is how a procedure acts on an angle
   inside a move; the angle itself is the procedure's to work out.
-- **Stop on more than one reading, or on what a camera sees as it moves.**
-  One condition a move; a tag watched while moving is #554's stage 2.
+- **Stop on more than one reading.** One condition a move. A tag can be
+  watched while the body moves (#554's stage 2, §3), but the head camera
+  is fixed on the trunk: a tilting head is Parts.md's first joint to add
+  if a measurement needs one.
