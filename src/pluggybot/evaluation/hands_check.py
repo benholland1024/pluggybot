@@ -248,12 +248,21 @@ JOBS = {"lid": LID, "drawer": DRAWER, "door": DOOR, "place": PLACE}
 #: procedure with its lift STOPPED ON ITS HAND'S HEIGHT 10 cm up -- the lid
 #: held part open for two seconds -- then lifted the rest of the way and set
 #: down as the lid's is (`scripts/hands_check.py --view until`): its job's
-#: set-out and grader, and its procedure.
+#: set-out and grader, and its procedure. `watch` (stage 2): the same, the
+#: knob's tag WATCHED from the spot on, and its lift stopped where the watch
+#: puts the knob 6 cm higher than as it was gripped -- where its own jaws
+#: hide the tag the reading never passes, and the lift goes its whole way.
 SCENES = {"until": ("lid", LID.replace(
   '    pull("left", 0.35 * fx, 0.35 * fy, 1, 20, 0.27)\n',
   '    pull("left", 0.35 * fx, 0.35 * fy, 1, 20, 0.27, until="left.z", above=z0 + 0.1)\n'
   '    wait(2)\n'
-  '    pull("left", 0.35 * fx, 0.35 * fy, 1, 20, 0.27 - read("pull.moved"))\n'))}
+  '    pull("left", 0.35 * fx, 0.35 * fy, 1, 20, 0.27 - read("pull.moved"))\n')),
+  "watch": ("lid", LID.replace('  spot(53)\n', '  spot(53)\n  watch(53)\n').replace(
+    '    pull("left", 0.35 * fx, 0.35 * fy, 1, 20, 0.27)\n',
+    '    k = read("watch.z")\n'
+    '    pull("left", 0.35 * fx, 0.35 * fy, 1, 20, 0.27, until="watch.z", above=k + 0.06)\n'
+    '    wait(2)\n'
+    '    pull("left", 0.35 * fx, 0.35 * fy, 1, 20, 0.27 - read("pull.moved"))\n'))}
 #: The set-outs each job is flown at, and the bar, written before the check
 #: flew: a job passes when its procedure passes at least `BAR` of them
 #: (#493's gate: 6 of 8).

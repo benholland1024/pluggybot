@@ -260,8 +260,10 @@ def test_a_move_may_stop_on_a_watch_reading_read_at_its_cameras_rate():
              '    move_hand("left", 0.3, 0.2, 2.0, until="watch.z", above=1.0)\n', body)
   move = ran["steps"][-1]
   assert move["ok"] and move["why"] == "until" and move["until"].startswith("watch.z read 1.")
-  read = float(move["until"].split()[2])
-  assert 1.0 < read <= 1.0 + every * 0.002 + 1e-9, "read at a picture's period"
+  # read from the move's start at a picture's period: the first past 1.0 is
+  # the first such reading 0.5 s in -- never a hand's every 10 ms
+  first = every * (int(0.5 / (every * 0.002)) + 1)
+  assert float(move["until"].split()[2]) == pytest.approx(0.5 + first * 0.002, abs=1e-3)
 
 
 def test_a_stop_condition_that_never_had_a_reading_says_why():

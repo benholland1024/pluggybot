@@ -23,7 +23,8 @@ hold, one verdict.
   --view JOB [K]       a flight at set-out K (0) in the MuJoCo viewer, at
                        real time, the verdict printed; MUJOCO_GL left off.
                        JOB may be a scene (`hands_check.SCENES`): `until`,
-                       the lid's lift stopped on its hand's height (#554)
+                       the lid's lift stopped on its hand's height (#554);
+                       `watch`, on where its watch puts the knob (stage 2)
   --strip JOB [K]      its filmstrip, a tile every few seconds, the call and
                        the hold's end: hands_check.png, or `--out`
 
@@ -33,6 +34,7 @@ Usage:
   uv run python scripts/hands_check.py --read DIR
   uv run python scripts/hands_check.py --view door 3
   uv run python scripts/hands_check.py --view until
+  uv run python scripts/hands_check.py --view watch 1
   MUJOCO_GL=egl uv run python scripts/hands_check.py --strip lid 0
 """
 
@@ -200,6 +202,11 @@ def strip(job: str, k: int, out: str = "hands_check.png") -> None:
     r.update_scene(d, cam)
     img = Image.fromarray(r.render())
     m.vis.headlight.ambient[:], m.vis.headlight.diffuse[:] = light
+    # ...and what a watch reads, where one runs (#554's stage 2)
+    w = world.body.sighting()
+    if w is not None:
+      label += (f"\nwatch: tag {w['tag']} {'in view' if w['seen'] else 'not in view'}"
+                + (f", last seen {d.time - w['last']['at']:.1f} s ago" if w["last"] else ""))
     ImageDraw.Draw(img).text((8, 8), label, fill=(255, 255, 255))
     tiles.append(img)
 
