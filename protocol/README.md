@@ -44,6 +44,15 @@ replayer treats it like any other world -- one scene, one recording, keyed
 by that name (`pluggybot.robot.pair_model_name`). The served world is the
 pair, `home_quad_pair`.
 
+### 0.21.0, additive: a verb and its readings (`watch`, `watch.*`)
+
+pluggybot #554's stage 2: the hello's `index` lists one more verb, `watch`
+(its one argument a tag's number), beside `spot`, and twelve more sensors,
+`watch.x` to `watch.age`, and a session's `readouts` carry them: null
+before a watch's first picture is read (`watch.seen`), or before a picture
+shows its tag (the rest). No message's shape moves: a page draws them as
+any verb and sensor the host lists.
+
 ### 0.21.0, additive: an argument a verb does without (`hello.index`'s `optional`)
 
 pluggybot #554: `reach`, `move_hand` and `pull` take one stop condition

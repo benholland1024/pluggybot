@@ -810,7 +810,10 @@ class HumanoidBody(Body):
     """A watch's picture (`perception.watch.TagWatch`): `spot`'s decode,
     the camera placed through its model of itself as its arm's loop last
     posed it (#554) -- read afresh, every picture drew on its encoders'
-    noise, and a watch nothing read changed the flight."""
+    noise, and a watch nothing read changed the flight. A picture before
+    that loop has posed it (a reach built by a stand-up) shows nothing."""
+    if any(g is None for g in self.reach.sensed_grip.values()):
+      return None
     return self._decoded(tag, fresh=False)
 
   def _decoded(self, tag: int, at_height: float | None = None,

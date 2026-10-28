@@ -6098,6 +6098,78 @@ crossing, and holds there; a reading a move changes is read at its part's
 rate and no oftener, from the move's first command; a hand's force read
 from a move's start reads that start.
 
+## A tag watched while moving (issue #554, stage 2)
+
+`watch(tag)` (docs/Hands.md §3) keeps the head's colour camera reading one
+tag while a procedure goes on: `perception.watch.TagWatch` takes a picture
+every 34 physics steps through `spot`'s own decode (`rack.tags.TagDetector`
+at 1280 x 720), and each picture's reading is the robot's 50 steps (0.1 s)
+later.
+
+**Measured first: what a picture costs** (the counter world, this box):
+the render 1.5 ms on EGL and 12 under osmesa, the decode 12.8 (pupil
+AprilTag at full resolution, two threads), beside the humanoid's own 0.26 s
+of wall a sim-second standing and 0.22 reaching. So 15 pictures a second
+add 0.21 s a sim-second on EGL and 0.37 under osmesa: a flight near doubles
+while a watch runs. The deploy box renders slower (the quadruped's walking
+look is 32 ms there), so a person's session runs slower than real time
+while a watch runs. 15 is the D435 colour imager's 15 fps mode, and half
+what a real robot decodes: PhotonVision's docs give a Raspberry Pi 5 two
+AprilTag streams at 1280 x 800, 30 fps. No Pi 5 latency is published; 0.1 s
+is a picture's capture at 15 fps and a decode at the Pi 5's rate.
+
+**Placed without moving the flight.** Each picture is placed through the
+robot's model of itself as its arm's loop last posed it (`Reach._update`,
+at most 10 ms old). Posed afresh, as `spot` does, every picture drew on the
+encoders' shared noise, and a watch nothing read changed the flight.
+Placed so, a flight whose pictures show the tag and one whose pictures show
+nothing are one flight, bit for bit (`tests/test_watch.py`). On one picture
+the two placements differ by 0.4 +- 0.9 mm. A picture taken before a
+stand-up's fresh reach has posed its model shows nothing, as does every
+picture while the get-up policy has the body.
+
+**Standing still,** every picture showed the knob's tag at set-outs 0-3,
+its place within 2-4 mm (one standard deviation) picture to picture -- and
+drifting. ⚠ The humanoid turns in place after its set-out's settle: 49 mrad
+in 6 s at the counter, slowing, its stance belief within 3 mrad of the
+truth. The tag's place in the stance frame moved 15 mm with it, so a
+`spot` read at the start is that stale by then. The watch follows it.
+
+**What it sees in our lid procedure** (`hands_check.LID` watching from its
+spot on): the knob's tag was in view through the reach and the grip, 98-100
+% of the time at set-outs 0-2. Through the lift and the lowering at set-out
+1 it was in view 62 % of the time: always under 10 deg of lid, 86 % at
+10-20, about half at 20-50, never past 50. The camera is fixed on the
+trunk, and the knob rises out of its view and behind the hand. At set-out
+0 the jaws hid it for the whole of both pulls. So no watch sees the knob at
+the drop handle's 57 deg stop, where #544's fresh arms lost the lid.
+
+**What it flatters** (`attempts.WATCH_FLATTERS`): a render is sharp. The
+knob's tag crossed the picture at a median 63-242 px/s in a reach and 108
+in a lift, 270-440 at the 90th percentile, and up to 1,060 on a fast arm
+move. On a tag 33 px across at 0.6 m (a cell 4 px), 270 px/s is a 2.7 px
+smear in a 10 ms exposure, which a real camera's picture has and the
+render does not.
+
+**The scene** (`scripts/hands_check.py --view watch K`): our lid
+procedure watching the knob, its lift stopped where the watch puts the knob
+6 cm higher than as it was gripped, held 2 s, then lifted on and set down.
+At set-out 1 it stopped 6.9 s in and passed, the tag out of view by 10 s.
+At set-out 0 its own jaws hid the tag, the condition never read past, and
+the lift went its whole way: passed too.
+
+![The `watch` scene at set-out 1: the lid's lift stopped on where the watch
+puts the knob, held, then lifted on out of the camera's view and set
+down](figures/hands_watch.png)
+
+(`MUJOCO_GL=egl uv run python scripts/hands_check.py --strip watch 1 --out
+docs/figures/hands_watch.png`; `--view watch 1` in the viewer.)
+
+**What is true now:** a watched tag's reading is the robot's 0.1 s after
+its picture, 15 pictures a second, placed through the robot's own model of
+itself without moving the flight; the fixed head camera loses the knob past
+50 deg of lid; a render flatters a moving tag.
+
 ## Debugging workflow that worked
 
 1. Reproduce headlessly with printed telemetry (pose, joint rates, contact

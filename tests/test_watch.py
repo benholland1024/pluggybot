@@ -338,6 +338,26 @@ def test_a_watch_reads_the_robots_senses_never_the_simulators_truth(monkeypatch)
   assert not spy.read & (TRUTH | {"cam_xpos", "cam_xmat"}), spy.read
 
 
+def test_a_picture_before_the_arms_loop_has_posed_the_robots_model_shows_nothing():
+  """A stand-up builds a fresh reach, whose model of itself its loop has
+  not yet posed off the senses: a picture then cannot be placed, and shows
+  nothing -- never one placed through a model at its default pose."""
+  import mujoco
+  from pluggybot.body import body_for
+  from pluggybot.humanoid import model as hm
+  model = mujoco.MjModel.from_xml_string(hm.body_xml())
+  data = mujoco.MjData(model)
+  mujoco.mj_resetDataKeyframe(model, data, 0)
+  mujoco.mj_forward(model, data)
+  body = body_for(model, data)
+  asked = []
+  body._decoded = lambda tag, at_height=None, fresh=True: asked.append(fresh) or {"x": 0.0}
+  assert all(g is None for g in body.reach.sensed_grip.values())
+  assert body._sighted(53) is None and asked == []
+  body.run(body.hold_routine(0.02))
+  assert body._sighted(53) == {"x": 0.0} and asked == [False]
+
+
 def test_a_watchs_pictures_draw_nothing_on_the_flights_noise():
   """A watch whose pictures show the tag leaves the flight as one whose
   pictures show nothing, bit for bit: each is placed through the robot's

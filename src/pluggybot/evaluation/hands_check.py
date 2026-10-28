@@ -261,8 +261,9 @@ SCENES = {"until": ("lid", LID.replace(
     '    pull("left", 0.35 * fx, 0.35 * fy, 1, 20, 0.27)\n',
     '    k = read("watch.z")\n'
     '    pull("left", 0.35 * fx, 0.35 * fy, 1, 20, 0.27, until="watch.z", above=k + 0.06)\n'
-    '    wait(2)\n'
-    '    pull("left", 0.35 * fx, 0.35 * fy, 1, 20, 0.27 - read("pull.moved"))\n'))}
+    '    if read("pull.stopped") > 0.5:\n'
+    '      wait(2)\n'
+    '      pull("left", 0.35 * fx, 0.35 * fy, 1, 20, 0.27 - read("pull.moved"))\n'))}
 #: The set-outs each job is flown at, and the bar, written before the check
 #: flew: a job passes when its procedure passes at least `BAR` of them
 #: (#493's gate: 6 of 8).
