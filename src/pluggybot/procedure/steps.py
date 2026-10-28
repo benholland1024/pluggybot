@@ -69,6 +69,7 @@ from dataclasses import dataclass, field
 from typing import Any, Callable
 
 from pluggybot.legs.rack import TOOL_BAYS as RACK_TOOL_BAYS
+from pluggybot.perception.watch import LATENCY_S as WATCH_LATENCY_S, WATCH_HZ
 from pluggybot.rack.coupling import STATION_YS
 from pluggybot.tick import Routine
 from pluggybot.tools.strokes import PROGRAMS
@@ -135,6 +136,11 @@ class WorldFacts:
   #: whether an expression may call sin, cos, atan2 and sqrt (`lang.MATH`;
   #: #493's practice: an arc needs them), off for the served world as above
   math: bool = False
+  #: whether a hand's move -- `reach`, `move_hand`, `pull` -- may stop on a
+  #: reading (`until`, `above`, `below`; #554: a procedure reacts only
+  #: between verbs, and a lid fell past its handle's stop inside one), off
+  #: for the served world as above
+  guarded: bool = False
 
 
 @dataclass(frozen=True)
@@ -212,13 +218,15 @@ class Arg:
   decides) a name must be one of -- or, for a number, a tag must be on
   (`places`, `plates`, `cubes`; #463) -- `lo`/`hi` bound a number, `bounds`
   says a pair is checked against the world's box. One with a `default` may
-  be left out."""
+  be left out, and so may one that is `optional`: the verb does without it
+  (#554, a move's stop condition)."""
 
   kind: str                    # "float" | "str"
   lo: float | None = None
   hi: float | None = None
   choices: str | None = None
   default: float | None = None
+  optional: bool = False
 
 
 @dataclass(frozen=True)
@@ -1017,6 +1025,38 @@ def _spot(life, args: dict) -> Routine:
   return {"ok": True, "tag": int(tag), "at": [round(v, 4) for v in (x, y, z)]}
 
 
+#: `watch` waits this long at most for its first reading, s, looking every
+#: `WATCH_POLL_S`: the camera's next frame, its latency (`perception.watch`)
+#: and room.
+WATCH_FIRST_S, WATCH_POLL_S = 0.5, 0.01
+
+
+def _watch(life, args: dict) -> Routine:
+  """THE WATCH (#554's stage 2; docs/Hands.md): the head's colour camera
+  kept reading one tag while the procedure goes on (`Body.watch`) -- until
+  another `watch`, or the procedure's end (`lang.run_procedure_routine`) --
+  what it reads riding `watch.*`. It waits for its first reading and is ok
+  when that picture shows the tag; where it does not, it watches on all the
+  same -- which a procedure sees only where the verb is an `if`'s test, a
+  failed verb ending it otherwise, and its watch with it."""
+  from pluggybot.procedure import axes
+  tag = args["tag"]
+  if float(tag) != int(tag):
+    return {"ok": False, "reason": f"a tag is a whole number, not {tag}"}
+  life.body.watch(int(tag))
+  waited = 0.0
+  while life.body.sighting() is None and waited < WATCH_FIRST_S:
+    yield from life.body.hold_routine(WATCH_POLL_S)
+    waited += WATCH_POLL_S
+  got = life.body.sighting()
+  if got is None or not got["seen"]:
+    return {"ok": False, "tag": int(tag),
+            "reason": f"tag {int(tag)} is not in view of your head camera now"}
+  last = got["last"]
+  at = axes.in_stance(life, (last["x"], last["y"], last["z"]))
+  return {"ok": True, "tag": int(tag), "at": [round(v, 4) for v in at]}
+
+
 #: `measure` (issue #493, an arm of its own -- sight beside feel): how far
 #: round the point named its flat top is looked for, m. Under 0.35 m the
 #: far edge of a 0.26 m deep top was clipped; at 0.35 and 0.45 the four
@@ -1074,6 +1114,100 @@ def _sensed(life, hand: str, t0: float) -> dict:
           "force": [round(float(v), 1) for v in force], "held": bool(life.body.gripped(hand))}
 
 
+#: A hand's move that stopped on its reading (#554, `until`): why its body
+#: says it ended (`Body.stop_hand`), and what its verdict says it stopped on.
+UNTIL = "until"
+
+
+def _guard(args: dict) -> tuple[str, str, float] | None:
+  """A hand's move's stop condition, off its arguments: (the sensor,
+  "above" or "below", the number), or None where it has none."""
+  if not args.get("until"):
+    return None
+  side = "above" if "above" in args else "below"
+  return str(args["until"]), side, float(args[side])
+
+
+def _guarded_routine(life, hand: str, guard, routine: Routine) -> Routine:
+  """`routine` driven as `yield from` would, its STOP CONDITION read as the
+  hand moves (#554): `guard`'s sensor read once the routine has begun and
+  then once each `Sensor.every_s` of its -- never oftener, as its part reads
+  it -- and the first reading past its number stops `hand`'s move where it
+  is (`Body.stop_hand`), once a move is under way to stop. A reading the
+  sensor does not have yet (a watched tag not yet seen) is no reading past
+  it. Returns (what it returned, and the reading that stopped it and how
+  long into the verb, s -- or, where the sensor never had a reading, why
+  -- or None)."""
+  if guard is None:
+    return (yield from routine), None
+  from pluggybot.procedure import axes
+  name, side, number = guard
+  sensor = axes.SENSORS[name]
+  reading = sensor.live or sensor.read
+  # physics steps a reading, rounded UP: never oftener than its part reads
+  every = max(1, math.ceil(sensor.every_s / float(life.model.opt.timestep) - 1e-6))
+  t0, n, stopped, unread = float(life.data.time), 0, None, ""
+  heard = False
+  sent, exc = None, None
+  while True:
+    try:
+      cmd = routine.throw(exc) if exc is not None else routine.send(sent)
+    except StopIteration as stop:
+      return stop.value, (stopped if stopped is not None or heard or not unread
+                          else {"unread": unread})
+    exc = None
+    if stopped is None and n % every == 0:
+      try:
+        read = float(reading(life))
+      except axes.NoReading as no:
+        unread = str(no)
+      else:
+        heard = True
+        if (read > number if side == "above" else read < number) and life.body.stop_hand(hand):
+          stopped = {"read": read, "s": float(life.data.time) - t0}
+    n += 1
+    try:
+      sent = yield cmd
+    except GeneratorExit:
+      routine.close()
+      raise
+    except BaseException as e:  # noqa: BLE001 -- thrown into the routine, as `yield from` would
+      exc, sent = e, None
+
+
+def _until_said(guard, stopped) -> str:
+  """What a move that stopped on its reading says of it: `left.z read
+  1.052 (above 1.05) 1.73 s in` -- the reading to as many figures as tell
+  it from the number (to four, `time read 1.15 (above 1.15)` was said) --
+  or, where it never had a reading, why: `watch.z above 1.05 never had a
+  reading: tag 53 has not been seen since `watch` began`."""
+  name, side, number = guard
+  if stopped is None:
+    return f"{name} {side} {number:.4g}"
+  if "unread" in stopped:
+    why = stopped["unread"].split(": ", 1)[-1]
+    return f"{name} {side} {number:.4g} never had a reading: {why}"
+  read = stopped["read"]
+  digits = next((n for n in range(4, 17) if f"{read:.{n}g}" != f"{number:.{n}g}"), 17)
+  return f"{name} read {read:.{digits}g} ({side} {number:.4g}) {stopped['s']:.2f} s in"
+
+
+def _said(guard, stopped, why) -> dict:
+  """A move's verdict's word on its stop condition: what it read, where
+  the move stopped on it -- never where something else ended it in the
+  same step (#554's review: a fall the step after the stop said both) --
+  or why it never had a reading."""
+  if stopped is None or ("unread" not in stopped and why != UNTIL):
+    return {}
+  return {"until": _until_said(guard, stopped)}
+
+
+def _stopped_reading(life, verb: str, stopped: bool) -> None:
+  """`<verb>.stopped` (#554): 1 after a move its stop condition stopped, 0
+  after one that ended otherwise."""
+  _reports(life).setdefault("stopped", {})[verb] = 1.0 if stopped else 0.0
+
+
 def _thinned(felt: list, n: int = FELT_MAX) -> list:
   """At most `n` of `felt`, evenly, its first and last kept."""
   if len(felt) <= n:
@@ -1121,18 +1255,25 @@ def _reach(life, args: dict) -> Routine:
   """A hand's grip point to (x, y, z), its fingers along (fx, fy, fz) and
   its jaws closing along (jx, jy, jz) -- or at whatever turn the arm finds,
   both left 0 -- out short of it, then in along the fingers' way. ok once
-  it holds there."""
+  it holds there, or where its stop condition stopped it (#554)."""
   hand = args["hand"]
+  _stopped_reading(life, "reach", False)
   rot, bad = _grip_turn(life, args)
   if bad:
     return {"ok": False, "reason": bad}
   place = _hand_place(life, args)
-  ok, felt = yield from _felt_routine(life, hand, life.body.reach_routine(
-    hand, place, rot, stiffness=float(args.get("stiffness", _STIFF.default)),
-    patience=REACH_PATIENCE_S))
+  guard = _guard(args)
+  (ok, stopped), felt = yield from _felt_routine(life, hand, _guarded_routine(
+    life, hand, guard, life.body.reach_routine(
+      hand, place, rot, stiffness=float(args.get("stiffness", _STIFF.default)),
+      patience=REACH_PATIENCE_S)))
+  why = "" if ok else life.body.hand_why(hand)
+  _stopped_reading(life, "reach", why == UNTIL)
+  said = _said(guard, stopped, why)
   if ok:
-    return {"ok": True, "hand": hand, "felt": felt}
-  why = life.body.hand_why(hand)
+    return {"ok": True, "hand": hand, **said, "felt": felt}
+  if why == UNTIL:
+    return {"ok": True, "hand": hand, "why": why, **said, "felt": felt}
   reason = REACH_WHY.get(why, "your {hand} hand did not get there").format(hand=hand)
   other = {"left": "right", "right": "left"}.get(hand)
   if why == "out of reach" and rot is not None and life.body.hand_reaches(hand, place):
@@ -1154,7 +1295,7 @@ def _reach(life, args: dict) -> Routine:
                     else " (leave fx..jz at 0 and your arm finds a turn)"))
     else:
       reason += f"; nor could your {other} hand, as asked"
-  return {"ok": False, "hand": hand, "why": why, "reason": reason, "felt": felt}
+  return {"ok": False, "hand": hand, "why": why, "reason": reason, **said, "felt": felt}
 
 
 #: What a `move_hand` that did not arrive says, by its report's why.
@@ -1183,8 +1324,9 @@ def _move_hand(life, args: dict) -> Routine:
   takes it -- along a straight line, or through the points `via` gave it
   first, as ONE motion from one posture that follows them all, each point
   turning it as it asks (#493, merged #525); the path is then empty. ok
-  when it arrives."""
+  when it arrives, or where its stop condition stopped it (#554)."""
   hand = args["hand"]
+  _stopped_reading(life, "move_hand", False)
   rot, bad = _grip_turn(life, args)
   if bad:
     return {"ok": False, "hand": hand, "reason": bad}
@@ -1197,15 +1339,19 @@ def _move_hand(life, args: dict) -> Routine:
     turns = [r for _, r in points] + [rot]
   speed = float(args.get("speed", _SPEED.default))
   length = sum(math.dist(a, b) for a, b in zip(places + [end], (places + [end])[1:]))
-  rep, felt = yield from _felt_routine(life, hand, life.body.move_hand_routine(
-    hand, end, stiffness=float(args.get("stiffness", _STIFF.default)), speed=speed,
-    patience=HAND_PATIENCE_S + (2.0 * length / speed if places else 0.0),
-    path=places or None, turns=turns))
+  guard = _guard(args)
+  (rep, stopped), felt = yield from _felt_routine(life, hand, _guarded_routine(
+    life, hand, guard, life.body.move_hand_routine(
+      hand, end, stiffness=float(args.get("stiffness", _STIFF.default)), speed=speed,
+      patience=HAND_PATIENCE_S + (2.0 * length / speed if places else 0.0),
+      path=places or None, turns=turns)))
+  _stopped_reading(life, "move_hand", rep.get("why") == UNTIL)
   out = {"hand": hand, **_hand_report(life, hand, rep), "felt": felt,
          **({"points": len(points)} if points else {})}
-  if rep.get("why") == "arrived":
-    return {"ok": True, **out}
-  return {"ok": False, **out,
+  said = _said(guard, stopped, rep.get("why"))
+  if rep.get("why") in (UNTIL, "arrived"):
+    return {"ok": True, **out, **said}
+  return {"ok": False, **out, **said,
           "reason": MOVE_WHY.get(rep.get("why"), "your {hand} hand did not get there").format(hand=hand)}
 
 
@@ -1218,21 +1364,26 @@ def _pull(life, args: dict) -> Routine:
   turn. Until it has gone
   `distance` m along its way, it is held fast (pushing
   with its whole force and not moving), its grip lets go, or it can reach
-  no further -- then it holds there. How far it went, the hardest it pushed
-  and the way it was going at its end ride `pull.*`. ok when it pulled: why
-  it stopped is in the record."""
+  no further -- or its stop condition stops it (#554) -- then it holds
+  there. How far it went, the hardest it pushed and the way it was going at
+  its end ride `pull.*`. ok when it pulled: why it stopped is in the
+  record."""
   from pluggybot.procedure import axes
   hand = args["hand"]
+  _stopped_reading(life, "pull", False)
   d = (float(args["dx"]), float(args["dy"]), float(args["dz"]))
   if math.sqrt(sum(v * v for v in d)) == 0.0:
     _reports(life).pop("pull", None)
     return {"ok": False, "reason": "give the pull a way: (dx, dy, dz) are all 0"}
-  rep, felt = yield from _felt_routine(life, hand, life.body.pull_routine(
-    hand, axes.from_stance(life, d, point=False), float(args["force"]),
-    float(args["distance"]), speed=float(args.get("speed", _SPEED.default)),
-    patience=HAND_PATIENCE_S, give=float(args.get("give", _GIVE.default)) >= 0.5))
+  guard = _guard(args)
+  (rep, stopped), felt = yield from _felt_routine(life, hand, _guarded_routine(
+    life, hand, guard, life.body.pull_routine(
+      hand, axes.from_stance(life, d, point=False), float(args["force"]),
+      float(args["distance"]), speed=float(args.get("speed", _SPEED.default)),
+      patience=HAND_PATIENCE_S, give=float(args.get("give", _GIVE.default)) >= 0.5)))
+  _stopped_reading(life, "pull", rep.get("why") == UNTIL)
   out = {"hand": hand, **_hand_report(life, hand, rep), "force": rep.get("force"),
-         "felt": felt}
+         "felt": felt, **_said(guard, stopped, rep.get("why"))}
   if rep.get("why") in ("not out", "fell"):
     # ...and no reading: the last pull's would read as this one's
     _reports(life).pop("pull", None)
@@ -1436,6 +1587,13 @@ HANDS_VERBS: dict[str, Verb] = {
                "bowing lower until you see it -- and stand up again; ok when you see it. Where "
                "its face is, which way the face looks and which way its edges run ride "
                "`spot.*`"),
+  "watch": Verb("watch", {"tag": Arg("float", lo=0.0, hi=586.0)}, _watch,
+                "keep your head camera reading this tag while your procedure goes on -- your "
+                f"hands moving, your feet stepping, waiting -- {WATCH_HZ:g} times a second, each "
+                f"reading yours {WATCH_LATENCY_S:g} s after its picture was taken; it neither "
+                "bows nor turns to look, and it ends with your procedure or your next `watch`. "
+                "It waits for its first reading; ok when that shows the tag (as an `if`'s test "
+                "that is not, it watches on). What it reads rides `watch.*`"),
   "reach": Verb("reach", {"hand": _HAND, **_HAND_AT, **_TURN, "stiffness": _STIFF},
                 _reach, "send a hand's grip -- the point between its jaws -- to (x, y, z), its "
                 "fingers pointing along (fx, fy, fz) and its jaws closing along (jx, jy, jz) -- "
@@ -1506,35 +1664,64 @@ HAND_VERBS = ("spot", "reach", "via", "move_hand", "pull", "close_hand", "open_h
 #: ...and `measure`, the depth camera's, but where an arm is about its
 #: absence (#493: depth is feedback, never a shortcut).
 MEASURE_VERBS = ("measure",)
+#: ...and `watch`, a tag kept in sight while it moves (#554's stage 2), but
+#: where an arm is about its absence.
+WATCH_VERBS = ("watch",)
+
+#: A HAND'S MOVE THAT STOPS ON A READING (#554): `reach`, `move_hand` and
+#: `pull` as `HANDS_VERBS` has them, and one stop condition after their own
+#: arguments -- a sensor `read` names (`until`, a reading that changes as
+#: the hand moves: `axes.Sensor.every_s`), and the number it stops past,
+#: above or below (`_guarded_routine`) -- where a world's facts say so
+#: (`WorldFacts.guarded`). Neither knows a job: the robot turns what it
+#: wants into a reading and a number itself (Ben, 2026-10-27).
+GUARD_ARGS = {"until": Arg("str", optional=True), "above": Arg("float", optional=True),
+              "below": Arg("float", optional=True)}
+GUARD_DOC = (". Given `until` (a sensor) and `above` or `below` (a number), it stops sooner "
+             "-- where the hand is, as soon as that sensor reads past that number -- and is "
+             "ok then too")
+GUARDED_VERBS: dict[str, Verb] = {
+  n: Verb(n, {**HANDS_VERBS[n].args, **GUARD_ARGS}, HANDS_VERBS[n].run,
+          HANDS_VERBS[n].doc + GUARD_DOC)
+  for n in ("reach", "move_hand", "pull")}
 
 
 def language(facts: "WorldFacts | None") -> dict[str, Verb]:
   """The verbs a procedure in this world may call: `VERBS` -- or, where its
   facts name the hands' (`HANDS_VERBS`), exactly the verbs they name, so
-  an unknown verb's refusal lists what the body has."""
+  an unknown verb's refusal lists what the body has, a hand's move with its
+  stop condition where they allow one (`GUARDED_VERBS`)."""
   named = () if facts is None or facts.verbs is None else facts.verbs
   if not any(n in HANDS_VERBS for n in named):
     return VERBS
-  table = {**VERBS, **HANDS_VERBS}
+  table = {**VERBS, **HANDS_VERBS, **(GUARDED_VERBS if facts.guarded else {})}
   return {n: table[n] for n in named}
 
 
-def hand_facts(measure: bool = True, step: bool = True) -> "WorldFacts":
+def hand_facts(measure: bool = True, step: bool = True, guarded: bool = True,
+               watching: bool = True) -> "WorldFacts":
   """What a procedure on the humanoid's hands is validated against (issues
   #493, #525): standing, a `step` at a time, and its arms' joints, the hands' vocabulary
-  (`HAND_VERBS`) -- with the depth camera's `measure` and the feet's `step`
-  unless an arm is about the absence of either -- their sensors and the
-  clock; a verb may be an `if`'s test, and an expression may call the maths
-  (`lang.MATH`)."""
+  (`HAND_VERBS`) -- with the depth camera's `measure`, the feet's `step`,
+  a hand's move's stop condition and a tag watched while it moves (#554)
+  unless an arm is about the absence of one -- their sensors and the
+  clock; a verb may be an `if`'s test, and an expression may call the
+  maths (`lang.MATH`)."""
   from pluggybot.procedure import axes
+  hands = tuple(v for v in HAND_VERBS if step or v != "step")
+  if watching:
+    # ...beside `spot`, the other verb its camera reads a tag by
+    at = hands.index("spot") + 1
+    hands = hands[:at] + WATCH_VERBS + hands[at:]
   return WorldFacts(boards=(), tools=(), bounds=(-1e3, -1e3, 1e3, 1e3), figures=(),
                     axes=axes.BODY_AXES["humanoid"],
-                    sensors=(axes.HAND_SENSORS + axes.PULL_SENSORS
+                    sensors=(axes.HAND_SENSORS + (axes.WATCH_SENSORS if watching else ())
+                             + axes.PULL_SENSORS
                              + (axes.STEP_SENSORS if step else ())
-                             + (axes.MEASURE_SENSORS if measure else ())),
-                    verbs=(("wait", "move") + tuple(v for v in HAND_VERBS if step or v != "step")
-                           + (MEASURE_VERBS if measure else ())),
-                    hands=axes.HANDS, verb_tests=True, math=True)
+                             + (axes.MEASURE_SENSORS if measure else ())
+                             + (axes.STOPPED_SENSORS if guarded else ())),
+                    verbs=("wait", "move") + hands + (MEASURE_VERBS if measure else ()),
+                    hands=axes.HANDS, verb_tests=True, math=True, guarded=guarded)
 
 
 # ---- the game's verbs (issue #404) ------------------------------------------------
@@ -1739,11 +1926,14 @@ CLAW_VERBS = ("pick", "place", "put", "grip", "release")
 SURVEY_VERBS = ("survey",)
 
 
-def describe_vocabulary(verbs: tuple | None = None) -> list[dict]:
+def describe_vocabulary(verbs: tuple | None = None, guarded: bool = False) -> list[dict]:
   """The verbs as data -- what a prompt or a validator's error names --
-  every one, or those a body can run (`verbs`, the hands' among them). An
-  argument that may be left out rides `defaults` with what it is when it is."""
-  keep = VERBS if verbs is None else {n: {**VERBS, **HANDS_VERBS}[n] for n in verbs}
+  every one, or those a body can run (`verbs`, the hands' among them, a
+  hand's move with its stop condition where `guarded`). An argument that
+  may be left out rides `defaults` with what it is when it is, or
+  `optional` where the verb does without it."""
+  table = {**VERBS, **HANDS_VERBS, **(GUARDED_VERBS if guarded else {})}
+  keep = VERBS if verbs is None else {n: table[n] for n in verbs}
   out = []
   for v in keep.values():
     entry = {"verb": v.name, "args": {k: a.kind for k, a in v.args.items()},
@@ -1751,15 +1941,21 @@ def describe_vocabulary(verbs: tuple | None = None) -> list[dict]:
     defaults = {k: a.default for k, a in v.args.items() if a.default is not None}
     if defaults:
       entry["defaults"] = defaults
+    optional = [k for k, a in v.args.items() if a.optional]
+    if optional:
+      entry["optional"] = optional
     out.append(entry)
   return out
 
 
 def signature(entry: dict) -> str:
-  """A described verb as a call: `drive_to(x, y, patience=60)`."""
-  given = entry.get("defaults", {})
+  """A described verb as a call: `drive_to(x, y, patience=60)`, those it
+  does without in brackets at its end: `pull(..., give=1[, until, above,
+  below])`."""
+  given, optional = entry.get("defaults", {}), entry.get("optional", ())
   return entry["verb"] + "(" + ", ".join(
-    f"{k}={given[k]:g}" if k in given else k for k in entry["args"]) + ")"
+    f"{k}={given[k]:g}" if k in given else k for k in entry["args"] if k not in optional) + (
+    f"[, {', '.join(optional)}]" if optional else "") + ")"
 
 
 # ---- validation: total, before a single step runs ----------------------------
@@ -1831,10 +2027,42 @@ def _tags(tags: tuple[int, ...]) -> str:
                    for r in runs) or "none"
 
 
+def _check_guard(args: dict, given: set, facts: WorldFacts) -> list[str]:
+  """A hand's move's stop condition (#554): a sensor `until` names, one
+  that changes as the hand moves, and the number it stops past -- `above`
+  or `below`, never both, never one without the other. `given` is every
+  argument the call names, a computed one too."""
+  from pluggybot.procedure import axes
+  named = set(given) & set(GUARD_ARGS)
+  sides = named & {"above", "below"}
+  if not named:
+    return []
+  bad = []
+  if "until" not in named:
+    bad.append('above and below are the number a move stops past: name the sensor it '
+               'reads with until="<sensor>"')
+  elif not sides:
+    bad.append("until names the sensor a move stops on: give the number it stops past as "
+               "above=N or below=N")
+  if len(sides) == 2:
+    bad.append("a move stops past its number on one side: above or below, not both")
+  name = args.get("until")
+  if isinstance(name, str):
+    live = ", ".join(s for s in facts.sensors if axes.SENSORS[s].every_s is not None)
+    if name not in facts.sensors:
+      bad.append(f"until={name!r} is no sensor you have (a move may stop on {live})")
+    elif axes.SENSORS[name].every_s is None:
+      bad.append(f"until={name!r} is what a verb last reported, which no move changes: a "
+                 f"move stops on a sensor that changes as your hand moves ({live})")
+  return bad
+
+
 def check_step(verb: Verb, args: dict, facts: WorldFacts,
-               partial: bool = False) -> list[str]:
+               partial: bool = False, given=None) -> list[str]:
   """Every argument of one step. `partial` skips the missing-argument rule,
-  for a language checking only the literal half of a call.
+  for a language checking only the literal half of a call; `given` is
+  every argument that call names, computed or not (a stop condition's
+  rule reads which, #554), where it is not `args`' own.
 
   ⚠ A REASON NEVER NAMES ITS CALL: whoever knows where the step is names
   it, once (`validate`, `lang.validate`, History's `procedure_outcome`:
@@ -1845,7 +2073,7 @@ def check_step(verb: Verb, args: dict, facts: WorldFacts,
     return [f"not on this body yet (it has: {', '.join(facts.verbs)})"]
   bad = []
   extra = set(args) - set(verb.args)
-  missing = {k for k, a in verb.args.items() if a.default is None} - set(args)
+  missing = {k for k, a in verb.args.items() if a.default is None and not a.optional} - set(args)
   if extra:
     bad.append(f"takes no {', '.join(sorted(extra))}")
   if missing and not partial:
@@ -1870,6 +2098,8 @@ def check_step(verb: Verb, args: dict, facts: WorldFacts,
     if axis is not None and not axis.lo <= float(args["target"]) <= axis.hi:
       bad.append(f"{axis.name} target {args['target']} is outside "
                  f"{axis.lo}..{axis.hi} {axis.unit}".rstrip())
+  if "until" in verb.args:
+    bad += _check_guard(args, set(args) if given is None else set(given), facts)
   return bad
 
 

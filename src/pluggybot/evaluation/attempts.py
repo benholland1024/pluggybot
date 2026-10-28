@@ -107,6 +107,13 @@ LIMIT_S = {("quadruped", "floor"): BUDGET_S, ("humanoid", "counter"): 3 * REFERE
 #: mind flew it, as the lid's was.
 DOOR_REFERENCE_S = 35.81
 JOB_LIMIT_S = {"door": 3 * DOOR_REFERENCE_S}
+#: ...a WATCHED tag's pictures are sharp (#554's stage 2). MEASURED: in our
+#: lid procedure the knob's tag crossed the picture at 270-440 px/s in a
+#: reach or a lift (the 90th percentile at three set-outs), 2.7-4.4 px in a
+#: 10 ms exposure on a tag 33 px across at 0.6 m, a cell of it 4 px.
+WATCH_FLATTERS = ("with `watch`, a tag is decoded off sharp renders: moving, it crossed the "
+                  "picture at up to 270-440 px/s, a smear of 3-4 px in a 10 ms exposure "
+                  "that a real camera's picture has and the render does not")
 #: What every result here relies on that a real world would not give it
 #: (#493; Evaluation.md §5, "Graded in MuJoCo"): said with every reading.
 FLATTERS = (
@@ -118,6 +125,7 @@ FLATTERS = (
   "the humanoid is stood at its counter: walking to the chest is not the task",
   "the humanoid's mind is told the knob's size and its tag: what it would see",
   "with `measure`, a flat top's height and edges are our code's reading of its depth camera",
+  WATCH_FLATTERS,
   "resets are free and exact, and nothing breaks",
   "MuJoCo against MuJoCo: an upper bound on hardware",
 )
@@ -129,6 +137,7 @@ DOOR_FLATTERS = (
   "the humanoid is stood at its counter: walking to the cupboard is not the task",
   "the humanoid's mind is told the tip's size and its tag: what it would see",
   "with `measure`, a flat top's height and edges are our code's reading of its depth camera",
+  WATCH_FLATTERS,
   "resets are free and exact, and nothing breaks",
   "MuJoCo against MuJoCo: an upper bound on hardware",
 )

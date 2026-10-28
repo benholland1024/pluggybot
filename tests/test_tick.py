@@ -144,7 +144,8 @@ def test_the_blocking_twin_and_the_ticked_routine_are_one_trajectory(quad_world)
 #: ...and `_until_stood_up_routine` (issue #348), which drives its argument
 #: as `yield from` would and is itself a routine the fence checks.
 #: ...each drives the routine it is handed (`steps._felt_routine`, #493).
-ROUTINE_DRIVERS = {"run", "Step", "_until_stood_up_routine", "_felt_routine"}
+ROUTINE_DRIVERS = {"run", "Step", "_until_stood_up_routine", "_felt_routine",
+                   "_guarded_routine"}
 
 
 def _routine_calls(tree):

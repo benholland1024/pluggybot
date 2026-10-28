@@ -6027,6 +6027,149 @@ and on the robot's own reading every way but up, where the reading lags a
 turning grip (1.4-1.6 times); once built it holds 0.8-0.9 of its ask, and
 pinned past its arm's reach pushing light, it says out of reach.
 
+## A move that stops on a reading (issue #554, stage 1)
+
+A procedure reacts between verbs, about twice a second, and a verb runs to
+its own ends; #544's lid arms lost the lid inside one pull, past the drop
+handle's stop. `reach`, `move_hand` and `pull` may now each stop on one
+reading (docs/Hands.md §3's end): `steps._guarded_routine` drives the
+body's routine as `yield from` would, reads the sensor once the routine has
+begun its move and then once each `Sensor.every_s` -- a hand's place, force
+and grip, and the clock, once a command of its arm's -- and on the first
+reading past its number asks `Body.stop_hand`, which stops the move where
+it is (`Reach.halt`): a carry or a pull through the stop its patience
+already used (`Reach.stop`: held where the hand IS), a reach on its line in
+as one stopped on its way (`blocked`), a reach walking out in joint space
+at its joints' command and the body in the posture it had got to, out at
+the grip they put it at. Until a move is under way, the stop answers no
+and the guard reads again at its rate: a reach's first steps wait out a
+get-up, and while the get-up policy has the legs nothing is stopped. A
+reading's rate is rounded UP to physics steps, so a part is never read
+oftener than it reads (33 ms is 17 steps of 2 ms, not 16). A hand's place
+is read as its arm's loop last read it (`Body.hand_sensed`,
+`Reach.sensed_grip`), never afresh: each fresh reading drew on the drivers' noise,
+and a move whose condition never came true ended 2.4 mrad from the same
+move with none; read so, the two are one flight, bit for bit.
+
+**What its review found** (four of five from the humanoid flown): a reach
+stopped as its arm swung out held its joints while the body went on into
+the crouch its plan had asked, the hand riding 17 cm down 2 s on, and the
+withdraw after, its line starting at the command the body had left,
+stepped a joint 1.43 rad in one command (unstopped, a reach and its
+withdraw step at most 0.078); holding the posture the body had got to, the
+hand stays within 3 cm and the withdraw steps at most 0.034. During a
+get-up the reach a fall let go of still said its hand moved, so a stop
+there used up a condition the stand-up's fresh reach then ran without. A
+pull stopped on its grip's word (`left.held`) was relabelled "let go". And
+four figures said `time read 1.15 (above 1.15)` of a reading past 1.15; it
+is said to as many as tell them apart.
+
+**Flown, the humanoid on a bare floor** (`tests/test_guard.py`'s flight):
+a carry up at 6 cm/s told to stop past 1.15 m read 1.151 and stopped there,
+the grip truly at 1.150 and 1.150 a second on; a pull up at 10 N told to
+stop past 1.2 read 1.201, truly 1.1998, and 1.2006 a second on. A
+reading's lag is one command (10 ms, 0.6 mm at 6 cm/s) and the stop's
+another.
+
+**What a moving hand's force reads.** Carried 30 cm across in free air,
+the right hand's whole-body force read 11-17 N AHEAD in its first half
+second -- the balance takes the body as still, and the start of a move is
+not -- then under 6 N ahead, 4.4 N across and 2.7 N up for the rest; a
+carry up read 17 N ahead at its start, and a reach's approach in free air
+10.2 N up as it began. A stop condition on a force from a move's start
+reads that start: the prompt's example stops at 10 N across, over the 4.4
+its own carry read that way.
+
+**The scene** (`scripts/hands_check.py --view until K`): our lid procedure
+with its lift stopped on the hand's height 10 cm up, held two seconds,
+then lifted the rest of the way (`0.27 - read("pull.moved")`) and set down:
+set-outs 0, 1 and 3 passed, the lid set down from 61-63 deg. Lifted the
+whole 0.27 m again after the stop, it opened to 94 deg and stayed open.
+
+![The `until` scene at set-out 1: the lid's lift stopped on its hand's
+height, the lid held part open, then lifted on and set
+down](figures/hands_until.png)
+
+(`MUJOCO_GL=egl uv run python scripts/hands_check.py --strip until 1 --out
+docs/figures/hands_until.png`; `--view until 1` in the viewer.)
+
+**What is true now:** a hand's move stops within a command of its reading
+crossing, and holds there; a reading a move changes is read at its part's
+rate and no oftener, from the move's first command; a hand's force read
+from a move's start reads that start.
+
+## A tag watched while moving (issue #554, stage 2)
+
+`watch(tag)` (docs/Hands.md §3) keeps the head's colour camera reading one
+tag while a procedure goes on: `perception.watch.TagWatch` takes a picture
+every 34 physics steps through `spot`'s own decode (`rack.tags.TagDetector`
+at 1280 x 720), and each picture's reading is the robot's 50 steps (0.1 s)
+later.
+
+**Measured first: what a picture costs** (the counter world, this box):
+the render 1.5 ms on EGL and 12 under osmesa, the decode 12.8 (pupil
+AprilTag at full resolution, two threads), beside the humanoid's own 0.26 s
+of wall a sim-second standing and 0.22 reaching. So 15 pictures a second
+add 0.21 s a sim-second on EGL and 0.37 under osmesa: a flight near doubles
+while a watch runs. The deploy box renders slower (the quadruped's walking
+look is 32 ms there), so a person's session runs slower than real time
+while a watch runs. 15 is the D435 colour imager's 15 fps mode, and half
+what a real robot decodes: PhotonVision's docs give a Raspberry Pi 5 two
+AprilTag streams at 1280 x 800, 30 fps. No Pi 5 latency is published; 0.1 s
+is a picture's capture at 15 fps and a decode at the Pi 5's rate.
+
+**Placed without moving the flight.** Each picture is placed through the
+robot's model of itself as its arm's loop last posed it (`Reach._update`,
+at most 10 ms old). Posed afresh, as `spot` does, every picture drew on the
+encoders' shared noise, and a watch nothing read changed the flight.
+Placed so, a flight whose pictures show the tag and one whose pictures show
+nothing are one flight, bit for bit (`tests/test_watch.py`). On one picture
+the two placements differ by 0.4 +- 0.9 mm. A picture taken before a
+stand-up's fresh reach has posed its model shows nothing, as does every
+picture while the get-up policy has the body.
+
+**Standing still,** every picture showed the knob's tag at set-outs 0-3,
+its place within 2-4 mm (one standard deviation) picture to picture -- and
+drifting. ⚠ The humanoid turns in place after its set-out's settle: 49 mrad
+in 6 s at the counter, slowing, its stance belief within 3 mrad of the
+truth. The tag's place in the stance frame moved 15 mm with it, so a
+`spot` read at the start is that stale by then. The watch follows it.
+
+**What it sees in our lid procedure** (`hands_check.LID` watching from its
+spot on): the knob's tag was in view through the reach and the grip, 98-100
+% of the time at set-outs 0-2. Through the lift and the lowering at set-out
+1 it was in view 62 % of the time: always under 10 deg of lid, 86 % at
+10-20, about half at 20-50, never past 50. The camera is fixed on the
+trunk, and the knob rises out of its view and behind the hand. At set-out
+0 the jaws hid it for the whole of both pulls. So no watch sees the knob at
+the drop handle's 57 deg stop, where #544's fresh arms lost the lid.
+
+**What it flatters** (`attempts.WATCH_FLATTERS`): a render is sharp. The
+knob's tag crossed the picture at a median 63-242 px/s in a reach and 108
+in a lift, 270-440 at the 90th percentile, and up to 1,060 on a fast arm
+move. On a tag 33 px across at 0.6 m (a cell 4 px), 270 px/s is a 2.7 px
+smear in a 10 ms exposure, which a real camera's picture has and the
+render does not.
+
+**The scene** (`scripts/hands_check.py --view watch K`): our lid
+procedure watching the knob, its lift stopped where the watch puts the knob
+6 cm higher than as it was gripped, held 2 s, then lifted on and set down.
+At set-out 1 it stopped 6.9 s in and passed, the tag out of view by 10 s.
+At set-out 0 its own jaws hid the tag, the condition never read past, and
+the lift went its whole way: passed too.
+
+![The `watch` scene at set-out 1: the lid's lift stopped on where the watch
+puts the knob, held, then lifted on out of the camera's view and set
+down](figures/hands_watch.png)
+
+(`MUJOCO_GL=egl uv run python scripts/hands_check.py --strip watch 1 --out
+docs/figures/hands_watch.png`; `--view watch 1` in the viewer.)
+
+**What is true now:** a watched tag's reading is the robot's 0.1 s after
+its picture, 15 pictures a second, placed through the robot's own model of
+itself without moving the flight; the fixed head camera loses the knob past
+50 deg of lid; a render flatters a moving tag.
+
 ## Debugging workflow that worked
 
 1. Reproduce headlessly with printed telemetry (pose, joint rates, contact

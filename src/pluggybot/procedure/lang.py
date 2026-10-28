@@ -397,7 +397,8 @@ class _Parser:
           self.refuse(node, f"{kw.arg} is given twice")
           continue
         args[kw.arg] = self.arg(kw.value, kw.arg, verb.args[kw.arg].kind)
-      missing = [n for n in names if n not in args and verb.args[n].default is None]
+      missing = [n for n in names if n not in args and verb.args[n].default is None
+                 and not verb.args[n].optional]
       if missing:
         self.refuse(node, f"needs {', '.join(missing)}")
     finally:
@@ -578,7 +579,7 @@ def validate(proc: Procedure, facts: WorldFacts) -> list[str]:
             lit[name] = value[1]
           else:
             _sensors(value, bad, at)
-        bad.extend(at + r for r in st.check_step(spec, lit, facts, partial=True))
+        bad.extend(at + r for r in st.check_step(spec, lit, facts, partial=True, given=args))
       elif s[0] == "if":
         for cond, body in s[1]:
           if cond[0] == "try":
@@ -841,4 +842,7 @@ def run_procedure_routine(life, proc: Procedure, facts: WorldFacts,
     # are its readout (issue #227) -- what it read and computed reaches the
     # mind through these, and through nothing else.
     result["locals"] = {k: round(float(v), 6) for k, v in env.items()}
+    # ...and a watch it began ends with it (#554): no picture for nobody
+    if "watch" in (facts.verbs or ()):
+      life.body.watch(None)
   return result
