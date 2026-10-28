@@ -351,7 +351,11 @@ stops on a reading (#554, §3's end), two more lid arms passed 3 of 10 each
 there: the one whose skill stopped its lift on its hand's height let the
 lid fall in 4 of 38 held-out tries where the other let it fall in 19 of 43,
 and lost the knob instead (§4's "A move that stops on a reading, flown
-where the lid is lost").
+where the lid is lost"). Given a tag watched while moving too (#554's
+stage 2, §3), two more wrote no `watch` in 402 sources -- the knob in the
+hand is the hand's own height, and its tag is hidden or out of view as the
+lid rises -- and one kept a skill using neither tool that passed 19 of 26
+there (§4's "A tag watched while the robot moves").
 
 ## 7. What it does not do
 
