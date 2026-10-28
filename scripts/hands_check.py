@@ -168,7 +168,9 @@ def view(job: str, k: int) -> None:
       print(show(row | {"ran": {}}))
       for s_ in (out.get("ran") or {}).get("steps", []):
         if s_.get("until"):
-          print(f"  line {s_['line']} {s_['verb']} stopped on its reading: {s_['until']}")
+          print(f"  line {s_['line']} {s_['verb']} "
+                + ("stopped on its reading" if s_.get("why") == "until" else "its stop condition")
+                + f": {s_['until']}")
       while viewer.is_running():
         viewer.sync()
         time.sleep(0.05)

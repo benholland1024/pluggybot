@@ -106,9 +106,35 @@ def test_a_get_up_sees_nothing_and_another_tag_or_a_stop_forgets_the_last():
   assert look.calls == 0 and not got[50]["seen"] and got[50]["last"] is None
   w.start(54)
   assert w.newest is None and w.tag == 54
-  assert _stepped(w, 51)[50]["tag"] == 54
+  got = _stepped(w, 120)
+  assert next(g for g in got if g is not None)["tag"] == 54
   w.stop()
   assert w.tag is None and w.newest is None and _stepped(w, 60)[-1] is None
+
+
+def test_the_cameras_frames_run_on_whatever_is_watched():
+  """A watch begun takes its first picture at the camera's next frame:
+  begun just after another, never sooner than a frame after the last
+  picture -- restarted at each `start`, one took a picture 21 steps after
+  the last (#554's review) -- and frames run on while nothing is watched."""
+  look = _Looks()
+  w = pw.TagWatch(0.002, look)
+  w.start(53)
+  _stepped(w, 55)
+  assert look.calls == 2, "pictures at steps 0 and 34"
+  w.start(54)
+  got = _stepped(w, 13)
+  assert look.calls == 2 and all(g is None for g in got), "no picture before step 68"
+  _stepped(w, 1)
+  assert look.calls == 3
+  w.stop()
+  _stepped(w, 40)
+  w.start(55)
+  got = _stepped(w, 300)
+  first = next(i for i, g in enumerate(got) if g is not None)
+  # stopped at step 69, the clock ran on: begun at step 109, its first
+  # picture at 136, read 50 steps on
+  assert first == 136 + w.lag - 109
 
 
 # ---- 2. the readings ------------------------------------------------------------------
@@ -181,10 +207,16 @@ def test_watch_waits_for_its_first_reading_and_ends_with_the_procedure():
 
 
 def test_watch_out_of_view_fails_and_watches_on_and_waits_no_longer_than_it_may():
+  """Not in view as it begins, it fails -- an `if`'s test watching on, a
+  failed step ending the procedure and its watch with it -- and waits no
+  longer than `WATCH_FIRST_S` for a first reading."""
   body = _Watching({"tag": 53, "seen": False, "at": 0.0, "last": None})
   ran = _fly('def a():\n    if not watch(53):\n        s = read("watch.seen")\n', body)
   assert ran["ok"] and ran["locals"] == {"s": 0.0}
-  assert ran["steps"][0]["reason"].startswith("tag 53 is not in view of your head camera now")
+  assert ran["steps"][0]["reason"] == "tag 53 is not in view of your head camera now"
+  body = _Watching({"tag": 53, "seen": False, "at": 0.0, "last": None})
+  ran = _fly('def a():\n    watch(53)\n    s = read("watch.seen")\n', body)
+  assert not ran["ok"] and ran["failedAt"] == 0 and body.watched == [53, None]
   body = _Watching(_sighting(), after=9.0)
   ran = _fly('def a():\n    watch(53)\n', body)
   assert not ran["ok"] and body.data.time == pytest.approx(st.WATCH_FIRST_S, abs=1e-6)
@@ -277,6 +309,27 @@ def test_a_stop_condition_that_never_had_a_reading_says_why():
   ran = _fly('def a():\n    reach("left", 0.3, 0.2, 0.9)\n'
              '    pull("left", 0, 0, 1, 10, 0.05, until="left.z", above=9)\n', Moving(*_bare()))
   assert "until" not in ran["steps"][-1], "a condition that read and never came true says nothing"
+
+
+class _FallsAfterStop(Moving):
+  """`Moving`, whose carry, stopped by its reading, then ends as a fall
+  in the same breath -- the step after the stop."""
+
+  def move_hand_routine(self, side, pos, stiffness=1.0, speed=0.06, patience=20.0,
+                        path=None, turns=None):
+    rep = yield from super().move_hand_routine(side, pos, stiffness, speed, patience, path, turns)
+    return {**rep, "why": "fell"} if rep["why"] == "until" else rep
+
+
+def test_a_move_another_end_took_says_nothing_of_its_stop_condition():
+  """A move stopped by its reading that a fall then ended is the fall's:
+  `move_hand.stopped` 0, and no word of what its condition read (#554's
+  review: the verdict said both)."""
+  ran = _fly('def a():\n    reach("left", 0.3, 0.2, 0.9)\n'
+             '    move_hand("left", 0.3, 0.2, 2.0, until="left.z", above=1.0)\n',
+             _FallsAfterStop(*_bare()))
+  move = ran["steps"][-1]
+  assert move["why"] == "fell" and not move["ok"] and "until" not in move, move
 
 
 # ---- 5. on the humanoid ---------------------------------------------------------------

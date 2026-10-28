@@ -1026,8 +1026,8 @@ def _spot(life, args: dict) -> Routine:
 
 
 #: `watch` waits this long at most for its first reading, s, looking every
-#: `WATCH_POLL_S`: a picture's latency and its own wait for the picture
-#: (`perception.watch`), with room.
+#: `WATCH_POLL_S`: the camera's next frame, its latency (`perception.watch`)
+#: and room.
 WATCH_FIRST_S, WATCH_POLL_S = 0.5, 0.01
 
 
@@ -1036,7 +1036,9 @@ def _watch(life, args: dict) -> Routine:
   kept reading one tag while the procedure goes on (`Body.watch`) -- until
   another `watch`, or the procedure's end (`lang.run_procedure_routine`) --
   what it reads riding `watch.*`. It waits for its first reading and is ok
-  when that picture shows the tag; where it does not, it watches on."""
+  when that picture shows the tag; where it does not, it watches on all the
+  same -- which a procedure sees only where the verb is an `if`'s test, a
+  failed verb ending it otherwise, and its watch with it."""
   from pluggybot.procedure import axes
   tag = args["tag"]
   if float(tag) != int(tag):
@@ -1049,8 +1051,7 @@ def _watch(life, args: dict) -> Routine:
   got = life.body.sighting()
   if got is None or not got["seen"]:
     return {"ok": False, "tag": int(tag),
-            "reason": f"tag {int(tag)} is not in view of your head camera now: the watch "
-                      "goes on, `watch.seen` saying when it is"}
+            "reason": f"tag {int(tag)} is not in view of your head camera now"}
   last = got["last"]
   at = axes.in_stance(life, (last["x"], last["y"], last["z"]))
   return {"ok": True, "tag": int(tag), "at": [round(v, 4) for v in at]}
@@ -1191,6 +1192,16 @@ def _until_said(guard, stopped) -> str:
   return f"{name} read {read:.{digits}g} ({side} {number:.4g}) {stopped['s']:.2f} s in"
 
 
+def _said(guard, stopped, why) -> dict:
+  """A move's verdict's word on its stop condition: what it read, where
+  the move stopped on it -- never where something else ended it in the
+  same step (#554's review: a fall the step after the stop said both) --
+  or why it never had a reading."""
+  if stopped is None or ("unread" not in stopped and why != UNTIL):
+    return {}
+  return {"until": _until_said(guard, stopped)}
+
+
 def _stopped_reading(life, verb: str, stopped: bool) -> None:
   """`<verb>.stopped` (#554): 1 after a move its stop condition stopped, 0
   after one that ended otherwise."""
@@ -1258,7 +1269,7 @@ def _reach(life, args: dict) -> Routine:
       patience=REACH_PATIENCE_S)))
   why = "" if ok else life.body.hand_why(hand)
   _stopped_reading(life, "reach", why == UNTIL)
-  said = {"until": _until_said(guard, stopped)} if stopped else {}
+  said = _said(guard, stopped, why)
   if ok:
     return {"ok": True, "hand": hand, **said, "felt": felt}
   if why == UNTIL:
@@ -1337,7 +1348,7 @@ def _move_hand(life, args: dict) -> Routine:
   _stopped_reading(life, "move_hand", rep.get("why") == UNTIL)
   out = {"hand": hand, **_hand_report(life, hand, rep), "felt": felt,
          **({"points": len(points)} if points else {})}
-  said = {"until": _until_said(guard, stopped)} if stopped else {}
+  said = _said(guard, stopped, rep.get("why"))
   if rep.get("why") in (UNTIL, "arrived"):
     return {"ok": True, **out, **said}
   return {"ok": False, **out, **said,
@@ -1372,7 +1383,7 @@ def _pull(life, args: dict) -> Routine:
       patience=HAND_PATIENCE_S, give=float(args.get("give", _GIVE.default)) >= 0.5)))
   _stopped_reading(life, "pull", rep.get("why") == UNTIL)
   out = {"hand": hand, **_hand_report(life, hand, rep), "force": rep.get("force"),
-         "felt": felt, **({"until": _until_said(guard, stopped)} if stopped else {})}
+         "felt": felt, **_said(guard, stopped, rep.get("why"))}
   if rep.get("why") in ("not out", "fell"):
     # ...and no reading: the last pull's would read as this one's
     _reports(life).pop("pull", None)
@@ -1581,8 +1592,8 @@ HANDS_VERBS: dict[str, Verb] = {
                 f"hands moving, your feet stepping, waiting -- {WATCH_HZ:g} times a second, each "
                 f"reading yours {WATCH_LATENCY_S:g} s after its picture was taken; it neither "
                 "bows nor turns to look, and it ends with your procedure or your next `watch`. "
-                "It waits for its first reading; ok when that shows the tag, and it watches on "
-                "when not. What it reads rides `watch.*`"),
+                "It waits for its first reading; ok when that shows the tag (as an `if`'s test "
+                "that is not, it watches on). What it reads rides `watch.*`"),
   "reach": Verb("reach", {"hand": _HAND, **_HAND_AT, **_TURN, "stiffness": _STIFF},
                 _reach, "send a hand's grip -- the point between its jaws -- to (x, y, z), its "
                 "fingers pointing along (fx, fy, fz) and its jaws closing along (jx, jy, jz) -- "

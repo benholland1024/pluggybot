@@ -48,30 +48,34 @@ class TagWatch:
     self.newest: dict | None = None
     self._last: dict | None = None
     self._due: deque = deque()
+    #: ...and the camera's own clock, physics steps, running whether or not
+    #: anything is watched: a watch begun takes its first picture at the
+    #: camera's next frame -- restarted each `start`, a watch begun just
+    #: after another took a picture 21 steps after the last (#554's review)
     self._n = 0
 
   def start(self, tag: int) -> None:
-    """`tag` watched from the next physics step on, what was read of any
+    """`tag` watched from the camera's next frame on, what was read of any
     tag before forgotten."""
     self.stop()
     self.tag = int(tag)
 
   def stop(self) -> None:
     """Nothing watched, and nothing of it kept."""
-    self.tag, self.newest, self._last, self._n = None, None, None, 0
+    self.tag, self.newest, self._last = None, None, None
     self._due.clear()
 
   def step(self, t: float, sees: bool = True) -> None:
     """One physics step on, at sim time `t`: a picture where one is due --
     of nothing where the body cannot see (`sees`: a get-up's) -- and the
     reading of each picture whose latency has passed."""
+    n, self._n = self._n, self._n + 1
     if self.tag is None:
       return
-    if self._n % self.every == 0:
-      self._due.append((self._n + self.lag, t, self._look(self.tag) if sees else None))
-    while self._due and self._due[0][0] <= self._n:
+    if n % self.every == 0:
+      self._due.append((n + self.lag, t, self._look(self.tag) if sees else None))
+    while self._due and self._due[0][0] <= n:
       _, at, got = self._due.popleft()
       if got is not None:
         self._last = {**got, "at": at}
       self.newest = {"tag": self.tag, "seen": got is not None, "at": at, "last": self._last}
-    self._n += 1
