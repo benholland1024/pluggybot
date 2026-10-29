@@ -6256,12 +6256,94 @@ planning a sim second a robot.
 **What is true now:** `MAX_CELLS` is 1,876,800, four times the house's
 grid and the largest size measured: there the served quadruped pair walks
 at 0.95 of today's speed, a plan across the whole grid takes 177 ms, a
-robot holds 27 MB of map and a process 81 MB of lattice. The levers, if
-the world must grow past it or the humanoid serve in one this size: the
-humanoid's walls in the quadruped's window (exact for every cell its layer
-reads); no replan for an arrival a plan cannot change; the update into the
-cells it touches; a plan's costs and weights within its search's limit;
-the explore's leg on the lattice.
+robot holds 27 MB of map and a process 81 MB of lattice. The humanoid's
+two are the quadruped's now (#559, "The humanoid pair served"): its walls
+in the camera's window, and a plan asked for again within half a second
+from where the last was made held. The levers left, if the world must grow
+past it: the update into the cells it touches; a plan's costs and weights
+within its search's limit; the explore's leg on the lattice.
+
+## The humanoid pair served (issue #559, stage 1)
+
+The humanoids replace the quadrupeds in the live world (#559, Ben's
+decision). Stage 1 serves them in today's house and measures it, without
+deploying: `serve.py --pair --body humanoid` (`$PLUGGY_BODY=humanoid`)
+streams `home_humanoid_pair`. Every number is the dev box's (an i5-9600KF,
+six cores, a browser and an editor beside it) unless it says otherwise.
+
+![The humanoid pair's day: Luca and Rowan exploring the house on their own
+legs, each from above and behind every 20 s
+(`two_robots.py --world home_humanoid --fast --strip`)](figures/humanoid_pair_day.png)
+
+**The world** (`humanoid/world.py`): the house built at load from the
+generator's file, as `legs/world.py` builds the quadrupeds', with the
+house's own fixtures -- the lab's plate signs, the whiteboards' tags, the
+task areas' tags -- and none of the quadruped's: no dock, no rack, no tools,
+and so no job (its `cadence.json` block is empty; each comes back as a task
+the hands learn, stage 3 and #560). The pair meets each other's bodies and
+never its own (`PAIR_BITS`, as the quadrupeds'), the second in its livery.
+It has nowhere to charge until its cable's station (stage 2): a charge it
+chooses ends at once, said in History, nothing sends it to one, and an
+empty pack is the `flat` death. On its real pack (778 Wh) that is hours
+away: its explore draws 166.4 W (11.745 Wh over 254 s, `energy_spike.py
+--world home_humanoid`), the quadruped's 86.9 twice over, so a full pack
+explores for 4.7 h.
+
+**What the loop took.** The lifecycle had never run a humanoid's day, and
+its first flights met five things that were the quadruped's: the day began
+by watching for the rack's tag (`Body.start_discovery`); the near field and
+the peer channel read a depth camera the humanoid did not share
+(`Body.depth_camera`: now the frames its walk lays its layer from, at its
+camera's 5 Hz); each robot mapped the other (`Body.know_peer` did nothing:
+painted into the map, a robot walked past walls in the one that passed it);
+the day's summary asked after a tool; and a restored pair indexed the
+humanoid's geoms as an array, which were a set. Each answers plainly now
+(`tests/test_humanoid_served.py`).
+
+**#558's two levers.** Over 100 sim s of the pair exploring (cProfile on)
+the walk made 3,115 plans, 23 ms each, 71 s of the run's 155 -- the pair at
+0.65x real time. It replanned every physics step once its waypoints ran out
+short of the goal, which the quadruped had stopped by holding a plan asked
+for again within half a second and 5 cm (`REPLAN_HOLD_S`, the Navigator's
+now and both bodies'); and its camera's walls were the whole grid dilated
+each depth frame (3.6 s), where the quadruped's are the window its points
+land in (the humanoid's now too). With both, the same run made 126 plans
+and ran at 1.30x.
+
+SPEED_PLACEHOLDER
+
+**A restart.** The humanoid keeps what decides anything
+(`HumanoidMission.kept_state`): its three policies' drivers -- their steps,
+targets and last actions, and the gains they set in the MODEL, which a
+restart compiles fresh -- its IMU's filter and its joints' and grippers'
+noise, its reach, its reckoning with its planted foot, its map, the
+camera's layer and the walls it is kept off, the scan matcher and its
+clocks. Saved at the day loop's first pass and carried on in a new process,
+its day was IDENTICAL through its whole explore (`determinism_spike.py
+--world home_humanoid --resume-at 5`: 508 state samples to t = 260 s). ⚠ A
+test saving on a step every controller's period divides read a fresh reach
+as a kept one: 685 steps are the reach's 5 and the policies' 10 alike, so
+the parity tests save on 687. Never saved with a hand out (`Body.working`):
+a hand's move is a routine's. The walker that sees the ground (not served)
+keeps no scan, and starts its ground anew as after a fall.
+
+**The change of body.** Luca and Rowan keep who they are: a save of the
+quadrupeds' house carries on in the humanoids' as a changed world does --
+the clock, the deaths and the jobs, never the bodies or the maps -- and the
+pack at the share it was saved at (`capacityWh`; a save from before it is
+on the quadruped's served pack): a quadruped at 40 % of 194 Wh wakes a
+humanoid at 40 % of 778. History says "the world restarted and could not
+put me back where I was (I have a new body since then)".
+
+DAY_PLACEHOLDER
+
+**What is not yet.** `look` asks the site for a picture from the head's
+camera (`nav_eye`, 1.3 m up, facing where it faces), and the site draws the
+pair in stage 4. A humanoid at rest stands, and is never asked to make way
+(`Body.make_way` refuses): one idle in a doorway is waited on as a robot
+that will move. The death seam calls a robot down at 60 deg of its pelvis's
+tilt (`TOPPLE_TILT_RAD`), and a reach's deepest bow is 63 deg: nothing bows
+in the served world until the hands come in (stage 3).
 
 ## Debugging workflow that worked
 

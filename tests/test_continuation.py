@@ -112,6 +112,12 @@ def _saved(life, tmp_path, last_step=None) -> continuation.Snapshot:
 AT_A_DECISION_S = 0.6
 
 
+#: ...and a humanoid's save on a step NO controller's period divides (#559):
+#: 687 steps, against its reach's 5 and its policies' 10 -- on one they all
+#: divide, a fresh controller ticks in step with the saved one by chance.
+OFF_EVERY_PERIOD_S = 1.374
+
+
 def _hold(life, seconds: float) -> None:
   life.body.run(life.body.hold_routine(seconds))
 
@@ -275,7 +281,7 @@ def test_a_restored_humanoid_steps_on_exactly_as_if_nothing_had_stopped(tmp_path
   last = continuation.LastStep(life)
   life.body.step_hooks.append(last.hook)
   m = life.body.mission
-  m.run(m._drive_routine(1.37, 0.5, 0.3))
+  m.run(m._drive_routine(OFF_EVERY_PERIOD_S, 0.5, 0.3))
   snap = _saved(life, tmp_path, last)
   m.run(m._drive_routine(1.0, 0.6, -0.4))
 
@@ -774,8 +780,9 @@ def test_a_world_saved_mid_charge_says_the_charge_was_cut_short(tmp_path):
   assert any("it cut my charge short" in ln for ln in _history(back))
 
 
-@pytest.mark.parametrize("world", [QUAD_HOME, HUMANOID_HOME])
-def test_the_pair_steps_on_exactly_after_a_restart(tmp_path, world):
+@pytest.mark.parametrize("world, at", [(QUAD_HOME, AT_A_DECISION_S),
+                                       (HUMANOID_HOME, OFF_EVERY_PERIOD_S / 2)])
+def test_the_pair_steps_on_exactly_after_a_restart(tmp_path, world, at):
   """The parity rule on the deployed shape: two robots from one loop, the
   depth cameras on, the pair's encounters sensing -- the same walk after a
   restore steps the same world and paints the same two maps, saved as the
@@ -787,7 +794,7 @@ def test_the_pair_steps_on_exactly_after_a_restart(tmp_path, world):
 
   def fly(lives):
     tick.run_many([(life.body.stepper,
-                    life.body.mission._drive_routine(AT_A_DECISION_S, 0.15, w))
+                    life.body.mission._drive_routine(at, 0.15, w))
                    for life, w in zip(lives, (-0.3, 0.4))])
 
   lives = build_pair(world, near_field=True)

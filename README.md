@@ -213,15 +213,19 @@ uv run python scripts/humanoid_spike.py --view fall   # shoved over three
                                       # fall and standing it again
 uv run python scripts/humanoid_spike.py --view getup  # up from lying on
                                       # its back, its front and its side
+uv run python scripts/two_robots.py --world home_humanoid --view --pack hosting
+                                      # the humanoid pair living a day in the
+                                      # house, as served (#559); `--fast
+                                      # --strip PNG` draws it headless
 ```
 `humanoid_spike.py --help` lists its tables (`--mass`, `--torque`,
 `--thermal`, `--energy`, `--sensors`, `--shove`, `--envelope`, `--hold`,
 `--pulls`, `--bar`, `--feel`, `--demo-table`, `--track`, `--rough`,
 `--odometry`, `--climb`, `--fall`, `--speed`);
 SimNotes, "The humanoid body", "The humanoid stands, reaches and grasps",
-"The humanoid behind Body", "The humanoid walks" and "The humanoid climbs,
-falls and gets up", has what they measured, and Parts.md the parts and the
-bill.
+"The humanoid behind Body", "The humanoid walks", "The humanoid climbs,
+falls and gets up" and "The humanoid pair served" have what they measured,
+and Parts.md the parts and the bill.
 
 Demo 1's harness (#493): an attempt at #466's chest from its set-out, graded
 by the world, the probe as the skill; the verdict is printed:

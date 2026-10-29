@@ -112,6 +112,11 @@ MUJOCO_GL=osmesa uv run python scripts/serve.py --endpoint ws://localhost:8765
 MUJOCO_GL=osmesa uv run python scripts/serve.py --pair \
   --endpoint ws://localhost:8765
 
+# …the humanoid pair in the same house (#559, not deployed): nowhere to
+# charge yet, so the real pack (778 Wh) or an admin's `set_battery`
+MUJOCO_GL=osmesa uv run python scripts/serve.py --pair --body humanoid \
+  --pack hosting --endpoint ws://localhost:8765
+
 # …with the robot doing something: walk to the lab, find the feed plate by
 # its sign and press it
 MUJOCO_GL=osmesa uv run python scripts/serve.py --errand feed \
@@ -123,13 +128,24 @@ PLUGGYWORLD_TOKEN=s3cret MUJOCO_GL=osmesa uv run python scripts/serve.py \
   --endpoint ws://localhost:8765/api/pluggyworld/ingest
 ```
 
-`serve.py` serves the quadruped (issue #387), the one body: the house with
-the quadruped and its dock put in at load, `home_quad` (`home_quad_pair`
+`serve.py` serves the quadruped (issue #387), the deployed body: the house
+with the quadruped and its dock put in at load, `home_quad` (`home_quad_pair`
 with `--pair`); `--world home` names the same world. The errand defaults to
 `none`, and the queues it takes are the lab's acts (`care`, `feed`,
 `shock`) -- no errand fetches a tool. The deployed period flies one job
 offer, the feed (#403, on a board of its own, `tasks_legs.json`), and no
 upkeep (no `$PLUGGY_METABOLISM`); Observatory.md has what is running.
+
+`--body humanoid` (`$PLUGGY_BODY=humanoid`) serves the humanoids in the same
+house instead (#559's stage 1, measured, not deployed): `home_humanoid`
+(`home_humanoid_pair`), built at load from the same file
+(`humanoid/world.py`) with the house's own fixtures -- the lab's signs, the
+boards' and the areas' tags -- and none of the quadruped's: no dock, no rack,
+no tools, so no job yet (its `cadence.json` block is empty) and nowhere to
+charge until the cable's station (stage 2). A chosen `charge` ends at once,
+said in History ("there is nowhere for me to charge here"), and the pack
+running out is the `flat` death. SimNotes, "The humanoid pair served", has
+what was measured.
 
 `serve.py --pair` serves BOTH robots from one loop (issue #181; M12) under
 `<world>_pair`: `--errand2` is the second robot's errand (default `none` —
@@ -284,6 +300,16 @@ rest, and `src/pluggybot/continuation.py` keeps it:
   except one touching a robot. The hourly reset used to be what made "set
   out in a row at …" true; with the world carried on, a failed attempt would
   otherwise leave them wherever it dropped them, for good.
+- **Another body in the same house** (#559: Luca and Rowan keep who they are
+  in new bodies). A save of one body's world carries on in another body's
+  world of the same house (`lifecycle.HOUSES`) as a changed world does,
+  below: the clock, the deaths and the jobs, never the bodies or the maps --
+  and the pack at the SHARE it was saved at, its size saved beside it
+  (`capacityWh`): a quadruped at 40 % of 194 Wh wakes a humanoid at 40 % of
+  778, never at 78 Wh. A save from before the size was kept is on the
+  quadruped's served pack, the one world ever served. History says "the world
+  restarted and could not put me back where I was (I have a new body since
+  then)". Another house's save is refused.
 - **Three refusals.** A world whose geometry changed (the `fingerprint` over
   bodies, joints and geoms) gets its
   clock, packs, deaths and jobs, but not its bodies or maps: the robots
@@ -306,7 +332,12 @@ rest, and `src/pluggybot/continuation.py` keeps it:
   at its kind's generic figure, too dear for a pack at 88 % after every
   restart. On legs it caught two more (#420): the fresh forward pass above,
   and a robot saved between two failed returns of one tool made two returns
-  the straight day never made.
+  the straight day never made. On the humanoid (#559), saved at the loop's
+  first pass and carried on through its whole explore, IDENTICAL over 508
+  samples to t = 260 s; what it keeps is its drivers' steps and targets, the
+  gains they set in the model, its senses' noise, its reach, its reckoning's
+  planted foot and the walls its layer is kept off (`HumanoidMission.
+  kept_state`), and never with a hand out (`Body.working`).
 - **Cost.** About 50 ms of the physics thread per save on the rover's pair
   with both maps built, 1.3 MB on disk (zlib level 1; the default level 6
   cost 175 ms).

@@ -77,8 +77,10 @@ def test_the_house_holds_two_humanoids_by_name_painted_and_meeting_each_other():
     return sorted(g for g in robot_geoms(model, root)
                   if model.geom_contype[g] or model.geom_conaffinity[g])
   one, two = solid(FIRST.root), solid(SECOND.root)
-  meets = lambda a, b: bool((model.geom_contype[a] & model.geom_conaffinity[b])
-                            or (model.geom_contype[b] & model.geom_conaffinity[a]))
+
+  def meets(a, b):
+    return bool((model.geom_contype[a] & model.geom_conaffinity[b])
+                or (model.geom_contype[b] & model.geom_conaffinity[a]))
   assert all(meets(a, b) for a in one for b in two)
   assert not any(meets(a, b) for a in one for b in one)
   def painted(root, rgba):
@@ -202,6 +204,25 @@ def test_the_pair_drops_each_other_from_their_scans_and_shares_their_frames():
   finally:
     for life in lives:
       life.body.close()
+
+
+def test_a_humanoids_look_is_taken_from_its_head():
+  """`look` (#275) asks the site for a picture from `Body.head_camera`'s
+  pose: the humanoid's is its head's Camera Module 3 (`nav_eye`), at a
+  person's eye height and facing where the robot faces -- never another
+  body's name (#408)."""
+  from pluggybot.mind.look import camera_pose
+  life = _humanoid()
+  try:
+    m, d = life.model, life.data
+    mujoco.mj_forward(m, d)
+    cam = camera_pose(m, d, life.body.head_camera)
+    _, _, yaw = life.body.true_pose()
+    assert life.body.head_camera == "nav_eye"
+    assert 1.2 < cam["pos"][2] < 1.5
+    assert cam["forward"][0] * math.cos(yaw) + cam["forward"][1] * math.sin(yaw) > 0.9
+  finally:
+    life.body.close()
 
 
 def test_a_humanoid_is_near_no_rack_and_with_a_hand_out_is_never_saved():

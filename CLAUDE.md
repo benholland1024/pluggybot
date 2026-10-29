@@ -8,8 +8,10 @@ the six qualities the agent is meant to maximise are in `docs/PluggyPlan.md`
 decisions**; #375, the quadruped pivot, is history. **The body is a ~10 kg
 quadruped** (#387, `legs/body.py`) with #378's two-joint arm on its back
 (#405), served as a pair; the wheeled rover before it was deleted in #376's
-stage C (the tag `rover-final` is the last commit that runs it). Before
-doing anything, read the doc that owns what you are about to touch:
+stage C (the tag `rover-final` is the last commit that runs it). **The
+humanoids replace it** (#559, Ben's decision): the humanoid pair is served
+in the same house, measured and not yet deployed (`home_humanoid`, below).
+Before doing anything, read the doc that owns what you are about to touch:
 
 | doc | what it holds | read it BEFORE |
 |---|---|---|
@@ -262,14 +264,14 @@ save a filmstrip PNG named after the script.
 | script | what it is for |
 |---|---|
 | `scripts/hub_lifecycle.py` | the mission, one quadruped in `home_quad`: explore, charge, an errand queue (`--errand` off `lifecycle.errands_for`: none, or an act on the mouse), battery-driven. `--boards PATH`, `--tasks`, `--metabolism`, `--near-field`, `--overseer`, `--pack hosting`, `--record out.jsonl.gz` |
-| `scripts/serve.py --endpoint ws://host:port` | the mission headless, paced to real time, streaming the protocol over an outbound WebSocket; the sim never blocks on the socket. `--free-run` measures the real-time multiple; `--pair` serves both robots; the world is `home` with legs, `home_quad` (#387; `--body`/`$PLUGGY_BODY` names the one body, the quadruped); `--world-state PATH` keeps the world and carries on from it (#345); `$PLUGGYWORLD_TOKEN` is the ingest secret (never a flag — `ps` is public). docs/Webserver.md |
+| `scripts/serve.py --endpoint ws://host:port` | the mission headless, paced to real time, streaming the protocol over an outbound WebSocket; the sim never blocks on the socket. `--free-run` measures the real-time multiple; `--pair` serves both robots; the world is `home` with legs, `home_quad` (#387; `--body`/`$PLUGGY_BODY` names the body: the quadruped, deployed, or the humanoid pair, `home_humanoid`, #559); `--world-state PATH` keeps the world and carries on from it (#345); `$PLUGGYWORLD_TOKEN` is the ingest secret (never a flag — `ps` is public). docs/Webserver.md |
 | `scripts/ws_sink.py` | dummy sink for serve.py: counts, frame-gap stats, keyframe spacing; `--token` makes it refuse an unauthenticated publisher |
 | `scripts/overseer_probe.py` | REAL LLM calls against a synthetic state: tokens, cost per sim-hour, cache hit rate, the latency distribution (`--calls N`). `--model org/name[:provider\|:cheapest]` measures a HuggingFace candidate (`$HF_TOKEN`, in the gitignored `.env`); `--deployed` measures the prompt the served pair sends and reports the ENERGY GATE (`report_energy` counts who took the unaffordable offer); `--prompt` prints it section by section with its sha; `--deployed --image JPEG` attaches a look's picture to every call (does the model, on its provider, take an image beside the schema? #541); `--max-tokens N`, `--escalate-to X --force-escalate`, `--tokens-only` (the Anthropic path's limits: Overseer.md §6) |
-| `scripts/energy_spike.py` | what each errand COSTS, per world, on an oversized pack; `--write` folds it into `economy/energy.json`, `--reserve` measures the return-trip margin, `--actions` prices named acts; `--world home_quad` prices the quadruped's explore, dock, the lab's acts, the boards' jobs (`draw|artwork|answer:<board>`, from the dock, the board remembered) and #407's (`census`, `stack`, `mass`: from the dock, the area remembered; a challenge is its hand-written solution). Re-run after anything that changes what an errand does |
+| `scripts/energy_spike.py` | what each errand COSTS, per world, on an oversized pack; `--write` folds it into `economy/energy.json`, `--reserve` measures the return-trip margin, `--actions` prices named acts; `--world home_quad` prices the quadruped's explore, dock, the lab's acts, the boards' jobs (`draw|artwork|answer:<board>`, from the dock, the board remembered) and #407's (`census`, `stack`, `mass`: from the dock, the area remembered; a challenge is its hand-written solution); `--world home_humanoid` the humanoid's explore (#559). Re-run after anything that changes what an errand does |
 | `scripts/unknown_spike.py` | #381's walking stage: a fresh quadruped (an empty map, its start pose) sent once to each zone, one process a walk: arrived or why not, the time, the walk against the true route, what planning cost; `--before` the planner before (mapped floor only, stand-ins), `--again` back and there again on the map it laid, `--unknown-cost X`, `--maps DIR` |
 | `scripts/grid_spike.py` | #558: what a robot's map costs as the world grows, at 1-4x today's cells (the bounds grown round the house), each scale its own process, through the bodies' own code: each scan's, frame's and plan's work, the explore's mask and A*, the matcher's field, the wire's PNG, `world.npz`, memory, on #215's synthetic grid and the house laid by the robot's own senses; `--walks [SIM_S]` the pairs walking #507's routes at each scale, `--across` one fresh quadruped from the living room to the west street; `--scales`, `--repeat`, `--out` |
 | `scripts/drift_spike.py` | #386: believed against true pose over lab round trips, the quadruped's (the walking policy steered by the truth, two estimates on one walk, odometry alone and matched), and whether the lab door is open in the robot's own map; `--explore SECONDS --seed K [--rest S]` the loop's own explore, steered by the belief, then home to the dock (#422), `--explore-table` across seeds |
-| `scripts/determinism_spike.py` | is the world the same world twice? N scripted days hashed, first divergence attributed to GPU / decoder / raycast; `--pair`; `--compare DIR`; `--resume-at T` flies a day against one saved and carried on in a new process (#345), `--on-fork MODULE` with a tool on the fork whose returns fail (#420) |
+| `scripts/determinism_spike.py` | is the world the same world twice? N scripted days hashed, first divergence attributed to GPU / decoder / raycast; `--pair`; `--compare DIR`; `--resume-at T` flies a day against one saved and carried on in a new process (#345; `--world home_humanoid` the humanoid's, #559), `--on-fork MODULE` with a tool on the fork whose returns fail (#420) |
 | `scripts/make_way_spike.py` | #415: the pair in the house on true-floor maps, one robot resting in a doorway and the other walking through it, one process a scene: the walk's end, the step aside (how far, how long, why it stopped), touches and falls; `--before` nobody asks, `--finished` the resting robot's day is over, `--scene A,B` |
 | `scripts/dock_pair_spike.py` | #455's closing reading: the pair at the dock and the rack on true-floor maps, the camera on, one process a scene: `overlap` (both lying on the dock's standoff, one walks off; `--live SAVE --jam T,...` on each robot's own saved map at afb473a's jams), `double` (one charging, the other comes to charge; `bump` with nobody holding the seat), `wait` (one resting on the standoff; `lane` across the way in), `backout` (one backs off the dock onto one resting), `swap` (one resting by the claw's bay, the other fetches; `rack` across it, nobody waiting or asking); every scene says how deep the bodies went into each other and each blind walk's `headway` as its own check saw it; `--no-contact` the pair passing through each other, `--blind` the walks in and back out not stopping when they get nowhere |
 | `scripts/press_spike.py` | #439: the pair in the lab on true-floor maps, the camera on, one robot lying where a scene puts it (by default where its own press backs out, 0.25 m short of the feed plate's standoff) and the other finding and pressing the feed plate, one process a scene: how the press ended and its tries, the walk's and the way in's time, the steps aside, every plate the feet came down on; `--drift-walker`/`--drift` lay one map off as Luca's was |
@@ -303,8 +305,9 @@ save a filmstrip PNG named after the script.
   judged against `Motor.stall_torque`, never the turning rating. ⚠ Its
   proportions and the legs' ranges are Booster T2's published model's,
   credited (BSD-3-Clause, `models/booster_assets.LICENSE`); never its meshes.
-  ⚠ Not served, not in `protocol/parts.json`, nothing in the served world:
-  a `Body` (below) in worlds of its own.
+  ⚠ Not deployed, not in `protocol/parts.json`: served in the house as
+  `home_humanoid` (#559's stage 1, below), and otherwise a `Body` in worlds
+  of its own.
 - **The humanoid stands and reaches off its own senses** (#507 stage 2;
   `humanoid/policy.py`, `arms.py`, `reach.py`; SimNotes, "The humanoid
   stands, reaches and grasps"): its legs are a standing policy
@@ -447,6 +450,26 @@ save a filmstrip PNG named after the script.
   starts its height again. `stuck_after_s` is
   `GETUP_BUDGET_S` (20); falls into a wall or off the landing still end
   stuck.
+- **The humanoid pair is served in the house, measured and not deployed**
+  (#559 stage 1; `humanoid/world.py`, `lifecycle._humanoid_config`,
+  `tests/test_humanoid_served.py`; SimNotes, "The humanoid pair served"):
+  `home_humanoid` is the house with its own fixtures and NONE of the
+  quadruped's -- no dock, rack or tools, so no job (its `cadence.json` block
+  is empty) -- the pair colliding as the quadrupeds do (`PAIR_BITS`). ⚠
+  NOWHERE TO CHARGE until the cable's station (stage 2): `HubLifecycle.
+  charger` is False, a charge ends at once (`NO_CHARGER`), nothing sends it
+  to one (`needs_charge`, `_afford_next`), and the pack running out is the
+  `flat` death. ⚠ Its restart keeps parity (`HumanoidMission.kept_state`:
+  its drivers' steps and targets, the gains they set in the MODEL, its
+  senses' noise, its reach, its reckoning's planted foot, the walls its
+  layer is kept off), never with a hand out (`Body.working`); a test saving
+  on a step every controller's period divides read a fresh reach as kept.
+  ⚠ #558's two levers are the quadruped's too: a plan held `REPLAN_HOLD_S`
+  (the Navigator's now; it replanned every step its waypoints ran out short
+  of the goal) and the walls grown in the camera's window. ⚠ The death
+  seam calls a body down at `TOPPLE_TILT_RAD` (60 deg) of pelvis tilt and a
+  reach's deepest bow is 63 deg: nothing bows in the served world until the
+  hands come in (stage 3).
 - **The humanoid opens the chest at a counter** (#493 stages 2-3;
   `evaluation/opener.py`, `evaluation/counter.py`; SimNotes, "The humanoid
   opens the chest"; `tests/test_hands.py`): the counter is 0.72 m (Ben).
@@ -1084,7 +1107,12 @@ save a filmstrip PNG named after the script.
   restore. ⚠ A signal only ASKS (`Keeper.request_stop`); no save mid stand-up
   or mid-move (a quadruped lying down, standing up or getting up is a
   generator part-way, or AT a bay mid-swap, `Body.working`; `Keeper.busy`),
-  NEVER on a crash. Three refusals, said in History: a changed
+  NEVER on a crash. ⚠ ANOTHER BODY IN THE SAME HOUSE CARRIES ON (#559,
+  `lifecycle.HOUSES`, `continuation.same_house`): a `home_quad` save in
+  `home_humanoid` keeps the clock, the deaths and the jobs as a changed
+  world does, never the bodies or maps, and the pack at the SHARE it was
+  saved at (`capacityWh`; a save without it is on the quadruped's served
+  pack), History saying `BODY_CHANGED`. Three refusals, said in History: a changed
   GEOMETRY (`fingerprint`) keeps the clock, packs, deaths and jobs but not the
   bodies or maps, and so does a save of another `MAP_EPOCH` (bumped when the
   kept maps are found laid wrong, #425 and #476); a save restored `MAX_RESUMES` (3)
@@ -1168,7 +1196,8 @@ save a filmstrip PNG named after the script.
   `PLUGGY_RATE`, `PLUGGY_PACK`, `PLUGGY_BATTERY_WH`, `PLUGGY_RESERVE_WH`,
   `PLUGGY_MAX_SIM_TIME` (a RUN's budget), `PLUGGY_BOARDS`, `PLUGGY_LEDGER`,
   `PLUGGY_WORLD_STATE` (`world.npz` on the volume; unset → every start from
-  XML), `PLUGGY_BODY` (unset → the quadruped, the one body),
+  XML), `PLUGGY_BODY` (unset → the quadruped; `humanoid` the humanoid
+  pair, #559, not deployed),
   `PLUGGY_ROBOT_NAME` (unset → `"Pluggy"`), `PLUGGY_NEAR_FIELD` (unset →
   on), `PLUGGY_LOOK` (unset → on), `PLUGGY_CONSTITUTION` /
   `PLUGGY_CONSTITUTION_2` (an unknown name REFUSES to start), `PLUGGY_PAIR` /
