@@ -176,6 +176,31 @@ def test_a_humanoid_grows_the_walls_round_itself_never_the_whole_map():
     life.body.close()
 
 
+def test_a_thin_thing_goes_into_the_layer_whatever_floor_its_cell_shows():
+  """A cell a frame's points hit is no floor in that frame (#559): the
+  garden light's 4 cm pole, under the LIDAR's plane, fills part of its 5 cm
+  cell and the floor round it the rest, and each floor point voted it down
+  -- a walk into it stood there all day. Three frames of one point on it
+  and ten on the floor beside it, and it is in the planner's layer."""
+  life = _humanoid(near_field=False)
+  m = life.body.mission
+  try:
+    g = m.grid
+    m.low[:] = 0.0
+    x, y, yaw = m.pose
+    ix, iy = g.world_to_cell(x + math.cos(yaw), y + math.sin(yaw))
+    cx, cy = g.cell_to_world(ix, iy)                    # the cell's middle, in the world
+    c, s = math.cos(yaw), math.sin(yaw)
+    ax, ay = c * (cx - x) + s * (cy - y), -s * (cx - x) + c * (cy - y)
+    ring = [(ax + 0.015 * math.cos(k), ay + 0.015 * math.sin(k), 0.0) for k in range(10)]
+    pts = np.array([(ax, ay, 0.5), *ring])
+    for _ in range(3):
+      m._fold_low(pts)
+    assert m.low[iy, ix] >= hmi.LOW_OCC, m.low[iy, ix]
+  finally:
+    life.body.close()
+
+
 # ---- what it shares with the loop and the other robot --------------------------------
 
 

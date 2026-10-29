@@ -670,10 +670,18 @@ class HumanoidMission(Navigator):
     near = np.hypot(points[:, 0], points[:, 1]) <= LOW_RANGE_M
     hit = ok & near & (z >= LOW_MIN_Z) & (z <= LOW_MAX_Z)
     floor = ok & near & (z < FLOOR_Z)
+    cells = np.unique(iy[hit] * cols + ix[hit]) if hit.any() else np.zeros(0, dtype=np.int64)
     if floor.any():
-      np.subtract.at(self.low, (iy[floor], ix[floor]), LOW_MISS)
-    if hit.any():
-      cells = np.unique(iy[hit] * cols + ix[hit])
+      # ⚠ A CELL A FRAME HITS IS NO FLOOR IN IT (#559): a thin thing fills a
+      # part of its 5 cm cell and the floor round it the rest, and each of
+      # the floor's points voted it down -- the garden light's 4 cm pole read
+      # -0.4 to -1.0 from 1 m off, under the LIDAR's plane and never in the
+      # layer, and a walk into it stood there all day. (The quadruped's
+      # LIDAR, 0.51 m up, maps the pole.)
+      fl = iy[floor] * cols + ix[floor]
+      fl = fl[~np.isin(fl, cells)]
+      np.subtract.at(self.low.reshape(-1), fl, LOW_MISS)
+    if len(cells):
       cells = cells[~self._walls().flat[cells]]
       self.low.flat[cells] += LOW_HIT
     np.clip(self.low, -LOW_CLAMP, LOW_CLAMP, out=self.low)
