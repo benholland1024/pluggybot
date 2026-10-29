@@ -9,7 +9,9 @@ can die. **It is a quadruped**: about 10 kg on four legs, with #378's
 two-joint arm on its back, which takes tools off a rack beside its dock
 (#405). The served pair walk the house (#387) and take its jobs, from
 feeding the mouse (#403) and hide-and-seek (#404) to drawing, a census and
-two challenges with the arm (#406, #407). **What the project works on now is
+two challenges with the arm (#406, #407). **The humanoids replace them**
+(#559): the humanoid pair is served in the same house, measured and not yet
+deployed, and its jobs come back as tasks its hands learn. **What the project works on now is
 self-taught generality**: the robot acquiring new skills by its own effort
 through five processes (reuse what it has, try and react, follow
 instructions, copy, and imagine first). It chooses among them, and that
@@ -142,7 +144,7 @@ the quadruped pivot before it, closed on 2026-10-04 with its final status.
 | Capability | Approach |
 |---|---|
 | Body interface | `body.py` (#380): everything the day loop and the procedure verbs may ask of a body, and the only way they reach one; the command a routine yields is the body's own; a `StubBody` carries the loop's bookkeeping in tests |
-| Body | a ~10 kg quadruped (`legs/`, #377): twelve GIM8108-8 joints with their GDS68 drivers, a walking policy trained in `training/` and run as numpy on the physics thread (`legs/policy.py`), a rest by reflex and a get-up from a fall (`legs/posture.py`), and #378's two-joint arm on its back (`legs/arm.py`, #405); `legs/body.py` is its `Body` (#387) |
+| Body | a ~10 kg quadruped (`legs/`, #377): twelve GIM8108-8 joints with their GDS68 drivers, a walking policy trained in `training/` and run as numpy on the physics thread (`legs/policy.py`), a rest by reflex and a get-up from a fall (`legs/posture.py`), and #378's two-joint arm on its back (`legs/arm.py`, #405); `legs/body.py` is its `Body` (#387). Its replacement, the humanoid (`humanoid/`, #507), is a `Body` too, served in the same house as `home_humanoid` (#559) |
 | Ranging | 2D scanning LIDAR (`perception/lidar.py`), RPLIDAR C1-class, 0.51 m up: 360 ray casts (one `mj_multiRay`) with noise, dropout and a self-filter. Stereo was measured and dropped (Parts.md "Vision & ranging") |
 | Near field | RealSense D435-class depth camera on the nose (`perception/depth.py`): batched ray casts, z² noise, the occlusion shadow, out-of-range as unknown. The planner plans round what it sees under the LIDAR's plane (#387); it also feeds a robot-centric 2.5D height map (`perception/heightmap.py`), streamed as `heightmap`, that nothing deciding reads (#34) |
 | Vision | the nose camera; AprilTags on the dock's board, the rack's bays and the places' signs (`rack/tags.py`, `legs/dock.py`, `legs/rack.py`, `legs/places.py`) |

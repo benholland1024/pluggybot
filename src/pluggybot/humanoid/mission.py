@@ -448,7 +448,9 @@ class HumanoidMission(Navigator):
     arrays. Never saved with a hand out or getting up (`HumanoidBody.
     working`, `posture`): a hand's move is a routine's. ⚠ The walker that
     sees the ground (not served) keeps no scan: it starts its ground anew,
-    as after a fall."""
+    as after a fall. ⚠ Nor is the hands' depth cloud's noise kept
+    (`HumanoidBody.depth_cloud`, `measure`): nothing served measures until
+    the hands are (#559's stage 3)."""
     match, arrays = (self.matcher.kept_state() if self.matcher is not None else (None, {}))
     acts = self._own_acts()
     m = self.model

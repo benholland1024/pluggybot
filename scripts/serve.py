@@ -13,7 +13,9 @@ Usage:
     # CPU-only rendering, the deploy-server configuration
   ... --world home      # the generated house + garden (issue #6) with the
                         # quadruped in it (`home_quad`, issue #387), the
-                        # default and the one world. Everything the world
+                        # default -- or with the humanoid in it
+                        # (`--body humanoid`, `home_humanoid`, #559, not
+                        # deployed). Everything the world
                         # implies -- model, scene name, grid extent, battery,
                         # start pose, explore budget -- comes from
                         # lifecycle.world_config(), so this flag can never
@@ -111,13 +113,16 @@ def serve(watchdog: "vitals.Watchdog") -> str | None:
   parser = argparse.ArgumentParser(description=__doc__)
   parser.add_argument("--endpoint", default="ws://localhost:8765",
                       help="WebSocket endpoint to publish to")
-  parser.add_argument("--world", choices=("home", "home_quad"), default="home",
+  parser.add_argument("--world", choices=("home", "home_quad", "home_humanoid"),
+                      default="home",
                       help="which world to serve: the generated home world "
-                           "(issue #6), with the quadruped in it (`home_quad`)")
+                           "(issue #6), with the quadruped in it (`home_quad`) "
+                           "or the humanoid (`home_humanoid`, #559)")
   parser.add_argument("--body", choices=BODIES,
                       default=os.environ.get("PLUGGY_BODY") or BODIES[0],
-                      help="which body the robots have (issue #387): the "
-                           "quadruped, the one body since #376. Default "
+                      help="which body the robots have: the quadruped (issue "
+                           "#387, deployed) or the humanoid (#559: no dock, "
+                           "rack or tools, nowhere to charge yet). Default "
                            "$PLUGGY_BODY, then quadruped")
   parser.add_argument("--rate", type=float, default=1.0,
                       help="pacing: sim seconds per wall second")

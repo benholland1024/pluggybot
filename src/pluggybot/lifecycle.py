@@ -246,6 +246,11 @@ DEATH_ENDED = "interrupted by a death"
 #: of getting home is set by the FLOOR PLAN, not by the battery.
 CHARGED = 0.90
 
+#: Why a charge in a world with nowhere to charge never began (issue #559:
+#: the humanoid's house until its cable's station, stage 2) -- History's
+#: words, `charge: did not charge -- ...`.
+NO_CHARGER = "there is nowhere for me to charge here"
+
 #: Sim seconds of charging before calling it stuck, on a DEMO cell.
 #:
 #: ⚠ A TIMEOUT IN SECONDS IS A TIMEOUT IN WATT-HOURS, and this one was sized
@@ -255,10 +260,6 @@ CHARGED = 0.90
 #: "CHARGE complete (79 %)". `charge_timeout` below scales it with the pack.
 #: It still computes 400 s on BOTH demo cells, where the arithmetic asks for
 #: less, so nothing about an existing mission moves.
-#: Why a charge in a world with nowhere to charge never began (issue #559:
-#: the humanoid's house until its cable's station, stage 2) -- History's
-#: words, `charge: did not charge -- ...`.
-NO_CHARGER = "there is nowhere for me to charge here"
 CHARGE_TIMEOUT = 400.0
 #: ...and the floor under that scaling, so a tiny pack still gets long enough
 #: to seat the pins and be believed.

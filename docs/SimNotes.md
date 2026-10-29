@@ -6272,8 +6272,8 @@ streams `home_humanoid_pair`. Every number is the dev box's (an i5-9600KF,
 six cores, a browser and an editor beside it) unless it says otherwise.
 
 ![The humanoid pair's day: Luca and Rowan exploring the house on their own
-legs, each from above and behind every 20 s
-(`two_robots.py --world home_humanoid --fast --strip`)](figures/humanoid_pair_day.png)
+legs, each from above and behind every 40 s
+(`two_robots.py --world home_humanoid --fast --strip --strip-every 40`)](figures/humanoid_pair_day.png)
 
 **The world** (`humanoid/world.py`): the house built at load from the
 generator's file, as `legs/world.py` builds the quadrupeds', with the
@@ -6290,15 +6290,17 @@ away: its explore draws 166.4 W (11.745 Wh over 254 s, `energy_spike.py
 explores for 4.7 h.
 
 **What the loop took.** The lifecycle had never run a humanoid's day, and
-its first flights met five things that were the quadruped's: the day began
+its first flights met six things that were the quadruped's: the day began
 by watching for the rack's tag (`Body.start_discovery`); the near field and
 the peer channel read a depth camera the humanoid did not share
 (`Body.depth_camera`: now the frames its walk lays its layer from, at its
 camera's 5 Hz); each robot mapped the other (`Body.know_peer` did nothing:
 painted into the map, a robot walked past walls in the one that passed it);
-the day's summary asked after a tool; and a restored pair indexed the
-humanoid's geoms as an array, which were a set. Each answers plainly now
-(`tests/test_humanoid_served.py`).
+the day's summary asked after a tool; a restored pair indexed the
+humanoid's geoms as an array, which were a set; and a mind's first
+`other_needs` (#208) asked what was on the other's fork, the loop watching
+the quadruped's LCD in a world with no rack (`HubLifecycle.module` is ""
+there). Each answers plainly now (`tests/test_humanoid_served.py`).
 
 **#558's two levers.** Over 100 sim s of the pair exploring (cProfile on)
 the walk made 3,115 plans, 23 ms each, 71 s of the run's 155 -- the pair at
@@ -6351,15 +6353,58 @@ on the quadruped's served pack): a quadruped at 40 % of 194 Wh wakes a
 humanoid at 40 % of 778. History says "the world restarted and could not
 put me back where I was (I have a new body since then)".
 
-DAY_PLACEHOLDER
+**What its head does not see.** The garden light's pole is 4 cm wide and
+0.9 m tall, under the humanoid's LIDAR (1.41 m up; the quadruped's, at
+0.51 m, maps it). On the first minded day Rowan walked into it and stood
+against it for the rest of the run, every walk after "stalled" where it
+stood. Its depth camera saw the pole well -- 80 to 105 points a frame from
+1 m -- but the pole fills part of its 5 cm cell and the floor round it the
+rest, and each floor point voted the cell down: from 1 m off the layer
+read -0.4 to -1.0 there, from 1.5 m it took 7 frames to mark it, and past
+1.8 m the layer does not reach. A cell a frame's points hit is no floor in
+that frame now (`HumanoidMission._fold_low`; the quadruped's rule as it
+was): from 1 m and from 1.5 m the pole is in the layer at the third frame,
+0.6 s, and #507's walk scene flies the same to the centimetre.
 
-**What is not yet.** `look` asks the site for a picture from the head's
+**Falls and deaths in the loop** (`determinism_spike.py --pair --world
+home_humanoid --fall-at 40 --drain-at 120 --restart-after 30`, the pair's
+day flown twice: IDENTICAL over 508 state samples, through both deaths and
+both stand-ups). Laid on its side where it stood (`pair.arrange_hazards`)
+Rowan rose part way, fell back with its head at a wall and lay there: the
+`stuck` death 20 s on (`GETUP_BUDGET_S`), stood up by the world 30 s after
+that. Emptied at t = 120 s, it died `flat` and was stood up on a full
+pack. Laid down on open floor (1.6 m clear all round) it was up 5 s later
+and walked on with its explore. The get-up trained on open floor alone
+(#507): a fall against a wall is still a death.
+
+**A minded day** (the deployed arm and model: `--arm autonomous --origin
+unseeded`, `zai-org/GLM-5.3-Flash:cheapest`; 1,207 sim s in two runs, the
+first ended by SIGTERM at 626 s as a deploy ends one, the second carried on
+from its save at 1.34x and 1.63x real time). No death, no fall and no
+charge asked for, the pack at 95 % at the end. Both minds wrote their event
+maps first, split the rooms between them and told each other where they
+were going; after the restart Luca said "the world restarted under me but I
+picked up where I left off". Of their walks, 7 arrived and 1 ended in its
+zone short of its middle, and 8 gave up with the other robot in the way:
+from t = 720 s on the pair stood at the living room's garden door, each
+walk of each giving up after 10 s 1.2 m from the other, the minds trying
+one room after another through the same door. A robot in another's way is
+asked to make way only while it RESTS (#415, `Navigator._ask_way`): a
+quadruped lies down to rest by reflex, and a humanoid stands -- it never
+rests, and two standing robots wait on each other (the quadrupeds'
+head-on case, #395, is still open). A mind also asked visitors where "the
+charging dock" is (and on an earlier flight one wrote a procedure to push
+on "turning if my bumper hits"): the prompt and the constitutions still
+describe the quadruped's body and world (stage 3 rewrites them).
+
+**What is not yet.** Making way: a humanoid that has stood still with no
+walk of its own would have to count as resting and step aside as the
+quadruped does (`legs/way.py`), or the pair jams its doors (above) --
+before it is deployed. `look` asks the site for a picture from the head's
 camera (`nav_eye`, 1.3 m up, facing where it faces), and the site draws the
-pair in stage 4. A humanoid at rest stands, and is never asked to make way
-(`Body.make_way` refuses): one idle in a doorway is waited on as a robot
-that will move. The death seam calls a robot down at 60 deg of its pelvis's
-tilt (`TOPPLE_TILT_RAD`), and a reach's deepest bow is 63 deg: nothing bows
-in the served world until the hands come in (stage 3).
+pair in stage 4. The death seam calls a robot down at 60 deg of its
+pelvis's tilt (`TOPPLE_TILT_RAD`), and a reach's deepest bow is 63 deg:
+nothing bows in the served world until the hands come in (stage 3).
 
 ## Debugging workflow that worked
 
