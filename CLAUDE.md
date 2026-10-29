@@ -267,6 +267,7 @@ save a filmstrip PNG named after the script.
 | `scripts/overseer_probe.py` | REAL LLM calls against a synthetic state: tokens, cost per sim-hour, cache hit rate, the latency distribution (`--calls N`). `--model org/name[:provider\|:cheapest]` measures a HuggingFace candidate (`$HF_TOKEN`, in the gitignored `.env`); `--deployed` measures the prompt the served pair sends and reports the ENERGY GATE (`report_energy` counts who took the unaffordable offer); `--prompt` prints it section by section with its sha; `--deployed --image JPEG` attaches a look's picture to every call (does the model, on its provider, take an image beside the schema? #541); `--max-tokens N`, `--escalate-to X --force-escalate`, `--tokens-only` (the Anthropic path's limits: Overseer.md §6) |
 | `scripts/energy_spike.py` | what each errand COSTS, per world, on an oversized pack; `--write` folds it into `economy/energy.json`, `--reserve` measures the return-trip margin, `--actions` prices named acts; `--world home_quad` prices the quadruped's explore, dock, the lab's acts, the boards' jobs (`draw|artwork|answer:<board>`, from the dock, the board remembered) and #407's (`census`, `stack`, `mass`: from the dock, the area remembered; a challenge is its hand-written solution). Re-run after anything that changes what an errand does |
 | `scripts/unknown_spike.py` | #381's walking stage: a fresh quadruped (an empty map, its start pose) sent once to each zone, one process a walk: arrived or why not, the time, the walk against the true route, what planning cost; `--before` the planner before (mapped floor only, stand-ins), `--again` back and there again on the map it laid, `--unknown-cost X`, `--maps DIR` |
+| `scripts/grid_spike.py` | #558: what a robot's map costs as the world grows, at 1-4x today's cells (the bounds grown round the house), each scale its own process, through the bodies' own code: each scan's, frame's and plan's work, the explore's mask and A*, the matcher's field, the wire's PNG, `world.npz`, memory, on #215's synthetic grid and the house laid by the robot's own senses; `--walks [SIM_S]` the pairs walking #507's routes at each scale, `--across` one fresh quadruped from the living room to the west street; `--scales`, `--repeat`, `--out` |
 | `scripts/drift_spike.py` | #386: believed against true pose over lab round trips, the quadruped's (the walking policy steered by the truth, two estimates on one walk, odometry alone and matched), and whether the lab door is open in the robot's own map; `--explore SECONDS --seed K [--rest S]` the loop's own explore, steered by the belief, then home to the dock (#422), `--explore-table` across seeds |
 | `scripts/determinism_spike.py` | is the world the same world twice? N scripted days hashed, first divergence attributed to GPU / decoder / raycast; `--pair`; `--compare DIR`; `--resume-at T` flies a day against one saved and carried on in a new process (#345), `--on-fork MODULE` with a tool on the fork whose returns fail (#420) |
 | `scripts/make_way_spike.py` | #415: the pair in the house on true-floor maps, one robot resting in a doorway and the other walking through it, one process a scene: the walk's end, the step aside (how far, how long, why it stopped), touches and falls; `--before` nobody asks, `--finished` the resting robot's day is over, `--scene A,B` |
@@ -1301,9 +1302,13 @@ save a filmstrip PNG named after the script.
   the depth camera's low layer the first two). ⚠ The lab's props (`activity/cage.py`,
   `challenge/bench.py`) are geometry the generator emits; their behaviour is
   added beside it. The house carries no robot. ⚠ The grid is 469,200
-  cells against `occupancy_grid.MAX_CELLS` 750,000: A* is pure Python and NOT
-  linear (1.26 s across the loop), so vectorising the planner is the lever if
-  the world grows again. ⚠ The one world, `home_quad`, is built at LOAD from
+  cells, a quarter of `occupancy_grid.MAX_CELLS` (1,876,800, the largest
+  grid measured: #558, `scripts/grid_spike.py`): walks plan on the compiled
+  lattice, and what grows with the cells is each scan's update, each plan's
+  inflation transform and weights, the save, and the explore's frontier
+  leg, still A* in pure Python (3 s across the 4x grid); the humanoid pays
+  its walls and its arrival's replans oftener (SimNotes, "The map's size
+  limit"). ⚠ The one world, `home_quad`, is built at LOAD from
   that file (`legs/world.py`): the quadruped(s), #378's dock and its own rack
   put in (#405: three tools on 220 mm pegs, the rover's module names and bay
   letters, compiled exactly AT REST so `qpos0` reads hung), and the lab
