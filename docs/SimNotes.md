@@ -6420,7 +6420,21 @@ resting in each of six doors of the house and the other walking through
 
 (the seventh scene is the 3 m hall's middle, where nobody is asked.)
 
-MAKEWAY_DAY_PLACEHOLDER
+A minded day with it (949 sim s, the deployed arm and model, from nothing):
+no walk gave up with the other robot in the way, where the day before it
+8 had; the pair did not meet in a doorway, so nobody was asked.
+
+**Its belief drifts on a long explore.** After a 240 s explore of the
+whole house the humanoids' beliefs were 0.2 to 0.7 m off the truth (dev box,
+scripted pair days, before and after every change here). The quadruped's
+belief is fixed at its dock and its rack by their commissioned tags (#476);
+the humanoid has no fixture until its charging stations, which will be
+(stage 2). A map laid through a belief that far
+off lays the camera's points beside the LIDAR's walls of another moment:
+in one minded day Luca's layer held 29 cells across the living room's hall
+door, 12-17 cm off the wall's line, and three walks to the kitchen gave up
+"no route". It is the next thing to look at before deploying, with the
+reported pose the other robot is kept clear of.
 
 **What is not yet.** `look` asks the site for a picture from the head's
 camera (`nav_eye`, 1.3 m up, facing where it faces), and the site draws the
