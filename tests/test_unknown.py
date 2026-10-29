@@ -29,10 +29,14 @@ LEGS = world_facts(QUAD_HOME)
 
 class _Nav(nav.Navigator):
   """The planner's own `self` over a synthetic map at 5 cm: no world, no
-  body, nobody else -- `_plan_to` exactly as a body calls it."""
+  body, nobody else -- `_plan_to` exactly as a body calls it, each call a
+  plan of its own (its clock stands still, so no plan is held)."""
+
+  REPLAN_HOLD_S = 0.0
 
   def __init__(self, logodds, at, optimistic=True):
     rows, cols = logodds.shape
+    self.data = SimpleNamespace(time=0.0)
     self.grid = OccupancyGrid(0.0, 0.0, cols * 0.05, rows * 0.05, resolution=0.05)
     self.grid.grid[:] = logodds
     self._at = at

@@ -561,11 +561,37 @@ class Navigator:
 
   # ---- planning and driving ------------------------------------------------
 
+  #: A plan asked for again this soon, for the same goal from within this of
+  #: where the last was made, is that plan (s, m). MEASURED: at a stand-in
+  #: (a goal off the plannable floor, the drive aimed at the nearest cell it
+  #: could reach) the waypoints run out where the robot stands and the drive
+  #: replanned EVERY STEP until its stagnation cut -- 4 190 plans in 90 s of
+  #: a quadruped pair, 15 ms each; the map it planned over had not moved.
+  #: The humanoid's drive did so too wherever its waypoints ran out short of
+  #: the goal (#558, #559): 3 115 plans in 100 s of a pair, 23 ms each.
+  REPLAN_HOLD_S, REPLAN_MOVED_M = 0.5, 0.05
+  _plan_memo = None
+
   def _plan_to(self, wx: float, wy: float) -> list[tuple[float, float]] | None:
     """A plan to the goal round every other robot -- or, where only the
     discs of robots further off than `PAST_M` cut the way, round the near
     ones alone: the far ones are met by a later plan (issue #455).
-    `_plan_round` is one plan."""
+    `_plan_round` is one plan, and one asked for again within
+    `REPLAN_HOLD_S` and `REPLAN_MOVED_M` is the last."""
+    t = float(self.data.time)
+    x, y, _ = self.pose
+    memo = self._plan_memo
+    if (memo is not None and memo[0] == (wx, wy) and t - memo[1] < self.REPLAN_HOLD_S
+        and math.hypot(x - memo[2][0], y - memo[2][1]) < self.REPLAN_MOVED_M):
+      self._stand_in = memo[4]
+      return None if memo[3] is None else list(memo[3])
+    planned = self._plan_near(wx, wy)
+    self._plan_memo = ((wx, wy), t, (x, y),
+                       None if planned is None else list(planned), self._stand_in)
+    return planned
+
+  def _plan_near(self, wx: float, wy: float) -> list[tuple[float, float]] | None:
+    """`_plan_to`'s plan, made."""
     planned = self._plan_round(wx, wy)
     if planned is None and self.others:
       px, py, _ = self.pose

@@ -376,14 +376,15 @@ def resume_check(out: Path, cfg: dict, at: float, env: dict) -> int:
 
 
 def main() -> int:
-  from pluggybot.lifecycle import QUAD_HOME, world_for
+  from pluggybot.lifecycle import HUMANOID_HOME, QUAD_HOME, world_for
   ap = argparse.ArgumentParser(description=__doc__,
                                formatter_class=argparse.RawDescriptionHelpFormatter)
   ap.add_argument("--child", nargs=2, metavar=("CFG", "TRACE"))
   ap.add_argument("--runs", type=int, default=2)
   ap.add_argument("--sim-s", type=float, default=1500.0)
-  ap.add_argument("--world", choices=(QUAD_HOME, "home"), default=QUAD_HOME,
-                  help="the house with the quadruped in it; `home` names it too")
+  ap.add_argument("--world", choices=(QUAD_HOME, HUMANOID_HOME, "home"), default=QUAD_HOME,
+                  help="the house with the quadruped in it (`home` names it too), or with "
+                       "the humanoid (#559)")
   ap.add_argument("--pack", default="hosting")
   ap.add_argument("--errand", default="none",
                   help="the queue at the start (`lifecycle.errands_for`): "
@@ -432,7 +433,8 @@ def main() -> int:
                "not --pair's")
   out = Path(args.out or tempfile.mkdtemp(prefix="pluggy-det-spike-"))
   out.mkdir(parents=True, exist_ok=True)
-  cfg = {"world": world_for(args.world), "pack": args.pack, "simS": args.sim_s,
+  world = args.world if args.world == HUMANOID_HOME else world_for(args.world)
+  cfg = {"world": world, "pack": args.pack, "simS": args.sim_s,
          "errand": args.errand, "nthreads": args.nthreads, "economy": args.economy,
          "batteryFraction": args.battery_fraction, "onFork": args.on_fork}
   if args.pair:

@@ -24,9 +24,10 @@ from pluggybot.humanoid import model as hm
 from pluggybot.humanoid import parts as hp
 from pluggybot.humanoid.arms import HELD_GAP_M, HandGoal
 from pluggybot.humanoid.policy import PITCH_RANGE, StandPolicy
-from pluggybot.humanoid.mission import MOTION_EPS, V_MIN, HumanoidMission
+from pluggybot.humanoid.mission import DEPTH_PERIOD, MOTION_EPS, V_MIN, HumanoidMission
 from pluggybot.humanoid import reach as reach_
 from pluggybot.humanoid.reach import HOLD_SPEED
+from pluggybot.perception.depth import DepthFrame
 from pluggybot.perception.watch import TagWatch
 from pluggybot.power import Pack
 from pluggybot.robot import FIRST, RobotHandle
@@ -124,6 +125,37 @@ class HumanoidPack(Pack):
     return self.draw_w + float((1.5 * self.r * i * i).sum())
 
 
+class _SharedDepth:
+  """Its depth camera as the loop's near-field reads it (#559): the SAME
+  frames its planner's layer is laid from, levelled into the robot frame,
+  at the camera's own period (`mission.DEPTH_PERIOD`). Its draw is in the
+  body's electronics (`parts.ELECTRONICS_W`), so the loop adds none."""
+
+  draw_w = 0.0
+  period = DEPTH_PERIOD
+
+  def __init__(self, mission: HumanoidMission) -> None:
+    self.mission = mission
+
+  @property
+  def rng(self):
+    return self.mission.depth.rng
+
+  @property
+  def peer_rng(self):
+    return self.mission.depth.peer_rng
+
+  def frame(self, data) -> DepthFrame:
+    frame = self.mission.latest_depth()
+    if frame is None:
+      return DepthFrame(z=np.zeros((0, 0)), points=np.zeros((0, 3)), self_fraction=0.0,
+                        peers=np.zeros((0, 3)), peer_geoms=np.zeros(0, dtype=np.int32))
+    return frame
+
+  def exclude_robot(self, root_name: str) -> None:
+    pass
+
+
 class HumanoidBody(Body):
   """The humanoid (module docstring)."""
 
@@ -160,7 +192,6 @@ class HumanoidBody(Body):
     self.rack = self.rack_prior = None
     self.rack_discovered = False
     self.swapping_at = None
-    self.working = False
     self.peer_at_bay_m = None
     #: Why each hand's last reach ended short of holding (`hand_why`), and
     #: the hands whose reach `stop_hand` stopped (#554).
@@ -228,12 +259,22 @@ class HumanoidBody(Body):
     return tick.run(self.mission.stepper, routine, name)
 
   def kept_state(self):
-    """Nothing it believes outlives a restart yet: its map is a walk's
-    (a served humanoid's restart comes after stage 5)."""
-    return {}, {}
+    """What it believes and what its controllers hold, for a restart (#559:
+    `HumanoidMission.kept_state`), and whether it rests."""
+    state, arrays = self.mission.kept_state()
+    return {**state, "resting": self.resting}, arrays
 
   def restore_kept(self, state, arrays) -> bool:
-    return True
+    if "legs" not in state:
+      return False                      # saved before a humanoid kept any
+    self.resting = bool(state.get("resting", False))
+    return self.mission.restore_kept(state, arrays)
+
+  @property
+  def working(self) -> bool:
+    """A hand out (#559): its move is a routine's, which no file holds, so
+    a restart's save waits it out (`continuation.Keeper.busy`)."""
+    return any(p != "rest" for p in self.reach.phase.values())
 
   def close(self) -> None:
     if self._tags is not None:
@@ -770,11 +811,16 @@ class HumanoidBody(Body):
     return HumanoidPack(self, capacity_wh, charge_scale)
 
   def depth_camera(self):
-    """None yet: the D435's depth is a walking body's map (stage 4)."""
-    return None
+    """Its D435 as the loop's near-field reads it (#559): the frames its
+    walk lays its low layer from (`HumanoidMission.latest_depth`)."""
+    return _SharedDepth(self.mission)
 
   def know_peer(self, root: str) -> None:
-    """One robot alone yet: a pair is a served world's (after stage 5)."""
+    """The other robot's body out of its LIDAR's scan and its depth
+    camera's points (#559), as the quadruped's: painted into the map, a
+    robot walked past walls in the one that passed it."""
+    self.mission.lidar.exclude_robot(root)
+    self.mission.depth.exclude_robot(root)
 
   def _detector(self):
     if self._tags is None:
@@ -962,10 +1008,11 @@ class HumanoidBody(Body):
     yield
 
   def start_discovery(self) -> None:
-    raise NotImplementedError(NOT_HERE)
+    """No rack in its world to watch for (#559): the quadruped's went with
+    it, and the day begins here all the same."""
 
   def refresh_rack(self):
-    raise NotImplementedError(NOT_HERE)
+    return None
 
   def bay_standoff(self, station_y):
     raise NotImplementedError(NOT_HERE)

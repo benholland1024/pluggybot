@@ -47,7 +47,7 @@ from pluggybot.economy.tasks import TaskBoard
 from pluggybot.robot import world_spec  # noqa: E402
 
 from pluggybot.lifecycle import (
-  QUAD_HOME, HubLifecycle, board_book, errands_for, points_ledger, world_config,
+  HUMANOID_HOME, QUAD_HOME, HubLifecycle, board_book, errands_for, points_ledger, world_config,
   world_for, world_screens,
 )
 
@@ -268,6 +268,8 @@ def measure(world: str, actions, battery_wh: float, explore_s: float,
       out["chargeW"] = gained * 3600.0 / dt
       print(f"  charge    {dt:6.1f}s  {gained:+.4f} Wh  "
             f"({out['chargeW']:5.1f} W net into the pack)")
+    elif not life.charger:
+      print("  charge    nowhere to charge in this world -- no chargeW measured")
     else:
       print("  charge    could not reach the dock -- no chargeW measured")
   finally:
@@ -376,8 +378,9 @@ def measure_reserve(world: str, battery_wh: float, explore_s: float) -> dict:
 def main() -> None:
   ap = argparse.ArgumentParser(description=__doc__,
                                formatter_class=argparse.RawDescriptionHelpFormatter)
-  ap.add_argument("--world", default=QUAD_HOME, choices=(QUAD_HOME, "home"),
-                  help="the house with the quadruped in it; `home` names it too")
+  ap.add_argument("--world", default=QUAD_HOME, choices=(QUAD_HOME, HUMANOID_HOME, "home"),
+                  help="the house with the quadruped in it (`home` names it too), or with "
+                       "the humanoid (#559: its explore; it has nowhere to charge yet)")
   ap.add_argument("--battery-wh", type=float, default=BIG_PACK_WH,
                   help="an oversized pack, so nothing measured is cut short")
   ap.add_argument("--explore-s", type=float, default=None,
@@ -399,7 +402,7 @@ def main() -> None:
   ap.add_argument("--write", action="store_true",
                   help="fold the result into src/pluggybot/economy/energy.json")
   args = ap.parse_args()
-  args.world = world_for(args.world)
+  args.world = args.world if args.world == HUMANOID_HOME else world_for(args.world)
 
   cfg = world_config(args.world)
   explore_s = args.explore_s if args.explore_s is not None \

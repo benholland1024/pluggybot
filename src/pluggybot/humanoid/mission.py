@@ -37,7 +37,7 @@ import numpy as np
 
 from pluggybot import tick
 from pluggybot.humanoid import model as hm
-from pluggybot.humanoid.arms import SelfModel
+from pluggybot.humanoid.arms import SelfModel, kept_value, value_back
 from pluggybot.humanoid.getup import GETUP_NPZ, FallWatch, GetupDriver
 from pluggybot.humanoid.odometry import StanceOdometry
 from pluggybot.humanoid.policy import StandDriver, StandPolicy
@@ -76,6 +76,13 @@ LOW_BURN = OCC_THRESH + 2.0
 #: at the part's 10 Hz, its ray-cast frames slowed one robot's real time
 #: from 2.7x to 1.8x, and at 1 m/s two frames 0.2 m apart still overlap.
 DEPTH_PERIOD = 0.2
+
+
+#: What each policy's driver carries between its policy steps, beside its
+#: step count (`HumanoidMission.kept_state`).
+_DRIVER = {"stand": ("last_action", "goal", "posture", "target"),
+           "walk": ("last_action", "twist", "target"),
+           "getup": ("last_action", "target", "_still")}
 
 
 def command_for(vx: float, vy: float, w: float) -> tuple[float, float, float]:
@@ -412,6 +419,155 @@ class HumanoidMission(Navigator):
   def _height_drifted(self, dz: float) -> None:
     self.odo.z += dz
 
+  # ---- a restart (#345; served since #559) ----------------------------------
+
+  def _own_acts(self) -> np.ndarray:
+    """Every actuator of this robot's: what its drivers hold lives in the
+    MODEL (`legs.drivers.Drivers.pd`: the gains; a gripper's force limit,
+    `arms.Gripper`), which a restart builds fresh."""
+    m = self.model
+    joint = int(mujoco.mjtTrn.mjTRN_JOINT)
+    return np.array([a for a in range(m.nu) if int(m.actuator_trntype[a]) == joint
+                     and self._under_root(int(m.jnt_bodyid[m.actuator_trnid[a, 0]]))],
+                    dtype=int)
+
+  def _under_root(self, body: int) -> bool:
+    while body > 0:
+      if body == self.root:
+        return True
+      body = int(self.model.body_parentid[body])
+    return False
+
+  def kept_state(self) -> tuple[dict, dict]:
+    """What it believes and what its controllers hold, for a restart (#345,
+    the quadruped's rule): its reckoning, the three policies' drivers and
+    the gains they set in the model, its senses' noise, its reach (`Reach.
+    kept_state`), the depth frame it last took, the plan it last made, its
+    clocks; the grid, the camera's layer and the walls it is kept off as
+    arrays. Never saved with a hand out or getting up (`HumanoidBody.
+    working`, `posture`): a hand's move is a routine's. ⚠ The walker that
+    sees the ground (not served) keeps no scan: it starts its ground anew,
+    as after a fall."""
+    match, arrays = (self.matcher.kept_state() if self.matcher is not None else (None, {}))
+    acts = self._own_acts()
+    m = self.model
+    arrays = {"grid": self.grid.grid, "low": self.low, **arrays,
+              "gains": np.array(m.actuator_gainprm[acts], dtype=float),
+              "bias": np.array(m.actuator_biasprm[acts], dtype=float),
+              "forceRange": np.array(m.actuator_forcerange[acts], dtype=float)}
+    if self._walls_mask is not None:
+      arrays["walls"] = self._walls_mask
+    frame = None
+    if self._frame is not None:
+      f = self._frame
+      frame = {"t": self._frame_t, "used": self._frame_used_t, "self": f.self_fraction}
+      arrays.update(frameZ=f.z, framePoints=f.points, framePeers=f.peers,
+                    framePeerGeoms=f.peer_geoms)
+    o, trunk = self.odo, self.stand.trunk
+    drivers = {}
+    for name, drv in (("stand", self.stand), ("walk", self.walker), ("getup", self.getup)):
+      if drv is None:
+        continue
+      drivers[name] = {"steps": drv.steps, **{k: kept_value(getattr(drv, k)) for k in _DRIVER[name]}}
+    torqued = {name: d.torqued for name, d in self._all_drivers().items()}
+    memo = self._plan_memo
+    return ({"legs": self.legs, "falls": self.falls, "steps": self._steps,
+             "odometry": {"x": o.x, "y": o.y, "z": o.z, "offset": o.offset, "foot": o.foot,
+                          "last": kept_value(o.last)},
+             "trunk": {"imu": trunk.imu.kept_state(), "q": list(trunk.attitude.q),
+                       "rate": kept_value(trunk.rate)},
+             "jointsRng": self.stand.joints.rng.bit_generator.state,
+             "drivers": drivers, "torqued": torqued,
+             "reach": self.reach.kept_state(),
+             "frame": frame,
+             "memo": None if memo is None else
+             [list(memo[0]), memo[1], list(memo[2]),
+              None if memo[3] is None else [list(p) for p in memo[3]],
+              None if memo[4] is None else list(memo[4])],
+             "clocks": {"scan": self._next_scan, "backoff": self.backoff_until,
+                        "walls": self._walls_t},
+             "peerSeen": [self.peer_seen_m, self.peer_seen_t],
+             "lidarRng": [self.lidar.rng.bit_generator.state,
+                          self.lidar.peer_rng.bit_generator.state],
+             "depthRng": [self.depth.rng.bit_generator.state,
+                          self.depth.peer_rng.bit_generator.state],
+             "match": match, "pressing": self._pressing},
+            arrays)
+
+  def restore_kept(self, state: dict, arrays: dict) -> bool:
+    """`kept_state` put back into a fresh body built where the save stood;
+    True where its map came back with it."""
+    acts = self._own_acts()
+    m = self.model
+    if "gains" in arrays and len(arrays["gains"]) == len(acts):
+      m.actuator_gainprm[acts] = arrays["gains"]
+      m.actuator_biasprm[acts] = arrays["bias"]
+      m.actuator_forcerange[acts] = arrays["forceRange"]
+    self.legs = state["legs"]
+    self.falls = int(state["falls"])
+    self._steps = int(state["steps"])
+    o, s = self.odo, state["odometry"]
+    o.x, o.y, o.z, o.offset = s["x"], s["y"], s["z"], s["offset"]
+    o.foot = s["foot"]
+    o.last = value_back(s["last"])
+    trunk = self.stand.trunk
+    trunk.imu.restore_kept(state["trunk"]["imu"])
+    trunk.attitude.q = tuple(float(v) for v in state["trunk"]["q"])
+    trunk.rate = value_back(state["trunk"]["rate"])
+    self.stand.joints.rng.bit_generator.state = state["jointsRng"]
+    for name, drv in (("stand", self.stand), ("walk", self.walker), ("getup", self.getup)):
+      kept = state["drivers"].get(name)
+      if drv is None or kept is None:
+        continue
+      drv.steps = int(kept["steps"])
+      for k in _DRIVER[name]:
+        setattr(drv, k, value_back(kept[k]))
+    for name, d in self._all_drivers().items():
+      d.torqued = bool(state["torqued"].get(name, d.torqued))
+    self.reach.restore_kept(state["reach"])
+    frame = state.get("frame")
+    if frame is not None:
+      self._frame = DepthFrame(z=arrays["frameZ"], points=arrays["framePoints"],
+                               self_fraction=float(frame["self"]),
+                               peers=arrays["framePeers"],
+                               peer_geoms=np.asarray(arrays["framePeerGeoms"], dtype=np.int32))
+      self._frame_t, self._frame_used_t = float(frame["t"]), float(frame["used"])
+    memo = state.get("memo")
+    self._plan_memo = (None if memo is None else
+                       (tuple(memo[0]), float(memo[1]), tuple(memo[2]),
+                        None if memo[3] is None else [tuple(p) for p in memo[3]],
+                        None if memo[4] is None else tuple(memo[4])))
+    clocks = state["clocks"]
+    self._next_scan = float(clocks["scan"])
+    self.backoff_until = float(clocks["backoff"])
+    self.peer_seen_m, self.peer_seen_t = state["peerSeen"]
+    self.lidar.rng.bit_generator.state = state["lidarRng"][0]
+    self.lidar.peer_rng.bit_generator.state = state["lidarRng"][1]
+    self.depth.rng.bit_generator.state = state["depthRng"][0]
+    self.depth.peer_rng.bit_generator.state = state["depthRng"][1]
+    self._pressing = bool(state.get("pressing", False))
+    if self.head is not None:
+      self.head.forget()
+    grid = arrays.get("grid")
+    mapped = grid is not None and grid.shape == self.grid.grid.shape
+    if mapped:
+      self.grid.grid[...] = grid
+      self.low[...] = arrays["low"]
+      if "walls" in arrays:
+        self._walls_mask, self._walls_t = np.array(arrays["walls"], dtype=bool), clocks["walls"]
+      if self.matcher is not None and state.get("match"):
+        self.matcher.restore_kept(state["match"], arrays)
+    return mapped
+
+  def _all_drivers(self) -> dict:
+    """Every set of its drivers, by name: the legs' under each policy, each
+    arm's."""
+    out = {"stand": self.stand.legs, "walk": self.walker.legs}
+    if self.getup is not None:
+      out["getup"] = self.getup.drivers
+    out.update({f"arm:{s}": arm.drivers for s, arm in self.reach.arms.items()})
+    return out
+
   def fresh_drivers(self) -> None:
     """Its drivers and senses built again where the body stands now (a
     start, a stand-up). Its map stays."""
@@ -454,17 +610,27 @@ class HumanoidMission(Navigator):
     return out
 
   def _look_step(self) -> None:
+    """The depth camera, at its rate: what it sees under the LIDAR's plane
+    goes into the planner's layer, level and on its feet."""
+    frame = self.latest_depth()
+    if self._frame_t == self._frame_used_t or frame is None:
+      return
+    self._frame_used_t = self._frame_t
+    if self.legs == "getup" or not self.level():
+      return
+    self._fold_low(frame.points)
+
+  def latest_depth(self) -> DepthFrame | None:
+    """The newest depth frame, levelled, taken now if the last is a period
+    old: ONE render feeds the planner's layer, the near-field map and the
+    peer channel (`HumanoidBody.depth_camera`, #559), as the quadruped's."""
     t = float(self.data.time)
-    if t - self._frame_t < DEPTH_PERIOD - 1e-9:
-      return
-    self._frame_t = t
-    if not self.level():
-      return
-    raw = self.depth.frame(self.data) if self.head is None else self.head.frame
-    if raw is None:
-      return
-    self._frame = self._levelled(raw)
-    self._fold_low(self._frame.points)
+    if t - self._frame_t >= DEPTH_PERIOD - 1e-9:
+      self._frame_t = t
+      raw = self.depth.frame(self.data) if self.head is None else self.head.frame
+      if raw is not None:
+        self._frame = self._levelled(raw)
+    return self._frame
 
   def _levelled(self, frame: DepthFrame) -> DepthFrame:
     """A frame from the trunk's own axes into the robot's level frame: its
@@ -506,11 +672,23 @@ class HumanoidMission(Navigator):
     np.clip(self.low, -LOW_CLAMP, LOW_CLAMP, out=self.low)
 
   def _walls(self) -> np.ndarray:
+    """What the LIDAR maps, grown by `LOW_WALL_CELLS`, over the window the
+    camera's points can land in (`LOW_RANGE_M` round the robot), as the
+    quadruped's: the camera's layer stays out of it. Recomputed at most once
+    a scan. ⚠ Over the whole grid it was 3.6 s of a pair's 155 in 100 sim s
+    (#558, #559), and it grows with the map."""
     if self._walls_t != self._next_scan:
       from scipy import ndimage
       g = self.grid
-      occ = g.grid > OCC_THRESH
-      self._walls_mask = (ndimage.binary_dilation(occ, iterations=LOW_WALL_CELLS)
-                          if occ.any() else np.zeros_like(occ))
-      self._walls_t = self._next_scan
+      rows, cols = g.grid.shape
+      cx, cy = g.world_to_cell(self.pose[0], self.pose[1])
+      r = int(math.ceil(LOW_RANGE_M / g.resolution)) + LOW_WALL_CELLS + 1
+      x0, x1 = max(cx - r, 0), min(cx + r + 1, cols)
+      y0, y1 = max(cy - r, 0), min(cy + r + 1, rows)
+      mask = np.zeros_like(g.grid, dtype=bool)
+      if x0 < x1 and y0 < y1:
+        occ = g.grid[y0:y1, x0:x1] > OCC_THRESH
+        if occ.any():
+          mask[y0:y1, x0:x1] = ndimage.binary_dilation(occ, iterations=LOW_WALL_CELLS)
+      self._walls_mask, self._walls_t = mask, self._next_scan
     return self._walls_mask

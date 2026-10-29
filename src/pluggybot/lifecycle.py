@@ -255,6 +255,10 @@ CHARGED = 0.90
 #: "CHARGE complete (79 %)". `charge_timeout` below scales it with the pack.
 #: It still computes 400 s on BOTH demo cells, where the arithmetic asks for
 #: less, so nothing about an existing mission moves.
+#: Why a charge in a world with nowhere to charge never began (issue #559:
+#: the humanoid's house until its cable's station, stage 2) -- History's
+#: words, `charge: did not charge -- ...`.
+NO_CHARGER = "there is nowhere for me to charge here"
 CHARGE_TIMEOUT = 400.0
 #: ...and the floor under that scaling, so a tiny pack still gets long enough
 #: to seat the pins and be believed.
@@ -619,8 +623,13 @@ class HubLifecycle:
     #: `coupling.STATION_YS`): the world's own rack's tools (issue #405),
     #: one inventory a pair shares (`pair.build_pair`).
     from pluggybot.procedure.steps import TOOL_BAYS
-    self.rack_inventory: dict[str, int] = dict(
-      world_config(world).get("tool_bays") or TOOL_BAYS)
+    bays = world_config(world).get("tool_bays")
+    self.rack_inventory: dict[str, int] = dict(TOOL_BAYS if bays is None else bays)
+    #: Whether this world has somewhere this body charges (issue #559): the
+    #: humanoid's house has none until its cable's station (stage 2), and
+    #: there a charge is refused at once and nothing goes to one -- the
+    #: pack running out is the `flat` death.
+    self.charger = world_config(world).get("dock") is not None
     #: Whether THIS world carries the built-tool rail (issue #277; on legs
     #: `legs.rack.BUILT`, its three bays empty since #489), read off the
     #: compiled model: `rack_distance` keeps a robot standing by clear of
@@ -1161,7 +1170,10 @@ class HubLifecycle:
     be true."""
     if self.data.time < self._next_near_field:
       return
-    self._next_near_field = float(self.data.time) + nf.PERIOD
+    # ...at the camera's own rate where the body's frames are shared (the
+    # humanoid's 5 Hz, #559), else the near field's
+    self._next_near_field = float(self.data.time) + getattr(self.depth_camera, "period",
+                                                            nf.PERIOD)
     frame = self.depth_camera.frame(self.data)
     if self.body.level():      # the grid's rule (issue #339): level, or no map
       self.near_field.update(self.body.pose, frame.points)
@@ -1796,9 +1808,9 @@ class HubLifecycle:
     logic works round (`body.rack_prior`: on legs, the dock) and each
     built-tool rail bay's working pose (`body.bay_standoff`, #407: off the
     commissioned tool rack, never the dock's frame), where the world has
-    the rail."""
+    the rail. Infinite in a world with no rack (the humanoid's, #559)."""
     r = self.body.rack_prior
-    d = math.hypot(px - r.x, py - r.y)
+    d = math.inf if r is None else math.hypot(px - r.x, py - r.y)
     if self.has_built_rack:
       for k in range(len(BUILT_STATION_YS)):
         bx, by, _ = self.body.bay_standoff(STATION_YS[built_bay_index(k)])
@@ -2418,7 +2430,7 @@ class HubLifecycle:
     # ⚠ RAIL ONE OF THREE, AND THE ONE THAT FIRES LEAST (issue #115): off
     # where there is a mind (`autonomous`). Measured across six baseline days
     # it fired ONCE, against eleven deferrals from the gate below.
-    if self.autonomous:
+    if self.autonomous or not self.charger:
       return False
     return self.battery.energy_wh < self.low_battery_wh
 
@@ -2512,8 +2524,11 @@ class HubLifecycle:
         self._occur("task_complete", "explore")
         self._say(f"EXPLORE done ({status})")
         return status
-    self._say("EXPLORE -> GO_CHARGE (battery low)")
-    return "battery" if self.needs_charge else "time"
+    if self.needs_charge:
+      self._say("EXPLORE -> GO_CHARGE (battery low)")
+      return "battery"
+    self._say("EXPLORE: the run's time is up")
+    return "time"
 
   def go_charge(self) -> bool:
     return self.body.run(self.go_charge_routine())
@@ -2530,6 +2545,9 @@ class HubLifecycle:
     envelope roughly once an hour on a hosting pack.
     """
     self.charge_failure = ""
+    if not self.charger:
+      self.charge_failure = NO_CHARGER
+      return False
     self.body.refresh_rack()
     sx, sy, hd = self.body.charge_standoff()
     seat = self.body.charge_seat()
@@ -3230,7 +3248,7 @@ class HubLifecycle:
     than the pack is then simply started, and the robot stops where it runs
     out. That is the measurement, not a bug in it.
     """
-    if self.autonomous:
+    if self.autonomous or not self.charger:
       return True
     while self.errands:
       errand = self.errands[0]
@@ -6136,7 +6154,10 @@ class HubLifecycle:
       arrays["heightcount"] = self.near_field.count
     errand = self._errand_now
     state = {
-      "energyWh": self.battery.energy_wh, "module": self.module,
+      "energyWh": self.battery.energy_wh,
+      # ...and the pack it is a part of (#559): a body with another pack
+      # carries on at the same share of its own
+      "capacityWh": self.battery.capacity_wh, "module": self.module,
       # ...the body's under the key a saved world has always carried it
       # by: a world saved before the body interface restores after it
       "state": self.state, "mission": kept,
@@ -6192,7 +6213,13 @@ class HubLifecycle:
     """Put `kept_state` back. What says WHERE -- the belief, the maps, the
     exploration -- only `in_place`, into the world it was saved from; the
     pack, the clocks and whether it is dead whatever the world looks like."""
-    self.battery.energy_wh = min(float(state["energyWh"]), self.battery.capacity_wh)
+    cap = self.battery.capacity_wh
+    was = state.get("capacityWh")
+    # THE PACK'S SHARE, where it was saved in another pack (#559: a new body,
+    # 194 Wh to 778): a robot at 40 % wakes at 40 %, never at 194 Wh of 778
+    energy = (float(state["energyWh"]) if was is None or float(was) == cap
+              else cap * float(state["energyWh"]) / float(was))
+    self.battery.energy_wh = min(energy, cap)
     # ...a module this world still HAS: a world saved before #489 may name a
     # built tool, which would fail the next `module_state` read
     module = state.get("module") or ""
@@ -6630,7 +6657,10 @@ class HubLifecycle:
 
   def end(self, aborted: bool = False) -> dict:
     """The day's summary, after its routine has returned."""
-    module = self.body.module_state(self.module)
+    # ...a module only where the world has a rack (the humanoid's has none,
+    # #559): `module_stowed` is then None, nothing having been carried
+    module = (self.body.module_state(self.module) if self.module in self.rack_inventory
+              else None)
     return {
       "state": self.state,
       "aborted": aborted,
@@ -6666,7 +6696,7 @@ class HubLifecycle:
       # different tools, "is it stowed" is per errand -- `errands` carries
       # each one's verdict, and this stays the single-errand summary the
       # milestone-8 demos print.
-      "module_stowed": module["hung"],
+      "module_stowed": None if module is None else module["hung"],
       "errands": list(self.errand_results),
       "errands_left": len(self.errands),
       "boards": self.boards.snapshot() if self.boards is not None else {},
@@ -7911,14 +7941,17 @@ def attach_mode_stream(life, sinks, pacer=None,
 def world_config(world: str) -> dict:
   """Everything the lifecycle needs to know about a world, in one place.
 
-  One world since #376 deleted the rover: the home world with legs in it
-  (issue #387), `home_quad`. Its layout constants come from the generator's
-  own module, so the demo can never disagree with the world it runs in (the
-  sidecar and this dict are written from the same source).
+  One house since #376 deleted the rover, with a body in it: the quadruped
+  (issue #387), `home_quad`, or the humanoid (#559), `home_humanoid`. Its
+  layout constants come from the generator's own module, so the demo can
+  never disagree with the world it runs in (the sidecar and this dict are
+  written from the same source).
   """
+  if world == HUMANOID_HOME:
+    return _humanoid_config()
   if world != QUAD_HOME:
-    raise ValueError(f"unknown world {world!r} ({QUAD_HOME}; the rover's "
-                     "room_hub and home left with it in #376)")
+    raise ValueError(f"unknown world {world!r} ({QUAD_HOME} or {HUMANOID_HOME}; "
+                     "the rover's room_hub and home left with it in #376)")
   from pluggybot.home import world as home
   from pluggybot.legs import model as legs_model
   from pluggybot.legs import rack as legs_rack
@@ -7997,18 +8030,59 @@ def world_config(world: str) -> dict:
   }
 
 
+def _humanoid_config() -> dict:
+  """`world_config` for the house with the humanoids in it (issue #559,
+  stage 1): the quadruped's house and its fixtures -- the lab and its
+  mouse, the whiteboards, the zones -- with NONE of what was the quadruped's
+  (its dock, its rack and its tools, and every job built on them: the
+  boards' drawings, the census, the tower and the bench, the game, the walk
+  onto a plate). Each comes back as a task the humanoids learn with their
+  hands (#560), never as an errand ported over. It has nowhere to charge
+  until its cable's station (stage 2): no dock, and no reserve to keep."""
+  from pluggybot.home import world as home
+  from pluggybot.humanoid import world as humanoid_world
+  return {
+    "model": "models/home_world.xml", "model_name": HUMANOID_HOME,
+    "body": "humanoid",
+    # nowhere to charge: the charge logic's frame and the dock's pose
+    "rack": None, "dock": None,
+    "grid_bounds": home.GRID_BOUNDS,
+    "start": tuple(home.SPAWNS["start"]),
+    "start2": tuple(home.SPAWNS["hall"]),
+    "battery_wh": humanoid_world.DEMO_WH,
+    "hosting_battery_wh": humanoid_world.PACK_WH,
+    "low_battery_wh": humanoid_world.RESERVE_WH,
+    "explore_budget": 240.0,
+    "activities": home_activities,
+    "census_zone": None, "census_zones": [],
+    "lab": None, "tower": None, "bench": None,
+    "tools": False, "swap": False, "tool_bays": {},
+    "places": (), "plates": (), "draws": False, "cubes": (),
+    "zones": [dict(z) for z in home.ZONES],
+    "meta": "models/home_world.meta.json",
+  }
+
+
 #: The home world with the quadruped in it (issue #387): `world_config`'s
 #: name for it, and the wire's `model`.
 QUAD_HOME = "home_quad"
+#: ...and with the humanoid in it (issue #559).
+HUMANOID_HOME = "home_humanoid"
+#: The house each world is (`continuation.load`): a save of one body's world
+#: carries on in another body's world of the same house as a changed world
+#: does -- the clock, the packs, the deaths and the jobs, never the bodies or
+#: the maps (#559: Luca and Rowan keep who they are in new bodies).
+HOUSES = {QUAD_HOME: "home", HUMANOID_HOME: "home"}
 
 
 def world_for(world: str, body: str = "quadruped") -> str:
-  """The world a body lives in: `home` with legs is `home_quad`, the one
-  world since #376 (`$PLUGGY_WORLD=home`, `$PLUGGY_BODY=quadruped` still
-  name it)."""
-  if body == "quadruped" and world in ("home", QUAD_HOME):
-    return QUAD_HOME
-  raise ValueError(f"no {body} world for {world!r} (the quadruped lives in home)")
+  """The world a body lives in: `home` with legs is `home_quad`, with the
+  humanoid in it `home_humanoid` (`$PLUGGY_WORLD=home` and `$PLUGGY_BODY`
+  name either)."""
+  named = {"quadruped": QUAD_HOME, "humanoid": HUMANOID_HOME}.get(body)
+  if named is not None and world in ("home", named):
+    return named
+  raise ValueError(f"no {body} world for {world!r} (the {body} lives in home)")
 
 
 def run_demo(start=None, view: bool = False,

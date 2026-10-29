@@ -81,6 +81,10 @@ MAX_RESUMES = 3
 #: 1.9 m out within 20 s).
 MAP_EPOCH = 3
 MAPS_DROPPED = "the map I had was laid askew, and it is gone"
+#: ...and History's words where the save is of the same house with another
+#: body in it (#559, `lifecycle.HOUSES`): the robot carries on in a new one,
+#: the clock, its pack, its deaths and its jobs with it.
+BODY_CHANGED = "I have a new body since then"
 
 
 def fingerprint(model) -> str:
@@ -402,7 +406,7 @@ def load(path: str | os.PathLike | None, world: str) -> Loaded:
     # BadZipFile -- found in review). The next save replaces the file.
     return Loaded(None, f"the saved world could not be read "
                         f"({type(e).__name__}: {e})")
-  if snap.meta.get("world") != world:
+  if snap.meta.get("world") != world and not same_house(snap.meta.get("world"), world):
     return Loaded(None, f"the saved world is {snap.meta.get('world')!r}, "
                         f"not {world!r}")
   resumes = int(snap.meta.get("resumes", 0))
@@ -417,6 +421,15 @@ def load(path: str | os.PathLike | None, world: str) -> Loaded:
   return Loaded(snap)
 
 
+def same_house(saved, world: str) -> bool:
+  """Is a save of `saved` the same house as `world`, another body in it
+  (#559: the quadrupeds' house carried on by the humanoids)? It then comes
+  back as a changed world does: the clock, the packs, the deaths and the
+  jobs, never the bodies or the maps."""
+  from pluggybot.lifecycle import HOUSES
+  return saved in HOUSES and HOUSES[saved] == HOUSES.get(world)
+
+
 def restore(lives, snap: Snapshot) -> dict:
   """Put a saved world back into freshly built lifecycles: after every
   `begin()` (the bench's mass set) and before any day
@@ -429,7 +442,9 @@ def restore(lives, snap: Snapshot) -> dict:
   and are told why.
   """
   first = lives[0]
-  same_world = snap.meta.get("fingerprint") == first.world_fingerprint
+  # ...another body's world (#559) is never the one a body is put back into
+  body = snap.meta.get("world") != first.world
+  same_world = not body and snap.meta.get("fingerprint") == first.world_fingerprint
   same = same_world and snap.meta.get("mapEpoch", 0) == MAP_EPOCH
   if same:
     matched = put_physics(first.model, first.data, snap.meta["physics"], snap.arrays)
@@ -442,7 +457,7 @@ def restore(lives, snap: Snapshot) -> dict:
     # robot the save never had starts fresh on this clock too
     life.max_sim_time += snap.t
   why = ("" if same else MAPS_DROPPED if same_world
-         else "the world itself changed since then")
+         else BODY_CHANGED if body else "the world itself changed since then")
   state = snap.meta.get("state", {})
   if first.activities is not None:
     kept = state.get("activities", {})
@@ -456,6 +471,12 @@ def restore(lives, snap: Snapshot) -> dict:
     kept, arrays = snap.robot(life.root)
     if kept is None:
       continue
+    if body and kept.get("capacityWh") is None:
+      # ...a save from before packs were saved with their size: another
+      # body's world is carried on from only where it was served, on its
+      # served pack
+      from pluggybot.lifecycle import world_config
+      kept = {**kept, "capacityWh": world_config(snap.meta["world"])["hosting_battery_wh"]}
     life.restore_kept(kept, arrays, in_place=same, why=why)
     restored.append(life.root)
   if same:

@@ -390,3 +390,34 @@ class HandGoal:
   pos: np.ndarray
   rot: np.ndarray | None = None
   stiffness: float = 1.0
+
+
+def kept_value(v):
+  """A controller's value as JSON, exactly: an array its dtype and its
+  numbers (a float's repr round-trips), a goal its pose."""
+  if isinstance(v, np.ndarray):
+    return {"nd": v.tolist(), "dtype": str(v.dtype)}
+  if isinstance(v, dict):
+    return {"dict": {str(k): kept_value(x) for k, x in v.items()}}
+  if isinstance(v, (list, tuple)):
+    return {"list": [kept_value(x) for x in v]}
+  if isinstance(v, HandGoal):
+    return {"goal": [kept_value(v.pos), kept_value(v.rot), float(v.stiffness)]}
+  if isinstance(v, np.generic):
+    return v.item()
+  return v
+
+
+def value_back(v):
+  """`kept_value`'s inverse."""
+  if isinstance(v, dict):
+    if "nd" in v:
+      return np.array(v["nd"], dtype=v["dtype"])
+    if "dict" in v:
+      return {k: value_back(x) for k, x in v["dict"].items()}
+    if "list" in v:
+      return [value_back(x) for x in v["list"]]
+    if "goal" in v:
+      pos, rot, stiffness = v["goal"]
+      return HandGoal(value_back(pos), value_back(rot), float(stiffness))
+  return v
