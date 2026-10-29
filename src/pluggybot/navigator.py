@@ -1150,11 +1150,14 @@ class Navigator:
     """The plan this robot would walk to (wx, wy) were the robot `root` not
     there -- every other one still kept clear of -- or None: the way that
     robot is asked off (issue #415). The planner's own, unremembered: what
-    a plan keeps between plans (its floor, its stand-in) is put back."""
+    a plan keeps between plans (its floor, its stand-in) is put back. ⚠
+    NEVER THE HELD PLAN (`_plan_to`'s memo, #559): asked just after a plan
+    to the same goal from the same spot, it answered that plan -- made WITH
+    the robot in the way -- and nobody was ever asked to make way."""
     others, kept = self.others, (self._stand_in, self._floor)
     self.others = [where for where in others if KeepClear(*where()).root != root]
     try:
-      return Navigator._plan_to(self, wx, wy)
+      return Navigator._plan_near(self, wx, wy)
     finally:
       self.others = others
       self._stand_in, self._floor = kept
