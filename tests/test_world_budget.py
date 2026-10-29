@@ -12,7 +12,7 @@ The three budgets, and they fail in different directions:
   1. GEOMETRY vs the drawn floor. Cosmetic.
   2. THE GRID vs the world. The map must cover what the robot must map.
   3. THE GRID vs itself. A cell ceiling, so an accidentally 10x world is
-     loud. Denominated in the half of the mapping stack that actually scales.
+     loud. Denominated in the work that grows with the cells (#558).
 """
 
 import functools
@@ -194,15 +194,16 @@ def test_unknown_space_is_never_driveable():
 
 
 def test_the_grid_stays_inside_its_cell_budget():
-  """A tripwire, not a cliff. See `occupancy_grid.MAX_CELLS` for the measured
-  table this is denominated in -- `binary_dilation` over every cell is the
-  half of the mapping stack that scales, and `update()` is nearly flat."""
+  """A tripwire, not a cliff: `occupancy_grid.MAX_CELLS` is the largest grid
+  measured (#558), and its table says what grows with the cells -- each
+  scan's update, each plan's costs, the explore's A*, the save."""
   x0, y0, x1, y1 = world_config(QUAD_HOME)["grid_bounds"]
   grid = OccupancyGrid(x_min=x0, y_min=y0, x_max=x1, y_max=y1, resolution=0.05)
   cells = int(grid.grid.size)
   assert cells <= MAX_CELLS, (
     f"{cells:,} cells against a {MAX_CELLS:,} ceiling. Re-measure "
-    f"before raising it -- the numbers are at the constant.")
+    f"before raising it (`scripts/grid_spike.py`) -- the numbers are at the "
+    f"constant.")
 
 
 # ---- 4. the reserve's worst case ---------------------------------------------

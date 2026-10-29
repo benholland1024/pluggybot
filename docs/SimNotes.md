@@ -533,9 +533,9 @@ the street, a sidewalk band and a street loop round both, a fence round the
 loop -- and the grid from 159,600 to 469,200 cells. The frontier mask stayed
 linear (4.6 → 12.6 ms a pass); pure-Python A* did not (0.34 → 1.26 s a plan
 across the loop), the first cost here that scales with the WORLD rather than
-with what the robot does. **What is true now:** `occupancy_grid.MAX_CELLS`
-carries the table, and the quadruped's walks plan on a compiled lattice
-("Walking into the unknown").
+with what the robot does. **What is true now:** both bodies' walks plan on
+a compiled lattice ("Walking into the unknown"), and the cap was measured
+again at up to four times the cells ("The map's size limit", #558).
 
 The reserve's worst point is found BY ROUTE, not by straight line: the loop's
 east legs are the farthest from home as the crow flies and among the nearest
@@ -2049,8 +2049,8 @@ price makes that most of them); scipy's Dijkstra over the 5 cm lattice
 - a lattice cell is 2 x 2 map cells and passes only if all four do
   (`BLOCK`): a gap keeps a path at any alignment while it is 3 map cells
   wide, and every door of the house is 6 once inflated;
-- the CSR graph is built once per grid shape (~0.1-0.4 s, shared by a
-  pair) with eight slots a node, and a plan writes its weights -- a step at
+- the CSR graph is built once per grid shape (under 10 ms, #558; shared by
+  a pair) with eight slots a node, and a plan writes its weights -- a step at
   a time into contiguous arrays and interleaved in one copy (6.5 ms, where
   writing each step into its stride-8 slots cost 15.2);
 - an `inf` weight is no edge to scipy, so a wall is a weight, not a
@@ -6169,6 +6169,99 @@ docs/figures/hands_watch.png`; `--view watch 1` in the viewer.)
 its picture, 15 pictures a second, placed through the robot's own model of
 itself without moving the flight; the fixed head camera loses the knob past
 50 deg of lid; a render flatters a moving tag.
+
+## The map's size limit (issue #558)
+
+The world is to grow as one world (#557, #560), and a robot's map was
+capped at 750,000 cells of 5 cm (`occupancy_grid.MAX_CELLS`), a cap #215
+set for a planner since replaced: pure-Python A*, 1.26 s a plan across the
+loop. Both bodies walk on the compiled lattice ("Walking into the
+unknown"). `scripts/grid_spike.py` times what grows with the cells at
+today's 469,200 and at 2x, 3x and 4x as many -- the bounds grown evenly
+round the house by whole half metres, so no cell of today's map moves --
+through the bodies' own code, each scale in a process of its own; the
+plans and the explore's leg on #215's synthetic grid (known floor with
+one wall across three quarters of it, corner to corner). Timed on the
+deploy box by #385's method: the serving image in a throwaway container
+pinned to a core the live pair was not on, one llvmpipe thread.
+
+| cells | 469,200, today's | 937,200, 2x | 1,408,000, 3x | 1,876,800, 4x |
+|---|---|---|---|---|
+| a scan's update (10 Hz), ms | 1.2 | 1.4 | 2.3 | 2.6 |
+| the camera's walls a frame, quadruped / humanoid, ms | 0.09 / 3.0 | 0.09 / 6.6 | 0.11 / 9.3 | 0.13 / 15.4 |
+| a plan across the grid / a 3 m hop, ms | 42 / 9 | 74 / 19 | 144 / 36 | 177 / 42 |
+| ... of a plan, the inflation's transform and the weights, ms | 7 | 14 | 23 | 32 |
+| the explore's mask, frontiers and component, ms | 7 | 14 | 24 | 30 |
+| ... its A* across the grid (pure Python), s | 0.80 | 1.66 | 2.64 | 3.79 |
+| the matcher's field / a match, ms | 3.3 / 0.3 | 3.7 / 0.3 | 3.3 / 0.3 | 5.1 / 0.4 |
+| the grid's image (physics thread) / its PNG (sender's), ms | 0.4 / 3.9 | 1.0 / 8.1 | 1.3 / 11.6 | 2.7 / 23.5 |
+| the PNG of a world mapped as the house is, kB | 7.3 | 14.4 | 21.5 | 28.6 |
+| `world.npz`, the pair's maps: raw / on disk, MB; the write, ms | 13.7 / 0.5; 32 | 24.9 / 1.1; 61 | 36.2 / 1.6; 82 | 47.4 / 2.1; 138 |
+| a robot's map arrays / a plan's peak / the lattice, MB | 7 / 14 / 20 | 14 / 28 / 40 | 20 / 42 / 61 | 27 / 56 / 81 |
+| the quadruped pair walking #507's routes, real time | 1.37x | 1.31x | 1.29x | 1.30x |
+| ... its map work, ms a sim second a robot | 32 | 41 | 52 | 62 |
+| the humanoid pair, the same walks | 1.30x | 1.32x | 0.85x | 1.06x |
+| ... its plans a sim second a robot, and each | 11.2, 9 ms | 3.5, 19 | 9.1, 28 | 2.5, 43 |
+| a fresh quadruped across the house (254-262 s to the west street): real time; a plan | 2.43x; 27 ms | 2.34x; 55 | 2.21x; 77 | 2.15x; 108 |
+
+The PNG and the save run on the house as the quadruped's own senses lay
+it from every metre of floor it can reach (88 % of today's grid known),
+stacked k times along y so that no copy lies inside DEFLATE's 32 kB window
+of another: a world k times the house, mapped as completely. The live
+pair's save was 1.4 MB at today's size (#345): a day's maps are noisier
+than one pass. The walks are the same routes and sim seconds at every
+size, not the same trajectory: Dijkstra breaks a tie by a cell's index,
+and an index moves with the grid's width. The dev box (an i5-9600KF) read
+the same shape: its quadruped pair 1.21x to 1.15x, the explore's A* 0.69
+to 2.98 s.
+
+**What grows.** Each scan's update grows with the cells, not flat as the
+cap's old note had it: its rays' work is flat, but its evidence is a
+grid-sized `bincount`, added to every cell and clipped, where only the
+cells its rays crossed change. Each plan pays the inflation's distance
+transform and the lattice's weights over the whole grid however short it
+is -- 7 ms of a 3 m hop today, 32 at 4x -- while its search stays inside
+its limit (the straight line and 2 m). The explore's frontier leg
+(`behavior.navigation.plan`) is the last planner in pure Python, A* over
+the mapped floor to the nearest frontier: across the whole grid it took
+0.80 s today and 3.79 s at 4x, and a far frontier late in an explore pays
+it, holding both robots' physics while it does. The wire's image is built
+on the physics thread once a sim second a robot (3 ms at 4x), its PNG on
+the sender's. The save, every 60 sim s on the physics thread, is 12 bytes
+a cell a robot raw (the map and the camera's layer), deflated at level 1.
+A process holds 146 MB more at 4x (the quadruped pair's walks peaked at
+724 MB today, 870 at 4x), against the live pair's 638 MiB of its 2 GiB
+`mem_limit` as this ran.
+
+**What does not.** The scan matcher works in a window (`WINDOW_M`, 7.5 m
+either way): its field costs 3-5 ms a refresh at every size, a match
+0.3-0.4 ms. The height map is a 4 m window. The lattice is built once a
+process in under 30 ms at 4x (not the 0.1-0.4 s "Walking into the
+unknown" had).
+
+**The humanoid pays two of them oftener.** Its camera's walls (what the
+LIDAR maps, grown 3 cells, which its layer is kept out of) are its whole
+grid dilated every depth frame: 11 ms a walked sim second today, 47 at 4x,
+where the quadruped's are the 4 m square its points can land in, under 2
+at any size. And its walk replans every physics step while its waypoints
+are spent short of the goal: on #507's walk into the kitchen (the dev box)
+114 and 64 of its plans came in the last 0.3 m, the quadruped's 5 and 2 --
+it takes its last steps slowly. Over the pairs' walks it made 2.5 to 11
+plans a sim second where the quadruped made 0.5, a number that moves with
+the trajectory, so its pair's speed follows its replans more than the
+grid: 1.30x at today's size with 1,738 plans, 0.85x at 3x with 1,323,
+1.06x at 4x with 360. At 4x its worst rate would be about 490 ms of
+planning a sim second a robot.
+
+**What is true now:** `MAX_CELLS` is 1,876,800, four times the house's
+grid and the largest size measured: there the served quadruped pair walks
+at 0.95 of today's speed, a plan across the whole grid takes 177 ms, a
+robot holds 27 MB of map and a process 81 MB of lattice. The levers, if
+the world must grow past it or the humanoid serve in one this size: the
+humanoid's walls in the quadruped's window (exact for every cell its layer
+reads); no replan for an arrival a plan cannot change; the update into the
+cells it touches; a plan's costs and weights within its search's limit;
+the explore's leg on the lattice.
 
 ## Debugging workflow that worked
 
