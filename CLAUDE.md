@@ -1306,10 +1306,11 @@ save a filmstrip PNG named after the script.
   grid measured: #558, `scripts/grid_spike.py`): walks plan on the compiled
   lattice, and what grows with the cells is each scan's update, each plan's
   inflation transform and weights, the save, and the explore's frontier
-  leg, still A* in pure Python (3 s across the 4x grid); the humanoid pays
-  its walls and its arrival's replans oftener (SimNotes, "The map's size
-  limit"). ⚠ The one world, `home_quad`, is built at LOAD from
-  that file (`legs/world.py`): the quadruped(s), #378's dock and its own rack
+  leg, still A* in pure Python (3.8 s across the 4x grid on the deploy
+  box); the humanoid pays its walls and its arrival's replans oftener
+  (SimNotes, "The map's size limit"). ⚠ The one world, `home_quad`, is
+  built at LOAD from that file (`legs/world.py`): the quadruped(s), #378's
+  dock and its own rack
   put in (#405: three tools on 220 mm pegs, the rover's module names and bay
   letters, compiled exactly AT REST so `qpos0` reads hung), and the lab
   plates' signs (#419) -- one house, no second XML; its robots are attached

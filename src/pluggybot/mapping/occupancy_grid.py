@@ -9,27 +9,28 @@ L_OCC = 0.85    # amount to add when a ray collides a cell
 
 #: The most cells a world's grid may ask for (issues #67, #558): FOUR TIMES
 #: THE HOUSE'S GRID, the largest size measured. A tripwire, not a cliff -- an
-#: accidentally 10x world is loud instead of quiet. MEASURED 2026-10-29
-#: (`scripts/grid_spike.py`: the house's bounds grown evenly round it, the
-#: bodies' own code, #215's synthetic grid for the plans; one core of the
-#: dev box's i5-9600KF):
+#: accidentally 10x world is loud instead of quiet. MEASURED 2026-10-29 ON
+#: THE DEPLOY BOX (`scripts/grid_spike.py`: the house's bounds grown evenly
+#: round it, the bodies' own code, #215's synthetic grid for the plans; the
+#: serving image on a core beside the live pair):
 #:
 #:   cells      a scan's  a plan across  the explore's  the quadruped  the pair's
 #:              update    the grid       A* across (s)  pair walking   save
-#:     469,200   2.5 ms     33 ms          0.69           1.21x         110 ms
-#:     937,200   4.5        75             1.42           1.21x         125
-#:   1,408,000   5.7       120             2.24           1.17x         142
-#:   1,876,800   6.1       151             2.98           1.15x         147
+#:     469,200   1.2 ms     42 ms          0.80           1.37x          32 ms
+#:     937,200   1.4        74             1.66           1.31x          61
+#:   1,408,000   2.3       144             2.64           1.29x          82
+#:   1,876,800   2.6       177             3.79           1.30x         138
 #:
 #: What grows is each scan's update (its evidence is a grid-sized `bincount`
 #: added to every cell and clipped), each plan's inflation transform and
-#: lattice weights (50 of a 3 m hop's 58 ms at 4x), the explore's frontier leg
-#: (A* in pure Python), the wire's image and the save; what does not is the
-#: scan matcher's field (a 15 m window) or the height map (4 m). ⚠ The
+#: lattice weights (32 of a 3 m hop's 42 ms at 4x), the explore's frontier
+#: leg (A* in pure Python), the wire's image and the save; what does not is
+#: the scan matcher's field (a 15 m window) or the height map (4 m). ⚠ The
 #: humanoid pays two of them oftener -- its camera's walls are its whole
-#: grid dilated every depth frame, and its arrival replans every step --
-#: and its pair walked 1.41x at today's size, 0.99x at 4x. SimNotes, "The
-#: map's size limit"; move it with a measurement, not by feel.
+#: grid dilated every depth frame, and its arrival replans every step (2.5
+#: to 11 plans a second where the quadruped makes 0.5), each plan 43 ms at
+#: 4x. SimNotes, "The map's size limit"; move it with a measurement, not by
+#: feel.
 MAX_CELLS = 1_876_800
 
 
