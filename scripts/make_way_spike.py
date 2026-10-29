@@ -22,6 +22,8 @@ two touched, and anybody falling. One process a scene.
     ... --near-field        # the depth camera on, as the served world flies:
                             # a robot lying down is under the LIDAR's plane,
                             # and the camera is what holds a walk at it
+    ... --world home_humanoid   # the humanoid pair (#559): one resting
+                            # STANDING in the doorway (`humanoid.way`)
     ... --out scenes.json   # the records; --compare A.json B.json
 """
 
@@ -83,15 +85,14 @@ def drift(life, dx: float, dy: float) -> None:
 
 def fly_one(name: str, before: bool, finished: bool, patience: float,
             drifted=(0.0, 0.0), walker_drifted=(0.0, 0.0), standing: float | None = None,
-            near_field: bool = False) -> dict:
+            near_field: bool = False, world: str = "home_quad") -> dict:
   from pluggybot import tick
-  from pluggybot.lifecycle import QUAD_HOME
   from pluggybot.pair import build_pair
   from unknown_spike import true_floor
   rest, start, goal = SCENES[name]
   if standing is not None:
     start, goal = FAR_START, STANDING[name][1]
-  me, peer = build_pair(QUAD_HOME, errands=("none", "none"), near_field=near_field)
+  me, peer = build_pair(world, errands=("none", "none"), near_field=near_field)
   for life in (me, peer):
     g = life.body.mission.grid
     g.grid[:] = true_floor(life.model, g)
@@ -104,7 +105,7 @@ def fly_one(name: str, before: bool, finished: bool, patience: float,
   if any(walker_drifted):
     drift(me, *walker_drifted)
   falls0 = (me.body.mission.falls, peer.body.mission.falls)
-  out: dict = {"scene": name, "before": before, "finished": finished,
+  out: dict = {"scene": name, "world": world, "before": before, "finished": finished,
                "drift": list(drifted), "walkerDrift": list(walker_drifted),
                "standing": standing, "nearField": near_field}
 
@@ -131,7 +132,7 @@ def fly_one(name: str, before: bool, finished: bool, patience: float,
   gx, gy = goal[0] + walker_drifted[0], goal[1] + walker_drifted[1]
 
   def walking():
-    while standing is None and peer.body.posture != "lying":
+    while standing is None and not peer.body.resting:     # lying, or a humanoid's rest
       yield from me.body.hold_routine(0.1)
     t0 = float(me.data.time)
     ok = yield from me.body.go_to_routine(gx, gy, timeout=patience)
@@ -186,6 +187,8 @@ def main(argv=None) -> int:
                   "doorway stands S s and walks off; the walker starts far off (#455)")
   ap.add_argument("--near-field", action="store_true",
                   help="the depth camera on, as the served world flies it")
+  ap.add_argument("--world", choices=("home_quad", "home_humanoid"), default="home_quad",
+                  help="the quadruped pair (#415) or the humanoid pair (#559)")
   ap.add_argument("--parallel", type=int, default=1)
   ap.add_argument("--out", default=None)
   ap.add_argument("--compare", nargs="+", default=None, metavar="JSON")
@@ -200,14 +203,15 @@ def main(argv=None) -> int:
   walker_drifted = tuple(float(v) for v in args.drift_walker.split(","))
   if args.one:
     print(json.dumps(fly_one(args.one, args.before, args.finished, args.patience,
-                             drifted, walker_drifted, args.standing, args.near_field)))
+                             drifted, walker_drifted, args.standing, args.near_field,
+                             args.world)))
     return 0
   names = (args.scene.split(",") if args.scene
            else list(STANDING) if args.standing is not None else list(SCENES))
 
   def run(name: str) -> dict:
     cmd = [sys.executable, __file__, "--one", name, "--patience", str(args.patience),
-           "--drift", args.drift, "--drift-walker", args.drift_walker]
+           "--drift", args.drift, "--drift-walker", args.drift_walker, "--world", args.world]
     cmd += ["--before"] if args.before else []
     cmd += ["--finished"] if args.finished else []
     cmd += ["--standing", str(args.standing)] if args.standing is not None else []

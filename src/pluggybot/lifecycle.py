@@ -1363,7 +1363,10 @@ class HubLifecycle:
         self._say(f"MAKE WAY: {who} asked me off its way, and I cannot: {why}")
       return False
     if was is None:
-      self._say(f"MAKE WAY: lying across {who}'s way -- standing up to step aside")
+      # ...a humanoid rests standing (#559): it steps aside where it stands
+      self._say(f"MAKE WAY: lying across {who}'s way -- standing up to step aside"
+                if self.body.posture == "lying"
+                else f"MAKE WAY: resting across {who}'s way -- stepping aside")
     return True
 
   def _aside_step(self) -> None:
@@ -7587,9 +7590,13 @@ def posture(peers, name: str) -> str:
         return "lying dead"                          # (issue #455)
       if p.down():
         return "lying knocked over"
-      # ...and one lying down by choice is resting, never fallen (#387).
-      # `getattr`, because a test's stand-in peer need not have a posture.
-      return "lying down to rest" if getattr(p.body, "resting", False) else "standing"
+      # ...and one lying down by choice is resting, never fallen (#387) --
+      # a humanoid rests standing (#559). `getattr`, because a test's
+      # stand-in peer need not have a posture.
+      if getattr(p.body, "resting", False):
+        return ("lying down to rest" if getattr(p.body, "posture", "lying") == "lying"
+                else "standing at rest")
+      return "standing"
   return "standing"
 
 
@@ -7607,6 +7614,7 @@ ASIDE_ENDED = {"its own walk": "my own walk took over",
 WAY_REFUSED = {"docked": "I am on the dock",
                "working": "I am in the middle of a move with my arm",
                "walking": "I am waiting inside a walk of my own",
+               "getting up": "I am getting up",
                "no spot": "I have seen nowhere off its way to step to"}
 
 

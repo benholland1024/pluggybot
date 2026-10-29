@@ -203,12 +203,7 @@ class HumanoidBody(Body):
     self.bay_wait = None
     self.docked = False
     self.head_camera = handle.el(HEAD_CAMERA)
-    self.making_way = None
-    self.way_refused = ""
-    self.asides = 0
-    self.last_aside = None
     self.collision_steps = self.press_steps = 0
-    self.resting = False
 
   falls = property(lambda self: self.mission.falls)
 
@@ -264,13 +259,11 @@ class HumanoidBody(Body):
   def kept_state(self):
     """What it believes and what its controllers hold, for a restart (#559:
     `HumanoidMission.kept_state`), and whether it rests."""
-    state, arrays = self.mission.kept_state()
-    return {**state, "resting": self.resting}, arrays
+    return self.mission.kept_state()
 
   def restore_kept(self, state, arrays) -> bool:
     if "legs" not in state:
       return False                      # saved before a humanoid kept any
-    self.resting = bool(state.get("resting", False))
     return self.mission.restore_kept(state, arrays)
 
   @property
@@ -903,16 +896,16 @@ class HumanoidBody(Body):
   # ---- posture and rest ----------------------------------------------------
 
   def rest_routine(self):
-    """It rests STANDING: its standing policy holds it at the stand, and
-    lying down is a get-up's partner (stage 5)."""
-    self.resting = True
+    """It rests STANDING, by itself: `resting` once it has stood still long
+    enough (`humanoid.way`, #559); nothing to do."""
     return
     yield
 
   def stand_routine(self):
-    self.resting = False
     return
     yield
+
+  resting = property(lambda self: self.mission.resting)
 
   # ---- going places: its mission's -------------------------------------------
 
@@ -923,8 +916,10 @@ class HumanoidBody(Body):
   last_drive = property(lambda self: self.mission.last_drive)
 
   def gave_up(self, record, peer="the other robot") -> str:
+    """...a humanoid rests standing (#559): the other at rest, standing."""
     from pluggybot.navigator import gave_up
-    return gave_up(record, peer).replace("the drive gave up", "the walk gave up", 1)
+    return (gave_up(record, peer).replace("the drive gave up", "the walk gave up", 1)
+            .replace("lying down to rest", "standing at rest"))
 
   def face_routine(self, heading):
     return self.mission.face_routine(heading)
@@ -1080,10 +1075,12 @@ class HumanoidBody(Body):
     return ""
 
   def make_way(self, route, by) -> bool:
-    """It steps aside for nobody yet: one robot alone (a pair is a served
-    world's, after stage 5)."""
-    self.way_refused = "standing"
-    return False
+    return self.mission.make_way(route, by)
+
+  making_way = property(lambda self: self.mission.making_way)
+  way_refused = property(lambda self: self.mission.way_refused)
+  asides = property(lambda self: self.mission.asides)
+  last_aside = property(lambda self: self.mission.last_aside)
 
   def ask_off(self, x, y, asked, beyond=()) -> bool:
     return self.mission.ask_off(x, y, asked, beyond)

@@ -281,6 +281,130 @@ def test_a_humanoid_in_the_viewer_is_shown_and_paced():
     body.close()
 
 
+# ---- making way (`humanoid.way`) -----------------------------------------------------
+
+
+def _open_floor(m, x, y, half=2.0):
+  """The map round (x, y) seen and free, `half` m each way: a synthetic room."""
+  g = m.grid
+  g.grid[:] = 0.0
+  x0, y0 = g.world_to_cell(x - half, y - half)
+  x1, y1 = g.world_to_cell(x + half, y + half)
+  g.grid[y0:y1, x0:x1] = -5.0
+
+
+def test_a_humanoid_rests_standing_once_it_has_stood_still():
+  """A humanoid rests STANDING (#559): no motion command for the
+  quadruped's reflex's 8.6 s, no walk of its own, no hand out and on its
+  feet -- what a robot in the other's way is asked aside by (#415). It
+  never rested, and a pair jammed a door for 500 s of a minded day. The
+  clock rides a restart."""
+  from pluggybot.humanoid.way import REST_S
+  life = _humanoid(near_field=False)
+  m = life.body.mission
+  try:
+    m.last_motion_t = float(life.data.time)
+    assert not life.body.resting
+    life.data.time += REST_S
+    assert life.body.resting
+    m.driving = 1
+    assert not life.body.resting, "inside a walk of its own"
+    m.driving = 0
+    m.reach.phase["right"] = "hold"
+    assert not life.body.resting, "a hand out"
+    m.reach.phase["right"] = "rest"
+    m.legs = "getup"
+    assert not life.body.resting, "getting up"
+    m.legs = "walk"
+    assert life.body.resting
+    kept, _ = m.kept_state()
+    assert kept["lastMotion"] == m.last_motion_t
+  finally:
+    life.body.close()
+
+
+def test_a_resting_humanoid_says_yes_to_a_way_it_cuts_and_why_not_otherwise():
+  """`Body.make_way`: a spot off the asker's way on floor it has seen; and
+  no, with why, while it stands (not yet resting), works or walks."""
+  from pluggybot.humanoid.way import REST_S
+  life = _humanoid(near_field=False)
+  m = life.body.mission
+  try:
+    x, y, _ = life.body.pose
+    _open_floor(m, x, y)
+    way = [(x - 1.5, y), (x + 1.5, y)]
+    m.last_motion_t = float(life.data.time)
+    assert not life.body.make_way(way, "r2_pluggybot")
+    assert life.body.way_refused == "standing"
+    life.data.time += REST_S
+    m.driving = 1
+    assert not life.body.make_way(way, "r2_pluggybot") and life.body.way_refused == "walking"
+    m.driving = 0
+    assert life.body.make_way(way, "r2_pluggybot") and life.body.making_way == "r2_pluggybot"
+    sx, sy = m._aside["to"]
+    # ...measured on the planner's 10 cm lattice, cell to cell: a cell's
+    # middle may lie half a cell nearer
+    assert abs(sy - y) >= m.aside_clear_m - 0.05, "off the way, by the asker's disc"
+    assert not life.body.resting, "stepping aside is no rest"
+  finally:
+    life.body.close()
+
+
+def test_a_humanoid_steps_aside_on_its_own_legs_beneath_a_routine_that_stands():
+  """The step aside walks beneath whatever routine holds the body still --
+  its legs handed to the walker where it rests -- to the spot, and ends
+  there. ⚠ ITS FRONT STOP BACKS IT OFF, as a walk's does, and never ends
+  it: resting in a doorway, its stop re-armed by every scan, the
+  quadruped's rule ended 3 steps of 6 before they began."""
+  from pluggybot.humanoid.way import REST_S
+  life = _humanoid(near_field=False)
+  m = life.body.mission
+  try:
+    x, y, _ = life.body.pose
+    _open_floor(m, x, y)
+    life.data.time += REST_S
+    assert life.body.make_way([(x - 1.5, y), (x + 1.5, y)], "r2_pluggybot")
+    m.backoff_until = float(life.data.time) + 0.5
+    back = m._aside_command(hmi.STILL, float(life.data.time))
+    assert back[0] < 0.0 and m._aside is not None, "the reflex, and the step goes on"
+    m.backoff_until = 0.0
+    life.body.run(life.body.hold_routine(12.0))
+    rec = life.body.last_aside
+    assert rec is not None and rec["why"] == "aside", rec
+    assert math.dist(rec["from"], rec["at"]) > 0.5
+  finally:
+    life.body.close()
+
+
+def test_a_humanoid_at_rest_is_said_standing_never_lying():
+  """What a mind and History are told of a humanoid resting in the way:
+  standing at rest (#559) -- the quadruped's words, "lying down to rest",
+  were false of it, in the other's context, a walk's end and its own
+  narration."""
+  from types import SimpleNamespace
+  from pluggybot.lifecycle import posture
+  from pluggybot.humanoid.way import REST_S
+  life = _humanoid(near_field=False)
+  try:
+    life.data.time += REST_S
+    assert life.body.resting
+    peer = SimpleNamespace(robot_name="Rowan", root="r2_pluggybot", body=life.body,
+                           dead=None, down=lambda: False)
+    assert posture([peer], "Rowan") == "standing at rest"
+    words = life.body.gave_up({"why": "peer", "goal": (1.0, 1.0), "seconds": 2.0,
+                               "shortM": 3.0, "peerAt": "here", "peerM": 1.2,
+                               "peerRests": True}, "Rowan")
+    assert "standing at rest" in words and "lying" not in words, words
+    said = []
+    life.say_hooks.append(lambda t, line: said.append(line))
+    x, y, _ = life.body.pose
+    _open_floor(life.body.mission, x, y)
+    assert life.make_way([(x - 1.5, y), (x + 1.5, y)], "r2_pluggybot")
+    assert said and "resting across" in said[-1] and "lying" not in said[-1], said
+  finally:
+    life.body.close()
+
+
 def test_a_humanoids_look_is_taken_from_its_head():
   """`look` (#275) asks the site for a picture from `Body.head_camera`'s
   pose: the humanoid's is its head's Camera Module 3 (`nav_eye`), at a

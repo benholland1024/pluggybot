@@ -6390,17 +6390,39 @@ from t = 720 s on the pair stood at the living room's garden door, each
 walk of each giving up after 10 s 1.2 m from the other, the minds trying
 one room after another through the same door. A robot in another's way is
 asked to make way only while it RESTS (#415, `Navigator._ask_way`): a
-quadruped lies down to rest by reflex, and a humanoid stands -- it never
-rests, and two standing robots wait on each other (the quadrupeds'
-head-on case, #395, is still open). A mind also asked visitors where "the
+quadruped lies down to rest by reflex, and a humanoid stood and never
+rested, so two standing robots waited on each other (it rests standing
+now, below). A mind also asked visitors where "the
 charging dock" is (and on an earlier flight one wrote a procedure to push
 on "turning if my bumper hits"): the prompt and the constitutions still
 describe the quadruped's body and world (stage 3 rewrites them).
 
-**What is not yet.** Making way: a humanoid that has stood still with no
-walk of its own would have to count as resting and step aside as the
-quadruped does (`legs/way.py`), or the pair jams its doors (above) --
-before it is deployed. `look` asks the site for a picture from the head's
+**Making way, standing** (`humanoid/way.py`). A humanoid rests STANDING
+now -- no motion command for the quadruped's reflex's 8.6 s, no walk of its
+own, no hand out, on its feet -- and resting across the other's way it is
+asked aside as #415's quadruped is, steps to the same spot
+(`MakeWay.aside_spot`) beneath whatever routine holds it still, its legs
+handed to the walker where it rests. Two things took it. Its front stop,
+re-armed by every scan while it rests in a doorway, ended the quadruped's
+step before it began, at 3 doors of 6: a humanoid's backs it off and plans
+again, as a walk does. And the asker's way past it (`_route_past`, "the
+planner's own, unremembered") answered the plan the drive had just made
+with that robot in the door, None, once the plan memo was the Navigator's
+(#558's lever, above): nobody of either body was asked at all. A robot
+resting in each of six doors of the house and the other walking through
+(`make_way_spike.py --near-field`, true-floor maps):
+
+| | arrived | the step aside |
+|---|---|---|
+| the humanoid pair, nobody asking (`--before`) | 1 of 7 | -- |
+| the humanoid pair | 7 of 7 | 0.78-0.89 m in 2.8-5.7 s |
+| the quadruped pair, the same doors | 7 of 7 | 0.82-1.02 m in 2.6-8.9 s |
+
+(the seventh scene is the 3 m hall's middle, where nobody is asked.)
+
+MAKEWAY_DAY_PLACEHOLDER
+
+**What is not yet.** `look` asks the site for a picture from the head's
 camera (`nav_eye`, 1.3 m up, facing where it faces), and the site draws the
 pair in stage 4. The death seam calls a robot down at 60 deg of its
 pelvis's tilt (`TOPPLE_TILT_RAD`), and a reach's deepest bow is 63 deg:

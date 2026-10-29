@@ -44,6 +44,7 @@ from pluggybot.humanoid.policy import StandDriver, StandPolicy
 from pluggybot.humanoid.reach import Reach
 from pluggybot.humanoid.scan import HeadScan
 from pluggybot.humanoid.walk import WALK_NPZ, WalkDriver
+from pluggybot.humanoid.way import HumanoidWay
 from pluggybot.mapping.frontier import OCC_THRESH
 from pluggybot.navigator import Navigator
 from pluggybot.perception.depth import UNCULLED, DepthCamera, DepthFrame
@@ -145,8 +146,9 @@ class HumanoidStepper:
     return tick.run(self, routine, name)
 
 
-class HumanoidMission(Navigator):
-  """The Navigator over a humanoid (module docstring)."""
+class HumanoidMission(HumanoidWay, Navigator):
+  """The Navigator over a humanoid (module docstring), making way for the
+  other robot as it rests (`humanoid.way`, #559)."""
 
   #: Its sizes. Half its width with its hands hanging is 0.27 m: the map's
   #: inflation is that and 8 cm, as the quadruped's covers its half-width.
@@ -207,12 +209,16 @@ class HumanoidMission(Navigator):
     self.low = np.zeros_like(self.grid.grid, dtype=np.float32)
     self._walls_t, self._walls_mask = None, None
     self._pressing = False
+    self._init_way()
 
   # ---- what only a body says ------------------------------------------------
 
   @property
   def pose(self):
     return self.odo.x, self.odo.y, self.odo.yaw
+
+  def pose_xy(self) -> tuple[float, float]:
+    return self.odo.x, self.odo.y
 
   def _set_pose(self, x: float, y: float, theta: float) -> None:
     self.odo.correct(x, y, theta)
@@ -236,6 +242,19 @@ class HumanoidMission(Navigator):
   # ---- the physics seam ------------------------------------------------------
 
   def _before_step(self, command) -> None:
+    if self._aside is not None:
+      # Making way (#559, `humanoid.way`) beneath whatever routine holds it:
+      # its legs to the walker where they are the standing policy's, once
+      # its posture is held -- at rest its arms are home
+      command = self._aside_command(command, float(self.data.time))
+      if any(command) and self.legs == "stand":
+        if not self.stand.settled:
+          command = STILL
+        else:
+          self.walker.last_action[:] = 0.0
+          self.legs = "walk"
+    if any(command):
+      self.last_motion_t = float(self.data.time)
     if self.legs == "getup":
       # Getting up: every joint the get-up policy's, a walk asked meanwhile
       # walks nowhere.
@@ -476,6 +495,7 @@ class HumanoidMission(Navigator):
     torqued = {name: d.torqued for name, d in self._all_drivers().items()}
     memo = self._plan_memo
     return ({"legs": self.legs, "falls": self.falls, "steps": self._steps,
+             "lastMotion": self.last_motion_t,
              "odometry": {"x": o.x, "y": o.y, "z": o.z, "offset": o.offset, "foot": o.foot,
                           "last": kept_value(o.last)},
              "trunk": {"imu": trunk.imu.kept_state(), "q": list(trunk.attitude.q),
@@ -510,6 +530,7 @@ class HumanoidMission(Navigator):
     self.legs = state["legs"]
     self.falls = int(state["falls"])
     self._steps = int(state["steps"])
+    self.last_motion_t = float(state.get("lastMotion", 0.0))
     o, s = self.odo, state["odometry"]
     o.x, o.y, o.z, o.offset = s["x"], s["y"], s["z"], s["offset"]
     o.foot = s["foot"]
