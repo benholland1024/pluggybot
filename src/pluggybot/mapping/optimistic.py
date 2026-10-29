@@ -144,8 +144,9 @@ _LATTICES: dict = {}
 
 
 def lattice_for(shape: tuple[int, int], cell_m: float) -> Lattice:
-  """The lattice of a shape, built once a process (~0.1-0.4 s at home's
-  230 x 510): every robot planning over a grid of that shape shares it."""
+  """The lattice of a shape, built once a process (under 10 ms at home's
+  230 x 510, under 30 at four times its cells; #558): every robot planning
+  over a grid of that shape shares it."""
   key = (int(shape[0]), int(shape[1]), round(float(cell_m), 9))
   if key not in _LATTICES:
     _LATTICES[key] = Lattice(*key)

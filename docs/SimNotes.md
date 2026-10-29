@@ -533,9 +533,9 @@ the street, a sidewalk band and a street loop round both, a fence round the
 loop -- and the grid from 159,600 to 469,200 cells. The frontier mask stayed
 linear (4.6 → 12.6 ms a pass); pure-Python A* did not (0.34 → 1.26 s a plan
 across the loop), the first cost here that scales with the WORLD rather than
-with what the robot does. **What is true now:** `occupancy_grid.MAX_CELLS`
-carries the table, and the quadruped's walks plan on a compiled lattice
-("Walking into the unknown").
+with what the robot does. **What is true now:** both bodies' walks plan on
+a compiled lattice ("Walking into the unknown"), and the cap was measured
+again at up to four times the cells ("The map's size limit", #558).
 
 The reserve's worst point is found BY ROUTE, not by straight line: the loop's
 east legs are the farthest from home as the crow flies and among the nearest
@@ -2049,8 +2049,8 @@ price makes that most of them); scipy's Dijkstra over the 5 cm lattice
 - a lattice cell is 2 x 2 map cells and passes only if all four do
   (`BLOCK`): a gap keeps a path at any alignment while it is 3 map cells
   wide, and every door of the house is 6 once inflated;
-- the CSR graph is built once per grid shape (~0.1-0.4 s, shared by a
-  pair) with eight slots a node, and a plan writes its weights -- a step at
+- the CSR graph is built once per grid shape (under 10 ms, #558; shared by
+  a pair) with eight slots a node, and a plan writes its weights -- a step at
   a time into contiguous arrays and interleaved in one copy (6.5 ms, where
   writing each step into its stride-8 slots cost 15.2);
 - an `inf` weight is no edge to scipy, so a wall is a weight, not a
@@ -6026,6 +6026,242 @@ force, it keeps within a quarter of its ask every way (at most 1.2 times),
 and on the robot's own reading every way but up, where the reading lags a
 turning grip (1.4-1.6 times); once built it holds 0.8-0.9 of its ask, and
 pinned past its arm's reach pushing light, it says out of reach.
+
+## A move that stops on a reading (issue #554, stage 1)
+
+A procedure reacts between verbs, about twice a second, and a verb runs to
+its own ends; #544's lid arms lost the lid inside one pull, past the drop
+handle's stop. `reach`, `move_hand` and `pull` may now each stop on one
+reading (docs/Hands.md §3's end): `steps._guarded_routine` drives the
+body's routine as `yield from` would, reads the sensor once the routine has
+begun its move and then once each `Sensor.every_s` -- a hand's place, force
+and grip, and the clock, once a command of its arm's -- and on the first
+reading past its number asks `Body.stop_hand`, which stops the move where
+it is (`Reach.halt`): a carry or a pull through the stop its patience
+already used (`Reach.stop`: held where the hand IS), a reach on its line in
+as one stopped on its way (`blocked`), a reach walking out in joint space
+at its joints' command and the body in the posture it had got to, out at
+the grip they put it at. Until a move is under way, the stop answers no
+and the guard reads again at its rate: a reach's first steps wait out a
+get-up, and while the get-up policy has the legs nothing is stopped. A
+reading's rate is rounded UP to physics steps, so a part is never read
+oftener than it reads (33 ms is 17 steps of 2 ms, not 16). A hand's place
+is read as its arm's loop last read it (`Body.hand_sensed`,
+`Reach.sensed_grip`), never afresh: each fresh reading drew on the drivers' noise,
+and a move whose condition never came true ended 2.4 mrad from the same
+move with none; read so, the two are one flight, bit for bit.
+
+**What its review found** (four of five from the humanoid flown): a reach
+stopped as its arm swung out held its joints while the body went on into
+the crouch its plan had asked, the hand riding 17 cm down 2 s on, and the
+withdraw after, its line starting at the command the body had left,
+stepped a joint 1.43 rad in one command (unstopped, a reach and its
+withdraw step at most 0.078); holding the posture the body had got to, the
+hand stays within 3 cm and the withdraw steps at most 0.034. During a
+get-up the reach a fall let go of still said its hand moved, so a stop
+there used up a condition the stand-up's fresh reach then ran without. A
+pull stopped on its grip's word (`left.held`) was relabelled "let go". And
+four figures said `time read 1.15 (above 1.15)` of a reading past 1.15; it
+is said to as many as tell them apart.
+
+**Flown, the humanoid on a bare floor** (`tests/test_guard.py`'s flight):
+a carry up at 6 cm/s told to stop past 1.15 m read 1.151 and stopped there,
+the grip truly at 1.150 and 1.150 a second on; a pull up at 10 N told to
+stop past 1.2 read 1.201, truly 1.1998, and 1.2006 a second on. A
+reading's lag is one command (10 ms, 0.6 mm at 6 cm/s) and the stop's
+another.
+
+**What a moving hand's force reads.** Carried 30 cm across in free air,
+the right hand's whole-body force read 11-17 N AHEAD in its first half
+second -- the balance takes the body as still, and the start of a move is
+not -- then under 6 N ahead, 4.4 N across and 2.7 N up for the rest; a
+carry up read 17 N ahead at its start, and a reach's approach in free air
+10.2 N up as it began. A stop condition on a force from a move's start
+reads that start: the prompt's example stops at 10 N across, over the 4.4
+its own carry read that way.
+
+**The scene** (`scripts/hands_check.py --view until K`): our lid procedure
+with its lift stopped on the hand's height 10 cm up, held two seconds,
+then lifted the rest of the way (`0.27 - read("pull.moved")`) and set down:
+set-outs 0, 1 and 3 passed, the lid set down from 61-63 deg. Lifted the
+whole 0.27 m again after the stop, it opened to 94 deg and stayed open.
+
+![The `until` scene at set-out 1: the lid's lift stopped on its hand's
+height, the lid held part open, then lifted on and set
+down](figures/hands_until.png)
+
+(`MUJOCO_GL=egl uv run python scripts/hands_check.py --strip until 1 --out
+docs/figures/hands_until.png`; `--view until 1` in the viewer.)
+
+**What is true now:** a hand's move stops within a command of its reading
+crossing, and holds there; a reading a move changes is read at its part's
+rate and no oftener, from the move's first command; a hand's force read
+from a move's start reads that start.
+
+## A tag watched while moving (issue #554, stage 2)
+
+`watch(tag)` (docs/Hands.md §3) keeps the head's colour camera reading one
+tag while a procedure goes on: `perception.watch.TagWatch` takes a picture
+every 34 physics steps through `spot`'s own decode (`rack.tags.TagDetector`
+at 1280 x 720), and each picture's reading is the robot's 50 steps (0.1 s)
+later.
+
+**Measured first: what a picture costs** (the counter world, this box):
+the render 1.5 ms on EGL and 12 under osmesa, the decode 12.8 (pupil
+AprilTag at full resolution, two threads), beside the humanoid's own 0.26 s
+of wall a sim-second standing and 0.22 reaching. So 15 pictures a second
+add 0.21 s a sim-second on EGL and 0.37 under osmesa: a flight near doubles
+while a watch runs. The deploy box renders slower (the quadruped's walking
+look is 32 ms there), so a person's session runs slower than real time
+while a watch runs. 15 is the D435 colour imager's 15 fps mode, and half
+what a real robot decodes: PhotonVision's docs give a Raspberry Pi 5 two
+AprilTag streams at 1280 x 800, 30 fps. No Pi 5 latency is published; 0.1 s
+is a picture's capture at 15 fps and a decode at the Pi 5's rate.
+
+**Placed without moving the flight.** Each picture is placed through the
+robot's model of itself as its arm's loop last posed it (`Reach._update`,
+at most 10 ms old). Posed afresh, as `spot` does, every picture drew on the
+encoders' shared noise, and a watch nothing read changed the flight.
+Placed so, a flight whose pictures show the tag and one whose pictures show
+nothing are one flight, bit for bit (`tests/test_watch.py`). On one picture
+the two placements differ by 0.4 +- 0.9 mm. A picture taken before a
+stand-up's fresh reach has posed its model shows nothing, as does every
+picture while the get-up policy has the body.
+
+**Standing still,** every picture showed the knob's tag at set-outs 0-3,
+its place within 2-4 mm (one standard deviation) picture to picture -- and
+drifting. ⚠ The humanoid turns in place after its set-out's settle: 49 mrad
+in 6 s at the counter, slowing, its stance belief within 3 mrad of the
+truth. The tag's place in the stance frame moved 15 mm with it, so a
+`spot` read at the start is that stale by then. The watch follows it.
+
+**What it sees in our lid procedure** (`hands_check.LID` watching from its
+spot on): the knob's tag was in view through the reach and the grip, 98-100
+% of the time at set-outs 0-2. Through the lift and the lowering at set-out
+1 it was in view 62 % of the time: always under 10 deg of lid, 86 % at
+10-20, about half at 20-50, never past 50. The camera is fixed on the
+trunk, and the knob rises out of its view and behind the hand. At set-out
+0 the jaws hid it for the whole of both pulls. So no watch sees the knob at
+the drop handle's 57 deg stop, where #544's fresh arms lost the lid.
+
+**What it flatters** (`attempts.WATCH_FLATTERS`): a render is sharp. The
+knob's tag crossed the picture at a median 63-242 px/s in a reach and 108
+in a lift, 270-440 at the 90th percentile, and up to 1,060 on a fast arm
+move. On a tag 33 px across at 0.6 m (a cell 4 px), 270 px/s is a 2.7 px
+smear in a 10 ms exposure, which a real camera's picture has and the
+render does not.
+
+**The scene** (`scripts/hands_check.py --view watch K`): our lid
+procedure watching the knob, its lift stopped where the watch puts the knob
+6 cm higher than as it was gripped, held 2 s, then lifted on and set down.
+At set-out 1 it stopped 6.9 s in and passed, the tag out of view by 10 s.
+At set-out 0 its own jaws hid the tag, the condition never read past, and
+the lift went its whole way: passed too.
+
+![The `watch` scene at set-out 1: the lid's lift stopped on where the watch
+puts the knob, held, then lifted on out of the camera's view and set
+down](figures/hands_watch.png)
+
+(`MUJOCO_GL=egl uv run python scripts/hands_check.py --strip watch 1 --out
+docs/figures/hands_watch.png`; `--view watch 1` in the viewer.)
+
+**What is true now:** a watched tag's reading is the robot's 0.1 s after
+its picture, 15 pictures a second, placed through the robot's own model of
+itself without moving the flight; the fixed head camera loses the knob past
+50 deg of lid; a render flatters a moving tag.
+
+## The map's size limit (issue #558)
+
+The world is to grow as one world (#557, #560), and a robot's map was
+capped at 750,000 cells of 5 cm (`occupancy_grid.MAX_CELLS`), a cap #215
+set for a planner since replaced: pure-Python A*, 1.26 s a plan across the
+loop. Both bodies walk on the compiled lattice ("Walking into the
+unknown"). `scripts/grid_spike.py` times what grows with the cells at
+today's 469,200 and at 2x, 3x and 4x as many -- the bounds grown evenly
+round the house by whole half metres, so no cell of today's map moves --
+through the bodies' own code, each scale in a process of its own; the
+plans and the explore's leg on #215's synthetic grid (known floor with
+one wall across three quarters of it, corner to corner). Timed on the
+deploy box by #385's method: the serving image in a throwaway container
+pinned to a core the live pair was not on, one llvmpipe thread.
+
+| cells | 469,200, today's | 937,200, 2x | 1,408,000, 3x | 1,876,800, 4x |
+|---|---|---|---|---|
+| a scan's update (10 Hz), ms | 1.2 | 1.4 | 2.3 | 2.6 |
+| the camera's walls a frame, quadruped / humanoid, ms | 0.09 / 3.0 | 0.09 / 6.6 | 0.11 / 9.3 | 0.13 / 15.4 |
+| a plan across the grid / a 3 m hop, ms | 42 / 9 | 74 / 19 | 144 / 36 | 177 / 42 |
+| ... of a plan, the inflation's transform and the weights, ms | 7 | 14 | 23 | 32 |
+| the explore's mask, frontiers and component, ms | 7 | 14 | 24 | 30 |
+| ... its A* across the grid (pure Python), s | 0.80 | 1.66 | 2.64 | 3.79 |
+| the matcher's field / a match, ms | 3.3 / 0.3 | 3.7 / 0.3 | 3.3 / 0.3 | 5.1 / 0.4 |
+| the grid's image (physics thread) / its PNG (sender's), ms | 0.4 / 3.9 | 1.0 / 8.1 | 1.3 / 11.6 | 2.7 / 23.5 |
+| the PNG of a world mapped as the house is, kB | 7.3 | 14.4 | 21.5 | 28.6 |
+| `world.npz`, the pair's maps: raw / on disk, MB; the write, ms | 13.7 / 0.5; 32 | 24.9 / 1.1; 61 | 36.2 / 1.6; 82 | 47.4 / 2.1; 138 |
+| a robot's map arrays / a plan's peak / the lattice, MB | 7 / 14 / 20 | 14 / 28 / 40 | 20 / 42 / 61 | 27 / 56 / 81 |
+| the quadruped pair walking #507's routes, real time | 1.37x | 1.31x | 1.29x | 1.30x |
+| ... its map work, ms a sim second a robot | 32 | 41 | 52 | 62 |
+| the humanoid pair, the same walks | 1.30x | 1.32x | 0.85x | 1.06x |
+| ... its plans a sim second a robot, and each | 11.2, 9 ms | 3.5, 19 | 9.1, 28 | 2.5, 43 |
+| a fresh quadruped across the house (254-262 s to the west street): real time; a plan | 2.43x; 27 ms | 2.34x; 55 | 2.21x; 77 | 2.15x; 108 |
+
+The PNG and the save run on the house as the quadruped's own senses lay
+it from every metre of floor it can reach (88 % of today's grid known),
+stacked k times along y so that no copy lies inside DEFLATE's 32 kB window
+of another: a world k times the house, mapped as completely. The live
+pair's save was 1.4 MB at today's size (#345): a day's maps are noisier
+than one pass. The walks are the same routes and sim seconds at every
+size, not the same trajectory: Dijkstra breaks a tie by a cell's index,
+and an index moves with the grid's width. The dev box (an i5-9600KF) read
+the same shape: its quadruped pair 1.21x to 1.15x, the explore's A* 0.69
+to 2.98 s.
+
+**What grows.** Each scan's update grows with the cells, not flat as the
+cap's old note had it: its rays' work is flat, but its evidence is a
+grid-sized `bincount`, added to every cell and clipped, where only the
+cells its rays crossed change. Each plan pays the inflation's distance
+transform and the lattice's weights over the whole grid however short it
+is -- 7 ms of a 3 m hop today, 32 at 4x -- while its search stays inside
+its limit (the straight line and 2 m). The explore's frontier leg
+(`behavior.navigation.plan`) is the last planner in pure Python, A* over
+the mapped floor to the nearest frontier: across the whole grid it took
+0.80 s today and 3.79 s at 4x, and a far frontier late in an explore pays
+it, holding both robots' physics while it does. The wire's image is built
+on the physics thread once a sim second a robot (3 ms at 4x), its PNG on
+the sender's. The save, every 60 sim s on the physics thread, is 12 bytes
+a cell a robot raw (the map and the camera's layer), deflated at level 1.
+A process holds 146 MB more at 4x (the quadruped pair's walks peaked at
+724 MB today, 870 at 4x), against the live pair's 638 MiB of its 2 GiB
+`mem_limit` as this ran.
+
+**What does not.** The scan matcher works in a window (`WINDOW_M`, 7.5 m
+either way): its field costs 3-5 ms a refresh at every size, a match
+0.3-0.4 ms. The height map is a 4 m window. The lattice is built once a
+process in under 30 ms at 4x (not the 0.1-0.4 s "Walking into the
+unknown" had).
+
+**The humanoid pays two of them oftener.** Its camera's walls (what the
+LIDAR maps, grown 3 cells, which its layer is kept out of) are its whole
+grid dilated every depth frame: 11 ms a walked sim second today, 47 at 4x,
+where the quadruped's are the 4 m square its points can land in, under 2
+at any size. And its walk replans every physics step while its waypoints
+are spent short of the goal: on #507's walk into the kitchen (the dev box)
+114 and 64 of its plans came in the last 0.3 m, the quadruped's 5 and 2 --
+it takes its last steps slowly. Over the pairs' walks it made 2.5 to 11
+plans a sim second where the quadruped made 0.5, a number that moves with
+the trajectory, so its pair's speed follows its replans more than the
+grid: 1.30x at today's size with 1,738 plans, 0.85x at 3x with 1,323,
+1.06x at 4x with 360. At 4x its worst rate would be about 490 ms of
+planning a sim second a robot.
+
+**What is true now:** `MAX_CELLS` is 1,876,800, four times the house's
+grid and the largest size measured: there the served quadruped pair walks
+at 0.95 of today's speed, a plan across the whole grid takes 177 ms, a
+robot holds 27 MB of map and a process 81 MB of lattice. The levers, if
+the world must grow past it or the humanoid serve in one this size: the
+humanoid's walls in the quadruped's window (exact for every cell its layer
+reads); no replan for an arrival a plan cannot change; the update into the
+cells it touches; a plan's costs and weights within its search's limit;
+the explore's leg on the lattice.
 
 ## Debugging workflow that worked
 

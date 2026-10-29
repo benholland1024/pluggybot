@@ -7,48 +7,31 @@ L_FREE = -0.4   # Amount to subtract when a ray passes through a cell
 L_OCC = 0.85    # amount to add when a ray collides a cell
 
 
-#: The most cells a world's grid may ask for (issue #67). NOT a performance
-#: cliff -- a tripwire, so an accidentally 10x world is loud instead of quiet.
+#: The most cells a world's grid may ask for (issues #67, #558): FOUR TIMES
+#: THE HOUSE'S GRID, the largest size measured. A tripwire, not a cliff -- an
+#: accidentally 10x world is loud instead of quiet. MEASURED 2026-10-29 ON
+#: THE DEPLOY BOX (`scripts/grid_spike.py`: the house's bounds grown evenly
+#: round it, the bodies' own code, #215's synthetic grid for the plans; the
+#: serving image on a core beside the live pair):
 #:
-#: MEASURED 2026-09-01, 360 rays at 5 cm, on this box. Two things scale very
-#: differently and it is worth knowing which is which before moving this:
+#:   cells      a scan's  a plan across  the explore's  the quadruped  the pair's
+#:              update    the grid       A* across (s)  pair walking   save
+#:     469,200   1.2 ms     42 ms          0.80           1.37x          32 ms
+#:     937,200   1.4        74             1.66           1.31x          61
+#:   1,408,000   2.3       144             2.64           1.29x          82
+#:   1,876,800   2.6       177             3.79           1.30x         138
 #:
-#:   cells     update()   frontier+mask   the world
-#:    40,000    2.4 ms       0.8 ms       one 10 x 10 m room
-#:    56,000    3.1 ms       1.1 ms       the first house
-#:   159,600    4.3 ms       3.0 ms       the floor plan authored for #68
-#:   360,000    3.5 ms       7.0 ms       a 30x30 m park
-#:
-#: `update()` is ~FLAT in cell count: its cost is the RAY WORK (how many rays,
-#: how long), not the size of the array, which is why 360k cells can measure
-#: cheaper than 160k. ⚠ That makes docs/pluggyworld.md's "a 30x30 m park is 9x
-#: the cells" warning STALE -- it was written against the pure-Python update
-#: and the vectorization removed it.
-#:
-#: `traversable_mask` + `find_frontiers` is the half that really does scale,
-#: linearly, at ~19 ns/cell: `binary_dilation` touches every cell whatever the
-#: robot can see. That is what this ceiling is denominated in.
-#:
-#: RE-MEASURED 2026-09-19 for the second house and the loop street (issue
-#: #215), same method, on a known-free grid with one long wall in it:
-#:
-#:   cells     mask+frontier   A* corner to corner   the world
-#:   159,600      4.6 ms          0.34 s             the #68 house
-#:   469,200     12.6 ms          1.26 s             both houses and the loop
-#:   720,000     21.3 ms            --               a 60x30 m plot
-#:
-#: The mask stays linear. ⚠ THE NEW COST IS THE PLANNER: `astar` is pure
-#: Python over a heap, and a plan across the whole loop touches ~1.4 k
-#: cells of path and a search area that grew with the world -- a far plan
-#: is now over a second of wall clock, where nothing before was. It is paid
-#: per replan, not per step, and a mission's plans are mostly short (a
-#: frontier, a board, the rack), so a day is not four times slower; but it
-#: is the number to read before growing the world again, and vectorising
-#: the planner is the lever if it ever has to.
-#:
-#: 750k is ~1.6x the #215 plot, the same headroom the 250k ceiling gave the
-#: #68 house. Move it with a measurement, not by feel.
-MAX_CELLS = 750_000
+#: What grows is each scan's update (its evidence is a grid-sized `bincount`
+#: added to every cell and clipped), each plan's inflation transform and
+#: lattice weights (32 of a 3 m hop's 42 ms at 4x), the explore's frontier
+#: leg (A* in pure Python), the wire's image and the save; what does not is
+#: the scan matcher's field (a 15 m window) or the height map (4 m). ⚠ The
+#: humanoid pays two of them oftener -- its camera's walls are its whole
+#: grid dilated every depth frame, and its arrival replans every step (2.5
+#: to 11 plans a second where the quadruped makes 0.5), each plan 43 ms at
+#: 4x. SimNotes, "The map's size limit"; move it with a measurement, not by
+#: feel.
+MAX_CELLS = 1_876_800
 
 
 class OccupancyGrid:

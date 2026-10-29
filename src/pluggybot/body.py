@@ -521,6 +521,24 @@ class Body(abc.ABC):
     """One tag's centre in the believed world frame off one decode, or None
     where it does not decode from here (issue #264)."""
 
+  @abc.abstractmethod
+  def watch(self, tag: int | None) -> None:
+    """Its head's colour camera kept reading `tag` while it goes on -- its
+    hands moving, its feet stepping, standing still -- through the camera
+    `spot` reads (#554's stage 2, `perception.watch.TagWatch`): a picture
+    each `WATCH_HZ`th of a second, each the robot's `LATENCY_S` after it
+    was taken (`sighting`). Another tag takes its place, what was read of
+    the last forgotten; None stops it."""
+
+  @abc.abstractmethod
+  def sighting(self) -> dict | None:
+    """The watched tag as the newest reading the robot has of it (#554):
+    {tag, seen -- whether its picture shows the tag --, at -- when that
+    picture was taken, sim s --, last -- where the newest picture that
+    showed it put it: x, y, z, the believed world frame, range, normal,
+    edge (as `spot`'s) and at -- or None}; None before a watch's first
+    reading."""
+
   #: Pressed against something it is moving into (its bumper).
   pressing: bool
   #: The camera its eye looks through (issue #275), by its name in the
@@ -730,6 +748,13 @@ class Body(abc.ABC):
     encoders and its IMU through its model of itself (#493)."""
 
   @abc.abstractmethod
+  def hand_sensed(self, side: str) -> tuple[float, float, float]:
+    """`hand_at` as the hand's control loop last read it, at its last
+    command (#554): what a move's stop condition reads, at the encoders'
+    own rate, drawing nothing more on their noise -- read afresh between
+    commands, a condition that never came true changed the flight."""
+
+  @abc.abstractmethod
   def hand_watched(self, side: str) -> tuple[float, float, float]:
     """`hand_at` for a WATCHER (#530: a person's page shows it): the same
     encoders and IMU through a model of itself of the watcher's own, its
@@ -757,7 +782,8 @@ class Body(abc.ABC):
     world from grip, None keeping the one before) where they are given. The
     posture is the body's to choose (#493). Returns how it ended (`why`:
     "arrived", "held back" -- its command there, the hand held short of it
-    -- "out of reach", "not out", "fell", "feet moved", "out of time"), in
+    -- "out of reach", "not out", "until" -- `stop_hand` stopped it --
+    "fell", "feet moved", "out of time"), in
     how long, how far the hand went (`moved`, m) and where it ended up from
     where it began (`dx`, `dy`, `dz`, believed world frame, m)."""
 
@@ -766,7 +792,17 @@ class Body(abc.ABC):
     """Why a hand's last `reach_routine` ended short of holding there: "out
     of reach" (no posture it holds puts the pose in reach), "stopped short"
     (it stopped on its way: pushing on something, or out of reach as the
-    body truly stood), "fell", "out of time" -- or "" where it held (#493)."""
+    body truly stood), "until" (`stop_hand` stopped it), "fell", "out of
+    time" -- or "" where it held (#493)."""
+
+  @abc.abstractmethod
+  def stop_hand(self, side: str) -> bool:
+    """A hand's move stopped now and held where it is, as its own stops
+    hold it (#554: a procedure's stop condition, `steps._guarded_routine`):
+    a reach's arm where it is commanded, on its way out or in; a carry's or
+    a pull's hand where it is -- each move then ending as "until"
+    (`hand_why`, the routine's own `why`). True where a move was under way;
+    False, nothing changed, where none was."""
 
   @abc.abstractmethod
   def pull_routine(self, side: str, direction, limit_n: float, distance_m: float,
@@ -782,7 +818,8 @@ class Body(abc.ABC):
     force and not moving), its grip lets go, it can reach no further, its
     feet move, or `patience` runs out; then it holds where the hand is.
     Returns how it ended (`why`: "distance", "held fast", "let go", "out of
-    reach", "not out", "fell", "feet moved", "out of time"), in how long,
+    reach", "not out", "until" -- `stop_hand` stopped it -- "fell", "feet
+    moved", "out of time"), in how long,
     how far the hand went (`moved`) and along its way (`along`), where it
     ended up from where it began (believed world frame, m), the way the hand
     was going at its end (`direction`, a unit vector: what it held allowed)
@@ -999,6 +1036,10 @@ class StubBody(Body):
     self.pulled: list[tuple] = []
     #: ...and each step asked (#525), (ahead, left, turn)
     self.stepped: list[tuple] = []
+    #: ...and each tag it was asked to watch (#554), None a stop, and what
+    #: a test says its newest reading is (`sighting`'s shape)
+    self.watched: list = []
+    self.sight: dict | None = None
     self._why: dict[str, str] = {}
     #: ...and each survey it was asked for, and what it counts, by tag
     self.surveyed: list[int] = []
@@ -1335,6 +1376,15 @@ class StubBody(Body):
   def spot(self, tag, at_height=None):
     return None
 
+  def watch(self, tag):
+    """Noted (`watched`); what it reads is what a test put in `sight`."""
+    self.watched.append(None if tag is None else int(tag))
+    if tag is None:
+      self.sight = None
+
+  def sighting(self):
+    return self.sight
+
   def peer_on_the_goal(self, x, y):
     return None
 
@@ -1453,6 +1503,10 @@ class StubBody(Body):
     x, y, _ = self.pose
     return tuple(self.hands.get(side, (x, y, 0.8)))
 
+  def hand_sensed(self, side):
+    """`hand_at`: a stub's hand is where it is, every command."""
+    return self.hand_at(side)
+
   def hand_watched(self, side):
     """`hand_at`: a stub draws no noise to keep apart."""
     return self.hand_at(side)
@@ -1484,6 +1538,10 @@ class StubBody(Body):
     """Never short -- every reach holds at once -- but with a hand a test
     put `out_of_reach`."""
     return self._why.get(side, "")
+
+  def stop_hand(self, side) -> bool:
+    """Its moves are done at once: none is under way to stop."""
+    return False
 
   def pull_routine(self, side, direction, limit_n, distance_m, speed=0.06, patience=30.0,
                    give=True):

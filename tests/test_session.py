@@ -658,18 +658,23 @@ def test_the_hellos_index_lists_what_the_robots_text_lists():
   said = sh.hello({"commit": "abc1234"}, None)
   index, sections = said["index"], {v["heading"]: v["text"] for v in said["vocabulary"]}
   body, grammar = sections["your body"], sections["the language"]
-  verbs = []
+  verbs, optional = [], {}
   for line in _listed(body, "VERBS", "SENSORS"):
     call, doc = line.split("  -- ", 1)
     name, args = call[:-1].split("(", 1)
+    # what a verb does without, in brackets at its end (#554)
+    args, _, without = args.partition("[, ")
+    optional[name] = [a for a in without.rstrip("]").split(", ") if a]
     verbs.append({"verb": name, "doc": doc, "args": [
-      a.split("=")[0] for a in args.split(", ") if a]})
+      a.split("=")[0] for a in args.split(", ") if a] + optional[name]})
   assert [{"verb": v["verb"], "doc": v["doc"], "args": [a["name"] for a in v["args"]]}
           for v in index["verbs"]] == verbs
   for v in index["verbs"]:
     shown = {a.split("=")[0]: float(a.split("=")[1]) for a in
-             body.split(f"\n  {v['verb']}(", 1)[1].split(")", 1)[0].split(", ") if "=" in a}
+             body.split(f"\n  {v['verb']}(", 1)[1].split(")", 1)[0].split("[", 1)[0].split(", ")
+             if "=" in a}
     assert {a["name"]: a["default"] for a in v["args"] if "default" in a} == shown, v["verb"]
+    assert [a["name"] for a in v["args"] if a.get("optional")] == optional[v["verb"]]
   assert [f"{s['name']} -- {s['doc']}" for s in index["sensors"]] == _listed(
     body, "SENSORS", "AXES")
   axes = [re.fullmatch(r"(\w+): (\S+)\.\.(\S+) (\w+) -- (.*)", ln).groups()
@@ -700,7 +705,7 @@ def test_the_hellos_index_lists_what_the_robots_text_lists():
       assert (arg["kind"], arg.get("choices")) == (spec.kind, spec.choices), (v["verb"], arg)
   assert set(index) == {"verbs", "sensors", "axes", "hands", "math", "verbTests"}
   assert all(set(v) == {"verb", "doc", "args"} for v in index["verbs"])
-  assert all(set(a) <= {"name", "kind", "choices", "default"}
+  assert all(set(a) <= {"name", "kind", "choices", "default", "optional"}
              for v in index["verbs"] for a in v["args"])
   assert all(set(s) == {"name", "doc"} for s in index["sensors"])
   assert all(set(a) == {"name", "lo", "hi", "unit", "speed", "doc"} for a in index["axes"])

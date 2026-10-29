@@ -27,6 +27,7 @@ from pluggybot.humanoid.policy import PITCH_RANGE, StandPolicy
 from pluggybot.humanoid.mission import MOTION_EPS, V_MIN, HumanoidMission
 from pluggybot.humanoid import reach as reach_
 from pluggybot.humanoid.reach import HOLD_SPEED
+from pluggybot.perception.watch import TagWatch
 from pluggybot.power import Pack
 from pluggybot.robot import FIRST, RobotHandle
 
@@ -147,6 +148,8 @@ class HumanoidBody(Body):
     self.mission = HumanoidMission(model, data, handle, stand=policy, walk=walk,
                                    grid_bounds=grid_bounds)
     self._tags = None
+    #: The tag its colour imager keeps reading while it moves (`watch`).
+    self.mission.sight = TagWatch(model.opt.timestep, self._sighted)
     #: A watcher's own joint sense and model of itself (`hand_watched`), and
     #: its own depth camera (`depth_watched`).
     self._watch = self._depth_watch = None
@@ -159,8 +162,10 @@ class HumanoidBody(Body):
     self.swapping_at = None
     self.working = False
     self.peer_at_bay_m = None
-    #: Why each hand's last reach ended short of holding (`hand_why`).
+    #: Why each hand's last reach ended short of holding (`hand_why`), and
+    #: the hands whose reach `stop_hand` stopped (#554).
     self._why: dict[str, str] = {}
+    self._halted: set[str] = set()
     self.bay_wait = None
     self.docked = False
     self.head_camera = handle.el(HEAD_CAMERA)
@@ -414,6 +419,7 @@ class HumanoidBody(Body):
     p = self.to_stance(pos)
     r = None if rot is None else _rz(self.stance[2]).T @ np.asarray(rot, dtype=float)
     self._why[side] = "out of reach"
+    self._halted.discard(side)
     postures = reach_.POSTURES
     if path is not None:
       # the posture the hand then follows its path in, and that one alone
@@ -439,11 +445,21 @@ class HumanoidBody(Body):
       yield STILL
     held = self.mission.falls == falls and self.reach.phase[side] == "hold"
     self._why[side] = ("" if held else "fell" if self.mission.falls != falls
+                       else "until" if side in self._halted
                        else "stopped short" if self.reach.done(side) else "out of time")
     return held
 
   def hand_why(self, side) -> str:
     return self._why.get(side, "")
+
+  def stop_hand(self, side) -> bool:
+    # ⚠ only a hand of the standing body's: waiting out a get-up, the reach a
+    # fall let go of still says its hand moves, and stopping that used up a
+    # condition the stand-up's fresh reach then ran without
+    if self.mission.legs != "stand" or not self.reach.halt(side, "until"):
+      return False
+    self._halted.add(side)
+    return True
 
   def release_routine(self, side):
     """Out and home, waited for until its drivers read the arm there
@@ -491,6 +507,11 @@ class HumanoidBody(Body):
 
   def hand_at(self, side):
     p = self.to_world(self.reach.grip_now(side)[0])
+    return float(p[0]), float(p[1]), float(p[2])
+
+  def hand_sensed(self, side):
+    got = self.reach.sensed_grip.get(side)
+    p = self.to_world(self.reach.grip_now(side)[0] if got is None else got)
     return float(p[0]), float(p[1]), float(p[2])
 
   def hand_watched(self, side):
@@ -640,7 +661,9 @@ class HumanoidBody(Body):
       rep = dict(self.reach.report[side] or rep) if rep["why"] not in ("fell", "feet moved",
                                                                      "out of time") else rep
     why = rep["why"]
-    if gripped and not self.gripped(side) and why != "fell":
+    # ...a grip lost ends it "let go", but where its stop condition ended it
+    # first, that is how it ended (the condition may be the grip's own word)
+    if gripped and not self.gripped(side) and why not in ("fell", "until"):
       why = "let go"
     h = self.reach.grip_now(side)[0]
     disp = h - start
@@ -772,6 +795,31 @@ class HumanoidBody(Body):
     ITS TAG ON EVERY FACE (`rack.tags.TagDetector.detect_all`): the face
     seen most square-on is the one read -- looking down on the chest's
     knob, the last decoded was its top, seen edge-on."""
+    return self._decoded(tag, at_height)
+
+  def watch(self, tag):
+    if tag is None:
+      self.mission.sight.stop()
+    else:
+      self.mission.sight.start(int(tag))
+
+  def sighting(self):
+    return self.mission.sight.newest
+
+  def _sighted(self, tag: int) -> dict | None:
+    """A watch's picture (`perception.watch.TagWatch`): `spot`'s decode,
+    the camera placed through its model of itself as its arm's loop last
+    posed it (#554) -- read afresh, every picture drew on its encoders'
+    noise, and a watch nothing read changed the flight. A picture before
+    that loop has posed it (a reach built by a stand-up) shows nothing."""
+    if any(g is None for g in self.reach.sensed_grip.values()):
+      return None
+    return self._decoded(tag, fresh=False)
+
+  def _decoded(self, tag: int, at_height: float | None = None,
+               fresh: bool = True) -> dict | None:
+    """`spot`'s reading, its model of itself posed afresh off its senses
+    (`fresh`) or as its arm's loop last posed it."""
     faces = [d for d in self._detector().detect_all(self._d) if d["id"] == tag]
     if not faces:
       return None
@@ -780,7 +828,8 @@ class HumanoidBody(Body):
       t = np.asarray(d["t"])
       return float(np.asarray(d["normal"]) @ (t / np.linalg.norm(t)))
     seen = max(faces, key=square_on)
-    self.reach._pose()
+    if fresh:
+      self.reach._pose()
     sm = self.reach.self_model
     # Kinematics places bodies; a camera is placed by `mj_camlight`.
     mujoco.mj_camlight(sm.m, sm.d)

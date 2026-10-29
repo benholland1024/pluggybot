@@ -70,8 +70,10 @@ and its feet, which the walking policy moves.
    the one thing no composition of position moves can do, because its loop
    closes on what the hand feels every command (100 a second), inside the
    verb. A procedure's loop runs between verbs (100 rounds, 200 verb calls
-   at most); a hinge's steer needs every command. The feet have a move of
-   their own, `step`, with the hands home and empty.
+   at most); a hinge's steer needs every command. Either kind may stop on a
+   reading (#554, §3's end): the one reaction a procedure gets inside a
+   move. The feet have a move of their own, `step`, with the hands home and
+   empty.
 2. **Every report is a sensor, every failure readable.** What a verb did
    rides `read(...)`, and `if verb(...)` reads its failure without ending
    the procedure.
@@ -90,6 +92,7 @@ and its feet, which the walking policy moves.
 | verb | what it does | its report | how it fails | built from |
 |---|---|---|---|---|
 | `spot(tag)` | stands still and looks for a tag -- as it stands, then bowing lower (`SPOT_GAZES`) until it sees it -- and stands up again | `spot.x/y/z` (the face's middle), `spot.nx..nz` (into the thing it is on), `spot.ex..ez` (along an edge), `spot.range` | not in view from where it stands | the head camera's tag detector (`rack.tags`), `Body.gaze_routine` |
+| `watch(tag)` | keeps the head camera reading a tag while the procedure goes on, 15 pictures a second, each read 0.1 s after it was taken; ends with the procedure or the next `watch` | as `spot`'s, where the newest picture that showed it put it (`watch.*`), and `watch.seen` (whether the newest picture shows it), `watch.age` | not in view as it begins: it watches on | `spot`'s decode, placed through the robot's model of itself as its arm's loop last posed it (`perception.watch`) |
 | `measure(x, y)` | the depth camera's look at what stands at (x, y) | `object.top/near/far/left/right` | no flat top seen | the D435's cloud (`perception/box.py`) |
 | `reach(hand, x, y, z, fingers, jaws, stiffness)` | the grip to a point, turned as asked or as the arm finds; out to a point short of it, then in along the fingers | `hand.x/y/z`, `hand.fx..fz` | out of reach (and whether the other hand could, as asked or turned another way), turned as asked or not; stopped short. ⚠ What it touches on its way in under the blocking force can hold it a few cm short while it holds: the hand's place says where (§5) | the arm's IK on the robot's model of itself, a planned posture |
 | `via(hand, x, y, z, turn)` | adds a point to the hand's next move; nothing moves | -- | a path holds 40 points | -- |
@@ -105,6 +108,52 @@ joint walked to a setpoint -- and the sensors `time` and each hand's place,
 force, `held` and `gap`. A verb that never ran leaves no reading behind,
 and a humanoid with a hand out keeps its posture to look (a bow would carry
 the hand with it).
+
+**A move that stops on a reading** (#554; `steps.GUARDED_VERBS`, behind
+`WorldFacts.guarded`, the practice's flag): `reach`, `move_hand` and `pull`
+each take one stop condition after their own arguments, `until="<sensor>"`
+and `above=N` or `below=N`, N computed as the procedure likes -- §1's
+GUARDED move, its condition any reading a move changes and not only a
+force. The sensor is read as often as its part reads it, and no oftener
+(`Sensor.every_s`): a hand's place, its force (the whole body's reading is
+solved once a command too, #547), its grip and the clock once a command, 100
+a second -- the place as the arm's own loop last read it (`Body.hand_sensed`),
+so a condition never met moves the flight not at all. It is read from the
+move's first command, and the first reading past N (strictly) stops the
+move where it is, as its own stops do (`Body.stop_hand`, `Reach.halt`): a
+carry or a pull where the hand IS, a reach on its line in where its command
+is, and one still swinging out where its arm is commanded and its body in
+the posture it had got to -- out, every way. The verb is ok, its verdict
+says what it read (`until`), and `<verb>.stopped` reads 1. A condition
+already met stops a move before it moves; one never met ends the move as it
+would have ended. Waiting out a get-up, no hand is stopped. What a verb
+last reported (`spot.*`, `pull.*`) no move changes, so it is refused as a
+stop condition. ⚠ A force read from a move's start reads the start itself:
+carried in free air, a hand's force ran 11-17 N ahead for half a second, and
+then under 6 (SimNotes, "A move that stops on a reading", with its scene,
+`scripts/hands_check.py --view until`). No condition knows a job: the robot turns what it wants -- a lid's
+angle, say -- into a reading and a number itself.
+
+**A tag watched while moving** (#554's stage 2; `steps.HANDS_VERBS`'
+`watch`, `perception.watch.TagWatch`, behind `hand_facts(watching=)`):
+`watch(tag)` keeps the head's colour camera reading one tag while the
+procedure goes on -- a hand moving, the feet stepping, a wait -- through
+`spot`'s own decode, a picture each 34 physics steps (15 a second, the
+D435's 15 fps mode, rounded up) and each picture the robot's 0.1 s after
+it was taken (its capture and its decode on a Pi 5). Each is placed
+through the robot's model of itself as its arm's loop last posed it, so
+watching draws nothing on its encoders' noise; nothing is seen while the
+get-up policy has the body. `watch.x..range` are where the newest picture
+that showed the tag put it, `watch.seen` whether the newest picture shows
+it -- out of view or hidden, the robot's own hand too, it is 0 and the
+last place is kept -- and `watch.age` how long ago that was. It neither
+bows nor turns to look: ⚠ THE HEAD CAMERA IS FIXED ON THE TRUNK, and in
+our lid procedure the knob's tag was in view through the reach and the
+grip but never past 50 deg of lid, and its own jaws hid it the whole lift
+at one set-out (SimNotes, "A tag watched while moving"). A stop condition
+may read it, at a picture's rate; one whose sensor never had a reading
+says so. The procedure's end, or the next `watch`, ends it. Its scene is
+`scripts/hands_check.py --view watch`.
 
 **The language** is the served robots' (`procedure/lang.py`), with two
 switches on wherever there are hands (`steps.hand_facts`): a verb may be an
@@ -297,7 +346,16 @@ of 29 within 3, one of them falling in every try (§4's "The door, with
 no new help") -- tries a fall now fails (#544). Told so, with `pull` at
 20 N, two door arms passed 30 and 32 of 32 held-out set-outs within 3 and
 none of their held-out tries fell, while the lid's two passed 1 of 8 and 5
-of 12 (§4's "The readings again, under the new rule").
+of 12 (§4's "The readings again, under the new rule"). Given a move that
+stops on a reading (#554, §3's end), two more lid arms passed 3 of 10 each
+there: the one whose skill stopped its lift on its hand's height let the
+lid fall in 4 of 38 held-out tries where the other let it fall in 19 of 43,
+and lost the knob instead (§4's "A move that stops on a reading, flown
+where the lid is lost"). Given a tag watched while moving too (#554's
+stage 2, §3), two more wrote no `watch` in 402 sources -- the knob in the
+hand is the hand's own height, and its tag is hidden or out of view as the
+lid rises -- and one kept a skill using neither tool that passed 19 of 26
+there (§4's "A tag watched while the robot moves").
 
 ## 7. What it does not do
 
@@ -347,4 +405,10 @@ of 12 (§4's "The readings again, under the new rule").
   pull went (`pull.d*`), to 4 deg coming down but not above 60 opening up.
   A plane fitted to the D435's points is sub-degree where it fits, but the
   trunk's camera, pitched 40 deg down, saw the lid at 45 stops of 55 opening
-  and 17 of 33 lowering: a raised lid leaves its view.
+  and 17 of 33 lowering: a raised lid leaves its view. A move may stop on
+  the hand's place (#554, §3), which is how a procedure acts on an angle
+  inside a move; the angle itself is the procedure's to work out.
+- **Stop on more than one reading.** One condition a move. A tag can be
+  watched while the body moves (#554's stage 2, §3), but the head camera
+  is fixed on the trunk: a tilting head is Parts.md's first joint to add
+  if a measurement needs one.

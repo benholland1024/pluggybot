@@ -25,6 +25,7 @@ from dataclasses import dataclass, field
 import json
 import time
 
+from pluggybot.perception.watch import WATCH_HZ
 from pluggybot.procedure import lang
 from pluggybot.procedure.steps import (Refused, WorldFacts, describe_vocabulary, language,
                                        signature)
@@ -95,6 +96,30 @@ A verb may also stand alone as the test of an `if` or an `elif` -- `if
 move_hand("left", 0.3, 0.2, 0.9):` or `if not reach(...):` -- and then it
 runs as the test: true when it did what it said, false when it did not,
 and its failing does not stop the procedure."""
+#: ...and where a hand's move may stop on a reading (`WorldFacts.guarded`,
+#: #554): generic, its example nothing a job does.
+GUARD = """
+A hand's move may stop on a sensor: `reach`, `move_hand` and `pull` each
+take one stop condition, by keyword after their other arguments --
+`until="<sensor>"` and `above=N` or `below=N`, N a number your procedure
+may compute. The move then stops where the hand is the first time that
+sensor reads more than N (`above`) or less than N (`below`), and holds
+there -- at once, if it already does -- and the verb is ok; after it,
+`reach.stopped`, `move_hand.stopped` or `pull.stopped` reads 1, and 0
+after a move that ended otherwise. A move reads its sensor as often as
+your body reads it, and no oftener: a hand's place, force and grip, and
+the time, %(rate)d times a second%(watched)s. What a verb last reported (`spot.*`,
+`pull.*` and the like) no move changes, so no move stops on it. A hand
+carried to your left that stops where it pushes on something with %(n)g N:
+    move_hand("right", 0.30, -0.05, 1.20, until="right.fy", above=%(n)g)"""
+#: ...the force its example stops on, N: over what the hand carried there in
+#: free air reads that way off the whole body, 4.4 N at its hardest (#554,
+#: flown from (0.30, -0.35, 1.20); its first half second read 11-17 N
+#: AHEAD, the balance taking the body as still).
+GUARD_EXAMPLE_N = 10.0
+#: ...and, where it has `watch` (#554's stage 2), that a watch's readings
+#: are fresh at its camera's rate.
+WATCHED = "; what `watch` reads, %(hz)g times a second"
 
 YOUR_BODY = """YOUR BODY
 
@@ -136,14 +161,18 @@ def system_sections(facts: WorldFacts) -> list[tuple[str, str]]:
   sensors and axes off the registries and what `facts` lets it call."""
   from pluggybot.procedure import axes
   verbs = "\n".join(f"  {signature(v)}  -- {v['doc']}"
-                    for v in describe_vocabulary(facts.verbs))
+                    for v in describe_vocabulary(facts.verbs, facts.guarded))
   docs = {s["name"]: s["doc"] for s in axes.describe()["sensors"]}
   sensors = "\n".join(f"  {n} -- {docs[n]}" for n in facts.sensors)
   ax = "\n".join(f"  {a.name}: {a.lo:g}..{a.hi:g} {a.unit} -- {a.doc}"
                  for a in (axes.AXES[n] for n in facts.axes))
   return [("what you do", WHAT_YOU_DO),
           ("the language", (LANGUAGE.replace(NO_TRIG, MATH_TEXT) if facts.math else LANGUAGE)
-           + (VERB_TESTS if facts.verb_tests else "")),
+           + (VERB_TESTS if facts.verb_tests else "")
+           + (GUARD % {"rate": round(1.0 / axes.HAND_EVERY_S), "n": GUARD_EXAMPLE_N,
+                       "watched": (WATCHED % {"hz": WATCH_HZ}
+                                   if "watch" in (facts.verbs or ()) else "")}
+              if facts.guarded else "")),
           ("your body", YOUR_BODY % {"verbs": verbs, "sensors": sensors, "axes": ax,
                                      "slew": axes.HUMANOID_SLEW}),
           ("your answer", ANSWER % {"cap": f"{MAX_TOKENS:,}", "aim": f"{AIM_TOKENS:,}"})]
@@ -157,10 +186,11 @@ def vocabulary_index(facts: WorldFacts) -> dict:
   """What "the language" and "your body" list, as data (rooftop-media-2026
   #441: a page's guide for people is checked against it): each verb with
   its arguments in order -- the list a name is one of (`choices`), and the
-  default of one that may be left out -- each sensor, each axis with its
-  range, the hands, the maths an expression may call and whether a verb may
-  be an `if`'s test. Off the registries the sections are rendered from, so
-  it lists what the robot is told and nothing it is not: no argument's
+  default of one that may be left out, or that it is `optional`, the verb
+  doing without it (#554) -- each sensor, each axis with its range, the
+  hands, the maths an expression may call and whether a verb may be an
+  `if`'s test. Off the registries the sections are rendered from, so it
+  lists what the robot is told and nothing it is not: no argument's
   bounds, which the robot meets only in a refusal."""
   from pluggybot.procedure import axes
   table = language(facts)
@@ -172,11 +202,13 @@ def vocabulary_index(facts: WorldFacts) -> dict:
       out["choices"] = table[verb].args[name].choices
     if name in defaults:
       out["default"] = defaults[name]
+    if table[verb].args[name].optional:
+      out["optional"] = True
     return out
   return {"verbs": [{"verb": v["verb"], "doc": v["doc"],
                      "args": [arg(v["verb"], k, kind, v.get("defaults", {}))
                               for k, kind in v["args"].items()]}
-                    for v in describe_vocabulary(facts.verbs)],
+                    for v in describe_vocabulary(facts.verbs, facts.guarded)],
           "sensors": [{"name": n, "doc": docs[n]} for n in facts.sensors],
           # + 0.0: a range's -0 (the right shoulder's roll) is 0 on the wire
           "axes": [{"name": a.name, "lo": a.lo + 0.0, "hi": a.hi + 0.0, "unit": a.unit,

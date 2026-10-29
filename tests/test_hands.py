@@ -86,7 +86,7 @@ def test_a_hands_world_calls_its_own_verbs_and_a_served_world_is_unchanged():
   # served robot's
   with pytest.raises(st.Refused) as e:
     lang.compile_procedure("def a():\n    fetch(\"module_claw\")\n", st.hand_facts())
-  assert "have: wait, move, spot, reach" in str(e.value) and "drive_to" not in str(e.value)
+  assert "have: wait, move, spot, watch, reach" in str(e.value) and "drive_to" not in str(e.value)
   # ...and the hands' vocabulary is ONE (#525): every hand verb, a verb as
   # an if's test and the maths wherever there are hands, `measure` alone an
   # arm's to take away

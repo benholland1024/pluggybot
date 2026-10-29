@@ -4048,15 +4048,16 @@ SPEED_ROUTES = (((0.5, 0.5), (-8.5, 4.0)), ((3.0, -1.0), (1.5, 4.5)))
 SPEED_WARM_S = 5.0
 
 
-def speed_world(kind: str, n: int, seeing: bool = False):
+def speed_world(kind: str, n: int, seeing: bool = False, bounds=None):
   """The house with `n` robots of `kind` ("humanoid" or "quadruped") at the
-  starts of `SPEED_ROUTES`: the model, its data and the bodies."""
+  starts of `SPEED_ROUTES`: the model, its data and the bodies, their maps
+  over `bounds` (the house's own by default; `grid_spike.py` grows them)."""
   import json
   from pluggybot.body import body_for
   from pluggybot.robot import RobotHandle
-  meta = json.load(open(HOME_XML.replace(".xml", ".meta.json")))
-  b = meta["gridBounds"]
-  bounds = (b[0], b[1], b[2], b[3]) if isinstance(b, list) else (b["xMin"], b["yMin"], b["xMax"], b["yMax"])
+  if bounds is None:
+    b = json.load(open(HOME_XML.replace(".xml", ".meta.json")))["gridBounds"]
+    bounds = (b[0], b[1], b[2], b[3]) if isinstance(b, list) else (b["xMin"], b["yMin"], b["xMax"], b["yMax"])
   handles = [RobotHandle(p) for p in ("", "r2_")[:n]]
   starts = [r[0] for r in SPEED_ROUTES[:n]]
   if kind == "quadruped":

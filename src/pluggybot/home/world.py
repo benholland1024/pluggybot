@@ -386,8 +386,8 @@ SPAWNS = {
 # same layout and the same margin these bounds use, so the map and the ground
 # a visitor sees now coincide to the millimetre.
 #: ⚠ GROWN FOR THE LOOP (issue #215): 51 x 23 m at 5 cm is 1020 x 460 =
-#: 469,200 cells, against `occupancy_grid.MAX_CELLS` of 750,000 (the
-#: measured table is at the constant; the cap moved with it). It was 159,600
+#: 469,200 cells, a quarter of `occupancy_grid.MAX_CELLS` (#558: the
+#: measured table is at the constant). It was 159,600
 #: for #68's property and 56,000 before that. The margin past the fence on
 #: every side is what lets a scan that overshoots a boundary land somewhere
 #: rather than being silently clipped.
