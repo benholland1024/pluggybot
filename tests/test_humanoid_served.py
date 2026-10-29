@@ -289,6 +289,21 @@ def test_a_humanoid_is_near_no_rack_and_with_a_hand_out_is_never_saved():
     life.body.close()
 
 
+def test_a_mind_judging_what_the_other_humanoid_needs_asks_after_no_tool():
+  """A world with no rack watches no module (`HubLifecycle.module`): a mind's
+  first `other_needs` (#208) asked what was on the other humanoid's fork, and
+  the body it asked had none -- the minded day's first answer ended it."""
+  from pluggybot.mind import acts
+  assert stub_life(world=HUMANOID_HOME).module == ""
+  assert stub_life().module == "module_lcd", "the quadruped's world watches its LCD"
+  life = _humanoid(near_field=False)
+  try:
+    need, state = acts.need_of(life)
+    assert need == "nothing" and state["carrying"] == ""
+  finally:
+    life.body.close()
+
+
 def test_the_loop_with_no_mind_goes_to_no_charger_however_low_the_pack():
   """The loop's day in a world with nowhere to charge, on a pack the
   quadrupeds' world would send it charging on: the start, the explore, the

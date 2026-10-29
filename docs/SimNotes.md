@@ -6310,7 +6310,23 @@ each depth frame (3.6 s), where the quadruped's are the window its points
 land in (the humanoid's now too). With both, the same run made 126 plans
 and ran at 1.30x.
 
-SPEED_PLACEHOLDER
+**The speed**, interleaved on the dev box (one llvmpipe thread):
+
+| | real time |
+|---|---|
+| the humanoid pair served (`serve.py --pair --tasks --near-field --free-run`, the stream to a sink), 300 sim s of its day: explore, then stand by | 1.55x, 1.59x |
+| the quadruped pair served the same, its day the jobs it took (820 sim s) | 1.12x |
+| the humanoid pair on #507's walks (`humanoid_spike.py --speed`'s rows, 60 sim s), before the levers / with them | 1.42x, 1.42x / 1.57x, 1.56x |
+| the quadruped pair on the same walks | 1.27x |
+
+The served days are not the same work, the walks are: on them the humanoid
+pair runs 1.23 times the quadruped pair's speed. On the deploy box #507
+read the walks at 2.14x and 1.67x and the served quadruped pair at 1.40x
+(#385), so the humanoid pair would serve there at about 1.7x -- an
+estimate: the box was not flown for this (a throwaway container there is
+Ben's call). A served humanoid pair's process held 314 MiB, the
+quadruped pair's 712-719 (its cameras render tags as it walks), against
+the sim's 2 GiB `mem_limit`.
 
 **A restart.** The humanoid keeps what decides anything
 (`HumanoidMission.kept_state`): its three policies' drivers -- their steps,

@@ -703,7 +703,10 @@ class HubLifecycle:
     # the errand queue, because the coupling criterion has to be asked about
     # the tool actually on the fork -- and an errand that fetches nothing (a
     # lab act) names none, where the body would look up a body called "".
-    self.module = (errands[0].module if errands else "") or module
+    # ...and a world with no rack has none to watch (#559: the humanoid's
+    # house), where every read of it would ask after a tool it lacks.
+    self.module = (errands[0].module if errands else "") or (
+      module if module in self.rack_inventory else "")
     # The pack and the reserve are the WORLD's unless a caller names them:
     # its demo cell, and the return trip its floor plan measured.
     if battery_wh is None:
