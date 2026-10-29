@@ -203,6 +203,7 @@ class HumanoidMission(Navigator):
     self._frame: DepthFrame | None = None
     self._frame_t = -math.inf
     self._frame_used_t = -math.inf
+    self._frame_level = False
     self.low = np.zeros_like(self.grid.grid, dtype=np.float32)
     self._walls_t, self._walls_mask = None, None
     self._pressing = False
@@ -460,7 +461,8 @@ class HumanoidMission(Navigator):
     frame = None
     if self._frame is not None:
       f = self._frame
-      frame = {"t": self._frame_t, "used": self._frame_used_t, "self": f.self_fraction}
+      frame = {"t": self._frame_t, "used": self._frame_used_t, "self": f.self_fraction,
+               "level": self._frame_level}
       arrays.update(frameZ=f.z, framePoints=f.points, framePeers=f.peers,
                     framePeerGeoms=f.peer_geoms)
     o, trunk = self.odo, self.stand.trunk
@@ -532,6 +534,7 @@ class HumanoidMission(Navigator):
                                peers=arrays["framePeers"],
                                peer_geoms=np.asarray(arrays["framePeerGeoms"], dtype=np.int32))
       self._frame_t, self._frame_used_t = float(frame["t"]), float(frame["used"])
+      self._frame_level = bool(frame["level"])
     memo = state.get("memo")
     self._plan_memo = (None if memo is None else
                        (tuple(memo[0]), float(memo[1]), tuple(memo[2]),
@@ -611,25 +614,29 @@ class HumanoidMission(Navigator):
 
   def _look_step(self) -> None:
     """The depth camera, at its rate: what it sees under the LIDAR's plane
-    goes into the planner's layer, level and on its feet."""
-    frame = self.latest_depth()
-    if self._frame_t == self._frame_used_t or frame is None:
-      return
-    self._frame_used_t = self._frame_t
+    goes into the planner's layer, off a frame taken level and on its feet
+    -- and none is taken otherwise but for the loop's near field
+    (`latest_depth`): bowed for a reach, it renders nothing."""
     if self.legs == "getup" or not self.level():
       return
+    frame = self.latest_depth()
+    if frame is None or self._frame_t == self._frame_used_t or not self._frame_level:
+      return
+    self._frame_used_t = self._frame_t
     self._fold_low(frame.points)
 
   def latest_depth(self) -> DepthFrame | None:
     """The newest depth frame, levelled, taken now if the last is a period
     old: ONE render feeds the planner's layer, the near-field map and the
-    peer channel (`HumanoidBody.depth_camera`, #559), as the quadruped's."""
+    peer channel (`HumanoidBody.depth_camera`, #559), as the quadruped's.
+    ⚠ Only a frame taken level goes into the layer (`_frame_level`): one
+    the near field asked for bowed is no map's."""
     t = float(self.data.time)
     if t - self._frame_t >= DEPTH_PERIOD - 1e-9:
       self._frame_t = t
+      self._frame_level = self.legs != "getup" and self.level()
       raw = self.depth.frame(self.data) if self.head is None else self.head.frame
-      if raw is not None:
-        self._frame = self._levelled(raw)
+      self._frame = None if raw is None else self._levelled(raw)
     return self._frame
 
   def _levelled(self, frame: DepthFrame) -> DepthFrame:

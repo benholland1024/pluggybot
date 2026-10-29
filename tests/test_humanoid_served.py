@@ -34,13 +34,13 @@ def _house(pair: bool = False):
   return cfg, model, mujoco.MjData(model)
 
 
-def _humanoid() -> HubLifecycle:
+def _humanoid(near_field: bool = True) -> HubLifecycle:
   """One humanoid in its house, built and stood at the start."""
   cfg, model, data = _house()
   life = HubLifecycle(model, data, realtime=False, world=HUMANOID_HOME,
                       battery_wh=cfg["battery_wh"], rack=cfg["rack"],
                       grid_bounds=cfg["grid_bounds"],
-                      low_battery_wh=cfg["low_battery_wh"], near_field=True)
+                      low_battery_wh=cfg["low_battery_wh"], near_field=near_field)
   life.body.start_at(*cfg["start"])
   return life
 
@@ -204,6 +204,56 @@ def test_the_pair_drops_each_other_from_their_scans_and_shares_their_frames():
   finally:
     for life in lives:
       life.body.close()
+
+
+def test_a_bowed_humanoid_renders_nothing_for_its_layer_and_lays_no_frame_taken_so():
+  """Bowed (a reach's posture tilts the pelvis) it takes no depth frame for
+  its planner's layer, as before the near field shared them -- and a frame
+  the near field asked for then is never folded into the layer once it is
+  level again: a reading goes into a map only while the body is LEVEL."""
+  life = _humanoid(near_field=False)
+  m = life.body.mission
+  try:
+    renders = []
+    real = m.depth.frame
+    m.depth.frame = lambda d: renders.append(1) or real(d)
+    m.level = lambda: False
+    life.body.run(life.body.hold_routine(1.0))
+    assert renders == [], "rendered while bowed, with nothing asking"
+    assert m.latest_depth() is not None and renders == [1]   # the near field's ask
+    m.level = lambda: True
+    low = m.low.copy()
+    m._look_step()
+    assert np.array_equal(m.low, low), "folded a frame taken bowed"
+  finally:
+    life.body.close()
+
+
+def test_a_humanoids_true_death_forgets_its_plan_and_its_walls():
+  """`Body.forget_world` (#419) leaves nothing of the map behind: the plan
+  it held and the walls it grew, as the quadruped's."""
+  life = _humanoid()
+  m = life.body.mission
+  try:
+    m._plan_memo = ((1.0, 1.0), 0.0, (0.0, 0.0), [(1.0, 1.0)], None)
+    m._walls_t, m._walls_mask = 1.0, np.ones_like(m.grid.grid, dtype=bool)
+    life.body.forget_world()
+    assert m._plan_memo is None and m._walls_mask is None and m._walls_t is None
+  finally:
+    life.body.close()
+
+
+def test_a_humanoid_in_the_viewer_is_shown_and_paced():
+  """`two_robots.py --view`: the viewer and the pacing reach its walk
+  (`body_for`), or the window never moved and the day ran unpaced."""
+  from pluggybot.body import body_for
+  _, model, data = _house()
+  seen = object()
+  body = body_for(model, data, viewer=seen, realtime=True)
+  try:
+    assert body.mission.viewer is seen and body.mission.realtime
+  finally:
+    body.close()
 
 
 def test_a_humanoids_look_is_taken_from_its_head():

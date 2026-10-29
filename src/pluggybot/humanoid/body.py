@@ -172,13 +172,14 @@ class HumanoidBody(Body):
 
   def __init__(self, model, data, handle: RobotHandle = FIRST,
                policy: StandPolicy | None = None, walk: StandPolicy | None = None,
-               grid_bounds=(-3, -3, 7, 7)):
+               grid_bounds=(-3, -3, 7, 7), viewer=None, realtime: bool = False):
     self.handle = handle
     self._m, self._d = model, data
     self._policies = (policy, walk)
     self.root = model.body(handle.root).id
     self.mission = HumanoidMission(model, data, handle, stand=policy, walk=walk,
-                                   grid_bounds=grid_bounds)
+                                   grid_bounds=grid_bounds, viewer=viewer,
+                                   realtime=realtime)
     self._tags = None
     #: The tag its colour imager keeps reading while it moves (`watch`).
     self.mission.sight = TagWatch(model.opt.timestep, self._sighted)
@@ -946,8 +947,12 @@ class HumanoidBody(Body):
     return dict(m.counts) if m is not None else {}
 
   def forget_world(self) -> None:
-    self.mission.forget_map()
-    self.mission.low[:] = 0.0
+    """A true death (#419): the map, its layer, the walls it is kept off and
+    the plan it last made, gone, as the quadruped's."""
+    m = self.mission
+    m.forget_map()
+    m.low[:] = 0.0
+    m._walls_t, m._walls_mask, m._plan_memo = None, None, None
 
   def plan_frontier(self, blacklist):
     from pluggybot.behavior.navigation import plan
