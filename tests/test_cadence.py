@@ -295,7 +295,10 @@ def test_every_world_block_in_the_shipped_file_loads():
   assert doc["version"] == CADENCE_VERSION
   for world in ("", *doc["worlds"]):
     beat = default_cadence(world)
-    assert beat.kinds and all(name in KINDS for name in beat.kinds)
+    assert all(name in KINDS for name in beat.kinds)
+    # ...and every world offers something but the humanoids' house, whose
+    # jobs were the quadruped's tools' (#559: they come back by its hands)
+    assert beat.kinds or world == lc.HUMANOID_HOME, world
     assert beat.every_s > 0 and beat.max_offered <= beat.max_tasks
 
 

@@ -473,12 +473,13 @@ def test_the_depth_layer_is_what_the_lidar_cannot_see(quad_world):
 
 def test_a_replan_from_the_same_spot_is_the_last_plan(quad_world, monkeypatch):
   """At a stand-in the waypoints ran out where the robot stood, and the
-  drive replanned every step: 4 190 plans in 90 s of a pair (#387)."""
+  drive replanned every step: 4 190 plans in 90 s of a pair (#387). The
+  memo is the Navigator's (#559), around the planner proper, `_plan_near`."""
   body = quad(quad_world)
   try:
     calls = []
-    real = nav.Navigator._plan_to
-    monkeypatch.setattr(nav.Navigator, "_plan_to",
+    real = nav.Navigator._plan_near
+    monkeypatch.setattr(nav.Navigator, "_plan_near",
                         lambda self, x, y: calls.append(1) or real(self, x, y))
     m = body.mission
     m.start_at(1.5, 0.5, 0.0)
