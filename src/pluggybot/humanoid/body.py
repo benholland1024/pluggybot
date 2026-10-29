@@ -185,8 +185,10 @@ class HumanoidBody(Body):
     #: A watcher's own joint sense and model of itself (`hand_watched`), and
     #: its own depth camera (`depth_watched`).
     self._watch = self._depth_watch = None
-    self.geom_ids = frozenset(g for g in range(model.ngeom)
-                              if self._under_root(int(model.geom_bodyid[g])))
+    #: ...an array, as the loop indexes it (#559: a frozenset broke a pair's
+    #: restore, `HubLifecycle.unclip`, and the near field's robots lying down)
+    self.geom_ids = np.array([g for g in range(model.ngeom)
+                              if self._under_root(int(model.geom_bodyid[g]))], dtype=np.int32)
     # The members a standing body answers plainly.
     self.places = None
     self.rack = self.rack_prior = None

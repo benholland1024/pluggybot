@@ -228,4 +228,5 @@ def test_the_loop_with_no_mind_goes_to_no_charger_however_low_the_pack():
     life.battery.energy_wh = 1.0
     summary = life.run(start=(0.5, 3.0, 0.0), max_sim_time=60.0)
     assert summary["charge_cycles"] == trips, world
+  assert not summary["stranded"] and summary["deaths"] == [], "sent to no charger, and stranded"
   assert summary["module_stowed"] is None, "nothing carried, in a world with no rack"
