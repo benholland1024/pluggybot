@@ -7711,7 +7711,9 @@ def world_facts(world: str, game: bool = False, answer: str = ""):
   A two-role game's program (`game`, issue #404) may name the game's verbs
   too, `hide` and `seek`, which no procedure the robot writes may; and a
   question's errand (`answer`, `figure_program`'s `answer:<digits>`, issue
-  #406) the figure its claim froze, which no procedure may either."""
+  #406) the figure its claim froze, which no procedure may either. A
+  humanoid's world is its hands' and its walks' (`steps.served_hand_facts`,
+  #559), every one of its practice's switches on."""
   from pluggybot.procedure import axes
   from pluggybot.procedure.steps import (BODY_VERBS, CLAW_VERBS, DRAW_FIGURES,
                                          DRAW_VERBS, GAME_VERB_NAMES, PLACE_VERBS,
@@ -7721,6 +7723,10 @@ def world_facts(world: str, game: bool = False, answer: str = ""):
   boards: tuple = ()
   if cfg["meta"]:
     boards = tuple(json.loads(Path(cfg["meta"]).read_text())["boards"])
+  if cfg["body"] == "humanoid":
+    # ...its hands, as its practice has them, and its walks (#559, stage 3)
+    from pluggybot.procedure.steps import served_hand_facts
+    return served_hand_facts(boards=boards, bounds=cfg["grid_bounds"])
   swaps = cfg.get("swap", False)
   bays = cfg.get("tool_bays") or {}
   places = tuple(int(t) for t in cfg.get("places") or ())
@@ -8233,7 +8239,7 @@ def run_demo(start=None, view: bool = False,
   # from this one the moment either wrote a line.
   # ...living by the named constitution (issue #263): the flag, else
   # `$PLUGGY_CONSTITUTION`, else the library's default.
-  memory = ThoughtFiles.open(thoughts_root, constitution=constitution)
+  memory = ThoughtFiles.open(thoughts_root, constitution=constitution, body=cfg["body"])
   # What the week's thinking may cost, and what it has (issue #37). World
   # state on exactly the terms the ledger is: a weekly allowance that reset
   # whenever the container cycled would be a weekly allowance in name only,

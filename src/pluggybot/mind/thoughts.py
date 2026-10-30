@@ -332,14 +332,16 @@ class ThoughtFiles:
   def open(cls, root: str | os.PathLike | None = None,
            robot: str = ROBOT_ROOT,
            constitution: Constitution | str | None = None,
-           constitution_env: str = constitutions.NAME_ENV) -> "ThoughtFiles":
+           constitution_env: str = constitutions.NAME_ENV,
+           body: str = "quadruped") -> "ThoughtFiles":
     """The deploy shape: an explicit root, else the environment, else
-    memory; and the constitution likewise -- a `Constitution`, a name, else
+    memory; and the constitution likewise -- a `Constitution`, else a name,
     `$PLUGGY_CONSTITUTION` (`constitution_env` is the SECOND robot's
-    variable in a pair), else the library's default."""
+    variable in a pair) or the library's default, in `body`'s words
+    (`constitution.for_body`)."""
     root = root or os.environ.get(ROOT_ENV, "").strip() or None
     if not isinstance(constitution, Constitution):
-      constitution = constitutions.resolve(constitution, env=constitution_env)
+      constitution = constitutions.resolve(constitution, env=constitution_env, body=body)
     return cls(root, robot=robot, constitution=constitution)
 
   # ---- starting ---------------------------------------------------------------
