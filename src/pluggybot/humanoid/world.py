@@ -13,12 +13,15 @@ a humanoid has nowhere to charge, and a served one flies the real pack
 `qpos[0]`: everything reads a robot's joints by name (`RobotHandle`).
 """
 
+import math
+
 import mujoco
 
 from pluggybot.humanoid import model as hm
 from pluggybot.humanoid import parts as hp
 from pluggybot.legs import world as lw
 from pluggybot.robot import CHASSIS_RGBA, SECOND_CHASSIS_RGBA, paint
+from pluggybot.telemetry.protocol import ROBOT_ROOT
 
 #: The house the humanoids move into.
 HOME_XML = lw.HOME_XML
@@ -57,6 +60,17 @@ def _attach_humanoid(spec: mujoco.MjSpec, pos, prefix: str, rgba, bits=None) -> 
   spec.attach(robot, prefix=prefix, frame=frame)
 
 
+def station_pose() -> tuple[float, float, float]:
+  """The charging station's frame in the world, (x, y, yaw rad): its face on
+  the living room's south wall where the quadrupeds' dock lies (x 3.5), +x
+  into the wall (`activity.station`'s frame). The COMMISSIONED pose, which
+  a robot at it fixes its belief to."""
+  from pluggybot.activity import station as st
+  from pluggybot.home import world as home
+  wall = home.HOUSE_Y[0] + home.WALL_HALF_T          # the wall's inner face
+  return 3.5, wall + st.BOX_DEPTH_M, -math.pi / 2
+
+
 def home_spec(first_at=(1.5, 0.5), second_at=None, second_prefix: str = "r2_",
               second_rgba=SECOND_CHASSIS_RGBA, path: str = HOME_XML) -> mujoco.MjSpec:
   """The home world's SPEC with a humanoid at `first_at` and, optionally, a
@@ -73,5 +87,8 @@ def home_spec(first_at=(1.5, 0.5), second_at=None, second_prefix: str = "r2_",
   lw._attach_signs(spec)
   lw._attach_board_tags(spec)
   lw._attach_area_tags(spec)
+  from pluggybot.activity.station import attach_station
+  attach_station(spec, station_pose(), roots=(ROBOT_ROOT,) + ((second_prefix + ROBOT_ROOT,)
+                                                               if pair else ()))
   spec.visual.map.znear = NEAR_M / spec.stat.extent
   return spec

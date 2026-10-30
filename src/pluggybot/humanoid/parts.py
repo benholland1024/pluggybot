@@ -436,6 +436,18 @@ D435_KG = _catalog_kg("quad_realsense_d435")
 CAMERA_KG = _catalog_kg("pi_camera_3")
 
 
+#: The charge port on the torso's front (#559 stage 2): Rosenberger's RoPD
+#: panel plug, the C003-B1 (25 A on 2.5 mm^2, 60 V DC, two power contacts and
+#: four signal), by its sheet (C003-B1-XXX-Y_DB.pdf): 15 g, a 28.5 mm square
+#: flange on M3 non-magnetic screws, 18.8 mm deep behind a 25 mm cut-out.
+#: The flange's thickness, which stands proud of the torso, is unpublished:
+#: 2 mm. ⚠ It is not hot-pluggable: power only once its signal pins are
+#: mated, so the station's charger runs off them (`activity.station`).
+PORT_KG = 0.015
+#: Its flange, m: (proud of the torso, across).
+PORT_FLANGE = (0.002, 0.0285)
+
+
 @dataclass(frozen=True)
 class Lidar:
   radius: float

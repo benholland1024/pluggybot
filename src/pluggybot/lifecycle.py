@@ -7020,8 +7020,12 @@ def home_activities(model, data):
   lab = next(z for z in home.ZONES if z["name"] == "lab")
   # The mouse (issue #226): seen from inside the lab's own rectangle, the
   # room a camera there would see it from.
-  return ActivitySet([PlateLight(model, data),
-                      Cage(model, data, room=(tuple(lab["min"]), tuple(lab["max"])))])
+  acts = [PlateLight(model, data), Cage(model, data, room=(tuple(lab["min"]), tuple(lab["max"])))]
+  # ...and the humanoids' charging station, where the world has one (#559)
+  if any(model.body(b).name == "station" for b in range(model.nbody)):
+    from pluggybot.activity.station import Station
+    acts.append(Station(model, data))
+  return ActivitySet(acts)
 
 
 def board_book(world: str, state: str | None = None):
