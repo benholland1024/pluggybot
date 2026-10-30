@@ -884,7 +884,8 @@ def body_for(model, data, handle: RobotHandle = FIRST, **kw) -> Body:
   if is_humanoid(model, handle):
     from pluggybot.humanoid.body import HumanoidBody
     return HumanoidBody(model, data, handle=handle,
-                        **{k: v for k, v in kw.items() if k in ("grid_bounds", "policy", "walk")})
+                        **{k: v for k, v in kw.items()
+                           if k in ("grid_bounds", "policy", "walk", "viewer", "realtime")})
   raise ValueError(f"no body under {handle.root!r} in this world: the quadruped "
                    "and the humanoid are the bodies (the rover left in #376)")
 

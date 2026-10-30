@@ -240,9 +240,11 @@ class Verb:
 
 
 def _rack(life) -> dict[str, int]:
-  """Which module hangs where: the lifecycle's inventory, or the rack's own
-  where there is none."""
-  return getattr(life, "rack_inventory", None) or TOOL_BAYS
+  """Which module hangs where: the lifecycle's inventory -- empty in a world
+  with no rack (the humanoid's, #559) -- or the rack's own where there is
+  none."""
+  inventory = getattr(life, "rack_inventory", None)
+  return TOOL_BAYS if inventory is None else inventory
 
 
 def _tool_station(life, tool: str) -> float:

@@ -497,7 +497,7 @@ bench rig are that bill's and are not bought twice. Not in
 `protocol/parts.json` until the humanoid is served.
 
 <!-- humanoid bom: rendered by `uv run python -m pluggybot.humanoid.bill` from humanoid/bill.py's LINES; edit those, not this -->
-Prices and lead times read 2026-10-16 (the parts shared with the quadruped's bill: 2026-09-28); € incl. 19% VAT; $1 = €0.8770 (ECB, 2026-09-25).
+Prices and lead times read 2026-10-16, the charging lines 2026-10-30 (the parts shared with the quadruped's bill: 2026-09-28); € incl. 19% VAT; $1 = €0.8770 (ECB, 2026-09-25).
 
 | part | qty | € each | € line | lead time | feeds |
 |---|---|---|---|---|---|
@@ -555,6 +555,12 @@ Prices and lead times read 2026-10-16 (the parts shared with the quadruped's bil
 | [Mean Well DDR-30L-12 DC-DC converter, 18-75 V in, 12 V 2.5 A, isolated (DIN rail)](https://www.reichelt.com/de/en/shop/product/dc_dc_converter_30w_12v_2_5a-256735) `DDR-30L-12` | 1 | 27.10 | 27.10 | in stock, 1-2 business days (Reichelt) | — |
 | [Arcol HS25 wirewound resistor, 47 Ω, 25 W, aluminium housing](https://www.reichelt.com/de/en/shop/product/wirewound_resistor_axial_25_w_47_ohm_1_-233471) `HS25 47R F` | 1 | 2.99 | 2.99 | in stock, 1-2 business days (Reichelt) | — |
 | [Hongfa HF115F relay, 12 V coil, 16 A changeover](https://www.reichelt.com/de/en/shop/product/miniature_power_relay_12_v_dc_16_a_1_changeover_contact-260113) `HF115F-012-1ZS3A` | 1 | 3.10 | 3.10 | in stock, 1-2 business days (Reichelt) | — |
+| **charging** | | | **370.87** | | |
+| [Rosenberger RoPD panel plug, C003-B1 (magnetic, 60 V DC, 25 A): the charge port on the torso's front](https://products.rosenberger.com/_ocassets/db/C003-B1-XXX-Y_DB.pdf) | 1 | allowance | 40.00 | unknown: Rosenberger sells in lots (Rodantech: 150); none quoted | `humanoid.parts.PORT_KG`, `activity.station.BREAK_N` |
+| The charge port's funnel, printed in PETG: 70 mm across its mouth, 15 mm deep | 1 | allowance | 1.00 | unknown: printed | `humanoid.parts.PORT_FUNNEL` |
+| [Rosenberger RoPD cable jack, C003-03 (25 A), on Rosenberger's C003 cable: the station's plug](https://products.rosenberger.com/_ocassets/db/C003-03-XXX-Y_DB.pdf) | 1 | allowance | 45.00 | 6 weeks (Powell) | `activity.station.JACK_LEN_M`, `activity.station.PLUG_R_M` |
+| [Mean Well NPB-750-48 charger (42-80 V CV, 11.3 A CC, 93 %): the station's](https://www.meanwell.com/Upload/PDF/NPB-750/NPB-750-SPEC.PDF) `NPB-750-48` | 1 | 164.87 | 164.87 | unknown: RS Belgium gives none; Jameco 14 weeks | `activity.station.CHARGE_A` |
+| [Tecna 9300 tool balancer (0.2-0.5 kg, 1.6 m stroke): draws the plug home](https://www.westermans.com/assets/products/18927/files/8886/dcb0000002_rev.04_v2_generale-bilanciatori_en_09-2021r-1.pdf) `9300` | 1 | allowance | 120.00 | unknown: none quoted | `activity.station.BALANCER_N` |
 | **spares** | | | **931.98** | | |
 | [RobStride RS04 joint actuator (9:1 planetary, FOC driver, CAN, MIT mode), 48 V](https://openelab.io/products/robstride04-qdd-120n-m-integrated-joint-motor-module) `RS04` | 2 | 254.75 | 509.50 | pre-order where none is in local stock; ships from Shenzhen (OpenELAB's terms) | `left_hip_pitch.forcerange`, `left_hip_pitch.armature`, `humanoid.parts.RS04.rated_torque`, +2 |
 | [RobStride RS03 joint actuator (9:1 planetary, FOC driver, CAN, MIT mode), 48 V](https://openelab.io/products/robstride03-qdd-60n-m-integrated-joint-motor-module) `RS03` | 1 | 215.95 | 215.95 | pre-order where none is in local stock; ships from Shenzhen (OpenELAB's terms) | `left_hip_yaw.forcerange`, `left_hip_yaw.armature`, `humanoid.parts.RS03.rated_torque`, +2 |
@@ -564,10 +570,10 @@ Prices and lead times read 2026-10-16 (the parts shared with the quadruped's bil
 
 | | € | $ |
 |---|---|---|
-| priced lines | 9,235.83 | |
-| allowances (nothing designed yet) | 2,410.01 | |
-| contingency, 15% | 1,746.88 | |
-| **total** | **13,392.72** | **15,271.72** |
+| priced lines | 9,400.70 | |
+| allowances (nothing designed yet) | 2,616.01 | |
+| contingency, 15% | 1,802.51 | |
+| **total** | **13,819.22** | **15,758.06** |
 
 **The allowances**, each a sum set aside, never a price:
 - **A USB to RS-485 adapter that runs at the grippers' 6 Mbps** (grippers), €30.00: an FTDI-class USB to RS-485 adapter good for 6 Mbps; none chosen
@@ -578,6 +584,10 @@ Prices and lead times read 2026-10-16 (the parts shared with the quadruped's bil
 - **The upper arms and forearms: 40 x 2 and 35 x 2 mm 6082 round tube, cut to length** (frame), €40.00: 0.8 m of 6082 round tube in two sizes, cut to length; not priced for this bill
 - **The ankles' parallelogram rods: 8 x 1.5 mm tube, an M5 rod end at each end** (frame), €20.00: two 0.34 m rods cut from 8 mm tube and threaded M5 at each end
 - **The plates the grippers bolt to on the wrists' roll, 6 mm 6082** (frame), €66.67: two machined plates at the quadruped's bill's rate a part, drawn when the gripper's flange is known (Unitree does not publish it)
+- **Rosenberger RoPD panel plug, C003-B1 (magnetic, 60 V DC, 25 A): the charge port on the torso's front** (charging), €40.00: the cable jack's listed $43.58
+- **The charge port's funnel, printed in PETG: 70 mm across its mouth, 15 mm deep** (charging), €1.00: 25 g of PETG
+- **Rosenberger RoPD cable jack, C003-03 (25 A), on Rosenberger's C003 cable: the station's plug** (charging), €45.00: $43.58 at Powell
+- **Tecna 9300 tool balancer (0.2-0.5 kg, 1.6 m stroke): draws the plug home** (charging), €120.00: a light tool balancer; none quoted
 <!-- /humanoid bom -->
 
 ---

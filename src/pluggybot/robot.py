@@ -87,18 +87,23 @@ def pair_model_name(model_name: str) -> str:
 
 
 #: The bodies a world's robots may have (`world_config`'s `body`): the
-#: quadruped (issue #387), since the rover was deleted (#376).
-BODIES = ("quadruped",)
+#: quadruped (issue #387), since the rover was deleted (#376), and the
+#: humanoid (#507), served in the house since #559.
+BODIES = ("quadruped", "humanoid")
 
 
 def world_spec(path: str, second_at=None, prefix: str = SECOND_PREFIX,
                chassis_rgba=SECOND_CHASSIS_RGBA,
                body: str = "quadruped") -> mujoco.MjSpec:
-  """A world's SPEC with the quadruped and its dock put in, and optionally a
-  second robot at `second_at` in its own livery (`legs.world.home_spec`):
-  the world builder, compiled by its callers."""
+  """A world's SPEC with its robot put in -- the quadruped with its dock and
+  rack (`legs.world.home_spec`), or the humanoid (`humanoid.world.home_spec`,
+  #559) -- and optionally a second at `second_at` in its own livery: the
+  world builder, compiled by its callers."""
   if body not in BODIES:
     raise ValueError(f"unknown body {body!r} ({' or '.join(BODIES)})")
-  from pluggybot.legs.world import home_spec
+  if body == "humanoid":
+    from pluggybot.humanoid.world import home_spec
+  else:
+    from pluggybot.legs.world import home_spec
   return home_spec(second_at=second_at, second_prefix=prefix,
                    second_rgba=chassis_rgba, path=path)

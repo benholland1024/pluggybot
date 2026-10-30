@@ -6256,12 +6256,300 @@ planning a sim second a robot.
 **What is true now:** `MAX_CELLS` is 1,876,800, four times the house's
 grid and the largest size measured: there the served quadruped pair walks
 at 0.95 of today's speed, a plan across the whole grid takes 177 ms, a
-robot holds 27 MB of map and a process 81 MB of lattice. The levers, if
-the world must grow past it or the humanoid serve in one this size: the
-humanoid's walls in the quadruped's window (exact for every cell its layer
-reads); no replan for an arrival a plan cannot change; the update into the
-cells it touches; a plan's costs and weights within its search's limit;
-the explore's leg on the lattice.
+robot holds 27 MB of map and a process 81 MB of lattice. The humanoid's
+two are the quadruped's now (#559, "The humanoid pair served"): its walls
+in the camera's window, and a plan asked for again within half a second
+from where the last was made held. The levers left, if the world must grow
+past it: the update into the cells it touches; a plan's costs and weights
+within its search's limit; the explore's leg on the lattice.
+
+## The humanoid pair served (issue #559, stage 1)
+
+The humanoids replace the quadrupeds in the live world (#559, Ben's
+decision). Stage 1 serves them in today's house and measures it, without
+deploying: `serve.py --pair --body humanoid` (`$PLUGGY_BODY=humanoid`)
+streams `home_humanoid_pair`. Every number is the dev box's (an i5-9600KF,
+six cores, a browser and an editor beside it) unless it says otherwise.
+
+![The humanoid pair's day: Luca and Rowan exploring the house on their own
+legs, each from above and behind every 40 s
+(`two_robots.py --world home_humanoid --fast --strip --strip-every 40`)](figures/humanoid_pair_day.png)
+
+**The world** (`humanoid/world.py`): the house built at load from the
+generator's file, as `legs/world.py` builds the quadrupeds', with the
+house's own fixtures -- the lab's plate signs, the whiteboards' tags, the
+task areas' tags -- and none of the quadruped's: no dock, no rack, no tools,
+and so no job (its `cadence.json` block is empty; each comes back as a task
+the hands learn, stage 3 and #560). The pair meets each other's bodies and
+never its own (`PAIR_BITS`, as the quadrupeds'), the second in its livery.
+It has nowhere to charge until its cable's station (stage 2): a charge it
+chooses ends at once, said in History, nothing sends it to one, and an
+empty pack is the `flat` death. On its real pack (778 Wh) that is hours
+away: its explore draws 166.4 W (11.745 Wh over 254 s, `energy_spike.py
+--world home_humanoid`), the quadruped's 86.9 twice over, so a full pack
+explores for 4.7 h.
+
+**What the loop took.** The lifecycle had never run a humanoid's day, and
+its first flights met six things that were the quadruped's: the day began
+by watching for the rack's tag (`Body.start_discovery`); the near field and
+the peer channel read a depth camera the humanoid did not share
+(`Body.depth_camera`: now the frames its walk lays its layer from, at its
+camera's 5 Hz); each robot mapped the other (`Body.know_peer` did nothing:
+painted into the map, a robot walked past walls in the one that passed it);
+the day's summary asked after a tool; a restored pair indexed the
+humanoid's geoms as an array, which were a set; and a mind's first
+`other_needs` (#208) asked what was on the other's fork, the loop watching
+the quadruped's LCD in a world with no rack (`HubLifecycle.module` is ""
+there). Each answers plainly now (`tests/test_humanoid_served.py`).
+
+**#558's two levers.** Over 100 sim s of the pair exploring (cProfile on)
+the walk made 3,115 plans, 23 ms each, 71 s of the run's 155 -- the pair at
+0.65x real time. It replanned every physics step once its waypoints ran out
+short of the goal, which the quadruped had stopped by holding a plan asked
+for again within half a second and 5 cm (`REPLAN_HOLD_S`, the Navigator's
+now and both bodies' -- but a plan the drive drops because the world moved,
+another robot fallen, lain down or up again or a hold standing it still, is
+made afresh); and its camera's walls were the whole grid dilated
+each depth frame (3.6 s), where the quadruped's are the window its points
+land in (the humanoid's now too). With both, the same run made 126 plans
+and ran at 1.30x.
+
+**The speed**, interleaved on the dev box (one llvmpipe thread):
+
+| | real time |
+|---|---|
+| the humanoid pair served (`serve.py --pair --tasks --near-field --free-run`, the stream to a sink), 300 sim s of its day: explore, then stand by | 1.55x, 1.59x |
+| the quadruped pair served the same, its day the jobs it took (820 sim s) | 1.12x |
+| the humanoid pair on #507's walks (`humanoid_spike.py --speed`'s rows, 60 sim s), before the levers / with them | 1.42x, 1.42x / 1.57x, 1.56x |
+| the quadruped pair on the same walks | 1.27x |
+
+The served days are not the same work, the walks are: on them the humanoid
+pair runs 1.23 times the quadruped pair's speed. On the deploy box #507
+read the walks at 2.14x and 1.67x and the served quadruped pair at 1.40x
+(#385), so the humanoid pair would serve there at about 1.7x -- an
+estimate: the box was not flown for this (a throwaway container there is
+Ben's call). A served humanoid pair's process held 314 MiB, the
+quadruped pair's 712-719 (its cameras render tags as it walks), against
+the sim's 2 GiB `mem_limit`.
+
+**A restart.** The humanoid keeps what decides anything
+(`HumanoidMission.kept_state`): its three policies' drivers -- their steps,
+targets and last actions, and the gains they set in the MODEL, which a
+restart compiles fresh -- its IMU's filter and its joints' and grippers'
+noise, its reach, its reckoning with its planted foot, its map, the
+camera's layer and the walls it is kept off, the scan matcher and its
+clocks. Saved at the day loop's first pass and carried on in a new process,
+its day was IDENTICAL through its whole explore (`determinism_spike.py
+--world home_humanoid --resume-at 5`: 508 state samples to t = 260 s). ⚠ A
+test saving on a step every controller's period divides read a fresh reach
+as a kept one: 685 steps are the reach's 5 and the policies' 10 alike, so
+the parity tests save on 687. Never saved with a hand out (`Body.working`):
+a hand's move is a routine's. The walker that sees the ground (not served)
+keeps no scan, and starts its ground anew as after a fall.
+
+**The change of body.** Luca and Rowan keep who they are: a save of the
+quadrupeds' house carries on in the humanoids' as a changed world does --
+the clock, the deaths and the jobs, never the bodies or the maps -- and the
+pack at the share it was saved at (`capacityWh`; a save from before it is
+on the quadruped's served pack): a quadruped at 40 % of 194 Wh wakes a
+humanoid at 40 % of 778. History says "the world restarted and could not
+put me back where I was (I have a new body since then)". The share is the
+change of body's alone: the same body on another pack keeps its watt-hours.
+A job held there that this house cannot do -- each of the quadrupeds' --
+is back on offer and said in History (`_resume_jobs`); in review the
+mouse's crashed the restart, and a challenge's stayed held with nothing
+here to grade it.
+
+**What its head does not see.** The garden light's pole is 4 cm wide and
+0.9 m tall, under the humanoid's LIDAR (1.41 m up; the quadruped's, at
+0.51 m, maps it). On the first minded day Rowan walked into it and stood
+against it for the rest of the run, every walk after "stalled" where it
+stood. Its depth camera saw the pole well -- 80 to 105 points a frame from
+1 m -- but the pole fills part of its 5 cm cell and the floor round it the
+rest, and each floor point voted the cell down: from 1 m off the layer
+read -0.4 to -1.0 there, from 1.5 m it took 7 frames to mark it, and past
+1.8 m the layer does not reach. A cell a frame's points hit is no floor in
+that frame now (`HumanoidMission._fold_low`; the quadruped's rule as it
+was): from 1 m and from 1.5 m the pole is in the layer at the third frame,
+0.6 s, and #507's walk scene flies the same to the centimetre.
+
+**Falls and deaths in the loop** (`determinism_spike.py --pair --world
+home_humanoid --fall-at 40 --drain-at 120 --restart-after 30`, the pair's
+day flown twice: IDENTICAL over 508 state samples, through both deaths and
+both stand-ups). Laid on its side where it stood (`pair.arrange_hazards`)
+Rowan rose part way, fell back with its head at a wall and lay there: the
+`stuck` death 20 s on (`GETUP_BUDGET_S`), stood up by the world 30 s after
+that. Emptied at t = 120 s, it died `flat` and was stood up on a full
+pack. Laid down on open floor (1.6 m clear all round) it was up 5 s later
+and walked on with its explore. The get-up trained on open floor alone
+(#507): a fall against a wall is still a death.
+
+**A minded day** (the deployed arm and model: `--arm autonomous --origin
+unseeded`, `zai-org/GLM-5.3-Flash:cheapest`; 1,207 sim s in two runs, the
+first ended by SIGTERM at 626 s as a deploy ends one, the second carried on
+from its save at 1.34x and 1.63x real time). No death, no fall and no
+charge asked for, the pack at 95 % at the end. Both minds wrote their event
+maps first, split the rooms between them and told each other where they
+were going; after the restart Luca said "the world restarted under me but I
+picked up where I left off". Of their walks, 7 arrived and 1 ended in its
+zone short of its middle, and 8 gave up with the other robot in the way:
+from t = 720 s on the pair stood at the living room's garden door, each
+walk of each giving up after 10 s 1.2 m from the other, the minds trying
+one room after another through the same door. A robot in another's way is
+asked to make way only while it RESTS (#415, `Navigator._ask_way`): a
+quadruped lies down to rest by reflex, and a humanoid stood and never
+rested, so two standing robots waited on each other (it rests standing
+now, below). A mind also asked visitors where "the
+charging dock" is (and on an earlier flight one wrote a procedure to push
+on "turning if my bumper hits"): the prompt and the constitutions still
+describe the quadruped's body and world (stage 3 rewrites them).
+
+**Making way, standing** (`humanoid/way.py`). A humanoid rests STANDING
+now -- no motion command for the quadruped's reflex's 8.6 s, no walk of its
+own, no hand out, on its feet -- and resting across the other's way it is
+asked aside as #415's quadruped is, by the same rule and walk to the same
+spot (`MakeWay`, both bodies', each saying its own in hooks) beneath
+whatever routine holds it still, its legs handed to the walker where it
+rests once its posture is the stand's (a bow left held is no stance to walk
+from); a routine that takes the legs for the standing policy ends it. Two
+things took it. Its front stop,
+re-armed by every scan while it rests in a doorway, ended the quadruped's
+step before it began, at 3 doors of 6: a humanoid's backs it off and plans
+again, as a walk does. And the asker's way past it (`_route_past`, "the
+planner's own, unremembered") answered the plan the drive had just made
+with that robot in the door, None, once the plan memo was the Navigator's
+(#558's lever, above): nobody of either body was asked at all. A robot
+resting in each of six doors of the house and the other walking through
+(`make_way_spike.py --near-field`, true-floor maps):
+
+| | arrived | the step aside |
+|---|---|---|
+| the humanoid pair, nobody asking (`--before`) | 1 of 7 | -- |
+| the humanoid pair | 7 of 7 | 0.78-0.89 m in 2.8-5.7 s |
+| the quadruped pair, the same doors | 7 of 7 | 0.82-1.02 m in 2.6-8.9 s |
+
+(the seventh scene is the 3 m hall's middle, where nobody is asked.)
+
+A minded day with it (949 sim s, the deployed arm and model, from nothing):
+no walk gave up with the other robot in the way, where the day before it
+8 had; the pair did not meet in a doorway, so nobody was asked.
+
+**Its belief drifts on a long explore.** After a 240 s explore of the
+whole house the humanoids' beliefs were 0.2 to 0.7 m off the truth (dev box,
+scripted pair days, before and after every change here). The quadruped's
+belief is fixed at its dock and its rack by their commissioned tags (#476);
+the humanoid has no fixture until its charging stations, which will be
+(stage 2). A map laid through a belief that far
+off lays the camera's points beside the LIDAR's walls of another moment:
+in one minded day Luca's layer held 29 cells across the living room's hall
+door, 12-17 cm off the wall's line, and three walks to the kitchen gave up
+"no route". It is the next thing to look at before deploying, with the
+reported pose the other robot is kept clear of.
+
+**What is not yet.** `look` asks the site for a picture from the head's
+camera (`nav_eye`, 1.3 m up, facing where it faces), and the site draws the
+pair in stage 4. The death seam calls a robot down at 60 deg of its
+pelvis's tilt (`TOPPLE_TILT_RAD`), and a reach's deepest bow is 63 deg:
+nothing bows in the served world until the hands come in (stage 3).
+
+
+## The humanoid's charging station (issue #559, stage 2)
+
+**What is true now.** A humanoid charges standing, by a cable it plugs into
+itself (Ben's call 1). Its station is a box on the living room's south wall
+where the quadrupeds' dock lies (`humanoid.world.station_pose`), holding a
+plug on a tool balancer's rope; the port is on its torso's front, 0.90 m up
+and 7.5 cm right of its middle (Ben, 2026-10-30). Both are built and flown
+from the robot's own senses: the station off its two tags, the port off its
+model of itself, a mated connector off its pack's current (`Body.charging`).
+The routine is ours, never one it learns (`humanoid/charge.py`); the
+station is an activity (`activity/station.py`); the parts are in Parts.md.
+
+**Why the port is where it is.** The call said "where a hand reaches and the
+head camera sees". No point of the trunk is in any head camera's view, bowed
+or not -- they ride the trunk, the nearest point 21-46 deg past each one's
+edge -- so the port is where a hand reaches: an IK sweep of the robot's
+model of itself found a straight carry into a forward port right of the
+middle 17-26 cm long with the arm 26-57 mm clear of the trunk, standing.
+(`mj_geomDistance` read 0 for two boxes 10 cm apart: box clearances are
+taken off their surface points.)
+
+**The parts.** Rosenberger's RoPD -- the e-bike charging connector:
+magnetic, 60 V, 25 A, pulled off past its sheets' minimum 20 N, NOT
+hot-pluggable (the charger runs off its signal pins) -- a panel plug in a
+printed funnel on the robot and a cable jack at the station; a Mean Well
+NPB-750-48 at 10 A, its CV set to 50.4 V; a Tecna 9300 tool balancer, its
+least pull 2.0 N, drawing the plug's back home into a cup whenever nothing
+holds it (Ben, 2026-10-30). No spring cable reel pulls lightly enough: the
+smallest, 13-36 N, would pull the plug off the robot.
+
+**Two catches are the activity**, each a weld taken where the plug is and
+drawn to its seat (`PULL_IN_S`), off past its force: the PORT (20 N off its
+face or across it) and the CUP (4 N straight out of it; its walls take a load
+across it). What flying took, each at its constant:
+
+- the plug's frame at its face and the welds at solref 0.004: at 0.02 a 50 g
+  plug drooped 8 deg about its seat (MuJoCo's soft constraints are stiff in
+  ACCELERATION, and a small inertia is little to hold);
+- the cup a catch, never a socket: held by contact alone the plug rattled
+  (0.1 m/s, 6.7 deg) and, after a breakaway, swung under the box and lodged
+  inside it;
+- the plug's swing damped (its cable's drag, 0.5 N s/m) and its spin apart
+  (0.02): one value for the free joint's six axes, 0.5, made its spin grow
+  four times a step until MuJoCo reset the world;
+- its inertia its first 0.3 m of cable's: the bare jack's, pinched between
+  the pads, threw its rotation off in a step;
+- a catch takes only a plug NO GRIPPER PAD HOLDS: held stiffly off the
+  middle, the port fought the hand past 20 N and let go again and again, and
+  the cup, catching a plug the hand was still carrying, let go and never
+  took it back (3 unplugs in 10 left it unparked; 11 of 11 after);
+- the port re-arms only beyond the funnel's reach (re-armed inside it, the
+  unplug's pull was caught again every step, 30 times, and the plug never
+  came free).
+
+**The plug-in.** The hand takes the plug's line 10 cm short of the parked
+plug's grip -- fingers to the robot's left, jaws upright -- slides its open
+jaws over the plug along its axis (in from its side, the arm's swing read
+35-49 N it was not feeling and stopped short), grips it 40 mm behind its
+face (at the jack's middle the gripper's housing met the belly with the plug
+17 mm off its port), draws it out against the balancer, turns it to the port
+and pushes it to the body with 10 N, and LETS GO in the funnel. Pushed to
+the body, plugs landed 12-33 mm across the port and 7-10 mm low: the hand
+knows where it holds one to 1-2 cm (its encoders and backlash, and the plug
+free along the Dex1-1's 80 mm pads), so the funnel round the port is 70 mm
+across -- as wide as the housing, 40 mm off the plug's axis, clears -- and
+takes a plug anywhere in its mouth (⚠ the funnel is the catch's, as the cup
+is: drawn, never touched). A miss is fetched again from the cup and pushed a
+step to one side. The walk in: from the standoff, 0.75 m off (past 1.07 m
+the tags leave the colour camera's view, which looks no higher than 19 deg
+under level), facing the cup (facing the station's own heading from 0.2 m
+aside put the far tag out of view), it fits the station and steps to the
+seat as it sees it, 0.35 m off; within 6 cm and 6 deg, but never more than
+3 cm nearer the station (4.9 cm in, its hand swung into the box). Its walker
+barely backs up -- 4 cm in 3 s asked 0.25 m/s -- so an undock turns away.
+
+**The unplug.** The open jaws slide along the seated plug from 3 cm behind
+its back, grip it at 80 N (at 40 it slipped out), pull it straight off past
+the connector's 20 N, carry it to the cup's mouth and let go there.
+
+**Measured** (`scripts/station_spike.py`, the house, one humanoid):
+
+| | |
+|---|---|
+| `--approach`: 15 starts round the standoff (head on, 0.2 m and 20 deg off each way, 12 drawn within 0.2 m along, 0.25 m across, 25 deg) | docked 11 of 15 in 17-23 s, each unplugged and the plug parked in 21-23 s; no falls |
+| ...the four misses | twice four pushes never taken, from 0.2-0.24 m to its left at 20 deg; twice the hand closed on nothing on its second try |
+| `--hold`: plugged in for 60 s | held all of it; 432 W in, 86.9 W drawn standing: 345.1 W net |
+| `--fall`: shoved over backward plugged in | the plug broke away and was home in 2.0 s; the robot up again |
+| the loop's own walk and plug-in (`energy_spike.py`) | 345.2 W net into the pack (energy.json) |
+| the reserve (`energy_spike.py --reserve`) | 13.72 Wh over 44.62 m to the garden doorway, 307.6 mWh/m; carried 17.5 Wh |
+
+**What is not yet.** The four misses (a second try's grip, and two starts
+to its left); the reserve's own dock leg gave up on the explore's map and is
+carried by rate; `lost_routine` only looks round where it stands (the
+quadruped's walks its map outward); the fix at the station
+(`anchor_at_dock`) is the dock's arithmetic, not yet flown in a day; one
+station a world. The overseer's `charge` still says "walk to your dock and
+lie down on it" (stage 3's prompt).
 
 ## Debugging workflow that worked
 

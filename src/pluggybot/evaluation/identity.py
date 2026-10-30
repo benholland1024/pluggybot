@@ -68,17 +68,32 @@ def world_hash(world: str) -> str:
   return digest.hexdigest()
 
 
-#: The files a body put into a world at load is made of (`world_hash`).
+#: The files a body put into a world at load is made of (`world_hash`):
+#: the humanoid's (#559) its generated model -- `humanoid.model` writes it
+#: off the code that builds the body, and a test fails it stale -- its arms'
+#: calibrated friction and its three policies.
 BODY_FILES = {"quadruped": ("models/quadruped.xml", "models/quadruped.json",
                             "models/quadruped_policy.npz",
-                            "models/quadruped_getup.npz")}
+                            "models/quadruped_getup.npz"),
+              "humanoid": ("models/humanoid.xml", "models/humanoid.json",
+                           "models/humanoid_friction.json",
+                           "models/humanoid_stand.npz", "models/humanoid_walk.npz",
+                           "models/humanoid_getup.npz")}
 
 
 def body_identity(world: str) -> dict:
   """WHICH BODY a world's robots have (issue #387): its name and the sha256
-  of each policy it runs, by role."""
+  of each policy it runs, by role -- the humanoid's (#559) its standing,
+  walking and get-up policies'."""
   from pluggybot.lifecycle import world_config
   body = world_config(world)["body"]
+  if body == "humanoid":
+    from pluggybot.humanoid.getup import GETUP_NPZ
+    from pluggybot.humanoid.policy import STAND_NPZ, StandPolicy
+    from pluggybot.humanoid.walk import WALK_NPZ
+    return {"name": body, "policies": {role: StandPolicy(path).sha256 for role, path in
+                                       (("stand", STAND_NPZ), ("walk", WALK_NPZ),
+                                        ("getup", GETUP_NPZ))}}
   from pluggybot.legs.body import policies
   walk, getup = policies()
   return {"name": body, "policies": {"walk": walk.sha256, "getup": getup.sha256}}

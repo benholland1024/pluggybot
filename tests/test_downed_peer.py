@@ -25,7 +25,7 @@ from pluggybot import tick
 from pluggybot.body import KeepClear
 from pluggybot.legs import world as lw
 from pluggybot.lifecycle import QUAD_HOME, world_config
-from pluggybot.navigator import CLOSE_ENOUGH_M, DOWN_CHECK_S
+from pluggybot.navigator import CLOSE_ENOUGH_M, DOWN_CHECK_S, Navigator
 from pluggybot.perception.lidar import robot_geoms
 from pluggybot.robot import SECOND
 from test_unknown import STEPPER, _Walk  # noqa: I001 -- tests/ is on sys.path
@@ -249,6 +249,45 @@ def test_a_fall_and_a_stand_up_are_planned_round_at_once():
     assert after and after[0] - when <= DOWN_CHECK_S + 0.011, \
       f"planned {[round(t, 2) for t in walk.plans]}, flipped at {when:.2f}"
   assert len(walk.plans) == 3, "the premise: no routine replan in 1.5 s"
+
+
+class _Held(_Falls):
+  """`_Falls` standing where it planned -- at a stand-in, or turning to face
+  its way -- every plan asked through the one it holds (`Navigator.
+  _plan_to`'s memo) and each made recorded."""
+
+  _plan_to = Navigator._plan_to
+  REPLAN_HOLD_S, REPLAN_MOVED_M = Navigator.REPLAN_HOLD_S, Navigator.REPLAN_MOVED_M
+  _plan_memo = None
+
+  def _plan_near(self, wx, wy):
+    self.plans.append(self.data.time)
+    return [(wx, wy)]
+
+  def _nav_routine(self, v, w):
+    self.data.time += 0.01
+    self.hook()
+    yield 0.0, 0.0
+
+
+def test_a_fall_is_planned_round_at_once_by_a_robot_holding_its_plan():
+  """...and never answered by the plan the drive holds (#559 review): the
+  memo (`REPLAN_HOLD_S`), the Navigator's since #559, gave a robot standing
+  where it planned the plan made round the body still standing."""
+  lying, flips = [False], []
+
+  def flip() -> None:                        # falls 0.2 s after the first plan
+    if not flips and walk.data.time >= 0.2:
+      lying[0] = True
+      flips.append(float(walk.data.time))
+
+  walk = _Held(flip)
+  walk.others = [lambda: KeepClear(0.5, 1.5, down=lying[0])]
+  tick.run(STEPPER, walk.drive_to_routine(20.0, 0.0, 1.0))
+  [when] = flips
+  after = [t for t in walk.plans if t >= when]
+  assert after and after[0] - when <= DOWN_CHECK_S + 0.011, \
+    f"planned {[round(t, 2) for t in walk.plans]}, fell at {when:.2f}"
 
 
 def test_history_says_a_robot_on_the_floor_is_lying_there():
