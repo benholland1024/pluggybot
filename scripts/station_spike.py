@@ -31,6 +31,21 @@ import numpy as np
 
 #: A filmstrip's tile, px, and its row.
 TILE_W, TILE_H, ROW = 480, 360, 4
+#: The viewer's camera a scene, fixed from the robot's right (`side`): the
+#: point it looks at in the station's frame (m) and how far off it stands --
+#: the fall's wide enough for where the shove throws the robot, 1.8 m out
+#: and 0.7 m across, and the plug's flight home. Then its elevation, deg,
+#: and the physics steps between the viewer's frames.
+VIEW_CAM = {"plug": ((-0.45, 0.075, 0.75), 2.0), "fall": ((-0.95, 0.35, 0.6), 3.2)}
+VIEW_ELEVATION_DEG, SYNC_EVERY = -15.0, 10
+
+
+def side(station) -> float:
+  """A camera's azimuth, deg, on the robot's right as it faces the station,
+  where its hand works. ⚠ The station is on the wall the robot faces: at
+  the viewer's default azimuth, in front of the robot, the camera stood
+  outside the house and the view was the back of that wall."""
+  return math.degrees(station.yaw) + 90.0
 
 
 def world(off=(0.0, 0.0, 0.0), at_seat: bool = False):
@@ -132,6 +147,15 @@ def hold(seconds: float) -> dict:
   return out
 
 
+def shove(body, model, data) -> None:
+  """Shoved backward off its feet, away from the station: 300 N for 0.3 s."""
+  away = -np.array([math.cos(body._station.yaw), math.sin(body._station.yaw), 0.0])
+  for _ in range(int(0.3 / model.opt.timestep)):
+    data.xfrc_applied[body.root, :3] = away * 300.0
+    body.run(body.hold_routine(model.opt.timestep))
+  data.xfrc_applied[body.root] = 0.0
+
+
 def fall() -> dict:
   """Plugged in at the seat, then shoved backward off its feet: whether the
   plug let go at the rope's stop, whether the balancer brought it home, and
@@ -140,13 +164,8 @@ def fall() -> dict:
   why = body.run(body.dock_routine())
   if why != "docked":
     return {"dock": why}
-  root = body.root
-  away = -np.array([math.cos(body._station.yaw), math.sin(body._station.yaw), 0.0])
   breaks0 = station.breaks
-  for _ in range(int(0.3 / model.opt.timestep)):
-    data.xfrc_applied[root, :3] = away * 300.0
-    body.run(body.hold_routine(model.opt.timestep))
-  data.xfrc_applied[root] = 0.0
+  shove(body, model, data)
   t0 = float(data.time)
   home_at = None
   while float(data.time) - t0 < 30.0:
@@ -175,7 +194,7 @@ def strip(scene: str = "plug", out: str = "station_spike.png") -> None:
     cam = mujoco.MjvCamera()
     lx, ly = s.to_world(-0.25, 0.0)
     cam.lookat[:] = (lx, ly, 0.85)
-    cam.distance, cam.azimuth, cam.elevation = 1.4, math.degrees(s.yaw) + 90.0, -12.0
+    cam.distance, cam.azimuth, cam.elevation = 1.4, side(s), -12.0
     light = (model.vis.headlight.ambient.copy(), model.vis.headlight.diffuse.copy())
     model.vis.headlight.ambient[:], model.vis.headlight.diffuse[:] = 0.5, 0.6
     r.update_scene(data, cam)
@@ -201,41 +220,60 @@ def strip(scene: str = "plug", out: str = "station_spike.png") -> None:
   print(f"{why}; wrote {out} ({len(tiles)} tiles)")
 
 
+#: What each viewer scene shows, said in the terminal as it starts.
+SCENES = {
+  "plug": "the `plug` scene: the humanoid walks in from its standoff, fits the station "
+          "off its tags, plugs itself in, charges 3 s and unplugs.",
+  "fall": "the `fall` scene: the humanoid plugs itself in as in `plug`, then is shoved "
+          "over backward; the plug breaks away, its balancer takes it home, and the "
+          "robot gets up.",
+}
+
+
 def view(scene: str) -> None:
   """A scene in the viewer at real time, again and again until the window
-  closes: `plug` docks, charges and unplugs; `fall` is shoved over plugged in."""
+  closes, each from the standoff: `plug` docks, charges and unplugs; `fall`
+  docks and is shoved over plugged in. (From the seat itself, `fall()`'s
+  start, the plug-in took four tries and 73 s: SimNotes.)"""
   import time
   import mujoco.viewer
+  print(SCENES[scene] + " Close the window to quit.")
   while True:
-    model, data, body, station = world(at_seat=(scene == "fall"))
+    model, data, body, station = world()
     with mujoco.viewer.launch_passive(model, data) as v:
-      v.cam.type = mujoco.mjtCamera.mjCAMERA_TRACKING
-      v.cam.trackbodyid = body.root
-      v.cam.distance, v.cam.elevation = 2.2, -15.0
-      wall = [time.perf_counter(), float(data.time)]
+      (lx, ly, lz), v.cam.distance = VIEW_CAM[scene]
+      v.cam.lookat[:] = (*body._station.to_world(lx, ly), lz)
+      v.cam.azimuth, v.cam.elevation = side(body._station), VIEW_ELEVATION_DEG
+      wall = time.perf_counter() - float(data.time)
 
       def pace():
         if not v.is_running():
           raise SystemExit
-        ahead = (float(data.time) - wall[1]) - (time.perf_counter() - wall[0])
-        if ahead > 0:
-          time.sleep(ahead)
-        v.sync()
+        if int(round(data.time / model.opt.timestep)) % SYNC_EVERY == 0:
+          v.sync()
+          ahead = float(data.time) - (time.perf_counter() - wall)
+          if ahead > 0:
+            time.sleep(ahead)
 
       body.step_hooks.append(pace)
-      if scene == "fall":
-        fall_scene = fall  # noqa: F841 -- the same steps, watched
-        body.run(body.dock_routine())
-        away = -np.array([math.cos(body._station.yaw), math.sin(body._station.yaw), 0.0])
-        for _ in range(int(0.3 / model.opt.timestep)):
-          data.xfrc_applied[body.root, :3] = away * 300.0
-          body.run(body.hold_routine(model.opt.timestep))
-        data.xfrc_applied[body.root] = 0.0
+      t0 = float(data.time)
+      why = body.run(body.dock_routine())
+      tries = sum(1 for t in body._charge_trace if "try" in t)
+      print(f"  -> {why} in {float(data.time) - t0:.1f} s, {tries} "
+            f"{'try' if tries == 1 else 'tries'}")
+      if why != "docked":
+        body.run(body.hold_routine(3.0))
+      elif scene == "fall":
+        breaks = station.breaks
+        shove(body, model, data)
         body.run(body.hold_routine(20.0))
+        print(f"  -> falls {body.falls}; broke away {station.breaks > breaks}; plug home "
+              f"{bool(station.flags['parked'])}; up {body.mission.legs != 'getup'}")
       else:
-        body.run(body.dock_routine())
         body.run(body.dock_hold_routine(3.0))
         body.run(body.undock_routine())
+        print("  -> " + next((t["undock"] for t in reversed(body._charge_trace)
+                              if "undock" in t), "not plugged in"))
         body.run(body.hold_routine(3.0))
 
 

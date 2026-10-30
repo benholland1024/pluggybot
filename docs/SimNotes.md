@@ -6538,6 +6538,7 @@ the connector's 20 N, carry it to the cup's mouth and let go there.
 |---|---|
 | `--approach`: 15 starts round the standoff (head on, 0.2 m and 20 deg off each way, 12 drawn within 0.2 m along, 0.25 m across, 25 deg) | docked 11 of 15 in 17-23 s, each unplugged and the plug parked in 21-23 s; no falls |
 | ...the four misses | twice four pushes never taken, from 0.2-0.24 m to its left at 20 deg; twice the hand closed on nothing on its second try |
+| ...started at the seat itself (`--hold`'s and `--fall`'s start) | a turn step left it 1.8 cm in and 1.2 cm left; three pushes went their 3 cm untaken, and the fourth, 24 mm aside, was taken: 73 s, where from the standoff one push took 19.6 s. So `--view fall` starts at the standoff |
 | `--hold`: plugged in for 60 s | held all of it; 432 W in, 86.9 W drawn standing: 345.1 W net |
 | `--fall`: shoved over backward plugged in | the plug broke away and was home in 2.0 s; the robot up again |
 | the loop's own walk and plug-in (`energy_spike.py`) | 345.2 W net into the pack (energy.json) |
