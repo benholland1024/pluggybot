@@ -17,7 +17,8 @@ the house, its station on the living room's wall.
     ... --lost [--n N] [--parallel P]   # a fresh robot 2 m out, its belief set
                                 # 0.4-1 m wrong: the loop's charge path, its
                                 # lost search and the fix off the station
-    ... --view [plug|fall]      # a scene in the viewer, looped (MUJOCO_GL unset)
+    ... --view [plug|fall|lost] # a scene in the viewer, looped (MUJOCO_GL unset)
+    ... --strip [plug|lost]     # a scene's filmstrip
     ... --out rows.json         # the rows
 
 Every trial is its own process and flies the served body off its own senses
@@ -45,7 +46,8 @@ TILE_W, TILE_H, ROW = 480, 360, 4
 #: the fall's wide enough for where the shove throws the robot, 1.8 m out
 #: and 0.7 m across, and the plug's flight home. Then its elevation, deg,
 #: and the physics steps between the viewer's frames.
-VIEW_CAM = {"plug": ((-0.45, 0.075, 0.75), 2.0), "fall": ((-0.95, 0.35, 0.6), 3.2)}
+VIEW_CAM = {"plug": ((-0.45, 0.075, 0.75), 2.0), "fall": ((-0.95, 0.35, 0.6), 3.2),
+            "lost": ((-1.2, 0.3, 0.7), 3.8)}
 VIEW_ELEVATION_DEG, SYNC_EVERY = -15.0, 10
 
 
@@ -294,6 +296,21 @@ def _life():
 #: `--lost`'s start, in the station's frame (m): 2 m out on the seat's line,
 #: facing the station -- past 1.07 m, so the tags are not in view.
 LOST_FROM_X = -2.0
+#: ...and `--view lost`'s and `--strip lost`'s belief, set this wrong: 0.7 m
+#: nearer the wall than it is, so the walk to the standoff ends 1.45 m off
+#: the station's face, where its tags are above the colour camera's view.
+LOST_SCENE_OFF = (0.7, 0.0, 0.0)
+
+
+def lost_start(body, off) -> None:
+  """`body` at `LOST_FROM_X` facing the station, its belief put `off`
+  wrong (m along the station's +x, m across it, deg)."""
+  from pluggybot.activity import station as st
+  s = body._station
+  x, y = s.to_world(LOST_FROM_X, st.SEAT_Y)
+  body.start_at(x, y, s.yaw)
+  dx, dy = s.to_world(off[0], off[1])
+  body.mission._set_pose(x + dx - s.x, y + dy - s.y, s.yaw + math.radians(off[2]))
 
 
 def lost_trial(off) -> dict:
@@ -302,9 +319,7 @@ def lost_trial(off) -> dict:
   and the loop's own charge path (`HubLifecycle.go_charge`): docked or why
   not, the belief's error before and at the end (m, deg), and the belief's
   records (`lost`, `fixed`, `searched`)."""
-  from pluggybot.activity import station as st
   life, body, station = _life()
-  s = body._station
 
   def err():
     (bx, by, bh), (tx, ty, th) = body.pose, body.true_pose()
@@ -312,11 +327,7 @@ def lost_trial(off) -> dict:
             round(math.degrees(math.remainder(bh - th, 2 * math.pi)), 1)]
 
   try:
-    x, y = s.to_world(LOST_FROM_X, st.SEAT_Y)
-    body.start_at(x, y, s.yaw)
-    dx, dy = s.to_world(off[0], off[1])
-    dx, dy = dx - s.x, dy - s.y
-    body.mission._set_pose(x + dx, y + dy, s.yaw + math.radians(off[2]))
+    lost_start(body, off)
     out = {"off": list(off), "offStart": err()}
     t0 = float(life.data.time)
     out["docked"] = bool(life.go_charge())
@@ -419,21 +430,30 @@ def fall() -> dict:
 
 
 def strip(scene: str = "plug", out: str = "station_spike.png") -> None:
-  """The scene headless, a tile every 1.5 s from beside the station."""
+  """The scene headless, a tile every 1.5 s from beside the station -- or,
+  `lost`, every 4 s from further back: the loop's charge path from 2 m
+  out, its belief set wrong (`LOST_SCENE_OFF`)."""
   from PIL import Image, ImageDraw
-  model, data, body, station = world()
+  if scene == "lost":
+    life, body, station = _life()
+    model, data = life.model, life.data
+    lost_start(body, LOST_SCENE_OFF)
+  else:
+    model, data, body, station = world()
   r = mujoco.Renderer(model, TILE_H, TILE_W)
   tiles, due = [], [0.0]
   s = body._station
+  every, (lx0, ly0, lz0), dist = ((4.0, *VIEW_CAM["lost"]) if scene == "lost"
+                                  else (1.5, (-0.25, 0.0, 0.85), 1.4))
 
   def hook():
     if data.time < due[0]:
       return
-    due[0] = float(data.time) + 1.5
+    due[0] = float(data.time) + every
     cam = mujoco.MjvCamera()
-    lx, ly = s.to_world(-0.25, 0.0)
-    cam.lookat[:] = (lx, ly, 0.85)
-    cam.distance, cam.azimuth, cam.elevation = 1.4, side(s), -12.0
+    lx, ly = s.to_world(lx0, ly0)
+    cam.lookat[:] = (lx, ly, lz0)
+    cam.distance, cam.azimuth, cam.elevation = dist, side(s), -12.0
     light = (model.vis.headlight.ambient.copy(), model.vis.headlight.diffuse.copy())
     model.vis.headlight.ambient[:], model.vis.headlight.diffuse[:] = 0.5, 0.6
     r.update_scene(data, cam)
@@ -445,12 +465,16 @@ def strip(scene: str = "plug", out: str = "station_spike.png") -> None:
     tiles.append(img)
 
   body.step_hooks.append(hook)
-  why = body.run(body.dock_routine())
+  if scene == "lost":
+    why = "docked" if life.go_charge() else life.charge_failure
+  else:
+    why = body.run(body.dock_routine())
   body.run(body.dock_hold_routine(2.0))
   if scene == "plug" and why == "docked":
     body.run(body.undock_routine())
     body.run(body.hold_routine(3.0))
   r.close()
+  body.close()
   w, h = tiles[0].size
   img = Image.new("RGB", (w * min(ROW, len(tiles)), h * ((len(tiles) + ROW - 1) // ROW)))
   for k, t in enumerate(tiles):
@@ -461,6 +485,10 @@ def strip(scene: str = "plug", out: str = "station_spike.png") -> None:
 
 #: What each viewer scene shows, said in the terminal as it starts.
 SCENES = {
+  "lost": "the `lost` scene: a humanoid 2 m out whose belief is 0.7 m wrong walks to "
+          "where it believes the standoff is, sees no station, steps in by its LIDAR, "
+          "finds the station's tags, puts its belief right off them, and walks in again "
+          "and plugs itself in.",
   "plug": "the `plug` scene: the humanoid walks in from its standoff, fits the station "
           "off its tags, plugs itself in, charges 3 s and unplugs.",
   "fall": "the `fall` scene: the humanoid plugs itself in as in `plug`, then is shoved "
@@ -469,17 +497,39 @@ SCENES = {
 }
 
 
+class _closing:
+  """`body` closed as its scene ends, its window closing too: its cameras'
+  contexts left to the interpreter's exit raised EGL errors there."""
+
+  def __init__(self, body) -> None:
+    self.body = body
+
+  def __enter__(self):
+    return self.body
+
+  def __exit__(self, *exc) -> bool:
+    self.body.close()
+    return False
+
+
 def view(scene: str) -> None:
   """A scene in the viewer at real time, again and again until the window
   closes, each from the standoff: `plug` docks, charges and unplugs; `fall`
-  docks and is shoved over plugged in. (From the seat itself, `fall()`'s
-  start, the plug-in took four tries and 73 s: SimNotes.)"""
+  docks and is shoved over plugged in; `lost` is the loop's own charge path
+  from 2 m out, its belief set wrong (`LOST_SCENE_OFF`). (From the seat
+  itself, `fall()`'s start, the plug-in took four tries and 73 s: SimNotes.)"""
   import time
   import mujoco.viewer
   print(SCENES[scene] + " Close the window to quit.")
   while True:
-    model, data, body, station = world()
-    with mujoco.viewer.launch_passive(model, data) as v:
+    life = None
+    if scene == "lost":
+      life, body, station = _life()
+      model, data = life.model, life.data
+      lost_start(body, LOST_SCENE_OFF)
+    else:
+      model, data, body, station = world()
+    with mujoco.viewer.launch_passive(model, data) as v, _closing(body):
       (lx, ly, lz), v.cam.distance = VIEW_CAM[scene]
       v.cam.lookat[:] = (*body._station.to_world(lx, ly), lz)
       v.cam.azimuth, v.cam.elevation = side(body._station), VIEW_ELEVATION_DEG
@@ -496,7 +546,13 @@ def view(scene: str) -> None:
 
       body.step_hooks.append(pace)
       t0 = float(data.time)
-      why = body.run(body.dock_routine())
+      if life is not None:
+        why = "docked" if life.go_charge() else life.charge_failure
+        for e in body.belief_events:
+          print(f"  -> {e['why']}" + (f": found {e['found']} in {e['seconds']} s"
+                                       if e["why"] == "searched" else ""))
+      else:
+        why = body.run(body.dock_routine())
       tries = sum(1 for t in body._charge_trace if "try" in t)
       print(f"  -> {why} in {float(data.time) - t0:.1f} s, {tries} "
             f"{'try' if tries == 1 else 'tries'}")
@@ -530,7 +586,9 @@ def main(argv=None) -> int:
                   help="--walk-in's explores before it walks out, s, comma-separated")
   ap.add_argument("--seats", action="store_true")
   ap.add_argument("--lost", action="store_true")
-  ap.add_argument("--view", nargs="?", const="plug", choices=("plug", "fall"))
+  ap.add_argument("--view", nargs="?", const="plug", choices=("plug", "fall", "lost"))
+  ap.add_argument("--strip", nargs="?", const="plug", choices=("plug", "lost"),
+                  help="the scene's filmstrip, station_spike.png (lost: station_spike_lost.png)")
   ap.add_argument("--out", default=None)
   ap.add_argument("--one", default=None, help=argparse.SUPPRESS)
   ap.add_argument("--one-walk-in", default=None, help=argparse.SUPPRESS)
@@ -559,7 +617,8 @@ def main(argv=None) -> int:
           if args.walk_in else
           [hold(args.seconds)] if args.hold else [fall()] if args.fall else None)
   if rows is None:
-    strip()
+    strip(args.strip or "plug", "station_spike_lost.png" if args.strip == "lost"
+          else "station_spike.png")
     return 0
   if args.out:
     Path(args.out).write_text(json.dumps(rows, indent=1))
