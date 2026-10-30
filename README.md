@@ -168,6 +168,8 @@ uv run python scripts/arm_spike.py --view fall    # pushed over: the arm folds
 uv run python scripts/arm_spike.py --view reach   # the arm through the targets
                                       # that chose it, a marker at each
 uv run python scripts/dock_spike.py --view        # lying down onto the dock
+uv run python scripts/station_spike.py --view     # a humanoid plugs itself in
+                                      # and unplugs (--view fall: shoved over)
 uv run python scripts/quad_spike.py --policy --view  # the walking policy
 uv run python scripts/two_robots.py --world home_quad --view --errands none,none
                                       # the served pair in the home world
