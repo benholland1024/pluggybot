@@ -591,6 +591,10 @@ def _trunk(spec: HumanoidSpec) -> str:
             size="{_v(hp.PORT_FLANGE[0] / 2, hp.PORT_FLANGE[1] / 2, hp.PORT_FLANGE[1] / 2)}"
             pos="{_v(tx + hp.PORT_FLANGE[0] / 2, spec.port_y, spec.port_z)}"
             mass="{_f(hp.PORT_KG)}" rgba="0.75 0.6 0.2 1"/>
+      <geom name="charge_funnel" class="visual" type="cylinder"
+            size="{_v(hp.PORT_FUNNEL[0] / 2, hp.PORT_FUNNEL[1] / 2)}" zaxis="1 0 0"
+            pos="{_v(tx + hp.PORT_FLANGE[0] + hp.PORT_FUNNEL[1] / 2, spec.port_y, spec.port_z)}"
+            mass="{_f(hp.PORT_FUNNEL_KG)}" rgba="0.2 0.2 0.22 0.35"/>
       <site name="charge_port" pos="{_v(tx + hp.PORT_FLANGE[0], spec.port_y, spec.port_z)}"
             zaxis="1 0 0" size="0.004"/>
       <body name="depth_cam_body" pos="{_v(hx + 0.0125, 0, hz0 - 0.02)}" euler="{_v(0, dp, 0)}">

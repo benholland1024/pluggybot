@@ -446,6 +446,14 @@ CAMERA_KG = _catalog_kg("pi_camera_3")
 PORT_KG = 0.015
 #: Its flange, m: (proud of the torso, across).
 PORT_FLANGE = (0.002, 0.0285)
+#: ...and the funnel printed round it, m: its mouth across and how far its
+#: rim stands proud of the connector's face. A plug pushed anywhere in its
+#: mouth is guided onto the connector: the hand knows where it is to about a
+#: centimetre (its arm's encoders and backlash, the plug free along the
+#: Dex1-1's 80 mm pads), and the RoPD itself centres a few mm. Its mass is
+#: its drawing's: a 3 mm PETG cone wall, 11 g (1.27 g/cm^3).
+PORT_FUNNEL = (0.050, 0.012)
+PORT_FUNNEL_KG = 0.011
 
 
 @dataclass(frozen=True)

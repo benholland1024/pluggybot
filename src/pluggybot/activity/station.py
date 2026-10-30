@@ -48,13 +48,14 @@ from pluggybot.rack.tags import STATION_TAG_IDS, STATION_TAG_SIZE, plate_half_ex
 #: it pulls about 35 N (SimNotes, "The humanoid's pull"): a part at its
 #: unpublished maximum may hold harder.
 BREAK_N = 20.0
-#: How near the connector takes the plug, m and deg: the gap off its face,
-#: the plug's offset across it and its tilt. UNPUBLISHED (the sheets say
-#: "100 % self-location" and "zero-force mating"): a magnet's reach at its
-#: face is a few mm (the chest's catch, cut at 5 mm, `chest.CATCH_CUT`), and
-#: the panel plug's 25 mm cut-out round the jack's 24.5 mm body leaves its
-#: chamfer a few mm to centre.
-CAPTURE_GAP_M, CAPTURE_LATERAL_M, CAPTURE_TILT_DEG = 0.005, 0.003, 8.0
+#: How near the port takes the plug, m and deg: the gap off the connector's
+#: face, the plug's offset across it and its tilt -- anywhere in the mouth
+#: of the funnel printed round it (`humanoid.parts.PORT_FUNNEL`: 50 mm
+#: across, 12 mm deep, round the 24.5 mm jack), which guides it onto the
+#: connector. ⚠ THE FUNNEL IS THE CATCH'S, as the cup's is: its walls are
+#: drawn, never touched. Pushed to the body from where the hand believed the
+#: port to be, plugs landed 4-11 mm across it (`station_spike.py`).
+CAPTURE_GAP_M, CAPTURE_LATERAL_M, CAPTURE_TILT_DEG = 0.012, 0.012, 10.0
 #: The catch draws the plug from where it took it to its seat over this, s:
 #: switched on as a weld at the seat, the plug was thrown in a step.
 PULL_IN_S = 0.1
@@ -74,8 +75,9 @@ BALANCER_DAMPING = 8.0
 #: off it (the balancer's own 1.6 m stroke would let a fallen robot lie
 #: plugged in).
 ROPE_STOP_M = 0.6
-#: The cup lets the plug go to a pull past this, N: the balancer's 2 N and
-#: the funnel's hold, UNPUBLISHED (assumed).
+#: The cup lets the plug go to a pull straight out past this, N: the
+#: balancer's 2 N and the funnel's hold, UNPUBLISHED (assumed); across it,
+#: its walls hold.
 PARK_N = 4.0
 #: The cup's mouth, m: the plug's back within this of its seat is drawn in.
 CUP_MOUTH_M = 0.03
@@ -100,8 +102,17 @@ CHARGE_W = CHARGE_A * 43.2
 #: C003 cable, 101 g/m), 50 g.
 PLUG_LEN_M, PLUG_R_M, PLUG_KG = 0.070, 0.01225, 0.050
 JACK_LEN_M = 0.043
-#: Where a hand grips it, m behind its face: the jack's middle.
-GRIP_BACK_M = 0.022
+#: ...its inertia, kg m^2 (about its axis, across it): across, its cable's
+#: first 0.3 m hanging behind it (30 g on a 0.15 m lever); about its axis,
+#: REGULARISED -- the bare jack's 2e-6, pinched between a gripper's pads,
+#: threw the plug's rotation off in a step, and 5e-5, spun loose, a few
+#: seconds on (`implicitfast` drops the spin's derivative).
+PLUG_INERTIA = (2e-4, 9e-4)
+#: Where a hand grips it, m behind its face: the jack's back end, so the
+#: Dex1-1's housing, 67 mm across the plug's axis, stands behind its face
+#: -- gripped at the jack's middle, the housing met the robot's belly with
+#: the plug 17 mm off its port.
+GRIP_BACK_M = 0.040
 
 # ---- the station ---------------------------------------------------------------------
 
@@ -111,6 +122,9 @@ CUP_Z = 0.90
 #: The box between the station's face and the wall, m: deep enough for the
 #: balancer (Tecna's 9300) and the charger is not in it (on the wall beside).
 BOX_DEPTH_M = 0.10
+#: The cup stands this far proud of the face on a boss, m: a hand's housing
+#: round the parked plug's grip clears the face by 30 mm.
+BOSS_M = 0.030
 BOX_HALF_Y, BOX_HALF_Z = 0.15, 0.20
 #: Its tags, a pair either side of the cup at its height (the dock's 60 mm):
 #: their baseline gives its facing (#88), and from the seat both are in the
@@ -143,25 +157,29 @@ def station_xml(name: str = "station") -> str:
   half = plate_half_extent(STATION_TAG_SIZE)
   g = [f'<geom name="{name}_box" type="box" size="{_f(BOX_DEPTH_M / 2)} {_f(BOX_HALF_Y)} '
        f'{_f(BOX_HALF_Z)}" pos="{_f(BOX_DEPTH_M / 2)} 0 {_f(CUP_Z)}" rgba="0.30 0.31 0.34 1"/>',
-       f'<geom name="{name}_cup" type="cylinder" size="0.02 0.004" pos="-0.004 0 {_f(CUP_Z)}" '
-       f'zaxis="1 0 0" contype="0" conaffinity="0" rgba="0.55 0.56 0.6 1"/>',
-       f'<site name="{name}_rope" pos="-0.003 0 {_f(CUP_Z)}" size="0.004"/>',
-       f'<site name="{name}_seat" pos="-0.003 0 {_f(CUP_Z)}" size="0.004" zaxis="-1 0 0"/>']
+       f'<geom name="{name}_boss" type="cylinder" size="0.02 {_f(BOSS_M / 2)}" '
+       f'pos="{_f(-BOSS_M / 2)} 0 {_f(CUP_Z)}" zaxis="1 0 0" contype="0" conaffinity="1" '
+       f'rgba="0.55 0.56 0.6 1"/>',
+       f'<site name="{name}_rope" pos="{_f(-BOSS_M - 0.003)} 0 {_f(CUP_Z)}" size="0.004"/>',
+       f'<site name="{name}_seat" pos="{_f(-BOSS_M - 0.003)} 0 {_f(CUP_Z)}" size="0.004" '
+       f'zaxis="-1 0 0"/>']
   for tag_id, (x, y, z) in tag_layout().items():
     g.append(f'<geom name="{name}_tag{tag_id}" type="box" size="0.001 {_f(half)} {_f(half)}" '
              f'pos="{_f(x - 0.001)} {_f(y)} {_f(z)}" contype="0" conaffinity="0" '
              f'material="tagmat{tag_id}"/>')
   # ...the plug parked: nose-out (-x), its back on the seat
-  px = -0.003 - PLUG_LEN_M
+  px = -BOSS_M - 0.003 - PLUG_LEN_M
   plug = (f'<body name="{name}_plug" pos="{_f(px)} 0 {_f(CUP_Z)}" quat="0 0 0 1">'
           f'<joint name="{name}_plug" type="free" damping="{_f(CABLE_DAMPING)}"/>'
+          f'<inertial pos="{_f(-PLUG_LEN_M / 2)} 0 0" mass="{_f(PLUG_KG)}" '
+          f'diaginertia="{_f(PLUG_INERTIA[0])} {_f(PLUG_INERTIA[1])} {_f(PLUG_INERTIA[1])}"/>'
           f'<geom name="{name}_jack" type="cylinder" size="{_f(PLUG_R_M)} {_f(JACK_LEN_M / 2)}" '
-          f'pos="{_f(-JACK_LEN_M / 2)} 0 0" zaxis="1 0 0" mass="{_f(PLUG_KG * 0.6)}" '
+          f'pos="{_f(-JACK_LEN_M / 2)} 0 0" zaxis="1 0 0" '
           f'contype="2" conaffinity="1" priority="1" friction="1 0.005 0.0001" '
           f'solimp="0.99 0.999 0.0001" rgba="0.12 0.12 0.13 1"/>'
           f'<geom name="{name}_gland" type="cylinder" size="0.009 {_f((PLUG_LEN_M - JACK_LEN_M) / 2)}" '
           f'pos="{_f(-(PLUG_LEN_M + JACK_LEN_M) / 2)} 0 0" zaxis="1 0 0" '
-          f'mass="{_f(PLUG_KG * 0.4)}" contype="2" conaffinity="1" rgba="0.08 0.08 0.08 1"/>'
+          f'contype="2" conaffinity="1" rgba="0.08 0.08 0.08 1"/>'
           f'<site name="{name}_plug_face" pos="0 0 0" size="0.003"/>'
           f'<site name="{name}_plug_back" pos="{_f(-PLUG_LEN_M)} 0 0" size="0.003"/>'
           f'</body>')
@@ -371,8 +389,11 @@ class Station(Activity):
     cup_out = -data.site_xmat[self.seat].reshape(3, 3)[:, 2]     # into the station
     if data.eq_active[self.cup]:
       self._draw_in(data, self.cup)
+      # ...only to a pull straight out of it: the cup's walls take a load
+      # across it (the jaws closing round the parked plug let it go at 4 N
+      # and it slid 15 mm in them)
       if (self._pull.get(self.cup) is None
-          and self._off(self._load(data, self.cup), -cup_out) >= PARK_N):
+          and float(self._load(data, self.cup) @ -cup_out) >= PARK_N):
         self._let_go(data, self.cup)
     else:
       dist = float(np.linalg.norm(data.site_xpos[self.back] - data.site_xpos[self.seat]))

@@ -62,6 +62,10 @@
             size="0.001 0.01425 0.01425"
             pos="0.086 -0.075 0.168"
             mass="0.015" rgba="0.75 0.6 0.2 1"/>
+      <geom name="charge_funnel" class="visual" type="cylinder"
+            size="0.025 0.006" zaxis="1 0 0"
+            pos="0.093 -0.075 0.168"
+            mass="0.011" rgba="0.2 0.2 0.22 0.35"/>
       <site name="charge_port" pos="0.087 -0.075 0.168"
             zaxis="1 0 0" size="0.004"/>
       <body name="depth_cam_body" pos="0.0775 0 0.535" euler="0 0.698132 0">
