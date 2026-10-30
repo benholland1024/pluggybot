@@ -89,6 +89,10 @@ PARK_WAIT_S = 4.0
 #: The pull that unplugs it, N, past the connector's hold (`st.BREAK_N`):
 #: standing, the robot pulls about 35 N.
 UNPLUG_N = 30.0
+#: ...and where it lets the plug go, m short of its seat in the cup: the
+#: cup's mouth (`st.CUP_MOUTH_M`) and the station's fit, 1-2 cm off along
+#: the plug.
+CUP_SHORT_M = 0.025
 #: The seat's tolerance, m and rad: off it further, the robot steps again.
 #: Its walker's least step is a stride, about 10 cm (`step_routine`), and
 #: the carry takes a plug a few cm across. ⚠ NEARER THE STATION ONLY
@@ -301,10 +305,16 @@ def unplug_routine(body, station: RackPose, trace: list):
     yield from body.grip_routine(SIDE, False)
     yield from body.release_routine(SIDE)
     return f"it could not pull the plug off ({pulled['why']})"
-  yield from body.move_hand_routine(SIDE, parked_grip(station), speed=0.06,
-                                    turns=[_grip(np.array([math.cos(station.yaw),
-                                                           math.sin(station.yaw), 0.0]))])
+  # ...carried to its cup's mouth short of the seat, let go, and the jaws
+  # slid back off it along its line: carried to the seat as the station was
+  # fitted, the plug was driven into the boss at up to 59 N, and the robot
+  # fell, 5 unplugs in 140 -- the balancer takes it home from the mouth
+  into = np.array([math.cos(station.yaw), math.sin(station.yaw), 0.0])
+  yield from body.move_hand_routine(SIDE, parked_grip(station) - into * CUP_SHORT_M,
+                                    speed=0.06, turns=[_grip(into)])
   yield from body.hold_routine(0.4)
   yield from body.grip_routine(SIDE, False)
+  yield from body.move_hand_routine(SIDE, parked_grip(station) - into * LINE_BACK_M,
+                                    speed=0.06)
   yield from body.release_routine(SIDE)
   return "unplugged"
