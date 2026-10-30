@@ -159,14 +159,30 @@ def test_a_catch_takes_the_plug_again_only_once_it_has_left_the_funnel(house):
   _at_port(model, data, station)
   _hold(body, 0.3)
   station._let_go(data, e)                      # a breakaway
-  _at_port(model, data, station, gap=0.008)
-  _hold(body, 0.1)
+  _at_port(model, data, station, gap=0.014)     # inside the funnel's 15 mm
+  _hold(body, 0.02)
   assert not station.flags["mated"], "taken again inside its reach"
   _at_port(model, data, station, gap=st.CLEAR_M + 0.01)
   _hold(body, 0.05)
   _at_port(model, data, station, gap=0.008)
   _hold(body, 0.2)
   assert station.flags["mated"]
+
+
+def test_the_cup_takes_back_only_a_plug_no_hand_holds(house, monkeypatch):
+  """Caught under the hand carrying it home, the cup felt the hand's pull,
+  let go and never took the plug back: 3 unplugs in 10 left it unparked.
+  Held at its mouth it is not taken; let go there, it is."""
+  model, data, body, station = house
+  seat = data.site_xpos[station.seat].copy()
+  out = data.site_xmat[station.seat].reshape(3, 3)[:, 2]          # out to the room
+  monkeypatch.setattr(station, "_held", lambda data: True)
+  _set_plug(model, data, station, seat + out * (st.PLUG_LEN_M + 0.01), out)
+  _hold(body, 0.05)
+  assert not station.flags["parked"]
+  monkeypatch.setattr(station, "_held", lambda data: False)
+  _hold(body, 0.5)
+  assert station.flags["parked"]
 
 
 def test_a_free_plug_swings_home_its_spin_bounded():
