@@ -593,27 +593,6 @@ class QuadMission(ToolSwap, PlaceWalk, BoardWork, CubeWork, AreaSurvey, MakeWay,
     s, f = self._stow_goal if self.carrying is None else self._carry_goal
     return abs(float(g[0]) - s) <= ARM_TOL and abs(float(g[1]) - f) <= ARM_TOL
 
-  def drive_to_routine(self, wx: float, wy: float, timeout: float = 90.0,
-                       stop=None, beyond=()) -> Routine:
-    """`Navigator.drive_to_routine`, counted while it runs (`driving`): a
-    body waiting inside a walk of its own is never asked aside (#415)."""
-    self.driving += 1
-    try:
-      return (yield from Navigator.drive_to_routine(self, wx, wy, timeout, stop, beyond))
-    finally:
-      self.driving -= 1
-
-  def clear_way_routine(self, way) -> Routine:
-    """`Navigator.clear_way_routine`, counted as a walk of its own too
-    (`driving`, #455): a press waiting for its way in lies down by the
-    rest reflex 8.6 s into the wait, and asked aside then, it would walk
-    off its standoff before its walk in."""
-    self.driving += 1
-    try:
-      return (yield from Navigator.clear_way_routine(self, way))
-    finally:
-      self.driving -= 1
-
   def _front_blocked(self, angles, ranges) -> bool:
     ahead = np.cos(angles) * ranges
     side = np.sin(angles) * ranges

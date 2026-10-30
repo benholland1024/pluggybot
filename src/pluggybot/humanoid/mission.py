@@ -244,10 +244,13 @@ class HumanoidMission(HumanoidWay, Navigator):
   def _before_step(self, command) -> None:
     if self._aside is not None:
       # Making way (#559, `humanoid.way`) beneath whatever routine holds it:
-      # its legs to the walker where they are the standing policy's, once
-      # its posture is held -- at rest its arms are home
+      # its legs to the walker where they are the standing policy's, its
+      # posture back at the stand first, as `to_walk_routine` hands them
+      # over -- a bow left held (a `spot` cut off) is no stance to walk from
       command = self._aside_command(command, float(self.data.time))
       if any(command) and self.legs == "stand":
+        if self.reach.posture.any():
+          self.reach.hold_posture(0.0, 0.0)
         if not self.stand.settled:
           command = STILL
         else:
@@ -360,8 +363,12 @@ class HumanoidMission(HumanoidWay, Navigator):
     """The legs to the standing policy: the walking one held still
     `SETTLE_S` first, its stride settled, then handed over. ⚠ A fall while
     it settles is the get-up's until it stands (#520): at the settle's end
-    the legs went to the standing policy whatever had happened in it."""
+    the legs went to the standing policy whatever had happened in it. ⚠ It
+    ends a step aside under way (#559): the aside walked the settle's STILL
+    steps, and the legs went to the standing policy mid-stride."""
     yield from self._getup_routine()
+    if self._aside is not None:
+      self._end_aside("its own move", STILL)
     if self.legs == "stand":
       return
     for _ in range(int(round(SETTLE_S / self.model.opt.timestep))):

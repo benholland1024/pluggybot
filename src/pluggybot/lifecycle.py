@@ -1382,12 +1382,16 @@ class HubLifecycle:
     other = self._peer(rec["by"])
     who = other.robot_name if other is not None else rec["by"]
     moved = math.dist(rec["from"], rec["at"])
+    # ...as the body rested when asked: lying, or a humanoid's standing (#559)
+    lay = rec.get("lay", True)
+    was = "lying across" if lay else "standing in"
     if rec["why"] == "aside":
-      line = (f"stood up and stepped {moved:.1f} m aside for {who}, whose way "
-              "I was lying across")
+      line = (f"{'stood up and stepped' if lay else 'stepped'} {moved:.1f} m aside "
+              f"for {who}, whose way I was {was}")
     else:
-      line = (f"stood up to step aside for {who}, whose way I was lying across, "
-              f"and stopped {moved:.1f} m on: {ASIDE_ENDED.get(rec['why'], rec['why'])}")
+      line = (f"{'stood up to step' if lay else 'set off to step'} aside for {who}, "
+              f"whose way I was {was}, and stopped {moved:.1f} m on: "
+              f"{ASIDE_ENDED.get(rec['why'], rec['why'])}")
     self._say(f"MADE WAY: {line}")
     self._remember(line)
 
@@ -7603,6 +7607,7 @@ def posture(peers, name: str) -> str:
 #: How a step aside for the other robot that did not get there ended
 #: (issue #415, `legs/way.py`), as History says it.
 ASIDE_ENDED = {"its own walk": "my own walk took over",
+               "its own move": "a move of my own took over",
                "fell": "I fell over",
                "no route": "I found no way there",
                "out of time": "it took too long",
