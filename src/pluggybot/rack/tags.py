@@ -99,6 +99,12 @@ DOOR_TAG_IDS = (55,)
 CUBE_TAG_IDS = (56,)
 MAT_TAG_IDS = (57,)
 MAT_TAG_SIZE = 0.080 * 8 / 10
+#: The humanoid's charging station (issue #559; activity/station.py): a
+#: pair either side of its cup at the cup's height, the dock's 60 mm, so
+#: the head's colour camera sees both from its walk's end and from the seat
+#: it plugs in at, and fits the station's facing to their baseline (#88).
+STATION_TAG_IDS = (58, 59)
+STATION_TAG_SIZE = 0.060
 
 # Physical marker sizes (m), edge of the BLACK tag -- what the detector is
 # told, and what PnP scales its translation by. The plate carrying it is
@@ -114,6 +120,7 @@ TAG_SIZES = {**{i: BLOCK_TAG_SIZE for i in BLOCK_TAG_IDS},
              **{i: BLOCK_TAG_SIZE for i in (*DRAWER_TAG_IDS, *DOOR_TAG_IDS, *CUBE_TAG_IDS)},
              **{i: MAT_TAG_SIZE for i in MAT_TAG_IDS},
              **{i: DOCK_TAG_SIZE for i in DOCK_TAG_IDS},
+             **{i: STATION_TAG_SIZE for i in STATION_TAG_IDS},
              **{i: LEGS_RACK_TAG_SIZE for i in (*LEGS_RACK_TAG_IDS, *LEGS_BUILT_TAG_IDS)},
              **{i: PLATE_TAG_SIZE for i in PLATE_TAG_IDS},
              **{i: BOARD_TAG_SIZE for ids in BOARD_TAG_IDS.values() for i in ids},

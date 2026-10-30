@@ -13,12 +13,15 @@ a humanoid has nowhere to charge, and a served one flies the real pack
 `qpos[0]`: everything reads a robot's joints by name (`RobotHandle`).
 """
 
+import math
+
 import mujoco
 
 from pluggybot.humanoid import model as hm
 from pluggybot.humanoid import parts as hp
 from pluggybot.legs import world as lw
 from pluggybot.robot import CHASSIS_RGBA, SECOND_CHASSIS_RGBA, paint
+from pluggybot.telemetry.protocol import ROBOT_ROOT
 
 #: The house the humanoids move into.
 HOME_XML = lw.HOME_XML
@@ -27,10 +30,22 @@ HOME_XML = lw.HOME_XML
 #: standing. The served pack is the real one (`parts.PACK`).
 DEMO_WH = lw.DEMO_WH
 PACK_WH = hp.PACK.wh
-#: The return-trip reserve, Wh: nothing yet. It is the walk to the nearest
-#: charging station, measured once there is one (stage 2); with none, the
-#: pack running out is the `flat` death.
-RESERVE_WH = 0.0
+#: The return-trip reserve, Wh: the walk to its station from the house's
+#: worst place and its plug-in, with one failed (`legs.world.RESERVE_WH`'s
+#: rule), on the humanoid (`scripts/energy_spike.py --world home_humanoid
+#: --reserve`, 30 Oct 2026):
+#:
+#:     travel   13.722 Wh over 44.62 m to the garden doorway (307.6 mWh/m:
+#:              the quadruped's 60.5 five times over)
+#:     dock      1.85 Wh for its last 6 m at that rate, and a plug-in -- 17-36 s
+#:              walking in and reaching (`station_spike.py --approach`) at
+#:              the 86.9 W it draws standing -- twice: 1.74 Wh
+#:
+#: ⚠ The spike's own dock leg gave up 6 m short ("no route over the floor
+#: mapped so far": set down at the worst place off the truth, on the map
+#: its explore left), so the leg is the travel's rate and the plug-in's time.
+#: 17.3, carried as 17.5. A property of the floor plan, not of the pack.
+RESERVE_WH = 17.5
 #: THE PAIR COLLIDES, as the quadrupeds do (`legs.world.PAIR_BITS`): each
 #: robot's colliding geoms (`contype 1, conaffinity 0` -- they meet only the
 #: pairs its model names, `model.LEG_GEOMS`/`ARM_GEOMS`) get a bit of their
@@ -57,6 +72,17 @@ def _attach_humanoid(spec: mujoco.MjSpec, pos, prefix: str, rgba, bits=None) -> 
   spec.attach(robot, prefix=prefix, frame=frame)
 
 
+def station_pose() -> tuple[float, float, float]:
+  """The charging station's frame in the world, (x, y, yaw rad): its face on
+  the living room's south wall where the quadrupeds' dock lies (x 3.5), +x
+  into the wall (`activity.station`'s frame). The COMMISSIONED pose, which
+  a robot at it fixes its belief to."""
+  from pluggybot.activity import station as st
+  from pluggybot.home import world as home
+  wall = home.HOUSE_Y[0] + home.WALL_HALF_T          # the wall's inner face
+  return 3.5, wall + st.BOX_DEPTH_M, -math.pi / 2
+
+
 def home_spec(first_at=(1.5, 0.5), second_at=None, second_prefix: str = "r2_",
               second_rgba=SECOND_CHASSIS_RGBA, path: str = HOME_XML) -> mujoco.MjSpec:
   """The home world's SPEC with a humanoid at `first_at` and, optionally, a
@@ -73,5 +99,8 @@ def home_spec(first_at=(1.5, 0.5), second_at=None, second_prefix: str = "r2_",
   lw._attach_signs(spec)
   lw._attach_board_tags(spec)
   lw._attach_area_tags(spec)
+  from pluggybot.activity.station import attach_station
+  attach_station(spec, station_pose(), roots=(ROBOT_ROOT,) + ((second_prefix + ROBOT_ROOT,)
+                                                               if pair else ()))
   spec.visual.map.znear = NEAR_M / spec.stat.extent
   return spec

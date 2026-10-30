@@ -19,7 +19,7 @@ import mujoco
 import numpy as np
 
 from pluggybot import tick
-from pluggybot.body import TOPPLE_HOLD_S, Body
+from pluggybot.body import TOPPLE_HOLD_S, Body, RackPose
 from pluggybot.humanoid import model as hm
 from pluggybot.humanoid import parts as hp
 from pluggybot.humanoid.arms import HELD_GAP_M, HandGoal
@@ -113,8 +113,11 @@ class HumanoidPack(Pack):
   driver makes -- holding still does no work."""
 
   def __init__(self, body: "HumanoidBody", capacity_wh: float, charge_scale: float):
+    from pluggybot.activity.station import CHARGE_W
     super().__init__(capacity_wh, charge_scale=charge_scale,
                      draw_w=sum(hp.ELECTRONICS_W.values()))
+    #: Its station's charger's (#559): the NPB-750-48 at 10 A.
+    self.charge_w = CHARGE_W
     self.act = body.stand.joints.act
     motors = [hm.CHOSEN.motor(j) for j in hm.JOINT_NAMES]
     self.kt = np.array([m.kt for m in motors])
@@ -123,6 +126,18 @@ class HumanoidPack(Pack):
   def power_draw(self, data) -> float:
     i = data.actuator_force[self.act] / self.kt
     return self.draw_w + float((1.5 * self.r * i * i).sum())
+
+
+def _station_frame(model):
+  """The first charging station's frame in a compiled world (`activity.
+  station`'s, its body's pose), or None."""
+  try:
+    b = model.body("station")
+  except KeyError:
+    return None
+  q = b.quat
+  yaw = math.atan2(2 * (q[0] * q[3] + q[1] * q[2]), 1 - 2 * (q[2] ** 2 + q[3] ** 2))
+  return RackPose(float(b.pos[0]), float(b.pos[1]), yaw)
 
 
 class _SharedDepth:
@@ -193,7 +208,20 @@ class HumanoidBody(Body):
                              dtype=np.int32)
     # The members a standing body answers plainly.
     self.places = None
-    self.rack = self.rack_prior = None
+    #: Its charging station's frame (#559, `activity.station`'s: +x into
+    #: the wall), the COMMISSIONED pose, off the compiled world as the
+    #: quadruped's dock is -- None where the world has none -- and as the
+    #: loop works round it (`Body.rack`: +x out into the room).
+    self._station = _station_frame(model)
+    self.rack = self.rack_prior = (None if self._station is None else
+                                   RackPose(self._station.x, self._station.y,
+                                            self._station.yaw + math.pi))
+    #: ...the station as it last saw it, and the catches its port is held by.
+    self._station_seen = None
+    root_name = model.body(handle.root).name
+    self._port_eqs = [e for e in range(model.neq)
+                      if model.equality(e).name.endswith(f"_port_{root_name}")]
+    self._charge_trace: list = []
     self.rack_discovered = False
     self.swapping_at = None
     self.peer_at_bay_m = None
@@ -955,8 +983,20 @@ class HumanoidBody(Body):
     return self.mission.in_sight(x, y)
 
   def lost_routine(self, fixture, stop=None):
-    raise NotImplementedError(f"{NOT_HERE}: its fixtures are a dock's and a rack's")
-    yield
+    """No station in sight where it should be (#476's rule, its first cut):
+    it turns on the spot, a sixth of a turn at a time, looking for the
+    station's tags. True where it sees them. ⚠ The quadruped's search walks
+    its map outward and forgets it first (`legs.fixtures`); the humanoid's
+    looks only from where it stands."""
+    from pluggybot.humanoid import charge
+    if self._station is None:
+      return False
+    yaw0 = self.pose[2]
+    for k in range(6):
+      yield from self.face_routine(yaw0 + k * math.pi / 3)
+      if charge.look(self) is not None:
+        return True
+    return False
 
   def find_tag_routine(self, tag, near, patience, stop=None):
     raise NotImplementedError(f"{NOT_HERE}: a place's walk is the quadruped's (#419)")
@@ -1038,35 +1078,105 @@ class HumanoidBody(Body):
     return ""
 
   def charge_standoff(self):
-    raise NotImplementedError(NOT_HERE)
+    """Where its walk to the station ends, facing it: its tags in view, room
+    to line up (`activity.station.STANDOFF_X`)."""
+    from pluggybot.activity import station as st
+    x, y = self._station.to_world(st.STANDOFF_X, st.SEAT_Y)
+    return x, y, self._station.yaw
 
   def charge_seat(self):
-    raise NotImplementedError(NOT_HERE)
+    """Where it stands to plug in: another robot there holds the station."""
+    from pluggybot.activity import station as st
+    return self._station.to_world(st.SEAT_X, st.SEAT_Y)
 
   def dock_routine(self):
-    raise NotImplementedError(NOT_HERE)
-    yield
+    """From the standoff, plugged in (`humanoid.charge`): it faces the
+    station, fits it off its tags, steps to the seat as it sees it (again
+    while off it) and plugs itself in. "docked", or why not -- "no board"
+    where the tags were not in sight, as the dock's."""
+    from pluggybot.activity import station as st
+    from pluggybot.humanoid import charge
+    self._charge_trace = []
+    if self._station is None:
+      return "no dock"
+    # ...facing the cup from where it stands, never the station's own
+    # heading: from 0.2 m to one side that put the far tag out of view
+    cx, cy = self._station.to_world(0.0, 0.0)
+    yield from self.face_routine(math.atan2(cy - self.pose[1], cx - self.pose[0]))
+    seen = charge.look(self)
+    if seen is None:
+      return "no board"
+    for _ in range(charge.SEAT_STEPS):
+      sx, sy = seen.to_world(st.SEAT_X, st.SEAT_Y)
+      x, y, yaw = self.pose
+      c, s_ = math.cos(seen.yaw), math.sin(seen.yaw)
+      ahead, left = (sx - x) * c + (sy - y) * s_, -(sx - x) * s_ + (sy - y) * c
+      turn = math.remainder(seen.yaw - yaw, 2 * math.pi)
+      self._charge_trace.append({"seat": [round(ahead, 3), round(left, 3), round(turn, 3)]})
+      if (-charge.SEAT_IN_M <= ahead <= charge.SEAT_TOL_M and abs(left) <= charge.SEAT_TOL_M
+          and abs(turn) <= charge.SEAT_TOL_RAD):
+        break
+      yield from self.step_routine(ahead, left, turn)
+      seen = charge.look(self) or seen
+    else:
+      return "not lined up"
+    self._station_seen = seen
+    why = yield from charge.plug_in_routine(self, seen, self._charge_trace)
+    return "docked" if why == "plugged in" else why
 
   def charging(self) -> bool:
-    return False
+    """Its pack takes the charger's current: a station's port catch holds
+    its plug (`activity.station`) -- the BMS reads the current."""
+    return any(self._d.eq_active[e] for e in self._port_eqs)
 
   def anchor_at_dock(self) -> None:
-    raise NotImplementedError(NOT_HERE)
+    """The station fixes its belief (#476), commissioned as the dock is:
+    where it stands against the station as it saw it, put against the
+    station where it was commissioned -- past `FIX_TOL_*`, a belief event."""
+    from pluggybot.legs.fixtures import FIX_TOL_M, FIX_TOL_RAD
+    seen, prior = self._station_seen, self._station
+    if seen is None or prior is None:
+      return
+    x, y, yaw = self.pose
+    c, s_ = math.cos(seen.yaw), math.sin(seen.yaw)
+    lx, ly = (x - seen.x) * c + (y - seen.y) * s_, -(x - seen.x) * s_ + (y - seen.y) * c
+    tx, ty = prior.to_world(lx, ly)
+    tyaw = prior.yaw + (yaw - seen.yaw)
+    moved, turned = math.hypot(tx - x, ty - y), abs(math.remainder(tyaw - yaw, 2 * math.pi))
+    if moved < FIX_TOL_M and turned < FIX_TOL_RAD:
+      return
+    before = (x, y, yaw)
+    self.mission._set_pose(tx, ty, tyaw)
+    if self.mission.matcher is not None:
+      self.mission.matcher.anchored()
+    self.mission.belief_event("fixed", before, fixture="station",
+                              movedM=round(moved, 3), turnedDeg=round(math.degrees(turned), 2))
+    self._station_seen = None
 
   def dock_hold_routine(self, seconds):
-    raise NotImplementedError(NOT_HERE)
-    yield
+    return self.hold_routine(seconds)
 
   def redock_routine(self):
-    raise NotImplementedError(NOT_HERE)
-    yield
+    """Its plug out while it charged: plugged in again from where it stands."""
+    from pluggybot.humanoid import charge
+    seen = self._station_seen or charge.look(self)
+    if seen is None or self.charging():
+      return
+    yield from charge.plug_in_routine(self, seen, self._charge_trace)
 
   def undock_routine(self):
-    raise NotImplementedError(NOT_HERE)
-    yield
+    """Unplugged, the plug left to its balancer at the cup, and turned away
+    from the station: its walker barely backs up (4 cm in 3 s asked 0.25
+    m/s), so it walks off forward."""
+    from pluggybot.humanoid import charge
+    seen = self._station_seen or charge.look(self) or self._station
+    if self.charging():
+      why = yield from charge.unplug_routine(self, seen, self._charge_trace)
+      self._charge_trace.append({"undock": why})
+    yield from self.step_routine(0.0, 0.0, math.pi)
 
   def charge_trace(self) -> str:
-    return ""
+    return "; ".join(str(t) for t in self._charge_trace)
 
   def make_way(self, route, by) -> bool:
     return self.mission.make_way(route, by)

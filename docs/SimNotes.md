@@ -6452,6 +6452,105 @@ pair in stage 4. The death seam calls a robot down at 60 deg of its
 pelvis's tilt (`TOPPLE_TILT_RAD`), and a reach's deepest bow is 63 deg:
 nothing bows in the served world until the hands come in (stage 3).
 
+
+## The humanoid's charging station (issue #559, stage 2)
+
+**What is true now.** A humanoid charges standing, by a cable it plugs into
+itself (Ben's call 1). Its station is a box on the living room's south wall
+where the quadrupeds' dock lies (`humanoid.world.station_pose`), holding a
+plug on a tool balancer's rope; the port is on its torso's front, 0.90 m up
+and 7.5 cm right of its middle (Ben, 2026-10-30). Both are built and flown
+from the robot's own senses: the station off its two tags, the port off its
+model of itself, a mated connector off its pack's current (`Body.charging`).
+The routine is ours, never one it learns (`humanoid/charge.py`); the
+station is an activity (`activity/station.py`); the parts are in Parts.md.
+
+**Why the port is where it is.** The call said "where a hand reaches and the
+head camera sees". No point of the trunk is in any head camera's view, bowed
+or not -- they ride the trunk, the nearest point 21-46 deg past each one's
+edge -- so the port is where a hand reaches: an IK sweep of the robot's
+model of itself found a straight carry into a forward port right of the
+middle 17-26 cm long with the arm 26-57 mm clear of the trunk, standing.
+(`mj_geomDistance` read 0 for two boxes 10 cm apart: box clearances are
+taken off their surface points.)
+
+**The parts.** Rosenberger's RoPD -- the e-bike charging connector:
+magnetic, 60 V, 25 A, pulled off past its sheets' minimum 20 N, NOT
+hot-pluggable (the charger runs off its signal pins) -- a panel plug in a
+printed funnel on the robot and a cable jack at the station; a Mean Well
+NPB-750-48 at 10 A, its CV set to 50.4 V; a Tecna 9300 tool balancer, its
+least pull 2.0 N, drawing the plug's back home into a cup whenever nothing
+holds it (Ben, 2026-10-30). No spring cable reel pulls lightly enough: the
+smallest, 13-36 N, would pull the plug off the robot.
+
+**Two catches are the activity**, each a weld taken where the plug is and
+drawn to its seat (`PULL_IN_S`), off past its force: the PORT (20 N off its
+face or across it) and the CUP (4 N straight out of it; its walls take a load
+across it). What flying took, each at its constant:
+
+- the plug's frame at its face and the welds at solref 0.004: at 0.02 a 50 g
+  plug drooped 8 deg about its seat (MuJoCo's soft constraints are stiff in
+  ACCELERATION, and a small inertia is little to hold);
+- the cup a catch, never a socket: held by contact alone the plug rattled
+  (0.1 m/s, 6.7 deg) and, after a breakaway, swung under the box and lodged
+  inside it;
+- the plug's swing damped (its cable's drag, 0.5 N s/m) and its spin apart
+  (0.02): one value for the free joint's six axes, 0.5, made its spin grow
+  four times a step until MuJoCo reset the world;
+- its inertia its first 0.3 m of cable's: the bare jack's, pinched between
+  the pads, threw its rotation off in a step;
+- a catch takes only a plug NO GRIPPER PAD HOLDS: held stiffly off the
+  middle, the port fought the hand past 20 N and let go again and again, and
+  the cup, catching a plug the hand was still carrying, let go and never
+  took it back (3 unplugs in 10 left it unparked; 11 of 11 after);
+- the port re-arms only beyond the funnel's reach (re-armed inside it, the
+  unplug's pull was caught again every step, 30 times, and the plug never
+  came free).
+
+**The plug-in.** The hand takes the plug's line 10 cm short of the parked
+plug's grip -- fingers to the robot's left, jaws upright -- slides its open
+jaws over the plug along its axis (in from its side, the arm's swing read
+35-49 N it was not feeling and stopped short), grips it 40 mm behind its
+face (at the jack's middle the gripper's housing met the belly with the plug
+17 mm off its port), draws it out against the balancer, turns it to the port
+and pushes it to the body with 10 N, and LETS GO in the funnel. Pushed to
+the body, plugs landed 12-33 mm across the port and 7-10 mm low: the hand
+knows where it holds one to 1-2 cm (its encoders and backlash, and the plug
+free along the Dex1-1's 80 mm pads), so the funnel round the port is 70 mm
+across -- as wide as the housing, 40 mm off the plug's axis, clears -- and
+takes a plug anywhere in its mouth (⚠ the funnel is the catch's, as the cup
+is: drawn, never touched). A miss is fetched again from the cup and pushed a
+step to one side. The walk in: from the standoff, 0.75 m off (past 1.07 m
+the tags leave the colour camera's view, which looks no higher than 19 deg
+under level), facing the cup (facing the station's own heading from 0.2 m
+aside put the far tag out of view), it fits the station and steps to the
+seat as it sees it, 0.35 m off; within 6 cm and 6 deg, but never more than
+3 cm nearer the station (4.9 cm in, its hand swung into the box). Its walker
+barely backs up -- 4 cm in 3 s asked 0.25 m/s -- so an undock turns away.
+
+**The unplug.** The open jaws slide along the seated plug from 3 cm behind
+its back, grip it at 80 N (at 40 it slipped out), pull it straight off past
+the connector's 20 N, carry it to the cup's mouth and let go there.
+
+**Measured** (`scripts/station_spike.py`, the house, one humanoid):
+
+| | |
+|---|---|
+| `--approach`: 15 starts round the standoff (head on, 0.2 m and 20 deg off each way, 12 drawn within 0.2 m along, 0.25 m across, 25 deg) | docked 11 of 15 in 17-23 s, each unplugged and the plug parked in 21-23 s; no falls |
+| ...the four misses | twice four pushes never taken, from 0.2-0.24 m to its left at 20 deg; twice the hand closed on nothing on its second try |
+| `--hold`: plugged in for 60 s | held all of it; 432 W in, 86.9 W drawn standing: 345.1 W net |
+| `--fall`: shoved over backward plugged in | the plug broke away and was home in 2.0 s; the robot up again |
+| the loop's own walk and plug-in (`energy_spike.py`) | 345.2 W net into the pack (energy.json) |
+| the reserve (`energy_spike.py --reserve`) | 13.72 Wh over 44.62 m to the garden doorway, 307.6 mWh/m; carried 17.5 Wh |
+
+**What is not yet.** The four misses (a second try's grip, and two starts
+to its left); the reserve's own dock leg gave up on the explore's map and is
+carried by rate; `lost_routine` only looks round where it stands (the
+quadruped's walks its map outward); the fix at the station
+(`anchor_at_dock`) is the dock's arithmetic, not yet flown in a day; one
+station a world. The overseer's `charge` still says "walk to your dock and
+lie down on it" (stage 3's prompt).
+
 ## Debugging workflow that worked
 
 1. Reproduce headlessly with printed telemetry (pose, joint rates, contact

@@ -274,6 +274,7 @@ save a filmstrip PNG named after the script.
 | `scripts/determinism_spike.py` | is the world the same world twice? N scripted days hashed, first divergence attributed to GPU / decoder / raycast; `--pair`; `--compare DIR`; `--resume-at T` flies a day against one saved and carried on in a new process (#345; `--world home_humanoid` the humanoid's, #559), `--on-fork MODULE` with a tool on the fork whose returns fail (#420) |
 | `scripts/make_way_spike.py` | #415: the pair in the house on true-floor maps, one robot resting in a doorway and the other walking through it, one process a scene: the walk's end, the step aside (how far, how long, why it stopped), touches and falls; `--before` nobody asks, `--finished` the resting robot's day is over, `--scene A,B`, `--world home_humanoid` the humanoid pair, one resting standing (#559) |
 | `scripts/dock_pair_spike.py` | #455's closing reading: the pair at the dock and the rack on true-floor maps, the camera on, one process a scene: `overlap` (both lying on the dock's standoff, one walks off; `--live SAVE --jam T,...` on each robot's own saved map at afb473a's jams), `double` (one charging, the other comes to charge; `bump` with nobody holding the seat), `wait` (one resting on the standoff; `lane` across the way in), `backout` (one backs off the dock onto one resting), `swap` (one resting by the claw's bay, the other fetches; `rack` across it, nobody waiting or asking); every scene says how deep the bodies went into each other and each blind walk's `headway` as its own check saw it; `--no-contact` the pair passing through each other, `--blind` the walks in and back out not stopping when they get nowhere |
+| `scripts/station_spike.py` | the humanoid's charging station (#559 stage 2; SimNotes "The humanoid's charging station"): `--approach [--n N] [--parallel P]` docked and unplugged or why not from seeded starts round the standoff, one process a trial; `--hold [--seconds S]` plugged in: the charger's watts against what it draws; `--fall` shoved over plugged in: the breakaway, the plug home, the robot up; `--view [plug\|fall]` in the viewer, looped (MUJOCO_GL unset); filmstrip `station_spike.png` |
 | `scripts/press_spike.py` | #439: the pair in the lab on true-floor maps, the camera on, one robot lying where a scene puts it (by default where its own press backs out, 0.25 m short of the feed plate's standoff) and the other finding and pressing the feed plate, one process a scene: how the press ended and its tries, the walk's and the way in's time, the steps aside, every plate the feet came down on; `--drift-walker`/`--drift` lay one map off as Luca's was |
 | `scripts/solve.py --feature mouse` | ladder A of #264, the paid feed on legs (#403): offered, claimed with a prediction, walked and graded by the job's own evaluator; `--pair`, `--n N`, `--from dock\|lab`; filmstrip `solve.png`. `--feature hide_and_seek` flies the pair's game (#404): offered as the cadence offers it, both roles claimed, each run from the queue the referee fills, the verdict banked; one game a scene (`--scene A,B`, `--swap` both ways round; `--find`, `--seek-s`, `--head-s` sweep the referee). `--feature answer\|draw\|artwork` flies a whiteboard's job (#406): offered on a board (`--board`, or the two in turn), claimed -- an answer with the right one -- drawn lying and graded off the board's ink. `--feature tower\|bench` flies a challenge (#407): offered with its area's terms, claimed, the hand-written solution run as the robot's procedure (`challenge/solutions.py`), graded by its own predicate |
 | `scripts/board_png.py` | a whiteboard's ink as a PNG from the boards state file or a recording. ⚠ +lat is the viewer's LEFT, as in the site's `surfaces/board.ts`; the test pins it because every figure the pen draws is symmetric |
@@ -456,10 +457,9 @@ save a filmstrip PNG named after the script.
   `home_humanoid` is the house with its own fixtures and NONE of the
   quadruped's -- no dock, rack or tools, so no job (its `cadence.json` block
   is empty) -- the pair colliding as the quadrupeds do (`PAIR_BITS`). ⚠
-  NOWHERE TO CHARGE until the cable's station (stage 2): `HubLifecycle.
-  charger` is False, a charge ends at once (`NO_CHARGER`), nothing sends it
-  to one (`needs_charge`, `_afford_next`), and the pack running out is the
-  `flat` death. ⚠ Its restart keeps parity (`HumanoidMission.kept_state`:
+  IT CHARGES AT ITS STATION (below); a world with no charger
+  (`HubLifecycle.charger` False) ends a charge at once (`NO_CHARGER`) and
+  sends it to none. ⚠ Its restart keeps parity (`HumanoidMission.kept_state`:
   its drivers' steps and targets, the gains they set in the MODEL, its
   senses' noise, its reach, its reckoning's planted foot, the walls its
   layer is kept off), never with a hand out (`Body.working`); a test saving
@@ -481,6 +481,27 @@ save a filmstrip PNG named after the script.
   seam calls a body down at `TOPPLE_TILT_RAD` (60 deg) of pelvis tilt and a
   reach's deepest bow is 63 deg: nothing bows in the served world until the
   hands come in (stage 3).
+- **The humanoid charges by a cable it plugs into itself** (#559 stage 2;
+  `activity/station.py`, `humanoid/charge.py`, `tests/test_station.py`;
+  SimNotes, "The humanoid's charging station"): a station on the living
+  room's wall (where the dock lies), a plug on a tool balancer that draws it
+  home into a cup, a magnetic RoPD port on the torso's front (Ben,
+  2026-10-30: no trunk point is in a head camera's view). The station is an
+  activity of two CATCHES, each a weld taken where the plug is and drawn to
+  its seat: the port (off past 20 N, the sheets' minimum) and the cup (off
+  only to a pull straight out). ⚠ A CATCH TAKES ONLY A PLUG NO GRIPPER PAD
+  HOLDS: held, the port fought the hand past 20 N again and again, and the
+  cup never took a carried plug back. ⚠ THE FUNNEL ROUND THE PORT IS THE
+  CATCH'S (70 mm, 22 mm across), as the cup is: the hand knows where it holds
+  a plug to 1-2 cm. ⚠ The port re-arms only beyond the funnel's reach; the
+  plug's spin is damped apart from its swing (one 0.5 blew it up). The
+  routine is OURS, off its senses (the station off its two tags 58-59, the
+  port off its model of itself): the open jaws slid along the plug's axis,
+  never in from its side; pushed to the body and LET GO; a miss fetched
+  again from the cup a step aside; the seat never more than 3 cm nearer the
+  station (the walker barely backs up: an undock turns away). Measured:
+  11 of 15 docked from round the standoff, every one unplugged; 345 W net;
+  the reserve 17.5 Wh.
 - **The humanoid opens the chest at a counter** (#493 stages 2-3;
   `evaluation/opener.py`, `evaluation/counter.py`; SimNotes, "The humanoid
   opens the chest"; `tests/test_hands.py`): the counter is 0.72 m (Ben).

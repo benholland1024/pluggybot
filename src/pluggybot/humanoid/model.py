@@ -220,6 +220,15 @@ class HumanoidSpec:
   #: The navigation camera's (the tags on the walls and the rack, 0.4-1.2 m
   #: up, read from a metre on).
   nav_pitch_deg: float = 20.0
+  # -- the charge port (#559 stage 2): on the torso's front --
+  #: Right of its middle and over the hip axes, m: where the right hand
+  #: carries a plug straight in from ahead with its arm clear of the trunk
+  #: (an IK sweep of the robot's model of itself: 26-57 mm clear along
+  #: 17-26 cm of carry, `activity.station`'s seat), 0.90 m up standing.
+  #: ⚠ Where the head's cameras see it there is none: they ride the trunk,
+  #: and no point of its front or sides comes within 21 deg of their view.
+  port_y: float = -0.075
+  port_z: float = 0.168
 
   @property
   def leg_length(self) -> float:
@@ -578,6 +587,16 @@ def _trunk(spec: HumanoidSpec) -> str:
             fromto="{_v(0, 0, spec.torso_z + tz, 0, 0, hz0 - hz)}" mass="0" rgba="0.3 0.3 0.32 1"/>
       <geom name="head" class="limb" type="box" size="{_v(hx, hy, hz)}"
             pos="{_v(0, 0, hz0)}" mass="{_f(head)}"/>
+      <geom name="charge_port" class="visual" type="box"
+            size="{_v(hp.PORT_FLANGE[0] / 2, hp.PORT_FLANGE[1] / 2, hp.PORT_FLANGE[1] / 2)}"
+            pos="{_v(tx + hp.PORT_FLANGE[0] / 2, spec.port_y, spec.port_z)}"
+            mass="{_f(hp.PORT_KG)}" rgba="0.75 0.6 0.2 1"/>
+      <geom name="charge_funnel" class="visual" type="cylinder"
+            size="{_v(hp.PORT_FUNNEL[0] / 2, hp.PORT_FUNNEL[1] / 2)}" zaxis="1 0 0"
+            pos="{_v(tx + hp.PORT_FLANGE[0] + hp.PORT_FUNNEL[1] / 2, spec.port_y, spec.port_z)}"
+            mass="{_f(hp.PORT_FUNNEL_KG)}" rgba="0.2 0.2 0.22 0.35"/>
+      <site name="charge_port" pos="{_v(tx + hp.PORT_FLANGE[0], spec.port_y, spec.port_z)}"
+            zaxis="1 0 0" size="0.004"/>
       <body name="depth_cam_body" pos="{_v(hx + 0.0125, 0, hz0 - 0.02)}" euler="{_v(0, dp, 0)}">
         <geom name="depth_cam" class="visual" type="box" size="0.0125 0.045 0.0125"
               mass="{_f(hp.D435_KG)}" rgba="0.2 0.2 0.2 1"/>
