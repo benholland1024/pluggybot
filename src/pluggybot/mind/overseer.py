@@ -3105,11 +3105,10 @@ You may write small procedures and keep them in a library of your own, then
 run one by name: the action `procedure:<name>`, a standing order of the same
 form, or an event-map row whose action is `procedure:<name>`. They are
 written in the language below, for the body below: its walks (`drive_to`,
-`face`) go by your map, and everything else by your stance frame. When a
-run ends, one line
-in your History says how far it got, and if it stopped short, the line and
-the reason; the values of its variables follow, on that line or the next:
-that is how a number you `read` inside a procedure reaches you.
+`face`) go by your map, and everything else by your stance frame. When a run
+ends, one line in your History says how far it got, and if it stopped short,
+the line and the reason; the values of its variables follow, on that line or
+the next: that is how a number you `read` inside a procedure reaches you.
 
 To add one: `define: {"name": "<name>", "source": "<the def, as text>"}`
 on any answer; it costs no turn. To run it on that same answer, choose the
