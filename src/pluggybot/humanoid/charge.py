@@ -48,7 +48,7 @@ GRIP_N, UNPLUG_GRIP_N = 40.0, 80.0
 #: check accepts (`SEAT_*`), each started there: straight across at the
 #: jack's back end the plug went in from 110 -- 3 cm and more behind the
 #: seat the arm reached the plug only bowed, the wrist bent past 90 deg, and
-#: the hand stopped short of it -- swung 20 deg from 138. ⚠ THE SWUNG GRIP
+#: the hand stopped short of it -- swung 20 deg from 140. ⚠ THE SWUNG GRIP
 #: FURTHER BACK, 45 MM: at the jack's back end the gripper's housing met the
 #: belly with the plug 21 mm off the port, past the catch's 15; at 50 the
 #: pads' far edge came 4 mm off the station's boss, and walked in from
