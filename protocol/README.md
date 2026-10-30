@@ -293,7 +293,7 @@ only record of it was the box's log. One event type is new:
   them, by `why`:
   - `sample`: `matched` (the matcher's verdicts since the last sample),
     `posture`, `state`;
-  - `fixed`: `fixture` (`dock` / `rack`), `moved`, `dropped` (the map went
+  - `fixed`: `fixture` (`dock` / `rack` / `station`, a humanoid's), `moved`, `dropped` (the map went
     too), and a look's `tags` and `atM` or the dock's own `anchor` (`board`
     / `seat`);
   - `lost`: `fixture`;

@@ -246,6 +246,12 @@ class HumanoidBody(Body):
     return self.GETUP_BUDGET_S if self.rights_itself else TOPPLE_HOLD_S
 
   @property
+  def held_pitch(self) -> float:
+    """The standing policy's bow, upright for the walker and the get-up:
+    what its fall watch reads a tip past (`HumanoidMission._held_pitch`)."""
+    return self.mission._held_pitch()
+
+  @property
   def posture(self) -> str:
     """`getting_up` while its get-up policy has the joints, else `standing`
     (it rests standing)."""
@@ -983,20 +989,93 @@ class HumanoidBody(Body):
     return self.mission.in_sight(x, y)
 
   def lost_routine(self, fixture, stop=None):
-    """No station in sight where it should be (#476's rule, its first cut):
-    it turns on the spot, a sixth of a turn at a time, looking for the
-    station's tags. True where it sees them. ⚠ The quadruped's search walks
-    its map outward and forgets it first (`legs.fixtures`); the humanoid's
-    looks only from where it stands."""
+    """No station in sight where the belief puts it (#476's rule): facing
+    where it believes the station is, it steps in until its LIDAR reads the
+    wall `charge.LOST_WALL_M` ahead, and looks, ahead and either side of it
+    (`LOST_LOOKS`); then from a step either way along the wall
+    (`LOST_ALONG_M`). A look that fits the station is a FIX, the station
+    commissioned as the dock is (`_fix_at`), so the loop's walk to the
+    standoff goes again on the belief put right. True once a look found it;
+    `stop`, asked between its moves, ends the search. ⚠ NEARER BY WHAT IT
+    SENSES, never by its belief: past 1.07 m of the station's face the tags
+    are above its colour camera's view, and from viewpoints set on a belief
+    0.7 m off toward the wall every look was further than that. The `lost`
+    and `searched` records are the quadruped's (`belief_event`); its search
+    walks its map outward and forgets it first (`legs.fixtures`), where the
+    humanoid's map goes only with a fix past the matcher's reach."""
     from pluggybot.humanoid import charge
     if self._station is None:
       return False
-    yaw0 = self.pose[2]
-    for k in range(6):
-      yield from self.face_routine(yaw0 + k * math.pi / 3)
-      if charge.look(self) is not None:
-        return True
-    return False
+    t0, m = float(self._d.time), self.mission
+    m.belief_event("lost", fixture="station")
+    cx, cy = self._station.to_world(0.0, 0.0)
+    found, ended, fix, views = False, "not found", None, 0
+    for along in (0.0, *charge.LOST_ALONG_M):
+      if stop is not None and stop():
+        ended = "interrupted"
+        break
+      if along:
+        views += 1
+        yield from self.step_routine(0.0, along)
+      else:
+        x, y, _ = self.pose
+        yield from self.face_routine(math.atan2(cy - y, cx - x))
+        wall = self._wall_ahead()
+        if wall is not None and wall > charge.LOST_WALL_M + charge.LOST_WALL_TOL_M:
+          yield from self.step_routine(wall - charge.LOST_WALL_M)
+      facing = self.pose[2]
+      for swing in charge.LOST_LOOKS:
+        yield from self.face_routine(facing + swing)
+        seen = yield from charge.look_routine(self)
+        if seen is not None:
+          fix = self._fix_at(seen)
+          found, ended = True, "found"
+          break
+      if found:
+        break
+      yield from self.face_routine(facing)
+    m.belief_event("searched", found=found, ended=ended, fixture="station",
+                   seconds=round(float(self._d.time) - t0, 1), viewpoints=views,
+                   dropped=bool(fix is not None and fix["dropped"]))
+    return found
+
+  def _wall_ahead(self) -> float | None:
+    """How far its LIDAR reads what stands dead ahead, m -- the room's
+    returns within `charge.LOST_AHEAD_RAD` of its heading, their median --
+    or None where none came back."""
+    from pluggybot.humanoid import charge
+    angles, ranges, _, _ = self.mission.lidar.scan_split(self._d)
+    ahead = ranges[np.abs(angles) <= charge.LOST_AHEAD_RAD]
+    ahead = ahead[np.isfinite(ahead) & (ahead < self.mission.lidar.max_range)]
+    return float(np.median(ahead)) if ahead.size else None
+
+  def _fix_at(self, seen) -> dict | None:
+    """The belief put where the station, seen as `seen` (its frame in the
+    believed world, `charge.look`), says it stands: the station is
+    commissioned (`_station`), as the dock is (#476). Past `FIX_TOL_*` the
+    belief moves, and past the matcher's own search (`ASKEW_*`) the map laid
+    on the old belief goes too -- kept, a map laid while lost pulled a
+    corrected belief back onto a copy within 20 s (`legs.fixtures`). Its
+    `fixed` record, or None where the look agreed with the belief."""
+    from pluggybot.legs.fixtures import ASKEW_M, ASKEW_RAD, FIX_TOL_M, FIX_TOL_RAD
+    prior = self._station
+    x, y, yaw = self.pose
+    c, s_ = math.cos(seen.yaw), math.sin(seen.yaw)
+    lx, ly = (x - seen.x) * c + (y - seen.y) * s_, -(x - seen.x) * s_ + (y - seen.y) * c
+    tx, ty = prior.to_world(lx, ly)
+    tyaw = prior.yaw + (yaw - seen.yaw)
+    moved, turned = math.hypot(tx - x, ty - y), abs(math.remainder(tyaw - yaw, 2 * math.pi))
+    if moved < FIX_TOL_M and turned < FIX_TOL_RAD:
+      return None
+    dropped = moved > ASKEW_M or turned > ASKEW_RAD
+    self.mission._set_pose(tx, ty, tyaw)
+    if dropped:
+      self.forget_world()
+    elif self.mission.matcher is not None:
+      self.mission.matcher.anchored()
+    return self.mission.belief_event("fixed", (x, y, yaw), fixture="station", tags=2,
+                                     atM=round(math.hypot(seen.x - x, seen.y - y), 2),
+                                     moved=True, dropped=dropped)
 
   def find_tag_routine(self, tag, near, patience, stop=None):
     raise NotImplementedError(f"{NOT_HERE}: a place's walk is the quadruped's (#419)")
@@ -1103,7 +1182,7 @@ class HumanoidBody(Body):
     # heading: from 0.2 m to one side that put the far tag out of view
     cx, cy = self._station.to_world(0.0, 0.0)
     yield from self.face_routine(math.atan2(cy - self.pose[1], cx - self.pose[0]))
-    seen = charge.look(self)
+    seen = yield from charge.look_routine(self)
     if seen is None:
       return "no board"
     for _ in range(charge.SEAT_STEPS):
@@ -1130,28 +1209,11 @@ class HumanoidBody(Body):
     return any(self._d.eq_active[e] for e in self._port_eqs)
 
   def anchor_at_dock(self) -> None:
-    """The station fixes its belief (#476), commissioned as the dock is:
-    where it stands against the station as it saw it, put against the
-    station where it was commissioned -- past `FIX_TOL_*`, a belief event."""
-    from pluggybot.legs.fixtures import FIX_TOL_M, FIX_TOL_RAD
-    seen, prior = self._station_seen, self._station
-    if seen is None or prior is None:
-      return
-    x, y, yaw = self.pose
-    c, s_ = math.cos(seen.yaw), math.sin(seen.yaw)
-    lx, ly = (x - seen.x) * c + (y - seen.y) * s_, -(x - seen.x) * s_ + (y - seen.y) * c
-    tx, ty = prior.to_world(lx, ly)
-    tyaw = prior.yaw + (yaw - seen.yaw)
-    moved, turned = math.hypot(tx - x, ty - y), abs(math.remainder(tyaw - yaw, 2 * math.pi))
-    if moved < FIX_TOL_M and turned < FIX_TOL_RAD:
-      return
-    before = (x, y, yaw)
-    self.mission._set_pose(tx, ty, tyaw)
-    if self.mission.matcher is not None:
-      self.mission.matcher.anchored()
-    self.mission.belief_event("fixed", before, fixture="station",
-                              movedM=round(moved, 3), turnedDeg=round(math.degrees(turned), 2))
-    self._station_seen = None
+    """The station fixes its belief as it charges (#476), off the look it
+    plugged in by (`_fix_at`): a look in the frame the fix left is no look."""
+    if (self._station_seen is not None and self._station is not None
+        and self._fix_at(self._station_seen) is not None):
+      self._station_seen = None
 
   def dock_hold_routine(self, seconds):
     return self.hold_routine(seconds)

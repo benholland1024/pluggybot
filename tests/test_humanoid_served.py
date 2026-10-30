@@ -490,6 +490,21 @@ def test_a_humanoids_look_is_taken_from_its_head():
     life.body.close()
 
 
+def test_the_death_seam_reads_a_humanoids_tip_off_the_bow_its_fall_watch_reads(monkeypatch):
+  """A reach's deepest bow (63 deg) is past the seam's topple (60): the seam
+  reads the pelvis off the bow its legs hold (`Body.held_pitch`), which is
+  its fall watch's own (`HumanoidMission._held_pitch`)."""
+  life = _humanoid(near_field=False)
+  try:
+    bow = math.radians(63.0)
+    life.data.xquat[life.body.root] = (math.cos(bow / 2), 0.0, math.sin(bow / 2), 0.0)
+    assert life.down(), "the walker stands upright"
+    monkeypatch.setattr(life.body.mission, "_held_pitch", lambda: bow)
+    assert life.body.held_pitch == bow and not life.down()
+  finally:
+    life.body.close()
+
+
 def test_a_humanoid_keeps_clear_of_its_station_and_with_a_hand_out_is_never_saved():
   """Its station is the frame the loop's standby keeps clear of
   (`HubLifecycle.rack_distance`, its commissioned pose, out into the room);

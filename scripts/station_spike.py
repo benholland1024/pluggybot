@@ -8,9 +8,15 @@ the house, its station on the living room's wall.
     ... --hold [--seconds S]    # plugged in: the pack's gain, W, and the plug held
     ... --fall                  # shoved over plugged in: the breakaway, the
                                 # plug home, the robot up again
+    ... --seats [--parallel P]  # started at seats over what the seat check
+                                # accepts (3 cm in to 6 cm back, 6 cm across,
+                                # 6 deg): plugged in and unplugged or why not
     ... --walk-in [--explore 120,240] [--parallel P]   # explored, walked out
                                 # across the house on its own map, then the
                                 # loop's own charge path: docked or why not
+    ... --lost [--n N] [--parallel P]   # a fresh robot 2 m out, its belief set
+                                # 0.4-1 m wrong: the loop's charge path, its
+                                # lost search and the fix off the station
     ... --view [plug|fall]      # a scene in the viewer, looped (MUJOCO_GL unset)
     ... --out rows.json         # the rows
 
@@ -128,6 +134,69 @@ def approach(n: int, parallel: int, seed: int = 559) -> list[dict]:
   return rows
 
 
+#: `--seats`' grid, in the station's frame: how far behind the seat (m, +
+#: away from the wall), to its left (m) and turned to its left (deg).
+SEAT_BACKS, SEAT_LEFTS, SEAT_TURNS = ((-0.03, 0.0, 0.03, 0.06), (-0.06, -0.04, -0.02, 0.0, 0.02,
+                                                                0.04, 0.06), (-6, -3, 0, 3, 6))
+
+
+def seat_trial(off) -> dict:
+  """From the seat `off` (as `--seats` draws it): the station fitted from
+  the standoff first and again at the seat, the standoff's fit kept where
+  the seat's sees no pair -- as `dock_routine` keeps it -- then the plug-in
+  and, plugged in, the unplug and the plug home."""
+  from pluggybot.activity import station as st
+  from pluggybot.humanoid import charge
+  model, data, body, station = world()
+  first = charge.look(body)
+  s = body._station
+  x, y = s.to_world(st.SEAT_X - off[0], st.SEAT_Y + off[1])
+  body.start_at(x, y, s.yaw + math.radians(off[2]))
+  body.run(body.hold_routine(1.0))
+  seen = charge.look(body) or first
+  out = {"off": list(off), "lookedAtSeat": charge.look(body) is not None}
+  if seen is None:
+    return {**out, "why": "no look"}
+  trace = []
+  t0 = float(data.time)
+  why = body.run(charge.plug_in_routine(body, seen, trace))
+  out.update(why=why, s=round(float(data.time) - t0, 1), tries=len(trace),
+             swing=trace[-1]["swing"] if trace else None, falls=body.falls)
+  if why == "plugged in":
+    t1 = float(data.time)
+    out["unplug"] = body.run(charge.unplug_routine(body, seen, []))
+    body.run(body.hold_routine(4.0))
+    out.update(unplugS=round(float(data.time) - t1, 1), parked=bool(station.flags["parked"]),
+               fallsAfter=body.falls)
+  return out
+
+
+def seats(parallel: int) -> list[dict]:
+  """Every seat of `SEAT_*`'s grid, one process a trial."""
+  import itertools
+  offs = list(itertools.product(SEAT_BACKS, SEAT_LEFTS, SEAT_TURNS))
+
+  def run(off):
+    cmd = [sys.executable, __file__, "--one-seat", json.dumps(off)]
+    r = subprocess.run(cmd, capture_output=True, text=True, timeout=1800)
+    try:
+      return json.loads(r.stdout.strip().splitlines()[-1])
+    except (IndexError, json.JSONDecodeError):
+      return {"off": list(off), "why": "crashed", "stderr": r.stderr[-400:]}
+
+  with ThreadPoolExecutor(parallel) as pool:
+    rows = list(pool.map(run, offs))
+  for r in rows:
+    if r.get("why") != "plugged in" or r.get("unplug") != "unplugged" or not r.get("parked"):
+      print(f"{str(tuple(r['off'])):22s} {r.get('why', '')[:50]:50s} {r.get('unplug', '-')}")
+  docked = [r for r in rows if r.get("why") == "plugged in"]
+  home = [r for r in docked if r.get("unplug") == "unplugged" and r.get("parked")]
+  print(f"plugged in {len(docked)} of {len(rows)} (swung {sum(r['swing'] == 20 for r in docked)}, "
+        f"straight across {sum(r['swing'] == 0 for r in docked)}); unplugged and the plug home "
+        f"{len(home)} of {len(docked)}; falls {sum(r.get('fallsAfter', r.get('falls', 0)) for r in rows)}")
+  return rows
+
+
 #: Where `--walk-in` sends the robot before the loop sends it to charge: the
 #: house's spawns and rooms across it from the station
 #: (`models/home_world.meta.json`), and the facility's across the street.
@@ -142,21 +211,11 @@ def walk_in(place: str, explore_s: float) -> dict:
   is sent to charge -- the walk to the standoff on its belief, the station
   off its tags, the plug-in. Docked or why not, how far its belief was off
   (m, deg) there and at the end, the times."""
-  from pluggybot.lifecycle import HUMANOID_HOME, HubLifecycle, points_ledger, world_config
-  from pluggybot.robot import world_spec
+  from pluggybot.lifecycle import HUMANOID_HOME, world_config
   cfg = world_config(HUMANOID_HOME)
-  model = world_spec(cfg["model"], body=cfg["body"]).compile()
-  data = mujoco.MjData(model)
-  life = HubLifecycle(model, data, realtime=False, battery_wh=cfg["hosting_battery_wh"],
-                      rack=cfg["rack"], grid_bounds=cfg["grid_bounds"],
-                      low_battery_wh=cfg["low_battery_wh"], ledger=points_ledger(None),
-                      world=HUMANOID_HOME, errands=[], near_field=True)
-  acts = cfg["activities"](model, data)
-  station = next(a for a in acts if a.name == "station")
-  life.body.step_hooks.append(acts.step_hook(model, data))
-  life.max_sim_time = life.explore_deadline = 1e9
+  life, body, station = _life()
+  data = life.data
   life.blacklist, life.floor_explored = set(), False
-  body = life.body
 
   def off():
     (bx, by, bh), (tx, ty, th) = body.pose, body.true_pose()
@@ -209,6 +268,98 @@ def walk_ins(explores: tuple, parallel: int) -> list[dict]:
           f"{r.get('outS', 0):6.1f} {str(r.get('offThere', '-')):>12s} {str(r['docked']):>6s} "
           f"{r.get('inS', 0):6.1f} {str(r.get('offEnd', '-')):>12s} {r.get('tries', 0):5d} "
           f"{r.get('falls', '-')!s:>5s}  {r.get('why', '')}")
+  print(f"docked {sum(r['docked'] for r in rows)} of {len(rows)}")
+  return rows
+
+
+def _life():
+  """The humanoid's house and a lifecycle on it, as the loop runs one: the
+  station's activity hooked, no deadline. (life, body, station)."""
+  from pluggybot.lifecycle import HUMANOID_HOME, HubLifecycle, points_ledger, world_config
+  from pluggybot.robot import world_spec
+  cfg = world_config(HUMANOID_HOME)
+  model = world_spec(cfg["model"], body=cfg["body"]).compile()
+  data = mujoco.MjData(model)
+  life = HubLifecycle(model, data, realtime=False, battery_wh=cfg["hosting_battery_wh"],
+                      rack=cfg["rack"], grid_bounds=cfg["grid_bounds"],
+                      low_battery_wh=cfg["low_battery_wh"], ledger=points_ledger(None),
+                      world=HUMANOID_HOME, errands=[], near_field=True)
+  acts = cfg["activities"](model, data)
+  station = next(a for a in acts if a.name == "station")
+  life.body.step_hooks.append(acts.step_hook(model, data))
+  life.max_sim_time = life.explore_deadline = 1e9
+  return life, life.body, station
+
+
+#: `--lost`'s start, in the station's frame (m): 2 m out on the seat's line,
+#: facing the station -- past 1.07 m, so the tags are not in view.
+LOST_FROM_X = -2.0
+
+
+def lost_trial(off) -> dict:
+  """A fresh humanoid at `LOST_FROM_X` facing the station, its belief put
+  `off` wrong (m along the station's +x, m across it, deg) on an empty map,
+  and the loop's own charge path (`HubLifecycle.go_charge`): docked or why
+  not, the belief's error before and at the end (m, deg), and the belief's
+  records (`lost`, `fixed`, `searched`)."""
+  from pluggybot.activity import station as st
+  life, body, station = _life()
+  s = body._station
+
+  def err():
+    (bx, by, bh), (tx, ty, th) = body.pose, body.true_pose()
+    return [round(math.hypot(bx - tx, by - ty), 3),
+            round(math.degrees(math.remainder(bh - th, 2 * math.pi)), 1)]
+
+  try:
+    x, y = s.to_world(LOST_FROM_X, st.SEAT_Y)
+    body.start_at(x, y, s.yaw)
+    dx, dy = s.to_world(off[0], off[1])
+    dx, dy = dx - s.x, dy - s.y
+    body.mission._set_pose(x + dx, y + dy, s.yaw + math.radians(off[2]))
+    out = {"off": list(off), "offStart": err()}
+    t0 = float(life.data.time)
+    out["docked"] = bool(life.go_charge())
+    out.update(why=life.charge_failure, s=round(float(life.data.time) - t0, 1), offEnd=err(),
+               falls=body.falls,
+               events=[{k: v for k, v in e.items() if k in ("why", "fixture", "found", "ended",
+                                                          "seconds", "viewpoints", "dropped",
+                                                          "atM")}
+                       for e in body.belief_events])
+  finally:
+    body.close()
+  return out
+
+
+def losts(n: int, parallel: int, seed: int = 476) -> list[dict]:
+  """Four set wrong each way -- 0.7 m out from the wall, in toward it, and
+  either way along it -- and `n` drawn 0.4-1 m off in any direction and up
+  to 5 deg turned, one process a trial."""
+  rng = np.random.default_rng(seed)
+  offs = [(-0.7, 0.0, 0.0), (0.7, 0.0, 0.0), (0.0, 0.7, 0.0), (0.0, -0.7, 0.0)]
+  for _ in range(n):
+    r, a = rng.uniform(0.4, 1.0), rng.uniform(-math.pi, math.pi)
+    offs.append(tuple(float(round(v, 3)) for v in (r * math.cos(a), r * math.sin(a),
+                                                     rng.uniform(-5.0, 5.0))))
+
+  def run(off):
+    cmd = [sys.executable, __file__, "--one-lost", json.dumps(off)]
+    r = subprocess.run(cmd, capture_output=True, text=True, timeout=3600)
+    try:
+      return json.loads(r.stdout.strip().splitlines()[-1])
+    except (IndexError, json.JSONDecodeError):
+      return {"off": list(off), "docked": False, "why": "crashed", "stderr": r.stderr[-400:]}
+
+  with ThreadPoolExecutor(parallel) as pool:
+    rows = list(pool.map(run, offs))
+  print(f"{'belief set off (m, m, deg)':28s} {'docked':>6s} {'s':>6s} {'off end':>14s}  "
+        f"searched  why not")
+  for r in rows:
+    found = next((e for e in r.get("events", []) if e["why"] == "searched"), None)
+    print(f"{str(tuple(r['off'])):28s} {str(r['docked']):>6s} {r.get('s', 0):6.1f} "
+          f"{str(r.get('offEnd', '-')):>14s}  "
+          f"{'-' if found is None else (found['ended'] + ' ' + str(found['seconds']) + ' s'):9s} "
+          f"{r.get('why', '')}")
   print(f"docked {sum(r['docked'] for r in rows)} of {len(rows)}")
   return rows
 
@@ -377,10 +528,14 @@ def main(argv=None) -> int:
   ap.add_argument("--walk-in", action="store_true")
   ap.add_argument("--explore", default="120,240",
                   help="--walk-in's explores before it walks out, s, comma-separated")
+  ap.add_argument("--seats", action="store_true")
+  ap.add_argument("--lost", action="store_true")
   ap.add_argument("--view", nargs="?", const="plug", choices=("plug", "fall"))
   ap.add_argument("--out", default=None)
   ap.add_argument("--one", default=None, help=argparse.SUPPRESS)
   ap.add_argument("--one-walk-in", default=None, help=argparse.SUPPRESS)
+  ap.add_argument("--one-seat", default=None, help=argparse.SUPPRESS)
+  ap.add_argument("--one-lost", default=None, help=argparse.SUPPRESS)
   args = ap.parse_args(argv)
   if args.one:
     print(json.dumps(trial(tuple(json.loads(args.one)))))
@@ -388,10 +543,18 @@ def main(argv=None) -> int:
   if args.one_walk_in:
     print(json.dumps(walk_in(*json.loads(args.one_walk_in))))
     return 0
+  if args.one_seat:
+    print(json.dumps(seat_trial(tuple(json.loads(args.one_seat)))))
+    return 0
+  if args.one_lost:
+    print(json.dumps(lost_trial(tuple(json.loads(args.one_lost)))))
+    return 0
   if args.view:
     view(args.view)
     return 0
   rows = (approach(args.n, args.parallel) if args.approach else
+          seats(args.parallel) if args.seats else
+          losts(args.n, args.parallel) if args.lost else
           walk_ins(tuple(float(e) for e in args.explore.split(",")), args.parallel)
           if args.walk_in else
           [hold(args.seconds)] if args.hold else [fall()] if args.fall else None)

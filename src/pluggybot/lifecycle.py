@@ -283,7 +283,8 @@ NEAR_STANDOFF_M = 0.75
 #: every five minutes is 576 rows a day.
 DRIFT_EVERY_S = 300.0
 #: What each commissioned fixture is called where the robot reads of it.
-FIXTURE_WORDS = {"dock": "the dock's board", "rack": "the rack"}
+FIXTURE_WORDS = {"dock": "the dock's board", "rack": "the rack",
+                 "station": "my charging station"}
 SCREEN_SENSE_S = 0.02       # sim seconds between power scans of a display
                             # the robot is NOT carrying (issue #13)
 #: Sim seconds an overseer-chosen `explore` runs for before the arbitration
@@ -1274,10 +1275,15 @@ class HubLifecycle:
                 + f"({math.degrees(tilt):.0f} deg from upright)", at=self._fall)
 
   def _chassis_tilt(self) -> float:
-    """Radians between the chassis's up axis and the world's."""
+    """Radians between the chassis's up axis and where the posture its legs
+    hold puts it (`Body.held_pitch`): the world's up, but for a humanoid
+    bowed -- whose deepest bow, 63 deg off upright, is no topple (#559)."""
     w, x, y, z = self.body.orientation()
-    up_z = 1.0 - 2.0 * (x * x + y * y)      # R[2][2] of the root quaternion
-    return math.acos(max(-1.0, min(1.0, up_z)))
+    # the world's up in the chassis's frame, R's third row, against the
+    # posture's: (-sin p, 0, cos p), pitched p forward (`getup.tipped`)
+    p = self.body.held_pitch
+    up = (1.0 - 2.0 * (x * x + y * y)) * math.cos(p) - 2.0 * (x * z - w * y) * math.sin(p)
+    return math.acos(max(-1.0, min(1.0, up)))
 
   def down(self) -> bool:
     """Lying on the floor: the chassis past TOPPLE_TILT_RAD, the topple
@@ -1455,7 +1461,13 @@ class HubLifecycle:
     b, a = rec["before"], rec["after"]
     off = math.hypot(a["x"] - b["x"], a["y"] - b["y"])
     turned = abs((a["yawDeg"] - b["yawDeg"] + 180.0) % 360.0 - 180.0)
-    if why == "lost":
+    # ...a humanoid's station is the one fixture it has, and its map goes
+    # only with a fix past the matcher's reach (`HumanoidBody.lost_routine`)
+    station = rec.get("fixture") == "station"
+    if why == "lost" and station:
+      line = (f"{what} was not in sight where I believed it was in front of me, so I "
+              "am not where I thought, and I am looking for it from nearer")
+    elif why == "lost":
       line = (f"{what} was not in sight where I believed it was in front of me, so I "
               "am not where I thought: my map is gone, and I am looking round for the "
               "dock or the rack")
@@ -1463,7 +1475,9 @@ class HubLifecycle:
       line = (f"{what} put me {off:.1f} m and {turned:.0f} deg from where I believed I "
               f"was: the map I had was laid askew, and it is gone")
     elif why == "searched" and not rec.get("found"):
-      line = (f"I looked for the dock and the rack for {rec.get('seconds', 0):.0f} s and "
+      line = (f"I looked for {what} for {rec.get('seconds', 0):.0f} s and did not see it"
+              if station else
+              f"I looked for the dock and the rack for {rec.get('seconds', 0):.0f} s and "
               "saw neither")
     elif why == "searched" and not rec.get("dropped"):
       # ...found, and near where it believed: no line said so yet

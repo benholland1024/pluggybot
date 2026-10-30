@@ -241,3 +241,187 @@ def test_a_humanoid_plugs_itself_in_from_its_seat():
     assert body.falls == 0
   finally:
     body.close()
+
+
+# ---- the plug-in's grips and the unplug's squeeze, on a body that only says -------
+
+
+class _Says:
+  """A body whose hand does what each test says, and records what it was
+  asked: the plug-in's and the unplug's rules, with no physics."""
+
+  def __init__(self, reaches=lambda rot: True):
+    self.reaches, self.asked, self.grips, self.moves = reaches, [], [], []
+    self.plugged = False
+
+  def _done(self, value):
+    return value
+    yield
+
+  def reach_routine(self, side, pos, rot=None, **kw):
+    self.asked.append(np.asarray(rot))
+    self.reached_after = len(self.grips)
+    return self._done(self.reaches(np.asarray(rot)))
+
+  def move_hand_routine(self, side, pos, turns=None, **kw):
+    self.moves.append((np.asarray(pos), turns))
+    return self._done({"why": "arrived"})
+
+  def grip_routine(self, side, closed, force=None):
+    self.grips.append((closed, force))
+    return self._done(True)
+
+  def pull_routine(self, side, way, force, distance, **kw):
+    self.plugged = force == charge.PUSH_N
+    return self._done({"why": "held fast", "along": 0.02})
+
+  def hold_routine(self, seconds):
+    return self._done(None)
+
+  def release_routine(self, side):
+    return self._done("home")
+
+  def hand_why(self, side):
+    return "stopped short"
+
+  def charging(self):
+    return self.plugged
+
+
+def _drive(routine):
+  try:
+    while True:
+      next(routine)
+  except StopIteration as done:
+    return done.value
+
+
+def test_the_hand_takes_the_plug_by_its_grips_in_turn(monkeypatch):
+  """`charge.GRIPS`: the fingers swung toward the plug's back first, where
+  the arm reaches from furthest behind the seat; straight across where the
+  swung hand's way in is barred -- and the port read only once the hand
+  holds the plug, carried to in the grip that took it, and every squeeze
+  on a plug a catch holds begun at the least the gripper does."""
+  from pluggybot.body import RackPose
+  monkeypatch.setattr(charge, "port", lambda body: (np.array([0.0, 0.0, 0.9]),
+                                                   np.array([-1.0, 0.0, 0.0])))
+  station = RackPose(1.0, 0.0, 0.0)
+  into = np.array([1.0, 0.0, 0.0])
+  (swung, far), (straight, near) = charge.GRIPS
+  assert swung > 0.0 and far > near == st.GRIP_BACK_M and straight == 0.0
+  body = _Says(reaches=lambda rot: np.allclose(rot, charge._grip(into, straight)))
+  trace = []
+  assert _drive(charge.plug_in_routine(body, station, trace)) == "plugged in"
+  assert [np.allclose(r, charge._grip(into, s)) for r, s in zip(body.asked, (swung, straight))] \
+      == [True, True]
+  assert np.allclose(body.moves[0][0], charge.parked_grip(station, near))
+  assert np.allclose(body.moves[1][1][0], charge._grip(np.array([-1.0, 0.0, 0.0]), straight))
+  assert trace[-1]["swing"] == 0
+  shut = [f for closed, f in body.grips if closed]
+  assert shut == [charge.GRIP_MIN_N, charge.GRIP_N], shut
+  # ...and the fingers swing about the jaws' line, which stays upright
+  for s in (0.0, swung):
+    g = charge._grip(into, s)
+    assert np.allclose(g[:, 0], (0.0, 0.0, 1.0))
+    assert -g[2, 2] == pytest.approx(0.0, abs=1e-12)
+    assert math.atan2(-g[0, 2], -g[1, 2]) == pytest.approx(s)
+
+
+def test_the_unplug_reaches_its_jaws_shut_and_squeezes_the_plug_lightly_first(monkeypatch):
+  """Open on its way behind the plug, a pad swept the station's box; and
+  shut at once on it, the first pad to meet the plug pushed it across the
+  port past the connector's 20 N, and it broke away (`charge._squeeze_routine`)."""
+  from pluggybot.body import RackPose
+  monkeypatch.setattr(charge, "port", lambda body: (np.array([0.0, 0.0, 0.9]),
+                                                   np.array([-1.0, 0.0, 0.0])))
+  body = _Says()
+  body.plugged = True
+  body.pull_routine = lambda *a, **kw: (setattr(body, "plugged", False),
+                                        body._done({"why": "distance", "along": 0.05}))[1]
+  assert _drive(charge.unplug_routine(body, RackPose(1.0, 0.0, 0.0), [])) == "unplugged"
+  assert body.grips[:2] == [(True, charge.GRIP_MIN_N), (False, None)], body.grips
+  assert body.reached_after == 1, "the jaws shut before the reach, opened after it"
+  assert body.grips[2:4] == [(True, charge.GRIP_MIN_N), (True, charge.UNPLUG_GRIP_N)], body.grips
+
+
+# ---- lost, and found by the station -------------------------------------------------
+
+
+def test_a_look_at_the_station_fixes_the_belief_and_past_the_matchers_reach_drops_the_map():
+  """The station is commissioned as the dock is (#476): its look puts the
+  belief where it says the robot stands, and a fix past the matcher's own
+  search (`legs.fixtures.ASKEW_M`) drops the map laid on the old belief."""
+  from pluggybot.body import RackPose
+  model, data, body, station = _house(at_seat=False)
+  try:
+    s, m = body._station, body.mission
+    x, y, yaw = body.pose
+    near = RackPose(s.x + 0.3, s.y - 0.2, s.yaw)       # the belief 0.36 m off
+    fix = body._fix_at(near)
+    assert body.pose[:2] == pytest.approx((x - 0.3, y + 0.2), abs=1e-6)
+    assert fix["fixture"] == "station" and fix["moved"] and not fix["dropped"]
+    assert body._fix_at(s) is None, "a look that agrees moves nothing"
+    m.grid.grid[10, 10] = 5.0
+    far = RackPose(s.x + 0.7, s.y, s.yaw)
+    assert body._fix_at(far)["dropped"] and not m.grid.grid.any()
+  finally:
+    body.close()
+
+
+def test_a_lost_humanoid_steps_in_by_its_lidar_and_along_the_wall_until_it_sees_it(monkeypatch):
+  """`lost_routine`: facing where it believes the station is, it steps in
+  until its LIDAR reads the wall `LOST_WALL_M` ahead -- never by its belief,
+  which is what is wrong -- and looks ahead and either side; then from a
+  step along the wall. The look that finds it fixes the belief."""
+  from pluggybot.body import RackPose
+  model, data, body, station = _house(at_seat=False)
+  try:
+    s = body._station
+    steps, looks = [], []
+
+    def step(ahead, left=0.0, turn=0.0, patience=0.0):
+      steps.append((round(ahead, 3), round(left, 3)))
+      return {"why": "stepped"}
+      yield
+
+    def face(heading):
+      return True
+      yield
+    monkeypatch.setattr(body, "_wall_ahead", lambda: 1.5)
+    monkeypatch.setattr(body, "step_routine", step)
+    monkeypatch.setattr(body, "face_routine", face)
+    def look(b):
+      looks.append(1)
+      return RackPose(s.x + 0.7, s.y, s.yaw) if len(looks) == len(charge.LOST_LOOKS) + 1 else None
+      yield
+    monkeypatch.setattr(charge, "look_routine", look)
+    assert body.run(body.lost_routine("dock"))
+    assert steps == [(round(1.5 - charge.LOST_WALL_M, 3), 0.0), (0.0, charge.LOST_ALONG_M[0])]
+    events = [e["why"] for e in body.belief_events]
+    assert events == ["lost", "fixed", "searched"], events
+    assert body.belief_events[-1]["found"] and body.belief_events[-1]["viewpoints"] == 1
+  finally:
+    body.close()
+
+
+def test_a_lost_humanoid_says_it_looks_for_its_station_and_whether_it_found_it():
+  """History, in its own world's words: its station, never the dock or the
+  rack it does not have (`HubLifecycle._tell_belief`)."""
+  from pluggybot.body import StubBody
+  from pluggybot.mind.thoughts import HISTORY
+  from pluggybot.navigator import wire_pose
+  from test_body import stub_life  # noqa: I001 -- tests/ is on sys.path
+  body = StubBody()
+  life = stub_life(body=body)
+  life._drift_due = math.inf
+  at = wire_pose((1.0, 2.0, 0.0))
+  for seq, why, kw in ((1, "lost", {}), (2, "searched", {"found": False, "seconds": 41.0})):
+    body.belief_events.append({"seq": seq, "t": 5.0, "why": why, "before": at, "after": at,
+                               "truth": at, "fixture": "station", **kw})
+  life._belief_step()
+  said = [ln for ln in life.thoughts.texts[HISTORY].splitlines() if ln.strip()]
+  assert any("my charging station was not in sight" in ln and "from nearer" in ln
+             for ln in said), said
+  assert any(ln.endswith("I looked for my charging station for 41 s and did not see it")
+             for ln in said), said
+  assert not any("dock" in ln or "rack" in ln for ln in said), said
