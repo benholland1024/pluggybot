@@ -50,18 +50,18 @@ from pluggybot.rack.tags import STATION_TAG_IDS, STATION_TAG_SIZE, plate_half_ex
 BREAK_N = 20.0
 #: How near the port takes the plug, m and deg: the gap off the connector's
 #: face, the plug's offset across it and its tilt -- anywhere in the mouth
-#: of the funnel printed round it (`humanoid.parts.PORT_FUNNEL`: 50 mm
-#: across, 12 mm deep, round the 24.5 mm jack), which guides it onto the
+#: of the funnel printed round it (`humanoid.parts.PORT_FUNNEL`: 70 mm
+#: across, 15 mm deep, round the 24.5 mm jack), which guides it onto the
 #: connector. ⚠ THE FUNNEL IS THE CATCH'S, as the cup's is: its walls are
-#: drawn, never touched. Pushed to the body from where the hand believed the
-#: port to be, plugs landed 4-11 mm across it (`station_spike.py`).
-CAPTURE_GAP_M, CAPTURE_LATERAL_M, CAPTURE_TILT_DEG = 0.012, 0.012, 10.0
+#: drawn, never touched.
+CAPTURE_GAP_M, CAPTURE_LATERAL_M, CAPTURE_TILT_DEG = 0.015, 0.022, 10.0
 #: The catch draws the plug from where it took it to its seat over this, s:
 #: switched on as a weld at the seat, the plug was thrown in a step.
 PULL_IN_S = 0.1
-#: The plug clear of the connector again before it takes it again, m: a
-#: breakaway would otherwise catch on the next step.
-CLEAR_M = 0.012
+#: The plug clear of the funnel's reach again before it takes it again, m:
+#: re-armed inside it, a pull that broke the catch was caught again the
+#: next step, 30 times in one unplug, and the plug never came free.
+CLEAR_M = 0.03
 
 #: The balancer's pull, N: the Tecna 9300's least, a 0.2 kg load (its range
 #: 0.2-0.5 kg, catalogue DCB0000002 rev.04), set as light as it goes: the
@@ -83,10 +83,13 @@ PARK_N = 4.0
 CUP_MOUTH_M = 0.03
 #: ...and over this, s: turned from however it hangs.
 PARK_IN_S = 0.3
-#: The plug's drag, N s/m (and N m s/rad): its cable hanging in a loop beside
-#: the rope. UNPUBLISHED: without it the plug swung on the rope at 2-3 m/s
-#: after a breakaway and never reached the cup.
-CABLE_DAMPING = 0.5
+#: The plug's drag, N s/m: its cable hanging in a loop beside the rope.
+#: UNPUBLISHED: without it the plug swung on the rope at 2-3 m/s after a
+#: breakaway and never reached the cup. ⚠ ITS SPIN'S IS ITS OWN, N m s/rad:
+#: a free joint's damping is all six of its axes', and at 0.5 the plug's
+#: spin grew four times a step until MuJoCo reset the world (`Station.
+#: rebind` sets the swing's).
+CABLE_DAMPING, SPIN_DAMPING = 0.5, 0.02
 
 #: The charger's current, A: the NPB-750-48 set to 10 A of its 11.3 A (and
 #: its CV to 50.4 V: its default boost, 57.6 V, is past the pack's), and
@@ -131,13 +134,15 @@ BOX_HALF_Y, BOX_HALF_Z = 0.15, 0.20
 #: colour camera's view (54 deg below level, 32 off its axis at most).
 TAG_Y = 0.09
 #: Where the robot stands to plug in, in the station's frame, m: its stance
-#: 0.325 m off the face, 7.5 cm to the cup's left so its port, right of its
+#: 0.35 m off the face, 7.5 cm to the cup's left so its port, right of its
 #: middle (`humanoid.model`'s `port_y`), is on the cup's axis: the parked
-#: plug's grip 0.28 m ahead of it, 0.18 m of carry to its port
+#: plug's grip 0.29 m ahead of it, 0.18 m of carry to its port
 #: (SimNotes, "Where the port goes").
-SEAT_X, SEAT_Y = -0.325, 0.075
+SEAT_X, SEAT_Y = -0.35, 0.075
 #: ...and where its walk ends, m: the tags in view and room to line up.
-STANDOFF_X = -0.9
+#: The colour camera looks no higher than 19 deg under level, so the tags
+#: drop out of its view past about 1.07 m -- and a walk may end 0.15 m short.
+STANDOFF_X = -0.75
 
 
 def _f(v: float) -> str:
@@ -170,7 +175,7 @@ def station_xml(name: str = "station") -> str:
   # ...the plug parked: nose-out (-x), its back on the seat
   px = -BOSS_M - 0.003 - PLUG_LEN_M
   plug = (f'<body name="{name}_plug" pos="{_f(px)} 0 {_f(CUP_Z)}" quat="0 0 0 1">'
-          f'<joint name="{name}_plug" type="free" damping="{_f(CABLE_DAMPING)}"/>'
+          f'<joint name="{name}_plug" type="free" damping="{_f(SPIN_DAMPING)}"/>'
           f'<inertial pos="{_f(-PLUG_LEN_M / 2)} 0 0" mass="{_f(PLUG_KG)}" '
           f'diaginertia="{_f(PLUG_INERTIA[0])} {_f(PLUG_INERTIA[1])} {_f(PLUG_INERTIA[1])}"/>'
           f'<geom name="{name}_jack" type="cylinder" size="{_f(PLUG_R_M)} {_f(JACK_LEN_M / 2)}" '
@@ -256,10 +261,18 @@ class Station(Activity):
     n = self.name
     self.m = model
     self.plug = model.body(f"{n}_plug").id
+    dof = int(model.jnt_dofadr[model.joint(f"{n}_plug").id])
+    model.dof_damping[dof:dof + 3] = CABLE_DAMPING        # its swing: the cable's drag
     self.face = model.site(f"{n}_plug_face").id
     self.back = model.site(f"{n}_plug_back").id
     self.seat = model.site(f"{n}_seat").id
     self.cup = model.equality(f"{n}_cup").id
+    #: The plug's geoms, and every gripper pad's: a plug a hand holds is
+    #: not the funnel's to take.
+    self._plug_geoms = np.array([g for g in range(model.ngeom)
+                                 if int(model.geom_bodyid[g]) == self.plug])
+    self._pads = np.array([g for g in range(model.ngeom)
+                           if model.geom(g).name.endswith("_pad")])
     #: Each robot's catch: its eq id -> (its root body, its port site).
     self.ports = {}
     prefix = f"{n}_port_"
@@ -328,6 +341,17 @@ class Station(Activity):
     tilt = math.degrees(math.acos(max(-1.0, min(1.0, float(-axis @ out)))))
     return gap, lateral, tilt
 
+  def _held(self, data) -> bool:
+    """A gripper's pad on the plug: a magnet and a funnel do not draw a
+    plug in against the hand that holds it -- held so, the catch fought the
+    hand past 20 N and let go, again and again."""
+    g = data.contact.geom[:data.ncon]
+    if not len(g) or not len(self._pads):
+        return False
+    on_plug = np.isin(g[:, 0], self._plug_geoms) | np.isin(g[:, 1], self._plug_geoms)
+    pairs = g[on_plug]
+    return bool(len(pairs)) and bool(np.isin(pairs, self._pads).any())
+
   # ---- the catches -----------------------------------------------------------------
 
   def _take(self, data, eq: int) -> None:
@@ -383,7 +407,7 @@ class Station(Activity):
         self._armed[eq] = gap > CLEAR_M or lateral > CLEAR_M
       elif (not mated and not data.eq_active[self.cup]
             and -0.002 <= gap <= CAPTURE_GAP_M and lateral <= CAPTURE_LATERAL_M
-            and tilt <= CAPTURE_TILT_DEG):
+            and tilt <= CAPTURE_TILT_DEG and not self._held(data)):
         self._take(data, eq)
         mated = model.body(root).name
     cup_out = -data.site_xmat[self.seat].reshape(3, 3)[:, 2]     # into the station
