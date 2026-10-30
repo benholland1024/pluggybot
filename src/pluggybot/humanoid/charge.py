@@ -48,12 +48,29 @@ GRIP_N, UNPLUG_GRIP_N = 40.0, 80.0
 #: check accepts (`SEAT_*`), each started there: straight across at the
 #: jack's back end the plug went in from 110 -- 3 cm and more behind the
 #: seat the arm reached the plug only bowed, the wrist bent past 90 deg, and
-#: the hand stopped short of it -- swung 20 deg from 131. ⚠ THE SWUNG GRIP
-#: 1 CM FURTHER BACK: at the jack's back end the gripper's housing met the
-#: belly with the plug 21 mm off the port, past the catch's 15. ⚠ STRAIGHT
-#: ACROSS AFTER IT: of the 9 seats the swung hand missed, 3 cm in and 4-6 cm
-#: to the right, its way in along the fingers pressed on the trunk.
-GRIPS = ((math.radians(20.0), 0.050), (0.0, st.GRIP_BACK_M))
+#: the hand stopped short of it -- swung 20 deg from 138. ⚠ THE SWUNG GRIP
+#: FURTHER BACK, 45 MM: at the jack's back end the gripper's housing met the
+#: belly with the plug 21 mm off the port, past the catch's 15; at 50 the
+#: pads' far edge came 4 mm off the station's boss, and walked in from
+#: across the house, 12 first pushes in 15 were made with a hand that had
+#: shut on the boss. ⚠ STRAIGHT ACROSS AFTER IT: of the seats the swung hand
+#: missed, 3 cm in and 4-6 cm to the right, its way in along the fingers
+#: pressed on the trunk.
+GRIPS = ((math.radians(20.0), 0.045), (0.0, st.GRIP_BACK_M))
+#: A squeeze holds the plug only where its jaws stop this near the jack's
+#: width, m (the gripper's encoder reads the gap to about a millimetre):
+#: on the boss, 40 mm across, a squeeze held and the hand pushed nothing.
+#: Shut wider, the hand opens, draws back this far along the plug, m, and
+#: shuts again, once: the station's fit is 1-2 cm off along the plug (its
+#: tags' range off the colour camera), and the grip's pads end 12 mm off
+#: the boss.
+PLUG_GAP_TOL_M, BOSS_BACK_M = 0.004, 0.025
+#: Nearer the station than its seat the tags are under the colour camera's
+#: view (54 deg below level at the seat itself), so a look there that sees
+#: no pair is taken again bowed this far, rad: fitted on the look from
+#: before its last step instead, the step's odometry put the hand 2-3 cm off
+#: along the plug, and both grips shut on the boss.
+LOW_LOOK_RAD = 0.2
 #: Where the hand takes the plug's line, m short of its grip on it, and
 #: where it carries it to, m off the port.
 LINE_BACK_M, OUT_M = 0.10, 0.05
@@ -121,6 +138,18 @@ def look(body) -> RackPose | None:
   return fit(spots)
 
 
+def look_low_routine(body):
+  """`look`, and where it sees no pair, a look bowed `LOW_LOOK_RAD`,
+  standing again after it: the station's frame, or None."""
+  seen = look(body)
+  if seen is not None:
+    return seen
+  yield from body.gaze_routine(LOW_LOOK_RAD)
+  seen = look(body)
+  yield from body.gaze_routine(0.0)
+  return seen
+
+
 def look_routine(body):
   """`look`, and where it spots one tag of the two, facing that one and
   looking again: the other is beside it, past the edge of the view. The
@@ -168,10 +197,28 @@ def _squeeze_routine(body, force: float):
   """Shut on a plug a catch holds: at the least the gripper squeezes, until
   both pads are on it, and then at `force`. ⚠ SHUT AT ONCE, the first pad to
   meet a seated plug pushed it across the port with the whole squeeze, past
-  the connector's 20 N, and it broke away: from the seat's middle 46 unplugs
-  in 110 could not grip it."""
+  the connector's 20 N, and it broke away: from 110 seats, 46 unplugs could
+  not grip it, 45 of them having knocked it off its catch."""
   yield from body.grip_routine(SIDE, True, force=GRIP_MIN_N)
   return (yield from body.grip_routine(SIDE, True, force=force))
+
+
+def _take_routine(body, grip: np.ndarray, into: np.ndarray):
+  """Shut on the plug, the hand at `grip`: None, or why not -- shut wider
+  than its jack (`PLUG_GAP_TOL_M`), on the station's boss, opened, drawn
+  `BOSS_BACK_M` back along the plug and shut again, once."""
+  for k in range(2):
+    if not (yield from _squeeze_routine(body, GRIP_N)):
+      return "it could not grip the plug"
+    gap = body.grip_gap(SIDE)
+    if abs(gap - 2.0 * st.PLUG_R_M) <= PLUG_GAP_TOL_M:
+      return None
+    if k or gap < 2.0 * st.PLUG_R_M:
+      return f"its jaws shut {gap * 1000:.0f} mm apart, on something not the plug"
+    yield from body.grip_routine(SIDE, False)
+    r = yield from body.move_hand_routine(SIDE, grip - into * BOSS_BACK_M, speed=0.04)
+    if r["why"] != "arrived":
+      return f"its hand did not draw back off the station's boss ({r['why']})"
 
 
 def _fetch_routine(body, station: RackPose, swing: float, back: float):
@@ -188,10 +235,8 @@ def _fetch_routine(body, station: RackPose, swing: float, back: float):
     why = f"its hand did not get to the plug's line ({body.hand_why(SIDE)})"
   else:
     r = yield from body.move_hand_routine(SIDE, grip, speed=0.06)
-    if r["why"] != "arrived":
-      why = f"its hand did not get round the plug ({r['why']})"
-    elif not (yield from _squeeze_routine(body, GRIP_N)):
-      why = "it could not grip the plug"
+    why = (f"its hand did not get round the plug ({r['why']})" if r["why"] != "arrived"
+           else (yield from _take_routine(body, grip, into)))
   if why is not None:
     yield from body.grip_routine(SIDE, False)
     yield from body.release_routine(SIDE)
@@ -237,16 +282,13 @@ def unplug_routine(body, station: RackPose, trace: list):
   p, out = port(body)
   seat = p + out * st.GRIP_BACK_M
   turn = _grip(out)
-  # ...3 cm behind the plug's back, its jaws shut on the way and opened
-  # there: further out, from a robot standing in from its seat the jaws
-  # swung into the station's boss, and open on the way, a pad swept its
-  # box (from 3 cm in, 3 unplugs in 21 stopped short)
-  yield from body.grip_routine(SIDE, True, force=GRIP_MIN_N)
+  yield from body.grip_routine(SIDE, False)
+  # ...3 cm behind the plug's back: further out, from a robot standing in
+  # from its seat the jaws swung into the station's boss
   behind = seat + out * (st.PLUG_LEN_M - st.GRIP_BACK_M + 0.03)
   if not (yield from body.reach_routine(SIDE, behind, turn)):
     yield from body.release_routine(SIDE)
     return f"its hand did not get behind the plug ({body.hand_why(SIDE)})"
-  yield from body.grip_routine(SIDE, False)
   yield from body.move_hand_routine(SIDE, seat, speed=0.05)
   if not (yield from _squeeze_routine(body, UNPLUG_GRIP_N)):
     yield from body.grip_routine(SIDE, False)

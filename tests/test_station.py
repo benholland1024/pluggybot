@@ -253,6 +253,7 @@ class _Says:
   def __init__(self, reaches=lambda rot: True):
     self.reaches, self.asked, self.grips, self.moves = reaches, [], [], []
     self.plugged = False
+    self.gap = 2.0 * st.PLUG_R_M          # ...shut on the plug's jack
 
   def _done(self, value):
     return value
@@ -260,7 +261,6 @@ class _Says:
 
   def reach_routine(self, side, pos, rot=None, **kw):
     self.asked.append(np.asarray(rot))
-    self.reached_after = len(self.grips)
     return self._done(self.reaches(np.asarray(rot)))
 
   def move_hand_routine(self, side, pos, turns=None, **kw):
@@ -283,6 +283,9 @@ class _Says:
 
   def hand_why(self, side):
     return "stopped short"
+
+  def grip_gap(self, side):
+    return self.gap
 
   def charging(self):
     return self.plugged
@@ -327,9 +330,40 @@ def test_the_hand_takes_the_plug_by_its_grips_in_turn(monkeypatch):
     assert math.atan2(-g[0, 2], -g[1, 2]) == pytest.approx(s)
 
 
-def test_the_unplug_reaches_its_jaws_shut_and_squeezes_the_plug_lightly_first(monkeypatch):
-  """Open on its way behind the plug, a pad swept the station's box; and
-  shut at once on it, the first pad to meet the plug pushed it across the
+def test_jaws_shut_on_the_boss_draw_back_along_the_plug_and_shut_again(monkeypatch):
+  """Held is not the plug: the jaws' gap must be the jack's width
+  (`PLUG_GAP_TOL_M`). Wider, they shut on the station's boss -- the fit is
+  1-2 cm off along the plug, and a hand that pushed then pushed nothing --
+  so the hand opens, draws `BOSS_BACK_M` back along the plug and shuts
+  again; on the boss twice, the next grip fetches it. No push is made
+  without the plug."""
+  from pluggybot.body import RackPose
+  monkeypatch.setattr(charge, "port", lambda body: (np.array([0.0, 0.0, 0.9]),
+                                                   np.array([-1.0, 0.0, 0.0])))
+  station = RackPose(1.0, 0.0, 0.0)
+  into = np.array([1.0, 0.0, 0.0])
+  (swung, back), (straight, _) = charge.GRIPS
+  for gaps, swing, reaches in (((0.040, 2.0 * st.PLUG_R_M), swung, 1),
+                               ((0.040, 0.040, 2.0 * st.PLUG_R_M), straight, 2)):
+    body = _Says()
+    seq = iter(gaps)
+    real_grip = body.grip_routine
+
+    def grip(side, closed, force=None, body=body, seq=seq, real_grip=real_grip):
+      if closed and force == charge.GRIP_N:
+        body.gap = next(seq)
+      return real_grip(side, closed, force)
+    body.grip_routine = grip
+    trace = []
+    assert _drive(charge.plug_in_routine(body, station, trace)) == "plugged in"
+    assert [t["swing"] for t in trace] == [round(math.degrees(swing))]
+    assert len(body.asked) == reaches
+    drawn = charge.parked_grip(station, back) - into * charge.BOSS_BACK_M
+    assert any(np.allclose(pos, drawn) for pos, _ in body.moves), "drawn back off the boss"
+
+
+def test_the_unplug_squeezes_the_seated_plug_lightly_first(monkeypatch):
+  """Shut at once on it, the first pad to meet the plug pushed it across the
   port past the connector's 20 N, and it broke away (`charge._squeeze_routine`)."""
   from pluggybot.body import RackPose
   monkeypatch.setattr(charge, "port", lambda body: (np.array([0.0, 0.0, 0.9]),
@@ -339,9 +373,8 @@ def test_the_unplug_reaches_its_jaws_shut_and_squeezes_the_plug_lightly_first(mo
   body.pull_routine = lambda *a, **kw: (setattr(body, "plugged", False),
                                         body._done({"why": "distance", "along": 0.05}))[1]
   assert _drive(charge.unplug_routine(body, RackPose(1.0, 0.0, 0.0), [])) == "unplugged"
-  assert body.grips[:2] == [(True, charge.GRIP_MIN_N), (False, None)], body.grips
-  assert body.reached_after == 1, "the jaws shut before the reach, opened after it"
-  assert body.grips[2:4] == [(True, charge.GRIP_MIN_N), (True, charge.UNPLUG_GRIP_N)], body.grips
+  shut = [f for closed, f in body.grips if closed]
+  assert shut[:2] == [charge.GRIP_MIN_N, charge.UNPLUG_GRIP_N], shut
 
 
 # ---- lost, and found by the station -------------------------------------------------

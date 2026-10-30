@@ -1196,7 +1196,7 @@ class HumanoidBody(Body):
           and abs(turn) <= charge.SEAT_TOL_RAD):
         break
       yield from self.step_routine(ahead, left, turn)
-      seen = charge.look(self) or seen
+      seen = (yield from charge.look_low_routine(self)) or seen
     else:
       return "not lined up"
     self._station_seen = seen
