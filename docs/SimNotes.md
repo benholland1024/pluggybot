@@ -6324,13 +6324,13 @@ and ran at 1.30x.
 | the quadruped pair on the same walks | 1.27x |
 
 The served days are not the same work, the walks are: on them the humanoid
-pair runs 1.23 times the quadruped pair's speed. On the deploy box #507
-read the walks at 2.14x and 1.67x and the served quadruped pair at 1.40x
-(#385), so the humanoid pair would serve there at about 1.7x -- an
-estimate: the box was not flown for this (a throwaway container there is
-Ben's call). A served humanoid pair's process held 314 MiB, the
-quadruped pair's 712-719 (its cameras render tags as it walks), against
-the sim's 2 GiB `mem_limit`.
+pair runs 1.23 times the quadruped pair's speed. **On the deploy box** (Ben
+approved the run; 0880e6f in a throwaway container of the served image on
+two idle cores beside the live pair, the same flags with `--pack hosting`,
+interleaved): the humanoid pair served at **1.62x and 1.65x** over 300 sim
+s, the quadruped pair at 1.16x and 1.21x over its 606 s of jobs. The
+humanoid pair's process held 287 MiB, the quadruped pair's 734 (its
+cameras render tags as it walks), against the sim's 2 GiB `mem_limit`.
 
 **A restart.** The humanoid keeps what decides anything
 (`HumanoidMission.kept_state`): its three policies' drivers -- their steps,
@@ -6538,18 +6538,25 @@ the connector's 20 N, carry it to the cup's mouth and let go there.
 |---|---|
 | `--approach`: 15 starts round the standoff (head on, 0.2 m and 20 deg off each way, 12 drawn within 0.2 m along, 0.25 m across, 25 deg) | docked 11 of 15 in 17-23 s, each unplugged and the plug parked in 21-23 s; no falls |
 | ...the four misses | twice four pushes never taken, from 0.2-0.24 m to its left at 20 deg; twice the hand closed on nothing on its second try |
+| ...started at the seat itself (`--hold`'s and `--fall`'s start) | a turn step left it 1.8 cm in and 1.2 cm left; three pushes went their 3 cm untaken, and the fourth, 24 mm aside, was taken: 73 s, where from the standoff one push took 19.6 s. So `--view fall` starts at the standoff |
 | `--hold`: plugged in for 60 s | held all of it; 432 W in, 86.9 W drawn standing: 345.1 W net |
 | `--fall`: shoved over backward plugged in | the plug broke away and was home in 2.0 s; the robot up again |
 | the loop's own walk and plug-in (`energy_spike.py`) | 345.2 W net into the pack (energy.json) |
 | the reserve (`energy_spike.py --reserve`) | 13.72 Wh over 44.62 m to the garden doorway, 307.6 mWh/m; carried 17.5 Wh |
+| `--walk-in`: a fresh humanoid explores 120 or 240 s, walks on its own map to each of 8 places across the house (the bedroom, hall, kitchen, workshop, garden and south garden; the lobby and lab across the street), and the loop's own `go_charge` takes it to the station | **docked 10 of 16**, each in 44-85 s; its belief 0.04-0.51 m off where it walked to (1.07 m at the lobby after 120 s), 0.01-0.19 m once docked; no falls |
+| ...the six that did not | three hands held back short of the parked plug, touching nothing, and one closed on nothing, each from a seat at the check's edge: 4.6 cm back, 5.5 cm across, 4.6 deg, and 2.8 cm back and across with 1.5 deg, where every docked seat was within 2.1 cm back, 4.8 cm across and 2.9 deg. The reach's posture chosen for the carry too (`reach_routine(path=)`) got two of those hands round the plug, whose pushes then missed: 10 of 16 either way. One robot pushed four times untaken from a good seat (where the plug sits in the jaws). One came back from the lobby 0.39 m off its standoff, where the tags are above the colour camera (past 1.07 m), and looking round where it stood never found them |
 
-**What is not yet.** The four misses (a second try's grip, and two starts
-to its left); the reserve's own dock leg gave up on the explore's map and is
-carried by rate; `lost_routine` only looks round where it stands (the
-quadruped's walks its map outward); the fix at the station
-(`anchor_at_dock`) is the dock's arithmetic, not yet flown in a day; one
-station a world. The overseer's `charge` still says "walk to your dock and
-lie down on it" (stage 3's prompt).
+**What is not yet.** The walk-in's six: the seat check accepts 6 cm and 6
+deg where the fetch works within about 2 cm and 3, and a small step lands
+5-10 cm off (asked 3 cm on, one robot ended 8 cm in), so it is the plug-in
+that has to take a seat as the walker leaves it; where the plug sits in the
+jaws still misses pushes; and a robot lost past 1.07 m of the station only
+looks round where it stands (`lost_routine`; the quadruped's walks its map
+outward). The reserve's own dock leg gave up on the explore's map and is
+carried by rate; the fix at the station (`anchor_at_dock`) is the dock's
+arithmetic, not yet flown in a day; one station a world. The overseer's
+`charge` still says "walk to your dock and lie down on it" (stage 3's
+prompt).
 
 ## Debugging workflow that worked
 

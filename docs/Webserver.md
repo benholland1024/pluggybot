@@ -112,8 +112,8 @@ MUJOCO_GL=osmesa uv run python scripts/serve.py --endpoint ws://localhost:8765
 MUJOCO_GL=osmesa uv run python scripts/serve.py --pair \
   --endpoint ws://localhost:8765
 
-# …the humanoid pair in the same house (#559, not deployed): nowhere to
-# charge yet, so the real pack (778 Wh) or an admin's `set_battery`
+# …the humanoid pair in the same house (#559, not deployed): it charges
+# at its station on the living room's wall (stage 2)
 MUJOCO_GL=osmesa uv run python scripts/serve.py --pair --body humanoid \
   --pack hosting --endpoint ws://localhost:8765
 
@@ -141,11 +141,12 @@ house instead (#559's stage 1, measured, not deployed): `home_humanoid`
 (`home_humanoid_pair`), built at load from the same file
 (`humanoid/world.py`) with the house's own fixtures -- the lab's signs, the
 boards' and the areas' tags -- and none of the quadruped's: no dock, no rack,
-no tools, so no job yet (its `cadence.json` block is empty) and nowhere to
-charge until the cable's station (stage 2). A chosen `charge` ends at once,
-said in History ("there is nowhere for me to charge here"), and the pack
-running out is the `flat` death. SimNotes, "The humanoid pair served", has
-what was measured.
+no tools, so no job yet (its `cadence.json` block is empty). It charges at
+its station on the living room's wall, plugging itself in by a cable
+(stage 2; SimNotes, "The humanoid's charging station"); in a world with no
+charger a chosen `charge` ends at once, said in History ("there is nowhere
+for me to charge here"). SimNotes, "The humanoid pair served", has what was
+measured, its speed on the deploy box among it.
 
 `serve.py --pair` serves BOTH robots from one loop (issue #181; M12) under
 `<world>_pair`: `--errand2` is the second robot's errand (default `none` —
