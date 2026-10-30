@@ -1099,7 +1099,10 @@ class HumanoidBody(Body):
     self._charge_trace = []
     if self._station is None:
       return "no dock"
-    yield from self.face_routine(self._station.yaw)
+    # ...facing the cup from where it stands, never the station's own
+    # heading: from 0.2 m to one side that put the far tag out of view
+    cx, cy = self._station.to_world(0.0, 0.0)
+    yield from self.face_routine(math.atan2(cy - self.pose[1], cx - self.pose[0]))
     seen = charge.look(self)
     if seen is None:
       return "no board"

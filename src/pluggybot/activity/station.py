@@ -420,10 +420,11 @@ class Station(Activity):
           and float(self._load(data, self.cup) @ -cup_out) >= PARK_N):
         self._let_go(data, self.cup)
     else:
+      # ...a plug no hand holds, as the port: caught with the hand still on
+      # it, the cup felt the hand's pull and let go, and a plug resting on
+      # its seat never left its mouth to be taken again (7 unplugs in 10)
       dist = float(np.linalg.norm(data.site_xpos[self.back] - data.site_xpos[self.seat]))
-      if not self._armed[self.cup]:
-        self._armed[self.cup] = dist > CUP_MOUTH_M
-      elif not mated and dist <= CUP_MOUTH_M:
+      if not mated and dist <= CUP_MOUTH_M and not self._held(data):
         self._take(data, self.cup)
     self.set(mated=mated, parked=bool(data.eq_active[self.cup]), breaks=self.breaks)
 

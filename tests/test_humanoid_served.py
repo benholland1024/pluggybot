@@ -103,12 +103,21 @@ def test_the_header_names_the_humanoid_and_hashes_its_policies():
 # ---- nowhere to charge --------------------------------------------------------------
 
 
+def test_the_humanoids_house_charges_at_its_station():
+  """Stage 2: the humanoids' house has its charging station as its dock
+  (`activity.station`, where the quadrupeds' dock lies), so the loop has
+  somewhere to send it."""
+  from pluggybot.humanoid.world import station_pose
+  assert world_config(HUMANOID_HOME)["dock"] == station_pose()
+  assert stub_life(world=HUMANOID_HOME).charger
+
+
 def test_a_world_with_nowhere_to_charge_never_goes_and_says_why():
-  """Until its cable's station (stage 2) the humanoid's house has no
-  charger: a charge ends at once, said, and nothing sends it to one -- a
-  quadruped's world with this pack below its reserve would have."""
+  """A world with nowhere this body charges (the humanoids' house before
+  its station): a charge ends at once, said, and nothing sends it to one --
+  a world with a charger and this pack below its reserve would have."""
   life = stub_life(world=HUMANOID_HOME)
-  assert not life.charger and stub_life().charger
+  life.charger = False
   life.low_battery_wh = 5.0
   life.battery.energy_wh = 1.0
   assert not life.needs_charge
@@ -481,13 +490,18 @@ def test_a_humanoids_look_is_taken_from_its_head():
     life.body.close()
 
 
-def test_a_humanoid_is_near_no_rack_and_with_a_hand_out_is_never_saved():
-  """Its house has no rack to keep clear of (`HubLifecycle.rack_distance`);
+def test_a_humanoid_keeps_clear_of_its_station_and_with_a_hand_out_is_never_saved():
+  """Its station is the frame the loop's standby keeps clear of
+  (`HubLifecycle.rack_distance`, its commissioned pose, out into the room);
   and a restart's save waits out a hand's move (`Body.working`), which is a
   routine's, held in no file."""
+  from pluggybot.humanoid.world import station_pose
   life = _humanoid()
   try:
-    assert life.body.rack_prior is None and life.rack_distance(0.0, 0.0) == math.inf
+    sx, sy, yaw = station_pose()
+    r = life.body.rack_prior
+    assert (r.x, r.y) == pytest.approx((sx, sy)) and math.cos(r.yaw - yaw) == pytest.approx(-1)
+    assert life.rack_distance(sx, sy) < 1e-6 and life.rack_distance(0.0, 0.0) > 3.0
     assert not life.body.working
     life.body.reach.phase["left"] = "move"
     assert life.body.working
@@ -511,14 +525,15 @@ def test_a_mind_judging_what_the_other_humanoid_needs_asks_after_no_tool():
 
 
 def test_the_loop_with_no_mind_goes_to_no_charger_however_low_the_pack():
-  """The loop's day in a world with nowhere to charge, on a pack the
-  quadrupeds' world would send it charging on: the start, the explore, the
+  """The loop's day in a world with nowhere to charge, on a pack a world
+  with a charger would send it charging on: the start, the explore, the
   end, and no charge trip."""
-  for world, trips in ((QUAD_HOME, 1), (HUMANOID_HOME, 0)):
-    life = stub_life(world=world)
+  for charger, trips in ((True, 1), (False, 0)):
+    life = stub_life(world=HUMANOID_HOME)
+    life.charger = charger
     life.low_battery_wh = 5.0
     life.battery.energy_wh = 1.0
     summary = life.run(start=(0.5, 3.0, 0.0), max_sim_time=60.0)
-    assert summary["charge_cycles"] == trips, world
+    assert summary["charge_cycles"] == trips, charger
   assert not summary["stranded"] and summary["deaths"] == [], "sent to no charger, and stranded"
   assert summary["module_stowed"] is None, "nothing carried, in a world with no rack"

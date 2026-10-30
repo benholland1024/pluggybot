@@ -73,8 +73,8 @@
     "home_humanoid": {
       "errandWh": {},
       "exploreWhPerS": 0.046233,
-      "chargeW": 0.0,
-      "measuredOn": "measured 29 Oct 2026 on the humanoid (issue #559), home_humanoid, 40 Wh pack, the world's 240 s explore, depth camera drawing (`scripts/energy_spike.py --world home_humanoid`): the explore 11.745 Wh over 254.0 s (166.4 W, the quadruped's 86.9 twice over), its windings off their drivers' torques plus its electronics. No errand yet and no charger: a humanoid charges by a cable it plugs into itself, measured with its station (#559's stage 2)."
+      "chargeW": 345.2,
+      "measuredOn": "measured 29 Oct 2026 on the humanoid (issue #559), home_humanoid, 40 Wh pack, the world's 240 s explore, depth camera drawing (`scripts/energy_spike.py --world home_humanoid`): the explore 11.745 Wh over 254.0 s (166.4 W, the quadruped's 86.9 twice over; 0.045711 Wh/s again on 30 Oct, the dearer carried), its windings off their drivers' torques plus its electronics. Its charge measured 30 Oct 2026 the same way, the loop's own walk to its station and plug-in from the explore's end: 8.629 Wh in 90 s plugged in (345.2 W net: the station's NPB-750-48 at 10 A, 432 W, less the 86.9 W it draws standing; `scripts/station_spike.py --hold` read 345.1 over 60 s). No errand yet."
     }
   }
 }

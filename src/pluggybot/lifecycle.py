@@ -8059,15 +8059,16 @@ def _humanoid_config() -> dict:
   (its dock, its rack and its tools, and every job built on them: the
   boards' drawings, the census, the tower and the bench, the game, the walk
   onto a plate). Each comes back as a task the humanoids learn with their
-  hands (#560), never as an errand ported over. It has nowhere to charge
-  until its cable's station (stage 2): no dock, and no reserve to keep."""
+  hands (#560), never as an errand ported over. It charges at a station on
+  the living room's wall by a cable it plugs into itself (stage 2)."""
   from pluggybot.home import world as home
   from pluggybot.humanoid import world as humanoid_world
   return {
     "model": "models/home_world.xml", "model_name": HUMANOID_HOME,
     "body": "humanoid",
-    # nowhere to charge: the charge logic's frame and the dock's pose
-    "rack": None, "dock": None,
+    # no tool rack; its charging station is its dock (stage 2: a cable it
+    # plugs into itself, `activity.station`), the body's own frame off it
+    "rack": None, "dock": tuple(humanoid_world.station_pose()),
     "grid_bounds": home.GRID_BOUNDS,
     "start": tuple(home.SPAWNS["start"]),
     "start2": tuple(home.SPAWNS["hall"]),

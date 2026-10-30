@@ -30,10 +30,22 @@ HOME_XML = lw.HOME_XML
 #: standing. The served pack is the real one (`parts.PACK`).
 DEMO_WH = lw.DEMO_WH
 PACK_WH = hp.PACK.wh
-#: The return-trip reserve, Wh: nothing yet. It is the walk to the nearest
-#: charging station, measured once there is one (stage 2); with none, the
-#: pack running out is the `flat` death.
-RESERVE_WH = 0.0
+#: The return-trip reserve, Wh: the walk to its station from the house's
+#: worst place and its plug-in, with one failed (`legs.world.RESERVE_WH`'s
+#: rule), on the humanoid (`scripts/energy_spike.py --world home_humanoid
+#: --reserve`, 30 Oct 2026):
+#:
+#:     travel   13.722 Wh over 44.62 m to the garden doorway (307.6 mWh/m:
+#:              the quadruped's 60.5 five times over)
+#:     dock      1.85 Wh for its last 6 m at that rate, and a plug-in -- 17-36 s
+#:              walking in and reaching (`station_spike.py --approach`) at
+#:              the 86.9 W it draws standing -- twice: 1.74 Wh
+#:
+#: ⚠ The spike's own dock leg gave up 6 m short ("no route over the floor
+#: mapped so far": set down at the worst place off the truth, on the map
+#: its explore left), so the leg is the travel's rate and the plug-in's time.
+#: 17.3, carried as 17.5. A property of the floor plan, not of the pack.
+RESERVE_WH = 17.5
 #: THE PAIR COLLIDES, as the quadrupeds do (`legs.world.PAIR_BITS`): each
 #: robot's colliding geoms (`contype 1, conaffinity 0` -- they meet only the
 #: pairs its model names, `model.LEG_GEOMS`/`ARM_GEOMS`) get a bit of their

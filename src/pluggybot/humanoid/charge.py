@@ -48,9 +48,10 @@ PUSH_N, PUSH_M, PUSH_FROM_M = 10.0, 0.03, 0.010
 #: way the jaws leave the plug free (they centre it across the other).
 SEARCH_M = (-0.012, 0.012, -0.024)
 TRIES = 4
-#: The balancer's walk home with the plug, s (0.25 m at 0.25 m/s and its
-#: cup's draw-in).
-PARK_WAIT_S = 2.5
+#: The balancer's walk home with the plug, s (0.25 m at 0.25 m/s, its swing
+#: and its cup's draw-in): at 2.5 the hand closed on the plug's place before
+#: it was there, 2 tries in 15.
+PARK_WAIT_S = 4.0
 #: The pull that unplugs it, N, past the connector's hold (`st.BREAK_N`):
 #: standing, the robot pulls about 35 N.
 UNPLUG_N = 30.0
@@ -61,7 +62,7 @@ UNPLUG_N = 30.0
 #: station's box on its way to the plug.
 SEAT_TOL_M, SEAT_IN_M, SEAT_TOL_RAD = 0.06, 0.03, math.radians(6.0)
 #: ...in at most this many looks and steps (the last a look alone).
-SEAT_STEPS = 5
+SEAT_STEPS = 6
 
 
 def fit(spots: dict) -> RackPose | None:
@@ -165,7 +166,7 @@ def unplug_routine(body, station: RackPose, trace: list):
   behind = seat + out * (st.PLUG_LEN_M - st.GRIP_BACK_M + 0.03)
   if not (yield from body.reach_routine(SIDE, behind, turn)):
     return f"its hand did not get behind the plug ({body.hand_why(SIDE)})"
-  r = yield from body.move_hand_routine(SIDE, seat, speed=0.05)
+  yield from body.move_hand_routine(SIDE, seat, speed=0.05)
   if not (yield from body.grip_routine(SIDE, True, force=UNPLUG_GRIP_N)):
     yield from body.release_routine(SIDE)
     return "it could not grip the plug"
@@ -176,7 +177,7 @@ def unplug_routine(body, station: RackPose, trace: list):
     yield from body.grip_routine(SIDE, False)
     yield from body.release_routine(SIDE)
     return f"it could not pull the plug off ({pulled['why']})"
-  r = yield from body.move_hand_routine(SIDE, parked_grip(station), speed=0.06,
+  yield from body.move_hand_routine(SIDE, parked_grip(station), speed=0.06,
                                         turns=[_grip(np.array([math.cos(station.yaw),
                                                                math.sin(station.yaw), 0.0]))])
   yield from body.hold_routine(0.4)

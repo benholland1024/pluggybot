@@ -32,9 +32,9 @@ WORLDS = {ROBOT: hm.MODEL_XML}
 SHELVES = ("build",)
 #: When this bill's own lines were read; the parts it shares with the
 #: quadruped's carry that bill's reading (`cat.CHECKED`).
-CHECKED = f"2026-10-16 (the parts shared with the quadruped's bill: {cat.CHECKED})"
+CHECKED = f"2026-10-16, the charging lines 2026-10-30 (the parts shared with the quadruped's bill: {cat.CHECKED})"
 GROUPS = ("actuation", "grippers", "power", "compute", "sensors", "frame",
-          "safety", "spares")
+          "safety", "charging", "spares")
 BOM_START = ("<!-- humanoid bom: rendered by `uv run python -m pluggybot.humanoid.bill` "
              "from humanoid/bill.py's LINES; edit those, not this -->")
 BOM_END = "<!-- /humanoid bom -->"
@@ -211,7 +211,65 @@ PARTS: tuple[Part, ...] = (
   _shared("silicone_wire_10awg", quantity=4),
   _shared("noeifevo_charger_12s",
           note="The bench charger: 216 W at the pack's nominal 43.2 V, 3.6 h from "
-               "empty. A dock of its own is not this issue's."),
+               "empty. The station's own is the NPB-750-48 (#559)."),
+  # ---- charging by its cable (#559 stage 2: `activity.station`) ----------------
+  Part("ropd_panel_plug", "Rosenberger RoPD panel plug, C003-B1 (magnetic, 60 V DC, "
+       "25 A): the charge port on the torso's front", "power", "candidate", SHELVES,
+       (hm.ROBOT_ROOT,), source="https://products.rosenberger.com/_ocassets/db/"
+       "C003-B1-XXX-Y_DB.pdf", massG=15.0, dimensionsMm="28.5 x 28.5 x 18.8",
+       quantity=1, robot=ROBOT,
+       feeds=(code("humanoid.parts.PORT_KG", "kg", expect=0.015),
+              code("activity.station.BREAK_N", "N", "its disengagement force, the "
+                   "sheets' minimum (no maximum published)", expect=20.0)),
+       why={"partNumber": "the C003-B1 family; its variant code (cable length, "
+                          "coding) not chosen",
+            "priceEur": "no price published for the panel plug alone"},
+       note="Magnetic and self-locating, 2 power contacts and 4 signal; not "
+            "hot-pluggable, so the charger runs off its signal pins. Its capture "
+            "range is unpublished (\"100 % self-location\"): the printed funnel "
+            "round it is what the hand needs."),
+  Part("charge_funnel", "The charge port's funnel, printed in PETG: 70 mm across its "
+       "mouth, 15 mm deep", "structure", "candidate", SHELVES, (hm.ROBOT_ROOT,),
+       massG=hp.PORT_FUNNEL_KG * 1000, dimensionsMm="70 x 70 x 15", quantity=1,
+       robot=ROBOT,
+       feeds=(code("humanoid.parts.PORT_FUNNEL", "m", "its mouth and depth",
+                   expect=(0.07, 0.015)),),
+       why={"partNumber": "printed to its drawing", "source": "printed to its drawing",
+            "priceEur": "printed: its filament is the printed parts' line"},
+       note="A 3 mm cone wall; its mass is its drawing's volume at 1.27 g/cm^3."),
+  Part("ropd_cable_jack", "Rosenberger RoPD cable jack, C003-03 (25 A), on "
+       "Rosenberger's C003 cable: the station's plug", "power", "candidate", SHELVES,
+       (), source="https://products.rosenberger.com/_ocassets/db/C003-03-XXX-Y_DB.pdf",
+       massG=20.0, dimensionsMm="24.5 dia. x 43", quantity=1, robot=ROBOT,
+       feeds=(code("activity.station.JACK_LEN_M", "m", expect=0.043),
+              code("activity.station.PLUG_R_M", "m", "its body's radius",
+                   expect=0.01225)),
+       why={"partNumber": "the C003-03 family; its cable length not chosen",
+            "priceEur": "listed at $43.58 a piece (Powell, 6-week lead), no euro price"},
+       note="Its cable: 2 x 2.5 mm^2 power and 4 x 0.35 mm^2 signal, PU, 8.3 mm, "
+            "101 g/m; 2 m of it drop 0.32 V at 10 A."),
+  Part("meanwell_npb_750_48", "Mean Well NPB-750-48 charger (42-80 V CV, 11.3 A CC, "
+       "93 %): the station's", "power", "candidate", SHELVES, (),
+       partNumber="NPB-750-48",
+       source="https://www.meanwell.com/Upload/PDF/NPB-750/NPB-750-SPEC.PDF",
+       dimensionsMm="230 x 158 x 67", priceEur=164.87, quantity=1, robot=ROBOT,
+       feeds=(code("activity.station.CHARGE_A", "A", "its CC set to 10 A of its 11.3",
+                   expect=10.0),),
+       why={"massG": "only its packed weight is published: 1.84 kg"},
+       note="Its CV programmed to 50.4 V (its default boost, 57.6 V, is past the "
+            "pack's) over its CANBus or the SBP-001; its REMOTE input on the "
+            "connector's signal pins. RS Belgium's price, excluding VAT."),
+  Part("tecna_9300", "Tecna 9300 tool balancer (0.2-0.5 kg, 1.6 m stroke): draws "
+       "the plug home", "structure", "candidate", SHELVES, (), partNumber="9300",
+       source="https://www.westermans.com/assets/products/18927/files/8886/"
+              "dcb0000002_rev.04_v2_generale-bilanciatori_en_09-2021r-1.pdf",
+       massG=430.0, quantity=1, robot=ROBOT,
+       feeds=(code("activity.station.BALANCER_N", "N", "its least, a 0.2 kg load",
+                   expect=0.2 * 9.81),),
+       why={"dimensionsMm": "not in its catalogue",
+            "priceEur": "no price found"},
+       note="Its rope clipped to the plug's back, its stop at 0.6 m; how its pull "
+            "varies over its stroke is unpublished."),
   # ---- compute -----------------------------------------------------------------
   _shared("raspberry_pi_5_quad", id="raspberry_pi_5", usedBy=(hm.ROBOT_ROOT,),
           feeds=(code_entry("humanoid.parts.ELECTRONICS", "pi5 (packed)", "kg",
@@ -329,6 +387,18 @@ LINES: tuple[Line, ...] = (
   Line("noeifevo_charger_12s", 1, "power",
        "3-7 working days from its Polish warehouse, 7-15 from China; the page "
        "does not say which"),
+  # ---- charging by its cable ---------------------------------------------------
+  Line("ropd_panel_plug", 1, "charging", None,
+       why={"leadTime": "Rosenberger sells in lots (Rodantech: 150); none quoted"},
+       allowanceEur=40.0, basis="the cable jack's listed $43.58"),
+  Line("charge_funnel", 1, "charging", None, why={"leadTime": "printed"},
+       allowanceEur=1.0, basis="25 g of PETG"),
+  Line("ropd_cable_jack", 1, "charging", "6 weeks (Powell)",
+       allowanceEur=45.0, basis="$43.58 at Powell"),
+  Line("meanwell_npb_750_48", 1, "charging", None,
+       why={"leadTime": "RS Belgium gives none; Jameco 14 weeks"}),
+  Line("tecna_9300", 1, "charging", None, why={"leadTime": "none quoted"},
+       allowanceEur=120.0, basis="a light tool balancer; none quoted"),
   # ---- compute -----------------------------------------------------------------
   Line("raspberry_pi_5", 1, "compute", "in stock, 1-3 days (BerryBase)"),
   Line("pi5_active_cooler", 1, "compute", "in stock, 1-3 days (BerryBase)"),
