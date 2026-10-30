@@ -8,6 +8,9 @@ the house, its station on the living room's wall.
     ... --hold [--seconds S]    # plugged in: the pack's gain, W, and the plug held
     ... --fall                  # shoved over plugged in: the breakaway, the
                                 # plug home, the robot up again
+    ... --walk-in [--explore 120,240] [--parallel P]   # explored, walked out
+                                # across the house on its own map, then the
+                                # loop's own charge path: docked or why not
     ... --view [plug|fall]      # a scene in the viewer, looped (MUJOCO_GL unset)
     ... --out rows.json         # the rows
 
@@ -122,6 +125,91 @@ def approach(n: int, parallel: int, seed: int = 559) -> list[dict]:
   unplugged = [r for r in docked if r.get("unplugged") and r.get("parked")]
   print(f"docked {len(docked)} of {len(rows)}; unplugged and parked {len(unplugged)} of {len(docked)}; "
         f"falls {sum(r.get('fallsAfter', 0) for r in rows)}")
+  return rows
+
+
+#: Where `--walk-in` sends the robot before the loop sends it to charge: the
+#: house's spawns and rooms across it from the station
+#: (`models/home_world.meta.json`), and the facility's across the street.
+WALK_IN_FROM = {"bedroom": (1.5, 4.5), "hall": (-3.5, 1.0), "kitchen": (-8.5, 4.0),
+                "workshop": (-8.5, -2.0), "garden": (7.5, 2.0), "garden_south": (3.0, -4.0),
+                "lobby": (20.5, 0.0), "lab": (25.0, 2.0)}
+
+
+def walk_in(place: str, explore_s: float) -> dict:
+  """The loop's own charge path (`HubLifecycle.go_charge`) from `place`: a
+  fresh humanoid explores for `explore_s`, walks there on its own map, and
+  is sent to charge -- the walk to the standoff on its belief, the station
+  off its tags, the plug-in. Docked or why not, how far its belief was off
+  (m, deg) there and at the end, the times."""
+  from pluggybot.lifecycle import HUMANOID_HOME, HubLifecycle, points_ledger, world_config
+  from pluggybot.robot import world_spec
+  cfg = world_config(HUMANOID_HOME)
+  model = world_spec(cfg["model"], body=cfg["body"]).compile()
+  data = mujoco.MjData(model)
+  life = HubLifecycle(model, data, realtime=False, battery_wh=cfg["hosting_battery_wh"],
+                      rack=cfg["rack"], grid_bounds=cfg["grid_bounds"],
+                      low_battery_wh=cfg["low_battery_wh"], ledger=points_ledger(None),
+                      world=HUMANOID_HOME, errands=[], near_field=True)
+  acts = cfg["activities"](model, data)
+  station = next(a for a in acts if a.name == "station")
+  life.body.step_hooks.append(acts.step_hook(model, data))
+  life.max_sim_time = life.explore_deadline = 1e9
+  life.blacklist, life.floor_explored = set(), False
+  body = life.body
+
+  def off():
+    (bx, by, bh), (tx, ty, th) = body.pose, body.true_pose()
+    turn = abs((bh - th + math.pi) % (2 * math.pi) - math.pi)
+    return [round(math.hypot(bx - tx, by - ty), 3), round(math.degrees(turn), 1)]
+
+  out = {"place": place, "exploreS": explore_s}
+  try:
+    body.start_at(*cfg["start"])
+    body.start_discovery()
+    body.run(body.look_around_routine())
+    life.explore(budget=explore_s, mark_done=False)
+    x, y = WALK_IN_FROM[place]
+    t0 = float(data.time)
+    out["there"] = bool(body.run(body.go_to_routine(x, y, timeout=300.0)))
+    out["outWhy"] = "" if out["there"] else life.drive_why(x, y)
+    tx, ty, _ = body.true_pose()
+    out.update(outS=round(float(data.time) - t0, 1), fromM=round(math.hypot(tx - x, ty - y), 2),
+               offThere=off(), parked=bool(station.flags["parked"]))
+    t1 = float(data.time)
+    out["docked"] = bool(life.go_charge())
+    out.update(why=life.charge_failure, inS=round(float(data.time) - t1, 1), offEnd=off(),
+               tries=sum(1 for t in body._charge_trace if "try" in t), falls=body.falls,
+               trace=body.charge_trace())
+  finally:
+    body.close()
+  return out
+
+
+def walk_ins(explores: tuple, parallel: int) -> list[dict]:
+  """Every place in `WALK_IN_FROM` after each explore -- one process a
+  trial."""
+  trials = [(p, e) for e in explores for p in WALK_IN_FROM]
+
+  def run(t):
+    cmd = [sys.executable, __file__, "--one-walk-in", json.dumps(t)]
+    r = subprocess.run(cmd, capture_output=True, text=True, timeout=3600)
+    try:
+      return json.loads(r.stdout.strip().splitlines()[-1])
+    except (IndexError, json.JSONDecodeError):
+      return {"place": t[0], "exploreS": t[1], "docked": False, "why": "crashed",
+              "stderr": r.stderr[-400:]}
+
+  with ThreadPoolExecutor(parallel) as pool:
+    rows = list(pool.map(run, trials))
+  print(f"{'from':13s} {'explore':>7s} {'there':>5s} {'out s':>6s} {'off there':>12s} "
+        f"{'docked':>6s} {'in s':>6s} {'off end':>12s} {'tries':>5s} falls  why not")
+  for r in rows:
+    print(f"{r['place']:13s} {r['exploreS']:7.0f} {str(r.get('there', '-')):>5s} "
+          f"{r.get('outS', 0):6.1f} {str(r.get('offThere', '-')):>12s} {str(r['docked']):>6s} "
+          f"{r.get('inS', 0):6.1f} {str(r.get('offEnd', '-')):>12s} {r.get('tries', 0):5d} "
+          f"{r.get('falls', '-')!s:>5s}  {r.get('why', '')}")
+  print(f"docked {sum(r['docked'] for r in rows)} of {len(rows)}")
   return rows
 
 
@@ -286,17 +374,26 @@ def main(argv=None) -> int:
   ap.add_argument("--hold", action="store_true")
   ap.add_argument("--seconds", type=float, default=60.0)
   ap.add_argument("--fall", action="store_true")
+  ap.add_argument("--walk-in", action="store_true")
+  ap.add_argument("--explore", default="120,240",
+                  help="--walk-in's explores before it walks out, s, comma-separated")
   ap.add_argument("--view", nargs="?", const="plug", choices=("plug", "fall"))
   ap.add_argument("--out", default=None)
   ap.add_argument("--one", default=None, help=argparse.SUPPRESS)
+  ap.add_argument("--one-walk-in", default=None, help=argparse.SUPPRESS)
   args = ap.parse_args(argv)
   if args.one:
     print(json.dumps(trial(tuple(json.loads(args.one)))))
+    return 0
+  if args.one_walk_in:
+    print(json.dumps(walk_in(*json.loads(args.one_walk_in))))
     return 0
   if args.view:
     view(args.view)
     return 0
   rows = (approach(args.n, args.parallel) if args.approach else
+          walk_ins(tuple(float(e) for e in args.explore.split(",")), args.parallel)
+          if args.walk_in else
           [hold(args.seconds)] if args.hold else [fall()] if args.fall else None)
   if rows is None:
     strip()

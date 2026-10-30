@@ -135,10 +135,12 @@ def plug_in_routine(body, station: RackPose, trace: list):
     if not (yield from body.reach_routine(SIDE, line, _grip(into))):
       return f"its hand did not get to the plug's line ({body.hand_why(SIDE)})"
     r = yield from body.move_hand_routine(SIDE, parked_grip(station), speed=0.06)
-    if r["why"] != "arrived" or not (yield from body.grip_routine(SIDE, True, force=GRIP_N)):
+    held = r["why"] == "arrived" and (yield from body.grip_routine(SIDE, True, force=GRIP_N))
+    if not held:
       yield from body.grip_routine(SIDE, False)
       yield from body.release_routine(SIDE)
-      return "it could not grip the plug"
+      return ("it could not grip the plug" if r["why"] == "arrived" else
+              f"its hand did not get round the plug ({r['why']})")
     r = yield from body.move_hand_routine(SIDE, seat + out * OUT_M, speed=0.06,
                                           turns=[_grip(out)])
     yield from body.move_hand_routine(SIDE, seat + out * PUSH_FROM_M + left * aside, speed=0.04)

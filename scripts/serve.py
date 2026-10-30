@@ -122,7 +122,7 @@ def serve(watchdog: "vitals.Watchdog") -> str | None:
                       default=os.environ.get("PLUGGY_BODY") or None,
                       help="which body the robots have: the quadruped (issue "
                            "#387, deployed) or the humanoid (#559: no dock, "
-                           "rack or tools, nowhere to charge yet). Default "
+                           "rack or tools; it charges at its station). Default "
                            "$PLUGGY_BODY, then the body --world names (home: "
                            "the quadruped)")
   parser.add_argument("--rate", type=float, default=1.0,
