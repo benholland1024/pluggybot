@@ -306,10 +306,13 @@ rest, and `src/pluggybot/continuation.py` keeps it:
   below: the clock, the deaths and the jobs, never the bodies or the maps --
   and the pack at the SHARE it was saved at, its size saved beside it
   (`capacityWh`): a quadruped at 40 % of 194 Wh wakes a humanoid at 40 % of
-  778, never at 78 Wh. A save from before the size was kept is on the
-  quadruped's served pack, the one world ever served. History says "the world
-  restarted and could not put me back where I was (I have a new body since
-  then)". Another house's save is refused.
+  778, never at 78 Wh -- the change of body's alone: the same body on
+  another pack keeps its watt-hours. A save from before the size was kept is
+  on the quadruped's served pack, the one world ever served. A job a robot
+  held that the new world cannot do is back on offer, said in History
+  (`_resume_jobs`). History says "the world restarted and could not put me
+  back where I was (I have a new body since then)". Another house's save is
+  refused.
 - **Three refusals.** A world whose geometry changed (the `fingerprint` over
   bodies, joints and geoms) gets its
   clock, packs, deaths and jobs, but not its bodies or maps: the robots

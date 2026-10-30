@@ -503,8 +503,7 @@ class HumanoidMission(HumanoidWay, Navigator):
     memo = self._plan_memo
     return ({"legs": self.legs, "falls": self.falls, "steps": self._steps,
              "lastMotion": self.last_motion_t,
-             "odometry": {"x": o.x, "y": o.y, "z": o.z, "offset": o.offset, "foot": o.foot,
-                          "last": kept_value(o.last)},
+             "odometry": o.kept_state(),
              "trunk": {"imu": trunk.imu.kept_state(), "q": list(trunk.attitude.q),
                        "rate": kept_value(trunk.rate)},
              "jointsRng": self.stand.joints.rng.bit_generator.state,
@@ -538,10 +537,7 @@ class HumanoidMission(HumanoidWay, Navigator):
     self.falls = int(state["falls"])
     self._steps = int(state["steps"])
     self.last_motion_t = float(state.get("lastMotion", 0.0))
-    o, s = self.odo, state["odometry"]
-    o.x, o.y, o.z, o.offset = s["x"], s["y"], s["z"], s["offset"]
-    o.foot = s["foot"]
-    o.last = value_back(s["last"])
+    self.odo.restore_kept(state["odometry"])
     trunk = self.stand.trunk
     trunk.imu.restore_kept(state["trunk"]["imu"])
     trunk.attitude.q = tuple(float(v) for v in state["trunk"]["q"])

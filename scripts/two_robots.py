@@ -128,7 +128,7 @@ def main() -> None:
       hook, r = strip_hook(lives, args.strip_every, tiles)
       lives[0].body.step_hooks.append(hook)
       renderer.append(r)
-  world = args.world if args.world == HUMANOID_HOME else world_for(args.world)
+  world = world_for(args.world)
   results = run_demo_pair(world=world, max_sim_time=args.max_sim_time,
                           view=args.view, realtime=not args.fast, pack=args.pack,
                           errands=errands, board_state=args.boards,

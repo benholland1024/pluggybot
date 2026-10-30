@@ -468,12 +468,15 @@ save a filmstrip PNG named after the script.
   (the Navigator's now; it replanned every step its waypoints ran out short
   of the goal) and the walls grown in the camera's window -- ⚠ and the way
   past a robot asked aside is planned AFRESH (`_route_past` -> `_plan_near`):
-  answered by the memo, nobody of either body was asked. ⚠ IT RESTS
-  STANDING (`humanoid/way.py`: no motion command for `T_REST_S`, no walk of
-  its own, no hand out, on its feet) and is asked aside as #415's
-  quadruped is, walking there beneath whatever routine holds it; its front
-  stop backs it off within the step, never ends it (ended, 3 doors of 6
-  never began). Without it two humanoids jammed a door for 500 s of a
+  answered by the memo, nobody of either body was asked; so is a plan the
+  drive drops because the world moved (a robot fell, rested or got up; a
+  hold). ⚠ IT RESTS STANDING (`humanoid/way.py`: no motion command for
+  `T_REST_S`, no walk of its own, no hand out, on its feet) and is asked
+  aside by #415's ONE rule and walk (`MakeWay`, each body's word in its
+  hooks), beneath whatever routine holds it, its posture the stand's before
+  the walker takes its legs, and ended by a routine that takes them; its
+  front stop backs it off within the step, never ends it (ended, 3 doors of
+  6 never began). Without it two humanoids jammed a door for 500 s of a
   minded day. ⚠ The death
   seam calls a body down at `TOPPLE_TILT_RAD` (60 deg) of pelvis tilt and a
   reach's deepest bow is 63 deg: nothing bows in the served world until the
@@ -1120,7 +1123,9 @@ save a filmstrip PNG named after the script.
   `home_humanoid` keeps the clock, the deaths and the jobs as a changed
   world does, never the bodies or maps, and the pack at the SHARE it was
   saved at (`capacityWh`; a save without it is on the quadruped's served
-  pack), History saying `BODY_CHANGED`. Three refusals, said in History: a changed
+  pack; the same body on another pack keeps its Wh), History saying
+  `BODY_CHANGED`; a held job the new world cannot do is back on offer
+  (`_resume_jobs`). Three refusals, said in History: a changed
   GEOMETRY (`fingerprint`) keeps the clock, packs, deaths and jobs but not the
   bodies or maps, and so does a save of another `MAP_EPOCH` (bumped when the
   kept maps are found laid wrong, #425 and #476); a save restored `MAX_RESUMES` (3)

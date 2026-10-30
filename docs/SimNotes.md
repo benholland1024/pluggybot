@@ -6307,7 +6307,9 @@ the walk made 3,115 plans, 23 ms each, 71 s of the run's 155 -- the pair at
 0.65x real time. It replanned every physics step once its waypoints ran out
 short of the goal, which the quadruped had stopped by holding a plan asked
 for again within half a second and 5 cm (`REPLAN_HOLD_S`, the Navigator's
-now and both bodies'); and its camera's walls were the whole grid dilated
+now and both bodies' -- but a plan the drive drops because the world moved,
+another robot fallen, lain down or up again or a hold standing it still, is
+made afresh); and its camera's walls were the whole grid dilated
 each depth frame (3.6 s), where the quadruped's are the window its points
 land in (the humanoid's now too). With both, the same run made 126 plans
 and ran at 1.30x.
@@ -6351,7 +6353,12 @@ the clock, the deaths and the jobs, never the bodies or the maps -- and the
 pack at the share it was saved at (`capacityWh`; a save from before it is
 on the quadruped's served pack): a quadruped at 40 % of 194 Wh wakes a
 humanoid at 40 % of 778. History says "the world restarted and could not
-put me back where I was (I have a new body since then)".
+put me back where I was (I have a new body since then)". The share is the
+change of body's alone: the same body on another pack keeps its watt-hours.
+A job held there that this house cannot do -- each of the quadrupeds' --
+is back on offer and said in History (`_resume_jobs`); in review the
+mouse's crashed the restart, and a challenge's stayed held with nothing
+here to grade it.
 
 **What its head does not see.** The garden light's pole is 4 cm wide and
 0.9 m tall, under the humanoid's LIDAR (1.41 m up; the quadruped's, at
@@ -6400,9 +6407,12 @@ describe the quadruped's body and world (stage 3 rewrites them).
 **Making way, standing** (`humanoid/way.py`). A humanoid rests STANDING
 now -- no motion command for the quadruped's reflex's 8.6 s, no walk of its
 own, no hand out, on its feet -- and resting across the other's way it is
-asked aside as #415's quadruped is, steps to the same spot
-(`MakeWay.aside_spot`) beneath whatever routine holds it still, its legs
-handed to the walker where it rests. Two things took it. Its front stop,
+asked aside as #415's quadruped is, by the same rule and walk to the same
+spot (`MakeWay`, both bodies', each saying its own in hooks) beneath
+whatever routine holds it still, its legs handed to the walker where it
+rests once its posture is the stand's (a bow left held is no stance to walk
+from); a routine that takes the legs for the standing policy ends it. Two
+things took it. Its front stop,
 re-armed by every scan while it rests in a doorway, ended the quadruped's
 step before it began, at 3 doors of 6: a humanoid's backs it off and plans
 again, as a walk does. And the asker's way past it (`_route_past`, "the

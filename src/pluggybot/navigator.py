@@ -568,7 +568,10 @@ class Navigator:
   #: replanned EVERY STEP until its stagnation cut -- 4 190 plans in 90 s of
   #: a quadruped pair, 15 ms each; the map it planned over had not moved.
   #: The humanoid's drive did so too wherever its waypoints ran out short of
-  #: the goal (#558, #559): 3 115 plans in 100 s of a pair, 23 ms each.
+  #: the goal (#558, #559): 3 115 plans in 100 s of a pair, 23 ms each. ⚠ A
+  #: plan the drive drops because the world moved -- another robot fell, lay
+  #: down or got up, or a stop or a hold stood it still -- is made afresh
+  #: (`drive_to_routine` drops the held one), never answered by the last.
   REPLAN_HOLD_S, REPLAN_MOVED_M = 0.5, 0.05
   _plan_memo = None
 
@@ -818,7 +821,7 @@ class Navigator:
         t0, last_improve = t0 + took, last_improve + took
         next_stop = self.data.time + STOP_EVERY_S
         if took > 0.0:
-          waypoints = []               # the world moved while it stood
+          waypoints, self._plan_memo = [], None   # the world moved while it stood
       left = self._left(dist, waypoints, wx, wy)
       if self.PROGRESS_MAP_GROWTH and self.data.time >= next_look:
         next_look = self.data.time + MAP_LOOK_S
@@ -870,7 +873,7 @@ class Navigator:
           self.peer_holds += 1
           holding = True
         yield from self._nav_routine(0.0, 0.0)
-        waypoints = []
+        waypoints, self._plan_memo = [], None
         continue
       holding = False
       if self.data.time < self.backoff_until:
@@ -881,7 +884,8 @@ class Navigator:
         next_downs = self.data.time + DOWN_CHECK_S
         now_down = tuple((b.down, b.resting, b.dead) for b in self._bodies())
         if now_down != downs:          # one fell, lay down, got up or died --
-          downs, waypoints = now_down, []   # its disc moved: plan round it now
+          # its disc moved: plan round it now, never the plan held
+          downs, waypoints, self._plan_memo = now_down, [], None
       if self.data.time >= next_replan or not waypoints:
         next_replan = self.data.time + 2.0
         planned = self._plan_to(wx, wy)

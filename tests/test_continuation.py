@@ -42,8 +42,8 @@ def _world():
   return cfg, model, mujoco.MjData(model)
 
 
-def _board(tmp_path, tasks: bool, rebase: bool):
-  return (task_board(str(tmp_path / "tasks.json"), world=QUAD_HOME, rebase=rebase)
+def _board(tmp_path, tasks: bool, rebase: bool, world: str = QUAD_HOME):
+  return (task_board(str(tmp_path / "tasks.json"), world=world, rebase=rebase)
           if tasks else None)
 
 
@@ -59,7 +59,7 @@ def _quad(tmp_path, tasks: bool = False, rebase: bool = True, **kw) -> HubLifecy
 
 def _stub(tmp_path, tasks: bool = False, rebase: bool = True, **kw) -> HubLifecycle:
   """The loop's bookkeeping on the stub body: every other claim."""
-  return stub_life(tasks=_board(tmp_path, tasks, rebase), **kw)
+  return stub_life(tasks=_board(tmp_path, tasks, rebase, kw.get("world", QUAD_HOME)), **kw)
 
 
 def _humanoid(tmp_path, **kw) -> HubLifecycle:
@@ -606,6 +606,46 @@ def test_a_robot_dead_in_its_old_body_is_dead_in_its_new_one(tmp_path):
   assert quad.dead is not None
   _prelude(humanoid, _saved(quad, tmp_path))
   assert humanoid.dead == quad.dead and humanoid.reset_in_s == quad.reset_in_s
+
+
+def test_the_quadrupeds_jobs_are_given_back_in_the_humanoids_house(tmp_path):
+  """The change of body keeps the jobs (#559), and the humanoids' house has
+  none of what the quadrupeds' were done with: a job a robot held there --
+  the mouse's, whose errand asked after a lab this house names None and
+  crashed the restart; a whiteboard's; a challenge's, which nothing here
+  grades -- is back on offer and said in History, and nothing is queued."""
+  quad = _stub(tmp_path, tasks=True)
+  jobs = [quad.tasks.offer(kind, target, t=0.0, **kw) for kind, target, kw in (
+    ("feed_mouse", "lab", {}),
+    ("draw_figure", "whiteboard_a", {"params": {"program": "house"}}),
+    ("stack_tower", "workshop", {}),
+    ("find_mass", "lab_bench", {"secret": {"kg": 0.3},
+                                "params": {"known_g": 100, "known_tag": 23, "unknown_tag": 24}}))]
+  for task in jobs:                                  # the mouse's asks a prediction
+    assert quad.tasks.claim(task.id, robot=quad.root, t=0.0, answer="eating") is not None
+  for task in jobs[2:]:
+    quad.tasks.start(task.id, t=0.0)                # a challenge is active from its claim
+  snap = _saved(quad, tmp_path)
+
+  humanoid = _stub(tmp_path, tasks=True, rebase=False, world=HUMANOID_HOME)
+  _prelude(humanoid, snap)
+  assert humanoid.errands == []
+  assert [humanoid.tasks[task.id].state for task in jobs] == ["offered"] * len(jobs)
+  said = _history(humanoid)
+  for task in jobs:
+    assert any(f"the job {task.id} ({task.kind}) is back on offer" in ln for ln in said), said
+
+
+def test_the_same_body_on_another_pack_keeps_its_watt_hours(tmp_path):
+  """The share is the change of BODY's alone (#559 review): the same body
+  restarted on another pack -- an operator's `PLUGGY_BATTERY_WH` -- keeps
+  the watt-hours it had, as it always has, up to what the pack holds."""
+  small = _stub(tmp_path, battery_wh=100.0)
+  small.battery.energy_wh = 60.0
+  snap = _saved(small, tmp_path)
+  big = _stub(tmp_path, battery_wh=200.0)
+  _prelude(big, snap)
+  assert big.battery.energy_wh == pytest.approx(60.0)
 
 
 def test_another_houses_save_is_never_carried_on(tmp_path):

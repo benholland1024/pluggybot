@@ -471,12 +471,14 @@ def restore(lives, snap: Snapshot) -> dict:
     kept, arrays = snap.robot(life.root)
     if kept is None:
       continue
-    if body and kept.get("capacityWh") is None:
-      # ...a save from before packs were saved with their size: another
-      # body's world is carried on from only where it was served, on its
-      # served pack
+    if body:
+      # THE PACK'S SHARE across a change of body (#559: 194 Wh to 778): a
+      # robot at 40 % wakes at 40 %, never at 194 Wh of 778. A save from
+      # before packs were saved with their size is another body's world
+      # carried on from where it was served, on its served pack.
       from pluggybot.lifecycle import world_config
-      kept = {**kept, "capacityWh": world_config(snap.meta["world"])["hosting_battery_wh"]}
+      was = kept.get("capacityWh") or world_config(snap.meta["world"])["hosting_battery_wh"]
+      kept = {**kept, "energyWh": life.battery.capacity_wh * float(kept["energyWh"]) / float(was)}
     life.restore_kept(kept, arrays, in_place=same, why=why)
     restored.append(life.root)
   if same:

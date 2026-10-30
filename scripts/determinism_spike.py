@@ -433,7 +433,7 @@ def main() -> int:
                "not --pair's")
   out = Path(args.out or tempfile.mkdtemp(prefix="pluggy-det-spike-"))
   out.mkdir(parents=True, exist_ok=True)
-  world = args.world if args.world == HUMANOID_HOME else world_for(args.world)
+  world = world_for(args.world)
   cfg = {"world": world, "pack": args.pack, "simS": args.sim_s,
          "errand": args.errand, "nthreads": args.nthreads, "economy": args.economy,
          "batteryFraction": args.battery_fraction, "onFork": args.on_fork}

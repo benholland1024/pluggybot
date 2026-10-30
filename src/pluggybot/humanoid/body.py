@@ -189,7 +189,8 @@ class HumanoidBody(Body):
     #: ...an array, as the loop indexes it (#559: a frozenset broke a pair's
     #: restore, `HubLifecycle.unclip`, and the near field's robots lying down)
     self.geom_ids = np.array([g for g in range(model.ngeom)
-                              if self._under_root(int(model.geom_bodyid[g]))], dtype=np.int32)
+                              if self.mission._under_root(int(model.geom_bodyid[g]))],
+                             dtype=np.int32)
     # The members a standing body answers plainly.
     self.places = None
     self.rack = self.rack_prior = None
@@ -227,13 +228,6 @@ class HumanoidBody(Body):
   stand = property(lambda self: self.mission.stand)
   walker = property(lambda self: self.mission.walker)
   reach = property(lambda self: self.mission.reach)
-
-  def _under_root(self, body: int) -> bool:
-    while body > 0:
-      if body == self.root:
-        return True
-      body = int(self._m.body_parentid[body])
-    return False
 
   # ---- which robot, and the seam -------------------------------------------
 

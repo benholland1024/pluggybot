@@ -16,7 +16,7 @@ from pluggybot.body import is_humanoid, is_quadruped
 from pluggybot.evaluation.identity import body_identity, world_hash
 from pluggybot.humanoid import mission as hmi
 from pluggybot.lifecycle import (HUMANOID_HOME, NO_CHARGER, QUAD_HOME, HubLifecycle,
-                                 world_config, world_for)
+                                 world_config, world_for, world_targets)
 from pluggybot.legs.rack import RACK_BODY
 from pluggybot.mapping.frontier import OCC_THRESH
 from pluggybot.navigator import Navigator
@@ -55,11 +55,14 @@ def test_the_humanoids_house_is_its_own_world_and_the_body_names_it():
   assert set(BODIES) == {"quadruped", "humanoid"}
   assert world_for("home", "humanoid") == HUMANOID_HOME == world_for(HUMANOID_HOME, "humanoid")
   assert world_for("home") == QUAD_HOME
-  with pytest.raises(ValueError):
-    world_for(QUAD_HOME, "humanoid")
+  assert world_for(HUMANOID_HOME) == HUMANOID_HOME, "a world names its body"
+  for world, body in ((QUAD_HOME, "humanoid"), (HUMANOID_HOME, "quadruped")):
+    with pytest.raises(ValueError):
+      world_for(world, body)
   cfg = world_config(HUMANOID_HOME)
   assert cfg["body"] == "humanoid" and cfg["model_name"] == HUMANOID_HOME
   assert world_config(QUAD_HOME)["zones"] == cfg["zones"], "one house"
+  assert "module" not in world_targets(HUMANOID_HOME, procedures=True), "no rack, no carry"
 
 
 def test_the_house_holds_two_humanoids_by_name_painted_and_meeting_each_other():
@@ -368,10 +371,64 @@ def test_a_humanoid_steps_aside_on_its_own_legs_beneath_a_routine_that_stands():
     back = m._aside_command(hmi.STILL, float(life.data.time))
     assert back[0] < 0.0 and m._aside is not None, "the reflex, and the step goes on"
     m.backoff_until = 0.0
+    said = []
+    life.say_hooks.append(lambda t, line: said.append(line))
     life.body.run(life.body.hold_routine(12.0))
     rec = life.body.last_aside
     assert rec is not None and rec["why"] == "aside", rec
-    assert math.dist(rec["from"], rec["at"]) > 0.5
+    moved = math.dist(rec["from"], rec["at"])
+    assert moved > 0.5
+    assert [ln for ln in said if ln.startswith("MADE WAY")] == [
+      f"MADE WAY: stepped {moved:.1f} m aside for r2_pluggybot, whose way I was standing in"]
+  finally:
+    life.body.close()
+
+
+def test_a_humanoid_left_bowed_stands_before_it_steps_aside():
+  """A bow left held -- a `spot` cut off before its stand -- is no stance
+  to walk from: asked aside, its posture comes back to the stand before the
+  walker takes its legs, as `to_walk_routine` hands them over (#559
+  review). The walker was handed them at the bow."""
+  from pluggybot.humanoid.way import REST_S
+  life = _humanoid(near_field=False)
+  m = life.body.mission
+  try:
+    x, y, _ = life.body.pose
+    _open_floor(m, x, y)
+    life.body.run(life.body.gaze_routine(0.4))
+    assert m.legs == "stand" and m.reach.posture[1] == pytest.approx(0.4), "the premise"
+    life.data.time += REST_S
+    assert life.body.make_way([(x - 1.5, y), (x + 1.5, y)], "r2_pluggybot")
+    handed = []
+    life.body.step_hooks.append(lambda: handed.append(
+      (float(m.reach.posture[1]), float(m.stand.posture[1])))
+      if m.legs == "walk" and not handed else None)
+    life.body.run(life.body.hold_routine(4.0))
+    assert handed, "it never walked"
+    asked, shown = handed[0]
+    assert asked == 0.0 and abs(shown) < 0.05, handed
+  finally:
+    life.body.close()
+
+
+def test_a_routine_that_takes_the_legs_ends_a_step_aside():
+  """The step aside walks beneath a routine that stands still, and one that
+  takes the legs for the standing policy -- a reach, a gaze -- ends it (#559
+  review): walked on, the aside walked the settle's STILL steps and the legs
+  went to the standing policy mid-stride."""
+  from pluggybot.humanoid.way import REST_S
+  life = _humanoid(near_field=False)
+  m = life.body.mission
+  try:
+    x, y, _ = life.body.pose
+    _open_floor(m, x, y)
+    life.data.time += REST_S
+    assert life.body.make_way([(x - 1.5, y), (x + 1.5, y)], "r2_pluggybot")
+    life.body.run(life.body.hold_routine(1.5))
+    assert m._aside is not None and m.legs == "walk", "the premise: under way"
+    life.body.run(m.to_stand_routine())
+    assert m._aside is None and life.body.last_aside["why"] == "its own move"
+    assert m.legs == "stand"
   finally:
     life.body.close()
 

@@ -119,11 +119,12 @@ def serve(watchdog: "vitals.Watchdog") -> str | None:
                            "(issue #6), with the quadruped in it (`home_quad`) "
                            "or the humanoid (`home_humanoid`, #559)")
   parser.add_argument("--body", choices=BODIES,
-                      default=os.environ.get("PLUGGY_BODY") or BODIES[0],
+                      default=os.environ.get("PLUGGY_BODY") or None,
                       help="which body the robots have: the quadruped (issue "
                            "#387, deployed) or the humanoid (#559: no dock, "
                            "rack or tools, nowhere to charge yet). Default "
-                           "$PLUGGY_BODY, then quadruped")
+                           "$PLUGGY_BODY, then the body --world names (home: "
+                           "the quadruped)")
   parser.add_argument("--rate", type=float, default=1.0,
                       help="pacing: sim seconds per wall second")
   parser.add_argument("--free-run", action="store_true",

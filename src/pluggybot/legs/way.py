@@ -34,7 +34,8 @@ import numpy as np
 
 from pluggybot.behavior.navigation import drive_toward
 from pluggybot.mapping import optimistic
-from pluggybot.navigator import ARRIVAL_SLOW_RADIUS, CLOSE_ENOUGH_M, WAYPOINT_REACHED_M
+from pluggybot.navigator import (ARRIVAL_SLOW_RADIUS, CLOSE_ENOUGH_M, WAYPOINT_REACHED_M,
+                                 Navigator)
 
 #: A command that moves nothing: every body's (`Body.STILL`).
 STILL = (0.0, 0.0, 0.0)
@@ -227,7 +228,7 @@ class MakeWay:
     body waiting inside a walk of its own is never asked aside (#415)."""
     self.driving += 1
     try:
-      return (yield from super().drive_to_routine(wx, wy, timeout, stop, beyond))
+      return (yield from Navigator.drive_to_routine(self, wx, wy, timeout, stop, beyond))
     finally:
       self.driving -= 1
 
@@ -238,6 +239,6 @@ class MakeWay:
     off its standoff before its walk in."""
     self.driving += 1
     try:
-      return (yield from super().clear_way_routine(way))
+      return (yield from Navigator.clear_way_routine(self, way))
     finally:
       self.driving -= 1

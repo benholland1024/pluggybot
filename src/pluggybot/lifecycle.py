@@ -6166,8 +6166,8 @@ class HubLifecycle:
     errand = self._errand_now
     state = {
       "energyWh": self.battery.energy_wh,
-      # ...and the pack it is a part of (#559): a body with another pack
-      # carries on at the same share of its own
+      # ...and the pack it is a part of (#559): a robot carried on in
+      # another body wakes at the same share of its own (`continuation`)
       "capacityWh": self.battery.capacity_wh, "module": self.module,
       # ...the body's under the key a saved world has always carried it
       # by: a world saved before the body interface restores after it
@@ -6224,13 +6224,7 @@ class HubLifecycle:
     """Put `kept_state` back. What says WHERE -- the belief, the maps, the
     exploration -- only `in_place`, into the world it was saved from; the
     pack, the clocks and whether it is dead whatever the world looks like."""
-    cap = self.battery.capacity_wh
-    was = state.get("capacityWh")
-    # THE PACK'S SHARE, where it was saved in another pack (#559: a new body,
-    # 194 Wh to 778): a robot at 40 % wakes at 40 %, never at 194 Wh of 778
-    energy = (float(state["energyWh"]) if was is None or float(was) == cap
-              else cap * float(state["energyWh"]) / float(was))
-    self.battery.energy_wh = min(energy, cap)
+    self.battery.energy_wh = min(float(state["energyWh"]), self.battery.capacity_wh)
     # ...a module this world still HAS: a world saved before #489 may name a
     # built tool, which would fail the next `module_state` read
     module = state.get("module") or ""
@@ -6328,13 +6322,18 @@ class HubLifecycle:
     queued: list = []
     held: set[str] = set()
     cut_task = cut.get("taskId", "") if cut is not None else ""
+    # ...a procedure job only where this world has what it is graded on: a
+    # body changed under it (#559, the quadrupeds' tower in the humanoids'
+    # house) is given back below, as an errand nothing here builds is
+    here = world_targets(self.world, self.boards, procedures=True)
     for task in (self._held_jobs() if self.tasks is not None else ()):
       held.add(task.id)
       if any(e.task_id == task.id for e in self.errands):
         continue                          # claimed in this process: queued
       prefix = (f"the restart cut short {cut['name']}; "
                 if task.id == cut_task else "")
-      if KINDS[task.kind].discharge == "procedure":
+      kind = KINDS[task.kind]
+      if kind.discharge == "procedure" and task.target in here.get(kind.target_kind, ()):
         self._say(f"TASK {task.id}: still mine after the restart")
         self._remember(f"{prefix}the job {task.id} ({task.kind}) is still "
                        "mine -- the procedure is mine to run, and to say done")
@@ -7122,10 +7121,12 @@ def world_targets(world: str, book=None, procedures: bool = False,
     targets["board"] = list(book.names)
   if cfg.get("census_zone"):
     targets["zone"] = [cfg["census_zone"]["name"]]
-  # One module, and deliberately the one every world has on its rack: the
-  # carry is the job a bare room can still offer, and it is where the swap
-  # stack gets exercised on its own.
-  targets["module"] = ["module_lcd"]
+  # One module, and deliberately the one every rack has: the carry is the
+  # job a bare room can still offer, and it is where the swap stack gets
+  # exercised on its own -- in a world with a rack (the humanoid's has none,
+  # #559)
+  if cfg.get("rack") is not None:
+    targets["module"] = ["module_lcd"]
   if procedures and cfg.get("tower"):
     targets["challenge"] = [cfg["tower"]["name"]]
   if procedures and robots:
@@ -7317,7 +7318,7 @@ def errand_for_task(task, world: str, book=None, answer: str = "",
       # word. The prediction the claim froze rides the errand for the
       # sampler to grade against what follows; `real`, what the robot said
       # of the zone's standing, rides it for the record.
-      if world_config(world).get("lab", {}).get("name") != task.target:
+      if (world_config(world).get("lab") or {}).get("name") != task.target:
         return None
       errand = cage_errand(world, spec.task, real=real,
                            task=spec.task)
@@ -8092,14 +8093,19 @@ HUMANOID_HOME = "home_humanoid"
 HOUSES = {QUAD_HOME: "home", HUMANOID_HOME: "home"}
 
 
-def world_for(world: str, body: str = "quadruped") -> str:
+def world_for(world: str, body: str | None = None) -> str:
   """The world a body lives in: `home` with legs is `home_quad`, with the
   humanoid in it `home_humanoid` (`$PLUGGY_WORLD=home` and `$PLUGGY_BODY`
-  name either)."""
-  named = {"quadruped": QUAD_HOME, "humanoid": HUMANOID_HOME}.get(body)
-  if named is not None and world in ("home", named):
-    return named
-  raise ValueError(f"no {body} world for {world!r} (the {body} lives in home)")
+  name either; no body named is the quadruped) -- and a body's own world
+  is itself, refused with another body named."""
+  homes = {"quadruped": QUAD_HOME, "humanoid": HUMANOID_HOME}
+  if world in homes.values():
+    if body is None or homes.get(body) == world:
+      return world
+  elif world == "home" and (body or "quadruped") in homes:
+    return homes[body or "quadruped"]
+  raise ValueError(f"no {body} world for {world!r}: `home` is either body's house, "
+                   + ", ".join(f"{w} the {b}'s" for b, w in homes.items()))
 
 
 def run_demo(start=None, view: bool = False,

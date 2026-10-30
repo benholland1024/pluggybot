@@ -402,7 +402,7 @@ def main() -> None:
   ap.add_argument("--write", action="store_true",
                   help="fold the result into src/pluggybot/economy/energy.json")
   args = ap.parse_args()
-  args.world = args.world if args.world == HUMANOID_HOME else world_for(args.world)
+  args.world = world_for(args.world)
 
   cfg = world_config(args.world)
   explore_s = args.explore_s if args.explore_s is not None \
