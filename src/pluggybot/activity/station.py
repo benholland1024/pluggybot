@@ -23,7 +23,7 @@ model, from anywhere in its mouth (`CUP_MOUTH_M`). The plug meets the
 robots, the house and the station's box -- the rest of the station is
 drawn, never touched.
 
-THE STATION'S FRAME is the dock's (`legs.dock`): its origin on the floor
+THE STATION'S FRAME, as the quadruped's dock's was: its origin on the floor
 under the cup on the station's face, +x INTO the wall -- the way a robot at
 the station faces -- y to the robot's left. The box stands between its face
 and the wall (`BOX_DEPTH_M`).
@@ -36,7 +36,7 @@ import math
 import numpy as np
 
 from pluggybot.activity.base import Activity
-from pluggybot.rack.tags import STATION_TAG_IDS, STATION_TAG_SIZE, plate_half_extent
+from pluggybot.perception.tags import STATION_TAG_IDS, STATION_TAG_SIZE, plate_half_extent
 
 # ---- the parts' numbers ----------------------------------------------------------
 

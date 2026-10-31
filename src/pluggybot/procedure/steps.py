@@ -68,17 +68,10 @@ import math
 from dataclasses import dataclass, field
 from typing import Any, Callable
 
-from pluggybot.legs.rack import TOOL_BAYS as RACK_TOOL_BAYS
 from pluggybot.perception.watch import LATENCY_S as WATCH_LATENCY_S, WATCH_HZ
-from pluggybot.rack.coupling import STATION_YS
 from pluggybot.tick import Routine
-from pluggybot.tools.strokes import PROGRAMS
 
-#: Which bay each tool hangs in, by index into `STATION_YS` (bay <-> tag
-#: pairing is by that index): the quadruped's rack's (#405). A COPY: the
-#: rack generator lays its pegs from the original.
-TOOL_BAYS = dict(RACK_TOOL_BAYS)
-#: The one role every program has today; M12 adds the second.
+#: The one role every program has.
 DEFAULT_ROLE = "robot"
 #: Caps, by code, on what a program may declare.
 MAX_STEPS = 24
@@ -106,25 +99,17 @@ class Refused(ValueError):
 @dataclass(frozen=True)
 class WorldFacts:
   """What validation needs to know about the world a program will run in:
-  the boards it has, the tools on its rack, and the box the map covers."""
+  the box the map covers, the body's axes, senses and verbs."""
 
-  boards: tuple[str, ...]
-  tools: tuple[str, ...]
   bounds: tuple[float, float, float, float]    # x_min, y_min, x_max, y_max
-  figures: tuple[str, ...]
   #: the motor-and-sensor level (procedure/axes.py, issue #166): what
   #: `move` may move and `read` may read, presence checked at run time
   axes: tuple[str, ...] = ()
   sensors: tuple[str, ...] = ()
-  #: the verbs this world's BODY can run (issue #387), or None for every
-  #: one: a body with no arm has no tool, no claw and no pen
+  #: the verbs this world's BODY can run (issue #387), or None for every one
   verbs: tuple[str, ...] | None = None
-  #: the task areas' tags a `find` may name (issue #419), and the plates'
-  #: among them a `press` may
+  #: the task areas' tags a `find` may name (issue #419)
   places: tuple[int, ...] = ()
-  plates: tuple[int, ...] = ()
-  #: the cubes' tags the claw's verbs may name (issue #407)
-  cubes: tuple[int, ...] = ()
   #: the hands a hand's verb may name (issue #493: the humanoid's)
   hands: tuple[str, ...] = ()
   #: whether a verb may stand alone as an `if`'s test, its failing then
@@ -235,162 +220,6 @@ class Verb:
   args: dict                   # arg name -> Arg
   run: Callable[..., Routine]  # (life, args) -> Routine returning a verdict
   doc: str
-  #: moves the base, so the fork goes into its carrying pose first (`run_verb`)
-  drives: bool = False
-
-
-def _rack(life) -> dict[str, int]:
-  """Which module hangs where: the lifecycle's inventory -- empty in a world
-  with no rack (the humanoid's, #559) -- or the rack's own where there is
-  none."""
-  inventory = getattr(life, "rack_inventory", None)
-  return TOOL_BAYS if inventory is None else inventory
-
-
-def _tool_station(life, tool: str) -> float:
-  return STATION_YS[_rack(life)[tool]]
-
-
-def _seated(life, tool: str) -> bool:
-  return bool(life.body.module_state(tool)["on_fork"]) and \
-    life.body.tool_powered(tool)
-
-
-def _fetch(life, args: dict) -> Routine:
-  tool = args["tool"]
-  station = _tool_station(life, tool)
-  # ⚠ THE FORK FIRST (issue #264). A fork that already holds the tool has
-  # it; one that holds ANOTHER was driven into a bay loaded, and the
-  # deployed robots wrote `clean_fork` / `stow_recover` procedures around
-  # the wreck. Neither drives anywhere.
-  held = _carried(life)
-  if held == tool:
-    life.module = tool
-    ok = _seated(life, tool)
-    return {"ok": ok, "tool": tool, "why": "held", "powered": ok,
-            **({} if ok else {"reason": f"{tool} is on the fork but not "
-                                        "seated; stow it and fetch it again"})}
-  if held is not None:
-    return {"ok": False, "tool": tool, "why": "loaded",
-            "reason": f"the fork already holds {held}; stow it first"}
-  life.module = tool
-  why = yield from life.body.fetch_tool_routine(station, tool)
-  ok = _seated(life, tool)
-  life.swaps_done += 1
-  verdict = {"ok": ok, "tool": tool, "why": why, "powered": ok}
-  if not ok:
-    # The sentence the errand's History line says (`pick_failure`): a
-    # procedure cut short at its first line told the robot nothing, and the
-    # deployed robots re-ran the same failing fetch five times over.
-    said = getattr(life, "pick_failure", None)
-    verdict["reason"] = (f"could not pick up {tool}"
-                         + (f": {said(tool, station, why)}" if said else ""))
-    _trace(life, verdict, f"fetch {tool}")
-  return verdict
-
-
-def _trace(life, verdict: dict, what: str) -> None:
-  """A failed swap's trace (issue #264, `Body.swap_trace`) on the step's
-  verdict, which the runner narrates as `detail` -- the log's, never the
-  status line or History, which are the robot's."""
-  verdict["trace"] = f"{what}: {life.body.swap_trace()}"
-
-
-def _carried(life) -> str | None:
-  """Which module is on the fork right now, off the coupling itself."""
-  for tool in _rack(life):
-    try:
-      if life.body.module_state(tool)["on_fork"]:
-        return tool
-    except (KeyError, ValueError):
-      continue
-  return None
-
-
-def carry_configuration_routine(life, tool: str) -> Routine:
-  """The tool as a fetch left it, before any RETURN (issue #264): a cube in
-  the claw set down on the floor first (#407: a claw hung back holding one
-  is a cube hung on the rack), then the arm at its carrying pose, where a
-  procedure may have moved it -- a stow computes its approach from the pose
-  it starts at. Returns what it set down, and what it let go of where it
-  stood because no put could (no room, out of reach): a claw hung back
-  holding a cube is worse."""
-  set_down = dropped = None
-  held = life.body.held_cube() if tool == "module_claw" else None
-  if held is not None:
-    rec = yield from life.body.put_cube_routine(PUT_PATIENCE_S)
-    if rec.get("put"):
-      set_down = held
-    elif life.body.held_cube() is not None:
-      yield from life.body.claw_routine(closed=False)
-      dropped = held if life.body.held_cube() is None else None
-  yield from life.body.retract_arm_routine()
-  return {"setDown": set_down, "dropped": dropped}
-
-
-#: A setpoint this close to its travel value is left alone, so a verb that
-#: finds the tool already posed costs no physics step.
-POSE_TOL = 1e-3
-
-
-def travel_pose(life, tool: str | None) -> list[tuple[int, float, float]]:
-  """The CARRYING pose as `(actuator, setpoint, speed)`, in the order to
-  move them (issue #347): the arm to its carry pose over the nose (#405),
-  the shoulder first; an empty fork folds the arm to its stow, the shoulder
-  before the elbow, so the forearm comes in over the body rather than under
-  it. It sets nothing down."""
-  from pluggybot.legs.arm import CARRY_Q
-  from pluggybot.procedure import axes
-  body = life.body
-  pose = axes._ARM.stow if tool is None else CARRY_Q
-  try:
-    return [(body.actuator(axes.AXES[j].actuator), target, axes.AXES[j].speed)
-            for j, target in zip(axes.ARM_JOINTS, pose)]
-  except KeyError:
-    return []
-
-
-def travel_pose_routine(life) -> Routine:
-  """Whatever is on the fork into its carrying pose, ramped, before a verb
-  drives (issue #347); only what a procedure moved is moved back. A
-  procedure leaves the axes anywhere, and until this only a RETURN
-  restored them."""
-  moved = False
-  for act, target, speed in travel_pose(life, _carried(life)):
-    if abs(life.body.setpoint(act) - target) > POSE_TOL:
-      yield from life.body.ramp_routine(act, target, speed)
-      moved = True
-  if moved:
-    yield from life.body.settle_routine(0.5)
-
-
-def _stow(life, args: dict) -> Routine:
-  tool = _carried(life)
-  if tool is None:
-    return {"ok": False, "reason": "nothing on the fork to stow"}
-  yield from carry_configuration_routine(life, tool)
-  station = _tool_station(life, tool)
-  why = yield from life.body.stow_tool_routine(station, tool)
-  st = life.body.module_state(tool)
-  hung = bool(st["hung"])
-  life.swaps_done += 1
-  verdict = {"ok": hung, "tool": tool, "why": why,
-             **({} if hung else {"reason": (
-               f"could not hang {tool} back on its bay; "
-               + ("it is still on the fork" if st["on_fork"] else
-                  "it is neither on the fork nor on its bay"))})}
-  if not hung:
-    # ...and who held the bay, where the other robot did (#418), as a
-    # fetch's reason says it (`HubLifecycle.held_for`)
-    asked = getattr(life, "peer_at_the_bay", None)
-    blocked = asked(station) if why == "blocked" and asked is not None else None
-    if blocked is not None:
-      verdict["reason"] += f": {life.held_for(blocked)}"
-    elif why == "no rack":        # ...got there, and saw none (issue #476)
-      verdict["reason"] += (": the rack was not in sight from where I believed "
-                            "its bay's approach began")
-    _trace(life, verdict, f"stow {tool}")
-  return verdict
 
 
 def _go(life, x: float, y: float, timeout: float, stop) -> Routine:
@@ -472,15 +301,6 @@ def _wait(life, args: dict) -> Routine:
 #: 62-272 s (#419: eight address errors round the house, and the address
 #: itself from three starts).
 FIND_PATIENCE_S = 300.0
-#: How long a `press` may take, s, where the program's budget does not say
-#: less: flown, 12-26 s from where the find left it (#419, 22 presses), and
-#: 21-44 s past the other robot lying on or by its standoff, asked off it
-#: (#439, `scripts/press_spike.py`, 30 presses). The walk there is handed
-#: all of it but `FINAL_S`, one walk in's worth -- every live failure was
-#: that walk -- and a second walk in runs on what is left (`PRESS_TRIES`).
-PRESS_PATIENCE_S = 120.0
-
-
 def _find(life, args: dict) -> Routine:
   """Find the task area carrying a tag (issue #419): where the robot saw it
   last, confirmed by its tag, or else searched for round (x, y) -- a job's
@@ -576,338 +396,6 @@ def find_trace(rec: dict) -> str:
   parts.append(f"-> {rec.get('why', '?')} after {float(rec.get('seconds') or 0):.0f} s, "
                f"belief off {dx:+.0f},{dy:+.0f} mm {dyaw:+.1f} deg")
   return ", ".join(parts)
-
-
-#: What a `press` that did not press says, by its body's why (issue #419).
-PRESS_WHY = {
-  "not found": "tag {tag} is a plate it has not found: `find` it first",
-  "not a plate": "tag {tag} marks no plate",
-  "gave up": "did not get in front of tag {tag}'s plate",
-  "lost": "tag {tag} was not in view from in front of its plate",
-  "not pressed": "walked onto tag {tag}'s plate and no foot was on it",
-  "out of time": "ran out of time before stepping onto tag {tag}'s plate",
-  "interrupted": "stopped on the way to tag {tag}'s plate by its own interrupt",
-  "in the way": "did not walk onto tag {tag}'s plate",
-}
-#: ...and how its look round for a sign not in view ended (issue #439).
-PRESS_LOOKED = {"all round": ", nor all round it",
-                "cut short": ", and its time ran out looking round"}
-
-
-def _across_words(life, a: dict) -> str:
-  """Who lay across a press's walk in and would not come off it (issue
-  #455), as its reason says it."""
-  other = life._peer(a["root"]) if hasattr(life, "_peer") else None
-  who = other.robot_name if other is not None else "another robot"
-  where = f"across the way onto it, {float(a['m']):.1f} m off"
-  if a.get("dead"):
-    return f"{who} lay dead {where}"
-  if a.get("down"):
-    return f"{who} lay fallen {where}"
-  if a.get("rests"):
-    return f"{who} lay {where}, and did not step off it"
-  return f"{who} stood {where}, and did not move off it"
-
-
-def _press(life, args: dict) -> Routine:
-  """Walk onto the plate a tag marks and back off it (issue #419): a plate
-  the robot has found (`find`), the last step measured off its sign. ok
-  when one of its feet was on the pad.
-
-  ⚠ A FAILED PRESS SAYS WHICH PART FAILED (issue #439): the try that
-  failed, a walk that gave up in #350's words, and every try in the log's
-  `trace`. Each failed live press read "ran out of time", and the robot,
-  told only that the plate was never pressed, took its sensor for faulty.
-  ⚠ ...AND A PRESS THAT PRESSED LEAVES ITS TRIES THERE TOO: a paid feed
-  whose press took 67 s and stepped on the shock plate 22 times on the way
-  left no record of how (8a61ada), nor would a press saved by its second
-  walk in."""
-  tag = int(args["tag"])
-  rec = yield from life.body.press_plate_routine(
-    tag, patience=_patience(life, {"patience": PRESS_PATIENCE_S}), stop=_interrupt(life))
-  why = rec.get("why", "")
-  out = {"ok": bool(rec.get("pressed")), "tag": tag, "why": why}
-  if not out["ok"]:
-    att = (rec.get("attempts") or [{}])[-1]
-    walk = att.get("walk")
-    cause = (f": {life.drive_why(*walk['goal'], record=walk)}"
-             if walk and why in ("gave up", "out of time")
-             else PRESS_LOOKED.get(att.get("looked"), "") if why == "lost"
-             else f": {_across_words(life, att['across'])}" if why == "in the way" and att.get("across")
-             else "")
-    out["reason"] = PRESS_WHY.get(why, why or "did not press").format(tag=tag) + cause
-  if rec.get("attempts"):
-    out["trace"] = f"press tag {tag}: {press_trace(rec)}"
-  return out
-
-
-def press_trace(rec: dict) -> str:
-  """A press's tries as one line of evidence (issue #439), the log's
-  alone: each one's standoff, how long its walk there took or the walk that
-  did not arrive, the look round, where it stopped against the press pose,
-  and where it ended -- the belief, and its error against the truth --
-  then the time too short for the next."""
-  parts = []
-  for i, a in enumerate(rec.get("attempts") or (), 1):
-    sx, sy = a.get("standoff") or (math.nan, math.nan)
-    bits = [f"#{i} standoff ({sx:.2f}, {sy:.2f})"]
-    w = a.get("walk")
-    if w:
-      bits.append(f"walk {_walk_trace(w)}")
-    elif a.get("walkS") is not None:
-      bits.append(f"walked {float(a['walkS']):.0f} s")
-    if "reaim" in a:
-      bits.append(f"re-aimed by {a['reaim']}")
-    if "looked" in a:
-      bits.append(f"looked round {a['looked']}")
-    if "across" in a:
-      bits.append(f"walk in across {a['across']}")
-    if "walkIn" in a:
-      bits.append(f"walk in {a['walkIn']}, stopped {a.get('stop')} off the press pose")
-    if "at" in a:
-      dx, dy, dyaw = a.get("err") or (math.nan,) * 3
-      bits.append(f"at ({a['at'][0]:.2f}, {a['at'][1]:.2f}) after {a.get('s', 0):.0f} s, "
-                  f"belief off {dx:+.0f},{dy:+.0f} mm {dyaw:+.1f} deg")
-    parts.append(", ".join(bits) + f" -> {a.get('why', '?')}")
-  if "leftS" in rec:
-    parts.append(f"no time for #{len(parts) + 1}: {rec['leftS']:.1f} s left")
-  return "; ".join(parts)
-
-
-#: How long a `draw` may take, s, where the program's budget does not say
-#: less: flown from the board's look point, a house took 106-125 s.
-DRAW_PATIENCE_S = 420.0
-#: What a `draw` that drew nothing says, by its body's why (issue #406).
-DRAW_WHY = {
-  "no pen": "the pen is not on the fork: `fetch` module_pen first",
-  "not found": "{board} is a board it has not found: `find` one of its tags first",
-  "gave up": "did not get in front of {board}",
-  "lost": "{board}'s two tags were not in one look from in front of it",
-  "never touched": "lay down in front of {board} and the pen never found its face",
-  "out of time": "ran out of time before drawing on {board}",
-  "interrupted": "stopped drawing on {board} by its own interrupt",
-  "fell": "fell over on its way to or at {board}, and the fall threw the pen",
-  "not drawn": "drew nothing on {board}",
-}
-#: The figures a `draw` may name: the pen's menu (`tools.strokes`) without
-#: the two that write text -- the validator's list (`lifecycle.world_facts`).
-DRAW_FIGURES = tuple(n for n in PROGRAMS if n not in ("text", "answer"))
-#: ...and what of its record rides the verdict as `used`: what the ink's
-#: evaluator reads (`scoring.sample_draw`).
-DRAW_USED = ("strokes", "strokes_drawn", "inked_fraction", "travel_ink_fraction",
-             "shape_rms_mm", "form_rms_mm", "offset_mm", "stopped")
-
-
-def _draw(life, args: dict) -> Routine:
-  """Draw a figure on a whiteboard the robot has found (issue #406): the
-  pen on its fork, the board by its two tags (`find` one first). The body
-  walks to it, lies down, finds its face with the pen and draws, and the
-  board records the ink (`HubLifecycle.ink_hook`). ok when a stroke
-  landed; a walk that gave up says why in #350's words."""
-  from pluggybot.lifecycle import figure_program
-  board, figure = args["board"], args["figure"]
-  out = {"board": board, "figure": figure}
-  if _carried(life) != "module_pen":
-    return {**out, "ok": False, "why": "no pen",
-            "reason": DRAW_WHY["no pen"].format(board=board)}
-  program = figure_program(life.world, board, figure)
-  ink = getattr(life, "ink_hook", None)
-  rec = yield from life.body.draw_routine(
-    board, program, patience=_patience(life, {"patience": DRAW_PATIENCE_S}),
-    stop=_interrupt(life), on_stroke=ink(board, program.name) if ink is not None else None)
-  why = rec.get("why", "")
-  out.update(ok=bool(rec.get("drew")), why=why, strokes=rec.get("strokes"),
-             strokesDrawn=rec.get("strokes_drawn"),
-             used={k: rec[k] for k in DRAW_USED if rec.get(k) is not None})
-  if why == "interrupted":
-    out["stopped"] = "interrupted"
-  if not out["ok"]:
-    walk = rec.get("walk")
-    cause = (f": {life.drive_why(*walk['goal'], record=walk)}"
-             if walk and why == "gave up" and walk.get("goal") else "")
-    out["reason"] = DRAW_WHY.get(why, why or "drew nothing").format(board=board) + cause
-  return out
-
-
-# ---- the claw (issue #407) ---------------------------------------------------
-
-#: How long a cube verb may take, s, where the program's budget does not say
-#: less: flown from where the robot stood a few metres off, a pick took
-#: 36-41 s and a place 37-61; a cube not in view is searched for in front
-#: of its area's tags, a walk or two more.
-CUBE_PATIENCE_S = 240.0
-#: ...and `put`, which walks nowhere, s.
-PUT_PATIENCE_S = 60.0
-#: What a cube verb that did not do it says, by its body's why.
-CUBE_WHY = {
-  "no claw": "the claw is not on the fork: `fetch` module_claw first",
-  "holding": "the claw already holds a cube: `place` it or `put` it down first",
-  "nothing held": "nothing is in the claw: `pick` a cube first",
-  "that cube is in the claw": "cube {tag} is the one in the claw",
-  "not found": "did not find cube {tag}: not from where it stood, not where it "
-               "saw it last, and not in front of its area's tags (`find` one of "
-               "them first)",
-  "never lined up": "walked in to cube {tag} three times and never lay down with "
-                    "it in the claw's reach",
-  "missed": "lay down at cube {tag}, closed the jaws on it and they did not hold it",
-  "the wrong cube": "lay down at cube {tag}, and the jaws closed on another cube",
-  "not on it": "let go over cube {tag}, and the cube it held does not rest on it",
-  "not down": "let go over the floor, and the cube does not rest on it",
-  "no room": "lay down to put the cube down, and there was a cube where it could",
-  "out of reach": "lay down at cube {tag} and could not reach over it",
-  "fell": "fell over on the way to or at cube {tag}, and the fall threw the claw",
-  "out of time": "ran out of time before reaching cube {tag}",
-  "interrupted": "stopped on the way to cube {tag} by its own interrupt",
-}
-#: ...and what a `put` that did not says: it walks to no cube.
-PUT_WHY = {**CUBE_WHY,
-           "out of reach": "lay down to put cube {tag} down and could not reach the floor",
-           "not down": "let go of cube {tag} over the floor, and it does not rest on it",
-           "fell": "fell over putting cube {tag} down, and the fall threw the claw"}
-
-
-def _claw_first(life) -> Routine:
-  """The claw onto an EMPTY fork, for `pick` (issue #353, `rover-final`): a
-  pick with nothing on the fork fetches the claw first, exactly as `fetch`
-  takes it, and one holding another tool is refused, never driven into a
-  bay loaded. None once the claw is on; else the failed verdict."""
-  held = _carried(life)
-  if held == "module_claw":
-    return None
-  if held is not None:
-    return {"ok": False, "reason": f"the fork holds {held}, not the claw; stow it first"}
-  if "module_claw" not in _rack(life):
-    return {"ok": False, "reason": "the fork is empty, and this rack has no claw"}
-  got = yield from _fetch(life, {"tool": "module_claw"})
-  if not got["ok"]:
-    return {**got, "reason": f"the fork was empty, and fetching the claw failed: "
-                             f"{got.get('reason', '')}"}
-  return None
-
-
-def _cube_verdict(rec: dict, key: str, tag: int | None, words: dict = CUBE_WHY) -> dict:
-  why = rec.get("why", "")
-  out = {"ok": bool(rec.get(key)), "why": why,
-         **({"tag": tag} if tag is not None else {}),
-         **({"seconds": rec["seconds"]} if "seconds" in rec else {})}
-  if why == "interrupted":
-    out["stopped"] = "interrupted"
-  if not out["ok"]:
-    out["reason"] = words.get(why, why or "did not").format(tag=tag)
-    if rec.get("tries"):
-      out["trace"] = f"{rec.get('op')} {tag}: " + "; ".join(
-        f"#{i} walk in {a.get('walkIn')}, lying at {a.get('at')} -> {a.get('why', 'in reach')}"
-        for i, a in enumerate(rec["tries"], 1))
-  return out
-
-
-def _pick(life, args: dict) -> Routine:
-  """Take the cube carrying a tag in the claw (issue #407): found by its tag
-  -- from where the robot stands, where it saw it last, or in front of its
-  area's tags -- walked in to and lain down at, then closed on. ok when the
-  jaws hold it, off the world. An empty fork fetches the claw first."""
-  tag = int(args["tag"])
-  refused = yield from _claw_first(life)
-  if refused is not None:
-    return {**refused, "tag": tag}
-  rec = yield from life.body.pick_cube_routine(
-    tag, patience=_patience(life, {"patience": CUBE_PATIENCE_S}), stop=_interrupt(life))
-  return _cube_verdict(rec, "picked", tag)
-
-
-def _place(life, args: dict) -> Routine:
-  """Set the cube in the claw down on top of the cube carrying a tag (issue
-  #407), and let go. ok when it rests on it -- one edge above it and its
-  middle within half an edge, `challenge.stack`'s "rests on" -- off the
-  world."""
-  tag = int(args["tag"])
-  if _carried(life) != "module_claw":
-    return {"ok": False, "tag": tag, "reason": CUBE_WHY["no claw"]}
-  rec = yield from life.body.place_cube_routine(
-    tag, patience=_patience(life, {"patience": CUBE_PATIENCE_S}), stop=_interrupt(life))
-  return _cube_verdict(rec, "placed", tag)
-
-
-def _put(life, args: dict) -> Routine:
-  """Set the cube in the claw down on the floor in front of the robot (issue
-  #407): ok when it rests there and the jaws are open."""
-  if _carried(life) != "module_claw":
-    return {"ok": False, "reason": CUBE_WHY["no claw"]}
-  rec = yield from life.body.put_cube_routine(
-    _patience(life, {"patience": PUT_PATIENCE_S}))
-  return _cube_verdict(rec, "put", rec.get("held"), PUT_WHY)
-
-
-def _grip(life, args: dict) -> Routine:
-  if _carried(life) != "module_claw":
-    return {"ok": False, "reason": CUBE_WHY["no claw"]}
-  held = yield from life.body.claw_routine(closed=True)
-  return {"ok": bool(held), **({} if held else {"reason": "the jaws shut on nothing"})}
-
-
-def _release(life, args: dict) -> Routine:
-  if _carried(life) != "module_claw":
-    return {"ok": False, "reason": CUBE_WHY["no claw"]}
-  free = yield from life.body.claw_routine(closed=False)
-  return {"ok": bool(free), **({} if free else {"reason": "something is still in the jaws"})}
-
-
-# ---- the census (issue #407) ------------------------------------------------
-
-#: How long a `survey` may take, s, where the program's budget does not say
-#: less: the garden, from its tag, walked round until 90 % of its floor was
-#: seen (SimNotes, "The census on legs").
-SURVEY_PATIENCE_S = 600.0
-#: What a `survey` that did not survey says, by its body's why.
-SURVEY_WHY = {
-  "not found": "tag {tag} marks a place it has not found: `find` it first",
-  "no area": "the floor in front of tag {tag} is no area its walls close",
-  "out of time": "ran out of time surveying round tag {tag}",
-  "interrupted": "stopped surveying round tag {tag} by its own interrupt",
-}
-
-
-def _survey(life, args: dict) -> Routine:
-  """Survey the area a tag marks and count what stands in it (issue #407,
-  the census): the floor the walls enclose round the tag's front, walked
-  until enough of it was seen, the depth camera's low layer counted. ok
-  when it surveyed; the count and how much of the area it saw ride the
-  verdict, and the count goes on the LCD's face while the LCD is on the
-  fork (`HubLifecycle.screen`). The answer is never in it: the grade reads
-  the world."""
-  tag = int(args["tag"])
-  screen = getattr(life, "screen", None)
-  shows = screen is not None and _carried(life) == getattr(screen, "module", None)
-
-  def on_count(n: int) -> None:
-    if shows:
-      screen.show_count(n, "plants", face="determined", hint="none")
-
-  rec = yield from life.body.survey_routine(
-    tag, patience=_patience(life, {"patience": SURVEY_PATIENCE_S}),
-    stop=_interrupt(life), on_count=on_count)
-  why = rec.get("why", "")
-  out = {"ok": bool(rec.get("surveyed")), "tag": tag, "why": why,
-         **({"count": rec["count"], "coverage": rec["coverage"]} if "count" in rec else {}),
-         "shown": shows}
-  if why == "interrupted":
-    out["stopped"] = "interrupted"
-  if not out["ok"]:
-    out["reason"] = SURVEY_WHY.get(why, why or "did not survey").format(tag=tag)
-  return out
-
-
-#: The base's command envelope for `drive`, forward m/s and yaw rad/s.
-DRIVE_V_MAX = 0.25
-DRIVE_W_MAX = 1.5
-
-
-def _drive(life, args: dict) -> Routine:
-  """The base at the motor level: (v, w) for a bounded time, through the
-  same velocity every errand's holds and creeps go through."""
-  yield from life.body.velocity_routine(float(args["seconds"]),
-                                        float(args["v"]), float(args["w"]))
-  return {"ok": True}
 
 
 def _move(life, args: dict) -> Routine:
@@ -1082,11 +570,10 @@ def _measure(life, args: dict) -> Routine:
   PERCEPTION, a stated prior (`perception.box`): the highest flat face
   among the points round (x, y), and its edges."""
   import numpy as np
-  from pluggybot.legs import probe as lp
   from pluggybot.perception import box
   x, y = float(args["x"]), float(args["y"])
-  cloud = yield from life.body.depth_cloud(lp.DEPTH_W, lp.DEPTH_H, lp.DEPTH_MIN_Z,
-                                           frames=lp.FRAMES, apart=lp.APART_S)
+  cloud = yield from life.body.depth_cloud(box.DEPTH_W, box.DEPTH_H, box.DEPTH_MIN_Z,
+                                           frames=box.FRAMES, apart=box.APART_S)
   bx, by, yaw = life.body.stance
   c, s_ = math.cos(yaw), math.sin(yaw)
   pts = np.asarray(cloud, dtype=float).reshape(-1, 3)
@@ -1503,22 +990,17 @@ _GIVE = Arg("float", lo=0.0, hi=1.0, default=1.0)
 #: How hard a gripper squeezes, N a pad (#525): the Dex1-1's adjustable 5-120.
 _GRIP = Arg("float", lo=5.0, hi=120.0, default=120.0)
 VERBS: dict[str, Verb] = {
-  "fetch": Verb("fetch", {"tool": Arg("str", choices="tools")}, _fetch,
-                "pick a module off its bay; ok when seated and powered", drives=True),
-  "stow": Verb("stow", {}, _stow, "hang the carried module back; ok when hung",
-               drives=True),
   # `patience` (issue #381): the walk's budget, the robot's to set
   "drive_to": Verb("drive_to", {"x": Arg("float"), "y": Arg("float"),
                                 "patience": Arg("float", lo=0.0, hi=MAX_PATIENCE_S,
                                                 default=DRIVE_TIMEOUT_S)},
                    _drive_to, "walk to a world point over the map, and over floor not "
                    "yet on it; ok on arrival, and it gives up after "
-                   f"`patience` seconds (at most {MAX_PATIENCE_S:.0f})", drives=True),
+                   f"`patience` seconds (at most {MAX_PATIENCE_S:.0f})"),
   "face": Verb("face", {"heading": Arg("float", lo=-math.pi, hi=math.pi)},
-               _face, "turn in place; ok when squared within the budget", drives=True),
-  # PLACES (issue #419): a task area found by its tag and remembered, and a
-  # plate pressed off its sign -- the robot's own knowledge, never a
-  # coordinate handed over
+               _face, "turn in place; ok when squared within the budget"),
+  # PLACES (issue #419): a task area found by its tag and remembered -- the
+  # robot's own knowledge, never a coordinate handed over
   "find": Verb("find", {"tag": Arg("float", choices="places"), "x": Arg("float"),
                         "y": Arg("float"),
                         "patience": Arg("float", lo=0.0, hi=MAX_PATIENCE_S,
@@ -1526,56 +1008,12 @@ VERBS: dict[str, Verb] = {
                _find, "find the task area carrying this tag: where you last saw "
                "it, else by searching round (x, y) -- a job's address -- until "
                "the tag is in view; ok when seen, and you remember where it is. "
-               f"It gives up after `patience` seconds (at most {MAX_PATIENCE_S:.0f})",
-               drives=True),
-  "press": Verb("press", {"tag": Arg("float", choices="plates")}, _press,
-                "walk onto the plate this tag's sign marks, the last step "
-                "measured off the sign, and back off it; ok when a foot was on "
-                "it. `find` it first", drives=True),
-  # A WHITEBOARD (issue #406): a figure off the pen's menu, on a board the
-  # robot has found by its tags -- never a position
-  "draw": Verb("draw", {"board": Arg("str", choices="boards"),
-                        "figure": Arg("str", choices="figures")}, _draw,
-               "draw a figure -- " + ", ".join(f'"{f}"' for f in DRAW_FIGURES)
-               + " -- on a whiteboard by its name, one you have found (`find` "
-               "one of its tags first), the pen on your fork: you walk to it, "
-               "lie down in front of it, find its face with the pen and draw; "
-               "ok when ink landed", drives=True),
-  # THE CLAW (issue #407): a cube by its tag, found and taken, set down on
-  # another or on the floor -- the cube's place is the robot's to find
-  "pick": Verb("pick", {"tag": Arg("float", choices="cubes")}, _pick,
-               "take the cube carrying this tag in the claw: you look for it from "
-               "where you stand, where you saw it last, and in front of its "
-               "area's tags (`find` one of them first), walk in, lie down and "
-               "close the jaws on it; ok when they hold it. An empty fork "
-               "fetches the claw first", drives=True),
-  "place": Verb("place", {"tag": Arg("float", choices="cubes")}, _place,
-                "set the cube in the claw down on top of the cube carrying this "
-                "tag, found as `pick` finds one, and let go; ok when it rests "
-                "on it", drives=True),
-  "put": Verb("put", {}, _put, "set the cube in the claw down on the floor in "
-              "front of you, lying down to do it; ok when it rests there"),
-  "grip": Verb("grip", {}, _grip, "shut the claw's jaws where it is; ok when they "
-               "hold something"),
-  "release": Verb("release", {}, _release, "open the claw's jaws where it is; ok "
-                  "when nothing is in them -- a cube let go high falls"),
-  # THE CENSUS (issue #407): what stands in an area found by its tag
-  "survey": Verb("survey", {"tag": Arg("float", choices="places")}, _survey,
-                 "walk round the area this tag marks -- the floor its walls and "
-                 "fence enclose -- and count what stands in it, low, off the depth "
-                 "camera; `find` the tag first. ok when surveyed; its count and the "
-                 "share of the area it saw ride the verdict, and the count goes on "
-                 "the LCD's face while the LCD is on your fork", drives=True),
+               f"It gives up after `patience` seconds (at most {MAX_PATIENCE_S:.0f})"),
   "wait": Verb("wait", {"seconds": Arg("float", lo=0.0, hi=MAX_WAIT_S)}, _wait,
                "stand still"),
   # The motor level (issue #166): what every verb above is built from.
   "move": Verb("move", {"axis": Arg("str", choices="axes"), "target": Arg("float")},
                _move, "walk one axis to a setpoint, ramped, inside its envelope"),
-  "drive": Verb("drive", {"v": Arg("float", lo=-DRIVE_V_MAX, hi=DRIVE_V_MAX),
-                          "w": Arg("float", lo=-DRIVE_W_MAX, hi=DRIVE_W_MAX),
-                          "seconds": Arg("float", lo=0.0, hi=MAX_WAIT_S)},
-                _drive, "the base at (v m/s, w rad/s) for a bounded time",
-                drives=True),
 }
 
 
@@ -1723,8 +1161,7 @@ def hand_facts(measure: bool = True, step: bool = True, guarded: bool = True,
     # ...beside `spot`, the other verb its camera reads a tag by
     at = hands.index("spot") + 1
     hands = hands[:at] + WATCH_VERBS + hands[at:]
-  return WorldFacts(boards=(), tools=(), bounds=(-1e3, -1e3, 1e3, 1e3), figures=(),
-                    axes=axes.BODY_AXES["humanoid"],
+  return WorldFacts(bounds=(-1e3, -1e3, 1e3, 1e3), axes=axes.BODY_AXES["humanoid"],
                     sensors=(axes.HAND_SENSORS + (axes.WATCH_SENSORS if watching else ())
                              + axes.PULL_SENSORS
                              + (axes.STEP_SENSORS if step else ())
@@ -1740,179 +1177,27 @@ def hand_facts(measure: bool = True, step: bool = True, guarded: bool = True,
 SERVED_WALK_VERBS = ("drive_to", "face")
 
 
-def served_hand_facts(boards: tuple = (), bounds=(-1e3, -1e3, 1e3, 1e3),
-                      places: tuple = ()) -> "WorldFacts":
+def served_hand_facts(bounds=(-1e3, -1e3, 1e3, 1e3), places: tuple = ()) -> "WorldFacts":
   """What a procedure a served humanoid writes is validated against (#559,
   stage 3): the practice's hands, every one of its switches on and their
   sensors (`hand_facts`), and its walks over its map (`SERVED_WALK_VERBS`),
-  its pack, its wallet -- no bumper: its LIDAR's front stop is no part a
-  procedure reads. Where its world has task areas (`places`, their tags), it
-  finds them, `find`, and reads where it found one (`axes.FIND_SENSORS`)."""
+  its pack, its wallet -- its LIDAR's front stop is no part a procedure
+  reads. Where its world has task areas (`places`, their tags), it finds
+  them, `find`, and reads where it found one (`axes.FIND_SENSORS`)."""
   from dataclasses import replace
   from pluggybot.procedure import axes
   hands = hand_facts()
-  body = tuple(s for s in axes.BODY_SENSORS if s != "bumper" and s not in hands.sensors)
+  body = tuple(s for s in axes.BODY_SENSORS if s not in hands.sensors)
   places = tuple(int(t) for t in places)
-  return replace(hands, boards=tuple(boards), bounds=tuple(float(v) for v in bounds),
+  return replace(hands, bounds=tuple(float(v) for v in bounds),
                  verbs=SERVED_WALK_VERBS + (PLACE_VERBS if places else ()) + hands.verbs,
                  sensors=body + (axes.FIND_SENSORS if places else ()) + hands.sensors,
                  places=places)
 
 
-# ---- the game's verbs (issue #404) ------------------------------------------------
-
-#: How long a role stands by at a time while its game goes on, s.
-GAME_HOLD_S = 1.0
-#: ...and at a time while it waits for the game to start, s: the head start
-#: runs from the start, and MEASURED, a second's wait cost the hider 0.3 m
-#: of its walk.
-START_POLL_S = 0.1
-#: How fast a hider walks to its spot, m/s: what its head start buys it in
-#: metres of walk (`_hide`). MEASURED, 5.9 m in 15-21 s (11 games), the
-#: drive's 0.4 m/s cruise less its turns.
-HIDE_PACE_M_S = 0.3
-#: ...and the least it is left to walk, m: a hider whose errand began after
-#: the head start was spent still goes round a corner.
-HIDE_MIN_REACH_M = 3.0
-#: The referee measures torso to torso and the map a spot: a hiding spot is
-#: this much farther from where the seeker counts than a find, and the
-#: seeker counts floor seen only this much nearer than a find, m.
-GAME_MARGIN_M = 0.3
-
-
-def _game(life) -> tuple:
-  """The game this robot's errand is a role in -- its referee and its task
-  id -- or (None, "")."""
-  game = getattr(life, "game", None)
-  errand = getattr(life, "_errand_now", None)
-  return game, (getattr(errand, "task_id", "") or "")
-
-
-def _game_stop(life, game, task_id: str):
-  """What a role's walks stop on: its game called, or the robot's own
-  interrupt, asked as every walk asks it (`_interrupt`)."""
-  ask = _interrupt(life)
-
-  def stop() -> bool:
-    return game.over_for(task_id) or bool(ask is not None and ask())
-  return stop
-
-
-def _until_over(life, stop) -> Routine:
-  """Stand by until `stop` -- the game over -- or the program's budget is
-  spent (`life.step_until`)."""
-  until = getattr(life, "step_until", None)
-  while not stop():
-    if until is not None and float(life.data.time) >= until:
-      return
-    yield from life.body.hold_routine(GAME_HOLD_S)
-
-
-def _until_started(life, game, stop) -> Routine:
-  """Stand by until the game's clock starts -- both roles' errands begun
-  (`HideAndSeek.begin`) -- or `stop`, or the program's budget is spent:
-  True once it has started. The robot that took the first role is often
-  still busy when the other takes the last, and a role played before the
-  other has begun is a game against a robot doing something else."""
-  until = getattr(life, "step_until", None)
-  while game.started_at is None:
-    if stop() or (until is not None and float(life.data.time) >= until):
-      return False
-    yield from life.body.hold_routine(START_POLL_S)
-  return True
-
-
-def _no_game(what: str) -> dict:
-  return {"ok": False, "reason": f"there is no game of hide and seek to {what} in"}
-
-
-def _role_ended(life, game, task_id: str, out: dict) -> dict:
-  """A role's verdict: ok once its game is over, whoever won (the referee
-  decides, and the pair pays); otherwise what ended it first -- the
-  robot's own interrupt, which `run_verb` says as `stopped: interrupted`,
-  or the program's time."""
-  if game.over_for(task_id):
-    return {"ok": True, **out}
-  why = ("its own interrupt" if getattr(life, "aborting", False)
-         else "the program's time ran out")
-  return {"ok": False, **out, "reason": f"the game was still on: {why}"}
-
-
-def _hide(life, args: dict) -> Routine:
-  """The hider's role (issue #404): once the game is on, a spot of its own
-  choosing on its own map (`Body.hide_routine`), away from where the
-  seeker counts -- where the seeker SAYS it is, as a real seeker tells a
-  real hider -- walked to in the head start, and then wait there for the
-  game's end. ok when the game is over; the referee decides who won."""
-  game, task_id = _game(life)
-  if game is None or not game.playing(task_id):
-    return _no_game("hide")
-  stop = _game_stop(life, game, task_id)
-  rec: dict = {}
-  if (yield from _until_started(life, game, stop)):
-    away = life.reported_xy(game.seeker_root)
-    if away is None:
-      return {"ok": False, "reason": "the seeker says nothing of where it is"}
-    reach = max(HIDE_PACE_M_S * game.hiding_left(float(life.data.time)),
-                HIDE_MIN_REACH_M)
-    rec = yield from life.body.hide_routine(
-      away, reach, game.find_within_m + GAME_MARGIN_M,
-      _patience(life, {"patience": MAX_PATIENCE_S}), stop=stop)
-    yield from _until_over(life, stop)
-  return _role_ended(life, game, task_id, {
-    "hid": bool(rec.get("hid")), "why": rec.get("why", ""),
-    **({"at": list(rec["at"])} if rec.get("at") else {})})
-
-
-def _seek(life, args: dict) -> Routine:
-  """The seeker's role (issue #404): once the game is on, count where it
-  stands until the head start is spent, then search its own map outward
-  from there (`Body.seek_routine`) -- never told where the hider is --
-  until the game is over. ok when it is; the referee decides who won."""
-  game, task_id = _game(life)
-  if game is None or not game.playing(task_id):
-    return _no_game("seek")
-  stop = _game_stop(life, game, task_id)
-  rec: dict = {}
-  if (yield from _until_started(life, game, stop)):
-    until = getattr(life, "step_until", None)
-    while not stop() and (until is None or float(life.data.time) < until):
-      left = game.hiding_left(float(life.data.time))
-      if left <= 0.0:
-        break
-      # ...a step at least: a hold of no steps stands still in no time
-      yield from life.body.hold_routine(max(min(GAME_HOLD_S, left), 0.01))
-    if not stop():
-      rec = yield from life.body.seek_routine(
-        life.body.pose_xy(), max(0.0, game.find_within_m - GAME_MARGIN_M),
-        _patience(life, {"patience": MAX_BUDGET_S}), stop=stop)
-    yield from _until_over(life, stop)
-  return _role_ended(life, game, task_id, {"why": rec.get("why", "")})
-
-
-#: A two-role game's verbs (issue #404): its roles, each a walk over the
-#: robot's own map with the game's referee watching. NOT the language's:
-#: no procedure the robot writes may name one (`lang` reads `VERBS`), only
-#: a game's program, validated against a world's facts that list them
-#: (`lifecycle.world_facts(game=True)`).
-GAME_VERBS: dict[str, Verb] = {
-  "hide": Verb("hide", {}, _hide, "the hider's role: a spot of its own choosing "
-               "on its own map, out of the seeker's sight, walked to in the head "
-               "start; ok when the game is over", drives=True),
-  "seek": Verb("seek", {}, _seek, "the seeker's role: count where it stands, "
-               "then search its own map outward; ok when the game is over",
-               drives=True),
-}
-GAME_VERB_NAMES = tuple(GAME_VERBS)
-
-
 def run_verb(life, verb: Verb, args: dict, where: dict | None = None,
              until: float | None = None) -> Routine:
   """One verb, as both runners call it (this module's and the language's).
-  A verb that drives puts the fork into its carrying pose first (issue
-  #347) -- here, once, so a verb added later cannot forget it -- and the
-  verb's own use-phase sets its working pose again on arrival.
-
   While it runs, `life.step_now` says which step this is (`where`: the
   procedure, the count, a line), for a death to name (issue #362), and
   `life.step_until` when the program's budget ends (`until`, sim s), past
@@ -1929,8 +1214,6 @@ def run_verb(life, verb: Verb, args: dict, where: dict | None = None,
   life.step_now = {**(where or {}), "verb": verb.name, "args": dict(args)}
   life.step_until = until
   try:
-    if verb.drives:
-      yield from travel_pose_routine(life)
     verdict = yield from verb.run(life, args)
     if (not verdict.get("ok") and not aborting
         and getattr(life, "aborting", False)):
@@ -1941,24 +1224,9 @@ def run_verb(life, verb: Verb, args: dict, where: dict | None = None,
     life.step_until = before_until
 
 
-#: What a body whose arm takes no tool can run (issue #387): walking,
-#: turning, standing still and the base at a velocity, and its arm's joints
-#: (#405) -- nothing that needs a tool, and no `look`, whose ranges are the
-#: rover's bay tags'.
-BODY_VERBS = ("drive_to", "face", "wait", "drive", "move")
-#: ...and one whose world has a rack at its arm's reach (issue #405).
-SWAP_VERBS = ("fetch", "stow")
-#: ...and one whose world has task areas it finds by their tags (issue
-#: #419), and plates among them where its world has the lab they are in.
+#: What a body whose world has task areas it finds by their tags runs
+#: (issue #419).
 PLACE_VERBS = ("find",)
-PLATE_VERBS = ("press",)
-#: ...and whiteboards it finds by their tags and draws on with its rack's
-#: pen (issue #406).
-DRAW_VERBS = ("draw",)
-#: ...and cubes it finds by their tags and its rack's claw takes (issue #407).
-CLAW_VERBS = ("pick", "place", "put", "grip", "release")
-#: ...and an area it surveys, found by its tag (issue #407, the census).
-SURVEY_VERBS = ("survey",)
 
 
 def describe_vocabulary(verbs: tuple | None = None, guarded: bool = False) -> list[dict]:
@@ -2022,22 +1290,12 @@ def check_arg(verb: Verb, name: str, value, facts: WorldFacts) -> list[str]:
   return []
 
 
-#: What a tag on another list is, said beside its refusal (#407: a first
-#: weighing on legs asked `find` for its cube and was told only what the
-#: places are).
-TAG_GLOSS = {"cubes": "is a cube's, and `pick` finds a cube by its tag",
-             "places": "marks a place, which `find` finds"}
-
-
 def _not_on(name: str, value: float, choices: str, facts: WorldFacts) -> str:
   """A tag on none of its list: `tag 20 names no place this world has
-  (places: 35 to 46); 20 is a cube's, ...`, and a tag `Arg` carries no bound,
-  which refused it a second time (#463)."""
-  other = "places" if choices == "cubes" else "cubes"
-  gloss = (f"; {number_text(value)} {TAG_GLOSS[other]}"
-           if value in getattr(facts, other) else "")
+  (places: 35 to 46)`, and a tag `Arg` carries no bound, which refused it a
+  second time (#463)."""
   return (f"{name} {number_text(value)} names no {choices[:-1]} this world has "
-          f"({choices}: {_tags(getattr(facts, choices))}){gloss}")
+          f"({choices}: {_tags(getattr(facts, choices))})")
 
 
 def number_text(v: float) -> str:
@@ -2158,8 +1416,6 @@ def validate(program: Program, facts: WorldFacts) -> list[str]:
     for i, step in enumerate(steps):
       where = f"{role}[{i}]"
       verb = VERBS.get(step.verb)
-      if verb is None and facts is not None and step.verb in (facts.verbs or ()):
-        verb = GAME_VERBS.get(step.verb)      # a game's role (issue #404)
       if verb is None:
         bad.append(f"{where}: unknown verb {step.verb!r} "
                    f"(have: {', '.join(VERBS)})")
@@ -2212,11 +1468,10 @@ def run_program_routine(life, program: Program, facts: WorldFacts,
       result["stopped"] = "budget"
       break
     life._say(f"PROCEDURE {program.name} {i + 1}/{len(steps)}: {step.describe()}")
-    verdict = yield from run_verb(life, VERBS.get(step.verb) or GAME_VERBS[step.verb],
-                                  step.args,
+    verdict = yield from run_verb(life, VERBS[step.verb], step.args,
                                   {"procedure": program.name, "n": i + 1,
                                    "of": len(steps)},
-                                  until=t0 + program.budget_s)
+                                 until=t0 + program.budget_s)
     entry = {"i": i, "verb": step.verb, **verdict}
     result["steps"].append(entry)
     if verdict.get("stopped") == "interrupted":

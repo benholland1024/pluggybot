@@ -69,7 +69,7 @@ SETTLE_S = 0.8
 #: (the walking policy is trained on flat ground), under the LIDAR's plane
 #: (1.41 m) less a margin. ...and a point under `FLOOR_Z` is floor.
 LOW_MIN_Z, LOW_MAX_Z, FLOOR_Z = 0.08, 1.35, 0.03
-#: The quadruped's rules for the layer (`legs.body`): points within this
+#: The quadruped's rules for the layer (#387), kept: points within this
 #: of the trunk, three frames' evidence, never beside what the LIDAR maps.
 LOW_RANGE_M, LOW_WALL_CELLS = 1.8, 3
 LOW_HIT, LOW_MISS, LOW_CLAMP, LOW_OCC = 0.9, 0.4, 4.0, 2.5
@@ -89,8 +89,8 @@ _DRIVER = {"stand": ("last_action", "goal", "posture", "target"),
 
 def command_for(vx: float, vy: float, w: float) -> tuple[float, float, float]:
   """A velocity as the walking policy walks it: out of its dead band and
-  inside what it trained on (the quadruped's rule, `legs.body.command_for`:
-  a creep with a turn to make is a pivot)."""
+  inside what it trained on (the quadruped's rule, kept: a creep with a
+  turn to make is a pivot)."""
   if abs(vx) < MOTION_EPS and abs(vy) < MOTION_EPS and abs(w) < MOTION_EPS:
     return STILL
   if MOTION_EPS <= abs(vx) < V_MIN and abs(w) >= W_MIN:
@@ -210,7 +210,6 @@ class HumanoidMission(HumanoidWay, HumanoidPlaces, Navigator):
     self._frame_level = False
     self.low = np.zeros_like(self.grid.grid, dtype=np.float32)
     self._walls_t, self._walls_mask = None, None
-    self._pressing = False
     self._init_way()
     # THE PLACES IT FINDS (`humanoid.places`): the quadruped's search, its
     # looks through the head's navigation camera
@@ -236,10 +235,6 @@ class HumanoidMission(HumanoidWay, HumanoidPlaces, Navigator):
 
   def level(self) -> bool:
     return self.stand.trunk.attitude.tilt() <= self.LEVEL_TILT
-
-  @property
-  def pressing(self) -> bool:
-    return self._pressing
 
   def run(self, routine, name: str = ""):
     return tick.run(self.stepper, routine, name)
@@ -455,7 +450,7 @@ class HumanoidMission(HumanoidWay, HumanoidPlaces, Navigator):
 
   def _own_acts(self) -> np.ndarray:
     """Every actuator of this robot's: what its drivers hold lives in the
-    MODEL (`legs.drivers.Drivers.pd`: the gains; a gripper's force limit,
+    MODEL (`humanoid.drivers.Drivers.pd`: the gains; a gripper's force limit,
     `arms.Gripper`), which a restart builds fresh."""
     m = self.model
     joint = int(mujoco.mjtTrn.mjTRN_JOINT)
@@ -526,7 +521,7 @@ class HumanoidMission(HumanoidWay, HumanoidPlaces, Navigator):
                           self.lidar.peer_rng.bit_generator.state],
              "depthRng": [self.depth.rng.bit_generator.state,
                           self.depth.peer_rng.bit_generator.state],
-             "match": match, "pressing": self._pressing,
+             "match": match,
              # ...and the places it has found, with the map they are laid in
              "places": self.places.kept_state()},
             arrays)
@@ -581,7 +576,6 @@ class HumanoidMission(HumanoidWay, HumanoidPlaces, Navigator):
     self.lidar.peer_rng.bit_generator.state = state["lidarRng"][1]
     self.depth.rng.bit_generator.state = state["depthRng"][0]
     self.depth.peer_rng.bit_generator.state = state["depthRng"][1]
-    self._pressing = bool(state.get("pressing", False))
     if self.head is not None:
       self.head.forget()
     grid = arrays.get("grid")

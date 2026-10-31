@@ -16,7 +16,7 @@ import numpy as np
 from pluggybot.humanoid import model as hm
 from pluggybot.humanoid.policy import StandPolicy, TrunkSense
 from pluggybot.humanoid.senses import JointSense
-from pluggybot.legs.drivers import Drivers
+from pluggybot.humanoid.drivers import Drivers
 
 WALK_NPZ = Path(__file__).resolve().parents[3] / "models" / "humanoid_walk.npz"
 #: The walker that sees the ground (`-Walk-Seeing-Fine`): stairs and rough

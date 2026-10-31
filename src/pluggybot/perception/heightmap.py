@@ -54,7 +54,7 @@ class HeightMap:
     self.cell_m = cell_m
     #: The heights a point may have to be kept. The rover's are above its
     #: floor; a legged body's map holds WORLD heights, stairs included, and
-    #: sets its own band (`legs/scan.py`).
+    #: sets its own band (`humanoid/scan.py`).
     self.z_min, self.z_max = z_band
     self.n = int(round(size_m / cell_m))
     self.height = np.full((self.n, self.n), np.nan)

@@ -1,42 +1,40 @@
-"""The task areas' tags the world puts up for the claw and the census
-(issue #407): where each hangs, and each area's fixture for the places
-memory (`mapping.places`). The words a job gives are `places.json`'s.
+"""The house's task areas' tags (issue #407): where each hangs, and each
+area's fixture for the places memory (`mapping.places`). The words a job
+gives are `places.json`'s.
 
   the tower   a pair on the workshop corner's west wall, either side of the
               row its blocks are set out in (`home.TOWER_XY`), facing the room
   the bench   a pair on the bench's front, either side, facing the lab; its
-              masses are set out in front of it (`challenge.bench`)
+              masses lie in front of it (`home.props`)
   the garden  one on its east fence, facing the house straight across the
               grass from the living room's doorway -- seen through the
               doorway from inside, and from anywhere in the garden; on the
-              house's wall outside, a robot in the living room never saw it.
-              The census finds the garden by it
+              house's wall outside, a robot in the living room never saw it
 
-Each is a 120 mm tag at the nose camera's height, read from across a room
-(the boards' and the plates'). Put in at load by the quadruped's world,
-after its robots (`legs/world.py`): the house's body order is the day's
-hash.
+Each is a 120 mm tag, read from across a room (the boards' and the
+plates'). Put in at load by the humanoids' world, after its robots
+(`humanoid/world.py`): the house's body order is the day's hash.
 """
 
 from __future__ import annotations
 
 import math
 
-from pluggybot.rack.tags import (AREA_TAG_SIZE, BENCH_TAG_IDS, GARDEN_TAG_IDS,
+from pluggybot.perception.tags import (AREA_TAG_SIZE, BENCH_TAG_IDS, GARDEN_TAG_IDS,
                                  TOWER_TAG_IDS, plate_half_extent)
 
-#: The tags' centres over the floor, m: the nose camera's height standing.
+#: The tags' centres over the floor, m: the quadruped's nose camera's
+#: height, where they were hung (#407) and stay.
 TAG_Z = 0.37
 #: A pair's tags this far either side of its area's middle, m: outside the
-#: row of props in front of it, and both in the nose camera's view from
-#: where the search looks (`legs.claw.SEARCH_OUT_M`).
+#: row of props in front of it.
 PAIR_HALF_M = 0.45
 
 
 def area_tags() -> dict[str, list[tuple[int, float, float, float]]]:
   """Every area's tags as (tag, x, y, facing): each on its wall's face,
   facing out of it, a pair's left tag first as the robot faces them."""
-  from pluggybot.challenge.bench import BENCH_HALF
+  from pluggybot.home.props import BENCH_HALF
   from pluggybot.home import world as home
   row = home.TOWER_XY[1]
   wall = home.WING_X[0] + home.WALL_HALF_T                 # the workshop's west wall
@@ -57,7 +55,7 @@ def area_tags() -> dict[str, list[tuple[int, float, float, float]]]:
 
 def area_tags_xml() -> str:
   """The areas' tags as worldbody MJCF: each a thin plate a millimetre off
-  its wall, its texture the tag's (`rack.tags.asset_xml`)."""
+  its wall, its texture the tag's (`perception.tags.asset_xml`)."""
   half = plate_half_extent(AREA_TAG_SIZE)
   out = []
   for area, tags in area_tags().items():

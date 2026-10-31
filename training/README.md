@@ -1,10 +1,12 @@
-# Training the bodies' policies (#377, #507)
+# Training the humanoid's policies (#377, #507)
 
 A uv project of its own. Nothing here is imported by `pluggybot`, and none
 of it enters the serving image: the served sim runs the exported policies in
-plain numpy (`pluggybot.legs.policy`, `pluggybot.humanoid.policy`).
-`quad_train` trains the quadruped and `humanoid_train` the humanoid; one
-entry point registers both (`python -m quad_train.train <task>`).
+plain numpy (`pluggybot.humanoid.policy`). `humanoid_train` holds the
+humanoid's tasks; the entry point that registers them and the exporter are
+`quad_train`'s (`python -m quad_train.train <task>`, `python -m
+quad_train.export`), the package named for the quadruped whose tasks lived
+there until it was retired (#559; the tag `quadruped-final` has them).
 
 - **mjlab 1.5.x** (MuJoCo Warp + PyTorch + rsl_rl), because it is the line
   that pins `mujoco ~=3.10.0`, the served sim's own version, and because the
@@ -12,37 +14,32 @@ entry point registers both (`python -m quad_train.train <task>`).
   curve, command delay, randomised armature, friction and effort limits.
   Playground was ~2.5× faster on this card but carries none of that stock
   (the trainer comparison is in the PR for #377).
-- It reads the body from `models/quadruped.xml` and `models/quadruped.json`,
-  which `uv run python -m pluggybot.legs.model` writes: mjlab 1.5 caps numpy
-  below pluggybot's, so the two cannot share an environment.
+- It reads the body from `models/humanoid.xml` and `models/humanoid.json`,
+  which `uv run python -m pluggybot.humanoid.model` writes: mjlab 1.5 caps
+  numpy below pluggybot's, so the two cannot share an environment.
 
 ```bash
 cd training && uv sync
 # train (checkpoints every 50 iterations; --agent.resume True --agent.load-run
 # <dir> carries on after an interruption)
-WARP_CACHE_PATH=... .venv/bin/python -m quad_train.train Pluggy-Quad-Flat \
-  --env.scene.num-envs 2048 --agent.max-iterations 2000 \
-  --agent.logger tensorboard --agent.run-name flat --log-root <runs>
-# export: numpy is checked against the ONNX file before anything is written
-.venv/bin/python -m quad_train.export <run>/<run>.onnx ../models/quadruped_policy.npz \
-  --gpu "<card>" --wall "<h:mm>" --envs 2048 --iterations 2000
-# fly it in the served sim's physics, and hash it twice
-cd .. && uv run python scripts/quad_spike.py --policy
-uv run python scripts/quad_spike.py --determinism
+WARP_CACHE_PATH=... .venv/bin/python -m quad_train.train Pluggy-Humanoid-Walk \
+  --env.scene.num-envs 4096 --agent.max-iterations 3000 \
+  --agent.logger tensorboard --agent.run-name walk --log-root <runs>
+# export: numpy is checked against the ONNX file before anything is written,
+# and the task it names is recorded with it
+.venv/bin/python -m quad_train.export <run>/<run>.onnx ../models/humanoid_walk.npz \
+  --task Pluggy-Humanoid-Walk --gpu "<card>" --wall "<h:mm>" --envs 4096 --iterations 3000
+# fly it in the served sim's physics, and the pair's day twice, hashed
+cd .. && uv run python scripts/humanoid_spike.py --track
+uv run python scripts/determinism_spike.py --world home_humanoid --pair --sim-s 300
 ```
 
-**Tasks:** `Pluggy-Quad-Flat` (walking on flat ground) and
-`Pluggy-Quad-Rough` (stairs, blocks to 0.15 m, rough ground, slopes; blind —
-the critic sees the terrain, the actor does not), `-Perceptive` with the
-actor shown the height scan. The stairs (#388) are flights of eight on a
-0.28 m tread, risers from 0.10 to 0.26 m across the ten levels (the house's
-0.18 in the middle); on a stair tile most commands walk straight out along a
-flight (`quad_train/stairs.py`), because a robot is promoted for ending an
-episode 4 m from its tile's centre and a turning, sidestepping command seldom
-gets it there. `Pluggy-Quad-Getup` rises rather than springs (#389: the
-stand pays from 2 s after the release, and charges on torque, joint speed
-and the rise ramp up over training) and `Pluggy-Quad-Posture` tracks a
-commanded height and tilt; SimNotes has both.
+The quadruped's tasks (#377-#389: walking flat and rough, blind and
+perceptive, getting up, holding a posture) are at `quadruped-final`; the
+stairs recipe they carried (#388) is `humanoid_train/stairs.py`: on a stair
+tile most commands walk straight out along a flight, because a robot is
+promoted for ending an episode 4 m from its tile's centre and a turning,
+sidestepping command seldom gets it there.
 
 **The humanoid's tasks** (#507; `humanoid_train/`, its body read off
 `models/humanoid.{xml,json}`, each joint its own RobStride part):
@@ -60,7 +57,7 @@ hand's force) are in git, bee276e to 34f0ed3: none held more on the
 robot's own senses, so `pull` asks at most 20 N instead (SimNotes,
 "Holding the pull verb's 60 N at a hand").
 `Pluggy-Humanoid-Walk` is mjlab's G1 velocity recipe on our body, on flat
-ground: the actor blind to its base velocity as the quadruped's is, the arms
+ground: the actor blind to its base velocity as the quadruped's was, the arms
 scripted more quietly than a reach moves them, the legs charged for meeting
 each other, and the hips' yaw given twice the G1's tolerance -- with no
 waist a turn is the hips' yaw alone, and at the G1's a policy asked 0.5
@@ -125,16 +122,17 @@ side among the starts: at the shared charge alone the get-up let the head
 strike at 5.5-6.9 m/s falling forward or sideways, and with no side start
 it lost getting up off one side (`models/humanoid_getup.npz` is getup1's
 4450 iterations, 2000 without the side, then 1000 with it). Export any of
-them with
-`--body humanoid`, which records the joints it drives and each one's gains
-(`--joints all` for the get-up, its arms at their served scale). `humanoid_train/g1_check.py` flies mjlab's stock G1
+them naming its task (`--task`), which records the joints it drives and
+each one's gains (`--joints all` for the get-up, its arms at their served
+scale). `humanoid_train/g1_check.py` flies mjlab's stock G1
 velocity policy outside mjlab -- numpy, MuJoCo's C engine, at 5 ms and the
 served 2 ms -- the pipeline's check on a body its maker walks (#507, rule 6).
 
 Every reward's weight and parameter and every curriculum stage is a flag
 (`--env.rewards.belly-down.params.budget-s 0`,
 `--env.curriculum.gentle-rise-speed.params.stages.3.step 0`), so variants of
-one task share a checkout: #389 flew three at once on one rented 4090.
+one task share a checkout: #389 flew three of the quadruped's at once on
+one rented 4090.
 
 ⚠ **The GPU is shared** with the test suite, whose EGL renderers hold 3–4 GB
 of a 6 GB card: stay at ≤ 2048 environments while it runs, or take
@@ -149,9 +147,9 @@ run on a card records its steps a second:
 
 | card | where | $/h | steps/s | $ a million steps | flown |
 |---|---|---|---|---|---|
-| RTX 4090 | Runpod, secure cloud | 0.89 | 120,242 | 0.0021 | rough3, its iterations 3009–3308 |
-| RTX 4090 | Vast, a Ryzen 9 3900X host | 0.414 | 103,472 | 0.0011 | rough3 again: its code, flags and checkpoint |
-| RTX 4090 | Vast, the same host | 0.414 | 77,749 | 0.0015 | today's task, fresh, iterations 10–309 |
+| RTX 4090 | Runpod, secure cloud | 0.89 | 120,242 | 0.0021 | the quadruped's rough3, its iterations 3009–3308 |
+| RTX 4090 | Vast, a Ryzen 9 3900X host | 0.414 | 103,472 | 0.0011 | the quadruped's rough3 again: its code, flags and checkpoint |
+| RTX 4090 | Vast, the same host | 0.414 | 77,749 | 0.0015 | the quadruped's walking task then, fresh, iterations 10–309 |
 | RTX 5090 | Vast, a Ryzen 7 7800X3D host | 0.516 | 218,000 | 0.00066 | mjlab's stock G1 flat task, 3000 iterations in 22.5 min (#507) |
 | RTX 5090 | Vast, the same host | 0.516 | 209,000 | 0.00069 | `Pluggy-Humanoid-Stand`, 4000 iterations in 31 min (#507) |
 | RTX 5090 | Vast, three hosts in South Korea | 0.490-0.516 | 198,000-205,000 | 0.0007 | `Pluggy-Humanoid-Stand` and `-Stand-Felt` (stand7-stand13), 4000 iterations in 32-33 min each (#544) |

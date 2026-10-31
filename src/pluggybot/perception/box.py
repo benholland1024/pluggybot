@@ -2,8 +2,8 @@
 2): the height of its top, which way it faces, and where its top's edges
 are -- off the points alone, in the map frame the robot laid them in (z
 over the floor). Nothing here knows what the box is or what opens it: a
-guess like "the lid hinges at the back of its top" is the caller's
-(`legs/probe.py`'s foresight, which stage 3's model of the box replaces).
+guess like "the lid hinges at the back of its top" is the caller's (the
+reference opener's foresight, `evaluation.opener.guess`).
 
 THE TOP is the highest level a large share of the points stand at: a flat
 face fills a narrow band of heights, where a wall or a front face spreads
@@ -43,6 +43,19 @@ from __future__ import annotations
 import math
 
 import numpy as np
+
+#: The depth frames a box is measured off (the `measure` verb, the
+#: reference opener): the D435's own 848 x 480. From the stance the top's
+#: back edge is laid within a millimetre; at a seventh of it (120 x 70, the
+#: near-field's stream) the back 3 cm of a top went unsampled (SimNotes, "The
+#: probe from the robot's own senses").
+DEPTH_W, DEPTH_H = 848, 480
+#: ...and that stream's nearest depth, m: Intel's tuning guide puts it at
+#: the focal length (px) times the baseline over the 126 disparities the
+#: ASIC searches, 17 cm at 848 x 480 (1280 x 720's is 0.28).
+DEPTH_MIN_Z = 0.17
+#: ...this many frames of it, this far apart (s), standing still.
+FRAMES, APART_S = 3, 0.1
 
 #: A point this near the floor is floor, m.
 FLOOR_M = 0.01

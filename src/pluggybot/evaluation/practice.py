@@ -39,11 +39,11 @@ from pluggybot.evaluation import attempts as at
 from pluggybot.procedure import lang
 from pluggybot.procedure.library import MAX_PROCEDURES
 from pluggybot.procedure.steps import WorldFacts
-from pluggybot.rack.tags import CHEST_TAG_IDS, DOOR_TAG_IDS
+from pluggybot.perception.tags import CHEST_TAG_IDS, DOOR_TAG_IDS
 
 #: Attempts a chest, the most: stage 1's curve, S@1 to S@5.
 ATTEMPTS = 5
-#: The tag the knob carries (`rack.tags.CHEST_TAG_IDS`): the stated subsidy;
+#: The tag the knob carries (`perception.tags.CHEST_TAG_IDS`): the stated subsidy;
 #: and the knob's size, mm (`activity.chest.KNOB`, a half side), what anyone
 #: looking at it would see -- untold, a mind gripped the tag's face and
 #: shut its jaws on nothing.
@@ -78,7 +78,7 @@ in the {lid.HOLD_S:.0f} s after it, the try fails, however the lid ends."""
 
 #: The door's (#535), written before any mind flew it, as the lid's was:
 #: what stands in front of the robot -- its lever's tip the chest's knob,
-#: its own tag (`rack.tags.DOOR_TAG_IDS`) -- and its grader's criteria
+#: its own tag (`perception.tags.DOOR_TAG_IDS`) -- and its grader's criteria
 #: (`challenge/door.py`), and nothing of how.
 TIP_TAG = DOOR_TAG_IDS[0]
 TIP_MM = 2000 * dr.KNOB

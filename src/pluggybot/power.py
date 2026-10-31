@@ -1,11 +1,11 @@
 """The pack's energy book (milestone 7; issue #380): honest power,
 adjustable capacity.
 
-What a body DRAWS is its own (`power_draw`: the quadruped's legs, arm and
-electronics, `legs/body.py`); this is the book it draws from and charges
-into, and the few draws every body shares. The charge signal is an
-electrical contact criterion, never a position (the quadruped's dock pins,
-`legs/dock.py`).
+What a body DRAWS is its own (`power_draw`: the humanoid's motors and
+electronics, `humanoid/body.py`); this is the book it draws from and
+charges into, and the few draws every body shares. The charge signal is an
+electrical criterion, never a position (the station's plug in its port,
+`activity/station.py`).
 
 The CAPACITY side is deliberately a knob: a real pack would take hours of
 sim time to drain, so a test runs a scaled demo cell. Scale capacity, never
@@ -94,7 +94,7 @@ class Pack:
     self.charge_scale = float(charge_scale)
     self.draw_w = float(draw_w)
     #: What its charger puts in while it conducts, W: the rover's rack
-    #: (`CHARGE_W`), or a body's own (the quadruped's dock, `legs.dock`).
+    #: (`CHARGE_W`), or a body's own (the humanoid's station).
     self.charge_w = CHARGE_W
     self.last_power_w = 0.0
 

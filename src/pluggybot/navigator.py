@@ -2,23 +2,21 @@
 
 A robot's map of the floor, the LIDAR that builds it, the scan matcher that
 keeps it true (issue #386), the planner, the drive to a goal round the
-other robots and the words for why a drive gave up. The quadruped
-(`legs/body.py`, `QuadMission`) is a `Navigator` and supplies what only a
-body can say:
+other robots and the words for why a drive gave up. The humanoid
+(`humanoid/mission.py`, `HumanoidMission`) is a `Navigator` and supplies
+what only a body can say:
 
   pose, _set_pose   where it believes it is, and a correction to that
   _nav_routine      one physics step at a forward speed and a yaw rate --
                     the body's own command, yielded (the tick contract)
   level, true_pose  the IMU's gate on the map, and the sim's own check
-  pressing          pressed against something it is moving into
   _look_step, _contact_step   its own senses either side of the scan
   run               the blocking twin of `yield from`
 
 ...and its own MEASURED sizes as class attributes (the planner's
 inflation, the disc round another robot, the front stop, the corridor the
 peer channel watches). The defaults are the rover's, measured on it
-(#376 deleted it; `rover-final`); the quadruped overrides them with its
-own.
+(#376 deleted it; `rover-final`); a body overrides them with its own.
 """
 
 import collections
@@ -142,7 +140,7 @@ STAGNATION_S = 10.0
 AIMED_RAD = math.radians(45.0)
 #: A waypoint this near is reached and the next one steered for, m: a route
 #: along a wall turns this far short of it (a body's front stop is bounded
-#: by it, `legs.body.QuadMission.FRONT_STOP_RANGE`).
+#: by it, its `FRONT_STOP_RANGE`).
 WAYPOINT_REACHED_M = 0.08
 #: WHY A DRIVE GAVE UP (issue #350), `Navigator.last_drive["why"]`, one of
 #: four: the planner could not route to the goal over the floor mapped so
@@ -175,9 +173,10 @@ MAP_LOOK_S = 1.0
 #: this, inside the corridor this robot is about to drive through, holds
 #: the drive still until it clears.
 #:
-#: The numbers are MEASURED, not chosen. The corridor is the ROBOT: its
-#: widest parts are the tyres at 0.150 m either side of centre and the fork
-#: prongs at 0.143, so 0.20 leaves 50 mm and no more. The range is what the
+#: The numbers are MEASURED, not chosen, on the rover (a body overrides
+#: them): the corridor is the ROBOT, its widest parts then the tyres at
+#: 0.150 m either side of centre and the fork prongs at 0.143, so 0.20 left
+#: 50 mm and no more. The range is what the
 #: camera can actually deliver: a peer's nearest point sits at about
 #: (centre gap - 0.12) in this frame, so 0.60 m fires at a ~0.72 m gap
 #: where the frame carries 300-600 points of it -- and it has to fire up
@@ -231,7 +230,8 @@ def wire_pose(p) -> dict:
 class Navigator:
   """The map, the planner and the drive, over a body that says how it moves
   and where it believes it is (the module docstring). Not a body itself:
-  `legs.body.QuadMission` is, wrapped as a `Body` (`legs.body.QuadBody`)."""
+  `humanoid.mission.HumanoidMission` is, wrapped as a `Body`
+  (`humanoid.body.HumanoidBody`)."""
 
   VIEW_PERIOD = 0.02       # s of sim time between viewer syncs
   #: The LIDAR's place on the body, from the pose point (x ahead, y left).
@@ -364,15 +364,10 @@ class Navigator:
     """Level enough for a scan to be a map of the room (issue #339)."""
     raise NotImplementedError
 
-  @property
-  def pressing(self) -> bool:
-    """Pressed against something it is moving into."""
-    return False
-
   def _planning_grid(self) -> np.ndarray:
     """The map the planner plans over, as log-odds: the LIDAR's grid here.
     A body that senses below its scan plane adds what it saw there (the
-    quadruped's depth camera, `legs.body.QuadMission`)."""
+    humanoid's depth camera, `HumanoidMission._planning_grid`)."""
     return self.grid.grid
 
   def run(self, routine, name: str = ""):
@@ -438,7 +433,8 @@ class Navigator:
 
   def truth_error(self) -> list[float]:
     """The belief minus the TRUE axle pose, (dx mm, dy mm, dyaw deg): what
-    dead reckoning has drifted by, for a failed swap's trace (issue #264)."""
+    dead reckoning has drifted by, for a drift row or a search's record
+    (issue #264)."""
     ax, ay, yaw = self.true_pose()
     bx, by, bth = self.pose
     dyaw = (bth - yaw + math.pi) % (2 * math.pi) - math.pi
@@ -492,7 +488,6 @@ class Navigator:
                            origin=self.LIDAR_ORIGIN)
           if m is not None:
             self.matcher.fused(self.pose, self.data.time)
-          self._on_scan(angles, ranges)
       elif self.matcher is not None:
         self.matcher.fuse_next()
       if self.data.time >= self.backoff_until:
@@ -500,11 +495,6 @@ class Navigator:
         all_ranges = np.concatenate((ranges, peer_ranges))
         if self._front_blocked(all_angles, all_ranges):
           self.backoff_until = self.data.time + BACKOFF_TIME
-
-  def _on_scan(self, angles, ranges) -> None:
-    """A scan laid into the map, at the pose it was laid from: nothing
-    here; a quadruped's survey keeps where its returns land
-    (`legs.survey.CensusLayer`)."""
 
   def _front_blocked(self, angles, ranges) -> bool:
     """The front stop's test, over one scan's bearings and ranges (the room
@@ -950,21 +940,13 @@ class Navigator:
         v, w = drive_toward(self.pose, waypoints[0] if waypoints else (wx, wy),
                             slow_radius=ARRIVAL_SLOW_RADIUS)
       yield from self._nav_routine(v, w)
-      if self.pressing:
-        # The BUMPER reflex (issue #94), the lidar reflex's twin for what
-        # the scan plane (0.223 m) looks straight over: back off and replan
-        # rather than grind. The reckoner already holds its travel through
-        # a press, so a robot that keeps meeting the same unseen thing now
-        # stagnates honestly above -- where before it "arrived" at a point
-        # it never reached, 4 m of imaginary travel later.
-        self.backoff_until = self.data.time + BACKOFF_TIME
     return self._drove(wx, wy, t0, (
       "peer" if waiting or holding or self.peer_on_the_goal(wx, wy) is not None
       else "timeout"))
 
   def _backoff_routine(self) -> Routine:
-    """One step of the reflex's retreat, after the front stop or the
-    bumper (`backoff_until`): straight back."""
+    """One step of the reflex's retreat, after the front stop
+    (`backoff_until`): straight back."""
     yield from self._nav_routine(-self.BACKOFF_V, 0.0)
 
   def _known_cells(self) -> int:
@@ -1223,7 +1205,7 @@ class Navigator:
     0.26 m from its neighbour's, the best reachable point is 0.35 m short,
     and three pick attempts out of three failed at "no route" -- while the
     same robot 0.56 m away leaves 0.06 m and three out of three land. It
-    is not contention, contact or the planner: nothing the swap does can
+    is not contention, contact or the planner: nothing the walk does can
     reach a goal the map has been told to keep it out of.
 
     The distance is to where the mask puts the robot -- so this answers the

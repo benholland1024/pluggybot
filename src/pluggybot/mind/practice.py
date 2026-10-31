@@ -38,7 +38,7 @@ MAX_TOKENS, AIM_TOKENS = 128000, 64000
 #: A refused source goes back with its reasons this many times a try, and
 #: an answer that never came is asked again this many times, this long
 #: apart (s); an ask the router refused for its rate waits this long times
-#: the waits so far, this many times (`imagination.author`'s).
+#: the waits so far, this many times (as the imagination's author did, #466).
 MAX_REPAIRS, MAX_RETRIES, RETRY_WAIT_S = 2, 2, 20.0
 RATE_WAIT_S, RATE_WAITS = 60.0, 5
 

@@ -206,10 +206,6 @@ class VisitorMessage:
   #: is a site older than the field, which the handler cannot check and does
   #: not.
   generation: int | None = None
-  #: `reset_tool` only (issue #30): which module the admin wants back on its
-  #: bay. A NAME, validated against the model by the handler -- the inbox
-  #: cleans, it does not know what modules exist.
-  module: str = ""
   #: `set_battery` only (issue #119): EXACTLY ONE of these. A fraction is
   #: what an operator thinks in ("put it back to full"); watt-hours are what
   #: the pack is measured in and what a spike or a sweep speaks. Both are
@@ -246,7 +242,7 @@ class VisitorMessage:
     wants, never as a turn in a conversation with the model.
 
     No `kind`: the only kind that reaches a model is `message` (a rating, a
-    tool reset, a robot reset and an admin's `set_battery` / `set_points`
+    robot reset and an admin's `set_battery` / `set_points`
     are code's, and never shown), so the field could only ever
     carry one value -- and since 0.14.0 that is the whole point. Working out
     whether somebody is suggesting, asking or just saying hello is the job
@@ -270,8 +266,6 @@ class VisitorMessage:
       out.update({"seq": self.seq, "quality": self.quality})
       if self.generation is not None:
         out["generation"] = self.generation
-    if self.kind == "reset_tool":
-      out["module"] = self.module
     if self.kind == "set_battery":
       out.update({"frac": self.frac, "wh": self.wh})
     if self.kind == "set_points":
@@ -492,15 +486,8 @@ class Inbox:
           return None
         if generation != given or generation < 0:
           return None
-    module = ""
     # `reset_robot` (issue #107) names nothing: the robot is the robot. It
-    # rides the same admin path as `reset_tool` and carries only who asked.
-    if kind == "reset_tool":
-      # A name, not free text: same cap as an id, and WHICH modules exist is
-      # the handler's question (pluggybot/lifecycle.py), not this queue's.
-      module = clean(raw.get("module"), MAX_ID)
-      if not module:
-        return None                         # nothing was actually named
+    # rides the admin path and carries only who asked.
     frac = wh = points = None
     if kind == "set_battery":
       # ⚠ EXACTLY ONE OF THE TWO. Both together is not a redundant request,
@@ -560,7 +547,7 @@ class Inbox:
     ticket = ""
     if kind in TICKET_INBOUND_TYPES:
       # The operator's side of a ticket (issue #284): which one, by the
-      # sim's own id -- `reset_tool`'s shape, and the desk is the judge of
+      # sim's own id, and the desk is the judge of
       # whether it exists. A reply with nothing in it is not a reply; a
       # close may carry no words.
       ticket = clean(raw.get("ticket"), MAX_ID)
@@ -571,7 +558,7 @@ class Inbox:
                           thread=thread, turn=turn, earlier=earlier,
                           sender=sender, seq=seq, quality=quality,
                           generation=generation,
-                          module=module, frac=frac, wh=wh, points=points,
+                          frac=frac, wh=wh, points=points,
                           ticket=ticket, ref=ref, image=image,
                           connected=connected, t=float(t))
 

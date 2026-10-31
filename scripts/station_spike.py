@@ -68,7 +68,7 @@ def world(off=(0.0, 0.0, 0.0), at_seat: bool = False):
   from pluggybot.lifecycle import HUMANOID_HOME, world_config
   from pluggybot.robot import world_spec
   cfg = world_config(HUMANOID_HOME)
-  model = world_spec(cfg["model"], body="humanoid").compile()
+  model = world_spec(cfg["model"]).compile()
   data = mujoco.MjData(model)
   body = body_for(model, data)
   s = body._station
@@ -280,10 +280,10 @@ def _life():
   from pluggybot.lifecycle import HUMANOID_HOME, HubLifecycle, points_ledger, world_config
   from pluggybot.robot import world_spec
   cfg = world_config(HUMANOID_HOME)
-  model = world_spec(cfg["model"], body=cfg["body"]).compile()
+  model = world_spec(cfg["model"]).compile()
   data = mujoco.MjData(model)
   life = HubLifecycle(model, data, realtime=False, battery_wh=cfg["hosting_battery_wh"],
-                      rack=cfg["rack"], grid_bounds=cfg["grid_bounds"],
+                      grid_bounds=cfg["grid_bounds"],
                       low_battery_wh=cfg["low_battery_wh"], ledger=points_ledger(None),
                       world=HUMANOID_HOME, errands=[], near_field=True)
   acts = cfg["activities"](model, data)

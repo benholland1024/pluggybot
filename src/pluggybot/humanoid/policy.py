@@ -1,14 +1,14 @@
-"""The humanoid's standing policy in numpy (issue #507, stage 2), as
-`legs.policy` runs the quadruped's: an `.npz` the trainer exported and
-checked against its ONNX file (`training/quad_train/export.py --body
-humanoid`), a normaliser and an MLP with ELU in float64.
+"""The humanoid's standing policy in numpy (issue #507, stage 2): an `.npz`
+the trainer exported and checked against its ONNX file
+(`training/quad_train/export.py`), a normaliser and an MLP with ELU in
+float64.
 
 What it reads is the robot's, never the simulator's: the rate off the IMU
 part (`perception.imu.Imu`, its noise, offset and scale), gravity in the
 trunk's frame off that part's attitude filter (`imu.Attitude`), and every
 joint off its driver's reply (`humanoid.senses.JointSense`: counts, the
 gearbox's backlash). What it commands is the legs' twelve drivers, each a
-target with the gains the policy was trained on (`legs.drivers`); the arms
+target with the gains the policy was trained on (`humanoid.drivers`); the arms
 are the reach's (`humanoid.arms`), and the policy sees their encoders.
 
 The command is the posture: the pelvis's height off the stand's and the
@@ -25,8 +25,7 @@ import numpy as np
 
 from pluggybot.humanoid import model as hm
 from pluggybot.humanoid.senses import JointSense
-from pluggybot.legs.drivers import Drivers
-from pluggybot.legs.policy import _elu
+from pluggybot.humanoid.drivers import Drivers
 from pluggybot.perception.imu import Attitude, Imu
 
 STAND_NPZ = Path(__file__).resolve().parents[3] / "models" / "humanoid_stand.npz"
@@ -38,6 +37,10 @@ HEIGHT_RATE, PITCH_RATE = 0.15, 0.6
 HEIGHT_RANGE, PITCH_RANGE = (-0.25, 0.0), (-0.1, 1.1)
 #: The posture shown is the one asked within this, m and rad.
 SETTLED = np.array([0.005, 0.02])
+
+
+def _elu(x: np.ndarray) -> np.ndarray:
+  return np.where(x > 0.0, x, np.expm1(np.minimum(x, 0.0)))
 
 
 class StandPolicy:

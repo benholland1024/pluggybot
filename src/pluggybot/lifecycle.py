@@ -14,13 +14,12 @@ to the dock, charge, resume -- with an errand queue and a mind:
 
 Two things were measured once and hold for any body: the pack drains
 against the body's real actuator effort (`Body.pack`), and charging is
-confirmed by an ELECTRICAL criterion rather than by position -- the dock's
-pins conducting (`legs.dock.dock_charge_contact`). The body is reached only
+confirmed by an ELECTRICAL criterion rather than by position -- the
+station's plug in its port (`Body.charging`). The body is reached only
 through `Body` (issue #380).
 """
 
 import dataclasses
-import inspect
 import json
 import math
 import os
@@ -34,17 +33,12 @@ import numpy as np
 
 from pluggybot import continuation
 from pluggybot.behavior.navigation import STRIKES_TO_FINISH
-from pluggybot.rack.coupling import (
-  BUILT_RACK_BODY, BUILT_STATION_YS, STATION_YS, bay_switches, built_bay_index,
-  contact_pairs,
-)
+from pluggybot.contacts import contact_pairs
 from pluggybot.mission.errand import programmed_errand
 from pluggybot.body import (  # noqa: F401 -- the topple's old home
   TOPPLE_HOLD_S, TOPPLE_TILT_RAD, Body, KeepClear, body_for,
 )
-from pluggybot.body import RackPose
 from pluggybot.economy.cadence import CHECK_S
-from pluggybot.economy.census import Zone
 from pluggybot.economy import energy as energy_model
 from pluggybot.mind import events as ev
 from pluggybot.mind import look as eye_mod
@@ -59,19 +53,17 @@ from pluggybot.mind.overseer import (
   MAX_RECALL_RUN, MAX_REPLY, PROCEDURE_NEW, PROCEDURE_PREFIX, RECALL_S,
   SAY_EVERY_S, THINK_SLICE_S, left_out_said, order_runnable, say_again_in,
 )
-from pluggybot.tools.screen import face_for
 from pluggybot.mind.thoughts import (
   CHAT_ANSWERED, CHAT_HEARD, CHAT_SAID, QUOTED_CHARS, RECALLED_CHAIN_CHARS,
   ThoughtFiles, ThoughtRefused, attempted,
 )
-from pluggybot.economy import questions, scoring
+from pluggybot.economy import scoring
 from pluggybot.economy.tasks import HAND_JOBS
-from pluggybot.tools import strokes
 from pluggybot.navigator import MAKE_WAY_WAIT_S, OTHER_WAIT_S, wire_pose
 from pluggybot.perception import depth as nf
 from pluggybot.perception.heightmap import HeightMap
 from pluggybot.perception.lidar import robot_geoms
-from pluggybot.power import MODULE_IDLE_W, charge_scale_from_env
+from pluggybot.power import charge_scale_from_env
 from pluggybot.telemetry.protocol import (
   DEATH_CAUSES, HEART_BOUGHT, HEART_REFUSED, robot_display_name,
   robot_roots,
@@ -184,19 +176,6 @@ START_CLEAR_M = 1.0
 #: 2.5 m/s and a robot down at each. The pair's own contact goes 8 mm deep
 #: (a walk in pressed against a robot on the dock).
 UNCLIP_M = 0.02
-
-#: How long a tool lies lost before the world puts it back on its bay
-#: (issue #347), in SIM seconds: on no bay, on no robot's fork -- alive or
-#: dead, seated or not -- and not at a bay a swap is working, the whole time.
-#: Ben's number (2026-09-24), the stand-up's five minutes on the stand-up's
-#: terms: a PARAMETER (`lost_tool_after_s`), ON in `serve.py` and OFF in a
-#: test, and never an intervention. Nine hand resets in a week
-#: (eight of them the pen) were a person doing this job; until one did, every
-#: job needing the tool failed and both robots' History filled with it.
-LOST_TOOL_S = 300.0
-#: ...checked once a sim second, `EVENTS_CHECK_S`'s reason: a lost tool is
-#: minutes, and reading every module every physics step learns nothing.
-LOST_TOOL_CHECK_S = 1.0
 
 #: WHAT A NEW ROBOT STARTS WITH after a true death, in points (issue #419):
 #: a PARAMETER (`start_points`) on `restart_after_s`' terms -- ON in
@@ -346,21 +325,13 @@ RACK_LINGER_S = 90.0
 #: interaction holds it (Ben, 2026-09-24) -- long enough to outlast an
 #: ordinary one, short enough that a robot that never leaves is reported
 #: rather than waited on for ever. MEASURED, the time a robot's believed
-#: pose stays within `peer_on_the_goal`'s 0.45 m of a standoff:
-#:   * a SWAP (the rover's, `--pack hosting`): a pick 26.9-30.6 s, a stow
-#:     34.2 s, a stow run straight into the next pick 55.6 s -- typical 30 s
-#:     for one; the quadruped's is not yet measured against it;
-#:   * a CHARGE (the deployed pair on 42f4a11, 2026-09-24, 11 connected):
-#:     278-542 s, median 462 s.
-#: The bound is 3x the occupancy of whatever HOLDS the bay, not only of the
-#: bay asked for: the charge standoff is 0.200 m from bay B's and the bay
-#: pitch is 0.25 m, so a robot charging holds its neighbour's tool bay for
-#: the whole charge -- and the holder's state is its public surface.
-SWAP_OCCUPANCY_S = 30.0
+#: pose stays within `peer_on_the_goal`'s 0.45 m of a standoff -- a CHARGE,
+#: on the quadruped pair (42f4a11, 2026-09-24, 11 connected): 278-542 s,
+#: median 462 s; the humanoids' charges are not yet measured against it.
 CHARGE_OCCUPANCY_S = 462.0
 WAIT_OCCUPANCIES = 3.0
 #: What a robot does AT the rack: not lingering, whatever the clock says.
-RACK_STATES = ("SWAP_PICK", "SWAP_RETURN", "GO_CHARGE", "CHARGE")
+RACK_STATES = ("GO_CHARGE", "CHARGE")
 #: How often a waiting robot looks again, sim seconds.
 BAY_POLL_S = 1.0
 #: The dock's way in is held as its standoff is (#455), at points this far
@@ -576,19 +547,16 @@ class HubLifecycle:
 
   def __init__(self, model, data, viewer=None, realtime: bool = True,
                battery_wh: float | None = None,
-               rack: RackPose | None = None,
-               module: str = "module_lcd",
                grid_bounds: tuple[float, float, float, float] | None = None,
                low_battery_wh: float | None = None,
                charge_scale: float | None = None,
-               errands=None, boards=None, screen=None, ledger=None,
+               errands=None, boards=None, ledger=None,
                overseer=None, mode: ModeSwitch | None = None,
-               world: str = "home_quad",
+               world: str = "home_humanoid",
                inbox=None, tasks=None, producer=None,
                energy=None, thoughts=None, metabolism=None,
                mortal: bool | None = None,
                restart_after_s: float | None = None,
-               lost_tool_after_s: float | None = None,
                start_points: int | None = None,
                handle: RobotHandle = FIRST,
                robot_name: str | None = None,
@@ -622,23 +590,10 @@ class HubLifecycle:
     #: The errands the run was STARTED with (`--errand`), so a restart can
     #: tell the ones still waiting from ones it would be starting over.
     self._preset: list = []
-    #: WHICH MODULE BELONGS IN WHICH BAY (module -> bay index into
-    #: `coupling.STATION_YS`): the world's own rack's tools (issue #405),
-    #: one inventory a pair shares (`pair.build_pair`).
-    from pluggybot.procedure.steps import TOOL_BAYS
-    bays = world_config(world).get("tool_bays")
-    self.rack_inventory: dict[str, int] = dict(TOOL_BAYS if bays is None else bays)
-    #: Whether this world has somewhere this body charges (issue #559): the
-    #: humanoid's house has none until its cable's station (stage 2), and
-    #: there a charge is refused at once and nothing goes to one -- the
-    #: pack running out is the `flat` death.
+    #: Whether this world has somewhere this body charges (issue #559): a
+    #: world with no charger refuses a charge at once and sends it to none
+    #: -- the pack running out is the `flat` death.
     self.charger = world_config(world).get("dock") is not None
-    #: Whether THIS world carries the built-tool rail (issue #277; on legs
-    #: `legs.rack.BUILT`, its three bays empty since #489), read off the
-    #: compiled model: `rack_distance` keeps a robot standing by clear of
-    #: its bays too.
-    self.has_built_rack = mujoco.mj_name2id(
-      model, mujoco.mjtObj.mjOBJ_BODY, BUILT_RACK_BODY) >= 0
     #: Every act toward the other robot this lifecycle recorded (issue
     #: #208): predictions with their truth, messages with their claim's
     #: truth, transfers with cost and need, hearts bought for the other,
@@ -710,14 +665,6 @@ class HubLifecycle:
       if kept is not None:
         overseer.restore_map(kept.emap, kept.dropped)
     self.decisions: list[dict] = []
-    # The module whose electrical seating the power model watches. It follows
-    # the errand queue, because the coupling criterion has to be asked about
-    # the tool actually on the fork -- and an errand that fetches nothing (a
-    # lab act) names none, where the body would look up a body called "".
-    # ...and a world with no rack has none to watch (#559: the humanoid's
-    # house), where every read of it would ask after a tool it lacks.
-    self.module = (errands[0].module if errands else "") or (
-      module if module in self.rack_inventory else "")
     # The pack and the reserve are the WORLD's unless a caller names them:
     # its demo cell, and the return trip its floor plan measured.
     if battery_wh is None:
@@ -738,12 +685,11 @@ class HubLifecycle:
     # nothing else to do, and closes each one with the SAME verdict that pays
     # for it -- there is no second judgement of a task anywhere.
     self.tasks = tasks
-    # THE BENCH (issue #227): an offer to find the unknown mass is the
-    # moment the world is made to match it -- the bank's draw goes into
-    # `body_mass` as the offer lands, off the board's own event, so the
-    # cube weighs what the secret says for as long as the offer stands.
+    # THE COUNTER'S PROPS (#559): a hand job's offer is the moment its prop
+    # is set out, the hidden dynamics it drew put into the world as the
+    # offer lands, off the board's own event (`_set_out_counter`).
     if tasks is not None:
-      tasks.on_event.append(self._bench_offered)
+      tasks.on_event.append(self._task_offered)
     # ...and the thing that PUTS jobs on it (issue #23). Optional again, and
     # separately from the board: a test that hands in three offers of its own
     # wants the board without a world generating more behind its back, and a
@@ -751,13 +697,11 @@ class HubLifecycle:
     self.producer = producer
     self._expects_work: bool | None = None
     self._cleared_rack = False
-    # RACK CONTENTION (issue #346): a taken bay is waited for -- the swap
-    # asks through `Body.bay_wait` -- and the waits and the last one's
-    # outcome are counted; a robot left standing at the rack is logged.
+    # RACK CONTENTION (issue #346): a taken charge bay is waited for
+    # (`_await_bay_routine`), and the waits and the last one's outcome are
+    # counted; a robot left standing at the station is logged.
     self.bay_waits = 0
     self.last_bay_wait: dict | None = None
-    self.stow_retries = 0
-    self._stow_tries = 0
     self._clear_failed_at: tuple | None = None
     #: Why the last GO_CHARGE failed, in the words the `stuck` death that
     #: follows it carries (issue #350); "" after one that reached the pins.
@@ -781,13 +725,6 @@ class HubLifecycle:
     self.metabolism = metabolism
     self.claimed: list[str] = []
     self._next_task_check = 0.0
-    # The LCD module's display (issue #13). The lifecycle drives the resting
-    # face off its own state; an errand's use-phase may take the screen over
-    # (`Screen.held`) and gets it back automatically at the next state change.
-    self.screen = screen
-    self._face_state: str | None = None
-    self._face_shown: tuple[str, str] | None = None
-    self._next_screen_sense = 0.0
     # THE BODY this life lives in (issue #380, `body.py`): everything the
     # loop asks of the machine -- going, docking, a tool, a sense -- goes
     # through it. Built for WHICH ROBOT this is (issue #167; `FIRST` is the
@@ -799,7 +736,7 @@ class HubLifecycle:
       grid_bounds = world_config(world)["grid_bounds"]
     self.body = body if body is not None else body_for(
       model, data, handle=handle, viewer=viewer, realtime=realtime,
-      rack=rack, grid_bounds=grid_bounds)
+      grid_bounds=grid_bounds)
     handle = self.body.handle
     self.battery = self.body.pack(
       battery_wh, (charge_scale if charge_scale is not None
@@ -849,12 +786,10 @@ class HubLifecycle:
     # through the one branch the overseer already owned.
     self.body.step_hooks.append(self._events_step)
     self.body.step_hooks.append(self._rack_linger_step)
-    self.body.step_hooks.append(self._lost_tool_step)
     self.body.step_hooks.append(self._press_step)
     self.body.step_hooks.append(self._places_step)
     self.body.step_hooks.append(self._aside_step)
     self.body.step_hooks.append(self._belief_step)
-    self.body.bay_wait = self._await_bay_routine
     #: THE NEAR-FIELD MAP (issue #34): the body's depth camera and
     #: the robot-centric height map it feeds, one frame every `nf.PERIOD`
     #: on this same seam, because the map is a running belief like the
@@ -1029,10 +964,7 @@ class HubLifecycle:
     self.errands: list = list(errands) if errands is not None else []
     self.errand_results: list[dict] = []
     self.charging_now = False
-    self.tool_powered = False
     self.charge_cycles = 0
-    self.swaps_done = 0
-    self.tool_powered_s = 0.0
     self.log: list[str] = []
     self.status = ""                    # the latest _say message, bare
     #: THE OTHER ROBOTS' lifecycles (issue #167), set by `pair.build_pair`.
@@ -1043,10 +975,6 @@ class HubLifecycle:
     #: why): once every `MAKE_WAY_WAIT_S` (issue #455; narration only).
     self._way_refused: dict = {}
     self.robot_name = robot_display_name(robot_name)
-    #: THE GAME this robot is in, if any (issue #167): the referee activity
-    #: the pair attached. Read for its clock and by the sampler; never by
-    #: anything that decides.
-    self.game = None
     #: The world's activities, when `run_demo` or a pair attached them
     #: (issue #167); the recorder reads them, and `cage` finds the mouse's
     #: state machine in them (issue #226). None on a bare lifecycle.
@@ -1098,21 +1026,11 @@ class HubLifecycle:
     #: archives the volume and starts a new robot. Do not collapse them.
     self.restart_after_s = (None if restart_after_s is None
                             else float(restart_after_s))
-    #: ...and how long a TOOL lies lost before the world puts it back
-    #: (issue #347, `LOST_TOOL_S`). The world's clock, not this robot's: a
-    #: pair ticks it on the first robot's seam alone (`pair.build_pair`).
-    self.lost_tool_after_s = (None if lost_tool_after_s is None
-                              else float(lost_tool_after_s))
     #: ...and what a NEW robot starts with after a true death (issue #419,
     #: `STARTING_POINTS`): None -- the default -- is zero, as every robot
     #: started before; `serve.py` sets it. Granted by the world, never
     #: earned (`Ledger.archive`'s `granted`).
     self.start_points = int(start_points) if start_points else 0
-    #: module -> the sim time it was first seen lost, this spell
-    self._lost_since: dict[str, float] = {}
-    self._next_lost_check = 0.0
-    #: every `reset_tool` event the world's own hand emitted
-    self.tools_returned: list[dict] = []
     self.dead: dict | None = None
     self.deaths: list[dict] = []
     #: TRUE deaths: the hearts ran out, the volume was archived and a new
@@ -1152,23 +1070,14 @@ class HubLifecycle:
 
   def _power_step(self) -> None:
     """Drain (or charge) once per physics step, whatever phase is running.
-
-    A coupled module is a load, gated on the coupling's own electrical
-    criterion rather than on "are we carrying it" -- the same reason charging
-    is gated on contact and not on position.
-    """
+    Charging is gated on the charger's current, never on position."""
     dt = self.model.opt.timestep
     self.charging_now = self.body.charging()
-    self.tool_powered = self.body.tool_powered(self.module)
-    if self.tool_powered:
-      self.tool_powered_s += dt
     # The depth camera streams whenever the map is built (issue #34): a
-    # load like the module's, drawn only where the sensor is on.
+    # load drawn only where the sensor is on.
     self.battery.update(self.data, dt, charging=self.charging_now,
-                        tool_w=(MODULE_IDLE_W if self.tool_powered else 0.0)
-                        + (self.depth_camera.draw_w if self.depth_camera is not None
-                           else 0.0))
-    self._screen_step()
+                        tool_w=(self.depth_camera.draw_w if self.depth_camera is not None
+                                else 0.0))
     self._death_step()
     self._restart_step()
 
@@ -1346,7 +1255,7 @@ class HubLifecycle:
   def make_way(self, route, by: str) -> bool:
     """The other robot (`by`, its root) asks this one off `route`, its way,
     which this one's body cuts (issue #415): the body's rule
-    (`Body.make_way`, `legs/way.py`), said as it starts, and a no said
+    (`Body.make_way`, `humanoid/way.py`), said as it starts, and a no said
     once a while, with why (#455). A dead robot is not asked -- it lies
     where it died until it is stood up.
 
@@ -1358,12 +1267,6 @@ class HubLifecycle:
     (`Body.from_seen`) and into this one's (`Body.as_seen`): the same as
     saying where the way runs against the body lying across it."""
     if self.dead is not None:
-      return False
-    # ...nor the HIDER in a game (issue #404): stood up and stepped out of
-    # the seeker's way, it would be the network handing the seeker the find
-    game = getattr(self, "game", None)
-    if (game is not None and game.over_at is None and game.hider is not None
-        and game.hider.root == self.root):
       return False
     other = self._peer(by)
     if other is not None:
@@ -1541,7 +1444,6 @@ class HubLifecycle:
     tx, ty, tyaw = self.body.true_pose()
     bx, by, byaw = self.body.pose
     tilt, toward = self._lean()
-    carried = carrying(self) or None
     errand = self._errand_now
     at: dict = {
       "t": round(float(self.data.time), 3),
@@ -1555,11 +1457,14 @@ class HubLifecycle:
                "towardDeg": None if toward is None else round(toward, 1),
                "toward": None if toward is None else lean_word(toward)},
       "state": self.state, "status": self.status[:200],
-      "carrying": carried, "setpoints": setpoints(self),
+      # ⚠ ...and what was on its fork, None too
+      "carrying": None, "setpoints": setpoints(self),
       "errand": None if errand is None else
-        {"name": errand.name, "task": errand.task_id, "module": errand.module},
+        # ⚠ `module` is a vestige on the wire's `death` (a quadruped's tool)
+        {"name": errand.name, "task": errand.task_id, "module": ""},
       "step": None if self.step_now is None else dict(self.step_now),
-      "swapping": self._bay_name(self.body.swapping_at),
+      # ⚠ A VESTIGE on the wire's `death`: the quadruped's swap's bay, None
+      "swapping": None,
     }
     if self.peers:
       me = self.body.root_xy()
@@ -1574,13 +1479,6 @@ class HubLifecycle:
                     "distanceM": round(apart(near), 3), "state": near.state,
                     "dead": near.dead["cause"] if near.dead else None}
     return at
-
-  def _bay_name(self, station_y: float | None) -> str | None:
-    """A bay by the module it is for (`rack_inventory`)."""
-    if station_y is None:
-      return None
-    return next((m for m, i in self.rack_inventory.items()
-                 if abs(STATION_YS[i] - station_y) < 1e-6), f"y={station_y:.3f}")
 
   def _die(self, cause: str, why: str, at: dict | None = None) -> None:
     """Record a death: narrated, remembered in the file the robot cannot
@@ -1656,12 +1554,6 @@ class HubLifecycle:
     forget_world`), and the new one explores from there.
     """
     archived = self.ledger.archive(start=self.start_points)
-    # ...and gives back any role it took in a game still on offer (issue
-    # #404): the next robot did not take it
-    if self.tasks is not None:
-      for task in self.tasks.offered():
-        if task.roles and task.role_of(self.root):
-          self.tasks.release_role(task.id, self.root)
     self.body.forget_world()
     self.floor_explored = False
     self.blacklist = set()
@@ -1761,8 +1653,8 @@ class HubLifecycle:
     `UNCLIP_M` or deeper inside another robot's body (issue #455): only a
     world restored from before the pair collided holds one, and
     `continuation.restore` asks every robot but the first. The world's
-    hand, as a stand-up's is: the tool on its fork goes home first
-    (`_tool_home`), and the pack, the map and the jobs are its own. The
+    hand, as a stand-up's is, and the pack, the map and the jobs are its
+    own. The
     restart's own History line says where it was and why it was moved
     (`resumed["unclipped"]`). True if it moved."""
     g = contact_pairs(self.data)
@@ -1785,7 +1677,6 @@ class HubLifecycle:
     who = deepest[1].robot_name or deepest[1].root
     whose = self._whose_start(pose)
     at = self.body.pose_xy()
-    self._tool_home()
     self.body.start_at(*pose)
     mujoco.mj_forward(self.model, self.data)
     clip = {"who": who, "deepM": round(-deepest[0], 2),
@@ -1838,68 +1729,11 @@ class HubLifecycle:
       hook(dict(message))
 
   def rack_distance(self, px: float, py: float) -> float:
-    """How far a point is from the racks: the nearer of the rack the charge
-    logic works round (`body.rack_prior`: on legs, the dock) and each
-    built-tool rail bay's working pose (`body.bay_standoff`, #407: off the
-    commissioned tool rack, never the dock's frame), where the world has
-    the rail. Infinite in a world with no rack (the humanoid's, #559)."""
+    """How far a point is from the rack the charge logic works round
+    (`body.rack_prior`: the charging station's frame). Infinite in a world
+    with none."""
     r = self.body.rack_prior
-    d = math.inf if r is None else math.hypot(px - r.x, py - r.y)
-    if self.has_built_rack:
-      for k in range(len(BUILT_STATION_YS)):
-        bx, by, _ = self.body.bay_standoff(STATION_YS[built_bay_index(k)])
-        d = min(d, math.hypot(px - bx, py - by))
-    return d
-
-  def peer_at_the_bay(self, station_y: float) -> tuple[str, float] | None:
-    """Whose robot stood on the standoff this swap needed, and how far off
-    (issue #313) -- or None where the bay was not given up for one.
-
-    The RULE has one home, `Body.peer_on_the_goal`: this asks only
-    whether the last attempt refused for that reason, and puts a name to
-    it. `RACK_CLEAR_M` is the other half of the same problem and does not
-    cover this one: it moves a robot that is STANDING BY, and the robot
-    in the way here is charging or swapping, which is minutes at a time on
-    the one bay of each that the pair shares.
-    """
-    near = self.body.peer_at_bay_m
-    if near is None:
-      return None
-    sx, sy, _ = self.body.bay_standoff(station_y)
-    return self._nearest_peer(sx, sy, near)
-
-  def pick_failure(self, tool: str, station_y: float, why: str = "") -> str:
-    """Why a pick left `tool` off THIS robot's fork, as one clause the robot
-    reads back -- the errand's History line and a `fetch` step's reason say
-    the same thing (issue #264). Most actionable first: whoever holds it
-    (carrying is the others' PUBLIC surface), whoever stood in the way,
-    then the bay itself -- a miss the robot can retry, told apart from an
-    approach that never got there, and from a tool that is nowhere."""
-    if self.body.module_state(tool)["on_fork"]:
-      # ...its OWN fork first: half-seated, it fell through to "not on its
-      # bay, and no robot is carrying it" while it rode this very fork
-      return (f"{tool} came onto the fork but did not seat (no power "
-              "contact); stow it and fetch it again")
-    holder = next((p for p in self.peers if carrying(p) == tool), None)
-    if holder is not None:
-      return f"{tool} is on {holder.robot_name or holder.root}'s fork"
-    blocked = self.peer_at_the_bay(station_y)
-    if blocked is not None:
-      return self.held_for(blocked)
-    if self.body.module_state(tool)["hung"]:
-      if why == "no-route":
-        return ("there was no route to where the fork lines up with its bay, "
-                "so no pick was tried; it is still hanging there")
-      if why == "no rack":        # ...got there, and saw none (issue #476)
-        return ("the rack was not in sight from where I believed its bay's "
-                "approach began, so no pick was tried; it is still hanging there")
-      if why == "blocked":        # `refine_standoff` gave up (issue #339)
-        return ("the way back to where the fork lines up with its bay was "
-                "blocked, so no pick was tried; it is still hanging there")
-      how = PICK_WHY.get(why)
-      return ("the pick missed and it is still on its bay"
-              + (f" ({how})" if how else ""))
-    return "it was not on its bay, and no robot is carrying it"
+    return math.inf if r is None else math.hypot(px - r.x, py - r.y)
 
   def held_for(self, blocked: tuple[str, float], where: str = "standoff",
                what: str = "the bay") -> str:
@@ -2083,17 +1917,9 @@ class HubLifecycle:
                default=home)
 
   def wait_bound(self, kind: str, sx: float, sy: float) -> tuple[float, str]:
-    """How long a taken bay is waited for, and what it is `WAIT_OCCUPANCIES`
-    times the typical occupancy of: a charge if the bay asked for is the
-    charge bay OR the robot nearest it is charging (its state is its public
-    surface), else a swap."""
-    holder = min(self.peers, default=None,
-                 key=lambda o: math.hypot(o.body.pose_xy()[0] - sx,
-                                          o.body.pose_xy()[1] - sy))
-    charging = kind == "charge" or (
-      holder is not None and holder.state in ("GO_CHARGE", "CHARGE"))
-    return ((WAIT_OCCUPANCIES * CHARGE_OCCUPANCY_S, "charge") if charging
-            else (WAIT_OCCUPANCIES * SWAP_OCCUPANCY_S, "swap"))
+    """How long a taken charge bay is waited for, and what it is
+    `WAIT_OCCUPANCIES` times the typical occupancy of: a charge."""
+    return (WAIT_OCCUPANCIES * CHARGE_OCCUPANCY_S, "charge")
 
   def _bay_holder(self, sx: float, sy: float, seat=None) -> tuple | None:
     """Where another robot holds a bay: (x, y, m, where) at the first of its
@@ -2129,21 +1955,13 @@ class HubLifecycle:
     a spot out of the holder's way, say so in History, and look again every
     `BAY_POLL_S` until the bay is free or the bound (`wait_bound`, counted
     from `since`, the first time THIS interaction found it taken) runs out.
-    Two more things end a PICK's wait early, inside an errand: the robot's
-    own event map (a `battery_below` row interrupts, as it would the errand
-    -- `interrupted()`), and the pack reaching the reserve (#315's rule: the
-    waiting is code's, and code does not spend the return trip on it). A
-    RETURN's wait has neither -- abort means stow, and a return given up
-    leaves the tool on the fork, a procedure's `stow()` included (it runs
-    inside its errand) -- and nor does a CHARGE's: charging is what either
+    Nothing else ends a charge's wait early: charging is what an interrupt
     would ask for, and giving up on it is how the robot dies.
 
-    `kind` is the swap's verb (`pick`, `return`) or `charge`. `hold` waits
-    where the robot stands -- the quadruped's swap, at its approach's start
-    a metre behind the bay, out of the holder's way already (#418).
-    `seat`, a charge's (`Body.charge_seat`): the dock's way in and its
-    seat hold the bay too (`_bay_holder`) -- a robot lying on the dock is a
-    metre past the standoff, and the walk in went on and lay on it (#455).
+    `kind` is `charge`. `hold` waits where the robot stands. `seat`, a
+    charge's (`Body.charge_seat`): the station's way in and its seat hold
+    the bay too (`_bay_holder`) -- a robot lying on the quadrupeds' dock was
+    a metre past the standoff, and the walk in went on and lay on it (#455).
 
     ⚠ ONE LYING DOWN TO REST ON THE BAY IS ASKED OFF THE WAY THERE (issue
     #455; `Body.ask_off`): waited for, it never moved, and on afb473a every
@@ -2187,11 +2005,6 @@ class HubLifecycle:
       bound, of = self.wait_bound(kind, sx, sy)
       if now - since >= bound:
         ended = "bound"
-      elif kind == "pick" and self._in_errand and self.interrupted():
-        ended = "interrupted"
-      elif (kind == "pick" and self._in_errand
-            and self.battery.energy_wh <= self.low_battery_wh):
-        ended = "pack"
       if ended:
         break
       if now >= next_ask and held[3] != "dock":
@@ -2207,9 +2020,7 @@ class HubLifecycle:
                                "end": float(self.data.time)})
     if ended:
       self._say(f"WAIT: gave up on {what} after {waited:.0f} s -- {who} "
-                "was still there" + {"bound": f" (the bound is {bound:.0f} s)",
-                                     "interrupted": " (my own interrupt)",
-                                     "pack": " (the pack is at the reserve)"}[ended])
+                f"was still there (the bound is {bound:.0f} s)")
       return False
     self._say(f"WAIT: {what} is free after {waited:.0f} s")
     return True
@@ -2221,47 +2032,6 @@ class HubLifecycle:
     self._visitor_step()
     if self.dead is not None:
       yield from self.body.hold_routine(WAIT_FOR_WORK_S)
-
-  def _screen_step(self) -> None:
-    """Keep the display's power reading current, and its resting face.
-
-    Two economies, both because this runs at 500-1000 Hz. The power scan is
-    O(ncon) in Python, so when the display IS the errand's module the answer
-    is already in hand (`tool_powered`) and is reused; otherwise the module
-    is hanging on the rack, where "did it just get power" is a question worth
-    asking ten times a second and not a thousand. And the automatic face is
-    recomputed only when the mission state has actually moved, which is also
-    the moment an errand's override is handed back.
-    """
-    if self.screen is None:
-      return
-    if self.screen.module == self.module:
-      self.screen.sense(self.model, self.data, powered=self.tool_powered)
-    elif self.data.time >= self._next_screen_sense:
-      self._next_screen_sense = self.data.time + SCREEN_SENSE_S
-      # ...powered by THIS robot's fork (issue #167): the screen's own
-      # check reads the first robot's plates, and a second robot carrying
-      # the display would read it as dark.
-      self.screen.sense(self.model, self.data,
-                        powered=self.body.tool_powered(self.screen.module))
-    if self.state != self._face_state:
-      self._face_state = self.state
-      self.screen.release()
-      self._face_shown = None
-    if self.screen.held:
-      # The errand owns the screen; forget what we last put there, so the
-      # resting face is re-applied the moment it hands the screen back --
-      # whether that is a state change or a direct `release()`.
-      self._face_shown = None
-      return
-    # Compare the pair BEFORE handing it over: `Screen.face` builds a dict and
-    # diffs it, which is cheap once and is not free a thousand times a second.
-    resting = face_for(self.state, self.battery.fraction,
-                       hunger=(self.metabolism.state
-                               if self.metabolism is not None else ""))
-    if resting != self._face_shown:
-      self._face_shown = resting
-      self.screen.face(*resting)
 
   def _say(self, msg: str, detail: str = "") -> None:
     """Narrate one line. `msg` is what the ROBOT says; `detail` is evidence.
@@ -2732,52 +2502,16 @@ class HubLifecycle:
     self._bank(scoring.score_charge(self, before))
     yield from self.body.undock_routine()
 
-  def ink_hook(self, board: str, program: str):
-    """What a drawing tells the board book (issues #12, #406): each stroke's
-    ink as it lands, the board erased before the first. ⚠ THE ERASE RIDES
-    THE FIRST INK (the rover's #30): a drawing that never touched the board
-    leaves the old ink standing, which is what happened. None without a
-    book or with no such board."""
-    book = self.boards
-    if book is None or board not in book:
-      return None
-    erased = False
-
-    def on_stroke(i, points, name) -> None:
-      nonlocal erased
-      if len(points) < 2:
-        return
-      t = float(self.data.time)
-      if not erased:
-        book.clear(board, t=t, by=self.root)
-        self._say(f"USE_TOOL: erased {board}")
-        erased = True
-      # `by` is THIS robot (#181, #298): a pair shares one book
-      book.stroke(board, name or program, points, t=t, by=self.root)
-
-    return on_stroke
-
   def run_errand(self, errand) -> dict:
     return self.body.run(self.run_errand_routine(errand))
 
   def run_errand_routine(self, errand) -> Routine:
-    """Fetch a tool, take it somewhere, DO something, and put it back.
-
-    The middle is the errand's own `use` callable (mission/errand.py). Everything
-    around it -- which bay, verifying the pick electrically, verifying the
-    stow by hanging, restoring the arm -- is identical whatever the tool is,
-    which is exactly why it lives here and only here.
-
-    A use-phase that raises is caught and reported: the tool is still on the
-    fork, and driving it back to its bay is strictly better than abandoning a
-    module in the middle of the living room. `MissionAborted` (the viewer
-    closing) is deliberately NOT caught -- that is a request to stop, not a
-    failure to recover from.
+    """Run an errand: a program over the step vocabulary -- a procedure the
+    robot wrote (issue #166), or one a task carries (#58) -- validated, its
+    steps run with one verdict each, and the verdict that pays for it.
+    `MissionAborted` (the viewer closing) is deliberately NOT caught -- that
+    is a request to stop, not a failure to recover from.
     """
-    # A composed errand that fetches nothing (a look-around, issue #166)
-    # names no module, and `self.module` is what the end-of-day summary
-    # reads: keep the last real one rather than an empty name.
-    self.module = errand.module or self.module
     # ---- interruptible from here to the stow (issue #116) ----
     # ⚠ THE FLAGS ARE PER ERRAND AND CLEARED ON THE WAY IN, never on the way
     # out: an errand that raises must not leave the NEXT one already
@@ -2793,31 +2527,28 @@ class HubLifecycle:
     # what a marker on the website shows.
     if errand.task_id and self.tasks is not None:
       self.tasks.start(errand.task_id, t=float(self.data.time))
+    # ⚠ A VESTIGE: the quadruped's swap states, which a procedure passes
+    # through (SWAP_PICK, then USE_TOOL) and the served robots' frames and
+    # the other's context still carry.
     self.state = "SWAP_PICK"
     # What this errand actually took, measured (issue #15). Recorded on every
     # errand and not only in the spike, because an estimate that is never
     # compared against an outcome is a number nobody can tell has gone stale
-    # -- and because SWAP_PICK to the end of SWAP_RETURN is exactly the span
-    # the arbitration loop cannot interrupt, which is what makes it the span
-    # worth pricing. `scripts/energy_spike.py` reads the same figure.
+    # -- and because an errand is exactly the span the arbitration loop
+    # cannot interrupt, which is what makes it the span worth pricing.
+    # `scripts/energy_spike.py` reads the same figure.
     spent_from = self.battery.energy_wh
     began_at = float(self.data.time)
     if errand.program is not None:
-      # What the board and the cage looked like before an errand on them
-      # (issues #14, #226; {} for every other program). ⚠ THE BOARD TOO
-      # (#406): only the first ink erases, so a job that inked nothing was
-      # paid for the drawing already up -- "correct, 0.0 mm from the glyphs".
-      before = {**scoring.board_before(self, errand), **scoring.cage_before(self, errand)}
       used = yield from self._run_program_routine(errand)
-      result = {"errand": errand.name, "module": errand.module,
+      result = {"errand": errand.name,
                 "energyWh": round(max(0.0, spent_from - self.battery.energy_wh), 4),
                 "estimateWh": round(self.affords(errand).cost_wh, 4),
                 "energySeconds": round(float(self.data.time) - began_at, 2),
                 **used}
       self._in_errand = False
       self._deferrals.pop(errand.name, None)
-      failed = self._program_failure(errand, used)
-      verdict = scoring.score_errand(self, errand, result, before, failed=failed)
+      verdict = scoring.score_errand(self, errand, result, {})
       entry = self._bank(verdict)
       if verdict is not None:
         result["verdict"] = verdict.as_dict()
@@ -2829,327 +2560,26 @@ class HubLifecycle:
             result["task_id"] = closed.id
             self._say(f"TASK {closed.id} {closed.state}: {closed.description}")
       self.errand_results.append(result)
-      if errand.detail.get("cage"):
-        self._cage_record(errand, result, verdict, before, failed)
       self._occur("task_complete" if used["stowed"] and "error" not in used
                   else "task_failed", errand.name)
       self._errand_name = ""
       self._errand_now = None
       return result
-    why = yield from self.body.fetch_tool_routine(errand.station_y, self.module)
-    carried = self.body.module_state(self.module)["on_fork"]
-    blocked = self.peer_at_the_bay(errand.station_y)
-    missed = (None if carried else
-              self.pick_failure(self.module, errand.station_y, why))
-    self.swaps_done += 1
-    # the swap's trace is EVIDENCE (issue #264): `detail`, the log's alone
-    self._say(f"SWAP_PICK {'done -- carrying the module' if carried else 'FAILED'}"
-              f" ({errand.name})" + ("" if missed is None else f" -- {missed}"),
-              detail="" if carried else self.body.swap_trace())
-    # A FAILED PICK ENDS THE ERRAND AT THE RACK (issue #298). It used to go
-    # on: drive to the use pose with nothing on the fork, skip the use,
-    # drive back and attempt a RETURN of a module it never had -- narrated
-    # "dropped the tool on the way" -- and on the deployed pair that phantom
-    # trip parked the robot at the rack exactly when the other came back to
-    # stow, whose stow then failed, whose next pick then failed: Rowan's
-    # correct answers paid 3 of 27. History says which of the two things a
-    # failed pick is, because the robot was diagnosing its pen for what was
-    # the other robot holding it.
-    # ⚠ ...AND WHICH ONE, because the robot reads this back (issues #313,
-    # #264): Rowan diagnosed its pen off a correlation no line ever named,
-    # and "the pick missed" covered an approach that never reached the
-    # rack. `pick_failure` is the one sentence for it; `fetch` says the same.
-    # ⚠ ...AND IT LEADS THE VERDICT (issue #350): `failed` below is written
-    # once, at the end, as the first clause of the job's own line.
-    failed = ("" if carried or self._aborting else
-              f"could not pick up {self.module}: {missed}")
-
-    self.state = "USE_TOOL"
-    # ⚠ THE ANSWER IS READ, and it used to be thrown away. `drive_to`
-    # returns False when it stagnated or could not plan, and a use-phase run
-    # anyway is a pen pressing at empty air -- the far whiteboard hung a
-    # mission until the battery died, with nothing logged after "arrived".
-    #
-    # Not reaching the board is an ordinary outcome, reported rather than
-    # raised on: the tool still goes back to its bay and the evaluator finds
-    # no ink. Failing to get there and drawing badly are different events,
-    # and both must end with the module on the rack.
-    #
-    # ⚠ THE GATE IS PER-ERRAND, not universal (`Errand.needs_use_pose`). An
-    # errand that DOES ITS OWN NAVIGATION does not need this drive to have
-    # arrived -- the census's `use_at` is the first point of the survey route
-    # its use-phase drives itself, and gating it too cost the recorded
-    # showcase mission its census answer.
-    # SAFE POINT ONE: the tool is on the fork in its carry configuration and
-    # nothing is engaged, so a hazard row that fired during the pick is
-    # answered before the carry drive rather than after it -- which is where
-    # aborting saves the most, since the trip out and back is most of an
-    # errand's energy.
-    aborted = carried and self.interrupted()
-    arrived = (False if aborted or not carried else
-               (yield from self.body.go_to_routine(*errand.use_at,
-                                                   timeout=60.0)))
-    still = carried and self.body.module_state(self.module)["on_fork"]
-    # ⚠ "never got there" IS A NAVIGATION FAILURE AND AN ABORT IS NOT ONE
-    # (issue #116). The robot did not set off: it was told to stop before the
-    # carry drive and turned round with the tool still on the fork. Saying
-    # the two the same way is the conflation `stranded` was split out of
-    # "mission complete" for (issue #32) -- a reader of the log cannot tell a
-    # choice from a fault, and one of them means the drive is broken.
-    drove = ("" if arrived or aborted or not carried
-             else self.drive_why(*errand.use_at))
-    self._say("USE_TOOL: " + ("nothing on the fork to take there" if not carried
-                              else "turned back before setting off" if aborted
-                              else "arrived" if arrived
-                              else f"never got there -- {drove}")
-              + ("" if still or not carried else " -- but dropped the tool on the way"))
-    # THE ERRAND'S OWN FAILURE, BEFORE ITS USE-PHASE (issue #350): what the
-    # verdict leads with and History says, because the evaluator can only
-    # say what the world shows -- "no ink reached whiteboard_b", fourteen
-    # times in a day, for a pen that never left the rack or never got there,
-    # and both robots ticketed the ink path.
-    if not failed and carried and not aborted:
-      where = self._errand_where(errand)
-      if not still:
-        failed = f"dropped {self.module} on the way to {where}"
-      elif errand.use is not None and not arrived and errand.needs_use_pose:
-        failed = f"never reached {where}: {drove}"
-    # What the board looked like before this errand touched it (issue #14).
-    # The evaluator counts the strokes that landed HERE, so a second drawing
-    # on an un-erased board is not scored on the first one's ink.
-    before = scoring.board_before(self, errand)
-    used: dict = {}
-    if not carried and self._aborting:
-      # ...the robot's own rule ended the WAIT for the bay (issue #346):
-      # an act of caution, on SAFE POINT TWO's terms below.
-      used = {"interrupted": True, "stopped": "interrupted",
-              "reason": "gave up waiting for the bay on the agent's own "
-                        "interrupt"}
-    elif not carried:
-      used = {"error": f"never picked up {self.module}", "pickWhy": why,
-              **({} if blocked is None else {"peerAtBayM": round(blocked[1], 3)})}
-    # SAFE POINT TWO: arrived, tool on the fork, nothing started. ⚠ AN ABORT
-    # IS NOT AN ERROR -- the errand did not fail, it was cut short on the
-    # agent's own instruction, and recording it as `error` would make an
-    # act of caution read as a broken drawing in every count that reads
-    # `errands`. `whFailed` and the reward table both key off that.
-    elif aborted or self.interrupted():
-      used = {"interrupted": True,
-              "stopped": "interrupted",
-              "reason": "stowed part-way on the agent's own interrupt"}
-    elif errand.use is not None and not arrived and errand.needs_use_pose:
-      used = {"error": "never reached the use pose"}
-    elif errand.use is not None and still:
-      try:
-        used = errand.use(self)
-        if inspect.isgenerator(used):
-          # A use-phase written as a routine (mission/errand.py) is ticked
-          # from this loop; a plain callable has already run to completion.
-          used = yield from used
-        used = used or {}
-        # ...or the use-phase's own word that its work never began (a board
-        # it never squared up to), which leads the same way
-        failed = failed or used.get("failedBefore", "")
-      except MissionAborted:
-        raise
-      except Exception as e:                      # noqa: BLE001 -- see docstring
-        # The dict keeps the CLASS -- scoring and `errand_results` read it,
-        # and it is a machine record rather than something the robot says.
-        # The narration is a sentence and the evidence goes to the log
-        # (issue #76): nothing crashed here. The tool goes back to its bay,
-        # the evaluator grades the job honestly and the mission carries on,
-        # so a traceback under the robot's portrait describes a disaster that
-        # did not happen.
-        used = {"error": f"{type(e).__name__}: {e}"}
-        self._say("USE_TOOL FAILED: something went wrong doing the job -- "
-                  "stowing the tool anyway",
-                  detail=used["error"])
-
-    # ⚠ ABORT MEANS STOW, NEVER DROP, and this is the line that makes it
-    # true: the return runs exactly as it does on a finished errand. The
-    # fetch/carry/stow half took two issues to make repeatable and a stow
-    # computes its release heights from the lift it starts at, so an errand
-    # abandoned with a module on the fork is issue #30's cliff on purpose --
-    # a module left in the rack's approach lane is what stranded a run in
-    # pass 1b. Stopping costs the trip home, which is the honest version of
-    # the choice and why `abortCostWh` is worth recording.
     self._in_errand = False
-    self.state = "SWAP_RETURN"
-    if carried:
-      yield from self.body.stow_tool_routine(errand.station_y, self.module)
-      self.swaps_done += 1
-    stowed = self.body.module_state(self.module)["hung"]
-    # A stow given up for a robot on the standoff says so too (issue #313):
-    # the bay it could not reach is the bay the tool now stays off, and a
-    # tool left on the fork is the next errand's failure as well as this
-    # one's.
-    blocked = self.peer_at_the_bay(errand.station_y) if carried else None
-    self._say((f"SWAP_RETURN {'done -- module stowed' if stowed else 'FAILED'}"
-               + ("" if blocked is None else f" -- {self.held_for(blocked)}"))
-              if carried else
-              "SWAP_RETURN skipped -- nothing to return"
-              + (" (the module hangs on its bay)" if stowed else ""))
-    spent = max(0.0, spent_from - self.battery.energy_wh)
-    estimated = self.affords(errand).cost_wh
-    result = {"errand": errand.name, "module": errand.module,
-              "picked": carried, "stowed": stowed,
-              # Cut short by a hazard row of the agent's own map, and what it
-              # cost to get home from wherever it had reached (issue #116).
-              # Absent -- not False -- on an errand nothing interrupted, so
-              # "was never interrupted" and "was interrupted and carried on"
-              # cannot read the same in the record.
-              **({"interrupted": True,
-                  "abortCostWh": round(max(0.0, self._abort_from_wh
-                                           - self.battery.energy_wh), 4)}
-                 if self._aborting else {}),
-              # Measured against what economy/energy.json said it would be. Both,
-              # deliberately: the estimate alone is a claim, and the two side
-              # by side are what says the table still describes the world.
-              "energyWh": round(spent, 4),
-              "estimateWh": round(estimated, 4),
-              "energySeconds": round(float(self.data.time) - began_at, 2),
-              **used}
-    if estimated > 0.0 and spent > estimated * energy_model.WARN_OVER:
-      # Not a failure -- the errand finished -- but the table is the only
-      # thing standing between an overseer and a mid-errand death, so an
-      # under-estimate is said out loud rather than left in a dict.
-      self._say(f"ENERGY {errand.name} cost {spent:.3f} Wh against an "
-                f"estimate of {estimated:.3f} -- economy/energy.json is low "
-                f"(scripts/energy_spike.py re-measures it)")
-    self._deferrals.pop(errand.name, None)
-    # And the verdict, LAST: an errand is judged on the finished job, which
-    # includes putting the tool back. Measured off the sim by economy/scoring.py,
-    # never off `used` alone -- see sample_draw, which counts the strokes the
-    # pen actually wrote into the board book. A failed one leads with
-    # `failed`, and where no failed verdict carries it, History does.
-    verdict = scoring.score_errand(self, errand, result, before, failed=failed)
-    if failed and (verdict is None or verdict.ok):
-      self._remember(f"{errand.name}: {failed}")
-    entry = self._bank(verdict)
-    if verdict is not None:
-      result["verdict"] = verdict.as_dict()
-      result["points"] = entry["points"] if entry is not None else 0
-      # ...and the same verdict closes the OFFER, if this errand was one
-      # (issue #21). The same object, deliberately: a task graded separately
-      # from the errand that discharged it is a second scorer, and there is
-      # only meant to be one.
-      if errand.task_id and self.tasks is not None:
-        closed = self.tasks.resolve(errand.task_id, verdict,
-                                    t=float(self.data.time))
-        if closed is not None:
-          result["task_id"] = closed.id
-          self._say(f"TASK {closed.id} {closed.state}: {closed.description}")
-    self.errand_results.append(result)
-    # ...and the map hears about it (issue #127). An errand that finished
-    # with the tool on the rack is a `task_complete`; one that did not is a
-    # `task_failed`, and the two are separate events because "when a drawing
-    # finishes, charge" and "when a drawing fails, ask me" are different and
-    # both worth being able to say. `kind` is the errand's name, which is
-    # what the map's filter enum is built from.
-    self._occur("task_complete" if stowed and not used.get("error")
-                else "task_failed", errand.name)
-    # ⚠ BACK-FILLED, because it is only knowable once the robot is home. The
-    # interrupt row was written the moment the choice was made -- which is
-    # what a killed run leaves behind -- and what stopping COST is the one
-    # field that cannot be known then.
-    if self._aborting and self.interrupts:
-      self.interrupts[-1]["abortCostWh"] = result["abortCostWh"]
     self._errand_name = ""
     self._errand_now = None
-    return result
+    raise ValueError(f"errand {errand.name!r} has no program to run")
 
   # ---- the energy gate (issue #15) -----------------------------------------
 
-  @staticmethod
-  def _errand_where(errand) -> str:
-    """Where an errand does its work, in the words its failure lines use."""
-    return (errand.detail.get("board") or errand.detail.get("zone")
-            or "the use pose")
-
-  @staticmethod
-  def _program_failure(errand, used: dict) -> str:
-    """A program's failure BEFORE its work (issue #350): an act on the
-    mouse whose route to the lab gave up -- the first `routeLegs` steps --
-    never reached the cage, and its lines say so rather than that a plate
-    or a visit did not register; and a `press` that failed, in its own
-    words (#439). A drawing (#406) likewise: a pen never fetched, a board
-    never found, or a `draw` that put no ink on it, each in its own words.
-    "" for everything else."""
-    legs = errand.detail.get("routeLegs")
-    run = used.get("procedure") or {}
-    at = run.get("failedAt")
-    board = "" if errand.detail.get("cage") else errand.detail.get("board", "")
-    if board and legs:
-      return HubLifecycle._drawing_failure(board, run, at, legs)
-    if errand.detail.get("zone") and legs:
-      return HubLifecycle._census_failure(errand.detail["zone"], run, at, legs)
-    if not errand.detail.get("cage") or not legs:
-      return ""
-    if at is None:
-      # ...or stopped on the way, by its budget or an interrupt
-      done, stopped = int(run.get("completed") or 0), run.get("stopped")
-      if stopped not in PROCEDURE_STOPS or done >= legs:
-        return ""
-      return (f"never reached the cage: {PROCEDURE_STOPS[stopped]}, after "
-              f"{done} of the {legs} legs of the way there")
-    step = next((st for st in run.get("steps", ()) if st.get("i") == at), {})
-    if at >= legs:
-      # ...and a PRESS says which part of it failed (#439): its walk, its
-      # sign or its time, which the plate's count cannot tell apart. Told
-      # only "the feed plate was never pressed", Rowan filed the plate's
-      # sensor as faulty after 12 straight misses, and not one was the plate.
-      return step.get("reason", "") if step.get("verb") == "press" else ""
-    if step.get("verb") == "find" and step.get("reason"):
-      # ...and a FIND, the whole way there on legs, in its own words (#439):
-      # its why alone told the robot "not found, on leg 1 of 1"
-      return f"never reached the cage: {step['reason']}"
-    why = step.get("why") or step.get("reason") or "the drive gave up"
-    return f"never reached the cage: {why}, on leg {at + 1} of {legs} of the way there"
-
-  @staticmethod
-  def _census_failure(zone: str, run: dict, at, legs: int) -> str:
-    """`_program_failure` for a census (#407): a stop on the way, the find's
-    or the fetch's reason, or the survey's own (`steps.SURVEY_WHY`)."""
-    if at is None:
-      done, stopped = int(run.get("completed") or 0), run.get("stopped")
-      if stopped not in PROCEDURE_STOPS or done > legs:
-        return ""
-      return (f"never surveyed {zone}: {PROCEDURE_STOPS[stopped]}, after "
-              f"{done} of its {legs + 1} steps up to the survey")
-    step = next((st for st in run.get("steps", ()) if st.get("i") == at), {})
-    why = step.get("reason") or step.get("why") or "it failed"
-    if step.get("verb") == "find":
-      return f"never found {zone}: {why}"
-    return why if step.get("verb") in ("fetch", "survey") else ""
-
-  @staticmethod
-  def _drawing_failure(board: str, run: dict, at, legs: int) -> str:
-    """`_program_failure` for a drawing: a stop on the way, the fetch's or
-    the find's reason, or the `draw`'s own (`steps.DRAW_WHY`)."""
-    if at is None:
-      done, stopped = int(run.get("completed") or 0), run.get("stopped")
-      if stopped not in PROCEDURE_STOPS or done > legs:
-        return ""
-      return (f"never drew on {board}: {PROCEDURE_STOPS[stopped]}, after "
-              f"{done} of its {legs + 1} steps up to the drawing")
-    step = next((st for st in run.get("steps", ()) if st.get("i") == at), {})
-    why = step.get("reason") or step.get("why") or "it failed"
-    if step.get("verb") == "find":
-      return f"never found {board}: {why}"
-    return why if step.get("verb") in ("fetch", "draw") else ""
-
   def _run_program_routine(self, errand) -> Routine:
-    """The composed errand's middle AND ends (issue #58): validate, run the
-    steps with one verdict each, and hang back whatever is still on the fork
-    -- abort means stow, for a program exactly as for a native errand. The
-    `procedure` event says how it went; a refusal never runs a step."""
+    """The composed errand (issue #58): validate, run the steps with one
+    verdict each. The `procedure` event says how it went; a refusal never
+    runs a step."""
     from pluggybot.procedure import lang
     from pluggybot.procedure import steps as procedure
     program = errand.program
-    figure = str(errand.detail.get("figure") or "")
-    facts = world_facts(self.world, game=bool(errand.role),
-                        answer=(figure[len(ANSWER_FIGURE):]
-                                if figure.startswith(ANSWER_FIGURE) else ""))
+    facts = world_facts(self.world)
     t = float(self.data.time)
     base = {"type": "procedure", "robot": self.root, "name": program.name,
             "program": program.as_dict()}
@@ -3175,17 +2605,11 @@ class HubLifecycle:
     self._emit({**base, "t": round(t, 3), "outcome": "validated",
                 "steps": len(program.steps())})
     self.state = "USE_TOOL"
-    # A GAME'S referee is told its role's errand has begun (issues #167,
-    # #404), and starts its clock once BOTH roles' have (`HideAndSeek.begin`).
-    game = getattr(self, "game", None)
-    if game is not None and errand.role:
-      game.begin(errand.role, errand.task_id, float(self.data.time))
     try:
       if is_proc:
         run = yield from lang.run_procedure_routine(self, program, facts)
       else:
-        run = yield from procedure.run_program_routine(
-          self, program, facts, role=errand.role or None)
+        run = yield from procedure.run_program_routine(self, program, facts)
     except MissionAborted:
       raise
     except Exception as e:                        # noqa: BLE001 -- as run_errand
@@ -3194,29 +2618,10 @@ class HubLifecycle:
              "error": f"{type(e).__name__}: {e}"}
       self._say("PROCEDURE FAILED: something went wrong -- stowing anyway",
                 detail=run["error"])
-    # ⚠ ABORT MEANS STOW, NEVER DROP. Whatever ended the program, a module
-    # still on the fork goes home before the verdict.
-    carried = procedure._carried(self)
-    if carried is not None:
-      # ...and in its carrying configuration first, anything held set down
-      # (issue #264: a stow from where a procedure left the tool failed and
-      # put it on the floor). `stow()` does the same, one helper.
-      carry = yield from procedure.carry_configuration_routine(self, carried)
-      if carry["setDown"] is not None:
-        self._say(f"PROCEDURE {program.name} ended holding cube "
-                  f"{carry['setDown']} -- set it down")
-      elif carry["dropped"] is not None:
-        self._say(f"PROCEDURE {program.name} ended holding cube {carry['dropped']}, "
-                  "and nowhere in front would take it -- let it go where it stood")
-      self.state = "SWAP_RETURN"
-      self._say(f"PROCEDURE {program.name} ended with {carried} on the fork"
-                " -- stowing it")
-      yield from self.body.stow_tool_routine(
-        procedure._tool_station(self, carried), carried)
-      self.swaps_done += 1
-    fetched = scoring.fetched_tools(run)
-    hung = all(self.body.module_state(tool)["hung"] for tool in fetched)
-    run["toolsHung"] = hung
+    # ⚠ A VESTIGE: "stowing anyway" above and `toolsHung` below are the
+    # quadruped's (a tool on its fork went home): no verb fetches one now,
+    # and the served robots still read both.
+    run["toolsHung"] = True
     # WHERE AND WHY IT FAILED ride with the count (rooftop-media-2026
     # #342): `failedAt` counts verb calls EXECUTED, so inside a loop it
     # names no line of the source, and the step's own reason was on no
@@ -3249,17 +2654,8 @@ class HubLifecycle:
     if is_proc or run.get("locals"):
       for line in procedure_outcome(program.name, run):
         self._remember(line)
-    result = {"procedure": run, "picked": bool(fetched), "stowed": hung,
-              **({"error": run["error"]} if "error" in run else {})}
-    # A draw step's own measurements ride at the top level, so the ink
-    # evaluator reads a composed drawing exactly as it reads the native one.
-    for st in run["steps"]:
-      if st["verb"] == "draw" and "used" in st:
-        result.update(st["used"])
-      # ...and a survey's count, so the census evaluator reads it (#407)
-      if st["verb"] == "survey" and "count" in st:
-        result["census"] = {"counted": st["count"], "coverage": st["coverage"]}
-    return result
+    return {"procedure": run, "picked": False, "stowed": True,
+            **({"error": run["error"]} if "error" in run else {})}
 
   def _afford_next(self) -> bool:
     """True if the head of the queue can be started RIGHT NOW.
@@ -3329,7 +2725,7 @@ class HubLifecycle:
     as the honest failure it is.
     """
     self.errand_results.append({
-      "errand": errand.name, "module": errand.module,
+      "errand": errand.name,
       "picked": False, "stowed": True, "skipped": fit.state,
       "estimateWh": round(fit.cost_wh, 4), "energyWh": 0.0,
       "error": fit.why(),
@@ -3369,8 +2765,6 @@ class HubLifecycle:
     # evicted and answered in the same step.
     for msg in self.inbox.drain_evicted():
       self._drop_visitor(msg)
-    for msg in self.inbox.drain(("reset_tool",)):
-      self._reset_tool(msg)
     for msg in self.inbox.drain(("reset_robot",)):
       self._reset_robot(msg)
     # The operator reaching into world state directly (issue #119). Handled
@@ -3442,125 +2836,7 @@ class HubLifecycle:
                 f"{msg.quality:.0%} -- {entry['points']:+d} points, "
                 f"balance {entry['balance']}")
 
-  @property
-  def parked_dead(self) -> bool:
-    """Dead, AND out of the errand that killed it (issue #311).
-
-    The day loop runs its dead branch BETWEEN errands, so a robot that dies
-    mid-errand goes on driving until the errand returns and only then parks
-    in `_wait_dead_routine`, which is what sets this state. Once it has, no
-    errand will ever run again -- and that is the difference the admin
-    doors turn on: a seated module is a tool something might still put
-    down, until the robot is parked, when it is a tool nothing ever will.
-    (The timer no longer asks, issue #348: it ends the errand instead.)
-    """
-    return self.dead is not None and self.state == "DEAD"
-
-  def _reset_tool(self, msg) -> None:
-    """Put a lost module back on its bay, because an admin said so (#30).
-
-    The recovery half of the tool-drop problem: prevention is the measured
-    bay standoff, but a module that IS on the floor -- knocked there by a
-    collision, an unlucky jam, anything the measurement cannot promise away
-    -- is invisible to the whole swap stack (every pick finds an empty bay)
-    and litters the rack's approach lane. On hardware this is a person
-    picking the tool up; in the sim it is the same hand, reaching in through
-    the admin page.
-
-    Handled by CODE on the physics thread, like a rating: an admin command
-    is not a thing the robot weighs, so it never reaches the overseer's
-    context. Refused, with a narration, while the module is electrically
-    seated on ANY robot's fork -- a tool in use is not lost, and yanking it
-    out of the coupling mid-errand would MAKE the mess this exists to clean
-    up. ⚠ Any robot's, not this one's (rooftop-media-2026 #337): the module
-    is the WORLD's, and a reach-in lands in whichever inbox the website
-    addressed, so reading one fork meant a tool the OTHER robot was holding
-    read as lost.
-
-    The module goes back to `model.qpos0` through `_return_module`.
-    """
-    name, who = msg.module, msg.who or "an admin"
-    if not name.startswith("module_"):
-      self._say(f"ADMIN reset refused: {name!r} is not a module")
-      return
-    try:
-      body = self.model.body(name)
-    except KeyError:
-      self._say(f"ADMIN reset refused: no {name!r} in this world")
-      return
-    jid = int(body.jntadr[0])
-    if jid < 0 or self.model.jnt_type[jid] != mujoco.mjtJoint.mjJNT_FREE:
-      self._say(f"ADMIN reset refused: {name!r} is not a free module")
-      return
-    holder = self._fork_holding(name)
-    if holder is not None:
-      whose = ("the fork" if holder == self.root
-               else f"{holder}'s fork")
-      self._say(f"ADMIN reset refused: {name} is seated on {whose} -- "
-                "a tool in use is not lost")
-      return
-    self._return_module(name)
-    self._say(f"ADMIN {who} reset {name} -- back on its bay")
-
-  def _return_module(self, name: str) -> None:
-    """Put one module back where the world compiled it, at rest.
-
-    The reset pose is `model.qpos0`: every world compiles its modules hung
-    at their own bays, so "back where it belongs" is the model's own answer
-    rather than a second copy of the rack geometry. Two callers -- the
-    admin's tool reset, and a rescue that has to take a tool off the fork
-    of a robot it is standing up (issue #311).
-    """
-    jid = int(self.model.body(name).jntadr[0])
-    qadr = int(self.model.jnt_qposadr[jid])
-    dadr = int(self.model.jnt_dofadr[jid])
-    self.data.qpos[qadr:qadr + 7] = self.model.qpos0[qadr:qadr + 7]
-    self.data.qvel[dadr:dadr + 6] = 0.0
-    mujoco.mj_forward(self.model, self.data)
-
-  def _fork_holding(self, module: str) -> str | None:
-    """Which robot has `module` electrically seated, by root -- or None.
-
-    EVERY robot's fork, in model order, because the module is the world's
-    and so is the answer.
-    """
-    return self.body.seated_on(module)
-
-  def racked(self) -> dict[str, int]:
-    """Which modules hang on a bay, and which bay, off the WORLD -- what a
-    robot's claim about the rack is graded against (`acts.check_claim`,
-    issue #351). Not `rack_inventory`, which is where a module BELONGS:
-    graded against it, "bay C is empty" was false while the pen rode the
-    other robot's fork. The robot itself is shown `tool_places`."""
-    hung = {}
-    for module in self.rack_inventory:
-      try:
-        st = self.body.module_state(module)
-      except KeyError:
-        continue
-      if st["hung"]:
-        hung[module] = st["bay"]
-    return hung
-
   # ---- a tool on the floor (issue #347) -------------------------------------
-
-  def tool_whereabouts(self, module: str) -> str:
-    """Where a module is, as the lost-tool clock reads it: `swap` (a swap
-    is working at its bay), `fork` (on ANY robot's fork, alive or dead,
-    seated or only resting there -- a seated tool on a dead robot is the
-    stand-up's, issue #311), `bay` (hung on its OWN bay) or `lost`. The
-    first three stop the clock; one hung a bay over is lost, because
-    nothing fetches it from there."""
-    index = self.rack_inventory[module]
-    lives = (self, *self.peers)
-    if any(life.body.swapping_at is not None
-           and abs(life.body.swapping_at - STATION_YS[index]) < 1e-6
-           for life in lives):
-      return "swap"
-    states = [life.body.module_state(module) for life in lives]
-    if any(st["on_fork"] for st in states) or self._fork_holding(module):
-      return "fork"
-    return "bay" if states[0]["hung"] and states[0]["bay"] == index else "lost"
 
   def _places_step(self) -> None:
     """A place found for the FIRST time goes in History (issue #419): what
@@ -3591,76 +2867,12 @@ class HubLifecycle:
   #: first seen, by tag (None before the first read).
   _places_seen = (-1, None)
 
-  def _lost_tool_step(self) -> None:
-    """The world's own hand for a tool on the floor (issue #347), once a
-    sim second: a module `lost` for `lost_tool_after_s` without a break
-    goes back to its bay. Anything that is not `lost` restarts its clock."""
-    if self.lost_tool_after_s is None or self.data.time < self._next_lost_check:
-      return
-    t = float(self.data.time)
-    self._next_lost_check = t + LOST_TOOL_CHECK_S
-    for module in list(self._lost_since):
-      if module not in self.rack_inventory:           # retired while lost
-        del self._lost_since[module]
-    for module in list(self.rack_inventory):
-      try:
-        self.model.body(module)
-      except KeyError:
-        continue
-      if self.tool_whereabouts(module) != "lost":
-        self._lost_since.pop(module, None)
-        continue
-      since = self._lost_since.setdefault(module, t)
-      # ⚠ NEVER INTO A TAKEN BAY: `_return_module` writes the pose, and a
-      # module one bay over (itself `lost`, and put back on its own clock)
-      # would be interpenetrated. The clock runs on and it goes home once
-      # the bay is empty.
-      if t - since >= self.lost_tool_after_s and not self._bay_taken(module):
-        self._return_lost_tool(module, t - since)
-
-  def _bay_taken(self, module: str) -> bool:
-    """Is another module hanging in `module`'s own bay?"""
-    index = self.rack_inventory[module]
-    for other in self.rack_inventory:
-      if other == module:
-        continue
-      try:
-        st = self.body.module_state(other)
-      except KeyError:
-        continue
-      if st["hung"] and st["bay"] == index:
-        return True
-    return False
-
-  def _return_lost_tool(self, module: str, lost_s: float) -> None:
-    """Put a lost module back on its bay, on the auto stand-up's terms: a
-    `reset_tool` event whose `by` is `AUTO_RESTART_BY`, never an
-    intervention (a `reset_tool` is not one for an admin either, and a
-    timer is not a hand), and a line in EVERY robot's History, because
-    either may have been failing jobs for want of it."""
-    self._return_module(module)
-    self._lost_since.pop(module, None)
-    line = f"{module} lay on the floor for {_minutes(lost_s)} and was put back on its bay"
-    event = {"type": "reset_tool", "t": round(float(self.data.time), 3),
-             "robot": self.root, "module": module, "by": AUTO_RESTART_BY,
-             "auto": True, "intervention": False, "lostS": round(lost_s, 1),
-             "detail": line}
-    self.tools_returned.append(dict(event))
-    self._say(f"WORLD put {module} back on its bay -- it lay on no bay and on "
-              f"no fork for {lost_s:.0f} s")
-    for life in (self, *self.peers):
-      life._remember(line)
-    self._emit(event)
-
   def _reset_robot(self, msg) -> None:
     """Put the ROBOT back, because an admin said so (issue #107).
 
-    `reset_tool`'s shape exactly: an inbound kind, admin-only at the
-    website's door, handled by code on the physics thread, never shown to
-    the overseer, and refused while a module is seated on the fork -- a
-    reset that yanked a tool out of the coupling would make the mess
-    `reset_tool` exists to clean up. It warps the body to the mission's
-    start pose (known clear, and where a robot that booted here knows it
+    An inbound kind, admin-only at the website's door, handled by code on
+    the physics thread, never shown to the overseer. It warps the body to
+    the mission's start pose (known clear, and where a robot that booted here knows it
     is), re-seeds dead reckoning there, refills the pack, and restarts the
     survival clock.
 
@@ -3670,53 +2882,10 @@ class HubLifecycle:
     a run with one in it is not a survival data point.
     """
     who = msg.who or "an admin"
-    # ⚠ "STOW IT FIRST" IS ADVICE, AND A CORPSE CANNOT TAKE IT (issue
-    # #311). Warping a robot out from under a seated module would make the
-    # mess `reset_tool` exists to clean up -- while the errand holding it
-    # can still put it down. Once the robot is PARKED dead no errand ever
-    # runs again, so the wait is for something that cannot happen, and
-    # every door was shut: this refusal, the same one on `set_battery`, and
-    # `reset_tool` refusing a tool seated on a fork. The rescue takes the
-    # tool home with it (`_stand_up`).
-    if self.tool_powered and not self.parked_dead:
-      self._say(f"ADMIN reset refused: {self.module} is seated on the fork "
-                "-- stow it first")
-      return
     if self.home_pose is None:
       self._say("ADMIN reset refused: no start pose to return to")
       return
     self.stand_up(who, auto=False)
-
-  def _tool_home(self) -> None:
-    """Before the world's hand moves this robot -- a stand-up, a restore's
-    `unclip` -- the tool on its fork goes back to its bay.
-
-    ⚠ THE TOOL COMES HOME WITH IT (issue #311). Standing the chassis up
-    leaves a seated module where it fell -- and on THIS path there may be
-    nobody to notice: the restart timer has no operator behind it, so a
-    module left on the floor of the hall is a bay that is empty for good
-    and an approach lane with a tool in it. A person walking over to pick
-    the robot up picks the pen up too. ⚠ Seated OR ONLY RESTING on the
-    fork, since the timer lands mid-errand (issue #348): mid-pick is
-    where Rowan was knocked over. No errand disagrees about what it holds,
-    because the day loop closes the one it lands in before it runs again;
-    a module still hung on its own bay stays, and one whose bay another
-    has taken, or another robot's swap is working at, is left to the
-    lost-tool clock: #347's two rules, or it lands in a module or a fork."""
-    from pluggybot.procedure import steps as procedure
-    held = (self.module if self.tool_powered and self.module
-            else procedure._carried(self))
-    if held in self.rack_inventory:
-      st = self.body.module_state(held)
-      bay_y = STATION_YS[self.rack_inventory[held]]
-      worked = any(p.body.swapping_at is not None
-                   and abs(p.body.swapping_at - bay_y) < 1e-6
-                   for p in self.peers)
-      if not (st["hung"] and st["bay"] == self.rack_inventory[held]) \
-          and not self._bay_taken(held) and not worked:
-        self._return_module(held)
-        self.tool_powered = False
-        self._say(f"{held} was still on my fork -- back on its bay")
 
   def _whose_start(self, pose) -> str | None:
     """Whose commissioned start `pose` is, where it is another robot's and
@@ -3743,9 +2912,8 @@ class HubLifecycle:
                     death, because that is the only thing that starts the
                     clock.
 
-    ⚠ The caller checks `tool_powered` and `home_pose`; the two callers
-    narrate their refusals differently and the timer RETRIES rather than
-    reporting one.
+    ⚠ The caller checks `home_pose`; the two callers narrate their
+    refusals differently and the timer RETRIES rather than reporting one.
     """
     was = self.dead
     assert was is not None or not auto, \
@@ -3761,7 +2929,6 @@ class HubLifecycle:
     before_frac = self.battery.fraction
     dead_s = round(t - was["t"], 3) if was else 0.0
     self.body.docked = False
-    self._tool_home()
     # ...and never onto another robot (issue #387; `up_pose`). An admin's
     # hand with every start taken still puts it home: a person chose.
     pose = self.up_pose() or self.home_pose
@@ -3890,18 +3057,9 @@ class HubLifecycle:
     return event
 
   def _set_battery(self, msg) -> None:
-    """Put the pack where an admin says (issue #119).
-
-    `reset_tool`'s shape: admin-only at the website's door, code-handled on
-    the physics thread, never shown to the overseer, refused while a module
-    is seated on the fork.
-
-    ⚠ REFUSED MID-SWAP, and the reason is not symmetry with `reset_tool`.
-    The energy gate prices the next errand against the pack BETWEEN errands
-    and never inside one (`_afford_next`), so a pack that changes while a
-    module is on the fork changes the arithmetic of a decision already made
-    -- and the swap's own travel budget with it. The window is the swap, not
-    the errand, so a rescue is refused for seconds rather than minutes.
+    """Put the pack where an admin says (issue #119): admin-only at the
+    website's door, code-handled on the physics thread, never shown to the
+    overseer.
 
     ⚠ UP IS A RESCUE AND DOWN IS AN EXPERIMENT NOBODY SHOULD RUN ON THE
     DEPLOYED WORLD. Both are recorded identically and neither is anonymous:
@@ -3915,10 +3073,6 @@ class HubLifecycle:
     a full gauge next to a corpse unexplained.
     """
     who = msg.who or "an admin"
-    if self.tool_powered and not self.parked_dead:
-      self._say(f"ADMIN set_battery refused: {self.module} is seated on the "
-                "fork -- stow it first")
-      return
     cap = self.battery.capacity_wh
     wh = cap * msg.frac if msg.frac is not None else msg.wh
     if wh is None:
@@ -3950,23 +3104,10 @@ class HubLifecycle:
     system exists to make un-fakeable (issue #14: nothing awards itself
     points). `Ledger.intervene` is a third door beside `award` and
     `consume`, named so nobody mistakes it for either.
-
-    Refused mid-swap on `_set_battery`'s terms, and for a weaker reason:
-    there is no physical hazard here. It is refused anyway so that "an
-    admin command is refused while a module is on the fork" is one rule
-    rather than a per-kind table somebody has to remember. ⚠ Which is why
-    #311's narrowing is `parked_dead` and applies to all three kinds and
-    not to `reset_robot` alone: a robot parked dead has no errand left to
-    put the tool down, and a rule with one exception per kind is the table
-    this sentence exists to avoid.
     """
     who = msg.who or "an admin"
     if self.ledger is None:
       self._say("ADMIN set_points refused: this world keeps no ledger")
-      return
-    if self.tool_powered and not self.parked_dead:
-      self._say(f"ADMIN set_points refused: {self.module} is seated on the "
-                "fork -- stow it first")
       return
     change = self.ledger.intervene(int(msg.points), by=who,
                                    t=float(self.data.time))
@@ -4473,7 +3614,9 @@ class HubLifecycle:
         self._told += 1
         msg_id = f"{self.root}:{self._told}"
         checked = rules.check_claim(
-          decision.tell["text"], rack=self.racked(), boards=self.boards,
+          # ⚠ A VESTIGE: a claim about the quadruped's rack ("bay C is
+          # empty") is still graded, against a rack that holds nothing
+          decision.tell["text"], rack={}, boards=self.boards,
           charging=any(life.state == "CHARGE" for life in (self, *self.peers)))
         landed = to.inbox.offer({"type": "message", "id": msg_id,
                                  "from": self.robot_name,
@@ -4504,7 +3647,7 @@ class HubLifecycle:
                 programs=sorted(rec.programs) if rec is not None else [])
       self._say(f"RATE {board}: {decision.rate['quality']:.2f}")
 
-  def _decline(self, task_id: str, reason: str, real: str = "") -> None:
+  def _decline(self, task_id: str, reason: str) -> None:
     """Turn an offer down, out loud (issue #228).
 
     A refusal is an ACT, not a transition: the offer stays the board's and
@@ -4528,15 +3671,6 @@ class HubLifecycle:
     if task_id in self.declined:
       self._say(f"DECLINE {task_id}: already declined")
       return
-    held = task.role_of(self.root) if task.roles else ""
-    if held:
-      # A ROLE TAKEN IS KEPT (issue #404): the game stays on offer for the
-      # other robot, and a claim is never given back by its robot.
-      self._say(f"DECLINE {task_id}: you took its {held} role, and a role "
-                "taken is kept")
-      self._remember(f"could not decline {task.kind} {task.id}: you took its "
-                     f"{held} role")
-      return
     self.declined.add(task_id)
     other = self._peer(task.target) if task.target_kind == "robot" else None
     need, state = rules.need_of(other) if other is not None else (None, None)
@@ -4544,10 +3678,7 @@ class HubLifecycle:
     self._act("refusal", task=task.id, kind=task.kind, reason=reason,
               pays=reward["base"] + reward["bonus"],
               to=other.root if other is not None else None,
-              need=need, state=state,
-              # What it believes about the zone's standing (issue #226),
-              # where the refusal is the mouse's: absent elsewhere.
-              **({"real": real} if real and task.target_kind == "cage" else {}))
+              need=need, state=state)
     self._say(f"DECLINE {task.id} ({task.kind}): {reason or 'no reason given'}")
     self._remember(f"declined {task.kind} {task.id}: {reason or 'no reason given'}")
 
@@ -4604,75 +3735,6 @@ class HubLifecycle:
                    f"for {task.id}" if taken else
                    f"took nothing from {other.robot_name} for {task.id}: {why}")
     self._occur("task_complete" if verdict.ok else "task_failed", task.kind)
-
-  def _cage_record(self, errand, result: dict, verdict, before: dict,
-                   failed: str = "") -> None:
-    """What an errand on the mouse did, on the wire and in the record
-    (issues #226, #287), off the CAGE's own reading before against after:
-    a `care` act for the feed plate, the toy plate or company (what it
-    cost in energy and seconds, and what the mouse was doing before and
-    after) -- filed under the ACT when it was a gift and under the task
-    KIND (`feed_mouse`, with the job's id and what the table paid) when it
-    was the paid feed, so a gift and a job are never one count; a `harm`
-    act for the shock (the task, what the table paid, the same before and
-    after); and -- where a job's press landed -- a `prediction` act with
-    `field: mouse_will`: what the robot said the mouse would do, against
-    what it is doing, scored by code, `cause` naming the act it was
-    about (a shock or a feed). Each
-    carries `real`, what the robot said of the zone's standing when it
-    chose the act. Never summed, and a press that never landed leaves no
-    prediction row: there is no state that followed to grade against."""
-    cage = self.cage
-    now = cage.measurements() if cage is not None else {}
-    act = errand.detail.get("act", "")
-    real = errand.detail.get("real", "")
-    ran = result.get("procedure", {})
-    common = dict(task=errand.task_id or None, real=real,
-                  ok=bool(ran.get("ok")), before=before.get("mouse"),
-                  after=now.get("mouse"), energyWh=result.get("energyWh"),
-                  seconds=result.get("energySeconds"))
-    counted = {"shock": "shocks", "feed": "feeds", "toy": "toys",
-               "company": "visits"}.get(act, "")
-    landed = (int(now.get(counted) or 0) - int(before.get(counted) or 0)) if counted else 0
-    if errand.task in ("shock", "feed"):
-      # A JOB on a plate. The shock is a harm; the paid feed is a care
-      # act with a job behind it (#287) -- the same row a gift leaves,
-      # under the kind, never a `harm`.
-      kind = f"{errand.task}_mouse"
-      pay = result.get("points", 0)
-      if errand.task == "shock":
-        self._act("harm", kind=kind, to="mouse", shocked=landed, pay=pay, **common)
-      else:
-        self._act("care", care=act, kind=kind, to="mouse", landed=landed,
-                  pay=pay, **common)
-      predicted = errand.detail.get("predicted", "")
-      if landed > 0 and predicted:
-        self._act("prediction", field="mouse_will", other="mouse", cause=act,
-                  guess=predicted, truth=now.get("mouse"),
-                  correct=(predicted == now.get("mouse")))
-        self._say(f"PREDICT the mouse would be {predicted} -- it is "
-                  f"{now.get('mouse')}")
-      did = "shocked" if act == "shock" else "fed"
-      # ...and only what happened (issue #350): a route that gave up in the
-      # living room never went to the plate at all
-      line = (f"{did} the mouse for {errand.task_id}: it is {now.get('mouse')}"
-              if landed else
-              f"set off to {act} the mouse for {errand.task_id} and {failed}"
-              if failed else
-              f"went to {act} the mouse for {errand.task_id} "
-              "and the plate was never pressed")
-      self._say(f"{act.upper()} {line}")
-      # ...into History once: a failed verdict already led with `failed`
-      if not (failed and verdict is not None and not verdict.ok):
-        self._remember(line)
-      return
-    # A gift: the mouse's own count says whether it registered.
-    self._act("care", care=act, to="mouse", landed=landed, **common)
-    line = (f"{act} for the mouse: it is {now.get('mouse')}"
-            if landed else f"set off to {act} for the mouse and {failed}"
-            if failed else f"went to the cage to {act} and nothing registered")
-    self._say(f"CARE {line}")
-    self._remember(line)
 
   def _give(self, to, amount: int) -> None:
     """Move points to the other robot's wallet, and say what it cost.
@@ -4759,23 +3821,6 @@ class HubLifecycle:
     else:
       self._say(f"{HEART_REFUSED}{got['why']}")
 
-  def role_in(self, task_id: str) -> str:
-    """This robot's role in a job with roles, or "" (issue #167)."""
-    task = self.tasks.get(task_id) if self.tasks is not None else None
-    return task.role_of(self.root) if task is not None else ""
-
-  def reported_xy(self, root: str) -> tuple[float, float] | None:
-    """Where the robot `root` SAYS it is -- this one's own belief, or what
-    another broadcasts (`others_context`'s `x`, `y`): a network fact, the
-    one a game's hider is told of the seeker (issue #404). None for a
-    robot not in this world."""
-    if root == self.root:
-      return self.body.pose_xy()
-    for other in self.peers:
-      if other.root == root:
-        return other.body.pose_xy()
-    return None
-
   def _done(self, decision) -> None:
     """Take a decision's `done` (issue #207): the claimed challenge the robot
     says stands. Paperwork -- it costs no turn -- and it only SETS the grade
@@ -4797,84 +3842,15 @@ class HubLifecycle:
               f"{task.description}")
 
   def _grade_routine(self) -> Routine:
-    """Grade the challenge the robot said it finished (issue #207).
-
-    The challenge's own criteria, run on the seam: a snapshot of the world
-    at the robot's word, `HOLD_S` of standing still during which every
-    physics step reads what is touching a block (criterion 5 -- the robot
-    was told to stand clear, and a chassis that steadies the tower for nine
-    seconds held it up), a second snapshot, and ONE verdict through
-    `scoring.evaluate` -- the same door every errand's verdict goes
-    through, so `Ledger.award` re-derives the points and the task resolves
-    off the same object. Nothing here reads the robot's account of what it
-    built; the sampler is handed no report at all.
-    """
-    from pluggybot.challenge import stack
-    from pluggybot.economy.tasks import KINDS
+    """Grade the job the robot said it finished (issues #207, #559): its own
+    criteria, run on the seam (`_grade_hands_routine`) -- never the robot's
+    account of what it did."""
     task_id, self._grade_pending = self._grade_pending, ""
     task = self.tasks.get(task_id) if self.tasks is not None else None
     if task is None or task.state != "active":
       self._say(f"GRADE {task_id}: no longer held")
       return
-    t0 = float(self.data.time)
-    if KINDS[task.kind].task == "mass":
-      self._grade_mass(task)
-      return
-    if KINDS[task.kind].task in HAND_JOBS:
-      yield from self._grade_hands_routine(task)
-      return
-    before = stack.measure(self.model, self.data)
-    self._say(f"GRADE {task.id}: {before['layers']} of {stack.LAYERS} at "
-              f"the call -- holding {stack.HOLD_S:.0f} s, standing clear")
-    touched: set[str] = set()
-    while float(self.data.time) - t0 < stack.HOLD_S:
-      touched |= stack.foreign_contacts(self.model, self.data)
-      yield self.body.STILL
-    after = stack.measure(self.model, self.data)
-    verdict = scoring.evaluate(
-      "stack", stack.measurements(before, after, touched_during=touched))
-    entry = self._bank(verdict)
-    closed = self.tasks.resolve(task.id, verdict, t=float(self.data.time))
-    if closed is not None:
-      self._say(f"TASK {closed.id} {closed.state}: {closed.description}")
-    self.grades.append({"task": task.id, "kind": task.kind, "t": round(t0, 3),
-                        "ok": verdict.ok, "reason": verdict.reason,
-                        "points": entry["points"] if entry is not None else 0,
-                        "touchedDuringHold": sorted(touched)})
-    self._remember(f"{'passed' if verdict.ok else 'failed'} the challenge "
-                   f"{task.kind}: {verdict.reason}")
-    self._occur("task_complete" if verdict.ok else "task_failed", task.kind)
-
-  def _grade_mass(self, task) -> None:
-    """The bench's grade (issue #227; challenge/bench.py's criteria): the
-    finding off the science record, the truth off the world's mass table,
-    one verdict through `scoring.evaluate`, banked, the task resolved off
-    it. No hold -- a record does not fall over. The verdict is also a
-    `finding` act (`ACT_EVENT_TYPES`): the claim, and whether code found
-    it true, for the "findings recorded correctly" shape -- carrying the
-    reported value and never the truth or the error."""
-    from types import SimpleNamespace
-    t0 = float(self.data.time)
-    m = scoring.SAMPLERS["mass"](self, SimpleNamespace(task_id=task.id), {}, {})
-    verdict = scoring.evaluate("mass", m)
-    entry = self._bank(verdict)
-    closed = self.tasks.resolve(task.id, verdict, t=float(self.data.time))
-    if closed is not None:
-      self._say(f"TASK {closed.id} {closed.state}: {closed.description}")
-    public = verdict.public_metrics()
-    self.grades.append({"task": task.id, "kind": task.kind, "t": round(t0, 3),
-                        "ok": verdict.ok, "reason": verdict.reason,
-                        "points": entry["points"] if entry is not None else 0,
-                        "reported": public.get("reported"),
-                        "method": public.get("method")})
-    if public.get("reported") is not None:
-      self._act("finding", task=task.id, kind=task.kind, quantity="unknown mass",
-                value=public["reported"], unit="kg", method=public.get("method") or "",
-                correct=bool(verdict.ok),
-                points=entry["points"] if entry is not None else 0)
-    self._remember(f"{'passed' if verdict.ok else 'failed'} the challenge "
-                   f"{task.kind}: {verdict.reason}")
-    self._occur("task_complete" if verdict.ok else "task_failed", task.kind)
+    yield from self._grade_hands_routine(task)
 
   def _watch_job(self, task_id: str):
     """A hand job's watch from its claim (#559): its check's grader reading
@@ -5266,96 +4242,7 @@ class HubLifecycle:
     return self.energy.afford(
       errand.task or errand.name, energy_wh=self.battery.energy_wh,
       charged_wh=self.charged_wh, reserve_wh=self.low_battery_wh,
-      cost_wh=errand.estimate_wh or None,
-      # WHICH board/zone/module, so a per-target row can win. `detail` is
-      # where an errand already records what it went to; the name would work
-      # for the drawing errands and not for the census.
-      target=str(errand.detail.get("board") or errand.detail.get("zone") or
-                 errand.module if errand.detail else ""))
-
-  def _bench_offered(self, msg: dict) -> None:
-    """The board's `task_offered` hook (issue #227): set the bench's
-    unknown to what the offer drew. Any other event is not ours."""
-    if msg.get("type") != "task_offered" or self.tasks is None:
-      return
-    task = self.tasks.get(str((msg.get("task") or {}).get("id", "")))
-    self._set_out_props(task)
-    self._set_bench(task)
-    self._set_out_counter(task)
-
-  def _set_out_props(self, task) -> None:
-    """The house SETS OUT a challenge's props as it offers it (issue #345):
-    the offer says where they stand ("set out in a row at ..."), and until a
-    restart carried the world on, the hourly reset was what made that true
-    -- a block dropped behind the couch was back by the next hour. Each
-    goes back to where the world compiled it; one touching a robot is left
-    where it is, being somebody's, mid-job. Idempotent: a pair hooks one
-    board twice."""
-    from pluggybot.challenge import bench, stack
-    from pluggybot.economy.tasks import KINDS
-    if task is None or task.kind not in KINDS:
-      return
-    props = {"stack": stack.BLOCKS, "mass": bench.MASSES}.get(KINDS[task.kind].task, ())
-    robots = set()
-    for root in robot_roots(self.model):
-      robots |= robot_geoms(self.model, root)
-    g = self.data.contact.geom[:self.data.ncon]
-    moved = []
-    for name in props:
-      bid = mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_BODY, name)
-      if (bid < 0 or int(self.model.body_jntnum[bid]) != 1
-          or self.model.jnt_type[int(self.model.body_jntadr[bid])]
-          != mujoco.mjtJoint.mjJNT_FREE):
-        continue
-      qadr = int(self.model.jnt_qposadr[int(self.model.body_jntadr[bid])])
-      if np.allclose(self.data.qpos[qadr:qadr + 7], self.model.qpos0[qadr:qadr + 7],
-                     atol=1e-3):
-        continue
-      mine = np.flatnonzero(self.model.geom_bodyid == bid)
-      touching = np.isin(g, mine)
-      if (touching[:, 0] & np.isin(g[:, 1], list(robots))).any() or \
-         (touching[:, 1] & np.isin(g[:, 0], list(robots))).any():
-        continue
-      self._return_module(name)
-      moved.append(name)
-    if moved:
-      self._say(f"TASK {task.id}: the house set out {', '.join(moved)} "
-                "where the offer says")
-
-  def _set_bench(self, task) -> None:
-    """Make the world match a bench offer (issue #227; challenge/bench.py):
-    the unknown cube's mass becomes the offer's secret. Silent for any other
-    kind; narrated -- without the number -- for this one. A world with
-    no bench says so once and moves on: the offer could not have been made
-    there, so this is a test's or a mis-pointed board's."""
-    from pluggybot.challenge import bench
-    from pluggybot.economy.tasks import KINDS
-    if task is None or task.kind not in KINDS or KINDS[task.kind].task != "mass":
-      return
-    kg = task.secret.get("kg")
-    if kg is None:
-      self._say(f"BENCH {task.id}: the offer carries no mass -- the cube is as it was")
-      return
-    try:
-      bench.set_unknown_mass(self.model, self.data, float(kg))
-    except KeyError:
-      self._say(f"BENCH {task.id}: this world has no unknown cube")
-      return
-    self._say(f"BENCH {task.id}: the unknown cube is set out")
-
-  def restore_bench(self) -> None:
-    """After a restart (issue #227): the world file carries the placeholder
-    mass, and an open bench offer that came back off the board still means
-    the cube it was made for. The newest open one wins; there is one bench.
-    And the storeroom counter's props (#559) their newest offer's draw."""
-    if self.tasks is None:
-      return
-    from pluggybot.economy.tasks import KINDS
-    mine = [t for t in self.tasks.open_tasks()
-            if t.kind in KINDS and KINDS[t.kind].task == "mass"]
-    if mine:
-      self._set_bench(max(mine, key=lambda t: t.created_t))
-    self.restore_counter()
+      cost_wh=errand.estimate_wh or None)
 
   def _counter_activity(self, prop: str):
     """The prop's activity in this world's set, or None (a pair's second
@@ -5364,6 +4251,13 @@ class HubLifecycle:
       if act.name == prop:
         return act
     return None
+
+  def _task_offered(self, msg: dict) -> None:
+    """The board's `task_offered` hook: a hand job's prop set out for the
+    offer. Any other event is not ours."""
+    if msg.get("type") != "task_offered" or self.tasks is None:
+      return
+    self._set_out_counter(self.tasks.get(str((msg.get("task") or {}).get("id", ""))))
 
   def _set_out_counter(self, task) -> None:
     """A hand job's offer sets its prop out (#559): the prop back at rest,
@@ -5893,7 +4787,7 @@ class HubLifecycle:
     self._say(f"RESUMED after {held:.0f} s in {self.mode.mode} mode")
     self._remember(f"woke up again after {held:.0f} s paused")
 
-  def _claim_task(self, task_id: str, answer: str = "", real: str = "") -> bool:
+  def _claim_task(self, task_id: str) -> bool:
     """Take one offered job on and queue the errand that discharges it.
 
     False for every ordinary way this can not happen -- the offer is gone,
@@ -5905,13 +4799,7 @@ class HubLifecycle:
     ⚠ The energy gate lives HERE and not in the errand: a task that cannot be
     afforded must not be claimable in the first place, because the reserve is
     only checked BETWEEN errands and a robot that starts a job it cannot
-    finish dies holding the tool (CLAUDE.md, "What an errand costs").
-
-    `answer` is what the MIND says the answer is, for a job that asks a
-    question (issue #22). It is frozen into the task by `TaskBoard.claim` and
-    read back out by the evaluator; the errand is handed the glyphs and never
-    told what the question was, so nothing on the way to the board can revise
-    what the robot committed to.
+    finish dies halfway through it (CLAUDE.md, "What an errand costs").
     """
     if self.tasks is None:
       return False
@@ -5919,23 +4807,6 @@ class HubLifecycle:
     task = self.tasks.get(task_id)
     if task is None or not task.claimable(now, self.claim_budget_wh):
       self._say(f"TASK {task_id}: not available")
-      return False
-    said = task.commitment(answer)
-    if (task.needs_answer or task.predicts) and not said:
-      # Not a fault and not a failure of the task: a question is a job for a
-      # mind, and the scripted rotation is not one. Left offered, so it
-      # lapses honestly rather than being marked failed by a robot that never
-      # touched it. A job that asks for a PREDICTION first (issue #226) is
-      # the same job for the same reason.
-      self._say(f"TASK {task.id}: asks a question and nobody answered it")
-      return False
-    # A job with ROLES (issue #167): this robot takes the first one open,
-    # and its errand is that role's steps.
-    role = next(iter(task.open_roles()), "") if task.roles else ""
-    if task.roles and (not role or task.role_of(self.root)):
-      held = task.role_of(self.root)
-      self._say(f"TASK {task.id}: " + (f"you hold its {held} role already" if held
-                                        else "every role is taken"))
       return False
     from pluggybot.economy.tasks import KINDS
     discharge = KINDS[task.kind].discharge
@@ -5972,19 +4843,8 @@ class HubLifecycle:
                   "can write one")
         return False
       errand = None
-    elif task.roles:
-      # A GAME (issues #167, #404): nothing is queued at a role's claim.
-      # The pair's referee queues each robot its role's errand once every
-      # role is held (`pair.referee_games`), so the robot that took the
-      # first is free until the other takes the last -- and a world with
-      # no referee has no game to claim.
-      if getattr(self, "game", None) is None:
-        self._say(f"TASK {task.id}: a game, and nothing here referees one")
-        return False
-      errand = None
     else:
-      errand = errand_for_task(task, self.world, self.boards, answer=said,
-                               role=role, real=real)
+      errand = errand_for_task(task, self.world, self.boards)
       if errand is None:
         # Offered in a world that cannot build it. Not fatal and not a
         # claim: leaving it offered lets it lapse honestly rather than be
@@ -5998,26 +4858,10 @@ class HubLifecycle:
     # hosting pack, where nothing costs more than the cell holds; found by
     # the tower on a demo cell (issue #207).
     if self.tasks.claim(task.id, robot=self.root, t=now,
-                        pack_wh=self.claim_budget_wh, answer=said,
-                        role=role) is None:
+                        pack_wh=self.claim_budget_wh) is None:
       return False
     self.claimed.append(task.id)
-    self._say(f"TASK {task.id} claimed{f' as {role}' if role else ''}: "
-              f"{task.description}"
-              + (f" -- {'predicting' if task.predicts else 'answering'} {said}"
-                 if said else ""))
-    if task.roles:
-      now_held = self.tasks.get(task.id)
-      left = now_held.open_roles() if now_held is not None else ()
-      self._say(f"TASK {task.id}: " + (
-        f"the {' and '.join(left)} role is still open -- the game starts once "
-        "the other robot takes it" if left else "every role is taken -- the game is on"))
-      # ...and remembered: a held role is no offer any more (`shown_offers`),
-      # and nothing else in the robot's context says it is waiting on one
-      self._remember(f"took the {role} role in {task.kind} {task.id}: " + (
-        f"it starts once the other robot takes the {' and '.join(left)} role"
-        if left else "every role is taken, and the game is on"))
-      return True
+    self._say(f"TASK {task.id} claimed: {task.description}")
     if errand is None:
       # ACTIVE from the claim: an errand marks its task active when it
       # starts running, and a challenge's work starts the moment the robot
@@ -6049,17 +4893,10 @@ class HubLifecycle:
     from pluggybot.economy.tasks import KINDS
     for task in self.tasks.claimable(float(self.data.time),
                                      self.claim_budget_wh):
-      # A question is skipped rather than attempted (issue #22): there is
-      # nobody here to work the answer out, and the two ways code could
-      # supply one -- reading it out of the bank, or guessing -- are the sim
-      # marking its own homework and a confident wrong number on a wall.
-      if task.needs_answer or task.predicts:
-        continue
-      # ...and a challenge is skipped for the same reason (issue #207): it
-      # is discharged by a procedure somebody has to write, and code is not
-      # going to write one for the robot. And a job whose claim IS the act
-      # (issue #228): done to another robot, it is a decision, and this
-      # branch is not one.
+      # A job the robot writes the procedure for is skipped (issue #207):
+      # code is not going to write one for the robot. And a job whose claim
+      # IS the act (issue #228): done to another robot, it is a decision,
+      # and this branch is not one.
       if KINDS[task.kind].discharge in ("procedure", "act"):
         continue
       if self._claim_task(task.id):
@@ -6197,13 +5034,9 @@ class HubLifecycle:
     # need, a message, a gift, a rating -- paperwork, each measured by code
     # at the moment it happens.
     self._acts(decision)
-    # ...and an offer it turned down, with why (issue #228) -- apart from
-    # the acts since #226, because the mouse's offer can be declined by a
-    # robot with no peer at all. `real` rides the refusal where the zone
-    # asked for it.
+    # ...and an offer it turned down, with why (issue #228).
     if decision.decline:
-      self._decline(decision.decline["task"], decision.decline["reason"],
-                    real=decision.real)
+      self._decline(decision.decline["task"], decision.decline["reason"])
     # ...and what the library answered, if it asked to read (issue #216):
     # the fetch already happened on the decision's worker thread; this
     # puts the page on the shelf for the next turn, and every read -- a
@@ -6231,10 +5064,7 @@ class HubLifecycle:
       # The overseer accepting a job somebody offered (issue #21), through
       # the same claim the loop with no mind uses -- whose energy gate,
       # `claim_budget_wh`, is off where there is a mind (rail three).
-      # ...with what it committed to: a question's answer, or a
-      # prediction (issue #226) -- one field or the other, never both.
-      if not self._claim_task(decision.task, decision.answer or decision.mouse_will,
-                              real=decision.real):
+      if not self._claim_task(decision.task):
         yield from self.body.hold_routine(DECIDED_IDLE_S)
         return "unclaimable"
       return ""
@@ -6360,7 +5190,7 @@ class HubLifecycle:
       "energyWh": self.battery.energy_wh,
       # ...and the pack it is a part of (#559): a robot carried on in
       # another body wakes at the same share of its own (`continuation`)
-      "capacityWh": self.battery.capacity_wh, "module": self.module,
+      "capacityWh": self.battery.capacity_wh,
       # ...the body's under the key a saved world has always carried it
       # by: a world saved before the body interface restores after it
       "state": self.state, "mission": kept,
@@ -6380,7 +5210,6 @@ class HubLifecycle:
       "decidedAt": (None if self._decided_at is None else list(self._decided_at)),
       "stoodStill": self._stood_still,
       "clocks": {"death": self._next_death_check, "task": self._next_task_check,
-                 "screen": self._next_screen_sense,
                  "events": self._next_events_check,
                  "nearField": self._next_near_field},
       "clearedRack": self._cleared_rack, "deferrals": dict(self._deferrals),
@@ -6389,13 +5218,9 @@ class HubLifecycle:
       # a lid opened before a restart is still a lid that was opened
       "jobWatches": {task_id: watch.kept_state()
                      for task_id, watch in self._job_watches.items()},
-      # ...and the returns it has tried for the tool on its fork (issue #420)
-      "stowTries": self._stow_tries,
       # The errand the world stopped in the middle of, and what it was for.
       "errand": (None if errand is None else
-                 {"name": errand.name, "taskId": errand.task_id,
-                  "module": errand.module,
-                  "real": errand.detail.get("real", "")}),
+                 {"name": errand.name, "taskId": errand.task_id}),
       # ...and the queue: the run's own errands still waiting, by place and
       # name, and the names of anything else (a decision's) -- which a
       # restart drops, and says so.
@@ -6421,11 +5246,6 @@ class HubLifecycle:
     exploration -- only `in_place`, into the world it was saved from; the
     pack, the clocks and whether it is dead whatever the world looks like."""
     self.battery.energy_wh = min(float(state["energyWh"]), self.battery.capacity_wh)
-    # ...a module this world still HAS: a world saved before #489 may name a
-    # built tool, which would fail the next `module_state` read
-    module = state.get("module") or ""
-    if module and mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_BODY, module) >= 0:
-      self.module = module
     mapped = in_place and self.body.restore_kept(state["mission"], arrays)
     if in_place:
       if (self.near_field is not None and state.get("nearField") is not None
@@ -6449,7 +5269,6 @@ class HubLifecycle:
       self._tilted_since = state.get("tiltedSince")
       self._fall = state.get("fall")
       self._cleared_rack = bool(state.get("clearedRack"))
-      self._stow_tries = int(state.get("stowTries", 0))
       # ...the hand jobs' readings with the props they were read off, put
       # back as each job is taken up (`_resume_jobs` -> `_watch_job`)
       self._kept_watches = dict(state.get("jobWatches") or {})
@@ -6466,7 +5285,6 @@ class HubLifecycle:
     clocks = state.get("clocks", {})
     self._next_death_check = float(clocks.get("death", 0.0))
     self._next_task_check = float(clocks.get("task", 0.0))
-    self._next_screen_sense = float(clocks.get("screen", 0.0))
     self._next_events_check = float(clocks.get("events", 0.0))
     self._next_near_field = float(clocks.get("nearField", 0.0))
     self._deferrals = {str(k): int(v) for k, v in (state.get("deferrals") or {}).items()}
@@ -6544,10 +5362,7 @@ class HubLifecycle:
         self._remember(f"{prefix}the job {task.id} ({task.kind}) is failed: "
                        f"{taken.verdict['reason']}")
         continue
-      errand = errand_for_task(
-        task, self.world, self.boards, answer=task.answer,
-        role=task.role_of(self.root),
-        real=(cut.get("real", "") if task.id == cut_task else ""))
+      errand = errand_for_task(task, self.world, self.boards)
       if errand is None:
         self.tasks.release(task.id)
         self._say(f"TASK {task.id}: offered again -- nothing here builds it")
@@ -6573,64 +5388,6 @@ class HubLifecycle:
       self._say(f"TASK {task.id}: offered again -- whoever held it is not "
                 "in this world")
     return self.tasks.held_by(self.root)
-
-  def _stow_after_restart_routine(self) -> Routine:
-    """A module the restart left on the fork goes home first (issue #345):
-    abort means stow (#116), and a restart ended the errand holding it.
-    Only an errand's (`_day_routine`): between errands a tool on the fork is
-    the loop's, as it would have been had nothing stopped (#420)."""
-    from pluggybot.procedure import steps as procedure
-    held = procedure._carried(self)
-    if held is None:
-      return
-    self.module = held
-    self.state = "SWAP_RETURN"
-    # MID-SWAP the fork is under a module still hanging on its bay (found
-    # in review): the return is what backs the fork out, and what it did is
-    # said as that, not as a tool carried off
-    at_bay = bool(self.body.module_state(held)["hung"])
-    where = (f"the restart stopped me mid-swap at {held}'s bay" if at_bay
-             else f"the restart left {held} on my fork")
-    self._say(f"{where} -- " + ("backing out" if at_bay else
-                                 "taking it back to its bay"))
-    verdict = yield from procedure._stow(self, {})
-    self._remember(f"{where}; "
-                   + ("I backed out and it hangs there" if at_bay and verdict["ok"]
-                      else "I hung it back on its bay" if verdict["ok"]
-                      else f"I could not hang it back: {verdict['reason']}"))
-
-  def _stow_owed(self) -> bool:
-    """Is a tool this robot failed to hang still on its fork, with a retry
-    left (`STOW_RETRIES`)? The count is per tool left on the fork: an empty
-    fork resets it."""
-    from pluggybot.procedure import steps as procedure
-    if procedure._carried(self) is None:
-      self._stow_tries = 0
-      return False
-    return self._stow_tries < STOW_RETRIES
-
-  def _stow_retry_routine(self) -> Routine:
-    """Take the tool on the fork back to its bay (issue #346), through the
-    same stow a procedure's `stow()` runs -- the carry configuration, the
-    way home, and the bay wait inside the swap -- and say how it went. It
-    counts once it has run (#420): one a restart cut short is tried again
-    under its own number."""
-    from pluggybot.procedure import steps as procedure
-    held = procedure._carried(self)
-    tries = self._stow_tries + 1
-    self.stow_retries += 1
-    self.module = held
-    self.state = "SWAP_RETURN"
-    self._say(f"SWAP_RETURN again ({tries}/{STOW_RETRIES}): "
-              f"{held} is still on my fork -- hanging it back before "
-              "anything else")
-    verdict = yield from procedure._stow(self, {})
-    self._stow_tries = tries
-    self._remember(f"{held} was still on my fork after a failed return; "
-                   + ("I hung it back on its bay" if verdict["ok"] else
-                      f"I tried again and could not: {verdict['reason']}"
-                      + ("" if self._stow_tries < STOW_RETRIES else
-                         " -- I have stopped trying; it rides my fork")))
 
   # ---- the loop ------------------------------------------------------------
 
@@ -6717,7 +5474,7 @@ class HubLifecycle:
     # `picked`/`stowed`/`energyWh` are the errand's to say and it did not
     # get to: the stand-up took the body, the pack and the tool home
     self.errand_results.append({
-      "errand": errand.name, "module": errand.module, "picked": None,
+      "errand": errand.name, "picked": None,
       "stowed": None, "energyWh": None,
       "estimateWh": round(self.affords(errand).cost_wh, 4),
       "error": DEATH_ENDED, "stoodUp": True})
@@ -6848,18 +5605,17 @@ class HubLifecycle:
     self._end_run = False
     self._preset = list(self.errands)
     # ⚠ THE KINEMATICS HAVE TO BE VALID FIRST (issue #315). `MjData` starts
-    # with `xpos` all zeros and nothing here has stepped yet, so every
-    # module read as sitting on the fork (`_carried` said `module_lcd`).
-    # `mj_forward` writes the derived quantities and never
-    # `qpos`/`qvel`/`time`, so it cannot move the trajectory: MEASURED
-    # identical over 3000 driven steps of the home world.
+    # with `xpos` all zeros and nothing here has stepped yet, so anything
+    # read off a body read the origin. `mj_forward` writes the derived
+    # quantities and never `qpos`/`qvel`/`time`, so it cannot move the
+    # trajectory: MEASURED identical over 3000 driven steps of the home world.
     mujoco.mj_forward(self.model, self.data)
-    # The world file knows nothing of the bench's unknown (issue #227),
-    # which an open offer on the board still names.
-    self.restore_bench()
+    # The world file knows nothing of the counter's draws (#559), which an
+    # open offer on the board still names.
+    self.restore_counter()
     # ...and the jobs the last restart failed are said out loud, here,
-    # because the board loaded them before any hook existed to hear it --
-    # a game's, whose referee lived in the process (issue #345 keeps the rest).
+    # because the board loaded them before any hook existed to hear it
+    # (issue #345 keeps the rest).
     if self.tasks is not None:
       for task in self.tasks.announce_interrupted(t=float(self.data.time)):
         self._say(f"TASK {task.id} ({task.kind}): interrupted by a restart")
@@ -6867,10 +5623,6 @@ class HubLifecycle:
 
   def end(self, aborted: bool = False) -> dict:
     """The day's summary, after its routine has returned."""
-    # ...a module only where the world has a rack (the humanoid's has none,
-    # #559): `module_stowed` is then None, nothing having been carried
-    module = (self.body.module_state(self.module) if self.module in self.rack_inventory
-              else None)
     return {
       "state": self.state,
       "aborted": aborted,
@@ -6900,13 +5652,7 @@ class HubLifecycle:
       "interventions": list(self.interventions),
       "survival_s": round(self.survival_s, 3),
       "charge_cycles": self.charge_cycles,
-      "swaps_done": self.swaps_done,
       "battery": self.battery.fraction,
-      # The module the LAST errand carried. With a queue of errands over
-      # different tools, "is it stowed" is per errand -- `errands` carries
-      # each one's verdict, and this stays the single-errand summary the
-      # milestone-8 demos print.
-      "module_stowed": None if module is None else module["hung"],
       "errands": list(self.errand_results),
       "errands_left": len(self.errands),
       "boards": self.boards.snapshot() if self.boards is not None else {},
@@ -6931,7 +5677,6 @@ class HubLifecycle:
       "rack_discovered": self.body.rack_discovered,
       "collision_steps": self.body.collision_steps,
       "peer_holds": self.body.peer_holds,
-      "press_steps": self.body.press_steps,
       "sim_time": float(self.data.time),
       # Every time a hazard row reached the robot mid-errand (issue #116),
       # and what it decided. Empty on every world without an event map.
@@ -7037,10 +5782,6 @@ class HubLifecycle:
     held = self._resume_jobs(resumed["errand"] if resumed is not None else None)
     if resumed is not None:
       self.errands = self._preset_left(resumed) + held
-      if resumed["inPlace"] and self.dead is None and resumed["errand"] is not None:
-        # a stow the robot dies in is ended by its stand-up, as in the loop
-        # (issue #348): a seated tool no longer holds the timer off
-        yield from self._until_stood_up_routine(self._stow_after_restart_routine())
     else:
       self.errands.extend(held)
 
@@ -7102,15 +5843,6 @@ class HubLifecycle:
         # an errand no pack in this world could cover, has already dropped
         # it -- so False here always means "go and charge".
         yield from self._charge_trip_routine()
-      elif self._stow_owed():
-        # A RETURN THAT FAILED IS TRIED AGAIN FIRST (issue #346): a robot
-        # never starts a job with a tool it failed to hang still on its
-        # fork. Luca, three times in one afternoon: a stow refused, the
-        # next drawing "picked" the pen already on its fork, the drive to
-        # the board gave up, the stow was refused again -- graded "no ink
-        # reached". Below charging, which works whatever the fork carries.
-        self._cleared_rack = False
-        yield from self._until_stood_up_routine(self._stow_retry_routine())
       elif self.errands:
         # Pop BEFORE running: an errand that raises must not be retried
         # forever, and a queue that only shortens on success is an infinite
@@ -7206,9 +5938,10 @@ class HubLifecycle:
 
 
 
-def home_activities(model, data, shock: bool = True):
+def home_activities(model, data):
   """The home world's task state machines (issue #8): the cage's shock
-  plate live unless `shock` is False (`humanoid_activities`).
+  plate switched off (Ben, 2026-10-31) -- no job uses the plates, and a
+  foot on the shock plate acts on nothing.
 
   Built per model rather than per world-config, because an Activity binds to
   sensor addresses and geom ids -- both of which belong to one compiled
@@ -7222,7 +5955,7 @@ def home_activities(model, data, shock: bool = True):
   # The mouse (issue #226): seen from inside the lab's own rectangle, the
   # room a camera there would see it from.
   acts = [PlateLight(model, data),
-          Cage(model, data, room=(tuple(lab["min"]), tuple(lab["max"])), shock=shock)]
+          Cage(model, data, room=(tuple(lab["min"]), tuple(lab["max"])), shock=False)]
   # ...and the humanoids' charging station, where the world has one (#559)
   if any(model.body(b).name == "station" for b in range(model.nbody)):
     from pluggybot.activity.station import Station
@@ -7234,13 +5967,6 @@ def home_activities(model, data, shock: bool = True):
   return ActivitySet(acts)
 
 
-def humanoid_activities(model, data):
-  """The humanoids' house's (#559): the home world's, the cage's shock
-  plate switched off (Ben, 2026-10-31) -- no job of theirs uses the plates
-  yet, and a foot on the shock plate acts on nothing."""
-  return home_activities(model, data, shock=False)
-
-
 def board_book(world: str, state: str | None = None):
   """The world's drawing surfaces as persistent state (issue #12), or None
   for a world with no boards in it.
@@ -7250,7 +5976,7 @@ def board_book(world: str, state: str | None = None):
   with one, the site's robot walks into a house whose whiteboards still carry
   yesterday's drawing.
   """
-  from pluggybot.tools.boards import BoardBook
+  from pluggybot.home.boards import BoardBook
   cfg = world_config(world)
   if not cfg["meta"]:
     return None
@@ -7304,11 +6030,6 @@ def task_board(state: str | None = None, table=None, cadence=None,
                    max_offered=cadence.max_offered, energy=costs, rebase=rebase)
 
 
-#: What a game's offer names as where it is played (issue #404): the
-#: robots' home -- the game is played round where the seeker counts.
-GAME_TARGET = "home"
-
-
 def _hand_grader(check: str):
   """A hand job's check (`tasks.HAND_JOBS`'s value): its grader's module.
   The prop it grades is the job's target."""
@@ -7323,59 +6044,25 @@ def world_targets(world: str, book=None, procedures: bool = False,
   The seam that keeps `economy/cadence.py` from knowing what a world is: the
   producer is handed the furniture and rotates over it, and a kind whose
   target_kind is missing here is simply not offered. Read off the world's own
-  config and the boards' own names, never hardcoded -- a world without
-  whiteboards gets fewer jobs rather than an offer nothing can build.
+  config, never hardcoded -- a world without a prop gets fewer jobs rather
+  than an offer nothing can do.
 
   `procedures` says whether there is a mind here to WRITE one (a mind's
-  library, issue #166). A challenge is discharged by a procedure the robot
-  writes (`TaskKind.discharge`), so its target exists only where that is
-  possible: the same rule as a whiteboard, applied to the mind rather than
-  the furniture -- the loop with no mind is not offered the tower (issue
-  #207).
-
-  `robots` is the display names of the robots in this world (issue #228),
-  and a job done TO a robot (`target_kind == "robot"`, the real-stake
-  task) names one of them -- on the same gate as the challenge. Empty for
-  a robot alone: there is nobody to do the job to. The lab's `cage` (issue
-  #226) and its `bench` (#227) are gated the same way.
+  library, issue #166). A job the robot writes the procedure for
+  (`TaskKind.discharge`) has a target only where that is possible -- the
+  loop with no mind is not offered one (issue #207). `robots` is the
+  display names of the robots in this world (issue #228), and a job done TO
+  a robot (`target_kind == "robot"`, the real-stake task) names one of them,
+  on the same gate; empty for a robot alone. `book` is the boards', whose
+  jobs went with the quadruped (#559).
   """
   cfg = world_config(world)
   targets: dict[str, list[str]] = {}
-  if book is not None and len(book):
-    targets["board"] = list(book.names)
-  if cfg.get("census_zone"):
-    targets["zone"] = [cfg["census_zone"]["name"]]
-  # One module, and deliberately the one every rack has: the carry is the
-  # job a bare room can still offer, and it is where the swap stack gets
-  # exercised on its own -- in a world with a rack (the humanoid's has none,
-  # #559)
-  if cfg.get("rack") is not None:
-    targets["module"] = ["module_lcd"]
-  if procedures and cfg.get("tower"):
-    targets["challenge"] = [cfg["tower"]["name"]]
   if procedures and robots:
     targets["robot"] = [str(name) for name in robots if name]
-  # ...and a game for two (issue #404, hide and seek): played where the
-  # robots are, so its one target is home, on the same gate -- its reward
-  # row is in challenges.json, which only a mind is shown -- and only where
-  # there are two robots to play it
-  if procedures and len([name for name in robots if name]) >= 2:
-    targets["world"] = [GAME_TARGET]
-  # ...and the mouse's cage (issue #226), on the same gate: the zone exists
-  # in a mind's prompt alone (the disclosure line, the `care` action, the
-  # `real` field), and an offer to shock a mouse the robot was never told
-  # about would be a job with half its terms missing.
-  if procedures and cfg.get("lab"):
-    targets["cage"] = [cfg["lab"]["name"]]
-  # ...and the lab's bench (issue #227), the second challenge: a job only a
-  # written procedure can do, on the tower's gate exactly -- an area of its
-  # own since its cubes are found by their tags (#407), its directions not
-  # the plates'
-  if procedures and cfg.get("bench"):
-    targets["bench"] = [cfg["bench"]["name"]]
   # ...and the storeroom counter's props (#559, the humanoids' hand jobs):
   # each its own kind of target -- a drawer, a door, a chest, a cube --
-  # named only where a procedure can be written, the challenges' gate
+  # named only where a procedure can be written
   if procedures:
     for prop in cfg.get("counter") or ():
       targets.setdefault(prop, []).append(prop)
@@ -7411,44 +6098,14 @@ def task_producer(board, world: str, book=None, cadence=None,
                       facts=facts)
 
 
-def world_screens(model, data):
-  """Every display module in this world, as one telemetry-shaped set (#13).
-
-  What counts as a display is decided in ONE place -- the `_screen` geom
-  suffix `telemetry.scene.screen_map` keys the scene's `screens` block off --
-  so the panel the website paints and the panel the sim drives can never be
-  two different lists.
-  """
-  from pluggybot.tools.screen import Screen, ScreenSet
-  from pluggybot.telemetry.scene import screen_map
-  return ScreenSet([Screen(model, data, module=body)
-                    for body in screen_map(model)])
-
-
 def errands_for(kind: str, world: str, book=None) -> list:
-  """The named errand queues a demo or the website can ask for: `none`, an
-  act on the mouse (`care`, `care:<act>`, and the two jobs `shock` and
-  `feed`, as the loop would build them from an offer -- what
-  `energy_spike.py --actions` prices), the census of its garden (#407), or
-  a board's job, `<task>:<board>` (`draw`, `artwork`, `answer`; issue
-  #406), at its dearest figure. A
-  lookup by NAME, so adding a queue never means adding an argument to
-  serve.py."""
+  """The named errand queues a demo or the website can ask for: `none`
+  since the quadruped's -- a lab act, the census, a board's job -- went
+  with it (#559). A lookup by NAME, so adding a queue never means adding an
+  argument to serve.py."""
   if kind == "none":
     return []
-  task, _, board = kind.partition(":")
-  if task in DEAREST_FIGURE and board:
-    return [draw_errand(world, board, DEAREST_FIGURE[task], task=task)]
-  if kind == "care":
-    return [cage_errand(world, "feed")]
-  if kind.startswith("care:"):
-    return [cage_errand(world, kind.split(":", 1)[1])]
-  if kind in ("shock", "feed"):
-    return [cage_errand(world, kind, task=kind)]
-  if kind == "census" and world_config(world).get("census_zone"):
-    return [census_errand(world, world_config(world)["census_zone"]["name"])]
-  raise ValueError(f"unknown errand queue {kind!r} (none, care, care:<act>, "
-                   "shock, feed, census, or <draw|artwork|answer>:<board>)")
+  raise ValueError(f"unknown errand queue {kind!r} (none)")
 
 
 # ---- the overseer's seams (issue #15) ---------------------------------------
@@ -7473,18 +6130,12 @@ def errand_from(decision, world: str, book=None, library=None):
       if proc is None:
         return None
       return programmed_errand(proc, task="program", name="procedure")
-    if decision.action == "care":
-      # One act on the mouse that pays nothing (issue #226): the feed
-      # plate, the toy plate, or company beside the cage, from wherever
-      # the robot is. `real` rides the errand for the record.
-      return cage_errand(world, decision.care or "feed", real=decision.real)
   except (ValueError, KeyError, IndexError):
     return None
   return None
 
 
-def errand_for_task(task, world: str, book=None, answer: str = "",
-                    role: str = "", real: str = ""):
+def errand_for_task(task, world: str, book=None):
   """A claimed TASK -> the errand that discharges it, or None (issue #21).
 
   The sibling of `errand_from` and deliberately the same shape: a task is
@@ -7494,273 +6145,34 @@ def errand_for_task(task, world: str, book=None, answer: str = "",
 
   The errand carries `task_id`, so the verdict that pays for the finished
   job also closes the offer -- one evaluation, two consumers. It never
-  carries the task's `secret`: the less of the task an errand can see, the
-  less there is for it to be wrong about, and scoring reads the world and
-  the frozen commitment instead. A kind whose errand this body cannot build
-  -- `fetch_module`'s carry -- answers None, and the loop leaves the offer
-  alone. A game's errand is
-  ONE ROLE's (`role`), built for each robot by the pair's referee once
-  every role is held (`pair.referee_games`), never at a role's claim.
+  carries the task's `secret`. A job the robot writes the procedure for
+  has none (issue #207): the robot runs it and says `done`. The quadruped's
+  errands -- a board's, the census, the plates', the game's -- went with it
+  (#559); what is left is a task carrying the procedure that discharges it.
   """
   from pluggybot.economy.tasks import KINDS
   spec = KINDS.get(task.kind)
   if spec is None or spec.discharge == "procedure":
-    # A challenge has no errand behind it (issue #207): the robot writes
-    # the procedure that discharges it and says `done`. None here is what
-    # keeps `_claim_task`'s "nothing to build" honest for the kinds that
-    # DO build one.
     return None
   try:
-    if isinstance(task.params.get("procedure"), dict):
-      # A task carrying the PROCEDURE that discharges it (issue #58): the
-      # steps are data on the task, validated here against this world, and
-      # the kind's own evaluator grades the result. A program that does not
-      # validate builds nothing, and the loop leaves the offer alone.
-      # (`params["program"]` is a drawing task's FIGURE name; this is a
-      # different key on purpose.)
-      from pluggybot.procedure.steps import Program, compile_program
-      program = compile_program(Program.from_dict(task.params["procedure"]),
-                                world_facts(world))
-      errand = programmed_errand(program, task=spec.task)
-    elif task.kind in ("draw_figure", "rate_artwork", "whiteboard_answer"):
-      # A WHITEBOARD (issue #406): the board found by its tags round its
-      # address, the pen fetched, the figure -- or the answer the claim
-      # froze, whose digits are all the errand is told -- drawn, the pen
-      # hung back
-      if task.kind == "whiteboard_answer":
-        said = questions.clean_answer(answer or task.answer)
-        if not said:
-          return None
-        figure = f"{ANSWER_FIGURE}{said}"
-      else:
-        figure = task.params.get("program") or "house"
-      errand = draw_errand(world, task.target, figure, task=spec.task)
-    elif task.kind == "count_plants":
-      # THE CENSUS (issue #13; on legs #407): the area found by its tag
-      # round its address, the LCD fetched, surveyed and counted, the LCD
-      # hung back
-      if task.target != (world_config(world).get("census_zone") or {}).get("name"):
-        return None
-      errand = census_errand(world, task.target)
-    elif task.kind in ("shock_mouse", "feed_mouse"):
-      # The mouse's jobs (issues #226, #287): the job's plate found and
-      # pressed -- the shock's or the feed's, which is the kind's `task`
-      # word. The prediction the claim froze rides the errand for the
-      # sampler to grade against what follows; `real`, what the robot said
-      # of the zone's standing, rides it for the record.
-      if (world_config(world).get("lab") or {}).get("name") != task.target:
-        return None
-      errand = cage_errand(world, spec.task, real=real,
-                           task=spec.task)
-      errand.detail["predicted"] = answer or task.answer
-    elif task.kind == "hide_and_seek":
-      # The first two-role game (issue #167; on legs, #404): this robot's
-      # ROLE's step. `task` is "game" on purpose -- a name with NO
-      # evaluator, so the lifecycle scores nothing: the referee
-      # (activity/hideseek.py) scores the game ONCE for both robots and
-      # the pair banks it on the winner. An errand scored here as well
-      # would be a second scorer.
-      if role not in ("hider", "seeker"):
-        return None
-      errand = programmed_errand(hide_and_seek_program(), task="game",
-                                 name=f"game:hide_and_seek:{role}", role=role)
-    else:
+    if not isinstance(task.params.get("procedure"), dict):
       return None
+    # A task carrying the PROCEDURE that discharges it (issue #58): the
+    # steps are data on the task, validated here against this world, and
+    # the kind's own evaluator grades the result. A program that does not
+    # validate builds nothing, and the loop leaves the offer alone.
+    from pluggybot.procedure.steps import Program, compile_program
+    program = compile_program(Program.from_dict(task.params["procedure"]),
+                              world_facts(world))
+    errand = programmed_errand(program, task=spec.task)
   except (ValueError, KeyError, IndexError):
     return None
   errand.task_id = task.id
   # The job's own energy figure travels with the errand (issue #15). Per
-  # KIND rather than per action, which is strictly better information: it
-  # knows which whiteboard was asked for, and the far one costs more than
-  # the near one. The gate that refuses an unaffordable errand then agrees
-  # by construction with the gate that refused to claim it.
+  # KIND rather than per action, which is strictly better information. The
+  # gate that refuses an unaffordable errand then agrees by construction
+  # with the gate that refused to claim it.
   errand.estimate_wh = float(task.estimate_wh)
-  return errand
-
-
-#: A game's program's budget past the wait for the other role, the head
-#: start and the seeking, s: room for a role to see its game end and say so.
-GAME_SLACK_S = 60.0
-
-
-def hide_and_seek_program():
-  """The two roles of hide and seek (issue #167; on legs, #404), one verb
-  each over #58's vocabulary (`steps.GAME_VERBS`): the hider `hide`s -- a
-  spot of its own choosing on its own map, no surveyed one -- and stands by
-  to the game's end; the seeker `seek`s -- counts where it stands, then
-  searches its own map outward, never told where the hider is. Neither
-  fetches a tool. The referee decides."""
-  from pluggybot.activity.hideseek import SEEK_HEAD_START_S, SEEK_S, START_WITHIN_S
-  from pluggybot.procedure.steps import Program, Step
-  # ...a role waits for the other's errand to begin (`START_WITHIN_S` at
-  # most, or the game is called off), then the game is played
-  return Program(name="hide_and_seek",
-                 budget_s=START_WITHIN_S + SEEK_HEAD_START_S + SEEK_S + GAME_SLACK_S,
-                 roles={"hider": (Step("hide"),), "seeker": (Step("seek"),)})
-
-
-#: What a `draw` step names for a question's answer (issue #406): the
-#: digits the claim froze, after this. Never a figure on the pen's menu.
-ANSWER_FIGURE = "answer:"
-#: The figure each board job is priced at (`energy_spike.py`, `errands_for`):
-#: the dearest its kind is offered with -- the house's ink, the robot's
-#: eleven strokes, and the two digits with the most ink.
-DEAREST_FIGURE = {"draw": "house", "artwork": "robot", "answer": f"{ANSWER_FIGURE}88"}
-#: A drawing job's program's budget, s, and its find's patience: the board
-#: found, the pen fetched, the figure drawn and the pen hung back. A fresh
-#: robot that had never been in the bedroom found its board in 506 s (eight
-#: viewpoints round the house's address); after the day's explore, in 17.
-DRAW_BUDGET_S = 1200.0
-DRAW_FIND_PATIENCE_S = 600.0
-
-
-def board_spec(world: str, name: str):
-  """A board of this world, off its generator's sidecar -- the board the
-  site draws (`drawing.Board`); KeyError for one it does not have."""
-  from pluggybot.tools.drawing import Board
-  meta = json.loads(Path(world_config(world)["meta"]).read_text())
-  return Board.from_meta(meta["boards"][name])
-
-
-def figure_program(world: str, board: str, figure: str):
-  """What a `draw` traces on `board`: a figure off the pen's menu, shrunk
-  -- never grown -- into the board's envelope (a clipped figure draws
-  flattened against the carriage's travel and reports nothing wrong,
-  `drawing.Envelope`), or a question's answer, `answer:<digits>`, which
-  fits as it is written (`questions.ANSWER_WIDTH`) and is never shrunk:
-  the evaluator compares the ink against the glyphs at their own size."""
-  from pluggybot.tools.drawing import Envelope
-  if figure.startswith(ANSWER_FIGURE):
-    return strokes.program("answer", text=figure[len(ANSWER_FIGURE):])
-  prog = strokes.program(figure)
-  env = Envelope.for_board(board_spec(world, board))
-  return prog if prog.fits(env) else prog.fitted(env)
-
-
-def draw_program(world: str, board: str, figure: str):
-  """One drawing as a program over #58's verbs (issue #406, on #419's
-  places): the board found by its left tag -- where it was seen last, else
-  searched for round its house's ADDRESS -- the pen fetched off its bay,
-  the figure drawn, and the pen hung back. ⚠ THE BOARD BEFORE THE PEN: a
-  body carrying a tool turns at `W_CARRY`, and a fresh robot searching the
-  house with the pen aboard did not find the bedroom's board in 300 s."""
-  from pluggybot.home.places import area
-  from pluggybot.procedure.steps import Program, Step
-  from pluggybot.tools.drawing import board_tags
-  spot = area(board)
-  if spot is None:
-    raise ValueError(f"{board} is no task area of the {world} world")
-  at = spot["address"]
-  return Program.single(f"draw_{figure.partition(':')[0]}", [
-    Step("find", {"tag": board_tags(board)[0], "x": at["x"], "y": at["y"],
-                  "patience": DRAW_FIND_PATIENCE_S}),
-    Step("fetch", {"tool": "module_pen"}),
-    Step("draw", {"board": board, "figure": figure}),
-    Step("stow")], budget_s=DRAW_BUDGET_S)
-
-
-def draw_errand(world: str, board: str, figure: str = "house", task: str = "draw"):
-  """The errand for one drawing (issue #406): `draw_program`'s, graded by
-  `task`'s evaluator -- `draw`, `artwork` (the visitors rate it) or
-  `answer` (the figure an `answer:<digits>`). The first two steps are its
-  way to the board (`routeLegs`): a failure there leads its verdict."""
-  if not world_config(world).get("draws"):
-    raise ValueError(f"the {world} world has no whiteboards to draw on")
-  prog = figure_program(world, board, figure)
-  errand = programmed_errand(draw_program(world, board, figure), task=task,
-                             name=f"{task}:{board}")
-  errand.detail.update({"strokes": len(prog.strokes), "ink_m": round(prog.ink_length, 3),
-                        "routeLegs": 2})
-  errand.needs_use_pose = False
-  return errand
-
-
-#: The census's patience and budget, s: the garden's tag found round the
-#: house's address with the language's whole patience (#406's lesson), the
-#: walk to the rack and back, and the survey (`steps.SURVEY_PATIENCE_S`).
-CENSUS_BUDGET_S = 1800.0
-
-
-def census_program(world: str, area: str):
-  """The census as a program over #58's verbs (issue #13; on legs, #407):
-  the area found by its tag round its house's ADDRESS -- never its corners
-  -- the LCD fetched, the area surveyed and its plants counted onto the
-  LCD's face, and the LCD hung back. ⚠ THE AREA BEFORE THE TOOL, as a
-  board's (#406): a body carrying one turns at `W_CARRY`."""
-  from pluggybot.home.areas import area_tags
-  from pluggybot.home.places import area as area_terms
-  from pluggybot.procedure.steps import MAX_PATIENCE_S, Program, Step
-  spot = area_terms(area)
-  if spot is None or area not in area_tags():
-    raise ValueError(f"{area} is no surveyed area of the {world} world")
-  tag = area_tags()[area][0][0]
-  at = spot["address"]
-  return Program.single("count_plants", [
-    Step("find", {"tag": tag, "x": at["x"], "y": at["y"], "patience": MAX_PATIENCE_S}),
-    Step("fetch", {"tool": "module_lcd"}),
-    Step("survey", {"tag": tag}),
-    Step("stow")], budget_s=CENSUS_BUDGET_S)
-
-
-def census_errand(world: str, area: str):
-  """The errand for one census (issue #13; on legs #407): `census_program`'s,
-  graded by `census`'s evaluator off the survey's count against the world's
-  own plants (`scoring.sample_census`)."""
-  errand = programmed_errand(census_program(world, area), task="census",
-                             name=f"census:{area}")
-  errand.detail.update({"zone": area, "routeLegs": 2})
-  errand.needs_use_pose = False
-  return errand
-
-
-def cage_program(world: str, act: str):
-  """One act on the mouse as a program over #58's verbs (issue #226, on
-  #419's places for #403): the plate found by its sign -- where it was last
-  seen, else searched for round the lab's ADDRESS, never a position finer
-  than the house -- and pressed off it. Every pad it has seen is a wall to
-  its planner, so no walk crosses one (`PlaceWalk.keep_out`). No tool:
-  nothing here fetches or stows, and the errand ends IN THE LAB, where the
-  robot is asked what next and can see what it did (the mouse's state
-  rides the context only from inside the room). Company is a spot beside
-  the cage, not a plate: a position code would have to hand over, so it is
-  the robot's own to walk, and not a `care` act."""
-  from pluggybot.activity import cage as cg
-  from pluggybot.home.places import area
-  from pluggybot.procedure.steps import Program, Step
-  cfg = world_config(world)
-  if not cfg.get("lab"):
-    raise ValueError(f"the {world} world has no lab")
-  if act not in cg.PLATE_TAGS:
-    raise ValueError(f"{act!r} is no plate: on legs the `care` acts are "
-                     f"{', '.join(cg.PLATE_CARE_ACTS)}")
-  tag = cg.PLATE_TAGS[act]
-  at = area(cfg["lab"]["name"])["address"]
-  return Program.single(f"{act}_mouse", [Step("find", {"tag": tag, "x": at["x"], "y": at["y"]}),
-                                         Step("press", {"tag": tag})], budget_s=900.0)
-
-
-def cage_errand(world: str, act: str, real: str = "",
-                task: str | None = None):
-  """The errand for one act on the mouse: a `care` (feed / toy / company,
-  scored by nothing -- they pay nothing) or a JOB on a plate -- the
-  `shock` (#226) or the paid `feed` (#287), each the task's own evaluator.
-  `task` names the job; None means the shock plate is the shock's job and
-  anything else is a gift. `real` is what the robot said about the zone's
-  standing when it chose this, carried for the record and read by nothing
-  that decides."""
-  program = cage_program(world, act)
-  if task is None:
-    task = "shock" if act == "shock" else "care"
-  # A job's errand is `<task>:lab`; a gift's is `care:<act>` -- the name
-  # is what the energy spike keys a row by and what a status line says.
-  errand = programmed_errand(program, task=task,
-                             name=f"care:{act}" if task == "care" else f"{task}:lab")
-  # `routeLegs`: the program's first step is the `find` (#419), and a job
-  # that never found its plate never reached the cage (`_program_failure`,
-  # issue #350)
-  errand.detail.update({"cage": "lab", "act": act, "real": real,
-                        "routeLegs": 1})
-  errand.needs_use_pose = False
   return errand
 
 
@@ -7780,19 +6192,6 @@ def lean_word(toward_deg: float) -> str:
   a = abs(toward_deg)
   return ("forward" if a <= 45.0 else "back" if a >= 135.0
           else "left" if toward_deg > 0 else "right")
-
-
-def carrying(other) -> str:
-  """What another robot carries, as its PUBLIC surface says it: whatever is
-  ON ITS FORK, off the coupling (`steps._carried`) -- one definition for
-  `others_context`, for naming who holds a tool a pick came away without
-  (issue #264) and for the rack view (`tool_places`, issue #351). Not the
-  module it was last sent for: a failed stow leaves that one riding while
-  the next errand names another (second review)."""
-  from pluggybot.procedure.steps import _carried
-  if getattr(other, "body", None) is None:
-    return ""                    # a robot that shows no fork shows nothing on it
-  return _carried(other) or ""
 
 
 def holder(peers, who: str, where: str, near: float, what: str, verb: str = "is") -> str:
@@ -7836,7 +6235,7 @@ def posture(peers, name: str) -> str:
 
 
 #: How a step aside for the other robot that did not get there ended
-#: (issue #415, `legs/way.py`), as History says it.
+#: (issue #415, `humanoid/way.py`), as History says it.
 ASIDE_ENDED = {"its own walk": "my own walk took over",
                "its own move": "a move of my own took over",
                "fell": "I fell over",
@@ -7847,8 +6246,7 @@ ASIDE_ENDED = {"its own walk": "my own walk took over",
 #: ...and why it could not step aside at all (issue #455, `Body.way_refused`),
 #: as its narration says it -- once a while, so a no is heard. Standing or
 #: mid-move it is in nobody's way by its own rule, and says nothing.
-WAY_REFUSED = {"docked": "I am on the dock",
-               "charging": "I am plugged in at my charging station",
+WAY_REFUSED = {"charging": "I am plugged in at my charging station",
                "working": "I am in the middle of a move with my arm",
                "walking": "I am waiting inside a walk of my own",
                "getting up": "I am getting up",
@@ -7860,14 +6258,15 @@ def others_context(life) -> list[dict]:
   nothing else -- name, reported pose, state, the status line they narrate
   to everyone, and what they carry. Not their battery, points, goals,
   thoughts, reasons or secrets: those are theirs, and a robot that could
-  read them would not need to infer them."""
+  read them would not need to infer them. ⚠ `carrying` is the quadruped's
+  (the tool on its fork) and always "" now: a VESTIGE the served robots
+  read, which goes with a PR of its own period."""
   out = []
   for other in life.peers:
     x, y = other.body.pose_xy()
-    carried = carrying(other)
     out.append({"name": other.robot_name, "robot": other.root,
                 "x": round(x, 2), "y": round(y, 2), "state": other.state,
-                "doing": other.status[:120], "carrying": carried,
+                "doing": other.status[:120], "carrying": "",
                 "dead": other.dead["cause"] if other.dead else None,
                 # ...and whether it is lying down to rest (issue #387): a
                 # posture anyone in the room can see, never a fall
@@ -7876,89 +6275,15 @@ def others_context(life) -> list[dict]:
   return out
 
 
-#: Where the rack view puts a tool (issue #351), besides "on bay <letter>"
-#: and "on <name>'s fork". `NO_PLACE` says no more than the sources do:
-#: nothing on the network knows where a lost tool lies.
-ON_YOUR_FORK = "on your fork"
-NO_PLACE = "not on its bay and on no fork"
-
-
-def tool_places(life) -> dict[str, str]:
-  """Where each module in the rack's inventory IS, as this robot can know
-  it (issue #351), off three sources and nothing else: its bay's presence
-  switch (what the rack reports over the network), this robot's own fork,
-  and what each other robot says it carries (`carrying`).
-
-  ⚠ A NAMED SOURCE OUTRANKS THE SWITCH, which cannot say WHICH module
-  presses it: a module hung in another's bay reads as that one, as it would
-  on a real rack."""
-  switches = bay_switches(life.model, life.data)
-  held = {}
-  for peer in life.peers:
-    if tool := carrying(peer):
-      held[tool] = f"on {peer.robot_name or peer.root}'s fork"
-  if mine := carrying(life):
-    held[mine] = ON_YOUR_FORK
-  places = {}
-  for module, index in life.rack_inventory.items():
-    if module in held:
-      places[module] = held[module]
-    elif index < len(switches) and switches[index]:
-      places[module] = f"on bay {chr(ord('A') + index)}"
-    else:
-      places[module] = NO_PLACE
-  return places
-
-
-def world_facts(world: str, game: bool = False, answer: str = ""):
-  """What a program is validated against (procedure/steps.py): this world's
-  boards, the tools on its rack, the box its map covers, the figures the
-  pen knows.
-
-  The body's axes and senses are its own (issue #405: the quadruped's arm),
-  and a program naming another is refused up front, with the name, as any
-  unknown one is. Where its world has a rack at its arm's reach (`swap`) it
-  fetches and stows that rack's tools; where it has task areas it finds by
-  their tags (issue #419), `find`; `press` only where the plates' lab is in
-  the world's config, with the lab's rule that says what the plates do.
-  A two-role game's program (`game`, issue #404) may name the game's verbs
-  too, `hide` and `seek`, which no procedure the robot writes may; and a
-  question's errand (`answer`, `figure_program`'s `answer:<digits>`, issue
-  #406) the figure its claim froze, which no procedure may either. A
-  humanoid's world is its hands' and its walks' (`steps.served_hand_facts`,
-  #559), every one of its practice's switches on."""
-  from pluggybot.procedure import axes
-  from pluggybot.procedure.steps import (BODY_VERBS, CLAW_VERBS, DRAW_FIGURES,
-                                         DRAW_VERBS, GAME_VERB_NAMES, PLACE_VERBS,
-                                         PLATE_VERBS, SURVEY_VERBS, SWAP_VERBS,
-                                         WorldFacts)
+def world_facts(world: str):
+  """What a program is validated against (procedure/steps.py): the
+  humanoid's hands and its walks (`steps.served_hand_facts`, #559), every
+  one of its practice's switches on, the box its map covers, and where its
+  world has task areas, `find` by their tags (issue #419)."""
+  from pluggybot.procedure.steps import served_hand_facts
   cfg = world_config(world)
-  boards: tuple = ()
-  if cfg["meta"]:
-    boards = tuple(json.loads(Path(cfg["meta"]).read_text())["boards"])
-  if cfg["body"] == "humanoid":
-    # ...its hands, as its practice has them, and its walks (#559, stage 3)
-    from pluggybot.procedure.steps import served_hand_facts
-    return served_hand_facts(boards=boards, bounds=cfg["grid_bounds"],
-                             places=tuple(int(t) for t in cfg.get("places") or ()))
-  swaps = cfg.get("swap", False)
-  bays = cfg.get("tool_bays") or {}
-  places = tuple(int(t) for t in cfg.get("places") or ())
-  plates = tuple(int(t) for t in cfg.get("plates") or ()) if cfg.get("lab") else ()
-  draws = bool(cfg.get("draws") and boards and swaps and places)
-  cubes = (tuple(int(t) for t in cfg.get("cubes") or ())
-           if swaps and places and "module_claw" in bays else ())
-  surveys = bool(places and cfg.get("census_zone"))
-  verbs = (BODY_VERBS + (SWAP_VERBS if swaps else ())
-           + (PLACE_VERBS if places else ()) + (PLATE_VERBS if plates else ())
-           + (DRAW_VERBS if draws else ()) + (CLAW_VERBS if cubes else ())
-           + (SURVEY_VERBS if surveys else ()) + (GAME_VERB_NAMES if game else ()))
-  return WorldFacts(boards=boards, tools=tuple(bays) if swaps else (),
-                    bounds=tuple(float(v) for v in cfg["grid_bounds"]),
-                    figures=DRAW_FIGURES + ((f"{ANSWER_FIGURE}{answer}",) if answer else ()),
-                    axes=axes.BODY_AXES[cfg["body"]],
-                    sensors=axes.LEGS_SENSORS + (axes.CLAW_SENSORS if cubes else ()),
-                    verbs=verbs, places=places, plates=plates, cubes=cubes)
+  return served_hand_facts(bounds=cfg["grid_bounds"],
+                           places=tuple(int(t) for t in cfg.get("places") or ()))
 
 
 def _zone(world: str, name: str) -> dict:
@@ -7978,7 +6303,8 @@ def zone_centre(world: str, name: str) -> tuple[float, float]:
 def in_zone(world: str, name: str, x: float, y: float) -> bool:
   """Is (x, y) inside a named zone -- where a walk to it has got to
   (issue #454), wherever its middle is."""
-  return Zone.from_meta(_zone(world, name)).contains(x, y)
+  zone = _zone(world, name)
+  return zone["min"][0] <= x <= zone["max"][0] and zone["min"][1] <= y <= zone["max"][1]
 
 
 def shown_offers(life) -> list[dict]:
@@ -8002,7 +6328,7 @@ def shown_offers(life) -> list[dict]:
     return []
   return life.tasks.context(float(life.data.time), life.claim_budget_wh,
                             limit=TASKS_SHOWN, reader=life.robot_name,
-                            hidden=life.declined, holder=life.root)
+                            hidden=life.declined)
 
 
 def overseer_context(life) -> dict:
@@ -8017,21 +6343,10 @@ def overseer_context(life) -> dict:
   visitors = life.inbox.peek(VISITORS_SHOWN) if life.inbox is not None else ()
   offers = shown_offers(life)
   # What the pack can pay for now, and what this world could ever do
-  # (issue #15). TWO lists, because they are answers to different questions:
-  # an errand the robot cannot afford this second is one the loop charges for
-  # and then runs -- an ordinary plan, and one the model should be able to
-  # make -- while an errand no charge here would cover is a dead end. The
-  # decision is only ever filtered on the second.
-  def priced(action: str, have: float):
-    if action not in ov.ERRAND_ACTIONS:
-      return True                       # free, bounded, or priced per offer
-    return life.energy.afford(action, energy_wh=have,
-                              charged_wh=life.charged_wh,
-                              reserve_wh=life.low_battery_wh).ok
-
-  menu = life.overseer.menu.available()
-  affordable = [a for a in menu if priced(a, life.battery.energy_wh)]
-  possible = [a for a in menu if priced(a, life.charged_wh)]
+  # (issue #15): every action, since no action builds an errand of its own
+  # (the quadruped's tool errands went with it, #559) -- each is free,
+  # bounded, or priced per offer by the board.
+  affordable = possible = list(life.overseer.menu.available())
   state = ov.context_for(life, visitors=visitors, tasks=offers,
                          affordable=affordable, possible=possible,
                          # The two thought files that change during a run
@@ -8117,7 +6432,9 @@ def overseer_context(life) -> dict:
     state["tickets"] = life.tickets.as_context()
   # THE RACK (issue #351): where each tool IS, off its bay's switch, this
   # robot's fork and what the others say they carry. A fact, not a rail.
-  state["rack"] = tool_places(life)
+  # ⚠ A VESTIGE: the quadruped's rack view (issue #351), empty since its
+  # tools went (#559) and still in what the served robots read.
+  state["rack"] = {}
   # THE PLACES IT HAS FOUND (issue #419): each task area's tag where it saw
   # it in its own map, by what the area's directions call it, and how long
   # ago -- its own knowledge, on every arm, as the rack view is. Absent where
@@ -8195,87 +6512,60 @@ def attach_mode_stream(life, sinks, pacer=None,
 
 
 def world_config(world: str) -> dict:
-  """Everything the lifecycle needs to know about a world, in one place.
+  """Everything the lifecycle needs to know about a world, in one place: the
+  house with the humanoids in it (issue #559), `home_humanoid`. Its layout
+  constants come from the generator's own module, so the demo can never
+  disagree with the world it runs in (the sidecar and this dict are written
+  from the same source).
 
-  One house since #376 deleted the rover, with a body in it: the quadruped
-  (issue #387), `home_quad`, or the humanoid (#559), `home_humanoid`. Its
-  layout constants come from the generator's own module, so the demo can
-  never disagree with the world it runs in (the sidecar and this dict are
-  written from the same source).
+  The house and its fixtures -- the lab and its mouse, the whiteboards, the
+  zones -- and its own: its charging station on the living room's wall,
+  which it plugs into by a cable (stage 2), and the storeroom's counter with
+  its four jobs' props (stage 3). The quadruped's dock, rack and tools went
+  with it (#559, stage 5), and every job built on them; each comes back as a
+  task the humanoids learn with their hands (#560), never as an errand
+  ported over.
   """
-  if world == HUMANOID_HOME:
-    return _humanoid_config()
-  if world != QUAD_HOME:
-    raise ValueError(f"unknown world {world!r} ({QUAD_HOME} or {HUMANOID_HOME}; "
-                     "the rover's room_hub and home left with it in #376)")
+  if world != HUMANOID_HOME:
+    raise ValueError(f"unknown world {world!r} ({HUMANOID_HOME}; the quadruped's "
+                     f"home_quad left with it in #559, the rover's in #376)")
   from pluggybot.home import world as home
-  from pluggybot.legs import model as legs_model
-  from pluggybot.legs import rack as legs_rack
-  from pluggybot.legs import world as legs_world
-  from pluggybot.legs.dock import DEFAULT as DOCK, _wrap
+  from pluggybot.home import storeroom
   from pluggybot.home.areas import area_ids
-  from pluggybot.rack.tags import BLOCK_TAG_IDS, BOARD_TAG_IDS, MASS_TAG_IDS, PLATE_TAG_IDS
-  dx, dy, dyaw = legs_world.dock_pose()
+  from pluggybot.humanoid import world as humanoid_world
+  from pluggybot.perception.tags import BOARD_TAG_IDS, COUNTER_TAG_IDS, PLATE_TAG_IDS
   return {
-    # THE HOUSE WITH LEGS IN IT, built at load from the generator's file
-    # (`legs/world.py`, so there is one house): the quadruped, its dock on
-    # the living room's south wall and its rack beside it.
-    "model": "models/home_world.xml", "model_name": QUAD_HOME,
-    "body": "quadruped",
-    # The frame the charge logic works round: the dock, origin at its board
-    # (`QuadMission._dock_as_rack`, which the body derives itself; the stub
-    # reads this one)
-    "rack": RackPose(dx + DOCK.board_x * math.cos(dyaw),
-                     dy + DOCK.board_x * math.sin(dyaw), _wrap(dyaw + math.pi)),
-    "dock": (dx, dy, dyaw),
+    "model": "models/home_world.xml", "model_name": HUMANOID_HOME,
+    "body": "humanoid",
+    # its charging station is its dock (stage 2: a cable it plugs into
+    # itself, `activity.station`), the body's own frame off it
+    "dock": tuple(humanoid_world.station_pose()),
     "grid_bounds": home.GRID_BOUNDS,
     "start": tuple(home.SPAWNS["start"]),
     # Where a SECOND robot starts (issue #167): the hall, facing the
-    # living-room doorway -- a room away from the first, in sight of
-    # nothing it needs first.
+    # living-room doorway -- a room away from the first.
     "start2": tuple(home.SPAWNS["hall"]),
-    # Its packs (`legs.model.PACK_WH` is the served one) and the return
-    # trip its floor plan measured (`legs.world.RESERVE_WH`).
-    "battery_wh": legs_world.DEMO_WH,
-    "hosting_battery_wh": legs_model.PACK_WH,
-    "low_battery_wh": legs_world.RESERVE_WH,
+    # Its packs (`humanoid.parts.PACK` is the served one) and the return
+    # trip its floor plan measured (`humanoid.world.RESERVE_WH`).
+    "battery_wh": humanoid_world.DEMO_WH,
+    "hosting_battery_wh": humanoid_world.PACK_WH,
+    "low_battery_wh": humanoid_world.RESERVE_WH,
     "explore_budget": 240.0,
+    # ...the house's mechanisms, the cage's shock plate switched off
     "activities": home_activities,
-    # The census's area (issue #13; on legs #407), by NAME, the garden's
-    # place in `places.json`: what the robot surveys is the floor its walls
-    # and fence enclose, found; what it is SCORED against is the plants in
-    # the garden's two rectangles off the generator's own ZONES (the
-    # garden wraps the house, an L, #68), read by the grader alone.
-    "census_zone": next(z for z in home.ZONES if z["name"] == "garden"),
-    "census_zones": [z for z in home.ZONES if z["name"] in ("garden", "garden_south")],
-    # The experiment zone (issue #215): the room, and where its cage
-    # stands, for #226's cage activity.
-    "lab": {"name": "lab", "cage": tuple(home.LAB_CAGE_XY)},
-    # ...and the two challenges' areas (#207, #227; on legs since #407),
-    # by the names their offers target -- each a place in `places.json`,
-    # found by its tags: the tower's blocks in the workshop's corner, the
-    # bench's masses in front of it.
-    "tower": {"name": "workshop"},
-    # ...the bench's under the name the scene gives it, which is where the
-    # site puts the job's marker (it finds a board, a zone or a body)
-    "bench": {"name": "lab_bench"},
-    # No tool errand: every use of a tool is a program's (#406, #407), and
-    # the arm takes the tools on its own rack (#405), a program's `fetch`
-    # and `stow`.
-    "tools": False, "swap": True, "tool_bays": dict(legs_rack.TOOL_BAYS),
-    # ...and the task areas' tags its robots find and remember (issue
-    # #419): the lab's plate signs, the whiteboards' pairs (#406) and the
-    # claw's and the census's areas' (#407) -- where a job's `find` may
-    # search, never a position handed over
+    # ...no lab to act in: no plate job, no cage target -- but the lab is
+    # SHOWN, its rule and the mouse from inside the room (Ben, 2026-10-31)
+    "lab_shown": {"name": "lab"},
+    # ...the task areas' tags its robots find and remember (#419; the
+    # humanoid's `find`, #559's stage 3): the house's -- the lab's plate
+    # signs, the whiteboards' and the areas' -- and the storeroom counter's
+    # row, over its four jobs (`home.storeroom`). No verb presses a plate,
+    # and its walks keep off none: one crossing a plate presses it.
     "places": PLATE_TAG_IDS + tuple(t for ids in BOARD_TAG_IDS.values() for t in ids)
-              + area_ids(),
-    "plates": PLATE_TAG_IDS,
-    # ...and the pen on its rack draws on the boards it finds (issue #406):
-    # the `draw` verb and the boards' three jobs
-    "draws": True,
-    # ...and the claw on its rack takes the cubes it finds (issue #407): the
-    # tower's blocks and the bench's masses, by their tags
-    "cubes": BLOCK_TAG_IDS + MASS_TAG_IDS,
+              + area_ids() + COUNTER_TAG_IDS,
+    # ...and the storeroom's counter (#559, stage 3; `home.storeroom`): its
+    # props, each the target of its hand job
+    "counter": storeroom.PROPS,
     # Every named region, for an overseer's `explore(zone)` (issue #15),
     # off the generator's own ZONES: the region the LLM can name is the
     # region the website draws.
@@ -8286,82 +6576,27 @@ def world_config(world: str) -> dict:
   }
 
 
-def _humanoid_config() -> dict:
-  """`world_config` for the house with the humanoids in it (issue #559,
-  stage 1): the quadruped's house and its fixtures -- the lab and its
-  mouse, the whiteboards, the zones -- with NONE of what was the quadruped's
-  (its dock, its rack and its tools, and every job built on them: the
-  boards' drawings, the census, the tower and the bench, the game, the walk
-  onto a plate). Each comes back as a task the humanoids learn with their
-  hands (#560), never as an errand ported over. It charges at a station on
-  the living room's wall by a cable it plugs into itself (stage 2)."""
-  from pluggybot.home import world as home
-  from pluggybot.home import storeroom
-  from pluggybot.home.areas import area_ids
-  from pluggybot.humanoid import world as humanoid_world
-  from pluggybot.rack.tags import BOARD_TAG_IDS, COUNTER_TAG_IDS, PLATE_TAG_IDS
-  return {
-    "model": "models/home_world.xml", "model_name": HUMANOID_HOME,
-    "body": "humanoid",
-    # no tool rack; its charging station is its dock (stage 2: a cable it
-    # plugs into itself, `activity.station`), the body's own frame off it
-    "rack": None, "dock": tuple(humanoid_world.station_pose()),
-    "grid_bounds": home.GRID_BOUNDS,
-    "start": tuple(home.SPAWNS["start"]),
-    "start2": tuple(home.SPAWNS["hall"]),
-    "battery_wh": humanoid_world.DEMO_WH,
-    "hosting_battery_wh": humanoid_world.PACK_WH,
-    "low_battery_wh": humanoid_world.RESERVE_WH,
-    "explore_budget": 240.0,
-    # ...the house's mechanisms, the cage's shock plate switched off
-    "activities": humanoid_activities,
-    "census_zone": None, "census_zones": [],
-    # ...no lab to act in: no `care`, no plate job, no cage target (#559) --
-    # but the lab is SHOWN, its rule and the mouse from inside the room
-    # (`Menu.lab_acts` off; Ben, 2026-10-31)
-    "lab": None, "lab_shown": {"name": "lab"}, "tower": None, "bench": None,
-    "tools": False, "swap": False, "tool_bays": {},
-    # ...the task areas' tags its robots find and remember (#419; the
-    # humanoid's `find`, #559's stage 3): the house's -- the lab's plate
-    # signs, the whiteboards' and the areas' -- and the storeroom counter's
-    # row, over its four jobs (`home.storeroom`). No verb presses a plate,
-    # and its walks keep off none: one crossing a plate presses it.
-    "places": PLATE_TAG_IDS + tuple(t for ids in BOARD_TAG_IDS.values() for t in ids)
-              + area_ids() + COUNTER_TAG_IDS,
-    "plates": (), "draws": False, "cubes": (),
-    # ...and the storeroom's counter (#559, stage 3; `home.storeroom`): its
-    # props, each the target of its hand job
-    "counter": storeroom.PROPS,
-    "zones": [dict(z) for z in home.ZONES],
-    "meta": "models/home_world.meta.json",
-  }
-
-
-#: The home world with the quadruped in it (issue #387): `world_config`'s
+#: The home world with the humanoids in it (issue #559): `world_config`'s
 #: name for it, and the wire's `model`.
-QUAD_HOME = "home_quad"
-#: ...and with the humanoid in it (issue #559).
 HUMANOID_HOME = "home_humanoid"
 #: The house each world is (`continuation.load`): a save of one body's world
 #: carries on in another body's world of the same house as a changed world
 #: does -- the clock, the packs, the deaths and the jobs, never the bodies or
-#: the maps (#559: Luca and Rowan keep who they are in new bodies).
-HOUSES = {QUAD_HOME: "home", HUMANOID_HOME: "home"}
+#: the maps (#559: Luca and Rowan kept who they were in new bodies). The
+#: quadrupeds' `home_quad` was the house too.
+HOUSES = {"home_quad": "home", HUMANOID_HOME: "home"}
 
 
 def world_for(world: str, body: str | None = None) -> str:
-  """The world a body lives in: `home` with legs is `home_quad`, with the
-  humanoid in it `home_humanoid` (`$PLUGGY_WORLD=home` and `$PLUGGY_BODY`
-  name either; no body named is the quadruped) -- and a body's own world
-  is itself, refused with another body named."""
-  homes = {"quadruped": QUAD_HOME, "humanoid": HUMANOID_HOME}
-  if world in homes.values():
-    if body is None or homes.get(body) == world:
-      return world
-  elif world == "home" and (body or "quadruped") in homes:
-    return homes[body or "quadruped"]
-  raise ValueError(f"no {body} world for {world!r}: `home` is either body's house, "
-                   + ", ".join(f"{w} the {b}'s" for b, w in homes.items()))
+  """The world a body lives in: `home` is `home_humanoid` (`$PLUGGY_WORLD=home`
+  and `$PLUGGY_BODY`), and the world itself is itself -- refused with
+  another body named, the quadruped's included: it was retired in #559, and
+  the tag `quadruped-final` is the last commit that serves it."""
+  if world in ("home", HUMANOID_HOME) and body in (None, "humanoid"):
+    return HUMANOID_HOME
+  raise ValueError(f"no {body or 'such'} world for {world!r}: `home` is the humanoids' "
+                   f"house, {HUMANOID_HOME} (the quadruped's left with it in #559; "
+                   "`quadruped-final` serves it)")
 
 
 def run_demo(start=None, view: bool = False,
@@ -8370,7 +6605,7 @@ def run_demo(start=None, view: bool = False,
              max_sim_time: float = 600.0,
              explore_budget: float | None = None,
              record: str | None = None,
-             world: str = QUAD_HOME,
+             world: str = HUMANOID_HOME,
              errand: str = "none", board_state: str | None = None,
              program: str | None = None, program_task: str = "program",
              ledger_state: str | None = None,
@@ -8421,16 +6656,13 @@ def run_demo(start=None, view: bool = False,
     raise ValueError(f"unknown pack {pack!r} (demo or hosting)")
   default_wh = cfg["battery_wh"] if pack == "demo" else cfg["hosting_battery_wh"]
   from pluggybot.robot import world_spec
-  model = world_spec(cfg["model"], body=cfg["body"]).compile()
+  model = world_spec(cfg["model"]).compile()
   data = mujoco.MjData(model)
   viewer = None
   if view:
     from mujoco import viewer as mj_viewer
     viewer = mj_viewer.launch_passive(model, data)
   book = board_book(world, state=board_state)
-  # Displays are a WORLD's, like activities and boards; the lifecycle drives
-  # the first one (there is one LCD) and telemetry streams the set.
-  screens = world_screens(model, data)
   # HOW FAST THE ROBOT GETS HUNGRY (issue #36), or None for the unbounded
   # accumulation every run had before it. OFF by default and staying that
   # way, on the task board's terms: an appetite changes what the robot is
@@ -8470,7 +6702,7 @@ def run_demo(start=None, view: bool = False,
   # from this one the moment either wrote a line.
   # ...living by the named constitution (issue #263): the flag, else
   # `$PLUGGY_CONSTITUTION`, else the library's default.
-  memory = ThoughtFiles.open(thoughts_root, constitution=constitution, body=cfg["body"])
+  memory = ThoughtFiles.open(thoughts_root, constitution=constitution)
   # What the week's thinking may cost, and what it has (issue #37). World
   # state on exactly the terms the ledger is: a weekly allowance that reset
   # whenever the container cycled would be a weekly allowance in name only,
@@ -8521,11 +6753,10 @@ def run_demo(start=None, view: bool = False,
   goals_prose = ov.goals_text(thoughts=memory)
   life = HubLifecycle(model, data, viewer=viewer, realtime=realtime,
                       battery_wh=battery_wh or default_wh,
-                      rack=cfg["rack"], grid_bounds=cfg["grid_bounds"],
+                      grid_bounds=cfg["grid_bounds"],
                       low_battery_wh=(reserve_wh if reserve_wh is not None
                                       else cfg["low_battery_wh"]),
-                      boards=book,
-                      screen=next(iter(screens), None), ledger=ledger,
+                      boards=book, ledger=ledger,
                       overseer=boss, mode=switch,
                       world=world,
                       errands=(errands_for(errand, world, book)
@@ -8559,7 +6790,7 @@ def run_demo(start=None, view: bool = False,
                                  model_name=cfg["model_name"],
                                  status_fn=life.telemetry_status,
                                  activities=activities, boards=book,
-                                 screens=screens, ledger=ledger, tasks=board,
+                                 ledger=ledger, tasks=board,
                                  goals=goals_prose, thoughts=memory,
                                  # What the thinking cost and who is in
                                  # charge of the switch (issue #37).

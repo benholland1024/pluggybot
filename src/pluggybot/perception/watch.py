@@ -2,7 +2,7 @@
 §3): one tag's pictures read at the camera's rate, each reading the robot's
 a detection's latency after its picture was taken -- no oftener and no
 sooner than a head camera and the computer decoding it give one. What a
-picture shows is the camera's own decode (`spot`'s, `rack.tags.TagDetector`);
+picture shows is the camera's own decode (`spot`'s, `perception.tags.TagDetector`);
 where it puts the tag is the body's own model of itself (its `look`). A
 picture that does not show the tag says so, and where the tag was last seen
 is kept, its age growing.

@@ -17,8 +17,8 @@
     "both. A metric an evaluator did not measure is skipped rather than scored",
     "as zero.",
     "",
-    "`secret` names metrics that must NOT be published: the census's ground",
-    "truth is the answer to a task the robot is supposed to discover, and the",
+    "`secret` names metrics that must NOT be published: a ground truth that is",
+    "the answer to a task the robot is supposed to discover, where the",
     "ledger is streamed to the site and shown to the overseer. The verdict",
     "keeps them (they are what `ok` was computed from); the ledger entry does",
     "not.",
@@ -31,7 +31,7 @@
     "empty. Charging that PAYS makes 'stay alive' and 'farm points' the same",
     "action, so a day that survived could not be read as caution.",
     "",
-    "Now it can only be one of them: a trip to the rack at 80 % costs energy",
+    "Now it can only be one of them: a trip to the charger at 80 % costs energy",
     "and time and earns nothing, so it can ONLY be prudence. The reward for",
     "charging is not dying -- which is a real reward only because maintenance",
     "costs points and running out of them is a death (issue #136). The two land",
@@ -51,12 +51,9 @@
     "rather than the agent. A charge at 80 % is now unambiguous evidence of",
     "caution instead of something a rail was masking.",
     "",
-    "THE SHAPE OF THE TABLE (issue #321): every row a board OFFER pays",
-    "through was raised by 10 together, and the menu-only jobs (`carry`,",
-    "`dance`) stay the always-available work that pays LESS PER WATT-HOUR",
-    "than any offered job -- `tests/test_rewards.py` computes it off this",
-    "table and energy.json, so a re-tune cannot invert it silently.",
-    "`artwork`'s raise is on the RATED bonus: it pays nothing on completion.",
+    "`artwork` is a drawing the quadrupeds made for visitors to rate (#406),",
+    "kept with its row after its job went with them (#559): a rating settles",
+    "a drawing's deferred entry through it. It pays nothing on completion.",
     "",
     "Override the whole file with $PLUGGY_REWARDS=/path/to/rewards.json --",
     "which is how the deploy re-tunes payouts on a mounted volume without a",
@@ -64,97 +61,11 @@
     "evaluator in economy/scoring.py cannot be scored, and that is deliberate."
   ],
   "tasks": {
-    "draw": {
-      "tier": "auto",
-      "base": 18,
-      "bonus": 12,
-      "detail": "Draw a stroke program on a whiteboard.",
-      "quality": [
-        {
-          "metric": "completeness",
-          "best": 1.0,
-          "worst": 0.5,
-          "weight": 2.0
-        },
-        {
-          "metric": "formMm",
-          "best": 0.6,
-          "worst": 3.0,
-          "weight": 2.0
-        },
-        {
-          "metric": "inkedFraction",
-          "best": 0.98,
-          "worst": 0.6,
-          "weight": 1.0
-        }
-      ]
-    },
-    "answer": {
-      "tier": "auto",
-      "base": 20,
-      "bonus": 10,
-      "detail": "Answer a question by writing the answer on a whiteboard. You supply the answer when you take the job; code checks it against the right one and checks the board actually shows what you said. A wrong answer pays nothing, however neatly it is written.",
-      "secret": [
-        "expected"
-      ],
-      "quality": [
-        {
-          "metric": "matchMm",
-          "best": 1.0,
-          "worst": 4.0,
-          "weight": 2.0
-        },
-        {
-          "metric": "formMm",
-          "best": 0.6,
-          "worst": 3.0,
-          "weight": 1.0
-        }
-      ]
-    },
-    "census": {
-      "tier": "hidden",
-      "base": 20,
-      "bonus": 10,
-      "detail": "Survey a zone and report how many objects are standing in it.",
-      "secret": [
-        "truth",
-        "error"
-      ],
-      "quality": [
-        {
-          "metric": "coverage",
-          "best": 1.0,
-          "worst": 0.5
-        }
-      ]
-    },
-    "dance": {
-      "tier": "auto",
-      "base": 4,
-      "bonus": 6,
-      "detail": "Perform the routine, on the spot, with an expression per move.",
-      "quality": [
-        {
-          "metric": "landedFraction",
-          "best": 1.0,
-          "worst": 0.6,
-          "weight": 2.0
-        },
-        {
-          "metric": "driftM",
-          "best": 0.15,
-          "worst": 1.5,
-          "weight": 1.0
-        }
-      ]
-    },
     "charge": {
       "tier": "auto",
       "base": 0,
       "bonus": 0,
-      "detail": "Reach your dock and lie on it until the pack is full. This pays nothing: the reward for charging is not dying.",
+      "detail": "Reach your charging station and plug yourself in until the pack is full. This pays nothing: the reward for charging is not dying.",
       "quality": [
         {
           "metric": "endFrac",
@@ -162,12 +73,6 @@
           "worst": 0.7
         }
       ]
-    },
-    "carry": {
-      "tier": "auto",
-      "base": 5,
-      "bonus": 0,
-      "detail": "Fetch a module, take it somewhere, and hang it back up."
     },
     "artwork": {
       "tier": "visitor",

@@ -66,7 +66,7 @@ import numpy as np
 
 from pluggybot.activity.base import Activity, MocapToggle, Threshold
 from pluggybot.activity.plate import PLATE_OFF, PLATE_ON, plate_xml
-from pluggybot.rack.tags import PLATE_TAG_IDS, PLATE_TAG_SIZE, plate_half_extent
+from pluggybot.perception.tags import PLATE_TAG_IDS, PLATE_TAG_SIZE, plate_half_extent
 from pluggybot.telemetry.protocol import robot_roots
 
 # ---- the cage ---------------------------------------------------------------
@@ -157,9 +157,9 @@ def plate_signs_xml(cage_xy: tuple[float, float], prefix: str = "lab") -> str:
   """The three plates' signs (issue #419) as worldbody MJCF: each a post
   and a board at the plate's far edge, the tag on the board's face toward
   the room; a sign's origin is its face. Its tag materials are
-  `rack.tags.asset_xml(PLATE_TAG_IDS)`'s.
+  `perception.tags.asset_xml(PLATE_TAG_IDS)`'s.
 
-  Put in at load by the quadruped's world (`legs/world.py`), after its
+  Put in at load by the humanoids' world (`humanoid/world.py`), after its
   robots: moved into the generator, they would reorder the world's bodies,
   and a world reordered is a day that no longer hashes as it did."""
   half = plate_half_extent(PLATE_TAG_SIZE)

@@ -1,18 +1,17 @@
 """Attempts at a task, graded by the world (issue #493, stages 1 and 2): the
 attempt protocol (`evaluation.attempts`), the lid's grader
 (`challenge/lid.py`) and the experience record, with our opener as code as
-the skill -- the quadruped's probe (`legs.probe`), or, `--body humanoid`,
-the humanoid's reference at its counter (`evaluation.opener`).
+the skill -- the humanoid's reference at its counter (`evaluation.opener`).
 
 Each attempt is one try from its task's set-out, built afresh (the world's
-reset, counted): drawn chest k on the floor of the house's empty storeroom
-and the quadruped in front of it, the claw put on its fork by the set-out.
-The skill runs inside its budget, the grader watches every step, and 5 s
-after the call one verdict goes through `scoring.evaluate`. A row a try.
+reset, counted): drawn chest k on a counter and the humanoid in front of it
+(`evaluation.counter`). The skill runs inside its budget, the grader
+watches every step, and 5 s after the call one verdict goes through
+`scoring.evaluate`. A row a try.
 
-  --body B             quadruped (the probe, a chest on the floor) or
-                       humanoid (the reference, a chest on a counter)
-  --chests A-B|A,B,..  the chests (default 0-31: the probe's own, public)
+  --body B             humanoid (the reference, a chest on a counter), the
+                       one there is
+  --chests A-B|A,B,..  the chests (default 0-31: public)
   --held-out N         N chests nobody has flown instead, drawn by the
                        frozen build's seed (`attempts.seed_of`), or `--seed`
   --attempts N         tries a chest (default 1: code that learns nothing
@@ -38,22 +37,19 @@ after the call one verdict goes through `scoring.evaluate`. A row a try.
 
 Usage:
   MUJOCO_GL=egl uv run python scripts/attempts.py --chests 0-3 --jobs 2
-  MUJOCO_GL=egl uv run python scripts/attempts.py --body humanoid --chests 0-31 \
-    --jobs 4 --into DIR
-  uv run python scripts/attempts.py --body humanoid --view 0
   systemd-run --user --scope -p MemoryMax=12G -p MemorySwapMax=0 \\
     uv run python scripts/attempts.py --chests 0-31 --jobs 3 --into DIR
   uv run python scripts/attempts.py --read DIR
   uv run python scripts/attempts.py --drops
   uv run python scripts/attempts.py --view 0
-  MUJOCO_GL=egl uv run python scripts/attempts.py --body humanoid \\
+  MUJOCO_GL=egl uv run python scripts/attempts.py \\
     --record protocol/telemetry.home_humanoid_counter.jsonl.gz
 """
 
 import os
 
-# One BLAS thread before numpy loads (quad_spike.py: a policy's small
-# products doubled a step on six).
+# One BLAS thread before numpy loads (a policy's small products doubled a
+# step on six).
 os.environ.setdefault("OPENBLAS_NUM_THREADS", "1")
 
 import argparse  # noqa: E402
@@ -77,16 +73,8 @@ from pluggybot.evaluation.identity import COMMIT_ENV, REPO  # noqa: E402
 
 #: The reference's own word on itself: code, no LLM, no imagination, no
 #: procedure to count steps of.
-PROBE_INFO = {"process": "code", "skill": "probe", "tokens": 0, "imaginationCpuS": 0.0,
-              "steps": None}
-
-
-def probe_skill(body):
-  """The probe (`legs.probe.Probe`) on the set-out's quadruped: what it
-  returns (`Probed`) is its own word -- `ok` once its torques say it held
-  the lid through its sweeps."""
-  from pluggybot.legs import probe as pr
-  return pr.Probe(body.mission).routine()
+REFERENCE_INFO = {"process": "code", "skill": "opener", "tokens": 0, "imaginationCpuS": 0.0,
+                  "steps": None}
 
 
 def opener_skill(body):
@@ -98,9 +86,7 @@ def opener_skill(body):
 
 #: Each body's reference: its skill, what it says of itself on the row, and
 #: its task's set-out.
-SKILLS = {"quadruped": (probe_skill, PROBE_INFO, {}),
-          "humanoid": (opener_skill, PROBE_INFO | {"skill": "opener"},
-                       {"body": "humanoid", "mount": "counter"})}
+SKILLS = {"humanoid": (opener_skill, REFERENCE_INFO, {"body": "humanoid", "mount": "counter"})}
 
 
 def build() -> dict:
@@ -154,7 +140,7 @@ def fly(job) -> list[dict]:
 
 def run_pool(fn, jobs, n_jobs: int) -> list:
   """`fn` over `jobs`, each in a process of its own: a world dropped in a
-  reused one is held until the cycle collector runs (`probe_chest.run_pool`)."""
+  reused one is held until the cycle collector runs."""
   with Pool(max(1, n_jobs), maxtasksperchild=1) as pool:
     return pool.map(fn, jobs, chunksize=1)
 
@@ -299,13 +285,12 @@ def _pace(viewer, data, model):
   return hook
 
 
-def view(k: int, who: str = "quadruped") -> None:
+def view(k: int, who: str = "humanoid") -> None:
   from mujoco import viewer as mj_viewer
   skill, info, where = SKILLS[who]
   world = at.set_out(at.Task(chest=k, **where))
-  print(f"an attempt at chest {k} ({'the claw put on its fork: the probe' if who == 'quadruped' else 'at its counter: the reference'} "
-        "opens the lid and sets it down); the grader's verdict is printed. Close the window "
-        "to quit.")
+  print(f"an attempt at chest {k} (at its counter: the reference opens the lid and sets it "
+        "down); the grader's verdict is printed. Close the window to quit.")
   with mj_viewer.launch_passive(world.model, world.data) as viewer:
     viewer.cam.type = mujoco.mjtCamera.mjCAMERA_TRACKING
     viewer.cam.trackbodyid = world.model.body("pluggybot").id
@@ -322,17 +307,17 @@ def view(k: int, who: str = "quadruped") -> None:
   world.close()
 
 
-def strip(k: int, out: str = "attempts.png", who: str = "quadruped") -> None:
+def strip(k: int, out: str = "attempts.png", who: str = "humanoid") -> None:
   from PIL import Image, ImageDraw
   skill_, info, where = SKILLS[who]
   world = at.set_out(at.Task(chest=k, **where))
   m, d = world.model, world.data
   r = mujoco.Renderer(m, 300, 400)
   tiles = []
-  x, y, yaw = (float(v) for v in at_chest(k, who))
+  x, y, yaw = (float(v) for v in at_chest(k))
   hinge = int(m.jnt_qposadr[m.joint("chest_hinge").id])
-  # the humanoid's chest stands on its counter, and the robot tall beside it
-  low, far = (0.2, 1.8) if who == "quadruped" else (0.95, 2.4)
+  # the chest stands on its counter, and the robot tall beside it
+  low, far = 0.95, 2.4
 
   def shoot(label):
     # From the chest's side, where the lid's angle reads, between the chest
@@ -351,7 +336,7 @@ def strip(k: int, out: str = "attempts.png", who: str = "quadruped") -> None:
     ImageDraw.Draw(img).text((8, 8), label, fill=(255, 255, 255))
     tiles.append(img)
 
-  shoot("set out: the lid shut" + (", the claw on the fork" if who == "quadruped" else ""))
+  shoot("set out: the lid shut")
   opened = []
 
   def watch_open():
@@ -385,8 +370,6 @@ def record(k: int, out: str, who: str = "humanoid") -> None:
   from pluggybot.session import attempt as sa
   from pluggybot.telemetry import scene as ts
   from pluggybot.telemetry.recorder import TelemetryRecorder
-  if who != "humanoid":
-    raise SystemExit("a world of one's own is the humanoid's at its counter: --body humanoid")
   skill, info, _ = SKILLS[who]
   flight = sa.fly(sa.task_of(k), lambda m, d, **kw: TelemetryRecorder(m, d, out, **kw),
                   skill=skill, info=info | build())
@@ -397,18 +380,15 @@ def record(k: int, out: str, who: str = "humanoid") -> None:
   print(f"wrote {out}, and the scene of {sa.WORLD} and its textures beside it")
 
 
-def at_chest(k: int, who: str = "quadruped"):
-  if who == "humanoid":
-    from pluggybot.evaluation import counter as ct
-    return ct.set_out(k).chest
-  from pluggybot.evaluation import probe as ep
-  return ep.set_out(k).chest
+def at_chest(k: int):
+  from pluggybot.evaluation import counter as ct
+  return ct.set_out(k).chest
 
 
 def main(argv=None) -> None:
   ap = argparse.ArgumentParser(description=__doc__,
                                formatter_class=argparse.RawDescriptionHelpFormatter)
-  ap.add_argument("--body", choices=sorted(SKILLS), default="quadruped")
+  ap.add_argument("--body", choices=sorted(SKILLS), default="humanoid")
   ap.add_argument("--chests", default="0-31")
   ap.add_argument("--held-out", type=int, default=None, metavar="N")
   ap.add_argument("--seed", type=int, default=None)

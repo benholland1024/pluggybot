@@ -103,22 +103,8 @@ PLATE_PURPOSES = ("light", "shock", "feed", "toy")
 #: one is additive; renaming one breaks the site's paint.
 BUILDINGS = ("house", "facility")
 
-# The LCD module's display (issue #13). Three vocabularies on the same terms
-# as VISUAL_HINTS: the sim may only emit these strings, the website draws a
-# parametric component per face, and ADDING one is additive (an unknown face
-# falls back to `idle`) while renaming one is a breaking change in both
-# repos. The face is drawn in the browser and never rendered in MuJoCo --
-# layer 3 of the three-layer model, exactly like ink.
-SCREEN_MODES = ("off", "face", "text", "count")
-FACE_STATES = ("idle", "happy", "curious", "determined", "surprised",
-               "sleepy", "worried")
-# The animation the browser LOOPS under the face. A hint, not an event: the
-# sim never ticks a blink, because a 20 Hz pose stream is the wrong channel
-# for a 150 ms eyelid and the browser owns everything organic.
-SCREEN_HINTS = ("none", "blink", "bounce", "shake")
-
-# The visitor channel's vocabularies (issue #16, `reset_tool` from #30).
-# Two-repo contracts on the same terms as VISUAL_HINTS and FACE_STATES: the
+# The visitor channel's vocabularies (issue #16).
+# Two-repo contracts on the same terms as VISUAL_HINTS: the
 # website may only SEND these inbound types and may only receive these
 # outcomes. Adding one is additive (the sim counts and drops an unknown
 # inbound type; a consumer ignores an unknown outcome); renaming one breaks
@@ -132,8 +118,9 @@ SCREEN_HINTS = ("none", "blink", "bounce", "shake")
 # ⚠ A vocabulary entry with nothing behind it is a promise the robot cannot
 # keep, so `move` / `clear_board` (tic-tac-toe, named in #16 as later work)
 # are absent until there is a board game.
-#: What each type means on the wire, and why `reset_tool` was added without a
-#: version bump: protocol/README.md, "Downstream: server -> sim".
+#: What each type means on the wire: protocol/README.md, "Downstream: server
+#: -> sim". (`reset_tool`, the quadruped's tools put back on their bays, went
+#: with them in #559.)
 #:
 #: ⚠ `message` is ONE kind and replaced `suggestion`/`question` at 0.14.0
 #: (issue #61). Classifying an inbound message is the recipient's job, not the
@@ -173,7 +160,7 @@ SCREEN_HINTS = ("none", "blink", "bounce", "shake")
 #: renderer comes or goes. A STATE, NOT A MESSAGE: the door keeps the
 #: newest word (`Inbox.renderer`) and queues nothing, and a link that
 #: drops forgets it. While nothing is there, `look` is off the menu.
-INBOUND_TYPES = ("message", "rating", "reset_tool", "reset_robot",
+INBOUND_TYPES = ("message", "rating", "reset_robot",
                  "set_battery", "set_points",
                  "ticket_reply", "ticket_close", "ticket_delete",
                  "image", "renderer")
@@ -226,9 +213,9 @@ LEGACY_INBOUND_TYPES = {"suggestion": "message", "question": "message"}
 #: thread the moment they are drained, never shown to a model. What a served
 #: world with no overseer advertises in `accepts` -- a message to a robot
 #: with nothing reading it is a conversation that is not happening (the
-#: `accepts` lesson), but a rating settles a ledger row and a reset moves a
-#: module, and both of those work on a scripted world.
-CODE_HANDLED_TYPES = ("rating", "reset_tool", "reset_robot",
+#: `accepts` lesson), but a rating settles a ledger row and a reset stands a
+#: robot up, and both of those work on a scripted world.
+CODE_HANDLED_TYPES = ("rating", "reset_robot",
                       "set_battery", "set_points",
                       # The operator's side of a ticket (issue #284): filed
                       # to the desk and paid by code, on any arm, so a
@@ -260,8 +247,8 @@ CODE_HANDLED_TYPES = ("rating", "reset_tool", "reset_robot",
 #: top the robot up, `survivalS` measures the kindness of the audience.
 INTERVENTION_KINDS = ("reset_robot", "set_battery", "set_points")
 
-# The task system's vocabularies (issue #21). Two-repo contracts on the same
-# terms as the three above, and here rather than in economy/tasks.py -- where
+# The task system's vocabularies (issue #21). Two-repo contracts on
+# VISUAL_HINTS' terms, and here rather than in economy/tasks.py -- where
 # the state machine is -- so the wire spec and the implementation cannot
 # disagree.
 #
@@ -320,7 +307,7 @@ VISITOR_OUTCOMES = (*DECIDED_OUTCOMES, "dropped")
 LEGACY_VISITOR_OUTCOMES = {"answered": "replied"}
 
 #: OPERATOR MODES (0.12.0, issue #37). A two-repo contract on the same terms
-#: as FACE_STATES and TASK_STATES: the website's admin page writes these
+#: as VISUAL_HINTS and TASK_STATES: the website's admin page writes these
 #: strings into the mode file and the wire carries them back, so adding one
 #: is additive and renaming one is a change in both repos.
 #:
@@ -334,7 +321,7 @@ MODES = ("llm", "scripted", "paused")
 #: THE ROBOT'S APPETITE (0.13.0, issue #36). Points are food: consumed at a
 #: steady rate on sim time, capped rather than accumulated, and once there is
 #: enough the robot is SATISFIED and spends its time on its goals instead.
-#: A two-repo vocabulary on FACE_STATES' terms -- adding a state is additive
+#: A two-repo vocabulary on VISUAL_HINTS' terms -- adding a state is additive
 #: (a client falls back to rendering the number), renaming one breaks both.
 #:
 #: ⚠ `satisfied` and `fed` are BOTH "above the hungry line", and they are not

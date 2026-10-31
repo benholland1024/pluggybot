@@ -1,14 +1,14 @@
 """What the humanoid is built from (issue #507): every actuator, the
 gripper, the pack and the sensors a part on sale, each number its sheet's
 with the source at the constant, or `None` with its reason -- never a guess
-(the catalog's rule, `rack/catalog.py`). The model that flies them is
+(the catalog's rule, `humanoid/catalog.py`). The model that flies them is
 `humanoid.model`; the bill that buys them is `humanoid.bill`.
 """
 
 from dataclasses import dataclass
 import math
 
-from pluggybot.legs.actuator import BUS_V_NOMINAL, Motor
+from pluggybot.humanoid.actuator import BUS_V_NOMINAL, Motor
 
 
 # ---- the drivers' reply, as the robot reads a joint ---------------------------------
@@ -326,7 +326,7 @@ class Gripper:
 
   def dcmotor(self, bus_v: float = BUS_V_NOMINAL) -> dict:
     """The actuated jaw's driver as a position-mode `dcmotor`, as a joint's
-    is (`legs.actuator.JointLimits.dcmotor`): its force clipped at twice
+    is (`humanoid.actuator.JointLimits.dcmotor`): its force clipped at twice
     the grip force -- the second jaw is held to the first, so each pad
     squeezes half of what the motor pushes -- and its line falling to no
     force at the sheet's top speed, scaled to the bus (the line's
@@ -375,7 +375,7 @@ GRIPPER = DEX1_1
 
 @dataclass(frozen=True)
 class Pack:
-  """The pack, built here as the quadruped's is (Parts.md's bill: the
+  """The pack, built here as the quadruped's was (Parts.md's bill: the
   cells, a BMS, nickel strip and a spot welder): `series` x `parallel`
   Molicel P45B, laid `rows` x `cols` on end in a printed case."""
   series: int
@@ -384,7 +384,7 @@ class Pack:
   cols: int
   name: str = "12S Molicel P45B"
 
-  #: The P45B (Molicel's sheet; the quadruped's bill): 21700, 4.5 Ah,
+  #: The P45B (Molicel's sheet; the quadruped's bill before it): 21700, 4.5 Ah,
   #: 3.6 V nominal, 3.0-4.2 V, 70 g, 45 A continuous.
   CELL_AH, CELL_V, CELL_KG, CELL_D, CELL_L = 4.5, 3.6, 0.070, 0.021, 0.070
 
@@ -412,7 +412,7 @@ class Pack:
     return self.cells * self.CELL_KG + 0.100 + self.cells * 2 * 0.05 * 0.015 + case
 
 
-#: 12S like the quadruped's (36-50.4 V; the drivers are rated at 48 V and
+#: 12S like the quadruped's was (36-50.4 V; the drivers are rated at 48 V and
 #: take 24-60), four in parallel: 778 Wh (`humanoid_spike.py --energy`).
 PACK = Pack(series=12, parallel=4, rows=6, cols=8)
 
@@ -420,19 +420,20 @@ PACK = Pack(series=12, parallel=4, rows=6, cols=8)
 # ---- the sensors and the electronics --------------------------------------------------
 
 def _catalog_kg(part: str) -> float:
-  """A part's mass as the quadruped's catalog has it, kg: one fact, read
-  here rather than typed again."""
-  from pluggybot.rack import catalog
+  """A part's mass as the catalog has it (`humanoid.catalog.PARTS`), kg:
+  one fact, read here rather than typed again."""
+  from pluggybot.humanoid import catalog
   g = catalog.by_id()[part].massG
   if g is None:
     raise ValueError(f"{part} has no published mass")
   return g / 1000
 
 
-#: The head's sensors, the quadruped's parts: the D435 (75 g, its sheet of
+#: The head's sensors, the catalog's parts: the D435 (75 g, its sheet of
 #: March 2026), the Camera Module 3 (4 g) and the RPLIDAR C1 (110 g; its
-#: puck 75.6 mm across and 41 mm tall, as the quadruped's model has it).
-D435_KG = _catalog_kg("quad_realsense_d435")
+#: puck 75.6 mm across and 41 mm tall, as the quadruped's model had it at
+#: the tag `quadruped-final`).
+D435_KG = _catalog_kg("realsense_d435")
 CAMERA_KG = _catalog_kg("pi_camera_3")
 
 
@@ -465,10 +466,10 @@ class Lidar:
   kg: float
 
 
-LIDAR = Lidar(radius=0.0378, height=0.041, kg=_catalog_kg("quad_rplidar_c1"))
+LIDAR = Lidar(radius=0.0378, height=0.041, kg=_catalog_kg("rplidar_c1"))
 
-#: What rides the torso besides the pack, by the quadruped's bill's parts
-#: and their published masses: the Pi 5 with its cooler and SSD (only their
+#: What rides the torso besides the pack, by the catalog's parts and their
+#: published masses: the Pi 5 with its cooler and SSD (only their
 #: packed weights are published: 65, 29 and 35 g, upper bounds), the two CAN
 #: HATs, the 5 V converter, and the e-stop chain's robot half -- the
 #: contactor, the button, the receiver, its relay, the 12 V converter and
@@ -492,7 +493,7 @@ ELECTRONICS_KG = sum(ELECTRONICS.values())
 
 #: What is powered whatever the joints do, W.
 ELECTRONICS_W = {
-  # The quadruped's figures (`legs.model.ELECTRONICS_W`): the Pi 5, its
+  # The quadruped's figures (`legs.model.ELECTRONICS_W` at `quadruped-final`): the Pi 5, its
   # camera and the IMU (Raspberry Pi publishes no load figure), the
   # RPLIDAR C1's 230 mA at 5 V, the D435 streaming depth.
   "compute + cameras": 6.0,

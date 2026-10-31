@@ -111,8 +111,8 @@ from pluggybot.activity.plate import (
   plate_light_xml,
 )
 from pluggybot.activity.cage import PLATE_NAMES, cage_xml
-from pluggybot.challenge.bench import bench_xml
-from pluggybot.rack.tags import BLOCK_TAG_IDS, asset_xml, write_tag_pngs
+from pluggybot.home.props import BLOCKS, bench_xml, block_xml
+from pluggybot.perception.tags import BLOCK_TAG_IDS, asset_xml, write_tag_pngs
 
 # ---- layout constants (the one source) --------------------------------------
 # The ORIGIN sits inside the living room, like room_1's: the robot model
@@ -175,8 +175,8 @@ GROUND_MARGIN = 1.0
 
 #: The living room's south wall at x = 0.5, where the rover's rack stood
 #: (#376 deleted it): the last waypoint of the worst return
-#: (`HOME_WORST_RETURN_PATH`), the route the quadruped's reserve was measured
-#: over before it walks on to its dock (`legs.world.RESERVE_WH`).
+#: (`HOME_WORST_RETURN_PATH`), the route a return-trip reserve is measured
+#: over (`humanoid.world.RESERVE_WH`).
 RETURN_END = (0.5, HOUSE_Y[0] + WALL_HALF_T)
 
 # Whiteboards: wall-mounted drawing surfaces (the milestone-8 board port).
@@ -206,7 +206,7 @@ PLANTS = ((6.5, -0.8), (8.8, 1.0), (7.6, 4.5), (9.2, 5.2))
 #: ⚠ IT IS IN THE CORNER SO THAT `whiteboard_b` CAN BE DRAWN ON: a robot
 #: standing at a board must be clear of the front-stop reflex, and at
 #: (-0.5, 4.8) the bed's corner sat 0.23 m from the rover's use pose and
-#: tripped it from some approaches (#305). #406 re-measures a stance on legs.
+#: tripped it from some approaches (#305).
 BED_HALF = (0.90, 0.60, 0.20)
 #: ...and the gap left at the two walls. "Touching" with a millimetre to
 #: spare: a box flush against a wall face is a contact pair at settle, and
@@ -340,18 +340,16 @@ ZONES = (
 #: walks to check the ring is closed.
 LOOP_ZONES = ("street_north", "street_east", "street_south", "street_west")
 
-#: THE TOWER'S BLOCKS (issue #207; challenge/stack.py): three 26 mm cubes
-#: on the workshop floor, a block's throw apart, in the room's south-west
+#: THE TOWER'S BLOCKS (issue #207; `home/props.py`): three 26 mm cubes on
+#: the workshop floor, a block's throw apart, in the room's south-west
 #: corner -- 0.7 m off its west wall, where a pair of tags marks the area
-#: (#407, `home.areas`: the claw's search looks in front of them, as at the
-#: bench), a metre and more off the south wall, 3 m from the workshop spawn
-#: and 6 m from its door, on no route the robot needs. No LIDAR plane sees
-#: them; the depth camera's colour imager reads their tags. The challenge is
-#: graded wherever the tower ends up standing, so this is where it STARTS,
-#: not where it has to be built.
+#: (#407, `home.areas`), a metre and more off the south wall, 3 m from the
+#: workshop spawn and 6 m from its door, on no route the robot needs. The
+#: quadruped's tower challenge went with it (#559); the blocks stay, the
+#: house's geometry unchanged.
 TOWER_XY = ((-11.28, -5.0), (-11.28, -4.75), (-11.28, -4.5))
 
-#: THE LAB'S PROPS (issue #215; activity/cage.py, challenge/bench.py). The
+#: THE LAB'S PROPS (issue #215; activity/cage.py, `home/props.py`). The
 #: cage against the lab's north wall, centred, its three plates a row in
 #: front of it; the bench against the east wall with its two masses on the
 #: floor a metre in front. The lab's doorway is on its west wall, so the
@@ -394,7 +392,7 @@ SPAWNS = {
 GRID_BOUNDS = (LOOP_X[0] - GROUND_MARGIN, LOOP_Y[0] - GROUND_MARGIN,
                LOOP_X[1] + GROUND_MARGIN, LOOP_Y[1] + GROUND_MARGIN)
 
-#: The point the reserve is measured from (`legs.world.RESERVE_WH`): one
+#: The point the reserve is measured from (`humanoid.world.RESERVE_WH`): one
 #: robot-length inside the loop's south-west corner, the farthest a robot
 #: can stand from the living room BY ROUTE (issue #215) -- not by straight
 #: line: the loop's east legs are further as the crow flies and closer as the
@@ -746,8 +744,8 @@ def build_home_world() -> tuple[str, dict]:
 
   # The lab's props (issue #215): the cage, what lives in it, its three
   # plates, and the bench with its two masses. Each module owns its own
-  # geometry (ActivityPattern.md section 2; challenge/bench.py); their
-  # activities and grader are #226's and #227's and touch nothing here.
+  # geometry (ActivityPattern.md section 2; `home/props.py`); the cage's
+  # activity is #226's and touches nothing here.
   cage_body, cage_sensors = cage_xml(LAB_CAGE_XY)
   bodies.append(cage_body)
   hints["lab_cage"] = "cage"
@@ -827,7 +825,6 @@ def build_home_world() -> tuple[str, dict]:
 
   # The tower's blocks (issue #207): the challenge's own props, in the
   # generator now that the challenge is offered -- Challenges.md §3 item 4.
-  from pluggybot.challenge.stack import BLOCKS, block_xml
   for name, (bx, by), tag_id in zip(BLOCKS, TOWER_XY, BLOCK_TAG_IDS):
     add(block_xml(name, bx, by, tag_id), name, None)
 

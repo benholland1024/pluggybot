@@ -1,14 +1,14 @@
 """One robot's names in a world that may hold two (issue #167, M12).
 
 Every body, joint, actuator, site, camera and sensor of the robot lives under
-bare names -- `pluggybot`, `FL_hip_abd`, `nav_eye` -- and the FIRST robot
+bare names -- `pluggybot`, `left_hip_pitch`, `nav_eye` -- and the FIRST robot
 keeps them. A second robot is the same model ATTACHED with a prefix
-(`MjSpec.attach`), so its names are `r2_pluggybot`, `r2_FL_hip_abd`; a
-`RobotHandle` is that prefix,
-and every class that resolves a robot element does so through
-`handle.el(name)` rather than the bare string. What is NOT per robot: the
-rack, its bays and the tools -- they are the world's, shared, and contended
-for by the minds rather than namespaced (the issue's rule).
+(`MjSpec.attach`), so its names are `r2_pluggybot`, `r2_left_hip_pitch`; a
+`RobotHandle` is that prefix, and every class that resolves a robot element
+does so through `handle.el(name)` rather than the bare string. What is NOT
+per robot: the charging station, the counter and the house's fixtures --
+they are the world's, shared, and contended for by the minds rather than
+namespaced (the issue's rule).
 """
 
 from dataclasses import dataclass
@@ -79,31 +79,25 @@ PAIR_SUFFIX = "_pair"
 
 def pair_model_name(model_name: str) -> str:
   """The wire's name for a world with the second robot attached (protocol
-  0.20.0): `home_quad` -> `home_quad_pair`. A replayer picks its scene off the
+  0.20.0): `home_humanoid` -> `home_humanoid_pair`. A replayer picks its scene off the
   header's `model`, and the second robot's bodies are in no single-robot
   scene, so the pair world is a world of its own to a consumer -- one scene
   fixture and one recording under this name, like any other."""
   return f"{model_name}{PAIR_SUFFIX}"
 
 
-#: The bodies a world's robots may have (`world_config`'s `body`): the
-#: quadruped (issue #387), since the rover was deleted (#376), and the
-#: humanoid (#507), served in the house since #559.
-BODIES = ("quadruped", "humanoid")
+#: The body a world's robots have (`world_config`'s `body`, `serve.py
+#: --body`): the humanoid (#507), served in the house since #559. The
+#: quadruped before it was retired in #559's stage 5; the tag
+#: `quadruped-final` is the last commit that serves it.
+BODIES = ("humanoid",)
 
 
 def world_spec(path: str, second_at=None, prefix: str = SECOND_PREFIX,
-               chassis_rgba=SECOND_CHASSIS_RGBA,
-               body: str = "quadruped") -> mujoco.MjSpec:
-  """A world's SPEC with its robot put in -- the quadruped with its dock and
-  rack (`legs.world.home_spec`), or the humanoid (`humanoid.world.home_spec`,
-  #559) -- and optionally a second at `second_at` in its own livery: the
-  world builder, compiled by its callers."""
-  if body not in BODIES:
-    raise ValueError(f"unknown body {body!r} ({' or '.join(BODIES)})")
-  if body == "humanoid":
-    from pluggybot.humanoid.world import home_spec
-  else:
-    from pluggybot.legs.world import home_spec
+               chassis_rgba=SECOND_CHASSIS_RGBA) -> mujoco.MjSpec:
+  """A world's SPEC with its humanoid put in (`humanoid.world.home_spec`),
+  and optionally a second at `second_at` in its own livery: the world
+  builder, compiled by its callers."""
+  from pluggybot.humanoid.world import home_spec
   return home_spec(second_at=second_at, second_prefix=prefix,
                    second_rgba=chassis_rgba, path=path)

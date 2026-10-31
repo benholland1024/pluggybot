@@ -15,9 +15,9 @@ second:
             dead one.
 
 A FILE, POLLED, AND DELIBERATELY NOT A MESSAGE. The inbound channel (#16) was
-the alternative and is rejected for the reason `reset_tool` was allowed onto
-it and this is not: a tool reset is recoverable and idempotent, while mode is
-the control that turns the robot off. A file on the mounted volume has no
+the alternative and is rejected for the reason the admin's reach-ins were
+allowed onto it and this is not: a reach-in is recoverable, while mode is the
+control that turns the robot off. A file on the mounted volume has no
 auth surface to get wrong, survives the restart that ends every mission, and
 is readable by a person with `cat` when the website is the thing that is
 broken. The website's admin page writes it; the sim only ever reads it.
@@ -42,7 +42,7 @@ from pathlib import Path
 from pluggybot.telemetry.protocol import MODES
 
 #: The vocabulary lives in `telemetry.protocol` with the other two-repo
-#: contracts (FACE_STATES, TASK_STATES) rather than here, because the
+#: contracts (VISUAL_HINTS, TASK_STATES) rather than here, because the
 #: website writes these strings and the wire carries them back -- one home
 #: for the words both repos have to agree on.
 DEFAULT_MODE = "llm"

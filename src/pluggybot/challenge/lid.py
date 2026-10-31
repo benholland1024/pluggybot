@@ -29,12 +29,12 @@ THE CRITERIA, written first. An attempt passes when:
      fall that cost only time paid them for it). A failed verdict says the
      fall first (`fell`), then what the world shows.
 
-Said beside, and gating nothing: its worst tilt (`Body.orientation`) and
-whether the tool its set-out gave it is still seated (`Body.tool_powered`).
-⚠ What a fall is, and which part is the tool, is THAT BODY'S TO SAY, and
-nothing here names either: the quadruped's watch is its torso past the
-topple line, the humanoid's its trunk 35 deg past the posture its legs hold
-or its pelvis sunk (`humanoid.getup`).
+Said beside, and gating nothing: its worst tilt (`Body.orientation`). ⚠
+What a fall is, is THAT BODY'S TO SAY, and nothing here names it: the
+humanoid's is its trunk 35 deg past the posture its legs hold or its pelvis
+sunk (`humanoid.getup`). ⚠ A row still carries `tool` and `toolSeated`, both
+null: the quadruped's claw, staged by its set-out, went with it in #559, and
+the record's columns are a period's to change.
 
 Everything else is the robot's business: how it finds the knob, which way
 it pulls, whether it lies down. `sample_lid` reads nothing off the skill's
@@ -51,7 +51,7 @@ import math
 
 import numpy as np
 
-from pluggybot.rack.coupling import contact_pairs
+from pluggybot.contacts import contact_pairs
 
 # ---- the criteria (see the module docstring; numbered the same) -----------
 #: 1: past 1.0 rad (57 deg), #469's "open": a lid there leaves 0.18 m
@@ -214,13 +214,11 @@ def measure(model, data, name: str = "chest") -> dict:
 
 
 def measurements(at_call: dict | None, settled: dict | None, watch: Watch | None,
-                 tool: str | None = None, seated: bool | None = None,
                  catch_n: float | None = None, started: float | None = None,
                  limit_s: float | None = None) -> dict:
   """The evaluator's input, UNROUNDED (`eval_lid` judges the numbers and
   rounds only what it shows): the snapshot at the call, the one after the
-  hold, the attempt's per-step reading, and the tool the set-out gave with
-  the body's word on whether it is still seated. `started` is the
+  hold and the attempt's per-step reading. `started` is the
   attempt's start, sim s. `catch_n` is the chest's true catch (`chest.Lid`),
   OURS: secret on the row. Absences stay absent -- `eval_lid` turns them
   into a failure."""
@@ -238,8 +236,8 @@ def measurements(at_call: dict | None, settled: dict | None, watch: Watch | None
     "caught": end.get("caught"),
     "holdS": (end["t"] - call["t"]) if "t" in call and "t" in end else None,
     "elapsedS": (call["t"] - started) if "t" in call and started is not None else None,
-    "tool": tool,
-    "toolSeated": seated,
+    "tool": None,
+    "toolSeated": None,
     "catchN": None if catch_n is None else float(catch_n),
     "limitS": None if limit_s is None else float(limit_s),
   }
@@ -306,14 +304,11 @@ def sample_lid(life, errand, result: dict | None, before: dict) -> dict:
   """MEASURE, in the registry's shape (`scoring.SAMPLERS`): `life` is the
   attempt's world (its `model`, `data` and `body`) and `before` what the
   harness took at the call -- the snapshot (`at_call`), the attempt's
-  `Watch`, its start (`started`), the tool its set-out gave (`tool`) and
-  the chest's true catch (`catchN`, ours) -- and the world is measured
-  again NOW, after the hold.
+  `Watch`, its start (`started`) and the chest's true catch (`catchN`,
+  ours) -- and the world is measured again NOW, after the hold.
   `result`, the skill's own word, is deliberately unread."""
   watch = before.get("watch")
-  tool = before.get("tool")
-  seated = bool(life.body.tool_powered(tool)) if tool else None
   name = watch.name if watch is not None else "chest"
   return measurements(before.get("at_call"), measure(life.model, life.data, name), watch,
-                      tool=tool, seated=seated, catch_n=before.get("catchN"),
+                      catch_n=before.get("catchN"),
                       started=before.get("started"), limit_s=before.get("limitS"))

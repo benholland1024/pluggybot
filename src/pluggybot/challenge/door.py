@@ -34,7 +34,7 @@ import math
 import numpy as np
 
 from pluggybot.challenge import lid
-from pluggybot.rack.coupling import contact_pairs
+from pluggybot.contacts import contact_pairs
 
 #: 1: open this far, rad (50 deg): an arm reaches in past the door's edge.
 OPEN_RAD = math.radians(50.0)

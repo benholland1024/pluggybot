@@ -110,38 +110,12 @@ class Library:
     return entry.procedure if entry is not None else None
 
   def as_context(self) -> list[dict]:
-    """What the robot is shown of its own library: every source, which tools
-    it needs, and why an entry is not runnable if it is not.
-
-    ⚠ `needs` IS SAID, NOT LEFT TO BE INFERRED (issue #324). A sensor a
-    tool carries says so (`requires`), so `read("claw.holding")` without
-    the claw on the fork fails with a reason that names the module -- but
-    that is at the point of failure, after an errand has been committed to
-    it. The source is shown, so the association was always inferable; this
-    states it.
-
-    ⚠ IT COUNTS WHAT A `fetch` NAMES TOO, or it lies by omission: the
-    high-level verbs declare no tool (`draw` needs the pen, `pick` the
-    claw, and `Verb` says neither), so a procedure that fetches the pen and
-    draws names no axis and would have reported NO needs -- read as "needs
-    no tool", which is worse than an absent field.
-
-    An axis or a sensor that does not exist is REFUSED at `define`, so
-    `needs` names modules a procedure can actually ask for -- it is a
-    statement of what to FETCH (or what a `pick` fetches for itself, issue
-    #353), not a warning.
-    """
-    from pluggybot.procedure import axes
+    """What the robot is shown of its own library: every source, and why an
+    entry is not runnable if it is not. (Which tools a procedure needed was
+    said too while the quadruped carried its rack's, #324.)"""
     out = []
     for e in self.entries.values():
       row = {"name": e.name, "source": e.source, "runnable": e.valid}
-      if e.procedure is not None:
-        refs = e.procedure.references()
-        needs = {axes.SENSORS[n].requires for n in refs["sensors"]
-                 if n in axes.SENSORS and axes.SENSORS[n].requires}
-        needs |= set(refs["tools"])
-        if needs:
-          row["needs"] = sorted(needs)
       if e.reasons:
         row["reasons"] = e.reasons
       out.append(row)

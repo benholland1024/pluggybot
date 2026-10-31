@@ -33,7 +33,7 @@ import numpy as np
 from pluggybot.activity import station as st
 from pluggybot.body import RackPose
 from pluggybot.humanoid.arms import GRIP_MIN_N, frame
-from pluggybot.rack.tags import STATION_TAG_IDS
+from pluggybot.perception.tags import STATION_TAG_IDS
 
 #: The hand that plugs in: the port is right of the trunk's middle.
 SIDE = "right"

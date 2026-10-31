@@ -1,12 +1,12 @@
 #!/usr/bin/env python
 """Does a robot resting across the other's way make way? (issue #415)
 
-The quadruped pair in the house, both maps laid from the true floor (no
-explore), one robot lying down to rest in a doorway -- or wherever a scene
-puts it -- and the other walking from one side of it to the other. How the
-walk ends (arrived, or why it gave up), what the resting robot did (asked,
-stood, stepped how far aside, how long it took, why it stopped), whether the
-two touched, and anybody falling. One process a scene.
+The humanoid pair in the house (#559), both maps laid from the true floor
+(no explore), one robot resting standing in a doorway (`humanoid.way`) --
+or wherever a scene puts it -- and the other walking from one side of it to
+the other. How the walk ends (arrived, or why it gave up), what the resting
+robot did (asked, stepped how far aside, how long it took, why it stopped),
+whether the two touched, and anybody falling. One process a scene.
 
     MUJOCO_GL=egl uv run python scripts/make_way_spike.py --parallel 4
     ... --before            # nobody asks: the drive before #415
@@ -19,11 +19,7 @@ two touched, and anybody falling. One process a scene.
     ... --standing 8        # the robot in the doorway STANDS there 8 s and
                             # then walks off (`STANDING`, #455): the walker
                             # starts far off and walks the house past it
-    ... --near-field        # the depth camera on, as the served world flies:
-                            # a robot lying down is under the LIDAR's plane,
-                            # and the camera is what holds a walk at it
-    ... --world home_humanoid   # the humanoid pair (#559): one resting
-                            # STANDING in the doorway (`humanoid.way`)
+    ... --near-field        # the depth camera on, as the served world flies
     ... --out scenes.json   # the records; --compare A.json B.json
 """
 
@@ -39,7 +35,6 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
-sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 H = math.pi / 2
 #: name -> (where the robot rests, where the other starts, where it walks
@@ -65,6 +60,43 @@ STANDING = {"hall_door": ((-3.5, 4.0), (-3.5, 3.0)),
             "workshop_door": ((-3.5, 4.5), (-8.5, -4.5)),
             "kitchen_door": ((-3.5, -2.0), (-8.5, 4.0))}
 FAR_START = (8.5, 0.7, math.pi)
+#: What the true floor counts as in the way: every static geom crossing this
+#: band of heights, m.
+BAND_Z = (0.08, 0.60)
+
+
+def true_floor(model, grid):
+  """The compiled world's static obstacles on `grid`'s cells, as log-odds:
+  +5 in the way, -5 floor. Dynamic bodies and the robots are left out."""
+  import mujoco
+  import numpy as np
+
+  from pluggybot.telemetry.protocol import dynamic_flags, robot_body_ids
+  G = mujoco.mjtGeom
+  data = mujoco.MjData(model)
+  mujoco.mj_forward(model, data)
+  rows, cols = grid.grid.shape
+  occ = np.zeros((rows, cols), dtype=bool)
+  robots, dyn = robot_body_ids(model), dynamic_flags(model)
+  for k in range(model.ngeom):
+    b = int(model.geom_bodyid[k])
+    t = int(model.geom_type[k])
+    if (b in robots or dyn[b] or t == G.mjGEOM_PLANE
+        or (model.geom_contype[k] == 0 and model.geom_conaffinity[k] == 0)):
+      continue
+    s = model.geom_size[k]
+    half = {G.mjGEOM_BOX: s, G.mjGEOM_ELLIPSOID: s,
+            G.mjGEOM_SPHERE: [s[0]] * 3, G.mjGEOM_CYLINDER: [s[0], s[0], s[1]],
+            G.mjGEOM_CAPSULE: [s[0], s[0], s[1] + s[0]]}.get(t)
+    if half is None:
+      continue
+    ext = np.abs(data.geom_xmat[k].reshape(3, 3)) @ np.asarray(half, dtype=float)
+    lo, hi = data.geom_xpos[k] - ext, data.geom_xpos[k] + ext
+    if hi[2] < BAND_Z[0] or lo[2] > BAND_Z[1]:
+      continue
+    (ix0, iy0), (ix1, iy1) = grid.world_to_cell(lo[0], lo[1]), grid.world_to_cell(hi[0], hi[1])
+    occ[max(iy0, 0):min(iy1, rows - 1) + 1, max(ix0, 0):min(ix1, cols - 1) + 1] = True
+  return np.where(occ, 5.0, -5.0)
 
 
 def drift(life, dx: float, dy: float) -> None:
@@ -85,14 +117,13 @@ def drift(life, dx: float, dy: float) -> None:
 
 def fly_one(name: str, before: bool, finished: bool, patience: float,
             drifted=(0.0, 0.0), walker_drifted=(0.0, 0.0), standing: float | None = None,
-            near_field: bool = False, world: str = "home_quad") -> dict:
+            near_field: bool = False) -> dict:
   from pluggybot import tick
   from pluggybot.pair import build_pair
-  from unknown_spike import true_floor
   rest, start, goal = SCENES[name]
   if standing is not None:
     start, goal = FAR_START, STANDING[name][1]
-  me, peer = build_pair(world, errands=("none", "none"), near_field=near_field)
+  me, peer = build_pair(errands=("none", "none"), near_field=near_field)
   for life in (me, peer):
     g = life.body.mission.grid
     g.grid[:] = true_floor(life.model, g)
@@ -105,16 +136,14 @@ def fly_one(name: str, before: bool, finished: bool, patience: float,
   if any(walker_drifted):
     drift(me, *walker_drifted)
   falls0 = (me.body.mission.falls, peer.body.mission.falls)
-  out: dict = {"scene": name, "world": world, "before": before, "finished": finished,
+  out: dict = {"scene": name, "before": before, "finished": finished,
                "drift": list(drifted), "walkerDrift": list(walker_drifted),
                "standing": standing, "nearField": near_field}
 
   def resting():
     if standing is not None:
       # ...or standing in the doorway, and then walking off (#455)
-      peer.body.mission.want = "stand"
       yield from peer.body.hold_routine(standing)
-      peer.body.mission.want = None
       yield from peer.body.go_to_routine(*STANDING[name][0], timeout=60.0)
       t0 = float(peer.data.time)
       while peer.data.time - t0 < patience + 30.0 and out.get("walk") is None:
@@ -132,7 +161,7 @@ def fly_one(name: str, before: bool, finished: bool, patience: float,
   gx, gy = goal[0] + walker_drifted[0], goal[1] + walker_drifted[1]
 
   def walking():
-    while standing is None and not peer.body.resting:     # lying, or a humanoid's rest
+    while standing is None and not peer.body.resting:
       yield from me.body.hold_routine(0.1)
     t0 = float(me.data.time)
     ok = yield from me.body.go_to_routine(gx, gy, timeout=patience)
@@ -178,7 +207,7 @@ def main(argv=None) -> int:
   ap.add_argument("--scene", default=None, help="scenes, comma separated (default all)")
   ap.add_argument("--before", action="store_true", help="nobody asks (the drive before #415)")
   ap.add_argument("--finished", action="store_true",
-                  help="the resting robot's day is over once it lies down")
+                  help="the resting robot's day is over once it rests")
   ap.add_argument("--patience", type=float, default=90.0)
   ap.add_argument("--drift", default="0,0", help="DX,DY: the resting robot's map and "
                   "belief laid that far off the world (#455)")
@@ -187,8 +216,6 @@ def main(argv=None) -> int:
                   "doorway stands S s and walks off; the walker starts far off (#455)")
   ap.add_argument("--near-field", action="store_true",
                   help="the depth camera on, as the served world flies it")
-  ap.add_argument("--world", choices=("home_quad", "home_humanoid"), default="home_quad",
-                  help="the quadruped pair (#415) or the humanoid pair (#559)")
   ap.add_argument("--parallel", type=int, default=1)
   ap.add_argument("--out", default=None)
   ap.add_argument("--compare", nargs="+", default=None, metavar="JSON")
@@ -203,15 +230,14 @@ def main(argv=None) -> int:
   walker_drifted = tuple(float(v) for v in args.drift_walker.split(","))
   if args.one:
     print(json.dumps(fly_one(args.one, args.before, args.finished, args.patience,
-                             drifted, walker_drifted, args.standing, args.near_field,
-                             args.world)))
+                             drifted, walker_drifted, args.standing, args.near_field)))
     return 0
   names = (args.scene.split(",") if args.scene
            else list(STANDING) if args.standing is not None else list(SCENES))
 
   def run(name: str) -> dict:
     cmd = [sys.executable, __file__, "--one", name, "--patience", str(args.patience),
-           "--drift", args.drift, "--drift-walker", args.drift_walker, "--world", args.world]
+           "--drift", args.drift, "--drift-walker", args.drift_walker]
     cmd += ["--before"] if args.before else []
     cmd += ["--finished"] if args.finished else []
     cmd += ["--standing", str(args.standing)] if args.standing is not None else []

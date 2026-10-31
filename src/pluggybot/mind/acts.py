@@ -35,7 +35,10 @@ from pluggybot.mind.overseer import NEEDS
 
 #: The order the rule checks, first match wins: a robot below its reserve
 #: needs charge whatever its wallet says, a hungry one needs points, one
-#: holding a job with nothing on the fork needs a tool.
+#: holding a job with nothing on the fork needs a tool. ⚠ A VESTIGE: the
+#: humanoid carries nothing on a fork (the quadruped's went in #559), so
+#: every held job reads `a_tool`, as it did while both bodies were served;
+#: the prompt's words for the needs are a period's to change.
 NEED_ORDER = ("charge", "points", "a_tool", "nothing")
 assert all(n in NEEDS for n in NEED_ORDER)
 
@@ -64,9 +67,6 @@ def need_of(other) -> tuple[str, dict]:
     root = other.root
     state["holdsJob"] = any(t.claimed_by == root and t.state in ("claimed", "active")
                             for t in other.tasks.tasks.values())
-  if other.module:
-    on_fork = other.body.module_state(other.module)["on_fork"]
-    state["carrying"] = other.module if on_fork else ""
   if battery.energy_wh < other.low_battery_wh:
     return "charge", state
   if state["hunger"] in ("hungry", "starving"):
@@ -94,10 +94,11 @@ def check_claim(text: str, rack: dict | None = None, boards=None,
   """The first checkable statement in `text`, and its truth -- or None.
 
   Four shapes are checked, each against the world and nothing else:
-    "bay C is empty"            -- `rack` (module -> the bay it HANGS in,
-                                   `HubLifecycle.racked` -- never the
-                                   inventory), a bay nothing hangs in is
-                                   empty
+    "bay C is empty"            -- `rack` (module -> the bay it HANGS in),
+                                   a bay nothing hangs in is empty; ⚠ A
+                                   VESTIGE of the quadruped's rack: the
+                                   lifecycle hands it `{}`, so every bay
+                                   reads empty
     "module_pen is on the rack" -- `rack` again: hung on some bay
     "whiteboard_b is drawn on"  -- `boards` (a BoardBook): strokes on it
     "the charge bay is free"    -- `charging`: is any robot charging now

@@ -53,7 +53,7 @@ from dataclasses import dataclass, field, replace
 import math
 
 from pluggybot.humanoid import parts as hp
-from pluggybot.legs.actuator import JointLimits, Motor, driver_gains
+from pluggybot.humanoid.actuator import JointLimits, Motor, driver_gains
 from pluggybot.telemetry.protocol import ROBOT_ROOT
 
 SIDES = ("left", "right")
@@ -373,8 +373,8 @@ def stand_height(spec: HumanoidSpec = CHOSEN, bend: float = 0.2) -> float:
 MOTOR_RGBA = "0.25 0.25 0.28 1"
 LIMB_RGBA = "0.2 0.4 0.8 1"          # robot.CHASSIS_RGBA, so `paint` re-liveries it
 SOLE_RGBA = "0.1 0.1 0.1 1"
-#: The jaws' pads: stiff, hard contact, the claw's lesson (`legs.rack`,
-#: #407): on MuJoCo's soft default a held cube crept out of the jaws.
+#: The jaws' pads: stiff, hard contact, the quadruped claw's lesson
+#: (#407): on MuJoCo's soft default a held cube crept out of the jaws.
 PAD_SOLREF = "0.006 1"
 PAD_SOLIMP = "0.99 0.999 0.00001"
 #: The soles' and the pads' friction, with `priority` so it is theirs and
@@ -529,7 +529,7 @@ def _jaw(s: str, name: str, sign: int, z: float) -> str:
 
 def _actuators(spec: HumanoidSpec) -> str:
   """Every joint's driver as a position-mode `dcmotor` on its own part's
-  line and its own gains (`legs.actuator.JointLimits.dcmotor`, issue
+  line and its own gains (`humanoid.actuator.JointLimits.dcmotor`, issue
   #385's algebra), then the grippers'."""
   rows = []
   lim = JointLimits.of_motors([spec.motor(j) for j in JOINT_NAMES])
@@ -628,7 +628,7 @@ def body_xml(spec: HumanoidSpec = CHOSEN, *, root: str = ROBOT_ROOT,
   free joint stays at qpos[0].
 
   A joint's `ctrl` is a target its driver -- its part's torque-speed line
-  and a PD whose gains each command carries (`legs.drivers`) -- runs in
+  and a PD whose gains each command carries (`humanoid.drivers`) -- runs in
   C, the quadruped's algebra (#385)."""
   h0 = stand_height(spec)
   legs = "".join(_leg(spec, s) for s in SIDES)
@@ -800,7 +800,7 @@ def training_constants(spec: HumanoidSpec = CHOSEN) -> dict:
   """What `training/` needs of the body, as data: it cannot import pluggybot
   (mjlab caps numpy below pluggybot's), so it reads this file. Each joint
   its own part's numbers, on the pack's nominal bus."""
-  from pluggybot.legs import actuator as act
+  from pluggybot.humanoid import actuator as act
   joints = {}
   for j in JOINT_NAMES:
     m = spec.motor(j).at_voltage(act.BUS_V_NOMINAL)

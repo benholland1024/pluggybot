@@ -2,7 +2,7 @@
 #507): the sim's angles are exact, a robot's are whole counts of each
 driver's own reply fields with the gearbox's backlash under them, and its
 torque is read off the phase current, whose sense is noisy
-(`humanoid.parts.Fields`; the quadruped's are `perception/encoders.py`).
+(`humanoid.parts.Fields`, counted by `perception/encoders.py`).
 The IMU is `perception/imu.py`'s part and the depth camera and the LIDAR
 `perception/`'s, each on the head (`humanoid.model`).
 

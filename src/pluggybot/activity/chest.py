@@ -3,30 +3,15 @@ lid is lifted by a drop handle, as an ACTIVITY (docs/ActivityPattern.md). It
 owns its geometry, its hidden parameters and its state, and reports what is
 sensed of it.
 
-#469's spike chose it (SimNotes, "Opening a box from lying"): a chest 0.22 x
-0.30 x 0.14 m of 12 mm board, its lid hinged along the back of its top. The
-knob is the 26 mm cube the claw is proven on, hung on an L from its own pin
-at the lid's front edge, parallel to the hinge, so the claw's grip does not
-turn as the lid does. It opened from every stance at every gain, and swept
-at Kp 8 it keeps the claw seated along a hinge guessed up to 4 cm off.
+#469's spike chose it, for the quadruped's claw: a chest 0.22 x 0.30 x
+0.14 m of 12 mm board, its lid hinged along the back of its top. The knob
+is a 26 mm cube hung on an L from its own pin at the lid's front edge,
+parallel to the hinge, so a grip on it need not turn as the lid does.
 
 THE HIDDEN PARAMETERS (`Lid`, drawn by `draw`): the board's mass, a hidden
 weight in it, the hinge's spring, damping and Coulomb friction, and a
 magnetic catch. ⚠ THE TRUTH IS KEPT AS `Task.secret` IS: never in the
 robot's context or on the wire, and the flags carry none of it.
-
-WHAT THE SCENE LANGUAGE CANNOT SAY (`imagination.scene`), so the robot's
-model of the chest is always an approximation, and `reference_document` is
-the closest the language comes:
-  - the catch's pull falls with the gap as a magnet's does, where the
-    language's catch is one release force;
-  - the chest's own contact: MuJoCo's defaults as the spike flew it, its
-    lid's stop among them, and its handle named to touch its lid -- where
-    the imagination's parts touch on settings of its own
-    (`imagination.compile`) and a part never touches what it is hinged to;
-  - the hinges' armature.
-Stiction and a non-linear spring are left out: SimNotes, "The imagination's
-first world", says why.
 
 The frame is the CHEST's: origin on the floor under the middle of its front
 face (the robot's side), +x into the chest, z up.
@@ -40,8 +25,8 @@ import math
 import numpy as np
 
 from pluggybot.activity.base import Activity, Threshold
-from pluggybot.challenge.stack import BLOCK_HALF
-from pluggybot.rack.tags import CHEST_TAG_IDS
+from pluggybot.home.props import BLOCK_HALF
+from pluggybot.perception.tags import CHEST_TAG_IDS
 
 # ---- the geometry (#469's; `scripts/mechanism_spike.py` imports it) --------------
 
@@ -266,8 +251,7 @@ def attach_chest(spec, lid: Lid, pos, yaw: float = 0.0, name: str = "chest",
   """The chest into a world's `spec`, its frame at `pos` (x, y on the floor,
   or `z` up: on a counter, #507) turned `yaw` (rad) about z; with `tags`,
   the knob's tag texture too, off
-  the generator's `tags/` beside the world's file (`legs.world`'s), once a
-  world. ⚠ Every chest's knob wears the one tag: two in one world are two
+  the generator's `tags/` beside the world's file, once a world. ⚠ Every chest's knob wears the one tag: two in one world are two
   knobs a decode cannot tell apart."""
   import mujoco
   if tags and spec.texture(f"tagtex{KNOB_TAG_ID}") is None:
@@ -373,81 +357,3 @@ def _euler_xyz(rot: np.ndarray) -> list[float]:
   c = math.atan2(-float(rot[0, 1]), float(rot[0, 0]))
   return [round(math.degrees(v), 9) for v in (a, b, c)]
 
-
-def reference_document(lid: Lid, pos, yaw: float = 0.0, pin: float = 0.0) -> dict:
-  """The chest written in the scene language (`imagination.scene`) as
-  closely as it allows, by code that knows the truth: the BEST-EXPRESSIBLE
-  REFERENCE. Its frame is the map's (the world's, for a robot whose belief
-  is exact), the chest's at `pos` turned `yaw`, in the language's units (mm,
-  degrees, kg, N, N*m, rad for a joint's spring and damping).
-
-  The handle hangs `pin` rad round its pin, where it rests (as a robot would
-  see it). What it cannot carry is the module docstring's list: the catch
-  here is one release force, `catch_n` at the pin (the magnet's own lever,
-  `PIN_R`); the contact settings are the imagination's; the armature is
-  gone."""
-  c, s = math.cos(yaw), math.sin(yaw)
-  x0, y0 = float(pos[0]), float(pos[1])
-
-  def at(p) -> list[float]:
-    """A chest-frame point in the map, mm."""
-    px, py, pz = (float(v) for v in p)
-    return [round(1000 * (x0 + c * px - s * py), 6), round(1000 * (y0 + s * px + c * py), 6),
-            round(1000 * pz, 6)]
-
-  def mm(half) -> list[float]:
-    return [round(2000 * float(v), 6) for v in half]
-
-  euler = [0.0, 0.0, round(math.degrees(yaw), 9)]
-  cp, sp = math.cos(pin), math.sin(pin)
-  swing = np.array([[cp, 0.0, sp], [0.0, 1.0, 0.0], [-sp, 0.0, cp]])
-  hung = _euler_xyz(np.array([[c, -s, 0.0], [s, c, 0.0], [0.0, 0.0, 1.0]]) @ swing)
-  t, d, w, h = WALL_T, BOX_D, BOX_W, BOX_H
-
-  def base(pid, half, centre, on=None):
-    vol = 8 * half[0] * half[1] * half[2]
-    part = {"id": pid, "shape": "box", "size": mm(half), "pos": at(centre),
-            "euler": list(euler), "mass": round(BASE_DENSITY * vol, 6)}
-    return part | ({"on": on} if on else {})
-
-  # the walls ride the floor: one rigid base, as the world's is one body
-  parts = [base("floor", (d / 2, w / 2, t / 2), (d / 2, 0, t / 2)),
-           base("back", (t / 2, w / 2, h / 2), (d - t / 2, 0, h / 2), "floor"),
-           base("front", (t / 2, w / 2, h / 2), (t / 2, 0, h / 2), "floor"),
-           base("side_r", (d / 2, t / 2, h / 2), (d / 2, -(w / 2 - t / 2), h / 2), "floor"),
-           base("side_l", (d / 2, t / 2, h / 2), (d / 2, w / 2 - t / 2, h / 2), "floor")]
-  lid_frame = HINGE                              # the lid's body, shut
-  pin_at = lid_frame + PIN
-  parts += [
-    {"id": "lid", "shape": "slab", "size": mm((d / 2, w / 2, LID_T / 2)),
-     "pos": at(lid_frame + [-d / 2, 0, LID_T / 2]), "euler": list(euler), "on": "back",
-     "mass": lid.lid_kg},
-    {"id": "bracket", "shape": "box", "size": mm((PIN_AHEAD / 2 + 0.003, 0.006, 0.004)),
-     "pos": at(lid_frame + [-d - PIN_AHEAD / 2 + 0.003, 0, PIN_Z]), "euler": list(euler),
-     "on": "lid", "mass": BRACKET_KG},
-    {"id": "handle", "shape": "box", "size": mm((0.003, STEM_HALF_W, HANDLE_DROP / 2)),
-     "pos": at(pin_at + swing @ [0, 0, -HANDLE_DROP / 2]), "euler": list(hung),
-     "on": "bracket",
-     "mass": HANDLE_KG[0]},
-    {"id": "stem", "shape": "box", "size": mm((STEM / 2 + 0.003, STEM_HALF_W, 0.004)),
-     "pos": at(pin_at + swing @ [-STEM / 2 + 0.003, 0, -HANDLE_DROP]), "euler": list(hung),
-     "on": "handle", "mass": HANDLE_KG[1]},
-    {"id": "knob", "shape": "box", "size": mm((KNOB, KNOB, KNOB)),
-     "pos": at(pin_at + swing @ KNOB_OFF), "euler": list(hung), "on": "stem",
-     "mass": HANDLE_KG[2]}]
-  if lid.lump_kg > 0.0:
-    parts.append({"id": "lump", "shape": "box", "size": mm(LUMP_HALF),
-                  "pos": at(lid_frame + [-d * lid.lump_at, 0, lid.lump_z]),
-                  "euler": list(euler),
-                  "on": "lid", "mass": lid.lump_kg})
-  axis = [round(-s, 9), round(c, 9), 0.0]       # the chest's y in the map
-  joints = [
-    {"id": "hinge", "type": "hinge", "part": "lid", "at": at(HINGE), "axis": list(axis),
-     "range": [math.degrees(v) for v in HINGE_RANGE], "stiffness": lid.stiffness,
-     "slack": math.degrees(lid.springref), "damping": lid.damping, "friction": lid.friction},
-    {"id": "pin", "type": "hinge", "part": "handle", "at": at(pin_at), "axis": list(axis),
-     "damping": PIN_DAMPING, "friction": PIN_FRICTION}]
-  doc = {"parts": parts, "joints": joints}
-  if lid.catch_n > 0.0:
-    doc["catches"] = [{"joint": "hinge", "at": at(pin_at), "release": lid.catch_n}]
-  return doc

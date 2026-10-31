@@ -3,35 +3,35 @@
 The robot's life -- the day loop (`lifecycle.py`), its mind, its economy,
 its record -- is the same whatever it lives in; the machine is not. `Body`
 is everything the loop and the procedure layer (`procedure/`) may ask of
-the machine, and the ONLY way they reach it: the quadruped implements it
-(`legs/body.py`, #387), and `StubBody` below is the smallest thing that
+the machine, and the ONLY way they reach it: the humanoid implements it
+(`humanoid/body.py`, #507), and `StubBody` below is the smallest thing that
 does, for a test that needs the lifecycle's bookkeeping and no physics. (The
-wheeled rover implemented it first, #380, and was deleted in #376;
-`rover-final` has it.) `tests/test_body.py` walks the syntax tree of
+wheeled rover implemented it first, #380, and the quadruped after it, #387;
+#376 and #559 deleted them, and `rover-final` and `quadruped-final` have
+them.) `tests/test_body.py` walks the syntax tree of
 every module on this side of the seam and fails on a reach that is not a
 member here. `robot.RobotHandle` still resolves a robot's names in the
 world; the body sits beside it (`Body.handle`), not in place of it.
 
 What a body does, in the issue's words: it GOES to a place and faces a
-bearing; it knows WHERE it is; it takes a TOOL from a bay and hangs it
-back; it DOCKS to charge and undocks; it SENSES (a map of the floor, a
-depth frame, its cameras, the other robots); it has a POSTURE it can rest
-in. Under those, the MOTOR LEVEL a procedure is built from (issue #166):
-an actuator walked to a setpoint, the base at a velocity, a tool's driver.
+bearing; it knows WHERE it is; it DOCKS to charge and undocks; it SENSES
+(a map of the floor, a depth frame, its cameras, the other robots); it has
+a POSTURE it can rest in; and its HANDS reach, grip, carry and pull. Under
+those, the MOTOR LEVEL a procedure is built from (issue #166): an actuator
+walked to a setpoint.
 
 ⚠ THE COMMAND IS THE BODY'S (the tick contract, `tick.py`). A routine
 yields one command per physics step, and only the body that yields it
 reads it: `stepper.apply(command)` turns it into actuator setpoints. The
-quadruped's is its velocity, `(vx, vy, w)`, the input its walking policy
-tracks. So code on this side of the seam never builds a command: it
+humanoid's carries its velocity, the input its walking policy tracks. So code on this side of the seam never builds a command: it
 composes the body's routines, and where it must hold one physics step still
 it yields `STILL`.
 
 ⚠ A BODY BELIEVES; THE SIM KNOWS. `pose` is the body's own estimate (leg
-odometry and the scan matcher on the quadruped). `true_pose`, `root_xy`, `orientation` and
+odometry and the scan matcher). `true_pose`, `root_xy`, `orientation` and
 `footprint_centre` read the world: the sim's own checks (a death's record,
-a failed swap's trace), and the few acts a sensor could equally make (an
-IMU's attitude; a robot lying down seen as a lump in a depth image).
+a drift row), and the few acts a sensor could equally make (an IMU's
+attitude; a robot fallen seen as a lump in a depth image).
 
 ⚠ A ROUTINE CALL IS NOTHING UNTIL IT IS DRIVEN (`tick.py`): every
 `*_routine` member is a generator, composed with `yield from`.
@@ -54,8 +54,8 @@ from pluggybot.tick import Routine
 
 #: Torso tilt from upright that counts as knocked over (issue #107), and
 #: how long it has to hold: a body tipped for a moment recovers, a robot on
-#: its side does not. The quadruped's get-up takes over at the same angle
-#: (`legs.posture.FALL_TILT_RAD`), and its own hold is `stuck_after_s`.
+#: its side does not. A body's own hold is `stuck_after_s` (the humanoid's
+#: get-up budget).
 TOPPLE_TILT_RAD = math.radians(60.0)
 TOPPLE_HOLD_S = 2.0
 
@@ -63,8 +63,8 @@ TOPPLE_HOLD_S = 2.0
 @dataclass(frozen=True)
 class RackPose:
   """The frame a body's charge logic works round (`Body.rack`): an origin
-  in the world and its outward normal, `yaw` -- on the quadruped its dock,
-  origin at the board, +x out into the room (`QuadMission._dock_as_rack`)."""
+  in the world and its outward normal, `yaw` -- the humanoid's charging
+  station, +x out into the room (`humanoid.body`, off `activity.station`)."""
 
   x: float
   y: float
@@ -88,12 +88,12 @@ class RackPose:
 
 class KeepClear(NamedTuple):
   """Another robot, as one of `Body.others` answers it: where to keep clear
-  of, and whether it is LYING DOWN (issue #365) -- a disc round its body,
-  and nothing to wait for. A bare `(x, y)` is a robot standing. Where the
-  pair says so, also WHO it is and whether it is RESTING (issue #415): a
-  robot lying down to rest can be asked to make way (`Body.ask_way`). And
-  whether it is DEAD (issue #455): it lies where it died until the world
-  stands it up, so it is neither waited for nor asked."""
+  of, and whether it is DOWN (issue #365: fallen) -- a disc round its
+  body, and nothing to wait for. A bare `(x, y)` is a robot standing. Where
+  the pair says so, also WHO it is and whether it is RESTING (issue #415):
+  a robot resting can be asked to make way (`Body.ask_way`). And whether it
+  is DEAD (issue #455): it lies where it died until the world stands it
+  up, so it is neither waited for nor asked."""
   x: float
   y: float
   down: bool = False
@@ -162,15 +162,15 @@ class Body(abc.ABC):
   def start_at(self, x: float, y: float, yaw: float) -> None:
     """Put the body upright at a pose and tell its estimate so: a mission
     start, and a stand-up (issue #143). ⚠ A step taken here is one no other
-    robot's stepper or hooks see (a stand-up lands mid-loop), so the
-    quadruped steps nothing (issue #387)."""
+    robot's stepper or hooks see (a stand-up lands mid-loop), so a body
+    steps nothing here (issue #387)."""
 
   @abc.abstractmethod
   def go_to_routine(self, x: float, y: float, timeout: float = 90.0,
                     stop=None) -> Routine:
     """Go to a world point over the map, round the other robots; True on
-    arrival. Why it did not arrive is `last_drive`. The quadruped walks it,
-    through floor it has not mapped as well (issue #381). `timeout` is its
+    arrival. Why it did not arrive is `last_drive`. It walks through floor
+    it has not mapped as well (issue #381). `timeout` is its
     patience;
     `stop`, a callable asked every second on the way, ends it where it
     stands when it answers True (`navigator.DRIVE_STOPPED`)."""
@@ -219,80 +219,6 @@ class Body(abc.ABC):
     `seconds`, and `at` once found."""
 
   @abc.abstractmethod
-  def press_plate_routine(self, tag: int, patience: float, stop=None) -> Routine:
-    """Walk onto the plate `tag` marks and back off it, the last step
-    measured off the tag, within `patience` s (issue #419); `stop` as
-    `find_tag_routine`'s. Returns its record: `pressed` (a foot on the
-    pad) and `why`."""
-
-  @abc.abstractmethod
-  def draw_routine(self, board: str, program, patience: float, stop=None,
-                   on_stroke=None) -> Routine:
-    """Draw `program` (a `strokes.StrokeProgram`) on the whiteboard
-    `board`, found by its tags, the pen on the fork (issue #406): walk to
-    it, take its stance, find its face and draw, within `patience` s;
-    `stop` as `find_tag_routine`'s, asked between strokes too, and
-    `on_stroke(i, points, program)` hears each stroke's ink. Returns its
-    record: `drew` and `why`, and the figure's stats where it drew."""
-
-  @abc.abstractmethod
-  def pick_cube_routine(self, tag: int, patience: float, stop=None) -> Routine:
-    """Take the cube `tag` in the claw on the fork (issue #407): found by its
-    tag -- from where it stands, where it last saw it, in front of its
-    area's tags -- walked in to, lain down at and closed on, within
-    `patience` s; `stop` as `find_tag_routine`'s. Returns its record:
-    `picked` (the jaws hold it, off the world) and `why`."""
-
-  @abc.abstractmethod
-  def place_cube_routine(self, tag: int, patience: float, stop=None) -> Routine:
-    """Set the cube in the claw down on top of cube `tag`, found as a pick
-    finds one, and let go (issue #407). Returns its record: `placed` (it
-    rests on it, off the world) and `why`."""
-
-  @abc.abstractmethod
-  def put_cube_routine(self, patience: float, stop=None) -> Routine:
-    """Set the cube in the claw down on the floor in front, where it is
-    (issue #407). Returns its record: `put` and `why`, and `held`, the tag
-    it set down."""
-
-  @abc.abstractmethod
-  def claw_routine(self, closed: bool) -> Routine:
-    """The claw's jaws shut or open where it is (issue #407): True if
-    something is held once shut, or nothing once open."""
-
-  @abc.abstractmethod
-  def held_cube(self) -> int | None:
-    """The tag of the cube in the claw's jaws (both pads on it), or None."""
-
-  @abc.abstractmethod
-  def survey_routine(self, tag: int, patience: float, stop=None,
-                     on_count=None) -> Routine:
-    """Survey the area tag `tag` marks and count what stands in it (issue
-    #407, the census): the area the walls enclose round the tag's front,
-    walked until enough of its floor was seen, within `patience` s; `stop`
-    as `find_tag_routine`'s; `on_count(n)` hears the count as it climbs.
-    Returns its record: `surveyed`, `why`, `count`, `coverage`."""
-
-  @abc.abstractmethod
-  def hide_routine(self, away_from: tuple[float, float], reach_m: float,
-                   clear_of_m: float, patience: float, stop=None) -> Routine:
-    """Hide from a robot counting at `away_from` (issue #404, hide and
-    seek): pick a spot on the floor it has mapped, no further than
-    `reach_m` to walk, more than `clear_of_m` from `away_from` and out of
-    its sight where the map allows, and walk there within `patience` s;
-    `stop` as `find_tag_routine`'s. Returns its record: `hid` (arrived),
-    `at`, `why`, `seconds`."""
-
-  @abc.abstractmethod
-  def seek_routine(self, base: tuple[float, float], cover_m: float,
-                   patience: float, stop=None) -> Routine:
-    """Search its own map outward from `base`, where it counted (issue
-    #404), walking until every floor it knows within reach has been within
-    `cover_m` of it in plain sight, `patience` s are up, or `stop` says so
-    -- never told where the other robot is. Returns its record: `why`,
-    `seconds`, how many places it walked to."""
-
-  @abc.abstractmethod
   def forget_world(self) -> None:
     """A true death (issue #419): its map and its places cleared -- the new
     robot knows where its dock is and nothing else."""
@@ -306,11 +232,6 @@ class Body(abc.ABC):
   @abc.abstractmethod
   def reachable(self, points) -> list[bool]:
     """Which world points it could plan to right now (issue #346)."""
-
-  @abc.abstractmethod
-  def in_sight(self, x: float, y: float) -> bool:
-    """Can one `go_to_routine` plan to (x, y): in its sensors' reach and on
-    its map (issue #353)?"""
 
   # ---- where it is ---------------------------------------------------------
 
@@ -369,85 +290,34 @@ class Body(abc.ABC):
 
   @abc.abstractmethod
   def lost_routine(self, fixture: str, stop=None) -> Routine:
-    """`fixture` (the dock or the rack) is not in sight where the belief
+    """`fixture` (its charging station) is not in sight where the belief
     puts it in plain sight (issue #476): unless another robot can hide it,
-    the robot is lost, drops its map and looks round for either fixture
-    until one puts it right or `stop` says so. True once one has."""
+    the robot is lost, drops its map and looks round for the fixture until
+    it puts it right or `stop` says so. True once it has."""
 
-  # ---- the rack: a tool from a bay, and back -------------------------------
+  # ---- the charger's frame ------------------------------------------------
 
   #: What it believes about the frame its charge logic works round
-  #: (`RackPose`): on the quadruped, its dock.
+  #: (`RackPose`): its charging station. (Named `rack` since the rover,
+  #: whose charger was on its tool rack.)
   rack: Any
-  #: ...and the COMMISSIONED pose: the dock that defines its map frame
+  #: ...and the COMMISSIONED pose: the station that defines its map frame
   #: (issue #42), where `anchor_at_dock` snaps its estimate.
   rack_prior: Any
-  #: Has it confirmed the rack by its tag?
+  #: Has it confirmed the station by its tags?
   rack_discovered: bool
 
   @abc.abstractmethod
   def start_discovery(self) -> None:
-    """Begin watching for the rack's tag through everything it does."""
+    """Begin watching for the station's tags through everything it does."""
 
   @abc.abstractmethod
   def refresh_rack(self):
-    """Adopt the rack pose it has confirmed, if it has: the pose, or None."""
+    """Adopt the station pose it has confirmed, if it has: the pose, or None."""
 
-  @abc.abstractmethod
-  def bay_standoff(self, station_y: float) -> tuple[float, float, float]:
-    """Where it stands to work the bay at `station_y` -- (x, y, heading)
-    off the rack it believes in."""
-
-  @abc.abstractmethod
-  def fetch_tool_routine(self, station_y: float, module: str) -> Routine:
-    """Go to a bay and take `module` onto its coupling, verified and
-    retried; returns the approach's answer. Whether it holds it is
-    `module_state` / `tool_powered`."""
-
-  @abc.abstractmethod
-  def stow_tool_routine(self, station_y: float, module: str) -> Routine:
-    """Go to a bay and hang `module` back; returns the approach's answer.
-    Whether it hangs is `module_state`."""
-
-  @abc.abstractmethod
-  def place_tool_routine(self, module: str) -> Routine:
-    """STAGED, never a swap: `module` put straight onto its coupling off
-    the world, seated, its arm at the carrying pose -- a demo's set-out
-    (#493: the quadruped's claw, which a real run fetches,
-    `fetch_tool_routine`), and a subsidy its result names. Whether it took
-    is `tool_powered`."""
-
-  @abc.abstractmethod
-  def module_state(self, module: str) -> dict:
-    """Where a module is, off the world: `on_fork` (riding THIS body's
-    coupling), `hung` (in some bay), `bay` (the nearest bay's index)."""
-
-  @abc.abstractmethod
-  def tool_powered(self, module: str) -> bool:
-    """`module` seated on THIS body's coupling, and conducting."""
-
-  @abc.abstractmethod
-  def seated_on(self, module: str) -> str | None:
-    """Which robot in this world has `module` seated on its coupling, by
-    root, in model order -- or None. The module is the world's."""
-
-  #: The bay a swap is working at, by station y, from its first drive to
-  #: its verdict (issue #347); None otherwise.
-  swapping_at: float | None
-  #: A manoeuvre of its reach under way that no file holds (issue #405: the
-  #: quadruped's swap and arm moves, a fork half under a peg): a restart's
-  #: save waits it out (`continuation.Keeper.busy`).
+  #: A manoeuvre of its reach under way that no file holds (issue #405: a
+  #: hand out): a restart's save waits it out (`continuation.Keeper.busy`).
   working: bool
-  #: How far off the robot was that made the last swap give its bay up
-  #: (issue #313), or None.
-  peer_at_bay_m: float | None
-  #: WHO WAITS FOR A TAKEN BAY (issue #346): the lifecycle hangs its
-  #: routine here, `(sx, sy, kind, since) -> True once free`.
-  bay_wait: Any
-
-  @abc.abstractmethod
-  def swap_trace(self) -> str:
-    """One line of what the last swap did, for a failed one's log."""
 
   # ---- the dock ------------------------------------------------------------
 
@@ -458,7 +328,7 @@ class Body(abc.ABC):
 
   @abc.abstractmethod
   def charge_seat(self) -> tuple[float, float]:
-    """Where it lies to charge, (x, y): the far end of the walk in from
+    """Where it stands to charge, (x, y): the far end of the walk in from
     `charge_standoff`. Another robot there holds the charge bay as much as
     one on the standoff (issue #455)."""
 
@@ -469,7 +339,7 @@ class Body(abc.ABC):
 
   @abc.abstractmethod
   def charging(self) -> bool:
-    """Its charge contacts conduct: the dock's ELECTRICAL criterion."""
+    """Its pack takes the charger's current: the ELECTRICAL criterion."""
 
   #: Held on the charger: nothing it does while set is counted as travel.
   docked: bool
@@ -539,13 +409,11 @@ class Body(abc.ABC):
     edge (as `spot`'s) and at -- or None}; None before a watch's first
     reading."""
 
-  #: Pressed against something it is moving into (its bumper).
-  pressing: bool
   #: The camera its eye looks through (issue #275), by its name in the
-  #: world: the one on the head, looking along the body's +x -- the
-  #: quadruped's `nav_eye` -- or None where it has none (the stub). The
-  #: body's, not the eye's: another body's name kept in the loop took the
-  #: served process down on legs (issue #408).
+  #: world: the one on the head, looking along the body's +x -- or None
+  #: where it has none (the stub). The body's, not the eye's: another
+  #: body's name kept in the loop took the served process down (issue
+  #: #408).
   head_camera: str | None
 
   # ---- the others, and collisions ------------------------------------------
@@ -560,10 +428,9 @@ class Body(abc.ABC):
   ask_way: Any
   #: The robot this body is stepping aside for, by its root, or None.
   making_way: str | None
-  #: Why it last said no to making way (issue #455): "docked" ("charging",
-  #: a humanoid plugged in at its station, #559), "working", "walking" (a
-  #: walk of its own), "moving" (lying down or standing up), "getting up",
-  #: "standing", "no spot" -- or "".
+  #: Why it last said no to making way (issue #455): "charging" (plugged in
+  #: at its station, #559), "working", "walking" (a walk of its own),
+  #: "getting up", "standing", "no spot" -- or "".
   way_refused: str
   #: How many times it has stepped aside (issue #415) ...
   asides: int
@@ -574,14 +441,14 @@ class Body(abc.ABC):
   @abc.abstractmethod
   def make_way(self, route: list, by: str) -> bool:
     """Another robot (`by`, its root) asks this body to step off `route`,
-    its way, which this body cuts (issue #415). Lying down to rest and free
-    to -- not docked, not mid-move, no walk of its own under way -- it
-    stands and walks aside beneath whatever it is holding, a rule in code
-    like the rest reflex, the mind not asked. True while it makes way."""
+    its way, which this body cuts (issue #415). Resting and free to -- not
+    plugged in, not getting up, no hand out, no walk of its own under way --
+    it walks aside beneath whatever it is holding, a rule in code, the mind
+    not asked. True while it makes way."""
 
   @abc.abstractmethod
   def ask_off(self, x: float, y: float, asked: dict, beyond=()) -> bool:
-    """Ask a robot lying down to rest ON (x, y) -- a bay this body waits
+    """Ask a robot resting ON (x, y) -- the charge bay this body waits
     for -- to step off the way there from where this body stands, and on
     past it through `beyond` (issue #455): a drive's ask (`ask_way`), for a
     wait that walks nowhere. `asked` is the waiter's, kept across its
@@ -601,10 +468,9 @@ class Body(abc.ABC):
   geom_ids: Any
   #: For the day's summary: drives that held for a peer ahead (issue #328),
   peer_holds: int
-  #: ...physics steps in a contact it did not mean (a charge press is meant),
+  #: ...and physics steps in a contact it did not mean (a charge press is
+  #: meant).
   collision_steps: int
-  #: ...and physics steps pressing against something (issue #94).
-  press_steps: int
 
   # ---- the motor level (what a procedure is built from, issue #166) -------
 
@@ -622,34 +488,7 @@ class Body(abc.ABC):
   def setpoint(self, act: int) -> float:
     """What one of its actuators is commanded to, in its axis's units: a
     position servo's `ctrl`, or the joint angle a controller turns into
-    torque (the quadruped's arm, issue #405) -- never a torque."""
-
-  @abc.abstractmethod
-  def arm_torque(self, act: int) -> float:
-    """What the driver of one of its arm's motors reports of that motor's
-    torque, N*m (issue #407): read off its phase current, with the current
-    sense's noise and the field's counts -- what the arm weighs with.
-    KeyError for an actuator that is not its arm's."""
-
-  @abc.abstractmethod
-  def settle_routine(self, seconds: float) -> Routine:
-    """Stand still while a mechanism comes to rest: the physics and the
-    step hooks, none of `hold_routine`'s senses."""
-
-  @abc.abstractmethod
-  def velocity_routine(self, seconds: float, v: float, w: float) -> Routine:
-    """The base at forward speed `v` and yaw rate `w` for `seconds`, its
-    senses running -- the `drive` verb, a dance move."""
-
-  @abc.abstractmethod
-  def travel_routine(self, distance: float, v: float) -> Routine:
-    """`distance` of believed travel along its heading at `v` (negative
-    backs up); returns why it stopped."""
-
-  @abc.abstractmethod
-  def retract_arm_routine(self) -> Routine:
-    """Its reach into the driving configuration (the quadruped's arm folded
-    to its stow)."""
+    torque (issue #405) -- never a torque."""
 
   # ---- hands (issue #507: the humanoid's) ----------------------------------
 
@@ -687,7 +526,7 @@ class Body(abc.ABC):
   def gripped(self, side: str) -> bool:
     """Whether a hand holds something, by its gripper's own reading -- its
     jaws stopped short of closed, squeezing -- never by what the world
-    says it touches (#493: the quadruped's `held()` read the world)."""
+    says it touches (#493: a quadruped's `held()` once read the world)."""
 
   @abc.abstractmethod
   def grip_gap(self, side: str) -> float:
@@ -741,7 +580,7 @@ class Body(abc.ABC):
     `height` pixels and `min_z` (m, the part's nearest at that stream),
     `apart` s apart: the points it saw, (k, 3), the believed world frame,
     through its camera's pose in its model of itself (#493: the humanoid's
-    D435, the quadruped probe's measure). Its own body never in them."""
+    D435). Its own body never in them."""
 
   @abc.abstractmethod
   def hand_at(self, side: str) -> tuple[float, float, float]:
@@ -836,19 +675,17 @@ class Body(abc.ABC):
 
   # ---- posture and rest ----------------------------------------------------
 
-  #: Lying down to rest.
+  #: Resting: the humanoid rests standing (`humanoid.way`).
   resting: bool
-  #: Its posture, as the wire carries it (issue #387): `standing`,
-  #: `lying_down`, `lying`, `standing_up` or `getting_up`. Lying down to
-  #: rest is a posture, never a fall.
+  #: Its posture, as the wire carries it (issue #387): `standing` or
+  #: `getting_up`. Resting is never a fall.
   posture: str
-  #: Whether it gets itself up from a fall (issue #387): the quadruped's
+  #: Whether it gets itself up from a fall (issue #387): the humanoid's
   #: get-up policy does; a body that cannot waits for somebody.
   rights_itself: bool
   #: The falls its own fall watch has taken, counted up: what a fall IS is
-  #: the body's to say (#493's grader asks) -- the quadruped's torso past
-  #: `TOPPLE_TILT_RAD` or slumped standing, the humanoid's trunk 35 deg past
-  #: the posture its legs hold, by its IMU, or its pelvis sunk
+  #: the body's to say (#493's grader asks) -- the humanoid's trunk 35 deg
+  #: past the posture its legs hold, by its IMU, or its pelvis sunk
   #: (`humanoid.getup`), each the moment its get-up takes over.
   falls: int
   #: How long a fall may last before it is the `stuck` death, s: a body that
@@ -861,10 +698,6 @@ class Body(abc.ABC):
   #: (`Reach.held_pitch`), whose deepest, 63 deg, is past the seam's 60
   #: (#559).
   held_pitch: float
-
-  @abc.abstractmethod
-  def rest_routine(self) -> Routine:
-    """Into its resting posture. Code calls it, by reflex (#387)."""
 
   @abc.abstractmethod
   def stand_routine(self) -> Routine:
@@ -880,31 +713,23 @@ def members() -> frozenset[str]:
 
 def body_for(model, data, handle: RobotHandle = FIRST, **kw) -> Body:
   """The body this robot IS, in this world: the one choice a lifecycle
-  built without one makes (`HubLifecycle(body=None)`) -- the quadruped
-  (`legs/body.py`, issue #387) or the humanoid (`humanoid/body.py`, #507),
-  found by this robot's names; a world with no robot of ours under them is
-  refused. `kw` is its navigation: the viewer, pacing, rack prior and map
-  bounds (the humanoid takes the bounds, and its policies)."""
-  if is_quadruped(model, handle):
-    from pluggybot.legs.body import QuadBody
-    return QuadBody(model, data, handle=handle, **kw)
+  built without one makes (`HubLifecycle(body=None)`) -- the humanoid
+  (`humanoid/body.py`, #507), found by this robot's names; a world with no
+  robot of ours under them is refused. `kw` is its navigation: the map
+  bounds, its policies, the viewer and pacing."""
   if is_humanoid(model, handle):
     from pluggybot.humanoid.body import HumanoidBody
     return HumanoidBody(model, data, handle=handle,
                         **{k: v for k, v in kw.items()
                            if k in ("grid_bounds", "policy", "walk", "viewer", "realtime")})
-  raise ValueError(f"no body under {handle.root!r} in this world: the quadruped "
-                   "and the humanoid are the bodies (the rover left in #376)")
-
-
-def is_quadruped(model, handle: RobotHandle = FIRST) -> bool:
-  """Does this robot walk on four legs? Its first leg's hip, by name."""
-  return mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_JOINT,
-                           handle.el("FL_hip_abd")) >= 0
+  raise ValueError(f"no body under {handle.root!r} in this world: the humanoid "
+                   "is the body (the rover left in #376, the quadruped in #559; "
+                   "`rover-final` and `quadruped-final` have them)")
 
 
 def is_humanoid(model, handle: RobotHandle = FIRST) -> bool:
-  """...or on two (#507)? Its left hip's pitch, by name."""
+  """Does this robot walk on two legs (#507)? Its left hip's pitch, by
+  name."""
   return mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_JOINT,
                            handle.el("left_hip_pitch")) >= 0
 
@@ -950,12 +775,12 @@ class _StubStepper:
 class StubBody(Body):
   """A body that does nothing physical (issue #380). Every manoeuvre
   arrives at once, as asked; every sensor answers what the test set:
-  `holding` is the module on its coupling, `on_charger` what `charging`
-  says, `attitude` its IMU. Time passes only where a routine waits
+  `on_charger` what `charging` says, `attitude` its IMU, `hands` and
+  `grips` its hands. Time passes only where a routine waits
   (`hold_routine` and its kin step the stub's world), so the lifecycle's
   seams tick as they do on a real body. What a test that needs the
   lifecycle's BOOKKEEPING -- the mind, the economy, the record -- builds it
-  on, instead of the quadruped: `HubLifecycle(*StubBody.world(),
+  on, instead of the humanoid: `HubLifecycle(*StubBody.world(),
   body=StubBody(...))`."""
 
   STILL = ()
@@ -976,10 +801,8 @@ class StubBody(Body):
   def __init__(self, model=None, data=None, handle: RobotHandle = FIRST,
                pose: tuple[float, float, float] = (0.0, 0.0, 0.0),
                rack=None, grid_bounds=(-3.0, -3.0, 7.0, 7.0),
-               bays: dict[str, int] | None = None, draw_w: float = 0.0,
-               charge_w: float | None = None) -> None:
+               draw_w: float = 0.0, charge_w: float | None = None) -> None:
     from pluggybot.mapping.occupancy_grid import OccupancyGrid
-    from pluggybot.procedure.steps import TOOL_BAYS
     if model is None:
       model, data = self.world()
     self._model, self._data = model, data
@@ -992,38 +815,23 @@ class StubBody(Body):
                               resolution=0.05)
     self.rack = self.rack_prior = rack or RackPose(0.0, 0.0, 0.0)
     self.rack_discovered = False
-    self.bays = dict(TOOL_BAYS if bays is None else bays)
     self.draw_w = float(draw_w)
     #: the charger's net rate into its pack, W; None is `power.CHARGE_W`
     self.charge_w = charge_w
-    #: what the test set: the module on its coupling, the charger's
-    #: contact, the root's attitude
-    self.holding: str | None = None
+    #: what the test set: the charger's contact, the root's attitude
     self.on_charger = False
     self.attitude = (1.0, 0.0, 0.0, 0.0)
     #: every place it was sent, in order
     self.went: list[tuple[float, float]] = []
     #: the places it knows (a test sees them in, `places.see`), and the tags
-    #: a find or a press was asked for, in order, and the true deaths
+    #: a find was asked for, in order
     from pluggybot.home.areas import area_ids
     from pluggybot.mapping.places import Places
-    from pluggybot.rack.tags import BOARD_TAG_IDS, PLATE_TAG_IDS
+    from pluggybot.perception.tags import BOARD_TAG_IDS, PLATE_TAG_IDS
     self.places = Places(ids=(*PLATE_TAG_IDS,
                               *(t for ids in BOARD_TAG_IDS.values() for t in ids),
                               *area_ids()))
     self.found: list[int] = []
-    self.pressed: list[int] = []
-    #: ...each drawing (board, program name) it was asked for, and whether
-    #: it draws (a test sets it): the program's own strokes as its ink
-    self.drew: list[tuple[str, str]] = []
-    self.draws = False
-    #: ...the cubes it can pick (a test sets them), each pick and place it
-    #: was asked for, what is in its claw, and each cube it set on another
-    self.cubes: set[int] = set()
-    self.picked: list[int] = []
-    self.placed: list[int] = []
-    self.held: int | None = None
-    self.stacked: list[tuple[int, int]] = []
     #: ...where it sent each hand, and which grips hold (#507): a hand
     #: shut where a test sent it holds, as the stub's every walk arrives.
     self.hands: dict[str, tuple] = {}
@@ -1050,13 +858,6 @@ class StubBody(Body):
     self.watched: list = []
     self.sight: dict | None = None
     self._why: dict[str, str] = {}
-    #: ...and each survey it was asked for, and what it counts, by tag
-    self.surveyed: list[int] = []
-    self.counts: dict[int, int] = {}
-    #: ...and each hide (from where, its reach, how far clear) and each
-    #: search (from where, its reach) it was asked for (issue #404)
-    self.hid_from: list[tuple] = []
-    self.sought: list[tuple] = []
     self.forgot = 0
     #: ...what moved its belief (a test puts records in), the fixtures it
     #: was lost at, and whether a search finds one (a test sets it)
@@ -1065,23 +866,21 @@ class StubBody(Body):
     self.lost_at: list[str] = []
     self.finds_fixture = False
     self.last_drive = None
-    self.swapping_at = self.peer_at_bay_m = None
     self.working = False
-    self.bay_wait = None
-    self.docked = self.pressing = self.resting = False
+    self.docked = self.resting = False
     self.others = []
     self.ask_way = None
     #: whether it makes way when asked (a test sets it), and every ask:
     #: (route, by)
     self.makes_way = False
     self.way_asked: list[tuple[list, str]] = []
-    #: ...and every bay it asked a robot resting on to step off: (x, y)
+    #: ...and every seat it asked a robot resting on to step off: (x, y)
     self.asked_off: list[tuple[float, float]] = []
     self.making_way = None
     self.way_refused = ""
     self.asides, self.last_aside = 0, None
     self.geom_ids = np.zeros(0, dtype=np.int32)
-    self.peer_holds = self.collision_steps = self.press_steps = 0
+    self.peer_holds = self.collision_steps = 0
 
   model = property(lambda self: self._model)
   data = property(lambda self: self._data)
@@ -1092,12 +891,11 @@ class StubBody(Body):
     return tick.run(self._stepper, routine, name)
 
   def kept_state(self):
-    return {"pose": [self.x, self.y, self.theta], "holding": self.holding,
+    return {"pose": [self.x, self.y, self.theta],
             "places": self.places.kept_state()}, {}
 
   def restore_kept(self, state, arrays) -> bool:
     self.x, self.y, self.theta = state["pose"]
-    self.holding = state.get("holding")
     self.places.restore_kept(state.get("places"))
     return False
 
@@ -1144,103 +942,6 @@ class StubBody(Body):
             **({"at": [p.x, p.y]} if p is not None else {})}
     yield
 
-  def press_plate_routine(self, tag, patience, stop=None):
-    self.pressed.append(int(tag))
-    known = self.places.get(tag) is not None
-    return {"tag": int(tag), "pressed": known,
-            "why": "pressed" if known else "not found", "attempts": []}
-    yield
-
-  def draw_routine(self, board, program, patience, stop=None, on_stroke=None):
-    """Drawn at once where the test said it draws, the figure exactly:
-    the stub has no pen and no board."""
-    self.drew.append((board, getattr(program, "name", "")))
-    if not self.draws:
-      return {"board": board, "drew": False, "why": "not found"}
-    lines = [list(s) for s in program.strokes]
-    for i, line in enumerate(lines):
-      if on_stroke is not None:
-        on_stroke(i, line, program.name)
-    return {"board": board, "drew": True, "why": "drew", "strokes": len(lines),
-            "strokes_drawn": len(lines), "inked_fraction": 1.0,
-            "travel_ink_fraction": 0.0, "shape_rms_mm": 0.0, "form_rms_mm": 0.0}
-    yield
-
-  def pick_cube_routine(self, tag, patience, stop=None):
-    """Picked at once where the test put the cube in its `cubes`, and never
-    otherwise: the stub has no claw and no floor."""
-    self.picked.append(int(tag))
-    ok = int(tag) in self.cubes and self.held is None
-    if ok:
-      self.held = int(tag)
-    return {"op": "pick", "tag": int(tag), "picked": ok,
-            "why": "picked" if ok else "holding" if self.held is not None else "not found"}
-    yield
-
-  def place_cube_routine(self, tag, patience, stop=None):
-    self.placed.append(int(tag))
-    ok = self.held is not None and int(tag) in self.cubes and int(tag) != self.held
-    why = "placed" if ok else "nothing held" if self.held is None else "not found"
-    if ok:
-      self.stacked.append((self.held, int(tag)))
-      self.held = None
-    return {"op": "place", "tag": int(tag), "placed": ok, "why": why}
-    yield
-
-  def put_cube_routine(self, patience, stop=None):
-    held, self.held = self.held, None
-    return {"op": "put", "put": held is not None, "held": held,
-            "why": "put" if held is not None else "nothing held"}
-    yield
-
-  def claw_routine(self, closed):
-    if not closed:
-      self.held = None
-    return self.held is not None if closed else True
-    yield
-
-  def held_cube(self):
-    return self.held
-
-  def survey_routine(self, tag, patience, stop=None, on_count=None):
-    """Counted at once where the test put the place in, the count the test
-    set (`counts`, by tag): the stub walks nowhere and sees nothing."""
-    self.surveyed.append(int(tag))
-    known = self.places.get(tag) is not None
-    n = self.counts.get(int(tag), 0)
-    if known and on_count is not None:
-      on_count(n)
-    return {"tag": int(tag), "surveyed": known, "why": "surveyed" if known else "not found",
-            **({"count": n, "coverage": 1.0} if known else {})}
-    yield
-
-  def hide_routine(self, away_from, reach_m, clear_of_m, patience, stop=None):
-    """Hidden at once, `clear_of_m` past `away_from` on the line through
-    where it stands (or along +x from there): the stub maps nothing."""
-    self.hid_from.append((tuple(away_from), float(reach_m), float(clear_of_m)))
-    dx, dy = self.x - away_from[0], self.y - away_from[1]
-    d = math.hypot(dx, dy)
-    ux, uy = (dx / d, dy / d) if d > 0.0 else (1.0, 0.0)
-    r = max(d, clear_of_m + 0.5)
-    at = (away_from[0] + ux * r, away_from[1] + uy * r)
-    self.x, self.y = at
-    return {"hid": True, "at": [round(at[0], 3), round(at[1], 3)], "why": "hid",
-            "seconds": 0.0}
-    yield
-
-  def seek_routine(self, base, cover_m, patience, stop=None):
-    """Seeks by standing still until `stop` says so or `patience` runs out,
-    a second at a time: the stub has no floor to walk."""
-    self.sought.append((tuple(base), float(cover_m)))
-    t0 = float(self._data.time)
-    while float(self._data.time) - t0 < patience:
-      if stop is not None and stop():
-        return {"why": "stopped", "seconds": round(float(self._data.time) - t0, 1),
-                "targets": 0}
-      yield from self._wait(min(1.0, patience - (float(self._data.time) - t0)))
-    return {"why": "out of time", "seconds": round(float(self._data.time) - t0, 1),
-            "targets": 0}
-
   def forget_world(self) -> None:
     self.grid.grid[...] = 0.0
     self.places.forget()
@@ -1260,9 +961,6 @@ class StubBody(Body):
 
   def reachable(self, points):
     return [True] * len(points)
-
-  def in_sight(self, x, y) -> bool:
-    return True
 
   @property
   def pose(self):
@@ -1298,39 +996,6 @@ class StubBody(Body):
 
   def refresh_rack(self):
     return None
-
-  def bay_standoff(self, station_y):
-    x, y = self.rack.to_world(0.5, station_y)
-    return x, y, self.rack.heading
-
-  def fetch_tool_routine(self, station_y, module):
-    self.holding = module
-    return "arrived"
-    yield
-
-  def stow_tool_routine(self, station_y, module):
-    if self.holding == module:
-      self.holding = None
-    return "arrived"
-    yield
-
-  def place_tool_routine(self, module):
-    self.holding = module
-    return None
-    yield
-
-  def module_state(self, module) -> dict:
-    held = module == self.holding
-    return {"on_fork": held, "hung": not held, "bay": self.bays.get(module, 0)}
-
-  def tool_powered(self, module) -> bool:
-    return module is not None and module == self.holding
-
-  def seated_on(self, module):
-    return self.handle.root if self.tool_powered(module) else None
-
-  def swap_trace(self) -> str:
-    return "a stub body swaps nothing"
 
   def charge_standoff(self):
     x, y = self.rack.to_world(0.5, 0.0)
@@ -1417,23 +1082,6 @@ class StubBody(Body):
 
   def setpoint(self, act) -> float:
     raise KeyError(f"a stub body has no actuator {act!r}")
-
-  def arm_torque(self, act) -> float:
-    raise KeyError(f"a stub body has no arm motor {act!r}")
-
-  def settle_routine(self, seconds):
-    yield from self._wait(seconds)
-
-  def velocity_routine(self, seconds, v, w):
-    yield from self._wait(seconds)
-
-  def travel_routine(self, distance, v):
-    return "arrived"
-    yield
-
-  def retract_arm_routine(self):
-    return
-    yield
 
   def reach_routine(self, side, pos, rot=None, stiffness=1.0, patience=20.0, path=None,
                     turns=None):
@@ -1569,11 +1217,6 @@ class StubBody(Body):
   @property
   def stance(self):
     return self.pose
-
-  def rest_routine(self):
-    self.resting = True
-    return
-    yield
 
   def stand_routine(self):
     self.resting = False
