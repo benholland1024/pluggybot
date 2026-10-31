@@ -6,7 +6,8 @@ the loop drove it into a wall until flat -- every life, thirteen of them.
 #341 bounded that loop; this ends ANY routine a stand-up lands in, so the
 next unbounded loop costs one life rather than every one after it. Ben's
 decision (2026-09-24): the robot comes back out of errand mode, and
-`stood_up` is an event its own map can act on.
+`stood_up` is an event its own map can act on. And since #572 it comes back
+on no map of the house: what it mapped and found goes, as a true death's.
 
 Every rule here is pinned without flying a death, on the stub body
 (`tests/test_body.py`): a stubbed errand that never returns, a pack set to
@@ -22,7 +23,7 @@ from pluggybot import lifecycle as lc
 from pluggybot import tick
 from pluggybot.body import StubBody
 from pluggybot.economy.tasks import TaskBoard
-from pluggybot.lifecycle import (DEATH_ENDED, HUMANOID_HOME, STOOD_UP, HubLifecycle,
+from pluggybot.lifecycle import (DEATH_ENDED, HUMANOID_HOME, MAP_GONE, STOOD_UP, HubLifecycle,
                                  board_book, world_config)
 from pluggybot.mind import events as ev
 from pluggybot.mind import overseer as ov
@@ -30,6 +31,7 @@ from pluggybot.mind.inbox import Inbox
 from pluggybot.mind.overseer import Menu, Overseer
 from pluggybot.mind.thoughts import HISTORY
 from pluggybot.mission.errand import programmed_errand
+from pluggybot.perception.tags import PLATE_TAG_IDS
 from pluggybot.procedure.steps import Program, Step
 from pluggybot.robot import SECOND
 
@@ -499,6 +501,42 @@ def test_the_rule_names_stood_up_and_who_and_shows_no_rule_for_it():
   assert "`timer`" in line and "`admin`" in line
   assert not any("stood_up" in ln for ln in rule.splitlines() if "->" in ln)
   assert "stood back up" in ov.MORTAL_RULE
+
+
+# ---- on no map ---------------------------------------------------------------
+
+
+@pytest.mark.parametrize("who", ["timer", "admin"])
+def test_a_stand_up_forgets_the_map_and_the_places_found_in_it(who):
+  """#572, Ben's call: a stand-up puts the belief right at the start, and a
+  map laid round a wrong one pulls it back (the humanoids were 1-5 m off
+  within an hour live, on maps their scans agreed with). So the robot comes
+  back on no map -- its grid, its places and the explore that laid them
+  gone, as a true death's -- after a death on the timer and from an admin's
+  hand on a living robot alike, and History says so. Shown to fail without
+  `_stand_up`'s `_forget_world`."""
+  life = _life(inbox=Inbox())
+  try:
+    life.body.grid.grid[3:6, 3:6] = 2.0
+    life.body.places.see(PLATE_TAG_IDS[0], 25.0, 4.83, 0.0, 0.0)
+    life.floor_explored, life.blacklist = True, {(4, 4)}
+    assert len(life.body.places) == 1
+    if who == "timer":
+      life.battery.energy_wh = 0.0
+      _hold(life, 0.5)
+      assert life.dead is not None
+      _hold(life, PAST_S)
+    else:
+      life.inbox.offer({"type": "reset_robot", "id": "rr_572", "from": "ben"})
+      life._visitor_step()
+    assert life.dead is None and life.resets[-1]["auto"] is (who == "timer")
+    assert life.body.forgot == 1 and not life.body.grid.grid.any()
+    assert len(life.body.places) == 0
+    assert not life.floor_explored and life.blacklist == set()
+    said = "stood back up on my own" if who == "timer" else "reset by ben while still awake"
+    assert any(said in line and MAP_GONE in line for line in _history(life))
+  finally:
+    life.body.close()
 
 
 # ---- never onto another robot ------------------------------------------------

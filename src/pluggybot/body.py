@@ -220,8 +220,9 @@ class Body(abc.ABC):
 
   @abc.abstractmethod
   def forget_world(self) -> None:
-    """A true death (issue #419): its map and its places cleared -- the new
-    robot knows where its dock is and nothing else."""
+    """Its map and its places cleared -- it knows where its dock is and
+    nothing else: a true death (issue #419), a stand-up (#572), a fixture's
+    fix past the matcher's reach (#476)."""
 
   @abc.abstractmethod
   def plan_frontier(self, blacklist: set) -> tuple[list | None, str]:

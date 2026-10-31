@@ -594,6 +594,18 @@ def test_a_mind_judging_what_the_other_humanoid_needs_asks_after_no_tool():
   assert need == "nothing" and state["carrying"] == ""
 
 
+def test_a_humanoid_holding_a_job_needs_no_tool_in_a_house_with_no_rack():
+  """#572: `other_needs` about a humanoid holding a job was graded against
+  `a_tool`, in a house with no rack and no tool: on its own lifecycle, a
+  held job is no need (no world has had a rack since #559)."""
+  from types import SimpleNamespace
+  from pluggybot.mind import acts
+  life = stub_life(world=HUMANOID_HOME)
+  life.tasks = SimpleNamespace(tasks={"t_1": SimpleNamespace(claimed_by=life.root,
+                                                             state="active")})
+  assert acts.need_of(life)[0] == "nothing"
+
+
 def test_the_loop_with_no_mind_goes_to_no_charger_however_low_the_pack():
   """The loop's day in a world with nowhere to charge, on a pack a world
   with a charger would send it charging on: the start, the explore, the

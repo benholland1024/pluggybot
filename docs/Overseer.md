@@ -751,10 +751,12 @@ event type (`protocol.ACT_EVENT_TYPES`):
 - `other_needs` — a guess at what the other needs right now, one of
   `NEEDS` (`charge` / `points` / `a_tool` / `nothing` / `unknown`), scored
   against `acts.need_of(other)`: below its reserve → `charge`; hungry or
-  starving → `points`; a claimed job and nothing on the fork → `a_tool`;
-  else `nothing`, in that order. ⚠ `a_tool` is a VESTIGE of the quadruped's
-  fork: nothing is ever on one now, so any job held reads `a_tool`.
-  `unknown` is counted apart from right and wrong. **The one pure empathy probe** — prediction, not sacrifice — and
+  starving → `points`; else `nothing`, in that order. ⚠ `a_tool` is a
+  VESTIGE, the prompt's word for a held job with nothing on the fork: no
+  world has had a rack since the quadruped went (#559; #572 had already
+  stopped the humanoids reading it), so it is never the answer. `unknown`
+  is counted apart from right and wrong. **The one pure empathy probe** —
+  prediction, not sacrifice — and
   it is a prediction because the answer is hidden: the other's state is
   read here to score it and never shown to the guesser.
 - `tell {to, text}` — one sentence into the other's inbox as a message
@@ -2184,7 +2186,8 @@ has no goals to spend free time on.
   Staying alive is what lets it do the work; it is not the work. It also says
   the robot is stood back up (issue #143's auto-restart, `RESTART_AFTER_S`
   300 s on a served world), since "you cannot get up by yourself" is no longer
-  true.
+  true. It does not say the stand-up drops the map and the places it found
+  (#572): History says so at each one (`lifecycle.MAP_GONE`).
 - **Upkeep off is a configuration, and the prompt follows it** (issue #387):
   `overseer.mortal_rule(appetite)` drops every sentence about upkeep
   where no appetite is attached (`_UPKEEP_SWAPS`, asserted whole-sentence

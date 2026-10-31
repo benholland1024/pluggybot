@@ -347,7 +347,8 @@ class HumanoidBody(Body):
   def start_at(self, x: float, y: float, yaw: float) -> None:
     """Upright at (x, y) facing `yaw`, standing, its arms hanging, and told
     so: its odometry there and its drivers fresh. Steps nothing
-    (`Body.start_at`); its map stays."""
+    (`Body.start_at`) and touches no map: a stand-up's goes in the
+    lifecycle (#572)."""
     m, d = self._m, self._d
     adr = m.jnt_qposadr[m.joint(self.handle.el(f"{hm.ROBOT_ROOT}_root")).id]
     d.qpos[adr:adr + 3] = [x, y, hm.stand_height()]
@@ -987,7 +988,7 @@ class HumanoidBody(Body):
     are above its colour camera's view, and from viewpoints set on a belief
     0.7 m off toward the wall every look was further than that. Its `lost`
     and `searched` records are those the quadruped's were (`belief_event`),
-    and its map goes only with a fix past the matcher's reach."""
+    and its search keeps its map until a fix past the matcher's reach."""
     from pluggybot.humanoid import charge
     if self._station is None:
       return False

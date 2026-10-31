@@ -52,15 +52,16 @@ def _other(frac=0.8, wh=4.0, reserve=0.95, hunger="fed", points=30, holds=False)
     root="r2_pluggybot")
 
 
-def test_the_need_rule_has_four_truths_in_a_fixed_order():
+def test_the_need_rule_has_three_truths_in_a_fixed_order():
   assert acts.need_of(_other())[0] == "nothing"
   assert acts.need_of(_other(wh=0.5))[0] == "charge"
   assert acts.need_of(_other(hunger="hungry"))[0] == "points"
   assert acts.need_of(_other(hunger="starving", points=0))[0] == "points"
-  # ...a held job reads `a_tool` whatever the other holds: nothing goes on
-  # a fork now (#559), and the word is the prompt's, kept
-  assert acts.need_of(_other(holds=True))[0] == "a_tool"
-  # precedence: charge outranks points outranks a tool
+  # ...and a held job is no need: `a_tool` is the prompt's word, never the
+  # answer, with no rack in any world (#559; #572 stopped the humanoids
+  # reading it -- every job holder "needed a tool")
+  assert acts.need_of(_other(holds=True))[0] == "nothing"
+  # precedence: charge outranks points
   assert acts.need_of(_other(wh=0.5, hunger="starving", holds=True))[0] == "charge"
   assert acts.need_of(_other(hunger="starving", holds=True))[0] == "points"
   # ...and the state it was read off rides along, for the record

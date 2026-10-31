@@ -573,13 +573,14 @@ LIDAR casts along its real frame, and no return is "free to max range", so on
 its side half its rays see the sky and go into the map as 8 m of free space
 at the believed, upright bearings (5 s on its side painted 38 622 free cells
 onto an empty map, through the walls). A dead robot keeps scanning, and a
-stand-up keeps the map. **What is true now:** a reading goes into the map
+stand-up kept the map. **What is true now:** a reading goes into the map
 only while `Body.level()` -- on the humanoid, its IMU's tilt within
 `HumanoidMission.LEVEL_TILT` (2 deg) -- and the near-field height map takes the
-same gate; the front stop still reads every scan. ⚠ The corrupt map was not
-the death loop it was found beside: that loop reproduced with the gate in
-place ("The squaring-up loop had no floor"). Trust the reproduction over the
-story that fits.
+same gate; the front stop still reads every scan. A stand-up drops the map
+since #572, but a fall the robot gets up from keeps it, so the gate stays.
+⚠ The corrupt map was not the death loop it was found beside: that loop
+reproduced with the gate in place ("The squaring-up loop had no floor").
+Trust the reproduction over the story that fits.
 
 ## Two robots at one rack (issue #346)
 
@@ -1204,6 +1205,10 @@ two tags (`HumanoidBody._fix_at`).
   The map goes, the robot looks for the fixture -- the humanoid steps in by
   its LIDAR, never its belief (`HumanoidBody.lost_routine`; "The humanoid's
   charging station") -- and tries again.
+
+- *A stand-up* (#572, Ben's call): put at its start, the belief is right
+  and the map laid round the wrong one would pull it back, so the map goes
+  with its places there too (`HubLifecycle._forget_world`).
 
 Flown off the box's saves, each quadruped's own state where it truly
 stood, four lost robots of four found a fixture and docked, or took their

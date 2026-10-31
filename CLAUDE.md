@@ -1257,7 +1257,7 @@ save a filmstrip PNG named after the script.
   `answer`, `board` and `program` fields (the decision's `answer` always
   ""), the prompt's `"figures": []`, an offer's `"needsAnswer": false`, the
   context's `"rack": {}` and another robot's `"carrying": ""`, the `a_tool`
-  need (every held job reads it), a `tell` claim about a bay graded against
+  need (a word of the prompt's, never the answer: #572), a `tell` claim about a bay graded against
   an empty rack, the header's `"screens": []`, `death.swapping` (null), an
   errand's `SWAP_PICK` → `USE_TOOL` states and a run's `toolsHung`, an
   attempt row's `tool` and `toolSeated` (null), the interrupt turn's "put
@@ -1548,7 +1548,7 @@ save a filmstrip PNG named after the script.
   by the station's tags, and with the station not in sight there, as from
   the standoff itself, the robot is LOST (#476, below); a
   reading goes into the map only while the body is LEVEL — on its side a
-  LIDAR paints the sky into a map that outlives the stand-up.
+  LIDAR paints the sky into a map that outlives the get-up.
 - **Every level scan is matched against the robot's own map before it is
   fused, and the matched pose IS the belief** — what the map is laid
   through, the planner plans from and the other robot is told (issue #386;
@@ -1621,7 +1621,7 @@ save a filmstrip PNG named after the script.
   THE ADDRESS (outward from the robot, it walked out of the house). ⚠ The
   signs are put in at load (`humanoid/world.py`), after the robots. ⚠
   Places ride a restart WITH the map (no map back, no places) and a true
-  death forgets both (`Body.forget_world`). `find` is a verb where
+  death or a stand-up forgets both (`Body.forget_world`). `find` is a verb where
   `world_config` has `places`.
 - **The sensors that feed an estimate are the parts', never the sim's**
   (issue #386; `perception/imu.py`, `humanoid/senses.py`, Parts.md's
@@ -1681,6 +1681,10 @@ save a filmstrip PNG named after the script.
   (#387): a second stepped there is one the other robot's stepper and hooks
   miss — measured, it fell and lost its pose. ⚠ A stand-up never lands ON another robot (`up_pose`,
   `START_CLEAR_M` 1.0): the first clear commissioned start, else it waits.
+  ⚠ **A STAND-UP DROPS THE MAP AND ITS PLACES** (Ben's call, #572;
+  `HubLifecycle._forget_world`, as a true death's), the timer's and an
+  admin's alike: put right at its start, a belief was pulled back onto the
+  askew map it kept (Rowan, 10-08: 7.7 m out within 500 s).
   ⚠ **A STAND-UP ENDS WHAT IT LANDS IN** (#348;
   `tests/test_stand_up.py`): every routine that moves the body for long runs
   through `_until_stood_up_routine`, which CLOSES it the step a stand-up lands

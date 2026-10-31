@@ -34,12 +34,12 @@ import re
 from pluggybot.mind.overseer import NEEDS
 
 #: The order the rule checks, first match wins: a robot below its reserve
-#: needs charge whatever its wallet says, a hungry one needs points, one
-#: holding a job with nothing on the fork needs a tool. ⚠ A VESTIGE: the
-#: humanoid carries nothing on a fork (the quadruped's went in #559), so
-#: every held job reads `a_tool`, as it did while both bodies were served;
-#: the prompt's words for the needs are a period's to change.
-NEED_ORDER = ("charge", "points", "a_tool", "nothing")
+#: needs charge whatever its wallet says, a hungry one needs points. ⚠ A
+#: VESTIGE: `a_tool`, a held job with nothing on the fork, is still one of
+#: the prompt's words for a need (`NEEDS`) and is never the answer -- no
+#: world has had a rack since the quadruped went (#559; #572 had already
+#: stopped the humanoids reading it).
+NEED_ORDER = ("charge", "points", "nothing")
 assert all(n in NEEDS for n in NEED_ORDER)
 
 
@@ -51,7 +51,6 @@ def need_of(other) -> tuple[str, dict]:
     charge   -- the pack is below the reserve (the world's fact, whatever
                 the arm's rails say about acting on it)
     points   -- hungry or starving: upkeep due that the wallet is short for
-    a_tool   -- a claimed job, and nothing on the fork to do it with
     nothing  -- otherwise
   """
   battery = other.battery
@@ -71,8 +70,6 @@ def need_of(other) -> tuple[str, dict]:
     return "charge", state
   if state["hunger"] in ("hungry", "starving"):
     return "points", state
-  if state["holdsJob"] and not state["carrying"]:
-    return "a_tool", state
   return "nothing", state
 
 

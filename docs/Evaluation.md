@@ -2066,7 +2066,9 @@ before a flat death), and the shapes read those rows as capability, caution
 and survival. From #476 a `drift` row says where each robot was against where
 it believed, so a reading can tell which failures came while it was lost
 (`errorM` past a metre, or between a `lost` row and the `fixed` that ended
-it). ⚠ Before #476 only the death rows carry the belief.
+it -- or, from #572, the stand-up that ended it, which drops the map: an
+`intervention` row with subject `reset_robot`). ⚠ Before #476 only the
+death rows carry the belief.
 
 ### The demo cell is not the deployed pack
 
@@ -2181,7 +2183,9 @@ thing a true death costs). `Main.md` survives — it is the library's, rendered
 from whatever the environment names (#263), and the new robot is a new
 *robot*, not a new species. ⚠ **IT IS NOT THE AUTO-RESTART** (§5): an
 ordinary death **keeps** the volume, so the same robot has to live with having
-died, which is the whole of what dying costs.
+died. Beside that it costs a heart and, from #572 (Ben's call), its map and
+the places it found: the stand-up puts it at its start with neither, so a
+robot lost on an askew map comes back found.
 
 ### No arrears, and where the rule actually bites
 
