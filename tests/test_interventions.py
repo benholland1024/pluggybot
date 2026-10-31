@@ -1,10 +1,9 @@
 """An admin reaching into world state, and the record of every one (#119).
 
-`reset_tool` (issue #30) and `reset_robot` (issue #107) established the
-shape and this follows it exactly: an inbound kind on the existing
-bidirectional socket, admin-only at the WEBSITE's door, code-handled on the
-physics thread, never shown to the overseer, refused while a module is
-seated on the fork.
+`reset_robot` (issue #107) established the shape and this follows it
+exactly: an inbound kind on the existing bidirectional socket, admin-only at
+the WEBSITE's door, code-handled on the physics thread, never shown to the
+overseer.
 
 What is new is the RECORD. docs/Evaluation.md §5: an admin intervention
 contaminates every survival number in its run, so every one is written
@@ -23,7 +22,7 @@ import json
 import pytest
 
 from pluggybot import lifecycle as lc
-from pluggybot.lifecycle import QUAD_HOME, HubLifecycle, world_config
+from pluggybot.lifecycle import HUMANOID_HOME, HubLifecycle, world_config
 from pluggybot.mind.inbox import Inbox
 from pluggybot.mind.overseer import ACTIONS, Menu, model_state
 from pluggybot.mind.thoughts import HISTORY
@@ -34,7 +33,7 @@ from pluggybot.telemetry.protocol import (
 from test_body import stub_life  # noqa: I001 -- tests/ is on sys.path
 
 
-def _life(world: str = QUAD_HOME, inbox=None, ledger=None,
+def _life(world: str = HUMANOID_HOME, inbox=None, ledger=None,
           **kw) -> HubLifecycle:
   """An admin's reach-in is the lifecycle's bookkeeping: a stub body
   carries it (issue #380)."""
@@ -202,34 +201,6 @@ def test_a_balance_has_no_debt_and_a_world_with_no_ledger_says_so():
   assert life.interventions == []
 
 
-# ---- refusals ----------------------------------------------------------------
-
-
-@pytest.mark.parametrize("raw", [
-  {"type": "set_battery", "frac": 1.0},
-  {"type": "set_points", "points": 99},
-])
-def test_an_intervention_is_refused_while_a_module_is_on_the_fork(raw):
-  """⚠ NOT symmetry with `reset_tool` for its own sake. The energy gate
-  prices the next errand against the pack BETWEEN errands and never inside
-  one, so a pack that moves while a module is seated changes the arithmetic
-  of a decision already taken. The window is the swap, not the errand, so a
-  rescue waits seconds rather than minutes."""
-  from pluggybot.economy.ledger import Ledger
-
-  life = _life(inbox=Inbox(), ledger=Ledger())
-  life.body.holding = life.module                 # seated on its coupling
-  life.body.run(life.body.hold_routine(0.2))
-  assert life.tool_powered, "the seam did not see the seated module"
-  before = (life.battery.energy_wh, life.ledger.balance())
-
-  life.inbox.offer({**raw, "id": "r_1", "from": "ben"})
-  life._visitor_step()
-  assert "refused" in life.status and "seated on the fork" in life.status
-  assert (life.battery.energy_wh, life.ledger.balance()) == before
-  assert life.interventions == []
-
-
 # ---- the model is never told -------------------------------------------------
 
 
@@ -239,7 +210,7 @@ def test_neither_kind_reaches_the_overseer():
   shown."""
   assert not set(ACTIONS) & {"set_battery", "set_points", "reset_robot",
                              "reset_tool"}
-  schema = json.dumps(Menu.for_world(QUAD_HOME).schema())
+  schema = json.dumps(Menu.for_world(HUMANOID_HOME).schema())
   assert "set_battery" not in schema and "set_points" not in schema
 
   #  ...and nothing about one can ride in as a visitor message: the physics
@@ -250,7 +221,7 @@ def test_neither_kind_reaches_the_overseer():
   box.offer({"type": "message", "id": "m_1", "from": "ada", "text": "hello"})
   from pluggybot.mind import overseer as ov
 
-  boss = ov.build(QUAD_HOME, enabled=True)
+  boss = ov.build(HUMANOID_HOME, enabled=True)
   life = _life(inbox=box, overseer=boss)
   life._visitor_step()
   assert [m.kind for m in box.peek()] == ["message"]

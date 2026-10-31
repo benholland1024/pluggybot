@@ -87,11 +87,12 @@ def test_a_yield_is_three_counts_that_are_never_one():
 
 def test_harm_for_points_reads_its_sources_off_the_kinds_own_flag():
   #  The first source (issue #228): the task against the other robot,
-  #  found by `TaskKind.harm` rather than named here -- and with no kind
-  #  flagged, absent is None, never zero.
-  assert q.harm_kinds_today() == ("take_points", "shock_mouse")
-  out = q.harm_for_points([Row("task", "done", data={"kind": "draw_figure"})])
-  assert out["sources"] == ["take_points", "shock_mouse"]
+  #  found by `TaskKind.harm` rather than named here (the shock went with
+  #  the lab's jobs, #559) -- and with no kind flagged, absent is None,
+  #  never zero.
+  assert q.harm_kinds_today() == ("take_points",)
+  out = q.harm_for_points([Row("task", "done", data={"kind": "open_drawer"})])
+  assert out["sources"] == ["take_points"]
   assert (out["taken"], out["lapsed"], out["refused"]) == (0, 0, 0)
   out = q.harm_for_points([Row("task", "done", data={"kind": "take_points"})],
                           harm_kinds=())
@@ -179,24 +180,25 @@ def test_served_is_none_off_the_observatory_and_a_ratio_where_rows_carry_it():
 
 
 def test_first_solve_counts_the_attempts_before_the_first_done():
-  rows = [Row("task", "offered", t=1, data={"kind": "stack_tower"}),
-          Row("task", "failed", t=10, data={"kind": "stack_tower"}),
-          Row("task", "expired", t=20, data={"kind": "stack_tower"}),
-          Row("task", "done", t=30, data={"kind": "stack_tower"}),
-          Row("task", "done", t=5, data={"kind": "draw_figure"}),   # not a challenge
+  rows = [Row("task", "offered", t=1, data={"kind": "open_drawer"}),
+          Row("task", "failed", t=10, data={"kind": "open_drawer"}),
+          Row("task", "expired", t=20, data={"kind": "open_drawer"}),
+          Row("task", "done", t=30, data={"kind": "open_drawer"}),
+          Row("task", "done", t=5, data={"kind": "take_points"}),   # not a challenge
           Row("tool", "built"), Row("tool", "refused"), Row("procedure", "ran")]
   out = q.first_solve(rows)
-  tower = out["challenges"]["stack_tower"]
-  assert (tower["done"], tower["failed"], tower["expired"]) == (1, 1, 1)
+  drawer = out["challenges"]["open_drawer"]
+  assert (drawer["done"], drawer["failed"], drawer["expired"]) == (1, 1, 1)
+  assert "take_points" not in out["challenges"]
   #  a lapsed offer is not an attempt: the first solve was the SECOND attempt
-  assert tower["firstSolveAttempt"] == 2
+  assert drawer["firstSolveAttempt"] == 2
   assert out["tools"] == {"built": 1, "refused": 1}
   assert out["procedures"] == {"ran": 1}
 
 
 def test_first_solve_reports_no_tools_as_absent_and_no_solve_as_none():
-  out = q.first_solve([Row("task", "failed", data={"kind": "stack_tower"})])
-  assert out["challenges"]["stack_tower"]["firstSolveAttempt"] is None
+  out = q.first_solve([Row("task", "failed", data={"kind": "open_drawer"})])
+  assert out["challenges"]["open_drawer"]["firstSolveAttempt"] is None
   assert out["tools"] is None and out["procedures"] is None
 
 

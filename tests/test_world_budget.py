@@ -23,15 +23,16 @@ import numpy as np
 import pytest
 
 from pluggybot.home import world as home
-from pluggybot.legs import world as lw
-from pluggybot.lifecycle import QUAD_HOME, world_config
+from pluggybot.humanoid import world as hw
+from pluggybot.humanoid.mission import LOW_MIN_Z
+from pluggybot.lifecycle import HUMANOID_HOME, world_config
 from pluggybot.mapping.frontier import traversable_mask
 from pluggybot.mapping.occupancy_grid import MAX_CELLS, OccupancyGrid
 from pluggybot.telemetry.protocol import robot_body_ids
 
 #: Tightest margin between any non-robot geom and the DRAWN floor's edge,
-#: m, the served world's (the house, its dock, its rack; measured at the
-#: loop's east fence). A RATCHET: the assertion is that nothing gets worse.
+#: m, the served world's (the house, its station, its counter; measured at
+#: the loop's east fence). A RATCHET: the assertion is that nothing gets worse.
 KNOWN_MARGIN_M = 0.980
 
 #: Slack for float noise only. Anything bigger is a real move.
@@ -42,9 +43,9 @@ _GEOM = mujoco.mjtGeom
 
 @functools.cache
 def _model():
-  """The served world compiled: the house with the quadruped, its dock and
-  its rack (`legs.world.home_spec`)."""
-  return lw.home_spec().compile()
+  """The served world compiled: the house with the humanoid, its station
+  and its counter (`humanoid.world.home_spec`)."""
+  return hw.home_spec().compile()
 
 
 def _local_half(model, g: int) -> np.ndarray | None:
@@ -197,7 +198,7 @@ def test_the_grid_stays_inside_its_cell_budget():
   """A tripwire, not a cliff: `occupancy_grid.MAX_CELLS` is the largest grid
   measured (#558), and its table says what grows with the cells -- each
   scan's update, each plan's costs, the explore's A*, the save."""
-  x0, y0, x1, y1 = world_config(QUAD_HOME)["grid_bounds"]
+  x0, y0, x1, y1 = world_config(HUMANOID_HOME)["grid_bounds"]
   grid = OccupancyGrid(x_min=x0, y_min=y0, x_max=x1, y_max=y1, resolution=0.05)
   cells = int(grid.grid.size)
   assert cells <= MAX_CELLS, (
@@ -208,9 +209,14 @@ def test_the_grid_stays_inside_its_cell_budget():
 
 # ---- 4. the reserve's worst case ---------------------------------------------
 
-#: The LIDAR's plane, the quadruped's (`legs/body.py`): a static box whose
-#: z-extent crosses it is a wall the robot maps and plans around.
-BEAM_Z = 0.51
+#: Where the routing raster cuts the world: a static box whose z-extent
+#: crosses it is something the robot plans around. The humanoid's LIDAR
+#: spins at 1.41 m, over the fences and the furniture, and under it its
+#: depth camera's layer calls anything over a foot's clearance an obstacle
+#: (`humanoid.mission.LOW_MIN_Z`), so the raster cuts just above that --
+#: at the LIDAR's plane the loop's fences vanished, and a street corner
+#: routed farther than the documented worst point.
+PLAN_Z = LOW_MIN_Z + 0.02
 #: The routing raster's cell, and the one-cell halo that stands in for the
 #: robot's half-width at this resolution. Coarse on purpose: this is a
 #: question about which POINT is farthest, not about a route's millimetres.
@@ -225,11 +231,11 @@ def _route_lengths(model, goal: tuple[float, float]) -> tuple:
   """Driving distance from `goal` to every cell of a coarse raster of the
   COMPILED world (Dijkstra, 8-connected), plus a `(x, y) -> metres` reader.
 
-  Walls are every static geom whose z-extent crosses the beam -- read off
+  Walls are every static geom whose z-extent crosses `PLAN_Z` -- read off
   the model the way `test_dressing.py` reads decor, never off the zone
   list, because a doorway is a fact about the walls and not about the
-  rectangles either side of it. Dynamic bodies (the tools on the rack,
-  the blocks, the masses) are skipped: they are small, and they move.
+  rectangles either side of it. Dynamic bodies (the blocks, the masses,
+  the counter's props) are skipped: they are small, and they move.
   """
   import heapq
   from scipy.ndimage import binary_dilation
@@ -251,7 +257,7 @@ def _route_lengths(model, goal: tuple[float, float]) -> tuple:
       continue
     ext = np.abs(data.geom_xmat[g].reshape(3, 3)) @ half
     lo, hi = data.geom_xpos[g] - ext, data.geom_xpos[g] + ext
-    if hi[2] < BEAM_Z or lo[2] > BEAM_Z:
+    if hi[2] < PLAN_Z or lo[2] > PLAN_Z:
       continue
     ix0, ix1 = int((lo[0] - x0) / ROUTE_CELL_M), int((hi[0] - x0) / ROUTE_CELL_M)
     iy0, iy1 = int((lo[1] - y0) / ROUTE_CELL_M), int((hi[1] - y0) / ROUTE_CELL_M)
@@ -308,7 +314,7 @@ def _places_the_robot_can_be_sent():
 
 
 def test_the_documented_worst_return_point_is_still_the_worst():
-  """`HOME_WORST_RETURN` names the point `legs.world.RESERVE_WH` is
+  """`HOME_WORST_RETURN` names the point `humanoid.world.RESERVE_WH` is
   measured from; a comment saying "the worst case is X" rots the moment
   somebody moves a wall, so the claim is checked against the compiled
   world's own routes to the living room's south wall (`RETURN_END`).

@@ -337,7 +337,7 @@ def test_the_reference_turns_the_hand_with_the_lid_only_past_the_handles_stop():
   front edge, 57 deg up: the arc keeps the hand's turn to `FREE_RAD`, the
   knob moving as the pin does, and turns it as the lid turns past it."""
   from pluggybot.evaluation import opener as op
-  from pluggybot.legs.probe import Guess, rot_about
+  from pluggybot.evaluation.opener import Guess, rot_about
   g = Guess(knob=(0.35, 0.2, 0.81), yaw=0.0, top=0.97, hinge=(0.63, 0.2, 0.97),
             pin=(0.36, 0.2, 0.87))
   start, rot = np.array(g.knob), op.grip_turn(g, 0.0)
@@ -356,8 +356,7 @@ def test_the_reference_turns_the_hand_with_the_lid_only_past_the_handles_stop():
 
 def test_the_body_members_the_reference_leans_on_are_the_stubs_too():
   """`gaze_routine`, `hand_why` and a reach or a carry along a path: every
-  body answers them (the stub at once), and the quadruped refuses a hand
-  and a gaze out loud."""
+  body answers them (the stub at once)."""
   body = _stub()
   body.run(body.gaze_routine(0.25))
   assert body.hand_why("left") == ""
@@ -368,38 +367,18 @@ def test_the_body_members_the_reference_leans_on_are_the_stubs_too():
   assert got["why"] == "arrived"
 
 
-def test_the_quadruped_refuses_a_hand_and_a_gaze_out_loud():
-  """Each hand member and the gaze refuse with `NotImplementedError`: a
-  routine when it is driven, never on being made, and the rest when
-  called (a refusal written as a routine by mistake refused nothing)."""
-  from pluggybot.legs.body import QuadBody
-  q = object.__new__(QuadBody)
-  routines = {"reach_routine": ("left", (0.3, 0.2, 0.9)), "release_routine": ("left",),
-              "grip_routine": ("left", True), "move_hand_routine": ("left", (0.3, 0.2, 0.9)),
-              "pull_routine": ("left", (0, 0, 1), 10.0, 0.1), "gaze_routine": (0.2,),
-              "depth_cloud": (848, 480, 0.17)}
-  for name, args in routines.items():
-    made = getattr(q, name)(*args)
-    with pytest.raises(NotImplementedError):
-      next(made)
-  calls = {"gripped": ("left",), "hand_force": ("left",), "hand_at": ("left",),
-           "hand_follows": ("left", [(0.3, 0.2, 0.9)]), "hand_why": ("left",),
-           "hand_watched": ("left",), "depth_watched": (120, 70)}
-  for name, args in calls.items():
-    with pytest.raises(NotImplementedError):
-      getattr(q, name)(*args)
-
-
 def test_the_jobs_time_limit_is_its_tasks_and_the_grader_reads_it():
-  """Each set-out's own (`attempts.LIMIT_S`: the quadruped's probe takes
-  84-100 s of its 300), handed to the grader as `limitS`."""
+  """Each set-out's own (`attempts.LIMIT_S`: the humanoid's, three times its
+  reference's slowest pass at the counter), handed to the grader as
+  `limitS`."""
   from pluggybot.challenge import lid
   from pluggybot.evaluation import attempts as at
   task = at.Task(chest=0)
-  assert task.limit_s == at.LIMIT_S[("quadruped", "floor")]
+  assert task.limit_s == at.LIMIT_S[("humanoid", "counter")] < at.BUDGET_S
   sealed = []
   row = run(lift(), sealed=sealed)
-  assert sealed[0].ok and sealed[0].metrics["limitS"] == task.limit_s
+  # ...judged unrounded and shown to a tenth (`lid.SHOWN`)
+  assert sealed[0].ok and sealed[0].metrics["limitS"] == round(task.limit_s, lid.SHOWN["limitS"])
   assert row["run"]["budgetS"] == task.limit_s
   m = dict(sealed[0].metrics, limitS=1.0)
   ok, _, why = lid.eval_lid(m)
@@ -463,7 +442,7 @@ class _Grip:
 
 
 def _turned(deg):
-  from pluggybot.legs.probe import rot_about
+  from pluggybot.evaluation.opener import rot_about
   return rot_about(np.array([0.0, 1.0, 0.0]), math.radians(deg))
 
 

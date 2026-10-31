@@ -7,13 +7,17 @@ and it runs in milliseconds instead of a minute.
 """
 
 import math
+from types import SimpleNamespace
 
 import numpy as np
+import pytest
 
+from pluggybot import navigator as nav
 from pluggybot.behavior.navigation import (
-  TERMINAL_CONE, V_MAX, W_MAX, drive_toward,
+  TERMINAL_CONE, V_MAX, W_MAX, drive_toward, plan,
 )
 from pluggybot.control import wrap_angle
+from pluggybot.mapping.occupancy_grid import OccupancyGrid
 
 
 def roll_out(start, target, slow_radius=None, arrive=0.015,
@@ -186,3 +190,29 @@ def test_the_escape_is_bounded_a_lost_robot_is_not_teleported():
   assert nearest_traversable(trav, (55, 55)) == (55, 55)
   assert nearest_traversable(trav, (48, 55)) == (50, 55)   # inside the bound
   assert nearest_traversable(trav, (10, 10)) is None       # genuinely lost
+
+
+def test_progress_is_read_along_the_route_on_legs():
+  """A detour round a wall is progress (#387; the humanoid's
+  `PROGRESS_ALONG_ROUTE`): the straight line to the goal grows while the
+  route shrinks."""
+  me = SimpleNamespace(pose=(0.0, 0.0, 0.0), PROGRESS_ALONG_ROUTE=True)
+  route = [(1.0, 0.0), (1.0, 2.0)]
+  assert nav.Navigator._left(me, 5.0, route, 0.0, 2.0) == pytest.approx(1 + 2 + 1)
+  me.PROGRESS_ALONG_ROUTE = False
+  assert nav.Navigator._left(me, 5.0, route, 0.0, 2.0) == 5.0
+
+
+def test_the_explore_drops_frontiers_off_its_own_floor():
+  """Frontiers A* cannot reach are dropped before any A*, and none is
+  blacklisted -- they may be reachable next round (#387; the humanoid's
+  explore plans with `own_component`)."""
+  g = OccupancyGrid(0.0, 0.0, 6.0, 3.0, resolution=0.05)
+  g.grid[:] = -5.0
+  g.grid[:, 58:62] = 5.0                           # a wall, x 2.9..3.1
+  g.grid[20:40, 100:110] = 0.0                     # unknown, beyond it
+  bl = set()
+  path, status = plan(g, (1.0, 1.5, 0.0), bl, own_component=True)
+  assert (path, status) == (None, "no-reachable") and not bl
+  path, status = plan(g, (1.0, 1.5, 0.0), bl)
+  assert status == "no-reachable" and bl, "without it, the explorer tries and blacklists"

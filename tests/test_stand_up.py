@@ -22,13 +22,15 @@ from pluggybot import lifecycle as lc
 from pluggybot import tick
 from pluggybot.body import StubBody
 from pluggybot.economy.tasks import TaskBoard
-from pluggybot.lifecycle import (DEATH_ENDED, QUAD_HOME, STOOD_UP, HubLifecycle,
-                                 board_book, cage_errand, world_config)
+from pluggybot.lifecycle import (DEATH_ENDED, HUMANOID_HOME, STOOD_UP, HubLifecycle,
+                                 board_book, world_config)
 from pluggybot.mind import events as ev
 from pluggybot.mind import overseer as ov
 from pluggybot.mind.inbox import Inbox
 from pluggybot.mind.overseer import Menu, Overseer
 from pluggybot.mind.thoughts import HISTORY
+from pluggybot.mission.errand import programmed_errand
+from pluggybot.procedure.steps import Program, Step
 from pluggybot.robot import SECOND
 
 from test_body import stub_life  # noqa: I001 -- tests/ is on sys.path
@@ -44,7 +46,7 @@ PAST_S = TIMER_S + 1.0
 
 @pytest.fixture(scope="module")
 def menu():
-  return Menu.for_world(QUAD_HOME, board_book(QUAD_HOME))
+  return Menu.for_world(HUMANOID_HOME, board_book(HUMANOID_HOME))
 
 
 def _life(start=None, body=None, **kw) -> HubLifecycle:
@@ -52,7 +54,7 @@ def _life(start=None, body=None, **kw) -> HubLifecycle:
   kw.setdefault("mortal", True)
   kw.setdefault("restart_after_s", TIMER_S)
   life = stub_life(body=body, **kw)
-  start = start or world_config(QUAD_HOME)["start"]
+  start = start or world_config(HUMANOID_HOME)["start"]
   life.body.start_at(*start)
   life.home_pose = tuple(start)
   life.survival_since = float(life.data.time)
@@ -63,11 +65,18 @@ def _hold(life, seconds: float) -> None:
   life.body.run(life.body.hold_routine(seconds))
 
 
-def _feed_job(board, life):
-  """A job with an errand behind it on legs, claimed and started."""
-  task = board.offer("feed_mouse", "lab", t=0.0)
-  board.claim(task.id, robot=life.root, t=0.0, answer="eating")
-  board.start(task.id, t=0.0)
+def _lap():
+  """A procedure's errand, as the robot's own `procedure:<name>` builds it
+  (`lifecycle.errand_from`): no job behind it."""
+  return programmed_errand(Program.single("lap", [Step("wait", {"seconds": 1.0})]),
+                           task="program", name="procedure")
+
+
+def _drawer_job(board, life):
+  """A hand job (#559), claimed: the robot writes and runs the procedure
+  that does it, and says `done`."""
+  task = board.offer("open_drawer", "drawer", t=0.0)
+  board.claim(task.id, robot=life.root, t=0.0)
   return task
 
 
@@ -106,7 +115,7 @@ def test_a_stand_up_closes_the_errand_it_lands_in_and_no_other_robots_routine():
   closed the step its stand-up ends -- its `finally` runs, it is out of
   errand mode -- and robot 2's routine runs every step it asked for. An
   exception through `tick.run_many` would have been thrown into both."""
-  cfg = world_config(QUAD_HOME)
+  cfg = world_config(HUMANOID_HOME)
   model, data = StubBody.world()
   a = _life(body=StubBody(model, data))
   b = _life(start=cfg["start2"], body=StubBody(model, data, handle=SECOND),
@@ -120,7 +129,7 @@ def test_a_stand_up_closes_the_errand_it_lands_in_and_no_other_robots_routine():
       yield b.body.STILL
     return steps
 
-  errand = cage_errand(QUAD_HOME, "feed")
+  errand = _lap()
   out = tick.run_many([
     (a.body.stepper, a._until_stood_up_routine(_forever(a, errand, closed))),
     (b.body.stepper, steady())])
@@ -165,9 +174,9 @@ def test_the_day_loop_ends_an_errand_that_never_returns_at_the_stand_up():
         closed.append(float(life.data.time))
 
     life.run_errand_routine = errand_routine
-    errand = cage_errand(QUAD_HOME, "feed")
+    errand = _lap()
     life.errands = [errand]
-    day = life.begin(world_config(QUAD_HOME)["start"], max_sim_time=60.0,
+    day = life.begin(world_config(HUMANOID_HOME)["start"], max_sim_time=60.0,
                      explore_budget=0.0)
     life.body.run(day)
 
@@ -182,9 +191,8 @@ def test_the_day_loop_ends_an_errand_that_never_returns_at_the_stand_up():
 
 #: Every routine the loop drives that moves the body for long, and so can
 #: still be running when the timer fires five minutes after a death.
-LONG = {"run_errand_routine", "_stow_retry_routine", "_stow_after_restart_routine",
-        "explore_routine", "_after_decision_routine", "go_charge_routine",
-        "charge_routine"}
+LONG = {"run_errand_routine", "explore_routine", "_after_decision_routine",
+        "go_charge_routine", "charge_routine"}
 
 
 def test_every_long_manoeuvre_the_loop_drives_runs_under_the_rule():
@@ -294,65 +302,67 @@ def test_closing_is_safe_because_no_routine_yields_in_a_finally():
   assert offenders == []
 
 
-def test_the_rescue_leaves_a_tool_whose_bay_another_robot_is_working():
-  """#347's rule for the lost-tool clock, on the stand-up's hand: a swap
-  working at the tool's bay may have a fork in it, and a module teleported
-  there lands in it. The tool is left to the lost-tool clock, which waits
-  for the swap. Shown to fail without the `worked` check in `_stand_up`."""
-  from types import SimpleNamespace
-  from pluggybot.rack.coupling import STATION_YS
-  life = _life()
-  returned: list[str] = []
-  life._return_module = returned.append
-  life.body.holding = life.module                 # seated on the fork
-  #  one step, so the seam reads the seated module: without it the rescue
-  #  never sees a tool on the fork and this passes with the rule deleted
-  _hold(life, 0.2)
-  assert life.tool_powered, "the seam did not see the seated module"
-  bay_y = STATION_YS[life.rack_inventory[life.module]]
-  life.peers = [SimpleNamespace(home_pose=None,       # far from any start
-                                body=SimpleNamespace(swapping_at=bay_y,
-                                                     footprint_centre=lambda: (9.0, 9.0)))]
-  life._die("flat", "the pack reached zero")
-  life.stand_up(lc.AUTO_RESTART_BY, auto=True)
-  assert life.dead is None
-  assert returned == [], "dropped into a bay another robot's swap was working"
-
-
 # ---- the job, and what the robot and its map are told ---------------------
 
 
-def test_the_job_fails_and_the_map_hears_the_stand_up_and_the_failure(menu):
-  """The errand's job is FAILED with the world's reason, not taken up again
-  as a restart's is (#345): a kept errand runs before the mind is asked, so
-  the robot would walk straight back into the job it died doing. The map
-  hears `stood_up` (who: the timer) beside `task_failed`, and History says
-  what dying cut short."""
+def test_a_hand_job_stays_the_robots_and_the_map_hears_the_stand_up_and_the_failure(menu):
+  """A procedure's errand a stand-up ends is failed for the map -- it hears
+  `stood_up` (who: the timer) beside `task_failed` -- and History says what
+  dying cut short; the hand job the robot holds is NOT failed: its procedure
+  is the robot's to run again, as across a restart (#345). (A job with an
+  errand behind it was failed there; the quadruped's went with it, #559.)"""
   board = TaskBoard()
   said: list[dict] = []
   board.on_event.append(said.append)
   boss = _mapped(menu, ev.Row("stood_up", "idle", kind="timer"))
   life = _life(tasks=board, overseer=boss)
   try:
-    task = _feed_job(board, life)
-    errand = lc.errand_for_task(board[task.id], QUAD_HOME)
-    assert errand is not None and errand.task_id == task.id
+    task = _drawer_job(board, life)
+    errand = _lap()
+    errand.task_id = task.id                    # its procedure, run for the job
     life._next_events_check = float("inf")      # the map reads it below, once
 
     out = life.body.run(
       life._until_stood_up_routine(_forever(life, errand, [])))
 
     assert out is STOOD_UP
-    assert board[task.id].state == "failed"
-    assert board[task.id].verdict["reason"] == DEATH_ENDED
-    assert [m["state"] for m in said if m["type"] == "task_resolved"] == ["failed"]
+    assert board[task.id].state == "claimed" and board[task.id].claimed_by == life.root
+    assert not [m for m in said if m["type"] == "task_resolved"]
     assert ("stood_up", "timer") in life._occurred
     assert ("task_failed", errand.name) in life._occurred
     life._next_events_check = 0.0
     life._events_step()
     assert life.queued_row == ev.Row("stood_up", "idle", kind="timer")
-    assert any(f"dying cut short {errand.name}; the job {task.id} (feed_mouse) "
-               f"is failed: {DEATH_ENDED}" in ln for ln in _history(life))
+    cut = [ln for ln in _history(life) if f"dying cut short {errand.name}" in ln]
+    assert cut and "is failed" not in cut[0]
+  finally:
+    life.body.close()
+
+
+def test_a_job_with_an_errand_behind_it_is_failed_by_the_stand_up(monkeypatch):
+  """...and a job with an ERRAND behind it is failed with the world's reason
+  (`DEATH_ENDED`), never taken up again as a restart's is: a kept errand
+  would walk straight back into what killed it. No kind the humanoids are
+  offered is discharged by an errand (#559), so the kind is a copy of the
+  drawer's; the branch still read a game's roles, which went with hide and
+  seek, and raised."""
+  import dataclasses
+  from pluggybot.economy.tasks import KINDS
+  monkeypatch.setitem(KINDS, "errand_job", dataclasses.replace(
+    KINDS["open_drawer"], name="errand_job", discharge="errand", draws=False))
+  board = TaskBoard()
+  life = _life(tasks=board)
+  try:
+    task = board.offer("errand_job", "drawer", params={"minutes": 16}, t=0.0)
+    board.claim(task.id, robot=life.root, t=0.0)
+    board.start(task.id, t=0.0)
+    errand = _lap()
+    errand.task_id = task.id
+    out = life.body.run(
+      life._until_stood_up_routine(_forever(life, errand, [])))
+    assert out is STOOD_UP
+    assert board[task.id].state == "failed"
+    assert board[task.id].verdict["reason"] == DEATH_ENDED
   finally:
     life.body.close()
 
@@ -443,18 +453,17 @@ def test_a_queued_row_that_is_still_news_waits_its_turn(menu):
 
 def test_after_a_true_death_the_errand_is_not_the_new_robots_to_remember(menu):
   """The robot a true death starts inherits one line: that it is not the
-  first (`_true_death`). The errand the old one died in still ends and its
-  job still fails, but the new robot's History and fresh map hear nothing
-  of it. Shown to fail without the check in `_void_errand`."""
-  board = TaskBoard()
-  life = _life(tasks=board, overseer=_mapped(menu, ev.Row("task_failed", ev.ASK)))
+  first (`_true_death`). The errand the old one died in still ends, but the
+  new robot's History and fresh map hear nothing of it. Shown to fail
+  without the check in `_void_errand`."""
+  life = _life(overseer=_mapped(menu, ev.Row("task_failed", ev.ASK)))
   try:
-    task = _feed_job(board, life)
-    errand = lc.errand_for_task(board[task.id], QUAD_HOME)
+    errand = _lap()
     life._in_errand, life._errand_now = True, errand
     life.deaths.append({"t": 1.0, "cause": "flat", "hearts": 0})
     life._void_errand()
-    assert board[task.id].state == "failed"
+    assert not life._in_errand and life._errand_now is None
+    assert life.errand_results[-1]["error"] == DEATH_ENDED
     assert not any("dying cut short" in ln for ln in _history(life))
     assert ("task_failed", errand.name) not in life._occurred
   finally:

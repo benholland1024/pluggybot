@@ -36,7 +36,7 @@ from test_body import stub_life
 from test_overseer import FakeClient, full
 
 SRC = Path(__file__).resolve().parent.parent / "src" / "pluggybot"
-WORLD = "home_quad"
+WORLD = "home_humanoid"
 
 BUG = {"kind": "bug", "title": "the pen misses the far board",
        "text": "Twice today the pen went on the floor at whiteboard_b: the "

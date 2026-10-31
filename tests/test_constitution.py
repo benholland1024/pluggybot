@@ -266,12 +266,12 @@ def test_the_announcement_is_at_mission_start_beside_the_mind_line():
 
 def test_the_build_identity_carries_the_constitution_per_robot_root():
   both = {"pluggybot": c.load("default").as_dict(), "r2_pluggybot": c.load("curious").as_dict()}
-  identity = build_identity("home_quad", arm="autonomous", hashes={}, commit="abc",
+  identity = build_identity("home_humanoid", arm="autonomous", hashes={}, commit="abc",
                             constitutions=both)
   assert identity["constitutions"] == both and identity["constitutions"] is not both
-  bare = build_identity("home_quad", arm="scripted", hashes={}, commit="abc")
+  bare = build_identity("home_humanoid", arm="scripted", hashes={}, commit="abc")
   assert "constitutions" not in bare, "absent, never null: every older header"
-  assert "constitutions" not in build_identity("home_quad", arm="scripted", hashes={},
+  assert "constitutions" not in build_identity("home_humanoid", arm="scripted", hashes={},
                                                commit="abc", constitutions={})
 
 
@@ -300,7 +300,7 @@ def test_the_rules_do_not_name_it_and_the_robot_has_no_verb_for_it():
   constitution: choosing one is the human's."""
   from pluggybot.mind import overseer as ov
   from pluggybot.mind.overseer import Menu
-  schema = Menu.for_world("home_quad", None).schema()
+  schema = Menu.for_world("home_humanoid", None).schema()
   assert not any("constitution" in k for k in schema["properties"]), schema["properties"].keys()
   for field in ("intend", "pin", "note", "define"):
     assert "constitution" not in ov.__dict__.get(field.upper() + "_RULE", "")

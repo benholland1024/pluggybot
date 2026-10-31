@@ -1,9 +1,8 @@
 """Scan matching (issue #386), pinned on synthetic scans: rooms and
 corridors drawn as segments, scans cast analytically with the LIDAR's own
 noise, maps fused from known poses, and the body's wiring called at its
-seam. Nothing here flies: the flights that measured it are
-`scripts/drift_spike.py`, and the served body walks the whole chain in
-`test_unknown.py`'s flight."""
+seam -- the humanoid standing in its house, its own LIDAR's scans. Nothing
+here flies."""
 
 import gc
 import math
@@ -318,30 +317,33 @@ class _FixedMatcher(sm.ScanMatcher):
 
 
 @pytest.fixture(scope="module")
-def quad_world():
-  from pluggybot.legs import world as lw
-  return lw.home_spec().compile()
+def house():
+  """The humanoids' house with one humanoid in it, compiled once."""
+  from pluggybot.lifecycle import HUMANOID_HOME, world_config
+  from pluggybot.robot import world_spec
+  return world_spec(world_config(HUMANOID_HOME)["model"]).compile()
 
 
-def _quad(model):
-  """The quadruped standing in the living room; nothing stepped."""
+def _humanoid(model):
+  """The humanoid standing in the living room; nothing stepped."""
   import mujoco
 
-  from pluggybot.legs.body import QuadMission
-  from pluggybot.lifecycle import QUAD_HOME, world_config
-  m = QuadMission(model, mujoco.MjData(model), realtime=False,
-                  grid_bounds=world_config(QUAD_HOME)["grid_bounds"])
-  m.start_at(1.5, 0.5, 0.0)
-  return m
+  from pluggybot.body import body_for
+  from pluggybot.lifecycle import HUMANOID_HOME, world_config
+  body = body_for(model, mujoco.MjData(model),
+                  grid_bounds=world_config(HUMANOID_HOME)["grid_bounds"])
+  body.start_at(1.5, 0.5, 0.0)
+  return body
 
 
-def test_each_scan_is_laid_through_the_pose_its_match_found(quad_world):
+def test_each_scan_is_laid_through_the_pose_its_match_found(house):
   # The matched pose is the belief -- the reckoning is moved to it -- and
   # the pose the scan goes into the map at; a refused fit leaves the belief
   # where odometry had it, and the map untouched. The scan's own seam,
   # called directly: the rule is the wiring, not a walk.
   from pluggybot.perception.lidar import LIDAR_PERIOD
-  m = _quad(quad_world)
+  body = _humanoid(house)
+  m = body.mission
   laid = []
   real = m.grid.update
   m.grid.update = lambda pose, *a, **kw: (laid.append(tuple(pose)), real(pose, *a, **kw))
@@ -359,10 +361,10 @@ def test_each_scan_is_laid_through_the_pose_its_match_found(quad_world):
   m._scan_step()
   assert not laid, "a scan whose fit slid was laid into the map"
   assert m.pose == before
-  m.close()
+  body.close()
 
 
-def test_the_served_body_set_down_far_from_its_belief_finds_itself(quad_world):
+def test_the_served_body_set_down_far_from_its_belief_finds_itself(house):
   # The served body's own LIDAR in its house, through the scan's own seam
   # (issue #422): the living room mapped by a scan standing, the belief then
   # moved 1.5 m and 5 deg off -- a robot come home from a long explore. Its
@@ -370,7 +372,8 @@ def test_the_served_body_set_down_far_from_its_belief_finds_itself(quad_world):
   # wide search, finding the same pose twice, puts the belief back where the
   # body stands. Nothing stepped: the scans are the standing body's.
   from pluggybot.perception.lidar import LIDAR_PERIOD
-  m = _quad(quad_world)
+  body = _humanoid(house)
+  m = body.mission
   m._scan_step()
   laid = []
   real = m.grid.update
@@ -392,29 +395,32 @@ def test_the_served_body_set_down_far_from_its_belief_finds_itself(quad_world):
   jumps = [e for e in m.belief_events if e["why"] == "relocated"]
   assert len(jumps) == 1 and jumps[0]["before"]["x"] == pytest.approx(x - 1.2, abs=1e-3)
   assert jumps[0]["after"]["x"] == pytest.approx(bx, abs=1e-3)
-  m.close()
+  body.close()
 
 
-def test_a_restart_keeps_the_matchers_field_and_the_imus_stream(quad_world):
+def test_a_restart_keeps_the_matchers_field_and_the_imus_stream(house):
   # A new piece of state that decides anything is kept (issue #345): the
   # field the next match reads and where the IMU's noise had got to.
   from pluggybot.perception.lidar import LIDAR_PERIOD
-  m = _quad(quad_world)
+  a = _humanoid(house)
+  m = a.mission
   for _ in range(3):
     m._scan_step()
     m.data.time += LIDAR_PERIOD
+  imu = m.stand.trunk.imu
   for _ in range(100):
-    m.odo.imu.gyro_z(0.2, 0.002)
+    imu.gyro_z(0.2, 0.002)
   assert m.matcher.field is not None, "the premise: a field to keep"
   state, arrays = m.kept_state()
-  assert state["odometry"]["imu"]["rng"] and state["match"] is not None
-  n = _quad(quad_world)
+  assert state["trunk"]["imu"]["rng"] and state["match"] is not None
+  b = _humanoid(house)
+  n = b.mission
   n.restore_kept(state, arrays)
-  assert n.odo.imu.gyro_z(0.1, 0.002) == m.odo.imu.gyro_z(0.1, 0.002)
+  assert n.stand.trunk.imu.gyro_z(0.1, 0.002) == imu.gyro_z(0.1, 0.002)
   assert np.array_equal(n.matcher.field, m.matcher.field, equal_nan=True)
   assert n.matcher.fused_pose == m.matcher.fused_pose
-  m.close()
-  n.close()
+  a.close()
+  b.close()
 
 
 def test_a_pose_past_the_fits_reach_is_found_by_the_search(room):
@@ -581,7 +587,7 @@ def _askew_room():
 
 
 def _back_off(m, g, rng, steps):
-  """The undock's back-out from TRUE, 3 cm a scan, each scan matched and
+  """A back-out from the fixture at TRUE, 3 cm a scan, each scan matched and
   laid in as `Navigator._scan_step` does: the verdicts and the last pose."""
   whys, pose = [], TRUE
   for k in range(steps):
@@ -596,11 +602,12 @@ def _back_off(m, g, rng, steps):
 
 
 def test_an_anchor_lays_the_room_again_over_a_copy_laid_askew():
-  # The dock outranks the map (issue #422): anchored on it to millimetres, a
-  # robot come home lost had a copy of the living room laid 0.9 m askew, and
-  # matching against it pulled the belief 0.62 m back into it as the robot
-  # backed off the dock. Anchored, the back-out is laid in unmatched, the
-  # copy is overwritten, and the next scan matches where the robot stands.
+  # The commissioned fixture outranks the map (issue #422; the quadrupeds'
+  # dock then, the humanoids' station now): anchored on it, a robot come
+  # home lost had a copy of the living room laid 0.9 m askew, and matching
+  # against it pulled the belief 0.62 m back into it as the robot backed
+  # off. Anchored, the back-out is laid in unmatched, the copy is
+  # overwritten, and the next scan matches where the robot stands.
   g = _askew_room()
   m = sm.ScanMatcher(g)
   m.anchored()
@@ -628,23 +635,20 @@ def test_a_restart_keeps_an_anchors_window(room):
   assert n.match(TRUE, ANGLES, cast(ROOM, TRUE)).why == "anchored"
 
 
-def test_the_docks_board_alone_opens_the_window(quad_world, monkeypatch):
-  # The dock's anchor off its BOARD is the one anchor: to millimetres. The
-  # seat, with no decode, is good to 2 deg, and 30 scans laid unmatched
-  # through that lay the room askew themselves; the commissioned start is
-  # none either (a look-around laid unmatched smears the gyro's scale
-  # error), and a stand-up there closes a window a death on the dock left.
-  from pluggybot.legs import body as qb
-  m = _quad(quad_world)
+def test_the_stations_look_alone_opens_the_window(house):
+  # The commissioned fixture's look is the one anchor (#422, #476; the
+  # quadrupeds' was their dock's board): the humanoid's is its station, off
+  # its two tags. The start opens no window -- a look-around laid unmatched
+  # smears the gyro's scale error -- nor does a look that agrees with the
+  # belief; a look that moves the belief does, and a stand-up there closes
+  # the window a death at the station left.
+  from pluggybot.body import RackPose
+  body = _humanoid(house)
+  m, s = body.mission, body._station
   assert m.matcher.anchoring == 0, "the start opened the window"
-  m.detect_board = lambda: {}
-  m.odo.correct(*m.dock_prior)            # ...lying on the dock, as believed (#476)
-  m.anchor_at_dock()                                    # no decode: the seat
-  assert m.matcher.anchoring == 0, "the seat opened the window"
-  monkeypatch.setattr(qb.dk, "fit_dock", lambda seen: qb.dk.DockFix(0.62, 0.0, 0.0, 4, 0.002))
-  m.odo.correct(*qb.dk.compose(m.dock_prior, (-0.62, 0.0, 0.0)))
-  m.anchor_at_dock()                                    # the board
+  assert body._fix_at(s) is None and m.matcher.anchoring == 0, "a look that agrees"
+  body._fix_at(RackPose(s.x + 0.3, s.y - 0.2, s.yaw))     # the belief 0.36 m off
   assert m.matcher.anchoring == sm.ANCHORED_SCANS
-  m.start_at(1.5, 0.5, 0.0)                             # ...and a stand-up
-  assert m.matcher.anchoring == 0, "a stand-up kept the dock's window"
-  m.close()
+  body.start_at(*m.pose)                                   # ...and a stand-up
+  assert m.matcher.anchoring == 0, "a stand-up kept the station's window"
+  body.close()

@@ -177,11 +177,11 @@ def test_body_poses_are_world_frame(mini_scene):
 def test_the_served_house_transpiles_whole():
   """Every visible geom of the served world transpiles, all five primitive
   types are exercised, and every AprilTag texture is referenced."""
-  from pluggybot.lifecycle import QUAD_HOME, world_config
+  from pluggybot.lifecycle import HUMANOID_HOME, world_config
   from pluggybot.robot import world_spec
-  cfg = world_config(QUAD_HOME)
-  model = world_spec(cfg["model"], body=cfg["body"]).compile()
-  scene = scene_dict(model, QUAD_HOME, meta=json.loads(Path(cfg["meta"]).read_text()))
+  cfg = world_config(HUMANOID_HOME)
+  model = world_spec(cfg["model"]).compile()
+  scene = scene_dict(model, HUMANOID_HOME, meta=json.loads(Path(cfg["meta"]).read_text()))
   assert scene["protocolVersion"] == PROTOCOL_VERSION
   geoms = [g for b in scene["bodies"] for g in b["geoms"]]
   visible = sum(1 for g in range(model.ngeom) if model.geom_rgba[g][3] > 0)
@@ -192,16 +192,17 @@ def test_the_served_house_transpiles_whole():
   assert len(referenced) == model.ntex        # every tag in use
   assert {t["name"] for t in scene["textures"]} == referenced
   robot, world = body_census(model)
-  # 39 = the quadruped's 19 links + 20 of the world's: the tools (the pen's
-  # carriage and quill among them, #406, the claw's slide and its two jaws,
-  # #407), the tower's blocks and the bench's cubes, the lab's plates and
-  # its mouse, the garden's plate and the dock's pins. A census, so it fails
-  # whenever the world gains or loses a dynamic body -- which is the point:
-  # every one of them costs a pose in every keyframe.
-  assert sum(dynamic_flags(model)) == len(robot) + len(world) == 39
-  assert len(robot) == 19
-  assert {"module_lcd", "module_pen", "module_claw", "block_0", "lab_mouse",
-          "dock_pole_l"} <= set(world)
+  # 50 = the humanoid's 32 links + 18 of the world's: the blocks and the
+  # masses the house still sets out, the storeroom counter's props (the
+  # chest's lid, handle and knob, the drawer, the door and its lever, the
+  # cube), the lab's plates and its mouse, the garden's plate and the
+  # station's plug. A census, so it fails whenever the world gains or loses
+  # a dynamic body -- which is the point: every one of them costs a pose in
+  # every keyframe.
+  assert sum(dynamic_flags(model)) == len(robot) + len(world) == 50
+  assert len(robot) == 32
+  assert {"block_0", "lab_mouse", "station_plug", "drawer_drawer", "chest_lid_body",
+          "cube"} <= set(world)
 
 
 # ---- recorder --------------------------------------------------------------
@@ -356,11 +357,11 @@ def test_the_scene_maps_board_names_to_their_geometry():
   scene's board table the client has a polyline it cannot place, and every
   other test here would still pass -- the geometry is present, it is just
   unreachable by the name the events use."""
-  from pluggybot.lifecycle import QUAD_HOME, world_config
+  from pluggybot.lifecycle import HUMANOID_HOME, world_config
   from pluggybot.robot import world_spec
-  cfg = world_config(QUAD_HOME)
-  model = world_spec(cfg["model"], body=cfg["body"]).compile()
-  scene = scene_dict(model, QUAD_HOME, meta=json.loads(Path(cfg["meta"]).read_text()))
+  cfg = world_config(HUMANOID_HOME)
+  model = world_spec(cfg["model"]).compile()
+  scene = scene_dict(model, HUMANOID_HOME, meta=json.loads(Path(cfg["meta"]).read_text()))
   geoms = {g["name"] for b in scene["bodies"] for g in b["geoms"]}
   assert scene["boards"], "the house's drawing surfaces are missing"
   for name, spec in scene["boards"].items():
@@ -476,7 +477,7 @@ def test_a_recording_opens_with_the_ink_already_on_the_walls(mini_model,
   block insists the wall is 19 % full -- and nothing later in the stream
   repairs it, because a keyframe re-ships the counters and never the lines.
   """
-  from pluggybot.tools.boards import BoardBook, BoardRecord
+  from pluggybot.home.boards import BoardBook, BoardRecord
 
   data = mujoco.MjData(mini_model)
   book = BoardBook([BoardRecord(name="whiteboard_a", reach=(0.11, 0.2))],
@@ -502,37 +503,13 @@ def test_a_recording_opens_with_the_ink_already_on_the_walls(mini_model,
   assert snaps[0]["strokes"][0]["points"][0] == [0.0, 0.0]
 
 
-def test_screens_ride_the_same_sparse_rule_as_boards(mini_model, tmp_path):
-  """0.5.0, and the third block to follow one rule. What makes it worth
-  asserting separately: a face is not a pose either, so a screen missing
-  from a frame means "unchanged" and never "dark"."""
-  from pluggybot.tools.screen import ScreenSet
-
-  class FakeScreen:
-    name = "module_lcd"
-    flags = {"mode": "face", "powered": True, "face": "idle", "hint": "blink"}
-
-  data = mujoco.MjData(mini_model)
-  screens = ScreenSet([FakeScreen()])
-  path = str(tmp_path / "out.jsonl")
-  rec = TelemetryRecorder(mini_model, data, path, model_name="mini",
-                          keyframe_s=0.5, screens=screens)
-  for step in range(round(1.2 / mini_model.opt.timestep)):
-    mujoco.mj_step(mini_model, data)
-    if step == 100:
-      FakeScreen.flags = {"mode": "count", "powered": True, "face": "happy",
-                          "hint": "none", "count": 4, "label": "plants"}
-    rec.step_hook()
-  rec.close()
-  lines = [json.loads(x) for x in open(path)]
-  assert lines[0]["screens"] == ["module_lcd"]
-  frames = [x for x in lines[1:] if "type" not in x]
-  carrying = [f for f in frames if "screens" in f]
-  keyed = [f for f in frames if f.get("key")]
-  assert len(carrying) < len(frames), "an unchanged screen was re-sent"
-  assert all("screens" in f for f in keyed), "a keyframe skipped the screen"
-  counts = [f["screens"]["module_lcd"].get("count") for f in carrying]
-  assert 4 in counts
+def test_the_header_still_says_screens_and_no_frame_carries_one(mini_model, tmp_path):
+  """The LCD screen left with the quadruped (#559), and a frame carries no
+  `screens` block; the header still says `screens`, empty, as every
+  consumer has read it since 0.5.0 -- a vestige, kept for them."""
+  _, lines = record(mini_model, seconds=1.2, tmp=tmp_path, keyframe_s=0.5)
+  assert lines[0]["screens"] == []
+  assert not any("screens" in f for f in frames_of(lines))
 
 
 def test_the_ledger_rides_the_same_sparse_rule_and_pays_only_through_it(
@@ -558,8 +535,8 @@ def test_the_ledger_rides_the_same_sparse_rule_and_pays_only_through_it(
   for step in range(round(1.2 / mini_model.opt.timestep)):
     mujoco.mj_step(mini_model, data)
     if step == 100:
-      ledger.award(evaluate("carry", {"picked": True, "stowed": True,
-                                      "module": "module_lcd"}),
+      ledger.award(evaluate("ticket", {"kind": "bug", "title": "a door sticks",
+                                       "closed": True, "by": "ben"}),
                    t=float(data.time))
     rec.step_hook()
   rec.close()
@@ -573,7 +550,7 @@ def test_the_ledger_rides_the_same_sparse_rule_and_pays_only_through_it(
   balances = [f["ledger"]["pluggybot"]["balance"] for f in carrying]
   assert balances[0] == 0 and balances[-1] == ledger.balance() > 0
   earned = [x for x in lines[1:] if x.get("type") == "earned"]
-  assert len(earned) == 1 and earned[0]["task"] == "carry"
+  assert len(earned) == 1 and earned[0]["task"] == "ticket"
   assert earned[0]["points"] == ledger.balance() and earned[0]["reason"]
 
 
@@ -953,31 +930,6 @@ def test_the_pair_recording_gives_every_robot_the_same_shape():
     assert e["phase"] in ENCOUNTER_PHASES and set(e["robots"]) == set(roots)
 
 
-@pytest.mark.parametrize("pair", [False, True], ids=["home_quad", "home_quad_pair"])
-def test_the_quadruped_scene_fixtures_are_current(pair):
-  """The home world with legs in it (issue #387): the rover taken out and
-  the quadruped -- or the served pair -- and its dock put in at load, so
-  the scene is built from the world's SPEC, as the sim builds it. Stale on
-  any change to the house, the body or the dock."""
-  from pluggybot.lifecycle import QUAD_HOME, world_config
-  from pluggybot.robot import SECOND, pair_model_name, world_spec
-  cfg = world_config(QUAD_HOME)
-  name = pair_model_name(cfg["model_name"]) if pair else cfg["model_name"]
-  scene = json.loads((PROTOCOL / f"scene.{name}.json").read_text())
-  assert scene["protocolVersion"] == PROTOCOL_VERSION and scene["model"] == name
-  model = world_spec(cfg["model"], second_at=cfg["start2"][:2] if pair else None,
-                     body="quadruped").compile()
-  meta = json.loads(Path(cfg["meta"]).read_text())
-  flag = " --pair" if pair else ""
-  assert scene == scene_dict(model, name, meta=meta), \
-    f"stale fixture: uv run python -m pluggybot.telemetry.scene --world {QUAD_HOME}{flag}"
-  owners = {b["name"]: b["robot"] for b in scene["bodies"]}
-  assert "FL_thigh" in owners and owners["dock"] is None and "chassis" not in owners
-  if pair:
-    assert [n for n, o in owners.items() if o == SECOND.root] == \
-      [SECOND.el(n) for n, o in owners.items() if o == "pluggybot"]
-
-
 @pytest.mark.parametrize("pair", [False, True], ids=["home_humanoid", "home_humanoid_pair"])
 def test_the_humanoid_scene_fixtures_are_current(pair):
   """The house with the humanoids in it (issue #559): the pair the world
@@ -991,8 +943,7 @@ def test_the_humanoid_scene_fixtures_are_current(pair):
   name = pair_model_name(cfg["model_name"]) if pair else cfg["model_name"]
   scene = json.loads((PROTOCOL / f"scene.{name}.json").read_text())
   assert scene["protocolVersion"] == PROTOCOL_VERSION and scene["model"] == name
-  model = world_spec(cfg["model"], second_at=cfg["start2"][:2] if pair else None,
-                     body="humanoid").compile()
+  model = world_spec(cfg["model"], second_at=cfg["start2"][:2] if pair else None).compile()
   meta = json.loads(Path(cfg["meta"]).read_text())
   flag = " --pair" if pair else ""
   assert scene == scene_dict(model, name, meta=meta), \
@@ -1025,8 +976,14 @@ def test_a_cable_is_strung_between_the_bodies_it_runs_through():
     b = bodies[p["body"]]
     at.append([c + d for c, d in zip(b["pos"], _quat_rotate(b["quat"], p["pos"]))])
   assert math.dist(*at) < 1e-3
-  quad = json.loads((PROTOCOL / "scene.home_quad_pair.json").read_text())
-  assert "cables" not in quad
+  # ...and a tendon that couples joints has no path of sites: no cable
+  from pluggybot.telemetry.scene import cable_map
+  coupled = mujoco.MjModel.from_xml_string("""<mujoco><worldbody>
+    <body><joint name="j0"/><geom size=".1"/>
+      <body pos="0 0 .3"><joint name="j1"/><geom size=".1"/></body></body>
+    </worldbody><tendon><fixed><joint joint="j0" coef="1"/><joint joint="j1" coef="-1"/>
+    </fixed></tendon></mujoco>""")
+  assert coupled.ntendon == 1 and cable_map(coupled) == {}
 
 
 def test_two_cables_nobody_named_are_two_cables():
@@ -1043,34 +1000,6 @@ def test_two_cables_nobody_named_are_two_cables():
   cables = cable_map(model)
   assert sorted(cables) == ["tendon_0", "tendon_1"]
   assert cables["tendon_1"]["points"][0]["pos"] == [0.0, 0.0, 1.0]
-
-
-def test_the_quadruped_pair_recording_is_the_periods_shape():
-  """The first quadruped period's fixture (issue #387): no offers and no
-  upkeep -- no `tasks` block, no appetite, `hungerStates: []` -- and every
-  frame says each robot's POSTURE, lying among them: the first walks to
-  the dock and lies on it to charge, the second explores and rests."""
-  from pluggybot.robot import FIRST, SECOND
-  with gzip.open(PROTOCOL / "telemetry.home_quad_pair.jsonl.gz", "rt") as f:
-    lines = [json.loads(line) for line in f]
-  header, frames = lines[0], frames_of(lines)
-  roots = [FIRST.root, SECOND.root]
-  assert header["model"] == "home_quad_pair" and list(header["robots"]) == roots
-  assert header["hungerStates"] == [] and not header["taskKinds"]
-  for root in roots:
-    recs = [f["robots"][root] for f in frames if root in f["robots"]]
-    assert all("posture" in r and "metabolism" not in r for r in recs)
-    assert {"standing", "lying"} <= {r["posture"] for r in recs}
-  first = {f["robots"][FIRST.root]["state"] for f in frames if "state" in f["robots"][FIRST.root]}
-  assert "CHARGE" in first, "the first robot lies on the dock and charges"
-  assert not any(x.get("type") == "tasks" or "tasks" in x for x in lines[1:])
-  # ...each reading the default constitution in the quadruped's words, the
-  # library's humanoid ones swapped (#559's stage 4): what it always read
-  from pluggybot.mind import constitution as constitutions
-  persona = constitutions.resolve(constitutions.DEFAULT_NAME, body="quadruped").text.strip()
-  mains = {x["robot"]: x["text"] for x in lines[1:]
-           if x.get("type") == "thought" and x.get("name") == "Main.md"}
-  assert mains == {root: persona for root in roots}
 
 
 def test_the_humanoid_pair_recording_is_the_served_periods_shape():
@@ -1095,6 +1024,13 @@ def test_the_humanoid_pair_recording_is_the_served_periods_shape():
     assert any(r["battery"]["charging"] for r in recs if "battery" in r)
   assert sum("station_plug" in f.get("world", {}) for f in frames if not f.get("key")) > 100, \
     "the plug never moved"
+  # ...each reading the default constitution byte for byte: what the served
+  # robots read, the humanoid's body paragraph written in (#559)
+  from pluggybot.mind import constitution as constitutions
+  persona = constitutions.resolve(constitutions.DEFAULT_NAME).text.strip()
+  mains = {x["robot"]: x["text"] for x in lines[1:]
+           if x.get("type") == "thought" and x.get("name") == "Main.md"}
+  assert mains == {root: persona for root in roots}
 
 
 def test_the_recording_is_a_whole_served_day():
@@ -1383,7 +1319,7 @@ def test_the_header_says_which_build_produced_the_stream(mini_model):
   from pluggybot.evaluation.identity import build_identity
 
   data = mujoco.MjData(mini_model)
-  identity = build_identity("home_quad", arm="autonomous", model="a/b",
+  identity = build_identity("home_humanoid", arm="autonomous", model="a/b",
                             backend="huggingface", pack_wh=8.0,
                             reserve_wh=0.9, deadline_s=90.0,
                             hashes={"rewards": "ab" * 32}, commit="deadbee")
@@ -1430,7 +1366,7 @@ def test_a_consumer_that_never_heard_of_the_build_block_still_works(mini_model):
 
   from pluggybot.evaluation.identity import build_identity
   stamped = FrameBuilder(mini_model, data, model_name="mini",
-                         build=build_identity("home_quad", arm="scripted",
+                         build=build_identity("home_humanoid", arm="scripted",
                                               hashes={}, commit="x")).header()
   assert {k: v for k, v in stamped.items() if k != "build"} == bare, \
     "the identity changed a field a 0.15.0 consumer already reads"
@@ -1444,67 +1380,14 @@ def test_the_header_hashes_the_files_the_sim_reads(monkeypatch, tmp_path):
   from pluggybot.economy import scoring
   from pluggybot.evaluation import identity
 
-  before = identity.build_identity("home_quad", arm="scripted")["dataHashes"]
-  assert before == identity.data_hashes("home_quad")
+  before = identity.build_identity("home_humanoid", arm="scripted")["dataHashes"]
+  assert before == identity.data_hashes("home_humanoid")
 
   tweaked = tmp_path / "rewards.json"
   tweaked.write_text(Path(scoring.TABLE_PATH).read_text() + "\n")
   monkeypatch.setenv(scoring.TABLE_ENV, str(tweaked))
-  after = identity.build_identity("home_quad", arm="scripted")["dataHashes"]
+  after = identity.build_identity("home_humanoid", arm="scripted")["dataHashes"]
 
   assert after["rewards"] != before["rewards"], \
     "the env override the sim reads is not the file the header hashed"
   assert after["world"] == before["world"]
-
-
-# ---- the demo's world: what the robot thinks is there (#466, stage 3) -----------------
-
-CHEST_RECORDING = PROTOCOL / "telemetry.home_quad_chest.jsonl.gz"
-
-
-def test_the_demos_scene_is_its_set_outs_world():
-  """`home_quad_chest`: the house as the spikes build it, the quadruped at
-  the demo set-out's start and the chest where it stands -- a world of its
-  own, stale on any change to the house, the body or the chest's drawing."""
-  from pluggybot.evaluation import probe as ep
-  from pluggybot.lifecycle import QUAD_HOME, world_config
-  scene = json.loads((PROTOCOL / "scene.home_quad_chest.json").read_text())
-  model = ep.spec_of(ep.set_out(ep.DEMO)).compile()
-  meta = json.loads(Path(world_config(QUAD_HOME)["meta"]).read_text())
-  assert scene == scene_dict(model, "home_quad_chest", meta=meta), \
-    f"stale fixture: scripts/imagine_chest.py --demo {ep.DEMO} --record ..."
-  geoms = [g.get("name") or "" for b in scene["bodies"] for g in b["geoms"]]
-  assert "chest_lid" in geoms and not [g for g in geoms if "lump" in g], \
-    "where the hidden weight sits is a hidden parameter"
-
-
-def test_the_demos_recording_carries_the_robots_model_and_none_of_the_worlds():
-  """The demo's flight (`imagine_chest.py --demo`): the probe, the robot
-  lying still, then ONE `imagined` event -- its parts, where it drew them,
-  its replay of the probe -- and no number of a mass, a spring, damping,
-  friction or a catch, the robot's or the world's."""
-  with gzip.open(CHEST_RECORDING, "rt") as f:
-    lines = [json.loads(line) for line in f]
-  header, frames = lines[0], frames_of(lines)
-  assert header["model"] == "home_quad_chest" and header["protocolVersion"] == PROTOCOL_VERSION
-  assert "chest_lid_body" in header["world"] and "chest" in header["activities"]
-  (ghost,) = [x for x in lines[1:] if x.get("type") == "imagined"]
-  assert ghost["robot"] == "pluggybot" and ghost["parts"] and ghost["rest"]
-  assert set(ghost["rest"]) == {p["id"] for p in ghost["parts"]}
-  replay = ghost["replay"]
-  assert replay["t0"] < ghost["t"] and replay["frames"]
-  assert all(len(fr) == len(replay["parts"]) for fr in replay["frames"])
-
-  def keys(o):
-    if isinstance(o, dict):
-      return set(o) | set().union(*(keys(v) for v in o.values()))
-    if isinstance(o, list):
-      return set().union(*(keys(v) for v in o)) if o else set()
-    return set()
-  assert not keys(lines) & {"mass", "stiffness", "slack", "damping", "friction", "release",
-                            "catch_n", "lid_kg", "lump_kg"}
-  lids = [f["world"]["chest_lid_body"] for f in frames if "chest_lid_body" in f.get("world", {})]
-  assert len({tuple(p[3:]) for p in lids}) > 10, "the real lid rose in the flight"
-  opened = [f["activities"]["chest"].get("opened") for f in frames
-            if "chest" in f.get("activities", {})]
-  assert True in opened

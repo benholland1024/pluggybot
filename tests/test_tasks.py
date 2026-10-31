@@ -21,6 +21,7 @@ import json
 import pytest
 
 from pluggybot import lifecycle as lc
+from pluggybot.challenge import drawer
 from pluggybot.economy import scoring
 from pluggybot.mind.overseer import Menu
 from pluggybot.economy.tasks import (
@@ -30,11 +31,16 @@ from pluggybot.telemetry.protocol import TASK_SOURCES, TASK_STATES
 
 TABLE = scoring.default_table()
 
-GOOD_DRAWING = {"board": "whiteboard_a", "strokes": 6, "strokesInked": 6,
-                "formMm": 0.6, "inkedFraction": 0.99,
-                "travelInkFraction": 0.0, "fill": 0.3}
-NO_DRAWING = {"board": "whiteboard_a", "strokes": 6, "strokesInked": 0,
-              "fill": 0.0}
+#: A drawer pulled out and let go, as its grader measures it (#525), and
+#: one left shut.
+PULLED = {"mostM": 0.18, "fastestMS": 0.1, "tiltDeg": 2.0, "falls": 0,
+          "outAtCallM": 0.17, "outM": 0.17, "holdS": drawer.HOLD_S, "elapsedS": 20.0,
+          "limitS": 960.0, "touchedDuringHold": []}
+SHUT = {**PULLED, "mostM": 0.0, "outAtCallM": 0.0, "outM": 0.0}
+#: A chest opened and set down, its true catch beside: secret on its row.
+LID_SET_DOWN = {"topDeg": 63.8, "downRadS": 0.51, "tiltDeg": 2.8, "falls": 0,
+                "touchedDuringHold": [], "angleAtCallDeg": -0.2, "angleDeg": -0.2,
+                "caught": True, "holdS": 5.0, "elapsedS": 40.0, "catchN": 3.77}
 
 
 def board(**kw) -> TaskBoard:
@@ -42,12 +48,28 @@ def board(**kw) -> TaskBoard:
 
 
 def offered(b: TaskBoard, **kw) -> Task:
-  spec = {"kind": "draw_figure", "target": "whiteboard_a",
-          "params": {"program": "house"}, "t": 0.0}
+  spec = {"kind": "open_drawer", "target": "drawer", "params": {"minutes": 16},
+          "t": 0.0}
   spec.update(kw)
   task = b.offer(**spec)
   assert task is not None
   return task
+
+
+def errand_kind(monkeypatch, **kw) -> str:
+  """A job discharged by an ERRAND -- the procedure it carries (#58),
+  graded by the drawer's row -- as no kind the humanoids are offered is
+  (their hand jobs are procedures they write): what the board and the loop
+  still do with one."""
+  monkeypatch.setitem(KINDS, "errand_job", dataclasses.replace(
+    KINDS["open_drawer"], name="errand_job", discharge="errand", draws=False, **kw))
+  return "errand_job"
+
+
+def waits(seconds: float = 1.0) -> dict:
+  """A procedure of one wait, as a task carries it."""
+  from pluggybot.procedure.steps import Program, Step
+  return Program.single("job", [Step("wait", {"seconds": seconds})]).as_dict()
 
 
 # ---- the hard rules ----------------------------------------------------------
@@ -63,9 +85,9 @@ def test_a_task_cannot_carry_its_own_payout():
   """
   b = board()
   task = offered(b)
-  assert task.reward(TABLE) == {"task": "draw", "tier": "auto",
-                                "base": TABLE["draw"].base,
-                                "bonus": TABLE["draw"].bonus}
+  assert task.reward(TABLE) == {"task": "open_drawer", "tier": "auto",
+                                "base": TABLE["open_drawer"].base,
+                                "bonus": TABLE["open_drawer"].bonus}
   # There is no points-in field to pass, and the one that exists is an
   # OUTPUT: it is zero until an evaluator closes the task.
   assert task.points == 0
@@ -75,15 +97,16 @@ def test_a_task_cannot_carry_its_own_payout():
 
 
 def test_repricing_the_table_reprices_every_offered_task(tmp_path):
-  """`reward` is derived, not stored -- and this is how you can tell."""
-  spec = json.loads(scoring.TABLE_PATH.read_text())
-  spec["tasks"]["draw"]["base"] = 999
-  path = tmp_path / "rewards.json"
+  """`reward` is derived, not stored -- and this is how you can tell. (A
+  hand job's row is in the challenge set, so that is the file edited.)"""
+  spec = json.loads(scoring.CHALLENGES_PATH.read_text())
+  spec["tasks"]["open_drawer"]["base"] = 999
+  path = tmp_path / "challenges.json"
   path.write_text(json.dumps(spec))
   cheap = board()
   task = offered(cheap)
   assert task.reward(TABLE)["base"] != 999
-  assert task.reward(scoring.RewardTable.load(path))["base"] == 999
+  assert task.reward(scoring.RewardTable.load(challenges=path))["base"] == 999
 
 
 def test_a_task_that_cannot_be_judged_cannot_be_created(monkeypatch):
@@ -95,9 +118,9 @@ def test_a_task_that_cannot_be_judged_cannot_be_created(monkeypatch):
   happened to say.
   """
   monkeypatch.setitem(KINDS, "orphan", dataclasses.replace(
-    KINDS["draw_figure"], name="orphan", task="no_such_evaluator"))
+    KINDS["open_drawer"], name="orphan", task="no_such_evaluator"))
   with pytest.raises(ValueError, match="no evaluator"):
-    Task.create("orphan", "whiteboard_a", task_id="t_0001")
+    Task.create("orphan", "drawer", task_id="t_0001")
 
 
 def test_only_an_evaluator_can_close_a_task():
@@ -105,11 +128,11 @@ def test_only_an_evaluator_can_close_a_task():
   b = board()
   task = offered(b)
   b.claim(task.id, t=1.0)
-  lookalike = {"task": "draw", "ok": True, "points": 20, "reason": "trust me"}
+  lookalike = {"task": "open_drawer", "ok": True, "points": 20, "reason": "trust me"}
   with pytest.raises(TypeError, match="scoring.Verdict"):
     b.resolve(task.id, lookalike, t=2.0)
   # ...and the real thing works, and pays what the evaluator said.
-  verdict = scoring.evaluate("draw", GOOD_DRAWING, table=TABLE)
+  verdict = scoring.evaluate("open_drawer", PULLED, table=TABLE)
   closed = b.resolve(task.id, verdict, t=2.0)
   assert closed.state == "done"
   assert closed.points == verdict.points
@@ -122,7 +145,7 @@ def test_a_failed_job_is_failed_not_expired():
   b = board()
   task = offered(b)
   b.claim(task.id, t=1.0)
-  b.resolve(task.id, scoring.evaluate("draw", NO_DRAWING, table=TABLE), t=2.0)
+  b.resolve(task.id, scoring.evaluate("open_drawer", SHUT, table=TABLE), t=2.0)
   assert b[task.id].state == "failed"
   assert b[task.id].points == 0
 
@@ -133,20 +156,17 @@ def test_a_failed_job_is_failed_not_expired():
 
 
 def test_a_secret_reaches_neither_the_wire_nor_the_model():
-  """The honesty rule, made structural rather than promised.
-
-  Nothing fills `secret` yet (issue #22 is the first kind that needs one), so
-  this test is what stops the slot quietly becoming publishable before it is
-  ever used.
-  """
+  """The honesty rule, made structural rather than promised: a hand job's
+  secret is the draw of its prop's hidden dynamics (#559), and a robot
+  shown it would know the drawer's friction before it touched it."""
   b = board()
-  task = offered(b, secret={"answer": "5"})
-  assert task.secret == {"answer": "5"}
+  task = offered(b, secret={"draw": 4817})
+  assert task.secret == {"draw": 4817}
   blobs = [json.dumps(task.as_dict()), json.dumps(task.snapshot(TABLE)),
            json.dumps(task.as_context(0.0, 9.0, TABLE)),
            json.dumps(b.snapshot()), json.dumps(b.context(0.0, 9.0))]
   for blob in blobs:
-    assert "answer" not in blob and '"5"' not in blob
+    assert "4817" not in blob and '"secret"' not in blob
 
 
 # ---- claimability, including the energy gate ---------------------------------
@@ -156,22 +176,22 @@ def test_a_task_that_costs_more_than_the_pack_is_not_claimable():
   """The reserve is only checked BETWEEN errands, so a job the robot cannot
   afford has to be refused before it is started, not during.
 
-  The numbers are the ones that matter here. A `feed_mouse` is priced at
-  1.770 Wh -- MEASURED, economy/energy.json -- so a robot with 2 Wh to
-  spend can take it and one with 0.9 cannot, which is the whole behaviour.
+  The numbers are the ones that matter here. An `open_drawer` is priced at
+  7.082 Wh -- MEASURED, economy/energy.json -- so a robot with 8 Wh to
+  spend can take it and one with 7 cannot, which is the whole behaviour.
 
   ⚠ The board is given the world's energy table, because that is what
   production does (issue #15) and the price is per WORLD and per TARGET.
   """
   from pluggybot.economy.energy import load as load_energy
-  b = board(energy=load_energy(lc.QUAD_HOME))
-  task = offered(b, kind="feed_mouse", target="lab", params={})
-  assert task.estimate_wh == pytest.approx(1.77)
-  assert task.claimable(0.0, pack_wh=2.0)
-  assert not task.claimable(0.0, pack_wh=0.9)
-  assert b.claim(task.id, t=0.0, pack_wh=0.9, answer="eating") is None
+  b = board(energy=load_energy(lc.HUMANOID_HOME))
+  task = offered(b)
+  assert task.estimate_wh == pytest.approx(7.082)
+  assert task.claimable(0.0, pack_wh=8.0)
+  assert not task.claimable(0.0, pack_wh=7.0)
+  assert b.claim(task.id, t=0.0, pack_wh=7.0) is None
   assert b[task.id].state == "offered"    # still on offer for a fuller robot
-  assert b.claim(task.id, t=0.0, pack_wh=2.0, answer="eating") is not None
+  assert b.claim(task.id, t=0.0, pack_wh=8.0) is not None
 
 
 def test_every_kind_is_affordable_off_a_full_pack():
@@ -182,7 +202,7 @@ def test_every_kind_is_affordable_off_a_full_pack():
   world that has something for it to be about (#559: the humanoids' hand
   jobs are their house's alone)."""
   from pluggybot.economy.energy import load as load_energy
-  for world in (lc.QUAD_HOME, lc.HUMANOID_HOME):
+  for world in (lc.HUMANOID_HOME,):
     cap = lc.world_config(world)["battery_wh"]
     board = TaskBoard(energy=load_energy(world))
     here = lc.world_targets(world, lc.board_book(world), procedures=True,
@@ -206,9 +226,8 @@ def test_a_lapsed_offer_cannot_be_claimed_and_a_taken_one_cannot_be_retaken():
 
 
 def test_expiry_only_touches_offers_never_work_in_progress():
-  """A deadline is how long an OFFER stands. Abandoning a claimed job
-  mid-errand would leave a module on the fork, which is the one failure the
-  swap stack spent two issues learning to avoid."""
+  """A deadline is how long an OFFER stands. A job lapsing while a robot is
+  at work on it would take the job out from under the work."""
   b = board()
   task = offered(b, ttl=10.0)
   b.claim(task.id, t=1.0)
@@ -223,7 +242,7 @@ def test_claimable_is_oldest_first_and_deterministic():
   different test (`Math.random`-shaped bugs, twice paid for in this repo)."""
   b = board()
   a = offered(b, t=5.0)
-  c = offered(b, target="whiteboard_b", t=1.0)
+  c = offered(b, kind="open_door", target="door", t=1.0)
   assert [t.id for t in b.claimable(10.0, 9.0)] == [c.id, a.id]
 
 
@@ -232,7 +251,7 @@ def test_claimable_is_oldest_first_and_deterministic():
 
 def test_the_offer_queue_is_capped():
   b = board()
-  made = [b.offer("draw_figure", "whiteboard_a") for _ in range(MAX_OFFERED + 3)]
+  made = [b.offer("open_drawer", "drawer") for _ in range(MAX_OFFERED + 3)]
   assert made.count(None) == 3
   assert len(b.offered()) == MAX_OFFERED
 
@@ -245,7 +264,7 @@ def test_resolved_tasks_age_out_but_open_ones_never_do():
   for i in range(6):
     task = offered(b, t=float(i))
     b.claim(task.id, t=float(i))
-    b.resolve(task.id, scoring.evaluate("draw", GOOD_DRAWING, table=TABLE),
+    b.resolve(task.id, scoring.evaluate("open_drawer", PULLED, table=TABLE),
               t=float(i))
   assert keep.id in b                     # never dropped: still on offer
   assert len(b) <= 3
@@ -260,9 +279,9 @@ def test_a_task_outlives_a_restart(tmp_path):
   path = tmp_path / "tasks.json"
   b = board(path=path)
   standing = offered(b, ttl=100.0)
-  finished = offered(b, target="whiteboard_b", t=1.0)
+  finished = offered(b, kind="open_door", target="door", t=1.0)
   b.claim(finished.id, t=1.0)
-  b.resolve(finished.id, scoring.evaluate("draw", GOOD_DRAWING, table=TABLE),
+  b.resolve(finished.id, scoring.evaluate("open_drawer", PULLED, table=TABLE),
             t=2.0)
 
   back = board(path=path)
@@ -278,29 +297,36 @@ def test_a_task_outlives_a_restart(tmp_path):
   assert back.next_id() != standing.id
 
 
-def _game_under_way(b: TaskBoard, t: float = 1.0) -> Task:
-  game = b.offer("hide_and_seek", lc.QUAD_HOME, t=0.0)
-  b.claim(game.id, robot="pluggybot", t=t, role="hider")
-  b.claim(game.id, robot="r2_pluggybot", t=t, role="seeker")
-  b.start(game.id, t=t + 1.0)
-  return game
+def _act_under_way(b: TaskBoard, t: float = 1.0) -> Task:
+  """A job whose claim IS the act (#228), on disk as taken and under way:
+  it happened or it did not, and a restart cannot tell which."""
+  act = b.offer("take_points", "r2_pluggybot", params={"amount": 25}, t=0.0)
+  b.claim(act.id, robot="pluggybot", t=t)
+  b.start(act.id, t=t + 1.0)
+  return act
 
 
-def test_a_job_under_way_at_a_restart_is_still_its_robots(tmp_path):
-  """The robot that took it is still that robot (issue #345): an errand job
-  `active` on disk comes back CLAIMED by it -- its errand is queued again
-  and marks it active when it starts (`HubLifecycle._resume_jobs`). Before
-  #345 it came back `failed`, a job lost to the restart rather than to the
-  work. A GAME still fails: its referee lived in the process."""
+def test_a_job_under_way_at_a_restart_is_still_its_robots(tmp_path, monkeypatch):
+  """The robot that took it is still that robot (issue #345): a procedure
+  job `active` on disk comes back active and its robot's (the procedure is
+  its to run and say done), and an errand job comes back CLAIMED by it --
+  its errand is queued again and marks it active when it starts
+  (`HubLifecycle._resume_jobs`). Before #345 each came back `failed`, a job
+  lost to the restart rather than to the work. An ACT still fails: it
+  happened or it did not."""
   path = tmp_path / "tasks.json"
   b = board(path=path)
   task = offered(b)
   b.claim(task.id, robot="r2_pluggybot", t=1.0)
   b.start(task.id, t=2.0)
-  game = _game_under_way(b)
+  errand = offered(b, kind=errand_kind(monkeypatch), params={"procedure": waits()})
+  b.claim(errand.id, robot="r2_pluggybot", t=1.0)
+  b.start(errand.id, t=2.0)
+  act = _act_under_way(b)
   back = board(path=path)
-  assert (back[task.id].state, back[task.id].claimed_by) == ("claimed", "r2_pluggybot")
-  assert back[game.id].state == "failed"
+  assert (back[task.id].state, back[task.id].claimed_by) == ("active", "r2_pluggybot")
+  assert (back[errand.id].state, back[errand.id].claimed_by) == ("claimed", "r2_pluggybot")
+  assert back[act.id].state == "failed"
 
 
 def test_an_offer_keeps_the_life_it_had_left_across_a_restart(tmp_path):
@@ -312,7 +338,7 @@ def test_an_offer_keeps_the_life_it_had_left_across_a_restart(tmp_path):
   path = tmp_path / "tasks.json"
   b = board(path=path)
   late = offered(b, ttl=720.0, t=3125.0)                     # deadline 3845
-  last = offered(b, target="whiteboard_b", ttl=720.0, t=3606.0)  # deadline 4326
+  last = offered(b, kind="open_door", target="door", ttl=720.0, t=3606.0)  # deadline 4326
   assert b.sim_t == 3606.0
   back = board(path=path)
   assert back[late.id].deadline == 239.0 and back[last.id].deadline == 720.0
@@ -322,7 +348,7 @@ def test_an_offer_keeps_the_life_it_had_left_across_a_restart(tmp_path):
   # already overdue at the save: lapses at once, never a negative deadline
   b2 = board(path=tmp_path / "over.json")
   gone = offered(b2, ttl=10.0, t=0.0)
-  offered(b2, target="whiteboard_b", ttl=100.0, t=50.0)      # the save at 50
+  offered(b2, kind="open_door", target="door", ttl=100.0, t=50.0)  # the save at 50
   assert board(path=tmp_path / "over.json")[gone.id].deadline == 0.0
   # an older build's file, no simTime: loaded as it was
   old = tmp_path / "old.json"
@@ -340,7 +366,7 @@ def test_a_task_interrupted_by_a_restart_is_said_on_the_wire_once(tmp_path):
   each would have been, after the hooks are attached, and once."""
   path = tmp_path / "tasks.json"
   b = board(path=path)
-  task = _game_under_way(b)
+  task = _act_under_way(b)
   back = board(path=path)
   assert [t.id for t in back.interrupted] == [task.id]
   heard = []
@@ -356,39 +382,34 @@ def test_a_task_interrupted_by_a_restart_is_said_on_the_wire_once(tmp_path):
   assert board(path=path).interrupted == []                 # failed on disk now
 
 
-def test_a_claim_survives_a_restart_and_a_games_roles_do_not(tmp_path):
+def test_a_claim_survives_a_restart_and_an_acts_does_not(tmp_path):
   """A claim is still its robot's (issue #345): the lifecycle queues its
   errand again (`_resume_jobs`), and gives it back only if that robot is
   not in the new world (`release_absent`) -- which is what closed the day
-  the served pair held a claim with nobody behind it (2026-09-17). A
-  committed answer stays with the claim. A game's roles are dropped, its
-  referee having lived in the process; a resolved job keeps its claims."""
+  the served pair held a claim with nobody behind it (2026-09-17). Its
+  secret stays with it. An act's claim is cleared, the act not done; a
+  resolved job keeps its claims."""
   path = tmp_path / "tasks.json"
   b = board(path=path)
-  task = offered(b, ttl=100.0)
-  asked = b.offer("whiteboard_answer", "whiteboard_b", params={"question": "3 x 4"},
-                  secret={"answer": "12"}, t=0.0)
-  game = b.offer("hide_and_seek", lc.QUAD_HOME, t=0.0)
-  done = offered(b, target="whiteboard_b", t=1.0)
+  task = offered(b, ttl=100.0, secret={"draw": 9})
+  act = b.offer("take_points", "r2_pluggybot", params={"amount": 25}, t=0.0)
+  done = offered(b, kind="open_door", target="door", t=1.0)
   b.claim(task.id, robot="r2_pluggybot", t=1.0)
-  b.claim(asked.id, robot="r2_pluggybot", t=1.0, answer="12")
-  b.claim(game.id, robot="pluggybot", t=1.0)               # one role of two
+  b.claim(act.id, robot="pluggybot", t=1.0)
   b.claim(done.id, t=1.0)
-  b.resolve(done.id, scoring.evaluate("draw", GOOD_DRAWING, table=TABLE), t=2.0)
+  b.resolve(done.id, scoring.evaluate("open_drawer", PULLED, table=TABLE), t=2.0)
 
   back = board(path=path)
-  for tid in (task.id, asked.id):
-    assert (back[tid].state, back[tid].claimed_by) == ("claimed", "r2_pluggybot")
-  assert back[asked.id].answer == "12" and back[asked.id].secret == {"answer": "12"}
-  t = back[game.id]
+  assert (back[task.id].state, back[task.id].claimed_by) == ("claimed", "r2_pluggybot")
+  assert back[task.id].secret == {"draw": 9}
+  t = back[act.id]
   assert t.state == "offered" and t.claimed_by == "" and t.claimed_t is None
   assert t.claimable(50.0)
-  assert back[game.id].claims == {} and back[game.id].open_roles() == game.roles
   assert back[done.id].state == "done"
   # ...and one whose robot is not in this world goes back on offer
   gone = back.release_absent({"pluggybot"})
-  assert {g.id for g in gone} == {task.id, asked.id}
-  assert back[task.id].claimable(50.0) and back[asked.id].answer == ""
+  assert {g.id for g in gone} == {task.id}
+  assert back[task.id].claimable(50.0)
   assert back[task.id].deadline == task.deadline - 2.0      # rebased, see above
 
 
@@ -397,14 +418,14 @@ def test_a_hand_edited_state_file_cannot_re_point_a_task_at_a_richer_row(tmp_pat
   state in a mounted volume, so it is not a trusted document."""
   path = tmp_path / "tasks.json"
   b = board(path=path)
-  task = offered(b, kind="fetch_module", target="module_lcd")
+  task = offered(b, kind="take_points", target="r2_pluggybot", params={"amount": 25})
   doc = json.loads(path.read_text())
-  doc["tasks"][0]["task"] = "draw"        # carry pays less than draw
-  doc["tasks"][0]["estimateWh"] = 0.0
+  doc["tasks"][0]["task"] = "open_chest"  # a take pays less than a chest
+  doc["tasks"][0]["estimateWh"] = 3.0
   path.write_text(json.dumps(doc))
   back = board(path=path)
-  assert back[task.id].task == "carry"
-  assert back[task.id].estimate_wh == KINDS["fetch_module"].estimate_wh
+  assert back[task.id].task == "take"
+  assert back[task.id].estimate_wh == KINDS["take_points"].estimate_wh
 
 
 def test_a_newer_state_version_refuses_to_load(tmp_path):
@@ -412,6 +433,26 @@ def test_a_newer_state_version_refuses_to_load(tmp_path):
   path.write_text(json.dumps({"version": 99, "tasks": []}))
   with pytest.raises(ValueError, match="task state version"):
     board(path=path)
+
+
+def test_a_row_of_a_kind_this_build_does_not_know_is_dropped_at_load(tmp_path):
+  """The deployed volume's board outlives the kinds a build knows: the
+  quadrupeds' jobs went with them (#559) and their rows stay in the file.
+  Kept, the next save raised `KeyError` on the row's kind -- the served
+  process's first offer after the upgrade -- so a row of an unknown kind is
+  dropped as the board loads, counted, and the rest of the board kept."""
+  path = tmp_path / "tasks.json"
+  b = board(path=path)
+  task = offered(b, kind="take_points", target="r2_pluggybot", params={"amount": 25})
+  doc = json.loads(path.read_text())
+  old = {**doc["tasks"][0], "id": "t_old", "kind": "draw_figure", "task": "draw",
+         "target": "whiteboard_a", "state": "expired"}
+  doc["tasks"].append(old)
+  path.write_text(json.dumps(doc))
+  back = board(path=path)
+  assert set(back.tasks) == {task.id} and back.dropped == doc.get("dropped", 0) + 1
+  back.save()                                    # ...and the board saves again
+  assert [t["kind"] for t in json.loads(path.read_text())["tasks"]] == ["take_points"]
 
 
 # ---- the vocabularies are a two-repo contract --------------------------------
@@ -437,15 +478,15 @@ def test_the_state_and_source_vocabularies_cover_what_the_board_produces():
   for source in TASK_SOURCES:
     assert offered(b, source=source).source == source
   with pytest.raises(ValueError, match="unknown task source"):
-    Task.create("draw_figure", "whiteboard_a", "t_x", source="the_ceo")
+    Task.create("open_drawer", "drawer", "t_x", source="the_ceo")
 
 
 def test_a_description_from_a_stranger_is_cleaned_and_capped():
   """A task can be created by a visitor (issue #23), so its text is untrusted
   on exactly the terms a visitor's message is -- and cleaned by the same
   function, so the two can never disagree."""
-  task = Task.create("draw_figure", "whiteboard_a", "t_1",
-                     description="draw\na\rhouse\x00 " + "x" * 400)
+  task = Task.create("open_drawer", "drawer", "t_1",
+                     description="pull\nthe\rdrawer\x00 " + "x" * 400)
   assert "\n" not in task.description and "\x00" not in task.description
   assert len(task.description) <= MAX_DESCRIPTION
 
@@ -457,18 +498,18 @@ def test_the_lifecycle_of_a_task_is_on_the_wire():
   seen = []
   b = board()
   b.on_event.append(seen.append)
-  task = offered(b)
+  task = offered(b, kind="open_chest", target="chest")
   b.claim(task.id, t=1.0)
   b.start(task.id, t=2.0)
-  b.resolve(task.id, scoring.evaluate("draw", GOOD_DRAWING, table=TABLE), t=3.0)
+  b.resolve(task.id, scoring.evaluate("open_chest", LID_SET_DOWN, table=TABLE), t=3.0)
   assert [m["type"] for m in seen] == [
     "task_offered", "task_claimed", "task_claimed", "task_resolved"]
   assert [m.get("state") for m in seen[1:]] == ["claimed", "active", "done"]
-  assert seen[0]["task"]["reward"]["base"] == TABLE["draw"].base
-  assert seen[-1]["points"] == b[task.id].points
+  assert seen[0]["task"]["reward"]["base"] == TABLE["open_chest"].base
+  assert seen[-1]["points"] == b[task.id].points > 0
   # The verdict on the wire is the REDACTED one -- `public_metrics`, the same
-  # object the ledger publishes.
-  assert "truth" not in json.dumps(seen[-1])
+  # object the ledger publishes: the chest's catch is secret on its row.
+  assert "catchN" not in json.dumps(seen[-1])
 
 
 # ---- the overseer's end -------------------------------------------------------
@@ -477,7 +518,7 @@ def test_the_lifecycle_of_a_task_is_on_the_wire():
 def test_taking_a_task_that_is_not_on_offer_is_a_malformed_answer():
   """Unlike `respond_to`, which is dropped: there the action survives without
   it, and here the id IS the action."""
-  menu = Menu(boards=("whiteboard_a",), programs=("house",))
+  menu = Menu(boards=("whiteboard_a",))
   raw = {"action": "take_task", "reason": "", "board": "", "program": "",
          "zone": "", "note": "", "respond_to": "", "outcome": "", "reply": "",
          "task": "t_9999"}
@@ -491,7 +532,7 @@ def test_the_schema_does_not_change_when_the_board_does():
   """The task id is a free string, not an enum, for the reason `respond_to`
   is: the offers change every call, and a schema that changes every call
   misses the server-side compilation cache and buys nothing."""
-  menu = Menu(boards=("whiteboard_a",), programs=("house",))
+  menu = Menu(boards=("whiteboard_a",))
   assert json.dumps(menu.schema()) == json.dumps(menu.schema())
   assert menu.schema()["properties"]["task"] == {"type": "string"}
   assert "take_task" in menu.schema()["properties"]["action"]["enum"]
@@ -505,41 +546,47 @@ def test_the_overseer_sees_what_a_job_pays_but_not_what_it_is_worth_deciding():
   task = offered(b, ttl=100.0)
   ctx = b.context(now=10.0, pack_wh=0.2)
   assert ctx == []                        # unaffordable ones are not shown
-  ctx = b.context(now=10.0, pack_wh=4.0)
+  ctx = b.context(now=10.0, pack_wh=20.0)
   assert ctx[0]["id"] == task.id
   assert ctx[0]["claimable"] is True
-  assert ctx[0]["pays"] == TABLE["draw"].base + TABLE["draw"].bonus
+  assert ctx[0]["pays"] == TABLE["open_drawer"].base + TABLE["open_drawer"].bonus
   assert ctx[0]["expiresInS"] == pytest.approx(90.0)
 
 
 # ---- the errand it turns into -------------------------------------------------
 
 
-def test_a_claimed_task_builds_an_errand_that_carries_its_id():
+def test_a_claimed_task_builds_an_errand_that_carries_its_id(monkeypatch):
   """One evaluation, two consumers: the verdict that pays for the finished
   errand is the verdict that closes the offer."""
   b = board()
-  task = offered(b, kind="feed_mouse", target="lab", params={})
-  errand = lc.errand_for_task(task, lc.QUAD_HOME, None, answer="eating")
+  task = offered(b, kind=errand_kind(monkeypatch), params={"procedure": waits()})
+  errand = lc.errand_for_task(task, lc.HUMANOID_HOME, None)
   assert errand is not None
   assert errand.task_id == task.id
-  assert errand.task == KINDS[task.kind].task
+  assert errand.task == KINDS[task.kind].task == "open_drawer"
 
 
-def test_a_task_this_world_cannot_build_is_left_alone_not_failed():
+def test_a_task_this_world_cannot_build_is_left_alone_not_failed(monkeypatch):
   """None rather than an exception: a task is untrusted input in the way an
   overseer decision is, and the loop's answer to "I cannot do that" is to
   leave the offer standing, so it lapses honestly."""
   b = board()
-  task = offered(b, kind="fetch_module", target="module_lcd")
-  assert lc.errand_for_task(task, lc.QUAD_HOME, None) is None
+  kind = errand_kind(monkeypatch)
+  task = offered(b, kind=kind)                           # no procedure to run
+  assert lc.errand_for_task(task, lc.HUMANOID_HOME, None) is None
   assert b[task.id].state == "offered"
-  # ...and a census of a zone this world does not survey (#407: its
-  # garden it does)
-  assert lc.errand_for_task(offered(b, kind="count_plants", target="garden"),
-                            lc.QUAD_HOME, None) is not None
-  stray = offered(b, kind="count_plants", target="lab")
-  assert lc.errand_for_task(stray, lc.QUAD_HOME, None) is None
+  # ...and one whose procedure names a verb this body has not (the
+  # quadruped's fetch) -- while the same job with one it has is built
+  from pluggybot.procedure.steps import Program, Step
+  fetches = Program.single("job", [Step("fetch", {"tool": "module_pen"})]).as_dict()
+  assert lc.errand_for_task(offered(b, kind=kind, params={"procedure": fetches}),
+                            lc.HUMANOID_HOME, None) is None
+  assert lc.errand_for_task(offered(b, kind=kind, params={"procedure": waits()}),
+                            lc.HUMANOID_HOME, None) is not None
+  # ...and a job whose procedure the robot writes builds none at all
+  assert lc.errand_for_task(offered(b, params={"procedure": waits()}),
+                            lc.HUMANOID_HOME, None) is None
 
 
 # ---- the loop: charge priority, and the end-to-end flight ---------------------
@@ -561,8 +608,8 @@ def test_charge_priority_is_never_overridden_by_a_claimable_task(monkeypatch):
   It asserts WHEN THE CLAIM HAPPENED, not when the errand ran. Claiming only
   queues an errand, and the errand queue already sits below `needs_charge` --
   so an inverted branch order still charges before it drives anywhere, and a
-  test watching the swap states passes either way. Measured: with the task
-  branch moved above the charge branch, watching `SWAP_PICK` still passed.
+  test watching the errand passes either way. Measured: with the task
+  branch moved above the charge branch, watching the errand still passed.
 
   And it uses a ZERO-COST job, which no real kind is, carrying the
   procedure that discharges it (the one errand a job builds on a body with
@@ -578,14 +625,10 @@ def test_charge_priority_is_never_overridden_by_a_claimable_task(monkeypatch):
   branch above `if self.needs_charge` in `HubLifecycle.run()`, and the job is
   taken on at t~0 with the pack below its reserve.
   """
-  from pluggybot.procedure.steps import Program, Step
   from test_body import stub_life
-  monkeypatch.setitem(KINDS, "fetch_module",
-                      dataclasses.replace(KINDS["fetch_module"],
-                                          estimate_wh=0.0))
   b = board()
-  task = offered(b, kind="fetch_module", target="module_lcd", params={
-    "procedure": Program.single("carry", [Step("wait", {"seconds": 1.0})]).as_dict()})
+  task = offered(b, kind=errand_kind(monkeypatch, estimate_wh=0.0),
+                 params={"procedure": waits()})
   assert task.claimable(0.0, pack_wh=0.0), "the energy gate still covers"
   life = stub_life(tasks=b)
   # Below the reserve at t=0: the cheapest state that puts the two branches
@@ -610,7 +653,7 @@ def test_charge_priority_is_never_overridden_by_a_claimable_task(monkeypatch):
   # ordering exactly as before.
   life.stop_when(lambda: bool(legal_at) and life.charge_cycles >= 1
                  and b[task.id].claimed_t is not None)
-  r = life.run(lc.world_config(lc.QUAD_HOME)["start"], max_sim_time=900.0,
+  r = life.run(lc.world_config(lc.HUMANOID_HOME)["start"], max_sim_time=900.0,
                explore_budget=10.0)
 
   assert r["charge_cycles"] >= 1, "a waiting job bricked the robot"
@@ -624,4 +667,4 @@ def test_charge_priority_is_never_overridden_by_a_claimable_task(monkeypatch):
     f"below its reserve (legal again at t={legal_at[0]:.1f} s)")
   # ...and the job really was buildable throughout, so the ordering was
   # tested rather than dodged by an offer nothing could have accepted.
-  assert lc.errand_for_task(task, lc.QUAD_HOME, None) is not None
+  assert lc.errand_for_task(task, lc.HUMANOID_HOME, None) is not None

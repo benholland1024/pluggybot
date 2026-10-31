@@ -4,9 +4,9 @@ PluggyWorld puts two robots in one world, so solver settings cannot be
 phase-scoped per robot. The settled policy, measured by
 scripts/noslip_spike.py (the sweep is in docs/SimNotes.md):
 `noslip_iterations` is 0, always, everywhere, and no code mutates solver
-options at runtime. At >= 1 iteration the coupling half-seats under +/-3 mm
-of lateral jitter (on the fork but not powered): the peg seats by SLIDING,
-and the pass suppresses exactly that.
+options at runtime. At >= 1 iteration the quadruped's coupling half-seated under
++/-3 mm of lateral jitter: its peg seated by SLIDING, and the pass
+suppressed exactly that.
 """
 
 import ast
@@ -18,20 +18,16 @@ SRC = pathlib.Path(__file__).resolve().parents[1] / "src" / "pluggybot"
 
 
 def _worlds():
-  """Every world the repo builds: the house, the served world alone and as
-  a pair, the quadruped and the humanoid (#507) alone, the dock's rig and
-  the coupling's."""
-  from pluggybot.legs import dock as dk
-  from pluggybot.legs import world as lw
-  from pluggybot.rack import coupling
+  """Every world the repo builds: the house, the humanoid alone (#507), the
+  served world alone and as a pair (#559), and the counter its hand jobs'
+  set-outs stand at (`evaluation.counter`)."""
+  from pluggybot.evaluation import counter
+  from pluggybot.humanoid import world as hw
   yield "models/home_world.xml", mujoco.MjModel.from_xml_path("models/home_world.xml")
-  yield "models/quadruped.xml", mujoco.MjModel.from_xml_path("models/quadruped.xml")
   yield "models/humanoid.xml", mujoco.MjModel.from_xml_path("models/humanoid.xml")
-  yield "home_quad", lw.home_spec().compile()
-  yield "home_quad_pair", lw.home_spec(second_at=(0.0, 1.0)).compile()
-  xml, assets = dk.world_xml()
-  yield "the dock's rig", mujoco.MjModel.from_xml_string(xml, assets)
-  yield "the coupling's rig", mujoco.MjModel.from_xml_string(coupling.scene_xml())
+  yield "home_humanoid", hw.home_spec().compile()
+  yield "home_humanoid_pair", hw.home_spec(second_at=(0.0, 1.0)).compile()
+  yield "the counter", counter.model_of(counter.set_out(0))
 
 
 def test_no_world_enables_noslip():

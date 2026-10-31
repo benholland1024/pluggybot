@@ -13,17 +13,18 @@ Luca at the dock, was answered five times by a step of 0.0 m: by its own
 map Luca was already off the way it was sent. And three walks to the
 workshop gave up at once, 10-25 m from Rowan walking the hall.
 
-Each rule pinned as cheaply as it fails, on the pair as built with
-nothing stepped, or on the drive with its legs stubbed:
+Each rule pinned as cheaply as it fails, on the humanoid pair as built
+with nothing stepped (a humanoid rests standing), or on the drive with its
+legs stubbed:
 
-  1. WHERE A ROBOT LYING STILL IS: its body, placed as the other's own
-     sensors would (`HubLifecycle.keep_clear`), resting or dead; a drive
-     stalled beside one asks it, where its belief said 3 m off.
+  1. WHERE A ROBOT RESTING IS: its body, placed as the other's own sensors
+     would (`HubLifecycle.keep_clear`), resting or dead; a drive stalled
+     beside one asks it, where its belief said 3 m off.
   2. THE WAY IT IS ASKED OFF is told relative to its body (`make_way`).
   3. A FAR ROBOT is planned past (`PAST_M`), and the walk walks on.
-  4. THE PRESS: the walk in rides the ask, and is cleared before it is
-     walked -- or not walked, "in the way"; and a goal one lies on, its
-     standoff, is asked off at the plan that finds it there (#439).
+  4. THE WAY ON: an ask carries the way on past the goal, a way no plan
+     walks is cleared before it is walked -- or not walked -- and a goal
+     one rests on is asked off at the plan that finds it there (#439).
   5. THE WORDS: dead is dead, and a no is said, once a while.
 
 The day's attribution is in docs/SimNotes.md, "A robot resting where the
@@ -38,33 +39,37 @@ import pytest
 from pluggybot import navigator as nav
 from pluggybot import tick
 from pluggybot.body import KeepClear
-from pluggybot.legs import body as qb
-from pluggybot.legs import world as lw
-from pluggybot.legs.body import QuadMission
-from pluggybot.lifecycle import QUAD_HOME, posture
+from pluggybot.humanoid import world as hw
+from pluggybot.humanoid.body import HumanoidBody
+from pluggybot.humanoid.way import REST_S
+from pluggybot.lifecycle import HUMANOID_HOME, posture
 from pluggybot.navigator import MAKE_WAY_WAIT_S, PAST_M, STAGNATION_S, gave_up
-from pluggybot.procedure import steps as st
 from test_make_way import (BOUNDS, DOOR, EAST, GOAL, STEPPER, _door_map, _Drive,  # noqa: I001
                            _off, _resting)
-from test_places import FEED, SOUTH, _quad, _sign
 
 Y = -0.5
-LYING_AT = (0.2, Y)
+REST_AT = (0.2, Y)
 
 
 def _pair(tmp_path, near_field=False):
-  """The quadruped pair in the living room's open floor, both maps laid
-  free: Luca at (-1.6, -0.5) facing +x, Rowan lying down to rest at
-  (0.2, -0.5) facing back at it. Beliefs exact until a test moves one."""
+  """The humanoid pair in the living room's open floor, both maps laid
+  free: Luca at (-1.6, -0.5) facing +x, Rowan resting at (0.2, -0.5) facing
+  back at it. Beliefs exact until a test moves one."""
   from pluggybot.pair import build_pair
-  me, peer = build_pair(QUAD_HOME, errands=("none", "none"), names=("Luca", "Rowan"),
+  me, peer = build_pair(HUMANOID_HOME, errands=("none", "none"), names=("Luca", "Rowan"),
                         thoughts_root=str(tmp_path / "thoughts"), near_field=near_field)
   me.body.start_at(-1.6, Y, 0.0)
-  peer.body.start_at(*LYING_AT, math.pi)
+  peer.body.start_at(*REST_AT, math.pi)
   for life in (me, peer):
     life.body.grid.grid[:] = -5.0
-  peer.body.mission.posture = qb.LYING
+  _rest(peer)
   return me, peer
+
+
+def _rest(life, resting=True):
+  """At rest -- no motion command for `REST_S` -- or just moved."""
+  life.body.mission.last_motion_t = (float(life.data.time) - REST_S if resting
+                                     else float(life.data.time))
 
 
 def _close(*lives):
@@ -78,15 +83,15 @@ def _believe(life, dx, dy, dyaw=0.0):
   life.body.mission._set_pose(x + dx, y + dy, th + dyaw)
 
 
-# ---- 1. where a robot lying still is ------------------------------------------------
+# ---- 1. where a robot resting is ----------------------------------------------------
 
 
-def test_a_robot_lying_still_is_kept_clear_of_where_its_body_lies_as_the_other_sees_it(tmp_path):
+def test_a_robot_resting_is_kept_clear_of_where_its_body_stands_as_the_other_sees_it(tmp_path):
   """The rule and its line of wiring (`pair.build_pair` hands each mission
-  `keep_clear(seen_by=)`): a robot lying down to rest is where the other's
-  sensors put its body, not where it says it is -- its belief here 2.9 m
-  off, as Luca's was -- and placed through the other's map, drifted as
-  Luca's lab was. Dead, likewise, and said dead; standing, where it says."""
+  `keep_clear(seen_by=)`): a robot at rest is where the other's sensors put
+  its body, not where it says it is -- its belief here 2.9 m off, as Luca's
+  was -- and placed through the other's map, drifted as Luca's lab was.
+  Dead, likewise, and said dead; moving, where it says."""
   me, peer = _pair(tmp_path)
   try:
     _believe(peer, 0.0, 2.9)
@@ -105,29 +110,29 @@ def test_a_robot_lying_still_is_kept_clear_of_where_its_body_lies_as_the_other_s
     assert keep.dead and not keep.resting and (keep.x, keep.y) == pytest.approx(seen, abs=1e-9)
     assert posture([peer], "Rowan") == "lying dead"
     peer.dead = None
-    peer.body.mission.posture = qb.STANDING
+    _rest(peer, resting=False)
     keep = me.body.others[0]()
     assert (keep.x, keep.y) == peer.body.pose_xy() and not (keep.resting or keep.dead)
   finally:
     _close(me, peer)
 
 
-def test_a_robot_lying_still_to_rest_or_dead_is_not_held_for(tmp_path):
+def test_a_robot_resting_or_dead_is_not_held_for(tmp_path):
   """The depth camera's hold is for a robot that will MOVE (#365). Placed
-  where its body lies, a robot resting is planned round, and asked off a
+  where its body stands, a robot resting is planned round, and asked off a
   way it cuts; held for, a walk past one resting mid-hall stood at its
   disc's edge facing it while the two ways round it swapped plan by plan,
-  and timed out. Dead, likewise; standing -- stepping aside -- it moves,
-  and is held for."""
+  and timed out. Dead, likewise; moving -- stepping aside -- it is held
+  for."""
   me, peer = _pair(tmp_path, near_field=True)
   try:
-    me.body.start_at(LYING_AT[0] - 0.6, Y, 0.0)
+    me.body.start_at(REST_AT[0] - 0.6, Y, 0.0)
     frame = me.depth_camera.frame(me.data)
     assert me.body.mission.peer_ahead(frame.peers) is not None, \
       "the premise: the camera sees it in the corridor ahead"
     m = me.body.mission
-    for how, held in (("resting", False), ("dead", False), ("standing", True)):
-      peer.body.mission.posture = qb.STANDING if how == "standing" else qb.LYING
+    for how, held in (("resting", False), ("dead", False), ("moving", True)):
+      _rest(peer, resting=how != "moving")
       peer.dead = {"cause": "unminded"} if how == "dead" else None
       m.peer_seen_m = None
       me.data.time += 0.1
@@ -146,7 +151,7 @@ def test_a_stalled_drive_asks_the_robot_resting_on_its_goal_whose_belief_is_metr
   me, peer = _pair(tmp_path)
   try:
     _believe(peer, 0.0, 3.0)
-    goal = (LYING_AT[0] - 0.2, Y)
+    goal = (REST_AT[0] - 0.2, Y)
     m = me.body.mission
     assert m._other_in_the_way(*goal), "nobody near enough to wait on"
     assert m._ask_way(*goal, {}, near=True) and peer.body.making_way == me.root
@@ -161,17 +166,18 @@ def test_the_way_is_told_relative_to_the_body_it_is_asked_off(tmp_path):
   """Rowan's charge at the dock: Luca's belief 1.1 m off its body, asked off
   a way running through its body, which by its own map ran 1.1 m off it --
   so it stood up, stepped 0.0 m aside, and lay down again, five times. Told
-  where the way runs against its body, it steps `aside_clear_m` off it."""
+  where the way runs against its body, it steps `aside_clear_m` off it
+  (on the planner's 10 cm lattice: a cell's middle half a cell nearer)."""
   me, peer = _pair(tmp_path)
   try:
     _believe(peer, 0.0, 1.1)
-    way = [me.body.pose_xy(), LYING_AT, (1.5, Y)]
+    way = [me.body.pose_xy(), REST_AT, (1.5, Y)]
     assert me.body.ask_way(peer.root, way)
     at, to = peer.body.pose_xy(), peer.body.mission._aside["to"]
     assert math.dist(at, to) > 0.5, f"stepped {math.dist(at, to):.2f} m aside"
     told = [peer.body.as_seen(*me.body.from_seen(*p)) for p in way]
     assert _off(told, *at) < 0.1, "the premise: the way runs through it"
-    assert _off(told, *to) >= peer.body.mission.aside_clear_m - 1e-6
+    assert _off(told, *to) >= peer.body.mission.aside_clear_m - 0.05
   finally:
     _close(me, peer)
 
@@ -181,7 +187,7 @@ def test_the_way_is_told_relative_to_the_body_it_is_asked_off(tmp_path):
 
 @pytest.fixture(scope="module")
 def house():
-  return lw.home_spec().compile()
+  return hw.home_spec().compile()
 
 
 def test_a_route_only_a_far_robots_disc_cuts_is_walked_and_a_near_ones_is_not(house):
@@ -190,7 +196,8 @@ def test_a_route_only_a_far_robots_disc_cuts_is_walked_and_a_near_ones_is_not(ho
   Rowan long gone before Luca could get there. Further off than `PAST_M`,
   only its disc cutting the way, it is planned past and the walk walks;
   nearer, it is the wall it was, and the walk gives up as before."""
-  m = QuadMission(house, mujoco.MjData(house), realtime=False, grid_bounds=BOUNDS)
+  body = HumanoidBody(house, mujoco.MjData(house), realtime=False, grid_bounds=BOUNDS)
+  m = body.mission
   try:
     _door_map(m)
     m.others = [lambda: KeepClear(*DOOR, root="r2_pluggybot")]
@@ -201,21 +208,20 @@ def test_a_route_only_a_far_robots_disc_cuts_is_walked_and_a_near_ones_is_not(ho
       walk = m.drive_to_routine(*EAST, 60.0)
       step = next(walk, None)
       walk.close()
-      assert (step is not None and qb.is_motion(step)) is walks, (off, m.last_drive)
+      assert (step is not None and any(step)) is walks, (off, m.last_drive)
       if not walks:
         assert m.last_drive["why"] == "peer" and m.last_drive["seconds"] == 0.0
   finally:
-    m.close()
+    body.close()
 
 
-# ---- 4. the press --------------------------------------------------------------------
+# ---- 4. the way on ------------------------------------------------------------------
 
 
 def test_the_ask_carries_the_way_on_past_the_goal():
-  """A robot asked off the walk to a press's standoff -- one backed out of
-  its own press lies 0.25 m short of it -- is asked off the walk in beyond
-  it too (`beyond`), or the nearest spot off the way to the standoff is
-  on the way to the plate."""
+  """A robot asked off a walk that goes on past its goal (`beyond`: a
+  standoff, and the walk in from it) is asked off the way beyond too, or
+  the nearest spot off the way to the goal is on the way past it."""
   drive = _Drive([_resting()], opens_at=7.0)
   assert tick.run(STEPPER, drive.drive_to_routine(*GOAL, 60.0, beyond=[(6.0, 0.0)]))
   root, way = drive.asked[0]
@@ -298,10 +304,10 @@ class _Clear(_Drive):
 
 @pytest.mark.parametrize("who", ["resting", "refuses", "standing", "dead", "nobody"])
 def test_a_way_no_plan_walks_is_cleared_by_asking_and_waiting_or_not_walked(who):
-  """`clear_way_routine`, the press's walk in: a robot resting across it is
-  asked off it and waited for while it steps off; one standing on it while
-  it moves on; one that says no, or is dead, is not waited for -- the way
-  is not walked -- and nobody across it is no wait at all."""
+  """`clear_way_routine`, a walk no planner plans: a robot resting across it
+  is asked off it and waited for while it steps off; one standing on it
+  while it moves on; one that says no, or is dead, is not waited for -- the
+  way is not walked -- and nobody across it is no wait at all."""
   way = [(0.0, 0.0), (1.2, 0.0)]
   gone_at = 5.0
 
@@ -327,83 +333,6 @@ def test_a_way_no_plan_walks_is_cleared_by_asking_and_waiting_or_not_walked(who)
     assert drive.asked[0][1] == way
 
 
-def test_a_robot_waiting_for_its_way_in_is_never_asked_aside(house):
-  """The press's wait is a walk of its own on the quadruped (`driving`):
-  8.6 s into it the rest reflex lies the body down, and a body lying free
-  says yes to an ask -- it would walk off its standoff before its walk
-  in, and walk in from wherever it stood aside."""
-  m = QuadMission(house, mujoco.MjData(house), realtime=False, grid_bounds=BOUNDS)
-  try:
-    m.grid.grid[:] = -5.0
-    m._set_pose(0.0, 0.0, 0.0)
-    m.others = [lambda: KeepClear(1.0, 0.0, root="r2_pluggybot", resting=True)]
-    m.ask_way = lambda root, way: True
-    wait = m.clear_way_routine([(0.0, 0.0), (2.0, 0.0)])
-    next(wait)
-    m.posture = qb.LYING
-    assert m.make_way([(4.0, 3.0), (6.0, 3.0)], "r2_pluggybot") is False, m._aside
-    assert m.way_refused == "walking"
-    wait.close()
-    assert m.driving == 0
-  finally:
-    m.close()
-
-
-def test_a_press_asks_off_its_walk_in_and_does_not_walk_into_who_stays(house):
-  """The press's two halves (`PlaceWalk.press_routine`): the walk to its
-  standoff carries the walk in beyond it, and before the walk in -- steered
-  by the sign, no planner under it -- the way to the plate is cleared. One
-  still across it ends the try "in the way", and nothing walks into it."""
-  body = _quad(house, 25.0, 2.0, SOUTH)
-  m = body.mission
-  beyonds, cleared, walked_in = [], [], []
-  stays = KeepClear(25.0, 1.4, root="r2_pluggybot", resting=True)
-
-  def drive(x, y, timeout=90.0, stop=None, beyond=()):
-    beyonds.append(list(beyond))
-    return tick.result(True)
-
-  try:
-    m.places.see(FEED, *_sign("feed"), 0.0, view=SOUTH, tag_facing=SOUTH)
-    m.drive_to_routine = drive
-    m.face_routine = lambda h: tick.result(True)
-    m.look_for_places = lambda: [FEED]
-    m._press_walk_in_routine = lambda tag: walked_in.append(tag) or tick.result("stopped")
-    m._hold_on_routine = lambda pad: tick.result(True)
-    m._press_back_out_routine = lambda: tick.result(None)
-    m.clear_way_routine = lambda way: cleared.append(list(way)) or tick.result(stays)
-    rec = body.run(m.press_routine(FEED, patience=st.PRESS_PATIENCE_S))
-    press = m.press_pose(FEED)[:2]
-    assert beyonds and all(b == [pytest.approx(press)] for b in beyonds)
-    assert cleared and cleared[0][-1] == pytest.approx(press)
-    assert rec["why"] == "in the way" and not walked_in
-    assert rec["attempts"][-1]["across"] == {"root": "r2_pluggybot", "m": pytest.approx(0.6, abs=0.01),
-                                            "rests": True, "dead": False, "down": False}
-    m.clear_way_routine = lambda way: tick.result(None)
-    rec = body.run(m.press_routine(FEED, patience=st.PRESS_PATIENCE_S))
-    assert rec["pressed"] and walked_in == [FEED]
-  finally:
-    body.close()
-
-
-def test_a_press_that_was_not_walked_onto_says_who_lay_across_the_way():
-  """The verb's words for "in the way": who, how and how far -- and its
-  trace -- so the robot reads a body across its way, not a plate."""
-  rec = {"pressed": False, "why": "in the way",
-         "attempts": [{"standoff": [25.0, 2.0], "why": "in the way",
-                       "across": {"root": "r2_pluggybot", "m": 0.6, "rests": True,
-                                  "dead": False, "down": False}}]}
-  rowan = type("Peer", (), {"robot_name": "Rowan", "root": "r2_pluggybot"})()
-  life = type("Life", (), {"_peer": lambda self, root: rowan if root == rowan.root else None})()
-  life.body = type("Body", (), {"press_plate_routine":
-                                lambda self, tag, patience, stop=None: tick.result(rec)})()
-  life.data = type("Data", (), {"time": 0.0})()
-  out = tick.run(STEPPER, st._press(life, {"tag": FEED}))
-  assert out["reason"] == (f"did not walk onto tag {FEED}'s plate: Rowan lay across the "
-                           "way onto it, 0.6 m off, and did not step off it")
-  assert "walk in across" in out["trace"]
-
-
 # ---- 5. the words --------------------------------------------------------------------
 
 
@@ -427,20 +356,23 @@ def test_a_dead_robot_is_neither_waited_for_nor_asked_and_is_said_dead():
 def test_a_no_is_said_once_a_while_and_with_why(tmp_path):
   """Of thirteen give-ups naming a robot resting, one had an ask beside it
   in the log -- and a no left no line at all. The robot asked says why it
-  cannot, once a `MAKE_WAY_WAIT_S`; standing it is in nobody's way by its
-  own rule, and says nothing."""
+  cannot, once a `MAKE_WAY_WAIT_S`; not yet at rest it is in nobody's way
+  by its own rule, and says nothing."""
   me, peer = _pair(tmp_path)
   try:
-    way = [me.body.pose_xy(), LYING_AT, (1.5, Y)]
+    way = [me.body.pose_xy(), REST_AT, (1.5, Y)]
     said = lambda: [ln for ln in peer.log if "asked me off its way" in ln]  # noqa: E731
-    peer.body.mission.docked = True
+    (port,) = peer.body.mission.port_eqs
+    peer.data.eq_active[port] = 1                       # plugged in
     assert not me.body.ask_way(peer.root, way)
-    assert peer.status == "MAKE WAY: Luca asked me off its way, and I cannot: I am on the dock"
+    assert peer.status == ("MAKE WAY: Luca asked me off its way, and I cannot: "
+                           "I am plugged in at my charging station")
     assert not me.body.ask_way(peer.root, way) and len(said()) == 1
     me.data.time += MAKE_WAY_WAIT_S
+    _rest(peer)
     assert not me.body.ask_way(peer.root, way) and len(said()) == 2
-    peer.body.mission.docked = False
-    peer.body.mission.posture = qb.STANDING
+    peer.data.eq_active[port] = 0
+    _rest(peer, resting=False)
     assert not me.body.ask_way(peer.root, way) and len(said()) == 2
   finally:
     _close(me, peer)

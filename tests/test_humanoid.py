@@ -17,7 +17,7 @@ import pytest
 from pluggybot.humanoid import model as hm
 from pluggybot.humanoid import parts as hp
 from pluggybot.humanoid.senses import GripperSense, JointSense
-from pluggybot.legs.actuator import JointLimits, driver_gains
+from pluggybot.humanoid.actuator import JointLimits, driver_gains
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -85,7 +85,7 @@ def test_the_drivers_are_the_pd_inside_each_joints_envelope():
   # The quadruped's algebra (#385), joint by joint: every joint its own
   # part's line and its own gains. At any state inside its no-load speed a
   # driver's force is its clipped PD.
-  from pluggybot.legs.drivers import Drivers
+  from pluggybot.humanoid.drivers import Drivers
   model = mujoco.MjModel.from_xml_string(hm.body_xml())
   data = mujoco.MjData(model)
   drivers = Drivers(model, data, joints=hm.JOINT_NAMES)
@@ -239,7 +239,7 @@ def test_a_moved_datasheet_number_is_caught():
   120 N*m fails the bill's `expect`, and one moved alone is refused as
   drivers come apart."""
   from pluggybot.humanoid import bill
-  from pluggybot.rack import catalog
+  from pluggybot.humanoid import catalog
   rs04 = next(p for p in bill.PARTS if p.id == "rs04")
   joints = bill.driven_by(hp.RS04)
 
@@ -258,7 +258,7 @@ def test_a_moved_datasheet_number_is_caught():
 
 def test_one_part_number_is_one_set_of_facts_across_both_bills():
   from pluggybot.humanoid import bill
-  from pluggybot.rack import catalog
+  from pluggybot.humanoid import catalog
   quad = {p.partNumber: p for p in catalog.PARTS if p.partNumber}
   shared = [p for p in bill.PARTS if p.partNumber in quad]
   assert len(shared) > 10
@@ -341,6 +341,21 @@ def test_the_standing_policy_drives_the_legs_off_what_the_robot_senses():
 
 def kind_is_leg(joint: str) -> bool:
   return hm.kind(joint) in hm.LEG
+
+
+def test_running_the_policies_imports_no_training_stack():
+  # The serving image installs deploy/requirements-serve.txt and nothing
+  # else; a policy that needed torch or onnx to run would crash there. Its
+  # three policies -- standing, walking, getting up -- run in numpy.
+  import subprocess
+  import sys
+  code = ("import sys, pluggybot.humanoid.model, pluggybot.humanoid.policy, "
+          "pluggybot.humanoid.walk, pluggybot.humanoid.getup; "
+          "bad = [m for m in ('torch', 'jax', 'warp', 'onnx', 'mjlab') "
+          "if m in sys.modules]; print(bad); sys.exit(1 if bad else 0)")
+  out = subprocess.run([sys.executable, "-c", code], capture_output=True,
+                       text=True)
+  assert out.returncode == 0, out.stdout + out.stderr
 
 
 def test_the_standing_policy_stands_in_our_physics():

@@ -4,9 +4,9 @@ wire, and the pair as an obstacle.
 A second robot is the same body attached with a prefix; a `RobotHandle` is
 that prefix, and every class that resolves a robot element does so through
 it. The first robot keeps the bare names, so a single-robot world is what
-it was. The world is the quadruped pair's (`legs.world.home_spec`); where a
-rule is the loop's bookkeeping it is pinned on the stub, and where it is
-the drive's, on a stub that walks.
+it was. The world is the humanoid pair's (`humanoid.world.home_spec`);
+where a rule is the loop's bookkeeping it is pinned on the stub, and where
+it is the drive's, on a stub that walks.
 """
 
 import math
@@ -18,11 +18,11 @@ import numpy as np
 import pytest
 
 from pluggybot import tick
-from pluggybot.body import StubBody
-from pluggybot.legs import rack as rk
-from pluggybot.legs import world as lw
-from pluggybot.legs.body import QuadMission
-from pluggybot.lifecycle import QUAD_HOME, world_config
+from pluggybot.body import RackPose, StubBody
+from pluggybot.humanoid import model as hm
+from pluggybot.humanoid import world as hw
+from pluggybot.humanoid.body import HumanoidBody
+from pluggybot.lifecycle import HUMANOID_HOME, world_config
 from pluggybot.navigator import CLOSE_ENOUGH_M
 from pluggybot.robot import FIRST, SECOND, RobotHandle
 from test_body import stub_life  # noqa: I001 -- tests/ is on sys.path
@@ -31,29 +31,42 @@ from test_unknown import STEPPER, _Walk
 SRC = pathlib.Path(__file__).resolve().parents[1] / "src" / "pluggybot"
 #: Where a second robot is parked out of the way: the kitchen.
 PARK = (-8.0, 4.0)
-BOUNDS = world_config(QUAD_HOME)["grid_bounds"]
+BOUNDS = world_config(HUMANOID_HOME)["grid_bounds"]
 
 
 def _pair(second_at=PARK, **kw):
-  return lw.home_spec(second_at=second_at, **kw).compile()
+  return hw.home_spec(second_at=second_at, **kw).compile()
+
+
+def _stand(model, data, handle: RobotHandle, x, y, yaw=0.0) -> None:
+  """`handle`'s humanoid upright at (x, y) facing `yaw`, as
+  `HumanoidBody.start_at` stands it: nothing stepped."""
+  q = handle.qpos_adr(model)
+  data.qpos[q:q + 3] = [x, y, hm.stand_height()]
+  data.qpos[q + 3:q + 7] = [math.cos(yaw / 2), 0.0, 0.0, math.sin(yaw / 2)]
+  stand = hm.stand_qpos()
+  for name in hm.qpos_order():
+    data.qpos[model.jnt_qposadr[model.joint(handle.el(name)).id]] = stand.get(name, 0.0)
+  mujoco.mj_forward(model, data)
 
 
 def test_two_namespaced_robots_compile():
   model = _pair()
   names = {model.body(i).name for i in range(model.nbody)}
   assert FIRST.root in names and SECOND.root in names
-  for el in ("FL_knee", "arm_shoulder", "arm_elbow"):
+  for el in ("left_knee", "right_shoulder_pitch", "left_elbow"):
     model.actuator(SECOND.el(el))
-  for el in ("nav_eye", "depth_eye"):
+  for el in ("nav_eye", "depth_eye", "color_eye"):
     model.camera(SECOND.el(el))
   model.sensor(SECOND.el("imu_ang_vel"))
-  for el in ("lidar", "arm_seat"):
+  for el in ("lidar", "charge_port", "left_grip"):
     model.site(SECOND.el(el))
   # the robots come after the house, the second after the first
   assert 0 < FIRST.qpos_adr(model) < SECOND.qpos_adr(model)
-  # ...and the rack, the dock and the tools are the WORLD's, not prefixed
-  assert {rk.RACK_BODY, "dock", "module_pen"} <= names
-  assert not any(n.startswith(("r2_module", "r2_tool", "r2_dock")) for n in names)
+  # ...and the station, its plug and the counter's props are the WORLD's,
+  # not prefixed
+  assert {"station", "station_plug", "store_counter", "chest"} <= names
+  assert not any(n.startswith(("r2_station", "r2_store", "r2_chest")) for n in names)
 
 
 def test_the_second_robot_walks_through_its_handle_and_touches_nothing_of_the_firsts():
@@ -61,78 +74,47 @@ def test_the_second_robot_walks_through_its_handle_and_touches_nothing_of_the_fi
   commands reach `r2_`'s drivers and none of the first robot's."""
   model = _pair(second_at=(2.0, -0.6))
   data = mujoco.MjData(model)
-  second = QuadMission(model, data, realtime=False, grid_bounds=BOUNDS, handle=SECOND)
+  second = HumanoidBody(model, data, realtime=False, grid_bounds=BOUNDS, handle=SECOND)
   try:
     second.start_at(2.0, -0.6, math.pi)
     firsts = [i for i in range(model.nu)
               if not mujoco.mj_id2name(model, mujoco.mjtObj.mjOBJ_ACTUATOR, i).startswith("r2_")]
     assert firsts
     x0 = second.true_pose()[0]
-    second.run(second._drive_routine(1.5, 0.5, 0.0))
+    second.run(second.mission._drive_routine(1.0, 0.5, 0.0))
     assert x0 - second.true_pose()[0] > 0.1, "the second robot did not walk"
     assert not data.ctrl[firsts].any(), "the second robot drove the first's joints"
   finally:
     second.close()
 
 
-def _seat(model, data, module, handle):
-  """`module` dropped onto `handle`'s fork at the carry pose, as a pick
-  leaves it, a tenth of a second on: seated, before the unheld arm sags."""
-  from pluggybot.legs import arm as am
-  from pluggybot.legs.model import CHOSEN
-  from pluggybot.rack.coupling import PEG_ABOVE_BODY
-  for joint, q in zip(("shoulder", "elbow", "wrist"), (*am.CARRY_Q, -sum(am.CARRY_Q))):
-    data.qpos[model.jnt_qposadr[model.joint(handle.el(f"arm_{joint}")).id]] = q
-  mujoco.mj_forward(model, data)
-  rot = data.xmat[model.body(handle.root).id].reshape(3, 3)
-  peg = data.site_xpos[model.site(handle.el("arm_seat")).id] + rot @ np.array(
-    [0.0, 0.0, CHOSEN.arm.fork.seat_rise() + 0.0003])
-  yaw = math.atan2(rot[1, 0], rot[0, 0]) + math.pi
-  q = model.jnt_qposadr[model.body(module).jntadr[0]]
-  data.qpos[q:q + 3] = peg - np.array([0.0, 0.0, PEG_ABOVE_BODY])
-  data.qpos[q + 3:q + 7] = (math.cos(yaw / 2), 0.0, 0.0, math.sin(yaw / 2))
-  mujoco.mj_forward(model, data)
-  for _ in range(50):
-    mujoco.mj_step(model, data)
-
-
-def test_the_second_robots_fork_powers_a_tool_and_the_firsts_does_not():
-  """The coupling through the handle: the second robot's fork plates are
-  `r2_arm_v*`, so `tool_power` with its prefix says powered while the first
-  robot's says not -- a tool on the other robot's fork is not this one's."""
-  from pluggybot.legs.dock import dock_charge_contact
-  model = _pair(second_at=(0.0, 1.0))
-  data = mujoco.MjData(model)
-  lw.stand(model, data, FIRST.prefix, 1.5, 0.5, 0.0)
-  lw.stand(model, data, SECOND.prefix, 0.0, 1.0, 0.0)
-  _seat(model, data, "module_claw", SECOND)
-  assert rk.tool_power(model, data, "module_claw", SECOND.prefix)["powered"]
-  assert not rk.tool_power(model, data, "module_claw", FIRST.prefix)["powered"]
-  assert not dock_charge_contact(model, data, SECOND.prefix)
-
-
 # ---- the fence: no bare robot name in mission code -----------------------------
 
 #: Element names that belong to a robot, which mission code may only reach
-#: through a handle. Tool, rack, bay, dock and board names are the WORLD's.
-ROBOT_ELEMENTS = ("pluggybot", "torso", "lidar", "lidar_mast", "depth_eye", "nav_eye",
-                  "imu", "imu_ang_vel", "imu_lin_acc", "arm_seat", "arm_shoulder",
-                  "arm_elbow", "arm_wrist", "belly_pad_l", "belly_pad_r",
-                  "FL_hip_abd", "FL_hip_flex", "FL_knee")
-#: The mission stack: what a second robot runs a copy of.
+#: through a handle. The station, the counter's props and board names are
+#: the WORLD's.
+ROBOT_ELEMENTS = ("pluggybot", "pelvis", "torso", "head", "lidar", "depth_eye", "nav_eye",
+                  "color_eye", "imu", "imu_ang_vel", "imu_lin_acc", "pelvis_quat",
+                  "charge_port", "left_foot", "right_foot", "left_grip", "right_grip",
+                  "left_sole", "right_sole", "left_knee", "right_knee",
+                  "left_foot_touch", "right_foot_touch")
+#: The mission stack: what a second robot runs a copy of. (The humanoid's
+#: model of itself -- `arms.py`, `reach.py`, `odometry.py`, `getup.py` --
+#: is its own drawing compiled alone, whose root IS `qpos[0]`.)
 MISSION_CODE = ("lifecycle.py", "power.py", "body.py", "navigator.py", "mission/errand.py",
-                "tools/screen.py", "procedure/steps.py", "procedure/axes.py",
-                "procedure/lang.py", "perception/lidar.py", "perception/depth.py",
-                "perception/imu.py", "rack/tags.py", "economy/census.py",
-                "mapping/scan_match.py", "legs/body.py", "legs/swap.py",
-                "legs/places.py", "legs/odometry.py", "legs/posture.py",
-                "legs/arm.py", "legs/dock.py", "legs/rack.py", "legs/drivers.py",
-                "legs/policy.py", "legs/scan.py")
-BARE = re.compile(r'(?<!body)\.(body|geom|joint|actuator|site|camera|sensor)\("('
+                "procedure/steps.py", "procedure/axes.py", "procedure/lang.py",
+                "perception/lidar.py", "perception/depth.py", "perception/imu.py",
+                "perception/tags.py", "perception/watch.py", "mapping/scan_match.py",
+                "humanoid/body.py", "humanoid/mission.py", "humanoid/places.py",
+                "humanoid/way.py", "humanoid/charge.py", "humanoid/walk.py",
+                "humanoid/policy.py", "humanoid/scan.py", "humanoid/senses.py",
+                "humanoid/drivers.py")
+#: ...read through the model of itself (`sm.m`, `sm.d`) is not the world's.
+BARE = re.compile(r'(?<!body)(?<!sm\.m)\.(body|geom|joint|actuator|site|camera|sensor)\("('
                   + "|".join(ROBOT_ELEMENTS) + r')"\)')
 #: A robot's root read at a fixed `qpos` index: the robots are attached
 #: after the house, so none of them is at `qpos[0]`.
-ROOT_INDEX = re.compile(r"qpos\[(0|1|2|3:7|:7|:3)\]")
+ROOT_INDEX = re.compile(r"(?<!sm\.d\.)qpos\[(0|1|2|3:7|:7|:3)\]")
 
 
 def test_mission_code_resolves_every_robot_element_through_the_handle():
@@ -143,9 +125,12 @@ def test_mission_code_resolves_every_robot_element_through_the_handle():
       if BARE.search(line) or ROOT_INDEX.search(line):
         bad.append(f"{rel}:{n}: {line.strip()}")
   assert not bad, "bare robot names in mission code:\n  " + "\n  ".join(bad)
-  # ...and the fence fires on what it is for
+  # ...and the fence fires on what it is for, and not on the model of itself
   assert BARE.search('self.model.site("lidar").id') and ROOT_INDEX.search("d.qpos[:7]")
+  assert ROOT_INDEX.search("self.data.qpos[3:7]")
   assert not BARE.search('self.model.site(handle.el("lidar")).id')
+  assert not BARE.search('sm.m.site("charge_port").id')
+  assert not ROOT_INDEX.search("sm.d.qpos[3:7]")
 
 
 # ---- one loop, two controllers ----------------------------------------------------
@@ -217,98 +202,19 @@ def test_run_many_throws_a_hook_exception_into_every_live_routine():
   assert sorted(seen) == ["a-finally", "b-finally"]
 
 
-def _errand(used, station=0.0):
-  from pluggybot.mission.errand import Errand
-  return Errand(name="carry:test", module="module_lcd", station_y=station,
-                use_at=(1.0, 1.0), use=lambda _l: used.append(1) or {},
-                needs_use_pose=False)
-
-
-def _swaps(body, why="missed"):
-  """The body's two swaps recorded, and a pick that takes nothing."""
-  swaps = []
-  body.fetch_tool_routine = lambda station, module: (swaps.append("pick"), tick.result(why))[1]
-  body.stow_tool_routine = lambda station, module: (swaps.append("return"), tick.result("arrived"))[1]
-  return swaps
-
-
-def test_a_failed_pick_ends_the_errand_at_the_rack():
-  """Issue #298. On the deployed pair a pick fails whenever the other robot
-  holds the tool, and the errand used to carry on regardless: go to the use
-  pose with nothing on the fork, skip the use, come back and attempt to
-  RETURN a tool it never had. That phantom trip parked the robot at the
-  rack exactly when the other came back to stow. Now the errand ends at the
-  rack, scored as it stands, and History says why."""
-  life = stub_life()
-  body = life.body
-  swaps = _swaps(body)
-  drives = []
-  body.go_to_routine = lambda *a, **kw: (drives.append(a), tick.result(True))[1]
-  # the other robot has the LCD: not on this fork, not on its bay
-  body.module_state = lambda *a, **kw: {"on_fork": False, "hung": False, "bay": 0}
-  used = []
-  result = life.run_errand(_errand(used))
-  assert swaps == ["pick"], swaps                      # no return of nothing
-  assert drives == [] and used == []                  # no trip, no use
-  assert result["picked"] is False and result["stowed"] is False
-  assert result["error"] == "never picked up module_lcd"
-  assert any("could not pick up module_lcd" in ln and "not on its bay" in ln
-             for ln in life.thoughts.read("History.md").splitlines()), \
-      life.thoughts.read("History.md")
-  # ...and a pick that MISSED with the tool still hanging says that instead
-  body.module_state = lambda *a, **kw: {"on_fork": False, "hung": True, "bay": 0}
-  result = life.run_errand(_errand(used))
-  assert result["picked"] is False and result["stowed"] is True
-  assert any("the pick missed and it is still on its bay" in ln
-             for ln in life.thoughts.read("History.md").splitlines())
-
-
-def test_a_pick_lost_to_a_peer_names_it_in_history():
-  """The narration #313 asks for: which robot, how far off. A robot
-  diagnosed its pen, told the other robot to move out of a pose measured
-  harmless, and started declining pen jobs -- off a correlation in its own
-  History that no line ever named."""
-  life = stub_life()
-  body = life.body
-  station = 0.0
-  sx, sy, _ = body.bay_standoff(station)
-
-  class Peer:                                # the public surface, no more
-    robot_name, root = "Rowan", SECOND.root
-    down = staticmethod(lambda: False)       # standing (issue #365)
-
-    class body:                              # ...and a fork with nothing on it
-      pose_xy = staticmethod(lambda: (sx + 0.26, sy))
-      module_state = staticmethod(lambda t: {"on_fork": False, "hung": True})
-
-  life.peers = [Peer()]
-
-  def blocked(station_y, module):            # what the body's swap just did
-    body.peer_at_bay_m = 0.26
-    return tick.result("peer-at-bay")
-
-  body.fetch_tool_routine = blocked
-  body.module_state = lambda *a, **kw: {"on_fork": False, "hung": True, "bay": 0}
-  result = life.run_errand(_errand([], station))
-  assert result["error"] == "never picked up module_lcd"
-  assert result["peerAtBayM"] == 0.26
-  history = life.thoughts.read("History.md")
-  assert "Rowan was standing 0.26 m from the bay" in history, history
-  assert "the pick missed" not in history, "blamed the tool for a blocked bay"
-
-
 def _mission(at=(1.0, 1.0)):
-  """A quadruped's mission in the house, on a mapped and empty floor."""
-  model = lw.home_spec().compile()
-  m = QuadMission(model, mujoco.MjData(model), realtime=False, grid_bounds=BOUNDS)
-  m.start_at(*at, 0.0)
-  m.grid.grid[:] = -5.0
-  return m
+  """A humanoid in the house on a mapped and empty floor: its body, to
+  close, and its mission, the planner's own `self`."""
+  model = hw.home_spec().compile()
+  body = HumanoidBody(model, mujoco.MjData(model), realtime=False, grid_bounds=BOUNDS)
+  body.start_at(*at, 0.0)
+  body.grid.grid[:] = -5.0
+  return body, body.mission
 
 
 def _plan(m, x, y):
-  """A fresh plan: the quadruped keeps its last one for a moment from the
-  same spot (`QuadMission.REPLAN_HOLD_S`)."""
+  """A fresh plan: a body keeps its last one for a moment from the same
+  spot (`Navigator.REPLAN_HOLD_S`)."""
   m._plan_memo = None
   return m._plan_to(x, y)
 
@@ -316,7 +222,7 @@ def _plan(m, x, y):
 def test_the_planner_routes_round_the_other_robots_reported_pose():
   """On the grid, nothing stepped: a free room, the other robot reported on
   the straight line, and every waypoint keeps clear of it."""
-  m = _mission()
+  body, m = _mission()
   try:
     goal = (4.0, 1.0)
     straight = _plan(m, *goal)
@@ -331,7 +237,7 @@ def test_the_planner_routes_round_the_other_robots_reported_pose():
     assert m._other_in_the_way(*goal) is False
     assert m._other_in_the_way(2.6, 1.2) is True
   finally:
-    m.close()
+    body.close()
 
 
 def test_a_blocked_drive_waits_for_the_other_robot_instead_of_giving_up():
@@ -387,32 +293,31 @@ def test_the_census_and_the_scene_key_every_robot_by_its_root():
   from pluggybot.telemetry.scene import scene_dict
   model = _pair()
   assert robot_roots(model) == [FIRST.root, SECOND.root]
-  alone = lw.home_spec().compile()
+  alone = hw.home_spec().compile()
   assert robot_roots(alone) == [FIRST.root]
   r1, world = body_census(model)
   r2, world2 = body_census(model, SECOND.root)
   assert r1 and r2 == [SECOND.el(n) for n in r1]
   assert world == world2 and not any(n.startswith("r2_") for n in world)
   assert body_census(alone) == (r1, world), "a single-robot census moved"
-  scene = scene_dict(model, QUAD_HOME)
+  scene = scene_dict(model, HUMANOID_HOME)
   owners = {b["name"]: b["robot"] for b in scene["bodies"]}
   assert owners[SECOND.root] == SECOND.root and owners[FIRST.root] == FIRST.root
-  assert owners[SECOND.el("lidar_mast")] == SECOND.root
-  assert owners[rk.RACK_BODY] is None and owners["module_pen"] is None
-  assert owners["dock"] is None
+  assert owners[SECOND.el("lidar_mount")] == SECOND.root
+  assert owners["station"] is None and owners["station_plug"] is None
+  assert owners["chest"] is None
 
 
 def test_a_pair_recording_carries_both_robots_and_keys_every_event(tmp_path):
   """The stream with a second robot on it, off the recorder `run_pair` wires
   (`record_pair`), driven by hand rather than flown: the header names both
-  robots and advertises the game's referee, a frame carries
-  `robots[<root>]` for each, and the thoughts say whose they are. Nothing
-  steps -- the frame is the world as built."""
+  robots and advertises their encounters, a frame carries `robots[<root>]`
+  for each, and the thoughts say whose they are. Nothing steps -- the frame
+  is the world as built."""
   import json
-  from pluggybot.pair import arrange_game, build_pair, record_pair
-  lives = build_pair(QUAD_HOME, pack="hosting", errands=("none", "none"),
+  from pluggybot.pair import build_pair, record_pair
+  lives = build_pair(HUMANOID_HOME, pack="hosting", errands=("none", "none"),
                      tasks=True, overseer=None, thoughts_root=str(tmp_path / "t"))
-  arrange_game(lives)
   lives[0].thoughts.pin("the other one is quick", t=0.0)
   lives[1].thoughts.pin("the first one is slow", t=0.0)
   path = str(tmp_path / "pair.jsonl")
@@ -432,7 +337,7 @@ def test_a_pair_recording_carries_both_robots_and_keys_every_event(tmp_path):
   assert header["robotNames"] == {FIRST.root: "Pluggy", SECOND.root: "Rowan"}
   assert header["robots"][SECOND.root] == [SECOND.el(n) for n in header["robots"][FIRST.root]]
   assert header["ledger"] == [FIRST.root, SECOND.root]
-  assert header["model"] == "home_quad_pair"
+  assert header["model"] == "home_humanoid_pair"
   goals = [r for r in rows if r.get("type") == "goals"]
   assert [g["robot"] for g in goals] == [FIRST.root, SECOND.root]
   frames = [r for r in rows if "type" not in r]
@@ -440,8 +345,7 @@ def test_a_pair_recording_carries_both_robots_and_keys_every_event(tmp_path):
   assert frames[0]["robots"][SECOND.root]["bodies"]
   thoughts = [r for r in rows if r.get("type") == "thought"]
   assert {t["robot"] for t in thoughts} == {FIRST.root, SECOND.root}
-  assert {"encounters", "hide_and_seek"} <= set(header["activities"]), \
-      "the referee must be advertised"
+  assert "encounters" in header["activities"], "the pair's encounters must be advertised"
 
 
 class _Block:
@@ -529,7 +433,7 @@ def test_a_pair_recording_is_named_for_the_pair_world():
   robot's bodies are in no single-robot scene: the pair world has a name of
   its own, and the scene generator knows it."""
   from pluggybot.robot import pair_model_name
-  assert pair_model_name(QUAD_HOME) == "home_quad_pair"
+  assert pair_model_name(HUMANOID_HOME) == "home_humanoid_pair"
   import inspect
   from pluggybot import pair
   assert "pair_model_name(cfg[\"model_name\"])" in inspect.getsource(pair.record_pair)
@@ -538,10 +442,21 @@ def test_a_pair_recording_is_named_for_the_pair_world():
 # ---- standing by, clear of the rack ----------------------------------------------
 
 
+#: The frame the charge logic works round (`Body.rack_prior`): the
+#: humanoid's charging station, 3.1 m from its start.
+RACK = RackPose(*world_config(HUMANOID_HOME)["dock"])
+
+
+def _by_the_rack():
+  """A life on a stub whose rack is the house's."""
+  return stub_life(body=StubBody(rack=RACK, grid_bounds=BOUNDS))
+
+
 def _near_the_rack(life):
-  """A bay's standoff: where a robot stands after a swap."""
-  sx, sy, _ = life.body.bay_standoff(0.0)
-  return sx, sy
+  """Half a metre out from the station, where a robot stands after a
+  charge."""
+  r = life.body.rack_prior
+  return r.x + 0.5, r.y
 
 
 def test_a_robot_standing_by_for_work_clears_the_rack_first(monkeypatch):
@@ -552,10 +467,10 @@ def test_a_robot_standing_by_for_work_clears_the_rack_first(monkeypatch):
   that actually runs it, on the stub."""
   from pluggybot import lifecycle as lc
   monkeypatch.setattr(lc, "WAIT_FOR_WORK_S", 0.2)   # the slice length is not the claim
-  start = world_config(QUAD_HOME)["start"]
+  start = world_config(HUMANOID_HOME)["start"]
 
   def life_at(where):
-    life = stub_life()
+    life = _by_the_rack()
     body = life.body
     life.expects_work = True
     drives = []
@@ -585,10 +500,10 @@ def test_a_decided_idle_clears_the_rack_first():
   charge that is the bay standoff. Same rule as standing by for work:
   within `RACK_CLEAR_M`, go home first; elsewhere, stay put."""
   from pluggybot.mind.overseer import Decision
-  start = tuple(float(v) for v in world_config(QUAD_HOME)["start"])
+  start = tuple(float(v) for v in world_config(HUMANOID_HOME)["start"])
 
   def idle_at(where):
-    life = stub_life()
+    life = _by_the_rack()
     body = life.body
     life.home_pose = start
     body.x, body.y = where(life)
@@ -655,8 +570,8 @@ def test_the_second_robot_wears_its_own_livery_and_nothing_else_is_repainted():
             if np.allclose(model.geom_rgba[i], SECOND_CHASSIS_RGBA, atol=1e-6)}
   blue = {name(i) for i in range(model.ngeom)
           if np.allclose(model.geom_rgba[i], CHASSIS_RGBA, atol=1e-6)}
-  assert purple == {SECOND.el("torso")}
-  assert blue == {"torso"}, "the first robot keeps its paint"
+  assert {"pelvis", "torso", "head"} <= blue, "the first robot keeps its paint"
+  assert purple == {SECOND.el(n) for n in blue}
   # ...and the paint is opt-out: `None` attaches an identical twin.
   twin = _pair(second_rgba=None)
   assert np.allclose(twin.geom(SECOND.el("torso")).rgba, CHASSIS_RGBA)
@@ -666,9 +581,9 @@ def test_the_second_robot_wears_its_own_livery_and_nothing_else_is_repainted():
 
 
 def _pitched(model, data, handle: RobotHandle, x, y, yaw, pitch) -> None:
-  """`handle`'s robot standing at (x, y, yaw), its torso pitched `pitch`
-  rad nose-down, as on a flight."""
-  lw.stand(model, data, handle.prefix, x, y, yaw)
+  """`handle`'s robot standing at (x, y, yaw), its pelvis pitched `pitch`
+  rad forward, as a walking trunk rocks."""
+  _stand(model, data, handle, x, y, yaw)
   q = handle.qpos_adr(model)
   tilted = np.zeros(4)
   mujoco.mju_mulQuat(tilted, data.qpos[q + 3:q + 7].copy(),
@@ -679,13 +594,13 @@ def _pitched(model, data, handle: RobotHandle, x, y, yaw, pitch) -> None:
 
 def test_a_scan_answers_the_room_and_the_peer_apart():
   """`Lidar.scan_split`: one set of casts, the room's returns and the
-  peer's, and `scan()` still answers the map's. The other quadruped stands
-  under a level scan's plane, so the first is pitched as on a flight and
-  its scan cuts the other's torso a metre ahead."""
+  peer's, and `scan()` still answers the map's. The other humanoid's head is
+  under a level scan's plane (1.41 m), so the first is pitched forward and
+  its scan cuts the other's head a metre ahead."""
   from pluggybot.perception.lidar import Lidar
   model = _pair(second_at=(2.5, 0.5))
   data = mujoco.MjData(model)
-  lw.stand(model, data, SECOND.prefix, 2.5, 0.5, 0.0)
+  _stand(model, data, SECOND, 2.5, 0.5, 0.0)
   _pitched(model, data, FIRST, 1.5, 0.5, 0.0, 0.2)
   lidar = Lidar(model, seed=3)
   lidar.exclude_robot(SECOND.root)
@@ -748,22 +663,22 @@ def _collides(model) -> np.ndarray:
 def test_the_pair_collides_with_each_other_and_never_with_itself(monkeypatch):
   """Ben, 2026-10-14 (#455): the two robots can collide, and their bodies
   never clip into each other. A robot's geoms are `contype 1, conaffinity
-  0` (`legs/model.py`: no self-contact, as the policies were trained),
-  which also kept the pair from ever touching -- on afb473a they lay on
-  each other on the dock. `PAIR_BITS`: every solid geom of one meets every
-  solid geom of the other, none meets its own robot's, and the world meets
-  each robot exactly as it did."""
-  model = lw.home_spec(second_at=(2.5, 0.5)).compile()
-  monkeypatch.setattr(lw, "PAIR_BITS", ((0, 0), (0, 0)))
-  apart = lw.home_spec(second_at=(2.5, 0.5)).compile()
+  0` (`humanoid/model.py`: no contact of its own but the pairs its model
+  names), which alone would keep the pair from ever touching -- on afb473a
+  the quadrupeds lay on each other on the dock. `PAIR_BITS`: every solid
+  geom of one meets every solid geom of the other, none meets its own
+  robot's, and the world meets each robot exactly as it did."""
+  model = hw.home_spec(second_at=(2.5, 0.5)).compile()
+  monkeypatch.setattr(hw, "PAIR_BITS", ((0, 0), (0, 0)))
+  apart = hw.home_spec(second_at=(2.5, 0.5)).compile()
   who, hits, was = _owners(model), _collides(model), _collides(apart)
   a, b, w = who == FIRST.root, who == SECOND.root, who == ""
   solid = (model.geom_contype | model.geom_conaffinity) != 0
   assert not hits[np.ix_(a, a)].any() and not hits[np.ix_(b, b)].any()
-  assert hits[np.ix_(a & solid, b & solid)].all() and (a & solid).sum() > 20
+  assert hits[np.ix_(a & solid, b & solid)].all() and (a & solid).sum() > 15
   assert not was[np.ix_(a, b)].any(), "the premise: before, they never met"
   assert np.array_equal(hits[np.ix_(a | b, w)], was[np.ix_(a | b, w)])
-  alone = lw.home_spec().compile()            # ...and a robot alone, as it was
+  alone = hw.home_spec().compile()            # ...and a robot alone, as it was
   mine = _owners(alone) == FIRST.root
   assert set(zip(alone.geom_contype[mine].tolist(),
                  alone.geom_conaffinity[mine].tolist())) == {(0, 0), (1, 0)}
@@ -774,16 +689,16 @@ def test_a_robot_that_touches_its_pair_leaves_a_row():
   the encounter -- sensed off the contact array, latched like the plate's
   press -- in the world as served (#455: the pair collides)."""
   from pluggybot.activity.encounter import Encounters
-  model = lw.home_spec(second_at=(0.3, 0.0)).compile()
+  model = hw.home_spec(second_at=(0.3, 0.0)).compile()
   data = mujoco.MjData(model)
-  lw.stand(model, data, FIRST.prefix, 0.0, 0.0, 0.0)
-  lw.stand(model, data, SECOND.prefix, 3.0, 0.0, 0.0)
+  _stand(model, data, FIRST, 0.0, 0.0, 0.0)
+  _stand(model, data, SECOND, 3.0, 0.0, 0.0)
   enc = Encounters(model, FIRST, SECOND)
   events = []
   enc.on_event.append(events.append)
   enc.sense(model, data)
   assert enc.bumps == 0 and not enc.flags["touching"]
-  lw.stand(model, data, SECOND.prefix, 0.3, 0.0, 0.0)      # torsos overlapping
+  _stand(model, data, SECOND, 0.15, 0.0, 0.0)              # trunks overlapping
   enc.sense(model, data)
   touched = [e for e in events if e["phase"] == "touched"]
   assert touched, "two robots in contact and nothing on the wire"
@@ -792,7 +707,7 @@ def test_a_robot_that_touches_its_pair_leaves_a_row():
   enc.sense(model, data)
   assert enc.bumps == 1, "one contact, counted twice"
   # ...and it is over once they are apart, past the bumper's own hold.
-  lw.stand(model, data, SECOND.prefix, 3.0, 0.0, 0.0)
+  _stand(model, data, SECOND, 3.0, 0.0, 0.0)
   data.time += 1.0
   enc.sense(model, data)
   assert not enc.flags["touching"]
@@ -806,7 +721,7 @@ def test_a_peer_beside_the_goal_puts_it_out_of_reach_by_the_planners_own_arithme
   nearer the goal than the difference makes arrival impossible however
   many attempts are spent on it. `peer_on_the_goal` says so, and agrees
   with what the planner does (a stand-in short of the goal)."""
-  m = _mission()
+  body, m = _mission()
   try:
     gx, gy = 2.5, 1.0
     res = m.grid.resolution
@@ -822,19 +737,19 @@ def test_a_peer_beside_the_goal_puts_it_out_of_reach_by_the_planners_own_arithme
     m.others = []
     assert m.peer_on_the_goal(gx, gy) is None
   finally:
-    m.close()
+    body.close()
 
 
 def _pair_with_the_peer_across_the_bow(across: float, ahead: float, near_field=True):
-  """The quadruped pair with the near-field camera on, the second robot
+  """The humanoid pair with the near-field camera on, the second robot
   standing `ahead` and `across` of the first, and NOTHING BROADCAST between
   them: the only thing standing between the two is what the first robot
   can sense."""
   from pluggybot.pair import build_pair
-  lives = build_pair(QUAD_HOME, near_field=near_field, errands=("none", "none"))
+  lives = build_pair(HUMANOID_HOME, near_field=near_field, errands=("none", "none"))
   me, peer = lives
   me.body.start_at(0.0, -0.5, 0.0)
-  lw.stand(me.model, me.data, SECOND.prefix, ahead, -0.5 + across, 0.0)
+  peer.body.start_at(ahead, -0.5 + across, 0.0)
   me.body.grid.grid[:] = -5.0            # a mapped, empty room
   me.body.mission.others = []            # the broadcast is what we are not using
   return me, peer
@@ -844,7 +759,7 @@ def test_the_seam_hands_the_frames_peers_to_the_drive():
   """One line of wiring, pinned on its own: `_near_field_step` is where
   the peer channel reaches the mission, and a world without the camera
   hears of no peer at all."""
-  me, _ = _pair_with_the_peer_across_the_bow(across=0.25, ahead=0.9)
+  me, _ = _pair_with_the_peer_across_the_bow(across=0.25, ahead=0.7)
   me._next_near_field = 0.0
   me._near_field_step()
   seen = me.body.mission.peer_sighting()
@@ -856,7 +771,7 @@ def test_the_seam_hands_the_frames_peers_to_the_drive():
   # a sighting ages out rather than standing for ever
   me.data.time += 1.0
   assert me.body.mission.peer_sighting() is None
-  dark, _ = _pair_with_the_peer_across_the_bow(across=0.25, ahead=0.9, near_field=False)
+  dark, _ = _pair_with_the_peer_across_the_bow(across=0.25, ahead=0.7, near_field=False)
   assert dark.depth_camera is None and dark.body.mission.peer_sighting() is None
 
 

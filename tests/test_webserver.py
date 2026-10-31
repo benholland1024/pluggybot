@@ -518,7 +518,7 @@ def test_every_connection_is_caught_up_on_the_ink(mini_model):
   none -- and a RECONNECT is the same problem, which is why the snapshot
   rides every session rather than only the first.
   """
-  from pluggybot.tools.boards import BoardBook, BoardRecord
+  from pluggybot.home.boards import BoardBook, BoardRecord
 
   mini_model.opt.gravity[:] = 0
   data = mujoco.MjData(mini_model)
@@ -769,8 +769,7 @@ class _FakeLife:
 
   def run(self, *a, **kw):
     self.run_args, self.run_kwargs = a, kw
-    return {"state": "DONE", "swaps_done": 2, "charge_cycles": 1,
-            "module_stowed": True, "sim_time": 100.0,
+    return {"state": "DONE", "charge_cycles": 1, "sim_time": 100.0,
             "errands": [], "boards": {}, "verdicts": [], "points": 0,
             "earned": 0}
 
@@ -828,41 +827,39 @@ def _serve_wiring(monkeypatch, argv):
   return built["life"], built["pub"], built["model"]
 
 
-@pytest.mark.parametrize("world", ["home", "home_quad"])
+@pytest.mark.parametrize("world", ["home", "home_humanoid"])
 def test_serve_takes_every_world_constant_from_world_config(monkeypatch, world):
   """--world must thread the WHOLE config through, not just the model: a
   missing explore budget is silent (home wants 240 s, `run()`'s default is
-  90 s, so the map simply stops filling). `home` is the house with legs in
-  it, `home_quad`, whichever name the deployment uses."""
-  from pluggybot.lifecycle import QUAD_HOME, world_config
-  cfg = world_config(QUAD_HOME)
+  90 s, so the map simply stops filling). `home` is the house with the
+  humanoids in it, `home_humanoid`, whichever name the deployment uses."""
+  from pluggybot.lifecycle import HUMANOID_HOME, world_config
+  cfg = world_config(HUMANOID_HOME)
 
   life, pub, model = _serve_wiring(monkeypatch, ["--world", world, "--free-run"])
 
-  assert life.init_kwargs["world"] == QUAD_HOME
+  assert life.init_kwargs["world"] == HUMANOID_HOME
   assert life.init_kwargs["battery_wh"] == cfg["battery_wh"]
   assert life.init_kwargs["low_battery_wh"] == cfg["low_battery_wh"]
   assert life.init_kwargs["grid_bounds"] == cfg["grid_bounds"]
-  assert life.init_kwargs["rack"] == cfg["rack"]
   assert life.run_args[0] == cfg["start"]
   assert life.run_kwargs["explore_budget"] == cfg["explore_budget"], \
     "serve.py must pass the world's explore budget, not run()'s default"
   # the header field the website selects its scene off
   assert pub.init_kwargs["model_name"] == cfg["model_name"]
   # ...and the model really is that world, not just a matching label: the
-  # house, with the quadruped in it
+  # house, with the humanoid in it
   assert model.body("wall_divider_0").id > 0 and model.body("pluggybot").id > 0
 
 
-def test_serve_defaults_to_the_house_with_legs(monkeypatch):
-  """No --world and no --body is the served world: the quadruped's house."""
-  from pluggybot.lifecycle import QUAD_HOME, world_config
-  cfg = world_config(QUAD_HOME)
+def test_serve_defaults_to_the_humanoids_house(monkeypatch):
+  """No --world and no --body is the served world: the humanoids' house."""
+  from pluggybot.lifecycle import HUMANOID_HOME, world_config
+  cfg = world_config(HUMANOID_HOME)
   life, pub, _ = _serve_wiring(monkeypatch, ["--free-run"])
-  assert pub.init_kwargs["model_name"] == QUAD_HOME
+  assert pub.init_kwargs["model_name"] == HUMANOID_HOME
   assert life.run_args[0] == cfg["start"]
   assert life.run_kwargs["explore_budget"] == cfg["explore_budget"] == 240.0
-  assert life.init_kwargs["rack"] == cfg["rack"]
 
 
 def test_serve_wires_the_errand_queue_and_the_boards(monkeypatch, tmp_path):
@@ -875,27 +872,14 @@ def test_serve_wires_the_errand_queue_and_the_boards(monkeypatch, tmp_path):
   the terminal."""
   state = tmp_path / "boards.json"
   life, pub, _ = _serve_wiring(
-    monkeypatch, ["--world", "home", "--free-run", "--errand", "feed",
+    monkeypatch, ["--world", "home", "--free-run", "--errand", "none",
                   "--boards", str(state)])
-  errands = life.init_kwargs["errands"]
-  assert [e.name for e in errands] == ["feed:lab"]
-  assert errands[0].program is not None
+  assert life.init_kwargs["errands"] == []       # the quadruped's errands left with it
   book = life.init_kwargs["boards"]
   assert book is pub.init_kwargs["boards"], \
     "the publisher and the lifecycle must share ONE book"
   assert book.path == state
   assert pub.message in book.on_event, "board events never reach the socket"
-
-
-def test_a_queue_that_opens_on_a_lab_act_still_watches_a_module():
-  """A lab act fetches nothing and names no module, and the power model asks
-  the body about the module the lifecycle watches: named "", that was a
-  lookup of a body called "" on the first physics step, and
-  `serve.py --errand feed` died there."""
-  from pluggybot.lifecycle import QUAD_HOME, cage_errand
-  from test_body import stub_life
-  life = stub_life(errands=[cage_errand(QUAD_HOME, "feed", task="feed")])
-  assert life.module == "module_lcd"
 
 
 def test_serve_wires_the_ledger_to_the_lifecycle_and_the_socket(monkeypatch,
@@ -944,7 +928,7 @@ def test_serve_recorder_labels_the_world_it_recorded(monkeypatch, tmp_path):
                       ["serve.py", "--world", "home", "--free-run",
                        "--record", str(tmp_path / "out.jsonl.gz")])
   serve.main()
-  assert seen["model_name"] == "home_quad"
+  assert seen["model_name"] == "home_humanoid"
 
 
 def test_a_crash_is_the_last_thing_on_the_wire_and_is_waited_for(monkeypatch, tmp_path):
@@ -1047,8 +1031,7 @@ def _report(r, capsys, **kw):
   return capsys.readouterr().out
 
 
-_RESULT = {"state": "DONE", "swaps_done": 1, "charge_cycles": 0,
-           "module_stowed": True, "sim_time": 100.0, "verdicts": [],
+_RESULT = {"state": "DONE", "charge_cycles": 0, "sim_time": 100.0, "verdicts": [],
            "points": 0, "earned": 0}
 
 
@@ -1240,7 +1223,7 @@ def test_the_served_world_says_which_build_it_is(monkeypatch):
   assert identity["packWh"] == life.init_kwargs["battery_wh"]
   assert identity["reserveWh"] == 1.25
   assert set(identity["dataHashes"]) >= {"rewards", "cadence", "energy",
-                                         "metabolism", "questions", "world"}
+                                         "metabolism", "world"}
   # No overseer: the arm is the null model and the mind fields are absent
   # rather than filled in with a default nothing is running.
   assert identity["arm"] == "scripted"
@@ -1268,21 +1251,6 @@ def test_a_served_robot_stands_itself_up_and_an_unserved_one_does_not(monkeypatc
                                            "--restart-after", "0"])
   assert life.init_kwargs["restart_after_s"] is None
   default = inspect.signature(lc.HubLifecycle).parameters["restart_after_s"].default
-  assert default is None
-
-
-def test_a_served_world_puts_a_lost_tool_back_and_an_unserved_one_does_not(monkeypatch):
-  """Issue #347, on #143's terms: ON here, a parameter, 0 turns it off;
-  `HubLifecycle` defaults it off."""
-  from pluggybot import lifecycle as lc
-
-  life, _, _ = _serve_wiring(monkeypatch, ["--world", "home", "--free-run"])
-  assert life.init_kwargs["lost_tool_after_s"] == lc.LOST_TOOL_S == 300.0
-  life, _, _ = _serve_wiring(monkeypatch, ["--world", "home", "--free-run",
-                                           "--lost-tool-after", "0"])
-  assert life.init_kwargs["lost_tool_after_s"] is None
-  import inspect
-  default = inspect.signature(lc.HubLifecycle).parameters["lost_tool_after_s"].default
   assert default is None
 
 
@@ -1481,8 +1449,7 @@ def test_serve_pair_publishes_two_robots_from_one_loop_and_routes_reach_ins(
     flown["lives"], flown["kw"] = lives, kw
     for life in lives:
       life.body.close()
-    return [{"state": "DONE", "swaps_done": 0, "charge_cycles": 0,
-             "module_stowed": True, "sim_time": 1.0, "errands": [],
+    return [{"state": "DONE", "charge_cycles": 0, "sim_time": 1.0, "errands": [],
              "boards": {}, "verdicts": [], "points": 0, "earned": 0}
             for _ in lives]
 
@@ -1498,20 +1465,17 @@ def test_serve_pair_publishes_two_robots_from_one_loop_and_routes_reach_ins(
   pub = built["pub"]
   a, b = flown["lives"]
   assert flown["kw"]["max_sim_time"] == 5.0
-  assert pub.init_kwargs["model_name"] == "home_quad_pair"
+  assert pub.init_kwargs["model_name"] == "home_humanoid_pair"
   assert pub.init_kwargs["robot_name"] == "Luca"
   (other,) = pub.init_kwargs["others"]
   assert (other.root, other.name) == (SECOND.root, "Rowan")
   assert other.metabolism is b.metabolism and other.thoughts is b.thoughts
-  # (the quadruped's grid is a view of its mission's map, built per read)
-  assert other.grid._mission is b.body.mission and other.status_fn == b.telemetry_status
+  # (the humanoid's grid is its mission's map itself)
+  assert other.grid is b.body.grid and other.status_fn == b.telemetry_status
   assert pub.init_kwargs["metabolism"] is a.metabolism
   assert pub.init_kwargs["ledger"] is a.ledger._ledger is b.ledger._ledger
   assert pub.init_kwargs["tasks"] is a.tasks is b.tasks
   assert a.mode is not None and b.mode is None, "one switch, on the primary"
-  from pluggybot.lifecycle import LOST_TOOL_S
-  assert (a.lost_tool_after_s, b.lost_tool_after_s) == (LOST_TOOL_S, None), \
-      "one hand for a lost tool, on the primary's seam (issue #347)"
   # Every per-robot sink on BOTH lifecycles, and a line says whose it is.
   for life in (a, b):
     assert pub.message in life.on_event and pub.message in life.visitor_hooks
@@ -1522,11 +1486,9 @@ def test_serve_pair_publishes_two_robots_from_one_loop_and_routes_reach_ins(
   assert pub.events[-1] == (2.0, "hi", FIRST.root)
   # A reach-in lands in the inbox of the robot it names; none means primary.
   (route,) = pub.on_inbound
-  route(json.dumps({"type": "reset_tool", "module": "module_lcd", "id": "r1",
-                    "robot": SECOND.root}))
-  route(json.dumps({"type": "reset_tool", "module": "module_lcd", "id": "r2"}))
-  route(json.dumps({"type": "reset_tool", "module": "module_lcd", "id": "r3",
-                    "robot": "nobody"}))
+  route(json.dumps({"type": "reset_robot", "id": "r1", "robot": SECOND.root}))
+  route(json.dumps({"type": "reset_robot", "id": "r2"}))
+  route(json.dumps({"type": "reset_robot", "id": "r3", "robot": "nobody"}))
   route("not even json")
   assert [m.id for m in b.inbox.drain()] == ["r1"]
   assert [m.id for m in a.inbox.drain()] == ["r2", "r3"]
@@ -1570,8 +1532,7 @@ def test_the_deployed_pair_flies_autonomous_from_nothing_and_the_header_says_so(
     flown["lives"] = lives
     for life in lives:
       life.body.close()
-    return [{"state": "DONE", "swaps_done": 0, "charge_cycles": 0,
-             "module_stowed": True, "sim_time": 1.0, "errands": [],
+    return [{"state": "DONE", "charge_cycles": 0, "sim_time": 1.0, "errands": [],
              "boards": {}, "verdicts": [], "points": 0, "earned": 0}
             for _ in lives]
 
@@ -1627,8 +1588,7 @@ def test_serve_pair_starts_in_the_images_environment_and_keeps_each_robots_docum
     flown["lives"] = lives
     for life in lives:
       life.body.close()
-    return [{"state": "DONE", "swaps_done": 0, "charge_cycles": 0,
-             "module_stowed": True, "sim_time": 1.0, "errands": [],
+    return [{"state": "DONE", "charge_cycles": 0, "sim_time": 1.0, "errands": [],
              "boards": {}, "verdicts": [], "points": 0, "earned": 0}
             for _ in lives]
 

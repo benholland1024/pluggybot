@@ -5,12 +5,12 @@ Resting by reflex is not a fall (#365), so another robot's drive waited on
 a resting body or gave up at its disc -- in a doorway, in 0 s -- and the
 resting robot never moved: nothing told it it was in the way. Now the drive
 asks (`Navigator._ask_way`, the pair's `Body.ask_way`) and waits, and the
-resting body stands and steps aside beneath whatever it holds
-(`legs/way.py`). Each rule is pinned here as cheaply as it fails: the
-drive on a stub that walks, the spot and the step on a quadruped's mission
-with nothing stepped, the lifecycle's half on the pair as built. The flown
-scenes are `scripts/make_way_spike.py` (SimNotes, "A robot resting across
-the other's way").
+resting body steps aside beneath whatever it holds (`humanoid/way.py`: a
+humanoid rests standing). Each rule is pinned here as cheaply as it fails:
+the drive on a stub that walks, the spot and the step on a humanoid's
+mission with nothing stepped, the lifecycle's half on the pair as built.
+The flown scenes are `scripts/make_way_spike.py` (SimNotes, "A robot
+resting across the other's way").
 """
 
 import math
@@ -22,14 +22,16 @@ import pytest
 from pluggybot import navigator as nav
 from pluggybot import tick
 from pluggybot.body import KeepClear
-from pluggybot.legs import body as qb
-from pluggybot.legs import world as lw
-from pluggybot.legs.body import QuadMission
-from pluggybot.lifecycle import QUAD_HOME, world_config
+from pluggybot.humanoid import mission as hmi
+from pluggybot.humanoid import world as hw
+from pluggybot.humanoid.body import HumanoidBody
+from pluggybot.humanoid.mission import HumanoidMission
+from pluggybot.humanoid.way import REST_S
+from pluggybot.lifecycle import HUMANOID_HOME, world_config
 from pluggybot.navigator import MAKE_WAY_WAIT_S, OTHER_WAIT_S, STAGNATION_S, gave_up
 
 STEPPER = SimpleNamespace(step=lambda *a: None)
-BOUNDS = world_config(QUAD_HOME)["grid_bounds"]
+BOUNDS = world_config(HUMANOID_HOME)["grid_bounds"]
 GOAL = (5.0, 0.0)
 
 
@@ -53,9 +55,9 @@ class _Drive:
   ask_off = nav.Navigator.ask_off
   PROGRESS_ALONG_ROUTE = PROGRESS_MAP_GROWTH = False
   NEW_ROUTE_M = nav.Navigator.NEW_ROUTE_M
-  BACKOFF_V, PEER_CLEARANCE_M = QuadMission.BACKOFF_V, QuadMission.PEER_CLEARANCE_M
-  OTHER_ROBOT_CELLS, DOWN_ROBOT_CELLS = QuadMission.OTHER_ROBOT_CELLS, QuadMission.DOWN_ROBOT_CELLS
-  pressing = False
+  BACKOFF_V, PEER_CLEARANCE_M = HumanoidMission.BACKOFF_V, HumanoidMission.PEER_CLEARANCE_M
+  OTHER_ROBOT_CELLS = HumanoidMission.OTHER_ROBOT_CELLS
+  DOWN_ROBOT_CELLS = HumanoidMission.DOWN_ROBOT_CELLS
 
   def __init__(self, others, says=True, opens_at=None, plans=None):
     self.data = SimpleNamespace(time=0.0)
@@ -179,7 +181,7 @@ def test_a_resting_robot_is_said_to_rest_where_it_is_in_the_way():
 
 @pytest.fixture(scope="module")
 def house():
-  return lw.home_spec().compile()
+  return hw.home_spec().compile()
 
 
 #: A wall at x 2 with a 1 m door (y 0.25..1.25) in the open floor of a map
@@ -199,14 +201,18 @@ def _door_map(m):
   g.grid[lo:hi, wall:wall + 2] = -5.0
 
 
-def _mission(house, at=DOOR, posture=qb.LYING):
-  m = QuadMission(house, mujoco.MjData(house), realtime=False, grid_bounds=BOUNDS)
-  m.start_at(*at, 0.0)
+def _mission(house, at=DOOR, resting=True):
+  """A humanoid at `at` in the house, the door's map laid and the asker
+  west of it, resting (no motion command for `REST_S`) unless told not:
+  its body, to close, and its mission."""
+  body = HumanoidBody(house, mujoco.MjData(house), realtime=False, grid_bounds=BOUNDS)
+  body.start_at(*at, 0.0)
+  m = body.mission
   _door_map(m)
   m.others = [lambda: KeepClear(*ASKER, root="pluggybot")]
-  m.posture = posture
+  m.last_motion_t = -REST_S if resting else float(m.data.time)
   m._plan_memo = None
-  return m
+  return body, m
 
 
 def _route():
@@ -218,13 +224,13 @@ def test_the_way_past_a_robot_is_planned_afresh_never_the_held_plan(house):
   made afresh -- never `_plan_to`'s memo (#559): moved into the Navigator,
   the memo answered the plan just made with that robot in the door, None,
   and nobody was ever asked to make way."""
-  m = _mission(house, at=ASKER, posture=qb.STANDING)
+  body, m = _mission(house, at=ASKER, resting=False)
   try:
     m.others = [lambda: KeepClear(*DOOR, root="r2_pluggybot", resting=True)]
     assert m._plan_to(*EAST) is None, "the premise: its disc shuts the door"
     assert m._route_past("r2_pluggybot", *EAST) is not None
   finally:
-    m.close()
+    body.close()
 
 
 def _off(route, x, y) -> float:
@@ -241,18 +247,19 @@ def test_the_spot_is_off_the_way_on_floor_it_has_seen_and_near(house):
   """Out of the disc the asker keeps round it, by `aside_clear_m` of every
   point of the way, so the way it sent is open whatever it plans next; on
   floor it has seen; the nearest by its own walk -- here, a step through
-  the door and to one side."""
-  m = _mission(house)
+  the door and to one side. Measured on the planner's 10 cm lattice, cell
+  to cell: a cell's middle may lie half a cell nearer the way."""
+  body, m = _mission(house)
   try:
     x, y = m.aside_spot(_route())
     clear = (m.OTHER_ROBOT_CELLS + 3) * m.grid.resolution
     assert m.aside_clear_m == pytest.approx(clear)
-    assert _off(_route(), x, y) >= clear - 1e-6
+    assert _off(_route(), x, y) >= clear - 0.05
     assert math.dist((x, y), DOOR) < 1.5, "the nearest, not anywhere off the way"
     gx, gy = m.grid.world_to_cell(x, y)
     assert m.grid.grid[gy, gx] < 0
   finally:
-    m.close()
+    body.close()
 
 
 def _corridor(m, rooms=()):
@@ -273,20 +280,20 @@ def test_the_spot_is_never_on_floor_it_has_not_seen_nor_past_the_asker(house, ro
   the way is a room it has not SEEN beside it -- an aside into the unknown
   is a walk into a wall -- or one it has, behind the asker, whose disc it
   may not walk through. Neither is an aside: there is none."""
-  m = _mission(house, at=(3.0, 0.6))
+  body, m = _mission(house, at=(3.0, 0.6))
   try:
     _corridor(m, [(3.5, 4.5, 0.0)] if room == "unseen" else [(0.0, 1.0, -5.0)])
     m.others = [lambda: KeepClear(1.5, 0.6, root="pluggybot")]
     assert m.aside_spot([(1.5, 0.6), (5.5, 0.6)]) is None
   finally:
-    m.close()
+    body.close()
 
 
 def test_there_is_no_spot_in_a_corridor_the_way_runs_the_length_of(house):
   """A corridor 1.2 m wide that the way runs along: nowhere in it is far
   enough off the way, so there is no aside, the robot says no, and the
   asker gives up as it did."""
-  m = _mission(house, at=(2.0, 0.6))
+  body, m = _mission(house, at=(2.0, 0.6))
   try:
     m.grid.grid[:] = 5.0
     lo, hi = m.grid.world_to_cell(0.0, 0.0)[1], m.grid.world_to_cell(0.0, 1.2)[1]
@@ -296,83 +303,79 @@ def test_there_is_no_spot_in_a_corridor_the_way_runs_the_length_of(house):
     way = [(0.5, 0.6), (8.0, 0.6)]
     assert m.aside_spot(way) is None
     assert m.make_way(way, "pluggybot") is False and m.making_way is None
+    assert m.way_refused == "no spot"
   finally:
-    m.close()
+    body.close()
 
 
-@pytest.mark.parametrize("busy", ["standing", "docked", "working", "driving", "moving"])
+@pytest.mark.parametrize("busy", ["standing", "charging", "working", "walking",
+                                  "getting up"])
 def test_only_a_resting_body_free_to_makes_way(house, busy):
-  """Lying down to rest and nothing else: not standing (it moves on its
-  own), not on the dock, not mid arm-move or swap, not waiting inside a
+  """Resting and nothing else: not standing yet (it moves on its own), not
+  plugged in at its station, not with a hand out, not waiting inside a
   walk of its own (#395's head-on hold is that walk's to settle), not
-  mid lie-down or stand-up."""
-  m = _mission(house)
+  getting up -- and it says which (`way_refused`)."""
+  body, m = _mission(house, resting=busy != "standing")
   try:
-    if busy == "standing":
-      m.posture = qb.STANDING
-    elif busy == "moving":
-      m._move = iter(())
-    else:
-      setattr(m, busy, 1 if busy == "driving" else True)
+    if busy == "charging":
+      (port,) = m.port_eqs
+      m.data.eq_active[port] = 1
+    elif busy == "working":
+      m.reach.phase["right"] = "hold"
+    elif busy == "walking":
+      m.driving = 1
+    elif busy == "getting up":
+      m.legs = "getup"
     assert m.make_way(_route(), "pluggybot") is False and m._aside is None
+    assert m.way_refused == busy
   finally:
-    m.close()
+    body.close()
 
 
 def test_a_resting_body_asked_steps_aside_beneath_a_still_command(house):
   """The rule beneath whatever the body holds: asked, it says yes once (an
-  ask while it moves is the same yes); under a STILL command it is stood up
-  first -- the reflex's own motion rule -- and once standing walks the drive's
-  law along a plan to the spot; there, STILL, and the record says so."""
-  m = _mission(house)
+  ask while it moves is the same yes); under a STILL command it walks the
+  drive's law along a plan to the spot; there, STILL, and the record says
+  so."""
+  body, m = _mission(house)
   try:
     assert m.make_way(_route(), "pluggybot") and m.making_way == "pluggybot"
     aside = m._aside
     assert m.make_way(_route(), "pluggybot") and m._aside is aside
-    m._before_step(qb.STILL)
-    assert m.posture == qb.STANDING_UP, "a STILL command left it lying"
-    m._move, m.posture = None, qb.STANDING
-    cmd = m._aside_command(qb.STILL, float(m.data.time))
-    assert qb.is_motion(cmd) and aside["waypoints"], cmd
+    cmd = m._aside_command(hmi.STILL, float(m.data.time))
+    assert any(cmd) and aside["waypoints"], cmd
     tx, ty = aside["to"]
     m._set_pose(tx, ty, 0.0)
     aside["waypoints"] = []
-    assert m._aside_command(qb.STILL, float(m.data.time)) == qb.STILL
+    assert m._aside_command(hmi.STILL, float(m.data.time)) == hmi.STILL
     assert m.making_way is None and m.asides == 1
     assert m.last_aside["why"] == "aside" and m.last_aside["by"] == "pluggybot"
     assert m.last_aside["from"] == DOOR and m.last_aside["at"] == (tx, ty)
   finally:
-    m.close()
+    body.close()
 
 
-def test_a_warp_ends_the_step_aside(house):
-  """Stood up somewhere else -- a death's stand-up, a mission's start --
-  the body's step aside is over: its spot was off a way it no longer lies
-  across, and the next STILL command would walk it back there."""
-  m = _mission(house)
-  try:
-    assert m.make_way(_route(), "pluggybot")
-    m.start_at(-1.0, 3.0, 0.0)
-    assert m._aside is None and m.making_way is None
-  finally:
-    m.close()
-
-
-def test_its_own_walk_and_a_fall_end_the_step_aside(house):
+def test_its_own_walk_a_fall_and_a_hand_out_end_the_step_aside(house):
   """A command that moves is the body's own business, and takes over at
-  once, unchanged; a fall ends it too -- the get-up is the posture's."""
-  m = _mission(house)
+  once, unchanged; a fall ends it too -- the get-up has the legs -- and so
+  does a hand out."""
+  body, m = _mission(house)
   try:
     walk = (0.4, 0.0, 0.0)
     m.make_way(_route(), "pluggybot")
     assert m._aside_command(walk, float(m.data.time)) == walk
     assert m.last_aside["why"] == "its own walk" and m._aside is None
     m.make_way(_route(), "pluggybot")
-    m.posture = qb.GETTING_UP
-    assert m._aside_command(qb.STILL, float(m.data.time)) == qb.STILL
+    m.legs = "getup"
+    assert m._aside_command(hmi.STILL, float(m.data.time)) == hmi.STILL
     assert m.last_aside["why"] == "fell" and m.asides == 2
+    m.legs = "stand"
+    m.make_way(_route(), "pluggybot")
+    m.reach.phase["right"] = "hold"
+    assert m._aside_command(hmi.STILL, float(m.data.time)) == hmi.STILL
+    assert m.last_aside["why"] == "arm out" and m.asides == 3
   finally:
-    m.close()
+    body.close()
 
 
 # ---- 3. the pair's channel, a death, and what is said ---------------------------
@@ -386,7 +389,7 @@ def test_the_pair_asks_through_the_other_lifecycle_and_says_what_it_did(tmp_path
   mind did not decide it -- and holds a restart's save off meanwhile."""
   from pluggybot.continuation import Keeper
   from pluggybot.pair import build_pair
-  me, peer = build_pair(QUAD_HOME, errands=("none", "none"),
+  me, peer = build_pair(HUMANOID_HOME, errands=("none", "none"),
                         thoughts_root=str(tmp_path / "thoughts"))
   try:
     peer.body.start_at(*DOOR, 0.0)
@@ -394,31 +397,31 @@ def test_the_pair_asks_through_the_other_lifecycle_and_says_what_it_did(tmp_path
     me.body.start_at(*ASKER, 0.0)
     keep = me.body.others[0]()
     assert (keep.root, keep.resting) == (peer.root, False)
-    peer.body.mission.posture = qb.LYING
+    peer.body.mission.last_motion_t = -REST_S       # stood still: at rest
     assert me.body.others[0]().resting
     peer.dead = {"cause": "flat"}
     assert me.body.ask_way(peer.root, _route()) is False
     peer.dead = None
     assert me.body.ask_way(peer.root, _route()) is True
     assert peer.body.making_way == me.root
-    assert peer.status.startswith(f"MAKE WAY: lying across {me.robot_name}'s way")
+    assert peer.status.startswith(f"MAKE WAY: resting across {me.robot_name}'s way")
     assert Keeper([me, peer], path=str(tmp_path / "w.npz")).busy()
-    peer.body.mission._end_aside("aside", qb.STILL)
+    peer.body.mission._end_aside("aside", hmi.STILL)
     peer._aside_step()
     peer._aside_step()
     lines = [ln for ln in peer.thoughts.read("History.md").splitlines()
              if "aside" in ln]
-    assert len(lines) == 1 and f"aside for {me.robot_name}, whose way I was lying across" in lines[0]
+    assert len(lines) == 1 and f"aside for {me.robot_name}, whose way I was standing in" in lines[0]
   finally:
     for life in (me, peer):
       life.body.close()
 
 
-def test_a_bay_wait_asks_only_a_robot_resting_on_the_bay():
-  """A bay wait walks nowhere, so it asks through `ask_off` (#455): the
-  robot resting ON the bay it waits for, off the way there from where it
-  stands -- never one only near it, which is charging on the dock a metre
-  past the standoff and would say no for as long as it charged."""
+def test_a_seat_wait_asks_only_a_robot_resting_on_the_seat():
+  """A wait for the charging seat walks nowhere, so it asks through
+  `ask_off` (#455): the robot resting ON the seat it waits for, off the way
+  there from where it stands -- never one only near it, which may be
+  plugged in a metre past it and would say no for as long as it charged."""
   on = _Drive([_resting(GOAL[0] + 0.2, 0.0)])
   assert on.ask_off(*GOAL, {}, beyond=((6.0, 0.0),)) is True
   assert on.asked == [("r2_pluggybot", [(0.0, 0.0), GOAL, (6.0, 0.0)])]
@@ -429,7 +432,7 @@ def test_a_bay_wait_asks_only_a_robot_resting_on_the_bay():
 # ---- 4. two bodies on one spot (#455's closing reading) -----------------------------
 
 #: How far apart the pair's bodies lay at afb473a's jams, true: 0.05-0.2 m,
-#: on the dock's standoff -- two quadrupeds do not touch.
+#: on the dock's standoff, before the pair collided (#455).
 ON_TOP_M = 0.1
 HERE = (0.5, 0.75)
 
@@ -440,7 +443,7 @@ def test_a_robot_lying_on_another_plans_out_of_its_disc(house):
   walk of the pair gave up in 0 s at the dock for up to 25 minutes. It
   plans out of the disc by the nearest way, and round the rest of it; and
   a place to clear the rack to is one it can reach."""
-  m = _mission(house, at=HERE)
+  body, m = _mission(house, at=HERE)
   try:
     m.grid.grid[:] = -5.0
     other = (HERE[0] + ON_TOP_M, HERE[1])
@@ -451,7 +454,7 @@ def test_a_robot_lying_on_another_plans_out_of_its_disc(house):
     assert min(math.dist(p, other) for p in plan) > reach, plan
     assert m.reachable([(-2.0, 0.75)]) == [True]
   finally:
-    m.close()
+    body.close()
 
 
 def test_a_robot_walks_out_of_a_disc_on_its_own_side_of_a_wall(house):
@@ -460,7 +463,7 @@ def test_a_robot_walks_out_of_a_disc_on_its_own_side_of_a_wall(house):
   house's 4 cm wall from a robot 0.2 m off it, so a plan began in the
   garden and walked into the wall. Walked out over the floor, it keeps to
   its own side, and the far side is no place it can reach."""
-  m = _mission(house, at=(1.8, 0.75))
+  body, m = _mission(house, at=(1.8, 0.75))
   try:
     g = m.grid
     g.grid[:] = -5.0
@@ -473,7 +476,7 @@ def test_a_robot_walks_out_of_a_disc_on_its_own_side_of_a_wall(house):
     assert m._plan_to(3.0, 0.75) is None, "planned across a wall with no door"
     assert m.reachable([(3.0, 0.75), (1.0, 3.0)]) == [False, True]
   finally:
-    m.close()
+    body.close()
 
 
 def test_a_robot_lying_on_the_asker_steps_out_of_its_disc(house):
@@ -481,7 +484,7 @@ def test_a_robot_lying_on_the_asker_steps_out_of_its_disc(house):
   to from inside the asker's disc, and said no ("no spot"), both ways
   round, on the pair's own live maps. It walks out of the disc to a spot
   off the way, and its step starts there too."""
-  m = _mission(house, at=HERE)
+  body, m = _mission(house, at=HERE)
   try:
     m.grid.grid[:] = -5.0
     asker = (HERE[0] + ON_TOP_M, HERE[1])
@@ -489,161 +492,15 @@ def test_a_robot_lying_on_the_asker_steps_out_of_its_disc(house):
     way = [asker, (-3.0, 0.75)]
     spot = m.aside_spot(way)
     assert spot is not None, "no spot from inside the asker's disc"
-    assert _off(way, *spot) >= m.aside_clear_m - 1e-6
+    assert _off(way, *spot) >= m.aside_clear_m - 0.05
     assert m.make_way(way, "pluggybot") and m.making_way == "pluggybot"
-    m._move, m.posture = None, qb.STANDING
-    cmd = m._aside_command(qb.STILL, float(m.data.time))
-    assert qb.is_motion(cmd) and m._aside["waypoints"], m.last_aside
+    cmd = m._aside_command(hmi.STILL, float(m.data.time))
+    assert any(cmd) and m._aside["waypoints"], m.last_aside
   finally:
-    m.close()
+    body.close()
 
 
-# ---- 5. the pair collides: a blind walk stops when it gets nowhere -------------------
-
-
-class _Blind:
-  """The quadruped's blind walks with its senses stubbed: every command is
-  0.1 s, and the leg odometry reckons the speed commanded until the body
-  has gone `at_m`, where something stops it dead -- after `dead_s` of
-  standing still and a ramp to pace, as the policy gets going. There is no
-  contact list here, nor any other robot's body: a walk that read either
-  would fail on the stub."""
-  _back_out_by_routine = QuadMission._back_out_by_routine
-  _walk_in_routine = QuadMission._walk_in_routine
-  _stopped_by = QuadMission._stopped_by
-  FRONT_M = QuadMission.FRONT_M
-
-  def __init__(self, at_m=math.inf, dead_s=0.0, robot_there=False):
-    self.model = SimpleNamespace(opt=SimpleNamespace(timestep=0.1))
-    self.data = SimpleNamespace(time=0.0)
-    self.odo = SimpleNamespace(x=0.0, y=0.0, v=[0.0, 0.0, 0.0])
-    self.at_m, self.dead_s, self.look_at_board = at_m, dead_s, (lambda: None)
-    self.robot_there, self.asked = robot_there, []
-
-  def robot_at(self, ahead, left):
-    self.asked.append((ahead, left))
-    return self.robot_there
-
-  def pose_xy(self):
-    return self.odo.x, self.odo.y
-
-  def _dock_error(self):
-    return (-1.0, 0.0, 0.0)                 # a metre short of the seat
-
-  def _twist_routine(self, vx, vy, w):
-    going = min(1.0, max(0.0, (self.data.time - self.dead_s) / 0.6))
-    v = 0.0 if abs(self.odo.x) >= self.at_m else vx * going
-    self.odo.v = [v, 0.0, 0.0]
-    self.odo.x += v * 0.1
-    self.data.time += 0.1
-    yield vx, vy, w
-
-  def _drive_routine(self, seconds, vx, w):
-    self.data.time += seconds
-    yield vx, 0.0, w
-
-
-def test_a_blind_walk_stops_when_its_own_legs_say_it_gets_nowhere():
-  """The pair collides (#455), and the walks no planner plans -- the dock's
-  and the rack's walk in, and every straight walk back out -- were blind to
-  the other robot: a back out pressed into one resting on the standoff for
-  its whole budget. Each stops once its leg odometry has made under
-  `HEADWAY_SHARE` of the speed it asked for over `HEADWAY_S` -- the parts'
-  senses, never which bodies touch -- and is given its spin-up first."""
-  back = _Blind(at_m=0.3, dead_s=0.4)
-  tick.run(STEPPER, back._back_out_by_routine(0.9, 8.0, 0.3, 0.8))
-  assert -back.odo.x == pytest.approx(0.3, abs=0.04)
-  assert back.data.time < 4.0, "it marched on against what stopped it"
-  free = _Blind(dead_s=0.4)
-  tick.run(STEPPER, free._back_out_by_routine(0.9, 8.0, 0.3, 0.8))
-  assert -free.odo.x >= 0.9, "a walk getting going stopped as getting nowhere"
-  walk = _Blind(at_m=0.5, dead_s=0.4)
-  assert tick.run(STEPPER, walk._walk_in_routine()) == "blocked"
-
-
-def test_a_walk_in_puts_what_stopped_it_down_to_a_robot_only_by_its_report():
-  """No touch tells whose body a walk met (#455): a walk in that gets
-  nowhere met "another robot" where one's REPORTED pose puts its body at
-  this one's front (`Navigator.robot_at`), and was "blocked" otherwise."""
-  walk = _Blind(at_m=0.5, robot_there=True)
-  assert tick.run(STEPPER, walk._walk_in_routine()) == "met another robot"
-  assert walk.asked == [(QuadMission.FRONT_M, 0.0)]
-
-
-def test_a_rack_walk_in_stops_when_it_gets_nowhere():
-  """...and the rack's walk in, the same rule (`legs/swap.py`)."""
-  from pluggybot.legs.swap import ToolSwap
-
-  class _Rack(_Blind):
-    _rack_walk_in_routine = ToolSwap._rack_walk_in_routine
-
-    def _rack_error(self, bay):
-      return (-1.0, 0.0, 0.0)
-
-    def look_at_rack(self):
-      return None
-  assert tick.run(STEPPER, _Rack(at_m=0.5)._rack_walk_in_routine(0)) == "blocked"
-  assert tick.run(STEPPER, _Rack(at_m=0.5, robot_there=True)._rack_walk_in_routine(0)) \
-    == "met another robot"
-
-
-def test_a_walk_getting_going_again_after_a_turn_is_not_getting_nowhere():
-  """A step that asks for no headway -- a turn on the spot, as a walk in
-  makes to face its way -- starts the count over: the walk after it gets
-  going from standing again (`HEADWAY_GRACE_S`). Stopped dead, either way,
-  it stalls within a window."""
-  def getting_going(h, sign):
-    return [h.stalled(sign * 0.3, sign * 0.3 * min(1.0, max(0.0, (k - 4) / 6)))
-            for k in range(1, 25)]
-  for sign in (1.0, -1.0):
-    h = qb.Headway(0.1)
-    assert not any(getting_going(h, sign))
-    assert not any(h.stalled(0.0, 0.0) for _ in range(10))
-    assert not any(getting_going(h, sign))
-    assert any(h.stalled(sign * 0.3, 0.0) for _ in range(6))
-
-
-def test_the_body_stops_backing_into_what_it_cannot_see(house):
-  """The physics under the rule: a back out off the served body's own
-  reckoning in the house, 0.6 m with nothing behind it, and against a box
-  0.09 m behind its hind knees -- which it stops on in under 2 s of its 6,
-  where it marched against it for the rest before (#455)."""
-  spec = lw.home_spec()
-  box = spec.worldbody.add_body(name="behind", pos=[1.0, 0.5, 0.15])
-  box.add_geom(type=mujoco.mjtGeom.mjGEOM_BOX, size=[0.05, 0.4, 0.15])
-  for model, went in ((house, (0.55, 0.7)), (spec.compile(), (0.0, 0.15))):
-    m = QuadMission(model, mujoco.MjData(model), realtime=False, grid_bounds=BOUNDS)
-    try:
-      m.start_at(1.5, 0.5, 0.0)
-      x0, y0, _ = m.true_pose()
-      tick.run(m.stepper, m._back_out_by_routine(0.6, 6.0, 0.3, 0.0))
-      x1, y1, _ = m.true_pose()
-      assert went[0] <= math.hypot(x1 - x0, y1 - y0) <= went[1], model is house
-      assert m.data.time < (6.0 if model is house else 2.0) and not m.falls
-    finally:
-      m.close()
-
-
-def test_a_step_aside_goes_on_against_the_robot_it_makes_way_for(house):
-  """Asked off a way, the robot can start against the asker's body -- the
-  pair collides (#455) -- and its bumper would end the step aside before it
-  began. A press where another robot's REPORTED pose puts its body
-  (`Navigator.robot_at`) is that robot's, and the step goes on; any other
-  still ends it, for no touch tells a robot from a wall."""
-  m = _mission(house)
-  try:
-    assert m.make_way(_route(), "pluggybot")
-    m._move, m.posture = None, qb.STANDING
-    asked = []
-    m.robot_at = lambda ahead, left: asked.append((ahead, left)) or True
-    m._pressing, m.pressed_at = True, (-0.2, 0.05)
-    assert qb.is_motion(m._aside_command(qb.STILL, float(m.data.time))), m.last_aside
-    assert asked == [(-0.2, 0.05)]
-    m.robot_at = lambda ahead, left: False
-    m._aside_command(qb.STILL, float(m.data.time))
-    assert m.last_aside["why"] == "met something"
-  finally:
-    m.close()
+# ---- 5. whose body a walk met -----------------------------------------------------
 
 
 def test_a_stall_or_a_press_is_another_robots_where_its_report_puts_its_body():

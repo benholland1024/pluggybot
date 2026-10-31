@@ -20,7 +20,7 @@ below is the tollbooth.
 ⚠ WHY "non-colliding" IS NOT ENOUGH, measured: the LIDAR's raycast ignores
 contype entirely -- the plants are contype 0 and are MAPPED. So decorative
 safety has a second, independent requirement: stay out of the beam plane
-(the quadruped's, `BEAM_Z`). `test_dressing_in_the_beam_reaches_the_map`
+(the humanoid's, `BEAM_Z`). `test_dressing_in_the_beam_reaches_the_map`
 proves the failure is real by planting a hostile mound and watching the map
 change.
 """
@@ -35,16 +35,12 @@ import pytest
 
 ROOT = Path(__file__).parent.parent
 
-#: The beam's absolute height, the quadruped standing, with clearance either
-#: side for its torso's bob as it walks. A decorative geom whose z-extent
-#: crosses this band is in the map whether it collides or not.
-BEAM_Z = 0.506
+#: The beam's absolute height, the humanoid standing (its LIDAR spins on
+#: its head, #507), with clearance either side for its trunk's bob as it
+#: walks. A decorative geom whose z-extent crosses this band is in the map
+#: whether it collides or not.
+BEAM_Z = 1.414
 BEAM_CLEAR = 0.05
-
-#: The one deliberate exception: plants LIVE in the beam. They are the
-#: census's subject -- non-colliding so the mission is exactly as hard as
-#: the walls make it, in the beam so the robot can count them.
-BEAM_EXEMPT_HINTS = frozenset({"plant"})
 
 
 @pytest.fixture(scope="module")
@@ -96,9 +92,8 @@ def test_furniture_is_collidable_and_decor_is_not(trio):
 
 def test_decor_stays_out_of_the_lidar_beam(trio):
   """The rule that actually keeps the map clean, asserted geometrically:
-  every fully non-colliding body (except the plants, see the module
-  docstring) keeps all its geoms clear of the beam band. Collision flags
-  cannot do this job -- the raycast ignores them."""
+  every fully non-colliding body keeps all its geoms clear of the beam
+  band. Collision flags cannot do this job -- the raycast ignores them."""
   model, data, hints = trio
   bad = []
   for b in range(1, model.nbody):
@@ -106,8 +101,6 @@ def test_decor_stays_out_of_the_lidar_beam(trio):
     geoms = _body_geoms(model, b)
     if not geoms or any(_collides(model, g) for g in geoms):
       continue                       # solid things are the MAP's business
-    if hints.get(name) in BEAM_EXEMPT_HINTS:
-      continue
     for g in geoms:
       # The real oriented z-extent (|R| @ half, the world-budget lesson):
       # the first cut used max(geom_size) as a radius, and a 2 mm floor slab
@@ -134,24 +127,24 @@ def test_decor_stays_out_of_the_lidar_beam(trio):
 def _scan_grid(xml_path):
   """One scan's occupancy grid from a fixed pose -- the shortest honest map:
   the LIDAR sees all round, so the scan's seam is called once, standing."""
-  from pluggybot.legs import world as lw
-  from pluggybot.legs.body import QuadMission
-  from pluggybot.lifecycle import QUAD_HOME, world_config
+  from pluggybot.humanoid import world as hw
+  from pluggybot.humanoid.body import HumanoidBody
+  from pluggybot.lifecycle import HUMANOID_HOME, world_config
 
-  model = lw.home_spec(path=str(xml_path)).compile()
-  m = QuadMission(model, mujoco.MjData(model), realtime=False,
-                  grid_bounds=world_config(QUAD_HOME)["grid_bounds"])
+  model = hw.home_spec(path=str(xml_path)).compile()
+  body = HumanoidBody(model, mujoco.MjData(model), realtime=False,
+                      grid_bounds=world_config(HUMANOID_HOME)["grid_bounds"])
   try:
-    m.start_at(7.5, -4.0, 0.0)       # garden_south, where the probe plants
-    m._scan_step()
-    return np.asarray(m.grid.grid).copy()
+    body.start_at(7.5, -4.0, 0.0)    # garden_south, where the probe plants
+    body.mission._scan_step()
+    return np.asarray(body.mission.grid.grid).copy()
   finally:
-    m.close()
+    body.close()
 
 
 def test_dressing_in_the_beam_reaches_the_map():
   """The failure #71's placement rules exist to prevent, demonstrated: a
-  non-colliding 0.6 m mound in the garden -- exactly a hill a dresser might
+  non-colliding 1.6 m mound in the garden -- exactly a hill a dresser might
   think 'safe' because contype is 0 -- changes the occupancy grid, because
   the LIDAR raycast never looked at contype. In the real world it would be
   a phantom the planner routes around; here it is the proof that
@@ -165,8 +158,8 @@ def test_dressing_in_the_beam_reaches_the_map():
     (scratch / entry.name).symlink_to(entry)
   xml = (ROOT / "models" / "home_world.xml").read_text()
   mound = '''
-    <body name="hostile_mound" pos="8.5 -4.0 0.3">
-      <geom name="hostile_mound_geom" type="box" size="0.4 0.4 0.3"
+    <body name="hostile_mound" pos="8.5 -4.0 0.8">
+      <geom name="hostile_mound_geom" type="box" size="0.4 0.4 0.8"
             contype="0" conaffinity="0" rgba="0.4 0.5 0.35 1"/>
     </body>
   </worldbody>'''
@@ -213,10 +206,15 @@ def test_the_beam_constant_is_where_the_sensor_actually_rides():
   (`perception.lidar` takes it by name), standing in its world. Move the
   sensor and this fails until the band -- and every judgement made with it
   -- follows."""
-  from pluggybot.legs import world as lw
-  model = lw.home_spec().compile()
+  from pluggybot.humanoid import world as hw
+  from pluggybot.humanoid.body import HumanoidBody
+  model = hw.home_spec().compile()
   data = mujoco.MjData(model)
-  lw.stand(model, data, "", 1.5, 0.5, 0.0)
-  z = float(data.site_xpos[model.site("lidar").id][2])
+  body = HumanoidBody(model, data, realtime=False)
+  try:
+    body.start_at(1.5, 0.5, 0.0)
+    z = float(data.site_xpos[model.site("lidar").id][2])
+  finally:
+    body.close()
   assert abs(z - BEAM_Z) < 0.01, \
       f"the lidar site rides at z={z:.3f}, BEAM_Z says {BEAM_Z}"

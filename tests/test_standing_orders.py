@@ -15,8 +15,6 @@ Nothing below touches the network -- the client is the injected seam, as in
 tests/test_overseer.py, whose fakes these reuse.
 """
 
-from dataclasses import replace
-
 import pytest
 
 from pluggybot.lifecycle import board_book
@@ -28,7 +26,7 @@ from test_overseer import FakeClient, full  # noqa: I001 -- tests/ is on sys.pat
 
 @pytest.fixture(scope="module")
 def menu():
-  return Menu.for_world("home_quad", board_book("home_quad"))
+  return Menu.for_world("home_humanoid", board_book("home_humanoid"))
 
 
 def _state(fraction: float, offers=(), affordable=None, possible=None) -> dict:
@@ -50,11 +48,11 @@ def make(menu, *answers, **kw) -> Overseer:
 #: A pack that could pay for anything on this world's menu after a charge.
 #: `_state`'s default is a two-action world, which would make half the orders
 #: below unrunnable for a reason the test is not about.
-ANY = ["care", "explore", "charge", "take_task", "idle"]
+ANY = ["explore", "charge", "take_task", "idle"]
 
 
 def offer(task_id="t_0007", **kw) -> dict:
-  return {"id": task_id, "kind": "feed_mouse", "claimable": True,
+  return {"id": task_id, "kind": "open_drawer", "claimable": True,
           "needsAnswer": False, "estimateWh": 0.85, "expiresInS": 300, **kw}
 
 
@@ -185,17 +183,6 @@ def test_an_order_that_cannot_be_run_is_recorded_as_its_own_thing(menu):
   assert d.action == "idle" and d.standing_order == "take_task"
   assert "cannot be run" in d.reason
   assert boss.orders_unrunnable == {"take_task": 1} and boss.orders_fired == {}
-
-
-def test_an_order_this_house_could_never_afford_is_not_run(menu):
-  """`possibleActions`, never `affordableActions`. What is filtered is what
-  no charge in this world would cover, not what the pack cannot pay for this
-  second. The errand is the lab's `care`, on a menu with the lab."""
-  boss = make(replace(menu, lab="lab"), RuntimeError("down"))
-  boss.standing_order = "care"
-  d = boss.decide(_state(0.5, affordable=[], possible=["explore", "charge"]))
-  assert d.action == "idle" and d.standing_order == "care"
-  assert boss.orders_unrunnable == {"care": 1}
 
 
 def test_an_order_that_takes_a_job_takes_the_oldest_one(menu):

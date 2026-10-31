@@ -6,7 +6,7 @@ camera's draw is a load only while the sensor runs; the pair drops the
 other robot; and the `heightmap` line
 beside `grid` carries what a renderer needs and decodes back to the
 heights. The loop's rules on a stub body with a camera that sees what the
-test hands it; the sensor's on the quadruped. No mission flown.
+test hands it; the sensor's on the humanoid. No mission flown.
 """
 
 import base64
@@ -19,8 +19,9 @@ import numpy as np
 from PIL import Image
 
 from pluggybot.body import StubBody
-from pluggybot.legs import world as lw
-from pluggybot.lifecycle import QUAD_HOME
+from pluggybot.humanoid import model as hm_
+from pluggybot.humanoid import world as hw
+from pluggybot.lifecycle import HUMANOID_HOME
 from pluggybot.perception import depth as nf
 from pluggybot.perception.heightmap import HeightMap
 from pluggybot.perception.lidar import robot_geoms
@@ -113,8 +114,8 @@ def test_the_camera_draws_power_only_while_the_map_is_built():
   """A camera's `draw_w` is a load like the module's: on the pack while
   the sensor streams, absent where it is off. Nothing else about the two
   lifecycles differs, so the pack gap over a second is that draw. (The
-  quadruped's D435 streams for its planner whatever the map does, so its
-  draw is its electronics', `LegPack`: `_SharedDepth.draw_w` is 0.)"""
+  humanoid's D435 streams for its walker whatever the map does, so its draw
+  is its electronics', `HumanoidPack`: `_SharedDepth.draw_w` is 0.)"""
   on, off = _life(near_field=True), _life(near_field=False)
   steps = round(1.0 / on.model.opt.timestep)
   for life in (on, off):
@@ -128,10 +129,10 @@ def test_the_camera_draws_power_only_while_the_map_is_built():
 
 def test_a_pair_drops_the_other_robot_from_each_frame():
   """As the LIDAR does: another robot standing in the frame is no
-  information about the floor. On legs the camera is the body's (the one
-  the planner's layer reads), so the body is told of its peer."""
+  information about the floor. The camera is the body's (the one the
+  planner's layer reads), so the body is told of its peer."""
   from pluggybot.pair import build_pair
-  lives = build_pair(QUAD_HOME, near_field=True, errands=("none", "none"))
+  lives = build_pair(HUMANOID_HOME, near_field=True, errands=("none", "none"))
   try:
     assert all(life.depth_camera is not None for life in lives)
     roots = [life.body.handle.root for life in lives]
@@ -148,14 +149,23 @@ def test_a_pair_drops_the_other_robot_from_each_frame():
 
 # ---- the peer channel (issue #328) ------------------------------------------
 
+def _stand(model, data, handle, x, y) -> None:
+  """`handle`'s humanoid upright at (x, y) facing +x, as `start_at` stands it."""
+  q = handle.qpos_adr(model)
+  data.qpos[q:q + 7] = [x, y, hm_.stand_height(), 1.0, 0.0, 0.0, 0.0]
+  for name, v in hm_.stand_qpos().items():
+    data.qpos[model.jnt_qposadr[model.joint(handle.el(name)).id]] = v
+  mujoco.mj_forward(model, data)
+
+
 def _pair_frame(gap: float, across: float = 0.0):
-  """One depth frame of the first quadruped, standing in the living room
+  """One depth frame of the first humanoid, standing in the living room
   facing +x, with the second `gap` m ahead and `across` m to its left.
-  Returns the camera, the data, the frame and the first's torso height."""
-  model = lw.home_spec(first_at=(0.0, -0.5), second_at=(gap, -0.5 + across)).compile()
+  Returns the camera, the data, the frame and the first's pelvis height."""
+  model = hw.home_spec(first_at=(0.0, -0.5), second_at=(gap, -0.5 + across)).compile()
   data = mujoco.MjData(model)
-  lw.stand(model, data, FIRST.prefix, 0.0, -0.5, 0.0)
-  lw.stand(model, data, SECOND.prefix, gap, -0.5 + across, 0.0)
+  _stand(model, data, FIRST, 0.0, -0.5)
+  _stand(model, data, SECOND, gap, -0.5 + across)
   cam = nf.DepthCamera(model, handle=FIRST, mount="body")
   cam.exclude_robot(SECOND.root)
   return cam, data, cam.frame(data), float(data.xpos[model.body(FIRST.root).id][2])
@@ -177,8 +187,7 @@ def test_the_frame_answers_the_peer_apart_from_the_room():
   assert 0.6 < float(frame.peers[:, 0].min()) < 1.0
   assert float(frame.peers[:, 2].max()) + h > 0.2, "only the floor came back"
   # a world with nobody else in it pays nothing and carries nothing
-  from pluggybot.legs import model as qm
-  model = mujoco.MjModel.from_xml_string(qm.body_xml(qm.CHOSEN))
+  model = mujoco.MjModel.from_xml_string(hm_.body_xml(hm_.CHOSEN))
   data = mujoco.MjData(model)
   mujoco.mj_resetDataKeyframe(model, data, 0)
   mujoco.mj_forward(model, data)
@@ -231,11 +240,11 @@ def test_the_heightmap_line_carries_what_a_renderer_needs_and_decodes(tmp_path):
   and the encoding's two numbers (`zMax`, `steps`) so a consumer decodes it
   without the sim's constants -- 0 is never measured, else 1 cm steps.
   Row 0 is the y_min edge, as the grid's is."""
-  model = lw.home_spec().compile()
+  model = hw.home_spec().compile()
   data = mujoco.MjData(model)
   hm = _stub_map([(10, 20, 0.10), (150, 150, 0.30), (5, 5, 0.9), (6, 5, -0.02)])
   path = str(tmp_path / "out.jsonl")
-  rec = TelemetryRecorder(model, data, path, model_name=QUAD_HOME,
+  rec = TelemetryRecorder(model, data, path, model_name=HUMANOID_HOME,
                           heightmap=hm, grid_hz=2.0)
   assert [s._interval for s in rec._grids
           if isinstance(s, HeightMapSampler)] == [10.0], "recorded at 0.1 Hz"

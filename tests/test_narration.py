@@ -36,7 +36,6 @@ import re
 
 import pytest
 
-from pluggybot import tick
 from pluggybot.economy.ledger import Ledger
 from pluggybot.economy.scoring import evaluate
 from pluggybot.mind import overseer as ov
@@ -181,28 +180,33 @@ def test_a_policy_fallback_is_still_not_an_incident():
   assert boss.usage.errors == []
 
 
-# ---- 2. a recovered use-phase failure is not a traceback ---------------------
+# ---- 2. a recovered program failure is not a traceback -----------------------
 
 
-def test_a_use_phase_that_raises_is_narrated_as_a_sentence():
-  """Nothing crashed: the tool goes back to its bay, the evaluator grades the
-  job honestly and the loop carries on. Shown to fail before the fix by
-  restoring `self._say(f"USE_TOOL FAILED: {used['error']} -- ...")`, which
-  puts `IndexError: list index out of range` under the robot's portrait.
+def test_a_program_that_raises_is_narrated_as_a_sentence(monkeypatch):
+  """Nothing crashed: the run ends, the evaluator grades the job honestly
+  and the loop carries on. Shown to fail by narrating the run's `error`
+  itself, which puts `IndexError: list index out of range` under the
+  robot's portrait (the use-phase's `USE_TOOL FAILED`, before the
+  quadruped's tools went, #559).
   """
-  from pluggybot.mission.errand import Errand
+  from pluggybot.lifecycle import world_facts
+  from pluggybot.mission.errand import programmed_errand
+  from pluggybot.procedure import steps as st
 
-  life = stub_life()
-
-  def explodes(_life):
+  def explodes(*a, **kw):
     raise IndexError("list index out of range")
+    yield                                     # a routine, never stepped
 
-  errand = Errand(name="carry:test", module="module_lcd", station_y=0.0,
-                  use_at=(1.0, 1.0), use=explodes, needs_use_pose=False)
-  said = narration(life)             # the stub body picks, carries and stows
-  result = life.run_errand(errand)
+  monkeypatch.setattr(st, "run_program_routine", explodes)
+  life = stub_life()
+  program = st.compile_program(
+    st.Program.from_dict({"name": "test", "steps": [
+      {"verb": "wait", "args": {"seconds": 1.0}}]}), world_facts("home_humanoid"))
+  said = narration(life)
+  result = life.run_errand(programmed_errand(program))
 
-  spoken = [ln for ln in said if "USE_TOOL FAILED" in ln]
+  spoken = [ln for ln in said if "PROCEDURE FAILED" in ln]
   assert spoken, said
   for line in said:
     assert_sounds_like_a_robot(line)
@@ -211,32 +215,9 @@ def test_a_use_phase_that_raises_is_narrated_as_a_sentence():
   assert result["error"] == "IndexError: list index out of range"
   # ...and the operator's console line still carries it, in the detail slot
   # that reaches `self.log` and nothing else.
-  logged = [ln for ln in life.log if "USE_TOOL FAILED" in ln]
+  logged = [ln for ln in life.log if "PROCEDURE FAILED" in ln]
   assert "IndexError: list index out of range" in logged[0]
   assert "IndexError" not in spoken[0], "the detail rode the wire"
-
-
-def test_the_neighbouring_lines_stopped_shouting():
-  """Two lines over from the traceback, and the same audience: a visitor
-  reading `NEVER GOT THERE -- BUT DROPPED THE TOOL` under a robot's portrait
-  is being shouted at about a recovery."""
-  from pluggybot.mission.errand import Errand
-
-  life = stub_life()
-  errand = Errand(name="carry:test", module="module_lcd", station_y=0.0,
-                  use_at=(1.0, 1.0), use=None, needs_use_pose=False)
-  life.body.go_to_routine = lambda *a, **kw: tick.result(False)        # never got there
-  # Picked, then lost on the way (issue #298: a pick that FAILED ends the
-  # errand at the rack and says so in other words).
-  states = iter([{"on_fork": True, "hung": False}])
-  life.body.module_state = lambda *a, **kw: next(
-    states, {"on_fork": False, "hung": False})
-  said = narration(life)
-  life.run_errand(errand)
-  arrival = [ln for ln in said if ln.startswith("USE_TOOL:")]
-  assert arrival, said
-  assert "NEVER GOT THERE" not in arrival[0] and "DROPPED" not in arrival[0]
-  assert "never got there" in arrival[0] and "dropped the tool" in arrival[0]
 
 
 # ---- 3. a visitor's rating that misses ---------------------------------------
@@ -278,9 +259,9 @@ def test_a_rating_for_a_job_that_is_not_pending_says_so_differently():
   facts, and the website is holding a stale row in only one of them."""
   life = stub_life()
   life.ledger = Ledger()
-  entry = life.ledger.award(evaluate("carry", {"picked": True, "stowed": True,
-                                               "module": "module_lcd"}), t=1.0)
-  said = _rating(life, seq=entry["seq"])   # a `carry` is auto-tiered, not pending
+  entry = life.ledger.award(evaluate("charge", {"startFrac": 0.2, "endFrac": 0.95,
+                                                "gainedWh": 1.0, "seconds": 60.0}), t=1.0)
+  said = _rating(life, seq=entry["seq"])   # a `charge` is auto-tiered, not pending
 
   spoken = [ln for ln in said if "ignored" in ln]
   assert spoken, said
@@ -292,4 +273,4 @@ def test_a_rating_for_a_job_that_is_not_pending_says_so_differently():
 
 def _menu():
   from pluggybot.lifecycle import board_book
-  return ov.Menu.for_world("home_quad", board_book("home_quad"))
+  return ov.Menu.for_world("home_humanoid", board_book("home_humanoid"))

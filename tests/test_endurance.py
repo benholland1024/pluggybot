@@ -23,18 +23,9 @@ ROOT = TESTS.parent
 #: in the default run can make its claim, the PR he approved it in). A flight
 #: not listed here fails the fence below, so adding one -- or moving a test
 #: out of the default run -- is adding it here and asking him in its PR.
-APPROVED_FLIGHTS = {
-  "test_a_low_quadruped_walks_to_its_dock_and_charges_on_it": (
-    "~17 s: 16.5-18.1 s -n0, measured 2026-09-29", "the served robot walks "
-    "the house to its dock and charges on it: the docking composed, on the "
-    "loop's own charge path", "#413"),
-  "test_a_fresh_quadruped_walks_to_the_kitchen_by_the_hall": (
-    "~24 s: 23.2-23.8 s -n0, measured 2026-09-29", "the planner, the scan "
-    "matcher and the walking policy, into the unknown", "#413"),
-  "test_the_served_quadruped_fetches_a_tool_and_hangs_it_back": (
-    "~30 s: 30.0 s -n0, measured 2026-09-29", "the served robot's swap "
-    "composed: the walk to the bay, its tags, the walk-in and settle, the "
-    "fork under the peg, the carry and the put, on the real body", "#417"),
+APPROVED_FLIGHTS: dict[str, tuple[str, str, str]] = {
+  # The quadruped's three (its dock, its walk into the unknown, its swap)
+  # left with it (#559, stage 5); the humanoid has none yet.
 }
 
 
@@ -57,12 +48,12 @@ def _paths(node, consts: dict) -> list:
   raise AssertionError(f"a `when` the fence cannot read: {ast.unparse(node)}")
 
 
-def _flights() -> dict:
+def _flights(tests: Path = TESTS) -> dict:
   """Every flight's name -> (its `when`, whether it is also `slow`). A mark
   that is not a decorator CALL -- bare, or a `pytest.param` mark -- is
   refused, because it could name nothing."""
   found = {}
-  for path in sorted(TESTS.glob("test_*.py")):
+  for path in sorted(tests.glob("test_*.py")):
     text = path.read_text()
     if "mark.endurance" not in text:
       continue
@@ -92,13 +83,34 @@ def test_every_flight_names_what_it_guards_and_each_path_is_in_the_tree():
   (pyproject.toml)."""
   tracked = subprocess.run(["git", "ls-files"], cwd=ROOT, capture_output=True,
                            text=True, check=True).stdout.splitlines()
-  flights = _flights()
-  assert flights, "no flight found: the fence is reading nothing"
-  for name, (when, slow) in flights.items():
+  for name, (when, slow) in _flights().items():
     assert when and all(isinstance(w, str) for w in when), f"{name} names no `when`"
     for w in when:
       assert any(t.startswith(w) for t in tracked), f"{name}: no tracked path is {w!r}"
     assert slow, f"{name} is not marked slow"
+
+
+def test_the_fence_reads_a_flight_where_there_is_one(tmp_path):
+  """The tree may hold no flight (the quadruped's left with it, #559), so the
+  fence is shown reading one in a scratch directory -- its `when`, a named
+  tuple starred, whether it is `slow` -- and refusing a mark it could not
+  read, or it would pass reading nothing."""
+  (tmp_path / "test_flown.py").write_text(
+    "import pytest\n"
+    "PATHS = ('src/pluggybot/humanoid/', 'models/humanoid')\n"
+    "@pytest.mark.slow\n"
+    "@pytest.mark.endurance(when=(*PATHS, 'src/pluggybot/navigator.py'))\n"
+    "def test_a_flight():\n  pass\n"
+    "@pytest.mark.endurance(when=('README.md',))\n"
+    "def test_a_quick_one():\n  pass\n")
+  assert _flights(tmp_path) == {
+    "test_a_flight": (["src/pluggybot/humanoid/", "models/humanoid",
+                       "src/pluggybot/navigator.py"], True),
+    "test_a_quick_one": (["README.md"], False)}
+  (tmp_path / "test_bare.py").write_text(
+    "import pytest\n@pytest.mark.endurance\ndef test_bare():\n  pass\n")
+  with pytest.raises(AssertionError, match="not `@pytest.mark.endurance"):
+    _flights(tmp_path)
 
 
 def test_nothing_leaves_the_default_run_without_bens_approval():
@@ -134,19 +146,19 @@ def test_nothing_leaves_the_default_run_without_bens_approval():
 
 
 def test_a_flight_is_flown_only_when_a_change_touches_what_it_guards():
-  when = ("src/pluggybot/legs/", "models/quadruped")
-  assert conftest.guarded(when, {"src/pluggybot/legs/dock.py", "README.md"}) == [
-    "src/pluggybot/legs/dock.py"]
-  assert conftest.guarded(when, {"models/quadruped_getup.npz"}), "a prefix, not a name"
-  assert not conftest.guarded(when, {"src/pluggybot/lifecycle.py", "tests/test_legs.py"})
-  assert not conftest.guarded((), {"src/pluggybot/legs/dock.py"}), "names nothing, flies never"
+  when = ("src/pluggybot/humanoid/", "models/humanoid")
+  assert conftest.guarded(when, {"src/pluggybot/humanoid/walk.py", "README.md"}) == [
+    "src/pluggybot/humanoid/walk.py"]
+  assert conftest.guarded(when, {"models/humanoid_getup.npz"}), "a prefix, not a name"
+  assert not conftest.guarded(when, {"src/pluggybot/lifecycle.py", "tests/test_humanoid.py"})
+  assert not conftest.guarded((), {"src/pluggybot/humanoid/walk.py"}), "names nothing, flies never"
 
 
 def test_the_change_is_the_branch_and_the_working_tree(tmp_path):
   """Against the MERGE BASE, so what landed on the base since is not this
   change's; the working tree counts -- committed, staged, unstaged and
   untracked -- because the flights are asked for while the work is live; and
-  a rename is both its ends, or a file moved out of `legs/` flies nothing."""
+  a rename is both its ends, or a file moved out of `humanoid/` flies nothing."""
   env = {**os.environ, "GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@example.com",
          "GIT_COMMITTER_NAME": "t", "GIT_COMMITTER_EMAIL": "t@example.com"}
 

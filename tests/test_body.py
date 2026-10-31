@@ -1,7 +1,7 @@
 """The body interface (issue #380, `src/pluggybot/body.py`): the day loop
 and the procedure layer reach the machine only through `Body`, and a stub
 body carries a lifecycle's bookkeeping with no robot in the world at all.
-(The quadruped implements every member: `tests/test_quadruped.py`.)"""
+(The humanoid implements every member: `tests/test_humanoid_body.py`.)"""
 
 import ast
 import inspect
@@ -16,29 +16,27 @@ from pluggybot.lifecycle import HubLifecycle, world_config
 
 SRC = Path(__file__).resolve().parents[1] / "src" / "pluggybot"
 
-#: The machine's own modules -- the quadruped's (`legs/`: its model,
-#: controller, reckoning and the scan its policy reads, #388), the
-#: humanoid's (`humanoid/`, #507: its parts, model and senses), the navigation
-#: it is built on (`navigator.py`, #387: a body's map, LIDAR and drive), the
-#: coupling and the tools it works, and the one place a body is chosen
-#: (`body.body_for`). EVERY OTHER MODULE in `src/` is on the loop's side of
-#: the seam, a new one included: it reaches a robot's body only as
-#: `<life>.body.<member>`, a member being a name `Body` declares.
-BODY_SIDE = ("rack/", "tools/", "body.py", "legs/", "humanoid/", "navigator.py")
+#: The machine's own modules -- the humanoid's (`humanoid/`, #507: its
+#: parts, model, senses, policies and reckoning), the navigation it is built
+#: on (`navigator.py`, #387: a body's map, LIDAR and drive), and the one
+#: place a body is chosen (`body.body_for`). EVERY OTHER MODULE in `src/` is
+#: on the loop's side of the seam, a new one included: it reaches a robot's
+#: body only as `<life>.body.<member>`, a member being a name `Body` declares.
+BODY_SIDE = ("body.py", "humanoid/", "navigator.py")
 
 
 def loop_side() -> list[str]:
   return sorted(rel for rel in (str(p.relative_to(SRC)) for p in SRC.rglob("*.py"))
                 if not rel.startswith(BODY_SIDE))
 #: ...and never the machine itself: its objects, its classes and the
-#: criteria its coupling is read by. Its constants may be imported -- a
+#: criteria its walks are read by. Its constants may be imported -- a
 #: number is not a reach -- but nothing that acts on or senses the body.
-BODY_ATTRS = frozenset({"mission", "swap", "odometry", "lidar", "tags", "walker",
+BODY_ATTRS = frozenset({"mission", "odometry", "lidar", "tags", "walker",
                         "getup", "drivers"})
 BODY_NAMES = frozenset({
-  "QuadMission", "QuadBody", "QuadStepper", "PolicyDriver", "ArmDriver", "Drivers",
-  "LegOdometry", "DepthCamera", "Lidar", "TagDetector", "module_power_contact",
-  "bay_standoff", "charge_standoff", "swap_trace", "charge_trace", "gave_up"})
+  "HumanoidMission", "HumanoidBody", "HumanoidStepper", "StandDriver", "WalkDriver",
+  "GetupDriver", "Drivers", "StanceOdometry", "DepthCamera", "Lidar", "TagDetector",
+  "charge_standoff", "charge_trace", "gave_up"})
 
 
 def reaches(source: str) -> list[str]:
@@ -74,22 +72,22 @@ def test_the_fence_fails_on_every_way_past_it():
   """A fence that cannot fail is decor: each way past the interface is
   caught, and the way through it is not."""
   src = '''
-from pluggybot.legs.body import QuadMission, bay_standoff
+from pluggybot.humanoid.mission import HumanoidMission, StanceOdometry
 def f(self, life):
   self.body.drive_to_routine(1, 2)
-  life.mission.swap.module_state("m")
+  life.mission.walker.command(0.3, 0.0, 0.0)
   self.body.mission.pose
   life.body.go_to_routine(1, 2)
-  module_power_contact(self.model, self.data, "m", "")
+  Drivers(self.model, self.data, joints=())
 '''
   got = reaches(src)
-  assert any("imports QuadMission" in b for b in got)
-  assert any("imports bay_standoff" in b for b in got)
+  assert any("imports HumanoidMission" in b for b in got)
+  assert any("imports StanceOdometry" in b for b in got)
   assert any(".body.drive_to_routine is not a Body member" in b for b in got)
   assert any(".mission is the body's own" in b for b in got)
-  assert any(".swap is the body's own" in b for b in got)
+  assert any(".walker is the body's own" in b for b in got)
   assert any(".body.mission is not a Body member" in b for b in got)
-  assert any("module_power_contact is the body's own" in b for b in got)
+  assert any("Drivers is the body's own" in b for b in got)
   assert not any("go_to_routine" in b for b in got)
 
 
@@ -117,7 +115,7 @@ def test_the_stub_implements_every_member():
 
 
 def test_a_world_with_no_robot_of_ours_is_refused_a_body():
-  """`body_for` is the one place a body is chosen: legs, by this robot's
+  """`body_for` is the one place a body is chosen: the humanoid, by this robot's
   names -- and a world with none under them is refused, never given a
   body that is not there."""
   model, data = StubBody.world()
@@ -128,7 +126,7 @@ def test_a_world_with_no_robot_of_ours_is_refused_a_body():
 # ---- the stub: a lifecycle's bookkeeping with no robot ----------------------------
 
 
-def stub_life(world: str = "home_quad", body: StubBody | None = None, **kw) -> HubLifecycle:
+def stub_life(world: str = "home_humanoid", body: StubBody | None = None, **kw) -> HubLifecycle:
   """A lifecycle on a `StubBody`, in a world with no robot in it: for a test
   that needs the loop's bookkeeping -- the mind, the economy, the record --
   and no physics. `world` names the job catalogue, the energy table and the
@@ -136,7 +134,7 @@ def stub_life(world: str = "home_quad", body: StubBody | None = None, **kw) -> H
   cfg = world_config(world)
   # ...charging at the rate the world's energy table measured, which is
   # what the loop sizes a charge's timeout against
-  body = body or StubBody(rack=cfg["rack"], grid_bounds=cfg["grid_bounds"],
+  body = body or StubBody(grid_bounds=cfg["grid_bounds"],
                           charge_w=energy.load(world).charge_w)
   kw.setdefault("battery_wh", cfg["battery_wh"])
   kw.setdefault("low_battery_wh", cfg["low_battery_wh"])
@@ -148,7 +146,7 @@ def test_a_day_runs_on_the_stub_charge_and_all():
   """The loop's whole shape on a body that does nothing physical: the
   start, the explore, a charge trip -- the dock, the hold, the undock --
   and the end. Its seams tick as the stub's clock passes."""
-  body = StubBody(draw_w=0.0, charge_w=energy.load("home_quad").charge_w)
+  body = StubBody(draw_w=0.0, charge_w=energy.load("home_humanoid").charge_w)
   life = stub_life(body=body)
   life.battery.energy_wh = life.low_battery_wh * 0.5          # it must charge
   summary = life.run(start=(0.5, 3.0, 0.0), max_sim_time=120.0)
@@ -157,13 +155,10 @@ def test_a_day_runs_on_the_stub_charge_and_all():
   assert summary["sim_time"] > 0.0 and summary["dead"] is None
 
 
-def test_the_stub_fetches_holds_and_stows_as_a_test_says():
+def test_the_stub_passes_time_only_where_it_holds():
   body = StubBody()
-  assert body.run(body.fetch_tool_routine(0.125, "module_pen")) == "arrived"
-  assert body.tool_powered("module_pen") and body.module_state("module_pen")["on_fork"]
-  assert body.seated_on("module_pen") == body.handle.root
-  assert body.run(body.stow_tool_routine(0.125, "module_pen")) == "arrived"
-  assert body.module_state("module_pen") == {"on_fork": False, "hung": True, "bay": 1}
   t0 = float(body.data.time)
+  assert body.run(body.go_to_routine(1.0, 2.0)) is True
+  assert float(body.data.time) == t0, "a walk arrives at once"
   body.run(body.hold_routine(0.5))
   assert float(body.data.time) == pytest.approx(t0 + 0.5)

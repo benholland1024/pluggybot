@@ -12,16 +12,15 @@ import mujoco
 import numpy as np
 import pytest
 
-from pluggybot.body import is_humanoid, is_quadruped
+from pluggybot.body import is_humanoid
+from pluggybot.evaluation import identity
 from pluggybot.evaluation.identity import body_identity, world_hash
 from pluggybot.humanoid import mission as hmi
-from pluggybot.lifecycle import (HUMANOID_HOME, NO_CHARGER, QUAD_HOME, HubLifecycle,
+from pluggybot.lifecycle import (HUMANOID_HOME, NO_CHARGER, HubLifecycle,
                                  world_config, world_for, world_targets)
-from pluggybot.legs.rack import RACK_BODY
 from pluggybot.mapping.frontier import OCC_THRESH
 from pluggybot.navigator import Navigator
 from pluggybot.perception.lidar import robot_geoms
-from pluggybot.procedure import steps
 from pluggybot.robot import (BODIES, CHASSIS_RGBA, FIRST, SECOND, SECOND_CHASSIS_RGBA,
                              world_spec)
 from test_body import stub_life  # noqa: I001 -- tests/ is on sys.path
@@ -29,8 +28,7 @@ from test_body import stub_life  # noqa: I001 -- tests/ is on sys.path
 
 def _house(pair: bool = False):
   cfg = world_config(HUMANOID_HOME)
-  model = world_spec(cfg["model"], cfg["start2"][:2] if pair else None,
-                     body="humanoid").compile()
+  model = world_spec(cfg["model"], cfg["start2"][:2] if pair else None).compile()
   return cfg, model, mujoco.MjData(model)
 
 
@@ -38,7 +36,7 @@ def _humanoid(near_field: bool = True) -> HubLifecycle:
   """One humanoid in its house, built and stood at the start."""
   cfg, model, data = _house()
   life = HubLifecycle(model, data, realtime=False, world=HUMANOID_HOME,
-                      battery_wh=cfg["battery_wh"], rack=cfg["rack"],
+                      battery_wh=cfg["battery_wh"],
                       grid_bounds=cfg["grid_bounds"],
                       low_battery_wh=cfg["low_battery_wh"], near_field=near_field)
   life.body.start_at(*cfg["start"])
@@ -49,30 +47,33 @@ def _humanoid(near_field: bool = True) -> HubLifecycle:
 
 
 def test_the_humanoids_house_is_its_own_world_and_the_body_names_it():
-  """`$PLUGGY_BODY=humanoid` with `$PLUGGY_WORLD=home` is the house with the
-  humanoids in it, as `quadruped` is the quadrupeds'; serve.py's `--body`
-  offers both."""
-  assert set(BODIES) == {"quadruped", "humanoid"}
+  """`$PLUGGY_WORLD=home` is the house with the humanoids in it, the one
+  body (#559, stage 5: the quadrupeds' `home_quad` left with them, and
+  `quadruped-final` serves it); a world names its body, and another body
+  named is refused."""
+  assert BODIES == ("humanoid",)
   assert world_for("home", "humanoid") == HUMANOID_HOME == world_for(HUMANOID_HOME, "humanoid")
-  assert world_for("home") == QUAD_HOME
-  assert world_for(HUMANOID_HOME) == HUMANOID_HOME, "a world names its body"
-  for world, body in ((QUAD_HOME, "humanoid"), (HUMANOID_HOME, "quadruped")):
+  assert world_for("home") == HUMANOID_HOME == world_for(HUMANOID_HOME)
+  for world, body in (("home", "quadruped"), (HUMANOID_HOME, "quadruped"),
+                      ("home_quad", None)):
     with pytest.raises(ValueError):
       world_for(world, body)
+  with pytest.raises(ValueError):
+    world_config("home_quad")
   cfg = world_config(HUMANOID_HOME)
   assert cfg["body"] == "humanoid" and cfg["model_name"] == HUMANOID_HOME
-  assert world_config(QUAD_HOME)["zones"] == cfg["zones"], "one house"
   assert "module" not in world_targets(HUMANOID_HOME, procedures=True), "no rack, no carry"
 
 
 def test_the_house_holds_two_humanoids_by_name_painted_and_meeting_each_other():
-  """The quadrupeds' rule for a pair (`legs.world.PAIR_BITS`): each robot
-  meets the other's body and never its own; the second in its own livery;
-  the quadruped's dock and rack gone with it, the house's tags there."""
+  """The quadrupeds' rule for a pair (`humanoid.world.PAIR_BITS`): each
+  robot meets the other's body and never its own; the second in its own
+  livery; the quadruped's dock and rack gone with it, the house's tags
+  there."""
   _, model, _ = _house(pair=True)
   for h in (FIRST, SECOND):
-    assert is_humanoid(model, h) and not is_quadruped(model, h)
-  assert mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_BODY, RACK_BODY) < 0
+    assert is_humanoid(model, h)
+  assert mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_BODY, "tool_rack") < 0
   assert mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_BODY, "dock") < 0
   assert mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_MATERIAL, "tagmat44") >= 0
 
@@ -92,12 +93,21 @@ def test_the_house_holds_two_humanoids_by_name_painted_and_meeting_each_other():
   assert painted(SECOND.root, SECOND_CHASSIS_RGBA) and not painted(SECOND.root, CHASSIS_RGBA)
 
 
-def test_the_header_names_the_humanoid_and_hashes_its_policies():
+def test_the_header_names_the_humanoid_and_hashes_its_policies(monkeypatch):
   """The build's identity (#132) says which body flew and the sha of each
-  policy it runs -- a retrained walker is a new regime."""
+  policy it runs, and the world's hash reads the body's files too -- a
+  retrained walker is a new regime."""
   who = body_identity(HUMANOID_HOME)
   assert who["name"] == "humanoid" and set(who["policies"]) == {"stand", "walk", "getup"}
-  assert world_hash(HUMANOID_HOME) != world_hash(QUAD_HOME)
+  assert all(len(s) == 64 for s in who["policies"].values())
+  header = identity.build_identity(HUMANOID_HOME, arm="autonomous", commit="x", hashes={},
+                                   body=who)
+  assert header["body"] == who
+  assert "body" not in identity.build_identity(HUMANOID_HOME, arm="autonomous", commit="x",
+                                               hashes={})
+  with_body = world_hash(HUMANOID_HOME)
+  monkeypatch.setattr(identity, "BODY_FILES", {"humanoid": ()})
+  assert world_hash(HUMANOID_HOME) != with_body
 
 
 # ---- nowhere to charge --------------------------------------------------------------
@@ -124,8 +134,6 @@ def test_a_world_with_nowhere_to_charge_never_goes_and_says_why():
   t0 = float(life.data.time)
   assert life.body.run(life.go_charge_routine()) is False
   assert life.charge_failure == NO_CHARGER and float(life.data.time) == t0
-  # ...and no rack: no tool to stow
-  assert steps._rack(life) == {}
 
 
 def test_an_explore_the_run_ended_does_not_say_the_battery_did():
@@ -577,18 +585,13 @@ def test_a_humanoid_keeps_clear_of_its_station_and_with_a_hand_out_is_never_save
 
 
 def test_a_mind_judging_what_the_other_humanoid_needs_asks_after_no_tool():
-  """A world with no rack watches no module (`HubLifecycle.module`): a mind's
-  first `other_needs` (#208) asked what was on the other humanoid's fork, and
-  the body it asked had none -- the minded day's first answer ended it."""
+  """A mind's first `other_needs` (#208) asked what was on the other
+  humanoid's fork, and the body it asked had none -- the minded day's first
+  answer ended it. The need is read off the loop's own state, never a body's
+  fork (`carrying` is a vestige of the quadruped's: empty)."""
   from pluggybot.mind import acts
-  assert stub_life(world=HUMANOID_HOME).module == ""
-  assert stub_life().module == "module_lcd", "the quadruped's world watches its LCD"
-  life = _humanoid(near_field=False)
-  try:
-    need, state = acts.need_of(life)
-    assert need == "nothing" and state["carrying"] == ""
-  finally:
-    life.body.close()
+  need, state = acts.need_of(stub_life(world=HUMANOID_HOME))
+  assert need == "nothing" and state["carrying"] == ""
 
 
 def test_the_loop_with_no_mind_goes_to_no_charger_however_low_the_pack():
@@ -603,4 +606,3 @@ def test_the_loop_with_no_mind_goes_to_no_charger_however_low_the_pack():
     summary = life.run(start=(0.5, 3.0, 0.0), max_sim_time=60.0)
     assert summary["charge_cycles"] == trips, charger
   assert not summary["stranded"] and summary["deaths"] == [], "sent to no charger, and stranded"
-  assert summary["module_stowed"] is None, "nothing carried, in a world with no rack"

@@ -1,7 +1,7 @@
 """Guards for the pack's energy book (power.py's `Pack`) and the test
-suite's charge-rate knob. What a body DRAWS is its own (the quadruped's:
-`test_quadruped.py::test_the_pack_draws_what_the_drivers_do`); the book is
-every body's, and pinned here with direct calls."""
+suite's charge-rate knob. What a body DRAWS is its own (the humanoid's:
+`humanoid.body.HumanoidPack`); the book is every body's, and pinned here
+with direct calls."""
 
 import pytest
 
@@ -137,9 +137,9 @@ def test_the_charge_cap_scales_with_the_rate():
   five-times-faster charge gets a cap sized for the honest one and the guard
   against pressing on dead pins quietly stops guarding.
   """
-  from pluggybot.lifecycle import CHARGE_TIMEOUT_MIN, QUAD_HOME, world_config
+  from pluggybot.lifecycle import CHARGE_TIMEOUT_MIN, HUMANOID_HOME, world_config
 
-  served_wh = world_config(QUAD_HOME)["hosting_battery_wh"]
+  served_wh = world_config(HUMANOID_HOME)["hosting_battery_wh"]
 
   def timeout_at(scale: float) -> float:
     return stub_life(battery_wh=served_wh, charge_scale=scale).charge_timeout

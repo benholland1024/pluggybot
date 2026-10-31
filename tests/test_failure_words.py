@@ -4,8 +4,10 @@ Most of the deployed robots' open tickets, and the belief that kept both
 from the lab, came from words that named the wrong failure: "no ink reached
 whiteboard_b" fourteen times in a day for a pen that never got there, "the
 feed plate was never pressed" for a route that gave up in the living room,
-"no count came back from None", "stopped 9.1 m short" read as the pack. One
-fast test per rule, each stubbing what is not under test; nothing flies.
+"stopped 9.1 m short" read as the pack. The jobs those words were about
+went with the quadruped (#559); the drive's words, a charge's, a find's
+and an explore's stand. One fast test per rule, each stubbing what is not
+under test; nothing flies.
 """
 
 import math
@@ -17,19 +19,15 @@ import pytest
 from pluggybot import tick
 from pluggybot.activity import cage
 from pluggybot.body import KeepClear, StubBody
-from pluggybot.economy import scoring
-from pluggybot.legs.body import QuadMission
-from pluggybot.lifecycle import NEAR_STANDOFF_M, QUAD_HOME, HubLifecycle, board_book, world_config
-from pluggybot.mission.errand import Errand
+from pluggybot.humanoid.mission import HumanoidMission
+from pluggybot.lifecycle import (NEAR_STANDOFF_M, HUMANOID_HOME, HubLifecycle, board_book,
+                                 world_config)
 from pluggybot.navigator import DRIVE_GAVE_UP, gave_up
 from pluggybot.procedure import steps as st
-from pluggybot.procedure.steps import TOOL_BAYS
-from pluggybot.rack.coupling import STATION_YS
 from pluggybot.robot import SECOND
 
 from test_body import stub_life  # noqa: I001 -- tests/ is on sys.path
 
-STATION = STATION_YS[TOOL_BAYS["module_pen"]]
 STEPPER = SimpleNamespace(step=lambda *a: None)
 
 
@@ -40,10 +38,10 @@ def _history(life) -> list[str]:
 def _life(**kw):
   """The loop on a stub body that says why a drive gave up in the served
   body's own words (`navigator.gave_up`), with the house's boards."""
-  cfg = world_config(QUAD_HOME)
-  body = StubBody(rack=cfg["rack"], grid_bounds=cfg["grid_bounds"])
+  cfg = world_config(HUMANOID_HOME)
+  body = StubBody(grid_bounds=cfg["grid_bounds"])
   body.gave_up = gave_up
-  return stub_life(body=body, boards=board_book(QUAD_HOME), **kw)
+  return stub_life(body=body, boards=board_book(HUMANOID_HOME), **kw)
 
 
 def _stalled_at(life, seconds=60.0, short=3.0):
@@ -55,104 +53,30 @@ def _stalled_at(life, seconds=60.0, short=3.0):
   return drive
 
 
-def _pen_errand():
-  return Errand(name="draw:whiteboard_a", module="module_pen", station_y=STATION,
-                use_at=(1.0, 1.0), use=lambda _l: {"drew": True},
-                detail={"board": "whiteboard_a"})
-
-
-# ---- 1. the errand's own failure comes first ---------------------------------
-
-
-def test_a_refused_pick_leads_the_verdict_and_is_said_once():
-  """Five of the fourteen "no ink reached whiteboard_b" were a pick refused
-  at the rack. The verdict leads with the pick; the grade is still the
-  board's (no ink, 0 points), and History says it once, not twice."""
-  life = _life()
-  life.body.fetch_tool_routine = lambda *a, **kw: tick.result("arrived")
-  life.body.module_state = lambda *a, **kw: {"on_fork": False, "hung": False}
-  result = life.run_errand(_pen_errand())
-  reason = result["verdict"]["reason"]
-  assert reason.startswith("could not pick up module_pen: it was not on its bay"), reason
-  assert reason.endswith("no ink reached whiteboard_a"), "the measured grade still follows"
-  assert result["verdict"]["ok"] is False and result["verdict"]["points"] == 0
-  said = [ln for ln in _history(life) if "could not pick up" in ln]
-  assert len(said) == 1 and "draw: could not pick up module_pen" in said[0], said
-
-
-def test_a_drive_that_never_arrived_leads_the_verdict_with_why():
-  """Six of the fourteen were "USE_TOOL: never got there" -- no History line
-  and no reason. The narration and the verdict now carry both."""
-  life = _life()
-  life.body.go_to_routine = _stalled_at(life)
-  result = life.run_errand(_pen_errand())
-  why = "the drive gave up 3.0 m short after 60 s (stalled, no progress for 10 s)"
-  assert result["verdict"]["reason"] == (f"never reached whiteboard_a: {why} -- "
-                                         "no ink reached whiteboard_a")
-  assert any(f"USE_TOOL: never got there -- {why}" in ln for ln in life.log)
-  assert sum(why in ln for ln in _history(life)) == 1
-
-
-def test_a_failure_a_passed_verdict_does_not_carry_is_still_in_history():
-  """A carry whose drive fell short and whose tool went home was done, and
-  its verdict is left alone -- so History says what failed on its own."""
-  life = _life()
-  life.body.go_to_routine = _stalled_at(life)
-  errand = Errand(name="carry", module="module_lcd", station_y=STATION_YS[0],
-                  use_at=(1.0, 1.0), use=lambda _l: {}, task="carry")
-  result = life.run_errand(errand)
-  assert result["verdict"]["ok"] and "never reached" not in result["verdict"]["reason"]
-  assert any("carry: never reached the use pose: the drive gave up" in ln
-             for ln in _history(life))
-
-
-def test_the_lead_moves_no_point_and_leaves_a_pass_alone():
-  failed = "never reached the cage: the drive gave up"
-  v = scoring.evaluate("feed", {"feeds": 0, "feedsBefore": 0}, failed=failed)
-  assert v.reason == f"{failed} -- the feed plate was never pressed" and v.points == 0
-  bare = scoring.evaluate("feed", {"feeds": 0, "feedsBefore": 0})
-  assert (v.ok, v.points, v.metrics) == (bare.ok, bare.points, bare.metrics)
-  won = scoring.evaluate("feed", {"feeds": 1, "feedsBefore": 0}, failed=failed)
-  assert won.ok and not won.reason.startswith(failed)
-
-
-def test_a_board_it_never_squared_up_to_leads_with_which_of_the_two():
-  """The use-phase's own word that its work never began leads the same way."""
-  life = _life()
-  errand = _pen_errand()
-  errand.use = lambda _l: {"error": "never squared up to the board",
-                           "failedBefore": "never squared up to whiteboard_a: the "
-                                           "turn to face it ran out of time"}
-  result = life.run_errand(errand)
-  assert result["verdict"]["reason"].startswith(
-    "never squared up to whiteboard_a: the turn to face it ran out of time -- ")
-
-
 # ---- 2. a drive that gives up says why ----------------------------------------
 
 
 class _Drive:
-  """`drive_to_routine`'s own `self` -- the served body's (`QuadMission`,
+  """`drive_to_routine`'s own `self` -- the served body's (`HumanoidMission`,
   whose drive is the `Navigator`'s) -- with the planner and the legs
   stubbed: every command is 0.1 s, and the robot moves `step` m along x."""
-  drive_to_routine = QuadMission.drive_to_routine
-  _drove = QuadMission._drove
-  _at_stand_in = QuadMission._at_stand_in
-  _other_in_the_way = QuadMission._other_in_the_way
-  _ask_way = QuadMission._ask_way
-  _bodies = QuadMission._bodies
-  peer_on_the_goal = QuadMission.peer_on_the_goal
-  _cells = QuadMission._cells
-  _left = QuadMission._left
-  _known_cells = QuadMission._known_cells
-  PROGRESS_ALONG_ROUTE = QuadMission.PROGRESS_ALONG_ROUTE
-  PROGRESS_MAP_GROWTH = QuadMission.PROGRESS_MAP_GROWTH
-  NEW_ROUTE_M = QuadMission.NEW_ROUTE_M
+  drive_to_routine = HumanoidMission.drive_to_routine
+  _drove = HumanoidMission._drove
+  _at_stand_in = HumanoidMission._at_stand_in
+  _other_in_the_way = HumanoidMission._other_in_the_way
+  _ask_way = HumanoidMission._ask_way
+  _bodies = HumanoidMission._bodies
+  peer_on_the_goal = HumanoidMission.peer_on_the_goal
+  _cells = HumanoidMission._cells
+  _left = HumanoidMission._left
+  _known_cells = HumanoidMission._known_cells
+  PROGRESS_ALONG_ROUTE = HumanoidMission.PROGRESS_ALONG_ROUTE
+  PROGRESS_MAP_GROWTH = HumanoidMission.PROGRESS_MAP_GROWTH
+  NEW_ROUTE_M = HumanoidMission.NEW_ROUTE_M
   # ...its measured sizes, which the drive reads off its body
-  BACKOFF_V, PEER_CLEARANCE_M = QuadMission.BACKOFF_V, QuadMission.PEER_CLEARANCE_M
-  OTHER_ROBOT_CELLS = QuadMission.OTHER_ROBOT_CELLS
-  DOWN_ROBOT_CELLS = QuadMission.DOWN_ROBOT_CELLS
-  pressing = False
+  BACKOFF_V, PEER_CLEARANCE_M = HumanoidMission.BACKOFF_V, HumanoidMission.PEER_CLEARANCE_M
+  OTHER_ROBOT_CELLS = HumanoidMission.OTHER_ROBOT_CELLS
+  DOWN_ROBOT_CELLS = HumanoidMission.DOWN_ROBOT_CELLS
   ask_way, driving = None, 0
 
   def __init__(self, plan, step=0.0, others=(), sighting=None, cut=False):
@@ -263,13 +187,14 @@ def test_the_cut_route_check_answers_as_a_plan_would_without_the_other_robot():
   wall with a door the other robot stands in, and one with no door."""
   import mujoco
 
-  from pluggybot.legs import body as qb
-  from pluggybot.legs import world as lw
-  model = lw.home_spec().compile()
-  body = qb.QuadBody(model, mujoco.MjData(model), realtime=False,
-                     grid_bounds=world_config(QUAD_HOME)["grid_bounds"])
+  from pluggybot.body import body_for
+  from pluggybot.robot import world_spec
+  cfg = world_config(HUMANOID_HOME)
+  model = world_spec(cfg["model"]).compile()
+  body = body_for(model, mujoco.MjData(model), realtime=False,
+                  grid_bounds=cfg["grid_bounds"])
   m = body.mission
-  m.start_at(0.5, 3.0, 0.0)
+  body.start_at(0.5, 3.0, 0.0)
   door = KeepClear(2.0, 3.0)
   for gap in (True, False):
     m.grid.grid[:] = -5.0                                   # mapped and free...
@@ -441,161 +366,6 @@ def test_a_charge_trip_that_ends_in_a_wait_is_the_waits_not_an_earlier_drives():
 # ---- 3. narration names only what happened -------------------------------------
 
 
-def test_an_act_whose_route_gave_up_never_reached_the_cage():
-  """Three of the lab's "nothing registered" / "never pressed" were the
-  route's first leg giving up beside the rack."""
-  run = {"failedAt": 0, "steps": [{"i": 0, "verb": "drive_to", "ok": False,
-                                   "why": "the drive gave up 1.0 m short after 180 s "
-                                          "(stalled, no progress for 10 s)"}]}
-  errand = SimpleNamespace(detail={"cage": "lab", "routeLegs": 5})
-  # ...or its budget or an interrupt stopped it on the way
-  cut = {"completed": 2, "stopped": "interrupted"}
-  assert HubLifecycle._program_failure(errand, {"procedure": cut}) == (
-    "never reached the cage: it was interrupted, after 2 of the 5 legs of the way there")
-  assert HubLifecycle._program_failure(
-    errand, {"procedure": {**cut, "completed": 5}}) == "", "stopped in the lab"
-  assert HubLifecycle._program_failure(errand, {"procedure": run}) == (
-    "never reached the cage: the drive gave up 1.0 m short after 180 s (stalled, no "
-    "progress for 10 s), on leg 1 of 5 of the way there")
-  # ...and a FIND, the whole way there on legs, in its words and never its
-  # why alone: "never reached the cage: not found, on leg 1 of 1" (#439)
-  said = "did not find tag 36 round (25.2, -2.4) in 300 s and ran out of time (1 looks round)"
-  found = {"failedAt": 0, "steps": [{"i": 0, "verb": "find", "ok": False,
-                                     "why": "out of time", "reason": said}]}
-  legs = SimpleNamespace(detail={"cage": "lab", "routeLegs": 1})
-  assert HubLifecycle._program_failure(legs, {"procedure": found}) == (
-    f"never reached the cage: {said}")
-  # ...and a failure IN the lab -- the pass over the plate -- is not one
-  in_lab = {**run, "failedAt": 5, "steps": [{**run["steps"][0], "i": 5}]}
-  assert HubLifecycle._program_failure(errand, {"procedure": in_lab}) == ""
-  assert HubLifecycle._program_failure(SimpleNamespace(detail={}), {"procedure": run}) == ""
-
-
-def test_the_care_line_says_the_route_and_not_the_mouse():
-  from pluggybot.lifecycle import errand_from
-  from pluggybot.mind import overseer as ov
-  life = _life()
-  errand = errand_from(ov.Decision(action="care", care="toy", reason=""), QUAD_HOME)
-  failed = "never reached the cage: the drive gave up (why), on leg 1 of 1 of the way there"
-  life._cage_record(errand, {"procedure": {"ok": False}}, None,
-                    scoring.cage_before(life, errand), failed)
-  assert life.status.endswith(f"set off to toy for the mouse and {failed}")
-  assert "nothing registered" not in life.thoughts.read("History.md")
-
-
-def test_a_job_on_the_cage_that_never_got_there_is_said_once():
-  """The paid job's verdict leads with the route's failure, so its cage
-  line is narrated and not written to History a second time."""
-  from pluggybot.lifecycle import cage_errand
-  life = _life()
-  errand = cage_errand(QUAD_HOME, "feed", task="feed")
-  errand.task_id, errand.detail["predicted"] = "t_0001", "eating"
-  failed = "never reached the cage: the drive gave up (why), on leg 1 of 1 of the way there"
-  before = scoring.cage_before(life, errand)
-  result = {"procedure": {"ok": False}, "points": 0}
-  verdict = scoring.evaluate("feed", scoring.sample_feed(life, errand, result, before),
-                             failed=failed)
-  life._bank(verdict)
-  life._cage_record(errand, result, verdict, before, failed)
-  assert sum(failed in ln for ln in _history(life)) == 1
-  assert life.status.endswith(f"and {failed}"), "...and the narration still says it"
-
-
-def _press_gave_up(life):
-  """A press whose walk to its standoff used all its time (#439: 24 of 24
-  failed live presses, each after 85 s), as `press_routine` records it --
-  and a later walk elsewhere, so only the press's own record names it."""
-  def press(tag, patience, stop=None):
-    goal = (25.0, 3.0)
-    walk = {"why": "timeout", "goal": goal, "seconds": 85.2, "shortM": 2.0}
-    life.body.last_drive = {"why": "stalled", "goal": (0.0, 0.0), "seconds": 9.0,
-                            "shortM": 1.0}
-    return tick.result({"tag": tag, "pressed": False, "why": "gave up", "seconds": 85.2,
-                        "attempts": [{"standoff": list(goal), "walk": walk, "why": "gave up",
-                                      "at": [24.1, 1.3], "err": [12.0, -340.0, 2.1],
-                                      "s": 85.2}]})
-  return press
-
-
-def test_a_press_whose_walk_gave_up_says_the_walk_and_not_the_clock(monkeypatch):
-  """#439: every failed live press read "ran out of time before stepping onto
-  tag 36's plate" -- the second try's, which never began. The press says the
-  walk that gave up in #350's words, off its OWN record, and every try goes
-  to the log as the step's trace."""
-  life = _life()
-  feed = cage.PLATE_TAGS["feed"]
-  monkeypatch.setattr(life.body, "press_plate_routine", _press_gave_up(life))
-  out = life.body.run(st.run_verb(life, st.VERBS["press"], {"tag": feed}))
-  assert out["reason"] == ("did not get in front of tag 36's plate: the drive gave up "
-                           "2.0 m short after 85 s (out of time)")
-  assert out["trace"] == (
-    "press tag 36: #1 standoff (25.00, 3.00), walk timeout 2.00 m short after 85 s, "
-    "at (24.10, 1.30) after 85 s, belief off +12,-340 mm +2.1 deg -> gave up")
-  # ...and a sign out of view says how its look round ended
-  for looked, said in st.PRESS_LOOKED.items():
-    monkeypatch.setattr(life.body, "press_plate_routine", lambda *a, **kw: tick.result(
-      {"pressed": False, "why": "lost", "attempts": [{"looked": looked, "why": "lost"}]}))
-    out = life.body.run(st.run_verb(life, st.VERBS["press"], {"tag": feed}))
-    assert out["reason"] == f"tag 36 was not in view from in front of its plate{said}"
-
-
-def test_a_feed_whose_press_never_got_there_says_so_first_and_once(monkeypatch):
-  """Rowan's tk_0015, "Lab plates never register a press": told only "the
-  feed plate was never pressed", it took the plate's sensor for faulty
-  over 12 straight misses, and every one was the walk to the plate. The
-  job's verdict leads with the press's own failure, History says it once,
-  and the tries are the log's alone."""
-  from pluggybot.lifecycle import cage_errand
-  life = _life()
-  feed = cage.PLATE_TAGS["feed"]
-  life.body.places.see(feed, 25.0, 4.8, 0.0, view=-math.pi / 2)
-  monkeypatch.setattr(life.body, "press_plate_routine", _press_gave_up(life))
-  errand = cage_errand(QUAD_HOME, "feed", task="feed")
-  errand.task_id, errand.detail["predicted"] = "t_0001", "eating"
-  result = life.run_errand(errand)
-  reason = result["verdict"]["reason"]
-  assert reason.startswith("did not get in front of tag 36's plate: the drive gave up "
-                           "2.0 m short after 85 s (out of time) -- "), reason
-  said = [ln for ln in _history(life) if "in front of tag 36's plate" in ln]
-  assert len(said) == 1 and "feed: did not get in front" in said[0], _history(life)
-  assert not any("plate was never pressed" in ln and "in front" not in ln
-                 for ln in _history(life)), "the cage's count alone, said again"
-  assert any("belief off +12,-340 mm" in ln for ln in life.log), "the tries, in the log"
-  assert not any("belief off" in ln for ln in _history(life))
-  assert "belief off" not in life.status
-
-
-def test_a_press_that_pressed_leaves_its_tries_in_the_log_alone(monkeypatch):
-  """#439: a paid feed whose press took 67 s and stepped on the shock plate
-  22 times on the way (8a61ada), or one saved by its second walk in, could
-  not be read off the day: only a failed press said its tries. A press
-  that pressed says them too, on its program's last line -- the log's,
-  never History or the status line."""
-  from pluggybot.lifecycle import cage_errand
-  life = _life()
-  feed = cage.PLATE_TAGS["feed"]
-  life.body.places.see(feed, 25.0, 4.8, 0.0, view=-math.pi / 2)
-
-  def tries(seconds, why):
-    return {"standoff": [25.0, 3.0], "walkS": seconds, "walkIn": "stopped",
-            "stop": [0.01, 0.0, 1.0], "why": why, "at": [25.0, 3.3],
-            "err": [4.0, -9.0, 0.3], "s": 40.0}
-  monkeypatch.setattr(life.body, "press_plate_routine", lambda tag, patience, stop=None: (
-    tick.result({"tag": tag, "pressed": True, "why": "pressed", "seconds": 40.0,
-                 "attempts": [tries(12.0, "not pressed"), tries(1.0, "pressed")]})))
-  errand = cage_errand(QUAD_HOME, "feed", task="feed")
-  errand.task_id, errand.detail["predicted"] = "t_0001", "eating"
-  life.run_errand(errand)
-  [line] = [ln for ln in life.log if "PROCEDURE feed_mouse complete" in ln]
-  one = ("walk in stopped, stopped [0.01, 0.0, 1.0] off the press pose, at (25.00, 3.30) "
-         "after 40 s, belief off +4,-9 mm +0.3 deg")
-  assert line.endswith(f"[press tag 36: #1 standoff (25.00, 3.00), walked 12 s, {one} "
-                       f"-> not pressed; #2 standoff (25.00, 3.00), walked 1 s, {one} "
-                       "-> pressed]"), line
-  assert not any("belief off" in ln for ln in _history(life))
-  assert "belief off" not in life.status
-
-
 def _find_gave_up(life):
   """A find whose walks took it nowhere to look from, as `find_routine`
   records it -- and a later walk elsewhere, so only the find's own record
@@ -622,10 +392,8 @@ def test_a_find_whose_walks_took_it_nowhere_says_the_last_walk(monkeypatch):
   "having looked from every place near there (1 looks round)", when every
   walk had given up where it stood, the other robot resting in front of the
   dock; and Rowan, told so of a board, took its tags for moved. The find
-  says its last walk in #350's words, off its OWN record; the feed's
-  verdict leads with all of it, never the bare "not found" it said;
-  History says it once, and the walks are the log's."""
-  from pluggybot.lifecycle import cage_errand
+  says its last walk in #350's words, off its OWN record, never the bare
+  "not found" it said, and its walks are the step's trace."""
   life = _life()
   feed = cage.PLATE_TAGS["feed"]
   monkeypatch.setattr(life.body, "find_tag_routine", _find_gave_up(life))
@@ -639,24 +407,6 @@ def test_a_find_whose_walks_took_it_nowhere_says_the_last_walk(monkeypatch):
     f"find tag 36: to the address (25.20, -2.40) peer 21.90 m short after 0 s {peer}, "
     "looked round at (3.41, -0.38), 3 viewpoints, each peer after 0 s at most, "
     "-> gave up after 23 s, belief off +6,-2 mm +0.1 deg")
-  errand = cage_errand(QUAD_HOME, "feed", task="feed")
-  errand.task_id, errand.detail["predicted"] = "t_0001", "eating"
-  result = life.run_errand(errand)
-  reason = result["verdict"]["reason"]
-  assert reason.startswith(f"never reached the cage: {said} -- "), reason
-  assert sum(said in ln for ln in _history(life)) == 1, _history(life)
-  assert any("3 viewpoints, each peer" in ln for ln in life.log), "the walks, in the log"
-  assert not any("viewpoints" in ln for ln in _history(life))
-  assert "viewpoints" not in life.status
-
-
-def test_a_census_that_never_ran_names_its_zone_and_never_none():
-  errand = Errand(name="census:garden", module="module_lcd", station_y=STATION_YS[0],
-                  use_at=(1.0, 1.0), task="census", needs_use_pose=False,
-                  detail={"zone": "garden"})
-  measured = scoring.sample_census(None, errand, {"errand": "census:garden"}, {})
-  assert scoring.evaluate("census", measured).reason == "no count came back from garden"
-  assert scoring.evaluate("census", {}).reason == "no count came back"
 
 
 # ---- 4. `mapDone` is what it means ----------------------------------------------
@@ -685,7 +435,7 @@ def test_a_continuation_saved_before_the_rename_still_says_the_floor_is_explored
   # ...into a body whose map came back with it: the floor is only said to
   # be explored alongside the map it was explored in
   back.body.restore_kept = lambda state, arrays: True
-  back.begin(world_config(QUAD_HOME)["start"], max_sim_time=600.0)
+  back.begin(world_config(HUMANOID_HOME)["start"], max_sim_time=600.0)
   continuation.restore([back], snap)
   assert back.floor_explored
 
@@ -759,8 +509,8 @@ def test_a_zone_walk_that_ends_in_its_zone_got_there(believed, truly):
   from test_body import StubBody, stub_life
   from pluggybot.lifecycle import in_zone
   from pluggybot.mind import overseer as ov
-  inside = in_zone(QUAD_HOME, "workshop", *believed)
-  assert inside is not in_zone(QUAD_HOME, "workshop", *truly)
+  inside = in_zone(HUMANOID_HOME, "workshop", *believed)
+  assert inside is not in_zone(HUMANOID_HOME, "workshop", *truly)
   body = StubBody()
   life = stub_life(body=body)
   life.begin((0.0, 0.0, 0.0))                    # the day's setup, and no day

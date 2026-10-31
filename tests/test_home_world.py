@@ -19,7 +19,7 @@ import pytest
 from PIL import Image
 
 from pluggybot.home import world as home
-from pluggybot.rack import tags
+from pluggybot.perception import tags
 from pluggybot.telemetry.protocol import VISUAL_HINTS
 from pluggybot.telemetry.scene import scene_dict
 
@@ -214,11 +214,11 @@ def test_a_world_still_transpiles_without_a_sidecar(home_model):
 # ---- the world is actually navigable ----------------------------------------
 
 def test_doorways_are_wide_enough_to_drive_through(home_model):
-  """EVERY doorway is wider than the quadruped's inflated planning mask
+  """EVERY doorway is wider than the humanoid's inflated planning mask
   closes from both jambs, with a cell to spare -- a doorway the planner
   refuses is a wall, and the wing hangs off one of them."""
-  from pluggybot.legs.body import QuadMission
-  shut = 2 * QuadMission.INFLATION_CELLS * 0.05 + 0.05
+  from pluggybot.humanoid.mission import HumanoidMission
+  shut = 2 * HumanoidMission.INFLATION_CELLS * 0.05 + 0.05
   doors = {"divider": home.DOOR_DIV_X, "garden": home.DOOR_GARDEN_Y,
            "hall": home.DOOR_HALL_Y, "kitchen": home.DOOR_KITCHEN_Y,
            "workshop": home.DOOR_WORKSHOP_Y,
@@ -302,7 +302,7 @@ def test_the_new_rooms_are_reachable_from_the_living_room():
   assert reached == names, f"unreachable from the living room: {names - reached}"
 
 
-def test_spawns_and_rack_sit_inside_the_house(home_model):
+def test_the_spawns_sit_inside_the_house(home_model):
   x, y, _ = home.SPAWNS["start"]
   assert home.HOUSE_X[0] < x < home.HOUSE_X[1]
   assert home.HOUSE_Y[0] < y < home.HOUSE_Y[1]
@@ -386,8 +386,8 @@ def test_the_middle_street_runs_through_the_sidewalk_to_the_loop():
 
 def test_every_room_names_its_building_and_nothing_outdoors_does(home_model):
   """The fact the site paints walls by (`protocol.BUILDINGS`): each room says
-  which house it is in -- the house with the rack, the facility with the
-  lab -- and nothing outdoors claims a building. The sim's own wall colour
+  which house it is in -- the house with the charging station, the
+  facility with the lab -- and nothing outdoors claims a building. The sim's own wall colour
   does not move: that is what the robot's cameras render."""
   from pluggybot.telemetry.protocol import BUILDINGS
   data = mujoco.MjData(home_model)
@@ -401,9 +401,9 @@ def test_every_room_names_its_building_and_nothing_outdoors_does(home_model):
     return next(zone["building"] for zone in rooms
                 if zone["min"][0] <= x <= zone["max"][0]
                 and zone["min"][1] <= y <= zone["max"][1])
-  from pluggybot.legs.world import rack_pose
-  rack = rack_pose()
-  assert building_at(rack[0], rack[1] + 0.5) == "house"      # the rack stands on the living room's wall
+  from pluggybot.humanoid.world import station_pose
+  station = station_pose()
+  assert building_at(station[0], station[1] + 0.5) == "house"  # on the living room's wall
   cage = data.xpos[home_model.body("lab_cage").id]
   assert building_at(cage[0], cage[1]) == "facility"
 
@@ -469,7 +469,7 @@ def test_the_lab_holds_its_props_inside_the_room(home_model, meta):
   it; the three plates in front of it; the bench with its two masses. All
   inside the `lab` zone, so #226 and #227 find them where the world says."""
   from pluggybot.activity.cage import PLATE_NAMES
-  from pluggybot.challenge.bench import MASSES
+  from pluggybot.home.props import MASSES
   lab = next(z for z in home.ZONES if z["name"] == "lab")
   data = mujoco.MjData(home_model)
   mujoco.mj_forward(home_model, data)
@@ -484,7 +484,7 @@ def test_the_lab_holds_its_props_inside_the_room(home_model, meta):
   assert meta["visualHints"]["lab_mouse"] == "mouse"
   assert meta["visualHints"]["lab_bench"] == "table"
   # The masses wear the next two tags after the tower's blocks.
-  from pluggybot.rack.tags import MASS_TAG_IDS
+  from pluggybot.perception.tags import MASS_TAG_IDS
   for name, tag in zip(MASSES, MASS_TAG_IDS):
     geom = home_model.geom(f"{name}_box")
     assert home_model.mat(int(geom.matid[0])).name == f"tagmat{tag}"
@@ -503,7 +503,7 @@ def test_the_mouse_is_a_mocap_body_and_dynamic_on_the_wire(home_model, meta):
   mouse = home_model.body("lab_mouse")
   assert int(home_model.body_mocapid[mouse.id]) >= 0
   assert dynamic_flags(home_model)[mouse.id]
-  from pluggybot.legs.world import home_spec
+  from pluggybot.humanoid.world import home_spec
   _, world = body_census(home_spec().compile())      # the census needs a robot
   assert "lab_mouse" in world
   scene = scene_dict(home_model, "home_world", meta=meta)
@@ -540,14 +540,13 @@ def test_the_camera_extent_is_written_down_not_derived(home_model):
   """MuJoCo scales every camera's near plane by `statistic.extent`, derived
   from the bounding box unless written down: the house pins it
   (`CAMERA_EXTENT_M`) so growing the world cannot move a camera's near
-  plane, and the quadruped's world sets its own off it in metres
-  (`legs.world.NEAR_M`; that a bay's tags are read through it is
-  `test_quad_rack.py::test_the_nose_camera_reads_a_bays_tags_from_its_working_pose`)."""
-  from pluggybot.legs import world as lw
+  plane, and the humanoid's world sets its own off it in metres
+  (`humanoid.world.NEAR_M`: MuJoCo's own cut a hand near the head)."""
+  from pluggybot.humanoid import world as hw
   assert home_model.stat.extent == pytest.approx(home.CAMERA_EXTENT_M)
-  quad = lw.home_spec().compile()
-  assert quad.stat.extent == pytest.approx(home.CAMERA_EXTENT_M)
-  assert quad.vis.map.znear * quad.stat.extent == pytest.approx(lw.NEAR_M)
+  served = hw.home_spec().compile()
+  assert served.stat.extent == pytest.approx(home.CAMERA_EXTENT_M)
+  assert served.vis.map.znear * served.stat.extent == pytest.approx(hw.NEAR_M)
 
 
 def test_the_walls_are_a_rooms_height(home_model):

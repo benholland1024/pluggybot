@@ -4,7 +4,7 @@ import mujoco
 import numpy as np
 import pytest
 
-from pluggybot.legs import model as qm
+from pluggybot.humanoid import model as hm
 from pluggybot.viz import Recorder
 
 
@@ -15,8 +15,8 @@ SMALL = (320, 180)          # keep the encoder cheap in the test suite
 
 @pytest.fixture(scope="module")
 def world_model():
-  """The quadruped alone on a floor."""
-  return mujoco.MjModel.from_xml_string(qm.body_xml(qm.CHOSEN))
+  """The humanoid alone on a floor."""
+  return mujoco.MjModel.from_xml_string(hm.body_xml(hm.CHOSEN))
 
 
 @pytest.fixture

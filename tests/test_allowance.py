@@ -28,7 +28,7 @@ from pluggybot.mind.overseer import (
 from pluggybot.mind.spend import WEEK_S, SpendBook
 from pluggybot.telemetry.pacer import RealTimePacer
 
-MENU = Menu(zones=("garden",), boards=("whiteboard_a",), programs=("circle",))
+MENU = Menu(zones=("garden",), boards=("whiteboard_a",))
 
 
 class Clock:
