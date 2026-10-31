@@ -108,7 +108,7 @@ WEIGH = '''def weigh():
 #: stride, overshooting 0.10-0.20 m by up to 3.6 cm (`step` from rest; a
 #: door's lever 3 cm too near was gripped on nothing five times). Then THE
 #: JOB, the capability check's own procedure, unchanged (`evaluation.
-#: hands_check.JOBS`).
+#: hands_check.JOBS`), the drawer's changed (`_drawer_job`).
 APPROACH = '''def to_%(prop)s():
   budget(steps=16, seconds=900)
   find(%(beside)d, 25.2, -2.4, 600)
@@ -137,9 +137,27 @@ APPROACH = '''def to_%(prop)s():
 STANCE = {"drawer": 0.25, "door": 0.2, "chest": 0.12, "cube": 0.15}
 
 
+def _drawer_job() -> str:
+  """The drawer's job, its check's procedure with its pull 4 cm longer (its
+  runners stop at 24) and its open hand drawn back off the knob, along the
+  pull, before its way home: flown over the tour, the way home pushed a
+  drawer pulled 17 cm out back under the 15 it must be, 4 times in 7."""
+  from pluggybot.evaluation import hands_check
+  pulled = '    pull("left", -fx, -fy, 0, 15, 0.18)\n'
+  home = '  open_hand("left")\n  withdraw("left")\n'
+  assert hands_check.DRAWER.count(pulled) == 1 and hands_check.DRAWER.endswith(home)
+  return hands_check.DRAWER.replace(pulled, pulled.replace("0.18", "0.22"))[:-len(home)] + (
+    '  open_hand("left")\n'
+    '  if not move_hand("left", read("left.x") - 0.06 * fx, read("left.y") - 0.06 * fy, '
+    'read("left.z") + 0.02):\n'
+    '    pass\n'
+    '  withdraw("left")\n')
+
+
 def _hands_job(check: str, prop: str) -> tuple[str, str]:
   """A hand job's reference: the walk to its prop (`APPROACH`), then its
-  check's procedure (`evaluation.hands_check.JOBS`)."""
+  check's procedure (`evaluation.hands_check.JOBS`) -- the drawer's as
+  `_drawer_job` changes it."""
   from pluggybot.evaluation import hands_check
   from pluggybot.home import storeroom
   from pluggybot.rack import tags
@@ -151,7 +169,7 @@ def _hands_job(check: str, prop: str) -> tuple[str, str]:
   return (APPROACH % {"prop": prop, "row": storeroom.TAGS[prop],
                       "beside": storeroom.TAGS[beside], "handle": handle,
                       "ahead": ahead, "left": left, "stance": STANCE[prop]},
-          hands_check.JOBS[check])
+          _drawer_job() if prop == "drawer" else hands_check.JOBS[check])
 
 
 DRAWER = _hands_job("drawer", "drawer")
