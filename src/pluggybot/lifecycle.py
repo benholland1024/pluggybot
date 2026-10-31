@@ -5435,6 +5435,11 @@ class HubLifecycle:
     self._next_task_check = float(self.data.time) + CHECK_S
     for task in self.tasks.expire_due(float(self.data.time)):
       self._say(f"TASK {task.id} expired: {task.description}")
+    # ...and a hand job's watch whose job ended some other way than its
+    # grade (#559: a true death, an admin): it reads nothing more
+    for task_id in [t for t in self._job_watches
+                    if (self.tasks.get(t) is None or self.tasks.get(t).state != "active")]:
+      self._unwatch_job(task_id)
     if self.producer is not None:
       for task in self.producer.tick(float(self.data.time), self.fundable_wh):
         self._say(f"TASK {task.id} offered: {task.description}")

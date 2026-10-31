@@ -43,22 +43,22 @@
     "chest": {
       "house": "facility",
       "directions": "The storeroom is the south-east room of the second house, the one across the middle street from your own house: in through its front garden and its lobby, and the storeroom's door is on the lobby's east side, south of the lab's. A long counter stands against the storeroom's east wall, and a row of four tags is on the wall above it, one over each thing on the counter: from left to right as you face them, tag 60 over a chest, tag 61 over a cabinet of drawers, tag 62 over a cupboard and tag 63 over a cube and its mat. The chest's lid lifts by a drop handle at its front, and the handle's knob is a small cube carrying tag 53 on every face.",
-      "tags": {"60": "the storeroom counter's chest's tag", "53": "the chest's knob"}
+      "tags": {"60": "the storeroom counter's tag over the chest", "61": "the storeroom counter's tag over the drawers", "62": "the storeroom counter's tag over the cupboard", "63": "the storeroom counter's tag over the cube", "53": "the chest's knob"}
     },
     "drawer": {
       "house": "facility",
       "directions": "The storeroom is the south-east room of the second house, the one across the middle street from your own house: in through its front garden and its lobby, and the storeroom's door is on the lobby's east side, south of the lab's. A long counter stands against the storeroom's east wall, and a row of four tags is on the wall above it, one over each thing on the counter: from left to right as you face them, tag 60 over a chest, tag 61 over a cabinet of drawers, tag 62 over a cupboard and tag 63 over a cube and its mat. The drawer's knob, on the middle of its front, is a small cube carrying tag 54 on every face.",
-      "tags": {"61": "the storeroom counter's drawers' tag", "54": "the drawer's knob"}
+      "tags": {"60": "the storeroom counter's tag over the chest", "61": "the storeroom counter's tag over the drawers", "62": "the storeroom counter's tag over the cupboard", "63": "the storeroom counter's tag over the cube", "54": "the drawer's knob"}
     },
     "door": {
       "house": "facility",
       "directions": "The storeroom is the south-east room of the second house, the one across the middle street from your own house: in through its front garden and its lobby, and the storeroom's door is on the lobby's east side, south of the lab's. A long counter stands against the storeroom's east wall, and a row of four tags is on the wall above it, one over each thing on the counter: from left to right as you face them, tag 60 over a chest, tag 61 over a cabinet of drawers, tag 62 over a cupboard and tag 63 over a cube and its mat. The cupboard's door is hinged on its left and opens by a lever handle on its face, whose tip is a small cube carrying tag 55 on every face.",
-      "tags": {"62": "the storeroom counter's cupboard's tag", "55": "the cupboard lever's tip"}
+      "tags": {"60": "the storeroom counter's tag over the chest", "61": "the storeroom counter's tag over the drawers", "62": "the storeroom counter's tag over the cupboard", "63": "the storeroom counter's tag over the cube", "55": "the cupboard lever's tip"}
     },
     "cube": {
       "house": "facility",
       "directions": "The storeroom is the south-east room of the second house, the one across the middle street from your own house: in through its front garden and its lobby, and the storeroom's door is on the lobby's east side, south of the lab's. A long counter stands against the storeroom's east wall, and a row of four tags is on the wall above it, one over each thing on the counter: from left to right as you face them, tag 60 over a chest, tag 61 over a cabinet of drawers, tag 62 over a cupboard and tag 63 over a cube and its mat. The cube carries tag 56 on every face, and the mat beside it, a little further from you, carries tag 57 across its top.",
-      "tags": {"63": "the storeroom counter's cube's tag", "56": "the cube", "57": "the cube's mat"}
+      "tags": {"60": "the storeroom counter's tag over the chest", "61": "the storeroom counter's tag over the drawers", "62": "the storeroom counter's tag over the cupboard", "63": "the storeroom counter's tag over the cube", "56": "the cube", "57": "the cube's mat"}
     }
   }
 }

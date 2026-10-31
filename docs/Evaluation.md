@@ -2290,7 +2290,10 @@ feature's own grader (`scoring.evaluate`, the door the robot's attempt goes
 through), with the rules it stands on pinned fast. A feature whose ladder-A
 solution cannot be written is a defect in the feature, filed and fixed before
 any prompt or pay moves (#407: `challenge/solutions.py`, flown by
-`scripts/solve.py --feature tower|bench`). **Ladder B — a model-equipped
+`scripts/solve.py --feature tower|bench`; the humanoids' hand jobs, #559, by
+`--feature drawer|door|cube|chest`, each from the station on a fresh map
+over draws of its prop, the bar -- 6 of 8, the checks' -- written before
+they flew; Challenges.md §11). **Ladder B — a model-equipped
 robot finds one:** a
 LOCAL flight on the `autonomous` arm with the deployed prompt and model, the
 feature's phrase put in the inbox at mission start as a visitor's message,

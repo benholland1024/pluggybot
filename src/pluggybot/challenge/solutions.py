@@ -84,22 +84,37 @@ WEIGH = '''def weigh():
 #: THE HUMANOIDS' HAND JOBS (#559, stage 3), on the storeroom's counter
 #: (`home.storeroom`), each TWO procedures -- one would pass the language's
 #: cap (`lang.MAX_SOURCE_CHARS`), as it would for a robot. The WALK THERE:
-#: the tag over the prop found round the facility's address; a walk to
-#: stand 1.3 m out of the wall's face and 0.2 m to its right -- the
-#: counter's depth and a little more: nearer, the planner's margin round
-#: the counter takes the goal -- and a turn to face the wall; the handle's
-#: own tag spotted and a step putting it where the check's set-outs' middle
-#: had it (`storeroom.HANDLE_FROM_SPOT`) -- in two: the first 12 cm short
-#: of it, a step after a turn falling a tenth short (`step` measured from
-#: rest walks to within 3 cm; after `face`, 0.39 m of 0.43), and the rest
-#: off a fresh look, a stride or more. Then THE JOB, the capability
-#: check's own procedure, unchanged (`evaluation.hands_check.JOBS`).
+#: the tag beside the prop's in the row found round the facility's address,
+#: then the prop's own, so the row's two give the wall's way (`mapping.
+#: places.Fixture`) -- a find stops at its tag's first sight, and the
+#: cube's alone, through the storeroom's door from the lobby, put the walk's
+#: `face` 17 deg off; a walk to stand 1.3 m out of the wall's face and 0.2 m
+#: to its right -- the counter's depth and a little more: nearer, the
+#: planner's margin round the counter takes the goal -- and a turn to face
+#: the wall; SQUARED to the prop by the face of the handle's tag it reads
+#: from there -- its front, whose normal is level (one tag's way, not the
+#: row's, left a robot 28 deg turned to the counter, and its arm's way home
+#: dragged a jaw along it and toppled it); then two steps putting the
+#: handle where the check's set-outs' middle had it (`storeroom.
+#: HANDLE_FROM_SPOT`), the first 12 cm short of it -- a step after a turn
+#: falls a tenth short (`step` from rest walks to within 3 cm; after `face`,
+#: 0.39 m of 0.43) -- the rest off a fresh look, a stride or more. Then THE
+#: JOB, the capability check's own procedure, unchanged (`evaluation.
+#: hands_check.JOBS`).
 APPROACH = '''def to_%(prop)s():
-  budget(steps=12, seconds=900)
+  budget(steps=16, seconds=900)
+  find(%(beside)d, 25.2, -2.4, 600)
   find(%(row)d, 25.2, -2.4, 600)
   f = read("find.facing")
   drive_to(read("find.x") + 1.3 * cos(f) - 0.2 * sin(f), read("find.y") + 1.3 * sin(f) + 0.2 * cos(f), 180)
   face(f + 3.14159 - 6.28318 * (f > 0))
+  spot(%(handle)d)
+  a = atan2(read("spot.ny"), read("spot.nx"))
+  while a > 0.79:
+    a = a - 1.571
+  while a < -0.79:
+    a = a + 1.571
+  step(0, 0, a)
   spot(%(handle)d)
   step(read("spot.x") - %(ahead)g - 0.12, read("spot.y") - %(left)g)
   spot(%(handle)d)
@@ -116,7 +131,10 @@ def _hands_job(check: str, prop: str) -> tuple[str, str]:
   handle = {"chest": tags.CHEST_TAG_IDS, "drawer": tags.DRAWER_TAG_IDS,
             "door": tags.DOOR_TAG_IDS, "cube": tags.CUBE_TAG_IDS}[prop][0]
   ahead, left = storeroom.HANDLE_FROM_SPOT[prop]
-  return (APPROACH % {"prop": prop, "row": storeroom.TAGS[prop], "handle": handle,
+  i = storeroom.PROPS.index(prop)
+  beside = storeroom.PROPS[i + 1 if i + 1 < len(storeroom.PROPS) else i - 1]
+  return (APPROACH % {"prop": prop, "row": storeroom.TAGS[prop],
+                      "beside": storeroom.TAGS[beside], "handle": handle,
                       "ahead": ahead, "left": left}, hands_check.JOBS[check])
 
 

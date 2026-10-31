@@ -266,3 +266,17 @@ def test_the_chests_grade_reads_the_catch_its_offer_drew(tmp_path):
   assert not verdict["ok"] and "never opened" in verdict["reason"]
   assert "catchN" not in verdict["metrics"]
   assert life._counter_activity("chest").lid == ch.draw(task.secret["draw"])
+
+
+def test_a_jobs_watch_ends_with_its_job_however_it_ends(tmp_path):
+  """A watch reads its prop every physics step: one whose job ended some
+  other way than its grade -- failed by an admin, a true death -- is
+  dropped on the board's next sweep."""
+  from pluggybot.economy.scoring import evaluate
+  life = _life(tmp_path)
+  task = _offer(life, "open_drawer")
+  assert life._claim_task(task.id) and task.id in life._job_watches
+  life.tasks.resolve(task.id, evaluate("open_drawer", {}), t=float(life.data.time))
+  life.body.run(life.body.hold_routine(1.5))
+  assert task.id not in life._job_watches
+  assert not any(isinstance(h, drawer.Watch) for h in life.body.step_hooks)

@@ -6598,6 +6598,62 @@ none: where the plug sits in the jaws still misses pushes now and then. The
 reserve's own dock leg gave up on the explore's map and is carried by rate;
 one station a world.
 
+## The humanoids' first jobs (issue #559, stage 3)
+
+**What is true now.** The served humanoids' first jobs are the hands' four
+checks (Challenges.md §10, §11) set into the house: a counter 0.72 m high
+and 0.6 deep against the east wall of the research center's storeroom --
+the room the facility's address lands in, and the practice's and the
+sessions' counter's room -- with the chest, a cabinet of drawers, a
+cupboard and the cube on its board, 1.2 m apart, each square where the
+middle of its check's set-outs had it from a robot's work spot
+(`home.storeroom`). Over each, a 120 mm tag on the wall at 1.15 m (60-63),
+one row. In the humanoids' world alone: the quadrupeds' geometry, and so
+their trajectories and their prompt, are unchanged.
+
+**Finding the counter.** The humanoid finds a place by the quadruped's own
+search (`legs.places.PlaceWalk`, unmodified: where it should be, the
+address, viewpoints round it) with a look of its own (`humanoid/places.py`):
+its head's NAVIGATION camera, pitched 20 deg for the walls' tags, each tag
+in a decode placed through its odometry's model of itself -- posed every
+10 ms off its encoders and IMU, so a look draws no noise a flight reads --
+and its stance into its map. From the storeroom's door, 5.5 m off, it reads
+all four of the row; from in front of the counter, 0.8 m, the one over it.
+⚠ A FIND STOPS AT ITS TAG'S FIRST SIGHT, so the place's facing is only as
+good as what was seen by then: the row's baseline once two of it were in
+view, else the way the tag was seen from (`mapping.places`). One tag seen
+through the storeroom's door from the lobby left a walk's `face` 20 deg
+off the wall.
+
+**The walk there, then the check.** Each reference (`challenge/
+solutions.py`) is two procedures -- one passes the language's 1,500
+characters -- in the robot's own vocabulary: the walk (the tag found round
+the address; a walk to 1.3 m out of the wall's face and 0.2 m to its right,
+outside the planner's margin round the counter, which the depth camera's
+low layer lays; a turn to face the wall; then SQUARED to the prop by the
+handle's own tag, the face it reads from there being its front, whose
+normal is level; and two steps, the first 12 cm short of where the check's
+set-outs' middle put the handle, the second off a fresh look), then the
+check's own procedure, unchanged. What flying took:
+
+- `step` from rest walks within 1-3 cm of what it is asked, but after a
+  turn a tenth short (0.39 m of 0.43); `spot` reads a handle's tag to 1-1.5
+  cm at every distance it decodes (0.47-0.95 m). One step from the
+  standoff left the door's lever 3 cm past its set-outs' window and the
+  grip missed; two -- the second a stride or more -- put every handle in it;
+- `spot` of a 26 mm cube from 0.85 m reads its FRONT face (the most
+  square-on from there): its edges, one of them upright, give no turn, and
+  read from there the cube's procedure gripped at 42 deg. The references
+  square up off the face's normal from far and leave the edges to the
+  check's own procedure, from close, where the top face is read;
+- squared to the wall alone -- off the place's facing -- a robot that saw one
+  tag of the row from the lobby stood 28 deg turned to the counter after
+  the cube's step in, and its arm's way home dragged a jaw along the
+  counter's top: it turned the robot 23 deg and toppled it, a second into
+  the grade's hold (four cube jobs in six, from the station).
+
+TBD-559-MEASURED
+
 ## Debugging workflow that worked
 
 1. Reproduce headlessly with printed telemetry (pose, joint rates, contact
