@@ -97,10 +97,12 @@ def test_every_text_surface_is_a_registry_row():
   assert thoughts.NAMES == THOUGHT_FILES
   assert procedures.Library(None).cap == text.BY_NAME["procedures"].cap == text.MAX_PROCEDURES
   assert procedures.SUFFIX == text.BY_NAME["procedures"].suffix
-  # ⚠ A CONVERSATION WITH A VISITOR IS ONE NUMBER BOTH WAYS (#474): what
-  # the door keeps of theirs and what the robot may reply, off one row.
+  # ⚠ WHAT THE DOOR KEEPS OF A VISITOR'S IS THE VISITOR ROW'S (#474), and
+  # what the robot may write back is its own cap (rooftop-media-2026
+  # #465), read by the overseer and by the door that hands its lines back.
   # The other robot's sentence is its own row's.
-  assert inbox.MAX_TEXT == text.BY_NAME["visitor"].cap == ov.MAX_REPLY
+  assert inbox.MAX_TEXT == text.BY_NAME["visitor"].cap == text.MAX_VISITOR_CHARS
+  assert ov.MAX_REPLY == inbox.MAX_OWN_TEXT == text.MAX_REPLY_CHARS
   assert inbox.MAX_SENT == {text.VISITOR: inbox.MAX_TEXT,
                             text.PEER: text.BY_NAME["peer"].cap}
   assert ov.MAX_TELL == text.BY_NAME["peer"].cap == text.MAX_TELL_CHARS
