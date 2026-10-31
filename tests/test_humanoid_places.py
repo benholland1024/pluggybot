@@ -48,6 +48,15 @@ def test_a_look_lays_the_counters_tags_where_they_are_and_the_row_its_facing(cou
   assert how == "fixture" and abs(math.remainder(facing - math.pi, 2 * math.pi)) < math.radians(4)
 
 
+def test_its_places_are_the_tags_its_world_puts_up(counter):
+  """What a look records (`place_tags`, off the world it is in) is what its
+  procedures may name in a `find` (`world_config`'s `places`): a tag on one
+  list and not the other is a find that can never succeed."""
+  from pluggybot.lifecycle import HUMANOID_HOME, world_config
+  model, data, body = counter
+  assert set(body.places.ids) == set(world_config(HUMANOID_HOME)["places"])
+
+
 def test_find_says_where_it_found_its_place_in_the_map(counter):
   """`find` of a place in view: ok at once, and `find.x`, `find.y` and
   `find.facing` read where the robot remembers it -- what a procedure walks

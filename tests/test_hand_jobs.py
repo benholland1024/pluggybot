@@ -288,3 +288,81 @@ def test_a_jobs_watch_ends_with_its_job_however_it_ends(tmp_path):
   life.body.run(life.body.hold_routine(1.5))
   assert task.id not in life._job_watches
   assert not any(isinstance(h, drawer.Watch) for h in life.body.step_hooks)
+
+
+def test_no_offer_lands_on_a_prop_a_robot_is_touching(tmp_path, monkeypatch):
+  """An offer sets its prop out, so none lands on one a robot is touching
+  (`_worked_props`, the producer's `busy`): set out from under a hand, a
+  door was clamped shut round it, and a drawer left out was a job paid for
+  nothing. Let go, it is offered, and set out shut."""
+  life = _life(tmp_path)
+  life.producer = task_producer(life.tasks, HUMANOID_HOME, procedures=True)
+  slide = _joint_q(life, "drawer_slide")
+  life.data.qpos[slide] = 0.2                      # a hand on its knob, left out
+  held = {"drawer"}
+  monkeypatch.setattr(storeroom, "touched_by", lambda model, data, prop, geoms: prop in held)
+
+  def offered() -> set:
+    for _ in range(4):
+      life.data.time += 600.0
+      life._task_step()
+    return {t.target for t in life.tasks.tasks.values()}
+  assert offered() == {"door", "chest"}
+  assert life.data.qpos[slide] == 0.2, "left as the hand has it"
+  held.clear()
+  assert "drawer" in offered() and life.data.qpos[slide] == 0.0
+
+
+def test_a_jobs_readings_ride_a_restart(tmp_path):
+  """A restart is a continuation (#345): a job's watch carries on from what
+  it read before it -- a lid it saw opened and lowered is still one that
+  was opened (a fresh watch failed it, "the lid never opened"), and a fall
+  it saw still counts against it."""
+  life = _life(tmp_path)
+  task = _offer(life, "open_chest")
+  assert life._claim_task(task.id)
+  watch = life._job_watches[task.id]
+  hinge = _joint_q(life, "chest_hinge")
+  life.data.qpos[hinge] = 1.2
+  watch()
+  life.data.qpos[hinge] = 0.0
+  life.body.falls = 1
+  watch()
+  state, arrays = life.kept_state()
+  again = _life(tmp_path)                       # the same board, a world compiled anew
+  again.restore_kept(state, arrays, in_place=True)
+  again._resume_jobs(None)
+  carried = again._job_watches[task.id]
+  assert carried.top == pytest.approx(1.2)
+  assert carried.falls() == 1, "a restart's body counts its falls from its own"
+
+
+def test_a_job_with_nothing_to_watch_is_settled_never_left_standing(tmp_path, monkeypatch):
+  """A job graded in a world without its prop -- a body changed under it --
+  is failed through the same door (a missing measurement is no pass),
+  never left active, holding its prop's offers off for good."""
+  life = _life(tmp_path)
+  task = _offer(life, "open_drawer")
+  assert life._claim_task(task.id)
+  life._unwatch_job(task.id)
+  monkeypatch.setattr(life, "_watch_job", lambda task_id: None)
+  verdict = _grade(life, task.id)
+  assert not verdict["ok"] and verdict["reason"].startswith("this world has no drawer")
+  assert life.tasks.get(task.id).state == "failed"
+
+
+def test_an_offer_shuts_and_bolts_a_door_left_open(tmp_path):
+  """A prop's activity is begun again IN PLACE (`Door.renew`): a door left
+  open with its latch tripped is set out shut, its latch bolted round it --
+  the hinge's range in the model -- and its activity says so."""
+  life = _life(tmp_path)
+  act = life._counter_activity("door")
+  hinge = life.model.joint("door_hinge").id
+  q = int(life.model.jnt_qposadr[hinge])
+  act.bolted = False
+  act._limit(life.model)
+  life.data.qpos[q] = 1.0
+  _offer(life, "open_door")
+  assert life._counter_activity("door") is act, "renewed in place, never swapped"
+  assert act.bolted and life.data.qpos[q] == 0.0
+  assert life.model.jnt_range[hinge][1] == pytest.approx(dd.SHUT_RAD)

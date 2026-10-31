@@ -657,8 +657,13 @@ class HubLifecycle:
     #: whatever the same answer queued has run. Empty is nothing pending.
     self._grade_pending = ""
     #: The hand jobs' watches, by task id (#559, `_watch_job`): this robot's,
-    #: kept from each claim to its grade's hold.
+    #: kept from each claim to its grade's hold -- and the readings a
+    #: restart brought back for them, until each is taken up again.
     self._job_watches: dict = {}
+    self._kept_watches: dict = {}
+    #: Every robot's geoms, what touching a prop is read against
+    #: (`_worked_props`), once asked.
+    self._robot_geoms: set | None = None
     #: ...and every grade the loop ran, for the run record: the task, the
     #: verdict, what touched the tower during the hold.
     self.grades: list[dict] = []
@@ -4871,27 +4876,32 @@ class HubLifecycle:
                    f"{task.kind}: {verdict.reason}")
     self._occur("task_complete" if verdict.ok else "task_failed", task.kind)
 
-  def _watch_job(self, task_id: str) -> None:
+  def _watch_job(self, task_id: str):
     """A hand job's watch from its claim (#559): its check's grader reading
     the prop and this robot's body every physics step -- the most it moved,
-    the fastest, a fall -- until its grade's hold is over. Nothing for any
-    other job. ⚠ A RESTART FORGETS WHAT IT SAW BEFORE: the watch is the
-    process's, begun again where the job is taken up (`_resume_jobs`); the
-    time the job gives still counts from its claim."""
+    the fastest, a fall -- until its grade's hold is over; None for any
+    other job, or in a world without its prop. Taken up after a restart
+    (`_resume_jobs`), it carries on from the readings the save kept
+    (`kept_state`'s `jobWatches`)."""
     task = self.tasks.get(task_id) if self.tasks is not None else None
-    if task is None or task_id in self._job_watches:
-      return
+    if task is None:
+      return None
+    if task_id in self._job_watches:
+      return self._job_watches[task_id]
     from pluggybot.economy.tasks import KINDS
     check = HAND_JOBS.get(KINDS[task.kind].task) if task.kind in KINDS else None
     if check is None:
-      return
-    module, prop = _hand_grader(check)
+      return None
     try:
-      watch = module.Watch(self.model, self.data, self.body, prop)
+      watch = _hand_grader(check).Watch(self.model, self.data, self.body, task.target)
     except KeyError:
-      return                              # a world without the prop
+      return None                         # a world without the prop
+    kept = self._kept_watches.pop(task_id, None)
+    if kept is not None:
+      watch.restore_kept(kept)
     self.body.step_hooks.append(watch)
     self._job_watches[task_id] = watch
+    return watch
 
   def _unwatch_job(self, task_id: str):
     watch = self._job_watches.pop(task_id, None)
@@ -4912,32 +4922,32 @@ class HubLifecycle:
     from pluggybot.home import storeroom
     kind = KINDS[task.kind]
     check = HAND_JOBS[kind.task]
-    module, prop = _hand_grader(check)
+    module, prop = _hand_grader(check), task.target
     t0 = float(self.data.time)
-    watch = self._job_watches.get(task.id)
+    watch = self._watch_job(task.id)
+    measured, failed = {}, ""
     if watch is None:
-      self._watch_job(task.id)
-      watch = self._job_watches.get(task.id)
-    if watch is None:
-      self._say(f"GRADE {task.id}: this world has no {prop}")
-      return
-    at_call = module.measure(self.model, self.data, prop)
-    watch.hold()
-    self._say(f"GRADE {task.id}: holding {module.HOLD_S:.0f} s, standing clear")
-    try:
-      while float(self.data.time) - t0 < module.HOLD_S:
-        yield self.body.STILL
-    finally:
-      self._unwatch_job(task.id)
-    minutes = task.params.get("minutes")
-    draw = task.secret.get("draw")
-    measured = scoring.SAMPLERS[kind.task](
-      self, None, None, {"at_call": at_call, "watch": watch,
-                         "started": task.claimed_t if task.claimed_t is not None else t0,
-                         "limitS": 60.0 * float(minutes) if minutes else None,
-                         "catchN": (storeroom.drawn(prop, int(draw)).catch_n
-                                    if check == "lid" and draw is not None else None)})
-    verdict = scoring.evaluate(kind.task, measured)
+      # ...settled all the same, never left standing: an active job holds
+      # its prop's offers off for good (a missing measurement is no pass)
+      failed = f"this world has no {prop}"
+    else:
+      at_call = module.measure(self.model, self.data, prop)
+      watch.hold()
+      self._say(f"GRADE {task.id}: holding {module.HOLD_S:.0f} s, standing clear")
+      try:
+        while float(self.data.time) - t0 < module.HOLD_S:
+          yield self.body.STILL
+      finally:
+        self._unwatch_job(task.id)
+      minutes = task.params.get("minutes")
+      draw = task.secret.get("draw")
+      measured = scoring.SAMPLERS[kind.task](
+        self, None, None, {"at_call": at_call, "watch": watch,
+                           "started": task.claimed_t if task.claimed_t is not None else t0,
+                           "limitS": 60.0 * float(minutes) if minutes else None,
+                           "catchN": (storeroom.drawn(prop, int(draw)).catch_n
+                                      if check == "lid" and draw is not None else None)})
+    verdict = scoring.evaluate(kind.task, measured, failed=failed)
     entry = self._bank(verdict)
     closed = self.tasks.resolve(task.id, verdict, t=float(self.data.time))
     if closed is not None:
@@ -5356,12 +5366,14 @@ class HubLifecycle:
     return None
 
   def _set_out_counter(self, task) -> None:
-    """A hand job's offer sets its prop out (#559): its hidden dynamics drawn
-    afresh -- the offer's secret draw (`storeroom.redraw`), its activity's
-    truth with them -- and, where nothing of a robot touches it, the prop
-    back at rest, its activity begun again (the door latched, the lid
-    caught). One a robot is at is left where it is, being worked. Silent for
-    any other kind; idempotent, as a pair hooks one board twice."""
+    """A hand job's offer sets its prop out (#559): the prop back at rest,
+    its hidden dynamics drawn afresh -- the offer's secret draw
+    (`storeroom.redraw`) -- and its activity begun again over that draw's
+    truth (the door latched, the lid caught). No offer lands on a prop a
+    robot is touching (`_worked_props`): set out from under a hand, a door
+    was clamped shut round it, and a drawer left out was a job paid for
+    nothing. Silent for any other kind; idempotent, as a pair hooks one
+    board twice."""
     from pluggybot.economy.tasks import KINDS
     if task is None or task.kind not in KINDS or not KINDS[task.kind].draws:
       return
@@ -5371,29 +5383,34 @@ class HubLifecycle:
         mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_BODY, prop) < 0:
       self._say(f"TASK {task.id}: this world has no {prop} to set out")
       return
-    robots = set()
-    for root in robot_roots(self.model):
-      robots |= robot_geoms(self.model, root)
-    worked = storeroom.touched_by(self.model, self.data, prop, robots)
-    if not worked:
-      storeroom.set_out(self.model, self.data, prop)
+    storeroom.set_out(self.model, self.data, prop)
     storeroom.redraw(self.model, self.data, prop, int(k))
     act = self._counter_activity(prop)
     if act is not None:
-      fresh = storeroom.activity_for(self.model, self.data, prop, int(k))
-      if worked:
-        storeroom.draw_into(act, fresh)
-      else:
-        self.activities.activities[self.activities.activities.index(act)] = fresh
-    self._say(f"TASK {task.id}: the {prop} is set out" + (" -- a robot is at it, so "
-                                                          "it is left where it is"
-                                                          if worked else ""))
+      act.renew(self.model, storeroom.drawn(prop, int(k)))
+    self._say(f"TASK {task.id}: the {prop} is set out")
+
+  def _worked_props(self) -> set:
+    """The storeroom counter's props a robot is touching now (#559): no
+    target for an offer until it lets go. Asked only when an offer is due
+    (`TaskProducer.tick`'s `busy`)."""
+    from pluggybot.home import storeroom
+    if mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_BODY, "store_counter") < 0:
+      return set()
+    if self._robot_geoms is None:
+      self._robot_geoms = set()
+      for root in robot_roots(self.model):
+        self._robot_geoms |= robot_geoms(self.model, root)
+    return {p for p in storeroom.PROPS
+            if storeroom.touched_by(self.model, self.data, p, self._robot_geoms)}
 
   def restore_counter(self) -> None:
     """After a restart (#559): the world file carries each prop's compiled
     draw, and the newest offer on it still means the one it drew -- its
-    dynamics and its activity's truth put back, the prop where the world
-    left it."""
+    dynamics put back and its activity begun again over its truth. ⚠ HERE,
+    IN `begin`, BEFORE A CONTINUATION PUTS THE ACTIVITIES' KEPT STATE BACK
+    (`continuation.restore`): the prop where the world left it, a door's
+    latch as it was."""
     if self.tasks is None:
       return
     from pluggybot.economy.tasks import KINDS
@@ -5411,7 +5428,7 @@ class HubLifecycle:
       storeroom.redraw(self.model, self.data, prop, k)
       act = self._counter_activity(prop)
       if act is not None:
-        storeroom.draw_into(act, storeroom.activity_for(self.model, self.data, prop, k))
+        act.renew(self.model, storeroom.drawn(prop, k))
 
   def _task_step(self) -> None:
     """Put up whatever is due and lapse whatever nobody got to.
@@ -5441,7 +5458,8 @@ class HubLifecycle:
                     if (self.tasks.get(t) is None or self.tasks.get(t).state != "active")]:
       self._unwatch_job(task_id)
     if self.producer is not None:
-      for task in self.producer.tick(float(self.data.time), self.fundable_wh):
+      for task in self.producer.tick(float(self.data.time), self.fundable_wh,
+                                     busy=self._worked_props):
         self._say(f"TASK {task.id} offered: {task.description}")
 
   def _metabolism_step(self) -> None:
@@ -6367,6 +6385,10 @@ class HubLifecycle:
                  "nearField": self._next_near_field},
       "clearedRack": self._cleared_rack, "deferrals": dict(self._deferrals),
       "gradePending": self._grade_pending,
+      # ...and what each hand job's watch has read since its claim (#559):
+      # a lid opened before a restart is still a lid that was opened
+      "jobWatches": {task_id: watch.kept_state()
+                     for task_id, watch in self._job_watches.items()},
       # ...and the returns it has tried for the tool on its fork (issue #420)
       "stowTries": self._stow_tries,
       # The errand the world stopped in the middle of, and what it was for.
@@ -6428,6 +6450,9 @@ class HubLifecycle:
       self._fall = state.get("fall")
       self._cleared_rack = bool(state.get("clearedRack"))
       self._stow_tries = int(state.get("stowTries", 0))
+      # ...the hand jobs' readings with the props they were read off, put
+      # back as each job is taken up (`_resume_jobs` -> `_watch_job`)
+      self._kept_watches = dict(state.get("jobWatches") or {})
     self.dead = dict(state["dead"]) if state.get("dead") else None
     self.survival_since = float(state.get("survivalSince", self.survival_since))
     self._last_ask_t = float(state.get("lastAskT", self._last_ask_t))
@@ -7276,11 +7301,10 @@ GAME_TARGET = "home"
 
 
 def _hand_grader(check: str):
-  """A hand job's check (`tasks.HAND_JOBS`'s value): its grader's module
-  and the prop it grades, by the prop's name in the world."""
+  """A hand job's check (`tasks.HAND_JOBS`'s value): its grader's module.
+  The prop it grades is the job's target."""
   from pluggybot.challenge import door, drawer, lid, place
-  return {"drawer": (drawer, "drawer"), "door": (door, "door"),
-          "place": (place, "cube"), "lid": (lid, "chest")}[check]
+  return {"drawer": drawer, "door": door, "place": place, "lid": lid}[check]
 
 
 def world_targets(world: str, book=None, procedures: bool = False,

@@ -110,9 +110,14 @@ class Cube(Activity):
 
   def __init__(self, model, data, load: Load, surface_z: float, name: str = "cube") -> None:
     super().__init__(name)
-    self.load = load
     self.body = int(model.body(name).id)
     self.surface_z = float(surface_z)
+    self.renew(model, load)
+
+  def renew(self, model, load: Load) -> None:
+    """Begun again over `load`, a cube set out afresh (#559's counter): on
+    its board, its threshold clear."""
+    self.load = load
     self.lifted = Threshold(on=LIFT_ON, off=LIFT_ON / 2)
     self.set(lifted=False)
 

@@ -312,8 +312,14 @@ class Chest(Activity):
 
   def __init__(self, model, data, lid: Lid, name: str = "chest") -> None:
     super().__init__(name)
-    self.lid = lid
     self.rebind(model, data)
+    self.renew(model, lid)
+
+  def renew(self, model, lid: Lid) -> None:
+    """Begun again over `lid`, a chest set out afresh (#559: each offer on
+    the storeroom's counter draws its own): shut and caught, its
+    thresholds clear."""
+    self.lid = lid
     self.open = Threshold(on=OPEN_ON, off=OPEN_OFF)
     self.past = Threshold(on=OPENED_RAD, latch=True)
     self.held = Threshold(on=CAUGHT_ON, off=CAUGHT_OFF)

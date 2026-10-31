@@ -81,38 +81,21 @@ WEIGH = '''def weigh():
   stow()
 '''
 
-#: THE HUMANOIDS' HAND JOBS (#559, stage 3), on the storeroom's counter
-#: (`home.storeroom`), each TWO procedures -- one would pass the language's
-#: cap (`lang.MAX_SOURCE_CHARS`), as it would for a robot. The WALK THERE:
-#: the tag beside the prop's in the row found round the facility's address,
-#: then the prop's own, so the row's two give the wall's way (`mapping.
-#: places.Fixture`) -- a find stops at its tag's first sight, and the
-#: cube's alone, through the storeroom's door from the lobby, put the walk's
-#: `face` 17 deg off; a walk to stand 1.3 m out of the wall's face and 0.2 m
-#: to its right -- the counter's depth and a little more: nearer, the
-#: planner's margin round the counter takes the goal -- and a turn to face
-#: the wall. Then the prop's turn off the face of its handle's tag read from
-#: there -- its front, whose normal is level; read nearer, a face seen
-#: obliquely gave 43 deg -- and ONE step turning to stand `STANCE` LEFT of
-#: square to it and walking to 30 cm short of where the check's set-outs'
-#: middle had the handle (`storeroom.HANDLE_FROM_SPOT`); and a fresh look
-#: and the last 30 cm. ⚠ THE STANCE IS THE CHECKS' PROCEDURES' (flown, a
-#: draw a flight): turned 5-10 deg left the drawer, the door and the chest
-#: passed 8, 8 and 6 of 8; squared, or 3 deg left, the arm's way home pushed
-#: the drawer 4 cm back in and the door opened 44 deg; the chest let its lid
-#: fall at 12 deg; and a stance lands 4-5 deg either side of the one asked
-#: (the turn, the step's own, the face's read); and one tag's way, not the row's,
-#: left a robot 28 deg the other way and its arm's way home dragged a jaw
-#: along the counter and toppled it. ⚠ A STEP OF 0.3 M LANDS: a step after
-#: a turn falls a tenth short (0.39 m of 0.43), and a short one goes a
-#: stride, overshooting 0.10-0.20 m by up to 3.6 cm (`step` from rest; a
-#: door's lever 3 cm too near was gripped on nothing five times). Then THE
-#: JOB, the capability check's own procedure, unchanged (`evaluation.
-#: hands_check.JOBS`), the drawer's changed (`_drawer_job`).
+#: THE HUMANOIDS' HAND JOBS (#559, stage 3; SimNotes, "The humanoids' first
+#: jobs", has what flying took): each TWO procedures, one would pass the
+#: language's cap (`lang.MAX_SOURCE_CHARS`). The walk there finds the row's
+#: NEIGHBOUR first (a find stops at its tag's first sight, and one tag alone
+#: left the walk's `face` 17-20 deg off the wall), stands 1.3 m out of the
+#: wall's face (nearer, the planner's margin round the counter takes the
+#: goal), turns ONCE off the handle's tag read from there to `STANCE`, steps
+#: to 30 cm short, then looks again and steps the last 30 cm (a step after a
+#: turn falls a tenth short; a short one overshoots by up to 3.6 cm). Then
+#: the check's own procedure (`evaluation.hands_check.JOBS`; the drawer's is
+#: `DRAWER_JOB`).
 APPROACH = '''def to_%(prop)s():
   budget(steps=16, seconds=900)
-  find(%(beside)d, 25.2, -2.4, 600)
-  find(%(row)d, 25.2, -2.4, 600)
+  find(%(beside)d, %(ax)g, %(ay)g, 600)
+  find(%(row)d, %(ax)g, %(ay)g, 600)
   f = read("find.facing")
   drive_to(read("find.x") + 1.3 * cos(f) - 0.2 * sin(f), read("find.y") + 1.3 * sin(f) + 0.2 * cos(f), 180)
   face(f + 3.14159 - 6.28318 * (f > 0))
@@ -132,33 +115,59 @@ APPROACH = '''def to_%(prop)s():
 
 
 #: How far LEFT of square to its prop the robot stands at each, rad: where
-#: its check's procedure passed, with room for the 4-5 deg a stance lands
-#: either side of the one asked (the comment above).
+#: its check's procedure passed (squared, its arm's way home pushed the
+#: drawer back in and the door opened only 44 deg), with room for the 4-5
+#: deg a stance lands either side of the one asked.
 STANCE = {"drawer": 0.25, "door": 0.2, "chest": 0.12, "cube": 0.15}
 
 
-def _drawer_job() -> str:
-  """The drawer's job, its check's procedure with its pull 4 cm longer (its
-  runners stop at 24) and its open hand drawn back off the knob, along the
-  pull, before its way home: flown over the tour, the way home pushed a
-  drawer pulled 17 cm out back under the 15 it must be, 4 times in 7."""
-  from pluggybot.evaluation import hands_check
-  pulled = '    pull("left", -fx, -fy, 0, 15, 0.18)\n'
-  home = '  open_hand("left")\n  withdraw("left")\n'
-  assert hands_check.DRAWER.count(pulled) == 1 and hands_check.DRAWER.endswith(home)
-  return hands_check.DRAWER.replace(pulled, pulled.replace("0.18", "0.22"))[:-len(home)] + (
-    '  open_hand("left")\n'
-    '  if not move_hand("left", read("left.x") - 0.06 * fx, read("left.y") - 0.06 * fy, '
-    'read("left.z") + 0.02):\n'
-    '    pass\n'
-    '  withdraw("left")\n')
+#: The drawer's job: its check's procedure (`hands_check.DRAWER`) pulling to
+#: 0.22 m, not 0.18 (its runners stop at 0.24), and drawing the open hand
+#: back off the knob along the pull before its way home, which from the
+#: knob pushed a drawer pulled 17 cm back under the 15 it must be, 5 times
+#: in 8 over the tour.
+DRAWER_JOB = '''def open_drawer():
+  budget(steps=40, seconds=60)
+  spot(54)
+  x = read("spot.x") + 0.013 * read("spot.nx")
+  y = read("spot.y") + 0.013 * read("spot.ny")
+  z = read("spot.z") + 0.013 * read("spot.nz")
+  a = atan2(read("spot.ey"), read("spot.ex"))
+  while a > 0.79:
+    a = a - 1.571
+  while a < -0.79:
+    a = a + 1.571
+  fx = cos(a)
+  fy = sin(a)
+  g = 0
+  t = 0.26
+  for i in range(4):
+    if g == 0:
+      open_hand("left")
+      if reach("left", x, y, z, fx * cos(t), fy * cos(t), -sin(t), -fy, fx, 0):
+        g = 2
+    if g == 2:
+      if close_hand("left"):
+        g = 1
+      else:
+        g = 0
+        withdraw("left")
+    t = t - 0.26
+  if g == 1:
+    pull("left", -fx, -fy, 0, 15, 0.22)
+  open_hand("left")
+  if not move_hand("left", read("left.x") - 0.06 * fx, read("left.y") - 0.06 * fy, read("left.z") + 0.02):
+    pass
+  withdraw("left")
+'''
 
 
 def _hands_job(check: str, prop: str) -> tuple[str, str]:
-  """A hand job's reference: the walk to its prop (`APPROACH`), then its
-  check's procedure (`evaluation.hands_check.JOBS`) -- the drawer's as
-  `_drawer_job` changes it."""
+  """A hand job's reference: the walk to its prop (`APPROACH`), searching
+  round the address its offer gives (`home.places.area`), then its check's
+  procedure (`evaluation.hands_check.JOBS`) -- the drawer's `DRAWER_JOB`."""
   from pluggybot.evaluation import hands_check
+  from pluggybot.home import places as addresses
   from pluggybot.home import storeroom
   from pluggybot.rack import tags
   handle = {"chest": tags.CHEST_TAG_IDS, "drawer": tags.DRAWER_TAG_IDS,
@@ -166,10 +175,12 @@ def _hands_job(check: str, prop: str) -> tuple[str, str]:
   ahead, left = storeroom.HANDLE_FROM_SPOT[prop]
   i = storeroom.PROPS.index(prop)
   beside = storeroom.PROPS[i + 1 if i + 1 < len(storeroom.PROPS) else i - 1]
+  address = addresses.area(prop)["address"]
   return (APPROACH % {"prop": prop, "row": storeroom.TAGS[prop],
                       "beside": storeroom.TAGS[beside], "handle": handle,
+                      "ax": address["x"], "ay": address["y"],
                       "ahead": ahead, "left": left, "stance": STANCE[prop]},
-          _drawer_job() if prop == "drawer" else hands_check.JOBS[check])
+          DRAWER_JOB if prop == "drawer" else hands_check.JOBS[check])
 
 
 DRAWER = _hands_job("drawer", "drawer")

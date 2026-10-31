@@ -203,7 +203,6 @@ class Door(Activity):
 
   def __init__(self, model, data, hinge: Hinge, name: str = "door") -> None:
     super().__init__(name)
-    self.hinge = hinge
     self._model = model
     self.open_adr = int(model.sensor(f"{name}_open").adr[0])
     self.lever_adr = int(model.sensor(f"{name}_pressed").adr[0])
@@ -213,6 +212,13 @@ class Door(Activity):
     self.door_q = int(model.jnt_qposadr[door])
     self.door_dof = int(model.jnt_dofadr[door])
     self.lever_q = int(model.jnt_qposadr[lever])
+    self.renew(model, hinge)
+
+  def renew(self, model, hinge: Hinge) -> None:
+    """Begun again over `hinge`, a door set out afresh (#559's counter):
+    shut, its latch bolted round it -- the hinge's range in the model --
+    its thresholds clear."""
+    self.hinge = hinge
     self.open = Threshold(on=OPEN_ON, off=OPEN_OFF)
     self.past = Threshold(on=OPENED_RAD, latch=True)
     self.bolted = True

@@ -168,6 +168,26 @@ def next_viewpoint(near: tuple[float, float], here: tuple[float, float],
   return pick((x, y, True) for x, y in lattice if (x, y) not in mapped)
 
 
+def world_places(model) -> tuple[list[int], tuple]:
+  """The place tags a world puts up, and their fixtures: the lab's plate
+  signs, the whiteboards' tags (#406) and the claw's and the census's
+  areas' (#407), where the world has them -- each where its body is."""
+  from pluggybot.home import areas
+  from pluggybot.rack.tags import BOARD_TAG_IDS
+  from pluggybot.tools.drawing import board_fixture
+  signs = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_BODY, "lab_feed_sign") >= 0
+  boards = [name for name, (tag, _) in BOARD_TAG_IDS.items()
+            if mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_BODY, f"{name}_tag{tag}") >= 0]
+  found = {t for area, tags in areas.area_tags().items() for t, *_ in tags
+           if mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_BODY, f"{area}_tag{t}") >= 0}
+  ids = [*(cage.PLATE_TAGS.values() if signs else ()),
+         *(t for name in boards for t in BOARD_TAG_IDS[name]), *sorted(found)]
+  fixtures = (((cage.sign_row(),) if signs else ())
+              + tuple(board_fixture(name) for name in boards)
+              + tuple(f for f in areas.area_fixtures() if set(f.layout) <= found))
+  return ids, fixtures
+
+
 class PlaceWalk:
   """The places' routines (the module docstring), on `QuadMission`."""
 
@@ -181,23 +201,9 @@ class PlaceWalk:
     self._foot_gids = [model.geom(self.handle.el(f"{leg}_foot")).id for leg in LEGS]
 
   def _init_places(self, model) -> None:
-    from pluggybot.home import areas
-    from pluggybot.rack.tags import BOARD_TAG_IDS
-    from pluggybot.tools.drawing import board_fixture
-    signs = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_BODY, "lab_feed_sign") >= 0
-    boards = [name for name, (tag, _) in BOARD_TAG_IDS.items()
-              if mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_BODY, f"{name}_tag{tag}") >= 0]
-    found = {t for area, tags in areas.area_tags().items() for t, *_ in tags
-             if mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_BODY, f"{area}_tag{t}") >= 0}
-    #: What it has found (`mapping.places`): the lab's plate signs, the
-    #: whiteboards' tags (#406) and the claw's and the census's areas' (#407),
-    #: where the world has them.
-    self.places = Places(
-      ids=[*(cage.PLATE_TAGS.values() if signs else ()),
-           *(t for name in boards for t in BOARD_TAG_IDS[name]), *sorted(found)],
-      fixtures=((cage.sign_row(),) if signs else ())
-      + tuple(board_fixture(name) for name in boards)
-      + tuple(f for f in areas.area_fixtures() if set(f.layout) <= found))
+    ids, fixtures = self._world_places(model)
+    #: What it has found (`mapping.places`), of the places its world puts up.
+    self.places = Places(ids=ids, fixtures=fixtures)
     self._rebind_places(model)
     #: When and from where it last looked for places (the walking look).
     self._place_look: tuple[float, tuple[float, float, float] | None] = (-math.inf, None)
@@ -205,6 +211,10 @@ class PlaceWalk:
     #: The last find's and the last press's records.
     self.last_find: dict | None = None
     self.last_press: dict | None = None
+
+  def _world_places(self, model) -> tuple[list[int], tuple]:
+    """The places a body looks for: its world's (`world_places`)."""
+    return world_places(model)
 
   # ---- looking ------------------------------------------------------------------
 

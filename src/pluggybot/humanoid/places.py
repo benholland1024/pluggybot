@@ -22,37 +22,22 @@ import math
 import mujoco
 import numpy as np
 
-from pluggybot.legs.places import PlaceWalk
-from pluggybot.mapping.places import CLOSE_M, OBLIQUE_RAD, Places
+from pluggybot.legs.places import PlaceWalk, world_places
+from pluggybot.mapping.places import CLOSE_M, OBLIQUE_RAD
 
 #: The camera a place is looked for by: the head's, pitched for the walls.
 NAV_CAMERA = "nav_eye"
 
 
-def place_tags(model) -> tuple[tuple[int, ...], tuple]:
-  """The place tags this world puts up, and their fixtures: the lab's plate
-  signs, the whiteboards', the areas' (#407) and the storeroom's counter's
-  row (#559) -- each where its body is in the world."""
-  from pluggybot.activity import cage
-  from pluggybot.home import areas, storeroom
-  from pluggybot.rack.tags import BOARD_TAG_IDS
-  from pluggybot.tools.drawing import board_fixture
-
-  def has(name: str) -> bool:
-    return mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_BODY, name) >= 0
-  signs = has("lab_feed_sign")
-  boards = [n for n, (tag, _) in BOARD_TAG_IDS.items() if has(f"{n}_tag{tag}")]
-  found = {t for area, tags in areas.area_tags().items() for t, *_ in tags
-           if has(f"{area}_tag{t}")}
-  row = has(f"store_tag{storeroom.TAGS[storeroom.PROPS[0]]}")
-  ids = [*(cage.PLATE_TAGS.values() if signs else ()),
-         *(t for n in boards for t in BOARD_TAG_IDS[n]), *sorted(found),
-         *(storeroom.TAGS.values() if row else ())]
-  fixtures = (((cage.sign_row(),) if signs else ())
-              + tuple(board_fixture(n) for n in boards)
-              + tuple(f for f in areas.area_fixtures() if set(f.layout) <= found)
-              + ((storeroom.fixture(),) if row else ()))
-  return tuple(ids), fixtures
+def place_tags(model) -> tuple[list[int], tuple]:
+  """The place tags this world puts up, and their fixtures: the house's
+  (`legs.places.world_places`) and the storeroom's counter's row (#559)."""
+  from pluggybot.home import storeroom
+  ids, fixtures = world_places(model)
+  if mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_BODY,
+                       f"store_tag{storeroom.TAGS[storeroom.PROPS[0]]}") >= 0:
+    ids, fixtures = [*ids, *storeroom.TAGS.values()], (*fixtures, storeroom.fixture())
+  return ids, fixtures
 
 
 class HumanoidPlaces(PlaceWalk):
@@ -62,15 +47,11 @@ class HumanoidPlaces(PlaceWalk):
     self._pads, self._foot_gids = {}, []
 
   def _init_places(self, model) -> None:
-    ids, fixtures = place_tags(model)
-    #: What it has found (`mapping.places`), where the world has places.
-    self.places = Places(ids=ids, fixtures=fixtures)
-    self._rebind_places(model)
-    self._place_look: tuple[float, tuple[float, float, float] | None] = (-math.inf, None)
-    self._keep_out = None
-    self.last_find: dict | None = None
-    self.last_press: dict | None = None
+    super()._init_places(model)
     self._nav_tags = None
+
+  def _world_places(self, model) -> tuple[list[int], tuple]:
+    return place_tags(model)
 
   def _place_detector(self):
     if self._nav_tags is None:

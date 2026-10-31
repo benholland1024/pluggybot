@@ -286,8 +286,8 @@ def set_out(model, data, prop: str) -> None:
   """A prop back as the world compiled it: every joint of it at its rest
   (`qpos0`) and still -- the drawer shut, the door shut with its lever up,
   the lid down, the cube on its board. Its activity is the caller's to
-  build afresh after (`activity_for`): the door's latch bolts on a door
-  already shut."""
+  begin again after (`renew`): the door's latch bolts on a door already
+  shut."""
   for b in _subtree(model, prop):
     for j in range(int(model.body_jntadr[b]), int(model.body_jntadr[b] + model.body_jntnum[b])):
       q, v = int(model.jnt_qposadr[j]), int(model.jnt_dofadr[j])
@@ -298,20 +298,10 @@ def set_out(model, data, prop: str) -> None:
       data.qfrc_applied[v:v + nv] = 0.0
 
 
-#: Each prop's activity's truth, by the attribute it keeps it in.
-TRUTH = {"chest": "lid", "drawer": "runners", "door": "hinge", "cube": "load"}
-
-
-def draw_into(act, fresh) -> None:
-  """A prop's activity given a fresh draw's truth, its state kept: a prop a
-  robot is working, or one a restart brought back as it was."""
-  name = TRUTH[act.name]
-  setattr(act, name, getattr(fresh, name))
-
-
 def touched_by(model, data, prop: str, geoms) -> bool:
   """Whether anything of `geoms` (a robot's) touches the prop: one being
-  worked is left as it is."""
+  worked is no target for an offer, which would set it out from under the
+  hand (`HubLifecycle._worked_props`)."""
   from pluggybot.rack.coupling import contact_pairs
   mine = set(_subtree(model, prop))
   own = np.isin(model.geom_bodyid, list(mine))

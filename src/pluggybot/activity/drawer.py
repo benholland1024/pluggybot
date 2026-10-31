@@ -159,8 +159,13 @@ class Drawer(Activity):
 
   def __init__(self, model, data, runners: Runners, name: str = "drawer") -> None:
     super().__init__(name)
-    self.runners = runners
     self.sensor_adr = int(model.sensor(f"{name}_out").adr[0])
+    self.renew(model, runners)
+
+  def renew(self, model, runners: Runners) -> None:
+    """Begun again over `runners`, a drawer set out afresh (#559's
+    counter): shut, its thresholds clear."""
+    self.runners = runners
     self.open = Threshold(on=OPEN_ON, off=OPEN_OFF)
     self.past = Threshold(on=OPENED_M, latch=True)
     self.set(drawer="shut", opened=False)
