@@ -42,7 +42,7 @@ WORLD = "home_quad"
 
 
 def _other(frac=0.8, wh=4.0, reserve=0.95, hunger="fed", points=30,
-           holds=False, carrying=False):
+           holds=False, carrying=False, rack=True):
   task = SimpleNamespace(claimed_by="r2_pluggybot", state="active")
   return SimpleNamespace(
     battery=SimpleNamespace(fraction=frac, energy_wh=wh),
@@ -52,7 +52,8 @@ def _other(frac=0.8, wh=4.0, reserve=0.95, hunger="fed", points=30,
     tasks=SimpleNamespace(tasks={"t_1": task} if holds else {}),
     root="r2_pluggybot",
     body=SimpleNamespace(module_state=lambda m: {"on_fork": carrying}),
-    module="module_claw" if (holds or carrying) else "")
+    rack_inventory={"module_claw": 4} if rack else {},
+    module="module_claw" if (holds or carrying) and rack else "")
 
 
 def test_the_need_rule_has_four_truths_in_a_fixed_order():
@@ -62,6 +63,9 @@ def test_the_need_rule_has_four_truths_in_a_fixed_order():
   assert acts.need_of(_other(hunger="starving", points=0))[0] == "points"
   assert acts.need_of(_other(holds=True))[0] == "a_tool"
   assert acts.need_of(_other(holds=True, carrying=True))[0] == "nothing"
+  # ...a tool only where a rack has one (#572: in the humanoids' house every
+  # job holder "needed a tool", and Rowan's "Luca needs nothing" was wrong)
+  assert acts.need_of(_other(holds=True, rack=False))[0] == "nothing"
   # precedence: charge outranks points outranks a tool
   assert acts.need_of(_other(wh=0.5, hunger="starving", holds=True))[0] == "charge"
   assert acts.need_of(_other(hunger="starving", holds=True))[0] == "points"
