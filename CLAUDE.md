@@ -1288,18 +1288,22 @@ save a filmstrip PNG named after the script.
   `Inbox.offer`, never read off the wire. Each line is filed in History
   under the topic `chat` by its role (a peer's `tell` under none), and
   `read chat` widens the window. ⚠ The robot may `say` something unasked:
-  a `chat` message, cut out loud at 500 and RATIONED at `SAY_EVERY_S`
+  a `chat` message, cut out loud as a reply is and RATIONED at `SAY_EVERY_S`
   (1200, a visitor's three an hour) off the STORE's clock
   (`ThoughtFiles.last_said`); while it holds the state shows
   `sayAgainInS` (`say_again_in`, the gate's own reading), and a refusal is
   a SHORT History line, the attempt quoted to `QUOTED_CHARS` (the deployed
   model sent a `say` on 2 of 4 turns with the wait in front of it); a
-  placeholder `say` is nothing said. ⚠ It is ONE LENGTH BOTH WAYS,
-  `text.MAX_VISITOR_CHARS` (500, #474; the site enforces it too), and the
-  VISITORS rule states it, the window and the interval off the constants;
-  a reply past it is cut OUT LOUD (`cut` on `visitor_reply`, History), and
-  `MAX_RAW_BYTES` must admit a message at every cap. The `tell` stays
-  280.
+  placeholder `say` is nothing said. ⚠ TWO LENGTHS: a visitor sends
+  `text.MAX_VISITOR_CHARS` (500, #474), and the robot's own line, a reply
+  or a `say`, is `text.MAX_REPLY_CHARS` (1000, rooftop-media-2026 #465: 5
+  of its 10 replies 10-29 to 10-31 were cut at 500), each read back in
+  `earlier` at its writer's (`inbox.MAX_OWN_TEXT`); the site enforces
+  both. The VISITORS rule states the cap, the aim (`AIM_REPLY`, 500,
+  which nothing enforces), the window and the interval, off the
+  constants; a line past the cap is cut OUT LOUD (`cut` on
+  `visitor_reply`, History), and `MAX_RAW_BYTES` (128 KiB) must admit a
+  message at every cap. The `tell` stays 280.
 - **The serving image** (`docker build -t pluggyworld-sim .`; `Dockerfile`,
   `deploy/`; Webserver.md "Deploying it") runs `serve.py`, and the session
   host as the site's `session` service (#530), and nothing else:

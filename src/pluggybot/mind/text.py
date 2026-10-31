@@ -248,15 +248,19 @@ DOCUMENTS: tuple[Surface, ...] = (
 
 # ---- the messages ------------------------------------------------------------
 
-#: Longest text of a conversation with a visitor, in characters, in EITHER
-#: direction (issue #474): what a visitor sends and what the robot sends
-#: back. One number, because a conversation is one surface and both ends
-#: write the same kind of text (a ticket thread's reasoning, #307). The
-#: robot is told it (the VISITORS rule). This is also the cap the website
-#: enforces (rooftop-media-2026 #29) -- both ends cap, because either one
-#: alone is a single point of failure and the sim's cap is the one that
-#: protects the sim.
+#: Longest text a visitor may send the robot, in characters (issue #474).
+#: This is also the cap the website enforces (rooftop-media-2026 #29) --
+#: both ends cap, because either one alone is a single point of failure
+#: and the sim's cap is the one that protects the sim.
 MAX_VISITOR_CHARS = 500
+#: ...and the longest line the ROBOT may write in its chat, a reply or a
+#: `say` (rooftop-media-2026 #465; a visitor's 500 until then, #474): the
+#: robot's are the lines that ran past 500 -- 5 of its 10 replies
+#: 2026-10-29 to 10-31 were cut there, and 3 more ran past 400, while none
+#: of its 370 `say` lines to then was (median 132). The robot is told it
+#: and asked to keep to `overseer.AIM_REPLY` (the VISITORS rule); the
+#: website enforces it too.
+MAX_REPLY_CHARS = 1000
 #: ...and the other robot's `tell` (issue #208): one sentence. Not the
 #: visitor's figure, on purpose: the acts between robots are #208's
 #: instrument, and the conversation with people is not.

@@ -29,11 +29,11 @@ import pytest
 
 from pluggybot.mind import overseer as ov
 from pluggybot.mind.inbox import (
-  MAX_EARLIER, MAX_ID, MAX_QUEUE, MAX_RAW_BYTES, MAX_TEXT, MAX_WHO, Inbox,
-  VisitorMessage, clean,
+  MAX_EARLIER, MAX_ID, MAX_OWN_TEXT, MAX_QUEUE, MAX_RAW_BYTES, MAX_TEXT,
+  MAX_WHO, Inbox, VisitorMessage, clean,
 )
 from pluggybot.economy.scoring import default_table
-from pluggybot.mind.overseer import MAX_REPLY, MAX_TELL, Decision, Menu
+from pluggybot.mind.overseer import AIM_REPLY, MAX_REPLY, MAX_TELL, Decision, Menu
 from pluggybot.telemetry.protocol import (
   DECIDED_OUTCOMES, INBOUND_TYPES, VISITOR_OUTCOMES,
 )
@@ -114,24 +114,25 @@ OLD_SITE_EXCHANGES = 4
 @pytest.mark.parametrize("shape", ["lines", "exchanges"])
 def test_a_message_at_every_cap_is_read_not_dropped(shape):
   """...but the raw bound must admit the largest message the caps admit
-  (#474), however it is encoded: a message with `MAX_EARLIER` lines of the
-  chat at a conversation's cap (#485), and an older website's follow-up
-  with four exchanges at the cap both ways -- every character an emoji
-  that Python's default `json.dumps` escapes as a `\\uXXXX` pair, 56 888
-  characters. Past the bound, what the person said is dropped unread.
-  Shown to fail with `MAX_RAW_BYTES` at 16 384 or below."""
-  q = "\N{GRINNING FACE}" * MAX_TEXT
-  earlier = ([{"robot": "r" * MAX_ID, "text": q, "to": "a" * MAX_WHO,
+  (#474), however it is encoded: a message with `MAX_EARLIER` of the
+  robot's own lines at its cap (#485; rooftop-media-2026 #465), and an
+  older website's follow-up with four exchanges, each at its writer's cap
+  -- every character an emoji that Python's default `json.dumps` escapes
+  as a `\\uXXXX` pair: 79 237 and 78 663 characters. Past the bound, what
+  the person said is dropped unread. Shown to fail with `MAX_RAW_BYTES` at
+  65 536."""
+  q, own = "\N{GRINNING FACE}" * MAX_TEXT, "\N{GRINNING FACE}" * MAX_OWN_TEXT
+  earlier = ([{"robot": "r" * MAX_ID, "text": own, "to": "a" * MAX_WHO,
                "outcome": "replied"}] * MAX_EARLIER if shape == "lines" else
              [{"from": "a" * MAX_WHO, "text": q, "outcome": "replied",
-               "reply": q}] * OLD_SITE_EXCHANGES)
+               "reply": own}] * OLD_SITE_EXCHANGES)
   raw = json.dumps(message(id="i" * MAX_ID, text=q, thread="t" * MAX_ID,
                            turn=OLD_SITE_EXCHANGES + 1, earlier=earlier,
                            **{"from": "a" * MAX_WHO}))
   msg = Inbox().offer(raw)
   assert msg is not None, f"a {len(raw)}-character message was dropped unread"
   assert msg.text == q and len(msg.earlier) == MAX_EARLIER
-  assert all(line.text == q for line in msg.earlier)
+  assert all(line.text == (own if line.yours else q) for line in msg.earlier)
 
 
 def test_long_text_is_capped_rather_than_refused():
@@ -431,26 +432,53 @@ def test_a_model_cannot_claim_the_queue_ate_a_message():
 
 
 def test_the_reply_the_visitor_reads_is_capped_too():
-  """The only free text that leaves the model and reaches a human, at a
-  conversation's cap (#474) -- and `validate` keeps ONE character over
-  it, so the reply that goes out can say it was cut (below)."""
+  """The only free text that leaves the model and reaches a human, at the
+  robot's own cap (#474; rooftop-media-2026 #465) -- and `validate` keeps
+  ONE character over it, so the reply that goes out can say it was cut
+  (below)."""
   menu = Menu(boards=("whiteboard_a",), programs=("house",), tools=True)
   d = menu.validate({"action": "carry", "reason": ".", "respond_to": "s1",
                      "outcome": "replied", "reply": "word " * 500},
                     waiting=("s1",))
-  assert len(d.reply) == MAX_REPLY + 1 == MAX_TEXT + 1
+  assert len(d.reply) == MAX_REPLY + 1
 
 
-#: What Rowan was saying to Ben when 240 stopped it (#474), run on.
+def test_a_reply_past_a_visitors_length_goes_out_whole():
+  """⚠ THE DEFECT (rooftop-media-2026 #465): the robot's replies were cut
+  at a visitor's 500 -- 5 of its 10 from 2026-10-29 to 10-31. It may write
+  twice that now, while what a visitor sends stays 500: a reply between
+  the two goes out whole, with no mark, and so does a `say`. Shown to fail
+  without the fix: `MAX_REPLY` at the visitor row's cap."""
+  reply = ("y" * 9 + " ") * 80 + "end"
+  assert MAX_TEXT < len(reply) <= MAX_REPLY
+  inbox = Inbox()
+  life = _lifecycle(inbox=inbox)
+  sent: list = []
+  life.visitor_hooks.append(sent.append)
+  heard = inbox.offer(message(id="s1", text="x" * 2000))
+  assert len(heard.text) == MAX_TEXT, "a visitor's is still a visitor's"
+  menu = Menu(boards=("whiteboard_a",), programs=("house",), tools=True)
+  life._answer_visitor(menu.validate(
+    {"action": "carry", "reason": ".", "respond_to": "s1",
+     "outcome": "replied", "reply": reply}, waiting=("s1",)))
+  life._chat(menu.validate({"action": "carry", "reason": ".", "say": reply}))
+  answered, said = sent
+  assert (answered["reply"], "cut" in answered) == (reply, False)
+  assert (said["text"], "cut" in said) == (reply, False)
+  assert life.thoughts.lines("History.md")[-1].endswith(f"said in my chat: {reply}")
+
+
+#: What Rowan was saying to Ben when 240 stopped it (#474), run on past
+#: the robot's own cap.
 LONG_REPLY = " ".join(
-  ["the four-legged body has carried me across two houses and a street"] * 9)
+  ["the four-legged body has carried me across two houses and a street"] * 16)
 
 
 def test_a_reply_past_the_cap_is_cut_out_loud():
   """⚠ THE DEFECT (#474): a reply to Ben was sliced at 240 with nothing
   said, so he read "...it makes the worl" and the robot never knew. The
-  cap is 500 now, and a reply past it says it was cut: on the wire for
-  the page to mark, in the narration, and in History BEFORE the text,
+  cap is `MAX_REPLY` now, and a reply past it says it was cut: on the wire
+  for the page to mark, in the narration, and in History BEFORE the text,
   where the robot reads it back. A reply that fits carries no mark.
   Shown to fail without the fix: clean the reply to `MAX_REPLY` in
   `validate` and `cut` is never set."""
@@ -503,13 +531,21 @@ def test_the_robot_is_told_how_long_a_reply_may_be():
   """Ben's other half of #474: both writers know the limit. The visitor's
   box counts it down (the website); the robot is told it in the VISITORS
   rule, formatted in from the cap the door enforces, so the number it
-  reads is the number that cuts. Shown to fail without the fix: the rule
-  asked for "one friendly sentence" and carried no number."""
+  reads is the number that cuts -- and since rooftop-media-2026 #465 it is
+  asked to keep a reply, and a `say`, to `AIM_REPLY` beside it, a visitor's
+  own length. Shown to fail without the fix: the rule asked for "one
+  friendly sentence" and carried no number; then the cap and no aim."""
   from test_overseer import FakeClient
-  rule = f"A reply is kept up to {MAX_REPLY} characters."
-  assert rule in ov.RULES and "%(" not in ov.RULES
+  assert AIM_REPLY < MAX_REPLY
+  rules = (f"Try to keep a reply to {AIM_REPLY} characters or fewer. A "
+           f"reply is kept up to {MAX_REPLY} characters,",
+           f"Like a reply, try to keep it to {AIM_REPLY} characters or "
+           f"fewer; it is kept up to {MAX_REPLY}.")
+  assert "%(" not in ov.RULES
   menu = Menu(boards=("whiteboard_a",), programs=("house",), tools=True)
-  assert rule in ov.Overseer(menu, client=FakeClient()).system[0]["text"]
+  system = ov.Overseer(menu, client=FakeClient()).system[0]["text"]
+  for rule in rules:
+    assert rule in ov.RULES and rule in system
 
 
 def test_the_inbound_vocabulary_is_the_protocols():
@@ -934,13 +970,13 @@ def test_an_older_websites_exchanges_are_read_as_their_two_lines():
 
 def test_the_earlier_lines_are_cleaned_capped_and_off_the_wires_vocabulary():
   """Both ends cap, and the sim's cap is the one that protects the sim: the
-  newest MAX_EARLIER lines are kept, each text is a message's length, and
+  newest MAX_EARLIER lines are kept, each text at its writer's length, and
   an outcome the sim never emits is dropped with its line -- the sim
   vouches for its own vocabulary and nothing else. A retired name is
   folded like a reply's."""
   lines = [chat_line(f"line {i}") for i in range(MAX_EARLIER + 3)]
-  lines.append(own_line("x" * 1000, to="ada", outcome="answered"))
-  lines.append(chat_line("y\x00z\n" + "w" * 1000))
+  lines.append(own_line("x" * 2000, to="ada", outcome="answered"))
+  lines.append(chat_line("y\x00z\n" + "w" * 2000))
   lines.append(chat_line("never mind", outcome="ignored"))
   lines.append({"from": "ada"})                       # nothing was said
   lines.append("not even an object")
@@ -950,9 +986,29 @@ def test_the_earlier_lines_are_cleaned_capped_and_off_the_wires_vocabulary():
   assert len(kept) == MAX_EARLIER
   assert [k.text for k in kept[:-2]] == [f"line {i}" for i in range(5, 9)]
   assert kept[-2].yours and kept[-2].outcome == "replied"   # `answered` folded
-  assert len(kept[-2].text) == MAX_TEXT
+  assert len(kept[-2].text) == MAX_OWN_TEXT
   assert kept[-1].text.startswith("y z") and len(kept[-1].text) == MAX_TEXT
   assert all(k.outcome in ("", *VISITOR_OUTCOMES) for k in kept)
+
+
+@pytest.mark.parametrize("shape", ["line", "exchange"])
+def test_the_robots_own_words_come_back_at_its_own_length(shape):
+  """The robot may write twice what a visitor may send (rooftop-media-2026
+  #465), and the website hands its lines back in `earlier`: a whole reply
+  past a visitor's length must read back whole, or the robot reads its own
+  uncut answer as one that stopped mid-word. Somebody's line is still a
+  visitor's length. Both shapes: a line, and an older website's exchange.
+  Shown to fail without the fix: clean the robot's text, or the exchange's
+  `reply`, at `MAX_TEXT`."""
+  ours, theirs = "o" * (MAX_TEXT + 300), "t" * (MAX_TEXT + 300)
+  assert MAX_TEXT < len(ours) < MAX_OWN_TEXT == MAX_REPLY
+  earlier = ([chat_line(theirs), own_line(ours, to="ada", outcome="replied")]
+             if shape == "line" else
+             [{"from": "ada", "text": theirs, "outcome": "replied",
+               "reply": ours}])
+  heard, said = Inbox().offer(message(earlier=earlier)).earlier
+  assert (heard.yours, len(heard.text)) == (False, MAX_TEXT)
+  assert (said.yours, said.text) == (True, ours)
 
 
 def test_bad_chat_fields_cost_the_context_and_never_the_message():
@@ -1079,13 +1135,14 @@ def test_the_exchange_is_remembered_as_the_chats():
 
 
 def test_a_conversation_at_its_cap_reaches_history_whole():
-  """Both halves of an exchange are bounded where they were written, at
-  a conversation's 500 (#474), and History's own line cap is 400: without
-  a quoted text's room (#433) each ended mid-word, the line marked cut.
+  """Both halves of an exchange are bounded where they were written, a
+  visitor's at 500 (#474) and the robot's at its own 1000
+  (rooftop-media-2026 #465), and History's own line cap is 400: without a
+  quoted text's room (#433) each ended mid-word, the line marked cut.
   Shown to fail without the fix: drop either line's `room`."""
   theirs = ("x" * 9 + " ") * 49 + "x" * 10
-  ours = ("y" * 9 + " ") * 49 + "y" * 10
-  assert len(theirs) == len(ours) == MAX_TEXT == MAX_REPLY
+  ours = ("y" * 9 + " ") * 99 + "y" * 10
+  assert (len(theirs), len(ours)) == (MAX_TEXT, MAX_REPLY)
   inbox = Inbox()
   life = _lifecycle(inbox=inbox)
   inbox.offer(message(id="s1", text=theirs))
