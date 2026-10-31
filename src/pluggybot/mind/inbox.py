@@ -65,16 +65,19 @@ MAX_TICKET_TEXT = registry.BY_NAME["operator"].cap
 #: Longest message text kept, in characters, by who sent it: the MESSAGE
 #: rows' caps in `mind/text.py` (issue #217), for the two senders that
 #: reach this QUEUE (the library's page, #216, never comes through the
-#: socket). A visitor's is a conversation's, the same both ways
-#: (`text.MAX_VISITOR_CHARS`, #474); the other robot's is a sentence.
+#: socket). A visitor's is `text.MAX_VISITOR_CHARS` (#474); the other
+#: robot's is a sentence.
 MAX_SENT = {m.writer: m.cap for m in registry.MESSAGES
             if m.writer in (registry.VISITOR, registry.PEER)}
 #: ...and a visitor's, the one the socket carries: also the cap the website
 #: enforces (rooftop-media-2026 #29) -- both ends cap, because either one
 #: alone is a single point of failure and the sim's cap is the one that
-#: protects the sim. An earlier turn's words, theirs and the robot's, are a
-#: conversation's too.
+#: protects the sim. Somebody's line of `earlier` is one too.
 MAX_TEXT = MAX_SENT[registry.VISITOR]
+#: ...and the robot's OWN words when a message carries them back
+#: (`earlier`): its reply's cap, not a visitor's (rooftop-media-2026 #465).
+#: Cut at a visitor's, a whole reply would read back as one that stopped.
+MAX_OWN_TEXT = registry.MAX_REPLY_CHARS
 #: ...and the display name attached to it.
 MAX_WHO = 40
 #: ...and the correlation id, which the website generates and the sim only
@@ -87,12 +90,13 @@ MAX_QUEUE = 32
 #: bound above is a message count, which is no protection at all against one
 #: enormous message. ⚠ It must still admit the largest message the caps
 #: admit, however its sender encodes it (issue #474). The largest is a
-#: website older than #485 sending a follow-up with four exchanges at
-#: `MAX_TEXT` both ways: 5 188 characters as the site sends it
-#: (`JSON.stringify`), 19 288 bytes of UTF-8 emoji, and 56 888 characters
-#: with every one an escaped astral pair (Python's default `json.dumps`).
-#: `MAX_EARLIER` lines of a chat are fewer texts than that.
-MAX_RAW_BYTES = 65_536
+#: message at `MAX_TEXT` carrying `MAX_EARLIER` of the robot's own lines
+#: at `MAX_OWN_TEXT` (rooftop-media-2026 #465): 7 677 characters as the
+#: site sends it (`JSON.stringify`), 27 177 bytes of UTF-8 emoji, and
+#: 79 237 characters with every one an escaped astral pair (Python's
+#: default `json.dumps`), past the 65 536 this was. An older website's four
+#: exchanges are fewer texts than that.
+MAX_RAW_BYTES = 131_072
 #: ...except a PICTURE (issue #275): the `image` kind carries a JPEG the
 #: website rendered from the robot's own camera pose, base64, and a 640 x
 #: 480 frame is 15-60 kB. Its own bound, on the decoded bytes and on the
@@ -302,13 +306,14 @@ def _earlier(raw: object) -> tuple:
       continue
     outcome = clean(item.get("outcome"), MAX_ID)
     outcome = LEGACY_VISITOR_OUTCOMES.get(outcome, outcome)
-    text = clean(item.get("text"), MAX_TEXT)
-    if not text:
-      continue
     # ⚠ THE KEY, NOT ITS VALUE: a `robot` that came through as null is
     # still the robot's line, and read as somebody's it would put the
     # robot's own words in a stranger's mouth.
-    if "robot" in item:
+    yours = "robot" in item
+    text = clean(item.get("text"), MAX_OWN_TEXT if yours else MAX_TEXT)
+    if not text:
+      continue
+    if yours:
       if outcome in DECIDED_OUTCOMES or not outcome:
         lines.append(Line(text=text, yours=True, outcome=outcome,
                           to=clean(item.get("to"), MAX_WHO) if outcome else ""))
@@ -318,7 +323,7 @@ def _earlier(raw: object) -> tuple:
     who = clean(item.get("from"), MAX_WHO)
     lines.append(Line(text=text, who=who,
                       outcome="dropped" if outcome == "dropped" else ""))
-    reply = clean(item.get("reply"), MAX_TEXT)
+    reply = clean(item.get("reply"), MAX_OWN_TEXT)
     if reply and outcome in DECIDED_OUTCOMES:
       lines.append(Line(text=reply, yours=True, to=who, outcome=outcome))
   return tuple(lines[-MAX_EARLIER:])

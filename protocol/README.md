@@ -49,6 +49,18 @@ replayer treats it like any other world -- one scene, one recording, keyed
 by that name (`pluggybot.robot.pair_model_name`). The served world is the
 pair, `home_humanoid_pair` (`home_quad_pair` until #559's stage 4).
 
+### 0.21.0, additive: a robot's line may run to 1000 characters (`visitor_reply.reply`, `chat.text`, a robot's line of `earlier`)
+
+rooftop-media-2026 #465. What a robot writes in its chat, a
+`visitor_reply`'s `reply` and a `chat`'s `text`, may now be up to
+`text.MAX_REPLY_CHARS` (1000); a visitor's `message` text stays
+`text.MAX_VISITOR_CHARS` (500). So does somebody's line of `earlier`,
+while the robot's own is read at its 1000. `cut` marks a line the robot
+wrote past 1000. No bump: nothing is renamed, and a website that still
+cuts the robot's line at 500 only shows less of it, unmarked, so the
+website takes the new length first. No fixture carries one (the pairs'
+recordings have no mind).
+
 ### 0.21.0, additive: the humanoid pair served (the `home_humanoid` worlds; a scene's `cables`)
 
 pluggybot #559's stage 4: the world the site is streamed is the humanoids'
@@ -294,7 +306,8 @@ the robot's own:
 in its chat that answers nobody (the decision's `say`). The website keeps
 it as a line of that robot's chat; `id` is the sim's (`c_` and a uuid),
 so the same message twice is one line. `cut` as on a `visitor_reply`:
-present, and true, only where the robot wrote more than 500 characters.
+present, and true, only where the robot wrote more than its cap (500
+then, 1000 since rooftop-media-2026 #465).
 
 ```jsonc
 {"type": "chat", "t": 4120.5, "robot": "pluggybot",
@@ -415,7 +428,8 @@ number both ways, and the robot is told it. One field is new:
   robot is told in History). A `ticket`'s `cut` is the same mark.
 
 The other robot's `tell` (the `message` act) is still a sentence, 280.
-No fixture carries one (the pair's recording has no mind).
+No fixture carries one (the pair's recording has no mind). The robot's
+half is 1000 since rooftop-media-2026 #465 (above).
 
 ### 0.21.0, additive: what was left out of an answer (`left_out`)
 
