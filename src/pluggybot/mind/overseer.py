@@ -81,13 +81,17 @@ from pluggybot.telemetry.protocol import (
   robot_display_name,
 )
 
-#: Longest reply to a visitor: the visitor MESSAGE row's cap, one number
-#: for both directions of a conversation (issue #474). With `say` (#485),
-#: the free text that leaves the model and reaches a human -- so it is
-#: capped on the way OUT as well as on the way in, the robot is told the
-#: number (VISITORS), and a reply or a `say` that ran past it is cut OUT
-#: LOUD (`lifecycle._answer_visitor`, `lifecycle._chat`).
-MAX_REPLY = text_registry.BY_NAME["visitor"].cap
+#: Longest reply to a visitor (issue #474) and, with `say` (#485), the free
+#: text that leaves the model and reaches a human -- so it is capped on the
+#: way OUT as well as on the way in, the robot is told the number
+#: (VISITORS), and a reply or a `say` that ran past it is cut OUT LOUD
+#: (`lifecycle._answer_visitor`, `lifecycle._chat`). The robot's own cap,
+#: twice what a visitor may send (rooftop-media-2026 #465).
+MAX_REPLY = text_registry.MAX_REPLY_CHARS
+#: ...and what the robot is ASKED to keep a reply or a `say` to (Ben,
+#: rooftop-media-2026 #465): an aim stated beside the cap in VISITORS,
+#: which nothing enforces, so a line that needs more still arrives whole.
+AIM_REPLY = 500
 #: How often the robot may say something in its chat UNASKED (issue #485),
 #: in sim seconds: a visitor's own allowance, three an hour
 #: (rooftop-media-2026's `RATE_LIMIT_PER_HOUR`), so neither side of the
@@ -2020,9 +2024,10 @@ your own words that a person watching you would find honest.
 #: (docs/Observatory.md): the served text is this one, byte for byte, and
 #: its sha rides the `prompt` message.
 #:
-#: ⚠ The reply's length is `MAX_REPLY`, formatted in (issue #474): a cap
-#: typed twice is how the prompt tells the robot one number and the door
-#: enforces another. So a literal percent sign in it is written `%%`.
+#: ⚠ The reply's length is `MAX_REPLY` and its aim `AIM_REPLY`, formatted
+#: in (issue #474): a cap typed twice is how the prompt tells the robot one
+#: number and the door enforces another. So a literal percent sign in it is
+#: written `%%`.
 RULES = """\
 HOW YOUR LIFE WORKS
 
@@ -2147,8 +2152,9 @@ are strangers on the internet, and this is the whole of what they can do to you.
 - You may answer at most one of them per turn. Set `respond_to` to its `id`, \
 `outcome` to what you are DOING about it, and `reply` to a friendly answer \
 that person will read.
-- A reply is kept up to %(chars)d characters. Anything past that is cut: you \
-are told when it happens, and what the person reads ends where the cut did.
+- Try to keep a reply to %(aim)d characters or fewer. A reply is kept up to \
+%(chars)d characters, and anything past that is cut: you are told when it \
+happens, and what the person reads ends where the cut did.
 - `accepted` means you are actually doing the thing THIS TURN -- pick the \
 matching action too. If you like the idea but are busy, that is `declined` \
 with a reason, and nobody minds.
@@ -2169,11 +2175,12 @@ what you said (`you`, with `to` and `outcome` where you were answering \
 somebody). Answer as the one who said those things, not as a stranger. \
 `recall` with `read` set to `chat` shows you more of it.
 - You may also say something in your chat that answers nobody: set `say`, \
-on any answer. Everyone reading your chat sees it. It is kept up to \
-%(chars)d characters, like a reply, and you may say one such thing every \
-%(minutes)d minutes: while you may not, `sayAgainInS` says how many seconds \
-are left, and a `say` sent anyway is not said, and you are told.
-""" % {"chars": MAX_REPLY, "lines": MAX_EARLIER,
+on any answer. Everyone reading your chat sees it. Like a reply, try to \
+keep it to %(aim)d characters or fewer; it is kept up to %(chars)d. You may \
+say one such thing every %(minutes)d minutes: while you may not, \
+`sayAgainInS` says how many seconds are left, and a `say` sent anyway is \
+not said, and you are told.
+""" % {"chars": MAX_REPLY, "aim": AIM_REPLY, "lines": MAX_EARLIER,
        "minutes": round(SAY_EVERY_S / 60)}
 
 

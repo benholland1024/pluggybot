@@ -198,8 +198,8 @@ def test_a_ticket_is_a_ticket_s_length_in_both_directions_and_never_a_message_s(
   msg = box.offer({"type": "ticket_reply", "id": "tr_1", "from": "ben",
                    "ticket": "tk_0001", "text": REPORT})
   assert msg.text == REPORT
-  # A visitor's message is untouched by any of it: a conversation's cap,
-  # off its own row (#474).
+  # A visitor's message is untouched by any of it: a visitor's cap, off
+  # its own row (#474).
   said = box.offer({"type": "message", "id": "m_1", "text": "x" * 900})
   assert len(said.text) == inbox.MAX_TEXT == text.MAX_VISITOR_CHARS
 

@@ -4110,9 +4110,10 @@ class HubLifecycle:
     # sender never writes a document (mind/text.py), the system writes down
     # that they spoke.
     # ⚠ WHOLE, with a ticket line's room (#433): both texts are bounded
-    # where they were written, at a conversation's cap (`MAX_REPLY`), and
-    # History's own line cap kept 400 of either. A cut is said BEFORE the
-    # text, where a line's end cannot take it (#307).
+    # where they were written, theirs at the door and the robot's at
+    # `MAX_REPLY`, the larger, and History's own line cap kept 400 of
+    # either. A cut is said BEFORE the text, where a line's end cannot take
+    # it (#307).
     # ⚠ ...AND FILED AS THE CHAT'S (issue #485), so `recall` reads the
     # chat back past the lines a message carries -- a person's alone: the
     # other robot's `tell` is not said in the chat people read.

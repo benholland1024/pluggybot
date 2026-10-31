@@ -42,8 +42,11 @@ from test_overseer import FakeClient, full
 
 #: A JPEG in name only: the magic bytes and some payload. The door checks
 #: the magic and the size, never the picture -- decoding is the model's.
-#: Its message is past `MAX_RAW_BYTES`, as a frame the site sends is.
+#: 51 kB, a frame the site sends.
 JPEG = JPEG_MAGIC + bytes(range(256)) * 200
+#: ...and one whose message is past `MAX_RAW_BYTES`, which only the
+#: picture's own cap lets through.
+BIG_JPEG = JPEG_MAGIC + bytes(range(256)) * 600
 
 
 def image_message(ref: str, jpeg: bytes = JPEG, robot: str = "pluggybot") -> str:
@@ -92,16 +95,16 @@ def test_the_renderer_word_is_a_state_the_door_keeps_and_never_queues():
 def test_a_picture_passes_its_own_cap_and_nothing_else_does():
   """The sentence-sized cap stays for every other kind; a picture has its
   own, on the decoded bytes and the raw message. Shown to fail without the
-  door's second cap: a 68 kB image message is over `MAX_RAW_BYTES`."""
+  door's second cap: a 205 kB image message is over `MAX_RAW_BYTES`."""
   inbox = Inbox()
-  raw = image_message("look:pluggybot:1")
+  raw = image_message("look:pluggybot:1", BIG_JPEG)
   assert len(raw) > MAX_RAW_BYTES
   msg = inbox.offer(raw)
   assert msg is not None and msg.kind == "image"
-  assert msg.ref == "look:pluggybot:1" and msg.image == JPEG
-  assert msg.as_dict()["bytes"] == len(JPEG) and "jpeg" not in msg.as_dict()
+  assert msg.ref == "look:pluggybot:1" and msg.image == BIG_JPEG
+  assert msg.as_dict()["bytes"] == len(BIG_JPEG) and "jpeg" not in msg.as_dict()
   # A message that needed the room for anything else is dropped unread.
-  big_text = json.dumps({"type": "message", "id": "m1", "text": "x" * 70000})
+  big_text = json.dumps({"type": "message", "id": "m1", "text": "x" * 140000})
   assert MAX_RAW_BYTES < len(big_text) < MAX_IMAGE_RAW_BYTES
   assert inbox.offer(big_text) is None
   # ...and a picture over its own cap, or not a picture, or unnamed.

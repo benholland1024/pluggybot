@@ -1874,7 +1874,7 @@ in the paper's sense too — §2b.
 | `Findings.md` | document | **robot** | 64 findings | refuses | `record` / `retract` | `thought` · `thought` |
 | `Notes.md` | document | **robot** | 64 notes | refuses | `note` / `unnote` | `thought` · `thought` |
 | `procedures/` | document | **robot** | 8 entries | refuses | `define` / `undefine` | `procedure` · `procedure` |
-| visitor | message | a visitor | 500 chars, the robot's reply too; queue of 32 | drops the oldest | outcomes `accepted` / `declined` / `replied` / `dropped` | `visitor_reply` · the visitor channel's table |
+| visitor | message | a visitor | 500 chars (the robot's reply 1000); queue of 32 | drops the oldest | outcomes `accepted` / `declined` / `replied` / `dropped` | `visitor_reply` · the visitor channel's table |
 | peer | message | the other robot | 280 chars (a sentence), the same queue | drops the oldest | the same outcomes | `message` event · `message` |
 
 **A DOCUMENT** has one writer, a cap, a policy at the cap, verbs that ADD or
@@ -2285,7 +2285,7 @@ anything unreported at mission end dies with the process.
 
 The overseer sees `visitorMessages` (`id`, `from`, `text`; the last
 `VISITORS_SHOWN` 5) and may answer **one per turn** with `respond_to`,
-`outcome` and a `reply` (`MAX_REPLY` on the way out, the visitor row's 500):
+`outcome` and a `reply` (`MAX_REPLY` on the way out, the robot's own 1000):
 
 | outcome | what it means |
 |---|---|
@@ -2298,21 +2298,25 @@ prompt) is folded to `replied` (`LEGACY_VISITOR_OUTCOMES`); the old name lives
 forever in older recordings, so a consumer renders both. The outcome goes back
 as a typed `visitor_reply`, which closes the row the website holds open.
 
-**A conversation is one length both ways** (issue #474):
-`text.MAX_VISITOR_CHARS`, 500 — what a visitor sends, what the robot
-replies or says, and each line of `earlier` — read off the visitor row by
-the inbox's door, `Menu.validate` and the VISITORS rule, which states the
-number. At 240 a reply stopped mid-word and nothing said so. A reply past
-the cap is cut **out loud**: `validate` keeps one character over (`define`'s
+**A conversation has two lengths** (issues #474 and rooftop-media-2026
+#465): what a visitor sends is `text.MAX_VISITOR_CHARS`, 500, and what the
+robot writes, a reply or a `say`, is `text.MAX_REPLY_CHARS`, 1000. Each
+line of `earlier` is held to its writer's (`inbox.MAX_TEXT`,
+`inbox.MAX_OWN_TEXT`), so the robot reads its own whole reply back whole.
+The VISITORS rule states the robot's cap and asks it to keep a line to
+`AIM_REPLY`, 500, which nothing enforces. At 240 a reply stopped mid-word
+and nothing said so; at 500, 5 of the robot's 10 replies from 2026-10-29
+to 10-31 were cut (and none of its 370 `say` lines). A line past the cap
+is cut **out loud**: `validate` keeps one character over (`define`'s
 trick), `_answer_visitor` cuts it, the `visitor_reply` carries `cut: true`
-for the page to mark, the narration ends `-- CUT at 500 characters`, and
+for the page to mark, the narration ends `-- CUT at 1000 characters`, and
 History says it BEFORE the text, where a line's end cannot take it. Both
 History lines of an exchange carry a quoted text's room (#433), so a full
-message and a full reply are kept whole. ⚠ `MAX_RAW_BYTES` (64 KiB) must
-admit a message at every cap however it is encoded; the largest is an
-older website's follow-up, four exchanges at the cap both ways: 5 188
-characters as the site sends it, 56 888 with every character an escaped
-astral pair. The other robot's `tell` stays a sentence, 280.
+message and a full reply are kept whole. ⚠ `MAX_RAW_BYTES` (128 KiB) must
+admit a message at every cap however it is encoded; the largest is a
+message carrying six of the robot's lines at its cap: 7 677 characters as
+the site sends it, 79 237 with every character an escaped astral pair. The
+other robot's `tell` stays a sentence, 280.
 
 **Each robot's chat is ONE conversation** (issue #485; threads with a
 Reply button since rooftop-media-2026 #125, which Ben found unlike any
@@ -2355,7 +2359,7 @@ and it was never said there.
 **The robot may say something unasked** (issue #485): `say`, on any
 answer, is a line of its chat that answers nobody — a `chat` message
 (`{t, robot, id, text, cut?}`), which the website keeps as the robot's own
-line, and a History line under `chat`/`said`. It is cut at a reply's 500
+line, and a History line under `chat`/`said`. It is cut at a reply's 1000
 out loud, and RATIONED, one every `SAY_EVERY_S` (20 minutes: a visitor's
 own three an hour, so neither side can bury the other) — a DESIGN
 DECISION the rule states. While the ration holds the state says how long

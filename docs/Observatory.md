@@ -10,6 +10,37 @@ observatory is NOT a result: it reports into the issue it informs.
 
 ## Periods
 
+### A robot's chat line may run to 1000 characters, and admins may send 30 an hour (rooftop-media-2026 #465) — opens when this PR is deployed, after rooftop-media-2026's half
+
+**What changed in the mind.** The VISITORS rule, on every arm with a mind:
+a reply is kept up to 1000 characters where it was 500, and the robot is
+asked to keep one to 500 or fewer; a `say` the same. The deployed prefix
+moved, `72a5b751…` → `9bd3cf75…` (54 711 → 54 793 characters); the
+schema, the arm, the reward table and the world did not. What a visitor
+may send stays 500. The site keeps the robot's lines to 1000 too, and
+hands them back in `earlier` whole.
+
+**What changed in who writes.** With the site's half, an admin may send
+the robots 30 messages an hour where every account had 3, counted by the
+account alone, and no address is kept with an admin's message. Everyone
+else still has 3.
+
+**Why.** Ben: replies "often" ended cut. At 500, 5 of the robots' 10
+replies from 2026-10-29 to 10-31 were cut, and 3 more ran past 400. None
+of their 370 `say` lines to then was (median 132 characters, longest 412).
+
+**What the period is for.**
+- **How often `cut` is true now**, per robot (a `conversation` row's
+  `data.cut`), against 5 of 10 before; and how long replies run against
+  the aim: a robot writing near 1000 every time is not keeping to the 500
+  it was asked.
+- **Whether naming 500 moves the `say` lines**, which ran well under it
+  when the rule named only the cap.
+- ⚠ **Whose messages the chat holds**: an admin's 30 an hour can outweigh
+  the visitors' 3 each, and a reading of conversation (continuity, the
+  replies' length) taken across Ben testing is a reading of Ben. A
+  `conversation` row's `data.from` is the sender's label.
+
 ### A stand-up drops the map, and a tool is needed only where there is a rack (#572, stage 1) — opens when this PR is deployed
 
 **What changed in the world.**
