@@ -118,8 +118,9 @@ def test_a_message_at_every_cap_is_read_not_dropped(shape):
   robot's own lines at its cap (#485; rooftop-media-2026 #465), and an
   older website's follow-up with four exchanges, each at its writer's cap
   -- every character an emoji that Python's default `json.dumps` escapes
-  as a `\\uXXXX` pair, 79 237 characters. Past the bound, what the person
-  said is dropped unread. Shown to fail with `MAX_RAW_BYTES` at 65 536."""
+  as a `\\uXXXX` pair: 79 237 and 78 663 characters. Past the bound, what
+  the person said is dropped unread. Shown to fail with `MAX_RAW_BYTES` at
+  65 536."""
   q, own = "\N{GRINNING FACE}" * MAX_TEXT, "\N{GRINNING FACE}" * MAX_OWN_TEXT
   earlier = ([{"robot": "r" * MAX_ID, "text": own, "to": "a" * MAX_WHO,
                "outcome": "replied"}] * MAX_EARLIER if shape == "lines" else

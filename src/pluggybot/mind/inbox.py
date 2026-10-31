@@ -95,7 +95,7 @@ MAX_QUEUE = 32
 #: site sends it (`JSON.stringify`), 27 177 bytes of UTF-8 emoji, and
 #: 79 237 characters with every one an escaped astral pair (Python's
 #: default `json.dumps`), past the 65 536 this was. An older website's four
-#: exchanges are fewer texts than that.
+#: exchanges, each at its writer's cap, come to a little less (78 663).
 MAX_RAW_BYTES = 131_072
 #: ...except a PICTURE (issue #275): the `image` kind carries a JPEG the
 #: website rendered from the robot's own camera pose, base64, and a 640 x
