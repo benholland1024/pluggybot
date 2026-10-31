@@ -19,14 +19,15 @@ from pluggybot.procedure import steps as st
 @pytest.fixture(scope="module")
 def counter():
   """The humanoids' house, one robot in the storeroom's doorway facing its
-  counter, its map begun: (model, data, body)."""
+  counter -- turned a little off square, so its stance's turn is in every
+  look -- its map begun: (model, data, body)."""
   from pluggybot.body import body_for
   from pluggybot.humanoid import world as hw
   model = hw.home_spec(first_at=(22.8, -3.0)).compile()
   data = mujoco.MjData(model)
   mujoco.mj_forward(model, data)
   body = body_for(model, data)
-  body.start_at(22.8, -3.0, 0.0)
+  body.start_at(22.8, -3.0, 0.15)
   body.run(body.hold_routine(0.5))
   yield model, data, body
   body.close()
