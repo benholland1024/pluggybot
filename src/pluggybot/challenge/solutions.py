@@ -93,13 +93,15 @@ WEIGH = '''def weigh():
 #: planner's margin round the counter takes the goal -- and a turn to face
 #: the wall. Then the prop's turn off the face of its handle's tag read from
 #: there -- its front, whose normal is level; read nearer, a face seen
-#: obliquely gave 43 deg -- and ONE step turning to stand 0.15 rad LEFT of
+#: obliquely gave 43 deg -- and ONE step turning to stand `STANCE` LEFT of
 #: square to it and walking to 30 cm short of where the check's set-outs'
 #: middle had the handle (`storeroom.HANDLE_FROM_SPOT`); and a fresh look
 #: and the last 30 cm. ⚠ THE STANCE IS THE CHECKS' PROCEDURES' (flown, a
 #: draw a flight): turned 5-10 deg left the drawer, the door and the chest
-#: passed 8, 8 and 6 of 8; squared, the arm's way home pushed the drawer 4
-#: cm back in and the door opened 44 deg; and one tag's way, not the row's,
+#: passed 8, 8 and 6 of 8; squared, or 3 deg left, the arm's way home pushed
+#: the drawer 4 cm back in and the door opened 44 deg; the chest let its lid
+#: fall at 12 deg; and a stance lands 4-5 deg either side of the one asked
+#: (the turn, the step's own, the face's read); and one tag's way, not the row's,
 #: left a robot 28 deg the other way and its arm's way home dragged a jaw
 #: along the counter and toppled it. ⚠ A STEP OF 0.3 M LANDS: a step after
 #: a turn falls a tenth short (0.39 m of 0.43), and a short one goes a
@@ -120,13 +122,19 @@ APPROACH = '''def to_%(prop)s():
     a = a - 1.571
   while a < -0.79:
     a = a + 1.571
-  t = a + 0.15
+  t = a + %(stance)g
   x = read("spot.x") * cos(t) + read("spot.y") * sin(t)
   y = read("spot.y") * cos(t) - read("spot.x") * sin(t)
   step(x - %(ahead)g - 0.3, y - %(left)g, t)
   spot(%(handle)d)
   step(read("spot.x") - %(ahead)g, read("spot.y") - %(left)g)
 '''
+
+
+#: How far LEFT of square to its prop the robot stands at each, rad: where
+#: its check's procedure passed, with room for the 4-5 deg a stance lands
+#: either side of the one asked (the comment above).
+STANCE = {"drawer": 0.25, "door": 0.2, "chest": 0.12, "cube": 0.15}
 
 
 def _hands_job(check: str, prop: str) -> tuple[str, str]:
@@ -142,7 +150,8 @@ def _hands_job(check: str, prop: str) -> tuple[str, str]:
   beside = storeroom.PROPS[i + 1 if i + 1 < len(storeroom.PROPS) else i - 1]
   return (APPROACH % {"prop": prop, "row": storeroom.TAGS[prop],
                       "beside": storeroom.TAGS[beside], "handle": handle,
-                      "ahead": ahead, "left": left}, hands_check.JOBS[check])
+                      "ahead": ahead, "left": left, "stance": STANCE[prop]},
+          hands_check.JOBS[check])
 
 
 DRAWER = _hands_job("drawer", "drawer")
