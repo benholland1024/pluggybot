@@ -105,6 +105,11 @@ MAT_TAG_SIZE = 0.080 * 8 / 10
 #: it plugs in at, and fits the station's facing to their baseline (#88).
 STATION_TAG_IDS = (58, 59)
 STATION_TAG_SIZE = 0.060
+#: The storeroom's counter (issue #559, stage 3; home/storeroom.py): a row
+#: on the wall above it, one over each thing a job is done to there -- the
+#: chest, the drawers, the cupboard and the cube -- the areas' 120 mm, read
+#: by the humanoid's navigation camera from across the room.
+COUNTER_TAG_IDS = (60, 61, 62, 63)
 
 # Physical marker sizes (m), edge of the BLACK tag -- what the detector is
 # told, and what PnP scales its translation by. The plate carrying it is
@@ -124,7 +129,8 @@ TAG_SIZES = {**{i: BLOCK_TAG_SIZE for i in BLOCK_TAG_IDS},
              **{i: LEGS_RACK_TAG_SIZE for i in (*LEGS_RACK_TAG_IDS, *LEGS_BUILT_TAG_IDS)},
              **{i: PLATE_TAG_SIZE for i in PLATE_TAG_IDS},
              **{i: BOARD_TAG_SIZE for ids in BOARD_TAG_IDS.values() for i in ids},
-             **{i: AREA_TAG_SIZE for i in (*TOWER_TAG_IDS, *BENCH_TAG_IDS, *GARDEN_TAG_IDS)}}
+             **{i: AREA_TAG_SIZE for i in (*TOWER_TAG_IDS, *BENCH_TAG_IDS, *GARDEN_TAG_IDS,
+                                           *COUNTER_TAG_IDS)}}
 
 TAG_DIR = Path("models/tags")
 

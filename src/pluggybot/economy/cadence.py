@@ -411,6 +411,11 @@ class TaskProducer:
                      "known_tag": bench.MASS_TAG_IDS[0],
                      "unknown_tag": bench.MASS_TAG_IDS[1]})
       return params, {"kg": bench.default_bank().pick(self.board.seq)}
+    if KINDS[kind].draws:
+      # A hand job (#559): its prop's hidden dynamics drawn afresh, off the
+      # same counter, set into the world as the offer lands -- the draw's
+      # number the secret, so a restart puts the same prop back
+      return params, {"draw": int(self.board.seq)}
     return params, {}
 
   # ---- what a long run looks like ------------------------------------------

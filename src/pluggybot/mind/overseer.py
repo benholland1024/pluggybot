@@ -1206,6 +1206,9 @@ class Menu:
   #: lab is in the world's config, beside the rule that says what they do
   places: bool = False
   plates: bool = False
+  #: ...the tags those are (a humanoid's procedure rule is its world's facts,
+  #: `hands_procedure_rule`, #559)
+  place_tags: tuple[int, ...] = ()
   #: ...and whether it draws on the boards it finds with its rack's pen
   #: (issue #406, `world_config`'s `draws`): the `draw` verb
   draws: bool = False
@@ -1255,6 +1258,7 @@ class Menu:
                tools=cfg.get("tools", False),
                swaps=cfg.get("swap", True),
                places=bool(cfg.get("places")),
+               place_tags=tuple(int(t) for t in cfg.get("places") or ()),
                plates=bool(cfg.get("places") and cfg.get("lab")),
                draws=bool(cfg.get("draws") and cfg.get("swap") and cfg.get("places")),
                cubes=bool(cfg.get("cubes") and cfg.get("swap") and cfg.get("places")
@@ -3123,12 +3127,14 @@ marked not runnable says why.
 _ATTEMPT_ONLY = ("Both grippers start shut. ",)
 
 
-def hands_procedure_rule() -> str:
-  """`HANDS_PROCEDURE_HEAD`'s rule, the practice's sections after it."""
+def hands_procedure_rule(places: tuple = ()) -> str:
+  """`HANDS_PROCEDURE_HEAD`'s rule, the practice's sections after it, over
+  its world's facts: where it finds task areas by their tags (`places`),
+  `find` and its readings among its verbs and sensors (#559, stage 3)."""
   from pluggybot.mind import practice
   from pluggybot.procedure.library import MAX_PROCEDURES
   from pluggybot.procedure.steps import served_hand_facts
-  sections = dict(practice.system_sections(served_hand_facts()))
+  sections = dict(practice.system_sections(served_hand_facts(places=places)))
   body = sections["your body"]
   for cut in _ATTEMPT_ONLY:
     assert cut in body, f"the practice's body moved: {cut!r}"
@@ -3566,7 +3572,7 @@ def system_sections(thoughts: ThoughtFiles, menu: Menu,
     tail.append(("YOUR LIST STARTS EMPTY", UNSEEDED_RULE))
   if procedures:
     tail += [("PROCEDURES YOU MAY WRITE",
-              hands_procedure_rule() if menu.body == "humanoid" else
+              hands_procedure_rule(menu.place_tags) if menu.body == "humanoid" else
               procedure_rule(menu.swaps, menu.places, menu.plates, menu.draws,
                              menu.cubes, menu.surveys)),
                ("CHALLENGES", CHALLENGE_RULE),

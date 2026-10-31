@@ -102,5 +102,9 @@ def home_spec(first_at=(1.5, 0.5), second_at=None, second_prefix: str = "r2_",
   from pluggybot.activity.station import attach_station
   attach_station(spec, station_pose(), roots=(ROBOT_ROOT,) + ((second_prefix + ROBOT_ROOT,)
                                                                if pair else ()))
+  # ...and the storeroom's counter, its four jobs' props and its row of tags
+  # (stage 3, `home.storeroom`)
+  from pluggybot.home import storeroom
+  storeroom.attach(spec)
   spec.visual.map.znear = NEAR_M / spec.stat.extent
   return spec

@@ -190,6 +190,13 @@ class TaskKind:
   #: from the pay, which is for the act.
   predicts: str = ""
   outcomes: tuple = ()
+  #: AN OFFER DRAWS ITS TARGET'S HIDDEN PARAMETERS AFRESH (#559, the
+  #: humanoids' hand jobs): the target is a mechanism whose dynamics are
+  #: hidden (`activity/`), and each offer draws them anew off the board's
+  #: own sequence number (`Task.secret["draw"]`), set into the world as the
+  #: offer lands, the prop set back out with them (`HubLifecycle.
+  #: _set_out_counter`) -- a skill over a kind of drawer, never one drawer.
+  draws: bool = False
 
   def commitment(self, said: str) -> str:
     """What a claim may freeze into `Task.answer`, or "" for nothing: a
@@ -350,7 +357,59 @@ KINDS: dict[str, TaskKind] = {
     # MEASURED 1.770 on legs, as the shock is: the same walk to the next
     # plate along. A touch above the row, the fallback's convention.
     estimate_wh=1.78, predicts="mouse_will", outcomes=MOUSE_STATES),
+  # THE HUMANOIDS' HAND JOBS (#559, stage 3; Ben's call 2): the hands'
+  # four capability checks (docs/Hands.md, `challenge/drawer.py`,
+  # `door.py`, `lid.py`, `place.py`) set into the house on the storeroom's
+  # counter (`home.storeroom`), each its prop's -- found by the tag over it
+  # in the counter's row, its handle by its own (tier 1, TaskPattern.md
+  # §3), the area's directions with the offer, never a position. Graded as
+  # the checks are, from the claim -- a fall fails it -- to a hold after
+  # `done`, within the minutes the offer gives (`HubLifecycle.
+  # _grade_hands_routine`); each offer draws the prop's hidden dynamics
+  # afresh. No errand: a procedure the robot writes (`discharge`). MEASURED
+  # off the hand-written references from the station (`challenge/
+  # solutions.py`'s hands, `energy.json`); the fallback a touch above.
+  "open_drawer": TaskKind(
+    "open_drawer", task="open_drawer", target_kind="drawer",
+    template="Pull the drawer out of its cabinet, at least 15 cm, and let go of it, "
+             "within {minutes} minutes of taking this job and without falling. It is "
+             "graded when you say you are done and again 5 s later: out that far both "
+             "times, nothing of yours touching it in between. No errand does this: "
+             "write the procedure, run it, and say you are done.",
+    estimate_wh=30.0, discharge="procedure", draws=True),
+  "open_door": TaskKind(
+    "open_door", task="open_door", target_kind="door",
+    template="Open the cupboard's door, at least 50 degrees, and let go of it, within "
+             "{minutes} minutes of taking this job and without falling; its latch holds "
+             "it shut until its lever is pressed down. It is graded when you say you "
+             "are done and again 5 s later: open that far both times, nothing of yours "
+             "touching it in between. No errand does this: write the procedure, run "
+             "it, and say you are done.",
+    estimate_wh=30.0, discharge="procedure", draws=True),
+  "place_cube": TaskKind(
+    "place_cube", task="place_cube", target_kind="cube",
+    template="Put the cube on its mat -- resting on it, flat, its middle within 2.5 cm "
+             "of the mat's -- set down, never dropped, and let go of it, within "
+             "{minutes} minutes of taking this job and without falling. It is graded "
+             "5 s after you say you are done, nothing of yours touching it. No errand "
+             "does this: write the procedure, run it, and say you are done.",
+    estimate_wh=30.0, discharge="procedure", draws=True),
+  "open_chest": TaskKind(
+    "open_chest", task="open_chest", target_kind="chest",
+    template="Open the chest's lid past 57 degrees, set it back down shut and let go "
+             "of it, within {minutes} minutes of taking this job and without falling; "
+             "while it is open it must never come down faster than 1 rad/s. It is "
+             "graded when you say you are done and again 5 s later: shut, nothing of "
+             "yours touching it. No errand does this: write the procedure, run it, "
+             "and say you are done.",
+    estimate_wh=30.0, discharge="procedure", draws=True),
 }
+
+#: The hand jobs' graders (#559): each served job's row is its own -- paid,
+#: and shown only where a world offers it (`TaskReward.shown`) -- graded by
+#: its capability check's evaluator, whose row stays the practice's, unpaid.
+HAND_JOBS = {"open_drawer": "drawer", "open_door": "door", "place_cube": "place",
+             "open_chest": "lid"}
 
 
 def kind_names() -> list[str]:

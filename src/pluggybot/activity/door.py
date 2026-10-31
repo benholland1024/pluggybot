@@ -204,6 +204,7 @@ class Door(Activity):
   def __init__(self, model, data, hinge: Hinge, name: str = "door") -> None:
     super().__init__(name)
     self.hinge = hinge
+    self._model = model
     self.open_adr = int(model.sensor(f"{name}_open").adr[0])
     self.lever_adr = int(model.sensor(f"{name}_pressed").adr[0])
     door = model.joint(f"{name}_hinge").id
@@ -222,6 +223,21 @@ class Door(Activity):
 
   def _limit(self, model) -> None:
     model.jnt_range[self.door_jnt] = (0.0, SHUT_RAD if self.bolted else DOOR_TRAVEL)
+
+  def kept_state(self) -> dict:
+    """The flags, the latch and the thresholds behind them (#559: the
+    served counter's door rides a restart): restored without them, an open
+    door came back bolted shut round it."""
+    return {**super().kept_state(), "bolted": self.bolted, "ajar": self.ajar,
+            "open": self.open.value, "past": self.past.value}
+
+  def restore_kept(self, state: dict) -> None:
+    super().restore_kept(state)
+    self.bolted = bool(state.get("bolted", True))
+    self.ajar = bool(state.get("ajar", False))
+    self.open.value = bool(state.get("open", False))
+    self.past.value = bool(state.get("past", False))
+    self._limit(self._model)
 
   def angle(self, data) -> float:
     """The door's angle off shut, rad, as its sensor reads it."""

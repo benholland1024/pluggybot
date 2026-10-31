@@ -115,6 +115,15 @@ class Cube(Activity):
     self.lifted = Threshold(on=LIFT_ON, off=LIFT_ON / 2)
     self.set(lifted=False)
 
+  def kept_state(self) -> dict:
+    """The flag and the threshold behind it (#559: the served counter's
+    cube rides a restart)."""
+    return {**super().kept_state(), "lifted": self.lifted.value}
+
+  def restore_kept(self, state: dict) -> None:
+    super().restore_kept(state)
+    self.lifted.value = bool(state.get("lifted", False))
+
   def sense(self, model, data) -> None:
     bottom = float(data.xpos[self.body][2]) - CUBE
     self.set(lifted=self.lifted.update(bottom - self.surface_z))

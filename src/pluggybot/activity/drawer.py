@@ -164,6 +164,16 @@ class Drawer(Activity):
     self.past = Threshold(on=OPENED_M, latch=True)
     self.set(drawer="shut", opened=False)
 
+  def kept_state(self) -> dict:
+    """The flags and the thresholds behind them (#559: the served counter's
+    drawer rides a restart)."""
+    return {**super().kept_state(), "open": self.open.value, "past": self.past.value}
+
+  def restore_kept(self, state: dict) -> None:
+    super().restore_kept(state)
+    self.open.value = bool(state.get("open", False))
+    self.past.value = bool(state.get("past", False))
+
   def out(self, data) -> float:
     """How far the drawer is out, m, as its sensor reads it."""
     return float(data.sensordata[self.sensor_adr])
