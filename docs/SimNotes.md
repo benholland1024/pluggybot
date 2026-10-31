@@ -6834,7 +6834,9 @@ its stand), and explores that went round it (seed 10's, seed 11's
   middle street: its heading went from +0.4 to +9.2 deg, its offset times
   the time, past the matcher's 6; its next walk passed the gate 1 m off,
   went round the block and ended 6.2 m off. The same stand with its offset
-  taken off held its heading to 0.1 deg.
+  taken off held its heading to 0.1 deg. The live pair showed it too: on
+  2026-10-31 Luca's heading turned 5.2 deg in 300 s standing at the
+  storeroom's counter, no scan matched -- its offset, 1.06 deg a minute.
 
 **The gyro's offset is one cause of three.** Taken off (`--learned`), the
 gyro's share fell to 0-2 deg a flight, and one of the five flights it
@@ -6842,12 +6844,15 @@ changed held: seed 1's, whose walk then went in by the gate. Rowan's own
 offset, near the part's worst, the matcher took off to the degree wherever
 it walked.
 
-**Seed 11** fell in the garden on its explore (so did its `--learned`,
-there: the same draws, the same first minute). A body lying down has no
-heading -- its forward axis points at the sky -- so the gyro's share read
--49 deg for the five seconds it lay there and came back as it stood; its
-map refused 19 scans and the wide search put it back within 0.2 m. It came
-home 1.2-1.5 m off, to where it believed the standoff was: truly the south
+**A fall.** Seed 11 fell in the garden on its explore, and its `--learned`
+there too (the same draws, the same first minute). Its odometry followed
+its feet through the get-up, and the belief jumped 1.7 m (2.1 m in the
+`--learned`; the live Luca's 3.7 m on 2026-10-31, falling at the
+drawer); and while it lay, its heading read -49 deg -- a body lying down
+has no heading, its forward axis at the sky. Both jumps were inside the
+wide search's 2 m: each map refused 19 scans and the search put the belief
+back within 0.2 m. Luca's was not, and it stayed lost. Seed 11 came home
+1.2-1.5 m off, to where it believed the standoff was: truly the south
 garden, behind the station's wall. No station was there, and as it
 searched, every scan refused, its heading ran on the gyro alone: -12 deg in
 110 s of turning on the spot.
@@ -6898,18 +6903,18 @@ the matcher holding the direction along it to odometry, and in the middle
 street none -- and its belief comes home off by more than the matcher's
 search there three ways: walking along the facility's outer walls, a
 heading carried across the street, and standing still where nothing is
-matched. Back in the house, the map refuses it every scan and nothing puts
-it right but the station, whose lost search finds it only from within
-about a metre; from across the street the charge's walks run out of time
-first.
+matched; and anywhere, a fall, whose get-up its odometry walks. Back in
+the house, the map refuses it every scan and nothing puts it right but the
+station, whose lost search finds it only from within about a metre; from
+across the street the charge's walks run out of time first.
 
 **Not done** (#572's stage 3, and its stage 4): a search that finds the
 station from further off than a metre, and a charge's walk given the time
 a walk across the street takes; walks to the facility that go in by its
 gates, or a station there (#560's in the research center); the heading held
 while the robot stands where nothing is matched (a zero-rate update, as
-the quadruped's while it lies); and why the wide search took back none of
-them.
+the quadruped's while it lies); its odometry held while a get-up has its
+legs; and why the wide search took back none of them.
 
 ## Debugging workflow that worked
 
