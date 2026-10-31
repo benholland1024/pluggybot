@@ -6735,6 +6735,182 @@ on a board). From the station, every flight's belief ended 2.3-2.5 m off
 the truth, the street crossed on a fresh map, and passed: the counter's
 places are laid in the map its walks plan on. A lid let fall once in 8.
 
+## Where the humanoids get lost (issue #572, stage 2)
+
+**What the live pair showed.** Eighteen minutes after the humanoids went
+live (#559's stage 4), Luca's belief was 2.05 m and 15 deg off the truth
+and Rowan's 1.19 m and 16 deg; an hour in, 2.3 and 5.3 m. Neither knew:
+past the matcher's search (0.6 m, 6 deg) a robot lays its map askew round
+its belief, and its scans agree with it. Only the station puts them right,
+from wherever its lost search finds it -- flown until now from a belief
+0.4-1 m wrong ("The humanoid's charging station"). Two instruments take it
+apart, one humanoid in the house, the served body, each flight a process
+of its own under a memory cap.
+
+**The drift, taken apart** (`scripts/humanoid_drift_spike.py`). A humanoid
+flies the loop's own explore (the served 240 s), then the loop's walks
+across the street to the storeroom, where the jobs' counter is, stands
+there 60 s as a job would and walks back to the station's standoff, twice,
+and is sent to charge. Its error is taken apart as it is made: each 10 ms
+tick of its reckoning lays the legs' step through the heading it believed;
+the same step laid through the TRUE heading, less the step it truly made,
+is the legs' share; the two layings' difference is the believed heading's
+share; every other move of the belief is the matcher's or the station's.
+The heading has two shares only, the gyro's integration and the
+corrections: the humanoid's heading is its IMU's alone
+(`StanceOdometry.yaw`), so its legs put none there. The shares add up to
+the error to 1e-13 m and 1e-11 deg. A flight's draws are its IMU's offset
+and scale and its joints' noise: Luca's and Rowan's own, and other seeds;
+`--learned` takes the gyro's offset off what its heading integrates, as a
+zero-rate update that had learned it would (the quadruped's
+`imu.Standstill`, #425: nothing under `humanoid/` has one).
+
+| flight, from | gyro offset, deg/min | along the facility's outer walls | worst | home from the storeroom | the charge |
+|---|---|---|---|---|---|
+| Luca's draws, the living room | +1.06 | no | 0.66 m | 0.6, 0.6 m | docked; the station's fix put it within 1 cm |
+| Rowan's, the hall | +2.98 | no | 0.57 m | 0.3, 0.4 m | docked |
+| seed 5, the living room | -1.41 | no | 0.38 m | 0.2, 0.3 m | its plug-in missed: the port never took the plug |
+| seed 7, the living room | -0.04 | no | 0.61 m | 0.2, 0.1 m | docked |
+| seed 1, the living room, `--learned` | (-2.79) | no | 0.96 m | 0.1, 0.3 m | docked |
+| seed 1 | -2.79 | round it, to the storeroom | 3.26 m | 3.2, 2.4 m | its walk gave up 4.6 m short |
+| seed 2, the hall | +2.50 | round it, to the storeroom | 5.22 m | 3.8, 4.0 m | no station where it searched |
+| seed 2, `--learned` | (+2.50) | its north side, already lost | 4.84 m | 2.6, 4.3 m | its walk gave up 4.9 m short |
+| seed 10, the living room | +2.40 | round it, exploring | 8.49 m | 5.7, 5.7 m | its walk gave up 4.2 m short |
+| seed 10, `--learned` | (+2.40) | round it, to the storeroom | 4.90 m | 4.9 m, 0.5 m and 12 deg | its walk found no route at all |
+| seed 11, the hall | -2.69 | no | 1.65 m | 1.2, 1.5 m | no station where it searched |
+| seed 11, `--learned` | (-2.69) | round it, exploring | 8.21 m | 3.5, 8.1 m | no station where it searched |
+| Rowan's, stood 180 s in the street | +2.98 | round it, after | 6.24 m | 6.1 m | its walk gave up 3.4 m short |
+| ...`--learned` | (+2.98) | its north side, exploring | 2.78 m | 2.5 m | no station where it searched |
+
+**Indoors the belief holds; outdoors the head's LIDAR sees one wall or
+none.** It spins at 1.41 m and every fence is 0.9 m, so outdoors it sees
+the two buildings' walls alone -- and the middle street is 6-8 m from both,
+at the edge of what the matcher reads (6.5 m):
+
+| fourteen flights | returns a scan | matched, every direction fixed | matched, held along a wall | nothing to match | refused |
+|---|---|---|---|---|---|
+| the rooms | 318 | 97 % | 0 | 0 | 3 % |
+| the gardens | 105 | 42 % | 30 % | 9 % | 19 % |
+| the sidewalks and outer streets | 96 | 18 % | 57 % | 19 % | 5 % |
+| the middle street | 30 | 0 | 25 % | 68 % | 7 % |
+
+Indoors the belief stays within 0.1-0.3 m whatever the gyro does: Rowan's
+offset, near the part's worst (3 deg a minute), put +39.8 deg into its
+heading over 13 minutes and the matcher took -39.2 off. The legs add 0.2-2
+cm a metre, which the matcher takes off as well. The gyro's share is its
+offset times the time and its scale times the true turning, to 2 deg in
+every flight.
+
+**Lost is coming home past the matcher's reach.** The house's map, laid
+true on the explore, refuses the scans of a robot that comes home further
+off than the matcher's search (0.6 m, 6 deg) -- up to 1,800 a flight --
+and the wide search (#422, 2 m and 15 deg) took back none of them for
+good: not Rowan's `--learned`, which came into the living room 1.95 m off.
+Nine of the fourteen were lost so. Four searched where they believed the
+standoff was and found no station; five never searched, their walks to it
+finding no route, 3-22 m short, in a map that put walls where they
+believed they stood.
+
+**Where: in and beyond the middle street.** In all nine, the error first
+passed a metre within a minute of the middle street -- crossing it, on the
+sidewalks either side of it, or going round the facility (a fall's few
+seconds aside). Six of the nine went round the facility: walks to the
+storeroom that passed its gate about a metre off and went round the block
+looking for a way in (seeds 1 and 2, seed 10's `--learned`, Rowan's after
+its stand), and explores that went round it (seed 10's, seed 11's
+`--learned`); none of the five that held did. What it was made of there:
+
+- *The matcher along one wall.* Along a sidewalk it holds the direction
+  along the wall to odometry and turns the heading to the wall it laid
+  seconds before, half a degree to two every five seconds: on seed 1's walk
+  round, +21.6 deg against its gyro's -10; on seed 2's, +5.3 deg beside its
+  gyro's +6.8; on seed 10's `--learned`, +9.9 deg with its gyro at +2. The
+  facility's map was laid askew through it.
+- *A heading carried across the street.* Nothing there fixes the position
+  along the walk, and the 20 m between the garden's door and the lobby's
+  turn each degree into 35 cm: Rowan's `--learned` left the storeroom 0.8
+  m and 3.4 deg off and reached the living room 1.95 m off.
+- *Standing where nothing is matched.* Rowan's draws stood 180 s in the
+  middle street: its heading went from +0.4 to +9.2 deg, its offset times
+  the time, past the matcher's 6; its next walk passed the gate 1 m off,
+  went round the block and ended 6.2 m off. The same stand with its offset
+  taken off held its heading to 0.1 deg.
+
+**The gyro's offset is one cause of three.** Taken off (`--learned`), the
+gyro's share fell to 0-2 deg a flight, and one of the five flights it
+changed held: seed 1's, whose walk then went in by the gate. Rowan's own
+offset, near the part's worst, the matcher took off to the degree wherever
+it walked.
+
+**Seed 11** fell in the garden on its explore (so did its `--learned`,
+there: the same draws, the same first minute). A body lying down has no
+heading -- its forward axis points at the sky -- so the gyro's share read
+-49 deg for the five seconds it lay there and came back as it stood; its
+map refused 19 scans and the wide search put it back within 0.2 m. It came
+home 1.2-1.5 m off, to where it believed the standoff was: truly the south
+garden, behind the station's wall. No station was there, and as it
+searched, every scan refused, its heading ran on the gyro alone: -12 deg in
+110 s of turning on the spot.
+
+**The station from far off** (`scripts/station_spike.py --lost --far`). A
+fresh humanoid, its belief set 1-5 m and 5-20 deg wrong, sent to charge by
+the loop's own path: 2 m out facing the station (each of 1, 2, 3, 4 and 5 m
+by 5, 12 and 20 deg, a bearing drawn), from the house's six rooms, and from
+across the street (the lobby, the lab and the storeroom), four drawn each:
+
+| from | docked | the rest |
+|---|---|---|
+| 2 m out | 3 of 15 | the three set 1 m wrong: one docked where its walk ended, two found it in 12 and 38 s; from 2 m and more, each searched 72-84 s and did not see it |
+| the house's rooms | 1 of 24 | the kitchen's, its walk ending 0.47 m off; 23 searched and did not see it |
+| across the street | 0 of 12 | 8 searched and did not see it; 4 never searched: their walks ran out of time twice (90 s each), 3-7 m short of where they believed the standoff was |
+
+**Explored first, as the live pair's maps were laid** (`--explore 120`:
+the belief set wrong, then 120 s of the loop's explore laying its map
+through it, then the charge), one from each room and each place across the
+street: docked 1 of 9. The explore grew the error before the charge began
+in eight of the nine (to 2.1-6.5 m); the one found began its search 0.8 m
+off, the seven not found 3.7-5.9 m off. Over both sweeps, 5 of 60 docked.
+
+![The station searched for from 2 m off: a humanoid 2 m out, its belief
+set 2 m and 12 deg wrong, walks round by the garden to where it believes
+the standoff is -- truly outside the living room's south wall, the
+station on the wall's other side -- and searches there 78 s, its belief
+2.2 m and 12 deg off throughout, a tile every 8 s (`station_spike.py
+--strip lost --lost-from station --lost-off
+-1.606,-1.192,12`)](figures/humanoid_station_far.png)
+
+**The search reaches about a metre.** By how far off the belief was where
+it began: within 1.1 m, 3 of 3 found the station; from 1.5 m, 0 of 43 (4 at
+1.5-2 m, 6 at 2-3, 18 at 3-5 and 15 further). The heading mattered less:
+one found it 20 deg off. The search steps toward where it believes the
+station is until its LIDAR reads the wall 0.8 m ahead, looks, and looks
+again from a step 0.5 m either way along it: it searches the wall in front
+of it, and from further off that is the wrong wall. Of the 43, 14 searched
+from the south garden, outside the very wall the station hangs on (the
+figure), 10 from elsewhere in the living room, 10 from the east garden, and
+the rest from the bedroom and the sidewalks and streets.
+
+**What is true now.** Indoors the humanoid's belief holds within 0.1-0.3
+m: its LIDAR fixes every direction there, and the matcher takes off its
+gyro's offset, whatever it is, and its legs' 0.2-2 cm a metre. Outdoors its
+LIDAR sees the buildings' walls alone -- along the sidewalks one at a time,
+the matcher holding the direction along it to odometry, and in the middle
+street none -- and its belief comes home off by more than the matcher's
+search there three ways: walking along the facility's outer walls, a
+heading carried across the street, and standing still where nothing is
+matched. Back in the house, the map refuses it every scan and nothing puts
+it right but the station, whose lost search finds it only from within
+about a metre; from across the street the charge's walks run out of time
+first.
+
+**Not done** (#572's stage 3, and its stage 4): a search that finds the
+station from further off than a metre, and a charge's walk given the time
+a walk across the street takes; walks to the facility that go in by its
+gates, or a station there (#560's in the research center); the heading held
+while the robot stands where nothing is matched (a zero-rate update, as
+the quadruped's while it lies); and why the wide search took back none of
+them.
+
 ## Debugging workflow that worked
 
 1. Reproduce headlessly with printed telemetry (pose, joint rates, contact
