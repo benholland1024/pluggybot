@@ -6622,37 +6622,85 @@ all four of the row; from in front of the counter, 0.8 m, the one over it.
 ⚠ A FIND STOPS AT ITS TAG'S FIRST SIGHT, so the place's facing is only as
 good as what was seen by then: the row's baseline once two of it were in
 view, else the way the tag was seen from (`mapping.places`). One tag seen
-through the storeroom's door from the lobby left a walk's `face` 20 deg
-off the wall.
+through the storeroom's door from the lobby left a walk's `face` 17-20
+deg off the wall.
 
 **The walk there, then the check.** Each reference (`challenge/
-solutions.py`) is two procedures -- one passes the language's 1,500
-characters -- in the robot's own vocabulary: the walk (the tag found round
-the address; a walk to 1.3 m out of the wall's face and 0.2 m to its right,
-outside the planner's margin round the counter, which the depth camera's
-low layer lays; a turn to face the wall; then SQUARED to the prop by the
-handle's own tag, the face it reads from there being its front, whose
-normal is level; and two steps, the first 12 cm short of where the check's
-set-outs' middle put the handle, the second off a fresh look), then the
-check's own procedure, unchanged. What flying took:
+solutions.py`) is two procedures in the robot's own vocabulary, because one
+would pass the language's 1,500 characters. The first walks there: it finds
+the tag beside the prop's in the row, then the prop's own; walks to 1.3 m
+out of the wall's face and 0.2 m to its right (outside the planner's margin
+round the counter, which the depth camera's low layer lays); faces the
+wall; reads the handle's tag from there and turns ONCE, off that face's
+normal, to a stance a little left of square (`STANCE`, each prop's own);
+steps to 30 cm short of where the check's set-outs' middle put the handle;
+and steps the last 30 cm off a fresh look. The second is the check's own
+procedure (Hands.md), unchanged for the door and the chest. What flying
+took, each at its constant:
 
-- `step` from rest walks within 1-3 cm of what it is asked, but after a
-  turn a tenth short (0.39 m of 0.43); `spot` reads a handle's tag to 1-1.5
-  cm at every distance it decodes (0.47-0.95 m). One step from the
-  standoff left the door's lever 3 cm past its set-outs' window and the
-  grip missed; two -- the second a stride or more -- put every handle in it;
-- `spot` of a 26 mm cube from 0.85 m reads its FRONT face (the most
-  square-on from there): its edges, one of them upright, give no turn, and
-  read from there the cube's procedure gripped at 42 deg. The references
-  square up off the face's normal from far and leave the edges to the
-  check's own procedure, from close, where the top face is read;
-- squared to the wall alone -- off the place's facing -- a robot that saw one
-  tag of the row from the lobby stood 28 deg turned to the counter after
-  the cube's step in, and its arm's way home dragged a jaw along the
-  counter's top: it turned the robot 23 deg and toppled it, a second into
-  the grade's hold (four cube jobs in six, from the station).
+- **The row's neighbour is found first.** One tag of the row seen through
+  the storeroom's door from the lobby left a walk's `face` 17-20 deg off
+  the wall (the find stops at that sight, above); two give the wall's way.
+- **`step` lands a 0.3 m step.** From rest it walks within 1-3 cm of what
+  it is asked, but after a turn a tenth short (0.39 m of 0.43), and a short
+  step, 0.10-0.20 m, is a stride that overshoots by up to 3.6 cm: a door's
+  lever stepped 3 cm too near was gripped on nothing five times. `spot`
+  reads a handle's tag to 1-1.5 cm at every distance it decodes (0.47-0.95
+  m).
+- **The turn is read once, from far, off the face's normal.** `spot` of a
+  26 mm cube from 0.85 m reads its FRONT face (the most square-on from
+  there), whose edges, one of them upright, give no turn: read off the
+  edges, the cube's procedure gripped at 42 deg. Read again from the
+  stance, a face seen obliquely gave 43 deg. The edges are left to the
+  check's own procedure, from close, where it reads the top.
+- **One tag's facing left a robot 28 deg turned to the counter**, and its
+  arm's way home dragged a jaw along the counter's top, turned the robot
+  23 deg and toppled it, a second into the grade's hold (four cube jobs in
+  six from the station, before the neighbour and the turn).
+- **The stance is the checks' procedures'**, the set-outs they were written
+  for. Squared to the prop, the arm's way home pushed the drawer 4 cm back
+  in and the door opened only 44 deg; turned 5-10 deg left of square, the
+  drawer, the door and the chest passed 8, 8 and 6 of 8. A stance lands
+  4-5 deg either side of the one asked (the turn, the step's own, the
+  face's read), so each prop has its own: 0.12-0.25 rad.
+- **The drawer's procedure pulls 4 cm further and lets go of the knob
+  before its arm goes home.** Over the tour, its way home pushed the drawer
+  back to 14-15 cm in 5 of 8 (15 is the bar): pulled to 0.22 m, the open
+  hand drawn 6 cm back off the knob first, every drawer stayed 20-21 cm
+  out.
 
-TBD-559-MEASURED
+![A humanoid's drawer job from the station: across the street on a fresh
+map, into the research center's storeroom, the counter's row found, the
+turn to its stance and the steps in (a tile a minute on its way), then the
+check's own procedure at the counter, reach, grip, pull and let go (a tile
+every 4 s), and the grade
+(`solve.py --feature drawer --from station --draw 3 --strip`)](figures/humanoid_job_drawer.png)
+
+**Measured** (`scripts/solve.py --feature F --from tour --n 8`): each flight
+a fresh humanoid on a fresh map, the job offered and its prop drawn, set
+out, claimed, its reference run as the robot's procedures, `done`, and
+graded on the seam. The tour starts flight k at the next of eight places
+across the house (the station, the storeroom, the lobby and the lab across
+the street, the living room, the hall, the kitchen, the garden), with the
+prop at draw k. **The bar, written before they flew: 6 of 8.**
+
+| job | passed | the flights |
+|---|---|---|
+| `open_drawer` | **8 of 8** (3 before its procedure's change) | 20-21 cm out, the call 39-281 s after the claim |
+| `open_door` | **8 of 8** | 62-74 deg open, the call 57-301 s after the claim |
+| `open_chest` | **7 of 8** | opened to 59-65 deg, the call 61-301 s after the claim; the garden's (draw 7) let fall at 1.7 rad/s as it was lowered |
+| `place_cube` | 0 of 8, **not offered** | set down 2-7 cm from the mat's middle (2.5 allowed) |
+
+No falls in the 32. The slowest pass took 313 s from the station, and each
+job allows 16 minutes from the claim (three times it, rounded up). Priced
+from the station with the place remembered (`energy.json`): the drawer
+7.08 Wh, the door 5.72, the chest 5.98.
+
+**What is not yet.** The cube: offered once a reference places it (its
+check passed 3-4 of 8 at its own set-outs, the fingers against a 26 mm cube
+on a board). From the station, every flight's belief ended 2.3-2.5 m off
+the truth, the street crossed on a fresh map, and passed: the counter's
+places are laid in the map its walks plan on. A lid let fall once in 8.
 
 ## Debugging workflow that worked
 

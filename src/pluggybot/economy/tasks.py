@@ -376,7 +376,7 @@ KINDS: dict[str, TaskKind] = {
              "graded when you say you are done and again 5 s later: out that far both "
              "times, nothing of yours touching it in between. No errand does this: "
              "write the procedure, run it, and say you are done.",
-    estimate_wh=30.0, discharge="procedure", draws=True),
+    estimate_wh=7.09, discharge="procedure", draws=True),
   "open_door": TaskKind(
     "open_door", task="open_door", target_kind="door",
     template="Open the cupboard's door, at least 50 degrees, and let go of it, within "
@@ -385,7 +385,7 @@ KINDS: dict[str, TaskKind] = {
              "are done and again 5 s later: open that far both times, nothing of yours "
              "touching it in between. No errand does this: write the procedure, run "
              "it, and say you are done.",
-    estimate_wh=30.0, discharge="procedure", draws=True),
+    estimate_wh=5.72, discharge="procedure", draws=True),
   "place_cube": TaskKind(
     "place_cube", task="place_cube", target_kind="cube",
     template="Put the cube on its mat -- resting on it, flat, its middle within 2.5 cm "
@@ -393,7 +393,7 @@ KINDS: dict[str, TaskKind] = {
              "{minutes} minutes of taking this job and without falling. It is graded "
              "5 s after you say you are done, nothing of yours touching it. No errand "
              "does this: write the procedure, run it, and say you are done.",
-    estimate_wh=30.0, discharge="procedure", draws=True),
+    estimate_wh=4.71, discharge="procedure", draws=True),
   "open_chest": TaskKind(
     "open_chest", task="open_chest", target_kind="chest",
     template="Open the chest's lid past 57 degrees, set it back down shut and let go "
@@ -402,7 +402,7 @@ KINDS: dict[str, TaskKind] = {
              "graded when you say you are done and again 5 s later: shut, nothing of "
              "yours touching it. No errand does this: write the procedure, run it, "
              "and say you are done.",
-    estimate_wh=30.0, discharge="procedure", draws=True),
+    estimate_wh=5.99, discharge="procedure", draws=True),
 }
 
 #: The hand jobs' graders (#559): each served job's row is its own -- paid,

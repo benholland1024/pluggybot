@@ -453,7 +453,8 @@ square to the counter where the middle of its practice set-outs had it, and
 over each a 120 mm tag in a row on the wall. Each is a job of its own --
 `open_chest`, `open_drawer`, `open_door`, `place_cube`
 (`tasks.HAND_JOBS`) -- discharged by a procedure the robot writes (§7's
-shape), its target its prop, so all four may stand at once.
+shape), its target its prop, so they may all stand at once. Three are
+offered (cadence.json); the cube's is not, below.
 
 **The criteria are the checks'**, through the same evaluators, with two
 departures, both about where an attempt starts:
@@ -466,8 +467,9 @@ departures, both about where an attempt starts:
   before it: the watch is the process's, begun again where the job is taken
   up; the time still counts from the claim.
 - *in the job's MINUTES.* The time limit is the offer's own term
-  (`minutes`, cadence.json), counted from the claim: three times its
-  reference's slowest from the station.
+  (`minutes`, cadence.json), counted from the claim: 16, three times the
+  slowest pass of the references over a tour of the house (313 s, from the
+  station), rounded up.
 
 **The offer says where by the area's terms** (#419): the facility's
 address, and directions that name the storeroom, the counter, the row's
@@ -487,6 +489,12 @@ every row -- while the humanoids' world, which names its jobs
 (`RewardTable.as_context(kinds=)`), shows them.
 
 **Each has its hand-written solution** (`challenge/solutions.py`, Evaluation.md
-§7), two procedures in the robot's own vocabulary, because one passes the
-language's 1,500 characters: the walk there, then the check's own
-procedure, unchanged.
+§7), two procedures in the robot's own vocabulary, because one would pass
+the language's 1,500 characters: the walk there, then the check's own
+procedure -- unchanged for the door and the chest; the drawer's pulls 4 cm
+further and lets go of the knob before its arm goes home. A job is offered
+once its reference passes 6 of 8 over a tour of the house, the bar written
+before they flew (`solve.py --from tour`; SimNotes, "The humanoids' first
+jobs"): the drawer 8, the door 8, the chest 7. The cube's reference set it
+down 2-7 cm off its mat's middle all 8 times, so `place_cube` is defined,
+graded and priced but not offered.
