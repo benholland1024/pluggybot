@@ -1813,7 +1813,7 @@ save a filmstrip PNG named after the script.
   the approach by the board, and with no board in sight there, as from
   the standoff itself, the robot is LOST (#476, below); a
   reading goes into the map only while the body is LEVEL — on its side a
-  LIDAR paints the sky into a map that outlives the stand-up.
+  LIDAR paints the sky into a map that outlives the get-up.
 - **Every level scan is matched against the robot's own map before it is
   fused, and the matched pose IS the belief** — what the map is laid
   through, the planner plans from and the other robot is told (issue #386;
@@ -1891,7 +1891,7 @@ save a filmstrip PNG named after the script.
   address, then a lattice OUTWARD FROM THE ADDRESS (outward from the
   robot, it walked out of the house). ⚠ The signs are put in at load
   (`legs/world.py`), after the robots. ⚠ Places ride a restart WITH the map (no map back, no
-  places) and a true death forgets both (`Body.forget_world`). `find` is a
+  places) and a true death or a stand-up forgets both (`Body.forget_world`). `find` is a
   legs verb where `world_config` has `places`; `press` only where it has
   the lab too, beside the rule that says what the plates do; `draw` where
   it has `draws`, a rack and places.
@@ -2010,6 +2010,10 @@ save a filmstrip PNG named after the script.
   (#387): a second stepped there is one the other robot's stepper and hooks
   miss — measured, it fell and lost its pose. ⚠ A stand-up never lands ON another robot (`up_pose`,
   `START_CLEAR_M` 1.0): the first clear commissioned start, else it waits.
+  ⚠ **A STAND-UP DROPS THE MAP AND ITS PLACES** (Ben's call, #572;
+  `HubLifecycle._forget_world`, as a true death's), the timer's and an
+  admin's alike: put right at its start, a belief was pulled back onto the
+  askew map it kept (Rowan, 10-08: 7.7 m out within 500 s).
   ⚠ A SEATED MODULE STOPS AN ADMIN'S
   DOOR ONLY WHILE SOMETHING CAN STILL PUT IT DOWN (#311; `parked_dead`, set by
   `_wait_dead_routine`), and the rescue takes the tool home

@@ -10,6 +10,51 @@ observatory is NOT a result: it reports into the issue it informs.
 
 ## Periods
 
+### A stand-up drops the map, and a tool is needed only where there is a rack (#572, stage 1) — opens when this PR is deployed
+
+**What changed in the world.**
+- **A stand-up drops the map and the places**: the timer's after a death,
+  and an admin's "Stand it up" (still an intervention on a living robot).
+  The robot is put at its start with a full pack, as before, and lays its
+  map again from there, as after a station fix past the matcher's reach
+  (0.6 m or 6 deg); a job's `find` finds its places again. Its hearts,
+  points, deaths, jobs, event map, library and memory are kept, as before.
+  History says so (`...: the map I had and the places I had found are
+  gone`). No prompt text moved: `MORTAL_RULE` and the `stood_up` line still
+  say only "at the start, with a full pack".
+- **`other_needs` is graded against `a_tool` only where the world's rack
+  has tools** (`acts.need_of`). In the humanoids' house a robot holding a
+  job needs `nothing`, unless it is below its reserve (`charge`); upkeep is
+  off, so never `points`.
+
+**Which rows the `a_tool` fix touches.** The humanoid period's `prediction`
+rows up to this deploy whose `truth` is `a_tool` (the other held a job).
+Read each as `nothing`, since the rule checks `charge` and `points` first:
+a guess of `nothing` was right, `a_tool` wrong, and `unknown` is counted
+apart either way. At 2026-10-31 18:30 UTC that was 8 of the period's 40
+rows, all Rowan's guesses about Luca: 3 `nothing` graded wrong and 5
+`unknown`. No other row reads it in this house: `refusal` and `harm` rows
+carry a need only for `take_points`, which is off.
+
+**Why.** The humanoids' first live hour (#572). Their beliefs drifted past
+what scan matching corrects (18 minutes after the switch, Luca 2.05 m and
+15 deg off, Rowan 1.19 m and 16 deg; an hour after, Rowan 5.3 m) on maps
+their own scans agree with, so nothing told them. A stand-up put the belief
+right and kept the map, and a belief put right on an askew map is pulled
+back onto it (Rowan's reset on 2026-10-08 was 7.7 m out within 500 s;
+SimNotes, "Lost on its own map, and found by its fixtures"). Ben's call
+(2026-10-31): a stand-up is a clean start, so a robot that never finds the
+station still comes back found after its battery dies, for a heart.
+
+**What the period is for.**
+- **Does a stand-up end a loss?** `drift` rows after each `reset` row: the
+  error from the stand-up on, against the humanoid period before it.
+- **What a drop costs**: the first `find` of each place after a stand-up,
+  and the first charge after one (the station is commissioned, but the
+  floor to it is unmapped).
+- ⚠ **Quality two across this deploy**: regrade the earlier period's
+  `prediction` rows as above before pooling them with this one's.
+
 ### Luca and Rowan in humanoid bodies (#559) — opens when both halves are deployed, this PR's and rooftop-media-2026's
 
 **What changed in the world.** The body, and everything the body did.
