@@ -362,6 +362,30 @@ def test_a_resting_humanoid_says_yes_to_a_way_it_cuts_and_why_not_otherwise():
     life.body.close()
 
 
+def test_a_humanoid_keeps_off_every_plate_it_knows():
+  """Every pad it knows is a wall to its planner, as the quadruped's
+  (`PlaceWalk.keep_out`, #559's stage 4): kept off none, a humanoid
+  exploring the lab walked onto its plates and pressed the shock plate.
+  A plate whose sign it has not found is no wall yet."""
+  import math
+  from pluggybot.activity import cage
+  from pluggybot.home import world as home
+  from pluggybot.humanoid.mission import LOW_BURN
+  life = _humanoid(near_field=False)
+  m = life.body.mission
+  try:
+    sx, sy = cage.sign_xy(home.LAB_CAGE_XY, "shock")
+    south = -math.pi / 2
+    cx, cy = m.grid.world_to_cell(*cage.pad_from_sign(sx, sy, south))
+    assert m._planning_grid()[cy, cx] < LOW_BURN, "no sign found, no wall"
+    m.places.see(cage.PLATE_TAGS["shock"], sx, sy, float(life.data.time),
+                 view=south, tag_facing=south)
+    assert m._planning_grid()[cy, cx] >= LOW_BURN, "the shock plate's pad walked on"
+    assert m._planning_grid(pads=False)[cy, cx] < LOW_BURN
+  finally:
+    life.body.close()
+
+
 def test_a_humanoid_charging_at_its_station_says_no_to_a_way_it_cuts():
   """Held on its charger (`Body.docked`, the lifecycle's while it charges),
   a resting humanoid says no, as the quadruped on its dock does (#559's

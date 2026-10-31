@@ -8,7 +8,10 @@ legs' encoders and its IMU, every tick) and through its stance into its
 map. A mixin: `HumanoidMission` is the rest of the body.
 
 ⚠ NO PRESS: a plate is pressed by the quadruped's walk in, and the
-humanoid's places are only found (`find`).
+humanoid's places are only found (`find`). ⚠ But it keeps off every pad
+it knows, as the quadruped does (`keep_out`, `HumanoidMission.
+_planning_grid`): kept off none, a humanoid exploring the lab walked onto
+its plates and pressed the shock plate (#559's stage 4).
 
 MEASURED (`home.storeroom`'s row from the storeroom's door, 5.5 m off, and
 from in front of the counter, 0.8 m): the 120 mm tags decode across the
@@ -22,7 +25,7 @@ import math
 import mujoco
 import numpy as np
 
-from pluggybot.legs.places import PlaceWalk, world_places
+from pluggybot.legs.places import PlaceWalk, plate_pads, world_places
 from pluggybot.mapping.places import CLOSE_M, OBLIQUE_RAD
 
 #: The camera a place is looked for by: the head's, pitched for the walls.
@@ -44,7 +47,9 @@ class HumanoidPlaces(PlaceWalk):
   """The places' search on `HumanoidMission` (the module docstring)."""
 
   def _rebind_places(self, model) -> None:
-    self._pads, self._foot_gids = {}, []
+    """The plates' pads, which it keeps off once it knows them, and no
+    feet to press one with."""
+    self._pads, self._foot_gids = plate_pads(model), []
 
   def _init_places(self, model) -> None:
     super()._init_places(model)

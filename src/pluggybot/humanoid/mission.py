@@ -640,8 +640,12 @@ class HumanoidMission(HumanoidWay, HumanoidPlaces, Navigator):
 
   def _planning_grid(self, pads: bool = True) -> np.ndarray:
     """The LIDAR's grid, with what the depth camera saw between the floor
-    and the LIDAR's plane burned in as obstacles."""
+    and the LIDAR's plane burned in as obstacles -- and every plate it
+    knows, as the quadruped's (`PlaceWalk.keep_out`)."""
     low = self.low > LOW_OCC
+    keep = self.keep_out() if pads else None
+    if keep is not None:
+      low = low | keep
     if not low.any():
       return self.grid.grid
     out = self.grid.grid.copy()
