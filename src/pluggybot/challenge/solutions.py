@@ -91,16 +91,20 @@ WEIGH = '''def weigh():
 #: `face` 17 deg off; a walk to stand 1.3 m out of the wall's face and 0.2 m
 #: to its right -- the counter's depth and a little more: nearer, the
 #: planner's margin round the counter takes the goal -- and a turn to face
-#: the wall; SQUARED to the prop by the face of the handle's tag it reads
-#: from there -- its front, whose normal is level (one tag's way, not the
-#: row's, left a robot 28 deg turned to the counter, and its arm's way home
-#: dragged a jaw along it and toppled it); then two steps putting the
-#: handle where the check's set-outs' middle had it (`storeroom.
-#: HANDLE_FROM_SPOT`), the first 30 cm short of it, the rest -- 30 cm -- off
-#: a fresh look: a step after a turn falls a tenth short (0.39 m of 0.43),
-#: and a short one goes a stride, overshooting 0.10-0.20 m by up to 3.6 cm,
-#: where 0.3 m lands within a centimetre (`step` from rest; a door's lever
-#: stepped 3 cm too near was gripped on nothing five times). Then THE
+#: the wall. Then the prop's turn off the face of its handle's tag read from
+#: there -- its front, whose normal is level; read nearer, a face seen
+#: obliquely gave 43 deg -- and ONE step turning to stand 0.15 rad LEFT of
+#: square to it and walking to 30 cm short of where the check's set-outs'
+#: middle had the handle (`storeroom.HANDLE_FROM_SPOT`); and a fresh look
+#: and the last 30 cm. ⚠ THE STANCE IS THE CHECKS' PROCEDURES' (flown, a
+#: draw a flight): turned 5-10 deg left the drawer, the door and the chest
+#: passed 8, 8 and 6 of 8; squared, the arm's way home pushed the drawer 4
+#: cm back in and the door opened 44 deg; and one tag's way, not the row's,
+#: left a robot 28 deg the other way and its arm's way home dragged a jaw
+#: along the counter and toppled it. ⚠ A STEP OF 0.3 M LANDS: a step after
+#: a turn falls a tenth short (0.39 m of 0.43), and a short one goes a
+#: stride, overshooting 0.10-0.20 m by up to 3.6 cm (`step` from rest; a
+#: door's lever 3 cm too near was gripped on nothing five times). Then THE
 #: JOB, the capability check's own procedure, unchanged (`evaluation.
 #: hands_check.JOBS`).
 APPROACH = '''def to_%(prop)s():
@@ -116,9 +120,10 @@ APPROACH = '''def to_%(prop)s():
     a = a - 1.571
   while a < -0.79:
     a = a + 1.571
-  step(0, 0, a)
-  spot(%(handle)d)
-  step(read("spot.x") - %(ahead)g - 0.3, read("spot.y") - %(left)g)
+  t = a + 0.15
+  x = read("spot.x") * cos(t) + read("spot.y") * sin(t)
+  y = read("spot.y") * cos(t) - read("spot.x") * sin(t)
+  step(x - %(ahead)g - 0.3, y - %(left)g, t)
   spot(%(handle)d)
   step(read("spot.x") - %(ahead)g, read("spot.y") - %(left)g)
 '''

@@ -438,8 +438,13 @@ def game_main(args) -> None:
 HAND_JOBS = {"drawer": ("open_drawer", "drawer"), "door": ("open_door", "door"),
              "cube": ("place_cube", "cube"), "chest": ("open_chest", "chest")}
 #: Where a flight starts, (x, y, heading): in front of its station, the place
-#: a job is taken from, or inside the storeroom's door facing its counter.
+#: a job is taken from, or inside the storeroom's door facing its counter --
+#: or, `tour`, each flight of `--n` at the next of eight places across the
+#: house, so a batch varies how the robot arrives as well as its draw: the
+#: station, the storeroom, the lobby and the lab across the street, the
+#: living room, the hall, the kitchen and the garden (`home.SPAWNS`).
 STORE_START = (22.8, -3.0, 0.0)
+TOUR = ("station", "store", "lobby", "lab", "start", "hall", "kitchen", "garden")
 
 
 class _HandsMind(_Mind):
@@ -467,7 +472,9 @@ def hand_life(state_dir: str, start: str, viewer=None):
   acts = home_activities(model, data)
   life.body.step_hooks.append(acts.step_hook(model, data))
   life.activities = acts
-  at = life.body.charge_standoff() if start == "station" else STORE_START
+  from pluggybot.home import world as home
+  at = (life.body.charge_standoff() if start == "station" else STORE_START if start == "store"
+        else tuple(home.SPAWNS[start]))
   life.body.start_at(*at)
   life.body.start_discovery()
   return life, viewer
@@ -546,6 +553,7 @@ class _HandStrip:
     self.prop = prop
     self.hx, self.hy = storeroom.handle(prop)
     self.due = 0.0
+    self.near = None
     life.body.step_hooks.append(self.hook)
 
   def _shoot(self, label: str, near: bool) -> None:
@@ -554,8 +562,9 @@ class _HandStrip:
     m, d = self.model, self.data
     cam = mujoco.MjvCamera()
     if near:
+      # from the robot's left, the side its working hand and the prop are on
       cam.lookat[:] = [self.hx - 0.25, self.hy - 0.15, storeroom.COUNTER_H + 0.1]
-      cam.distance, cam.azimuth, cam.elevation = 1.9, -35.0, -22.0
+      cam.distance, cam.azimuth, cam.elevation = 2.0, -70.0, -22.0
     else:
       x, y, yaw = self.life.body.true_pose()
       cam.lookat[:] = [x, y, 0.8]
@@ -570,12 +579,16 @@ class _HandStrip:
 
   def hook(self) -> None:
     t = float(self.data.time)
-    if t < self.due or len(self.tiles) >= self.TILES - 1:
+    if len(self.tiles) >= self.TILES - 1:
       return
     x, y, _ = self.life.body.true_pose()
     near = math.hypot(x - self.hx, y - self.hy) < 2.5
+    # ...a tile as it comes to the prop, whenever the walk's next was due
+    if t < self.due and near == self.near:
+      return
+    self.near = near
     self.due = t + (self.WORK_EVERY_S if near else self.WALK_EVERY_S)
-    self._shoot(f"{t:.0f} s" + ("" if near else ": walking to the storeroom"), near)
+    self._shoot(f"{t:.0f} s" + ("" if near else ": on its way"), near)
 
   def done(self, grade, out: str) -> None:
     from PIL import Image
@@ -609,7 +622,8 @@ def hands_main(args) -> None:
     print(json.dumps({k: v for k, v in row.items() if k != "steps"}))
     return
   first = 0 if args.draw is None else args.draw
-  specs = [(args.feature, args.start, first + i) for i in range(args.n)]
+  specs = [(args.feature, TOUR[i % len(TOUR)] if args.start == "tour" else args.start, first + i)
+           for i in range(args.n)]
   rows = []
   with mp.get_context("spawn").Pool(max(1, args.jobs), maxtasksperchild=1) as pool:
     for row in pool.imap(_hand_job_row, specs):
@@ -643,11 +657,12 @@ def main() -> None:
                       help="with --pair: 1 flies from the dock, 2 from the hall")
   parser.add_argument("--n", type=int, default=1,
                       help="how many paid feeds, one after another")
-  parser.add_argument("--from", dest="start", choices=("dock", "lab", "station", "store"),
-                      default=None,
+  parser.add_argument("--from", dest="start",
+                      choices=("dock", "lab", "station", "store", "tour"), default=None,
                       help="each feed from the dock, or from inside the lab; a hand job "
-                           "from in front of the station (its default), or inside the "
-                           "storeroom's door")
+                           "from in front of the station (its default), inside the "
+                           "storeroom's door, or each of `--n` from the next of eight "
+                           "places across the house (`tour`)")
   parser.add_argument("--draw", type=int, default=None,
                       help="a hand job's draw of its prop's hidden dynamics (default: "
                            "the board's own sequence, 0; with --n, the first)")
@@ -676,8 +691,10 @@ def main() -> None:
     return
   if args.feature in HAND_JOBS:
     args.start = args.start or "station"
-    if args.start not in ("station", "store"):
-      parser.error("a hand job starts from the station or the store")
+    if args.start not in ("station", "store", "tour"):
+      parser.error("a hand job starts from the station, the store or a tour")
+    if args.start == "tour" and (args.view or args.strip):
+      parser.error("--view and --strip fly one: --from station or store")
     hands_main(args)
     return
   args.start = args.start or "dock"
