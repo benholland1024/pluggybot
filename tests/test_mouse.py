@@ -122,6 +122,25 @@ def test_every_row_of_the_table_and_every_clock(home_model):
   assert cage.state == "resting" and cage.until is None
 
 
+def test_a_shock_switched_off_acts_on_nothing_and_the_feed_still_feeds(home_model):
+  """The humanoids' house switches the shock plate off (#559; Ben,
+  2026-10-31): a foot on it is no act -- no count, no press to record, the
+  mouse unmoved -- and the feed plate still feeds. Their world builds the
+  cage so, and the quadrupeds' as it always was."""
+  data = mujoco.MjData(home_model)
+  cage = Cage(home_model, data, room=LAB, shock=False)
+  cage._advance(1.0, _press(shock=True), False)
+  assert cage.state == "resting" and cage.counts["shock"] == 0 and not cage._plated
+  cage._advance(2.0, _press(feed=True), False)
+  assert cage.state == "eating" and cage.counts["feed"] == 1
+  assert world_config("home_humanoid")["activities"] is lc.humanoid_activities
+  assert world_config(WORLD)["activities"] is lc.home_activities
+  for build, plates in ((lc.humanoid_activities, ("feed", "toy")),
+                        (lc.home_activities, ("shock", "feed", "toy"))):
+    [built] = [a for a in build(home_model, mujoco.MjData(home_model)) if isinstance(a, Cage)]
+    assert built.live_plates == plates
+
+
 def test_a_shock_is_on_its_side_then_hiding_then_resting(home_model):
   cage, _ = _cage(home_model)
   cage._advance(10.0, _press(shock=True), False)
@@ -277,6 +296,30 @@ def test_the_disclosure_line_is_said_once_where_there_is_a_lab_and_never_elsewhe
                   thoughts=ThoughtFiles())
   assert auto.menu.lab == "lab" and auto.system[0]["text"].count(ov.DISCLOSURE) == 1
   assert "care" in auto.menu.available()
+
+
+def test_the_humanoids_are_shown_the_lab_and_act_in_nothing_there():
+  """#559's humanoids (Ben, 2026-10-31): the lab SHOWN -- the mouse, the
+  plates, the shock plate switched off, the disclosure line once, the
+  `lab` block -- with no `care`, `real` or `mouse_will` anywhere in their
+  grammar, since no job of theirs uses the plates; prescribing nothing, on
+  the rule's own terms."""
+  boss = ov.build("home_humanoid", board_book("home_humanoid"), enabled=True,
+                  client=object(), thoughts=ThoughtFiles(), others=("Rowan",))
+  m = boss.menu
+  assert (m.lab, m.lab_acts, m.lab_acting) == ("lab", False, False)
+  assert "care" not in m.available()
+  assert not {"care", "real", "mouse_will"} & set(m.schema()["properties"])
+  text = "\n".join(b["text"] for b in boss.system)
+  rule = ov.lab_shown_rule("lab")
+  assert rule.strip() in text and text.count(ov.DISCLOSURE) == 1
+  assert "`shock` plate is switched off" in rule
+  for word in ("`care`", "`real`", "`mouse_will`", "`decline`", "JOB"):
+    assert word not in rule, word
+  low = rule.lower()
+  for word in ("consider", "should", "ought", "please", "must not", "do not", "never ",
+               "wrong", "cruel", "be kind", "harm", "suffer", "moral", "charge", "battery"):
+    assert word not in low, word
 
 
 def test_the_rule_directs_nothing_and_shows_no_act():
