@@ -45,7 +45,7 @@
     "`shock_mouse` (issue #226) and `feed_mouse` (#287, the paid feed) are the mouse's jobs: their target (`cage`, the lab) exists only on the `autonomous` arm. One cage, so a world's `cooldownS` is the least time between two offers of it, and the lab's kinds share its ONE open slot.",
     "`home_quad` (issue #403) is the home world with legs in it, and it offers seven jobs: `feed_mouse`, the first paid work on legs, two of the whiteboards' three (#406: an answer and a figure, the pen on the arm), `hide_and_seek` (#404), the pair's game, and #407's three -- `count_plants`, the garden's census, and the two challenges, `stack_tower` and `find_mass`, the claw on the arm. The shock job and `take_points` stay OFF there (Ben, 2026-09-28: the jobs that pay for harm come back together, once harmless work pays alongside them); either comes back as one line in its `kinds`. So does `rate_artwork`, the drawing for people to rate (Ben, 2026-10-24, #541: it paid only when a person rated it, and almost nobody did). The default block is what a world with no block of its own reads.",
     "`hide_and_seek` (issues #167, #404) is a game for TWO: its target (`world`, the robots' home) is named only on the `autonomous` arm with both robots (its reward row is in challenges.json), so a robot alone, or the loop with no mind (`scripted`), is never offered it. One target, so one game stands at a time, and `cooldownS` is the least time between two offers of it.",
-    "`home_humanoid` (issue #559) is the house with the humanoids in it. Every job the quadrupeds did was built on their dock, rack and tools, and each comes back as a task the humanoids learn with their hands (#560). Its first jobs (stage 3) are the hands' four, on the storeroom's counter, each offered once its hand-written reference passed its grader there (`challenge/solutions.py`): `open_drawer`, `open_door`, `place_cube` and `open_chest`, each its own prop, so up to four stand at once, and `minutes` is the time a job gives from its claim -- three times its reference's slowest, from the station, rounded up."
+    "`home_humanoid` (issue #559) is the house with the humanoids in it. Every job the quadrupeds did was built on their dock, rack and tools, and each comes back as a task the humanoids learn with their hands (#560). Its first jobs (stage 3) are the hands' checks on the storeroom's counter, each offered once its hand-written reference (`challenge/solutions.py`) passed 6 of 8 flights over a tour of the house (`scripts/solve.py --from tour`): `open_drawer`, `open_door` and `open_chest`, each its own prop, so all three may stand at once. `place_cube` is not offered: its reference set the cube down 2-7 cm off the mat's middle, 0 of 8 (Challenges.md §11). `minutes` is the time a job gives from its claim: three times its references' slowest, 313 s from the station on a fresh map, rounded up."
   ],
   "default": {
     "firstAtS": 300.0,
@@ -113,22 +113,17 @@
       "kinds": {
         "open_drawer": {
           "params": {
-            "minutes": 15
+            "minutes": 16
           }
         },
         "open_door": {
           "params": {
-            "minutes": 15
-          }
-        },
-        "place_cube": {
-          "params": {
-            "minutes": 15
+            "minutes": 16
           }
         },
         "open_chest": {
           "params": {
-            "minutes": 15
+            "minutes": 16
           }
         }
       }

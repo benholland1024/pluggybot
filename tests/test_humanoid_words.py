@@ -114,10 +114,12 @@ def test_a_humanoid_is_shown_only_the_reward_rows_its_world_can_pay():
   the charge's, a procedure's and a ticket's (`overseer.ALWAYS_SHOWN`) and
   its own jobs', the hands' on the storeroom's counter (stage 3); and the
   quadruped's is every row it always was."""
-  from pluggybot.economy.tasks import HAND_JOBS
+  from pluggybot.economy.cadence import default_cadence
+  from pluggybot.economy.tasks import KINDS
   rows = {r["task"] for r in default_table().as_context(
     challenges=True, kinds=Menu.for_world(HUMANOID_HOME).kinds)}
-  assert rows == set(ov.ALWAYS_SHOWN) | set(HAND_JOBS)
+  jobs = {KINDS[k].task for k in default_cadence(HUMANOID_HOME).kinds}
+  assert jobs and rows == set(ov.ALWAYS_SHOWN) | jobs
   assert Menu.for_world(QUAD_HOME).kinds is None
   menu = Menu.for_world(HUMANOID_HOME, board_book(HUMANOID_HOME))
   assert menu.body == "humanoid" and menu.programs == () and menu.boards

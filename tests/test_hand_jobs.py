@@ -222,9 +222,13 @@ def test_each_jobs_row_is_its_own_shown_only_where_it_is_offered():
   for job, check in HAND_JOBS.items():
     assert scoring.EVALUATORS[job] is scoring.EVALUATORS[check]
     assert table[job].base > 0 == table[check].base
+  from pluggybot.economy.cadence import default_cadence
   served = {r["task"] for r in table.as_context(challenges=True,
                                                 kinds=world_kinds(HUMANOID_HOME, "humanoid"))}
-  assert set(HAND_JOBS) <= served and not set(HAND_JOBS.values()) & served
+  offered = {KINDS[k].task for k in default_cadence(HUMANOID_HOME).kinds}
+  assert offered and offered <= set(HAND_JOBS)
+  assert served & set(HAND_JOBS) == offered, "a row only where its job is offered"
+  assert not set(HAND_JOBS.values()) & served
   quad = {r["task"] for r in table.as_context(challenges=True)}
   assert not (set(HAND_JOBS) | set(HAND_JOBS.values())) & quad
 
@@ -235,7 +239,11 @@ def test_an_offer_says_where_by_the_areas_terms_and_how_long_it_gives():
   from pluggybot.rack.tags import TAG_SIZES
   board = TaskBoard()
   maker = task_producer(board, HUMANOID_HOME, procedures=True)
-  for kind in HAND_JOBS:
+  offered = list(maker.cadence.kinds)
+  # ...each once its reference passed there (cadence.json's note): the cube's
+  # set it down off the mat, 0 of 8
+  assert set(offered) == set(HAND_JOBS) - {"place_cube"}
+  for kind in offered:
     params, secret = maker._build(kind, KINDS[kind].target_kind)
     assert params["address"]["house"] == "facility" and params["minutes"] > 0
     assert set(secret) == {"draw"}
