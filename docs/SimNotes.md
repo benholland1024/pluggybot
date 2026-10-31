@@ -644,10 +644,10 @@ stand-up kept the map. **What is true now:** a reading goes into the map
 only while `Body.level()` -- on the quadruped, standing with its IMU's tilt
 within `QuadMission.LEVEL_TILT` -- and the near-field height map takes the
 same gate; the front stop still reads every scan. A stand-up drops the map
-since #572, but a fall the robot gets up from keeps it, so the gate stays. ⚠ The corrupt map was not
-the death loop it was found beside: that loop reproduced with the gate in
-place ("The squaring-up loop had no floor"). Trust the reproduction over the
-story that fits.
+since #572, but a fall the robot gets up from keeps it, so the gate stays.
+⚠ The corrupt map was not the death loop it was found beside: that loop
+reproduced with the gate in place ("The squaring-up loop had no floor").
+Trust the reproduction over the story that fits.
 
 ## Two robots at one rack (issue #346)
 

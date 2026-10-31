@@ -1472,8 +1472,8 @@ class HubLifecycle:
     b, a = rec["before"], rec["after"]
     off = math.hypot(a["x"] - b["x"], a["y"] - b["y"])
     turned = abs((a["yawDeg"] - b["yawDeg"] + 180.0) % 360.0 - 180.0)
-    # ...a humanoid's station is the one fixture it has, and its map goes
-    # only with a fix past the matcher's reach (`HumanoidBody.lost_routine`)
+    # ...a humanoid's station is the one fixture it has, and its search keeps
+    # the map until a fix past the matcher's reach (`HumanoidBody.lost_routine`)
     station = rec.get("fixture") == "station"
     if why == "lost" and station:
       line = (f"{what} was not in sight where I believed it was in front of me, so I "

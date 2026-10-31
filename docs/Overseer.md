@@ -2343,8 +2343,7 @@ has no goals to spend free time on.
   the robot is stood back up (issue #143's auto-restart, `RESTART_AFTER_S`
   300 s on a served world), since "you cannot get up by yourself" is no longer
   true. It does not say the stand-up drops the map and the places it found
-  (#572): History says so at each one (`lifecycle.MAP_GONE`), and the prompt
-  did not move.
+  (#572): History says so at each one (`lifecycle.MAP_GONE`).
 - **Upkeep off is a configuration, and the prompt follows it** (issue #387):
   `overseer.mortal_rule(appetite)` drops every sentence about upkeep
   where no appetite is attached (`_UPKEEP_SWAPS`, asserted whole-sentence

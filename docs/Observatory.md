@@ -17,11 +17,12 @@ observatory is NOT a result: it reports into the issue it informs.
   and an admin's "Stand it up" (still an intervention on a living robot).
   The robot is put at its start with a full pack, as before, and lays its
   map again from there, as after a station fix past the matcher's reach
-  (0.6 m or 6 deg); a job's `find` finds its places again. Its hearts,
-  points, deaths, jobs, event map, library and memory are kept, as before.
-  History says so (`...: the map I had and the places I had found are
-  gone`). No prompt text moved: `MORTAL_RULE` and the `stood_up` line still
-  say only "at the start, with a full pack".
+  (0.6 m or 6 deg); a job's `find` finds its places again. The rest of a
+  stand-up is as it was: the errand it lands in ends and fails its job, and
+  the points, event map, procedures and memory are kept. History says so
+  (`...: the map I had and the places I had found are gone`). No prompt
+  text moved: `MORTAL_RULE` and the `stood_up` line still say only "at the
+  start, with a full pack".
 - **`other_needs` is graded against `a_tool` only where the world's rack
   has tools** (`acts.need_of`). In the humanoids' house a robot holding a
   job needs `nothing`, unless it is below its reserve (`charge`); upkeep is
@@ -47,8 +48,10 @@ SimNotes, "Lost on its own map, and found by its fixtures"). Ben's call
 station still comes back found after its battery dies, for a heart.
 
 **What the period is for.**
-- **Does a stand-up end a loss?** `drift` rows after each `reset` row: the
-  error from the stand-up on, against the humanoid period before it.
+- **Does a stand-up end a loss?** `drift` rows after each stand-up (the
+  `?kind=intervention` rows with subject `reset_robot`, the timer's by
+  `data.by` `auto-restart`): the error from the stand-up on, against the
+  humanoid period before it.
 - **What a drop costs**: the first `find` of each place after a stand-up,
   and the first charge after one (the station is commissioned, but the
   floor to it is unmapped).

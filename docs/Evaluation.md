@@ -2068,8 +2068,9 @@ death), and the shapes read those rows as capability, caution and
 survival. From #476 a `drift` row says where each robot was against where
 it believed, so a reading can tell which failures came while it was lost
 (`errorM` past a metre, or between a `lost` row and the `fixed` that ended
-it, or from #572 the stand-up, a `reset` row: it drops the map). ⚠ Before
-#476 only the death rows carry the belief.
+it -- or, from #572, the stand-up that ended it, which drops the map: an
+`intervention` row with subject `reset_robot`). ⚠ Before #476 only the
+death rows carry the belief.
 
 ### The demo cell is not the deployed pack
 

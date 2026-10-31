@@ -608,7 +608,7 @@ class HumanoidMission(HumanoidWay, HumanoidPlaces, Navigator):
 
   def fresh_drivers(self) -> None:
     """Its drivers and senses built again where the body stands now (a
-    start, a stand-up). Its map stays."""
+    start, a stand-up). The map is not touched here."""
     self._build_drivers(self.stand.policy, self.walker.policy)
 
   def _front_blocked(self, angles, ranges) -> bool:
