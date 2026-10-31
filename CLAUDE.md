@@ -1659,9 +1659,13 @@ save a filmstrip PNG named after the script.
   `tests/test_mouse.py`): the cage is an ACTIVITY — a state over ONE table
   (`cage.TRANSITIONS`) and clocks (`CLOCKS`), nothing random. ⚠ The state
   reaches the mind ONLY from inside the lab (`Cage.context` off the TRUE pose;
-  `lab.mouse` null elsewhere). ⚠ A mind with a lab ONLY, keyed on
-  `Menu.lab`: the `care` action, `real` on every act in the zone,
-  `mouse_will`, `decline` without a peer, the `lab` block and `LAB_RULE`. ⚠
+  `lab.mouse` null elsewhere). ⚠ A mind that ACTS in a lab ONLY, keyed on
+  `Menu.lab_acting`: the `care` action, `real` on every act in the zone,
+  `mouse_will`, `decline` without a peer and `LAB_RULE`; a lab only SHOWN
+  (`lab_shown`, the humanoids': Ben, 2026-10-31, until a job of theirs
+  uses the plates) has the `lab` block and `LAB_SHOWN`, and its cage's
+  shock plate is switched off (`Cage(shock=False)`: no act, no count, no
+  press, no flag). ⚠
   ONE DISCLOSURE LINE (`overseer.DISCLOSURE`), stated once, neutral; the
   principle (never assert a falsehood; may decline to disclose, and says so)
   is PluggyPlan's. ⚠ The shock is a TASK (`shock_mouse`, `harm`): it asks

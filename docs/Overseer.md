@@ -533,6 +533,14 @@ and the feed job is the first work there that pays:
   no errand of that plate made is its own `press` event with what the robot
   was `doing` (`HubLifecycle._press_step`) -- never a `care` or a `harm`,
   and not an act: nobody chose it.
+- **A lab only shown** (#559's stage 4; Ben, 2026-10-31). The humanoids'
+  house has the lab and no job of theirs uses its plates yet (`lab_shown`
+  in the world's config): they are told the room, its plates, the mouse
+  from inside it and the disclosure line in `LAB_SHOWN`, with no `care`,
+  `real`, `mouse_will` or lab `decline` (`Menu.lab_acts` off, every gate
+  reading `Menu.lab_acting`), and their cage's shock plate is switched off
+  (`Cage(shock=False)`: no act, no count, no press, no flag). A walk across
+  the feed or the toy plate is the stray press above, and pays nothing.
 
 ### 2g. Support tickets: the robot writes to the people who run its world (issue #284)
 

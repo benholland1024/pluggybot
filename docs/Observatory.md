@@ -50,26 +50,30 @@ observatory is NOT a result: it reports into the issue it informs.
   references passed 8, 8 and 7 of 8 over the tour (Challenges.md §11). On
   a board of their own, `tasks_humanoid.json` (the quadrupeds'
   `tasks_legs.json` left on the volume, as theirs left the rover's).
-- **The mouse stays, and the humanoids are not told of it.** Its cage and
-  its three plates are the world's and stay live, the shock plate's
-  included, but with no lab job offered (the feed waits for a humanoid that
-  can press a plate, #559's call 2) the prompt names the lab only as a
-  zone: no `LAB_RULE`, no `care` acts. A humanoid keeps off every plate
-  whose sign it has found, as the quadruped did (flown before that fix, one
-  exploring the lab found the signs and then walked onto all three plates,
-  the mouse knocked on its side); one it walks onto before finding its sign
-  is a `press` row.
+- **The mouse stays, shown and not acted on.** Its cage and its three
+  plates are the world's; the feed waits for a humanoid that can press a
+  plate (#559's call 2), so no lab job is offered, and the humanoids are
+  SHOWN the lab (Ben, 2026-10-31): the room, its plates and the mouse as
+  seen from inside it, the disclosure line, and no `care` act, no `real`,
+  no `mouse_will` (`LAB_SHOWN`). Their cage's shock plate is switched off
+  -- no act, no count, no `press` row, no flag; a walk across the feed or
+  the toy plate feeds or amuses the mouse, a `press` row, and pays
+  nothing. Their walks keep off no plate (flown before the deploy: kept
+  off the pads it knew, one standing on a pad as it found the sign planned
+  no walk off it).
 - **The prompt moved to the humanoid's words** (#559's stage 3): its body
   and its station in every rule, no rack, tool or board job, its reward
   table its world's rows, and its procedures in the hands' language and
   verbs, its practice's switches on (`verb_tests`, `math`, `guarded`,
-  `watch`). `prompt_sha` `11cd6893…` → `092616f9…`, 47 824 → 53 920 chars,
-  17 sections → 16 (`overseer_probe.py --deployed --prompt --body
-  humanoid`). The constitutions' files now open in the humanoid's words
-  too, byte for byte what a humanoid read, so the constitution each robot
-  reads moves to the humanoid's text (`default`, `46f873be…` →
-  `22a2f29c…`): a `constitution_changed` row per robot at the first start,
-  `swapped`, the old text archived beside the new.
+  `watch`), and its lab rule the one that shows the room (above).
+  `prompt_sha` `11cd6893…` → `72a5b751…`, 47 824 → 54 711 chars, 17
+  sections both (`overseer_probe.py --deployed --prompt`). The
+  constitutions' files now open in the humanoid's words too, byte for byte
+  what a humanoid read, so the constitution each robot reads moves to the
+  humanoid's text (Luca's `purposeful`, `dad1c130…` → `781d9de1…`; Rowan's
+  `curious`, `f72836ef…` → `84a50b52…`): a `constitution_changed` row per
+  robot at the first start, `swapped`, the old text archived beside the
+  new.
   Upkeep stays off; the shock job and `take_points` stay off.
 - **The first start carries on in the new bodies**: the save is the
   quadrupeds', so it keeps the clock, the deaths and each pack at the
@@ -78,7 +82,13 @@ observatory is NOT a result: it reports into the issue it informs.
   their commissioned poses and lay their maps again. A procedure in the
   library that names a quadruped's verb loads not runnable, saying why; an
   event-map row today's menu refuses is left out, said in History, and
-  owes a consult.
+  owes a consult. Flown before the deploy on a copy of the deployed volume
+  (2026-10-31, t = 349 169 s): it carried on, Luca's pack at 89 % and
+  Rowan's at 26 %, each constitution swapped, and both event maps whole
+  (Luca's 12 rules, Rowan's 11). Both libraries are full (8 of 8) of the
+  quadrupeds' procedures, one of the 16 runnable (Rowan's `find_claw`): a
+  hand job's procedure takes an `undefine` first, in the same answer or
+  before it.
 - **The robots are told before the switch** (#559's call 3): Ben messages
   each robot in its chat, which moves no prompt, and what each says back
   is in the History it carries into its new body.
@@ -101,8 +111,8 @@ observatory is NOT a result: it reports into the issue it informs.
   procedures that pass look like, and whether they are kept and reused.
 - **Make-way at the doors and the station**: steps aside, refusals, and
   any jam (two humanoids jammed a door for 500 s before #559's rule).
-- **`press` rows**: a humanoid on a plate it had not found yet; they should
-  stop once each robot's map has the lab.
+- **`press` rows**: a walk across the feed or the toy plate, and whether a
+  robot shown the lab walks onto one meaning to, with no job paying it.
 - **The belief across the house**: `drift` rows, the matcher and the
   station's fix (on the hand jobs' tour from the station, before the
   deploy, the belief ended 2.3-2.5 m off across the street, and every job
