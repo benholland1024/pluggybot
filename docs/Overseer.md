@@ -2340,18 +2340,20 @@ has no goals to spend free time on.
   replacements), so the prefix never names a bill the robot does not pay,
   and with an appetite it is byte-identical to `MORTAL_RULE`. Nothing dies
   `unpaid`, and the header's `hungerStates` is empty.
-- **A body speaks in its own words.** Every rule, the reward table's rows
-  and every constitution's opening paragraph are written in the
-  quadruped's (the dock, walking, lying down), and the menu carries no tool
-  errand (`Menu.tools`, off by default). Until #427 they were the rover's,
-  swapped into the quadruped's at load; the swapped text is now the text,
-  byte for byte, so the served prompt did not move. A humanoid (#559, stage
-  3) reads them swapped into its own words at load the same way --
-  `overseer.BODY_SWAPS` on every section `system_sections` builds, and
-  `constitution.for_body` on its constitution: its charging station for the
-  dock, no tool to hang back, no question to write on a board, a job's
-  interrupt that stops rather than stows -- until the quadruped goes and the
-  text is rewritten in the humanoid's (stage 5). Its reward table is its
+- **A body speaks in its own words.** Every rule and the reward table's
+  rows are written in the quadruped's (the dock, walking, lying down), and
+  the menu carries no tool errand (`Menu.tools`, off by default). Until #427
+  they were the rover's, swapped into the quadruped's at load; the swapped
+  text is now the text, byte for byte, so the served prompt did not move. A
+  humanoid (#559, stage 3) reads them swapped into its own words at load
+  the same way, `overseer.BODY_SWAPS` on every section `system_sections`
+  builds: its charging station for the dock, no tool to hang back, no
+  question to write on a board, a job's interrupt that stops rather than
+  stows -- until the quadruped goes and the rules are rewritten in the
+  humanoid's (stage 5). The constitutions went first, with the humanoids
+  into the live world (stage 4): every file opens in the humanoid's words,
+  and a quadruped reads its own swapped in (`constitution.for_body`), so
+  what each body reads did not move by a byte. Its reward table is its
   world's rows (`Menu.kinds`: the charge's, a procedure's, a ticket's and
   its jobs' -- the hands' four on the storeroom's counter, rows `shown:
   false` that the quadruped's every-row table leaves out, Challenges.md

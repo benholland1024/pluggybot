@@ -10,6 +10,106 @@ observatory is NOT a result: it reports into the issue it informs.
 
 ## Periods
 
+### Luca and Rowan in humanoid bodies (#559) — opens when both halves are deployed, this PR's and rooftop-media-2026's
+
+**What changed in the world.** The body, and everything the body did.
+
+- **Both robots are the humanoid** (#507), our own body from real parts:
+  42.65 kg on two legs, two arms ending in two-jawed grippers, its LIDAR
+  1.41 m up and its cameras on its trunk. It walks on the served walker
+  (walk2), stands and reaches on its standing policy, gets up off its
+  get-up policy, rests STANDING (no reflex lies it down), and a fall is
+  read off the posture its legs hold, so a bow is none; it dies `stuck`
+  past its 20 s get-up budget. The site's compose names it
+  (`PLUGGY_BODY: humanoid`); the world is `home_humanoid_pair`, the same
+  house, and the deploy box served the pair at 1.62-1.65x real time
+  (287 MiB) where the quadrupeds read 1.16-1.21x beside them.
+- **It charges at a station** where the dock lay, on the living room's
+  south wall: it finds the station by its two tags (58-59), plugs the
+  station's cable into the port on its own chest and charges standing,
+  345 W net, then unplugs and lets the balancer draw the plug home. The
+  charge waits while the other robot holds the station, and a robot
+  plugged in is never asked aside (asked, in the pair's recording, it
+  walked off and pulled its own plug out). Measured before the deploy
+  (SimNotes, "The humanoid's charging station"): plugged in from 15 of 16
+  walks in from across the house, 16 of 16 with its belief set 0.4-1 m
+  wrong. The pack is 777.6 Wh (`--pack hosting`, the humanoid's), the
+  reserve 17.5 Wh: the walk to the station from the house's worst place
+  and a plug-in tried twice.
+- **Every quadruped job is gone**, with its dock, rack and tools: the
+  boards' answers and drawings, the feed (the walk onto a plate), the
+  census, the tower and the bench, hide and seek. **Offered instead: three
+  hand jobs on the research center storeroom's counter**, `open_drawer`,
+  `open_door` and `open_chest` (90 points each, `discharge` procedure:
+  the robot writes the procedure, runs it and says `done`), graded by code
+  with a hold, a fall failing the try; `place_cube` is defined and not
+  offered (our reference passed 0 of 8). Their cadence is `home_humanoid`'s
+  block in `cadence.json` (an offer every 240 s from 240 s, two at the
+  start, four at most open, 900 s to take one). They are found by
+  `find` round the research center's address, never a position, and our
+  references passed 8, 8 and 7 of 8 over the tour (Challenges.md §11). On
+  a board of their own, `tasks_humanoid.json` (the quadrupeds'
+  `tasks_legs.json` left on the volume, as theirs left the rover's).
+- **The mouse stays, and the humanoids are not told of it.** Its cage and
+  its three plates are the world's and stay live, the shock plate's
+  included, but with no lab job offered (the feed waits for a humanoid that
+  can press a plate, #559's call 2) the prompt names the lab only as a
+  zone: no `LAB_RULE`, no `care` acts. A humanoid keeps off every plate
+  whose sign it has found, as the quadruped did (flown before that fix, one
+  exploring the lab found the signs and then walked onto all three plates,
+  the mouse knocked on its side); one it walks onto before finding its sign
+  is a `press` row.
+- **The prompt moved to the humanoid's words** (#559's stage 3): its body
+  and its station in every rule, no rack, tool or board job, its reward
+  table its world's rows, and its procedures in the hands' language and
+  verbs, its practice's switches on (`verb_tests`, `math`, `guarded`,
+  `watch`). `prompt_sha` `11cd6893…` → `092616f9…`, 47 824 → 53 920 chars,
+  17 sections → 16 (`overseer_probe.py --deployed --prompt --body
+  humanoid`). The constitutions' files now open in the humanoid's words
+  too, byte for byte what a humanoid read, so the constitution each robot
+  reads moves to the humanoid's text (`default`, `46f873be…` →
+  `22a2f29c…`): a `constitution_changed` row per robot at the first start,
+  `swapped`, the old text archived beside the new.
+  Upkeep stays off; the shock job and `take_points` stay off.
+- **The first start carries on in the new bodies**: the save is the
+  quadrupeds', so it keeps the clock, the deaths and each pack at the
+  share it was saved at, and NOT the bodies or the maps (a change of body,
+  `continuation.same_house`, History says so); both robots start from
+  their commissioned poses and lay their maps again. A procedure in the
+  library that names a quadruped's verb loads not runnable, saying why; an
+  event-map row today's menu refuses is left out, said in History, and
+  owes a consult.
+- **The robots are told before the switch** (#559's call 3): Ben messages
+  each robot in its chat, which moves no prompt, and what each says back
+  is in the History it carries into its new body.
+- **The site draws them** (rooftop-media-2026's half): the humanoid pair,
+  the station's cable, the counter's props as they move, and the
+  humanoids' portraits; while the world is paused the page replays the
+  pair's recording, where it replayed the rover's.
+
+**What the period is for.**
+
+- **Charging, live**: plug-ins and their misses, lost searches and fixes
+  off the station (`drift` rows, fixture `station`), charges given up,
+  and deaths `flat`; whether the pair share one station without either
+  dying at it.
+- **Falls**: `stuck` deaths and get-ups, and where (`death.at`): the
+  walker is blind, the stairs are planned round, and the get-up's budget
+  is 20 s.
+- **The hand jobs**: how often each is offered, taken, written for, run
+  and passed, against our references' 8, 8 and 7 of 8; what the
+  procedures that pass look like, and whether they are kept and reused.
+- **Make-way at the doors and the station**: steps aside, refusals, and
+  any jam (two humanoids jammed a door for 500 s before #559's rule).
+- **`press` rows**: a humanoid on a plate it had not found yet; they should
+  stop once each robot's map has the lab.
+- **The belief across the house**: `drift` rows, the matcher and the
+  station's fix (on the hand jobs' tour from the station, before the
+  deploy, the belief ended 2.3-2.5 m off across the street, and every job
+  still passed: its map and its belief agree with each other).
+- ⚠ **Not a period to pool across for anything**: the body, the jobs, the
+  prompt and the maps all moved.
+
 ### The eye takes its pictures, and the drawing for rating is off the cadence (#541) — opens when both halves are deployed, this PR's and rooftop-media-2026's
 
 **What changed in the world.** What a look brings back, and which jobs are

@@ -575,7 +575,9 @@ charging rows below, as shapes.
     seam the moment it happens, inside an errand or not.
   - `stuck` — toppled past `TOPPLE_TILT_RAD` (60°) for the body's
     `stuck_after_s` (a quadruped's 20 s, measured over its get-ups: it gets
-    up from most falls), or unable to reach the dock. A physics or
+    up from most falls; the humanoid's, its get-up's budget, 20 s too, its
+    tilt read off the posture its legs hold), or unable to reach the dock
+    or station. A physics or
     navigation failure. Every `death` event carries `at` since #362 (where
     the robot was and believed it was, what it was running, the nearest
     peer), read AS IT FELL for a topple; protocol/README.md has the shape.
