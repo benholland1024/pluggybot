@@ -57,6 +57,9 @@ def _life(tmp_path):
   acts = ActivitySet(storeroom.activities(model, data))
   body.step_hooks.append(acts.step_hook(model, data))
   life.activities = acts
+  # ...its offers drawing past the world's compiled draw (0): a draw the
+  # world already has proves nothing was drawn
+  life.tasks.seq = max(life.tasks.seq, 5)
   return life
 
 
