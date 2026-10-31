@@ -7206,8 +7206,9 @@ class HubLifecycle:
 
 
 
-def home_activities(model, data):
-  """The home world's task state machines (issue #8).
+def home_activities(model, data, shock: bool = True):
+  """The home world's task state machines (issue #8): the cage's shock
+  plate live unless `shock` is False (`humanoid_activities`).
 
   Built per model rather than per world-config, because an Activity binds to
   sensor addresses and geom ids -- both of which belong to one compiled
@@ -7220,7 +7221,8 @@ def home_activities(model, data):
   lab = next(z for z in home.ZONES if z["name"] == "lab")
   # The mouse (issue #226): seen from inside the lab's own rectangle, the
   # room a camera there would see it from.
-  acts = [PlateLight(model, data), Cage(model, data, room=(tuple(lab["min"]), tuple(lab["max"])))]
+  acts = [PlateLight(model, data),
+          Cage(model, data, room=(tuple(lab["min"]), tuple(lab["max"])), shock=shock)]
   # ...and the humanoids' charging station, where the world has one (#559)
   if any(model.body(b).name == "station" for b in range(model.nbody)):
     from pluggybot.activity.station import Station
@@ -7230,6 +7232,13 @@ def home_activities(model, data):
   from pluggybot.home import storeroom
   acts += storeroom.activities(model, data)
   return ActivitySet(acts)
+
+
+def humanoid_activities(model, data):
+  """The humanoids' house's (#559): the home world's, the cage's shock
+  plate switched off (Ben, 2026-10-31) -- no job of theirs uses the plates
+  yet, and a foot on the shock plate acts on nothing."""
+  return home_activities(model, data, shock=False)
 
 
 def board_book(world: str, state: str | None = None):
@@ -7839,6 +7848,7 @@ ASIDE_ENDED = {"its own walk": "my own walk took over",
 #: as its narration says it -- once a while, so a no is heard. Standing or
 #: mid-move it is in nobody's way by its own rule, and says nothing.
 WAY_REFUSED = {"docked": "I am on the dock",
+               "charging": "I am plugged in at my charging station",
                "working": "I am in the middle of a move with my arm",
                "walking": "I am waiting inside a walk of my own",
                "getting up": "I am getting up",
@@ -8303,14 +8313,19 @@ def _humanoid_config() -> dict:
     "hosting_battery_wh": humanoid_world.PACK_WH,
     "low_battery_wh": humanoid_world.RESERVE_WH,
     "explore_budget": 240.0,
-    "activities": home_activities,
+    # ...the house's mechanisms, the cage's shock plate switched off
+    "activities": humanoid_activities,
     "census_zone": None, "census_zones": [],
-    "lab": None, "tower": None, "bench": None,
+    # ...no lab to act in: no `care`, no plate job, no cage target (#559) --
+    # but the lab is SHOWN, its rule and the mouse from inside the room
+    # (`Menu.lab_acts` off; Ben, 2026-10-31)
+    "lab": None, "lab_shown": {"name": "lab"}, "tower": None, "bench": None,
     "tools": False, "swap": False, "tool_bays": {},
     # ...the task areas' tags its robots find and remember (#419; the
     # humanoid's `find`, #559's stage 3): the house's -- the lab's plate
     # signs, the whiteboards' and the areas' -- and the storeroom counter's
-    # row, over its four jobs (`home.storeroom`). No plate is pressed.
+    # row, over its four jobs (`home.storeroom`). No verb presses a plate,
+    # and its walks keep off none: one crossing a plate presses it.
     "places": PLATE_TAG_IDS + tuple(t for ids in BOARD_TAG_IDS.values() for t in ids)
               + area_ids() + COUNTER_TAG_IDS,
     "plates": (), "draws": False, "cubes": (),

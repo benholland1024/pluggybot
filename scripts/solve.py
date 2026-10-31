@@ -469,7 +469,7 @@ def hand_life(state_dir: str, start: str, viewer=None):
                       tasks=TaskBoard(path=str(Path(state_dir) / "tasks.json")),
                       boards=board_book(HUMANOID_HOME), overseer=_HandsMind(),
                       near_field=True)
-  acts = home_activities(model, data)
+  acts = cfg["activities"](model, data)
   life.body.step_hooks.append(acts.step_hook(model, data))
   life.activities = acts
   from pluggybot.home import world as home

@@ -333,7 +333,7 @@ class ThoughtFiles:
            robot: str = ROBOT_ROOT,
            constitution: Constitution | str | None = None,
            constitution_env: str = constitutions.NAME_ENV,
-           body: str = "quadruped") -> "ThoughtFiles":
+           body: str = "humanoid") -> "ThoughtFiles":
     """The deploy shape: an explicit root, else the environment, else
     memory; and the constitution likewise -- a `Constitution`, else a name,
     `$PLUGGY_CONSTITUTION` (`constitution_env` is the SECOND robot's

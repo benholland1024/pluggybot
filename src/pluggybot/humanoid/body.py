@@ -214,11 +214,8 @@ class HumanoidBody(Body):
     self.rack = self.rack_prior = (None if self._station is None else
                                    RackPose(self._station.x, self._station.y,
                                             self._station.yaw + math.pi))
-    #: ...the station as it last saw it, and the catches its port is held by.
+    #: ...and the station as it last saw it.
     self._station_seen = None
-    root_name = model.body(handle.root).name
-    self._port_eqs = [e for e in range(model.neq)
-                      if model.equality(e).name.endswith(f"_port_{root_name}")]
     self._charge_trace: list = []
     self.rack_discovered = False
     self.swapping_at = None
@@ -1210,7 +1207,7 @@ class HumanoidBody(Body):
   def charging(self) -> bool:
     """Its pack takes the charger's current: a station's port catch holds
     its plug (`activity.station`) -- the BMS reads the current."""
-    return any(self._d.eq_active[e] for e in self._port_eqs)
+    return self.mission.plugged_in()
 
   def anchor_at_dock(self) -> None:
     """The station fixes its belief as it charges (#476), off the look it

@@ -5,8 +5,11 @@ The quadruped pair in the house (`home_quad`, issue #387): each robot runs
 its own day -- explores, docks when its pack runs low, runs its queue --
 against one model, one dock, one rack and one task board, ticked in turn
 from `tick.run_many`. `--view` watches it live. `--world home_humanoid` is
-the humanoid pair in the same house (issue #559): no dock, rack or tools,
-nowhere to charge yet, a day of mapping the house on its own legs.
+the humanoid pair in the same house, the served one (issue #559): no dock,
+rack or tools, one charging station they share, a day of mapping the house
+on their own legs -- and its fixture recording, `--fast --pack demo
+--near-field --errands none,none --battery 0.22,1.0 --max-sim-time 600
+--record protocol/telemetry.home_humanoid_pair.jsonl.gz`.
 
     MUJOCO_GL=egl uv run python scripts/two_robots.py --view
     ... --errands feed,none        # the first walks to the lab and feeds

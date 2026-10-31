@@ -20,7 +20,7 @@ def _house(at_seat=True, pair=False):
   """The house, a humanoid at the station's seat, its activities hooked:
   (model, data, body, station)."""
   from pluggybot.body import body_for
-  from pluggybot.lifecycle import HUMANOID_HOME, home_activities, world_config
+  from pluggybot.lifecycle import HUMANOID_HOME, world_config
   from pluggybot.robot import world_spec
   cfg = world_config(HUMANOID_HOME)
   model = world_spec(cfg["model"], cfg["start2"][:2] if pair else None, body="humanoid").compile()
@@ -29,7 +29,7 @@ def _house(at_seat=True, pair=False):
   s = body._station
   x, y = s.to_world(st.SEAT_X if at_seat else st.STANDOFF_X, st.SEAT_Y)
   body.start_at(x, y, s.yaw)
-  acts = home_activities(model, data)
+  acts = cfg["activities"](model, data)
   station = next(a for a in acts if a.name == "station")
   body.step_hooks.append(acts.step_hook(model, data))
   body.run(body.hold_routine(0.5))

@@ -108,14 +108,14 @@ uv run python scripts/ws_sink.py --port 8765
 # terminal 2: the mission, live at 1x, in the house the site serves
 MUJOCO_GL=osmesa uv run python scripts/serve.py --endpoint ws://localhost:8765
 
-# …both robots, as deployed
-MUJOCO_GL=osmesa uv run python scripts/serve.py --pair \
-  --endpoint ws://localhost:8765
-
-# …the humanoid pair in the same house (#559, not deployed): it charges
-# at its station on the living room's wall (stage 2)
+# …both robots, as deployed: the humanoid pair (#559), charging at its
+# station on the living room's wall
 MUJOCO_GL=osmesa uv run python scripts/serve.py --pair --body humanoid \
   --pack hosting --endpoint ws://localhost:8765
+
+# …the quadruped pair before them, until #559's stage 5 deletes it
+MUJOCO_GL=osmesa uv run python scripts/serve.py --pair \
+  --endpoint ws://localhost:8765
 
 # …with the robot doing something: walk to the lab, find the feed plate by
 # its sign and press it
@@ -128,25 +128,27 @@ PLUGGYWORLD_TOKEN=s3cret MUJOCO_GL=osmesa uv run python scripts/serve.py \
   --endpoint ws://localhost:8765/api/pluggyworld/ingest
 ```
 
-`serve.py` serves the quadruped (issue #387), the deployed body: the house
-with the quadruped and its dock put in at load, `home_quad` (`home_quad_pair`
-with `--pair`); `--world home` names the same world. The errand defaults to
-`none`, and the queues it takes are the lab's acts (`care`, `feed`,
-`shock`) -- no errand fetches a tool. The deployed period flies one job
-offer, the feed (#403, on a board of its own, `tasks_legs.json`), and no
-upkeep (no `$PLUGGY_METABOLISM`); Observatory.md has what is running.
-
-`--body humanoid` (`$PLUGGY_BODY=humanoid`) serves the humanoids in the same
-house instead (#559's stage 1, measured, not deployed): `home_humanoid`
-(`home_humanoid_pair`), built at load from the same file
+`--body humanoid` (`$PLUGGY_BODY=humanoid`) serves the humanoids, the
+deployed body since #559's stage 4: `home_humanoid` (`home_humanoid_pair`
+with `--pair`), the house built at load from the same file
 (`humanoid/world.py`) with the house's own fixtures -- the lab's signs, the
 boards' and the areas' tags -- and none of the quadruped's: no dock, no rack,
-no tools, so no job yet (its `cadence.json` block is empty). It charges at
-its station on the living room's wall, plugging itself in by a cable
-(stage 2; SimNotes, "The humanoid's charging station"); in a world with no
-charger a chosen `charge` ends at once, said in History ("there is nowhere
-for me to charge here"). SimNotes, "The humanoid pair served", has what was
-measured, its speed on the deploy box among it.
+no tools. It charges at its station on the living room's wall, plugging
+itself in by a cable (stage 2; SimNotes, "The humanoid's charging
+station"), and its jobs are its hands', on the storeroom's counter: the
+drawer, the cupboard's door and the chest's lid (stage 3), on a board of
+their own (`tasks_humanoid.json`), with no upkeep; Observatory.md has what
+is running. SimNotes, "The humanoid pair served", has what was measured,
+its speed on the deploy box among it.
+
+Unnamed, the body is still the quadruped (issue #387), until #559's stage 5
+deletes it: the house with the quadruped and its dock put in at load,
+`home_quad` (`home_quad_pair` with `--pair`); `--world home` names either
+house, the body picking it. Its errand defaults to `none`, and the queues
+it takes are the lab's acts (`care`, `feed`, `shock`) -- no errand fetches
+a tool; its period offered the feed (#403, on its board, `tasks_legs.json`).
+In a world with no charger a chosen `charge` ends at once, said in History
+("there is nowhere for me to charge here").
 
 `serve.py --pair` serves BOTH robots from one loop (issue #181; M12) under
 `<world>_pair`: `--errand2` is the second robot's errand (default `none` —
@@ -222,13 +224,15 @@ encodes that matters from this side: `/var/lib/pluggybot` is a named volume
 because boards, the ledger, the task board, the journal and the thought
 files are **world** state, and `restart: unless-stopped` starts the next
 process when one ends — which since #345 carries on from where the last one
-stopped (below) rather than from the start pose. It serves `--pack hosting`
-(the quadruped's real pack, `legs.model.PACK_WH`, 194 Wh) rather than the
-demo cell, which flattens fast; the low-battery reserve is deliberately
-*not* scaled with the pack — it is the absolute energy needed to reach the
-dock, a property of the floor plan. Which arm the served world flies is
-`$PLUGGY_ARM` / `$PLUGGY_ORIGIN`: `autonomous`, both robots, `unseeded`
-(issue #206; the argument is Evaluation.md §2).
+stopped (below) rather than from the start pose. It serves the humanoid
+pair (`$PLUGGY_BODY`, #559's stage 4) on `--pack hosting` (the humanoid's
+real pack, `humanoid.world.PACK_WH`, 777.6 Wh) rather than the demo cell,
+which flattens fast; the low-battery reserve is deliberately *not* scaled
+with the pack — it is the absolute energy needed to reach the station, a
+property of the floor plan (`humanoid.world.RESERVE_WH`, 17.5 Wh). Which
+arm the served world flies is `$PLUGGY_ARM` / `$PLUGGY_ORIGIN`:
+`autonomous`, both robots, `unseeded` (issue #206; the argument is
+Evaluation.md §2).
 
 ## A restart is a continuation (issue #345)
 

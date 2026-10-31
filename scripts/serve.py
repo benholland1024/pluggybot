@@ -13,9 +13,9 @@ Usage:
     # CPU-only rendering, the deploy-server configuration
   ... --world home      # the generated house + garden (issue #6) with the
                         # quadruped in it (`home_quad`, issue #387), the
-                        # default -- or with the humanoid in it
-                        # (`--body humanoid`, `home_humanoid`, #559, not
-                        # deployed). Everything the world
+                        # default until #559's stage 5 -- or with the
+                        # humanoid in it (`--body humanoid`, `home_humanoid`,
+                        # deployed since #559's stage 4). Everything the world
                         # implies -- model, scene name, grid extent, battery,
                         # start pose, explore budget -- comes from
                         # lifecycle.world_config(), so this flag can never
@@ -120,11 +120,11 @@ def serve(watchdog: "vitals.Watchdog") -> str | None:
                            "or the humanoid (`home_humanoid`, #559)")
   parser.add_argument("--body", choices=BODIES,
                       default=os.environ.get("PLUGGY_BODY") or None,
-                      help="which body the robots have: the quadruped (issue "
-                           "#387, deployed) or the humanoid (#559: no dock, "
-                           "rack or tools; it charges at its station). Default "
-                           "$PLUGGY_BODY, then the body --world names (home: "
-                           "the quadruped)")
+                      help="which body the robots have: the humanoid (#559, "
+                           "deployed from its stage 4: no dock, rack or tools; "
+                           "it charges at its station) or the quadruped (issue "
+                           "#387, until stage 5). Default $PLUGGY_BODY, then "
+                           "the body --world names (home: the quadruped)")
   parser.add_argument("--rate", type=float, default=1.0,
                       help="pacing: sim seconds per wall second")
   parser.add_argument("--free-run", action="store_true",

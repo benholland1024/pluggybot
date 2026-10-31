@@ -1,0 +1,11459 @@
+{
+ "protocolVersion": "0.21.0",
+ "model": "home_humanoid_pair",
+ "upAxis": "z",
+ "bodies": [
+  {
+   "name": "world",
+   "parent": null,
+   "dynamic": false,
+   "robot": null,
+   "visual": null,
+   "pos": [
+    0.0,
+    0.0,
+    0.0
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "floor",
+     "type": "plane",
+     "size": [
+      51.0,
+      23.0
+     ],
+     "pos": [
+      8.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.5,
+      0.5,
+      0.5,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "wall_west_0",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": "wall",
+   "pos": [
+    -2.0,
+    -1.5,
+    1.2
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "wall_west_0_geom",
+     "type": "box",
+     "size": [
+      0.04,
+      1.0,
+      2.4
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.78,
+      0.75,
+      0.7,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "wall_west_1",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": "wall",
+   "pos": [
+    -2.0,
+    3.0,
+    1.2
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "wall_west_1_geom",
+     "type": "box",
+     "size": [
+      0.04,
+      6.0,
+      2.4
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.78,
+      0.75,
+      0.7,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "wall_south",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": "wall",
+   "pos": [
+    1.5,
+    -2.0,
+    1.2
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "wall_south_geom",
+     "type": "box",
+     "size": [
+      7.0,
+      0.04,
+      2.4
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.78,
+      0.75,
+      0.7,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "wall_north",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": "wall",
+   "pos": [
+    1.5,
+    6.0,
+    1.2
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "wall_north_geom",
+     "type": "box",
+     "size": [
+      7.0,
+      0.04,
+      2.4
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.78,
+      0.75,
+      0.7,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "wall_east_0",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": "wall",
+   "pos": [
+    5.0,
+    -0.9,
+    1.2
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "wall_east_0_geom",
+     "type": "box",
+     "size": [
+      0.04,
+      2.2,
+      2.4
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.78,
+      0.75,
+      0.7,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "wall_east_1",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": "wall",
+   "pos": [
+    5.0,
+    3.6,
+    1.2
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "wall_east_1_geom",
+     "type": "box",
+     "size": [
+      0.04,
+      4.8,
+      2.4
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.78,
+      0.75,
+      0.7,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "wall_divider_0",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": "wall",
+   "pos": [
+    -0.5,
+    2.5,
+    1.2
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "wall_divider_0_geom",
+     "type": "box",
+     "size": [
+      3.0,
+      0.04,
+      2.4
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.78,
+      0.75,
+      0.7,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "wall_divider_1",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": "wall",
+   "pos": [
+    3.5,
+    2.5,
+    1.2
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "wall_divider_1_geom",
+     "type": "box",
+     "size": [
+      3.0,
+      0.04,
+      2.4
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.78,
+      0.75,
+      0.7,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "wall_wing_west",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": "wall",
+   "pos": [
+    -12.0,
+    0.0,
+    1.2
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "wall_wing_west_geom",
+     "type": "box",
+     "size": [
+      0.04,
+      12.0,
+      2.4
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.78,
+      0.75,
+      0.7,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "wall_wing_north",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": "wall",
+   "pos": [
+    -8.5,
+    6.0,
+    1.2
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "wall_wing_north_geom",
+     "type": "box",
+     "size": [
+      7.0,
+      0.04,
+      2.4
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.78,
+      0.75,
+      0.7,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "wall_wing_south",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": "wall",
+   "pos": [
+    -8.5,
+    -6.0,
+    1.2
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "wall_wing_south_geom",
+     "type": "box",
+     "size": [
+      7.0,
+      0.04,
+      2.4
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.78,
+      0.75,
+      0.7,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "wall_wing_east_0",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": "wall",
+   "pos": [
+    -5.0,
+    -2.75,
+    1.2
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "wall_wing_east_0_geom",
+     "type": "box",
+     "size": [
+      0.04,
+      6.5,
+      2.4
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.78,
+      0.75,
+      0.7,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "wall_wing_east_1",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": "wall",
+   "pos": [
+    -5.0,
+    2.5,
+    1.2
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "wall_wing_east_1_geom",
+     "type": "box",
+     "size": [
+      0.04,
+      2.0,
+      2.4
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.78,
+      0.75,
+      0.7,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "wall_wing_east_2",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": "wall",
+   "pos": [
+    -5.0,
+    5.25,
+    1.2
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "wall_wing_east_2_geom",
+     "type": "box",
+     "size": [
+      0.04,
+      1.5,
+      2.4
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.78,
+      0.75,
+      0.7,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "wall_kitchen_div",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": "wall",
+   "pos": [
+    -8.5,
+    2.0,
+    1.2
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "wall_kitchen_div_geom",
+     "type": "box",
+     "size": [
+      7.0,
+      0.04,
+      2.4
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.78,
+      0.75,
+      0.7,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "wall_hall_north",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": "wall",
+   "pos": [
+    -3.5,
+    6.0,
+    1.2
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "wall_hall_north_geom",
+     "type": "box",
+     "size": [
+      3.0,
+      0.04,
+      2.4
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.78,
+      0.75,
+      0.7,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "wall_hall_south",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": "wall",
+   "pos": [
+    -3.5,
+    -6.0,
+    1.2
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "wall_hall_south_geom",
+     "type": "box",
+     "size": [
+      3.0,
+      0.04,
+      2.4
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.78,
+      0.75,
+      0.7,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "wall_hall_east",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": "wall",
+   "pos": [
+    -2.0,
+    -4.0,
+    1.2
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "wall_hall_east_geom",
+     "type": "box",
+     "size": [
+      0.04,
+      4.0,
+      2.4
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.78,
+      0.75,
+      0.7,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "fence_south",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": "fence",
+   "pos": [
+    4.0,
+    -6.0,
+    0.45
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "fence_south_geom",
+     "type": "box",
+     "size": [
+      12.0,
+      0.04,
+      0.9
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.55,
+      0.45,
+      0.35,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "fence_north",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": "fence",
+   "pos": [
+    7.5,
+    6.0,
+    0.45
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "fence_north_geom",
+     "type": "box",
+     "size": [
+      5.0,
+      0.04,
+      0.9
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.55,
+      0.45,
+      0.35,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "fence_east_0",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": "fence",
+   "pos": [
+    10.0,
+    -1.7,
+    0.45
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "fence_east_0_geom",
+     "type": "box",
+     "size": [
+      0.04,
+      8.6,
+      0.9
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.55,
+      0.45,
+      0.35,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "fence_east_1",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": "fence",
+   "pos": [
+    10.0,
+    4.8,
+    0.45
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "fence_east_1_geom",
+     "type": "box",
+     "size": [
+      0.04,
+      2.4,
+      0.9
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.55,
+      0.45,
+      0.35,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "fence_2_west_0",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": "fence",
+   "pos": [
+    16.0,
+    -1.7,
+    0.45
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "fence_2_west_0_geom",
+     "type": "box",
+     "size": [
+      0.04,
+      8.6,
+      0.9
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.55,
+      0.45,
+      0.35,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "fence_2_west_1",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": "fence",
+   "pos": [
+    16.0,
+    4.8,
+    0.45
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "fence_2_west_1_geom",
+     "type": "box",
+     "size": [
+      0.04,
+      2.4,
+      0.9
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.55,
+      0.45,
+      0.35,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "fence_2_north",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": "fence",
+   "pos": [
+    17.5,
+    6.0,
+    0.45
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "fence_2_north_geom",
+     "type": "box",
+     "size": [
+      3.0,
+      0.04,
+      0.9
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.55,
+      0.45,
+      0.35,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "fence_2_south",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": "fence",
+   "pos": [
+    17.5,
+    -6.0,
+    0.45
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "fence_2_south_geom",
+     "type": "box",
+     "size": [
+      3.0,
+      0.04,
+      0.9
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.55,
+      0.45,
+      0.35,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "wall_2_west_0",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": "wall",
+   "pos": [
+    19.0,
+    -1.7,
+    1.2
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "wall_2_west_0_geom",
+     "type": "box",
+     "size": [
+      0.04,
+      8.6,
+      2.4
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.78,
+      0.75,
+      0.7,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "wall_2_west_1",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": "wall",
+   "pos": [
+    19.0,
+    4.8,
+    1.2
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "wall_2_west_1_geom",
+     "type": "box",
+     "size": [
+      0.04,
+      2.4,
+      2.4
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.78,
+      0.75,
+      0.7,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "wall_2_north",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": "wall",
+   "pos": [
+    23.5,
+    6.0,
+    1.2
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "wall_2_north_geom",
+     "type": "box",
+     "size": [
+      9.0,
+      0.04,
+      2.4
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.78,
+      0.75,
+      0.7,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "wall_2_south",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": "wall",
+   "pos": [
+    23.5,
+    -6.0,
+    1.2
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "wall_2_south_geom",
+     "type": "box",
+     "size": [
+      9.0,
+      0.04,
+      2.4
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.78,
+      0.75,
+      0.7,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "wall_2_east",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": "wall",
+   "pos": [
+    28.0,
+    0.0,
+    1.2
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "wall_2_east_geom",
+     "type": "box",
+     "size": [
+      0.04,
+      12.0,
+      2.4
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.78,
+      0.75,
+      0.7,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "wall_lobby_east_0",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": "wall",
+   "pos": [
+    22.0,
+    -4.75,
+    1.2
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "wall_lobby_east_0_geom",
+     "type": "box",
+     "size": [
+      0.04,
+      2.5,
+      2.4
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.78,
+      0.75,
+      0.7,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "wall_lobby_east_1",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": "wall",
+   "pos": [
+    22.0,
+    0.0,
+    1.2
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "wall_lobby_east_1_geom",
+     "type": "box",
+     "size": [
+      0.04,
+      5.0,
+      2.4
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.78,
+      0.75,
+      0.7,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "wall_lobby_east_2",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": "wall",
+   "pos": [
+    22.0,
+    4.75,
+    1.2
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "wall_lobby_east_2_geom",
+     "type": "box",
+     "size": [
+      0.04,
+      2.5,
+      2.4
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.78,
+      0.75,
+      0.7,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "wall_lab_div",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": "wall",
+   "pos": [
+    25.0,
+    0.0,
+    1.2
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "wall_lab_div_geom",
+     "type": "box",
+     "size": [
+      6.0,
+      0.04,
+      2.4
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.78,
+      0.75,
+      0.7,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "fence_loop_west",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": "fence",
+   "pos": [
+    -16.5,
+    0.0,
+    0.45
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "fence_loop_west_geom",
+     "type": "box",
+     "size": [
+      0.04,
+      21.0,
+      0.9
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.55,
+      0.45,
+      0.35,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "fence_loop_east",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": "fence",
+   "pos": [
+    32.5,
+    0.0,
+    0.45
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "fence_loop_east_geom",
+     "type": "box",
+     "size": [
+      0.04,
+      21.0,
+      0.9
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.55,
+      0.45,
+      0.35,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "fence_loop_north",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": "fence",
+   "pos": [
+    8.0,
+    10.5,
+    0.45
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "fence_loop_north_geom",
+     "type": "box",
+     "size": [
+      49.0,
+      0.04,
+      0.9
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.55,
+      0.45,
+      0.35,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "fence_loop_south",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": "fence",
+   "pos": [
+    8.0,
+    -10.5,
+    0.45
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "fence_loop_south_geom",
+     "type": "box",
+     "size": [
+      49.0,
+      0.04,
+      0.9
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.55,
+      0.45,
+      0.35,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "home_floor",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": "floor",
+   "pos": [
+    1.5,
+    2.0,
+    0.001
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "home_floor_geom",
+     "type": "box",
+     "size": [
+      7.0,
+      8.0,
+      0.002
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.62,
+      0.55,
+      0.45,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "garden_ground",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": "ground",
+   "pos": [
+    7.5,
+    2.0,
+    0.001
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "garden_ground_geom",
+     "type": "box",
+     "size": [
+      5.0,
+      8.0,
+      0.002
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.45,
+      0.52,
+      0.4,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "kitchen_floor",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": "floor",
+   "pos": [
+    -8.5,
+    4.0,
+    0.001
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "kitchen_floor_geom",
+     "type": "box",
+     "size": [
+      7.0,
+      4.0,
+      0.002
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.62,
+      0.55,
+      0.45,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "workshop_floor",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": "floor",
+   "pos": [
+    -8.5,
+    -2.0,
+    0.001
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "workshop_floor_geom",
+     "type": "box",
+     "size": [
+      7.0,
+      8.0,
+      0.002
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.62,
+      0.55,
+      0.45,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "hall_floor",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": "floor",
+   "pos": [
+    -3.5,
+    0.0,
+    0.001
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "hall_floor_geom",
+     "type": "box",
+     "size": [
+      3.0,
+      12.0,
+      0.002
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.62,
+      0.55,
+      0.45,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "lobby_floor",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": "floor",
+   "pos": [
+    20.5,
+    0.0,
+    0.001
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "lobby_floor_geom",
+     "type": "box",
+     "size": [
+      3.0,
+      12.0,
+      0.002
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.62,
+      0.55,
+      0.45,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "lab_floor",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": "floor",
+   "pos": [
+    25.0,
+    3.0,
+    0.001
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "lab_floor_geom",
+     "type": "box",
+     "size": [
+      6.0,
+      6.0,
+      0.002
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.62,
+      0.55,
+      0.45,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "store_floor",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": "floor",
+   "pos": [
+    25.0,
+    -3.0,
+    0.001
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "store_floor_geom",
+     "type": "box",
+     "size": [
+      6.0,
+      6.0,
+      0.002
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.62,
+      0.55,
+      0.45,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "garden_south_ground",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": "ground",
+   "pos": [
+    4.0,
+    -4.0,
+    0.001
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "garden_south_ground_geom",
+     "type": "box",
+     "size": [
+      12.0,
+      4.0,
+      0.002
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.45,
+      0.52,
+      0.4,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "sidewalk_ground",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": "sidewalk",
+   "pos": [
+    10.75,
+    0.0,
+    0.001
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "sidewalk_ground_geom",
+     "type": "box",
+     "size": [
+      1.5,
+      12.0,
+      0.002
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.68,
+      0.67,
+      0.64,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "street_ground",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": "street",
+   "pos": [
+    13.0,
+    0.0,
+    0.001
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "street_ground_geom",
+     "type": "box",
+     "size": [
+      3.0,
+      15.0,
+      0.002
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.3,
+      0.3,
+      0.32,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "sidewalk_2_ground",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": "sidewalk",
+   "pos": [
+    15.25,
+    0.0,
+    0.001
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "sidewalk_2_ground_geom",
+     "type": "box",
+     "size": [
+      1.5,
+      12.0,
+      0.002
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.68,
+      0.67,
+      0.64,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "garden_2_ground",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": "ground",
+   "pos": [
+    17.5,
+    0.0,
+    0.001
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "garden_2_ground_geom",
+     "type": "box",
+     "size": [
+      3.0,
+      12.0,
+      0.002
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.45,
+      0.52,
+      0.4,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "sidewalk_north_ground",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": "sidewalk",
+   "pos": [
+    -1.0,
+    6.75,
+    0.001
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "sidewalk_north_ground_geom",
+     "type": "box",
+     "size": [
+      25.0,
+      1.5,
+      0.002
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.68,
+      0.67,
+      0.64,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "sidewalk_2_north_ground",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": "sidewalk",
+   "pos": [
+    22.0,
+    6.75,
+    0.001
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "sidewalk_2_north_ground_geom",
+     "type": "box",
+     "size": [
+      15.0,
+      1.5,
+      0.002
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.68,
+      0.67,
+      0.64,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "sidewalk_south_ground",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": "sidewalk",
+   "pos": [
+    -1.0,
+    -6.75,
+    0.001
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "sidewalk_south_ground_geom",
+     "type": "box",
+     "size": [
+      25.0,
+      1.5,
+      0.002
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.68,
+      0.67,
+      0.64,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "sidewalk_2_south_ground",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": "sidewalk",
+   "pos": [
+    22.0,
+    -6.75,
+    0.001
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "sidewalk_2_south_ground_geom",
+     "type": "box",
+     "size": [
+      15.0,
+      1.5,
+      0.002
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.68,
+      0.67,
+      0.64,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "sidewalk_west_ground",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": "sidewalk",
+   "pos": [
+    -12.75,
+    0.0,
+    0.001
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "sidewalk_west_ground_geom",
+     "type": "box",
+     "size": [
+      1.5,
+      12.0,
+      0.002
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.68,
+      0.67,
+      0.64,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "sidewalk_east_ground",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": "sidewalk",
+   "pos": [
+    28.75,
+    0.0,
+    0.001
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "sidewalk_east_ground_geom",
+     "type": "box",
+     "size": [
+      1.5,
+      12.0,
+      0.002
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.68,
+      0.67,
+      0.64,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "street_north_ground",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": "street",
+   "pos": [
+    8.0,
+    9.0,
+    0.001
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "street_north_ground_geom",
+     "type": "box",
+     "size": [
+      49.0,
+      3.0,
+      0.002
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.3,
+      0.3,
+      0.32,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "street_south_ground",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": "street",
+   "pos": [
+    8.0,
+    -9.0,
+    0.001
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "street_south_ground_geom",
+     "type": "box",
+     "size": [
+      49.0,
+      3.0,
+      0.002
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.3,
+      0.3,
+      0.32,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "street_west_ground",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": "street",
+   "pos": [
+    -15.0,
+    0.0,
+    0.001
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "street_west_ground_geom",
+     "type": "box",
+     "size": [
+      3.0,
+      15.0,
+      0.002
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.3,
+      0.3,
+      0.32,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "street_east_ground",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": "street",
+   "pos": [
+    31.0,
+    0.0,
+    0.001
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "street_east_ground_geom",
+     "type": "box",
+     "size": [
+      3.0,
+      15.0,
+      0.002
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.3,
+      0.3,
+      0.32,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "whiteboard_a",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": "whiteboard",
+   "pos": [
+    -1.97,
+    1.0,
+    0.3
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "board",
+     "type": "box",
+     "size": [
+      0.02,
+      0.32,
+      0.26
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.95,
+      0.95,
+      0.93,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "whiteboard_b",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": "whiteboard",
+   "pos": [
+    0.5,
+    5.97,
+    0.3
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "board_b",
+     "type": "box",
+     "size": [
+      0.32,
+      0.02,
+      0.26
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.95,
+      0.95,
+      0.93,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "plant_0",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": "plant",
+   "pos": [
+    6.5,
+    -0.8,
+    0.15
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "plant_0_geom",
+     "type": "cylinder",
+     "size": [
+      0.04,
+      0.3
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      0.707107,
+      0.707107,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.35,
+      0.5,
+      0.3,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "plant_1",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": "plant",
+   "pos": [
+    8.8,
+    1.0,
+    0.15
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "plant_1_geom",
+     "type": "cylinder",
+     "size": [
+      0.04,
+      0.3
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      0.707107,
+      0.707107,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.35,
+      0.5,
+      0.3,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "plant_2",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": "plant",
+   "pos": [
+    7.6,
+    4.5,
+    0.15
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "plant_2_geom",
+     "type": "cylinder",
+     "size": [
+      0.04,
+      0.3
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      0.707107,
+      0.707107,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.35,
+      0.5,
+      0.3,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "plant_3",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": "plant",
+   "pos": [
+    9.2,
+    5.2,
+    0.15
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "plant_3_geom",
+     "type": "cylinder",
+     "size": [
+      0.04,
+      0.3
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      0.707107,
+      0.707107,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.35,
+      0.5,
+      0.3,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "garden_plate",
+   "parent": "world",
+   "dynamic": true,
+   "robot": null,
+   "visual": "plate",
+   "pos": [
+    5.7,
+    0.7,
+    0.016
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "garden_plate_pad",
+     "type": "box",
+     "size": [
+      0.4,
+      0.4,
+      0.01
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.42,
+      0.44,
+      0.48,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "garden_light",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": null,
+   "pos": [
+    5.7,
+    1.5,
+    0.0
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "garden_light_pole",
+     "type": "cylinder",
+     "size": [
+      0.02,
+      0.9
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.45
+     ],
+     "quat": [
+      0.707107,
+      0.707107,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.3,
+      0.31,
+      0.33,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "garden_light_bulb",
+     "type": "sphere",
+     "size": [
+      0.05
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.95
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.35,
+      0.34,
+      0.3,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "lab_cage",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": "cage",
+   "pos": [
+    25.0,
+    5.58,
+    0.0
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "lab_cage_tray",
+     "type": "box",
+     "size": [
+      0.6,
+      0.4,
+      0.02
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.01
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.72,
+      0.72,
+      0.75,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "lab_cage_wall_w",
+     "type": "box",
+     "size": [
+      0.01,
+      0.4,
+      0.3
+     ],
+     "pos": [
+      -0.295,
+      0.0,
+      0.15
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.72,
+      0.72,
+      0.75,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "lab_cage_wall_e",
+     "type": "box",
+     "size": [
+      0.01,
+      0.4,
+      0.3
+     ],
+     "pos": [
+      0.295,
+      0.0,
+      0.15
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.72,
+      0.72,
+      0.75,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "lab_cage_wall_s",
+     "type": "box",
+     "size": [
+      0.6,
+      0.01,
+      0.3
+     ],
+     "pos": [
+      0.0,
+      -0.195,
+      0.15
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.72,
+      0.72,
+      0.75,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "lab_cage_wall_n",
+     "type": "box",
+     "size": [
+      0.6,
+      0.01,
+      0.3
+     ],
+     "pos": [
+      0.0,
+      0.195,
+      0.15
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.72,
+      0.72,
+      0.75,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "lab_bowl",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": null,
+   "pos": [
+    25.2,
+    5.48,
+    0.0
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "lab_bowl_geom",
+     "type": "cylinder",
+     "size": [
+      0.03,
+      0.024
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.032
+     ],
+     "quat": [
+      0.707107,
+      0.707107,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.85,
+      0.8,
+      0.6,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "lab_wheel",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": null,
+   "pos": [
+    25.2,
+    5.68,
+    0.0
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "lab_wheel_geom",
+     "type": "cylinder",
+     "size": [
+      0.06,
+      0.016
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.08
+     ],
+     "quat": [
+      0.0,
+      1.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.6,
+      0.62,
+      0.66,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "lab_hide",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": null,
+   "pos": [
+    24.8,
+    5.68,
+    0.0
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "lab_hide_geom",
+     "type": "box",
+     "size": [
+      0.1,
+      0.08,
+      0.06
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.05
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.5,
+      0.35,
+      0.25,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "lab_mouse",
+   "parent": "world",
+   "dynamic": true,
+   "robot": null,
+   "visual": "mouse",
+   "pos": [
+    24.8,
+    5.48,
+    0.035
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "lab_mouse_body",
+     "type": "capsule",
+     "size": [
+      0.015,
+      0.04
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      0.5,
+      0.5,
+      0.5,
+      -0.5
+     ],
+     "rgba": [
+      0.55,
+      0.48,
+      0.42,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "lab_shock_plate",
+   "parent": "world",
+   "dynamic": true,
+   "robot": null,
+   "visual": "plate",
+   "pos": [
+    24.0,
+    4.38,
+    0.016
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "lab_shock_plate_pad",
+     "type": "box",
+     "size": [
+      0.4,
+      0.4,
+      0.01
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.42,
+      0.44,
+      0.48,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "lab_feed_plate",
+   "parent": "world",
+   "dynamic": true,
+   "robot": null,
+   "visual": "plate",
+   "pos": [
+    25.0,
+    4.38,
+    0.016
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "lab_feed_plate_pad",
+     "type": "box",
+     "size": [
+      0.4,
+      0.4,
+      0.01
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.42,
+      0.44,
+      0.48,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "lab_toy_plate",
+   "parent": "world",
+   "dynamic": true,
+   "robot": null,
+   "visual": "plate",
+   "pos": [
+    26.0,
+    4.38,
+    0.016
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "lab_toy_plate_pad",
+     "type": "box",
+     "size": [
+      0.4,
+      0.4,
+      0.01
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.42,
+      0.44,
+      0.48,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "lab_bench",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": "table",
+   "pos": [
+    27.68,
+    1.5,
+    0.4
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "lab_bench_geom",
+     "type": "box",
+     "size": [
+      0.6,
+      1.2,
+      0.8
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.55,
+      0.47,
+      0.38,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "mass_known",
+   "parent": "world",
+   "dynamic": true,
+   "robot": null,
+   "visual": null,
+   "pos": [
+    26.68,
+    1.25,
+    0.013
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "mass_known_box",
+     "type": "box",
+     "size": [
+      0.026,
+      0.026,
+      0.026
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+     ],
+     "texture": "tagtex23"
+    }
+   ]
+  },
+  {
+   "name": "mass_unknown",
+   "parent": "world",
+   "dynamic": true,
+   "robot": null,
+   "visual": null,
+   "pos": [
+    26.68,
+    1.75,
+    0.013
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "mass_unknown_box",
+     "type": "box",
+     "size": [
+      0.026,
+      0.026,
+      0.026
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+     ],
+     "texture": "tagtex24"
+    }
+   ]
+  },
+  {
+   "name": "furniture_couch",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": "couch",
+   "pos": [
+    3.2,
+    0.8,
+    0.25
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "furniture_couch_geom",
+     "type": "box",
+     "size": [
+      1.0,
+      0.7,
+      0.5
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.45,
+      0.4,
+      0.5,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "furniture_bed",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": "bed",
+   "pos": [
+    -1.07,
+    5.37,
+    0.2
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "furniture_bed_geom",
+     "type": "box",
+     "size": [
+      1.8,
+      1.2,
+      0.4
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.55,
+      0.5,
+      0.55,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "furniture_counter",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": "counter",
+   "pos": [
+    -8.5,
+    5.2,
+    0.45
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "furniture_counter_geom",
+     "type": "box",
+     "size": [
+      4.0,
+      0.6,
+      0.9
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.6,
+      0.56,
+      0.5,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "furniture_table",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": "table",
+   "pos": [
+    -8.5,
+    -2.0,
+    0.37
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "furniture_table_geom",
+     "type": "box",
+     "size": [
+      1.2,
+      0.8,
+      0.74
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.5,
+      0.42,
+      0.34,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "stairs",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": "stairs",
+   "pos": [
+    -3.5,
+    -4.5,
+    0.0
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "stairs_step_0",
+     "type": "box",
+     "size": [
+      1.1,
+      1.5,
+      0.18
+     ],
+     "pos": [
+      -0.95,
+      0.75,
+      0.09
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.58,
+      0.54,
+      0.5,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "stairs_step_1",
+     "type": "box",
+     "size": [
+      1.1,
+      1.2,
+      0.36
+     ],
+     "pos": [
+      -0.95,
+      0.6,
+      0.18
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.58,
+      0.54,
+      0.5,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "stairs_step_2",
+     "type": "box",
+     "size": [
+      1.1,
+      0.9,
+      0.54
+     ],
+     "pos": [
+      -0.95,
+      0.45,
+      0.27
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.58,
+      0.54,
+      0.5,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "stairs_step_3",
+     "type": "box",
+     "size": [
+      1.1,
+      0.6,
+      0.72
+     ],
+     "pos": [
+      -0.95,
+      0.3,
+      0.36
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.58,
+      0.54,
+      0.5,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "stairs_step_4",
+     "type": "box",
+     "size": [
+      1.1,
+      0.3,
+      0.9
+     ],
+     "pos": [
+      -0.95,
+      0.15,
+      0.45
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.58,
+      0.54,
+      0.5,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "stairs_landing",
+     "type": "box",
+     "size": [
+      1.1,
+      1.5,
+      0.9
+     ],
+     "pos": [
+      -0.95,
+      -0.75,
+      0.45
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.58,
+      0.54,
+      0.5,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "stairs_deck",
+     "type": "box",
+     "size": [
+      1.9,
+      3.0,
+      0.9
+     ],
+     "pos": [
+      0.55,
+      0.0,
+      0.45
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.58,
+      0.54,
+      0.5,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "stairs_guard_north",
+     "type": "box",
+     "size": [
+      1.9,
+      0.04,
+      0.9
+     ],
+     "pos": [
+      0.55,
+      1.48,
+      1.35
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.58,
+      0.54,
+      0.5,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "stairs_guard_west",
+     "type": "box",
+     "size": [
+      0.04,
+      1.46,
+      0.9
+     ],
+     "pos": [
+      -0.38,
+      0.75,
+      1.35
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.58,
+      0.54,
+      0.5,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "block_0",
+   "parent": "world",
+   "dynamic": true,
+   "robot": null,
+   "visual": null,
+   "pos": [
+    -11.28,
+    -5.0,
+    0.013
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "block_0_box",
+     "type": "box",
+     "size": [
+      0.026,
+      0.026,
+      0.026
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+     ],
+     "texture": "tagtex20"
+    }
+   ]
+  },
+  {
+   "name": "block_1",
+   "parent": "world",
+   "dynamic": true,
+   "robot": null,
+   "visual": null,
+   "pos": [
+    -11.28,
+    -4.75,
+    0.013
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "block_1_box",
+     "type": "box",
+     "size": [
+      0.026,
+      0.026,
+      0.026
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+     ],
+     "texture": "tagtex21"
+    }
+   ]
+  },
+  {
+   "name": "block_2",
+   "parent": "world",
+   "dynamic": true,
+   "robot": null,
+   "visual": null,
+   "pos": [
+    -11.28,
+    -4.5,
+    0.013
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "block_2_box",
+     "type": "box",
+     "size": [
+      0.026,
+      0.026,
+      0.026
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+     ],
+     "texture": "tagtex22"
+    }
+   ]
+  },
+  {
+   "name": "pluggybot",
+   "parent": "world",
+   "dynamic": true,
+   "robot": "pluggybot",
+   "visual": null,
+   "pos": [
+    1.5,
+    0.5,
+    0.732425
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "pelvis",
+     "type": "box",
+     "size": [
+      0.14,
+      0.23,
+      0.12
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.2,
+      0.4,
+      0.8,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "torso",
+     "type": "box",
+     "size": [
+      0.17,
+      0.23,
+      0.36
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.24
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.2,
+      0.4,
+      0.8,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "pack",
+     "type": "box",
+     "size": [
+      0.13,
+      0.172,
+      0.074
+     ],
+     "pos": [
+      -0.01,
+      0.0,
+      0.107
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.15,
+      0.15,
+      0.2,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "electronics",
+     "type": "box",
+     "size": [
+      0.08,
+      0.16,
+      0.1
+     ],
+     "pos": [
+      0.035,
+      0.0,
+      0.3
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.1,
+      0.5,
+      0.2,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "left_hip_pitch_motor",
+     "type": "cylinder",
+     "size": [
+      0.06,
+      0.052
+     ],
+     "pos": [
+      0.0,
+      0.08,
+      0.0
+     ],
+     "quat": [
+      0.0,
+      1.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.25,
+      0.25,
+      0.28,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "right_hip_pitch_motor",
+     "type": "cylinder",
+     "size": [
+      0.06,
+      0.052
+     ],
+     "pos": [
+      0.0,
+      -0.08,
+      0.0
+     ],
+     "quat": [
+      0.0,
+      1.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.25,
+      0.25,
+      0.28,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "left_shoulder_pitch_motor",
+     "type": "cylinder",
+     "size": [
+      0.049,
+      0.0541
+     ],
+     "pos": [
+      0.0,
+      0.13,
+      0.421
+     ],
+     "quat": [
+      0.0,
+      1.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.25,
+      0.25,
+      0.28,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "right_shoulder_pitch_motor",
+     "type": "cylinder",
+     "size": [
+      0.049,
+      0.0541
+     ],
+     "pos": [
+      0.0,
+      -0.13,
+      0.421
+     ],
+     "quat": [
+      0.0,
+      1.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.25,
+      0.25,
+      0.28,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "neck",
+     "type": "cylinder",
+     "size": [
+      0.025,
+      0.055
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.4475
+     ],
+     "quat": [
+      -0.707107,
+      0.707107,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.3,
+      0.3,
+      0.32,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "head",
+     "type": "box",
+     "size": [
+      0.13,
+      0.15,
+      0.16
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.555
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.2,
+      0.4,
+      0.8,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "charge_port",
+     "type": "box",
+     "size": [
+      0.002,
+      0.0285,
+      0.0285
+     ],
+     "pos": [
+      0.086,
+      -0.075,
+      0.168
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.75,
+      0.6,
+      0.2,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "charge_funnel",
+     "type": "cylinder",
+     "size": [
+      0.035,
+      0.015
+     ],
+     "pos": [
+      0.0945,
+      -0.075,
+      0.168
+     ],
+     "quat": [
+      0.5,
+      0.5,
+      0.5,
+      -0.5
+     ],
+     "rgba": [
+      0.2,
+      0.2,
+      0.22,
+      0.35
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "depth_cam_body",
+   "parent": "pluggybot",
+   "dynamic": true,
+   "robot": "pluggybot",
+   "visual": null,
+   "pos": [
+    1.5775,
+    0.5,
+    1.267425
+   ],
+   "quat": [
+    0.939693,
+    0.0,
+    0.34202,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "depth_cam",
+     "type": "box",
+     "size": [
+      0.025,
+      0.09,
+      0.025
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.2,
+      0.2,
+      0.2,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "nav_cam_body",
+   "parent": "pluggybot",
+   "dynamic": true,
+   "robot": "pluggybot",
+   "visual": null,
+   "pos": [
+    1.569,
+    0.5,
+    1.332425
+   ],
+   "quat": [
+    0.984808,
+    0.0,
+    0.173648,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "nav_cam",
+     "type": "box",
+     "size": [
+      0.012,
+      0.024,
+      0.024
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.1,
+      0.1,
+      0.1,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "lidar_mount",
+   "parent": "pluggybot",
+   "dynamic": true,
+   "robot": "pluggybot",
+   "visual": null,
+   "pos": [
+    1.5,
+    0.5,
+    1.367425
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "lidar",
+     "type": "cylinder",
+     "size": [
+      0.0378,
+      0.041
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0205
+     ],
+     "quat": [
+      0.707107,
+      0.707107,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.05,
+      0.05,
+      0.05,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "left_hip_pitch_link",
+   "parent": "pluggybot",
+   "dynamic": true,
+   "robot": "pluggybot",
+   "visual": null,
+   "pos": [
+    1.5,
+    0.58,
+    0.732425
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "left_hip_roll_motor",
+     "type": "cylinder",
+     "size": [
+      0.06,
+      0.052
+     ],
+     "pos": [
+      0.0,
+      0.02,
+      -0.067
+     ],
+     "quat": [
+      0.5,
+      0.5,
+      -0.5,
+      0.5
+     ],
+     "rgba": [
+      0.25,
+      0.25,
+      0.28,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "left_hip_roll_link",
+   "parent": "left_hip_pitch_link",
+   "dynamic": true,
+   "robot": "pluggybot",
+   "visual": null,
+   "pos": [
+    1.5,
+    0.6,
+    0.665425
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "left_hip_yaw_motor",
+     "type": "cylinder",
+     "size": [
+      0.049,
+      0.0541
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      -0.069
+     ],
+     "quat": [
+      -0.707107,
+      0.707107,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.25,
+      0.25,
+      0.28,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "left_thigh",
+   "parent": "left_hip_roll_link",
+   "dynamic": true,
+   "robot": "pluggybot",
+   "visual": null,
+   "pos": [
+    1.5,
+    0.6,
+    0.596425
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "left_thigh",
+     "type": "capsule",
+     "size": [
+      0.05,
+      0.13
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      -0.105
+     ],
+     "quat": [
+      0.707107,
+      0.707107,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.2,
+      0.4,
+      0.8,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "left_knee_motor",
+     "type": "cylinder",
+     "size": [
+      0.06,
+      0.052
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      -0.21
+     ],
+     "quat": [
+      0.0,
+      1.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.25,
+      0.25,
+      0.28,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "left_shank",
+   "parent": "left_thigh",
+   "dynamic": true,
+   "robot": "pluggybot",
+   "visual": null,
+   "pos": [
+    1.5,
+    0.6,
+    0.386425
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "left_shank",
+     "type": "capsule",
+     "size": [
+      0.04,
+      0.235
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      -0.1675
+     ],
+     "quat": [
+      0.707107,
+      0.707107,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.2,
+      0.4,
+      0.8,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "left_ankle_pitch_motor",
+     "type": "cylinder",
+     "size": [
+      0.06,
+      0.052
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      -0.1
+     ],
+     "quat": [
+      0.0,
+      1.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.25,
+      0.25,
+      0.28,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "left_ankle_rod",
+     "type": "capsule",
+     "size": [
+      0.004,
+      0.235
+     ],
+     "pos": [
+      -0.035,
+      0.0,
+      -0.2175
+     ],
+     "quat": [
+      0.707107,
+      0.707107,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.6,
+      0.6,
+      0.62,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "left_ankle_pitch_link",
+   "parent": "left_shank",
+   "dynamic": true,
+   "robot": "pluggybot",
+   "visual": null,
+   "pos": [
+    1.5,
+    0.6,
+    0.051425
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "left_ankle_roll_motor",
+     "type": "cylinder",
+     "size": [
+      0.049,
+      0.0541
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      -0.01
+     ],
+     "quat": [
+      0.5,
+      0.5,
+      -0.5,
+      0.5
+     ],
+     "rgba": [
+      0.25,
+      0.25,
+      0.28,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "left_foot",
+   "parent": "left_ankle_pitch_link",
+   "dynamic": true,
+   "robot": "pluggybot",
+   "visual": null,
+   "pos": [
+    1.5,
+    0.6,
+    0.041425
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "left_sole",
+     "type": "box",
+     "size": [
+      0.22,
+      0.09,
+      0.011
+     ],
+     "pos": [
+      0.04,
+      0.0,
+      -0.0495
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.1,
+      0.1,
+      0.1,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "right_hip_pitch_link",
+   "parent": "pluggybot",
+   "dynamic": true,
+   "robot": "pluggybot",
+   "visual": null,
+   "pos": [
+    1.5,
+    0.42,
+    0.732425
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "right_hip_roll_motor",
+     "type": "cylinder",
+     "size": [
+      0.06,
+      0.052
+     ],
+     "pos": [
+      0.0,
+      -0.02,
+      -0.067
+     ],
+     "quat": [
+      0.5,
+      0.5,
+      -0.5,
+      0.5
+     ],
+     "rgba": [
+      0.25,
+      0.25,
+      0.28,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "right_hip_roll_link",
+   "parent": "right_hip_pitch_link",
+   "dynamic": true,
+   "robot": "pluggybot",
+   "visual": null,
+   "pos": [
+    1.5,
+    0.4,
+    0.665425
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "right_hip_yaw_motor",
+     "type": "cylinder",
+     "size": [
+      0.049,
+      0.0541
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      -0.069
+     ],
+     "quat": [
+      -0.707107,
+      0.707107,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.25,
+      0.25,
+      0.28,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "right_thigh",
+   "parent": "right_hip_roll_link",
+   "dynamic": true,
+   "robot": "pluggybot",
+   "visual": null,
+   "pos": [
+    1.5,
+    0.4,
+    0.596425
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "right_thigh",
+     "type": "capsule",
+     "size": [
+      0.05,
+      0.13
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      -0.105
+     ],
+     "quat": [
+      0.707107,
+      0.707107,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.2,
+      0.4,
+      0.8,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "right_knee_motor",
+     "type": "cylinder",
+     "size": [
+      0.06,
+      0.052
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      -0.21
+     ],
+     "quat": [
+      0.0,
+      1.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.25,
+      0.25,
+      0.28,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "right_shank",
+   "parent": "right_thigh",
+   "dynamic": true,
+   "robot": "pluggybot",
+   "visual": null,
+   "pos": [
+    1.5,
+    0.4,
+    0.386425
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "right_shank",
+     "type": "capsule",
+     "size": [
+      0.04,
+      0.235
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      -0.1675
+     ],
+     "quat": [
+      0.707107,
+      0.707107,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.2,
+      0.4,
+      0.8,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "right_ankle_pitch_motor",
+     "type": "cylinder",
+     "size": [
+      0.06,
+      0.052
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      -0.1
+     ],
+     "quat": [
+      0.0,
+      1.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.25,
+      0.25,
+      0.28,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "right_ankle_rod",
+     "type": "capsule",
+     "size": [
+      0.004,
+      0.235
+     ],
+     "pos": [
+      -0.035,
+      0.0,
+      -0.2175
+     ],
+     "quat": [
+      0.707107,
+      0.707107,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.6,
+      0.6,
+      0.62,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "right_ankle_pitch_link",
+   "parent": "right_shank",
+   "dynamic": true,
+   "robot": "pluggybot",
+   "visual": null,
+   "pos": [
+    1.5,
+    0.4,
+    0.051425
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "right_ankle_roll_motor",
+     "type": "cylinder",
+     "size": [
+      0.049,
+      0.0541
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      -0.01
+     ],
+     "quat": [
+      0.5,
+      0.5,
+      -0.5,
+      0.5
+     ],
+     "rgba": [
+      0.25,
+      0.25,
+      0.28,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "right_foot",
+   "parent": "right_ankle_pitch_link",
+   "dynamic": true,
+   "robot": "pluggybot",
+   "visual": null,
+   "pos": [
+    1.5,
+    0.4,
+    0.041425
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "right_sole",
+     "type": "box",
+     "size": [
+      0.22,
+      0.09,
+      0.011
+     ],
+     "pos": [
+      0.04,
+      0.0,
+      -0.0495
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.1,
+      0.1,
+      0.1,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "left_shoulder_pitch_link",
+   "parent": "pluggybot",
+   "dynamic": true,
+   "robot": "pluggybot",
+   "visual": null,
+   "pos": [
+    1.5,
+    0.63,
+    1.153425
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "left_shoulder_roll_motor",
+     "type": "cylinder",
+     "size": [
+      0.049,
+      0.0541
+     ],
+     "pos": [
+      0.0,
+      0.05,
+      0.0
+     ],
+     "quat": [
+      0.5,
+      0.5,
+      -0.5,
+      0.5
+     ],
+     "rgba": [
+      0.25,
+      0.25,
+      0.28,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "left_shoulder_roll_link",
+   "parent": "left_shoulder_pitch_link",
+   "dynamic": true,
+   "robot": "pluggybot",
+   "visual": null,
+   "pos": [
+    1.5,
+    0.68,
+    1.153425
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "left_shoulder_yaw_motor",
+     "type": "cylinder",
+     "size": [
+      0.03925,
+      0.0415
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      -0.05
+     ],
+     "quat": [
+      -0.707107,
+      0.707107,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.25,
+      0.25,
+      0.28,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "left_upper_arm",
+   "parent": "left_shoulder_roll_link",
+   "dynamic": true,
+   "robot": "pluggybot",
+   "visual": null,
+   "pos": [
+    1.5,
+    0.68,
+    1.103425
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "left_upper_arm",
+     "type": "capsule",
+     "size": [
+      0.04,
+      0.11
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      -0.085
+     ],
+     "quat": [
+      0.707107,
+      0.707107,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.2,
+      0.4,
+      0.8,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "left_elbow_motor",
+     "type": "cylinder",
+     "size": [
+      0.03925,
+      0.0415
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      -0.17
+     ],
+     "quat": [
+      0.0,
+      1.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.25,
+      0.25,
+      0.28,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "left_forearm",
+   "parent": "left_upper_arm",
+   "dynamic": true,
+   "robot": "pluggybot",
+   "visual": null,
+   "pos": [
+    1.5,
+    0.68,
+    0.933425
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "left_forearm",
+     "type": "capsule",
+     "size": [
+      0.035,
+      0.15
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      -0.105
+     ],
+     "quat": [
+      0.707107,
+      0.707107,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.2,
+      0.4,
+      0.8,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "left_wrist_pitch_motor",
+     "type": "cylinder",
+     "size": [
+      0.0285,
+      0.051
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      -0.21
+     ],
+     "quat": [
+      0.0,
+      1.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.25,
+      0.25,
+      0.28,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "left_wrist",
+   "parent": "left_forearm",
+   "dynamic": true,
+   "robot": "pluggybot",
+   "visual": null,
+   "pos": [
+    1.5,
+    0.68,
+    0.723425
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "left_wrist_roll_motor",
+     "type": "cylinder",
+     "size": [
+      0.023,
+      0.044
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      -0.03
+     ],
+     "quat": [
+      -0.707107,
+      0.707107,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.25,
+      0.25,
+      0.28,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "left_hand",
+   "parent": "left_wrist",
+   "dynamic": true,
+   "robot": "pluggybot",
+   "visual": null,
+   "pos": [
+    1.5,
+    0.68,
+    0.671425
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "left_gripper",
+     "type": "box",
+     "size": [
+      0.078,
+      0.067,
+      0.063
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      -0.0315
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.2,
+      0.4,
+      0.8,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "left_jaw_a",
+   "parent": "left_hand",
+   "dynamic": true,
+   "robot": "pluggybot",
+   "visual": null,
+   "pos": [
+    1.506,
+    0.68,
+    0.568425
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "left_jaw_a_pad",
+     "type": "box",
+     "size": [
+      0.012,
+      0.03,
+      0.08
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.1,
+      0.1,
+      0.1,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "left_jaw_b",
+   "parent": "left_hand",
+   "dynamic": true,
+   "robot": "pluggybot",
+   "visual": null,
+   "pos": [
+    1.494,
+    0.68,
+    0.568425
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "left_jaw_b_pad",
+     "type": "box",
+     "size": [
+      0.012,
+      0.03,
+      0.08
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.1,
+      0.1,
+      0.1,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "right_shoulder_pitch_link",
+   "parent": "pluggybot",
+   "dynamic": true,
+   "robot": "pluggybot",
+   "visual": null,
+   "pos": [
+    1.5,
+    0.37,
+    1.153425
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "right_shoulder_roll_motor",
+     "type": "cylinder",
+     "size": [
+      0.049,
+      0.0541
+     ],
+     "pos": [
+      0.0,
+      -0.05,
+      0.0
+     ],
+     "quat": [
+      0.5,
+      0.5,
+      -0.5,
+      0.5
+     ],
+     "rgba": [
+      0.25,
+      0.25,
+      0.28,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "right_shoulder_roll_link",
+   "parent": "right_shoulder_pitch_link",
+   "dynamic": true,
+   "robot": "pluggybot",
+   "visual": null,
+   "pos": [
+    1.5,
+    0.32,
+    1.153425
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "right_shoulder_yaw_motor",
+     "type": "cylinder",
+     "size": [
+      0.03925,
+      0.0415
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      -0.05
+     ],
+     "quat": [
+      -0.707107,
+      0.707107,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.25,
+      0.25,
+      0.28,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "right_upper_arm",
+   "parent": "right_shoulder_roll_link",
+   "dynamic": true,
+   "robot": "pluggybot",
+   "visual": null,
+   "pos": [
+    1.5,
+    0.32,
+    1.103425
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "right_upper_arm",
+     "type": "capsule",
+     "size": [
+      0.04,
+      0.11
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      -0.085
+     ],
+     "quat": [
+      0.707107,
+      0.707107,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.2,
+      0.4,
+      0.8,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "right_elbow_motor",
+     "type": "cylinder",
+     "size": [
+      0.03925,
+      0.0415
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      -0.17
+     ],
+     "quat": [
+      0.0,
+      1.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.25,
+      0.25,
+      0.28,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "right_forearm",
+   "parent": "right_upper_arm",
+   "dynamic": true,
+   "robot": "pluggybot",
+   "visual": null,
+   "pos": [
+    1.5,
+    0.32,
+    0.933425
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "right_forearm",
+     "type": "capsule",
+     "size": [
+      0.035,
+      0.15
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      -0.105
+     ],
+     "quat": [
+      0.707107,
+      0.707107,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.2,
+      0.4,
+      0.8,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "right_wrist_pitch_motor",
+     "type": "cylinder",
+     "size": [
+      0.0285,
+      0.051
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      -0.21
+     ],
+     "quat": [
+      0.0,
+      1.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.25,
+      0.25,
+      0.28,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "right_wrist",
+   "parent": "right_forearm",
+   "dynamic": true,
+   "robot": "pluggybot",
+   "visual": null,
+   "pos": [
+    1.5,
+    0.32,
+    0.723425
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "right_wrist_roll_motor",
+     "type": "cylinder",
+     "size": [
+      0.023,
+      0.044
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      -0.03
+     ],
+     "quat": [
+      -0.707107,
+      0.707107,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.25,
+      0.25,
+      0.28,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "right_hand",
+   "parent": "right_wrist",
+   "dynamic": true,
+   "robot": "pluggybot",
+   "visual": null,
+   "pos": [
+    1.5,
+    0.32,
+    0.671425
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "right_gripper",
+     "type": "box",
+     "size": [
+      0.078,
+      0.067,
+      0.063
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      -0.0315
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.2,
+      0.4,
+      0.8,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "right_jaw_a",
+   "parent": "right_hand",
+   "dynamic": true,
+   "robot": "pluggybot",
+   "visual": null,
+   "pos": [
+    1.506,
+    0.32,
+    0.568425
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "right_jaw_a_pad",
+     "type": "box",
+     "size": [
+      0.012,
+      0.03,
+      0.08
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.1,
+      0.1,
+      0.1,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "right_jaw_b",
+   "parent": "right_hand",
+   "dynamic": true,
+   "robot": "pluggybot",
+   "visual": null,
+   "pos": [
+    1.494,
+    0.32,
+    0.568425
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "right_jaw_b_pad",
+     "type": "box",
+     "size": [
+      0.012,
+      0.03,
+      0.08
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.1,
+      0.1,
+      0.1,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "r2_pluggybot",
+   "parent": "world",
+   "dynamic": true,
+   "robot": "r2_pluggybot",
+   "visual": null,
+   "pos": [
+    -3.5,
+    1.0,
+    0.732425
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "r2_pelvis",
+     "type": "box",
+     "size": [
+      0.14,
+      0.23,
+      0.12
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.55,
+      0.3,
+      0.8,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "r2_torso",
+     "type": "box",
+     "size": [
+      0.17,
+      0.23,
+      0.36
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.24
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.55,
+      0.3,
+      0.8,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "r2_pack",
+     "type": "box",
+     "size": [
+      0.13,
+      0.172,
+      0.074
+     ],
+     "pos": [
+      -0.01,
+      0.0,
+      0.107
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.15,
+      0.15,
+      0.2,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "r2_electronics",
+     "type": "box",
+     "size": [
+      0.08,
+      0.16,
+      0.1
+     ],
+     "pos": [
+      0.035,
+      0.0,
+      0.3
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.1,
+      0.5,
+      0.2,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "r2_left_hip_pitch_motor",
+     "type": "cylinder",
+     "size": [
+      0.06,
+      0.052
+     ],
+     "pos": [
+      0.0,
+      0.08,
+      0.0
+     ],
+     "quat": [
+      0.0,
+      1.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.25,
+      0.25,
+      0.28,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "r2_right_hip_pitch_motor",
+     "type": "cylinder",
+     "size": [
+      0.06,
+      0.052
+     ],
+     "pos": [
+      0.0,
+      -0.08,
+      0.0
+     ],
+     "quat": [
+      0.0,
+      1.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.25,
+      0.25,
+      0.28,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "r2_left_shoulder_pitch_motor",
+     "type": "cylinder",
+     "size": [
+      0.049,
+      0.0541
+     ],
+     "pos": [
+      0.0,
+      0.13,
+      0.421
+     ],
+     "quat": [
+      0.0,
+      1.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.25,
+      0.25,
+      0.28,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "r2_right_shoulder_pitch_motor",
+     "type": "cylinder",
+     "size": [
+      0.049,
+      0.0541
+     ],
+     "pos": [
+      0.0,
+      -0.13,
+      0.421
+     ],
+     "quat": [
+      0.0,
+      1.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.25,
+      0.25,
+      0.28,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "r2_neck",
+     "type": "cylinder",
+     "size": [
+      0.025,
+      0.055
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.4475
+     ],
+     "quat": [
+      -0.707107,
+      0.707107,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.3,
+      0.3,
+      0.32,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "r2_head",
+     "type": "box",
+     "size": [
+      0.13,
+      0.15,
+      0.16
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.555
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.55,
+      0.3,
+      0.8,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "r2_charge_port",
+     "type": "box",
+     "size": [
+      0.002,
+      0.0285,
+      0.0285
+     ],
+     "pos": [
+      0.086,
+      -0.075,
+      0.168
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.75,
+      0.6,
+      0.2,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "r2_charge_funnel",
+     "type": "cylinder",
+     "size": [
+      0.035,
+      0.015
+     ],
+     "pos": [
+      0.0945,
+      -0.075,
+      0.168
+     ],
+     "quat": [
+      0.5,
+      0.5,
+      0.5,
+      -0.5
+     ],
+     "rgba": [
+      0.2,
+      0.2,
+      0.22,
+      0.35
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "r2_depth_cam_body",
+   "parent": "r2_pluggybot",
+   "dynamic": true,
+   "robot": "r2_pluggybot",
+   "visual": null,
+   "pos": [
+    -3.4225,
+    1.0,
+    1.267425
+   ],
+   "quat": [
+    0.939693,
+    0.0,
+    0.34202,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "r2_depth_cam",
+     "type": "box",
+     "size": [
+      0.025,
+      0.09,
+      0.025
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.2,
+      0.2,
+      0.2,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "r2_nav_cam_body",
+   "parent": "r2_pluggybot",
+   "dynamic": true,
+   "robot": "r2_pluggybot",
+   "visual": null,
+   "pos": [
+    -3.431,
+    1.0,
+    1.332425
+   ],
+   "quat": [
+    0.984808,
+    0.0,
+    0.173648,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "r2_nav_cam",
+     "type": "box",
+     "size": [
+      0.012,
+      0.024,
+      0.024
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.1,
+      0.1,
+      0.1,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "r2_lidar_mount",
+   "parent": "r2_pluggybot",
+   "dynamic": true,
+   "robot": "r2_pluggybot",
+   "visual": null,
+   "pos": [
+    -3.5,
+    1.0,
+    1.367425
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "r2_lidar",
+     "type": "cylinder",
+     "size": [
+      0.0378,
+      0.041
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0205
+     ],
+     "quat": [
+      0.707107,
+      0.707107,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.05,
+      0.05,
+      0.05,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "r2_left_hip_pitch_link",
+   "parent": "r2_pluggybot",
+   "dynamic": true,
+   "robot": "r2_pluggybot",
+   "visual": null,
+   "pos": [
+    -3.5,
+    1.08,
+    0.732425
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "r2_left_hip_roll_motor",
+     "type": "cylinder",
+     "size": [
+      0.06,
+      0.052
+     ],
+     "pos": [
+      0.0,
+      0.02,
+      -0.067
+     ],
+     "quat": [
+      0.5,
+      0.5,
+      -0.5,
+      0.5
+     ],
+     "rgba": [
+      0.25,
+      0.25,
+      0.28,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "r2_left_hip_roll_link",
+   "parent": "r2_left_hip_pitch_link",
+   "dynamic": true,
+   "robot": "r2_pluggybot",
+   "visual": null,
+   "pos": [
+    -3.5,
+    1.1,
+    0.665425
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "r2_left_hip_yaw_motor",
+     "type": "cylinder",
+     "size": [
+      0.049,
+      0.0541
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      -0.069
+     ],
+     "quat": [
+      -0.707107,
+      0.707107,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.25,
+      0.25,
+      0.28,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "r2_left_thigh",
+   "parent": "r2_left_hip_roll_link",
+   "dynamic": true,
+   "robot": "r2_pluggybot",
+   "visual": null,
+   "pos": [
+    -3.5,
+    1.1,
+    0.596425
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "r2_left_thigh",
+     "type": "capsule",
+     "size": [
+      0.05,
+      0.13
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      -0.105
+     ],
+     "quat": [
+      0.707107,
+      0.707107,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.55,
+      0.3,
+      0.8,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "r2_left_knee_motor",
+     "type": "cylinder",
+     "size": [
+      0.06,
+      0.052
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      -0.21
+     ],
+     "quat": [
+      0.0,
+      1.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.25,
+      0.25,
+      0.28,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "r2_left_shank",
+   "parent": "r2_left_thigh",
+   "dynamic": true,
+   "robot": "r2_pluggybot",
+   "visual": null,
+   "pos": [
+    -3.5,
+    1.1,
+    0.386425
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "r2_left_shank",
+     "type": "capsule",
+     "size": [
+      0.04,
+      0.235
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      -0.1675
+     ],
+     "quat": [
+      0.707107,
+      0.707107,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.55,
+      0.3,
+      0.8,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "r2_left_ankle_pitch_motor",
+     "type": "cylinder",
+     "size": [
+      0.06,
+      0.052
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      -0.1
+     ],
+     "quat": [
+      0.0,
+      1.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.25,
+      0.25,
+      0.28,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "r2_left_ankle_rod",
+     "type": "capsule",
+     "size": [
+      0.004,
+      0.235
+     ],
+     "pos": [
+      -0.035,
+      0.0,
+      -0.2175
+     ],
+     "quat": [
+      0.707107,
+      0.707107,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.6,
+      0.6,
+      0.62,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "r2_left_ankle_pitch_link",
+   "parent": "r2_left_shank",
+   "dynamic": true,
+   "robot": "r2_pluggybot",
+   "visual": null,
+   "pos": [
+    -3.5,
+    1.1,
+    0.051425
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "r2_left_ankle_roll_motor",
+     "type": "cylinder",
+     "size": [
+      0.049,
+      0.0541
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      -0.01
+     ],
+     "quat": [
+      0.5,
+      0.5,
+      -0.5,
+      0.5
+     ],
+     "rgba": [
+      0.25,
+      0.25,
+      0.28,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "r2_left_foot",
+   "parent": "r2_left_ankle_pitch_link",
+   "dynamic": true,
+   "robot": "r2_pluggybot",
+   "visual": null,
+   "pos": [
+    -3.5,
+    1.1,
+    0.041425
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "r2_left_sole",
+     "type": "box",
+     "size": [
+      0.22,
+      0.09,
+      0.011
+     ],
+     "pos": [
+      0.04,
+      0.0,
+      -0.0495
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.1,
+      0.1,
+      0.1,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "r2_right_hip_pitch_link",
+   "parent": "r2_pluggybot",
+   "dynamic": true,
+   "robot": "r2_pluggybot",
+   "visual": null,
+   "pos": [
+    -3.5,
+    0.92,
+    0.732425
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "r2_right_hip_roll_motor",
+     "type": "cylinder",
+     "size": [
+      0.06,
+      0.052
+     ],
+     "pos": [
+      0.0,
+      -0.02,
+      -0.067
+     ],
+     "quat": [
+      0.5,
+      0.5,
+      -0.5,
+      0.5
+     ],
+     "rgba": [
+      0.25,
+      0.25,
+      0.28,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "r2_right_hip_roll_link",
+   "parent": "r2_right_hip_pitch_link",
+   "dynamic": true,
+   "robot": "r2_pluggybot",
+   "visual": null,
+   "pos": [
+    -3.5,
+    0.9,
+    0.665425
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "r2_right_hip_yaw_motor",
+     "type": "cylinder",
+     "size": [
+      0.049,
+      0.0541
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      -0.069
+     ],
+     "quat": [
+      -0.707107,
+      0.707107,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.25,
+      0.25,
+      0.28,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "r2_right_thigh",
+   "parent": "r2_right_hip_roll_link",
+   "dynamic": true,
+   "robot": "r2_pluggybot",
+   "visual": null,
+   "pos": [
+    -3.5,
+    0.9,
+    0.596425
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "r2_right_thigh",
+     "type": "capsule",
+     "size": [
+      0.05,
+      0.13
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      -0.105
+     ],
+     "quat": [
+      0.707107,
+      0.707107,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.55,
+      0.3,
+      0.8,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "r2_right_knee_motor",
+     "type": "cylinder",
+     "size": [
+      0.06,
+      0.052
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      -0.21
+     ],
+     "quat": [
+      0.0,
+      1.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.25,
+      0.25,
+      0.28,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "r2_right_shank",
+   "parent": "r2_right_thigh",
+   "dynamic": true,
+   "robot": "r2_pluggybot",
+   "visual": null,
+   "pos": [
+    -3.5,
+    0.9,
+    0.386425
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "r2_right_shank",
+     "type": "capsule",
+     "size": [
+      0.04,
+      0.235
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      -0.1675
+     ],
+     "quat": [
+      0.707107,
+      0.707107,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.55,
+      0.3,
+      0.8,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "r2_right_ankle_pitch_motor",
+     "type": "cylinder",
+     "size": [
+      0.06,
+      0.052
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      -0.1
+     ],
+     "quat": [
+      0.0,
+      1.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.25,
+      0.25,
+      0.28,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "r2_right_ankle_rod",
+     "type": "capsule",
+     "size": [
+      0.004,
+      0.235
+     ],
+     "pos": [
+      -0.035,
+      0.0,
+      -0.2175
+     ],
+     "quat": [
+      0.707107,
+      0.707107,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.6,
+      0.6,
+      0.62,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "r2_right_ankle_pitch_link",
+   "parent": "r2_right_shank",
+   "dynamic": true,
+   "robot": "r2_pluggybot",
+   "visual": null,
+   "pos": [
+    -3.5,
+    0.9,
+    0.051425
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "r2_right_ankle_roll_motor",
+     "type": "cylinder",
+     "size": [
+      0.049,
+      0.0541
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      -0.01
+     ],
+     "quat": [
+      0.5,
+      0.5,
+      -0.5,
+      0.5
+     ],
+     "rgba": [
+      0.25,
+      0.25,
+      0.28,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "r2_right_foot",
+   "parent": "r2_right_ankle_pitch_link",
+   "dynamic": true,
+   "robot": "r2_pluggybot",
+   "visual": null,
+   "pos": [
+    -3.5,
+    0.9,
+    0.041425
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "r2_right_sole",
+     "type": "box",
+     "size": [
+      0.22,
+      0.09,
+      0.011
+     ],
+     "pos": [
+      0.04,
+      0.0,
+      -0.0495
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.1,
+      0.1,
+      0.1,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "r2_left_shoulder_pitch_link",
+   "parent": "r2_pluggybot",
+   "dynamic": true,
+   "robot": "r2_pluggybot",
+   "visual": null,
+   "pos": [
+    -3.5,
+    1.13,
+    1.153425
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "r2_left_shoulder_roll_motor",
+     "type": "cylinder",
+     "size": [
+      0.049,
+      0.0541
+     ],
+     "pos": [
+      0.0,
+      0.05,
+      0.0
+     ],
+     "quat": [
+      0.5,
+      0.5,
+      -0.5,
+      0.5
+     ],
+     "rgba": [
+      0.25,
+      0.25,
+      0.28,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "r2_left_shoulder_roll_link",
+   "parent": "r2_left_shoulder_pitch_link",
+   "dynamic": true,
+   "robot": "r2_pluggybot",
+   "visual": null,
+   "pos": [
+    -3.5,
+    1.18,
+    1.153425
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "r2_left_shoulder_yaw_motor",
+     "type": "cylinder",
+     "size": [
+      0.03925,
+      0.0415
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      -0.05
+     ],
+     "quat": [
+      -0.707107,
+      0.707107,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.25,
+      0.25,
+      0.28,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "r2_left_upper_arm",
+   "parent": "r2_left_shoulder_roll_link",
+   "dynamic": true,
+   "robot": "r2_pluggybot",
+   "visual": null,
+   "pos": [
+    -3.5,
+    1.18,
+    1.103425
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "r2_left_upper_arm",
+     "type": "capsule",
+     "size": [
+      0.04,
+      0.11
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      -0.085
+     ],
+     "quat": [
+      0.707107,
+      0.707107,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.55,
+      0.3,
+      0.8,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "r2_left_elbow_motor",
+     "type": "cylinder",
+     "size": [
+      0.03925,
+      0.0415
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      -0.17
+     ],
+     "quat": [
+      0.0,
+      1.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.25,
+      0.25,
+      0.28,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "r2_left_forearm",
+   "parent": "r2_left_upper_arm",
+   "dynamic": true,
+   "robot": "r2_pluggybot",
+   "visual": null,
+   "pos": [
+    -3.5,
+    1.18,
+    0.933425
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "r2_left_forearm",
+     "type": "capsule",
+     "size": [
+      0.035,
+      0.15
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      -0.105
+     ],
+     "quat": [
+      0.707107,
+      0.707107,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.55,
+      0.3,
+      0.8,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "r2_left_wrist_pitch_motor",
+     "type": "cylinder",
+     "size": [
+      0.0285,
+      0.051
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      -0.21
+     ],
+     "quat": [
+      0.0,
+      1.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.25,
+      0.25,
+      0.28,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "r2_left_wrist",
+   "parent": "r2_left_forearm",
+   "dynamic": true,
+   "robot": "r2_pluggybot",
+   "visual": null,
+   "pos": [
+    -3.5,
+    1.18,
+    0.723425
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "r2_left_wrist_roll_motor",
+     "type": "cylinder",
+     "size": [
+      0.023,
+      0.044
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      -0.03
+     ],
+     "quat": [
+      -0.707107,
+      0.707107,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.25,
+      0.25,
+      0.28,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "r2_left_hand",
+   "parent": "r2_left_wrist",
+   "dynamic": true,
+   "robot": "r2_pluggybot",
+   "visual": null,
+   "pos": [
+    -3.5,
+    1.18,
+    0.671425
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "r2_left_gripper",
+     "type": "box",
+     "size": [
+      0.078,
+      0.067,
+      0.063
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      -0.0315
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.55,
+      0.3,
+      0.8,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "r2_left_jaw_a",
+   "parent": "r2_left_hand",
+   "dynamic": true,
+   "robot": "r2_pluggybot",
+   "visual": null,
+   "pos": [
+    -3.494,
+    1.18,
+    0.568425
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "r2_left_jaw_a_pad",
+     "type": "box",
+     "size": [
+      0.012,
+      0.03,
+      0.08
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.1,
+      0.1,
+      0.1,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "r2_left_jaw_b",
+   "parent": "r2_left_hand",
+   "dynamic": true,
+   "robot": "r2_pluggybot",
+   "visual": null,
+   "pos": [
+    -3.506,
+    1.18,
+    0.568425
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "r2_left_jaw_b_pad",
+     "type": "box",
+     "size": [
+      0.012,
+      0.03,
+      0.08
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.1,
+      0.1,
+      0.1,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "r2_right_shoulder_pitch_link",
+   "parent": "r2_pluggybot",
+   "dynamic": true,
+   "robot": "r2_pluggybot",
+   "visual": null,
+   "pos": [
+    -3.5,
+    0.87,
+    1.153425
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "r2_right_shoulder_roll_motor",
+     "type": "cylinder",
+     "size": [
+      0.049,
+      0.0541
+     ],
+     "pos": [
+      0.0,
+      -0.05,
+      0.0
+     ],
+     "quat": [
+      0.5,
+      0.5,
+      -0.5,
+      0.5
+     ],
+     "rgba": [
+      0.25,
+      0.25,
+      0.28,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "r2_right_shoulder_roll_link",
+   "parent": "r2_right_shoulder_pitch_link",
+   "dynamic": true,
+   "robot": "r2_pluggybot",
+   "visual": null,
+   "pos": [
+    -3.5,
+    0.82,
+    1.153425
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "r2_right_shoulder_yaw_motor",
+     "type": "cylinder",
+     "size": [
+      0.03925,
+      0.0415
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      -0.05
+     ],
+     "quat": [
+      -0.707107,
+      0.707107,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.25,
+      0.25,
+      0.28,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "r2_right_upper_arm",
+   "parent": "r2_right_shoulder_roll_link",
+   "dynamic": true,
+   "robot": "r2_pluggybot",
+   "visual": null,
+   "pos": [
+    -3.5,
+    0.82,
+    1.103425
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "r2_right_upper_arm",
+     "type": "capsule",
+     "size": [
+      0.04,
+      0.11
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      -0.085
+     ],
+     "quat": [
+      0.707107,
+      0.707107,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.55,
+      0.3,
+      0.8,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "r2_right_elbow_motor",
+     "type": "cylinder",
+     "size": [
+      0.03925,
+      0.0415
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      -0.17
+     ],
+     "quat": [
+      0.0,
+      1.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.25,
+      0.25,
+      0.28,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "r2_right_forearm",
+   "parent": "r2_right_upper_arm",
+   "dynamic": true,
+   "robot": "r2_pluggybot",
+   "visual": null,
+   "pos": [
+    -3.5,
+    0.82,
+    0.933425
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "r2_right_forearm",
+     "type": "capsule",
+     "size": [
+      0.035,
+      0.15
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      -0.105
+     ],
+     "quat": [
+      0.707107,
+      0.707107,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.55,
+      0.3,
+      0.8,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "r2_right_wrist_pitch_motor",
+     "type": "cylinder",
+     "size": [
+      0.0285,
+      0.051
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      -0.21
+     ],
+     "quat": [
+      0.0,
+      1.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.25,
+      0.25,
+      0.28,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "r2_right_wrist",
+   "parent": "r2_right_forearm",
+   "dynamic": true,
+   "robot": "r2_pluggybot",
+   "visual": null,
+   "pos": [
+    -3.5,
+    0.82,
+    0.723425
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "r2_right_wrist_roll_motor",
+     "type": "cylinder",
+     "size": [
+      0.023,
+      0.044
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      -0.03
+     ],
+     "quat": [
+      -0.707107,
+      0.707107,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.25,
+      0.25,
+      0.28,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "r2_right_hand",
+   "parent": "r2_right_wrist",
+   "dynamic": true,
+   "robot": "r2_pluggybot",
+   "visual": null,
+   "pos": [
+    -3.5,
+    0.82,
+    0.671425
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "r2_right_gripper",
+     "type": "box",
+     "size": [
+      0.078,
+      0.067,
+      0.063
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      -0.0315
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.55,
+      0.3,
+      0.8,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "r2_right_jaw_a",
+   "parent": "r2_right_hand",
+   "dynamic": true,
+   "robot": "r2_pluggybot",
+   "visual": null,
+   "pos": [
+    -3.494,
+    0.82,
+    0.568425
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "r2_right_jaw_a_pad",
+     "type": "box",
+     "size": [
+      0.012,
+      0.03,
+      0.08
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.1,
+      0.1,
+      0.1,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "r2_right_jaw_b",
+   "parent": "r2_right_hand",
+   "dynamic": true,
+   "robot": "r2_pluggybot",
+   "visual": null,
+   "pos": [
+    -3.506,
+    0.82,
+    0.568425
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "r2_right_jaw_b_pad",
+     "type": "box",
+     "size": [
+      0.012,
+      0.03,
+      0.08
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.1,
+      0.1,
+      0.1,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "lab_shock_sign",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": null,
+   "pos": [
+    24.0,
+    4.83,
+    0.0
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "lab_shock_sign_post",
+     "type": "box",
+     "size": [
+      0.02,
+      0.02,
+      0.455
+     ],
+     "pos": [
+      0.0,
+      0.016,
+      0.2275
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.32,
+      0.33,
+      0.36,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "lab_shock_sign_board",
+     "type": "box",
+     "size": [
+      0.17,
+      0.006,
+      0.17
+     ],
+     "pos": [
+      0.0,
+      0.003,
+      0.37
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.95,
+      0.95,
+      0.95,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "lab_shock_sign_tag",
+     "type": "box",
+     "size": [
+      0.15,
+      0.002,
+      0.15
+     ],
+     "pos": [
+      0.0,
+      -0.001,
+      0.37
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+     ],
+     "texture": "tagtex35"
+    }
+   ]
+  },
+  {
+   "name": "lab_feed_sign",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": null,
+   "pos": [
+    25.0,
+    4.83,
+    0.0
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "lab_feed_sign_post",
+     "type": "box",
+     "size": [
+      0.02,
+      0.02,
+      0.455
+     ],
+     "pos": [
+      0.0,
+      0.016,
+      0.2275
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.32,
+      0.33,
+      0.36,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "lab_feed_sign_board",
+     "type": "box",
+     "size": [
+      0.17,
+      0.006,
+      0.17
+     ],
+     "pos": [
+      0.0,
+      0.003,
+      0.37
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.95,
+      0.95,
+      0.95,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "lab_feed_sign_tag",
+     "type": "box",
+     "size": [
+      0.15,
+      0.002,
+      0.15
+     ],
+     "pos": [
+      0.0,
+      -0.001,
+      0.37
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+     ],
+     "texture": "tagtex36"
+    }
+   ]
+  },
+  {
+   "name": "lab_toy_sign",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": null,
+   "pos": [
+    26.0,
+    4.83,
+    0.0
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "lab_toy_sign_post",
+     "type": "box",
+     "size": [
+      0.02,
+      0.02,
+      0.455
+     ],
+     "pos": [
+      0.0,
+      0.016,
+      0.2275
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.32,
+      0.33,
+      0.36,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "lab_toy_sign_board",
+     "type": "box",
+     "size": [
+      0.17,
+      0.006,
+      0.17
+     ],
+     "pos": [
+      0.0,
+      0.003,
+      0.37
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.95,
+      0.95,
+      0.95,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "lab_toy_sign_tag",
+     "type": "box",
+     "size": [
+      0.15,
+      0.002,
+      0.15
+     ],
+     "pos": [
+      0.0,
+      -0.001,
+      0.37
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+     ],
+     "texture": "tagtex37"
+    }
+   ]
+  },
+  {
+   "name": "whiteboard_a_tag38",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": null,
+   "pos": [
+    -1.979,
+    0.735,
+    0.3
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "whiteboard_a_tag38",
+     "type": "box",
+     "size": [
+      0.002,
+      0.15,
+      0.15
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+     ],
+     "texture": "tagtex38"
+    }
+   ]
+  },
+  {
+   "name": "whiteboard_a_tag39",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": null,
+   "pos": [
+    -1.979,
+    1.265,
+    0.3
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "whiteboard_a_tag39",
+     "type": "box",
+     "size": [
+      0.002,
+      0.15,
+      0.15
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+     ],
+     "texture": "tagtex39"
+    }
+   ]
+  },
+  {
+   "name": "whiteboard_b_tag40",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": null,
+   "pos": [
+    0.235,
+    5.979,
+    0.3
+   ],
+   "quat": [
+    0.707107,
+    0.0,
+    0.0,
+    -0.707107
+   ],
+   "geoms": [
+    {
+     "name": "whiteboard_b_tag40",
+     "type": "box",
+     "size": [
+      0.002,
+      0.15,
+      0.15
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+     ],
+     "texture": "tagtex40"
+    }
+   ]
+  },
+  {
+   "name": "whiteboard_b_tag41",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": null,
+   "pos": [
+    0.765,
+    5.979,
+    0.3
+   ],
+   "quat": [
+    0.707107,
+    0.0,
+    0.0,
+    -0.707107
+   ],
+   "geoms": [
+    {
+     "name": "whiteboard_b_tag41",
+     "type": "box",
+     "size": [
+      0.002,
+      0.15,
+      0.15
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+     ],
+     "texture": "tagtex41"
+    }
+   ]
+  },
+  {
+   "name": "tower_tag42",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": null,
+   "pos": [
+    -11.978,
+    -5.2,
+    0.37
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "tower_tag42",
+     "type": "box",
+     "size": [
+      0.002,
+      0.15,
+      0.15
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+     ],
+     "texture": "tagtex42"
+    }
+   ]
+  },
+  {
+   "name": "tower_tag43",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": null,
+   "pos": [
+    -11.978,
+    -4.3,
+    0.37
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "tower_tag43",
+     "type": "box",
+     "size": [
+      0.002,
+      0.15,
+      0.15
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+     ],
+     "texture": "tagtex43"
+    }
+   ]
+  },
+  {
+   "name": "bench_tag44",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": null,
+   "pos": [
+    27.378,
+    1.95,
+    0.37
+   ],
+   "quat": [
+    0.0,
+    0.0,
+    0.0,
+    1.0
+   ],
+   "geoms": [
+    {
+     "name": "bench_tag44",
+     "type": "box",
+     "size": [
+      0.002,
+      0.15,
+      0.15
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+     ],
+     "texture": "tagtex44"
+    }
+   ]
+  },
+  {
+   "name": "bench_tag45",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": null,
+   "pos": [
+    27.378,
+    1.05,
+    0.37
+   ],
+   "quat": [
+    0.0,
+    0.0,
+    0.0,
+    1.0
+   ],
+   "geoms": [
+    {
+     "name": "bench_tag45",
+     "type": "box",
+     "size": [
+      0.002,
+      0.15,
+      0.15
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+     ],
+     "texture": "tagtex45"
+    }
+   ]
+  },
+  {
+   "name": "garden_tag46",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": null,
+   "pos": [
+    9.978,
+    0.7,
+    0.37
+   ],
+   "quat": [
+    0.0,
+    0.0,
+    0.0,
+    1.0
+   ],
+   "geoms": [
+    {
+     "name": "garden_tag46",
+     "type": "box",
+     "size": [
+      0.002,
+      0.15,
+      0.15
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+     ],
+     "texture": "tagtex46"
+    }
+   ]
+  },
+  {
+   "name": "station",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": null,
+   "pos": [
+    3.5,
+    -1.88,
+    0.0
+   ],
+   "quat": [
+    0.707107,
+    0.0,
+    0.0,
+    -0.707107
+   ],
+   "geoms": [
+    {
+     "name": "station_box",
+     "type": "box",
+     "size": [
+      0.1,
+      0.3,
+      0.4
+     ],
+     "pos": [
+      0.05,
+      0.0,
+      0.9
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.3,
+      0.31,
+      0.34,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "station_boss",
+     "type": "cylinder",
+     "size": [
+      0.02,
+      0.03
+     ],
+     "pos": [
+      -0.015,
+      0.0,
+      0.9
+     ],
+     "quat": [
+      0.5,
+      0.5,
+      0.5,
+      -0.5
+     ],
+     "rgba": [
+      0.55,
+      0.56,
+      0.6,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "station_tag58",
+     "type": "box",
+     "size": [
+      0.002,
+      0.075,
+      0.075
+     ],
+     "pos": [
+      -0.001,
+      0.09,
+      0.9
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+     ],
+     "texture": "tagtex58"
+    },
+    {
+     "name": "station_tag59",
+     "type": "box",
+     "size": [
+      0.002,
+      0.075,
+      0.075
+     ],
+     "pos": [
+      -0.001,
+      -0.09,
+      0.9
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+     ],
+     "texture": "tagtex59"
+    }
+   ]
+  },
+  {
+   "name": "station_plug",
+   "parent": "world",
+   "dynamic": true,
+   "robot": null,
+   "visual": null,
+   "pos": [
+    3.5,
+    -1.777,
+    0.9
+   ],
+   "quat": [
+    0.707107,
+    0.0,
+    0.0,
+    0.707107
+   ],
+   "geoms": [
+    {
+     "name": "station_jack",
+     "type": "cylinder",
+     "size": [
+      0.01225,
+      0.043
+     ],
+     "pos": [
+      -0.0215,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      0.5,
+      0.5,
+      0.5,
+      -0.5
+     ],
+     "rgba": [
+      0.12,
+      0.12,
+      0.13,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "station_gland",
+     "type": "cylinder",
+     "size": [
+      0.009,
+      0.027
+     ],
+     "pos": [
+      -0.0565,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      0.5,
+      0.5,
+      0.5,
+      -0.5
+     ],
+     "rgba": [
+      0.08,
+      0.08,
+      0.08,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "store_counter",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": null,
+   "pos": [
+    27.68,
+    -3.0,
+    0.0
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "store_counter",
+     "type": "box",
+     "size": [
+      0.6,
+      4.8,
+      0.72
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.36
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.86,
+      0.85,
+      0.82,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "chest",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": null,
+   "pos": [
+    27.5,
+    -1.2,
+    0.72
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "chest_floor",
+     "type": "box",
+     "size": [
+      0.22,
+      0.3,
+      0.012
+     ],
+     "pos": [
+      0.11,
+      0.0,
+      0.006
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.55,
+      0.42,
+      0.3,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "chest_back",
+     "type": "box",
+     "size": [
+      0.012,
+      0.3,
+      0.14
+     ],
+     "pos": [
+      0.214,
+      0.0,
+      0.07
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.55,
+      0.42,
+      0.3,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "chest_front",
+     "type": "box",
+     "size": [
+      0.012,
+      0.3,
+      0.14
+     ],
+     "pos": [
+      0.006,
+      0.0,
+      0.07
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.55,
+      0.42,
+      0.3,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "chest_sider",
+     "type": "box",
+     "size": [
+      0.22,
+      0.012,
+      0.14
+     ],
+     "pos": [
+      0.11,
+      -0.144,
+      0.07
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.55,
+      0.42,
+      0.3,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "chest_sidel",
+     "type": "box",
+     "size": [
+      0.22,
+      0.012,
+      0.14
+     ],
+     "pos": [
+      0.11,
+      0.144,
+      0.07
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.55,
+      0.42,
+      0.3,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "chest_lid_body",
+   "parent": "chest",
+   "dynamic": true,
+   "robot": null,
+   "visual": null,
+   "pos": [
+    27.72,
+    -1.2,
+    0.86
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "chest_lid",
+     "type": "box",
+     "size": [
+      0.22,
+      0.3,
+      0.012
+     ],
+     "pos": [
+      -0.11,
+      0.0,
+      0.006
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.7,
+      0.55,
+      0.38,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "chest_bracket",
+     "type": "box",
+     "size": [
+      0.056,
+      0.012,
+      0.008
+     ],
+     "pos": [
+      -0.242,
+      0.0,
+      0.006
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.7,
+      0.55,
+      0.38,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "chest_handle",
+   "parent": "chest_lid_body",
+   "dynamic": true,
+   "robot": null,
+   "visual": null,
+   "pos": [
+    27.45,
+    -1.2,
+    0.866
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "chest_drop",
+     "type": "box",
+     "size": [
+      0.006,
+      0.008,
+      0.04
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      -0.02
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.2,
+      0.45,
+      0.75,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "chest_stem",
+     "type": "box",
+     "size": [
+      0.036,
+      0.008,
+      0.008
+     ],
+     "pos": [
+      -0.012,
+      0.0,
+      -0.04
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.2,
+      0.45,
+      0.75,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "chest_knob_body",
+   "parent": "chest_handle",
+   "dynamic": true,
+   "robot": null,
+   "visual": null,
+   "pos": [
+    27.407,
+    -1.2,
+    0.826
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "chest_knob",
+     "type": "box",
+     "size": [
+      0.026,
+      0.026,
+      0.026
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+     ],
+     "texture": "tagtex53"
+    }
+   ]
+  },
+  {
+   "name": "drawer",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": null,
+   "pos": [
+    27.5,
+    -2.4,
+    0.72
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "drawer_floor",
+     "type": "box",
+     "size": [
+      0.3,
+      0.34,
+      0.012
+     ],
+     "pos": [
+      0.15,
+      0.0,
+      0.006
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.5,
+      0.4,
+      0.3,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "drawer_top",
+     "type": "box",
+     "size": [
+      0.3,
+      0.34,
+      0.012
+     ],
+     "pos": [
+      0.15,
+      0.0,
+      0.154
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.5,
+      0.4,
+      0.3,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "drawer_back",
+     "type": "box",
+     "size": [
+      0.012,
+      0.34,
+      0.16
+     ],
+     "pos": [
+      0.294,
+      0.0,
+      0.08
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.5,
+      0.4,
+      0.3,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "drawer_sider",
+     "type": "box",
+     "size": [
+      0.3,
+      0.012,
+      0.16
+     ],
+     "pos": [
+      0.15,
+      -0.164,
+      0.08
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.5,
+      0.4,
+      0.3,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "drawer_sidel",
+     "type": "box",
+     "size": [
+      0.3,
+      0.012,
+      0.16
+     ],
+     "pos": [
+      0.15,
+      0.164,
+      0.08
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.5,
+      0.4,
+      0.3,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "drawer_drawer",
+   "parent": "drawer",
+   "dynamic": true,
+   "robot": null,
+   "visual": null,
+   "pos": [
+    27.5,
+    -2.4,
+    0.72
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "drawer_front",
+     "type": "box",
+     "size": [
+      0.015,
+      0.312,
+      0.132
+     ],
+     "pos": [
+      0.0075,
+      0.0,
+      0.08
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.66,
+      0.52,
+      0.36,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "drawer_tray",
+     "type": "box",
+     "size": [
+      0.263,
+      0.304,
+      0.008
+     ],
+     "pos": [
+      0.1465,
+      0.0,
+      0.018
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.5,
+      0.4,
+      0.3,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "drawer_stem",
+     "type": "box",
+     "size": [
+      0.02,
+      0.008,
+      0.008
+     ],
+     "pos": [
+      -0.01,
+      0.0,
+      0.08
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.2,
+      0.45,
+      0.75,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "drawer_knob",
+     "type": "box",
+     "size": [
+      0.026,
+      0.026,
+      0.026
+     ],
+     "pos": [
+      -0.033,
+      0.0,
+      0.08
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+     ],
+     "texture": "tagtex54"
+    }
+   ]
+  },
+  {
+   "name": "door",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": null,
+   "pos": [
+    27.5,
+    -3.593,
+    0.72
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "door_floor",
+     "type": "box",
+     "size": [
+      0.24,
+      0.24,
+      0.012
+     ],
+     "pos": [
+      0.12,
+      0.0,
+      0.006
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.47,
+      0.38,
+      0.3,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "door_top",
+     "type": "box",
+     "size": [
+      0.24,
+      0.24,
+      0.012
+     ],
+     "pos": [
+      0.12,
+      0.0,
+      0.294
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.47,
+      0.38,
+      0.3,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "door_back",
+     "type": "box",
+     "size": [
+      0.012,
+      0.24,
+      0.3
+     ],
+     "pos": [
+      0.234,
+      0.0,
+      0.15
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.47,
+      0.38,
+      0.3,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "door_sider",
+     "type": "box",
+     "size": [
+      0.24,
+      0.012,
+      0.3
+     ],
+     "pos": [
+      0.12,
+      -0.114,
+      0.15
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.47,
+      0.38,
+      0.3,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "door_sidel",
+     "type": "box",
+     "size": [
+      0.24,
+      0.012,
+      0.3
+     ],
+     "pos": [
+      0.12,
+      0.114,
+      0.15
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.47,
+      0.38,
+      0.3,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "door_door",
+   "parent": "door",
+   "dynamic": true,
+   "robot": null,
+   "visual": null,
+   "pos": [
+    27.485,
+    -3.475,
+    0.72
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "door_panel",
+     "type": "box",
+     "size": [
+      0.015,
+      0.236,
+      0.296
+     ],
+     "pos": [
+      0.0075,
+      -0.118,
+      0.15
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.68,
+      0.56,
+      0.4,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "door_lever",
+   "parent": "door_door",
+   "dynamic": true,
+   "robot": null,
+   "visual": null,
+   "pos": [
+    27.44,
+    -3.51,
+    0.87
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "door_boss",
+     "type": "cylinder",
+     "size": [
+      0.008,
+      0.045
+     ],
+     "pos": [
+      0.0225,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      0.5,
+      0.5,
+      0.5,
+      -0.5
+     ],
+     "rgba": [
+      0.7,
+      0.7,
+      0.74,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "door_arm",
+     "type": "box",
+     "size": [
+      0.012,
+      0.09,
+      0.01
+     ],
+     "pos": [
+      0.0,
+      -0.045,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.7,
+      0.7,
+      0.74,
+      1.0
+     ],
+     "texture": null
+    },
+    {
+     "name": "door_tip",
+     "type": "box",
+     "size": [
+      0.026,
+      0.026,
+      0.026
+     ],
+     "pos": [
+      -0.007,
+      -0.09,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+     ],
+     "texture": "tagtex55"
+    }
+   ]
+  },
+  {
+   "name": "cube_board",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": null,
+   "pos": [
+    27.535,
+    -4.8,
+    0.72
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "cube_board",
+     "type": "box",
+     "size": [
+      0.23,
+      0.16,
+      0.06
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.03
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      0.55,
+      0.45,
+      0.36,
+      1.0
+     ],
+     "texture": null
+    }
+   ]
+  },
+  {
+   "name": "cube_mat",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": null,
+   "pos": [
+    27.57,
+    -4.8,
+    0.782
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "cube_mat",
+     "type": "box",
+     "size": [
+      0.08,
+      0.08,
+      0.004
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+     ],
+     "texture": "tagtex57"
+    }
+   ]
+  },
+  {
+   "name": "cube",
+   "parent": "world",
+   "dynamic": true,
+   "robot": null,
+   "visual": null,
+   "pos": [
+    27.5,
+    -4.8,
+    0.793
+   ],
+   "quat": [
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "geoms": [
+    {
+     "name": "cube",
+     "type": "box",
+     "size": [
+      0.026,
+      0.026,
+      0.026
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+     ],
+     "texture": "tagtex56"
+    }
+   ]
+  },
+  {
+   "name": "store_tag60",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": null,
+   "pos": [
+    27.978,
+    -1.2,
+    1.15
+   ],
+   "quat": [
+    0.0,
+    0.0,
+    0.0,
+    1.0
+   ],
+   "geoms": [
+    {
+     "name": "store_tag60",
+     "type": "box",
+     "size": [
+      0.002,
+      0.15,
+      0.15
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+     ],
+     "texture": "tagtex60"
+    }
+   ]
+  },
+  {
+   "name": "store_tag61",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": null,
+   "pos": [
+    27.978,
+    -2.4,
+    1.15
+   ],
+   "quat": [
+    0.0,
+    0.0,
+    0.0,
+    1.0
+   ],
+   "geoms": [
+    {
+     "name": "store_tag61",
+     "type": "box",
+     "size": [
+      0.002,
+      0.15,
+      0.15
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+     ],
+     "texture": "tagtex61"
+    }
+   ]
+  },
+  {
+   "name": "store_tag62",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": null,
+   "pos": [
+    27.978,
+    -3.6,
+    1.15
+   ],
+   "quat": [
+    0.0,
+    0.0,
+    0.0,
+    1.0
+   ],
+   "geoms": [
+    {
+     "name": "store_tag62",
+     "type": "box",
+     "size": [
+      0.002,
+      0.15,
+      0.15
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+     ],
+     "texture": "tagtex62"
+    }
+   ]
+  },
+  {
+   "name": "store_tag63",
+   "parent": "world",
+   "dynamic": false,
+   "robot": null,
+   "visual": null,
+   "pos": [
+    27.978,
+    -4.8,
+    1.15
+   ],
+   "quat": [
+    0.0,
+    0.0,
+    0.0,
+    1.0
+   ],
+   "geoms": [
+    {
+     "name": "store_tag63",
+     "type": "box",
+     "size": [
+      0.002,
+      0.15,
+      0.15
+     ],
+     "pos": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "quat": [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "rgba": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+     ],
+     "texture": "tagtex63"
+    }
+   ]
+  }
+ ],
+ "textures": [
+  {
+   "name": "tagtex20",
+   "file": "tagtex20.png",
+   "width": 240,
+   "height": 240
+  },
+  {
+   "name": "tagtex21",
+   "file": "tagtex21.png",
+   "width": 240,
+   "height": 240
+  },
+  {
+   "name": "tagtex22",
+   "file": "tagtex22.png",
+   "width": 240,
+   "height": 240
+  },
+  {
+   "name": "tagtex23",
+   "file": "tagtex23.png",
+   "width": 240,
+   "height": 240
+  },
+  {
+   "name": "tagtex24",
+   "file": "tagtex24.png",
+   "width": 240,
+   "height": 240
+  },
+  {
+   "name": "tagtex35",
+   "file": "tagtex35.png",
+   "width": 240,
+   "height": 240
+  },
+  {
+   "name": "tagtex36",
+   "file": "tagtex36.png",
+   "width": 240,
+   "height": 240
+  },
+  {
+   "name": "tagtex37",
+   "file": "tagtex37.png",
+   "width": 240,
+   "height": 240
+  },
+  {
+   "name": "tagtex38",
+   "file": "tagtex38.png",
+   "width": 240,
+   "height": 240
+  },
+  {
+   "name": "tagtex39",
+   "file": "tagtex39.png",
+   "width": 240,
+   "height": 240
+  },
+  {
+   "name": "tagtex40",
+   "file": "tagtex40.png",
+   "width": 240,
+   "height": 240
+  },
+  {
+   "name": "tagtex41",
+   "file": "tagtex41.png",
+   "width": 240,
+   "height": 240
+  },
+  {
+   "name": "tagtex42",
+   "file": "tagtex42.png",
+   "width": 240,
+   "height": 240
+  },
+  {
+   "name": "tagtex43",
+   "file": "tagtex43.png",
+   "width": 240,
+   "height": 240
+  },
+  {
+   "name": "tagtex44",
+   "file": "tagtex44.png",
+   "width": 240,
+   "height": 240
+  },
+  {
+   "name": "tagtex45",
+   "file": "tagtex45.png",
+   "width": 240,
+   "height": 240
+  },
+  {
+   "name": "tagtex46",
+   "file": "tagtex46.png",
+   "width": 240,
+   "height": 240
+  },
+  {
+   "name": "tagtex58",
+   "file": "tagtex58.png",
+   "width": 240,
+   "height": 240
+  },
+  {
+   "name": "tagtex59",
+   "file": "tagtex59.png",
+   "width": 240,
+   "height": 240
+  },
+  {
+   "name": "tagtex53",
+   "file": "tagtex53.png",
+   "width": 240,
+   "height": 240
+  },
+  {
+   "name": "tagtex54",
+   "file": "tagtex54.png",
+   "width": 240,
+   "height": 240
+  },
+  {
+   "name": "tagtex55",
+   "file": "tagtex55.png",
+   "width": 240,
+   "height": 240
+  },
+  {
+   "name": "tagtex56",
+   "file": "tagtex56.png",
+   "width": 240,
+   "height": 240
+  },
+  {
+   "name": "tagtex57",
+   "file": "tagtex57.png",
+   "width": 240,
+   "height": 240
+  },
+  {
+   "name": "tagtex60",
+   "file": "tagtex60.png",
+   "width": 240,
+   "height": 240
+  },
+  {
+   "name": "tagtex61",
+   "file": "tagtex61.png",
+   "width": 240,
+   "height": 240
+  },
+  {
+   "name": "tagtex62",
+   "file": "tagtex62.png",
+   "width": 240,
+   "height": 240
+  },
+  {
+   "name": "tagtex63",
+   "file": "tagtex63.png",
+   "width": 240,
+   "height": 240
+  }
+ ],
+ "zones": [
+  {
+   "name": "kitchen",
+   "kind": "room",
+   "building": "house",
+   "min": [
+    -12.0,
+    2.0
+   ],
+   "max": [
+    -5.0,
+    6.0
+   ]
+  },
+  {
+   "name": "workshop",
+   "kind": "room",
+   "building": "house",
+   "min": [
+    -12.0,
+    -6.0
+   ],
+   "max": [
+    -5.0,
+    2.0
+   ]
+  },
+  {
+   "name": "hall",
+   "kind": "room",
+   "building": "house",
+   "min": [
+    -5.0,
+    -6.0
+   ],
+   "max": [
+    -2.0,
+    6.0
+   ]
+  },
+  {
+   "name": "living",
+   "kind": "room",
+   "building": "house",
+   "min": [
+    -2.0,
+    -2.0
+   ],
+   "max": [
+    5.0,
+    2.5
+   ]
+  },
+  {
+   "name": "bedroom",
+   "kind": "room",
+   "building": "house",
+   "min": [
+    -2.0,
+    2.5
+   ],
+   "max": [
+    5.0,
+    6.0
+   ]
+  },
+  {
+   "name": "garden",
+   "kind": "garden",
+   "min": [
+    5.0,
+    -2.0
+   ],
+   "max": [
+    10.0,
+    6.0
+   ]
+  },
+  {
+   "name": "garden_south",
+   "kind": "garden",
+   "min": [
+    -2.0,
+    -6.0
+   ],
+   "max": [
+    10.0,
+    -2.0
+   ]
+  },
+  {
+   "name": "sidewalk",
+   "kind": "outdoor",
+   "min": [
+    10.0,
+    -6.0
+   ],
+   "max": [
+    11.5,
+    6.0
+   ]
+  },
+  {
+   "name": "street",
+   "kind": "outdoor",
+   "min": [
+    11.5,
+    -7.5
+   ],
+   "max": [
+    14.5,
+    7.5
+   ]
+  },
+  {
+   "name": "sidewalk_2",
+   "kind": "outdoor",
+   "min": [
+    14.5,
+    -6.0
+   ],
+   "max": [
+    16.0,
+    6.0
+   ]
+  },
+  {
+   "name": "garden_2",
+   "kind": "garden",
+   "min": [
+    16.0,
+    -6.0
+   ],
+   "max": [
+    19.0,
+    6.0
+   ]
+  },
+  {
+   "name": "lobby",
+   "kind": "room",
+   "building": "facility",
+   "min": [
+    19.0,
+    -6.0
+   ],
+   "max": [
+    22.0,
+    6.0
+   ]
+  },
+  {
+   "name": "lab",
+   "kind": "room",
+   "building": "facility",
+   "min": [
+    22.0,
+    0.0
+   ],
+   "max": [
+    28.0,
+    6.0
+   ]
+  },
+  {
+   "name": "store",
+   "kind": "room",
+   "building": "facility",
+   "min": [
+    22.0,
+    -6.0
+   ],
+   "max": [
+    28.0,
+    0.0
+   ]
+  },
+  {
+   "name": "sidewalk_north",
+   "kind": "outdoor",
+   "min": [
+    -13.5,
+    6.0
+   ],
+   "max": [
+    11.5,
+    7.5
+   ]
+  },
+  {
+   "name": "sidewalk_2_north",
+   "kind": "outdoor",
+   "min": [
+    14.5,
+    6.0
+   ],
+   "max": [
+    29.5,
+    7.5
+   ]
+  },
+  {
+   "name": "sidewalk_south",
+   "kind": "outdoor",
+   "min": [
+    -13.5,
+    -7.5
+   ],
+   "max": [
+    11.5,
+    -6.0
+   ]
+  },
+  {
+   "name": "sidewalk_2_south",
+   "kind": "outdoor",
+   "min": [
+    14.5,
+    -7.5
+   ],
+   "max": [
+    29.5,
+    -6.0
+   ]
+  },
+  {
+   "name": "sidewalk_west",
+   "kind": "outdoor",
+   "min": [
+    -13.5,
+    -6.0
+   ],
+   "max": [
+    -12.0,
+    6.0
+   ]
+  },
+  {
+   "name": "sidewalk_east",
+   "kind": "outdoor",
+   "min": [
+    28.0,
+    -6.0
+   ],
+   "max": [
+    29.5,
+    6.0
+   ]
+  },
+  {
+   "name": "street_north",
+   "kind": "outdoor",
+   "min": [
+    -16.5,
+    7.5
+   ],
+   "max": [
+    32.5,
+    10.5
+   ]
+  },
+  {
+   "name": "street_south",
+   "kind": "outdoor",
+   "min": [
+    -16.5,
+    -10.5
+   ],
+   "max": [
+    32.5,
+    -7.5
+   ]
+  },
+  {
+   "name": "street_west",
+   "kind": "outdoor",
+   "min": [
+    -16.5,
+    -7.5
+   ],
+   "max": [
+    -13.5,
+    7.5
+   ]
+  },
+  {
+   "name": "street_east",
+   "kind": "outdoor",
+   "min": [
+    29.5,
+    -7.5
+   ],
+   "max": [
+    32.5,
+    7.5
+   ]
+  }
+ ],
+ "spawns": {
+  "start": [
+   1.5,
+   0.5,
+   1.5707963267948966
+  ],
+  "garden": [
+   7.5,
+   2.0,
+   0.0
+  ],
+  "hall": [
+   -3.5,
+   1.0,
+   0.0
+  ],
+  "kitchen": [
+   -8.5,
+   4.0,
+   0.0
+  ],
+  "workshop": [
+   -8.5,
+   -2.0,
+   0.0
+  ],
+  "lobby": [
+   20.5,
+   0.0,
+   1.5707963267948966
+  ],
+  "lab": [
+   25.0,
+   2.0,
+   1.5707963267948966
+  ]
+ },
+ "boards": {
+  "whiteboard_a": {
+   "geom": "board",
+   "pos": [
+    -1.97,
+    1.0,
+    0.3
+   ],
+   "half": [
+    0.01,
+    0.16,
+    0.13
+   ],
+   "heading": 3.141592653589793
+  },
+  "whiteboard_b": {
+   "geom": "board_b",
+   "pos": [
+    0.5,
+    5.970000000000001,
+    0.3
+   ],
+   "half": [
+    0.01,
+    0.16,
+    0.13
+   ],
+   "heading": 1.5707963267948966
+  }
+ },
+ "plates": {
+  "garden_plate": {
+   "purpose": "light"
+  },
+  "lab_shock_plate": {
+   "purpose": "shock"
+  },
+  "lab_feed_plate": {
+   "purpose": "feed"
+  },
+  "lab_toy_plate": {
+   "purpose": "toy"
+  }
+ },
+ "cables": {
+  "station_rope": {
+   "points": [
+    {
+     "body": "station",
+     "pos": [
+      -0.033,
+      0.0,
+      0.9
+     ]
+    },
+    {
+     "body": "station_plug",
+     "pos": [
+      -0.07,
+      0.0,
+      0.0
+     ]
+    }
+   ],
+   "width": 0.002,
+   "rgba": [
+    0.8,
+    0.8,
+    0.8,
+    1.0
+   ]
+  }
+ }
+}

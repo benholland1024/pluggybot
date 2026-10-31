@@ -6434,23 +6434,52 @@ A minded day with it (949 sim s, the deployed arm and model, from nothing):
 no walk gave up with the other robot in the way, where the day before it
 8 had; the pair did not meet in a doorway, so nobody was asked.
 
+**Never off its charger** (stage 4). The pair's recording found it: the
+first robot plugged in at the station, the other came to charge and walked
+to wait, its way cut the charging robot's disc and asked it aside, and it
+stepped off with the plug in its port and pulled it out ("CHARGE: lost the
+pins" 27 s into the charge, plugged in again 26 s later). A robot whose
+plug a port catch holds (`HumanoidWay.plugged_in`, what its BMS reads) says
+no, `charging`, as the quadruped on its dock says `docked`, and the other
+waits: flown again, the first charged 13 % to 90 % in 160 s and the second
+after it. It reads the plug, never the lifecycle's `Body.docked`, which is
+set only while a charge holds and which a restart forgets with the plug
+still in.
+
+**On the lab's plates** (stage 4). The change of body flown on one volume
+(a scripted quadruped pair's save, then the humanoid pair on it, as the
+deploy runs) found that a humanoid walks onto them: Luca found the lab's
+three plate signs exploring and then walked onto the plates for 30 s, the
+feed, the toy and the shock plate (the mouse "on_its_side"). Kept off every
+pad it knew, as the quadruped's planner is (`PlaceWalk.keep_out`), it
+pressed none after the signs' finding -- but one standing on a pad as it
+found the sign at the pad's far edge planned no walk off it (from the feed
+pad, none 2.5 m south nor 3 m east, the sign's facing known by its tag or
+only by where it was seen from). So its walks keep off no plate, and the
+humanoids' cage has its shock plate switched off (`Cage(shock=False)`; Ben,
+2026-10-31: no act, no count, no press, no flag on the wire): a walk across
+the feed or the toy plate feeds or amuses the mouse, a `press` row, and
+pays nothing.
+
 **Its belief drifts on a long explore.** After a 240 s explore of the
 whole house the humanoids' beliefs were 0.2 to 0.7 m off the truth (dev box,
 scripted pair days, before and after every change here). The quadruped's
 belief is fixed at its dock and its rack by their commissioned tags (#476);
-the humanoid has no fixture until its charging stations, which will be
-(stage 2). A map laid through a belief that far
-off lays the camera's points beside the LIDAR's walls of another moment:
-in one minded day Luca's layer held 29 cells across the living room's hall
-door, 12-17 cm off the wall's line, and three walks to the kitchen gave up
-"no route". It is the next thing to look at before deploying, with the
-reported pose the other robot is kept clear of.
+the humanoid's at its station as it charges (stage 2). A map laid through a
+belief that far off lays the camera's points beside the LIDAR's walls of
+another moment: in one minded day Luca's layer held 29 cells across the
+living room's hall door, 12-17 cm off the wall's line, and three walks to
+the kitchen gave up "no route". On the hand jobs' tour it ended 2.3-2.5 m
+off across the street, and every job still passed (stage 3); the deployed
+period reads it (Observatory.md).
 
-**What is not yet.** `look` asks the site for a picture from the head's
-camera (`nav_eye`, 1.3 m up, facing where it faces), and the site draws the
-pair in stage 4. (The death seam reads a topple off the posture the legs
-hold, `Body.held_pitch`, since stage 3: a reach's deepest bow is 63 deg of
-pelvis tilt, past `TOPPLE_TILT_RAD`'s 60.)
+**Seen by the site** (stage 4). `look` asks the site for a picture from the
+head's camera (`nav_eye`, 1.3 m up, facing where it faces), and the site
+draws the pair off `home_humanoid_pair`'s scene, the station's cable strung
+between the station and its plug every frame (the scene's `cables`: a
+tendon has no geometry). (The death seam reads a topple off the posture the
+legs hold, `Body.held_pitch`, since stage 3: a reach's deepest bow is 63 deg
+of pelvis tilt, past `TOPPLE_TILT_RAD`'s 60.)
 
 
 ## The humanoid's charging station (issue #559, stage 2)
