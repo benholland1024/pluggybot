@@ -6438,23 +6438,28 @@ no walk gave up with the other robot in the way, where the day before it
 first robot plugged in at the station, the other came to charge and walked
 to wait, its way cut the charging robot's disc and asked it aside, and it
 stepped off with the plug in its port and pulled it out ("CHARGE: lost the
-pins" 27 s into the charge, plugged in again 26 s later). A robot held on
-its charger (`Body.docked`, the lifecycle's while it charges) says no,
-`charging`, as the quadruped on its dock says `docked`, and the other
+pins" 27 s into the charge, plugged in again 26 s later). A robot whose
+plug a port catch holds (`HumanoidWay.plugged_in`, what its BMS reads) says
+no, `charging`, as the quadruped on its dock says `docked`, and the other
 waits: flown again, the first charged 13 % to 90 % in 160 s and the second
-after it.
+after it. It reads the plug, never the lifecycle's `Body.docked`, which is
+set only while a charge holds and which a restart forgets with the plug
+still in.
 
-**Off the lab's plates** (stage 4). The change of body flown on one volume
+**On the lab's plates** (stage 4). The change of body flown on one volume
 (a scripted quadruped pair's save, then the humanoid pair on it, as the
-deploy runs) found it: Luca found the lab's three plate signs exploring and
-then walked onto the plates for 30 s, the feed, the toy and the shock
-plate (the mouse "on_its_side"). The humanoid had no pads (its places'
-`_pads` were left empty with its press), so `keep_out` kept it off none.
-It keeps off every pad it knows now, as the quadruped does
-(`legs.places.plate_pads`, `HumanoidMission._planning_grid`): flown again,
-the day ran the same to the signs' finding at t = 1028 s, and no plate was
-pressed after. A plate whose sign it has not found it can still walk onto,
-as the quadruped could.
+deploy runs) found that a humanoid walks onto them: Luca found the lab's
+three plate signs exploring and then walked onto the plates for 30 s, the
+feed, the toy and the shock plate (the mouse "on_its_side"). Kept off every
+pad it knew, as the quadruped's planner is (`PlaceWalk.keep_out`), it
+pressed none after the signs' finding -- but one standing on a pad as it
+found the sign at the pad's far edge planned no walk off it (from the feed
+pad, none 2.5 m south nor 3 m east, the sign's facing known by its tag or
+only by where it was seen from). So its walks keep off no plate, and the
+humanoids' cage has its shock plate switched off (`Cage(shock=False)`; Ben,
+2026-10-31: no act, no count, no press, no flag on the wire): a walk across
+the feed or the toy plate feeds or amuses the mouse, a `press` row, and
+pays nothing.
 
 **Its belief drifts on a long explore.** After a 240 s explore of the
 whole house the humanoids' beliefs were 0.2 to 0.7 m off the truth (dev box,

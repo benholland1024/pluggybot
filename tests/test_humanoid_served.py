@@ -362,36 +362,36 @@ def test_a_resting_humanoid_says_yes_to_a_way_it_cuts_and_why_not_otherwise():
     life.body.close()
 
 
-def test_a_humanoid_keeps_off_every_plate_it_knows():
-  """Every pad it knows is a wall to its planner, as the quadruped's
-  (`PlaceWalk.keep_out`, #559's stage 4): kept off none, a humanoid
-  exploring the lab walked onto its plates and pressed the shock plate.
-  A plate whose sign it has not found is no wall yet."""
+def test_a_humanoid_on_a_plate_whose_sign_it_has_just_found_walks_off_it():
+  """A humanoid's walks keep off no plate (#559's stage 4; SimNotes, "On
+  the lab's plates"): its shock plate is switched off, and the feed and toy
+  plates only feed and amuse the mouse. Kept off every pad it knew, as the
+  quadruped's planner is (`PlaceWalk.keep_out`), one standing on a pad when
+  it found the sign at the pad's far edge planned no walk off it."""
   import math
   from pluggybot.activity import cage
   from pluggybot.home import world as home
-  from pluggybot.humanoid.mission import LOW_BURN
   life = _humanoid(near_field=False)
   m = life.body.mission
   try:
-    sx, sy = cage.sign_xy(home.LAB_CAGE_XY, "shock")
+    sx, sy = cage.sign_xy(home.LAB_CAGE_XY, "feed")
     south = -math.pi / 2
-    cx, cy = m.grid.world_to_cell(*cage.pad_from_sign(sx, sy, south))
-    assert m._planning_grid()[cy, cx] < LOW_BURN, "no sign found, no wall"
-    m.places.see(cage.PLATE_TAGS["shock"], sx, sy, float(life.data.time),
+    px, py = cage.pad_from_sign(sx, sy, south)
+    life.body.start_at(px, py, math.pi / 2)
+    _open_floor(m, px, py, half=3.0)
+    m.places.see(cage.PLATE_TAGS["feed"], sx, sy, float(life.data.time),
                  view=south, tag_facing=south)
-    assert m._planning_grid()[cy, cx] >= LOW_BURN, "the shock plate's pad walked on"
-    assert m._planning_grid(pads=False)[cy, cx] < LOW_BURN
+    assert m._plan_to(px, py - 2.5) is not None
   finally:
     life.body.close()
 
 
-def test_a_humanoid_charging_at_its_station_says_no_to_a_way_it_cuts():
-  """Held on its charger (`Body.docked`, the lifecycle's while it charges),
-  a resting humanoid says no, as the quadruped on its dock does (#559's
-  stage 4): asked aside in the pair's recording, it walked off with the
-  plug in its port and pulled it out. Said in its own words, and the hold
-  rides a restart."""
+def test_a_humanoid_plugged_in_at_its_station_says_no_to_a_way_it_cuts():
+  """Its plug in its port's catch, a resting humanoid says no, as the
+  quadruped on its dock does (#559's stage 4): asked aside in the pair's
+  recording, it walked off with the plug in its port and pulled it out.
+  Said in its own words, and read off the plug, never the lifecycle's
+  `Body.docked`, which a restart forgets with the plug still in."""
   from pluggybot.humanoid.way import REST_S
   from pluggybot.lifecycle import WAY_REFUSED
   life = _humanoid(near_field=False)
@@ -401,15 +401,15 @@ def test_a_humanoid_charging_at_its_station_says_no_to_a_way_it_cuts():
     _open_floor(m, x, y)
     way = [(x - 1.5, y), (x + 1.5, y)]
     life.data.time += REST_S
-    life.body.docked = True
-    assert m.docked and life.body.resting
+    (port,) = m.port_eqs
+    life.data.eq_active[port] = 1
+    assert life.body.charging() and life.body.resting and not life.body.docked
     assert not life.body.make_way(way, "r2_pluggybot")
     assert life.body.way_refused == "charging" and life.body.making_way is None
     assert "dock" not in WAY_REFUSED["charging"]
-    kept, _ = m.kept_state()
-    assert kept["docked"] is True
-    life.body.docked = False
-    assert life.body.make_way(way, "r2_pluggybot")
+    life.data.eq_active[port] = 0
+    life.body.docked = True
+    assert life.body.make_way(way, "r2_pluggybot"), "held, but nothing in its port"
   finally:
     life.body.close()
 

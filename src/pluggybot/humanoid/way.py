@@ -42,10 +42,18 @@ class HumanoidWay(MakeWay):
     super()._init_way()
     #: When it was last commanded to move, sim s: what `resting` reads.
     self.last_motion_t = 0.0
-    #: Held on its charger (`Body.docked`, the lifecycle's while it
-    #: charges): asked aside then, it walked off with the plug in its port
-    #: and pulled it out (#559's stage 4, its pair's recording).
-    self.docked = False
+    #: The station's catches its port is held by (`activity.station`).
+    root = self.model.body(self.handle.root).name
+    self.port_eqs = [e for e in range(self.model.neq)
+                     if self.model.equality(e).name.endswith(f"_port_{root}")]
+
+  def plugged_in(self) -> bool:
+    """A port catch holds its plug: its pack takes the charger's current,
+    which the BMS reads (`Body.charging`). ⚠ Asked aside then, it walked
+    off with the plug in its port and pulled it out (#559's stage 4, its
+    pair's recording) -- read off the plug, never the lifecycle's
+    `Body.docked`, which a restart forgets with the robot still plugged in."""
+    return any(self.data.eq_active[e] for e in self.port_eqs)
 
   def _hand_out(self) -> bool:
     return any(p != "rest" for p in self.reach.phase.values())
@@ -59,7 +67,7 @@ class HumanoidWay(MakeWay):
             and float(self.data.time) - self.last_motion_t >= REST_S)
 
   def _way_refusal(self) -> str:
-    return ("charging" if self.docked
+    return ("charging" if self.plugged_in()
             else "getting up" if self.legs == "getup"
             else "working" if self._hand_out()
             else "walking" if self.driving

@@ -8324,8 +8324,8 @@ def _humanoid_config() -> dict:
     # ...the task areas' tags its robots find and remember (#419; the
     # humanoid's `find`, #559's stage 3): the house's -- the lab's plate
     # signs, the whiteboards' and the areas' -- and the storeroom counter's
-    # row, over its four jobs (`home.storeroom`). No plate is pressed, and
-    # a plate whose sign it has found is kept off (`keep_out`).
+    # row, over its four jobs (`home.storeroom`). No verb presses a plate,
+    # and its walks keep off none: one crossing a plate presses it.
     "places": PLATE_TAG_IDS + tuple(t for ids in BOARD_TAG_IDS.values() for t in ids)
               + area_ids() + COUNTER_TAG_IDS,
     "plates": (), "draws": False, "cubes": (),

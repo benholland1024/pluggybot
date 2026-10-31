@@ -3310,7 +3310,7 @@ The `%(lab)s`, in the second house across the street, holds a cage with a mouse 
 
 %(disclosure)s
 
-No job uses the plates yet, and a press pays nothing. Your walks keep off a plate once you have seen the sign at its far edge.
+No job uses the plates yet, and a press pays nothing.
 """
 
 

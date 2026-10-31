@@ -188,23 +188,16 @@ def world_places(model) -> tuple[list[int], tuple]:
   return ids, fixtures
 
 
-def plate_pads(model) -> dict[int, int]:
-  """Each plate's pad geom, by its sign's tag, where the world has the
-  lab's signs: what a press is felt on, and what `keep_out` keeps a walk
-  off once the sign is found."""
-  signs = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_BODY, "lab_feed_sign") >= 0
-  return ({cage.PLATE_TAGS[n]: model.geom(f"lab_{n}_plate_pad").id
-           for n in cage.PLATE_NAMES} if signs else {})
-
-
 class PlaceWalk:
   """The places' routines (the module docstring), on `QuadMission`."""
 
   def _rebind_places(self, model) -> None:
     """The plates' pads and the feet, by name: what a press is felt on."""
     from pluggybot.legs.model import LEGS
+    signs = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_BODY, "lab_feed_sign") >= 0
     #: Each plate's pad, by its sign's tag: what a press is felt on.
-    self._pads = plate_pads(model)
+    self._pads = ({cage.PLATE_TAGS[n]: model.geom(f"lab_{n}_plate_pad").id
+                   for n in cage.PLATE_NAMES} if signs else {})
     self._foot_gids = [model.geom(self.handle.el(f"{leg}_foot")).id for leg in LEGS]
 
   def _init_places(self, model) -> None:

@@ -483,12 +483,13 @@ save a filmstrip PNG named after the script.
   the walker takes its legs, and ended by a routine that takes them; its
   front stop backs it off within the step, never ends it (ended, 3 doors of
   6 never began). Without it two humanoids jammed a door for 500 s of a
-  minded day. ⚠ NEVER WHILE IT CHARGES (`Body.docked`, its refusal
-  "charging", stage 4): asked aside, it walked off with the plug in its port
-  and pulled it out. ⚠ IT KEEPS OFF EVERY PAD IT KNOWS, though it presses
-  none (`legs.places.plate_pads`, `HumanoidMission._planning_grid`, stage
-  4): with no pads, one found the lab's signs and walked onto the shock
-  plate. ⚠ THE DEATH SEAM READS A TOPPLE OFF THE POSTURE THE LEGS
+  minded day. ⚠ NEVER WHILE ITS PLUG IS IN (`plugged_in`, the port's
+  catch, its refusal "charging", stage 4): asked aside, it walked off with
+  the plug in its port and pulled it out -- read off the plug, never
+  `Body.docked`, which a restart forgets with the plug still in. ⚠ ITS
+  WALKS KEEP OFF NO PLATE (stage 4; its shock plate is off): kept off the
+  pads it knew, one standing on a pad as it found the sign planned no walk
+  off it. ⚠ THE DEATH SEAM READS A TOPPLE OFF THE POSTURE THE LEGS
   HOLD (`Body.held_pitch`, stage 3): a reach's deepest bow is 63 deg of
   pelvis tilt, past `TOPPLE_TILT_RAD`'s 60.
 - **The humanoid charges by a cable it plugs into itself** (#559 stage 2;
