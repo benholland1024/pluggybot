@@ -96,9 +96,11 @@ WEIGH = '''def weigh():
 #: row's, left a robot 28 deg turned to the counter, and its arm's way home
 #: dragged a jaw along it and toppled it); then two steps putting the
 #: handle where the check's set-outs' middle had it (`storeroom.
-#: HANDLE_FROM_SPOT`), the first 12 cm short of it -- a step after a turn
-#: falls a tenth short (`step` from rest walks to within 3 cm; after `face`,
-#: 0.39 m of 0.43) -- the rest off a fresh look, a stride or more. Then THE
+#: HANDLE_FROM_SPOT`), the first 30 cm short of it, the rest -- 30 cm -- off
+#: a fresh look: a step after a turn falls a tenth short (0.39 m of 0.43),
+#: and a short one goes a stride, overshooting 0.10-0.20 m by up to 3.6 cm,
+#: where 0.3 m lands within a centimetre (`step` from rest; a door's lever
+#: stepped 3 cm too near was gripped on nothing five times). Then THE
 #: JOB, the capability check's own procedure, unchanged (`evaluation.
 #: hands_check.JOBS`).
 APPROACH = '''def to_%(prop)s():
@@ -116,7 +118,7 @@ APPROACH = '''def to_%(prop)s():
     a = a + 1.571
   step(0, 0, a)
   spot(%(handle)d)
-  step(read("spot.x") - %(ahead)g - 0.12, read("spot.y") - %(left)g)
+  step(read("spot.x") - %(ahead)g - 0.3, read("spot.y") - %(left)g)
   spot(%(handle)d)
   step(read("spot.x") - %(ahead)g, read("spot.y") - %(left)g)
 '''
