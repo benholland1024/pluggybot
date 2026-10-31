@@ -6612,8 +6612,8 @@ one row. In the humanoids' world alone: the quadrupeds' geometry, and so
 their trajectories and their prompt, are unchanged.
 
 **Finding the counter.** The humanoid finds a place by the quadruped's own
-search (`legs.places.PlaceWalk`, unmodified: where it should be, the
-address, viewpoints round it) with a look of its own (`humanoid/places.py`):
+search, unchanged (`legs.places.PlaceWalk`: where it should be, the
+address, viewpoints round it), with a look of its own (`humanoid/places.py`):
 its head's NAVIGATION camera, pitched 20 deg for the walls' tags, each tag
 in a decode placed through its odometry's model of itself -- posed every
 10 ms off its encoders and IMU, so a look draws no noise a flight reads --

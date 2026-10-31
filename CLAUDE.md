@@ -548,11 +548,15 @@ save a filmstrip PNG named after the script.
   target and its own row (paid, `shown: false`: kept out of the quadruped's
   every-row table, shown where a world names it), graded by its check's
   evaluator. ⚠ WATCHED FROM THE CLAIM to the hold after `done`: a fall on
-  the way fails it; its `minutes` count from the claim. ⚠ EACH OFFER DRAWS
-  ITS PROP'S HIDDEN DYNAMICS (`TaskKind.draws`, the board's seq) into the
-  compiled world, the prop set out unless a robot touches it, put back
-  after a restart (`restore_counter`). ⚠ The humanoid's `find` is the
-  quadruped's search (`PlaceWalk`, unmodified) with its own look: the head's
+  the way fails it; its `minutes` count from the claim; its readings ride a
+  restart (`jobWatches`). ⚠ EACH OFFER DRAWS ITS PROP'S HIDDEN DYNAMICS
+  (`TaskKind.draws`, the board's seq) into the compiled world and sets the
+  prop out, its activity renewed in place (`renew`), put back after a
+  restart (`restore_counter`, in `begin`, before the activities' kept
+  state); ⚠ NO OFFER LANDS ON A PROP A ROBOT IS TOUCHING (the producer's
+  `busy`): set out from under a hand, a drawer left out was paid for
+  nothing. ⚠ The humanoid's `find` is the quadruped's search (`PlaceWalk`,
+  its world's places `world_places`) with its own look: the head's
   NAVIGATION camera, placed through its odometry's model of itself; a find
   stops at its tag's first sight, so its facing may be only where it was
   seen from: the references find the row's neighbour first (one tag seen

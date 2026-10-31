@@ -463,9 +463,9 @@ departures, both about where an attempt starts:
   from the claim, through the walk there, to the end of the hold after
   `done` (`HubLifecycle._watch_job`, `_grade_hands_routine`): a fall
   anywhere in it fails the job (#544's rule), and so does a lid let fall or
-  a cube dropped before the call. ⚠ A restart forgets what the watch saw
-  before it: the watch is the process's, begun again where the job is taken
-  up; the time still counts from the claim.
+  a cube dropped before the call. Its readings ride a restart with the
+  world they were read off (`kept_state`'s `jobWatches`): a lid opened
+  before one is still a lid that was opened.
 - *in the job's MINUTES.* The time limit is the offer's own term
   (`minutes`, cadence.json), counted from the claim: 16, three times the
   slowest pass of the references over a tour of the house (313 s, from the
@@ -477,9 +477,12 @@ four tags and the handle's own -- never a position. **Each offer draws its
 prop's hidden dynamics afresh** (`TaskKind.draws`: the board's own
 sequence number, `Task.secret["draw"]`), set into the compiled world as the
 offer lands with the prop set back out (`HubLifecycle._set_out_counter`,
-`storeroom.redraw`, `storeroom.set_out`), and put back after a restart
-(`restore_counter`): a skill over a kind of drawer, never one drawer. A
-prop a robot is touching keeps its place.
+`storeroom.redraw`, `storeroom.set_out`), its activity begun again over
+the draw's truth (`renew`), and put back after a restart
+(`restore_counter`): a skill over a kind of drawer, never one drawer. ⚠ No
+offer lands on a prop a robot is touching (`_worked_props`, the
+producer's `busy`): set out from under a hand, a door was clamped shut
+round it, and a drawer left out was a job paid for nothing.
 
 **Rows of their own.** Each job is paid on a row of its own in
 challenges.json (`open_drawer` and the rest), graded by its check's
