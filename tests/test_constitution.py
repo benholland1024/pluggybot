@@ -30,21 +30,21 @@ def test_the_library_holds_the_default_and_an_alternative_emphasis():
   texts = {n: c.load(n).text for n in names}
   assert len(set(texts.values())) == len(names), "two files with one text"
   # The default is what an unnamed robot reads (`DEFAULT_MAIN`); that it is
-  # the text the served quadruped reads, byte for byte, is the fixture
+  # the text the served humanoids read, byte for byte, is the fixture
   # recording's to say (`tests/test_telemetry.py`).
   assert text.DEFAULT_MAIN.strip() == texts[c.DEFAULT_NAME]
 
 
 def test_every_file_opens_with_the_one_body():
   """The body is the WORLD's and the disposition the FILE's (#263, #387):
-  every file opens with the same paragraph, the quadruped's -- written into
-  the files since #427, where it used to be swapped in at load, so what the
-  header hashes is the text the robot reads."""
+  every file opens with the same paragraph, the served body's -- the
+  humanoid's since #559's stage 4, the quadruped's swapped in at load until
+  it goes -- so what the header hashes is the text the robot reads."""
   openings = {c.load(n).text.split("\n\n")[0] for n in c.names()}
   assert len(openings) == 1, openings
   (opening,) = openings
-  assert opening.startswith("You are a four-legged robot"), opening
-  assert "two-wheeled" not in opening and "dock" in opening
+  assert opening.startswith("You are a humanoid robot"), opening
+  assert "four-legged" not in opening and "charging station" in opening
 
 
 #: A worked answer the constitution may not hand over: a threshold (any
@@ -81,7 +81,7 @@ def test_every_library_file_carries_the_same_essentials_and_no_name(name):
   `Goals.md` -- differing in emphasis; and no robot's name (issue #39: a
   name in a file would freeze there while `$PLUGGY_ROBOT_NAME` moved)."""
   body = c.load(name).text
-  assert "four-legged robot" in body and "your dock" in body, "the body"
+  assert "humanoid robot" in body and "your charging station" in body, "the body"
   assert "first person" in body and "honest" in body, "the manner"
   assert "WHAT THE PERSON WHO LOOKS AFTER YOU HOPES FOR YOU" in body
   assert "`Goals.md`" in body

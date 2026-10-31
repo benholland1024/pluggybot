@@ -76,6 +76,7 @@ looks right is neither.
 import argparse
 import json
 import math
+import os
 import statistics
 import time
 from dataclasses import replace
@@ -83,15 +84,14 @@ from pathlib import Path
 
 
 from pluggybot.economy import energy
-from pluggybot.economy.tasks import TaskBoard
-from pluggybot.legs.model import PACK_WH
-from pluggybot.legs.world import RESERVE_WH
-from pluggybot.lifecycle import QUAD_HOME, board_book, points_ledger, world_config, world_for
+from pluggybot.economy.tasks import KINDS, TaskBoard
+from pluggybot.lifecycle import (HUMANOID_HOME, QUAD_HOME, board_book, points_ledger,
+                                 world_config, world_for, world_targets)
 from pluggybot.mind import llm, look
 from pluggybot.mind import overseer as ov
 from pluggybot.mind.inbox import JPEG_MAGIC, MAX_IMAGE_BYTES
 from pluggybot.mind.thoughts import ThoughtFiles
-from pluggybot.robot import SECOND
+from pluggybot.robot import BODIES, SECOND
 from pluggybot.telemetry.protocol import ROBOT_ROOT
 from pluggybot.mind.overseer import CALL_TIMEOUT_S, MAX_LOOK_RUN, MODEL, Menu, Overseer
 
@@ -157,51 +157,68 @@ def timeout_share(latencies: list[float], deadline: float) -> float:
   return sum(1 for v in latencies if v > deadline) / len(latencies)
 
 
-#: The synthetic robot's pack, Wh: the served quadruped's, run DOWN below
-#: what the offer costs plus the reserve (the feed's `estimateWh`, 1.77,
-#: with `RESERVE_WH` kept back) and falling a little every call, so the
-#: standing orders are read against a battery that moves.
-SYNTHETIC_WH = 5.2
+#: The synthetic robot, per world: its paid job (the feed on the
+#: quadrupeds', the drawer on the humanoids', #559), what its record says of
+#: a pass and what it keeps in mind -- and its pack, Wh, run DOWN below what
+#: the offer costs plus the reserve (the feed's `estimateWh`, 1.77, and the
+#: drawer's from the station, 7.08, each with the world's reserve kept back)
+#: and falling a little every call, so the standing orders are read against
+#: a battery that moves.
+SYNTHETIC = {
+  QUAD_HOME: {"kind": "feed_mouse", "wh": 5.2,
+              "reason": "the feed plate pressed; the mouse is eating",
+              "did": "found the feed plate by its sign and pressed it",
+              "mind": "the lab is a long walk from the dock"},
+  HUMANOID_HOME: {"kind": "open_drawer", "wh": 24.3,
+                  "reason": "the drawer out 0.22 m when I said done and 5 s later",
+                  "did": "found the storeroom's counter by its tags and pulled "
+                         "the drawer out",
+                  "mind": "the storeroom is a long walk from the station"},
+}
 
 
-def synthetic_offer() -> dict:
-  """The feed job as the served robot is SHOWN it: offered by a real board
-  on the served world's energy table, so its price (`estimateWh`), pay and
-  prediction are the context's own. On `home_quad` the prefix carries no
-  energy table, and the offer is the one place the model reads the price."""
-  board = TaskBoard(energy=energy.load(QUAD_HOME))
-  board.offer("feed_mouse", world_config(QUAD_HOME)["lab"]["name"], t=0.0)
+def synthetic_offer(world: str) -> dict:
+  """The world's job as the served robot is SHOWN it: offered by a real
+  board on the world's energy table, so its price (`estimateWh`), pay and
+  prediction are the context's own. The served prefix carries no energy
+  table, and the offer is the one place the model reads the price."""
+  kind = SYNTHETIC[world]["kind"]
+  target = world_targets(world, board_book(world), procedures=True)[KINDS[kind].target_kind][0]
+  board = TaskBoard(energy=energy.load(world))
+  board.offer(kind, target, t=0.0)
   return board.context(0.0)[0]
 
 
-def synthetic_state(menu: Menu, i: int) -> dict:
+def synthetic_state(menu: Menu, i: int, world: str) -> dict:
   """A plausible robot, drifting between calls.
 
   Deliberately NOT identical per call: an unchanging user turn would make the
   cache reading meaningless (the whole request would hit, prefix or no), and
   the real volatile block changes every time.
   """
-  wh = max(0.5, SYNTHETIC_WH - 0.3 * i)
+  job, cfg = SYNTHETIC[world], world_config(world)
+  offer = synthetic_offer(world)
+  kind, pays = job["kind"], offer["pays"]
+  wh = max(0.5, job["wh"] - 0.3 * i)
   return {
     "simTimeS": round(120.0 + 97.3 * i, 1),
-    "battery": {"fraction": round(wh / PACK_WH, 4), "wh": round(wh, 2),
-                "reserveWh": RESERVE_WH, "charging": False},
+    "battery": {"fraction": round(wh / cfg["hosting_battery_wh"], 4), "wh": round(wh, 2),
+                "reserveWh": cfg["low_battery_wh"], "charging": False},
     "floorExplored": i > 0,
     "points": 12 * i,
-    "recentTasks": [{"task": "feed_mouse", "ok": True, "points": 25,
-                     "reason": "the feed plate pressed; the mouse is eating"}][:i],
-    "tasksThisMission": ["feed_mouse"][:min(i, 1)],
+    "recentTasks": [{"task": kind, "ok": True, "points": pays,
+                     "reason": job["reason"]}][:i],
+    "tasksThisMission": [kind][:min(i, 1)],
     "boards": {b: {"fill": 0.11 * i, "strokes": 6 * i, "programs": []}
                for b in menu.boards},
     # The documents that ride the VOLATILE half (issues #38, #221). Here
     # rather than in the prefix on purpose, and carried by the probe because
     # they are real input tokens on every call -- a measurement that left
     # them out would under-report what a decision costs.
-    "thoughts": {"History.md": [f"#{i} [t={120 * i}s] feed_mouse: found the "
-                                "feed plate by its sign and pressed it (+25 points)"][:i],
-                 "Top_of_mind.md":
-                   "the lab is a long walk from the dock" if i else "",
-                 "Notes.md": {"tasks/feed_mouse": ["what it pays"]} if i else {}},
+    "thoughts": {"History.md": [f"#{i} [t={120 * i}s] {kind}: {job['did']} "
+                                f"(+{pays} points)"][:i],
+                 "Top_of_mind.md": job["mind"] if i else "",
+                 "Notes.md": {f"tasks/{kind}": ["what it pays"]} if i else {}},
     "lastThoughts": ["the pack is fine; a job is on offer"] if i else [],
     "visitorSuggestions": [],
     # A claimable offer, so the probe exercises `take_task` -- the action the
@@ -215,18 +232,18 @@ def synthetic_state(menu: Menu, i: int) -> dict:
     # figure in front of it.
     # `report_energy` counts it, because a candidate that answers validly
     # and takes the job every time is the mind we have.
-    "offeredTasks": [synthetic_offer()],
+    "offeredTasks": [offer],
     "decisions": i,
   }
 
 
-def with_picture(state: dict, jpeg: bytes, i: int) -> dict:
+def with_picture(state: dict, jpeg: bytes, i: int, world: str) -> dict:
   """The state with the picture the robot took last turn riding it (issue
   #541): the `seen` block the lifecycle builds when a look comes back
   (`look.as_context`, one look of the run spent), so the call attaches it
   as an image part of the user turn exactly as a served call does. Taken
-  from the dock, where the robots lie between jobs."""
-  x, y, yaw = world_config(QUAD_HOME)["dock"]
+  from where the robots charge between jobs: the dock, or the station."""
+  x, y, yaw = world_config(world)["dock"]
   row = {"ref": f"look:{ROBOT_ROOT}:{i + 1}", "outcome": "seen", "_jpeg": jpeg,
          "at": {"x": round(x, 2), "y": round(y, 2),
                 "headingDeg": round(math.degrees(yaw), 1)}}
@@ -326,8 +343,15 @@ def report_latency(latencies: list[float], boss: Overseer,
 
 def main() -> None:
   parser = argparse.ArgumentParser(description=__doc__)
-  parser.add_argument("--world", choices=(QUAD_HOME, "home"), default=QUAD_HOME,
-                      help="the house with the quadruped in it; `home` names it too")
+  parser.add_argument("--world", choices=(QUAD_HOME, HUMANOID_HOME, "home"), default="home",
+                      help="the house with the quadrupeds in it, or the humanoids "
+                           "(#559, served from its stage 4); `home` names the "
+                           "one --body names")
+  parser.add_argument("--body", choices=BODIES, default=os.environ.get("PLUGGY_BODY") or None,
+                      help="which body: the quadruped or the humanoid, as "
+                           "`serve.py --body` -- default $PLUGGY_BODY, then the "
+                           "body --world names (home: the quadruped). The "
+                           "served pair is `--body humanoid`")
   parser.add_argument("--calls", type=int, default=4,
                       help="real decisions to make (each one costs money)")
   parser.add_argument("--model", default=None,
@@ -419,14 +443,17 @@ def main() -> None:
     if not picture.startswith(JPEG_MAGIC) or len(picture) > MAX_IMAGE_BYTES:
       parser.error(f"--image takes a JPEG of at most {MAX_IMAGE_BYTES} bytes, "
                    "as the sim's door does")
-  args.world = world_for(args.world)
+  try:
+    args.world = world_for(args.world, args.body)
+  except ValueError as e:
+    parser.error(str(e))
 
   book = board_book(args.world)
   menu = Menu.for_world(args.world, book)
   # The REAL memory, so the prefix measured here is the prefix a deployment
-  # sends: `Main.md` is in it (issue #38), and the writable documents are
-  # deliberately not -- they ride the user turn below.
-  memory = ThoughtFiles.open(args.thoughts)
+  # sends: `Main.md` is in it (issue #38), in the body's words, and the
+  # writable documents are deliberately not -- they ride the user turn below.
+  memory = ThoughtFiles.open(args.thoughts, body=world_config(args.world)["body"])
   backend = llm.resolve_backend(args.backend, args.model or "")
   model = args.model or (llm.LOCAL_MODEL if backend == "local" else MODEL)
   if args.deployed:
@@ -560,9 +587,9 @@ def main() -> None:
   for i in range(args.calls):
     before = dict(boss.usage.as_dict())
     t0 = time.monotonic()
-    state = synthetic_state(menu, i)
+    state = synthetic_state(menu, i, args.world)
     if picture is not None:
-      state = with_picture(state, picture, i)
+      state = with_picture(state, picture, i, args.world)
     decision = boss.decide(state)
     if args.force_escalate and not decision.escalated:
       # Straight past the gates, on purpose and only here: the interval is

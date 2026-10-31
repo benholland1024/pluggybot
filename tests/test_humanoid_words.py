@@ -4,10 +4,12 @@ standing at its station by a cable it plugs into itself, it has no rack,
 no tool and no question jobs -- its reward table its world's rows alone,
 and its procedures in its hands' vocabulary as its practice states it.
 
-⚠ THE QUADRUPED'S TEXT IS THE TEXT: the files and the rules are what the
-served pair reads, byte for byte, and a humanoid's are them swapped at load
-(`constitution.for_body`, `overseer.for_body`) until the quadruped goes.
-Every rule here is pinned on the prompt as it is built, nothing flown.
+⚠ THE CONSTITUTIONS ARE THE HUMANOID'S, AND THE RULES THE QUADRUPED'S:
+the library files are what the served humanoids read, byte for byte, and a
+quadruped's are them swapped at load (`constitution.for_body`, #559's stage
+4); the rules are the quadruped's text, and a humanoid's are them swapped
+(`overseer.for_body`) -- each until the quadruped goes. Every rule here is
+pinned on the prompt as it is built, nothing flown.
 """
 
 import itertools
@@ -64,31 +66,57 @@ def _configurations():
   yield {"event_map": True, "mortal": True, "others": ("Rowan",), "acts": True}
 
 
-def test_the_humanoid_reads_its_own_body_and_the_rest_of_its_constitution_unchanged():
+def test_the_humanoid_reads_the_files_and_the_quadruped_its_own_body_in_them():
   """Every library file opens with the humanoid's paragraph and keeps its
-  disposition; it hands over no answer, as the quadruped's never does
-  (`test_constitution`'s regexes), and names no dock, rack or tool."""
+  disposition; it hands over no answer (`test_constitution`'s regexes) and
+  names no dock, rack or tool -- and a quadruped, until it goes, reads the
+  same file with its own body swapped in, the rest sentence for sentence."""
   from test_constitution import _ACT, _TACTIC
   for name in c.names():
-    quad, hum = c.load(name), c.for_body(c.load(name), "humanoid")
-    assert c.for_body(quad, "quadruped") is quad, "the quadruped's is the file's"
-    assert hum.name == name and hum.sha == c.sha_of(hum.text) != quad.sha
+    hum, quad = c.load(name), c.for_body(c.load(name), "quadruped")
+    assert c.for_body(hum, "humanoid") is hum, "the humanoid's is the file's"
+    assert quad.name == name and quad.sha == c.sha_of(quad.text) != hum.sha
     assert hum.text.startswith("You are a humanoid robot")
+    assert quad.text.startswith("You are a four-legged robot")
     assert not QUADRUPED_WORDS.search(hum.text), QUADRUPED_WORDS.search(hum.text)
-    assert not re.search(r"\d", hum.text) and "->" not in hum.text and "%" not in hum.text
-    assert not _TACTIC.search(hum.text) and not _ACT.search(hum.text)
+    for text in (hum.text, quad.text):
+      assert not re.search(r"\d", text) and "->" not in text and "%" not in text
+      assert not _TACTIC.search(text) and not _ACT.search(text)
     # ...the rest of it, sentence for sentence
-    tail = quad.text.split("\n\n", 1)[1]
-    for old, new in c.BODY_SWAPS["humanoid"][1:]:
+    tail = hum.text.split("\n\n", 1)[1]
+    for old, new in c.BODY_SWAPS["quadruped"][1:]:
       tail = tail.replace(old, new)
-    assert hum.text.split("\n\n", 1)[1] == tail
-  assert c.resolve("curious", body="humanoid") == c.for_body(c.load("curious"), "humanoid")
+    assert quad.text.split("\n\n", 1)[1] == tail
+  assert c.resolve("curious", body="humanoid") == c.load("curious")
+  assert c.resolve("curious", body="quadruped") == c.for_body(c.load("curious"), "quadruped")
 
 
 def test_a_file_whose_sentence_moved_is_refused_rather_than_read_half_swapped():
-  moved = c.Constitution.of("default", c.load("default").text.replace("small dog", "dog"))
+  moved = c.Constitution.of("default", c.load("default").text.replace("as tall as a child", "tall"))
   with pytest.raises(ValueError, match="no longer says"):
-    c.for_body(moved, "humanoid")
+    c.for_body(moved, "quadruped")
+
+
+def test_the_probe_measures_each_bodys_served_prompt_in_its_own_words(monkeypatch, capsys):
+  """`overseer_probe.py --deployed --prompt --body humanoid` (#559's stage
+  4): the prefix the served pair sends, in the humanoid's words -- and the
+  quadruped's in its own. The probe opened its thought files in no body's
+  words, which a body's constitution is not read in."""
+  import importlib.util
+  import sys
+  from pathlib import Path
+  path = Path(__file__).resolve().parents[1] / "scripts" / "overseer_probe.py"
+  spec = importlib.util.spec_from_file_location("overseer_probe", path)
+  probe = importlib.util.module_from_spec(spec)
+  spec.loader.exec_module(probe)
+  monkeypatch.delenv("PLUGGY_BODY", raising=False)
+  for body, own, other in (("humanoid", "You are a humanoid robot", "four-legged"),
+                           ("quadruped", "You are a four-legged robot", "humanoid robot")):
+    monkeypatch.setattr(sys, "argv", ["overseer_probe.py", "--deployed", "--prompt",
+                                      "--backend", "local", "--body", body])
+    probe.main()
+    out = capsys.readouterr().out
+    assert own in out and other not in out, body
 
 
 @pytest.mark.parametrize("flags", list(_configurations()), ids=lambda f: ",".join(f) or "bare")

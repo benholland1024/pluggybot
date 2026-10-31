@@ -5628,13 +5628,13 @@ def build(world: str, book=None, enabled: bool | None = None,
     enabled = enabled_by_env()
   if not enabled:
     return None
+  from pluggybot.lifecycle import world_config, world_facts
   if thoughts is None:
-    thoughts = ThoughtFiles.open()
+    thoughts = ThoughtFiles.open(body=world_config(world)["body"])
   model = model or os.environ.get(MODEL_ENV, "").strip()
   backend = llm.resolve_backend(
     backend or os.environ.get(BACKEND_ENV, "").strip() or "auto", model)
   model = model or (llm.LOCAL_MODEL if backend == "local" else MODEL)
-  from pluggybot.lifecycle import world_config, world_facts
   from pluggybot.procedure.library import Library
   menu = Menu.for_world(world, book)
   # ⚠ EVERY POWER IS A MIND'S, NARROWED BY WHAT THE WORLD HAS (issue #427:
